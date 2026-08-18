@@ -1,5 +1,5 @@
 {
-  "install": "bash .cursor/install.sh",
+  "install": "bash .cursor/install.sh && git rev-parse HEAD",
   "start": "bash .cursor/start.sh",
   "terminals": [
     {
