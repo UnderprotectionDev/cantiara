@@ -14,14 +14,14 @@ archive = ":"
 run_mode = "nonconcurrent"
 
 [scripts.run.dev]
-command = "bun run dev"
+command = "./scripts/check-dev-ports.sh && bun run dev"
 default = true
 icon = "play"
 
 [scripts.run.web]
-command = "bun run dev:web"
+command = "./scripts/check-dev-ports.sh 3001 && bun run dev:web"
 icon = "globe"
 
 [scripts.run.server]
-command = "bun run dev:server"
+command = "./scripts/check-dev-ports.sh 3000 && bun run dev:server"
 icon = "server"
