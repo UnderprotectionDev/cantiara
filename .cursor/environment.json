@@ -1,0 +1,24 @@
+{
+  "install": "curl -fsSL https://bun.sh/install | bash -s \"bun-v1.3.13\"\nDATABASE_URL=postgresql://user:password@localhost:5432/database $HOME/.bun/bin/bun install --frozen-lockfile",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "$HOME/.bun/bin/bun run dev",
+      "description": "Starts the API, web app, and documentation development servers."
+    }
+  ],
+  "ports": [
+    {
+      "name": "api",
+      "port": 3000
+    },
+    {
+      "name": "web",
+      "port": 3001
+    },
+    {
+      "name": "docs",
+      "port": 4000
+    }
+  ]
+}
