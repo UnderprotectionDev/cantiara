@@ -1,0 +1,24 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[scripts]
+setup = """
+bun install
+if [ -f "$CONDUCTOR_ROOT_PATH/apps/server/.env" ] && [ ! -f apps/server/.env ]; then
+  cp "$CONDUCTOR_ROOT_PATH/apps/server/.env" apps/server/.env
+fi
+"""
+archive = ":"
+run_mode = "nonconcurrent"
+
+[scripts.run.dev]
+command = "bun run dev"
+default = true
+icon = "play"
+
+[scripts.run.web]
+command = "bun run dev:web"
+icon = "globe"
+
+[scripts.run.server]
+command = "bun run dev:server"
+icon = "server"

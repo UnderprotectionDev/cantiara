@@ -1,0 +1,3 @@
+# Ticari genişleme kabulünü açık adayla etkinleştir
+
+Ticari Genişleme ilk ürünün teslim ve kabul kapsamına girmez, ilk ürün tamamlandığında da kendiliğinden zorunlu olmaz. Kurucu açıkça bir Ticari genişleme adayı başlattığında alan belgesindeki kapalı kayıt sahipliği/yaşam döngüsü uzantısı, normatif para ve yuvarlama golden örnekleri, bütün diğer davranışlar ile merkezi Ürün Kabulü belgesindeki ticari kabul koşulları birlikte etkinleşir. Bunlardan biri eksikse aday başlayamaz; böylece kararlaştırılmış sonraki ürün yönü korunurken kişisel kullanım için geliştirilen ilk ürün Proposal, Invoice veya ticari hesaplama nedeniyle bloklanmaz.

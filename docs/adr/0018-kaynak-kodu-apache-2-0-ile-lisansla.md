@@ -1,0 +1,3 @@
+# Kaynak kodunu Apache-2.0 ile lisansla
+
+Public bir GitHub repository'si kaynak kodunu görünür kılsa da tek başına kullanma, değiştirme ve dağıtma izni vermez. Ürünün kaynak kodu Apache License 2.0 ile lisanslanır. Böylece ticari ve ticari olmayan kullanım, değiştirme ve dağıtma açıkça izinli olur; katkıda bulunanların kapsanan patent istemleri için açık patent hibesi ve lisans bildirimlerini koruma yükümlülüğü bulunur. Yönetilen SaaS sunmak bu lisansı veya açık kaynak sürümün yeteneklerini daraltmaz. Üçüncü taraf bağımlılıklar kendi uyumlu lisansları altında kalır; paketlenen fontların OFL-1.1 gibi fonta özgü açık lisans ve bildirimleri ayrıca korunur.

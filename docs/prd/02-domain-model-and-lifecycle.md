@@ -1,0 +1,216 @@
+# Domain Modeli ve Yaşam Döngüsü
+
+Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam döngüsü, ilişki, geçmiş, silme ve terminoloji kurallarının ana kaynağıdır. Bir alan PRD'si açık ve gerekçeli bir istisna tanımlamadıkça bu sözleşme geçerlidir.
+
+<a id="terim-sözlüğü"></a>
+## Terim sözlüğü
+
+| Türkçe PRD terimi | İngilizce UI etiketi | Normatif kullanım |
+| --- | --- | --- |
+| Çalışma alanı | `Workspace` | Projeleri, Kişisel Wiki'yi ve ortak yapılandırmayı kapsayan sınır |
+| İş | `Work` | Genel kayıt; Özellik, Bug, Görev, Araştırma ve İyileştirme bunun türleridir |
+| Özellik | `Feature` | İş türü |
+| Kullanıcı Akışı | `User Flow` | Kullanıcının arayüz hedefi ve karar yolunu taşıyan tasarım türü |
+| Herkese açık | `Public` | Dışarıdan anonim erişilebilen kullanıcı görünürlüğü; `Build in Public` ürün adı, teknik alan ve wire değerleri özgün adını korur |
+| Özel | `Private` | Dış erişime kapalı kullanıcı görünürlüğü |
+| Dış yüzey | `External Surface` | Ziyaretçi URL'si, erişim anahtarı, parola, süre ve etkinlik durumunu taşıyan paylaşım/yayın ana kaydı |
+| Onaylı snapshot revizyonu | `Approved Snapshot Revision` | Dış yüzeyin belirli onay anında göstermesine izin verilen değişmez kesin içerik manifesti; Dış yüzeyden bağımsız yaşayamaz |
+| Üstveri | `Metadata` | Teknik şema alanları dışında kullanıcıya gösterilen üstveri kavramı |
+| AI ajanı | `AI Agent` | `AI agent` ve `agent` varyantlarının ortak kavramı |
+| Repository | `Repository` | GitHub'ın dış sistem kavramıdır; genel “depo” eşanlamlı kayıt türü oluşturmaz |
+| Teknik Diyagram | `Technical Diagram` | Veri modeli, teknik mimari veya sistemler arası sıralı etkileşimi bağımsız kimlik ve türlenmiş yapısal modelle taşıyan Proje ana kaydı |
+| Diyagram otorite kipi | `Diagram Authority Mode` | Kanonik içeriğin `Product-authored Model`, `Repository-derived View`, `Imported Independent Copy` veya `External Source Link` seçeneklerinden hangisine ait olduğunu kayıt kimliği boyunca değişmez biçimde belirleyen tek sınıflandırma; başka otorite yeni kimlikli açık dönüşüm ister |
+| Diyagram Sürümü | `Diagram Version` | Teknik Diyagramın kullanıcı tarafından adlandırılıp değişmez hâle getirilen kesin yapısal model ve görünüm checkpoint'i |
+| Migration Artefaktı | `Migration Artifact` | İki kesin Veri Modeli Diyagramı Sürümü arasındaki onaylanmış schema-only değişikliği ve desteklenen PostgreSQL SQL'ini kaynak manifestiyle koruyan değişmez sahipli bileşen |
+| Kilometre Taşı | `Milestone` | Projedeki önemli ara sonucu temsil eden Proje ana kaydı; çalışma penceresi veya yayımlanacak kapsam değildir |
+| Odak Dönemi | `Focus Period` | Seçili çalışmalar için geçici çalışma penceresi ve tarihsel kapsam snapshot'ı; ara sonuç veya yayımlanacak kapsam değildir |
+| Proje Sürümü | `Project Release` | Kullanıcı tarafından yönetilen yayımlanacak kapsam ve onun tarihli erişim/sonuç gözlemleri; Kilometre Taşı, Odak Dönemi veya Ürün sürüm adayı değildir |
+| Kullanıcı başlatmalı İş başarısı | `User-initiated Work Success` | Kullanıcının açık kapatma eylemiyle başlattığı ve sunucuda PRD terimi `Tamamlandı` (`UI: Completed`) kapanış sonucu olarak kesinleşen İş geçişi; otomatik kapanış ve başka terminal olaylar değildir |
+| Bitiriş efekti | `Completion Effect` | Kullanıcı başlatmalı İş başarısından sonra gösterilebilen, temel başarı geri bildiriminden ayrı, isteğe bağlı ve ürünün sağladığı özgün dekoratif geri bildirim |
+
+- **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
+
+<a id="kapsam-ve-sahiplik"></a>
+## Kapsam ve sahiplik
+
+- **Her ana kayıt tam olarak bir sahiplik kapsamı taşır.** Kapsamların kapalı listesi `Hesap`, `Çalışma alanı`, `Proje` ve `Kişisel Wiki`dir:
+
+- **`Hesap`:** Değişmeyen kimlik, profil tercihleri, oturumlar ve hesap güvenliği kayıtları.
+- **`Çalışma alanı`:** Proje, Kişisel Wiki kabuğu, çalışma alanı genelindeki Etiket, Contact, Company, Ürün Boşluğu ve kişisel görünüm/yapılandırma kayıtları.
+- **`Proje`:** İş, Proje Hedefi, Belge, Karar, Risk, Varsayım, Açık Soru, araştırma, tasarım, Teknik Diyagram, test, Kilometre Taşı, Proje Sürümü ve Üretim Olayı gibi proje kayıtları.
+- **`Kişisel Wiki`:** Wiki Belgesi ve onun altında sahiplenilen Dosya Eki.
+
+- **Hesap profili çalışma alanı içeriği değildir.** Değişmeyen GitHub hesap kimliği, GitHub kullanıcı adı ve görünen profil bilgisi; locale, saat dilimi, tarih biçimi, haftanın ilk günü, açık/koyu görünüm tercihi, deneysel Bitiriş efekti tercihi ile oturum listesi Hesap kapsamında tutulur. İngilizce arayüz dili kullanıcı tercihi değildir. Tercihlerin kullanıcı davranışı [Hesap profil tercihlerinde](03-account-platform-operations.md#hesap-profil-tercihleri), Bitiriş efektinin etkinleştirme ve tema davranışı ise [İş Yönetiminde](06-work-management-and-planning.md#bitiris-efektleri) yaşar; bu bölüm yalnız sahiplik kapsamını belirler.
+
+- **Her kalıcı domain öğesi ya bu kapsamlardan tam olarak birinde yaşayan ana kayıttır ya da tek ana kaydın sahipli bileşenidir.** Sahipli bileşen sahibinden bağımsız erişim, kapsam veya yaşam döngüsü kazanamaz. GitHub bağlantısı ve dış GitHub kayıtları Proje kapsamındadır; bağlantı köken bilgisidir, sahiplik kapsamı değildir. `Proje bağlantısı`, `kaynak kapsamı` ve `Hesap + kaynak kayıt` kanonik kapsam değildir.
+
+- **Dosya Eki tam olarak bir proje veya Kişisel Wiki kapsamına aittir.** Başka kapsamlardaki kayıtlar aynı eke standart ilişki kurabilir; bu ilişki ekin sahipliğini veya görünürlüğünü değiştirmez. Ekin başka kapsama taşınması ayrı `Taşı` eylemi, erişim etkisi ve kırılabilecek ilişkiler önizlemesi gerektirir. Aynı dosyanın iki kapsamda bağımsız yaşamı gerekiyorsa `Kopyala` yeni kimlik üretir.
+
+- **Kapsam, görünürlük değildir.** Bir kaydın başka kayıtla ilişkisi, klasörü, üst belgesi, Akıllı Koleksiyon üyeliği veya görünümde bulunması erişim ya da yayın izni vermez.
+
+<a id="ortak-kimlik"></a>
+## Ortak kimlik
+
+Her ana kayıt:
+
+- **Değişmeyen, kullanıcıya anlam yüklemeyen iç teknik kimlik,**
+- **Sahiplik kapsamı,**
+- **Oluşturan aktör ve oluşturma zamanı,**
+- **Son değiştiren aktör ve değiştirme zamanı,**
+- **Arşiv ve çöp kutusu durumu,**
+- **Denetlenebilir değişiklik geçmişi**
+
+- **taşır.**
+
+- **İş anahtarı, dış sistem kimliği, slug, e-posta ve başlık iç teknik kimliğin yerine geçmez.** Alias ve yönlendirmeler yalnız açıkça desteklenen kayıt birleştirmesinde emekli kimliği hayatta kalan kayda çözmek içindir; bir kaydı başka kapsama taşımak veya yeni kaydı eski kimliğe dönüştürmek için kullanılmaz. Silinen ya da emekli kimlik başka kayıt için yeniden kullanılmaz.
+
+- **Her durum değiştiren istek hedefin taban revizyonunu ve istemci tarafından üretilmiş idempotency anahtarını taşır.** Aynı anahtarla aynı istek önceki sonucu döndürür; farklı payload çatışma olur. Güncel olmayan taban revizyonu hiçbir zaman sessizce son yazan kazanır davranışıyla mevcut değerin üzerine yazmaz. Kayıt türünün tanımladığı çatışma veya uzlaştırma akışı çalışır; böyle bir akış yoksa yazma reddedilir ve güncel değer gösterilir.
+
+<a id="ortak-yaşam-döngüsü"></a>
+## Ortak yaşam döngüsü
+
+| Mekanik | Ortak anlam |
+| --- | --- |
+| Aktif yaşam durumu | Kayıt türünün kendi iş akışı veya değerlendirme durumu |
+| Kapanış sonucu | Tamamlanan veya vazgeçilen İş/Proje gibi türlerde kapanmanın nasıl gerçekleştiği |
+| Arşiv | Kaydı normal çalışma yüzeylerinden kaldırır; kimliği, ilişkileri ve geçmişi korur |
+| Çöp kutusu | Kaydı [güvenlik politikasındaki geri alınabilir silme süresine](13-data-security-and-portability.md#saklama-ve-guvenli-silme-sureleri) alır; aktif kural ve görünüm üyeliği üretmez |
+| Kalıcı silme | Süre sonunda veya yüksek riskli açık kullanıcı eylemiyle içeriği geri döndürülemez kaldırır; gerekli tombstone kimliği ve denetim olayı kalabilir |
+| Yeniden açma | Kayıt türünün açık eylemiyle etkin yaşama dönmesi; önceki kapanış geçmişte kalır |
+
+- **Arşivleme yaşam durumunu değiştirmez.** Kapatma otomatik arşivlemez. Çöp kutusuna alma ilişkili bağımsız kayıtları kullanıcı onayı olmadan silmez. Kalıcı silme öncesinde bağımlılıklar ve dış görünürlük etkisi gösterilir.
+
+- **Proje arşivi genel kayıt arşivinden daha güçlü bir yaşam sınırıdır:** Proje salt okunur ve hareketsiz olur; GitHub eşitlemesi, otomasyonlar, hatırlatmalar ve normal mutasyonlar durur. Daha önce açıkça onaylanmış değişmez Dış yüzeyler listelenerek yaşamaya devam edebilir. Salt okunur sınır yalnız erişimi azaltan denetlenebilir yüzey iptali, token/parola rotasyonu, oturum sonlandırma, entegrasyon kesme/secret rotasyonu ve güvenlik redaksiyonunu engellemez; yayın, reaktivasyon, parola kaldırma, içerik düzenleme ve erişim genişletme kapalı kalır. Proje silme yalnız Arşiv içinden başlatılır ve Proje ile yalnız ona kanonik olarak ait ana kayıt, sahipli bileşen ve Dış yüzeyleri tek geri yüklenebilir silme grubuna alır. Proje Çöp Kutusuna girdiği anda bu yüzeyler terminal olarak iptal edilir ve mevcut ziyaretçi oturumları kapatılır; `Onaylı dış yüzeyi koru` istisnası Proje, Çalışma Alanı veya Hesap silmede kullanılamaz. Çalışma alanı, Hesap veya Kişisel Wiki kapsamındaki kayıtlar silinmez; yaşayan ilişkiler silinen hedef işareti gösterir. Geri yükleme aynı kimlik ve içerikleri Arşiv durumuna getirir ve güvenli hedef işaretlerini yeniden bağlar, fakat iptal edilmiş yüzeyi yeniden etkinleştirmez; yeniden yayın yeni Dış yüzey, URL/token ve açık onay gerektirir. Grubun saklama süresi, erken ve süre sonundaki kalıcı silme ile kalabilecek içeriksiz denetim işaretleri [Veri Güvenliği ve Taşınabilirlik](13-data-security-and-portability.md#cop-kutusu-ve-geri-yukleme) belgesinde tanımlanır.
+
+- **Arşivleme, silme ve Hesap kapatma gibi yüksek riskli yaşam geçişleri tek revizyon bariyerinde seri yürütülür.** Bariyerden önceki işlem iptal edilebiliyorsa iptal edilir; commit bariyerini geçmiş işlem bütünüyle commit veya rollback sonucuna ulaşır. Hesap kapatma ayrıca [Hesap kapatma sözleşmesindeki](03-account-platform-operations.md#hesap-kapatma) `Kapanış tamamlanıyor` geçişinde başlamış geri döndürülemez güvenlik işlerini kesin makbuza ulaştırmadan 30 günlük dondurmayı ve export'u açmaz. Sonraki normal mutasyonlar donmuş revizyona yazamaz.
+
+<a id="korunan-urun-semantigi"></a>
+## Korunan ürün semantiği
+
+Kullanıcı aşağıdaki anlamları silemez veya başka anlam için yeniden kullanamaz:
+
+- **İç teknik kimlik ve sahiplik kapsamı**
+- **Kayıt türü**
+- **Aktör ve zaman atfı**
+- **Arşiv/çöp kutusu/kalıcı silme ayrımı**
+- **İş ve Proje kapanış sonucu**
+- **İlişki yönü ve ilişki uçları**
+- **Proje Sürümü, Dış yüzey ve Onaylı snapshot revizyonu kimliği**
+- **Teknik Diyagram türü, Diyagram otorite kipi ve kesin Diyagram Sürümü kimliği**
+- **Dış kaynak sağlayıcı/kimlik/köken atfı**
+- **Denetim ve güvenlik redaksiyonu olayları**
+
+- **Kullanıcı alan görünürlüğünü, kullanıcıya dönük iş akışı durumu adlarını, özel alanları ve sunum sırasını alan PRD'lerinin izin verdiği ölçüde yapılandırabilir.**
+
+<a id="ana-kayıt-türleri-ve-asgari-sözleşmeler"></a>
+## Ana kayıt türleri ve asgari sözleşmeler
+
+| Kayıt | Sahiplik | Asgari alanlar | Yaşam durumu |
+| --- | --- | --- | --- |
+| Proje | Çalışma alanı | Ad, kısa kod, amaç, problem, kapsam | `Aktif`, `Bekleyen`, `Tamamlandı`, `Vazgeçildi` |
+| Kişisel Wiki | Çalışma alanı | Ad, klasör ve belge kökleri | Aktif; çalışma alanıyla birlikte silinir |
+| Proje Hedefi | Proje | Başlık, açıklama | Açık/kapanmış durum üretmez; sonuç kullanıcı alanlarında değerlendirilir |
+| İş | Proje | Anahtar, başlık, tür, durum | Proje tanımlı durum + `Tamamlandı`/`Vazgeçildi` kapanış sonucu |
+| Kilometre Taşı | Proje | Başlık, açıklama, isteğe bağlı hedef tarihi | `Planlandı`, `Ulaşıldı`, `Vazgeçildi`; durum İşleri değiştirmez |
+| Belge | Proje veya Wiki | Başlık, Markdown gövdesi, sürüm | Aktif/arşiv/çöp kutusu |
+| Dosya Eki | Proje veya Wiki | Dosya adı, MIME, boyut, içerik parmak izi, sürüm | Aktif/arşiv/çöp kutusu |
+| Karar | Proje | Başlık, karar, gerekçe | `Geçerli`, `Yerine geçildi`, `Geri çekildi` |
+| Risk | Proje | Başlık, açıklama, etki, olasılık, yanıt/azaltma | `Açık`, `Azaltılıyor`, `Gerçekleşti`, `Çözüldü`, `Kabul edildi` |
+| Varsayım | Proje | İfade, gerekçe, kanıt ilişkileri | `Açık`, `Doğrulandı`, `Çürütüldü`, `Geçersiz kaldı` |
+| Açık Soru | Proje | Soru, bağlam | `Açık`, `Yanıtlandı`, `Geçersiz kaldı` |
+| Geri Bildirim | Proje | Özgün mesaj, zaman, kanal | `Yeni`, `İncelendi`, `Arşivlendi`; ilişkili İş durumunu değiştirmez |
+| Kaynak | Proje | URL/başlık, erişim zamanı, yakalanan içerik | Aktif/arşiv; sürümler tarihsel kalır |
+| Contact | Çalışma alanı | İsteğe bağlı ad, e-posta takma değerleri | Aktif/arşiv/çöp kutusu; birleştirilen kopya ana kayıt olarak sona erer ve kimliği içeriksiz yönlendirme olur |
+| Company | Çalışma alanı | Ad | Aktif/arşiv/çöp kutusu |
+| Ürün Boşluğu | Çalışma alanı | Karşılanmayan ihtiyaç, durum | `Açık`, `Değerlendiriliyor`, `Karşılandı`, `Bilinçli sınır` |
+| Dış Araca Kaçış | Çalışma alanı | Zaman, kaynak proje/kayıt, dış araç, neden, etki | Tarihsel olay; ilişkili Ürün Boşluğunu köken olarak gösterir, silme ortak kurallara uyar |
+| Kullanıcı Araştırması Oturumu | Proje | Amaç, soru rehberi, tarih, not ve izin bağlamı | `Planlandı`, `Tamamlandı`, `İptal edildi` |
+| Deney/Doğrulama | Proje | Yöntem, sonuç, ilişkili varsayım/soru | Aktif/arşiv/çöp kutusu |
+| Tasarım | Proje | Tür, sürüm, yapı ve görünüm üstverisi | Aktif/arşiv/çöp kutusu; tür `Proje Duvarı`, `Kullanıcı Akışı` veya `Moodboard` |
+| Ekran | Proje | Başlık, Wireframe sürümleri | Aktif/arşiv/çöp kutusu; görsel tasarım olmadan oluşturulabilir |
+| Teknik Diyagram | Proje | Başlık, tür, Diyagram otorite kipi; ürün-owned kiplerde türlenmiş yapısal model ve görünüm üstverisi, dış bağlantı kipinde kesin köken üstverisi | Aktif/arşiv/çöp kutusu; tür `Teknik Mimari`, `Veri Modeli` veya `Teknik Sıra` |
+| Akıllı Koleksiyon/kayıtlı görünüm | Çalışma alanı veya Proje | Ad, kaynak tür, filtre, sıralama ve sunum | Aktif/arşiv/çöp kutusu; üyelik sorgudan türetilir |
+| Şablon | Proje veya Kişisel Wiki | Tür, ad, içerik/yapı tanımı | Aktif/arşiv/çöp kutusu; üretilen kayıt bağımsız kimlik alır |
+| Otomasyon kuralı/kayıt eylemi | Proje | Ad, etkin tanım ve sürüm | Etkin/devre dışı/arşiv/çöp kutusu |
+| Hatırlatma | Hesap | Zaman, kaynak kimliği | `Planlandı`, `Tetiklendi`, `İptal edildi`; kaynak sahiplik değil köken referansıdır |
+| Üretim Olayı | Proje | Zaman, etki, tespit, çözüm | `Açık`, `İzleniyor`, `Çözüldü` |
+| Proje Sürümü | Proje | Ad/sürüm etiketi, kapsam, yayın kontrol listesi | `Taslak`, `Hazırlanıyor`, `Yayımlandı`, `İptal edildi` |
+| GitHub bağlantısı | Proje | Kararlı repository kimliği, yetki ve eşitleme durumu | `Bağlı`, `Duraklatıldı`, `Bağlantı kesildi`; ad/sahip kimlik değildir |
+| GitHub dış kaydı | Proje | Sağlayıcı kimliği, tür, URL, kaynak durumu, eşitleme zamanı | Salt okunur dış gerçek; bağlantı kalkarsa son yakalanan durum tarihsel kalır |
+| Dış yüzey | Yayın köküyle aynı Çalışma alanı, Proje veya Kişisel Wiki kapsamı | Kararlı URL/anahtar, erişim türü, parola, süre ve etkinlik durumu | `Aktif`, `Süresi doldu`, `İptal edildi`; iptal terminaldir, kaynak yaşam durumunu değiştirmez |
+
+- **Yakalama Gelen Kutusu öğesi ve tamamlanmamış İş Taslağı geçici varlıklardır; ana kayıt kimliği, kalıcı ilişki, arşiv veya export davranışı kazanmaz.** Sahiplikleri hedef seçilene kadar hesap/çalışma alanı, hedef proje seçildiğinde proje bağlamıdır. Ana kayda dönüşüm yeni kimlik üretir ve kökeni korur.
+
+- **Planlı Test Senaryosu, Test Handoff'u, Test Oturumu, Oturum Testi, Test Açığı ve Test değerlendirmesi Proje kapsamındaki ana kayıtlardır; uzman alanları ve yaşam durumları [Test ve Doğrulama](10-testing-and-validation.md) tarafından tanımlanır.** Dış yüzey ve Onaylı snapshot revizyonunun ayrıntılı kapsamı [Paylaşım ve Yayınlama](14-sharing-and-public-publishing.md) tarafından tanımlanır.
+
+- **Bu envanter ve açıkça yönlendirilen test alt türleri ilk ürünün desteklenen kalıcı kayıt kümesidir.** İlk ürün belgelerinde `desteklenen diğer kayıt`, `desteklenen alan` veya benzeri açık uçlu ifade yeni yetenek oluşturmaz; izin verilen tür ve alanlar aynı cümlede kesin olarak listelenir. Yeni ana kayıt türü ilk üründe bu tabloya, sonraki kapılı genişlemede ise etkinleştiren alan belgesindeki açık domain uzantısına sahiplik, asgari alan ve yaşam durumuyla eklenmeden kapsama alınamaz.
+
+Ana kaydın yanında yaşayan kalıcı yardımcı varlıklar da aşağıdaki kapalı listeyle sınırlıdır:
+
+| Yardımcı varlık | Sahibi | Yaşam ve silme davranışı |
+| --- | --- | --- |
+| Proje aşaması, İş durumu, özel alan ve öncelik ölçütü tanımı | Proje | Sürümlü yapılandırmadır; yapılandırma çöp kutusuna girer, kayıt değerleri etki önizlemesi olmadan silinmez |
+| İş Bağlam Kartı düzeni | Proje | İş türüne göre desteklenen modül, doğrudan ilişki filtresi ve sunum sırasını taşıyan sürümlü yapılandırmadır; İş içeriği veya ikinci bağlam kaydı değildir |
+| Odak Dönemi ve başlangıç/kapanış snapshot'ı | Çalışma alanı | `Planlandı`, `Etkin`, `Kapandı`, `İptal edildi`; kapanan kapsam tarihsel kalır |
+| Manuel Proje Güncellemesi | Proje | Tarihli ve değişmez özet snapshot'ı taşır; normal arşiv/çöp kutusu kurallarına uyar |
+| Proje kapanış özeti | Proje | Kullanıcı tarafından kaydedilen sürümlü Belgedir; Projenin durumunu değiştirmez |
+| Dış yürütme devri | İş | Belirli bir test-dışı araç çalışmasının kesin gidiş bağlamını, dönüşünü, uzlaştırmasını veya gerekçeli iptalini tarihsel tutar; İşten bağımsız aranamaz, paylaşılamaz, taşınamaz veya yaşam döngüsü kazanamaz |
+| Erişim gözlemi | Proje Sürümü | Belirli bir değerlendirme turunda hedef kitleye erişim değerlendirmesini, yazarını ve yalnız o gözleme ait kesin kanıt bağlarını taşır; Sürümden bağımsız yaşamaz ve Sürümün genel kanıt bağlarıyla birleşmez |
+| Sonuç gözlemi | Proje Sürümü | Belirli bir değerlendirme turunda hedeflenen davranış/sonuç değerlendirmesini, yazarını ve yalnız o gözleme ait kesin kanıt bağlarını taşır; Sürümden bağımsız yaşamaz, Erişim gözleminin yerine geçmez ve Sürümün genel kanıt bağlarıyla birleşmez |
+| Kaynak Kontrolü olayı ve aday snapshot | Kaynak | Tarihsel kontrol sonucudur; ana Kaynak sürümünü açık onay olmadan değiştirmez |
+| Düzeltme, geri çekme ve redaksiyon olayı | Test veya hassas kayıt | Özgün olayla birlikte tarihsel kalır; redakte edilen değer geri getirilemez |
+| Bildirim sinyali ve okundu/kapatıldı durumu | Hesap | Kaynak kimliği köken referansıdır; yeni doğruluk kaynağı değildir, kaynak silinirse içerik yerine güvenli tombstone gösterir |
+| Değişiklik/denetim olayı | Değiştirilen kayıt | Normal geçmiş ve saklama süresini izler; ana içerik gibi düzenlenmez |
+| İlişki üstverisi ve Kanıt Rolü | İlişki | İlişkinin yazarını, zamanını, rolünü ve yorumunu taşır; iki uçtan bağımsız ana kayıt değildir |
+| Akış düğümü/görsel kart | Tasarım | Kaynak kimliği, görünüm-yerel konum ve sunumdur; ana içerik değildir, kaynak silinirse kırık referans olur |
+| Diyagram Görünümü | Teknik Diyagram | Aynı yapısal modelin seçilmiş öğelerini, adlandırılmış yerleşim ve görünüm notlarıyla gösterir; kaynak öğeleri kopyalamaz, bağımsız erişim kapsamı veya içerik kaynağı olmaz |
+| Diyagram Sürümü | Teknik Diyagram | Kullanıcının adlandırdığı değişmez yapısal model ve görünüm checkpoint'idir; canlı diyagramı değiştirmez, kesin ilişki/paylaşım/export kaynağı olabilir |
+| Şema Değişiklik Taslağı | Veri Modeli Diyagramı | İki kesin Diyagram Sürümü arasındaki türlenmiş operasyonları, bağımlılık sırasını ve destructive uyarıları taşır; onaylanmadan kesin artefakt veya uygulanmış migration değildir |
+| Migration Artefaktı | Veri Modeli Diyagramı | Onaylanmış Şema Değişiklik Taslağını kaynak/hedef Diyagram Sürümü, generator sürümü, statik doğrulama ve uyarı manifestiyle değişmez korur; çalıştırılma veya uygulanmışlık durumu taşımaz |
+| Onaylı snapshot revizyonu | Dış yüzey | Kesin içerik ve Dosya Eki sürümü manifestidir; Dış yüzey yaşadığı sürece içte korunur, bağımsız paylaşılamaz |
+| Çakışma Taslağı | Belge | Güncel olmayan yazmayı kullanıcı uzlaştırana, aynı kapsamta köken bağı taşıyan bağımsız Belgeye dönüştürene veya silene kadar korur; çözülmeden arama, paylaşım, export ve Belge geçmişine girmez |
+| Emekli kimlik yönlendirmesi | Çalışma alanı | Eski kimliği hayatta kalan kayıt veya içeriksiz silinmiş-hedef işaretine çözer; içerik veya bağımsız yaşam döngüsü taşımaz ve Çalışma Alanından uzun yaşayamaz |
+| Proje silme grubu | Silinen Proje | Proje ve ona ait kayıtları tek geri yükleme/kalıcı silme sınırında tutar; çocuklara bağımsız yaşam vermez |
+
+- **Liste dışındaki görünüm düğümü, kart, sayaç, arama sonucu, takvim satırı ve özet yalnız ana kayıtların sunumudur; kendi bağımsız yaşam döngüsünü kazanmaz.**
+
+<a id="proje-aşaması-sözleşmesi"></a>
+## Proje aşaması sözleşmesi
+
+- **Her proje aşaması `Planlanmadı`, `Hazır`, `Aktif`, `Tamamlandı` veya `Vazgeçildi` durumlarından birini taşır.** Birden fazla aşama `Aktif` olabilir. Aşama durumu içerik erişimini, İş durumunu veya başka aşamayı otomatik değiştirmez. Aşama kaldırılırken ona bağlı sunum ve filtreler önizlenir; ana kayıtlar silinmez.
+
+<a id="standart-ilişki-türleri"></a>
+## Standart ilişki türleri
+
+| İlişki | İzin verilen uçlar | Kardinalite ve silme davranışı | Anlam |
+| --- | --- | --- | --- |
+| `İlgili` | Herhangi iki ana kayıt; kesin Diyagram Sürümü ↔ İş/Karar/Proje Sürümü; Migration Artefaktı ↔ GitHub dış kaydı/Test Oturumu/Proje Sürümü | Çoktan çoğa; bir uç veya sahip ana kayıt silinirse kalan uçta kırık/tarihsel bağ görünür | Semantik bağ; yaşam döngüsü veya migration uygulanmışlığı etkisi yoktur |
+| `Kökeni` / `Türetilen` | Kaynak/Belge/Yakalama/Geri Bildirim/Teknik Diyagram → üretilen kayıt | Bir kayıt birden fazla köken taşıyabilir; köken silinirse atıf tombstone'a döner | Kaydın hangi kaynak veya açık dönüşümden doğduğunu gösterir; Teknik Diyagram otorite dönüşümü kaynak ve yeni kimliği bu bağla ayırır |
+| `Kanıtı` / `Kanıt sağlar` | Kesin Kaynak sürümü, Belge sürümü veya Diyagram Sürümü, Geri Bildirim, Kullanıcı Araştırması Oturumu, Deney/Doğrulama, Oturum Testi veya Dosya Eki sürümü → İş/Karar/Risk/Varsayım/Soru/Test/Proje Sürümü ya da ona ait Erişim/Sonuç gözlemi | Çoktan çoğa; gözlem hedefli bağ yalnız o sahipli gözlemde yaşar, kesin sürüm silinemezse redaksiyon işareti kalır | Hedef kayda veya belirtilen gözleme kanıt bağını gösterir; gözlem kanıtı üst Proje Sürümünün genel kanıtı sayılmaz, test sonucu yalnız bildirildiği kesin bağlamla kanıttır |
+| `Engeller` / `Engellenir` | İş, Karar veya Açık Soru → İş | Çoktan çoğa; `Aktif`/`Çözüldü` durumlu ilişki, uç silinirse tarihsel bağ | Planlama blokajı |
+| `Kapsar` / `Kapsanır` | Özellik → İş | Bir İşin en fazla bir birincil Özelliği, ek Özelliklerle `İlgili` bağı olabilir | Açık kapsam üyeliği |
+| `Birincil spec` | İş/Özellik → kesin Belge sürümü | Kaynak başına en fazla bir güncel bağ; önceki bağ geçmişte korunur | Uygulama için ana tanım |
+| `Yerine geçer` / `Yerine geçildi` | Aynı uzman türde Karar veya doğrulama kaydı | Yönlü ve döngüsüz; eski kayıt silinmeden tarihsel kalır | Tarihsel geçiş |
+| `Uygular` / `Uygulanır` | İş/PR/Proje Sürümü → Karar veya spec | Çoktan çoğa; uç silinirse tarihsel bağ | Karar/spec ile uygulama kaydı bağlamı |
+| `Şirkete ait` | Contact → Company | Contact başına en fazla bir güncel Company; geçmiş değişiklikte korunur | Hafif kuruluş bağlamı |
+| `Katılımcısı` | Kullanıcı Araştırması Oturumu/Geri Bildirim → Contact | Kayıt başına sıfır veya bir Contact; Contact silinirse kişisel değer redakte edilir | Katılımcı/geri bildirim kaynağı kimliği |
+| `Tamamlanma için gerekli` / `Bağlamsal` | İş ↔ GitHub PR | Çoktan çoğa; bağlantı kaldırma dış PR'ı değiştirmez | PR'ın İş kapanışındaki rolü |
+
+- **İlişki türü kullanıcı tarafından serbestçe oluşturulmaz.** Tabloda bulunmayan uzman ilişki ilk ürün davranışı olamaz; yeni tür bu tabloya uçları, kardinalitesi ve silme etkisiyle eklenir. İlişki eklemek kaynak kayıtların durumunu değiştirmez; alan PRD'sindeki açık blokaj, yerine-geçme veya etkin PR otomasyonu istisnadır.
+
+<a id="değişiklik-geçmişi-aktör-ve-geri-alma"></a>
+## Değişiklik geçmişi, aktör ve geri alma
+
+- **Aktör türleri `Kullanıcı`, `Sistem otomasyonu`, `GitHub` ve `Yetkili entegrasyon`dur.** AI ajanı veya harici araç, doğrulanmış entegrasyon kimliği ve onu yetkilendiren kullanıcıdan ayrı gösterilir.
+
+- **Her değişiklik hedef kaydı, aktörü, zamanı, kökeni ve desteklenen alanlarda önceki/sonraki değeri taşır.** Geri alma:
+
+- **Yalnız ürünün ters işlemi deterministik hesaplayabildiği alan, ilişki, görünüm üstverisi ve atomik dönüşümlerde `güvenli` sayılır.**
+- **Kalıcı silme, güvenlik redaksiyonu, dış sistem mutasyonu, yayınlanmış statik export ve aynı alanda daha yeni değerle çatışan değişiklik güvenli otomatik geri alma değildir.**
+- **İlgisiz sonraki değişiklikleri geri sarmaz; aynı alandaki çatışmayı kullanıcıya gösterip durur.**
+
+- **Birleştirmeyi açıkça destekleyen İş ve Contact kayıtlarında gerçek kopyalar fiziksel olarak tek hayatta kalan ana kayıtta konsolide edilir.** Onay önizlemesi hayatta kalanı, alan çakışmalarını ve yeniden yazılacak ilişkileri gösterir. İç referanslar aynı atomik işlemde hayatta kalana yazılır; kopyalar ayrı `Birleştirildi` kayıtları olarak yaşamaz. Emekli kimlik yönlendirmesi eski bağlantı ve anahtarı kalıcı, görünür kökenle çözer; emekli kimlik yeniden kullanılmaz ve ayrı arama sonucu oluşturmaz. Birleştirilmiş geçmiş, özgün kayıt ve aktör atfını korur.
+
+- **Birleştirmeyi geri alma özgün emekli kimliği yeniden ana kayıt yapar ve yalnız birleştirme olayına atfedilebilen değer ve ilişkileri ayırır.** Birleştirme sonrasındaki ilgisiz değişiklikleri geri sarmaz; aynı alanda çakışan sonraki değer kullanıcı kararı ister. Kalıcı silme veya güvenlik redaksiyonuyla yok olmuş içerik tam geri alma vaadini kaldırır ve eksik kalan kısım önizlemede açıklanır.
+
+- **Ana kayıt içeriği ve domain geçmişi ana kayıt yaşadığı sürece korunur.** Denetim ve operasyon kayıtlarının süreleri ile geri döndürülemez güvenlik redaksiyonu [Veri Güvenliği ve Taşınabilirlik](13-data-security-and-portability.md#saklama-ve-guvenli-silme-sureleri) belgesinin sorumluluğundadır.
