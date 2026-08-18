@@ -1,0 +1,24 @@
+{
+  "name": "@cantiara/auth",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@cantiara/db": "workspace:*",
+    "@cantiara/env": "workspace:*",
+    "better-auth": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cantiara/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
