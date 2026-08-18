@@ -1,0 +1,12 @@
+{
+  "version": 3,
+  "id": "overwrite-question",
+  "description": "An existing structure.md requires overwrite permission.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Kaynaklardan structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "question",
+  "question_axis": "Mevcut structure.md",
+  "output_file": "expected/response.md",
+  "source_dir": "sources"
+}

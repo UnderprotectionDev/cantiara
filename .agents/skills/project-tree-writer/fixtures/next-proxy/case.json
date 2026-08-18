@@ -1,0 +1,32 @@
+{
+  "version": 3,
+  "id": "next-proxy",
+  "description": "Current greenfield Next.js uses proxy.ts when request proxy behavior is selected.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Güncel Next.js auth kaynaklarından structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "src/app/sign-in/page.tsx",
+    "src/features/account/",
+    "src/proxy.ts"
+  ],
+  "forbidden_paths": [
+    "middleware.ts",
+    "src/middleware.ts"
+  ],
+  "route_roots": [
+    "src/app/"
+  ],
+  "route_entry_paths": [
+    "src/app/sign-in/page.tsx"
+  ],
+  "route_feature_map": {
+    "src/app/sign-in/page.tsx": "src/features/account/"
+  },
+  "properties": {
+    "primary_js_features_first": true
+  }
+}

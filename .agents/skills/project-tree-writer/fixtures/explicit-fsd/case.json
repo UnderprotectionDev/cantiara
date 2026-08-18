@@ -1,0 +1,21 @@
+{
+  "version": 3,
+  "id": "explicit-fsd",
+  "description": "Explicit Feature-Sliced Design sources preserve FSD layers.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer FSD kaynaklarından structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "src/entities/task/",
+    "src/features/toggle-task/",
+    "src/pages/tasks-list/",
+    "src/shared/api/"
+  ],
+  "generic_path_evidence": {
+    "src/shared/": "architecture.md",
+    "src/shared/config/": "architecture.md"
+  }
+}

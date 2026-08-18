@@ -1,0 +1,119 @@
+{
+  "version": 2,
+  "cases": [
+    {
+      "id": "peer-features-survive-shared-record-model",
+      "sourcePackage": {
+        "prd": "Studio üç eş düzey ürün alanı sunar: Recipe tek seferlik tarifleri, Guide çok adımlı çalışma rehberlerini, Cycle ise kontrol ve çıkış koşullu tekrarları yönetir. Her alanın ayrı gezinme bölümü, oluşturma, düzenleme ve silme yolculuğu ile kendine özgü kabul sonucu vardır. Üç alan ortak kayıt kimliği, başlık ve zaman damgası modelini paylaşır. Global Search üçünü birlikte sorgular ve seçilen doğru kaydı açar.",
+        "techStack": "Uygulama tek Postgres şeması, ortak form kabuğu ve ortak CRUD servisi kullanır."
+      },
+      "expected": {
+        "phases": [
+          {"id": "recipe", "phaseKind": "product-feature", "subphases": ["create", "edit", "delete"]},
+          {"id": "guide", "phaseKind": "product-feature", "subphases": ["create", "edit", "delete"]},
+          {"id": "cycle", "phaseKind": "product-feature", "subphases": ["create", "edit", "delete"]},
+          {"id": "global-search", "phaseKind": "cross-cutting-feature", "subphases": []}
+        ],
+        "forbiddenMainPhases": ["shared-record-management", "shared-crud"],
+        "distributedBehaviors": ["shared-crud"]
+      }
+    },
+    {
+      "id": "presentation-formats-remain-one-feature",
+      "sourcePackage": {
+        "prd": "Kullanıcı aynı doğrulanmış raporu PDF, CSV veya HTML biçiminde dışa aktarabilir. Seçenekler aynı amacı, veri kapsamını, yetki kurallarını ve tamamlanma sonucunu paylaşır; yalnız sunum biçimi değişir.",
+        "techStack": "Tek export servisi seçilen serializer ile aynı rapor sonucunu üretir."
+      },
+      "expected": {
+        "phases": [
+          {"id": "report-export", "phaseKind": "product-feature", "subphases": []}
+        ],
+        "forbiddenMainPhases": ["pdf-export", "csv-export", "html-export"]
+      }
+    },
+    {
+      "id": "feature-owned-lifecycle-becomes-subphases",
+      "sourcePackage": {
+        "prd": "Kullanıcı Campaign oluşturur, ayrıntılarını düzenler, yayından kaldırır ve kalıcı olarak siler. Her işlem ayrı kullanıcı amacı ve gözlenebilir sonuç taşır fakat aynı Campaign feature'ının lifecycle'ını tamamlar.",
+        "techStack": "Bütün işlemler aynı domain servisi ve veri modeli üzerinden yürür."
+      },
+      "expected": {
+        "phases": [
+          {"id": "campaign", "phaseKind": "product-feature", "subphases": ["create", "edit", "unpublish", "delete"]}
+        ],
+        "forbiddenMainPhases": ["campaign-create", "campaign-delete"]
+      }
+    },
+    {
+      "id": "real-dependency-orders-without-merging",
+      "sourcePackage": {
+        "prd": "Catalog seçilebilir ürünleri ve görünür fiyatı sağlar. Checkout seçilmiş ürünlerden sipariş niyeti oluşturur ve doğrulanmış Catalog sonucunu zorunlu tüketir. İki alanın ayrı amacı, yolculuğu ve kabul sonucu vardır.",
+        "techStack": "Checkout Catalog sonucuna bağlıdır; iki alan aynı uygulama ve veritabanını kullanır."
+      },
+      "expected": {
+        "phases": [
+          {"id": "catalog", "phaseKind": "product-feature", "subphases": []},
+          {"id": "checkout", "phaseKind": "product-feature", "subphases": []}
+        ],
+        "requiredOrder": ["catalog", "checkout"],
+        "forbiddenMainPhases": ["commerce-platform"]
+      }
+    },
+    {
+      "id": "atomic-feature-needs-no-decorative-subphase",
+      "sourcePackage": {
+        "prd": "Quick Find kullanıcının tek sorguyla bütün aktif kayıtları taramasını ve doğru kaydı açmasını sağlar. Bu küçük feature'ın ayrı amacı ve doğrulanabilir sonucu vardır; kendi içinde bağımsız davranışlara ayrılmaz.",
+        "techStack": "Doğrudan veritabanı sorgusu kullanılır; ayrı indeks veya arka plan işi yoktur."
+      },
+      "expected": {
+        "phases": [
+          {"id": "quick-find", "phaseKind": "product-feature", "subphases": []}
+        ],
+        "forbiddenMainPhases": ["search-index", "search-infrastructure"]
+      }
+    },
+    {
+      "id": "observable-outcome-excludes-technical-mechanisms",
+      "sourcePackage": {
+        "prd": "Kullanıcı giriş yaptığında yalnız kendi kişisel çalışma alanını ve kayıtlarını görür. Başka bir kullanıcının kaydına doğrudan erişim reddedilir. Bu korumalı erişim bağımsız kabul edilir.",
+        "techStack": "Hosted identity provider, row ownership, migration ve persistence adapter bu sonucu gerçekleştirir."
+      },
+      "expected": {
+        "phases": [
+          {"id": "protected-personal-workspace", "phaseKind": "observable-system-capability", "subphases": []}
+        ],
+        "forbiddenMainPhases": ["identity-provider-setup", "migration", "persistence-adapter"]
+      }
+    },
+    {
+      "id": "broad-operations-product-keeps-independent-centers",
+      "sourcePackage": {
+        "prd": "Operations Desk üç bağımsız alan içerir. Intake müşteri talebini kabul edip doğrulanmış iş kaydı oluşturur. Inventory parça giriş, rezervasyon ve tüketim lifecycle'ını yönetir. Quality tamamlanan işi kontrol edip kabul veya yeniden çalışma sonucu üretir. Her alan ayrı kullanıcı amacı ve kabul sonucu taşır.",
+        "techStack": "Üç alan aynı dashboard shell, yetki middleware'i ve veritabanını paylaşır."
+      },
+      "expected": {
+        "phases": [
+          {"id": "intake", "phaseKind": "product-feature", "subphases": [], "exactSubphases": false},
+          {"id": "inventory", "phaseKind": "product-feature", "subphases": ["part-receipt", "part-reservation", "part-consumption"]},
+          {"id": "quality", "phaseKind": "product-feature", "subphases": [], "exactSubphases": false}
+        ],
+        "forbiddenMainPhases": ["operations-desk", "shared-dashboard", "authorization-middleware"]
+      }
+    },
+    {
+      "id": "shared-validation-is-not-cross-cutting-feature",
+      "sourcePackage": {
+        "prd": "Customer Records ve Appointment Planning ayrı ürün feature'larıdır. Her biri kendi oluşturma ve düzenleme yolculuğuna sahiptir. Ortak zorunlu alan doğrulaması iki alanda aynı kuralları uygular fakat kullanıcı bunu ayrı başlatmaz ve kendi başarı sonucu yoktur.",
+        "techStack": "İki feature aynı validation library ve UI form bileşenlerini kullanır."
+      },
+      "expected": {
+        "phases": [
+          {"id": "customer-records", "phaseKind": "product-feature", "subphases": ["create", "edit"]},
+          {"id": "appointment-planning", "phaseKind": "product-feature", "subphases": ["create", "edit"]}
+        ],
+        "forbiddenMainPhases": ["validation", "shared-form"],
+        "distributedBehaviors": ["validation"]
+      }
+    }
+  ]
+}

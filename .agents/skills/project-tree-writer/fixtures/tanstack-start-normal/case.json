@@ -1,0 +1,34 @@
+{
+  "version": 3,
+  "id": "tanstack-start-normal",
+  "description": "TanStack Start keeps generated routing and direct feature ownership separate.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer TanStack Start kaynaklarından structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "src/routes/projects/index.tsx",
+    "src/features/projects/",
+    "src/routeTree.gen.ts",
+    "src/router.tsx"
+  ],
+  "forbidden_paths": [
+    "src/start.ts",
+    "src/features/projects/ui/"
+  ],
+  "route_roots": [
+    "src/routes/"
+  ],
+  "route_entry_paths": [
+    "src/routes/projects/index.tsx",
+    "src/routes/__root.tsx"
+  ],
+  "route_feature_map": {
+    "src/routes/projects/index.tsx": "src/features/projects/"
+  },
+  "properties": {
+    "primary_js_features_first": true
+  }
+}

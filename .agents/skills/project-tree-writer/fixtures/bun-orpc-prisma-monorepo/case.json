@@ -1,0 +1,55 @@
+{
+  "version": 3,
+  "id": "bun-orpc-prisma-monorepo",
+  "description": "A Bun workspace keeps TanStack/Vite and Hono deployables separate, shares an oRPC contract, and leaves Prisma backend-owned.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Bu Bun monorepo için TanStack Router, Vite, Hono, oRPC ve Prisma structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "apps/backend/prisma/schema.prisma",
+    "apps/backend/src/features/invoices/server/procedures.ts",
+    "apps/backend/src/routes/rpc.ts",
+    "apps/web/src/routes/invoices/index.tsx",
+    "apps/web/vite.config.ts",
+    "packages/contracts/invoices-api/src/contract.ts",
+    "bun.lock"
+  ],
+  "forbidden_paths": [
+    "apps/backend/drizzle/",
+    "apps/backend/drizzle.config.ts",
+    "apps/backend/src/db/",
+    "packages/backend/",
+    "packages/database/",
+    "packages/db/",
+    "packages/features/"
+  ],
+  "package_roots": [
+    "packages/contracts/invoices-api/"
+  ],
+  "package_exports": {
+    "packages/contracts/invoices-api/": {
+      "./contract": "src/contract.ts"
+    }
+  },
+  "route_roots": [
+    "apps/backend/src/routes/",
+    "apps/web/src/routes/"
+  ],
+  "route_entry_paths": [
+    "apps/backend/src/routes/rpc.ts",
+    "apps/web/src/routes/invoices/index.tsx",
+    "apps/web/src/routes/__root.tsx"
+  ],
+  "route_feature_map": {
+    "apps/backend/src/routes/rpc.ts": "apps/backend/src/features/invoices/",
+    "apps/web/src/routes/invoices/index.tsx": "apps/web/src/features/invoices/"
+  },
+  "properties": {
+    "primary_js_features_first": true,
+    "monorepo_ownership": true,
+    "grouped_packages": true
+  }
+}

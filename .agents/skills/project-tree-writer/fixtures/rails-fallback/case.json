@@ -1,0 +1,23 @@
+{
+  "version": 3,
+  "id": "rails-fallback",
+  "description": "Rails fallback preserves framework conventions without JS features-first folders.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Rails kaynaklarından structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "app/controllers/orders_controller.rb",
+    "app/models/order.rb",
+    "app/views/orders/",
+    "config/routes.rb"
+  ],
+  "forbidden_paths": [
+    "src/features/"
+  ],
+  "generic_path_evidence": {
+    "config/": "Gemfile"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "@workspace/backend",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --hot src/index.ts"
+  },
+  "dependencies": {
+    "@orpc/server": "latest",
+    "@prisma/client": "latest",
+    "@workspace/invoices-api": "workspace:*",
+    "hono": "latest"
+  },
+  "devDependencies": {
+    "prisma": "latest"
+  }
+}

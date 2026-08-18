@@ -1,0 +1,87 @@
+{
+  "version": 5,
+  "candidatePreservationAny": [
+    "separateSourcePurpose",
+    "separateDomainOrLifecycleRules",
+    "separateAcceptanceEvidence",
+    "peerWorkArea"
+  ],
+  "deliveryGateRequiredAll": [
+    "sourceSupportedNaturalCapability",
+    "separatePurpose",
+    "wholeValue",
+    "ownBehaviorContract",
+    "observableOutcome",
+    "completionEvidence",
+    "meaningfulWithoutSibling"
+  ],
+  "diagnosticScopeSignals": [
+    "ownSubphaseTree",
+    "domainSpecificRulesOrStates",
+    "separateUserOrSystemJourney",
+    "sourceRecognizedPeerWorkArea",
+    "mergedBoundaryCarriesIndependentDecisionSets"
+  ],
+  "antiMergeAny": [
+    "differentFeatureIdentity",
+    "differentUserOrSystemJourney",
+    "differentAcceptanceOutcome"
+  ],
+  "parentCohesionRequiredAll": [
+    "sameNaturalCapability",
+    "sameWholeValue",
+    "artificialWhenSeparated"
+  ],
+  "crossCuttingRequiredAll": [
+    "separatelyPerceivedOrStartedPurpose",
+    "crossesMultipleFeatures",
+    "ownEndToEndJourney",
+    "ownObservableSuccess",
+    "doesNotStealFeatureLifecycle"
+  ],
+  "observableSystemRequiredAll": [
+    "sourceRecognizedSystemOutcome",
+    "independentlyObservable",
+    "ownAcceptanceBoundary",
+    "notOnlyTechnicalMechanism"
+  ],
+  "subphaseRequiredAll": [
+    "separatePurpose",
+    "separateObservableOutcome",
+    "endToEndBehaviorBoundary",
+    "contributesToParentFeature"
+  ],
+  "subphaseBreadthReassessmentAny": [
+    "multipleLifecycleStages",
+    "multipleIndependentPurposes",
+    "multipleIndependentDecisionSets",
+    "multipleAcceptanceEvidenceSets"
+  ],
+  "boundaryNeutralSignals": [
+    "sharedImplementation",
+    "sharedScreen",
+    "sharedDataModel",
+    "sharedLifecycleShape",
+    "differentEntityNames",
+    "sameTechnicalStage",
+    "adjacentDeliveryOrder"
+  ],
+  "hardPrerequisiteRequiredAll": [
+    "requiredConsumption",
+    "invalidWithoutConsumedOutcome"
+  ],
+  "integratedEvidenceRequiredAll": [
+    "wholeValue",
+    "doesNotRepeatSubphaseEvidence"
+  ],
+  "ambiguityQuestionRequiredAll": [
+    "multipleSourceDefensibleInterpretations",
+    "materiallyChangesStructure",
+    "defaultDecisionRulesCannotResolve"
+  ],
+  "phaseKinds": [
+    "product-feature",
+    "cross-cutting-feature",
+    "observable-system-capability"
+  ]
+}

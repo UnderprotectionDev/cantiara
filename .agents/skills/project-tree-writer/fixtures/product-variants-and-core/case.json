@@ -1,0 +1,38 @@
+{
+  "version": 3,
+  "id": "product-variants-and-core",
+  "description": "Distinct product variants stay visible beside a behavior-owning shared core.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Bu product scope için structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "src/features/asset-core/",
+    "src/features/loops/",
+    "src/features/prompts/",
+    "src/features/skills/"
+  ],
+  "forbidden_paths": [
+    "src/features/assets/",
+    "src/features/resources/",
+    "src/features/workspace-context/"
+  ],
+  "route_roots": [
+    "src/routes/"
+  ],
+  "route_entry_paths": [
+    "src/routes/loops.tsx",
+    "src/routes/prompts.tsx",
+    "src/routes/skills.tsx"
+  ],
+  "route_feature_map": {
+    "src/routes/loops.tsx": "src/features/loops/",
+    "src/routes/prompts.tsx": "src/features/prompts/",
+    "src/routes/skills.tsx": "src/features/skills/"
+  },
+  "properties": {
+    "primary_js_features_first": true
+  }
+}

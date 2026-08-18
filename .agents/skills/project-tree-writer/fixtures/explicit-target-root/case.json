@@ -1,0 +1,19 @@
+{
+  "version": 3,
+  "id": "explicit-target-root",
+  "description": "An explicit local target root wins over the runner working directory.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer /requested-project içindeki kaynaklardan aynı target root'a structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "target_root": "/requested-project",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "src/features/orders/",
+    "package.json"
+  ],
+  "properties": {
+    "primary_js_features_first": true
+  }
+}

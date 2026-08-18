@@ -1,0 +1,235 @@
+{
+  "version": 4,
+  "cases": [
+    {
+      "id": "source-supported-peer-features-are-preserved",
+      "description": "Ayrı kaynak amacı ve eş düzey feature kimliği erken çatı birleşmesini önler.",
+      "kind": "discovery",
+      "facts": {
+        "separateSourcePurpose": true,
+        "peerWorkArea": true
+      },
+      "expected": "preserve"
+    },
+    {
+      "id": "names-alone-do-not-preserve-candidates",
+      "description": "Yalnız farklı entity adları bağımsız feature adayı üretmez.",
+      "kind": "discovery",
+      "facts": {},
+      "expected": "aggregate_or_lower"
+    },
+    {
+      "id": "atomic-feature-needs-no-subphase-tree",
+      "description": "Küçük fakat bağımsız amaç ve sonuç taşıyan feature ana fazdır.",
+      "kind": "main_phase",
+      "facts": {
+        "gateOverrides": {}
+      },
+      "expected": "main_phase"
+    },
+    {
+      "id": "technical-screen-is-not-a-main-phase",
+      "description": "Ayrı amaç taşımayan ekran veya teknik yüzey ana faz kapısını geçmez.",
+      "kind": "main_phase",
+      "facts": {
+        "gateOverrides": {
+          "sourceSupportedNaturalCapability": false,
+          "separatePurpose": false
+        }
+      },
+      "expected": "lower"
+    },
+    {
+      "id": "shared-model-cannot-merge-peer-features",
+      "description": "Ortak model ve CRUD farklı feature kimliklerini birleştiremez.",
+      "kind": "boundary",
+      "facts": {
+        "differentFeatureIdentity": true,
+        "differentUserOrSystemJourney": true,
+        "differentAcceptanceOutcome": true,
+        "sameNaturalCapability": false,
+        "sameWholeValue": false,
+        "artificialWhenSeparated": false,
+        "sharedImplementation": true,
+        "sharedScreen": true,
+        "sharedDataModel": true,
+        "sharedLifecycleShape": true,
+        "differentEntityNames": true,
+        "sameTechnicalStage": true,
+        "adjacentDeliveryOrder": true
+      },
+      "expected": "separate"
+    },
+    {
+      "id": "presentation-variants-merge",
+      "description": "Aynı amaç ve sonucu yalnız formatla değiştiren varyantlar tek feature kalır.",
+      "kind": "boundary",
+      "facts": {
+        "differentFeatureIdentity": false,
+        "differentUserOrSystemJourney": false,
+        "differentAcceptanceOutcome": false,
+        "sameNaturalCapability": true,
+        "sameWholeValue": true,
+        "artificialWhenSeparated": true,
+        "sharedImplementation": false,
+        "sharedScreen": false,
+        "sharedDataModel": false,
+        "sharedLifecycleShape": false,
+        "differentEntityNames": true,
+        "sameTechnicalStage": false,
+        "adjacentDeliveryOrder": false
+      },
+      "expected": "merge"
+    },
+    {
+      "id": "feature-owned-create-is-a-subphase",
+      "description": "Ayrı kullanıcı amacı ve sonucu olan create davranışı doğal feature sahibinde alt fazdır.",
+      "kind": "subphase",
+      "facts": {
+        "separatePurpose": true,
+        "separateObservableOutcome": true,
+        "endToEndBehaviorBoundary": true,
+        "contributesToParentFeature": true,
+        "multipleLifecycleStages": false,
+        "multipleIndependentPurposes": false,
+        "multipleIndependentDecisionSets": false,
+        "multipleAcceptanceEvidenceSets": false
+      },
+      "expected": "subphase"
+    },
+    {
+      "id": "repository-method-is-not-a-subphase",
+      "description": "Yalnız teknik metot farkı ayrı kullanıcı amacı ve sonucu taşımadığı için alt faz değildir.",
+      "kind": "subphase",
+      "facts": {
+        "separatePurpose": false,
+        "separateObservableOutcome": false,
+        "endToEndBehaviorBoundary": false,
+        "contributesToParentFeature": true,
+        "multipleLifecycleStages": false,
+        "multipleIndependentPurposes": false,
+        "multipleIndependentDecisionSets": false,
+        "multipleAcceptanceEvidenceSets": false
+      },
+      "expected": "behavior"
+    },
+    {
+      "id": "broad-subphase-reopens-boundary",
+      "description": "Birden fazla bağımsız amaç taşıyan geniş alt faz bölünür ve ana faz testine geri döner.",
+      "kind": "subphase",
+      "facts": {
+        "separatePurpose": true,
+        "separateObservableOutcome": true,
+        "endToEndBehaviorBoundary": true,
+        "contributesToParentFeature": true,
+        "multipleLifecycleStages": true,
+        "multipleIndependentPurposes": true,
+        "multipleIndependentDecisionSets": true,
+        "multipleAcceptanceEvidenceSets": true
+      },
+      "expected": "split_or_retest_main"
+    },
+    {
+      "id": "global-discovery-is-cross-cutting",
+      "description": "Birden fazla feature'ı kapsayan ayrı arama yolculuğu kendi başarısıyla ana fazdır.",
+      "kind": "cross_cutting",
+      "facts": {
+        "separatelyPerceivedOrStartedPurpose": true,
+        "crossesMultipleFeatures": true,
+        "ownEndToEndJourney": true,
+        "ownObservableSuccess": true,
+        "doesNotStealFeatureLifecycle": true
+      },
+      "expected": "main_phase"
+    },
+    {
+      "id": "shared-validation-is-distributed",
+      "description": "Ayrı yolculuğu olmayan ortak validasyon ilgili feature'lara dağıtılır.",
+      "kind": "cross_cutting",
+      "facts": {
+        "separatelyPerceivedOrStartedPurpose": false,
+        "crossesMultipleFeatures": true,
+        "ownEndToEndJourney": false,
+        "ownObservableSuccess": false,
+        "doesNotStealFeatureLifecycle": true
+      },
+      "expected": "distribute"
+    },
+    {
+      "id": "protected-personal-area-is-observable",
+      "description": "Kullanıcının yalnız kendi alanını görmesi bağımsız doğrulanabilir sistem sonucudur.",
+      "kind": "observable_system",
+      "facts": {
+        "sourceRecognizedSystemOutcome": true,
+        "independentlyObservable": true,
+        "ownAcceptanceBoundary": true,
+        "notOnlyTechnicalMechanism": true
+      },
+      "expected": "main_phase"
+    },
+    {
+      "id": "migration-is-an-internal-mechanism",
+      "description": "Migration ve persistence adapter gözlenebilir ürün sonucu olmadan faz değildir.",
+      "kind": "observable_system",
+      "facts": {
+        "sourceRecognizedSystemOutcome": false,
+        "independentlyObservable": false,
+        "ownAcceptanceBoundary": false,
+        "notOnlyTechnicalMechanism": false
+      },
+      "expected": "internal_mechanism"
+    },
+    {
+      "id": "optional-enrichment-is-not-hard-prerequisite",
+      "description": "Onsuz geçerli sonuç üreten metadata sert önkoşul değildir.",
+      "kind": "prerequisite",
+      "facts": {
+        "requiredConsumption": false,
+        "invalidWithoutConsumedOutcome": false
+      },
+      "expected": "none"
+    },
+    {
+      "id": "required-consumption-orders-phases",
+      "description": "Tüketilen sonuç olmadan davranış geçersizse doğrudan önkoşul oluşur.",
+      "kind": "prerequisite",
+      "facts": {
+        "requiredConsumption": true,
+        "invalidWithoutConsumedOutcome": true
+      },
+      "expected": "hard"
+    },
+    {
+      "id": "main-evidence-proves-integrated-value",
+      "description": "Ana faz kanıtı alt faz listesini değil bütünleşik sonucu doğrular.",
+      "kind": "evidence",
+      "facts": {
+        "wholeValue": true,
+        "doesNotRepeatSubphaseEvidence": true
+      },
+      "expected": "integrated"
+    },
+    {
+      "id": "material-unresolved-conflict-requires-question",
+      "description": "Varsayılanların çözemediği aynı-eksen çatışması kullanıcı kararı gerektirir.",
+      "kind": "ambiguity",
+      "facts": {
+        "multipleSourceDefensibleInterpretations": true,
+        "materiallyChangesStructure": true,
+        "defaultDecisionRulesCannotResolve": true
+      },
+      "expected": "ask"
+    },
+    {
+      "id": "default-split-avoids-unnecessary-question",
+      "description": "Eksik birleşme kanıtı varsayılan bölme ilkesiyle çözülür.",
+      "kind": "ambiguity",
+      "facts": {
+        "multipleSourceDefensibleInterpretations": true,
+        "materiallyChangesStructure": true,
+        "defaultDecisionRulesCannotResolve": false
+      },
+      "expected": "decide_with_defaults"
+    }
+  ]
+}

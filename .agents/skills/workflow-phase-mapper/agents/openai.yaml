@@ -1,0 +1,6 @@
+interface:
+  display_name: "Workflow Phase Mapper"
+  short_description: "Feature fazlarını önizler ve onayla yayımlar"
+  default_prompt: "$workflow-phase-mapper ile ürün ve teknik kaynaklardan bağımsız feature sınırlarını çıkar, salt okunur önizlemeyi sun ve yalnız açık onayımdan sonra phase-context kaynaklarını yayımla."
+policy:
+  allow_implicit_invocation: false

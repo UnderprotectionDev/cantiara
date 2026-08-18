@@ -1,0 +1,6 @@
+interface:
+  display_name: "PRD Readiness Check"
+  short_description: "Implementation öncesi PRD kalite kapısı"
+  default_prompt: "$prd-readiness-check kullanarak verdiğim PRD/spec inceleme paketini read-only değerlendir; implementation hazırlığını Türkçe kalite kapısı ve kanıtlı karar bulgularıyla raporla."
+policy:
+  allow_implicit_invocation: false

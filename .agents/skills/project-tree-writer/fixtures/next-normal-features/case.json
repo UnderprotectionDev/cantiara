@@ -1,0 +1,39 @@
+{
+  "version": 3,
+  "id": "next-normal-features",
+  "description": "Next.js greenfield normal repo uses src/app plus direct src/features ownership.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Bu kaynaklardan structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "src/app/orders/page.tsx",
+    "src/app/orders/[id]/page.tsx",
+    "src/features/orders/",
+    "src/features/orders/components/",
+    "src/features/orders/server/"
+  ],
+  "forbidden_paths": [
+    "src/app/orders/_components/",
+    "src/features/orders/ui/",
+    "src/features/orders/index.ts",
+    "src/features/orders/server/procedures.ts",
+    "src/modules/"
+  ],
+  "route_roots": [
+    "src/app/"
+  ],
+  "route_entry_paths": [
+    "src/app/orders/page.tsx",
+    "src/app/orders/[id]/page.tsx"
+  ],
+  "route_feature_map": {
+    "src/app/orders/page.tsx": "src/features/orders/",
+    "src/app/orders/[id]/page.tsx": "src/features/orders/"
+  },
+  "properties": {
+    "primary_js_features_first": true
+  }
+}

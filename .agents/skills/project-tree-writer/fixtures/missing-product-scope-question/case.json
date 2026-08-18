@@ -1,0 +1,12 @@
+{
+  "version": 3,
+  "id": "missing-product-scope-question",
+  "description": "A framework skeleton without product scope triggers one focused question.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Bu Next.js projesi için structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "question",
+  "question_axis": "Ürün kapsamı",
+  "output_file": "expected/response.md",
+  "source_dir": "sources"
+}

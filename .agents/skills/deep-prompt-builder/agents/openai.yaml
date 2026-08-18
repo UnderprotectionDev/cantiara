@@ -1,0 +1,6 @@
+interface:
+  display_name: "Deep Prompt Builder"
+  short_description: "Tekrarı çıkarır, kapsanmayan maddi karar yönünü bulur"
+  default_prompt: "$deep-prompt-builder ile bu taslağı, kaynak ve downstream tekrarını çıkarıp yalnız kullanıcı farkı ile varsa kapsanmayan maddi karar yönlerini taşıyan kopyalanabilir bir prompta dönüştür."
+policy:
+  allow_implicit_invocation: false

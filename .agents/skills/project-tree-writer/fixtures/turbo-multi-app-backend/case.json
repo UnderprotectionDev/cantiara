@@ -1,0 +1,45 @@
+{
+  "version": 3,
+  "id": "turbo-multi-app-backend",
+  "description": "A deployable backend owns server behavior and persistence while client apps own platform UI.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Bu pnpm/Turborepo workspace için structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "apps/backend/prisma/schema.prisma",
+    "apps/backend/src/features/orders/server/",
+    "apps/mobile/src/features/orders/",
+    "apps/web/src/features/orders/",
+    "packages/contracts/orders-api/src/schemas.ts"
+  ],
+  "forbidden_paths": [
+    "packages/backend/",
+    "packages/db/",
+    "packages/features/",
+    "packages/ui/"
+  ],
+  "package_roots": [
+    "packages/contracts/orders-api/"
+  ],
+  "package_exports": {
+    "packages/contracts/orders-api/": {
+      "./schemas": "src/schemas.ts"
+    }
+  },
+  "route_roots": [
+    "apps/backend/src/routes/",
+    "apps/web/src/app/"
+  ],
+  "route_entry_paths": [
+    "apps/backend/src/routes/orders.ts",
+    "apps/web/src/app/orders/page.tsx"
+  ],
+  "properties": {
+    "primary_js_features_first": true,
+    "monorepo_ownership": true,
+    "grouped_packages": true
+  }
+}

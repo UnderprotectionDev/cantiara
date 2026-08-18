@@ -1,0 +1,24 @@
+{
+  "version": 3,
+  "id": "nx-app-scoped-feature",
+  "description": "Nx may keep an app-specific feature as a scoped library without making it cross-app.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Bu Nx workspace için structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "apps/web/src/app/",
+    "libs/web/feature-orders/src/"
+  ],
+  "forbidden_paths": [
+    "packages/features/"
+  ],
+  "nx_feature_roots": [
+    "libs/web/feature-orders/"
+  ],
+  "properties": {
+    "monorepo_ownership": true
+  }
+}

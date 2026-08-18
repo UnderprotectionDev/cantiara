@@ -1,0 +1,27 @@
+{
+  "version": 3,
+  "id": "legacy-modules-converted",
+  "description": "Primary greenfield JS/TS target converts a partial modules signal to mandatory features-first ownership.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Greenfield hedef structure.md dosyasını oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "src/features/billing/"
+  ],
+  "forbidden_paths": [
+    "src/modules/",
+    "src/modules/billing/"
+  ],
+  "route_roots": [
+    "src/app/"
+  ],
+  "route_entry_paths": [
+    "src/app/billing/page.tsx"
+  ],
+  "properties": {
+    "primary_js_features_first": true
+  }
+}

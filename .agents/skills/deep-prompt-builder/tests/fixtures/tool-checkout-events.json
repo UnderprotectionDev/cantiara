@@ -1,0 +1,20 @@
+{
+  "group": "checkout-timeout",
+  "events": [
+    {
+      "environment": "production",
+      "sequence": ["payment_submitted", "gateway_timeout", "retry_clicked"],
+      "terminal_state": "unknown"
+    },
+    {
+      "environment": "production",
+      "sequence": ["payment_submitted", "gateway_timeout", "retry_clicked"],
+      "terminal_state": "charged"
+    },
+    {
+      "environment": "staging",
+      "sequence": ["payment_submitted", "gateway_timeout"],
+      "terminal_state": "failed"
+    }
+  ]
+}

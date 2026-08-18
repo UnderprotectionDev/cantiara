@@ -1,0 +1,28 @@
+{
+  "version": 3,
+  "id": "react-router-framework",
+  "description": "Greenfield React Router Framework Mode uses routes.ts and features-first ownership.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer React Router Framework Mode projesi için structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "src/app/routes.ts",
+    "src/features/catalog/"
+  ],
+  "forbidden_paths": [
+    "src/app/routes/catalog/_components/"
+  ],
+  "route_roots": [
+    "src/app/"
+  ],
+  "route_entry_paths": [
+    "src/app/root.tsx",
+    "src/app/routes.ts"
+  ],
+  "properties": {
+    "primary_js_features_first": true
+  }
+}

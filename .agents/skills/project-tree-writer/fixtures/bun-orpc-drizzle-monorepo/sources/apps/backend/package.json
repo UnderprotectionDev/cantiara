@@ -1,0 +1,16 @@
+{
+  "name": "@workspace/backend",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --hot src/index.ts"
+  },
+  "dependencies": {
+    "@orpc/server": "latest",
+    "@workspace/invoices-api": "workspace:*",
+    "drizzle-orm": "latest",
+    "hono": "latest"
+  },
+  "devDependencies": {
+    "drizzle-kit": "latest"
+  }
+}

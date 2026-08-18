@@ -1,0 +1,23 @@
+{
+  "version": 3,
+  "id": "supporting-state-owned",
+  "description": "Supporting state stays with its owning feature or an explicit app helper boundary.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Orders uygulaması için structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "src/features/orders/store/",
+    "src/features/orders/params.ts"
+  ],
+  "forbidden_paths": [
+    "src/features/session-state/",
+    "src/features/workspace-context/",
+    "src/store/"
+  ],
+  "properties": {
+    "primary_js_features_first": true
+  }
+}

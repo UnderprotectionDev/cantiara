@@ -1,0 +1,10 @@
+{
+  "version": 3,
+  "id": "implicit-no-activation",
+  "description": "The explicit-only skill stays inactive without $project-tree-writer.",
+  "invocation": "implicit",
+  "user_input": "Full-stack repo yapımı çıkar.",
+  "expected_activation": false,
+  "expected_mode": "none",
+  "source_dir": "sources"
+}

@@ -1,0 +1,7 @@
+{
+  "name": "@workspace/orders-api",
+  "private": true,
+  "exports": {
+    "./schemas": "./src/schemas.ts"
+  }
+}

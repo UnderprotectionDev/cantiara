@@ -1,0 +1,10 @@
+{
+  "name": "@workspace/invoices-api",
+  "private": true,
+  "exports": {
+    "./contract": "./src/contract.ts"
+  },
+  "dependencies": {
+    "@orpc/contract": "latest"
+  }
+}

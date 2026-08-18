@@ -1,0 +1,29 @@
+{
+  "version": 3,
+  "id": "tanstack-hono-normal",
+  "description": "A same-deployable Hono API stays a thin server adapter around app-local feature behavior.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer TanStack Router ve Hono normal repo kaynaklarından structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "src/features/invoices/server/",
+    "src/routes/invoices/index.tsx",
+    "src/server/routes/invoices.ts"
+  ],
+  "route_roots": [
+    "src/routes/"
+  ],
+  "route_entry_paths": [
+    "src/routes/invoices/index.tsx",
+    "src/routes/__root.tsx"
+  ],
+  "route_feature_map": {
+    "src/routes/invoices/index.tsx": "src/features/invoices/"
+  },
+  "properties": {
+    "primary_js_features_first": true
+  }
+}

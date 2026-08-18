@@ -1,0 +1,12 @@
+{
+  "version": 3,
+  "id": "multi-app-repo-model-question",
+  "description": "Planned web, mobile, and desktop apps trigger a monorepo recommendation when topology is undecided.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Bu product brief için structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "question",
+  "question_axis": "Repo modeli",
+  "output_file": "expected/response.md",
+  "source_dir": "sources"
+}

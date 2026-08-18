@@ -1,0 +1,6 @@
+# structure.md
+
+```text
+.
+└── src/
+```

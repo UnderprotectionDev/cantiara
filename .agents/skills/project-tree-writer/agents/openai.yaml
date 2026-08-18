@@ -1,0 +1,6 @@
+interface:
+  display_name: "Project Tree Writer"
+  short_description: "Writes a source-backed structure.md"
+  default_prompt: "Use $project-tree-writer to derive a source-backed greenfield normal-repo or monorepo target tree, resolve structural ambiguities one decision at a time, and write only structure.md."
+policy:
+  allow_implicit_invocation: false

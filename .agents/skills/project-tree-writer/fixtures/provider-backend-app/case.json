@@ -1,0 +1,24 @@
+{
+  "version": 3,
+  "id": "provider-backend-app",
+  "description": "A shared Convex provider backend is a deployable app, not a shared source package.",
+  "invocation": "explicit",
+  "user_input": "$project-tree-writer Ortak Convex backend workspace'i için structure.md oluştur.",
+  "expected_activation": true,
+  "expected_mode": "structure",
+  "output_file": "expected/structure.md",
+  "source_dir": "sources",
+  "required_paths": [
+    "apps/backend/convex/schema.ts",
+    "apps/backend/src/features/documents/server/",
+    "apps/mobile/src/features/documents/",
+    "apps/web/src/features/documents/"
+  ],
+  "forbidden_paths": [
+    "packages/backend/"
+  ],
+  "properties": {
+    "primary_js_features_first": true,
+    "monorepo_ownership": true
+  }
+}

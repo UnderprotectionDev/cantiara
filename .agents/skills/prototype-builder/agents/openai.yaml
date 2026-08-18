@@ -1,0 +1,6 @@
+interface:
+  display_name: "Prototype Builder"
+  short_description: "Üç izlenebilir masaüstü prototipi üretir"
+  default_prompt: "$prototype-builder ile verdiğim kaynakları izlenebilir gereksinimlere dönüştür ve aynı kapsamı koruyan üç çalışabilir masaüstü web prototipi üret."
+policy:
+  allow_implicit_invocation: false

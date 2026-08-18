@@ -1,0 +1,6 @@
+interface:
+  display_name: "Prompt Builder"
+  short_description: "Taslakları tekrarsız nihai promptlara dönüştürür"
+  default_prompt: "$prompt-builder [taslak]"
+policy:
+  allow_implicit_invocation: false

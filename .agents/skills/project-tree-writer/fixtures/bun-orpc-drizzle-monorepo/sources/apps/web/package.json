@@ -1,0 +1,14 @@
+{
+  "name": "@workspace/web",
+  "private": true,
+  "dependencies": {
+    "@orpc/client": "latest",
+    "@tanstack/react-router": "latest",
+    "@workspace/invoices-api": "workspace:*",
+    "react": "latest"
+  },
+  "devDependencies": {
+    "@tanstack/router-plugin": "latest",
+    "vite": "latest"
+  }
+}

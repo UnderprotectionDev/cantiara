@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "dependencies": {
+    "@tanstack/react-router": "latest",
+    "hono": "latest"
+  }
+}
