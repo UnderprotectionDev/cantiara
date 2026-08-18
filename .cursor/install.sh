@@ -11,6 +11,26 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# Cursor Cloud can reuse a repository checkout whose branch pointer predates
+# the current GitHub main branch. Keep the install step self-healing so a new
+# agent always installs from the latest clean main checkout.
+if git diff --quiet && git diff --cached --quiet; then
+  if git fetch --quiet origin main; then
+    if ! git merge-base --is-ancestor HEAD origin/main; then
+      echo "==> Refusing to install: checkout is not an ancestor of origin/main"
+      exit 1
+    fi
+    if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+      echo "==> Fast-forwarding checkout to origin/main"
+      git merge --ff-only origin/main
+    fi
+  else
+    echo "==> Warning: could not refresh origin/main; continuing with cached checkout"
+  fi
+else
+  echo "==> Warning: working tree is not clean; skipping checkout refresh"
+fi
+
 BUN_VERSION="1.3.13"
 DATABASE_URL="postgresql://cantiara:cantiara@localhost:5432/cantiara"
 
