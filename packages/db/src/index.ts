@@ -1,14 +1,26 @@
 import { env } from "@cantiara/env/server";
+import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 
 import { PrismaClient } from "../prisma/generated/client";
 
-export function createPrismaClient() {
-  const adapter = new PrismaNeon({
-    connectionString: env.DATABASE_URL,
-  });
+// Local development: route the Neon serverless driver's WebSocket transport to a
+// local proxy (see scripts/neon-local-proxy.ts) that tunnels to a local Postgres
+// instance. This block is inert unless NEON_LOCAL=true, so hosted Neon usage is
+// unchanged in production.
+if (process.env.NEON_LOCAL === "true") {
+	const proxy = process.env.NEON_LOCAL_PROXY ?? "127.0.0.1:5433";
+	neonConfig.useSecureWebSocket = false;
+	neonConfig.pipelineConnect = false;
+	neonConfig.wsProxy = () => `${proxy}/v1`;
+}
 
-  return new PrismaClient({ adapter });
+export function createPrismaClient() {
+	const adapter = new PrismaNeon({
+		connectionString: env.DATABASE_URL,
+	});
+
+	return new PrismaClient({ adapter });
 }
 
 const prisma = createPrismaClient();
