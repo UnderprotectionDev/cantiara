@@ -29,7 +29,7 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev -F web -F server -F fumadocs",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
     "dev:web": "turbo run dev -F web --",
@@ -40,6 +40,9 @@
     "db:migrate": "turbo run db:migrate -F @cantiara/db --",
     "check": "ultracite check",
     "fix": "ultracite fix"
+  },
+  "devNotes": {
+    "wxt": "WXT extension development is intentionally excluded from bun run dev for now. TODO: Re-enable WXT in the default development workflow later."
   },
   "dependencies": {
     "@cantiara/env": "workspace:*",

@@ -94,7 +94,8 @@ cantiara/
 
 ## Available Scripts
 
-- `bun run dev`: Start all applications in development mode
+- `bun run dev`: Start the web app, API server, and documentation in development mode
+- WXT extension development is intentionally excluded from `bun run dev` for now. TODO: Re-enable WXT in the default development workflow later.
 - `bun run build`: Build all applications
 - `bun run dev:web`: Start only the web application
 - `bun run dev:server`: Start only the server

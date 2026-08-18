@@ -2,10 +2,13 @@
 
 [scripts]
 setup = """
-bun install
 if [ -f "$CONDUCTOR_ROOT_PATH/apps/server/.env" ] && [ ! -f apps/server/.env ]; then
   cp "$CONDUCTOR_ROOT_PATH/apps/server/.env" apps/server/.env
 fi
+
+# Prisma only needs a syntactically valid URL while generating its client.
+# The real application still reads DATABASE_URL from apps/server/.env at runtime.
+DATABASE_URL="${DATABASE_URL:-postgresql://localhost:5432/cantiara}" bun install
 """
 archive = ":"
 run_mode = "nonconcurrent"
