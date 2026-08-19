@@ -2,7 +2,7 @@
 
 This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, Hono, ORPC, and more.
 
-## Featuress
+## Features
 
 - **TypeScript** - For type safety and improved developer experience
 - **TanStack Router** - File-based routing with full type safety
@@ -107,4 +107,4 @@ cantiara/
 - `bun run check`: Run Biome formatting and linting
 - `cd apps/web && bun run desktop:dev`: Start Tauri desktop app in development
 - `cd apps/web && bun run desktop:build`: Build Tauri desktop app
-# cantiara
+# cantiara app
