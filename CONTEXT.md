@@ -2,6 +2,8 @@
 
 Tek kurucunun yazılım projelerindeki kalıcı bağlamı, sahipliği ve yaşam döngüsünü tek doğruluk kaynağında tutan Cantiara'nın ortak domain dili.
 
+Bu sözlük ürün-geneli ortak dildir, kapsam kaynağı değildir. Bir terimin burada tanımlı olması onu ilk ürün kapsamına almaz; kapsamın tek sahibi [Ürün Vizyonu ve Kapsamı](docs/prd/01-product-vision-and-scope.md#kapsam-dili) ile ilgili ürün alanı belgeleridir. Sözlük ayrıca [gelecek yönlerinde](docs/prd/18-future-directions.md) ve [ticari genişlemede](docs/prd/17-commercial-expansion.md) tartışılan terimleri de taşıyabilir.
+
 Bu sözlüğün açıklama dili Türkçedir; Cantiara'nın ilk ürün arayüzü İngilizcedir. Türkçe domain terimi PRD tartışmasını, [ortak PRD sözlüğündeki İngilizce UI etiketi](docs/prd/02-domain-model-and-lifecycle.md#terim-sözlüğü) kullanıcıya gösterilen kesin adı taşır. Locale tarih, saat ve sayı biçimini değiştirir; arayüz dilini veya kullanıcı içeriğini çevirmez.
 
 ## Sahiplik ve kayıt yapısı

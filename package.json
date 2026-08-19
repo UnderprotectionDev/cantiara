@@ -39,7 +39,9 @@
     "db:generate": "turbo run db:generate -F @cantiara/db --",
     "db:migrate": "turbo run db:migrate -F @cantiara/db --",
     "check": "ultracite check",
-    "fix": "ultracite fix"
+    "fix": "ultracite fix",
+    "prd:check": "node docs/prd/validate-prd.mjs",
+    "prd:refs": "node docs/prd/validate-prd.mjs --refs-write"
   },
   "devNotes": {
     "wxt": "WXT extension development is intentionally excluded from bun run dev for now. TODO: Re-enable WXT in the default development workflow later."

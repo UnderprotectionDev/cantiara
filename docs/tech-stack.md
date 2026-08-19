@@ -10,8 +10,8 @@
 | Hono | API backend'i ve herkese açık HTML/SEO yanıtları |
 | Bun | Runtime ve paket yönetimi |
 | PostgreSQL | Ana ilişkisel veritabanı; ticari para hesaplarında `numeric` ve kanonik decimal string oracle'ı |
-| Neon | Yönetilen PostgreSQL; üretimle aynı pinlenmiş major/extension matrisi kullanan, her DDL doğrulamasından sonra atılan disposable test veritabanları/branch'leri |
-| Prisma | ORM ve veri erişimi |
+| Neon | Yönetilen PostgreSQL; üretimle aynı pinlenmiş major/extension matrisi kullanan, her DDL doğrulamasından sonra atılan disposable test veritabanları/branch'leri. Bu satır ürünün [statik SQL doğrulaması](prd/11-technical-diagrams-and-schema-artifacts.md#veri-modeli-semalari) çalışma zamanı içindir; repository'nin kendi otomatik testlerinin veritabanı değildir |
+| Prisma | ORM ve veri erişimi; ilk domain modelinden itibaren sürümlü `prisma migrate` migration'ları kullanılır ve `prisma db push` yalnız yerel deneme veritabanında kalır. Kabul manifestindeki `schemaVersion`, migration dizinindeki son migration adı ile dizinin içerik hash'idir |
 | oRPC | Tip güvenli API katmanı |
 | Better Auth | Web, masaüstü ve uzantı kullanıcı kimliği, GitHub login OAuth'u ve ürün oturumları; repository yetkisi taşımaz |
 | Turborepo | Monorepo yönetimi |
@@ -115,10 +115,15 @@
 - Next.js yalnız dokümantasyon uygulamasının framework'üdür. Ana ürün web uygulaması React + Vite + TanStack Router, API backend'i Hono olarak kalır; ürün rotaları, kimlik doğrulama ve domain API'leri dokümantasyon uygulamasına taşınmaz.
 - Fumadocs içeriğinin kanonik kaynağı repository içindeki MDX dosyalarıdır. Dokümantasyon uygulamasının server gereksinimi ürün backend'ini Next.js'e dönüştürmez.
 
+### Yerel geliştirme sınırı
+
+- Yerel geliştirmede Neon serverless sürücüsünü yerel PostgreSQL'e bağlayan proxy shim kullanılabilir. Shim geliştirici kolaylığıdır; ürün davranışının doğrulandığı ortam değildir ve ürettiği hiçbir sonuç [kabul kanıtı](prd/16-product-acceptance.md#urun-surum-adayi-kaniti) sayılmaz.
+- [Avrupa Birliği veri bölgesi](prd/03-account-platform-operations.md#ab-veri-bolgesi) sözleşmesinin doğrulanması otomatik bir kontroldür ve production deployment'tan önce çalışır.
+
 ### Güvenlik verisi ve restore sınırı
 
 - Dinamik GitHub ve entegrasyon token'ları uygulama katmanında envelope encryption ile şifrelenmiş ciphertext olarak PostgreSQL'de tutulur. Sürümlü üst anahtar Railway sealed runtime secret'tan gelir; üretim, entegrasyon, yedek ve export alanları ayrı döndürülebilir veri anahtarı kullanır. Secret düz metni log, arama, export, kanıt veya normal domain kaydına yazılmaz.
-- Append-only güvenlik olay günlüğü birincil PostgreSQL + R2 restore biriminin dışında ayrı restore alanında tutulur. Kalıcı silme, redaksiyon, yüzey/token/parola ve oturum iptali ile anahtar/entegrasyon rotasyonu restore sonrasında buradan replay edilir; replay tamamlanmadan dış erişim açılmaz. Kesin deployment topolojisi yeni veri teknolojisi seçmeden bu ayrılığı korur.
+- Append-only güvenlik olay günlüğü birincil PostgreSQL + R2 restore biriminin dışında ayrı restore alanında tutulur; [ADR-0019](adr/0019-guvenlik-olay-gunlugunu-ve-ust-anahtari-ayri-guven-alaninda-tut.md) bu alanı ayrı kimlik bilgileriyle erişilen ayrı bir yönetilen PostgreSQL projesi olarak sabitler. Kalıcı silme, redaksiyon, yüzey/token/parola ve oturum iptali ile anahtar/entegrasyon rotasyonu restore sonrasında buradan replay edilir; replay tamamlanmadan dış erişim açılmaz. Kesin deployment topolojisi yeni veri teknolojisi seçmeden bu ayrılığı korur.
 - Yüzey kapsamlı HTML, Dosya Eki ve range istekleri ham R2/CDN adresi açıklamaz. Hono/edge sınırı güncel Dış yüzey, ziyaretçi oturumu ve kesin asset sürümünü cache tesliminden önce doğrular; purge yalnız artalan hijyenidir.
 
 ## Geliştirme, kalite ve test araçları
@@ -132,7 +137,7 @@
 | Playwright | E2E test ve PDF üretimi |
 | BrowserStack Automate | Gerçek tarayıcı testleri |
 | Grafana k6 OSS | Performans testleri |
-| GitHub Actions | CI/CD |
+| GitHub Actions | CI/CD; kabul kanıtının kabul edildiği tek koşturucu. Repository'nin kendi Vitest/Playwright paketleri workflow service container'ındaki geçici PostgreSQL'e bağlanır; ayrı yönetilen test projesi açılmaz |
 | GitHub Dependabot | Bağımlılık güncellemeleri |
 
 ## Bilinçli olarak eklenmeyenler

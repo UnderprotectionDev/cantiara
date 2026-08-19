@@ -24,5 +24,6 @@ Bu dizin yalnız değiştirilmesi maliyetli, koddan tek başına anlaşılmayaca
 | [0016](0016-ekrani-ana-kayit-wireframei-surumlu-yuzey-olarak-tut.md) | Ekranın ana kayıt, Wireframe'in sürümlü yüzey olması | Bağımsız Ekran yaşamı ile yinelenen tasarım kaydı oluşturmamak |
 | [0017](0017-bitiris-efektlerini-ozgun-birinci-taraf-katalogla-sinirla.md) | Bitiriş efektlerinin özgün birinci taraf katalogla sınırlanması | Güçlü kişiselleştirme ile hak, dağıtım ve kalıcı asset yükümlülükleri |
 | [0018](0018-kaynak-kodu-apache-2-0-ile-lisansla.md) | Kaynak kodunu Apache-2.0 ile lisansla | Açık yeniden kullanım ve katkı ile açık patent hibesi |
+| [0019](0019-guvenlik-olay-gunlugunu-ve-ust-anahtari-ayri-guven-alaninda-tut.md) | Güvenlik olay günlüğü ve üst anahtar güven alanı | Tek işletim birimi ile restore sonrası güvenlik bütünlüğü |
 
 Yeni bir ADR ancak bu dizindeki üç ölçütü birlikte karşılayan bir karar için eklenir. Mevcut ürün sözleşmesini tekrar eden açıklamalar ADR oluşturmaz.
