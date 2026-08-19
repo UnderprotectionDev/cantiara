@@ -114,7 +114,7 @@ Bu belge Dış yüzey, Onaylı snapshot revizyonu, bağlantıyla sınırlı payl
 
 ### İç durumların herkese açık sunumu
 
-- **Kullanıcı Proje bazında ayrıntılı iç İş durumlarını az sayıda, ziyaretçi tarafından anlaşılır herkese açık etikete eşler.** Eşleme aynı ana İşin yalnız yayın sunumudur; ayrı herkese açık İş kaydı veya ikinci durum doğruluk kaynağı oluşturmaz. Başlangıç eşlemeleri görünür ve değiştirilebilir olur; eşlenmemiş iç durumdaki bir İş herkese açık etiketi seçilmeden yayımlanmaz.
+- **Kullanıcı Proje bazında ayrıntılı iç İş durumlarını az sayıda, ziyaretçi tarafından anlaşılır herkese açık etikete eşler.** Eşleme aynı ana İşin yalnız yayın sunumudur; ayrı herkese açık İş kaydı veya ikinci durum doğruluk kaynağı oluşturmaz. İlk ürün başlangıç eşlemeleri `Not Started → Planned`, `In Progress → In Progress` ve `Closed + Completed → Released` olur. `Blocked` ile `Closed + Abandoned` varsayılan eşleme taşımaz; bu İşler kullanıcı açıkça herkese açık etiket seçmeden yayımlanamaz. Başlangıç eşlemeleri görünür ve Proje bazında değiştirilebilir olur.
 
 - **İç durum değişikliği herkese açık etiketi kendiliğinden değiştirmez.** Yeni herkese açık etiket yalnız yayın farkında mevcut ve önerilen değerleriyle gösterilir ve kullanıcı önizleyip onayladıktan sonra herkese açık snapshot'a girer. Herkese açık etiket değişikliği de iç İş durumunu değiştirmez.
 

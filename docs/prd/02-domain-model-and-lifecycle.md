@@ -25,6 +25,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kilometre Taşı | `Milestone` | Projedeki önemli ara sonucu temsil eden Proje ana kaydı; çalışma penceresi veya yayımlanacak kapsam değildir |
 | Odak Dönemi | `Focus Period` | Seçili çalışmalar için geçici çalışma penceresi ve tarihsel kapsam snapshot'ı; ara sonuç veya yayımlanacak kapsam değildir |
 | Proje Sürümü | `Project Release` | Kullanıcı tarafından yönetilen yayımlanacak kapsam ve onun tarihli erişim/sonuç gözlemleri; Kilometre Taşı, Odak Dönemi veya Ürün sürüm adayı değildir |
+| Başlangıç yapılandırması | `Starter Configuration` | Yeni Projeye bir kez uygulanan, içerik üretmeyen kapalı varsayılan yapı seçimi; sonradan başka yapılandırmayla değiştirilmez |
+| Herkese açık durum etiketi | `Public Status Label` | İş akışı durumunu değiştirmeyen, yalnız herkese açık Roadmap sunumunda kullanılan ziyaretçi etiketi |
+| GitHub kimliğini yeniden teyit etme | `Confirm GitHub Identity` | Yüksek riskli işlem için yeni OAuth turunda aynı değişmez GitHub kimliğini doğrulayan fakat parola/MFA girişi iddia etmeyen güvenlik eylemi |
 | Kullanıcı başlatmalı İş başarısı | `User-initiated Work Success` | Kullanıcının açık kapatma eylemiyle başlattığı ve sunucuda PRD terimi `Tamamlandı` (`UI: Completed`) kapanış sonucu olarak kesinleşen İş geçişi; otomatik kapanış ve başka terminal olaylar değildir |
 | Bitiriş efekti | `Completion Effect` | Kullanıcı başlatmalı İş başarısından sonra gösterilebilen, temel başarı geri bildiriminden ayrı, isteğe bağlı ve ürünün sağladığı özgün dekoratif geri bildirim |
 
@@ -64,7 +67,9 @@ Her ana kayıt:
 
 - **İş anahtarı, dış sistem kimliği, slug, e-posta ve başlık iç teknik kimliğin yerine geçmez.** Alias ve yönlendirmeler yalnız açıkça desteklenen kayıt birleştirmesinde emekli kimliği hayatta kalan kayda çözmek içindir; bir kaydı başka kapsama taşımak veya yeni kaydı eski kimliğe dönüştürmek için kullanılmaz. Silinen ya da emekli kimlik başka kayıt için yeniden kullanılmaz.
 
-- **Her durum değiştiren istek hedefin taban revizyonunu ve istemci tarafından üretilmiş idempotency anahtarını taşır.** Aynı anahtarla aynı istek önceki sonucu döndürür; farklı payload çatışma olur. Güncel olmayan taban revizyonu hiçbir zaman sessizce son yazan kazanır davranışıyla mevcut değerin üzerine yazmaz. Kayıt türünün tanımladığı çatışma veya uzlaştırma akışı çalışır; böyle bir akış yoksa yazma reddedilir ve güncel değer gösterilir.
+- **Kullanıcının başlattığı her durum değiştiren komut hedefin taban revizyonunu ve istemci tarafından üretilmiş idempotency anahtarını taşır.** Aynı anahtarla aynı istek önceki sonucu döndürür; farklı payload çatışma olur. Güncel olmayan taban revizyonu hiçbir zaman sessizce son yazan kazanır davranışıyla mevcut değerin üzerine yazmaz. Kayıt türünün tanımladığı çatışma veya uzlaştırma akışı çalışır; böyle bir akış yoksa yazma reddedilir ve güncel değer gösterilir.
+
+- **GitHub webhook'u, Yetkili entegrasyon teslimi, Sistem otomasyonu, import finalize'ı ve restore replay'i insan istemcisi gibi sahte taban revizyonu üretmez.** Her giriş doğrulanmış kaynak kimliği, kaynak kapsamındaki kararlı olay/teslim kimliği, payload parmak izi ve ilgili hedefin commit anındaki revizyon koşuluyla eşdeğer tekrar-teslim ve kayıp-yazma koruması sağlar. Aynı kaynak kimliğiyle aynı payload önceki makbuzu döndürür; farklı payload çatışma veya güvenlik hatasıdır. Alan belgesi daha dar bir kaynak tekilleştirme ya da uzlaştırma kuralı tanımlıyorsa bu ortak garantileri korur.
 
 <a id="ortak-yaşam-döngüsü"></a>
 ## Ortak yaşam döngüsü
@@ -107,10 +112,10 @@ Kullanıcı aşağıdaki anlamları silemez veya başka anlam için yeniden kull
 
 | Kayıt | Sahiplik | Asgari alanlar | Yaşam durumu |
 | --- | --- | --- | --- |
-| Proje | Çalışma alanı | Ad, kısa kod, amaç, problem, kapsam | `Aktif`, `Bekleyen`, `Tamamlandı`, `Vazgeçildi` |
+| Proje | Çalışma alanı | Ad, kısa kod; isteğe bağlı amaç, problem ve kapsam | `Aktif`, `Bekleyen`, `Tamamlandı`, `Vazgeçildi` |
 | Kişisel Wiki | Çalışma alanı | Ad, klasör ve belge kökleri | Aktif; çalışma alanıyla birlikte silinir |
 | Proje Hedefi | Proje | Başlık, açıklama | Açık/kapanmış durum üretmez; sonuç kullanıcı alanlarında değerlendirilir |
-| İş | Proje | Anahtar, başlık, tür, durum | Proje tanımlı durum + `Tamamlandı`/`Vazgeçildi` kapanış sonucu |
+| İş | Proje | Anahtar, başlık, tür, durum | Başlangıçta `Not Started`, `In Progress`, `Blocked`, `Closed`; Proje tanımlı kullanıcı adları + `Tamamlandı`/`Vazgeçildi` kapanış sonucu |
 | Kilometre Taşı | Proje | Başlık, açıklama, isteğe bağlı hedef tarihi | `Planlandı`, `Ulaşıldı`, `Vazgeçildi`; durum İşleri değiştirmez |
 | Belge | Proje veya Wiki | Başlık, Markdown gövdesi, sürüm | Aktif/arşiv/çöp kutusu |
 | Dosya Eki | Proje veya Wiki | Dosya adı, MIME, boyut, içerik parmak izi, sürüm | Aktif/arşiv/çöp kutusu |
@@ -136,10 +141,10 @@ Kullanıcı aşağıdaki anlamları silemez veya başka anlam için yeniden kull
 | Üretim Olayı | Proje | Zaman, etki, tespit, çözüm | `Açık`, `İzleniyor`, `Çözüldü` |
 | Proje Sürümü | Proje | Ad/sürüm etiketi, kapsam, yayın kontrol listesi | `Taslak`, `Hazırlanıyor`, `Yayımlandı`, `İptal edildi` |
 | GitHub bağlantısı | Proje | Kararlı repository kimliği, yetki ve eşitleme durumu | `Bağlı`, `Duraklatıldı`, `Bağlantı kesildi`; ad/sahip kimlik değildir |
-| GitHub dış kaydı | Proje | Sağlayıcı kimliği, tür, URL, kaynak durumu, eşitleme zamanı | Salt okunur dış gerçek; bağlantı kalkarsa son yakalanan durum tarihsel kalır |
+| GitHub dış kaydı | Proje | Sağlayıcı kimliği, tür, URL, kaynak durumu, eşitleme zamanı | Salt okunur dış gerçek ve bağımsız yerel Arşiv/Çöp Kutusu yaşamı; bağlantı kalkarsa son yakalanan durum tarihsel kalır |
 | Dış yüzey | Yayın köküyle aynı Çalışma alanı, Proje veya Kişisel Wiki kapsamı | Kararlı URL/anahtar, erişim türü, parola, süre ve etkinlik durumu | `Aktif`, `Süresi doldu`, `İptal edildi`; iptal terminaldir, kaynak yaşam durumunu değiştirmez |
 
-- **Yakalama Gelen Kutusu öğesi ve tamamlanmamış İş Taslağı geçici varlıklardır; ana kayıt kimliği, kalıcı ilişki, arşiv veya export davranışı kazanmaz.** Sahiplikleri hedef seçilene kadar hesap/çalışma alanı, hedef proje seçildiğinde proje bağlamıdır. Ana kayda dönüşüm yeni kimlik üretir ve kökeni korur.
+- **Yakalama Gelen Kutusu öğesi ve tamamlanmamış İş Taslağı geçici varlıklardır; ana kayıt kimliği, kalıcı ilişki, arşiv veya export davranışı kazanmaz.** `Geçici` zaman aşımı anlamına gelmez: kullanıcı triage edip tamamlayana ya da açıkça silene kadar otomatik silinmezler. Sahiplikleri hedef seçilene kadar hesap/çalışma alanı, hedef proje seçildiğinde proje bağlamıdır. Ana kayda dönüşüm yeni kimlik üretir ve kökeni korur.
 
 - **Planlı Test Senaryosu, Test Handoff'u, Test Oturumu, Oturum Testi, Test Açığı ve Test değerlendirmesi Proje kapsamındaki ana kayıtlardır; uzman alanları ve yaşam durumları [Test ve Doğrulama](10-testing-and-validation.md) tarafından tanımlanır.** Dış yüzey ve Onaylı snapshot revizyonunun ayrıntılı kapsamı [Paylaşım ve Yayınlama](14-sharing-and-public-publishing.md) tarafından tanımlanır.
 

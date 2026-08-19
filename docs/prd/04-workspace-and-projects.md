@@ -6,9 +6,9 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 ### Proje profili
 
-- **Proje profili; projenin amacını, çözmek istediği problemi, kapsam sınırlarını ve isteğe bağlı hedef tarihini içerir.**
+- **Yeni Proje oluştururken yalnız `Project Name` ve kapalı katalogdan bir Başlangıç yapılandırması zorunludur.** Proje `Active` yaşam durumunda açılır. Amaç, çözülmek istenen problem, kapsam sınırları ve hedef tarihi isteğe bağlı profil alanlarıdır; boş olmaları Projenin oluşturulmasını veya kullanılmasını engellemez.
 
-- **Her proje, `PAY-1` gibi iş anahtarlarında kullanılmak üzere çalışma alanı içinde benzersiz bir kısa kod taşır.** Kod, ilk iş oluşturulana kadar değiştirilebilir; sonrasında mevcut referansların bozulmaması için değiştirilemez.
+- **Her proje, `PAY-1` gibi iş anahtarlarında kullanılmak üzere çalışma alanı içinde benzersiz bir kısa kod taşır.** Sistem Proje adından kısa kod önerir; kullanıcı ilk İş oluşturulana kadar değiştirebilir. İlk İşten sonra kod değişmez. Bir Projeye atanmış kısa kod, kullanıcı ilk İşten önce kodu değiştirse veya Proje kalıcı silinse bile aynı Çalışma Alanında başka Projeye verilmez.
 
 - **Kullanıcı isteğe bağlı bir proje logosu yükleyebilir.** Projeye özel renk, tema, font, CSS veya white-label desteği sunulmaz. Logo yoksa standart ve erişilebilir herkese açık başlık kullanılır.
 
@@ -40,15 +40,34 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 ### Görüşlü başlangıç yapılandırmaları
 
-- **Kullanıcı yeni proje oluştururken `Boş Proje` yanında `Solo SaaS`, `Açık Kaynak Kütüphanesi` ve `Mobil Uygulama` gibi az sayıda başlangıç yapılandırması seçebilir.**
+- **İlk ürün Başlangıç yapılandırması kataloğu tam olarak `Blank Project`, `Solo SaaS`, `Open Source Library` ve `Mobile Application` seçeneklerinden oluşur.** Seçim yalnız Proje oluşturulurken bir kez uygulanır; sonradan başka Başlangıç yapılandırmasıyla değiştirilmez veya mevcut yapı üzerine yeniden uygulanmaz. Kullanıcı kurulan yapılandırmaları tek tek değiştirebilir ya da [Proje yapısını kopyalama](#proje-yapısını-kopyalama) davranışını kullanabilir.
 
-- **Başlangıç yapılandırmaları yalnız önerilen aşamaları, iş durumlarını, etkin alanları, hazır dinamik görünümleri ve İş türlerine göre hazır İş Bağlam Kartı düzenlerini kurar.** Örnek iş, sahte belge, karar, risk veya çalışma geçmişi üretmez. Kullanıcı oluşturma sonrasında korunan küçük çekirdeğin anlamını bozmadan kullanıcıya dönük yapılandırmayı değiştirebilir.
+- **Bütün Başlangıç yapılandırmaları `Not Started`, `In Progress`, `Blocked` ve `Closed` İş durumlarını kurar; `Overview`, `Work`, `Documents` ve `All Tools` erişimini korur.** İş türüne göre hazır İş Bağlam Kartı düzenleri yapılandırma arasında değişmez ve [İş Yönetimindeki tek sözleşmeyi](06-work-management-and-planning.md#iş-bağlam-kartı) kullanır. Yapılandırmalar örnek İş, sahte Belge, Karar, Risk veya çalışma geçmişi üretmez.
 
-- **Sitemap, müşteri yolculuğu, persona, retrospektif ve lansman planı gibi uzman iş akışları içeriksiz görsel başlangıç iskeleti adayı olabilir.** Üründe hazır sunulanların sayısı az tutulur; iskeletler yalnız boş Proje Duvarı veya belge yapısını ve açıklayıcı başlıkları kurar, örnek araştırma bulgusu, kişi profili, görev, karar veya başka ana kayıt üretmez. Teknik Diyagram şablonları ilk üründe bulunmaz ve yalnız [gerçek tekrar kanıtından sonraki ayrı yönde](18-future-directions.md#teknik-diyagram-sablonlari) değerlendirilebilir; şablon pazarı ya da içerikli Milanote Board şablonu modeli oluşturulmaz.
+| Başlangıç yapılandırması | Hazır Proje aşamaları | Etkin Proje alanları | Temel erişime ek sabitlenmiş alanlar | Hazır İş görünümleri |
+| --- | --- | --- | --- | --- |
+| `Blank Project` | Yok | `Work`, `Documents` | Yok | `Backlog`, `Board` |
+| `Solo SaaS` | `Discovery`, `Design`, `Build`, `Validate`, `Release`, `Operate` | Bütün Proje alanları | `Discovery`, `Decisions`, `Design`, `Tests`, `Releases` | `Backlog`, `Board`, `Roadmap` |
+| `Open Source Library` | `Scope`, `Build`, `Validate`, `Release`, `Maintain` | `Work`, `Documents`, `Decisions`, `Technical Diagrams`, `Tests`, `Releases`, `GitHub` | `GitHub`, `Tests`, `Releases` | `Backlog`, `Board`, `Roadmap` |
+| `Mobile Application` | `Discovery`, `Design`, `Build`, `Validate`, `Release`, `Operate` | Bütün Proje alanları | `Discovery`, `Design`, `Tests`, `Releases`, `Production` | `Backlog`, `Board`, `Roadmap` |
+
+- **`Blank Project` yapılandırmasındaki `Blank`, ürün yeteneklerinin veya veri modelinin bulunmadığı anlamına gelmez.** Aşama, uzman görünüm ya da Başlangıç iskeleti kurmaz; diğer hazır alanlar `All Tools` içinde görünür ve kullanıcı tarafından etkinleştirilebilir.
+
+- **İlk ürün Başlangıç iskeleti kataloğu aşağıdaki beş içeriksiz yapıdan oluşur.** `Sitemap` ve `Customer Journey` oluşturulduktan sonra normal Proje Duvarı; diğerleri normal Belge olarak yaşar. İskeletler yalnız aşağıdaki boş grup veya bölüm başlıklarını kurar; örnek araştırma bulgusu, kişi profili, görev, karar veya başka ana kayıt üretmez.
+
+| Başlangıç iskeleti | Yüzey | Oluşturulan boş yapı |
+| --- | --- | --- |
+| `Sitemap` | `Project Wall` | `Primary Navigation`, `Secondary Navigation`, `Utility`, `External` |
+| `Customer Journey` | `Project Wall` | `Awareness`, `Consideration`, `Onboarding`, `Core Use`, `Retention` |
+| `Persona` | `Document` | `Context`, `Goals`, `Behaviors`, `Pain Points`, `Constraints`, `Evidence`, `Open Questions` |
+| `Retrospective` | `Document` | `Period`, `What worked?`, `What did not?`, `What did we learn?`, `Decisions`, `Next changes`, `Related records` |
+| `Launch Plan` | `Document` | `Release`, `Audience`, `Scope`, `Readiness`, `Communication`, `Launch steps`, `Risks`, `Observation plan`, `Related records` |
+
+- **Başlangıç iskeleti özel kayıt türü veya kalıcı iskelet bağı oluşturmaz.** Teknik Diyagram şablonları ilk üründe bulunmaz ve yalnız [gerçek tekrar kanıtından sonraki ayrı yönde](18-future-directions.md#teknik-diyagram-sablonlari) değerlendirilebilir; şablon pazarı ya da içerikli Milanote Board şablonu modeli oluşturulmaz.
 
 - **İlk açılışta isteğe bağlı, kapatılabilir bağlamsal yönlendirme seçilen başlangıç yapılandırmasının hangi varsayımları neden getirdiğini ve bunların nereden değiştirilebileceğini açıklar.** Yönlendirme örnek içerik üretmez, kullanıcıyı zorunlu kurulum turuna sokmaz ve kapatıldıktan sonra günlük çalışma yüzeylerini işgal etmez.
 
-- **Seçilen başlangıç yapılandırması ilk sabitlenmiş proje navigasyonu öğelerini de belirleyebilir.** `Tüm araçlar`, etkin veya henüz proje navigasyonuna sabitlenmemiş bütün hazır alanları tek keşif yüzeyinde gösterir; her alanın `Navigasyona sabitle` eylemi ve mevcut görünürlük durumu açıktır. Bir alanı yalnız açmak veya içinde kayıt oluşturmak onu sessizce sabitlemez. Sabitleme, kaldırma ve sıralama proje bazlı sunum üstverisidir; alanın etkinliğini, içerik yaşam döngüsünü veya başka projelerin navigasyonunu değiştirmez.
+- **Seçilen Başlangıç yapılandırması yukarıdaki kesin ilk sabitlenmiş Proje navigasyonunu belirler.** `All Tools`, etkin veya henüz proje navigasyonuna sabitlenmemiş bütün hazır alanları tek keşif yüzeyinde gösterir; her alanın `Pin to navigation` eylemi ve mevcut görünürlük durumu açıktır. Bir alanı yalnız açmak veya içinde kayıt oluşturmak onu sessizce sabitlemez. Sabitleme, kaldırma ve sıralama Proje bazlı sunum üstverisidir; alanın etkinliğini, içerik yaşam döngüsünü veya başka Projelerin navigasyonunu değiştirmez.
 
 - **Ürün kullanım sıklığından otomatik navigasyon düzeni çıkarmaz, az kullanılan alanı kendiliğinden gizlemez ve kullanıcıyı omurgayı sırayla tamamlamaya zorlamaz.** Kullanıcı isterse `Varsayılan navigasyonu geri yükle` önizlemesiyle yalnız sabitleme ve sıra üstverisini seçilen başlangıç yapılandırmasının varsayılanına döndürebilir; bu işlem hiçbir kayıt, alan yapılandırması veya çalışma geçmişini değiştirmez.
 
@@ -66,7 +85,9 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 ### Proje alanlarını etkinleştirme
 
-- **Kullanıcı her projede ihtiyaç duyduğu belge, iş, tasarım, karar, risk, varsayım, geri bildirim, test, sürüm, üretim olayı ve benzeri hazır alanları etkinleştirebilir.** Kullanılmayan alanlar gizlenebilir ve içerik kaybı olmadan yeniden etkinleştirilebilir.
+- **İlk ürünün yapılandırılabilir Proje alanı kataloğu `Work`, `Documents`, `Discovery`, `Decisions`, `Design`, `Technical Diagrams`, `Tests`, `Releases`, `Production` ve `GitHub` ile kapalıdır.** `Overview` ve `All Tools` Proje alanı değildir ve daima erişilebilir kalır. `Discovery`; Geri Bildirim, Kaynak, Kullanıcı Araştırması Oturumu ve Deney/Doğrulama kayıtlarını, `Decisions`; Karar, Risk, Varsayım ve Açık Soruyu, `Design`; Proje Duvarı, Ekran/Wireframe, Kullanıcı Akışı ve Moodboard'u toplar. Proje Hedefi ile Kilometre Taşı `Overview` ve ilgili planlama görünümlerinden erişilir; ayrı alan oluşturmaz.
+
+- **Kullanıcı hazır Proje alanlarını etkinleştirebilir veya gizleyebilir.** Kullanılmayan alanlar içerik kaybı olmadan yeniden etkinleştirilebilir; alan kaydı sahiplenmez ve içindeki kayıt türlerinin yaşam döngüsünü değiştirmez. Her kayıt türünün kendi filtrelenebilir hazır dizini ilgili gruplanmış alan içinde bulunabilir; her tür için ayrı ana navigasyon kapısı oluşturulmaz.
 
 - **Etkin alanlar Proje Genel Bakışında bu projede kullanılan çalışma yüzeyleri olarak adları ve görünür girişleriyle sunulur.** Bir alanı etkinleştirmek yeni içerik üretmez; gizlemek veya yeniden göstermek alanın ana kayıtlarını taşımaz, kopyalamaz ya da silmez.
 
@@ -74,7 +95,7 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 - **Genel bakış ekranı aktif, bekleyen, tamamlanmış ve vazgeçilmiş projeleri; yaklaşan hedef tarihlerini, hatırlatmaları, açık riskleri, blokajları ve son çalışmaları çalışma alanı düzeyinde özetler.**
 
-- **Yüzey güçlü bir hazır modül düzeniyle açılır.** Kullanıcı ürünün sunduğu hazır özet modüllerini gösterebilir, gizleyebilir ve sıralayabilir; ayrıca sınırlı sayıda mevcut belgeyi veya adlandırılmış Akıllı Koleksiyon görünümünü kişisel canlı blok olarak ekleyebilir.
+- **Yüzey `Active Projects`, `Attention Required`, `Upcoming` ve `Recent Work` hazır modülleriyle açılır.** Kullanıcı bu dört modülü gösterebilir, gizleyebilir ve sıralayabilir; ayrıca sınırlı sayıda mevcut Belgeyi veya adlandırılmış Akıllı Koleksiyon görünümünü kişisel canlı blok olarak ekleyebilir.
 
 - **Bu bloklar kaynak belgeyi veya görünümü kopyalamayan referanslardır; ayrı sorgu, üyelik kuralı, kayıt kümesi, widget mantığı veya analitik doğruluk kaynağı oluşturmaz.** Kaynaktaki değişiklik aynı blokta görünür ve blok kaynağı ortak `Kaynak kaydı aç` eylemiyle açar. Kullanıcı tanımlı genel widget ve serbest dashboard oluşturucu sunulmaz.
 

@@ -11,6 +11,8 @@ Bu belge Hesap oluşturma ve kapatma, Hesap profil tercihleri, oturum güvenliğ
 
 - **Tauri paketi web uygulamasıyla aynı Ürün sürüm adayının ana akışlarını ve güvenlik sınırlarını korur.** macOS paketi platform sertifikasıyla imzalanır ve notarization'dan geçer. Tauri Updater yalnız imzası doğrulanan çıktıyı uygular; değiştirilmiş veya geçersiz imzalı paketi reddeder ve önceki çalışan sürümü bozmaz. Otomatik rollback yoktur; bir önceki imzalı installer indirilebilir tutulur ve belgelenmiş manuel kurtarma yoluyla kurulabilir.
 
+- **macOS paketi her Ürün sürüm adayında o tarihteki güncel macOS ana sürümü ile önceki iki ana sürümü destekler.** Kesin işletim sistemi sürümleri ve test donanımı o adayın Ürün destek matrisine sabitlenir; daha sonra yayımlanan macOS sürümü geçmiş kabulü yeniden yazmaz.
+
 - **Backend her yeni macOS masaüstü sürümünden sonra güncel ve bir önceki imzalı masaüstü API sözleşmesini 30 gün destekler.** Daha eski veya destek süresi dolmuş istemci güvenli olmayan yazma yapmadan önce açık güncelleme hatasıyla durur.
 
 <a id="hesap-ve-calisma-alani"></a>
@@ -38,18 +40,24 @@ Bu belge Hesap oluşturma ve kapatma, Hesap profil tercihleri, oturum güvenliğ
 
 - **Web ve Tauri oturumları 12 saat hareketsizlikten veya oluşturulduktan 30 gün sonra sona erer.** Kullanıcı tek oturumu ya da diğer bütün oturumları cihaz ve son etkinlik bilgisiyle iptal edebilir.
 
-- **GitHub kesintisinde mevcut ve geçerli ürün oturumu olağan süresi dolana kadar özel ürün verisinde normal okuma ve yazmaya devam eder; oturum süresi uzatılmaz.** Yeni giriş, yeniden kimlik doğrulama ve GitHub eşitlemesi görünür biçimde bekler; taze kimlik doğrulama gerektiren yüksek riskli eylemler uygulanmaz.
+- **GitHub kesintisinde mevcut ve geçerli ürün oturumu olağan süresi dolana kadar özel ürün verisinde normal okuma ve yazmaya devam eder; oturum süresi uzatılmaz.** Yeni giriş, GitHub kimliğini yeniden teyit etme ve GitHub eşitlemesi görünür biçimde bekler; teyit gerektiren yüksek riskli eylemler uygulanmaz. Oturum ve Dış yüzey iptali gibi yalnız erişimi azaltan güvenlik eylemleri bu nedenle engellenmez.
+
+### GitHub kimliğini yeniden teyit etme
+
+- **Hesap kapatmayı başlatma veya iptal etme, 30 günlük süreden önce kalıcı silme ve geri döndürülemez kişisel veri redaksiyonu GitHub kimliğini yeniden teyit etmeyi gerektirir.** Ürün PKCE ve `prompt=select_account` ile yeni OAuth authorization-code turu başlatır, callback'te dönen değişmez GitHub kullanıcı kimliğini mevcut Hesapla eşler ve yalnız istenen işlem için tek kullanımlık, en fazla 10 dakika geçerli sunucu yetkisi üretir. Farklı kimlik, süresi dolmuş tur, state/PKCE hatası veya tekrar kullanım hiçbir yüksek riskli yazma yapmadan reddedilir.
+
+- **Bu eylem parola, MFA ya da GitHub'ın yeni credential girişi zorladığı yeniden kimlik doğrulama olarak sunulmaz.** Yıkıcı işlem ayrıca etkilenecek Hesap veya Proje adının kullanıcı tarafından yazıldığı açık onayı ister. Uygulama düzeyinde MFA ilk ürüne eklenmez; GitHub teyidi kullanılamıyorsa yüksek riskli işlem fail-closed kalır.
 
 <a id="hesap-kapatma"></a>
 ## Hesap kapatma
 
 - **Hesap tek Çalışma Alanının sahibidir.** `Hesabı kapat` eylemi Hesap ile tek Çalışma Alanını aynı yaşam döngüsünde kapatır; ayrı bir Çalışma Alanı kapatma eylemi yoktur.
 
-- **Eylem önce görünür `Kapanış tamamlanıyor` geçişini başlatır:** yeni normal mutasyonlar reddedilir, dış paylaşım ve yayın erişimi hemen fail-closed durur, entegrasyonlar kapatılır ve normal oturumlar sona erdirilir. Commit bariyerinden önceki normal import, yükleme, otomasyon veya eşitleme makbuzla iptal edilir; bariyeri geçmiş iş ile daha önce başlamış geri döndürülemez güvenlik redaksiyonu veya silmesi tam commit ya da tam rollback makbuzuna ulaşır.
+- **GitHub kimliğini yeniden teyit eden ve `Hesabı kapat` hedefini yazarak onaylayan kullanıcı önce görünür `Kapanış tamamlanıyor` geçişini başlatır:** yeni normal mutasyonlar reddedilir, dış paylaşım ve yayın erişimi hemen fail-closed durur, entegrasyonlar kapatılır ve normal oturumlar sona erdirilir. Commit bariyerinden önceki normal import, yükleme, otomasyon veya eşitleme makbuzla iptal edilir; bariyeri geçmiş iş ile daha önce başlamış geri döndürülemez güvenlik redaksiyonu veya silmesi tam commit ya da tam rollback makbuzuna ulaşır.
 
 - **Bu işlemler tamamlanınca sabit güvenlik olay sınırındaki veri kümesiyle 30 günlük kapanma dondurması başlar ve export açılır.** Dondurma sırasında yeni kullanıcı kaynaklı redaksiyon başlatmak için önce kapanış iptal edilir; dış erişimi kapalı tutan güvenlik uygulaması ve restore replay yükümlülüğü devam eder.
 
-- **Kullanıcı aynı GitHub kimliğiyle yeniden kimlik doğrulayıp kapatmayı iptal edebilir veya kapsam kontrol listesi ve mevcut dışa aktarma bağlantıları üzerinden sabitlenmiş verisini alabilir; bu akış tam ve geri yüklenebilir Çalışma Alanı paketi vadetmez.** Süre sonunda Hesap ve Çalışma Alanı kalıcı silinir. Aynı kararlı GitHub kimliği daha sonra açıkça yeni ve farklı kimlikli Hesap ile Çalışma Alanı oluşturabilir.
+- **Kullanıcı GitHub kimliğini yeniden teyit edip kapatmayı iptal edebilir veya kapsam kontrol listesi ve mevcut dışa aktarma bağlantıları üzerinden sabitlenmiş verisini alabilir; bu akış tam ve geri yüklenebilir Çalışma Alanı paketi vadetmez.** Süre sonunda Hesap ve Çalışma Alanı kalıcı silinir. Aynı kararlı GitHub kimliği daha sonra açıkça yeni ve farklı kimlikli Hesap ile Çalışma Alanı oluşturabilir.
 
 <a id="ab-veri-bolgesi"></a>
 ## Avrupa Birliği veri bölgesi

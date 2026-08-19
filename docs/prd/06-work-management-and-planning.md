@@ -8,9 +8,9 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 - **Özellik, bug, görev, araştırma ve iyileştirme aynı temel iş öğesinin farklı türleridir.**
 
-- **Her İş iç teknik kimliğine ek olarak Proje kısa kodu ve sıra numarasından oluşan, kullanıcıya dönük değişmeyen birincil anahtar taşır; örneğin `PROJE-123`.** Başlık veya Proje adı değişse de anahtar değişmez ve İş başka Projeye taşınmaz. `Başka Projede yeniden oluştur` yeni kimlik ve yeni anahtar üretir; eski anahtarı yönlendirmez. Kopya birleştirmede sona eren İşin anahtarı aynı kimliğin alias'ı değil, içeriksiz emekli kimlik yönlendirmesinin parçasıdır. Güncel anahtar ve varsa eski ürün sürümlerinden korunması gereken tarihsel anahtarlar içe/dışa aktarma kimlik manifestinde yeniden kullanılmaz biçimde tutulur.
+- **Her İş iç teknik kimliğine ek olarak Proje kısa kodu ve Proje başına 1'den başlayan, sürekli artan sıra numarasından oluşan, kullanıcıya dönük değişmeyen birincil anahtar taşır; örneğin `PROJE-123`.** Sayaç eşzamanlı oluşturmada tekil anahtar üretir; silinen, birleştirilen veya başarısız işlem nedeniyle atlanan numara yeniden kullanılmaz ve numara boşlukları hata sayılmaz. Başlık veya Proje adı değişse de anahtar değişmez ve İş başka Projeye taşınmaz. `Başka Projede yeniden oluştur` yeni kimlik ve yeni anahtar üretir; eski anahtarı yönlendirmez. Kopya birleştirmede sona eren İşin anahtarı aynı kimliğin alias'ı değil, içeriksiz emekli kimlik yönlendirmesinin parçasıdır. Güncel anahtar ve varsa eski ürün sürümlerinden korunması gereken tarihsel anahtarlar içe/dışa aktarma kimlik manifestinde yeniden kullanılmaz biçimde tutulur.
 
-- **Proje bağlamında yeni iş oluştururken yalnız başlık kullanıcıdan zorunlu olarak istenir.** Proje açık bağlamdan, başlangıç durumu proje varsayılanından doldurulur. Tür, öncelik, isteğe bağlı planlanan başlangıç tarihi, hedef tarihi, yeniden görünme tarihi, hafif efor tahmini, özel alanlar ve ilişkiler sonradan eklenebilir; ilk oluşturmayı engellemez.
+- **Proje bağlamında yeni İş oluştururken yalnız başlık kullanıcıdan zorunlu olarak istenir.** Proje açık bağlamdan, başlangıç durumu `Not Started` olarak Proje varsayılanından doldurulur. Tür, öncelik, isteğe bağlı planlanan başlangıç tarihi, hedef tarihi, yeniden görünme tarihi, hafif efor tahmini, özel alanlar ve ilişkiler sonradan eklenebilir; ilk oluşturmayı engellemez.
 
 - **Bug türündeki İş, isteğe bağlı ve çoklu seçimli `Gözlendiği sürümler` alanı taşıyabilir.** Alan yalnız aynı Projenin Proje Sürümü kayıtlarını kullanır ve hatanın görüldüğü ya da yeniden üretildiği ürün sürümlerini kanıt bağlamı olarak gösterir. `Hedef Proje Sürümü` düzeltmenin planlandığı yayın kapsamını anlatır; gözlenen sürüm seçmek Bug'ı o Proje Sürümünün hedef kapsamına almaz, plan taahhüdü oluşturmaz veya İş durumunu değiştirmez.
 
@@ -25,6 +25,16 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 ### İş Bağlam Kartı
 
 - **İş detayı aşamalı bağlam sunar.** Başlık, tür, durum ve günlük planlama alanları başlangıçta görünür kalır; problem/fırsat, beklenen sonuç, kanıt, karar, risk, varsayım ve öğrenim gibi bölümler belirgin `Bağlam ekle` eylemleriyle gerektiğinde açılır. İş türü yalnız uygun başlangıç düzenini ve önerilen bölümleri değiştirir; hiçbir bölüm oluşturma veya durum geçişi kapısı değildir.
+
+- **Hazır İş Bağlam Kartı düzeni Başlangıç yapılandırmasına göre değil yalnız İş türüne göre belirlenir ve bütün Projelerde aynı başlangıç anlamını taşır.** Bölümler isteğe bağlıdır, bağlam geldikçe aşamalı açılır ve aşağıdaki kapalı hazır düzenleri kullanır:
+
+| İş türü | Hazır İş Bağlam Kartı bölümleri |
+| --- | --- |
+| `Feature` | `Problem/Opportunity`, `Expected Outcome`, `Evidence & Decisions`, `Risks & Open Questions`, `Included Work`, `GitHub & Tests`, `Target Release` |
+| `Bug` | `Observed/Expected Behavior`, `Affected Releases`, `Evidence`, `GitHub & Tests` |
+| `Task` | `Description`, `Dependencies`, `GitHub & Tests`, `Target Release` |
+| `Research` | `Research Question`, `Sources & Evidence`, `Decisions`, `Related Work` |
+| `Improvement` | `Current Situation`, `Expected Outcome`, `Evidence`, `GitHub & Tests` |
 
 - **İş detayı ayrıca mevcut kayıtlı ilişkilerden türetilen kompakt ve tıklanabilir bir `Neden bu işi yapıyorum?` bağlam zinciri gösterir.** Zincir, varsa Proje Hedefi, köken Araştırma kaydı, birincil Özellik kapsamı, Birincil spec, ilgili Karar ve desteklenen GitHub kaydı gibi en yakın anlamlı kaynakları görünür adlarıyla birbirine bağlar. Yeni kayıt, ilişki, özet metni veya ikinci doğruluk kaynağı üretmez; çözülemeyen veya erişilemeyen adım içerik sızdırmadan açıklanır.
 
@@ -46,9 +56,11 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 - **İş veya Özellik ilerlemesi gösterilen yüzeylerde ilişkili açık Risk ve Açık Soru kayıtları durum, kapsam ve kontrol listesi ilerlemesinin yanında taranabilir biçimde sunulur.** Bu görünürlük tamamlanma ile belirsizliği aynılaştırmaz; yeni bir belirsizlik alanı oluşturmaz ve işin durumunu ya da Özelliğin türetilen ilerlemesini değiştirmez.
 
-- **Yapılandırılabilir iş akışı durumu, işin akıştaki yerini; ayrı kapanış sonucu ise işin nasıl kapandığını gösterir.** Kapanış sonucu yalnız `Tamamlandı` veya `Vazgeçildi` olabilir ve isteğe bağlı gerekçe taşıyabilir. Kapatma açık kullanıcı eylemiyle veya açıkça etkinleştirilmiş hazır PR-merge kuralıyla; yeniden açma yalnız açık kullanıcı eylemiyle gerçekleşir. Önceki sonuç, gerekçe ve durum değişiklikleri geçmişte korunur. Vazgeçilen işler tamamlanmış işlerden ayrı izlenir ve otomatik arşivlenmez.
+- **İlk ürünün ortak İş akışı durumları `Not Started`, `In Progress`, `Blocked` ve terminal `Closed` değerleridir.** Terminal olmayan durumlar arasında serbest geçiş vardır; kullanıcı tanımlı geçiş grafiği, durum bazlı izin veya doğrulama kapısı yoktur. Kullanıcıya dönük adlar Yapılandırma modunda değiştirilebilir fakat bu dört korunan semantik başka anlam için kullanılamaz.
 
-- **Terminal iş akışı durumundaki her iş bir kapanış sonucu taşır.** Kullanıcı bir işi Kanban hareketi veya başka bir durum eylemiyle terminal duruma aldığında `Tamamlandı` ya da `Vazgeçildi` sonucunu seçen açık kapatma adımı gösterilir; isteğe bağlı gerekçe aynı adımda eklenebilir. Kapatma iptal edilirse durum değişikliği uygulanmaz. Kapanmış bir işi terminal olmayan duruma taşımak açık yeniden açma onayı gerektirir; etkin kapanış sonucu kaldırılır, önceki sonuç ve gerekçe geçmişte korunur.
+- **İş akışı durumu işin akıştaki yerini; ayrı kapanış sonucu ise işin nasıl kapandığını gösterir.** `Closed` durumuna her geçiş `Tamamlandı` (`UI: Completed`) veya `Vazgeçildi` (`UI: Abandoned`) sonucunu seçtirir ve isteğe bağlı gerekçe taşıyabilir. Kapatma açık kullanıcı eylemiyle veya açıkça etkinleştirilmiş hazır PR-merge kuralıyla; yeniden açma yalnız açık kullanıcı eylemiyle gerçekleşir. Önceki sonuç, gerekçe ve durum değişiklikleri geçmişte korunur. Vazgeçilen işler tamamlanmış işlerden ayrı izlenir ve otomatik arşivlenmez.
+
+- **Terminal iş akışı durumundaki her İş bir kapanış sonucu taşır.** Kullanıcı bir İşi Kanban hareketi veya başka bir durum eylemiyle `Closed` durumuna aldığında `Completed` ya da `Abandoned` sonucunu seçen açık kapatma adımı gösterilir; isteğe bağlı gerekçe aynı adımda eklenebilir. Kapatma iptal edilirse durum değişikliği uygulanmaz. Kapanmış bir İşi yeniden açmak açık onay ve `Not Started`, `In Progress` veya `Blocked` hedeflerinden birini seçmeyi gerektirir; etkin kapanış sonucu kaldırılır, önceki sonuç ve gerekçe geçmişte korunur.
 
 - **Kullanıcının başlattığı kapatma adımında tamamlanmamış kontrol listesi maddesi veya aktif blokaj ilişkisi bulunuyorsa aynı yüzey engelleyici olmayan bir `Kapanış kontrolü` gösterir.** Kontrol kalan checklist maddelerini ve işin hâlâ engellendiği ya da başka işleri engellediği kesin aktif ilişkileri kaynaklarıyla listeler; `İşe dön` ve `Yine de kapat` seçenekleri sunar. Kullanıcı yine de kapatırken isteğe bağlı gerekçe ekleyebilir. Kontrol hiçbir blokajı otomatik çözmez, kapatmayı zorunlu olarak engellemez ve genel zorunlu alan, approval veya kullanıcı tanımlı geçiş kapısı sistemine genişlemez.
 
@@ -319,7 +331,7 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 - **Kullanıcı projeyi tamamlarken veya projeden vazgeçerken İş, Kilometre Taşı, Karar, Risk, Üretim Olayı, Proje Sürümü, zaman çizelgesi ve öğrenimlerden isteğe bağlı, sürümlü bir Proje Belgesi olarak kapanış özeti oluşturabilir.** Belge türü `Genel`, başlığı varsayılan olarak `Proje kapanış özeti`dir ve kaynak Projeye köken bağı taşır.
 
-- **Kullanıcı seçtiği Karar, Risk, Proje Sürümü, Belge, Üretim Olayı ve tamamlanmış İş kayıtlarından yalnız bölüm başlıkları ile okunabilir kaynak bağlantıları içeren düzenlenebilir bir başlangıç iskeletini açıkça oluşturabilir.** Önizleme hangi kaynakların hangi başlığa gireceğini gösterir; sistem yorum, sonuç, başarı hükmü, gerekçe veya özet metni üretmez. İskelet kalıcı kapanış özeti ancak kullanıcı düzenleyip açıkça kaydettiğinde olur ve kaynak kayıtların yerine geçmez.
+- **Kullanıcı seçtiği Karar, Risk, Proje Sürümü, Belge, Üretim Olayı ve tamamlanmış İş kayıtlarından yalnız bölüm başlıkları ile okunabilir kaynak bağlantıları içeren düzenlenebilir bir `Kapanış özeti taslağı` oluşturabilir.** Önizleme hangi kaynakların hangi başlığa gireceğini gösterir; sistem yorum, sonuç, başarı hükmü, gerekçe veya özet metni üretmez. Taslak kalıcı kapanış özeti ancak kullanıcı düzenleyip açıkça kaydettiğinde olur ve kaynak kayıtların yerine geçmez; [Başlangıç iskeleti](04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları) değildir.
 
 - **Özet isteğe bağlı olarak planlanan hedef tarihlerinin değişiklik geçmişini ve mevcut tamamlanma/kapanış olaylarını tarafsız bir tarih karşılaştırmasında gösterebilir.** Karşılaştırma hangi tarihlerin taşındığını ve kayıtların hedeflerinden önce, hedefinde, sonra veya açık kapandığını açıklar; yeni gerçek tarih alanı, proje sağlık hükmü ya da performans puanı oluşturmaz.
 
@@ -329,7 +341,7 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 ### Kullanıcı başlatmalı kayıt eylemleri
 
-- **Kullanıcı tek bir uygulama kaydı üzerinde çalışan, adlandırılmış birleşik kayıt eylemleri oluşturabilir.** Örneğin `Çalışmaya Başla` eylemi açık işin durumunu `Devam Ediyor` yapıp onu Günlük Odak’a ekleyebilir. Eylem yalnız kullanıcı açıkça başlattığında çalışır, etkileyeceği alanları görünür kılar ve geri alınabilir değişikliklerde [ortak güvenli geri alma sözleşmesini](02-domain-model-and-lifecycle.md#değişiklik-geçmişi-aktör-ve-geri-alma) kullanır.
+- **Kullanıcı tek bir uygulama kaydı üzerinde çalışan, adlandırılmış birleşik kayıt eylemleri oluşturabilir.** Örneğin `Start Work` eylemi açık İşin durumunu `In Progress` yapıp onu Günlük Odak’a ekleyebilir. Eylem yalnız kullanıcı açıkça başlattığında çalışır, etkileyeceği alanları görünür kılar ve geri alınabilir değişikliklerde [ortak güvenli geri alma sözleşmesini](02-domain-model-and-lifecycle.md#değişiklik-geçmişi-aktör-ve-geri-alma) kullanır.
 
 - **Eylem tanımı çalışma anında kullanıcıdan sınırlı `Tarih`, `Sayı`, `Seçim` veya mevcut bir ana kayıtla `İlişki` girdisi isteyebilir.** Girdi alanları eylem tasarımında önceden tanımlanır; kullanıcı çalıştırmadan önce seçtiği değerleri ve hedef kayıtta oluşacak kesin değişiklikleri birlikte önizler.
 

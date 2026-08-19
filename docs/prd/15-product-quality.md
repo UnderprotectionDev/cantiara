@@ -39,7 +39,9 @@ Bu belge ilk ürünün performans, erişilebilirlik, kullanılabilirlik, veri b�
 
 - **Düşük trafikte geçerli ürün oturumuyla sentetik özel okuma/yazma ve herkese açık yüzey probları kullanılır.** OAuth başlangıç/callback ile GitHub erişilebilirliği ürünün kendi kimlik bilgilerini saklamadan ölçülür; gerçek girişimler ve olaylar da hesaba katılır.
 
-- **Desteklenen tarayıcı ve platform matrisi her Ürün sürüm adayında o gün geçerli motor, tarayıcı, işletim sistemi, cihaz veya bulut imajı ve test tarihiyle kesin sürümlere sabitlenir.** Yerel motor testlerine ek gerçek Safari/macOS ve gerekli web tarayıcı matrisi smoke testinden geçer. Daha sonra çıkan tarayıcı veya işletim sistemi sürümü geçmiş kabulü değiştirmez; sonraki Ürün sürüm adayında yeniden değerlendirilir.
+- **Kimlik doğrulamalı web uygulamasının birinci sınıf tarayıcı aileleri Chrome, Edge, Firefox ve Safari'dir.** Her Ürün sürüm adayında bu ailelerin o tarihteki güncel kararlı sürümleri kesin tarayıcı, motor, işletim sistemi, cihaz veya bulut imajı ve test tarihiyle Ürün destek matrisine sabitlenir. Brave ve Arc Chromium uyumluluğuyla çalışabilir fakat Web Clipper sözleşmeleri ana web uygulaması için ayrı destek ve kabul taahhüdü oluşturmaz.
+
+- **macOS Tauri paketi [çalışma ve dağıtım modelindeki destek aralığının](03-account-platform-operations.md#calisma-ve-dagitim-modeli) her üyesinde aynı ürün ve güvenlik sözleşmesini karşılar.** Kesin destek matrisi her Ürün sürüm adayına sabitlenir. Daha sonra çıkan tarayıcı veya işletim sistemi sürümü geçmiş kabulü değiştirmez; sonraki Ürün sürüm adayında yeniden değerlendirilir.
 
 <a id="erisilebilirlik"></a>
 ## Erişilebilirlik

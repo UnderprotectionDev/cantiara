@@ -24,6 +24,14 @@ _Avoid_: Hesap, organizasyon, ekip
 Belirli bir yazılım ürününe ait iş, belge, karar, risk, tasarım, test, sürüm ve dış geliştirme gerçeklerini kapsayan sahiplik sınırı.
 _Avoid_: Repository, çalışma alanı
 
+**Proje kısa kodu**:
+Proje adından önerilen, kullanıcı ilk İşi oluşturmadan önce değiştirebildiği ve sonrasında değişmeyen kullanıcıya dönük İş anahtarı öneki. Aynı Çalışma Alanında benzersizdir ve bir Projeye atandıktan sonra değiştirilse veya Proje kalıcı silinse bile başka Projeye verilmez.
+_Avoid_: Proje kimliği, değiştirilebilir slug, yeniden kullanılabilir kod
+
+**Proje alanı**:
+İlişkili kayıt türlerini tek keşif ve çalışma girişinde toplayan, etkinliği içerik yaşamından ayrı Proje yüzeyi. İlk ürünün yapılandırılabilir kataloğu `Work`, `Documents`, `Discovery`, `Decisions`, `Design`, `Technical Diagrams`, `Tests`, `Releases`, `Production` ve `GitHub` alanlarıdır; `Overview` ile `All Tools` her zaman erişilebilir kalır.
+_Avoid_: Kayıt türü, ayrı sahiplik kapsamı, ana menü başına tek tablo
+
 **İşin proje kapsamı**:
 Bir İş oluşturulurken seçilen ve İşin yaşamı boyunca değişmeyen kanonik Proje kapsamı. Başka Projeye taşıma, aynı kimliği yeniden kapsamlandırma veya eski Projenin otomasyonunu yeni Projeye sürükleme desteklenmez.
 _Avoid_: Taşınabilir İş kapsamı, proje takma adı
@@ -75,12 +83,32 @@ Bir kullanıcı yeteneğini veya ürün değişikliğini temsil eden İş türü
 _Avoid_: Epic, Proje, Kilometre Taşı
 
 **İş akışı durumu**:
-Bir İşin Projede tanımlanan akıştaki güncel yerini gösteren değer. İşin nasıl kapandığını belirten Kapanış sonucundan ayrıdır.
+Bir İşin Projede tanımlanan akıştaki güncel yerini gösteren değer. İlk ürünün ortak başlangıç durumları `Not Started`, `In Progress`, `Blocked` ve `Closed` olur; terminal olmayan durumlar arasında serbest geçiş vardır. `Closed` geçişi ayrı Kapanış sonucunu, bu durumdan çıkış açık yeniden açmayı gerektirir; özel geçiş grafiği veya durum kapısı yoktur.
 _Avoid_: Kapanış sonucu, planlama görünümü, Proje aşaması
 
 **Kapanış sonucu**:
 Bir İşin veya Projenin `Tamamlandı` ya da `Vazgeçildi` olarak nasıl kapandığını kalıcı geçmişiyle belirten sonuç. Yeniden açma etkin sonucu kaldırır fakat önceki sonucu geçmişten silmez.
 _Avoid_: İş akışı durumu, arşiv, terminal kolon
+
+**İş Bağlam Kartı**:
+Bir İşin kendi alanlarıyla açık doğrudan ilişkilerinden gelen kanıt, karar, risk, bağımlılık, GitHub, test ve sürüm bağlamını kaynaklarında canlı gösteren İş türüne özgü düzen. Aynı İş türü bütün Başlangıç yapılandırmalarında aynı hazır düzeni kullanır; kart içerik kopyası, bağımsız sorgu veya oluşturma/durum kapısı değildir.
+_Avoid_: Dashboard, ikinci İş özeti, Başlangıç yapılandırmasına göre farklı İş anlamı
+
+**Başlangıç yapılandırması**:
+Yeni Projeye örnek içerik üretmeden aşama, İş akışı durumu, etkin alan, hazır görünüm, sabitlenmiş navigasyon ve İş Bağlam Kartı varsayılanlarını bir kez uygulayan kurulum seçimi. İlk ürün kataloğu `Blank Project`, `Solo SaaS`, `Open Source Library` ve `Mobile Application` seçenekleriyle kapalıdır. Seçim sonradan başka yapılandırmayla değiştirilmez; kullanıcı kurulan parçaları tek tek düzenleyebilir veya başka Projeden yapı kopyalayabilir. Çalışma sırası veya durum geçişi kapısı oluşturmaz.
+_Avoid_: Örnek Proje, içerik şablonu, zorunlu workflow, ürün türü
+
+**Blank Project**:
+Aşama, uzman görünüm veya Başlangıç iskeleti kurmadan ortak İş durumlarını; `Overview`, `Work`, `Documents` navigasyonunu; `Backlog` ve `Board` görünümlerini sağlayan en küçük Başlangıç yapılandırması. Diğer hazır alanları kapatmaz; `All Tools` üzerinden keşfedilip etkinleştirilmelerine izin verir.
+_Avoid_: Yapılandırmasız Proje, boş veri modeli, özellikleri kaldırılmış Proje
+
+**Başlangıç iskeleti**:
+Sitemap veya Customer Journey için boş Proje Duvarı; Persona, Retrospective veya Launch Plan için boş Belge yapısı ve açıklayıcı başlıklar kuran içeriksiz başlangıç yardımı. Oluşturulduktan sonra normal Proje Duvarı ya da Belge olarak yaşar; özel kayıt türü, ana kayıt örneği, bulgu, görev, kişi profili veya karar üretmez.
+_Avoid_: Başlangıç yapılandırması, içerikli şablon, şablon pazarı
+
+**Kapanış özeti taslağı**:
+Kullanıcının seçtiği tamamlanmış kayıtlardan yalnız bölüm başlıkları ve okunabilir kaynak bağlantılarıyla üretilen, kullanıcı düzenleyip kaydedene kadar kalıcı olmayan kapanış Belgesi başlangıcı. Kaynakların yerine geçmez ve sistem yorumu, sonucu veya başarı hükmü üretmez.
+_Avoid_: Başlangıç iskeleti, otomatik retrospektif, kapanış ana kaydı
 
 **Proje Hedefi**:
 Bir Projenin ulaşmak istediği sonucu ve isteğe bağlı başarı göstergesini taşıyan hafif ana kayıt. Bağlı İşlerden otomatik ilerleme, sağlık veya tamamlanma hükmü üretmez.
@@ -99,11 +127,15 @@ _Avoid_: Sprint, Kilometre Taşı, Proje Sürümü
 _Avoid_: Statik liste, klasör, etiket
 
 **Yakalama Gelen Kutusu öğesi**:
-Kaydedilmiş fakat henüz kalıcı kayıt türüne ve bağlamına dönüştürülmemiş geçici girdi. Ana kayıt, Backlog İşi veya uzun süreli bilgi deposu değildir.
+Kaydedilmiş fakat henüz kalıcı kayıt türüne ve bağlamına dönüştürülmemiş geçici girdi. Kullanıcı triage edene veya açıkça silene kadar korunur; zaman geçtiği için otomatik silinmez. Ana kayıt, Backlog İşi veya uzun süreli bilgi deposu değildir.
 _Avoid_: İş, Taslak, kaydedilmiş bookmark
 
+**Yakalama mini şablonu**:
+Bir Yakalama Gelen Kutusu öğesine yalnız isteğe bağlı yönlendirici alanlar ekleyen `Bug Capture`, `Feedback Capture` veya `Research Fragment` biçimi. Şablon seçimi kalıcı Bug, Geri Bildirim, Kaynak ya da başka ana kayıt oluşturmaz ve yakalamayı kaydetmek için alan zorunlu kılmaz.
+_Avoid_: Kayıt oluşturma formu, otomatik triage, içerik şablonu
+
 **Taslak**:
-Kullanıcı oluşturma eylemini tamamlamadan önce korunan, henüz kaydedilmemiş ayrıntılı İş formu. Yakalama Gelen Kutusu öğesi veya ana kayıt değildir.
+Kullanıcı oluşturma eylemini tamamlamadan önce korunan, henüz kaydedilmemiş ayrıntılı İş formu. Kullanıcı kaydedene veya açıkça silene kadar zaman sınırı olmadan korunur; Yakalama Gelen Kutusu öğesi veya ana kayıt değildir.
 _Avoid_: Yakalama, İş, Belge taslağı
 
 **Ürün Boşluğu**:
@@ -294,6 +326,10 @@ _Avoid_: Snapshot, yayın sürümü
 Bir Dış yüzeyde belirli bir onay anında gösterilmesine izin verilen kesin kayıt, alan, ilişki ve dosya sürümü manifestinin değişmez, Dış yüzeyden bağımsız yaşayamayan revizyonu. Süre dolumu veya iptalde silinmez; Dış yüzeyin yaşamını ve güvenlik redaksiyonlarını izler.
 _Avoid_: Paylaşım bağlantısı, canlı görünüm, Dış yüzey
 
+**Herkese açık durum etiketi**:
+Bir İşin iç İş akışı durumunu değiştirmeden yalnız herkese açık Roadmap sunumunda gösterilen Proje bazlı ziyaretçi etiketi. Başlangıç eşlemesi `Not Started → Planned`, `In Progress → In Progress` ve `Closed + Completed → Released` olur; `Blocked` ile `Closed + Abandoned` kullanıcı açıkça etiket seçmeden yayımlanmaz.
+_Avoid_: İş akışı durumu, ikinci herkese açık İş, otomatik yayın kararı
+
 **Güvenlik nedeniyle redakte edilmiş kanıt**:
 Değişmez sürüm manifestini yeniden yazmadan, hassas içeriği kaldırılmış kanıtın özgün hash ve içeriksiz redaksiyon üstverisiyle kalan erişilemez durumu. Yeni bir sürümün kabul kanıtı olarak yeniden kullanılamaz.
 _Avoid_: Temizlenmiş kanıt sürümü, erişilebilir şifreli özgün, geçerli devredilmiş kanıt
@@ -428,6 +464,10 @@ _Avoid_: Invoice, fiyat paketi, banka uzlaştırma
 Bir Projeyi GitHub'daki tek kararlı repository kimliğine bağlayan ve yeniden yetkilendirmelerde geçmişini koruyan entegrasyon kaydı. Repository sahibi veya adı kimlik sayılmaz.
 _Avoid_: Repository adı eşleşmesi, kurulum takma adı
 
+**GitHub dış kaydı**:
+GitHub kaynak kimliğini ve son uzlaştırılmış kaynak durumunu salt okunur taşıyan, GitHub'daki kayıttan bağımsız yerel yaşam döngüsüne sahip Proje ana kaydı. Arşiv kaynak güncellemelerini durdurmaz; Çöp Kutusu yazmayı durdurur ve kalıcı silme otomatik dirilmeyi engeller.
+_Avoid_: Canlı GitHub kaydı, GitHub senkron kopyası, bağlantının sahipli bileşeni
+
 **Dış URL önizlemesi**:
 Kimlik doğrulaması istemeyen herkese açık bir HTTP(S) adresinden türetilen, ana kayıt veya tarihsel Kaynak snapshot'ı olmayan geçici başlık/alan adı/görsel sunumu. Özel ağı, kullanıcı oturumunu veya kaynağın erişim sınırını kullanamaz.
 _Avoid_: Kaynak Kaydı, oturumlu tarayıcı önizlemesi, iç ağ önizlemesi
@@ -461,6 +501,10 @@ Formül gibi yorumlanabilecek kullanıcı metnini elektronik tabloda veri olarak
 _Avoid_: Kayıpsız CSV, formül çalıştırabilen ham hücre, kanıtsız apostrof kaldırma
 
 ## Veri güvenliği
+
+**GitHub kimliğini yeniden teyit etme**:
+Yüksek riskli bir işlem öncesinde PKCE ve GitHub hesap seçimiyle tamamlanan yeni OAuth turundan dönen değişmez GitHub kullanıcı kimliğini mevcut Hesapla eşleyip tek kullanımlık, işleme bağlı ve en fazla on dakika geçerli yetki üretme sınırı. Parola, MFA veya GitHub tarafından zorlanmış yeni credential girişi olduğunu iddia etmez; yıkıcı işlem ayrıca hedef adının yazıldığı açık onay ister.
+_Avoid_: Yeniden kimlik doğrulama, MFA, parola doğrulama, genel oturum yenileme
 
 **AB veri sınırı**:
 Özel Çalışma Alanı verisinin, bağlantıyla sınırlı içeriğin, yedeklerin ve günlüklerin otomatik kullanılabilirlik geçişi sırasında bile dışına taşınmadığı onaylı bölgesel sınır. Sınırı değiştirmek ayrı ve açık bir veri taşıma kararıdır.

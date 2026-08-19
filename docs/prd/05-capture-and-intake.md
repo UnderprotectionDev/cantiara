@@ -8,13 +8,13 @@ Bu belge hızlı yakalama, Yakalama Gelen Kutusu, triage, tarayıcı uzantısı 
 
 - **Fikir, not, bağlantı, ekran görüntüsü, geri bildirim veya araştırma parçası hızlıca yakalanabilir.**
 
-- **Varsayılan yakalama serbest biçimlidir.** Kullanıcı isterse `Bug`, `Geri Bildirim` veya `Araştırma Parçası` gibi seçili türler için beklenen/gerçekleşen davranış, kanal veya araştırma bağlamı gibi az sayıda yönlendirici alan içeren mini şablon açabilir. Bu alanlar zorunlu değildir ve yakalamayı kaydetmeyi engellemez.
+- **Varsayılan yakalama serbest biçimlidir.** İlk ürünün isteğe bağlı mini şablon kataloğu aşağıdaki üç biçimle kapalıdır: `Bug Capture` içindeki `Observed Behavior`, `Expected Behavior`, `Reproduction Context`; `Feedback Capture` içindeki `Feedback`, `Channel`, isteğe bağlı `Contact`; `Research Fragment` içindeki `Note or Excerpt`, `Source Context`. Bütün yönlendirici alanlar isteğe bağlıdır ve yakalamayı kaydetmeyi engellemez. Şablon yalnız Yakalama Gelen Kutusu öğesini biçimlendirir; doğrudan Bug, Geri Bildirim, Kaynak veya başka ana kayıt oluşturmaz.
 
 - **Proje ve alan biliniyorsa içerik doğrudan ilgili alana alınabilir.**
 - **Yalnız proje biliniyorsa projenin Yakalama Gelen Kutusu’na alınır.**
 - **Proje bilinmiyorsa geçici çalışma alanı Yakalama Gelen Kutusu’na alınır.**
 
-- **Geçici yakalamalar normal planlama, ilişkilendirme ve paylaşım yüzeylerine girmez; uzun süreli depolama veya ikinci Backlog değildir.**
+- **Geçici yakalamalar ana kayıt, normal arama sonucu, planlama girdisi, kalıcı ilişki ucu, paylaşım/yayın öğesi veya export girdisi olmaz; uzun süreli depolama ya da ikinci Backlog değildir.** `Geçici` otomatik süre sonu anlamına gelmez: Yakalama kullanıcı üç açık triage çıkışından birini seçene veya açıkça silene kadar zaman geçtiği için silinmez.
 
 - **Yakalama Gelen Kutusu odaklı bir triage görünümü sunar.** Bu görünüm özgün yakalamayı ve kökenini, benzer kayıt önerilerini ve aşağıdaki üç çıkışı aynı işlem yüzeyinde bir araya getirir. Geçici yakalamaya iş durumu, öncelik, planlama üyeliği veya kalıcı erteleme davranışı eklemez.
 
