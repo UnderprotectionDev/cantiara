@@ -107,4 +107,4 @@ cantiara/
 - `bun run check`: Run Biome formatting and linting
 - `cd apps/web && bun run desktop:dev`: Start Tauri desktop app in development
 - `cd apps/web && bun run desktop:build`: Build Tauri desktop app
-# cantiara app
+# cantiara
