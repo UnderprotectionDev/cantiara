@@ -36,8 +36,10 @@ This project uses PostgreSQL with Prisma.
 3. Apply the schema to your database:
 
 ```bash
-bun run db:push
+bun run db:migrate
 ```
+
+Migrations are the only supported way to change the schema. `bun run db:push` is for throwaway local experiments only: it produces no migration history, and acceptance requires ordered migrations with content hashes.
 
 Then, run the development server:
 

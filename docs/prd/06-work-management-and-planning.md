@@ -10,7 +10,7 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 - **Her İş iç teknik kimliğine ek olarak Proje kısa kodu ve Proje başına 1'den başlayan, sürekli artan sıra numarasından oluşan, kullanıcıya dönük değişmeyen birincil anahtar taşır; örneğin `PROJE-123`.** Sayaç eşzamanlı oluşturmada tekil anahtar üretir; silinen, birleştirilen veya başarısız işlem nedeniyle atlanan numara yeniden kullanılmaz ve numara boşlukları hata sayılmaz. Başlık veya Proje adı değişse de anahtar değişmez ve İş başka Projeye taşınmaz. `Başka Projede yeniden oluştur` yeni kimlik ve yeni anahtar üretir; eski anahtarı yönlendirmez. Kopya birleştirmede sona eren İşin anahtarı aynı kimliğin alias'ı değil, içeriksiz emekli kimlik yönlendirmesinin parçasıdır. Güncel anahtar ve varsa eski ürün sürümlerinden korunması gereken tarihsel anahtarlar içe/dışa aktarma kimlik manifestinde yeniden kullanılmaz biçimde tutulur.
 
-- **Proje bağlamında yeni İş oluştururken yalnız başlık kullanıcıdan zorunlu olarak istenir.** Proje açık bağlamdan, başlangıç durumu `Not Started` olarak Proje varsayılanından doldurulur. Tür, öncelik, isteğe bağlı planlanan başlangıç tarihi, hedef tarihi, yeniden görünme tarihi, hafif efor tahmini, özel alanlar ve ilişkiler sonradan eklenebilir; ilk oluşturmayı engellemez.
+- **Proje bağlamında yeni İş oluştururken yalnız başlık kullanıcıdan zorunlu olarak istenir.** Proje açık bağlamdan, başlangıç durumu `Not Started` olarak Proje varsayılanından doldurulur. Tür, öncelik ölçütü değerleri, isteğe bağlı planlanan başlangıç tarihi, hedef tarihi, yeniden görünme tarihi, hafif efor tahmini, özel alanlar ve ilişkiler sonradan eklenebilir; ilk oluşturmayı engellemez.
 
 - **Bug türündeki İş, isteğe bağlı ve çoklu seçimli `Gözlendiği sürümler` alanı taşıyabilir.** Alan yalnız aynı Projenin Proje Sürümü kayıtlarını kullanır ve hatanın görüldüğü ya da yeniden üretildiği ürün sürümlerini kanıt bağlamı olarak gösterir. `Hedef Proje Sürümü` düzeltmenin planlandığı yayın kapsamını anlatır; gözlenen sürüm seçmek Bug'ı o Proje Sürümünün hedef kapsamına almaz, plan taahhüdü oluşturmaz veya İş durumunu değiştirmez.
 
@@ -121,6 +121,8 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 ### Öncelik ölçütleri
 
+- **İşin önceliği yalnız proje bazlı öncelik ölçütü değerleriyle ifade edilir.** İş kaydında bunlardan ayrı, tek başına duran skaler bir `öncelik` alanı bulunmaz; ürün ölçüt değerlerinden tek bir öncelik değeri, sırası veya hükmü türetmez.
+
 - **Kullanıcı bir proje içinde işler için isteğe bağlı öncelik ölçütleri tanımlayabilir.** Her ölçüt bir ad, kısa açıklama ve `Çok düşük`, `Düşük`, `Orta`, `Yüksek`, `Çok yüksek` biçimindeki beş sabit sıralı kademe için proje bazında düzenlenebilir açıklamalar taşır. Boş veya henüz değerlendirilmemiş durum bu beş kademeden ayrıdır.
 
 - **Ölçüt tanımları yalnız kendi projesinde yaşar; aynı adlı ölçütler projeler arasında ortak kimlik veya çalışma alanı şeması oluşturmaz.** Değerler İş detayında, Liste, Backlog, filtre ve öncelik görünümünde ayrı ayrı gösterilir. Sistem kademeleri toplamaz, ağırlıklandırmaz, formüle veya tek skora dönüştürmez, işleri kendiliğinden sıralamaz ve nihai öncelik hükmü üretmez.
@@ -135,9 +137,9 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 ### Önceliklendirme oturumları
 
-- **Kullanıcı yalnız açık `Önceliklendirme oturumu oluştur` eylemiyle proje kapsamlı, adlandırılmış bir karar görünümü oluşturabilir.** Oturum seçilen İş kapsamını ve kendi görünüm-yerel manuel sırasını saklar; bu sıra ana Backlog sırasını, İşin asıl önceliğini, roadmap ufkunu, durumunu veya başka kayıtlı görünümün sırasını değiştirmez. Normal Akıllı Koleksiyon, Liste, Kanban ve Roadmap görünümleri bağımsız manuel rank taşımaz; bu davranış yalnız açıkça Önceliklendirme oturumu olarak oluşturulan görünümün istisnasıdır.
+- **Kullanıcı yalnız açık `Önceliklendirme oturumu oluştur` eylemiyle proje kapsamlı, adlandırılmış bir karar görünümü oluşturabilir.** Oturum seçilen İş kapsamını ve kendi görünüm-yerel manuel sırasını saklar; bu sıra ana Backlog sırasını, İşin öncelik ölçütü değerlerini, roadmap ufkunu, durumunu veya başka kayıtlı görünümün sırasını değiştirmez. Normal Akıllı Koleksiyon, Liste, Kanban ve Roadmap görünümleri bağımsız manuel rank taşımaz; bu davranış yalnız açıkça Önceliklendirme oturumu olarak oluşturulan görünümün istisnasıdır.
 
-- **Oturumdaki kartlar başlık, öncelik, ölçüt değerleri, hedef tarihi, Risk ve kanıt sayılarını canlı İş kayıtlarından gösterir.** Oturumda kartı yeniden sıralamak yalnız oturum sırasını günceller; kaydı kapsama eklemek veya kapsamdan çıkarmak durum, Backlog üyeliği, öncelik ya da planlama taahhüdü oluşturmaz. Kullanıcı oturum sırasını ana Backlog sırasıyla yan yana karşılaştırabilir, ancak bir sırayı diğerine topluca uygulayan örtük eşitleme yoktur.
+- **Oturumdaki kartlar başlık, öncelik ölçütü değerleri, hedef tarihi, Risk ve kanıt sayılarını canlı İş kayıtlarından gösterir.** Oturumda kartı yeniden sıralamak yalnız oturum sırasını günceller; kaydı kapsama eklemek veya kapsamdan çıkarmak durum, Backlog üyeliği, ölçüt değeri ya da planlama taahhüdü oluşturmaz. Kullanıcı oturum sırasını ana Backlog sırasıyla yan yana karşılaştırabilir, ancak bir sırayı diğerine topluca uygulayan örtük eşitleme yoktur.
 
 - **Kullanıcı oturumu açıkça kapattığında kapsam ve son sıra tarihli, salt okunur karar bağlamı olarak korunur; yeniden düzenlemek yeni oturum veya açık yeniden açma eylemi gerektirir.** Oturumu arşivlemek ya da silmek İş kayıtlarını ve onların Backlog sırasını etkilemez. Oturum skoru, otomatik kazanan, karar kaydı, durum değişikliği veya ikinci bir İş önceliği doğruluk kaynağı üretmez.
 
@@ -245,7 +247,7 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 ### Kilometre taşları
 
-- **Kilometre taşları araştırma, tasarım, doğrulama, beta veya iş sonucu gibi önemli ara hedefleri temsil eder.** Başlık, açıklama ve isteğe bağlı hedef tarihi taşır; yaşam durumu [ortak domain sözleşmesindeki](02-domain-model-and-lifecycle.md#ana-kayıt-türleri-ve-asgari-sözleşmeler) `Planlandı`, `Ulaşıldı` veya `Vazgeçildi` değerlerinden biridir. İş öğeleri kilometre taşlarıyla ilişkilendirilebilir.
+- **Kilometre taşları araştırma, tasarım, doğrulama, beta veya iş sonucu gibi önemli ara hedefleri temsil eder.** Başlık, açıklama ve isteğe bağlı hedef tarihi taşır; yaşam durumu [ortak domain sözleşmesindeki](02-domain-model-and-lifecycle.md#ana-kayıt-türleri-ve-asgari-sözleşmeler) `Planlandı`, `Ulaşıldı` veya `Vazgeçildi` değerlerinden biridir. İş öğeleri kilometre taşlarına [`Kilometre taşına katkı` ilişkisiyle](02-domain-model-and-lifecycle.md#standart-ilişki-türleri) bağlanabilir.
 
 - **Kilometre Taşına ulaşmak bağlı İşleri kapatmaz; bütün bağlı İşlerin kapanması da Kilometre Taşını otomatik olarak `Ulaşıldı` yapmaz.** Durum yalnız açık kullanıcı eylemiyle değişir ve önceki değer geçmişte korunur.
 
@@ -253,7 +255,7 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 ### Roadmap
 
-- **Roadmap proje aşamaları, kilometre taşları, öncelikler, tarihli işler ve isteğe bağlı roadmap ufku üzerinden gelecekteki yönü gösterir.** Varsayılan ürün yönü görünümü Araştırma işindeki problem/fırsatı ve hedeflenen sonucu birincil, ona köken ilişkisiyle bağlı çözüm/Özellik işlerini ikincil bağlam olarak sunar. Kullanıcı bütün iş türlerini birincil gösteren yapılandırılabilir görünümler de kaydedebilir; ayrı Initiative veya Idea yaşam döngüsü oluşmaz.
+- **Roadmap proje aşamaları, kilometre taşları, öncelik ölçütü değerleri, tarihli işler ve isteğe bağlı roadmap ufku üzerinden gelecekteki yönü gösterir.** Varsayılan ürün yönü görünümü Araştırma işindeki problem/fırsatı ve hedeflenen sonucu birincil, ona köken ilişkisiyle bağlı çözüm/Özellik işlerini ikincil bağlam olarak sunar. Kullanıcı bütün iş türlerini birincil gösteren yapılandırılabilir görünümler de kaydedebilir; ayrı Initiative veya Idea yaşam döngüsü oluşmaz.
 
 - **Planlanan başlangıç ile hedef tarihi bulunan işleri planlanan aralık olarak, yalnız hedef tarihi bulunan işleri hedef noktası olarak sunar.** Granüler günlük takvimin veya iş durumunun yerini almaz.
 
@@ -278,6 +280,8 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 ### İş bağımlılıkları ve blokajlar
 
 - **Bir iş başka bir iş, karar veya açık soru tarafından engellenebilir.** Her engelleme ilişkisi `Aktif` veya `Çözüldü` yaşam durumunu taşır. Aktif ilişkiler engellenen işi planlama yüzeylerinde açıkça ayırt eder; çözülenler aktif blokaj sinyallerinden çıkar fakat tarihsel bağlamda korunur.
+
+- **`Blokaj` dikkat sinyali yalnız iki deterministik olaydan üretilir: engellenen İşe yeni bir `Aktif` engelleme ilişkisi kurulması ve çözülmüş bir ilişkinin yeniden `Aktif` yapılması.** Sinyal engellenen İşi, engel kaynağını ve ilişkinin kurulma zamanını taşır ve [Birleşik Bildirim Merkezinde](04-workspace-and-projects.md#birleşik-bildirim-merkezi) kaynak grubu altında gösterilir. Blokajın süresi, engel kaynağının durumu, döngü tespiti veya `Çözüldü` duruma geçiş ayrıca sinyal üretmez.
 
 - **Kullanıcı `Engel çözüldü` eylemiyle çözüm tarihini ve isteğe bağlı notu kaydeder; çözülmüş ilişkiyi yeniden etkinleştirebilir.** Engel kaynağını kapatmak ilişkiyi otomatik çözmez, yalnız gerekçesi görünür bir çözüm önerisi üretebilir. `İlişkiyi kaldır` yalnız yanlış kurulmuş bağı silmek içindir ve çözüm geçmişinin yerine kullanılmaz.
 

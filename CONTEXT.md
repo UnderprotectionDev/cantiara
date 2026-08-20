@@ -4,12 +4,14 @@ Tek kurucunun yazılım projelerindeki kalıcı bağlamı, sahipliği ve yaşam 
 
 Bu sözlük ürün-geneli ortak dildir, kapsam kaynağı değildir. Bir terimin burada tanımlı olması onu ilk ürün kapsamına almaz; kapsamın tek sahibi [Ürün Vizyonu ve Kapsamı](docs/prd/01-product-vision-and-scope.md#kapsam-dili) ile ilgili ürün alanı belgeleridir. Sözlük ayrıca [gelecek yönlerinde](docs/prd/18-future-directions.md) ve [ticari genişlemede](docs/prd/17-commercial-expansion.md) tartışılan terimleri de taşıyabilir.
 
+Sözlük yalnız terim anlamı taşır. Kapalı değer katalogları, varsayılanlar, eşikler, durum eşlemeleri ve güvenlik mekanikleri ilgili PRD bölümüne aittir; burada yalnız o bölüme bağlantı verilir.
+
 Bu sözlüğün açıklama dili Türkçedir; Cantiara'nın ilk ürün arayüzü İngilizcedir. Türkçe domain terimi PRD tartışmasını, [ortak PRD sözlüğündeki İngilizce UI etiketi](docs/prd/02-domain-model-and-lifecycle.md#terim-sözlüğü) kullanıcıya gösterilen kesin adı taşır. Locale tarih, saat ve sayı biçimini değiştirir; arayüz dilini veya kullanıcı içeriğini çevirmez.
 
 ## Sahiplik ve kayıt yapısı
 
 **Sahiplik kapsamı**:
-Bir ana kaydın erişim, yaşam döngüsü ve taşınabilirlik sınırını belirleyen tek kanonik bağlam. Yalnız Hesap, Çalışma Alanı, Proje veya Kişisel Wiki olabilir.
+Bir ana kaydın erişim, yaşam döngüsü ve taşınabilirlik sınırını belirleyen tek kanonik bağlam; hangi kapsamların bulunduğunu [kapsam ve sahiplik sözleşmesi](docs/prd/02-domain-model-and-lifecycle.md#kapsam-ve-sahiplik) belirler.
 _Avoid_: Proje bağlantısı kapsamı, kaynak kapsamı, hesap + kaynak kapsamı
 
 **Hesap**:
@@ -21,47 +23,47 @@ Tek kurucunun projelerini, Kişisel Wiki'sini ve çalışma alanı genelindeki k
 _Avoid_: Hesap, organizasyon, ekip
 
 **Proje**:
-Belirli bir yazılım ürününe ait iş, belge, karar, risk, tasarım, test, sürüm ve dış geliştirme gerçeklerini kapsayan sahiplik sınırı.
+Belirli bir yazılım ürününe ait geliştirme gerçeklerini kapsayan sahiplik sınırı; [repository'den geniştir](docs/prd/01-product-vision-and-scope.md#repositoryden-daha-geniş-proje-anlayışı), Çalışma Alanından dardır.
 _Avoid_: Repository, çalışma alanı
 
 **Proje kısa kodu**:
-Proje adından önerilen, kullanıcı ilk İşi oluşturmadan önce değiştirebildiği ve sonrasında değişmeyen kullanıcıya dönük İş anahtarı öneki. Aynı Çalışma Alanında benzersizdir ve bir Projeye atandıktan sonra değiştirilse veya Proje kalıcı silinse bile başka Projeye verilmez.
+Proje adından önerilen ve ilk İş oluşturulduktan sonra değişmeyen, kullanıcıya dönük İş anahtarı öneki ([benzersizlik ve yeniden kullanım sözleşmesi](docs/prd/04-workspace-and-projects.md#proje-profili)).
 _Avoid_: Proje kimliği, değiştirilebilir slug, yeniden kullanılabilir kod
 
 **Proje alanı**:
-İlişkili kayıt türlerini tek keşif ve çalışma girişinde toplayan, etkinliği içerik yaşamından ayrı Proje yüzeyi. İlk ürünün yapılandırılabilir kataloğu `Work`, `Documents`, `Discovery`, `Decisions`, `Design`, `Technical Diagrams`, `Tests`, `Releases`, `Production` ve `GitHub` alanlarıdır; `Overview` ile `All Tools` her zaman erişilebilir kalır.
+İlişkili kayıt türlerini tek keşif ve çalışma girişinde toplayan, etkinliği içerik yaşamından ayrı Proje yüzeyi ([Proje alanları](docs/prd/04-workspace-and-projects.md#proje-alanlarını-etkinleştirme)).
 _Avoid_: Kayıt türü, ayrı sahiplik kapsamı, ana menü başına tek tablo
 
 **İşin proje kapsamı**:
-Bir İş oluşturulurken seçilen ve İşin yaşamı boyunca değişmeyen kanonik Proje kapsamı. Başka Projeye taşıma, aynı kimliği yeniden kapsamlandırma veya eski Projenin otomasyonunu yeni Projeye sürükleme desteklenmez.
+Bir İş oluşturulurken seçilen ve [İşin yaşamı boyunca değişmeyen](docs/prd/06-work-management-and-planning.md#işin-değişmeyen-proje-kapsamı) kanonik Proje kapsamı.
 _Avoid_: Taşınabilir İş kapsamı, proje takma adı
 
 **Başka Projede yeniden oluşturma**:
-Yanlış Projede oluşturulan bir İşin seçilmiş taşınabilir içeriğinden, hedef Projede yeni kimlikli bir İş oluşturan ve kaynağını görünür biçimde belirten düzeltme. Kaynak İşi taşımaz, silmez veya eski bağlantıları yeni İşe yönlendirmez.
+Yanlış Projede oluşturulan bir İşin seçilmiş taşınabilir içeriğinden hedef Projede yeni kimlikli bir İş üreten ve kaynağını görünür kılan düzeltme; kaynak İşi taşımaz veya silmez.
 _Avoid_: İşi taşıma, kapsam değiştirme, kimliği koruyan kopya
 
 **Taşınabilir İş ilişkisi**:
-Yanlış Projede yeniden oluşturma sırasında hedefi bağımsız yaşayan, türü kapsamlar arası kullanıma açık ve kurucu tarafından açıkça seçilmiş ilişki. Sahiplik, planlama, otomasyon, yayın, ebeveynlik veya kopya-birleştirme yaşam döngüsü taşımaz.
+Başka Projede yeniden oluşturma sırasında kurucunun tek tek seçtiği ve hedefi bağımsız yaşamaya devam eden ilişki; sahiplik veya yaşam döngüsü bağları taşınabilir değildir.
 _Avoid_: Bütün ilişkileri kopyalama, Proje bağlamını taşıma, örtük çapraz Proje ilişki
 
 **Proje arşivi**:
-Bir Projeyi salt okunur ve hareketsiz duruma getirerek etkin Projelerden ayıran, Proje silmenin yalnızca içinden başlatılabildiği zorunlu ara yaşam döngüsü durumu. Proje ile kapsamındaki kayıtlar aynı sahiplik sınırında kalır; önceden onaylanmış değişmez Dış yüzeyler ayrıca iptal edilmedikçe yaşayabilir.
+Bir Projeyi salt okunur ve hareketsiz duruma getirerek etkin Projelerden ayıran, Proje silmenin yalnız içinden başlatılabildiği zorunlu ara [yaşam döngüsü durumu](docs/prd/02-domain-model-and-lifecycle.md#ortak-yaşam-döngüsü).
 _Avoid_: Çöp Kutusu, kalıcı silme, Projeyi gizleme filtresi
 
 **Arşiv güvenlik istisnası**:
-Arşivli Projede normal yazmalar kapalıyken yalnız erişimi azaltan iptal, secret rotasyonu, oturum sonlandırma, entegrasyon kesme ve güvenlik redaksiyonuna izin veren denetlenebilir sınır.
+Arşivli Projede normal yazmalar kapalıyken yalnız [erişimi azaltan güvenlik işlemlerine](docs/prd/02-domain-model-and-lifecycle.md#ortak-yaşam-döngüsü) izin veren denetlenebilir sınır.
 _Avoid_: Arşivden normal düzenleme, yeni yayın, erişim genişletme
 
 **Proje silme grubu**:
-Arşivden silinen Proje ile Projeye ait bütün ana kayıt, sahipli bileşen ve Dış yüzeylerin tek geri yüklenebilir ya da tek kalıcı silinebilir sınırı. Proje Çöp Kutusuna girince kapsanan yüzeyler terminal iptal edilir; geri yükleme eski URL/token'ı yeniden yayımlamaz. Grup içindeki öğeler ayrı yaşam döngüsü kazanmaz.
+Arşivden silinen Proje ile yalnız ona kanonik olarak ait ana kayıt, sahipli bileşen ve Dış yüzeylerin tek geri yüklenebilir ya da tek kalıcı silinebilir [sınırı](docs/prd/02-domain-model-and-lifecycle.md#ortak-yaşam-döngüsü).
 _Avoid_: Proje kabuğunu silme, bağımsız çocuk silme, kısmi Proje geri yükleme
 
 **Silinmiş hedef işareti**:
-Bir ilişkinin sahibi yaşarken karşı ucunun Çöp Kutusunda veya kalıcı silinmiş olduğunu içerik sızdırmadan gösteren güvenli referans durumu. Geri yükleme aynı kimliği yeniden bağlayabilir; kalıcı silme içeriği veya yeni bir hedefi canlandırmaz.
+Bir ilişkinin sahibi yaşarken karşı ucunun çözülemediğini içerik sızdırmadan gösteren güvenli referans durumu ([kırık referans sunumu](docs/prd/02-domain-model-and-lifecycle.md#kirik-referans-sunumu)).
 _Avoid_: Yetim kaydı kopyalama, başka hedefe otomatik yönlendirme, silinmiş başlığı gösterme
 
 **Belge kapsam taşıma seçimi**:
-Etkin bir Projedeki Belgeyi, yalnız açıkça seçilen çocuk Belgeler ve aynı kaynağın sahip olduğu Dosya Ekleriyle mevcut kimliklerini koruyarak başka kapsama alan taşıma sınırı. Seçilmeyen veya başka kapsamın sahip olduğu kayıtları ilişki yoluyla sürüklemez.
+Etkin bir Projedeki Belgeyi yalnız açıkça seçilen çocuk Belgeler ve aynı kaynağın sahip olduğu Dosya Ekleriyle kimliklerini koruyarak başka kapsama alan [taşıma sınırı](docs/prd/07-documents-and-knowledge.md#belge-kapsamı-taşıma-ve-kopyalama).
 _Avoid_: Bütün ilişki grafiğini taşıma, Belge kopyası, İş kapsamını değiştirme
 
 **Kişisel Wiki**:
@@ -75,97 +77,97 @@ _Avoid_: Kart, görünüm satırı, sahipli bileşen
 ## İş ve planlama
 
 **İş**:
-Bir Projede yapılması, araştırılması veya iyileştirilmesi amaçlanan şeyi bağımsız kimlik, durum ve geçmişle taşıyan genel ana kayıt. Özellik, Bug, Görev, Araştırma ve İyileştirme bunun türleridir.
+Bir Projede yapılması, araştırılması veya iyileştirilmesi amaçlanan şeyi bağımsız kimlik, durum ve geçmişle taşıyan genel ana kayıt; [İş türleri](docs/prd/02-domain-model-and-lifecycle.md#terim-sözlüğü) onun altında yaşar.
 _Avoid_: Görev, ticket, yalnız yapılacak madde
 
 **Özellik**:
-Bir kullanıcı yeteneğini veya ürün değişikliğini temsil eden İş türü. Bir seviye altında başka bağımsız İşleri kapsayabilir; iç içe epic veya subtask hiyerarşisi değildir.
+Bir kullanıcı yeteneğini veya ürün değişikliğini temsil eden ve [başka bağımsız İşleri kapsayabilen](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı) İş türü; iç içe epic veya subtask hiyerarşisi değildir.
 _Avoid_: Epic, Proje, Kilometre Taşı
 
 **İş akışı durumu**:
-Bir İşin Projede tanımlanan akıştaki güncel yerini gösteren değer. İlk ürünün ortak başlangıç durumları `Not Started`, `In Progress`, `Blocked` ve `Closed` olur; terminal olmayan durumlar arasında serbest geçiş vardır. `Closed` geçişi ayrı Kapanış sonucunu, bu durumdan çıkış açık yeniden açmayı gerektirir; özel geçiş grafiği veya durum kapısı yoktur.
+Bir İşin Projede tanımlanan akıştaki güncel yerini gösteren, Kapanış sonucundan ayrı [değer](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı).
 _Avoid_: Kapanış sonucu, planlama görünümü, Proje aşaması
 
 **Kapanış sonucu**:
-Bir İşin veya Projenin `Tamamlandı` ya da `Vazgeçildi` olarak nasıl kapandığını kalıcı geçmişiyle belirten sonuç. Yeniden açma etkin sonucu kaldırır fakat önceki sonucu geçmişten silmez.
+Bir İşin veya Projenin kapanmasının nasıl gerçekleştiğini kalıcı geçmişiyle belirten, İş akışı durumundan ayrı [sonuç](docs/prd/02-domain-model-and-lifecycle.md#ortak-yaşam-döngüsü).
 _Avoid_: İş akışı durumu, arşiv, terminal kolon
 
 **İş Bağlam Kartı**:
-Bir İşin kendi alanlarıyla açık doğrudan ilişkilerinden gelen kanıt, karar, risk, bağımlılık, GitHub, test ve sürüm bağlamını kaynaklarında canlı gösteren İş türüne özgü düzen. Aynı İş türü bütün Başlangıç yapılandırmalarında aynı hazır düzeni kullanır; kart içerik kopyası, bağımsız sorgu veya oluşturma/durum kapısı değildir.
+Bir İşin kendi alanlarıyla açık doğrudan ilişkilerinden gelen bağlamı kaynaklarında canlı gösteren, [İş türüne özgü sunum düzeni](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı); içerik kopyası, bağımsız sorgu veya durum kapısı değildir.
 _Avoid_: Dashboard, ikinci İş özeti, Başlangıç yapılandırmasına göre farklı İş anlamı
 
 **Başlangıç yapılandırması**:
-Yeni Projeye örnek içerik üretmeden aşama, İş akışı durumu, etkin alan, hazır görünüm, sabitlenmiş navigasyon ve İş Bağlam Kartı varsayılanlarını bir kez uygulayan kurulum seçimi. İlk ürün kataloğu `Blank Project`, `Solo SaaS`, `Open Source Library` ve `Mobile Application` seçenekleriyle kapalıdır. Seçim sonradan başka yapılandırmayla değiştirilmez; kullanıcı kurulan parçaları tek tek düzenleyebilir veya başka Projeden yapı kopyalayabilir. Çalışma sırası veya durum geçişi kapısı oluşturmaz.
+Yeni Projeye örnek içerik üretmeden yapı ve sunum varsayılanlarını bir kez uygulayan [kurulum seçimi](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları); çalışma sırası veya durum geçişi kapısı oluşturmaz.
 _Avoid_: Örnek Proje, içerik şablonu, zorunlu workflow, ürün türü
 
 **Blank Project**:
-Aşama, uzman görünüm veya Başlangıç iskeleti kurmadan ortak İş durumlarını; `Overview`, `Work`, `Documents` navigasyonunu; `Backlog` ve `Board` görünümlerini sağlayan en küçük Başlangıç yapılandırması. Diğer hazır alanları kapatmaz; `All Tools` üzerinden keşfedilip etkinleştirilmelerine izin verir.
+Aşama, uzman görünüm veya Başlangıç iskeleti kurmayan en küçük [Başlangıç yapılandırması](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları); diğer hazır alanları kapatmaz, yalnız kurmaz.
 _Avoid_: Yapılandırmasız Proje, boş veri modeli, özellikleri kaldırılmış Proje
 
 **Başlangıç iskeleti**:
-Sitemap veya Customer Journey için boş Proje Duvarı; Persona, Retrospective veya Launch Plan için boş Belge yapısı ve açıklayıcı başlıklar kuran içeriksiz başlangıç yardımı. Oluşturulduktan sonra normal Proje Duvarı ya da Belge olarak yaşar; özel kayıt türü, ana kayıt örneği, bulgu, görev, kişi profili veya karar üretmez.
+Yeni Projede yalnız boş başlık yapısı kuran ve oluşturulduktan sonra normal Proje Duvarı ya da Belge olarak yaşayan [içeriksiz başlangıç yardımı](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları); ana kayıt örneği, bulgu, görev veya karar üretmez.
 _Avoid_: Başlangıç yapılandırması, içerikli şablon, şablon pazarı
 
 **Kapanış özeti taslağı**:
-Kullanıcının seçtiği tamamlanmış kayıtlardan yalnız bölüm başlıkları ve okunabilir kaynak bağlantılarıyla üretilen, kullanıcı düzenleyip kaydedene kadar kalıcı olmayan kapanış Belgesi başlangıcı. Kaynakların yerine geçmez ve sistem yorumu, sonucu veya başarı hükmü üretmez.
+Kullanıcının seçtiği tamamlanmış kayıtlardan yalnız bölüm başlıkları ve okunabilir kaynak bağlantılarıyla üretilen, kullanıcı kaydedene kadar kalıcı olmayan [kapanış Belgesi başlangıcı](docs/prd/06-work-management-and-planning.md#proje-kapanış-özeti).
 _Avoid_: Başlangıç iskeleti, otomatik retrospektif, kapanış ana kaydı
 
 **Proje Hedefi**:
-Bir Projenin ulaşmak istediği sonucu ve isteğe bağlı başarı göstergesini taşıyan hafif ana kayıt. Bağlı İşlerden otomatik ilerleme, sağlık veya tamamlanma hükmü üretmez.
+Bir Projenin ulaşmak istediği sonucu ve isteğe bağlı başarı göstergesini taşıyan hafif ana kayıt; bağlı İşlerden otomatik ilerleme veya sağlık hükmü üretmez.
 _Avoid_: Kilometre Taşı, Proje Sürümü, Key Result
 
 **Kilometre Taşı**:
-Bir Projedeki önemli ara sonucu temsil eden planlama ana kaydı. Çalışma penceresi veya yayımlanacak kapsam değildir ve bağlı İşlerin durumunu değiştirmez.
+Bir Projedeki önemli ara sonucu temsil eden planlama ana kaydı; Odak Döneminin çalışma penceresi veya Proje Sürümünün yayımlanacak kapsamı değildir.
 _Avoid_: Odak Dönemi, Proje Sürümü, sprint
 
 **Odak Dönemi**:
-Seçili İşlerle çalışmak için geçici bir zaman penceresi ve başlangıç/kapanış kapsam snapshot'ı. Kalıcı kapsam grubu, Kilometre Taşı veya Proje Sürümü değildir.
+Seçili İşlerle çalışmak için açılan geçici zaman penceresi; kalıcı kapsam grubu, Kilometre Taşının ara sonucu veya Proje Sürümünün yayın kapsamı değildir.
 _Avoid_: Sprint, Kilometre Taşı, Proje Sürümü
 
 **Akıllı Koleksiyon**:
-Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm. Manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
+Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm; manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
 _Avoid_: Statik liste, klasör, etiket
 
 **Yakalama Gelen Kutusu öğesi**:
-Kaydedilmiş fakat henüz kalıcı kayıt türüne ve bağlamına dönüştürülmemiş geçici girdi. Kullanıcı triage edene veya açıkça silene kadar korunur; zaman geçtiği için otomatik silinmez. Ana kayıt, Backlog İşi veya uzun süreli bilgi deposu değildir.
+Kaydedilmiş fakat henüz kalıcı kayıt türüne ve bağlamına dönüştürülmemiş [geçici girdi](docs/prd/02-domain-model-and-lifecycle.md#ana-kayıt-türleri-ve-asgari-sözleşmeler); ana kayıt, Backlog İşi veya uzun süreli bilgi deposu değildir.
 _Avoid_: İş, Taslak, kaydedilmiş bookmark
 
 **Yakalama mini şablonu**:
-Bir Yakalama Gelen Kutusu öğesine yalnız isteğe bağlı yönlendirici alanlar ekleyen `Bug Capture`, `Feedback Capture` veya `Research Fragment` biçimi. Şablon seçimi kalıcı Bug, Geri Bildirim, Kaynak ya da başka ana kayıt oluşturmaz ve yakalamayı kaydetmek için alan zorunlu kılmaz.
+Bir Yakalama Gelen Kutusu öğesine yalnız isteğe bağlı yönlendirici alanlar ekleyen [biçim](docs/prd/05-capture-and-intake.md#hızlı-yakalama); kalıcı ana kayıt oluşturmaz ve yakalamayı kaydetmek için alan zorunlu kılmaz.
 _Avoid_: Kayıt oluşturma formu, otomatik triage, içerik şablonu
 
 **Taslak**:
-Kullanıcı oluşturma eylemini tamamlamadan önce korunan, henüz kaydedilmemiş ayrıntılı İş formu. Kullanıcı kaydedene veya açıkça silene kadar zaman sınırı olmadan korunur; Yakalama Gelen Kutusu öğesi veya ana kayıt değildir.
+Kullanıcı oluşturma eylemini tamamlamadan önce korunan, henüz kaydedilmemiş ayrıntılı İş formu; Yakalama Gelen Kutusu öğesi veya ana kayıt değildir.
 _Avoid_: Yakalama, İş, Belge taslağı
 
 **Ürün Boşluğu**:
-Kurucunun Cantiara kapsamında karşılanmadığını düşündüğü ihtiyacı ve bu ihtiyete ilişkin değerlendirme durumunu taşıyan Çalışma Alanı ana kaydı. Tekrarlanma sayısı yalnız ona açıkça bağlanan Dış Araca Kaçış olaylarından türetilir.
+Kurucunun Cantiara kapsamında karşılanmadığını düşündüğü ihtiyacı ve bu ihtiyaca ilişkin değerlendirme durumunu taşıyan Çalışma Alanı ana kaydı; tekrar sayısı [Dış araca kaçış günlüğünde](docs/prd/04-workspace-and-projects.md#dış-araca-kaçış-günlüğü) yaşar.
 _Avoid_: Özellik isteği, otomatik öncelik, dış araç oturumu
 
 **Dış Araca Kaçış**:
-Kurucunun Cantiara kapsamında gördüğü gerçek bir işi tamamlamak için başka bir araca geçtiğini açıkça kaydettiği tarihsel olay. Ürün Boşluğuna bağlanır; dış davranışın otomatik izlenmesi veya dış içeriğin kopyası değildir.
+Kurucunun Cantiara kapsamında gördüğü gerçek bir işi tamamlamak için başka bir araca geçtiğini açıkça kaydettiği tarihsel olay; dış davranışın otomatik izlenmesi veya dış içeriğin kopyası değildir.
 _Avoid_: Bilinçli dış sınır, entegrasyon kullanımı, otomatik telemetry
 
 ## Bilgi ve kanıt
 
 **Belge**:
-Bir Proje veya Kişisel Wiki kapsamında yaşayan, sürümlü Markdown içeriğine sahip ana kayıt. Başka kaydın metin alanı veya dış dosyayla canlı eşitlenen kopya değildir.
+Bir Proje veya Kişisel Wiki kapsamında yaşayan, sürümlü Markdown içeriğine sahip ana kayıt; başka kaydın metin alanı veya dış dosyayla canlı eşitlenen kopya değildir.
 _Avoid_: Dosya Eki, harici Markdown dosyası, kayıt açıklaması
 
 **Dosya Eki**:
-Tam olarak bir Proje veya Kişisel Wiki kapsamında yaşayan, dosya içeriğini ve sürümlerini taşıyan ana kayıt. Başka kapsamdaki ilişki, sahipliğini veya görünürlüğünü değiştirmez.
+Tam olarak bir Proje veya Kişisel Wiki kapsamında yaşayan, dosya içeriğini ve sürümlerini taşıyan ana kayıt; başka kapsamdaki ilişki sahipliğini veya görünürlüğünü değiştirmez.
 _Avoid_: Belge, ilişki eki, paylaşılan global dosya
 
 **Kaynak**:
-Dış bilgiyi URL, erişim zamanı ve yakalanan içerikle tarihsel sürümler hâlinde koruyan Proje ana kaydı. Canlı web sayfası, geçici URL önizlemesi veya doğruluğu kendiliğinden onaylanmış kanıt değildir.
-_Avoid_: Dış URL önizlemesi, bookmark, canlı web aynası
+Dış bilgiyi URL, erişim zamanı ve yakalanan içerikle tarihsel sürümler hâlinde koruyan Proje ana kaydı; canlı web sayfası, geçici bağlantı önizlemesi veya kendiliğinden onaylanmış kanıt değildir.
+_Avoid_: Akıllı bağlantı önizlemesi, bookmark, canlı web aynası
 
 **Kanıt bağı**:
-Kesin bir Kaynak, Belge, Diyagram veya Dosya Eki sürümünün ya da desteklenen tarihsel kaydın belirli bir hedef iddiayı desteklediğini açık rol ve atıfla gösteren ilişki. Kaynağın varlığı tek başına bu bağı veya doğruluk hükmünü oluşturmaz.
+Kesin bir Kaynak, Belge, Diyagram veya Dosya Eki sürümünün belirli bir hedef iddiayı desteklediğini açık rol ve atıfla gösteren ilişki; Kaynağın varlığı tek başına bu bağı veya doğruluk hükmünü oluşturmaz.
 _Avoid_: İlgili ilişkisi, belirsiz referans, otomatik doğrulama
 
 **Diyagram otorite kipi**:
-Bir diyagram örneğinin kalıcı içeriğinin ve güncellik iddiasının `Üründe yazılmış model`, `Repository’den türetilmiş görünüm`, `İçe aktarılmış bağımsız kopya` veya `Dış kaynak bağlantısı` seçeneklerinden hangisine ait olduğunu belirleyen, kayıt kimliği boyunca değişmeyen tek kanonik sınıflandırma. Snapshot, dışa aktarım ve sürüm bu sınıflandırmayı değiştirmez; başka otoriteye geçiş kaynak ve hedefi kökenle bağlayan yeni Teknik Diyagram kimliği oluşturur.
+Bir diyagram örneğinin kalıcı içeriğinin nerede kanonik olduğunu ve güncellik iddiasını belirleyen, kayıt kimliği boyunca değişmeyen tek [sınıflandırma](docs/prd/11-technical-diagrams-and-schema-artifacts.md#teknik-diyagramlar).
 _Avoid_: Diyagram türü, dosya biçimi, paylaşım kipi
 
 **Üründe yazılmış model**:
@@ -173,11 +175,11 @@ _Avoid_: Diyagram türü, dosya biçimi, paylaşım kipi
 _Avoid_: Repository aynası, dış dosya bağlantısı
 
 **Repository’den türetilmiş görünüm**:
-Kullanıcının seçtiği kesin repository kaynakları ve revizyonundan hesaplanan, içeriği ürün içinde bağımsız düzenlenmeyen diyagram otorite kipi. Kaynak değişikliği tarihsel görünümü yeniden yazmaz ve güncellik ayrıca gösterilir.
+Kullanıcının seçtiği kesin repository kaynakları ve revizyonundan hesaplanan, içeriği ürün içinde bağımsız düzenlenmeyen diyagram otorite kipi.
 _Avoid_: AI’ın doğru varsayılan çizimi, ürün-owned diyagram, canlı çift yönlü senkronizasyon
 
 **İçe aktarılmış bağımsız kopya**:
-Dış dosyanın açık dönüşüm ve kayıp önizlemesinden sonra ürün veritabanında yeni kimlikli kanonik içeriğe dönüştüğü, dış kaynağın sonraki değişikliklerini izlemeyen diyagram otorite kipi. Köken korunur fakat dış dosya doğruluk kaynağı olarak kalmaz.
+Dış dosyanın açık dönüşümünden sonra ürün veritabanında yeni kimlikli kanonik içeriğe dönüştüğü, dış kaynağın sonraki değişikliklerini izlemeyen diyagram otorite kipi.
 _Avoid_: Canlı import, round-trip senkronizasyon, dış kaynağın yeni sürümü
 
 **Dış kaynak bağlantısı**:
@@ -185,11 +187,11 @@ Diyagram içeriğinin ürün dışında kanonik kaldığı; ürünün yalnız ke
 _Avoid_: İçe aktarılmış kopya, ürün-owned diyagram, embed ile sahiplik
 
 **Teknik Diyagram**:
-Bir yazılım Projesinin veri modelini, teknik yapısını veya desteklenen sistem etkileşimini bağımsız kimlik, Diyagram otorite kipi, geçmiş ve ilişkilerle taşıyan proje ana kaydı. Proje Duvarı kartı veya Belgedeki canlı görünümü yeni diyagram içeriği oluşturmaz.
+Bir yazılım Projesinin veri modelini, teknik yapısını veya desteklenen sistem etkileşimini bağımsız kimlik, Diyagram otorite kipi, geçmiş ve ilişkilerle taşıyan proje ana kaydı.
 _Avoid_: Mermaid kod bloğu, genel canvas, Proje Duvarı çizgisi
 
 **Belge içi Mermaid diyagramı**:
-Tek bir Markdown Belgesine ait Mermaid kaynak kodu ile onun işlenmiş görünümünden oluşan, Belgeden bağımsız kimlik veya yaşam döngüsü taşımayan içerik bloğu. Bağımsız Teknik Diyagrama dönüşmesi açık kullanıcı eylemi ve yeni ana kayıt gerektirir.
+Tek bir Markdown Belgesine ait Mermaid kaynak kodu ile onun işlenmiş görünümünden oluşan, Belgeden bağımsız kimlik veya yaşam döngüsü taşımayan içerik bloğu.
 _Avoid_: Teknik Diyagram ana kaydı, otomatik çıkarılmış diyagram kaydı
 
 **Tasarlanan şema**:
@@ -197,7 +199,7 @@ Kullanıcının amaçladığı veri modelini ürün içinde düzenlediği, henü
 _Avoid_: Uygulanmış şema, Repository şeması, canlı veritabanı introspection’ı
 
 **Repository şeması**:
-Seçili schema veya migration kaynaklarının kesin repository revizyonunda ifade ettiği veri modelinden türetilen salt-okunur Teknik Diyagram. Çalışan veritabanına uygulanmış, deploy edilmiş veya runtime’da güncel olduğu iddiasını taşımaz.
+Seçili schema veya migration kaynaklarının kesin repository revizyonunda ifade ettiği veri modelinden türetilen salt-okunur Teknik Diyagram; çalışan veritabanına uygulanmışlık iddiası taşımaz.
 _Avoid_: Uygulanmış şema, canlı veritabanı şeması, Tasarlanan şema
 
 **Teknik Mimari Diyagramı**:
@@ -205,133 +207,133 @@ Bir yazılım Projesindeki bileşen, servis, veri akışı ve harici sistem bağ
 _Avoid_: Kullanıcı Akışı, Proje Duvarı, genel flowchart
 
 **Veri Modeli Diyagramı**:
-Bir yazılım Projesinin veri varlıklarını, alanlarını, kısıtlarını ve aralarındaki yapısal ilişkileri gösteren Teknik Diyagram türü. Çalışan veritabanına uygulanmış olma veya migration yürütme iddiası taşımaz.
+Bir yazılım Projesinin veri varlıklarını, alanlarını, kısıtlarını ve aralarındaki yapısal ilişkileri gösteren Teknik Diyagram türü; uygulanmışlık veya migration yürütme iddiası taşımaz.
 _Avoid_: Veri Varlığı kaydı, canlı DB şeması, genel tablo görünümü
 
 **Şema Görünümü**:
-Tek bir Veri Modeli Diyagramındaki kullanıcı tarafından seçilmiş varlık, alan ve ilişkileri gösteren Diyagram Görünümü. Kaynak tanımları kopyalamaz, bağımsız veri modeli veya fiziksel database namespace’i oluşturmaz.
+Tek bir Veri Modeli Diyagramındaki kullanıcı tarafından seçilmiş varlık, alan ve ilişkileri gösteren Diyagram Görünümü; bağımsız veri modeli veya fiziksel database namespace'i oluşturmaz.
 _Avoid_: Customer şeması, Admin şeması, ikinci Veri Modeli Diyagramı, PostgreSQL schema
 
 **Diyagram Görünümü**:
-Tek bir Teknik Diyagramın seçilmiş öğelerini adlandırılmış yerleşim ve görünüm notlarıyla gösteren, kaynak öğeleri kopyalamayan sunum yüzeyi. Bağımsız Teknik Diyagram, içerik kaynağı veya erişim kapsamı değildir.
+Tek bir Teknik Diyagramın seçilmiş öğelerini adlandırılmış yerleşim ve görünüm notlarıyla gösteren, kaynak öğeleri kopyalamayan sunum yüzeyi; bağımsız Teknik Diyagram veya erişim kapsamı değildir.
 _Avoid_: Alt diyagram, canvas bölgesi, ayrı teknik model, paylaşım izni
 
 **Teknik Diyagram yapısal modeli**:
-Bir Teknik Diyagramın türlenmiş düğüm, alan, bağlantı ve semantik kısıtlarını ürün veritabanında taşıyan kanonik içeriği. Görsel yerleşim görünüm üstverisidir; Mermaid, DBML, SQL ve başka metin biçimleri canlı eş kaynak değil, açık dönüşüm girdisi veya çıktısıdır.
+Bir Teknik Diyagramın türlenmiş düğüm, alan, bağlantı ve semantik kısıtlarını ürün veritabanında taşıyan [kanonik içeriği](docs/prd/11-technical-diagrams-and-schema-artifacts.md#teknik-diyagramlar); görsel yerleşim ise görünüm üstverisidir.
 _Avoid_: Diyagram DSL’i, render edilmiş görsel, canvas koordinatları
 
 **Diyagram Sürümü**:
-Bir Teknik Diyagramın kullanıcı tarafından adlandırılıp değişmez hâle getirilen kesin yapısal model ve görünüm checkpoint’i. Canlı diyagramın yerine geçmez; Karar, İş, Proje Sürümü, kanıt, paylaşım veya dışa aktarımın hangi tasarımı esas aldığını sabitler.
+Bir Teknik Diyagramın kullanıcı tarafından adlandırılıp değişmez hâle getirilen kesin yapısal model ve görünüm checkpoint'i; canlı diyagramın yerine geçmez, hangi tasarımın esas alındığını sabitler.
 _Avoid_: Autosave, değişiklik geçmişi olayı, canlı diyagram, export dosyası
 
 **PostgreSQL DDL taslağı**:
-Kesin bir Veri Modeli Diyagramı Sürümünden ürünün ürettiği; kaynak sürüm/hash, generator sürümü ve uyarı manifestini taşıyan, kullanıcı tarafından incelenip dışarı aktarılabilen tam PostgreSQL şema metni. Ürün içinde çalıştırılmaz, repository’ye yazılmaz ve production-ready ya da uygulanmış şema garantisi taşımaz.
+Kesin bir Veri Modeli Diyagramı Sürümünden ürünün [ürettiği](docs/prd/11-technical-diagrams-and-schema-artifacts.md#veri-modeli-semalari), incelenip dışarı aktarılabilen tam PostgreSQL şema metni; ürün içinde çalıştırılmaz ve uygulanmış şema garantisi taşımaz.
 _Avoid_: Migration, uygulanmış SQL, repository şema dosyası, database backup
 
 **Şema Değişiklik Taslağı**:
-İki kesin Veri Modeli Diyagramı Sürümü arasındaki türlenmiş ekleme, değiştirme, yeniden adlandırma ve kaldırma operasyonlarını; bağımlılık sırasını ve destructive uyarılarıyla gösteren inceleme taslağı. Çalışan database durumu veya uygulanmış migration değildir.
+İki kesin Veri Modeli Diyagramı Sürümü arasındaki türlenmiş schema farkını [inceleme için gösteren taslak](docs/prd/11-technical-diagrams-and-schema-artifacts.md#veri-modeli-semalari); çalışan database durumu veya uygulanmış migration değildir.
 _Avoid_: Metin diff’i, uygulanmış şema, otomatik migration yürütümü
 
 **Migration Artefaktı**:
-Kullanıcının Şema Değişiklik Taslağını inceleyip onaylamasıyla kaynak/hedef Diyagram Sürümleri, generator sürümü, uyarılar ve desteklenen PostgreSQL SQL’iyle değişmez hâle gelen tarihsel artefakt. Ürün içinde çalıştırılmaz, repository’ye yazılmaz ve uygulanmış olma ya da güvenli rollback garantisi taşımaz.
-_Avoid_: Migration çalıştırması, deployment, database backup, Diyagram Sürümü
+Onaylanmış bir Şema Değişiklik Taslağını kaynak manifestiyle koruyan, Veri Modeli Diyagramına ait [değişmez sahipli bileşen](docs/prd/02-domain-model-and-lifecycle.md#ana-kayıt-türleri-ve-asgari-sözleşmeler); ürün içinde çalıştırılmaz ve uygulanmışlık iddiası taşımaz.
+_Avoid_: Migration çalıştırması, deployment, database backup, Diyagram Sürümü, bağımsız ana kayıt
 
 **Güvenli Down taslağı**:
-Bir Migration Artefaktındaki bütün desteklenen schema operasyonlarının deterministik ve veri kayıpsız tersinin üretilebildiği durumda sunulan PostgreSQL geri alma taslağı. Veri taşıma, backfill, silinmiş veriyi canlandırma veya genel rollback garantisi değildir.
+Bir Migration Artefaktındaki bütün desteklenen operasyonların deterministik ve veri kayıpsız tersi kanıtlandığında sunulan [PostgreSQL geri alma taslağı](docs/prd/11-technical-diagrams-and-schema-artifacts.md#veri-modeli-semalari); veri taşıma veya genel rollback garantisi değildir.
 _Avoid_: Her migration için Down, database restore, güvenli deployment garantisi
 
 **Ajan öneri yaması**:
-Bir AI ajanının kesin taban Teknik Diyagram revizyonuna karşı önerdiği düğüm, alan ve bağlantı farklarının, kullanıcı seçip onaylamadan kanonik kayda yazılmadığı değişiklik taslağı. Ajan, başlatan insan ve onaylayan insan ayrı atfedilir.
+Bir AI ajanının kesin taban Teknik Diyagram revizyonuna karşı önerdiği ve kullanıcı seçip onaylamadan kanonik kayda [yazılmayan değişiklik taslağı](docs/prd/18-future-directions.md#read-first-programatik-erişim-yönü).
 _Avoid_: Ajan yazması, scoped CRUD, otomatik diyagram güncellemesi
 
 **Statik olarak doğrulanmış SQL**:
-Yapısal model invariant’ları, PostgreSQL grammar/parse, bağımlılık sırası ve generator karşıt testlerinden geçen fakat ürün veya kullanıcı database’inde çalıştırılmamış DDL ya da migration SQL’i. Uygulanmış, production-ready veya runtime’da güvenli olduğu iddiasını taşımaz.
+Ürünün [statik doğrulama kontrollerinden](docs/prd/11-technical-diagrams-and-schema-artifacts.md#veri-modeli-semalari) geçen fakat kullanıcının veritabanında çalıştırılmamış DDL ya da migration SQL'i; uygulanmış, production-ready veya runtime'da güvenli olduğu iddiasını taşımaz.
 _Avoid_: Çalıştırılmış SQL, uygulanmış migration, production-ready SQL
 
 **Teknik Sıra Diyagramı**:
-Yazılım bileşenleri, servisler veya dış sistemler arasındaki mesaj ve çağrıların zamansal sırasını gösteren Teknik Diyagram türü. Kullanıcının arayüzdeki hedef ve karar yolunu gösteren Kullanıcı Akışının yerine geçmez.
+Yazılım bileşenleri, servisler veya dış sistemler arasındaki mesaj ve çağrıların zamansal sırasını gösteren Teknik Diyagram türü; kullanıcının arayüzdeki hedef ve karar yolunu gösteren Kullanıcı Akışının yerine geçmez.
 _Avoid_: Kullanıcı Akışı, Proje Etkinliği, genel flowchart
 
 **Ekran**:
-Bir ürün ekranını temsil eden, Proje kapsamında bağımsız kimlik, geçmiş ve yaşam döngüsü taşıyan ana kayıt. Görsel tasarım olmadan yalnız başlıkla var olabilir ve kendi Wireframe yüzeyi ile sürümlerine sahip olur.
+Bir ürün ekranını temsil eden, Proje kapsamında bağımsız kimlik, geçmiş ve yaşam döngüsü taşıyan ana kayıt; görsel tasarım olmadan yalnız başlıkla var olabilir.
 _Avoid_: Wireframe kaydı, Ekran bileşeni, flow node'u
 
 **Wireframe yüzeyi**:
-Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi. Bağımsız ana kayıt veya yaşam döngüsü değildir; kesin sürümü kanıt ya da paylaşım snapshot'ı olarak seçilebilir.
+Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir.
 _Avoid_: Wireframe ana kaydı, Ekrandan bağımsız Wireframe
 
 **Yüzey metni**:
-Kullanıcının geliştirdiği üründe bir Ekranda görünen boş durum, hata veya denetim cümlesinin Ekrana veya kesin Wireframe sürümüne bağlı sahipli öğesi. Çeviri belgesi, e-posta şablonu veya Wireframe düzen metninin ikinci kopyası değildir.
+Kullanıcının geliştirdiği üründe bir Ekranda görünen boş durum, hata veya denetim cümlesinin Ekrana ya da kesin Wireframe sürümüne bağlı sahipli öğesi; çeviri belgesi veya düzen metninin ikinci kopyası değildir.
 _Avoid_: i18n TMS, copy deck, Wireframe bloğu kopyası
 
 **Sahipli bileşen**:
-Tek bir ana kayda ait olan ve sahibinden bağımsız yaşam döngüsü kazanamayan kalıcı domain öğesi. Sahibinin kapsamını ve silme yaşamını izler.
+Tek bir ana kayda ait olan ve sahibinden bağımsız erişim, kapsam veya yaşam döngüsü kazanamayan kalıcı domain öğesi.
 _Avoid_: Ana kayıt, yardımcı kayıt
 
 **Dış yürütme devri**:
-Bir İşin AI ajanında veya harici araçta yürütülecek belirli bir kodlama ya da başka test-dışı çalışmaya gönderilen kesin amaç ve bağlamını, dönen sonucu ve kullanıcının uzlaştırma veya iptal kararını tarihsel olarak koruyan sahipli bileşen. Harici aracı çalıştırmaz, dış insana görev vermez, İşten bağımsız yaşam döngüsü kazanmaz ve planlı/formel test için Test Handoff'unun yerine geçmez.
+Bir İşin AI ajanında veya harici araçta yürütülecek test-dışı çalışmasının kesin bağlamını, dönen sonucunu ve kullanıcı kararını tarihsel koruyan [sahipli bileşen](docs/adr/0015-dis-yurutme-devrini-ise-ait-bilesen-olarak-tut.md); planlı ya da formel test için Test Handoff'unun yerine geçmez.
 _Avoid_: Coding session, ajan görevi, bağımsız Handoff ana kaydı
 
 **Dış yürütme uzlaştırması**:
-Bir Dış yürütme devrinin sonucunu, değişen varsayımlarını, kanıtını ve açık sorularını kullanıcının inceleyip ana proje gerçeğine bağladığı kapanış kararı. Commit, PR veya İş durumundaki değişiklik bu kararı kendiliğinden oluşturmaz.
+Bir Dış yürütme devrinin sonucunu, kanıtını ve açık sorularını kullanıcının inceleyip ana proje gerçeğine bağladığı kapanış kararı; commit, PR veya durum değişikliği bu kararı kendiliğinden oluşturmaz.
 _Avoid_: Commit geldi, otomatik kapanış, İş tamamlandı
 
 **Kullanıcı başlatmalı İş başarısı**:
-Kullanıcının açık kapatma kararıyla bir İşin kalıcı kapanış sonucunun `Tamamlandı` olarak kesinleşmesi. `Vazgeçildi`, kontrol listesi tamamlama, PR merge veya otomatik PR-merge kapanışı, Dış yürütme uzlaştırması, Kilometre Taşına ulaşma ve Proje tamamlama bu başarı değildir.
+Kullanıcının açık kapatma kararıyla bir İşin kalıcı kapanış sonucunun kesinleşmesi; [başka terminal olaylar ve otomatik kapanışlar](docs/prd/06-work-management-and-planning.md#bitiris-efektleri) bu başarı değildir.
 _Avoid_: Her terminal olay, otomatik kapanış, kapatma girişimi, iyimser tamamlanma
 
 **Bitiriş efekti**:
-Kullanıcı başlatmalı İş başarısını duygusal olarak hissedilir kılan, isteğe bağlı ve yalnız ürünün sağladığı özgün temalardan oluşan dekoratif geri bildirim. Başarının kalıcı durumunu veya hareketten bağımsız temel geri bildirimini taşımaz.
+Kullanıcı başlatmalı İş başarısını duygusal olarak hissedilir kılan, isteğe bağlı ve [ürünün kendi özgün kataloğuyla sınırlı](docs/adr/0017-bitiris-efektlerini-ozgun-birinci-taraf-katalogla-sinirla.md) dekoratif geri bildirim; başarının kalıcı durumunu veya temel geri bildirimini taşımaz.
 _Avoid_: Konfeti, başarı durumu, lisanslı karakter efekti, kullanıcı yüklemeli efekt
 
 **Değer Zinciri**:
-Bir Proje Hedefinden problem ve kanıt üzerinden gözlenen sonuca kadar mevcut kesin kayıt ve ilişkileri gösteren, hedefe bağlanmamış parçaları ve kopuk adımları saklamayan türetilmiş Proje görünümü. Ana kayıt, ilişki, özet metni veya sağlık hükmü üretmez.
+Bir Proje Hedefinden problem ve kanıt üzerinden gözlenen sonuca kadar mevcut kesin kayıt ve ilişkileri gösteren [türetilmiş Proje görünümü](docs/prd/04-workspace-and-projects.md#değer-zinciri); ana kayıt, ilişki, özet metni veya sağlık hükmü üretmez.
 _Avoid_: Değer Zinciri kaydı, elle güncellenen izlenebilirlik belgesi, sağlık skoru
 
 **Herkese Açık Taahhüt Etki Görünümü**:
-Seçili kesin iç kayıt veya sürümün hangi onaylanmış herkese açık snapshot revizyonlarında yer aldığını mevcut manifestlerden hesaplayan, kanıt bekleyen gelecek yönü adayı. Ana kayıt, inceleme durumu, görev veya serbest metinden çıkarılmış vaat üretmez.
+Seçili kesin iç kayıt veya sürümün hangi onaylanmış herkese açık snapshot revizyonlarında yer aldığını mevcut manifestlerden hesaplayan, [kanıt bekleyen gelecek yönü adayı](docs/prd/18-future-directions.md#herkese-acik-taahhut-etki-gorunumu).
 _Avoid_: Taahhüt kaydı, anlamsal vaat tarayıcısı, özel paylaşım etki listesi
 
 **Üretim Olayı Önleme Zinciri**:
-Bir Üretim Olayını onun için açık anlamla bağlanmış düzeltme, tekrar-önleme kanıtı ve yayımlanma bağlamıyla gösteren, kanıt bekleyen türetilmiş gelecek yönü adayı. Tarih yakınlığından, metin benzerliğinden veya genel `İlgili` ilişkisinden nedensellik ve hazır olma hükmü çıkarmaz.
+Bir Üretim Olayını onun için açık anlamla bağlanmış düzeltme, tekrar-önleme kanıtı ve yayımlanma bağlamıyla gösteren, [kanıt bekleyen türetilmiş gelecek yönü adayı](docs/prd/18-future-directions.md#uretim-olayi-onleme-zinciri); nedensellik hükmü çıkarmaz.
 _Avoid_: Olay kaydı kopyası, otomatik kök neden analizi, sürüm hazır olma kapısı
 
 **Akış Kötüye Kullanım İncelemesi**:
-Bir Kullanıcı Akışının kesin sürümünde kötüye kullanılabilecek yolları insan değerlendirmesiyle kaydeden gelecek yönü adayı. Bu yön açılırsa inceleme Kullanıcı Akışına ait kalıcı sahipli bileşendir; bağımsız ana kayıt, backlog veya yaşam döngüsü değildir. Değerli bulgu ancak açık kullanıcı eylemiyle mevcut Risk, Açık Soru ya da Planlı Test Senaryosu kaydına dönüşür.
+Bir Kullanıcı Akışının kesin sürümünde kötüye kullanılabilecek yolları insan değerlendirmesiyle kaydeden [gelecek yönü adayı](docs/prd/18-future-directions.md#akis-kotuye-kullanim-incelemesi); bağımsız ana kayıt veya backlog değildir.
 _Avoid_: Tehdit modeli ana kaydı, güvenlik envanteri, otomatik Risk üretimi
 
 **Çakışma Taslağı**:
-Güncel olmayan bir Belge sürümüne yazmaya çalıştığı için kabul edilmeyen metni, kullanıcı açıkça uzlaştırana, aynı kapsamta kökeni görünür bağımsız Belgeye dönüştürene veya silene kadar koruyan sahipli bileşen. Ana Belge sürümü, otomatik yeniden deneme veya ikinci doğruluk kaynağı değildir.
+Güncel olmayan bir Belge sürümüne yazıldığı için kabul edilmeyen metni kullanıcı açıkça çözene kadar koruyan sahipli bileşen; ana Belge sürümü, otomatik yeniden deneme veya ikinci doğruluk kaynağı değildir.
 _Avoid_: Otomatik birleştirilmiş sürüm, çevrimdış yazma kuyruğu, Belge geçmişi
 
 **Kayıt birleştirme**:
-Birleştirmeyi açıkça destekleyen herhangi bir kayıt türünde, gerçekte aynı şeyi temsil ettiği doğrulanan ana kayıtların içerik, ilişki ve geçmişlerini tek ana kayıtta toplama işlemi. Birleştirme sonrasında kopyalar ayrı yaşayan ana kayıtlar olarak kalmaz; türe özgü alan çakışmaları onay öncesinde çözülür.
+Gerçekte aynı şeyi temsil ettiği doğrulanan ana kayıtların içerik, ilişki ve geçmişlerini tek ana kayıtta toplama [işlemi](docs/prd/02-domain-model-and-lifecycle.md#değişiklik-geçmişi-aktör-ve-geri-alma).
 _Avoid_: İlgili kayıt, kayıt grubu
 
 **Birleştirmeyi geri alma**:
-Emekli kayıt kimliğini özgün kimliğiyle yeniden ana kayda dönüştüren ve yalnız birleşmeye atfedilebilen değerlerle ilişkileri hayatta kalan kayıttan ayıran düzeltme işlemi. Sonraki ilgisiz değişiklikleri geri sarmaz; geri döndürülemez silme veya redaksiyonla kaldırılmış değeri canlandıramaz.
+Emekli kayıt kimliğini özgün kimliğiyle yeniden ana kayda dönüştüren [düzeltme işlemi](docs/prd/02-domain-model-and-lifecycle.md#değişiklik-geçmişi-aktör-ve-geri-alma); geçmişe tam dönüş veya yedekten geri yükleme değildir.
 _Avoid_: Geçmişe tam dönüş, yedekten geri yükleme, gizli kopyayı açma
 
 **Emekli kayıt kimliği**:
-Bir Kayıt birleştirmesinde yaşamı sona eren ana kaydın, hayatta kalan kayda kalıcı ve görünür biçimde yönlenen eski kimliği. Yeni bir kayıt için tekrar kullanılamaz ve kendi başına yaşayan bir ana kayıt değildir.
+Bir Kayıt birleştirmesinde yaşamı sona eren ana kaydın, hayatta kalan kayda kalıcı ve görünür biçimde yönlenen eski kimliği.
 _Avoid_: İkinci canlı kayıt, yeniden kullanılabilir anahtar, sessiz takma ad
 
 ## Dış görünürlük
 
 **Dış yüzey**:
-Ziyaretçinin kararlı bir URL üzerinden eriştiği; erişim anahtarı, parola, süre ve etkinlik durumunu taşıyan, yayın köküyle aynı tek kanonik kapsamda yaşayan ana kayıt. Gösterdiği içeriğin kendisi değildir; iptalden sonra Çöp Kutusuna alınabilir ve Hesap/Çalışma Alanından uzun yaşayamaz.
+Ziyaretçinin kararlı bir URL üzerinden eriştiği ve yayın köküyle aynı tek kanonik kapsamda yaşayan [paylaşım/yayın ana kaydı](docs/adr/0001-dis-yuzey-ve-snapshot-kimligi.md); gösterdiği içeriğin kendisi değildir.
 _Avoid_: Snapshot, yayın sürümü
 
 **Onaylı snapshot revizyonu**:
-Bir Dış yüzeyde belirli bir onay anında gösterilmesine izin verilen kesin kayıt, alan, ilişki ve dosya sürümü manifestinin değişmez, Dış yüzeyden bağımsız yaşayamayan revizyonu. Süre dolumu veya iptalde silinmez; Dış yüzeyin yaşamını ve güvenlik redaksiyonlarını izler.
+Bir Dış yüzeyde belirli bir onay anında gösterilmesine izin verilen kesin sürüm manifestinin değişmez ve [Dış yüzeyden bağımsız yaşayamayan revizyonu](docs/adr/0001-dis-yuzey-ve-snapshot-kimligi.md).
 _Avoid_: Paylaşım bağlantısı, canlı görünüm, Dış yüzey
 
 **Herkese açık durum etiketi**:
-Bir İşin iç İş akışı durumunu değiştirmeden yalnız herkese açık Roadmap sunumunda gösterilen Proje bazlı ziyaretçi etiketi. Başlangıç eşlemesi `Not Started → Planned`, `In Progress → In Progress` ve `Closed + Completed → Released` olur; `Blocked` ile `Closed + Abandoned` kullanıcı açıkça etiket seçmeden yayımlanmaz.
+Bir İşin iç İş akışı durumunu değiştirmeden yalnız herkese açık Roadmap sunumunda gösterilen Proje bazlı ziyaretçi etiketi ([eşleme sözleşmesi](docs/prd/14-sharing-and-public-publishing.md#iç-durumların-herkese-açık-sunumu)).
 _Avoid_: İş akışı durumu, ikinci herkese açık İş, otomatik yayın kararı
 
 **Güvenlik nedeniyle redakte edilmiş kanıt**:
-Değişmez sürüm manifestini yeniden yazmadan, hassas içeriği kaldırılmış kanıtın özgün hash ve içeriksiz redaksiyon üstverisiyle kalan erişilemez durumu. Yeni bir sürümün kabul kanıtı olarak yeniden kullanılamaz.
+Değişmez sürüm manifestini yeniden yazmadan hassas içeriği [kaldırılmış kanıtın](docs/prd/10-testing-and-validation.md#düzeltme-geri-çekme-ve-güvenlik-redaksiyonu) erişilemez durumu; yeni bir sürümün kabul kanıtı olarak yeniden kullanılamaz.
 _Avoid_: Temizlenmiş kanıt sürümü, erişilebilir şifreli özgün, geçerli devredilmiş kanıt
 
 **Bağlantıyla sınırlı salt okunur paylaşım**:
@@ -339,175 +341,175 @@ Kimliği doğrulanmış bir alıcıya değil, kararlı bağlantıyı ve varsa pa
 _Avoid_: Özel paylaşım, kişiye özel paylaşım, kimlik doğrulamalı paylaşım
 
 **Bağlantı süre dolumu**:
-Önceden belirlenen zamanda yeni erişimi durduran, içeriği ve geçmişi silmeyen geri açılabilir Dış yüzey durumu. Yeniden açılırken yeni kitle ile önceki bağlantı sahiplerine yeniden erişim verme birbirinden ayrılır.
+Önceden belirlenen zamanda yeni erişimi durduran, içeriği ve geçmişi silmeyen geri açılabilir Dış yüzey durumu.
 _Avoid_: İptal, kalıcı silme
 
 **Bağlantı iptali**:
-Kurucunun belirli bir bağlantı ve erişim anahtarını geri döndürülemez biçimde geçersiz kıldığı Dış yüzey geçişi. Aynı URL veya anahtar yeniden etkinleştirilemez; sonraki paylaşım yeni Dış yüzeydir.
+Kurucunun belirli bir bağlantı ve erişim anahtarını geri döndürülemez biçimde geçersiz kıldığı Dış yüzey geçişi; sonraki paylaşım yeni Dış yüzeydir.
 _Avoid_: Süre dolumu, geçici duraklatma
 
 **Paylaşım erişim oturumu**:
-Geçerli paylaşım anahtarı ve varsa parolanın ilk doğrulamasından sonra tek Dış yüzeye sınırlı süre erişim veren tarayıcı oturumu. Temiz sayfa adresini başka tarayıcıda erişim anahtarına dönüştürmez ve parola, süre dolumu veya iptal değişikliğinden uzun yaşayamaz.
+Geçerli paylaşım anahtarı ve varsa parolanın ilk doğrulamasından sonra tek Dış yüzeye sınırlı süre erişim veren [tarayıcı oturumu](docs/prd/14-sharing-and-public-publishing.md#bağlantıyla-sınırlı-salt-okunur-paylaşım).
 _Avoid_: İkinci paylaşım bağlantısı, kalıcı tarayıcı anahtarı, çalışma alanı oturumu
 
 ## Test yönetimi
 
 **Planlı Test Senaryosu**:
-Tekrar kullanılabilir test niyetini, önkoşullarını ve beklenen davranışını sürümler hâlinde taşıyan Proje ana kaydı. Testi çalıştırmaz, sonuç taşımaz ve bağlı kapsamı doğrulanmış saymaz.
+Tekrar kullanılabilir test niyetini, önkoşullarını ve beklenen davranışını sürümler hâlinde taşıyan Proje ana kaydı; testi çalıştırmaz, sonuç taşımaz ve bağlı kapsamı doğrulanmış saymaz.
 _Avoid_: Test Oturumu, test script'i, kabul sonucu
 
 **Test Handoff'u**:
-Ürün dışında yapılması istenen test çalışmasının kesin amacını, seçili senaryo sürümlerini, teknik bağlamını ve dönen Test Oturumlarını yöneten Proje ana kaydı. Testi yürütmez ve sonuç geldiğinde kendiliğinden kapanmaz.
+Ürün dışında yapılması istenen test çalışmasının amacını, seçili senaryo sürümlerini ve dönen Test Oturumlarını yöneten Proje ana kaydı; testi yürütmez ve sonuç geldiğinde kendiliğinden kapanmaz.
 _Avoid_: Dış yürütme devri, Test Oturumu, ajan çalıştırması
 
 **Test Oturumu**:
-Aynı dış çalışma bağlamında yürütüldüğü bildirilen testleri ve tarihsel özetini taşıyan Proje ana kaydı. Bildirilen gerçekliği korur; kullanıcı incelemesi veya başarılı sonuç tek başına kabul kanıtı değildir.
+Aynı dış çalışma bağlamında yürütüldüğü bildirilen testleri ve tarihsel özetini taşıyan Proje ana kaydı; bildirilen gerçekliği korur, kabul kanıtı üretmez.
 _Avoid_: Test Handoff'u, Ürün kabul kanıtı, canlı test çalıştırıcısı
 
 **Oturum Testi**:
-Bir Test Oturumu içinde bağımsız olarak denendiği bildirilen davranışı, ham ve normalize sonucu, kesin bağlamı ve kanıtıyla taşıyan kayıt. Planlı bir senaryo sürümüne bağlanabilir veya ad hoc olabilir; üst Test Oturumundan bağımsız yaşamaz.
+Bir Test Oturumu içinde bağımsız olarak denendiği bildirilen davranışı, sonucunu, bağlamını ve kanıtını taşıyan kayıt; üst Test Oturumundan bağımsız yaşamaz.
 _Avoid_: Planlı Test Senaryosu, Test Oturumu özeti, GitHub check'i
 
 **Test Açığı**:
-Kullanıcının henüz denenmediğini veya yetersiz doğrulandığını düşündüğü alanı ve bu yargının dayanaklarını taşıyan Proje ana kaydı. Başarısız test, Bug veya otomatik yayın engeli değildir; sonuç geldiğinde kendiliğinden kapanmaz.
+Kullanıcının henüz denenmediğini veya yetersiz doğrulandığını düşündüğü alanı ve bu yargının dayanaklarını taşıyan Proje ana kaydı; başarısız test, Bug veya otomatik yayın engeli değildir.
 _Avoid_: Bug, başarısız test sonucu, otomatik coverage açığı
 
 **Test değerlendirmesi**:
-Kullanıcının belirli bir Özellik, Test Handoff'u veya Proje Sürümü bağlamındaki kesin test kayıtlarını belirli bir anda nasıl yorumladığını koruyan tarihsel snapshot. Sonraki sonuçlarla güncellenen kalite skoru, istisna veya yayın kapısı değildir.
+Kullanıcının belirli bir bağlamdaki kesin test kayıtlarını belirli bir anda nasıl yorumladığını koruyan tarihsel snapshot; sonraki sonuçlarla güncellenen kalite skoru veya yayın kapısı değildir.
 _Avoid_: Ürün kabul kanıtı, canlı test özeti, otomatik readiness kararı
 
 ## Sürüm ve ürün kabulü
 
 **Proje Sürümü**:
-Kullanıcının yönettiği yazılım Projesinde kapsamı, hazırlığı ve yayımlanma durumunu taşıyan Sürüm ana kaydı. Yayımlama kararı kullanıcıya aittir; ürünün kendi kabul süreci değildir.
+Kullanıcının yönettiği yazılım Projesinde kapsamı, hazırlığı ve yayımlanma durumunu taşıyan Sürüm ana kaydı; ürünün kendi kabul süreci değildir.
 _Avoid_: Ürün sürüm adayı, ürün release'i
 
 **Sürüm iletişim iskeleti**:
-Bir Proje Sürümüne ait, kullanıcının seçtiği kayıtlara bağlı ve cümlesini kendisinin yazdığı yayın söylemi maddeleri. Sürüme ait sahipli listedir; otomatik anlatı veya herkese açık changelog değildir.
+Bir Proje Sürümüne ait, kullanıcının seçtiği kayıtlara bağlı ve cümlesini kendisinin yazdığı yayın söylemi maddeleri; otomatik anlatı veya herkese açık changelog değildir.
 _Avoid_: Yapım hikâyesi, otomatik blog, changelog yüzeyi
 
 **Erişim gözlemi**:
-Bir Proje Sürümünün hedeflenen kullanıcıya belirli bir değerlendirme turunda hangi ölçüde ulaştığına dair, kullanıcı tarafından kaydedilen ve yalnız o gözleme ait kesin kanıta bağlanabilen sahipli değerlendirme. Aynı Sürüm birden fazla tarihli gözlem taşıyabilir; gözlem Sürümden bağımsız yaşamaz ve pazarlama performansı veya ürün başarısı hükmü değildir.
+Bir Proje Sürümünün hedeflenen kullanıcıya belirli bir değerlendirme turunda hangi ölçüde ulaştığına dair kullanıcı tarafından kaydedilen sahipli değerlendirme; pazarlama performansı hükmü değildir.
 _Avoid_: Kampanya sonucu, erişim skoru, otomatik analytics sonucu
 
 **Sonuç gözlemi**:
-Bir Proje Sürümünden sonra hedeflenen davranış veya sonucun belirli bir değerlendirme turunda hangi ölçüde görüldüğüne dair, kullanıcı tarafından kaydedilen ve yalnız o gözleme ait kesin kanıta bağlanabilen sahipli değerlendirme. Aynı Sürüm birden fazla tarihli gözlem taşıyabilir; gözlem Sürümden bağımsız yaşamaz, Erişim gözleminin yerine geçmez ve sistem tarafından başarı hükmüne dönüştürülmez.
+Bir Proje Sürümünden sonra hedeflenen davranış veya sonucun belirli bir değerlendirme turunda hangi ölçüde görüldüğüne dair kullanıcı tarafından kaydedilen sahipli değerlendirme; Erişim gözleminin yerine geçmez.
 _Avoid_: Sürüm başarısı, otomatik etki puanı, Erişim gözlemi
 
 **Ürün sürüm adayı**:
-Bu ürünün PRD kabul koşullarına karşı doğrulanan kesin build'i. Kullanıcının yönettiği bir Proje Sürümü değildir.
+Bu ürünün PRD kabul koşullarına karşı doğrulanan kesin build'i; kullanıcının yönettiği bir Proje Sürümü değildir.
 _Avoid_: Proje Sürümü, kullanıcı Sürümü
 
 **Kabul koşulu**:
-Normatif ürün davranışındaki bağımsız ve gözlenebilir bir vaadi, kesin Ürün sürüm adayı, fixture/ortam ve kanıtla tekil geçti/kaldı sonucuna bağlayan doğrulama birimi. Kaynak bölümünde doğal adlı bir madde olarak yaşar; kesin kaynak commit'i, dosya, bölüm bağlantısı ve bölüm içinde tekil doğal ad birlikte izlenebilirliğini kurar.
+Normatif ürün davranışındaki bağımsız ve gözlenebilir bir vaadi kesin Ürün sürüm adayı, fixture/ortam ve kanıtla tekil geçti/kaldı sonucuna bağlayan [doğrulama birimi](docs/prd/16-product-acceptance.md#kapsam-izlenebilirligi).
 _Avoid_: Kabul iddiası, bölüm topluca geçti, iç takip kodu, kaynak satır numarası
 
 **Ticari genişleme adayı**:
-İlk ürün kabul edildikten sonra açık kapsam kararıyla etkinleştirilen, Ticari Genişleme davranışları ile bunların merkezi kabul koşullarını birlikte zorunlu yapan doğrulama kapsamı. İlk ürünün tamamlanması bu adayı kendiliğinden başlatmaz.
+İlk ürün kabul edildikten sonra açık kapsam kararıyla etkinleştirilen [doğrulama kapsamı](docs/prd/16-product-acceptance.md#ticari-genisleme-kabulu); ilk ürünün tamamlanması bu adayı kendiliğinden başlatmaz.
 _Avoid_: İlk ürün kapsamı, otomatik sonraki aşama, yalnız Invoice özelliği
 
 **Bildirilen Test Oturumu**:
-Bir test aracının belirli bir derleme için gerçekleştiğini ve sonucunu bildirdiği tarihsel kayıt. Tek başına testin gerçekten koştuğunu veya bir sürümün kabul edildiğini kanıtlamaz.
+Bir test aracının belirli bir derleme için gerçekleştiğini ve sonucunu bildirdiği tarihsel kayıt; testin gerçekten koştuğunu veya bir sürümün kabul edildiğini kanıtlamaz.
 _Avoid_: Doğrulanmış kabul kanıtı, sürüm onayı
 
 **Ürün kabul kanıtı**:
-Kesin Ürün sürüm adayına bağlı onaylı koşturucu çıktısı veya belgelenmiş manuel kontrol için açık kurucu beyanıyla bir kabul koşulunu doğrulayan kanıt. Ortamı, fixture'ı, inceleyeni ve içerik hash'ini değişmez kabul manifestine bağlar.
+Kesin Ürün sürüm adayına bağlı onaylı koşturucu çıktısı veya belgelenmiş manuel kontrol beyanıyla bir Kabul koşulunu doğrulayan [kanıt](docs/prd/16-product-acceptance.md#urun-surum-adayi-kaniti).
 _Avoid_: Proje Sürümü kanıtı, yalnız Passed durumu, Test Değerlendirmesi
 
 **Kurucu öz-beyanı**:
-Kurucunun bizzat uyguladığı manuel kullanıcı deneyimi veya erişilebilirlik kontrolünü belgeleyen, bağımsız inceleme sayılmayan Ürün kabul kanıtı. Otomatik doğrulanabilir güvenlik veya veri bütünlüğü koşullarının tek kanıtı olamaz.
+Kurucunun bizzat uyguladığı manuel kullanıcı deneyimi veya erişilebilirlik kontrolünü belgeleyen, bağımsız inceleme sayılmayan Ürün kabul kanıtı.
 _Avoid_: Bağımsız onay, ikinci kişi incelemesi, her iddia için yeterli manuel beyan
 
 **Ürün destek matrisi**:
-Bir Ürün sürüm adayının kabul anında doğrulandığı kesin tarayıcı motoru, tarayıcı, işletim sistemi, cihaz veya bulut imajı ve tarih kümesi. Sonraki platform sürümleri geçmiş kabulü yeniden yazmaz.
+Bir Ürün sürüm adayının kabul anında doğrulandığı kesin [platform ve tarih kümesi](docs/prd/15-product-quality.md#kullanilabilirlik-hedefi); sonraki platform sürümleri geçmiş kabulü yeniden yazmaz.
 _Avoid_: Zamana göre anlam değiştiren current/previous etiketi, sonsuza kadar sabit tarayıcı sürümü
 
 **Kanıt bağımlılık manifesti**:
-Pahalı bir Ürün kabul kanıtının hangi kod, şema, yapılandırma, runtime, platform imajı, fixture ve koşturucu güven kuralına bağlı olduğunu sürümlü biçimde belirleyen liste. Yalnız tamamı değişmemişse kanıt sonraki Ürün sürüm adayına taşınabilir.
+Pahalı bir Ürün kabul kanıtının hangi bağımlılıklara dayandığını sürümlü biçimde belirleyen [liste](docs/prd/16-product-acceptance.md#urun-surum-adayi-kaniti); yalnız tamamı değişmemişse kanıt sonraki Ürün sürüm adayına taşınabilir.
 _Avoid_: Geçen ay geçti, rastgele spot kontrol, yalnız commit eşitliği
 
 **Onaylı test koşturucusu**:
-Kararlı repository, kesin iş akışı sürümü, derleme, ortam ve sağlayıcı kökenini kapsayan sürümlü güven kuralıyla Ürün kabul kanıtı üretmesine izin verilen otomatik yürütücü. Yalnız artifact adresi veya uzun ömürlü ortak anahtar bu kimliği kurmaz.
+Sürümlü güven kuralıyla Ürün kabul kanıtı üretmesine izin verilen [otomatik yürütücü](docs/prd/16-product-acceptance.md#urun-surum-adayi-kaniti); her CI sonucu bu kimliği taşımaz.
 _Avoid_: Her CI sonucu, paylaşılan API anahtarlı raporlayıcı, artifact URL'si
 
 ## Dış entegrasyonlar
 
 **Bilinçli dış sınır**:
-Bir Projedeki belirli gerçeklerin kalıcı kanonik sahibinin neden dışarıda kaldığını, bu gerçekten ürüne neyin geri dönmesi gerektiğini ve varsa açık dönüş yükümlülüğünü belirten kullanıcı kararı. Dış sistemi eşitlemez, çalıştırmaz veya ürün içi ana kaydın sahipliğini dışarı devretmez.
+Bir Projedeki belirli gerçeklerin kalıcı kanonik sahibinin neden dışarıda kaldığını ve üründe neyin korunacağını belirten [kullanıcı kararı](docs/prd/18-future-directions.md#bilinçli-dış-sınır-sözleşmesi); dış sistemi eşitlemez veya çalıştırmaz.
 _Avoid_: Entegrasyon envanteri, Dış Araca Kaçış, canlı senkronizasyon
 
 **Dış ana kaynak işareti**:
-Mevcut bir kayıtta kullanıcının koyduğu, asıl kopyanın ürün dışında kaldığını gösteren dar işaret. Sözleşme, senkron veya sağlık hükmü değildir.
+Mevcut bir kayıtta kullanıcının koyduğu, asıl kopyanın ürün dışında kaldığını gösteren dar işaret; sözleşme, senkron veya sağlık hükmü değildir.
 _Avoid_: Bilinçli dış sınır, entegrasyon durumu, kaçış kapanışı
 
 **Rakip yırtma defteri**:
-Bir rakibin iddiası, isteğe bağlı ekranı ve buna verilen cevabın Projede tutulan sahipli karşılaştırması. Moodboard, pazar skoru veya otomatik rakip taraması değildir.
+Bir rakibin iddiası, isteğe bağlı ekranı ve buna verilen cevabın ürün içinde tutulan [sahipli karşılaştırması](docs/prd/18-future-directions.md#rakip-ve-konumlandirma-alani); moodboard, pazar skoru veya otomatik rakip taraması değildir.
 _Avoid_: Moodboard, rekabet zekâsı ürünü, serbest whiteboard
 
 **İlk on dakika vaadi**:
-Yeni hesabın ilk dakikalarda görmesi beklenen adımların Ekran veya Kullanıcı Akışına bağlı, kullanıcının işaretlediği vaat listesi. Zorunlu onboarding veya tur çalıştırıcısı değildir.
+Yeni hesabın ilk dakikalarda görmesi beklenen adımların Ekran veya Kullanıcı Akışına bağlı, [kullanıcının işaretlediği vaat listesi](docs/prd/18-future-directions.md#ilk-on-dakika-vaadi); zorunlu onboarding veya tur çalıştırıcısı değildir.
 _Avoid_: Kullanıcı Akışı kopyası, Intercom turu, kurulum kapısı
 
 **Destek oyun kitabı**:
-Tekrarlayan bir şikâyette kontrol sırasını taşıyan, Üretim Olayı veya Özelliğe bağlı sahipli maddeler. Helpdesk, ticket veya otomatik yanıt değildir.
+Tekrarlayan bir şikâyette kontrol sırasını taşıyan, Üretim Olayı veya Özelliğe bağlı [sahipli maddeler](docs/prd/18-future-directions.md#destek-oyun-kitabı); helpdesk, ticket veya otomatik yanıt değildir.
 _Avoid_: Intercom, önleme zinciri, SLA
 
 **Kullanıcıya veri teslimi**:
-Geliştirilen üründeki kullanıcının kendi verisini hangi biçimde alacağına dair Proje vaadi. Cantiara yedeği veya çalıştırılan export değildir.
+Geliştirilen üründeki kullanıcının kendi verisini hangi biçimde alacağına dair [Proje vaadi](docs/prd/18-future-directions.md#kullanıcıya-veri-teslimi); Cantiara yedeği veya çalıştırılan export değildir.
 _Avoid_: Ürün paketi, self-host yedek, hukuki yeterlilik
 
 **Altyapı maliyeti notu**:
-Koşturma sağlayıcısı, kabaca tutar ve gerekçenin Projede tutulan notu. Müşteri Invoice’u veya muhasebe defteri değildir.
+Koşturma sağlayıcısı, kabaca tutar ve gerekçenin Projede tutulan [notu](docs/prd/18-future-directions.md#altyapı-maliyeti-notu); müşteri Invoice'u veya muhasebe defteri değildir.
 _Avoid_: Invoice, fiyat paketi, banka uzlaştırma
 
 **GitHub bağlantısı**:
-Bir Projeyi GitHub'daki tek kararlı repository kimliğine bağlayan ve yeniden yetkilendirmelerde geçmişini koruyan entegrasyon kaydı. Repository sahibi veya adı kimlik sayılmaz.
+Bir Projeyi GitHub'daki tek kararlı repository kimliğine bağlayan ve yeniden yetkilendirmelerde geçmişini koruyan [entegrasyon kaydı](docs/adr/0006-github-entegrasyon-guven-siniri.md); repository sahibi veya adı kimlik sayılmaz.
 _Avoid_: Repository adı eşleşmesi, kurulum takma adı
 
 **GitHub dış kaydı**:
-GitHub kaynak kimliğini ve son uzlaştırılmış kaynak durumunu salt okunur taşıyan, GitHub'daki kayıttan bağımsız yerel yaşam döngüsüne sahip Proje ana kaydı. Arşiv kaynak güncellemelerini durdurmaz; Çöp Kutusu yazmayı durdurur ve kalıcı silme otomatik dirilmeyi engeller.
+GitHub kaynak kimliğini ve son uzlaştırılmış kaynak durumunu salt okunur taşıyan, GitHub'daki kayıttan bağımsız yerel yaşam döngüsüne sahip [Proje ana kaydı](docs/prd/12-github-and-project-releases.md#github-geliştirme-kayıtları).
 _Avoid_: Canlı GitHub kaydı, GitHub senkron kopyası, bağlantının sahipli bileşeni
 
-**Dış URL önizlemesi**:
-Kimlik doğrulaması istemeyen herkese açık bir HTTP(S) adresinden türetilen, ana kayıt veya tarihsel Kaynak snapshot'ı olmayan geçici başlık/alan adı/görsel sunumu. Özel ağı, kullanıcı oturumunu veya kaynağın erişim sınırını kullanamaz.
+**Akıllı bağlantı önizlemesi**:
+Kimlik doğrulaması istemeyen herkese açık bir HTTP(S) adresinden türetilen, ana kayıt veya tarihsel Kaynak snapshot'ı olmayan [geçici sunum](docs/prd/08-search-relations-and-evidence.md#akıllı-bağlantı-önizlemesi) (bu sözlükte daha önce `Dış URL önizlemesi` olarak geçiyordu).
 _Avoid_: Kaynak Kaydı, oturumlu tarayıcı önizlemesi, iç ağ önizlemesi
 
 **Web Yakalama**:
-Kurucunun tarayıcı uzantısında açıkça seçtiği URL, metin, görsel veya ekran görüntüsünü Yakalama Gelen Kutusuna getiren tekil girdi. Doğrudan ana kayıt, arka plan taraması veya çevrimdış gönderim kuyruğu değildir.
+Kurucunun tarayıcı uzantısında açıkça seçtiği içeriği Yakalama Gelen Kutusuna getiren [tekil girdi](docs/prd/05-capture-and-intake.md#tarayıcı-uzantısıyla-web-yakalama); doğrudan ana kayıt, arka plan taraması veya gönderim kuyruğu değildir.
 _Avoid_: Otomatik web taraması, doğrudan İş oluşturma, tarayıcı geçmişi
 
 ## Otomasyon
 
 **Dikkat sinyali**:
-Ürünün kapalı ve deterministik kurallarla kesin kaynaklardan saptadığı, kullanıcının incelemesine sunulan açıklanabilir olgu. Bütün riskleri kapsadığı veya Projenin sağlığı hakkında hüküm verdiği iddiasını taşımaz.
+Ürünün kapalı ve deterministik kurallarla kesin kaynaklardan saptadığı, kullanıcının incelemesine sunulan açıklanabilir olgu; bütün riskleri kapsadığı veya sağlık hükmü verdiği iddiasını taşımaz.
 _Avoid_: Sağlık uyarısı, AI önerisi, eksiksiz risk tespiti
 
 **Otomasyon çatışması**:
-Aynı kaynak olaydan eşleşen kuralların aynı hedef kaydın aynı alanına birlikte uygulanamayacak değerler önermesi. Hiçbir öneriyi kazanan ilan etmez ve hedefte otomatik değişiklik oluşturmaz.
+Aynı kaynak olaydan eşleşen kuralların aynı hedef alana birlikte uygulanamayacak değerler önermesi; hiçbir öneriyi kazanan ilan etmez ve hedefte otomatik değişiklik oluşturmaz ([otomasyon kuralları](docs/prd/06-work-management-and-planning.md#hafif-uygulama-içi-otomasyon-kuralları)).
 _Avoid_: Son yazan kazanır, kural sırası, otomatik uzlaştırma
 
 ## Taşınabilirlik
 
 **Aşamalı import**:
-Ana kayıt yazmadan şifreli sunucu staging alanında doğrulanan, açık son önizleme ve kullanıcı onayından sonra tek atomik/idempotent commit veya tam rollback makbuzuyla biten CSV/JSON işlemi.
+Ana kayıt yazmadan doğrulanan, açık son önizleme ve kullanıcı onayından sonra tek [atomik ve idempotent kesinleştirme](docs/adr/0004-atomik-idempotent-kesinlestirme.md) ya da tam rollback makbuzuyla biten CSV/JSON işlemi.
 _Avoid_: Arka planda sessiz yazma, kayıt bazlı kısmi başarı, belirsiz son durum
 
 **JSON dışa aktarma şeması**:
-Kanonik yapılandırılmış dışa aktarımın alan, kimlik, köken ve ilişki anlamlarını belirleyen açık sürümlü sözleşme. Ürünün daha önce yayımladığı her sürüm içe aktarılabilir kalır.
+Kanonik yapılandırılmış dışa aktarımın alan, kimlik, köken ve ilişki anlamlarını belirleyen [açık sürümlü sözleşme](docs/adr/0005-json-tasinabilirlik-sozlesmesi.md).
 _Avoid_: Sürümsüz JSON, tahminî eski dosya içe aktarımı, CSV kayıpsızlığı
 
 **Elektronik tablo güvenli CSV**:
-Formül gibi yorumlanabilecek kullanıcı metnini elektronik tabloda veri olarak açılacak biçimde işaretleyen ve bu dönüşümü raporlayan kolaylık dışa aktarımı. Ham değerin kayıpsız kanonik temsili değildir.
+Formül gibi yorumlanabilecek kullanıcı metnini elektronik tabloda veri olarak açılacak biçimde işaretleyen ve bu dönüşümü [raporlayan kolaylık dışa aktarımı](docs/prd/13-data-security-and-portability.md#standart-biçimlerde-seçili-kayıt-dışa-aktarma); ham değerin kayıpsız kanonik temsili değildir.
 _Avoid_: Kayıpsız CSV, formül çalıştırabilen ham hücre, kanıtsız apostrof kaldırma
 
 ## Veri güvenliği
 
 **GitHub kimliğini yeniden teyit etme**:
-Yüksek riskli bir işlem öncesinde PKCE ve GitHub hesap seçimiyle tamamlanan yeni OAuth turundan dönen değişmez GitHub kullanıcı kimliğini mevcut Hesapla eşleyip tek kullanımlık, işleme bağlı ve en fazla on dakika geçerli yetki üretme sınırı. Parola, MFA veya GitHub tarafından zorlanmış yeni credential girişi olduğunu iddia etmez; yıkıcı işlem ayrıca hedef adının yazıldığı açık onay ister.
+Yüksek riskli bir işlem öncesinde yeni bir GitHub OAuth turundan dönen değişmez kullanıcı kimliğini mevcut Hesapla eşleyip yalnız o işleme bağlı geçici yetki üreten [sınır](docs/prd/03-account-platform-operations.md#github-kimliğini-yeniden-teyit-etme); parola, MFA veya genel oturum yenileme değildir.
 _Avoid_: Yeniden kimlik doğrulama, MFA, parola doğrulama, genel oturum yenileme
 
-**AB veri sınırı**:
-Özel Çalışma Alanı verisinin, bağlantıyla sınırlı içeriğin, yedeklerin ve günlüklerin otomatik kullanılabilirlik geçişi sırasında bile dışına taşınmadığı onaylı bölgesel sınır. Sınırı değiştirmek ayrı ve açık bir veri taşıma kararıdır.
+**Avrupa Birliği veri bölgesi**:
+Özel Çalışma Alanı verisinin, bağlantıyla sınırlı içeriğin, yedeklerin ve günlüklerin otomatik kullanılabilirlik geçişi sırasında bile dışına taşınmadığı [onaylı bölgesel sınır](docs/adr/0009-ab-veri-siniri.md) (bu sözlükte daha önce `AB veri sınırı` olarak geçiyordu).
 _Avoid_: Küresel otomatik failover, kesinti sonrası onay, herkese açık içerik teslim sınırı
 
 **Güvenlik redaksiyonu**:
@@ -515,15 +517,15 @@ Hassas bir değeri güncel içerikten ve onu taşıyan bütün geçmiş revizyon
 _Avoid_: Normal düzenleme, çöp kutusu, kalıcı kayıt silme
 
 **Geri döndürülemez güvenlik olay günlüğü**:
-Bir restore sonrasında silme, redaksiyon, erişim iptali ve secret rotasyonu gibi yedekten daha yeni güvenlik kararlarını yeniden uygulamak için ayrı korunan sürümlü olay sınırı.
+Bir restore sonrasında yedekten daha yeni güvenlik kararlarını yeniden uygulamak için [ayrı korunan sürümlü olay sınırı](docs/adr/0003-restore-guvenlik-olay-gunlugu.md).
 _Avoid_: Normal kayıt geçmişi, yalnız silme listesi, restore sonrası manuel kontrol listesi
 
 **Hesap kapatma**:
-Hesap ile onun tek Çalışma Alanını birlikte geri alınabilir bekleme süresine ve ardından kalıcı silmeye alan birleşik yaşam döngüsü.
+Hesap ile onun tek Çalışma Alanını birlikte geri alınabilir bekleme süresine ve ardından kalıcı silmeye alan [birleşik yaşam döngüsü](docs/prd/03-account-platform-operations.md#hesap-kapatma).
 _Avoid_: Yalnız çalışma alanını kapatma, oturumu kapatma
 
 **Hesap kapanma dondurması**:
-Kapanış tamamlama geçişi bittikten sonra kapanacak veri kümesini sabit güvenlik olay sınırında tutan 30 günlük durum. Yalnız kapatmayı iptal etme ve sabitlenmiş veriyi dışa aktarma normal kullanıcı erişimine açıktır.
+Kapanış tamamlama geçişi bittikten sonra kapanacak veri kümesini sabit güvenlik olay sınırında tutan [bekleme durumu](docs/prd/03-account-platform-operations.md#hesap-kapatma); yalnız kapatmayı iptal etme ve sabitlenmiş veriyi dışa aktarma açık kalır.
 _Avoid_: Salt okunur normal Hesap, hareketli silme snapshot'ı, yarım işleri öldürme
 
 **Kapanış tamamlanıyor**:
@@ -533,7 +535,7 @@ _Avoid_: Otuz günlük bekleme, hareketli export dönemi, bütün worker'ları z
 ## Dogfooding
 
 **Dış Araca Kaçış kapanışı**:
-Etkilenen güncel gerçeğin kullanılabilir ürün kayıtlarına dönmesi, dış kopyanın aktif ya da paralel doğruluk kaynağı olmaktan çıkması ve düzeltilmiş gerçek akışın bu kayıtlara bağlı kanıtla doğrulanması.
+Etkilenen güncel gerçeğin kullanılabilir ürün kayıtlarına dönmesi, dış kopyanın paralel doğruluk kaynağı olmaktan çıkması ve düzeltilmiş akışın bu kayıtlara bağlı kanıtla doğrulanması.
 _Avoid_: Yalnız hata düzeldi notu, dış araç ekran görüntüsü, bekleme süresi
 
 ## Geçmiş ve gözlemlenebilirlik

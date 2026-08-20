@@ -1,6 +1,6 @@
 # Arama, İlişkiler ve Kanıt
 
-Bu belge arama, sınıflandırma, ilişkiler, kanıt ve geri bildirim kimliği davranışlarının ana sahibidir. Belge düzenleme, dosya ve Kişisel Wiki davranışları [Belgeler ve Bilgi](07-documents-and-knowledge.md) belgesinde tanımlanır.
+Bu belge arama, sınıflandırma, ilişkiler, kanıt semantiği ve geri bildirim kimliği davranışlarının tek normatif sahibidir. Belge düzenleme, dosya, metnin belge sürümüne sabitlenmesi ve Kişisel Wiki davranışları [Belgeler ve Bilgi](07-documents-and-knowledge.md) belgesinde tanımlanır.
 
 ## İlişkiler, arama ve bilgi yönetimi
 
@@ -28,7 +28,18 @@ Bu belge arama, sınıflandırma, ilişkiler, kanıt ve geri bildirim kimliği d
 
 - **Evrensel Arama Teknik Diyagramları başlık, tür, otorite kipi, düğüm/öğe etiketi, Veri Modelinde table/column adı ve değişmez Migration Artefaktı manifestindeki kullanıcıya dönük adlarla bulur.** Diyagram Görünümü, Diyagram Sürümü ve Migration Artefaktı sahibinden bağımsız arama sonucu veya yeni ana kayıt türü olmaz; sonuç kesin sahibi ve ilgili görünüm/sürüm/öğe konumunu açar. Üretilmiş SQL gövdesi varsayılan genel metin indeksine girmez ve arama sonucu üzerinden gizli model alanı sızdırmaz.
 
-- **Varsayılan sıralama metin eşleşmesinden sonra mevcut proje bağlamı, aktiflik ve harekete geçirilebilirlik sinyallerini kullanır.** Açık ve güncel kayıtlar öne çıkar; tamamlanmış ve vazgeçilmiş kayıtlar erişilebilir fakat ikincil gruplarda gösterilir. Arşivlenmiş kayıtlar yalnız açık arşiv filtresiyle sonuçlara katılır.
+- **Varsayılan sıralama önce metin eşleşmesini, sonra aşağıdaki kapalı ve bu sırayla uygulanan eşitlik-bozucu sinyalleri kullanır.** Sıra dışında başka sinyal, öğrenen model, kullanım sayacı, tıklama geçmişi veya AI önem sıralaması kullanılmaz:
+
+| Sıra | Sinyal | Değer |
+| --- | --- | --- |
+| 1 | Metin eşleşme yeri | Başlık ve anahtar eşleşmesi gövde eşleşmesinden önce gelir |
+| 2 | Mevcut proje bağlamı | Kullanıcının açık Projesindeki kayıtlar diğer Projelerdekilerden önce gelir |
+| 3 | Yaşam durumu | Aktif kayıtlar; sonra kapanmış kayıtlar; arşivlenmişler yalnız açık arşiv filtresiyle |
+| 4 | Kapanış sonucu | `Tamamlandı` sonuçlu kayıtlar `Vazgeçildi` sonuçlulardan önce gelir |
+| 5 | Son değiştirme zamanı | Daha yeni değiştirilen kayıt önce gelir |
+| 6 | Kararlı iç kimlik | Aynı değerlerde sıra deterministik ve tekrarlanabilir kalır |
+
+- **Tamamlanmış ve vazgeçilmiş kayıtlar erişilebilir fakat ikincil gruplarda gösterilir.** Arşivlenmiş kayıtlar yalnız açık arşiv filtresiyle sonuçlara katılır; çöp kutusundaki ve erişilemeyen kayıtlar hiçbir sıralamada görünmez.
 
 - **Sonuç rozetleri kaydın tür, durum, varsa kapanış sonucu ve kapsamını görünür kılar.** Kullanıcı kapsam, arşiv filtresi ve alternatif tarih/metin sıralamasıyla varsayılan sıralamayı geçersiz kılabilir.
 
@@ -70,7 +81,7 @@ Bu belge arama, sınıflandırma, ilişkiler, kanıt ve geri bildirim kimliği d
 
 ### İçerik ilişkileri ve geri bağlantılar
 
-- **İçerikler standart ilişki türleri ve isteğe bağlı gerekçelerle birbirine bağlanabilir.** İlişkiler veritabanındaki ana kayıtlarda tutulur; geri bağlantılar mevcut ilişkilerden otomatik üretilir.
+- **İçerikler standart ilişki türleri ve isteğe bağlı gerekçelerle birbirine bağlanabilir.** İlişkiler veritabanındaki ana kayıtlarda tutulur; geri bağlantılar yalnız standart ilişkilerden otomatik üretilir. Satır içi referans, bölüm referansı, canlı blok ve konum bağı ilişki değil [kullanım bağıdır](02-domain-model-and-lifecycle.md#kullanim-baglari); geri bağlantı üretmez ve ilişki sayılarına girmez.
 
 - **Desteklenen kayıt detayları mevcut standart ilişkiler, satır içi referanslar, canlı içerik/görünüm kullanımları ve geri bağlantılardan türetilen kategorili bir `Kullanıldığı yerler` özeti sunar.** Her öğe asıl kaynağı açar; özet yeni ilişki, manuel üyelik veya kopyalanmış kullanım kaydı oluşturmaz. Kullanıcının erişemediği kaydın adı, türü, sayısı veya varlığı sızdırılmaz.
 
@@ -92,7 +103,7 @@ Bu belge arama, sınıflandırma, ilişkiler, kanıt ve geri bildirim kimliği d
 
 - **Koşullar görsel oluşturucuyla kurulur ve kullanıcıya okunabilir biçimde özetlenir.** Her kayıt için hangi koşullar nedeniyle koleksiyona girdiği açıklanabilir. Evrensel Arama’daki görünür filtre karşılığı sınırlı operatörler bu oluşturucuyu hızlandırabilir; ilk ürün serbest yazılabilir gelişmiş sorgu dili sunmaz.
 
-- **İş koleksiyonundaki `Yeni iş` eylemi proje, tür veya öncelik gibi doğrudan ve tekil alan eşitliğine çevrilebilen üyelik koşullarını oluşturma yüzeyinde görünür ve değiştirilebilir değerler olarak önceden doldurur.** Kullanıcı bir değeri değiştirdiğinde yeni işin koleksiyonda görünmeyebileceği açıklanır. Tarih aralığı, olumsuz koşul veya karmaşık ilişki gibi doğrudan alana çevrilemeyen koşullar otomatik uygulanmaz.
+- **İş koleksiyonundaki `Yeni iş` eylemi proje, tür veya durum gibi doğrudan ve tekil alan eşitliğine çevrilebilen üyelik koşullarını oluşturma yüzeyinde görünür ve değiştirilebilir değerler olarak önceden doldurur.** Kullanıcı bir değeri değiştirdiğinde yeni işin koleksiyonda görünmeyebileceği açıklanır. Tarih aralığı, olumsuz koşul veya karmaşık ilişki gibi doğrudan alana çevrilemeyen koşullar otomatik uygulanmaz.
 
 - **İş koleksiyonları aynı üyelik koşulları üzerinde bir varsayılan görünümle birlikte birden fazla adlandırılmış görünüm taşıyabilir.** Her görünüm Kanban, liste, roadmap veya desteklenen kayıt türlerinde Gallery sunumunu; gruplama, sıralama, görünür alanlar ve ilgili görünüm ayarlarını saklar. Adlandırılmış roadmap görünümü ayrıca zaman ölçeğini, sınırlı görsel yoğunluğu, iki görsel eksen eşlemesini ve grup/sütunların yalnız o görünüme ait sunum sırasını saklayabilir. Bu ayarlar kartların önceliğini, alan değerlerini, durumunu, Backlog sırasını veya başka görünümleri değiştirmez; yeni grup değeri görünür varsayılan konumda eklenir ve kullanıcı isterse yalnız bu görünüm için yeniden sıralar. Görünümler koleksiyonun üyelik koşullarını kopyalamaz veya ayrı kayıt kümesi oluşturmaz.
 
@@ -170,7 +181,7 @@ Bu belge arama, sınıflandırma, ilişkiler, kanıt ve geri bildirim kimliği d
 
 - **Özgün Geri Bildirim mesajı ile kanıt niteliği yorumu aynı metinmiş gibi sunulmaz.** Kaynakta açıkça söylenmeyen şiddet, sıklık, bağımsızlık veya hedef kullanıcı uyumu kullanıcı yorumu olarak etiketlenir; yazarı ve zamanı gösterilir. Sistem mesajdan bu alanları kendiliğinden çıkarmaz, birden fazla kaynağı bağımsız saymaz ve aynı kampanya, konuşma veya kök kaynaktan gelen kayıtları otomatik olarak benzersiz kanıt ilan etmez.
 
-- **Kanıt niteliği İşin `Öncelik dayanakları` ve `Kanıt ve Bağlam` yüzeylerinde özgün Geri Bildirime geri açılan, karşılaştırılabilir bağlam olarak gösterilir.** Desteklenen alanlar Geri Bildirim kanıtı listesinde filtrelenebilir; ancak tek puana, ağırlığa, talep hacmine, otomatik öncelik sırasına, roadmap kararına veya nesnel kanıt kalitesi hükmüne dönüştürülmez. Aynı Geri Bildirimin farklı İşlerle ilişkilerinde bağlam farklı olabilir; bir ilişkideki yorum diğerine sessizce kopyalanmaz.
+- **Kanıt niteliği İşin `Öncelik dayanakları` ve [İş Bağlam Kartı](06-work-management-and-planning.md#iş-bağlam-kartı) yüzeylerinde özgün Geri Bildirime geri açılan, karşılaştırılabilir bağlam olarak gösterilir.** Desteklenen alanlar Geri Bildirim kanıtı listesinde filtrelenebilir; ancak tek puana, ağırlığa, talep hacmine, otomatik öncelik sırasına, roadmap kararına veya nesnel kanıt kalitesi hükmüne dönüştürülmez. Aynı Geri Bildirimin farklı İşlerle ilişkilerinde bağlam farklı olabilir; bir ilişkideki yorum diğerine sessizce kopyalanmaz.
 
 - **İş–Geri Bildirim ilişkisi genel `Kanıt Rolü` alanını da taşıyabilir.** `Kanıt niteliği` kaynağın problem, etki, sıklık ve bağımsızlık bağlamını; Kanıt Rolü ise bu Geri Bildirimin söz konusu İşte `Destekliyor`, `Çelişiyor`, `Bağlam sağlıyor` veya `Sonuçsuz` olarak nasıl kullanıldığını anlatır. Biri diğerinden türetilmez ve hiçbir birleşik puan oluşturmaz.
 
@@ -193,6 +204,19 @@ Bu belge arama, sınıflandırma, ilişkiler, kanıt ve geri bildirim kimliği d
 - **Geri Bildirim kayıtları ile uzun metin gövdesi taşıyan Kaynak kayıtları, özgün mesajı veya yakalanan içeriği öne çıkaran yoğun bir Feed görünümünde incelenebilir.** Görünüm aynı ana kayıtları; kimlik veya kanal, zaman, ekler, proje ve ilişkili İş/Karar bağlarıyla gösterir ve Akıllı Koleksiyonların mevcut filtre ve sıralama koşullarını kullanabilir.
 
 - **Feed satırı ayrı bir kayıt, sosyal gönderi, yorum dizisi, oy, kendine ait kronoloji veya ikinci durum yaşam döngüsü değildir.** Görünüm sırası kaynak kaydın durumunu ya da önceliğini değiştirmez; kullanıcı ayrıntıyı ortak `Kaynak kaydı aç` eylemiyle ana kayıtta inceler.
+
+<a id="kanit-rolu-ve-iliski-ustverisi"></a>
+### Kanıt Rolü ve kanıt ilişkisi üstverisi
+
+- **Her kanıt ilişkisi hedef kayda göre kullanıcı tarafından seçilen isteğe bağlı `Kanıt Rolü` taşıyabilir: `Destekliyor`, `Çelişiyor`, `Bağlam sağlıyor` veya `Sonuçsuz`.** Rol seçilmeyen mevcut ve yeni ilişkiler `Belirtilmedi` olarak görünür; ilişki kurmayı engellemez. Aynı Kaynak sürümü bir Kararı desteklerken başka bir Varsayımla çelişebilir; rol Kaynağın kendisine yazılmaz ve diğer ilişkilere kopyalanmaz.
+
+- **Rolü yalnız kullanıcı ekler, değiştirir veya temizler.** Değer; rolü seçen kullanıcıyı, zamanı ve değişiklik geçmişini korur; kaynak metnin parçası, nesnel doğruluk hükmü veya kanıt kalitesi skoru gibi sunulmaz. Sistem metinden rol çıkarmaz, yeni Kaynak sürümünde rolü yeniden yorumlamaz ve `Çelişiyor` rolünden Karar/Risk/Varsayım/İş durumu, bildirim, takip işi veya yeniden değerlendirme olayı üretmez.
+
+- **Her kanıt ilişkisi isteğe bağlı, kaynaktan açıkça ayrılan `Kullanıcı yorumu/öğrenimi` taşıyabilir.** Alan kaynakta söyleneni değiştirmez veya alıntının parçası gibi sunmaz; yorumu yazan kullanıcıyı ve zamanı gösterir. Yorum düzenlendiğinde önceki değer kanıt ilişkisinin geçmişinde korunur. Bu alan ayrı Öğrenim/Insight kaydı, durum akışı, puan veya ana kaynak metin oluşturmaz; AI tarafından doldurulmaz ve kanıt ilişkisi olmadan bağımsız içerik olarak yaşamaz.
+
+- **`Kanıt niteliği`, kullanıcı yorumu/öğrenimi ve Kanıt Rolü birbirinin yerine geçmeyen ayrı üstveridir.** İlki Geri Bildirim kanıtının bağlamını, ikincisi kullanıcının yorumunu, rol ise kanıtın belirli hedefte hangi yönde kullanıldığını açıklar; hiçbiri diğerinden türetilmez.
+
+- **Hedef kaydın kanıt yüzeyi kanıtları role göre gruplayabilir ve filtreleyebilir.** Her rol sayısı varsa onu oluşturan kesin erişilebilir ilişki kümesini açar; tek toplam puan, çoğunluk sonucu, otomatik güven seviyesi veya önerilen karar üretmez. Bağlantıyla sınırlı paylaşım, herkese açık yayın ve dışa aktarma rolü kaynak, hedef, kesin sürüm/aralık ve yorumdan ayrı ilişki üstverisi olarak korur; erişilemeyen kanıtın rolü veya rol sayısı sızdırılmaz.
 
 ### Kanıt Akışı
 

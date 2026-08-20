@@ -71,7 +71,7 @@ Bu belge Hesap oluşturma ve kapatma, Hesap profil tercihleri, oturum güvenliğ
 
 - **Kurucu ilk ürünün hizmet operatörü ve birinci seviye destek sahibidir.** Sağlık, hata oranı, kuyruk gecikmesi ve yedek başarısızlığı için yapılandırılmış metrik ve alarm bulunur; kullanıcı hatada secret içermeyen destek referansı görür.
 
-- **S1 için `derhâl`, otomatik tespit, alarm ve güvenli olduğunda fail-closed sınırlandırmanın insan beklemeden başlamasıdır; ilk ürün 7/24 insan nöbeti vadetmez.** Kurucu sonraki uyanık çalışma döneminde müdahale eder. Tam hizmet kesintisi kullanılabilirlik hesabına dahil edilir. S2 bir iş günü içinde triage edilir.
+- **S1 için `derhâl`, otomatik tespit anından en fazla `5` dakika içinde alarmın üretilmesi ve güvenli olduğunda fail-closed sınırlandırmanın insan beklemeden başlamasıdır; ilk ürün 7/24 insan nöbeti vadetmez.** Bu süre insan müdahalesi değil otomatik zincirin başlama sınırıdır; aşılması operasyonel bir hata olarak kaydedilir. Kurucu sonraki uyanık çalışma döneminde müdahale eder. Tam hizmet kesintisi kullanılabilirlik hesabına dahil edilir. S2 bir iş günü içinde triage edilir.
 
 <a id="operasyonel-yedek-ve-kurtarma"></a>
 ## Operasyonel yedek ve kurtarma

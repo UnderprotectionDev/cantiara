@@ -8,6 +8,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Türkçe PRD terimi | İngilizce UI etiketi | Normatif kullanım |
 | --- | --- | --- |
 | Çalışma alanı | `Workspace` | Projeleri, Kişisel Wiki'yi ve ortak yapılandırmayı kapsayan sınır |
+| Proje yaşam durumu | `Active`, `Pending`, `Completed`, `Abandoned` | PRD terimleri `Aktif`, `Bekleyen`, `Tamamlandı` ve `Vazgeçildi`nin kullanıcıya gösterilen karşılıkları; çalışma aşamasından ayrıdır |
 | İş | `Work` | Genel kayıt; Özellik, Bug, Görev, Araştırma ve İyileştirme bunun türleridir |
 | Özellik | `Feature` | İş türü |
 | Kullanıcı Akışı | `User Flow` | Kullanıcının arayüz hedefi ve karar yolunu taşıyan tasarım türü |
@@ -16,6 +17,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dış yüzey | `External Surface` | Ziyaretçi URL'si, erişim anahtarı, parola, süre ve etkinlik durumunu taşıyan paylaşım/yayın ana kaydı |
 | Onaylı snapshot revizyonu | `Approved Snapshot Revision` | Dış yüzeyin belirli onay anında göstermesine izin verilen değişmez kesin içerik manifesti; Dış yüzeyden bağımsız yaşayamaz |
 | Üstveri | `Metadata` | Teknik şema alanları dışında kullanıcıya gösterilen üstveri kavramı |
+| Persona | `Persona` | Hedef kullanıcı profilini taşıyan Belge türü; ayrı ana kayıt türü değildir ve Contact ya da Company'nin yerine geçmez |
 | AI ajanı | `AI Agent` | `AI agent` ve `agent` varyantlarının ortak kavramı |
 | Repository | `Repository` | GitHub'ın dış sistem kavramıdır; genel “depo” eşanlamlı kayıt türü oluşturmaz |
 | Teknik Diyagram | `Technical Diagram` | Veri modeli, teknik mimari veya sistemler arası sıralı etkileşimi bağımsız kimlik ve türlenmiş yapısal modelle taşıyan Proje ana kaydı |
@@ -146,7 +148,7 @@ Kullanıcı aşağıdaki anlamları silemez veya başka anlam için yeniden kull
 
 - **Yakalama Gelen Kutusu öğesi ve tamamlanmamış İş Taslağı geçici varlıklardır; ana kayıt kimliği, kalıcı ilişki, arşiv veya export davranışı kazanmaz.** `Geçici` zaman aşımı anlamına gelmez: kullanıcı triage edip tamamlayana ya da açıkça silene kadar otomatik silinmezler. Sahiplikleri hedef seçilene kadar hesap/çalışma alanı, hedef proje seçildiğinde proje bağlamıdır. Ana kayda dönüşüm yeni kimlik üretir ve kökeni korur.
 
-- **Planlı Test Senaryosu, Test Handoff'u, Test Oturumu, Oturum Testi, Test Açığı ve Test değerlendirmesi Proje kapsamındaki ana kayıtlardır; uzman alanları ve yaşam durumları [Test ve Doğrulama](10-testing-and-validation.md) tarafından tanımlanır.** Dış yüzey ve Onaylı snapshot revizyonunun ayrıntılı kapsamı [Paylaşım ve Yayınlama](14-sharing-and-public-publishing.md) tarafından tanımlanır.
+- **Planlı Test Senaryosu, Test Handoff'u, Test Oturumu, Test Açığı ve Test değerlendirmesi Proje kapsamındaki ana kayıtlardır; uzman alanları ve yaşam durumları [Test ve Doğrulama](10-testing-and-validation.md) tarafından tanımlanır.** Oturum Testi ana kayıt değil, Test Oturumunun sahipli bileşenidir; kendi inceleme durumunu taşır fakat bağımsız arşiv, çöp kutusu, geri yükleme veya paylaşım yaşamı kazanmaz. Dış yüzey ve Onaylı snapshot revizyonunun ayrıntılı kapsamı [Paylaşım ve Yayınlama](14-sharing-and-public-publishing.md) tarafından tanımlanır.
 
 - **Bu envanter ve açıkça yönlendirilen test alt türleri ilk ürünün desteklenen kalıcı kayıt kümesidir.** İlk ürün belgelerinde `desteklenen diğer kayıt`, `desteklenen alan` veya benzeri açık uçlu ifade yeni yetenek oluşturmaz; izin verilen tür ve alanlar aynı cümlede kesin olarak listelenir. Yeni ana kayıt türü ilk üründe bu tabloya, sonraki kapılı genişlemede ise etkinleştiren alan belgesindeki açık domain uzantısına sahiplik, asgari alan ve yaşam durumuyla eklenmeden kapsama alınamaz.
 
@@ -157,6 +159,11 @@ Ana kaydın yanında yaşayan kalıcı yardımcı varlıklar da aşağıdaki kap
 | Proje aşaması, İş durumu, özel alan ve öncelik ölçütü tanımı | Proje | Sürümlü yapılandırmadır; yapılandırma çöp kutusuna girer, kayıt değerleri etki önizlemesi olmadan silinmez |
 | İş Bağlam Kartı düzeni | Proje | İş türüne göre desteklenen modül, doğrudan ilişki filtresi ve sunum sırasını taşıyan sürümlü yapılandırmadır; İş içeriği veya ikinci bağlam kaydı değildir |
 | Odak Dönemi ve başlangıç/kapanış snapshot'ı | Çalışma alanı | `Planlandı`, `Etkin`, `Kapandı`, `İptal edildi`; kapanan kapsam tarihsel kalır |
+| Oturum Testi | Test Oturumu | Oturumda bağımsız olarak denendiği bildirilen davranışı ve iki katmanlı sonucunu taşır; kendi inceleme durumu vardır fakat oturumla tek tarihsel bütün olarak arşivlenir, çöp kutusuna girer ve geri yüklenir |
+| Backlog manuel sırası | Proje | Projedeki tek kalıcı manuel İş sıralamasını taşır; İş alanı veya planlama görünümü üyeliği değildir ve alternatif sıralama seçildiğinde arka planda korunur |
+| Günlük Odak üyeliği | Çalışma alanı | Kullanıcının seçili gün için bilinçli olarak seçtiği İşleri taşıyan kişisel görünüm kaydıdır; İş durumunu, önceliğini, proje aşamasını veya Backlog sırasını değiştirmez |
+| Önceliklendirme oturumu | Proje | Adlandırılmış karar görünümünün İş kapsamını ve görünüm-yerel manuel sırasını taşır; Backlog sırasını, öncelik ölçütü değerlerini veya İş durumunu değiştirmez, normal arşiv/çöp kutusu kurallarına uyar |
+| `Şimdi değil` karar izi | İş | Etkin erteleme gerekçesini, isteğe bağlı yeniden değerlendirme koşulunu ve dayanak ilişkilerini taşır; ayrı yaşam durumu, kapanış sonucu, planlama üyeliği veya Karar kaydı oluşturmaz |
 | Manuel Proje Güncellemesi | Proje | Tarihli ve değişmez özet snapshot'ı taşır; normal arşiv/çöp kutusu kurallarına uyar |
 | Proje kapanış özeti | Proje | Kullanıcı tarafından kaydedilen sürümlü Belgedir; Projenin durumunu değiştirmez |
 | Dış yürütme devri | İş | Belirli bir test-dışı araç çalışmasının kesin gidiş bağlamını, dönüşünü, uzlaştırmasını veya gerekçeli iptalini tarihsel tutar; İşten bağımsız aranamaz, paylaşılamaz, taşınamaz veya yaşam döngüsü kazanamaz |
@@ -194,14 +201,43 @@ Ana kaydın yanında yaşayan kalıcı yardımcı varlıklar da aşağıdaki kap
 | `Kanıtı` / `Kanıt sağlar` | Kesin Kaynak sürümü, Belge sürümü veya Diyagram Sürümü, Geri Bildirim, Kullanıcı Araştırması Oturumu, Deney/Doğrulama, Oturum Testi veya Dosya Eki sürümü → İş/Karar/Risk/Varsayım/Soru/Test/Proje Sürümü ya da ona ait Erişim/Sonuç gözlemi | Çoktan çoğa; gözlem hedefli bağ yalnız o sahipli gözlemde yaşar, kesin sürüm silinemezse redaksiyon işareti kalır | Hedef kayda veya belirtilen gözleme kanıt bağını gösterir; gözlem kanıtı üst Proje Sürümünün genel kanıtı sayılmaz, test sonucu yalnız bildirildiği kesin bağlamla kanıttır |
 | `Engeller` / `Engellenir` | İş, Karar veya Açık Soru → İş | Çoktan çoğa; `Aktif`/`Çözüldü` durumlu ilişki, uç silinirse tarihsel bağ | Planlama blokajı |
 | `Kapsar` / `Kapsanır` | Özellik → İş | Bir İşin en fazla bir birincil Özelliği, ek Özelliklerle `İlgili` bağı olabilir | Açık kapsam üyeliği |
+| `Kilometre taşına katkı` / `Kilometre taşı kapsamında` | İş → Kilometre Taşı | Çoktan çoğa; uç silinirse tarihsel bağ | Ara sonuca katkı üyeliği; hiçbir uçta yaşam durumu, kapanış sonucu veya hedef tarihi etkisi yoktur |
 | `Birincil spec` | İş/Özellik → kesin Belge sürümü | Kaynak başına en fazla bir güncel bağ; önceki bağ geçmişte korunur | Uygulama için ana tanım |
-| `Yerine geçer` / `Yerine geçildi` | Aynı uzman türde Karar veya doğrulama kaydı | Yönlü ve döngüsüz; eski kayıt silinmeden tarihsel kalır | Tarihsel geçiş |
+| `Yerine geçer` / `Yerine geçildi` | Aynı uzman türde Karar, Deney/Doğrulama veya kesin Oturum Testi | Yönlü ve döngüsüz; eski kayıt silinmeden tarihsel kalır | Tarihsel geçiş; Oturum Testleri arasındaki yerine-geçme de bu türü kullanır ve ayrı uzman ilişki adı üretmez |
 | `Uygular` / `Uygulanır` | İş/PR/Proje Sürümü → Karar veya spec | Çoktan çoğa; uç silinirse tarihsel bağ | Karar/spec ile uygulama kaydı bağlamı |
 | `Şirkete ait` | Contact → Company | Contact başına en fazla bir güncel Company; geçmiş değişiklikte korunur | Hafif kuruluş bağlamı |
 | `Katılımcısı` | Kullanıcı Araştırması Oturumu/Geri Bildirim → Contact | Kayıt başına sıfır veya bir Contact; Contact silinirse kişisel değer redakte edilir | Katılımcı/geri bildirim kaynağı kimliği |
 | `Tamamlanma için gerekli` / `Bağlamsal` | İş ↔ GitHub PR | Çoktan çoğa; bağlantı kaldırma dış PR'ı değiştirmez | PR'ın İş kapanışındaki rolü |
 
 - **İlişki türü kullanıcı tarafından serbestçe oluşturulmaz.** Tabloda bulunmayan uzman ilişki ilk ürün davranışı olamaz; yeni tür bu tabloya uçları, kardinalitesi ve silme etkisiyle eklenir. İlişki eklemek kaynak kayıtların durumunu değiştirmez; alan PRD'sindeki açık blokaj, yerine-geçme veya etkin PR otomasyonu istisnadır.
+
+<a id="kullanim-baglari"></a>
+## Kullanım bağları
+
+- **Kullanım bağı semantik ilişki değildir; bir içeriğin hangi yüzeyde kullanıldığını gösteren türetilmiş bağdır.** Kapalı listesi Belge gövdesindeki satır içi kayıt referansı, kararlı Belge bölümü referansı, canlı içerik bloğu, Dosya Eki veya Wireframe yüzeyindeki konuma sabitlenmiş bağ ve akış düğümünün Ekran referansıdır. Yeni bir kullanım bağı türü bu listeye eklenmeden ilk ürün davranışı olamaz.
+
+- **Kullanım bağı standart ilişki tablosuna girmez.** İlişki üstverisi veya Kanıt Rolü taşımaz, kardinalite kuralı dayatmaz ve iki uçtan hiçbirinin yaşam durumunu, kapanış sonucunu ya da planlama üyeliğini değiştirmez.
+
+- **Kaydın `Kullanıldığı yerler` yüzeyi standart ilişkilerden türeyen geri bağlantıları ve kullanım bağlarını kaynak türüne göre ayrı gösterir.** İki küme tek liste hâlinde birleştirilmez ve kullanım bağı ilişki olarak adlandırılmaz.
+
+- **Kullanım bağı kurmak veya kaldırmak kalıcı ilişki oluşturmaz.** Kalıcı ilişki yalnız açık kullanıcı eylemi, kesin iki uç ve fark önizlemesiyle standart ilişki türlerinden biri olarak kurulur.
+
+<a id="kirik-referans-sunumu"></a>
+## Kırık referans sunumu
+
+- **Hedefi çözülemeyen her kullanım bağı, canlı blok, canlı kart ve ilişki ucu ortak kırık referans sunumunu kullanır.** Sunum bağın var olduğunu, hedefin neden çözülemediğini ve bağın kurulduğu zamanı gösterir; çözülememe nedeni `Arşivlendi`, `Çöp Kutusunda`, `Kalıcı silindi`, `Güvenlik nedeniyle redakte edildi` ve `Erişim yok` değerlerinden biridir.
+
+- **Hedefin son bilinen içeriği, gövdesi, alan değerleri veya görsel önizlemesi kırık durumda gösterilmez.** Kullanıcıya güncelmiş gibi görünen hiçbir değer sunulmaz ve eski içerik cache'ten yeniden çizilmez.
+
+- **Hedefin başlığı yalnız kullanıcının o hedefe hâlâ erişim yetkisi varken gösterilir.** Kalıcı silinmiş hedefte içeriksiz tombstone işareti; güvenlik redaksiyonunda yalnız redaksiyon işareti, zamanı, gerekçesi ve işlemi yapan aktör; kapsam dışı hedefte ise ad, sayı ve ilişki ucu sızdırmayan nötr işaret gösterilir.
+
+- **Kırık referans başka bir kayda çözülmez.** Emekli kimlik yönlendirmesi yalnız desteklenen kayıt birleştirmesinde çalışır; ürün en yakın, en yeni veya en benzer kaydı hedef olarak sunmaz.
+
+- **Arşivlenmiş veya Çöp Kutusundaki hedefte `Kaynak kaydı aç` eylemi korunur ve kullanıcıyı hedefin güncel yaşam durumundaki görünümüne götürür.** Kalıcı silinmiş, redakte edilmiş veya erişilemeyen hedefte bu eylem gösterilmez.
+
+- **Kırık referans hedefin içeriğiyle arama sonucuna, Akıllı Koleksiyon üyeliğine, hesaplanmış sayıya veya dışa aktarmaya girmez.** Dış yüzeyde davranışı [ortak snapshot ve dış görünürlük güvenliği](14-sharing-and-public-publishing.md#ortak-snapshot-ve-dis-gorunurluk-guvenligi) belirler; kırık hedef hiçbir durumda paylaşım kapsamını genişletmez.
+
+- **Kırık referans kendiliğinden dikkat sinyali, takip işi veya sağlık hükmü üretmez.** Hedef geri yüklenirse bağ aynı kimlikle yeniden çözülür ve önceki kırık durum geçmişte kalır.
 
 <a id="değişiklik-geçmişi-aktör-ve-geri-alma"></a>
 ## Değişiklik geçmişi, aktör ve geri alma

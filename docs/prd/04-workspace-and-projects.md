@@ -6,7 +6,7 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 ### Proje profili
 
-- **Yeni Proje oluştururken yalnız `Project Name` ve kapalı katalogdan bir Başlangıç yapılandırması zorunludur.** Proje `Active` yaşam durumunda açılır. Amaç, çözülmek istenen problem, kapsam sınırları ve hedef tarihi isteğe bağlı profil alanlarıdır; boş olmaları Projenin oluşturulmasını veya kullanılmasını engellemez.
+- **Yeni Proje oluştururken yalnız `Project Name` ve kapalı katalogdan bir Başlangıç yapılandırması zorunludur.** Proje `Aktif` (`UI: Active`) yaşam durumunda açılır. Amaç, çözülmek istenen problem, kapsam sınırları ve hedef tarihi isteğe bağlı profil alanlarıdır; boş olmaları Projenin oluşturulmasını veya kullanılmasını engellemez.
 
 - **Her proje, `PAY-1` gibi iş anahtarlarında kullanılmak üzere çalışma alanı içinde benzersiz bir kısa kod taşır.** Sistem Proje adından kısa kod önerir; kullanıcı ilk İş oluşturulana kadar değiştirebilir. İlk İşten sonra kod değişmez. Bir Projeye atanmış kısa kod, kullanıcı ilk İşten önce kodu değiştirse veya Proje kalıcı silinse bile aynı Çalışma Alanında başka Projeye verilmez.
 
@@ -127,9 +127,9 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 ### Birleşik Bildirim Merkezi
 
-- **Birleşik Bildirim Merkezi; hedef tarihi, yeniden görünme tarihi, kişisel hatırlatma, açık risk, blokaj, bilgi güncelliği, daha yeni sürümü bulunan kullanımda olan Kaynak, sonucu dönmüş fakat uzlaştırılmamış Dış yürütme devri, açıkça yeniden değerlendirmeye alınmış Proje Sürümündeki eksik gözlem, GitHub aktivitesi, başarısız bağlı PR check’i, doğrudan iş–PR durum çelişkileri, bağlama alınmamış açık PR’lar, yayımlanmış sürümde kalan açık kapsam, Akıllı Koleksiyon aboneliği ve otomasyondan doğan dikkat sinyallerini toplar.**
+- **Birleşik Bildirim Merkezi; hedef tarihi, yeniden görünme tarihi, kişisel hatırlatma, [açık Risk](09-discovery-decisions-and-design.md#risk-takibi), [blokaj](06-work-management-and-planning.md#iş-bağımlılıkları-ve-blokajlar), daha yeni sürümü bulunan kullanımda olan Kaynak, sonucu dönmüş fakat uzlaştırılmamış Dış yürütme devri, açıkça yeniden değerlendirmeye alınmış Proje Sürümündeki eksik gözlem, GitHub aktivitesi, başarısız bağlı PR check’i, doğrudan iş–PR durum çelişkileri, bağlama alınmamış açık PR’lar, yayımlanmış sürümde kalan açık kapsam, Akıllı Koleksiyon aboneliği ve otomasyondan doğan dikkat sinyallerini toplar.**
 
-- **Kullanıcı proje bazında aktif herkese açık roadmap kayıtları için isteğe bağlı bir gözden geçirme süresi belirleyebilir.** Kaydın son onaylı herkese açık snapshot’ı bu süre boyunca yenilenmemişse Bildirim Merkezi `Eylem Gerekiyor` bölümünde kaydı gözden geçirmeyi önerir. Sinyal yalnız aktif herkese açık etiketli kayıtlar için üretilir; tamamlanmış veya kapatılmış herkese açık kayıtları kapsamaz ve iç durumu, herkese açık etiketi ya da yayın snapshot’ını otomatik değiştirmez.
+- **Kullanıcı proje bazında aktif herkese açık roadmap kayıtları için isteğe bağlı bir gözden geçirme süresi belirleyebilir.** Sürenin birimi gündür ve `7` ile `180` gün arasında bir tam sayıdır; varsayılanı yoktur, yani kullanıcı bir değer girmedikçe bu sinyal hiç üretilmez. Kaydın son onaylı herkese açık snapshot’ı bu süre boyunca yenilenmemişse Bildirim Merkezi `Eylem Gerekiyor` bölümünde kaydı gözden geçirmeyi önerir; aynı kayıt için yeni onaylı snapshot oluşmadıkça süre başına en fazla bir sinyal üretilir. Sinyal yalnız aktif herkese açık etiketli kayıtlar için üretilir; tamamlanmış veya kapatılmış herkese açık kayıtları kapsamaz ve iç durumu, herkese açık etiketi ya da yayın snapshot’ını otomatik değiştirmez.
 
 - **Merkez aynı kaynakları `Eylem Gerekiyor` ve `Bilgi Akışı` bölümlerinde dikkat anlamına göre ayırır; varsayılan olarak `Eylem Gerekiyor` açılır.** Hedef tarihi, hatırlatma, açık risk, blokaj, başarısız check ve doğrudan durum çelişkisi gibi kullanıcı kararı bekleyen sinyaller eylem bölümünde; sıradan GitHub aktivitesi ve bilgilendirici koleksiyon hareketleri bilgi akışında gösterilir. Her sinyal yalnız bir bölümde bulunur.
 
@@ -147,7 +147,7 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 - **Proje genel bakışı; projenin amacını, yaşam döngüsü durumunu, aynı anda aktif olabilen aşamalarını, kilometre taşlarını, güncel işlerini, belgelerini, kararlarını, risklerini, aktif Test Handoff'larını, son Test Oturumlarını ve açık Test Açıklarını, önemli üretim olaylarını, blokajlarını, yaklaşan veya geçen hedef tarihlerini ve son değişikliklerini özetler.**
 
-- **İş ve Özellik ilerlemesi gösterildiğinde ilişkili açık Risk ve Açık Soru kayıtları durum ve tamamlanma bilgisinin yanında görünür olur.** Sistem bunlardan ayrı bir nitel belirsizlik durumu, otomatik ilerleme hükmü veya Hill Chart konumu üretmez; iş durumu ve Özellik ilerlemesi yalnız kendi ana kurallarına göre değişir.
+- **Proje yüzeylerinde İş ve Özellik ilerlemesinin yanında açık Risk ve Açık Soru kayıtlarının nasıl gösterildiği [İş Yönetimi ve Planlama](06-work-management-and-planning.md#iş-bağlam-kartı) belgesinde tanımlanır.** Bu belge o görünürlüğü yeniden tanımlamaz ve ondan ayrı bir nitel belirsizlik durumu, otomatik ilerleme hükmü veya proje sağlık göstergesi üretmez.
 
 ### Değer Zinciri
 

@@ -6,12 +6,12 @@ Bu belge yalnız doğrulama kanıtı ve yeni ürün kararıyla kapsama alınabil
 
 Bu belgedeki yönler yalnız dogfooding veya ayrıca yapılan doğrulama yeterli kanıt ürettiğinde yeni bir ürün kararıyla kapsama alınır. Bir yönün burada ayrıntılı anlatılması teslim taahhüdü oluşturmaz.
 
-Bu belge iki açık sınıf taşır. `Sözleşmeli aday`, [Doğrulama katmanları](#doğrulama-katmanları) tablosunda kararlı aday kimliği bulunan ve tam olarak `Tetikleyici`, `İlk dilim`, `İlerleme ve bırakma ölçütü` parçalarıyla validator tarafından denetlenen 21 yöndür. Diğer bütün başlık ve anlatılar `Bağlayıcı olmayan yön notu`dur; ilk ürün veya kararlaştırılmış genişleme emri oluşturamaz. Bir yön notu ancak kapsam, tetikleyici, sahiplik, yaşam döngüsü, kabul ve teknoloji etkisini ilgili normatif belgelere ekleyen ayrı Kararla sözleşmeli adaya dönüşür; uygulamanın başlaması ya da başlığın değiştirilmesi tek başına terfi değildir.
+Bu belge iki açık sınıf taşır. `Sözleşmeli aday`, [Doğrulama katmanları](#doğrulama-katmanları) tablosunda kararlı bir `Sözleşme kimliği` ile listelenen ve gövdesinde tam olarak `Tetikleyici`, `İlk dilim`, `İlerleme ve bırakma ölçütü` parçalarını taşıyan 15 yöndür; bu üç parçalı biçim yalnız o tabloda kimliği bulunan başlıklarda kullanılır. Diğer bütün başlık ve anlatılar `Bağlayıcı olmayan yön notu`dur ve üç parçalı biçimi kullanmaz; ilk ürün veya kararlaştırılmış genişleme emri oluşturamaz. Bir yön notu ancak kapsam, tetikleyici, sahiplik, yaşam döngüsü, kabul ve teknoloji etkisini ilgili normatif belgelere ekleyen ayrı Kararla sözleşmeli adaya dönüşür; uygulamanın başlaması ya da başlığın değiştirilmesi tek başına terfi değildir.
 
 <a id="alanlar-arasi-uzman-arac-dogrulama-portfoyu"></a>
 ## Alanlar arası uzman araç doğrulama portföyü
 
-Bu bölüm, mevcut ürün alanlarını tekrar etmeyen ve kendine özgü çalışma deneyimi üreten uzman araç adaylarının tek normatif sahibidir. Aşağıdaki adaylar [ilk ürünün zorunlu kapsamına](01-product-vision-and-scope.md#kapsam-dili) veya [Ürün Kabulüne](16-product-acceptance.md#kapsam-izlenebilirligi) eklenmiş değildir. Bir aday ancak burada belirtilen bağımlılık ve doğrulama kapılarını geçtikten sonra ayrı ürün kararıyla kapsama alınabilir; o kararda kesin veri modeli, yaşam döngüsü, alan sahibi davranışı ve kabul koşulları sırasıyla ilgili `02`–`14` belgesine ve `16-product-acceptance.md` dosyasına eklenir.
+Bu bölüm, mevcut ürün alanlarını tekrar etmeyen ve kendine özgü çalışma deneyimi üreten uzman araç adaylarının portföyünü toplar; hiçbir davranış, kayıt veya kabul kuralının normatif sahibi değildir ve buradaki ayrıntı ilgili alan belgelerindeki hükümlerin yerine geçmez. Aşağıdaki adaylar [ilk ürünün zorunlu kapsamına](01-product-vision-and-scope.md#kapsam-dili) veya [Ürün Kabulüne](16-product-acceptance.md#kapsam-izlenebilirligi) eklenmiş değildir. Bir aday ancak burada belirtilen bağımlılık ve doğrulama kapılarını geçtikten sonra ayrı ürün kararıyla kapsama alınabilir; o kararda kesin veri modeli, yaşam döngüsü, alan sahibi davranışı ve kabul koşulları sırasıyla ilgili `02`–`14` belgesine ve `16-product-acceptance.md` dosyasına eklenir.
 
 <a id="uzman-arac-ortak-dogrulama-kapisi"></a>
 ### Ortak doğrulama ve kapsam kapısı
@@ -67,9 +67,11 @@ Araçların kalıcı sahipliği aşağıdaki ayrımı korur:
 <a id="uzman-araclari-besleyen-ortak-kayitlar"></a>
 ### Uzman araçları besleyen ortak kayıtlar
 
-Aşağıdaki sekiz proje kapsamlı kayıt tek başına boş bir kayıt paketi olarak teslim edilmez. Her biri ancak onu kullanan ilk doğrulanmış araç kapsama alınırken, kesin yaşam döngüsü ve kabul koşullarıyla birlikte ilgili domain sahibine eklenebilir. Başka projede yeniden kullanım açık kopya ile, projeden bağımsız uzun açıklama ise Kişisel Wiki'ye aktarım ile yapılır; projeler arasında canlı ortak kimlik kurulmaz.
+Aşağıdaki sekiz proje kapsamlı kayıt öneridir; hiçbiri üründe bulunmaz. Tablo bu adaylar için sahiplik, yaşam döngüsü, alan kümesi, ilişki veya kabul kararı vermez ve bir kayıt ihtiyacının burada anılması onu ürünün kayıt envanterine eklemez. [Ana kayıt türleri ve asgari sözleşmeler](02-domain-model-and-lifecycle.md#ana-kayıt-türleri-ve-asgari-sözleşmeler) envanteri kapalıdır: bir aday kayıt yalnız ayrı bir ürün kararıyla o envantere eklenerek gerçek ana kayıt türüne dönüşebilir, bu belgedeki anlatı böyle bir ekleme gerekçesi ya da izni oluşturmaz.
 
-| Kayıt | Korunan anlam | İlk olası tüketici |
+Bir aday kaydın önerilebilmesi için onu kullanan ilk aracın doğrulanmış olması ve kesin yaşam döngüsü ile kabul koşullarının aynı kararda ilgili domain sahibi belgeye yazılması gerekir; hiçbiri tek başına boş bir kayıt paketi olarak önerilmez. Öneri kapsama alınırsa başka projede yeniden kullanım açık kopya ile, projeden bağımsız uzun açıklama ise Kişisel Wiki'ye aktarım ile yapılır; projeler arasında canlı ortak kimlik kurulmaz.
+
+| Aday kayıt ihtiyacı | Önerilen ayırt edici anlam | İlk olası tüketici adayı |
 | --- | --- | --- |
 | İş Kuralı | Kullanıcının tasarladığı ürünün yürürlükteki davranış kuralıdır; Karar bu kuralın neden seçildiğini açıklayabilir fakat kural metnini kopyalamaz | Alan Olayları Panosu |
 | Proje Kısıtı | Hukuki, teknik, platform, ticari veya operasyonel olduğu bilinen etkin sınırdır; Risk belirsiz bir olumsuz olasılıktır | Uçtan Uca Dilimleme Planı |
@@ -175,7 +177,7 @@ Kullanıcının seçtiği tek ve kesin Kullanıcı Akışı sürümünde, normal
 
 ### Doğrulama katmanları
 
-Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sırası değildir; hangi varsayımın ne zaman dürüstçe sınanabileceğini gösterir. `Yakın doğrulama` ilk ürünün ardından düşük maliyetli deney yapılabileceğini, `Bağımlı` adlandırılmış önkoşul doğrulanmadan yönün açılamayacağını, `Uzak` ise uzun dönemli davranış kanıtı gerektiğini belirtir. `Sözleşme kimliği` bulunan 21 satır validator kapsamındaki sözleşmeli adaydır; `—` taşıyan satır aynı tabloda yönlendirme amacıyla bulunan bağlayıcı olmayan yön notudur. Hiçbir katman uygulama taahhüdü oluşturmaz.
+Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sırası değildir; hangi varsayımın ne zaman dürüstçe sınanabileceğini gösterir. `Yakın doğrulama` ilk ürünün ardından düşük maliyetli deney yapılabileceğini, `Bağımlı` adlandırılmış önkoşul doğrulanmadan yönün açılamayacağını, `Uzak` ise uzun dönemli davranış kanıtı gerektiğini belirtir. `Sözleşme kimliği` bulunan 15 satır bu belgenin sözleşmeli adaylarıdır ve üç parçalı sözleşme biçimini yalnız onlar taşır; `—` taşıyan satır aynı tabloda yönlendirme amacıyla bulunan bağlayıcı olmayan yön notudur. Hiçbir katman uygulama taahhüdü oluşturmaz.
 
 | Katman | Aday yön | Sözleşme kimliği |
 | --- | --- | --- |
@@ -185,19 +187,13 @@ Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sır
 | Yakın doğrulama | [Kayıt Değil Soru Odaklı Proje İşletimi](#kayıt-değil-soru-odaklı-proje-işletimi) | `kayıt-değil-soru-odaklı-proje-işletimi` |
 | Yakın doğrulama | Geri Döndürülebilir Proje Değişikliği Provası → [Alternatif planlama senaryoları](#alternatif-planlama-senaryoları) | — |
 | Yakın doğrulama | [Proje-Öncesi Fikir İnkübatörü](#proje-öncesi-fikir-inkübatörü) | `proje-öncesi-fikir-inkübatörü` |
-| Yakın doğrulama | [Doğrulanabilir Yapım Hikâyesi](#doğrulanabilir-yapım-hikâyesi) | `doğrulanabilir-yapım-hikâyesi` |
+| Yakın doğrulama | [Doğrulanabilir Yapım Hikâyesi ve Sürüm İletişim İskeleti](#doğrulanabilir-yapım-hikâyesi) | `doğrulanabilir-yapım-hikâyesi` |
 | Yakın doğrulama | [Geri Döndürülebilirliğe Göre Karar Disiplini](#geri-döndürülebilirliğe-göre-karar-disiplini) | `geri-döndürülebilirliğe-göre-karar-disiplini` |
 | Yakın doğrulama | [Önceden Taahhüt Edilmiş Devam/Bırakma Koşulları](#önceden-taahhüt-edilmiş-devam-bırakma-koşulları) | `önceden-taahhüt-edilmiş-devam-bırakma-koşulları` |
-| Yakın doğrulama | [Bilinçli Dış Sınır Sözleşmesi](#bilinçli-dış-sınır-sözleşmesi) | `bilinçli-dış-sınır-sözleşmesi` |
+| Yakın doğrulama | [Bilinçli Dış Sınır Sözleşmesi ve Dış Ana Kaynak İşareti](#bilinçli-dış-sınır-sözleşmesi) | `bilinçli-dış-sınır-sözleşmesi` |
 | Yakın doğrulama | [Bir Kez Söyle, Kontrollü Olarak Her Yere İşle](#bir-kez-söyle-kontrollü-olarak-her-yere-işle) | `bir-kez-söyle-kontrollü-olarak-her-yere-işle` |
-| Yakın doğrulama | [Sürüm İletişim İskeleti](#sürüm-iletişim-iskeleti) | `sürüm-iletişim-iskeleti` |
-| Yakın doğrulama | [Dış Ana Kaynak İşareti](#dış-ana-kaynak-işareti) | `dış-ana-kaynak-işareti` |
 | Yakın doğrulama | [Yüzey Metni Envanteri](#yüzey-metni-envanteri) | `yüzey-metni-envanteri` |
-| Yakın doğrulama | [Rakip Yırtma Defteri](#rakip-yırtma-defteri) | `rakip-yırtma-defteri` |
-| Yakın doğrulama | [İlk On Dakika Vaadi](#ilk-on-dakika-vaadi) | `ilk-on-dakika-vaadi` |
-| Yakın doğrulama | [Destek Oyun Kitabı](#destek-oyun-kitabı) | `destek-oyun-kitabı` |
 | Yakın doğrulama | [Kullanıcıya Veri Teslimi](#kullanıcıya-veri-teslimi) | `kullanıcıya-veri-teslimi` |
-| Yakın doğrulama | [Altyapı Maliyeti Notu](#altyapı-maliyeti-notu) | `altyapı-maliyeti-notu` |
 | Bağımlı | [Dış İncelemeyi Geri Getiren Paylaşım](#dış-incelemeyi-geri-getiren-paylaşım) | `dış-incelemeyi-geri-getiren-paylaşım` |
 | Bağımlı | [Ekip Kurmadan Sınırlı İnsan Delegasyonu](#ekip-kurmadan-sınırlı-insan-delegasyonu) | `ekip-kurmadan-sınırlı-insan-delegasyonu` |
 | Uzak | Gölge Yedek Gerektirmeyen Çıkış Garantisi → [Tam ürün paketi ve geri yükleme doğrulaması](#tam-ürün-paketi-ve-geri-yükleme-doğrulaması) | — |
@@ -249,13 +245,13 @@ Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sır
 **İlerleme ve bırakma ölçütü:** Aday ancak en az beş gerçek fikirde Yakalama Gelen Kutusunu uzun süreli depoya çevirmeden doğru zamanda proje kararı alınmasını kolaylaştırırsa ilerler. Kullanıcı adayları fiilî Backlog olarak planlamaya başlarsa, bakım yükü değeri aşarsa veya mevcut Yakalama + Proje akışı yeterliyse yön bırakılır.
 
 <a id="doğrulanabilir-yapım-hikâyesi"></a>
-### Doğrulanabilir Yapım Hikâyesi
+### Doğrulanabilir Yapım Hikâyesi ve Sürüm İletişim İskeleti
 
-**Tetikleyici:** Kullanıcının bir ürün değişikliğinin problemden gözlenen sonuca kadar hikâyesini tekrar tekrar elle kurması ve kaynak atıflarını kaybetmesi doğrulanırsa, doğrulanabilir yapım hikâyesi değerlendirilebilir. Yüzey otomatik blog, pazarlama metni veya ikinci Değer Zinciri değildir.
+**Tetikleyici:** Kullanıcının bir ürün değişikliğinin problemden gözlenen sonuca kadar hikâyesini tekrar tekrar elle kurması ve kaynak atıflarını kaybetmesi ya da bir Proje Sürümünün yayın gününde söylenecek maddelerin Notion veya benzeri bir defterde ikinci kez yazılması doğrulanırsa, aynı çapaya bağlı doğrulanabilir yapım hikâyesi ile sürüm iletişim iskeleti birlikte değerlendirilebilir. Yüzey otomatik blog, pazarlama metni veya ikinci Değer Zinciri değildir.
 
-**İlk dilim:** kullanıcı tek Proje Hedefi ya da Proje Sürümünü çapa seçer; mevcut Değer Zinciri, gerçekleşen olaylar, kesin belge/karar/test sürümleri ve Erişim/Sonuç gözlemlerinden girecek öğeleri tek tek onaylar. Sistem kronolojik, kaynak bağlantılı bir taslak iskeleti oluşturabilir fakat yorum, nedensellik ve başarı hükmünü kullanıcı yazar. Kaydedilen iç anlatı sürümlü Belgedir; herkese açık kullanım ayrıca ortak snapshot farkı ve onayı ister.
+**İlk dilim:** kullanıcı tek Proje Hedefi ya da Proje Sürümünü çapa seçer; mevcut Değer Zinciri, gerçekleşen olaylar, kesin belge/karar/test sürümleri ve Erişim/Sonuç gözlemlerinden girecek öğeleri tek tek onaylar. Aynı çapa üzerinde yayın gününde söylenecek sahipli maddeler de seçilebilir; her madde mevcut İş, Karar, gözlem veya başka kesin kayda bağlanabilir ve kullanıcı cümlesini kendisi yazar. Sistem kronolojik, kaynak bağlantılı bir taslak iskeleti oluşturabilir fakat yorum, nedensellik ve başarı hükmünü kullanıcı yazar; iskelet yayın durumunu değiştirmez ve herkese açık changelog yüzeyi açmaz. Kaydedilen iç anlatı sürümlü Belgedir; herkese açık kullanım ayrıca ortak snapshot farkı ve onayı ister.
 
-**İlerleme ve bırakma ölçütü:** Aday üç gerçek sürümde hikâye kurma süresini ve yanlış kaynak atfını azaltmadan ilerlemez. Otomatik metin kaynakta bulunmayan iddia üretirse, anlatı Değer Zinciriyle yarışan canlı doğruluk kaynağına dönüşürse veya kullanıcı kaynakları tek tek doğrulayamıyorsa yön bırakılır.
+**İlerleme ve bırakma ölçütü:** Aday üç gerçek sürümde hikâye kurma süresini, yanlış kaynak atfını ve dış iletişim defterine ikinci kez yazma ihtiyacını azaltmadan ilerlemez. Otomatik metin kaynakta bulunmayan iddia üretirse, maddeler yine dışarıda yaşarsa, sistem kullanıcının cümlesini yazarsa, anlatı ya da iskelet Değer Zinciriyle yarışan canlı doğruluk kaynağına dönüşürse veya kullanıcı kaynakları tek tek doğrulayamıyorsa yön bırakılır.
 
 <a id="geri-döndürülebilirliğe-göre-karar-disiplini"></a>
 ### Geri Döndürülebilirliğe Göre Karar Disiplini
@@ -276,13 +272,13 @@ Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sır
 **İlerleme ve bırakma ölçütü:** Aday en az üç gerçek kararda hindsight değişikliğini görünür kılmadan ya da karar kalitesini artırmadan ilerlemez. Koşullar sahte kesinlik, zorunlu OKR veya genel workflow gate'e dönüşürse yön bırakılır.
 
 <a id="bilinçli-dış-sınır-sözleşmesi"></a>
-### Bilinçli Dış Sınır Sözleşmesi
+### Bilinçli Dış Sınır Sözleşmesi ve Dış Ana Kaynak İşareti
 
-**Tetikleyici:** Bir işin kalıcı olarak dış araçta kalmasının ürün boşluğu mu yoksa bilinçli sınır mı olduğu tekrar tekrar karışıyorsa, Proje veya İş bağlamında açık dış sınır sözleşmesi değerlendirilebilir. Bu yön dış aracı entegre etmez, izlemez veya onun gerçeğini kopyalamaz.
+**Tetikleyici:** Bir işin kalıcı olarak dış araçta kalmasının ürün boşluğu mu yoksa bilinçli sınır mı olduğu, ya da bir gerçeğin asıl kopyasının hâlâ dışarıda olmasıyla ürün içi kaydın hangisinin ana kaynak sayıldığı tekrar tekrar karışıyorsa; Proje veya İş bağlamında açık dış sınır sözleşmesi ile mevcut kayıt üzerindeki dar bir dış ana kaynak işareti birlikte değerlendirilebilir. Bu yön dış aracı entegre etmez, izlemez veya onun gerçeğini kopyalamaz.
 
-**İlk dilim:** kullanıcı dışarıda kalacak işi, dış ana kaynağı, üründe korunacak asgari referans ve kanıtı, geri dönüş beklentisini, sorumluluğu ve yeniden değerlendirme tetikleyicisini kaydeder. Sözleşme mevcut Ürün Boşluğu ve Dış Araca Kaçış kayıtlarına bağlanabilir; `Bilinçli sınır` kararı geçmiş kaçışları silmez ve ürün yeteneğinin bulunduğu anlamına gelmez. URL veya dosya kökeni erişim yetkisi vermez.
+**İlk dilim:** kullanıcı dışarıda kalacak işi, dış ana kaynağı, üründe korunacak asgari referans ve kanıtı, geri dönüş beklentisini, sorumluluğu ve yeniden değerlendirme tetikleyicisini kaydeder. Aynı dilim, desteklenen mevcut bir kayıtta `Dış ana kaynak` işaretinin ve isteğe bağlı dış referansın açıkça konulmasını veya kaldırılmasını da kapsar; işaret tam sözleşmenin kendisi, entegrasyon ya da senkronizasyon değildir. Sözleşme mevcut Ürün Boşluğu ve Dış Araca Kaçış kayıtlarına bağlanabilir; `Bilinçli sınır` kararı ve `Dış ana kaynak` işareti geçmiş kaçışları silmez, sağlık skoru veya ürün yeteneğinin bulunduğu hükmünü üretmez ve işaretlenen kaydın yaşam döngüsünü değiştirmez. URL veya dosya kökeni erişim yetkisi vermez.
 
-**İlerleme ve bırakma ölçütü:** Aday en az üç tekrar eden dış akışta gereksiz paralel kayıt veya yanlış ürün boşluğu açılmasını azaltırsa ilerler. Metin genel entegrasyon kataloğuna, dış sistem durum takibine veya fiilî ikinci doğruluk kaynağına dönüşürse yön bırakılır.
+**İlerleme ve bırakma ölçütü:** Aday en az üç tekrar eden dış akışta gereksiz paralel kayıt, yanlış ürün boşluğu açılması veya yanlış boşluk/kaçış karışmasını azaltırsa ilerler. Sözleşme metni ya da işaret genel entegrasyon kataloğuna, dış sistem durum takibine veya fiilî ikinci doğruluk kaynağına dönüşürse yön bırakılır.
 
 <a id="bir-kez-söyle-kontrollü-olarak-her-yere-işle"></a>
 ### Bir Kez Söyle, Kontrollü Olarak Her Yere İşle
@@ -293,24 +289,6 @@ Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sır
 
 **İlerleme ve bırakma ölçütü:** Aday üç gerçek çok kayıtlı değişiklikte manuel toplu düzenlemenin ifade edemediği bir tutarlılık kazanımı göstermeden ilerlemez. Hedef farkları açıklanamazsa, kullanıcı çoğu öneriyi elle düzeltirse veya işlem genel otomasyon motoruna dönüşürse yön bırakılır.
 
-<a id="sürüm-iletişim-iskeleti"></a>
-### Sürüm İletişim İskeleti
-
-**Tetikleyici:** Bir Proje Sürümünün yayın gününde söylenecek maddelerin Notion veya benzeri bir defterde ikinci kez yazılması tekrar ederse, Sürüme bağlı iletişim iskeleti değerlendirilebilir. Bu yön otomatik blog, pazarlama metni veya [Doğrulanabilir Yapım Hikâyesi](#doğrulanabilir-yapım-hikâyesi) değildir.
-
-**İlk dilim:** Kullanıcı bir Proje Sürümüne ait sahipli maddeler seçer; her madde mevcut İş, Karar, gözlem veya başka kesin kayda bağlanabilir ve kullanıcı cümlesini kendisi yazar. Sistem anlatı, nedensellik veya başarı hükmü üretmez; yayın durumunu değiştirmez ve herkese açık changelog yüzeyi açmaz.
-
-**İlerleme ve bırakma ölçütü:** Aday üç gerçek yayında dış iletişim defterini kapatmadan ilerlemez. Maddeler yine dışarıda yaşarsa, sistem cümle yazarsa veya iskelet ikinci bir sürüm doğruluk kaynağına dönüşürse yön bırakılır.
-
-<a id="dış-ana-kaynak-işareti"></a>
-### Dış Ana Kaynak İşareti
-
-**Tetikleyici:** Bir gerçeğin asıl kopyasının hâlâ dışarıda olduğu ile ürün içi kaydın karışması tekrar ederse, mevcut kayıt üzerinde dar bir dış ana kaynak işareti değerlendirilebilir. Bu yön [Bilinçli Dış Sınır Sözleşmesinin](#bilinçli-dış-sınır-sözleşmesi) tam sözleşmesi, entegrasyon veya senkronizasyon değildir.
-
-**İlk dilim:** Kullanıcı desteklenen mevcut kayıtta `Dış ana kaynak` işaretini ve isteğe bağlı dış referansı açıkça koyar veya kaldırır. İşaret sağlık skoru, kaçış kapanışı veya ürün boşluğu hükmü üretmez; dış URL erişim yetkisi vermez ve kaydın yaşam döngüsünü değiştirmez.
-
-**İlerleme ve bırakma ölçütü:** Aday üç tekrarlayan dış defterde yanlış boşluk/kaçış karışmasını azaltmadan ilerlemez. İşaret katalog, dış sistem durumu veya ikinci doğruluk kaynağına dönüşürse ya da [Bilinçli Dış Sınır Sözleşmesiyle](#bilinçli-dış-sınır-sözleşmesi) aynı işi tekrarlarsa yön bırakılır.
-
 <a id="yüzey-metni-envanteri"></a>
 ### Yüzey Metni Envanteri
 
@@ -320,32 +298,19 @@ Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sır
 
 **İlerleme ve bırakma ölçütü:** Aday bir gerçek üründe dış yazı tablosunu kapatıp en az beş metni İş veya Proje Sürümüne bağlamadan ilerlemez. Tablo yaşamaya devam ederse, Figma/çeviri aracına kayarsa veya Wireframe metnini kopyalayan ikinci SoT olursa yön bırakılır.
 
-<a id="rakip-yırtma-defteri"></a>
-### Rakip Yırtma Defteri
-
-**Tetikleyici:** Rakip ürünün ekranı, iddiası ve buna verilen cevabın Moodboard veya Belgede ikinci bir rekabet defteri olarak tutulması tekrar ederse, Proje kapsamında rakip yırtma defteri değerlendirilebilir. Bu yön Mobbin, Figma, genel moodboard veya otomatik rakip tarama değildir.
-
-**İlk dilim:** Kullanıcı bir rakip adı, isteğe bağlı ekran/Dosya Eki, onların iddiası ve kendi cevabını sahipli öğe olarak kaydeder; öğe mevcut Karar veya Özelliğe bağlanabilir. Sistem skor, kazanan veya pazar hükmü üretmez; yeni ana kayıt ancak aynı rakip birden fazla Projede kanonik kimlik isterse ayrıca açılır.
-
-**İlerleme ve bırakma ölçütü:** Aday üç gerçek karşılaştırmada dış rekabet notunu kapatmadan ilerlemez. Öğeler Moodboard kopyasına, serbest whiteboard’a veya otomatik tarama ürününe dönüşürse yön bırakılır.
-
 <a id="ilk-on-dakika-vaadi"></a>
 ### İlk On Dakika Vaadi
 
-**Tetikleyici:** Yeni hesabın ilk dakikalarda göreceği adımların Kullanıcı Akışından ayrı bir Notion listesinde tutulması tekrar ederse, Ekranlara bağlı kurulum vaadi değerlendirilebilir. Bu yön Intercom turu, zorunlu onboarding kapısı veya ikinci akış editörü değildir.
+Yeni hesabın ilk dakikalarda göreceği adımların Kullanıcı Akışından ayrı bir Notion listesinde tutulması tekrar ederse, Ekranlara bağlı bir kurulum vaadi yön notu olarak akılda tutulur. Bilginin dış araçta yaşaması tek başına ürün boşluğu kanıtı sayılmaz; bu not Intercom turu, zorunlu onboarding kapısı veya ikinci akış editörü önermez.
 
-**İlk dilim:** Kullanıcı sıralı vaat maddeleri yazar; her madde mevcut bir Ekrana veya Kullanıcı Akışı düğümüne bağlanabilir ve `Vaat / Henüz yok` işaretini kullanıcı koyar. Sistem tamamlanma yüzdesi, sağlık skoru veya yayın kilidi üretmez.
-
-**İlerleme ve bırakma ölçütü:** Aday bir gerçek üründe dış onboarding listesini kapatmadan ilerlemez. Liste Kullanıcı Akışını kopyalarsa, zorunlu süreç kapısı olursa veya tur çalıştırırsa yön bırakılır.
+Not ileride gerçekten değerlendirilirse tartışılacak dar biçim şudur: kullanıcı sıralı vaat maddeleri yazar, her madde mevcut bir Ekrana veya Kullanıcı Akışı düğümüne bağlanabilir ve `Vaat / Henüz yok` işaretini kullanıcı koyar. Sistemin tamamlanma yüzdesi, sağlık skoru veya yayın kilidi üretmemesi bu biçimin önkoşuludur. Bir gerçek üründe dış onboarding listesi kapanmıyorsa, liste Kullanıcı Akışını kopyalıyorsa, zorunlu süreç kapısına dönüşüyorsa veya tur çalıştırıyorsa not kapanır ve konu ürün dışı liste olarak kalır.
 
 <a id="destek-oyun-kitabı"></a>
 ### Destek Oyun Kitabı
 
-**Tetikleyici:** Tekrarlayan kullanıcı şikâyetinde kontrol sırasının Google Doc’ta tutulması ve Üretim Olayından kopması tekrar ederse, olay veya Özelliğe bağlı destek oyun kitabı değerlendirilebilir. Bu yön helpdesk, [Üretim Olayı Önleme Zinciri](#uretim-olayi-onleme-zinciri) veya otomatik yanıt değildir.
+Tekrarlayan kullanıcı şikâyetinde kontrol sırasının Google Doc’ta tutulması ve Üretim Olayından kopması tekrar ederse, olay veya Özelliğe bağlı bir destek oyun kitabı yön notu olarak akılda tutulur. Sıranın dış belgede yaşaması tek başına ürün boşluğu kanıtı sayılmaz; bu not helpdesk, [Üretim Olayı Önleme Zinciri](#uretim-olayi-onleme-zinciri) veya otomatik yanıt önermez.
 
-**İlk dilim:** Kullanıcı sırası olan kontrol maddeleri yazar; madde mevcut Ekran, Risk veya Üretim Olayına bağlanabilir. Sistem ticket açmaz, e-posta göndermez ve olayı kapatmaz.
-
-**İlerleme ve bırakma ölçütü:** Aday üç gerçek şikâyette dış runbook’u kapatmadan ilerlemez. Kitap ikinci olay kaydı, SLA motoru veya Intercom kopyası olursa yön bırakılır.
+Not ileride gerçekten değerlendirilirse tartışılacak dar biçimde kullanıcı sırası olan kontrol maddeleri yazar ve her madde mevcut Ekran, Risk veya Üretim Olayına bağlanabilir; sistemin ticket açmaması, e-posta göndermemesi ve olayı kapatmaması bu biçimin önkoşuludur. Üç gerçek şikâyette dış runbook kapanmıyorsa ya da kitap ikinci olay kaydı, SLA motoru veya Intercom kopyası hâline geliyorsa not kapanır.
 
 <a id="kullanıcıya-veri-teslimi"></a>
 ### Kullanıcıya Veri Teslimi
@@ -359,11 +324,9 @@ Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sır
 <a id="altyapı-maliyeti-notu"></a>
 ### Altyapı Maliyeti Notu
 
-**Tetikleyici:** Neon, S3 veya benzeri koşturma maliyetinin müşteri [Invoice](17-commercial-expansion.md#ilk-urun-sonrasi-ticari-genisleme) satırından ayrı bir Sheet’te tutulması tekrar ederse, Proje kapsamında altyapı maliyeti notu değerlendirilebilir. Bu yön muhasebe, banka uzlaştırma veya Fiyat ve Paket Tasarım Alanı değildir.
+Neon, S3 veya benzeri koşturma maliyetinin müşteri [Invoice](17-commercial-expansion.md#ilk-urun-sonrasi-ticari-genisleme) satırından ayrı bir Sheet’te tutulması tekrar ederse, Proje kapsamında bir altyapı maliyeti notu yön notu olarak akılda tutulur. Maliyetin dış tabloda yaşaması tek başına ürün boşluğu kanıtı sayılmaz; bu not muhasebe, banka uzlaştırma veya Fiyat ve Paket Tasarım Alanı önermez.
 
-**İlk dilim:** Kullanıcı sağlayıcı, kabaca tutar, dönem ve “neden bu plan” notunu yazar; Invoice veya teklife yazılmaz. Sistem ödeme çekmez ve bütçe uyarısı üretmez.
-
-**İlerleme ve bırakma ölçütü:** Aday iki fatura döneminde dış maliyet Sheet’ini kapatmadan ilerlemez. Not gelir defteri, otomatik fatura veya fiyat paketine dönüşürse yön bırakılır.
+Not ileride gerçekten değerlendirilirse tartışılacak dar biçimde kullanıcı sağlayıcı, kabaca tutar, dönem ve “neden bu plan” gerekçesini yazar; bu bilgi Invoice veya teklife yazılmaz, sistem ödeme çekmez ve bütçe uyarısı üretmez. İki fatura döneminde dış maliyet Sheet’i kapanmıyorsa ya da not gelir defteri, otomatik fatura veya fiyat paketine dönüşüyorsa not kapanır.
 
 <a id="dış-incelemeyi-geri-getiren-paylaşım"></a>
 ### Dış İncelemeyi Geri Getiren Paylaşım
@@ -395,7 +358,7 @@ Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sır
 <a id="kayit-tutarliligi-tasarim-taahhudu-ve-dis-baglam-adaylari"></a>
 ## Kayıt tutarlılığı, tasarım taahhüdü ve dış bağlam adayları
 
-Bu bölüm, mevcut kayıtların birbirini yanlışladığı yerleri görünür kılan, kullanıcının tasarladığı ürünün taahhütlerini modelleyen ve ürünün dış bağlamını ürün içine alan adayların tek normatif sahibidir. Adaylar [ilk ürünün zorunlu kapsamına](01-product-vision-and-scope.md#kapsam-dili) veya [Ürün Kabulüne](16-product-acceptance.md#kapsam-izlenebilirligi) eklenmiş değildir ve bu bölümdeki ayrıntı teslim taahhüdü oluşturmaz.
+Bu bölüm, mevcut kayıtların birbirini yanlışladığı yerleri görünür kılan, kullanıcının tasarladığı ürünün taahhütlerini modelleyen ve ürünün dış bağlamını ürün içine alan adayların portföyünü toplar; hiçbir davranış, kayıt veya kabul kuralının normatif sahibi değildir. Adaylar [ilk ürünün zorunlu kapsamına](01-product-vision-and-scope.md#kapsam-dili) veya [Ürün Kabulüne](16-product-acceptance.md#kapsam-izlenebilirligi) eklenmiş değildir ve bu bölümdeki ayrıntı teslim taahhüdü oluşturmaz.
 
 <a id="kayit-tutarliligi-adaylari-ortak-kapi"></a>
 ### Ortak tetikleyici ve kanıt kapısı
@@ -439,101 +402,101 @@ Aşağıdaki adaylar [kapsam dışı hükümlerin](19-out-of-scope.md) komşulu�
 <a id="dayanak-gecersizlesme-kuyrugu"></a>
 ### Dayanak Geçersizleşme Kuyruğu
 
-**Tetikleyici:** Bir Varsayım çürütüldüğünde o varsayıma dayanarak verilmiş kararların ve açılmış işlerin gerçek projelerde tekrar tekrar gözden kaçması gerekir. Mevcut örüntü yalnız içerik sürümü değişimini izler: [Spec değişikliği inceleme kuyruğu](07-documents-and-knowledge.md#spec-değişikliği-inceleme-kuyruğu) Belge bölümü sürümünü, kaynak tazeliği ise [Kaynak sürümü karşılaştırmasını](08-search-relations-and-evidence.md#kaynağı-yeniden-kontrol-etme-ve-sürüm-karşılaştırması) izler. Yaşam döngüsü durumu değişiminden doğan aynı örüntünün karşılığı yoktur. Bağlı Ürün Boşluğu: `Çürütülen dayanağın etkisi ürün içinde görünmüyor`.
+Bu yön notunun dayanağı, bir Varsayım çürütüldüğünde o varsayıma dayanarak verilmiş kararların ve açılmış işlerin gerçek projelerde tekrar tekrar gözden kaçmasıdır. Mevcut örüntü yalnız içerik sürümü değişimini izler: [Spec değişikliği inceleme kuyruğu](07-documents-and-knowledge.md#spec-değişikliği-inceleme-kuyruğu) Belge bölümü sürümünü, kaynak tazeliği ise [Kaynak sürümü karşılaştırmasını](08-search-relations-and-evidence.md#kaynağı-yeniden-kontrol-etme-ve-sürüm-karşılaştırması) izler. Yaşam döngüsü durumu değişiminden doğan aynı örüntünün karşılığı yoktur. Bağlı Ürün Boşluğu: `Çürütülen dayanağın etkisi ürün içinde görünmüyor`.
 
-**İlk dilim:** yalnız Varsayımın çürütülme geçişi girdi olur; kanıt rolü işaretleri bu dilime girmez. Kuyruk yalnız o Varsayımın açık kanıt ilişkisiyle gösterdiği hedeflerden geçerli Karar ve kapanmamış İş kayıtlarını listeler; genel `İlgili` ilişkisi, tarih yakınlığı ve metin benzerliği girdi sayılmaz. Kullanıcı her satırı `Bekliyor`, `Gözden geçirildi` veya `Etkilenmedi` olarak işaretler; işaret hedef kaydın sahipli bileşenidir, durumunu, önceliğini ve planlama üyeliğini değiştirmez ve takip işi açmaz. Varsayım yeniden açılırsa satır düşer, konmuş işaretler hedef kaydın geçmişinde kalır ve yeniden inceleme turu açılmaz.
+Not ileride değerlendirmeye alınırsa tartışılacak dar biçimde yalnız Varsayımın çürütülme geçişi girdi olur; kanıt rolü işaretleri o biçime girmez. Kuyruk yalnız o Varsayımın açık kanıt ilişkisiyle gösterdiği hedeflerden geçerli Karar ve kapanmamış İş kayıtlarını listeler; genel `İlgili` ilişkisi, tarih yakınlığı ve metin benzerliği girdi sayılmaz. Kullanıcı her satırı `Bekliyor`, `Gözden geçirildi` veya `Etkilenmedi` olarak işaretler; işaret hedef kaydın sahipli bileşeni olur, durumunu, önceliğini ve planlama üyeliğini değiştirmez ve takip işi açmaz. Varsayım yeniden açılırsa satır düşer, konmuş işaretler hedef kaydın geçmişinde kalır ve yeniden inceleme turu açılmaz.
 
-**İlerleme ve bırakma ölçütü:** Aday üç gerçek çürütmede denenir ve en az ikisinde mevcut yüzeylerin kaçırdığı bir bağımlı kaydı doğru biçimde görünür kılmadan ilerlemez. Listelenen adayların çoğu bilinçli olarak etkilenmemiş çıkarsa, kullanıcı işaretleri ikinci bir plan gibi sürdürmek zorunda kalırsa veya inceleme fiilî bir onay kapısına dönüşürse yön bırakılır.
+Notun anlamlı sayılması için üç gerçek çürütmede denenmesi ve en az ikisinde mevcut yüzeylerin kaçırdığı bir bağımlı kaydı doğru biçimde görünür kılması gerekir. Listelenen adayların çoğu bilinçli olarak etkilenmemiş çıkarsa, kullanıcı işaretleri ikinci bir plan gibi sürdürmek zorunda kalırsa veya inceleme fiilî bir onay kapısına dönüşürse not kapanır.
 
 <a id="yerine-gecilmis-karara-dayanan-calisma"></a>
 ### Yerine Geçilmiş Karara Dayanan Çalışma
 
-**Tetikleyici:** Bir Karar yeni bir kararla değiştirildikten sonra eski karara bağlı işlerin sessizce eski karara bakmaya devam etmesi gerçek projelerde tekrar etmelidir. Yerine geçmede ilişkiler kopyalanmadığı için bu kopukluk tasarım gereği oluşur; mevcut yüzey yalnız emekli karardan güncel karara gitmeyi sunar, ters yönü göstermez. Bağlı Ürün Boşluğu: `Yerine geçilmiş karara bağlı çalışma sessizce devam ediyor`.
+Bu yön notunun dayanağı, bir Karar yeni bir kararla değiştirildikten sonra eski karara bağlı işlerin sessizce eski karara bakmaya devam etmesinin gerçek projelerde tekrar etmesidir. Yerine geçmede ilişkiler kopyalanmadığı için bu kopukluk tasarım gereği oluşur; mevcut yüzey yalnız emekli karardan güncel karara gitmeyi sunar, ters yönü göstermez. Bağlı Ürün Boşluğu: `Yerine geçilmiş karara bağlı çalışma sessizce devam ediyor`.
 
-**İlk dilim:** görünüm yalnız emekli Karar ile ona doğrudan uygulama ilişkisiyle bağlı kapanmamış İş çiftlerini listeler; zincir boyunca dolaylı uygulama izlenmez. Hiçbir işaret veya kayıt saklanmaz, ilişki güncel karara kendiliğinden taşınmaz, eski ilişki silinmez ve işin durumu değişmez. Kullanıcı ilişkiyi elle taşıdığında veya işi kapattığında satır kendiliğinden düşer.
+Not ileride değerlendirmeye alınırsa tartışılacak dar biçimde görünüm yalnız emekli Karar ile ona doğrudan uygulama ilişkisiyle bağlı kapanmamış İş çiftlerini listeler; zincir boyunca dolaylı uygulama izlenmez. Hiçbir işaret veya kayıt saklanmaz, ilişki güncel karara kendiliğinden taşınmaz, eski ilişki silinmez ve işin durumu değişmez. Kullanıcı ilişkiyi elle taşıdığında veya işi kapattığında satır kendiliğinden düşer.
 
-**İlerleme ve bırakma ölçütü:** Aday iki gerçek yerine geçme olayında en az bir açık bağımlı işi görünür kılmadan ilerlemez. Kapsama alma sırasında bu görünüm bağımsız bir yüzey olarak değil, Çalışma Alanı Bağlam Bütünlüğü Denetiminin sıfır saklama gerektiren kontrollerinden biri olarak kurulur; ayrı yüzey olarak kalması gerekiyorsa gerekçesi ayrıca yazılır. Bağımlı iş hiç çıkmazsa veya kullanıcı satırları görmezden gelmeyi sürdürürse yön bırakılır.
+Notun anlamlı sayılması için iki gerçek yerine geçme olayında en az bir açık bağımlı işi görünür kılması gerekir. Konu ileride kapsama alınırsa bu görünüm bağımsız bir yüzey olarak değil, Çalışma Alanı Bağlam Bütünlüğü Denetiminin sıfır saklama gerektiren kontrollerinden biri olarak kurulur; ayrı yüzey olarak kalması gerekiyorsa gerekçesi o kararda ayrıca yazılır. Bağımlı iş hiç çıkmazsa veya kullanıcı satırları görmezden gelmeyi sürdürürse not kapanır.
 
 <a id="tuketicisi-kapanmis-belirsizlik"></a>
 ### Tüketicisi Kapanmış Belirsizlik
 
-**Tetikleyici:** Vazgeçilen veya tamamlanan işler için açılmış belirsizlik kayıtlarının açık durumda birikmesi gerçek kullanımda gözlenmelidir. İş kapanışı kalıcı bağlamı korumayı önerir fakat bağlı belirsizlik kayıtlarını hiç sormaz; sonuç, gelecekteki varsayım karşılaştırma yüzeylerinin girdisini kirleten açık kayıt yığınıdır. Bağlı Ürün Boşluğu: `Tüketicisi kapanmış belirsizlik kaydı açık kalıyor`.
+Bu yön notunun dayanağı, vazgeçilen veya tamamlanan işler için açılmış belirsizlik kayıtlarının açık durumda birikmesinin gerçek kullanımda gözlenmesidir. İş kapanışı kalıcı bağlamı korumayı önerir fakat bağlı belirsizlik kayıtlarını hiç sormaz; sonuç, gelecekteki varsayım karşılaştırma yüzeylerinin girdisini kirleten açık kayıt yığınıdır. Bağlı Ürün Boşluğu: `Tüketicisi kapanmış belirsizlik kaydı açık kalıyor`.
 
-**İlk dilim:** yalnız Varsayım kayıtları listelenir ve ölçüt iki koşulu birlikte ister: kaydın en az bir bağlı İş kaydı bulunmalı ve bağlı işlerin hepsi kapanmış olmalı. Hiç tüketicisi olmayan kayıt bu görünümün konusu değildir. Görünüm hiçbir kaydı kendiliğinden kapatmaz, geçersizleşme durumuna geçişi kullanıcı yapar. Zaman geçmesine dayalı hiçbir ölçüt, yaş bilgisi veya hijyen puanı sunulmaz.
+Not ileride değerlendirmeye alınırsa tartışılacak dar biçimde yalnız Varsayım kayıtları listelenir ve ölçüt iki koşulu birlikte ister: kaydın en az bir bağlı İş kaydı bulunmalı ve bağlı işlerin hepsi kapanmış olmalı. Hiç tüketicisi olmayan kayıt böyle bir görünümün konusu olmaz. Görünüm hiçbir kaydı kendiliğinden kapatmaz, geçersizleşme durumuna geçişi kullanıcı yapar. Zaman geçmesine dayalı hiçbir ölçüt, yaş bilgisi veya hijyen puanı sunulmaz.
 
-**İlerleme ve bırakma ölçütü:** Aday ilk gerçek taramada listelenen kayıtların en az yarısında kullanıcının gerçekten kapatmak istediği bir belirsizliği bulmadan ilerlemez. Listelenen kayıtların çoğu hâlâ geçerli çıkarsa ölçüt daraltılır; daraltıldığında görünür kalan kayıt sayısı anlamsızlaşırsa yön bırakılır.
+Notun anlamlı sayılması için ilk gerçek taramada listelenen kayıtların en az yarısında kullanıcının gerçekten kapatmak istediği bir belirsizliğin bulunması gerekir. Listelenen kayıtların çoğu hâlâ geçerli çıkarsa ölçüt daraltılır; daraltıldığında görünür kalan kayıt sayısı anlamsızlaşırsa not kapanır.
 
 <a id="ekran-durum-matrisi"></a>
 ### Ekran Durum Matrisi
 
-**Tetikleyici:** Bir Ekranın veri bulunmayan, hata dönen, yetki verilmeyen ve ilk kullanım durumlarının tasarımda sayılmaması ve gerçekleşen üründe eksik kalması tekrar etmelidir. Wireframe yüzeyi bir Ekran sürümü için tek düzen taşır; hangi render durumlarının gerektiğini sayan ve eksik bırakılanı görünür kılan yüzey yoktur. Durum ve Geçiş Modelleyicisi tasarlanan ürünün varlık yaşam döngüsünü modeller, ekranın karşılaştığı veri durumunu modellemez. Bağlı Ürün Boşluğu: `Ekranın boş, hata ve yetkisiz durumları tasarımda kayboluyor`.
+Bu yön notunun dayanağı, bir Ekranın veri bulunmayan, hata dönen, yetki verilmeyen ve ilk kullanım durumlarının tasarımda sayılmamasının ve gerçekleşen üründe eksik kalmasının tekrar etmesidir. Wireframe yüzeyi bir Ekran sürümü için tek düzen taşır; hangi render durumlarının gerektiğini sayan ve eksik bırakılanı görünür kılan yüzey yoktur. Durum ve Geçiş Modelleyicisi tasarlanan ürünün varlık yaşam döngüsünü modeller, ekranın karşılaştığı veri durumunu modellemez. Bağlı Ürün Boşluğu: `Ekranın boş, hata ve yetkisiz durumları tasarımda kayboluyor`.
 
-**İlk dilim:** kapalı üç durum adı sunulur: veri yok, hata, yetki yok. Serbest durum ekleme, cihaz sınıfı, kırılma noktası ve görüntü ortamı bu dilimde yoktur ve sonraki dilimlerde de açılmaz. Satır yalnız durumun varlığını ve adını taşır; davranış anlatımı gerekiyorsa satır Belge bölümüne canlı referans verir, metni kopyalamaz. Kesin Wireframe sürümüne bağ bu dilime girmez; açıldığında yeni Wireframe sürümü geçmiş bağı sessizce devralmaz.
+Not ileride değerlendirmeye alınırsa tartışılacak dar biçimde kapalı üç durum adı sunulur: veri yok, hata, yetki yok. Serbest durum ekleme, cihaz sınıfı, kırılma noktası ve görüntü ortamı o biçimde bulunmaz ve sonraki genişlemelerde de açılmaz. Satır yalnız durumun varlığını ve adını taşır; davranış anlatımı gerekiyorsa satır Belge bölümüne canlı referans verir, metni kopyalamaz. Kesin Wireframe sürümüne bağ ilk biçime girmez; açılırsa yeni Wireframe sürümü geçmiş bağı sessizce devralmaz.
 
-**İlerleme ve bırakma ölçütü:** Aday üç gerçek Ekranda denenir ve en az ikisinde aynı bilgiyi Wireframe içine not yazmaktan daha güvenilir sonuç üretmeden ilerlemez. Matris kapsama alınırsa Erişilebilirlik Tasarım Kontrolüyle birlikte Ekran altında iki ayrı kontrol yüzeyi doğurup doğurmadığı ayrıca kararlaştırılır. Sistem hiçbir durumda kapsama oranı, tamlık yüzdesi veya eksik durum hükmü üretmez ve eksik durum yayını engellemez.
+Notun anlamlı sayılması için üç gerçek Ekranda denenmesi ve en az ikisinde aynı bilgiyi Wireframe içine not yazmaktan daha güvenilir sonuç üretmesi gerekir. Matris ileride kapsama alınırsa Erişilebilirlik Tasarım Kontrolüyle birlikte Ekran altında iki ayrı kontrol yüzeyi doğurup doğurmadığı o kararda ayrıca ele alınır. Hiçbir biçimde kapsama oranı, tamlık yüzdesi veya eksik durum hükmü üretilmez ve eksik durum yayını engellemez.
 
 <a id="geri-alinamaz-eylem-envanteri"></a>
 ### Geri Alınamaz Eylem Envanteri
 
-**Tetikleyici:** Kullanıcının tasarladığı üründe silme, yayımlama, gönderme, tahsilat ve erişim iptali gibi geri alınamayan eylemlerin korumasının tasarım anında dağınık kalması tekrar etmelidir. Yetki Modelleyicisi kimin neyi yapabildiğini modeller, eylemin geri alınabilirliğini ve korumasını modellemez; Akış Kötüye Kullanım İncelemesi kötü niyetli yolu arar, iyi niyetli fakat yıkıcı eylemi aramaz. Bağlı Ürün Boşluğu: `Geri alınamaz eylemlerin koruma kararı dağınık kalıyor`.
+Bu yön notunun dayanağı, kullanıcının tasarladığı üründe silme, yayımlama, gönderme, tahsilat ve erişim iptali gibi geri alınamayan eylemlerin korumasının tasarım anında dağınık kalmasının tekrar etmesidir. Yetki Modelleyicisi kimin neyi yapabildiğini modeller, eylemin geri alınabilirliğini ve korumasını modellemez; Akış Kötüye Kullanım İncelemesi kötü niyetli yolu arar, iyi niyetli fakat yıkıcı eylemi aramaz. Bağlı Ürün Boşluğu: `Geri alınamaz eylemlerin koruma kararı dağınık kalıyor`.
 
-**İlk dilim:** tek Kullanıcı Akışı sürümünde en fazla beş satır kurulur ve her satır akışın kesin bir adımına referans verir. Koruma seçenekleri kapalıdır: onay, önizleme, geri alma penceresi, yeniden kimlik doğrulama, koruma yok. Sistem hangi eylemin geri alınamaz olduğunu tahmin etmez, kod ya da onay akışı üretmez ve dolu envanter hiçbir yayını serbest bırakmaz. Aynı eylemin birden çok akışta tekrar kurulması kabul edilmiş maliyettir; bağımsız ana kayıt tartışması ancak yeni ana kayıt bütçesi yeniden açıldığında yapılır.
+Not ileride değerlendirmeye alınırsa tartışılacak dar biçimde tek Kullanıcı Akışı sürümünde en fazla beş satır kurulur ve her satır akışın kesin bir adımına referans verir. Koruma seçenekleri kapalıdır: onay, önizleme, geri alma penceresi, yeniden kimlik doğrulama, koruma yok. Sistem hangi eylemin geri alınamaz olduğunu tahmin etmez, kod ya da onay akışı üretmez ve dolu envanter hiçbir yayını serbest bırakmaz. Aynı eylemin birden çok akışta tekrar kurulması kabul edilmiş maliyettir; bağımsız ana kayıt tartışması ancak yeni ana kayıt bütçesi yeniden açıldığında yapılır.
 
-**İlerleme ve bırakma ölçütü:** Aday iki gerçek akışta tasarım sırasında fark edilmeyen en az bir korumasız eylemi ortaya çıkarmadan ilerlemez. İlk yön altyapı tehdit modelleme, genel güvenlik kontrolü ve otomatik risk üretimini kapsamaz. Envanter mevcut Risk ve Karar kayıtlarıyla aynı bilgiyi iki kez tutmaya başlarsa yön bırakılır.
+Notun anlamlı sayılması için iki gerçek akışta tasarım sırasında fark edilmeyen en az bir korumasız eylemin ortaya çıkması gerekir. İlk biçim altyapı tehdit modelleme, genel güvenlik kontrolü ve otomatik risk üretimini kapsamaz. Envanter mevcut Risk ve Karar kayıtlarıyla aynı bilgiyi iki kez tutmaya başlarsa not kapanır.
 
 <a id="erisilebilirlik-tasarim-kontrolu"></a>
 ### Erişilebilirlik Tasarım Kontrolü
 
-**Tetikleyici:** Tasarlanan ürünün klavye yolu, odak sırası, ekran okuyucu adlandırması ve hareket alternatifi kararlarının tasarım anında kaybolup kod yazıldıktan sonra düzeltme olarak geri dönmesi tekrar etmelidir. Planlı Test Senaryosu test niyetini ve sonucunu taşır; bu kontrol tasarım anındaki kararı taşır ve test senaryosunu besler. Bağlı Ürün Boşluğu: `Erişilebilirlik kararları tasarım anında kayboluyor`.
+Bu yön notunun dayanağı, tasarlanan ürünün klavye yolu, odak sırası, ekran okuyucu adlandırması ve hareket alternatifi kararlarının tasarım anında kaybolup kod yazıldıktan sonra düzeltme olarak geri dönmesinin tekrar etmesidir. Planlı Test Senaryosu test niyetini ve sonucunu taşır; böyle bir kontrol ise tasarım anındaki kararı taşır ve test senaryosunu besler. Bağlı Ürün Boşluğu: `Erişilebilirlik kararları tasarım anında kayboluyor`.
 
-**İlk dilim:** tek Ekranda kapalı dört tasarım sorusu sunulur: klavye yolu, odak sırası, ekran okuyucu adı, hareket alternatifi. Ürün hiçbir uyum ölçütü numarası, seviyesi veya standart adı taşımaz ve yüzeyde bunun bir uyum değerlendirmesi olmadığı açıkça yazılır; bu ayrım [ortak erişilebilirlik sözleşmesini](15-product-quality.md#erisilebilirlik) gevşetmez. Ürün tasarlanan ürünü çalıştırmaz, tarama yapmaz, kontrast hesabını hüküm olarak sunmaz ve puan üretmez. Moodboard renk örneklerinin kontrast kararına girdi olması bu dilime girmez.
+Not ileride değerlendirmeye alınırsa tartışılacak dar biçimde tek Ekranda kapalı dört tasarım sorusu sunulur: klavye yolu, odak sırası, ekran okuyucu adı, hareket alternatifi. Ürün hiçbir uyum ölçütü numarası, seviyesi veya standart adı taşımaz ve yüzeyde bunun bir uyum değerlendirmesi olmadığı açıkça yazılır; bu ayrım [ortak erişilebilirlik sözleşmesini](15-product-quality.md#erisilebilirlik) gevşetmez. Ürün tasarlanan ürünü çalıştırmaz, tarama yapmaz, kontrast hesabını hüküm olarak sunmaz ve puan üretmez. Moodboard renk örneklerinin kontrast kararına girdi olması ilk biçime girmez.
 
-**İlerleme ve bırakma ölçütü:** Aday üç gerçek Ekranda denenir ve kararların sonradan yapılan erişilebilirlik düzeltmelerini azalttığı gözlenmeden ilerlemez. Dolu liste hiçbir yayını serbest bırakmaz. Kullanıcı aynı hataları kontrol listesine rağmen tekrarlıyorsa veya liste tasarım kararı yerine tören adımına dönüşürse yön bırakılır.
+Notun anlamlı sayılması için üç gerçek Ekranda denenmesi ve kararların sonradan yapılan erişilebilirlik düzeltmelerini azalttığının gözlenmesi gerekir. Dolu liste hiçbir yayını serbest bırakmaz. Kullanıcı aynı hataları kontrol listesine rağmen tekrarlıyorsa veya liste tasarım kararı yerine tören adımına dönüşürse not kapanır.
 
 <a id="calisma-alani-baglam-butunlugu-denetimi"></a>
 ### Çalışma Alanı Bağlam Bütünlüğü Denetimi
 
-**Tetikleyici:** Yapısal bağlam boşluklarının tek yerde okunamaması tekrar etmelidir. [Değer Zinciri](04-workspace-and-projects.md#değer-zinciri), Kanıt Akışı ve Sürüm Kanıt Paketi yalnız yerel kopukluk gösterir; çalışma alanı genelinde yapısal boşluğu toplayan yüzey yoktur. Bağlı Ürün Boşluğu: `Yapısal bağlam boşlukları tek yerde görünmüyor`.
+Bu yön notunun dayanağı, yapısal bağlam boşluklarının tek yerde okunamamasının tekrar etmesidir. [Değer Zinciri](04-workspace-and-projects.md#değer-zinciri), Kanıt Akışı ve Sürüm Kanıt Paketi yalnız yerel kopukluk gösterir; çalışma alanı genelinde yapısal boşluğu toplayan yüzey yoktur. Bağlı Ürün Boşluğu: `Yapısal bağlam boşlukları tek yerde görünmüyor`.
 
-**İlk dilim:** tek proje kapsamında tek kontrol sunulur: açık kanıt ilişkisi bulunmayan geçerli Karar listesi. Kontrol listesi kapalı ve sabittir; kullanıcı kendi kuralını yazamaz, kontrol ekleyemez ve pano düzenleyemez. Denetim yalnız sıfır saklama gerektiren kontrolleri barındırır; kalıcı işaret isteyen kontroller buraya girmez. Zamana dayalı hiçbir ölçüt bulunmaz, sağlık puanı, yüzde, renk kodu ve proje durumu hükmü üretilmez, hiçbir boşluk kendiliğinden düzeltilmez ve yayın engellenmez.
+Not ileride değerlendirmeye alınırsa tartışılacak dar biçimde tek proje kapsamında tek kontrol sunulur: açık kanıt ilişkisi bulunmayan geçerli Karar listesi. Kontrol listesi kapalı ve sabit olur; kullanıcı kendi kuralını yazamaz, kontrol ekleyemez ve pano düzenleyemez. Denetim yalnız sıfır saklama gerektiren kontrolleri barındırır; kalıcı işaret isteyen kontroller buraya girmez. Zamana dayalı hiçbir ölçüt bulunmaz, sağlık puanı, yüzde, renk kodu ve proje durumu hükmü üretilmez, hiçbir boşluk kendiliğinden düzeltilmez ve yayın engellenmez.
 
-**İlerleme ve bırakma ölçütü:** Aday ilk taramada bulunan boşlukların en az üçte birinde kullanıcının gerçekten davranış değiştirmesini sağlamadan ilerlemez. Bulguların ezici çoğunluğu bilinçli tercih çıkarsa kontrol listesi daraltılır; daraltıldığında geriye anlamlı kontrol kalmazsa yön bırakılır.
+Notun anlamlı sayılması için ilk taramada bulunan boşlukların en az üçte birinde kullanıcının gerçekten davranış değiştirmesi gerekir. Bulguların ezici çoğunluğu bilinçli tercih çıkarsa kontrol listesi daraltılır; daraltıldığında geriye anlamlı kontrol kalmazsa not kapanır.
 
 <a id="wiki-ile-proje-bilgisinin-ikilesme-gorunumu"></a>
 ### Wiki ile Proje Bilgisinin İkileşme Görünümü
 
-**Tetikleyici:** Aynı bilginin Kişisel Wiki ile proje belgesinde iki ayrı doğruluk kaynağına ayrılması gerçek kullanımda gözlenmelidir. Tek doğruluk kaynağı ilkesi ürün vizyonunda bağlayıcıdır fakat bu ilkeyi denetleyen hiçbir yüzey yoktur; köken ilişkisi yalnız açıkça devşirilen bilgiyi izler, bağımsız oluşan ikizi göstermez. Bağlı Ürün Boşluğu: `Aynı bilgi Wiki ve proje belgesinde ikiye ayrılıyor`.
+Bu yön notunun dayanağı, aynı bilginin Kişisel Wiki ile proje belgesinde iki ayrı doğruluk kaynağına ayrılmasının gerçek kullanımda gözlenmesidir. Tek doğruluk kaynağı ilkesi ürün vizyonunda bağlayıcıdır fakat bu ilkeyi denetleyen hiçbir yüzey yoktur; köken ilişkisi yalnız açıkça devşirilen bilgiyi izler, bağımsız oluşan ikizi göstermez. Bağlı Ürün Boşluğu: `Aynı bilgi Wiki ve proje belgesinde ikiye ayrılıyor`.
 
-**İlk dilim:** tek sinyal kullanılır: aynı Etiketi taşıyan Wiki belgesi ile proje belgesi çiftleri. Satır içi referans ve köken bağı sinyalleri sonraki dilimlere kalır. İçerik benzerliği, anlamsal karşılaştırma ve otomatik sınıflandırma hiçbir dilimde kullanılmaz. Görünüm salt okunurdur, yalnız aynı hesap içinde çalışır, iki sahiplik kapsamı arasında hiçbir kalıcı bağ kurmaz, hiçbir şeyi birleştirmez ve hangi kopyanın doğru olduğuna dair hüküm vermez. Eşleştirmenin kendisi hiçbir yere yazılmaz ve dışa aktarma ya da paylaşma çıktısı üretmez; yanlış eşleşme Etiketi düzelterek susturulur.
+Not ileride değerlendirmeye alınırsa tartışılacak dar biçimde tek sinyal kullanılır: aynı Etiketi taşıyan Wiki belgesi ile proje belgesi çiftleri. Satır içi referans ve köken bağı sinyalleri sonraki genişlemelere kalır. İçerik benzerliği, anlamsal karşılaştırma ve otomatik sınıflandırma hiçbir aşamada kullanılmaz. Görünüm salt okunur olur, yalnız aynı hesap içinde çalışır, iki sahiplik kapsamı arasında hiçbir kalıcı bağ kurmaz, hiçbir şeyi birleştirmez ve hangi kopyanın doğru olduğuna dair hüküm vermez. Eşleştirmenin kendisi hiçbir yere yazılmaz ve dışa aktarma ya da paylaşma çıktısı üretmez; yanlış eşleşme Etiketi düzelterek susturulur.
 
-**İlerleme ve bırakma ölçütü:** Aday üç ay içinde en az bir gerçek ikileşmeyi yakalamadan ilerlemez. Yakalanan çiftlerin çoğu bilinçli özet ve detay ayrımı çıkarsa sinyal değiştirilir; hiçbir sinyal gerçek ikileşme bulmuyorsa yön bırakılır.
+Notun anlamlı sayılması için üç ay içinde en az bir gerçek ikileşmenin yakalanması gerekir. Yakalanan çiftlerin çoğu bilinçli özet ve detay ayrımı çıkarsa sinyal değiştirilir; hiçbir sinyal gerçek ikileşme bulmuyorsa not kapanır.
 
 <a id="kaynak-yigilmasi-dizini"></a>
 ### Kaynak Yığılması Dizini
 
-**Tetikleyici:** Kararların hangi Kaynak kayıtlarına yığıldığının görünmemesi tekrar etmelidir. Mevcut yüzeyler tek kaynağın tazeliğini ve kontrol geçmişini gösterir; kaynakları taşıdıkları karar yüküne göre okuyan yüzey yoktur. Bağlı Ürün Boşluğu: `Kararların hangi kaynağa yığıldığı görünmüyor`.
+Bu yön notunun dayanağı, kararların hangi Kaynak kayıtlarına yığıldığının görünmemesinin tekrar etmesidir. Mevcut yüzeyler tek kaynağın tazeliğini ve kontrol geçmişini gösterir; kaynakları taşıdıkları karar yüküne göre okuyan yüzey yoktur. Bağlı Ürün Boşluğu: `Kararların hangi kaynağa yığıldığı görünmüyor`.
 
-**İlk dilim:** tek çalışma alanında Kaynak kayıtları açık kanıt ilişkisi sayısına göre azalan sırada listelenir. Sütun adı bağlı karar sayısıdır; yüzeyde güç, önem, ağırlık, güven ve risk kelimeleri geçmez ve elle atanan kanıt gücü alanı okunmaz. Sıralama bir olgunun sıralamasıdır, hüküm değildir; hiçbir eşik, renk, uyarı veya kaynak ekleme önerisi üretilmez. Son kaynak kontrolü tarihi yalnız olgu olarak gösterilir, uyarıya dönüşmez ve sıralama ölçütü olmaz.
+Not ileride değerlendirmeye alınırsa tartışılacak dar biçimde tek çalışma alanında Kaynak kayıtları açık kanıt ilişkisi sayısına göre azalan sırada listelenir. Sütun adı bağlı karar sayısı olur; yüzeyde güç, önem, ağırlık, güven ve risk kelimeleri geçmez ve elle atanan kanıt gücü alanı okunmaz. Sıralama bir olgunun sıralaması olur, hüküm olmaz; hiçbir eşik, renk, uyarı veya kaynak ekleme önerisi üretilmez. Son kaynak kontrolü tarihi yalnız olgu olarak gösterilir, uyarıya dönüşmez ve sıralama ölçütü olmaz.
 
-**İlerleme ve bırakma ölçütü:** Aday dizin üzerinden en az iki gerçek kaynak doğrulama veya çeşitlendirme kararına yol açmadan ilerlemez. Kullanıcı dizine bakıp hiçbir işlem yapmıyorsa veya dizin fiilen bir güvenilirlik puanı gibi okunmaya başlıyorsa yön bırakılır.
+Notun anlamlı sayılması için dizin üzerinden en az iki gerçek kaynak doğrulama veya çeşitlendirme kararına yol açması gerekir. Kullanıcı dizine bakıp hiçbir işlem yapmıyorsa veya dizin fiilen bir güvenilirlik puanı gibi okunmaya başlıyorsa not kapanır.
 
 <a id="rakip-ve-konumlandirma-alani"></a>
 ### Rakip ve Konumlandırma Alanı
 
-**Tetikleyici:** Rakip ürünlerin iddialarının ve kendi yaklaşımının nerede bilinçli olarak farklı olduğunun ürün dışında tutulması tekrar etmelidir. Bu tekrarın kanıtı bugün mevcuttur: rakip analizleri depo içinde ürün dışı belgeler olarak yaşar. Kaynak Kaydı bir rakip sayfasını sürümleyebilir fakat iki rakibi karşılaştıramaz; Belge karşılaştırmayı yapısal olarak bağlamaz. Bağlı Ürün Boşluğu: `Rakip bağlamı ürünün dışında tutuluyor`.
+Bu yön notunun dayanağı, rakip ürünlerin iddialarının ve kendi yaklaşımının nerede bilinçli olarak farklı olduğunun ürün dışında tutulmasının tekrar etmesidir. Bu tekrarın kanıtı bugün mevcuttur: rakip analizleri depo içinde ürün dışı belgeler olarak yaşar; rakip ekranı, onların iddiası ve buna verilen cevap da Moodboard veya Belgede ikinci bir rekabet defteri olarak tutulur. Kaynak Kaydı bir rakip sayfasını sürümleyebilir fakat iki rakibi karşılaştıramaz; Belge karşılaştırmayı yapısal olarak bağlamaz. Bağlı Ürün Boşluğu: `Rakip bağlamı ürünün dışında tutuluyor`.
 
-**İlk dilim:** tek Rakip kaydı çalışma alanı kapsamında oluşturulur ve iddia satırları kaydın sahipli bileşeni olarak kesin Kaynak sürümüne bağlanır. Karşılaştırma ekseni her zaman mevcut bir Özellik kaydıdır; Rakip kaydı kendi yetenek ekseni tanımlayamaz ve tasarlanan ürünün yeteneklerinin ikizini tutmaz. Kayıt hiçbir iletişim, kişi, anlaşma, gelir, çalışan veya finansman alanı taşımaz; aynı kuruluş hem Rakip hem Company olarak varsa iki kayıt ayrı yaşar ve canlı bağ kurulmaz. Sürekli dış tarama, otomatik izleme, kazanma kaybetme hükmü, parite yüzdesi, pazar büyüklüğü ve fiyat istihbaratı hiçbir dilimde bulunmaz. Yaklaşım farkının gerekçesi Rakip kaydında değil mevcut Karar kaydında yaşar. Özellik bağı ve karşılaştırma görünümü ilk dilime girmez; açıldığında `Karşılaştırılan yaklaşım` ilişkisi kesin uçları, kardinalitesi ve silme davranışıyla ayrı PRD kararı ister. Paylaşılan Özellik snapshot'ı bağlı Rakip kaydını [kapalı dünya önizleme ve snapshot güvenliği](14-sharing-and-public-publishing.md#ortak-snapshot-ve-dis-gorunurluk-guvenligi) gereği açmaz.
+Not ileride değerlendirmeye alınırsa tartışılacak dar biçimde tek Rakip kaydı çalışma alanı kapsamında oluşturulur ve iddia satırları kaydın sahipli bileşeni olarak kesin Kaynak sürümüne bağlanır. Aynı satır rakip adını, isteğe bağlı ekran veya Dosya Ekini, onların iddiasını ve kullanıcının kendi cevabını taşır ve mevcut Karar ya da Özelliğe bağlanabilir; ayrı bir rakip yırtma defteri yüzeyi önerilmez. Karşılaştırma ekseni her zaman mevcut bir Özellik kaydı olur; Rakip kaydı kendi yetenek ekseni tanımlayamaz ve tasarlanan ürünün yeteneklerinin ikizini tutmaz. Kayıt hiçbir iletişim, kişi, anlaşma, gelir, çalışan veya finansman alanı taşımaz; aynı kuruluş hem Rakip hem Company olarak varsa iki kayıt ayrı yaşar ve canlı bağ kurulmaz. Mobbin ya da Figma benzeri örüntü kataloğu, genel moodboard, sürekli dış tarama, otomatik izleme, skor, kazanan, kazanma kaybetme hükmü, parite yüzdesi, pazar büyüklüğü ve fiyat istihbaratı hiçbir aşamada bulunmaz. Yaklaşım farkının gerekçesi Rakip kaydında değil mevcut Karar kaydında yaşar. Özellik bağı ve karşılaştırma görünümü ilk biçime girmez; açılırsa `Karşılaştırılan yaklaşım` ilişkisi kesin uçları, kardinalitesi ve silme davranışıyla ayrı PRD kararı ister. Paylaşılan Özellik snapshot'ı bağlı Rakip kaydını [kapalı dünya önizleme ve snapshot güvenliği](14-sharing-and-public-publishing.md#ortak-snapshot-ve-dis-gorunurluk-guvenligi) gereği açmaz.
 
-**İlerleme ve bırakma ölçütü:** Aday üç ay içinde en az iki gerçek Karar veya Özellik kapsamı değişikliğine kanıt sağlamadan ilerlemez. Kayıt yalnız okuma notu olarak kullanılıyorsa, kendi yetenek listesini kurmaya başlıyorsa veya ticari alanlara doğru genişliyorsa yön bırakılır ve rakip bilgisi ürün dışı araştırma belgesi olarak kalır.
+Notun anlamlı sayılması için üç ay içinde en az iki gerçek Karar veya Özellik kapsamı değişikliğine kanıt sağlaması ve üç gerçek karşılaştırmada dış rekabet notunu kapatması gerekir. Kayıt yalnız okuma notu olarak kullanılıyorsa, kendi yetenek listesini kurmaya başlıyorsa, Moodboard kopyasına veya serbest whiteboard'a dönüşüyorsa ya da ticari alanlara doğru genişliyorsa not kapanır ve rakip bilgisi ürün dışı araştırma belgesi olarak kalır.
 
 <a id="yayin-kanali"></a>
 ### Yayın Kanalı
 
-**Tetikleyici:** Ürünün yayımlandığı kanalların tekrar eden gerekliliklerinin, gönderim geçmişinin ve red gerekçelerinden çıkan dersin her sürümde sıfırdan kurulması tekrar etmelidir. Proje Sürümü etiket ve yayın merkezlidir; yayın kontrol listesi her sürümün içinde yeniden kurulur ve o sürümle birlikte gömülür. Üretim Olayı yayın sonrası arızayı taşır, yayın öncesi kapıyı taşımaz. Bağlı Ürün Boşluğu: `Kanal gereklilikleri ve red gerekçeleri her sürümde sıfırdan kuruluyor`.
+Bu yön notunun dayanağı, ürünün yayımlandığı kanalların tekrar eden gerekliliklerinin, gönderim geçmişinin ve red gerekçelerinden çıkan dersin her sürümde sıfırdan kurulmasının tekrar etmesidir. Proje Sürümü etiket ve yayın merkezlidir; yayın kontrol listesi her sürümün içinde yeniden kurulur ve o sürümle birlikte gömülür. Üretim Olayı yayın sonrası arızayı taşır, yayın öncesi kapıyı taşımaz. Bağlı Ürün Boşluğu: `Kanal gereklilikleri ve red gerekçeleri her sürümde sıfırdan kuruluyor`.
 
-**İlk dilim:** bu adayın yeni ana kayıt izni yoktur; bu bölümdeki tek izin Rakip adayına verilmiştir. Aday bu nedenle önce ana kayıt gerektirmeyen bir deneyle sınanır: kullanıcı tek kanalın gerekliliklerini ve gönderim sonuçlarını mevcut kayıtlarla tutar ve bilginin sürümler arasında gerçekten kaybolduğunu ölçer. Mağaza arayüzü çağrısı, otomatik gönderim, durum çekme, pazarlama kampanyası, kurulum analitiği ve gelir takibi hiçbir dilimde bulunmaz; kanal politikasının metnini ürün getirmez ve kanal onayı Proje Sürümünü bloklamaz.
+Bu notun yeni ana kayıt izni yoktur; bu bölümdeki tek izin `Rakip` adayına ayrılmıştır. Not bu nedenle önce ana kayıt gerektirmeyen bir deneyle sınanır: kullanıcı tek kanalın gerekliliklerini ve gönderim sonuçlarını mevcut kayıtlarla tutar ve bilginin sürümler arasında gerçekten kaybolduğunu ölçer. Mağaza arayüzü çağrısı, otomatik gönderim, durum çekme, pazarlama kampanyası, kurulum analitiği ve gelir takibi hiçbir aşamada bulunmaz; kanal politikasının metnini ürün getirmez ve kanal onayı Proje Sürümünü bloklamaz.
 
-**İlerleme ve bırakma ölçütü:** Aday aynı kanala yapılan ikinci gerçek gönderimde önceki gönderimin notlarını aramaktan daha güvenilir sonuç üretmeden ilerlemez. Bu kanıt oluşursa kalıcı kayıt biçimi ayrı bir ana kayıt bütçesi kararıyla ele alınır. Aynı kanala ikinci gönderim hiç oluşmuyorsa veya bilgi mevcut kayıtlarda yeterince yaşıyorsa yön bırakılır.
+Notun anlamlı sayılması için aynı kanala yapılan ikinci gerçek gönderimde önceki gönderimin notlarını aramaktan daha güvenilir sonuç üretmesi gerekir. Bu kanıt oluşursa kalıcı kayıt biçimi ayrı bir ana kayıt bütçesi kararıyla ele alınır. Aynı kanala ikinci gönderim hiç oluşmuyorsa veya bilgi mevcut kayıtlarda yeterince yaşıyorsa not kapanır.
 
 <a id="teknik-diyagram-genisleme-adaylari"></a>
 ## Teknik Diyagram genişleme adayları
@@ -745,19 +708,19 @@ Bu yön e-posta veya mesaj göndermez, teslim/yanıt okumaz, takvim daveti üret
 
 ### Gelecekte ekip sistemi yönü
 
-Ekip sistemi solo-builder ilk ürün akışını veya ondan sonraki kararlaştırılmış ticari genişlemeyi geciktirmez. Bu iki alan doğrulandıktan sonra ekip sistemi ayrı bir ürün genişlemesi olarak ele alınır; aşağıdaki mekanikler bugünden teslim taahhüdü veya ilk ürün kapsamı oluşturmaz.
+Ekip sistemi solo-builder ilk ürün akışını veya ondan sonraki kararlaştırılmış ticari genişlemeyi geciktirmez. Bu iki alan doğrulandıktan sonra ekip sistemi ayrı bir ürün genişlemesi olarak ele alınır; aşağıdaki mekanikler o değerlendirmede sınanacak aday davranışlardır ve bugünden teslim taahhüdü veya ilk ürün kapsamı oluşturmaz.
 
-Her İş en fazla bir `Birincil sorumlu` ve isteğe bağlı birden fazla `Katkıda bulunan` taşıyabilir. Kişisel `My İş / Bana atananlar` yüzeyi bunları `Sorumlu olduklarım` ve `Katkı sağladıklarım` olarak ayırır; yakın zamanda tamamlanan ve aktif blokaj bağlamını aynı ana kayıtlardan gösterebilir. Atama İş durumunu veya Günlük Odak üyeliğini örtük değiştirmez; Günlük Odak her üyenin bilinçli kişisel seçimi olarak kalır.
+Değerlendirme açılırsa atama modelinde her İşin en fazla bir `Birincil sorumlu` ve isteğe bağlı birden fazla `Katkıda bulunan` taşıması ele alınır. Kişisel `My İş / Bana atananlar` yüzeyinin bunları `Sorumlu olduklarım` ve `Katkı sağladıklarım` olarak ayırması ve yakın zamanda tamamlanan işle aktif blokaj bağlamını aynı ana kayıtlardan göstermesi aynı adayın parçası olur. Atamanın İş durumunu veya Günlük Odak üyeliğini örtük değiştirmemesi ve Günlük Odağın her üyenin bilinçli kişisel seçimi olarak kalması bu adayın önkoşuludur.
 
-Adlandırılmış görünümler aynı canlı ana kayıtlar üzerinde ortak bir tanım olarak ekiple paylaşılabilir. Üyenin geçici filtre ve sunum değişiklikleri açıkça ortak görünüme kaydedilmedikçe tanımı etkilemez; kalıcı ortak değişiklik görünür kaydetme eylemi ve uygun ekip yetkisi gerektirir. Yetkili kullanıcı proje için `Önerilen ekip varsayılanı` belirleyebilir; bu görünüm yeni veya kişisel tercih yapmamış üyelere başlangıç sağlar, fakat her üye kendi varsayılanıyla geçersiz kılabilir. Kart yoğunluğu, görünür alanlar ve benzeri kişisel sunum tercihleri ortak görünüm tanımından ayrı kalabilir.
+Aynı değerlendirmede adlandırılmış görünümlerin aynı canlı ana kayıtlar üzerinde ortak bir tanım olarak ekiple paylaşılması ele alınır. Üyenin geçici filtre ve sunum değişikliklerinin açıkça ortak görünüme kaydedilmedikçe tanımı etkilememesi, kalıcı ortak değişikliğin ise görünür kaydetme eylemi ve uygun ekip yetkisi istemesi aranan sınırdır. Yetkili kullanıcının proje için `Önerilen ekip varsayılanı` belirleyebilmesi de aynı adayda değerlendirilir; böyle bir görünüm yeni veya kişisel tercih yapmamış üyelere başlangıç sağlar, fakat her üye kendi varsayılanıyla geçersiz kılabilir. Kart yoğunluğu, görünür alanlar ve benzeri kişisel sunum tercihlerinin ortak görünüm tanımından ayrı kalabilmesi beklenir.
 
-Proje Etkinliği ayrı Team Feed olay sistemi oluşturmadan üye ve atama filtreleriyle, ayrıca `Ekipte son değişenler` gibi hazır bir görünümle genişletilir. İsteğe bağlı günlük ekip özeti; mevcut atama, My İş, blokaj ve Proje Etkinliği verilerini üye bazında gruplar. Zorunlu standup formu, otomatik Daily Note, ayrı kalıcı rapor geçmişi, katılım veya kişi performansı takibi oluşturmaz.
+Proje Etkinliğinin ayrı Team Feed olay sistemi oluşturmadan üye ve atama filtreleriyle, ayrıca `Ekipte son değişenler` gibi hazır bir görünümle genişletilmesi aynı değerlendirmeye girer. İsteğe bağlı günlük ekip özetinin mevcut atama, My İş, blokaj ve Proje Etkinliği verilerini üye bazında gruplaması bu adayın sınırlı biçimidir. Zorunlu standup formu, otomatik Daily Note, ayrı kalıcı rapor geçmişi, katılım veya kişi performansı takibi bu adayda bulunmaz.
 
-Odak Dönemleri ekipçe kullanılan ortak kapsama genişleyebilir; ayrı Sprint varlığı, zorunlu cadence, velocity/kapasite hesabı veya otomatik rollover eklenmez. Dönem sonundaki açık işler ekip tarafından bilinçli olarak sonraki döneme, Backlog'a veya başka kapsama gönderilir. İlk ekip aşaması mevcut sığ `Proje → Özellik → İş` kapsamıyla başlar; sabit Epic veya yapılandırılabilir derin hiyerarşi ancak gerçek ekip kullanımında mevcut Kapsam Ağacının yetersizliği tekrar eden kanıt üretirse sıfırdan değerlendirilir.
+Odak Dönemlerinin ekipçe kullanılan ortak kapsama genişlemesi de değerlendirilebilir; ayrı Sprint varlığı, zorunlu cadence, velocity/kapasite hesabı veya otomatik rollover eklenmez. Dönem sonundaki açık işlerin ekip tarafından bilinçli olarak sonraki döneme, Backlog'a veya başka kapsama gönderilmesi aranan davranıştır. İlk ekip aşamasının mevcut sığ `Proje → Özellik → İş` kapsamıyla başlaması öngörülür; sabit Epic veya yapılandırılabilir derin hiyerarşi ancak gerçek ekip kullanımında mevcut Kapsam Ağacının yetersizliği tekrar eden kanıt üretirse sıfırdan değerlendirilir.
 
 Kaynak, uygunluk ve kapasite planlaması ilk ürüne ya da ilk ekip genişlemesine girmez. Gerçek ekip kullanımı birden fazla Proje arasında çalışma takvimi, availability, allocation veya skill/role bazlı staffing ihtiyacını doğrularsa bunlar daha sonraki ekip genişlemesinde birlikte değerlendirilir. Bu yön açılırken kişisel zaman bütçesi ile ekip kapasitesi, atanan İş ile ayrılmış kapasite ve kişi bilinmeden açılan kaynak isteği birbirinden ayrı modellenir; kişi performans puanı veya zorunlu time tracking varsayılmaz.
 
-İş, Karar, Risk, Açık Soru ve desteklenen diğer ana kayıtlarda kayıt düzeyinde yorum dizileri ve `@mention` bulunabilir. Yorum kaydın durumunu, sorumlusunu veya alanlarını örtük değiştirmez; ayrı ekip sohbeti veya Proje Etkinliği doğruluk kaynağı oluşturmaz.
+İş, Karar, Risk, Açık Soru ve desteklenen diğer ana kayıtlarda kayıt düzeyinde yorum dizileri ile `@mention` bu aşamada değerlendirilebilir. Yorumun kaydın durumunu, sorumlusunu veya alanlarını örtük değiştirmemesi ve ayrı ekip sohbeti ya da Proje Etkinliği doğruluk kaynağı oluşturmaması aranan sınırdır.
 
 Kimliği doğrulanmış ekip paylaşımı ve belge izin modeli doğrulandıktan sonra Markdown Belgesindeki seçili metne bağlı dahili yorum dizileri bu aşamanın ayrı genişlemesi olabilir. Yorum kesin belge sürümü ve metin konumunu taşır; kaynak metin değiştiğinde sessizce başka ifadeye bağlanmaz, çözülebilir ve yeniden açılabilir. Yorum ana Belge metnini değiştirmez, kendiliğinden İş/Geri Bildirim oluşturmaz ve herkese açık ya da anonim paylaşım yüzeylerine açılmaz. Takip kaydına dönüşüm yalnız kaynak, hedef ve oluşacak ilişki önizlenerek başlatılan açık kullanıcı eylemidir.
 
@@ -773,7 +736,7 @@ Ekip daveti, kesin rol adları, izin matrisi, yorum/atama yetkileri ve Guest kay
 
 Gelecekte AI kapsamı değerlendirilirse AI varsayılan olarak kapalı kalır ve proje bazında açık opt-in gerektirir. Kullanıcı kayıt türü, alan, ek ve tekil kayıtları kalıcı olarak AI kapsamı dışında bırakabilir. Secret/credential ve ürünün sağlayıcıya gönderilmesini yasakladığı hassas veri sınıfları kullanıcı onayıyla dahi AI bağlamına girmez. Her işlem öncesinde kullanılacak kesin kayıt, alan, ek ve kaynak sürümü manifesti gösterilir; kapsam politikası değişiklikleri denetlenebilir geçmişte tutulur. Sağlayıcı, veri gizliliği, maliyet, saklama, model girdisi/çıktısı kullanımı ve silme davranışları uygulama kararı öncesinde ayrıca doğrulanır.
 
-Bütün AI davranışları kullanıcı tarafından başlatılan, öneri ile ana kaydı ayıran, özgün ve önerilen içeriği karşılaştıran ve açık kabul gerektiren taslak akışlarıdır. AI çıktısı kendiliğinden ilişki, karar, risk, iş durumu, proje ilerlemesi, sağlık güncellemesi veya herkese açık içerik oluşturmaz. İlk deneyimler genel sohbeti zorunlu giriş noktası yapmak yerine Yakalama, İş, Özellik, Belge ve Odak Dönemi gibi mevcut nesnelerde kaynak kapsamı ile olası farkı önceden belirli dar eylemler olarak sunulur.
+Alan gerçekten açılırsa bütün AI davranışlarının kullanıcı tarafından başlatılan, öneri ile ana kaydı ayıran, özgün ve önerilen içeriği karşılaştıran ve açık kabul gerektiren taslak akışları olması aranır. AI çıktısı kendiliğinden ilişki, karar, risk, iş durumu, proje ilerlemesi, sağlık güncellemesi veya herkese açık içerik oluşturmaz. İlk deneyimlerin genel sohbeti zorunlu giriş noktası yapmak yerine Yakalama, İş, Özellik, Belge ve Odak Dönemi gibi mevcut nesnelerde kaynak kapsamı ile olası farkı önceden belirli dar eylemler olarak sunulması beklenir.
 
 - **Yakalama dönüşüm taslağı:** Özgün yakalamayı yanında koruyarak başlık, tür, tarih ve olası kontrol listesi maddeleri önerebilir. Hiçbir öneri kullanıcı onayından önce kalıcı kayda uygulanmaz.
 - **Proje başlangıç taslağı:** Proje profilinden aşama, iş durumu, etkin alan, hazır görünüm ve ilk iş taslakları önerebilir. Önerilen yapı ve içerik önizlenir; kullanıcı onayı olmadan proje yapısı veya iş oluşturulmaz.
@@ -788,11 +751,11 @@ Bütün AI davranışları kullanıcı tarafından başlatılan, öneri ile ana 
 
 İlk ürün, yalnız [test süreç ve sonuç yönetimine yapılandırılmış rapor ekleyen dar ve tek yönlü MCP istisnası](10-testing-and-validation.md#rapor-ekleme-yolları) dışında CLI, genel MCP, API, webhook veya başka programatik erişim yüzeyi sunmaz. Bu alan ileride gerçek genişletme ihtiyacı doğrulanırsa yazma yetkili genel API ile değil, varsayılan olarak `read-first` ve açık kapsamlı bir erişim katmanıyla başlar.
 
-İlk somut doğrulama kullanımı, kullanıcının seçtiği Proje, Birincil spec, Karar, Risk, İş, Wireframe sürümü, Teknik Diyagram, kesin Diyagram Sürümü ve desteklenen diğer kayıt/asset bağlamını Codex, Claude Code veya benzeri coding ajanına salt okunur aktaran MCP uyumlu bağlam köprüsüdür. Kullanıcı erişim açılmadan önce paylaşılacak kesin kayıt, alan ve asset manifestini görür; erişim süreli veya açıkça iptal edilebilir olur. Ajan yalnız verilen kapsamı arayıp okuyabilir; kayıt oluşturamaz, değiştiremez, durum/ilişki güncelleyemez veya kullanıcı adına uygulama eylemi başlatamaz.
+Değerlendirilecek ilk somut doğrulama kullanımı, kullanıcının seçtiği Proje, Birincil spec, Karar, Risk, İş, Wireframe sürümü, Teknik Diyagram, kesin Diyagram Sürümü ve desteklenen diğer kayıt/asset bağlamını Codex, Claude Code veya benzeri coding ajanına salt okunur aktaran MCP uyumlu bir bağlam köprüsü olur. Kullanıcının erişim açılmadan önce paylaşılacak kesin kayıt, alan ve asset manifestini görmesi ve erişimin süreli ya da açıkça iptal edilebilir olması bu adayın önkoşuludur. Ajan yalnız verilen kapsamı arayıp okuyabilir; kayıt oluşturamaz, değiştiremez, durum/ilişki güncelleyemez veya kullanıcı adına uygulama eylemi başlatamaz.
 
-Kullanıcı erişilebilecek kesin çalışma alanı/proje, kayıt türü, kayıt kümesi, alan ve desteklenen asset kapsamını görüp onaylar. Araç ve kaynak türleri açık allow-list ile ayrı ayrı etkinleştirilir; varsayılan erişim verilmez. Kullanıcı ajana sunulan her araç/kaynak adını, açıklamasını ve erişebileceği alanları görür. Yanıt biçimi `Kompakt` veya `Yapılandırılmış` olarak sınırlandırılabilir; kayıt/satır sayısı, içerik boyutu ve token/yanıt bütçeleri uygulanır ve aşım sessiz kırpılmaz. Her araç veya kaynak çağrısı kapsamı ve sonucuyla ayrı denetim olayı oluşturur.
+Aynı adayda kullanıcının erişilebilecek kesin çalışma alanı/proje, kayıt türü, kayıt kümesi, alan ve desteklenen asset kapsamını görüp onaylaması aranır. Araç ve kaynak türlerinin açık allow-list ile ayrı ayrı etkinleştirilmesi ve varsayılan erişim verilmemesi gerekir. Kullanıcı ajana sunulan her araç/kaynak adını, açıklamasını ve erişebileceği alanları görür. Yanıt biçiminin `Kompakt` veya `Yapılandırılmış` olarak sınırlandırılabilmesi; kayıt/satır sayısı, içerik boyutu ve token/yanıt bütçelerinin uygulanması ve aşımın sessiz kırpılmaması beklenir. Her araç veya kaynak çağrısı kapsamı ve sonucuyla ayrı denetim olayı oluşturur.
 
-Yetki her zaman iptal edilebilir; erişim ve hata olayları denetlenebilir kayıtta tutulur, secret/credential döndürme ile geçici asset URL davranışı açıkça tanımlanır. Türetilmiş dashboard, blog, bilgi grafiği veya başka dış deneyim ana içeriği kopyalamadan yalnız verilen kapsamı okuyabilir ve erişim iznini başka kayda genişletemez. Kesin araç kataloğu, varsayılan çıktı bütçeleri, aşım hata sözleşmesi ve denetim saklama süresi bu faz uygulanırken ayrıca kararlaştırılır.
+Yetkinin her zaman iptal edilebilir olması; erişim ve hata olaylarının denetlenebilir kayıtta tutulması, secret/credential döndürme ile geçici asset URL davranışının açıkça tanımlanması bu fazın koşullarıdır. Türetilmiş dashboard, blog, bilgi grafiği veya başka dış deneyim ana içeriği kopyalamadan yalnız verilen kapsamı okuyabilir ve erişim iznini başka kayda genişletemez. Kesin araç kataloğu, varsayılan çıktı bütçeleri, aşım hata sözleşmesi ve denetim saklama süresi bu faz uygulanırken ayrıca kararlaştırılır.
 
 Salt-okunur köprü gerçek kullanımla doğrulandıktan sonra yazma yetkili MCP/ajan eylemleri ayrı ve kapılı bir gelecek fazında değerlendirilebilir; read-first fazın doğal veya otomatik devamı değildir. Varsayılan yetki salt-okunur kalır. Teknik Diyagram için en geniş ilk aday, kesin taban revizyonuna karşı düğüm/alan/bağlantı farkı sunan ve kullanıcı seçip onaylamadan kanonik modeli değiştirmeyen `Ajan öneri yaması`dır. Bütün yazma eylemleri kayıt ve işlem bazında en az yetki, uygulanacak kesin fark/önizleme, açık kullanıcı onayı, ajan ile başlatan/onaylayan insanın ayrı atfı, denetlenebilir history, çakışma güvenliği ve ilgisiz sonraki değişiklikleri koruyan geri alma ister. Güncel olmayan taban sessizce uygulanmaz; genel/gözetimsiz otonom yazma, direct CRUD, delete/archive, paylaşım kapsamı değiştirme, repository/DB yazma, webhook veya dış otomasyon bu kararla kapsama girmez.
 
@@ -802,7 +765,7 @@ Bu gelecek fazında İşin hesap verebilir `Sorumlu` kimliği insan olarak kalı
 
 ### GitHub içinde salt okunur PR Bağlam Kartı
 
-Temel GitHub eşitlemesi gerçek kullanımda doğrulandıktan sonra Chrome ve Firefox uzantısı, GitHub PR sayfasında bağlı İşten türetilen salt okunur bir PR Bağlam Kartı sidecar'ı sunabilir. Kart problem özeti, beklenen sonuç, Birincil spec, önemli Kararlar, açık Riskler, bağlantının gerekli/bağlamsal rolü, build/check ve reviewer özetini gösterir; her öğe kaynak uygulama kaydını açar.
+Temel GitHub eşitlemesi gerçek kullanımda doğrulandıktan sonra Chrome ve Firefox uzantısı, GitHub PR sayfasında bağlı İşten türetilen salt okunur bir PR Bağlam Kartı sidecar'ı sunması değerlendirilebilir. Böyle bir kartın problem özeti, beklenen sonuç, Birincil spec, önemli Kararlar, açık Riskler, bağlantının gerekli/bağlamsal rolü, build/check ve reviewer özetini göstermesi ve her öğenin kaynak uygulama kaydını açması aranır.
 
 Bu yüzey Zenhub benzeri tam proje yönetimi arayüzünü GitHub içine taşımaz; İş durumu, yorum, review, approve, merge veya başka GitHub/ürün mutasyonu yapmaz. Eklenti izinleri, hassas alan kapsamı ve GitHub Enterprise desteği gelecekteki uygulama kararında ayrıca doğrulanır.
 

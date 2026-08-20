@@ -80,7 +80,7 @@ Bu belge repository bağlantılarının, GitHub kaynaklı geliştirme kayıtlar�
 
 - **Proje Sürümleri alanı kayıtları taranabilir bir genel görünümde sunar.** Her Proje Sürümünün detayındaki `Sürüm Kanıt Paketi`; kapsamdaki İşleri, bunların beklenen sonuçlarını, ilgili Karar ve açık Riskleri, Belgeleri ve tasarımları, bağlı PR ve check durumlarını, tag/GitHub Release bağlantılarını, test kanıtı ile açık Test Açıklarını ve hazırlanmış yayın çıktısını ana kaynaklarından bir araya getirir.
 
-- **Kullanıcı Proje Sürümünde isteğe bağlı bir erişim ve sonuç hipotezi tanımlayabilir.** Hipotez hedef kitleyi serbest açıklama ve varsa Persona/Contact/Company ilişkileriyle, bu Sürüm için kullanılacak tek birincil erişim yolunu, erişimin gözlendiğini gösterecek kanıtı, hedeflenen davranış/sonucu ve onu gösterecek kanıtı birbirinden ayrı tutar. Alanlar yayın kapısı değildir; ürün kampanya yürütmez, hedef kitleyi dış sisteme göndermez, analytics sorgulamaz veya erişim/sonuç değerini kendiliğinden ölçmez.
+- **Kullanıcı Proje Sürümünde isteğe bağlı bir erişim ve sonuç hipotezi tanımlayabilir.** Hipotez hedef kitleyi serbest açıklama ve varsa Persona Belgesi, Contact ya da Company ilişkileriyle, bu Sürüm için kullanılacak tek birincil erişim yolunu, erişimin gözlendiğini gösterecek kanıtı, hedeflenen davranış/sonucu ve onu gösterecek kanıtı birbirinden ayrı tutar. Alanlar yayın kapısı değildir; ürün kampanya yürütmez, hedef kitleyi dış sisteme göndermez, analytics sorgulamaz veya erişim/sonuç değerini kendiliğinden ölçmez.
 
 - **İlk ürün, Proje Sürümü kaydına ayrı yerleşik hedef yayın tarihi veya gerçek yayın tarihi alanı eklemez.** GitHub Release kaydındaki zaman dış geliştirme gerçeği olarak bağlı kaydında kalır.
 

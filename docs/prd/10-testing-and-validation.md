@@ -40,9 +40,39 @@ Ana akış şudur:
 
 - **Hedef yürütücü kullanıcı, Codex, Claude Code, Conductor veya serbestçe adlandırılan başka bir harici araç olabilir.** `Taslak`, `Paylaşıma hazır`, `Paylaşıldı`, `Sonuç alındı`, `Kapatıldı` veya `İptal edildi` durumu testin sonucunu değil, handoff sürecini anlatır. Ürün bağlı rapor geldiğinde `Sonuç alındı` durumunu önerebilir; Handoff'u otomatik kapatmaz.
 
-- **Handoff'tan oluşturulan Markdown/JSON paketi yalnız kullanıcının seçtiği senaryo sürümlerini, güvenli teknik bağlamı ve kararlı Handoff/senaryo kimliklerini taşır.** Paket bir tarihsel snapshot'tır; kaynak senaryo değiştiğinde sessizce güncellenmez. Aynı senaryolar farklı yürütücülere verilecekse süreç ve bağlamın karışmaması için ayrı Handoff'lar oluşturulur.
+- **Handoff'tan oluşturulan Markdown/JSON paketi yalnız kullanıcının seçtiği senaryo sürümlerini, güvenli teknik bağlamı ve kararlı Handoff/senaryo kimliklerini taşır.** Paket bir tarihsel snapshot'tır; kaynak senaryo değiştiğinde sessizce güncellenmez. Paketin kapalı içeriği [Test Handoff paketi sözleşmesinde](#test-handoff-paketi) tanımlanır. Aynı senaryolar farklı yürütücülere verilecekse süreç ve bağlamın karışmaması için ayrı Handoff'lar oluşturulur.
 
 - **Handoff harici ajanı veya aracı başlatmaz; komut, zamanlama, tekrar çalıştırma, polling, iptal ya da teslim doğrulama yetkisi vermez.** Kullanıcı hedef tarih için normal kaynak bağlantılı hatırlatma davranışını kullanabilir.
+
+<a id="test-handoff-paketi"></a>
+### Test Handoff paketi sözleşmesi
+
+- **Handoff paketi, tek bir `Test Handoff'u` kaydından üretilen ve dış yürütücüye verilen kapalı bağlam ihracıdır.** Paket yalnız aşağıdaki bölümleri taşır; tabloda bulunmayan kayıt türü, alan, özel not veya kullanıcının seçmediği kapsam pakete girmez.
+
+| Paket bölümü | Zorunluluk ve içerik |
+| --- | --- |
+| `handoff_id` | Zorunlu kararlı Handoff kimliğidir; Handoff içindeki artan paket sürüm numarasıyla birlikte yazılır ve dönen raporda aynı değerle beklenir. |
+| `project` | Zorunlu hedef proje kimliği ve görünen adıdır; raporun teslim edilebileceği tek proje kapsamını gösterir. |
+| `title` ve `purpose` | Zorunlu Handoff başlığı ile kullanıcının yazdığı amaç ve kapsam metnidir. |
+| `created_at` | Zorunlu RFC 3339 paket üretim zamanıdır ve saat dilimi/ofset taşır. |
+| `product_build_context` | Kullanıcının Handoff'ta girdiği kesin ürün sürüm bağlamıdır: repository, branch, commit, build, hedef ortam adı veya güvenli URL alanlarından yalnız doldurulmuş olanları taşır. Ürün eksik değeri tahmin etmez, repository veya CI'dan okumaz. |
+| `scenarios[]` | Seçilen her `Planlı Test Senaryosu` için `scenario_id` ve `scenario_version` birlikte bulunur; o sürümün başlığı, amacı, kapsamı, önkoşulu, beklenen davranışı ve notları pakete kopyalanır. Kapsam hiçbir bölümde yalnız başlıkla ifade edilmez. |
+| `ad_hoc_scope[]` | Senaryoya bağlanmayan istek için kullanıcının açıkça yazdığı niyet ve beklenen davranıştır. Ürün bu metinden senaryo, sürüm veya kimlik üretmez. |
+| `work_context[]` | Kullanıcının seçtiği bağlı `İş` ve `Özellik` kayıtlarının kararlı kimlikleri ile başlıklarıdır. |
+| `document_context[]` | Seçilen belge ve spec bağlarının kesin sürüm ya da bölüm referanslarıdır; `en güncel sürüm` gibi çözümlenmemiş işaret kullanılmaz. |
+| `environment_preconditions` | Kullanıcının yazdığı ortam, erişim ve hazırlık önkoşullarıdır. Ürün ortam hazırlamaz, hesap açmaz, fixture veya test verisi üretmez. |
+| `design_references[]` | Kullanıcı eklediyse kesin `Ekran`, `Wireframe` veya Teknik Diyagram sürümlerinin kimlik ve sürüm referanslarıdır. |
+| `return_instructions` | Zorunlu dönüş yönergesidir: dış tarafın en az `schema_version`, `project_id`, `external_session_id`, `executor`, `reported_at`, bu paketin `handoff_id` değerini ve her sonuç için `external_test_id` ile uygulanmışsa `scenario_id`/`scenario_version` göndermesi gerektiğini, `context`, `summary`, `raw_report`, `notes`, `evidence` ve `relations` alanlarının isteğe bağlı olduğunu ve tek kabul edilen yapılandırılmış dönüş yolunun [`test-report/1` rapor zarfı](#sürümlü-rapor-zarfı) olduğunu belirtir. |
+
+- **Markdown biçimi paketin insan tarafından okunabilir gösterimi, JSON biçimi makine tarafından okunabilir gösterimidir.** İki biçim de aynı Handoff kaydından ve aynı paket sürümünden üretilir, aynı kapsamı taşır; hiçbiri diğerinde bulunmayan senaryo, sürüm, ilişki veya bağlam eklemez.
+
+- **Paket üretildiği andaki dışa aktarmadır ve kendini yenilemez.** Kaynak senaryo, belge, `Ekran`, `Wireframe` veya diyagram sürümü sonradan değişirse dışarıdaki kopya güncellenmez; kullanıcı yeni paket sürümü üretir ya da yeni Handoff açar. Dış taraftaki paket ürün içindeki güncel gerçeğin doğruluk kaynağı sayılmaz.
+
+- **Paket secret, erişim tokenı, credential ve seçilen kapsam dışındaki özel içeriği taşımaz.** Kullanıcının erişemediği kayıt, seçilmeyen ilişkili kayıt, redakte edilmiş değer ve ayrıca onaylanmamış Dosya Eki pakete girmez; paketin dışarı verilmesi ortak kapalı-dünya önizleme ve onay davranışına uyar.
+
+- **Paketin üretilmesi veya dışarı verilmesi hiçbir harici aracı başlatmaz, sorgulamaz, izlemez ya da yetkilendirmez ve dış tarafa ürüne yazma yetkisi vermez.** Tek dönüş yolu kullanıcının veya dış tarafın açıkça yaptığı rapor teslimidir; paket kimliğinin bilinmesi teslim, okuma ya da değiştirme yetkisi üretmez.
+
+- **Test Handoff paketi [İşteki dış yürütme devrinin gidiş paketinden](06-work-management-and-planning.md#dış-yürütme-devirleri) ayrı sözleşmedir.** Formel test kapsamı, kesin senaryo sürümleri ve yapılandırılmış sonuç dönüşü yalnız bu pakette yaşar; kodlama devrinin paketi test kapsamı tanımlamaz ve Test Oturumu üretmez.
 
 ### Test Oturumu ve kaynak ayrımı
 
@@ -146,7 +176,7 @@ Test sonucu üç yoldan eklenebilir:
 
 - **Dış kimlikler boş olmayan, kabul limitleri içindeki case-sensitive opaque string'lerdir; ürün bunları kırpmaz, büyük/küçük harf dönüştürmez veya başlıktan yeniden üretmez.** Görünen adlar kimlik değildir. Zamanlar karşılaştırma için UTC'ye normalize edilebilir ancak özgün ofset rapor üstverisinda korunur.
 
-- **`evidence` öğesi yalnız `attachment_ref`, `external_url`, `text_excerpt`, `raw_report_ref` veya `code_ref` türlerinden birini kullanır ve türüne uygun kesin değer ile isteğe bağlı güvenli etiketi taşır.** `attachment_ref`, kullanıcının içe aktarma önizlemesinde seçtiği dosyayı ya da aynı projedeki erişilebilir mevcut Dosya Eki kimliğini gösterebilir. Dar MCP binary dosya veya yeni bağımsız Dosya Eki yükleyemez; base64/blob içeren kanıtı `attachment_rejected` ile reddeder. `relations` öğesi yalnız allow-list'teki kayıt türü, tam iç kimlik ve desteklenen ilişki rolünü taşır; serbest tür veya başlığa dayalı hedef kabul etmez.
+- **`evidence` öğesi yalnız `attachment_ref`, `external_url`, `text_excerpt`, `raw_report_ref` veya `code_ref` türlerinden birini kullanır ve türüne uygun kesin değer ile isteğe bağlı güvenli etiketi taşır.** `attachment_ref`, kullanıcının içe aktarma önizlemesinde seçtiği dosyayı ya da aynı projedeki erişilebilir mevcut Dosya Eki kimliğini gösterebilir. Dar MCP binary dosya veya yeni bağımsız Dosya Eki yükleyemez; base64/blob içeren kanıtı `attachment_rejected` ile reddeder. `relations` öğesi yalnız [ilişki allow-list'indeki](#rapor-iliski-allow-listesi) kayıt türü, tam iç kimlik ve desteklenen ilişki rolünü taşır; serbest tür veya başlığa dayalı hedef kabul etmez.
 
 - **JSON teslimi doğrudan bu zarfı kullanır.** Markdown tesliminde aynı yapı YAML frontmatter içinde bulunur; frontmatter sonrasındaki gövde isteğe bağlı `raw_report` olarak alınır. Başlık yapısından, tablo metninden veya doğal dildeki bölüm adlarından alan tahmin edilmez. Binary kanıt base64 ile zarf içine gömülmez; normal Dosya Eki kabul yoluyla yüklenip güvenli kimliğiyle referans verilir.
 
@@ -187,7 +217,34 @@ Test sonucu üç yoldan eklenebilir:
 
 - **Kimliği doğru fakat `İptal edildi` durumundaki Handoff'a geç gelen rapor tarihsel gerçek olarak bağlanabilir; Handoff yeniden açılmaz ve durumu değişmez, `İptalden sonra sonuç geldi` dikkat sinyali gösterilir.** Arşivlenmiş senaryonun mevcut kesin sürümüne referans kabul edilebilir; kalıcı silinmiş, başka projedeki veya erişilemeyen hedef reddedilir.
 
-- **Kimliği bilinmeyen, yanlış projeye ait veya payload'daki başka referanslarla çelişen Handoff, senaryo, Özellik, İş, Risk, Karar, Proje Sürümü, repository, branch, commit ya da PR ilişkisi bütün raporu atomik olarak reddeder.** Ürün geçersiz ilişkiyi düşürüp kalan raporu sessizce kabul etmez.
+- **Kimliği bilinmeyen, yanlış projeye ait veya payload'daki başka referanslarla çelişen Handoff, senaryo, Özellik, İş, Test Açığı, Proje Sürümü, repository, branch, commit ya da PR referansı bütün raporu atomik olarak reddeder.** Ürün geçersiz ilişkiyi düşürüp kalan raporu sessizce kabul etmez.
+
+<a id="rapor-iliski-allow-listesi"></a>
+### İlişki allow-list'i
+
+- **Harici teslim edilen raporun `relations` öğeleri yalnız aşağıdaki kayıt türlerini hedefleyebilir.** Liste kapalıdır ve bir test raporunun meşru olarak işaret etmesi gereken en dar kümeyi taşır: denenen planlı niyet, dönüşü beklenen dış test devri, davranışın ait olduğu çalışma kapsamı ve sonucun ilgilendirdiği test takibi.
+
+| İzinli hedef türü | Kabul koşulu ve gerekçe |
+| --- | --- |
+| `Planlı Test Senaryosu` | `scenario_id` ve `scenario_version` birlikte verilir; raporun hangi planlı test niyetinin kesin sürümünü denediğini gösterir. |
+| `Test Handoff'u` | Tam Handoff kimliği verilir; raporun hangi dış test devrinin dönüşü olduğunu gösterir ve Handoff sürecini ilerletmez. |
+| `İş` | Denenen davranışın bağlı olduğu çalışma kapsamını gösterir. |
+| `Özellik` | Sonucun ilgilendirdiği ürün yeteneğini gösterir. |
+| `Test Açığı` | Raporun karşıladığı iddia edilen açığı işaret eder; açığı `Sonuçla karşılandı` durumuna almaz. |
+| `Proje Sürümü` | Testin hangi sürüm kapsamında bildirildiğini gösterir; sürümün yayın uygunluğuna karışmaz. |
+
+- **Karar, Risk, Açık Soru, Belge ve spec kayıtları, Kişisel Wiki içeriği, Contact/Company, Geri Bildirim, paylaşım ve Dış yüzey kayıtları, otomasyon kuralları, entegrasyon kimlikleri ile Hesap/Çalışma Alanı yapılandırması allow-list dışındadır.** Harici teslim bu türlere ilişki kuramaz; onlara bağ kurmak yalnız kullanıcının uygulama içindeki açık eylemidir. Repository, branch, commit, build ve PR bağlamı ilişki hedefi değil `context` alanıdır.
+
+- **Geçersiz `relations` öğesi düşürülüp raporun kalanı kabul edilmez; oturum bütün alt testleriyle birlikte atomik reddedilir ve cevap kesin alan yolunu gösterir.** Yeni bir hata stili açılmaz; [kanonik cevap sözleşmesindeki](#kanonik-kimlik-parmak-izi-ve-cevap-sözleşmesi) kararlı kodlar kullanılır:
+
+| Geçersiz `relations` durumu | Kararlı hata kodu |
+| --- | --- |
+| Allow-list dışındaki kayıt türü veya desteklenmeyen ilişki rolü | `unsupported_field` |
+| Hedef projenin kapsamı dışındaki ya da payload'daki diğer referanslarla çelişen kayıt | `reference_scope_mismatch` |
+| Var olmayan, kalıcı silinmiş veya erişilemeyen kayıt | `reference_not_found` |
+| Eksik `scenario_version`, başlığa dayalı hedef veya biçimi geçersiz iç kimlik | `invalid_field` |
+
+- **Kabul edilen ilişki hedef kaydı oluşturmaz, durumunu, önceliğini veya yaşam döngüsünü değiştirmez ve teslim eden entegrasyonun erişimini genişletmez.** Entegrasyon ilişki üzerinden hedefin içeriğini, adını, sayısını ya da varlığını öğrenmez; başarılı teslim yalnız makbuz döner.
 
 ### Sonuç normalizasyon sözleşmesi
 
@@ -283,7 +340,7 @@ Test sonucu üç yoldan eklenebilir:
 
 ### Yerine geçen doğrulama ve çelişki
 
-- **Kullanıcı kesin Oturum Testleri arasında yönlü `Yerine geçen doğrulama` ilişkisi kurabilir.** Yeni sonuç eskisini silmez veya geçmiş sonucunu değiştirmez; güncel özet geçiş zincirini, her iki sonucu ve teknik bağlam farkını gösterir.
+- **Kullanıcı kesin Oturum Testleri arasında ortak domain sözleşmesindeki yönlü [`Yerine geçer` / `Yerine geçildi` ilişkisini](02-domain-model-and-lifecycle.md#standart-ilişki-türleri) kurabilir.** Yeni sonuç eskisini silmez veya geçmiş sonucunu değiştirmez; güncel özet geçiş zincirini, her iki sonucu ve teknik bağlam farkını gösterir.
 
 - **Aynı senaryoda farklı sonuçlar bulunup açık bir yerine-geçme ilişkisi yoksa ürün `Çelişen sonuçlar` dikkat sinyali gösterebilir.** Sinyal yalnız kesin ortak senaryo sürümü veya açık ilişki ve farklı normalize sonuçlardan türetilir; metin benzerliğiyle testleri eşlemez ve hangi sonucun doğru olduğuna karar vermez.
 

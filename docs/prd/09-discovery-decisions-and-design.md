@@ -30,19 +30,17 @@ Bu belge Karar, Risk, Varsayım, Açık Soru, kullanıcı araştırması, Ekran,
 
 - **Riskler Proje Genel Bakışı, Manuel Proje Güncellemeleri, planlama ve yayın hazırlığı bağlamında görünür olur.** `Kabul edildi` durumu riskin ortadan kalktığını değil, kullanıcının bilinen riski açık gerekçeyle kabul ettiğini gösterir.
 
+- **`Açık Risk` dikkat sinyali yalnız iki deterministik olaydan üretilir: Riskin `Açık` durumuna alınması ve `Açık` durumdaki bir Riskin yayın hazırlığındaki bir Proje Sürümüne ya da etkin bir Odak Dönemine ilişkilendirilmesi.** Sinyal kaynak olayı, Riskin etkisini ve olasılığını taşır ve [Birleşik Bildirim Merkezinde](04-workspace-and-projects.md#birleşik-bildirim-merkezi) tek kaynak grubu altında gösterilir. Salt zaman geçmesi, `Azaltılıyor` durumu, etki/olasılık değerinin yüksek olması veya Riskin yalnız Projede bulunması sinyal üretmez; ürün sinyalden risk skoru, proje sağlık hükmü veya takip işi oluşturmaz.
+
 ### Varsayım ve açık soru takibi
 
 - **Doğrulanmamış kabuller `Varsayım`, yanıt bekleyen belirsizlikler `Açık Soru` olarak ilişkili içeriklerle izlenir.** Varsayım `Açık`, `Doğrulandı`, `Çürütüldü` veya `Geçersiz kaldı`; Açık Soru `Açık`, `Yanıtlandı` veya `Geçersiz kaldı` durumunu taşır. `Doğrulandı`, `Çürütüldü` ve `Yanıtlandı` geçişlerinde kullanıcı kesin kanıt veya isteğe bağlı gerekçe ekleyebilir; eksik kanıt geçişi engellemez ancak açıkça görünür kalır.
 
 - **Bu kayıtlar kullanıcı eylemi olmadan Riske, Karara veya İşe dönüşmez.** Durum değişikliği ilişkili kayıtların yaşam döngüsünü değiştirmez.
 
-### İş bağlamı
+### Keşif kayıtlarının İşte görünmesi
 
-- **Bir işin problem kaynağı, ilgili araştırması, beklenen sonucu ve sonradan edinilen öğrenimi iş bağlamında birlikte saklanabilir.** Bu alanlar zengin bağlam sağlar ancak yeni iş oluşturmayı engelleyen zorunlu form alanları değildir.
-
-- **İş detayı `Kanıt ve Bağlam` alanında `Birincil spec`, `İlişkili belgeler`, `Dosya ekleri` ve `Kanıt ve kararlar` gruplarını birlikte sunar.** Son grup Kaynak, Geri Bildirim, araştırma, Varsayım, Açık Soru, Risk ve Karar ilişkilerinden türetilir. Alan “bu iş hangi belge, kanıt ve karardan doğdu?” sorusunu taranabilir biçimde yanıtlar; içeriği kopyalamaz ve her öğeyi mevcut özgün kaydında açar.
-
-- **Kullanıcı aynı alandan mevcut belge veya eki ilişkilendirebilir ve yeni proje belgesi oluşturabilir.** Boş gruplar kısa ekleme eylemleriyle gösterilir; arşivlenmiş öğeler durumlarıyla görünür, çöp kutusundaki veya erişilemeyen öğeler içerik sızdırmadan çözülemeyen ilişki olarak belirtilir. Alan ayrı fikir/Insight yaşam döngüsü, Spark sohbeti, oy, otomatik puan veya yeni bir doğruluk kaynağı oluşturmaz.
+- **Bu belgedeki Karar, Risk, Varsayım, Açık Soru ve araştırma kayıtları İş detayında ayrı bir bağlam yüzeyi kurmaz.** İşin problem kaynağını, beklenen sonucunu, öğrenimini ve bu kayıtlarla kurulan bağlamı hangi bölümlerde ve hangi ilişkilerle gösterdiği yalnız [İş Bağlam Kartı sözleşmesinde](06-work-management-and-planning.md#iş-bağlam-kartı) tanımlanır; keşif kayıtları oraya yalnız kendi kesin kaynaklarıyla girer ve içerikleri kopyalanmaz.
 
 ### Deney ve doğrulama kayıtları
 
@@ -79,9 +77,11 @@ Bu belge Karar, Risk, Varsayım, Açık Soru, kullanıcı araştırması, Ekran,
 
 - **Kullanıcı Akışı `Ekran`, `Eylem`, `Karar`, `Durum/Sonuç` ve `Bölüm` gibi küçük, sabit bir semantik öğe kümesi kullanır.** Metin ve sınırlı erişilebilir görsel stil değiştirilebilir; keyfî şekil veya renge ürün semantiği yüklenmez. Çoklu seçim, pan, zoom, görünümü/seçimi sığdırma, hizalama, katman sırası, grid desteği, copy/paste, klavye alternatifleri ve güvenli undo bu uzman editörlerin ortak kabul davranışlarıdır.
 
-- **Koşullar, durum değişimleri, form davranışları, basit animasyonlar ve değişkenler prototiplenebilir.** Deneyim uygulamada tıklanabilir biçimde önizlenebilir ve Ekran paylaşımı [bağlantıyla sınırlı paylaşım sözleşmesini](14-sharing-and-public-publishing.md#bağlantıyla-sınırlı-salt-okunur-paylaşım) izler. Düşük detaylı adımlar daha ayrıntılı Ekranlara dönüştürülebilir; ekran geçişleri, alternatif akışlar, sürümler ve ilgili kararlar birlikte korunabilir.
+- **Koşullar, durum değişimleri, form davranışları, basit animasyonlar ve değişkenler prototiplenebilir.** `Basit animasyon` kapalı bir kümedir: öğe gösterme/gizleme, iki durum arasında sabit süreli geçiş, hover ve press durum değişimi, sıralı adım ilerlemesi ve Ekranlar arası geçiş. Süre ürünün sunduğu kapalı değer kümesinden seçilir. Zaman çizelgesi düzenleme, keyframe, özel easing eğrisi, fizik/yay simülasyonu, kaydırmaya bağlı animasyon, eşzamanlı çoklu katman koreografisi ve video/GIF çıktısı ilk üründe bulunmaz. Deneyim uygulamada tıklanabilir biçimde önizlenebilir ve Ekran paylaşımı [bağlantıyla sınırlı paylaşım sözleşmesini](14-sharing-and-public-publishing.md#bağlantıyla-sınırlı-salt-okunur-paylaşım) izler. Düşük detaylı adımlar daha ayrıntılı Ekranlara dönüştürülebilir; ekran geçişleri, alternatif akışlar, sürümler ve ilgili kararlar birlikte korunabilir.
 
 - **Wireframe Presentation Mode, editör araçlarını gizleyerek seçilen başlangıç Ekranından bağlantıları izleyen tam ekran ve salt okunur prototip gezinmesi sunar.** PNG ve SVG çıktısı seçili öğeleri veya Ekranı; PDF ve tek dosyalı interaktif HTML çıktısı seçilen Ekranları ve aralarındaki desteklenen bağlantıları kesin Wireframe sürümlerinden üretir. Sunum görünümü veya export yeni içerik doğruluk kaynağı oluşturmaz; çözülemeyen hedefi sessizce başka bir Ekrana yönlendirmez.
+
+- **Tek dosyalı interaktif HTML çıktısı kendi kendine yeterli tek bir `.html` dosyasıdır.** Bütün stil, yazı tipi ve görsel varlıklar dosyanın içine gömülür; çıktı hiçbir ağ isteği yapmaz, ürün URL'si veya süresi dolabilecek adres taşımaz ve çevrimdışı açılır. Etkileşim yalnız çıktıya dahil edilen Ekranlar arasındaki desteklenen bağlantılarla ve prototiplenen kapalı animasyon kümesiyle sınırlıdır; dahil edilmeyen hedef nötr biçimde çözülemedi olarak gösterilir. Çıktı kaynak Ekran ve Wireframe sürümlerini insan tarafından okunabilir bir manifest bölümünde listeler ve aynı sürümlerden deterministik olarak yeniden üretilebilir. Dosya ziyaretçi verisi toplamaz, analytics çalıştırmaz ve ürüne yazma yolu açmaz.
 
 - **İlk ürün ayrı desktop/mobile varyant yönetimi sunmaz.** Olası cihaz varyantlarının sınırı [Gelecek Yönleri](18-future-directions.md#wireframe-cihaz-varyantlari) belgesindedir.
 
