@@ -170,6 +170,14 @@ _Avoid_: Akıllı bağlantı önizlemesi, bookmark, canlı web aynası
 Kesin bir Kaynak, Belge, Diyagram veya Dosya Eki sürümünün belirli bir hedef iddiayı desteklediğini açık rol ve atıfla gösteren ilişki; Kaynağın varlığı tek başına bu bağı veya doğruluk hükmünü oluşturmaz.
 _Avoid_: İlgili ilişkisi, belirsiz referans, otomatik doğrulama
 
+**Çürütülen Varsayım İnceleme Kuyruğu**:
+`Çürütüldü` bir Varsayımın `Dayanır` / `Dayanağıdır` ile bağlı `Geçerli` Karar ve kapanmamış İş satırlarından oluşan [inceleme listesi](docs/prd/18-future-directions.md#çürütülen-varsayım-inceleme-kuyruğu); gelecek yönü adayıdır, ilk ürün davranışı veya etki analizi değildir. UI: `Refuted Assumption Review`.
+_Avoid_: Çalışma alanı bölmesi, bildirim, otomatik kapanış, etki hükmü
+
+**Dayanır / Dayanağıdır**:
+İş veya Kararın bir Varsayıma dayandığını gösteren uzman ilişki; Kanıt bağı veya genel `İlgili` değildir. UI: `Based on` / `Basis for`.
+_Avoid_: Kanıt bağı, İlgili, paylaşılan kanıttan çıkarılan bağ
+
 **Diyagram otorite kipi**:
 Bir diyagram örneğinin kalıcı içeriğinin nerede kanonik olduğunu ve güncellik iddiasını belirleyen, kayıt kimliği boyunca değişmeyen tek [sınıflandırma](docs/prd/11-technical-diagrams-and-schema-artifacts.md#teknik-diyagramlar).
 _Avoid_: Diyagram türü, dosya biçimi, paylaşım kipi

@@ -6,7 +6,7 @@ Bu belge yalnız doğrulama kanıtı ve yeni ürün kararıyla kapsama alınabil
 
 Bu belgedeki yönler yalnız dogfooding veya ayrıca yapılan doğrulama yeterli kanıt ürettiğinde yeni bir ürün kararıyla kapsama alınır. Bir yönün burada ayrıntılı anlatılması teslim taahhüdü oluşturmaz.
 
-Bu belge iki açık sınıf taşır. `Sözleşmeli aday`, [Doğrulama katmanları](#doğrulama-katmanları) tablosunda kararlı bir `Sözleşme kimliği` ile listelenen ve gövdesinde tam olarak `Tetikleyici`, `İlk dilim`, `İlerleme ve bırakma ölçütü` parçalarını taşıyan 24 yöndür; bu üç parçalı biçim yalnız o tabloda kimliği bulunan başlıklarda kullanılır. Diğer bütün başlık ve anlatılar `Bağlayıcı olmayan yön notu`dur ve üç parçalı biçimi kullanmaz; ilk ürün veya kararlaştırılmış genişleme emri oluşturamaz. Bir yön notu ancak kapsam, tetikleyici, sahiplik, yaşam döngüsü, kabul ve teknoloji etkisini ilgili normatif belgelere ekleyen ayrı Kararla sözleşmeli adaya dönüşür; uygulamanın başlaması ya da başlığın değiştirilmesi tek başına terfi değildir.
+Bu belge iki açık sınıf taşır. `Sözleşmeli aday`, [Doğrulama katmanları](#doğrulama-katmanları) tablosunda kararlı bir `Sözleşme kimliği` ile listelenen ve gövdesinde tam olarak `Tetikleyici`, `İlk dilim`, `İlerleme ve bırakma ölçütü` parçalarını taşıyan 25 yöndür; bu üç parçalı biçim yalnız o tabloda kimliği bulunan başlıklarda kullanılır. Diğer bütün başlık ve anlatılar `Bağlayıcı olmayan yön notu`dur ve üç parçalı biçimi kullanmaz; ilk ürün veya kararlaştırılmış genişleme emri oluşturamaz. Bir yön notu ancak kapsam, tetikleyici, sahiplik, yaşam döngüsü, kabul ve teknoloji etkisini ilgili normatif belgelere ekleyen ayrı Kararla sözleşmeli adaya dönüşür; uygulamanın başlaması ya da başlığın değiştirilmesi tek başına terfi değildir.
 
 <a id="alanlar-arasi-uzman-arac-dogrulama-portfoyu"></a>
 ## Alanlar arası uzman araç doğrulama portföyü
@@ -177,7 +177,7 @@ Kullanıcının seçtiği tek ve kesin Kullanıcı Akışı sürümünde, normal
 
 ### Doğrulama katmanları
 
-Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sırası değildir; hangi varsayımın ne zaman dürüstçe sınanabileceğini gösterir. `Yakın doğrulama` ilk ürünün ardından düşük maliyetli deney yapılabileceğini, `Bağımlı` adlandırılmış önkoşul doğrulanmadan yönün açılamayacağını, `Uzak` ise uzun dönemli davranış kanıtı gerektiğini belirtir. `Sözleşme kimliği` bulunan 24 satır bu belgenin sözleşmeli adaylarıdır ve üç parçalı sözleşme biçimini yalnız onlar taşır; `—` taşıyan satır aynı tabloda yönlendirme amacıyla bulunan bağlayıcı olmayan yön notudur. Hiçbir katman uygulama taahhüdü oluşturmaz.
+Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sırası değildir; hangi varsayımın ne zaman dürüstçe sınanabileceğini gösterir. `Yakın doğrulama` ilk ürünün ardından düşük maliyetli deney yapılabileceğini, `Bağımlı` adlandırılmış önkoşul doğrulanmadan yönün açılamayacağını, `Uzak` ise uzun dönemli davranış kanıtı gerektiğini belirtir. `Sözleşme kimliği` bulunan 25 satır bu belgenin sözleşmeli adaylarıdır ve üç parçalı sözleşme biçimini yalnız onlar taşır; `—` taşıyan satır aynı tabloda yönlendirme amacıyla bulunan bağlayıcı olmayan yön notudur. Hiçbir katman uygulama taahhüdü oluşturmaz.
 
 | Katman | Aday yön | Sözleşme kimliği |
 | --- | --- | --- |
@@ -194,6 +194,7 @@ Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sır
 | Yakın doğrulama | [Bir Kez Söyle, Kontrollü Olarak Her Yere İşle](#bir-kez-söyle-kontrollü-olarak-her-yere-işle) | `bir-kez-söyle-kontrollü-olarak-her-yere-işle` |
 | Yakın doğrulama | [Yüzey Metni Envanteri](#yüzey-metni-envanteri) | `yüzey-metni-envanteri` |
 | Yakın doğrulama | [Kullanıcıya Veri Teslimi](#kullanıcıya-veri-teslimi) | `kullanıcıya-veri-teslimi` |
+| Yakın doğrulama | [Çürütülen Varsayım İnceleme Kuyruğu](#çürütülen-varsayım-inceleme-kuyruğu) | `çürütülen-varsayım-inceleme-kuyruğu` |
 | Yakın doğrulama | [Ortak özel alan sözlüğü](#ortak-ozel-alan-sozlugu) | `ortak-ozel-alan-sozlugu` |
 | Yakın doğrulama | [Sınırlandırılmış gelişmiş sorgu](#sinirlandirilmis-gelismis-sorgu) | `sinirlandirilmis-gelismis-sorgu` |
 | Yakın doğrulama | [macOS sistem-geneli Hızlı Yakalama](#macos-sistem-geneli-hizli-yakalama) | `macos-sistem-geneli-hizli-yakalama` |
@@ -411,6 +412,15 @@ Not ileride gerçekten değerlendirilirse tartışılacak dar biçimde kullanıc
 
 **İlerleme ve bırakma ölçütü:** Aday bir canlı üründe dış teslim notunu kapatmadan ilerlemez. Vaat Cantiara yedeğiyle birleşirse, otomatik dosya üretir veya hukuki hüküm olursa yön bırakılır.
 
+<a id="çürütülen-varsayım-inceleme-kuyruğu"></a>
+### Çürütülen Varsayım İnceleme Kuyruğu
+
+**Tetikleyici:** Bir Varsayım `Çürütüldü` olduğunda, o Varsayıma dayandırılmış `Geçerli` Kararlar ve kapanmamış İşler mevcut yüzeylerde sessiz kalırsa, Varsayım sayfasında dar bir inceleme listesi değerlendirilebilir. `Geçersiz kaldı` ve Kararın `Geri çekildi` olması bu kuyruğu açmaz. Bu yön otomatik etki skoru, bildirim veya iş kapanışı üretmez; [otomatik değişiklik etki analizi yasağını](19-out-of-scope.md) gevşetmez.
+
+**İlk dilim:** Kişi İş veya Karardan Varsayıma `Dayanır` / `Dayanağıdır` bağını her an, elle, çoktan çoğa çizer. UI: `Based on` / `Basis for`. Bağ Kanıt bağı veya `İlgili` değildir; paylaşılan kanıttan çıkarılmaz. [Standart ilişki türlerine](02-domain-model-and-lifecycle.md#standart-ilişki-türleri) ancak bu aday kapsam alındığında girer. Liste yalnız `Çürütüldü` Varsayımın kendi sayfasındadır; UI: `Refuted Assumption Review`. Çalışma alanı bölmesi yoktur. Satır yalnız bu bağla bağlı `Geçerli` Karar ve kapanmamış İş'tir. Boş liste gizlenmez; bağ çizmek `Çürütüldü` geçişinin kapısı değildir. Sistem cümlesi: `This assumption has no open work or valid decisions based on it.` Kullanıcı her satırı bu çürütme olayı ile hedef çiftinin üstverisi olarak `Bekliyor` (`Waiting`), `Gözden geçirildi` (`Reviewed`) veya `Etkilenmedi` (`Not affected`) işaretler; isteğe bağlı kısa not ekler. İşaret İş'in sahipli bileşeni değildir; hedef kaydın durumunu, önceliğini ve planlama üyeliğini değiştirmez. Satırdan takip İşi doğmaz. Çürütmeden sonra çizilen bağ bu turda `Waiting` satırı olur. İş `Tamamlandı` veya `Vazgeçildi` olunca, Karar `Yerine geçildi` veya `Geri çekildi` olunca, bağ koparılınca satır canlı listeden düşer; arşivlenmiş ama kapanmamış İş kalır ve arşiv görünür. Çiftin geçmişi durur. Varsayım yeniden `Açık` olunca canlı liste kaybolur. Sonraki `Çürütüldü` yeni turdur; eski işaretler kopyalanmaz.
+
+**İlerleme ve bırakma ölçütü:** Aday üç gerçek Cantiara dogfooding çürütmesinde denenir. En az ikisinde kişi, bağladığı `Geçerli` Karar veya kapanmamış İşi mevcut yüzeylerin kaçırdığı yerde bu listede yakalarsa ilerler. Çoğu satır `Not affected` olursa, işaretler ikinci bir plan hâline gelirse veya liste onay kapısı gibi kullanılırsa yön bırakılır.
+
 <a id="altyapı-maliyeti-notu"></a>
 ### Altyapı Maliyeti Notu
 
@@ -455,14 +465,14 @@ Bu bölüm, mevcut kayıtların birbirini yanlışladığı yerleri görünür k
 
 Bu bölümdeki her adayın tetikleyicisi serbest gözlem değil, ürünün kendi saydığı tekrardır. Her aday adlandırılmış bir `Ürün Boşluğu` kaydına bağlanır ve o boşluğun [Dış araca kaçış günlüğünde](04-workspace-and-projects.md#dış-araca-kaçış-günlüğü) biriken tekrar sayısı doğrulama sırasına girme dayanağı olur. Kanıt oluşmadan hiçbiri doğrulama sırasına alınmaz; kanıt oluşması da kapsama alma taahhüdü değildir.
 
-Bu bölümdeki adaylar en fazla bir yeni ana kayıt türü ve en fazla iki yeni ilişki türü açar; mevcut ana kayıtlara yeni yaşam döngüsü durumu eklemez. Yeni ana kayıt izni `Rakip` adayına ayrılmıştır ve kullanılan tek yeni ilişki türü `Karşılaştırılan yaklaşım` olup [standart ilişki türleri](02-domain-model-and-lifecycle.md#standart-ilişki-türleri) için ayrı PRD kararı ister.
+Bu bölümdeki adaylar en fazla bir yeni ana kayıt türü ve en fazla iki yeni ilişki türü açar; mevcut ana kayıtlara yeni yaşam döngüsü durumu eklemez. Yeni ana kayıt izni `Rakip` adayına ayrılmıştır. İki ilişki kotası `Rakip` adayının `Karşılaştırılan yaklaşım` ilişkisi ile [Çürütülen Varsayım İnceleme Kuyruğu](#çürütülen-varsayım-inceleme-kuyruğu) adayının `Dayanır` / `Dayanağıdır` ilişkisidir; her ikisi de [standart ilişki türleri](02-domain-model-and-lifecycle.md#standart-ilişki-türleri) için ayrı PRD kararı ister. `Rakip` kotası bu terfiyle değişmez.
 
 <a id="kayit-bicimi-ve-sahiplik-ozeti"></a>
 ### Kayıt biçimi ve sahiplik özeti
 
 | Aday | Kalıcı sahiplik kararı |
 | --- | --- |
-| Dayanak Geçersizleşme Kuyruğu | Hesaplanan çalışma alanı görünümü; yalnız aday satırının inceleme işareti hedef Karar ya da İş kaydının sahipli bileşenidir |
+| Çürütülen Varsayım İnceleme Kuyruğu | Varsayım sayfasındaki inceleme listesi; çalışma alanı bölmesi değildir. İnceleme işareti bu çürütme olayı ile hedef Karar veya İş çiftinin üstverisidir, İş'in sahipli bileşeni değildir |
 | Yerine Geçilmiş Karara Dayanan Çalışma | Tamamen hesaplanan salt okunur görünümdür; hiçbir işaret veya kayıt saklamaz |
 | Tüketicisi Kapanmış Belirsizlik | Tamamen hesaplanan salt okunur görünümdür; hiçbir kaydı kendiliğinden kapatmaz |
 | Ekran Durum Matrisi | Ekranın kalıcı sahipli bileşenidir; bağımsız aranamaz, ilişki ucu olamaz ve paylaşılamaz |
@@ -481,7 +491,7 @@ Aşağıdaki adaylar [kapsam dışı hükümlerin](19-out-of-scope.md) komşulu�
 
 | Aday | Komşu kapsam dışı hüküm | Kapsama alınmadan önce netleşmesi gereken |
 | --- | --- | --- |
-| Dayanak Geçersizleşme Kuyruğu | Otomatik değişiklik etki analizi ve etki uyarıları | Mevcut deterministik türetme istisnasının yaşam döngüsü durumu geçişlerinden doğan adayları da kapsadığı |
+| Çürütülen Varsayım İnceleme Kuyruğu | Otomatik değişiklik etki analizi ve etki uyarıları | Listenin yalnız açık `Dayanağıdır` bağlarından türediği; hüküm, bildirim veya iş kapanışı üretmediği |
 | Yerine Geçilmiş Karara Dayanan Çalışma | Otomatik değişiklik etki analizi ve etki uyarıları | Görünümün yalnız iki açık ilişkinin kesişiminden türediği ve hiçbir hüküm üretmediği |
 | Ekran Durum Matrisi | Aynı Ekran için desktop/mobile varyant yönetimi | Karşılaşılan veri durumu ile görüntü ortamı ayrımı; matrisin hiçbir cihaz sınıfı ya da kırılma noktası taşımadığı |
 | Çalışma Alanı Bağlam Bütünlüğü Denetimi | Mission Control benzeri sağlık modülü ve serbest gösterge panosu | Denetimin sağlık işareti toplamadığı, kontrol listesinin kapalı olduğu ve kullanıcının kendi kuralını yazamadığı |
@@ -492,11 +502,7 @@ Aşağıdaki adaylar [kapsam dışı hükümlerin](19-out-of-scope.md) komşulu�
 <a id="dayanak-gecersizlesme-kuyrugu"></a>
 ### Dayanak Geçersizleşme Kuyruğu
 
-Bu yön notunun dayanağı, bir Varsayım çürütüldüğünde o varsayıma dayanarak verilmiş kararların ve açılmış işlerin gerçek projelerde tekrar tekrar gözden kaçmasıdır. Mevcut örüntü yalnız içerik sürümü değişimini izler: [Spec değişikliği inceleme kuyruğu](07-documents-and-knowledge.md#spec-değişikliği-inceleme-kuyruğu) Belge bölümü sürümünü, kaynak tazeliği ise [Kaynak sürümü karşılaştırmasını](08-search-relations-and-evidence.md#kaynağı-yeniden-kontrol-etme-ve-sürüm-karşılaştırması) izler. Yaşam döngüsü durumu değişiminden doğan aynı örüntünün karşılığı yoktur. Bağlı Ürün Boşluğu: `Çürütülen dayanağın etkisi ürün içinde görünmüyor`.
-
-Not ileride değerlendirmeye alınırsa tartışılacak dar biçimde yalnız Varsayımın çürütülme geçişi girdi olur; kanıt rolü işaretleri o biçime girmez. Kuyruk yalnız o Varsayımın açık kanıt ilişkisiyle gösterdiği hedeflerden geçerli Karar ve kapanmamış İş kayıtlarını listeler; genel `İlgili` ilişkisi, tarih yakınlığı ve metin benzerliği girdi sayılmaz. Kullanıcı her satırı `Bekliyor`, `Gözden geçirildi` veya `Etkilenmedi` olarak işaretler; işaret hedef kaydın sahipli bileşeni olur, durumunu, önceliğini ve planlama üyeliğini değiştirmez ve takip işi açmaz. Varsayım yeniden açılırsa satır düşer, konmuş işaretler hedef kaydın geçmişinde kalır ve yeniden inceleme turu açılmaz.
-
-Notun anlamlı sayılması için üç gerçek çürütmede denenmesi ve en az ikisinde mevcut yüzeylerin kaçırdığı bir bağımlı kaydı doğru biçimde görünür kılması gerekir. Listelenen adayların çoğu bilinçli olarak etkilenmemiş çıkarsa, kullanıcı işaretleri ikinci bir plan gibi sürdürmek zorunda kalırsa veya inceleme fiilî bir onay kapısına dönüşürse not kapanır.
+Bu yön notu [Çürütülen Varsayım İnceleme Kuyruğu](#çürütülen-varsayım-inceleme-kuyruğu) sözleşmesine taşındı. Tetik yalnız `Çürütüldü`dür; `Geçersiz kaldı` bu kuyruğu açmaz.
 
 <a id="yerine-gecilmis-karara-dayanan-calisma"></a>
 ### Yerine Geçilmiş Karara Dayanan Çalışma
