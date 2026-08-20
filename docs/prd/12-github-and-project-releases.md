@@ -48,7 +48,7 @@ Bu belge repository bağlantılarının, GitHub kaynaklı geliştirme kayıtlar�
 
 - **Branch, commit ve PR durumları görünür ve aranabilir olur; varsayılan olarak İş durumunu değiştirmez.** PR rollerinden türeyen kapatma önerisinin koşulları, hazır kuralın etkisi ve olumsuz durumları yalnız [Hafif uygulama içi otomasyon kuralları](06-work-management-and-planning.md#hafif-uygulama-içi-otomasyon-kuralları) altında tanımlanır; bu bölüm GitHub kaynak gerçeklerini ve bağlantı rollerini sağlar, aynı davranışı ikinci kez tanımlamaz.
 
-- **Bağlı PR’ın GitHub build/check sonucu kaynak durumu ve GitHub bağlantısıyla salt okunur gösterilir.** Ürün check’i çalıştırmaz veya yeniden başlatmaz, tam check loglarını yönetmez ve sonucu ayrı bir uygulama içi doğrulama kaydına dönüştürmez.
+- **Bağlı PR’ın GitHub build/check sonucu yalnız o PR’ın güncel head SHA’sındaki check’leri, sağlayıcı ve kararlı check kimliğiyle ayrı ayrı salt okunur gösterir.** Ürün check’i çalıştırmaz veya yeniden başlatmaz, tam check loglarını yönetmez ve sonucu ayrı bir uygulama içi doğrulama kaydına dönüştürmez. GitHub açıkça requiredness sağlıyorsa `Required`, sağlamıyorsa `Unknown` gösterilir; isimden çıkarım yapılmaz. Özet rollup kaynak check’leri açar; superseded sonuç güncelmiş gibi sunulmaz.
 
 - **`Tamamlandı` sonuçlu iş + açık PR gibi yalnız doğrudan mevcut durumlardan doğrulanabilen iş–PR çelişkileri tarafsız dikkat sinyali üretir.** Sinyal kaynak kayıtları gösterir; otomatik durum değişikliği veya değişiklik etki analizi yapmaz.
 
@@ -68,7 +68,7 @@ Bu belge repository bağlantılarının, GitHub kaynaklı geliştirme kayıtlar�
 
 - **Bağlı GitHub pull request’in uygulama içindeki detayında ana kayıtlardan türetilen bir PR Bağlam Kartı gösterilir.**
 
-- **Kart problem kaynağı, beklenen sonuç, ilgili kararlar, açık riskler, geri bildirimler, hedef sürüm, bağlantının gerekli/bağlamsal rolü, son GitHub build/check sonucu ve reviewer durumlarının kompakt salt okunur özetini gösterir.** Her madde asıl kayda bağlanır. Kart elle sürdürülen ikinci açıklama veya yeni doğruluk kaynağı oluşturmaz.
+- **Kart problem kaynağı, beklenen sonuç, ilgili kararlar, açık riskler, geri bildirimler, hedef sürüm, bağlantının gerekli/bağlamsal rolü, güncel PR head SHA'sındaki GitHub check özeti ve reviewer durumlarının kompakt salt okunur özetini gösterir.** Her madde asıl kayda bağlanır. Kart elle sürdürülen ikinci açıklama veya yeni doğruluk kaynağı oluşturmaz. Check özeti [güncel head SHA kuralını](#github-geliştirme-kayıtları) kullanır; superseded sonuç güncelmiş gibi sunulmaz.
 
 - **Diff review, approve ve merge işlemleri GitHub’da kalır.**
 
@@ -77,6 +77,8 @@ Bu belge repository bağlantılarının, GitHub kaynaklı geliştirme kayıtlar�
 - **Proje Sürümü bir Çalışma Alanı veya Projeler arası kayıt değil, tam olarak bir Projeye ait ana kayıttır.** Kullanıcı bir Proje Sürümüne girecek İşleri birlikte yönetebilir; aynı Projenin birden fazla repository’sinden ilgili tag’leri, GitHub Release kayıtlarını ve ortam bağlantılarını tek Proje Sürümüne ekleyebilir. Projeler arası ortak Proje Sürümü ilk üründe yoktur.
 
 - **Proje Sürümü ortak domain sözlüğündeki yayımlanacak kapsam anlamını kullanır.** Odak Dönemi ve Kilometre Taşıyla kavramsal ayrımı yalnız [ortak terim sözlüğünde](02-domain-model-and-lifecycle.md#terim-sözlüğü) tanımlanır.
+
+- **`Yayımlandı` yalnız açık kullanıcı eylemiyle oluşur.** GitHub Release bağlantısı, changelog yayını veya Dış yüzey onayı Proje Sürümü durumunu örtük değiştirmez; bunlar kanıt veya öneri üretebilir. `Yayımlandı` ve `İptal edildi` terminaldir; `Taslak` ile `Hazırlanıyor` arasında serbest geçiş vardır.
 
 - **Proje Sürümleri alanı kayıtları taranabilir bir genel görünümde sunar.** Her Proje Sürümünün detayındaki `Sürüm Kanıt Paketi`; kapsamdaki İşleri, bunların beklenen sonuçlarını, ilgili Karar ve açık Riskleri, Belgeleri ve tasarımları, bağlı PR ve check durumlarını, tag/GitHub Release bağlantılarını, test kanıtı ile açık Test Açıklarını ve hazırlanmış yayın çıktısını ana kaynaklarından bir araya getirir.
 

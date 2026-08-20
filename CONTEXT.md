@@ -116,6 +116,10 @@ _Avoid_: Başlangıç iskeleti, otomatik retrospektif, kapanış ana kaydı
 Bir Projenin ulaşmak istediği sonucu ve isteğe bağlı başarı göstergesini taşıyan hafif ana kayıt; bağlı İşlerden otomatik ilerleme veya sağlık hükmü üretmez.
 _Avoid_: Kilometre Taşı, Proje Sürümü, Key Result
 
+**Hedefe katkı**:
+İş, Kilometre Taşı veya Proje Sürümünün bir Proje Hedefine türlenmiş üyeliği; Karar, kanıt veya testi Hedefe doğrudan bağlayan genel ilişki değildir.
+_Avoid_: İlgili, Hedef kanıtı, otomatik hedef ilerlemesi
+
 **Kilometre Taşı**:
 Bir Projedeki önemli ara sonucu temsil eden planlama ana kaydı; Odak Döneminin çalışma penceresi veya Proje Sürümünün yayımlanacak kapsamı değildir.
 _Avoid_: Odak Dönemi, Proje Sürümü, sprint
@@ -237,6 +241,14 @@ _Avoid_: Metin diff’i, uygulanmış şema, otomatik migration yürütümü
 **Migration Artefaktı**:
 Onaylanmış bir Şema Değişiklik Taslağını kaynak manifestiyle koruyan, Veri Modeli Diyagramına ait [değişmez sahipli bileşen](docs/prd/02-domain-model-and-lifecycle.md#ana-kayıt-türleri-ve-asgari-sözleşmeler); ürün içinde çalıştırılmaz ve uygulanmışlık iddiası taşımaz.
 _Avoid_: Migration çalıştırması, deployment, database backup, Diyagram Sürümü, bağımsız ana kayıt
+
+**Migration Artifact Digest**:
+Migration Artefaktının generator çıktısından bağımsız, değişmez içerik özeti; yapısal model hash'inin yerine geçmez.
+_Avoid_: Model hash, uygulanmışlık kanıtı, şema kimliği
+
+**Supersedes Migration Artifact**:
+Aynı diyagramdaki sonraki düzeltme artefaktının önceki artefakta değişmez pointer'ı; eski kanıtı miras almaz.
+_Avoid_: Kanıt devri, sessiz değiştirme, uygulanmışlık güncellemesi
 
 **Güvenli Down taslağı**:
 Bir Migration Artefaktındaki bütün desteklenen operasyonların deterministik ve veri kayıpsız tersi kanıtlandığında sunulan [PostgreSQL geri alma taslağı](docs/prd/11-technical-diagrams-and-schema-artifacts.md#veri-modeli-semalari); veri taşıma veya genel rollback garantisi değildir.
@@ -405,8 +417,16 @@ Normatif ürün davranışındaki bağımsız ve gözlenebilir bir vaadi kesin �
 _Avoid_: Kabul iddiası, bölüm topluca geçti, iç takip kodu, kaynak satır numarası
 
 **Ticari genişleme adayı**:
-İlk ürün kabul edildikten sonra açık kapsam kararıyla etkinleştirilen [doğrulama kapsamı](docs/prd/16-product-acceptance.md#ticari-genisleme-kabulu); ilk ürünün tamamlanması bu adayı kendiliğinden başlatmaz.
-_Avoid_: İlk ürün kapsamı, otomatik sonraki aşama, yalnız Invoice özelliği
+Kanıt bekleyen ticari gelecekte, tetikleyici oluşunca açık kapsam kararıyla etkinleştirilen [Proposal doğrulama kapsamı](docs/prd/16-product-acceptance.md#ticari-genisleme-kabulu); ilk ürünün tamamlanması bu adayı kendiliğinden başlatmaz ve Invoice taahhüdü oluşturmaz.
+_Avoid_: İlk ürün kapsamı, otomatik sonraki aşama, kararlaştırılmış Invoice paketi
+
+**Çalışma Alanı çıkış paketi**:
+Kullanıcı parolasıyla şifrelenmiş, manifestli tam Çalışma Alanı arşivi; ürün içi restore veya zamanlanmış yedek değildir.
+_Avoid_: Tam yedek, restore paketi, şifresiz arşiv
+
+**Köken konumu**:
+Sahipli bileşenden üretilen ana kaydın değişmez kaynak öğe işaretidir; bağımsız ilişki ucu veya ana kayıt değildir.
+_Avoid_: Sahipli bileşen ilişkisi, sahte ana kayıt ucu
 
 **Bildirilen Test Oturumu**:
 Bir test aracının belirli bir derleme için gerçekleştiğini ve sonucunu bildirdiği tarihsel kayıt; testin gerçekten koştuğunu veya bir sürümün kabul edildiğini kanıtlamaz.

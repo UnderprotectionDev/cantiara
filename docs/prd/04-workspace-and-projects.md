@@ -137,7 +137,32 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 - **Bildirim bir kaynak olayın dikkat temsilidir; yeni bir iş değildir.** Bildirimi okundu olarak işaretlemek veya kapatmak kaynak kaydın durumunu değiştirmez. Bildirimden kaynağa geçiş, `Bağlam içi kayıt önizleme` altında tanımlanan ortak kaynak gezinme kuralını izler ve kaynak kaydın yalnız genel başlangıcını değil, güvenle çözümlenebiliyorsa sinyali üreten kesin yorum, değişiklik, hatırlatma veya diğer kaynak olayı görünür bağlamda açar. Olay artık çözülemiyorsa kayıt açılır ve kayıp kesin hedef açıklanır; sessizce başka olaya kaydırılmaz.
 
-- **Bildirim Merkezi yalnız alan PRD'lerinin kapalı ve deterministik olarak tanımladığı dikkat sinyallerini üretir.** Her sinyal kesin kaynak olayı, gösterilme nedeni ve kullanıcıya açık çözüm yollarını taşır; ürün kapsamadığı riskler olabileceğini saklamaz, `dikkat gerektiren her şeyi gösterir` iddiası, otomatik değişiklik etkisi, proje sağlık hükmü veya AI önem sıralaması üretmez. Aynı kesin Kaynak sürümü değişikliğinin birden fazla kullanım yeri tek Kaynak grubunda gösterilir; her kullanım bağlamının ayrı inceleme kararı korunur.
+- **Bildirim Merkezi yalnız alan PRD'lerinin kapalı ve deterministik olarak tanımladığı dikkat sinyallerini üretir.** Alan belgesi tetikleyici, dedupe anahtarı, kapanma koşulu ve negatifleri tanımlar; bu bölüm yalnız kayıtlı sinyal kimliklerinin kapalı dizinini ve `Eylem Gerekiyor`/`Bilgi Akışı` sunumunu yönetir. Kayıtsız sinyal üretilemez. Her sinyal kesin kaynak olayı, gösterilme nedeni ve kullanıcıya açık çözüm yollarını taşır; ürün kapsamadığı riskler olabileceğini saklamaz, `dikkat gerektiren her şeyi gösterir` iddiası, otomatik değişiklik etkisi, proje sağlık hükmü veya AI önem sıralaması üretmez. Aynı kesin Kaynak sürümü değişikliğinin birden fazla kullanım yeri tek Kaynak grubunda gösterilir; her kullanım bağlamının ayrı inceleme kararı korunur.
+
+<a id="dikkat-sinyali-kayitlari"></a>
+
+| Sinyal kimliği | Sunum | Sahip |
+| --- | --- | --- |
+| `due-date` | `Eylem Gerekiyor` | [Kişisel hatırlatmalar](06-work-management-and-planning.md#kişisel-hatırlatmalar) |
+| `reappear-date` | `Eylem Gerekiyor` | [Yeniden görünme tarihi](06-work-management-and-planning.md#yeniden-görünme-tarihi) |
+| `personal-reminder` | `Eylem Gerekiyor` | [Kişisel hatırlatmalar](06-work-management-and-planning.md#kişisel-hatırlatmalar) |
+| `review-later` | `Eylem Gerekiyor` | [`Yeniden bak`](06-work-management-and-planning.md#kişisel-hatırlatmalar) |
+| `open-risk` | `Eylem Gerekiyor` | [Açık Risk](09-discovery-decisions-and-design.md#risk-takibi) |
+| `work-blocked` | `Eylem Gerekiyor` | [Blokaj](06-work-management-and-planning.md#iş-bağımlılıkları-ve-blokajlar) |
+| `source-version-in-use` | `Eylem Gerekiyor` | [Kaynak sürüm kullanımı](08-search-relations-and-evidence.md#kaynağı-yeniden-kontrol-etme-ve-sürüm-karşılaştırması) |
+| `external-run-returned` | `Eylem Gerekiyor` | [Dış yürütme devri](06-work-management-and-planning.md#dış-yürütme-devirleri) |
+| `release-observation-missing` | `Eylem Gerekiyor` | [Proje Sürümü iletişimi](12-github-and-project-releases.md#proje-sürümü-iletişimi) |
+| `github-check-failed` | `Eylem Gerekiyor` | [GitHub geliştirme kayıtları](12-github-and-project-releases.md#github-geliştirme-kayıtları) |
+| `work-pr-status-conflict` | `Eylem Gerekiyor` | [GitHub geliştirme kayıtları](12-github-and-project-releases.md#github-geliştirme-kayıtları) |
+| `unlinked-open-pr` | `Eylem Gerekiyor` | [GitHub geliştirme kayıtları](12-github-and-project-releases.md#github-geliştirme-kayıtları) |
+| `published-release-open-scope` | `Eylem Gerekiyor` | [Sürüm Kanıt Paketi](12-github-and-project-releases.md#sürüm-kanıt-paketi-ve-yayın-hazırlığı) |
+| `automation-failed` | `Eylem Gerekiyor` | [Otomasyon](06-work-management-and-planning.md#hafif-uygulama-içi-otomasyon-kuralları) |
+| `public-roadmap-review-due` | `Eylem Gerekiyor` | [Bu bölümdeki gözden geçirme süresi](#birleşik-bildirim-merkezi) |
+| `unreviewed-test-report` | `Eylem Gerekiyor` | [Test raporu kabulü](10-testing-and-validation.md#güvenli-atomik-ve-idempotent-kabul) |
+| `test-result-conflict` | `Eylem Gerekiyor` | [Yerine geçen doğrulama ve çelişki](10-testing-and-validation.md#yerine-geçen-doğrulama-ve-çelişki) |
+| `handoff-result-after-cancel` | `Bilgi Akışı` | [Test Handoff'u](10-testing-and-validation.md#test-handoffu) |
+| `smart-collection-entry` | `Bilgi Akışı` | [Akıllı Koleksiyon aboneliği](08-search-relations-and-evidence.md#akıllı-koleksiyonlar) |
+| `github-activity` | `Bilgi Akışı` | [GitHub geliştirme kayıtları](12-github-and-project-releases.md#github-geliştirme-kayıtları) |
 
 - **Kullanıcı açık `Takip işi oluştur` eylemiyle bildirimden bağımsız bir iş öğesi oluşturabilir.** Oluşacak iş ve kaynak ilişkileri uygulanmadan önce gösterilir; yeni iş bildirime ve bildirimin kaynak kayıtlarına köken ilişkisiyle bağlanır. Eylem bildirimi kapatmaz, kaynak kayıtların durumunu değiştirmez ve aynı bildirimden örtük olarak birden fazla iş üretmez.
 
@@ -199,7 +224,7 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 - **`Çalışmaya Dön`, ilgili bağlamda etkin bir `Sıradaki somut adım` varsa metni kaynak kaydı, son güncelleme zamanı ve `Kaynak kaydı aç` eylemiyle belirgin biçimde gösterir.** Alan durum, öncelik, tarih, planlama üyeliği veya proje aşaması değiştiğinde kendiliğinden güncellenmez ya da temizlenmez; sistem olaylardan yeni adım tahmin etmez. Arama ve içe/dışa aktarma aynı kayıt alanını kullanır; bağlantıyla sınırlı paylaşım veya herkese açık yayın ise alanı yalnız ortak kapalı dünya kapsamında ayrıca önizlenip onaylanırsa gösterir.
 
-- **Özet ayrıca kullanıcının ilgili proje veya iş bağlamına son ziyaretinden sonra gerçekleşen tanımlı olayları `Son baktığından beri` bölümünde iş, karar, risk, belge, GitHub ve yayın gibi anlaşılır konu gruplarında gösterir.** Her öğe olay zamanını ve ana kaynak kaydı görünür kılar. Gruplama yalnız tanımlı olay türlerine dayanır; AI özeti, açıklanamayan önem sıralaması veya yeni bir özet kaydı üretmez.
+- **Özet ayrıca kullanıcının ilgili proje veya iş bağlamına son ziyaretinden sonra gerçekleşen tanımlı olayları `Son baktığından beri` bölümünde iş, karar, risk, belge, GitHub ve yayın gibi anlaşılır konu gruplarında gösterir.** İşaret Hesaba aittir ve sunucuda yalnız Proje ile desteklenen İş bağlamı başına en son başarılı görünür açılış zamanını tutar; görüntüleme geçmişi, süre, analytics veya denetim olayı üretmez. Kayıt silinince işaret silinir ve dış yüzeye açılmaz. Her öğe olay zamanını ve ana kaynak kaydı görünür kılar. Gruplama yalnız tanımlı olay türlerine dayanır; AI özeti, açıklanamayan önem sıralaması veya yeni bir özet kaydı üretmez.
 
 - **Proje Duvarı, Kullanıcı Akışı, Ekranın Wireframe yüzeyi, Moodboard veya Roadmap hedefi bulunan desteklenen olaylarda kullanıcı `Değişiklikleri görsel olarak gez` eylemini açıkça başlatabilir.** Tur yalnız aynı `Son baktığından beri` kümesindeki tanımlı olayları sırayla kullanır; ilgili kaynak kartı veya desteklenen kesin görsel hedefi vurgular, görünümü konumuna taşır ve olay zamanı ile gösterilme nedenini açıklar. Roadmap turu yeni bir roadmap geçmişi, audit kaydı, snapshot veya önem skoru üretmez; mevcut olayın kesin İş/Kilometre Taşı hedefini güncel görünümde çözümler. Silinmiş, erişilemeyen veya artık konumlandırılamayan hedef atlanırken nedeni gösterilir; başka nesneye sessizce yönelinmez.
 
@@ -240,6 +265,6 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 - **Komut Paleti; içerik arama, kayıt oluşturma, projeler arasında geçiş yapma ve sık işlemleri uygulamanın her yerinden klavyeyle çalıştırır.**
 
-- **İlk ürünün belgelenmiş klavye kısayolları sabittir ve her komutun görünür arayüz karşılığı bulunur.** Kullanıcı tarafından yeniden eşlenebilen genel kısayol profili ilk üründe veya kararlaştırılmış ticari genişlemede yer almaz; değerlendirme koşulları [Gelecek Yönleri](18-future-directions.md#yeniden-eslenebilir-klavye-kisayollari) belgesindedir.
+- **İlk ürünün belgelenmiş klavye kısayolları sabittir ve her komutun görünür arayüz karşılığı bulunur.** Kullanıcı tarafından yeniden eşlenebilen genel kısayol profili ilk üründe veya kanıt bekleyen ticari gelecekte yer almaz; değerlendirme koşulları [Gelecek Yönleri](18-future-directions.md#yeniden-eslenebilir-klavye-kisayollari) belgesindedir.
 
 - **Paletteki temel eylemler ilgili görünür menülerde de bulunur.** Kısayol ipuçları görünürdür. Komut kapsamı, hedefi ve etkilenecek seçim sayısı açıkça gösterilir; geri alınabilir değişiklikler [ortak güvenli geri alma sözleşmesini](02-domain-model-and-lifecycle.md#değişiklik-geçmişi-aktör-ve-geri-alma) kullanır.

@@ -31,7 +31,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Herkese açık durum etiketi | `Public Status Label` | İş akışı durumunu değiştirmeyen, yalnız herkese açık Roadmap sunumunda kullanılan ziyaretçi etiketi |
 | GitHub kimliğini yeniden teyit etme | `Confirm GitHub Identity` | Yüksek riskli işlem için yeni OAuth turunda aynı değişmez GitHub kimliğini doğrulayan fakat parola/MFA girişi iddia etmeyen güvenlik eylemi |
 | Kullanıcı başlatmalı İş başarısı | `User-initiated Work Success` | Kullanıcının açık kapatma eylemiyle başlattığı ve sunucuda PRD terimi `Tamamlandı` (`UI: Completed`) kapanış sonucu olarak kesinleşen İş geçişi; otomatik kapanış ve başka terminal olaylar değildir |
-| Bitiriş efekti | `Completion Effect` | Kullanıcı başlatmalı İş başarısından sonra gösterilebilen, temel başarı geri bildiriminden ayrı, isteğe bağlı ve ürünün sağladığı özgün dekoratif geri bildirim |
+| Köken konumu | `Origin Location` | Sahipli bileşenden üretilen kaydın kesin kaynak öğe işaretidir; bağımsız ilişki ucu değildir |
+| Hedefe katkı | `Contributes to Goal` | İş, Kilometre Taşı veya Proje Sürümünün Proje Hedefine türlenmiş katkı ilişkisidir |
+| Çalışma Alanı çıkış paketi | `Workspace Exit Package` | Kullanıcı parolasıyla şifrelenmiş tam Çalışma Alanı arşividir; ürün içi restore değildir |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 
@@ -106,8 +108,9 @@ Kullanıcı aşağıdaki anlamları silemez veya başka anlam için yeniden kull
 - **Teknik Diyagram türü, Diyagram otorite kipi ve kesin Diyagram Sürümü kimliği**
 - **Dış kaynak sağlayıcı/kimlik/köken atfı**
 - **Denetim ve güvenlik redaksiyonu olayları**
+- **İş akışı durumu değerleri** (`Not Started`, `In Progress`, `Blocked`, `Closed`)
 
-- **Kullanıcı alan görünürlüğünü, kullanıcıya dönük iş akışı durumu adlarını, özel alanları ve sunum sırasını alan PRD'lerinin izin verdiği ölçüde yapılandırabilir.**
+- **Kullanıcı alan görünürlüğünü, kullanıcıya dönük iş akışı durumu adlarını, özel alanları ve sunum sırasını alan PRD'lerinin izin verdiği ölçüde yapılandırabilir.** Yeni İş akışı durumu değeri eklenemez; yalnız korunan dört değerin görünen adı değişebilir.
 
 <a id="ana-kayıt-türleri-ve-asgari-sözleşmeler"></a>
 ## Ana kayıt türleri ve asgari sözleşmeler
@@ -178,10 +181,13 @@ Ana kaydın yanında yaşayan kalıcı yardımcı varlıklar da aşağıdaki kap
 | Diyagram Görünümü | Teknik Diyagram | Aynı yapısal modelin seçilmiş öğelerini, adlandırılmış yerleşim ve görünüm notlarıyla gösterir; kaynak öğeleri kopyalamaz, bağımsız erişim kapsamı veya içerik kaynağı olmaz |
 | Diyagram Sürümü | Teknik Diyagram | Kullanıcının adlandırdığı değişmez yapısal model ve görünüm checkpoint'idir; canlı diyagramı değiştirmez, kesin ilişki/paylaşım/export kaynağı olabilir |
 | Şema Değişiklik Taslağı | Veri Modeli Diyagramı | İki kesin Diyagram Sürümü arasındaki türlenmiş operasyonları, bağımlılık sırasını ve destructive uyarıları taşır; onaylanmadan kesin artefakt veya uygulanmış migration değildir |
-| Migration Artefaktı | Veri Modeli Diyagramı | Onaylanmış Şema Değişiklik Taslağını kaynak/hedef Diyagram Sürümü, generator sürümü, statik doğrulama ve uyarı manifestiyle değişmez korur; çalıştırılma veya uygulanmışlık durumu taşımaz |
+| Migration Artefaktı | Veri Modeli Diyagramı | Onaylanmış Şema Değişiklik Taslağını kaynak/hedef Diyagram Sürümü, generator sürümü, `Migration Artifact Digest`, statik doğrulama ve uyarı manifestiyle değişmez korur; çalıştırılma veya uygulanmışlık durumu taşımaz. Aynı diyagram içinde sonraki düzeltme artefaktı değişmez `Supersedes Migration Artifact` pointer'ı taşır; eski kanıtı miras almaz |
 | Onaylı snapshot revizyonu | Dış yüzey | Kesin içerik ve Dosya Eki sürümü manifestidir; Dış yüzey yaşadığı sürece içte korunur, bağımsız paylaşılamaz |
 | Çakışma Taslağı | Belge | Güncel olmayan yazmayı kullanıcı uzlaştırana, aynı kapsamta köken bağı taşıyan bağımsız Belgeye dönüştürene veya silene kadar korur; çözülmeden arama, paylaşım, export ve Belge geçmişine girmez |
 | Emekli kimlik yönlendirmesi | Çalışma alanı | Eski kimliği hayatta kalan kayıt veya içeriksiz silinmiş-hedef işaretine çözer; içerik veya bağımsız yaşam döngüsü taşımaz ve Çalışma Alanından uzun yaşayamaz |
+| Köken konumu | Hedef ana kayıt | Sahipli bileşen kaynağının sahip kimliğini, bileşen kimliğini ve kesin sürümünü değişmez taşır; bağımsız uç değildir |
+| Yakalama staging eki | Yakalama Gelen Kutusu öğesi | Şifreli geçici nesnedir; arama, paylaşım, yayın ve export dışındadır. Dönüşümde atomik Dosya Ekine terfi eder veya yakalamayla silinir |
+| Son ziyaret işareti | Hesap | Proje ve desteklenen İş bağlamı başına yalnız son başarılı görünür açılış zamanıdır; görüntüleme geçmişi, süre, analytics veya denetim olayı değildir |
 | Proje silme grubu | Silinen Proje | Proje ve ona ait kayıtları tek geri yükleme/kalıcı silme sınırında tutar; çocuklara bağımsız yaşam vermez |
 
 - **Liste dışındaki görünüm düğümü, kart, sayaç, arama sonucu, takvim satırı ve özet yalnız ana kayıtların sunumudur; kendi bağımsız yaşam döngüsünü kazanmaz.**
@@ -197,8 +203,9 @@ Ana kaydın yanında yaşayan kalıcı yardımcı varlıklar da aşağıdaki kap
 | İlişki | İzin verilen uçlar | Kardinalite ve silme davranışı | Anlam |
 | --- | --- | --- | --- |
 | `İlgili` | Herhangi iki ana kayıt; kesin Diyagram Sürümü ↔ İş/Karar/Proje Sürümü; Migration Artefaktı ↔ GitHub dış kaydı/Test Oturumu/Proje Sürümü | Çoktan çoğa; bir uç veya sahip ana kayıt silinirse kalan uçta kırık/tarihsel bağ görünür | Semantik bağ; yaşam döngüsü veya migration uygulanmışlığı etkisi yoktur |
-| `Kökeni` / `Türetilen` | Kaynak/Belge/Yakalama/Geri Bildirim/Teknik Diyagram → üretilen kayıt | Bir kayıt birden fazla köken taşıyabilir; köken silinirse atıf tombstone'a döner | Kaydın hangi kaynak veya açık dönüşümden doğduğunu gösterir; Teknik Diyagram otorite dönüşümü kaynak ve yeni kimliği bu bağla ayırır |
+| `Kökeni` / `Türetilen` | Kaynak, Belge, Yakalama, Geri Bildirim, Teknik Diyagram, İş, Test Oturumu, Kullanıcı Araştırması Oturumu veya Test Açığı → üretilen ana kayıt | Bir kayıt birden fazla köken taşıyabilir; köken silinirse atıf tombstone'a döner. Sahipli bileşen bağımsız uç değildir; hedef ayrıca `Köken konumu` taşıyabilir | Kaydın hangi kaynak veya açık dönüşümden doğduğunu gösterir; genel `İlgili` kesin provenance yerine geçmez. Teknik Diyagram otorite dönüşümü kaynak ve yeni kimliği bu bağla ayırır |
 | `Kanıtı` / `Kanıt sağlar` | Kesin Kaynak sürümü, Belge sürümü veya Diyagram Sürümü, Geri Bildirim, Kullanıcı Araştırması Oturumu, Deney/Doğrulama, Oturum Testi veya Dosya Eki sürümü → İş/Karar/Risk/Varsayım/Soru/Test/Proje Sürümü ya da ona ait Erişim/Sonuç gözlemi | Çoktan çoğa; gözlem hedefli bağ yalnız o sahipli gözlemde yaşar, kesin sürüm silinemezse redaksiyon işareti kalır | Hedef kayda veya belirtilen gözleme kanıt bağını gösterir; gözlem kanıtı üst Proje Sürümünün genel kanıtı sayılmaz, test sonucu yalnız bildirildiği kesin bağlamla kanıttır |
+| `Hedefe katkı` / `Hedef kapsamında` | İş, Kilometre Taşı veya Proje Sürümü → Proje Hedefi | Çoktan çoğa; uç silinirse tarihsel bağ | Hedefe katkı üyeliği; Karar, kanıt ve test Hedefe doğrudan bağlanmaz, ilgili İş/Sürüm zincirinden gelir. Yaşam durumu veya kapanış sonucu etkisi yoktur |
 | `Engeller` / `Engellenir` | İş, Karar veya Açık Soru → İş | Çoktan çoğa; `Aktif`/`Çözüldü` durumlu ilişki, uç silinirse tarihsel bağ | Planlama blokajı |
 | `Kapsar` / `Kapsanır` | Özellik → İş | Bir İşin en fazla bir birincil Özelliği, ek Özelliklerle `İlgili` bağı olabilir | Açık kapsam üyeliği |
 | `Kilometre taşına katkı` / `Kilometre taşı kapsamında` | İş → Kilometre Taşı | Çoktan çoğa; uç silinirse tarihsel bağ | Ara sonuca katkı üyeliği; hiçbir uçta yaşam durumu, kapanış sonucu veya hedef tarihi etkisi yoktur |
@@ -209,7 +216,14 @@ Ana kaydın yanında yaşayan kalıcı yardımcı varlıklar da aşağıdaki kap
 | `Katılımcısı` | Kullanıcı Araştırması Oturumu/Geri Bildirim → Contact | Kayıt başına sıfır veya bir Contact; Contact silinirse kişisel değer redakte edilir | Katılımcı/geri bildirim kaynağı kimliği |
 | `Tamamlanma için gerekli` / `Bağlamsal` | İş ↔ GitHub PR | Çoktan çoğa; bağlantı kaldırma dış PR'ı değiştirmez | PR'ın İş kapanışındaki rolü |
 
-- **İlişki türü kullanıcı tarafından serbestçe oluşturulmaz.** Tabloda bulunmayan uzman ilişki ilk ürün davranışı olamaz; yeni tür bu tabloya uçları, kardinalitesi ve silme etkisiyle eklenir. İlişki eklemek kaynak kayıtların durumunu değiştirmez; alan PRD'sindeki açık blokaj, yerine-geçme veya etkin PR otomasyonu istisnadır.
+- **İlişki türü kullanıcı tarafından serbestçe oluşturulmaz.** Tabloda bulunmayan uzman ilişki ilk ürün davranışı olamaz; yeni tür bu tabloya uçları, kardinalitesi ve silme etkisiyle eklenir. İlişki eklemek kaynak kayıtların durumunu değiştirmez; alan PRD'sindeki açık blokaj, yerine-geçme veya etkin PR otomasyonu istisnadır. Kesin provenance `Kökeni`, kanıt `Kanıtı`, hedef üyeliği `Hedefe katkı` kullanır; genel `İlgili` bunların yerine geçmez.
+
+<a id="koken-konumu"></a>
+## Köken konumu
+
+- **İki uç da ana kayıtsa köken yalnız standart `Kökeni` ilişkisidir.** Kaynak bir sahipli bileşense — kontrol listesi maddesi, Wireframe düğümü, Oturum Testi veya eşdeğer öğe — hedef ana kayıt ayrıca değişmez `Köken konumu` taşır: sahip ana kayıt kimliği, bileşen kimliği ve kesin kaynak sürümü. Sahipli bileşen bağımsız ilişki ucu, arama sonucu veya ana kayıt olmaz.
+
+- **Kaynak öğe silinir, redakte edilir veya çözülemezse sahip ana kayıtla `Kökeni` ilişkisi yaşar; `Köken konumu` `Kaynak öğe artık yok` olarak açıklanır.** Sistem başka maddeye, en yeni sürüme veya benzer öğeye sessizce kaymaz.
 
 <a id="kullanim-baglari"></a>
 ## Kullanım bağları

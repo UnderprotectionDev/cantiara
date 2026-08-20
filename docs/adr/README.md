@@ -19,7 +19,7 @@ Bu dizin yalnız değiştirilmesi maliyetli, koddan tek başına anlaşılmayaca
 | [0011](0011-prd-izlenebilirligini-anlamsal-baglantilarla-koru.md) | PRD izlenebilirlik modeli | Mekanik kapsama güvencesi ile bakım yükü |
 | [0012](0012-prd-belge-sinirlarini-urun-alanlarina-gore-kur.md) | PRD belge sınırları | Doğal okuma akışı ile tek normatif sahiplik |
 | [0013](0013-gelecek-yonlerini-cekirdek-kabulden-ayir.md) | Gelecek yönleri ile çekirdek kabul ayrımı | Gelecek esnekliği ile dürüst ilk ürün kapsamı |
-| [0014](0014-ticari-genisleme-kabulunu-acik-adayla-etkinlestir.md) | Ticari genişleme kabulünün etkinleşmesi | Kararlaştırılmış sonraki alan ile ilk ürün kabulünün bağımsızlığı |
+| [0014](0014-ticari-genisleme-kabulunu-acik-adayla-etkinlestir.md) | Ticari genişleme kabulünün etkinleşmesi | Kanıt bekleyen Proposal dilimi ile ilk ürün kabulünün bağımsızlığı |
 | [0015](0015-dis-yurutme-devrini-ise-ait-bilesen-olarak-tut.md) | Dış yürütme devrinin İşe ait bileşen olması | Bağlamı İşte tutmak ile yinelenen dış çalışma geçmişini ezmemek |
 | [0016](0016-ekrani-ana-kayit-wireframei-surumlu-yuzey-olarak-tut.md) | Ekranın ana kayıt, Wireframe'in sürümlü yüzey olması | Bağımsız Ekran yaşamı ile yinelenen tasarım kaydı oluşturmamak |
 | [0017](0017-bitiris-efektlerini-ozgun-birinci-taraf-katalogla-sinirla.md) | Bitiriş efektlerinin özgün birinci taraf katalogla sınırlanması | Güçlü kişiselleştirme ile hak, dağıtım ve kalıcı asset yükümlülükleri |
@@ -28,5 +28,6 @@ Bu dizin yalnız değiştirilmesi maliyetli, koddan tek başına anlaşılmayaca
 | [0020](0020-semayi-urun-icinde-tasarlayip-dogrulanmis-ddl-uret.md) | Şemayı üründe tasarlayıp doğrulanmış DDL üretmek | Şemayı proje bağlamında tutmak ile generator ve doğrulama hattının yükü |
 | [0021](0021-icerigi-yalniz-veritabaninda-tut.md) | İçeriğin yalnız veritabanında yaşaması | Tanıdık harici editörler ile tek doğruluk kaynağının bütünlüğü |
 | [0022](0022-wireframe-motorunu-kendimiz-yaz.md) | Wireframe motorunu kendimiz yazmak | Hazır kütüphane hızı ile öğe semantiği ve sürüm değişmezliği |
+| [0023](0023-sifreli-calisma-alani-cikis-paketini-restore-olmadan-sun.md) | Şifreli Çalışma Alanı çıkış paketi | Çıkış garantisi ile ürün içi restore ve yedek ürünü açmamak |
 
 Yeni bir ADR ancak bu dizindeki üç ölçütü birlikte karşılayan bir karar için eklenir. Mevcut ürün sözleşmesini tekrar eden açıklamalar ADR oluşturmaz.

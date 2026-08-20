@@ -32,14 +32,14 @@ Birincil kullanıcı işleri şunlardır:
 6. **GitHub geliştirme gerçeğini proje planıyla ilişkilendirip Proje Sürümünü hazırlamak; hedef kitleye erişim ile gözlenen sonucu birbirinden ayırarak yeniden değerlendirmek.**
 7. **Teknik mimariyi, PostgreSQL veri modelini ve sistemler arası sıralı etkileşimi proje kayıtlarıyla birlikte modellemek; kesin şema sürümünden statik doğrulanmış DDL ve schema-only migration artefaktı üretmek.**
 8. **Seçilen proje bağlamını özel içeriği sızdırmadan paylaşmak veya herkese açık yayımlamak.**
-9. **Seçili belge ve yapılandırılmış kayıtları uygulamaya bağımlı kalmadan standart Markdown, JSON veya CSV biçiminde dışa aktarmak.**
+9. **Seçili belge ve yapılandırılmış kayıtları uygulamaya bağımlı kalmadan standart Markdown, JSON veya CSV biçiminde dışa aktarmak; Çalışma Alanının tamamını şifreli çıkış paketi olarak almak.**
 
 <a id="kapsam-dili"></a>
 ## Kapsam ve normatif dil
 
 - **İlk ürünün zorunlu kapsamı bu belge ile `02`–`15` arasındaki ürün ve kalite belgelerinde tanımlanır.** [Ürün Kabulü](16-product-acceptance.md) bu davranışların test yöntemini ve tamamlanma kanıtını tanımlar. Bütün zorunlu davranışlar ve kabul koşulları birlikte karşılanmadan Ürün sürüm adayı tamamlanmış sayılmaz; ilk ürün ayrıca teslim aşamalarına veya öncelik kodlarına bölünmez. Bu hüküm uygulama çalışmasının bağımlılığa göre iç teknik dilimlere ayrılmasını engellemez; hiçbir iç dilim kısmi ürün yayımlamak, zorunlu kapsamı düşürmek veya kabulü ertelemek için kullanılamaz.
 
-- **[Ticari Genişleme](17-commercial-expansion.md) ilk ürün doğrulandıktan sonraki kararlaştırılmış alandır.** [Gelecek Yönleri](18-future-directions.md) ancak belirtilen kanıt oluşursa ayrıca değerlendirilecek adayları, [Kapsam Dışı Hükümler](19-out-of-scope.md) ise bu ürün kapsamında bulunmayan açık sınırları taşır. Bir kabul örneği, gelecek anlatısı veya başka dosyadaki söz bir davranışı sessizce ilk ürün kapsamına alamaz.
+- **[Ticari Genişleme](17-commercial-expansion.md) ilk ürünün teslim kapsamı değildir; kanıt bekleyen gelecek yönüdür.** Belge ticari domainin sahibidir fakat Invoice, ödeme veya birleşik sunumu şimdiden taahhüt etmez. Tek sözleşmeli aday, belirtilen tetikleyici oluşursa ayrıca kararlaştırılacak Proposal hazırlama ve tarihli PDF/export dilimidir. [Gelecek Yönleri](18-future-directions.md) diğer kanıt bekleyen adayları, [Kapsam Dışı Hükümler](19-out-of-scope.md) ise bu ürün kapsamında bulunmayan açık sınırları taşır. Bir kabul örneği, gelecek anlatısı veya başka dosyadaki söz bir davranışı sessizce ilk ürün kapsamına alamaz.
 
 - **`Sistem sunar`, `destekler`, `korur`, `gösterir` ve `engeller` zorunlu ürün davranışıdır.** `Kullanıcı isteğe bağlı olarak` ifadesi yeteneğin zorunlu, kullanımının isteğe bağlı olduğunu belirtir. `Sunabilir`, `desteklenebilir` veya bağlamı belirsiz `olabilir` zorunlu davranış oluşturmaz; metin açık zorunlu davranışa, kullanıcı seçimine veya gelecek adayına dönüştürülür.
 
@@ -71,7 +71,7 @@ Birincil kullanıcı işleri şunlardır:
 
 - **Dogfooding için hafta, aktif gün, dakika, oturum, belge, klasör veya kayıt sayısı eşiği yoktur.** Yüksek etkili dış araca kaçış, ürün eksikliği veya güvenilmezliği nedeniyle ana doğruluk kaynağının başka araca taşınması ya da aynı iş için başka araçta kalıcı paralel kayıt tutulmasıdır. Her kaçışın başlangıcı, nedeni, etkisi, çözümü ve kapanış kanıtı kaydedilir.
 
-- **Kod inceleme ve nihai yüksek detaylı görsel tasarım gibi bilinçli dış sınırlar başka araçlarda kalabilir.** Dogfooding sırasında aynı özel alanı projeler arasında ortak kimlikle kullanma ve görsel Akıllı Koleksiyon koşullarının ifade edemediği sorgular yazma ihtiyacı özellikle ürün boşluğu olarak izlenir. Bu sinyaller ilk ürüne çalışma alanı genelindeki özel alan şeması veya serbest yazılabilir gelişmiş sorgu dili eklemez; sonraki ürün kararlarına kanıt sağlar.
+- **Kod inceleme ve nihai yüksek detaylı görsel tasarım gibi bilinçli dış sınırlar başka araçlarda kalabilir.** Dogfooding sırasında aynı özel alanı projeler arasında ortak kimlikle kullanma ve görsel Akıllı Koleksiyon koşullarının ifade edemediği sorgular yazma ihtiyacı özellikle ürün boşluğu olarak izlenir. Bu sinyaller ilk ürüne çalışma alanı genelindeki özel alan şeması veya serbest yazılabilir gelişmiş sorgu dili eklemez; [sözleşmeli gelecek adaylarına](18-future-directions.md#ortak-ozel-alan-sozlugu) kanıt sağlar.
 
 ## Temel çalışma ilkeleri
 
@@ -91,7 +91,7 @@ Birincil kullanıcı işleri şunlardır:
 
 - **Belgeler, Teknik Diyagramların türlenmiş yapısal modelleri, yapılandırılmış kayıtlar, ilişkiler ve diğer ana içerikler veritabanında yaşar ve yalnız uygulama içinde düzenlenir.** Bilgisayarda uygulamayla canlı eşzamanlanan proje klasörleri, fiziksel Markdown veya diagram-as-code doğruluk kaynakları tutulmaz. VS Code, Obsidian ve benzeri harici editörlerle canlı düzenleme desteklenmez.
 
-- **Ürün seçili içeriği standart ve insan tarafından okunabilir biçimlerde taşımayı destekler; tam çalışma alanı yedeği veya geri yüklenebilir ürün paketi sunmaz.** Biçimler, işlem sınırları, önizleme, atomiklik ve içe/dışa aktarma güvenliği yalnız [Veri Güvenliği ve Taşınabilirlik](13-data-security-and-portability.md) belgesinde tanımlanır.
+- **Ürün seçili içeriği standart ve insan tarafından okunabilir biçimlerde taşımayı destekler; ayrıca kullanıcının parolasıyla şifrelenmiş tam Çalışma Alanı çıkış paketini üretir.** Paket ürün içine restore veya import vaadi taşımaz; zamanlanmış yedek değildir. Biçimler, işlem sınırları, önizleme, atomiklik ve içe/dışa aktarma güvenliği yalnız [Veri Güvenliği ve Taşınabilirlik](13-data-security-and-portability.md) belgesinde tanımlanır.
 
 ### Her içerik için tek ana kayıt
 

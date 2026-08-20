@@ -6,7 +6,7 @@ Bu belge yalnız doğrulama kanıtı ve yeni ürün kararıyla kapsama alınabil
 
 Bu belgedeki yönler yalnız dogfooding veya ayrıca yapılan doğrulama yeterli kanıt ürettiğinde yeni bir ürün kararıyla kapsama alınır. Bir yönün burada ayrıntılı anlatılması teslim taahhüdü oluşturmaz.
 
-Bu belge iki açık sınıf taşır. `Sözleşmeli aday`, [Doğrulama katmanları](#doğrulama-katmanları) tablosunda kararlı bir `Sözleşme kimliği` ile listelenen ve gövdesinde tam olarak `Tetikleyici`, `İlk dilim`, `İlerleme ve bırakma ölçütü` parçalarını taşıyan 15 yöndür; bu üç parçalı biçim yalnız o tabloda kimliği bulunan başlıklarda kullanılır. Diğer bütün başlık ve anlatılar `Bağlayıcı olmayan yön notu`dur ve üç parçalı biçimi kullanmaz; ilk ürün veya kararlaştırılmış genişleme emri oluşturamaz. Bir yön notu ancak kapsam, tetikleyici, sahiplik, yaşam döngüsü, kabul ve teknoloji etkisini ilgili normatif belgelere ekleyen ayrı Kararla sözleşmeli adaya dönüşür; uygulamanın başlaması ya da başlığın değiştirilmesi tek başına terfi değildir.
+Bu belge iki açık sınıf taşır. `Sözleşmeli aday`, [Doğrulama katmanları](#doğrulama-katmanları) tablosunda kararlı bir `Sözleşme kimliği` ile listelenen ve gövdesinde tam olarak `Tetikleyici`, `İlk dilim`, `İlerleme ve bırakma ölçütü` parçalarını taşıyan 24 yöndür; bu üç parçalı biçim yalnız o tabloda kimliği bulunan başlıklarda kullanılır. Diğer bütün başlık ve anlatılar `Bağlayıcı olmayan yön notu`dur ve üç parçalı biçimi kullanmaz; ilk ürün veya kararlaştırılmış genişleme emri oluşturamaz. Bir yön notu ancak kapsam, tetikleyici, sahiplik, yaşam döngüsü, kabul ve teknoloji etkisini ilgili normatif belgelere ekleyen ayrı Kararla sözleşmeli adaya dönüşür; uygulamanın başlaması ya da başlığın değiştirilmesi tek başına terfi değildir.
 
 <a id="alanlar-arasi-uzman-arac-dogrulama-portfoyu"></a>
 ## Alanlar arası uzman araç doğrulama portföyü
@@ -177,7 +177,7 @@ Kullanıcının seçtiği tek ve kesin Kullanıcı Akışı sürümünde, normal
 
 ### Doğrulama katmanları
 
-Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sırası değildir; hangi varsayımın ne zaman dürüstçe sınanabileceğini gösterir. `Yakın doğrulama` ilk ürünün ardından düşük maliyetli deney yapılabileceğini, `Bağımlı` adlandırılmış önkoşul doğrulanmadan yönün açılamayacağını, `Uzak` ise uzun dönemli davranış kanıtı gerektiğini belirtir. `Sözleşme kimliği` bulunan 15 satır bu belgenin sözleşmeli adaylarıdır ve üç parçalı sözleşme biçimini yalnız onlar taşır; `—` taşıyan satır aynı tabloda yönlendirme amacıyla bulunan bağlayıcı olmayan yön notudur. Hiçbir katman uygulama taahhüdü oluşturmaz.
+Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sırası değildir; hangi varsayımın ne zaman dürüstçe sınanabileceğini gösterir. `Yakın doğrulama` ilk ürünün ardından düşük maliyetli deney yapılabileceğini, `Bağımlı` adlandırılmış önkoşul doğrulanmadan yönün açılamayacağını, `Uzak` ise uzun dönemli davranış kanıtı gerektiğini belirtir. `Sözleşme kimliği` bulunan 24 satır bu belgenin sözleşmeli adaylarıdır ve üç parçalı sözleşme biçimini yalnız onlar taşır; `—` taşıyan satır aynı tabloda yönlendirme amacıyla bulunan bağlayıcı olmayan yön notudur. Hiçbir katman uygulama taahhüdü oluşturmaz.
 
 | Katman | Aday yön | Sözleşme kimliği |
 | --- | --- | --- |
@@ -194,10 +194,100 @@ Bu belgedeki aşağıdaki adayların katmanı değer veya kesin geliştirme sır
 | Yakın doğrulama | [Bir Kez Söyle, Kontrollü Olarak Her Yere İşle](#bir-kez-söyle-kontrollü-olarak-her-yere-işle) | `bir-kez-söyle-kontrollü-olarak-her-yere-işle` |
 | Yakın doğrulama | [Yüzey Metni Envanteri](#yüzey-metni-envanteri) | `yüzey-metni-envanteri` |
 | Yakın doğrulama | [Kullanıcıya Veri Teslimi](#kullanıcıya-veri-teslimi) | `kullanıcıya-veri-teslimi` |
+| Yakın doğrulama | [Ortak özel alan sözlüğü](#ortak-ozel-alan-sozlugu) | `ortak-ozel-alan-sozlugu` |
+| Yakın doğrulama | [Sınırlandırılmış gelişmiş sorgu](#sinirlandirilmis-gelismis-sorgu) | `sinirlandirilmis-gelismis-sorgu` |
+| Yakın doğrulama | [macOS sistem-geneli Hızlı Yakalama](#macos-sistem-geneli-hizli-yakalama) | `macos-sistem-geneli-hizli-yakalama` |
+| Yakın doğrulama | [Tarihli yayın kararı snapshot'ı](#tarihli-yayin-karari-snapshot) | `tarihli-yayin-karari-snapshot` |
+| Yakın doğrulama | [Teknik Mimari/Sıra sürüm farkı](#teknik-mimari-sira-surum-farki) | `teknik-mimari-sira-surum-farki` |
+| Yakın doğrulama | [Eski güvenli yayına dönüş](#eski-guvenli-yayina-donus) | `eski-guvenli-yayina-donus` |
+| Yakın doğrulama | [Feedback Follow-up Handoff](#feedback-follow-up-handoff) | `feedback-follow-up-handoff` |
+| Yakın doğrulama | [Senaryo × bağlam test matrisi](#senaryo-baglam-test-matrisi) | `senaryo-baglam-test-matrisi` |
+| Yakın doğrulama | [Anonim görüntülenme istatistikleri](#anonim-goruntulenme-istatistikleri) | `anonim-goruntulenme-istatistikleri` |
 | Bağımlı | [Dış İncelemeyi Geri Getiren Paylaşım](#dış-incelemeyi-geri-getiren-paylaşım) | `dış-incelemeyi-geri-getiren-paylaşım` |
 | Bağımlı | [Ekip Kurmadan Sınırlı İnsan Delegasyonu](#ekip-kurmadan-sınırlı-insan-delegasyonu) | `ekip-kurmadan-sınırlı-insan-delegasyonu` |
 | Uzak | Gölge Yedek Gerektirmeyen Çıkış Garantisi → [Tam ürün paketi ve geri yükleme doğrulaması](#tam-ürün-paketi-ve-geri-yükleme-doğrulaması) | — |
 | Uzak | Ürünün Hayatta Kalma Sözleşmesi → [Canlı Projenin Operasyonel Yükümlülükleri](#canlı-projenin-operasyonel-yükümlülükleri) | `canlı-projenin-operasyonel-yükümlülükleri` |
+
+<a id="ortak-ozel-alan-sozlugu"></a>
+### Ortak özel alan sözlüğü
+
+**Tetikleyici:** Aynı özel alan tanımının en az üç gerçek Projede tekrar kurulması ve kimlik/drift üretmesi.
+
+**İlk dilim:** Çalışma Alanı sahipli ortak alan tanımı ve Proje bazında açık katılım. Alan türü ilk kullanımdan sonra değişmez; ad ve seçenek değişiklikleri etkilenecek Projelerle önizlenir ve atomik uygulanır. Proje ortak tanımdan ayrılmak isterse yeni yerel kimlikli kopyaya açık dönüşüm yapar; mevcut değerler kaybolmaz.
+
+**İlerleme ve bırakma ölçütü:** Üç gerçek Projede drift’i azaltmadan ilerlemez. Canlı değişikliğin bütün Projelere sessiz yayılması veya değer kaybı oluşursa bırakılır.
+
+<a id="sinirlandirilmis-gelismis-sorgu"></a>
+### Sınırlandırılmış gelişmiş sorgu
+
+**Tetikleyici:** Görsel Akıllı Koleksiyon koşullarının ifade edemediği üç gerçek sorgu.
+
+**İlk dilim:** Metinsel DSL değil; iç içe `AND/OR`, açık `NOT`, tarih aralığı, boşluk ve türlenmiş ilişki varlığı gibi allow-list’li işleçleri kullanan görsel expression builder. Her sonuç neden eşleştiğini ve kaynak filtreyi açar. SQL, regex, formül, script ve dış veri erişimi yoktur.
+
+**İlerleme ve bırakma ölçütü:** Üç gerçek sorguyu mevcut görsel koşullardan daha az hatayla çözmeden ilerlemez. Serbest dil veya dış veri ihtiyacı doğarsa ayrı karardır.
+
+<a id="macos-sistem-geneli-hizli-yakalama"></a>
+### macOS sistem-geneli Hızlı Yakalama
+
+**Tetikleyici:** Uygulama kapalıyken kaybedilen yakalama ihtiyacının tekrar etmesi.
+
+**İlk dilim:** Sistem kısayoluyla açılan küçük pencere; yalnız kullanıcının yazdığı metin ve isteğe bağlı elle yapıştırdığı URL. Arka plan izleme, aktif pencere okuma, otomatik clipboard, ekran görüntüsü ve dosya eki yoktur. Kayıt yalnız açık `Capture` eylemiyle yapılır; sunucuya ulaşmadıysa kaydedildi iddiası verilmez.
+
+**İlerleme ve bırakma ölçütü:** Üç gerçek kaçırılmış yakalamayı azaltmadan bırakılır.
+
+<a id="tarihli-yayin-karari-snapshot"></a>
+### Tarihli yayın kararı snapshot'ı
+
+**Tetikleyici:** Kullanıcının `Yayımlandı` anında hangi Risk, Test Açığı, check ve gerekçeyle karar verdiğini üç gerçek Sürümde yeniden kuramaması.
+
+**İlk dilim:** `Yayımlandı` eylemi anındaki kesin kaynak revizyonlarını, kullanıcı gerekçesini, aktörü ve zamanı değişmez sahipli bileşende tutar. Gate, skor veya otomatik durum değişikliği üretmez.
+
+**İlerleme ve bırakma ölçütü:** Üç gerçek sürümde “neden bu koşullarda yayımladım?” sorusunu çözmezse bırakılır.
+
+<a id="teknik-mimari-sira-surum-farki"></a>
+### Teknik Mimari/Sıra sürüm farkı
+
+**Tetikleyici:** İki Diyagram Sürümü arasında semantik farkı manuel taramak üç gerçek karşılaştırmada yetersiz kalırsa.
+
+**İlk dilim:** Sabit öğe kimlikleri üzerinden düğüm, bağlantı, mesaj ve sıra değişimini gösterir; yalnız görsel konum değişikliği semantik fark sayılmaz. Etki, risk veya doğruluk hükmü üretmez.
+
+**İlerleme ve bırakma ölçütü:** Üç gerçek sürüm karşılaştırmasında manuel taramayı azaltmazsa bırakılır.
+
+<a id="eski-guvenli-yayina-donus"></a>
+### Eski güvenli yayına dönüş
+
+**Tetikleyici:** Hatalı fakat güvenlik ihlali olmayan yeni snapshot’tan önceki doğru Onaylı revizyona dönme ihtiyacının tekrar etmesi.
+
+**İlk dilim:** Eski snapshot aynen canlandırılmaz; içeriği güncel redaksiyon, erişim ve sızıntı kontrollerinden yeniden geçirilerek yeni bir Onaylı snapshot revizyonu üretilir. Eski URL/token yaşamı değişmez.
+
+**İlerleme ve bırakma ölçütü:** Üç gerçek düzeltmede manuel yeniden yayın yükünü azaltmazsa bırakılır.
+
+<a id="feedback-follow-up-handoff"></a>
+### Feedback Follow-up Handoff
+
+**Tetikleyici:** Yayımlanan Özelliğin hangi Geri Bildirim ve Sürüme dayandığını dışarıda elle kurmanın üç gerçek kapanışta tekrar etmesi.
+
+**İlk dilim:** Kullanıcı izinli Contact, özgün Geri Bildirim, kesin Sürüm ve paylaşılacak metni önizleyip dış iletişim aracına kopyalanabilir tek yönlü paket üretir. Cantiara gönderildi/okundu iddiası taşımaz; konuşma veya CRM oluşturmaz.
+
+**İlerleme ve bırakma ölçütü:** Üç gerçek kapanışta manuel bağlam kurmayı azaltmazsa bırakılır.
+
+<a id="senaryo-baglam-test-matrisi"></a>
+### Senaryo × bağlam test matrisi
+
+**Tetikleyici:** Aynı senaryonun farklı build/ortam/cihaz/tarayıcı sonuçlarını oturum tek tek açarak aramanın tekrar etmesi.
+
+**İlk dilim:** Yalnız kesin senaryo sürümü ve yapılandırılmış bağlardan salt okunur matris türetir. Boş hücre `Matching result yok` der; coverage yüzdesi, kalite skoru veya yayın kapısı üretmez.
+
+**İlerleme ve bırakma ölçütü:** Üç gerçek karşılaştırma turunda arama süresini azaltmazsa bırakılır.
+
+<a id="anonim-goruntulenme-istatistikleri"></a>
+### Anonim görüntülenme istatistikleri
+
+**Tetikleyici:** Paylaşım veya yayın yüzeyinin hâlâ kullanılıp kullanılmadığını anlamanın, sayaç olmadan tekrar tekrar yetersiz kalması.
+
+**İlk dilim:** Dış yüzey başına anonim toplam görüntülenme ve son erişim zamanı. Tekil ziyaretçi kimliği, IP, cihaz izi veya kişi bazlı hareket yoktur. Bot, prefetch, asset, owner preview ve saklama semantiği aynı kararda kapanır.
+
+**İlerleme ve bırakma ölçütü:** Üç gerçek paylaşım yüzeyinde “hâlâ kullanılıyor mu?” sorusunu çözmezse bırakılır. Haftalık eğilim ayrı not olarak kalır.
 
 <a id="tek-seferlik-gerçeklik-devir-teslimi"></a>
 ### Tek Seferlik Gerçeklik Devir Teslimi
@@ -575,15 +665,13 @@ Ekip kullanımı doğrulanırsa `test.view`, `test_report.submit`, `test.manage`
 
 ### Sonraki kullanıcı segmentleri
 
-Açık kaynak maintainer’ları, freelancer’lar ve küçük ekipler sonraki veya ikincil doğrulama segmentleridir. Ürün bu aşamada pazar odaklı tek bir rekabet konumlandırmasını sabitlemez; mevcut dört temel değer ve kurucu kullanımı ürün yönünü belirler.
+Açık kaynak maintainer’ları, freelancer’lar ve küçük ekipler sonraki veya ikincil doğrulama segmentleridir. Ürün bu aşamada pazar odaklı tek bir rekabet konumlandırmasını sabitlemez; mevcut üç temel değer ve kurucu kullanımı ürün yönünü belirler.
 
-Freelancer doğrulaması ilk ürün kapsamını büyütmez. Müşteri teklifi, Invoice ve birleşik proje sunumu [ilk ticari genişleme](17-commercial-expansion.md#ilk-urun-sonrasi-ticari-genisleme) aşamasında; solo-builder ürün akışı gerçek kullanımla doğrulandıktan sonra en az bir gerçek müşteri projesinde sınanır.
+Freelancer doğrulaması ilk ürün kapsamını büyütmez. Müşteri teklifi [kanıt bekleyen ticari gelecekte](17-commercial-expansion.md#kanit-bekleyen-ticari-gelecek) Proposal sözleşmeli adayı olarak durur; Invoice ve birleşik sunum bağlayıcı olmayan nottur.
 
 ### Uzun vadeli dağıtım modeli
 
-Son kullanıcıya yönelik self-host kurulumu ilk ürün tesliminin parçası değildir ve dağıtım sırasının en sonunda ele alınır; mevcut geliştirme self-host operasyon yüzeyleri kurmak için yavaşlatılmaz.
-
-Self-host dağıtımı açıldığında ürünün uzun vadeli temel dağıtım biçimlerinden biri olur. Her kurulum operatörün kontrol ettiği veritabanı ve depolamayı kullanabilir; kurulum, yükseltme, sağlık kontrolü, log inceleme, yedekleme ve geri yükleme için işletilebilir bir yönetim yüzeyiyle birlikte sunulur.
+Son kullanıcıya yönelik self-host kurulumu ilk ürün tesliminin parçası değildir. Açılırsa operatörün kontrol ettiği veritabanı ve depolamayı kullanabilir; kurulum, yükseltme, sağlık kontrolü, log inceleme, yedekleme ve geri yükleme için işletilebilir bir yönetim yüzeyiyle birlikte sunulur. Bu not sıra, tarih veya “temel dağıtım biçimi olacak” taahhüdü oluşturmaz; mevcut geliştirmeyi self-host yüzeyleri için yavaşlatmaz.
 
 Daha sonraki olası SaaS, ayrı veya özellikleri kırpılmış bir ürün değil, Apache-2.0 lisanslı aynı tam açık kaynak ürünün yönetilen bulut hizmetidir. Open-core özellik bölme yapılmaz; yönetilen hizmet kaynak kodunun kullanım, değiştirme ve dağıtma haklarını daraltmaz.
 
@@ -617,7 +705,7 @@ Varsayılan bütün bölümler üretim zamanı ve kaynak kapsamı görünür tar
 
 ### Kimliksiz haftalık paylaşım eğilimi
 
-İlk ürün bağlantıyla sınırlı salt okunur paylaşım ve herkese açık yayın yüzeylerinde anonim toplam görüntülenme ile son erişim zamanını korur. Dogfooding bu iki bilginin bir paylaşım yüzeyinin hâlâ kullanılıp kullanılmadığını anlamakta tekrar tekrar yetersiz kaldığını gösterirse bağlantı/yayın yüzeyi başına son 13 haftanın anonim haftalık görüntülenme eğilimi ilk ürün sonrası aday olarak değerlendirilebilir.
+İlk ürün paylaşım ve yayın yüzeylerinde görüntülenme veya son erişim istatistiği toplamaz. Anonim toplamlar ayrı [sözleşmeli adaydadır](#anonim-goruntulenme-istatistikleri). Dogfooding bu iki bilginin bir paylaşım yüzeyinin hâlâ kullanılıp kullanılmadığını anlamakta tekrar tekrar yetersiz kaldığını gösterirse bağlantı/yayın yüzeyi başına son 13 haftanın anonim haftalık görüntülenme eğilimi ayrıca değerlendirilebilir.
 
 Yön açılırsa kısa aralıktaki tekrar açılışlar tek görüntülenme olarak birleştirilir; özel/herkese açık yüzey türü ayrılabilir fakat kişi, organizasyon, IP, cihaz izi, konum veya tekil oturum dökümü üretilmez. Düşük hacimde kimlik çıkarımını önleyen sayı bastırma uygulanır ve grafik başarı, engagement ya da paydaş performansı skoru olarak sunulmaz. Kesin düşük-hacim eşiği, tekrar birleştirme penceresi ve saklama süresi yön açılırken gizlilik modeliyle birlikte kararlaştırılır.
 
@@ -633,13 +721,12 @@ Bu yön açılırsa yalnız kaydedilmemiş editör buffer'ını kısa ömürlü 
 
 Bu yön açılırsa ClamAV veya seçilecek eşdeğer tarama altyapısı dosyayı kullanılabilir bir kayda bağlanmadan, önizlenmeden, indekslenmeden, paylaşılmadan, yayımlanmadan veya export edilmeden önce tarar. Sonuçlar `Temiz`, `Engellendi`, `Karantinada` ve `Tarama kullanılamıyor/başarısız` olarak ayrılır; yalnız `Temiz` içerik erişime açılır. Servis kullanılamıyorsa dosya karantinada kalır, güvenli yeniden deneme veya iptal sunulur; saklama, otomatik silme, sonradan zararlı işaretleme, metrik ve alarm davranışları uygulama kararıyla birlikte kesinleştirilir.
 
+<a id="tam-ürün-paketi-ve-geri-yükleme-doğrulaması"></a>
 ### Tam ürün paketi ve geri yükleme doğrulaması
 
-İlk ürün [seçili kayıt taşınabilirliği ve tam paket sınırıyla](13-data-security-and-portability.md#kullanıcı-kontrollü-yedekleme-sınırı) kalır. Tam veri taşınabilirliği veya self-host geçişi gerçek ihtiyaç hâline geldiğinde sürümlü ürün paketi ayrıca değerlendirilir; mevcut işlem sınırları bu gelecek yönünde yeniden tanımlanmaz.
+İlk ürün [şifreli Çalışma Alanı çıkış paketini](13-data-security-and-portability.md#calisma-alani-cikis-paketi) restore olmadan sunar. Ürün içine atomik restore/import, yalıtılmış dry run ve aynı ya da başka kuruluma geri yükleme kanıt bekleyen gelecek yönüdür; çıkış paketinin varlığı restore taahhüdü oluşturmaz.
 
-Yön açılırsa paket okunabilir Markdown belgelerini, yapılandırılmış JSON kayıtlarını, özgün Dosya Eki sürümlerini, yapılandırmaları, iç kimlikleri, ilişki ve sürüm zincirlerini açık manifestle taşır; oturumlar, entegrasyon secret'ları ve paylaşım anahtarları dışarıda kalır. Oluşturma ve indirme şifreli, süreli ve iptal edilebilir olur; büyük export/import durable background job sistemiyle ilerleme, güvenli yeniden deneme, iptal ve kayıt bazlı hata sonucu sunar.
-
-Aynı yön paket parmak izi ve şema uyumluluğu sağlık kontrolünü, yalıtılmış geri yükleme dry run'ını ve aynı ya da başka kuruluma atomik içe aktarmayı birlikte kapsar. Çakışmalar uygulanmadan önce gösterilir; başarısız işlem canlı kayıtta, dosyada, ilişkide, sayaçta veya arama indeksinde kısmi yazma bırakamaz. Tam çalışma alanı geri yüklemesinin boş/dolu hedef davranışı, paket saklama süresi ve tamamlanma bütçeleri uygulama kararıyla kesinleştirilir.
+Yön açılırsa paket parmak izi ve şema uyumluluğu sağlık kontrolünü, yalıtılmış geri yükleme dry run'ını ve atomik içe aktarmayı birlikte kapsar. Çakışmalar uygulanmadan önce gösterilir; başarısız işlem canlı kayıtta kısmi yazma bırakamaz. Tam çalışma alanı geri yüklemesinin boş/dolu hedef davranışı, paket saklama süresi ve tamamlanma bütçeleri uygulama kararıyla kesinleştirilir.
 
 ### Adlandırılmış Backlog bölümleri
 
@@ -655,7 +742,7 @@ Bu yön açılırsa geçmişte zaten bulunan değişiklik kayıtlarından salt o
 
 ### Alternatif planlama senaryoları
 
-Ana plana uygulanmadan tarih, Roadmap ufku veya kapsam değişikliklerini ayrı bir what-if dalında deneme şu anda gerekli görülmediği için ürün kapsamına ya da kararlaştırılmış ilk ürün sonrası alana alınmaz. İlk ürün ve mevcut gelecek yönleri tek canlı planı korur; keyfî geçmiş tarihli baseline karşılaştırması da prospective plan dalı oluşturmaz.
+Ana plana uygulanmadan tarih, Roadmap ufku veya kapsam değişikliklerini ayrı bir what-if dalında deneme şu anda gerekli görülmediği için ürün kapsamına ya da kanıt bekleyen gelecek yönüne alınmaz. İlk ürün ve mevcut gelecek yönleri tek canlı planı korur; keyfî geçmiş tarihli baseline karşılaştırması da prospective plan dalı oluşturmaz.
 
 Alternatif planları asıl kayıt alanlarını değiştirmeden karşılaştırma ihtiyacı gerçek kullanımda tekrar eden bir engel hâline gelirse konu yeni bir ürün kararı olarak sıfırdan açılır. Bu değerlendirme gerçekleşirse taslak değişikliklerin canlı kayda sızmaması, kesin fark önizlemesi, seçerek uygulama, çakışma davranışı ve senaryo silme/geçmiş sınırı birlikte kararlaştırılır; Gantt, proje fork'u veya ikinci kalıcı plan doğruluk kaynağı varsayılmaz.
 
@@ -708,7 +795,7 @@ Bu yön e-posta veya mesaj göndermez, teslim/yanıt okumaz, takvim daveti üret
 
 ### Gelecekte ekip sistemi yönü
 
-Ekip sistemi solo-builder ilk ürün akışını veya ondan sonraki kararlaştırılmış ticari genişlemeyi geciktirmez. Bu iki alan doğrulandıktan sonra ekip sistemi ayrı bir ürün genişlemesi olarak ele alınır; aşağıdaki mekanikler o değerlendirmede sınanacak aday davranışlardır ve bugünden teslim taahhüdü veya ilk ürün kapsamı oluşturmaz.
+Ekip sistemi solo-builder ilk ürün akışını veya ondan sonraki kanıt bekleyen ticari geleceği geciktirmez. Bu iki alan doğrulandıktan sonra ekip sistemi ayrı bir ürün genişlemesi olarak ele alınır; aşağıdaki mekanikler o değerlendirmede sınanacak aday davranışlardır ve bugünden teslim taahhüdü veya ilk ürün kapsamı oluşturmaz.
 
 Değerlendirme açılırsa atama modelinde her İşin en fazla bir `Birincil sorumlu` ve isteğe bağlı birden fazla `Katkıda bulunan` taşıması ele alınır. Kişisel `My İş / Bana atananlar` yüzeyinin bunları `Sorumlu olduklarım` ve `Katkı sağladıklarım` olarak ayırması ve yakın zamanda tamamlanan işle aktif blokaj bağlamını aynı ana kayıtlardan göstermesi aynı adayın parçası olur. Atamanın İş durumunu veya Günlük Odak üyeliğini örtük değiştirmemesi ve Günlük Odağın her üyenin bilinçli kişisel seçimi olarak kalması bu adayın önkoşuludur.
 

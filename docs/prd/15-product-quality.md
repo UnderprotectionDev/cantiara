@@ -5,7 +5,7 @@ Bu belge ilk ürünün performans, erişilebilirlik, kullanılabilirlik, veri b�
 <a id="performans-butcesi"></a>
 ## Performans ve ölçek bütçesi
 
-- **Süreler 4 çekirdekli güncel bir masaüstü işlemci, 16 GB bellek, desteklenen masaüstü tarayıcı, 50 Mbps bağlantı ve 100 ms ağ gecikmesi altında ölçülür.** Kullanıcı zamanlaması eylemden veya son tuş vuruşundan anlamlı sonucun görünür, kararlı ve etkileşime hazır olmasına kadar uçtan uca alınır; backend span'leri yalnız teşhis içindir.
+- **Süreler 4 çekirdekli güncel bir masaüstü işlemci, 16 GB bellek, desteklenen masaüstü tarayıcı, 50 Mbps bağlantı ve 100 ms ağ gecikmesi altında ölçülür.** Kullanıcı zamanlaması eylemden veya son tuş vuruşundan anlamlı sonucun görünür, kararlı ve etkileşime hazır olmasına kadar uçtan uca alınır; backend span'leri yalnız teşhis içindir. Dış yüzey ilk içerik bütçesi bu laboratuvarın yanı sıra [kabuldeki mobil Safari/Chrome matrisinde](16-product-acceptance.md#uctan-uca-kabul-yolculuklari) de kanıtlanır. Asset yükleme iptal kontrolünü veya kapalı-dünya yetkisini cache uğruna atlayamaz. Yayın isteğinin kabul bütçesi ziyaretçi ilk içeriğinden ayrıdır; iç uygulama soğuk açılışına 2,5/4 sn uygulanmaz.
 
 - **Sunucu ölçüm sırasında normal üretim kapasitesinin yüzde 60'ından fazla CPU veya veritabanı bağlantı kullanamaz.** Her akış tam Ürün sürüm adayı ve tanımlı referans veriyle en az 500 sıcak-cache ve 100 soğuk-cache ölçümüyle değerlendirilir; hata veren istekler süre örneğinden çıkarılmaz. p95 ve p99 değerleri birbirini ikame etmez ve az sayıdaki elle spot kontrol bu örneklemin yerine geçmez.
 
@@ -23,6 +23,8 @@ Bu belge ilk ürünün performans, erişilebilirlik, kullanılabilirlik, veri b�
 | Belge kaydının sunucu tarafından onaylanması | 800 ms | 1.500 ms |
 | 25 MB dosyanın yükleme sonrası tür ve bütünlük doğrulamasının tamamlanması | 1.500 ms | 3.000 ms |
 | Herkese açık yayın veya kaldırma isteğinin kabul edilmesi | 1.000 ms | 2.000 ms |
+| Dış yüzeyde kullanılabilir ilk içerik (küçük snapshot) | 2.500 ms | 4.000 ms |
+| Dış yüzeyde kullanılabilir ilk içerik (adversarial büyük snapshot) | 2.500 ms | 4.000 ms |
 
 - **Referans büyük Çalışma Alanı arama, liste ve detay akışları için 25 Proje, 10.000 İş, 5.000 Belge, 2.000 Geri Bildirim, 1.000 Contact/Company, 2.000 Test Oturumu, 250 Teknik Diyagram, 1.000 Diyagram Sürümü, 500 Migration Artefaktı ve 50.000 ilişki içerir.** Dosya kanıtı 5.000 sürüm üstverisi, 25 MB gerçek transfer ve 25 GB kota hesabını doğrular; CI içinde gerçek 20 GB içerik taşıma zorunluluğu yoktur.
 

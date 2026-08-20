@@ -52,6 +52,7 @@ Ana akış şudur:
 | Paket bölümü | Zorunluluk ve içerik |
 | --- | --- |
 | `handoff_id` | Zorunlu kararlı Handoff kimliğidir; Handoff içindeki artan paket sürüm numarasıyla birlikte yazılır ve dönen raporda aynı değerle beklenir. |
+| `handoff_package_version` | Zorunlu artan paket sürümüdür. `handoff_id` taşıyan raporda aynı sürüm beklenir; bilinmeyen veya eşleşmeyen sürüm bütün raporu atomik reddeder ve en yeni paket olduğu varsayılmaz. |
 | `project` | Zorunlu hedef proje kimliği ve görünen adıdır; raporun teslim edilebileceği tek proje kapsamını gösterir. |
 | `title` ve `purpose` | Zorunlu Handoff başlığı ile kullanıcının yazdığı amaç ve kapsam metnidir. |
 | `created_at` | Zorunlu RFC 3339 paket üretim zamanıdır ve saat dilimi/ofset taşır. |
@@ -164,10 +165,11 @@ Test sonucu üç yoldan eklenebilir:
 | --- | --- |
 | `schema_version` | MCP ve yapılandırılmış içe aktarmada zorunludur; ilk değer `test-report/1`dir. |
 | `project_id` | MCP ve yapılandırılmış içe aktarmada zorunludur; yetkili entegrasyon kapsamındaki tam bir projeyi hedeflemelidir. Proje adıyla tahminî eşleme yapılmaz. |
-| `external_session_id` | MCP ve yapılandırılmış içe aktarmada zorunludur; yürüten/kaynak kapsamındaki idempotency anahtarıdır. Manuel formda ürün iç kimliği üretir. |
-| `executor` | Zorunludur; `type`, görünen `name` ve varsa `version` taşır. `type`, `user`, `ai_agent` veya `external_tool` değerlerinden biridir. |
+| `external_session_id` | MCP ve yapılandırılmış içe aktarmada zorunludur; dış çalıştırma kimliğidir. Kanonik idempotency sınırı giriş yolu + doğrulanmış entegrasyon kimliği + bu değerdir. Payload `executor` adı tekilleştirme anahtarı değildir. Manuel formda ürün iç kimliği üretir. |
+| `executor` | Zorunludur; `type`, görünen `name` ve varsa `version` taşır. `type`, `user`, `ai_agent` veya `external_tool` değerlerinden biridir. Bu alan yalnız kullanıcıya gösterilen tarihsel atıftır; idempotency anahtarına girmez. |
 | `reported_at` | Zorunlu RFC 3339 rapor zamanıdır ve saat dilimi/ofset taşır. `started_at` ve `ended_at` isteğe bağlıdır; ofsetsiz veya sırası geçersiz zaman raporu reddeder. |
 | `handoff_id` | İsteğe bağlı kesin Test Handoff'u kimliğidir. Payload içinde Handoff başlığıyla veya benzerlikle eşleme yapılmaz. |
+| `handoff_package_version` | `handoff_id` varsa zorunludur; paket sürümüyle birebir eşleşmelidir. Yokluğu, bilinmeyen veya uyuşmayan değer bütün raporu atomik reddeder. |
 | `context` | Repository, branch, commit, build, ortam, işletim sistemi, cihaz, tarayıcı, araç ve hassas olmayan fixture tanımlayıcılarını taşıyan isteğe bağlı nesnedir. |
 | `summary` ve `raw_report` | İsteğe bağlı tarihsel özet ve ham rapordur. Ham rapor yapılandırılmış testlerin yerine geçmez ve kabul limitleri ile hassas veri kontrolüne tabidir. |
 | `tests` | En az bir Oturum Testi adayı taşır. Boş rapor Test Oturumu oluşturmaz. |
@@ -259,11 +261,13 @@ Test sonucu üç yoldan eklenebilir:
 | `flaky`, `unknown`, `inconclusive`, karışık veya güvenli biçimde sınıflandırılamayan serbest ifade | `inconclusive` | `Sonuçsuz` |
 | Hiç sonuç bildirilmemesi | `not_reported` | `Bildirilmedi` |
 
-- **Payload `normalized_result` alanında yalnız tablodaki wire değerlerinden birini taşıyabilir.** Ürün bu bildirimi kullanıcı etiketine eşleyerek korur; ham sonuçla açıkça çelişiyorsa raporu sessizce düzeltmek yerine `result_conflict` ile reddeder. Yalnız ham ifade varsa deterministik ve belgelenmiş eşleme uygulanır; eşleme kesin değilse `inconclusive / Sonuçsuz` seçilir. Manuel girişte kullanıcı etiketi seçer, ürün karşılık gelen wire değerini kaydeder.
+- **Her rapor zarfı sürümü kapalı bir alias kataloğu taşır.** Case ve dış boşluk normalizasyonu açıktır; katalog dışı ham ifade `not_reported / Bildirilmedi` olur. Ham sonuçla `normalized_result` çelişkisi `result_conflict` üretir. Alias eklemek zarf sözleşmesi değişikliğidir; yeni ifade sessizce başka anlama çekilmez.
+
+- **Payload `normalized_result` alanında yalnız tablodaki wire değerlerinden birini taşıyabilir.** Ürün bu bildirimi kullanıcı etiketine eşleyerek korur; ham sonuçla açıkça çelişiyorsa raporu sessizce düzeltmek yerine `result_conflict` ile reddeder. Yalnız ham ifade varsa o zarf sürümünün alias kataloğu uygulanır; katalog dışı veya kesin değilse `not_reported` seçilir. Manuel girişte kullanıcı etiketi seçer, ürün karşılık gelen wire değerini kaydeder.
 
 ### Kanonik kimlik, parmak izi ve cevap sözleşmesi
 
-- **İdempotency karşılaştırması, doğrulanmış kanonik rapor zarfı üzerinden yapılır.** Yetkilendirme tokenı, ağ başlıkları, teslim denemesi zamanı ve benzeri taşıma üstverisi parmak izine girmez; test içeriği, dış kimlikler, zaman/bağlam alanları, ilişkiler ve yüklenen eklerin içerik parmak izleri girer. Alan sırası veya anlamsız JSON whitespace farkı yeni içerik sayılmaz.
+- **İdempotency karşılaştırması, doğrulanmış çağıran kimliği üzerinden yapılır.** Kanonik sınır giriş yolu, doğrulanmış entegrasyon kimliği ve dış çalıştırma/oturum kimliğidir. Aynı bağlantının aynı dış kimlikle yeniden denemesi önceki makbuzu döndürür; farklı bağlantı aynı `executor` adı veya run numarasını kullansa da çakışmaz. Payload `executor` alanı yalnız tarihsel etikettir. Yetkilendirme tokenı, ağ başlıkları, teslim denemesi zamanı ve benzeri taşıma üstverisi parmak izine girmez; test içeriği, dış kimlikler, zaman/bağlam alanları, ilişkiler ve yüklenen eklerin içerik parmak izleri girer. Alan sırası veya anlamsız JSON whitespace farkı yeni içerik sayılmaz.
 
 - **Aynı dış oturum içindeki yinelenen `external_test_id`, aynı dış oturum kimliğinin farklı kanonik içerikle yeniden kullanılması ya da desteklenmeyen alan/sürüm bütün raporu reddeder.** Bilinmeyen alanlar gizlice başka alana eşlenmez veya ana kayda yazılmaz; hata kesin alan yolunu gösterir. Ham raporda bulunmaları ise ham içeriğin güvenlik ve boyut sınırları içinde tarihsel olarak korunabilir.
 
@@ -342,7 +346,7 @@ Test sonucu üç yoldan eklenebilir:
 
 - **Kullanıcı kesin Oturum Testleri arasında ortak domain sözleşmesindeki yönlü [`Yerine geçer` / `Yerine geçildi` ilişkisini](02-domain-model-and-lifecycle.md#standart-ilişki-türleri) kurabilir.** Yeni sonuç eskisini silmez veya geçmiş sonucunu değiştirmez; güncel özet geçiş zincirini, her iki sonucu ve teknik bağlam farkını gösterir.
 
-- **Aynı senaryoda farklı sonuçlar bulunup açık bir yerine-geçme ilişkisi yoksa ürün `Çelişen sonuçlar` dikkat sinyali gösterebilir.** Sinyal yalnız kesin ortak senaryo sürümü veya açık ilişki ve farklı normalize sonuçlardan türetilir; metin benzerliğiyle testleri eşlemez ve hangi sonucun doğru olduğuna karar vermez.
+- **Aynı senaryoda farklı sonuçlar bulunup açık bir yerine-geçme ilişkisi yoksa ürün `test-result-conflict` dikkat sinyali üretir.** Sinyalin oluşma, dedupe ve kapanma kuralı bu belgededir; sunumu [kapalı sinyal kaydında](04-workspace-and-projects.md#dikkat-sinyali-kayitlari) kayıtlıdır. Sinyal yalnız kesin ortak senaryo sürümü veya açık ilişki ve farklı normalize sonuçlardan türetilir; metin benzerliğiyle testleri eşlemez ve hangi sonucun doğru olduğuna karar vermez. Kullanıcı geçerli sonucu karara bağlayınca sinyal kapanır.
 
 ### Bağlam değişikliği
 
@@ -352,7 +356,7 @@ Test sonucu üç yoldan eklenebilir:
 
 ### Takip işi ve ilişkili kayıtlar
 
-- **`Kaldı`, `Bloke` veya `Sonuçsuz` sonucu otomatik Bug, İş, Risk, Açık Soru, Karar, bildirim veya öncelik oluşturmaz.** Kullanıcı Oturum Testinden `Takip işi oluştur` eylemini başlatabilir veya sonucu mevcut İş, Bug, Risk, Açık Soru ya da Karara bağlayabilir. Önizleme hedef kaydı, başlangıç değerlerini ve kesin köken/kanıt ilişkilerini onaydan önce gösterir.
+- **`Kaldı`, `Bloke` veya `Sonuçsuz` sonucu otomatik Bug, İş, Risk, Açık Soru, Karar, bildirim veya öncelik oluşturmaz.** Kullanıcı Oturum Testinden `Takip işi oluştur` eylemini başlatabilir veya sonucu mevcut İş, Bug, Risk, Açık Soru ya da Karara bağlayabilir. Önizleme hedef kaydı, başlangıç değerlerini, `Kökeni` ilişkisinin sahip Test Oturumuna ve değişmez `Köken konumu`nun kesin Oturum Testi öğesine bağlandığını onaydan önce gösterir.
 
 - **Birden fazla sonuç aynı kök nedene ait tek mevcut İşe bağlanabilir.** İşin kapanması tarihsel sonucu `Geçti` yapmaz; düzeltmenin doğrulanması yeni bir Test Oturumu ve gerekirse `Yerine geçen doğrulama` ilişkisi gerektirir.
 

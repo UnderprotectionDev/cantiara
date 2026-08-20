@@ -20,7 +20,9 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 - **Efor tahmini isteğe bağlıdır ve zaman takibi oluşturmaz.**
 
-- **Araştırma türündeki bir iş isteğe bağlı `Problem/Fırsat özeti` taşıyabilir.** Bu özet çözüm veya Özellik taahhüdü değildir; ilişkili Geri Bildirim ve Kaynak kanıtlarını aynı problem bağlamında gruplayabilir. Sonradan oluşturulan bir Özellik, köken ilişkisiyle bu Araştırma işine bağlanabilir. İlk ürün ayrı bir `Fırsat` kayıt türü, durum akışı veya zorunlu discovery aşaması oluşturmaz.
+- **Araştırma türündeki bir iş isteğe bağlı `Problem/Fırsat özeti` taşıyabilir.** Bu özet çözüm veya Özellik taahhüdü değildir; ilişkili Geri Bildirim ve Kaynak kanıtlarını aynı problem bağlamında gruplayabilir. Sonradan oluşturulan bir Özellik, `Kökeni` ilişkisiyle bu Araştırma işine bağlanabilir. İlk ürün ayrı bir `Fırsat` kayıt türü, durum akışı veya zorunlu discovery aşaması oluşturmaz.
+
+- **Feature dışındaki İş türleri arasında tür değişikliği serbesttir.** Feature'a dönüş veya Feature'dan çıkış ayrı etki önizlemesi ister. Kapsanan İş, sağlık geçmişi veya Birincil spec varken kullanıcı bunları açıkça ayırmadan Feature'dan çıkış engellenir; sessiz veri kaybı veya ilişki semantiğinin yeniden yorumlanması olmaz.
 
 ### İş Bağlam Kartı
 
@@ -56,7 +58,7 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 - **İş veya Özellik ilerlemesi gösterilen yüzeylerde ilişkili açık Risk ve Açık Soru kayıtları durum, kapsam ve kontrol listesi ilerlemesinin yanında taranabilir biçimde sunulur.** Bu görünürlük tamamlanma ile belirsizliği aynılaştırmaz; yeni bir belirsizlik alanı oluşturmaz ve işin durumunu ya da Özelliğin türetilen ilerlemesini değiştirmez.
 
-- **İlk ürünün ortak İş akışı durumları `Not Started`, `In Progress`, `Blocked` ve terminal `Closed` değerleridir.** Terminal olmayan durumlar arasında serbest geçiş vardır; kullanıcı tanımlı geçiş grafiği, durum bazlı izin veya doğrulama kapısı yoktur. Kullanıcıya dönük adlar Yapılandırma modunda değiştirilebilir fakat bu dört korunan semantik başka anlam için kullanılamaz.
+- **İlk ürünün ortak İş akışı durumları `Not Started`, `In Progress`, `Blocked` ve terminal `Closed` değerleridir.** Terminal olmayan durumlar arasında serbest geçiş vardır; kullanıcı tanımlı geçiş grafiği, durum bazlı izin veya doğrulama kapısı yoktur. Kullanıcıya dönük adlar Yapılandırma modunda değiştirilebilir fakat bu dört korunan semantik silinemez, başka anlam için kullanılamaz ve yeni durum değeri eklenemez.
 
 - **İş akışı durumu işin akıştaki yerini; ayrı kapanış sonucu ise işin nasıl kapandığını gösterir.** `Closed` durumuna her geçiş `Tamamlandı` (`UI: Completed`) veya `Vazgeçildi` (`UI: Abandoned`) sonucunu seçtirir ve isteğe bağlı gerekçe taşıyabilir. Kapatma açık kullanıcı eylemiyle veya açıkça etkinleştirilmiş hazır PR-merge kuralıyla; yeniden açma yalnız açık kullanıcı eylemiyle gerçekleşir. Önceki sonuç, gerekçe ve durum değişiklikleri geçmişte korunur. Vazgeçilen işler tamamlanmış işlerden ayrı izlenir ve otomatik arşivlenmez.
 
@@ -203,7 +205,9 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 ### Backlog
 
-- **Backlog henüz planlanmamış işler dahil değerlendirilmesi gereken iş öğelerini gösteren hazır, dinamik bir Akıllı Koleksiyondur.** Bir işi Backlog’da görmek, ele almak veya Backlog’dan başka bir planlama görünümüne almak durumunu değiştirmez.
+- **Backlog, henüz planlanmamış işler dahil değerlendirilmesi gereken bütün aktif, arşiv ve çöp dışı İşlerin kaynağı olan hazır, dinamik bir Akıllı Koleksiyondur.** Bir işi Backlog’da görmek, ele almak veya Backlog’dan başka bir planlama görünümüne almak durumunu değiştirmez.
+
+- **Gelecekteki `Yeniden görünme tarihi` taşıyan İşler varsayılan Backlog görünümünde `Deferred` bölümüne ayrılır.** Tarih gelince İş, kaydedilmiş manuel sırasındaki konumuna döner ve Günlük Odak adayında görünür. Bildirim varsayılan kapalıdır ve yalnız Proje bazında açık opt-in ile üretilir; tarih İş durumunu değiştirmez.
 
 - **Backlog kendine ait tek kalıcı manuel sıra tutar.** Kullanıcı kartları sürükleyerek “hangisini önce ele alacağım?” kararını kalıcılaştırabilir. Alternatif öncelik, tarih veya alan sıralaması geçici ya da kayıtlı sunum olarak seçildiğinde manuel sıra arka planda korunur ve kullanıcı yeniden `Manuel sıra` görünümünü seçtiğinde geri gelir. Bu sıra Kanban veya normal Akıllı Koleksiyonlarda bağımsız manuel konum üretmez; açık Önceliklendirme oturumunun ayrı rank'i Backlog sırasına yazılmaz. Kullanıcının bugün ele alacağı işler ayrıca Günlük Odak’a seçilir.
 
@@ -329,7 +333,7 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 - **Kullanıcı bir işin en erken ne zaman yeniden değerlendirilmesi gerektiğini belirten isteğe bağlı yeniden görünme tarihi tanımlayabilir.** Bu tarih hedef tarihinden ve kişisel hatırlatmadan ayrıdır.
 
-- **Tarih gelene kadar iş varsayılan aktif Backlog, Kanban ve Günlük Odak kümelerinde geri planda tutulabilir; aranabilir, takvimde görülebilir ve erişilebilir kalır.** Tarih geldiğinde aktif seçim kümelerinde yeniden görünür ve isteğe bağlı bildirim üretir. Tarih işin durumunu, önceliğini veya proje aşamasını değiştirmez ve yalnız iş öğelerinde kullanılır.
+- **Tarih gelene kadar iş varsayılan aktif Backlog görünümünde `Deferred` bölümünde, Kanban ve Günlük Odak’ın varsayılan kümelerinde geri planda tutulabilir; aranabilir, takvimde görülebilir ve erişilebilir kalır.** Tarih geldiğinde kaydedilmiş manuel sırasına ve Günlük Odak adayına döner. Bildirim varsayılan kapalı, Proje bazında opt-in’dir. Tarih işin durumunu, önceliğini veya proje aşamasını değiştirmez ve yalnız iş öğelerinde kullanılır.
 
 ### Proje kapanış özeti
 

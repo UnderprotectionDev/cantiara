@@ -42,7 +42,9 @@ Bu belge Teknik Diyagram türlerinin, Diyagram otorite kipinin, kanonik yapısal
 
 - **Koşullu Güvenli Down:** `Down` yalnız bütün desteklenen operasyonların deterministik ve veri kayıpsız tersi [ters kanıt ölçütüyle](#guvenli-down-olcutu) kanıtlandığında üretilir. Bu koşul sağlanmıyorsa ürün açıkça `Güvenli Down üretilemedi` gösterir; silinmiş veriyi geri getirme, genel rollback veya deployment güvenliği vaat etmez.
 
-- **Değişmez Migration Artefaktı:** Kullanıcı Şema Değişiklik Taslağını ve desteklenen SQL'i onayladığında kaynak/hedef Diyagram Sürümleri, generator sürümü, statik doğrulama, kullanıcı düzenleme farkı ve uyarı manifestiyle değişmez Migration Artefaktı oluşur. Sonraki düzeltme eski artefaktı yeniden yazmaz; yeni taslak ve onay zinciri oluşturur.
+- **Değişmez Migration Artefaktı:** Kullanıcı Şema Değişiklik Taslağını ve desteklenen SQL'i onayladığında kaynak/hedef Diyagram Sürümleri, generator sürümü, statik doğrulama, kullanıcı düzenleme farkı, uyarı manifesti ve model hash'inden ayrı `Migration Artifact Digest` ile değişmez Migration Artefaktı oluşur. Digest; kaynak/hedef model hash'lerini, kimlikli türlenmiş operasyon planını, generator sürümünü ve exact export edilen Up/varsa Down SQL byte'larını bağlar. Yalnız görsel yerleşim digest'i değiştirmez; tek bayt veya operasyon farkı doğrulamayı düşürür.
+
+- **Sonraki düzeltme eski artefaktı yeniden yazmaz.** Aynı Veri Modeli Diyagramı içinde yeni onaylı artefakt değişmez `Supersedes Migration Artifact` sahipli pointer'ı taşır; bu genel kullanıcı ilişkisi değildir. Eski artefakt ve bağları yaşar; yeni artefakt eski kanıtı, PR'ı veya Test bağını miras almaz.
 
 - **Uygulanmışlık iddiası yok:** Ürün Migration Artefaktına `Uygulandı/Uygulanmadı` durumu veya manuel uygulanmış checkbox'ı vermez. Exact commit, pull request, Test Oturumu veya Proje Sürümüyle ilişki kanıt ve devir bağlamıdır; hiçbiri çalışan veritabanına uygulanmışlığı otomatik ya da dolaylı biçimde ilan etmez.
 

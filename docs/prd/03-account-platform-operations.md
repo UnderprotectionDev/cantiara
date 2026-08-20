@@ -57,7 +57,7 @@ Bu belge Hesap oluşturma ve kapatma, Hesap profil tercihleri, oturum güvenliğ
 
 - **Bu işlemler tamamlanınca sabit güvenlik olay sınırındaki veri kümesiyle 30 günlük kapanma dondurması başlar ve export açılır.** Dondurma sırasında yeni kullanıcı kaynaklı redaksiyon başlatmak için önce kapanış iptal edilir; dış erişimi kapalı tutan güvenlik uygulaması ve restore replay yükümlülüğü devam eder.
 
-- **Kullanıcı GitHub kimliğini yeniden teyit edip kapatmayı iptal edebilir veya kapsam kontrol listesi ve mevcut dışa aktarma bağlantıları üzerinden sabitlenmiş verisini alabilir; bu akış tam ve geri yüklenebilir Çalışma Alanı paketi vadetmez.** Süre sonunda Hesap ve Çalışma Alanı kalıcı silinir. Aynı kararlı GitHub kimliği daha sonra açıkça yeni ve farklı kimlikli Hesap ile Çalışma Alanı oluşturabilir.
+- **Kullanıcı GitHub kimliğini yeniden teyit edip kapatmayı iptal edebilir veya [şifreli Çalışma Alanı çıkış paketini](13-data-security-and-portability.md#calisma-alani-cikis-paketi) ve seçili Markdown/JSON/CSV bağlantılarını alabilir.** Dondurma bu tam paketi üretir ve 30 gün indirilebilir tutar. Kalıcı silme en az bir başarılı paket üretiminden önce olmaz. Unutulan parola paketi okunamaz kılar; ürün parola kurtarmaz ve bu sınırı kapanışta açık yazar. Süre sonunda Hesap ve Çalışma Alanı kalıcı silinir. Aynı kararlı GitHub kimliği daha sonra açıkça yeni ve farklı kimlikli Hesap ile Çalışma Alanı oluşturabilir.
 
 <a id="ab-veri-bolgesi"></a>
 ## Avrupa Birliği veri bölgesi

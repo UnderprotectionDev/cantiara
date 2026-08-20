@@ -14,17 +14,26 @@ Bu belge arama, sınıflandırma, ilişkiler, kanıt semantiği ve geri bildirim
 
 ### Tür-kapsamlı Table görünümü
 
-- **İş, Proje Hedefi, Geri Bildirim, Contact, Company, Kullanıcı Araştırması Oturumu, Risk, Varsayım, Karar, Planlı Test Senaryosu, Test Handoff'u, Test Oturumu, Oturum Testi, Test Açığı, Test değerlendirmesi, Üretim Olayı, Kilometre Taşı ve Proje Sürümü gibi yapılandırılmış kayıt türleri tek tür kapsamlı yoğun Table görünümünde incelenebilir.** Görünüm hazır tür dizinlerinde ve ilgili Akıllı Koleksiyonlarda mevcut filtre, sıralama ve görünür alan kurallarını kullanır; her satır aynı ana kaydı temsil eder ve ortak `Kaynak kaydı aç` eylemini korur. Yürütücü tarafından bildirilen tarihsel test sonucu Table içinden geriye dönük düzenlenmez; düzeltme ayrı ve izlenebilir bir kayıt olayıyla yapılır.
+- **Table, hücre içi düzenleme ve Akıllı Koleksiyon kaynağı kapalı tür × yüzey matrisiyle izinlenir.** Bütün ana kayıtlar Evrensel Arama ve kendi dizin/detayında bulunur. Yeni kayıt türü Table, Smart Collection veya inline edit yeteneklerini varsayılan miras almaz.
 
-- **Desteklenen alanlar hücre içinde düzenlenebilir.** Çok satırlı yapıştırma önce sütun eşlemesini, oluşturulacak veya güncellenecek satırları ve geçersiz hücreleri önizler. Kullanıcı geçersiz satırı düzeltir veya kesin kapsamdan açıkça çıkarır; tek onay seçilen nihai kümeyi atomik ve idempotent uygular. Ya bütün satırlar yazılır ya da hiçbir satır yazılmaz; doğrulanmamış değer veya kısmi başarı sessizce bırakılmaz. Her Table tek kayıt türüyle sınırlıdır; yeni tür, alan şeması, çapraz tür join’i veya ayrı tablo doğruluk kaynağı oluşturmaz.
+| Tür ailesi | Evrensel Arama + kendi dizin/detay | Table + hücre edit | Smart Collection kaynağı |
+| --- | --- | --- | --- |
+| İş, Proje Hedefi, Kilometre Taşı, Proje Sürümü, Geri Bildirim, Contact, Company, Kullanıcı Araştırması Oturumu, Karar, Risk, Varsayım, Açık Soru, Ürün Boşluğu, Kaynak, Planlı Test Senaryosu, Test Handoff'u, Test Oturumu, Test Açığı, Test değerlendirmesi, Üretim Olayı | Evet | Evet | Evet |
+| Belge, Wiki Belgesi | Evet | Hayır | Evet, yalnız yapılandırılmış üstveri, etiket ve kapsam |
+| Ekran, Kullanıcı Akışı, Proje Duvarı, Moodboard, Teknik Diyagram, Dosya Eki | Evet | Hayır | Hayır |
+| Yakalama Gelen Kutusu öğesi, Taslak, Dış yüzey, GitHub dış kaydı | Hayır; kendi yüzeyi | Hayır | Hayır |
+
+- **Oturum Testi Table'da sahibinin satırında görünür; tarihsel sonuç hücreden yazılmaz.** Inline edit yalnız Table'ı olan türlerin izinli alanlarındadır. Yürütücü tarafından bildirilen tarihsel test sonucu düzeltme olayı dışında geriye dönük düzenlenmez. Her Table tek kayıt türüyle sınırlıdır; yeni tür, alan şeması, çapraz tür join’i veya ayrı tablo doğruluk kaynağı oluşturmaz.
+
+- **Desteklenen Table alanları hücre içinde düzenlenebilir.** Çok satırlı yapıştırma önce sütun eşlemesini, oluşturulacak veya güncellenecek satırları ve geçersiz hücreleri önizler. Kullanıcı geçersiz satırı düzeltir veya kesin kapsamdan açıkça çıkarır; tek onay seçilen nihai kümeyi atomik ve idempotent uygular. Ya bütün satırlar yazılır ya da hiçbir satır yazılmaz; doğrulanmamış değer veya kısmi başarı sessizce bırakılmaz.
 
 ### Evrensel Arama
 
-- **Evrensel Arama bütün projelerdeki İşleri, güncel ve geçmiş kullanıcıya dönük İş anahtarlarını, hafif kontrol listesi metinlerini, Proje Hedeflerini, Belgeleri ve desteklenen Dosya Eklerini bulur.**
+- **Evrensel Arama bütün ana kayıtları kendi dizin/detay sözleşmesiyle bulur.** Yakalama Gelen Kutusu öğesi, Taslak, Dış yüzey ve GitHub dış kaydı arama sonucu olmaz; kendi yüzeylerinde kalır. Desteklenen Dosya Ekleri, kontrol listesi metinleri ve geçmiş İş anahtarları ilgili ana kaydın parçası olarak bulunur.
 
-- **Evrensel Arama ayrıca Karar, Risk, Varsayım, Kullanıcı Araştırması Oturumu ve izinli notu, Geri Bildirim, Contact, Company, Ürün Boşluğu, Dış Araca Kaçış, Ekran, tasarım, Kilometre Taşı ve Kişisel Wiki Belgesi ile ilişkili eklerini bulur.**
+- **Evrensel Arama indekslenen alanlarda Karar, Risk, Varsayım, Kullanıcı Araştırması Oturumu ve izinli notu, Geri Bildirim, Contact, Company, Ürün Boşluğu, Dış Araca Kaçış, Ekran, tasarım, Kilometre Taşı ve Kişisel Wiki Belgesi ile ilişkili eklerini bulur.**
 
-- **Evrensel Arama ayrıca Planlı Test Senaryosu, Test Handoff'ı, Test Oturumu, Oturum Testi, Test Açığı, Test Değerlendirmesi, Üretim Olayı, Proje Sürümü ve bağlı geliştirme kayıtlarını bulur.** Bu kayıt türlerinin ayrı maddelerde gruplandırılması bağımsız teslim aşaması, kısmi kabul veya özellik erişim kapısı oluşturmaz; tamamı ilk Ürün sürüm adayının arama kapsamındadır.
+- **Evrensel Arama indekslenen alanlarda Planlı Test Senaryosu, Test Handoff'ı, Test Oturumu, Oturum Testi, Test Açığı, Test Değerlendirmesi, Üretim Olayı, Proje Sürümü ve bağlı geliştirme kayıtlarını bulur.** Bu kayıt türlerinin ayrı maddelerde gruplandırılması bağımsız teslim aşaması, kısmi kabul veya özellik erişim kapısı oluşturmaz; tamamı ilk Ürün sürüm adayının arama kapsamındadır.
 
 - **Evrensel Arama Teknik Diyagramları başlık, tür, otorite kipi, düğüm/öğe etiketi, Veri Modelinde table/column adı ve değişmez Migration Artefaktı manifestindeki kullanıcıya dönük adlarla bulur.** Diyagram Görünümü, Diyagram Sürümü ve Migration Artefaktı sahibinden bağımsız arama sonucu veya yeni ana kayıt türü olmaz; sonuç kesin sahibi ve ilgili görünüm/sürüm/öğe konumunu açar. Üretilmiş SQL gövdesi varsayılan genel metin indeksine girmez ve arama sonucu üzerinden gizli model alanı sızdırmaz.
 
@@ -163,7 +172,7 @@ Bu belge arama, sınıflandırma, ilişkiler, kanıt semantiği ve geri bildirim
 
 - **Kullanıcı her kesin kanıt kullanımında `İncelendi; mevcut sürüm korunuyor` ya da `Yeni sürümle yeniden bağla` kararını açıkça verir.** Mevcut sürümü koruma kararı inceleyen kullanıcıyı, zamanı, karşılaştırılan yeni sürümü ve isteğe bağlı gerekçeyi ilişki geçmişinde tutar. Yeniden bağlama eski ilişkiyi yeniden yazmaz; eski ve yeni sürümü, hedef metin aralığını ve etkilenecek tek kullanım bağını önizleyip yalnız o bağı yeni sürüme taşır. Başka kullanımlar kendi inceleme kararlarını korur.
 
-- **Yeni onaylı Kaynak sürümü, eski sürümün hâlâ kanıt olarak kullanıldığı hedefler varsa tek Kaynak grubunda `Eylem Gerekiyor` dikkat sinyali üretir.** Grup her kullanım hedefini ve kesin sürümünü ayrı açar; bir hedefte verilen karar diğer hedefi kapatmaz. Bütün kullanımlar incelendiğinde sinyal kapanır; Kaynak yaşı, zamanın geçmesi, aday snapshot veya başarısız kontrol tek başına bu sinyali üretmez.
+- **Yeni onaylı Kaynak sürümü, eski sürümün hâlâ aktif bir kanıt bağıyla kullanıldığı hedefler varsa tek Kaynak grubunda `source-version-in-use` dikkat sinyali üretir.** Sunum [kapalı sinyal kaydında](04-workspace-and-projects.md#dikkat-sinyali-kayitlari) `Eylem Gerekiyor`dur. Sıradan `İlgili` ilişkisi, canlı kart veya görüntülenme sinyal üretmez; güncellik yalnız Kaynak üzerinde gösterilir. Grup her kullanım hedefini ve kesin sürümünü ayrı açar; bir hedefte verilen karar diğer hedefi kapatmaz. Bütün kullanımlar incelendiğinde sinyal kapanır; Kaynak yaşı, zamanın geçmesi, aday snapshot veya başarısız kontrol tek başına bu sinyali üretmez. Yeni sürüme sessizce taşınmaz.
 
 - **Kanıt tazeliği bir geçiş kapısı veya otomatik etki analizi değildir.** İncelenmemiş yeni sürüm İş, Karar, Risk, Test, Proje Sürümü veya yayın durumunu değiştirmez; kayıt oluşturmaz, hedefleri bloklamaz, ilişkili başka kayıtların etkilenmiş olduğuna karar vermez ve kullanıcı adına kanıt bağını taşımaz.
 

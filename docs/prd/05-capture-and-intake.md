@@ -10,11 +10,10 @@ Bu belge hızlı yakalama, Yakalama Gelen Kutusu, triage, tarayıcı uzantısı 
 
 - **Varsayılan yakalama serbest biçimlidir.** İlk ürünün isteğe bağlı mini şablon kataloğu aşağıdaki üç biçimle kapalıdır: `Bug Capture` içindeki `Observed Behavior`, `Expected Behavior`, `Reproduction Context`; `Feedback Capture` içindeki `Feedback`, `Channel`, isteğe bağlı `Contact`; `Research Fragment` içindeki `Note or Excerpt`, `Source Context`. Bütün yönlendirici alanlar isteğe bağlıdır ve yakalamayı kaydetmeyi engellemez. Şablon yalnız Yakalama Gelen Kutusu öğesini biçimlendirir; doğrudan Bug, Geri Bildirim, Kaynak veya başka ana kayıt oluşturmaz.
 
-- **Proje ve alan biliniyorsa içerik doğrudan ilgili alana alınabilir.**
-- **Yalnız proje biliniyorsa projenin Yakalama Gelen Kutusu’na alınır.**
+- **Proje ve tür kesinse açık `Create Bug` veya eşdeğer tür eylemi doğrudan tek normal ana kayıt oluşturur.** Kaydetmeden çıkılırsa ana kayıt oluşmaz; desteklenen İş formu taslağı kullanılabilir. Proje bilinip tür belirsizse veya yalnız proje biliniyorsa projenin Yakalama Gelen Kutusu’na alınır.
 - **Proje bilinmiyorsa geçici çalışma alanı Yakalama Gelen Kutusu’na alınır.**
 
-- **Geçici yakalamalar ana kayıt, normal arama sonucu, planlama girdisi, kalıcı ilişki ucu, paylaşım/yayın öğesi veya export girdisi olmaz; uzun süreli depolama ya da ikinci Backlog değildir.** `Geçici` otomatik süre sonu anlamına gelmez: Yakalama kullanıcı üç açık triage çıkışından birini seçene veya açıkça silene kadar zaman geçtiği için silinmez.
+- **Geçici yakalamalar ana kayıt, normal arama sonucu, planlama girdisi, kalıcı ilişki ucu, paylaşım/yayın öğesi veya export girdisi olmaz; uzun süreli depolama ya da ikinci Backlog değildir.** `Geçici` otomatik süre sonu anlamına gelmez: Yakalama kullanıcı üç açık triage çıkışından birini seçene veya açıkça silene kadar zaman geçtiği için silinmez. Yakalama eki yalnız öğeye ait şifreli staging bileşenidir; arama, paylaşım, yayın ve export dışında kalır. Kalıcı kayda dönüşümde hedef kapsam gösterilir ve nesne atomik olarak Dosya Ekine terfi eder; başarısızlık görünür ek bırakmaz. Yakalama silinince staging nesnesi silinir.
 
 - **Yakalama Gelen Kutusu odaklı bir triage görünümü sunar.** Bu görünüm özgün yakalamayı ve kökenini, benzer kayıt önerilerini ve aşağıdaki üç çıkışı aynı işlem yüzeyinde bir araya getirir. Geçici yakalamaya iş durumu, öncelik, planlama üyeliği veya kalıcı erteleme davranışı eklemez.
 
@@ -42,7 +41,7 @@ Her yakalamanın üç açık çıkışı vardır:
 
 - **Dönüşüm doğrulamasında özgün metin, bağlantı veya ekran görüntüsü ile önerilen kalıcı kayıt aynı yüzeyde karşılaştırılabilir.** Mini şablon kullanılan yakalamalarda da kalıcı kayıt türü, alan eşlemeleri ve oluşacak ilişkiler dönüşüm uygulanmadan önce önizlenir.
 
-- **İlk üründe yakalama uygulama içinden veya aşağıda tanımlanan dar Web Clipper'dan başlatılır.** E-posta, Slack, Siri veya benzeri diğer uygulama dışı giriş kanalları Yakalama Gelen Kutusu’na içerik göndermez; destek konuşmaları, inceleme kanalları veya başka dış kaynaklar sürekli taranarak otomatik geri bildirim adayı oluşturulmaz.
+- **İlk üründe yakalama uygulama içinden veya aşağıda tanımlanan dar Web Clipper'dan başlatılır.** E-posta, Slack, Siri veya benzeri diğer uygulama dışı giriş kanalları Yakalama Gelen Kutusu’na içerik göndermez; destek konuşmaları, inceleme kanalları veya başka dış kaynaklar sürekli taranarak otomatik geri bildirim adayı oluşturulmaz. macOS sistem-geneli Hızlı Yakalama [kanıt bekleyen gelecek yönüdür](18-future-directions.md#macos-sistem-geneli-hizli-yakalama).
 
 ### Tarayıcı uzantısıyla web yakalama
 

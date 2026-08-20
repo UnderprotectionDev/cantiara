@@ -8,7 +8,7 @@ Bu izlenebilirlik başlangıçta sürümlü bir referans envanteri ve onu ürete
 
 İlk sürümün çekirdek davranışları aşamalara bölünmez: tamamı tek ürün kapsamı ve tek tamamlanma kapısıdır. Ticari genişleme, kanıt bekleyen gelecek yönleri ve açık kapsam dışı hükümler ayrı kapsam anlamlarını korur.
 
-`CORE`, `ACCEPTANCE`, `COMMITTED-NEXT`, `EVIDENCE-GATED` ve `OUT` etiketleri de güncel okuyucu yüzeyinden kaldırılır. Bunların yerine sırasıyla ilk ürünün zorunlu kapsamı, ürün tamamlanma kanıtı, kararlaştırılmış ticari genişleme, kanıt oluşursa değerlendirilecek yönler ve bu ürün kapsamında bulunmayanlar doğal dili kullanılır.
+`CORE`, `ACCEPTANCE`, `COMMITTED-NEXT`, `EVIDENCE-GATED` ve `OUT` etiketleri de güncel okuyucu yüzeyinden kaldırılır. Bunların yerine sırasıyla ilk ürünün zorunlu kapsamı, ürün tamamlanma kanıtı, kanıt bekleyen ticari gelecek, kanıt oluşursa değerlendirilecek yönler ve bu ürün kapsamında bulunmayanlar doğal dili kullanılır.
 
 Ürün alanı belgesi davranış ve kısıtın, kabul belgesi test yöntemi ve kanıtın, ürün kapsamı belgesi ise bütün çekirdek davranışlarla kabul koşullarının tamamlanma kapısının tek sahibidir. Kabul belgesi kaynak davranışı yeniden tanımlamaz.
 

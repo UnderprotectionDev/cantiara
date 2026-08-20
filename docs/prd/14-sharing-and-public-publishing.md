@@ -71,9 +71,9 @@ Bu belge Dış yüzey, Onaylı snapshot revizyonu, bağlantıyla sınırlı payl
 
 ### Paylaşım ve Yayınlar yönetimi
 
-- **Proje ve çalışma alanı düzeyindeki `Paylaşım ve Yayınlar` yüzeyi bütün aktif, süresi dolmuş ve iptal edilmiş Dış yüzeyleri, yayımlanmış Wiki sayfalarını ve Build in Public yüzeylerini tek yönetim dizininde gösterir.** Her satır kapsamı ve kaynak kaydı, parola durumunu, varsa sona erme zamanını ve `Aktif`/`Süresi doldu`/`İptal edildi` durumunu, son onay zamanını, yayımlanmamış değişiklik bulunup bulunmadığını, anonim toplam görüntülenme ile son erişim zamanını ve duruma uygun `Kaynağı aç`, `Farkı gözden geçir`, `Süreyi değiştir/Yeniden etkinleştir`, `İptal et/Kaldır` veya `Çöp Kutusuna taşı` eylemlerini sunar.
+- **Proje ve çalışma alanı düzeyindeki `Paylaşım ve Yayınlar` yüzeyi bütün aktif, süresi dolmuş ve iptal edilmiş Dış yüzeyleri, yayımlanmış Wiki sayfalarını ve Build in Public yüzeylerini tek yönetim dizininde gösterir.** Her satır kapsamı ve kaynak kaydı, parola durumunu, varsa sona erme zamanını ve `Aktif`/`Süresi doldu`/`İptal edildi` durumunu, son onay zamanını, yayımlanmamış değişiklik bulunup bulunmadığını ve duruma uygun `Kaynağı aç`, `Farkı gözden geçir`, `Süreyi değiştir/Yeniden etkinleştir`, `İptal et/Kaldır` veya `Çöp Kutusuna taşı` eylemlerini sunar. Anonim görüntülenme veya son erişim zamanı ilk üründe toplanmaz.
 
-- **Yüzey yeni içerik kopyası veya ayrı yayın sistemi oluşturmaz; mevcut paylaşım ve yayın kayıtlarını yönetir.** Görüntülenme bilgisi yalnız anonim toplam ve son erişim gibi temel toplamlardır; tekil ziyaretçi kimliği, IP profili, cihaz izi veya kişi bazlı hareket geçmişi üretmez.
+- **Yüzey yeni içerik kopyası veya ayrı yayın sistemi oluşturmaz; mevcut paylaşım ve yayın kayıtlarını yönetir.** Görüntülenme sayacı, son erişim zamanı, ziyaretçi kimliği, IP profili, cihaz izi veya kişi bazlı hareket geçmişi ilk üründe üretilmez.
 
 - **İndekslenmiş bir yüzey iptal edildiğinde eski URL içerik ve varlık sızdırmayan genel `410 Gone` ile yanıt verir, `noindex` olur, sitemap'ten çıkarılır ve ürün kontrollü arama/cache temizleme isteği başlatılır.** Üçüncü taraf kopyaların tümüyle silineceği vaat edilmez. URL hiçbir zaman yeniden kullanılmaz, yeni yüzeye veya özel içeriğe yönlendirilmez.
 
@@ -116,7 +116,7 @@ Bu belge Dış yüzey, Onaylı snapshot revizyonu, bağlantıyla sınırlı payl
 
 ### İç durumların herkese açık sunumu
 
-- **Kullanıcı Proje bazında ayrıntılı iç İş durumlarını az sayıda, ziyaretçi tarafından anlaşılır herkese açık etikete eşler.** Eşleme aynı ana İşin yalnız yayın sunumudur; ayrı herkese açık İş kaydı veya ikinci durum doğruluk kaynağı oluşturmaz. İlk ürün başlangıç eşlemeleri `Not Started → Planned`, `In Progress → In Progress` ve `Closed + Completed → Released` olur. `Blocked` ile `Closed + Abandoned` varsayılan eşleme taşımaz; bu İşler kullanıcı açıkça herkese açık etiket seçmeden yayımlanamaz. Başlangıç eşlemeleri görünür ve Proje bazında değiştirilebilir olur.
+- **Kullanıcı Proje bazında ayrıntılı iç İş durumlarını az sayıda, ziyaretçi tarafından anlaşılır herkese açık etikete eşler.** Eşleme aynı ana İşin yalnız yayın sunumudur; ayrı herkese açık İş kaydı veya ikinci durum doğruluk kaynağı oluşturmaz. İlk ürün başlangıç eşlemeleri `Not Started → Planned`, `In Progress → In Progress` ve `Closed + Completed → Completed` olur. İş yayımlanmış bir Proje Sürümündeyse yayın farkı `Released` etiketini önerebilir; dış snapshot yalnız kullanıcı onayıyla değişir. `Blocked` ile `Closed + Abandoned` varsayılan eşleme taşımaz; bu İşler kullanıcı açıkça herkese açık etiket seçmeden yayımlanamaz. Başlangıç eşlemeleri görünür ve Proje bazında değiştirilebilir olur.
 
 - **İç durum değişikliği herkese açık etiketi kendiliğinden değiştirmez.** Yeni herkese açık etiket yalnız yayın farkında mevcut ve önerilen değerleriyle gösterilir ve kullanıcı önizleyip onayladıktan sonra herkese açık snapshot'a girer. Herkese açık etiket değişikliği de iç İş durumunu değiştirmez.
 
@@ -154,4 +154,4 @@ Bu belge Dış yüzey, Onaylı snapshot revizyonu, bağlantıyla sınırlı payl
 
 - **Build in Public yüzeyi ziyaretçiden özel veya herkese açık geri bildirim, yorum ya da oy almaz.** Ziyaretçi profili, talep sayacı, cevap dizisi, herkese açık changelog aboneliği veya gelişim akışı aboneliği oluşturmaz.
 
-- **Kullanıcı herkese açık Proje görünümünün ve yayımlanmış içeriklerin anonim toplam görüntülenme ve son erişim zamanı gibi temel bilgilerini inceleyebilir.** Özellik tekil ziyaretçi kimliği, IP profili, cihaz izi, kişi bazlı hareket geçmişi, gelişmiş analitik veya ziyaretçi profilleme sistemi oluşturmaz.
+- **İlk ürün herkese açık Proje görünümü ve yayımlanmış içerikler için görüntülenme veya son erişim istatistiği toplamaz.** Tekil ziyaretçi kimliği, IP profili, cihaz izi, kişi bazlı hareket geçmişi, gelişmiş analitik veya ziyaretçi profilleme de yoktur. Anonim toplamlar [kanıt bekleyen gelecek yönüdür](18-future-directions.md#anonim-goruntulenme-istatistikleri).
