@@ -10,7 +10,7 @@ Bu feature iş planlama yüzeylerini tamamlar. Öncelik oturumu, bağımlılık 
 
 ### Kanban
 
-Kanban İş durumunu açık sürükleme veya eylemle değiştirir. Sütun, kapanış sonucu veya arşiv değildir.
+Kanban İş durumunu açık sürükleme veya eylemle değiştirir. Sütun, kapanış sonucu veya arşiv değildir. Yeniden görünme tarihi gelene kadar kart varsayılan kümede geri planda durabilir; durum değişmez.
 
 Kurucu kartı kaynak İş olarak açar. Sürükleme sessiz otomasyon veya GitHub durumu yazmaz.
 
@@ -34,7 +34,7 @@ Backlog klasör, etiket veya statik liste kaydı değildir. Aynı İş gerçeği
 
 ### Günlük Odak
 
-Günlük Odak kişisel günlük kapsamı seçer. Gün kapanınca tarihsel sonuç korunur; ertesi güne otomatik üyelik taşımaz.
+Günlük Odak kişisel günlük kapsamı seçer. Gün kapanınca tarihsel sonuç korunur; ertesi güne otomatik üyelik taşımaz. Yeniden görünme tarihi gelmemiş İş varsayılan aday kümesinde geri planda durabilir.
 
 Seçim İşin Proje kapsamını veya durumunu değiştirmez. Kişisel bir çalışma kararıdır.
 

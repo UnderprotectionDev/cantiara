@@ -1,6 +1,6 @@
 # İş Yaşam Döngüsü
 
-Kurucu Özellik, Bug, Görev, Araştırma ve İyileştirme türlerini değişmez Proje anahtarı, açık durum ve kapanış sonucu ile yönetir.
+Kurucu Özellik, Bug, Görev, Araştırma ve İyileştirme türlerini değişmez Proje anahtarı, açık durum ve kapanış sonucu ile yönetir. Çok satırlı gövde ana Markdown'ın güvenli alt kümesini kullanır. Tablo, fenced kod, Mermaid ve uzun spesifikasyon tam Belgede durur.
 
 İş bağımsız kimlik ve geçmişle yaşar. Durum ile Tamamlandı veya Vazgeçildi sonucu ayrıdır; planlama yüzeyi yaşamı örtük kapatmaz. Arşiv, kopya birleştirme ve başka Projede yeniden oluşturma kimlik ile ilişki etkisini açık önizlemeyle yönetir.
 

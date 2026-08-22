@@ -1,6 +1,6 @@
 # Tamamlanmamış İş Taslakları
 
-Kurucu tamamlanmamış İş formunu otomatik kaydedilen Taslak olarak sürdürür. Taslak arama, planlama ve paylaşım gerçeğine dönüşmeden tek İşe kesinleşir.
+Kurucu tamamlanmamış İş formunu otomatik kaydedilen Taslak olarak sürdürür. Taslak arama, planlama ve paylaşım gerçeğine dönüşmeden tek İşe kesinleşir. Bağlantı kesildiğinde son başarılı otomatik kayıt zamanı ve henüz yazılmamış değişiklik riski görünür; yerel kuyruk oluşmaz.
 
 Yarıda kalan form kaybolmaz. Kesinleşene kadar Taslak ana kayıt değildir; Yakalama Gelen Kutusu öğesi de değildir.
 
