@@ -2,11 +2,11 @@
 
 Kurucu veritabanındaki Markdown Belgeleri uygulama içinde yazar, canlı bağlamla birleştirir, sürümler ve çatışmaları tarihsel bütünlüğü bozmadan çözer. Belgeler klasörler ve sınırlı ebeveyn–çocuk ilişkisiyle aynı sahiplik kapsamında düzenlenir.
 
-Belge başka kaydın metin alanı veya dış dosyayla canlı eşitlenen kopya değildir. Şablon ve Persona yeni belgeyi bağımsız kimlikle başlatır. Canlı bloklar kaynak kimliğini korur; dışa aktarma onları tarihli snapshota çevirir. Hiyerarşi sahipliği veya yaşam döngüsünü değiştirmez; yalnızca düzenler.
+Belge başka kaydın metin alanı veya dış dosyayla canlı eşitlenen kopya değildir. Şablon ve Persona yeni belgeyi bağımsız kimlikle başlatır. Proje kabuğunun seçtiği `Persona`, `Retrospective` ve `Launch Plan` iskeletleri bu feature'da boş başlık yapılı Belge olarak yaşar. Canlı bloklar kaynak kimliğini korur; dışa aktarma onları tarihli snapshota çevirir. Hiyerarşi sahipliği veya yaşam döngüsünü değiştirmez; yalnızca düzenler. Markdown gövdesindeki `#etiket` tokenı Çalışma Alanı etiket kimliğini hedefler.
 
 Yeniden bağlanınca son taban revizyonuyla kayıt denenir; gerekirse Çakışma Taslağı oluşur. Çakışma taslağı çözülmeden ana gerçeğe karışmaz. Online-only kuyruk yasağı çevrimiçi web ve macOS istemcisindedir.
 
-Bu feature belge yazarlığını, sürümünü ve hiyerarşisini tamamlar. Kayıt keşfi, Kişisel Wiki kapsamı ve Wiki yayını ayrıdır.
+Bu feature belge yazarlığını, sürümünü, hiyerarşisini, belge iskeletini ve Belge içi etiketi tamamlar. Kayıt keşfi, Kişisel Wiki kapsamı, etiket sözlüğü ve Wiki yayını ayrıdır.
 
 ## Alt Fazlar
 
@@ -32,7 +32,23 @@ Yeni Belge kullanıcı şablonundan veya Persona sözleşmesinden bağımsız ki
 
 Persona, belgenin başlangıç yapısını verir; yazarın yerine içerik yazmaz.
 
-Bu alt faz İş şablonu veya Başlangıç iskeleti değildir.
+Bu alt faz İş şablonu değildir. Proje kabuğunun seçtiği boş Başlangıç iskeleti ayrı alt fazdadır.
+
+### Belge başlangıç iskeletleri
+
+`Persona`, `Retrospective` ve `Launch Plan` iskeletleri yalnız boş bölüm başlığı kurar. Oluştuktan sonra normal Belge olarak yaşar.
+
+İskelet ana kayıt örneği, bulgu, görev veya karar üretmez. İçerik kurucunun yazacağı yerdir. Katalog seçimi proje kabuğundadır; yaşayan örnek burada oluşur.
+
+Bu alt faz kapanış özeti taslağı, duvar iskeleti veya şablon pazarı değildir.
+
+### Belge içi etiketler
+
+Belge gövdesindeki desteklenen `#etiket` tokenı aynı Çalışma Alanı etiket kimliğini hedefler. Yazım ile kayıt sınıfı ayrılmaz.
+
+Token görünümü Markdown düzenlemesinin parçasıdır; ayrı bir etiket veritabanı oluşturmaz. Geçersiz token sessizce yeni etiket uydurmaz. Etiket sözlüğü etiket feature'ındadır.
+
+Bu alt faz Wiki yayını veya dış Markdown hashtag senkronu değildir.
 
 ### Belge arşivi
 
@@ -71,6 +87,8 @@ Bilgi bulunur. Hiyerarşi yalnızca düzenler.
 - Markdown, canlı kayıt blokları ve desteklenen zengin içerik tek Belge gerçeğinde düzenlenir.
 - Sürümler karşılaştırılır; çatışma taslağı çözülmeden ana gerçeğe karışmaz.
 - Yeni Belge kullanıcı şablonundan veya Persona sözleşmesinden bağımsız kimlikle oluşur.
+- Seçilen `Persona`, `Retrospective` ve `Launch Plan` iskeletleri boş başlık yapılı Belge olarak yaşar.
+- Markdown içindeki desteklenen etiket tokenı aynı Çalışma Alanı etiket kimliğini hedefler.
 - Arşiv, kapsam taşıma/kopyalama ve tek Belge dışa aktarma kimlik etkilerini ayırır.
 - Belgeler klasör ve sınırlı ebeveyn–çocuk ilişkisiyle aynı sahiplik kapsamında düzenlenir.
 - Hiyerarşi taşıması kapsamı, kimliği veya yaşam döngüsünü değiştirmez.
@@ -85,3 +103,5 @@ Bilgi bulunur. Hiyerarşi yalnızca düzenler.
 - Sınırsız derin ağaç veya çapraz kapsam ebeveyn.
 - Belge taramasını bu feature'ın keşif yüzeyi sayma; evrensel arama ayrıdır.
 - Dosya eklerini belgeden bağımsız global dosya havuzu yapmak.
+- Belge içi tokenı serbest metin hashtag olarak bırakıp kimlikten koparma.
+- Belge iskeletini duvar iskeleti veya içerikli şablon sayma.

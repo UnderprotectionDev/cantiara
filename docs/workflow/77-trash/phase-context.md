@@ -26,7 +26,7 @@ Geri yükleme aynı iç kimliği ve çözülebilen bağımlılıkları getirir. 
 
 ### Erken kalıcı silme
 
-Kullanıcı otuz günden önce kalıcı silme başlatabilir. Etki önizlemesi, GitHub kimliğini yeniden teyit etme ve etkilenen Hesap veya Proje adının yazılması gerekir. Bu teyit ayrı bir teslim kartı değildir.
+Kullanıcı otuz günden önce kalıcı silme başlatabilir. Etki önizlemesi, Hesap Erişimi feature'ının GitHub kimliğini yeniden teyit etme sonucu ve etkilenen Hesap veya Proje adının yazılması gerekir. Bu teyit ayrı bir teslim kartı değildir.
 
 Kalıcı silme, kaydı kullanan etkin Dış yüzey iptal edilip hassas içerik kaldırılmadan engellenir. Denetim kaydında yalnız takma kimlik, olay türü, zaman ve aktör kalır.
 

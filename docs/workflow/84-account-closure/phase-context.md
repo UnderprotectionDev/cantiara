@@ -1,26 +1,18 @@
 # Hesap Kapatma
 
-Kurucu yüksek riskli işlemi aynı GitHub kimliğiyle yeniden teyit eder, Çalışma Alanı çıkış paketini alır ve Hesabı geri dönüş penceresi sonunda kalıcı olarak kapatır. Kalıcı silmeye kadar üretim ve özel içerik Avrupa Birliği veri bölgesi sözleşmesinde kalır; çıkış paketi yerleşimi taşımaz.
+Kurucu GitHub kimliğini yeniden teyit etmeyi Hesap Erişimi feature'ından kullanır, Çalışma Alanı çıkış paketini alır ve Hesabı geri dönüş penceresi sonunda kalıcı olarak kapatır. Kalıcı silmeye kadar üretim ve özel içerik Avrupa Birliği veri bölgesi sözleşmesinde kalır; çıkış paketi yerleşimi taşımaz.
 
-Ayrılık geri dönülmez olmadan önce durur. Pencere yazmayı ve dış erişimi kapatır; süre sonunda güvenlik redaksiyonu feature'ının sözleşmesi ve silme uygulanır.
+Ayrılık geri dönülmez olmadan önce durur. Pencere yazmayı ve dış erişimi kapatır; süre sonunda güvenlik redaksiyonu feature'ının sözleşmesi ve silme uygulanır. Kalıcı silme en az bir başarılı çıkış paketinden önce olmaz.
 
-Bu feature hesap kapatmayı tamamlar. Proje silme grubu, oturum iptali ve operasyonel yedek hesap silme değildir.
+Bu feature hesap kapatmayı tamamlar. Proje silme grubu, oturum iptali, GitHub kimliğini yeniden teyit etme ve operasyonel yedek hesap silme değildir.
 
 ## Alt Fazlar
 
-### GitHub kimliğini yeniden teyit etme
-
-GitHub kimliğini yeniden teyit etme, aynı değişmez kimliğe kısa ömürlü yüksek risk yetkisi verir. Başka sağlayıcı veya eski oturum yetmez.
-
-Kurucu kapatma ve benzeri tehlikeli işlemi bu yetkiyle başlatır. Yetki süre sonunda düşer.
-
-Teyit repository App yetkisi veya ziyaretçi parolası değildir. Hesap kimliğinin yeniden kanıtıdır. Aynı kural kişisel veri silmede de kullanılır; ayrı bir teyit feature'ı açılmaz.
-
 ### Hesap kapatma penceresi
 
-Hesap kapatma penceresi yazmaları ve dış erişimi kapatır. Kullanıcı tanımlı süre içinde işlemi iptal edebilir.
+Hesap kapatma penceresi yazmaları ve dış erişimi kapatır. Kullanıcı tanımlı süre içinde işlemi iptal edebilir. Başlatma ve iptal, Hesap Erişimi feature'ının GitHub kimliğini yeniden teyit etme sonucunu kullanır.
 
-Kurucu çıkış paketini bu pencerede alır. Paket restore vaadi taşımaz ama elde kalır.
+Kurucu çıkış paketini bu pencerede alır. Paket restore vaadi taşımaz ama elde kalır. Kalıcı silme başarılı paket olmadan ilerlemez.
 
 Pencere Proje arşivi değildir. Bütün Hesap ve Çalışma Alanı sınırıdır.
 
@@ -34,9 +26,9 @@ Bu alt faz tek Proje silme grubu değildir. Hesap sonudur.
 
 ## Tamamlanma Ölçütleri
 
-- Aynı değişmez GitHub kimliği kısa ömürlü yüksek risk yetkisi verir.
-- Kapatma penceresinde yazmalar ve dış erişim kapanır; kullanıcı tanımlı süre içinde iptal edilebilir.
+- Kapatma penceresi Hesap Erişimi teyidini kullanır; yazmalar ve dış erişim kapanır; kullanıcı tanımlı süre içinde iptal edilebilir.
 - Süre sonunda Hesap verisi güvenlik redaksiyonu ve silme sözleşmesiyle kaldırılır.
+- Kalıcı silme en az bir başarılı çıkış paketinden önce olmaz.
 - Kalıcı silmeye kadar üretim ve özel içerik AB veri bölgesi sözleşmesinde kalır; çıkış paketi yerleşimi taşımaz.
 
 ## Kapsam Sınırları
@@ -44,3 +36,4 @@ Bu alt faz tek Proje silme grubu değildir. Hesap sonudur.
 - Kapatmayı Proje silme veya oturum iptali sayma.
 - Çıkış paketi olmadan kalıcı silmeye izin verme.
 - Pencere bitmeden veriyi geri dönülmez silme.
+- GitHub teyidini bu kartın feature'ı sayma.

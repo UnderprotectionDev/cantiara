@@ -4,7 +4,7 @@ Kurucu hassas değeri güncel içerikten, kayıt geçmişinden, Dış yüzey sna
 
 Redaksiyon kaydın kimliğini durdurmak zorunda değildir; değeri siler. İçeriksiz işaret özgün olay türü, zaman ve aktörü koruyabilir; ad, e-posta, özgün mesaj veya secret yazılmaz. Dış yüzey redaksiyonu yayın erişimini yeniden açamaz.
 
-Kurucu etkiyi önizler. GitHub kimliğini yeniden teyit etme ve hedef adı yazılmadan redaksiyon başlamaz. Aynı kural kişisel veri silme ve erken kalıcı silmede de kullanılır; ayrı bir teyit feature'ı açılmaz.
+Kurucu etkiyi önizler. Hesap Erişimi feature'ının GitHub kimliğini yeniden teyit etme sonucu ve hedef adı yazılmadan redaksiyon başlamaz. Aynı kural kişisel veri silme ve erken kalıcı silmede de kullanılır; ayrı bir teyit feature'ı açılmaz.
 
 Bu feature güvenlik redaksiyonunu tamamlar. Çöp Kutusu, hesap kapatma, kişisel veri hakkı ve istemci gizleme ayrıdır.
 

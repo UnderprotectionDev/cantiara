@@ -2,7 +2,7 @@
 
 Kurucu tamamlanmamış İş formunu otomatik kaydedilen Taslak olarak sürdürür. Taslak arama, planlama ve paylaşım gerçeğine dönüşmeden tek İşe kesinleşir. Bağlantı kesildiğinde son başarılı otomatik kayıt zamanı ve henüz yazılmamış değişiklik riski görünür; yerel kuyruk oluşmaz.
 
-Yarıda kalan form kaybolmaz. Kesinleşene kadar Taslak ana kayıt değildir; Yakalama Gelen Kutusu öğesi de değildir.
+Yarıda kalan form kaybolmaz. Kesinleşene kadar Taslak ana kayıt değildir; Yakalama Gelen Kutusu öğesi de değildir. Oluşturma formundaki Proje bazlı özel alanlar özel alan feature'ından gelir; Taslak onları ikinci şema olarak tanımlamaz.
 
 Bu feature tamamlanmamış İş taslağını tamamlar. Belge taslağı, yakalama ve kesinleşmiş İş yaşamı ayrı kalır.
 

@@ -1,10 +1,10 @@
 # Yakalama ve Triage
 
-Kurucu belirsiz girdiyi kaybetmeden geçici Yakalama Gelen Kutusuna alır ve onu yeni kayda, mevcut kayda bağlı kanıta veya silme sonucuna açıkça dönüştürür.
+Kurucu belirsiz girdiyi kaybetmeden geçici Yakalama Gelen Kutusuna alır. Triage, öğeyi üç açık çıkıştan tam biriyle tüketir: kalıcı kayda dönüşüm elini ilgili kayıt feature'ına verir, mevcut kayda köken veya kanıt olarak bağlar ya da siler.
 
-Hızlı not İş, Taslak veya bookmark olmak zorunda değildir. Triage üç çıkıştan tam biriyle biter; otomatik kayıt uydurulmaz. Sıralı triage ve Toplu Anlamlandırma aynı üç çıkışı korur. Yakalama eki kalıcı Dosya Eki değildir.
+Hızlı not İş, Taslak veya bookmark olmak zorunda değildir. Otomatik kayıt uydurulmaz. Sıralı triage ve Toplu Anlamlandırma aynı üç çıkışı korur. Yakalama eki kalıcı Dosya Eki değildir; Dosya Eki yaşamı Dosya Eki feature'ında kesinleşir.
 
-Bu feature yakalama ve triage'ı tamamlar. Tamamlanmamış İş Taslağı, Belge yazarlığı ve tarayıcının kalıcı clip arşivi burada yoktur.
+Bu feature yakalama ve triage'ı tamamlar. Tamamlanmamış İş Taslağı, Belge yazarlığı, Dosya Eki yaşamı ve tarayıcının kalıcı clip arşivi burada yoktur.
 
 ## Alt Fazlar
 
@@ -18,9 +18,9 @@ Yakalama öğesi Backlog İşi veya uzun süreli bilgi deposu değildir. Triage 
 
 ### Triage
 
-Triage her öğeyi yeni kayıt, mevcut kayda bağlı kanıt veya silme sonuçlarından tam birine götürür. Dördüncü örtük durum yoktur.
+Triage her öğeyi üç açık çıkıştan tam birine götürür. Dördüncü örtük durum yoktur.
 
-Kurucu dönüşümü açıkça seçer. Sistem tür tahmin edip kayıt oluşturmaz. İsteğe bağlı benzer kayıt önerisi dayanağını gösterir; onay olmadan birleştirmez.
+Kurucu dönüşümü açıkça seçer. Sistem tür tahmin edip kayıt oluşturmaz. İsteğe bağlı benzer kayıt önerisi dayanağını gösterir; onay olmadan birleştirmez. Yeni kalıcı içerik, ilgili İş, Belge veya başka kayıt feature'ının sonucudur; bu kart o kaydı tamamlamış saymaz.
 
 Triage sonucu Yakalama öğesini tüketir. Aynı girdi hem İş hem belirsiz not olarak yaşamaz.
 
@@ -44,7 +44,7 @@ Bu üstveri arama, planlama, paylaşım, yayın ve dışa aktarmaya girmez.
 
 Yakalama eki yalnız öğeye ait şifreli staging nesnesidir. Arama, paylaşım, yayın ve export dışında kalır.
 
-Kalıcı kayda dönüşümde hedef kapsam gösterilir ve nesne atomik olarak Dosya Ekine terfi eder. Başarısızlık görünür ek bırakmaz. Yakalama silinince staging nesnesi silinir.
+Kalıcı kayda dönüşümde hedef kapsam gösterilir. Staging nesnesinin Dosya Eki olarak yaşaması Dosya Eki feature'ında atomik kesinleşir; başarısızlık görünür ek bırakmaz. Yakalama silinince staging nesnesi silinir.
 
 Bu alt faz paylaşılan medya kütüphanesi veya bağımsız Dosya Eki yaşamı değildir.
 
@@ -59,9 +59,9 @@ Uzantı ürün oturumu olmadan yazmaz. Eşleşmemiş istemci Gelen Kutusuna gire
 ## Tamamlanma Ölçütleri
 
 - Serbest biçimli veya mini şablonlu girdi kalıcı kayıt olmadan güvenle saklanır.
-- Her yakalama üç açık çıkıştan tam biriyle sonuçlanır.
+- Her yakalama üç açık çıkıştan tam biriyle tüketilir; yeni kalıcı kayıt ilgili kayıt feature'ında oluşur.
 - Sıralı triage yalnız açık çözümle ilerler; Toplu Anlamlandırma kalıcı küme üretmez.
-- Yakalama eki dönüşümde atomik Dosya Ekine terfi eder; başarısızlık görünür ek bırakmaz.
+- Yakalama eki staging olarak kalır; Dosya Eki yaşamı Dosya Eki feature'ındadır.
 - Eşlenmiş uzantı web bağlamını idempotent biçimde Gelen Kutusuna gönderir.
 - Bağlantı kesildiğinde yakalama veya uzantı çevrimdışı kuyruk tutmaz.
 

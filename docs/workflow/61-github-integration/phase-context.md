@@ -4,7 +4,7 @@ Kurucu Projeyi GitHub App üzerinden seçili Repositorylerle bağlar. Issue, pul
 
 Geliştirme gerçeği Cantiara'ya akar ama İş yaşamını örtük yazmaz. Webhook, durable inbox ve periyodik uzlaştırma aynı dış gerçeği çoğaltmaz. İnceleme ve merge GitHub'da kalır. Kart Cantiara'da inceleme veya birleştirme yapmaz; kaynağa götürür.
 
-Bu feature GitHub bağlantısını, geliştirme gerçeğini ve PR bağlam kartını tamamlar. Otomasyon ve sürüm kanıtı ayrıdır.
+Bu feature GitHub bağlantısını, geliştirme gerçeğini ve PR bağlam kartını tamamlar. Otomasyon ve sürüm kanıtı ayrıdır. Hazır `Bağlı gerekli PR'lar merge edildiğinde işi Tamamlandı say` kuralı otomasyon feature'ındadır; bağlantı İşi kapatmaz.
 
 ## Alt Fazlar
 

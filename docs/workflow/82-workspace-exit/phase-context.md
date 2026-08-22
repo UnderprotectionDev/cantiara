@@ -2,7 +2,7 @@
 
 Kurucu bütün Çalışma Alanının parola ile şifrelenmiş, indirilebilir çıkış paketini alır. Paket uygulama içi restore veya zamanlanmış yedek vaadi taşımaz. Üretim verisi, operasyonel yedek ve özel içerik Avrupa Birliği veri bölgesi sözleşmesinde kalır; çıkış paketi canlı yerleşimi taşımaz.
 
-Ayrılıkta veri elde kalır. Çıkış, operasyonel yedek değildir; hesap kapatma bu paketi önkoşul sayabilir.
+Ayrılıkta veri elde kalır. Çıkış, operasyonel yedek değildir. Hesabı kalıcı silmek en az bir başarılı çıkış paketi ister; paket restore vaadi taşımaz.
 
 Bu feature çalışma alanı çıkış paketini tamamlar. Seçili dışa aktarma, operasyonel kurtarma ve hesap kapatma kendi sınırlarındadır.
 
@@ -10,6 +10,7 @@ Bu feature çalışma alanı çıkış paketini tamamlar. Seçili dışa aktarma
 
 - Bütün Çalışma Alanı parola ile şifrelenmiş indirilebilir çıkış paketi olarak alınır.
 - Paket uygulama içi restore veya zamanlanmış yedek vaadi taşımaz.
+- Hesabı kalıcı silmek en az bir başarılı çıkış paketi ister.
 - Çıkış paketi canlı yerleşimi taşımaz; üretim ve özel içerik AB veri bölgesi sözleşmesinde kalır.
 
 ## Kapsam Sınırları

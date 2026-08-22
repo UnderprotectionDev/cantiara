@@ -2,9 +2,9 @@
 
 Kurucu dosyaları doğrulanmış tür, kota ve atomik finalize sınırıyla kayıtlara ekler. Güvenli önizleme, işaretleme ve konuma bağlı İş bağlamı kaynağı değiştirmez.
 
-Dosya, tam olarak bir Proje veya Kişisel Wiki kapsamında ana kayıt olarak yaşar. İşaretleme ve önizleme kaynak dosya sürümünden ayrı kalır; orijinal bozulmaz.
+Dosya, tam olarak bir Proje veya Kişisel Wiki kapsamında ana kayıt olarak yaşar. İşaretleme ve önizleme kaynak dosya sürümünden ayrı kalır; orijinal bozulmaz. Yakalama ekinin kalıcı kayda dönüşümü bu feature'da atomik Dosya Eki olarak kesinleşir; başarısızlık görünür ek bırakmaz.
 
-Bu feature Dosya Eki ve görsel kanıtı tamamlar. Belge gövdesi, Kaynak kaydı ve dış nesne CDN'i ikinci içerik kaynağı değildir.
+Bu feature Dosya Eki ve görsel kanıtı tamamlar. Belge gövdesi, Kaynak kaydı, Yakalama Gelen Kutusu staging'i ve dış nesne CDN'i ikinci içerik kaynağı değildir.
 
 ## Alt Fazlar
 
@@ -35,12 +35,13 @@ Konuma bağlı İş bağlamı işaretlenen noktayı İşe bağlar; dosya sahipli
 ## Tamamlanma Ölçütleri
 
 - Dosya türü, boyutu ve kapsam kotası doğrulandıktan sonra atomik kesinleşir.
+- Yakalama eki dönüşümde atomik Dosya Ekine terfi eder; başarısızlık görünür ek bırakmaz.
 - Desteklenen medya güvenli görüntülenir; başarısız işleme kaynak dosyayı bozmaz.
 - İşaretleme ve konum bağlamı kaynak dosya sürümünden ayrı korunur.
 
 ## Kapsam Sınırları
 
-- Dosya Ekini Belge, ilişki eki veya paylaşılan global dosya sayma.
+- Dosya Ekini Belge, ilişki eki, Yakalama eki veya paylaşılan global dosya sayma.
 - İşaretlemeyi kaynak dosyanın üzerine yazma.
 - Wireframe köken konumunu bu kartın feature'ı sayma.
 - Kotasız veya türü doğrulanmamış yüklemeyi kesinleştirme.

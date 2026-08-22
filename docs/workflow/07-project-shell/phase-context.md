@@ -1,6 +1,6 @@
 # Proje Kabuğu
 
-Kurucu bir Projeyi ad ve Başlangıç yapılandırmasıyla açar. Kısa kod, alanlar, hazır görünümler ve boş başlangıç iskeletleri aynı yapı kararından doğar. Yeni Proje örnek içerik, zorunlu workflow veya ürün türü dayatmadan çalışmaya hazır yapı kazanır. Blank Project en küçük kurulumu verir; diğer hazır alanları kapatmaz, yalnız kurmaz.
+Kurucu bir Projeyi ad ve Başlangıç yapılandırmasıyla açar. Kısa kod, alanlar, hazır görünümler ve boş başlangıç iskeleti kataloğu aynı yapı kararından doğar. Yeni Proje örnek içerik, zorunlu workflow veya ürün türü dayatmadan çalışmaya hazır yapı kazanır. Blank Project en küçük kurulumu verir; diğer hazır alanları kapatmaz, yalnız kurmaz. Yaşayan Belge ve Proje Duvarı iskelet örnekleri ilgili feature'larda oluşur.
 
 Aynı kabukta kurucu Projenin aşamalarını, alanlarını, durumlarını ve görünümlerini sabit bir süreç kapısına dönüşmeden yapılandırır. Yapılandırma modu özel alan editörünü açar; alan şeması Proje bazlı özel alan feature'ında yaşar. Yapıyı kopyalama, alan ve görünüm kararlarını içeriksiz yeni Projeye taşır. Kayıtlar, geçmiş ve ilişkiler gelmez.
 
@@ -26,11 +26,11 @@ Blank Project en küçük seçenektir. Diğer yapılandırmalar özellikleri kap
 
 ### Başlangıç iskeletleri
 
-Başlangıç iskeletleri yalnız boş başlık yapısı kurar. Oluştuktan sonra normal Proje Duvarı veya Belge olarak yaşar.
+Başlangıç yapılandırması kaynakta tanımlı boş iskelet kataloğunu seçer. Katalog `Persona`, `Retrospective` ve `Launch Plan` belgelerini; `Sitemap` ve `Customer Journey` duvarlarını adlandırır.
 
-İskelet ana kayıt örneği, bulgu, görev veya karar üretmez. İçerik kurucunun yazacağı yerdir.
+Seçim yaşayan Belge veya Proje Duvarı örneği üretmez. Belge iskeletleri belge feature'ında, duvar iskeletleri proje duvarı feature'ında boş başlık yapısı olarak oluşur.
 
-Bu alt faz kapanış özeti taslağı veya şablon pazarı değildir.
+Bu alt faz kapanış özeti taslağı, şablon pazarı veya içerikli örnek kayıt değildir.
 
 ### Yapılandırma modu
 
@@ -60,7 +60,7 @@ Bu alt faz Proje kopyası, şablon pazarı veya kapsam taşıma değildir.
 
 - Aktif Proje, değişmez kısa kod sözleşmesiyle oluşturulur.
 - Seçilen Başlangıç yapılandırması alanları, aşamaları, görünümleri ve navigasyonu bir kez kurar.
-- Yalnız kaynakta tanımlı boş yapı iskeletleri yeni Projede oluşur.
+- Başlangıç yapılandırması kaynakta tanımlı iskelet kataloğunu seçer; yaşayan Belge ve Duvar örnekleri kendi feature'larında oluşur.
 - Yapılandırma modu yapı değişikliğini günlük düzenlemeden ayırır; kayıt yaşamını değiştirmez.
 - Aşamalar, alanlar ve durumlar korunan ürün semantiği içinde değişir.
 - Alanı gizlemek içerik silmez; `Overview` ve `All Tools` kapanmaz.
@@ -74,3 +74,4 @@ Bu alt faz Proje kopyası, şablon pazarı veya kapsam taşıma değildir.
 - Lookup veya Formula alanıyla türetilmiş doğruluk kaynağı kurma.
 - Testler alanını ayrı test ürünü veya ana faz sayma.
 - Proje genel bakışını bu kabuğun feature'ı sayma.
+- Yaşayan Belge veya Proje Duvarı iskelet örneğini bu kabuğun feature'ı sayma.
