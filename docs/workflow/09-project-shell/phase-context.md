@@ -4,9 +4,7 @@ Kurucu bir Projeyi ad ve Başlangıç yapılandırmasıyla açar. Kısa kod, ala
 
 Aynı kabukta kurucu Projenin aşamalarını, alanlarını, durumlarını ve görünümlerini sabit bir süreç kapısına dönüşmeden yapılandırır. Yapılandırma modu özel alan editörünü açar; alan şeması Proje bazlı özel alan feature'ında yaşar. Yapıyı kopyalama, alan ve görünüm kararlarını içeriksiz yeni Projeye taşır. Kayıtlar, geçmiş ve ilişkiler gelmez.
 
-Çalışırken kurucu tek Projenin amacı, yaşam durumu, aşamaları, güncel işi, bilgisi, belirsizliği, testi, sürümü ve olaylarını nötr bir kaynak özetiyle görür. Özet başarı anlatısı veya otomatik sağlık skoru üretmez; kaynaklara açılır.
-
-Bu feature projenin açılmasını, yapısını ve genel bakışını tamamlar. Özel alan şeması, İş Bağlam Kartı düzeni, İş yaşam döngüsü ve kapanış özeti ayrıdır.
+Bu feature projenin açılmasını ve yapısını tamamlar. Proje genel bakışı, özel alan şeması, İş Bağlam Kartı düzeni, İş yaşam döngüsü ve kapanış özeti ayrıdır.
 
 ## Alt Fazlar
 
@@ -44,6 +42,8 @@ Kurucu modu açıkça görür ve tek eylemle kapatır. Mode girmek ana kaydı, g
 
 Proje yapısı aşamaları, alanları ve durumları korunan semantik içinde değiştirir. Aşamalar sıralı state machine değildir; birden fazla aşama aynı anda Aktif olabilir. Hazır Proje alanları kapalı katalogdandır; gizlenen alan içerik kaybetmez ve kayıt yaşamını değiştirmez.
 
+`Overview` ve `All Tools` Proje alanı değildir ve daima erişilebilir kalır. Alanı etkinleştirmek veya gizlemek kayıtları taşımaz, kopyalamaz ya da silmez; sabitleme yalnız navigasyon üstverisidir. Etkin alanların genel bakışta adı ve girişi Proje genel bakışı feature'ındadır.
+
 Kurucu görünür alanları ve akış durumlarını Projeye uyarlar. Özel alan tanımı bu kabukta şema üretmez; Proje bazlı özel alan feature'ına aittir.
 
 Yapı değişikliği geçmiş kayıtları sessizce yeniden yazmaz.
@@ -56,14 +56,6 @@ Kurucu kopyanın neyi aldığını önizler. Kaynak Proje değişmez.
 
 Bu alt faz Proje kopyası, şablon pazarı veya kapsam taşıma değildir.
 
-### Proje genel bakışı
-
-Kurucu tek Projenin amacı, yaşam durumu, aşamaları, güncel işi, bilgisi, belirsizliği, testi, sürümü ve olaylarını nötr bir kaynak özetiyle görür.
-
-Özet otomatik sağlık hükmü veya başarı anlatısı üretmez. Manuel Proje Güncellemesi otomatik özetle karışmaz.
-
-Genel bakış dashboard skoru veya durum kapısı değildir. Testler alanı ayrı test ürünü veya bu kabuğun feature'ı değildir.
-
 ## Tamamlanma Ölçütleri
 
 - Aktif Proje, değişmez kısa kod sözleşmesiyle oluşturulur.
@@ -71,9 +63,8 @@ Genel bakış dashboard skoru veya durum kapısı değildir. Testler alanı ayr�
 - Yalnız kaynakta tanımlı boş yapı iskeletleri yeni Projede oluşur.
 - Yapılandırma modu yapı değişikliğini günlük düzenlemeden ayırır; kayıt yaşamını değiştirmez.
 - Aşamalar, alanlar ve durumlar korunan ürün semantiği içinde değişir.
-- Gizlenen Proje alanı içerik silmez.
+- Alanı gizlemek içerik silmez; `Overview` ve `All Tools` kapanmaz.
 - İçerik ve geçmiş taşınmadan yeni Projeye yapı kopyalanır.
-- Tek Projenin amacı, yaşamı, işi, bilgisi, belirsizliği, testi, sürümü ve olayları nötr kaynak özetiyle görünür.
 
 ## Kapsam Sınırları
 
@@ -82,4 +73,4 @@ Genel bakış dashboard skoru veya durum kapısı değildir. Testler alanı ayr�
 - Özel alan şemasını bu kabuğun feature'ı sayma.
 - Lookup veya Formula alanıyla türetilmiş doğruluk kaynağı kurma.
 - Testler alanını ayrı test ürünü veya ana faz sayma.
-- Genel bakışı dashboard skoru veya durum kapısı sayma.
+- Proje genel bakışını bu kabuğun feature'ı sayma.

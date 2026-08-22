@@ -136,6 +136,50 @@ _Avoid_: Odak Dönemi, Proje Sürümü, sprint
 Seçili İşlerle çalışmak için açılan geçici zaman penceresi; kalıcı kapsam grubu, Kilometre Taşının ara sonucu veya Proje Sürümünün yayın kapsamı değildir.
 _Avoid_: Sprint, Kilometre Taşı, Proje Sürümü
 
+**Kanban**:
+İşleri İş akışı durumuna göre sütunlarda gösteren planlama yüzeyi; sütunlar arası kart hareketi duruma yansır, kapanış sonucu veya ikinci kayıt listesi değildir ([Kanban](docs/prd/06-work-management-and-planning.md)).
+_Avoid_: Sprint tahtası, kapanış kolonu, bağımsız manuel sıra
+
+**Backlog**:
+Henüz planlanmamış İşler dahil değerlendirilecek İşlerin hazır dinamik koleksiyonu ve Projedeki tek kalıcı manuel sıra; üyelik durum yazmaz ([Backlog](docs/prd/06-work-management-and-planning.md#backlog)).
+_Avoid_: Klasör, etiket, statik liste, Kanban sırası
+
+**Günlük Odak**:
+Kullanıcının farklı Projelerden bugün ele almak istediği İşleri toplayan kişisel görünüm; durum, öncelik veya proje aşaması yazmaz ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)).
+_Avoid_: Odak Dönemi, sprint, Aktif Çalışma Seti, Takvim olayı
+
+**Birleşik Takvim**:
+Desteklenen tarihli kayıtları türleri karışmadan gün, hafta, ay ve Agenda'da gösteren yüzey; yeni İş türü veya durum üretmez ([Birleşik Takvim](docs/prd/06-work-management-and-planning.md#birleşik-takvim)).
+_Avoid_: Dış takvim senkronu, Event kaydı, durum tahtası
+
+**Liste görünümü**:
+Filtrelenen İşleri alanlarıyla yoğun ve taranabilir düzende sunan aynı İş taraması; satır ayrı kayıt değildir ([Liste görünümü](docs/prd/06-work-management-and-planning.md#liste-görünümü)).
+_Avoid_: Tablo Görünümü, ikinci kayıt sistemi, Backlog
+
+**Kapsam Ağacı**:
+Mevcut `Proje → Özellik → Kapsanan işler` ilişkisini salt okunur açan görünüm; sürükleme parent–child üretmez ([Kapsam Ağacı](docs/prd/06-work-management-and-planning.md#kapsam-ağacı)).
+_Avoid_: Epic hiyerarşisi, subtask ağacı, planlama üyeliği
+
+**Proje genel bakışı**:
+Tek Projenin amacı, yaşamı, işi, bilgisi, belirsizliği, testi ve olaylarını kaynaklarından nötr özetleyen yüzey; otomatik sağlık skoru değildir ([Proje genel bakışı](docs/prd/04-workspace-and-projects.md#proje-genel-bakışı)).
+_Avoid_: Dashboard skoru, Çalışma Alanı genel bakışı, Manuel Proje Güncellemesi
+
+**Kişisel erişim kabuğu**:
+Günlük Odak, Favoriler, Birleşik Bildirim Merkezi ve Yeniden bak öğelerini kaynak görünümünü kaybetmeden açan ortak kişisel yüzey; planlama gerçeği üretmez ([kişisel erişim kabuğu](docs/prd/04-workspace-and-projects.md#bağlamı-koruyan-kişisel-erişim-kabuğu)).
+_Avoid_: Workspace dashboard, ikinci Backlog, Favori üyeliği
+
+**Aktif Çalışma Seti**:
+Açık oturum boyunca üzerinde durulan İş ve Belgeleri kaynak bağlamını kaybetmeden tutan kişisel seçim; oturum bitince geri yüklenmez ([Aktif Çalışma Seti](docs/prd/04-workspace-and-projects.md#oturumluk-aktif-çalışma-seti)).
+_Avoid_: Favori, Günlük Odak, bookmark kuyruğu, planlama üyeliği
+
+**Çalışmaya Dön**:
+Ara verilen Proje veya İşe güncel kayıtlardan seçilen geri dönüş kartlarıyla bağlamı yeniden kuran özet; seans, bildirim yığını veya sekme geri yükleme değildir ([Çalışmaya Dön](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)).
+_Avoid_: Bildirim, hatırlatma, recent-tabs, ikinci çalışma listesi
+
+**Birleşik Bildirim Merkezi**:
+Kapalı registrydeki dikkat sinyallerini Eylem Gerekiyor ve Bilgi Akışı olarak toplayan merkez; bildirimi okumak kaynak sorunu çözmez ([Birleşik Bildirim Merkezi](docs/prd/04-workspace-and-projects.md#birleşik-bildirim-merkezi)).
+_Avoid_: E-posta ürünü, Geri Bildirim feed'i, serbest bildirim
+
 **Favori**:
 Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim listesine alınan işaret ([Favoriler](docs/prd/04-workspace-and-projects.md#favoriler)).
 _Avoid_: Bookmark kuyruğu, Aktif Çalışma Seti, planlama üyeliği
