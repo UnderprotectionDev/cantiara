@@ -64,12 +64,12 @@ Bu belge Hesap oluşturma ve kapatma, Hesap profil tercihleri, oturum güvenliğ
 
 - **Birincil üretim verisi ve operasyonel yedekler Avrupa Birliği bölgesinde tutulur:** Neon Frankfurt, Railway Amsterdam, Cloudflare R2 `eu` jurisdiction ve Better Stack Almanya veri bölgesi kullanılır. Özel veri, bağlantıyla sınırlı içerik, yedek ve loglar otomatik failover sırasında AB dışına çıkmaz; AB kesintisi gerekirse fail-closed kesinti olarak yaşanır.
 
-- **Daha önce onaylanmış ve bilerek herkese açık yayımlanmış statik içerik, özel bağımlılıkları açmadan mevcut dağıtım noktasından sunulmaya devam edebilir.** Aktif bölgeler ürün yardımında görünürdür; bölge değiştirmek ayrı taşıma kararıdır. Production deployment bu bölge sözleşmesini doğrulamadan tamamlanamaz.
+- **Daha önce onaylanmış ve bilerek herkese açık yayımlanmış statik içerik, özel bağımlılıkları açmadan mevcut dağıtım noktasından sunulmaya devam edebilir.** Aktif bölgeler ürün yardımında görünürdür; bölge değiştirmek ayrı taşıma kararıdır. Production deployment bu bölge sözleşmesini doğrulamadan tamamlanamaz. Bu madde kullanıcı yüzeyi veya ayrı teslim işi açmaz.
 
 <a id="hizmet-isletimi"></a>
 ## Hizmet işletimi
 
-- **Kurucu ilk ürünün hizmet operatörü ve birinci seviye destek sahibidir.** Sağlık, hata oranı, kuyruk gecikmesi ve yedek başarısızlığı için yapılandırılmış metrik ve alarm bulunur; kullanıcı hatada secret içermeyen destek referansı görür.
+- **Kurucu ilk ürünün hizmet operatörü ve birinci seviye destek sahibidir.** Sağlık, hata oranı, kuyruk gecikmesi ve yedek başarısızlığı için yapılandırılmış metrik ve alarm bulunur; bu alarmlar [operasyonel yedek ve kurtarma](#operasyonel-yedek-ve-kurtarma) ile aynı son kapıdadır. Kullanıcı hatada secret içermeyen destek referansı görür; bu görünür hata sözleşmesi çevrimiçi web ve macOS istemcisine aittir.
 
 - **S1 için `derhâl`, otomatik tespit anından en fazla `5` dakika içinde alarmın üretilmesi ve güvenli olduğunda fail-closed sınırlandırmanın insan beklemeden başlamasıdır; ilk ürün 7/24 insan nöbeti vadetmez.** Bu süre insan müdahalesi değil otomatik zincirin başlama sınırıdır; aşılması operasyonel bir hata olarak kaydedilir. Kurucu sonraki uyanık çalışma döneminde müdahale eder. Tam hizmet kesintisi kullanılabilirlik hesabına dahil edilir. S2 bir iş günü içinde triage edilir.
 
@@ -80,4 +80,4 @@ Bu belge Hesap oluşturma ve kapatma, Hesap profil tercihleri, oturum güvenliğ
 
 - **Geri yüklemenin ardından normal veritabanı ve nesne restore alanından ayrı korunan, append-only ve sürümlü geri döndürülemez güvenlik olay günlüğündeki kalıcı silme, güvenlik redaksiyonu, Dış yüzey/token/parola değişikliği, kimlik doğrulamalı ve ziyaretçi oturumu iptali ile entegrasyon veya anahtar rotasyonu olayları yeniden uygulanır.** Yeni bir geri döndürülemez güvenlik eylemi eşleşen restore kuralı ve testi olmadan yayımlanamaz. Günlüğün güncel sınırına kadar replay ve bütünlük kontrolleri tamamlanana kadar bütün dış erişim fail-closed kalır. Günlük secret veya kullanıcı içeriği taşımaz; hesap ve kayıtlar geri döndürülemez takma kimlikle gösterilir ve Hesap silme tombstone'u en uzun operasyonel backup/restore penceresi artı 30 gün sonunda kaldırılır.
 
-- **Kullanıcıya dönük otomatik restore point sunulmaması hizmetin operasyonel yedek tutmaması anlamına gelmez.** Sağlayıcı, saklama topolojisi, maliyet ve tatbikat sıklığı normal mühendislik uygulaması içinde bu hedefleri karşılayacak biçimde seçilir; ayrı bir ürün karar kapısı oluşturmaz. Doğrulanmış kurtarma kanıtı olmadan Ürün sürüm adayı kabul edilmez.
+- **Kullanıcıya dönük otomatik restore point sunulmaması hizmetin operasyonel yedek tutmaması anlamına gelmez.** Sağlayıcı, saklama topolojisi, maliyet ve tatbikat sıklığı normal mühendislik uygulaması içinde bu hedefleri karşılayacak biçimde seçilir; ayrı bir ürün karar kapısı oluşturmaz. Operasyonel yedek, restore replay ve hizmet alarmı ilk ürünün son sürüm-adayı kapısıdır; sonraki ürüne veya [Gelecek Yönlerine](18-future-directions.md) ertelenmez. Doğrulanmış kurtarma kanıtı olmadan Ürün sürüm adayı kabul edilmez.

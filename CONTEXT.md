@@ -136,9 +136,17 @@ _Avoid_: Odak Dönemi, Proje Sürümü, sprint
 Seçili İşlerle çalışmak için açılan geçici zaman penceresi; kalıcı kapsam grubu, Kilometre Taşının ara sonucu veya Proje Sürümünün yayın kapsamı değildir.
 _Avoid_: Sprint, Kilometre Taşı, Proje Sürümü
 
+**Favori**:
+Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim listesine alınan işaret ([Favoriler](docs/prd/04-workspace-and-projects.md#favoriler)).
+_Avoid_: Bookmark kuyruğu, Aktif Çalışma Seti, planlama üyeliği
+
 **Akıllı Koleksiyon**:
 Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm; manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
 _Avoid_: Statik liste, klasör, etiket
+
+**Proje bazlı özel alan**:
+Yalnız bir Projede yaşayan, Metin, Sayı, Boolean, Tarih, tek seçim veya çoklu seçim türünde yapılandırılmış sınıflandırma alanı ([proje bazlı özel alanlar](docs/prd/08-search-relations-and-evidence.md#proje-bazlı-özel-alanlar)).
+_Avoid_: Lookup, Formula, çalışma alanı genelinde şema, etiket hiyerarşisi
 
 **Yakalama Gelen Kutusu öğesi**:
 Kaydedilmiş fakat henüz kalıcı kayıt türüne ve bağlamına dönüştürülmemiş [geçici girdi](docs/prd/02-domain-model-and-lifecycle.md#ana-kayıt-türleri-ve-asgari-sözleşmeler); ana kayıt, Backlog İşi veya uzun süreli bilgi deposu değildir.
@@ -193,6 +201,18 @@ _Avoid_: Discovery alanı, ürün keşfi, ayrı belge kütüphanesi
 **Kaynak**:
 Dış bilgiyi URL, erişim zamanı ve yakalanan içerikle tarihsel sürümler hâlinde koruyan Proje ana kaydı; canlı web sayfası, geçici bağlantı önizlemesi veya kendiliğinden onaylanmış kanıt değildir.
 _Avoid_: Akıllı bağlantı önizlemesi, bookmark, canlı web aynası
+
+**Geri Bildirim**:
+Özgün mesajı, kanalı ve zamanı koruyan uzman ana kayıt; Kaynak alt türü, özellik isteği veya destek ticket'ı değildir ([Geri Bildirim Kaydı](docs/prd/08-search-relations-and-evidence.md#geri-bildirim-kaydı)).
+_Avoid_: Kaynak Kaydı, sosyal gönderi, CRM fırsatı
+
+**Contact**:
+Geri bildirimi veren kişiyi geri bildirimler boyunca aynı kimlikle tanıyan Çalışma Alanı ana kaydı; ticari hesap veya CRM kartı değildir ([Contact ve Company kimliği](docs/prd/08-search-relations-and-evidence.md#contact-ve-company-kimliği)).
+_Avoid_: Kullanıcı Hesabı, Persona, müşteri kaydı
+
+**Company**:
+Birden fazla Contact ve Geri Bildirimi isteğe bağlı ortak kuruluş bağlamında gruplayan hafif ana kayıt; gelir, sözleşme veya satış aşaması taşımaz.
+_Avoid_: CRM hesabı, ticari Hesap, Invoice müşterisi
 
 **Kanıt bağı**:
 Kesin bir Kaynak, Belge, Diyagram veya Dosya Eki sürümünün belirli bir hedef iddiayı desteklediğini açık rol ve atıfla gösteren ilişki; Kaynağın varlığı tek başına bu bağı veya doğruluk hükmünü oluşturmaz.
@@ -305,6 +325,10 @@ _Avoid_: Kullanıcı Akışı, Proje Etkinliği, genel flowchart
 **Ekran**:
 Bir ürün ekranını temsil eden, Proje kapsamında bağımsız kimlik, geçmiş ve yaşam döngüsü taşıyan ana kayıt; görsel tasarım olmadan yalnız başlıkla var olabilir.
 _Avoid_: Wireframe kaydı, Ekran bileşeni, flow node'u
+
+**Kullanıcı Akışı**:
+Kullanıcının arayüz hedefi ve karar yolunu canlı Ekran referanslarıyla taşıyan tasarım ana kaydı; Ekran kopyası, teknik sıra veya durum makinesi değildir.
+_Avoid_: Wireframe belgesi, Teknik Sıra, flowchart
 
 **Wireframe yüzeyi**:
 Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir.
@@ -607,6 +631,10 @@ _Avoid_: Yalnız hata düzeldi notu, dış araç ekran görüntüsü, bekleme s�
 **Kayıt geçmişi**:
 Bir ana kaydın içerik sürümleri ile ona yapılan domain değişikliklerinin, ana kayıt yaşadığı sürece korunan kalıcı bağlamı.
 _Avoid_: Denetim kaydı, operasyon günlüğü
+
+**Güvenli geri alma**:
+Ürünün ters işlemi deterministik hesaplayabildiği alan, ilişki, görünüm üstverisi ve atomik dönüşümlerde ilgisiz sonraki değişikliği sarmadan uygulanan geri alma ([değişiklik geçmişi](docs/prd/02-domain-model-and-lifecycle.md#değişiklik-geçmişi-aktör-ve-geri-alma)).
+_Avoid_: Genel undo yığını, yayın geri alma, güvenlik redaksiyonunu geri alma
 
 **Denetim kaydı**:
 Kimlik doğrulama, yetkilendirme, paylaşım, yayın, entegrasyon ve yüksek riskli veri işlemlerini güvenlik ve hesap verebilirlik amacıyla süreli olarak belgeleyen olaylar.

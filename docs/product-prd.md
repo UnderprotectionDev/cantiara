@@ -28,7 +28,7 @@ Bu dosya normatif ürün davranışı tanımlamaz. Cantiara'nın güncel PRD bel
 
 ## Kapsamı okuma kuralı
 
-İlk ürün aşamalı bir özellik seçkisi değildir. 01–15 numaralı belgelerde tanımlanan davranışlar, kısıtlar ve güvenlik sınırları birlikte tamamlanır; 16 numaralı belge bunların nasıl kanıtlanacağını tanımlar. 17 numaralı ticari genişleme ilk üründen sonra yapılması kararlaştırılmış ayrı alandır. 18 numaralı adaylar kanıt ve yeni karar olmadan teslim kapsamına girmez. 19 numaralı hükümler mevcut kapsamın dışında kalır ve kendiliğinden gelecek taahhüdü oluşturmaz.
+İlk ürün aşamalı bir özellik seçkisi değildir. 01–15 numaralı belgelerde tanımlanan davranışlar, kısıtlar ve güvenlik sınırları birlikte tamamlanır; 16 numaralı belge bunların nasıl kanıtlanacağını tanımlar. Tek istisna: operasyonel yedek, doğrulanmış kurtarma kanıtı ve hizmet alarmı sürüm adayının son kapısıdır; ürün özellikleri bu kapı için aşamalanmaz. 17 numaralı ticari genişleme ilk üründen sonra yapılması kararlaştırılmış ayrı alandır. 18 numaralı adaylar kanıt ve yeni karar olmadan teslim kapsamına girmez. 19 numaralı hükümler mevcut kapsamın dışında kalır ve kendiliğinden gelecek taahhüdü oluşturmaz.
 
 Davranışın normatif sahibi ilgili ürün alanı belgesidir. Ortak invariantlar Domain Modeli ve Yaşam Döngüsünde, ölçülebilir kalite hedefleri Ürün Kalitesinde, test yöntemi ve kanıt Ürün Kabulünde, tamamlanma kapısı ise Ürün Vizyonu ve Kapsamında tek kez tanımlanır. Başka belgeler aynı sözleşmeyi yeniden anlatmak yerine bu kaynağa bağlantı verir.
 

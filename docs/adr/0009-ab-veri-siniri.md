@@ -13,6 +13,7 @@ AB bölgesi kesintisinde küresel bir replica kullanılabilirliği artırabilir 
 - Veri bölgesi garantisi kullanılabilirlik hedefinden önce gelir.
 - AB sağlayıcı kesintisi hizmet göstergesinde gerçek downtime sayılır.
 - Bilerek herkese açık onaylı statik içerik, özel bağımlılık açmadan mevcut teslim noktasında kalabilir.
+- Bu karar kullanıcı yüzeyi veya ayrı teslim işi açmaz; production dağıtımı ve kalite kapısıdır.
 
 ## İlgili belgeler
 
