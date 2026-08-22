@@ -4,7 +4,7 @@ Kurucu seçili kaydı salt okunur bearer bağlantısı, isteğe bağlı parola v
 
 Bağlantı Hesap vermez. Ziyaretçi içeriğin varlığını sızdırmayan kapılardan geçer; süre dolumu ile iptal karışmaz. Önizlenen küme ile onaylı revizyon aynıdır; eski cache iptali aşamaz. Çözülmemiş `{{alan_adı}}` yer tutucuları paylaşım önizlemesinde kaynak kayıt, alan ve metin bağlamıyla listelenir.
 
-Bu yolculuk bağlantıyla sınırlı paylaşımı tamamlar. Wiki yayını ve build in public ayrı yüzeylerdir.
+Bu feature bağlantıyla sınırlı paylaşımı tamamlar. Wiki yayını ve build in public ayrı yüzeylerdir.
 
 ## Alt Fazlar
 

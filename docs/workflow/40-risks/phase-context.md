@@ -1,6 +1,6 @@
 # Riskler
 
-Kurucu etki, olasılık, yanıt ve durumuyla Riskleri izler. Kabul veya gerçekleşme başka kayıtların durumunu ve başarı hükmünü otomatik değiştirmez. Çok satırlı gövde ana Markdown'ın güvenli alt kümesini kullanır. Tablo, fenced kod, Mermaid ve uzun spesifikasyon tam Belgede durur.
+Kurucu etki, olasılık, yanıt ve durumuyla Riskleri izler. Kabul veya gerçekleşme başka kayıtların durumunu ve başarı hükmünü otomatik değiştirmez.
 
 Risk görünür kalır. Kabul etmek İşleri kapatmaz; gerçekleşmek sürümü başarısız ilan etmez.
 

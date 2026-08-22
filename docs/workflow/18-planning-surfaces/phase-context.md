@@ -82,15 +82,15 @@ Bu alt faz öncelik puanı veya otomasyon kuralı değildir. Karar izidir.
 
 ### Kapsam Ağacı
 
-Kapsam Ağacı Özellik ve kapsadığı İşleri aynı kanonik ilişki üzerinden okur. İç içe epic veya subtask hiyerarşisi kurulmaz.
+Kapsam Ağacı Özellik ve kapsadığı İşleri aynı kanonik ilişki üzerinden salt okunur açar. İç içe epic veya subtask hiyerarşisi kurulmaz.
 
-Kurucu kapsamı ağaçta görür ve kaynağı açar. Ağaç sürüklemesi ilişkiyi açık kurala göre günceller; gizli ebeveyn uydurmaz.
+Kurucu kapsamı ağaçta görür ve kaynağı açar. Ağaç içinde sürükleme kapsamı değiştirmez; yeni parent–child veya gizli ebeveyn uydurmaz.
 
 Ağaç Proje yapısı, klasör veya Kilometre Taşı kırılımı değildir.
 
 ## Tamamlanma Ölçütleri
 
-- Aynı İş Kanban, Liste görünümü, Backlog, Günlük Odak, Odak Dönemi, Takvim, Kilometre Taşı, Roadmap, Şimdi değil izi ve Kapsam Ağacında yaşam döngüsü örtük değişmeden görünür ve düzenlenir.
+- Aynı İş Kanban, Liste görünümü, Backlog, Günlük Odak, Odak Dönemi, Takvim, Kilometre Taşı, Roadmap ve Şimdi değil izinde yaşam döngüsü örtük değişmeden görünür ve düzenlenir; Kapsam Ağacı aynı kanonik ilişkiyi salt okunur sunar.
 - Günlük Odak ve Odak Dönemi kapanışta tarihsel sonuç veya kapsam snapshotı bırakır.
 - Şimdi değil gerekçesi durum, Backlog sırası veya Roadmap üyeliğini örtük değiştirmez.
 
@@ -99,3 +99,4 @@ Ağaç Proje yapısı, klasör veya Kilometre Taşı kırılımı değildir.
 - Yüzeyi sprint, yayın taahhüdü veya İş akışı durumu sayma.
 - Liste görünümünü ayrı bir kayıt sistemi yapmak.
 - Kilometre Taşı, Odak Dönemi ve Proje Sürümünü birbirinin yerine kullanma.
+- Kapsam Ağacında sürükleyerek parent–child kapsamı veya manuel ağaç sırası üretme.

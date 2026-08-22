@@ -1,6 +1,6 @@
 # Geri Bildirim, Contact ve Company
 
-Kurucu Geri Bildirimi özgün mesajı, kanal ve kimlik bağlamıyla korur. Contact ve Company birleştirme kuralları kanıtı, kişisel veriyi veya önceliği sessizce değiştirmez. Çok satırlı gövde ana Markdown'ın güvenli alt kümesini kullanır. Tablo, fenced kod, Mermaid ve uzun spesifikasyon tam Belgede durur.
+Kurucu Geri Bildirimi özgün mesajı, kanal ve kimlik bağlamıyla korur. Contact ve Company birleştirme kuralları kanıtı, kişisel veriyi veya önceliği sessizce değiştirmez.
 
 Özgün mesaj kaybolmaz. Birleştirme geçmişi kimliği toparlar; sosyal yaşam döngüsü veya otomatik öncelik doğurmaz.
 

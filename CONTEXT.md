@@ -50,6 +50,14 @@ _Avoid_: Bütün ilişkileri kopyalama, Proje bağlamını taşıma, örtük ça
 Bir Projeyi salt okunur ve hareketsiz duruma getirerek etkin Projelerden ayıran, Proje silmenin yalnız içinden başlatılabildiği zorunlu ara [yaşam döngüsü durumu](docs/prd/02-domain-model-and-lifecycle.md#ortak-yaşam-döngüsü).
 _Avoid_: Çöp Kutusu, kalıcı silme, Projeyi gizleme filtresi
 
+**Çöp Kutusu**:
+Ana kaydı veya yapılandırma varlığını [geri alınabilir silme süresine](docs/prd/13-data-security-and-portability.md#cop-kutusu-ve-geri-yukleme) alan yaşam sınırı; kimliği korur, aktif kural ve görünüm üyeliği üretmez. UI: `Trash`.
+_Avoid_: Arşiv, gizleme filtresi, restore-point, kalıcı silme
+
+**Yapılandırma çöpü**:
+Özel alan, adlandırılmış görünüm, otomasyon kuralı, şablon ve benzeri yapı tanımlarının Çöp Kutusu uygulaması; çöpteki tanım [etkin çalışmaz](docs/prd/13-data-security-and-portability.md#cop-kutusu-ve-geri-yukleme).
+_Avoid_: kayıt Çöp Kutusu, Arşiv, restore-point
+
 **Arşiv güvenlik istisnası**:
 Arşivli Projede normal yazmalar kapalıyken yalnız [erişimi azaltan güvenlik işlemlerine](docs/prd/02-domain-model-and-lifecycle.md#ortak-yaşam-döngüsü) izin veren denetlenebilir sınır.
 _Avoid_: Arşivden normal düzenleme, yeni yayın, erişim genişletme
@@ -140,6 +148,18 @@ _Avoid_: İş, Taslak, kaydedilmiş bookmark
 Bir Yakalama Gelen Kutusu öğesine yalnız isteğe bağlı yönlendirici alanlar ekleyen [biçim](docs/prd/05-capture-and-intake.md#hızlı-yakalama); kalıcı ana kayıt oluşturmaz ve yakalamayı kaydetmek için alan zorunlu kılmaz.
 _Avoid_: Kayıt oluşturma formu, otomatik triage, içerik şablonu
 
+**Sıralı triage**:
+Yakalama Gelen Kutusunda tek öğeye odaklanan, yalnız üç açık çıkıştan biri çözülünce sıradakine ilerleyen [isteğe bağlı mod](docs/prd/05-capture-and-intake.md#hızlı-yakalama). UI: `Sequential triage`.
+_Avoid_: Yeni kuyruk, SLA, otomatik çözüm
+
+**Toplu Anlamlandırma**:
+Birden fazla yakalamayı yan yana getirip geçici görsel kümeler kuran, kalıcı sınıflandırma üretmeyen [isteğe bağlı triage görünümü](docs/prd/05-capture-and-intake.md#hızlı-yakalama). UI: `Bulk sense-making`.
+_Avoid_: Etiket, ilişki, kalıcı küme kaydı
+
+**Yakalama eki**:
+Yalnız Yakalama Gelen Kutusu öğesine ait şifreli staging nesnesi; kalıcı kayda dönüşümde hedef kapsamda [Dosya Ekine terfi eder](docs/prd/05-capture-and-intake.md#hızlı-yakalama).
+_Avoid_: Dosya Eki, paylaşılmış ek, kalıcı medya kütüphanesi
+
 **Taslak**:
 Kullanıcı oluşturma eylemini tamamlamadan önce korunan, henüz kaydedilmemiş ayrıntılı İş formu; Yakalama Gelen Kutusu öğesi veya ana kayıt değildir.
 _Avoid_: Yakalama, İş, Belge taslağı
@@ -161,6 +181,14 @@ _Avoid_: Dosya Eki, harici Markdown dosyası, kayıt açıklaması
 **Dosya Eki**:
 Tam olarak bir Proje veya Kişisel Wiki kapsamında yaşayan, dosya içeriğini ve sürümlerini taşıyan ana kayıt; başka kapsamdaki ilişki sahipliğini veya görünürlüğünü değiştirmez.
 _Avoid_: Belge, ilişki eki, paylaşılan global dosya
+
+**Evrensel Arama**:
+Yetkili ana kayıtları deterministik tam metin sırası ve görünür eşleşme bağlamıyla [bulan yüzey](docs/prd/08-search-relations-and-evidence.md#evrensel-arama); Taslak, Yakalama Gelen Kutusu öğesi ve Dış yüzey arama sonucu değildir. UI: `Search`.
+_Avoid_: Komut Paleti, anlamsal sıralama, AI arama
+
+**Kayıt Keşfi**:
+Evrensel Arama, hazır tür dizinleri ve tür kapsamlı tablo görünümüyle kaydı yerinde bulma; [keşif, karar ve tasarım alanından](docs/prd/09-discovery-decisions-and-design.md) ayrıdır.
+_Avoid_: Discovery alanı, ürün keşfi, ayrı belge kütüphanesi
 
 **Kaynak**:
 Dış bilgiyi URL, erişim zamanı ve yakalanan içerikle tarihsel sürümler hâlinde koruyan Proje ana kaydı; canlı web sayfası, geçici bağlantı önizlemesi veya kendiliğinden onaylanmış kanıt değildir.
@@ -535,6 +563,14 @@ _Avoid_: Kayıpsız CSV, formül çalıştırabilen ham hücre, kanıtsız apost
 **GitHub kimliğini yeniden teyit etme**:
 Yüksek riskli bir işlem öncesinde yeni bir GitHub OAuth turundan dönen değişmez kullanıcı kimliğini mevcut Hesapla eşleyip yalnız o işleme bağlı geçici yetki üreten [sınır](docs/prd/03-account-platform-operations.md#github-kimliğini-yeniden-teyit-etme); parola, MFA veya genel oturum yenileme değildir.
 _Avoid_: Yeniden kimlik doğrulama, MFA, parola doğrulama, genel oturum yenileme
+
+**Online-only çalışma**:
+Belge okuma ve düzenleme ile kayıt yazmanın aktif internet bağlantısı gerektirdiği [çalışma modeli](docs/prd/03-account-platform-operations.md#calisma-ve-dagitim-modeli); yerel yazma kuyruğu, offline cache veya otomatik eşitleme yoktur.
+_Avoid_: yerel-first, offline-first, senkron kuyruğu
+
+**Operasyonel yedek**:
+Hizmetin `RPO ≤ 5 dakika` ve `RTO ≤ 8 saat` hedefli [kurtarma kopyası](docs/prd/03-account-platform-operations.md#operasyonel-yedek-ve-kurtarma); kullanıcıya dönük restore-point veya Çalışma Alanı çıkış paketi değildir.
+_Avoid_: Çıkış paketi, ürün içi restore, Çöp Kutusu geçmişi
 
 **Avrupa Birliği veri bölgesi**:
 Özel Çalışma Alanı verisinin, bağlantıyla sınırlı içeriğin, yedeklerin ve günlüklerin otomatik kullanılabilirlik geçişi sırasında bile dışına taşınmadığı [onaylı bölgesel sınır](docs/adr/0009-ab-veri-siniri.md) (bu sözlükte daha önce `AB veri sınırı` olarak geçiyordu).

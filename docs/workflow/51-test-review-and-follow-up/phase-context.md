@@ -4,7 +4,7 @@ Kurucu Test Oturumu ile tekil testlerin inceleme durumunu bağımsız yönetir. 
 
 İnceleme, bildirilen sonucun üzerine yeni olay ekler. Hata açıklaması veya güvenlik redaksiyonu eski satırı silmez; çelişki kullanıcı değerlendirmesine düşer. Sistem başarısızlıktan otomatik açık üretmez. Yeni bağlam eski hükmü güncel gerçek gibi göstermez. Özet coverage, kalite puanı veya yayın kapısı üretmez. Proje Testleri alanı yeni test gerçeği üretmez; mevcut kayıtları yönetir.
 
-Bu yolculuk test incelemesini, açığı, değerlendirmeyi, özeti ve test yönetim yüzeyini tamamlar. Rapor kabulü ayrı kalır.
+Bu feature test incelemesini, açığı, değerlendirmeyi, özeti ve test yönetim yüzeyini tamamlar. Rapor kabulü ayrı kalır.
 
 ## Alt Fazlar
 

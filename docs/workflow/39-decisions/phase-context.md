@@ -1,6 +1,6 @@
 # Kararlar
 
-Kurucu Kararları gerekçesi ve ilişkileriyle kaydeder. Yerine geçirme zinciri atomik, döngüsüz ve tarihsel olarak okunabilir kalır. Çok satırlı gövde ana Markdown'ın güvenli alt kümesini kullanır. Tablo, fenced kod, Mermaid ve uzun spesifikasyon tam Belgede durur.
+Kurucu Kararları gerekçesi ve ilişkileriyle kaydeder. Yerine geçirme zinciri atomik, döngüsüz ve tarihsel olarak okunabilir kalır.
 
 Güncel karar ile tarihsel gerekçe karışmaz. Arama ve dış görünürlük yerine geçmiş kararı güncelmiş gibi göstermez.
 

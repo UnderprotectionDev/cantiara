@@ -4,7 +4,7 @@ Kurucu yeniden kullanılabilir test amacını sürümler. Test Oturumu bağland�
 
 Senaryo yaşar, oturum o anki sürüme kilitlenir. Sonraki senaryo düzenlemesi geçmiş oturumu yeniden yazmaz. Dış yürütücü neyi koşacağını donmuş paketten alır. Cantiara bu paketi izleme veya uzaktan koşturma platformu olmaz.
 
-Bu yolculuk planlı test senaryolarını ve test handoff'larını tamamlar. Test raporu kabulü, inceleme ve test açığı ayrıdır.
+Bu feature planlı test senaryolarını ve test handoff'larını tamamlar. Test raporu kabulü, inceleme ve test açığı ayrıdır.
 
 ## Alt Fazlar
 

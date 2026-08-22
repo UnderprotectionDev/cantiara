@@ -1,6 +1,6 @@
 # Varsayımlar ve Açık Sorular
 
-Kurucu doğrulanmamış önermeler ile yanıt bekleyen soruları ayrı yaşam döngülerinde tutar. Sonuçları İşe, Riske veya Karara otomatik dönüşmez. Çok satırlı gövde ana Markdown'ın güvenli alt kümesini kullanır. Tablo, fenced kod, Mermaid ve uzun spesifikasyon tam Belgede durur.
+Kurucu doğrulanmamış önermeler ile yanıt bekleyen soruları ayrı yaşam döngülerinde tutar. Sonuçları İşe, Riske veya Karara otomatik dönüşmez.
 
 Bilinmeyen kaybolmaz ve yanlış türe yazılmaz. Varsayım çürütülünce kanıt bağlamı kalır; soru yanıtlanınca yanıt tarihsel kalır.
 

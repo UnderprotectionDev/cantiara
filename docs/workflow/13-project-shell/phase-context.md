@@ -2,11 +2,11 @@
 
 Kurucu bir Projeyi ad ve Başlangıç yapılandırmasıyla açar. Kısa kod, alanlar, hazır görünümler ve boş başlangıç iskeletleri aynı yapı kararından doğar. Yeni Proje örnek içerik, zorunlu workflow veya ürün türü dayatmadan çalışmaya hazır yapı kazanır. Blank Project en küçük kurulumu verir; diğer hazır alanları kapatmaz, yalnız kurmaz.
 
-Aynı kabukta kurucu Projenin aşamalarını, alanlarını, durumlarını, özel alanlarını, İş Bağlam Kartını ve görünümlerini sabit bir süreç kapısına dönüşmeden yapılandırır. Yapı, korunan ürün semantiği içinde değişir. İş türünün anlamı Başlangıç yapılandırmasına göre bölünmez; bağlam düzeni veri kopyalamadan kişiselleşir. Yapıyı kopyalama, alan ve görünüm kararlarını içeriksiz yeni Projeye taşır. Kayıtlar, geçmiş ve ilişkiler gelmez.
+Aynı kabukta kurucu Projenin aşamalarını, alanlarını, durumlarını, özel alanlarını ve görünümlerini sabit bir süreç kapısına dönüşmeden yapılandırır. Yapı, korunan ürün semantiği içinde değişir. Yapıyı kopyalama, alan ve görünüm kararlarını içeriksiz yeni Projeye taşır. Kayıtlar, geçmiş ve ilişkiler gelmez.
 
 Çalışırken kurucu tek Projenin amacı, yaşam durumu, aşamaları, güncel işi, bilgisi, belirsizliği, testi, sürümü ve olaylarını nötr bir kaynak özetiyle görür. Proje dağınık yüzeylerden toplanmadan okunur. Özet başarı anlatısı veya otomatik sağlık skoru üretmez; kaynaklara açılır.
 
-Bu yolculuk projenin açılmasını, yapısını ve genel bakışını tamamlar. İş yaşam döngüsü kuralları, otomasyon, kapanış özeti ve yapı kopyalamanın içerik taşıması burada yoktur.
+Bu feature projenin açılmasını, yapısını ve genel bakışını tamamlar. İş Bağlam Kartı düzeni, İş yaşam döngüsü, otomasyon, kapanış özeti ve yapı kopyalamanın içerik taşıması burada yoktur.
 
 ## Alt Fazlar
 
@@ -36,7 +36,7 @@ Bu alt faz kapanış özeti taslağı veya şablon pazarı değildir.
 
 ### Yapılandırma modu
 
-Yapılandırma modu aşamaları, iş durumlarını, etkin alanları, özel alanları, öncelik ölçütlerini, kayıtlı görünümleri ve İş Bağlam Kartı düzenlerini günlük içerik düzenlemesinden ayırır. Mod izin veya ayrı yönetici rolü değildir; görünür bir sunum durumudur.
+Yapılandırma modu aşamaları, iş durumlarını, etkin alanları, özel alanları ve kayıtlı görünümleri günlük içerik düzenlemesinden ayırır. İş Bağlam Kartı düzeni bu modda açılır fakat kart feature'ında yaşar. Mod izin veya ayrı yönetici rolü değildir; görünür bir sunum durumudur.
 
 Kurucu modu açıkça görür ve tek eylemle kapatır. Mode girmek ana kaydı, görünüm üyeliğini veya proje yaşamını değiştirmez. Günlük oluşturma, düzenleme, durum ve planlama mod dışında erişilebilir kalır.
 
@@ -47,14 +47,6 @@ Proje yapısı aşamaları, alanları, durumları ve özel alanları korunan sem
 Kurucu görünür alanları ve akış durumlarını Projeye uyarlar. Özel alan Metin, Sayı, Boolean, Tarih, tek seçim veya çoklu seçim olabilir; Lookup veya Formula alanı yoktur. Alan tanımı yalnız kendi Projesinde yaşar.
 
 Yapı değişikliği geçmiş kayıtları sessizce yeniden yazmaz. Geçerli olmayan değerler görünür kalır.
-
-### İş Bağlam Kartı düzenleri
-
-İş Bağlam Kartı düzenleri, İş türüne göre hangi bölümlerin görüneceğini ayarlar. Düzen veri kopyalamaz ve sorgu sonucu üretmez.
-
-Kurucu neden, kanıt ve ilişki bölümlerini türüne göre sıralar. Kart bağımsız bir özet kaydı olmaz.
-
-Düzen Başlangıç yapılandırmasına göre farklı İş anlamı yaratmaz. Aynı İş türü bütün Projelerde aynı kayıttır.
 
 ### Yapıyı kopyalama
 
@@ -80,7 +72,6 @@ Genel bakış dashboard skoru veya durum kapısı değildir. Çalışma Alanı g
 - Yapılandırma modu yapı değişikliğini günlük düzenlemeden ayırır; kayıt yaşamını değiştirmez.
 - Aşamalar, alanlar, durumlar ve özel alanlar korunan ürün semantiği içinde değişir.
 - Gizlenen Proje alanı içerik silmez; Lookup veya Formula alanı oluşmaz.
-- İş türlerine göre bağlam bölümleri veri kopyalamadan düzenlenir.
 - İçerik ve geçmiş taşınmadan yeni Projeye yapı kopyalanır.
 - Tek Projenin amacı, yaşamı, işi, bilgisi, belirsizliği, testi, sürümü ve olayları nötr kaynak özetiyle görünür.
 - Özet otomatik sağlık hükmü veya başarı anlatısı üretmez.
@@ -93,7 +84,7 @@ Genel bakış dashboard skoru veya durum kapısı değildir. Çalışma Alanı g
 - Yapılandırmayı zorunlu workflow veya yayın kapısı yapmak.
 - Yapılandırma modunu izin rolü veya kayıt kilidi sayma.
 - Lookup veya Formula alanıyla türetilmiş doğruluk kaynağı kurma.
-- İş Bağlam Kartını dashboard veya ikinci İş özeti sayma.
+- İş Bağlam Kartı düzenini bu kabuğun özelliği sayma.
 - Yapı kopyalarken içerik, geçmiş veya ilişki grafiğini taşıma.
 - Genel bakışı dashboard skoru veya durum kapısı sayma.
 - Manuel Proje Güncellemesini otomatik özetle karıştırma.

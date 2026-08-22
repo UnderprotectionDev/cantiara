@@ -4,7 +4,7 @@ Kurucu Projenin seçili Roadmap, sürüm iletişimi ve gelişim bağlamını ona
 
 Kamuoyu onaylı anlatıyı görür. Public durum eşlemesi iç Kanban'ı sızdırmaz; gelişim akışı özel bağlam açmaz. Önizlenen küme ile onaylı revizyon aynıdır; iptal, redaksiyon ve asset erişimi cache sonucundan önce fail-closed doğrulanır. Çözülmemiş `{{alan_adı}}` yer tutucuları yayın önizlemesinde kaynak kayıt, alan ve metin bağlamıyla listelenir.
 
-Bu yolculuk build in public'i tamamlar. Wiki yayını, sürüm notu yazımı ve dış yüzey yönetimi ayrıdır.
+Bu feature build in public'i tamamlar. Wiki yayını, sürüm notu yazımı ve dış yüzey yönetimi ayrıdır.
 
 ## Alt Fazlar
 

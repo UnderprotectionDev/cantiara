@@ -4,7 +4,7 @@ Kurucu Teknik Mimari, Veri Modeli ve Teknik Sıra Diyagramlarını değişmez ot
 
 Diyagramın kanonik içeriği kimlik boyunca aynı kipte kalır. Görünüm değişebilir; checkpoint kanıta bağlanabilir ve belgede canlı kart olarak kopyalanmadan kullanılır.
 
-Bu feature teknik diyagramları tamamlar. Mermaid dönüşümü, şema artefaktı ve Wireframe ayrıdır.
+Bu feature teknik diyagramları tamamlar. Şema artefaktı ve Wireframe ayrıdır.
 
 ## Alt Fazlar
 
@@ -56,14 +56,24 @@ Kurucu karttan kaynağa döner. Gömü otorite kipini değiştirmez.
 
 Kompozisyon Mermaid gömüsü veya dış görüntü değildir. Kullanım bağıdır.
 
+### Mermaid dönüşümü
+
+Kurucu Belge içindeki kesin Mermaid bloğunu kayıp ve otorite etkisi önizlemesinden sonra atomik olarak yeni Teknik Diyagrama dönüştürür. Sonuç `İçe aktarılmış bağımsız kopya` kipindedir.
+
+Kaynak blok ve yeni kayıt köken bağıyla ayrı doğruluk kaynakları olarak kalır. Dönüşüm bloğu silmez ve canlı round-trip senkron kurmaz.
+
+Bu alt faz şema DDL üretimi veya repository türevi görünüm değildir.
+
 ## Tamamlanma Ölçütleri
 
 - Kanonik içeriğin ürün, import veya dış bağlantı kökeni kimlik boyunca değişmez.
 - Mimari, veri modeli ve teknik sıra türlenmiş yapısal modelde yaşar.
 - Görünüm değişebilir; kesin checkpoint değişmez ve canlı kart kaynağı kopyalamaz.
+- Kesin Mermaid bloğu kayıp ve otorite etkisi önizlendikten sonra atomik yeni Teknik Diyagrama dönüşür; kaynak blok silinmez.
 
 ## Kapsam Sınırları
 
 - Otorite kipini diyagram türü, dosya biçimi veya paylaşım kipi sayma.
 - Görünüm düzenini kanonik modelin yerine koyma.
-- Diyagramı Wireframe, Moodboard veya Mermaid bloğu sayma.
+- Diyagramı Wireframe, Moodboard veya canlı Mermaid kaynağı sayma.
+- Mermaid dönüşümünü round-trip senkron veya bloğu silip tek gerçeğe indirgeme sayma.

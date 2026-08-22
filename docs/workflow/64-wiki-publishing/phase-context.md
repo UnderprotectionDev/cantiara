@@ -4,7 +4,7 @@ Kurucu tek bir Wiki Belgesini seçili gömülü içerikle bağımsız ve herkese
 
 Tek sayfa kamuoyuna çıkabilir. Gömüler onaylı kümeye dahildir; Kişisel Wiki'nin geri kalanı sızmaz. Önizlenen küme ile onaylı revizyon aynıdır; iptal, redaksiyon ve asset erişimi cache sonucundan önce fail-closed doğrulanır. Çözülmemiş `{{alan_adı}}` yer tutucuları yayın önizlemesinde kaynak kayıt, alan ve metin bağlamıyla listelenir.
 
-Bu yolculuk tekil wiki yayınını tamamlar. Build in Public ve bağlantı paylaşımı ayrı yüzeylerdir.
+Bu feature tekil wiki yayınını tamamlar. Build in Public ve bağlantı paylaşımı ayrı yüzeylerdir.
 
 ## Alt Fazlar
 
