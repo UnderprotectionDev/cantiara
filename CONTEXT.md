@@ -164,6 +164,10 @@ _Avoid_: Epic hiyerarşisi, subtask ağacı, planlama üyeliği
 Tek Projenin amacı, yaşamı, işi, bilgisi, belirsizliği, testi ve olaylarını kaynaklarından nötr özetleyen yüzey; otomatik sağlık skoru değildir ([Proje genel bakışı](docs/prd/04-workspace-and-projects.md#proje-genel-bakışı)).
 _Avoid_: Dashboard skoru, Çalışma Alanı genel bakışı, Manuel Proje Güncellemesi
 
+**Manuel Proje Güncellemesi**:
+Kurucunun tarihli öznel sağlık işareti, kısa anlatı ve o anki özet snapshot'ıyla kaydettiği Proje yardımcı varlığı; güncel otomatik sağlık hükmü değildir ([Manuel Proje Güncellemeleri](docs/prd/04-workspace-and-projects.md#manuel-proje-güncellemeleri)).
+_Avoid_: Canlı sağlık skoru, Mission Control, Proje genel bakışı
+
 **Kişisel erişim kabuğu**:
 Günlük Odak, Favoriler, Birleşik Bildirim Merkezi ve Yeniden bak öğelerini kaynak görünümünü kaybetmeden açan ortak kişisel yüzey; planlama gerçeği üretmez ([kişisel erişim kabuğu](docs/prd/04-workspace-and-projects.md#bağlamı-koruyan-kişisel-erişim-kabuğu)).
 _Avoid_: Workspace dashboard, ikinci Backlog, Favori üyeliği
@@ -176,6 +180,10 @@ _Avoid_: Favori, Günlük Odak, bookmark kuyruğu, planlama üyeliği
 Ara verilen Proje veya İşe güncel kayıtlardan seçilen geri dönüş kartlarıyla bağlamı yeniden kuran özet; seans, bildirim yığını veya sekme geri yükleme değildir ([Çalışmaya Dön](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)).
 _Avoid_: Bildirim, hatırlatma, recent-tabs, ikinci çalışma listesi
 
+**Son ziyaret işareti**:
+Hesapta Proje ve desteklenen İş bağlamı başına son başarılı görünür açılış zamanı; görüntüleme geçmişi, süre, analytics veya denetim olayı değildir ([Çalışmaya Dön özeti](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)).
+_Avoid_: oturum süresi, Denetim kaydı, Dış yüzey yayını
+
 **Birleşik Bildirim Merkezi**:
 Kapalı registrydeki dikkat sinyallerini Eylem Gerekiyor ve Bilgi Akışı olarak toplayan merkez; bildirimi okumak kaynak sorunu çözmez ([Birleşik Bildirim Merkezi](docs/prd/04-workspace-and-projects.md#birleşik-bildirim-merkezi)).
 _Avoid_: E-posta ürünü, Geri Bildirim feed'i, serbest bildirim
@@ -183,6 +191,10 @@ _Avoid_: E-posta ürünü, Geri Bildirim feed'i, serbest bildirim
 **Favori**:
 Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim listesine alınan işaret ([Favoriler](docs/prd/04-workspace-and-projects.md#favoriler)).
 _Avoid_: Bookmark kuyruğu, Aktif Çalışma Seti, planlama üyeliği
+
+**Hatırlatma**:
+Desteklenen kayda Hesap kapsamında kişisel zaman bağlayan ana kayıt; kaynak sahiplik değil köken referansıdır ve kaynak yaşamı veya planlama üyeliği yazmaz ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Remind me`.
+_Avoid_: Target date, Yeniden görünme tarihi, standalone reminder, Save for Later kuyruğu
 
 **Akıllı Koleksiyon**:
 Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm; manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
@@ -224,6 +236,32 @@ _Avoid_: Özellik isteği, otomatik öncelik, dış araç oturumu
 Kurucunun Cantiara kapsamında gördüğü gerçek bir işi tamamlamak için başka bir araca geçtiğini açıkça kaydettiği tarihsel olay; dış davranışın otomatik izlenmesi veya dış içeriğin kopyası değildir.
 _Avoid_: Bilinçli dış sınır, entegrasyon kullanımı, otomatik telemetry
 
+## Keşif ve belirsizlik
+
+**Karar**:
+Alınmış ürün, tasarım veya geliştirme seçimini gerekçe ve ilişkileriyle taşıyan Proje ana kaydı; toplantı notu, Belge paragrafı veya oylama değildir ([Karar kayıtları](docs/prd/09-discovery-decisions-and-design.md#karar-kayıtları)). UI: `Decision`.
+_Avoid_: toplantı notu, oylama, otomatik kazanan, Risk, Varsayım
+
+**Risk**:
+Etki, olasılık, yanıt ve durumla belirsiz zararı izleyen Proje ana kaydı; Bug, Test Açığı veya Üretim Olayı değildir ([Risk takibi](docs/prd/09-discovery-decisions-and-design.md#risk-takibi)). UI: `Risk`.
+_Avoid_: Bug, Test Açığı, Üretim Olayı, öncelik puanı, yayın kapısı
+
+**Varsayım**:
+Doğrulanmamış önermeyi kanıt bağlamıyla taşıyan Proje ana kaydı; Açık Soru veya Deney/Doğrulama değildir ([Varsayım ve açık soru takibi](docs/prd/09-discovery-decisions-and-design.md#varsayım-ve-açık-soru-takibi)). UI: `Assumption`.
+_Avoid_: Açık Soru, Deney kaydı, otomatik Karar
+
+**Açık Soru**:
+Yanıt bekleyen proje belirsizliği; araştırma notu veya Geri Bildirim değildir ([Varsayım ve açık soru takibi](docs/prd/09-discovery-decisions-and-design.md#varsayım-ve-açık-soru-takibi)). UI: `Open Question`.
+_Avoid_: Varsayım, Geri Bildirim, araştırma notu
+
+**Deney/Doğrulama**:
+Ürün dışında yürütülen varsayım veya soru doğrulamasının yöntemini, sonucunu ve karar bağlamını taşıyan Proje ana kaydı; formal test veya yayın kapısı değildir ([Deney ve doğrulama kayıtları](docs/prd/09-discovery-decisions-and-design.md#deney-ve-doğrulama-kayıtları)). UI: `Validation Record`.
+_Avoid_: Test Oturumu, Planlı Test Senaryosu, Kullanıcı Araştırması Oturumu
+
+**Kullanıcı Araştırması Oturumu**:
+Bir görüşme veya yönlendirilmiş araştırma temasının amaç, izin, türlenmiş not ve sürüme sabit kanıt bütünlüğünü taşıyan Proje ana kaydı ([Kullanıcı Araştırması Oturumları](docs/prd/09-discovery-decisions-and-design.md#kullanıcı-araştırması-oturumları)). UI: `Research Session`.
+_Avoid_: Geri Bildirim, Test Oturumu, Deney/Doğrulama
+
 ## Bilgi ve kanıt
 
 **Belge**:
@@ -261,6 +299,18 @@ _Avoid_: CRM hesabı, ticari Hesap, Invoice müşterisi
 **Kanıt bağı**:
 Kesin bir Kaynak, Belge, Diyagram veya Dosya Eki sürümünün belirli bir hedef iddiayı desteklediğini açık rol ve atıfla gösteren ilişki; Kaynağın varlığı tek başına bu bağı veya doğruluk hükmünü oluşturmaz.
 _Avoid_: İlgili ilişkisi, belirsiz referans, otomatik doğrulama
+
+**Kanıt Rolü**:
+Bir Kanıt bağının hedefe göre kapalı kullanım rolü; kaynak metin veya kullanıcı yorumu değildir ([Kanıt Rolü](docs/prd/08-search-relations-and-evidence.md#kanit-rolu-ve-iliski-ustverisi)).
+_Avoid_: otomatik sınıflandırma, kanıt kalitesi skoru, Geri Bildirim niteliği
+
+**Kanıt Akışı**:
+İş, Karar ve Varsayım detayında yalnız açık Kanıtı ilişkilerini zaman sırasıyla gösteren türetilmiş görünüm; yeni kanıt uydurmaz ([Kanıt Akışı](docs/prd/08-search-relations-and-evidence.md#kanıt-akışı)). UI: `Evidence Flow`.
+_Avoid_: Geri Bildirim feed'i, Proje Etkinliği, bildirim tüneli
+
+**Kaynak Kontrolü**:
+Kullanıcının açık yeniden kontrolünün tarihli sonucu ve aday snapshot'ı; onaylı Kaynak sürümünü kendiliğinden değiştirmez ([Kaynağı yeniden kontrol etme](docs/prd/08-search-relations-and-evidence.md#kaynağı-yeniden-kontrol-etme-ve-sürüm-karşılaştırması)). UI: `Source Check`.
+_Avoid_: canlı sayfa yenileme, webhook senkronu, otomatik Kanıt bağı
 
 **Çürütülen Varsayım İnceleme Kuyruğu**:
 `Çürütüldü` bir Varsayımın `Dayanır` / `Dayanağıdır` ile bağlı `Geçerli` Karar ve kapanmamış İş satırlarından oluşan [inceleme listesi](docs/prd/18-future-directions.md#çürütülen-varsayım-inceleme-kuyruğu); gelecek yönü adayıdır, ilk ürün davranışı veya etki analizi değildir. UI: `Refuted Assumption Review`.
@@ -675,6 +725,10 @@ _Avoid_: Yalnız hata düzeldi notu, dış araç ekran görüntüsü, bekleme s�
 **Kayıt geçmişi**:
 Bir ana kaydın içerik sürümleri ile ona yapılan domain değişikliklerinin, ana kayıt yaşadığı sürece korunan kalıcı bağlamı.
 _Avoid_: Denetim kaydı, operasyon günlüğü
+
+**Proje Etkinliği**:
+Mevcut Kayıt geçmişinden türetilen, kaynak ve önceki–sonraki değerle incelenen atomik değişiklik görünümü; ürün hikâyesi veya Bildirim Merkezi değildir ([Proje Etkinliği](docs/prd/06-work-management-and-planning.md#proje-etkinliği)).
+_Avoid_: GitHub Activity, e-posta günlüğü, zaman çizelgesi hikâyesi, ikinci olay deposu
 
 **Güvenli geri alma**:
 Ürünün ters işlemi deterministik hesaplayabildiği alan, ilişki, görünüm üstverisi ve atomik dönüşümlerde ilgisiz sonraki değişikliği sarmadan uygulanan geri alma ([değişiklik geçmişi](docs/prd/02-domain-model-and-lifecycle.md#değişiklik-geçmişi-aktör-ve-geri-alma)).

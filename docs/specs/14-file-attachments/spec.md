@@ -1,0 +1,91 @@
+# Dosya Ekleri ve Görsel Kanıt
+
+Kaynak: [`docs/workflow/14-file-attachments/phase-context.md`](../../workflow/14-file-attachments/phase-context.md)
+
+## Problem Statement
+
+Kurucu PDF, görsel, log ve benzeri dosyaları kayıtlara eklemek, güvenle önizlemek ve görsel üzerinde not düşmek ister; kaynak dosyanın bozulmasını, kotasız yüklemeyi veya yarım kalmış görünür eki istemez. Bugün iskelet nesne depolaması ürün finalize sözleşmesini taşımaz: tür/MIME uyuşmazlığı sessizce düzelebilir, yakalama staging'i kalıcı Dosya Eki gibi görünebilir, işaretleme özgün sürümü ezebilir. Belge gövdesi, Kaynak kaydı, Yakalama Gelen Kutusu ve ham R2/CDN adresi ikinci içerik kaynağı değildir.
+
+## Solution
+
+Dosya tam olarak bir Proje veya Kişisel Wiki kapsamında ana kayıt olarak yaşar. Tür, boyut ve kota doğrulandıktan sonra yükleme atomik finalize edilir: kurucu ya bağlanmış bir Dosya Eki görür ya da yüklemenin tamamlanmadığını görür. Yakalama eki aynı atomik sınırda kalıcı Dosya Ekine terfi eder; başarısızlık görünür ek bırakmaz. Desteklenen medya yalıtılmış güvenli önizlemede görülür; işaretleme ve konuma bağlı İş bağlamı kaynak dosya sürümünden ayrı kalır. Finalize [ADR-0004](../../adr/0004-atomik-idempotent-kesinlestirme.md) commit bariyeridir; içerik canlı klasör senkronu değildir ([ADR-0021](../../adr/0021-icerigi-yalniz-veritabaninda-tut.md)).
+
+## User Stories
+
+1. As a founder, I want a File Attachment to live in exactly one Project or Personal Wiki, so that another record's relation cannot steal ownership or visibility.
+2. As a founder attaching a JPEG, PNG, WebP, or GIF, I want a 25 MB original-byte limit and in-browser visual preview, so that I know what I stored without opening an external editor.
+3. As a founder attaching a PDF, I want a 50 MB limit and paged preview, so that I can inspect pages without downloading first.
+4. As a founder attaching CSV, I want a 25 MB limit and a bounded row preview with text indexing, so that a spreadsheet dump is inspectable without becoming a second table truth.
+5. As a founder attaching TXT, Markdown, JSON, or a plain log, I want a 10 MB limit and a safe plain-text preview with indexing, so that logs stay readable inside the product.
+6. As a founder attaching MP3, M4A, or WAV, I want a 100 MB limit and playback that starts only on my action, so that audio never autoplays.
+7. As a founder attaching MP4 or WebM, I want a 250 MB limit and user-started playback with speed, fullscreen, and optional loop, so that video is usable without becoming a streaming product.
+8. As a founder attaching a ZIP, I want a 100 MB download-and-export-only path that never executes contents, so that an archive cannot become runnable code.
+9. As a founder, I want SVG, HTML, executables, scripts, macro-enabled office files, and unknown MIME/extension pairs rejected before finalize, so that unsafe types never become visible attachments.
+10. As a founder, I want MIME/extension mismatch to fail closed with a clear error rather than a silent correction, so that a renamed binary cannot sneak in.
+11. As a founder, I want Workspace quota of 25 GB original bytes and 20,000 file versions, counting Active, Archive, and Trash, so that I am warned at 80% and blocked from new uploads/versions when exceeded while existing files stay readable, downloadable, and deletable.
+12. As a founder, I want quota released only after physical permanent delete, so that Trash cannot be used as free extra storage.
+13. As an operator of a still-unscanned first product, I want unscanned ZIP kept off link-limited and public External Surfaces, so that ZIP sharing fails closed until malware scanning exists.
+14. As a founder, I want upload to land on an inaccessible temporary object key and become a visible File Attachment only after byte size, MIME/extension, content hash, and type safety pass in one idempotent finalize, so that I never see a record pointing at a missing object.
+15. As a founder whose finalize fails, I want no visible File Attachment and a timed sweep of the orphan temporary object, so that failure is empty, not partial.
+16. As a founder whose connection drops mid-upload, I want a restart from byte zero with visible status and no visible attachment from the failed attempt, so that the first product does not pretend to resume.
+17. As a founder, I want a normal upload to create a new File Attachment record, and an explicit `Upload new version` to add a validated file to the same record's version chain after previewing the target, current version, and incoming file, so that I choose versioning rather than overwrite.
+18. As a founder, I want previous versions to remain viewable and downloadable in original form, so that a new version is not a silent replace.
+19. As a founder, I want relations that bind to exact file content, a location, or a publish moment to stay pinned to that version, so that uploading a new version does not move those pins.
+20. As a founder, I want a new version not to change an approved public snapshot, so that publishing stays an explicit later diff.
+21. As a founder converting a Capture Inbox item that has a capture attachment, I want that staging object to promote into a File Attachment in the target scope in the same atomic finalize, so that capture media does not remain a second library.
+22. As a founder whose capture promotion fails, I want no visible File Attachment left behind, so that the Inbox item can be retried without a ghost file.
+23. As a founder viewing supported media, I want a isolated in-product preview, so that preview is not a live web mirror, an external viewer session, or a sharing-snapshot asset gate.
+24. As a founder, I want preview failure to leave the original file and record intact and to show a `Unavailable` fallback, so that a thumbnail job cannot mark the file corrupt.
+25. As a founder, I want original images unchanged, with gallery thumbnails derived on immutable R2 keys from the original fingerprint, without EXIF location/device in derivatives, so that derivatives are cache, not a second File Attachment or version.
+26. As a founder, I want images that pass type/byte checks but exceed decode/frame/CPU limits to stay downloadable with `Unavailable` preview, so that a huge GIF is not treated as a broken record.
+27. As a founder marking a visual or PDF, I want pen, highlighter, arrow, and rectangle on a separate undoable layer bound to the exact File Attachment version, so that drawing never writes the original and never auto-migrates to a later version.
+28. As a founder, I want marking not to create a comment, mention, review, task, or persistent relation, so that annotation stays evidence notation.
+29. As a founder, I want to pick a point or region on a supported visual or PDF and bind it as origin to new or existing Work after preview, so that location-bound Work context does not change file ownership or version.
+30. As a founder, I want that location bind to stay on the selected exact version, so that a later file version does not silently inherit the pin.
+31. As a founder, I do not want this feature to own Wireframe-screen origin location, so that screen pins stay with Screens/Wireframe.
+32. As a founder, I do not want File Attachment treated as a Document, a relation attachment, a capture staging object, or a shared global file, so that each of those stays its own kind.
+33. As a founder, I do not want raw R2 or CDN object URLs exposed to the client, so that founder preview uses product-controlled addresses even though sharing's visitor session is a different feature ([ADR-0002](../../adr/0002-dis-erisim-guvenlik-siniri.md)).
+34. As a founder using only a keyboard or a screen reader, I want to upload, cancel before finalize, download, preview supported types, and run `Upload new version`, so that the closed accessibility journey “Belge sürümü ve Dosya Eki” is possible.
+35. As a founder, I want English UI for `File Attachment`, `Upload new version`, and `Unavailable`, so that the product language stays English.
+
+## Implementation Decisions
+
+- **Owning documents.** Behavior is owned by [Dosya ekleri](../../prd/07-documents-and-knowledge.md#dosya-ekleri), [Görsel sunum ve işaretleme](../../prd/07-documents-and-knowledge.md#görsel-sunum-ve-işaretleme), and [Konuma bağlı görsel iş bağlamı](../../prd/07-documents-and-knowledge.md#konuma-bağlı-görsel-iş-bağlamı). Security base is [database-first güvenlik tabanı](../../prd/13-data-security-and-portability.md#database-first-guvenlik-tabani). Capture promotion is required here; staging production stays [Hızlı yakalama](../../prd/05-capture-and-intake.md#hızlı-yakalama). Finalize is [ADR-0004](../../adr/0004-atomik-idempotent-kesinlestirme.md). No live filesystem source: [ADR-0021](../../adr/0021-icerigi-yalniz-veritabaninda-tut.md). Visitor asset gates are sharing ([ADR-0002](../../adr/0002-dis-erisim-guvenlik-siniri.md)), not this founder preview. ADR-0008 is external URL preview isolation, not in-product file preview; do not import it as this feature's preview policy. No new ADR.
+- **Glossary.** Use Dosya Eki, Yakalama eki, Yakalama Gelen Kutusu öğesi, Köken konumu, İş, Belge, Kişisel Wiki. Avoid: Document-as-file, relation attachment, shared global file, live folder, resume-from-byte, malware quarantine (19/18), Wireframe origin as this card.
+- **Ownership.** File Attachment is a main record in exactly one Project or Personal Wiki. Other scopes may relate to it; the relation does not change ownership or visibility. Move is a separate `Move` with impact preview (not this feature's first slice unless already required to attach); copy mints a new identity.
+- **Type matrix.** Enforce the PRD matrix as original uploaded bytes, not decompressed size. Limits: images 25 MB with visual preview; PDF 50 MB paged preview; CSV 25 MB bounded rows + index; TXT/Markdown/JSON/plain log 10 MB safe text + index; audio 100 MB user-started playback; video 250 MB user-started playback; ZIP 100 MB download/export only, never execute. SVG, HTML, executables, scripts, macro-enabled office, and unknown MIME/extension pairs are rejected. MIME/extension mismatch is not silently repaired. Being uploadable does not imply previewable or indexed.
+- **Quota.** Workspace holds at most 25 GB original File Attachment bytes and 20,000 file versions. Active, Archive, and Trash bytes count. Temporary export/import/upload staging is shown separately. Warn the owner at 80%. Over quota: block new upload and new version; keep read/download/delete. Quota frees only after physical permanent delete.
+- **ZIP and scanning.** First product does not malware-scan. Unscanned ZIP cannot enter link-limited or public External Surfaces (fail-closed). This feature does not build those surfaces; it must refuse to be selected into them. ZIP/folder/multi-file Markdown import is out.
+- **Atomic finalize.** Upload writes an inaccessible temporary object. After byte size, MIME/extension, content hash, and type safety, one idempotent finalize creates File Attachment/version metadata and points it at the verified object in the same commit barrier (base revision, idempotency key, payload fingerprint, live authority, target scope, quota). Success is a bound File Attachment; failure is no visible record and no metadata pointing at a missing object. Orphan temps are swept on a TTL. Retry with the same key and fingerprint returns the prior result; changed payload is a conflict. After the barrier, UI shows `Finalizing`, not a fake `Cancel`.
+- **No resume.** Lost connection restarts from byte zero with visible status. Failed attempt creates no visible File Attachment.
+- **Versions.** Default upload creates a new File Attachment. `Upload new version` previews target, current version, and incoming file, then appends to the same record's chain. Prior versions stay original. General relations follow the main record; content/location/publish-moment relations pin the exact version and do not silently follow a new version. New version does not mutate an approved public snapshot.
+- **Capture promotion.** A Yakalama eki is encrypted staging, outside search/share/publish/export. On conversion to a durable record, the founder sees the target scope and the object promotes to a File Attachment in that scope in the same atomic finalize. Failure leaves no visible attachment. Deleting the capture deletes the staging object. This feature owns the promotion commit; Capture Inbox owns staging lifetime before conversion.
+- **Thumbnails.** For accepted JPEG/PNG/WebP/GIF, the original stays unchanged. A background worker extracts safe visual metadata (no EXIF location/device in derivatives) and writes small/medium gallery thumbnails on immutable R2 derivative keys keyed by original fingerprint (idempotent). Derivatives are not File Attachments or versions; they die with the source version. Exceeding dimension/frame/decode-memory/CPU/retry limits yields `Unavailable` preview while the original stays downloadable and not marked corrupt. Gallery on the reference dataset must not fetch full originals as list thumbnails. p95/p99 for 25 MB post-upload type/integrity is [performans bütçesi](../../prd/15-product-quality.md#performans-butcesi).
+- **Secure preview.** Supported media is shown in an isolated in-product preview. It is not a live web mirror, external viewer session, or the sharing snapshot asset gate. Founder is viewing their own record. Playback never autoplays. Preview failure does not damage the source. ZIP has no in-product unpack preview.
+- **Marking.** Visual viewer and Moodboard may offer pen, highlighter, arrow, and rectangle on a layer bound to the exact File Attachment version. Layer is undoable metadata, not a new File Attachment or version, and does not auto-migrate. Marking creates no comment, mention, review, task, or relation. Share/publish preview lists source visual and marking as separate publishable items; approving the visual does not auto-share the layer. Stack: Konva for marking, React-PDF/PDF.js for PDF, Vidstack for audio/video, Uppy for R2 upload, `file-type` for detection, Sharp for metadata/thumbnails. No OCR, no new framework.
+- **Location-bound Work context.** On a supported visual or PDF, founder picks a point or region and binds it as origin to new or existing full Work after preview. Observation does not silently become Work or a subtask. The bind belongs to the selected exact File Attachment version. Later versions do not inherit it. Wireframe-screen origin is not this feature. No multi-user comment thread, mention, review role, Approval, or automatic subtask.
+- **English UI labels.** `File Attachment`, `Upload new version`, `Unavailable`, `Finalizing`, `Move` (if shown), `Copy`. Add missing labels to the term table in the same change. No Turkish UI.
+- **Observability.** Failed upload/finalize/preview states explain cause, retry limit, whether data was written, and a secret-free support reference. Object bytes are not logged as content.
+
+## Testing Decisions
+
+- **What a good test is.** Tests observe File Attachments through its public interface: accept/reject, quota, finalize, version, capture promotion, preview/playback, marking, and location bind. They assert product rules (atomic visible-or-not, matrix limits, ZIP fail-closed to external surfaces, marking ≠ source version) rather than R2 keys or Sharp internals.
+- **Seam (one).** File Attachments — the product-facing attachment, finalize, preview, and marking interface. R2, Uppy, `file-type`, Sharp, PDF.js, and Vidstack are adapters (real versus test double) behind that seam. Playwright for “Belge sürümü ve Dosya Eki” is the same seam through the UI.
+- **Modules under test.** File Attachments only. Capture Inbox appears as a promotion counterpart; sharing appears as “ZIP cannot be selected / visitor asset gate is not this preview”; Documents and Wireframe origin are absent except as negatives.
+- **Prior art.** Contract tests at this seam with object-store and type-detection doubles. Evidence: [Dosya güvenliği](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) on `Dosya sınırları` (synthetic). Cloud tests must not use production objects or private user files.
+- **Required counterparts.** Rejected types never finalize; MIME mismatch not repaired; failed finalize leaves no row; capture promotion failure leaves no visible attachment; preview failure does not corrupt original; marking does not rewrite bytes; location bind does not follow a new version; ZIP cannot enter an External Surface selection; raw object URL not returned to the client.
+
+## Out of Scope
+
+- Dosya Ekini Belge, ilişki eki, Yakalama eki veya paylaşılan global dosya sayma.
+- İşaretlemeyi kaynak dosyanın üzerine yazma; yorum/mention/review dizisi.
+- Wireframe köken konumunu bu kartın feature'ı sayma.
+- Kotasız veya türü doğrulanmamış yüklemeyi kesinleştirme; kaldığı byte'tan sürdürme.
+- ClamAV/karantina, ZIP içe aktarma, OCR, canlı klasör senkronu, ham R2 URL, paylaşım snapshot asset kapısı, dış nesne CDN'i ikinci kaynak.
+- Çöp Kutusu/kalıcı silme UI'si, `Move` etki önizlemesinin tam taşıma feature'ı, Documents editor, Moodboard as a design product.
+
+## Further Notes
+
+- **Orient.** Glossary: Dosya Eki, Yakalama eki, Köken konumu, İş, Kişisel Wiki. Owning PRD: `docs/prd/07-documents-and-knowledge.md` (`#dosya-ekleri`, görsel sunum, konuma bağlı iş bağlamı) plus PRD 13 security. ADRs: 0004 (finalize), 0021 (no live files), 0002 (visitor assets not this preview). Related: PRD 05 (staging), PRD 15 (25 MB validation budget, a11y), PRD 16 (Dosya güvenliği), PRD 19 (no general malware scan, no live folder).
+- **Acceptance.** Bind to [Dosya güvenliği](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) with `Dosya sınırları`. Closed a11y journey **Belge sürümü ve Dosya Eki**. Async first-progress budget from PRD 16 ortak yöntemler applies to upload/finalize.
+- **Capture.** Workflow 06 produces Yakalama eki; this feature is the only promotion into Dosya Eki.

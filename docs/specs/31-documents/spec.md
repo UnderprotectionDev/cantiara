@@ -1,0 +1,94 @@
+# Belge Yazarlığı ve Sürümleri
+
+Kaynak: [`docs/workflow/31-documents/phase-context.md`](../../workflow/31-documents/phase-context.md)
+
+## Problem Statement
+
+Kurucu veritabanındaki Markdown Belgeleri uygulama içinde yazmak, canlı bağlamla birleştirmek, sürümlendirmek ve çatışmayı tarihsel bütünlüğü bozmadan çözmek ister. Bugün belge dış `.md` dosyası, kayıt açıklaması veya Wiki motoru sanılır; yeniden bağlanma sessiz basar veya yazma kuyruğa alınır; şablon canlı bağlı kalır; iskelet örnek içerik üretir; `#etiket` ikinci sözlük olur; taşıma ile kopya kimliği karışır. Kişisel Wiki kapsamı, evrensel arama, Dosya Eki havuzu, Wiki yayını ve spec inceleme kuyruğu bu sorunun parçası değildir.
+
+## Solution
+
+Belge Proje veya Kişisel Wiki kapsamında, yalnız veritabanında yaşayan sürümlü Markdown ana kaydıdır; Tiptap ile uygulama içinde düzenlenir. Canlı bloklar kaynak kimliğini korur. Sürümler karşılaştırılır; güncel olmayan taban Çakışma Taslağına düşer ve çözülmeden ana gerçeğe karışmaz. Yeniden bağlanma kuyruk değil, son tabanla kayıt denemesidir; kuyruk yasağı 03’tedir. Kullanıcı şablonu ve `Personal Review` bağımsız kimlikle başlatır. `Persona`, `Retrospective` ve `Launch Plan` iskeletleri boş başlıklı Belgeler olarak burada yaşar; katalog seçimi proje kabuğundadır. Gövdedeki `#etiket` Çalışma Alanı etiket kimliğini hedefler. Arşiv, kapsam taşıma/kopya, hiyerarşi ve tek Belge dışa aktarma kimlik etkilerini ayırır.
+
+## User Stories
+
+1. As a founder, I want to create and edit a `Document` in the app as Markdown stored only in the database, so that there is no live computer `.md` file and ADR-0021 holds.
+2. As a founder, I want Tiptap editing plus tables, fenced code with highlighting, fenced Mermaid, and LaTeX, so that long specs are not stuck in a Work description subset.
+3. As a founder, I want source text kept when Mermaid or LaTeX fail to render, so that a broken diagram is not an empty hole.
+4. As a founder, I want document types `General`, `PRD`, `Plan`, `Spec`, `Research Note`, and `Persona` to be selectable and later changeable without rewriting identity or relations, so that type is classification, not a second record kind.
+5. As a founder, I want a live table of contents from headings, in-document find, optional `Focus Mode`, and `Find and replace` (plain text by default, explicit safe regex), so that a long Document stays navigable without becoming Pages.
+6. As a founder, I want inline references to existing Work, Documents, Decisions, Risks, Assumptions, Open Questions, Sources, Feedback, Milestones, Project Releases, and Production Incidents by readable name targeting a stable id, so that mention is a usage link, not a standard relation and not a copied body.
+7. As a founder, I want a limited live Work block showing key, title, type, status, priority, and dates from the source, with `Change status`, `Close`, and `Open source record` using ordinary Work rules, so that a Document does not grow a second checklist lifecycle.
+8. As a founder, I want a named Smart Collection view as a live block that uses that collection’s membership and presentation, so that embed is not a second query.
+9. As a founder, I want a named section of another Document as a read-only live section embed that follows a stable section id, so that current text is shown without a copy, and cycles are blocked before apply.
+10. As a founder converting selected text into exactly one Work, Decision, Risk, Assumption, or Open Question, I want a preview of type, title, project, and the evidence/origin bind to the exact Document version, so that extract is not silent minting.
+11. As a founder converting a list with `Convert in bulk`, I want atomic all-or-nothing Work creation from chosen rows, so that partial success cannot happen.
+12. As a founder, I want to pin selected text as version-pinned evidence on an existing record, so that live section embed and pinned evidence stay distinct.
+13. As a founder, I want version history I can compare and restore, so that Document history is product versions, not Git commits.
+14. As a founder saving with a stale base revision, I want the rejected text kept as a `Conflict Draft` in the same scope, so that the current version is not overwritten.
+15. As a founder, I want to compare current vs draft, apply chosen parts as a new version, spawn a new independent Document from draft text, or delete the draft, so that conflict is a user merge, not an automatic winner.
+16. As a founder, I want an unresolved Conflict Draft kept out of search, share, publish, export, and Document history until resolved, so that it is not a second truth.
+17. As a founder when the connection drops, I want the editor to stop accepting new edits after the in-memory buffer, with last successful save and unwritten risk blocking-visible, plus `Copy` and `Download` recovery, so that I am not writing into a void.
+18. As a founder on reconnect, I want a save attempted against the last base revision and a Conflict Draft if needed, so that reconnect is not a silent publish and not a local queue.
+19. As a founder, I do not want an offline write queue, device-local cache, or CRDT live collab, so that 03’s online-only ban holds and this feature does not host a queue.
+20. As a founder, I want reusable Document templates in a Project or Personal Wiki, including `Convert to template` with a preview of skeleton and `{{field_name}}` placeholders, so that a template is not a live bind.
+21. As a founder creating from a template, I want a new identity that does not inherit history, relations, publish, archive, or later template edits, so that instances are independent.
+22. As a founder, I want the optional prepared `Personal Review` template with `Period`, `What changed?`, `What worked?`, `What was difficult?`, `Decisions and learnings`, `What will I change next?`, and `Related records`, so that a review is a Document, not a meeting type.
+23. As a founder, I want `Persona`, `Retrospective`, and `Launch Plan` starter skeletons to exist as empty-heading Documents after the project shell selects them, so that catalog selection stays 07 and living examples live here.
+24. As a founder, I want those skeletons to create no sample records, findings, tasks, or decisions—only the contracted English empty headings—so that a skeleton is not a content template.
+25. As a founder typing `#tag` in normal prose, I want it to target the same Workspace tag identity, so that in-doc tokens are not a second dictionary.
+26. As a founder, I want invalid tokens not to silently mint tags, and code/URL/escaped text not to count as tags, so that the Tags feature remains the namespace.
+27. As a founder, I want to archive a Document without deleting identity, versions, relations, or child links, so that archive is not Trash.
+28. As a founder moving a Document from an Active Project, I want identity-preserving move of the root, explicitly selected children, and File Attachments owned by those sources, with a preview of visibility and broken refs, so that the whole graph is not dragged.
+29. As a founder copying a Document, I want a new identity, origin to the source, content from the selected version, and no copy of history, relations, backlinks, share/publish, or project scope, so that copy is not move.
+30. As a founder exporting one Document, I want Markdown or PDF in which live blocks become dated labeled snapshots, so that the file is not a live twin.
+31. As a founder, I want folders and at most one parent Document in the same ownership scope, max three Document levels, so that hierarchy organizes without changing ownership or lifecycle.
+32. As a founder, I want English UI copy for `Document`, `Conflict Draft`, `Personal Review`, `Move`, `Copy`, `Archive`, and the skeleton names, so that the product language stays English.
+33. As a founder using only a keyboard or a screen reader, I want to edit, version-compare, resolve a Conflict Draft, apply a template, archive, move/copy, and export, so that Belge bütünlüğü is possible without a pointer-only editor.
+34. As a founder, I do not want this feature to own File Attachment upload, the tag dictionary, Personal Wiki shell, universal search, Wiki publishing, or spec-change review, so that those remain their cards.
+35. As a founder, I want an existing Technical Diagram or Diagram View as a read-only live block that opens the source and uses broken-reference presentation when unresolved, so that embed is not an in-place diagram editor.
+36. As a founder converting a fenced Mermaid block with `Convert to Technical Diagram`, I want a preview of source Document/version, block location, target type, unparseable items, origin, and whether the original block becomes a live reference or stays independent content, then an atomic Imported Independent Copy, so that 59 owns the canvas and this feature owns only the Document-side apply.
+
+## Implementation Decisions
+
+- **Owning documents.** Behavior is owned by [uygulama içi Markdown belge yönetimi](../../prd/07-documents-and-knowledge.md#uygulama-içi-markdown-belge-yönetimi), [Belge sürüm geçmişi](../../prd/07-documents-and-knowledge.md#belge-sürüm-geçmişi), [Belge şablonları](../../prd/07-documents-and-knowledge.md#belge-şablonları), [Belge arşivi](../../prd/07-documents-and-knowledge.md#belge-arşivi), [tek belge dışa aktarma](../../prd/07-documents-and-knowledge.md#tek-belge-dışa-aktarma), [Belge kapsamı, taşıma ve kopyalama](../../prd/07-documents-and-knowledge.md#belge-kapsamı-taşıma-ve-kopyalama), [Belge hiyerarşisi ve klasörleri](../../prd/07-documents-and-knowledge.md#belge-hiyerarşisi-ve-klasörleri), and in-doc `#etiket` under [Etiketler](../../prd/08-search-relations-and-evidence.md#etiketler) (token behavior here; namespace in tags). Database-only content is [ADR-0021](../../adr/0021-icerigi-yalniz-veritabaninda-tut.md). Online-only / no queue is [çalışma ve dağıtım modeli](../../prd/03-account-platform-operations.md#calisma-ve-dagitim-modeli) owned by workflow 03; this feature obeys it and owns Conflict Draft on reconnect. Starter skeleton catalog selection is [görüşlü başlangıç yapılandırmaları](../../prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları) / workflow 07; living Document examples are this feature. Atomic move/copy/find-replace follows [ADR-0004](../../adr/0004-atomik-idempotent-kesinlestirme.md). No new ADR.
+- **Glossary.** Use Belge (`Document`), Çakışma Taslağı (`Conflict Draft`), Başlangıç iskeleti, Kişisel Wiki (scope consumer, shell is 32), Dosya Eki (owned by 14), Etiket (namespace is 13), Evrensel Arama (33), Spec değişikliği inceleme kuyruğu (52). Do not introduce live `.md` file, offline queue, second tag dictionary, Document Collection, or Word export.
+- **Editor stack.** Tiptap for rich editing; TanStack Markdown for display; `diff` for version compare; Mermaid.js and KaTeX per stack. Structured-record bodies stay the safe subset in their own features; this module is the full Document.
+- **Live blocks.** Usage links, not standard relations. Live Work block actions are ordinary Work commands. Live collection block uses the named view; no second query. Live section embed follows stable section ids; broken targets use common broken-reference presentation, never stale content; cycles blocked. A live Technical Diagram or Diagram View block is read-only, opens the source, and never shows stale content when unresolved; it is not an in-place canvas. Convert-to-record and bulk list convert are previewed and atomic. Version-pinned evidence vs live section are not interchangeable in UI. Convert Mermaid to Technical Diagram is a previewed atomic action that creates an Imported Independent Copy in the diagrams feature; this module owns the Document-side preview and the original-block outcome, not the diagram canvas.
+- **Conflict Draft.** Stale-base save → draft, not overwrite. Resolve: apply parts, spawn independent Document with origin, or delete. Unresolved drafts are out of search/share/publish/export/history. No auto retry.
+- **Disconnect/reconnect.** Stop new edits after memory buffer; last successful save + unwritten risk visible; `Copy` and `Download` recovery. Reconnect tries last base; Conflict Draft if needed. No local queue (03). Unsent buffer is not promised across app/device loss.
+- **Templates.** Project or Wiki scope. `Convert to template` does not mutate the source Document. Placeholders `{{field_name}}` only. `Personal Review` headings are the journey contract. Not a Work template.
+- **Skeletons.** When the project shell’s catalog says these skeletons are selected, this feature materializes empty-heading Documents: Persona (`Context`, `Goals`, `Behaviors`, `Pain Points`, `Constraints`, `Evidence`, `Open Questions`); Retrospective (`Period`, `What worked?`, `What did not?`, `What did we learn?`, `Decisions`, `Next changes`, `Related records`); Launch Plan (`Release`, `Audience`, `Scope`, `Readiness`, `Communication`, `Launch steps`, `Risks`, `Observation plan`, `Related records`). After create they are normal Documents. Sitemap/Customer Journey walls are 51.
+- **In-doc tags.** `#tag` in normal prose targets Workspace tag identity. Not in fenced/inline code, URL parts, or escaped text. Invalid token does not mint. Rename of the dictionary is 13; this feature must consume the same id.
+- **Archive / move / copy / export.** Archive ≠ Trash. Move only from Active Project; preview; explicit children + owned attachments; cancel External Surface first if present (73/76 own the surface). Copy = new id. Single Document Markdown/PDF export snapshots live blocks; Word out of first product. Workspace exit package is 82.
+- **Hierarchy.** Folders are navigation metadata. Max one parent, max three Document levels; deeper moves are blocked with preview, not flattened. Child cards auto-preview; no separate cover record. Hierarchy move does not change scope (scope change is `Move`).
+- **English UI labels.** `Document`, `Conflict Draft`, `Personal Review`, `Persona`, `Retrospective`, `Launch Plan`, `Move`, `Copy`, `Archive`, `Focus Mode`, `Find and replace`, `Convert to template`. Missing labels join the PRD term table in the same change that first shows them. No Turkish UI.
+
+## Testing Decisions
+
+- **What a good test is.** Tests observe Documents through its public interface: create/edit Markdown in DB, live block identity, version compare/restore, Conflict Draft on stale base and reconnect, template independence, skeleton empty headings, `#tag` identity, archive, move vs copy, export snapshot, hierarchy depth. They do not assert Tiptap document JSON or Prisma blobs. Expected values are product rules (no live file, no queue, draft not mixed into current, skeleton has no sample content).
+- **Seam (one).** Documents — the database-backed Markdown document, version, conflict-draft, template, skeleton, in-doc tag, hierarchy, archive, move/copy, and single-document export interface. Personal Wiki shell, File Attachments, tag dictionary, Record Discovery, Wiki publishing, and spec-review are counterparts, not this module.
+- **Modules under test.** Documents only. Wiki navigation, R2 upload, universal search index, public snapshot, and Test Handoff are out except as counterparts.
+- **Prior art.** Contract tests at this seam with an editor/storage test double and a disconnected-clock/network double. Evidence environment for [Belge bütünlüğü](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) is the founder’s real project (version, move, delete) and for [Belge şablonları](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) the golden `Personal Review` structure; starter skeletons also bind to [Başlangıç iskeletleri](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) Document rows. Cloud tests must not use production content.
+- **Required counterparts.** No filesystem `.md` truth; reconnect does not queue; unresolved Conflict Draft absent from search/export; template edit does not mutate instances; skeletons have only contracted empty headings; `#tag` does not mint a second dictionary; hierarchy move does not change scope, identity, or lifecycle; move keeps identity, copy does not; folder is not Smart Collection; no cross-scope parent; attachments are not a global pool; publish/share UI absent; Mermaid convert is atomic and does not open 59's canvas as this module.
+
+## Out of Scope
+
+- Belgeyi Dosya Eki, harici Markdown dosyası veya kayıt açıklaması sayma.
+- Çatışmayı sessiz birleştirip geçmişi ezme; çevrimdışı yazma kuyruğu (03).
+- Taşıma ile kopyanın kimlik ve Dosya Eki etkilerini karıştırma.
+- Klasörü sahiplik kapsamı veya Akıllı Koleksiyon sayma.
+- Hiyerarşi taşımasıyla Belge kapsamını değiştirme.
+- Sınırsız derin ağaç veya çapraz kapsam ebeveyn.
+- Belge taramasını bu feature'ın keşif yüzeyi sayma; evrensel arama ayrıdır.
+- Dosya eklerini belgeden bağımsız global dosya havuzu yapmak.
+- Belge içi tokenı serbest metin hashtag olarak bırakıp kimlikten koparma.
+- Belge iskeletini duvar iskeleti veya içerikli şablon sayma.
+- Dosya Eki yükleme, etiket sözlüğü, Kişisel Wiki kabuğu, Wiki yayını, spec inceleme kuyruğu, Word export, canlı harici editör senkronu.
+- Sitemap / Customer Journey duvar iskeletleri; İş şablonu; kapanış özeti taslağı.
+
+## Further Notes
+
+- **Orient.** Glossary: Belge, Çakışma Taslağı, Başlangıç iskeleti. Owning PRD: `docs/prd/07-documents-and-knowledge.md` (Markdown yönetim, sürüm, şablon, arşiv, export, taşıma/kopya, hiyerarşi) plus in-doc tag sentences in PRD 08. ADRs in play: 0021 (database-only), 0004 (atomic confirm). Related but not owning: PRD 03 / workflow 03 (queue ban), PRD 04 / workflow 07 (catalog), 13 (tag namespace), 14 (attachments), 32 (Wiki shell), 33 (search), 52 (spec review), 74 (publish), PRD 16 (Belge bütünlüğü, Belge şablonları, Başlangıç iskeletleri), PRD 19.
+- **Acceptance.** Bind to [Belge bütünlüğü](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (real project: live section vs pinned evidence; broken target does not show old content; version, move, delete), [Belge şablonları](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (`Personal Review` golden headings; unused/changed template), and the Document rows of [Başlangıç iskeletleri](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari). Online-only reconnect/conflict is the same integrity journey’s conflict package; queue absence is 03’s platform journey.
+- **Consumers.** Workflow `32-personal-wiki` uses this seam in Wiki scope. Workflow `07-project-shell` selects skeletons; this feature materializes them. Workflow `13-tags` owns rename. Workflow `74-wiki-publishing` consumes export-like snapshots, not live edit. Workflow `52-spec-change-review` consumes new Spec versions.
