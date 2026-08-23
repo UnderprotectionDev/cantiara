@@ -49,6 +49,20 @@ Installed skills live in `.agents/skills`.
 
 **Seams** — `/tdd`. Use when implementing behavior. Tests live at confirmed seams.
 
+## Agent skills
+
+### Issue tracker
+
+Issues are created on GitHub; Cursor sessions may fetch the synced copy via Linear MCP. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical role names match GitHub labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
 ## Workspace
 
 Domain API lives in `packages/api`. `apps/server` is the Hono host. Shared UI primitives live in `packages/ui`.
