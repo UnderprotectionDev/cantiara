@@ -9,4 +9,5 @@
 - [ ] Seçilmiş Sitemap/Customer Journey tam olarak tanımlı İngilizce boş başlıkları kurar ve sonra normal duvardır.
 - [ ] Başlık dışında örnek içerik, ana kayıt veya görev yoktur.
 - [ ] Persona/Retrospective/Launch Plan Belgeleri bu ticket'ta yoktur.
+- [ ] Proje kabuğu (07) yaşayan Proje Duvarı satırı oluşturmaz; yalnız katalog seçim metadata’sı kaydeder.
 - [ ] Kabul kanıtı aynı seam'de: golden başlıklar, örnek içerik yokluğu. Bu kanıt [Başlangıç iskeletleri](../../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) duvar yarısıdır.

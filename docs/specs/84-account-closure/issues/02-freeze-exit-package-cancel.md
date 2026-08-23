@@ -7,7 +7,7 @@
 **Status:** ready-for-agent
 
 - [ ] Dondurma yeni kurucu yazmalarını (iptal ve dondurulmuş export hariç) reddeder; dış erişim kapalı kalır.
-- [ ] İptal 30 günlük dondurma boyunca açıktır; süre ürün sabiti 30 gündür, kullanıcı seçimi değildir. İptal ayrı işlem kimliğiyle Account Access grant'i ister; başarı Hesabı yaşayan duruma döndürür.
+- [ ] İptal 30 günlük dondurma boyunca açıktır; süre ürün sabiti 30 gündür, kullanıcı seçimi değildir (phase-context “kullanıcı tanımlı süre” karşıtı). İptal ayrı işlem kimliğiyle Account Access grant'i ister; başarı Hesabı yaşayan duruma döndürür.
 - [ ] 82 üretimi zorunlu kapıdır; başarı yokken kalıcı silme zamanlayıcısı silmez. Paket 30 gün indirilir; restore vaadi yoktur.
 - [ ] 79 seçili export dondurulan kümede kullanılabilir; kişi paketi (81) çıkış arşivi sayılmaz. PRD 13'teki "seçili Markdown/JSON/CSV export durur" cümlesi uygulanmaz; [Hesap kapatma](../../../prd/03-account-platform-operations.md#hesap-kapatma) export'u açık tutar.
 - [ ] Yeni kullanıcı kaynaklı güvenlik redaksiyonu için önce kapatma iptal edilir; dış erişimi kapalı tutan güvenlik uygulaması (yüzey/oturum iptali) ve restore replay yükümlülüğü dondurmada devam eder.

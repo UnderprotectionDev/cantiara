@@ -9,5 +9,6 @@
 - [ ] Sayı tıklanınca onu üreten kesin küme açılır; erişilemeyen kayıt sızmaz.
 - [ ] Etkin alan listesi Project Shell okumasından gelir; gizli alanın kaydı silinmez.
 - [ ] Overview yazarak örnek içerik, ilişki veya sağlık puanı üretmez.
+- [ ] Drill-down Açık Soru belirsizlik modülü veya nitel belirsizlik durumu açmaz; Açık Soru görünürlüğü İş Bağlam Kartındadır (workflow 16).
 - [ ] `Open source record` ortak eylem adıdır; terim tablosuna gerekirse aynı değişiklikle eklenir.
 - [ ] Kabul kanıtı aynı Project Overview seam'inde drill-down, alan listesi, yazmama karşıtı. İlk Proje gezinme.

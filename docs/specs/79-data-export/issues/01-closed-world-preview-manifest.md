@@ -10,7 +10,7 @@
 - [ ] Manifest şema sürümü, kapsam, filtre/görünür alan, üretim zamanını taşır; canlı senkron veya ikinci doğruluk kaynağı oluşturmaz.
 - [ ] 10.000 satır veya 25 MB (hangisi önce) aşımı ve eşzamanlı kapasite aşımı görünür reddedilir; sessiz uzun iş yoktur.
 - [ ] Secret, paylaşım token'ı, bağlantı parolası önizleme ve üretilen artifact'ta yoktur.
-- [ ] İngilizce UI `Export` kullanır; tek Belge Markdown/PDF ve `Workspace Exit Package` bu yüzeyde yoktur.
+- [ ] İngilizce UI `Export` kullanır; tek Belge Markdown/PDF (workflow 31) ve `Workspace Exit Package` bu yüzeyde yoktur; genel structured catalog’da Belge yoktur.
 - [ ] Önizlemesiz gizli alan veya secret yazılmaz; onaydan önce artifact üretilmez.
 - [ ] Çıktı canlı Çalışma Alanı verisinin AB yerleşimini taşımaz; indirme bölge taşıması değildir.
 - [ ] Hesap kapanma dondurması bu seam'i kapatmaz: seçili Markdown/JSON/CSV, 84'ün dondurulmuş kümesinde 82'ye ek kullanılabilir kalır ([Hesap kapatma](../../../prd/03-account-platform-operations.md#hesap-kapatma); PRD 13 "export durur" cümlesi uygulanmaz).
