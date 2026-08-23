@@ -6,7 +6,15 @@
 
 **Status:** ready-for-agent
 
-- [ ] Beş türün hazır bölüm seti [İş Bağlam Kartı](../../../prd/06-work-management-and-planning.md#iş-bağlam-kartı) tablosuyla birebir aynıdır.
+- [ ] Beş türün hazır bölüm seti şudur (PRD İş Bağlam Kartı tablosu; paket burada durur):
+
+| Work type | Prepared sections |
+| --- | --- |
+| `Feature` | `Problem/Opportunity`, `Expected Outcome`, `Evidence & Decisions`, `Risks & Open Questions`, `Included Work`, `GitHub & Tests`, `Target Release` |
+| `Bug` | `Observed/Expected Behavior`, `Affected Releases`, `Evidence`, `GitHub & Tests` |
+| `Task` | `Description`, `Dependencies`, `GitHub & Tests`, `Target Release` |
+| `Research` | `Research Question`, `Sources & Evidence`, `Decisions`, `Related Work` |
+| `Improvement` | `Current Situation`, `Expected Outcome`, `Evidence`, `GitHub & Tests` |
 - [ ] Dört Başlangıç yapılandırmasında aynı tür aynı düzeni görür; yapılandırma İş anlamını bölmez.
 - [ ] Başlık, tür, durum ve günlük planlama alanları başlangıçta görünürdür; diğer bölümler `Add Context` ile açılır.
 - [ ] Hiçbir bölüm oluşturmayı veya durum geçişini engellemez; boş bölüm kaydı durdurmaz.

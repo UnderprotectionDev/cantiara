@@ -7,7 +7,7 @@
 **Status:** ready-for-agent
 
 - [ ] Altı tür oluşur; Lookup/Formula komutu yoktur.
-- [ ] Bağlı tür listesi PRD’deki desteklenen kümedir; Oturum Testi ve Test değerlendirmesi dışarıdadır.
+- [ ] Bağlı tür listesi kapalıdır: `Work`, `Feedback`, `User Research Session`, `Risk`, `Assumption`, `Decision`, `Test Handoff`, `Test Session`, `Planned Test Scenario`, `Test Gap`, `Production Incident`, `Milestone`, `Project Release`. `Session Test` ve `Test assessment` tanım kabul etmez.
 - [ ] Kabuk (07) editor’ü açar ama şema bu seam’dedir.
 - [ ] Etiket hiyerarşisi, atomik etiket yeniden adlandırma ve iki-etiket birleştirme bu seam’de yoktur; Etiketler workflow 13’tedir (ilk üründe rename, birleştirme değil).
 - [ ] İngilizce `Custom field` ve tür adları terim tablosuna aynı değişiklikle eklenir.

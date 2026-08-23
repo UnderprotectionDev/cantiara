@@ -9,7 +9,7 @@
 - [ ] Üç tür bağımsız Teknik Diyagramdır; BPMN/org/Gantt kataloğa girmez.
 - [ ] Yapısal model PostgreSQL'de kanoniktir (ADR-0021); Mermaid/SQL/DBML ikinci canlı kaynak olmaz.
 - [ ] Veri Modeli canlı veritabanına bağlanmaz ve ORM dosyası yazmaz; modelleme 60'a kopyalanmaz.
-- [ ] Mimari PRD 11 nesne dilini kullanır; kutu-çizgi resmi kanonik model değildir. Mimari öğe ortak servis kataloğu veya CMDB ana kaydı değildir.
+- [ ] Mimari kapalı düğüm kataloğu: `Component`, `Service`, `Datastore`, `Queue/Event Bus`, `External System`, `Boundary` ve desteklenen türlenmiş bağlantılar. Kutu-çizgi resmi kanonik model değildir. Mimari öğe ortak servis kataloğu veya CMDB ana kaydı değildir.
 - [ ] Teknik Sıra adımlar ve katılımcıları kanonik yapısal modelde tutar; Kullanıcı Akışı, İş durumu geçişi, log izleme, runtime trace veya Üretim Olayı zaman çizelgesi değildir.
 - [ ] Sıra lifeline isteğe bağlı kesin Mimari düğümü ve Diyagram Sürümüne bağlanır; kaynak yeni sürüme geçince bağ sessizce taşınmaz.
 - [ ] Kabul kanıtı aynı seam'de: üç tür oluşturma, canvas/outline E2E, DSL'in kanonik olmaması. Erişilebilirlik **Teknik Diyagram yapılandırılmış outline'ı**.

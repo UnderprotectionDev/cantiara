@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Dizinler tür seçiciden açılır; ana menü başına tek tablo veya ayrı sahiplik kapsamı dayatılmaz.
+- [ ] Dizinler tür seçiciden açılır; ana menü başına tek tablo veya ayrı sahiplik kapsamı dayatılmaz. Sıfır kurulum kapalı `All …` listesi: `All Work`, `All Documents`, `All Decisions`, `All Risks`, `All Research Sessions`, `All Tests`, `All Designs`, `All Technical Diagrams`, `All Project Releases`, `All Sources`, `All Files`. `All Tests` Planlı Test Senaryosu, Test Handoff'u, Test Oturumu, Oturum Testi, Test Açığı ve Test değerlendirmesi alt türlerini ayırır; `All Technical Diagrams` Teknik Mimari, Veri Modeli ve Teknik Sıra türleriyle Diyagram otorite kipini ayırır. `All Files` her Dosya Ekini bir kez gösterir.
 - [ ] Belge ve Dosya Eki dizinleri kapsam, tür, klasör ve desteklenen üstveriyle aynı hazır yüzeyi kullanır; klasör Search'ün yerine geçmez.
 - [ ] Kurulum gerektiren görünüm hazır dizinin yerini tutmaz; kalıcı koşul 34’tedir.
 - [ ] Arşiv dizinden düşürülmez veya silinmiş sayılmaz.

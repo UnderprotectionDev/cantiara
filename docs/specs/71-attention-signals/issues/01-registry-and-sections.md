@@ -6,7 +6,30 @@
 
 **Status:** ready-for-agent
 
-- [ ] Emit yalnız PRD tablosundaki kimlikleri kabul eder; her sinyal kesin kaynak olay kimliği ve hedef kimliğiyle doğar; ikisi olmadan yazılmaz; kayıtsız kimlik yazmadan fail-closed reddedilir.
+- [ ] Emit yalnız bu kapalı mint kimliklerini kabul eder; her sinyal kesin kaynak olay kimliği ve hedef kimliğiyle doğar; ikisi olmadan yazılmaz; kayıtsız kimlik yazmadan fail-closed reddedilir.
+
+| Mint id | Section |
+| --- | --- |
+| `due-date` | `Action Required` |
+| `reappear-date` | `Action Required` |
+| `personal-reminder` | `Action Required` |
+| `review-later` | `Action Required` |
+| `open-risk` | `Action Required` |
+| `work-blocked` | `Action Required` |
+| `source-version-in-use` | `Action Required` |
+| `external-run-returned` | `Action Required` |
+| `release-observation-missing` | `Action Required` |
+| `github-check-failed` | `Action Required` |
+| `work-pr-status-conflict` | `Action Required` |
+| `unlinked-open-pr` | `Action Required` |
+| `published-release-open-scope` | `Action Required` |
+| `automation-failed` | `Action Required` |
+| `public-roadmap-review-due` | `Action Required` |
+| `unreviewed-test-report` | `Action Required` |
+| `test-result-conflict` | `Action Required` |
+| `handoff-result-after-cancel` | `Information Flow` |
+| `smart-collection-entry` | `Information Flow` |
+| `github-activity` | `Information Flow` |
 - [ ] Sunum sınıfı tablodaki `Action Required` / `Information Flow` değeridir; üretici sınıfı değiştiremez; varsayılan açık bölüm `Action Required`'dır.
 - [ ] Aynı ana kaynak kendi bölümünde gruplanır; her sinyalin nedeni, olayı, zamanı ve okunma/kapatılma durumu ayrıdır.
 - [ ] Aynı kesin Kaynak sürümü değişikliğinin birden fazla kullanım yeri tek Kaynak grubundadır; her kullanımın inceleme kararı ayrı kalır ve tek bildirime indirgenmez.

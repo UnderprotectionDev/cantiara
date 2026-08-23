@@ -6,9 +6,13 @@
 
 **Status:** ready-for-agent
 
-- [ ] Serbest biçim ve `Bug Capture` / `Feedback Capture` / `Research Fragment` isteğe bağlı alanlarla Inbox’a yazar; ana kayıt oluşmaz.
+- [ ] Serbest biçim ve kapalı mini şablon kataloğu Inbox’a yazar; ana kayıt oluşmaz. Katalog ve İngilizce etiketler:
+  - `Bug Capture`: `Observed Behavior`, `Expected Behavior`, `Reproduction Context`
+  - `Feedback Capture`: `Feedback`, `Channel`, isteğe bağlı `Contact`
+  - `Research Fragment`: `Note or Excerpt`, `Source Context`
+  Bütün yönlendirici alanlar isteğe bağlıdır; şablon yalnız Inbox öğesini biçimlendirir.
 - [ ] `Create Bug` (Proje+tür kesin) bir İş oluşturma komutu çağırır ve Inbox öğesi bırakmaz; İş anahtarı bu ticket’ta üretilmez.
 - [ ] Geçici öğe arama, paylaşım, yayın, export ve Backlog’a girmez; zaman ilerletme silmez; Taslak veya kaydedilmiş bookmark da değildir.
 - [ ] Online-only: son başarılı kayıt ve yazılmamış risk; uzantı/yerel kuyruk yok.
-- [ ] İngilizce şablon ve alan etiketleri PRD terim sözlüğüne aynı değişiklikle eklenir.
+- [ ] İngilizce şablon ve alan etiketleri (`Bug Capture`, `Feedback Capture`, `Research Fragment` ve alan adları) PRD terim sözlüğüne aynı değişiklikle eklenir.
 - [ ] Kabul kanıtı Capture Inbox seam'inde şema, süre karşıtı, doğrudan oluşturma. [Yakalama](../../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari).

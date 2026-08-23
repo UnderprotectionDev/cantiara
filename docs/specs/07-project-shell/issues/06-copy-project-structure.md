@@ -6,6 +6,7 @@
 
 **Status:** ready-for-agent
 
+- [ ] Onay diyaloğu yeni `Project Name` (zorunlu, kurucu yazar; kaynak adı kopyalanmaz), `Short code` (addan önerilir, onayda düzenlenebilir, Çalışma Alanında benzersiz) ister. Başlangıç yapılandırması bu akışta seçilmez ve yeniden uygulanmaz; giden yapı kaynak Projenin o anki aşama/alan/durum/görünüm/iskelet tanımlarıdır.
 - [ ] Önizleme neyin gideceğini gösterir; onay içeriksiz yeni Proje üretir.
 - [ ] Özel alan tanımları hedefte bağımsız kopyadır; ortak Workspace şema kimliği yoktur.
 - [ ] İçerik, geçmiş, ilişki, şablon, test senaryosu ve otomasyon kopyalanmaz.

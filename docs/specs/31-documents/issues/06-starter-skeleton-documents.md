@@ -7,6 +7,7 @@
 **Status:** ready-for-agent
 
 - [ ] `Persona` başlıkları `Context`, `Goals`, `Behaviors`, `Pain Points`, `Constraints`, `Evidence`, `Open Questions` ile sınırlıdır.
-- [ ] `Retrospective` ve `Launch Plan` sözleşmeli boş başlıklarını taşır; gövde örneği yoktur.
+- [ ] `Retrospective` başlıkları `Period`, `What worked?`, `What did not?`, `What did we learn?`, `Decisions`, `Next changes`, `Related records` ile sınırlıdır.
+- [ ] `Launch Plan` başlıkları `Release`, `Audience`, `Scope`, `Readiness`, `Communication`, `Launch steps`, `Risks`, `Observation plan`, `Related records` ile sınırlıdır; gövde örneği yoktur.
 - [ ] Kabuk seçimi olmadan bu ticket katalog UI’si açmaz; yaşayan örnek burada oluşur.
 - [ ] Kabul kanıtı seam’de üç golden boş yapı. Kanıt [Başlangıç iskeletleri](../../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) Belge satırıdır.

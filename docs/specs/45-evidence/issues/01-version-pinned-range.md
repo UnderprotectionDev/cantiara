@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Pin sürüm kimliği, aralık ve sınırlı çevre metnini korur. Hedefte özgün kaynak açılır; kaynakta vurgu ve geri bağlantı vardır.
+- [ ] Pin sürüm kimliği, aralık ve sınırlı çevre metnini korur. Hedefte özgün kaynak açılır; kaynakta vurgu ve geri bağlantı vardır. `Bind as evidence to existing record` uçları PRD 02 `Kanıtı` satırıdır: kesin Source/Document/Diagram version, Feedback, User Research Session, Experiment/Validation, Session Test, veya File Attachment version → Work, Decision, Risk, Assumption, Open Question, Test, Project Release, veya ona ait Access/Outcome observation. `Convert to new record and bind` yalnız bir `Work`, `Decision`, `Risk`, `Assumption`, veya `Open Question` üretir.
 - [ ] Yeni kaynak sürümü pin’i taşımaz; eski kanıt okunur, yeni sürüm bulunduğu belirtilir, rebind açık önizlemedir.
 - [ ] `Origin Location` sahip + bileşen + kesin sürümü değişmez tutar; öğe yoksa `Source element no longer exists`, en yeniye kaymaz.
 - [ ] Redaksiyon içerik erişimini kapatır, tarihsel bağın varlığını korur.

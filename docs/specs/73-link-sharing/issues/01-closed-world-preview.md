@@ -6,7 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] Desteklenen kayıt türleri için önizleme dışarı çıkacak kesin kayıt, sürüm, alan ve Dosya Eklerini listeler; ilişki/klasör/görünüm kalıtımı kapsama eklemez; dolaylı sızıntı (ad, sayaç, boşluk) yoktur.
+- [ ] Paylaşım kökü kurucunun seçtiği ana kayıtlardır: Document, Roadmap, Screen, Project Wall, Moodboard, Technical Diagram, Smart Collection, veya tekil Work, Decision, Risk, Feedback, Production Incident, Milestone, Project Release. Klasör/ilişki/görünüm kalıtımı kapsama eklemez; dolaylı sızıntı (ad, sayaç, boşluk) yoktur.
+- [ ] Live allowlist: kullanıcıya dönük durum ve kapanış sonucu, öncelik, planlanan başlangıç/hedef/yeniden görünme tarihi, Roadmap ufku, Milestone durumu, Project Release durumu, kaynağı açılabilir sayısal veya tarihsel özet. Live değil: title, description, Markdown, yorum, ilişki gerekçesi, Contact/Company, URL, Dosya Eki, yeni ek sürümü, secret, özel alan.
 - [ ] Ekran kesin Wireframe sürümü, ürün-owned diyagram kesin Diyagram Sürümü+Görünüm, dış bağlantı diyagramı köken snapshot'ı ister; iframe açılmaz. Proje Duvarı ve Moodboard kart, kesin Dosya Eki sürümü, yerleşim ve canlı koleksiyon bloğunu ayrı onay öğesi olarak listeler.
 - [ ] Onay yeni Onaylı snapshot revizyonu üretir; Dış yüzey yalnız bu revizyonu gösterir; sonraki kaynak yazması sessiz yayımlanmaz.
 - [ ] Secret, token ve parola manifestte yoktur; serbest metin secret taraması iddia edilmez.

@@ -8,8 +8,8 @@
 
 - [ ] Dört hazır modül kaynak kayıtlardan türetilir; tıklanan sayı/başlık kesin filtrelenmiş kümeyi `Open source record` ile açar.
 - [ ] Modül bağımsız sağlık hükmü üretmez; sayı kaynak kümesini açar, Project health alanı veya Mission Control toplaması değildir.
-- [ ] `Active Projects` Active Projeleri listeler; `Upcoming` yaklaşan kaynak tarihleri; `Recent Work` son dokunulan İşleri gösterir. Recency Favori veya Aktif Çalışma Seti yazmaz.
-- [ ] `Attention Required` başka yerde kayıtlı kaynak dikkatini toplar; yeni sinyal kimliği veya Bildirim Merkezi üretmez.
+- [ ] `Active Projects` Active Projeleri listeler; `Upcoming` v1 kaynak türleri yaklaşan hedef tarihleri ve hatırlatmalardır; `Recent Work` son dokunulan İşleri gösterir. Recency Favori veya Aktif Çalışma Seti yazmaz.
+- [ ] `Attention Required` v1 kaynak türleri kayıtlı `Action Required` dikkatidir: açık Risk ve blokaj (ve 71 registry’sindeki diğer `Action Required` kimlikleri). Yeni sinyal kimliği veya Bildirim Merkezi üretmez; yalnız kayıtlı kaynak dikkati toplar.
 - [ ] Dört modül gösterilir, gizlenir ve sıralanır; gizlemek kaynak kaydı silmez.
 - [ ] Sınırlı Belge veya adlandırılmış Akıllı Koleksiyon bloğu referanstır; gövde/üyelik kuralı kopyalanmaz; kaynak değişince blok değişir.
 - [ ] Kullanıcı tanımlı genel widget ve serbest dashboard builder yoktur. Kişisel Wiki Proje özeti gibi durmaz.

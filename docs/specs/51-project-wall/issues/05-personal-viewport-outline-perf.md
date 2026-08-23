@@ -8,5 +8,5 @@
 
 - [ ] Viewport bu tuvale özgüdür; ilişki veya paylaşım snapshot'ına yazılmaz.
 - [ ] Outline işlevsel eşdeğerdir; klavye pan/zoom/seçim/taşıma/hizalama vardır.
-- [ ] 500/750 kare bütçesini tutar; 2,000/3,000 çökmez.
+- [ ] Sert sahne 500 görünür öğe / 750 görsel bağlantı: pan/zoom p95 kare ≤ 16 ms ve azami kare ≤ 33 ms ise geçer. 2,000 öğe / 3,000 bağlantı: çökme, bozulma veya veri kaybı yoksa geçer (uyarı, sanallaştırma veya azaltılmış ayrıntı serbest; 500 oluşturma tavanı değildir).
 - [ ] Kabul kanıtı aynı seam'de: viewport, outline, performans. Kapalı yolculuk **canvas yapılandırılmış outline**.

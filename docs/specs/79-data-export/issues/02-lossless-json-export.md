@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Kapalı katalog aileleri JSON olarak çıkar; katalog dışı tür (Belge genel CSV/JSON, test zarfı, Dış yüzey, otomasyon, GitHub gerçeği, Ekran/Duvar/Moodboard) bu round-trip yolla üretilmez.
+- [ ] Kapalı katalog aileleri JSON olarak çıkar. Pozitif aileler: Work (`Feature`, `Bug`, `Task`, `Research`, `Improvement`); Planning (Project Goal, Milestone); Decision and uncertainty (Decision, Risk, Assumption, Open Question); Input and person context (Feedback, Contact, Company); Product learning (Product Gap, User Research Session, Experiment/Validation); External knowledge (Source metadata only — captured historical body is not a trusted Source snapshot from an outside file); Release and operations (Project Release, Production Incident). Document is not in the general CSV catalog (single Markdown or first-party versioned Document JSON). Technical Diagram JSON is export-only. Not this round-trip: test envelope, External Surface, automation, GitHub-as-truth, Screen/Wall/Moodboard, Project/starter configuration.
 - [ ] JSON açık şema sürümü taşır; ham değer kayıpsızdır (CSV kaçışı uygulanmaz).
 - [ ] İlişki yalnız iki uç da seçildiyse çıkar; tek uçlu ilişki sessizce tamamlanmaz.
 - [ ] Teknik Diyagram JSON'u varsa export-only işaretli ve import-create vaadi taşımaz; Dış yürütme/gözlem sahipli bileşenleri bağımsız tür olarak seçilemez.

@@ -52,7 +52,7 @@ Kurucu birden fazla düz, adlandırılmış Proje Duvarı tutar. Kalıcı öğel
 - **Densities and groups.** Product-chosen fields per type at Compact/Preview/Detailed. Limited accessible highlight palette. Single-level groups, not taxonomy. Named groups navigate in-wall; missing targets explain and offer safe return.
 - **Skeletons.** When the shell selected Sitemap or Customer Journey, this feature creates a normal Project Wall whose empty groups use exactly those English headings and no sample content. After creation it is an ordinary wall. Not a document skeleton, Moodboard template, or template marketplace. Persona/Retrospective/Launch Plan documents are not this feature.
 - **Presentation and snapshot.** Presentation Mode hides tools; focus order is view metadata. Group/region snapshot: dated PNG/PDF, frozen copy, does not lock the wall, does not widen share scope, is not External Surface or Build in Public. Preview must name it a frozen copy.
-- **Personal viewport, a11y, perf.** PRD 04 / 15 on this canvas. English labels as in stories; missing terms join the table in the same change.
+- **Personal viewport, a11y, perf.** Viewport is this canvas only. Outline is a functional equivalent. Hard scene 500 visible items / 750 visual links: pass if pan/zoom p95 frame ≤ 16 ms and max frame ≤ 33 ms. 2,000 items / 3,000 links: pass if no crash, corruption, or data loss (warn/virtualize/reduce detail allowed). 500 is not a create cap. English labels as in stories; missing terms join the table in the same change.
 
 ## Testing Decisions
 

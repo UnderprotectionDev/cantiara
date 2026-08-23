@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Önizleme yeni İşin başlığını, Projesini ve başlangıç durumunu gösterir; onay olmadan yazma yoktur.
+- [ ] Önizleme yeni İşin başlığını, Projesini ve başlangıç durumunu gösterir; başlangıç durumu hedef Projenin varsayılanı olan `Not Started` semantiğidir; onay olmadan yazma yoktur.
 - [ ] Onay aynı Projede tam İş oluşturur; eski madde yinelenen ilerleme üretmemek için yeni İş bağlantısıyla değişir.
 - [ ] `Kökeni` kaynak İşi gösterir; `Origin Location` sahip İş, bileşen kimliği ve kesin kaynak sürümünü taşır. Madde bağımsız ilişki ucu veya arama sonucu olmaz.
 - [ ] İlişki parent/child veya subtask hiyerarşisi açmaz.

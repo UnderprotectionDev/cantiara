@@ -7,7 +7,8 @@
 **Status:** ready-for-agent
 
 - [ ] DDL kaynak sürüm, model hash, generator sürümü ve uyarı manifestiyle birlikte durur.
-- [ ] Bütün invariant ihlalleri tek raporda adlandırılmış öğe yoluyla gösterilir; ilk hatada gizleme yoktur.
+- [ ] Bütün invariant ihlalleri tek raporda adlandırılmış öğe yoluyla gösterilir; ilk hatada gizleme yoktur. Kapalı invariant kümesi: `Unique table name`, `Unique column name`, `Valid identifier`, `Primary key present`, `Foreign key end exists`, `Foreign key type match`, `Composite column list validity`, `Index column and method validity`, `Non-duplicate index definition`, `Referential action validity`, `Nullability and default consistency`, `Enum and domain value validity`, `Sortable foreign key graph`.
+- [ ] Extension matrisi: `pg_trgm` izinli (trigram operatörleri, gin/gist trigram opclass). Çekirdek PostgreSQL tipleri/index method'ları extension gerektirmez. Reddedilen: `postgis`, `vector`, `citext`, `hstore`, `uuid-ossp`, `pgcrypto` ve matriste olmayan her extension. `CREATE EXTENSION` üretilmez.
 - [ ] Neon disposable parse/apply+destroy olmadan `Statically Validated` verilmez; kullanıcı/staging/production DB'sine bağlanılmaz.
 - [ ] `Statically Validated` uygulanmışlık iddiası değildir; disposable apply `Applied` / `Çalıştırıldı` / `Production-ready` durumu veya etiketi üretmez. Atılan doğrulama veritabanı kullanıcı hedefi sayılmaz.
 - [ ] Matris dışı extension adlandırılmış reddedilir; `CREATE EXTENSION` üretilmez.

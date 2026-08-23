@@ -8,7 +8,7 @@
 
 - [ ] Yapılandırma modu Proje + İş türü kapsamındadır; günlük içerik düzenlemesinden ayrı görünür sunumdur.
 - [ ] Gizlenen bölüm eksik kabul edilmez; boş görünür bölüm (02) ile gizlenen bölüm ayrıdır.
-- [ ] Özel bölüm yalnız desteklenen kayıt türü, doğrudan ilişki veya Kanıt Rolü ve durum koşullarıyla kurulur; Proje/Çalışma Alanı serbest sorgusu, formül, grafik veya keyfî kaynak yoktur.
+- [ ] Özel bölüm koşul sözlüğü kapalıdır. Kayıt türü: İş Bağlam Kartının canlı kaynak kümesi — `Decision`, `Risk`, `Assumption`, `Open Question`, `Feedback`, `Source`, `User Research Session`, `Experiment/Validation`, `Test Gap`, `Session Test`, `GitHub PR/check`, `Project Release` (hedef), plus `Project Goal`, origin `Research`, primary `Feature`, `Primary spec`. Doğrudan ilişki: PRD 02 standart ilişki türleri (`Related`, `Origin`/`Derived`, `Evidence`/`Provides evidence`, `Contributes to Goal`, `Blocks`/`Blocked by`, `Includes`/`Included in`, `Contributes to Milestone`, `Primary spec`, `Supersedes`, `Implements`). Kanıt Rolü: `Supports`, `Contradicts`, `Provides context`, `Inconclusive` (unset is `Unspecified`). Durum koşulu: hedef kaydın korunan yaşam semantiği (`Not Started` / `In Progress` / `Blocked` / `Closed` for Work; record-type equivalents otherwise). Proje/Çalışma Alanı serbest sorgusu, formül, grafik veya keyfî kaynak yoktur.
 - [ ] Bölüm yalnız açık İşten bu ilişkilerle erişilen kayıtları getirir.
 - [ ] Onay öncesi etki önizlemesi vardır; onaylanan değişiklik sürümlü geçmiştedir; geri alma İş verisini değiştirmez.
 - [ ] Eşleşen mevcut ve yeni İşler aynı canlı sunumu kullanır; kayıt başına şema veya eski düzen kopyası yoktur.

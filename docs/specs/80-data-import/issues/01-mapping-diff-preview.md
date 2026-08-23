@@ -6,7 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] Desteklenen tek dosya türleri kabul edilir; 10.000 satır/25 MB aşımı ve desteklenmeyen paket (ZIP/klasör/workspace) yazmadan reddedilir.
+- [ ] Desteklenen tek dosya türleri kabul edilir; 10.000 satır/25 MB aşımı ve desteklenmeyen paket (ZIP/klasör/workspace) yazmadan reddedilir. Markdown → Project or Wiki Document. First-party versioned Document JSON → Document family. CSV/JSON: one type per file from the closed catalog — Work (`Feature`, `Bug`, `Task`, `Research`, `Improvement`); Project Goal; Milestone; Decision; Risk; Assumption; Open Question; Feedback; Contact; Company; Product Gap; User Research Session; Experiment/Validation; Source metadata only; Project Release; Production Incident.
+- [ ] Katalog dışı aile bu önizlemede oluşturma adayı olmaz: Screen/Wireframe, User Flow, Project Wall, Moodboard, Technical Diagram editable JSON, GitHub-as-truth, Project, External Surface, automation, Starter Configuration, test-report envelope-as-Work/Document, folder/ZIP/multi-file Markdown, whole Workspace.
 - [ ] Azami boyuttaki dosya şifreli sunucu staging'inde en fazla 24 saat tutulur; staging birincil ana kaydı değiştirmez ve harici dosyayla canlı bağlantı kurmaz.
 - [ ] Önizleme hedef kapsam, eşleme, kayıp, çatışma ve geçersiz satırları gösterir; birincil ana kayıt, ilişki ve arama indeksi değişmez.
 - [ ] Katalog dışı aile (Dış yüzey, otomasyon, GitHub gerçeği, Teknik Diyagram editable JSON, test-report zarfı-as-Work) bu önizlemede oluşturma adayı olmaz; test-report 54'e yön veya reddedilir, Belge/İş yazılmaz.

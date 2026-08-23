@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Zorunlu alanlar ad ve kapalı yapılandırma kataloğudur; Proje `Active` açılır.
+- [ ] Zorunlu alanlar `Project Name` ve kapalı Başlangıç yapılandırması kataloğudur; katalog tam olarak `Blank Project`, `Solo SaaS`, `Open Source Library`, `Mobile Application`’dır; Proje `Active` açılır. Satır içerikleri 02’dedir.
 - [ ] Kısa kod önerilir, ilk İşten önce değişir, ilk İşten sonra kilitlenir; aynı Çalışma Alanında yeniden kullanılmaz.
 - [ ] Oluşturma GitHub kurulumu istemez; Proje rengi/CSS/font yoktur.
 - [ ] İngilizce `Project Name`, `Short code` PRD terim sözlüğüne aynı değişiklikle eklenir.

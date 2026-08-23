@@ -7,6 +7,6 @@
 **Status:** ready-for-agent
 
 - [ ] Önizlemesiz birleştirme uygulanmaz; gizli alan birleşimi yoktur.
-- [ ] Tek kanonik kayıt kalır; diğeri güvenli kapanır ve emekli kimlik yönlenir.
+- [ ] Tek kanonik kayıt kalır. Kaybeden İş ayrı yaşayan `Closed` kayıt olmaz: içerik ve ilişkiler hayatta kalanda konsolide edilir; kaybedenin anahtarı içeriksiz emekli kimlik yönlendirmesidir; kapanış sonucu ayrıca `Duplicate` yazılmaz (`Completed`/`Abandoned` yalnız hayatta kalanın kendi kapanışındadır).
 - [ ] Bu, başka Projede yeniden oluşturma değildir.
 - [ ] Kabul kanıtı Work Lifecycle seam'inde önizleme, emekli anahtar, benzerlik-otomatik karşıtı. İş yaşam döngüsü birleştirme paketi; geri alma 04 sözleşmesini tüketir.

@@ -6,7 +6,15 @@
 
 **Status:** ready-for-agent
 
-- [ ] Blank katalog seçmez; diğer yapılandırmalar kapalı beşli kataloğu ve PRD boş-başlık listelerini seçim üstverisi olarak kaydeder.
+- [ ] Blank katalog seçmez; diğer yapılandırmalar kapalı beşli kataloğu ve şu boş-başlık listelerini seçim üstverisi olarak kaydeder:
+
+| Skeleton | Surface | Empty headings |
+| --- | --- | --- |
+| `Sitemap` | `Project Wall` | `Primary Navigation`, `Secondary Navigation`, `Utility`, `External` |
+| `Customer Journey` | `Project Wall` | `Awareness`, `Consideration`, `Onboarding`, `Core Use`, `Retention` |
+| `Persona` | `Document` | `Context`, `Goals`, `Behaviors`, `Pain Points`, `Constraints`, `Evidence`, `Open Questions` |
+| `Retrospective` | `Document` | `Period`, `What worked?`, `What did not?`, `What did we learn?`, `Decisions`, `Next changes`, `Related records` |
+| `Launch Plan` | `Document` | `Release`, `Audience`, `Scope`, `Readiness`, `Communication`, `Launch steps`, `Risks`, `Observation plan`, `Related records` |
 - [ ] Seçim sonrası Belge veya Proje Duvarı ana kaydı yoktur; yaşayan boş başlık yapıları 31 ve 51’de oluşur.
 - [ ] Kapanış özeti taslağı, şablon pazarı veya içerikli örnek yoktur.
 - [ ] Kabul kanıtı Project Shell seam'inde katalog seçimi ve “yaşayan örnek yok” karşıtı. [Başlangıç iskeletleri](../../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) yolculuğunun seçim yarısı; golden yapı 31/51’dedir.

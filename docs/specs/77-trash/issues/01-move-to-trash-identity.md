@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Desteklenen ana kayıt `Move to Trash` ile `Trash`'e girer; iç kimlik ve sahiplik kapsamı değişmez. Sahipli bileşenler kaynakla birlikte girer; ilişkili bağımsız kayıt onaysız silinmez.
+- [ ] `Move to Trash` ana kayıtları: Work, Document, File Attachment, Decision, Risk, Assumption, Open Question, Feedback, Product Gap, Research Session, Experiment/Validation, Design (Project Wall / User Flow / Moodboard), Screen, Technical Diagram, Smart Collection/saved view, Template, Automation rule/record action, Production Incident, Project Release, Milestone, Project Goal, Contact, Company, GitHub external record (yerel Arşiv/Çöp). Sahipli bileşenler kaynakla birlikte girer; ilişkili bağımsız kayıt onaysız silinmez. Değil: Capture Inbox öğesi, tamamlanmamış Work Draft, Oturum Testi bağımsız çöp (Test Oturumu ile gider). Yapılandırma çöpü ticket 04. Source satırı PRD 02'de Aktif/arşiv’dir; bu ticket ona bağımsız Trash eklemez.
 - [ ] Test Oturumu ve Oturum Testi çocukları tek tarihsel bütün olarak taşınır; çocuk tek başına Çöp'e alınamaz. Bağımsız Dosya Eki veya takip İşi otomatik silinmez.
 - [ ] Çöpteki kayıt aktif kural, Akıllı Koleksiyon veya adlandırılmış görünüm üyeliği üretmez; yaşayan arama/sayı/export onu `Trash` yüzeyi dışında yaşayan kayıt saymaz.
 - [ ] Geri alınabilir süre 30 gündür; süre birimi Hesap/işletim takvimi değil ürün saatidir.
