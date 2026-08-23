@@ -11,4 +11,5 @@
 - [ ] Her aday bu sürüm çiftinde tam olarak `Bekliyor` (`Waiting`), `Gözden geçirildi` (`Reviewed`) veya `Etkilenmedi` (`Not affected`) taşır; dördüncü durum yoktur.
 - [ ] Üstveri hedef İş/plan/sürümü yazmaz; Geri Bildirim `İncelendi` veya İş akışı durumu değildir; yeni sürüm önceki çifti ezmez.
 - [ ] Toplu örtük yazma yoktur.
-- [ ] Kabul kanıtı aynı seam'de: bağ kapanışı, üç durum kataloğu (`Bekliyor`/`Gözden geçirildi`/`Etkilenmedi`), benzerlik karşıtı, üstveri yalıtımı, önceki çiftin korunması.
+- [ ] Kurucunun erişemediği aday ortak kırık-referans sunumunu kullanır; başlık veya gövde sızdırmaz (başka Çalışma Alanını saydırmaz).
+- [ ] Kabul kanıtı aynı seam'de: bağ kapanışı, üç durum kataloğu (`Bekliyor`/`Gözden geçirildi`/`Etkilenmedi`), benzerlik karşıtı, üstveri yalıtımı, önceki çiftin korunması, erişilemeyen adayda başlık sızıntısı yokluğu.

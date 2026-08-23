@@ -200,6 +200,10 @@ _Avoid_: Target date, Yeniden görünme tarihi, standalone reminder, Save for La
 Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm; manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
 _Avoid_: Statik liste, klasör, etiket
 
+**Etiket**:
+Çalışma Alanı genelinde yaşayan düz sınıflandırma kimliği; kayıt içeriği, klasör üyeliği veya süzme görünümü değildir ([Etiketler](docs/prd/08-search-relations-and-evidence.md#etiketler)). UI: `Tags`.
+_Avoid_: Klasör, Akıllı Koleksiyon, Proje-yerel etiket sözlüğü, hiyerarşi
+
 **Proje bazlı özel alan**:
 Yalnız bir Projede yaşayan, Metin, Sayı, Boolean, Tarih, tek seçim veya çoklu seçim türünde yapılandırılmış sınıflandırma alanı ([proje bazlı özel alanlar](docs/prd/08-search-relations-and-evidence.md#proje-bazlı-özel-alanlar)).
 _Avoid_: Lookup, Formula, çalışma alanı genelinde şema, etiket hiyerarşisi

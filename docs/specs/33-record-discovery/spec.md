@@ -23,7 +23,7 @@ Evrensel Arama yetkili ana kayıtları kapalı eşitlik-bozucu sırayla bulur; e
 9. As a founder, I do not want Drafts, Capture Inbox items, External Surfaces, or GitHub external records in Search, so that temporary and visitor surfaces stay on their own screens.
 10. As a founder, I do not want secrets, share tokens, or link passwords indexed, so that discovery cannot become a secret oracle.
 11. As a founder, I want limited operators that match visible filters, with autocomplete into filter chips, so that power users are not given a hidden query language.
-12. As a founder, I want to save a filtered search via `Save as Smart Collection` after a readable preview and a name, so that a temporary search does not become a collection by itself—and membership lives in 34.
+12. As a founder, I do not want a temporary filtered search to become a Smart Collection by itself, so that collection create stays workflow 34’s command; this feature may later open that command as a counterpart and must not store membership.
 13. As a founder, I do not want Search to be the Command Palette, so that commands and records stay two surfaces.
 14. As a founder, I want zero-setup indexes such as `All Work`, `All Documents`, `All Decisions`, `All Risks`, `All Research Sessions`, `All Tests`, `All Designs`, `All Technical Diagrams`, `All Project Releases`, `All Sources`, and `All Files`, so that I can browse a type without building a collection.
 15. As a founder, I want those indexes to collect existing main records of that type only—no stored query—and to keep each record in its Project or Wiki scope, so that an index is not a new ownership. Document and File Attachment indexes browse by scope, type, folder, and supported metadata on that same prepared surface; folder is not a second library and not a replacement for Search.
@@ -46,8 +46,8 @@ Evrensel Arama yetkili ana kayıtları kapalı eşitlik-bozucu sırayla bulur; e
 - **Indexes.** Zero-setup, type selector, not per-type main nav. Archive stays findable with filter; not treated as deleted. `All Tests` and `All Technical Diagrams` distinguish subtypes/authority modes as in the PRD. Document and File Attachment indexes use the same prepared surface with scope, type, folder, and supported metadata; folder is navigation, not ownership, and does not replace Universal Search.
 - **Table matrix.** Honor the closed type × surface matrix. Inline edit is not bulk edit (22). Session Test results are not written from the cell except via the test-correction event owned elsewhere.
 - **Preview.** Same `Open source record` on Kanban, Calendar, Roadmap, Scope Tree, Smart Collection, Notification Center. Default temporary panel; `Open full page` for deep work. No copy, no persisted panel layout.
-- **Save as collection.** Preview conditions + name, then 34 creates the Smart Collection. This feature must not store membership.
-- **English UI labels.** `Search`, `All Work`, `All Documents`, `All Decisions`, `All Risks`, `All Research Sessions`, `All Tests`, `All Designs`, `All Technical Diagrams`, `All Project Releases`, `All Sources`, `All Files`, `Table`, `Open source record`, `Open full page`, `Save as Smart Collection`. Missing labels join the PRD term table in the same change that first shows them. No Turkish UI.
+- **Save as collection.** Out of this feature. Workflow 34 owns create. Temporary search never persists membership. A later counterpart may open 34’s command from this search; this seam does not define collection rules.
+- **English UI labels.** `Search`, `All Work`, `All Documents`, `All Decisions`, `All Risks`, `All Research Sessions`, `All Tests`, `All Designs`, `All Technical Diagrams`, `All Project Releases`, `All Sources`, `All Files`, `Table`, `Open source record`, `Open full page`. Missing labels join the PRD term table in the same change that first shows them. No Turkish UI. `Save as Smart Collection` is 34.
 
 ## Testing Decisions
 
@@ -55,7 +55,7 @@ Evrensel Arama yetkili ana kayıtları kapalı eşitlik-bozucu sırayla bulur; e
 - **Seam (one).** Record Discovery — search, prepared type indexes, type-scoped table, and in-context preview. Command Palette, Smart Collection membership, Documents authoring, and tag dictionary are counterparts, not this module.
 - **Modules under test.** Record Discovery only. Palette commands, collection condition builder, and custom-field schema are out except as counterparts.
 - **Prior art.** Contract tests at this seam with an index fixture that includes authorized and unauthorized records. Evidence environment for [Arama ve ilişki](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) is both real project and synthetic authorization counterparts. Cloud tests must not use production sessions, tokens, or private user content.
-- **Required counterparts.** Draft/capture/external/secret absent; unauthorized Workspace cannot see names or counts; ranking ignores click history; Search ≠ Palette; folder browse on Document/File indexes does not replace Search; table disallowed types have no table; inline edit is not bulk edit; preview creates no record and is not a mandatory side panel; save-as-collection does not itself store members.
+- **Required counterparts.** Draft/capture/external/secret absent; unauthorized Workspace cannot see names or counts; ranking ignores click history; Search ≠ Palette; folder browse on Document/File indexes does not replace Search; table disallowed types have no table; inline edit is not bulk edit; preview creates no record and is not a mandatory side panel; this feature does not create a Smart Collection.
 
 ## Out of Scope
 

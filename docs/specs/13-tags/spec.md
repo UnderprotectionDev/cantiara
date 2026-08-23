@@ -76,7 +76,7 @@ Kurucu tek Çalışma Alanı etiket ad alanında düz etiket oluşturur, kayıtl
 
 ## Further Notes
 
-- **Orient.** Glossary: Etiket (PRD 02 Çalışma alanı kapsamı; CONTEXT'te ayrı madde yok — yeni terim bu değişiklikte CONTEXT'e eklenmez), Çalışma Alanı, Proje bazlı özel alan, Akıllı Koleksiyon, Belge, Kanıt bağı. Owning PRD: `docs/prd/08-search-relations-and-evidence.md` (`#etiketler`). ADRs in play: none owning; 0021 (no live filesystem taxonomy). Related: PRD 02 (scope), PRD 07 (Documents consume the identity), PRD 13/portability (manifest mapping), PRD 16 (Arama ve ilişki), PRD 18 (merge/archive), PRD 19 (no Belge Koleksiyonu as a fifth membership).
+- **Orient.** Glossary: Etiket, Çalışma Alanı, Proje bazlı özel alan, Akıllı Koleksiyon, Belge, Kanıt bağı. Owning PRD: `docs/prd/08-search-relations-and-evidence.md` (`#etiketler`). ADRs in play: none owning; 0021 (no live filesystem taxonomy). Related: PRD 02 (scope), PRD 07 (Documents consume the identity), PRD 13/portability (manifest mapping), PRD 16 (Arama ve ilişki), PRD 18 (merge/archive), PRD 19 (no Belge Koleksiyonu as a fifth membership).
 - **Acceptance.** Bind to [Arama ve ilişki](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari). Closed a11y journey **Proje gezinme ve arama**. Negative 19-class counterparts: no Project-local dictionary, no hierarchy, no second Document tag system.
 - **Rename versus merge.** Phase-context lists “birleştirme”; PRD 08 and 18 win: first product atomically updates all uses of one identity (rename). Two-tag consolidation is 18.
 - **Workflow 31.** Documents own token syntax. This namespace is the only dictionary those tokens may bind.

@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] `Includes` / `Included in` en fazla bir birincil Özellik dayatır; yazma Relations store’unu kullanır.
+- [ ] `Includes` / `Included in` en fazla bir birincil Özellik dayatır; yazma Work Lifecycle seam’indedir. Workflow 12 paketi bu ticket’ı bloklamaz.
 - [ ] Kapsanan İşin türü, durumu, planlaması ve geçmişi bağımsız kalır.
 - [ ] İlerleme özeti durum yazmaz; sağlık güncellemesi Proje skoruna yuvarlanmaz.
 - [ ] Feature’dan çıkış kapsanan İş, sağlık geçmişi veya Birincil spec varken önizlemesiz engellenir; sessiz ilişki yeniden yorumu yoktur (01’deki tür kuralı bozulmaz).

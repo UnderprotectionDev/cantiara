@@ -1,4 +1,4 @@
-# 04 — Secret’siz destek referansı
+# 03 — Secret’siz destek referansı
 
 **What to build:** Başarısız ana akışta kullanıcı anlaşılır hata nedenini, güvenli yeniden deneme sınırını, verinin yazılıp yazılmadığını ve secret/özel içerik taşımayan bir `Support reference` görür. Bu pager, müşteri kuyruğu veya S1 alarm konsolu değildir.
 

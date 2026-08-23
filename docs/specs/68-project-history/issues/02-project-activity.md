@@ -2,7 +2,7 @@
 
 **What to build:** Kurucu mevcut kayıt geçmişlerinden türetilen `Project Activity` görünümünde kim, ne, eski değer, yeni değeri inceler. Görünüm İş, Belge, Karar, Risk, otomasyon ve GitHub kaynak türlerine; oluşturma, alan değişikliği, durum, arşiv, ilişki ve otomasyon olay türlerine göre filtrelenir. Her satır aktörü (kullanıcı, Sistem otomasyonu, GitHub) gösterir ve kaynak kaydı açar. Yeni kalıcı olay deposu, ikinci Denetim kaydı veya Bildirim Merkezi bölümü oluşmaz. Görünüm varsayılan Proje açılışı değildir.
 
-**Blocked by:** 01 — Gerçekleşen olaylar zaman çizelgesi
+**Blocked by:** None — can start immediately. Story timeline (01) is a separate alt-phase; activity does not wait on it.
 
 **Status:** ready-for-agent
 

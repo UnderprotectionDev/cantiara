@@ -1,4 +1,4 @@
-# 03 — Tauri Updater ve 30 günlük API penceresi
+# 04 — Tauri Updater ve 30 günlük API penceresi
 
 **What to build:** Tauri Updater yalnız imzası doğrulanan çıktıyı uygular; değiştirilmiş veya geçersiz imzalı paketi reddeder ve önceki çalışan sürümü bozmaz. Otomatik rollback yoktur; bir önceki imzalı installer indirilebilir tutulur. Backend güncel ve bir önceki imzalı masaüstü API sözleşmesini 30 gün destekler; süre dışındaki istemci güvenli olmayan yazmadan önce `Update required` ile durur.
 

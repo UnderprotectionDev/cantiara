@@ -10,5 +10,6 @@
 - [ ] Öğeyi seçmek kaynak bağlamına döner; kabuk kayıt kopyası veya ikinci liste yazmaz.
 - [ ] Kabuğu açmak, dört yüzey arasında geçmek veya `Open full page` kullanmak Favori, Günlük Odak, bildirim veya Yeniden bak üyeliği yazmaz ve bildirimi okundu yapmaz; add/remove/read kendi feature listesinde kalır, kabuk chrome'u ikinci bir üyelik yazıcı değildir.
 - [ ] Kabuk Akıllı Koleksiyon, çapraz Proje listesi veya ikinci Backlog değildir.
+- [ ] Açık panel, panel içi gezinme, scroll ve kaynak görünüm konumu oturumlar arasında recent-context olarak geri yüklenmez (faz ölçütü 3). Aktif Çalışma Seti restore yasağı 02’dedir.
 - [ ] İngilizce UI `Daily Focus`, `Favorites`, `Notification Center`, `Look again`, `Open full page` kullanır; eksik etiketler terim sözlüğüne aynı değişiklikle eklenir.
 - [ ] Kabul kanıtı Personal Shell seam'inde: açma, konum korunumu, üyelik yazmama. Kanıt [kişisel bağlam](../../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) yolculuğunun kabuk dilimidir.

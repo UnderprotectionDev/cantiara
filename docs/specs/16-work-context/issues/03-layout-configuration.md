@@ -7,6 +7,7 @@
 **Status:** ready-for-agent
 
 - [ ] Yapılandırma modu Proje + İş türü kapsamındadır; günlük içerik düzenlemesinden ayrı görünür sunumdur.
+- [ ] Gizlenen bölüm eksik kabul edilmez; boş görünür bölüm (02) ile gizlenen bölüm ayrıdır.
 - [ ] Özel bölüm yalnız desteklenen kayıt türü, doğrudan ilişki veya Kanıt Rolü ve durum koşullarıyla kurulur; Proje/Çalışma Alanı serbest sorgusu, formül, grafik veya keyfî kaynak yoktur.
 - [ ] Bölüm yalnız açık İşten bu ilişkilerle erişilen kayıtları getirir.
 - [ ] Onay öncesi etki önizlemesi vardır; onaylanan değişiklik sürümlü geçmiştedir; geri alma İş verisini değiştirmez.

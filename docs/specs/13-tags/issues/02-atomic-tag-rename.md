@@ -7,6 +7,7 @@
 **Status:** ready-for-agent
 
 - [ ] `Rename Tag` bütün yapılandırılmış kullanımları tek commit'te yeni görünen ada çeker; kimlik değişmez.
+- [ ] Rename sonrası aynı kayıt listesi filtresi kimliğe göre eşleşmeye devam eder; donmuş görünen ada veya eski/yeni adı karışık üyelik yoktur.
 - [ ] Aynı kimliğe çözülmüş inline kullanımlar aynı atomik sınırda güncellenir; etkilenen Belgeler sürümlenir ve güvenli geri alma düzeni döndürür.
 - [ ] İşlem başarısızsa hiçbir kayıt veya Belge gövdesi kısmen güncellenmez.
 - [ ] Markdown export sözleşmesi inline `#etiket` metnini korur ve manifest kimlik eşlemesini taşır; export UI'si bu ticket'ta yoktur.

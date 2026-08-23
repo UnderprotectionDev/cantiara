@@ -8,6 +8,6 @@
 
 - [ ] Trash restore, birleştirmeyi geri alma veya restore edilmiş canlı satır redakte değeri ürün okuma yoluna getirmez.
 - [ ] Append/replay arayüzüne secret'siz, takma kimlikli redaksiyon olayı yazılır; replay testi restore edilmiş hâlâ dolu satırın değerinin yetkisiz kaldığını gösterir. Günlük birincil restore biriminde yaşamaz (01'deki iptal olayıyla aynı sözleşme; üretim store 85).
-- [ ] Test geçmişi: redaksiyon Düzeltme/Geri çekmeden ayrı olaydır; redakte kanıt değerlendirme ve export yardımcılarında reddedilir. İnceleme UI'si bu ticket'ta yoktur.
+- [ ] Yayılım geçmiş, snapshot, indeks ve cache’e gider. Test geçmişi olay şekli (Düzeltme vs Geri çekme vs redaksiyon) PRD 10 / feature 57’nindir; bu ticket yalnız redakte kanıtın değerlendirme/export yardımcısında kullanılamaz olduğunu, o yardımcı varsa, karşıt olarak kanıtlar. İnceleme UI'si burada yoktur.
 - [ ] 81 ve 84 bu motoru çağıracak şekilde tek public apply arayüzü kalır; kopya yayılım yolu açılmaz.
 - [ ] Kabul kanıtı Security Redaction seam'inde restore-diriltmez, replay ve [Test geçmişi](../../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) karşıtı. 85 erişim kapısı burada yoktur.

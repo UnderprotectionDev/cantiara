@@ -2,7 +2,7 @@
 
 **What to build:** Kesin Wireframe sürümündeki block üzerinde `Convert and Bind` tam olarak bir İş, Karar, Risk veya Açık Soru taslağını; hedef tür/proje, başlık/gövde eşlemesi, `Kökeni` ve değişmez Origin Location (Ekran kimliği, block kimliği, kesin Wireframe sürümü) ile önizler. `Convert and Bind` Ekran üretmez; Ekran oluşturma başlıkla (01) veya Kullanıcı Akışı düğüm yükseltmesi (49) kalır. Onaydan önce ana kayıt oluşmaz; kaynak öğe yerinde kalır, ilişki ucu olmaz, görünümü değişmez — tuval boşalmaz. Öğeyi silmek oluşan kaydı silmez; Origin Location `Kaynak öğe artık yok` olur. Yeni sürüm bağı sessizce taşımaz. Salt okunur canlı İş/Karar/Risk kartı taşımak kaynak kaydı yazmaz. Şablon kaynak projenin İş/Karar geçmişini taşımaz ve üretilen Ekran kaynak projeye canlı bağlanmaz.
 
-**Blocked by:** 02 — WireframeDocument motoru ve semantik düzenleme
+**Blocked by:** 01 — Ekran ana kayıt yaşamı; 02 — WireframeDocument motoru ve semantik düzenleme
 
 **Status:** ready-for-agent
 

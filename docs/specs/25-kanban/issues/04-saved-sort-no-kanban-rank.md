@@ -8,6 +8,6 @@
 
 - [ ] Tahtada kart bırakmak bağımsız Kanban rank’i üretmez; görünüm sıralaması geçerlidir.
 - [ ] Sütun hareketi Backlog sırasını ve önceliklendirme oturumu sırasını değiştirmez.
-- [ ] Gelecek yeniden görünme tarihi durumu yazmadan varsayılan kümede geri planda durabilir; tarih alanı bu ticket’ta tanımlanmaz.
+- [ ] Gelecek yeniden görünme tarihi durumu yazmadan varsayılan kümede geri planda durabilir. Tarih alanının sahibi 26’dır; bu ticket gelecek tarihli fixture ile sunumu kanıtlar, alanı tanımlamaz.
 - [ ] Arşivli İş varsayılan tahtada yoktur; arşiv sütunu açılmaz.
 - [ ] Kabul kanıtı seam’de sıra karşıtı, Backlog sırasının dokunulmaması ve yeniden görünme tarihinin durum yazmaması. Bu [Günlük planlama](../../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) planlama-durum ayrımı paketidir.

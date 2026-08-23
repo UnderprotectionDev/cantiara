@@ -8,6 +8,7 @@
 
 - [ ] Tek Çalışma Alanı ad alanı vardır; aynı görünen ad ikinci kimlik veya Proje-yerel etiket üretmez.
 - [ ] Oluşturma, kayda uygulama ve kayıttan kaldırma çalışır; kaldırma kimliği silmez.
+- [ ] Kurucu erişilebilir bir kayıt listesini etiket kimliğiyle süzer; uygula/kaldır üyelik sonucunu aynı listede günceller (schema + API + liste UI). Arama, Akıllı Koleksiyon ve import yüzeyleri burada inşa edilmez.
 - [ ] Proje seçicisi sık kullanılanları önce önerebilir; bu sıralama kapsamı değiştirmez.
 - [ ] `/` düz metindir; parent/child, kapsam veya kalıtım oluşmaz.
 - [ ] Etiket uygulamak ilişki türü, klasör, Akıllı Koleksiyon üyeliği, Favori veya Kanıt bağı üretmez.
