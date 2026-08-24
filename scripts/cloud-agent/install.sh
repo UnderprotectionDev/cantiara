@@ -61,19 +61,13 @@ if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_N
 fi
 
 # --- Local environment files ------------------------------------------------
-# Never overwrite files a developer may have customised.
-if [[ ! -f apps/server/.env ]]; then
-  log "Writing apps/server/.env"
-  SECRET="$(openssl rand -base64 32)"
-  cat > apps/server/.env <<ENV
-DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@127.0.0.1:5432/${DB_NAME}
-NEON_LOCAL=true
-BETTER_AUTH_SECRET=${SECRET}
-BETTER_AUTH_URL=http://localhost:3000
-CORS_ORIGIN=http://localhost:3001
-NODE_ENV=development
-ENV
-fi
+# Cursor Secrets (DATABASE_URL, GitHub OAuth, BETTER_AUTH_SECRET) are copied
+# into the gitignored server env file. Hosted Neon omits NEON_LOCAL. See
+# docs/agents/cloud-agent-secrets.md. Values are never logged.
+# shellcheck source=write-server-env.sh
+source "$REPO_ROOT/scripts/cloud-agent/write-server-env.sh"
+env_kind="$(apply_server_env "$REPO_ROOT/apps/server/.env")"
+log "apps/server/.env: ${env_kind}"
 if [[ ! -f apps/web/.env ]]; then
   log "Writing apps/web/.env"
   echo "VITE_SERVER_URL=http://localhost:3000" > apps/web/.env
@@ -90,7 +84,12 @@ log "Generating Prisma client"
 (cd packages/db && bunx prisma generate >/dev/null)
 
 # --- Schema sync ------------------------------------------------------------
+# Always the local throwaway cluster, even when the app .env points at hosted
+# Neon. `db push` must not run against the product database.
 log "Syncing Prisma schema to local Postgres"
-(cd packages/db && bunx prisma db push)
+(
+  cd packages/db
+  DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@127.0.0.1:5432/${DB_NAME}" bunx prisma db push
+)
 
 log "Install complete"
