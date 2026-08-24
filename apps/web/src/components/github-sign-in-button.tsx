@@ -1,5 +1,4 @@
 import { Button } from "@cantiara/ui/components/button";
-import { Github } from "lucide-react";
 
 import { authClient } from "@/lib/auth-client";
 
@@ -15,7 +14,6 @@ export default function GitHubSignInButton() {
 				});
 			}}
 		>
-			<Github />
 			Continue with GitHub
 		</Button>
 	);

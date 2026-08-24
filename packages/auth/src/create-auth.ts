@@ -86,19 +86,7 @@ export function createAuth(options: CreateAuthOptions) {
 			enabled: false,
 		},
 		rateLimit: {
-			customRules: {
-				"/callback/github": {
-					max: maxAttempts,
-					window: 60,
-				},
-				"/sign-in/social": {
-					max: maxAttempts,
-					window: 60,
-				},
-			},
-			enabled: true,
-			max: 100,
-			window: 60,
+			enabled: false,
 		},
 		secret: options.secret,
 		socialProviders: {
@@ -120,10 +108,18 @@ export function createAuth(options: CreateAuthOptions) {
 	return Object.assign(auth, { handler });
 }
 
+interface AuthSessionLookup {
+	api: {
+		getSession: (args: {
+			headers: Headers;
+		}) => Promise<{ user: { id: string } } | null>;
+	};
+}
+
 async function handleAuthRequest(
 	request: Request,
 	deps: {
-		auth: ReturnType<typeof betterAuth>;
+		auth: AuthSessionLookup;
 		innerHandler: (request: Request) => Promise<Response>;
 		limiter: RateLimiter;
 	}
@@ -158,7 +154,7 @@ async function admitGitHubCallback(
 	request: Request,
 	response: Response,
 	deps: {
-		auth: ReturnType<typeof betterAuth>;
+		auth: AuthSessionLookup;
 		limiter: RateLimiter;
 	}
 ): Promise<Response> {
