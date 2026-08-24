@@ -1,0 +1,23 @@
+{
+  "name": "cantiara",
+  "user": "ubuntu",
+  "install": "bash scripts/cloud-agent/install.sh",
+  "start": "bash scripts/cloud-agent/start.sh",
+  "terminals": [
+    {
+      "name": "neon-proxy",
+      "command": "export PATH=\"$HOME/.bun/bin:$PATH\"; bun run scripts/neon-local-proxy.ts",
+      "description": "Neon serverless WebSocket proxy that tunnels the app's database traffic to local Postgres (NEON_LOCAL=true)."
+    },
+    {
+      "name": "dev",
+      "command": "export PATH=\"$HOME/.bun/bin:$PATH\"; bun run dev",
+      "description": "Turborepo dev servers: web (http://localhost:3001), API server (http://localhost:3000), and Fumadocs (http://localhost:4000)."
+    }
+  ],
+  "ports": [
+    { "name": "web", "port": 3001 },
+    { "name": "api", "port": 3000 },
+    { "name": "fumadocs", "port": 4000 }
+  ]
+}
