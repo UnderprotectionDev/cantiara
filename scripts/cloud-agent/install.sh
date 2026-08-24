@@ -61,13 +61,33 @@ if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_N
 fi
 
 # --- Local environment files ------------------------------------------------
-# Cursor Secrets (DATABASE_URL, GitHub OAuth, BETTER_AUTH_SECRET) are copied
-# into the gitignored server env file. Hosted Neon omits NEON_LOCAL. See
-# docs/agents/cloud-agent-secrets.md. Values are never logged.
-# shellcheck source=write-server-env.sh
-source "$REPO_ROOT/scripts/cloud-agent/write-server-env.sh"
-env_kind="$(apply_server_env "$REPO_ROOT/apps/server/.env")"
-log "apps/server/.env: ${env_kind}"
+# Cursor Secrets are process env vars. dotenv does not override them. A leftover
+# NEON_LOCAL=true in .env would still tunnel hosted Neon through the local proxy,
+# so drop that flag when DATABASE_URL is already a hosted URL.
+hosted_database=0
+if [[ -n "${DATABASE_URL:-}" && "${DATABASE_URL}" != *127.0.0.1* && "${DATABASE_URL}" != *localhost* ]]; then
+  hosted_database=1
+fi
+
+if [[ ! -f apps/server/.env ]]; then
+  log "Writing apps/server/.env"
+  {
+    if [[ "${hosted_database}" -eq 0 ]]; then
+      echo "DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@127.0.0.1:5432/${DB_NAME}"
+      echo "NEON_LOCAL=true"
+      echo "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-$(openssl rand -base64 32)}"
+    elif [[ -z "${BETTER_AUTH_SECRET:-}" ]]; then
+      echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)"
+    fi
+    echo "BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}"
+    echo "CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3001}"
+    echo "NODE_ENV=development"
+  } > apps/server/.env
+elif [[ "${hosted_database}" -eq 1 && -f apps/server/.env ]] && grep -q '^NEON_LOCAL=' apps/server/.env; then
+  log "Clearing NEON_LOCAL so Cursor DATABASE_URL reaches hosted Neon"
+  grep -v '^NEON_LOCAL=' apps/server/.env > apps/server/.env.tmp
+  mv apps/server/.env.tmp apps/server/.env
+fi
 if [[ ! -f apps/web/.env ]]; then
   log "Writing apps/web/.env"
   echo "VITE_SERVER_URL=http://localhost:3000" > apps/web/.env
