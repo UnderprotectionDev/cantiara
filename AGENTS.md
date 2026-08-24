@@ -6,7 +6,7 @@ Personal project operating system for a solo product builder. This file is the a
 
 1. **Orient.** Name the owning glossary term, the owning numbered PRD file, and every ADR that already decided a boundary this change touches. Done when each is a path or an explicit "none" — not when the area feels familiar.
 2. **Name.** Every domain name in the change is a [`CONTEXT.md`](CONTEXT.md) term, or the glossary gains that term in the same change. The `_Avoid_` list is binding.
-3. **Change.** Product behavior comes from the owning PRD file. Tools and runtimes come from [`docs/tech-stack.md`](docs/tech-stack.md). File ownership comes from [`structure.md`](structure.md). Architecture that would surprise a later reader is an ADR, written only when [`docs/adr/README.md`](docs/adr/README.md) would accept one.
+3. **Change.** Product behavior comes from the owning PRD file. Tools and runtimes come from [`docs/tech-stack.md`](docs/tech-stack.md). Dosya sahipliği [`structure.md`](structure.md) kaynaklıdır. Architecture that would surprise a later reader is an ADR, written only when [`docs/adr/README.md`](docs/adr/README.md) would accept one.
 4. **Close.** Done when every Orient path still holds, every Name is a glossary term, and every in-file rule holds. A new or changed normative PRD section is bound to an acceptance journey in [`docs/prd/16-product-acceptance.md`](docs/prd/16-product-acceptance.md).
 
 ## Glossary
@@ -33,7 +33,7 @@ First product is `01`–`15`. `16` is how to prove it. `17`–`18` stay out of d
 
 ## Layout
 
-**Layout** — [`structure.md`](structure.md). Read before placing a feature, route, package, app, or provider file. Match that ownership for the files this change touches.
+**Layout** — [`structure.md`](structure.md). Feature, route, package, app veya provider dosyası yerleştirmeden önce oku. `features/`, `views/`, `routes/` gibi sahiplik sınırlarını eşle; klasör ve dosya adlarını bu ürünün terimlerine göre ver.
 
 ## Domain documents
 
