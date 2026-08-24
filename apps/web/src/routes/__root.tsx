@@ -12,8 +12,8 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useState } from "react";
 import type { AppRouterClient } from "server/routes";
 
-import Header from "@/components/header";
-import { ThemeProvider } from "@/components/theme-provider";
+import Header from "@/features/personal-shell/components/header";
+import { ThemeProvider } from "@/features/account-preferences/views/theme-provider";
 import { link, type orpc } from "@/utils/orpc";
 
 import "../index.css";
