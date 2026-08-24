@@ -2,7 +2,7 @@ import { Button } from "@cantiara/ui/components/button";
 
 import { authClient } from "@/lib/auth-client";
 
-export default function GitHubSignInButton() {
+export default function ContinueWithGitHub() {
 	return (
 		<Button
 			className="w-full"

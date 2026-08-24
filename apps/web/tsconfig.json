@@ -11,7 +11,8 @@
     "rootDirs": ["."],
     "paths": {
       "@/*": ["./src/*"],
-      "@cantiara/ui/*": ["../../packages/ui/src/*"]
+      "@cantiara/ui/*": ["../../packages/ui/src/*"],
+      "server/routes": ["../server/src/routes/index.ts"]
     }
   }
 }
