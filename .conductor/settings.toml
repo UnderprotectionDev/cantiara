@@ -1,0 +1,48 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+# This stack is pinned to API 3000, web 3001, and docs 4000.
+# Docs is outside Conductor's 10-port window (CONDUCTOR_PORT .. PORT+9),
+# and Neon is shared, so workspaces cannot run the stack concurrently.
+file_include_globs = """
+.env*
+"""
+
+preview_urls = [
+  { name = "Web", url = "http://localhost:3001" },
+  { name = "API", url = "http://localhost:3000" },
+  { name = "Docs", url = "http://localhost:4000" },
+]
+
+[scripts]
+setup = """
+if [ -n "${CONDUCTOR_ROOT_PATH:-}" ]; then
+  [ -f apps/server/.env ] || { [ -f "$CONDUCTOR_ROOT_PATH/apps/server/.env" ] && cp "$CONDUCTOR_ROOT_PATH/apps/server/.env" apps/server/.env; }
+  [ -f apps/web/.env ] || { [ -f "$CONDUCTOR_ROOT_PATH/apps/web/.env" ] && cp "$CONDUCTOR_ROOT_PATH/apps/web/.env" apps/web/.env; }
+fi
+[ -f apps/server/.env ] || cp apps/server/.env.example apps/server/.env
+[ -f apps/web/.env ] || cp apps/web/.env.example apps/web/.env
+bun install
+"""
+archive = ":"
+run_mode = "nonconcurrent"
+
+[scripts.run.dev]
+command = "./scripts/check-dev-ports.sh && bun run dev"
+default = true
+icon = "play"
+
+[scripts.run.web]
+command = "bun run dev:web"
+icon = "globe"
+
+[scripts.run.server]
+command = "bun run dev:server"
+icon = "server"
+
+[scripts.run.docs]
+command = "bun --cwd apps/fumadocs run dev"
+icon = "book-open"
+
+[scripts.run.db-studio]
+command = "bun run db:studio"
+icon = "database"
