@@ -53,6 +53,8 @@ Installed skills live in `.agents/skills`.
 
 **Seams** — `/tdd`. Use when implementing behavior. Tests live at confirmed seams.
 
+**Better Auth** — `/better-auth-best-practices` and `/better-auth-security-best-practices`. Read before changing GitHub login, sessions, or cookies.
+
 ## Agent skills
 
 ### Issue tracker
