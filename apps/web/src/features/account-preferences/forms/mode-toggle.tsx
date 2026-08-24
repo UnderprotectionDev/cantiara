@@ -7,7 +7,7 @@ import {
 } from "@cantiara/ui/components/dropdown-menu";
 import { Moon, Sun } from "lucide-react";
 
-import { useTheme } from "@/components/theme-provider";
+import { useTheme } from "@/features/account-preferences/views/theme-provider";
 
 export function ModeToggle() {
   const { setTheme } = useTheme();

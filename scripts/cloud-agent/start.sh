@@ -30,9 +30,12 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-# Reconcile the schema in case the persisted data directory predates a schema
-# change. `db push` is a no-op when the database is already in sync.
-log "Reconciling Prisma schema"
-(cd packages/db && bunx prisma db push)
+# Reconcile the local throwaway cluster only. Hosted Neon is not a `db push`
+# target; dotenv will not override this explicit local URL.
+log "Reconciling Prisma schema on local Postgres"
+(
+  cd packages/db
+  DATABASE_URL="postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara" bunx prisma db push
+)
 
 log "Start complete"

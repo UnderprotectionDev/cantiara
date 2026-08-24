@@ -61,18 +61,32 @@ if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_N
 fi
 
 # --- Local environment files ------------------------------------------------
-# Never overwrite files a developer may have customised.
+# Cursor Secrets are process env vars. dotenv does not override them. A leftover
+# NEON_LOCAL=true in .env would still tunnel hosted Neon through the local proxy,
+# so drop that flag when DATABASE_URL is already a hosted URL.
+hosted_database=0
+if [[ -n "${DATABASE_URL:-}" && "${DATABASE_URL}" != *127.0.0.1* && "${DATABASE_URL}" != *localhost* ]]; then
+  hosted_database=1
+fi
+
 if [[ ! -f apps/server/.env ]]; then
   log "Writing apps/server/.env"
-  SECRET="$(openssl rand -base64 32)"
-  cat > apps/server/.env <<ENV
-DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@127.0.0.1:5432/${DB_NAME}
-NEON_LOCAL=true
-BETTER_AUTH_SECRET=${SECRET}
-BETTER_AUTH_URL=http://localhost:3000
-CORS_ORIGIN=http://localhost:3001
-NODE_ENV=development
-ENV
+  {
+    if [[ "${hosted_database}" -eq 0 ]]; then
+      echo "DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@127.0.0.1:5432/${DB_NAME}"
+      echo "NEON_LOCAL=true"
+      echo "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-$(openssl rand -base64 32)}"
+    elif [[ -z "${BETTER_AUTH_SECRET:-}" ]]; then
+      echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)"
+    fi
+    echo "BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}"
+    echo "CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3001}"
+    echo "NODE_ENV=development"
+  } > apps/server/.env
+elif [[ "${hosted_database}" -eq 1 && -f apps/server/.env ]] && grep -q '^NEON_LOCAL=' apps/server/.env; then
+  log "Clearing NEON_LOCAL so Cursor DATABASE_URL reaches hosted Neon"
+  grep -v '^NEON_LOCAL=' apps/server/.env > apps/server/.env.tmp
+  mv apps/server/.env.tmp apps/server/.env
 fi
 if [[ ! -f apps/web/.env ]]; then
   log "Writing apps/web/.env"
@@ -90,7 +104,12 @@ log "Generating Prisma client"
 (cd packages/db && bunx prisma generate >/dev/null)
 
 # --- Schema sync ------------------------------------------------------------
+# Always the local throwaway cluster, even when the app .env points at hosted
+# Neon. `db push` must not run against the product database.
 log "Syncing Prisma schema to local Postgres"
-(cd packages/db && bunx prisma db push)
+(
+  cd packages/db
+  DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@127.0.0.1:5432/${DB_NAME}" bunx prisma db push
+)
 
 log "Install complete"

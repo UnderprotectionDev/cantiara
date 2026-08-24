@@ -53,6 +53,8 @@ Installed skills live in `.agents/skills`.
 
 **Seams** — `/tdd`. Use when implementing behavior. Tests live at confirmed seams.
 
+**Better Auth** — `/better-auth-best-practices` and `/better-auth-security-best-practices`. Read before changing GitHub login, sessions, or cookies.
+
 ## Agent skills
 
 ### Issue tracker
@@ -72,3 +74,5 @@ Single-context: root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
 Schema changes go through `bun run db:migrate`. `bun run db:push` is local throwaway. TanStack Router regenerates `apps/web/src/routeTree.gen.ts`. Prisma regenerates `packages/db/prisma/generated/`.
 
 **Local Postgres** — [`docs/tech-stack.md`](docs/tech-stack.md) (yerel geliştirme sınırı) and `scripts/neon-local-proxy.ts` when `NEON_LOCAL=true`.
+
+**Cloud Agent secrets** — [`docs/agents/cloud-agent-secrets.md`](docs/agents/cloud-agent-secrets.md). Read before assuming a new Cloud Agent has Neon or GitHub credentials.

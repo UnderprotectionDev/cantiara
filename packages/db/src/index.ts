@@ -4,6 +4,8 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 
 import { PrismaClient } from "../prisma/generated/client";
 
+export { PrismaClient } from "../prisma/generated/client";
+
 // Local development: route the Neon serverless driver's WebSocket transport to a
 // local proxy (see scripts/neon-local-proxy.ts) that tunnels to a local Postgres
 // instance. This block is inert unless NEON_LOCAL=true, so hosted Neon usage is
@@ -23,5 +25,9 @@ export function createPrismaClient() {
 	return new PrismaClient({ adapter });
 }
 
-const prisma = createPrismaClient();
-export default prisma;
+let defaultPrisma: PrismaClient | undefined;
+
+export function getPrismaClient() {
+	defaultPrisma ??= createPrismaClient();
+	return defaultPrisma;
+}
