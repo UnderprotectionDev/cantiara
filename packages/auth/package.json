@@ -9,7 +9,10 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "check-types": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
   "dependencies": {
     "@cantiara/db": "workspace:*",
     "@cantiara/env": "workspace:*",
@@ -19,6 +22,10 @@
   },
   "devDependencies": {
     "@cantiara/config": "workspace:*",
-    "typescript": "catalog:"
+    "@prisma/adapter-pg": "^7.9.1",
+    "@types/pg": "^8.15.6",
+    "pg": "^8.16.3",
+    "typescript": "catalog:",
+    "vitest": "^3.2.4"
   }
 }

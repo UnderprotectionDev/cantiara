@@ -88,6 +88,19 @@
   ],
   "overrides": [
     {
+      "includes": ["packages/*/src/index.ts"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noBarrelFile": "off"
+          },
+          "style": {
+            "noExportedImports": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["packages/ui/src/components/**", "packages/ui/src/hooks/**"],
       "linter": {
         "rules": {

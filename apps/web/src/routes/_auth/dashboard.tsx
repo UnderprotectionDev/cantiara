@@ -11,11 +11,13 @@ function RouteComponent() {
   const { session } = Route.useRouteContext();
 
   const privateData = useQuery(orpc.privateData.queryOptions());
+  const accountAccess = useQuery(orpc.accountAccess.me.queryOptions());
 
   return (
     <div>
       <h1>Dashboard</h1>
       <p>Welcome {session.data?.user.name}</p>
+      <p>Workspace {accountAccess.data?.workspaceName}</p>
       <p>API: {privateData.data?.message}</p>
     </div>
   );
