@@ -17,6 +17,20 @@ export function genericSignInFailureResponse(status = 401): Response {
 	return Response.json({ message: SIGN_IN_FAILED_MESSAGE }, { status });
 }
 
+export function toWebAppCallbackURL(
+	callbackURL: string,
+	origin: string | null,
+	trustedOrigins: readonly string[]
+): string {
+	if (!callbackURL.startsWith("/") || callbackURL.startsWith("//")) {
+		return callbackURL;
+	}
+	if (!(origin && trustedOrigins.includes(origin))) {
+		return callbackURL;
+	}
+	return `${origin}${callbackURL}`;
+}
+
 export async function ensureWorkspaceForAccount(
 	prisma: PrismaClient,
 	ownerId: string

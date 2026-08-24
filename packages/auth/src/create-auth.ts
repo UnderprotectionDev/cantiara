@@ -7,6 +7,7 @@ import {
 	GITHUB_IDENTITY_SCOPES,
 	genericSignInFailureResponse,
 	isGitHubSignInPath,
+	toWebAppCallbackURL,
 } from "./github-login";
 import {
 	clientIpFromRequest,
@@ -103,7 +104,12 @@ export function createAuth(options: CreateAuthOptions) {
 
 	const innerHandler = auth.handler.bind(auth);
 	const handler = (request: Request) =>
-		handleAuthRequest(request, { auth, innerHandler, limiter });
+		handleAuthRequest(request, {
+			auth,
+			innerHandler,
+			limiter,
+			trustedOrigins: options.trustedOrigins,
+		});
 
 	return Object.assign(auth, { handler });
 }
@@ -122,6 +128,7 @@ async function handleAuthRequest(
 		auth: AuthSessionLookup;
 		innerHandler: (request: Request) => Promise<Response>;
 		limiter: RateLimiter;
+		trustedOrigins: string[];
 	}
 ): Promise<Response> {
 	const { pathname } = new URL(request.url);
@@ -132,9 +139,14 @@ async function handleAuthRequest(
 		return genericSignInFailureResponse(429);
 	}
 
+	const authRequest = await requestWithWebAppCallback(
+		request,
+		deps.trustedOrigins
+	);
+
 	let response: Response;
 	try {
-		response = await deps.innerHandler(request);
+		response = await deps.innerHandler(authRequest);
 	} catch {
 		return isSignIn ? genericSignInFailureResponse() : Response.error();
 	}
@@ -188,6 +200,36 @@ function cookieHeadersFromResponse(
 		[...jar.entries()].map(([name, value]) => `${name}=${value}`).join("; ")
 	);
 	return headers;
+}
+
+async function requestWithWebAppCallback(
+	request: Request,
+	trustedOrigins: string[]
+): Promise<Request> {
+	const { pathname } = new URL(request.url);
+	if (request.method !== "POST" || !pathname.endsWith("/sign-in/social")) {
+		return request;
+	}
+	let body: Record<string, unknown>;
+	try {
+		body = (await request.clone().json()) as Record<string, unknown>;
+	} catch {
+		return request;
+	}
+	if (typeof body.callbackURL !== "string") {
+		return request;
+	}
+	const callbackURL = toWebAppCallbackURL(
+		body.callbackURL,
+		request.headers.get("origin"),
+		trustedOrigins
+	);
+	if (callbackURL === body.callbackURL) {
+		return request;
+	}
+	return new Request(request, {
+		body: JSON.stringify({ ...body, callbackURL }),
+	});
 }
 
 function mergeCookieHeader(jar: Map<string, string>, header: string) {

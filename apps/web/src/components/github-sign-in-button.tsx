@@ -9,7 +9,7 @@ export default function GitHubSignInButton() {
 			type="button"
 			onClick={() => {
 				void authClient.signIn.social({
-					callbackURL: "/dashboard",
+					callbackURL: `${window.location.origin}/dashboard`,
 					provider: "github",
 				});
 			}}

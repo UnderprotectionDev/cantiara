@@ -141,12 +141,13 @@ function cookieJar() {
 async function startGitHubSignIn(
 	handler: (request: Request) => Promise<Response>,
 	cookies: ReturnType<typeof cookieJar>,
-	ip = "203.0.113.10"
+	ip = "203.0.113.10",
+	callbackURL = `${WEB_ORIGIN}/dashboard`
 ) {
 	const response = await handler(
 		new Request(`${BASE_URL}/api/auth/sign-in/social`, {
 			body: JSON.stringify({
-				callbackURL: `${WEB_ORIGIN}/dashboard`,
+				callbackURL,
 				provider: "github",
 			}),
 			headers: {
@@ -279,6 +280,28 @@ describe("Account Access", () => {
 			workspaceName: WORKSPACE_DEFAULT_NAME,
 		});
 		expect(await prisma.workspace.count()).toBe(1);
+		restore();
+	});
+
+	it("returns to the web app dashboard after GitHub sign-in, not the auth origin", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			cookies,
+			"203.0.113.10",
+			"/dashboard"
+		);
+		const callback = await completeGitHubCallback(auth.handler, cookies, {
+			code: "founder-dashboard",
+			state: authorizationState(String((await jsonBody(start)).url)),
+		});
+		const location = callback.headers.get("location") ?? "";
+		expect(location).toBe(`${WEB_ORIGIN}/dashboard`);
+		expect(location).not.toContain(new URL(BASE_URL).host);
 		restore();
 	});
 
