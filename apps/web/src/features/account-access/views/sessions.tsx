@@ -59,6 +59,7 @@ export default function Sessions() {
 								</TableCell>
 								<TableCell>
 									<RevokeSession
+										current={session.current}
 										device={session.device}
 										sessionId={session.id}
 									/>

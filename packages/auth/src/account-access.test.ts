@@ -594,6 +594,38 @@ describe("Account Access", () => {
 		restore();
 	});
 
+	it("ends this product session when Revoke Session targets the current session", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const current = await signInDevice(auth, {
+			code: "founder-self",
+			userAgent: MAC_USER_AGENT,
+		});
+		const other = await signInDevice(auth, {
+			code: "founder-self-other",
+			ip: "198.51.100.25",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+		const listed = await auth.accountAccess.list(productRequest(current));
+		const currentId = listed.find((session) => session.current)?.id;
+		expect(currentId).toBeDefined();
+
+		await auth.accountAccess.revoke(productRequest(current), currentId ?? "");
+
+		await expect(
+			auth.accountAccess.write(productRequest(current))
+		).rejects.toMatchObject({
+			message: "Unauthorized",
+			status: 401,
+		});
+		await expect(
+			auth.accountAccess.write(productRequest(other))
+		).resolves.toMatchObject({ written: true });
+		restore();
+	});
+
 	it("rejects writes from a revoked session while the other session still writes", async () => {
 		const restore = installGitHubOAuthDouble({
 			profileForCode: () => founder,

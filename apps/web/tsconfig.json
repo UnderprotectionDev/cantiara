@@ -14,5 +14,7 @@
       "@cantiara/ui/*": ["../../packages/ui/src/*"],
       "server/routes": ["../server/src/routes/index.ts"]
     }
-  }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
+  "exclude": ["src/**/*.test.ts"]
 }

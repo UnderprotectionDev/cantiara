@@ -8,6 +8,7 @@
     "build": "vite build",
     "serve": "vite preview",
     "start": "vite",
+    "test": "bun test src/features/account-access/forms/after-revoke-session.test.ts",
     "check-types": "vite build && tsc --noEmit",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
