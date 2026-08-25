@@ -8,7 +8,7 @@
     "build": "vite build",
     "serve": "vite preview",
     "start": "vite",
-    "test": "bun test src/features/account-access/forms",
+    "test": "vitest run",
     "check-types": "vite build && tsc --noEmit",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
@@ -47,6 +47,7 @@
     "postcss": "^8.5.24",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vite": "^8.1.5"
+    "vite": "^8.1.5",
+    "vitest": "^3.2.4"
   }
 }

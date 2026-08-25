@@ -39,7 +39,7 @@ export default function Sessions() {
 						<TableRow>
 							<TableHead>Device</TableHead>
 							<TableHead>Last activity</TableHead>
-							<TableHead>Status</TableHead>
+							<TableHead>Current</TableHead>
 							<TableHead>Actions</TableHead>
 						</TableRow>
 					</TableHeader>

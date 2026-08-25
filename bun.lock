@@ -120,6 +120,7 @@
         "tailwindcss": "catalog:",
         "typescript": "catalog:",
         "vite": "^8.1.5",
+        "vitest": "^3.2.4",
       },
     },
     "packages/api": {
