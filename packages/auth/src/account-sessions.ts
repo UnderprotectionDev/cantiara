@@ -31,7 +31,7 @@ export interface ProductAuth {
 	api: {
 		getSession: (args: {
 			headers: Headers;
-			query?: { disableCookieCache?: boolean };
+			query?: { disableCookieCache?: boolean; disableRefresh?: boolean };
 		}) => Promise<ProductSession | null>;
 		listSessions: (args: { headers: Headers }) => Promise<
 			Array<{
@@ -71,10 +71,15 @@ export function createAccountSessionAccess(deps: {
 	const now = deps.now ?? (() => new Date());
 
 	async function current(request: Request): Promise<ProductSession | null> {
-		const session = await deps.auth.api.getSession({
-			headers: request.headers,
-			query: { disableCookieCache: true },
-		});
+		let session: ProductSession | null;
+		try {
+			session = await deps.auth.api.getSession({
+				headers: request.headers,
+				query: { disableCookieCache: true, disableRefresh: true },
+			});
+		} catch {
+			return null;
+		}
 		if (!session) {
 			return null;
 		}
@@ -112,18 +117,26 @@ export function createAccountSessionAccess(deps: {
 		await deps.securityEventLog.append(event);
 	}
 
+	function liveSessionsForUser(userId: string) {
+		return deps.prisma.session.findMany({
+			orderBy: { updatedAt: "desc" },
+			where: {
+				expiresAt: { gt: now() },
+				userId,
+			},
+		});
+	}
+
 	return {
 		current,
 		async list(request) {
 			const session = await requireSession(request);
-			const listed = await deps.auth.api.listSessions({
-				headers: request.headers,
-			});
+			const listed = await liveSessionsForUser(session.user.id);
 			return listed.map((item) => ({
 				current: item.id === session.session.id,
 				device: deviceFromUserAgent(item.userAgent),
 				id: item.id,
-				lastActivity: new Date(item.updatedAt).toISOString(),
+				lastActivity: item.updatedAt.toISOString(),
 			}));
 		},
 		async replay() {
@@ -154,11 +167,14 @@ export function createAccountSessionAccess(deps: {
 		async revoke(request, sessionId) {
 			assertCookieCsrf(request, deps.trustedOrigins);
 			const session = await requireSession(request);
-			const listed = await deps.auth.api.listSessions({
-				headers: request.headers,
+			const target = await deps.prisma.session.findFirst({
+				where: {
+					expiresAt: { gt: now() },
+					id: sessionId,
+					userId: session.user.id,
+				},
 			});
-			const target = listed.find((item) => item.id === sessionId);
-			if (!target || target.userId !== session.user.id) {
+			if (!target) {
 				throw new AccountAccessError(401, SESSION_WRITE_UNAUTHORIZED_MESSAGE);
 			}
 			await recordRevoke({
@@ -173,10 +189,9 @@ export function createAccountSessionAccess(deps: {
 		async revokeOthers(request) {
 			assertCookieCsrf(request, deps.trustedOrigins);
 			const session = await requireSession(request);
-			const listed = await deps.auth.api.listSessions({
-				headers: request.headers,
-			});
-			const others = listed.filter((item) => item.id !== session.session.id);
+			const others = (await liveSessionsForUser(session.user.id)).filter(
+				(item) => item.id !== session.session.id
+			);
 			await Promise.all(
 				others.map((other) =>
 					recordRevoke({
