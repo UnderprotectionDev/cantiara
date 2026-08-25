@@ -1,8 +1,8 @@
 import { Button } from "@cantiara/ui/components/button";
+import { useCallback } from "react";
 
 import { githubWaitCopy } from "@/features/account-access/forms/github-wait";
-import { postSignInPath } from "@/features/account-access/forms/post-sign-in-path";
-import { authClient } from "@/lib/auth-client";
+import { startContinueWithGitHub } from "@/features/account-access/forms/tauri-sign-in";
 
 export default function ContinueWithGitHub({
 	availability,
@@ -12,6 +12,13 @@ export default function ContinueWithGitHub({
 	redirect?: string;
 }) {
 	const waitingCopy = githubWaitCopy(availability);
+
+	const onContinue = useCallback(() => {
+		if (waitingCopy) {
+			return;
+		}
+		startContinueWithGitHub(redirect).catch(() => undefined);
+	}, [redirect, waitingCopy]);
 
 	return (
 		<div className="flex flex-col gap-3">
@@ -23,17 +30,8 @@ export default function ContinueWithGitHub({
 			<Button
 				className="w-full"
 				disabled={Boolean(waitingCopy)}
+				onClick={onContinue}
 				type="button"
-				onClick={() => {
-					if (waitingCopy) {
-						return;
-					}
-					const path = postSignInPath(redirect);
-					void authClient.signIn.social({
-						callbackURL: `${window.location.origin}${path}`,
-						provider: "github",
-					});
-				}}
 			>
 				Continue with GitHub
 			</Button>

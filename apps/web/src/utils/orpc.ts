@@ -6,6 +6,8 @@ import { QueryCache, QueryClient } from "@tanstack/react-query";
 import type { AppRouterClient } from "server/routes";
 import { toast } from "sonner";
 
+import { withProductSessionHeaders } from "@/features/account-access/forms/tauri-session-token";
+
 export function createQueryClient() {
 	return new QueryClient({
 		queryCache: new QueryCache({
@@ -61,10 +63,15 @@ function getServerUrl(url: string) {
 	return `http://localhost:3000${normalized}`;
 }
 export const link = new RPCLink({
-	fetch(url, options) {
-		return fetch(url, {
+	fetch(requestUrl, options) {
+		const headers =
+			options && "headers" in options
+				? (options.headers as HeadersInit | undefined)
+				: undefined;
+		return globalThis.fetch(requestUrl, {
 			...options,
 			credentials: "include",
+			headers: withProductSessionHeaders(headers),
 		});
 	},
 	url: `${getServerUrl(env.VITE_SERVER_URL)}/rpc`,
