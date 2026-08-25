@@ -24,10 +24,17 @@ cantiara_ensure_env_key() {
 
 cantiara_prepare_server_env() {
   local env_file="${1:-$REPO_ROOT/apps/server/.env}"
-  if cantiara_is_hosted_database && [[ -f "$env_file" ]] && grep -q '^NEON_LOCAL=' "$env_file"; then
-    log "Clearing NEON_LOCAL so Cursor DATABASE_URL reaches hosted Neon"
-    grep -v '^NEON_LOCAL=' "$env_file" > "$env_file.tmp"
-    mv "$env_file.tmp" "$env_file"
+  if cantiara_is_hosted_database && [[ -f "$env_file" ]]; then
+    if grep -q '^NEON_LOCAL=' "$env_file"; then
+      log "Clearing NEON_LOCAL so Cursor DATABASE_URL reaches hosted Neon"
+      grep -v '^NEON_LOCAL=' "$env_file" > "$env_file.tmp"
+      mv "$env_file.tmp" "$env_file"
+    fi
+    if grep -q '^DATABASE_URL=' "$env_file"; then
+      log "Clearing .env DATABASE_URL so the injected hosted URL is the only app target"
+      grep -v '^DATABASE_URL=' "$env_file" > "$env_file.tmp"
+      mv "$env_file.tmp" "$env_file"
+    fi
   fi
   if [[ -f "$env_file" ]]; then
     if [[ -z "${GITHUB_CLIENT_ID:-}" ]] && ! grep -q '^GITHUB_CLIENT_ID=' "$env_file"; then
