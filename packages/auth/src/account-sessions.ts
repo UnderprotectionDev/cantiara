@@ -2,9 +2,15 @@ import type { PrismaClient } from "@cantiara/db";
 
 import {
 	AccountAccessError,
-	OPERATION_ID_REQUIRED_MESSAGE,
 	SESSION_WRITE_UNAUTHORIZED_MESSAGE,
 } from "./account-access-error";
+import {
+	type ConfirmGitHubIdentityStart,
+	completeConfirmGitHubIdentityTour,
+	consumeConfirmGitHubIdentityGrantRecord,
+	requireConfirmGitHubIdentityOperationId,
+	startConfirmGitHubIdentityTour,
+} from "./confirm-github-identity";
 import { assertCookieCsrf } from "./csrf";
 import {
 	type GitHubAvailability,
@@ -14,10 +20,14 @@ import {
 	isGitHubWaiting,
 	WAITING_FOR_GITHUB_MESSAGE,
 } from "./github-availability";
+import { getAccountAccessForUser } from "./github-login";
 import { inspectGitHubLoginAccessToken } from "./github-login-token";
 import { identityAlias } from "./identity-alias";
 import {
 	type AuditLog,
+	CONFIRM_GITHUB_IDENTITY_FAILED_EVENT_TYPE,
+	CONFIRM_GITHUB_IDENTITY_STARTED_EVENT_TYPE,
+	CONFIRM_GITHUB_IDENTITY_SUCCEEDED_EVENT_TYPE,
 	SESSION_REVOKED_EVENT_TYPE,
 	type SecurityEventLog,
 	sessionAuditEvent,
@@ -64,6 +74,10 @@ export interface AccountSessionAccess {
 		installationId: string;
 	}) => Promise<void>;
 	applyGitHubLoginOAuthRevoked: (githubUserId: string) => Promise<void>;
+	completeConfirmGitHubIdentity: (
+		request: Request,
+		input: { code: string; state: string }
+	) => Promise<void>;
 	confirmGitHubIdentity: (
 		request: Request
 	) => Promise<GitHubIdentityConfirmation>;
@@ -77,12 +91,18 @@ export interface AccountSessionAccess {
 	replay: () => Promise<void>;
 	revoke: (request: Request, sessionId: string) => Promise<void>;
 	revokeOthers: (request: Request) => Promise<void>;
+	startConfirmGitHubIdentity: (
+		request: Request,
+		operationId: string
+	) => Promise<ConfirmGitHubIdentityStart>;
 	write: (request: Request) => Promise<{ written: true; workspaceId: string }>;
 }
 
 export function createAccountSessionAccess(deps: {
 	auth: ProductAuth;
 	auditLog: AuditLog;
+	baseURL: string;
+	github: { clientId: string; clientSecret: string };
 	githubAvailability: () => Promise<GitHubAvailability>;
 	now?: () => Date;
 	prisma: PrismaClient;
@@ -204,6 +224,26 @@ export function createAccountSessionAccess(deps: {
 		await deps.securityEventLog.append(event);
 	}
 
+	async function recordConfirm(input: {
+		accountId: string;
+		sessionId: string;
+		type:
+			| typeof CONFIRM_GITHUB_IDENTITY_STARTED_EVENT_TYPE
+			| typeof CONFIRM_GITHUB_IDENTITY_SUCCEEDED_EVENT_TYPE
+			| typeof CONFIRM_GITHUB_IDENTITY_FAILED_EVENT_TYPE;
+	}) {
+		await deps.auditLog.append(
+			sessionAuditEvent({
+				accountId: input.accountId,
+				actorId: input.accountId,
+				now: now(),
+				secret: deps.secret,
+				sessionId: input.sessionId,
+				type: input.type,
+			})
+		);
+	}
+
 	function liveSessionsForUser(userId: string) {
 		return deps.prisma.session.findMany({
 			orderBy: { updatedAt: "desc" },
@@ -219,6 +259,44 @@ export function createAccountSessionAccess(deps: {
 			return Promise.resolve();
 		},
 		applyGitHubLoginOAuthRevoked,
+		async completeConfirmGitHubIdentity(request, input) {
+			const session = await requireSession(request);
+			if (isGitHubWaiting(await deps.githubAvailability())) {
+				throw new AccountAccessError(503, WAITING_FOR_GITHUB_MESSAGE);
+			}
+			const access = await getAccountAccessForUser(
+				deps.prisma,
+				session.user.id
+			);
+			if (!access) {
+				throw new AccountAccessError(401, SESSION_WRITE_UNAUTHORIZED_MESSAGE);
+			}
+			try {
+				await completeConfirmGitHubIdentityTour({
+					accountId: session.user.id,
+					baseURL: deps.baseURL,
+					code: input.code,
+					expectedGitHubUserId: access.githubUserId,
+					github: deps.github,
+					now: now(),
+					prisma: deps.prisma,
+					secret: deps.secret,
+					state: input.state,
+				});
+			} catch (error) {
+				await recordConfirm({
+					accountId: session.user.id,
+					sessionId: session.session.id,
+					type: CONFIRM_GITHUB_IDENTITY_FAILED_EVENT_TYPE,
+				});
+				throw error;
+			}
+			await recordConfirm({
+				accountId: session.user.id,
+				sessionId: session.session.id,
+				type: CONFIRM_GITHUB_IDENTITY_SUCCEEDED_EVENT_TYPE,
+			});
+		},
 		async confirmGitHubIdentity(request) {
 			await requireSession(request);
 			if (isGitHubWaiting(await deps.githubAvailability())) {
@@ -227,14 +305,19 @@ export function createAccountSessionAccess(deps: {
 			return { status: "ready" as const };
 		},
 		async consumeConfirmGitHubIdentityGrant(request, operationId) {
-			await requireSession(request);
-			if (operationId.trim() === "") {
-				throw new AccountAccessError(400, OPERATION_ID_REQUIRED_MESSAGE);
-			}
+			assertCookieCsrf(request, deps.trustedOrigins);
+			const session = await requireSession(request);
+			const confirmedOperationId =
+				requireConfirmGitHubIdentityOperationId(operationId);
 			if (isGitHubWaiting(await deps.githubAvailability())) {
 				throw new AccountAccessError(503, WAITING_FOR_GITHUB_MESSAGE);
 			}
-			throw new AccountAccessError(401, SESSION_WRITE_UNAUTHORIZED_MESSAGE);
+			await consumeConfirmGitHubIdentityGrantRecord({
+				accountId: session.user.id,
+				now: now(),
+				operationId: confirmedOperationId,
+				prisma: deps.prisma,
+			});
 		},
 		current,
 		async githubAvailability() {
@@ -317,6 +400,37 @@ export function createAccountSessionAccess(deps: {
 					where: { id: { in: others.map((other) => other.id) } },
 				});
 			}
+		},
+		async startConfirmGitHubIdentity(request, operationId) {
+			assertCookieCsrf(request, deps.trustedOrigins);
+			const session = await requireSession(request);
+			const confirmedOperationId =
+				requireConfirmGitHubIdentityOperationId(operationId);
+			if (isGitHubWaiting(await deps.githubAvailability())) {
+				return githubWaitingPayload();
+			}
+			const access = await getAccountAccessForUser(
+				deps.prisma,
+				session.user.id
+			);
+			if (!access) {
+				throw new AccountAccessError(401, SESSION_WRITE_UNAUTHORIZED_MESSAGE);
+			}
+			const url = await startConfirmGitHubIdentityTour({
+				accountId: session.user.id,
+				baseURL: deps.baseURL,
+				githubClientId: deps.github.clientId,
+				now: now(),
+				operationId: confirmedOperationId,
+				prisma: deps.prisma,
+				secret: deps.secret,
+			});
+			await recordConfirm({
+				accountId: session.user.id,
+				sessionId: session.session.id,
+				type: CONFIRM_GITHUB_IDENTITY_STARTED_EVENT_TYPE,
+			});
+			return { status: "redirect" as const, url };
 		},
 		async write(request) {
 			assertCookieCsrf(request, deps.trustedOrigins);

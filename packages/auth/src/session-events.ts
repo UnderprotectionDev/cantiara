@@ -3,11 +3,20 @@ import { identityAlias } from "./identity-alias";
 export const SESSION_SIGNED_IN_EVENT_TYPE = "session.signed_in" as const;
 export const SESSION_SIGNED_OUT_EVENT_TYPE = "session.signed_out" as const;
 export const SESSION_REVOKED_EVENT_TYPE = "session.revoked" as const;
+export const CONFIRM_GITHUB_IDENTITY_STARTED_EVENT_TYPE =
+	"confirm_github_identity.started" as const;
+export const CONFIRM_GITHUB_IDENTITY_SUCCEEDED_EVENT_TYPE =
+	"confirm_github_identity.succeeded" as const;
+export const CONFIRM_GITHUB_IDENTITY_FAILED_EVENT_TYPE =
+	"confirm_github_identity.failed" as const;
 
 export type SessionAuditEventType =
 	| typeof SESSION_SIGNED_IN_EVENT_TYPE
 	| typeof SESSION_SIGNED_OUT_EVENT_TYPE
-	| typeof SESSION_REVOKED_EVENT_TYPE;
+	| typeof SESSION_REVOKED_EVENT_TYPE
+	| typeof CONFIRM_GITHUB_IDENTITY_STARTED_EVENT_TYPE
+	| typeof CONFIRM_GITHUB_IDENTITY_SUCCEEDED_EVENT_TYPE
+	| typeof CONFIRM_GITHUB_IDENTITY_FAILED_EVENT_TYPE;
 
 export interface SessionAuditEvent {
 	accountAlias: string;
@@ -40,7 +49,10 @@ export function isSessionAuditEventType(
 	return (
 		value === SESSION_SIGNED_IN_EVENT_TYPE ||
 		value === SESSION_SIGNED_OUT_EVENT_TYPE ||
-		value === SESSION_REVOKED_EVENT_TYPE
+		value === SESSION_REVOKED_EVENT_TYPE ||
+		value === CONFIRM_GITHUB_IDENTITY_STARTED_EVENT_TYPE ||
+		value === CONFIRM_GITHUB_IDENTITY_SUCCEEDED_EVENT_TYPE ||
+		value === CONFIRM_GITHUB_IDENTITY_FAILED_EVENT_TYPE
 	);
 }
 

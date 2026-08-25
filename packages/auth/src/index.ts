@@ -10,6 +10,15 @@ export type {
 	GitHubIdentityConfirmation,
 } from "./account-sessions";
 export { createPrismaAuditLog } from "./audit-log";
+export {
+	CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH,
+	CONFIRM_GITHUB_IDENTITY_GRANT_SECONDS,
+	CONFIRM_GITHUB_IDENTITY_OPERATION_IDS,
+	type ConfirmGitHubIdentityOperationId,
+	type ConfirmGitHubIdentityStart,
+	confirmGitHubIdentityRedirectUri,
+	isConfirmGitHubIdentityCallbackPath,
+} from "./confirm-github-identity";
 export { type CreateAuthOptions, createAuth } from "./create-auth";
 export { assertCookieCsrf } from "./csrf";
 export {
@@ -32,6 +41,9 @@ export {
 } from "./security-event-log";
 export {
 	type AuditLog,
+	CONFIRM_GITHUB_IDENTITY_FAILED_EVENT_TYPE,
+	CONFIRM_GITHUB_IDENTITY_STARTED_EVENT_TYPE,
+	CONFIRM_GITHUB_IDENTITY_SUCCEEDED_EVENT_TYPE,
 	createMemoryAuditLog,
 	createMemorySecurityEventLog,
 	SESSION_REVOKED_EVENT_TYPE,
