@@ -7,6 +7,7 @@ import { createAccountSessionAccess } from "./account-sessions";
 import {
 	type GitHubAvailability,
 	githubWaitingResponse,
+	isGitHubWaiting,
 	probeGitHubAvailability,
 } from "./github-availability";
 import {
@@ -210,6 +211,7 @@ export function createAuth(options: CreateAuthOptions) {
 			innerHandler,
 			limiter,
 			now,
+			prisma: options.prisma,
 			secret: options.secret,
 			trustedOrigins: options.trustedOrigins,
 		});
@@ -240,6 +242,7 @@ async function handleAuthRequest(
 		innerHandler: (request: Request) => Promise<Response>;
 		limiter: RateLimiter;
 		now: () => Date;
+		prisma: PrismaClient;
 		secret: string;
 		trustedOrigins: string[];
 	}
@@ -252,7 +255,7 @@ async function handleAuthRequest(
 		return genericSignInFailureResponse(429);
 	}
 
-	if (isSignIn && (await deps.githubAvailability()) === "waiting") {
+	if (isSignIn && isGitHubWaiting(await deps.githubAvailability())) {
 		return githubWaitingResponse();
 	}
 
@@ -283,6 +286,13 @@ async function handleAuthRequest(
 
 	if (isSignIn && response.status >= 400) {
 		return genericSignInFailureResponse(response.status === 429 ? 429 : 401);
+	}
+
+	if (pathname.endsWith("/sign-in/social") && response.ok) {
+		response = await withConsentPromptIfLoginOAuthRevoked(
+			response,
+			deps.prisma
+		);
 	}
 
 	if (pathname.includes("/list-sessions")) {
@@ -400,11 +410,76 @@ async function requestWithDisabledRefreshWhenGitHubWaits(
 	if (!url.pathname.endsWith("/get-session")) {
 		return request;
 	}
-	if ((await githubAvailability()) !== "waiting") {
+	if (!isGitHubWaiting(await githubAvailability())) {
 		return request;
 	}
 	url.searchParams.set("disableRefresh", "true");
-	return new Request(url, request);
+	return new Request(url.toString(), request);
+}
+
+async function withConsentPromptIfLoginOAuthRevoked(
+	response: Response,
+	prisma: PrismaClient
+): Promise<Response> {
+	const revoked = await prisma.account.findFirst({
+		select: { id: true },
+		where: { accessToken: null, providerId: "github" },
+	});
+	if (!revoked) {
+		return response;
+	}
+
+	const location = response.headers.get("location");
+	const redirected = location ? addConsentPrompt(location) : location;
+	let payload: Record<string, unknown> | null = null;
+	try {
+		payload = (await response.clone().json()) as Record<string, unknown>;
+	} catch {
+		payload = null;
+	}
+	const nextUrl =
+		typeof payload?.url === "string" ? addConsentPrompt(payload.url) : null;
+	const jsonChanged = Boolean(payload && nextUrl && nextUrl !== payload.url);
+	const locationChanged = Boolean(
+		location && redirected && redirected !== location
+	);
+	if (!(jsonChanged || locationChanged)) {
+		return response;
+	}
+
+	if (jsonChanged && payload && nextUrl) {
+		const headers = new Headers();
+		for (const cookie of response.headers.getSetCookie()) {
+			headers.append("set-cookie", cookie);
+		}
+		if (locationChanged && redirected) {
+			headers.set("location", redirected);
+		}
+		return Response.json(
+			{ ...payload, url: nextUrl },
+			{ headers, status: response.status }
+		);
+	}
+
+	const headers = new Headers(response.headers);
+	if (redirected) {
+		headers.set("location", redirected);
+	}
+	return new Response(response.body, {
+		headers,
+		status: response.status,
+		statusText: response.statusText,
+	});
+}
+
+function addConsentPrompt(url: string): string {
+	try {
+		const parsed = new URL(url);
+		parsed.searchParams.set("prompt", "consent");
+		return parsed.toString();
+	} catch {
+		return url;
+	}
 }
 
 async function requestWithWebAppCallback(

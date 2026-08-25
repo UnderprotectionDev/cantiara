@@ -1,17 +1,20 @@
 export {
 	AccountAccessError,
 	CSRF_REJECTED_MESSAGE,
+	OPERATION_ID_REQUIRED_MESSAGE,
 	SESSION_WRITE_UNAUTHORIZED_MESSAGE,
 } from "./account-access-error";
 export type {
 	AccountSession,
 	AccountSessionAccess,
+	GitHubIdentityConfirmation,
 } from "./account-sessions";
 export { createPrismaAuditLog } from "./audit-log";
 export { type CreateAuthOptions, createAuth } from "./create-auth";
 export { assertCookieCsrf } from "./csrf";
 export {
 	type GitHubAvailability,
+	type GitHubAvailabilityReport,
 	WAITING_FOR_GITHUB_MESSAGE,
 } from "./github-availability";
 export {

@@ -61,7 +61,6 @@ const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function installGitHubOAuthDouble(options: {
-	onAppInstallationLookup?: () => void;
 	profileForCode: (code: string) => GitHubProfile | "fail";
 }) {
 	const originalFetch = globalThis.fetch;
@@ -108,8 +107,9 @@ function installGitHubOAuthDouble(options: {
 			return new Response(null, { status: 200 });
 		}
 		if (url.includes("/app/installations") || url.includes("/installation/")) {
-			options.onAppInstallationLookup?.();
-			return Response.json({ message: "Not Found" }, { status: 404 });
+			throw new Error(
+				"GitHub App installation must not be consulted for login"
+			);
 		}
 		return originalFetch(input, init);
 	};
@@ -470,6 +470,10 @@ describe("Account Access", () => {
 			.sort();
 		expect(scopes).toEqual(["read:user", "user:email"]);
 		expect(scopes.join(" ")).not.toMatch(REPO_SCOPES);
+		expect(authorizeUrl.searchParams.get("prompt")).toBeNull();
+		expect(await auth.accountAccess.githubAvailability()).toEqual({
+			status: "up",
+		});
 		restore();
 	});
 
@@ -581,11 +585,7 @@ describe("Account Access", () => {
 	});
 
 	it("keeps Hesap identity and a valid product session when the GitHub App is uninstalled", async () => {
-		let installationLookups = 0;
 		const restore = installGitHubOAuthDouble({
-			onAppInstallationLookup: () => {
-				installationLookups += 1;
-			},
 			profileForCode: () => founder,
 		});
 		const auth = createAccess();
@@ -616,7 +616,19 @@ describe("Account Access", () => {
 		expect(
 			await getAccountAccessForUser(prisma, signedIn?.user.id ?? "")
 		).toEqual(before);
-		expect(installationLookups).toBe(0);
+
+		const again = await signInDevice(auth, {
+			code: "founder-app-uninstalled-again",
+			ip: "198.51.100.30",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+		const signedInAgain = await auth.api.getSession({
+			headers: new Headers({ cookie: again.header() }),
+		});
+		expect(signedInAgain?.user.id).toBe(signedIn?.user.id);
+		expect(
+			await getAccountAccessForUser(prisma, signedInAgain?.user.id ?? "")
+		).toEqual(before);
 		restore();
 	});
 
@@ -680,7 +692,10 @@ describe("Account Access", () => {
 				message: "Waiting for GitHub",
 				status: "waiting",
 			});
-			expect(await auth.accountAccess.githubAvailability()).toBe("waiting");
+			expect(await auth.accountAccess.githubAvailability()).toEqual({
+				message: "Waiting for GitHub",
+				status: "waiting",
+			});
 		} finally {
 			restoreDown();
 			restore();
@@ -721,6 +736,39 @@ describe("Account Access", () => {
 			restoreDown();
 			restore();
 		}
+	});
+
+	it("marks Confirm GitHub Identity ready without minting a grant while GitHub is up", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-confirm-ready",
+			userAgent: MAC_USER_AGENT,
+		});
+		expect(
+			await auth.accountAccess.confirmGitHubIdentity(productRequest(cookies))
+		).toEqual({ status: "ready" });
+		await expect(
+			auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+				productRequest(cookies),
+				""
+			)
+		).rejects.toMatchObject({
+			message: "operationId is required",
+			status: 400,
+		});
+		await expect(
+			auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+				productRequest(cookies),
+				"account-closure-start"
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		restore();
 	});
 
 	it("revokes a product session while GitHub is down", async () => {
@@ -804,6 +852,9 @@ describe("Account Access", () => {
 		const payload = await jsonBody(start);
 		expect(start.ok).toBe(true);
 		expect(String(payload.url)).toContain("github.com/login/oauth/authorize");
+		expect(new URL(String(payload.url)).searchParams.get("prompt")).toBe(
+			"consent"
+		);
 		const callback = await completeGitHubCallback(auth.handler, nextCookies, {
 			code: "founder-login-revoked-again",
 			ip: "198.51.100.28",
@@ -822,6 +873,18 @@ describe("Account Access", () => {
 		await expect(
 			auth.accountAccess.write(productRequest(nextCookies))
 		).resolves.toMatchObject({ written: true });
+
+		const laterCookies = cookieJar();
+		const laterStart = await startGitHubSignIn(
+			auth.handler,
+			laterCookies,
+			"198.51.100.29"
+		);
+		expect(
+			new URL(String((await jsonBody(laterStart)).url)).searchParams.get(
+				"prompt"
+			)
+		).toBeNull();
 		restore();
 	});
 

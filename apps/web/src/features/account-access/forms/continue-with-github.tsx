@@ -1,34 +1,31 @@
 import { Button } from "@cantiara/ui/components/button";
 
+import { githubWaitCopy } from "@/features/account-access/forms/github-wait";
 import { postSignInPath } from "@/features/account-access/forms/post-sign-in-path";
-import {
-	isGitHubSignInWaiting,
-	WAITING_FOR_GITHUB,
-} from "@/features/account-access/forms/waiting-for-github";
 import { authClient } from "@/lib/auth-client";
 
 export default function ContinueWithGitHub({
 	availability,
 	redirect,
 }: {
-	availability?: "up" | "waiting";
+	availability?: { message?: string; status?: string };
 	redirect?: string;
 }) {
-	const waiting = isGitHubSignInWaiting(availability);
+	const waitingCopy = githubWaitCopy(availability);
 
 	return (
 		<div className="flex flex-col gap-3">
-			{waiting ? (
+			{waitingCopy ? (
 				<p className="text-center text-muted-foreground text-sm" role="status">
-					{WAITING_FOR_GITHUB}
+					{waitingCopy}
 				</p>
 			) : null}
 			<Button
 				className="w-full"
-				disabled={waiting}
+				disabled={Boolean(waitingCopy)}
 				type="button"
 				onClick={() => {
-					if (waiting) {
+					if (waitingCopy) {
 						return;
 					}
 					const path = postSignInPath(redirect);

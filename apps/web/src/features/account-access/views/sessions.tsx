@@ -9,6 +9,7 @@ import {
 	TableRow,
 } from "@cantiara/ui/components/table";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 
 import RevokeOtherSessions from "@/features/account-access/forms/revoke-other-sessions";
 import RevokeSession from "@/features/account-access/forms/revoke-session";
@@ -26,7 +27,10 @@ export default function Sessions() {
 		<main className="mx-auto w-full max-w-3xl p-6">
 			<div className="mb-6 flex flex-wrap items-center justify-between gap-3">
 				<h1 className="font-bold text-2xl">Sessions</h1>
-				<RevokeOtherSessions />
+				<div className="flex flex-wrap items-center gap-3">
+					<Link to="/confirm-github-identity">Confirm GitHub Identity</Link>
+					<RevokeOtherSessions />
+				</div>
 			</div>
 			{sessions.isPending ? (
 				<p>Loading sessions…</p>

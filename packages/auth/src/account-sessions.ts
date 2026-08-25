@@ -2,12 +2,16 @@ import type { PrismaClient } from "@cantiara/db";
 
 import {
 	AccountAccessError,
+	OPERATION_ID_REQUIRED_MESSAGE,
 	SESSION_WRITE_UNAUTHORIZED_MESSAGE,
 } from "./account-access-error";
 import { assertCookieCsrf } from "./csrf";
 import {
 	type GitHubAvailability,
+	type GitHubAvailabilityReport,
+	githubAvailabilityReport,
 	githubWaitingPayload,
+	isGitHubWaiting,
 	WAITING_FOR_GITHUB_MESSAGE,
 } from "./github-availability";
 import { identityAlias } from "./identity-alias";
@@ -49,10 +53,9 @@ export interface ProductAuth {
 	};
 }
 
-export interface GitHubIdentityConfirmation {
-	message: string;
-	status: "waiting";
-}
+export type GitHubIdentityConfirmation =
+	| { status: "ready" }
+	| { message: string; status: "waiting" };
 
 export interface AccountSessionAccess {
 	applyGitHubAppUninstalled: (input: {
@@ -68,7 +71,7 @@ export interface AccountSessionAccess {
 		operationId: string
 	) => Promise<void>;
 	current: (request: Request) => Promise<ProductSession | null>;
-	githubAvailability: () => Promise<GitHubAvailability>;
+	githubAvailability: () => Promise<GitHubAvailabilityReport>;
 	list: (request: Request) => Promise<AccountSession[]>;
 	replay: () => Promise<void>;
 	revoke: (request: Request, sessionId: string) => Promise<void>;
@@ -191,20 +194,25 @@ export function createAccountSessionAccess(deps: {
 		},
 		async confirmGitHubIdentity(request) {
 			await requireSession(request);
-			if ((await deps.githubAvailability()) === "waiting") {
+			if (isGitHubWaiting(await deps.githubAvailability())) {
 				return githubWaitingPayload();
 			}
-			throw new AccountAccessError(401, SESSION_WRITE_UNAUTHORIZED_MESSAGE);
+			return { status: "ready" as const };
 		},
-		async consumeConfirmGitHubIdentityGrant(request, _operationId) {
+		async consumeConfirmGitHubIdentityGrant(request, operationId) {
 			await requireSession(request);
-			if ((await deps.githubAvailability()) === "waiting") {
+			if (operationId.trim() === "") {
+				throw new AccountAccessError(400, OPERATION_ID_REQUIRED_MESSAGE);
+			}
+			if (isGitHubWaiting(await deps.githubAvailability())) {
 				throw new AccountAccessError(503, WAITING_FOR_GITHUB_MESSAGE);
 			}
 			throw new AccountAccessError(401, SESSION_WRITE_UNAUTHORIZED_MESSAGE);
 		},
 		current,
-		githubAvailability: () => deps.githubAvailability(),
+		async githubAvailability() {
+			return githubAvailabilityReport(await deps.githubAvailability());
+		},
 		async list(request) {
 			const session = await requireSession(request);
 			const listed = await liveSessionsForUser(session.user.id);

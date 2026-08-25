@@ -1,16 +1,35 @@
 export const WAITING_FOR_GITHUB_MESSAGE = "Waiting for GitHub";
 
-export const GITHUB_AVAILABILITY_PROBE_URL = "https://api.github.com/";
+const GITHUB_AVAILABILITY_PROBE_URL = "https://api.github.com/";
 
 export type GitHubAvailability = "up" | "waiting";
 
+export type GitHubAvailabilityReport =
+	| { status: "up" }
+	| { message: string; status: "waiting" };
+
 const PROBE_TIMEOUT_MS = 2000;
 
-export function githubWaitingPayload() {
+export function isGitHubWaiting(
+	status: GitHubAvailability
+): status is "waiting" {
+	return status === "waiting";
+}
+
+export function githubWaitingPayload(): Extract<
+	GitHubAvailabilityReport,
+	{ status: "waiting" }
+> {
 	return {
 		message: WAITING_FOR_GITHUB_MESSAGE,
-		status: "waiting" as const,
+		status: "waiting",
 	};
+}
+
+export function githubAvailabilityReport(
+	status: GitHubAvailability
+): GitHubAvailabilityReport {
+	return isGitHubWaiting(status) ? githubWaitingPayload() : { status: "up" };
 }
 
 export function githubWaitingResponse(): Response {

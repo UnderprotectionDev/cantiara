@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import ContinueWithGitHub from "@/features/account-access/forms/continue-with-github";
+import { githubWaitPollMs } from "@/features/account-access/forms/github-wait";
 import {
 	postSignInPath,
 	SESSIONS_PATH,
@@ -11,7 +12,7 @@ export default function Login({ redirect }: { redirect?: string }) {
 	const returningToSessions = postSignInPath(redirect) === SESSIONS_PATH;
 	const availability = useQuery({
 		...orpc.accountAccess.githubAvailability.queryOptions(),
-		refetchInterval: 15_000,
+		refetchInterval: (query) => githubWaitPollMs(query.state.data?.status),
 	});
 
 	return (
@@ -23,7 +24,7 @@ export default function Login({ redirect }: { redirect?: string }) {
 					: "GitHub identity bound to your Account."}
 			</p>
 			<ContinueWithGitHub
-				availability={availability.data?.status}
+				availability={availability.data}
 				redirect={redirect}
 			/>
 		</div>
