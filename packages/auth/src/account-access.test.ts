@@ -1,6 +1,6 @@
 /**
  * Account Access seam — GitHub sign-in, Account, Workspace, Sessions,
- * revoke, lifetime, CSRF, and revoke replay.
+ * revoke, lifetime, CSRF, Tauri one-time code / bearer, and revoke replay.
  * Synthetic fixture for the sign-in and session slice of
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Hesap ve kişisel veri).
@@ -27,6 +27,7 @@ import {
 	SESSION_SIGNED_IN_EVENT_TYPE,
 	SESSION_SIGNED_OUT_EVENT_TYPE,
 } from "./session-events";
+import { productTrustedOrigins, TAURI_CALLBACK_URL } from "./tauri-session";
 
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
@@ -52,6 +53,7 @@ const WORKSPACE_LEAK = /workspace/i;
 const REPO_SCOPES = /repo|workflow|admin/;
 const FOUNDER_EMAIL = "founder@example.com";
 const HEX_ALIAS = /^[a-f0-9]{64}$/;
+const TAURI_ONE_TIME_CODE = /^[A-Za-z0-9_-]{32,}$/;
 const MAC_USER_AGENT =
 	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) CantiaraTest";
 const WINDOWS_USER_AGENT =
@@ -223,6 +225,42 @@ function productRequest(
 	return new Request(`${BASE_URL}/account-access`, { headers });
 }
 
+function bearerProductRequest(
+	token: string,
+	input: { origin?: string | null; userAgent?: string } = {}
+) {
+	const headers = new Headers({
+		authorization: `Bearer ${token}`,
+	});
+	if (input.origin !== null && input.origin !== undefined) {
+		headers.set("origin", input.origin);
+	}
+	if (input.userAgent) {
+		headers.set("user-agent", input.userAgent);
+	}
+	return new Request(`${BASE_URL}/account-access`, { headers });
+}
+
+async function exchangeTauriCode(
+	handler: (request: Request) => Promise<Response>,
+	input: { code: string; ip?: string; userAgent?: string }
+) {
+	const headers: Record<string, string> = {
+		"content-type": "application/json",
+		"x-forwarded-for": input.ip ?? "203.0.113.10",
+	};
+	if (input.userAgent) {
+		headers["user-agent"] = input.userAgent;
+	}
+	return await handler(
+		new Request(`${BASE_URL}/api/auth/tauri/exchange`, {
+			body: JSON.stringify({ code: input.code }),
+			headers,
+			method: "POST",
+		})
+	);
+}
+
 function authorizationState(authorizeUrl: string): string {
 	const state = new URL(authorizeUrl).searchParams.get("state");
 	if (!state) {
@@ -282,7 +320,7 @@ describe("Account Access", () => {
 				windowMs: 60_000,
 			},
 			secret: "test-secret-test-secret-test-secret-32",
-			trustedOrigins: [WEB_ORIGIN],
+			trustedOrigins: productTrustedOrigins(WEB_ORIGIN),
 			...overrides,
 		});
 	}
@@ -363,6 +401,315 @@ describe("Account Access", () => {
 			state: authorizationState(String((await jsonBody(start)).url)),
 		});
 		expect(callback.headers.get("location")).toBe(`${WEB_ORIGIN}/sessions`);
+		restore();
+	});
+
+	it("returns only a one-time code on the Tauri deep link after GitHub sign-in", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			cookies,
+			"203.0.113.10",
+			TAURI_CALLBACK_URL
+		);
+		const callback = await completeGitHubCallback(auth.handler, cookies, {
+			code: "founder-tauri",
+			state: authorizationState(String((await jsonBody(start)).url)),
+			userAgent: MAC_USER_AGENT,
+		});
+		const location = callback.headers.get("location") ?? "";
+		expect(location.startsWith(`${TAURI_CALLBACK_URL}?`)).toBe(true);
+		const deepLink = new URL(location);
+		expect([...deepLink.searchParams.keys()]).toEqual(["code"]);
+		expect(deepLink.searchParams.get("code")).toMatch(TAURI_ONE_TIME_CODE);
+		expect(location.toLowerCase()).not.toContain("token");
+		expect(location).not.toContain("gho_");
+		const sessionCookies = callback.headers
+			.getSetCookie()
+			.filter((header) => SESSION_COOKIE.test(header));
+		expect(sessionCookies).toHaveLength(0);
+		restore();
+	});
+
+	it("exchanges the Tauri one-time code for a bearer product session", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			cookies,
+			"203.0.113.10",
+			TAURI_CALLBACK_URL
+		);
+		const callback = await completeGitHubCallback(auth.handler, cookies, {
+			code: "founder-tauri-exchange",
+			state: authorizationState(String((await jsonBody(start)).url)),
+			userAgent: MAC_USER_AGENT,
+		});
+		const code = new URL(
+			callback.headers.get("location") ?? ""
+		).searchParams.get("code");
+		expect(code).toBeTruthy();
+
+		const exchanged = await exchangeTauriCode(auth.handler, {
+			code: code ?? "",
+			userAgent: MAC_USER_AGENT,
+		});
+		const body = await jsonBody(exchanged);
+		expect(exchanged.ok).toBe(true);
+		expect(typeof body.token).toBe("string");
+		expect(String(body.token).length).toBeGreaterThan(8);
+		expect(JSON.stringify(body).toLowerCase()).not.toContain("gho_");
+
+		const session = await auth.accountAccess.current(
+			bearerProductRequest(String(body.token), { userAgent: MAC_USER_AGENT })
+		);
+		expect(session?.user.id).toBeTruthy();
+		await expect(
+			auth.accountAccess.write(
+				bearerProductRequest(String(body.token), { userAgent: MAC_USER_AGENT })
+			)
+		).resolves.toMatchObject({ written: true });
+		restore();
+	});
+
+	it("rejects reuse of a Tauri one-time code", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			cookies,
+			"203.0.113.10",
+			TAURI_CALLBACK_URL
+		);
+		const callback = await completeGitHubCallback(auth.handler, cookies, {
+			code: "founder-tauri-reuse",
+			state: authorizationState(String((await jsonBody(start)).url)),
+			userAgent: MAC_USER_AGENT,
+		});
+		const code = new URL(
+			callback.headers.get("location") ?? ""
+		).searchParams.get("code");
+		const first = await exchangeTauriCode(auth.handler, { code: code ?? "" });
+		expect(first.ok).toBe(true);
+		const replay = await exchangeTauriCode(auth.handler, {
+			code: code ?? "",
+			ip: "198.51.100.40",
+		});
+		expect(replay.status).toBe(401);
+		expect((await jsonBody(replay)).message).toBe(SIGN_IN_FAILED_MESSAGE);
+		restore();
+	});
+
+	it("rejects an expired Tauri one-time code", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const clock = { now: new Date() };
+		const auth = createAccess({
+			now: () => new Date(clock.now.getTime()),
+		});
+		const cookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			cookies,
+			"203.0.113.10",
+			TAURI_CALLBACK_URL
+		);
+		const callback = await completeGitHubCallback(auth.handler, cookies, {
+			code: "founder-tauri-expired",
+			state: authorizationState(String((await jsonBody(start)).url)),
+			userAgent: MAC_USER_AGENT,
+		});
+		const code = new URL(
+			callback.headers.get("location") ?? ""
+		).searchParams.get("code");
+		clock.now = new Date(clock.now.getTime() + 5 * 60 * 1000 + 1000);
+		const exchanged = await exchangeTauriCode(auth.handler, {
+			code: code ?? "",
+			ip: "198.51.100.41",
+		});
+		expect(exchanged.status).toBe(401);
+		expect((await jsonBody(exchanged)).message).toBe(SIGN_IN_FAILED_MESSAGE);
+		restore();
+	});
+
+	it("lists the Tauri bearer session and stops writes after Revoke Session", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const web = await signInDevice(auth, {
+			code: "founder-web-list",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+		const cookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			cookies,
+			"198.51.100.42",
+			TAURI_CALLBACK_URL
+		);
+		const callback = await completeGitHubCallback(auth.handler, cookies, {
+			code: "founder-tauri-list",
+			ip: "198.51.100.42",
+			state: authorizationState(String((await jsonBody(start)).url)),
+			userAgent: MAC_USER_AGENT,
+		});
+		const code = new URL(
+			callback.headers.get("location") ?? ""
+		).searchParams.get("code");
+		const exchanged = await exchangeTauriCode(auth.handler, {
+			code: code ?? "",
+			ip: "198.51.100.43",
+			userAgent: MAC_USER_AGENT,
+		});
+		const token = String((await jsonBody(exchanged)).token);
+		expect(exchanged.ok).toBe(true);
+
+		const listed = await auth.accountAccess.list(productRequest(web));
+		expect(listed).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					current: true,
+					device: "Windows",
+				}),
+				expect.objectContaining({
+					current: false,
+					device: "Mac",
+				}),
+			])
+		);
+		expect(listed).toHaveLength(2);
+		for (const session of listed) {
+			expect(session).not.toHaveProperty("token");
+		}
+		expect(JSON.stringify(listed)).not.toContain(token);
+
+		const tauriSession = listed.find((session) => session.device === "Mac");
+		await auth.accountAccess.revoke(
+			productRequest(web),
+			tauriSession?.id ?? ""
+		);
+
+		await expect(
+			auth.accountAccess.write(bearerProductRequest(token))
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		await expect(
+			auth.accountAccess.write(productRequest(web))
+		).resolves.toMatchObject({ written: true });
+		restore();
+	});
+
+	it("applies the same idle lifetime to a Tauri bearer session", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const clock = { now: new Date() };
+		const auth = createAccess({
+			now: () => new Date(clock.now.getTime()),
+		});
+		const cookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			cookies,
+			"203.0.113.10",
+			TAURI_CALLBACK_URL
+		);
+		const callback = await completeGitHubCallback(auth.handler, cookies, {
+			code: "founder-tauri-idle",
+			state: authorizationState(String((await jsonBody(start)).url)),
+			userAgent: MAC_USER_AGENT,
+		});
+		const code = new URL(
+			callback.headers.get("location") ?? ""
+		).searchParams.get("code");
+		const exchanged = await exchangeTauriCode(auth.handler, {
+			code: code ?? "",
+			ip: "198.51.100.44",
+			userAgent: MAC_USER_AGENT,
+		});
+		const token = String((await jsonBody(exchanged)).token);
+		const session = await auth.accountAccess.current(
+			bearerProductRequest(token)
+		);
+		expect(session).toBeTruthy();
+		const remaining =
+			new Date(session?.session.expiresAt ?? 0).getTime() - Date.now();
+		expect(remaining).toBeGreaterThan(TWELVE_HOURS_MS - 120_000);
+		expect(remaining).toBeLessThanOrEqual(TWELVE_HOURS_MS + 120_000);
+
+		clock.now = new Date(
+			new Date(session?.session.expiresAt ?? 0).getTime() + 1000
+		);
+		expect(
+			await auth.accountAccess.current(bearerProductRequest(token))
+		).toBeNull();
+		await expect(
+			auth.accountAccess.write(bearerProductRequest(token))
+		).rejects.toMatchObject({ status: 401 });
+		restore();
+	});
+
+	it("applies the same absolute lifetime to a Tauri bearer session", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const clock = { now: new Date() };
+		const auth = createAccess({
+			now: () => new Date(clock.now.getTime()),
+		});
+		const cookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			cookies,
+			"203.0.113.10",
+			TAURI_CALLBACK_URL
+		);
+		const callback = await completeGitHubCallback(auth.handler, cookies, {
+			code: "founder-tauri-absolute",
+			state: authorizationState(String((await jsonBody(start)).url)),
+			userAgent: MAC_USER_AGENT,
+		});
+		const code = new URL(
+			callback.headers.get("location") ?? ""
+		).searchParams.get("code");
+		const exchanged = await exchangeTauriCode(auth.handler, {
+			code: code ?? "",
+			ip: "198.51.100.45",
+			userAgent: MAC_USER_AGENT,
+		});
+		const token = String((await jsonBody(exchanged)).token);
+		const session = await auth.accountAccess.current(
+			bearerProductRequest(token)
+		);
+		expect(session).toBeTruthy();
+		const createdAt = new Date(session?.session.createdAt ?? 0);
+		clock.now = new Date(createdAt.getTime() + THIRTY_DAYS_MS + 1000);
+		await prisma.session.update({
+			data: {
+				expiresAt: new Date(clock.now.getTime() + TWELVE_HOURS_MS),
+			},
+			where: { id: session?.session.id ?? "" },
+		});
+		expect(
+			await auth.accountAccess.current(bearerProductRequest(token))
+		).toBeNull();
+		await expect(
+			auth.accountAccess.write(bearerProductRequest(token))
+		).rejects.toMatchObject({ status: 401 });
 		restore();
 	});
 
@@ -864,6 +1211,23 @@ describe("Account Access", () => {
 				listed[0]?.id ?? ""
 			)
 		).rejects.toMatchObject({ status: 403 });
+		restore();
+	});
+
+	it("accepts cookie CSRF from the Tauri webview origin", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-tauri-csrf",
+			userAgent: MAC_USER_AGENT,
+		});
+		await expect(
+			auth.accountAccess.write(
+				productRequest(cookies, { origin: "tauri://localhost" })
+			)
+		).resolves.toMatchObject({ written: true });
 		restore();
 	});
 

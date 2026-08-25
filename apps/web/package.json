@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@cantiara/api": "workspace:*",
+    "@cantiara/auth": "workspace:*",
     "@cantiara/env": "workspace:*",
     "@cantiara/ui": "workspace:*",
     "@orpc/client": "catalog:",
@@ -25,6 +26,10 @@
     "@tanstack/react-form": "^1.33.2",
     "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-router": "^1.170.18",
+    "@tauri-apps/api": "2.11.1",
+    "@tauri-apps/plugin-deep-link": "2.4.9",
+    "@tauri-apps/plugin-opener": "2.5.4",
+    "@tauri-apps/plugin-stronghold": "2.3.1",
     "better-auth": "catalog:",
     "dotenv": "catalog:",
     "lucide-react": "catalog:",

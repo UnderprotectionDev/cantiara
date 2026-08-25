@@ -1,5 +1,10 @@
 import { createContext } from "@cantiara/api/context";
-import { AccountAccessError, assertCookieCsrf, auth } from "@cantiara/auth";
+import {
+	AccountAccessError,
+	assertCookieCsrf,
+	auth,
+	productCorsOrigins,
+} from "@cantiara/auth";
 import { env } from "@cantiara/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
@@ -45,7 +50,7 @@ app.use(
 		allowHeaders: ["Content-Type", "Authorization"],
 		allowMethods: ["GET", "POST", "OPTIONS"],
 		credentials: true,
-		origin: env.CORS_ORIGIN,
+		origin: productCorsOrigins(env.CORS_ORIGIN),
 	})
 );
 
@@ -58,7 +63,7 @@ app.use("/rpc/*", async (c, next) => {
 		return;
 	}
 	try {
-		assertCookieCsrf(c.req.raw, [env.CORS_ORIGIN]);
+		assertCookieCsrf(c.req.raw, productCorsOrigins(env.CORS_ORIGIN));
 	} catch (error) {
 		if (error instanceof AccountAccessError && error.status === 403) {
 			return c.json({ message: error.message }, 403);

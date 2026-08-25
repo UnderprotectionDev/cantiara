@@ -3,5 +3,16 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "deep-link:default",
+    "opener:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://github.com/*" }]
+    },
+    "stronghold:default",
+    "allow-desktop-vault-password"
+  ]
 }
