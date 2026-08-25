@@ -8,6 +8,7 @@
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Hesap ve kişisel veri).
  */
+import { createHash } from "node:crypto";
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -74,6 +75,7 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 
 function installGitHubOAuthDouble(options: {
+	confirmationCodeChallenge?: () => string | undefined;
 	isAccessTokenRevoked?: (token: string) => boolean;
 	profileForCode: (code: string) => GitHubProfile | "fail";
 }) {
@@ -84,6 +86,20 @@ function installGitHubOAuthDouble(options: {
 			const body = await readFetchBody(input, init);
 			const params = new URLSearchParams(body);
 			const code = params.get("code") ?? "";
+			const redirectUri = params.get("redirect_uri") ?? "";
+			if (redirectUri.includes("confirm-github-identity")) {
+				const verifier = params.get("code_verifier") ?? "";
+				const expectedChallenge = options.confirmationCodeChallenge?.();
+				if (
+					!(
+						verifier &&
+						(!expectedChallenge ||
+							pkceChallenge(verifier) === expectedChallenge)
+					)
+				) {
+					return Response.json({ error: "invalid_grant" });
+				}
+			}
 			if (options.profileForCode(code) === "fail") {
 				return Response.json({ error: "bad_verification_code" });
 			}
@@ -329,6 +345,10 @@ function otherFounder(): GitHubProfile {
 		login: "other",
 		name: "Other",
 	};
+}
+
+function pkceChallenge(verifier: string): string {
+	return createHash("sha256").update(verifier).digest("base64url");
 }
 
 async function jsonBody(response: Response): Promise<Record<string, unknown>> {
@@ -1222,7 +1242,9 @@ describe("Account Access", () => {
 	});
 
 	it("mints a one-time Confirm GitHub Identity grant for the matching GitHub user and intended operation", async () => {
+		const pkce = { challenge: "" };
 		const restore = installGitHubOAuthDouble({
+			confirmationCodeChallenge: () => pkce.challenge,
 			profileForCode: () => founder,
 		});
 		const auth = createAccess();
@@ -1234,6 +1256,8 @@ describe("Account Access", () => {
 			productRequest(cookies),
 			"account-closure-start"
 		);
+		pkce.challenge =
+			confirmAuthorizeUrl(started).searchParams.get("code_challenge") ?? "";
 		await auth.accountAccess.completeConfirmGitHubIdentity(
 			productRequest(cookies),
 			{
@@ -1368,8 +1392,10 @@ describe("Account Access", () => {
 	});
 
 	it("rejects Confirm GitHub Identity state and PKCE failures without minting a grant", async () => {
+		const pkce = { challenge: "" };
 		const restore = installGitHubOAuthDouble({
-			profileForCode: (code) => (code === "fail" ? "fail" : founder),
+			confirmationCodeChallenge: () => pkce.challenge,
+			profileForCode: () => founder,
 		});
 		const auth = createAccess();
 		const cookies = await signInDevice(auth, {
@@ -1380,20 +1406,27 @@ describe("Account Access", () => {
 			productRequest(cookies),
 			"security-redaction"
 		);
-		const state = confirmAuthorizeUrl(started).searchParams.get("state") ?? "";
+		const authorizeUrl = confirmAuthorizeUrl(started);
 		await expect(
 			auth.accountAccess.completeConfirmGitHubIdentity(
 				productRequest(cookies),
-				{ code: "founder-confirm-pkce-callback", state: "not-the-tour-state" }
+				{
+					code: "founder-confirm-pkce-callback",
+					state: "not-the-tour-state",
+				}
 			)
 		).rejects.toMatchObject({
 			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
 			status: 401,
 		});
+		pkce.challenge = "not-the-code-challenge-from-this-tour";
 		await expect(
 			auth.accountAccess.completeConfirmGitHubIdentity(
 				productRequest(cookies),
-				{ code: "fail", state }
+				{
+					code: "founder-confirm-pkce-callback",
+					state: authorizeUrl.searchParams.get("state") ?? "",
+				}
 			)
 		).rejects.toMatchObject({
 			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
@@ -1972,6 +2005,24 @@ describe("Account Access", () => {
 				listed[0]?.id ?? ""
 			)
 		).rejects.toMatchObject({ status: 403 });
+		await expect(
+			auth.accountAccess.startConfirmGitHubIdentity(
+				productRequest(cookies, { origin: null }),
+				"account-closure-start"
+			)
+		).rejects.toMatchObject({
+			message: CSRF_REJECTED_MESSAGE,
+			status: 403,
+		});
+		await expect(
+			auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+				productRequest(cookies, { origin: "https://evil.example" }),
+				"account-closure-start"
+			)
+		).rejects.toMatchObject({
+			message: CSRF_REJECTED_MESSAGE,
+			status: 403,
+		});
 		restore();
 	});
 
