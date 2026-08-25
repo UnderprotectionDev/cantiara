@@ -42,6 +42,15 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Haftanın ilk günü | `First day of week` | Hafta ızgarası ve hafta sınırının başladığı gün |
 | Kaydet | `Save` | Hesap tercihini açıkça yazan eylem |
 | Önerilen locale ve saat dilimini kullan | `Use suggested locale and time zone` | İlk girişte tarayıcı önerisini forma alan, kaydetmeden uygulamayan eylem |
+| Önizleme | `Preview` | Locale, tarih biçimi ve haftanın ilk gününün gösterim sonucunu kaydetmeden gösteren yüzey |
+| Tarih | `Date` | Önizlemede biçimlenmiş tarih |
+| Sayı | `Number` | Önizlemede biçimlenmiş sayı |
+| Hafta | `Week` | Önizlemede haftanın ilk gününe göre kaymış gün başlıkları |
+| Tarihsel olay | `Historical event` | Saklanmış anın Hesap saat dilimindeki gösterimi |
+| İş başlığı | `Work title` | Locale’in çevirmediği kullanıcı içeriği örneği |
+| Tercihler kaydedildi | `Preferences saved.` | Hesap tercihinin açık Save ile yazıldığını bildiren sistem mesajı |
+| Tercihler yükleniyor | `Loading preferences…` | Hesap tercihinin okunmakta olduğunu bildiren durum |
+| Tercihler kullanılamıyor | `Preferences are unavailable.` | Hesap tercihinin okunamadığını bildiren durum |
 | Cihaz | `Device` | Ürün oturumunun tanındığı istemci türü |
 | Son etkinlik | `Last activity` | Ürün oturumunun en son kullanıldığı zaman |
 | Geçerli oturum | `Current` | Listelenen satırın bu tarayıcıdaki ürün oturumu olduğunu gösteren durum |
