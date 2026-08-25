@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_auth")({
   component: AuthLayout,
   beforeLoad: async ({ location }) => {
     const session = await authClient.getSession();
-    if (!session.data) {
+    if (!session.data?.user) {
       const next = postSignInPath(location.pathname);
       throw redirect({
         search: next === SESSIONS_PATH ? { redirect: SESSIONS_PATH } : {},

@@ -324,11 +324,26 @@ async function hideGetSessionIfLoginOAuthRevoked(
 	if (!(pathname.endsWith("/get-session") && response.ok)) {
 		return response;
 	}
+	let payload: unknown;
+	try {
+		payload = await response.clone().json();
+	} catch {
+		return response;
+	}
+	const hadSession = Boolean(
+		payload &&
+			typeof payload === "object" &&
+			"session" in payload &&
+			(payload as { session?: unknown }).session
+	);
+	if (!hadSession) {
+		return response;
+	}
 	const live = await accountAccess.current(authRequest);
 	if (live) {
 		return response;
 	}
-	return Response.json({ session: null });
+	return Response.json(null);
 }
 
 async function recordSignOutAudit(deps: {

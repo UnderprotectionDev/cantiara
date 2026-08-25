@@ -905,12 +905,6 @@ describe("Account Access", () => {
 
 		revokedTokens.add("gho_founder-github-rejected-token");
 
-		await expect(
-			auth.accountAccess.write(productRequest(cookies))
-		).rejects.toMatchObject({
-			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
-			status: 401,
-		});
 		const sessionResponse = await auth.handler(
 			new Request(`${BASE_URL}/api/auth/get-session`, {
 				headers: {
@@ -920,7 +914,13 @@ describe("Account Access", () => {
 			})
 		);
 		expect(sessionResponse.ok).toBe(true);
-		expect((await jsonBody(sessionResponse)).session).toBeFalsy();
+		expect(await sessionResponse.clone().json()).toBeNull();
+		await expect(
+			auth.accountAccess.write(productRequest(cookies))
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
 
 		const nextCookies = cookieJar();
 		const start = await startGitHubSignIn(
