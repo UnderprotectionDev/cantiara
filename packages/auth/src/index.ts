@@ -34,7 +34,6 @@ export {
 	timeZoneOptions,
 	unsavedAccountPreferences,
 	weekdayHeaders,
-	weekStartsOn,
 } from "./account-preferences";
 export type {
 	AccountSession,

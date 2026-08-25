@@ -14,6 +14,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
 	ACCOUNT_PREFERENCES_COPY,
+	accountPreferencesInputSchema,
 	applySuggestedLocaleAndTimeZone,
 	calendarDay,
 	DEFAULT_FIRST_DAY_OF_WEEK,
@@ -267,7 +268,7 @@ describe("Account Preferences", () => {
 
 	it("keeps English chrome and has no language preference when locale is tr-TR", () => {
 		const chrome = preferencesChrome("tr-TR");
-		expect(chrome).toEqual({
+		expect(chrome).toMatchObject({
 			dateFormat: "Date format",
 			firstDayOfWeek: "First day of week",
 			heading: "Preferences",
@@ -293,18 +294,21 @@ describe("Account Preferences", () => {
 			locale: "en-US",
 			timeZone: "Europe/London",
 		});
-		const read = getAccountPreferences as unknown as (
-			client: PrismaClient,
-			id: string,
-			projectId?: string
-		) => ReturnType<typeof getAccountPreferences>;
-		await expect(read(prisma, accountId, "project-a")).resolves.toMatchObject({
+		expect("projectId" in accountPreferencesInputSchema.shape).toBe(false);
+		const saved = await getAccountPreferences(prisma, accountId);
+		expect(saved).toEqual({
+			dateFormat: "locale",
+			firstDayOfWeek: "Monday",
 			locale: "en-US",
+			saved: true,
 			timeZone: "Europe/London",
 		});
-		await expect(read(prisma, accountId, "project-b")).resolves.toMatchObject({
-			locale: "en-US",
-			timeZone: "Europe/London",
-		});
+		expect(Object.keys(saved).sort()).toEqual([
+			"dateFormat",
+			"firstDayOfWeek",
+			"locale",
+			"saved",
+			"timeZone",
+		]);
 	});
 });

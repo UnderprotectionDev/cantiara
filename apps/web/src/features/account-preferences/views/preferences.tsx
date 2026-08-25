@@ -21,9 +21,9 @@ export default function Preferences() {
 				{ACCOUNT_PREFERENCES_COPY.heading}
 			</h1>
 			{preferences.isPending ? (
-				<p>Loading preferences…</p>
+				<p>{ACCOUNT_PREFERENCES_COPY.loading}</p>
 			) : preferences.isError || !preferences.data ? (
-				<p role="alert">Preferences are unavailable.</p>
+				<p role="alert">{ACCOUNT_PREFERENCES_COPY.unavailable}</p>
 			) : (
 				<PreferencesForm
 					key={`${preferences.data.saved}:${preferences.data.locale}:${preferences.data.timeZone}`}

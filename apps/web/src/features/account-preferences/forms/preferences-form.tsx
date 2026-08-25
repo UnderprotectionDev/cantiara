@@ -53,7 +53,7 @@ export default function PreferencesForm({
 				await queryClient.invalidateQueries({
 					queryKey: orpc.accountPreferences.get.queryKey(),
 				});
-				toast.success("Preferences saved.");
+				toast.success(ACCOUNT_PREFERENCES_COPY.saved);
 			},
 		})
 	);
@@ -211,12 +211,26 @@ function PreferenceSelect<T extends string>({
 
 function PreferencesPreview({ values }: { values: AccountPreferencesInput }) {
 	return (
-		<section aria-label="Preview" className="flex flex-col gap-2 text-sm">
-			<p>Date {formatDate(PREVIEW_INSTANT, values)}</p>
-			<p>Number {formatNumber(PREVIEW_NUMBER, values)}</p>
-			<p>Week {weekdayHeaders(values).join(" ")}</p>
-			<p>Historical event {formatDateTime(HISTORICAL_INSTANT, values)}</p>
-			<p>Work title {WORK_TITLE}</p>
+		<section
+			aria-label={ACCOUNT_PREFERENCES_COPY.preview}
+			className="flex flex-col gap-2 text-sm"
+		>
+			<p>
+				{ACCOUNT_PREFERENCES_COPY.date} {formatDate(PREVIEW_INSTANT, values)}
+			</p>
+			<p>
+				{ACCOUNT_PREFERENCES_COPY.number} {formatNumber(PREVIEW_NUMBER, values)}
+			</p>
+			<p>
+				{ACCOUNT_PREFERENCES_COPY.week} {weekdayHeaders(values).join(" ")}
+			</p>
+			<p>
+				{ACCOUNT_PREFERENCES_COPY.historicalEvent}{" "}
+				{formatDateTime(HISTORICAL_INSTANT, values)}
+			</p>
+			<p>
+				{ACCOUNT_PREFERENCES_COPY.workTitle} {WORK_TITLE}
+			</p>
 		</section>
 	);
 }
