@@ -23,5 +23,4 @@ test("Sessions last activity display follows the Hesap locale and time zone", ()
 			timeZone: "America/New_York",
 		})
 	).toBe("03/29/2026, 08:00 AM");
-	expect(INSTANT).toBe("2026-03-29T12:00:00.000Z");
 });

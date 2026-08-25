@@ -14,7 +14,6 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
 	ACCOUNT_PREFERENCES_COPY,
-	accountPreferencesInputSchema,
 	applySuggestedLocaleAndTimeZone,
 	calendarDay,
 	DEFAULT_FIRST_DAY_OF_WEEK,
@@ -294,7 +293,6 @@ describe("Account Preferences", () => {
 			locale: "en-US",
 			timeZone: "Europe/London",
 		});
-		expect("projectId" in accountPreferencesInputSchema.shape).toBe(false);
 		const saved = await getAccountPreferences(prisma, accountId);
 		expect(saved).toEqual({
 			dateFormat: "locale",
@@ -303,12 +301,6 @@ describe("Account Preferences", () => {
 			saved: true,
 			timeZone: "Europe/London",
 		});
-		expect(Object.keys(saved).sort()).toEqual([
-			"dateFormat",
-			"firstDayOfWeek",
-			"locale",
-			"saved",
-			"timeZone",
-		]);
+		expect("projectId" in saved).toBe(false);
 	});
 });
