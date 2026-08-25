@@ -6,6 +6,10 @@ import { bearer } from "better-auth/plugins/bearer";
 
 import { AccountAccessError } from "./account-access-error";
 import { createAccountSessionAccess } from "./account-sessions";
+import {
+	confirmGitHubIdentityReturnURL,
+	isConfirmGitHubIdentityCallbackPath,
+} from "./confirm-github-identity";
 import { isLoggedOutGetSessionBody } from "./get-session-body";
 import {
 	type GitHubAvailability,
@@ -201,6 +205,8 @@ export function createAuth(options: CreateAuthOptions) {
 	const accountAccess = createAccountSessionAccess({
 		auditLog,
 		auth,
+		baseURL: options.baseURL,
+		github: options.github,
 		githubAvailability,
 		now,
 		prisma: options.prisma,
@@ -242,7 +248,13 @@ interface AuthSessionLookup {
 }
 
 interface AuthRequestDeps {
-	accountAccess: { current: (request: Request) => Promise<unknown> };
+	accountAccess: {
+		completeConfirmGitHubIdentity: (
+			request: Request,
+			input: { code: string; state: string }
+		) => Promise<void>;
+		current: (request: Request) => Promise<unknown>;
+	};
 	auditLog: AuditLog;
 	auth: AuthSessionLookup;
 	githubAvailability: () => Promise<GitHubAvailability>;
@@ -276,6 +288,33 @@ async function interceptSignInAndTauriExchange(
 	return exchangeTauriCodeResponse(request, deps);
 }
 
+async function interceptConfirmGitHubIdentityCallback(
+	request: Request,
+	pathname: string,
+	deps: AuthRequestDeps
+): Promise<Response | null> {
+	if (
+		!(isConfirmGitHubIdentityCallbackPath(pathname) && request.method === "GET")
+	) {
+		return null;
+	}
+	const url = new URL(request.url);
+	try {
+		await deps.accountAccess.completeConfirmGitHubIdentity(request, {
+			code: url.searchParams.get("code") ?? "",
+			state: url.searchParams.get("state") ?? "",
+		});
+	} catch {
+		// Fail closed: the founder returns to Confirm GitHub Identity without a grant.
+	}
+	return new Response(null, {
+		headers: {
+			location: confirmGitHubIdentityReturnURL(deps.trustedOrigins),
+		},
+		status: 302,
+	});
+}
+
 async function handleAuthRequest(
 	request: Request,
 	deps: AuthRequestDeps
@@ -290,6 +329,15 @@ async function handleAuthRequest(
 	);
 	if (intercepted) {
 		return intercepted;
+	}
+
+	const confirmCallback = await interceptConfirmGitHubIdentityCallback(
+		request,
+		pathname,
+		deps
+	);
+	if (confirmCallback) {
+		return confirmCallback;
 	}
 
 	const authRequest = await requestWithWebAppCallback(

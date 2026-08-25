@@ -2,8 +2,9 @@
  * Account Access seam — GitHub sign-in, Account, Workspace, Sessions,
  * revoke, lifetime, CSRF, revoke replay, GitHub outage waiting,
  * login OAuth revocation, GitHub App uninstall independence,
- * and Tauri one-time code / bearer.
- * Synthetic fixture for the sign-in and session slice of
+ * Tauri one-time code / bearer, and Confirm GitHub Identity start,
+ * callback, grant mint, and single-use consume.
+ * Synthetic fixture for the sign-in, session, and confirmation slice of
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Hesap ve kişisel veri).
  */
@@ -25,6 +26,9 @@ import {
 	WORKSPACE_DEFAULT_NAME,
 } from "./github-login";
 import {
+	CONFIRM_GITHUB_IDENTITY_FAILED_EVENT_TYPE,
+	CONFIRM_GITHUB_IDENTITY_STARTED_EVENT_TYPE,
+	CONFIRM_GITHUB_IDENTITY_SUCCEEDED_EVENT_TYPE,
 	SESSION_REVOKED_EVENT_TYPE,
 	SESSION_SIGNED_IN_EVENT_TYPE,
 	SESSION_SIGNED_OUT_EVENT_TYPE,
@@ -60,12 +64,14 @@ const REPO_SCOPES = /repo|workflow|admin/;
 const FOUNDER_EMAIL = "founder@example.com";
 const HEX_ALIAS = /^[a-f0-9]{64}$/;
 const TAURI_ONE_TIME_CODE = /^[A-Za-z0-9_-]{32,}$/;
+const PKCE_CODE_CHALLENGE = /^[A-Za-z0-9_-]{43,}$/;
 const MAC_USER_AGENT =
 	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) CantiaraTest";
 const WINDOWS_USER_AGENT =
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) CantiaraTest";
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const TEN_MINUTES_MS = 10 * 60 * 1000;
 
 function installGitHubOAuthDouble(options: {
 	isAccessTokenRevoked?: (token: string) => boolean;
@@ -295,6 +301,34 @@ function authorizationState(authorizeUrl: string): string {
 		throw new Error("GitHub authorization URL is missing state");
 	}
 	return state;
+}
+
+function confirmAuthorizeUrl(started: { status?: string; url?: string }): URL {
+	if (started.status !== "redirect" || typeof started.url !== "string") {
+		throw new Error("Confirm GitHub Identity did not start a GitHub tour");
+	}
+	return new URL(started.url);
+}
+
+function createTestClock(start = Date.now()) {
+	let current = start;
+	return {
+		advanceMs(ms: number) {
+			current += ms;
+		},
+		now() {
+			return new Date(current);
+		},
+	};
+}
+
+function otherFounder(): GitHubProfile {
+	return {
+		email: "other@example.com",
+		id: 7777,
+		login: "other",
+		name: "Other",
+	};
 }
 
 async function jsonBody(response: Response): Promise<Record<string, unknown>> {
@@ -1077,6 +1111,15 @@ describe("Account Access", () => {
 				message: "Waiting for GitHub",
 				status: "waiting",
 			});
+			expect(
+				await auth.accountAccess.startConfirmGitHubIdentity(
+					productRequest(cookies),
+					"account-closure-start"
+				)
+			).toEqual({
+				message: "Waiting for GitHub",
+				status: "waiting",
+			});
 			await expect(
 				auth.accountAccess.consumeConfirmGitHubIdentityGrant(
 					productRequest(cookies),
@@ -1125,6 +1168,391 @@ describe("Account Access", () => {
 			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
 			status: 401,
 		});
+		restore();
+	});
+
+	it("starts Confirm GitHub Identity as a new GitHub authorization-code tour with PKCE and select_account", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-confirm-start",
+			userAgent: MAC_USER_AGENT,
+		});
+		const started = await auth.accountAccess.startConfirmGitHubIdentity(
+			productRequest(cookies),
+			"account-closure-start"
+		);
+		expect(started.status).toBe("redirect");
+		const authorizeUrl = confirmAuthorizeUrl(started);
+		expect(authorizeUrl.origin + authorizeUrl.pathname).toBe(
+			"https://github.com/login/oauth/authorize"
+		);
+		expect(authorizeUrl.searchParams.get("prompt")).toBe("select_account");
+		expect(authorizeUrl.searchParams.get("response_type")).toBe("code");
+		expect(authorizeUrl.searchParams.get("code_challenge_method")).toBe("S256");
+		expect(authorizeUrl.searchParams.get("code_challenge")).toMatch(
+			PKCE_CODE_CHALLENGE
+		);
+		expect(authorizeUrl.searchParams.get("state")).toBeTruthy();
+		expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(
+			`${BASE_URL}/api/auth/confirm-github-identity/callback`
+		);
+		const scopes = (authorizeUrl.searchParams.get("scope") ?? "")
+			.split(SCOPE_SEPARATOR)
+			.filter(Boolean)
+			.sort();
+		expect(scopes).toEqual(["read:user", "user:email"]);
+		expect(scopes.join(" ")).not.toMatch(REPO_SCOPES);
+		expect(authorizeUrl.search).not.toContain("client_secret");
+		expect(await auth.accountAccess.list(productRequest(cookies))).toHaveLength(
+			1
+		);
+		await expect(
+			auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+				productRequest(cookies),
+				"account-closure-start"
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		restore();
+	});
+
+	it("mints a one-time Confirm GitHub Identity grant for the matching GitHub user and intended operation", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-confirm-match",
+			userAgent: MAC_USER_AGENT,
+		});
+		const started = await auth.accountAccess.startConfirmGitHubIdentity(
+			productRequest(cookies),
+			"account-closure-start"
+		);
+		await auth.accountAccess.completeConfirmGitHubIdentity(
+			productRequest(cookies),
+			{
+				code: "founder-confirm-match-callback",
+				state: confirmAuthorizeUrl(started).searchParams.get("state") ?? "",
+			}
+		);
+		expect(await auth.accountAccess.list(productRequest(cookies))).toHaveLength(
+			1
+		);
+		await expect(
+			auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+				productRequest(cookies),
+				"account-closure-cancel"
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		await auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+			productRequest(cookies),
+			"account-closure-start"
+		);
+		await expect(
+			auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+				productRequest(cookies),
+				"account-closure-start"
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		restore();
+	});
+
+	it("rejects a Confirm GitHub Identity callback for a different GitHub user without a grant", async () => {
+		const other: GitHubProfile = {
+			email: "other@example.com",
+			id: 7777,
+			login: "other",
+			name: "Other",
+		};
+		const restore = installGitHubOAuthDouble({
+			profileForCode: (code) => (code.includes("other") ? other : founder),
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-confirm-mismatch",
+			userAgent: MAC_USER_AGENT,
+		});
+		const started = await auth.accountAccess.startConfirmGitHubIdentity(
+			productRequest(cookies),
+			"account-closure-start"
+		);
+		await expect(
+			auth.accountAccess.completeConfirmGitHubIdentity(
+				productRequest(cookies),
+				{
+					code: "other-github-user",
+					state: confirmAuthorizeUrl(started).searchParams.get("state") ?? "",
+				}
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		await expect(
+			auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+				productRequest(cookies),
+				"account-closure-start"
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		await expect(
+			auth.accountAccess.write(productRequest(cookies))
+		).resolves.toMatchObject({ written: true });
+		restore();
+	});
+
+	it("rejects an expired Confirm GitHub Identity tour and an expired grant", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const clock = createTestClock();
+		const auth = createAccess({ now: clock.now });
+		const cookies = await signInDevice(auth, {
+			code: "founder-confirm-expiry",
+			userAgent: MAC_USER_AGENT,
+		});
+		const expiredTour = await auth.accountAccess.startConfirmGitHubIdentity(
+			productRequest(cookies),
+			"account-closure-start"
+		);
+		clock.advanceMs(TEN_MINUTES_MS + 1);
+		await expect(
+			auth.accountAccess.completeConfirmGitHubIdentity(
+				productRequest(cookies),
+				{
+					code: "founder-confirm-expired-tour",
+					state:
+						confirmAuthorizeUrl(expiredTour).searchParams.get("state") ?? "",
+				}
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		const liveTour = await auth.accountAccess.startConfirmGitHubIdentity(
+			productRequest(cookies),
+			"personal-data-erase"
+		);
+		await auth.accountAccess.completeConfirmGitHubIdentity(
+			productRequest(cookies),
+			{
+				code: "founder-confirm-expired-grant",
+				state: confirmAuthorizeUrl(liveTour).searchParams.get("state") ?? "",
+			}
+		);
+		clock.advanceMs(TEN_MINUTES_MS + 1);
+		await expect(
+			auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+				productRequest(cookies),
+				"personal-data-erase"
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		restore();
+	});
+
+	it("rejects Confirm GitHub Identity state and PKCE failures without minting a grant", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: (code) => (code === "fail" ? "fail" : founder),
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-confirm-pkce",
+			userAgent: MAC_USER_AGENT,
+		});
+		const started = await auth.accountAccess.startConfirmGitHubIdentity(
+			productRequest(cookies),
+			"security-redaction"
+		);
+		const state = confirmAuthorizeUrl(started).searchParams.get("state") ?? "";
+		await expect(
+			auth.accountAccess.completeConfirmGitHubIdentity(
+				productRequest(cookies),
+				{ code: "founder-confirm-pkce-callback", state: "not-the-tour-state" }
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		await expect(
+			auth.accountAccess.completeConfirmGitHubIdentity(
+				productRequest(cookies),
+				{ code: "fail", state }
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		await expect(
+			auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+				productRequest(cookies),
+				"security-redaction"
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		restore();
+	});
+
+	it("rejects Confirm GitHub Identity callback replay so the grant stays one-time", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-confirm-replay",
+			userAgent: MAC_USER_AGENT,
+		});
+		const started = await auth.accountAccess.startConfirmGitHubIdentity(
+			productRequest(cookies),
+			"early-permanent-delete"
+		);
+		const input = {
+			code: "founder-confirm-replay-callback",
+			state: confirmAuthorizeUrl(started).searchParams.get("state") ?? "",
+		};
+		await auth.accountAccess.completeConfirmGitHubIdentity(
+			productRequest(cookies),
+			input
+		);
+		await expect(
+			auth.accountAccess.completeConfirmGitHubIdentity(
+				productRequest(cookies),
+				input
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		await auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+			productRequest(cookies),
+			"early-permanent-delete"
+		);
+		await expect(
+			auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+				productRequest(cookies),
+				"early-permanent-delete"
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		restore();
+	});
+
+	it("completes Confirm GitHub Identity over the product callback without creating a second session", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-confirm-http",
+			userAgent: MAC_USER_AGENT,
+		});
+		const started = await auth.accountAccess.startConfirmGitHubIdentity(
+			productRequest(cookies),
+			"account-closure-cancel"
+		);
+		const callbackUrl = new URL(
+			`${BASE_URL}/api/auth/confirm-github-identity/callback`
+		);
+		callbackUrl.searchParams.set("code", "founder-confirm-http-callback");
+		callbackUrl.searchParams.set(
+			"state",
+			confirmAuthorizeUrl(started).searchParams.get("state") ?? ""
+		);
+		const callback = await auth.handler(
+			new Request(callbackUrl, {
+				headers: {
+					cookie: cookies.header(),
+				},
+			})
+		);
+		expect(callback.status).toBe(302);
+		expect(callback.headers.get("location")).toBe(
+			`${WEB_ORIGIN}/confirm-github-identity`
+		);
+		expect(await auth.accountAccess.list(productRequest(cookies))).toHaveLength(
+			1
+		);
+		await auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+			productRequest(cookies),
+			"account-closure-cancel"
+		);
+		restore();
+	});
+
+	it("records Confirm GitHub Identity start, success, and failure as secret-free Denetim kaydı", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: (code) =>
+				code.includes("other") ? otherFounder() : founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-confirm-audit",
+			userAgent: MAC_USER_AGENT,
+		});
+		const failed = await auth.accountAccess.startConfirmGitHubIdentity(
+			productRequest(cookies),
+			"account-closure-start"
+		);
+		await expect(
+			auth.accountAccess.completeConfirmGitHubIdentity(
+				productRequest(cookies),
+				{
+					code: "other-github-user-audit",
+					state: confirmAuthorizeUrl(failed).searchParams.get("state") ?? "",
+				}
+			)
+		).rejects.toMatchObject({ status: 401 });
+		const succeeded = await auth.accountAccess.startConfirmGitHubIdentity(
+			productRequest(cookies),
+			"account-closure-start"
+		);
+		await auth.accountAccess.completeConfirmGitHubIdentity(
+			productRequest(cookies),
+			{
+				code: "founder-confirm-audit-callback",
+				state: confirmAuthorizeUrl(succeeded).searchParams.get("state") ?? "",
+			}
+		);
+		const events = await auth.auditLog.list();
+		const confirmation = events.filter((event) =>
+			event.type.startsWith("confirm_github_identity.")
+		);
+		expect(confirmation.map((event) => event.type)).toEqual([
+			CONFIRM_GITHUB_IDENTITY_STARTED_EVENT_TYPE,
+			CONFIRM_GITHUB_IDENTITY_FAILED_EVENT_TYPE,
+			CONFIRM_GITHUB_IDENTITY_STARTED_EVENT_TYPE,
+			CONFIRM_GITHUB_IDENTITY_SUCCEEDED_EVENT_TYPE,
+		]);
+		const serialized = JSON.stringify(confirmation);
+		expect(serialized).not.toContain(FOUNDER_EMAIL);
+		expect(serialized).not.toContain("other@example.com");
+		expect(serialized).not.toContain("gho_");
+		expect(serialized).not.toContain("client_secret");
+		for (const event of confirmation) {
+			expect(event.accountAlias).toMatch(HEX_ALIAS);
+			expect(event.actorAlias).toBe(event.accountAlias);
+			expect(event.sessionAlias).toMatch(HEX_ALIAS);
+		}
 		restore();
 	});
 

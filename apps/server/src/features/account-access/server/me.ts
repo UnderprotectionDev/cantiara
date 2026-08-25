@@ -71,4 +71,16 @@ export const accountAccess = {
 			rethrowAccountAccess(error);
 		}
 	}),
+	startConfirmGitHubIdentity: protectedProcedure
+		.input(z.object({ operationId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			try {
+				return await auth.accountAccess.startConfirmGitHubIdentity(
+					context.request,
+					input.operationId
+				);
+			} catch (error) {
+				rethrowAccountAccess(error);
+			}
+		}),
 };
