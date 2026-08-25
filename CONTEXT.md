@@ -18,6 +18,26 @@ _Avoid_: Proje bağlantısı kapsamı, kaynak kapsamı, hesap + kaynak kapsamı
 Kurucunun değişmeyen kimliğini, kişisel tercihlerini ve güvenlik bağlamını taşıyan; çalışma alanı içeriğinden ayrı sahiplik kapsamı.
 _Avoid_: Kullanıcı çalışma alanı, profil projesi
 
+**Hesap tercihleri**:
+Hesap kapsamındaki locale, saat dilimi, tarih biçimi, haftanın ilk günü ve açık/koyu görünüm; çalışma alanı içeriği veya Proje yapılandırması değildir ([Hesap profil tercihleri](docs/prd/03-account-platform-operations.md#hesap-profil-tercihleri)). UI: `Preferences`.
+_Avoid_: i18n language pack, dil tercihi, per-Project locale, tema sistemi
+
+**Locale**:
+Tarih, saat ve sayı biçimini seçen Hesap tercihi; arayüz dilini veya kullanıcı içeriğini çevirmez. UI: `Locale`.
+_Avoid_: dil tercihi, i18n language pack, çeviri
+
+**Saat dilimi**:
+Takvim gün sınırı, tarih girişi ve tarihsel gösterimin Hesap dilimi; saklanmış kesin zaman damgasını yeniden yazmaz. UI: `Time zone`.
+_Avoid_: saklanmış anı kaydırma, Proje saat dilimi
+
+**Tarih biçimi**:
+Tarihin nasıl yazıldığını seçen Hesap tercihi; seçilmezse locale varsayılanını izler. UI: `Date format`.
+_Avoid_: kayıt semantiği, locale çevirisi
+
+**Haftanın ilk günü**:
+Hafta ızgarası ve hafta sınırının başladığı gün. UI: `First day of week`.
+_Avoid_: saklanmış zaman damgası, Proje takvim tercihi
+
 **Ürün oturumu**:
 Hesap kapsamındaki kimlik doğrulanmış ürün erişimi; cihaz ve son etkinlikle listelenir ve iptal edilir ([oturum güvenliği](docs/prd/03-account-platform-operations.md#oturum-guvenligi)). UI listesi: `Sessions`.
 _Avoid_: Paylaşım erişim oturumu, Test Oturumu, Kullanıcı Araştırması Oturumu

@@ -161,6 +161,14 @@ describe("Account Preferences", () => {
 		expect(formatDateTime(SAMPLE_INSTANT, london)).toBe("29/03/2026, 15:00");
 		expect(formatNumber(SAMPLE_NUMBER, london)).toBe("1,234.5");
 
+		const us = {
+			...london,
+			locale: "en-US",
+		};
+		expect(formatDate(SAMPLE_INSTANT, us)).toBe("03/29/2026");
+		expect(formatDateTime(SAMPLE_INSTANT, us)).toBe("03/29/2026, 03:00 PM");
+		expect(formatNumber(SAMPLE_NUMBER, us)).toBe("1,234.5");
+
 		const turkish = {
 			...london,
 			locale: "tr-TR",

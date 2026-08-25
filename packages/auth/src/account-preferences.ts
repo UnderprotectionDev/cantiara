@@ -205,7 +205,6 @@ export function formatDateTime(
 		return new Intl.DateTimeFormat(preferences.locale, {
 			day: "2-digit",
 			hour: "2-digit",
-			hourCycle: "h23",
 			minute: "2-digit",
 			month: "2-digit",
 			timeZone: preferences.timeZone,
@@ -214,7 +213,6 @@ export function formatDateTime(
 	}
 	const time = new Intl.DateTimeFormat(preferences.locale, {
 		hour: "2-digit",
-		hourCycle: "h23",
 		minute: "2-digit",
 		timeZone: preferences.timeZone,
 	}).format(instant);
