@@ -7,6 +7,7 @@ import {
 	createPostgresSecurityEventLog,
 	LOCAL_SECURITY_EVENT_LOG_URL,
 } from "./security-event-log";
+import { productTrustedOrigins } from "./tauri-session";
 
 export const auth = createAuth({
 	auditLog: createPrismaAuditLog(getPrismaClient()),
@@ -20,7 +21,7 @@ export const auth = createAuth({
 	securityEventLog: createPostgresSecurityEventLog(
 		securityEventLogConnectionString()
 	),
-	trustedOrigins: [env.CORS_ORIGIN],
+	trustedOrigins: productTrustedOrigins(env.CORS_ORIGIN),
 });
 
 function securityEventLogConnectionString(): string {

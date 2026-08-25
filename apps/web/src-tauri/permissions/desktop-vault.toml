@@ -1,0 +1,6 @@
+"$schema" = "../gen/schemas/desktop-schema.json"
+
+[[permission]]
+identifier = "allow-desktop-vault-password"
+description = "Allows unlocking Stronghold to store the product session token"
+commands.allow = ["desktop_vault_password"]

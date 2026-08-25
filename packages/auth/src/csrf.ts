@@ -23,7 +23,14 @@ export function assertCookieCsrf(
 
 function originMatches(header: string, trusted: string): boolean {
 	try {
-		return new URL(header).origin === trusted;
+		const actual = new URL(header);
+		const expected = new URL(trusted);
+		if (actual.origin !== "null" && expected.origin !== "null") {
+			return actual.origin === expected.origin;
+		}
+		return (
+			actual.protocol === expected.protocol && actual.host === expected.host
+		);
 	} catch {
 		return header === trusted;
 	}

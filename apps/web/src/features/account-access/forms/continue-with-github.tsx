@@ -1,25 +1,19 @@
 import { Button } from "@cantiara/ui/components/button";
+import { useCallback } from "react";
 
-import { postSignInPath } from "@/features/account-access/forms/post-sign-in-path";
-import { authClient } from "@/lib/auth-client";
+import { startContinueWithGitHub } from "@/features/account-access/forms/tauri-sign-in";
 
 export default function ContinueWithGitHub({
 	redirect,
 }: {
 	redirect?: string;
 }) {
+	const onContinue = useCallback(() => {
+		startContinueWithGitHub(redirect).catch(() => undefined);
+	}, [redirect]);
+
 	return (
-		<Button
-			className="w-full"
-			type="button"
-			onClick={() => {
-				const path = postSignInPath(redirect);
-				void authClient.signIn.social({
-					callbackURL: `${window.location.origin}${path}`,
-					provider: "github",
-				});
-			}}
-		>
+		<Button className="w-full" onClick={onContinue} type="button">
 			Continue with GitHub
 		</Button>
 	);

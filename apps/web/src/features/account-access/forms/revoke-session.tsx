@@ -1,5 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { toast } from "sonner";
 
 import { afterRevokeSession } from "@/features/account-access/forms/after-revoke-session";
@@ -23,6 +24,10 @@ export default function RevokeSession({
 			onSuccess: async () => {
 				const next = afterRevokeSession(current);
 				if (next) {
+					const { clearDesktopSessionToken } = await import(
+						"@/features/account-access/forms/tauri-session-token"
+					);
+					await clearDesktopSessionToken();
 					await authClient.signOut();
 					window.location.assign(next);
 					return;
@@ -34,16 +39,18 @@ export default function RevokeSession({
 		})
 	);
 
+	const onRevoke = useCallback(() => {
+		mutation.mutate({ sessionId });
+	}, [mutation, sessionId]);
+
 	return (
 		<Button
 			aria-label={`Revoke Session ${device}`}
 			disabled={mutation.isPending}
+			onClick={onRevoke}
 			size="sm"
 			type="button"
 			variant="destructive"
-			onClick={() => {
-				mutation.mutate({ sessionId });
-			}}
 		>
 			Revoke Session
 		</Button>

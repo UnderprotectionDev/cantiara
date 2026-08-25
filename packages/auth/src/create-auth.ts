@@ -2,7 +2,9 @@ import type { PrismaClient } from "@cantiara/db";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { createAuthMiddleware } from "better-auth/api";
+import { bearer } from "better-auth/plugins/bearer";
 
+import { AccountAccessError } from "./account-access-error";
 import { createAccountSessionAccess } from "./account-sessions";
 import {
 	ensureWorkspaceForAccount,
@@ -31,9 +33,12 @@ import {
 	SESSION_IDLE_SECONDS,
 	SESSION_UPDATE_AGE_SECONDS,
 } from "./session-policy";
+import { consumeTauriOneTimeCode, mintTauriOneTimeCode } from "./tauri-code";
+import { isTauriCallbackURL, tauriDeepLinkWithCode } from "./tauri-session";
 
 const DEFAULT_MAX_ATTEMPTS = 10;
 const DEFAULT_WINDOW_MS = 60_000;
+const SESSION_TOKEN_COOKIE = /session_token/i;
 
 export interface CreateAuthOptions {
 	auditLog?: AuditLog;
@@ -159,6 +164,7 @@ export function createAuth(options: CreateAuthOptions) {
 				ctx.context.returned = null;
 			}),
 		},
+		plugins: [bearer()],
 		rateLimit: {
 			enabled: false,
 		},
@@ -200,6 +206,7 @@ export function createAuth(options: CreateAuthOptions) {
 			innerHandler,
 			limiter,
 			now,
+			prisma: options.prisma,
 			secret: options.secret,
 			trustedOrigins: options.trustedOrigins,
 		});
@@ -229,6 +236,7 @@ async function handleAuthRequest(
 		innerHandler: (request: Request) => Promise<Response>;
 		limiter: RateLimiter;
 		now: () => Date;
+		prisma: PrismaClient;
 		secret: string;
 		trustedOrigins: string[];
 	}
@@ -239,6 +247,13 @@ async function handleAuthRequest(
 
 	if (isSignIn && !deps.limiter.consume(`ip:${ip}`)) {
 		return genericSignInFailureResponse(429);
+	}
+
+	if (pathname.endsWith("/tauri/exchange") && request.method === "POST") {
+		if (!deps.limiter.consume(`ip:${ip}`)) {
+			return genericSignInFailureResponse(429);
+		}
+		return exchangeTauriCodeResponse(request, deps);
 	}
 
 	const authRequest = await requestWithWebAppCallback(
@@ -276,6 +291,50 @@ async function handleAuthRequest(
 	}
 
 	return admitGitHubCallback(request, response, deps);
+}
+
+async function exchangeTauriCodeResponse(
+	request: Request,
+	deps: {
+		now: () => Date;
+		prisma: PrismaClient;
+	}
+): Promise<Response> {
+	let code = "";
+	try {
+		const { code: submitted } = (await request.json()) as { code?: unknown };
+		if (typeof submitted === "string") {
+			code = submitted;
+		}
+	} catch {
+		return genericSignInFailureResponse(401);
+	}
+	if (!code) {
+		return genericSignInFailureResponse(401);
+	}
+	try {
+		const exchanged = await consumeTauriOneTimeCode({
+			code,
+			now: deps.now,
+			prisma: deps.prisma,
+		});
+		const userAgent = request.headers.get("user-agent");
+		if (userAgent) {
+			await deps.prisma.session.updateMany({
+				data: { userAgent },
+				where: { token: exchanged.token },
+			});
+		}
+		return Response.json({ token: exchanged.token });
+	} catch (error) {
+		if (error instanceof AccountAccessError) {
+			return Response.json(
+				{ message: error.message },
+				{ status: error.status }
+			);
+		}
+		return genericSignInFailureResponse(401);
+	}
 }
 
 async function recordSignOutAudit(deps: {
@@ -340,6 +399,8 @@ async function admitGitHubCallback(
 	deps: {
 		auth: AuthSessionLookup;
 		limiter: RateLimiter;
+		now: () => Date;
+		prisma: PrismaClient;
 	}
 ): Promise<Response> {
 	const session = await deps.auth.api.getSession({
@@ -351,7 +412,41 @@ async function admitGitHubCallback(
 	if (!deps.limiter.consume(`account:${session.user.id}`)) {
 		return genericSignInFailureResponse(429);
 	}
-	return response;
+	return toTauriOneTimeCodeRedirect(response, session.session.id, deps);
+}
+
+async function toTauriOneTimeCodeRedirect(
+	response: Response,
+	sessionId: string,
+	deps: {
+		now: () => Date;
+		prisma: PrismaClient;
+	}
+): Promise<Response> {
+	const location = response.headers.get("location") ?? "";
+	if (!isTauriCallbackURL(location)) {
+		return response;
+	}
+	const code = await mintTauriOneTimeCode({
+		now: deps.now,
+		prisma: deps.prisma,
+		sessionId,
+	});
+	const headers = new Headers();
+	for (const [key, value] of response.headers.entries()) {
+		const name = key.toLowerCase();
+		if (name === "set-cookie" || name === "set-auth-token") {
+			continue;
+		}
+		headers.append(key, value);
+	}
+	headers.set("location", tauriDeepLinkWithCode(code));
+	for (const cookie of response.headers.getSetCookie()) {
+		if (!SESSION_TOKEN_COOKIE.test(cookie)) {
+			headers.append("set-cookie", cookie);
+		}
+	}
+	return new Response(null, { headers, status: response.status });
 }
 
 function cookieHeadersFromResponse(
