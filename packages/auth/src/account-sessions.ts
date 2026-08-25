@@ -2,9 +2,19 @@ import type { PrismaClient } from "@cantiara/db";
 
 import {
 	AccountAccessError,
+	OPERATION_ID_REQUIRED_MESSAGE,
 	SESSION_WRITE_UNAUTHORIZED_MESSAGE,
 } from "./account-access-error";
 import { assertCookieCsrf } from "./csrf";
+import {
+	type GitHubAvailability,
+	type GitHubAvailabilityReport,
+	githubAvailabilityReport,
+	githubWaitingPayload,
+	isGitHubWaiting,
+	WAITING_FOR_GITHUB_MESSAGE,
+} from "./github-availability";
+import { inspectGitHubLoginAccessToken } from "./github-login-token";
 import { identityAlias } from "./identity-alias";
 import {
 	type AuditLog,
@@ -44,8 +54,25 @@ export interface ProductAuth {
 	};
 }
 
+export type GitHubIdentityConfirmation =
+	| { status: "ready" }
+	| { message: string; status: "waiting" };
+
 export interface AccountSessionAccess {
+	applyGitHubAppUninstalled: (input: {
+		githubUserId?: string;
+		installationId: string;
+	}) => Promise<void>;
+	applyGitHubLoginOAuthRevoked: (githubUserId: string) => Promise<void>;
+	confirmGitHubIdentity: (
+		request: Request
+	) => Promise<GitHubIdentityConfirmation>;
+	consumeConfirmGitHubIdentityGrant: (
+		request: Request,
+		operationId: string
+	) => Promise<void>;
 	current: (request: Request) => Promise<ProductSession | null>;
+	githubAvailability: () => Promise<GitHubAvailabilityReport>;
 	list: (request: Request) => Promise<AccountSession[]>;
 	replay: () => Promise<void>;
 	revoke: (request: Request, sessionId: string) => Promise<void>;
@@ -56,6 +83,7 @@ export interface AccountSessionAccess {
 export function createAccountSessionAccess(deps: {
 	auth: ProductAuth;
 	auditLog: AuditLog;
+	githubAvailability: () => Promise<GitHubAvailability>;
 	now?: () => Date;
 	prisma: PrismaClient;
 	secret: string;
@@ -63,6 +91,41 @@ export function createAccountSessionAccess(deps: {
 	trustedOrigins: readonly string[];
 }): AccountSessionAccess {
 	const now = deps.now ?? (() => new Date());
+
+	async function applyGitHubLoginOAuthRevoked(githubUserId: string) {
+		const githubAccount = await deps.prisma.account.findFirst({
+			where: {
+				accountId: githubUserId,
+				providerId: "github",
+			},
+		});
+		if (!githubAccount) {
+			return;
+		}
+		const sessions = await liveSessionsForUser(githubAccount.userId);
+		await Promise.all(
+			sessions.map((session) =>
+				recordRevoke({
+					accountId: githubAccount.userId,
+					actorId: githubAccount.userId,
+					sessionId: session.id,
+				})
+			)
+		);
+		await deps.prisma.session.deleteMany({
+			where: { userId: githubAccount.userId },
+		});
+		await deps.prisma.account.update({
+			data: {
+				accessToken: null,
+				accessTokenExpiresAt: null,
+				idToken: null,
+				refreshToken: null,
+				refreshTokenExpiresAt: null,
+			},
+			where: { id: githubAccount.id },
+		});
+	}
 
 	async function current(request: Request): Promise<ProductSession | null> {
 		let session: ProductSession | null;
@@ -87,6 +150,30 @@ export function createAccountSessionAccess(deps: {
 			await deps.prisma.session.deleteMany({
 				where: { id: session.session.id },
 			});
+			return null;
+		}
+		if (isGitHubWaiting(await deps.githubAvailability())) {
+			return session;
+		}
+		const githubAccount = await deps.prisma.account.findFirst({
+			where: {
+				providerId: "github",
+				userId: session.user.id,
+			},
+		});
+		if (!githubAccount) {
+			return session;
+		}
+		if (!githubAccount.accessToken) {
+			await applyGitHubLoginOAuthRevoked(githubAccount.accountId);
+			return null;
+		}
+		const inspection = await inspectGitHubLoginAccessToken({
+			secret: deps.secret,
+			storedAccessToken: githubAccount.accessToken,
+		});
+		if (inspection === "revoked") {
+			await applyGitHubLoginOAuthRevoked(githubAccount.accountId);
 			return null;
 		}
 		return session;
@@ -128,7 +215,31 @@ export function createAccountSessionAccess(deps: {
 	}
 
 	return {
+		applyGitHubAppUninstalled(_input) {
+			return Promise.resolve();
+		},
+		applyGitHubLoginOAuthRevoked,
+		async confirmGitHubIdentity(request) {
+			await requireSession(request);
+			if (isGitHubWaiting(await deps.githubAvailability())) {
+				return githubWaitingPayload();
+			}
+			return { status: "ready" as const };
+		},
+		async consumeConfirmGitHubIdentityGrant(request, operationId) {
+			await requireSession(request);
+			if (operationId.trim() === "") {
+				throw new AccountAccessError(400, OPERATION_ID_REQUIRED_MESSAGE);
+			}
+			if (isGitHubWaiting(await deps.githubAvailability())) {
+				throw new AccountAccessError(503, WAITING_FOR_GITHUB_MESSAGE);
+			}
+			throw new AccountAccessError(401, SESSION_WRITE_UNAUTHORIZED_MESSAGE);
+		},
 		current,
+		async githubAvailability() {
+			return githubAvailabilityReport(await deps.githubAvailability());
+		},
 		async list(request) {
 			const session = await requireSession(request);
 			const listed = await liveSessionsForUser(session.user.id);

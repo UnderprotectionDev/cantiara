@@ -16,7 +16,7 @@ function RouteComponent() {
 	return (
 		<div>
 			<h1>Dashboard</h1>
-			<p>Welcome {session.data?.user.name}</p>
+			<p>Welcome {session.data?.user?.name}</p>
 			<p>
 				<Link to="/sessions">Sessions</Link>
 			</p>

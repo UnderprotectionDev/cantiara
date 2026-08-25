@@ -690,6 +690,10 @@ _Avoid_: Kayıpsız CSV, formül çalıştırabilen ham hücre, kanıtsız apost
 Yüksek riskli bir işlem öncesinde yeni bir GitHub OAuth turundan dönen değişmez kullanıcı kimliğini mevcut Hesapla eşleyip yalnız o işleme bağlı geçici yetki üreten [sınır](docs/prd/03-account-platform-operations.md#github-kimliğini-yeniden-teyit-etme); parola, MFA veya genel oturum yenileme değildir.
 _Avoid_: Yeniden kimlik doğrulama, MFA, parola doğrulama, genel oturum yenileme
 
+**GitHub bekleniyor**:
+GitHub kesintisinde yeni giriş ve GitHub kimliğini yeniden teyit etmenin görünür bekleme durumu (`Waiting for GitHub`); mevcut geçerli ürün oturumunu uzatmaz ve teyit isteyen yüksek riskli yazmayı fail-closed bırakır.
+_Avoid_: GitHub eşitleme bekletme, App kurulumu, oturum yenileme
+
 **Online-only çalışma**:
 Belge okuma ve düzenleme ile kayıt yazmanın aktif internet bağlantısı gerektirdiği [çalışma modeli](docs/prd/03-account-platform-operations.md#calisma-ve-dagitim-modeli); yerel yazma kuyruğu, offline cache veya otomatik eşitleme yoktur.
 _Avoid_: yerel-first, offline-first, senkron kuyruğu

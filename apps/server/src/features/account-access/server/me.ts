@@ -1,4 +1,4 @@
-import { protectedProcedure } from "@cantiara/api";
+import { protectedProcedure, publicProcedure } from "@cantiara/api";
 import {
 	AccountAccessError,
 	auth,
@@ -10,6 +10,14 @@ import { z } from "zod";
 
 function rethrowAccountAccess(error: unknown): never {
 	if (error instanceof AccountAccessError) {
+		if (error.status === 503) {
+			throw new ORPCError("SERVICE_UNAVAILABLE", {
+				message: error.message,
+			});
+		}
+		if (error.status === 400) {
+			throw new ORPCError("BAD_REQUEST", { message: error.message });
+		}
 		throw new ORPCError(error.status === 403 ? "FORBIDDEN" : "UNAUTHORIZED", {
 			message: error.message,
 		});
@@ -18,6 +26,16 @@ function rethrowAccountAccess(error: unknown): never {
 }
 
 export const accountAccess = {
+	confirmGitHubIdentity: protectedProcedure.handler(async ({ context }) => {
+		try {
+			return await auth.accountAccess.confirmGitHubIdentity(context.request);
+		} catch (error) {
+			rethrowAccountAccess(error);
+		}
+	}),
+	githubAvailability: publicProcedure.handler(() =>
+		auth.accountAccess.githubAvailability()
+	),
 	me: protectedProcedure.handler(async ({ context }) => {
 		const access = await getAccountAccessForUser(
 			getPrismaClient(),

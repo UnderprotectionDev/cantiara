@@ -6,6 +6,13 @@ import { bearer } from "better-auth/plugins/bearer";
 
 import { AccountAccessError } from "./account-access-error";
 import { createAccountSessionAccess } from "./account-sessions";
+import { isLoggedOutGetSessionBody } from "./get-session-body";
+import {
+	type GitHubAvailability,
+	githubWaitingResponse,
+	isGitHubWaiting,
+	probeGitHubAvailability,
+} from "./github-availability";
 import {
 	ensureWorkspaceForAccount,
 	GITHUB_IDENTITY_SCOPES,
@@ -47,6 +54,7 @@ export interface CreateAuthOptions {
 		clientId: string;
 		clientSecret: string;
 	};
+	githubAvailability?: () => Promise<GitHubAvailability>;
 	now?: () => Date;
 	prisma: PrismaClient;
 	rateLimit?: {
@@ -74,6 +82,8 @@ export function createAuth(options: CreateAuthOptions) {
 	const securityEventLog =
 		options.securityEventLog ?? createMemorySecurityEventLog();
 	const now = options.now ?? (() => new Date());
+	const githubAvailability =
+		options.githubAvailability ?? (() => probeGitHubAvailability());
 
 	const auth = betterAuth({
 		account: {
@@ -191,6 +201,7 @@ export function createAuth(options: CreateAuthOptions) {
 	const accountAccess = createAccountSessionAccess({
 		auditLog,
 		auth,
+		githubAvailability,
 		now,
 		prisma: options.prisma,
 		secret: options.secret,
@@ -201,8 +212,10 @@ export function createAuth(options: CreateAuthOptions) {
 	const innerHandler = auth.handler.bind(auth);
 	const handler = (request: Request) =>
 		handleAuthRequest(request, {
+			accountAccess,
 			auditLog,
 			auth,
+			githubAvailability,
 			innerHandler,
 			limiter,
 			now,
@@ -228,36 +241,62 @@ interface AuthSessionLookup {
 	};
 }
 
-async function handleAuthRequest(
-	request: Request,
-	deps: {
-		auditLog: AuditLog;
-		auth: AuthSessionLookup;
-		innerHandler: (request: Request) => Promise<Response>;
-		limiter: RateLimiter;
-		now: () => Date;
-		prisma: PrismaClient;
-		secret: string;
-		trustedOrigins: string[];
-	}
-): Promise<Response> {
-	const { pathname } = new URL(request.url);
-	const isSignIn = isGitHubSignInPath(pathname);
-	const ip = clientIpFromRequest(request);
+interface AuthRequestDeps {
+	accountAccess: { current: (request: Request) => Promise<unknown> };
+	auditLog: AuditLog;
+	auth: AuthSessionLookup;
+	githubAvailability: () => Promise<GitHubAvailability>;
+	innerHandler: (request: Request) => Promise<Response>;
+	limiter: RateLimiter;
+	now: () => Date;
+	prisma: PrismaClient;
+	secret: string;
+	trustedOrigins: string[];
+}
 
+async function interceptSignInAndTauriExchange(
+	request: Request,
+	pathname: string,
+	isSignIn: boolean,
+	deps: AuthRequestDeps
+): Promise<Response | null> {
+	const ip = clientIpFromRequest(request);
 	if (isSignIn && !deps.limiter.consume(`ip:${ip}`)) {
 		return genericSignInFailureResponse(429);
 	}
+	if (isSignIn && isGitHubWaiting(await deps.githubAvailability())) {
+		return githubWaitingResponse();
+	}
+	if (!(pathname.endsWith("/tauri/exchange") && request.method === "POST")) {
+		return null;
+	}
+	if (!deps.limiter.consume(`ip:${ip}`)) {
+		return genericSignInFailureResponse(429);
+	}
+	return exchangeTauriCodeResponse(request, deps);
+}
 
-	if (pathname.endsWith("/tauri/exchange") && request.method === "POST") {
-		if (!deps.limiter.consume(`ip:${ip}`)) {
-			return genericSignInFailureResponse(429);
-		}
-		return exchangeTauriCodeResponse(request, deps);
+async function handleAuthRequest(
+	request: Request,
+	deps: AuthRequestDeps
+): Promise<Response> {
+	const { pathname } = new URL(request.url);
+	const isSignIn = isGitHubSignInPath(pathname);
+	const intercepted = await interceptSignInAndTauriExchange(
+		request,
+		pathname,
+		isSignIn,
+		deps
+	);
+	if (intercepted) {
+		return intercepted;
 	}
 
 	const authRequest = await requestWithWebAppCallback(
-		request,
+		await requestWithDisabledRefreshWhenGitHubWaits(
+			request,
+			deps.githubAvailability
+		),
 		deps.trustedOrigins
 	);
 
@@ -282,15 +321,54 @@ async function handleAuthRequest(
 		return genericSignInFailureResponse(response.status === 429 ? 429 : 401);
 	}
 
+	if (pathname.endsWith("/sign-in/social") && response.ok) {
+		response = await withConsentPromptIfLoginOAuthRevoked(
+			response,
+			deps.prisma
+		);
+	}
+
 	if (pathname.includes("/list-sessions")) {
 		return stripSessionTokens(response);
 	}
+
+	response = await hideGetSessionIfLoginOAuthRevoked(
+		pathname,
+		response,
+		deps.accountAccess,
+		authRequest
+	);
 
 	if (!pathname.includes("/callback/github")) {
 		return response;
 	}
 
 	return admitGitHubCallback(request, response, deps);
+}
+
+async function hideGetSessionIfLoginOAuthRevoked(
+	pathname: string,
+	response: Response,
+	accountAccess: { current: (request: Request) => Promise<unknown> },
+	authRequest: Request
+): Promise<Response> {
+	if (!(pathname.endsWith("/get-session") && response.ok)) {
+		return response;
+	}
+	let payload: unknown;
+	try {
+		payload = await response.clone().json();
+	} catch {
+		return response;
+	}
+	if (isLoggedOutGetSessionBody(payload)) {
+		return payload === null ? response : Response.json(null);
+	}
+	const live = await accountAccess.current(authRequest);
+	if (live) {
+		return response;
+	}
+	return Response.json(null);
 }
 
 async function exchangeTauriCodeResponse(
@@ -467,6 +545,86 @@ function cookieHeadersFromResponse(
 		[...jar.entries()].map(([name, value]) => `${name}=${value}`).join("; ")
 	);
 	return headers;
+}
+
+async function requestWithDisabledRefreshWhenGitHubWaits(
+	request: Request,
+	githubAvailability: () => Promise<GitHubAvailability>
+): Promise<Request> {
+	const url = new URL(request.url);
+	if (!url.pathname.endsWith("/get-session")) {
+		return request;
+	}
+	if (!isGitHubWaiting(await githubAvailability())) {
+		return request;
+	}
+	url.searchParams.set("disableRefresh", "true");
+	return new Request(url.toString(), request);
+}
+
+async function withConsentPromptIfLoginOAuthRevoked(
+	response: Response,
+	prisma: PrismaClient
+): Promise<Response> {
+	const revoked = await prisma.account.findFirst({
+		select: { id: true },
+		where: { accessToken: null, providerId: "github" },
+	});
+	if (!revoked) {
+		return response;
+	}
+
+	const location = response.headers.get("location");
+	const redirected = location ? addConsentPrompt(location) : location;
+	let payload: Record<string, unknown> | null = null;
+	try {
+		payload = (await response.clone().json()) as Record<string, unknown>;
+	} catch {
+		payload = null;
+	}
+	const nextUrl =
+		typeof payload?.url === "string" ? addConsentPrompt(payload.url) : null;
+	const jsonChanged = Boolean(payload && nextUrl && nextUrl !== payload.url);
+	const locationChanged = Boolean(
+		location && redirected && redirected !== location
+	);
+	if (!(jsonChanged || locationChanged)) {
+		return response;
+	}
+
+	if (jsonChanged && payload && nextUrl) {
+		const headers = new Headers();
+		for (const cookie of response.headers.getSetCookie()) {
+			headers.append("set-cookie", cookie);
+		}
+		if (locationChanged && redirected) {
+			headers.set("location", redirected);
+		}
+		return Response.json(
+			{ ...payload, url: nextUrl },
+			{ headers, status: response.status }
+		);
+	}
+
+	const headers = new Headers(response.headers);
+	if (redirected) {
+		headers.set("location", redirected);
+	}
+	return new Response(response.body, {
+		headers,
+		status: response.status,
+		statusText: response.statusText,
+	});
+}
+
+function addConsentPrompt(url: string): string {
+	try {
+		const parsed = new URL(url);
+		parsed.searchParams.set("prompt", "consent");
+		return parsed.toString();
+	} catch {
+		return url;
+	}
 }
 
 async function requestWithWebAppCallback(
