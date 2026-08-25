@@ -38,6 +38,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Locale | `Locale` | Tarih, saat ve sayı biçimini seçen Hesap tercihi; arayüz dili değildir |
 | Saat dilimi | `Time zone` | Takvim gün sınırı, tarih girişi ve tarihsel gösterim dilimi |
 | Tarih biçimi | `Date format` | Tarih yazımı; seçilmezse locale varsayılanını izler |
+| Locale varsayılanı | `Locale default` | Tarih biçiminin locale yazımını izlediği seçenek |
 | Haftanın ilk günü | `First day of week` | Hafta ızgarası ve hafta sınırının başladığı gün |
 | Kaydet | `Save` | Hesap tercihini açıkça yazan eylem |
 | Önerilen locale ve saat dilimini kullan | `Use suggested locale and time zone` | İlk girişte tarayıcı önerisini forma alan, kaydetmeden uygulamayan eylem |
