@@ -1,22 +1,24 @@
-import type {
-	AccountPreferences,
-	AccountPreferencesInput,
-	SuggestedLocaleAndTimeZone,
-} from "@cantiara/auth/account-preferences";
 import {
 	ACCOUNT_PREFERENCES_COPY,
-	applySuggestedLocaleAndTimeZone,
 	DATE_FORMAT_COPY,
-	DATE_FORMATS,
-	FIRST_DAYS_OF_WEEK,
+} from "@cantiara/auth/account-preferences-copy";
+import {
 	formatDate,
 	formatDateTime,
 	formatNumber,
+	weekdayHeaders,
+} from "@cantiara/auth/account-preferences-format";
+import {
+	type AccountPreferences,
+	type AccountPreferencesInput,
+	applySuggestedLocaleAndTimeZone,
+	DATE_FORMATS,
+	FIRST_DAYS_OF_WEEK,
 	localeSelectOptions,
+	type SuggestedLocaleAndTimeZone,
 	shouldShowLocaleTimeZoneSuggestion,
 	timeZoneOptions,
-	weekdayHeaders,
-} from "@cantiara/auth/account-preferences";
+} from "@cantiara/auth/account-preferences-model";
 import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import {

@@ -1,5 +1,5 @@
-import type { AccountPreferencesInput } from "@cantiara/auth/account-preferences";
-import { formatDateTime } from "@cantiara/auth/account-preferences";
+import { formatDateTime } from "@cantiara/auth/account-preferences-format";
+import type { AccountPreferencesInput } from "@cantiara/auth/account-preferences-model";
 
 export function sessionLastActivityDisplay(
 	isoInstant: string,

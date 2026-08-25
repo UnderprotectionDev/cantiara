@@ -14,23 +14,29 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
 	ACCOUNT_PREFERENCES_COPY,
-	applySuggestedLocaleAndTimeZone,
+	preferencesChrome,
+} from "./account-preferences-copy";
+import {
 	calendarDay,
-	DEFAULT_FIRST_DAY_OF_WEEK,
-	DEFAULT_LOCALE,
-	DEFAULT_TIME_ZONE,
 	displayRecord,
 	formatDate,
 	formatDateTime,
 	formatNumber,
-	getAccountPreferences,
 	instantFromCalendarDate,
-	preferencesChrome,
-	saveAccountPreferences,
-	shouldShowLocaleTimeZoneSuggestion,
 	startOfWeekCalendarDate,
 	weekdayHeaders,
-} from "./account-preferences";
+} from "./account-preferences-format";
+import {
+	applySuggestedLocaleAndTimeZone,
+	DEFAULT_FIRST_DAY_OF_WEEK,
+	DEFAULT_LOCALE,
+	DEFAULT_TIME_ZONE,
+	shouldShowLocaleTimeZoneSuggestion,
+} from "./account-preferences-model";
+import {
+	getAccountPreferences,
+	saveAccountPreferences,
+} from "./account-preferences-persist";
 
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
@@ -89,6 +95,16 @@ describe("Account Preferences", () => {
 	afterEach(async () => {
 		await prisma.$disconnect();
 		await pool.end();
+	});
+
+	it("keeps Hesap persist off the web Account Preferences modules", async () => {
+		const copy = await import("./account-preferences-copy");
+		const format = await import("./account-preferences-format");
+		const model = await import("./account-preferences-model");
+		for (const webModule of [copy, format, model]) {
+			expect("getAccountPreferences" in webModule).toBe(false);
+			expect("saveAccountPreferences" in webModule).toBe(false);
+		}
 	});
 
 	it("uses en-GB, Europe/Istanbul, and Monday when the Hesap has no saved preferences", async () => {

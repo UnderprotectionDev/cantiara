@@ -1,4 +1,4 @@
-import { unsavedAccountPreferences } from "@cantiara/auth/account-preferences";
+import { unsavedAccountPreferences } from "@cantiara/auth/account-preferences-model";
 import { Badge } from "@cantiara/ui/components/badge";
 import {
 	Table,

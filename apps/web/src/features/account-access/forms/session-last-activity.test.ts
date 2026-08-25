@@ -1,4 +1,4 @@
-import type { AccountPreferencesInput } from "@cantiara/auth/account-preferences";
+import type { AccountPreferencesInput } from "@cantiara/auth/account-preferences-model";
 import { expect, test } from "vitest";
 
 import { sessionLastActivityDisplay } from "./session-last-activity";
