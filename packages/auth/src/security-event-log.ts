@@ -1,10 +1,13 @@
 import { Pool } from "pg";
 
-import type { SecurityEventLog, SessionRevokedEvent } from "./session-events";
-import { SESSION_REVOKED_EVENT_TYPE } from "./session-events";
+import type { SecurityEventLog, SessionAuditEvent } from "./session-events";
+import { isSessionAuditEventType } from "./session-events";
 
 export const LOCAL_SECURITY_EVENT_LOG_URL =
 	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara_security_events";
+
+const DATABASE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const LEADING_SLASH = /^\//;
 
 const ENSURE_TABLE = `
 CREATE TABLE IF NOT EXISTS security_event (
@@ -29,13 +32,32 @@ interface SecurityEventRow {
 export function createPostgresSecurityEventLog(
 	connectionString: string
 ): SecurityEventLog {
-	const pool = new Pool({ connectionString });
+	let pool = createPool(connectionString);
 	let ready: Promise<void> | undefined;
 
 	async function db() {
-		ready ??= pool.query(ENSURE_TABLE).then(() => undefined);
-		await ready;
+		ready ??= ensureReady();
+		try {
+			await ready;
+		} catch (error) {
+			ready = undefined;
+			throw error;
+		}
 		return pool;
+	}
+
+	async function ensureReady() {
+		try {
+			await pool.query(ENSURE_TABLE);
+		} catch (error) {
+			if (!isUndefinedDatabase(error)) {
+				throw error;
+			}
+			await pool.end().catch(() => undefined);
+			await ensureSecurityEventDatabase(connectionString);
+			pool = createPool(connectionString);
+			await pool.query(ENSURE_TABLE);
+		}
 	}
 
 	return {
@@ -54,6 +76,9 @@ export function createPostgresSecurityEventLog(
 					event.actorAlias,
 				]
 			);
+		},
+		async close() {
+			await pool.end();
 		},
 		async list() {
 			const client = await db();
@@ -74,13 +99,65 @@ export function createPostgresSecurityEventLog(
 	};
 }
 
-function toEvent(row: SecurityEventRow): SessionRevokedEvent {
+async function ensureSecurityEventDatabase(
+	connectionString: string
+): Promise<void> {
+	const database = databaseNameFromUrl(connectionString);
+	const maintenance = new URL(connectionString);
+	maintenance.pathname = "/postgres";
+	const admin = new Pool({ connectionString: maintenance.toString() });
+	try {
+		await admin.query(`CREATE DATABASE ${database}`);
+	} catch (error) {
+		if (!isDuplicateDatabase(error)) {
+			throw error;
+		}
+	} finally {
+		await admin.end();
+	}
+}
+
+function createPool(connectionString: string): Pool {
+	const pool = new Pool({ connectionString });
+	pool.on("error", () => undefined);
+	return pool;
+}
+
+function databaseNameFromUrl(connectionString: string): string {
+	const database = decodeURIComponent(
+		new URL(connectionString).pathname.replace(LEADING_SLASH, "")
+	);
+	if (!DATABASE_NAME.test(database)) {
+		throw new Error("Security-event log database name is invalid");
+	}
+	return database;
+}
+
+function toEvent(row: SecurityEventRow): SessionAuditEvent {
+	if (!isSessionAuditEventType(row.type)) {
+		throw new Error("Security-event log has an unknown event type");
+	}
 	return {
 		accountAlias: row.account_alias,
 		actorAlias: row.actor_alias,
 		id: row.id,
 		occurredAt: row.occurred_at.toISOString(),
 		sessionAlias: row.session_alias,
-		type: SESSION_REVOKED_EVENT_TYPE,
+		type: row.type,
 	};
+}
+
+function postgresErrorCode(error: unknown): string | undefined {
+	if (typeof error !== "object" || error === null || !("code" in error)) {
+		return;
+	}
+	return typeof error.code === "string" ? error.code : undefined;
+}
+
+function isUndefinedDatabase(error: unknown): boolean {
+	return postgresErrorCode(error) === "3D000";
+}
+
+function isDuplicateDatabase(error: unknown): boolean {
+	return postgresErrorCode(error) === "42P04";
 }

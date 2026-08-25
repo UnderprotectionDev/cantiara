@@ -1,29 +1,69 @@
+import { identityAlias } from "./identity-alias";
+
+export const SESSION_SIGNED_IN_EVENT_TYPE = "session.signed_in" as const;
+export const SESSION_SIGNED_OUT_EVENT_TYPE = "session.signed_out" as const;
 export const SESSION_REVOKED_EVENT_TYPE = "session.revoked" as const;
 
-export interface SessionRevokedEvent {
+export type SessionAuditEventType =
+	| typeof SESSION_SIGNED_IN_EVENT_TYPE
+	| typeof SESSION_SIGNED_OUT_EVENT_TYPE
+	| typeof SESSION_REVOKED_EVENT_TYPE;
+
+export interface SessionAuditEvent {
 	accountAlias: string;
 	actorAlias: string;
 	id: string;
 	occurredAt: string;
 	sessionAlias: string;
-	type: typeof SESSION_REVOKED_EVENT_TYPE;
+	type: SessionAuditEventType;
 }
 
+export type SessionRevokedEvent = SessionAuditEvent & {
+	type: typeof SESSION_REVOKED_EVENT_TYPE;
+};
+
 export interface AuditLog {
-	append: (event: SessionRevokedEvent) => Promise<void>;
-	list: () => Promise<readonly SessionRevokedEvent[]>;
+	append: (event: SessionAuditEvent) => Promise<void>;
+	list: () => Promise<readonly SessionAuditEvent[]>;
 }
 
 export interface SecurityEventLog {
-	append: (event: SessionRevokedEvent) => Promise<void>;
-	list: () => Promise<readonly SessionRevokedEvent[]>;
-	replay: (
-		apply: (event: SessionRevokedEvent) => Promise<void>
-	) => Promise<void>;
+	append: (event: SessionAuditEvent) => Promise<void>;
+	close: () => Promise<void>;
+	list: () => Promise<readonly SessionAuditEvent[]>;
+	replay: (apply: (event: SessionAuditEvent) => Promise<void>) => Promise<void>;
+}
+
+export function isSessionAuditEventType(
+	value: string
+): value is SessionAuditEventType {
+	return (
+		value === SESSION_SIGNED_IN_EVENT_TYPE ||
+		value === SESSION_SIGNED_OUT_EVENT_TYPE ||
+		value === SESSION_REVOKED_EVENT_TYPE
+	);
+}
+
+export function sessionAuditEvent(input: {
+	accountId: string;
+	actorId: string;
+	now: Date;
+	secret: string;
+	sessionId: string;
+	type: SessionAuditEventType;
+}): SessionAuditEvent {
+	return {
+		accountAlias: identityAlias("account", input.accountId, input.secret),
+		actorAlias: identityAlias("account", input.actorId, input.secret),
+		id: crypto.randomUUID(),
+		occurredAt: input.now.toISOString(),
+		sessionAlias: identityAlias("session", input.sessionId, input.secret),
+		type: input.type,
+	};
 }
 
 export function createMemoryAuditLog(): AuditLog {
-	const events: SessionRevokedEvent[] = [];
+	const events: SessionAuditEvent[] = [];
 	return {
 		append(event) {
 			events.push(event);
@@ -36,10 +76,13 @@ export function createMemoryAuditLog(): AuditLog {
 }
 
 export function createMemorySecurityEventLog(): SecurityEventLog {
-	const events: SessionRevokedEvent[] = [];
+	const events: SessionAuditEvent[] = [];
 	return {
 		append(event) {
 			events.push(event);
+			return Promise.resolve();
+		},
+		close() {
 			return Promise.resolve();
 		},
 		list() {

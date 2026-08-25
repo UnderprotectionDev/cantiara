@@ -13,6 +13,24 @@ export function isPastAbsoluteLifetime(
 	return now.getTime() - createdAt.getTime() > SESSION_ABSOLUTE_SECONDS * 1000;
 }
 
+export function isPastIdleExpiry(
+	expiresAt: Date,
+	now: Date = new Date()
+): boolean {
+	return now.getTime() >= expiresAt.getTime();
+}
+
+export function isExpiredSessionLifetime(input: {
+	createdAt: Date;
+	expiresAt: Date;
+	now: Date;
+}): boolean {
+	return (
+		isPastAbsoluteLifetime(input.createdAt, input.now) ||
+		isPastIdleExpiry(input.expiresAt, input.now)
+	);
+}
+
 export function deviceFromUserAgent(
 	userAgent: string | null | undefined
 ): string {

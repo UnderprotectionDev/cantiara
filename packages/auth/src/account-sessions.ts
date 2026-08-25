@@ -6,9 +6,16 @@ import {
 } from "./account-access-error";
 import { assertCookieCsrf } from "./csrf";
 import { identityAlias } from "./identity-alias";
-import type { AuditLog, SecurityEventLog } from "./session-events";
-import { SESSION_REVOKED_EVENT_TYPE } from "./session-events";
-import { deviceFromUserAgent, isPastAbsoluteLifetime } from "./session-policy";
+import {
+	type AuditLog,
+	SESSION_REVOKED_EVENT_TYPE,
+	type SecurityEventLog,
+	sessionAuditEvent,
+} from "./session-events";
+import {
+	deviceFromUserAgent,
+	isExpiredSessionLifetime,
+} from "./session-policy";
 
 export interface AccountSession {
 	current: boolean;
@@ -21,6 +28,7 @@ export interface ProductSession {
 	session: {
 		id: string;
 		createdAt: Date;
+		expiresAt: Date;
 		token: string;
 		userId: string;
 	};
@@ -33,20 +41,6 @@ export interface ProductAuth {
 			headers: Headers;
 			query?: { disableCookieCache?: boolean; disableRefresh?: boolean };
 		}) => Promise<ProductSession | null>;
-		listSessions: (args: { headers: Headers }) => Promise<
-			Array<{
-				id: string;
-				token: string;
-				userAgent?: string | null;
-				updatedAt: Date | string;
-				userId: string;
-			}>
-		>;
-		revokeSession: (args: {
-			headers: Headers;
-			body: { token: string };
-		}) => Promise<unknown>;
-		revokeOtherSessions: (args: { headers: Headers }) => Promise<unknown>;
 	};
 }
 
@@ -83,7 +77,13 @@ export function createAccountSessionAccess(deps: {
 		if (!session) {
 			return null;
 		}
-		if (isPastAbsoluteLifetime(new Date(session.session.createdAt), now())) {
+		if (
+			isExpiredSessionLifetime({
+				createdAt: new Date(session.session.createdAt),
+				expiresAt: new Date(session.session.expiresAt),
+				now: now(),
+			})
+		) {
 			await deps.prisma.session.deleteMany({
 				where: { id: session.session.id },
 			});
@@ -105,14 +105,14 @@ export function createAccountSessionAccess(deps: {
 		actorId: string;
 		sessionId: string;
 	}) {
-		const event = {
-			accountAlias: identityAlias("account", input.accountId, deps.secret),
-			actorAlias: identityAlias("account", input.actorId, deps.secret),
-			id: crypto.randomUUID(),
-			occurredAt: now().toISOString(),
-			sessionAlias: identityAlias("session", input.sessionId, deps.secret),
+		const event = sessionAuditEvent({
+			accountId: input.accountId,
+			actorId: input.actorId,
+			now: now(),
+			secret: deps.secret,
+			sessionId: input.sessionId,
 			type: SESSION_REVOKED_EVENT_TYPE,
-		};
+		});
 		await deps.auditLog.append(event);
 		await deps.securityEventLog.append(event);
 	}

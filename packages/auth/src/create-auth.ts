@@ -16,13 +16,18 @@ import {
 	createMemoryRateLimiter,
 	type RateLimiter,
 } from "./rate-limit";
-import type { AuditLog, SecurityEventLog } from "./session-events";
 import {
+	type AuditLog,
 	createMemoryAuditLog,
 	createMemorySecurityEventLog,
+	SESSION_SIGNED_IN_EVENT_TYPE,
+	SESSION_SIGNED_OUT_EVENT_TYPE,
+	type SecurityEventLog,
+	sessionAuditEvent,
 } from "./session-events";
 import {
 	isPastAbsoluteLifetime,
+	isPastIdleExpiry,
 	SESSION_IDLE_SECONDS,
 	SESSION_UPDATE_AGE_SECONDS,
 } from "./session-policy";
@@ -91,6 +96,16 @@ export function createAuth(options: CreateAuthOptions) {
 				create: {
 					after: async (session) => {
 						await ensureWorkspaceForAccount(options.prisma, session.userId);
+						await auditLog.append(
+							sessionAuditEvent({
+								accountId: session.userId,
+								actorId: session.userId,
+								now: now(),
+								secret: options.secret,
+								sessionId: session.id,
+								type: SESSION_SIGNED_IN_EVENT_TYPE,
+							})
+						);
 					},
 				},
 			},
@@ -115,21 +130,32 @@ export function createAuth(options: CreateAuthOptions) {
 					return;
 				}
 				const payload = returned as {
-					session?: { createdAt?: Date | string; id?: string };
+					session?: {
+						createdAt?: Date | string;
+						expiresAt?: Date | string;
+						id?: string;
+					};
 				};
-				if (!payload.session?.createdAt) {
+				if (!(payload.session?.createdAt && payload.session.id)) {
 					return;
 				}
+				const nowDate = now();
+				const idleExpired = payload.session.expiresAt
+					? isPastIdleExpiry(new Date(payload.session.expiresAt), nowDate)
+					: false;
 				if (
-					!isPastAbsoluteLifetime(new Date(payload.session.createdAt), now())
+					!(
+						isPastAbsoluteLifetime(
+							new Date(payload.session.createdAt),
+							nowDate
+						) || idleExpired
+					)
 				) {
 					return;
 				}
-				if (payload.session.id) {
-					await options.prisma.session.deleteMany({
-						where: { id: payload.session.id },
-					});
-				}
+				await options.prisma.session.deleteMany({
+					where: { id: payload.session.id },
+				});
 				ctx.context.returned = null;
 			}),
 		},
@@ -169,9 +195,12 @@ export function createAuth(options: CreateAuthOptions) {
 	const innerHandler = auth.handler.bind(auth);
 	const handler = (request: Request) =>
 		handleAuthRequest(request, {
+			auditLog,
 			auth,
 			innerHandler,
 			limiter,
+			now,
+			secret: options.secret,
 			trustedOrigins: options.trustedOrigins,
 		});
 
@@ -185,18 +214,22 @@ export function createAuth(options: CreateAuthOptions) {
 
 interface AuthSessionLookup {
 	api: {
-		getSession: (args: {
-			headers: Headers;
-		}) => Promise<{ user: { id: string } } | null>;
+		getSession: (args: { headers: Headers }) => Promise<{
+			session: { id: string };
+			user: { id: string };
+		} | null>;
 	};
 }
 
 async function handleAuthRequest(
 	request: Request,
 	deps: {
+		auditLog: AuditLog;
 		auth: AuthSessionLookup;
 		innerHandler: (request: Request) => Promise<Response>;
 		limiter: RateLimiter;
+		now: () => Date;
+		secret: string;
 		trustedOrigins: string[];
 	}
 ): Promise<Response> {
@@ -212,6 +245,16 @@ async function handleAuthRequest(
 		request,
 		deps.trustedOrigins
 	);
+
+	if (pathname.endsWith("/sign-out") && request.method === "POST") {
+		await recordSignOutAudit({
+			auditLog: deps.auditLog,
+			auth: deps.auth,
+			now: deps.now,
+			request: authRequest,
+			secret: deps.secret,
+		});
+	}
 
 	let response: Response;
 	try {
@@ -233,6 +276,39 @@ async function handleAuthRequest(
 	}
 
 	return admitGitHubCallback(request, response, deps);
+}
+
+async function recordSignOutAudit(deps: {
+	auditLog: AuditLog;
+	auth: AuthSessionLookup;
+	now: () => Date;
+	request: Request;
+	secret: string;
+}): Promise<void> {
+	let session: {
+		session: { id: string };
+		user: { id: string };
+	} | null;
+	try {
+		session = await deps.auth.api.getSession({
+			headers: deps.request.headers,
+		});
+	} catch {
+		return;
+	}
+	if (!session) {
+		return;
+	}
+	await deps.auditLog.append(
+		sessionAuditEvent({
+			accountId: session.user.id,
+			actorId: session.user.id,
+			now: deps.now(),
+			secret: deps.secret,
+			sessionId: session.session.id,
+			type: SESSION_SIGNED_OUT_EVENT_TYPE,
+		})
+	);
 }
 
 async function stripSessionTokens(response: Response): Promise<Response> {

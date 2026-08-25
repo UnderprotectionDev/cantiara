@@ -14,9 +14,10 @@ describe("Prisma Denetim kaydı", () => {
 	let prisma: PrismaClient;
 	let pool: Pool;
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		pool = new Pool({ connectionString: DATABASE_URL });
 		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+		await prisma.auditEvent.deleteMany();
 	});
 
 	afterEach(async () => {
@@ -24,8 +25,7 @@ describe("Prisma Denetim kaydı", () => {
 		await pool.end();
 	});
 
-	it("creates the Denetim kaydı table when it is missing", async () => {
-		await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "audit_event"`);
+	it("appends to the migrated Denetim kaydı table", async () => {
 		const log = createPrismaAuditLog(prisma);
 		await log.append({
 			accountAlias: "a".repeat(64),

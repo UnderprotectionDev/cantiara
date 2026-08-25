@@ -28,7 +28,10 @@ export {
 	createMemoryAuditLog,
 	createMemorySecurityEventLog,
 	SESSION_REVOKED_EVENT_TYPE,
+	SESSION_SIGNED_IN_EVENT_TYPE,
+	SESSION_SIGNED_OUT_EVENT_TYPE,
 	type SecurityEventLog,
+	type SessionAuditEvent,
 	type SessionRevokedEvent,
 } from "./session-events";
 export {
