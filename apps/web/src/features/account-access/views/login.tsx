@@ -1,11 +1,18 @@
+import { useQuery } from "@tanstack/react-query";
+
 import ContinueWithGitHub from "@/features/account-access/forms/continue-with-github";
 import {
 	postSignInPath,
 	SESSIONS_PATH,
 } from "@/features/account-access/forms/post-sign-in-path";
+import { orpc } from "@/utils/orpc";
 
 export default function Login({ redirect }: { redirect?: string }) {
 	const returningToSessions = postSignInPath(redirect) === SESSIONS_PATH;
+	const availability = useQuery({
+		...orpc.accountAccess.githubAvailability.queryOptions(),
+		refetchInterval: 15_000,
+	});
 
 	return (
 		<div className="mx-auto mt-16 w-full max-w-md p-6">
@@ -15,7 +22,10 @@ export default function Login({ redirect }: { redirect?: string }) {
 					? "Sign in to open Sessions."
 					: "GitHub identity bound to your Account."}
 			</p>
-			<ContinueWithGitHub redirect={redirect} />
+			<ContinueWithGitHub
+				availability={availability.data?.status}
+				redirect={redirect}
+			/>
 		</div>
 	);
 }

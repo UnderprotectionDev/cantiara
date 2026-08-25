@@ -5,6 +5,11 @@ import { createAuthMiddleware } from "better-auth/api";
 
 import { createAccountSessionAccess } from "./account-sessions";
 import {
+	type GitHubAvailability,
+	githubWaitingResponse,
+	probeGitHubAvailability,
+} from "./github-availability";
+import {
 	ensureWorkspaceForAccount,
 	GITHUB_IDENTITY_SCOPES,
 	genericSignInFailureResponse,
@@ -42,6 +47,7 @@ export interface CreateAuthOptions {
 		clientId: string;
 		clientSecret: string;
 	};
+	githubAvailability?: () => Promise<GitHubAvailability>;
 	now?: () => Date;
 	prisma: PrismaClient;
 	rateLimit?: {
@@ -69,6 +75,8 @@ export function createAuth(options: CreateAuthOptions) {
 	const securityEventLog =
 		options.securityEventLog ?? createMemorySecurityEventLog();
 	const now = options.now ?? (() => new Date());
+	const githubAvailability =
+		options.githubAvailability ?? (() => probeGitHubAvailability());
 
 	const auth = betterAuth({
 		account: {
@@ -185,6 +193,7 @@ export function createAuth(options: CreateAuthOptions) {
 	const accountAccess = createAccountSessionAccess({
 		auditLog,
 		auth,
+		githubAvailability,
 		now,
 		prisma: options.prisma,
 		secret: options.secret,
@@ -197,6 +206,7 @@ export function createAuth(options: CreateAuthOptions) {
 		handleAuthRequest(request, {
 			auditLog,
 			auth,
+			githubAvailability,
 			innerHandler,
 			limiter,
 			now,
@@ -226,6 +236,7 @@ async function handleAuthRequest(
 	deps: {
 		auditLog: AuditLog;
 		auth: AuthSessionLookup;
+		githubAvailability: () => Promise<GitHubAvailability>;
 		innerHandler: (request: Request) => Promise<Response>;
 		limiter: RateLimiter;
 		now: () => Date;
@@ -239,6 +250,10 @@ async function handleAuthRequest(
 
 	if (isSignIn && !deps.limiter.consume(`ip:${ip}`)) {
 		return genericSignInFailureResponse(429);
+	}
+
+	if (isSignIn && (await deps.githubAvailability()) === "waiting") {
+		return githubWaitingResponse();
 	}
 
 	const authRequest = await requestWithWebAppCallback(

@@ -1,6 +1,7 @@
 /**
  * Account Access seam — GitHub sign-in, Account, Workspace, Sessions,
- * revoke, lifetime, CSRF, and revoke replay.
+ * revoke, lifetime, CSRF, revoke replay, GitHub outage waiting,
+ * login OAuth revocation, and GitHub App uninstall independence.
  * Synthetic fixture for the sign-in and session slice of
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Hesap ve kişisel veri).
@@ -60,6 +61,7 @@ const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function installGitHubOAuthDouble(options: {
+	onAppInstallationLookup?: () => void;
 	profileForCode: (code: string) => GitHubProfile | "fail";
 }) {
 	const originalFetch = globalThis.fetch;
@@ -102,10 +104,31 @@ function installGitHubOAuthDouble(options: {
 				name: profile.name,
 			});
 		}
+		if (url === "https://api.github.com/" || url === "https://api.github.com") {
+			return new Response(null, { status: 200 });
+		}
+		if (url.includes("/app/installations") || url.includes("/installation/")) {
+			options.onAppInstallationLookup?.();
+			return Response.json({ message: "Not Found" }, { status: 404 });
+		}
 		return originalFetch(input, init);
 	};
 	return () => {
 		globalThis.fetch = originalFetch;
+	};
+}
+
+function installGitHubDownDouble() {
+	const inner = globalThis.fetch;
+	globalThis.fetch = (input, init) => {
+		const url = String(input instanceof Request ? input.url : input);
+		if (url.includes("github.com")) {
+			return Promise.reject(new Error("GitHub unavailable"));
+		}
+		return inner(input, init);
+	};
+	return () => {
+		globalThis.fetch = inner;
 	};
 }
 
@@ -557,22 +580,43 @@ describe("Account Access", () => {
 		});
 	});
 
-	it("keeps a valid session without consulting a GitHub App installation", async () => {
+	it("keeps Hesap identity and a valid product session when the GitHub App is uninstalled", async () => {
+		let installationLookups = 0;
 		const restore = installGitHubOAuthDouble({
+			onAppInstallationLookup: () => {
+				installationLookups += 1;
+			},
 			profileForCode: () => founder,
 		});
 		const auth = createAccess();
-		const cookies = cookieJar();
-		const start = await startGitHubSignIn(auth.handler, cookies);
-		await completeGitHubCallback(auth.handler, cookies, {
-			code: "founder-first",
-			state: authorizationState(String((await jsonBody(start)).url)),
+		const cookies = await signInDevice(auth, {
+			code: "founder-app-uninstalled",
+			userAgent: MAC_USER_AGENT,
 		});
-		const session = await auth.api.getSession({
+		const signedIn = await auth.api.getSession({
 			headers: new Headers({ cookie: cookies.header() }),
 		});
-		expect(session?.user.id).toBeTruthy();
-		expect("githubAppInstallation" in prisma).toBe(false);
+		const before = await getAccountAccessForUser(
+			prisma,
+			signedIn?.user.id ?? ""
+		);
+		expect(before?.githubUserId).toBe(String(founder.id));
+
+		await auth.accountAccess.applyGitHubAppUninstalled({
+			githubUserId: String(founder.id),
+			installationId: "inst-uninstalled",
+		});
+
+		expect(
+			(await auth.accountAccess.current(productRequest(cookies)))?.session.id
+		).toBe(signedIn?.session.id);
+		await expect(
+			auth.accountAccess.write(productRequest(cookies))
+		).resolves.toMatchObject({ written: true });
+		expect(
+			await getAccountAccessForUser(prisma, signedIn?.user.id ?? "")
+		).toEqual(before);
+		expect(installationLookups).toBe(0);
 		restore();
 	});
 
@@ -609,6 +653,164 @@ describe("Account Access", () => {
 			globalThis.fetch = inner;
 			restore();
 		}
+	});
+
+	it("waits visibly on a new GitHub sign-in when GitHub is down", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const restoreDown = installGitHubDownDouble();
+		try {
+			const auth = createAccess();
+			const start = await startGitHubSignIn(auth.handler, cookieJar());
+			expect(start.status).toBe(503);
+			expect(await jsonBody(start)).toEqual({
+				message: "Waiting for GitHub",
+				status: "waiting",
+			});
+			expect(await auth.accountAccess.githubAvailability()).toBe("waiting");
+		} finally {
+			restoreDown();
+			restore();
+		}
+	});
+
+	it("waits on Confirm GitHub Identity and does not consume a high-risk grant when GitHub is down", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-confirm-wait",
+			userAgent: MAC_USER_AGENT,
+		});
+		const restoreDown = installGitHubDownDouble();
+		try {
+			const started = await auth.accountAccess.confirmGitHubIdentity(
+				productRequest(cookies)
+			);
+			expect(started).toEqual({
+				message: "Waiting for GitHub",
+				status: "waiting",
+			});
+			await expect(
+				auth.accountAccess.consumeConfirmGitHubIdentityGrant(
+					productRequest(cookies),
+					"account-closure-start"
+				)
+			).rejects.toMatchObject({
+				message: "Waiting for GitHub",
+				status: 503,
+			});
+			await expect(
+				auth.accountAccess.write(productRequest(cookies))
+			).resolves.toMatchObject({ written: true });
+		} finally {
+			restoreDown();
+			restore();
+		}
+	});
+
+	it("revokes a product session while GitHub is down", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const current = await signInDevice(auth, {
+			code: "founder-revoke-down",
+			userAgent: MAC_USER_AGENT,
+		});
+		const other = await signInDevice(auth, {
+			code: "founder-revoke-down-other",
+			ip: "198.51.100.26",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+		const listed = await auth.accountAccess.list(productRequest(current));
+		const otherId = listed.find((session) => !session.current)?.id ?? "";
+		const restoreDown = installGitHubDownDouble();
+		try {
+			await auth.accountAccess.revoke(productRequest(current), otherId);
+			await expect(
+				auth.accountAccess.write(productRequest(other))
+			).rejects.toMatchObject({
+				message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+				status: 401,
+			});
+			await expect(
+				auth.accountAccess.write(productRequest(current))
+			).resolves.toMatchObject({ written: true });
+		} finally {
+			restoreDown();
+			restore();
+		}
+	});
+
+	it("ends every product session when GitHub login OAuth is revoked and the next sign-in asks for consent", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const current = await signInDevice(auth, {
+			code: "founder-login-revoked",
+			userAgent: MAC_USER_AGENT,
+		});
+		const other = await signInDevice(auth, {
+			code: "founder-login-revoked-other",
+			ip: "198.51.100.27",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+		const signedIn = await auth.api.getSession({
+			headers: new Headers({ cookie: current.header() }),
+		});
+		const before = await getAccountAccessForUser(
+			prisma,
+			signedIn?.user.id ?? ""
+		);
+		expect(before?.githubUserId).toBe(String(founder.id));
+
+		await auth.accountAccess.applyGitHubLoginOAuthRevoked(String(founder.id));
+
+		await expect(
+			auth.accountAccess.write(productRequest(current))
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		await expect(
+			auth.accountAccess.write(productRequest(other))
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+
+		const nextCookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			nextCookies,
+			"198.51.100.28"
+		);
+		const payload = await jsonBody(start);
+		expect(start.ok).toBe(true);
+		expect(String(payload.url)).toContain("github.com/login/oauth/authorize");
+		const callback = await completeGitHubCallback(auth.handler, nextCookies, {
+			code: "founder-login-revoked-again",
+			ip: "198.51.100.28",
+			state: authorizationState(String(payload.url)),
+		});
+		expect(callback.status).toBeGreaterThanOrEqual(300);
+		expect(callback.status).toBeLessThan(400);
+		const signedInAgain = await auth.api.getSession({
+			headers: new Headers({ cookie: nextCookies.header() }),
+		});
+		const after = await getAccountAccessForUser(
+			prisma,
+			signedInAgain?.user.id ?? ""
+		);
+		expect(after).toEqual(before);
+		await expect(
+			auth.accountAccess.write(productRequest(nextCookies))
+		).resolves.toMatchObject({ written: true });
+		restore();
 	});
 
 	async function signInDevice(

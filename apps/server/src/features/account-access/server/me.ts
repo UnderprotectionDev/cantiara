@@ -1,8 +1,9 @@
-import { protectedProcedure } from "@cantiara/api";
+import { protectedProcedure, publicProcedure } from "@cantiara/api";
 import {
 	AccountAccessError,
 	auth,
 	getAccountAccessForUser,
+	WAITING_FOR_GITHUB_MESSAGE,
 } from "@cantiara/auth";
 import { getPrismaClient } from "@cantiara/db";
 import { ORPCError } from "@orpc/server";
@@ -18,6 +19,12 @@ function rethrowAccountAccess(error: unknown): never {
 }
 
 export const accountAccess = {
+	githubAvailability: publicProcedure.handler(async () => {
+		const status = await auth.accountAccess.githubAvailability();
+		return status === "waiting"
+			? { message: WAITING_FOR_GITHUB_MESSAGE, status }
+			: { status };
+	}),
 	me: protectedProcedure.handler(async ({ context }) => {
 		const access = await getAccountAccessForUser(
 			getPrismaClient(),
