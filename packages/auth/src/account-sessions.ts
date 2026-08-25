@@ -161,14 +161,13 @@ export function createAccountSessionAccess(deps: {
 			if (!target || target.userId !== session.user.id) {
 				throw new AccountAccessError(401, SESSION_WRITE_UNAUTHORIZED_MESSAGE);
 			}
-			await deps.auth.api.revokeSession({
-				body: { token: target.token },
-				headers: request.headers,
-			});
 			await recordRevoke({
 				accountId: session.user.id,
 				actorId: session.user.id,
 				sessionId: target.id,
+			});
+			await deps.prisma.session.deleteMany({
+				where: { id: target.id },
 			});
 		},
 		async revokeOthers(request) {
@@ -178,9 +177,6 @@ export function createAccountSessionAccess(deps: {
 				headers: request.headers,
 			});
 			const others = listed.filter((item) => item.id !== session.session.id);
-			await deps.auth.api.revokeOtherSessions({
-				headers: request.headers,
-			});
 			await Promise.all(
 				others.map((other) =>
 					recordRevoke({
@@ -190,6 +186,11 @@ export function createAccountSessionAccess(deps: {
 					})
 				)
 			);
+			if (others.length > 0) {
+				await deps.prisma.session.deleteMany({
+					where: { id: { in: others.map((other) => other.id) } },
+				});
+			}
 		},
 		async write(request) {
 			assertCookieCsrf(request, deps.trustedOrigins);

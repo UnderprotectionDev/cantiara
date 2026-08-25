@@ -14,7 +14,8 @@ import {
 	AccountAccessError,
 	CSRF_REJECTED_MESSAGE,
 } from "./account-access-error";
-import { createAuth } from "./create-auth";
+import { createPrismaAuditLog } from "./audit-log";
+import { type CreateAuthOptions, createAuth } from "./create-auth";
 import {
 	getAccountAccessForUser,
 	SIGN_IN_FAILED_MESSAGE,
@@ -255,6 +256,7 @@ describe("Account Access", () => {
 		await prisma.account.deleteMany();
 		await prisma.verification.deleteMany();
 		await prisma.user.deleteMany();
+		await prisma.auditEvent.deleteMany();
 	});
 
 	afterEach(async () => {
@@ -262,7 +264,7 @@ describe("Account Access", () => {
 		await pool.end();
 	});
 
-	function createAccess() {
+	function createAccess(overrides: Partial<CreateAuthOptions> = {}) {
 		return createAuth({
 			baseURL: BASE_URL,
 			github: {
@@ -276,6 +278,7 @@ describe("Account Access", () => {
 			},
 			secret: "test-secret-test-secret-test-secret-32",
 			trustedOrigins: [WEB_ORIGIN],
+			...overrides,
 		});
 	}
 
@@ -623,6 +626,65 @@ describe("Account Access", () => {
 		await expect(
 			auth.accountAccess.write(productRequest(other))
 		).resolves.toMatchObject({ written: true });
+		restore();
+	});
+
+	it("keeps this product session when the Denetim kaydı cannot be written", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess({
+			auditLog: {
+				append: () => Promise.reject(new Error("audit unavailable")),
+				list: () => Promise.resolve([]),
+			},
+		});
+		const current = await signInDevice(auth, {
+			code: "founder-audit-fail",
+			userAgent: MAC_USER_AGENT,
+		});
+		const listed = await auth.accountAccess.list(productRequest(current));
+		const currentId = listed.find((session) => session.current)?.id;
+		expect(currentId).toBeDefined();
+
+		await expect(
+			auth.accountAccess.revoke(productRequest(current), currentId ?? "")
+		).rejects.toThrow("audit unavailable");
+		await expect(
+			auth.accountAccess.write(productRequest(current))
+		).resolves.toMatchObject({ written: true });
+		restore();
+	});
+
+	it("records a Prisma Denetim kaydı when Revoke Session succeeds", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		await prisma.auditEvent.deleteMany();
+		const auth = createAccess({
+			auditLog: createPrismaAuditLog(prisma),
+		});
+		const current = await signInDevice(auth, {
+			code: "founder-prisma-audit",
+			userAgent: MAC_USER_AGENT,
+		});
+		const other = await signInDevice(auth, {
+			code: "founder-prisma-audit-other",
+			ip: "198.51.100.26",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+		const listed = await auth.accountAccess.list(productRequest(current));
+		const otherId = listed.find((session) => !session.current)?.id;
+		expect(otherId).toBeDefined();
+
+		await auth.accountAccess.revoke(productRequest(current), otherId ?? "");
+
+		const events = await prisma.auditEvent.findMany();
+		expect(events).toHaveLength(1);
+		expect(events[0]?.type).toBe(SESSION_REVOKED_EVENT_TYPE);
+		await expect(
+			auth.accountAccess.write(productRequest(other))
+		).rejects.toMatchObject({ status: 401 });
 		restore();
 	});
 
