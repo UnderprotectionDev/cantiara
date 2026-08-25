@@ -205,6 +205,7 @@ export function createAuth(options: CreateAuthOptions) {
 	const innerHandler = auth.handler.bind(auth);
 	const handler = (request: Request) =>
 		handleAuthRequest(request, {
+			accountAccess,
 			auditLog,
 			auth,
 			githubAvailability,
@@ -236,6 +237,7 @@ interface AuthSessionLookup {
 async function handleAuthRequest(
 	request: Request,
 	deps: {
+		accountAccess: { current: (request: Request) => Promise<unknown> };
 		auditLog: AuditLog;
 		auth: AuthSessionLookup;
 		githubAvailability: () => Promise<GitHubAvailability>;
@@ -299,11 +301,34 @@ async function handleAuthRequest(
 		return stripSessionTokens(response);
 	}
 
+	response = await hideGetSessionIfLoginOAuthRevoked(
+		pathname,
+		response,
+		deps.accountAccess,
+		authRequest
+	);
+
 	if (!pathname.includes("/callback/github")) {
 		return response;
 	}
 
 	return admitGitHubCallback(request, response, deps);
+}
+
+async function hideGetSessionIfLoginOAuthRevoked(
+	pathname: string,
+	response: Response,
+	accountAccess: { current: (request: Request) => Promise<unknown> },
+	authRequest: Request
+): Promise<Response> {
+	if (!(pathname.endsWith("/get-session") && response.ok)) {
+		return response;
+	}
+	const live = await accountAccess.current(authRequest);
+	if (live) {
+		return response;
+	}
+	return Response.json({ session: null });
 }
 
 async function recordSignOutAudit(deps: {

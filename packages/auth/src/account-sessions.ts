@@ -14,6 +14,7 @@ import {
 	isGitHubWaiting,
 	WAITING_FOR_GITHUB_MESSAGE,
 } from "./github-availability";
+import { inspectGitHubLoginAccessToken } from "./github-login-token";
 import { identityAlias } from "./identity-alias";
 import {
 	type AuditLog,
@@ -91,6 +92,41 @@ export function createAccountSessionAccess(deps: {
 }): AccountSessionAccess {
 	const now = deps.now ?? (() => new Date());
 
+	async function applyGitHubLoginOAuthRevoked(githubUserId: string) {
+		const githubAccount = await deps.prisma.account.findFirst({
+			where: {
+				accountId: githubUserId,
+				providerId: "github",
+			},
+		});
+		if (!githubAccount) {
+			return;
+		}
+		const sessions = await liveSessionsForUser(githubAccount.userId);
+		await Promise.all(
+			sessions.map((session) =>
+				recordRevoke({
+					accountId: githubAccount.userId,
+					actorId: githubAccount.userId,
+					sessionId: session.id,
+				})
+			)
+		);
+		await deps.prisma.session.deleteMany({
+			where: { userId: githubAccount.userId },
+		});
+		await deps.prisma.account.update({
+			data: {
+				accessToken: null,
+				accessTokenExpiresAt: null,
+				idToken: null,
+				refreshToken: null,
+				refreshTokenExpiresAt: null,
+			},
+			where: { id: githubAccount.id },
+		});
+	}
+
 	async function current(request: Request): Promise<ProductSession | null> {
 		let session: ProductSession | null;
 		try {
@@ -114,6 +150,30 @@ export function createAccountSessionAccess(deps: {
 			await deps.prisma.session.deleteMany({
 				where: { id: session.session.id },
 			});
+			return null;
+		}
+		if (isGitHubWaiting(await deps.githubAvailability())) {
+			return session;
+		}
+		const githubAccount = await deps.prisma.account.findFirst({
+			where: {
+				providerId: "github",
+				userId: session.user.id,
+			},
+		});
+		if (!githubAccount) {
+			return session;
+		}
+		if (!githubAccount.accessToken) {
+			await applyGitHubLoginOAuthRevoked(githubAccount.accountId);
+			return null;
+		}
+		const inspection = await inspectGitHubLoginAccessToken({
+			secret: deps.secret,
+			storedAccessToken: githubAccount.accessToken,
+		});
+		if (inspection === "revoked") {
+			await applyGitHubLoginOAuthRevoked(githubAccount.accountId);
 			return null;
 		}
 		return session;
@@ -158,40 +218,7 @@ export function createAccountSessionAccess(deps: {
 		applyGitHubAppUninstalled(_input) {
 			return Promise.resolve();
 		},
-		async applyGitHubLoginOAuthRevoked(githubUserId) {
-			const githubAccount = await deps.prisma.account.findFirst({
-				where: {
-					accountId: githubUserId,
-					providerId: "github",
-				},
-			});
-			if (!githubAccount) {
-				return;
-			}
-			const sessions = await liveSessionsForUser(githubAccount.userId);
-			await Promise.all(
-				sessions.map((session) =>
-					recordRevoke({
-						accountId: githubAccount.userId,
-						actorId: githubAccount.userId,
-						sessionId: session.id,
-					})
-				)
-			);
-			await deps.prisma.session.deleteMany({
-				where: { userId: githubAccount.userId },
-			});
-			await deps.prisma.account.update({
-				data: {
-					accessToken: null,
-					accessTokenExpiresAt: null,
-					idToken: null,
-					refreshToken: null,
-					refreshTokenExpiresAt: null,
-				},
-				where: { id: githubAccount.id },
-			});
-		},
+		applyGitHubLoginOAuthRevoked,
 		async confirmGitHubIdentity(request) {
 			await requireSession(request);
 			if (isGitHubWaiting(await deps.githubAvailability())) {

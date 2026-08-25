@@ -31,7 +31,7 @@ export function confirmGitHubIdentityStatus(input: {
 	}
 	if (input.confirmation?.status === "ready") {
 		return {
-			text: "This confirms the GitHub identity bound to this Account. It is not a password or MFA prompt.",
+			text: "GitHub is available. Confirm GitHub Identity runs when a high-risk action needs it. It is not a password or MFA prompt.",
 			waiting: false,
 		};
 	}

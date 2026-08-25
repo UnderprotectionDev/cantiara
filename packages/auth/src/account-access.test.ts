@@ -61,6 +61,7 @@ const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function installGitHubOAuthDouble(options: {
+	isAccessTokenRevoked?: (token: string) => boolean;
 	profileForCode: (code: string) => GitHubProfile | "fail";
 }) {
 	const originalFetch = globalThis.fetch;
@@ -79,21 +80,20 @@ function installGitHubOAuthDouble(options: {
 				token_type: "bearer",
 			});
 		}
-		if (url.startsWith("https://api.github.com/user/emails")) {
-			const code = bearerToken(init).replace("gho_", "");
+		if (url.startsWith("https://api.github.com/user")) {
+			const token = bearerToken(init);
+			if (options.isAccessTokenRevoked?.(token)) {
+				return new Response("unauthorized", { status: 401 });
+			}
+			const code = token.replace("gho_", "");
 			const profile = options.profileForCode(code);
 			if (profile === "fail") {
 				return new Response("unauthorized", { status: 401 });
 			}
-			return Response.json([
-				{ email: profile.email, primary: true, verified: true },
-			]);
-		}
-		if (url.startsWith("https://api.github.com/user")) {
-			const code = bearerToken(init).replace("gho_", "");
-			const profile = options.profileForCode(code);
-			if (profile === "fail") {
-				return new Response("unauthorized", { status: 401 });
+			if (url.startsWith("https://api.github.com/user/emails")) {
+				return Response.json([
+					{ email: profile.email, primary: true, verified: true },
+				]);
 			}
 			return Response.json({
 				avatar_url: null,
@@ -885,6 +885,52 @@ describe("Account Access", () => {
 				"prompt"
 			)
 		).toBeNull();
+		restore();
+	});
+
+	it("ends product sessions when GitHub rejects the login OAuth token", async () => {
+		const revokedTokens = new Set<string>();
+		const restore = installGitHubOAuthDouble({
+			isAccessTokenRevoked: (token) => revokedTokens.has(token),
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-github-rejected-token",
+			userAgent: MAC_USER_AGENT,
+		});
+		await expect(
+			auth.accountAccess.write(productRequest(cookies))
+		).resolves.toMatchObject({ written: true });
+
+		revokedTokens.add("gho_founder-github-rejected-token");
+
+		await expect(
+			auth.accountAccess.write(productRequest(cookies))
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		const sessionResponse = await auth.handler(
+			new Request(`${BASE_URL}/api/auth/get-session`, {
+				headers: {
+					cookie: cookies.header(),
+					origin: WEB_ORIGIN,
+				},
+			})
+		);
+		expect(sessionResponse.ok).toBe(true);
+		expect((await jsonBody(sessionResponse)).session).toBeFalsy();
+
+		const nextCookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			nextCookies,
+			"198.51.100.31"
+		);
+		expect(
+			new URL(String((await jsonBody(start)).url)).searchParams.get("prompt")
+		).toBe("consent");
 		restore();
 	});
 
