@@ -4,6 +4,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { createAuthMiddleware } from "better-auth/api";
 
 import { createAccountSessionAccess } from "./account-sessions";
+import { isLoggedOutGetSessionBody } from "./get-session-body";
 import {
 	type GitHubAvailability,
 	githubWaitingResponse,
@@ -330,14 +331,8 @@ async function hideGetSessionIfLoginOAuthRevoked(
 	} catch {
 		return response;
 	}
-	const hadSession = Boolean(
-		payload &&
-			typeof payload === "object" &&
-			"session" in payload &&
-			(payload as { session?: unknown }).session
-	);
-	if (!hadSession) {
-		return response;
+	if (isLoggedOutGetSessionBody(payload)) {
+		return payload === null ? response : Response.json(null);
 	}
 	const live = await accountAccess.current(authRequest);
 	if (live) {
