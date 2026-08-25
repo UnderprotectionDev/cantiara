@@ -31,4 +31,6 @@ Prisma migrate/push against Neon should use the non-pooler host. The app runtime
 2. `turbo.json` `globalPassThroughEnv` forwards those names into `web#dev` and `server#dev`. Without that list Turbo strips them and the API falls back to local Postgres in `.env`.
 3. `scripts/cloud-agent/install.sh` and `start.sh` write localhost fallbacks into `.env` when a key is missing, and drop `NEON_LOCAL` when `DATABASE_URL` is hosted so a snapshot leftover cannot tunnel Neon through the local proxy.
 
-`db push` during install/start always targets local Postgres, not hosted Neon.
+`db push` during install/start always targets local Postgres, not hosted Neon. `start.sh` then runs `prisma migrate deploy` against hosted Neon (non-pooler host) so Account Access tables exist before GitHub sign-in. If that database already has tables without migration history, deploy is skipped.
+
+Cloud Agent `dev` sets `CANTIARA_LISTEN_HOST=0.0.0.0` so Vite accepts IPv4 port forwards (`127.0.0.1:3001`). GitHub OAuth secrets stay in process env; they are not copied into `apps/server/.env`.

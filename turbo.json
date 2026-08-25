@@ -4,7 +4,9 @@
   "globalPassThroughEnv": [
     "BETTER_AUTH_SECRET",
     "BETTER_AUTH_URL",
+    "CANTIARA_LISTEN_HOST",
     "CORS_ORIGIN",
+    "CURSOR_AGENT",
     "DATABASE_URL",
     "GITHUB_CLIENT_ID",
     "GITHUB_CLIENT_SECRET",

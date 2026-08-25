@@ -43,4 +43,14 @@ log "Reconciling Prisma schema on local Postgres"
   DATABASE_URL="postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara" bunx prisma db push
 )
 
+if cantiara_is_hosted_database; then
+  log "Applying Prisma migrations to hosted Neon"
+  if ! (
+    cd packages/db
+    DATABASE_URL="$(cantiara_direct_database_url)" bunx prisma migrate deploy
+  ); then
+    log "Hosted Neon already has a schema without migration history; migrate deploy skipped"
+  fi
+fi
+
 log "Start complete"

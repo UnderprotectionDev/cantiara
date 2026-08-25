@@ -11,7 +11,7 @@
     },
     {
       "name": "dev",
-      "command": "export PATH=\"$HOME/.bun/bin:$PATH\"; export BETTER_AUTH_URL=\"${BETTER_AUTH_URL:-http://localhost:3000}\"; export CORS_ORIGIN=\"${CORS_ORIGIN:-http://localhost:3001}\"; export VITE_SERVER_URL=\"${VITE_SERVER_URL:-http://localhost:3000}\"; export NODE_ENV=\"${NODE_ENV:-development}\"; bun run dev",
+      "command": "export PATH=\"$HOME/.bun/bin:$PATH\"; export BETTER_AUTH_URL=\"${BETTER_AUTH_URL:-http://localhost:3000}\"; export CORS_ORIGIN=\"${CORS_ORIGIN:-http://localhost:3001}\"; export VITE_SERVER_URL=\"${VITE_SERVER_URL:-http://localhost:3000}\"; export NODE_ENV=\"${NODE_ENV:-development}\"; export CANTIARA_LISTEN_HOST=\"${CANTIARA_LISTEN_HOST:-0.0.0.0}\"; bun run dev",
       "description": "Turborepo dev servers: web (http://localhost:3001), API server (http://localhost:3000), and Fumadocs (http://localhost:4000)."
     }
   ],
