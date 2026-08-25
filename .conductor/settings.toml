@@ -27,7 +27,7 @@ archive = ":"
 run_mode = "nonconcurrent"
 
 [scripts.run.dev]
-command = "./scripts/check-dev-ports.sh && bun run dev"
+command = "bun run dev"
 default = true
 icon = "play"
 
