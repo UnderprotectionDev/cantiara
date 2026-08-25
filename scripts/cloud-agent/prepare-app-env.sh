@@ -30,10 +30,10 @@ cantiara_prepare_server_env() {
     mv "$env_file.tmp" "$env_file"
   fi
   if [[ -f "$env_file" ]]; then
-    if ! grep -q '^GITHUB_CLIENT_ID=' "$env_file"; then
+    if [[ -z "${GITHUB_CLIENT_ID:-}" ]] && ! grep -q '^GITHUB_CLIENT_ID=' "$env_file"; then
       echo 'GITHUB_CLIENT_ID=github-oauth-app-client-id' >> "$env_file"
     fi
-    if ! grep -q '^GITHUB_CLIENT_SECRET=' "$env_file"; then
+    if [[ -z "${GITHUB_CLIENT_SECRET:-}" ]] && ! grep -q '^GITHUB_CLIENT_SECRET=' "$env_file"; then
       echo 'GITHUB_CLIENT_SECRET=github-oauth-app-client-secret' >> "$env_file"
     fi
   fi
