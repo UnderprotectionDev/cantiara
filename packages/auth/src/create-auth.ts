@@ -257,7 +257,10 @@ async function handleAuthRequest(
 	}
 
 	const authRequest = await requestWithWebAppCallback(
-		request,
+		await requestWithDisabledRefreshWhenGitHubWaits(
+			request,
+			deps.githubAvailability
+		),
 		deps.trustedOrigins
 	);
 
@@ -387,6 +390,21 @@ function cookieHeadersFromResponse(
 		[...jar.entries()].map(([name, value]) => `${name}=${value}`).join("; ")
 	);
 	return headers;
+}
+
+async function requestWithDisabledRefreshWhenGitHubWaits(
+	request: Request,
+	githubAvailability: () => Promise<GitHubAvailability>
+): Promise<Request> {
+	const url = new URL(request.url);
+	if (!url.pathname.endsWith("/get-session")) {
+		return request;
+	}
+	if ((await githubAvailability()) !== "waiting") {
+		return request;
+	}
+	url.searchParams.set("disableRefresh", "true");
+	return new Request(url, request);
 }
 
 async function requestWithWebAppCallback(

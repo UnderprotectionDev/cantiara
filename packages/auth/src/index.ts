@@ -11,7 +11,6 @@ export { createPrismaAuditLog } from "./audit-log";
 export { type CreateAuthOptions, createAuth } from "./create-auth";
 export { assertCookieCsrf } from "./csrf";
 export {
-	GITHUB_AVAILABILITY_PROBE_URL,
 	type GitHubAvailability,
 	WAITING_FOR_GITHUB_MESSAGE,
 } from "./github-availability";

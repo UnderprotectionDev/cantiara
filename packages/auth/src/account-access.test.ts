@@ -631,26 +631,38 @@ describe("Account Access", () => {
 		});
 		const before = await auth.accountAccess.current(productRequest(cookies));
 		expect(before).toBeTruthy();
-		const expiresAt = new Date(before?.session.expiresAt ?? 0).getTime();
-		const inner = globalThis.fetch;
-		globalThis.fetch = (input, init) => {
-			const url = String(input instanceof Request ? input.url : input);
-			if (url.includes("github.com")) {
-				throw new Error("GitHub unavailable");
-			}
-			return inner(input, init);
-		};
-
+		const staleExpiresAt = new Date(Date.now() + TWELVE_HOURS_MS - 120_000);
+		await prisma.session.update({
+			data: { expiresAt: staleExpiresAt },
+			where: { id: before?.session.id ?? "" },
+		});
+		const restoreDown = installGitHubDownDouble();
 		try {
 			const after = await auth.accountAccess.current(productRequest(cookies));
 			expect(after?.session.id).toBe(before?.session.id);
 			await expect(
 				auth.accountAccess.write(productRequest(cookies))
 			).resolves.toMatchObject({ written: true });
+			const sessionResponse = await auth.handler(
+				new Request(`${BASE_URL}/api/auth/get-session`, {
+					headers: {
+						cookie: cookies.header(),
+						origin: WEB_ORIGIN,
+					},
+				})
+			);
+			expect(sessionResponse.ok).toBe(true);
+			const payload = await jsonBody(sessionResponse);
+			const session = payload.session as { expiresAt?: string } | undefined;
+			expect(new Date(session?.expiresAt ?? 0).getTime()).toBe(
+				staleExpiresAt.getTime()
+			);
 			const still = await auth.accountAccess.current(productRequest(cookies));
-			expect(new Date(still?.session.expiresAt ?? 0).getTime()).toBe(expiresAt);
+			expect(new Date(still?.session.expiresAt ?? 0).getTime()).toBe(
+				staleExpiresAt.getTime()
+			);
 		} finally {
-			globalThis.fetch = inner;
+			restoreDown();
 			restore();
 		}
 	});
