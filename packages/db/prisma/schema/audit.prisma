@@ -1,0 +1,11 @@
+model AuditEvent {
+  id           String   @id
+  type         String
+  occurredAt   DateTime
+  actorAlias   String
+  accountAlias String
+  sessionAlias String?
+
+  @@index([accountAlias, occurredAt])
+  @@map("audit_event")
+}

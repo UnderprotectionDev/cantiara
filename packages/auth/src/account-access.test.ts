@@ -1,6 +1,7 @@
 /**
- * Account Access seam — GitHub sign-in, Account, and single Workspace.
- * Synthetic fixture for the sign-in/admission slice of
+ * Account Access seam — GitHub sign-in, Account, Workspace, Sessions,
+ * revoke, lifetime, CSRF, and revoke replay.
+ * Synthetic fixture for the sign-in and session slice of
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Hesap ve kişisel veri).
  */
@@ -9,12 +10,23 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { createAuth } from "./create-auth";
+import {
+	AccountAccessError,
+	CSRF_REJECTED_MESSAGE,
+	SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+} from "./account-access-error";
+import { createPrismaAuditLog } from "./audit-log";
+import { type CreateAuthOptions, createAuth } from "./create-auth";
 import {
 	getAccountAccessForUser,
 	SIGN_IN_FAILED_MESSAGE,
 	WORKSPACE_DEFAULT_NAME,
 } from "./github-login";
+import {
+	SESSION_REVOKED_EVENT_TYPE,
+	SESSION_SIGNED_IN_EVENT_TYPE,
+	SESSION_SIGNED_OUT_EVENT_TYPE,
+} from "./session-events";
 
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
@@ -39,6 +51,13 @@ const SAME_SITE_LAX = /samesite=lax/i;
 const WORKSPACE_LEAK = /workspace/i;
 const REPO_SCOPES = /repo|workflow|admin/;
 const FOUNDER_EMAIL = "founder@example.com";
+const HEX_ALIAS = /^[a-f0-9]{64}$/;
+const MAC_USER_AGENT =
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) CantiaraTest";
+const WINDOWS_USER_AGENT =
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) CantiaraTest";
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function installGitHubOAuthDouble(options: {
 	profileForCode: (code: string) => GitHubProfile | "fail";
@@ -166,22 +185,42 @@ async function startGitHubSignIn(
 async function completeGitHubCallback(
 	handler: (request: Request) => Promise<Response>,
 	cookies: ReturnType<typeof cookieJar>,
-	input: { code: string; state: string; ip?: string }
+	input: { code: string; state: string; ip?: string; userAgent?: string }
 ) {
 	const url = new URL(`${BASE_URL}/api/auth/callback/github`);
 	url.searchParams.set("code", input.code);
 	url.searchParams.set("state", input.state);
+	const headers: Record<string, string> = {
+		cookie: cookies.header(),
+		origin: WEB_ORIGIN,
+		"x-forwarded-for": input.ip ?? "203.0.113.10",
+	};
+	if (input.userAgent) {
+		headers["user-agent"] = input.userAgent;
+	}
 	const response = await handler(
 		new Request(url, {
-			headers: {
-				cookie: cookies.header(),
-				origin: WEB_ORIGIN,
-				"x-forwarded-for": input.ip ?? "203.0.113.10",
-			},
+			headers,
 		})
 	);
 	cookies.apply(response);
 	return response;
+}
+
+function productRequest(
+	cookies: ReturnType<typeof cookieJar>,
+	input: { origin?: string | null; userAgent?: string } = {}
+) {
+	const headers = new Headers({
+		cookie: cookies.header(),
+	});
+	if (input.origin !== null) {
+		headers.set("origin", input.origin ?? WEB_ORIGIN);
+	}
+	if (input.userAgent) {
+		headers.set("user-agent", input.userAgent);
+	}
+	return new Request(`${BASE_URL}/account-access`, { headers });
 }
 
 function authorizationState(authorizeUrl: string): string {
@@ -222,6 +261,7 @@ describe("Account Access", () => {
 		await prisma.account.deleteMany();
 		await prisma.verification.deleteMany();
 		await prisma.user.deleteMany();
+		await prisma.auditEvent.deleteMany();
 	});
 
 	afterEach(async () => {
@@ -229,7 +269,7 @@ describe("Account Access", () => {
 		await pool.end();
 	});
 
-	function createAccess() {
+	function createAccess(overrides: Partial<CreateAuthOptions> = {}) {
 		return createAuth({
 			baseURL: BASE_URL,
 			github: {
@@ -243,6 +283,7 @@ describe("Account Access", () => {
 			},
 			secret: "test-secret-test-secret-test-secret-32",
 			trustedOrigins: [WEB_ORIGIN],
+			...overrides,
 		});
 	}
 
@@ -302,6 +343,26 @@ describe("Account Access", () => {
 		const location = callback.headers.get("location") ?? "";
 		expect(location).toBe(`${WEB_ORIGIN}/dashboard`);
 		expect(location).not.toContain(new URL(BASE_URL).host);
+		restore();
+	});
+
+	it("returns to Sessions after GitHub sign-in when that is the callback", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			cookies,
+			"203.0.113.10",
+			"/sessions"
+		);
+		const callback = await completeGitHubCallback(auth.handler, cookies, {
+			code: "founder-sessions",
+			state: authorizationState(String((await jsonBody(start)).url)),
+		});
+		expect(callback.headers.get("location")).toBe(`${WEB_ORIGIN}/sessions`);
 		restore();
 	});
 
@@ -482,6 +543,20 @@ describe("Account Access", () => {
 		);
 	});
 
+	it("rejects an authorized write without a session cookie", async () => {
+		const auth = createAccess();
+		await expect(
+			auth.accountAccess.write(
+				new Request(`${BASE_URL}/account-access`, {
+					headers: { origin: WEB_ORIGIN },
+				})
+			)
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+	});
+
 	it("keeps a valid session without consulting a GitHub App installation", async () => {
 		const restore = installGitHubOAuthDouble({
 			profileForCode: () => founder,
@@ -498,6 +573,524 @@ describe("Account Access", () => {
 		});
 		expect(session?.user.id).toBeTruthy();
 		expect("githubAppInstallation" in prisma).toBe(false);
+		restore();
+	});
+
+	it("keeps a valid session when GitHub is down and does not extend it", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-github-down",
+			userAgent: MAC_USER_AGENT,
+		});
+		const before = await auth.accountAccess.current(productRequest(cookies));
+		expect(before).toBeTruthy();
+		const expiresAt = new Date(before?.session.expiresAt ?? 0).getTime();
+		const inner = globalThis.fetch;
+		globalThis.fetch = (input, init) => {
+			const url = String(input instanceof Request ? input.url : input);
+			if (url.includes("github.com")) {
+				throw new Error("GitHub unavailable");
+			}
+			return inner(input, init);
+		};
+
+		try {
+			const after = await auth.accountAccess.current(productRequest(cookies));
+			expect(after?.session.id).toBe(before?.session.id);
+			await expect(
+				auth.accountAccess.write(productRequest(cookies))
+			).resolves.toMatchObject({ written: true });
+			const still = await auth.accountAccess.current(productRequest(cookies));
+			expect(new Date(still?.session.expiresAt ?? 0).getTime()).toBe(expiresAt);
+		} finally {
+			globalThis.fetch = inner;
+			restore();
+		}
+	});
+
+	async function signInDevice(
+		auth: ReturnType<typeof createAccess>,
+		input: { code: string; ip?: string; userAgent: string }
+	) {
+		const cookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			cookies,
+			input.ip ?? "203.0.113.10"
+		);
+		await completeGitHubCallback(auth.handler, cookies, {
+			code: input.code,
+			ip: input.ip,
+			state: authorizationState(String((await jsonBody(start)).url)),
+			userAgent: input.userAgent,
+		});
+		return cookies;
+	}
+
+	it("lists Sessions with device and last activity and without the session token", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const mac = await signInDevice(auth, {
+			code: "founder-mac",
+			userAgent: MAC_USER_AGENT,
+		});
+		const windows = await signInDevice(auth, {
+			code: "founder-windows",
+			ip: "198.51.100.20",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+
+		const listed = await auth.accountAccess.list(productRequest(mac));
+		const tokens = await prisma.session.findMany({ select: { token: true } });
+
+		expect(listed).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					current: true,
+					device: "Mac",
+				}),
+				expect.objectContaining({
+					current: false,
+					device: "Windows",
+				}),
+			])
+		);
+		expect(listed).toHaveLength(2);
+		for (const session of listed) {
+			expect(session).not.toHaveProperty("token");
+			expect(Number.isNaN(Date.parse(session.lastActivity))).toBe(false);
+		}
+		expect(JSON.stringify(listed)).not.toContain(tokens[0]?.token);
+		expect(JSON.stringify(listed)).not.toContain(tokens[1]?.token);
+		expect(windows.header()).toBeTruthy();
+		restore();
+	});
+
+	it("ends this product session when Revoke Session targets the current session", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const current = await signInDevice(auth, {
+			code: "founder-self",
+			userAgent: MAC_USER_AGENT,
+		});
+		const other = await signInDevice(auth, {
+			code: "founder-self-other",
+			ip: "198.51.100.25",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+		const listed = await auth.accountAccess.list(productRequest(current));
+		const currentId = listed.find((session) => session.current)?.id;
+		expect(currentId).toBeDefined();
+
+		await auth.accountAccess.revoke(productRequest(current), currentId ?? "");
+
+		await expect(
+			auth.accountAccess.write(productRequest(current))
+		).rejects.toMatchObject({
+			message: "Unauthorized",
+			status: 401,
+		});
+		await expect(
+			auth.accountAccess.write(productRequest(other))
+		).resolves.toMatchObject({ written: true });
+		restore();
+	});
+
+	it("keeps this product session when the Denetim kaydı cannot be written", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess({
+			auditLog: {
+				append: (event) => {
+					if (event.type === SESSION_REVOKED_EVENT_TYPE) {
+						return Promise.reject(new Error("audit unavailable"));
+					}
+					return Promise.resolve();
+				},
+				list: () => Promise.resolve([]),
+			},
+		});
+		const current = await signInDevice(auth, {
+			code: "founder-audit-fail",
+			userAgent: MAC_USER_AGENT,
+		});
+		const listed = await auth.accountAccess.list(productRequest(current));
+		const currentId = listed.find((session) => session.current)?.id;
+		expect(currentId).toBeDefined();
+
+		await expect(
+			auth.accountAccess.revoke(productRequest(current), currentId ?? "")
+		).rejects.toThrow("audit unavailable");
+		await expect(
+			auth.accountAccess.write(productRequest(current))
+		).resolves.toMatchObject({ written: true });
+		restore();
+	});
+
+	it("records a Prisma Denetim kaydı when Revoke Session succeeds", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		await prisma.auditEvent.deleteMany();
+		const auth = createAccess({
+			auditLog: createPrismaAuditLog(prisma),
+		});
+		const current = await signInDevice(auth, {
+			code: "founder-prisma-audit",
+			userAgent: MAC_USER_AGENT,
+		});
+		const other = await signInDevice(auth, {
+			code: "founder-prisma-audit-other",
+			ip: "198.51.100.26",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+		const listed = await auth.accountAccess.list(productRequest(current));
+		const otherId = listed.find((session) => !session.current)?.id;
+		expect(otherId).toBeDefined();
+
+		await auth.accountAccess.revoke(productRequest(current), otherId ?? "");
+
+		const events = await prisma.auditEvent.findMany();
+		expect(
+			events.filter((event) => event.type === SESSION_SIGNED_IN_EVENT_TYPE)
+		).toHaveLength(2);
+		expect(
+			events.filter((event) => event.type === SESSION_REVOKED_EVENT_TYPE)
+		).toHaveLength(1);
+		await expect(
+			auth.accountAccess.write(productRequest(other))
+		).rejects.toMatchObject({ status: 401 });
+		restore();
+	});
+
+	it("rejects writes from a revoked session while the other session still writes", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const current = await signInDevice(auth, {
+			code: "founder-current",
+			userAgent: MAC_USER_AGENT,
+		});
+		const other = await signInDevice(auth, {
+			code: "founder-other",
+			ip: "198.51.100.21",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+		const listed = await auth.accountAccess.list(productRequest(current));
+		const otherId = listed.find((session) => !session.current)?.id;
+		expect(otherId).toBeDefined();
+
+		await auth.accountAccess.revoke(productRequest(current), otherId ?? "");
+
+		await expect(
+			auth.accountAccess.write(productRequest(other))
+		).rejects.toMatchObject({
+			message: "Unauthorized",
+			status: 401,
+		});
+		await expect(
+			auth.accountAccess.write(productRequest(current))
+		).resolves.toMatchObject({ written: true });
+		restore();
+	});
+
+	it("keeps the current session writing after Revoke Other Sessions", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const current = await signInDevice(auth, {
+			code: "founder-keep",
+			userAgent: MAC_USER_AGENT,
+		});
+		const other = await signInDevice(auth, {
+			code: "founder-drop",
+			ip: "198.51.100.22",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+
+		await auth.accountAccess.revokeOthers(productRequest(current));
+
+		await expect(
+			auth.accountAccess.write(productRequest(other))
+		).rejects.toBeInstanceOf(AccountAccessError);
+		await expect(
+			auth.accountAccess.write(productRequest(current))
+		).resolves.toMatchObject({ written: true });
+		const remaining = await auth.accountAccess.list(productRequest(current));
+		expect(remaining).toEqual([
+			expect.objectContaining({ current: true, device: "Mac" }),
+		]);
+		restore();
+	});
+
+	it("does not apply cookie session writes without CSRF origin", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-csrf",
+			userAgent: MAC_USER_AGENT,
+		});
+		const listed = await auth.accountAccess.list(productRequest(cookies));
+
+		await expect(
+			auth.accountAccess.write(productRequest(cookies, { origin: null }))
+		).rejects.toMatchObject({
+			message: CSRF_REJECTED_MESSAGE,
+			status: 403,
+		});
+		await expect(
+			auth.accountAccess.write(
+				productRequest(cookies, { origin: "https://evil.example" })
+			)
+		).rejects.toMatchObject({
+			message: CSRF_REJECTED_MESSAGE,
+			status: 403,
+		});
+		await expect(
+			auth.accountAccess.revoke(
+				productRequest(cookies, { origin: null }),
+				listed[0]?.id ?? ""
+			)
+		).rejects.toMatchObject({ status: 403 });
+		restore();
+	});
+
+	it("ends a session after 12 hours of inactivity", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const clock = { now: new Date() };
+		const auth = createAccess({
+			now: () => new Date(clock.now.getTime()),
+		});
+		const cookies = await signInDevice(auth, {
+			code: "founder-idle",
+			userAgent: MAC_USER_AGENT,
+		});
+		const session = await auth.api.getSession({
+			headers: new Headers({ cookie: cookies.header() }),
+		});
+		expect(session).toBeTruthy();
+		const remaining =
+			new Date(session?.session.expiresAt ?? 0).getTime() - Date.now();
+		expect(remaining).toBeGreaterThan(TWELVE_HOURS_MS - 120_000);
+		expect(remaining).toBeLessThanOrEqual(TWELVE_HOURS_MS + 120_000);
+
+		clock.now = new Date(
+			new Date(session?.session.expiresAt ?? 0).getTime() + 1000
+		);
+
+		expect(
+			await auth.accountAccess.current(productRequest(cookies))
+		).toBeNull();
+		await expect(
+			auth.accountAccess.write(productRequest(cookies))
+		).rejects.toMatchObject({ status: 401 });
+		restore();
+	});
+
+	it("ends a session 30 days after creation even when idle expiry is still ahead", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const clock = { now: new Date() };
+		const auth = createAccess({
+			now: () => new Date(clock.now.getTime()),
+		});
+		const cookies = await signInDevice(auth, {
+			code: "founder-absolute",
+			userAgent: MAC_USER_AGENT,
+		});
+		const session = await auth.accountAccess.current(productRequest(cookies));
+		expect(session).toBeTruthy();
+		const createdAt = new Date(session?.session.createdAt ?? 0);
+		clock.now = new Date(createdAt.getTime() + THIRTY_DAYS_MS + 1000);
+		await prisma.session.update({
+			data: {
+				expiresAt: new Date(clock.now.getTime() + TWELVE_HOURS_MS),
+			},
+			where: { id: session?.session.id ?? "" },
+		});
+
+		expect(
+			await auth.accountAccess.current(productRequest(cookies))
+		).toBeNull();
+		await expect(
+			auth.accountAccess.write(productRequest(cookies))
+		).rejects.toMatchObject({ status: 401 });
+		restore();
+	});
+
+	it("records a secret-free Denetim kaydı for revoke", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const current = await signInDevice(auth, {
+			code: "founder-audit",
+			userAgent: MAC_USER_AGENT,
+		});
+		const other = await signInDevice(auth, {
+			code: "founder-audit-other",
+			ip: "198.51.100.23",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+		const listed = await auth.accountAccess.list(productRequest(current));
+		const otherSession = listed.find((session) => !session.current);
+		const row = await prisma.session.findUniqueOrThrow({
+			where: { id: otherSession?.id ?? "" },
+		});
+		const actor = await auth.api.getSession({
+			headers: new Headers({ cookie: current.header() }),
+		});
+
+		await auth.accountAccess.revoke(
+			productRequest(current),
+			otherSession?.id ?? ""
+		);
+
+		const events = await auth.auditLog.list();
+		const securityEvents = await auth.securityEventLog.list();
+		const revoked = events.filter(
+			(event) => event.type === SESSION_REVOKED_EVENT_TYPE
+		);
+		expect(
+			events.filter((event) => event.type === SESSION_SIGNED_IN_EVENT_TYPE)
+		).toHaveLength(2);
+		expect(
+			events.filter((event) => event.type === SESSION_SIGNED_OUT_EVENT_TYPE)
+		).toHaveLength(0);
+		expect(revoked).toHaveLength(1);
+		expect(securityEvents).toEqual(revoked);
+		expect(revoked[0]?.accountAlias).toMatch(HEX_ALIAS);
+		expect(revoked[0]?.actorAlias).toBe(revoked[0]?.accountAlias);
+		expect(revoked[0]?.sessionAlias).toMatch(HEX_ALIAS);
+		expect(Number.isNaN(Date.parse(revoked[0]?.occurredAt ?? ""))).toBe(false);
+		const serialized = JSON.stringify({ events, securityEvents });
+		expect(serialized).not.toContain(row.token);
+		expect(serialized).not.toContain(actor?.user.id ?? "missing-id");
+		expect(serialized).not.toContain(FOUNDER_EMAIL);
+		expect(other.header()).toBeTruthy();
+		restore();
+	});
+
+	it("replays a session revoke so a restored live row stays unauthorized", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const current = await signInDevice(auth, {
+			code: "founder-replay",
+			userAgent: MAC_USER_AGENT,
+		});
+		const other = await signInDevice(auth, {
+			code: "founder-replay-other",
+			ip: "198.51.100.24",
+			userAgent: WINDOWS_USER_AGENT,
+		});
+		const listed = await auth.accountAccess.list(productRequest(current));
+		const otherId = listed.find((session) => !session.current)?.id ?? "";
+		const snapshot = await prisma.session.findUniqueOrThrow({
+			where: { id: otherId },
+		});
+
+		await auth.accountAccess.revoke(productRequest(current), otherId);
+		await prisma.session.create({
+			data: {
+				createdAt: snapshot.createdAt,
+				expiresAt: snapshot.expiresAt,
+				id: snapshot.id,
+				ipAddress: snapshot.ipAddress,
+				token: snapshot.token,
+				updatedAt: snapshot.updatedAt,
+				userAgent: snapshot.userAgent,
+				userId: snapshot.userId,
+			},
+		});
+
+		expect(
+			await prisma.session.findUnique({ where: { id: otherId } })
+		).toMatchObject({ id: otherId, token: snapshot.token });
+		await expect(
+			auth.accountAccess.write(productRequest(other))
+		).resolves.toMatchObject({ written: true });
+
+		await auth.accountAccess.replay();
+
+		await expect(
+			auth.accountAccess.write(productRequest(other))
+		).rejects.toMatchObject({ status: 401 });
+		await expect(
+			auth.accountAccess.write(productRequest(current))
+		).resolves.toMatchObject({ written: true });
+		restore();
+	});
+
+	it("records a Denetim kaydı for GitHub sign-in and not a security-event", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-signed-in-audit",
+			userAgent: MAC_USER_AGENT,
+		});
+		const events = await auth.auditLog.list();
+		expect(events).toEqual([
+			expect.objectContaining({ type: SESSION_SIGNED_IN_EVENT_TYPE }),
+		]);
+		expect(events[0]?.accountAlias).toMatch(HEX_ALIAS);
+		expect(events[0]?.sessionAlias).toMatch(HEX_ALIAS);
+		expect(await auth.securityEventLog.list()).toEqual([]);
+		expect(cookies.header()).toBeTruthy();
+		restore();
+	});
+
+	it("records a Denetim kaydı for Sign Out and not a security-event", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-signed-out-audit",
+			userAgent: MAC_USER_AGENT,
+		});
+		const response = await auth.handler(
+			new Request(`${BASE_URL}/api/auth/sign-out`, {
+				headers: {
+					cookie: cookies.header(),
+					origin: WEB_ORIGIN,
+				},
+				method: "POST",
+			})
+		);
+		expect(response.ok).toBe(true);
+		const events = await auth.auditLog.list();
+		expect(
+			events.filter((event) => event.type === SESSION_SIGNED_IN_EVENT_TYPE)
+		).toHaveLength(1);
+		expect(
+			events.filter((event) => event.type === SESSION_SIGNED_OUT_EVENT_TYPE)
+		).toHaveLength(1);
+		expect(
+			events.filter((event) => event.type === SESSION_REVOKED_EVENT_TYPE)
+		).toHaveLength(0);
+		expect(await auth.securityEventLog.list()).toEqual([]);
+		await expect(
+			auth.accountAccess.write(productRequest(cookies))
+		).rejects.toMatchObject({ status: 401 });
 		restore();
 	});
 });

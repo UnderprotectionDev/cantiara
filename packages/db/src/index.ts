@@ -15,6 +15,11 @@ if (process.env.NEON_LOCAL === "true") {
 	neonConfig.useSecureWebSocket = false;
 	neonConfig.pipelineConnect = false;
 	neonConfig.wsProxy = () => `${proxy}/v1`;
+} else {
+	// Long-running bun --hot / Hono processes keep a PrismaNeon WebSocket open.
+	// When that socket dies, every session lookup hangs ~15s then throws
+	// Better Auth's "Failed to get session". HTTP fetch avoids that stale socket.
+	neonConfig.poolQueryViaFetch = true;
 }
 
 export function createPrismaClient() {

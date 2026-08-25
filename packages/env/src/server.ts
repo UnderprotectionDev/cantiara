@@ -15,6 +15,7 @@ export const env = createEnv({
 		NODE_ENV: z
 			.enum(["development", "production", "test"])
 			.default("development"),
+		SECURITY_EVENT_LOG_DATABASE_URL: z.url().optional(),
 	},
 	skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 });

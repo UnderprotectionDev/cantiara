@@ -18,6 +18,7 @@ Use Cursor's types from [Secrets & Network](https://cursor.com/docs/cloud-agent/
 | `CORS_ORIGIN` | Environment Variable | `http://localhost:3001` |
 | `VITE_SERVER_URL` | Environment Variable | `http://localhost:3000` |
 | `NODE_ENV` | Environment Variable | `development` |
+| `SECURITY_EVENT_LOG_DATABASE_URL` | Runtime Secret | Separate Postgres URL for the irreversible security-event log (not `DATABASE_URL`). Local default: `postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara_security_events` |
 
 Scope: this repository. Do not add `NEON_LOCAL`.
 
