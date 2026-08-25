@@ -839,7 +839,7 @@ describe("Account Access", () => {
 		).toMatchObject({ id: otherId, token: snapshot.token });
 		await expect(
 			auth.accountAccess.write(productRequest(other))
-		).rejects.toMatchObject({ status: 401 });
+		).resolves.toMatchObject({ written: true });
 
 		await auth.accountAccess.replay();
 

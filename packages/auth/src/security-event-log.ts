@@ -17,11 +17,6 @@ CREATE TABLE IF NOT EXISTS security_event (
 )
 `;
 
-const ENSURE_INDEX = `
-CREATE INDEX IF NOT EXISTS security_event_session_alias_idx
-  ON security_event (type, session_alias)
-`;
-
 interface SecurityEventRow {
 	account_alias: string;
 	actor_alias: string;
@@ -38,10 +33,7 @@ export function createPostgresSecurityEventLog(
 	let ready: Promise<void> | undefined;
 
 	async function db() {
-		ready ??= pool
-			.query(ENSURE_TABLE)
-			.then(() => pool.query(ENSURE_INDEX))
-			.then(() => undefined);
+		ready ??= pool.query(ENSURE_TABLE).then(() => undefined);
 		await ready;
 		return pool;
 	}
@@ -62,16 +54,6 @@ export function createPostgresSecurityEventLog(
 					event.actorAlias,
 				]
 			);
-		},
-		async isRevoked(sessionAlias) {
-			const client = await db();
-			const result = await client.query(
-				`SELECT 1 FROM security_event
-         WHERE type = $1 AND session_alias = $2
-         LIMIT 1`,
-				[SESSION_REVOKED_EVENT_TYPE, sessionAlias]
-			);
-			return (result.rowCount ?? 0) > 0;
 		},
 		async list() {
 			const client = await db();

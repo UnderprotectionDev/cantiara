@@ -18,6 +18,10 @@ _Avoid_: Proje bağlantısı kapsamı, kaynak kapsamı, hesap + kaynak kapsamı
 Kurucunun değişmeyen kimliğini, kişisel tercihlerini ve güvenlik bağlamını taşıyan; çalışma alanı içeriğinden ayrı sahiplik kapsamı.
 _Avoid_: Kullanıcı çalışma alanı, profil projesi
 
+**Ürün oturumu**:
+Hesap kapsamındaki kimlik doğrulanmış ürün erişimi; cihaz ve son etkinlikle listelenir ve iptal edilir ([oturum güvenliği](docs/prd/03-account-platform-operations.md#oturum-guvenligi)). UI listesi: `Sessions`.
+_Avoid_: Paylaşım erişim oturumu, Test Oturumu, Kullanıcı Araştırması Oturumu
+
 **Çalışma Alanı**:
 Tek kurucunun projelerini, Kişisel Wiki'sini ve çalışma alanı genelindeki kayıtlarını kapsayan sahiplik sınırı.
 _Avoid_: Hesap, organizasyon, ekip

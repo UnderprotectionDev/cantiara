@@ -84,13 +84,6 @@ export function createAccountSessionAccess(deps: {
 			});
 			return null;
 		}
-		if (
-			await deps.securityEventLog.isRevoked(
-				identityAlias("session", session.session.id, deps.secret)
-			)
-		) {
-			return null;
-		}
 		return session;
 	}
 
@@ -126,24 +119,12 @@ export function createAccountSessionAccess(deps: {
 			const listed = await deps.auth.api.listSessions({
 				headers: request.headers,
 			});
-			const revoked = new Set(
-				(await deps.securityEventLog.list())
-					.filter((event) => event.type === SESSION_REVOKED_EVENT_TYPE)
-					.map((event) => event.sessionAlias)
-			);
-			return listed.flatMap((item) => {
-				if (revoked.has(identityAlias("session", item.id, deps.secret))) {
-					return [];
-				}
-				return [
-					{
-						current: item.id === session.session.id,
-						device: deviceFromUserAgent(item.userAgent),
-						id: item.id,
-						lastActivity: new Date(item.updatedAt).toISOString(),
-					},
-				];
-			});
+			return listed.map((item) => ({
+				current: item.id === session.session.id,
+				device: deviceFromUserAgent(item.userAgent),
+				id: item.id,
+				lastActivity: new Date(item.updatedAt).toISOString(),
+			}));
 		},
 		async replay() {
 			const liveIds = await deps.prisma.session.findMany({

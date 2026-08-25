@@ -16,7 +16,6 @@ export interface AuditLog {
 
 export interface SecurityEventLog {
 	append: (event: SessionRevokedEvent) => Promise<void>;
-	isRevoked: (sessionAlias: string) => Promise<boolean>;
 	list: () => Promise<readonly SessionRevokedEvent[]>;
 	replay: (
 		apply: (event: SessionRevokedEvent) => Promise<void>
@@ -42,15 +41,6 @@ export function createMemorySecurityEventLog(): SecurityEventLog {
 		append(event) {
 			events.push(event);
 			return Promise.resolve();
-		},
-		isRevoked(sessionAlias) {
-			return Promise.resolve(
-				events.some(
-					(event) =>
-						event.type === SESSION_REVOKED_EVENT_TYPE &&
-						event.sessionAlias === sessionAlias
-				)
-			);
 		},
 		list() {
 			return Promise.resolve([...events]);
