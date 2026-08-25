@@ -11,7 +11,9 @@ Add these once under **Personal** scope at [Cloud Agents](https://cursor.com/das
 - `GITHUB_CLIENT_SECRET`
 - `BETTER_AUTH_SECRET` — at least 32 characters
 
-Leave `NEON_LOCAL` unset. `scripts/cloud-agent/install.sh` writes a local Postgres `.env` only when `DATABASE_URL` is not already injected, and it drops `NEON_LOCAL` when a hosted `DATABASE_URL` is present.
+Leave `NEON_LOCAL` unset. `scripts/cloud-agent/install.sh` writes a local Postgres `.env` only when `DATABASE_URL` is not already injected. `install.sh` and `start.sh` drop `NEON_LOCAL` when a hosted `DATABASE_URL` is present so a snapshot leftover cannot tunnel Neon through the local proxy.
+
+`turbo.json` `globalPassThroughEnv` forwards those secrets into `server#dev`. Without that list, Turbo strips `DATABASE_URL` and the API falls back to the local `.env` Postgres URL.
 
 `turbo.json` `globalPassThroughEnv` forwards those secrets into `server#dev`. Without that list, Turbo strips `DATABASE_URL` and the API falls back to the local `.env` Postgres URL.
 

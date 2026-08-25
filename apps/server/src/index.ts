@@ -98,4 +98,8 @@ app.use("/*", async (c, next) => {
 
 app.get("/", (c) => c.text("OK"));
 
-export default app;
+export default {
+	fetch: app.fetch,
+	hostname: "0.0.0.0",
+	port: 3000,
+};
