@@ -3,11 +3,23 @@
 #
 # Cursor Secrets win over dotenv. A leftover NEON_LOCAL=true in .env would still
 # tunnel hosted Neon through the local proxy, so drop that flag when DATABASE_URL
-# is already a hosted URL. GitHub placeholders let the API boot before OAuth
-# secrets exist; real GITHUB_CLIENT_* values stay in process.env.
+# is already a hosted URL. Public URL keys get localhost fallbacks when missing.
+# GitHub placeholders let the API boot before OAuth secrets exist; real
+# GITHUB_CLIENT_* values stay in process.env.
 
 cantiara_is_hosted_database() {
   [[ -n "${DATABASE_URL:-}" && "${DATABASE_URL}" != *127.0.0.1* && "${DATABASE_URL}" != *localhost* ]]
+}
+
+cantiara_ensure_env_key() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+  if [[ -f "$file" ]] && grep -q "^${key}=" "$file"; then
+    return
+  fi
+  mkdir -p "$(dirname "$file")"
+  echo "${key}=${value}" >> "$file"
 }
 
 cantiara_prepare_server_env() {
@@ -25,4 +37,8 @@ cantiara_prepare_server_env() {
       echo 'GITHUB_CLIENT_SECRET=github-oauth-app-client-secret' >> "$env_file"
     fi
   fi
+  cantiara_ensure_env_key "$env_file" BETTER_AUTH_URL "http://localhost:3000"
+  cantiara_ensure_env_key "$env_file" CORS_ORIGIN "http://localhost:3001"
+  cantiara_ensure_env_key "$env_file" NODE_ENV "development"
+  cantiara_ensure_env_key "$REPO_ROOT/apps/web/.env" VITE_SERVER_URL "http://localhost:3000"
 }

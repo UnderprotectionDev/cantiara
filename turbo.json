@@ -11,7 +11,8 @@
     "NEON_LOCAL",
     "NEON_LOCAL_PROXY",
     "NODE_ENV",
-    "SKIP_ENV_VALIDATION"
+    "SKIP_ENV_VALIDATION",
+    "VITE_SERVER_URL"
   ],
   "tasks": {
     "build": {
