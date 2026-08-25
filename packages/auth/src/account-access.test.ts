@@ -27,7 +27,11 @@ import {
 	SESSION_SIGNED_IN_EVENT_TYPE,
 	SESSION_SIGNED_OUT_EVENT_TYPE,
 } from "./session-events";
-import { productTrustedOrigins, TAURI_CALLBACK_URL } from "./tauri-session";
+import {
+	oneTimeCodeFromDeepLink,
+	productTrustedOrigins,
+	TAURI_CALLBACK_URL,
+} from "./tauri-session";
 
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
@@ -426,6 +430,10 @@ describe("Account Access", () => {
 		const deepLink = new URL(location);
 		expect([...deepLink.searchParams.keys()]).toEqual(["code"]);
 		expect(deepLink.searchParams.get("code")).toMatch(TAURI_ONE_TIME_CODE);
+		expect(oneTimeCodeFromDeepLink(`${location}&token=session`)).toBeNull();
+		expect(
+			oneTimeCodeFromDeepLink(`${location}&access_token=gho_x`)
+		).toBeNull();
 		expect(location.toLowerCase()).not.toContain("token");
 		expect(location).not.toContain("gho_");
 		const sessionCookies = callback.headers
