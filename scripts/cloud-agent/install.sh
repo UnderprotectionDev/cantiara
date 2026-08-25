@@ -62,9 +62,6 @@ SQL
 if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
   sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
 fi
-if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='cantiara_security_events'" | grep -q 1; then
-  sudo -u postgres createdb -O "$DB_USER" "cantiara_security_events"
-fi
 
 # --- Local environment files ------------------------------------------------
 # Cursor Secrets are process env vars. dotenv does not override them.
