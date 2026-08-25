@@ -17,6 +17,9 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 
 log() { printf '\n[start] %s\n' "$*"; }
 
+# shellcheck source=prepare-app-env.sh
+source "$REPO_ROOT/scripts/cloud-agent/prepare-app-env.sh"
+
 if ! sudo pg_lsclusters -h 2>/dev/null | grep -q "^${PG_MAJOR}[[:space:]]\+${PG_CLUSTER}\b.*online"; then
   log "Starting PostgreSQL cluster ${PG_MAJOR}/${PG_CLUSTER}"
   sudo pg_ctlcluster "$PG_MAJOR" "$PG_CLUSTER" start
@@ -29,6 +32,8 @@ for _ in $(seq 1 30); do
   fi
   sleep 1
 done
+
+cantiara_prepare_server_env
 
 # Reconcile the local throwaway cluster only. Hosted Neon is not a `db push`
 # target; dotenv will not override this explicit local URL.

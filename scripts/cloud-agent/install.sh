@@ -20,6 +20,9 @@ DB_NAME="cantiara"
 
 log() { printf '\n[install] %s\n' "$*"; }
 
+# shellcheck source=prepare-app-env.sh
+source "$REPO_ROOT/scripts/cloud-agent/prepare-app-env.sh"
+
 # --- Bun (pinned) -----------------------------------------------------------
 export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
 export PATH="$BUN_INSTALL/bin:$PATH"
@@ -61,11 +64,9 @@ if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_N
 fi
 
 # --- Local environment files ------------------------------------------------
-# Cursor Secrets are process env vars. dotenv does not override them. A leftover
-# NEON_LOCAL=true in .env would still tunnel hosted Neon through the local proxy,
-# so drop that flag when DATABASE_URL is already a hosted URL.
+# Cursor Secrets are process env vars. dotenv does not override them.
 hosted_database=0
-if [[ -n "${DATABASE_URL:-}" && "${DATABASE_URL}" != *127.0.0.1* && "${DATABASE_URL}" != *localhost* ]]; then
+if cantiara_is_hosted_database; then
   hosted_database=1
 fi
 
@@ -82,12 +83,11 @@ if [[ ! -f apps/server/.env ]]; then
     echo "BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}"
     echo "CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3001}"
     echo "NODE_ENV=development"
+    echo "GITHUB_CLIENT_ID=github-oauth-app-client-id"
+    echo "GITHUB_CLIENT_SECRET=github-oauth-app-client-secret"
   } > apps/server/.env
-elif [[ "${hosted_database}" -eq 1 && -f apps/server/.env ]] && grep -q '^NEON_LOCAL=' apps/server/.env; then
-  log "Clearing NEON_LOCAL so Cursor DATABASE_URL reaches hosted Neon"
-  grep -v '^NEON_LOCAL=' apps/server/.env > apps/server/.env.tmp
-  mv apps/server/.env.tmp apps/server/.env
 fi
+cantiara_prepare_server_env
 if [[ ! -f apps/web/.env ]]; then
   log "Writing apps/web/.env"
   echo "VITE_SERVER_URL=http://localhost:3000" > apps/web/.env
