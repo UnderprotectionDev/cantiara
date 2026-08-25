@@ -16,10 +16,10 @@ export default defineConfig({
 		tsconfigPaths: true,
 	},
 	server: {
-		// Cursor port forwarding hits 127.0.0.1. Vite's default `localhost` bind
-		// is ::1-only on this host, so IPv4 browsers get connection refused.
+		// Cursor port forwarding hits 127.0.0.1. `host: true` binds IPv6 `::` only
+		// on this host (no IPv4 LISTEN), so the local tunnel gets connection refused.
 		allowedHosts: true,
-		host: true,
+		host: "0.0.0.0",
 		port: 3001,
 		strictPort: true,
 	},
