@@ -75,4 +75,4 @@ Schema changes go through `bun run db:migrate`. `bun run db:push` is local throw
 
 **Local Postgres** — [`docs/tech-stack.md`](docs/tech-stack.md) (yerel geliştirme sınırı) and `scripts/neon-local-proxy.ts` when `NEON_LOCAL=true`.
 
-**Cloud Agent secrets** — [`docs/agents/cloud-agent-secrets.md`](docs/agents/cloud-agent-secrets.md). Read before assuming a new Cloud Agent has Neon or GitHub credentials.
+**Cloud Agent secrets** — [`docs/agents/cloud-agent-secrets.md`](docs/agents/cloud-agent-secrets.md). Read before starting the API, setting `DATABASE_URL`, or exporting `NEON_LOCAL`.

@@ -34,6 +34,23 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | GitHub ile devam | `Continue with GitHub` | GitHub login OAuth ile Hesaba giriş eylemi |
 | Oturumu kapat | `Sign Out` | Geçerli ürün oturumunu sonlandırma eylemi |
 | Oturumlar | `Sessions` | Hesap kapsamındaki aktif ürün oturumlarını cihaz ve son etkinlikle listeleme yüzeyi |
+| Hesap tercihleri | `Preferences` | Locale, saat dilimi, tarih biçimi ve haftanın ilk günü yüzeyi |
+| Locale | `Locale` | Tarih, saat ve sayı biçimini seçen Hesap tercihi; arayüz dili değildir |
+| Saat dilimi | `Time zone` | Takvim gün sınırı, tarih girişi ve tarihsel gösterim dilimi |
+| Tarih biçimi | `Date format` | Tarih yazımı; seçilmezse locale varsayılanını izler |
+| Locale varsayılanı | `Locale default` | Tarih biçiminin locale yazımını izlediği seçenek |
+| Haftanın ilk günü | `First day of week` | Hafta ızgarası ve hafta sınırının başladığı gün |
+| Kaydet | `Save` | Hesap tercihini açıkça yazan eylem |
+| Önerilen locale ve saat dilimini kullan | `Use suggested locale and time zone` | İlk girişte tarayıcı önerisini forma alan, kaydetmeden uygulamayan eylem |
+| Önizleme | `Preview` | Locale, tarih biçimi ve haftanın ilk gününün gösterim sonucunu kaydetmeden gösteren yüzey |
+| Tarih | `Date` | Önizlemede biçimlenmiş tarih |
+| Sayı | `Number` | Önizlemede biçimlenmiş sayı |
+| Hafta | `Week` | Önizlemede haftanın ilk gününe göre kaymış gün başlıkları |
+| Tarihsel olay | `Historical event` | Saklanmış anın Hesap saat dilimindeki gösterimi |
+| İş başlığı | `Work title` | Locale’in çevirmediği kullanıcı içeriği örneği |
+| Tercihler kaydedildi | `Preferences saved.` | Hesap tercihinin açık Save ile yazıldığını bildiren sistem mesajı |
+| Tercihler yükleniyor | `Loading preferences…` | Hesap tercihinin okunmakta olduğunu bildiren durum |
+| Tercihler kullanılamıyor | `Preferences are unavailable.` | Hesap tercihinin okunamadığını bildiren durum |
 | Cihaz | `Device` | Ürün oturumunun tanındığı istemci türü |
 | Son etkinlik | `Last activity` | Ürün oturumunun en son kullanıldığı zaman |
 | Geçerli oturum | `Current` | Listelenen satırın bu tarayıcıdaki ürün oturumu olduğunu gösteren durum |

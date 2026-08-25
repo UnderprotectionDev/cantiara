@@ -22,6 +22,8 @@ Use Cursor's types from [Secrets & Network](https://cursor.com/docs/cloud-agent/
 
 Scope: this repository. Do not add `NEON_LOCAL`.
 
+When `DATABASE_URL` is a hosted Neon URL, every app process (the `dev` terminal, a restarted API, `bun run --hot`) must use that value. Do not export `NEON_LOCAL=true` and do not replace `DATABASE_URL` with `127.0.0.1` Postgres. Local schema `db push` stays on the throwaway cluster; that is not the app's runtime target. Start the API with `scripts/cloud-agent/use-product-database.sh` so a leftover `NEON_LOCAL` cannot tunnel hosted Neon through the local proxy.
+
 Runtime Secret keeps the value in the process env and redacts it from the agent transcript, tool output, and commits. Environment Variable is for public URLs and flags the agent may see.
 
 Prisma migrate/push against Neon should use the non-pooler host. The app runtime URL may be pooled.

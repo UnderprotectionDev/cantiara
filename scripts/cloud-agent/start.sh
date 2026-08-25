@@ -34,6 +34,10 @@ for _ in $(seq 1 30); do
 done
 
 cantiara_prepare_server_env
+if cantiara_is_hosted_database; then
+	unset NEON_LOCAL
+	unset NEON_LOCAL_PROXY
+fi
 
 # Reconcile the local throwaway cluster only. Hosted Neon is not a `db push`
 # target; dotenv will not override this explicit local URL.
