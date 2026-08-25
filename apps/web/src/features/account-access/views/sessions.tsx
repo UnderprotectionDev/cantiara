@@ -1,3 +1,4 @@
+import { unsavedAccountPreferences } from "@cantiara/auth/account-preferences";
 import { Badge } from "@cantiara/ui/components/badge";
 import {
 	Table,
@@ -13,15 +14,13 @@ import { Link } from "@tanstack/react-router";
 
 import RevokeOtherSessions from "@/features/account-access/forms/revoke-other-sessions";
 import RevokeSession from "@/features/account-access/forms/revoke-session";
+import { sessionLastActivityDisplay } from "@/features/account-access/forms/session-last-activity";
 import { orpc } from "@/utils/orpc";
-
-const lastActivityFormat = new Intl.DateTimeFormat("en-GB", {
-	dateStyle: "medium",
-	timeStyle: "short",
-});
 
 export default function Sessions() {
 	const sessions = useQuery(orpc.accountAccess.sessions.queryOptions());
+	const preferences = useQuery(orpc.accountPreferences.get.queryOptions());
+	const displayPreferences = preferences.data ?? unsavedAccountPreferences();
 
 	return (
 		<main className="mx-auto w-full max-w-3xl p-6">
@@ -53,7 +52,10 @@ export default function Sessions() {
 								<TableCell>{session.device}</TableCell>
 								<TableCell>
 									<time dateTime={session.lastActivity}>
-										{lastActivityFormat.format(new Date(session.lastActivity))}
+										{sessionLastActivityDisplay(
+											session.lastActivity,
+											displayPreferences
+										)}
 									</time>
 								</TableCell>
 								<TableCell>
