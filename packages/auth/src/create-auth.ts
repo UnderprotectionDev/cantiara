@@ -202,7 +202,7 @@ export function createAuth(options: CreateAuthOptions) {
 		trustedOrigins: options.trustedOrigins,
 	});
 
-	const accountAccess = createAccountSessionAccess({
+	const accountAccessDeps = {
 		auditLog,
 		auth,
 		baseURL: options.baseURL,
@@ -213,12 +213,22 @@ export function createAuth(options: CreateAuthOptions) {
 		secret: options.secret,
 		securityEventLog,
 		trustedOrigins: options.trustedOrigins,
-	});
+	};
+	let boundAccountSessionAccess = createAccountSessionAccess;
+	let accountAccess = boundAccountSessionAccess(accountAccessDeps);
+
+	function getAccountAccess() {
+		if (boundAccountSessionAccess !== createAccountSessionAccess) {
+			boundAccountSessionAccess = createAccountSessionAccess;
+			accountAccess = boundAccountSessionAccess(accountAccessDeps);
+		}
+		return accountAccess;
+	}
 
 	const innerHandler = auth.handler.bind(auth);
 	const handler = (request: Request) =>
 		handleAuthRequest(request, {
-			accountAccess,
+			accountAccess: getAccountAccess(),
 			auditLog,
 			auth,
 			githubAvailability,
@@ -231,7 +241,9 @@ export function createAuth(options: CreateAuthOptions) {
 		});
 
 	return Object.assign(auth, {
-		accountAccess,
+		get accountAccess() {
+			return getAccountAccess();
+		},
 		auditLog,
 		handler,
 		securityEventLog,
