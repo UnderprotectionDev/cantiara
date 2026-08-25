@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 
 import { afterRevokeSession } from "./after-revoke-session";
 
-test("Revoke Session on the current product session requires sign-in again", () => {
-	expect(afterRevokeSession(true)).toBe("/login");
+test("Revoke Session on the current product session returns to Sessions after sign-in", () => {
+	expect(afterRevokeSession(true)).toBe("/login?redirect=/sessions");
 });
 
 test("Revoke Session on another device stays on Sessions", () => {

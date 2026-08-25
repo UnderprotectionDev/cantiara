@@ -9,12 +9,13 @@ import {
 	DropdownMenuTrigger,
 } from "@cantiara/ui/components/dropdown-menu";
 import { Skeleton } from "@cantiara/ui/components/skeleton";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 
 import SignOut from "@/features/account-access/forms/sign-out";
 import { authClient } from "@/lib/auth-client";
 
 export default function UserMenu() {
+	const navigate = useNavigate();
 	const { data: session, isPending } = authClient.useSession();
 
 	if (isPending) {
@@ -39,7 +40,11 @@ export default function UserMenu() {
 					<DropdownMenuLabel>My Account</DropdownMenuLabel>
 					<DropdownMenuSeparator />
 					<DropdownMenuItem>{session.user.email}</DropdownMenuItem>
-					<DropdownMenuItem render={<Link to="/sessions" />}>
+					<DropdownMenuItem
+						onClick={() => {
+							void navigate({ to: "/sessions" });
+						}}
+					>
 						Sessions
 					</DropdownMenuItem>
 					<SignOut />

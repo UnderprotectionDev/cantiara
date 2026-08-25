@@ -1,4 +1,7 @@
-export const AFTER_CURRENT_REVOKE_PATH = "/login" as const;
+import { SESSIONS_PATH } from "./post-sign-in-path";
+
+export const AFTER_CURRENT_REVOKE_PATH =
+	`/login?redirect=${SESSIONS_PATH}` as const;
 
 export function afterRevokeSession(
 	wasCurrent: boolean

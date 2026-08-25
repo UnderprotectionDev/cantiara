@@ -341,6 +341,26 @@ describe("Account Access", () => {
 		restore();
 	});
 
+	it("returns to Sessions after GitHub sign-in when that is the callback", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			cookies,
+			"203.0.113.10",
+			"/sessions"
+		);
+		const callback = await completeGitHubCallback(auth.handler, cookies, {
+			code: "founder-sessions",
+			state: authorizationState(String((await jsonBody(start)).url)),
+		});
+		expect(callback.headers.get("location")).toBe(`${WEB_ORIGIN}/sessions`);
+		restore();
+	});
+
 	it("reuses the same Account and Workspace on a later GitHub sign-in", async () => {
 		const restore = installGitHubOAuthDouble({
 			profileForCode: () => founder,

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 
 import Workspace from "@/features/account-access/views/workspace";
 import { orpc } from "@/utils/orpc";
@@ -17,6 +17,9 @@ function RouteComponent() {
 		<div>
 			<h1>Dashboard</h1>
 			<p>Welcome {session.data?.user.name}</p>
+			<p>
+				<Link to="/sessions">Sessions</Link>
+			</p>
 			<Workspace />
 			<p>API: {privateData.data?.message}</p>
 		</div>
