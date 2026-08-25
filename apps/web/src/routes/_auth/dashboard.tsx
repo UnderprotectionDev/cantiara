@@ -18,6 +18,9 @@ function RouteComponent() {
 			<h1>Dashboard</h1>
 			<p>Welcome {session.data?.user?.name}</p>
 			<p>
+				<Link to="/account">Preferences</Link>
+			</p>
+			<p>
 				<Link to="/sessions">Sessions</Link>
 			</p>
 			<Workspace />

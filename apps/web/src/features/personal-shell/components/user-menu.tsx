@@ -10,6 +10,7 @@ import {
 } from "@cantiara/ui/components/dropdown-menu";
 import { Skeleton } from "@cantiara/ui/components/skeleton";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useCallback } from "react";
 
 import SignOut from "@/features/account-access/forms/sign-out";
 import { authClient } from "@/lib/auth-client";
@@ -20,6 +21,12 @@ export default function UserMenu() {
 	const navigate = useNavigate();
 	const { data: session, isPending } = authClient.useSession();
 	const user = sessionUser(session);
+	const onPreferences = useCallback(() => {
+		navigate({ to: "/account" }).catch(() => undefined);
+	}, [navigate]);
+	const onSessions = useCallback(() => {
+		navigate({ to: "/sessions" }).catch(() => undefined);
+	}, [navigate]);
 
 	if (isPending) {
 		return <Skeleton className="h-9 w-24" />;
@@ -43,13 +50,10 @@ export default function UserMenu() {
 					<DropdownMenuLabel>My Account</DropdownMenuLabel>
 					<DropdownMenuSeparator />
 					<DropdownMenuItem>{user.email}</DropdownMenuItem>
-					<DropdownMenuItem
-						onClick={() => {
-							void navigate({ to: "/sessions" });
-						}}
-					>
-						Sessions
+					<DropdownMenuItem onClick={onPreferences}>
+						Preferences
 					</DropdownMenuItem>
+					<DropdownMenuItem onClick={onSessions}>Sessions</DropdownMenuItem>
 					<SignOut />
 				</DropdownMenuGroup>
 			</DropdownMenuContent>

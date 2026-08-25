@@ -1,0 +1,13 @@
+model AccountPreference {
+  id             String   @id
+  accountId      String   @unique
+  account        User     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  locale         String
+  timeZone       String
+  dateFormat     String
+  firstDayOfWeek String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("account_preference")
+}

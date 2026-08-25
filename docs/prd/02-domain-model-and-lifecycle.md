@@ -34,6 +34,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | GitHub ile devam | `Continue with GitHub` | GitHub login OAuth ile Hesaba giriş eylemi |
 | Oturumu kapat | `Sign Out` | Geçerli ürün oturumunu sonlandırma eylemi |
 | Oturumlar | `Sessions` | Hesap kapsamındaki aktif ürün oturumlarını cihaz ve son etkinlikle listeleme yüzeyi |
+| Hesap tercihleri | `Preferences` | Locale, saat dilimi, tarih biçimi ve haftanın ilk günü yüzeyi |
+| Locale | `Locale` | Tarih, saat ve sayı biçimini seçen Hesap tercihi; arayüz dili değildir |
+| Saat dilimi | `Time zone` | Takvim gün sınırı, tarih girişi ve tarihsel gösterim dilimi |
+| Tarih biçimi | `Date format` | Tarih yazımı; seçilmezse locale varsayılanını izler |
+| Haftanın ilk günü | `First day of week` | Hafta ızgarası ve hafta sınırının başladığı gün |
+| Kaydet | `Save` | Hesap tercihini açıkça yazan eylem |
+| Önerilen locale ve saat dilimini kullan | `Use suggested locale and time zone` | İlk girişte tarayıcı önerisini forma alan, kaydetmeden uygulamayan eylem |
 | Cihaz | `Device` | Ürün oturumunun tanındığı istemci türü |
 | Son etkinlik | `Last activity` | Ürün oturumunun en son kullanıldığı zaman |
 | Geçerli oturum | `Current` | Listelenen satırın bu tarayıcıdaki ürün oturumu olduğunu gösteren durum |
