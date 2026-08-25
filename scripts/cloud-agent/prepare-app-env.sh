@@ -11,11 +11,6 @@ cantiara_is_hosted_database() {
   [[ -n "${DATABASE_URL:-}" && "${DATABASE_URL}" != *127.0.0.1* && "${DATABASE_URL}" != *localhost* ]]
 }
 
-# Prisma migrate needs Neon's direct host. Runtime may use the pooler URL.
-cantiara_direct_database_url() {
-  printf '%s' "${DATABASE_URL/-pooler./.}"
-}
-
 cantiara_ensure_env_key() {
   local file="$1"
   local key="$2"
@@ -41,11 +36,6 @@ cantiara_prepare_server_env() {
     if [[ -z "${GITHUB_CLIENT_SECRET:-}" ]] && ! grep -q '^GITHUB_CLIENT_SECRET=' "$env_file"; then
       echo 'GITHUB_CLIENT_SECRET=github-oauth-app-client-secret' >> "$env_file"
     fi
-  fi
-  if [[ -n "${GITHUB_CLIENT_ID:-}" && "${GITHUB_CLIENT_ID}" != "github-oauth-app-client-id" ]]; then
-    log "GitHub OAuth client id is set from process env"
-  else
-    log "GitHub OAuth client id is missing or a placeholder; Continue with GitHub cannot reach GitHub"
   fi
   cantiara_ensure_env_key "$env_file" BETTER_AUTH_URL "http://localhost:3000"
   cantiara_ensure_env_key "$env_file" CORS_ORIGIN "http://localhost:3001"

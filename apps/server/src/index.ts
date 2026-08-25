@@ -1,6 +1,5 @@
 import { createContext } from "@cantiara/api/context";
 import { auth } from "@cantiara/auth";
-import { getPrismaClient } from "@cantiara/db";
 import { env } from "@cantiara/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
@@ -98,11 +97,5 @@ app.use("/*", async (c, next) => {
 });
 
 app.get("/", (c) => c.text("OK"));
-
-function warmupDatabase() {
-	return getPrismaClient().$queryRaw`SELECT 1`.catch(() => undefined);
-}
-
-warmupDatabase();
 
 export default app;
