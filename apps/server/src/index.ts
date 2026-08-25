@@ -1,5 +1,5 @@
 import { createContext } from "@cantiara/api/context";
-import { auth } from "@cantiara/auth";
+import { AccountAccessError, assertCookieCsrf, auth } from "@cantiara/auth";
 import { env } from "@cantiara/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
@@ -50,6 +50,23 @@ app.use(
 );
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
+
+app.use("/rpc/*", async (c, next) => {
+	const { method } = c.req;
+	if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+		await next();
+		return;
+	}
+	try {
+		assertCookieCsrf(c.req.raw, [env.CORS_ORIGIN]);
+	} catch (error) {
+		if (error instanceof AccountAccessError && error.status === 403) {
+			return c.json({ message: error.message }, 403);
+		}
+		throw error;
+	}
+	await next();
+});
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
 	interceptors: [

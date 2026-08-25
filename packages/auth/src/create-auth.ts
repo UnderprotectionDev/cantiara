@@ -1,7 +1,9 @@
 import type { PrismaClient } from "@cantiara/db";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { createAuthMiddleware } from "better-auth/api";
 
+import { createAccountSessionAccess } from "./account-sessions";
 import {
 	ensureWorkspaceForAccount,
 	GITHUB_IDENTITY_SCOPES,
@@ -14,16 +16,28 @@ import {
 	createMemoryRateLimiter,
 	type RateLimiter,
 } from "./rate-limit";
+import type { AuditLog, SecurityEventLog } from "./session-events";
+import {
+	createMemoryAuditLog,
+	createMemorySecurityEventLog,
+} from "./session-events";
+import {
+	isPastAbsoluteLifetime,
+	SESSION_IDLE_SECONDS,
+	SESSION_UPDATE_AGE_SECONDS,
+} from "./session-policy";
 
 const DEFAULT_MAX_ATTEMPTS = 10;
 const DEFAULT_WINDOW_MS = 60_000;
 
 export interface CreateAuthOptions {
+	auditLog?: AuditLog;
 	baseURL: string;
 	github: {
 		clientId: string;
 		clientSecret: string;
 	};
+	now?: () => Date;
 	prisma: PrismaClient;
 	rateLimit?: {
 		windowMs: number;
@@ -31,6 +45,7 @@ export interface CreateAuthOptions {
 		limiter?: RateLimiter;
 	};
 	secret: string;
+	securityEventLog?: SecurityEventLog;
 	trustedOrigins: string[];
 }
 
@@ -45,6 +60,10 @@ export function createAuth(options: CreateAuthOptions) {
 	const limiter =
 		configuredLimit?.limiter ??
 		createMemoryRateLimiter({ maxAttempts, windowMs });
+	const auditLog = options.auditLog ?? createMemoryAuditLog();
+	const securityEventLog =
+		options.securityEventLog ?? createMemorySecurityEventLog();
+	const now = options.now ?? (() => new Date());
 
 	const auth = betterAuth({
 		account: {
@@ -86,10 +105,45 @@ export function createAuth(options: CreateAuthOptions) {
 		emailAndPassword: {
 			enabled: false,
 		},
+		hooks: {
+			after: createAuthMiddleware(async (ctx) => {
+				if (ctx.path !== "/get-session") {
+					return;
+				}
+				const { returned } = ctx.context;
+				if (!returned || returned instanceof Response) {
+					return;
+				}
+				const payload = returned as {
+					session?: { createdAt?: Date | string; id?: string };
+				};
+				if (!payload.session?.createdAt) {
+					return;
+				}
+				if (
+					!isPastAbsoluteLifetime(new Date(payload.session.createdAt), now())
+				) {
+					return;
+				}
+				if (payload.session.id) {
+					await options.prisma.session.deleteMany({
+						where: { id: payload.session.id },
+					});
+				}
+				ctx.context.returned = null;
+			}),
+		},
 		rateLimit: {
 			enabled: false,
 		},
 		secret: options.secret,
+		session: {
+			cookieCache: {
+				enabled: false,
+			},
+			expiresIn: SESSION_IDLE_SECONDS,
+			updateAge: SESSION_UPDATE_AGE_SECONDS,
+		},
 		socialProviders: {
 			github: {
 				clientId: options.github.clientId,
@@ -102,6 +156,16 @@ export function createAuth(options: CreateAuthOptions) {
 		trustedOrigins: options.trustedOrigins,
 	});
 
+	const accountAccess = createAccountSessionAccess({
+		auditLog,
+		auth,
+		now,
+		prisma: options.prisma,
+		secret: options.secret,
+		securityEventLog,
+		trustedOrigins: options.trustedOrigins,
+	});
+
 	const innerHandler = auth.handler.bind(auth);
 	const handler = (request: Request) =>
 		handleAuthRequest(request, {
@@ -111,7 +175,12 @@ export function createAuth(options: CreateAuthOptions) {
 			trustedOrigins: options.trustedOrigins,
 		});
 
-	return Object.assign(auth, { handler });
+	return Object.assign(auth, {
+		accountAccess,
+		auditLog,
+		handler,
+		securityEventLog,
+	});
 }
 
 interface AuthSessionLookup {
@@ -155,11 +224,38 @@ async function handleAuthRequest(
 		return genericSignInFailureResponse(response.status === 429 ? 429 : 401);
 	}
 
+	if (pathname.includes("/list-sessions")) {
+		return stripSessionTokens(response);
+	}
+
 	if (!pathname.includes("/callback/github")) {
 		return response;
 	}
 
 	return admitGitHubCallback(request, response, deps);
+}
+
+async function stripSessionTokens(response: Response): Promise<Response> {
+	if (!response.ok) {
+		return response;
+	}
+	try {
+		const body: unknown = await response.clone().json();
+		if (!Array.isArray(body)) {
+			return response;
+		}
+		const stripped = body.map((entry) => {
+			if (entry && typeof entry === "object") {
+				return Object.fromEntries(
+					Object.entries(entry).filter(([key]) => key !== "token")
+				);
+			}
+			return entry;
+		});
+		return Response.json(stripped, { status: response.status });
+	} catch {
+		return response;
+	}
 }
 
 async function admitGitHubCallback(
