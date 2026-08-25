@@ -82,11 +82,23 @@ if [[ ! -f apps/server/.env ]]; then
     echo "BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}"
     echo "CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3001}"
     echo "NODE_ENV=development"
+    echo "GITHUB_CLIENT_ID=github-oauth-app-client-id"
+    echo "GITHUB_CLIENT_SECRET=github-oauth-app-client-secret"
   } > apps/server/.env
 elif [[ "${hosted_database}" -eq 1 && -f apps/server/.env ]] && grep -q '^NEON_LOCAL=' apps/server/.env; then
   log "Clearing NEON_LOCAL so Cursor DATABASE_URL reaches hosted Neon"
   grep -v '^NEON_LOCAL=' apps/server/.env > apps/server/.env.tmp
   mv apps/server/.env.tmp apps/server/.env
+fi
+# Placeholders only. Cursor Secrets override these via process.env; do not copy
+# real OAuth credentials into .env.
+if [[ -f apps/server/.env ]]; then
+  if ! grep -q '^GITHUB_CLIENT_ID=' apps/server/.env; then
+    echo 'GITHUB_CLIENT_ID=github-oauth-app-client-id' >> apps/server/.env
+  fi
+  if ! grep -q '^GITHUB_CLIENT_SECRET=' apps/server/.env; then
+    echo 'GITHUB_CLIENT_SECRET=github-oauth-app-client-secret' >> apps/server/.env
+  fi
 fi
 if [[ ! -f apps/web/.env ]]; then
   log "Writing apps/web/.env"
