@@ -592,6 +592,7 @@ describe("Account Access", () => {
 		expect(listed).toHaveLength(2);
 		for (const session of listed) {
 			expect(session).not.toHaveProperty("token");
+			expect(Number.isNaN(Date.parse(session.lastActivity))).toBe(false);
 		}
 		expect(JSON.stringify(listed)).not.toContain(token);
 
