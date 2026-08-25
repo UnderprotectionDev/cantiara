@@ -2,7 +2,7 @@ import type {
 	AccountPreferences,
 	AccountPreferencesInput,
 	SuggestedLocaleAndTimeZone,
-} from "@cantiara/auth";
+} from "@cantiara/auth/account-preferences";
 import {
 	ACCOUNT_PREFERENCES_COPY,
 	applySuggestedLocaleAndTimeZone,
@@ -16,7 +16,7 @@ import {
 	shouldShowLocaleTimeZoneSuggestion,
 	timeZoneOptions,
 	weekdayHeaders,
-} from "@cantiara/auth";
+} from "@cantiara/auth/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import {

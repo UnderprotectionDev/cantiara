@@ -1,4 +1,4 @@
-import { ACCOUNT_PREFERENCES_COPY } from "@cantiara/auth";
+import { ACCOUNT_PREFERENCES_COPY } from "@cantiara/auth/account-preferences";
 import { useQuery } from "@tanstack/react-query";
 
 import PreferencesForm from "@/features/account-preferences/forms/preferences-form";
