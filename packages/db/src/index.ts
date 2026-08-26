@@ -41,7 +41,8 @@ let defaultPrisma: PrismaClient | undefined;
 export function getPrismaClient() {
 	if (
 		defaultPrisma !== undefined &&
-		typeof defaultPrisma.captureInboxItem?.findMany !== "function"
+		(typeof defaultPrisma.captureInboxItem?.findMany !== "function" ||
+			typeof defaultPrisma.projectSkeletonSelection?.findMany !== "function")
 	) {
 		defaultPrisma = undefined;
 	}

@@ -9,6 +9,91 @@ export const STARTER_CONFIGURATIONS = [
 
 export type StarterConfiguration = (typeof STARTER_CONFIGURATIONS)[number];
 
+export const SKELETON_NAMES = [
+	"Sitemap",
+	"Customer Journey",
+	"Persona",
+	"Retrospective",
+	"Launch Plan",
+] as const;
+
+export type SkeletonName = (typeof SKELETON_NAMES)[number];
+
+export const SKELETON_SURFACES = ["Document", "Project Wall"] as const;
+
+export type SkeletonSurface = (typeof SKELETON_SURFACES)[number];
+
+export const STARTER_SKELETONS = [
+	{
+		emptyHeadings: [
+			"Primary Navigation",
+			"Secondary Navigation",
+			"Utility",
+			"External",
+		],
+		name: "Sitemap",
+		surface: "Project Wall",
+	},
+	{
+		emptyHeadings: [
+			"Awareness",
+			"Consideration",
+			"Onboarding",
+			"Core Use",
+			"Retention",
+		],
+		name: "Customer Journey",
+		surface: "Project Wall",
+	},
+	{
+		emptyHeadings: [
+			"Context",
+			"Goals",
+			"Behaviors",
+			"Pain Points",
+			"Constraints",
+			"Evidence",
+			"Open Questions",
+		],
+		name: "Persona",
+		surface: "Document",
+	},
+	{
+		emptyHeadings: [
+			"Period",
+			"What worked?",
+			"What did not?",
+			"What did we learn?",
+			"Decisions",
+			"Next changes",
+			"Related records",
+		],
+		name: "Retrospective",
+		surface: "Document",
+	},
+	{
+		emptyHeadings: [
+			"Release",
+			"Audience",
+			"Scope",
+			"Readiness",
+			"Communication",
+			"Launch steps",
+			"Risks",
+			"Observation plan",
+			"Related records",
+		],
+		name: "Launch Plan",
+		surface: "Document",
+	},
+] as const;
+
+export interface SelectedSkeleton {
+	emptyHeadings: string[];
+	name: SkeletonName;
+	surface: SkeletonSurface;
+}
+
 export const PROJECT_AREAS = [
 	"Work",
 	"Documents",
@@ -119,6 +204,13 @@ export const projectViewSchema = z.object({
 	purpose: z.string().min(1).nullable(),
 	revision: z.number().int().positive(),
 	scope: z.string().min(1).nullable(),
+	selectedSkeletons: z.array(
+		z.object({
+			emptyHeadings: z.array(z.string().min(1)),
+			name: z.enum(SKELETON_NAMES),
+			surface: z.enum(SKELETON_SURFACES),
+		})
+	),
 	shortCode: z.string().min(SHORT_CODE_MIN).max(SHORT_CODE_MAX),
 	shortCodeLocked: z.boolean(),
 	stages: z.array(z.string().min(1)),
@@ -217,6 +309,14 @@ export function isProjectAreaName(value: string): value is ProjectAreaName {
 	return (PROJECT_AREAS as readonly string[]).includes(value);
 }
 
+export function isSkeletonName(value: string): value is SkeletonName {
+	return (SKELETON_NAMES as readonly string[]).includes(value);
+}
+
+export function isSkeletonSurface(value: string): value is SkeletonSurface {
+	return (SKELETON_SURFACES as readonly string[]).includes(value);
+}
+
 const STARTER_STRUCTURE: Record<
 	StarterConfiguration,
 	{
@@ -264,6 +364,19 @@ export function appliedStructureFor(
 	starterConfiguration: StarterConfiguration
 ) {
 	return STARTER_STRUCTURE[starterConfiguration];
+}
+
+export function selectedSkeletonsFor(
+	starterConfiguration: StarterConfiguration
+): SelectedSkeleton[] {
+	if (starterConfiguration === "Blank Project") {
+		return [];
+	}
+	return STARTER_SKELETONS.map((skeleton) => ({
+		emptyHeadings: [...skeleton.emptyHeadings],
+		name: skeleton.name,
+		surface: skeleton.surface,
+	}));
 }
 
 export function firstOpenExplanationFor(

@@ -18,6 +18,7 @@ model Project {
   updatedAt                       DateTime                     @updatedAt
   stages                          ProjectStage[]
   areaSettings                    ProjectAreaSetting[]
+  skeletonSelections              ProjectSkeletonSelection[]
   workViews                       ProjectWorkView[]
   workStatuses                    ProjectWorkStatus[]
 
@@ -62,6 +63,21 @@ model ProjectWorkView {
 
   @@unique([projectId, name])
   @@map("project_work_view")
+}
+
+model ProjectSkeletonSelection {
+  id            String   @id
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name          String
+  surface       String
+  emptyHeadings String[]
+  sortOrder     Int
+  createdAt     DateTime @default(now())
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("project_skeleton_selection")
 }
 
 model ProjectWorkStatus {
