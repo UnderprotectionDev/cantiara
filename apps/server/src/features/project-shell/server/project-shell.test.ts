@@ -9,7 +9,7 @@
  * (İlk Proje selection half; Başlangıç iskeletleri golden living
  * structures wait on 31 and 51).
  */
-import { PrismaClient } from "@cantiara/db";
+import { getPrismaClient, PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -1130,6 +1130,13 @@ describe("Project Shell", () => {
 		).toContain("All Tools");
 		expect(JSON.stringify(PROJECT_SHELL_COPY)).not.toMatch(
 			COPY_BRANDING_PATTERN
+		);
+	});
+
+	it("drops a Prisma client that cannot record skeleton catalog selection", () => {
+		const productPrisma = getPrismaClient();
+		expect(typeof productPrisma.projectSkeletonSelection.findMany).toBe(
+			"function"
 		);
 	});
 });
