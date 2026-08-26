@@ -34,12 +34,15 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | GitHub ile devam | `Continue with GitHub` | GitHub login OAuth ile Hesaba giriş eylemi |
 | Oturumu kapat | `Sign Out` | Geçerli ürün oturumunu sonlandırma eylemi |
 | Oturumlar | `Sessions` | Hesap kapsamındaki aktif ürün oturumlarını cihaz ve son etkinlikle listeleme yüzeyi |
-| Hesap tercihleri | `Preferences` | Locale, saat dilimi, tarih biçimi ve haftanın ilk günü yüzeyi |
+| Hesap tercihleri | `Preferences` | Locale, saat dilimi, tarih biçimi, haftanın ilk günü ve Appearance yüzeyi |
 | Locale | `Locale` | Tarih, saat ve sayı biçimini seçen Hesap tercihi; arayüz dili değildir |
 | Saat dilimi | `Time zone` | Takvim gün sınırı, tarih girişi ve tarihsel gösterim dilimi |
 | Tarih biçimi | `Date format` | Tarih yazımı; seçilmezse locale varsayılanını izler |
 | Locale varsayılanı | `Locale default` | Tarih biçiminin locale yazımını izlediği seçenek |
 | Haftanın ilk günü | `First day of week` | Hafta ızgarası ve hafta sınırının başladığı gün |
+| Appearance | `Appearance` | Hesabın Light veya Dark okunabilirlik tercihi; tema sistemi değildir |
+| Light | `Light` | Appearance değeri |
+| Dark | `Dark` | Appearance değeri |
 | Kaydet | `Save` | Hesap tercihini açıkça yazan eylem |
 | Önerilen locale ve saat dilimini kullan | `Use suggested locale and time zone` | İlk girişte tarayıcı önerisini forma alan, kaydetmeden uygulamayan eylem |
 | Önizleme | `Preview` | Locale, tarih biçimi ve haftanın ilk gününün gösterim sonucunu kaydetmeden gösteren yüzey |
@@ -73,7 +76,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 - **`Proje`:** İş, Proje Hedefi, Belge, Karar, Risk, Varsayım, Açık Soru, araştırma, tasarım, Teknik Diyagram, test, Kilometre Taşı, Proje Sürümü ve Üretim Olayı gibi proje kayıtları.
 - **`Kişisel Wiki`:** Wiki Belgesi ve onun altında sahiplenilen Dosya Eki.
 
-- **Hesap profili çalışma alanı içeriği değildir.** Değişmeyen GitHub hesap kimliği, GitHub kullanıcı adı ve görünen profil bilgisi; locale, saat dilimi, tarih biçimi, haftanın ilk günü, açık/koyu görünüm tercihi, deneysel Bitiriş efekti tercihi ile oturum listesi Hesap kapsamında tutulur. İngilizce arayüz dili kullanıcı tercihi değildir. Tercihlerin kullanıcı davranışı [Hesap profil tercihlerinde](03-account-platform-operations.md#hesap-profil-tercihleri), Bitiriş efektinin etkinleştirme ve tema davranışı ise [İş Yönetiminde](06-work-management-and-planning.md#bitiris-efektleri) yaşar; bu bölüm yalnız sahiplik kapsamını belirler.
+- **Hesap profili çalışma alanı içeriği değildir.** Değişmeyen GitHub hesap kimliği, GitHub kullanıcı adı ve görünen profil bilgisi; locale, saat dilimi, tarih biçimi, haftanın ilk günü, Appearance, deneysel Bitiriş efekti tercihi ile oturum listesi Hesap kapsamında tutulur. İngilizce arayüz dili kullanıcı tercihi değildir. Tercihlerin kullanıcı davranışı [Hesap profil tercihlerinde](03-account-platform-operations.md#hesap-profil-tercihleri), Bitiriş efektinin etkinleştirme ve tema davranışı ise [İş Yönetiminde](06-work-management-and-planning.md#bitiris-efektleri) yaşar; bu bölüm yalnız sahiplik kapsamını belirler.
 
 - **Her kalıcı domain öğesi ya bu kapsamlardan tam olarak birinde yaşayan ana kayıttır ya da tek ana kaydın sahipli bileşenidir.** Sahipli bileşen sahibinden bağımsız erişim, kapsam veya yaşam döngüsü kazanamaz. GitHub bağlantısı ve dış GitHub kayıtları Proje kapsamındadır; bağlantı köken bilgisidir, sahiplik kapsamı değildir. `Proje bağlantısı`, `kaynak kapsamı` ve `Hesap + kaynak kayıt` kanonik kapsam değildir.
 

@@ -26,7 +26,7 @@ export default function Preferences() {
 				<p role="alert">{ACCOUNT_PREFERENCES_COPY.unavailable}</p>
 			) : (
 				<PreferencesForm
-					key={`${preferences.data.saved}:${preferences.data.locale}:${preferences.data.timeZone}`}
+					key={`${preferences.data.saved}:${preferences.data.locale}:${preferences.data.timeZone}:${preferences.data.appearance}`}
 					preferences={preferences.data}
 					suggestion={suggestion}
 				/>

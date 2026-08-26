@@ -6,6 +6,7 @@ import { sessionLastActivityDisplay } from "./session-last-activity";
 const INSTANT = "2026-03-29T12:00:00.000Z";
 
 const istanbul: AccountPreferencesInput = {
+	appearance: "Dark",
 	dateFormat: "locale",
 	firstDayOfWeek: "Monday",
 	locale: "en-GB",

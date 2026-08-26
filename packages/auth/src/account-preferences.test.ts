@@ -1,9 +1,11 @@
 /**
  * Account Preferences seam — Hesap locale, time zone, date format,
- * and first day of week. Defaults, first-login suggestion without
- * applying it, save, date/number/week formatting, time zone display
- * versus stored instants, and English chrome with no language preference.
- * Synthetic fixture for the locale slice of
+ * first day of week, and Appearance (Light/Dark). Defaults, first-login
+ * suggestion without applying it, save, date/number/week formatting,
+ * time zone display versus stored instants, English chrome with no
+ * language preference, Light/Dark from the Hesap record rather than a
+ * device key, and no Bitiriş efekti controls. Synthetic fixture for the
+ * locale and Light/Dark slice of
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (İngilizce ürün dili).
  */
@@ -27,6 +29,8 @@ import {
 	weekdayHeaders,
 } from "./account-preferences-format";
 import {
+	appearanceFromHesap,
+	appearanceSchema,
 	applySuggestedLocaleAndTimeZone,
 	DEFAULT_FIRST_DAY_OF_WEEK,
 	DEFAULT_LOCALE,
@@ -48,12 +52,20 @@ const SAMPLE_NUMBER = 1234.5;
 
 function defaults() {
 	return {
+		appearance: "Dark" as const,
 		dateFormat: "locale" as const,
 		firstDayOfWeek: DEFAULT_FIRST_DAY_OF_WEEK,
 		locale: DEFAULT_LOCALE,
 		saved: false,
 		timeZone: DEFAULT_TIME_ZONE,
 	};
+}
+
+function preferenceInput(
+	overrides: Partial<Omit<ReturnType<typeof defaults>, "saved">> = {}
+) {
+	const { saved: _saved, ...input } = defaults();
+	return { ...input, ...overrides };
 }
 
 describe("Account Preferences", () => {
@@ -107,7 +119,7 @@ describe("Account Preferences", () => {
 		}
 	});
 
-	it("uses en-GB, Europe/Istanbul, and Monday when the Hesap has no saved preferences", async () => {
+	it("uses en-GB, Europe/Istanbul, Monday, and Dark when the Hesap has no saved preferences", async () => {
 		await expect(getAccountPreferences(prisma, accountId)).resolves.toEqual(
 			defaults()
 		);
@@ -131,13 +143,18 @@ describe("Account Preferences", () => {
 	});
 
 	it("saves locale, time zone, date format, and first day of week on the Hesap", async () => {
-		const saved = await saveAccountPreferences(prisma, accountId, {
-			dateFormat: "yyyy-MM-dd",
-			firstDayOfWeek: "Sunday",
-			locale: "tr-TR",
-			timeZone: "America/New_York",
-		});
+		const saved = await saveAccountPreferences(
+			prisma,
+			accountId,
+			preferenceInput({
+				dateFormat: "yyyy-MM-dd",
+				firstDayOfWeek: "Sunday",
+				locale: "tr-TR",
+				timeZone: "America/New_York",
+			})
+		);
 		expect(saved).toEqual({
+			appearance: "Dark",
 			dateFormat: "yyyy-MM-dd",
 			firstDayOfWeek: "Sunday",
 			locale: "tr-TR",
@@ -155,12 +172,16 @@ describe("Account Preferences", () => {
 			locale: "de-DE",
 			timeZone: "Europe/Berlin",
 		});
-		const saved = await saveAccountPreferences(prisma, accountId, {
-			dateFormat: draft.dateFormat,
-			firstDayOfWeek: draft.firstDayOfWeek,
-			locale: draft.locale,
-			timeZone: draft.timeZone,
-		});
+		const saved = await saveAccountPreferences(
+			prisma,
+			accountId,
+			preferenceInput({
+				dateFormat: draft.dateFormat,
+				firstDayOfWeek: draft.firstDayOfWeek,
+				locale: draft.locale,
+				timeZone: draft.timeZone,
+			})
+		);
 		expect(saved).toMatchObject({
 			locale: "de-DE",
 			saved: true,
@@ -256,12 +277,16 @@ describe("Account Preferences", () => {
 			title: "Taslak başlık",
 		};
 		const before = displayRecord(record, defaults());
-		await saveAccountPreferences(prisma, accountId, {
-			dateFormat: "MM/dd/yyyy",
-			firstDayOfWeek: "Sunday",
-			locale: "tr-TR",
-			timeZone: "America/New_York",
-		});
+		await saveAccountPreferences(
+			prisma,
+			accountId,
+			preferenceInput({
+				dateFormat: "MM/dd/yyyy",
+				firstDayOfWeek: "Sunday",
+				locale: "tr-TR",
+				timeZone: "America/New_York",
+			})
+		);
 		const afterPrefs = await getAccountPreferences(prisma, accountId);
 		const after = displayRecord(record, afterPrefs);
 		expect(after.key).toBe("CAN-1");
@@ -284,9 +309,12 @@ describe("Account Preferences", () => {
 	it("keeps English chrome and has no language preference when locale is tr-TR", () => {
 		const chrome = preferencesChrome("tr-TR");
 		expect(chrome).toMatchObject({
+			appearance: "Appearance",
+			dark: "Dark",
 			dateFormat: "Date format",
 			firstDayOfWeek: "First day of week",
 			heading: "Preferences",
+			light: "Light",
 			locale: "Locale",
 			save: "Save",
 			timeZone: "Time zone",
@@ -297,20 +325,30 @@ describe("Account Preferences", () => {
 		expect("language" in chrome).toBe(false);
 		expect(Object.values(chrome)).not.toContain("Confirm GitHub Identity");
 		expect(Object.values(chrome)).not.toContain("Language");
+		expect(Object.values(chrome)).not.toContain("System");
+		expect(Object.values(chrome)).not.toContain("Bitiriş efekti");
+		expect(Object.values(chrome)).not.toContain("Completion effect");
+		expect(Object.values(chrome)).not.toContain("Palette");
 		expect(weekdayHeaders({ ...defaults(), locale: "tr-TR" })[0]).toBe(
 			"Monday"
 		);
 	});
 
 	it("does not take a Project override; the Hesap record applies across Projects", async () => {
-		await saveAccountPreferences(prisma, accountId, {
-			dateFormat: "locale",
-			firstDayOfWeek: "Monday",
-			locale: "en-US",
-			timeZone: "Europe/London",
-		});
+		await saveAccountPreferences(
+			prisma,
+			accountId,
+			preferenceInput({
+				appearance: "Light",
+				dateFormat: "locale",
+				firstDayOfWeek: "Monday",
+				locale: "en-US",
+				timeZone: "Europe/London",
+			})
+		);
 		const saved = await getAccountPreferences(prisma, accountId);
 		expect(saved).toEqual({
+			appearance: "Light",
 			dateFormat: "locale",
 			firstDayOfWeek: "Monday",
 			locale: "en-US",
@@ -318,5 +356,57 @@ describe("Account Preferences", () => {
 			timeZone: "Europe/London",
 		});
 		expect("projectId" in saved).toBe(false);
+	});
+
+	it("saves Light and Dark Appearance on the Hesap", async () => {
+		const light = await saveAccountPreferences(
+			prisma,
+			accountId,
+			preferenceInput({ appearance: "Light" })
+		);
+		expect(light.appearance).toBe("Light");
+		await expect(
+			getAccountPreferences(prisma, accountId)
+		).resolves.toMatchObject({ appearance: "Light", saved: true });
+		const dark = await saveAccountPreferences(
+			prisma,
+			accountId,
+			preferenceInput({ appearance: "Dark" })
+		);
+		expect(dark.appearance).toBe("Dark");
+		await expect(
+			getAccountPreferences(prisma, accountId)
+		).resolves.toMatchObject({ appearance: "Dark", saved: true });
+	});
+
+	it("does not accept System as a Hesap Appearance value", async () => {
+		await expect(
+			saveAccountPreferences(prisma, accountId, {
+				...preferenceInput(),
+				appearance: "System",
+			} as unknown as ReturnType<typeof preferenceInput>)
+		).rejects.toThrow();
+		await expect(
+			saveAccountPreferences(prisma, accountId, {
+				...preferenceInput(),
+				appearance: "dark",
+			} as unknown as ReturnType<typeof preferenceInput>)
+		).rejects.toThrow();
+		await expect(getAccountPreferences(prisma, accountId)).resolves.toEqual(
+			defaults()
+		);
+	});
+
+	it("applies Light and Dark from the Hesap record rather than a device theme key", async () => {
+		await saveAccountPreferences(
+			prisma,
+			accountId,
+			preferenceInput({ appearance: "Dark" })
+		);
+		const saved = await getAccountPreferences(prisma, accountId);
+		expect(appearanceFromHesap(saved, "light")).toBe("Dark");
+		expect(appearanceFromHesap(saved, "system")).toBe("Dark");
+		expect(appearanceSchema.safeParse("system").success).toBe(false);
+		expect(appearanceSchema.safeParse("vite-ui-theme").success).toBe(false);
 	});
 });

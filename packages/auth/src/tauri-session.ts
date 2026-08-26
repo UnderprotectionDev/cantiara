@@ -8,12 +8,36 @@ const TAURI_WEBVIEW_ORIGINS = [
 	"https://tauri.localhost",
 ] as const;
 
+function loopbackAlias(webOrigin: string): string | null {
+	try {
+		const url = new URL(webOrigin);
+		if (url.hostname === "localhost") {
+			url.hostname = "127.0.0.1";
+			return url.origin;
+		}
+		if (url.hostname === "127.0.0.1") {
+			url.hostname = "localhost";
+			return url.origin;
+		}
+	} catch {
+		return null;
+	}
+	return null;
+}
+
 export function productTrustedOrigins(webOrigin: string): string[] {
-	return [webOrigin, TAURI_CALLBACK_URL, ...TAURI_WEBVIEW_ORIGINS];
+	const alias = loopbackAlias(webOrigin);
+	return [
+		webOrigin,
+		...(alias ? [alias] : []),
+		TAURI_CALLBACK_URL,
+		...TAURI_WEBVIEW_ORIGINS,
+	];
 }
 
 export function productCorsOrigins(webOrigin: string): string[] {
-	return [webOrigin, ...TAURI_WEBVIEW_ORIGINS];
+	const alias = loopbackAlias(webOrigin);
+	return [webOrigin, ...(alias ? [alias] : []), ...TAURI_WEBVIEW_ORIGINS];
 }
 
 export function isTauriCallbackURL(url: string): boolean {

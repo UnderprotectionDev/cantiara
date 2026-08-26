@@ -1,9 +1,12 @@
 export const ACCOUNT_PREFERENCES_COPY = {
+	appearance: "Appearance",
+	dark: "Dark",
 	date: "Date",
 	dateFormat: "Date format",
 	firstDayOfWeek: "First day of week",
 	heading: "Preferences",
 	historicalEvent: "Historical event",
+	light: "Light",
 	loading: "Loading preferences…",
 	locale: "Locale",
 	number: "Number",

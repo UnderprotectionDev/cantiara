@@ -4,6 +4,7 @@ import {
 	type AccountPreferences,
 	type AccountPreferencesInput,
 	accountPreferencesInputSchema,
+	appearanceSchema,
 	dateFormatSchema,
 	firstDayOfWeekSchema,
 	localeSchema,
@@ -22,6 +23,7 @@ export async function getAccountPreferences(
 		return unsavedAccountPreferences();
 	}
 	return {
+		appearance: appearanceSchema.parse(row.appearance),
 		dateFormat: dateFormatSchema.parse(row.dateFormat),
 		firstDayOfWeek: firstDayOfWeekSchema.parse(row.firstDayOfWeek),
 		locale: localeSchema.parse(row.locale),
@@ -39,6 +41,7 @@ export async function saveAccountPreferences(
 	await prisma.accountPreference.upsert({
 		create: {
 			accountId,
+			appearance: parsed.appearance,
 			dateFormat: parsed.dateFormat,
 			firstDayOfWeek: parsed.firstDayOfWeek,
 			id: crypto.randomUUID(),
@@ -46,6 +49,7 @@ export async function saveAccountPreferences(
 			timeZone: parsed.timeZone,
 		},
 		update: {
+			appearance: parsed.appearance,
 			dateFormat: parsed.dateFormat,
 			firstDayOfWeek: parsed.firstDayOfWeek,
 			locale: parsed.locale,
