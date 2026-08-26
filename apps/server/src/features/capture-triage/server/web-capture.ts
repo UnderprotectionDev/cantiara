@@ -242,6 +242,63 @@ function toLinkView(row: LinkRow): ExtensionLinkView {
 	};
 }
 
+function stagedPayloadJson(
+	command: {
+		clip: WebCaptureClip;
+		idempotencyKey: string;
+		target: WebCaptureTarget;
+	},
+	linkId: string
+): string {
+	return JSON.stringify({
+		clip: command.clip,
+		idempotencyKey: command.idempotencyKey,
+		linkId,
+		target: command.target,
+	});
+}
+
+function targetScopeFor(target: WebCaptureTarget): string {
+	return target.kind === "project" ? target.projectId : "workspace";
+}
+
+async function reuseExistingStaging(
+	prisma: PrismaClient,
+	existingStaging: {
+		id: string;
+		payloadFingerprint: string;
+		status: string;
+	},
+	command: {
+		clip: WebCaptureClip;
+		idempotencyKey: string;
+		target: WebCaptureTarget;
+	},
+	fingerprint: string,
+	linkId: string
+): Promise<StageWebCaptureOutcome> {
+	if (
+		existingStaging.payloadFingerprint !== fingerprint &&
+		existingStaging.payloadFingerprint !==
+			webCaptureContentFingerprint(command.clip)
+	) {
+		return { reason: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	if (existingStaging.status === CANCELLED) {
+		await prisma.mutationStagingOperation.update({
+			data: {
+				payloadFingerprint: fingerprint,
+				payloadJson: stagedPayloadJson(command, linkId),
+				status: STAGED,
+				targetId: linkId,
+				targetScope: targetScopeFor(command.target),
+			},
+			where: { id: existingStaging.id },
+		});
+	}
+	return { stagingId: existingStaging.id, status: "staged" };
+}
+
 export function createWebCapture(input: {
 	actorId: string;
 	clock: { now: () => Date };
@@ -391,9 +448,20 @@ export function createWebCapture(input: {
 			if (
 				!staging ||
 				staging.actorId !== input.actorId ||
-				staging.status !== STAGED
+				(staging.status !== STAGED && staging.status !== COMMITTED)
 			) {
 				return { reason: "unpaired", status: "refused" };
+			}
+			if (staging.status === COMMITTED) {
+				const receipt = await input.prisma.mutationReceipt.findUnique({
+					where: { commandKey: staging.commandKey },
+				});
+				if (!receipt) {
+					return { reason: "unpaired", status: "refused" };
+				}
+				return reviveSavedOutcome(
+					JSON.parse(receipt.resultValue) as SendWebCaptureOutcome
+				);
 			}
 			const staged = JSON.parse(staging.payloadJson) as {
 				clip: WebCaptureClip;
@@ -631,6 +699,7 @@ export function createWebCapture(input: {
 				return { reason: gate.reason, status: "refused" };
 			}
 			const payload = clipPayload(command.clip, command.target);
+			const fingerprint = payloadFingerprint(payload);
 			const existing = await readReceipt(
 				input.prisma,
 				command.idempotencyKey,
@@ -639,8 +708,18 @@ export function createWebCapture(input: {
 			if (existing?.kind === "conflict") {
 				return { reason: MUTATION_COPY.conflict, status: "conflict" };
 			}
-			if (existing?.kind === "replay") {
-				return { stagingId: command.idempotencyKey, status: "staged" };
+			const existingStaging =
+				await input.prisma.mutationStagingOperation.findUnique({
+					where: { commandKey: command.idempotencyKey },
+				});
+			if (existingStaging) {
+				return await reuseExistingStaging(
+					input.prisma,
+					existingStaging,
+					command,
+					fingerprint,
+					gate.link.id
+				);
 			}
 			const stagingId = crypto.randomUUID();
 			const now = input.clock.now();
@@ -652,19 +731,11 @@ export function createWebCapture(input: {
 					expiresAt: new Date(now.getTime() + PAIRING_CODE_TTL_MS),
 					id: stagingId,
 					origin: "human",
-					payloadFingerprint: webCaptureContentFingerprint(command.clip),
-					payloadJson: JSON.stringify({
-						clip: command.clip,
-						idempotencyKey: command.idempotencyKey,
-						linkId: gate.link.id,
-						target: command.target,
-					}),
+					payloadFingerprint: fingerprint,
+					payloadJson: stagedPayloadJson(command, gate.link.id),
 					status: STAGED,
 					targetId: gate.link.id,
-					targetScope:
-						command.target.kind === "project"
-							? command.target.projectId
-							: "workspace",
+					targetScope: targetScopeFor(command.target),
 				},
 			});
 			return { stagingId, status: "staged" };

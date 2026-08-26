@@ -66,7 +66,37 @@ export async function searchCaptureTargets(
 	return await rpc("captureInbox/searchCaptureTargets", { query }, token);
 }
 
-export async function sendWebCapture(
+export async function stageWebCapture(
+	token: string,
+	input: {
+		clip: {
+			kind: "url" | "selected-text" | "selected-image" | "screenshot";
+			originUrl: string;
+			screenshot?: string;
+			selectedImage?: string;
+			selectedText?: string;
+		};
+		idempotencyKey: string;
+		target:
+			| { kind: "workspace" }
+			| { kind: "project"; projectId: string; projectName: string };
+	}
+): Promise<{
+	reason?: string;
+	stagingId?: string;
+	status: "staged" | "refused" | "conflict";
+}> {
+	return await rpc("captureInbox/stageWebCapture", input, token);
+}
+
+export async function finalizeWebCapture(
+	token: string,
+	input: { stagingId: string }
+): Promise<SendResult> {
+	return await rpc<SendResult>("captureInbox/finalizeWebCapture", input, token);
+}
+
+export async function sendStagedWebCapture(
 	token: string,
 	input: {
 		clip: {
@@ -82,5 +112,12 @@ export async function sendWebCapture(
 			| { kind: "project"; projectId: string; projectName: string };
 	}
 ): Promise<SendResult> {
-	return await rpc<SendResult>("captureInbox/sendWebCapture", input, token);
+	const staged = await stageWebCapture(token, input);
+	if (staged.status !== "staged" || !staged.stagingId) {
+		return {
+			reason: staged.reason,
+			status: staged.status === "conflict" ? "conflict" : "refused",
+		};
+	}
+	return await finalizeWebCapture(token, { stagingId: staged.stagingId });
 }

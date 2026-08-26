@@ -433,6 +433,102 @@ describe("Capture Inbox Web Capture", () => {
 		expect(await capture.list({ kind: "workspace" })).toHaveLength(1);
 	});
 
+	it("stages then finalizes a send and replays the same key without a second Inbox item", async () => {
+		const capture = inbox();
+		const { paired } = await pairClipper(capture);
+		const key = crypto.randomUUID();
+		const target = {
+			kind: "workspace" as const,
+			label: CAPTURE_INBOX_COPY.workspaceCaptureInbox,
+		};
+		const staged = await capture.stageWebCapture({
+			clip: URL_CLIP,
+			idempotencyKey: key,
+			target,
+			token: paired.token,
+		});
+		expect(staged).toEqual({
+			stagingId: expect.any(String),
+			status: "staged",
+		});
+		expect(await capture.list({ kind: "workspace" })).toEqual([]);
+		if (staged.status !== "staged") {
+			throw new Error("expected staged send");
+		}
+		const first = await capture.finalizeWebCapture({
+			stagingId: staged.stagingId,
+		});
+		expect(first).toMatchObject({
+			mainRecord: null,
+			status: "saved",
+		});
+		const stagedAgain = await capture.stageWebCapture({
+			clip: URL_CLIP,
+			idempotencyKey: key,
+			target,
+			token: paired.token,
+		});
+		expect(stagedAgain).toEqual({
+			stagingId: staged.stagingId,
+			status: "staged",
+		});
+		if (stagedAgain.status !== "staged") {
+			throw new Error("expected restaged send");
+		}
+		expect(
+			await capture.finalizeWebCapture({ stagingId: stagedAgain.stagingId })
+		).toEqual(first);
+		expect(await capture.list({ kind: "workspace" })).toHaveLength(1);
+	});
+
+	it("stages then finalizes a send and replays the same key without a second Inbox item", async () => {
+		const capture = inbox();
+		const { paired } = await pairClipper(capture);
+		const key = crypto.randomUUID();
+		const target = {
+			kind: "workspace" as const,
+			label: CAPTURE_INBOX_COPY.workspaceCaptureInbox,
+		};
+		const staged = await capture.stageWebCapture({
+			clip: URL_CLIP,
+			idempotencyKey: key,
+			target,
+			token: paired.token,
+		});
+		expect(staged).toEqual({
+			stagingId: expect.any(String),
+			status: "staged",
+		});
+		expect(await capture.list({ kind: "workspace" })).toEqual([]);
+		if (staged.status !== "staged") {
+			throw new Error("expected staged send");
+		}
+		const first = await capture.finalizeWebCapture({
+			stagingId: staged.stagingId,
+		});
+		expect(first).toMatchObject({
+			mainRecord: null,
+			status: "saved",
+		});
+		const stagedAgain = await capture.stageWebCapture({
+			clip: URL_CLIP,
+			idempotencyKey: key,
+			target,
+			token: paired.token,
+		});
+		expect(stagedAgain).toEqual({
+			stagingId: staged.stagingId,
+			status: "staged",
+		});
+		if (stagedAgain.status !== "staged") {
+			throw new Error("expected restaged send");
+		}
+		expect(
+			await capture.finalizeWebCapture({ stagingId: stagedAgain.stagingId })
+		).toEqual(first);
+		expect(await capture.list({ kind: "workspace" })).toHaveLength(1);
+	});
+
 	it("does not inject the pairing token into page content, logs, or the capture payload", async () => {
 		const capture = inbox();
 		const { paired } = await pairClipper(capture);

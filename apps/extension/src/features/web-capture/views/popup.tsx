@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { browser } from "wxt/browser";
 
-import { pairExtension, searchCaptureTargets, sendWebCapture } from "../client";
+import {
+	pairExtension,
+	searchCaptureTargets,
+	sendStagedWebCapture,
+} from "../client";
 import {
 	clipperBrowserFromUserAgent,
 	clipperDeviceFromUserAgent,
@@ -241,7 +245,7 @@ export default function Popup() {
 			sendKey.current,
 			JSON.stringify({ clip, target })
 		);
-		const result = await sendWebCapture(token, {
+		const result = await sendStagedWebCapture(token, {
 			clip,
 			idempotencyKey: sendKey.current.key,
 			target,
