@@ -26,6 +26,36 @@ model CaptureInboxItem {
   @@map("capture_inbox_item")
 }
 
+model CaptureExtensionLink {
+  id          String    @id
+  workspaceId String
+  ownerId     String
+  tokenHash   String    @unique
+  device      String
+  browser     String
+  family      String
+  lastUsedAt  DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId, ownerId])
+  @@map("capture_extension_link")
+}
+
+model CapturePairingCode {
+  id          String    @id
+  workspaceId String
+  ownerId     String
+  codeHash    String    @unique
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, ownerId])
+  @@map("capture_pairing_code")
+}
+
 model CaptureStagingObject {
   id          String           @id
   inboxItemId String           @unique

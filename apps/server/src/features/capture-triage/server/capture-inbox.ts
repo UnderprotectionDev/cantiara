@@ -55,6 +55,8 @@ import {
 	sequentialTriageView,
 	startSequentialFocus,
 } from "./sequential-triage";
+import { createWebCapture, type WebCapture } from "./web-capture";
+import { clipperBrowserFamilies, WEB_CAPTURE_COPY } from "./web-capture-model";
 
 export interface WorkCreateCommand {
 	actorId: string;
@@ -138,6 +140,12 @@ export interface CaptureInbox {
 		targetId: string;
 	}) => Promise<AttachOutcome>;
 	attachment: (itemId: string) => Promise<CaptureAttachmentView | null>;
+	backgroundScan: WebCapture["backgroundScan"];
+	claimsSafariClipper: WebCapture["claimsSafariClipper"];
+	clip: WebCapture["clip"];
+	clipArchive: WebCapture["clipArchive"];
+	clipperBrowserFamilies: WebCapture["clipperBrowserFamilies"];
+	contentFingerprint: WebCapture["contentFingerprint"];
 	convert: (input: {
 		idempotencyKey: string;
 		itemId: string;
@@ -155,12 +163,21 @@ export interface CaptureInbox {
 		SequentialTriageView<CaptureInboxItemView>
 	>;
 	exportRows: () => readonly [];
+	finalizeWebCapture: WebCapture["finalizeWebCapture"];
 	goBackSequentialTriage: () => Promise<
 		SequentialTriageView<CaptureInboxItemView>
 	>;
+	historyCollection: WebCapture["historyCollection"];
+	issuePairingCode: WebCapture["issuePairingCode"];
+	kaynakRecords: WebCapture["kaynakRecords"];
 	lastSuccessfulSaveAt: () => Date | null;
 	list: (scope: CaptureInboxScope) => Promise<CaptureInboxItemView[]>;
 	listAll: () => Promise<CaptureInboxItemView[]>;
+	listExtensionLinks: WebCapture["listExtensionLinks"];
+	livePageCopies: WebCapture["livePageCopies"];
+	logs: WebCapture["logs"];
+	pageInjection: WebCapture["pageInjection"];
+	pair: WebCapture["pair"];
 	previewAttach: (input: {
 		itemId: string;
 		relation: BindRelation;
@@ -173,10 +190,16 @@ export interface CaptureInbox {
 	previewUndoMerge: (input: {
 		mergeId: string;
 	}) => Promise<MergeUndoPreview | { status: "not-found" }>;
+	previewWebCapture: WebCapture["previewWebCapture"];
+	revokeAllExtensionLinks: WebCapture["revokeAllExtensionLinks"];
+	revokeExtensionLink: WebCapture["revokeExtensionLink"];
 	save: (
 		input: Omit<SaveCaptureInput, "actorId" | "workspaceId">
 	) => Promise<SaveCaptureOutcome>;
+	searchCaptureTargets: WebCapture["searchCaptureTargets"];
 	searchHits: () => readonly [];
+	sendPayload: WebCapture["sendPayload"];
+	sendWebCapture: WebCapture["sendWebCapture"];
 	sequentialTriage: () => Promise<SequentialTriageView<CaptureInboxItemView>>;
 	sharedMediaLibrary: () => readonly [];
 	stageAttachment: (input: {
@@ -193,6 +216,7 @@ export interface CaptureInbox {
 		| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
 		| { status: "not-found" }
 	>;
+	stageWebCapture: WebCapture["stageWebCapture"];
 	startSequentialTriage: (input?: {
 		itemId?: string;
 	}) => Promise<SequentialTriageView<CaptureInboxItemView>>;
@@ -209,6 +233,7 @@ export interface CaptureInbox {
 		hasUnsavedChanges: boolean
 	) => typeof CAPTURE_INBOX_COPY.unsavedChangesMayBeLost | null;
 	visibleFileAttachments: () => readonly [];
+	wideReadWarning: WebCapture["wideReadWarning"];
 	writeQueue: () => readonly never[];
 }
 
@@ -444,6 +469,18 @@ export function createCaptureInbox(input: {
 	let lastSuccessfulSaveAt: Date | null = null;
 	let sequentialFocusedId: string | null = null;
 	const connected = () => input.connected !== false;
+	const logs: string[] = [];
+	const webCapture = createWebCapture({
+		actorId: input.actorId,
+		clock,
+		connected,
+		logs,
+		onSaved(savedAt) {
+			lastSuccessfulSaveAt = savedAt;
+		},
+		prisma: input.prisma,
+		workspaceId: input.workspaceId,
+	});
 	async function deleteStaging(inboxItemId: string) {
 		await store.deleteByInboxItemId(inboxItemId);
 	}
@@ -517,6 +554,12 @@ export function createCaptureInbox(input: {
 			});
 			return item?.attachment ?? null;
 		},
+		backgroundScan: webCapture.backgroundScan,
+		claimsSafariClipper: webCapture.claimsSafariClipper,
+		clip: webCapture.clip,
+		clipArchive: webCapture.clipArchive,
+		clipperBrowserFamilies: webCapture.clipperBrowserFamilies,
+		contentFingerprint: webCapture.contentFingerprint,
 		convert(command) {
 			return runFocusedExit(command.itemId, () => triage.convert(command));
 		},
@@ -589,6 +632,7 @@ export function createCaptureInbox(input: {
 		exportRows() {
 			return [];
 		},
+		finalizeWebCapture: webCapture.finalizeWebCapture,
 		async goBackSequentialTriage() {
 			const remaining = await listAllItems();
 			sequentialFocusedId = goBackSequentialFocus(
@@ -597,6 +641,9 @@ export function createCaptureInbox(input: {
 			);
 			return currentSequentialView();
 		},
+		historyCollection: webCapture.historyCollection,
+		issuePairingCode: webCapture.issuePairingCode,
+		kaynakRecords: webCapture.kaynakRecords,
 		lastSuccessfulSaveAt() {
 			return lastSuccessfulSaveAt;
 		},
@@ -617,9 +664,17 @@ export function createCaptureInbox(input: {
 		listAll() {
 			return listAllItems();
 		},
+		listExtensionLinks: webCapture.listExtensionLinks,
+		livePageCopies: webCapture.livePageCopies,
+		logs: webCapture.logs,
+		pageInjection: webCapture.pageInjection,
+		pair: webCapture.pair,
 		previewAttach: triage.previewAttach,
 		previewConvert: triage.previewConvert,
 		previewUndoMerge: triage.previewUndoMerge,
+		previewWebCapture: webCapture.previewWebCapture,
+		revokeAllExtensionLinks: webCapture.revokeAllExtensionLinks,
+		revokeExtensionLink: webCapture.revokeExtensionLink,
 		async save(command) {
 			if (!connected()) {
 				return { queued: false, reason: "offline", status: "refused" };
@@ -679,9 +734,12 @@ export function createCaptureInbox(input: {
 			lastSuccessfulSaveAt = capturedAt;
 			return outcome;
 		},
+		searchCaptureTargets: webCapture.searchCaptureTargets,
 		searchHits() {
 			return [];
 		},
+		sendPayload: webCapture.sendPayload,
+		sendWebCapture: webCapture.sendWebCapture,
 		sequentialTriage() {
 			return currentSequentialView();
 		},
@@ -747,6 +805,7 @@ export function createCaptureInbox(input: {
 			lastSuccessfulSaveAt = savedAt;
 			return outcome;
 		},
+		stageWebCapture: webCapture.stageWebCapture,
 		async startSequentialTriage(command = {}) {
 			const remaining = await listAllItems();
 			sequentialFocusedId = startSequentialFocus(
@@ -778,6 +837,7 @@ export function createCaptureInbox(input: {
 		visibleFileAttachments() {
 			return [];
 		},
+		wideReadWarning: webCapture.wideReadWarning,
 		writeQueue() {
 			return [];
 		},
@@ -786,7 +846,11 @@ export function createCaptureInbox(input: {
 
 export function captureInboxCatalog() {
 	return {
-		copy: CAPTURE_INBOX_COPY,
+		clipperBrowsers: clipperBrowserFamilies(),
+		copy: {
+			...CAPTURE_INBOX_COPY,
+			...WEB_CAPTURE_COPY,
+		},
 		exits: TRIAGE_EXIT_CATALOG,
 		templates: miniTemplateCatalog(),
 	};

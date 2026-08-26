@@ -1,4 +1,8 @@
-import { protectedProcedure, protectedWriteProcedure } from "@cantiara/api";
+import {
+	protectedProcedure,
+	protectedWriteProcedure,
+	publicProcedure,
+} from "@cantiara/api";
 import { getAccountAccessForUser } from "@cantiara/auth";
 import { getPrismaClient } from "@cantiara/db";
 import { ORPCError } from "@orpc/server";
@@ -9,11 +13,16 @@ import {
 	createCaptureInbox,
 	handOffWorkCreate,
 } from "./capture-inbox";
-import { miniTemplateIdSchema } from "./capture-inbox-model";
+import {
+	CAPTURE_INBOX_COPY,
+	miniTemplateIdSchema,
+} from "./capture-inbox-model";
 import {
 	bindRelationSchema,
 	convertTargetKindSchema,
 } from "./capture-triage-exits";
+import { findExtensionLinkByToken, pairExtensionWithCode } from "./web-capture";
+import { WEB_CAPTURE_CLIP_KINDS } from "./web-capture-model";
 
 const fieldsSchema = z.record(z.string(), z.string());
 const attachmentSchema = z.object({
@@ -30,6 +39,60 @@ function decodeAttachment(input: z.infer<typeof attachmentSchema>) {
 	};
 }
 
+const clipSchema = z.object({
+	kind: z.enum(WEB_CAPTURE_CLIP_KINDS),
+	originUrl: z.string().min(1),
+	screenshot: z.string().optional(),
+	selectedImage: z.string().optional(),
+	selectedText: z.string().optional(),
+});
+
+const targetInputSchema = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("workspace") }),
+	z.object({
+		kind: z.literal("project"),
+		projectId: z.string().min(1),
+		projectName: z.string().min(1),
+	}),
+]);
+
+function bearerToken(request: Request): string | null {
+	const header = request.headers.get("authorization");
+	if (!header) {
+		return null;
+	}
+	const [scheme, token] = header.split(" ");
+	if (scheme?.toLowerCase() !== "bearer" || !token) {
+		return null;
+	}
+	return token;
+}
+
+function targetFromInput(input: z.infer<typeof targetInputSchema>):
+	| {
+			kind: "workspace";
+			label: typeof CAPTURE_INBOX_COPY.workspaceCaptureInbox;
+	  }
+	| {
+			kind: "project";
+			label: typeof CAPTURE_INBOX_COPY.projectCaptureInbox;
+			projectId: string;
+			projectName: string;
+	  } {
+	if (input.kind === "workspace") {
+		return {
+			kind: "workspace",
+			label: CAPTURE_INBOX_COPY.workspaceCaptureInbox,
+		};
+	}
+	return {
+		kind: "project",
+		label: CAPTURE_INBOX_COPY.projectCaptureInbox,
+		projectId: input.projectId,
+		projectName: input.projectName,
+	};
+}
+
 async function inboxFor(userId: string) {
 	const access = await getAccountAccessForUser(getPrismaClient(), userId);
 	if (!access) {
@@ -41,6 +104,26 @@ async function inboxFor(userId: string) {
 		workCreate: handOffWorkCreate,
 		workspaceId: access.workspaceId,
 	});
+}
+
+async function inboxForExtension(request: Request) {
+	const token = bearerToken(request);
+	if (!token) {
+		throw new ORPCError("UNAUTHORIZED");
+	}
+	const link = await findExtensionLinkByToken(getPrismaClient(), token);
+	if (!link || link.revokedAt) {
+		throw new ORPCError("UNAUTHORIZED");
+	}
+	return {
+		inbox: createCaptureInbox({
+			actorId: link.ownerId,
+			prisma: getPrismaClient(),
+			workCreate: handOffWorkCreate,
+			workspaceId: link.workspaceId,
+		}),
+		token,
+	};
 }
 
 export const captureInbox = {
@@ -97,6 +180,16 @@ export const captureInbox = {
 			const inbox = await inboxFor(context.session.user.id);
 			return inbox.deleteItem(input);
 		}),
+	finalizeWebCapture: publicProcedure
+		.input(z.object({ stagingId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const { inbox } = await inboxForExtension(context.request);
+			return inbox.finalizeWebCapture(input);
+		}),
+	issuePairingCode: protectedWriteProcedure.handler(async ({ context }) => {
+		const inbox = await inboxFor(context.session.user.id);
+		return inbox.issuePairingCode();
+	}),
 	list: protectedProcedure
 		.input(
 			z.object({
@@ -115,6 +208,28 @@ export const captureInbox = {
 		const inbox = await inboxFor(context.session.user.id);
 		return inbox.listAll();
 	}),
+	listExtensionLinks: protectedProcedure.handler(async ({ context }) => {
+		const inbox = await inboxFor(context.session.user.id);
+		return inbox.listExtensionLinks();
+	}),
+	pair: publicProcedure
+		.input(
+			z.object({
+				browser: z.string().min(1),
+				code: z.string().min(1),
+				device: z.string().min(1),
+				family: z.string().min(1),
+			})
+		)
+		.handler(({ input }) =>
+			pairExtensionWithCode(
+				getPrismaClient(),
+				{
+					now: () => new Date(),
+				},
+				input
+			)
+		),
 	previewAttach: protectedProcedure
 		.input(
 			z.object({
@@ -148,6 +263,32 @@ export const captureInbox = {
 			const inbox = await inboxFor(context.session.user.id);
 			return inbox.previewUndoMerge(input);
 		}),
+	previewWebCapture: publicProcedure
+		.input(
+			z.object({
+				clip: clipSchema,
+				target: targetInputSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const { inbox } = await inboxForExtension(context.request);
+			return inbox.previewWebCapture({
+				clip: input.clip,
+				target: targetFromInput(input.target),
+			});
+		}),
+	revokeAllExtensionLinks: protectedWriteProcedure.handler(
+		async ({ context }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.revokeAllExtensionLinks();
+		}
+	),
+	revokeExtensionLink: protectedWriteProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.revokeExtensionLink(input);
+		}),
 	save: protectedWriteProcedure
 		.input(
 			z.object({
@@ -171,6 +312,29 @@ export const captureInbox = {
 					: undefined,
 			});
 		}),
+	searchCaptureTargets: publicProcedure
+		.input(z.object({ query: z.string().optional() }))
+		.handler(async ({ context, input }) => {
+			const { inbox } = await inboxForExtension(context.request);
+			return inbox.searchCaptureTargets(input);
+		}),
+	sendWebCapture: publicProcedure
+		.input(
+			z.object({
+				clip: clipSchema,
+				idempotencyKey: z.string().min(1),
+				target: targetInputSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const { inbox, token } = await inboxForExtension(context.request);
+			return inbox.sendWebCapture({
+				clip: input.clip,
+				idempotencyKey: input.idempotencyKey,
+				target: targetFromInput(input.target),
+				token,
+			});
+		}),
 	stageAttachment: protectedWriteProcedure
 		.input(
 			z.object({
@@ -185,6 +349,23 @@ export const captureInbox = {
 				attachment: decodeAttachment(input.attachment),
 				idempotencyKey: input.idempotencyKey,
 				itemId: input.itemId,
+			});
+		}),
+	stageWebCapture: publicProcedure
+		.input(
+			z.object({
+				clip: clipSchema,
+				idempotencyKey: z.string().min(1),
+				target: targetInputSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const { inbox, token } = await inboxForExtension(context.request);
+			return inbox.stageWebCapture({
+				clip: input.clip,
+				idempotencyKey: input.idempotencyKey,
+				target: targetFromInput(input.target),
+				token,
 			});
 		}),
 	suggestSimilar: protectedProcedure

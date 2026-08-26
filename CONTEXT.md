@@ -751,6 +751,10 @@ _Avoid_: Kaynak Kaydı, oturumlu tarayıcı önizlemesi, iç ağ önizlemesi
 Kurucunun tarayıcı uzantısında açıkça seçtiği içeriği Yakalama Gelen Kutusuna getiren [tekil girdi](docs/prd/05-capture-and-intake.md#tarayıcı-uzantısıyla-web-yakalama); doğrudan ana kayıt, arka plan taraması veya gönderim kuyruğu değildir.
 _Avoid_: Otomatik web taraması, doğrudan İş oluşturma, tarayıcı geçmişi
 
+**Uzantı bağlantısı**:
+Hesaba beş dakikalık tek kullanımlık kodla bağlanan tarayıcı uzantısı yetkisi; cihaz, tarayıcı ve son kullanımla listelenir ve tek tek iptal edilir ([tarayıcı uzantısıyla web yakalama](docs/prd/05-capture-and-intake.md#tarayıcı-uzantısıyla-web-yakalama)). UI: `Extension links`.
+_Avoid_: Ürün oturumu, tarayıcı clip arşivi, Safari Web Clipper
+
 ## Otomasyon
 
 **Dikkat sinyali**:

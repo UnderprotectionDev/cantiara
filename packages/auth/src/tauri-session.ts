@@ -40,6 +40,29 @@ export function productCorsOrigins(webOrigin: string): string[] {
 	return [webOrigin, ...(alias ? [alias] : []), ...TAURI_WEBVIEW_ORIGINS];
 }
 
+export function isClipperExtensionOrigin(origin: string): boolean {
+	try {
+		const url = new URL(origin);
+		return (
+			url.protocol === "chrome-extension:" || url.protocol === "moz-extension:"
+		);
+	} catch {
+		return false;
+	}
+}
+
+export function allowProductCorsOrigin(
+	requestOrigin: string,
+	webOrigin: string
+): string | undefined {
+	if (productCorsOrigins(webOrigin).includes(requestOrigin)) {
+		return requestOrigin;
+	}
+	if (isClipperExtensionOrigin(requestOrigin)) {
+		return requestOrigin;
+	}
+}
+
 export function isTauriCallbackURL(url: string): boolean {
 	return url === TAURI_CALLBACK_URL || url.startsWith(`${TAURI_CALLBACK_URL}?`);
 }

@@ -157,6 +157,22 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Diğer Projeler | `Other Projects` | Başka Projelerdeki benzer kayıt önerilerinin adlı ikincil grubu |
 | Yakalama köken bağı | `Origin` | Yakalamayı mevcut kayda köken olarak bağlayan ilişki |
 | Yakalama kanıt bağı | `Evidence` | Yakalamayı mevcut kayda kanıt olarak bağlayan ilişki |
+| Web Yakalama | `Web Capture` | Tarayıcı uzantısından açık eylemle Gelen Kutusuna giden clip; ana kayıt değildir |
+| Uzantı bağlantıları | `Extension links` | Hesap güvenlik ekranındaki eşlenmiş tarayıcı uzantısı listesi |
+| Eşleme kodu | `Pairing code` | Beş dakika geçerli tek kullanımlık uzantı bağlantı kodu |
+| Eşleme kodu üret | `Generate pairing code` | Uygulama içinde tek kullanımlık eşleme kodu üreten eylem |
+| Eşleme kodu süresi | `This pairing code expires in five minutes and can be used once.` | Eşleme kodunun beş dakika ve tek kullanımlık olduğunu söyleyen metin |
+| Köken URL | `Origin URL` | Web Yakalama gönderim önizlemesindeki sayfa adresi |
+| Hedef Inbox | `Target Inbox` | Web Yakalama gönderiminin gideceği Workspace veya Project Capture Inbox |
+| Inbox ara | `Search Inbox` | Yetkili Project Inbox’ları ada göre arama; yalnız son açılanlarla sınırlı değildir |
+| Gönder | `Send` | Önizlenen Web Yakalama’yı Gelen Kutusuna yazma eylemi |
+| Eşle | `Pair` | Uzantının eşleme kodunu kullanarak bağlanma eylemi |
+| Gelen Kutusuna gönderildi | `Sent to Capture Inbox.` | Web Yakalama gönderiminin Inbox öğesi yazdığını bildiren durum |
+| Desteklenmeyen tarayıcı | `This browser cannot pair with Web Capture.` | Chromium ailesi ve Firefox dışındaki tarayıcıda eşlemeyi reddeden metin |
+| Son başarılı kayıt | `Last successful save` | Uzantıda son başarılı gönderimin zamanı |
+| Tarayıcı | `Browser` | Uzantı bağlantısı listesindeki tarayıcı adı |
+| Son kullanım | `Last use` | Uzantı bağlantısının son yazma zamanı |
+| Uzantı bağlantısını iptal et | `Revoke` | Tek bir uzantı bağlantısını iptal etme eylemi |
 | Belge | `Document` | Markdown Belgesi dönüşüm hedefi |
 | Dosya Eki | `File Attachment` | Dosya Eki dönüşüm hedefi |
 | Yakalama eki | `Capture attachment` | Yalnız Yakalama Gelen Kutusu öğesine ait şifreli staging nesnesi; Dosya Eki veya paylaşılmış medya kütüphanesi değildir |
