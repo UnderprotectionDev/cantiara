@@ -7,7 +7,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { createContext, type ReactNode, useCallback, useContext } from "react";
 
-import { showMainFlowFailure } from "@/features/web-macos-client/show-main-flow-failure";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -27,11 +26,6 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
 	});
 	const save = useMutation(
 		orpc.accountPreferences.save.mutationOptions({
-			onError: (error, variables) => {
-				showMainFlowFailure(error, () => {
-					save.mutate(variables);
-				});
-			},
 			onSuccess: async () => {
 				await queryClient.invalidateQueries({
 					queryKey: orpc.accountPreferences.get.queryKey(),

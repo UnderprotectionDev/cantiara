@@ -137,3 +137,18 @@ test("the server tracking ID on a failed RPC is the Support reference Client She
 	expect(presented.writeOutcome).toBe("Data was not written.");
 	expect(presented.retry).toBe("Retry");
 });
+
+test("a thrown failure marked written presents Data was written and no Retry", () => {
+	const error = new Error("Couldn't notify after save.") as Error & {
+		written: boolean;
+	};
+	error.written = true;
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(error, undefined, { trackingId: "CANT-CAFEBABE" })
+	);
+
+	expect(presented.writeOutcome).toBe("Data was written.");
+	expect(presented.retryBound).toBe("Do not retry.");
+	expect(presented.retry).toBeUndefined();
+	expect(presented.supportReference).toBe("CANT-CAFEBABE");
+});

@@ -1,4 +1,7 @@
-import { issueMainFlowFailure } from "@cantiara/api/client-shell-failure";
+import {
+	issueMainFlowFailure,
+	writeMainFlowFailureLog,
+} from "@cantiara/api/client-shell-failure";
 import { createContext } from "@cantiara/api/context";
 import {
 	AccountAccessError,
@@ -21,10 +24,7 @@ import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
-import {
-	attachMainFlowFailure,
-	writeMainFlowFailureLog,
-} from "./features/web-macos-client/server/main-flow-failure";
+import { attachMainFlowFailure } from "./features/web-macos-client/server/main-flow-failure";
 import { appRouter } from "./routes";
 
 initLogger({

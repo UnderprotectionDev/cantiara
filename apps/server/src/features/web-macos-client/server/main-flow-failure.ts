@@ -1,4 +1,7 @@
-import { toMainFlowFailureError } from "@cantiara/api/client-shell-failure";
+import {
+	toMainFlowFailureError,
+	writeMainFlowFailureLog,
+} from "@cantiara/api/client-shell-failure";
 
 interface ProcedureInterceptorOptions {
 	context: {
@@ -19,33 +22,4 @@ export async function attachMainFlowFailure(
 			},
 		});
 	}
-}
-
-export function writeMainFlowFailureLog(
-	log: unknown,
-	record: {
-		reason: string;
-		retryBound: "none" | "once";
-		supportReference: string;
-		written: boolean;
-	}
-) {
-	if (
-		typeof log !== "object" ||
-		log === null ||
-		!("error" in log) ||
-		typeof log.error !== "function"
-	) {
-		return;
-	}
-	const error = log.error as (
-		tag: string,
-		context: Record<string, string | boolean>
-	) => void;
-	error("main-flow-failure", {
-		reason: record.reason,
-		retryBound: record.retryBound,
-		supportReference: record.supportReference,
-		written: record.written,
-	});
 }

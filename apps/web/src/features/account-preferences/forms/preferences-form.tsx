@@ -32,7 +32,6 @@ import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 
-import { showMainFlowFailure } from "@/features/web-macos-client/show-main-flow-failure";
 import { orpc, queryClient } from "@/utils/orpc";
 
 const PREVIEW_INSTANT = new Date("2026-03-29T12:00:00.000Z");
@@ -50,11 +49,6 @@ export default function PreferencesForm({
 	const timeZones = useMemo(() => timeZoneOptions(), []);
 	const save = useMutation(
 		orpc.accountPreferences.save.mutationOptions({
-			onError: (error, variables) => {
-				showMainFlowFailure(error, () => {
-					save.mutate(variables);
-				});
-			},
 			onSuccess: async () => {
 				await queryClient.invalidateQueries({
 					queryKey: orpc.accountPreferences.get.queryKey(),

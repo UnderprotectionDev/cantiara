@@ -90,7 +90,7 @@ export function toMainFlowFailureError(
 				privateContent: options?.privateContent,
 				reason: messageFrom(error),
 				trackingId: options?.trackingId,
-				written: options?.written ?? false,
+				written: options?.written ?? writtenFrom(error),
 			},
 			sink
 		);
@@ -172,6 +172,15 @@ function localFailure(value: unknown): MainFlowFailurePackage {
 	};
 }
 
+function writtenFrom(value: unknown): boolean {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"written" in value &&
+		(value as { written: unknown }).written === true
+	);
+}
+
 function messageFrom(value: unknown): string {
 	if (value instanceof Error) {
 		return value.message;
@@ -205,6 +214,30 @@ function safeReason(reason: string, privateContent: string[]): string {
 		return CLIENT_SHELL_COPY.failed;
 	}
 	return next;
+}
+
+export function writeMainFlowFailureLog(
+	log: unknown,
+	record: MainFlowFailureLogRecord
+) {
+	if (
+		typeof log !== "object" ||
+		log === null ||
+		!("error" in log) ||
+		typeof log.error !== "function"
+	) {
+		return;
+	}
+	const error = log.error as (
+		tag: string,
+		context: Record<string, string | boolean>
+	) => void;
+	error("main-flow-failure", {
+		reason: record.reason,
+		retryBound: record.retryBound,
+		supportReference: record.supportReference,
+		written: record.written,
+	});
 }
 
 function createTrackingId(): string {

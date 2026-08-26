@@ -2,7 +2,7 @@ import { env } from "@cantiara/env/web";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { QueryCache, QueryClient } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 import type { AppRouterClient } from "server/routes";
 
 import { withProductSessionHeaders } from "@/features/account-access/forms/tauri-session-token";
@@ -10,6 +10,17 @@ import { showMainFlowFailure } from "@/features/web-macos-client/show-main-flow-
 
 export function createQueryClient() {
 	return new QueryClient({
+		defaultOptions: {
+			mutations: { retry: 0 },
+			queries: { retry: 0 },
+		},
+		mutationCache: new MutationCache({
+			onError: (error, variables, _onMutateResult, mutation) => {
+				showMainFlowFailure(error, () => {
+					mutation.execute(variables);
+				});
+			},
+		}),
 		queryCache: new QueryCache({
 			onError: (error, query) => {
 				showMainFlowFailure(error, () => {
