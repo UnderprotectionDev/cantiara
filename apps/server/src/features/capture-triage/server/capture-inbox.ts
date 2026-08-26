@@ -128,7 +128,6 @@ export interface CaptureInboxItemView {
 
 export interface CaptureSurfaceEligibility {
 	backlog: false;
-	bookmark: false;
 	draft: false;
 	export: false;
 	mainRecord: false;
@@ -139,7 +138,6 @@ export interface CaptureSurfaceEligibility {
 
 export const CAPTURE_SURFACE_EXCLUSION = {
 	backlog: false,
-	bookmark: false,
 	draft: false,
 	export: false,
 	mainRecord: false,
@@ -191,6 +189,7 @@ export interface CreateBugInput {
 	fields?: Record<string, string>;
 	idempotencyKey: string;
 	projectId: string;
+	template?: MiniTemplateId;
 	text?: string;
 	workspaceId: string;
 }
@@ -203,7 +202,11 @@ export type CreateBugOutcome =
 			workCreate: WorkCreateResult;
 	  }
 	| { queued: false; reason: "offline"; status: "refused" }
-	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" };
+	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
+	| {
+			reason: typeof CAPTURE_INBOX_COPY.createBugNeedsProjectAndBugCapture;
+			status: "unavailable";
+	  };
 
 export interface CaptureInbox {
 	advanceTime: (instant: Date) => void;
@@ -392,9 +395,19 @@ export function createCaptureInbox(input: {
 			if (!connected()) {
 				return { queued: false, reason: "offline", status: "refused" };
 			}
+			if (
+				command.template === "feedback-capture" ||
+				command.template === "research-fragment"
+			) {
+				return {
+					reason: CAPTURE_INBOX_COPY.createBugNeedsProjectAndBugCapture,
+					status: "unavailable",
+				};
+			}
 			const payload = {
 				fields: command.fields ?? {},
 				projectId: command.projectId,
+				template: command.template ?? "",
 				text: command.text ?? "",
 			};
 			const existing = await readHumanReceipt(

@@ -32,7 +32,7 @@ import {
 } from "./capture-form-state";
 
 export default function CaptureForm() {
-	const { attemptOnlineWork, markUnsaved, recordSave, shell } =
+	const { attemptOnlineWork, clearUnsaved, markUnsaved, recordSave, shell } =
 		useClientShell();
 	const catalog = useQuery(orpc.captureInbox.catalog.queryOptions());
 	const preferences = useQuery(orpc.accountPreferences.get.queryOptions());
@@ -100,8 +100,10 @@ export default function CaptureForm() {
 	useEffect(() => {
 		if (isDirty) {
 			markUnsaved();
+		} else {
+			clearUnsaved();
 		}
-	}, [isDirty, markUnsaved]);
+	}, [clearUnsaved, isDirty, markUnsaved]);
 
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
@@ -120,6 +122,7 @@ export default function CaptureForm() {
 				fields: values.fields,
 				idempotencyKey: newIdempotencyKey(),
 				projectId,
+				template: values.template || undefined,
 				text: values.text,
 			})
 		);

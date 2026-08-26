@@ -106,6 +106,28 @@ test("the Capture Inbox page groups items by Workspace and each Project Inbox", 
 	]);
 });
 
+test("a Project Inbox groups items together without requiring the same capital letters", () => {
+	const firstSeen = {
+		body: "Feedback\nUpper",
+		id: "p-1",
+		scope: { kind: "project" as const, projectId: "Feedback" },
+		template: "feedback-capture" as const,
+	};
+	const otherCasing = {
+		body: "Feedback\nLower",
+		id: "p-2",
+		scope: { kind: "project" as const, projectId: "feedback" },
+		template: "feedback-capture" as const,
+	};
+	expect(captureInboxGroups([firstSeen, otherCasing], LIST_COPY)).toEqual([
+		{
+			heading: "Project Capture Inbox",
+			items: [firstSeen, otherCasing],
+			projectId: "Feedback",
+		},
+	]);
+});
+
 test("an Inbox item shows its body, or the template label when the body is empty", () => {
 	expect(
 		captureInboxItemPreview(

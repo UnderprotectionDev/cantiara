@@ -348,7 +348,73 @@ describe("Capture Inbox", () => {
 		expect(await capture.list({ kind: "workspace" })).toEqual([]);
 	});
 
-	it("keeps a capture out of search, share, publish, export, Backlog, Draft, and bookmark", async () => {
+	it("refuses Create Bug when type is Feedback Capture or Research Fragment", async () => {
+		const commands: WorkCreateCommand[] = [];
+		const capture = inbox({
+			workCreate: (command) => {
+				commands.push(command);
+				return Promise.resolve({ handedOff: true, workKey: null });
+			},
+		});
+
+		expect(
+			await capture.createBug({
+				idempotencyKey: crypto.randomUUID(),
+				projectId: "proj-cantiara",
+				template: "feedback-capture",
+				text: "This is feedback",
+			})
+		).toEqual({
+			reason: CAPTURE_INBOX_COPY.createBugNeedsProjectAndBugCapture,
+			status: "unavailable",
+		});
+		expect(
+			await capture.createBug({
+				idempotencyKey: crypto.randomUUID(),
+				projectId: "proj-cantiara",
+				template: "research-fragment",
+				text: "A clip",
+			})
+		).toEqual({
+			reason: CAPTURE_INBOX_COPY.createBugNeedsProjectAndBugCapture,
+			status: "unavailable",
+		});
+		expect(commands).toEqual([]);
+		expect(
+			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([]);
+	});
+
+	it("hands off Create Bug when type is Bug Capture", async () => {
+		const commands: WorkCreateCommand[] = [];
+		const createKey = crypto.randomUUID();
+		const capture = inbox({
+			workCreate: (command) => {
+				commands.push(command);
+				return Promise.resolve({ handedOff: true, workKey: null });
+			},
+		});
+		const outcome = await capture.createBug({
+			fields: { observedBehavior: "Crash on save" },
+			idempotencyKey: createKey,
+			projectId: "proj-cantiara",
+			template: "bug-capture",
+			text: "Create this Bug now",
+		});
+
+		expect(outcome).toEqual({
+			inboxItem: null,
+			lastSuccessfulSaveAt: CAPTURED_AT,
+			status: "handed-off",
+			workCreate: { handedOff: true, workKey: null },
+		});
+		expect(commands).toHaveLength(1);
+		expect(
+			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([]);
+	});
+
+	it("keeps a capture out of search, share, publish, export, Backlog, and Draft", async () => {
 		const capture = inbox();
 		const outcome = await capture.save({
 			idempotencyKey: crypto.randomUUID(),
@@ -360,7 +426,6 @@ describe("Capture Inbox", () => {
 
 		expect(await capture.surfaces(outcome.item.id)).toEqual({
 			backlog: false,
-			bookmark: false,
 			draft: false,
 			export: false,
 			mainRecord: false,

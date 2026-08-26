@@ -38,6 +38,7 @@ export const captureInbox = {
 				fields: fieldsSchema.optional(),
 				idempotencyKey: z.string().min(1),
 				projectId: z.string().min(1),
+				template: miniTemplateIdSchema.optional(),
 				text: z.string().optional(),
 			})
 		)

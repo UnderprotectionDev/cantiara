@@ -240,6 +240,16 @@ _Avoid_: Lookup, Formula, çalışma alanı genelinde şema, etiket hiyerarşisi
 Kaydedilmiş fakat henüz kalıcı kayıt türüne ve bağlamına dönüştürülmemiş [geçici girdi](docs/prd/02-domain-model-and-lifecycle.md#ana-kayıt-türleri-ve-asgari-sözleşmeler); ana kayıt, Backlog İşi veya uzun süreli bilgi deposu değildir.
 _Avoid_: İş, Taslak, kaydedilmiş bookmark
 
+**Çalışma alanı Yakalama Gelen Kutusu**:
+Proje bilinmediğinde Yakalama Gelen Kutusu öğesinin durduğu Inbox kapsamı; ayrı bir ürün yüzeyi değildir ([hızlı yakalama](docs/prd/05-capture-and-intake.md#hızlı-yakalama)).
+UI: `Workspace Capture Inbox`
+_Avoid_: ikinci Gelen Kutusu ürünü
+
+**Proje Yakalama Gelen Kutusu**:
+Proje bilindiğinde o Projenin Yakalama Gelen Kutusu öğelerinin durduğu Inbox kapsamı ([hızlı yakalama](docs/prd/05-capture-and-intake.md#hızlı-yakalama)).
+UI: `Project Capture Inbox`
+_Avoid_: ayrı Proje ürünü
+
 **Yakalama mini şablonu**:
 Bir Yakalama Gelen Kutusu öğesine yalnız isteğe bağlı yönlendirici alanlar ekleyen [biçim](docs/prd/05-capture-and-intake.md#hızlı-yakalama); kalıcı ana kayıt oluşturmaz ve yakalamayı kaydetmek için alan zorunlu kılmaz.
 _Avoid_: Kayıt oluşturma formu, otomatik triage, içerik şablonu

@@ -97,14 +97,24 @@ export function captureInboxGroups(
 	const workspaceItems = items.filter(
 		(item) => item.scope.kind === "workspace"
 	);
-	const byProject = new Map<string, CaptureInboxGroupItem[]>();
+	const byProject = new Map<
+		string,
+		{ items: CaptureInboxGroupItem[]; projectId: string }
+	>();
 	for (const item of items) {
 		if (item.scope.kind !== "project") {
 			continue;
 		}
-		const existing = byProject.get(item.scope.projectId) ?? [];
-		existing.push(item);
-		byProject.set(item.scope.projectId, existing);
+		const key = item.scope.projectId.trim().toLocaleLowerCase("en-US");
+		const existing = byProject.get(key);
+		if (existing) {
+			existing.items.push(item);
+			continue;
+		}
+		byProject.set(key, {
+			items: [item],
+			projectId: item.scope.projectId,
+		});
 	}
 	const groups: CaptureInboxGroup[] = [];
 	if (workspaceItems.length > 0) {
@@ -114,14 +124,18 @@ export function captureInboxGroups(
 			projectId: null,
 		});
 	}
-	const projectIds = [...byProject.keys()].sort((left, right) =>
-		left.localeCompare(right)
+	const projectKeys = [...byProject.keys()].sort((left, right) =>
+		left.localeCompare(right, "en-US")
 	);
-	for (const projectId of projectIds) {
+	for (const key of projectKeys) {
+		const group = byProject.get(key);
+		if (!group) {
+			continue;
+		}
 		groups.push({
 			heading: copy.projectCaptureInbox,
-			items: byProject.get(projectId) ?? [],
-			projectId,
+			items: group.items,
+			projectId: group.projectId,
 		});
 	}
 	return groups;

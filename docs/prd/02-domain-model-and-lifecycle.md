@@ -85,7 +85,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Proje Yakalama Gelen Kutusu | `Project Capture Inbox` | Proje bilindiğinde o projenin geçici yakalamalarının durduğu Inbox |
 | Bu Inbox’ta yakalama yok | `No captures in this Inbox.` | Boş Workspace veya Proje Yakalama Gelen Kutusu |
 | Create Bug kullanılabilirliği | `Create Bug is available when Project is set and type is Bug Capture.` | Create Bug’un yalnız Proje ve Bug Capture (veya tür belirtilmemiş) iken açık olduğunu söyleyen metin |
-| Create Bug Inbox’ta kalmaz | `Create Bug does not stay in the Capture Inbox. A Work record is not stored yet.` | Create Bug’un Gelen Kutusu öğesi bırakmadığını ve bu ticket’ta İş kaydı yazılmadığını söyleyen metin |
+| Create Bug Inbox’ta kalmaz | `Create Bug does not stay in the Capture Inbox. A Work record is not stored yet.` | Create Bug’un Gelen Kutusu öğesi bırakmadığını ve İş kaydının henüz saklanmadığını söyleyen metin |
 | Bug oluştur | `Create Bug` | Proje ve tür kesin olduğunda doğrudan İş oluşturma eylemi; Yakalama Gelen Kutusu öğesi bırakmaz |
 | Bug yakalama | `Bug Capture` | `Observed Behavior`, `Expected Behavior` ve `Reproduction Context` yönlendirici alanlarıyla Inbox öğesini biçimlendiren kapalı mini şablon; alanlar isteğe bağlıdır ve ana kayıt oluşturmaz |
 | Gözlenen davranış | `Observed Behavior` | Bug Capture yönlendirici alanı |
