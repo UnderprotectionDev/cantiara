@@ -455,19 +455,25 @@ async function undoInTransaction(
 		return { reason: "undo-not-safe", status: "rejected" };
 	}
 	if (await hasNewerSameFieldValue(tx, entry)) {
+		const fields = recordFields(current);
+		const currentField =
+			entry.changeKind === CHANGE_KIND.field ||
+			entry.changeKind === CHANGE_KIND.viewMetadata
+				? readField(fields, entry.fieldKey)
+				: current.value;
 		return {
 			conflict: MUTATION_COPY.conflict,
 			current: {
 				revision: current.revision,
 				targetId: current.id,
-				value: current.value,
+				value: currentField,
 			},
 			currentValueLabel: MUTATION_COPY.currentValue,
 			status: "conflict",
 		};
 	}
 	const nextRevision = current.revision + 1;
-	const restored = await restoreChange(tx, {
+	const restored = await reverseChange(tx, {
 		actorId: input.command.actorId,
 		commandKey: input.commandKey,
 		current,
@@ -1110,7 +1116,7 @@ async function hasNewerSameFieldValue(
 	);
 }
 
-async function restoreChange(
+async function reverseChange(
 	tx: PrismaTransaction,
 	input: {
 		actorId: string;
@@ -1122,7 +1128,7 @@ async function restoreChange(
 	}
 ): Promise<string> {
 	if (input.entry.changeKind === CHANGE_KIND.merge) {
-		return restoreMerge(tx, input);
+		return reverseMerge(tx, input);
 	}
 	if (input.entry.changeKind === CHANGE_KIND.relation) {
 		await tx.mutationFixtureRelation.deleteMany({
@@ -1217,7 +1223,7 @@ async function restoreChange(
 	return persisted.value;
 }
 
-async function restoreMerge(
+async function reverseMerge(
 	tx: PrismaTransaction,
 	input: {
 		actorId: string;

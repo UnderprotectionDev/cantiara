@@ -661,6 +661,53 @@ describe("Mutation Contract", () => {
 		});
 	});
 
+	it("explains Current value of the conflicting field, not a different field", async () => {
+		const target = await createMutationTarget(prisma, "title");
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 1,
+				idempotencyKey: "note-1",
+				payload: { field: "note", value: "first note" },
+				targetId: target.targetId,
+			})
+		);
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 2,
+				idempotencyKey: "note-2",
+				payload: { field: "note", value: "newer note" },
+				targetId: target.targetId,
+			})
+		);
+		const [firstNote] = await readRecordHistory(prisma, target.targetId);
+		const outcome = await applyUndo(
+			prisma,
+			undoCommand({
+				baseRevision: 3,
+				historyEntryId: firstNote?.id ?? "",
+				idempotencyKey: "undo-note",
+				targetId: target.targetId,
+			})
+		);
+		expect(outcome).toEqual({
+			conflict: "Conflict",
+			current: {
+				revision: 3,
+				targetId: target.targetId,
+				value: "newer note",
+			},
+			currentValueLabel: "Current value",
+			status: "conflict",
+		});
+		expect(await readMutationTarget(prisma, target.targetId)).toEqual({
+			revision: 3,
+			targetId: target.targetId,
+			value: "title",
+		});
+	});
+
 	it.each([
 		CHANGE_KIND.permanentDelete,
 		CHANGE_KIND.securityRedaction,
@@ -920,40 +967,51 @@ describe("Mutation Contract", () => {
 			})
 		);
 		expect(edited.status).toBe("committed");
-		const conflict = await applyMutation(
+		await applyMutation(
 			prisma,
 			humanCommand({
-				baseRevision: 1,
-				idempotencyKey: "stale",
-				payload: { value: "clobber" },
+				baseRevision: 2,
+				idempotencyKey: "edit-again",
+				payload: { value: "newer" },
+				targetId: created.targetId,
+			})
+		);
+		const history = await readRecordHistory(prisma, created.targetId);
+		const [firstEdit, latestEdit] = history;
+		expect(firstEdit?.undo).toBe("Undo");
+		const conflict = await applyUndo(
+			prisma,
+			undoCommand({
+				baseRevision: 3,
+				historyEntryId: firstEdit?.id ?? "",
+				idempotencyKey: "undo-first",
 				targetId: created.targetId,
 			})
 		);
 		expect(conflict).toEqual({
+			conflict: "Conflict",
 			current: {
-				revision: 2,
+				revision: 3,
 				targetId: created.targetId,
-				value: "edited",
+				value: "newer",
 			},
 			currentValueLabel: "Current value",
-			status: "stale",
+			status: "conflict",
 		});
-		const history = await readRecordHistory(prisma, created.targetId);
-		expect(history[0]?.undo).toBe("Undo");
 		const undone = await applyUndo(
 			prisma,
 			undoCommand({
-				baseRevision: 2,
-				historyEntryId: history[0]?.id ?? "",
-				idempotencyKey: "undo",
+				baseRevision: 3,
+				historyEntryId: latestEdit?.id ?? "",
+				idempotencyKey: "undo-latest",
 				targetId: created.targetId,
 			})
 		);
 		expect(undone).toEqual({
 			receipt: {
-				revision: 3,
+				revision: 4,
 				targetId: created.targetId,
-				value: "initial",
+				value: "edited",
 			},
 			status: "committed",
 		});
