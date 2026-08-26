@@ -97,10 +97,17 @@ export function ClientShellWorkspace({ children }: { children: ReactNode }) {
 		...orpc.accountPreferences.get.queryOptions(),
 		enabled: Boolean(session?.user),
 	});
-	const empty = offlineEmptyState(
-		shell,
-		preferences.data ?? unsavedAccountPreferences()
+	const [formatPreferences, setFormatPreferences] = useState(
+		unsavedAccountPreferences
 	);
+
+	useEffect(() => {
+		if (preferences.data) {
+			setFormatPreferences(preferences.data);
+		}
+	}, [preferences.data]);
+
+	const empty = offlineEmptyState(shell, formatPreferences);
 
 	if (empty) {
 		return <OfflineEmptyState state={empty} />;

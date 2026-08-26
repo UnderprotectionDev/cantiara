@@ -10,7 +10,6 @@ import { describe, expect, it } from "vitest";
 
 import {
 	attemptOnlineWork,
-	CLIENT_SHELL_COPY,
 	clientShellLocalTruth,
 	clientShellWriteQueue,
 	createClientShell,
@@ -86,17 +85,12 @@ describe("Client Shell", () => {
 	});
 
 	it("shows You’re offline, Last saved, and Unsaved changes may be lost with Hesap locale time", () => {
-		const empty = offlineEmptyState(savedOfflineShell(), istanbul);
-
-		expect(empty).toEqual({
+		expect(offlineEmptyState(savedOfflineShell(), istanbul)).toEqual({
 			heading: "You’re offline",
 			lastSavedDisplay: "29/03/2026, 15:00",
 			lastSavedLabel: "Last saved",
 			unsavedRisk: "Unsaved changes may be lost",
 		});
-		expect(empty?.heading).toBe(CLIENT_SHELL_COPY.youreOffline);
-		expect(empty?.lastSavedLabel).toBe(CLIENT_SHELL_COPY.lastSaved);
-		expect(empty?.unsavedRisk).toBe(CLIENT_SHELL_COPY.unsavedChangesMayBeLost);
 	});
 
 	it("formats Last saved with the Hesap locale and time zone, not a Client Shell schema", () => {
@@ -147,18 +141,28 @@ describe("Client Shell", () => {
 		const web = savedOfflineShell("web");
 		const tauri = savedOfflineShell("tauri");
 		const write = () => "created";
-
-		expect(attemptOnlineWork(web, "planning-change", write)).toEqual(
-			attemptOnlineWork(tauri, "planning-change", write)
-		);
-		expect(offlineEmptyState(web, istanbul)).toEqual(
-			offlineEmptyState(tauri, istanbul)
-		);
-		expect(clientShellLocalTruth(web)).toEqual(clientShellLocalTruth(tauri));
-		expect(clientShellLocalTruth(tauri)).toEqual({
+		const refused = {
+			kind: "planning-change" as const,
+			reason: "offline" as const,
+			status: "refused" as const,
+		};
+		const empty = {
+			heading: "You’re offline",
+			lastSavedDisplay: "29/03/2026, 15:00",
+			lastSavedLabel: "Last saved",
+			unsavedRisk: "Unsaved changes may be lost",
+		};
+		const localTruth = {
 			deviceDatabase: false,
 			projectFolder: null,
 			queuedWrites: [],
-		});
+		};
+
+		expect(attemptOnlineWork(web, "planning-change", write)).toEqual(refused);
+		expect(attemptOnlineWork(tauri, "planning-change", write)).toEqual(refused);
+		expect(offlineEmptyState(web, istanbul)).toEqual(empty);
+		expect(offlineEmptyState(tauri, istanbul)).toEqual(empty);
+		expect(clientShellLocalTruth(web)).toEqual(localTruth);
+		expect(clientShellLocalTruth(tauri)).toEqual(localTruth);
 	});
 });
