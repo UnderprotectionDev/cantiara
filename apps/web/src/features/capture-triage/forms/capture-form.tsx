@@ -15,22 +15,13 @@ import { CLIENT_SHELL_COPY } from "@/features/web-macos-client/views/client-shel
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
-
-type TemplateId = "" | "bug-capture" | "feedback-capture" | "research-fragment";
-
-interface CaptureFormValues {
-	fields: Record<string, string>;
-	projectId: string;
-	template: TemplateId;
-	text: string;
-}
-
-const EMPTY_VALUES: CaptureFormValues = {
-	fields: {},
-	projectId: "",
-	template: "",
-	text: "",
-};
+import {
+	type CaptureTemplateId,
+	captureFormAfterSave,
+	captureFormHasUnsavedCapture,
+	captureInboxListInput,
+	EMPTY_CAPTURE_FORM,
+} from "./capture-form-state";
 
 export default function CaptureForm() {
 	const { attemptOnlineWork, markUnsaved, recordSave, shell } =
@@ -39,7 +30,7 @@ export default function CaptureForm() {
 	const preferences = useQuery(orpc.accountPreferences.get.queryOptions());
 	const copy = catalog.data?.copy;
 	const form = useForm({
-		defaultValues: EMPTY_VALUES,
+		defaultValues: EMPTY_CAPTURE_FORM,
 		onSubmit: async ({ value }) => {
 			const projectId = value.projectId.trim() || undefined;
 			const result = attemptOnlineWork("record-create", () =>
@@ -60,9 +51,7 @@ export default function CaptureForm() {
 	const values = useStore(form.store, (state) => state.values);
 	const list = useQuery(
 		orpc.captureInbox.list.queryOptions({
-			input: {
-				projectId: values.projectId.trim() || undefined,
-			},
+			input: captureInboxListInput(values.projectId),
 		})
 	);
 	const save = useMutation(
@@ -70,13 +59,11 @@ export default function CaptureForm() {
 			onSuccess: async () => {
 				await queryClient.invalidateQueries({
 					queryKey: orpc.captureInbox.list.queryKey({
-						input: {
-							projectId: values.projectId.trim() || undefined,
-						},
+						input: captureInboxListInput(values.projectId),
 					}),
 				});
 				recordSave();
-				form.reset();
+				form.reset(captureFormAfterSave(values));
 			},
 		})
 	);
@@ -85,13 +72,11 @@ export default function CaptureForm() {
 			onSuccess: async () => {
 				await queryClient.invalidateQueries({
 					queryKey: orpc.captureInbox.list.queryKey({
-						input: {
-							projectId: values.projectId.trim() || undefined,
-						},
+						input: captureInboxListInput(values.projectId),
 					}),
 				});
 				recordSave();
-				form.reset();
+				form.reset(captureFormAfterSave(values));
 			},
 		})
 	);
@@ -102,11 +87,7 @@ export default function CaptureForm() {
 			),
 		[catalog.data?.templates, values.template]
 	);
-	const isDirty =
-		values.text.trim() !== "" ||
-		values.projectId.trim() !== "" ||
-		values.template !== "" ||
-		Object.values(values.fields).some((value) => value.trim() !== "");
+	const isDirty = captureFormHasUnsavedCapture(values);
 
 	useEffect(() => {
 		if (isDirty) {
@@ -147,7 +128,7 @@ export default function CaptureForm() {
 	);
 	const onTemplateChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
-			form.setFieldValue("template", event.target.value as TemplateId);
+			form.setFieldValue("template", event.target.value as CaptureTemplateId);
 			form.setFieldValue("fields", {});
 		},
 		[form]
