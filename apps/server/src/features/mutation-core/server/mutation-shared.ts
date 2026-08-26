@@ -6,6 +6,7 @@ export const MUTATION_COPY = {
 	currentValue: "Current value",
 	finalizing: "Finalizing",
 	retry: "Retry",
+	undo: "Undo",
 } as const;
 
 export const MUTATION_ACTOR = {

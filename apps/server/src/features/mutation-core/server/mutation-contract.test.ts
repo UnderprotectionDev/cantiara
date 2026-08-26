@@ -2,9 +2,10 @@
  * Mutation Contract seam — human base revision + client idempotency key,
  * non-human verified source id + delivery id + payload fingerprint +
  * revision condition at commit, Kayıt geçmişi actors, retry, reorder,
- * and concurrent write. Synthetic fixture for
+ * concurrent write, and Güvenli geri alma. Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Mutasyon sözleşmesi).
+ * (Mutasyon sözleşmesi) and the closed journey
+ * kayıt oluşturma, düzenleme, çatışma, geri alma.
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -13,13 +14,18 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
 	applyMutation,
+	applyUndo,
+	CHANGE_KIND,
 	createMutationTarget,
 	MUTATION_ACTOR,
 	MUTATION_COPY,
 	type MutationOrigin,
 	payloadFingerprint,
+	readMutationFields,
+	readMutationRelations,
 	readMutationTarget,
 	readRecordHistory,
+	readRetiredInto,
 } from "./mutation-contract";
 
 const DATABASE_URL =
@@ -48,7 +54,14 @@ const NON_HUMAN_CASES = [
 function humanCommand(input: {
 	baseRevision?: number;
 	idempotencyKey?: string;
-	payload?: { value: string };
+	payload?: {
+		attributedFields?: Record<string, string>;
+		attributedRelationToIds?: string[];
+		field?: string;
+		kind?: string;
+		secondaryValue?: string;
+		value: string;
+	};
 	targetId: string;
 }) {
 	return {
@@ -523,7 +536,506 @@ describe("Mutation Contract", () => {
 		expect(committed[0]?.receipt).toEqual(current);
 		expect(await readRecordHistory(prisma, target.targetId)).toHaveLength(1);
 	});
+
+	it("applies Undo on a deterministic field change", async () => {
+		const target = await createMutationTarget(prisma, "initial");
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 1,
+				idempotencyKey: "edit-1",
+				payload: { value: "changed" },
+				targetId: target.targetId,
+			})
+		);
+		const history = await readRecordHistory(prisma, target.targetId);
+		expect(history[0]?.undo).toBe("Undo");
+		const outcome = await applyUndo(
+			prisma,
+			undoCommand({
+				baseRevision: 2,
+				historyEntryId: history[0]?.id ?? "",
+				idempotencyKey: "undo-1",
+				targetId: target.targetId,
+			})
+		);
+		expect(outcome).toEqual({
+			receipt: {
+				revision: 3,
+				targetId: target.targetId,
+				value: "initial",
+			},
+			status: "committed",
+		});
+		expect(await readMutationTarget(prisma, target.targetId)).toEqual({
+			revision: 3,
+			targetId: target.targetId,
+			value: "initial",
+		});
+	});
+
+	it("does not wrap an unrelated later field edit when Undo runs", async () => {
+		const target = await createMutationTarget(prisma, "initial");
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 1,
+				idempotencyKey: "edit-value",
+				payload: { value: "changed" },
+				targetId: target.targetId,
+			})
+		);
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 2,
+				idempotencyKey: "edit-note",
+				payload: { field: "note", value: "later note" },
+				targetId: target.targetId,
+			})
+		);
+		const history = await readRecordHistory(prisma, target.targetId);
+		const valueEdit = history.find((entry) => entry.fieldKey === "value");
+		const outcome = await applyUndo(
+			prisma,
+			undoCommand({
+				baseRevision: 3,
+				historyEntryId: valueEdit?.id ?? "",
+				idempotencyKey: "undo-value",
+				targetId: target.targetId,
+			})
+		);
+		expect(outcome.status).toBe("committed");
+		expect(await readMutationTarget(prisma, target.targetId)).toEqual({
+			revision: 4,
+			targetId: target.targetId,
+			value: "initial",
+		});
+		expect(await readMutationFields(prisma, target.targetId)).toEqual({
+			note: "later note",
+			value: "initial",
+		});
+	});
+
+	it("stops Undo and shows Conflict with Current value when the same field has a newer value", async () => {
+		const target = await createMutationTarget(prisma, "initial");
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 1,
+				idempotencyKey: "edit-1",
+				payload: { value: "first" },
+				targetId: target.targetId,
+			})
+		);
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 2,
+				idempotencyKey: "edit-2",
+				payload: { value: "second" },
+				targetId: target.targetId,
+			})
+		);
+		const [firstEdit] = await readRecordHistory(prisma, target.targetId);
+		const outcome = await applyUndo(
+			prisma,
+			undoCommand({
+				baseRevision: 3,
+				historyEntryId: firstEdit?.id ?? "",
+				idempotencyKey: "undo-first",
+				targetId: target.targetId,
+			})
+		);
+		expect(outcome).toEqual({
+			conflict: "Conflict",
+			current: {
+				revision: 3,
+				targetId: target.targetId,
+				value: "second",
+			},
+			currentValueLabel: "Current value",
+			status: "conflict",
+		});
+		expect(await readMutationTarget(prisma, target.targetId)).toEqual({
+			revision: 3,
+			targetId: target.targetId,
+			value: "second",
+		});
+	});
+
+	it("explains Current value of the conflicting field, not a different field", async () => {
+		const target = await createMutationTarget(prisma, "title");
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 1,
+				idempotencyKey: "note-1",
+				payload: { field: "note", value: "first note" },
+				targetId: target.targetId,
+			})
+		);
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 2,
+				idempotencyKey: "note-2",
+				payload: { field: "note", value: "newer note" },
+				targetId: target.targetId,
+			})
+		);
+		const [firstNote] = await readRecordHistory(prisma, target.targetId);
+		const outcome = await applyUndo(
+			prisma,
+			undoCommand({
+				baseRevision: 3,
+				historyEntryId: firstNote?.id ?? "",
+				idempotencyKey: "undo-note",
+				targetId: target.targetId,
+			})
+		);
+		expect(outcome).toEqual({
+			conflict: "Conflict",
+			current: {
+				revision: 3,
+				targetId: target.targetId,
+				value: "newer note",
+			},
+			currentValueLabel: "Current value",
+			status: "conflict",
+		});
+		expect(await readMutationTarget(prisma, target.targetId)).toEqual({
+			revision: 3,
+			targetId: target.targetId,
+			value: "title",
+		});
+	});
+
+	it.each([
+		CHANGE_KIND.permanentDelete,
+		CHANGE_KIND.securityRedaction,
+		CHANGE_KIND.externalSystem,
+		CHANGE_KIND.publishedExport,
+	])("does not apply Undo to %s and does not offer the Undo action", async (kind) => {
+		const target = await createMutationTarget(prisma, "initial");
+		const committed = await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 1,
+				idempotencyKey: `unsafe-${kind}`,
+				payload: { kind, value: "irreversible" },
+				targetId: target.targetId,
+			})
+		);
+		expect(committed.status).toBe("committed");
+		const history = await readRecordHistory(prisma, target.targetId);
+		expect(history[0]?.undo).toBeNull();
+		const before = await readMutationTarget(prisma, target.targetId);
+		const outcome = await applyUndo(
+			prisma,
+			undoCommand({
+				baseRevision: 2,
+				historyEntryId: history[0]?.id ?? "",
+				idempotencyKey: `undo-${kind}`,
+				targetId: target.targetId,
+			})
+		);
+		expect(outcome).toEqual({
+			reason: "undo-not-safe",
+			status: "rejected",
+		});
+		expect(await readMutationTarget(prisma, target.targetId)).toEqual(before);
+	});
+
+	it("offers Undo on field, relation, view metadata, and atomic transform, not a general undo stack", async () => {
+		const target = await createMutationTarget(prisma, "initial");
+		const related = await createMutationTarget(prisma, "related");
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 1,
+				idempotencyKey: "field",
+				payload: { kind: CHANGE_KIND.field, value: "named" },
+				targetId: target.targetId,
+			})
+		);
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 2,
+				idempotencyKey: "relation",
+				payload: {
+					field: "related",
+					kind: CHANGE_KIND.relation,
+					value: related.targetId,
+				},
+				targetId: target.targetId,
+			})
+		);
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 3,
+				idempotencyKey: "view",
+				payload: {
+					field: "view.sort",
+					kind: CHANGE_KIND.viewMetadata,
+					value: "name",
+				},
+				targetId: target.targetId,
+			})
+		);
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 4,
+				idempotencyKey: "transform",
+				payload: {
+					kind: CHANGE_KIND.atomicTransform,
+					secondaryValue: "together",
+					value: "transformed",
+				},
+				targetId: target.targetId,
+			})
+		);
+		const history = await readRecordHistory(prisma, target.targetId);
+		expect(history.map((entry) => entry.undo)).toEqual([
+			"Undo",
+			"Undo",
+			"Undo",
+			"Undo",
+		]);
+		const viewEdit = history.find((entry) => entry.fieldKey === "view.sort");
+		expect(
+			(
+				await applyUndo(
+					prisma,
+					undoCommand({
+						baseRevision: 5,
+						historyEntryId: viewEdit?.id ?? "",
+						idempotencyKey: "undo-view",
+						targetId: target.targetId,
+					})
+				)
+			).status
+		).toBe("committed");
+		expect(await readMutationFields(prisma, target.targetId)).toEqual({
+			note: "together",
+			value: "transformed",
+		});
+		expect(await readMutationRelations(prisma, target.targetId)).toEqual([
+			{ kind: "related", toId: related.targetId },
+		]);
+	});
+
+	it("undoes an atomic transform without wrapping an unrelated later field", async () => {
+		const target = await createMutationTarget(prisma, "initial");
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 1,
+				idempotencyKey: "transform",
+				payload: {
+					kind: CHANGE_KIND.atomicTransform,
+					secondaryValue: "paired",
+					value: "transformed",
+				},
+				targetId: target.targetId,
+			})
+		);
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 2,
+				idempotencyKey: "later-view",
+				payload: {
+					field: "view.sort",
+					kind: CHANGE_KIND.viewMetadata,
+					value: "name",
+				},
+				targetId: target.targetId,
+			})
+		);
+		const history = await readRecordHistory(prisma, target.targetId);
+		const transform = history.find(
+			(entry) => entry.changeKind === CHANGE_KIND.atomicTransform
+		);
+		expect(
+			(
+				await applyUndo(
+					prisma,
+					undoCommand({
+						baseRevision: 3,
+						historyEntryId: transform?.id ?? "",
+						idempotencyKey: "undo-transform",
+						targetId: target.targetId,
+					})
+				)
+			).status
+		).toBe("committed");
+		expect(await readMutationFields(prisma, target.targetId)).toEqual({
+			value: "initial",
+			"view.sort": "name",
+		});
+	});
+
+	it("restores the Emekli kayıt kimliği on Birleştirmeyi geri alma and splits only merge-attributed values and relations", async () => {
+		const survivor = await createMutationTarget(prisma, "survivor");
+		const retired = await createMutationTarget(prisma, "retired");
+		const related = await createMutationTarget(prisma, "related");
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 1,
+				idempotencyKey: "bind-retired",
+				payload: {
+					field: "related",
+					kind: CHANGE_KIND.relation,
+					value: related.targetId,
+				},
+				targetId: retired.targetId,
+			})
+		);
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 1,
+				idempotencyKey: "merge",
+				payload: {
+					attributedFields: { note: "from-retired" },
+					attributedRelationToIds: [related.targetId],
+					kind: CHANGE_KIND.merge,
+					value: retired.targetId,
+				},
+				targetId: survivor.targetId,
+			})
+		);
+		expect(await readRetiredInto(prisma, retired.targetId)).toBe(
+			survivor.targetId
+		);
+		expect(await readMutationFields(prisma, survivor.targetId)).toEqual({
+			note: "from-retired",
+			value: "survivor",
+		});
+		expect(await readMutationRelations(prisma, survivor.targetId)).toEqual([
+			{ kind: "related", toId: related.targetId },
+		]);
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 2,
+				idempotencyKey: "later-survivor",
+				payload: { value: "later survivor" },
+				targetId: survivor.targetId,
+			})
+		);
+		const history = await readRecordHistory(prisma, survivor.targetId);
+		const mergeEntry = history.find(
+			(entry) => entry.changeKind === CHANGE_KIND.merge
+		);
+		expect(mergeEntry?.undo).toBe("Undo");
+		const outcome = await applyUndo(
+			prisma,
+			undoCommand({
+				baseRevision: 3,
+				historyEntryId: mergeEntry?.id ?? "",
+				idempotencyKey: "undo-merge",
+				targetId: survivor.targetId,
+			})
+		);
+		expect(outcome.status).toBe("committed");
+		expect(await readRetiredInto(prisma, retired.targetId)).toBeNull();
+		expect(await readMutationFields(prisma, survivor.targetId)).toEqual({
+			value: "later survivor",
+		});
+		expect(await readMutationRelations(prisma, survivor.targetId)).toEqual([]);
+		expect(await readMutationFields(prisma, retired.targetId)).toEqual({
+			note: "from-retired",
+			value: "retired",
+		});
+		expect(await readMutationRelations(prisma, retired.targetId)).toEqual([
+			{ kind: "related", toId: related.targetId },
+		]);
+	});
+
+	it("walks create, edit, Conflict, and Undo on the Mutation Contract seam", async () => {
+		const created = await createMutationTarget(prisma, "initial");
+		const edited = await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 1,
+				idempotencyKey: "edit",
+				payload: { value: "edited" },
+				targetId: created.targetId,
+			})
+		);
+		expect(edited.status).toBe("committed");
+		await applyMutation(
+			prisma,
+			humanCommand({
+				baseRevision: 2,
+				idempotencyKey: "edit-again",
+				payload: { value: "newer" },
+				targetId: created.targetId,
+			})
+		);
+		const history = await readRecordHistory(prisma, created.targetId);
+		const [firstEdit, latestEdit] = history;
+		expect(firstEdit?.undo).toBe("Undo");
+		const conflict = await applyUndo(
+			prisma,
+			undoCommand({
+				baseRevision: 3,
+				historyEntryId: firstEdit?.id ?? "",
+				idempotencyKey: "undo-first",
+				targetId: created.targetId,
+			})
+		);
+		expect(conflict).toEqual({
+			conflict: "Conflict",
+			current: {
+				revision: 3,
+				targetId: created.targetId,
+				value: "newer",
+			},
+			currentValueLabel: "Current value",
+			status: "conflict",
+		});
+		const undone = await applyUndo(
+			prisma,
+			undoCommand({
+				baseRevision: 3,
+				historyEntryId: latestEdit?.id ?? "",
+				idempotencyKey: "undo-latest",
+				targetId: created.targetId,
+			})
+		);
+		expect(undone).toEqual({
+			receipt: {
+				revision: 4,
+				targetId: created.targetId,
+				value: "edited",
+			},
+			status: "committed",
+		});
+	});
 });
+
+function undoCommand(input: {
+	baseRevision: number;
+	historyEntryId: string;
+	idempotencyKey: string;
+	targetId: string;
+}) {
+	return {
+		actorId: ACTOR_ID,
+		baseRevision: input.baseRevision,
+		historyEntryId: input.historyEntryId,
+		idempotencyKey: input.idempotencyKey,
+		origin: "human" as const,
+		targetId: input.targetId,
+	};
+}
 
 function commandFor(
 	kind: MutationOrigin,

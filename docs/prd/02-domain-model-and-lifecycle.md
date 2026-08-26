@@ -70,6 +70,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İptal | `Cancel` | Yalnız commit bariyerinden önceki hazırlama iptali |
 | Sonlandırılıyor | `Finalizing` | Commit bariyerinden sonra iptalin uygulanmadığı durum |
 | Güncel değer | `Current value` | Güncel olmayan taban revizyonunda reddedilen yazmanın gösterdiği mevcut kayıt değeri |
+| Güvenli geri alma | `Undo` | Tersi deterministik hesaplanan alan, ilişki, görünüm üstverisi veya atomik dönüşümde ilgisiz sonraki değişikliği sarmadan uygulanan geri alma |
 | Kullanıcı | `User` | Kayıt geçmişine yazılan insan aktör türü |
 | Sistem otomasyonu | `System automation` | Kayıt geçmişine yazılan otomasyon aktör türü |
 | Yetkili entegrasyon | `Authorized integration` | Kayıt geçmişine yazılan entegrasyon aktör türü |

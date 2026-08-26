@@ -224,8 +224,8 @@ export async function readAtomicLiveState(
 	});
 	const [relations, counter, indexRows] = await Promise.all([
 		prisma.mutationFixtureRelation.findMany({
-			orderBy: [{ kind: "asc" }, { targetId: "asc" }],
-			where: { sourceId: targetId },
+			orderBy: [{ kind: "asc" }, { toId: "asc" }],
+			where: { fromId: targetId },
 		}),
 		prisma.mutationFixtureCounter.findUnique({ where: { targetId } }),
 		prisma.mutationFixtureIndexEntry.findMany({
@@ -241,7 +241,7 @@ export async function readAtomicLiveState(
 			: null,
 		relations: relations.map((row) => ({
 			kind: row.kind,
-			targetId: row.targetId,
+			targetId: row.toId,
 		})),
 	};
 }
@@ -350,10 +350,10 @@ async function commitLiveEffects(
 	if (command.payload.relation) {
 		await tx.mutationFixtureRelation.create({
 			data: {
+				fromId: current.id,
 				id: crypto.randomUUID(),
 				kind: command.payload.relation.kind,
-				sourceId: current.id,
-				targetId: command.payload.relation.targetId,
+				toId: command.payload.relation.targetId,
 			},
 		});
 	}

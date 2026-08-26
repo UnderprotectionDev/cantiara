@@ -21,17 +21,6 @@ CREATE TABLE "mutation_staging_operation" (
 );
 
 -- CreateTable
-CREATE TABLE "mutation_fixture_relation" (
-    "id" TEXT NOT NULL,
-    "sourceId" TEXT NOT NULL,
-    "targetId" TEXT NOT NULL,
-    "kind" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "mutation_fixture_relation_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "mutation_fixture_counter" (
     "id" TEXT NOT NULL,
     "targetId" TEXT NOT NULL,
@@ -56,9 +45,6 @@ CREATE UNIQUE INDEX "mutation_staging_operation_commandKey_key" ON "mutation_sta
 
 -- CreateIndex
 CREATE INDEX "mutation_staging_operation_status_expiresAt_idx" ON "mutation_staging_operation"("status", "expiresAt");
-
--- CreateIndex
-CREATE INDEX "mutation_fixture_relation_sourceId_idx" ON "mutation_fixture_relation"("sourceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "mutation_fixture_counter_targetId_key" ON "mutation_fixture_counter"("targetId");

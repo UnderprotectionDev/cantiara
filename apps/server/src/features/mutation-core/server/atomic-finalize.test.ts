@@ -79,6 +79,13 @@ describe("Mutation Contract atomic finalize", () => {
 		await prisma.mutationFixtureCounter.deleteMany();
 		await prisma.mutationStagingOperation.deleteMany();
 		await prisma.mutationFixtureRecord.deleteMany();
+		await prisma.mutationFixtureRecord.create({
+			data: {
+				id: RELATION_TARGET,
+				revision: 1,
+				value: "related",
+			},
+		});
 	});
 
 	afterEach(async () => {
