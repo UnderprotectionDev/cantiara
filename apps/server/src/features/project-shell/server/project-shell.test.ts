@@ -33,6 +33,7 @@ import {
 	PROJECT_LIFECYCLE,
 	PROJECT_SHELL_COPY,
 	PROTECTED_WORK_STATUSES,
+	pinnedNavigationAreas,
 	STAGE_STATES,
 	STARTER_CONFIGURATIONS,
 	type StructureChange,
@@ -1318,6 +1319,7 @@ describe("Project Shell", () => {
 		expect(PROJECT_SHELL_COPY.enable).toBe("Enable");
 		expect(PROJECT_SHELL_COPY.addStage).toBe("Add stage");
 		expect(PROJECT_SHELL_COPY.removeStage).toBe("Remove stage");
+		expect(PROJECT_SHELL_COPY.save).toBe("Save");
 		expect(STAGE_STATES).toEqual([
 			"Not Planned",
 			"Ready",
@@ -1640,6 +1642,12 @@ describe("Project Shell", () => {
 		}
 		expect(hidden.project.enabledAreas).not.toContain("Discovery");
 		expect(hidden.project.pinnedAreas).toContain("Discovery");
+		expect(
+			pinnedNavigationAreas(
+				hidden.project.pinnedAreas,
+				hidden.project.enabledAreas
+			)
+		).not.toContain("Discovery");
 		expect(hidden.project.alwaysOnSurfaces).toEqual([
 			"Overview",
 			"Work",

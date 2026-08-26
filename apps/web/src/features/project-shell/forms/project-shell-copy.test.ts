@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 import {
 	CONFIGURATION_MODE_EDITORS,
 	PROJECT_SHELL_COPY,
+	pinnedNavigationAreas,
 	projectShellAnchor,
 	projectShellChrome,
 	projectShellSearch,
@@ -32,6 +33,7 @@ test("English chrome uses Project Name and Short code", () => {
 		ready: "Ready",
 		removeStage: "Remove stage",
 		restoreDefaultNavigation: "Restore default navigation",
+		save: "Save",
 		savedViews: "Saved views",
 		shortCode: "Short code",
 		shortCodeLocked: "Short code is locked after the first Work.",
@@ -62,6 +64,12 @@ test("Overview Work Documents and All Tools are in-page destinations", () => {
 	expect(projectShellAnchor("Work")).not.toBe(
 		projectShellAnchor("Technical Diagrams")
 	);
+	expect(
+		pinnedNavigationAreas(
+			["Discovery", "Decisions", "Design", "Tests", "Releases"],
+			["Work", "Documents", "Decisions", "Design", "Tests", "Releases"]
+		)
+	).toEqual(["Decisions", "Design", "Tests", "Releases"]);
 });
 
 test("Configuration Mode is presentation search, not a Project write", () => {

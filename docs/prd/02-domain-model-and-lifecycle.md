@@ -66,6 +66,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yukarı taşı | `Move up` | Aşama sunum sırasını öne alma |
 | Aşağı taşı | `Move down` | Aşama sunum sırasını sona alma |
 | Aşama kaldırma önizlemesi | `{name} will leave presentation and filters. Main records are not deleted.` | Aşama kaldırılırken sunum/filtre önizlemesi |
+| Kaydet | `Save` | Yapılandırma modunda aşama adı ve İş durumu görünen adını kaydetme |
 | Oluştur | `Create` | Yapılandırma modu dışında günlük kayıt oluşturma |
 | Düzenle | `Edit` | Yapılandırma modu dışında günlük içerik düzenleme |
 | Durum | `Status` | Yapılandırma modu dışında günlük durum değiştirme |

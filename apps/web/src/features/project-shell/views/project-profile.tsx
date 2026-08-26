@@ -7,6 +7,7 @@ import ProjectAreasForm from "@/features/project-shell/forms/project-areas-form"
 import {
 	type ConfigurationModeEditor,
 	PROJECT_SHELL_COPY,
+	pinnedNavigationAreas,
 	projectShellAnchor,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
@@ -53,8 +54,9 @@ export default function ProjectProfile({
 	const alwaysOnAnchors = new Set(
 		data.alwaysOnSurfaces.map((surface) => projectShellAnchor(surface))
 	);
-	const navigationAreas = data.pinnedAreas.filter((area) =>
-		data.enabledAreas.includes(area)
+	const navigationAreas = pinnedNavigationAreas(
+		data.pinnedAreas,
+		data.enabledAreas
 	);
 
 	return (

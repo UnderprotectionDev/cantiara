@@ -63,6 +63,13 @@ export const PROJECT_SHELL_COPY = {
 	workStatuses: "Work statuses",
 } as const;
 
+export function pinnedNavigationAreas(
+	pinnedAreas: readonly string[],
+	enabledAreas: readonly string[]
+): string[] {
+	return pinnedAreas.filter((area) => enabledAreas.includes(area));
+}
+
 export function stageRemovalPreviewCopy(name: string): string {
 	return `${name} ${PROJECT_SHELL_COPY.stageRemovalLeavesPresentation} ${PROJECT_SHELL_COPY.stageRemovalKeepsMainRecords}`;
 }

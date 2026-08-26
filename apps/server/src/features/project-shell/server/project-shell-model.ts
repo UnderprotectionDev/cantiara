@@ -452,11 +452,11 @@ export function isNonAreaSurface(value: string): boolean {
 	return (NON_AREA_SURFACES as readonly string[]).includes(value);
 }
 
-export function protectedWorkStatusViews() {
-	return PROTECTED_WORK_STATUSES.map((semantic) => ({
-		label: semantic,
-		semantic,
-	}));
+export function pinnedNavigationAreas(
+	pinnedAreas: readonly string[],
+	enabledAreas: readonly string[]
+): string[] {
+	return pinnedAreas.filter((area) => enabledAreas.includes(area));
 }
 
 export function stageRemovalPreview(name: string) {
