@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const CAPTURE_INBOX_COPY = {
 	attachToExisting: "Attach to existing",
+	back: "Back",
 	bugCapture: "Bug Capture",
 	captureInbox: "Capture Inbox",
 	channel: "Channel",
@@ -31,6 +32,7 @@ export const CAPTURE_INBOX_COPY = {
 	reproductionContext: "Reproduction Context",
 	researchFragment: "Research Fragment",
 	save: "Save",
+	sequentialTriage: "Sequential triage",
 	sourceContext: "Source Context",
 	unsavedChangesMayBeLost: "Unsaved changes may be lost",
 	work: "Work",

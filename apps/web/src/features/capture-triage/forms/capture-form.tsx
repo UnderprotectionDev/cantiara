@@ -31,6 +31,12 @@ import {
 	EMPTY_CAPTURE_FORM,
 } from "./capture-form-state";
 import { CaptureMergeUndo, CaptureTriageActions } from "./capture-triage-panel";
+import {
+	goBackSequentialFocus,
+	nextSequentialFocus,
+	sequentialTriageView,
+	startSequentialFocus,
+} from "./sequential-triage-state";
 
 export default function CaptureForm() {
 	const { attemptOnlineWork, clearUnsaved, markUnsaved, recordSave, shell } =
@@ -98,9 +104,45 @@ export default function CaptureForm() {
 		}
 	);
 	const [mergeId, setMergeId] = useState<string | null>(null);
+	const [sequentialFocusedId, setSequentialFocusedId] = useState<string | null>(
+		null
+	);
+	const remainingItems = list.data ?? [];
+	const sequential = sequentialTriageView(remainingItems, sequentialFocusedId);
 	const onMergeCleared = useCallback(() => {
 		setMergeId(null);
 	}, []);
+	const onItemConsumed = useCallback(
+		(itemId: string) => {
+			setSequentialFocusedId((current) => {
+				if (current !== itemId) {
+					return current;
+				}
+				return nextSequentialFocus(
+					remainingItems.map((item) => item.id),
+					itemId
+				);
+			});
+		},
+		[remainingItems]
+	);
+	const onToggleSequential = useCallback(() => {
+		if (sequential.mode === "sequential") {
+			setSequentialFocusedId(null);
+			return;
+		}
+		setSequentialFocusedId(
+			startSequentialFocus(remainingItems.map((item) => item.id))
+		);
+	}, [remainingItems, sequential.mode]);
+	const onGoBackSequential = useCallback(() => {
+		setSequentialFocusedId((current) =>
+			goBackSequentialFocus(
+				remainingItems.map((item) => item.id),
+				current
+			)
+		);
+	}, [remainingItems]);
 
 	useEffect(() => {
 		if (isDirty) {
@@ -252,8 +294,12 @@ export default function CaptureForm() {
 					groups={groups}
 					list={list}
 					mergeId={mergeId}
+					onGoBackSequential={onGoBackSequential}
+					onItemConsumed={onItemConsumed}
 					onMergeCleared={onMergeCleared}
 					onMergeConsumed={setMergeId}
+					onToggleSequential={onToggleSequential}
+					sequential={sequential}
 					templates={catalog.data?.templates}
 				/>
 			</section>
@@ -267,12 +313,17 @@ function CaptureInboxList({
 	groups,
 	list,
 	mergeId,
+	onGoBackSequential,
+	onItemConsumed,
 	onMergeCleared,
 	onMergeConsumed,
+	onToggleSequential,
+	sequential,
 	templates,
 }: {
 	copy: {
 		attachToExisting: string;
+		back: string;
 		convert: string;
 		delete: string;
 		document: string;
@@ -280,6 +331,7 @@ function CaptureInboxList({
 		fileAttachment: string;
 		origin: string;
 		otherProjects: string;
+		sequentialTriage: string;
 		work: string;
 	};
 	emptyCopy: string;
@@ -298,8 +350,16 @@ function CaptureInboxList({
 		isPending: boolean;
 	};
 	mergeId: string | null;
+	onGoBackSequential: () => void;
+	onItemConsumed: (itemId: string) => void;
 	onMergeCleared: () => void;
 	onMergeConsumed: (mergeId: string) => void;
+	onToggleSequential: () => void;
+	sequential: {
+		focused: { body: string; id: string; template: string | null } | null;
+		mode: "list" | "sequential";
+		previousAvailable: boolean;
+	};
 	templates?: ReadonlyArray<{ id: string; label: string }>;
 }) {
 	if (list.isError) {
@@ -308,29 +368,71 @@ function CaptureInboxList({
 	if (list.isPending && !list.data) {
 		return null;
 	}
+	const undo = mergeId ? (
+		<CaptureMergeUndo
+			copy={copy}
+			mergeId={mergeId}
+			onCleared={onMergeCleared}
+		/>
+	) : null;
 	if (groups.length === 0) {
 		return (
 			<div className="flex flex-col gap-4">
-				{mergeId ? (
-					<CaptureMergeUndo
-						copy={copy}
-						mergeId={mergeId}
-						onCleared={onMergeCleared}
-					/>
-				) : null}
+				{undo}
 				<p>{emptyCopy}</p>
 			</div>
 		);
 	}
-	return (
-		<>
-			{mergeId ? (
-				<CaptureMergeUndo
-					copy={copy}
-					mergeId={mergeId}
-					onCleared={onMergeCleared}
-				/>
+	const sequentialControls = (
+		<div className="flex flex-wrap gap-2">
+			<Button
+				aria-pressed={sequential.mode === "sequential"}
+				onClick={onToggleSequential}
+				type="button"
+				variant={sequential.mode === "sequential" ? "default" : "outline"}
+			>
+				{copy.sequentialTriage}
+			</Button>
+			{sequential.mode === "sequential" ? (
+				<Button
+					disabled={!sequential.previousAvailable}
+					onClick={onGoBackSequential}
+					type="button"
+					variant="outline"
+				>
+					{copy.back}
+				</Button>
 			) : null}
+		</div>
+	);
+	if (sequential.mode === "sequential" && sequential.focused) {
+		return (
+			<div className="flex flex-col gap-4">
+				{undo}
+				{sequentialControls}
+				<section
+					aria-label={copy.sequentialTriage}
+					className="flex flex-col gap-3"
+				>
+					<h2 className="font-semibold text-lg">{copy.sequentialTriage}</h2>
+					<ul className="flex flex-col gap-3">
+						<CaptureInboxItemCard
+							copy={copy}
+							editable
+							item={sequential.focused}
+							onItemConsumed={onItemConsumed}
+							onMergeConsumed={onMergeConsumed}
+							templates={templates}
+						/>
+					</ul>
+				</section>
+			</div>
+		);
+	}
+	return (
+		<div className="flex flex-col gap-8">
+			{undo}
+			{sequentialControls}
 			{groups.map((group) => (
 				<section
 					aria-label={
@@ -346,30 +448,82 @@ function CaptureInboxList({
 						<p className="text-sm">{group.projectId}</p>
 					) : null}
 					<ul className="flex flex-col gap-3">
-						{group.items.map((item) => {
-							const templateLabel =
-								templates?.find((template) => template.id === item.template)
-									?.label ?? item.template;
-							return (
-								<li
-									className="rounded-none border border-border p-3"
-									key={item.id}
-								>
-									<p className="whitespace-pre-wrap text-sm">
-										{captureInboxItemPreview(item, templateLabel)}
-									</p>
-									<CaptureTriageActions
-										copy={copy}
-										itemId={item.id}
-										onMergeConsumed={onMergeConsumed}
-									/>
-								</li>
-							);
-						})}
+						{group.items.map((item) => (
+							<CaptureInboxItemCard
+								copy={copy}
+								item={item}
+								key={item.id}
+								onItemConsumed={onItemConsumed}
+								onMergeConsumed={onMergeConsumed}
+								templates={templates}
+							/>
+						))}
 					</ul>
 				</section>
 			))}
-		</>
+		</div>
+	);
+}
+
+function CaptureInboxItemCard({
+	copy,
+	editable = false,
+	item,
+	onItemConsumed,
+	onMergeConsumed,
+	templates,
+}: {
+	copy: {
+		attachToExisting: string;
+		convert: string;
+		delete: string;
+		document: string;
+		evidence: string;
+		fileAttachment: string;
+		origin: string;
+		otherProjects: string;
+		work: string;
+	};
+	editable?: boolean;
+	item: { body: string; id: string; template: string | null };
+	onItemConsumed: (itemId: string) => void;
+	onMergeConsumed: (mergeId: string) => void;
+	templates?: ReadonlyArray<{ id: string; label: string }>;
+}) {
+	const templateLabel =
+		templates?.find((template) => template.id === item.template)?.label ??
+		item.template;
+	const preview = captureInboxItemPreview(item, templateLabel);
+	const [draft, setDraft] = useState(preview);
+	useEffect(() => {
+		setDraft(preview);
+	}, [preview]);
+	const onDraftChange = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			setDraft(event.target.value);
+		},
+		[]
+	);
+
+	return (
+		<li className="rounded-none border border-border p-3">
+			{editable ? (
+				<Textarea
+					aria-label={preview}
+					id={`sequential-fields-${item.id}`}
+					onChange={onDraftChange}
+					value={draft}
+				/>
+			) : (
+				<p className="whitespace-pre-wrap text-sm">{preview}</p>
+			)}
+			<CaptureTriageActions
+				copy={copy}
+				itemId={item.id}
+				onItemConsumed={onItemConsumed}
+				onMergeConsumed={onMergeConsumed}
+			/>
+		</li>
 	);
 }
 
