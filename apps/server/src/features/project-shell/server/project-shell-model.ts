@@ -307,11 +307,8 @@ export function configurationModeView(input: {
 		active: input.open,
 		customFieldEditorOpen: editor === CONFIGURATION_MODE_EDITORS.customField,
 		dailyActions: DAILY_ACTIONS,
-		dailyActionsAvailable: true,
 		hosts: input.open ? CONFIGURATION_MODE_HOSTS : [],
 		label: PROJECT_SHELL_COPY.configurationMode,
-		ownsCustomFieldSchema: false,
-		ownsWorkContextCardLayout: false,
 		savedViews: input.savedViews,
 		workContextCardLayoutEditorOpen:
 			editor === CONFIGURATION_MODE_EDITORS.workContextCardLayout,

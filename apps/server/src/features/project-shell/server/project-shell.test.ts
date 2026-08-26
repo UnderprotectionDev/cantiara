@@ -1006,15 +1006,12 @@ describe("Project Shell", () => {
 			open: false,
 			savedViews: created.project.workViews,
 		});
-		expect(closed).toMatchObject({
+		expect(closed).toEqual({
 			active: false,
 			customFieldEditorOpen: false,
 			dailyActions: ["Create", "Edit", "Status", "Planning"],
-			dailyActionsAvailable: true,
 			hosts: [],
 			label: "Configuration Mode",
-			ownsCustomFieldSchema: false,
-			ownsWorkContextCardLayout: false,
 			savedViews: ["Backlog", "Board"],
 			workContextCardLayoutEditorOpen: false,
 		});
@@ -1022,33 +1019,38 @@ describe("Project Shell", () => {
 			open: true,
 			savedViews: created.project.workViews,
 		});
-		expect(opened.active).toBe(true);
-		expect(opened.label).toBe("Configuration Mode");
-		expect(opened.hosts).toEqual([
-			"Stages",
-			"Work statuses",
-			"Project areas",
-			"Custom field",
-			"Priority metrics",
-			"Saved views",
-			"Work Context Card layout",
-		]);
+		expect(opened).toEqual({
+			active: true,
+			customFieldEditorOpen: false,
+			dailyActions: ["Create", "Edit", "Status", "Planning"],
+			hosts: [
+				"Stages",
+				"Work statuses",
+				"Project areas",
+				"Custom field",
+				"Priority metrics",
+				"Saved views",
+				"Work Context Card layout",
+			],
+			label: "Configuration Mode",
+			savedViews: ["Backlog", "Board"],
+			workContextCardLayoutEditorOpen: false,
+		});
 		expect(opened.hosts).not.toContain("Planning");
-		expect(opened.dailyActionsAvailable).toBe(true);
-		expect(opened.dailyActions).toEqual([
-			"Create",
-			"Edit",
-			"Status",
-			"Planning",
-		]);
 		const closedAgain = configurationModeView({
 			editor: CONFIGURATION_MODE_EDITORS.customField,
 			open: false,
 			savedViews: created.project.workViews,
 		});
-		expect(closedAgain.active).toBe(false);
-		expect(closedAgain.customFieldEditorOpen).toBe(false);
-		expect(closedAgain.hosts).toEqual([]);
+		expect(closedAgain).toEqual({
+			active: false,
+			customFieldEditorOpen: false,
+			dailyActions: ["Create", "Edit", "Status", "Planning"],
+			hosts: [],
+			label: "Configuration Mode",
+			savedViews: ["Backlog", "Board"],
+			workContextCardLayoutEditorOpen: false,
+		});
 		const after = await getProject(prisma, created.project.id);
 		expect(after).toEqual(before);
 		expect(after?.revision).toBe(created.project.revision);
@@ -1069,19 +1071,45 @@ describe("Project Shell", () => {
 			open: true,
 			savedViews: ["Backlog", "Board"],
 		});
-		expect(customField.customFieldEditorOpen).toBe(true);
-		expect(customField.workContextCardLayoutEditorOpen).toBe(false);
-		expect(customField.ownsCustomFieldSchema).toBe(false);
-		expect(customField.ownsWorkContextCardLayout).toBe(false);
+		expect(customField).toEqual({
+			active: true,
+			customFieldEditorOpen: true,
+			dailyActions: ["Create", "Edit", "Status", "Planning"],
+			hosts: [
+				"Stages",
+				"Work statuses",
+				"Project areas",
+				"Custom field",
+				"Priority metrics",
+				"Saved views",
+				"Work Context Card layout",
+			],
+			label: "Configuration Mode",
+			savedViews: ["Backlog", "Board"],
+			workContextCardLayoutEditorOpen: false,
+		});
 		const layout = configurationModeView({
 			editor: CONFIGURATION_MODE_EDITORS.workContextCardLayout,
 			open: true,
 			savedViews: ["Backlog", "Board"],
 		});
-		expect(layout.workContextCardLayoutEditorOpen).toBe(true);
-		expect(layout.customFieldEditorOpen).toBe(false);
-		expect(layout.ownsCustomFieldSchema).toBe(false);
-		expect(layout.ownsWorkContextCardLayout).toBe(false);
+		expect(layout).toEqual({
+			active: true,
+			customFieldEditorOpen: false,
+			dailyActions: ["Create", "Edit", "Status", "Planning"],
+			hosts: [
+				"Stages",
+				"Work statuses",
+				"Project areas",
+				"Custom field",
+				"Priority metrics",
+				"Saved views",
+				"Work Context Card layout",
+			],
+			label: "Configuration Mode",
+			savedViews: ["Backlog", "Board"],
+			workContextCardLayoutEditorOpen: true,
+		});
 	});
 
 	it("uses English Project Name and Short code chrome", () => {
