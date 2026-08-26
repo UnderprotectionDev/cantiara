@@ -55,7 +55,7 @@ Yeni Proje yalnız `Project Name` ve kapalı katalogdan bir Başlangıç yapıla
 ## Implementation Decisions
 
 - **Owning documents.** Behavior is owned by [Proje profili](../../prd/04-workspace-and-projects.md#proje-profili), [görüşlü başlangıç yapılandırmaları](../../prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları), [yapılandırma modu](../../prd/04-workspace-and-projects.md#yapılandırma-modu), [proje alanlarını etkinleştirme](../../prd/04-workspace-and-projects.md#proje-alanlarını-etkinleştirme), [yapılandırılabilir aşamalar](../../prd/04-workspace-and-projects.md#yapılandırılabilir-ve-paralel-proje-aşamaları), [proje yapısını kopyalama](../../prd/04-workspace-and-projects.md#proje-yapısını-kopyalama). Short code uniqueness is in the profile section. Protected status semantics: [korunan ürün semantiği](../../prd/02-domain-model-and-lifecycle.md#korunan-urun-semantigi). Stage states: [proje aşaması sözleşmesi](../../prd/02-domain-model-and-lifecycle.md#proje-aşaması-sözleşmesi). No ADR.
-- **Glossary.** Use Proje, Proje kısa kodu, Başlangıç yapılandırması, Blank Project, Başlangıç iskeleti, Proje alanı, Yapılandırma modu. Do not introduce sprint, dashboard, User Workspace, organization, template marketplace, or Lookup/Formula. Overview is a surface, not a Project area.
+- **Glossary.** Use Proje, Proje kısa kodu, Başlangıç yapılandırması, Blank Project, Başlangıç iskeleti, Proje alanı, Yapılandırma modu, Proje aşaması. Do not introduce sprint, dashboard, User Workspace, organization, template marketplace, or Lookup/Formula. Overview is a surface, not a Project area.
 - **Project Shell module.** Create Project, short-code suggest/reserve, apply starter configuration once, select skeleton catalog, Configuration Mode, area enable/hide/pin, stage/status presentation, copy structure. Writes use Mutation Contract.
 - **Starter configuration table (normative, from PRD).** Apply exactly once at create:
 
@@ -97,5 +97,5 @@ All four install the four protected Work statuses and keep `Overview`, `Work`, `
 
 ## Further Notes
 
-- **Orient.** Glossary: Proje, Proje kısa kodu, Başlangıç yapılandırması, Blank Project, Başlangıç iskeleti, Proje alanı, Yapılandırma modu. Owning PRD: `docs/prd/04-workspace-and-projects.md` (profil, yapılandırmalar, mod, alanlar, kopyalama). ADRs in play: none. Related: PRD 02 (protected semantics, stages), PRD 16 (İlk Proje, Başlangıç iskeletleri), PRD 19 (no contentful templates, no duplicate-project).
+- **Orient.** Glossary: Proje, Proje kısa kodu, Başlangıç yapılandırması, Blank Project, Başlangıç iskeleti, Proje alanı, Yapılandırma modu, Proje aşaması. Owning PRD: `docs/prd/04-workspace-and-projects.md` (profil, yapılandırmalar, mod, alanlar, kopyalama). ADRs in play: none. Related: PRD 02 (protected semantics, stages), PRD 16 (İlk Proje, Başlangıç iskeletleri), PRD 19 (no contentful templates, no duplicate-project).
 - **Consumers.** 08 reads enabled areas and profile. 09 consumes short code at first Work and freezes it. 10 owns field schema opened from Configuration Mode. 31/51 consume skeleton catalog selection and materialize living empty-heading structures.

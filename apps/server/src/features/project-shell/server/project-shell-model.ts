@@ -123,9 +123,27 @@ export const PROTECTED_WORK_STATUSES = [
 	"Closed",
 ] as const;
 
+export type ProtectedWorkStatus = (typeof PROTECTED_WORK_STATUSES)[number];
+
+export const STAGE_STATES = [
+	"Not Planned",
+	"Ready",
+	"Active",
+	"Completed",
+	"Abandoned",
+] as const;
+
+export type StageState = (typeof STAGE_STATES)[number];
+
 export const STAGE_STATE = {
+	abandoned: "Abandoned",
+	active: "Active",
+	completed: "Completed",
 	notPlanned: "Not Planned",
+	ready: "Ready",
 } as const;
+
+export const NON_AREA_SURFACES = ["Overview", "All Tools"] as const;
 
 export const PROJECT_LIFECYCLE = {
 	abandoned: "Abandoned",
@@ -135,6 +153,7 @@ export const PROJECT_LIFECYCLE = {
 } as const;
 
 export const PROJECT_SHELL_COPY = {
+	addStage: "Add stage",
 	allTools: "All Tools",
 	configurationMode: "Configuration Mode",
 	create: "Create",
@@ -142,6 +161,7 @@ export const PROJECT_SHELL_COPY = {
 	customField: "Custom field",
 	dismiss: "Dismiss",
 	edit: "Edit",
+	enable: "Enable",
 	firstOpenExplanations: {
 		"Blank Project":
 			"Blank Project set up Work and Documents with Backlog and Board. It did not install stages or extra pinned areas. Other areas stay available in All Tools. Overview and All Tools stay reachable. This is not a workflow or publish gate.",
@@ -152,18 +172,29 @@ export const PROJECT_SHELL_COPY = {
 		"Solo SaaS":
 			"Solo SaaS set up Discovery, Design, Build, Validate, Release, and Operate, enabled every Project area, pinned Discovery, Decisions, Design, Tests, and Releases, and prepared Backlog, Board, and Roadmap. Overview and All Tools stay reachable. Change areas from All Tools. This is not a workflow or publish gate.",
 	},
+	hide: "Hide",
 	logo: "Logo",
+	moveDown: "Move down",
+	moveUp: "Move up",
+	notPlanned: "Not Planned",
 	overview: "Overview",
+	pinToNavigation: "Pin to navigation",
 	planning: "Planning",
 	priorityMetrics: "Priority metrics",
 	problem: "Problem",
 	projectAreas: "Project areas",
 	projectName: "Project Name",
 	purpose: "Purpose",
+	ready: "Ready",
+	removeStage: "Remove stage",
+	restoreDefaultNavigation: "Restore default navigation",
+	save: "Save",
 	savedViews: "Saved views",
 	scope: "Scope",
 	shortCode: "Short code",
 	shortCodeLocked: "Short code is locked after the first Work.",
+	stageRemovalKeepsMainRecords: "Main records are not deleted.",
+	stageRemovalLeavesPresentation: "will leave presentation and filters.",
 	stages: "Stages",
 	starterConfiguration: "Starter Configuration",
 	status: "Status",
@@ -182,6 +213,12 @@ export const projectAreaViewSchema = z.object({
 	enabled: z.boolean(),
 	name: z.enum(PROJECT_AREAS),
 	pinned: z.boolean(),
+});
+
+export const projectStageViewSchema = z.object({
+	id: z.string().min(1),
+	name: z.string().min(1),
+	state: z.enum(STAGE_STATES),
 });
 
 export const projectViewSchema = z.object({
@@ -213,15 +250,27 @@ export const projectViewSchema = z.object({
 	),
 	shortCode: z.string().min(SHORT_CODE_MIN).max(SHORT_CODE_MAX),
 	shortCodeLocked: z.boolean(),
-	stages: z.array(z.string().min(1)),
+	stages: z.array(projectStageViewSchema),
 	starterConfiguration: z.enum(STARTER_CONFIGURATIONS),
 	targetDate: z.string().nullable(),
 	workContextCardLayouts: z.array(z.never()),
 	workStatuses: z.tuple([
-		z.literal("Not Started"),
-		z.literal("In Progress"),
-		z.literal("Blocked"),
-		z.literal("Closed"),
+		z.object({
+			label: z.string().min(1),
+			semantic: z.literal("Not Started"),
+		}),
+		z.object({
+			label: z.string().min(1),
+			semantic: z.literal("In Progress"),
+		}),
+		z.object({
+			label: z.string().min(1),
+			semantic: z.literal("Blocked"),
+		}),
+		z.object({
+			label: z.string().min(1),
+			semantic: z.literal("Closed"),
+		}),
 	]),
 	workspaceId: z.string().min(1),
 	workViews: z.array(z.string().min(1)),
@@ -277,6 +326,86 @@ export type DismissFirstOpenExplanationCommand = z.infer<
 	typeof dismissFirstOpenExplanationCommandSchema
 >;
 
+export const structureChangeSchema = z.discriminatedUnion("action", [
+	z.object({
+		action: z.literal("add-stage"),
+		name: z.string(),
+	}),
+	z.object({
+		action: z.literal("rename-stage"),
+		name: z.string(),
+		stageId: z.string().min(1),
+	}),
+	z.object({
+		action: z.literal("set-stage-state"),
+		stageId: z.string().min(1),
+		state: z.string(),
+	}),
+	z.object({
+		action: z.literal("reorder-stages"),
+		stageIds: z.array(z.string().min(1)),
+	}),
+	z.object({
+		action: z.literal("remove-stage"),
+		stageId: z.string().min(1),
+	}),
+	z.object({
+		action: z.literal("set-area-enabled"),
+		area: z.string(),
+		enabled: z.boolean(),
+	}),
+	z.object({
+		action: z.literal("pin-to-navigation"),
+		area: z.string(),
+	}),
+	z.object({
+		action: z.literal("unpin-from-navigation"),
+		area: z.string(),
+	}),
+	z.object({
+		action: z.literal("restore-default-navigation"),
+	}),
+	z.object({
+		action: z.literal("rename-work-status"),
+		label: z.string(),
+		semantic: z.string(),
+	}),
+]);
+
+export type StructureChange = z.infer<typeof structureChangeSchema>;
+
+export const configureProjectCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	change: structureChangeSchema,
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	projectId: z.string().min(1),
+});
+
+export type ConfigureProjectCommand = z.infer<
+	typeof configureProjectCommandSchema
+>;
+
+export type ProjectShellRejectionReason =
+	| "missing-idempotency-key"
+	| "missing-project-name"
+	| "missing-starter-configuration"
+	| "not-a-project-area"
+	| "short-code-invalid"
+	| "short-code-locked"
+	| "short-code-taken"
+	| "stage-name-invalid"
+	| "stage-not-found"
+	| "stage-order-invalid"
+	| "target-not-found"
+	| "unknown-project-area"
+	| "unknown-stage-state"
+	| "unknown-starter-configuration"
+	| "unknown-structure-action"
+	| "unknown-work-status"
+	| "work-status-label-invalid";
+
 export type ProjectShellOutcome =
 	| { project: ProjectView; status: "committed" }
 	| { project: ProjectView; status: "replayed" }
@@ -287,15 +416,7 @@ export type ProjectShellOutcome =
 			status: "stale";
 	  }
 	| {
-			reason:
-				| "missing-idempotency-key"
-				| "missing-project-name"
-				| "missing-starter-configuration"
-				| "short-code-invalid"
-				| "short-code-locked"
-				| "short-code-taken"
-				| "target-not-found"
-				| "unknown-starter-configuration";
+			reason: ProjectShellRejectionReason;
 			status: "rejected";
 	  };
 
@@ -315,6 +436,40 @@ export function isSkeletonName(value: string): value is SkeletonName {
 
 export function isSkeletonSurface(value: string): value is SkeletonSurface {
 	return (SKELETON_SURFACES as readonly string[]).includes(value);
+}
+
+export function isStageState(value: string): value is StageState {
+	return (STAGE_STATES as readonly string[]).includes(value);
+}
+
+export function isProtectedWorkStatus(
+	value: string
+): value is ProtectedWorkStatus {
+	return (PROTECTED_WORK_STATUSES as readonly string[]).includes(value);
+}
+
+export function isNonAreaSurface(value: string): boolean {
+	return (NON_AREA_SURFACES as readonly string[]).includes(value);
+}
+
+export function pinnedNavigationAreas(
+	pinnedAreas: readonly string[],
+	enabledAreas: readonly string[]
+): string[] {
+	return pinnedAreas.filter((area) => enabledAreas.includes(area));
+}
+
+export function stageRemovalPreview(name: string) {
+	return {
+		filters: [name],
+		mainRecordsDeleted: false,
+		presentation: [name],
+		workStatusWritten: false,
+	};
+}
+
+export function stageRemovalPreviewCopy(name: string): string {
+	return `${name} ${PROJECT_SHELL_COPY.stageRemovalLeavesPresentation} ${PROJECT_SHELL_COPY.stageRemovalKeepsMainRecords}`;
 }
 
 const STARTER_STRUCTURE: Record<

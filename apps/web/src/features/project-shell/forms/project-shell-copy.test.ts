@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 import {
 	CONFIGURATION_MODE_EDITORS,
 	PROJECT_SHELL_COPY,
+	pinnedNavigationAreas,
 	projectShellAnchor,
 	projectShellChrome,
 	projectShellSearch,
@@ -13,6 +14,7 @@ const COPY_BRANDING_PATTERN = /color|CSS|font/i;
 
 test("English chrome uses Project Name and Short code", () => {
 	expect(projectShellChrome()).toMatchObject({
+		addStage: "Add stage",
 		allTools: "All Tools",
 		configurationMode: "Configuration Mode",
 		create: "Create",
@@ -20,16 +22,26 @@ test("English chrome uses Project Name and Short code", () => {
 		customField: "Custom field",
 		dismiss: "Dismiss",
 		edit: "Edit",
+		enable: "Enable",
+		hide: "Hide",
+		notPlanned: "Not Planned",
 		overview: "Overview",
+		pinToNavigation: "Pin to navigation",
 		planning: "Planning",
 		priorityMetrics: "Priority metrics",
 		projectName: "Project Name",
+		ready: "Ready",
+		removeStage: "Remove stage",
+		restoreDefaultNavigation: "Restore default navigation",
+		save: "Save",
 		savedViews: "Saved views",
 		shortCode: "Short code",
 		shortCodeLocked: "Short code is locked after the first Work.",
+		stageNameRequired: "Stage name is required.",
 		starterConfiguration: "Starter Configuration",
 		status: "Status",
 		workContextCardLayout: "Work Context Card layout",
+		workStatusLabelRequired: "Work status label is required.",
 	});
 	expect(STARTER_CONFIGURATIONS).toEqual([
 		"Blank Project",
@@ -54,6 +66,12 @@ test("Overview Work Documents and All Tools are in-page destinations", () => {
 	expect(projectShellAnchor("Work")).not.toBe(
 		projectShellAnchor("Technical Diagrams")
 	);
+	expect(
+		pinnedNavigationAreas(
+			["Discovery", "Decisions", "Design", "Tests", "Releases"],
+			["Work", "Documents", "Decisions", "Design", "Tests", "Releases"]
+		)
+	).toEqual(["Decisions", "Design", "Tests", "Releases"]);
 });
 
 test("Configuration Mode is presentation search, not a Project write", () => {
