@@ -307,6 +307,7 @@
 │       │   │   ├── project-retirement/
 │       │   │   │   └── views/
 │       │   │   ├── project-shell/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── project-updates/
 │       │   │   │   └── views/
@@ -416,7 +417,7 @@
 │       │   │   │   ├── notifications/
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── projects/
-│       │   │   │   │   ├── $projectCode/
+│       │   │   │   │   ├── $projectId/
 │       │   │   │   │   │   ├── all-tools/
 │       │   │   │   │   │   │   └── index.tsx
 │       │   │   │   │   │   ├── decisions/
@@ -441,6 +442,7 @@
 │       │   │   │   │   │   │   └── index.tsx
 │       │   │   │   │   │   ├── index.tsx
 │       │   │   │   │   │   └── route.tsx
+│       │   │   │   │   ├── new.tsx
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── search/
 │       │   │   │   │   └── index.tsx

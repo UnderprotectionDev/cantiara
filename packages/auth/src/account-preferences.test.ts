@@ -81,6 +81,8 @@ describe("Account Preferences", () => {
 		pool = new Pool({ connectionString: DATABASE_URL });
 		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 		await prisma.accountPreference.deleteMany();
+		await prisma.workspaceShortCodeReservation.deleteMany();
+		await prisma.project.deleteMany();
 		await prisma.workspace.deleteMany();
 		await prisma.session.deleteMany();
 		await prisma.account.deleteMany();

@@ -377,6 +377,8 @@ describe("Account Access", () => {
 	beforeEach(async () => {
 		pool = new Pool({ connectionString: DATABASE_URL });
 		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+		await prisma.workspaceShortCodeReservation.deleteMany();
+		await prisma.project.deleteMany();
 		await prisma.workspace.deleteMany();
 		await prisma.session.deleteMany();
 		await prisma.account.deleteMany();
