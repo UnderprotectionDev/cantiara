@@ -1,3 +1,10 @@
+export const MUTATION_COPY = {
+	cancel: "Cancel",
+	conflict: "Conflict",
+	finalizing: "Finalizing",
+	retry: "Retry",
+} as const;
+
 export function newIdempotencyKey(): string {
 	return crypto.randomUUID();
 }
@@ -16,4 +23,14 @@ export function withHumanMutationEnvelope<TPayload>(input: {
 		idempotencyKey: input.idempotencyKey ?? newIdempotencyKey(),
 		payload: input.payload,
 	};
+}
+
+export function presentAtomicWriteUi(phase: "pre-barrier" | "post-barrier"): {
+	cancelAvailable: boolean;
+	label: typeof MUTATION_COPY.cancel | typeof MUTATION_COPY.finalizing;
+} {
+	if (phase === "pre-barrier") {
+		return { cancelAvailable: true, label: MUTATION_COPY.cancel };
+	}
+	return { cancelAvailable: false, label: MUTATION_COPY.finalizing };
 }

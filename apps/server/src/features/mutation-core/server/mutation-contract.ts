@@ -1,33 +1,46 @@
-import { createHash } from "node:crypto";
-
 import type { Prisma, PrismaClient } from "@cantiara/db";
 import { z } from "zod";
+import {
+	cancelAtomicWrite as cancelStagedWrite,
+	cleanupExpiredStaging as deleteExpiredStaging,
+	finalizeAtomicWrite as finalizeStagedWrite,
+	readAtomicLiveState as readStagedLiveState,
+	readAtomicWrite as readStagedWrite,
+	type AtomicLiveState as StagedLiveState,
+	type AtomicWriteOutcome as StagedWriteOutcome,
+	type AtomicWriteView as StagedWriteView,
+	type AtomicClock as StagingClock,
+	stageAtomicWrite as stageWrite,
+} from "./atomic-finalize";
 
-export const MUTATION_COPY = {
-	conflict: "Conflict",
-	currentValue: "Current value",
-	undo: "Undo",
-} as const;
+import {
+	actorFor,
+	advisoryKeys,
+	HUMAN_ORIGIN,
+	payloadFingerprint as hashPayload,
+	isRecord,
+	MUTATION_ACTOR as mutationActors,
+	MUTATION_COPY as mutationCopy,
+	NON_HUMAN_ORIGINS,
+	type MutationActor as SharedMutationActor,
+	type MutationOrigin as SharedMutationOrigin,
+	type NonHumanOrigin as SharedNonHumanOrigin,
+} from "./mutation-shared";
 
-export const MUTATION_ACTOR = {
-	authorizedIntegration: "Authorized integration",
-	github: "GitHub",
-	systemAutomation: "System automation",
-	user: "User",
-} as const;
+export const MUTATION_COPY = mutationCopy;
+export const MUTATION_ACTOR = mutationActors;
+export type MutationActor = SharedMutationActor;
+export type MutationOrigin = SharedMutationOrigin;
+export type NonHumanOrigin = SharedNonHumanOrigin;
 
-export type MutationActor =
-	(typeof MUTATION_ACTOR)[keyof typeof MUTATION_ACTOR];
+export type AtomicClock = StagingClock;
+export type AtomicLiveState = StagedLiveState;
+export type AtomicWriteOutcome = StagedWriteOutcome;
+export type AtomicWriteView = StagedWriteView;
 
-const HUMAN_ORIGIN = "human";
-const NON_HUMAN_ORIGINS = [
-	"authorized-integration",
-	"github",
-	"system-automation",
-] as const;
-
-export type NonHumanOrigin = (typeof NON_HUMAN_ORIGINS)[number];
-export type MutationOrigin = typeof HUMAN_ORIGIN | NonHumanOrigin;
+export function payloadFingerprint(payload: unknown): string {
+	return hashPayload(payload);
+}
 
 export const CHANGE_KIND = {
 	atomicTransform: "atomic-transform",
@@ -646,19 +659,6 @@ function commandKeyFor(command: MutationCommand): string {
 	return `source:${command.verifiedSourceId}:${command.deliveryId}`;
 }
 
-function actorFor(origin: MutationOrigin): MutationActor {
-	if (origin === HUMAN_ORIGIN) {
-		return MUTATION_ACTOR.user;
-	}
-	if (origin === "github") {
-		return MUTATION_ACTOR.github;
-	}
-	if (origin === "authorized-integration") {
-		return MUTATION_ACTOR.authorizedIntegration;
-	}
-	return MUTATION_ACTOR.systemAutomation;
-}
-
 function isNonHumanOrigin(origin: unknown): origin is NonHumanOrigin {
 	return (
 		origin === "github" ||
@@ -667,29 +667,48 @@ function isNonHumanOrigin(origin: unknown): origin is NonHumanOrigin {
 	);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+export async function stageAtomicWrite(
+	prisma: PrismaClient,
+	command: unknown,
+	clock?: StagingClock
+): Promise<StagedWriteOutcome> {
+	return await stageWrite(prisma, command, clock);
 }
 
-export function payloadFingerprint(payload: unknown): string {
-	return createHash("sha256").update(canonicalize(payload)).digest("hex");
+export async function readAtomicWrite(
+	prisma: PrismaClient,
+	operationId: string
+): Promise<StagedWriteView | null> {
+	return await readStagedWrite(prisma, operationId);
 }
 
-function canonicalize(value: unknown): string {
-	if (value === null || typeof value !== "object") {
-		return JSON.stringify(value);
-	}
-	if (Array.isArray(value)) {
-		return `[${value.map(canonicalize).join(",")}]`;
-	}
-	const record = value as Record<string, unknown>;
-	const keys = Object.keys(record).sort();
-	return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalize(record[key])}`).join(",")}}`;
+export async function cancelAtomicWrite(
+	prisma: PrismaClient,
+	operationId: string
+): Promise<StagedWriteOutcome> {
+	return await cancelStagedWrite(prisma, operationId);
 }
 
-function advisoryKeys(label: string): [number, number] {
-	const digest = createHash("sha256").update(label).digest();
-	return [digest.readInt32BE(0), digest.readInt32BE(4)];
+export async function finalizeAtomicWrite(
+	prisma: PrismaClient,
+	command: unknown,
+	clock?: StagingClock
+): Promise<StagedWriteOutcome> {
+	return await finalizeStagedWrite(prisma, command, clock);
+}
+
+export async function readAtomicLiveState(
+	prisma: PrismaClient,
+	targetId: string
+): Promise<StagedLiveState> {
+	return await readStagedLiveState(prisma, targetId);
+}
+
+export async function cleanupExpiredStaging(
+	prisma: PrismaClient,
+	now: Date
+): Promise<number> {
+	return await deleteExpiredStaging(prisma, now);
 }
 
 interface FixtureRow {
