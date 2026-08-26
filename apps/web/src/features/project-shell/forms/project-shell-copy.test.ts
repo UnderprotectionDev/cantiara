@@ -1,9 +1,11 @@
 import { expect, test } from "vitest";
 
 import {
+	CONFIGURATION_MODE_EDITORS,
 	PROJECT_SHELL_COPY,
 	projectShellAnchor,
 	projectShellChrome,
+	projectShellSearch,
 	STARTER_CONFIGURATIONS,
 } from "./project-shell-copy";
 
@@ -12,13 +14,22 @@ const COPY_BRANDING_PATTERN = /color|CSS|font/i;
 test("English chrome uses Project Name and Short code", () => {
 	expect(projectShellChrome()).toMatchObject({
 		allTools: "All Tools",
+		configurationMode: "Configuration Mode",
+		create: "Create",
 		createProject: "Create Project",
+		customField: "Custom field",
 		dismiss: "Dismiss",
+		edit: "Edit",
 		overview: "Overview",
+		planning: "Planning",
+		priorityMetrics: "Priority metrics",
 		projectName: "Project Name",
+		savedViews: "Saved views",
 		shortCode: "Short code",
 		shortCodeLocked: "Short code is locked after the first Work.",
 		starterConfiguration: "Starter Configuration",
+		status: "Status",
+		workContextCardLayout: "Work Context Card layout",
 	});
 	expect(STARTER_CONFIGURATIONS).toEqual([
 		"Blank Project",
@@ -43,4 +54,31 @@ test("Overview Work Documents and All Tools are in-page destinations", () => {
 	expect(projectShellAnchor("Work")).not.toBe(
 		projectShellAnchor("Technical Diagrams")
 	);
+});
+
+test("Configuration Mode is presentation search, not a Project write", () => {
+	expect(projectShellSearch({})).toEqual({});
+	expect(
+		projectShellSearch({
+			configurationEditor: CONFIGURATION_MODE_EDITORS.customField,
+			configurationMode: "1",
+		})
+	).toEqual({
+		configurationEditor: "custom-field",
+		configurationMode: true,
+	});
+	expect(
+		projectShellSearch({
+			configurationEditor: CONFIGURATION_MODE_EDITORS.workContextCardLayout,
+			configurationMode: true,
+		})
+	).toEqual({
+		configurationEditor: "work-context-card-layout",
+		configurationMode: true,
+	});
+	expect(
+		projectShellSearch({
+			configurationEditor: CONFIGURATION_MODE_EDITORS.customField,
+		})
+	).toEqual({});
 });

@@ -24,6 +24,8 @@ import {
 	updateShortCode,
 } from "./project-shell";
 import {
+	CONFIGURATION_MODE_EDITORS,
+	configurationModeView,
 	PROJECT_LIFECYCLE,
 	PROJECT_SHELL_COPY,
 	STARTER_CONFIGURATIONS,
@@ -981,6 +983,135 @@ describe("Project Shell", () => {
 		expect(await getProject(prisma, projectId)).toEqual(loaded);
 	});
 
+	it("toggles Configuration Mode on and off without mutating the Project", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "configuration-mode-blank",
+					name: "Payments",
+					starterConfiguration: "Blank Project",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const before = await getProject(prisma, created.project.id);
+		expect(before).toEqual(created.project);
+		const closed = configurationModeView({
+			open: false,
+			savedViews: created.project.workViews,
+		});
+		expect(closed).toEqual({
+			active: false,
+			customFieldEditorOpen: false,
+			dailyActions: ["Create", "Edit", "Status", "Planning"],
+			hosts: [],
+			label: "Configuration Mode",
+			savedViews: ["Backlog", "Board"],
+			workContextCardLayoutEditorOpen: false,
+		});
+		const opened = configurationModeView({
+			open: true,
+			savedViews: created.project.workViews,
+		});
+		expect(opened).toEqual({
+			active: true,
+			customFieldEditorOpen: false,
+			dailyActions: ["Create", "Edit", "Status", "Planning"],
+			hosts: [
+				"Stages",
+				"Work statuses",
+				"Project areas",
+				"Custom field",
+				"Priority metrics",
+				"Saved views",
+				"Work Context Card layout",
+			],
+			label: "Configuration Mode",
+			savedViews: ["Backlog", "Board"],
+			workContextCardLayoutEditorOpen: false,
+		});
+		expect(opened.hosts).not.toContain("Planning");
+		const closedAgain = configurationModeView({
+			editor: CONFIGURATION_MODE_EDITORS.customField,
+			open: false,
+			savedViews: created.project.workViews,
+		});
+		expect(closedAgain).toEqual({
+			active: false,
+			customFieldEditorOpen: false,
+			dailyActions: ["Create", "Edit", "Status", "Planning"],
+			hosts: [],
+			label: "Configuration Mode",
+			savedViews: ["Backlog", "Board"],
+			workContextCardLayoutEditorOpen: false,
+		});
+		const after = await getProject(prisma, created.project.id);
+		expect(after).toEqual(before);
+		expect(after?.revision).toBe(created.project.revision);
+		expect(after?.lifecycleStatus).toBe(PROJECT_LIFECYCLE.active);
+		expect(after?.enabledAreas).toEqual(["Work", "Documents"]);
+		expect(after?.workViews).toEqual(["Backlog", "Board"]);
+		expect(after?.workStatuses).toEqual([
+			"Not Started",
+			"In Progress",
+			"Blocked",
+			"Closed",
+		]);
+	});
+
+	it("opens Custom field and Work Context Card layout editors without owning schema or layout", () => {
+		const customField = configurationModeView({
+			editor: CONFIGURATION_MODE_EDITORS.customField,
+			open: true,
+			savedViews: ["Backlog", "Board"],
+		});
+		expect(customField).toEqual({
+			active: true,
+			customFieldEditorOpen: true,
+			dailyActions: ["Create", "Edit", "Status", "Planning"],
+			hosts: [
+				"Stages",
+				"Work statuses",
+				"Project areas",
+				"Custom field",
+				"Priority metrics",
+				"Saved views",
+				"Work Context Card layout",
+			],
+			label: "Configuration Mode",
+			savedViews: ["Backlog", "Board"],
+			workContextCardLayoutEditorOpen: false,
+		});
+		const layout = configurationModeView({
+			editor: CONFIGURATION_MODE_EDITORS.workContextCardLayout,
+			open: true,
+			savedViews: ["Backlog", "Board"],
+		});
+		expect(layout).toEqual({
+			active: true,
+			customFieldEditorOpen: false,
+			dailyActions: ["Create", "Edit", "Status", "Planning"],
+			hosts: [
+				"Stages",
+				"Work statuses",
+				"Project areas",
+				"Custom field",
+				"Priority metrics",
+				"Saved views",
+				"Work Context Card layout",
+			],
+			label: "Configuration Mode",
+			savedViews: ["Backlog", "Board"],
+			workContextCardLayoutEditorOpen: true,
+		});
+	});
+
 	it("uses English Project Name and Short code chrome", () => {
 		expect(PROJECT_SHELL_COPY.projectName).toBe("Project Name");
 		expect(PROJECT_SHELL_COPY.shortCode).toBe("Short code");
@@ -994,6 +1125,13 @@ describe("Project Shell", () => {
 		expect(PROJECT_SHELL_COPY.overview).toBe("Overview");
 		expect(PROJECT_SHELL_COPY.allTools).toBe("All Tools");
 		expect(PROJECT_SHELL_COPY.dismiss).toBe("Dismiss");
+		expect(PROJECT_SHELL_COPY.configurationMode).toBe("Configuration Mode");
+		expect(PROJECT_SHELL_COPY.savedViews).toBe("Saved views");
+		expect(PROJECT_SHELL_COPY.planning).toBe("Planning");
+		expect(PROJECT_SHELL_COPY.customField).toBe("Custom field");
+		expect(PROJECT_SHELL_COPY.workContextCardLayout).toBe(
+			"Work Context Card layout"
+		);
 		expect(PROJECT_SHELL_COPY.firstOpenExplanations["Blank Project"]).toContain(
 			"All Tools"
 		);
