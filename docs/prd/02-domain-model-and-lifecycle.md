@@ -67,6 +67,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Güncelleme gerekli | `Update required` | Süre dışı imzalı masaüstü API sözleşmesinde güvenli olmayan yazmadan önce duran hata |
 | Yeniden dene | `Retry` | Başarısız ana akışta güvenli yeniden deneme eylemi |
 | Çatışma | `Conflict` | Aynı idempotency veya teslim kimliğinin farklı payload taşıması |
+| İptal | `Cancel` | Yalnız commit bariyerinden önceki hazırlama iptali |
+| Sonlandırılıyor | `Finalizing` | Commit bariyerinden sonra iptalin uygulanmadığı durum |
 | Güncel değer | `Current value` | Güncel olmayan taban revizyonunda reddedilen yazmanın gösterdiği mevcut kayıt değeri |
 | Kullanıcı | `User` | Kayıt geçmişine yazılan insan aktör türü |
 | Sistem otomasyonu | `System automation` | Kayıt geçmişine yazılan otomasyon aktör türü |

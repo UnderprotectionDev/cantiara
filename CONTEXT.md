@@ -793,3 +793,27 @@ _Avoid_: pager, S1 alarm, müşteri kuyruğu, Denetim kaydı
 **Yeniden dene**:
 Başarısız ana akışta güvenli yeniden deneme eylemi. UI: `Retry`.
 _Avoid_: otomatik senkron, kuyruk replay
+
+**Çatışma**:
+Aynı idempotency veya teslim kimliğinin farklı payload taşıması. UI: `Conflict`.
+_Avoid_: sessiz son yazan kazanır, örtük birleştirme
+
+**Hazırlama alanı**:
+Çok adımlı yazmanın canlı ana kayıtlardan yalıtıldığı, commit bariyerine kadar görünür kayıt, ilişki, sayaç veya indeks üretmeyen geçici alan.
+_Avoid_: canlı taslak, restore-point, kısmi ana kayıt
+
+**Commit bariyeri**:
+Hazırlama alanındaki çok adımlı yazmayı taban revizyonu, idempotency anahtarı, payload parmak izi, güncel yetki, hedef kapsam ve kota ile yeniden doğrulayan tek kesinleştirme anı.
+_Avoid_: kademeli commit, kayıt bazlı kısmi başarı
+
+**İşlem makbuzu**:
+Commit bariyerinin yalnız tam commit veya tam rollback sonucu; kayıp bağlantıda yeniden açılabilen kalıcı sonuç.
+_Avoid_: kısmi başarı, belirsiz commit durumu
+
+**Sonlandırılıyor**:
+Commit bariyerinden sonra iptalin uygulanmadığı durum. UI: `Finalizing`.
+_Avoid_: sahte Cancel, bariyer sonrası İptal
+
+**İptal**:
+Yalnız commit bariyerinden önceki hazırlama iptali. UI: `Cancel`.
+_Avoid_: bariyer sonrası iptal, Finalizing yerine Cancel

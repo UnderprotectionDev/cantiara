@@ -1,32 +1,29 @@
-import { createHash } from "node:crypto";
-
 import type { Prisma, PrismaClient } from "@cantiara/db";
 import { z } from "zod";
 
-export const MUTATION_COPY = {
-	conflict: "Conflict",
-	currentValue: "Current value",
-} as const;
+import {
+	actorFor,
+	advisoryKeys,
+	HUMAN_ORIGIN,
+	payloadFingerprint as hashPayload,
+	isRecord,
+	MUTATION_ACTOR as mutationActors,
+	MUTATION_COPY as mutationCopy,
+	NON_HUMAN_ORIGINS,
+	type MutationActor as SharedMutationActor,
+	type MutationOrigin as SharedMutationOrigin,
+	type NonHumanOrigin as SharedNonHumanOrigin,
+} from "./mutation-shared";
 
-export const MUTATION_ACTOR = {
-	authorizedIntegration: "Authorized integration",
-	github: "GitHub",
-	systemAutomation: "System automation",
-	user: "User",
-} as const;
+export const MUTATION_COPY = mutationCopy;
+export const MUTATION_ACTOR = mutationActors;
+export type MutationActor = SharedMutationActor;
+export type MutationOrigin = SharedMutationOrigin;
+export type NonHumanOrigin = SharedNonHumanOrigin;
 
-export type MutationActor =
-	(typeof MUTATION_ACTOR)[keyof typeof MUTATION_ACTOR];
-
-const HUMAN_ORIGIN = "human";
-const NON_HUMAN_ORIGINS = [
-	"authorized-integration",
-	"github",
-	"system-automation",
-] as const;
-
-export type NonHumanOrigin = (typeof NON_HUMAN_ORIGINS)[number];
-export type MutationOrigin = typeof HUMAN_ORIGIN | NonHumanOrigin;
+export function payloadFingerprint(payload: unknown): string {
+	return hashPayload(payload);
+}
 
 const payloadSchema = z.object({
 	value: z.string(),
@@ -389,48 +386,10 @@ function commandKeyFor(command: MutationCommand): string {
 	return `source:${command.verifiedSourceId}:${command.deliveryId}`;
 }
 
-function actorFor(origin: MutationOrigin): MutationActor {
-	if (origin === HUMAN_ORIGIN) {
-		return MUTATION_ACTOR.user;
-	}
-	if (origin === "github") {
-		return MUTATION_ACTOR.github;
-	}
-	if (origin === "authorized-integration") {
-		return MUTATION_ACTOR.authorizedIntegration;
-	}
-	return MUTATION_ACTOR.systemAutomation;
-}
-
 function isNonHumanOrigin(origin: unknown): origin is NonHumanOrigin {
 	return (
 		origin === "github" ||
 		origin === "system-automation" ||
 		origin === "authorized-integration"
 	);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function payloadFingerprint(payload: unknown): string {
-	return createHash("sha256").update(canonicalize(payload)).digest("hex");
-}
-
-function canonicalize(value: unknown): string {
-	if (value === null || typeof value !== "object") {
-		return JSON.stringify(value);
-	}
-	if (Array.isArray(value)) {
-		return `[${value.map(canonicalize).join(",")}]`;
-	}
-	const record = value as Record<string, unknown>;
-	const keys = Object.keys(record).sort();
-	return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalize(record[key])}`).join(",")}}`;
-}
-
-function advisoryKeys(label: string): [number, number] {
-	const digest = createHash("sha256").update(label).digest();
-	return [digest.readInt32BE(0), digest.readInt32BE(4)];
 }

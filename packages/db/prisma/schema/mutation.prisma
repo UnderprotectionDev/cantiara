@@ -19,6 +19,7 @@ model MutationReceipt {
   payloadFingerprint String
   committedRevision  Int
   resultValue        String
+  kind               String   @default("commit")
   createdAt          DateTime @default(now())
 
   @@index([targetId])
@@ -39,4 +40,53 @@ model RecordHistoryEntry {
 
   @@index([targetId, occurredAt])
   @@map("record_history_entry")
+}
+
+model MutationStagingOperation {
+  id                 String   @id
+  commandKey         String   @unique
+  actorId            String
+  origin             String
+  targetId           String
+  baseRevision       Int
+  payloadFingerprint String
+  payloadJson        String
+  targetScope        String
+  status             String
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([status, expiresAt])
+  @@map("mutation_staging_operation")
+}
+
+model MutationFixtureRelation {
+  id        String   @id
+  sourceId  String
+  targetId  String
+  kind      String
+  createdAt DateTime @default(now())
+
+  @@index([sourceId])
+  @@map("mutation_fixture_relation")
+}
+
+model MutationFixtureCounter {
+  id        String   @id
+  targetId  String   @unique
+  value     Int
+  updatedAt DateTime @updatedAt
+
+  @@map("mutation_fixture_counter")
+}
+
+model MutationFixtureIndexEntry {
+  id        String   @id
+  targetId  String
+  token     String
+  createdAt DateTime @default(now())
+
+  @@unique([targetId, token])
+  @@map("mutation_fixture_index_entry")
 }

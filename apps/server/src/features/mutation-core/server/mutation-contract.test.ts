@@ -101,6 +101,10 @@ describe("Mutation Contract", () => {
 		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 		await prisma.recordHistoryEntry.deleteMany();
 		await prisma.mutationReceipt.deleteMany();
+		await prisma.mutationFixtureIndexEntry.deleteMany();
+		await prisma.mutationFixtureRelation.deleteMany();
+		await prisma.mutationFixtureCounter.deleteMany();
+		await prisma.mutationStagingOperation.deleteMany();
 		await prisma.mutationFixtureRecord.deleteMany();
 	});
 
