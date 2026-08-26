@@ -1,7 +1,12 @@
 import { CLIENT_SHELL_COPY as MAIN_FLOW_COPY } from "@cantiara/api/client-shell-failure";
 import { formatDateTime } from "@cantiara/auth/account-preferences-format";
 import { Button } from "@cantiara/ui/components/button";
-import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
+import {
+	Field,
+	FieldDescription,
+	FieldGroup,
+	FieldLabel,
+} from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
 	NativeSelect,
@@ -20,9 +25,8 @@ import {
 	type CaptureTemplateId,
 	captureFormAfterSave,
 	captureFormHasUnsavedCapture,
+	captureInboxGroups,
 	captureInboxItemPreview,
-	captureInboxListHeading,
-	captureInboxListInput,
 	createBugIsAvailable,
 	EMPTY_CAPTURE_FORM,
 } from "./capture-form-state";
@@ -53,18 +57,12 @@ export default function CaptureForm() {
 		},
 	});
 	const values = useStore(form.store, (state) => state.values);
-	const list = useQuery(
-		orpc.captureInbox.list.queryOptions({
-			input: captureInboxListInput(values.projectId),
-		})
-	);
+	const list = useQuery(orpc.captureInbox.listAll.queryOptions());
 	const save = useMutation(
 		orpc.captureInbox.save.mutationOptions({
 			onSuccess: async () => {
 				await queryClient.invalidateQueries({
-					queryKey: orpc.captureInbox.list.queryKey({
-						input: captureInboxListInput(values.projectId),
-					}),
+					queryKey: orpc.captureInbox.listAll.queryKey(),
 				});
 				recordSave();
 				form.reset(captureFormAfterSave(values));
@@ -75,9 +73,7 @@ export default function CaptureForm() {
 		orpc.captureInbox.createBug.mutationOptions({
 			onSuccess: async () => {
 				await queryClient.invalidateQueries({
-					queryKey: orpc.captureInbox.list.queryKey({
-						input: captureInboxListInput(values.projectId),
-					}),
+					queryKey: orpc.captureInbox.listAll.queryKey(),
 				});
 				recordSave();
 				form.reset(captureFormAfterSave(values));
@@ -93,14 +89,13 @@ export default function CaptureForm() {
 	);
 	const isDirty = captureFormHasUnsavedCapture(values);
 	const canCreateBug = createBugIsAvailable(values);
-	const listHeading = captureInboxListHeading(
-		values.projectId,
+	const groups = captureInboxGroups(
+		list.data ?? [],
 		copy ?? {
 			projectCaptureInbox: "Project Capture Inbox",
 			workspaceCaptureInbox: "Workspace Capture Inbox",
 		}
 	);
-	const listProject = values.projectId.trim() || null;
 
 	useEffect(() => {
 		if (isDirty) {
@@ -177,6 +172,9 @@ export default function CaptureForm() {
 							onChange={onProjectChange}
 							value={values.projectId}
 						/>
+						<FieldDescription>
+							{copy.leaveEmptyForWorkspaceCaptureInbox}
+						</FieldDescription>
 					</Field>
 					<Field>
 						<NativeSelect
@@ -239,11 +237,10 @@ export default function CaptureForm() {
 					<p>{CLIENT_SHELL_COPY.unsavedChangesMayBeLost}</p>
 				) : null}
 			</form>
-			<section aria-label={listHeading} className="flex flex-col gap-3">
-				<h2 className="font-semibold text-lg">{listHeading}</h2>
-				{listProject ? <p className="text-sm">{listProject}</p> : null}
+			<section aria-label={copy.captureInbox} className="flex flex-col gap-8">
 				<CaptureInboxList
 					emptyCopy={copy.noCapturesInThisInbox}
+					groups={groups}
 					list={list}
 					templates={catalog.data?.templates}
 				/>
@@ -254,16 +251,22 @@ export default function CaptureForm() {
 
 function CaptureInboxList({
 	emptyCopy,
+	groups,
 	list,
 	templates,
 }: {
 	emptyCopy: string;
-	list: {
-		data?: Array<{
+	groups: Array<{
+		heading: string;
+		items: Array<{
 			body: string;
 			id: string;
 			template: string | null;
 		}>;
+		projectId: string | null;
+	}>;
+	list: {
+		data?: unknown[];
 		isError: boolean;
 		isPending: boolean;
 	};
@@ -275,24 +278,45 @@ function CaptureInboxList({
 	if (list.isPending && !list.data) {
 		return null;
 	}
-	if (!list.data?.length) {
+	if (groups.length === 0) {
 		return <p>{emptyCopy}</p>;
 	}
 	return (
-		<ul className="flex flex-col gap-3">
-			{list.data.map((item) => {
-				const templateLabel =
-					templates?.find((template) => template.id === item.template)?.label ??
-					item.template;
-				return (
-					<li className="rounded-none border border-border p-3" key={item.id}>
-						<p className="whitespace-pre-wrap text-sm">
-							{captureInboxItemPreview(item, templateLabel)}
-						</p>
-					</li>
-				);
-			})}
-		</ul>
+		<>
+			{groups.map((group) => (
+				<section
+					aria-label={
+						group.projectId
+							? `${group.heading} ${group.projectId}`
+							: group.heading
+					}
+					className="flex flex-col gap-3"
+					key={group.projectId ?? "workspace"}
+				>
+					<h2 className="font-semibold text-lg">{group.heading}</h2>
+					{group.projectId ? (
+						<p className="text-sm">{group.projectId}</p>
+					) : null}
+					<ul className="flex flex-col gap-3">
+						{group.items.map((item) => {
+							const templateLabel =
+								templates?.find((template) => template.id === item.template)
+									?.label ?? item.template;
+							return (
+								<li
+									className="rounded-none border border-border p-3"
+									key={item.id}
+								>
+									<p className="whitespace-pre-wrap text-sm">
+										{captureInboxItemPreview(item, templateLabel)}
+									</p>
+								</li>
+							);
+						})}
+					</ul>
+				</section>
+			))}
+		</>
 	);
 }
 

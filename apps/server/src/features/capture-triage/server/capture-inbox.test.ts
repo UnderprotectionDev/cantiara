@@ -93,6 +93,9 @@ describe("Capture Inbox catalog", () => {
 		expect(CAPTURE_INBOX_COPY.createBugDoesNotStayInInbox).toBe(
 			"Create Bug does not stay in the Capture Inbox. A Work record is not stored yet."
 		);
+		expect(CAPTURE_INBOX_COPY.leaveEmptyForWorkspaceCaptureInbox).toBe(
+			"Leave empty to save to the Workspace Capture Inbox."
+		);
 	});
 });
 
@@ -283,6 +286,28 @@ describe("Capture Inbox", () => {
 		expect(
 			await capture.list({ kind: "project", projectId: "feedback" })
 		).toEqual([outcome.status === "saved" ? outcome.item : undefined]);
+	});
+
+	it("lists every Capture Inbox together, Workspace and each Project", async () => {
+		const capture = inbox();
+		const workspace = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "A thought before I know the Project",
+		});
+		const project = await capture.save({
+			fields: { feedback: "Feedback2" },
+			idempotencyKey: crypto.randomUUID(),
+			projectId: "Feedback",
+			template: "feedback-capture",
+		});
+
+		expect(await capture.listAll()).toEqual([
+			workspace.status === "saved" ? workspace.item : undefined,
+			project.status === "saved" ? project.item : undefined,
+		]);
+		expect(await capture.list({ kind: "workspace" })).toEqual([
+			workspace.status === "saved" ? workspace.item : undefined,
+		]);
 	});
 
 	it("calls Work create for Create Bug and leaves no Inbox item or Work key", async () => {

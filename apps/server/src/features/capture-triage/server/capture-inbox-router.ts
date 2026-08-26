@@ -59,6 +59,10 @@ export const captureInbox = {
 					: { kind: "workspace" }
 			);
 		}),
+	listAll: protectedProcedure.handler(async ({ context }) => {
+		const inbox = await inboxFor(context.session.user.id);
+		return inbox.listAll();
+	}),
 	save: protectedWriteProcedure
 		.input(
 			z.object({

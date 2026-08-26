@@ -73,3 +73,56 @@ export function createBugIsAvailable(values: CaptureFormValues): boolean {
 		(values.template === "" || values.template === "bug-capture")
 	);
 }
+
+export interface CaptureInboxGroupItem {
+	body: string;
+	id: string;
+	scope: { kind: "workspace" } | { kind: "project"; projectId: string };
+	template: string | null;
+}
+
+export interface CaptureInboxGroup {
+	heading: string;
+	items: CaptureInboxGroupItem[];
+	projectId: string | null;
+}
+
+export function captureInboxGroups(
+	items: CaptureInboxGroupItem[],
+	copy: {
+		projectCaptureInbox: string;
+		workspaceCaptureInbox: string;
+	}
+): CaptureInboxGroup[] {
+	const workspaceItems = items.filter(
+		(item) => item.scope.kind === "workspace"
+	);
+	const byProject = new Map<string, CaptureInboxGroupItem[]>();
+	for (const item of items) {
+		if (item.scope.kind !== "project") {
+			continue;
+		}
+		const existing = byProject.get(item.scope.projectId) ?? [];
+		existing.push(item);
+		byProject.set(item.scope.projectId, existing);
+	}
+	const groups: CaptureInboxGroup[] = [];
+	if (workspaceItems.length > 0) {
+		groups.push({
+			heading: copy.workspaceCaptureInbox,
+			items: workspaceItems,
+			projectId: null,
+		});
+	}
+	const projectIds = [...byProject.keys()].sort((left, right) =>
+		left.localeCompare(right)
+	);
+	for (const projectId of projectIds) {
+		groups.push({
+			heading: copy.projectCaptureInbox,
+			items: byProject.get(projectId) ?? [],
+			projectId,
+		});
+	}
+	return groups;
+}

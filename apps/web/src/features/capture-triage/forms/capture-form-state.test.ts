@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 import {
 	captureFormAfterSave,
 	captureFormHasUnsavedCapture,
+	captureInboxGroups,
 	captureInboxItemPreview,
 	captureInboxListHeading,
 	captureInboxListInput,
@@ -63,6 +64,46 @@ test("the Inbox list heading names Workspace or Project Capture Inbox", () => {
 	expect(captureInboxListHeading("  feedback  ", LIST_COPY)).toBe(
 		"Project Capture Inbox"
 	);
+});
+
+test("the Capture Inbox page groups items by Workspace and each Project Inbox", () => {
+	const workspaceItem = {
+		body: "A thought before I know the Project",
+		id: "ws-1",
+		scope: { kind: "workspace" as const },
+		template: null,
+	};
+	const feedbackItem = {
+		body: "Feedback\nFeedback2",
+		id: "p-1",
+		scope: { kind: "project" as const, projectId: "Feedback" },
+		template: "feedback-capture" as const,
+	};
+	const researchItem = {
+		body: "Note or Excerpt\nClip",
+		id: "p-2",
+		scope: { kind: "project" as const, projectId: "Research Fragment" },
+		template: "research-fragment" as const,
+	};
+	expect(
+		captureInboxGroups([researchItem, workspaceItem, feedbackItem], LIST_COPY)
+	).toEqual([
+		{
+			heading: "Workspace Capture Inbox",
+			items: [workspaceItem],
+			projectId: null,
+		},
+		{
+			heading: "Project Capture Inbox",
+			items: [feedbackItem],
+			projectId: "Feedback",
+		},
+		{
+			heading: "Project Capture Inbox",
+			items: [researchItem],
+			projectId: "Research Fragment",
+		},
+	]);
 });
 
 test("an Inbox item shows its body, or the template label when the body is empty", () => {

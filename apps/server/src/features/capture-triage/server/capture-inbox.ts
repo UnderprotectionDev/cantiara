@@ -20,6 +20,8 @@ export const CAPTURE_INBOX_COPY = {
 	expectedBehavior: "Expected Behavior",
 	feedback: "Feedback",
 	feedbackCapture: "Feedback Capture",
+	leaveEmptyForWorkspaceCaptureInbox:
+		"Leave empty to save to the Workspace Capture Inbox.",
 	noCapturesInThisInbox: "No captures in this Inbox.",
 	noteOrExcerpt: "Note or Excerpt",
 	observedBehavior: "Observed Behavior",
@@ -210,6 +212,7 @@ export interface CaptureInbox {
 	) => Promise<CreateBugOutcome>;
 	lastSuccessfulSaveAt: () => Date | null;
 	list: (scope: CaptureInboxScope) => Promise<CaptureInboxItemView[]>;
+	listAll: () => Promise<CaptureInboxItemView[]>;
 	save: (
 		input: Omit<SaveCaptureInput, "actorId" | "workspaceId">
 	) => Promise<SaveCaptureOutcome>;
@@ -447,6 +450,13 @@ export function createCaptureInbox(input: {
 							: null,
 					workspaceId: input.workspaceId,
 				},
+			});
+			return rows.map(toItemView);
+		},
+		async listAll() {
+			const rows = await input.prisma.captureInboxItem.findMany({
+				orderBy: { capturedAt: "asc" },
+				where: { workspaceId: input.workspaceId },
 			});
 			return rows.map(toItemView);
 		},
