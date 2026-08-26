@@ -3,6 +3,7 @@ export const MUTATION_COPY = {
 	conflict: "Conflict",
 	finalizing: "Finalizing",
 	retry: "Retry",
+	undo: "Undo",
 } as const;
 
 export function newIdempotencyKey(): string {
@@ -33,4 +34,14 @@ export function presentAtomicWriteUi(phase: "pre-barrier" | "post-barrier"): {
 		return { cancelAvailable: true, label: MUTATION_COPY.cancel };
 	}
 	return { cancelAvailable: false, label: MUTATION_COPY.finalizing };
+}
+
+export function presentReversibleWriteUi(written: boolean): {
+	label: typeof MUTATION_COPY.undo | null;
+	undoAvailable: boolean;
+} {
+	if (!written) {
+		return { label: null, undoAvailable: false };
+	}
+	return { label: MUTATION_COPY.undo, undoAvailable: true };
 }

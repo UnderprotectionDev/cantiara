@@ -1,6 +1,10 @@
 import { Link } from "@tanstack/react-router";
 
 import { AppearanceToggle } from "@/features/account-preferences/forms/appearance-toggle";
+import {
+	CommandPaletteProvider,
+	CommandPaletteTrigger,
+} from "@/features/command-palette/components/founder-command-palette";
 import UserMenu from "@/features/personal-shell/components/user-menu";
 
 export default function Header() {
@@ -8,24 +12,25 @@ export default function Header() {
 		{ label: "Home", to: "/" },
 		{ label: "Dashboard", to: "/dashboard" },
 		{ label: "Create Project", to: "/projects/new" },
-		{ label: "Preferences", to: "/account" },
-		{ label: "Sessions", to: "/sessions" },
 	] as const;
 
 	return (
 		<div>
-			<div className="flex flex-row items-center justify-between px-2 py-1">
-				<nav className="flex gap-4 text-lg">
+			<div className="flex flex-row items-center justify-between gap-3 px-2 py-1">
+				<nav className="flex min-w-0 gap-3 text-sm">
 					{links.map(({ to, label }) => (
 						<Link key={to} to={to}>
 							{label}
 						</Link>
 					))}
 				</nav>
-				<div className="flex items-center gap-2">
-					<AppearanceToggle />
-					<UserMenu />
-				</div>
+				<CommandPaletteProvider>
+					<div className="flex min-w-0 shrink-0 items-center gap-2">
+						<CommandPaletteTrigger />
+						<AppearanceToggle />
+						<UserMenu />
+					</div>
+				</CommandPaletteProvider>
 			</div>
 			<hr />
 		</div>
