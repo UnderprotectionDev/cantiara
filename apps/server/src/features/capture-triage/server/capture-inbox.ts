@@ -37,6 +37,13 @@ import {
 	type TriageExit,
 	type UndoMergeOutcome,
 } from "./capture-triage-exits";
+import {
+	goBackSequentialFocus,
+	nextSequentialFocus,
+	type SequentialTriageView,
+	sequentialTriageView,
+	startSequentialFocus,
+} from "./sequential-triage";
 
 export interface WorkCreateCommand {
 	actorId: string;
@@ -125,6 +132,12 @@ export interface CaptureInbox {
 		idempotencyKey: string;
 		itemId: string;
 	}) => Promise<DeleteOutcome>;
+	exitSequentialTriage: () => Promise<
+		SequentialTriageView<CaptureInboxItemView>
+	>;
+	goBackSequentialTriage: () => Promise<
+		SequentialTriageView<CaptureInboxItemView>
+	>;
 	lastSuccessfulSaveAt: () => Date | null;
 	list: (scope: CaptureInboxScope) => Promise<CaptureInboxItemView[]>;
 	listAll: () => Promise<CaptureInboxItemView[]>;
@@ -144,6 +157,10 @@ export interface CaptureInbox {
 		input: Omit<SaveCaptureInput, "actorId" | "workspaceId">
 	) => Promise<SaveCaptureOutcome>;
 	searchHits: () => readonly [];
+	sequentialTriage: () => Promise<SequentialTriageView<CaptureInboxItemView>>;
+	startSequentialTriage: (input?: {
+		itemId?: string;
+	}) => Promise<SequentialTriageView<CaptureInboxItemView>>;
 	suggestSimilar: (input: {
 		itemId: string;
 	}) => Promise<SimilarSuggestions | { status: "not-found" }>;
@@ -306,6 +323,7 @@ export function createCaptureInbox(input: {
 	const binder = input.binder ?? createRecordBinder([]);
 	const similarRecords = input.similarRecords ?? (() => []);
 	let lastSuccessfulSaveAt: Date | null = null;
+	let sequentialFocusedId: string | null = null;
 	const connected = () => input.connected !== false;
 	const triage = createTriageExits({
 		actorId: input.actorId,
@@ -319,12 +337,57 @@ export function createCaptureInbox(input: {
 		workspaceId: input.workspaceId,
 	});
 
+	async function listAllItems(): Promise<CaptureInboxItemView[]> {
+		const rows = await input.prisma.captureInboxItem.findMany({
+			orderBy: { capturedAt: "asc" },
+			where: openItemWhere(input.workspaceId),
+		});
+		return rows.map(toItemView);
+	}
+
+	async function currentSequentialView() {
+		const remaining = await listAllItems();
+		const view = sequentialTriageView(remaining, sequentialFocusedId);
+		if (view.mode === "list") {
+			sequentialFocusedId = null;
+		}
+		return view;
+	}
+
+	function afterFocusedExit(
+		itemId: string,
+		remainingBefore: readonly string[]
+	) {
+		if (sequentialFocusedId !== itemId) {
+			return;
+		}
+		sequentialFocusedId = nextSequentialFocus(remainingBefore, itemId);
+	}
+
+	async function runFocusedExit<T extends { status: string }>(
+		itemId: string,
+		run: () => Promise<T>
+	): Promise<T> {
+		const remainingBefore = sequentialFocusedId
+			? (await listAllItems()).map((item) => item.id)
+			: [];
+		const outcome = await run();
+		if (outcome.status === "consumed") {
+			afterFocusedExit(itemId, remainingBefore);
+		}
+		return outcome;
+	}
+
 	return {
 		advanceTime(instant) {
 			now = instant;
 		},
-		attach: triage.attach,
-		convert: triage.convert,
+		attach(command) {
+			return runFocusedExit(command.itemId, () => triage.attach(command));
+		},
+		convert(command) {
+			return runFocusedExit(command.itemId, () => triage.convert(command));
+		},
 		async createBug(command) {
 			if (!connected()) {
 				return { queued: false, reason: "offline", status: "refused" };
@@ -384,7 +447,21 @@ export function createCaptureInbox(input: {
 			lastSuccessfulSaveAt = savedAt;
 			return outcome;
 		},
-		deleteItem: triage.deleteItem,
+		deleteItem(command) {
+			return runFocusedExit(command.itemId, () => triage.deleteItem(command));
+		},
+		exitSequentialTriage() {
+			sequentialFocusedId = null;
+			return currentSequentialView();
+		},
+		async goBackSequentialTriage() {
+			const remaining = await listAllItems();
+			sequentialFocusedId = goBackSequentialFocus(
+				remaining.map((item) => item.id),
+				sequentialFocusedId
+			);
+			return currentSequentialView();
+		},
 		lastSuccessfulSaveAt() {
 			return lastSuccessfulSaveAt;
 		},
@@ -401,12 +478,8 @@ export function createCaptureInbox(input: {
 			});
 			return rows.map(toItemView);
 		},
-		async listAll() {
-			const rows = await input.prisma.captureInboxItem.findMany({
-				orderBy: { capturedAt: "asc" },
-				where: openItemWhere(input.workspaceId),
-			});
-			return rows.map(toItemView);
+		listAll() {
+			return listAllItems();
 		},
 		previewAttach: triage.previewAttach,
 		previewConvert: triage.previewConvert,
@@ -455,6 +528,17 @@ export function createCaptureInbox(input: {
 		},
 		searchHits() {
 			return [];
+		},
+		sequentialTriage() {
+			return currentSequentialView();
+		},
+		async startSequentialTriage(command = {}) {
+			const remaining = await listAllItems();
+			sequentialFocusedId = startSequentialFocus(
+				remaining.map((item) => item.id),
+				command.itemId
+			);
+			return currentSequentialView();
 		},
 		suggestSimilar: triage.suggestSimilar,
 		async surfaces(itemId) {
