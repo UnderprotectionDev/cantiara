@@ -12,7 +12,8 @@
     "check-types": "vite build && tsc --noEmit",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build"
+    "desktop:build": "tauri build --bundles app,dmg",
+    "desktop:require-product-candidate": "bun scripts/require-product-candidate.ts"
   },
   "dependencies": {
     "@cantiara/api": "workspace:*",
