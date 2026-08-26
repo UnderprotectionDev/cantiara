@@ -40,7 +40,6 @@ import {
 	pinnedNavigationAreas,
 	STAGE_STATES,
 	STARTER_CONFIGURATIONS,
-	STRUCTURE_COPY_EXCLUDED,
 	type StructureChange,
 	stageRemovalPreview,
 	stageRemovalPreviewCopy,
@@ -2131,7 +2130,15 @@ describe("Project Shell", () => {
 			customFieldDefinitions: [],
 			emptyWallSkeletonDefinitions: [],
 			enabledAreas: ["Work", "Documents", "Tests"],
-			excluded: STRUCTURE_COPY_EXCLUDED,
+			excluded: {
+				automationRules: true,
+				cards: true,
+				history: true,
+				plannedTestCases: true,
+				records: true,
+				relations: true,
+				workTemplates: true,
+			},
 			pinnedAreas: ["Tests"],
 			priorityMetricDefinitions: [],
 			selectedSkeletons: [],
@@ -2293,7 +2300,15 @@ describe("Project Shell", () => {
 		);
 		expect(preview?.selectedSkeletons).toEqual(CLOSED_SKELETON_CATALOG);
 		expect(preview?.starterConfigurationOffered).toBe(false);
-		expect(preview?.excluded).toEqual(STRUCTURE_COPY_EXCLUDED);
+		expect(preview?.excluded).toEqual({
+			automationRules: true,
+			cards: true,
+			history: true,
+			plannedTestCases: true,
+			records: true,
+			relations: true,
+			workTemplates: true,
+		});
 		const copied = await copyProjectStructure(
 			prisma,
 			copyCommand(

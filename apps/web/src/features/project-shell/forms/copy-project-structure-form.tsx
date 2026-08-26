@@ -189,7 +189,7 @@ export default function CopyProjectStructureForm({
 							<Button onClick={onCancel} type="button" variant="outline">
 								{MUTATION_COPY.cancel}
 							</Button>
-							<Button disabled={copy.isPending} type="submit">
+							<Button disabled={copy.isPending || !preview.data} type="submit">
 								{PROJECT_SHELL_COPY.copyProjectStructure}
 							</Button>
 						</DialogFooter>
