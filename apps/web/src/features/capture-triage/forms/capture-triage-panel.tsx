@@ -49,10 +49,12 @@ export interface TriageCopy {
 export function CaptureTriageActions({
 	copy,
 	itemId,
+	onItemConsumed,
 	onMergeConsumed,
 }: {
 	copy: TriageCopy;
 	itemId: string;
+	onItemConsumed: (itemId: string) => void;
 	onMergeConsumed: (mergeId: string) => void;
 }) {
 	const [dialog, setDialog] = useState<"attach" | "convert" | null>(null);
@@ -73,6 +75,9 @@ export function CaptureTriageActions({
 				) {
 					return;
 				}
+				if (outcome.status === "consumed") {
+					onItemConsumed(itemId);
+				}
 				await invalidate();
 				setDialog(null);
 			},
@@ -84,17 +89,21 @@ export function CaptureTriageActions({
 				if (outcome.status === "needs-preview") {
 					return;
 				}
-				await invalidate();
-				setDialog(null);
 				if (outcome.status === "consumed") {
+					onItemConsumed(itemId);
 					onMergeConsumed(outcome.mergeId);
 				}
+				await invalidate();
+				setDialog(null);
 			},
 		})
 	);
 	const deleteItem = useMutation(
 		orpc.captureInbox.deleteItem.mutationOptions({
-			onSuccess: async () => {
+			onSuccess: async (outcome) => {
+				if (outcome.status === "consumed") {
+					onItemConsumed(itemId);
+				}
 				await invalidate();
 			},
 		})

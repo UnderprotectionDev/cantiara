@@ -153,6 +153,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dönüştür | `Convert` | Yakalama Gelen Kutusu öğesini tek yeni ana kayda dönüştürme çıkışı |
 | Mevcut kayda bağla | `Attach to existing` | Öğeyi mevcut ana kayda köken veya kanıt olarak bağlama/birleştirme çıkışı |
 | Yakalama silme çıkışı | `Delete` | Yakalama Gelen Kutusu öğesini tüketen silme çıkışı |
+| Sıralı triage | `Sequential triage` | Yakalama Gelen Kutusunda tek öğeye odaklanan isteğe bağlı mod; yalnız üç açık çıkıştan biri çözülünce ilerler |
 | Diğer Projeler | `Other Projects` | Başka Projelerdeki benzer kayıt önerilerinin adlı ikincil grubu |
 | Yakalama köken bağı | `Origin` | Yakalamayı mevcut kayda köken olarak bağlayan ilişki |
 | Yakalama kanıt bağı | `Evidence` | Yakalamayı mevcut kayda kanıt olarak bağlayan ilişki |

@@ -1208,4 +1208,216 @@ describe("Capture Inbox", () => {
 			},
 		});
 	});
+
+	async function saveOrderedCaptures(capture: CaptureInbox) {
+		const first = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "First thought",
+		});
+		capture.advanceTime(new Date("2026-08-26T12:00:01.000Z"));
+		const second = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Second thought",
+		});
+		capture.advanceTime(new Date("2026-08-26T12:00:02.000Z"));
+		const third = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Third thought",
+		});
+		if (
+			first.status !== "saved" ||
+			second.status !== "saved" ||
+			third.status !== "saved"
+		) {
+			throw new Error("expected saved captures");
+		}
+		return {
+			first: first.item,
+			second: second.item,
+			third: third.item,
+		};
+	}
+
+	it("starts Sequential triage on one item and is not a new queue", async () => {
+		const capture = inbox();
+		const items = await saveOrderedCaptures(capture);
+
+		expect(await capture.sequentialTriage()).toEqual({
+			focused: null,
+			mode: "list",
+			previousAvailable: false,
+		});
+		expect(await capture.startSequentialTriage()).toEqual({
+			focused: items.first,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+		expect(await capture.listAll()).toEqual([
+			items.first,
+			items.second,
+			items.third,
+		]);
+		expect(capture.writeQueue()).toEqual([]);
+	});
+
+	it("does not advance Sequential triage on view, Convert field change, or dismissing a suggestion", async () => {
+		const capture = inbox({
+			similarRecords: () => [
+				{
+					basis: { excerpt: "First thought", kind: "text" },
+					id: "work-1",
+					projectId: "proj-cantiara",
+					projectName: "Cantiara",
+					title: "Nearby work",
+				},
+			],
+		});
+		const items = await saveOrderedCaptures(capture);
+		await capture.startSequentialTriage();
+
+		expect(
+			await capture.previewConvert({
+				itemId: items.first.id,
+				targetKind: "work",
+			})
+		).toMatchObject({ proposed: { kind: "work" } });
+		expect(
+			await capture.previewConvert({
+				itemId: items.first.id,
+				targetKind: "document",
+			})
+		).toMatchObject({ proposed: { kind: "document" } });
+		const suggestions = await capture.suggestSimilar({
+			itemId: items.first.id,
+		});
+		expect(suggestions).toMatchObject({
+			otherProjects: {
+				matches: [{ id: "work-1" }],
+			},
+		});
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: items.first.id,
+				previewed: false,
+				targetKind: "work",
+			})
+		).toMatchObject({ status: "needs-preview" });
+		expect(await capture.sequentialTriage()).toEqual({
+			focused: items.first,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+		expect(await capture.listAll()).toHaveLength(3);
+	});
+
+	it("advances Sequential triage only after Convert, Attach, or Delete", async () => {
+		const binder = createRecordBinder([
+			{
+				fields: {},
+				id: "work-1",
+				projectId: "proj-cantiara",
+				projectName: "Cantiara",
+				title: "Login crash",
+			},
+		]);
+		const capture = inbox({ binder });
+		const items = await saveOrderedCaptures(capture);
+		await capture.startSequentialTriage();
+
+		expect(
+			await capture.deleteItem({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: items.first.id,
+			})
+		).toMatchObject({ status: "consumed" });
+		expect(await capture.sequentialTriage()).toEqual({
+			focused: items.second,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: items.second.id,
+				previewed: true,
+				targetKind: "work",
+			})
+		).toMatchObject({ status: "consumed" });
+		expect(await capture.sequentialTriage()).toEqual({
+			focused: items.third,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+
+		expect(
+			await capture.attach({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: items.third.id,
+				previewed: true,
+				relation: "origin",
+				targetId: "work-1",
+			})
+		).toMatchObject({ status: "consumed" });
+		expect(await capture.sequentialTriage()).toEqual({
+			focused: null,
+			mode: "list",
+			previousAvailable: false,
+		});
+		expect(await capture.listAll()).toEqual([]);
+	});
+
+	it("goes back to the previous remaining item and exits Sequential triage to the list", async () => {
+		const capture = inbox();
+		const items = await saveOrderedCaptures(capture);
+
+		expect(
+			await capture.startSequentialTriage({ itemId: items.third.id })
+		).toEqual({
+			focused: items.third,
+			mode: "sequential",
+			previousAvailable: true,
+		});
+		expect(await capture.goBackSequentialTriage()).toEqual({
+			focused: items.second,
+			mode: "sequential",
+			previousAvailable: true,
+		});
+		expect(await capture.goBackSequentialTriage()).toEqual({
+			focused: items.first,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+		expect(await capture.goBackSequentialTriage()).toEqual({
+			focused: items.first,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+		expect(await capture.exitSequentialTriage()).toEqual({
+			focused: null,
+			mode: "list",
+			previousAvailable: false,
+		});
+		expect(await capture.listAll()).toEqual([
+			items.first,
+			items.second,
+			items.third,
+		]);
+	});
+
+	it("does not auto-resolve Sequential triage when time advances", async () => {
+		const capture = inbox();
+		const items = await saveOrderedCaptures(capture);
+		await capture.startSequentialTriage();
+		capture.advanceTime(NINETY_DAYS_LATER);
+
+		expect(await capture.sequentialTriage()).toEqual({
+			focused: items.first,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+		expect(await capture.listAll()).toHaveLength(3);
+		expect(capture.writeQueue()).toEqual([]);
+	});
 });
