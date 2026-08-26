@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
 	CAPTURE_INBOX_COPY,
 	createCaptureInbox,
+	handOffWorkCreate,
 	miniTemplateCatalog,
 	miniTemplateIdSchema,
 } from "./capture-inbox";
@@ -21,6 +22,7 @@ async function inboxFor(userId: string) {
 	return createCaptureInbox({
 		actorId: userId,
 		prisma: getPrismaClient(),
+		workCreate: handOffWorkCreate,
 		workspaceId: access.workspaceId,
 	});
 }

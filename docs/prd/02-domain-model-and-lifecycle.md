@@ -86,6 +86,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Beklenen davranış | `Expected Behavior` | Bug Capture yönlendirici alanı |
 | Yeniden üretim bağlamı | `Reproduction Context` | Bug Capture yönlendirici alanı |
 | Geri bildirim yakalama | `Feedback Capture` | `Feedback`, `Channel` ve isteğe bağlı `Contact` yönlendirici alanlarıyla Inbox öğesini biçimlendiren kapalı mini şablon; Contact ana kaydı oluşturmaz |
+| İletişim (yakalama alanı) | `Contact` | Feedback Capture isteğe bağlı yönlendirici alanı; Contact ana kaydı oluşturmaz |
 | Geri bildirim (yakalama alanı) | `Feedback` | Feedback Capture yönlendirici alanı |
 | Kanal | `Channel` | Feedback Capture yönlendirici alanı |
 | Araştırma parçası | `Research Fragment` | `Note or Excerpt` ve `Source Context` yönlendirici alanlarıyla Inbox öğesini biçimlendiren kapalı mini şablon |

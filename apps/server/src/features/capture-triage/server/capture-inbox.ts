@@ -1,6 +1,12 @@
 import type { PrismaClient } from "@cantiara/db";
 import { z } from "zod";
 
+import {
+	MUTATION_ACTOR,
+	MUTATION_COPY,
+	payloadFingerprint,
+} from "../../mutation-core/server/mutation-shared";
+
 export const CAPTURE_INBOX_COPY = {
 	bugCapture: "Bug Capture",
 	captureInbox: "Capture Inbox",
@@ -168,7 +174,8 @@ export type SaveCaptureOutcome =
 			mainRecord: null;
 			status: "saved";
 	  }
-	| { queued: false; reason: "offline"; status: "refused" };
+	| { queued: false; reason: "offline"; status: "refused" }
+	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" };
 
 export interface CreateBugInput {
 	actorId: string;
@@ -186,7 +193,8 @@ export type CreateBugOutcome =
 			status: "handed-off";
 			workCreate: WorkCreateResult;
 	  }
-	| { queued: false; reason: "offline"; status: "refused" };
+	| { queued: false; reason: "offline"; status: "refused" }
+	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" };
 
 export interface CaptureInbox {
 	advanceTime: (instant: Date) => void;
@@ -308,6 +316,50 @@ function reviveCreateBugOutcome(outcome: CreateBugOutcome): CreateBugOutcome {
 	};
 }
 
+async function readHumanReceipt(
+	prisma: PrismaClient,
+	commandKey: string,
+	payload: unknown
+) {
+	const existing = await prisma.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (!existing) {
+		return null;
+	}
+	if (existing.payloadFingerprint !== payloadFingerprint(payload)) {
+		return { kind: "conflict" as const };
+	}
+	return { kind: "replay" as const, resultValue: existing.resultValue };
+}
+
+async function writeHumanReceipt(
+	prisma: PrismaClient,
+	input: {
+		actorId: string;
+		commandKey: string;
+		kind: string;
+		payload: unknown;
+		resultValue: string;
+		targetId: string;
+	}
+) {
+	await prisma.mutationReceipt.create({
+		data: {
+			actorId: input.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey: input.commandKey,
+			committedRevision: 1,
+			id: crypto.randomUUID(),
+			kind: input.kind,
+			origin: "human",
+			payloadFingerprint: payloadFingerprint(input.payload),
+			resultValue: input.resultValue,
+			targetId: input.targetId,
+		},
+	});
+}
+
 export function createCaptureInbox(input: {
 	actorId: string;
 	clock?: { now: () => Date };
@@ -330,12 +382,22 @@ export function createCaptureInbox(input: {
 			if (!connected()) {
 				return { queued: false, reason: "offline", status: "refused" };
 			}
-			const existing = await input.prisma.captureWriteReceipt.findUnique({
-				where: { commandKey: command.idempotencyKey },
-			});
-			if (existing) {
+			const payload = {
+				fields: command.fields ?? {},
+				projectId: command.projectId,
+				text: command.text ?? "",
+			};
+			const existing = await readHumanReceipt(
+				input.prisma,
+				command.idempotencyKey,
+				payload
+			);
+			if (existing?.kind === "conflict") {
+				return { reason: MUTATION_COPY.conflict, status: "conflict" };
+			}
+			if (existing?.kind === "replay") {
 				return reviveCreateBugOutcome(
-					JSON.parse(existing.resultJson) as CreateBugOutcome
+					JSON.parse(existing.resultValue) as CreateBugOutcome
 				);
 			}
 			const fields = templateFields("bug-capture", command.fields);
@@ -354,14 +416,13 @@ export function createCaptureInbox(input: {
 				status: "handed-off",
 				workCreate: workCreateResult,
 			};
-			await input.prisma.captureWriteReceipt.create({
-				data: {
-					actorId: input.actorId,
-					commandKey: command.idempotencyKey,
-					id: crypto.randomUUID(),
-					kind: "create-bug",
-					resultJson: JSON.stringify(outcome),
-				},
+			await writeHumanReceipt(input.prisma, {
+				actorId: input.actorId,
+				commandKey: command.idempotencyKey,
+				kind: "create-bug",
+				payload,
+				resultValue: JSON.stringify(outcome),
+				targetId: command.projectId,
 			});
 			lastSuccessfulSaveAt = savedAt;
 			return outcome;
@@ -383,12 +444,23 @@ export function createCaptureInbox(input: {
 			if (!connected()) {
 				return { queued: false, reason: "offline", status: "refused" };
 			}
-			const existing = await input.prisma.captureWriteReceipt.findUnique({
-				where: { commandKey: command.idempotencyKey },
-			});
-			if (existing) {
+			const payload = {
+				fields: command.fields ?? {},
+				projectId: command.projectId ?? "",
+				template: command.template ?? "",
+				text: command.text ?? "",
+			};
+			const existing = await readHumanReceipt(
+				input.prisma,
+				command.idempotencyKey,
+				payload
+			);
+			if (existing?.kind === "conflict") {
+				return { reason: MUTATION_COPY.conflict, status: "conflict" };
+			}
+			if (existing?.kind === "replay") {
 				return reviveSaveOutcome(
-					JSON.parse(existing.resultJson) as SaveCaptureOutcome
+					JSON.parse(existing.resultValue) as SaveCaptureOutcome
 				);
 			}
 			const template = command.template ?? null;
@@ -416,14 +488,13 @@ export function createCaptureInbox(input: {
 				mainRecord: null,
 				status: "saved",
 			};
-			await input.prisma.captureWriteReceipt.create({
-				data: {
-					actorId: input.actorId,
-					commandKey: command.idempotencyKey,
-					id: crypto.randomUUID(),
-					kind: "save",
-					resultJson: JSON.stringify(outcome),
-				},
+			await writeHumanReceipt(input.prisma, {
+				actorId: input.actorId,
+				commandKey: command.idempotencyKey,
+				kind: "save",
+				payload,
+				resultValue: JSON.stringify(outcome),
+				targetId: item.id,
 			});
 			lastSuccessfulSaveAt = capturedAt;
 			return outcome;

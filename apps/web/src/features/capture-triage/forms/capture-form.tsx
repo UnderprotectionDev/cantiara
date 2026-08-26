@@ -123,7 +123,7 @@ export default function CaptureForm() {
 	);
 	const onCreateBug = useCallback(() => {
 		const projectId = values.projectId.trim();
-		if (!projectId) {
+		if (!projectId || (values.template && values.template !== "bug-capture")) {
 			return;
 		}
 		const result = attemptOnlineWork("record-create", () =>
@@ -185,18 +185,13 @@ export default function CaptureForm() {
 						/>
 					</Field>
 					<Field>
-						<FieldLabel htmlFor="capture-template">
-							{copy.captureInbox}
-						</FieldLabel>
 						<NativeSelect
 							className="w-full"
 							id="capture-template"
 							onChange={onTemplateChange}
 							value={values.template}
 						>
-							<NativeSelectOption value="">
-								{copy.captureInbox}
-							</NativeSelectOption>
+							<NativeSelectOption value="" />
 							{catalog.data?.templates.map((template) => (
 								<NativeSelectOption key={template.id} value={template.id}>
 									{template.label}
@@ -216,9 +211,6 @@ export default function CaptureForm() {
 						))
 					) : (
 						<Field>
-							<FieldLabel htmlFor="capture-text">
-								{copy.captureInbox}
-							</FieldLabel>
 							<Textarea
 								id="capture-text"
 								onChange={onTextChange}
@@ -230,7 +222,10 @@ export default function CaptureForm() {
 				<div className="flex flex-wrap gap-2">
 					<Button type="submit">{copy.save}</Button>
 					<Button
-						disabled={!values.projectId.trim()}
+						disabled={
+							!values.projectId.trim() ||
+							(values.template !== "" && values.template !== "bug-capture")
+						}
 						onClick={onCreateBug}
 						type="button"
 						variant="outline"
