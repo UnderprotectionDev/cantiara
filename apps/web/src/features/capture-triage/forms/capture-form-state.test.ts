@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 
 import {
+	bulkClusterPlacementOptions,
 	bulkSenseMakingColumns,
 	captureFormAfterSave,
 	captureFormHasUnsavedCapture,
@@ -178,6 +179,22 @@ test("Create Bug is available only when Project is set and type is Bug Capture o
 			text: "A thought",
 		})
 	).toBe(true);
+});
+
+test("Bulk sense-making places a capture by choosing Ungrouped or a named cluster", () => {
+	expect(
+		bulkClusterPlacementOptions({
+			clusters: [
+				{ id: "cluster-login", name: "Login bugs" },
+				{ id: "cluster-test", name: "test" },
+			],
+			ungrouped: "Ungrouped",
+		})
+	).toEqual([
+		{ clusterId: null, name: "Ungrouped" },
+		{ clusterId: "cluster-login", name: "Login bugs" },
+		{ clusterId: "cluster-test", name: "test" },
+	]);
 });
 
 test("Bulk sense-making lays captures side by side by cluster name and position", () => {

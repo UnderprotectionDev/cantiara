@@ -221,3 +221,16 @@ export function nextBulkPosition(
 	}
 	return { x: maxX + 1, y: 0 };
 }
+
+export function bulkClusterPlacementOptions(input: {
+	clusters: Array<{ id: string; name: string }>;
+	ungrouped: string;
+}): Array<{ clusterId: string | null; name: string }> {
+	return [
+		{ clusterId: null, name: input.ungrouped },
+		...input.clusters.map((cluster) => ({
+			clusterId: cluster.id,
+			name: cluster.name,
+		})),
+	];
+}

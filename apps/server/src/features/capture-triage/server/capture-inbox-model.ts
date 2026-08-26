@@ -33,6 +33,7 @@ export const CAPTURE_INBOX_COPY = {
 	researchFragment: "Research Fragment",
 	save: "Save",
 	sourceContext: "Source Context",
+	ungrouped: "Ungrouped",
 	unsavedChangesMayBeLost: "Unsaved changes may be lost",
 	work: "Work",
 	workspaceCaptureInbox: "Workspace Capture Inbox",

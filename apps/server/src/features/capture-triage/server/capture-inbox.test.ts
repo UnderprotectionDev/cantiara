@@ -103,6 +103,7 @@ describe("Capture Inbox catalog", () => {
 		expect(CAPTURE_INBOX_COPY.attachToExisting).toBe("Attach to existing");
 		expect(CAPTURE_INBOX_COPY.delete).toBe("Delete");
 		expect(CAPTURE_INBOX_COPY.bulkSenseMaking).toBe("Bulk sense-making");
+		expect(CAPTURE_INBOX_COPY.ungrouped).toBe("Ungrouped");
 		expect(CAPTURE_INBOX_COPY.otherProjects).toBe("Other Projects");
 		expect(TRIAGE_EXIT_CATALOG).toEqual([
 			{ id: "convert", label: "Convert" },

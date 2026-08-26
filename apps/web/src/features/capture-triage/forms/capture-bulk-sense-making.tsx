@@ -11,6 +11,7 @@ import { useCallback, useMemo, useState } from "react";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 import {
+	bulkClusterPlacementOptions,
 	bulkSenseMakingColumns,
 	captureInboxItemPreview,
 	nextBulkPosition,
@@ -25,6 +26,7 @@ export function CaptureBulkSenseMaking({
 	copy: TriageCopy & {
 		bulkSenseMaking: string;
 		save: string;
+		ungrouped: string;
 	};
 	onMergeConsumed: (mergeId: string) => void;
 	templates?: ReadonlyArray<{ id: string; label: string }>;
@@ -123,7 +125,9 @@ export function CaptureBulkSenseMaking({
 					>
 						{column.name ? (
 							<h3 className="mb-3 font-medium text-sm">{column.name}</h3>
-						) : null}
+						) : (
+							<h3 className="mb-3 font-medium text-sm">{copy.ungrouped}</h3>
+						)}
 						<ul className="flex flex-row flex-wrap gap-3">
 							{column.items.map((item) => {
 								const templateLabel =
@@ -146,6 +150,7 @@ export function CaptureBulkSenseMaking({
 											itemId={item.id}
 											label={copy.bulkSenseMaking}
 											onPlace={onPlace}
+											ungrouped={copy.ungrouped}
 											value={currentClusterId}
 										/>
 										<CaptureTriageActions
@@ -169,12 +174,14 @@ function BulkClusterSelect({
 	itemId,
 	label,
 	onPlace,
+	ungrouped,
 	value,
 }: {
 	clusters: Array<{ id: string; name: string }>;
 	itemId: string;
 	label: string;
 	onPlace: (itemId: string, clusterId: string | null) => void;
+	ungrouped: string;
 	value: string;
 }) {
 	const onChange = useCallback(
@@ -183,6 +190,7 @@ function BulkClusterSelect({
 		},
 		[itemId, onPlace]
 	);
+	const options = bulkClusterPlacementOptions({ clusters, ungrouped });
 	return (
 		<NativeSelect
 			aria-label={label}
@@ -191,10 +199,12 @@ function BulkClusterSelect({
 			onChange={onChange}
 			value={value}
 		>
-			<NativeSelectOption value="" />
-			{clusters.map((cluster) => (
-				<NativeSelectOption key={cluster.id} value={cluster.id}>
-					{cluster.name}
+			{options.map((option) => (
+				<NativeSelectOption
+					key={option.clusterId ?? "ungrouped"}
+					value={option.clusterId ?? ""}
+				>
+					{option.name}
 				</NativeSelectOption>
 			))}
 		</NativeSelect>
