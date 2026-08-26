@@ -96,29 +96,83 @@ async function writeHumanReceipt(
 	});
 }
 
+// bun --hot can keep a PrismaClient generated before CaptureBulkSenseView.
+// Table SQL still writes view metadata; the generated delegate is optional.
+async function findBulkView(
+	prisma: PrismaClient,
+	input: { ownerId: string; workspaceId: string }
+): Promise<{ id: string; layoutText: string } | null> {
+	const rows = await prisma.$queryRaw<
+		Array<{ id: string; layoutText: string }>
+	>`
+		SELECT id, "layoutText"
+		FROM "capture_bulk_sense_view"
+		WHERE "workspaceId" = ${input.workspaceId} AND "ownerId" = ${input.ownerId}
+		LIMIT 1
+	`;
+	return rows[0] ?? null;
+}
+
+async function insertBulkView(
+	prisma: PrismaClient,
+	input: {
+		id: string;
+		layoutText: string;
+		ownerId: string;
+		workspaceId: string;
+	}
+) {
+	const now = new Date();
+	await prisma.$executeRaw`
+		INSERT INTO "capture_bulk_sense_view" (
+			id,
+			"workspaceId",
+			"ownerId",
+			"layoutText",
+			"createdAt",
+			"updatedAt"
+		)
+		VALUES (
+			${input.id},
+			${input.workspaceId},
+			${input.ownerId},
+			${input.layoutText},
+			${now},
+			${now}
+		)
+	`;
+}
+
+async function updateBulkView(
+	prisma: PrismaClient,
+	input: { id: string; layoutText: string }
+) {
+	const now = new Date();
+	await prisma.$executeRaw`
+		UPDATE "capture_bulk_sense_view"
+		SET "layoutText" = ${input.layoutText}, "updatedAt" = ${now}
+		WHERE id = ${input.id}
+	`;
+}
+
 async function loadOrCreateLayout(
 	prisma: PrismaClient,
 	input: { actorId: string; workspaceId: string }
 ): Promise<{ id: string; layout: BulkLayout }> {
-	const existing = await prisma.captureBulkSenseView.findUnique({
-		where: {
-			workspaceId_ownerId: {
-				ownerId: input.actorId,
-				workspaceId: input.workspaceId,
-			},
-		},
+	const existing = await findBulkView(prisma, {
+		ownerId: input.actorId,
+		workspaceId: input.workspaceId,
 	});
 	if (existing) {
 		return { id: existing.id, layout: parseLayout(existing.layoutText) };
 	}
-	const created = await prisma.captureBulkSenseView.create({
-		data: {
-			id: crypto.randomUUID(),
-			layoutText: EMPTY_LAYOUT_TEXT,
-			ownerId: input.actorId,
-			workspaceId: input.workspaceId,
-		},
-	});
+	const created = {
+		id: crypto.randomUUID(),
+		layoutText: EMPTY_LAYOUT_TEXT,
+		ownerId: input.actorId,
+		workspaceId: input.workspaceId,
+	};
+	await insertBulkView(prisma, created);
 	return { id: created.id, layout: parseLayout(created.layoutText) };
 }
 
@@ -126,9 +180,9 @@ async function writeLayout(
 	prisma: PrismaClient,
 	input: { id: string; layout: BulkLayout }
 ) {
-	await prisma.captureBulkSenseView.update({
-		data: { layoutText: JSON.stringify(input.layout) },
-		where: { id: input.id },
+	await updateBulkView(prisma, {
+		id: input.id,
+		layoutText: JSON.stringify(input.layout),
 	});
 }
 
@@ -143,13 +197,9 @@ export function createBulkSenseMaking(ctx: {
 		async bulkSenseMaking(): Promise<BulkSenseMakingView> {
 			const items = await ctx.listAll();
 			const openIds = new Set(items.map((item) => item.id));
-			const row = await ctx.prisma.captureBulkSenseView.findUnique({
-				where: {
-					workspaceId_ownerId: {
-						ownerId: ctx.actorId,
-						workspaceId: ctx.workspaceId,
-					},
-				},
+			const row = await findBulkView(ctx.prisma, {
+				ownerId: ctx.actorId,
+				workspaceId: ctx.workspaceId,
 			});
 			const layout = row
 				? parseLayout(row.layoutText)
@@ -274,13 +324,9 @@ export function createBulkSenseMaking(ctx: {
 			return outcome;
 		},
 		async removePlacement(itemId: string) {
-			const row = await ctx.prisma.captureBulkSenseView.findUnique({
-				where: {
-					workspaceId_ownerId: {
-						ownerId: ctx.actorId,
-						workspaceId: ctx.workspaceId,
-					},
-				},
+			const row = await findBulkView(ctx.prisma, {
+				ownerId: ctx.actorId,
+				workspaceId: ctx.workspaceId,
 			});
 			if (!row) {
 				return;

@@ -165,6 +165,7 @@ describe("Capture Inbox", () => {
 			binder?: ReturnType<typeof createRecordBinder>;
 			connected?: boolean;
 			convertCreate?: Parameters<typeof createCaptureInbox>[0]["convertCreate"];
+			prisma?: PrismaClient;
 			similarRecords?: Parameters<
 				typeof createCaptureInbox
 			>[0]["similarRecords"];
@@ -180,11 +181,25 @@ describe("Capture Inbox", () => {
 			clock: { now: () => CAPTURED_AT },
 			connected: overrides.connected,
 			convertCreate: overrides.convertCreate,
-			prisma,
+			prisma: overrides.prisma ?? prisma,
 			similarRecords: overrides.similarRecords,
 			workCreate: overrides.workCreate,
 			workspaceId,
 		});
+	}
+
+	function prismaWithoutBulkSenseView(): PrismaClient {
+		return new Proxy(prisma, {
+			get(target, prop, receiver) {
+				if (prop === "captureBulkSenseView") {
+					return;
+				}
+				const value = Reflect.get(target, prop, receiver) as unknown;
+				return typeof value === "function"
+					? (value as (...args: never[]) => unknown).bind(target)
+					: value;
+			},
+		}) as PrismaClient;
 	}
 
 	it("saves freeform text to the Workspace Capture Inbox without a main record", async () => {
@@ -614,6 +629,71 @@ describe("Capture Inbox", () => {
 					clusterId: named.cluster.id,
 					itemId: second.item.id,
 					position: { x: 1, y: 0 },
+				},
+			],
+		});
+	});
+
+	it("keeps Bulk cluster names when the product Prisma client was generated before CaptureBulkSenseView", async () => {
+		const stale = prismaWithoutBulkSenseView();
+		expect(stale.captureBulkSenseView).toBeUndefined();
+		const capture = inbox({ prisma: stale });
+		const saved = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Crash on save",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		const named = await capture.nameBulkCluster({
+			idempotencyKey: crypto.randomUUID(),
+			name: "Login bugs",
+		});
+		expect(named).toEqual({
+			cluster: {
+				id: expect.any(String),
+				kind: "view-metadata",
+				name: "Login bugs",
+			},
+			status: "named",
+		});
+		if (named.status !== "named") {
+			throw new Error("expected a named cluster");
+		}
+		expect(
+			await capture.placeInBulk({
+				clusterId: named.cluster.id,
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+				position: { x: 0, y: 0 },
+			})
+		).toEqual({
+			placement: {
+				clusterId: named.cluster.id,
+				itemId: saved.item.id,
+				position: { x: 0, y: 0 },
+			},
+			status: "placed",
+		});
+
+		const later = inbox({ prisma: stale });
+		expect(await later.bulkSenseMaking()).toEqual({
+			clusters: [
+				{
+					id: named.cluster.id,
+					kind: "view-metadata",
+					name: "Login bugs",
+				},
+			],
+			items: [saved.item],
+			kind: "view-metadata",
+			label: CAPTURE_INBOX_COPY.bulkSenseMaking,
+			placements: [
+				{
+					clusterId: named.cluster.id,
+					itemId: saved.item.id,
+					position: { x: 0, y: 0 },
 				},
 			],
 		});
