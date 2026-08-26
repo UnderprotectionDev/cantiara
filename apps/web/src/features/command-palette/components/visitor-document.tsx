@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
 
-import {
-	type VisitorPaletteSurface,
-	visitorDocumentChrome,
-} from "../command-palette";
+import type { VisitorPaletteSurface } from "../command-palette";
 import { PaletteSurfaceProvider } from "./founder-command-palette";
 
 export function VisitorDocument({
@@ -13,9 +10,8 @@ export function VisitorDocument({
 	children?: ReactNode;
 	surface: VisitorPaletteSurface;
 }) {
-	const chrome = visitorDocumentChrome(surface);
 	return (
-		<PaletteSurfaceProvider surface={chrome.surface}>
+		<PaletteSurfaceProvider surface={surface}>
 			<article>{children}</article>
 		</PaletteSurfaceProvider>
 	);

@@ -17,6 +17,7 @@ import { Kbd } from "@cantiara/ui/components/kbd";
 import { CommandIcon } from "lucide-react";
 import {
 	createContext,
+	type KeyboardEvent,
 	type ReactNode,
 	useCallback,
 	useContext,
@@ -198,6 +199,25 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 		[showSnapshot]
 	);
 
+	const onFilterKeyDown = useCallback(
+		(event: KeyboardEvent<HTMLInputElement>) => {
+			if (event.key !== "Enter" || snapshot.commands.length > 0) {
+				return;
+			}
+			const result = paletteRef.current.handleKeyDown({
+				ctrlKey: event.ctrlKey,
+				key: event.key,
+				metaKey: event.metaKey,
+				repeat: event.repeat,
+			});
+			if (result.consume) {
+				event.preventDefault();
+				showSnapshot(result.snapshot);
+			}
+		},
+		[showSnapshot, snapshot.commands.length]
+	);
+
 	const undoLast = useCallback(() => {
 		showSnapshot(paletteRef.current.undoLast().snapshot);
 	}, [showSnapshot]);
@@ -305,6 +325,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 						<Command shouldFilter={false}>
 							<CommandInput
 								autoFocus
+								onKeyDown={onFilterKeyDown}
 								onValueChange={onQuery}
 								placeholder=""
 								value={snapshot.query}
