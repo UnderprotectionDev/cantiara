@@ -10,6 +10,8 @@ import {
 import { Kbd } from "@cantiara/ui/components/kbd";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { authClient } from "@/lib/auth-client";
+
 import {
 	type CommandPalette,
 	createCommandPalette,
@@ -21,6 +23,14 @@ import {
 	COMMAND_PALETTE_COPY,
 	COMMAND_PALETTE_SHORTCUT_HINT,
 } from "../command-palette-copy";
+
+function hasProductUser(session: unknown): boolean {
+	if (!session || typeof session !== "object" || !("user" in session)) {
+		return false;
+	}
+	const { user } = session as { user?: unknown };
+	return Boolean(user && typeof user === "object");
+}
 
 function previewLine(command: PaletteCommand): string {
 	return `${command.preview.scope} · ${command.preview.target} · ${command.preview.selectionCount}`;
@@ -51,6 +61,8 @@ function PaletteCommandItem({
 }
 
 export function FounderCommandPalette() {
+	const { data: session } = authClient.useSession();
+	const signedIn = hasProductUser(session);
 	const paletteRef = useRef<CommandPalette>(
 		createCommandPalette(emptyFounderPaletteInput())
 	);
@@ -107,6 +119,9 @@ export function FounderCommandPalette() {
 	);
 
 	useEffect(() => {
+		if (!signedIn) {
+			return;
+		}
 		const onKeyDown = (event: KeyboardEvent) => {
 			const result = paletteRef.current.handleKeyDown({
 				ctrlKey: event.ctrlKey,
@@ -123,7 +138,11 @@ export function FounderCommandPalette() {
 		return () => {
 			window.removeEventListener("keydown", onKeyDown);
 		};
-	}, [showSnapshot]);
+	}, [showSnapshot, signedIn]);
+
+	if (!signedIn) {
+		return null;
+	}
 
 	return (
 		<div className="flex items-center gap-2">
