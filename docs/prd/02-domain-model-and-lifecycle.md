@@ -79,6 +79,18 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Bir kez yeniden deneyebilirsin | `You can retry once.` | Yazılmamış başarısız akışın güvenli yeniden deneme sınırı |
 | Yeniden deneme | `Do not retry.` | Yazılmış başarısız akışta yeniden denemenin güvensiz olduğunu bildirir |
 | Bu eylem tamamlanamadı | `This action could not be completed.` | Secret taşıyan veya beklenmeyen hatanın kullanıcıya gösterilen nedeni |
+| Yakalama Gelen Kutusu | `Capture Inbox` | Kaydedilmiş fakat henüz kalıcı kayda dönüşmemiş geçici girdi yüzeyi; ana kayıt, Taslak veya kaydedilmiş bookmark değildir |
+| Bug oluştur | `Create Bug` | Proje ve tür kesin olduğunda doğrudan İş oluşturma eylemi; Yakalama Gelen Kutusu öğesi bırakmaz |
+| Bug yakalama | `Bug Capture` | `Observed Behavior`, `Expected Behavior` ve `Reproduction Context` yönlendirici alanlarıyla Inbox öğesini biçimlendiren kapalı mini şablon; alanlar isteğe bağlıdır ve ana kayıt oluşturmaz |
+| Gözlenen davranış | `Observed Behavior` | Bug Capture yönlendirici alanı |
+| Beklenen davranış | `Expected Behavior` | Bug Capture yönlendirici alanı |
+| Yeniden üretim bağlamı | `Reproduction Context` | Bug Capture yönlendirici alanı |
+| Geri bildirim yakalama | `Feedback Capture` | `Feedback`, `Channel` ve isteğe bağlı `Contact` yönlendirici alanlarıyla Inbox öğesini biçimlendiren kapalı mini şablon; Contact ana kaydı oluşturmaz |
+| Geri bildirim (yakalama alanı) | `Feedback` | Feedback Capture yönlendirici alanı |
+| Kanal | `Channel` | Feedback Capture yönlendirici alanı |
+| Araştırma parçası | `Research Fragment` | `Note or Excerpt` ve `Source Context` yönlendirici alanlarıyla Inbox öğesini biçimlendiren kapalı mini şablon |
+| Not veya alıntı | `Note or Excerpt` | Research Fragment yönlendirici alanı |
+| Kaynak bağlamı | `Source Context` | Research Fragment yönlendirici alanı |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 

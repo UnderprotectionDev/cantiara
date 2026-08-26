@@ -1,0 +1,26 @@
+model CaptureInboxItem {
+  id          String   @id
+  workspaceId String
+  ownerId     String
+  projectId   String?
+  body        String   @default("")
+  template    String?
+  fieldsText  String   @default("{}")
+  capturedAt  DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId, projectId, capturedAt])
+  @@map("capture_inbox_item")
+}
+
+model CaptureWriteReceipt {
+  id         String   @id
+  commandKey String   @unique
+  actorId    String
+  kind       String
+  resultJson String
+  createdAt  DateTime @default(now())
+
+  @@map("capture_write_receipt")
+}

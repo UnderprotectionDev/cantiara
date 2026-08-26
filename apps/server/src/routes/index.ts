@@ -3,11 +3,13 @@ import type { RouterClient } from "@orpc/server";
 
 import { accountAccess } from "../features/account-access/server/me";
 import { accountPreferences } from "../features/account-preferences/server/preferences";
+import { captureInbox } from "../features/capture-triage/server/capture-inbox-router";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
 
 export const appRouter = {
 	accountAccess,
 	accountPreferences,
+	captureInbox,
 	clientShell,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	privateData: protectedProcedure.handler(({ context }) => ({
