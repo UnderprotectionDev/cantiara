@@ -30,6 +30,10 @@ on:
 jobs:
   client-shell-package:
     runs-on: ubuntu-latest
+    env:
+      # @cantiara/db postinstall runs `prisma generate`, which requires DATABASE_URL.
+      # This job does not connect to Postgres.
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -45,6 +49,7 @@ jobs:
     permissions:
       contents: write
     env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
       VITE_SERVER_URL: ${{ vars.DESKTOP_SERVER_URL }}
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
