@@ -263,7 +263,7 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 ### Komut Paleti ve klavye odaklı kullanım
 
-- **Komut Paleti; içerik arama, kayıt oluşturma, projeler arasında geçiş yapma ve sık işlemleri uygulamanın her yerinden klavyeyle çalıştırır.**
+- **Komut Paleti; içerik arama, kayıt oluşturma, projeler arasında geçiş yapma ve sık işlemleri uygulamanın her yerinden klavyeyle çalıştırır.** Açma kısayolu `Ctrl+K` (macOS’ta `⌘K`) sabittir; palet başlığı `Command Palette`dır ve `Search` değildir.
 
 - **İlk ürünün belgelenmiş klavye kısayolları sabittir ve her komutun görünür arayüz karşılığı bulunur.** Kullanıcı tarafından yeniden eşlenebilen genel kısayol profili ilk üründe veya kanıt bekleyen ticari gelecekte yer almaz; değerlendirme koşulları [Gelecek Yönleri](18-future-directions.md#yeniden-eslenebilir-klavye-kisayollari) belgesindedir.
 

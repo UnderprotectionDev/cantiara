@@ -304,6 +304,10 @@ _Avoid_: Dosya Eki, harici Markdown dosyası, kayıt açıklaması
 Tam olarak bir Proje veya Kişisel Wiki kapsamında yaşayan, dosya içeriğini ve sürümlerini taşıyan ana kayıt; başka kapsamdaki ilişki sahipliğini veya görünürlüğünü değiştirmez.
 _Avoid_: Belge, ilişki eki, paylaşılan global dosya
 
+**Komut Paleti**:
+Kurucu yüzeylerinde klavyeyle komut, gezinme, kayıt oluşturma ve Proje geçişi çalıştıran [yüzey](docs/prd/04-workspace-and-projects.md#komut-paleti-ve-klavye-odaklı-kullanım); Evrensel Arama sonuç listesi değildir. UI: `Command Palette`.
+_Avoid_: Search, Universal Search, komut pazarı, yeniden eşlenebilir kısayol profili
+
 **Evrensel Arama**:
 Yetkili ana kayıtları deterministik tam metin sırası ve görünür eşleşme bağlamıyla [bulan yüzey](docs/prd/08-search-relations-and-evidence.md#evrensel-arama); Taslak, Yakalama Gelen Kutusu öğesi ve Dış yüzey arama sonucu değildir. UI: `Search`.
 _Avoid_: Komut Paleti, anlamsal sıralama, AI arama
