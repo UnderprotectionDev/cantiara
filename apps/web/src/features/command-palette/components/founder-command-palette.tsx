@@ -7,22 +7,58 @@ import {
 	CommandList,
 	CommandShortcut,
 } from "@cantiara/ui/components/command";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "@cantiara/ui/components/dialog";
 import { Kbd } from "@cantiara/ui/components/kbd";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { CommandIcon } from "lucide-react";
+import {
+	createContext,
+	type ReactNode,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { toast } from "sonner";
 
 import { authClient } from "@/lib/auth-client";
+import { MUTATION_COPY } from "@/lib/mutation";
 
 import {
 	type CommandPalette,
 	createCommandPalette,
 	emptyFounderPaletteInput,
 	type PaletteCommand,
+	type PaletteRunResult,
 	type PaletteSnapshot,
 } from "../command-palette";
 import {
 	COMMAND_PALETTE_COPY,
 	COMMAND_PALETTE_SHORTCUT_HINT,
 } from "../command-palette-copy";
+
+interface CommandPaletteActions {
+	canUndo: boolean;
+	openCreate: () => void;
+	openPalette: () => void;
+	openRecord: () => void;
+	openSwitchProject: () => void;
+	undoLabel: typeof MUTATION_COPY.undo | null;
+	undoLast: () => void;
+}
+
+const CommandPaletteActionsContext =
+	createContext<CommandPaletteActions | null>(null);
+
+export function useCommandPaletteActions(): CommandPaletteActions | null {
+	return useContext(CommandPaletteActionsContext);
+}
 
 function hasProductUser(session: unknown): boolean {
 	if (!session || typeof session !== "object" || !("user" in session)) {
@@ -60,7 +96,32 @@ function PaletteCommandItem({
 	);
 }
 
-export function FounderCommandPalette() {
+export function CommandPaletteTrigger() {
+	const actions = useCommandPaletteActions();
+	if (actions === null) {
+		return null;
+	}
+
+	return (
+		<Button
+			aria-keyshortcuts={COMMAND_PALETTE_SHORTCUT_HINT}
+			aria-label={COMMAND_PALETTE_COPY.title}
+			className="h-8 gap-1.5 px-2 font-normal text-muted-foreground"
+			onClick={actions.openPalette}
+			size="sm"
+			title={`${COMMAND_PALETTE_COPY.title} (${COMMAND_PALETTE_SHORTCUT_HINT})`}
+			type="button"
+			variant="ghost"
+		>
+			<CommandIcon aria-hidden="true" className="size-4" />
+			<Kbd className="hidden sm:inline-flex">
+				{COMMAND_PALETTE_SHORTCUT_HINT}
+			</Kbd>
+		</Button>
+	);
+}
+
+export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 	const { data: session } = authClient.useSession();
 	const signedIn = hasProductUser(session);
 	const paletteRef = useRef<CommandPalette>(
@@ -74,7 +135,7 @@ export function FounderCommandPalette() {
 		setSnapshot(next);
 	}, []);
 
-	const onOpen = useCallback(() => {
+	const openPalette = useCallback(() => {
 		showSnapshot(paletteRef.current.open());
 	}, [showSnapshot]);
 
@@ -88,19 +149,19 @@ export function FounderCommandPalette() {
 		);
 	}, [showSnapshot]);
 
-	const onCreate = useCallback(() => {
+	const openCreate = useCallback(() => {
 		paletteRef.current.open();
 		showSnapshot(paletteRef.current.setQuery(COMMAND_PALETTE_COPY.create));
 	}, [showSnapshot]);
 
-	const onSwitchProject = useCallback(() => {
+	const openSwitchProject = useCallback(() => {
 		paletteRef.current.open();
 		showSnapshot(
 			paletteRef.current.setQuery(COMMAND_PALETTE_COPY.switchProject)
 		);
 	}, [showSnapshot]);
 
-	const onOpenRecord = useCallback(() => {
+	const openRecord = useCallback(() => {
 		showSnapshot(paletteRef.current.open());
 	}, [showSnapshot]);
 
@@ -111,11 +172,43 @@ export function FounderCommandPalette() {
 		[showSnapshot]
 	);
 
+	const undoLast = useCallback(() => {
+		showSnapshot(paletteRef.current.undoLast().snapshot);
+	}, [showSnapshot]);
+
+	const offerUndo = useCallback(
+		(result: PaletteRunResult) => {
+			if (!(result.wrote && result.undoLabel)) {
+				return;
+			}
+			toast(COMMAND_PALETTE_COPY.create, {
+				action: {
+					label: result.undoLabel,
+					onClick: undoLast,
+				},
+			});
+		},
+		[undoLast]
+	);
+
 	const onRun = useCallback(
 		(commandId: string) => {
-			showSnapshot(paletteRef.current.run(commandId).snapshot);
+			const result = paletteRef.current.run(commandId);
+			showSnapshot(result.snapshot);
+			offerUndo(result);
 		},
-		[showSnapshot]
+		[offerUndo, showSnapshot]
+	);
+
+	const onOpenChange = useCallback(
+		(nextOpen: boolean) => {
+			if (nextOpen) {
+				openPalette();
+				return;
+			}
+			onDismiss();
+		},
+		[onDismiss, openPalette]
 	);
 
 	useEffect(() => {
@@ -140,45 +233,42 @@ export function FounderCommandPalette() {
 		};
 	}, [showSnapshot, signedIn]);
 
-	if (!signedIn) {
-		return null;
-	}
+	const actions = useMemo<CommandPaletteActions | null>(() => {
+		if (!signedIn) {
+			return null;
+		}
+		return {
+			canUndo: snapshot.canUndo,
+			openCreate,
+			openPalette,
+			openRecord,
+			openSwitchProject,
+			undoLabel: snapshot.undoLabel,
+			undoLast,
+		};
+	}, [
+		openCreate,
+		openPalette,
+		openRecord,
+		openSwitchProject,
+		signedIn,
+		snapshot.canUndo,
+		snapshot.undoLabel,
+		undoLast,
+	]);
 
 	return (
-		<div className="flex items-center gap-2">
-			<Button onClick={onOpen} type="button" variant="outline">
-				{COMMAND_PALETTE_COPY.title}
-				<Kbd className="ml-2">{COMMAND_PALETTE_SHORTCUT_HINT}</Kbd>
-			</Button>
-			<Button onClick={onCreate} type="button" variant="outline">
-				{COMMAND_PALETTE_COPY.create}
-			</Button>
-			<Button onClick={onSwitchProject} type="button" variant="outline">
-				{COMMAND_PALETTE_COPY.switchProject}
-			</Button>
-			<Button onClick={onOpenRecord} type="button" variant="outline">
-				{COMMAND_PALETTE_COPY.open}
-			</Button>
-			{snapshot.visible ? (
-				<div className="fixed inset-0 z-50">
-					<button
-						aria-label={COMMAND_PALETTE_COPY.close}
-						className="absolute inset-0 bg-black/10"
-						onClick={onDismiss}
-						type="button"
-					/>
-					<div
-						aria-labelledby="command-palette-title"
-						aria-modal="true"
-						className="absolute top-[20%] left-1/2 w-full max-w-lg -translate-x-1/2 border bg-popover text-popover-foreground shadow-lg"
-						role="dialog"
+		<CommandPaletteActionsContext.Provider value={actions}>
+			{children}
+			{signedIn ? (
+				<Dialog onOpenChange={onOpenChange} open={snapshot.visible}>
+					<DialogContent
+						className="data-closed:zoom-out-100 data-open:zoom-in-100 top-[20%] translate-y-0 overflow-hidden p-0 duration-0 sm:max-w-lg"
+						showCloseButton={false}
 					>
-						<h2
-							className="border-b px-3 py-2 font-medium text-sm"
-							id="command-palette-title"
-						>
-							{snapshot.title}
-						</h2>
+						<DialogHeader className="border-b px-3 py-2">
+							<DialogTitle>{snapshot.title}</DialogTitle>
+						</DialogHeader>
 						<Command shouldFilter={false}>
 							<CommandInput
 								autoFocus
@@ -209,9 +299,21 @@ export function FounderCommandPalette() {
 								{snapshot.failure}
 							</p>
 						) : null}
-					</div>
-				</div>
+						{snapshot.canUndo ? (
+							<div className="flex justify-end border-t px-3 py-2">
+								<Button
+									onClick={undoLast}
+									size="sm"
+									type="button"
+									variant="ghost"
+								>
+									{snapshot.undoLabel ?? MUTATION_COPY.undo}
+								</Button>
+							</div>
+						) : null}
+					</DialogContent>
+				</Dialog>
 			) : null}
-		</div>
+		</CommandPaletteActionsContext.Provider>
 	);
 }

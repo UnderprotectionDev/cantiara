@@ -1,4 +1,8 @@
-import { withHumanMutationEnvelope } from "../../lib/mutation";
+import {
+	type MUTATION_COPY,
+	presentReversibleWriteUi,
+	withHumanMutationEnvelope,
+} from "../../lib/mutation";
 
 import {
 	COMMAND_PALETTE_COPY,
@@ -98,11 +102,13 @@ export interface VisibleMenuAction {
 }
 
 export interface PaletteSnapshot {
+	canUndo: boolean;
 	commands: PaletteCommand[];
 	emptyReason: typeof COMMAND_PALETTE_COPY.noMatchingCommand | null;
 	failure: typeof COMMAND_PALETTE_COPY.cantRunThisHere | null;
 	query: string;
 	title: typeof COMMAND_PALETTE_COPY.title;
+	undoLabel: typeof MUTATION_COPY.undo | null;
 	visibilityMs: number;
 	visible: boolean;
 	visibleMenuActions: readonly VisibleMenuAction[];
@@ -112,7 +118,7 @@ export interface PaletteRunResult {
 	reason?: typeof COMMAND_PALETTE_COPY.cantRunThisHere;
 	snapshot: PaletteSnapshot;
 	status: "committed" | "failed" | "opened" | "switched";
-	undoLabel?: "Undo";
+	undoLabel?: typeof MUTATION_COPY.undo;
 	wrote: boolean;
 }
 
@@ -375,13 +381,16 @@ export function createCommandPalette(
 
 	function snapshot(): PaletteSnapshot {
 		const commands = visibleCommands();
+		const undo = presentReversibleWriteUi(lastUndo !== null);
 		return {
+			canUndo: undo.undoAvailable,
 			commands,
 			emptyReason:
 				commands.length === 0 ? COMMAND_PALETTE_COPY.noMatchingCommand : null,
 			failure,
 			query,
 			title: COMMAND_PALETTE_COPY.title,
+			undoLabel: undo.label,
 			visibilityMs,
 			visible: isOpen,
 			visibleMenuActions: MENU_ACTIONS,
@@ -449,10 +458,11 @@ export function createCommandPalette(
 		failure = null;
 		isOpen = false;
 		query = "";
+		const undo = presentReversibleWriteUi(true);
 		return {
 			snapshot: snapshot(),
 			status: "committed",
-			undoLabel: "Undo",
+			undoLabel: undo.label ?? undefined,
 			wrote: true,
 		};
 	}

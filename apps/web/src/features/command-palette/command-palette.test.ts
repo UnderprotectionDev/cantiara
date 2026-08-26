@@ -249,6 +249,18 @@ test("scope, target, and selection count are visible before a command runs", () 
 	});
 });
 
+test("Undo is not offered until a reversible Create commits", () => {
+	const mutation = memoryMutation();
+	const palette = createCommandPalette(founderInput({ mutation }));
+	expect(palette.snapshot().canUndo).toBe(false);
+	expect(palette.snapshot().undoLabel).toBe(null);
+	const undone = palette.undoLast();
+	expect(undone.status).toBe("failed");
+	expect(undone.wrote).toBe(false);
+	expect(undone.reason).toBe("Can't run this here");
+	expect(mutation.undoCalls).toHaveLength(0);
+});
+
 test("a reversible Create uses the Mutation Contract envelope and Undo", () => {
 	const mutation = memoryMutation();
 	const palette = createCommandPalette(founderInput({ mutation }));
@@ -256,6 +268,8 @@ test("a reversible Create uses the Mutation Contract envelope and Undo", () => {
 	expect(created.status).toBe("committed");
 	expect(created.undoLabel).toBe("Undo");
 	expect(created.wrote).toBe(true);
+	expect(created.snapshot.canUndo).toBe(true);
+	expect(created.snapshot.undoLabel).toBe("Undo");
 	expect(mutation.writes[0]).toEqual(
 		expect.objectContaining({
 			baseRevision: 3,
@@ -269,6 +283,7 @@ test("a reversible Create uses the Mutation Contract envelope and Undo", () => {
 	);
 	const undone = palette.undoLast();
 	expect(undone.status).toBe("committed");
+	expect(undone.snapshot.canUndo).toBe(false);
 	expect(mutation.undoCalls).toEqual(["history-1"]);
 });
 
@@ -280,6 +295,7 @@ test("an out-of-scope command fails visibly and does not write", () => {
 	expect(result.reason).toBe("Can't run this here");
 	expect(result.wrote).toBe(false);
 	expect(result.snapshot.failure).toBe("Can't run this here");
+	expect(result.snapshot.canUndo).toBe(false);
 	expect(mutation.writes).toHaveLength(0);
 });
 
