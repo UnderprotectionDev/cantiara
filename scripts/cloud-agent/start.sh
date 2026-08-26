@@ -39,6 +39,15 @@ if cantiara_is_hosted_database; then
 	unset NEON_LOCAL_PROXY
 fi
 
+# Warm-fork snapshots skip install.sh. Overlayed schema (AccountPreference and
+# later models) must regenerate the client before the API boots, or protected
+# RPC handlers throw Internal server error.
+log "Generating Prisma client"
+(
+  cd packages/db
+  bunx prisma generate >/dev/null
+)
+
 # Reconcile the local throwaway cluster only. Hosted Neon is not a `db push`
 # target; dotenv will not override this explicit local URL.
 log "Reconciling Prisma schema on local Postgres"
