@@ -78,9 +78,13 @@
       },
       "devDependencies": {
         "@cantiara/config": "workspace:*",
+        "@prisma/adapter-pg": "^7.9.1",
         "@types/bun": "catalog:",
+        "@types/pg": "^8.15.6",
+        "pg": "^8.16.3",
         "tsdown": "^0.22.14",
         "typescript": "catalog:",
+        "vitest": "^3.2.4",
       },
     },
     "apps/web": {
@@ -143,12 +147,8 @@
       },
       "devDependencies": {
         "@cantiara/config": "workspace:*",
-        "@prisma/adapter-pg": "^7.9.1",
-        "@types/pg": "^8.15.6",
         "hono": "catalog:",
-        "pg": "^8.16.3",
         "typescript": "catalog:",
-        "vitest": "^3.2.4",
       },
     },
     "packages/auth": {

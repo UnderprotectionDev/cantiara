@@ -7,6 +7,5 @@
     "outDir": "dist",
     "composite": true,
     "strictNullChecks": true
-  },
-  "exclude": ["src/**/*.test.ts", "vitest.config.ts"]
+  }
 }
