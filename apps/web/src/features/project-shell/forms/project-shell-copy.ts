@@ -31,3 +31,20 @@ export const PROJECT_SHELL_COPY = {
 export function projectShellChrome() {
 	return PROJECT_SHELL_COPY;
 }
+
+const ALWAYS_ON_ANCHORS = {
+	"All Tools": "all-tools",
+	Documents: "documents",
+	Overview: "overview",
+	Work: "work",
+} as const;
+
+export function projectShellAnchor(name: string): string {
+	if (name in ALWAYS_ON_ANCHORS) {
+		return ALWAYS_ON_ANCHORS[name as keyof typeof ALWAYS_ON_ANCHORS];
+	}
+	return name
+		.toLowerCase()
+		.replaceAll(/[^a-z0-9]+/g, "-")
+		.replaceAll(/^-+|-+$/g, "");
+}
