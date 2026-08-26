@@ -3,6 +3,7 @@ import { useCallback } from "react";
 
 import ConfigurationMode from "@/features/project-shell/forms/configuration-mode";
 import FirstOpenExplanation from "@/features/project-shell/forms/first-open-explanation";
+import ProjectAreasForm from "@/features/project-shell/forms/project-areas-form";
 import {
 	type ConfigurationModeEditor,
 	PROJECT_SHELL_COPY,
@@ -52,7 +53,9 @@ export default function ProjectProfile({
 	const alwaysOnAnchors = new Set(
 		data.alwaysOnSurfaces.map((surface) => projectShellAnchor(surface))
 	);
-	const areaNames = data.allToolsAreas.map((area) => area.name);
+	const navigationAreas = data.pinnedAreas.filter((area) =>
+		data.enabledAreas.includes(area)
+	);
 
 	return (
 		<main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
@@ -65,11 +68,13 @@ export default function ProjectProfile({
 					{PROJECT_SHELL_COPY.active} · {data.starterConfiguration}
 				</p>
 				<ConfigurationMode
-					areas={areaNames}
+					areas={data.allToolsAreas}
 					editor={configurationEditor}
 					onOpenEditor={onOpenEditor}
 					onToggle={onToggle}
 					open={configurationMode}
+					projectId={data.id}
+					revision={data.revision}
 					stages={data.stages}
 					workStatuses={data.workStatuses}
 					workViews={data.workViews}
@@ -95,7 +100,7 @@ export default function ProjectProfile({
 								<a href={`#${projectShellAnchor(surface)}`}>{surface}</a>
 							</li>
 						))}
-						{data.pinnedAreas.map((area) => (
+						{navigationAreas.map((area) => (
 							<li key={`pin-${area}`}>
 								<a href={`#${projectShellAnchor(area)}`}>{area}</a>
 							</li>
@@ -165,19 +170,15 @@ export default function ProjectProfile({
 				id={projectShellAnchor(PROJECT_SHELL_COPY.allTools)}
 			>
 				<h2>{PROJECT_SHELL_COPY.allTools}</h2>
-				<ul>
-					{data.allToolsAreas.map((area) => {
-						const anchor = projectShellAnchor(area.name);
-						return (
-							<li
-								id={alwaysOnAnchors.has(anchor) ? undefined : anchor}
-								key={area.name}
-							>
-								{area.name}
-							</li>
-						);
-					})}
-				</ul>
+				<ProjectAreasForm
+					areas={data.allToolsAreas}
+					label={PROJECT_SHELL_COPY.allTools}
+					projectId={data.id}
+					reservedAnchors={alwaysOnAnchors}
+					revision={data.revision}
+					showEnablement={false}
+					showRestore={true}
+				/>
 			</section>
 		</main>
 	);

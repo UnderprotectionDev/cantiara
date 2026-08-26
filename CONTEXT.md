@@ -62,6 +62,10 @@ _Avoid_: Proje kimliği, değiştirilebilir slug, yeniden kullanılabilir kod
 İlişkili kayıt türlerini tek keşif ve çalışma girişinde toplayan, etkinliği içerik yaşamından ayrı Proje yüzeyi ([Proje alanları](docs/prd/04-workspace-and-projects.md#proje-alanlarını-etkinleştirme)).
 _Avoid_: Kayıt türü, ayrı sahiplik kapsamı, ana menü başına tek tablo
 
+**Proje aşaması**:
+Kurucunun ekleyip, yeniden adlandırıp, sıralayıp kaldırabildiği Proje çalışma dönemi; sıralı state machine değildir, her biri Planlanmadı, Hazır, Aktif, Tamamlandı veya Vazgeçildi taşır ve birden fazlası aynı anda Aktif olabilir ([yapılandırılabilir aşamalar](docs/prd/04-workspace-and-projects.md#yapılandırılabilir-ve-paralel-proje-aşamaları)). UI: `Stages`.
+_Avoid_: İş akışı durumu, sprint, zorunlu geçiş, çalışma kapısı
+
 **İşin proje kapsamı**:
 Bir İş oluşturulurken seçilen ve [İşin yaşamı boyunca değişmeyen](docs/prd/06-work-management-and-planning.md#işin-değişmeyen-proje-kapsamı) kanonik Proje kapsamı.
 _Avoid_: Taşınabilir İş kapsamı, proje takma adı

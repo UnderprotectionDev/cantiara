@@ -55,6 +55,17 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Aşamalar | `Stages` | Yapılandırılabilir Proje aşamalarının Yapılandırma modu girişi |
 | İş durumları | `Work statuses` | Korunan İş akışı durumlarının kullanıcıya dönük ad girişi |
 | Proje alanları | `Project areas` | Kapalı Proje alanı kataloğunun etkinleştirme girişi |
+| Navigasyona sabitle | `Pin to navigation` | Proje alanını navigasyon üstverisine sabitleme; alan etkinleştirme değildir |
+| Varsayılan navigasyonu geri yükle | `Restore default navigation` | Yalnız pin ve sıra üstverisini Başlangıç yapılandırması varsayılanına döndürme |
+| Planlanmadı | `Not Planned` | Proje aşaması durumu; İş akışı durumu değildir |
+| Hazır | `Ready` | Proje aşaması durumu; İş akışı durumu değildir |
+| Gizle | `Hide` | Kapalı katalogdaki Proje alanını gizleme; kayıt silmez |
+| Etkinleştir | `Enable` | Gizlenmiş Proje alanını yeniden gösterme; içerik üretmez |
+| Aşama ekle | `Add stage` | Yapılandırılabilir Proje aşaması ekleme |
+| Aşamayı kaldır | `Remove stage` | Aşamayı sunum ve filtrelerden kaldırma; ana kayıt silmez |
+| Yukarı taşı | `Move up` | Aşama sunum sırasını öne alma |
+| Aşağı taşı | `Move down` | Aşama sunum sırasını sona alma |
+| Aşama kaldırma önizlemesi | `{name} will leave presentation and filters. Main records are not deleted.` | Aşama kaldırılırken sunum/filtre önizlemesi |
 | Oluştur | `Create` | Yapılandırma modu dışında günlük kayıt oluşturma |
 | Düzenle | `Edit` | Yapılandırma modu dışında günlük içerik düzenleme |
 | Durum | `Status` | Yapılandırma modu dışında günlük durum değiştirme |

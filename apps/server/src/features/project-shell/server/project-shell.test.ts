@@ -16,6 +16,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import {
+	configureProject,
 	createProject,
 	dismissFirstOpenExplanation,
 	getProject,
@@ -28,9 +29,15 @@ import {
 import {
 	CONFIGURATION_MODE_EDITORS,
 	configurationModeView,
+	PROJECT_AREAS,
 	PROJECT_LIFECYCLE,
 	PROJECT_SHELL_COPY,
+	PROTECTED_WORK_STATUSES,
+	STAGE_STATES,
 	STARTER_CONFIGURATIONS,
+	type StructureChange,
+	stageRemovalPreview,
+	stageRemovalPreviewCopy,
 } from "./project-shell-model";
 
 const DATABASE_URL =
@@ -106,6 +113,52 @@ const CLOSED_SKELETON_CATALOG = [
 		surface: "Document",
 	},
 ] as const;
+
+const DEFAULT_WORK_STATUSES = [
+	{ label: "Not Started", semantic: "Not Started" },
+	{ label: "In Progress", semantic: "In Progress" },
+	{ label: "Blocked", semantic: "Blocked" },
+	{ label: "Closed", semantic: "Closed" },
+] as const;
+
+const LOOKUP_FORMULA_PATTERN = /lookup|formula/i;
+const OVERVIEW_MODULE_PATTERN =
+	/attentionRequired|dashboard|healthScore|overviewModule/i;
+const TEST_PRODUCT_PATTERN =
+	/plannedTest|testHandoff|testSession|testGap|testAssessment/i;
+
+function stageNames(project: { stages: Array<{ name: string }> }) {
+	return project.stages.map((stage) => stage.name);
+}
+
+function stageStates(project: { stages: Array<{ state: string }> }) {
+	return project.stages.map((stage) => stage.state);
+}
+
+function workStatusSemantics(project: {
+	workStatuses: Array<{ semantic: string }>;
+}) {
+	return project.workStatuses.map((status) => status.semantic);
+}
+
+function configureCommand(
+	input: {
+		baseRevision: number;
+		change: StructureChange;
+		idempotencyKey: string;
+		projectId: string;
+	},
+	actorId: string
+) {
+	return {
+		actorId,
+		baseRevision: input.baseRevision,
+		change: input.change,
+		idempotencyKey: input.idempotencyKey,
+		origin: "human" as const,
+		projectId: input.projectId,
+	};
+}
 
 function livingRecordKeys(value: object): string[] {
 	return Object.keys(value).filter((key) =>
@@ -814,16 +867,14 @@ describe("Project Shell", () => {
 					throw new Error("expected committed Project");
 				}
 				const row = expected[starterConfiguration];
-				expect(outcome.project.stages).toEqual(row.stages);
+				expect(stageNames(outcome.project)).toEqual(row.stages);
+				expect(stageStates(outcome.project)).toEqual(
+					row.stages.map(() => "Not Planned")
+				);
 				expect(outcome.project.enabledAreas).toEqual(row.enabledAreas);
 				expect(outcome.project.pinnedAreas).toEqual(row.pinnedAreas);
 				expect(outcome.project.workViews).toEqual(row.workViews);
-				expect(outcome.project.workStatuses).toEqual([
-					"Not Started",
-					"In Progress",
-					"Blocked",
-					"Closed",
-				]);
+				expect(outcome.project.workStatuses).toEqual(DEFAULT_WORK_STATUSES);
 				expect(outcome.project.alwaysOnSurfaces).toEqual([
 					"Overview",
 					"Work",
@@ -991,13 +1042,21 @@ describe("Project Shell", () => {
 		expect(renamed.project.starterConfiguration).toBe("Blank Project");
 		expect(renamed.project.workViews).toEqual(["Backlog", "Board"]);
 		expect(saas.project.selectedSkeletons).toEqual(CLOSED_SKELETON_CATALOG);
-		expect(saas.project.stages).toEqual([
+		expect(stageNames(saas.project)).toEqual([
 			"Discovery",
 			"Design",
 			"Build",
 			"Validate",
 			"Release",
 			"Operate",
+		]);
+		expect(stageStates(saas.project)).toEqual([
+			"Not Planned",
+			"Not Planned",
+			"Not Planned",
+			"Not Planned",
+			"Not Planned",
+			"Not Planned",
 		]);
 	});
 
@@ -1090,18 +1149,18 @@ describe("Project Shell", () => {
 			],
 			pinnedAreas: ["Discovery", "Decisions", "Design", "Tests", "Releases"],
 			selectedSkeletons: CLOSED_SKELETON_CATALOG,
-			stages: [
-				"Discovery",
-				"Design",
-				"Build",
-				"Validate",
-				"Release",
-				"Operate",
-			],
 			starterConfiguration: "Solo SaaS",
-			workStatuses: ["Not Started", "In Progress", "Blocked", "Closed"],
+			workStatuses: DEFAULT_WORK_STATUSES,
 			workViews: ["Backlog", "Board", "Roadmap"],
 		});
+		expect(stageNames(loaded ?? { stages: [] })).toEqual([
+			"Discovery",
+			"Design",
+			"Build",
+			"Validate",
+			"Release",
+			"Operate",
+		]);
 		expect(await getProject(prisma, projectId)).toEqual(loaded);
 	});
 
@@ -1179,12 +1238,7 @@ describe("Project Shell", () => {
 		expect(after?.lifecycleStatus).toBe(PROJECT_LIFECYCLE.active);
 		expect(after?.enabledAreas).toEqual(["Work", "Documents"]);
 		expect(after?.workViews).toEqual(["Backlog", "Board"]);
-		expect(after?.workStatuses).toEqual([
-			"Not Started",
-			"In Progress",
-			"Blocked",
-			"Closed",
-		]);
+		expect(after?.workStatuses).toEqual(DEFAULT_WORK_STATUSES);
 	});
 
 	it("opens Custom field and Work Context Card layout editors without owning schema or layout", () => {
@@ -1254,6 +1308,41 @@ describe("Project Shell", () => {
 		expect(PROJECT_SHELL_COPY.workContextCardLayout).toBe(
 			"Work Context Card layout"
 		);
+		expect(PROJECT_SHELL_COPY.pinToNavigation).toBe("Pin to navigation");
+		expect(PROJECT_SHELL_COPY.restoreDefaultNavigation).toBe(
+			"Restore default navigation"
+		);
+		expect(PROJECT_SHELL_COPY.notPlanned).toBe("Not Planned");
+		expect(PROJECT_SHELL_COPY.ready).toBe("Ready");
+		expect(PROJECT_SHELL_COPY.hide).toBe("Hide");
+		expect(PROJECT_SHELL_COPY.enable).toBe("Enable");
+		expect(PROJECT_SHELL_COPY.addStage).toBe("Add stage");
+		expect(PROJECT_SHELL_COPY.removeStage).toBe("Remove stage");
+		expect(STAGE_STATES).toEqual([
+			"Not Planned",
+			"Ready",
+			"Active",
+			"Completed",
+			"Abandoned",
+		]);
+		expect(PROJECT_AREAS).toEqual([
+			"Work",
+			"Documents",
+			"Discovery",
+			"Decisions",
+			"Design",
+			"Technical Diagrams",
+			"Tests",
+			"Releases",
+			"Production",
+			"GitHub",
+		]);
+		expect(PROTECTED_WORK_STATUSES).toEqual([
+			"Not Started",
+			"In Progress",
+			"Blocked",
+			"Closed",
+		]);
 		expect(PROJECT_SHELL_COPY.firstOpenExplanations["Blank Project"]).toContain(
 			"All Tools"
 		);
@@ -1269,6 +1358,611 @@ describe("Project Shell", () => {
 		expect(JSON.stringify(PROJECT_SHELL_COPY)).not.toMatch(
 			COPY_BRANDING_PATTERN
 		);
+		expect(JSON.stringify(PROJECT_SHELL_COPY)).not.toMatch(
+			LOOKUP_FORMULA_PATTERN
+		);
+	});
+
+	it("lets several stages be Active at once without writing Work status", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "stages-saas",
+					name: "Atlas",
+					starterConfiguration: "Solo SaaS",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		expect(STAGE_STATES).toEqual([
+			"Not Planned",
+			"Ready",
+			"Active",
+			"Completed",
+			"Abandoned",
+		]);
+		const [discovery, design] = created.project.stages;
+		if (!(discovery && design)) {
+			throw new Error("expected prepared stages");
+		}
+		const first = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: created.project.revision,
+					change: {
+						action: "set-stage-state",
+						stageId: discovery.id,
+						state: "Active",
+					},
+					idempotencyKey: "activate-discovery",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (first.status !== "committed") {
+			throw new Error("expected Active Discovery");
+		}
+		const second = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: first.project.revision,
+					change: {
+						action: "set-stage-state",
+						stageId: design.id,
+						state: "Active",
+					},
+					idempotencyKey: "activate-design",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (second.status !== "committed") {
+			throw new Error("expected Active Design");
+		}
+		expect(second.project.stages[0]).toMatchObject({
+			name: "Discovery",
+			state: "Active",
+		});
+		expect(second.project.stages[1]).toMatchObject({
+			name: "Design",
+			state: "Active",
+		});
+		expect(second.project.workStatuses).toEqual(DEFAULT_WORK_STATUSES);
+		expect(
+			await configureProject(
+				prisma,
+				configureCommand(
+					{
+						baseRevision: second.project.revision,
+						change: {
+							action: "set-stage-state",
+							stageId: discovery.id,
+							state: "Queued",
+						},
+						idempotencyKey: "unknown-state",
+						projectId: created.project.id,
+					},
+					actorId
+				)
+			)
+		).toEqual({
+			reason: "unknown-stage-state",
+			status: "rejected",
+		});
+	});
+
+	it("adds, renames, reorders, and removes stages without deleting main records", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "blank-stages",
+					name: "Payments",
+					starterConfiguration: "Blank Project",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const added = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: created.project.revision,
+					change: { action: "add-stage", name: "Discovery" },
+					idempotencyKey: "add-discovery",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (added.status !== "committed") {
+			throw new Error("expected added stage");
+		}
+		expect(added.project.stages).toEqual([
+			{
+				id: added.project.stages[0]?.id,
+				name: "Discovery",
+				state: "Not Planned",
+			},
+		]);
+		const second = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: added.project.revision,
+					change: { action: "add-stage", name: "Build" },
+					idempotencyKey: "add-build",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (second.status !== "committed") {
+			throw new Error("expected second stage");
+		}
+		const renamed = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: second.project.revision,
+					change: {
+						action: "rename-stage",
+						name: "Scope",
+						stageId: second.project.stages[0]?.id ?? "",
+					},
+					idempotencyKey: "rename-discovery",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (renamed.status !== "committed") {
+			throw new Error("expected renamed stage");
+		}
+		expect(stageNames(renamed.project)).toEqual(["Scope", "Build"]);
+		const reordered = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: renamed.project.revision,
+					change: {
+						action: "reorder-stages",
+						stageIds: [
+							renamed.project.stages[1]?.id ?? "",
+							renamed.project.stages[0]?.id ?? "",
+						],
+					},
+					idempotencyKey: "reorder-stages",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (reordered.status !== "committed") {
+			throw new Error("expected reordered stages");
+		}
+		expect(stageNames(reordered.project)).toEqual(["Build", "Scope"]);
+		const preview = stageRemovalPreview(
+			reordered.project.stages[0]?.name ?? ""
+		);
+		expect(preview).toEqual({
+			filters: ["Build"],
+			mainRecordsDeleted: false,
+			presentation: ["Build"],
+			workStatusWritten: false,
+		});
+		expect(stageRemovalPreviewCopy("Build")).toBe(
+			"Build will leave presentation and filters. Main records are not deleted."
+		);
+		const removed = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: reordered.project.revision,
+					change: {
+						action: "remove-stage",
+						stageId: reordered.project.stages[0]?.id ?? "",
+					},
+					idempotencyKey: "remove-build",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (removed.status !== "committed") {
+			throw new Error("expected removed stage");
+		}
+		expect(stageNames(removed.project)).toEqual(["Scope"]);
+		expect(removed.project.id).toBe(created.project.id);
+		expect(removed.project.workStatuses).toEqual(DEFAULT_WORK_STATUSES);
+		expect(removed.project.enabledAreas).toEqual(["Work", "Documents"]);
+		expect(removed.project.lifecycleStatus).toBe(PROJECT_LIFECYCLE.active);
+		expect(await getProject(prisma, created.project.id)).toEqual(
+			removed.project
+		);
+	});
+
+	it("hides and enables closed catalog areas without deleting records or closing always-on surfaces", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "hide-saas",
+					name: "Atlas",
+					starterConfiguration: "Solo SaaS",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const historyBefore = {
+			selectedSkeletons: created.project.selectedSkeletons,
+			stages: created.project.stages,
+			workStatuses: created.project.workStatuses,
+		};
+		const hidden = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: created.project.revision,
+					change: {
+						action: "set-area-enabled",
+						area: "Discovery",
+						enabled: false,
+					},
+					idempotencyKey: "hide-discovery",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (hidden.status !== "committed") {
+			throw new Error("expected hidden Discovery");
+		}
+		expect(hidden.project.enabledAreas).not.toContain("Discovery");
+		expect(hidden.project.pinnedAreas).toContain("Discovery");
+		expect(hidden.project.alwaysOnSurfaces).toEqual([
+			"Overview",
+			"Work",
+			"Documents",
+			"All Tools",
+		]);
+		expect(hidden.project.stages).toEqual(historyBefore.stages);
+		expect(hidden.project.workStatuses).toEqual(historyBefore.workStatuses);
+		expect(hidden.project.selectedSkeletons).toEqual(
+			historyBefore.selectedSkeletons
+		);
+		expect(
+			hidden.project.allToolsAreas.find((area) => area.name === "Discovery")
+		).toMatchObject({ enabled: false, name: "Discovery", pinned: true });
+		const shown = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: hidden.project.revision,
+					change: {
+						action: "set-area-enabled",
+						area: "Discovery",
+						enabled: true,
+					},
+					idempotencyKey: "show-discovery",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (shown.status !== "committed") {
+			throw new Error("expected shown Discovery");
+		}
+		expect(shown.project.enabledAreas).toContain("Discovery");
+		expect(shown.project.stages).toEqual(historyBefore.stages);
+		expect(
+			await configureProject(
+				prisma,
+				configureCommand(
+					{
+						baseRevision: shown.project.revision,
+						change: {
+							action: "set-area-enabled",
+							area: "Overview",
+							enabled: false,
+						},
+						idempotencyKey: "hide-overview",
+						projectId: created.project.id,
+					},
+					actorId
+				)
+			)
+		).toEqual({
+			reason: "not-a-project-area",
+			status: "rejected",
+		});
+		expect(
+			await configureProject(
+				prisma,
+				configureCommand(
+					{
+						baseRevision: shown.project.revision,
+						change: {
+							action: "set-area-enabled",
+							area: "All Tools",
+							enabled: false,
+						},
+						idempotencyKey: "hide-all-tools",
+						projectId: created.project.id,
+					},
+					actorId
+				)
+			)
+		).toEqual({
+			reason: "not-a-project-area",
+			status: "rejected",
+		});
+		expect(await getProject(prisma, created.project.id)).toMatchObject({
+			alwaysOnSurfaces: ["Overview", "Work", "Documents", "All Tools"],
+			enabledAreas: expect.arrayContaining(["Discovery"]),
+		});
+	});
+
+	it("pins and restores default navigation without changing enablement", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "pin-blank",
+					name: "Payments",
+					starterConfiguration: "Blank Project",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const hidden = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: created.project.revision,
+					change: {
+						action: "set-area-enabled",
+						area: "Tests",
+						enabled: false,
+					},
+					idempotencyKey: "keep-tests-hidden",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (hidden.status !== "committed") {
+			throw new Error("expected Tests still hidden");
+		}
+		expect(hidden.project.enabledAreas).toEqual(["Work", "Documents"]);
+		const pinned = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: hidden.project.revision,
+					change: { action: "pin-to-navigation", area: "Tests" },
+					idempotencyKey: "pin-tests",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (pinned.status !== "committed") {
+			throw new Error("expected pinned Tests");
+		}
+		expect(pinned.project.pinnedAreas).toEqual(["Tests"]);
+		expect(pinned.project.enabledAreas).toEqual(["Work", "Documents"]);
+		expect(
+			pinned.project.allToolsAreas.find((area) => area.name === "Tests")
+		).toMatchObject({ enabled: false, pinned: true });
+		const restored = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: pinned.project.revision,
+					change: { action: "restore-default-navigation" },
+					idempotencyKey: "restore-nav",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (restored.status !== "committed") {
+			throw new Error("expected restored navigation");
+		}
+		expect(restored.project.pinnedAreas).toEqual([]);
+		expect(restored.project.enabledAreas).toEqual(["Work", "Documents"]);
+		expect(
+			await configureProject(
+				prisma,
+				configureCommand(
+					{
+						baseRevision: restored.project.revision,
+						change: { action: "pin-to-navigation", area: "Overview" },
+						idempotencyKey: "pin-overview",
+						projectId: created.project.id,
+					},
+					actorId
+				)
+			)
+		).toEqual({
+			reason: "not-a-project-area",
+			status: "rejected",
+		});
+	});
+
+	it("renames Work status labels without adding values or rewriting semantics", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "status-blank",
+					name: "Payments",
+					starterConfiguration: "Blank Project",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const renamed = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: created.project.revision,
+					change: {
+						action: "rename-work-status",
+						label: "Todo",
+						semantic: "Not Started",
+					},
+					idempotencyKey: "rename-not-started",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (renamed.status !== "committed") {
+			throw new Error("expected renamed Work status");
+		}
+		expect(renamed.project.workStatuses).toEqual([
+			{ label: "Todo", semantic: "Not Started" },
+			{ label: "In Progress", semantic: "In Progress" },
+			{ label: "Blocked", semantic: "Blocked" },
+			{ label: "Closed", semantic: "Closed" },
+		]);
+		expect(workStatusSemantics(renamed.project)).toEqual([
+			"Not Started",
+			"In Progress",
+			"Blocked",
+			"Closed",
+		]);
+		expect(renamed.project.stages).toEqual([]);
+		expect(
+			await configureProject(
+				prisma,
+				configureCommand(
+					{
+						baseRevision: renamed.project.revision,
+						change: {
+							action: "rename-work-status",
+							label: "Done",
+							semantic: "Done",
+						},
+						idempotencyKey: "unknown-semantic",
+						projectId: created.project.id,
+					},
+					actorId
+				)
+			)
+		).toEqual({
+			reason: "unknown-work-status",
+			status: "rejected",
+		});
+		expect(
+			await configureProject(prisma, {
+				actorId,
+				baseRevision: renamed.project.revision,
+				change: {
+					action: "add-work-status",
+					name: "Review",
+				},
+				idempotencyKey: "add-status",
+				origin: "human",
+				projectId: created.project.id,
+			})
+		).toEqual({
+			reason: "unknown-structure-action",
+			status: "rejected",
+		});
+		expect(await getProject(prisma, created.project.id)).toEqual(
+			renamed.project
+		);
+	});
+
+	it("enables Tests without creating a test product or Lookup Formula fields", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "enable-tests",
+					name: "Payments",
+					starterConfiguration: "Blank Project",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const enabled = await configureProject(
+			prisma,
+			configureCommand(
+				{
+					baseRevision: created.project.revision,
+					change: {
+						action: "set-area-enabled",
+						area: "Tests",
+						enabled: true,
+					},
+					idempotencyKey: "enable-tests-area",
+					projectId: created.project.id,
+				},
+				actorId
+			)
+		);
+		if (enabled.status !== "committed") {
+			throw new Error("expected enabled Tests");
+		}
+		expect(enabled.project.enabledAreas).toEqual([
+			"Work",
+			"Documents",
+			"Tests",
+		]);
+		expect(JSON.stringify(enabled.project)).not.toMatch(TEST_PRODUCT_PATTERN);
+		expect(JSON.stringify(enabled.project)).not.toMatch(LOOKUP_FORMULA_PATTERN);
+		expect(JSON.stringify(enabled.project)).not.toMatch(
+			OVERVIEW_MODULE_PATTERN
+		);
+		expect(enabled.project).not.toHaveProperty("plannedTestCases");
+		expect(enabled.project).not.toHaveProperty("lookupFields");
+		expect(enabled.project).not.toHaveProperty("formulaFields");
+		expect(enabled.project).not.toHaveProperty("overviewModules");
+		expect(
+			configurationModeView({ open: true, savedViews: ["Backlog"] }).hosts
+		).not.toContain("Lookup");
+		expect(
+			configurationModeView({ open: true, savedViews: ["Backlog"] }).hosts
+		).not.toContain("Formula");
 	});
 
 	it("drops a Prisma client that cannot record skeleton catalog selection", () => {

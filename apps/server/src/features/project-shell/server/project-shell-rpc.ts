@@ -5,6 +5,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import {
+	configureProject,
 	createProject,
 	dismissFirstOpenExplanation,
 	getProject,
@@ -14,8 +15,12 @@ import {
 } from "./project-shell";
 import {
 	createProjectPayloadSchema,
+	PROJECT_AREAS,
 	PROJECT_SHELL_COPY,
+	PROTECTED_WORK_STATUSES,
+	STAGE_STATES,
 	STARTER_CONFIGURATIONS,
+	structureChangeSchema,
 } from "./project-shell-model";
 
 async function requireAccess(userId: string) {
@@ -29,8 +34,35 @@ async function requireAccess(userId: string) {
 export const projectShell = {
 	catalog: protectedProcedure.handler(() => ({
 		copy: PROJECT_SHELL_COPY,
+		projectAreas: PROJECT_AREAS,
+		protectedWorkStatuses: PROTECTED_WORK_STATUSES,
+		stageStates: STAGE_STATES,
 		starterConfigurations: STARTER_CONFIGURATIONS,
 	})),
+	configure: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				change: structureChangeSchema,
+				idempotencyKey: z.string(),
+				projectId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const existing = await getProject(getPrismaClient(), input.projectId);
+			if (!existing || existing.workspaceId !== access.workspaceId) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return await configureProject(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				change: input.change,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				projectId: input.projectId,
+			});
+		}),
 	create: protectedWriteProcedure
 		.input(
 			z.object({

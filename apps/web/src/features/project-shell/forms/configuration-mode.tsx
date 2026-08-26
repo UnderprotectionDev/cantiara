@@ -1,11 +1,15 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useCallback } from "react";
 
+import ProjectAreasForm from "./project-areas-form";
 import {
 	CONFIGURATION_MODE_EDITORS,
 	type ConfigurationModeEditor,
 	PROJECT_SHELL_COPY,
+	type StageState,
 } from "./project-shell-copy";
+import StagesForm from "./stages-form";
+import WorkStatusesForm from "./work-statuses-form";
 
 export default function ConfigurationMode({
 	areas,
@@ -13,17 +17,21 @@ export default function ConfigurationMode({
 	onOpenEditor,
 	onToggle,
 	open,
+	projectId,
+	revision,
 	stages,
 	workStatuses,
 	workViews,
 }: {
-	areas: readonly string[];
+	areas: readonly { enabled: boolean; name: string; pinned: boolean }[];
 	editor: ConfigurationModeEditor | null;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
 	onToggle: () => void;
 	open: boolean;
-	stages: readonly string[];
-	workStatuses: readonly string[];
+	projectId: string;
+	revision: number;
+	stages: readonly { id: string; name: string; state: StageState }[];
+	workStatuses: readonly { label: string; semantic: string }[];
 	workViews: readonly string[];
 }) {
 	const openCustomField = useCallback(() => {
@@ -46,29 +54,26 @@ export default function ConfigurationMode({
 			{open ? (
 				<>
 					<p role="status">{PROJECT_SHELL_COPY.configurationMode}</p>
-					<section aria-label={PROJECT_SHELL_COPY.stages}>
-						<h2>{PROJECT_SHELL_COPY.stages}</h2>
-						<ul>
-							{stages.map((stage) => (
-								<li key={stage}>{stage}</li>
-							))}
-						</ul>
-					</section>
-					<section aria-label={PROJECT_SHELL_COPY.workStatuses}>
-						<h2>{PROJECT_SHELL_COPY.workStatuses}</h2>
-						<ul>
-							{workStatuses.map((status) => (
-								<li key={status}>{status}</li>
-							))}
-						</ul>
-					</section>
+					<StagesForm
+						projectId={projectId}
+						revision={revision}
+						stages={stages}
+					/>
+					<WorkStatusesForm
+						projectId={projectId}
+						revision={revision}
+						workStatuses={workStatuses}
+					/>
 					<section aria-label={PROJECT_SHELL_COPY.projectAreas}>
 						<h2>{PROJECT_SHELL_COPY.projectAreas}</h2>
-						<ul>
-							{areas.map((area) => (
-								<li key={area}>{area}</li>
-							))}
-						</ul>
+						<ProjectAreasForm
+							areas={areas}
+							label={PROJECT_SHELL_COPY.projectAreas}
+							projectId={projectId}
+							revision={revision}
+							showEnablement={true}
+							showRestore={true}
+						/>
 					</section>
 					<section aria-label={PROJECT_SHELL_COPY.priorityMetrics}>
 						<h2>{PROJECT_SHELL_COPY.priorityMetrics}</h2>
