@@ -27,11 +27,6 @@ export const DATE_FORMAT_COPY = {
 	"yyyy-MM-dd": "yyyy-MM-dd",
 } as const;
 
-export const APPEARANCE_COPY = {
-	dark: "Dark",
-	light: "Light",
-} as const;
-
 export function preferencesChrome(_locale: string) {
 	return ACCOUNT_PREFERENCES_COPY;
 }

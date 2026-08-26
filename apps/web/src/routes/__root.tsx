@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
-import { ThemeProvider } from "@/features/account-preferences/views/theme-provider";
+import { AppearanceProvider } from "@/features/account-preferences/views/appearance-provider";
 import Header from "@/features/personal-shell/components/header";
 import type { orpc } from "@/utils/orpc";
 
@@ -44,13 +44,13 @@ function RootComponent() {
 	return (
 		<>
 			<HeadContent />
-			<ThemeProvider>
+			<AppearanceProvider>
 				<div className="grid h-svh grid-rows-[auto_1fr]">
 					<Header />
 					<Outlet />
 				</div>
 				<Toaster richColors />
-			</ThemeProvider>
+			</AppearanceProvider>
 			<TanStackRouterDevtools position="bottom-left" />
 			<ReactQueryDevtools buttonPosition="bottom-right" position="bottom" />
 		</>

@@ -1,6 +1,5 @@
 import {
 	ACCOUNT_PREFERENCES_COPY,
-	APPEARANCE_COPY,
 	DATE_FORMAT_COPY,
 } from "@cantiara/auth/account-preferences-copy";
 import {
@@ -180,7 +179,7 @@ export default function PreferencesForm({
 						>
 							{APPEARANCES.map((appearance) => (
 								<NativeSelectOption key={appearance} value={appearance}>
-									{APPEARANCE_COPY[appearance]}
+									{appearance}
 								</NativeSelectOption>
 							))}
 						</PreferenceSelect>
@@ -253,8 +252,7 @@ function PreferencesPreview({ values }: { values: AccountPreferencesInput }) {
 				{ACCOUNT_PREFERENCES_COPY.workTitle} {WORK_TITLE}
 			</p>
 			<p>
-				{ACCOUNT_PREFERENCES_COPY.appearance}{" "}
-				{APPEARANCE_COPY[values.appearance]}
+				{ACCOUNT_PREFERENCES_COPY.appearance} {values.appearance}
 			</p>
 		</section>
 	);

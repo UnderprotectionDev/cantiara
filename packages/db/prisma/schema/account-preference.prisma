@@ -6,7 +6,7 @@ model AccountPreference {
   timeZone       String
   dateFormat     String
   firstDayOfWeek String
-  appearance     String   @default("dark")
+  appearance     String   @default("Dark")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

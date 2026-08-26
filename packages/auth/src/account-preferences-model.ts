@@ -4,9 +4,9 @@ export const DEFAULT_LOCALE = "en-GB";
 export const DEFAULT_TIME_ZONE = "Europe/Istanbul";
 export const DEFAULT_FIRST_DAY_OF_WEEK = "Monday";
 export const DEFAULT_DATE_FORMAT = "locale";
-export const DEFAULT_APPEARANCE = "dark";
+export const DEFAULT_APPEARANCE = "Dark";
 
-export const APPEARANCES = ["light", "dark"] as const;
+export const APPEARANCES = ["Light", "Dark"] as const;
 
 export const FIRST_DAYS_OF_WEEK = [
 	"Sunday",
@@ -106,6 +106,13 @@ export function unsavedAccountPreferences(): AccountPreferences {
 		saved: false,
 		timeZone: DEFAULT_TIME_ZONE,
 	};
+}
+
+export function appearanceFromHesap(
+	preferences: Pick<AccountPreferences, "appearance">,
+	_deviceTheme?: string
+): Appearance {
+	return appearanceSchema.parse(preferences.appearance);
 }
 
 export function shouldShowLocaleTimeZoneSuggestion(

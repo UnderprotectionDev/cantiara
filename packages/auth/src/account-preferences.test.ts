@@ -29,6 +29,8 @@ import {
 	weekdayHeaders,
 } from "./account-preferences-format";
 import {
+	appearanceFromHesap,
+	appearanceSchema,
 	applySuggestedLocaleAndTimeZone,
 	DEFAULT_FIRST_DAY_OF_WEEK,
 	DEFAULT_LOCALE,
@@ -50,7 +52,7 @@ const SAMPLE_NUMBER = 1234.5;
 
 function defaults() {
 	return {
-		appearance: "dark" as const,
+		appearance: "Dark" as const,
 		dateFormat: "locale" as const,
 		firstDayOfWeek: DEFAULT_FIRST_DAY_OF_WEEK,
 		locale: DEFAULT_LOCALE,
@@ -59,7 +61,7 @@ function defaults() {
 	};
 }
 
-function fields(
+function preferenceInput(
 	overrides: Partial<Omit<ReturnType<typeof defaults>, "saved">> = {}
 ) {
 	const { saved: _saved, ...input } = defaults();
@@ -144,7 +146,7 @@ describe("Account Preferences", () => {
 		const saved = await saveAccountPreferences(
 			prisma,
 			accountId,
-			fields({
+			preferenceInput({
 				dateFormat: "yyyy-MM-dd",
 				firstDayOfWeek: "Sunday",
 				locale: "tr-TR",
@@ -152,7 +154,7 @@ describe("Account Preferences", () => {
 			})
 		);
 		expect(saved).toEqual({
-			appearance: "dark",
+			appearance: "Dark",
 			dateFormat: "yyyy-MM-dd",
 			firstDayOfWeek: "Sunday",
 			locale: "tr-TR",
@@ -173,7 +175,7 @@ describe("Account Preferences", () => {
 		const saved = await saveAccountPreferences(
 			prisma,
 			accountId,
-			fields({
+			preferenceInput({
 				dateFormat: draft.dateFormat,
 				firstDayOfWeek: draft.firstDayOfWeek,
 				locale: draft.locale,
@@ -278,7 +280,7 @@ describe("Account Preferences", () => {
 		await saveAccountPreferences(
 			prisma,
 			accountId,
-			fields({
+			preferenceInput({
 				dateFormat: "MM/dd/yyyy",
 				firstDayOfWeek: "Sunday",
 				locale: "tr-TR",
@@ -336,8 +338,8 @@ describe("Account Preferences", () => {
 		await saveAccountPreferences(
 			prisma,
 			accountId,
-			fields({
-				appearance: "light",
+			preferenceInput({
+				appearance: "Light",
 				dateFormat: "locale",
 				firstDayOfWeek: "Monday",
 				locale: "en-US",
@@ -346,7 +348,7 @@ describe("Account Preferences", () => {
 		);
 		const saved = await getAccountPreferences(prisma, accountId);
 		expect(saved).toEqual({
-			appearance: "light",
+			appearance: "Light",
 			dateFormat: "locale",
 			firstDayOfWeek: "Monday",
 			locale: "en-US",
@@ -360,29 +362,35 @@ describe("Account Preferences", () => {
 		const light = await saveAccountPreferences(
 			prisma,
 			accountId,
-			fields({ appearance: "light" })
+			preferenceInput({ appearance: "Light" })
 		);
-		expect(light.appearance).toBe("light");
+		expect(light.appearance).toBe("Light");
 		await expect(
 			getAccountPreferences(prisma, accountId)
-		).resolves.toMatchObject({ appearance: "light", saved: true });
+		).resolves.toMatchObject({ appearance: "Light", saved: true });
 		const dark = await saveAccountPreferences(
 			prisma,
 			accountId,
-			fields({ appearance: "dark" })
+			preferenceInput({ appearance: "Dark" })
 		);
-		expect(dark.appearance).toBe("dark");
+		expect(dark.appearance).toBe("Dark");
 		await expect(
 			getAccountPreferences(prisma, accountId)
-		).resolves.toMatchObject({ appearance: "dark", saved: true });
+		).resolves.toMatchObject({ appearance: "Dark", saved: true });
 	});
 
 	it("does not accept System as a Hesap Appearance value", async () => {
 		await expect(
 			saveAccountPreferences(prisma, accountId, {
-				...fields(),
-				appearance: "system",
-			} as unknown as ReturnType<typeof fields>)
+				...preferenceInput(),
+				appearance: "System",
+			} as unknown as ReturnType<typeof preferenceInput>)
+		).rejects.toThrow();
+		await expect(
+			saveAccountPreferences(prisma, accountId, {
+				...preferenceInput(),
+				appearance: "dark",
+			} as unknown as ReturnType<typeof preferenceInput>)
 		).rejects.toThrow();
 		await expect(getAccountPreferences(prisma, accountId)).resolves.toEqual(
 			defaults()
@@ -390,16 +398,15 @@ describe("Account Preferences", () => {
 	});
 
 	it("applies Light and Dark from the Hesap record rather than a device theme key", async () => {
-		const deviceTheme = "light";
 		await saveAccountPreferences(
 			prisma,
 			accountId,
-			fields({ appearance: "dark" })
+			preferenceInput({ appearance: "Dark" })
 		);
 		const saved = await getAccountPreferences(prisma, accountId);
-		expect(saved.appearance).toBe("dark");
-		expect(saved.appearance).not.toBe(deviceTheme);
-		expect("storageKey" in saved).toBe(false);
-		expect("deviceTheme" in saved).toBe(false);
+		expect(appearanceFromHesap(saved, "light")).toBe("Dark");
+		expect(appearanceFromHesap(saved, "system")).toBe("Dark");
+		expect(appearanceSchema.safeParse("system").success).toBe(false);
+		expect(appearanceSchema.safeParse("vite-ui-theme").success).toBe(false);
 	});
 });

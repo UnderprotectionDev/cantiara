@@ -6,7 +6,6 @@ export {
 } from "./account-access-error";
 export {
 	ACCOUNT_PREFERENCES_COPY,
-	APPEARANCE_COPY,
 	DATE_FORMAT_COPY,
 	preferencesChrome,
 } from "./account-preferences-copy";
@@ -26,6 +25,7 @@ export {
 	APPEARANCES,
 	type Appearance,
 	accountPreferencesInputSchema,
+	appearanceFromHesap,
 	appearanceSchema,
 	applySuggestedLocaleAndTimeZone,
 	DATE_FORMATS,

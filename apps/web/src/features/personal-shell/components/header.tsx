@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { ModeToggle } from "@/features/account-preferences/forms/mode-toggle";
+import { AppearanceToggle } from "@/features/account-preferences/forms/appearance-toggle";
 import UserMenu from "@/features/personal-shell/components/user-menu";
 
 export default function Header() {
@@ -22,7 +22,7 @@ export default function Header() {
 					))}
 				</nav>
 				<div className="flex items-center gap-2">
-					<ModeToggle />
+					<AppearanceToggle />
 					<UserMenu />
 				</div>
 			</div>
