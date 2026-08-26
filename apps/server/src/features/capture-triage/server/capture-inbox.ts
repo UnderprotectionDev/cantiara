@@ -364,29 +364,29 @@ export function createCaptureInbox(input: {
 		sequentialFocusedId = nextSequentialFocus(remainingBefore, itemId);
 	}
 
+	async function runFocusedExit<T extends { status: string }>(
+		itemId: string,
+		run: () => Promise<T>
+	): Promise<T> {
+		const remainingBefore = sequentialFocusedId
+			? (await listAllItems()).map((item) => item.id)
+			: [];
+		const outcome = await run();
+		if (outcome.status === "consumed") {
+			afterFocusedExit(itemId, remainingBefore);
+		}
+		return outcome;
+	}
+
 	return {
 		advanceTime(instant) {
 			now = instant;
 		},
-		async attach(command) {
-			const remainingBefore = sequentialFocusedId
-				? (await listAllItems()).map((item) => item.id)
-				: [];
-			const outcome = await triage.attach(command);
-			if (outcome.status === "consumed") {
-				afterFocusedExit(command.itemId, remainingBefore);
-			}
-			return outcome;
+		attach(command) {
+			return runFocusedExit(command.itemId, () => triage.attach(command));
 		},
-		async convert(command) {
-			const remainingBefore = sequentialFocusedId
-				? (await listAllItems()).map((item) => item.id)
-				: [];
-			const outcome = await triage.convert(command);
-			if (outcome.status === "consumed") {
-				afterFocusedExit(command.itemId, remainingBefore);
-			}
-			return outcome;
+		convert(command) {
+			return runFocusedExit(command.itemId, () => triage.convert(command));
 		},
 		async createBug(command) {
 			if (!connected()) {
@@ -447,15 +447,8 @@ export function createCaptureInbox(input: {
 			lastSuccessfulSaveAt = savedAt;
 			return outcome;
 		},
-		async deleteItem(command) {
-			const remainingBefore = sequentialFocusedId
-				? (await listAllItems()).map((item) => item.id)
-				: [];
-			const outcome = await triage.deleteItem(command);
-			if (outcome.status === "consumed") {
-				afterFocusedExit(command.itemId, remainingBefore);
-			}
-			return outcome;
+		deleteItem(command) {
+			return runFocusedExit(command.itemId, () => triage.deleteItem(command));
 		},
 		exitSequentialTriage() {
 			sequentialFocusedId = null;

@@ -25,7 +25,7 @@ test("Sequential triage starts on one remaining item", () => {
 	});
 });
 
-test("Sequential triage advances only after an explicit exit", () => {
+test("the next Sequential triage focus is the following remaining item", () => {
 	expect(nextSequentialFocus(ids, "a")).toBe("b");
 	expect(nextSequentialFocus(ids, "c")).toBeNull();
 	expect(sequentialTriageView([items[1], items[2]], "b")).toEqual({
@@ -35,7 +35,7 @@ test("Sequential triage advances only after an explicit exit", () => {
 	});
 });
 
-test("Sequential triage goes back to the previous remaining item or to the list", () => {
+test("Sequential triage can step back or return to the list", () => {
 	expect(goBackSequentialFocus(ids, "c")).toBe("b");
 	expect(goBackSequentialFocus(ids, "a")).toBe("a");
 	expect(sequentialTriageView(items, null)).toEqual({

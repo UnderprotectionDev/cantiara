@@ -418,7 +418,6 @@ function CaptureInboxList({
 					<ul className="flex flex-col gap-3">
 						<CaptureInboxItemCard
 							copy={copy}
-							editable
 							item={sequential.focused}
 							onItemConsumed={onItemConsumed}
 							onMergeConsumed={onMergeConsumed}
@@ -467,7 +466,6 @@ function CaptureInboxList({
 
 function CaptureInboxItemCard({
 	copy,
-	editable = false,
 	item,
 	onItemConsumed,
 	onMergeConsumed,
@@ -484,7 +482,6 @@ function CaptureInboxItemCard({
 		otherProjects: string;
 		work: string;
 	};
-	editable?: boolean;
 	item: { body: string; id: string; template: string | null };
 	onItemConsumed: (itemId: string) => void;
 	onMergeConsumed: (mergeId: string) => void;
@@ -494,29 +491,10 @@ function CaptureInboxItemCard({
 		templates?.find((template) => template.id === item.template)?.label ??
 		item.template;
 	const preview = captureInboxItemPreview(item, templateLabel);
-	const [draft, setDraft] = useState(preview);
-	useEffect(() => {
-		setDraft(preview);
-	}, [preview]);
-	const onDraftChange = useCallback(
-		(event: ChangeEvent<HTMLTextAreaElement>) => {
-			setDraft(event.target.value);
-		},
-		[]
-	);
 
 	return (
 		<li className="rounded-none border border-border p-3">
-			{editable ? (
-				<Textarea
-					aria-label={preview}
-					id={`sequential-fields-${item.id}`}
-					onChange={onDraftChange}
-					value={draft}
-				/>
-			) : (
-				<p className="whitespace-pre-wrap text-sm">{preview}</p>
-			)}
+			<p className="whitespace-pre-wrap text-sm">{preview}</p>
 			<CaptureTriageActions
 				copy={copy}
 				itemId={item.id}
