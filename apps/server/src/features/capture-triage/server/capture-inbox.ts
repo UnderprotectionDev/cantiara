@@ -37,6 +37,8 @@ import {
 	type TriageExit,
 	type UndoMergeOutcome,
 } from "./capture-triage-exits";
+import { createWebCapture, type WebCapture } from "./web-capture";
+import { clipperBrowserFamilies, WEB_CAPTURE_COPY } from "./web-capture-model";
 
 export interface WorkCreateCommand {
 	actorId: string;
@@ -112,6 +114,12 @@ export interface CaptureInbox {
 		relation: BindRelation;
 		targetId: string;
 	}) => Promise<AttachOutcome>;
+	backgroundScan: WebCapture["backgroundScan"];
+	claimsSafariClipper: WebCapture["claimsSafariClipper"];
+	clip: WebCapture["clip"];
+	clipArchive: WebCapture["clipArchive"];
+	clipperBrowserFamilies: WebCapture["clipperBrowserFamilies"];
+	contentFingerprint: WebCapture["contentFingerprint"];
 	convert: (input: {
 		idempotencyKey: string;
 		itemId: string;
@@ -125,9 +133,18 @@ export interface CaptureInbox {
 		idempotencyKey: string;
 		itemId: string;
 	}) => Promise<DeleteOutcome>;
+	finalizeWebCapture: WebCapture["finalizeWebCapture"];
+	historyCollection: WebCapture["historyCollection"];
+	issuePairingCode: WebCapture["issuePairingCode"];
+	kaynakRecords: WebCapture["kaynakRecords"];
 	lastSuccessfulSaveAt: () => Date | null;
 	list: (scope: CaptureInboxScope) => Promise<CaptureInboxItemView[]>;
 	listAll: () => Promise<CaptureInboxItemView[]>;
+	listExtensionLinks: WebCapture["listExtensionLinks"];
+	livePageCopies: WebCapture["livePageCopies"];
+	logs: WebCapture["logs"];
+	pageInjection: WebCapture["pageInjection"];
+	pair: WebCapture["pair"];
 	previewAttach: (input: {
 		itemId: string;
 		relation: BindRelation;
@@ -140,10 +157,17 @@ export interface CaptureInbox {
 	previewUndoMerge: (input: {
 		mergeId: string;
 	}) => Promise<MergeUndoPreview | { status: "not-found" }>;
+	previewWebCapture: WebCapture["previewWebCapture"];
+	revokeAllExtensionLinks: WebCapture["revokeAllExtensionLinks"];
+	revokeExtensionLink: WebCapture["revokeExtensionLink"];
 	save: (
 		input: Omit<SaveCaptureInput, "actorId" | "workspaceId">
 	) => Promise<SaveCaptureOutcome>;
+	searchCaptureTargets: WebCapture["searchCaptureTargets"];
 	searchHits: () => readonly [];
+	sendPayload: WebCapture["sendPayload"];
+	sendWebCapture: WebCapture["sendWebCapture"];
+	stageWebCapture: WebCapture["stageWebCapture"];
 	suggestSimilar: (input: {
 		itemId: string;
 	}) => Promise<SimilarSuggestions | { status: "not-found" }>;
@@ -156,6 +180,7 @@ export interface CaptureInbox {
 	unsavedRisk: (
 		hasUnsavedChanges: boolean
 	) => typeof CAPTURE_INBOX_COPY.unsavedChangesMayBeLost | null;
+	wideReadWarning: WebCapture["wideReadWarning"];
 	writeQueue: () => readonly never[];
 }
 
@@ -307,6 +332,18 @@ export function createCaptureInbox(input: {
 	const similarRecords = input.similarRecords ?? (() => []);
 	let lastSuccessfulSaveAt: Date | null = null;
 	const connected = () => input.connected !== false;
+	const logs: string[] = [];
+	const webCapture = createWebCapture({
+		actorId: input.actorId,
+		clock,
+		connected,
+		logs,
+		onSaved(savedAt) {
+			lastSuccessfulSaveAt = savedAt;
+		},
+		prisma: input.prisma,
+		workspaceId: input.workspaceId,
+	});
 	const triage = createTriageExits({
 		actorId: input.actorId,
 		binder,
@@ -324,6 +361,12 @@ export function createCaptureInbox(input: {
 			now = instant;
 		},
 		attach: triage.attach,
+		backgroundScan: webCapture.backgroundScan,
+		claimsSafariClipper: webCapture.claimsSafariClipper,
+		clip: webCapture.clip,
+		clipArchive: webCapture.clipArchive,
+		clipperBrowserFamilies: webCapture.clipperBrowserFamilies,
+		contentFingerprint: webCapture.contentFingerprint,
 		convert: triage.convert,
 		async createBug(command) {
 			if (!connected()) {
@@ -385,6 +428,10 @@ export function createCaptureInbox(input: {
 			return outcome;
 		},
 		deleteItem: triage.deleteItem,
+		finalizeWebCapture: webCapture.finalizeWebCapture,
+		historyCollection: webCapture.historyCollection,
+		issuePairingCode: webCapture.issuePairingCode,
+		kaynakRecords: webCapture.kaynakRecords,
 		lastSuccessfulSaveAt() {
 			return lastSuccessfulSaveAt;
 		},
@@ -408,9 +455,17 @@ export function createCaptureInbox(input: {
 			});
 			return rows.map(toItemView);
 		},
+		listExtensionLinks: webCapture.listExtensionLinks,
+		livePageCopies: webCapture.livePageCopies,
+		logs: webCapture.logs,
+		pageInjection: webCapture.pageInjection,
+		pair: webCapture.pair,
 		previewAttach: triage.previewAttach,
 		previewConvert: triage.previewConvert,
 		previewUndoMerge: triage.previewUndoMerge,
+		previewWebCapture: webCapture.previewWebCapture,
+		revokeAllExtensionLinks: webCapture.revokeAllExtensionLinks,
+		revokeExtensionLink: webCapture.revokeExtensionLink,
 		async save(command) {
 			if (!connected()) {
 				return { queued: false, reason: "offline", status: "refused" };
@@ -453,9 +508,13 @@ export function createCaptureInbox(input: {
 			lastSuccessfulSaveAt = capturedAt;
 			return outcome;
 		},
+		searchCaptureTargets: webCapture.searchCaptureTargets,
 		searchHits() {
 			return [];
 		},
+		sendPayload: webCapture.sendPayload,
+		sendWebCapture: webCapture.sendWebCapture,
+		stageWebCapture: webCapture.stageWebCapture,
 		suggestSimilar: triage.suggestSimilar,
 		async surfaces(itemId) {
 			const row = await input.prisma.captureInboxItem.findFirst({
@@ -476,6 +535,7 @@ export function createCaptureInbox(input: {
 				? CAPTURE_INBOX_COPY.unsavedChangesMayBeLost
 				: null;
 		},
+		wideReadWarning: webCapture.wideReadWarning,
 		writeQueue() {
 			return [];
 		},
@@ -484,7 +544,11 @@ export function createCaptureInbox(input: {
 
 export function captureInboxCatalog() {
 	return {
-		copy: CAPTURE_INBOX_COPY,
+		clipperBrowsers: clipperBrowserFamilies(),
+		copy: {
+			...CAPTURE_INBOX_COPY,
+			...WEB_CAPTURE_COPY,
+		},
 		exits: TRIAGE_EXIT_CATALOG,
 		templates: miniTemplateCatalog(),
 	};
