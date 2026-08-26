@@ -75,6 +75,7 @@ export const PROJECT_SHELL_COPY = {
 	projectAreas: "Project areas",
 	projectName: "Project Name",
 	purpose: "Purpose",
+	savedViews: "Saved views",
 	scope: "Scope",
 	shortCode: "Short code",
 	shortCodeLocked: "Short code is locked after the first Work.",
@@ -285,6 +286,7 @@ const CONFIGURATION_MODE_HOSTS = [
 	PROJECT_SHELL_COPY.projectAreas,
 	PROJECT_SHELL_COPY.customField,
 	PROJECT_SHELL_COPY.priorityMetrics,
+	PROJECT_SHELL_COPY.savedViews,
 	PROJECT_SHELL_COPY.workContextCardLayout,
 ] as const;
 
@@ -298,7 +300,7 @@ const DAILY_ACTIONS = [
 export function configurationModeView(input: {
 	editor?: ConfigurationModeEditor | null;
 	open: boolean;
-	planningViews: readonly string[];
+	savedViews: readonly string[];
 }) {
 	const editor = input.open ? (input.editor ?? null) : null;
 	return {
@@ -310,7 +312,7 @@ export function configurationModeView(input: {
 		label: PROJECT_SHELL_COPY.configurationMode,
 		ownsCustomFieldSchema: false,
 		ownsWorkContextCardLayout: false,
-		planningViews: input.planningViews,
+		savedViews: input.savedViews,
 		workContextCardLayoutEditorOpen:
 			editor === CONFIGURATION_MODE_EDITORS.workContextCardLayout,
 	} as const;

@@ -26,6 +26,7 @@ export const PROJECT_SHELL_COPY = {
 	projectName: "Project Name",
 	projects: "Projects",
 	purpose: "Purpose",
+	savedViews: "Saved views",
 	saveShortCode: "Save Short code",
 	scope: "Scope",
 	shortCode: "Short code",

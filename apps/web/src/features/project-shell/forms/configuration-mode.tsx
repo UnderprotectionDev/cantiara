@@ -5,7 +5,6 @@ import {
 	CONFIGURATION_MODE_EDITORS,
 	type ConfigurationModeEditor,
 	PROJECT_SHELL_COPY,
-	projectShellAnchor,
 } from "./project-shell-copy";
 
 export default function ConfigurationMode({
@@ -74,13 +73,11 @@ export default function ConfigurationMode({
 					<section aria-label={PROJECT_SHELL_COPY.priorityMetrics}>
 						<h2>{PROJECT_SHELL_COPY.priorityMetrics}</h2>
 					</section>
-					<section aria-label={PROJECT_SHELL_COPY.planning}>
-						<h2>{PROJECT_SHELL_COPY.planning}</h2>
+					<section aria-label={PROJECT_SHELL_COPY.savedViews}>
+						<h2>{PROJECT_SHELL_COPY.savedViews}</h2>
 						<ul>
 							{workViews.map((view) => (
-								<li key={`saved-${view}`}>
-									<a href={`#${projectShellAnchor(view)}`}>{view}</a>
-								</li>
+								<li key={view}>{view}</li>
 							))}
 						</ul>
 					</section>

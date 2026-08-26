@@ -1004,7 +1004,7 @@ describe("Project Shell", () => {
 		expect(before).toEqual(created.project);
 		const closed = configurationModeView({
 			open: false,
-			planningViews: created.project.workViews,
+			savedViews: created.project.workViews,
 		});
 		expect(closed).toMatchObject({
 			active: false,
@@ -1015,12 +1015,12 @@ describe("Project Shell", () => {
 			label: "Configuration Mode",
 			ownsCustomFieldSchema: false,
 			ownsWorkContextCardLayout: false,
-			planningViews: ["Backlog", "Board"],
+			savedViews: ["Backlog", "Board"],
 			workContextCardLayoutEditorOpen: false,
 		});
 		const opened = configurationModeView({
 			open: true,
-			planningViews: created.project.workViews,
+			savedViews: created.project.workViews,
 		});
 		expect(opened.active).toBe(true);
 		expect(opened.label).toBe("Configuration Mode");
@@ -1030,8 +1030,10 @@ describe("Project Shell", () => {
 			"Project areas",
 			"Custom field",
 			"Priority metrics",
+			"Saved views",
 			"Work Context Card layout",
 		]);
+		expect(opened.hosts).not.toContain("Planning");
 		expect(opened.dailyActionsAvailable).toBe(true);
 		expect(opened.dailyActions).toEqual([
 			"Create",
@@ -1042,7 +1044,7 @@ describe("Project Shell", () => {
 		const closedAgain = configurationModeView({
 			editor: CONFIGURATION_MODE_EDITORS.customField,
 			open: false,
-			planningViews: created.project.workViews,
+			savedViews: created.project.workViews,
 		});
 		expect(closedAgain.active).toBe(false);
 		expect(closedAgain.customFieldEditorOpen).toBe(false);
@@ -1065,7 +1067,7 @@ describe("Project Shell", () => {
 		const customField = configurationModeView({
 			editor: CONFIGURATION_MODE_EDITORS.customField,
 			open: true,
-			planningViews: ["Backlog", "Board"],
+			savedViews: ["Backlog", "Board"],
 		});
 		expect(customField.customFieldEditorOpen).toBe(true);
 		expect(customField.workContextCardLayoutEditorOpen).toBe(false);
@@ -1074,7 +1076,7 @@ describe("Project Shell", () => {
 		const layout = configurationModeView({
 			editor: CONFIGURATION_MODE_EDITORS.workContextCardLayout,
 			open: true,
-			planningViews: ["Backlog", "Board"],
+			savedViews: ["Backlog", "Board"],
 		});
 		expect(layout.workContextCardLayoutEditorOpen).toBe(true);
 		expect(layout.customFieldEditorOpen).toBe(false);
@@ -1096,6 +1098,8 @@ describe("Project Shell", () => {
 		expect(PROJECT_SHELL_COPY.allTools).toBe("All Tools");
 		expect(PROJECT_SHELL_COPY.dismiss).toBe("Dismiss");
 		expect(PROJECT_SHELL_COPY.configurationMode).toBe("Configuration Mode");
+		expect(PROJECT_SHELL_COPY.savedViews).toBe("Saved views");
+		expect(PROJECT_SHELL_COPY.planning).toBe("Planning");
 		expect(PROJECT_SHELL_COPY.customField).toBe("Custom field");
 		expect(PROJECT_SHELL_COPY.workContextCardLayout).toBe(
 			"Work Context Card layout"

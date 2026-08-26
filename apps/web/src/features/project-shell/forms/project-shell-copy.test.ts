@@ -24,6 +24,7 @@ test("English chrome uses Project Name and Short code", () => {
 		planning: "Planning",
 		priorityMetrics: "Priority metrics",
 		projectName: "Project Name",
+		savedViews: "Saved views",
 		shortCode: "Short code",
 		shortCodeLocked: "Short code is locked after the first Work.",
 		starterConfiguration: "Starter Configuration",
