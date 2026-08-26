@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { STAGE_STATE } from "../../project-shell/server/project-shell-model";
 
 export const OVERVIEW_COPY = {
 	blockers: "Blockers",
@@ -44,13 +44,9 @@ export const TEST_SOURCE_DETAIL = {
 } as const;
 
 export interface OverviewRecordSeed {
+	detail?: string;
 	id: string;
 	title: string;
-}
-
-export interface OverviewDatedRecordSeed extends OverviewRecordSeed {
-	at?: string;
-	targetDate?: string;
 }
 
 export interface OverviewProjectSource {
@@ -68,14 +64,14 @@ export interface OverviewProjectSource {
 
 export interface OverviewSources {
 	blockers: readonly OverviewRecordSeed[];
-	dates: readonly OverviewDatedRecordSeed[];
+	dates: readonly OverviewRecordSeed[];
 	decisions: readonly OverviewRecordSeed[];
 	documents: readonly OverviewRecordSeed[];
 	goals: readonly OverviewRecordSeed[];
 	milestones: readonly OverviewRecordSeed[];
 	productionIncidents: readonly OverviewRecordSeed[];
 	project: OverviewProjectSource;
-	recentChanges: readonly OverviewDatedRecordSeed[];
+	recentChanges: readonly OverviewRecordSeed[];
 	risks: readonly OverviewRecordSeed[];
 	testGaps: readonly OverviewRecordSeed[];
 	testHandoffs: readonly OverviewRecordSeed[];
@@ -113,36 +109,12 @@ const EMPTY_RECORD_LISTS = {
 	work: [] as const,
 };
 
-export const overviewRecordSchema = z.object({
-	detail: z.string().min(1).nullable(),
-	id: z.string().min(1),
-	title: z.string().min(1),
-});
-
-export const projectOverviewSchema = z.object({
-	modules: z.array(
-		z.object({
-			heading: z.enum(OVERVIEW_MODULE_HEADINGS),
-			records: z.array(overviewRecordSchema),
-		})
-	),
-});
-
-function titledRecords(
-	records: readonly OverviewRecordSeed[]
+function asRecords(
+	records: readonly OverviewRecordSeed[],
+	detail?: string
 ): OverviewRecord[] {
 	return records.map((record) => ({
-		detail: null,
-		id: record.id,
-		title: record.title,
-	}));
-}
-
-function datedRecords(
-	records: readonly OverviewDatedRecordSeed[]
-): OverviewRecord[] {
-	return records.map((record) => ({
-		detail: record.targetDate ?? record.at ?? null,
+		detail: detail ?? record.detail ?? null,
 		id: record.id,
 		title: record.title,
 	}));
@@ -150,14 +122,14 @@ function datedRecords(
 
 function datesFromProject(
 	project: OverviewProjectSource
-): OverviewDatedRecordSeed[] {
+): OverviewRecordSeed[] {
 	if (!project.targetDate) {
 		return [];
 	}
 	return [
 		{
+			detail: project.targetDate,
 			id: project.id,
-			targetDate: project.targetDate,
 			title: project.name,
 		},
 	];
@@ -197,71 +169,63 @@ export function projectOverview(sources: OverviewSources): ProjectOverview {
 			},
 			{
 				heading: OVERVIEW_COPY.goals,
-				records: titledRecords(sources.goals),
+				records: asRecords(sources.goals),
 			},
 			{
 				heading: OVERVIEW_COPY.stages,
-				records: project.stages.map((stage) => ({
-					detail: stage.state,
-					id: stage.id,
-					title: stage.name,
-				})),
+				records: asRecords(
+					project.stages
+						.filter((stage) => stage.state === STAGE_STATE.active)
+						.map((stage) => ({
+							detail: stage.state,
+							id: stage.id,
+							title: stage.name,
+						}))
+				),
 			},
 			{
 				heading: OVERVIEW_COPY.milestones,
-				records: titledRecords(sources.milestones),
+				records: asRecords(sources.milestones),
 			},
 			{
 				heading: OVERVIEW_COPY.work,
-				records: titledRecords(sources.work),
+				records: asRecords(sources.work),
 			},
 			{
 				heading: OVERVIEW_COPY.documents,
-				records: titledRecords(sources.documents),
+				records: asRecords(sources.documents),
 			},
 			{
 				heading: OVERVIEW_COPY.decisions,
-				records: titledRecords(sources.decisions),
+				records: asRecords(sources.decisions),
 			},
 			{
 				heading: OVERVIEW_COPY.risks,
-				records: titledRecords(sources.risks),
+				records: asRecords(sources.risks),
 			},
 			{
 				heading: OVERVIEW_COPY.tests,
 				records: [
-					...sources.testHandoffs.map((record) => ({
-						detail: TEST_SOURCE_DETAIL.handoff,
-						id: record.id,
-						title: record.title,
-					})),
-					...sources.testSessions.map((record) => ({
-						detail: TEST_SOURCE_DETAIL.session,
-						id: record.id,
-						title: record.title,
-					})),
-					...sources.testGaps.map((record) => ({
-						detail: TEST_SOURCE_DETAIL.gap,
-						id: record.id,
-						title: record.title,
-					})),
+					...asRecords(sources.testHandoffs, TEST_SOURCE_DETAIL.handoff),
+					...asRecords(sources.testSessions, TEST_SOURCE_DETAIL.session),
+					...asRecords(sources.testGaps, TEST_SOURCE_DETAIL.gap),
 				],
 			},
 			{
 				heading: OVERVIEW_COPY.production,
-				records: titledRecords(sources.productionIncidents),
+				records: asRecords(sources.productionIncidents),
 			},
 			{
 				heading: OVERVIEW_COPY.blockers,
-				records: titledRecords(sources.blockers),
+				records: asRecords(sources.blockers),
 			},
 			{
 				heading: OVERVIEW_COPY.dates,
-				records: datedRecords(sources.dates),
+				records: asRecords(sources.dates),
 			},
 			{
 				heading: OVERVIEW_COPY.recentChanges,
-				records: datedRecords(sources.recentChanges),
+				records: asRecords(sources.recentChanges),
 			},
 		],
 	};

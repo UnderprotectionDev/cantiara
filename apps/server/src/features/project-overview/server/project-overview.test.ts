@@ -142,7 +142,7 @@ describe("Project Overview", () => {
 					productionIncidents: [{ id: "inc-1", title: "Login outage" }],
 					recentChanges: [
 						{
-							at: "2026-08-26T12:00:00.000Z",
+							detail: "2026-08-26T12:00:00.000Z",
 							id: "change-1",
 							title: "Renamed Short code",
 						},
@@ -168,7 +168,6 @@ describe("Project Overview", () => {
 		expect(recordsOf(overview, "Stages")).toEqual([
 			{ detail: "Active", id: "stage-discovery", title: "Discovery" },
 			{ detail: "Active", id: "stage-build", title: "Build" },
-			{ detail: "Not Planned", id: "stage-operate", title: "Operate" },
 		]);
 		expect(recordsOf(overview, "Milestones")).toEqual([
 			{ detail: null, id: "ms-1", title: "Private beta" },
