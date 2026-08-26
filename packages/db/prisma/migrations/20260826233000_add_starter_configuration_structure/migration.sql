@@ -72,3 +72,110 @@ ALTER TABLE "project_work_view" ADD CONSTRAINT "project_work_view_projectId_fkey
 
 -- AddForeignKey
 ALTER TABLE "project_work_status" ADD CONSTRAINT "project_work_status_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "project"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+
+-- Existing Projects created before this table: apply the stored Starter Configuration once.
+INSERT INTO "project_work_status" ("id", "projectId", "semantic", "label", "sortOrder")
+SELECT gen_random_uuid()::text, p.id, v.semantic, v.semantic, v.sort_order
+FROM "project" p
+CROSS JOIN (
+    VALUES
+        ('Not Started', 0),
+        ('In Progress', 1),
+        ('Blocked', 2),
+        ('Closed', 3)
+) AS v(semantic, sort_order);
+
+INSERT INTO "project_area_setting" ("id", "projectId", "name", "enabled", "pinned", "pinOrder")
+SELECT gen_random_uuid()::text, p.id, a.name,
+    CASE
+        WHEN p."starterConfiguration" IN ('Solo SaaS', 'Mobile Application') THEN true
+        WHEN p."starterConfiguration" = 'Open Source Library' AND a.name IN ('Work', 'Documents', 'Decisions', 'Technical Diagrams', 'Tests', 'Releases', 'GitHub') THEN true
+        WHEN a.name IN ('Work', 'Documents') THEN true
+        ELSE false
+    END,
+    CASE
+        WHEN p."starterConfiguration" = 'Solo SaaS' AND a.name = 'Discovery' THEN true
+        WHEN p."starterConfiguration" = 'Solo SaaS' AND a.name = 'Decisions' THEN true
+        WHEN p."starterConfiguration" = 'Solo SaaS' AND a.name = 'Design' THEN true
+        WHEN p."starterConfiguration" = 'Solo SaaS' AND a.name = 'Tests' THEN true
+        WHEN p."starterConfiguration" = 'Solo SaaS' AND a.name = 'Releases' THEN true
+        WHEN p."starterConfiguration" = 'Open Source Library' AND a.name = 'GitHub' THEN true
+        WHEN p."starterConfiguration" = 'Open Source Library' AND a.name = 'Tests' THEN true
+        WHEN p."starterConfiguration" = 'Open Source Library' AND a.name = 'Releases' THEN true
+        WHEN p."starterConfiguration" = 'Mobile Application' AND a.name = 'Discovery' THEN true
+        WHEN p."starterConfiguration" = 'Mobile Application' AND a.name = 'Design' THEN true
+        WHEN p."starterConfiguration" = 'Mobile Application' AND a.name = 'Tests' THEN true
+        WHEN p."starterConfiguration" = 'Mobile Application' AND a.name = 'Releases' THEN true
+        WHEN p."starterConfiguration" = 'Mobile Application' AND a.name = 'Production' THEN true
+        ELSE false
+    END,
+    CASE
+        WHEN p."starterConfiguration" = 'Solo SaaS' AND a.name = 'Discovery' THEN 0
+        WHEN p."starterConfiguration" = 'Solo SaaS' AND a.name = 'Decisions' THEN 1
+        WHEN p."starterConfiguration" = 'Solo SaaS' AND a.name = 'Design' THEN 2
+        WHEN p."starterConfiguration" = 'Solo SaaS' AND a.name = 'Tests' THEN 3
+        WHEN p."starterConfiguration" = 'Solo SaaS' AND a.name = 'Releases' THEN 4
+        WHEN p."starterConfiguration" = 'Open Source Library' AND a.name = 'GitHub' THEN 0
+        WHEN p."starterConfiguration" = 'Open Source Library' AND a.name = 'Tests' THEN 1
+        WHEN p."starterConfiguration" = 'Open Source Library' AND a.name = 'Releases' THEN 2
+        WHEN p."starterConfiguration" = 'Mobile Application' AND a.name = 'Discovery' THEN 0
+        WHEN p."starterConfiguration" = 'Mobile Application' AND a.name = 'Design' THEN 1
+        WHEN p."starterConfiguration" = 'Mobile Application' AND a.name = 'Tests' THEN 2
+        WHEN p."starterConfiguration" = 'Mobile Application' AND a.name = 'Releases' THEN 3
+        WHEN p."starterConfiguration" = 'Mobile Application' AND a.name = 'Production' THEN 4
+        ELSE NULL
+    END
+FROM "project" p
+CROSS JOIN (
+    VALUES
+        ('Work'),
+        ('Documents'),
+        ('Discovery'),
+        ('Decisions'),
+        ('Design'),
+        ('Technical Diagrams'),
+        ('Tests'),
+        ('Releases'),
+        ('Production'),
+        ('GitHub')
+) AS a(name);
+
+INSERT INTO "project_work_view" ("id", "projectId", "name", "sortOrder")
+SELECT gen_random_uuid()::text, p.id, v.name, v.sort_order
+FROM "project" p
+CROSS JOIN (
+    VALUES
+        ('Backlog', 0),
+        ('Board', 1),
+        ('Roadmap', 2)
+) AS v(name, sort_order)
+WHERE (p."starterConfiguration" = 'Blank Project' AND v.name IN ('Backlog', 'Board'))
+   OR (p."starterConfiguration" <> 'Blank Project');
+
+INSERT INTO "project_stage" ("id", "projectId", "name", "state", "sortOrder")
+SELECT gen_random_uuid()::text, p.id, v.name, 'Not Planned', v.sort_order
+FROM "project" p
+CROSS JOIN (
+    VALUES
+        ('Discovery', 0),
+        ('Design', 1),
+        ('Build', 2),
+        ('Validate', 3),
+        ('Release', 4),
+        ('Operate', 5)
+) AS v(name, sort_order)
+WHERE p."starterConfiguration" IN ('Solo SaaS', 'Mobile Application');
+
+INSERT INTO "project_stage" ("id", "projectId", "name", "state", "sortOrder")
+SELECT gen_random_uuid()::text, p.id, v.name, 'Not Planned', v.sort_order
+FROM "project" p
+CROSS JOIN (
+    VALUES
+        ('Scope', 0),
+        ('Build', 1),
+        ('Validate', 2),
+        ('Release', 3),
+        ('Maintain', 4)
+) AS v(name, sort_order)
+WHERE p."starterConfiguration" = 'Open Source Library';
+

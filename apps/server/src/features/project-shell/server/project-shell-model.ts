@@ -106,12 +106,6 @@ export const projectViewSchema = z.object({
 	problem: z.string().min(1).nullable(),
 	purpose: z.string().min(1).nullable(),
 	revision: z.number().int().positive(),
-	sampleContent: z.object({
-		decisions: z.array(z.never()),
-		documents: z.array(z.never()),
-		history: z.array(z.never()),
-		work: z.array(z.never()),
-	}),
 	scope: z.string().min(1).nullable(),
 	shortCode: z.string().min(SHORT_CODE_MIN).max(SHORT_CODE_MAX),
 	shortCodeLocked: z.boolean(),

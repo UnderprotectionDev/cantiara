@@ -754,12 +754,6 @@ describe("Project Shell", () => {
 					"Documents",
 					"All Tools",
 				]);
-				expect(outcome.project.sampleContent).toEqual({
-					decisions: [],
-					documents: [],
-					history: [],
-					work: [],
-				});
 				expect(outcome.project.workContextCardLayouts).toEqual([]);
 				expect(outcome.project.firstOpenExplanationVisible).toBe(true);
 				const allTools = Object.fromEntries(
@@ -926,12 +920,7 @@ describe("Project Shell", () => {
 			throw new Error("expected dismissed explanation");
 		}
 		expect(dismissed.project.firstOpenExplanation).toBeNull();
-		expect(dismissed.project.sampleContent).toEqual({
-			decisions: [],
-			documents: [],
-			history: [],
-			work: [],
-		});
+		expect(dismissed.project.workContextCardLayouts).toEqual([]);
 		const replayed = await dismissFirstOpenExplanation(prisma, {
 			actorId,
 			baseRevision: created.project.revision,
@@ -945,6 +934,51 @@ describe("Project Shell", () => {
 			firstOpenExplanationVisible: false,
 			stages: [],
 		});
+	});
+
+	it("applies the stored Starter Configuration once when structure rows are missing", async () => {
+		const { workspaceId } = await seedWorkspace(prisma);
+		const projectId = crypto.randomUUID();
+		await prisma.project.create({
+			data: {
+				hasWork: false,
+				id: projectId,
+				lifecycleStatus: PROJECT_LIFECYCLE.active,
+				name: "Legacy",
+				revision: 1,
+				shortCode: "LEG",
+				starterConfiguration: "Solo SaaS",
+				workspaceId,
+			},
+		});
+		const loaded = await getProject(prisma, projectId);
+		expect(loaded).toMatchObject({
+			enabledAreas: [
+				"Work",
+				"Documents",
+				"Discovery",
+				"Decisions",
+				"Design",
+				"Technical Diagrams",
+				"Tests",
+				"Releases",
+				"Production",
+				"GitHub",
+			],
+			pinnedAreas: ["Discovery", "Decisions", "Design", "Tests", "Releases"],
+			stages: [
+				"Discovery",
+				"Design",
+				"Build",
+				"Validate",
+				"Release",
+				"Operate",
+			],
+			starterConfiguration: "Solo SaaS",
+			workStatuses: ["Not Started", "In Progress", "Blocked", "Closed"],
+			workViews: ["Backlog", "Board", "Roadmap"],
+		});
+		expect(await getProject(prisma, projectId)).toEqual(loaded);
 	});
 
 	it("uses English Project Name and Short code chrome", () => {

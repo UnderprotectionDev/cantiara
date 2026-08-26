@@ -147,7 +147,10 @@ export async function getProject(
 		include: PROJECT_STRUCTURE_INCLUDE,
 		where: { id: projectId },
 	});
-	return row ? toView(row) : null;
+	if (!row) {
+		return null;
+	}
+	return toView(await hydrateStructure(prisma, row));
 }
 
 export async function listProjects(
@@ -159,7 +162,9 @@ export async function listProjects(
 		orderBy: { createdAt: "asc" },
 		where: { workspaceId },
 	});
-	return rows.map(toView);
+	return await Promise.all(
+		rows.map(async (row) => toView(await hydrateStructure(prisma, row)))
+	);
 }
 
 export async function recordWorkExists(
@@ -684,6 +689,37 @@ async function loadProject(
 	});
 }
 
+async function hydrateStructure(
+	prisma: PrismaClient,
+	row: ProjectRow
+): Promise<ProjectRow> {
+	if (row.workStatuses.length > 0) {
+		return row;
+	}
+	if (!isStarterConfiguration(row.starterConfiguration)) {
+		throw new Error("unknown-starter-configuration");
+	}
+	return await prisma.$transaction(async (tx) => {
+		await lockProject(tx, row.id);
+		const locked = await loadProject(tx, row.id);
+		if (!locked) {
+			throw new Error("target-not-found");
+		}
+		if (locked.workStatuses.length > 0) {
+			return locked;
+		}
+		if (!isStarterConfiguration(locked.starterConfiguration)) {
+			throw new Error("unknown-starter-configuration");
+		}
+		await persistAppliedStructure(tx, locked.id, locked.starterConfiguration);
+		const hydrated = await loadProject(tx, locked.id);
+		if (!hydrated) {
+			throw new Error("target-not-found");
+		}
+		return hydrated;
+	});
+}
+
 async function persistAppliedStructure(
 	tx: PrismaTransaction,
 	projectId: string,
@@ -785,12 +821,6 @@ function toView(row: ProjectRow): ProjectView {
 		problem: row.problem,
 		purpose: row.purpose,
 		revision: row.revision,
-		sampleContent: {
-			decisions: [],
-			documents: [],
-			history: [],
-			work: [],
-		},
 		scope: row.scope,
 		shortCode: row.shortCode,
 		shortCodeLocked: row.hasWork,

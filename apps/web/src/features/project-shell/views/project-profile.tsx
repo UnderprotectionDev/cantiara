@@ -42,31 +42,20 @@ export default function ProjectProfile({ projectId }: { projectId: string }) {
 			<nav aria-label={PROJECT_SHELL_COPY.overview}>
 				<ul>
 					{data.alwaysOnSurfaces.map((surface) => (
-						<li key={surface}>{surface}</li>
+						<li key={surface}>
+							{surface === PROJECT_SHELL_COPY.allTools ? (
+								<a href="#all-tools">{surface}</a>
+							) : (
+								surface
+							)}
+						</li>
 					))}
 					{data.pinnedAreas.map((area) => (
 						<li key={`pin-${area}`}>{area}</li>
 					))}
 				</ul>
 			</nav>
-			{data.stages.length > 0 ? (
-				<ul>
-					{data.stages.map((stage) => (
-						<li key={stage}>{stage}</li>
-					))}
-				</ul>
-			) : null}
-			<ul>
-				{data.workViews.map((view) => (
-					<li key={view}>{view}</li>
-				))}
-			</ul>
-			<ul>
-				{data.workStatuses.map((status) => (
-					<li key={status}>{status}</li>
-				))}
-			</ul>
-			<section aria-label={PROJECT_SHELL_COPY.allTools}>
+			<section id="all-tools" aria-label={PROJECT_SHELL_COPY.allTools}>
 				<h2>{PROJECT_SHELL_COPY.allTools}</h2>
 				<ul>
 					{data.allToolsAreas.map((area) => (
