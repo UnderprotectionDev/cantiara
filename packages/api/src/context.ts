@@ -15,4 +15,6 @@ export async function createContext({ context }: CreateContextOptions) {
 	};
 }
 
-export type Context = Awaited<ReturnType<typeof createContext>>;
+export type Context = Awaited<ReturnType<typeof createContext>> & {
+	log?: unknown;
+};

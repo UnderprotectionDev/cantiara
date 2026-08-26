@@ -51,9 +51,6 @@ export default function PreferencesForm({
 	const timeZones = useMemo(() => timeZoneOptions(), []);
 	const save = useMutation(
 		orpc.accountPreferences.save.mutationOptions({
-			onError: (error) => {
-				toast.error(`Error: ${error.message}`);
-			},
 			onSuccess: async () => {
 				await queryClient.invalidateQueries({
 					queryKey: orpc.accountPreferences.get.queryKey(),

@@ -1,3 +1,7 @@
+import {
+	issueMainFlowFailure,
+	writeMainFlowFailureLog,
+} from "@cantiara/api/client-shell-failure";
 import { createContext } from "@cantiara/api/context";
 import {
 	AccountAccessError,
@@ -8,7 +12,6 @@ import {
 import { env } from "@cantiara/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
-import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { initLogger } from "evlog";
@@ -21,6 +24,7 @@ import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
+import { attachMainFlowFailure } from "./features/web-macos-client/server/main-flow-failure";
 import { appRouter } from "./routes";
 
 initLogger({
@@ -66,7 +70,27 @@ app.use("/rpc/*", async (c, next) => {
 		assertCookieCsrf(c.req.raw, productCorsOrigins(env.CORS_ORIGIN));
 	} catch (error) {
 		if (error instanceof AccountAccessError && error.status === 403) {
-			return c.json({ message: error.message }, 403);
+			const failure = issueMainFlowFailure(
+				{
+					reason: error.message,
+					written: false,
+				},
+				{
+					write: (record) => {
+						writeMainFlowFailureLog(c.get("log"), record);
+					},
+				}
+			);
+			return c.json(
+				{
+					code: "FORBIDDEN",
+					data: failure,
+					defined: true,
+					message: failure.reason,
+					status: 403,
+				},
+				403
+			);
 		}
 		throw error;
 	}
@@ -74,11 +98,7 @@ app.use("/rpc/*", async (c, next) => {
 });
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
-	interceptors: [
-		onError((error) => {
-			console.error(error);
-		}),
-	],
+	clientInterceptors: [attachMainFlowFailure],
 	plugins: [
 		new OpenAPIReferencePlugin({
 			schemaConverters: [new ZodToJsonSchemaConverter()],
@@ -87,15 +107,14 @@ export const apiHandler = new OpenAPIHandler(appRouter, {
 });
 
 export const rpcHandler = new RPCHandler(appRouter, {
-	interceptors: [
-		onError((error) => {
-			console.error(error);
-		}),
-	],
+	clientInterceptors: [attachMainFlowFailure],
 });
 
 app.use("/*", async (c, next) => {
-	const context = await createContext({ context: c });
+	const context = {
+		...(await createContext({ context: c })),
+		log: c.get("log"),
+	};
 
 	const rpcResult = await rpcHandler.handle(c.req.raw, {
 		context,
