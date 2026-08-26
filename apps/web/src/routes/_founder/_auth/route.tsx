@@ -8,7 +8,7 @@ import {
 import { ClientShellWorkspace } from "@/features/web-macos-client/views/client-shell-host";
 import { authClient } from "@/lib/auth-client";
 
-export const Route = createFileRoute("/_auth")({
+export const Route = createFileRoute("/_founder/_auth")({
 	beforeLoad: async ({ location }) => {
 		const session = await authClient.getSession();
 		if (!session.data?.user) {

@@ -40,7 +40,7 @@
     "db:migrate": "turbo run db:migrate -F @cantiara/db --",
     "check": "ultracite check",
     "fix": "ultracite fix",
-    "test": "turbo run test"
+    "test": "turbo run test --concurrency=1"
   },
   "devNotes": {
     "wxt": "WXT extension development is intentionally excluded from bun run dev for now. TODO: Re-enable WXT in the default development workflow later."

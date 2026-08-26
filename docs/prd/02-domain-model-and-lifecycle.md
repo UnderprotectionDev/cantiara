@@ -28,6 +28,19 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Odak Dönemi | `Focus Period` | Seçili çalışmalar için geçici çalışma penceresi ve tarihsel kapsam snapshot'ı; ara sonuç veya yayımlanacak kapsam değildir |
 | Proje Sürümü | `Project Release` | Kullanıcı tarafından yönetilen yayımlanacak kapsam ve onun tarihli erişim/sonuç gözlemleri; Kilometre Taşı, Odak Dönemi veya Ürün sürüm adayı değildir |
 | Başlangıç yapılandırması | `Starter Configuration` | Yeni Projeye bir kez uygulanan, içerik üretmeyen kapalı varsayılan yapı seçimi; sonradan başka yapılandırmayla değiştirilmez |
+| Proje adı | `Project Name` | Yeni Proje oluştururken zorunlu ad |
+| Proje kısa kodu | `Short code` | İş anahtarı öneki; Çalışma Alanında benzersizdir ve ilk İşten sonra değişmez |
+| Kısa kod kilitli | `Short code is locked after the first Work.` | İlk İşten sonra kısa kodun değişmeyeceğini bildiren metin |
+| Amaç | `Purpose` | İsteğe bağlı Proje profil alanı |
+| Problem | `Problem` | İsteğe bağlı çözülmek istenen problem |
+| Kapsam | `Scope` | İsteğe bağlı kapsam sınırı |
+| Hedef tarihi | `Target date` | İsteğe bağlı Proje hedef tarihi |
+| Logo | `Logo` | İsteğe bağlı Proje logosu; Proje rengi, CSS veya font değildir |
+| Proje oluştur | `Create Project` | Yeni Projeyi kaydeden eylem |
+| Projeler | `Projects` | Çalışma Alanındaki Proje listesi |
+| Kısa kodu kaydet | `Save Short code` | İlk İşten önce kısa kodu güncelleme eylemi |
+| Yükleniyor | `Loading…` | Proje kabuğu okuma durumu |
+| Proje kullanılamıyor | `Project is unavailable.` | Proje kabuğu okuma hatası |
 | Herkese açık durum etiketi | `Public Status Label` | İş akışı durumunu değiştirmeyen, yalnız herkese açık Roadmap sunumunda kullanılan ziyaretçi etiketi |
 | GitHub kimliğini yeniden teyit etme | `Confirm GitHub Identity` | Yüksek riskli işlem için yeni OAuth turunda aynı değişmez GitHub kimliğini doğrulayan fakat parola/MFA girişi iddia etmeyen güvenlik eylemi |
 | GitHub bekleniyor | `Waiting for GitHub` | GitHub kesintisinde yeni giriş ve `Confirm GitHub Identity` için görünür bekleme durumu |
@@ -98,6 +111,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Araştırma parçası | `Research Fragment` | `Note or Excerpt` ve `Source Context` yönlendirici alanlarıyla Inbox öğesini biçimlendiren kapalı mini şablon |
 | Not veya alıntı | `Note or Excerpt` | Research Fragment yönlendirici alanı |
 | Kaynak bağlamı | `Source Context` | Research Fragment yönlendirici alanı |
+| Komut Paleti | `Command Palette` | Kurucu yüzeylerinde klavyeyle komut, gezinme, kayıt oluşturma ve Proje geçişi çalıştıran yüzey; Evrensel Arama (`Search`) değildir |
+| Proje geçişi | `Switch Project` | Palette ve görünür menüden yetkili Projeler arasında geçiş |
+| Oluştur | `Create` | Palette ve görünür menüden yetkili kapsamda desteklenen kayıt oluşturma |
+| Aç | `Open` | Palette yetkili ana kayda atlama |
+| Eşleşen komut yok | `No matching command` | Palet süzgecinin komut döndürmediği durum |
+| Burada çalışmaz | `Can't run this here` | Kapsam dışı veya desteklenmeyen palet komutunun görünür başarısızlığı |
+| Kapat | `Close` | Paleti kapatma eylemi |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 
