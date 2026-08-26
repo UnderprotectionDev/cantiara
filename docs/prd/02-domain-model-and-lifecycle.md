@@ -46,6 +46,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Open Source Library | `Open Source Library` | Scope–Maintain aşamaları ve GitHub ağırlıklı alanlarla açılan Başlangıç yapılandırması |
 | Mobile Application | `Mobile Application` | Discovery–Operate aşamaları ve Production sabitlemesiyle açılan Başlangıç yapılandırması |
 | Proje genel bakışı | `Overview` | Proje alanı olmayan daima erişilir yüzey |
+| Yaşam durumu | `Lifecycle` | Overview modülü; Proje yaşam durumunun nötr özeti, sağlık skoru değildir |
+| Proje Hedefi | `Goals` | Overview girişi; gizlenebilir Proje alanı değildir |
+| Kilometre taşları | `Milestones` | Overview kaynak özeti |
+| Riskler | `Risks` | Overview kaynak özeti |
+| Blokajlar | `Blockers` | Overview kaynak özeti |
+| Tarihler | `Dates` | Overview'da yaklaşan veya geçen hedef tarihler |
+| Son değişiklikler | `Recent changes` | Overview kaynak özeti |
+| Test Handoff'u | `Test Handoff` | Overview Tests özetindeki kaynak türü; Testler alanı ürünü değildir |
+| Test Oturumu | `Test Session` | Overview Tests özetindeki kaynak türü |
+| Test Açığı | `Test Gap` | Overview Tests özetindeki kaynak türü |
 | All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
 | Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |

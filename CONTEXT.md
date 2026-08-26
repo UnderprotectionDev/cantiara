@@ -166,6 +166,7 @@ _Avoid_: Başlangıç iskeleti, otomatik retrospektif, kapanış ana kaydı
 
 **Proje Hedefi**:
 Bir Projenin ulaşmak istediği sonucu ve isteğe bağlı başarı göstergesini taşıyan hafif ana kayıt; bağlı İşlerden otomatik ilerleme veya sağlık hükmü üretmez.
+UI: `Goals` (Overview girişi; gizlenebilir Proje alanı değildir).
 _Avoid_: Kilometre Taşı, Proje Sürümü, Key Result
 
 **Hedefe katkı**:
@@ -174,6 +175,7 @@ _Avoid_: İlgili, Hedef kanıtı, otomatik hedef ilerlemesi
 
 **Kilometre Taşı**:
 Bir Projedeki önemli ara sonucu temsil eden planlama ana kaydı; Odak Döneminin çalışma penceresi veya Proje Sürümünün yayımlanacak kapsamı değildir.
+UI: `Milestone`. Overview modülü: `Milestones`.
 _Avoid_: Odak Dönemi, Proje Sürümü, sprint
 
 **Odak Dönemi**:
@@ -633,10 +635,12 @@ _Avoid_: Test Oturumu, test script'i, kabul sonucu
 
 **Test Handoff'u**:
 Ürün dışında yapılması istenen test çalışmasının amacını, seçili senaryo sürümlerini ve dönen Test Oturumlarını yöneten Proje ana kaydı; testi yürütmez ve sonuç geldiğinde kendiliğinden kapanmaz.
+UI: `Test Handoff`.
 _Avoid_: Dış yürütme devri, Test Oturumu, ajan çalıştırması
 
 **Test Oturumu**:
 Aynı dış çalışma bağlamında yürütüldüğü bildirilen testleri ve tarihsel özetini taşıyan Proje ana kaydı; bildirilen gerçekliği korur, kabul kanıtı üretmez.
+UI: `Test Session`.
 _Avoid_: Test Handoff'u, Ürün kabul kanıtı, canlı test çalıştırıcısı
 
 **Oturum Testi**:
@@ -645,6 +649,7 @@ _Avoid_: Planlı Test Senaryosu, Test Oturumu özeti, GitHub check'i
 
 **Test Açığı**:
 Kullanıcının henüz denenmediğini veya yetersiz doğrulandığını düşündüğü alanı ve bu yargının dayanaklarını taşıyan Proje ana kaydı; başarısız test, Bug veya otomatik yayın engeli değildir.
+UI: `Test Gap`.
 _Avoid_: Bug, başarısız test sonucu, otomatik coverage açığı
 
 **Test değerlendirmesi**:
