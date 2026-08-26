@@ -65,6 +65,9 @@ export function CaptureTriageActions({
 		await queryClient.invalidateQueries({
 			queryKey: orpc.captureInbox.listAll.queryKey(),
 		});
+		await queryClient.invalidateQueries({
+			queryKey: orpc.captureInbox.bulkSenseMaking.queryKey(),
+		});
 	}, []);
 	const convert = useMutation(
 		orpc.captureInbox.convert.mutationOptions({
@@ -215,6 +218,9 @@ export function CaptureMergeUndo({
 			onSuccess: async () => {
 				await queryClient.invalidateQueries({
 					queryKey: orpc.captureInbox.listAll.queryKey(),
+				});
+				await queryClient.invalidateQueries({
+					queryKey: orpc.captureInbox.bulkSenseMaking.queryKey(),
 				});
 				setOpen(false);
 				onCleared();

@@ -26,6 +26,18 @@ model CaptureInboxItem {
   @@map("capture_inbox_item")
 }
 
+model CaptureBulkSenseView {
+  id          String   @id
+  workspaceId String
+  ownerId     String
+  layoutText  String   @default("{\"clusters\":[],\"placements\":[]}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, ownerId])
+  @@map("capture_bulk_sense_view")
+}
+
 model CaptureExtensionLink {
   id          String    @id
   workspaceId String

@@ -1,6 +1,8 @@
 import { expect, test } from "vitest";
 
 import {
+	bulkClusterPlacementOptions,
+	bulkSenseMakingColumns,
 	captureFormAfterSave,
 	captureFormHasUnsavedCapture,
 	captureInboxGroups,
@@ -9,6 +11,7 @@ import {
 	captureInboxListInput,
 	createBugIsAvailable,
 	fileToCaptureAttachment,
+	nextBulkPosition,
 } from "./capture-form-state";
 
 const LIST_COPY = {
@@ -177,6 +180,90 @@ test("Create Bug is available only when Project is set and type is Bug Capture o
 			text: "A thought",
 		})
 	).toBe(true);
+});
+
+test("Bulk sense-making places a capture by choosing Ungrouped or a named cluster", () => {
+	expect(
+		bulkClusterPlacementOptions({
+			clusters: [
+				{ id: "cluster-login", name: "Login bugs" },
+				{ id: "cluster-test", name: "test" },
+			],
+			ungrouped: "Ungrouped",
+		})
+	).toEqual([
+		{ clusterId: null, name: "Ungrouped" },
+		{ clusterId: "cluster-login", name: "Login bugs" },
+		{ clusterId: "cluster-test", name: "test" },
+	]);
+});
+
+test("Bulk sense-making lays captures side by side by cluster name and position", () => {
+	const crash = {
+		body: "Crash on save",
+		id: "cap-crash",
+		template: null,
+	};
+	const login = {
+		body: "Login does nothing",
+		id: "cap-login",
+		template: null,
+	};
+	const stray = {
+		body: "A later thought",
+		id: "cap-stray",
+		template: null,
+	};
+	expect(
+		bulkSenseMakingColumns({
+			clusters: [{ id: "cluster-login", name: "Login bugs" }],
+			items: [crash, login, stray],
+			placements: [
+				{
+					clusterId: "cluster-login",
+					itemId: crash.id,
+					position: { x: 1, y: 0 },
+				},
+				{
+					clusterId: "cluster-login",
+					itemId: login.id,
+					position: { x: 0, y: 0 },
+				},
+			],
+		})
+	).toEqual([
+		{
+			clusterId: "cluster-login",
+			items: [login, crash],
+			name: "Login bugs",
+		},
+		{
+			clusterId: null,
+			items: [stray],
+			name: null,
+		},
+	]);
+});
+
+test("the next Bulk card sits to the right of cards already in that cluster", () => {
+	expect(
+		nextBulkPosition(
+			[
+				{
+					clusterId: "cluster-login",
+					itemId: "cap-login",
+					position: { x: 0, y: 0 },
+				},
+				{
+					clusterId: "cluster-login",
+					itemId: "cap-crash",
+					position: { x: 2, y: 0 },
+				},
+			],
+			"cluster-login"
+		)
+	).toEqual({ x: 3, y: 0 });
+	expect(nextBulkPosition([], null)).toEqual({ x: 0, y: 0 });
 });
 
 test("a selected file becomes a Capture attachment payload", async () => {

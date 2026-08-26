@@ -6,6 +6,14 @@ import {
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
 import {
+	createBulkSenseMaking,
+	type NameBulkClusterOutcome,
+	type PlaceInBulkOutcome,
+} from "./capture-bulk-sense-making";
+import {
+	BULK_SURFACE_EXCLUSION,
+	type BulkSenseMakingView,
+	type BulkSurfaceEligibility,
 	CAPTURE_INBOX_COPY,
 	CAPTURE_SURFACE_EXCLUSION,
 	type CaptureAttachmentView,
@@ -141,6 +149,8 @@ export interface CaptureInbox {
 	}) => Promise<AttachOutcome>;
 	attachment: (itemId: string) => Promise<CaptureAttachmentView | null>;
 	backgroundScan: WebCapture["backgroundScan"];
+	bulkSenseMaking: () => Promise<BulkSenseMakingView>;
+	bulkSurfaces: () => BulkSurfaceEligibility;
 	claimsSafariClipper: WebCapture["claimsSafariClipper"];
 	clip: WebCapture["clip"];
 	clipArchive: WebCapture["clipArchive"];
@@ -176,8 +186,18 @@ export interface CaptureInbox {
 	listExtensionLinks: WebCapture["listExtensionLinks"];
 	livePageCopies: WebCapture["livePageCopies"];
 	logs: WebCapture["logs"];
+	nameBulkCluster: (input: {
+		idempotencyKey: string;
+		name: string;
+	}) => Promise<NameBulkClusterOutcome>;
 	pageInjection: WebCapture["pageInjection"];
 	pair: WebCapture["pair"];
+	placeInBulk: (input: {
+		clusterId: string | null;
+		idempotencyKey: string;
+		itemId: string;
+		position: { x: number; y: number };
+	}) => Promise<PlaceInBulkOutcome>;
 	previewAttach: (input: {
 		itemId: string;
 		relation: BindRelation;
@@ -497,7 +517,6 @@ export function createCaptureInbox(input: {
 		toItemView,
 		workspaceId: input.workspaceId,
 	});
-
 	async function listAllItems(): Promise<CaptureInboxItemView[]> {
 		const rows = await input.prisma.captureInboxItem.findMany({
 			include: STAGING_INCLUDE,
@@ -505,6 +524,22 @@ export function createCaptureInbox(input: {
 			where: openItemWhere(input.workspaceId),
 		});
 		return rows.map(toItemView);
+	}
+	const bulk = createBulkSenseMaking({
+		actorId: input.actorId,
+		connected,
+		listAll: listAllItems,
+		prisma: input.prisma,
+		workspaceId: input.workspaceId,
+	});
+	async function dropLayoutIfConsumed<T extends { status: string }>(
+		itemId: string,
+		outcome: T
+	): Promise<T> {
+		if (outcome.status === "consumed") {
+			await bulk.removePlacement(itemId);
+		}
+		return outcome;
 	}
 
 	async function currentSequentialView() {
@@ -544,9 +579,11 @@ export function createCaptureInbox(input: {
 		advanceTime(instant) {
 			now = instant;
 		},
-		attach(command) {
-			return runFocusedExit(command.itemId, () => triage.attach(command));
-		},
+		attach: async (command) =>
+			dropLayoutIfConsumed(
+				command.itemId,
+				await runFocusedExit(command.itemId, () => triage.attach(command))
+			),
 		async attachment(itemId) {
 			const item = await loadItemView(input.prisma, {
 				itemId,
@@ -555,14 +592,20 @@ export function createCaptureInbox(input: {
 			return item?.attachment ?? null;
 		},
 		backgroundScan: webCapture.backgroundScan,
+		bulkSenseMaking: bulk.bulkSenseMaking,
+		bulkSurfaces() {
+			return BULK_SURFACE_EXCLUSION;
+		},
 		claimsSafariClipper: webCapture.claimsSafariClipper,
 		clip: webCapture.clip,
 		clipArchive: webCapture.clipArchive,
 		clipperBrowserFamilies: webCapture.clipperBrowserFamilies,
 		contentFingerprint: webCapture.contentFingerprint,
-		convert(command) {
-			return runFocusedExit(command.itemId, () => triage.convert(command));
-		},
+		convert: async (command) =>
+			dropLayoutIfConsumed(
+				command.itemId,
+				await runFocusedExit(command.itemId, () => triage.convert(command))
+			),
 		async createBug(command) {
 			if (!connected()) {
 				return { queued: false, reason: "offline", status: "refused" };
@@ -622,9 +665,11 @@ export function createCaptureInbox(input: {
 			lastSuccessfulSaveAt = savedAt;
 			return outcome;
 		},
-		deleteItem(command) {
-			return runFocusedExit(command.itemId, () => triage.deleteItem(command));
-		},
+		deleteItem: async (command) =>
+			dropLayoutIfConsumed(
+				command.itemId,
+				await runFocusedExit(command.itemId, () => triage.deleteItem(command))
+			),
 		exitSequentialTriage() {
 			sequentialFocusedId = null;
 			return currentSequentialView();
@@ -667,8 +712,10 @@ export function createCaptureInbox(input: {
 		listExtensionLinks: webCapture.listExtensionLinks,
 		livePageCopies: webCapture.livePageCopies,
 		logs: webCapture.logs,
+		nameBulkCluster: bulk.nameBulkCluster,
 		pageInjection: webCapture.pageInjection,
 		pair: webCapture.pair,
+		placeInBulk: bulk.placeInBulk,
 		previewAttach: triage.previewAttach,
 		previewConvert: triage.previewConvert,
 		previewUndoMerge: triage.previewUndoMerge,

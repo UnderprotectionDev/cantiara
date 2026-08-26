@@ -291,7 +291,7 @@ Yakalama Gelen Kutusunda tek öğeye odaklanan, yalnız üç açık çıkıştan
 _Avoid_: Yeni kuyruk, SLA, otomatik çözüm
 
 **Toplu Anlamlandırma**:
-Birden fazla yakalamayı yan yana getirip geçici görsel kümeler kuran, kalıcı sınıflandırma üretmeyen [isteğe bağlı triage görünümü](docs/prd/05-capture-and-intake.md#hızlı-yakalama). UI: `Bulk sense-making`.
+Birden fazla yakalamayı yan yana getirip geçici görsel kümeler kuran, kalıcı sınıflandırma üretmeyen [isteğe bağlı triage görünümü](docs/prd/05-capture-and-intake.md#hızlı-yakalama). UI: `Bulk sense-making`. Adlandırılmamış yakalamalar bu görünümde `Ungrouped` altında durur; kart, küme adını seçerek o görsel kümeye yerleşir.
 _Avoid_: Etiket, ilişki, kalıcı küme kaydı
 
 **Yakalama eki**:
