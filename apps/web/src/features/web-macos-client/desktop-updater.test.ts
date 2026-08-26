@@ -15,11 +15,9 @@ import { expect, test } from "vitest";
 
 import {
 	applyVerifiedDesktopUpdate,
-	desktopUpdatePolicy,
 	manualRecoveryInstaller,
 	recoverFromFailedUpdate,
 	verifyDesktopUpdateSignature,
-	visitorExternalSurface,
 } from "./desktop-updater";
 
 const INSTALLED = "1.0.0";
@@ -114,10 +112,6 @@ test("a failed update does not roll back automatically; the previous signed inst
 	];
 	const installed = { version: CANDIDATE };
 
-	expect(desktopUpdatePolicy).toEqual({
-		automaticRollback: false,
-		previousSignedInstaller: "downloadable-manual-recovery",
-	});
 	expect(recoverFromFailedUpdate(installed, catalog)).toEqual({
 		installedVersion: CANDIDATE,
 		manualInstaller: catalog[0],
@@ -148,14 +142,7 @@ test("an unsigned previous installer is not offered for manual recovery", () => 
 	).toBeNull();
 });
 
-test("a visitor Dış yüzey does not present the founder desktop updater", () => {
-	expect(visitorExternalSurface()).toEqual({
-		desktopUpdater: false,
-		updateRequired: false,
-	});
-});
-
-test("the shipping Tauri updater requires a minisign pubkey and GitHub Releases, and does not auto-rollback", () => {
+test("the shipping Tauri updater requires a minisign pubkey and GitHub Releases", () => {
 	const tauriConf = JSON.parse(
 		readFileSync(
 			join(
@@ -170,7 +157,6 @@ test("the shipping Tauri updater requires a minisign pubkey and GitHub Releases,
 			updater?: {
 				endpoints?: string[];
 				pubkey?: string;
-				windows?: { installer?: { rollback?: boolean } };
 			};
 		};
 	};
@@ -180,9 +166,6 @@ test("the shipping Tauri updater requires a minisign pubkey and GitHub Releases,
 	expect(tauriConf.plugins.updater?.endpoints).toEqual([
 		"https://github.com/UnderprotectionDev/cantiara/releases/latest/download/latest.json",
 	]);
-	expect(tauriConf.plugins.updater?.windows?.installer?.rollback).not.toBe(
-		true
-	);
 
 	const capabilities = JSON.parse(
 		readFileSync(

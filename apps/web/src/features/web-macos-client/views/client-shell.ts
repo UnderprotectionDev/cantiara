@@ -15,7 +15,7 @@ export const CLIENT_SHELL_COPY = {
 
 export type ClientShellHost = "web" | "tauri";
 
-export type DesktopApiStatus = "accepted" | "update-required";
+export type DesktopApiStatus = "unknown" | "accepted" | "update-required";
 
 export type OnlineWorkKind =
 	| "document-read"
@@ -35,7 +35,7 @@ export type OnlineWorkResult<T> =
 	| { kind: OnlineWorkKind; status: "applied"; value: T }
 	| {
 			kind: OnlineWorkKind;
-			reason: "offline" | "update-required";
+			reason: "offline" | "update-required" | "pending";
 			status: "refused";
 	  };
 
@@ -71,11 +71,12 @@ export function createClientShell(
 		lastSuccessfulSaveAt?: Date | null;
 	} = {}
 ): ClientShell {
+	const host = input.host ?? "web";
 	return {
 		connected: input.connected ?? true,
-		desktopApi: input.desktopApi ?? "accepted",
+		desktopApi: input.desktopApi ?? (host === "tauri" ? "unknown" : "accepted"),
 		hasUnsavedChanges: input.hasUnsavedChanges ?? false,
-		host: input.host ?? "web",
+		host,
 		lastSuccessfulSaveAt: input.lastSuccessfulSaveAt ?? null,
 		queuedWrites: [],
 	};
@@ -117,6 +118,9 @@ export function attemptOnlineWork<T>(
 ): OnlineWorkResult<T> {
 	if (!shell.connected) {
 		return { kind, reason: "offline", status: "refused" };
+	}
+	if (shell.host === "tauri" && shell.desktopApi === "unknown") {
+		return { kind, reason: "pending", status: "refused" };
 	}
 	if (shell.host === "tauri" && shell.desktopApi === "update-required") {
 		return { kind, reason: "update-required", status: "refused" };
@@ -176,10 +180,11 @@ export function readNavigatorOnline(
 }
 
 export function withDesktopApiHeaders(
-	headers?: HeadersInit | Headers
+	headers?: HeadersInit | Headers,
+	host: ClientShellHost = detectClientShellHost()
 ): Headers {
 	const next = new Headers(headers);
-	if (!next.has(DESKTOP_API_HEADER)) {
+	if (host === "tauri" && !next.has(DESKTOP_API_HEADER)) {
 		next.set(DESKTOP_API_HEADER, DESKTOP_API_CONTRACT);
 	}
 	return next;

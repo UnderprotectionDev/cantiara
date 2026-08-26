@@ -223,9 +223,23 @@ describe("Client Shell", () => {
 		});
 	});
 
-	it("sends the running bundle's signed desktop API contract on product RPC", () => {
-		const headers = withDesktopApiHeaders();
-		expect(headers.get("Cantiara-Desktop-Api")).toBe("1");
+	it("sends the signed desktop API contract only from the Tauri shell", () => {
+		expect(
+			withDesktopApiHeaders(undefined, "web").has("Cantiara-Desktop-Api")
+		).toBe(false);
+		expect(
+			withDesktopApiHeaders(undefined, "tauri").get("Cantiara-Desktop-Api")
+		).toBe("1");
+	});
+
+	it("refuses Tauri writes until the desktop API window is known, without Update required", () => {
+		const shell = createClientShell({ connected: true, host: "tauri" });
+		expect(attemptOnlineWork(shell, "record-create", () => "created")).toEqual({
+			kind: "record-create",
+			reason: "pending",
+			status: "refused",
+		});
+		expect(updateRequiredState(shell)).toBeNull();
 	});
 
 	it("does not show Update required on web or while the founder is offline", () => {

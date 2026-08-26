@@ -1,10 +1,5 @@
 import { type KeyObject, verify } from "node:crypto";
 
-export const desktopUpdatePolicy = {
-	automaticRollback: false,
-	previousSignedInstaller: "downloadable-manual-recovery",
-} as const;
-
 export interface InstalledDesktop {
 	version: string;
 }
@@ -88,11 +83,4 @@ export function recoverFromFailedUpdate(
 		manualInstaller: manualRecoveryInstaller(catalog, installed.version),
 		rolledBack: false,
 	};
-}
-
-export function visitorExternalSurface(): {
-	desktopUpdater: false;
-	updateRequired: false;
-} {
-	return { desktopUpdater: false, updateRequired: false };
 }
