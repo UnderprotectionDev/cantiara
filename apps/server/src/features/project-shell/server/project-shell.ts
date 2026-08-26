@@ -11,15 +11,20 @@ import {
 import {
 	ALWAYS_ON_SURFACES,
 	appliedStructureFor,
+	type ConfigureProjectCommand,
 	type CreateProjectCommand,
 	type CreateProjectPayload,
+	configureProjectCommandSchema,
 	createProjectCommandSchema,
 	type DismissFirstOpenExplanationCommand,
 	dismissFirstOpenExplanationCommandSchema,
 	firstOpenExplanationFor,
+	isNonAreaSurface,
 	isProjectAreaName,
+	isProtectedWorkStatus,
 	isSkeletonName,
 	isSkeletonSurface,
+	isStageState,
 	isStarterConfiguration,
 	normalizeShortCode,
 	optionalDate,
@@ -33,7 +38,9 @@ import {
 	projectViewSchema,
 	STAGE_STATE,
 	type STARTER_CONFIGURATIONS,
+	type StructureChange,
 	selectedSkeletonsFor,
+	structureChangeSchema,
 	suggestAvailableShortCode,
 	type UpdateShortCodeCommand,
 	updateShortCodeCommandSchema,
@@ -65,10 +72,19 @@ interface ProjectRow {
 		sortOrder: number;
 		surface: string;
 	}>;
-	stages: Array<{ name: string; sortOrder: number }>;
+	stages: Array<{
+		id: string;
+		name: string;
+		sortOrder: number;
+		state: string;
+	}>;
 	starterConfiguration: string;
 	targetDate: string | null;
-	workStatuses: Array<{ semantic: string; sortOrder: number }>;
+	workStatuses: Array<{
+		label: string;
+		semantic: string;
+		sortOrder: number;
+	}>;
 	workspaceId: string;
 	workViews: Array<{ name: string; sortOrder: number }>;
 }
@@ -137,6 +153,24 @@ export async function dismissFirstOpenExplanation(
 	);
 	return await prisma.$transaction((tx) =>
 		dismissInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function configureProject(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ProjectShellOutcome> {
+	const parsed = parseConfigureCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint(parsed.command.change);
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		configureInTransaction(tx, parsed.command, commandKey, fingerprint)
 	);
 }
 
@@ -296,6 +330,46 @@ function parseDismissCommand(
 		};
 	}
 	const parsed = dismissFirstOpenExplanationCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return {
+			outcome: { reason: "missing-idempotency-key", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	return { command: parsed.data, status: "ok" };
+}
+
+function parseConfigureCommand(
+	command: unknown
+):
+	| { command: ConfigureProjectCommand; status: "ok" }
+	| { outcome: ProjectShellOutcome; status: "rejected" } {
+	if (!isRecord(command)) {
+		return {
+			outcome: { reason: "missing-idempotency-key", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	if (
+		typeof command.idempotencyKey !== "string" ||
+		command.idempotencyKey.length === 0
+	) {
+		return {
+			outcome: { reason: "missing-idempotency-key", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	if (
+		isRecord(command.change) &&
+		typeof command.change.action === "string" &&
+		!structureChangeSchema.safeParse(command.change).success
+	) {
+		return {
+			outcome: { reason: "unknown-structure-action", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	const parsed = configureProjectCommandSchema.safeParse(command);
 	if (!parsed.success) {
 		return {
 			outcome: { reason: "missing-idempotency-key", status: "rejected" },
@@ -496,6 +570,355 @@ async function dismissInTransaction(
 		project,
 	});
 	return { project, status: "committed" };
+}
+
+async function configureInTransaction(
+	tx: PrismaTransaction,
+	command: ConfigureProjectCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<ProjectShellOutcome> {
+	const current = await tx.project.findUnique({
+		where: { id: command.projectId },
+	});
+	if (!current) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await lockWorkspace(tx, current.workspaceId);
+	await lockProject(tx, current.id);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const locked = await loadProject(tx, current.id);
+	if (!locked) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (locked.revision !== command.baseRevision) {
+		return {
+			current: toView(locked),
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	const applied = await applyStructureChange(tx, locked, command.change);
+	if (applied !== "ok") {
+		return applied;
+	}
+	await tx.project.update({
+		data: { revision: locked.revision + 1 },
+		where: { id: locked.id },
+	});
+	const updated = await loadProject(tx, locked.id);
+	if (!updated) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const project = toView(updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		project,
+	});
+	return { project, status: "committed" };
+}
+
+async function applyStructureChange(
+	tx: PrismaTransaction,
+	project: ProjectRow,
+	change: StructureChange
+): Promise<ProjectShellOutcome | "ok"> {
+	if (change.action === "add-stage") {
+		return await addStage(tx, project, change.name);
+	}
+	if (change.action === "rename-stage") {
+		return await renameStage(tx, project, change.stageId, change.name);
+	}
+	if (change.action === "set-stage-state") {
+		return await setStageState(tx, project, change.stageId, change.state);
+	}
+	if (change.action === "reorder-stages") {
+		return await reorderStages(tx, project, change.stageIds);
+	}
+	if (change.action === "remove-stage") {
+		return await removeStage(tx, project, change.stageId);
+	}
+	if (change.action === "set-area-enabled") {
+		return await setAreaEnabled(tx, project, change.area, change.enabled);
+	}
+	if (change.action === "pin-to-navigation") {
+		return await setAreaPinned(tx, project, change.area, true);
+	}
+	if (change.action === "unpin-from-navigation") {
+		return await setAreaPinned(tx, project, change.area, false);
+	}
+	if (change.action === "restore-default-navigation") {
+		return await restoreDefaultNavigation(tx, project);
+	}
+	return await renameWorkStatus(tx, project, change.semantic, change.label);
+}
+
+async function addStage(
+	tx: PrismaTransaction,
+	project: ProjectRow,
+	rawName: string
+): Promise<ProjectShellOutcome | "ok"> {
+	const name = optionalText(rawName);
+	if (!name) {
+		return { reason: "stage-name-invalid", status: "rejected" };
+	}
+	const sortOrder = project.stages.reduce(
+		(max, stage) => Math.max(max, stage.sortOrder + 1),
+		0
+	);
+	await tx.projectStage.create({
+		data: {
+			id: crypto.randomUUID(),
+			name,
+			projectId: project.id,
+			sortOrder,
+			state: STAGE_STATE.notPlanned,
+		},
+	});
+	return "ok";
+}
+
+async function renameStage(
+	tx: PrismaTransaction,
+	project: ProjectRow,
+	stageId: string,
+	rawName: string
+): Promise<ProjectShellOutcome | "ok"> {
+	const name = optionalText(rawName);
+	if (!name) {
+		return { reason: "stage-name-invalid", status: "rejected" };
+	}
+	if (!project.stages.some((stage) => stage.id === stageId)) {
+		return { reason: "stage-not-found", status: "rejected" };
+	}
+	await tx.projectStage.update({
+		data: { name },
+		where: { id: stageId },
+	});
+	return "ok";
+}
+
+async function setStageState(
+	tx: PrismaTransaction,
+	project: ProjectRow,
+	stageId: string,
+	state: string
+): Promise<ProjectShellOutcome | "ok"> {
+	if (!isStageState(state)) {
+		return { reason: "unknown-stage-state", status: "rejected" };
+	}
+	if (!project.stages.some((stage) => stage.id === stageId)) {
+		return { reason: "stage-not-found", status: "rejected" };
+	}
+	await tx.projectStage.update({
+		data: { state },
+		where: { id: stageId },
+	});
+	return "ok";
+}
+
+async function reorderStages(
+	tx: PrismaTransaction,
+	project: ProjectRow,
+	stageIds: readonly string[]
+): Promise<ProjectShellOutcome | "ok"> {
+	const current = new Set(project.stages.map((stage) => stage.id));
+	if (
+		stageIds.length !== current.size ||
+		new Set(stageIds).size !== current.size ||
+		stageIds.some((id) => !current.has(id))
+	) {
+		return { reason: "stage-order-invalid", status: "rejected" };
+	}
+	await Promise.all(
+		stageIds.map((id, sortOrder) =>
+			tx.projectStage.update({
+				data: { sortOrder },
+				where: { id },
+			})
+		)
+	);
+	return "ok";
+}
+
+async function removeStage(
+	tx: PrismaTransaction,
+	project: ProjectRow,
+	stageId: string
+): Promise<ProjectShellOutcome | "ok"> {
+	if (!project.stages.some((stage) => stage.id === stageId)) {
+		return { reason: "stage-not-found", status: "rejected" };
+	}
+	await tx.projectStage.delete({ where: { id: stageId } });
+	const remaining = [...project.stages]
+		.filter((stage) => stage.id !== stageId)
+		.sort((left, right) => left.sortOrder - right.sortOrder);
+	await Promise.all(
+		remaining.map((stage, sortOrder) =>
+			tx.projectStage.update({
+				data: { sortOrder },
+				where: { id: stage.id },
+			})
+		)
+	);
+	return "ok";
+}
+
+function areaChangeTarget(
+	area: string
+):
+	| { name: ProjectAreaName; status: "ok" }
+	| { outcome: ProjectShellOutcome; status: "rejected" } {
+	if (isNonAreaSurface(area)) {
+		return {
+			outcome: { reason: "not-a-project-area", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	if (!isProjectAreaName(area)) {
+		return {
+			outcome: { reason: "unknown-project-area", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	return { name: area, status: "ok" };
+}
+
+async function setAreaEnabled(
+	tx: PrismaTransaction,
+	project: ProjectRow,
+	area: string,
+	enabled: boolean
+): Promise<ProjectShellOutcome | "ok"> {
+	const target = areaChangeTarget(area);
+	if (target.status !== "ok") {
+		return target.outcome;
+	}
+	await tx.projectAreaSetting.update({
+		data: { enabled },
+		where: {
+			projectId_name: { name: target.name, projectId: project.id },
+		},
+	});
+	return "ok";
+}
+
+async function setAreaPinned(
+	tx: PrismaTransaction,
+	project: ProjectRow,
+	area: string,
+	pinned: boolean
+): Promise<ProjectShellOutcome | "ok"> {
+	const target = areaChangeTarget(area);
+	if (target.status !== "ok") {
+		return target.outcome;
+	}
+	const current = project.areaSettings.find(
+		(setting) => setting.name === target.name
+	);
+	if (pinned) {
+		const pinOrder =
+			current?.pinned && current.pinOrder !== null
+				? current.pinOrder
+				: project.areaSettings.reduce((max, setting) => {
+						if (!setting.pinned || setting.pinOrder === null) {
+							return max;
+						}
+						return Math.max(max, setting.pinOrder + 1);
+					}, 0);
+		await tx.projectAreaSetting.update({
+			data: { pinned: true, pinOrder },
+			where: {
+				projectId_name: { name: target.name, projectId: project.id },
+			},
+		});
+		return "ok";
+	}
+	await tx.projectAreaSetting.update({
+		data: { pinned: false, pinOrder: null },
+		where: {
+			projectId_name: { name: target.name, projectId: project.id },
+		},
+	});
+	const remaining = [...project.areaSettings]
+		.filter(
+			(setting) =>
+				setting.pinned &&
+				setting.name !== target.name &&
+				isProjectAreaName(setting.name)
+		)
+		.sort((left, right) => (left.pinOrder ?? 0) - (right.pinOrder ?? 0));
+	await Promise.all(
+		remaining.map((setting, pinOrder) =>
+			tx.projectAreaSetting.update({
+				data: { pinOrder },
+				where: {
+					projectId_name: {
+						name: setting.name,
+						projectId: project.id,
+					},
+				},
+			})
+		)
+	);
+	return "ok";
+}
+
+async function restoreDefaultNavigation(
+	tx: PrismaTransaction,
+	project: ProjectRow
+): Promise<ProjectShellOutcome | "ok"> {
+	if (!isStarterConfiguration(project.starterConfiguration)) {
+		return { reason: "unknown-starter-configuration", status: "rejected" };
+	}
+	const defaults = appliedStructureFor(
+		project.starterConfiguration
+	).pinnedAreas;
+	const pinOrder = new Map(defaults.map((name, index) => [name, index]));
+	await Promise.all(
+		PROJECT_AREAS.map((name) =>
+			tx.projectAreaSetting.update({
+				data: {
+					pinned: pinOrder.has(name),
+					pinOrder: pinOrder.get(name) ?? null,
+				},
+				where: {
+					projectId_name: { name, projectId: project.id },
+				},
+			})
+		)
+	);
+	return "ok";
+}
+
+async function renameWorkStatus(
+	tx: PrismaTransaction,
+	project: ProjectRow,
+	semantic: string,
+	rawLabel: string
+): Promise<ProjectShellOutcome | "ok"> {
+	if (!isProtectedWorkStatus(semantic)) {
+		return { reason: "unknown-work-status", status: "rejected" };
+	}
+	const label = optionalText(rawLabel);
+	if (!label) {
+		return { reason: "work-status-label-invalid", status: "rejected" };
+	}
+	if (!project.workStatuses.some((status) => status.semantic === semantic)) {
+		return { reason: "unknown-work-status", status: "rejected" };
+	}
+	await tx.projectWorkStatus.update({
+		data: { label },
+		where: {
+			projectId_semantic: { projectId: project.id, semantic },
+		},
+	});
+	return "ok";
 }
 
 function validateCreatePayload(payload: CreateProjectPayload):
@@ -826,14 +1249,16 @@ function toView(row: ProjectRow): ProjectView {
 		.filter((area) => area.pinned && isProjectAreaName(area.name))
 		.sort((left, right) => (left.pinOrder ?? 0) - (right.pinOrder ?? 0))
 		.map((area) => area.name as ProjectAreaName);
-	const statuses = [...row.workStatuses]
-		.sort((left, right) => left.sortOrder - right.sortOrder)
-		.map((status) => status.semantic);
+	const statuses = [...row.workStatuses].sort(
+		(left, right) => left.sortOrder - right.sortOrder
+	);
+	const [notStarted, inProgress, blocked, closed] = statuses;
 	if (
-		statuses[0] !== "Not Started" ||
-		statuses[1] !== "In Progress" ||
-		statuses[2] !== "Blocked" ||
-		statuses[3] !== "Closed"
+		notStarted?.semantic !== "Not Started" ||
+		inProgress?.semantic !== "In Progress" ||
+		blocked?.semantic !== "Blocked" ||
+		closed?.semantic !== "Closed" ||
+		statuses.length !== 4
 	) {
 		throw new Error("protected-work-statuses");
 	}
@@ -874,11 +1299,25 @@ function toView(row: ProjectRow): ProjectView {
 		shortCodeLocked: row.hasWork,
 		stages: [...row.stages]
 			.sort((left, right) => left.sortOrder - right.sortOrder)
-			.map((stage) => stage.name),
+			.map((stage) => {
+				if (!isStageState(stage.state)) {
+					throw new Error("unknown-stage-state");
+				}
+				return {
+					id: stage.id,
+					name: stage.name,
+					state: stage.state,
+				};
+			}),
 		starterConfiguration: row.starterConfiguration,
 		targetDate: row.targetDate,
 		workContextCardLayouts: [],
-		workStatuses: ["Not Started", "In Progress", "Blocked", "Closed"],
+		workStatuses: [
+			{ label: notStarted.label, semantic: "Not Started" },
+			{ label: inProgress.label, semantic: "In Progress" },
+			{ label: blocked.label, semantic: "Blocked" },
+			{ label: closed.label, semantic: "Closed" },
+		],
 		workspaceId: row.workspaceId,
 		workViews: [...row.workViews]
 			.sort((left, right) => left.sortOrder - right.sortOrder)
