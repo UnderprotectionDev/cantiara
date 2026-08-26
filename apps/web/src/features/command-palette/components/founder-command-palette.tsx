@@ -17,7 +17,7 @@ import { Kbd } from "@cantiara/ui/components/kbd";
 import { CommandIcon } from "lucide-react";
 import {
 	createContext,
-	type KeyboardEvent,
+	type KeyboardEvent as ReactKeyboardEvent,
 	type ReactNode,
 	useCallback,
 	useContext,
@@ -200,7 +200,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 	);
 
 	const onFilterKeyDown = useCallback(
-		(event: KeyboardEvent<HTMLInputElement>) => {
+		(event: ReactKeyboardEvent<HTMLInputElement>) => {
 			if (event.key !== "Enter" || snapshot.commands.length > 0) {
 				return;
 			}
