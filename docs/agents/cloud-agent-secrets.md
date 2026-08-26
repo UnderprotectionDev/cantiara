@@ -35,3 +35,9 @@ Prisma migrate/push against Neon should use the non-pooler host. The app runtime
 3. `scripts/cloud-agent/install.sh` and `start.sh` write localhost fallbacks into `.env` when a key is missing, and drop `NEON_LOCAL` when `DATABASE_URL` is hosted so a snapshot leftover cannot tunnel Neon through the local proxy.
 
 `db push` during install/start always targets local Postgres, not hosted Neon.
+
+## Terminal commands
+
+Cursor expands `$HOME`, `${VAR:-default}`, and `$(...)` in `.cursor/environment.json` `terminals[].command`, then types the result into an interactive bash. A substitution that emits a newline — `$(seq 1 90)` — splits the command, so `dev` and `neon-proxy` die before they bind 3000/3001/4000/5433.
+
+Keep the warm-fork wait in the JSON command (the script may not exist yet). Use brace expansion (`for _ in {1..90}; do ...; done`), not `$(seq)`. Put URL fallbacks in `run-dev.sh`.

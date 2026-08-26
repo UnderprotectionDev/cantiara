@@ -47,5 +47,8 @@ cantiara_prepare_server_env() {
   cantiara_ensure_env_key "$env_file" BETTER_AUTH_URL "http://localhost:3000"
   cantiara_ensure_env_key "$env_file" CORS_ORIGIN "http://localhost:3001"
   cantiara_ensure_env_key "$env_file" NODE_ENV "development"
+  if [[ -z "${BETTER_AUTH_SECRET:-}" ]]; then
+    cantiara_ensure_env_key "$env_file" BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
+  fi
   cantiara_ensure_env_key "$REPO_ROOT/apps/web/.env" VITE_SERVER_URL "http://localhost:3000"
 }
