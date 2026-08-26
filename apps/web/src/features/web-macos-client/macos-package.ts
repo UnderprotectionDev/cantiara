@@ -166,7 +166,10 @@ export function productCandidateSigningReady(
 export function shippingBundleTargets(
 	targets: string | readonly string[]
 ): string[] {
-	return Array.isArray(targets) ? [...targets] : [targets];
+	if (typeof targets === "string") {
+		return [targets];
+	}
+	return [...targets];
 }
 
 function present(value: string | undefined): boolean {
