@@ -114,6 +114,21 @@ test("Retry is the toast action only when data was not written", () => {
 	expect(written.options.action).toBeUndefined();
 });
 
+test("the failed-flow toast stays until dismissed so Retry remains reachable", () => {
+	const retryable = mainFlowFailureToast(
+		issueMainFlowFailure({
+			reason: "Couldn't save Preferences.",
+			trackingId: "CANT-DEADBEEF",
+			written: false,
+		}),
+		() => undefined
+	);
+
+	expect(retryable.options.duration).toBe(Number.POSITIVE_INFINITY);
+	expect(retryable.options.closeButton).toBe(true);
+	expect(retryable.options.action?.label).toBe("Retry");
+});
+
 test("a failure without a server tracking ID does not invent a Support reference", () => {
 	const presented = presentFailedMainFlow(
 		new Error("Couldn't save Preferences.")

@@ -7,7 +7,9 @@ export function mainFlowFailureToast(
 	message: string;
 	options: {
 		action?: { label: "Retry"; onClick: () => void };
+		closeButton: true;
 		description: string;
+		duration: number;
 	};
 } {
 	const presented = presentFailedMainFlow(failure);
@@ -18,7 +20,9 @@ export function mainFlowFailureToast(
 				presented.retry && retry
 					? { label: presented.retry, onClick: retry }
 					: undefined,
+			closeButton: true,
 			description: presented.description,
+			duration: Number.POSITIVE_INFINITY,
 		},
 	};
 }
