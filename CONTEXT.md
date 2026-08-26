@@ -777,3 +777,11 @@ _Avoid_: Kayıt geçmişi, operasyon günlüğü
 **Operasyon günlüğü**:
 Hizmetin çalışmasını teşhis etmek için üretilen, özel içerik veya secret taşımayan kısa ömürlü teknik olay kaydı.
 _Avoid_: Kayıt geçmişi, Denetim kaydı
+
+**Destek referansı**:
+Başarısız ana akışta kullanıcıya gösterilen, sunucu hata takip kimliğinden türetilen ve secret veya Çalışma Alanı gövdesi taşımayan referans ([gözlemlenebilirlik](docs/prd/15-product-quality.md#gozlemlenebilirlik)). UI: `Support reference`.
+_Avoid_: pager, S1 alarm, müşteri kuyruğu, Denetim kaydı
+
+**Yeniden dene**:
+Başarısız ana akışta güvenli yeniden deneme eylemi. UI: `Retry`.
+_Avoid_: otomatik senkron, kuyruk replay

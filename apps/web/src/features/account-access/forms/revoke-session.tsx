@@ -1,9 +1,9 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { toast } from "sonner";
 
 import { afterRevokeSession } from "@/features/account-access/forms/after-revoke-session";
+import { showMainFlowFailure } from "@/features/web-macos-client/show-main-flow-failure";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -18,8 +18,10 @@ export default function RevokeSession({
 }) {
 	const mutation = useMutation(
 		orpc.accountAccess.revokeSession.mutationOptions({
-			onError: (error) => {
-				toast.error(`Error: ${error.message}`);
+			onError: (error, variables) => {
+				showMainFlowFailure(error, () => {
+					mutation.mutate(variables);
+				});
 			},
 			onSuccess: async () => {
 				const next = afterRevokeSession(current);

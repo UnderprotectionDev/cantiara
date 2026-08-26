@@ -1,14 +1,16 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
 
+import { showMainFlowFailure } from "@/features/web-macos-client/show-main-flow-failure";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export default function RevokeOtherSessions() {
 	const mutation = useMutation(
 		orpc.accountAccess.revokeOtherSessions.mutationOptions({
 			onError: (error) => {
-				toast.error(`Error: ${error.message}`);
+				showMainFlowFailure(error, () => {
+					mutation.mutate(undefined);
+				});
 			},
 			onSuccess: async () => {
 				await queryClient.invalidateQueries({
