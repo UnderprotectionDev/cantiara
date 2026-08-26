@@ -29,9 +29,10 @@ import {
 import { useForm, useStore } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 
+import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { orpc, queryClient } from "@/utils/orpc";
 
 const PREVIEW_INSTANT = new Date("2026-03-29T12:00:00.000Z");
@@ -46,6 +47,7 @@ export default function PreferencesForm({
 	preferences: AccountPreferences;
 	suggestion: SuggestedLocaleAndTimeZone;
 }) {
+	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const timeZones = useMemo(() => timeZoneOptions(), []);
 	const save = useMutation(
 		orpc.accountPreferences.save.mutationOptions({
@@ -56,6 +58,7 @@ export default function PreferencesForm({
 				await queryClient.invalidateQueries({
 					queryKey: orpc.accountPreferences.get.queryKey(),
 				});
+				recordSave();
 				toast.success(ACCOUNT_PREFERENCES_COPY.saved);
 			},
 		})
@@ -69,12 +72,30 @@ export default function PreferencesForm({
 			timeZone: preferences.timeZone,
 		} satisfies AccountPreferencesInput,
 		onSubmit: async ({ value }) => {
-			await save.mutateAsync(value);
+			const result = attemptOnlineWork("record-create", () =>
+				save.mutateAsync(value)
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			await result.value;
 		},
 	});
 	const values = useStore(form.store, (state) => state.values);
 	const locales = localeSelectOptions(preferences.locale, suggestion.locale);
 	const showSuggestion = shouldShowLocaleTimeZoneSuggestion(preferences);
+	const isDirty =
+		values.appearance !== preferences.appearance ||
+		values.dateFormat !== preferences.dateFormat ||
+		values.firstDayOfWeek !== preferences.firstDayOfWeek ||
+		values.locale !== preferences.locale ||
+		values.timeZone !== preferences.timeZone;
+
+	useEffect(() => {
+		if (isDirty) {
+			markUnsaved();
+		}
+	}, [isDirty, markUnsaved]);
 
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
