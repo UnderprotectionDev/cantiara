@@ -124,7 +124,7 @@ export function CaptureBulkSenseMaking({
 						{column.name ? (
 							<h3 className="mb-3 font-medium text-sm">{column.name}</h3>
 						) : null}
-						<ul className="flex flex-col gap-3">
+						<ul className="flex flex-row flex-wrap gap-3">
 							{column.items.map((item) => {
 								const templateLabel =
 									templates?.find((template) => template.id === item.template)
@@ -135,7 +135,7 @@ export function CaptureBulkSenseMaking({
 									)?.clusterId ?? "";
 								return (
 									<li
-										className="rounded-none border border-border p-3"
+										className="min-w-56 max-w-sm flex-1 rounded-none border border-border p-3"
 										key={item.id}
 									>
 										<p className="whitespace-pre-wrap text-sm">

@@ -352,29 +352,28 @@ export function createCaptureInbox(input: {
 		prisma: input.prisma,
 		workspaceId: input.workspaceId,
 	});
+	async function dropLayoutIfConsumed<T extends { status: string }>(
+		itemId: string,
+		outcome: T
+	): Promise<T> {
+		if (outcome.status === "consumed") {
+			await bulk.removePlacement(itemId);
+		}
+		return outcome;
+	}
 
 	return {
 		advanceTime(instant) {
 			now = instant;
 		},
-		attach: async (command) => {
-			const outcome = await triage.attach(command);
-			if (outcome.status === "consumed") {
-				await bulk.removePlacement(command.itemId);
-			}
-			return outcome;
-		},
+		attach: async (command) =>
+			dropLayoutIfConsumed(command.itemId, await triage.attach(command)),
 		bulkSenseMaking: bulk.bulkSenseMaking,
 		bulkSurfaces() {
 			return BULK_SURFACE_EXCLUSION;
 		},
-		convert: async (command) => {
-			const outcome = await triage.convert(command);
-			if (outcome.status === "consumed") {
-				await bulk.removePlacement(command.itemId);
-			}
-			return outcome;
-		},
+		convert: async (command) =>
+			dropLayoutIfConsumed(command.itemId, await triage.convert(command)),
 		async createBug(command) {
 			if (!connected()) {
 				return { queued: false, reason: "offline", status: "refused" };
@@ -434,13 +433,8 @@ export function createCaptureInbox(input: {
 			lastSuccessfulSaveAt = savedAt;
 			return outcome;
 		},
-		async deleteItem(command) {
-			const outcome = await triage.deleteItem(command);
-			if (outcome.status === "consumed") {
-				await bulk.removePlacement(command.itemId);
-			}
-			return outcome;
-		},
+		deleteItem: async (command) =>
+			dropLayoutIfConsumed(command.itemId, await triage.deleteItem(command)),
 		lastSuccessfulSaveAt() {
 			return lastSuccessfulSaveAt;
 		},
