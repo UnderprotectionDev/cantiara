@@ -29,7 +29,7 @@ export default function ProjectAreasForm({
 }) {
 	const { error, isPending, run } = useConfigureProject(projectId, revision);
 	const onRestore = useCallback(() => {
-		run({ action: "restore-default-navigation" });
+		run({ action: "restore-default-navigation" }).catch(() => undefined);
 	}, [run]);
 	return (
 		<div>
@@ -79,13 +79,13 @@ function AreaRow({
 			action: "set-area-enabled",
 			area: area.name,
 			enabled: !area.enabled,
-		});
+		}).catch(() => undefined);
 	}, [area.enabled, area.name, run]);
 	const onPin = useCallback(() => {
 		run({
 			action: area.pinned ? "unpin-from-navigation" : "pin-to-navigation",
 			area: area.name,
-		});
+		}).catch(() => undefined);
 	}, [area.name, area.pinned, run]);
 	return (
 		<li id={reservedAnchors?.has(anchor) ? undefined : anchor}>

@@ -5,6 +5,8 @@ import { useClientShell } from "@/features/web-macos-client/views/client-shell-h
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
+import { configureProjectError } from "./configure-project-error";
+
 type ConfigureChange =
 	| { action: "add-stage"; name: string }
 	| { action: "rename-stage"; name: string; stageId: string }
@@ -33,14 +35,15 @@ export function useConfigureProject(projectId: string, revision: number) {
 					setError(null);
 					return;
 				}
-				if (outcome.status === "conflict") {
-					setError("Conflict");
+				const message = configureProjectError(outcome);
+				if (message) {
+					setError(message);
 				}
 			},
 		})
 	);
 	const run = useCallback(
-		(change: ConfigureChange) => {
+		async (change: ConfigureChange) => {
 			setError(null);
 			markUnsaved();
 			const result = attemptOnlineWork("record-create", () =>
@@ -54,7 +57,7 @@ export function useConfigureProject(projectId: string, revision: number) {
 			if (result.status === "refused") {
 				return;
 			}
-			result.value.catch(() => undefined);
+			return await result.value;
 		},
 		[attemptOnlineWork, configure, markUnsaved, projectId, revision]
 	);

@@ -1,6 +1,7 @@
 export const MUTATION_COPY = {
 	cancel: "Cancel",
 	conflict: "Conflict",
+	currentValue: "Current value",
 	finalizing: "Finalizing",
 	retry: "Retry",
 	undo: "Undo",

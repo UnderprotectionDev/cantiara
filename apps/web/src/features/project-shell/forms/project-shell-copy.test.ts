@@ -37,9 +37,11 @@ test("English chrome uses Project Name and Short code", () => {
 		savedViews: "Saved views",
 		shortCode: "Short code",
 		shortCodeLocked: "Short code is locked after the first Work.",
+		stageNameRequired: "Stage name is required.",
 		starterConfiguration: "Starter Configuration",
 		status: "Status",
 		workContextCardLayout: "Work Context Card layout",
+		workStatusLabelRequired: "Work status label is required.",
 	});
 	expect(STARTER_CONFIGURATIONS).toEqual([
 		"Blank Project",

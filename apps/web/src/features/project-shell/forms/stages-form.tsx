@@ -5,6 +5,7 @@ import {
 	NativeSelect,
 	NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { useForm } from "@tanstack/react-form";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
@@ -32,21 +33,22 @@ export default function StagesForm({
 	stages: readonly StageView[];
 }) {
 	const { error, isPending, run } = useConfigureProject(projectId, revision);
-	const [newName, setNewName] = useState("");
 	const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
-	const onNewNameChange = useCallback(
-		(event: ChangeEvent<HTMLInputElement>) => {
-			setNewName(event.target.value);
+	const addForm = useForm({
+		defaultValues: { name: "" },
+		onSubmit: async ({ formApi, value }) => {
+			const outcome = await run({ action: "add-stage", name: value.name });
+			if (outcome?.status === "committed" || outcome?.status === "replayed") {
+				formApi.reset();
+			}
 		},
-		[]
-	);
+	});
 	const onAdd = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
-			run({ action: "add-stage", name: newName });
-			setNewName("");
+			addForm.handleSubmit().catch(() => undefined);
 		},
-		[newName, run]
+		[addForm]
 	);
 	return (
 		<section aria-label={PROJECT_SHELL_COPY.stages}>
@@ -67,12 +69,16 @@ export default function StagesForm({
 				))}
 			</ul>
 			<form className="flex flex-col gap-2" onSubmit={onAdd}>
-				<Field>
-					<FieldLabel htmlFor="add-stage">
-						{PROJECT_SHELL_COPY.addStage}
-					</FieldLabel>
-					<Input id="add-stage" onChange={onNewNameChange} value={newName} />
-				</Field>
+				<addForm.Field name="name">
+					{(field) => (
+						<StageNameField
+							id="add-stage"
+							label={PROJECT_SHELL_COPY.addStage}
+							onValueChange={field.handleChange}
+							value={field.state.value}
+						/>
+					)}
+				</addForm.Field>
 				<Button disabled={isPending} type="submit">
 					{PROJECT_SHELL_COPY.addStage}
 				</Button>
@@ -99,16 +105,22 @@ function StageRow({
 	stage: StageView;
 	stages: readonly StageView[];
 }) {
-	const [name, setName] = useState(stage.name);
-	const onNameChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-		setName(event.target.value);
-	}, []);
+	const renameForm = useForm({
+		defaultValues: { name: stage.name },
+		onSubmit: async ({ value }) => {
+			await run({
+				action: "rename-stage",
+				name: value.name,
+				stageId: stage.id,
+			});
+		},
+	});
 	const onNameSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
-			run({ action: "rename-stage", name, stageId: stage.id });
+			renameForm.handleSubmit().catch(() => undefined);
 		},
-		[name, run, stage.id]
+		[renameForm]
 	);
 	const onStateChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
@@ -116,7 +128,7 @@ function StageRow({
 				action: "set-stage-state",
 				stageId: stage.id,
 				state: event.target.value,
-			});
+			}).catch(() => undefined);
 		},
 		[run, stage.id]
 	);
@@ -135,7 +147,7 @@ function StageRow({
 		run({
 			action: "reorder-stages",
 			stageIds: next.map((item) => item.id),
-		});
+		}).catch(() => undefined);
 	}, [index, run, stages]);
 	const onMoveDown = useCallback(() => {
 		if (index >= stages.length - 1) {
@@ -152,11 +164,11 @@ function StageRow({
 		run({
 			action: "reorder-stages",
 			stageIds: next.map((item) => item.id),
-		});
+		}).catch(() => undefined);
 	}, [index, run, stages]);
 	const onRemove = useCallback(() => {
 		if (pendingRemoval === stage.id) {
-			run({ action: "remove-stage", stageId: stage.id });
+			run({ action: "remove-stage", stageId: stage.id }).catch(() => undefined);
 			setPendingRemoval(null);
 			return;
 		}
@@ -165,16 +177,16 @@ function StageRow({
 	return (
 		<div className="flex flex-col gap-2">
 			<form className="flex flex-col gap-2" onSubmit={onNameSubmit}>
-				<Field>
-					<FieldLabel htmlFor={`stage-name-${stage.id}`}>
-						{stage.name}
-					</FieldLabel>
-					<Input
-						id={`stage-name-${stage.id}`}
-						onChange={onNameChange}
-						value={name}
-					/>
-				</Field>
+				<renameForm.Field name="name">
+					{(field) => (
+						<StageNameField
+							id={`stage-name-${stage.id}`}
+							label={stage.name}
+							onValueChange={field.handleChange}
+							value={field.state.value}
+						/>
+					)}
+				</renameForm.Field>
 				<Button disabled={disabled} type="submit">
 					{PROJECT_SHELL_COPY.save}
 				</Button>
@@ -222,5 +234,30 @@ function StageRow({
 				<p role="status">{stageRemovalPreviewCopy(stage.name)}</p>
 			) : null}
 		</div>
+	);
+}
+
+function StageNameField({
+	id,
+	label,
+	onValueChange,
+	value,
+}: {
+	id: string;
+	label: string;
+	onValueChange: (value: string) => void;
+	value: string;
+}) {
+	const onChange = useCallback(
+		(event: ChangeEvent<HTMLInputElement>) => {
+			onValueChange(event.target.value);
+		},
+		[onValueChange]
+	);
+	return (
+		<Field>
+			<FieldLabel htmlFor={id}>{label}</FieldLabel>
+			<Input id={id} onChange={onChange} value={value} />
+		</Field>
 	);
 }

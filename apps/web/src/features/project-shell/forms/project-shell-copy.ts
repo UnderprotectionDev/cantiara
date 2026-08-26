@@ -52,6 +52,7 @@ export const PROJECT_SHELL_COPY = {
 	scope: "Scope",
 	shortCode: "Short code",
 	shortCodeLocked: "Short code is locked after the first Work.",
+	stageNameRequired: "Stage name is required.",
 	stageRemovalKeepsMainRecords: "Main records are not deleted.",
 	stageRemovalLeavesPresentation: "will leave presentation and filters.",
 	stages: "Stages",
@@ -61,6 +62,7 @@ export const PROJECT_SHELL_COPY = {
 	unavailable: "Project is unavailable.",
 	workContextCardLayout: "Work Context Card layout",
 	workStatuses: "Work statuses",
+	workStatusLabelRequired: "Work status label is required.",
 } as const;
 
 export function pinnedNavigationAreas(
