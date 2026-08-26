@@ -6,12 +6,12 @@
   "terminals": [
     {
       "name": "neon-proxy",
-      "command": "export PATH=\"$HOME/.bun/bin:$PATH\"; cd /workspace; for i in $(seq 1 90); do [ -x scripts/cloud-agent/run-neon-proxy.sh ] && break; sleep 1; done; bash scripts/cloud-agent/run-neon-proxy.sh",
+      "command": "export PATH=\"$HOME/.bun/bin:$PATH\"; cd /workspace; for _ in {1..90}; do [ -x scripts/cloud-agent/run-neon-proxy.sh ] && break; sleep 1; done; bash scripts/cloud-agent/run-neon-proxy.sh",
       "description": "Neon local WebSocket proxy on 5433, tunneling to local Postgres on 5432. Warm-fork checkouts wait until the script lands. App writes still follow injected DATABASE_URL."
     },
     {
       "name": "dev",
-      "command": "export PATH=\"$HOME/.bun/bin:$PATH\"; cd /workspace; for i in $(seq 1 90); do [ -x scripts/cloud-agent/run-dev.sh ] && break; sleep 1; done; export BETTER_AUTH_URL=\"${BETTER_AUTH_URL:-http://localhost:3000}\"; export CORS_ORIGIN=\"${CORS_ORIGIN:-http://localhost:3001}\"; export VITE_SERVER_URL=\"${VITE_SERVER_URL:-http://localhost:3000}\"; export NODE_ENV=\"${NODE_ENV:-development}\"; bash scripts/cloud-agent/run-dev.sh",
+      "command": "export PATH=\"$HOME/.bun/bin:$PATH\"; cd /workspace; for _ in {1..90}; do [ -x scripts/cloud-agent/run-dev.sh ] && break; sleep 1; done; bash scripts/cloud-agent/run-dev.sh",
       "description": "Turborepo dev servers: web (http://localhost:3001), API server (http://localhost:3000), and Fumadocs (http://localhost:4000). App writes follow injected DATABASE_URL."
     }
   ],
