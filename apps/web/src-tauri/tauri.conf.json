@@ -28,10 +28,17 @@
       "desktop": {
         "schemes": ["cantiara"]
       }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkzMzY3OTUzOTgwMDAyNUEKUldSYUFnQ1lVM2sya3lDUzJqUU9xZXdrUlRpVnI3MVp4RXI1dC9QMlphUnlZaHR2ays5Z1g4aFIK",
+      "endpoints": [
+        "https://github.com/UnderprotectionDev/cantiara/releases/latest/download/latest.json"
+      ]
     }
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["app", "dmg"],
     "icon": [
       "icons/32x32.png",

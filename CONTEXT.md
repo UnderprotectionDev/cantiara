@@ -722,6 +722,14 @@ _Avoid_: GitHub eşitleme bekletme, App kurulumu, oturum yenileme
 Belge okuma ve düzenleme ile kayıt yazmanın aktif internet bağlantısı gerektirdiği [çalışma modeli](docs/prd/03-account-platform-operations.md#calisma-ve-dagitim-modeli); yerel yazma kuyruğu, offline cache veya otomatik eşitleme yoktur.
 _Avoid_: yerel-first, offline-first, senkron kuyruğu
 
+**İmzalı masaüstü API sözleşmesi**:
+Yayımlanmış imzalı macOS paketinin backend'in kabul ettiği masaüstü API sınırı ([çalışma ve dağıtım modeli](docs/prd/03-account-platform-operations.md#calisma-ve-dagitim-modeli)); web istemcisi veya User-Agent değildir.
+_Avoid_: User-Agent, web API sürümü, semver eşlemesi
+
+**Güncelleme gerekli**:
+Süre dışı imzalı masaüstü API sözleşmesinin güvenli olmayan yazmadan önce durduğu açık hata ([çalışma ve dağıtım modeli](docs/prd/03-account-platform-operations.md#calisma-ve-dagitim-modeli)). UI: `Update required`.
+_Avoid_: otomatik rollback, App Store güncellemesi, sessiz yükseltme
+
 **Operasyonel yedek**:
 Hizmetin `RPO ≤ 5 dakika` ve `RTO ≤ 8 saat` hedefli [kurtarma kopyası](docs/prd/03-account-platform-operations.md#operasyonel-yedek-ve-kurtarma); kullanıcıya dönük restore-point veya Çalışma Alanı çıkış paketi değildir.
 _Avoid_: Çıkış paketi, ürün içi restore, Çöp Kutusu geçmişi

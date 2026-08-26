@@ -64,6 +64,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Hedefe katkı | `Contributes to Goal` | İş, Kilometre Taşı veya Proje Sürümünün Proje Hedefine türlenmiş katkı ilişkisidir |
 | Çalışma Alanı çıkış paketi | `Workspace Exit Package` | Kullanıcı parolasıyla şifrelenmiş tam Çalışma Alanı arşividir; ürün içi restore değildir |
 | Destek referansı | `Support reference` | Başarısız ana akışta secret veya özel içerik taşımayan sunucu takip kimliği |
+| Güncelleme gerekli | `Update required` | Süre dışı imzalı masaüstü API sözleşmesinde güvenli olmayan yazmadan önce duran hata |
 | Yeniden dene | `Retry` | Başarısız ana akışta güvenli yeniden deneme eylemi |
 | Veri yazıldı | `Data was written.` | Başarısız ana akışta yazmanın tamamlandığını bildirir |
 | Veri yazılmadı | `Data was not written.` | Başarısız ana akışta yazmanın yapılmadığını bildirir |

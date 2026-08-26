@@ -1,4 +1,4 @@
-import { protectedProcedure } from "@cantiara/api";
+import { protectedProcedure, protectedWriteProcedure } from "@cantiara/api";
 import {
 	accountPreferencesInputSchema,
 	getAccountPreferences,
@@ -10,7 +10,7 @@ export const accountPreferences = {
 	get: protectedProcedure.handler(async ({ context }) =>
 		getAccountPreferences(getPrismaClient(), context.session.user.id)
 	),
-	save: protectedProcedure
+	save: protectedWriteProcedure
 		.input(accountPreferencesInputSchema)
 		.handler(async ({ context, input }) =>
 			saveAccountPreferences(getPrismaClient(), context.session.user.id, input)
