@@ -2,17 +2,26 @@ export const WEB_CAPTURE_COPY = {
 	browser: "Browser",
 	device: "Device",
 	extensionLinks: "Extension links",
+	lastSuccessfulSave: "Last successful save",
 	lastUse: "Last use",
 	originUrl: "Origin URL",
+	pair: "Pair",
 	pairingCode: "Pairing code",
 	permissionDeclined: "Wide page read was declined. The clip was not widened.",
 	reauthorize: "Re-authorize this extension to send again.",
+	screenshot: "Screenshot",
 	searchInbox: "Search Inbox",
+	selectedImage: "Selected image",
+	selectedText: "Selected text",
 	send: "Send",
 	sensitivePage:
 		"This page may be sensitive. The clip uses the current tab only.",
+	sent: "Sent to Capture Inbox.",
 	targetInbox: "Target Inbox",
 	unpaired: "Pair this extension to send to Capture Inbox.",
+	unsavedChangesMayBeLost: "Unsaved changes may be lost",
+	unsupportedBrowser: "This browser cannot pair with Web Capture.",
+	url: "URL",
 	webCapture: "Web Capture",
 	wideReadPermission:
 		"Wide page read would include the full page. Declining keeps the selected clip.",
@@ -127,4 +136,31 @@ export function sendPayloadFor(clip: {
 		link: clip.originUrl,
 		origin: clip.originUrl,
 	};
+}
+
+export function nextIdempotencyKey(
+	previous: { fingerprint: string; key: string } | null,
+	fingerprint: string
+): { fingerprint: string; key: string } {
+	if (previous?.fingerprint === fingerprint) {
+		return previous;
+	}
+	return { fingerprint, key: crypto.randomUUID() };
+}
+
+export function previewContentFor(clip: {
+	kind: string;
+	originUrl: string;
+	screenshot?: string;
+	selectedImage?: string;
+	selectedText?: string;
+}): string {
+	const payload = sendPayloadFor(clip);
+	if (payload.body.length > 0) {
+		return payload.body;
+	}
+	if (payload.attachmentRef) {
+		return payload.attachmentRef;
+	}
+	return clip.kind;
 }

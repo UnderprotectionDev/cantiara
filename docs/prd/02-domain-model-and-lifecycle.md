@@ -165,6 +165,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Hedef Inbox | `Target Inbox` | Web Yakalama gönderiminin gideceği Workspace veya Project Capture Inbox |
 | Inbox ara | `Search Inbox` | Yetkili Project Inbox’ları ada göre arama; yalnız son açılanlarla sınırlı değildir |
 | Gönder | `Send` | Önizlenen Web Yakalama’yı Gelen Kutusuna yazma eylemi |
+| Eşle | `Pair` | Uzantının eşleme kodunu kullanarak bağlanma eylemi |
+| Gelen Kutusuna gönderildi | `Sent to Capture Inbox.` | Web Yakalama gönderiminin Inbox öğesi yazdığını bildiren durum |
+| Desteklenmeyen tarayıcı | `This browser cannot pair with Web Capture.` | Chromium ailesi ve Firefox dışındaki tarayıcıda eşlemeyi reddeden metin |
+| Son başarılı kayıt | `Last successful save` | Uzantıda son başarılı gönderimin zamanı |
 | Tarayıcı | `Browser` | Uzantı bağlantısı listesindeki tarayıcı adı |
 | Son kullanım | `Last use` | Uzantı bağlantısının son yazma zamanı |
 | Uzantı bağlantısını iptal et | `Revoke` | Tek bir uzantı bağlantısını iptal etme eylemi |

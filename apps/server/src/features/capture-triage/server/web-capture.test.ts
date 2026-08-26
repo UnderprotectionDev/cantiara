@@ -56,6 +56,12 @@ describe("Capture Inbox Web Capture catalog", () => {
 		expect(WEB_CAPTURE_COPY.device).toBe("Device");
 		expect(WEB_CAPTURE_COPY.browser).toBe("Browser");
 		expect(WEB_CAPTURE_COPY.lastUse).toBe("Last use");
+		expect(WEB_CAPTURE_COPY.pair).toBe("Pair");
+		expect(WEB_CAPTURE_COPY.sent).toBe("Sent to Capture Inbox.");
+		expect(WEB_CAPTURE_COPY.unsupportedBrowser).toBe(
+			"This browser cannot pair with Web Capture."
+		);
+		expect(WEB_CAPTURE_COPY.lastSuccessfulSave).toBe("Last successful save");
 	});
 });
 

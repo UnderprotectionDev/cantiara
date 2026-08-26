@@ -7,6 +7,7 @@ export interface PairResult {
 }
 
 export interface SendResult {
+	lastSuccessfulSaveAt?: Date | string;
 	reason?: string;
 	status: "saved" | "refused" | "conflict";
 }

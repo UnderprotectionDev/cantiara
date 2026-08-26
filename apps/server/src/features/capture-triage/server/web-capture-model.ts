@@ -11,8 +11,10 @@ export const WEB_CAPTURE_COPY = {
 	device: "Device",
 	extensionLinks: "Extension links",
 	generatePairingCode: "Generate pairing code",
+	lastSuccessfulSave: "Last successful save",
 	lastUse: "Last use",
 	originUrl: "Origin URL",
+	pair: "Pair",
 	pairingCode: "Pairing code",
 	pairingCodeExpiresOnce:
 		"This pairing code expires in five minutes and can be used once.",
@@ -23,8 +25,10 @@ export const WEB_CAPTURE_COPY = {
 	send: "Send",
 	sensitivePage:
 		"This page may be sensitive. The clip uses the current tab only.",
+	sent: "Sent to Capture Inbox.",
 	targetInbox: "Target Inbox",
 	unpaired: "Pair this extension to send to Capture Inbox.",
+	unsupportedBrowser: "This browser cannot pair with Web Capture.",
 	webCapture: "Web Capture",
 	wideReadPermission:
 		"Wide page read would include the full page. Declining keeps the selected clip.",
