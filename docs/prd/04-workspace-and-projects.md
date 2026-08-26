@@ -268,3 +268,9 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 - **İlk ürünün belgelenmiş klavye kısayolları sabittir ve her komutun görünür arayüz karşılığı bulunur.** Kullanıcı tarafından yeniden eşlenebilen genel kısayol profili ilk üründe veya kanıt bekleyen ticari gelecekte yer almaz; değerlendirme koşulları [Gelecek Yönleri](18-future-directions.md#yeniden-eslenebilir-klavye-kisayollari) belgesindedir.
 
 - **Paletteki temel eylemler ilgili görünür menülerde de bulunur.** Kısayol ipuçları görünürdür. Komut kapsamı, hedefi ve etkilenecek seçim sayısı açıkça gösterilir; geri alınabilir değişiklikler [ortak güvenli geri alma sözleşmesini](02-domain-model-and-lifecycle.md#değişiklik-geçmişi-aktör-ve-geri-alma) kullanır.
+
+- **Kapsam dışı veya bu bağlamda çalışmayan bir palet komutu `Can't run this here` ile, süzgeç boşsa `No matching command` ile açıkça başarısız olur ve yazmaz.** Gizli no-op yoktur.
+
+- **Kurucu Komut Paleti Dış yüzey şablonlarına ve Paylaşım erişim oturumuna yüklenmez.** Ziyaretçi belgesinde Çalışma Alanı komut listesi yoktur. Palet IDE pazarı, script çalıştırıcı veya otomasyon kuralı sunmaz.
+
+- **Yalnız klavye ile palet açılır, komutlar süzülür, bir komut çalıştırılır ve palet kapatılır.**

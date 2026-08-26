@@ -1,9 +1,10 @@
 /**
  * Command Palette seam — founder keyboard commands, authorized
- * search/create/switch, visible counterparts, and visibility budget.
+ * search/create/switch, visible counterparts, visibility budget,
+ * out-of-scope failure, visitor absence, and keyboard-only journey.
  * docs/specs/05-command-palette/spec.md and
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Komut Paleti).
+ * (Komut Paleti). Closed journey **Proje gezinme ve arama** palette half.
  */
 import { expect, test } from "vitest";
 
@@ -16,6 +17,8 @@ import {
 	type PaletteMutationPort,
 	type PaletteSnapshot,
 	shouldMountFounderPalette,
+	shouldRenderFounderPalette,
+	visitorDocumentChrome,
 	visitorDocumentMountsFounderPalette,
 } from "./command-palette";
 import {
@@ -308,20 +311,64 @@ test("a visitor or public surface does not mount the founder palette", () => {
 	const visitor = createCommandPalette(
 		founderInput({ surface: "visitor" })
 	).handleKeyDown(OPEN_KEY);
+	expect(visitor.consume).toBe(false);
 	expect(visitor.snapshot.visible).toBe(false);
-	expect(visitor.snapshot.failure).toBe("Can't run this here");
+	expect(visitor.snapshot.failure).toBe(null);
+	expect(visitor.snapshot.commands).toEqual([]);
+});
+
+test("a signed-in Account still has no founder palette on Dış yüzey or Paylaşım erişim oturumu", () => {
+	expect(shouldRenderFounderPalette("founder", true)).toBe(true);
+	expect(shouldRenderFounderPalette("founder", false)).toBe(false);
+	expect(shouldRenderFounderPalette("public", true)).toBe(false);
+	expect(shouldRenderFounderPalette("share-session", true)).toBe(false);
+	expect(shouldRenderFounderPalette("visitor", true)).toBe(false);
+});
+
+test("visitor Dış yüzey and Paylaşım erişim oturumu chrome have no Workspace commands", () => {
+	for (const surface of ["public", "share-session", "visitor"] as const) {
+		expect(visitorDocumentChrome(surface)).toEqual({
+			host: "visitor-document",
+			listensForOpenShortcut: false,
+			mountsFounderPalette: false,
+			surface,
+			workspaceCommandIds: [],
+		});
+		const mutation = memoryMutation();
+		const palette = createCommandPalette(founderInput({ mutation, surface }));
+		const opened = palette.handleKeyDown(OPEN_KEY);
+		expect(opened.consume).toBe(false);
+		expect(opened.snapshot.visible).toBe(false);
+		const ran = palette.run("create:work");
+		expect(ran.status).toBe("failed");
+		expect(ran.reason).toBe("Can't run this here");
+		expect(ran.wrote).toBe(false);
+		expect(mutation.writes).toHaveLength(0);
+	}
 });
 
 test("keyboard-only use can open, filter, run, and dismiss", () => {
 	const palette = createCommandPalette(founderInput());
 	expect(palette.handleKeyDown(OPEN_KEY).snapshot.visible).toBe(true);
-	const filtered = palette.setQuery("Nova");
-	expect(filtered.commands.map((command) => command.id)).toEqual([
+	for (const key of ["N", "o", "v", "a"] as const) {
+		palette.handleKeyDown({
+			ctrlKey: false,
+			key,
+			metaKey: false,
+		});
+	}
+	expect(palette.snapshot().query).toBe("Nova");
+	expect(palette.snapshot().commands.map((command) => command.id)).toEqual([
 		"switch-project:project-nova",
 	]);
-	const ran = palette.run("switch-project:project-nova");
-	expect(ran.status).toBe("switched");
+	const ran = palette.handleKeyDown({
+		ctrlKey: false,
+		key: "Enter",
+		metaKey: false,
+	});
+	expect(ran.consume).toBe(true);
 	expect(ran.snapshot.visible).toBe(false);
+	expect(ran.snapshot.failure).toBe(null);
 	palette.open();
 	const dismissed = palette.handleKeyDown({
 		ctrlKey: false,
@@ -364,11 +411,72 @@ test("opening Create from the menu shows preview and does not write", () => {
 });
 
 test("the palette is not an automation, marketplace, or remappable keymap host", () => {
-	const palette = createCommandPalette(founderInput());
+	const mutation = memoryMutation();
+	const palette = createCommandPalette(founderInput({ mutation }));
 	const snapshot = palette.setQuery("automation plugin marketplace");
 	expect(snapshot.commands).toEqual([]);
 	expect(snapshot.emptyReason).toBe("No matching command");
 	expect(palette.snapshot()).not.toHaveProperty("remapShortcut");
+	for (const commandId of [
+		"marketplace:install",
+		"script:run",
+		"automation:create-rule",
+	] as const) {
+		const result = palette.run(commandId);
+		expect(result.status).toBe("failed");
+		expect(result.reason).toBe("Can't run this here");
+		expect(result.wrote).toBe(false);
+		expect(result.snapshot.failure).toBe("Can't run this here");
+	}
+	expect(mutation.writes).toHaveLength(0);
+});
+
+test("Enter on No matching command fails visibly and does not write", () => {
+	const mutation = memoryMutation();
+	const palette = createCommandPalette(founderInput({ mutation }));
+	palette.open();
+	const empty = palette.setQuery("zzzz-not-a-command");
+	expect(empty.emptyReason).toBe("No matching command");
+	const enter = palette.handleKeyDown({
+		ctrlKey: false,
+		key: "Enter",
+		metaKey: false,
+	});
+	expect(enter.consume).toBe(true);
+	expect(enter.snapshot.visible).toBe(true);
+	expect(enter.snapshot.emptyReason).toBe("No matching command");
+	expect(enter.snapshot.failure).toBe("Can't run this here");
+	expect(mutation.writes).toHaveLength(0);
+});
+
+test("Enter does not write when the matching command cannot run here", () => {
+	const mutation = memoryMutation();
+	const palette = createCommandPalette(
+		founderInput({
+			catalog: { projects: [], records: [] },
+			context: {
+				currentProjectId: null,
+				selectionIds: [],
+			},
+			mutation,
+			session: {
+				authorizedProjectIds: [],
+				authorizedRecordIds: [],
+				workspaceId: "ws-home",
+				workspaceLabel: "Workspace",
+			},
+		})
+	);
+	palette.open();
+	palette.setQuery(COMMAND_PALETTE_COPY.create);
+	const enter = palette.handleKeyDown({
+		ctrlKey: false,
+		key: "Enter",
+		metaKey: false,
+	});
+	expect(enter.snapshot.failure).toBe("Can't run this here");
+	expect(enter.snapshot.visible).toBe(true);
+	expect(mutation.writes).toHaveLength(0);
 });
 
 test("an empty founder palette still opens with the product command names", () => {

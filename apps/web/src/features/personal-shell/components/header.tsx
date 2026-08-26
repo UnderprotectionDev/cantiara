@@ -1,13 +1,20 @@
 import { Link } from "@tanstack/react-router";
 
 import { AppearanceToggle } from "@/features/account-preferences/forms/appearance-toggle";
+import { shouldMountFounderPalette } from "@/features/command-palette/command-palette";
 import {
 	CommandPaletteProvider,
 	CommandPaletteTrigger,
+	usePaletteSurface,
 } from "@/features/command-palette/components/founder-command-palette";
 import UserMenu from "@/features/personal-shell/components/user-menu";
 
 export default function Header() {
+	const surface = usePaletteSurface();
+	if (!shouldMountFounderPalette(surface)) {
+		return null;
+	}
+
 	const links = [
 		{ label: "Home", to: "/" },
 		{ label: "Dashboard", to: "/dashboard" },

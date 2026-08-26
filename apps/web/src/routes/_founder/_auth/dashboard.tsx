@@ -4,7 +4,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import Workspace from "@/features/account-access/views/workspace";
 import { orpc } from "@/utils/orpc";
 
-export const Route = createFileRoute("/_auth/dashboard")({
+export const Route = createFileRoute("/_founder/_auth/dashboard")({
 	component: RouteComponent,
 });
 
