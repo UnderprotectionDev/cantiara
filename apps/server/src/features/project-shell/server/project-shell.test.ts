@@ -39,13 +39,10 @@ function brandingKeys(value: object): string[] {
 	return Object.keys(value).filter((key) => BRANDING_KEY_PATTERN.test(key));
 }
 
-async function seedWorkspace(
-	prisma: PrismaClient,
-	email = "founder@example.com"
-) {
+async function seedWorkspace(prisma: PrismaClient, email?: string) {
 	const user = await prisma.user.create({
 		data: {
-			email,
+			email: email ?? `founder-${crypto.randomUUID()}@example.com`,
 			emailVerified: true,
 			id: crypto.randomUUID(),
 			name: "Founder",
@@ -59,6 +56,18 @@ async function seedWorkspace(
 		},
 	});
 	return { actorId: user.id, workspaceId: workspace.id };
+}
+
+async function resetSharedTables(prisma: PrismaClient) {
+	await prisma.mutationReceipt.deleteMany();
+	await prisma.workspaceShortCodeReservation.deleteMany();
+	await prisma.project.deleteMany();
+	await prisma.accountPreference.deleteMany();
+	await prisma.workspace.deleteMany();
+	await prisma.session.deleteMany();
+	await prisma.account.deleteMany();
+	await prisma.verification.deleteMany();
+	await prisma.user.deleteMany();
 }
 
 function createCommand(
@@ -105,14 +114,7 @@ describe("Project Shell", () => {
 	beforeEach(async () => {
 		pool = new Pool({ connectionString: DATABASE_URL });
 		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
-		await prisma.workspaceShortCodeReservation.deleteMany();
-		await prisma.project.deleteMany();
-		await prisma.accountPreference.deleteMany();
-		await prisma.workspace.deleteMany();
-		await prisma.session.deleteMany();
-		await prisma.account.deleteMany();
-		await prisma.verification.deleteMany();
-		await prisma.user.deleteMany();
+		await resetSharedTables(prisma);
 	});
 
 	afterEach(async () => {
@@ -221,21 +223,26 @@ describe("Project Shell", () => {
 
 	it("accepts every closed Starter Configuration without GitHub setup", async () => {
 		const { actorId, workspaceId } = await seedWorkspace(prisma);
-		const outcomes = await Promise.all(
-			STARTER_CONFIGURATIONS.map((starterConfiguration, index) =>
-				createProject(
-					prisma,
-					createCommand(
-						{
-							idempotencyKey: `create-${index}`,
-							name: `App ${index}`,
-							starterConfiguration,
-							workspaceId,
-						},
-						actorId
+		const outcomes = await STARTER_CONFIGURATIONS.reduce(
+			async (pending, starterConfiguration, index) => {
+				const previous = await pending;
+				previous.push(
+					await createProject(
+						prisma,
+						createCommand(
+							{
+								idempotencyKey: `create-${index}`,
+								name: `App ${index}`,
+								starterConfiguration,
+								workspaceId,
+							},
+							actorId
+						)
 					)
-				)
-			)
+				);
+				return previous;
+			},
+			Promise.resolve([] as Awaited<ReturnType<typeof createProject>>[])
 		);
 		for (const [index, outcome] of outcomes.entries()) {
 			expect(outcome.status).toBe("committed");
