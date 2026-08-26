@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 
 import Workspace from "@/features/account-access/views/workspace";
+import ProjectList from "@/features/project-shell/views/project-list";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_founder/_auth/dashboard")({
@@ -24,6 +25,7 @@ function RouteComponent() {
 				<Link to="/sessions">Sessions</Link>
 			</p>
 			<Workspace />
+			<ProjectList />
 			<p>API: {privateData.data?.message}</p>
 		</div>
 	);
