@@ -33,7 +33,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kısa kod kilitli | `Short code is locked after the first Work.` | İlk İşten sonra kısa kodun değişmeyeceğini bildiren metin |
 | Amaç | `Purpose` | İsteğe bağlı Proje profil alanı |
 | Problem | `Problem` | İsteğe bağlı çözülmek istenen problem |
-| Kapsam | `Scope` | İsteğe bağlı kapsam sınırı |
+| Kapsam | `Scope` | İsteğe bağlı Proje profil alanı; Open Source Library hazır aşama adı da `Scope` kullanır |
 | Hedef tarihi | `Target date` | İsteğe bağlı Proje hedef tarihi |
 | Logo | `Logo` | İsteğe bağlı Proje logosu; Proje rengi, CSS veya font değildir |
 | Proje oluştur | `Create Project` | Yeni Projeyi kaydeden eylem |
@@ -41,6 +41,33 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kısa kodu kaydet | `Save Short code` | İlk İşten önce kısa kodu güncelleme eylemi |
 | Yükleniyor | `Loading…` | Proje kabuğu okuma durumu |
 | Proje kullanılamıyor | `Project is unavailable.` | Proje kabuğu okuma hatası |
+| Blank Project | `Blank Project` | Aşama ve uzman görünüm kurmayan en küçük Başlangıç yapılandırması |
+| Solo SaaS | `Solo SaaS` | Discovery–Operate aşamaları ve bütün Proje alanlarıyla açılan Başlangıç yapılandırması |
+| Open Source Library | `Open Source Library` | Scope–Maintain aşamaları ve GitHub ağırlıklı alanlarla açılan Başlangıç yapılandırması |
+| Mobile Application | `Mobile Application` | Discovery–Operate aşamaları ve Production sabitlemesiyle açılan Başlangıç yapılandırması |
+| Proje genel bakışı | `Overview` | Proje alanı olmayan daima erişilir yüzey |
+| All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
+| Belgeler | `Documents` | Belge kayıtlarını toplayan Proje alanı |
+| Discovery | `Discovery` | Geri Bildirim ve araştırma kayıtlarını toplayan Proje alanı veya hazır aşama adı |
+| Decisions | `Decisions` | Karar, Risk, Varsayım ve Açık Soruyu toplayan Proje alanı |
+| Design | `Design` | Duvar, Ekran ve akış kayıtlarını toplayan Proje alanı veya hazır aşama adı |
+| Tests | `Tests` | Test kayıtlarını toplayan Proje alanı; ayrı test ürünü değildir |
+| Releases | `Releases` | Proje Sürümü girişini toplayan Proje alanı |
+| Production | `Production` | Üretim olayları girişini toplayan Proje alanı |
+| GitHub | `GitHub` | GitHub bağlantısı girişini toplayan Proje alanı; oluşturmada zorunlu bağlantı değildir |
+| Backlog | `Backlog` | Hazır İş görünümü; tek kalıcı manuel sıra |
+| Board | `Board` | Hazır İş görünümü; Kanban sunumu |
+| Roadmap | `Roadmap` | Hazır İş görünümü |
+| Build | `Build` | Hazır Proje aşaması adı |
+| Validate | `Validate` | Hazır Proje aşaması adı |
+| Release | `Release` | Hazır Proje aşaması adı; `Releases` alanı veya Proje Sürümü değildir |
+| Operate | `Operate` | Hazır Proje aşaması adı |
+| Maintain | `Maintain` | Hazır Proje aşaması adı |
+| Not Started | `Not Started` | Korunan İş akışı durumu |
+| In Progress | `In Progress` | Korunan İş akışı durumu |
+| Blocked | `Blocked` | Korunan İş akışı durumu |
+| Closed | `Closed` | Korunan İş akışı durumu |
+| Açıklamayı kapat | `Dismiss` | İlk açılış açıklamasını kapatan eylem |
 | Herkese açık durum etiketi | `Public Status Label` | İş akışı durumunu değiştirmeyen, yalnız herkese açık Roadmap sunumunda kullanılan ziyaretçi etiketi |
 | GitHub kimliğini yeniden teyit etme | `Confirm GitHub Identity` | Yüksek riskli işlem için yeni OAuth turunda aynı değişmez GitHub kimliğini doğrulayan fakat parola/MFA girişi iddia etmeyen güvenlik eylemi |
 | GitHub bekleniyor | `Waiting for GitHub` | GitHub kesintisinde yeni giriş ve `Confirm GitHub Identity` için görünür bekleme durumu |

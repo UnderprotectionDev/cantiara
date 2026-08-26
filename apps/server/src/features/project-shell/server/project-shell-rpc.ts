@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import {
 	createProject,
+	dismissFirstOpenExplanation,
 	getProject,
 	listProjects,
 	suggestShortCode,
@@ -45,6 +46,28 @@ export const projectShell = {
 				origin: "human",
 				payload: input.payload,
 				workspaceId: access.workspaceId,
+			});
+		}),
+	dismissFirstOpenExplanation: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				projectId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const existing = await getProject(getPrismaClient(), input.projectId);
+			if (!existing || existing.workspaceId !== access.workspaceId) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return await dismissFirstOpenExplanation(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				projectId: input.projectId,
 			});
 		}),
 	get: protectedProcedure

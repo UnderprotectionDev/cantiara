@@ -1,5 +1,4 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
-import { z } from "zod";
 
 import {
 	advisoryKeys,
@@ -10,17 +9,28 @@ import {
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
 import {
+	ALWAYS_ON_SURFACES,
+	appliedStructureFor,
 	type CreateProjectCommand,
 	type CreateProjectPayload,
 	createProjectCommandSchema,
+	type DismissFirstOpenExplanationCommand,
+	dismissFirstOpenExplanationCommandSchema,
+	firstOpenExplanationFor,
+	isProjectAreaName,
 	isStarterConfiguration,
 	normalizeShortCode,
 	optionalDate,
 	optionalText,
+	PROJECT_AREAS,
 	PROJECT_LIFECYCLE,
+	PROTECTED_WORK_STATUSES,
+	type ProjectAreaName,
 	type ProjectShellOutcome,
 	type ProjectView,
-	STARTER_CONFIGURATIONS,
+	projectViewSchema,
+	STAGE_STATE,
+	type STARTER_CONFIGURATIONS,
 	suggestAvailableShortCode,
 	type UpdateShortCodeCommand,
 	updateShortCodeCommandSchema,
@@ -29,6 +39,13 @@ import {
 type PrismaTransaction = Prisma.TransactionClient;
 
 interface ProjectRow {
+	areaSettings: Array<{
+		enabled: boolean;
+		name: string;
+		pinOrder: number | null;
+		pinned: boolean;
+	}>;
+	firstOpenExplanationDismissed: boolean;
 	hasWork: boolean;
 	id: string;
 	lifecycleStatus: string;
@@ -39,10 +56,20 @@ interface ProjectRow {
 	revision: number;
 	scope: string | null;
 	shortCode: string;
+	stages: Array<{ name: string; sortOrder: number }>;
 	starterConfiguration: string;
 	targetDate: string | null;
+	workStatuses: Array<{ semantic: string; sortOrder: number }>;
 	workspaceId: string;
+	workViews: Array<{ name: string; sortOrder: number }>;
 }
+
+const PROJECT_STRUCTURE_INCLUDE = {
+	areaSettings: true,
+	stages: true,
+	workStatuses: true,
+	workViews: true,
+} as const;
 
 export async function createProject(
 	prisma: PrismaClient,
@@ -82,6 +109,27 @@ export async function updateShortCode(
 	);
 }
 
+export async function dismissFirstOpenExplanation(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ProjectShellOutcome> {
+	const parsed = parseDismissCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({
+		dismiss: true,
+		projectId: parsed.command.projectId,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		dismissInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
 export async function suggestShortCode(
 	prisma: PrismaClient,
 	workspaceId: string,
@@ -95,8 +143,14 @@ export async function getProject(
 	prisma: PrismaClient,
 	projectId: string
 ): Promise<ProjectView | null> {
-	const row = await prisma.project.findUnique({ where: { id: projectId } });
-	return row ? toView(row) : null;
+	const row = await prisma.project.findUnique({
+		include: PROJECT_STRUCTURE_INCLUDE,
+		where: { id: projectId },
+	});
+	if (!row) {
+		return null;
+	}
+	return toView(await hydrateStructure(prisma, row));
 }
 
 export async function listProjects(
@@ -104,10 +158,13 @@ export async function listProjects(
 	workspaceId: string
 ): Promise<ProjectView[]> {
 	const rows = await prisma.project.findMany({
+		include: PROJECT_STRUCTURE_INCLUDE,
 		orderBy: { createdAt: "asc" },
 		where: { workspaceId },
 	});
-	return rows.map(toView);
+	return await Promise.all(
+		rows.map(async (row) => toView(await hydrateStructure(prisma, row)))
+	);
 }
 
 export async function recordWorkExists(
@@ -116,7 +173,7 @@ export async function recordWorkExists(
 ): Promise<ProjectView | null> {
 	return await prisma.$transaction(async (tx) => {
 		await lockProject(tx, projectId);
-		const current = await tx.project.findUnique({ where: { id: projectId } });
+		const current = await loadProject(tx, projectId);
 		if (!current) {
 			return null;
 		}
@@ -128,6 +185,7 @@ export async function recordWorkExists(
 				hasWork: true,
 				revision: current.revision + 1,
 			},
+			include: PROJECT_STRUCTURE_INCLUDE,
 			where: { id: projectId },
 		});
 		return toView(updated);
@@ -207,6 +265,36 @@ function parseUpdateCommand(
 	return { command: parsed.data, status: "ok" };
 }
 
+function parseDismissCommand(
+	command: unknown
+):
+	| { command: DismissFirstOpenExplanationCommand; status: "ok" }
+	| { outcome: ProjectShellOutcome; status: "rejected" } {
+	if (!isRecord(command)) {
+		return {
+			outcome: { reason: "missing-idempotency-key", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	if (
+		typeof command.idempotencyKey !== "string" ||
+		command.idempotencyKey.length === 0
+	) {
+		return {
+			outcome: { reason: "missing-idempotency-key", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	const parsed = dismissFirstOpenExplanationCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return {
+			outcome: { reason: "missing-idempotency-key", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	return { command: parsed.data, status: "ok" };
+}
+
 async function createInTransaction(
 	tx: PrismaTransaction,
 	command: CreateProjectCommand,
@@ -241,8 +329,9 @@ async function createInTransaction(
 	if (claimed === "taken") {
 		return { reason: "short-code-taken", status: "rejected" };
 	}
-	const row = await tx.project.create({
+	await tx.project.create({
 		data: {
+			firstOpenExplanationDismissed: false,
 			hasWork: false,
 			id: projectId,
 			lifecycleStatus: PROJECT_LIFECYCLE.active,
@@ -258,6 +347,11 @@ async function createInTransaction(
 			workspaceId: command.workspaceId,
 		},
 	});
+	await persistAppliedStructure(tx, projectId, validated.starterConfiguration);
+	const row = await loadProject(tx, projectId);
+	if (!row) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
 	const project = toView(row);
 	await writeReceipt(tx, {
 		actorId: command.actorId,
@@ -291,8 +385,12 @@ async function updateInTransaction(
 		return { reason: "target-not-found", status: "rejected" };
 	}
 	if (locked.revision !== command.baseRevision) {
+		const currentView = await loadProject(tx, locked.id);
+		if (!currentView) {
+			return { reason: "target-not-found", status: "rejected" };
+		}
 		return {
-			current: toView(locked),
+			current: toView(currentView),
 			currentValueLabel: MUTATION_COPY.currentValue,
 			status: "stale",
 		};
@@ -315,13 +413,71 @@ async function updateInTransaction(
 			return { reason: "short-code-taken", status: "rejected" };
 		}
 	}
-	const updated = await tx.project.update({
+	await tx.project.update({
 		data: {
 			revision: locked.revision + 1,
 			shortCode,
 		},
 		where: { id: locked.id },
 	});
+	const updated = await loadProject(tx, locked.id);
+	if (!updated) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const project = toView(updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		project,
+	});
+	return { project, status: "committed" };
+}
+
+async function dismissInTransaction(
+	tx: PrismaTransaction,
+	command: DismissFirstOpenExplanationCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<ProjectShellOutcome> {
+	const current = await tx.project.findUnique({
+		where: { id: command.projectId },
+	});
+	if (!current) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await lockWorkspace(tx, current.workspaceId);
+	await lockProject(tx, current.id);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const locked = await tx.project.findUnique({ where: { id: current.id } });
+	if (!locked) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (locked.revision !== command.baseRevision) {
+		const currentView = await loadProject(tx, locked.id);
+		if (!currentView) {
+			return { reason: "target-not-found", status: "rejected" };
+		}
+		return {
+			current: toView(currentView),
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	await tx.project.update({
+		data: {
+			firstOpenExplanationDismissed: true,
+			revision: locked.revision + 1,
+		},
+		where: { id: locked.id },
+	});
+	const updated = await loadProject(tx, locked.id);
+	if (!updated) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
 	const project = toView(updated);
 	await writeReceipt(tx, {
 		actorId: command.actorId,
@@ -432,9 +588,7 @@ async function replayOrConflict(
 	if (existing.payloadFingerprint !== fingerprint) {
 		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
 	}
-	const live = await tx.project.findUnique({
-		where: { id: existing.targetId },
-	});
+	const live = await loadProject(tx, existing.targetId);
 	if (live) {
 		return { project: toView(live), status: "replayed" };
 	}
@@ -525,47 +679,169 @@ function commandKeyFor(actorId: string, idempotencyKey: string): string {
 	return `human:${actorId}:${idempotencyKey}`;
 }
 
+async function loadProject(
+	db: PrismaClient | PrismaTransaction,
+	projectId: string
+): Promise<ProjectRow | null> {
+	return await db.project.findUnique({
+		include: PROJECT_STRUCTURE_INCLUDE,
+		where: { id: projectId },
+	});
+}
+
+async function hydrateStructure(
+	prisma: PrismaClient,
+	row: ProjectRow
+): Promise<ProjectRow> {
+	if (row.workStatuses.length > 0) {
+		return row;
+	}
+	if (!isStarterConfiguration(row.starterConfiguration)) {
+		throw new Error("unknown-starter-configuration");
+	}
+	return await prisma.$transaction(async (tx) => {
+		await lockProject(tx, row.id);
+		const locked = await loadProject(tx, row.id);
+		if (!locked) {
+			throw new Error("target-not-found");
+		}
+		if (locked.workStatuses.length > 0) {
+			return locked;
+		}
+		if (!isStarterConfiguration(locked.starterConfiguration)) {
+			throw new Error("unknown-starter-configuration");
+		}
+		await persistAppliedStructure(tx, locked.id, locked.starterConfiguration);
+		const hydrated = await loadProject(tx, locked.id);
+		if (!hydrated) {
+			throw new Error("target-not-found");
+		}
+		return hydrated;
+	});
+}
+
+async function persistAppliedStructure(
+	tx: PrismaTransaction,
+	projectId: string,
+	starterConfiguration: (typeof STARTER_CONFIGURATIONS)[number]
+): Promise<void> {
+	const applied = appliedStructureFor(starterConfiguration);
+	const enabled = new Set<ProjectAreaName>(applied.enabledAreas);
+	const pinOrder = new Map(
+		applied.pinnedAreas.map((name, index) => [name, index])
+	);
+	if (applied.stages.length > 0) {
+		await tx.projectStage.createMany({
+			data: applied.stages.map((name, sortOrder) => ({
+				id: crypto.randomUUID(),
+				name,
+				projectId,
+				sortOrder,
+				state: STAGE_STATE.notPlanned,
+			})),
+		});
+	}
+	await tx.projectAreaSetting.createMany({
+		data: PROJECT_AREAS.map((name) => ({
+			enabled: enabled.has(name),
+			id: crypto.randomUUID(),
+			name,
+			pinned: pinOrder.has(name),
+			pinOrder: pinOrder.get(name) ?? null,
+			projectId,
+		})),
+	});
+	await tx.projectWorkView.createMany({
+		data: applied.workViews.map((name, sortOrder) => ({
+			id: crypto.randomUUID(),
+			name,
+			projectId,
+			sortOrder,
+		})),
+	});
+	await tx.projectWorkStatus.createMany({
+		data: PROTECTED_WORK_STATUSES.map((semantic, sortOrder) => ({
+			id: crypto.randomUUID(),
+			label: semantic,
+			projectId,
+			semantic,
+			sortOrder,
+		})),
+	});
+}
+
 function toView(row: ProjectRow): ProjectView {
 	if (!isStarterConfiguration(row.starterConfiguration)) {
 		throw new Error("unknown-starter-configuration");
 	}
+	const settings = new Map(
+		row.areaSettings.flatMap((area) =>
+			isProjectAreaName(area.name) ? [[area.name, area] as const] : []
+		)
+	);
+	const allToolsAreas = PROJECT_AREAS.map((name) => {
+		const setting = settings.get(name);
+		return {
+			enabled: setting?.enabled ?? false,
+			name,
+			pinned: setting?.pinned ?? false,
+		};
+	});
+	const enabledAreas = allToolsAreas
+		.filter((area) => area.enabled)
+		.map((area) => area.name);
+	const pinnedAreas = [...row.areaSettings]
+		.filter((area) => area.pinned && isProjectAreaName(area.name))
+		.sort((left, right) => (left.pinOrder ?? 0) - (right.pinOrder ?? 0))
+		.map((area) => area.name as ProjectAreaName);
+	const statuses = [...row.workStatuses]
+		.sort((left, right) => left.sortOrder - right.sortOrder)
+		.map((status) => status.semantic);
+	if (
+		statuses[0] !== "Not Started" ||
+		statuses[1] !== "In Progress" ||
+		statuses[2] !== "Blocked" ||
+		statuses[3] !== "Closed"
+	) {
+		throw new Error("protected-work-statuses");
+	}
 	return {
+		allToolsAreas,
+		alwaysOnSurfaces: [...ALWAYS_ON_SURFACES],
+		enabledAreas,
+		firstOpenExplanation: row.firstOpenExplanationDismissed
+			? null
+			: firstOpenExplanationFor(row.starterConfiguration),
+		firstOpenExplanationVisible: !row.firstOpenExplanationDismissed,
 		id: row.id,
 		lifecycleStatus: PROJECT_LIFECYCLE.active,
 		logoFileName: row.logoFileName,
 		name: row.name,
+		pinnedAreas,
 		problem: row.problem,
 		purpose: row.purpose,
 		revision: row.revision,
 		scope: row.scope,
 		shortCode: row.shortCode,
 		shortCodeLocked: row.hasWork,
+		stages: [...row.stages]
+			.sort((left, right) => left.sortOrder - right.sortOrder)
+			.map((stage) => stage.name),
 		starterConfiguration: row.starterConfiguration,
 		targetDate: row.targetDate,
+		workContextCardLayouts: [],
+		workStatuses: ["Not Started", "In Progress", "Blocked", "Closed"],
 		workspaceId: row.workspaceId,
+		workViews: [...row.workViews]
+			.sort((left, right) => left.sortOrder - right.sortOrder)
+			.map((view) => view.name),
 	};
 }
 
 function storedProject(text: string): ProjectView | null {
 	try {
 		const parsed: unknown = JSON.parse(text);
-		const result = z
-			.object({
-				id: z.string(),
-				lifecycleStatus: z.literal(PROJECT_LIFECYCLE.active),
-				logoFileName: z.string().nullable(),
-				name: z.string(),
-				problem: z.string().nullable(),
-				purpose: z.string().nullable(),
-				revision: z.number(),
-				scope: z.string().nullable(),
-				shortCode: z.string(),
-				shortCodeLocked: z.boolean(),
-				starterConfiguration: z.enum(STARTER_CONFIGURATIONS),
-				targetDate: z.string().nullable(),
-				workspaceId: z.string(),
-			})
-			.safeParse(parsed);
+		const result = projectViewSchema.safeParse(parsed);
 		return result.success ? result.data : null;
 	} catch {
 		return null;
