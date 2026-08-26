@@ -1,12 +1,29 @@
 model MutationFixtureRecord {
-  id        String               @id
-  value     String
-  revision  Int
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
-  history   RecordHistoryEntry[]
+  id            String                     @id
+  value         String
+  fieldsText    String                     @default("{}")
+  revision      Int
+  retiredIntoId String?
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+  history       RecordHistoryEntry[]
+  outgoing      MutationFixtureRelation[]  @relation("MutationRelationFrom")
+  incoming      MutationFixtureRelation[]  @relation("MutationRelationTo")
 
   @@map("mutation_fixture_record")
+}
+
+model MutationFixtureRelation {
+  id        String                 @id
+  fromId    String
+  from      MutationFixtureRecord  @relation("MutationRelationFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toId      String
+  to        MutationFixtureRecord  @relation("MutationRelationTo", fields: [toId], references: [id], onDelete: Cascade)
+  kind      String
+  createdAt DateTime               @default(now())
+
+  @@index([fromId])
+  @@map("mutation_fixture_relation")
 }
 
 model MutationReceipt {
@@ -26,16 +43,21 @@ model MutationReceipt {
 }
 
 model RecordHistoryEntry {
-  id            String                 @id
-  targetId      String
-  target        MutationFixtureRecord  @relation(fields: [targetId], references: [id], onDelete: Cascade)
-  actorType     String
-  actorId       String
-  origin        String
-  occurredAt    DateTime
-  previousValue String
-  nextValue     String
-  revisionAfter Int
+  id              String                 @id
+  targetId        String
+  target          MutationFixtureRecord  @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  actorType       String
+  actorId         String
+  origin          String
+  occurredAt      DateTime
+  previousValue   String
+  nextValue       String
+  revisionAfter   Int
+  changeKind      String                 @default("field")
+  fieldKey        String                 @default("value")
+  affectedFields  String                 @default("[\"value\"]")
+  mergeRetiredId  String?
+  mergeAttributed String?
 
   @@index([targetId, occurredAt])
   @@map("record_history_entry")
