@@ -29,7 +29,9 @@ Bu belge Hesap oluşturma ve kapatma, Hesap profil tercihleri, oturum güvenliğ
 <a id="hesap-profil-tercihleri"></a>
 ## Hesap profil tercihleri
 
-- **Hesap profil tercihleri locale, saat dilimi, tarih biçimi, haftanın ilk günü ve açık/koyu görünümü bütün Projelerde ortak kullanıcı tercihi olarak yönetir.** İlk girişte tarayıcıdan önerilen locale ve saat dilimi kullanıcıya gösterilir ve ancak açık kayıtla uygulanır; başlangıç varsayılanları locale `en-GB`, saat dilimi `Europe/Istanbul` ve haftanın ilk günü `Monday`dir. İlk ürün arayüzü İngilizcedir ve değiştirilebilir dil tercihi sunmaz; locale yalnız tarih, saat ve sayı biçimini etkiler, kullanıcı içeriğini veya arayüz metnini çevirmez.
+- **Hesap profil tercihleri locale, saat dilimi, tarih biçimi, haftanın ilk günü ve Appearance değerini bütün Projelerde ortak kullanıcı tercihi olarak yönetir.** İlk girişte tarayıcıdan önerilen locale ve saat dilimi kullanıcıya gösterilir ve ancak açık kayıtla uygulanır; başlangıç varsayılanları locale `en-GB`, saat dilimi `Europe/Istanbul`, haftanın ilk günü `Monday` ve Appearance `Dark`tır. İlk ürün arayüzü İngilizcedir ve değiştirilebilir dil tercihi sunmaz; locale yalnız tarih, saat ve sayı biçimini etkiler, kullanıcı içeriğini veya arayüz metnini çevirmez.
+
+- **Appearance yalnız `Light` ve `Dark` kabul eder; OS-follow `System` Hesap değeri değildir.** Kayıtlı değer web ve macOS Tauri kabuğunda aynı görünümü üretir. İskelet cihaz-yerel tema anahtarı kayıtlı görünümün kaynağı değildir; header Appearance eylemi aynı Hesap kaydını okur ve yazar. `Appearance` tasarım tokenı, tema sistemi, Proje rengi veya white-label ürünü değildir.
 
 - **Saat dilimi değişikliği gelecekteki tarih girişlerini, takvim gün sınırlarını ve tarihsel olayların kullanıcıya dönük gösterimini değiştirir; saklanmış kesin zaman damgalarını yeniden yazmaz.** Bitiriş efektinin Hesap düzeyindeki etkinleştirme, tema ve palet davranışı [İş Yönetimindeki alan sözleşmesini](06-work-management-and-planning.md#bitiris-efektleri) kullanır; profil yüzeyi Proje teması, olay düzeyinde seçim veya efekt oynatma geçmişi oluşturmaz.
 

@@ -1,5 +1,6 @@
 import {
 	ACCOUNT_PREFERENCES_COPY,
+	APPEARANCE_COPY,
 	DATE_FORMAT_COPY,
 } from "@cantiara/auth/account-preferences-copy";
 import {
@@ -11,6 +12,7 @@ import {
 import {
 	type AccountPreferences,
 	type AccountPreferencesInput,
+	APPEARANCES,
 	applySuggestedLocaleAndTimeZone,
 	DATE_FORMATS,
 	FIRST_DAYS_OF_WEEK,
@@ -61,6 +63,7 @@ export default function PreferencesForm({
 	);
 	const form = useForm({
 		defaultValues: {
+			appearance: preferences.appearance,
 			dateFormat: preferences.dateFormat,
 			firstDayOfWeek: preferences.firstDayOfWeek,
 			locale: preferences.locale,
@@ -167,6 +170,22 @@ export default function PreferencesForm({
 						</PreferenceSelect>
 					)}
 				</form.Field>
+				<form.Field name="appearance">
+					{(field) => (
+						<PreferenceSelect
+							id="appearance"
+							label={ACCOUNT_PREFERENCES_COPY.appearance}
+							onValueChange={field.handleChange}
+							value={field.state.value}
+						>
+							{APPEARANCES.map((appearance) => (
+								<NativeSelectOption key={appearance} value={appearance}>
+									{APPEARANCE_COPY[appearance]}
+								</NativeSelectOption>
+							))}
+						</PreferenceSelect>
+					)}
+				</form.Field>
 			</FieldGroup>
 			<PreferencesPreview values={values} />
 			<Button disabled={save.isPending} type="submit">
@@ -232,6 +251,10 @@ function PreferencesPreview({ values }: { values: AccountPreferencesInput }) {
 			</p>
 			<p>
 				{ACCOUNT_PREFERENCES_COPY.workTitle} {WORK_TITLE}
+			</p>
+			<p>
+				{ACCOUNT_PREFERENCES_COPY.appearance}{" "}
+				{APPEARANCE_COPY[values.appearance]}
 			</p>
 		</section>
 	);

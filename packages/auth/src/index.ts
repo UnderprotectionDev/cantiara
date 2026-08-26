@@ -6,6 +6,7 @@ export {
 } from "./account-access-error";
 export {
 	ACCOUNT_PREFERENCES_COPY,
+	APPEARANCE_COPY,
 	DATE_FORMAT_COPY,
 	preferencesChrome,
 } from "./account-preferences-copy";
@@ -22,9 +23,13 @@ export {
 export {
 	type AccountPreferences,
 	type AccountPreferencesInput,
+	APPEARANCES,
+	type Appearance,
 	accountPreferencesInputSchema,
+	appearanceSchema,
 	applySuggestedLocaleAndTimeZone,
 	DATE_FORMATS,
+	DEFAULT_APPEARANCE,
 	DEFAULT_DATE_FORMAT,
 	DEFAULT_FIRST_DAY_OF_WEEK,
 	DEFAULT_LOCALE,

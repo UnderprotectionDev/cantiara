@@ -4,6 +4,9 @@ export const DEFAULT_LOCALE = "en-GB";
 export const DEFAULT_TIME_ZONE = "Europe/Istanbul";
 export const DEFAULT_FIRST_DAY_OF_WEEK = "Monday";
 export const DEFAULT_DATE_FORMAT = "locale";
+export const DEFAULT_APPEARANCE = "dark";
+
+export const APPEARANCES = ["light", "dark"] as const;
 
 export const FIRST_DAYS_OF_WEEK = [
 	"Sunday",
@@ -44,9 +47,11 @@ export const LOCALE_OPTIONS = [
 
 export type FirstDayOfWeek = (typeof FIRST_DAYS_OF_WEEK)[number];
 export type DateFormat = (typeof DATE_FORMATS)[number];
+export type Appearance = (typeof APPEARANCES)[number];
 
 export const firstDayOfWeekSchema = z.enum(FIRST_DAYS_OF_WEEK);
 export const dateFormatSchema = z.enum(DATE_FORMATS);
+export const appearanceSchema = z.enum(APPEARANCES);
 
 export const localeSchema = z
 	.string()
@@ -72,6 +77,7 @@ export const timeZoneSchema = z
 	);
 
 export const accountPreferencesInputSchema = z.object({
+	appearance: appearanceSchema,
 	dateFormat: dateFormatSchema,
 	firstDayOfWeek: firstDayOfWeekSchema,
 	locale: localeSchema,
@@ -93,6 +99,7 @@ export interface SuggestedLocaleAndTimeZone {
 
 export function unsavedAccountPreferences(): AccountPreferences {
 	return {
+		appearance: DEFAULT_APPEARANCE,
 		dateFormat: DEFAULT_DATE_FORMAT,
 		firstDayOfWeek: DEFAULT_FIRST_DAY_OF_WEEK,
 		locale: DEFAULT_LOCALE,

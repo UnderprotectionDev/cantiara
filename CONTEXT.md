@@ -19,8 +19,12 @@ Kurucunun değişmeyen kimliğini, kişisel tercihlerini ve güvenlik bağlamın
 _Avoid_: Kullanıcı çalışma alanı, profil projesi
 
 **Hesap tercihleri**:
-Hesap kapsamındaki locale, saat dilimi, tarih biçimi ve haftanın ilk günü; çalışma alanı içeriği veya Proje yapılandırması değildir ([Hesap profil tercihleri](docs/prd/03-account-platform-operations.md#hesap-profil-tercihleri)). UI: `Preferences`.
-_Avoid_: i18n language pack, dil tercihi, per-Project locale, tema sistemi, açık/koyu görünüm
+Hesap kapsamındaki locale, saat dilimi, tarih biçimi, haftanın ilk günü ve Appearance; çalışma alanı içeriği veya Proje yapılandırması değildir ([Hesap profil tercihleri](docs/prd/03-account-platform-operations.md#hesap-profil-tercihleri)). UI: `Preferences`.
+_Avoid_: i18n language pack, dil tercihi, per-Project locale, tema sistemi
+
+**Appearance**:
+Hesabın Light veya Dark okunabilirlik tercihi; tasarım tokenı, tema sistemi, Proje rengi veya white-label ürünü değildir ([Hesap profil tercihleri](docs/prd/03-account-platform-operations.md#hesap-profil-tercihleri)). UI: `Appearance`.
+_Avoid_: tema sistemi, System, Bitiriş efekti teması, Proje rengi
 
 **Locale**:
 Tarih, saat ve sayı biçimini seçen Hesap tercihi; arayüz dilini veya kullanıcı içeriğini çevirmez. UI: `Locale`.
