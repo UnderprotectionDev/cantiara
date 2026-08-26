@@ -1,27 +1,23 @@
 # Cantiara
 
-Personal project operating system for a solo product builder. This file is the always-loaded agent contract: the _process_ every run, not a second PRD.
+Personal project operating system for a solo product builder. This file is the always-loaded agent contract: the _process_ every run.
 
 ## Process
 
-1. **Orient.** Name the owning glossary term, the owning numbered PRD file, and every ADR that already decided a boundary this change touches. Done when each is a path or an explicit "none" — not when the area feels familiar.
+1. **Orient.** Name the owning glossary term, the owning spec, and every ADR that already decided a boundary this change touches. Done when each is a path or an explicit "none" — not when the area feels familiar.
 2. **Name.** Every domain name in the change is a [`CONTEXT.md`](CONTEXT.md) term, or the glossary gains that term in the same change. The `_Avoid_` list is binding.
-3. **Change.** Product behavior comes from the owning PRD file. Tools and runtimes come from [`docs/tech-stack.md`](docs/tech-stack.md). File ownership comes from [`structure.md`](structure.md). Architecture that would surprise a later reader is an ADR, written only when [`docs/adr/README.md`](docs/adr/README.md) would accept one.
-4. **Close.** Done when every Orient path still holds, every Name is a glossary term, and every in-file rule holds. A new or changed normative PRD section is bound to an acceptance journey in [`docs/prd/16-product-acceptance.md`](docs/prd/16-product-acceptance.md).
+3. **Change.** Product behavior comes from the owning spec. Tools and runtimes come from [`docs/tech-stack.md`](docs/tech-stack.md). File ownership comes from [`structure.md`](structure.md). Architecture that would surprise a later reader is an ADR, written only when [`docs/adr/README.md`](docs/adr/README.md) would accept one.
+4. **Close.** Done when every Orient path still holds, every Name is a glossary term, and every in-file rule holds. A new or changed section of the owning spec is bound to Testing Decisions in the same file.
 
 ## Glossary
 
 **Glossary** — [`CONTEXT.md`](CONTEXT.md). Read before naming a domain concept, writing a test, or editing product copy.
 
-A term in the glossary is not delivery scope. Scope lives in the PRD.
+A term in the glossary is not delivery scope. Scope lives in the spec.
 
-## Scope
+## Spec
 
-**Scope** — [`docs/product-prd.md`](docs/product-prd.md) (Kapsamı okuma kuralı). Read before changing product behavior, treating a numbered PRD as delivery scope, or picking up a future direction.
-
-First product is `01`–`15`. `16` is how to prove it. `17`–`18` stay out of delivery until their own activation rules fire. `19` is the negative boundary. The owning numbered file in [`docs/prd/`](docs/prd/) is the source of truth for that area.
-
-**Labels** — [`docs/prd/02-domain-model-and-lifecycle.md#terim-sözlüğü`](docs/prd/02-domain-model-and-lifecycle.md#terim-sözlüğü). Read before writing UI copy or a source identifier. The English UI label is the name in code and in the interface.
+**Spec** — [`docs/specs/`](docs/specs/). Read the owning `spec.md` before changing product behavior, writing UI copy or a source identifier, or deciding delivery scope. That spec's English UI is the name in code and in the interface.
 
 ## Decisions
 
@@ -37,7 +33,7 @@ First product is `01`–`15`. `16` is how to prove it. `17`–`18` stay out of d
 
 ## Domain documents
 
-Write [`CONTEXT.md`](CONTEXT.md), [`docs/prd/`](docs/prd/), and [`docs/adr/`](docs/adr/) in Turkish.
+Write [`CONTEXT.md`](CONTEXT.md) and [`docs/adr/`](docs/adr/) in Turkish.
 
 ## Git branches
 

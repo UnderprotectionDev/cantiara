@@ -6,8 +6,9 @@ How the engineering skills should consume this repo's domain documentation when 
 
 - **`CONTEXT.md`** at the repo root.
 - **`docs/adr/`** — read ADRs that touch the area you're about to work in.
+- **`docs/specs/<nn>-<slug>/spec.md`** — product behavior for the feature. A glossary term is not delivery scope.
 
-Product behavior is not in `CONTEXT.md`. Scope lives in `docs/prd/`; the index is `docs/product-prd.md`. `AGENTS.md` still owns Orient / Name / Change / Close for every run.
+`AGENTS.md` still owns Orient / Name / Change / Close for every run.
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
 
@@ -19,7 +20,7 @@ Single-context repo:
 /
 ├── CONTEXT.md
 ├── docs/adr/
-├── docs/prd/
+├── docs/specs/
 ├── apps/
 └── packages/
 ```
