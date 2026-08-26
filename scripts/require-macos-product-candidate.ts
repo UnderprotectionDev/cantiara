@@ -1,7 +1,7 @@
 import {
 	desktopBackendTarget,
 	productCandidateSigningReady,
-} from "../src/features/web-macos-client/macos-package";
+} from "../apps/web/src/features/web-macos-client/macos-package";
 
 const signing = productCandidateSigningReady(process.env);
 if (!signing.ready) {

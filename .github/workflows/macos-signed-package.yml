@@ -1,9 +1,9 @@
 # Signed and notarized macOS package for a product candidate.
 #
-# Local `tauri build` without Apple credentials is an unsigned skeleton and is
-# not product behavior. This workflow refuses to publish unless signing and
-# notarization credentials are present and the desktop talks to the hosted
-# Hono/Bun API.
+# Local tauri.conf.json uses signingIdentity "-" (ad-hoc skeleton). That is not
+# a product candidate. APPLE_SIGNING_IDENTITY in this job overrides it.
+# This workflow refuses to publish unless signing and notarization credentials
+# are present and the desktop talks to the hosted Hono/Bun API.
 #
 # GitHub secrets:
 #   APPLE_CERTIFICATE              base64-encoded Developer ID Application .p12
@@ -71,8 +71,7 @@ jobs:
             echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
           fi
       - name: Refuse an unsigned product candidate
-        run: bun scripts/require-product-candidate.ts
-        working-directory: apps/web
+        run: bun scripts/require-macos-product-candidate.ts
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

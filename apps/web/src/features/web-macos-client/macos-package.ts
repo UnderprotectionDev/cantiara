@@ -10,29 +10,41 @@ export interface MacosPackageCandidate {
 	signingIdentity?: string;
 	sourceOfTruth: "neon" | "local-postgres" | "local-files";
 	supportMatrix: {
+		cleanInstall: boolean;
 		frozenAt: string;
 		macosMajors: readonly number[];
 	};
 }
 
+export type MacosPackageRejectReason =
+	| "unsigned-skeleton"
+	| "not-notarized"
+	| "local-backend"
+	| "rust-data-layer"
+	| "local-source-of-truth"
+	| "non-macos-native-shell"
+	| "pwa-install"
+	| "self-host-installer"
+	| "eu-region-picker"
+	| "operational-backup-ui"
+	| "support-matrix";
+
 export type MacosPackageEvaluation =
 	| { status: "product-candidate" }
-	| { status: "not-product-behavior"; reason: string };
-
-const RELEASED_MACOS_MAJORS: readonly number[] = [26, 15, 14, 13, 12, 11];
-
-export function supportMatrixMajors(currentReleasedMajor: number): number[] {
-	const start = RELEASED_MACOS_MAJORS.indexOf(currentReleasedMajor);
-	if (start < 0) {
-		return [];
-	}
-	return RELEASED_MACOS_MAJORS.slice(start, start + 3);
-}
+	| { status: "not-product-behavior"; reason: MacosPackageRejectReason };
 
 export const macosSupportMatrix = {
+	cleanInstall: true,
 	frozenAt: "2026-08-26",
 	macosMajors: [26, 15, 14],
 } as const;
+
+export function supportMatrixMajors(currentReleasedMajor: number): number[] {
+	if (currentReleasedMajor !== macosSupportMatrix.macosMajors[0]) {
+		return [];
+	}
+	return [...macosSupportMatrix.macosMajors];
+}
 
 export function evaluateMacosPackageCandidate(
 	candidate: MacosPackageCandidate
@@ -90,12 +102,11 @@ export function evaluateMacosPackageCandidate(
 	}
 
 	if (
-		!(
-			candidate.supportMatrix.frozenAt &&
-			sameMajors(
-				candidate.supportMatrix.macosMajors,
-				macosSupportMatrix.macosMajors
-			)
+		candidate.supportMatrix.frozenAt !== macosSupportMatrix.frozenAt ||
+		candidate.supportMatrix.cleanInstall !== macosSupportMatrix.cleanInstall ||
+		!sameMajors(
+			candidate.supportMatrix.macosMajors,
+			macosSupportMatrix.macosMajors
 		)
 	) {
 		return { reason: "support-matrix", status: "not-product-behavior" };
