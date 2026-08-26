@@ -3,6 +3,7 @@ import { z } from "zod";
 export const CAPTURE_INBOX_COPY = {
 	attachToExisting: "Attach to existing",
 	bugCapture: "Bug Capture",
+	bulkSenseMaking: "Bulk sense-making",
 	captureInbox: "Capture Inbox",
 	channel: "Channel",
 	contact: "Contact",
@@ -150,6 +151,48 @@ export const CAPTURE_SURFACE_EXCLUSION = {
 	search: false,
 	share: false,
 } as const satisfies CaptureSurfaceEligibility;
+
+export interface BulkClusterView {
+	id: string;
+	kind: "view-metadata";
+	name: string;
+}
+
+export interface BulkPlacementView {
+	clusterId: string | null;
+	itemId: string;
+	position: { x: number; y: number };
+}
+
+export interface BulkSenseMakingView {
+	clusters: BulkClusterView[];
+	items: CaptureInboxItemView[];
+	kind: "view-metadata";
+	label: typeof CAPTURE_INBOX_COPY.bulkSenseMaking;
+	placements: BulkPlacementView[];
+}
+
+export interface BulkSurfaceEligibility {
+	export: false;
+	mainRecord: false;
+	planning: false;
+	publish: false;
+	relation: false;
+	search: false;
+	share: false;
+	tag: false;
+}
+
+export const BULK_SURFACE_EXCLUSION = {
+	export: false,
+	mainRecord: false,
+	planning: false,
+	publish: false,
+	relation: false,
+	search: false,
+	share: false,
+	tag: false,
+} as const satisfies BulkSurfaceEligibility;
 
 const templateById = new Map(
 	MINI_TEMPLATE_CATALOG.map((template) => [template.id, template])

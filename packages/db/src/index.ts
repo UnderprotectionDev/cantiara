@@ -42,6 +42,7 @@ export function getPrismaClient() {
 	if (
 		defaultPrisma !== undefined &&
 		(typeof defaultPrisma.captureInboxItem?.findMany !== "function" ||
+			typeof defaultPrisma.captureBulkSenseView?.findMany !== "function" ||
 			typeof defaultPrisma.projectSkeletonSelection?.findMany !== "function")
 	) {
 		defaultPrisma = undefined;

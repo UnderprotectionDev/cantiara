@@ -45,6 +45,10 @@ export const captureInbox = {
 			const inbox = await inboxFor(context.session.user.id);
 			return inbox.attach(input);
 		}),
+	bulkSenseMaking: protectedProcedure.handler(async ({ context }) => {
+		const inbox = await inboxFor(context.session.user.id);
+		return inbox.bulkSenseMaking();
+	}),
 	catalog: protectedProcedure.handler(() => captureInboxCatalog()),
 	convert: protectedWriteProcedure
 		.input(
@@ -102,6 +106,33 @@ export const captureInbox = {
 		const inbox = await inboxFor(context.session.user.id);
 		return inbox.listAll();
 	}),
+	nameBulkCluster: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				name: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.nameBulkCluster(input);
+		}),
+	placeInBulk: protectedWriteProcedure
+		.input(
+			z.object({
+				clusterId: z.string().min(1).nullable(),
+				idempotencyKey: z.string().min(1),
+				itemId: z.string().min(1),
+				position: z.object({
+					x: z.number(),
+					y: z.number(),
+				}),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.placeInBulk(input);
+		}),
 	previewAttach: protectedProcedure
 		.input(
 			z.object({

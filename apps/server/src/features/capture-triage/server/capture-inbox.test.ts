@@ -102,6 +102,7 @@ describe("Capture Inbox catalog", () => {
 		expect(CAPTURE_INBOX_COPY.convert).toBe("Convert");
 		expect(CAPTURE_INBOX_COPY.attachToExisting).toBe("Attach to existing");
 		expect(CAPTURE_INBOX_COPY.delete).toBe("Delete");
+		expect(CAPTURE_INBOX_COPY.bulkSenseMaking).toBe("Bulk sense-making");
 		expect(CAPTURE_INBOX_COPY.otherProjects).toBe("Other Projects");
 		expect(TRIAGE_EXIT_CATALOG).toEqual([
 			{ id: "convert", label: "Convert" },
@@ -146,6 +147,9 @@ describe("Capture Inbox", () => {
 	afterEach(async () => {
 		await prisma.mutationReceipt.deleteMany({
 			where: { actorId },
+		});
+		await prisma.captureBulkSenseView.deleteMany({
+			where: { ownerId: actorId },
 		});
 		await prisma.captureInboxItem.deleteMany({
 			where: { ownerId: actorId },
@@ -503,6 +507,299 @@ describe("Capture Inbox", () => {
 		expect(offline.unsavedRisk(false)).toBeNull();
 		expect(await online.list({ kind: "workspace" })).toHaveLength(1);
 	});
+
+	it("shows several captures side by side in Bulk sense-making as view metadata", async () => {
+		const capture = inbox();
+		const first = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Crash on save",
+		});
+		const second = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Login does nothing",
+		});
+		if (first.status !== "saved" || second.status !== "saved") {
+			throw new Error("expected saved captures");
+		}
+
+		expect(await capture.bulkSenseMaking()).toEqual({
+			clusters: [],
+			items: [first.item, second.item],
+			kind: "view-metadata",
+			label: CAPTURE_INBOX_COPY.bulkSenseMaking,
+			placements: [],
+		});
+	});
+
+	it("keeps Bulk cluster names and positions as view metadata across sessions", async () => {
+		const capture = inbox();
+		const first = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Crash on save",
+		});
+		const second = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Login does nothing",
+		});
+		if (first.status !== "saved" || second.status !== "saved") {
+			throw new Error("expected saved captures");
+		}
+
+		const named = await capture.nameBulkCluster({
+			idempotencyKey: crypto.randomUUID(),
+			name: "Login bugs",
+		});
+		expect(named).toEqual({
+			cluster: {
+				id: expect.any(String),
+				kind: "view-metadata",
+				name: "Login bugs",
+			},
+			status: "named",
+		});
+		if (named.status !== "named") {
+			throw new Error("expected a named cluster");
+		}
+
+		expect(
+			await capture.placeInBulk({
+				clusterId: named.cluster.id,
+				idempotencyKey: crypto.randomUUID(),
+				itemId: first.item.id,
+				position: { x: 0, y: 0 },
+			})
+		).toEqual({
+			placement: {
+				clusterId: named.cluster.id,
+				itemId: first.item.id,
+				position: { x: 0, y: 0 },
+			},
+			status: "placed",
+		});
+		expect(
+			await capture.placeInBulk({
+				clusterId: named.cluster.id,
+				idempotencyKey: crypto.randomUUID(),
+				itemId: second.item.id,
+				position: { x: 1, y: 0 },
+			})
+		).toEqual({
+			placement: {
+				clusterId: named.cluster.id,
+				itemId: second.item.id,
+				position: { x: 1, y: 0 },
+			},
+			status: "placed",
+		});
+
+		const later = inbox();
+		expect(await later.bulkSenseMaking()).toEqual({
+			clusters: [
+				{
+					id: named.cluster.id,
+					kind: "view-metadata",
+					name: "Login bugs",
+				},
+			],
+			items: [first.item, second.item],
+			kind: "view-metadata",
+			label: CAPTURE_INBOX_COPY.bulkSenseMaking,
+			placements: [
+				{
+					clusterId: named.cluster.id,
+					itemId: first.item.id,
+					position: { x: 0, y: 0 },
+				},
+				{
+					clusterId: named.cluster.id,
+					itemId: second.item.id,
+					position: { x: 1, y: 0 },
+				},
+			],
+		});
+	});
+
+	it("keeps Bulk cluster metadata out of search, planning, sharing, publishing, and export", async () => {
+		const capture = inbox();
+		const saved = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Crash on save",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+		const named = await capture.nameBulkCluster({
+			idempotencyKey: crypto.randomUUID(),
+			name: "Login bugs",
+		});
+		if (named.status !== "named") {
+			throw new Error("expected a named cluster");
+		}
+		await capture.placeInBulk({
+			clusterId: named.cluster.id,
+			idempotencyKey: crypto.randomUUID(),
+			itemId: saved.item.id,
+			position: { x: 0, y: 0 },
+		});
+
+		expect(capture.bulkSurfaces()).toEqual({
+			export: false,
+			mainRecord: false,
+			planning: false,
+			publish: false,
+			relation: false,
+			search: false,
+			share: false,
+			tag: false,
+		});
+		expect(capture.searchHits()).toEqual([]);
+		const view = await capture.bulkSenseMaking();
+		expect(view.kind).toBe("view-metadata");
+		expect(view.clusters).toEqual([
+			{
+				id: named.cluster.id,
+				kind: "view-metadata",
+				name: "Login bugs",
+			},
+		]);
+		expect(await capture.surfaces(saved.item.id)).toEqual({
+			backlog: false,
+			draft: false,
+			export: false,
+			mainRecord: false,
+			publish: false,
+			search: false,
+			share: false,
+		});
+	});
+
+	it("removes Bulk layout when an item exits and still consumes through the three exits", async () => {
+		const binder = createRecordBinder([
+			{
+				fields: { notes: "existing notes" },
+				id: "work-1",
+				projectId: "proj-cantiara",
+				projectName: "Cantiara",
+				title: "Login crash",
+			},
+		]);
+		const capture = inbox({
+			binder,
+			convertCreate: (command) =>
+				Promise.resolve({
+					handedOff: true,
+					recordId: null,
+					targetKind: command.targetKind,
+				}),
+		});
+		const toDelete = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Throw this away",
+		});
+		const toConvert = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Crash on save",
+		});
+		const toAttach = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			projectId: "proj-cantiara",
+			text: "Login does nothing",
+		});
+		if (
+			toDelete.status !== "saved" ||
+			toConvert.status !== "saved" ||
+			toAttach.status !== "saved"
+		) {
+			throw new Error("expected saved captures");
+		}
+		const named = await capture.nameBulkCluster({
+			idempotencyKey: crypto.randomUUID(),
+			name: "Login bugs",
+		});
+		if (named.status !== "named") {
+			throw new Error("expected a named cluster");
+		}
+		await capture.placeInBulk({
+			clusterId: named.cluster.id,
+			idempotencyKey: crypto.randomUUID(),
+			itemId: toDelete.item.id,
+			position: { x: 0, y: 0 },
+		});
+		await capture.placeInBulk({
+			clusterId: named.cluster.id,
+			idempotencyKey: crypto.randomUUID(),
+			itemId: toConvert.item.id,
+			position: { x: 1, y: 0 },
+		});
+		await capture.placeInBulk({
+			clusterId: named.cluster.id,
+			idempotencyKey: crypto.randomUUID(),
+			itemId: toAttach.item.id,
+			position: { x: 2, y: 0 },
+		});
+
+		expect(
+			await capture.deleteItem({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: toDelete.item.id,
+			})
+		).toEqual({
+			exit: "delete",
+			inboxItem: null,
+			status: "consumed",
+		});
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: toConvert.item.id,
+				previewed: true,
+				targetKind: "work",
+			})
+		).toMatchObject({
+			exit: "convert",
+			inboxItem: null,
+			status: "consumed",
+		});
+		const attached = await capture.attach({
+			idempotencyKey: crypto.randomUUID(),
+			itemId: toAttach.item.id,
+			previewed: true,
+			relation: "origin",
+			targetId: "work-1",
+		});
+		expect(attached).toMatchObject({
+			exit: "attach",
+			inboxItem: null,
+			status: "consumed",
+		});
+		expect(await capture.bulkSenseMaking()).toEqual({
+			clusters: [],
+			items: [],
+			kind: "view-metadata",
+			label: CAPTURE_INBOX_COPY.bulkSenseMaking,
+			placements: [],
+		});
+		expect(capture.triageExits()).toEqual(["convert", "attach", "delete"]);
+
+		if (attached.status !== "consumed") {
+			throw new Error("expected attach to consume");
+		}
+		const undone = await capture.undoMerge({
+			idempotencyKey: crypto.randomUUID(),
+			mergeId: attached.mergeId,
+		});
+		expect(undone).toEqual({
+			inboxItem: toAttach.item,
+			status: "restored",
+		});
+		expect(await capture.bulkSenseMaking()).toEqual({
+			clusters: [],
+			items: [toAttach.item],
+			kind: "view-metadata",
+			label: CAPTURE_INBOX_COPY.bulkSenseMaking,
+			placements: [],
+		});
+	}, 20_000);
 
 	it("exposes exactly three triage exits and does not treat Create Bug as one", async () => {
 		const capture = inbox();

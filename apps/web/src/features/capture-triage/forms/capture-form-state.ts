@@ -140,3 +140,84 @@ export function captureInboxGroups(
 	}
 	return groups;
 }
+
+export interface BulkSenseMakingItem {
+	body: string;
+	id: string;
+	template: string | null;
+}
+
+export interface BulkSenseMakingPlacement {
+	clusterId: string | null;
+	itemId: string;
+	position: { x: number; y: number };
+}
+
+export interface BulkSenseMakingColumn {
+	clusterId: string | null;
+	items: BulkSenseMakingItem[];
+	name: string | null;
+}
+
+export function bulkSenseMakingColumns(input: {
+	clusters: Array<{ id: string; name: string }>;
+	items: BulkSenseMakingItem[];
+	placements: BulkSenseMakingPlacement[];
+}): BulkSenseMakingColumn[] {
+	const itemById = new Map(input.items.map((item) => [item.id, item]));
+	const columns: BulkSenseMakingColumn[] = input.clusters.map((cluster) => ({
+		clusterId: cluster.id,
+		items: [],
+		name: cluster.name,
+	}));
+	const ungrouped: BulkSenseMakingItem[] = [];
+	const placed = new Set<string>();
+	for (const placement of [...input.placements].sort((left, right) => {
+		if (left.position.y !== right.position.y) {
+			return left.position.y - right.position.y;
+		}
+		return left.position.x - right.position.x;
+	})) {
+		const item = itemById.get(placement.itemId);
+		if (!item) {
+			continue;
+		}
+		placed.add(item.id);
+		const column = columns.find(
+			(candidate) => candidate.clusterId === placement.clusterId
+		);
+		if (column) {
+			column.items.push(item);
+			continue;
+		}
+		ungrouped.push(item);
+	}
+	for (const item of input.items) {
+		if (!placed.has(item.id)) {
+			ungrouped.push(item);
+		}
+	}
+	if (ungrouped.length > 0) {
+		columns.push({
+			clusterId: null,
+			items: ungrouped,
+			name: null,
+		});
+	}
+	return columns.filter(
+		(column) => column.items.length > 0 || column.clusterId !== null
+	);
+}
+
+export function nextBulkPosition(
+	placements: BulkSenseMakingPlacement[],
+	clusterId: string | null
+): { x: number; y: number } {
+	let maxX = -1;
+	for (const placement of placements) {
+		if (placement.clusterId === clusterId && placement.position.x > maxX) {
+			maxX = placement.position.x;
+		}
+	}
+	return { x: maxX + 1, y: 0 };
+}

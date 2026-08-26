@@ -21,6 +21,7 @@ import { CLIENT_SHELL_COPY } from "@/features/web-macos-client/views/client-shel
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
+import { CaptureBulkSenseMaking } from "./capture-bulk-sense-making";
 import {
 	type CaptureTemplateId,
 	captureFormAfterSave,
@@ -65,6 +66,9 @@ export default function CaptureForm() {
 				await queryClient.invalidateQueries({
 					queryKey: orpc.captureInbox.listAll.queryKey(),
 				});
+				await queryClient.invalidateQueries({
+					queryKey: orpc.captureInbox.bulkSenseMaking.queryKey(),
+				});
 				recordSave();
 				form.reset(captureFormAfterSave(values));
 			},
@@ -98,8 +102,12 @@ export default function CaptureForm() {
 		}
 	);
 	const [mergeId, setMergeId] = useState<string | null>(null);
+	const [bulkOpen, setBulkOpen] = useState(false);
 	const onMergeCleared = useCallback(() => {
 		setMergeId(null);
+	}, []);
+	const onToggleBulk = useCallback(() => {
+		setBulkOpen((open) => !open);
 	}, []);
 
 	useEffect(() => {
@@ -246,16 +254,39 @@ export default function CaptureForm() {
 				) : null}
 			</form>
 			<section aria-label={copy.captureInbox} className="flex flex-col gap-8">
-				<CaptureInboxList
-					copy={copy}
-					emptyCopy={copy.noCapturesInThisInbox}
-					groups={groups}
-					list={list}
-					mergeId={mergeId}
-					onMergeCleared={onMergeCleared}
-					onMergeConsumed={setMergeId}
-					templates={catalog.data?.templates}
-				/>
+				<Button
+					aria-pressed={bulkOpen}
+					onClick={onToggleBulk}
+					type="button"
+					variant={bulkOpen ? "default" : "outline"}
+				>
+					{copy.bulkSenseMaking}
+				</Button>
+				{bulkOpen ? (
+					<CaptureBulkSenseMaking
+						copy={copy}
+						onMergeConsumed={setMergeId}
+						templates={catalog.data?.templates}
+					/>
+				) : (
+					<CaptureInboxList
+						copy={copy}
+						emptyCopy={copy.noCapturesInThisInbox}
+						groups={groups}
+						list={list}
+						mergeId={mergeId}
+						onMergeCleared={onMergeCleared}
+						onMergeConsumed={setMergeId}
+						templates={catalog.data?.templates}
+					/>
+				)}
+				{bulkOpen && mergeId ? (
+					<CaptureMergeUndo
+						copy={copy}
+						mergeId={mergeId}
+						onCleared={onMergeCleared}
+					/>
+				) : null}
 			</section>
 		</div>
 	);

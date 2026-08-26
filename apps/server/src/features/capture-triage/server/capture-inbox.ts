@@ -6,6 +6,14 @@ import {
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
 import {
+	createBulkSenseMaking,
+	type NameBulkClusterOutcome,
+	type PlaceInBulkOutcome,
+} from "./capture-bulk-sense-making";
+import {
+	BULK_SURFACE_EXCLUSION,
+	type BulkSenseMakingView,
+	type BulkSurfaceEligibility,
 	CAPTURE_INBOX_COPY,
 	CAPTURE_SURFACE_EXCLUSION,
 	type CaptureInboxItemView,
@@ -112,6 +120,8 @@ export interface CaptureInbox {
 		relation: BindRelation;
 		targetId: string;
 	}) => Promise<AttachOutcome>;
+	bulkSenseMaking: () => Promise<BulkSenseMakingView>;
+	bulkSurfaces: () => BulkSurfaceEligibility;
 	convert: (input: {
 		idempotencyKey: string;
 		itemId: string;
@@ -128,6 +138,16 @@ export interface CaptureInbox {
 	lastSuccessfulSaveAt: () => Date | null;
 	list: (scope: CaptureInboxScope) => Promise<CaptureInboxItemView[]>;
 	listAll: () => Promise<CaptureInboxItemView[]>;
+	nameBulkCluster: (input: {
+		idempotencyKey: string;
+		name: string;
+	}) => Promise<NameBulkClusterOutcome>;
+	placeInBulk: (input: {
+		clusterId: string | null;
+		idempotencyKey: string;
+		itemId: string;
+		position: { x: number; y: number };
+	}) => Promise<PlaceInBulkOutcome>;
 	previewAttach: (input: {
 		itemId: string;
 		relation: BindRelation;
@@ -318,13 +338,43 @@ export function createCaptureInbox(input: {
 		toItemView,
 		workspaceId: input.workspaceId,
 	});
+	async function listAll() {
+		const rows = await input.prisma.captureInboxItem.findMany({
+			orderBy: { capturedAt: "asc" },
+			where: openItemWhere(input.workspaceId),
+		});
+		return rows.map(toItemView);
+	}
+	const bulk = createBulkSenseMaking({
+		actorId: input.actorId,
+		connected,
+		listAll,
+		prisma: input.prisma,
+		workspaceId: input.workspaceId,
+	});
 
 	return {
 		advanceTime(instant) {
 			now = instant;
 		},
-		attach: triage.attach,
-		convert: triage.convert,
+		attach: async (command) => {
+			const outcome = await triage.attach(command);
+			if (outcome.status === "consumed") {
+				await bulk.removePlacement(command.itemId);
+			}
+			return outcome;
+		},
+		bulkSenseMaking: bulk.bulkSenseMaking,
+		bulkSurfaces() {
+			return BULK_SURFACE_EXCLUSION;
+		},
+		convert: async (command) => {
+			const outcome = await triage.convert(command);
+			if (outcome.status === "consumed") {
+				await bulk.removePlacement(command.itemId);
+			}
+			return outcome;
+		},
 		async createBug(command) {
 			if (!connected()) {
 				return { queued: false, reason: "offline", status: "refused" };
@@ -384,7 +434,13 @@ export function createCaptureInbox(input: {
 			lastSuccessfulSaveAt = savedAt;
 			return outcome;
 		},
-		deleteItem: triage.deleteItem,
+		async deleteItem(command) {
+			const outcome = await triage.deleteItem(command);
+			if (outcome.status === "consumed") {
+				await bulk.removePlacement(command.itemId);
+			}
+			return outcome;
+		},
 		lastSuccessfulSaveAt() {
 			return lastSuccessfulSaveAt;
 		},
@@ -401,13 +457,9 @@ export function createCaptureInbox(input: {
 			});
 			return rows.map(toItemView);
 		},
-		async listAll() {
-			const rows = await input.prisma.captureInboxItem.findMany({
-				orderBy: { capturedAt: "asc" },
-				where: openItemWhere(input.workspaceId),
-			});
-			return rows.map(toItemView);
-		},
+		listAll,
+		nameBulkCluster: bulk.nameBulkCluster,
+		placeInBulk: bulk.placeInBulk,
 		previewAttach: triage.previewAttach,
 		previewConvert: triage.previewConvert,
 		previewUndoMerge: triage.previewUndoMerge,
