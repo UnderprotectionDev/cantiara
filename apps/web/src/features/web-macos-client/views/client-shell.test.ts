@@ -93,6 +93,23 @@ describe("Client Shell", () => {
 		});
 	});
 
+	it("omits Unsaved changes may be lost when the last successful save left nothing unsaved", () => {
+		const clean = setClientShellConnection(
+			recordClientShellSave(
+				createClientShell({ connected: true, host: "web" }),
+				SAVE_INSTANT
+			),
+			false
+		);
+
+		expect(offlineEmptyState(clean, istanbul)).toEqual({
+			heading: "You’re offline",
+			lastSavedDisplay: "29/03/2026, 15:00",
+			lastSavedLabel: "Last saved",
+			unsavedRisk: null,
+		});
+	});
+
 	it("formats Last saved with the Hesap locale and time zone, not a Client Shell schema", () => {
 		const empty = offlineEmptyState(savedOfflineShell(), {
 			...istanbul,

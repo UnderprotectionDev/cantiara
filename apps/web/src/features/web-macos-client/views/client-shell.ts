@@ -30,7 +30,7 @@ export interface OfflineEmptyStateView {
 	heading: typeof CLIENT_SHELL_COPY.youreOffline;
 	lastSavedDisplay: string | null;
 	lastSavedLabel: typeof CLIENT_SHELL_COPY.lastSaved;
-	unsavedRisk: typeof CLIENT_SHELL_COPY.unsavedChangesMayBeLost;
+	unsavedRisk: typeof CLIENT_SHELL_COPY.unsavedChangesMayBeLost | null;
 }
 
 export interface ClientShellLocalTruth {
@@ -122,7 +122,9 @@ export function offlineEmptyState(
 			? formatDateTime(shell.lastSuccessfulSaveAt, preferences)
 			: null,
 		lastSavedLabel: CLIENT_SHELL_COPY.lastSaved,
-		unsavedRisk: CLIENT_SHELL_COPY.unsavedChangesMayBeLost,
+		unsavedRisk: shell.hasUnsavedChanges
+			? CLIENT_SHELL_COPY.unsavedChangesMayBeLost
+			: null,
 	};
 }
 

@@ -20,7 +20,9 @@ export function OfflineEmptyState({ state }: { state: OfflineEmptyStateView }) {
 						{state.lastSavedDisplay ? `: ${state.lastSavedDisplay}` : ""}
 					</span>
 				</EmptyDescription>
-				<EmptyDescription>{state.unsavedRisk}</EmptyDescription>
+				{state.unsavedRisk ? (
+					<EmptyDescription>{state.unsavedRisk}</EmptyDescription>
+				) : null}
 			</EmptyHeader>
 		</Empty>
 	);

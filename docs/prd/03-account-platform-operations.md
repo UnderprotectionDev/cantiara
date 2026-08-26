@@ -7,7 +7,7 @@ Bu belge Hesap oluşturma ve kapatma, Hesap profil tercihleri, oturum güvenliğ
 
 - **İlk ürün, kurucu tarafından işletilen yönetilen bulut dağıtımına bağlanan online-only web uygulaması ve aynı ürünün macOS için Tauri masaüstü paketidir.** Web ile masaüstü aynı Hono/Bun backend'ini, Neon doğruluk kaynağını ve ürün sözleşmesini kullanır; Tauri backend'i Rust'a taşımaz veya ikinci bir yerel veri doğruluk kaynağı oluşturmaz. Son kullanıcı self-host kurulumu, Windows Tauri paketi ve çevrimdışı çalışma ilk üründe yoktur. Windows Tauri ancak gerçek kullanım ihtiyacı doğrulanırsa [gelecek yönü](18-future-directions.md#windows-tauri-paketi) olarak ele alınır.
 
-- **Belge okuma ve düzenleme, kayıt oluşturma ve planlama değişikliği aktif internet bağlantısı gerektirir.** Bağlantı kesildiğinde kullanıcı son başarılı kayıt zamanını ve sunucuya yazılmamış değişiklik riskini görür. Yerel çalışma kuyruğu, offline cache veya otomatik eşitleme oluşmaz.
+- **Belge okuma ve düzenleme, kayıt oluşturma ve planlama değişikliği aktif internet bağlantısı gerektirir.** Bağlantı kesildiğinde kullanıcı son başarılı kayıt zamanını görür; sunucuya yazılmamış değişiklik varsa yazılmamış risk görünür. Yerel çalışma kuyruğu, offline cache veya otomatik eşitleme oluşmaz.
 
 - **Tauri paketi web uygulamasıyla aynı Ürün sürüm adayının ana akışlarını ve güvenlik sınırlarını korur.** macOS paketi platform sertifikasıyla imzalanır ve notarization'dan geçer. Tauri Updater yalnız imzası doğrulanan çıktıyı uygular; değiştirilmiş veya geçersiz imzalı paketi reddeder ve önceki çalışan sürümü bozmaz. Otomatik rollback yoktur; bir önceki imzalı installer indirilebilir tutulur ve belgelenmiş manuel kurtarma yoluyla kurulabilir.
 
