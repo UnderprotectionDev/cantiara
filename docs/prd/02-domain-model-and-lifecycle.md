@@ -68,6 +68,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yeniden dene | `Retry` | Başarısız ana akışta güvenli yeniden deneme eylemi |
 | Çatışma | `Conflict` | Aynı idempotency veya teslim kimliğinin farklı payload taşıması |
 | Güncel değer | `Current value` | Güncel olmayan taban revizyonunda reddedilen yazmanın gösterdiği mevcut kayıt değeri |
+| Güvenli geri alma | `Undo` | Tersi deterministik hesaplanan alan, ilişki, görünüm üstverisi veya atomik dönüşümde ilgisiz sonraki değişikliği sarmadan uygulanan geri alma |
 | Kullanıcı | `User` | Kayıt geçmişine yazılan insan aktör türü |
 | Sistem otomasyonu | `System automation` | Kayıt geçmişine yazılan otomasyon aktör türü |
 | Yetkili entegrasyon | `Authorized integration` | Kayıt geçmişine yazılan entegrasyon aktör türü |
