@@ -16,7 +16,7 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CLIENT_SHELL_COPY } from "@/features/web-macos-client/views/client-shell";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -30,6 +30,7 @@ import {
 	createBugIsAvailable,
 	EMPTY_CAPTURE_FORM,
 } from "./capture-form-state";
+import { CaptureMergeUndo, CaptureTriageActions } from "./capture-triage-panel";
 
 export default function CaptureForm() {
 	const { attemptOnlineWork, clearUnsaved, markUnsaved, recordSave, shell } =
@@ -96,6 +97,10 @@ export default function CaptureForm() {
 			workspaceCaptureInbox: "Workspace Capture Inbox",
 		}
 	);
+	const [mergeId, setMergeId] = useState<string | null>(null);
+	const onMergeCleared = useCallback(() => {
+		setMergeId(null);
+	}, []);
 
 	useEffect(() => {
 		if (isDirty) {
@@ -242,9 +247,13 @@ export default function CaptureForm() {
 			</form>
 			<section aria-label={copy.captureInbox} className="flex flex-col gap-8">
 				<CaptureInboxList
+					copy={copy}
 					emptyCopy={copy.noCapturesInThisInbox}
 					groups={groups}
 					list={list}
+					mergeId={mergeId}
+					onMergeCleared={onMergeCleared}
+					onMergeConsumed={setMergeId}
 					templates={catalog.data?.templates}
 				/>
 			</section>
@@ -253,11 +262,26 @@ export default function CaptureForm() {
 }
 
 function CaptureInboxList({
+	copy,
 	emptyCopy,
 	groups,
 	list,
+	mergeId,
+	onMergeCleared,
+	onMergeConsumed,
 	templates,
 }: {
+	copy: {
+		attachToExisting: string;
+		convert: string;
+		delete: string;
+		document: string;
+		evidence: string;
+		fileAttachment: string;
+		origin: string;
+		otherProjects: string;
+		work: string;
+	};
 	emptyCopy: string;
 	groups: Array<{
 		heading: string;
@@ -273,7 +297,10 @@ function CaptureInboxList({
 		isError: boolean;
 		isPending: boolean;
 	};
-	templates?: Array<{ id: string; label: string }>;
+	mergeId: string | null;
+	onMergeCleared: () => void;
+	onMergeConsumed: (mergeId: string) => void;
+	templates?: ReadonlyArray<{ id: string; label: string }>;
 }) {
 	if (list.isError) {
 		return <p>{MAIN_FLOW_COPY.failed}</p>;
@@ -282,10 +309,20 @@ function CaptureInboxList({
 		return null;
 	}
 	if (groups.length === 0) {
-		return <p>{emptyCopy}</p>;
+		return (
+			<div className="flex flex-col gap-4">
+				{mergeId ? (
+					<CaptureMergeUndo mergeId={mergeId} onCleared={onMergeCleared} />
+				) : null}
+				<p>{emptyCopy}</p>
+			</div>
+		);
 	}
 	return (
 		<>
+			{mergeId ? (
+				<CaptureMergeUndo mergeId={mergeId} onCleared={onMergeCleared} />
+			) : null}
 			{groups.map((group) => (
 				<section
 					aria-label={
@@ -313,6 +350,11 @@ function CaptureInboxList({
 									<p className="whitespace-pre-wrap text-sm">
 										{captureInboxItemPreview(item, templateLabel)}
 									</p>
+									<CaptureTriageActions
+										copy={copy}
+										itemId={item.id}
+										onMergeConsumed={onMergeConsumed}
+									/>
 								</li>
 							);
 						})}

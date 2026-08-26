@@ -1,15 +1,26 @@
 model CaptureInboxItem {
-  id          String   @id
-  workspaceId String
-  ownerId     String
-  projectId   String?
-  body        String   @default("")
-  template    String?
-  fieldsText  String   @default("{}")
-  capturedAt  DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                     String    @id
+  workspaceId            String
+  ownerId                String
+  projectId              String?
+  body                   String    @default("")
+  template               String?
+  fieldsText             String    @default("{}")
+  link                   String    @default("")
+  attachmentRef          String?
+  origin                 String    @default("")
+  capturedAt             DateTime
+  consumedAt             DateTime?
+  consumedExit           String?
+  consumedTargetId       String?
+  consumedTargetKind     String?
+  consumedRelation       String?
+  consumedAttributedText String    @default("{}")
+  consumedMergeId        String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   @@index([workspaceId, projectId, capturedAt])
+  @@index([workspaceId, consumedMergeId])
   @@map("capture_inbox_item")
 }
