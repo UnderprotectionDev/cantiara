@@ -51,6 +51,7 @@ export const captureInbox = {
 			z.object({
 				idempotencyKey: z.string().min(1),
 				itemId: z.string().min(1),
+				previewed: z.boolean(),
 				targetKind: convertTargetKindSchema,
 			})
 		)

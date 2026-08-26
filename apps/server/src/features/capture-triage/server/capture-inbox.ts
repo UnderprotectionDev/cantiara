@@ -115,6 +115,7 @@ export interface CaptureInbox {
 	convert: (input: {
 		idempotencyKey: string;
 		itemId: string;
+		previewed: boolean;
 		targetKind: ConvertTargetKind;
 	}) => Promise<ConvertOutcome>;
 	createBug: (

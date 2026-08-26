@@ -261,6 +261,7 @@ export type ConvertOutcome =
 			recordCreate: ConvertResult;
 			status: "consumed";
 	  }
+	| { preview: ConvertPreview; status: "needs-preview" }
 	| { status: "not-found" };
 
 export type AttachOutcome =
@@ -500,7 +501,19 @@ function reviveItem(item: CaptureInboxItemView): CaptureInboxItemView {
 }
 
 function reviveConvertOutcome(outcome: ConvertOutcome): ConvertOutcome {
-	return outcome;
+	if (outcome.status !== "needs-preview") {
+		return outcome;
+	}
+	return {
+		...outcome,
+		preview: {
+			...outcome.preview,
+			original: {
+				...outcome.preview.original,
+				capturedAt: reviveDate(outcome.preview.original.capturedAt),
+			},
+		},
+	};
 }
 
 function reviveAttachOutcome(outcome: AttachOutcome): AttachOutcome {
@@ -653,6 +666,7 @@ export function createTriageExits(ctx: TriageExitsContext) {
 		async convert(input: {
 			idempotencyKey: string;
 			itemId: string;
+			previewed: boolean;
 			targetKind: ConvertTargetKind;
 		}): Promise<ConvertOutcome> {
 			if (!ctx.connected()) {
@@ -660,6 +674,7 @@ export function createTriageExits(ctx: TriageExitsContext) {
 			}
 			const payload = {
 				itemId: input.itemId,
+				previewed: input.previewed,
 				targetKind: input.targetKind,
 			};
 			const existing = await readHumanReceipt(
@@ -680,6 +695,13 @@ export function createTriageExits(ctx: TriageExitsContext) {
 				return { status: "not-found" };
 			}
 			const item = ctx.toItemView(row);
+			const preview = buildConvertPreview(item, input.targetKind);
+			if (!input.previewed) {
+				return {
+					preview,
+					status: "needs-preview",
+				};
+			}
 			const recordCreate = await ctx.convertCreate({
 				actorId: ctx.actorId,
 				idempotencyKey: input.idempotencyKey,

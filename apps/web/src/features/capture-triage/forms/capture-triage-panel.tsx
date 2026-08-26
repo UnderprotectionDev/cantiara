@@ -64,7 +64,10 @@ export function CaptureTriageActions({
 	}, []);
 	const convert = useMutation(
 		orpc.captureInbox.convert.mutationOptions({
-			onSuccess: async () => {
+			onSuccess: async (outcome) => {
+				if (outcome.status === "needs-preview") {
+					return;
+				}
 				await invalidate();
 				setDialog(null);
 			},
@@ -73,6 +76,9 @@ export function CaptureTriageActions({
 	const attach = useMutation(
 		orpc.captureInbox.attach.mutationOptions({
 			onSuccess: async (outcome) => {
+				if (outcome.status === "needs-preview") {
+					return;
+				}
 				await invalidate();
 				setDialog(null);
 				if (outcome.status === "consumed") {
@@ -121,6 +127,7 @@ export function CaptureTriageActions({
 		convert.mutate({
 			idempotencyKey: newIdempotencyKey(),
 			itemId,
+			previewed: true,
 			targetKind,
 		});
 	}, [convert, itemId, targetKind]);
@@ -322,7 +329,7 @@ function ConvertDialog({
 					</div>
 				) : null}
 				<DialogFooter>
-					<Button onClick={onConfirm} type="button">
+					<Button disabled={!previewData} onClick={onConfirm} type="button">
 						{copy.convert}
 					</Button>
 				</DialogFooter>

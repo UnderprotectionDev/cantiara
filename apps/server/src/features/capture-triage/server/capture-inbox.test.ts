@@ -613,6 +613,39 @@ describe("Capture Inbox", () => {
 				},
 			],
 		});
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+				previewed: false,
+				targetKind: "work",
+			})
+		).toEqual({
+			preview: {
+				fieldMappings: [
+					{
+						sourceField: "Observed Behavior",
+						targetField: "Observed Behavior",
+						value: "Login button does nothing",
+					},
+				],
+				original: {
+					capturedAt: CAPTURED_AT,
+					link: "",
+					origin: "",
+					screenshot: null,
+					text: "Observed Behavior\nLogin button does nothing",
+				},
+				proposed: {
+					body: "Observed Behavior\nLogin button does nothing",
+					kind: "work",
+					label: "Work",
+					link: "",
+					screenshot: null,
+				},
+			},
+			status: "needs-preview",
+		});
 		expect(commands).toEqual([]);
 		expect(
 			await capture.list({ kind: "project", projectId: "proj-cantiara" })
@@ -654,6 +687,7 @@ describe("Capture Inbox", () => {
 			await capture.convert({
 				idempotencyKey: crypto.randomUUID(),
 				itemId: saved.item.id,
+				previewed: true,
 				targetKind: "document",
 			})
 		).toEqual({
