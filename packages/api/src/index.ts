@@ -5,6 +5,11 @@ import {
 	writeMainFlowFailureLog,
 } from "./client-shell-failure";
 import type { Context } from "./context";
+import {
+	assertDesktopApiWriteAllowed,
+	desktopApiContractFrom,
+	signedDesktopApiCatalog,
+} from "./desktop-api-window";
 
 export const o = os.$context<Context>();
 
@@ -36,3 +41,33 @@ const requireAuth = o.middleware(async ({ context, next }) => {
 });
 
 export const protectedProcedure = publicProcedure.use(requireAuth);
+
+const requireSupportedDesktopApi = o.middleware(async ({ context, next }) => {
+	assertDesktopApiWriteAllowed(
+		desktopApiContractFrom(context.request),
+		signedDesktopApiCatalog,
+		new Date()
+	);
+	return await next();
+});
+
+export const protectedWriteProcedure = protectedProcedure.use(
+	requireSupportedDesktopApi
+);
+
+export type {
+	DesktopApiWindowDecision,
+	DesktopApiWindowStatus,
+	SignedDesktopApiCatalog,
+	SignedDesktopApiContract,
+} from "./desktop-api-window";
+export {
+	assertDesktopApiWriteAllowed,
+	DESKTOP_API_CONTRACT,
+	DESKTOP_API_HEADER,
+	DESKTOP_API_WINDOW_DAYS,
+	desktopApiContractFrom,
+	evaluateDesktopApiWindow,
+	signedDesktopApiCatalog,
+	UPDATE_REQUIRED,
+} from "./desktop-api-window";

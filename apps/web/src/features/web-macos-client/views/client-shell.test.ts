@@ -18,6 +18,8 @@ import {
 	offlineEmptyState,
 	recordClientShellSave,
 	setClientShellConnection,
+	updateRequiredState,
+	withDesktopApiHeaders,
 } from "./client-shell";
 
 const SAVE_INSTANT = new Date("2026-03-29T12:00:00.000Z");
@@ -181,5 +183,83 @@ describe("Client Shell", () => {
 		expect(offlineEmptyState(tauri, istanbul)).toEqual(empty);
 		expect(clientShellLocalTruth(web)).toEqual(localTruth);
 		expect(clientShellLocalTruth(tauri)).toEqual(localTruth);
+	});
+
+	it("accepts writes from the current or previous signed desktop API inside the 30-day window", () => {
+		const shell = createClientShell({
+			connected: true,
+			desktopApi: "accepted",
+			host: "tauri",
+		});
+		expect(attemptOnlineWork(shell, "record-create", () => "created")).toEqual({
+			kind: "record-create",
+			status: "applied",
+			value: "created",
+		});
+		expect(updateRequiredState(shell)).toBeNull();
+	});
+
+	it("stops an expired desktop with Update required before a write and does not queue it", () => {
+		const shell = createClientShell({
+			connected: true,
+			desktopApi: "update-required",
+			host: "tauri",
+		});
+		const work = (): string => "written";
+		const refused = {
+			kind: "record-create" as const,
+			reason: "update-required" as const,
+			status: "refused" as const,
+		};
+
+		expect(attemptOnlineWork(shell, "record-create", work)).toEqual(refused);
+		expect(attemptOnlineWork(shell, "planning-change", work)).toEqual({
+			...refused,
+			kind: "planning-change",
+		});
+		expect(clientShellWriteQueue(shell)).toEqual([]);
+		expect(updateRequiredState(shell)).toEqual({
+			heading: "Update required",
+		});
+	});
+
+	it("sends the signed desktop API contract only from the Tauri shell", () => {
+		expect(
+			withDesktopApiHeaders(undefined, "web").has("Cantiara-Desktop-Api")
+		).toBe(false);
+		expect(
+			withDesktopApiHeaders(undefined, "tauri").get("Cantiara-Desktop-Api")
+		).toBe("1");
+	});
+
+	it("refuses Tauri writes until the desktop API window is known, without Update required", () => {
+		const shell = createClientShell({ connected: true, host: "tauri" });
+		expect(attemptOnlineWork(shell, "record-create", () => "created")).toEqual({
+			kind: "record-create",
+			reason: "pending",
+			status: "refused",
+		});
+		expect(updateRequiredState(shell)).toBeNull();
+	});
+
+	it("does not show Update required on web or while the founder is offline", () => {
+		expect(
+			updateRequiredState(
+				createClientShell({
+					connected: true,
+					desktopApi: "update-required",
+					host: "web",
+				})
+			)
+		).toBeNull();
+		expect(
+			updateRequiredState(
+				createClientShell({
+					connected: false,
+					desktopApi: "update-required",
+					host: "tauri",
+				})
+			)
+		).toBeNull();
 	});
 });

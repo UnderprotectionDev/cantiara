@@ -3,6 +3,7 @@ import {
 	writeMainFlowFailureLog,
 } from "@cantiara/api/client-shell-failure";
 import { createContext } from "@cantiara/api/context";
+import { DESKTOP_API_HEADER } from "@cantiara/api/desktop-api-window";
 import {
 	AccountAccessError,
 	assertCookieCsrf,
@@ -51,7 +52,7 @@ app.use("*", async (c, next) => {
 app.use(
 	"/*",
 	cors({
-		allowHeaders: ["Content-Type", "Authorization"],
+		allowHeaders: ["Content-Type", "Authorization", DESKTOP_API_HEADER],
 		allowMethods: ["GET", "POST", "OPTIONS"],
 		credentials: true,
 		origin: productCorsOrigins(env.CORS_ORIGIN),

@@ -25,8 +25,11 @@ import {
 	readNavigatorOnline,
 	recordClientShellSave,
 	setClientShellConnection,
+	setClientShellDesktopApi,
+	updateRequiredState,
 } from "./client-shell";
 import { OfflineEmptyState } from "./offline-empty-state";
+import { UpdateRequiredState } from "./update-required-state";
 
 interface ClientShellContextValue {
 	attemptOnlineWork: <T>(
@@ -65,6 +68,18 @@ export function ClientShellProvider({ children }: { children: ReactNode }) {
 			window.removeEventListener("offline", goOffline);
 		};
 	}, []);
+
+	const desktopApiWindow = useQuery({
+		...orpc.clientShell.desktopApiWindow.queryOptions(),
+		enabled: shell.host === "tauri" && shell.connected,
+	});
+
+	useEffect(() => {
+		const status = desktopApiWindow.data?.status;
+		if (status === "accepted" || status === "update-required") {
+			setShell((current) => setClientShellDesktopApi(current, status));
+		}
+	}, [desktopApiWindow.data?.status]);
 
 	const attemptOnlineWork = useCallback(
 		<T,>(kind: OnlineWorkKind, work: () => T) =>
@@ -108,9 +123,13 @@ export function ClientShellWorkspace({ children }: { children: ReactNode }) {
 	}, [preferences.data]);
 
 	const empty = offlineEmptyState(shell, formatPreferences);
+	const updateRequired = updateRequiredState(shell);
 
 	if (empty) {
 		return <OfflineEmptyState state={empty} />;
+	}
+	if (updateRequired) {
+		return <UpdateRequiredState state={updateRequired} />;
 	}
 	return children;
 }

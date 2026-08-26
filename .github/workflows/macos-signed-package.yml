@@ -12,10 +12,15 @@
 #   APPLE_ID                       Apple ID email
 #   APPLE_PASSWORD                 app-specific password
 #   APPLE_TEAM_ID                  10-character Team ID
+#   TAURI_SIGNING_PRIVATE_KEY           minisign secret matching plugins.updater.pubkey
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  password for that secret (empty if none)
 # Optional App Store Connect API alternative:
 #   APPLE_API_KEY, APPLE_API_ISSUER, APPLE_API_KEY_P8
 # Repository variable:
 #   DESKTOP_SERVER_URL             hosted Hono/Bun origin, not localhost
+#
+# Previous GitHub Release assets stay downloadable for documented manual recovery.
+# Do not delete the prior signed macOS installer when publishing a newer one.
 
 name: macOS signed package
 
@@ -40,7 +45,7 @@ jobs:
         with:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
-      - run: bun run test src/features/web-macos-client/macos-package.test.ts
+      - run: bun run test src/features/web-macos-client/macos-package.test.ts src/features/web-macos-client/desktop-updater.test.ts src/features/web-macos-client/desktop-api-window.test.ts src/features/web-macos-client/views/client-shell.test.ts
         working-directory: apps/web
 
   publish-macos:
@@ -59,6 +64,8 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
       APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

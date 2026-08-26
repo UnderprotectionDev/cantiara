@@ -7,6 +7,7 @@ import type { AppRouterClient } from "server/routes";
 
 import { withProductSessionHeaders } from "@/features/account-access/forms/tauri-session-token";
 import { showMainFlowFailure } from "@/features/web-macos-client/show-main-flow-failure";
+import { withDesktopApiHeaders } from "@/features/web-macos-client/views/client-shell";
 
 export function createQueryClient() {
 	return new QueryClient({
@@ -77,7 +78,7 @@ export const link = new RPCLink({
 		return globalThis.fetch(requestUrl, {
 			...options,
 			credentials: "include",
-			headers: withProductSessionHeaders(headers),
+			headers: withDesktopApiHeaders(withProductSessionHeaders(headers)),
 		});
 	},
 	url: `${getServerUrl(env.VITE_SERVER_URL)}/rpc`,
