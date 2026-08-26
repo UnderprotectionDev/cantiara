@@ -74,7 +74,25 @@ export function createBugIsAvailable(values: CaptureFormValues): boolean {
 	);
 }
 
+export async function fileToCaptureAttachment(file: File): Promise<{
+	bytesBase64: string;
+	contentType: string;
+	filename: string;
+}> {
+	const bytes = new Uint8Array(await file.arrayBuffer());
+	let binary = "";
+	for (const byte of bytes) {
+		binary += String.fromCharCode(byte);
+	}
+	return {
+		bytesBase64: btoa(binary),
+		contentType: file.type || "application/octet-stream",
+		filename: file.name,
+	};
+}
+
 export interface CaptureInboxGroupItem {
+	attachment?: { filename: string; kind: "capture-attachment" };
 	body: string;
 	id: string;
 	scope: { kind: "workspace" } | { kind: "project"; projectId: string };

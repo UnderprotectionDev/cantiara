@@ -1,3 +1,4 @@
+import { CLIENT_SHELL_COPY as MAIN_FLOW_COPY } from "@cantiara/api/client-shell-failure";
 import { Button } from "@cantiara/ui/components/button";
 import {
 	Dialog,
@@ -19,6 +20,7 @@ import { orpc, queryClient } from "@/utils/orpc";
 import {
 	type ConvertTargetKind,
 	convertTargetOptions,
+	convertTargetScopeLine,
 	mergeUndoPreviewLines,
 	otherProjectGroups,
 } from "./capture-triage-exits-state";
@@ -47,10 +49,12 @@ export interface TriageCopy {
 export function CaptureTriageActions({
 	copy,
 	itemId,
+	onItemConsumed,
 	onMergeConsumed,
 }: {
 	copy: TriageCopy;
 	itemId: string;
+	onItemConsumed: (itemId: string) => void;
 	onMergeConsumed: (mergeId: string) => void;
 }) {
 	const [dialog, setDialog] = useState<"attach" | "convert" | null>(null);
@@ -65,8 +69,14 @@ export function CaptureTriageActions({
 	const convert = useMutation(
 		orpc.captureInbox.convert.mutationOptions({
 			onSuccess: async (outcome) => {
-				if (outcome.status === "needs-preview") {
+				if (
+					outcome.status === "needs-preview" ||
+					outcome.status === "finalize-failed"
+				) {
 					return;
+				}
+				if (outcome.status === "consumed") {
+					onItemConsumed(itemId);
 				}
 				await invalidate();
 				setDialog(null);
@@ -79,17 +89,21 @@ export function CaptureTriageActions({
 				if (outcome.status === "needs-preview") {
 					return;
 				}
-				await invalidate();
-				setDialog(null);
 				if (outcome.status === "consumed") {
+					onItemConsumed(itemId);
 					onMergeConsumed(outcome.mergeId);
 				}
+				await invalidate();
+				setDialog(null);
 			},
 		})
 	);
 	const deleteItem = useMutation(
 		orpc.captureInbox.deleteItem.mutationOptions({
-			onSuccess: async () => {
+			onSuccess: async (outcome) => {
+				if (outcome.status === "consumed") {
+					onItemConsumed(itemId);
+				}
 				await invalidate();
 			},
 		})
@@ -157,6 +171,7 @@ export function CaptureTriageActions({
 			</Button>
 			<ConvertDialog
 				copy={copy}
+				finalizeFailed={convert.data?.status === "finalize-failed"}
 				itemId={itemId}
 				onConfirm={confirmConvert}
 				onOpenChange={onDialogOpenChange}
@@ -260,6 +275,7 @@ export function CaptureMergeUndo({
 
 function ConvertDialog({
 	copy,
+	finalizeFailed,
 	itemId,
 	onConfirm,
 	onOpenChange,
@@ -268,6 +284,7 @@ function ConvertDialog({
 	targetKind,
 }: {
 	copy: TriageCopy;
+	finalizeFailed: boolean;
 	itemId: string;
 	onConfirm: () => void;
 	onOpenChange: (open: boolean) => void;
@@ -308,6 +325,7 @@ function ConvertDialog({
 				</Field>
 				{previewData ? (
 					<div className="flex flex-col gap-3 text-sm">
+						<p>{convertTargetScopeLine(previewData.proposed.targetScope)}</p>
 						<p className="whitespace-pre-wrap">{previewData.original.text}</p>
 						{previewData.original.link ? (
 							<p>{previewData.original.link}</p>
@@ -328,6 +346,7 @@ function ConvertDialog({
 						))}
 					</div>
 				) : null}
+				{finalizeFailed ? <p>{MAIN_FLOW_COPY.notWritten}</p> : null}
 				<DialogFooter>
 					<Button disabled={!previewData} onClick={onConfirm} type="button">
 						{copy.convert}

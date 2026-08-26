@@ -153,6 +153,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dönüştür | `Convert` | Yakalama Gelen Kutusu öğesini tek yeni ana kayda dönüştürme çıkışı |
 | Mevcut kayda bağla | `Attach to existing` | Öğeyi mevcut ana kayda köken veya kanıt olarak bağlama/birleştirme çıkışı |
 | Yakalama silme çıkışı | `Delete` | Yakalama Gelen Kutusu öğesini tüketen silme çıkışı |
+| Sıralı triage | `Sequential triage` | Yakalama Gelen Kutusunda tek öğeye odaklanan isteğe bağlı mod; yalnız üç açık çıkıştan biri çözülünce ilerler |
 | Diğer Projeler | `Other Projects` | Başka Projelerdeki benzer kayıt önerilerinin adlı ikincil grubu |
 | Yakalama köken bağı | `Origin` | Yakalamayı mevcut kayda köken olarak bağlayan ilişki |
 | Yakalama kanıt bağı | `Evidence` | Yakalamayı mevcut kayda kanıt olarak bağlayan ilişki |
@@ -174,6 +175,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Uzantı bağlantısını iptal et | `Revoke` | Tek bir uzantı bağlantısını iptal etme eylemi |
 | Belge | `Document` | Markdown Belgesi dönüşüm hedefi |
 | Dosya Eki | `File Attachment` | Dosya Eki dönüşüm hedefi |
+| Yakalama eki | `Capture attachment` | Yalnız Yakalama Gelen Kutusu öğesine ait şifreli staging nesnesi; Dosya Eki veya paylaşılmış medya kütüphanesi değildir |
 | Komut Paleti | `Command Palette` | Kurucu yüzeylerinde klavyeyle komut, gezinme, kayıt oluşturma ve Proje geçişi çalıştıran yüzey; Evrensel Arama (`Search`) değildir |
 | Proje geçişi | `Switch Project` | Palette ve görünür menüden yetkili Projeler arasında geçiş |
 | Oluştur | `Create` | Palette ve görünür menüden yetkili kapsamda desteklenen kayıt oluşturma |

@@ -8,7 +8,9 @@ import {
 } from "../../mutation-core/server/mutation-shared";
 import {
 	CAPTURE_INBOX_COPY,
+	type CaptureAttachmentView,
 	type CaptureInboxItemView,
+	type CaptureInboxScope,
 	MINI_TEMPLATE_CATALOG,
 } from "./capture-inbox-model";
 
@@ -63,6 +65,14 @@ export interface ConvertFieldMapping {
 	value: string;
 }
 
+export interface ConvertTargetScope {
+	heading:
+		| typeof CAPTURE_INBOX_COPY.projectCaptureInbox
+		| typeof CAPTURE_INBOX_COPY.workspaceCaptureInbox;
+	kind: CaptureInboxScope["kind"];
+	projectId: string | null;
+}
+
 export interface ConvertPreview {
 	fieldMappings: ConvertFieldMapping[];
 	original: {
@@ -78,6 +88,7 @@ export interface ConvertPreview {
 		label: string;
 		link: string;
 		screenshot: string | null;
+		targetScope: ConvertTargetScope;
 	};
 }
 
@@ -105,6 +116,34 @@ export function handOffConvert(
 		handedOff: true,
 		recordId: null,
 		targetKind: command.targetKind,
+	});
+}
+
+export interface FileAttachmentPromotionCommand {
+	actorId: string;
+	idempotencyKey: string;
+	item: CaptureInboxItemView;
+	staging: CaptureAttachmentView;
+	targetScope: ConvertTargetScope;
+}
+
+export type FileAttachmentPromotionResult =
+	| {
+			fileAttachmentId: null;
+			status: "promoted";
+			visibleAttachment: null;
+	  }
+	| { status: "failed"; visibleAttachment: null };
+
+export type FileAttachmentFinalizeAdapter = (
+	command: FileAttachmentPromotionCommand
+) => Promise<FileAttachmentPromotionResult>;
+
+export function handOffFileAttachmentPromote(): Promise<FileAttachmentPromotionResult> {
+	return Promise.resolve({
+		fileAttachmentId: null,
+		status: "promoted",
+		visibleAttachment: null,
 	});
 }
 
@@ -260,6 +299,12 @@ export type ConvertOutcome =
 			mainRecord: null;
 			recordCreate: ConvertResult;
 			status: "consumed";
+			visibleAttachment: null;
+	  }
+	| {
+			inboxItem: CaptureInboxItemView;
+			status: "finalize-failed";
+			visibleAttachment: null;
 	  }
 	| { preview: ConvertPreview; status: "needs-preview" }
 	| { status: "not-found" };
@@ -299,6 +344,23 @@ export function convertTargetLabel(kind: ConvertTargetKind): string {
 	return CAPTURE_INBOX_COPY.fileAttachment;
 }
 
+export function convertTargetScope(
+	item: CaptureInboxItemView
+): ConvertTargetScope {
+	if (item.scope.kind === "project") {
+		return {
+			heading: CAPTURE_INBOX_COPY.projectCaptureInbox,
+			kind: "project",
+			projectId: item.scope.projectId,
+		};
+	}
+	return {
+		heading: CAPTURE_INBOX_COPY.workspaceCaptureInbox,
+		kind: "workspace",
+		projectId: null,
+	};
+}
+
 export function convertFieldMappings(
 	item: CaptureInboxItemView
 ): ConvertFieldMapping[] {
@@ -334,7 +396,9 @@ export function buildConvertPreview(
 			capturedAt: item.capturedAt,
 			link: item.link,
 			origin: item.origin,
-			screenshot: item.attachmentRef,
+			screenshot: item.attachment
+				? item.attachment.filename
+				: item.attachmentRef,
 			text: item.body,
 		},
 		proposed: {
@@ -342,7 +406,10 @@ export function buildConvertPreview(
 			kind: targetKind,
 			label: convertTargetLabel(targetKind),
 			link: item.link,
-			screenshot: item.attachmentRef,
+			screenshot: item.attachment
+				? item.attachment.filename
+				: item.attachmentRef,
+			targetScope: convertTargetScope(item),
 		},
 	};
 }
@@ -434,6 +501,7 @@ interface InboxRow {
 	link: string;
 	origin: string;
 	projectId: string | null;
+	staging?: { filename: string } | null;
 	template: string | null;
 }
 
@@ -443,6 +511,8 @@ export interface TriageExitsContext {
 	clock: { now: () => Date };
 	connected: () => boolean;
 	convertCreate: ConvertAdapter;
+	deleteStaging: (inboxItemId: string) => Promise<void>;
+	fileAttachmentFinalize: FileAttachmentFinalizeAdapter;
 	prisma: PrismaClient;
 	similarRecords: (item: CaptureInboxItemView) => SimilarMatch[];
 	toItemView: (row: InboxRow) => CaptureInboxItemView;
@@ -501,19 +571,25 @@ function reviveItem(item: CaptureInboxItemView): CaptureInboxItemView {
 }
 
 function reviveConvertOutcome(outcome: ConvertOutcome): ConvertOutcome {
-	if (outcome.status !== "needs-preview") {
-		return outcome;
-	}
-	return {
-		...outcome,
-		preview: {
-			...outcome.preview,
-			original: {
-				...outcome.preview.original,
-				capturedAt: reviveDate(outcome.preview.original.capturedAt),
+	if (outcome.status === "needs-preview") {
+		return {
+			...outcome,
+			preview: {
+				...outcome.preview,
+				original: {
+					...outcome.preview.original,
+					capturedAt: reviveDate(outcome.preview.original.capturedAt),
+				},
 			},
-		},
-	};
+		};
+	}
+	if (outcome.status === "finalize-failed") {
+		return {
+			...outcome,
+			inboxItem: reviveItem(outcome.inboxItem),
+		};
+	}
+	return outcome;
 }
 
 function reviveAttachOutcome(outcome: AttachOutcome): AttachOutcome {
@@ -542,6 +618,7 @@ function reviveUndoOutcome(outcome: UndoMergeOutcome): UndoMergeOutcome {
 export function createTriageExits(ctx: TriageExitsContext) {
 	async function loadOpenItem(itemId: string) {
 		return await ctx.prisma.captureInboxItem.findFirst({
+			include: { staging: true },
 			where: {
 				consumedAt: null,
 				id: itemId,
@@ -552,6 +629,7 @@ export function createTriageExits(ctx: TriageExitsContext) {
 
 	async function loadConsumedMerge(mergeId: string) {
 		return await ctx.prisma.captureInboxItem.findFirst({
+			include: { staging: true },
 			where: {
 				consumedExit: "attach",
 				consumedMergeId: mergeId,
@@ -702,12 +780,38 @@ export function createTriageExits(ctx: TriageExitsContext) {
 					status: "needs-preview",
 				};
 			}
+			if (item.attachment) {
+				const promotion = await ctx.fileAttachmentFinalize({
+					actorId: ctx.actorId,
+					idempotencyKey: input.idempotencyKey,
+					item,
+					staging: item.attachment,
+					targetScope: preview.proposed.targetScope,
+				});
+				if (promotion.status === "failed") {
+					const outcome: ConvertOutcome = {
+						inboxItem: item,
+						status: "finalize-failed",
+						visibleAttachment: null,
+					};
+					await writeHumanReceipt(ctx.prisma, {
+						actorId: ctx.actorId,
+						commandKey: input.idempotencyKey,
+						kind: "convert",
+						payload,
+						resultValue: JSON.stringify(outcome),
+						targetId: item.id,
+					});
+					return outcome;
+				}
+			}
 			const recordCreate = await ctx.convertCreate({
 				actorId: ctx.actorId,
 				idempotencyKey: input.idempotencyKey,
 				item,
 				targetKind: input.targetKind,
 			});
+			await ctx.deleteStaging(item.id);
 			await ctx.prisma.captureInboxItem.update({
 				data: {
 					consumedAt: ctx.clock.now(),
@@ -722,6 +826,7 @@ export function createTriageExits(ctx: TriageExitsContext) {
 				mainRecord: null,
 				recordCreate,
 				status: "consumed",
+				visibleAttachment: null,
 			};
 			await writeHumanReceipt(ctx.prisma, {
 				actorId: ctx.actorId,
@@ -756,6 +861,7 @@ export function createTriageExits(ctx: TriageExitsContext) {
 			if (!row) {
 				return { status: "not-found" };
 			}
+			await ctx.deleteStaging(row.id);
 			await ctx.prisma.captureInboxItem.delete({ where: { id: row.id } });
 			const outcome: DeleteOutcome = {
 				exit: "delete",

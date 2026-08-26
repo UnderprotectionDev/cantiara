@@ -29,6 +29,7 @@ const DATABASE_URL =
 const CAPTURED_AT = new Date("2026-08-26T12:00:00.000Z");
 const CLIPPER_FAMILIES = ["chromium", "firefox"] as const;
 const PAIRING_CODE_PATTERN = /^[A-Z2-9]{8}$/;
+const TEST_STAGING_ROOT_KEY = Buffer.alloc(32, 9);
 
 const URL_CLIP: WebCaptureClip = {
 	kind: "url",
@@ -41,6 +42,7 @@ describe("Capture Inbox Web Capture catalog", () => {
 			actorId: crypto.randomUUID(),
 			clock: { now: () => CAPTURED_AT },
 			prisma: {} as PrismaClient,
+			stagingRootKey: TEST_STAGING_ROOT_KEY,
 			workspaceId: crypto.randomUUID(),
 		});
 		expect(capture.clipperBrowserFamilies()).toEqual(CLIPPER_BROWSER_FAMILIES);
@@ -126,6 +128,7 @@ describe("Capture Inbox Web Capture", () => {
 			clock: { now: () => CAPTURED_AT },
 			connected: overrides.connected,
 			prisma,
+			stagingRootKey: TEST_STAGING_ROOT_KEY,
 			workspaceId,
 		});
 	}

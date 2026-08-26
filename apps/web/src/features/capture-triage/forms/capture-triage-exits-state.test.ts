@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 
 import {
 	convertTargetOptions,
+	convertTargetScopeLine,
 	mergeUndoPreviewLines,
 	otherProjectGroups,
 } from "./capture-triage-exits-state";
@@ -18,6 +19,21 @@ test("Convert targets are Work, Document, and File Attachment", () => {
 		{ id: "document", label: "Document" },
 		{ id: "file-attachment", label: "File Attachment" },
 	]);
+});
+
+test("convert preview names Workspace or Project Capture Inbox as the target scope", () => {
+	expect(
+		convertTargetScopeLine({
+			heading: "Workspace Capture Inbox",
+			projectId: null,
+		})
+	).toBe("Workspace Capture Inbox");
+	expect(
+		convertTargetScopeLine({
+			heading: "Project Capture Inbox",
+			projectId: "proj-cantiara",
+		})
+	).toBe("Project Capture Inbox proj-cantiara");
 });
 
 test("merge undo preview lists original Inbox fields and only this merge's binds", () => {

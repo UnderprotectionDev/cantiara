@@ -25,6 +25,19 @@ import { findExtensionLinkByToken, pairExtensionWithCode } from "./web-capture";
 import { WEB_CAPTURE_CLIP_KINDS } from "./web-capture-model";
 
 const fieldsSchema = z.record(z.string(), z.string());
+const attachmentSchema = z.object({
+	bytesBase64: z.string().min(1),
+	contentType: z.string().min(1),
+	filename: z.string().min(1),
+});
+
+function decodeAttachment(input: z.infer<typeof attachmentSchema>) {
+	return {
+		bytes: Uint8Array.from(Buffer.from(input.bytesBase64, "base64")),
+		contentType: input.contentType,
+		filename: input.filename,
+	};
+}
 
 const clipSchema = z.object({
 	kind: z.enum(WEB_CAPTURE_CLIP_KINDS),
@@ -279,6 +292,7 @@ export const captureInbox = {
 	save: protectedWriteProcedure
 		.input(
 			z.object({
+				attachment: attachmentSchema.optional(),
 				attachmentRef: z.string().min(1).optional(),
 				fields: fieldsSchema.optional(),
 				idempotencyKey: z.string().min(1),
@@ -291,7 +305,12 @@ export const captureInbox = {
 		)
 		.handler(async ({ context, input }) => {
 			const inbox = await inboxFor(context.session.user.id);
-			return inbox.save(input);
+			return inbox.save({
+				...input,
+				attachment: input.attachment
+					? decodeAttachment(input.attachment)
+					: undefined,
+			});
 		}),
 	searchCaptureTargets: publicProcedure
 		.input(z.object({ query: z.string().optional() }))
@@ -314,6 +333,22 @@ export const captureInbox = {
 				idempotencyKey: input.idempotencyKey,
 				target: targetFromInput(input.target),
 				token,
+			});
+		}),
+	stageAttachment: protectedWriteProcedure
+		.input(
+			z.object({
+				attachment: attachmentSchema,
+				idempotencyKey: z.string().min(1),
+				itemId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.stageAttachment({
+				attachment: decodeAttachment(input.attachment),
+				idempotencyKey: input.idempotencyKey,
+				itemId: input.itemId,
 			});
 		}),
 	stageWebCapture: publicProcedure

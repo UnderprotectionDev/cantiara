@@ -43,7 +43,8 @@ export function getPrismaClient() {
 		defaultPrisma !== undefined &&
 		(typeof defaultPrisma.captureInboxItem?.findMany !== "function" ||
 			typeof defaultPrisma.projectSkeletonSelection?.findMany !== "function" ||
-			typeof defaultPrisma.captureExtensionLink?.findMany !== "function")
+			typeof defaultPrisma.captureExtensionLink?.findMany !== "function" ||
+			typeof defaultPrisma.captureStagingObject?.findMany !== "function")
 	) {
 		defaultPrisma = undefined;
 	}
