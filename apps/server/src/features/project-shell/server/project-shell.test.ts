@@ -1,10 +1,11 @@
 /**
  * Project Shell seam — create with Project Name + Starter Configuration,
  * short-code suggest/reserve, uniqueness in the Workspace, lock after
- * first Work (Work create is a test double that only exists), and
- * GitHub not required. Synthetic/real-project fixture for
- * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (İlk Proje) profile and short-code slice.
+ * first Work (Work create is a test double that only exists), GitHub
+ * not required, four-configuration apply-once matrix, no sample
+ * content, and dismissible first-open explanation. Synthetic/real-project
+ * fixture for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
+ * (İlk Proje).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -14,6 +15,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import {
 	createProject,
+	dismissFirstOpenExplanation,
 	getProject,
 	listProjects,
 	permanentlyDeleteProject,
@@ -645,6 +647,306 @@ describe("Project Shell", () => {
 		});
 	});
 
+	it("applies the PRD starter configuration table once without sample content", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const expected = {
+			"Blank Project": {
+				enabledAreas: ["Work", "Documents"],
+				pinnedAreas: [] as string[],
+				stages: [] as string[],
+				workViews: ["Backlog", "Board"],
+			},
+			"Mobile Application": {
+				enabledAreas: [
+					"Work",
+					"Documents",
+					"Discovery",
+					"Decisions",
+					"Design",
+					"Technical Diagrams",
+					"Tests",
+					"Releases",
+					"Production",
+					"GitHub",
+				],
+				pinnedAreas: ["Discovery", "Design", "Tests", "Releases", "Production"],
+				stages: [
+					"Discovery",
+					"Design",
+					"Build",
+					"Validate",
+					"Release",
+					"Operate",
+				],
+				workViews: ["Backlog", "Board", "Roadmap"],
+			},
+			"Open Source Library": {
+				enabledAreas: [
+					"Work",
+					"Documents",
+					"Decisions",
+					"Technical Diagrams",
+					"Tests",
+					"Releases",
+					"GitHub",
+				],
+				pinnedAreas: ["GitHub", "Tests", "Releases"],
+				stages: ["Scope", "Build", "Validate", "Release", "Maintain"],
+				workViews: ["Backlog", "Board", "Roadmap"],
+			},
+			"Solo SaaS": {
+				enabledAreas: [
+					"Work",
+					"Documents",
+					"Discovery",
+					"Decisions",
+					"Design",
+					"Technical Diagrams",
+					"Tests",
+					"Releases",
+					"Production",
+					"GitHub",
+				],
+				pinnedAreas: ["Discovery", "Decisions", "Design", "Tests", "Releases"],
+				stages: [
+					"Discovery",
+					"Design",
+					"Build",
+					"Validate",
+					"Release",
+					"Operate",
+				],
+				workViews: ["Backlog", "Board", "Roadmap"],
+			},
+		} as const;
+		const created = await Promise.all(
+			STARTER_CONFIGURATIONS.map(async (starterConfiguration) => {
+				const outcome = await createProject(
+					prisma,
+					createCommand(
+						{
+							idempotencyKey: `matrix-${starterConfiguration}`,
+							name: starterConfiguration,
+							starterConfiguration,
+							workspaceId,
+						},
+						actorId
+					)
+				);
+				expect(outcome.status).toBe("committed");
+				if (outcome.status !== "committed") {
+					throw new Error("expected committed Project");
+				}
+				const row = expected[starterConfiguration];
+				expect(outcome.project.stages).toEqual(row.stages);
+				expect(outcome.project.enabledAreas).toEqual(row.enabledAreas);
+				expect(outcome.project.pinnedAreas).toEqual(row.pinnedAreas);
+				expect(outcome.project.workViews).toEqual(row.workViews);
+				expect(outcome.project.workStatuses).toEqual([
+					"Not Started",
+					"In Progress",
+					"Blocked",
+					"Closed",
+				]);
+				expect(outcome.project.alwaysOnSurfaces).toEqual([
+					"Overview",
+					"Work",
+					"Documents",
+					"All Tools",
+				]);
+				expect(outcome.project.sampleContent).toEqual({
+					decisions: [],
+					documents: [],
+					history: [],
+					work: [],
+				});
+				expect(outcome.project.workContextCardLayouts).toEqual([]);
+				expect(outcome.project.firstOpenExplanationVisible).toBe(true);
+				const allTools = Object.fromEntries(
+					outcome.project.allToolsAreas.map((area) => [area.name, area])
+				);
+				for (const name of row.enabledAreas) {
+					expect(allTools[name]).toMatchObject({
+						enabled: true,
+						name,
+					});
+				}
+				for (const name of [
+					"Work",
+					"Documents",
+					"Discovery",
+					"Decisions",
+					"Design",
+					"Technical Diagrams",
+					"Tests",
+					"Releases",
+					"Production",
+					"GitHub",
+				] as const) {
+					expect(allTools[name]).toBeDefined();
+					expect(allTools[name]?.enabled).toBe(
+						row.enabledAreas.some((area) => area === name)
+					);
+					expect(allTools[name]?.pinned).toBe(
+						row.pinnedAreas.some((area) => area === name)
+					);
+				}
+				expect(await getProject(prisma, outcome.project.id)).toEqual(
+					outcome.project
+				);
+				return outcome.project;
+			})
+		);
+		expect(created.map((project) => project.workContextCardLayouts)).toEqual([
+			[],
+			[],
+			[],
+			[],
+		]);
+		const [blank] = created;
+		expect(blank?.stages).toEqual([]);
+		expect(
+			blank?.allToolsAreas
+				.filter((area) => !area.enabled)
+				.map((area) => area.name)
+		).toEqual([
+			"Discovery",
+			"Decisions",
+			"Design",
+			"Technical Diagrams",
+			"Tests",
+			"Releases",
+			"Production",
+			"GitHub",
+		]);
+	});
+
+	it("does not re-apply a Starter Configuration after create", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const blank = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "once-blank",
+					name: "Payments",
+					starterConfiguration: "Blank Project",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (blank.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const saas = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "once-saas",
+					name: "Billing",
+					starterConfiguration: "Solo SaaS",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (saas.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const afterOtherCreate = await getProject(prisma, blank.project.id);
+		expect(afterOtherCreate?.stages).toEqual([]);
+		expect(afterOtherCreate?.enabledAreas).toEqual(["Work", "Documents"]);
+		expect(afterOtherCreate?.pinnedAreas).toEqual([]);
+		expect(afterOtherCreate?.workViews).toEqual(["Backlog", "Board"]);
+		expect(afterOtherCreate?.starterConfiguration).toBe("Blank Project");
+		const renamed = await updateShortCode(prisma, {
+			actorId,
+			baseRevision: blank.project.revision,
+			idempotencyKey: "rename-does-not-reapply",
+			origin: "human",
+			projectId: blank.project.id,
+			shortCode: "BILL",
+		});
+		if (renamed.status !== "committed") {
+			throw new Error("expected committed Short code");
+		}
+		expect(renamed.project.stages).toEqual([]);
+		expect(renamed.project.enabledAreas).toEqual(["Work", "Documents"]);
+		expect(renamed.project.starterConfiguration).toBe("Blank Project");
+		expect(renamed.project.workViews).toEqual(["Backlog", "Board"]);
+		expect(saas.project.stages).toEqual([
+			"Discovery",
+			"Design",
+			"Build",
+			"Validate",
+			"Release",
+			"Operate",
+		]);
+	});
+
+	it("lets the founder dismiss the first-open explanation without a tour", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "explain-blank",
+					name: "Payments",
+					starterConfiguration: "Blank Project",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		expect(created.project.firstOpenExplanationVisible).toBe(true);
+		expect(created.project.firstOpenExplanation).toContain("Blank Project");
+		expect(created.project.firstOpenExplanation).toContain("All Tools");
+		expect(created.project.shortCodeLocked).toBe(false);
+		const dismissed = await dismissFirstOpenExplanation(prisma, {
+			actorId,
+			baseRevision: created.project.revision,
+			idempotencyKey: "dismiss-explain",
+			origin: "human",
+			projectId: created.project.id,
+		});
+		expect(dismissed).toMatchObject({
+			project: {
+				enabledAreas: ["Work", "Documents"],
+				firstOpenExplanationVisible: false,
+				id: created.project.id,
+				stages: [],
+				starterConfiguration: "Blank Project",
+			},
+			status: "committed",
+		});
+		if (dismissed.status !== "committed") {
+			throw new Error("expected dismissed explanation");
+		}
+		expect(dismissed.project.firstOpenExplanation).toBeNull();
+		expect(dismissed.project.sampleContent).toEqual({
+			decisions: [],
+			documents: [],
+			history: [],
+			work: [],
+		});
+		const replayed = await dismissFirstOpenExplanation(prisma, {
+			actorId,
+			baseRevision: created.project.revision,
+			idempotencyKey: "dismiss-explain",
+			origin: "human",
+			projectId: created.project.id,
+		});
+		expect(replayed.status).toBe("replayed");
+		expect(await getProject(prisma, created.project.id)).toMatchObject({
+			firstOpenExplanation: null,
+			firstOpenExplanationVisible: false,
+			stages: [],
+		});
+	});
+
 	it("uses English Project Name and Short code chrome", () => {
 		expect(PROJECT_SHELL_COPY.projectName).toBe("Project Name");
 		expect(PROJECT_SHELL_COPY.shortCode).toBe("Short code");
@@ -655,6 +957,21 @@ describe("Project Shell", () => {
 		expect(PROJECT_SHELL_COPY.shortCodeLocked).toBe(
 			"Short code is locked after the first Work."
 		);
+		expect(PROJECT_SHELL_COPY.overview).toBe("Overview");
+		expect(PROJECT_SHELL_COPY.allTools).toBe("All Tools");
+		expect(PROJECT_SHELL_COPY.dismiss).toBe("Dismiss");
+		expect(PROJECT_SHELL_COPY.firstOpenExplanations["Blank Project"]).toContain(
+			"All Tools"
+		);
+		expect(PROJECT_SHELL_COPY.firstOpenExplanations["Solo SaaS"]).toContain(
+			"All Tools"
+		);
+		expect(
+			PROJECT_SHELL_COPY.firstOpenExplanations["Open Source Library"]
+		).toContain("All Tools");
+		expect(
+			PROJECT_SHELL_COPY.firstOpenExplanations["Mobile Application"]
+		).toContain("All Tools");
 		expect(JSON.stringify(PROJECT_SHELL_COPY)).not.toMatch(
 			COPY_BRANDING_PATTERN
 		);

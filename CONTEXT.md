@@ -140,6 +140,18 @@ _Avoid_: Örnek Proje, içerik şablonu, zorunlu workflow, ürün türü
 Aşama, uzman görünüm veya Başlangıç iskeleti kurmayan en küçük [Başlangıç yapılandırması](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları); diğer hazır alanları kapatmaz, yalnız kurmaz.
 _Avoid_: Yapılandırmasız Proje, boş veri modeli, özellikleri kaldırılmış Proje
 
+**Solo SaaS**:
+Discovery’den Operate’e aşamalar, bütün Proje alanları, sabitlenmiş Discovery/Decisions/Design/Tests/Releases ve Backlog/Board/Roadmap kuran [Başlangıç yapılandırması](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları).
+_Avoid_: ürün türü, zorunlu workflow, örnek Proje
+
+**Open Source Library**:
+Scope’tan Maintain’e aşamalar ve GitHub/Tests/Releases ağırlıklı alanlarla açılan [Başlangıç yapılandırması](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları); GitHub bağlantısı oluşturma anında zorunlu değildir.
+_Avoid_: repository kimliği, örnek Proje, zorunlu GitHub
+
+**Mobile Application**:
+Discovery’den Operate’e aşamalar, bütün Proje alanları ve sabitlenmiş Production yüzeyiyle açılan [Başlangıç yapılandırması](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları).
+_Avoid_: ürün türü, zorunlu workflow, örnek Proje
+
 **Başlangıç iskeleti**:
 Yeni Projede yalnız boş başlık yapısı kuran ve oluşturulduktan sonra normal Proje Duvarı ya da Belge olarak yaşayan [içeriksiz başlangıç yardımı](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları); ana kayıt örneği, bulgu, görev veya karar üretmez.
 _Avoid_: Başlangıç yapılandırması, içerikli şablon, şablon pazarı
@@ -189,8 +201,12 @@ Mevcut `Proje → Özellik → Kapsanan işler` ilişkisini salt okunur açan g�
 _Avoid_: Epic hiyerarşisi, subtask ağacı, planlama üyeliği
 
 **Proje genel bakışı**:
-Tek Projenin amacı, yaşamı, işi, bilgisi, belirsizliği, testi ve olaylarını kaynaklarından nötr özetleyen yüzey; otomatik sağlık skoru değildir ([Proje genel bakışı](docs/prd/04-workspace-and-projects.md#proje-genel-bakışı)).
+Tek Projenin amacı, yaşamı, işi, bilgisi, belirsizliği, testi ve olaylarını kaynaklarından nötr özetleyen yüzey; otomatik sağlık skoru değildir ([Proje genel bakışı](docs/prd/04-workspace-and-projects.md#proje-genel-bakışı)). UI: `Overview`. Proje alanı değildir ve kapanmaz.
 _Avoid_: Dashboard skoru, Çalışma Alanı genel bakışı, Manuel Proje Güncellemesi
+
+**All Tools**:
+Etkin veya henüz navigasyona sabitlenmemiş hazır Proje alanlarını tek keşif yüzeyinde gösteren, Proje alanı olmayan daima erişilir giriş ([Proje alanlarını etkinleştirme](docs/prd/04-workspace-and-projects.md#proje-alanlarını-etkinleştirme)). UI: `All Tools`.
+_Avoid_: ana menü, gizli alan silme, Overview
 
 **Manuel Proje Güncellemesi**:
 Kurucunun tarihli öznel sağlık işareti, kısa anlatı ve o anki özet snapshot'ıyla kaydettiği Proje yardımcı varlığı; güncel otomatik sağlık hükmü değildir ([Manuel Proje Güncellemeleri](docs/prd/04-workspace-and-projects.md#manuel-proje-güncellemeleri)).

@@ -1,23 +1,80 @@
 model Project {
-  id                   String    @id
-  workspaceId          String
-  workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  name                 String
-  shortCode            String
-  lifecycleStatus      String
-  starterConfiguration String
-  purpose              String?
-  problem              String?
-  scope                String?
-  targetDate           String?
-  logoFileName         String?
-  hasWork              Boolean   @default(false)
-  revision             Int
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                              String                       @id
+  workspaceId                     String
+  workspace                       Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name                            String
+  shortCode                       String
+  lifecycleStatus                 String
+  starterConfiguration            String
+  purpose                         String?
+  problem                         String?
+  scope                           String?
+  targetDate                      String?
+  logoFileName                    String?
+  hasWork                         Boolean                      @default(false)
+  firstOpenExplanationDismissed   Boolean                      @default(false)
+  revision                        Int
+  createdAt                       DateTime                     @default(now())
+  updatedAt                       DateTime                     @updatedAt
+  stages                          ProjectStage[]
+  areaSettings                    ProjectAreaSetting[]
+  workViews                       ProjectWorkView[]
+  workStatuses                    ProjectWorkStatus[]
 
   @@index([workspaceId])
   @@map("project")
+}
+
+model ProjectStage {
+  id        String   @id
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  state     String
+  sortOrder Int
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@map("project_stage")
+}
+
+model ProjectAreaSetting {
+  id        String   @id
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  enabled   Boolean
+  pinned    Boolean
+  pinOrder  Int?
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, name])
+  @@map("project_area_setting")
+}
+
+model ProjectWorkView {
+  id        String   @id
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, name])
+  @@map("project_work_view")
+}
+
+model ProjectWorkStatus {
+  id        String   @id
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  semantic  String
+  label     String
+  sortOrder Int
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, semantic])
+  @@map("project_work_status")
 }
 
 model WorkspaceShortCodeReservation {

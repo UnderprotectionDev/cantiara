@@ -9,9 +9,12 @@ export type StarterConfiguration = (typeof STARTER_CONFIGURATIONS)[number];
 
 export const PROJECT_SHELL_COPY = {
 	active: "Active",
+	allTools: "All Tools",
 	createProject: "Create Project",
+	dismiss: "Dismiss",
 	loading: "Loading…",
 	logo: "Logo",
+	overview: "Overview",
 	problem: "Problem",
 	projectName: "Project Name",
 	projects: "Projects",

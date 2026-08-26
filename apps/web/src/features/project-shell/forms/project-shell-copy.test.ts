@@ -10,7 +10,10 @@ const COPY_BRANDING_PATTERN = /color|CSS|font/i;
 
 test("English chrome uses Project Name and Short code", () => {
 	expect(projectShellChrome()).toMatchObject({
+		allTools: "All Tools",
 		createProject: "Create Project",
+		dismiss: "Dismiss",
+		overview: "Overview",
 		projectName: "Project Name",
 		shortCode: "Short code",
 		shortCodeLocked: "Short code is locked after the first Work.",
