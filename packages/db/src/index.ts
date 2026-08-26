@@ -4,7 +4,7 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 
 import { PrismaClient } from "../prisma/generated/client";
 
-export { PrismaClient } from "../prisma/generated/client";
+export { Prisma, PrismaClient } from "../prisma/generated/client";
 
 // Local development: route the Neon serverless driver's WebSocket transport to a
 // local proxy (see scripts/neon-local-proxy.ts) that tunnels to a local Postgres

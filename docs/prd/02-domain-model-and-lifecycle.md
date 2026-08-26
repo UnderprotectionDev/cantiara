@@ -66,6 +66,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Destek referansı | `Support reference` | Başarısız ana akışta secret veya özel içerik taşımayan sunucu takip kimliği |
 | Güncelleme gerekli | `Update required` | Süre dışı imzalı masaüstü API sözleşmesinde güvenli olmayan yazmadan önce duran hata |
 | Yeniden dene | `Retry` | Başarısız ana akışta güvenli yeniden deneme eylemi |
+| Çatışma | `Conflict` | Aynı idempotency veya teslim kimliğinin farklı payload taşıması |
+| Güncel değer | `Current value` | Güncel olmayan taban revizyonunda reddedilen yazmanın gösterdiği mevcut kayıt değeri |
+| Kullanıcı | `User` | Kayıt geçmişine yazılan insan aktör türü |
+| Sistem otomasyonu | `System automation` | Kayıt geçmişine yazılan otomasyon aktör türü |
+| Yetkili entegrasyon | `Authorized integration` | Kayıt geçmişine yazılan entegrasyon aktör türü |
 | Veri yazıldı | `Data was written.` | Başarısız ana akışta yazmanın tamamlandığını bildirir |
 | Veri yazılmadı | `Data was not written.` | Başarısız ana akışta yazmanın yapılmadığını bildirir |
 | Bir kez yeniden deneyebilirsin | `You can retry once.` | Yazılmamış başarısız akışın güvenli yeniden deneme sınırı |
