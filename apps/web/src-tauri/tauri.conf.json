@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "cantiara",
+  "productName": "Cantiara",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "dev.cantiara.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:3001",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "cantiara",
+        "title": "Cantiara",
         "width": 800,
         "height": 600,
         "resizable": true,
@@ -32,7 +32,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,8 +40,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "android": {
-      "debugApplicationIdSuffix": ".debug"
+    "macOS": {
+      "minimumSystemVersion": "14.0",
+      "signingIdentity": "-",
+      "hardenedRuntime": true,
+      "entitlements": "./Entitlements.plist"
     }
   }
 }
