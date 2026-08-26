@@ -6,7 +6,10 @@ import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 import type { AppRouterClient } from "server/routes";
 
 import { withProductSessionHeaders } from "@/features/account-access/forms/tauri-session-token";
-import { showMainFlowFailure } from "@/features/web-macos-client/show-main-flow-failure";
+import {
+	showMainFlowFailure,
+	showQueryMainFlowFailure,
+} from "@/features/web-macos-client/show-main-flow-failure";
 import { withDesktopApiHeaders } from "@/features/web-macos-client/views/client-shell";
 
 export function createQueryClient() {
@@ -24,7 +27,7 @@ export function createQueryClient() {
 		}),
 		queryCache: new QueryCache({
 			onError: (error, query) => {
-				showMainFlowFailure(error, () => {
+				showQueryMainFlowFailure(error, () => {
 					query.invalidate();
 				});
 			},

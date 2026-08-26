@@ -129,6 +129,38 @@ test("the failed-flow toast stays until dismissed so Retry remains reachable", (
 	expect(retryable.options.action?.label).toBe("Retry");
 });
 
+test("a failed Inbox list does not pin the toast", () => {
+	const listFailure = toMainFlowFailureError(
+		new Error(
+			"undefined is not an object (evaluating 'input.prisma.captureInboxItem.findMany')"
+		),
+		undefined,
+		{ trackingId: "CANT-F89497F0" }
+	);
+	const listed = mainFlowFailureToast(listFailure, () => undefined, "query");
+
+	expect(listed.options.duration).toBe(4000);
+	expect(listed.options.closeButton).toBe(true);
+	expect(listed.options.action?.label).toBe("Retry");
+	expect(listed.message).toBe(
+		"undefined is not an object (evaluating 'input.prisma.captureInboxItem.findMany')"
+	);
+});
+
+test("a written failure does not pin the toast", () => {
+	const written = mainFlowFailureToast(
+		issueMainFlowFailure({
+			reason: "Couldn't notify after save.",
+			trackingId: "CANT-77778888",
+			written: true,
+		}),
+		() => undefined
+	);
+
+	expect(written.options.duration).toBe(4000);
+	expect(written.options.action).toBeUndefined();
+});
+
 test("a failure without a server tracking ID does not invent a Support reference", () => {
 	const presented = presentFailedMainFlow(
 		new Error("Couldn't save Preferences.")

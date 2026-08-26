@@ -1,8 +1,13 @@
 import { presentFailedMainFlow } from "@cantiara/api/client-shell-failure";
 
+export type MainFlowFailureToastFlow = "query" | "write";
+
+const TOAST_AUTO_DISMISS_MS = 4000;
+
 export function mainFlowFailureToast(
 	failure: unknown,
-	retry?: () => void
+	retry?: () => void,
+	flow: MainFlowFailureToastFlow = "write"
 ): {
 	message: string;
 	options: {
@@ -13,16 +18,20 @@ export function mainFlowFailureToast(
 	};
 } {
 	const presented = presentFailedMainFlow(failure);
+	const action =
+		presented.retry && retry
+			? { label: presented.retry, onClick: retry }
+			: undefined;
 	return {
 		message: presented.reason,
 		options: {
-			action:
-				presented.retry && retry
-					? { label: presented.retry, onClick: retry }
-					: undefined,
+			action,
 			closeButton: true,
 			description: presented.description,
-			duration: Number.POSITIVE_INFINITY,
+			duration:
+				flow === "write" && action
+					? Number.POSITIVE_INFINITY
+					: TOAST_AUTO_DISMISS_MS,
 		},
 	};
 }
