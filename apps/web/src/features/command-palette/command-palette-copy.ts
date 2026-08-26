@@ -1,5 +1,6 @@
 export const COMMAND_PALETTE_COPY = {
 	cantRunThisHere: "Can't run this here",
+	close: "Close",
 	create: "Create",
 	noMatchingCommand: "No matching command",
 	open: "Open",

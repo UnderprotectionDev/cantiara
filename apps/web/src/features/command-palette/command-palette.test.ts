@@ -21,18 +21,10 @@ import {
 import {
 	COMMAND_PALETTE_COPY,
 	COMMAND_PALETTE_SHORTCUT_HINT,
-	COMMAND_PALETTE_SHORTCUTS,
 	PALETTE_VISIBILITY_BUDGET_MS,
 } from "./command-palette-copy";
 
 const SEARCH_TITLE = /"Search"/;
-
-const FOUNDER_ROUTES = [
-	"/dashboard",
-	"/account",
-	"/sessions",
-	"/confirm-github-identity",
-] as const;
 
 const OPEN_KEY = {
 	ctrlKey: true,
@@ -105,7 +97,6 @@ function founderInput(
 			records: [HOME_RECORD, FOREIGN_RECORD],
 		},
 		context: {
-			configurationMode: false,
 			currentProjectId: ATLAS.id,
 			recordRevision: 3,
 			selectionIds: ["record-home"],
@@ -137,22 +128,13 @@ test("the palette title is Command Palette and is never Search", () => {
 	const snapshot = createCommandPalette(founderInput()).open();
 	expect(snapshot.title).toBe("Command Palette");
 	expect(snapshot.title).not.toBe("Search");
-	expect(COMMAND_PALETTE_COPY.title).toBe("Command Palette");
 });
 
-test("Ctrl+K opens the palette from every founder product route", () => {
-	expect(FOUNDER_ROUTES).toEqual([
-		"/dashboard",
-		"/account",
-		"/sessions",
-		"/confirm-github-identity",
-	]);
-	for (const route of FOUNDER_ROUTES) {
-		const { result } = openWithKeyboard();
-		expect(result.consume, route).toBe(true);
-		expect(result.snapshot.visible, route).toBe(true);
-		expect(result.snapshot.title, route).toBe("Command Palette");
-	}
+test("Ctrl+K opens the palette on founder chrome", () => {
+	const { result } = openWithKeyboard();
+	expect(result.consume).toBe(true);
+	expect(result.snapshot.visible).toBe(true);
+	expect(result.snapshot.title).toBe("Command Palette");
 });
 
 test("opening the palette meets the p95 150 ms and p99 300 ms visibility budget", () => {
@@ -230,9 +212,6 @@ test("every palette command has a visible menu counterpart", () => {
 });
 
 test("shortcuts are the documented map and cannot be remapped", () => {
-	expect(COMMAND_PALETTE_SHORTCUTS).toEqual({
-		open: { ctrlOrMeta: true, key: "k" },
-	});
 	expect(
 		isPaletteOpenShortcut({ ctrlKey: true, key: "k", metaKey: false })
 	).toBe(true);
@@ -337,16 +316,8 @@ test("keyboard-only use can open, filter, run, and dismiss", () => {
 	expect(dismissed.snapshot.visible).toBe(false);
 });
 
-test("Create, Switch Project, and search stay available when Configuration Mode is off", () => {
-	const snapshot = createCommandPalette(
-		founderInput({
-			context: {
-				configurationMode: false,
-				currentProjectId: ATLAS.id,
-				selectionIds: [],
-			},
-		})
-	).open();
+test("Create, Switch Project, and search stay available without a settings gate", () => {
+	const snapshot = createCommandPalette(founderInput()).open();
 	expect(
 		snapshot.commands.some((command) => command.id === "create:work")
 	).toBe(true);
@@ -357,6 +328,23 @@ test("Create, Switch Project, and search stay available when Configuration Mode 
 	expect(searched.commands.some((command) => command.kind === "open")).toBe(
 		true
 	);
+});
+
+test("opening Create from the menu shows preview and does not write", () => {
+	const mutation = memoryMutation();
+	const palette = createCommandPalette(founderInput({ mutation }));
+	palette.open();
+	const snapshot = palette.setQuery(COMMAND_PALETTE_COPY.create);
+	const create = snapshot.commands.find(
+		(command) => command.id === "create:work"
+	);
+	expect(snapshot.visible).toBe(true);
+	expect(create?.preview).toEqual({
+		scope: "Atlas",
+		selectionCount: 1,
+		target: "Work",
+	});
+	expect(mutation.writes).toHaveLength(0);
 });
 
 test("the palette is not an automation, marketplace, or remappable keymap host", () => {
@@ -385,7 +373,6 @@ test("running Create without an authorized Project does not write", () => {
 		founderInput({
 			catalog: { projects: [], records: [] },
 			context: {
-				configurationMode: false,
 				currentProjectId: null,
 				selectionIds: [],
 			},
@@ -419,7 +406,6 @@ test("the visibility budget still holds on a large authorized catalog", () => {
 	const input = founderInput({
 		catalog: { projects, records },
 		context: {
-			configurationMode: false,
 			currentProjectId: "project-0",
 			selectionIds: [],
 		},

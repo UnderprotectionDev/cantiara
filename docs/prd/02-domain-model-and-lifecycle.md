@@ -85,6 +85,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Aç | `Open` | Palette yetkili ana kayda atlama |
 | Eşleşen komut yok | `No matching command` | Palet süzgecinin komut döndürmediği durum |
 | Burada çalışmaz | `Can't run this here` | Kapsam dışı veya desteklenmeyen palet komutunun görünür başarısızlığı |
+| Kapat | `Close` | Paleti kapatma eylemi |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 

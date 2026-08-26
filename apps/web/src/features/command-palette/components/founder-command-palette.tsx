@@ -10,9 +10,6 @@ import {
 import { Kbd } from "@cantiara/ui/components/kbd";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { sessionUser } from "@/features/personal-shell/components/session-user";
-import { authClient } from "@/lib/auth-client";
-
 import {
 	type CommandPalette,
 	createCommandPalette,
@@ -54,8 +51,6 @@ function PaletteCommandItem({
 }
 
 export function FounderCommandPalette() {
-	const { data: session } = authClient.useSession();
-	const user = sessionUser(session);
 	const paletteRef = useRef<CommandPalette>(
 		createCommandPalette(emptyFounderPaletteInput())
 	);
@@ -63,52 +58,55 @@ export function FounderCommandPalette() {
 		paletteRef.current.snapshot()
 	);
 
-	const publish = useCallback((next: PaletteSnapshot) => {
+	const showSnapshot = useCallback((next: PaletteSnapshot) => {
 		setSnapshot(next);
 	}, []);
 
 	const onOpen = useCallback(() => {
-		publish(paletteRef.current.open());
-	}, [publish]);
+		showSnapshot(paletteRef.current.open());
+	}, [showSnapshot]);
 
 	const onDismiss = useCallback(() => {
-		publish(
+		showSnapshot(
 			paletteRef.current.handleKeyDown({
 				ctrlKey: false,
 				key: "Escape",
 				metaKey: false,
 			}).snapshot
 		);
-	}, [publish]);
+	}, [showSnapshot]);
 
 	const onCreate = useCallback(() => {
 		paletteRef.current.open();
-		publish(paletteRef.current.run("create:work").snapshot);
-	}, [publish]);
+		showSnapshot(paletteRef.current.setQuery(COMMAND_PALETTE_COPY.create));
+	}, [showSnapshot]);
 
 	const onSwitchProject = useCallback(() => {
 		paletteRef.current.open();
-		publish(paletteRef.current.setQuery(COMMAND_PALETTE_COPY.switchProject));
-	}, [publish]);
+		showSnapshot(
+			paletteRef.current.setQuery(COMMAND_PALETTE_COPY.switchProject)
+		);
+	}, [showSnapshot]);
+
+	const onOpenRecord = useCallback(() => {
+		showSnapshot(paletteRef.current.open());
+	}, [showSnapshot]);
 
 	const onQuery = useCallback(
 		(query: string) => {
-			publish(paletteRef.current.setQuery(query));
+			showSnapshot(paletteRef.current.setQuery(query));
 		},
-		[publish]
+		[showSnapshot]
 	);
 
 	const onRun = useCallback(
 		(commandId: string) => {
-			publish(paletteRef.current.run(commandId).snapshot);
+			showSnapshot(paletteRef.current.run(commandId).snapshot);
 		},
-		[publish]
+		[showSnapshot]
 	);
 
 	useEffect(() => {
-		if (!user) {
-			return;
-		}
 		const onKeyDown = (event: KeyboardEvent) => {
 			const result = paletteRef.current.handleKeyDown({
 				ctrlKey: event.ctrlKey,
@@ -118,18 +116,14 @@ export function FounderCommandPalette() {
 			});
 			if (result.consume) {
 				event.preventDefault();
-				publish(result.snapshot);
+				showSnapshot(result.snapshot);
 			}
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => {
 			window.removeEventListener("keydown", onKeyDown);
 		};
-	}, [publish, user]);
-
-	if (!user) {
-		return null;
-	}
+	}, [showSnapshot]);
 
 	return (
 		<div className="flex items-center gap-2">
@@ -143,10 +137,13 @@ export function FounderCommandPalette() {
 			<Button onClick={onSwitchProject} type="button" variant="outline">
 				{COMMAND_PALETTE_COPY.switchProject}
 			</Button>
+			<Button onClick={onOpenRecord} type="button" variant="outline">
+				{COMMAND_PALETTE_COPY.open}
+			</Button>
 			{snapshot.visible ? (
 				<div className="fixed inset-0 z-50">
 					<button
-						aria-label="Close"
+						aria-label={COMMAND_PALETTE_COPY.close}
 						className="absolute inset-0 bg-black/10"
 						onClick={onDismiss}
 						type="button"
@@ -157,7 +154,10 @@ export function FounderCommandPalette() {
 						className="absolute top-[20%] left-1/2 w-full max-w-lg -translate-x-1/2 border bg-popover text-popover-foreground shadow-lg"
 						role="dialog"
 					>
-						<h2 className="sr-only" id="command-palette-title">
+						<h2
+							className="border-b px-3 py-2 font-medium text-sm"
+							id="command-palette-title"
+						>
 							{snapshot.title}
 						</h2>
 						<Command shouldFilter={false}>

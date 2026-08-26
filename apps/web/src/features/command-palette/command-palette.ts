@@ -36,7 +36,6 @@ export interface PaletteSession {
 }
 
 export interface PaletteContext {
-	configurationMode?: boolean;
 	currentProjectId: string | null;
 	recordRevision?: number;
 	selectionIds: readonly string[];
@@ -186,7 +185,6 @@ export function emptyFounderPaletteInput(): CommandPaletteInput {
 	return {
 		catalog: { projects: [], records: [] },
 		context: {
-			configurationMode: false,
 			currentProjectId: null,
 			selectionIds: [],
 		},
@@ -313,26 +311,30 @@ export function createCommandPalette(
 		}));
 	}
 
+	function openRecordCommand(record: PaletteRecord): PaletteCommand {
+		return {
+			id: `open:${record.id}`,
+			kind: "open",
+			label: record.title,
+			menuCounterpartId: "open-record",
+			preview: {
+				scope: projectNamed(record.projectId),
+				selectionCount: 1,
+				target: record.title,
+			},
+			reversible: false,
+			runnable: true,
+			shortcutHint: null,
+		};
+	}
+
 	function openCommands(): PaletteCommand[] {
 		if (query.trim().length === 0) {
 			return [];
 		}
 		return authorizedRecords()
 			.filter((record) => matchesQuery(record.title))
-			.map((record) => ({
-				id: `open:${record.id}`,
-				kind: "open" as const,
-				label: record.title,
-				menuCounterpartId: "open-record",
-				preview: {
-					scope: projectNamed(record.projectId),
-					selectionCount: 1,
-					target: record.title,
-				},
-				reversible: false,
-				runnable: true,
-				shortcutHint: null,
-			}));
+			.map(openRecordCommand);
 	}
 
 	function commandById(commandId: string): PaletteCommand | undefined {
@@ -353,20 +355,7 @@ export function createCommandPalette(
 		if (!record) {
 			return;
 		}
-		return {
-			id: `open:${record.id}`,
-			kind: "open",
-			label: record.title,
-			menuCounterpartId: "open-record",
-			preview: {
-				scope: projectNamed(record.projectId),
-				selectionCount: 1,
-				target: record.title,
-			},
-			reversible: false,
-			runnable: true,
-			shortcutHint: null,
-		};
+		return openRecordCommand(record);
 	}
 
 	function matchesCommand(command: PaletteCommand): boolean {
@@ -511,10 +500,6 @@ export function createCommandPalette(
 
 	function handleKeyDown(event: PaletteKeyEvent): PaletteKeyResult {
 		if (isPaletteOpenShortcut(event)) {
-			if (isOpen) {
-				failure = null;
-				return { consume: true, snapshot: close() };
-			}
 			return { consume: true, snapshot: open() };
 		}
 		if (isOpen && isPaletteDismissShortcut(event)) {
