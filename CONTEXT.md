@@ -208,6 +208,14 @@ _Avoid_: Dashboard skoru, Çalışma Alanı genel bakışı, Manuel Proje Günce
 Etkin veya henüz navigasyona sabitlenmemiş hazır Proje alanlarını tek keşif yüzeyinde gösteren, Proje alanı olmayan daima erişilir giriş ([Proje alanlarını etkinleştirme](docs/prd/04-workspace-and-projects.md#proje-alanlarını-etkinleştirme)). UI: `All Tools`.
 _Avoid_: ana menü, gizli alan silme, Overview
 
+**Yapılandırma modu**:
+Aşama, İş durumu adı, etkin alan, özel alan, öncelik ölçütü, kayıtlı görünüm ve İş Bağlam Kartı düzenini günlük içerik düzenlemesinden ayıran görünür sunum durumu; izin veya yönetici rolü değildir ([yapılandırma modu](docs/prd/04-workspace-and-projects.md#yapılandırma-modu)). UI: `Configuration Mode`.
+_Avoid_: yönetici rolü, izin duvarı, ayarlar sayfası, workflow kapısı
+
+**Öncelik ölçütü**:
+İşin önceliğini ifade eden Proje yapılandırması; skaler öncelik alanı veya otomatik skor değildir ([öncelik ölçütleri](docs/prd/06-work-management-and-planning.md#öncelik-ölçütleri)). UI: `Priority metrics`.
+_Avoid_: öncelik puanı, otomatik sıralama, skaler öncelik alanı
+
 **Manuel Proje Güncellemesi**:
 Kurucunun tarihli öznel sağlık işareti, kısa anlatı ve o anki özet snapshot'ıyla kaydettiği Proje yardımcı varlığı; güncel otomatik sağlık hükmü değildir ([Manuel Proje Güncellemeleri](docs/prd/04-workspace-and-projects.md#manuel-proje-güncellemeleri)).
 _Avoid_: Canlı sağlık skoru, Mission Control, Proje genel bakışı

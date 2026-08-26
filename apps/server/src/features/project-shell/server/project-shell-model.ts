@@ -51,8 +51,12 @@ export const PROJECT_LIFECYCLE = {
 
 export const PROJECT_SHELL_COPY = {
 	allTools: "All Tools",
+	configurationMode: "Configuration Mode",
+	create: "Create",
 	createProject: "Create Project",
+	customField: "Custom field",
 	dismiss: "Dismiss",
+	edit: "Edit",
 	firstOpenExplanations: {
 		"Blank Project":
 			"Blank Project set up Work and Documents with Backlog and Board. It did not install stages or extra pinned areas. Other areas stay available in All Tools. Overview and All Tools stay reachable. This is not a workflow or publish gate.",
@@ -65,14 +69,21 @@ export const PROJECT_SHELL_COPY = {
 	},
 	logo: "Logo",
 	overview: "Overview",
+	planning: "Planning",
+	priorityMetrics: "Priority metrics",
 	problem: "Problem",
+	projectAreas: "Project areas",
 	projectName: "Project Name",
 	purpose: "Purpose",
 	scope: "Scope",
 	shortCode: "Short code",
 	shortCodeLocked: "Short code is locked after the first Work.",
+	stages: "Stages",
 	starterConfiguration: "Starter Configuration",
+	status: "Status",
 	targetDate: "Target date",
+	workContextCardLayout: "Work Context Card layout",
+	workStatuses: "Work statuses",
 } as const;
 
 export const SHORT_CODE_MIN = 2;
@@ -258,6 +269,51 @@ export function firstOpenExplanationFor(
 	starterConfiguration: StarterConfiguration
 ): string {
 	return PROJECT_SHELL_COPY.firstOpenExplanations[starterConfiguration];
+}
+
+export const CONFIGURATION_MODE_EDITORS = {
+	customField: "custom-field",
+	workContextCardLayout: "work-context-card-layout",
+} as const;
+
+export type ConfigurationModeEditor =
+	(typeof CONFIGURATION_MODE_EDITORS)[keyof typeof CONFIGURATION_MODE_EDITORS];
+
+const CONFIGURATION_MODE_HOSTS = [
+	PROJECT_SHELL_COPY.stages,
+	PROJECT_SHELL_COPY.workStatuses,
+	PROJECT_SHELL_COPY.projectAreas,
+	PROJECT_SHELL_COPY.customField,
+	PROJECT_SHELL_COPY.priorityMetrics,
+	PROJECT_SHELL_COPY.workContextCardLayout,
+] as const;
+
+const DAILY_ACTIONS = [
+	PROJECT_SHELL_COPY.create,
+	PROJECT_SHELL_COPY.edit,
+	PROJECT_SHELL_COPY.status,
+	PROJECT_SHELL_COPY.planning,
+] as const;
+
+export function configurationModeView(input: {
+	editor?: ConfigurationModeEditor | null;
+	open: boolean;
+	planningViews: readonly string[];
+}) {
+	const editor = input.open ? (input.editor ?? null) : null;
+	return {
+		active: input.open,
+		customFieldEditorOpen: editor === CONFIGURATION_MODE_EDITORS.customField,
+		dailyActions: DAILY_ACTIONS,
+		dailyActionsAvailable: true,
+		hosts: input.open ? CONFIGURATION_MODE_HOSTS : [],
+		label: PROJECT_SHELL_COPY.configurationMode,
+		ownsCustomFieldSchema: false,
+		ownsWorkContextCardLayout: false,
+		planningViews: input.planningViews,
+		workContextCardLayoutEditorOpen:
+			editor === CONFIGURATION_MODE_EDITORS.workContextCardLayout,
+	} as const;
 }
 
 export function suggestShortCodeFromName(name: string): string {

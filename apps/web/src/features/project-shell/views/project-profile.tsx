@@ -1,17 +1,45 @@
 import { useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
 
+import ConfigurationMode from "@/features/project-shell/forms/configuration-mode";
 import FirstOpenExplanation from "@/features/project-shell/forms/first-open-explanation";
 import {
+	type ConfigurationModeEditor,
 	PROJECT_SHELL_COPY,
 	projectShellAnchor,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
 import { orpc } from "@/utils/orpc";
 
-export default function ProjectProfile({ projectId }: { projectId: string }) {
+export default function ProjectProfile({
+	configurationEditor,
+	configurationMode,
+	onPresentationChange,
+	projectId,
+}: {
+	configurationEditor: ConfigurationModeEditor | null;
+	configurationMode: boolean;
+	onPresentationChange: (next: {
+		editor: ConfigurationModeEditor | null;
+		open: boolean;
+	}) => void;
+	projectId: string;
+}) {
 	const project = useQuery(
 		orpc.projectShell.get.queryOptions({ input: { projectId } })
 	);
+	const onOpenEditor = useCallback(
+		(editor: ConfigurationModeEditor) => {
+			onPresentationChange({ editor, open: true });
+		},
+		[onPresentationChange]
+	);
+	const onToggle = useCallback(() => {
+		onPresentationChange({
+			editor: null,
+			open: !configurationMode,
+		});
+	}, [configurationMode, onPresentationChange]);
 
 	if (project.isPending) {
 		return <p>{PROJECT_SHELL_COPY.loading}</p>;
@@ -20,10 +48,11 @@ export default function ProjectProfile({ projectId }: { projectId: string }) {
 		return <p role="alert">{PROJECT_SHELL_COPY.unavailable}</p>;
 	}
 
-	const data = project.data;
+	const { data } = project;
 	const alwaysOnAnchors = new Set(
 		data.alwaysOnSurfaces.map((surface) => projectShellAnchor(surface))
 	);
+	const areaNames = data.allToolsAreas.map((area) => area.name);
 
 	return (
 		<main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
@@ -35,6 +64,16 @@ export default function ProjectProfile({ projectId }: { projectId: string }) {
 				<p>
 					{PROJECT_SHELL_COPY.active} · {data.starterConfiguration}
 				</p>
+				<ConfigurationMode
+					areas={areaNames}
+					editor={configurationEditor}
+					onOpenEditor={onOpenEditor}
+					onToggle={onToggle}
+					open={configurationMode}
+					stages={data.stages}
+					workStatuses={data.workStatuses}
+					workViews={data.workViews}
+				/>
 				{data.firstOpenExplanationVisible && data.firstOpenExplanation ? (
 					<FirstOpenExplanation
 						body={data.firstOpenExplanation}
@@ -102,6 +141,23 @@ export default function ProjectProfile({ projectId }: { projectId: string }) {
 						key={surface}
 					>
 						<h2>{surface}</h2>
+						{surface === "Work" ? (
+							<>
+								<ul>
+									<li>{PROJECT_SHELL_COPY.create}</li>
+									<li>{PROJECT_SHELL_COPY.edit}</li>
+									<li>{PROJECT_SHELL_COPY.status}</li>
+									<li>{PROJECT_SHELL_COPY.planning}</li>
+								</ul>
+								<ul>
+									{data.workViews.map((view) => (
+										<li id={projectShellAnchor(view)} key={view}>
+											{view}
+										</li>
+									))}
+								</ul>
+							</>
+						) : null}
 					</section>
 				))}
 			<section

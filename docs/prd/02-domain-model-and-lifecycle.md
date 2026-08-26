@@ -47,6 +47,17 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Mobile Application | `Mobile Application` | Discovery–Operate aşamaları ve Production sabitlemesiyle açılan Başlangıç yapılandırması |
 | Proje genel bakışı | `Overview` | Proje alanı olmayan daima erişilir yüzey |
 | All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
+| Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
+| Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |
+| İş Bağlam Kartı düzeni | `Work Context Card layout` | İş Bağlam Kartı bölüm düzeninin Yapılandırma modu girişi; şema veya düzen motoru değildir |
+| Öncelik ölçütü | `Priority metrics` | İş önceliğini ifade eden Proje yapılandırması; skaler öncelik alanı değildir |
+| Aşamalar | `Stages` | Yapılandırılabilir Proje aşamalarının Yapılandırma modu girişi |
+| İş durumları | `Work statuses` | Korunan İş akışı durumlarının kullanıcıya dönük ad girişi |
+| Proje alanları | `Project areas` | Kapalı Proje alanı kataloğunun etkinleştirme girişi |
+| Oluştur | `Create` | Yapılandırma modu dışında günlük kayıt oluşturma |
+| Düzenle | `Edit` | Yapılandırma modu dışında günlük içerik düzenleme |
+| Durum | `Status` | Yapılandırma modu dışında günlük durum değiştirme |
+| Planlama | `Planning` | Yapılandırma modu dışında günlük planlama |
 | Belgeler | `Documents` | Belge kayıtlarını toplayan Proje alanı |
 | Discovery | `Discovery` | Geri Bildirim ve araştırma kayıtlarını toplayan Proje alanı veya hazır aşama adı |
 | Decisions | `Decisions` | Karar, Risk, Varsayım ve Açık Soruyu toplayan Proje alanı |
