@@ -36,6 +36,7 @@ import {
 } from "./session-events";
 import {
 	oneTimeCodeFromDeepLink,
+	productCorsOrigins,
 	productTrustedOrigins,
 	TAURI_CALLBACK_URL,
 } from "./tauri-session";
@@ -2268,5 +2269,16 @@ describe("Account Access", () => {
 			auth.accountAccess.write(productRequest(cookies))
 		).rejects.toMatchObject({ status: 401 });
 		restore();
+	});
+});
+
+describe("Account Access CORS origins", () => {
+	it("allows the 127.0.0.1 loopback alias of the web origin", () => {
+		expect(productCorsOrigins(WEB_ORIGIN)).toEqual(
+			expect.arrayContaining(["http://localhost:3001", "http://127.0.0.1:3001"])
+		);
+		expect(productTrustedOrigins(WEB_ORIGIN)).toEqual(
+			expect.arrayContaining(["http://localhost:3001", "http://127.0.0.1:3001"])
+		);
 	});
 });
