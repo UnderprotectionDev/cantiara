@@ -92,6 +92,25 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Bir kez yeniden deneyebilirsin | `You can retry once.` | Yazılmamış başarısız akışın güvenli yeniden deneme sınırı |
 | Yeniden deneme | `Do not retry.` | Yazılmış başarısız akışta yeniden denemenin güvensiz olduğunu bildirir |
 | Bu eylem tamamlanamadı | `This action could not be completed.` | Secret taşıyan veya beklenmeyen hatanın kullanıcıya gösterilen nedeni |
+| Yakalama Gelen Kutusu | `Capture Inbox` | Kaydedilmiş fakat henüz kalıcı kayda dönüşmemiş geçici girdi yüzeyi; ana kayıt, Taslak veya kaydedilmiş bookmark değildir |
+| Çalışma alanı Yakalama Gelen Kutusu | `Workspace Capture Inbox` | Proje bilinmediğinde geçici yakalamaların durduğu Inbox |
+| Workspace Capture Inbox’a kaydet | `Leave empty to save to the Workspace Capture Inbox.` | Project alanı boşken Save’in Workspace Capture Inbox’a yazacağını söyleyen metin |
+| Proje Yakalama Gelen Kutusu | `Project Capture Inbox` | Proje bilindiğinde o projenin geçici yakalamalarının durduğu Inbox |
+| Bu Inbox’ta yakalama yok | `No captures in this Inbox.` | Boş Workspace veya Proje Yakalama Gelen Kutusu |
+| Create Bug kullanılabilirliği | `Create Bug is available when Project is set and type is Bug Capture.` | Create Bug’un yalnız Proje ve Bug Capture (veya tür belirtilmemiş) iken açık olduğunu söyleyen metin |
+| Create Bug Inbox’ta kalmaz | `Create Bug does not stay in the Capture Inbox. A Work record is not stored yet.` | Create Bug’un Gelen Kutusu öğesi bırakmadığını ve İş kaydının henüz saklanmadığını söyleyen metin |
+| Bug oluştur | `Create Bug` | Proje ve tür kesin olduğunda doğrudan İş oluşturma eylemi; Yakalama Gelen Kutusu öğesi bırakmaz |
+| Bug yakalama | `Bug Capture` | `Observed Behavior`, `Expected Behavior` ve `Reproduction Context` yönlendirici alanlarıyla Inbox öğesini biçimlendiren kapalı mini şablon; alanlar isteğe bağlıdır ve ana kayıt oluşturmaz |
+| Gözlenen davranış | `Observed Behavior` | Bug Capture yönlendirici alanı |
+| Beklenen davranış | `Expected Behavior` | Bug Capture yönlendirici alanı |
+| Yeniden üretim bağlamı | `Reproduction Context` | Bug Capture yönlendirici alanı |
+| Geri bildirim yakalama | `Feedback Capture` | `Feedback`, `Channel` ve isteğe bağlı `Contact` yönlendirici alanlarıyla Inbox öğesini biçimlendiren kapalı mini şablon; Contact ana kaydı oluşturmaz |
+| İletişim (yakalama alanı) | `Contact` | Feedback Capture isteğe bağlı yönlendirici alanı; Contact ana kaydı oluşturmaz |
+| Geri bildirim (yakalama alanı) | `Feedback` | Feedback Capture yönlendirici alanı |
+| Kanal | `Channel` | Feedback Capture yönlendirici alanı |
+| Araştırma parçası | `Research Fragment` | `Note or Excerpt` ve `Source Context` yönlendirici alanlarıyla Inbox öğesini biçimlendiren kapalı mini şablon |
+| Not veya alıntı | `Note or Excerpt` | Research Fragment yönlendirici alanı |
+| Kaynak bağlamı | `Source Context` | Research Fragment yönlendirici alanı |
 | Komut Paleti | `Command Palette` | Kurucu yüzeylerinde klavyeyle komut, gezinme, kayıt oluşturma ve Proje geçişi çalıştıran yüzey; Evrensel Arama (`Search`) değildir |
 | Proje geçişi | `Switch Project` | Palette ve görünür menüden yetkili Projeler arasında geçiş |
 | Oluştur | `Create` | Palette ve görünür menüden yetkili kapsamda desteklenen kayıt oluşturma |

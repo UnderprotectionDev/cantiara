@@ -19,6 +19,9 @@ function RouteComponent() {
 			<h1>Dashboard</h1>
 			<p>Welcome {session.data?.user?.name}</p>
 			<p>
+				<Link to="/capture">Capture Inbox</Link>
+			</p>
+			<p>
 				<Link to="/account">Preferences</Link>
 			</p>
 			<p>

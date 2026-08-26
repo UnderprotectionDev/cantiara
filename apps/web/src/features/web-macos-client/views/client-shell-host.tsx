@@ -16,6 +16,7 @@ import { orpc } from "@/utils/orpc";
 import {
 	attemptOnlineWork as attemptShellWork,
 	type ClientShell,
+	clearClientShellUnsaved,
 	createClientShell,
 	detectClientShellHost,
 	markClientShellUnsaved,
@@ -36,6 +37,7 @@ interface ClientShellContextValue {
 		kind: OnlineWorkKind,
 		work: () => T
 	) => OnlineWorkResult<T>;
+	clearUnsaved: () => void;
 	markUnsaved: () => void;
 	recordSave: (instant?: Date) => void;
 	shell: ClientShell;
@@ -89,13 +91,22 @@ export function ClientShellProvider({ children }: { children: ReactNode }) {
 	const markUnsaved = useCallback(() => {
 		setShell((current) => markClientShellUnsaved(current));
 	}, []);
+	const clearUnsaved = useCallback(() => {
+		setShell((current) => clearClientShellUnsaved(current));
+	}, []);
 	const recordSave = useCallback((instant = new Date()) => {
 		setShell((current) => recordClientShellSave(current, instant));
 	}, []);
 
 	const value = useMemo(
-		() => ({ attemptOnlineWork, markUnsaved, recordSave, shell }),
-		[attemptOnlineWork, markUnsaved, recordSave, shell]
+		() => ({
+			attemptOnlineWork,
+			clearUnsaved,
+			markUnsaved,
+			recordSave,
+			shell,
+		}),
+		[attemptOnlineWork, clearUnsaved, markUnsaved, recordSave, shell]
 	);
 
 	return (

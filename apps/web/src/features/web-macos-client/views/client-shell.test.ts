@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	attemptOnlineWork,
+	clearClientShellUnsaved,
 	clientShellLocalTruth,
 	clientShellWriteQueue,
 	createClientShell,
@@ -110,6 +111,24 @@ describe("Client Shell", () => {
 			lastSavedLabel: "Last saved",
 			unsavedRisk: null,
 		});
+	});
+
+	it("clears Unsaved changes may be lost without recording a save", () => {
+		const dirty = markClientShellUnsaved(
+			recordClientShellSave(
+				createClientShell({ connected: true, host: "web" }),
+				SAVE_INSTANT
+			)
+		);
+
+		const cleared = clearClientShellUnsaved(dirty);
+
+		expect(cleared.hasUnsavedChanges).toBe(false);
+		expect(cleared.lastSuccessfulSaveAt).toEqual(SAVE_INSTANT);
+		expect(
+			offlineEmptyState(setClientShellConnection(cleared, false), istanbul)
+				?.unsavedRisk
+		).toBeNull();
 	});
 
 	it("formats Last saved with the Hesap locale and time zone, not a Client Shell schema", () => {

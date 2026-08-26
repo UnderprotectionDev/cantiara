@@ -100,6 +100,10 @@ export function markClientShellUnsaved(shell: ClientShell): ClientShell {
 	return { ...shell, hasUnsavedChanges: true };
 }
 
+export function clearClientShellUnsaved(shell: ClientShell): ClientShell {
+	return { ...shell, hasUnsavedChanges: false };
+}
+
 export function recordClientShellSave(
 	shell: ClientShell,
 	instant: Date

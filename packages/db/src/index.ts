@@ -33,6 +33,12 @@ export function createPrismaClient() {
 let defaultPrisma: PrismaClient | undefined;
 
 export function getPrismaClient() {
+	if (
+		defaultPrisma !== undefined &&
+		typeof defaultPrisma.captureInboxItem?.findMany !== "function"
+	) {
+		defaultPrisma = undefined;
+	}
 	defaultPrisma ??= createPrismaClient();
 	return defaultPrisma;
 }

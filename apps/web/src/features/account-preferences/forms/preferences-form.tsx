@@ -47,7 +47,8 @@ export default function PreferencesForm({
 	preferences: AccountPreferences;
 	suggestion: SuggestedLocaleAndTimeZone;
 }) {
-	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const { attemptOnlineWork, clearUnsaved, markUnsaved, recordSave } =
+		useClientShell();
 	const timeZones = useMemo(() => timeZoneOptions(), []);
 	const save = useMutation(
 		orpc.accountPreferences.save.mutationOptions({
@@ -91,8 +92,10 @@ export default function PreferencesForm({
 	useEffect(() => {
 		if (isDirty) {
 			markUnsaved();
+		} else {
+			clearUnsaved();
 		}
-	}, [isDirty, markUnsaved]);
+	}, [clearUnsaved, isDirty, markUnsaved]);
 
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
