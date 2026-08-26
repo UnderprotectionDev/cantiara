@@ -10,6 +10,7 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import { AppearanceProvider } from "@/features/account-preferences/views/appearance-provider";
 import Header from "@/features/personal-shell/components/header";
+import { ClientShellProvider } from "@/features/web-macos-client/views/client-shell-host";
 import type { orpc } from "@/utils/orpc";
 
 import "../index.css";
@@ -44,13 +45,15 @@ function RootComponent() {
 	return (
 		<>
 			<HeadContent />
-			<AppearanceProvider>
-				<div className="grid h-svh grid-rows-[auto_1fr]">
-					<Header />
-					<Outlet />
-				</div>
-				<Toaster richColors />
-			</AppearanceProvider>
+			<ClientShellProvider>
+				<AppearanceProvider>
+					<div className="grid h-svh grid-rows-[auto_1fr]">
+						<Header />
+						<Outlet />
+					</div>
+					<Toaster richColors />
+				</AppearanceProvider>
+			</ClientShellProvider>
 			<TanStackRouterDevtools position="bottom-left" />
 			<ReactQueryDevtools buttonPosition="bottom-right" position="bottom" />
 		</>

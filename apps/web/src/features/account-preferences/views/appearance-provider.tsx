@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { createContext, type ReactNode, useCallback, useContext } from "react";
 
+import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -24,12 +25,14 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
 		...orpc.accountPreferences.get.queryOptions(),
 		enabled: Boolean(session?.user),
 	});
+	const { attemptOnlineWork, recordSave } = useClientShell();
 	const save = useMutation(
 		orpc.accountPreferences.save.mutationOptions({
 			onSuccess: async () => {
 				await queryClient.invalidateQueries({
 					queryKey: orpc.accountPreferences.get.queryKey(),
 				});
+				recordSave();
 			},
 		})
 	);
@@ -42,15 +45,17 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
 			if (!(session?.user && current)) {
 				return;
 			}
-			save.mutate({
-				appearance: next,
-				dateFormat: current.dateFormat,
-				firstDayOfWeek: current.firstDayOfWeek,
-				locale: current.locale,
-				timeZone: current.timeZone,
+			attemptOnlineWork("record-create", () => {
+				save.mutate({
+					appearance: next,
+					dateFormat: current.dateFormat,
+					firstDayOfWeek: current.firstDayOfWeek,
+					locale: current.locale,
+					timeZone: current.timeZone,
+				});
 			});
 		},
-		[preferences.data, save, session?.user]
+		[attemptOnlineWork, preferences.data, save, session?.user]
 	);
 
 	return (

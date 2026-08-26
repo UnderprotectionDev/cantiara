@@ -5,26 +5,31 @@ import {
 	SESSIONS_PATH,
 	postSignInPath,
 } from "@/features/account-access/forms/post-sign-in-path";
+import { ClientShellWorkspace } from "@/features/web-macos-client/views/client-shell-host";
 import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/_auth")({
-  component: AuthLayout,
-  beforeLoad: async ({ location }) => {
-    const session = await authClient.getSession();
-    if (!session.data?.user) {
-      const next = postSignInPath(location.pathname);
-      throw redirect({
-        search:
-          next === SESSIONS_PATH || next === ACCOUNT_PATH
-            ? { redirect: next }
-            : {},
-        to: "/login",
-      });
-    }
-    return { session };
-  },
+	beforeLoad: async ({ location }) => {
+		const session = await authClient.getSession();
+		if (!session.data?.user) {
+			const next = postSignInPath(location.pathname);
+			throw redirect({
+				search:
+					next === SESSIONS_PATH || next === ACCOUNT_PATH
+						? { redirect: next }
+						: {},
+				to: "/login",
+			});
+		}
+		return { session };
+	},
+	component: AuthLayout,
 });
 
 function AuthLayout() {
-  return <Outlet />;
+	return (
+		<ClientShellWorkspace>
+			<Outlet />
+		</ClientShellWorkspace>
+	);
 }
