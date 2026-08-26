@@ -17,7 +17,7 @@ A term in the glossary is not delivery scope. Scope lives in the spec.
 
 ## Spec
 
-**Spec** — [`docs/specs/`](docs/specs/). Read the owning `spec.md` before changing product behavior, writing UI copy or a source identifier, or deciding delivery scope. The English UI labels in that spec are the names in code and in the interface.
+**Spec** — [`docs/specs/`](docs/specs/). Read the owning `spec.md` before changing product behavior, writing UI copy or a source identifier, or deciding delivery scope. That spec's English UI is the name in code and in the interface.
 
 ## Decisions
 
