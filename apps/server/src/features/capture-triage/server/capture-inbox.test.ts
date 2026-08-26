@@ -32,6 +32,7 @@ const DATABASE_URL =
 
 const CAPTURED_AT = new Date("2026-08-26T12:00:00.000Z");
 const NINETY_DAYS_LATER = new Date("2026-11-24T12:00:00.000Z");
+const TEST_STAGING_ROOT_KEY = Buffer.alloc(32, 9);
 
 describe("Capture Inbox catalog", () => {
 	it("exposes the closed mini-template catalog with optional English fields", () => {
@@ -188,6 +189,7 @@ describe("Capture Inbox", () => {
 			fileAttachmentFinalize: overrides.fileAttachmentFinalize,
 			prisma,
 			similarRecords: overrides.similarRecords,
+			stagingRootKey: TEST_STAGING_ROOT_KEY,
 			stagingStore: overrides.stagingStore,
 			workCreate: overrides.workCreate,
 			workspaceId,

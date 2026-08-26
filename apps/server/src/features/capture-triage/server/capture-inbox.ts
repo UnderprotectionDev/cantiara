@@ -350,7 +350,7 @@ function stagingRootKey(secret?: string): Buffer {
 	if (fromEnv && fromEnv.length >= 32) {
 		return deriveCaptureStagingRootKey(fromEnv);
 	}
-	return Buffer.alloc(32, 7);
+	throw new Error("Capture staging root key is required");
 }
 
 async function persistStaging(input: {
