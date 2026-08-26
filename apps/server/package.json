@@ -7,7 +7,8 @@
     "check-types": "tsc -b",
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "bun run --hot src/index.ts",
-    "start": "bun run dist/index.mjs"
+    "start": "bun run dist/index.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@cantiara/api": "workspace:*",
@@ -25,8 +26,12 @@
   },
   "devDependencies": {
     "@cantiara/config": "workspace:*",
+    "@prisma/adapter-pg": "^7.9.1",
     "@types/bun": "catalog:",
+    "@types/pg": "^8.15.6",
+    "pg": "^8.16.3",
     "tsdown": "^0.22.14",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "^3.2.4"
   }
 }
