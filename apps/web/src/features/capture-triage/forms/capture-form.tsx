@@ -16,7 +16,7 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CLIENT_SHELL_COPY } from "@/features/web-macos-client/views/client-shell";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -29,6 +29,7 @@ import {
 	captureInboxItemPreview,
 	createBugIsAvailable,
 	EMPTY_CAPTURE_FORM,
+	fileToCaptureAttachment,
 } from "./capture-form-state";
 import { CaptureMergeUndo, CaptureTriageActions } from "./capture-triage-panel";
 import {
@@ -44,12 +45,19 @@ export default function CaptureForm() {
 	const catalog = useQuery(orpc.captureInbox.catalog.queryOptions());
 	const preferences = useQuery(orpc.accountPreferences.get.queryOptions());
 	const copy = catalog.data?.copy;
+	const attachmentFileRef = useRef<File | null>(null);
+	const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+	const [mergeId, setMergeId] = useState<string | null>(null);
 	const form = useForm({
 		defaultValues: EMPTY_CAPTURE_FORM,
 		onSubmit: async ({ value }) => {
 			const projectId = value.projectId.trim() || undefined;
+			const attachment = attachmentFileRef.current
+				? await fileToCaptureAttachment(attachmentFileRef.current)
+				: undefined;
 			const result = attemptOnlineWork("record-create", () =>
 				save.mutateAsync({
+					attachment,
 					fields: value.template ? value.fields : undefined,
 					idempotencyKey: newIdempotencyKey(),
 					projectId,
@@ -72,6 +80,8 @@ export default function CaptureForm() {
 					queryKey: orpc.captureInbox.listAll.queryKey(),
 				});
 				recordSave();
+				attachmentFileRef.current = null;
+				setAttachmentFile(null);
 				form.reset(captureFormAfterSave(values));
 			},
 		})
@@ -94,7 +104,8 @@ export default function CaptureForm() {
 			),
 		[catalog.data?.templates, values.template]
 	);
-	const isDirty = captureFormHasUnsavedCapture(values);
+	const isDirty =
+		captureFormHasUnsavedCapture(values) || attachmentFile !== null;
 	const canCreateBug = createBugIsAvailable(values);
 	const groups = captureInboxGroups(
 		list.data ?? [],
@@ -103,7 +114,6 @@ export default function CaptureForm() {
 			workspaceCaptureInbox: "Workspace Capture Inbox",
 		}
 	);
-	const [mergeId, setMergeId] = useState<string | null>(null);
 	const [sequentialFocusedId, setSequentialFocusedId] = useState<string | null>(
 		null
 	);
@@ -206,6 +216,14 @@ export default function CaptureForm() {
 		},
 		[form]
 	);
+	const onAttachmentChange = useCallback(
+		(event: ChangeEvent<HTMLInputElement>) => {
+			const file = event.target.files?.[0] ?? null;
+			attachmentFileRef.current = file;
+			setAttachmentFile(file);
+		},
+		[]
+	);
 
 	if (!copy) {
 		return null;
@@ -260,6 +278,16 @@ export default function CaptureForm() {
 							/>
 						</Field>
 					)}
+					<Field>
+						<FieldLabel htmlFor="capture-attachment">
+							{copy.captureAttachment}
+						</FieldLabel>
+						<Input
+							id="capture-attachment"
+							onChange={onAttachmentChange}
+							type="file"
+						/>
+					</Field>
 				</FieldGroup>
 				<div className="flex flex-wrap gap-2">
 					<Button type="submit">{copy.save}</Button>
@@ -338,6 +366,7 @@ function CaptureInboxList({
 	groups: Array<{
 		heading: string;
 		items: Array<{
+			attachment?: { filename: string };
 			body: string;
 			id: string;
 			template: string | null;
@@ -356,7 +385,12 @@ function CaptureInboxList({
 	onMergeConsumed: (mergeId: string) => void;
 	onToggleSequential: () => void;
 	sequential: {
-		focused: { body: string; id: string; template: string | null } | null;
+		focused: {
+			attachment?: { filename: string };
+			body: string;
+			id: string;
+			template: string | null;
+		} | null;
 		mode: "list" | "sequential";
 		previousAvailable: boolean;
 	};
@@ -482,7 +516,12 @@ function CaptureInboxItemCard({
 		otherProjects: string;
 		work: string;
 	};
-	item: { body: string; id: string; template: string | null };
+	item: {
+		attachment?: { filename: string };
+		body: string;
+		id: string;
+		template: string | null;
+	};
 	onItemConsumed: (itemId: string) => void;
 	onMergeConsumed: (mergeId: string) => void;
 	templates?: ReadonlyArray<{ id: string; label: string }>;
@@ -495,6 +534,9 @@ function CaptureInboxItemCard({
 	return (
 		<li className="rounded-none border border-border p-3">
 			<p className="whitespace-pre-wrap text-sm">{preview}</p>
+			{item.attachment ? (
+				<p className="text-sm">{item.attachment.filename}</p>
+			) : null}
 			<CaptureTriageActions
 				copy={copy}
 				itemId={item.id}
