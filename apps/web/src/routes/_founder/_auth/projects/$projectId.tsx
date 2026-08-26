@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import ProjectProfile from "@/features/project-shell/views/project-profile";
 
-export const Route = createFileRoute("/_auth/projects/$projectId")({
+export const Route = createFileRoute("/_founder/_auth/projects/$projectId")({
 	component: ProjectProfileRoute,
 });
 

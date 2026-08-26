@@ -165,12 +165,41 @@ export const noopPaletteMutation: PaletteMutationPort = {
 	undo: () => ({ status: "rejected" }),
 };
 
+export type VisitorPaletteSurface = Exclude<PaletteSurface, "founder">;
+
+export interface VisitorDocumentChrome {
+	host: "visitor-document";
+	listensForOpenShortcut: false;
+	mountsFounderPalette: false;
+	surface: VisitorPaletteSurface;
+	workspaceCommandIds: readonly [];
+}
+
 export function shouldMountFounderPalette(surface: PaletteSurface): boolean {
 	return surface === "founder";
 }
 
+export function shouldRenderFounderPalette(
+	surface: PaletteSurface,
+	signedIn: boolean
+): boolean {
+	return signedIn && shouldMountFounderPalette(surface);
+}
+
 export function visitorDocumentMountsFounderPalette(): boolean {
 	return shouldMountFounderPalette("visitor");
+}
+
+export function visitorDocumentChrome(
+	surface: VisitorPaletteSurface
+): VisitorDocumentChrome {
+	return {
+		host: "visitor-document",
+		listensForOpenShortcut: false,
+		mountsFounderPalette: false,
+		surface,
+		workspaceCommandIds: [],
+	};
 }
 
 export function isPaletteOpenShortcut(event: PaletteKeyEvent): boolean {
@@ -185,6 +214,20 @@ export function isPaletteOpenShortcut(event: PaletteKeyEvent): boolean {
 
 export function isPaletteDismissShortcut(event: PaletteKeyEvent): boolean {
 	return event.key === "Escape";
+}
+
+export function isPaletteRunShortcut(event: PaletteKeyEvent): boolean {
+	return event.key === "Enter";
+}
+
+export function isPaletteFilterKey(event: PaletteKeyEvent): boolean {
+	if (event.ctrlKey || event.metaKey || event.repeat) {
+		return false;
+	}
+	if (event.key === "Backspace") {
+		return true;
+	}
+	return event.key.length === 1;
 }
 
 export function emptyFounderPaletteInput(): CommandPaletteInput {
@@ -373,6 +416,9 @@ export function createCommandPalette(
 	}
 
 	function visibleCommands(): PaletteCommand[] {
+		if (input.surface !== "founder") {
+			return [];
+		}
 		const actions = [createCommand(), ...switchCommands()].filter((command) =>
 			matchesCommand(command)
 		);
@@ -411,7 +457,7 @@ export function createCommandPalette(
 		const started = performance.now();
 		if (input.surface !== "founder") {
 			isOpen = false;
-			failure = COMMAND_PALETTE_COPY.cantRunThisHere;
+			failure = null;
 			visibilityMs = 0;
 			return snapshot();
 		}
@@ -508,13 +554,41 @@ export function createCommandPalette(
 		return { snapshot: snapshot(), status: "committed", wrote: true };
 	}
 
+	function applyFilterKey(event: PaletteKeyEvent): PaletteSnapshot {
+		if (event.key === "Backspace") {
+			query = query.slice(0, -1);
+		} else {
+			query += event.key;
+		}
+		failure = null;
+		return snapshot();
+	}
+
+	function runActiveCommand(): PaletteKeyResult {
+		const command = visibleCommands().find((entry) => entry.runnable);
+		const result = run(command?.id ?? "");
+		return { consume: true, snapshot: result.snapshot };
+	}
+
 	function handleKeyDown(event: PaletteKeyEvent): PaletteKeyResult {
+		if (input.surface !== "founder") {
+			return { consume: false, snapshot: snapshot() };
+		}
 		if (isPaletteOpenShortcut(event)) {
 			return { consume: true, snapshot: open() };
 		}
-		if (isOpen && isPaletteDismissShortcut(event)) {
+		if (!isOpen) {
+			return { consume: false, snapshot: snapshot() };
+		}
+		if (isPaletteDismissShortcut(event)) {
 			failure = null;
 			return { consume: true, snapshot: close() };
+		}
+		if (isPaletteRunShortcut(event)) {
+			return runActiveCommand();
+		}
+		if (isPaletteFilterKey(event)) {
+			return { consume: true, snapshot: applyFilterKey(event) };
 		}
 		return { consume: false, snapshot: snapshot() };
 	}

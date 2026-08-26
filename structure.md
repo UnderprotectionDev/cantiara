@@ -452,6 +452,7 @@
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── index.tsx
 │       │   │   │   └── route.tsx
+│       │   │   ├── _founder.tsx
 │       │   │   ├── __root.tsx
 │       │   │   └── login.tsx
 │       │   ├── utils/

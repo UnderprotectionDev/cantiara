@@ -5,7 +5,7 @@ import Workspace from "@/features/account-access/views/workspace";
 import ProjectList from "@/features/project-shell/views/project-list";
 import { orpc } from "@/utils/orpc";
 
-export const Route = createFileRoute("/_auth/dashboard")({
+export const Route = createFileRoute("/_founder/_auth/dashboard")({
 	component: RouteComponent,
 });
 

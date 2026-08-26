@@ -17,6 +17,7 @@ import { Kbd } from "@cantiara/ui/components/kbd";
 import { CommandIcon } from "lucide-react";
 import {
 	createContext,
+	type KeyboardEvent as ReactKeyboardEvent,
 	type ReactNode,
 	useCallback,
 	useContext,
@@ -34,9 +35,13 @@ import {
 	type CommandPalette,
 	createCommandPalette,
 	emptyFounderPaletteInput,
+	isPaletteDismissShortcut,
+	isPaletteOpenShortcut,
 	type PaletteCommand,
 	type PaletteRunResult,
 	type PaletteSnapshot,
+	type PaletteSurface,
+	shouldRenderFounderPalette,
 } from "../command-palette";
 import {
 	COMMAND_PALETTE_COPY,
@@ -55,6 +60,26 @@ interface CommandPaletteActions {
 
 const CommandPaletteActionsContext =
 	createContext<CommandPaletteActions | null>(null);
+
+const PaletteSurfaceContext = createContext<PaletteSurface>("founder");
+
+export function PaletteSurfaceProvider({
+	children,
+	surface,
+}: {
+	children: ReactNode;
+	surface: PaletteSurface;
+}) {
+	return (
+		<PaletteSurfaceContext.Provider value={surface}>
+			{children}
+		</PaletteSurfaceContext.Provider>
+	);
+}
+
+export function usePaletteSurface(): PaletteSurface {
+	return useContext(PaletteSurfaceContext);
+}
 
 export function useCommandPaletteActions(): CommandPaletteActions | null {
 	return useContext(CommandPaletteActionsContext);
@@ -122,8 +147,10 @@ export function CommandPaletteTrigger() {
 }
 
 export function CommandPaletteProvider({ children }: { children: ReactNode }) {
+	const surface = usePaletteSurface();
 	const { data: session } = authClient.useSession();
 	const signedIn = hasProductUser(session);
+	const mountPalette = shouldRenderFounderPalette(surface, signedIn);
 	const paletteRef = useRef<CommandPalette>(
 		createCommandPalette(emptyFounderPaletteInput())
 	);
@@ -172,6 +199,25 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 		[showSnapshot]
 	);
 
+	const onFilterKeyDown = useCallback(
+		(event: ReactKeyboardEvent<HTMLInputElement>) => {
+			if (event.key !== "Enter" || snapshot.commands.length > 0) {
+				return;
+			}
+			const result = paletteRef.current.handleKeyDown({
+				ctrlKey: event.ctrlKey,
+				key: event.key,
+				metaKey: event.metaKey,
+				repeat: event.repeat,
+			});
+			if (result.consume) {
+				event.preventDefault();
+				showSnapshot(result.snapshot);
+			}
+		},
+		[showSnapshot, snapshot.commands.length]
+	);
+
 	const undoLast = useCallback(() => {
 		showSnapshot(paletteRef.current.undoLast().snapshot);
 	}, [showSnapshot]);
@@ -212,16 +258,23 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 	);
 
 	useEffect(() => {
-		if (!signedIn) {
+		if (!mountPalette) {
 			return;
 		}
 		const onKeyDown = (event: KeyboardEvent) => {
-			const result = paletteRef.current.handleKeyDown({
+			const payload = {
 				ctrlKey: event.ctrlKey,
 				key: event.key,
 				metaKey: event.metaKey,
 				repeat: event.repeat,
-			});
+			};
+			const intercept =
+				isPaletteOpenShortcut(payload) ||
+				(snapshot.visible && isPaletteDismissShortcut(payload));
+			if (!intercept) {
+				return;
+			}
+			const result = paletteRef.current.handleKeyDown(payload);
 			if (result.consume) {
 				event.preventDefault();
 				showSnapshot(result.snapshot);
@@ -231,10 +284,10 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 		return () => {
 			window.removeEventListener("keydown", onKeyDown);
 		};
-	}, [showSnapshot, signedIn]);
+	}, [mountPalette, showSnapshot, snapshot.visible]);
 
 	const actions = useMemo<CommandPaletteActions | null>(() => {
-		if (!signedIn) {
+		if (!mountPalette) {
 			return null;
 		}
 		return {
@@ -251,7 +304,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 		openPalette,
 		openRecord,
 		openSwitchProject,
-		signedIn,
+		mountPalette,
 		snapshot.canUndo,
 		snapshot.undoLabel,
 		undoLast,
@@ -260,7 +313,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 	return (
 		<CommandPaletteActionsContext.Provider value={actions}>
 			{children}
-			{signedIn ? (
+			{mountPalette ? (
 				<Dialog onOpenChange={onOpenChange} open={snapshot.visible}>
 					<DialogContent
 						className="data-closed:zoom-out-100 data-open:zoom-in-100 top-[20%] translate-y-0 overflow-hidden p-0 duration-0 sm:max-w-lg"
@@ -272,13 +325,14 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 						<Command shouldFilter={false}>
 							<CommandInput
 								autoFocus
+								onKeyDown={onFilterKeyDown}
 								onValueChange={onQuery}
 								placeholder=""
 								value={snapshot.query}
 							/>
 							<CommandList>
 								{snapshot.commands.length === 0 ? (
-									<p className="py-6 text-center text-xs">
+									<p className="py-6 text-center text-xs" role="status">
 										{snapshot.emptyReason}
 									</p>
 								) : (
@@ -295,7 +349,11 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 							</CommandList>
 						</Command>
 						{snapshot.failure ? (
-							<p className="border-t px-3 py-2 text-destructive text-xs">
+							<p
+								aria-live="polite"
+								className="border-t px-3 py-2 text-destructive text-xs"
+								role="status"
+							>
 								{snapshot.failure}
 							</p>
 						) : null}
