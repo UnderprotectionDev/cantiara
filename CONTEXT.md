@@ -266,6 +266,30 @@ _Avoid_: Etiket, ilişki, kalıcı küme kaydı
 Yalnız Yakalama Gelen Kutusu öğesine ait şifreli staging nesnesi; kalıcı kayda dönüşümde hedef kapsamda [Dosya Ekine terfi eder](docs/prd/05-capture-and-intake.md#hızlı-yakalama).
 _Avoid_: Dosya Eki, paylaşılmış ek, kalıcı medya kütüphanesi
 
+**Dönüştür**:
+Yakalama Gelen Kutusu öğesini tek yeni ana kayda dönüştüren triage çıkışı; sahiplik ilgili kayıt feature’ına geçer ve bu feature İş, Belge veya Dosya Ekini tamamlamış saymaz ([hızlı yakalama](docs/prd/05-capture-and-intake.md#hızlı-yakalama)). UI: `Convert`.
+_Avoid_: Create Bug, otomatik triage, çoklu kayıt tarifi
+
+**Mevcut kayda bağla**:
+Yakalama Gelen Kutusu öğesini mevcut ana kayda köken veya kanıt olarak bağlayan triage çıkışı; öneri onaysız birleştirmez ve başka Projedeki hedef önizlemesiz bağlanmaz ([hızlı yakalama](docs/prd/05-capture-and-intake.md#hızlı-yakalama)). UI: `Attach to existing`.
+_Avoid_: otomatik birleştirme, sessiz çapraz Proje bağ, Create Bug
+
+**Yakalama silme çıkışı**:
+Yakalama Gelen Kutusu öğesini tüketen silme; Çöp Kutusu, Arşiv veya dördüncü örtük triage durumu değildir ([hızlı yakalama](docs/prd/05-capture-and-intake.md#hızlı-yakalama)). UI: `Delete`.
+_Avoid_: Çöp Kutusu, Arşiv, gizleme filtresi
+
+**Diğer Projeler**:
+Aynı Proje önerilerinden ayrı, başka Projelerdeki benzer kayıt önerilerinin adlı ikincil grubu ([hızlı yakalama](docs/prd/05-capture-and-intake.md#hızlı-yakalama)). UI: `Other Projects`.
+_Avoid_: birincil öneri, sessiz çapraz Proje bağ
+
+**Yakalama köken bağı**:
+Yakalamayı mevcut kayda köken olarak bağlayan ilişki; Kanıt bağı uzmanlığı veya Köken konumu değildir ([hızlı yakalama](docs/prd/05-capture-and-intake.md#hızlı-yakalama)). UI: `Origin`.
+_Avoid_: Köken konumu, Kanıt bağı, otomatik ilişki
+
+**Yakalama kanıt bağı**:
+Yakalamayı mevcut kayda kanıt olarak bağlayan ilişki; Kanıt bağı uzmanlığının link type’ını bu feature tamamlamaz ([hızlı yakalama](docs/prd/05-capture-and-intake.md#hızlı-yakalama)). UI: `Evidence`.
+_Avoid_: Kanıt bağı uzmanlığı, otomatik doğrulama, İlgili ilişkisi
+
 **Taslak**:
 Kullanıcı oluşturma eylemini tamamlamadan önce korunan, henüz kaydedilmemiş ayrıntılı İş formu; Yakalama Gelen Kutusu öğesi veya ana kayıt değildir.
 _Avoid_: Yakalama, İş, Belge taslağı

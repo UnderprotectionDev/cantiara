@@ -19,6 +19,7 @@ import { orpc, queryClient } from "@/utils/orpc";
 import {
 	type ConvertTargetKind,
 	convertTargetOptions,
+	mergeUndoPreviewLines,
 	otherProjectGroups,
 } from "./capture-triage-exits-state";
 
@@ -172,9 +173,11 @@ export function CaptureTriageActions({
 }
 
 export function CaptureMergeUndo({
+	copy,
 	mergeId,
 	onCleared,
 }: {
+	copy: Pick<TriageCopy, "evidence" | "origin">;
 	mergeId: string;
 	onCleared: () => void;
 }) {
@@ -208,10 +211,15 @@ export function CaptureMergeUndo({
 			mergeId,
 		});
 	}, [mergeId, undo]);
-	const restored =
-		preview.data && !isNotFound(preview.data)
-			? preview.data.restoredItem
-			: null;
+	const previewData =
+		preview.data && !isNotFound(preview.data) ? preview.data : null;
+	const lines = previewData
+		? mergeUndoPreviewLines({
+				bindsToRemove: previewData.bindsToRemove,
+				copy,
+				restoredItem: previewData.restoredItem,
+			})
+		: [];
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -223,11 +231,13 @@ export function CaptureMergeUndo({
 					<DialogHeader>
 						<DialogTitle>{MUTATION_COPY.undo}</DialogTitle>
 					</DialogHeader>
-					{restored ? (
+					{lines.length > 0 ? (
 						<div className="flex flex-col gap-2 text-sm">
-							<p className="whitespace-pre-wrap">{restored.body}</p>
-							{restored.link ? <p>{restored.link}</p> : null}
-							{restored.origin ? <p>{restored.origin}</p> : null}
+							{lines.map((line) => (
+								<p className="whitespace-pre-wrap" key={line.id}>
+									{line.text}
+								</p>
+							))}
 						</div>
 					) : null}
 					<DialogFooter>

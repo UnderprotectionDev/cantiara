@@ -312,7 +312,11 @@ function CaptureInboxList({
 		return (
 			<div className="flex flex-col gap-4">
 				{mergeId ? (
-					<CaptureMergeUndo mergeId={mergeId} onCleared={onMergeCleared} />
+					<CaptureMergeUndo
+						copy={copy}
+						mergeId={mergeId}
+						onCleared={onMergeCleared}
+					/>
 				) : null}
 				<p>{emptyCopy}</p>
 			</div>
@@ -321,7 +325,11 @@ function CaptureInboxList({
 	return (
 		<>
 			{mergeId ? (
-				<CaptureMergeUndo mergeId={mergeId} onCleared={onMergeCleared} />
+				<CaptureMergeUndo
+					copy={copy}
+					mergeId={mergeId}
+					onCleared={onMergeCleared}
+				/>
 			) : null}
 			{groups.map((group) => (
 				<section

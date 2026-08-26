@@ -44,3 +44,48 @@ export function convertTargetOptions(copy: {
 		{ id: "file-attachment", label: copy.fileAttachment },
 	];
 }
+
+export interface MergeUndoPreviewLine {
+	id: string;
+	text: string;
+}
+
+export function mergeUndoPreviewLines(input: {
+	bindsToRemove: Array<{
+		relation: string;
+		targetId: string;
+	}>;
+	copy: { evidence: string; origin: string };
+	restoredItem: {
+		attachmentRef: string | null;
+		body: string;
+		capturedAt: Date | string;
+		link: string;
+		origin: string;
+	};
+}): MergeUndoPreviewLine[] {
+	const capturedAt =
+		input.restoredItem.capturedAt instanceof Date
+			? input.restoredItem.capturedAt.toISOString()
+			: input.restoredItem.capturedAt;
+	const lines: MergeUndoPreviewLine[] = [
+		{ id: "body", text: input.restoredItem.body },
+	];
+	if (input.restoredItem.link) {
+		lines.push({ id: "link", text: input.restoredItem.link });
+	}
+	if (input.restoredItem.attachmentRef) {
+		lines.push({ id: "attachment", text: input.restoredItem.attachmentRef });
+	}
+	lines.push({ id: "capturedAt", text: capturedAt });
+	if (input.restoredItem.origin) {
+		lines.push({ id: "origin", text: input.restoredItem.origin });
+	}
+	for (const bind of input.bindsToRemove) {
+		lines.push({
+			id: `bind-${bind.targetId}`,
+			text: `${bind.relation === "origin" ? input.copy.origin : input.copy.evidence} ${bind.targetId}`,
+		});
+	}
+	return lines;
+}

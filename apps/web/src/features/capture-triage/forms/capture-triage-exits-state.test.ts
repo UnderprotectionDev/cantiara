@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 
 import {
 	convertTargetOptions,
+	mergeUndoPreviewLines,
 	otherProjectGroups,
 } from "./capture-triage-exits-state";
 
@@ -16,6 +17,35 @@ test("Convert targets are Work, Document, and File Attachment", () => {
 		{ id: "work", label: "Work" },
 		{ id: "document", label: "Document" },
 		{ id: "file-attachment", label: "File Attachment" },
+	]);
+});
+
+test("merge undo preview lists original Inbox fields and only this merge's binds", () => {
+	expect(
+		mergeUndoPreviewLines({
+			bindsToRemove: [
+				{
+					fields: { originMessage: "Crash on save" },
+					relation: "evidence",
+					targetId: "work-1",
+				},
+			],
+			copy: { evidence: "Evidence", origin: "Origin" },
+			restoredItem: {
+				attachmentRef: "staging-shot",
+				body: "Crash on save",
+				capturedAt: "2026-08-26T12:00:00.000Z",
+				link: "https://example.com/bug",
+				origin: "https://example.com/bug",
+			},
+		})
+	).toEqual([
+		{ id: "body", text: "Crash on save" },
+		{ id: "link", text: "https://example.com/bug" },
+		{ id: "attachment", text: "staging-shot" },
+		{ id: "capturedAt", text: "2026-08-26T12:00:00.000Z" },
+		{ id: "origin", text: "https://example.com/bug" },
+		{ id: "bind-work-1", text: "Evidence work-1" },
 	]);
 });
 
