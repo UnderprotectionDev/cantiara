@@ -150,6 +150,14 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Araştırma parçası | `Research Fragment` | `Note or Excerpt` ve `Source Context` yönlendirici alanlarıyla Inbox öğesini biçimlendiren kapalı mini şablon |
 | Not veya alıntı | `Note or Excerpt` | Research Fragment yönlendirici alanı |
 | Kaynak bağlamı | `Source Context` | Research Fragment yönlendirici alanı |
+| Dönüştür | `Convert` | Yakalama Gelen Kutusu öğesini tek yeni ana kayda dönüştürme çıkışı |
+| Mevcut kayda bağla | `Attach to existing` | Öğeyi mevcut ana kayda köken veya kanıt olarak bağlama/birleştirme çıkışı |
+| Yakalama silme çıkışı | `Delete` | Yakalama Gelen Kutusu öğesini tüketen silme çıkışı |
+| Diğer Projeler | `Other Projects` | Başka Projelerdeki benzer kayıt önerilerinin adlı ikincil grubu |
+| Yakalama köken bağı | `Origin` | Yakalamayı mevcut kayda köken olarak bağlayan ilişki |
+| Yakalama kanıt bağı | `Evidence` | Yakalamayı mevcut kayda kanıt olarak bağlayan ilişki |
+| Belge | `Document` | Markdown Belgesi dönüşüm hedefi |
+| Dosya Eki | `File Attachment` | Dosya Eki dönüşüm hedefi |
 | Komut Paleti | `Command Palette` | Kurucu yüzeylerinde klavyeyle komut, gezinme, kayıt oluşturma ve Proje geçişi çalıştıran yüzey; Evrensel Arama (`Search`) değildir |
 | Proje geçişi | `Switch Project` | Palette ve görünür menüden yetkili Projeler arasında geçiş |
 | Oluştur | `Create` | Palette ve görünür menüden yetkili kapsamda desteklenen kayıt oluşturma |

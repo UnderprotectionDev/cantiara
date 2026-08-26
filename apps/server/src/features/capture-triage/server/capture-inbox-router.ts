@@ -5,12 +5,15 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import {
-	CAPTURE_INBOX_COPY,
+	captureInboxCatalog,
 	createCaptureInbox,
 	handOffWorkCreate,
-	miniTemplateCatalog,
-	miniTemplateIdSchema,
 } from "./capture-inbox";
+import { miniTemplateIdSchema } from "./capture-inbox-model";
+import {
+	bindRelationSchema,
+	convertTargetKindSchema,
+} from "./capture-triage-exits";
 
 const fieldsSchema = z.record(z.string(), z.string());
 
@@ -28,10 +31,34 @@ async function inboxFor(userId: string) {
 }
 
 export const captureInbox = {
-	catalog: protectedProcedure.handler(() => ({
-		copy: CAPTURE_INBOX_COPY,
-		templates: miniTemplateCatalog(),
-	})),
+	attach: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				itemId: z.string().min(1),
+				previewed: z.boolean(),
+				relation: bindRelationSchema,
+				targetId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.attach(input);
+		}),
+	catalog: protectedProcedure.handler(() => captureInboxCatalog()),
+	convert: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				itemId: z.string().min(1),
+				previewed: z.boolean(),
+				targetKind: convertTargetKindSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.convert(input);
+		}),
 	createBug: protectedWriteProcedure
 		.input(
 			z.object({
@@ -45,6 +72,17 @@ export const captureInbox = {
 		.handler(async ({ context, input }) => {
 			const inbox = await inboxFor(context.session.user.id);
 			return inbox.createBug(input);
+		}),
+	deleteItem: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				itemId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.deleteItem(input);
 		}),
 	list: protectedProcedure
 		.input(
@@ -64,11 +102,47 @@ export const captureInbox = {
 		const inbox = await inboxFor(context.session.user.id);
 		return inbox.listAll();
 	}),
+	previewAttach: protectedProcedure
+		.input(
+			z.object({
+				itemId: z.string().min(1),
+				relation: bindRelationSchema,
+				targetId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.previewAttach(input);
+		}),
+	previewConvert: protectedProcedure
+		.input(
+			z.object({
+				itemId: z.string().min(1),
+				targetKind: convertTargetKindSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.previewConvert(input);
+		}),
+	previewUndoMerge: protectedProcedure
+		.input(
+			z.object({
+				mergeId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.previewUndoMerge(input);
+		}),
 	save: protectedWriteProcedure
 		.input(
 			z.object({
+				attachmentRef: z.string().min(1).optional(),
 				fields: fieldsSchema.optional(),
 				idempotencyKey: z.string().min(1),
+				link: z.string().optional(),
+				origin: z.string().optional(),
 				projectId: z.string().min(1).optional(),
 				template: miniTemplateIdSchema.optional(),
 				text: z.string().optional(),
@@ -77,5 +151,26 @@ export const captureInbox = {
 		.handler(async ({ context, input }) => {
 			const inbox = await inboxFor(context.session.user.id);
 			return inbox.save(input);
+		}),
+	suggestSimilar: protectedProcedure
+		.input(
+			z.object({
+				itemId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.suggestSimilar(input);
+		}),
+	undoMerge: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				mergeId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const inbox = await inboxFor(context.session.user.id);
+			return inbox.undoMerge(input);
 		}),
 };

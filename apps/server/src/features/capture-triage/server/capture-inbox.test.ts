@@ -12,12 +12,15 @@ import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
-	CAPTURE_INBOX_COPY,
 	type CaptureInbox,
 	createCaptureInbox,
-	miniTemplateCatalog,
 	type WorkCreateCommand,
 } from "./capture-inbox";
+import { CAPTURE_INBOX_COPY, miniTemplateCatalog } from "./capture-inbox-model";
+import {
+	createRecordBinder,
+	TRIAGE_EXIT_CATALOG,
+} from "./capture-triage-exits";
 
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
@@ -96,6 +99,15 @@ describe("Capture Inbox catalog", () => {
 		expect(CAPTURE_INBOX_COPY.leaveEmptyForWorkspaceCaptureInbox).toBe(
 			"Leave empty to save to the Workspace Capture Inbox."
 		);
+		expect(CAPTURE_INBOX_COPY.convert).toBe("Convert");
+		expect(CAPTURE_INBOX_COPY.attachToExisting).toBe("Attach to existing");
+		expect(CAPTURE_INBOX_COPY.delete).toBe("Delete");
+		expect(CAPTURE_INBOX_COPY.otherProjects).toBe("Other Projects");
+		expect(TRIAGE_EXIT_CATALOG).toEqual([
+			{ id: "convert", label: "Convert" },
+			{ id: "attach", label: "Attach to existing" },
+			{ id: "delete", label: "Delete" },
+		]);
 	});
 });
 
@@ -146,7 +158,12 @@ describe("Capture Inbox", () => {
 
 	function inbox(
 		overrides: {
+			binder?: ReturnType<typeof createRecordBinder>;
 			connected?: boolean;
+			convertCreate?: Parameters<typeof createCaptureInbox>[0]["convertCreate"];
+			similarRecords?: Parameters<
+				typeof createCaptureInbox
+			>[0]["similarRecords"];
 			workCreate?: (command: WorkCreateCommand) => Promise<{
 				handedOff: true;
 				workKey: null;
@@ -155,9 +172,12 @@ describe("Capture Inbox", () => {
 	): CaptureInbox {
 		return createCaptureInbox({
 			actorId,
+			binder: overrides.binder,
 			clock: { now: () => CAPTURED_AT },
 			connected: overrides.connected,
+			convertCreate: overrides.convertCreate,
 			prisma,
+			similarRecords: overrides.similarRecords,
 			workCreate: overrides.workCreate,
 			workspaceId,
 		});
@@ -172,11 +192,14 @@ describe("Capture Inbox", () => {
 
 		expect(outcome).toEqual({
 			item: {
+				attachmentRef: null,
 				body: "A thought before I know what it is",
 				capturedAt: CAPTURED_AT,
 				fields: {},
 				id: expect.any(String),
 				kind: "capture-inbox-item",
+				link: "",
+				origin: "",
 				scope: { kind: "workspace" },
 				template: null,
 			},
@@ -198,11 +221,14 @@ describe("Capture Inbox", () => {
 
 		expect(outcome).toEqual({
 			item: {
+				attachmentRef: null,
 				body: "",
 				capturedAt: CAPTURED_AT,
 				fields: {},
 				id: expect.any(String),
 				kind: "capture-inbox-item",
+				link: "",
+				origin: "",
 				scope: { kind: "workspace" },
 				template: "bug-capture",
 			},
@@ -476,5 +502,461 @@ describe("Capture Inbox", () => {
 		expect(offline.unsavedRisk(true)).toBe("Unsaved changes may be lost");
 		expect(offline.unsavedRisk(false)).toBeNull();
 		expect(await online.list({ kind: "workspace" })).toHaveLength(1);
+	});
+
+	it("exposes exactly three triage exits and does not treat Create Bug as one", async () => {
+		const capture = inbox();
+		expect(capture.triageExits()).toEqual(["convert", "attach", "delete"]);
+		const created = await capture.createBug({
+			idempotencyKey: crypto.randomUUID(),
+			projectId: "proj-cantiara",
+			text: "Direct Bug",
+		});
+		expect(created.status).toBe("handed-off");
+		expect(await capture.list({ kind: "workspace" })).toEqual([]);
+		expect(
+			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([]);
+	});
+
+	it("deletes an Inbox item so it is no longer listed", async () => {
+		const capture = inbox();
+		const saved = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Throw this away",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(
+			await capture.deleteItem({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+			})
+		).toEqual({
+			exit: "delete",
+			inboxItem: null,
+			status: "consumed",
+		});
+		expect(await capture.list({ kind: "workspace" })).toEqual([]);
+	});
+
+	it("does not consume a capture when Convert is previewed or similar records are listed", async () => {
+		const commands: Array<{ targetKind: string }> = [];
+		const capture = inbox({
+			convertCreate: (command) => {
+				commands.push({ targetKind: command.targetKind });
+				return Promise.resolve({
+					handedOff: true,
+					recordId: null,
+					targetKind: command.targetKind,
+				});
+			},
+			similarRecords: () => [
+				{
+					basis: { excerpt: "Login crash", kind: "title" },
+					id: "work-1",
+					projectId: "proj-cantiara",
+					projectName: "Cantiara",
+					title: "Login crash",
+				},
+			],
+		});
+		const saved = await capture.save({
+			fields: { observedBehavior: "Login button does nothing" },
+			idempotencyKey: crypto.randomUUID(),
+			projectId: "proj-cantiara",
+			template: "bug-capture",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(
+			await capture.previewConvert({
+				itemId: saved.item.id,
+				targetKind: "work",
+			})
+		).toEqual({
+			fieldMappings: [
+				{
+					sourceField: "Observed Behavior",
+					targetField: "Observed Behavior",
+					value: "Login button does nothing",
+				},
+			],
+			original: {
+				capturedAt: CAPTURED_AT,
+				link: "",
+				origin: "",
+				screenshot: null,
+				text: "Observed Behavior\nLogin button does nothing",
+			},
+			proposed: {
+				body: "Observed Behavior\nLogin button does nothing",
+				kind: "work",
+				label: "Work",
+				link: "",
+				screenshot: null,
+			},
+		});
+		expect(await capture.suggestSimilar({ itemId: saved.item.id })).toEqual({
+			otherProjects: { heading: "Other Projects", matches: [] },
+			primary: [
+				{
+					basis: { excerpt: "Login crash", kind: "title" },
+					id: "work-1",
+					projectId: "proj-cantiara",
+					projectName: "Cantiara",
+					title: "Login crash",
+				},
+			],
+		});
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+				previewed: false,
+				targetKind: "work",
+			})
+		).toEqual({
+			preview: {
+				fieldMappings: [
+					{
+						sourceField: "Observed Behavior",
+						targetField: "Observed Behavior",
+						value: "Login button does nothing",
+					},
+				],
+				original: {
+					capturedAt: CAPTURED_AT,
+					link: "",
+					origin: "",
+					screenshot: null,
+					text: "Observed Behavior\nLogin button does nothing",
+				},
+				proposed: {
+					body: "Observed Behavior\nLogin button does nothing",
+					kind: "work",
+					label: "Work",
+					link: "",
+					screenshot: null,
+				},
+			},
+			status: "needs-preview",
+		});
+		expect(commands).toEqual([]);
+		expect(
+			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([saved.item]);
+	});
+
+	it("converts one Inbox item into a single handed-off record and preserves origin", async () => {
+		const commands: Array<{
+			origin: string;
+			targetKind: string;
+			text: string;
+		}> = [];
+		const capture = inbox({
+			convertCreate: (command) => {
+				commands.push({
+					origin: command.item.origin,
+					targetKind: command.targetKind,
+					text: command.item.body,
+				});
+				return Promise.resolve({
+					handedOff: true,
+					recordId: null,
+					targetKind: command.targetKind,
+				});
+			},
+		});
+		const saved = await capture.save({
+			attachmentRef: "staging-shot",
+			idempotencyKey: crypto.randomUUID(),
+			link: "https://example.com/bug",
+			origin: "https://example.com/bug",
+			text: "Crash on save",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+				previewed: true,
+				targetKind: "document",
+			})
+		).toEqual({
+			exit: "convert",
+			inboxItem: null,
+			mainRecord: null,
+			recordCreate: {
+				handedOff: true,
+				recordId: null,
+				targetKind: "document",
+			},
+			status: "consumed",
+		});
+		expect(commands).toEqual([
+			{
+				origin: "https://example.com/bug",
+				targetKind: "document",
+				text: "Crash on save",
+			},
+		]);
+		expect(await capture.list({ kind: "workspace" })).toEqual([]);
+	});
+
+	it("groups same-Project similar matches first and names other Projects", async () => {
+		const capture = inbox({
+			similarRecords: () => [
+				{
+					basis: { excerpt: "Login crash", kind: "title" },
+					id: "work-local",
+					projectId: "proj-cantiara",
+					projectName: "Cantiara",
+					title: "Login crash",
+				},
+				{
+					basis: {
+						excerpt: "Login button does nothing",
+						kind: "text",
+					},
+					id: "work-other",
+					projectId: "proj-other",
+					projectName: "Other App",
+					title: "Same crash elsewhere",
+				},
+			],
+		});
+		const saved = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			projectId: "proj-cantiara",
+			text: "Login button does nothing",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(await capture.suggestSimilar({ itemId: saved.item.id })).toEqual({
+			otherProjects: {
+				heading: "Other Projects",
+				matches: [
+					{
+						basis: {
+							excerpt: "Login button does nothing",
+							kind: "text",
+						},
+						id: "work-other",
+						projectId: "proj-other",
+						projectName: "Other App",
+						title: "Same crash elsewhere",
+					},
+				],
+			},
+			primary: [
+				{
+					basis: { excerpt: "Login crash", kind: "title" },
+					id: "work-local",
+					projectId: "proj-cantiara",
+					projectName: "Cantiara",
+					title: "Login crash",
+				},
+			],
+		});
+		expect(
+			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([saved.item]);
+	});
+
+	it("does not attach without a target and relation preview", async () => {
+		const binder = createRecordBinder([
+			{
+				fields: { notes: "existing notes" },
+				id: "work-other",
+				projectId: "proj-other",
+				projectName: "Other App",
+				title: "Same crash elsewhere",
+			},
+		]);
+		const capture = inbox({ binder });
+		const saved = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			projectId: "proj-cantiara",
+			text: "Crash on save",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		const preview = await capture.previewAttach({
+			itemId: saved.item.id,
+			relation: "origin",
+			targetId: "work-other",
+		});
+		expect(preview).toEqual({
+			crossProject: true,
+			item: saved.item,
+			relation: "origin",
+			target: {
+				id: "work-other",
+				projectId: "proj-other",
+				projectName: "Other App",
+				title: "Same crash elsewhere",
+			},
+		});
+		expect(
+			await capture.attach({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+				previewed: false,
+				relation: "origin",
+				targetId: "work-other",
+			})
+		).toEqual({
+			preview,
+			status: "needs-preview",
+		});
+		expect(binder.get("work-other")?.binds).toEqual([]);
+		expect(
+			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([saved.item]);
+	});
+
+	it("attaches a capture as origin after preview and preserves origin fields", async () => {
+		const binder = createRecordBinder([
+			{
+				fields: { notes: "existing notes" },
+				id: "work-1",
+				projectId: "proj-cantiara",
+				projectName: "Cantiara",
+				title: "Login crash",
+			},
+		]);
+		const capture = inbox({ binder });
+		const saved = await capture.save({
+			attachmentRef: "staging-shot",
+			idempotencyKey: crypto.randomUUID(),
+			link: "https://example.com/bug",
+			origin: "https://example.com/bug",
+			projectId: "proj-cantiara",
+			text: "Crash on save",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		const attached = await capture.attach({
+			idempotencyKey: crypto.randomUUID(),
+			itemId: saved.item.id,
+			previewed: true,
+			relation: "origin",
+			targetId: "work-1",
+		});
+		expect(attached).toEqual({
+			bind: {
+				fields: {
+					originAttachment: "staging-shot",
+					originCapturedAt: CAPTURED_AT.toISOString(),
+					originLink: "https://example.com/bug",
+					originMessage: "Crash on save",
+					originSource: "https://example.com/bug",
+				},
+				relation: "origin",
+				targetId: "work-1",
+			},
+			exit: "attach",
+			inboxItem: null,
+			mergeId: expect.any(String),
+			status: "consumed",
+		});
+		expect(
+			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([]);
+		const target = binder.get("work-1");
+		if (!target) {
+			throw new Error("expected bound record");
+		}
+		expect(target.fields.notes).toBe("existing notes");
+		expect(target.fields.originMessage).toBe("Crash on save");
+	});
+
+	it("undoes a merge by restoring Inbox fields and keeping later unrelated target edits", async () => {
+		const binder = createRecordBinder([
+			{
+				fields: { notes: "existing notes" },
+				id: "work-1",
+				projectId: "proj-cantiara",
+				projectName: "Cantiara",
+				title: "Login crash",
+			},
+		]);
+		const capture = inbox({ binder });
+		const saved = await capture.save({
+			attachmentRef: "staging-shot",
+			idempotencyKey: crypto.randomUUID(),
+			link: "https://example.com/bug",
+			origin: "https://example.com/bug",
+			projectId: "proj-cantiara",
+			text: "Crash on save",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+		const attached = await capture.attach({
+			idempotencyKey: crypto.randomUUID(),
+			itemId: saved.item.id,
+			previewed: true,
+			relation: "evidence",
+			targetId: "work-1",
+		});
+		if (attached.status !== "consumed") {
+			throw new Error("expected attach to consume");
+		}
+		binder.editField("work-1", "notes", "later unrelated edit");
+
+		expect(
+			await capture.previewUndoMerge({ mergeId: attached.mergeId })
+		).toEqual({
+			bindsToRemove: [
+				{
+					fields: {
+						originAttachment: "staging-shot",
+						originCapturedAt: CAPTURED_AT.toISOString(),
+						originLink: "https://example.com/bug",
+						originMessage: "Crash on save",
+						originSource: "https://example.com/bug",
+					},
+					relation: "evidence",
+					targetId: "work-1",
+				},
+			],
+			mergeId: attached.mergeId,
+			restoredItem: saved.item,
+		});
+
+		const undone = await capture.undoMerge({
+			idempotencyKey: crypto.randomUUID(),
+			mergeId: attached.mergeId,
+		});
+		expect(undone).toEqual({
+			inboxItem: saved.item,
+			status: "restored",
+		});
+		expect(
+			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([saved.item]);
+		expect(binder.get("work-1")).toEqual({
+			binds: [],
+			fields: { notes: "later unrelated edit" },
+			id: "work-1",
+			projectId: "proj-cantiara",
+			projectName: "Cantiara",
+			title: "Login crash",
+		});
 	});
 });
