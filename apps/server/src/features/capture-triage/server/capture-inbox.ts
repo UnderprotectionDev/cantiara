@@ -13,17 +13,24 @@ export const CAPTURE_INBOX_COPY = {
 	channel: "Channel",
 	contact: "Contact",
 	createBug: "Create Bug",
+	createBugDoesNotStayInInbox:
+		"Create Bug does not stay in the Capture Inbox. A Work record is not stored yet.",
+	createBugNeedsProjectAndBugCapture:
+		"Create Bug is available when Project is set and type is Bug Capture.",
 	expectedBehavior: "Expected Behavior",
 	feedback: "Feedback",
 	feedbackCapture: "Feedback Capture",
+	noCapturesInThisInbox: "No captures in this Inbox.",
 	noteOrExcerpt: "Note or Excerpt",
 	observedBehavior: "Observed Behavior",
 	project: "Project",
+	projectCaptureInbox: "Project Capture Inbox",
 	reproductionContext: "Reproduction Context",
 	researchFragment: "Research Fragment",
 	save: "Save",
 	sourceContext: "Source Context",
 	unsavedChangesMayBeLost: "Unsaved changes may be lost",
+	workspaceCaptureInbox: "Workspace Capture Inbox",
 } as const;
 
 export const MINI_TEMPLATE_IDS = [
@@ -434,7 +441,10 @@ export function createCaptureInbox(input: {
 			const rows = await input.prisma.captureInboxItem.findMany({
 				orderBy: { capturedAt: "asc" },
 				where: {
-					projectId: scope.kind === "project" ? scope.projectId : null,
+					projectId:
+						scope.kind === "project"
+							? { equals: scope.projectId, mode: "insensitive" }
+							: null,
 					workspaceId: input.workspaceId,
 				},
 			});

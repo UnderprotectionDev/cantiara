@@ -1,3 +1,4 @@
+import { CLIENT_SHELL_COPY as MAIN_FLOW_COPY } from "@cantiara/api/client-shell-failure";
 import { formatDateTime } from "@cantiara/auth/account-preferences-format";
 import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
@@ -19,7 +20,10 @@ import {
 	type CaptureTemplateId,
 	captureFormAfterSave,
 	captureFormHasUnsavedCapture,
+	captureInboxItemPreview,
+	captureInboxListHeading,
 	captureInboxListInput,
+	createBugIsAvailable,
 	EMPTY_CAPTURE_FORM,
 } from "./capture-form-state";
 
@@ -88,6 +92,15 @@ export default function CaptureForm() {
 		[catalog.data?.templates, values.template]
 	);
 	const isDirty = captureFormHasUnsavedCapture(values);
+	const canCreateBug = createBugIsAvailable(values);
+	const listHeading = captureInboxListHeading(
+		values.projectId,
+		copy ?? {
+			projectCaptureInbox: "Project Capture Inbox",
+			workspaceCaptureInbox: "Workspace Capture Inbox",
+		}
+	);
+	const listProject = values.projectId.trim() || null;
 
 	useEffect(() => {
 		if (isDirty) {
@@ -103,10 +116,10 @@ export default function CaptureForm() {
 		[form]
 	);
 	const onCreateBug = useCallback(() => {
-		const projectId = values.projectId.trim();
-		if (!projectId || (values.template && values.template !== "bug-capture")) {
+		if (!createBugIsAvailable(values)) {
 			return;
 		}
+		const projectId = values.projectId.trim();
 		const result = attemptOnlineWork("record-create", () =>
 			createBug.mutateAsync({
 				fields: values.fields,
@@ -203,10 +216,7 @@ export default function CaptureForm() {
 				<div className="flex flex-wrap gap-2">
 					<Button type="submit">{copy.save}</Button>
 					<Button
-						disabled={
-							!values.projectId.trim() ||
-							(values.template !== "" && values.template !== "bug-capture")
-						}
+						disabled={!canCreateBug}
 						onClick={onCreateBug}
 						type="button"
 						variant="outline"
@@ -214,6 +224,11 @@ export default function CaptureForm() {
 						{copy.createBug}
 					</Button>
 				</div>
+				<p>
+					{canCreateBug
+						? copy.createBugDoesNotStayInInbox
+						: copy.createBugNeedsProjectAndBugCapture}
+				</p>
 				{shell.lastSuccessfulSaveAt && preferences.data ? (
 					<p>
 						{CLIENT_SHELL_COPY.lastSaved}{" "}
@@ -224,24 +239,60 @@ export default function CaptureForm() {
 					<p>{CLIENT_SHELL_COPY.unsavedChangesMayBeLost}</p>
 				) : null}
 			</form>
-			<section aria-label={copy.captureInbox} className="flex flex-col gap-3">
-				<h2 className="font-semibold text-lg">{copy.captureInbox}</h2>
-				{list.data?.length ? (
-					<ul className="flex flex-col gap-3">
-						{list.data.map((item) => (
-							<li
-								className="rounded-none border border-border p-3"
-								key={item.id}
-							>
-								<p className="text-sm">
-									{item.body || item.template || item.kind}
-								</p>
-							</li>
-						))}
-					</ul>
-				) : null}
+			<section aria-label={listHeading} className="flex flex-col gap-3">
+				<h2 className="font-semibold text-lg">{listHeading}</h2>
+				{listProject ? <p className="text-sm">{listProject}</p> : null}
+				<CaptureInboxList
+					emptyCopy={copy.noCapturesInThisInbox}
+					list={list}
+					templates={catalog.data?.templates}
+				/>
 			</section>
 		</div>
+	);
+}
+
+function CaptureInboxList({
+	emptyCopy,
+	list,
+	templates,
+}: {
+	emptyCopy: string;
+	list: {
+		data?: Array<{
+			body: string;
+			id: string;
+			template: string | null;
+		}>;
+		isError: boolean;
+		isPending: boolean;
+	};
+	templates?: Array<{ id: string; label: string }>;
+}) {
+	if (list.isError) {
+		return <p>{MAIN_FLOW_COPY.failed}</p>;
+	}
+	if (list.isPending && !list.data) {
+		return null;
+	}
+	if (!list.data?.length) {
+		return <p>{emptyCopy}</p>;
+	}
+	return (
+		<ul className="flex flex-col gap-3">
+			{list.data.map((item) => {
+				const templateLabel =
+					templates?.find((template) => template.id === item.template)?.label ??
+					item.template;
+				return (
+					<li className="rounded-none border border-border p-3" key={item.id}>
+						<p className="whitespace-pre-wrap text-sm">
+							{captureInboxItemPreview(item, templateLabel)}
+						</p>
+					</li>
+				);
+			})}
+		</ul>
 	);
 }
 

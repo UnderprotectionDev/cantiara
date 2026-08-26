@@ -78,6 +78,21 @@ describe("Capture Inbox catalog", () => {
 		]);
 		expect(CAPTURE_INBOX_COPY.captureInbox).toBe("Capture Inbox");
 		expect(CAPTURE_INBOX_COPY.createBug).toBe("Create Bug");
+		expect(CAPTURE_INBOX_COPY.workspaceCaptureInbox).toBe(
+			"Workspace Capture Inbox"
+		);
+		expect(CAPTURE_INBOX_COPY.projectCaptureInbox).toBe(
+			"Project Capture Inbox"
+		);
+		expect(CAPTURE_INBOX_COPY.noCapturesInThisInbox).toBe(
+			"No captures in this Inbox."
+		);
+		expect(CAPTURE_INBOX_COPY.createBugNeedsProjectAndBugCapture).toBe(
+			"Create Bug is available when Project is set and type is Bug Capture."
+		);
+		expect(CAPTURE_INBOX_COPY.createBugDoesNotStayInInbox).toBe(
+			"Create Bug does not stay in the Capture Inbox. A Work record is not stored yet."
+		);
 	});
 });
 
@@ -253,6 +268,20 @@ describe("Capture Inbox", () => {
 		expect(await capture.list({ kind: "workspace" })).toEqual([]);
 		expect(
 			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([outcome.status === "saved" ? outcome.item : undefined]);
+	});
+
+	it("lists a Project Inbox without requiring the same capital letters", async () => {
+		const capture = inbox();
+		const outcome = await capture.save({
+			fields: { feedback: "Feedback2" },
+			idempotencyKey: crypto.randomUUID(),
+			projectId: "Feedback",
+			template: "feedback-capture",
+		});
+
+		expect(
+			await capture.list({ kind: "project", projectId: "feedback" })
 		).toEqual([outcome.status === "saved" ? outcome.item : undefined]);
 	});
 

@@ -43,3 +43,33 @@ export function captureFormHasUnsavedCapture(
 		Object.values(values.fields).some((value) => value.trim() !== "")
 	);
 }
+
+export function captureInboxListHeading(
+	projectId: string,
+	copy: {
+		projectCaptureInbox: string;
+		workspaceCaptureInbox: string;
+	}
+): string {
+	return projectId.trim()
+		? copy.projectCaptureInbox
+		: copy.workspaceCaptureInbox;
+}
+
+export function captureInboxItemPreview(
+	item: { body: string; template: string | null },
+	templateLabel: string | null
+): string {
+	const body = item.body.trim();
+	if (body) {
+		return item.body;
+	}
+	return templateLabel ?? item.template ?? "";
+}
+
+export function createBugIsAvailable(values: CaptureFormValues): boolean {
+	return (
+		values.projectId.trim() !== "" &&
+		(values.template === "" || values.template === "bug-capture")
+	);
+}
