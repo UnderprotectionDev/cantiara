@@ -45,6 +45,15 @@ export function convertTargetOptions(copy: {
 	];
 }
 
+export function convertTargetScopeLine(scope: {
+	heading: string;
+	projectId: string | null;
+}): string {
+	return scope.projectId
+		? `${scope.heading} ${scope.projectId}`
+		: scope.heading;
+}
+
 export interface MergeUndoPreviewLine {
 	id: string;
 	text: string;

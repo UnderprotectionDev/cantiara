@@ -101,6 +101,8 @@ export {
 	UNKNOWN_DEVICE,
 } from "./session-policy";
 export {
+	allowProductCorsOrigin,
+	isClipperExtensionOrigin,
 	oneTimeCodeFromDeepLink,
 	productCorsOrigins,
 	productTrustedOrigins,

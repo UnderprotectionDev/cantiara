@@ -35,6 +35,8 @@ import {
 	SESSION_SIGNED_OUT_EVENT_TYPE,
 } from "./session-events";
 import {
+	allowProductCorsOrigin,
+	isClipperExtensionOrigin,
 	oneTimeCodeFromDeepLink,
 	productCorsOrigins,
 	productTrustedOrigins,
@@ -2282,5 +2284,18 @@ describe("Account Access CORS origins", () => {
 		expect(productTrustedOrigins(WEB_ORIGIN)).toEqual(
 			expect.arrayContaining(["http://localhost:3001", "http://127.0.0.1:3001"])
 		);
+	});
+
+	it("allows Chromium and Firefox extension origins and not Safari", () => {
+		expect(allowProductCorsOrigin("chrome-extension://abcd", WEB_ORIGIN)).toBe(
+			"chrome-extension://abcd"
+		);
+		expect(allowProductCorsOrigin("moz-extension://abcd", WEB_ORIGIN)).toBe(
+			"moz-extension://abcd"
+		);
+		expect(
+			allowProductCorsOrigin("safari-web-extension://abcd", WEB_ORIGIN)
+		).toBeUndefined();
+		expect(isClipperExtensionOrigin("safari-web-extension://abcd")).toBe(false);
 	});
 });

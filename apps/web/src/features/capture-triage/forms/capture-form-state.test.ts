@@ -10,6 +10,7 @@ import {
 	captureInboxListHeading,
 	captureInboxListInput,
 	createBugIsAvailable,
+	fileToCaptureAttachment,
 	nextBulkPosition,
 } from "./capture-form-state";
 
@@ -263,4 +264,15 @@ test("the next Bulk card sits to the right of cards already in that cluster", ()
 		)
 	).toEqual({ x: 3, y: 0 });
 	expect(nextBulkPosition([], null)).toEqual({ x: 0, y: 0 });
+});
+
+test("a selected file becomes a Capture attachment payload", async () => {
+	const file = new File([new Uint8Array([1, 2, 3])], "shot.png", {
+		type: "image/png",
+	});
+	expect(await fileToCaptureAttachment(file)).toEqual({
+		bytesBase64: btoa(String.fromCharCode(1, 2, 3)),
+		contentType: "image/png",
+		filename: "shot.png",
+	});
 });

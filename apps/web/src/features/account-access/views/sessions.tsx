@@ -15,6 +15,7 @@ import { Link } from "@tanstack/react-router";
 import RevokeOtherSessions from "@/features/account-access/forms/revoke-other-sessions";
 import RevokeSession from "@/features/account-access/forms/revoke-session";
 import { sessionLastActivityDisplay } from "@/features/account-access/forms/session-last-activity";
+import ExtensionLinks from "@/features/capture-triage/forms/extension-links";
 import { orpc } from "@/utils/orpc";
 
 export default function Sessions() {
@@ -75,6 +76,7 @@ export default function Sessions() {
 					</TableBody>
 				</Table>
 			)}
+			<ExtensionLinks />
 		</main>
 	);
 }

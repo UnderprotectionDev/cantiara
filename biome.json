@@ -27,7 +27,8 @@
       "!**/.svelte-kit",
       "!**/wrangler.jsonc",
       "!**/.source",
-      "!**/convex/_generated"
+      "!**/convex/_generated",
+      "!apps/extension/.wxt"
     ]
   },
   "formatter": {
@@ -87,6 +88,19 @@
     "ultracite/biome/tanstack"
   ],
   "overrides": [
+    {
+      "includes": ["apps/extension/entrypoints/**"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noJsxPropsBind": "off"
+          },
+          "style": {
+            "useFilenamingConvention": "off"
+          }
+        }
+      }
+    },
     {
       "includes": ["packages/*/src/index.ts"],
       "linter": {

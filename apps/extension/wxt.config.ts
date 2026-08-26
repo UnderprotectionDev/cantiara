@@ -1,6 +1,10 @@
 import { defineConfig } from "wxt";
 
-// See https://wxt.dev/api/config.html
 export default defineConfig({
-  modules: ["@wxt-dev/module-react"],
+	manifest: {
+		description: "Send a Web Capture to Capture Inbox.",
+		name: "Cantiara Web Capture",
+		permissions: ["activeTab", "scripting", "storage"],
+	},
+	modules: ["@wxt-dev/module-react"],
 });

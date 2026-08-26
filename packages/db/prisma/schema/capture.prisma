@@ -1,24 +1,25 @@
 model CaptureInboxItem {
-  id                     String    @id
+  id                     String                 @id
   workspaceId            String
   ownerId                String
   projectId              String?
-  body                   String    @default("")
+  body                   String                 @default("")
   template               String?
-  fieldsText             String    @default("{}")
-  link                   String    @default("")
+  fieldsText             String                 @default("{}")
+  link                   String                 @default("")
   attachmentRef          String?
-  origin                 String    @default("")
+  origin                 String                 @default("")
   capturedAt             DateTime
   consumedAt             DateTime?
   consumedExit           String?
   consumedTargetId       String?
   consumedTargetKind     String?
   consumedRelation       String?
-  consumedAttributedText String    @default("{}")
+  consumedAttributedText String                 @default("{}")
   consumedMergeId        String?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  staging                CaptureStagingObject?
 
   @@index([workspaceId, projectId, capturedAt])
   @@index([workspaceId, consumedMergeId])
@@ -35,4 +36,52 @@ model CaptureBulkSenseView {
 
   @@unique([workspaceId, ownerId])
   @@map("capture_bulk_sense_view")
+}
+
+model CaptureExtensionLink {
+  id          String    @id
+  workspaceId String
+  ownerId     String
+  tokenHash   String    @unique
+  device      String
+  browser     String
+  family      String
+  lastUsedAt  DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId, ownerId])
+  @@map("capture_extension_link")
+}
+
+model CapturePairingCode {
+  id          String    @id
+  workspaceId String
+  ownerId     String
+  codeHash    String    @unique
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, ownerId])
+  @@map("capture_pairing_code")
+}
+
+model CaptureStagingObject {
+  id          String           @id
+  inboxItemId String           @unique
+  item        CaptureInboxItem @relation(fields: [inboxItemId], references: [id], onDelete: Cascade)
+  workspaceId String
+  filename    String
+  contentType String
+  byteLength  Int
+  keyVersion  Int
+  wrappedDek  Bytes
+  ciphertext  Bytes
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([workspaceId])
+  @@map("capture_staging_object")
 }

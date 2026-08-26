@@ -18,6 +18,10 @@ import {
 } from "./capture-inbox";
 import { CAPTURE_INBOX_COPY, miniTemplateCatalog } from "./capture-inbox-model";
 import {
+	createPrismaCaptureStagingStore,
+	createRecordingCaptureStagingStore,
+} from "./capture-staging-store";
+import {
 	createRecordBinder,
 	TRIAGE_EXIT_CATALOG,
 } from "./capture-triage-exits";
@@ -28,6 +32,7 @@ const DATABASE_URL =
 
 const CAPTURED_AT = new Date("2026-08-26T12:00:00.000Z");
 const NINETY_DAYS_LATER = new Date("2026-11-24T12:00:00.000Z");
+const TEST_STAGING_ROOT_KEY = Buffer.alloc(32, 9);
 
 describe("Capture Inbox catalog", () => {
 	it("exposes the closed mini-template catalog with optional English fields", () => {
@@ -80,6 +85,7 @@ describe("Capture Inbox catalog", () => {
 			},
 		]);
 		expect(CAPTURE_INBOX_COPY.captureInbox).toBe("Capture Inbox");
+		expect(CAPTURE_INBOX_COPY.captureAttachment).toBe("Capture attachment");
 		expect(CAPTURE_INBOX_COPY.createBug).toBe("Create Bug");
 		expect(CAPTURE_INBOX_COPY.workspaceCaptureInbox).toBe(
 			"Workspace Capture Inbox"
@@ -166,10 +172,14 @@ describe("Capture Inbox", () => {
 			binder?: ReturnType<typeof createRecordBinder>;
 			connected?: boolean;
 			convertCreate?: Parameters<typeof createCaptureInbox>[0]["convertCreate"];
+			fileAttachmentFinalize?: Parameters<
+				typeof createCaptureInbox
+			>[0]["fileAttachmentFinalize"];
 			prisma?: PrismaClient;
 			similarRecords?: Parameters<
 				typeof createCaptureInbox
 			>[0]["similarRecords"];
+			stagingStore?: Parameters<typeof createCaptureInbox>[0]["stagingStore"];
 			workCreate?: (command: WorkCreateCommand) => Promise<{
 				handedOff: true;
 				workKey: null;
@@ -182,8 +192,11 @@ describe("Capture Inbox", () => {
 			clock: { now: () => CAPTURED_AT },
 			connected: overrides.connected,
 			convertCreate: overrides.convertCreate,
+			fileAttachmentFinalize: overrides.fileAttachmentFinalize,
 			prisma: overrides.prisma ?? prisma,
 			similarRecords: overrides.similarRecords,
+			stagingRootKey: TEST_STAGING_ROOT_KEY,
+			stagingStore: overrides.stagingStore,
 			workCreate: overrides.workCreate,
 			workspaceId,
 		});
@@ -977,6 +990,11 @@ describe("Capture Inbox", () => {
 				label: "Work",
 				link: "",
 				screenshot: null,
+				targetScope: {
+					heading: "Project Capture Inbox",
+					kind: "project",
+					projectId: "proj-cantiara",
+				},
 			},
 		});
 		expect(await capture.suggestSimilar({ itemId: saved.item.id })).toEqual({
@@ -1020,6 +1038,11 @@ describe("Capture Inbox", () => {
 					label: "Work",
 					link: "",
 					screenshot: null,
+					targetScope: {
+						heading: "Project Capture Inbox",
+						kind: "project",
+						projectId: "proj-cantiara",
+					},
 				},
 			},
 			status: "needs-preview",
@@ -1078,6 +1101,7 @@ describe("Capture Inbox", () => {
 				targetKind: "document",
 			},
 			status: "consumed",
+			visibleAttachment: null,
 		});
 		expect(commands).toEqual([
 			{
@@ -1336,5 +1360,442 @@ describe("Capture Inbox", () => {
 			projectName: "Cantiara",
 			title: "Login crash",
 		});
+	});
+
+	const SHOT_BYTES = new Uint8Array([
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4,
+	]);
+	const SHOT_ATTACHMENT = {
+		bytes: SHOT_BYTES,
+		contentType: "image/png",
+		filename: "shot.png",
+	};
+
+	it("keeps an encrypted Capture attachment on the Inbox item, not a File Attachment or shared library", async () => {
+		const puts: Uint8Array[] = [];
+		const capture = inbox({
+			stagingStore: createRecordingCaptureStagingStore(
+				createPrismaCaptureStagingStore(prisma),
+				puts
+			),
+		});
+		const outcome = await capture.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: crypto.randomUUID(),
+			text: "Screenshot of the crash",
+		});
+		if (outcome.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(outcome.item.attachment).toEqual({
+			filename: "shot.png",
+			itemId: outcome.item.id,
+			kind: "capture-attachment",
+		});
+		expect(outcome.item.kind).toBe("capture-inbox-item");
+		expect(outcome.mainRecord).toBeNull();
+		expect(await capture.attachment(outcome.item.id)).toEqual({
+			filename: "shot.png",
+			itemId: outcome.item.id,
+			kind: "capture-attachment",
+		});
+		expect(await capture.surfaces(outcome.item.id)).toEqual({
+			backlog: false,
+			draft: false,
+			export: false,
+			mainRecord: false,
+			publish: false,
+			search: false,
+			share: false,
+		});
+		expect(capture.searchHits()).toEqual([]);
+		expect(capture.exportRows()).toEqual([]);
+		expect(capture.sharedMediaLibrary()).toEqual([]);
+		expect(capture.visibleFileAttachments()).toEqual([]);
+		expect(puts).toHaveLength(1);
+		expect(Buffer.from(puts[0] ?? []).equals(Buffer.from(SHOT_BYTES))).toBe(
+			false
+		);
+	});
+
+	it("shows the convert target scope and leaves File Attachment finalize to that feature", async () => {
+		const promotions: Array<{ filename: string; targetScopeKind: string }> = [];
+		const capture = inbox({
+			fileAttachmentFinalize: (command) => {
+				promotions.push({
+					filename: command.staging.filename,
+					targetScopeKind: command.targetScope.kind,
+				});
+				return Promise.resolve({
+					fileAttachmentId: null,
+					status: "promoted",
+					visibleAttachment: null,
+				});
+			},
+		});
+		const saved = await capture.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: crypto.randomUUID(),
+			projectId: "proj-cantiara",
+			text: "Crash on save",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(
+			await capture.previewConvert({
+				itemId: saved.item.id,
+				targetKind: "work",
+			})
+		).toMatchObject({
+			proposed: {
+				kind: "work",
+				label: "Work",
+				targetScope: {
+					heading: "Project Capture Inbox",
+					kind: "project",
+					projectId: "proj-cantiara",
+				},
+			},
+		});
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+				previewed: true,
+				targetKind: "work",
+			})
+		).toEqual({
+			exit: "convert",
+			inboxItem: null,
+			mainRecord: null,
+			recordCreate: {
+				handedOff: true,
+				recordId: null,
+				targetKind: "work",
+			},
+			status: "consumed",
+			visibleAttachment: null,
+		});
+		expect(promotions).toEqual([
+			{ filename: "shot.png", targetScopeKind: "project" },
+		]);
+		expect(capture.visibleFileAttachments()).toEqual([]);
+		expect(await capture.attachment(saved.item.id)).toBeNull();
+		expect(
+			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([]);
+	});
+
+	it("leaves no visible File Attachment and keeps the Inbox item when finalize fails", async () => {
+		const capture = inbox({
+			fileAttachmentFinalize: () =>
+				Promise.resolve({
+					status: "failed",
+					visibleAttachment: null,
+				}),
+		});
+		const saved = await capture.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: crypto.randomUUID(),
+			projectId: "proj-cantiara",
+			text: "Crash on save",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+				previewed: true,
+				targetKind: "work",
+			})
+		).toEqual({
+			inboxItem: saved.item,
+			status: "finalize-failed",
+			visibleAttachment: null,
+		});
+		expect(
+			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([saved.item]);
+		expect(await capture.attachment(saved.item.id)).toEqual({
+			filename: "shot.png",
+			itemId: saved.item.id,
+			kind: "capture-attachment",
+		});
+		expect(capture.visibleFileAttachments()).toEqual([]);
+		expect(capture.sharedMediaLibrary()).toEqual([]);
+	});
+
+	it("deletes the Capture attachment when the Inbox item is deleted", async () => {
+		const capture = inbox();
+		const saved = await capture.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: crypto.randomUUID(),
+			text: "Throw this away",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(
+			await capture.deleteItem({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+			})
+		).toEqual({
+			exit: "delete",
+			inboxItem: null,
+			status: "consumed",
+		});
+		expect(await capture.list({ kind: "workspace" })).toEqual([]);
+		expect(await capture.attachment(saved.item.id)).toBeNull();
+		expect(capture.sharedMediaLibrary()).toEqual([]);
+		expect(capture.visibleFileAttachments()).toEqual([]);
+	});
+
+	it("shows Workspace Capture Inbox as the convert target scope when Project is empty", async () => {
+		const capture = inbox();
+		const saved = await capture.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: crypto.randomUUID(),
+			text: "A thought before I know the Project",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(
+			await capture.previewConvert({
+				itemId: saved.item.id,
+				targetKind: "document",
+			})
+		).toMatchObject({
+			proposed: {
+				kind: "document",
+				label: "Document",
+				targetScope: {
+					heading: "Workspace Capture Inbox",
+					kind: "workspace",
+					projectId: null,
+				},
+			},
+		});
+	});
+
+	async function saveOrderedCaptures(capture: CaptureInbox) {
+		const first = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "First thought",
+		});
+		capture.advanceTime(new Date("2026-08-26T12:00:01.000Z"));
+		const second = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Second thought",
+		});
+		capture.advanceTime(new Date("2026-08-26T12:00:02.000Z"));
+		const third = await capture.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Third thought",
+		});
+		if (
+			first.status !== "saved" ||
+			second.status !== "saved" ||
+			third.status !== "saved"
+		) {
+			throw new Error("expected saved captures");
+		}
+		return {
+			first: first.item,
+			second: second.item,
+			third: third.item,
+		};
+	}
+
+	it("starts Sequential triage on one item and is not a new queue", async () => {
+		const capture = inbox();
+		const items = await saveOrderedCaptures(capture);
+
+		expect(await capture.sequentialTriage()).toEqual({
+			focused: null,
+			mode: "list",
+			previousAvailable: false,
+		});
+		expect(await capture.startSequentialTriage()).toEqual({
+			focused: items.first,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+		expect(await capture.listAll()).toEqual([
+			items.first,
+			items.second,
+			items.third,
+		]);
+		expect(capture.writeQueue()).toEqual([]);
+	});
+
+	it("does not advance Sequential triage on view, Convert field change, or dismissing a suggestion", async () => {
+		const capture = inbox({
+			similarRecords: () => [
+				{
+					basis: { excerpt: "First thought", kind: "text" },
+					id: "work-1",
+					projectId: "proj-cantiara",
+					projectName: "Cantiara",
+					title: "Nearby work",
+				},
+			],
+		});
+		const items = await saveOrderedCaptures(capture);
+		await capture.startSequentialTriage();
+
+		expect(
+			await capture.previewConvert({
+				itemId: items.first.id,
+				targetKind: "work",
+			})
+		).toMatchObject({ proposed: { kind: "work" } });
+		expect(
+			await capture.previewConvert({
+				itemId: items.first.id,
+				targetKind: "document",
+			})
+		).toMatchObject({ proposed: { kind: "document" } });
+		const suggestions = await capture.suggestSimilar({
+			itemId: items.first.id,
+		});
+		expect(suggestions).toMatchObject({
+			otherProjects: {
+				matches: [{ id: "work-1" }],
+			},
+		});
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: items.first.id,
+				previewed: false,
+				targetKind: "work",
+			})
+		).toMatchObject({ status: "needs-preview" });
+		expect(await capture.sequentialTriage()).toEqual({
+			focused: items.first,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+		expect(await capture.listAll()).toHaveLength(3);
+	});
+
+	it("advances Sequential triage only after Convert, Attach, or Delete", async () => {
+		const binder = createRecordBinder([
+			{
+				fields: {},
+				id: "work-1",
+				projectId: "proj-cantiara",
+				projectName: "Cantiara",
+				title: "Login crash",
+			},
+		]);
+		const capture = inbox({ binder });
+		const items = await saveOrderedCaptures(capture);
+		await capture.startSequentialTriage();
+
+		expect(
+			await capture.deleteItem({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: items.first.id,
+			})
+		).toMatchObject({ status: "consumed" });
+		expect(await capture.sequentialTriage()).toEqual({
+			focused: items.second,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: items.second.id,
+				previewed: true,
+				targetKind: "work",
+			})
+		).toMatchObject({ status: "consumed" });
+		expect(await capture.sequentialTriage()).toEqual({
+			focused: items.third,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+
+		expect(
+			await capture.attach({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: items.third.id,
+				previewed: true,
+				relation: "origin",
+				targetId: "work-1",
+			})
+		).toMatchObject({ status: "consumed" });
+		expect(await capture.sequentialTriage()).toEqual({
+			focused: null,
+			mode: "list",
+			previousAvailable: false,
+		});
+		expect(await capture.listAll()).toEqual([]);
+	});
+
+	it("goes back to the previous remaining item and exits Sequential triage to the list", async () => {
+		const capture = inbox();
+		const items = await saveOrderedCaptures(capture);
+
+		expect(
+			await capture.startSequentialTriage({ itemId: items.third.id })
+		).toEqual({
+			focused: items.third,
+			mode: "sequential",
+			previousAvailable: true,
+		});
+		expect(await capture.goBackSequentialTriage()).toEqual({
+			focused: items.second,
+			mode: "sequential",
+			previousAvailable: true,
+		});
+		expect(await capture.goBackSequentialTriage()).toEqual({
+			focused: items.first,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+		expect(await capture.goBackSequentialTriage()).toEqual({
+			focused: items.first,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+		expect(await capture.exitSequentialTriage()).toEqual({
+			focused: null,
+			mode: "list",
+			previousAvailable: false,
+		});
+		expect(await capture.listAll()).toEqual([
+			items.first,
+			items.second,
+			items.third,
+		]);
+	});
+
+	it("does not auto-resolve Sequential triage when time advances", async () => {
+		const capture = inbox();
+		const items = await saveOrderedCaptures(capture);
+		await capture.startSequentialTriage();
+		capture.advanceTime(NINETY_DAYS_LATER);
+
+		expect(await capture.sequentialTriage()).toEqual({
+			focused: items.first,
+			mode: "sequential",
+			previousAvailable: false,
+		});
+		expect(await capture.listAll()).toHaveLength(3);
+		expect(capture.writeQueue()).toEqual([]);
 	});
 });

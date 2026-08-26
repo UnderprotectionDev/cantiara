@@ -6,6 +6,7 @@ import { createContext } from "@cantiara/api/context";
 import { DESKTOP_API_HEADER } from "@cantiara/api/desktop-api-window";
 import {
 	AccountAccessError,
+	allowProductCorsOrigin,
 	assertCookieCsrf,
 	auth,
 	productCorsOrigins,
@@ -55,7 +56,7 @@ app.use(
 		allowHeaders: ["Content-Type", "Authorization", DESKTOP_API_HEADER],
 		allowMethods: ["GET", "POST", "OPTIONS"],
 		credentials: true,
-		origin: productCorsOrigins(env.CORS_ORIGIN),
+		origin: (origin) => allowProductCorsOrigin(origin, env.CORS_ORIGIN) ?? "",
 	})
 );
 

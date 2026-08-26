@@ -20,6 +20,7 @@ import { CaptureTriageActions, type TriageCopy } from "./capture-triage-panel";
 
 export function CaptureBulkSenseMaking({
 	copy,
+	onItemConsumed,
 	onMergeConsumed,
 	templates,
 }: {
@@ -28,6 +29,7 @@ export function CaptureBulkSenseMaking({
 		save: string;
 		ungrouped: string;
 	};
+	onItemConsumed: (itemId: string) => void;
 	onMergeConsumed: (mergeId: string) => void;
 	templates?: ReadonlyArray<{ id: string; label: string }>;
 }) {
@@ -156,6 +158,7 @@ export function CaptureBulkSenseMaking({
 										<CaptureTriageActions
 											copy={copy}
 											itemId={item.id}
+											onItemConsumed={onItemConsumed}
 											onMergeConsumed={onMergeConsumed}
 										/>
 									</li>
