@@ -12,15 +12,12 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
 	cancelAtomicWrite,
 	cleanupExpiredStaging,
+	createMutationTarget,
 	finalizeAtomicWrite,
 	readAtomicLiveState,
 	readAtomicWrite,
-	stageAtomicWrite,
-} from "./atomic-finalize";
-import {
-	createMutationTarget,
-	MUTATION_COPY,
 	readMutationTarget,
+	stageAtomicWrite,
 } from "./mutation-contract";
 
 const DATABASE_URL =
@@ -105,7 +102,7 @@ describe("Mutation Contract atomic finalize", () => {
 		}
 		expect(outcome.operation.ui).toEqual({
 			cancelAvailable: true,
-			label: MUTATION_COPY.cancel,
+			label: "Cancel",
 		});
 		expect(await readMutationTarget(prisma, target.targetId)).toEqual(target);
 		expect(await readAtomicLiveState(prisma, target.targetId)).toEqual({
@@ -140,7 +137,7 @@ describe("Mutation Contract atomic finalize", () => {
 				status: "cancelled",
 				ui: {
 					cancelAvailable: false,
-					label: MUTATION_COPY.cancel,
+					label: "Cancel",
 				},
 			},
 			status: "cancelled",
@@ -182,7 +179,7 @@ describe("Mutation Contract atomic finalize", () => {
 				status: "committed",
 				ui: {
 					cancelAvailable: false,
-					label: MUTATION_COPY.finalizing,
+					label: "Finalizing",
 				},
 			},
 			receipt: {
@@ -260,7 +257,7 @@ describe("Mutation Contract atomic finalize", () => {
 		});
 		expect(outcome.operation.ui).toEqual({
 			cancelAvailable: false,
-			label: MUTATION_COPY.finalizing,
+			label: "Finalizing",
 		});
 		expect(await readAtomicLiveState(prisma, target.targetId)).toEqual({
 			counter: 1,
@@ -388,7 +385,7 @@ describe("Mutation Contract atomic finalize", () => {
 				targetId: target.targetId,
 				value: "winner",
 			},
-			currentValueLabel: MUTATION_COPY.currentValue,
+			currentValueLabel: "Current value",
 			receipt: {
 				kind: "rollback",
 				revision: 2,
@@ -463,7 +460,7 @@ describe("Mutation Contract atomic finalize", () => {
 			})
 		);
 		expect(outcome).toEqual({
-			conflict: MUTATION_COPY.conflict,
+			conflict: "Conflict",
 			status: "conflict",
 		});
 		expect(await readMutationTarget(prisma, target.targetId)).toEqual({
@@ -504,13 +501,13 @@ describe("Mutation Contract atomic finalize", () => {
 			status: "refused",
 			ui: {
 				cancelAvailable: false,
-				label: MUTATION_COPY.finalizing,
+				label: "Finalizing",
 			},
 		});
 		const view = await readAtomicWrite(prisma, staged.operation.operationId);
 		expect(view?.ui).toEqual({
 			cancelAvailable: false,
-			label: MUTATION_COPY.finalizing,
+			label: "Finalizing",
 		});
 		expect(view?.status).toBe("committed");
 	});

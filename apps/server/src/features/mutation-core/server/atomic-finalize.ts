@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient } from "@cantiara/db";
+import type { Prisma, PrismaClient } from "@cantiara/db";
 import { z } from "zod";
 
 import {
@@ -208,10 +208,7 @@ export async function finalizeAtomicWrite(
 		return await prisma.$transaction((tx) =>
 			commitLiveEffects(tx, parsed.command, prepared.operationId)
 		);
-	} catch (error) {
-		if (!isUniqueViolation(error)) {
-			throw error;
-		}
+	} catch {
 		return await prisma.$transaction((tx) =>
 			rollbackAfterBarrier(tx, parsed.command, prepared.operationId)
 		);
@@ -283,21 +280,7 @@ async function stageInTransaction(
 		}
 		return { operation: viewFor(existing), status: "staged" };
 	}
-	const created = await tx.mutationStagingOperation.create({
-		data: {
-			actorId: command.actorId,
-			baseRevision: command.baseRevision,
-			commandKey,
-			expiresAt: new Date(now.getTime() + STAGING_TTL_MS),
-			id: crypto.randomUUID(),
-			origin: command.origin,
-			payloadFingerprint: fingerprint,
-			payloadJson: JSON.stringify(command.payload),
-			status: STAGED,
-			targetId: command.targetId,
-			targetScope: command.targetScope,
-		},
-	});
+	const created = await insertStaged(tx, command, commandKey, now, fingerprint);
 	return { operation: viewFor(created), status: "staged" };
 }
 
@@ -642,7 +625,18 @@ async function ensureStaged(
 		}
 		return { row: existing, status: "ok" };
 	}
-	const created = await tx.mutationStagingOperation.create({
+	const created = await insertStaged(tx, command, commandKey, now, fingerprint);
+	return { row: created, status: "ok" };
+}
+
+async function insertStaged(
+	tx: PrismaTransaction,
+	command: AtomicWriteCommand,
+	commandKey: string,
+	now: Date,
+	fingerprint: string
+) {
+	return await tx.mutationStagingOperation.create({
 		data: {
 			actorId: command.actorId,
 			baseRevision: command.baseRevision,
@@ -657,7 +651,6 @@ async function ensureStaged(
 			targetScope: command.targetScope,
 		},
 	});
-	return { row: created, status: "ok" };
 }
 
 function viewFor(row: { id: string; status: string }): AtomicWriteView {
@@ -681,7 +674,7 @@ function viewFor(row: { id: string; status: string }): AtomicWriteView {
 }
 
 function atomicCommandKey(command: AtomicWriteCommand): string {
-	return `atomic:${command.origin}:${command.actorId}:${command.idempotencyKey}`;
+	return `human:${command.actorId}:${command.idempotencyKey}`;
 }
 
 async function lockTargetAndCommand(
@@ -762,11 +755,4 @@ function parseAtomicCommand(
 		};
 	}
 	return { command: parsed.data, status: "ok" };
-}
-
-function isUniqueViolation(error: unknown): boolean {
-	return (
-		error instanceof Prisma.PrismaClientKnownRequestError &&
-		error.code === "P2002"
-	);
 }

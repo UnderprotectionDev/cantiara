@@ -1,5 +1,17 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
 import { z } from "zod";
+import {
+	cancelAtomicWrite as cancelStagedWrite,
+	cleanupExpiredStaging as deleteExpiredStaging,
+	finalizeAtomicWrite as finalizeStagedWrite,
+	readAtomicLiveState as readStagedLiveState,
+	readAtomicWrite as readStagedWrite,
+	type AtomicLiveState as StagedLiveState,
+	type AtomicWriteOutcome as StagedWriteOutcome,
+	type AtomicWriteView as StagedWriteView,
+	type AtomicClock as StagingClock,
+	stageAtomicWrite as stageWrite,
+} from "./atomic-finalize";
 
 import {
 	actorFor,
@@ -20,6 +32,11 @@ export const MUTATION_ACTOR = mutationActors;
 export type MutationActor = SharedMutationActor;
 export type MutationOrigin = SharedMutationOrigin;
 export type NonHumanOrigin = SharedNonHumanOrigin;
+
+export type AtomicClock = StagingClock;
+export type AtomicLiveState = StagedLiveState;
+export type AtomicWriteOutcome = StagedWriteOutcome;
+export type AtomicWriteView = StagedWriteView;
 
 export function payloadFingerprint(payload: unknown): string {
 	return hashPayload(payload);
@@ -392,4 +409,48 @@ function isNonHumanOrigin(origin: unknown): origin is NonHumanOrigin {
 		origin === "system-automation" ||
 		origin === "authorized-integration"
 	);
+}
+
+export async function stageAtomicWrite(
+	prisma: PrismaClient,
+	command: unknown,
+	clock?: StagingClock
+): Promise<StagedWriteOutcome> {
+	return await stageWrite(prisma, command, clock);
+}
+
+export async function readAtomicWrite(
+	prisma: PrismaClient,
+	operationId: string
+): Promise<StagedWriteView | null> {
+	return await readStagedWrite(prisma, operationId);
+}
+
+export async function cancelAtomicWrite(
+	prisma: PrismaClient,
+	operationId: string
+): Promise<StagedWriteOutcome> {
+	return await cancelStagedWrite(prisma, operationId);
+}
+
+export async function finalizeAtomicWrite(
+	prisma: PrismaClient,
+	command: unknown,
+	clock?: StagingClock
+): Promise<StagedWriteOutcome> {
+	return await finalizeStagedWrite(prisma, command, clock);
+}
+
+export async function readAtomicLiveState(
+	prisma: PrismaClient,
+	targetId: string
+): Promise<StagedLiveState> {
+	return await readStagedLiveState(prisma, targetId);
+}
+
+export async function cleanupExpiredStaging(
+	prisma: PrismaClient,
+	now: Date
+): Promise<number> {
+	return await deleteExpiredStaging(prisma, now);
 }
