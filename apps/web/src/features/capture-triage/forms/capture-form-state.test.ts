@@ -8,6 +8,7 @@ import {
 	captureInboxListHeading,
 	captureInboxListInput,
 	createBugIsAvailable,
+	fileToCaptureAttachment,
 } from "./capture-form-state";
 
 const LIST_COPY = {
@@ -176,4 +177,15 @@ test("Create Bug is available only when Project is set and type is Bug Capture o
 			text: "A thought",
 		})
 	).toBe(true);
+});
+
+test("a selected file becomes a Capture attachment payload", async () => {
+	const file = new File([new Uint8Array([1, 2, 3])], "shot.png", {
+		type: "image/png",
+	});
+	expect(await fileToCaptureAttachment(file)).toEqual({
+		bytesBase64: btoa(String.fromCharCode(1, 2, 3)),
+		contentType: "image/png",
+		filename: "shot.png",
+	});
 });

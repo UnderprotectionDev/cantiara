@@ -1,3 +1,4 @@
+import { CLIENT_SHELL_COPY as MAIN_FLOW_COPY } from "@cantiara/api/client-shell-failure";
 import { Button } from "@cantiara/ui/components/button";
 import {
 	Dialog,
@@ -19,6 +20,7 @@ import { orpc, queryClient } from "@/utils/orpc";
 import {
 	type ConvertTargetKind,
 	convertTargetOptions,
+	convertTargetScopeLine,
 	mergeUndoPreviewLines,
 	otherProjectGroups,
 } from "./capture-triage-exits-state";
@@ -65,7 +67,10 @@ export function CaptureTriageActions({
 	const convert = useMutation(
 		orpc.captureInbox.convert.mutationOptions({
 			onSuccess: async (outcome) => {
-				if (outcome.status === "needs-preview") {
+				if (
+					outcome.status === "needs-preview" ||
+					outcome.status === "finalize-failed"
+				) {
 					return;
 				}
 				await invalidate();
@@ -157,6 +162,7 @@ export function CaptureTriageActions({
 			</Button>
 			<ConvertDialog
 				copy={copy}
+				finalizeFailed={convert.data?.status === "finalize-failed"}
 				itemId={itemId}
 				onConfirm={confirmConvert}
 				onOpenChange={onDialogOpenChange}
@@ -260,6 +266,7 @@ export function CaptureMergeUndo({
 
 function ConvertDialog({
 	copy,
+	finalizeFailed,
 	itemId,
 	onConfirm,
 	onOpenChange,
@@ -268,6 +275,7 @@ function ConvertDialog({
 	targetKind,
 }: {
 	copy: TriageCopy;
+	finalizeFailed: boolean;
 	itemId: string;
 	onConfirm: () => void;
 	onOpenChange: (open: boolean) => void;
@@ -308,6 +316,7 @@ function ConvertDialog({
 				</Field>
 				{previewData ? (
 					<div className="flex flex-col gap-3 text-sm">
+						<p>{convertTargetScopeLine(previewData.proposed.targetScope)}</p>
 						<p className="whitespace-pre-wrap">{previewData.original.text}</p>
 						{previewData.original.link ? (
 							<p>{previewData.original.link}</p>
@@ -328,6 +337,7 @@ function ConvertDialog({
 						))}
 					</div>
 				) : null}
+				{finalizeFailed ? <p>{MAIN_FLOW_COPY.notWritten}</p> : null}
 				<DialogFooter>
 					<Button disabled={!previewData} onClick={onConfirm} type="button">
 						{copy.convert}

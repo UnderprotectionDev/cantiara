@@ -18,6 +18,10 @@ import {
 } from "./capture-inbox";
 import { CAPTURE_INBOX_COPY, miniTemplateCatalog } from "./capture-inbox-model";
 import {
+	createPrismaCaptureStagingStore,
+	createRecordingCaptureStagingStore,
+} from "./capture-staging-store";
+import {
 	createRecordBinder,
 	TRIAGE_EXIT_CATALOG,
 } from "./capture-triage-exits";
@@ -80,6 +84,7 @@ describe("Capture Inbox catalog", () => {
 			},
 		]);
 		expect(CAPTURE_INBOX_COPY.captureInbox).toBe("Capture Inbox");
+		expect(CAPTURE_INBOX_COPY.captureAttachment).toBe("Capture attachment");
 		expect(CAPTURE_INBOX_COPY.createBug).toBe("Create Bug");
 		expect(CAPTURE_INBOX_COPY.workspaceCaptureInbox).toBe(
 			"Workspace Capture Inbox"
@@ -161,9 +166,13 @@ describe("Capture Inbox", () => {
 			binder?: ReturnType<typeof createRecordBinder>;
 			connected?: boolean;
 			convertCreate?: Parameters<typeof createCaptureInbox>[0]["convertCreate"];
+			fileAttachmentFinalize?: Parameters<
+				typeof createCaptureInbox
+			>[0]["fileAttachmentFinalize"];
 			similarRecords?: Parameters<
 				typeof createCaptureInbox
 			>[0]["similarRecords"];
+			stagingStore?: Parameters<typeof createCaptureInbox>[0]["stagingStore"];
 			workCreate?: (command: WorkCreateCommand) => Promise<{
 				handedOff: true;
 				workKey: null;
@@ -176,8 +185,10 @@ describe("Capture Inbox", () => {
 			clock: { now: () => CAPTURED_AT },
 			connected: overrides.connected,
 			convertCreate: overrides.convertCreate,
+			fileAttachmentFinalize: overrides.fileAttachmentFinalize,
 			prisma,
 			similarRecords: overrides.similarRecords,
+			stagingStore: overrides.stagingStore,
 			workCreate: overrides.workCreate,
 			workspaceId,
 		});
@@ -599,6 +610,11 @@ describe("Capture Inbox", () => {
 				label: "Work",
 				link: "",
 				screenshot: null,
+				targetScope: {
+					heading: "Project Capture Inbox",
+					kind: "project",
+					projectId: "proj-cantiara",
+				},
 			},
 		});
 		expect(await capture.suggestSimilar({ itemId: saved.item.id })).toEqual({
@@ -642,6 +658,11 @@ describe("Capture Inbox", () => {
 					label: "Work",
 					link: "",
 					screenshot: null,
+					targetScope: {
+						heading: "Project Capture Inbox",
+						kind: "project",
+						projectId: "proj-cantiara",
+					},
 				},
 			},
 			status: "needs-preview",
@@ -700,6 +721,7 @@ describe("Capture Inbox", () => {
 				targetKind: "document",
 			},
 			status: "consumed",
+			visibleAttachment: null,
 		});
 		expect(commands).toEqual([
 			{
@@ -957,6 +979,231 @@ describe("Capture Inbox", () => {
 			projectId: "proj-cantiara",
 			projectName: "Cantiara",
 			title: "Login crash",
+		});
+	});
+
+	const SHOT_BYTES = new Uint8Array([
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4,
+	]);
+	const SHOT_ATTACHMENT = {
+		bytes: SHOT_BYTES,
+		contentType: "image/png",
+		filename: "shot.png",
+	};
+
+	it("keeps an encrypted Capture attachment on the Inbox item, not a File Attachment or shared library", async () => {
+		const puts: Uint8Array[] = [];
+		const capture = inbox({
+			stagingStore: createRecordingCaptureStagingStore(
+				createPrismaCaptureStagingStore(prisma),
+				puts
+			),
+		});
+		const outcome = await capture.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: crypto.randomUUID(),
+			text: "Screenshot of the crash",
+		});
+		if (outcome.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(outcome.item.attachment).toEqual({
+			filename: "shot.png",
+			itemId: outcome.item.id,
+			kind: "capture-attachment",
+		});
+		expect(outcome.item.kind).toBe("capture-inbox-item");
+		expect(outcome.mainRecord).toBeNull();
+		expect(await capture.attachment(outcome.item.id)).toEqual({
+			filename: "shot.png",
+			itemId: outcome.item.id,
+			kind: "capture-attachment",
+		});
+		expect(await capture.surfaces(outcome.item.id)).toEqual({
+			backlog: false,
+			draft: false,
+			export: false,
+			mainRecord: false,
+			publish: false,
+			search: false,
+			share: false,
+		});
+		expect(capture.searchHits()).toEqual([]);
+		expect(capture.exportRows()).toEqual([]);
+		expect(capture.sharedMediaLibrary()).toEqual([]);
+		expect(capture.visibleFileAttachments()).toEqual([]);
+		expect(puts).toHaveLength(1);
+		expect(Buffer.from(puts[0] ?? []).equals(Buffer.from(SHOT_BYTES))).toBe(
+			false
+		);
+	});
+
+	it("shows the convert target scope and leaves File Attachment finalize to that feature", async () => {
+		const promotions: Array<{ filename: string; targetScopeKind: string }> = [];
+		const capture = inbox({
+			fileAttachmentFinalize: (command) => {
+				promotions.push({
+					filename: command.staging.filename,
+					targetScopeKind: command.targetScope.kind,
+				});
+				return Promise.resolve({
+					fileAttachmentId: null,
+					status: "promoted",
+					visibleAttachment: null,
+				});
+			},
+		});
+		const saved = await capture.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: crypto.randomUUID(),
+			projectId: "proj-cantiara",
+			text: "Crash on save",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(
+			await capture.previewConvert({
+				itemId: saved.item.id,
+				targetKind: "work",
+			})
+		).toMatchObject({
+			proposed: {
+				kind: "work",
+				label: "Work",
+				targetScope: {
+					heading: "Project Capture Inbox",
+					kind: "project",
+					projectId: "proj-cantiara",
+				},
+			},
+		});
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+				previewed: true,
+				targetKind: "work",
+			})
+		).toEqual({
+			exit: "convert",
+			inboxItem: null,
+			mainRecord: null,
+			recordCreate: {
+				handedOff: true,
+				recordId: null,
+				targetKind: "work",
+			},
+			status: "consumed",
+			visibleAttachment: null,
+		});
+		expect(promotions).toEqual([
+			{ filename: "shot.png", targetScopeKind: "project" },
+		]);
+		expect(capture.visibleFileAttachments()).toEqual([]);
+		expect(await capture.attachment(saved.item.id)).toBeNull();
+		expect(
+			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([]);
+	});
+
+	it("leaves no visible File Attachment and keeps the Inbox item when finalize fails", async () => {
+		const capture = inbox({
+			fileAttachmentFinalize: () =>
+				Promise.resolve({
+					status: "failed",
+					visibleAttachment: null,
+				}),
+		});
+		const saved = await capture.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: crypto.randomUUID(),
+			projectId: "proj-cantiara",
+			text: "Crash on save",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+				previewed: true,
+				targetKind: "work",
+			})
+		).toEqual({
+			inboxItem: saved.item,
+			status: "finalize-failed",
+			visibleAttachment: null,
+		});
+		expect(
+			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([saved.item]);
+		expect(await capture.attachment(saved.item.id)).toEqual({
+			filename: "shot.png",
+			itemId: saved.item.id,
+			kind: "capture-attachment",
+		});
+		expect(capture.visibleFileAttachments()).toEqual([]);
+		expect(capture.sharedMediaLibrary()).toEqual([]);
+	});
+
+	it("deletes the Capture attachment when the Inbox item is deleted", async () => {
+		const capture = inbox();
+		const saved = await capture.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: crypto.randomUUID(),
+			text: "Throw this away",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(
+			await capture.deleteItem({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+			})
+		).toEqual({
+			exit: "delete",
+			inboxItem: null,
+			status: "consumed",
+		});
+		expect(await capture.list({ kind: "workspace" })).toEqual([]);
+		expect(await capture.attachment(saved.item.id)).toBeNull();
+		expect(capture.sharedMediaLibrary()).toEqual([]);
+		expect(capture.visibleFileAttachments()).toEqual([]);
+	});
+
+	it("shows Workspace Capture Inbox as the convert target scope when Project is empty", async () => {
+		const capture = inbox();
+		const saved = await capture.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: crypto.randomUUID(),
+			text: "A thought before I know the Project",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		expect(
+			await capture.previewConvert({
+				itemId: saved.item.id,
+				targetKind: "document",
+			})
+		).toMatchObject({
+			proposed: {
+				kind: "document",
+				label: "Document",
+				targetScope: {
+					heading: "Workspace Capture Inbox",
+					kind: "workspace",
+					projectId: null,
+				},
+			},
 		});
 	});
 });

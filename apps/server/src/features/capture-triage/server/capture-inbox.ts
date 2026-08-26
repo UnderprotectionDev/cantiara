@@ -8,6 +8,7 @@ import {
 import {
 	CAPTURE_INBOX_COPY,
 	CAPTURE_SURFACE_EXCLUSION,
+	type CaptureAttachmentView,
 	type CaptureInboxItemView,
 	type CaptureInboxScope,
 	type CaptureSurfaceEligibility,
@@ -17,6 +18,14 @@ import {
 	templateFields,
 	toItemView,
 } from "./capture-inbox-model";
+import {
+	deriveCaptureStagingRootKey,
+	envelopeSeal,
+} from "./capture-staging-crypto";
+import {
+	type CaptureStagingStore,
+	createPrismaCaptureStagingStore,
+} from "./capture-staging-store";
 import {
 	type AttachOutcome,
 	type AttachPreview,
@@ -28,7 +37,9 @@ import {
 	createRecordBinder,
 	createTriageExits,
 	type DeleteOutcome,
+	type FileAttachmentFinalizeAdapter,
 	handOffConvert,
+	handOffFileAttachmentPromote,
 	type MergeUndoPreview,
 	type RecordBinder,
 	type SimilarMatch,
@@ -56,8 +67,15 @@ export type WorkCreateAdapter = (
 	command: WorkCreateCommand
 ) => Promise<WorkCreateResult>;
 
+export interface CaptureAttachmentInput {
+	bytes: Uint8Array;
+	contentType: string;
+	filename: string;
+}
+
 export interface SaveCaptureInput {
 	actorId: string;
+	attachment?: CaptureAttachmentInput;
 	attachmentRef?: string | null;
 	fields?: Record<string, string>;
 	idempotencyKey: string;
@@ -112,6 +130,7 @@ export interface CaptureInbox {
 		relation: BindRelation;
 		targetId: string;
 	}) => Promise<AttachOutcome>;
+	attachment: (itemId: string) => Promise<CaptureAttachmentView | null>;
 	convert: (input: {
 		idempotencyKey: string;
 		itemId: string;
@@ -125,6 +144,7 @@ export interface CaptureInbox {
 		idempotencyKey: string;
 		itemId: string;
 	}) => Promise<DeleteOutcome>;
+	exportRows: () => readonly [];
 	lastSuccessfulSaveAt: () => Date | null;
 	list: (scope: CaptureInboxScope) => Promise<CaptureInboxItemView[]>;
 	listAll: () => Promise<CaptureInboxItemView[]>;
@@ -144,6 +164,21 @@ export interface CaptureInbox {
 		input: Omit<SaveCaptureInput, "actorId" | "workspaceId">
 	) => Promise<SaveCaptureOutcome>;
 	searchHits: () => readonly [];
+	sharedMediaLibrary: () => readonly [];
+	stageAttachment: (input: {
+		attachment: CaptureAttachmentInput;
+		idempotencyKey: string;
+		itemId: string;
+	}) => Promise<
+		| {
+				attachment: CaptureAttachmentView;
+				lastSuccessfulSaveAt: Date;
+				status: "staged";
+		  }
+		| { queued: false; reason: "offline"; status: "refused" }
+		| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
+		| { status: "not-found" }
+	>;
 	suggestSimilar: (input: {
 		itemId: string;
 	}) => Promise<SimilarSuggestions | { status: "not-found" }>;
@@ -156,6 +191,7 @@ export interface CaptureInbox {
 	unsavedRisk: (
 		hasUnsavedChanges: boolean
 	) => typeof CAPTURE_INBOX_COPY.unsavedChangesMayBeLost | null;
+	visibleFileAttachments: () => readonly [];
 	writeQueue: () => readonly never[];
 }
 
@@ -242,10 +278,25 @@ function openItemWhere(workspaceId: string) {
 	};
 }
 
+function attachmentFingerprint(attachment: CaptureAttachmentInput | undefined) {
+	if (!attachment) {
+		return "";
+	}
+	return {
+		byteLength: attachment.bytes.byteLength,
+		contentType: attachment.contentType,
+		filename: attachment.filename,
+		payloadFingerprint: payloadFingerprint(
+			Buffer.from(attachment.bytes).toString("base64")
+		),
+	};
+}
+
 function saveCommandPayload(
 	command: Omit<SaveCaptureInput, "actorId" | "workspaceId">
 ) {
 	return {
+		attachment: attachmentFingerprint(command.attachment),
 		attachmentRef: command.attachmentRef ?? "",
 		fields: command.fields ?? {},
 		link: command.link ?? "",
@@ -255,6 +306,8 @@ function saveCommandPayload(
 		text: command.text ?? "",
 	};
 }
+
+const STAGING_INCLUDE = { staging: true } as const;
 
 async function insertCaptureItem(
 	prisma: PrismaClient,
@@ -284,8 +337,66 @@ async function insertCaptureItem(
 			template,
 			workspaceId: input.workspaceId,
 		},
+		include: STAGING_INCLUDE,
 	});
 	return toItemView(row);
+}
+
+function stagingRootKey(secret?: string): Buffer {
+	if (secret && secret.length >= 32) {
+		return deriveCaptureStagingRootKey(secret);
+	}
+	const fromEnv = process.env.BETTER_AUTH_SECRET;
+	if (fromEnv && fromEnv.length >= 32) {
+		return deriveCaptureStagingRootKey(fromEnv);
+	}
+	return Buffer.alloc(32, 7);
+}
+
+async function persistStaging(input: {
+	attachment: CaptureAttachmentInput;
+	inboxItemId: string;
+	prisma: PrismaClient;
+	rootKey: Uint8Array;
+	store: CaptureStagingStore;
+	workspaceId: string;
+}): Promise<CaptureAttachmentView> {
+	const sealed = envelopeSeal(input.attachment.bytes, input.rootKey);
+	const stagingId = crypto.randomUUID();
+	await input.store.put({
+		byteLength: input.attachment.bytes.byteLength,
+		ciphertext: sealed.ciphertext,
+		contentType: input.attachment.contentType,
+		filename: input.attachment.filename,
+		id: stagingId,
+		inboxItemId: input.inboxItemId,
+		keyVersion: sealed.keyVersion,
+		workspaceId: input.workspaceId,
+		wrappedDek: sealed.wrappedDek,
+	});
+	await input.prisma.captureInboxItem.update({
+		data: { attachmentRef: stagingId },
+		where: { id: input.inboxItemId },
+	});
+	return {
+		filename: input.attachment.filename,
+		itemId: input.inboxItemId,
+		kind: "capture-attachment",
+	};
+}
+
+async function loadItemView(
+	prisma: PrismaClient,
+	input: { itemId: string; workspaceId: string }
+): Promise<CaptureInboxItemView | null> {
+	const row = await prisma.captureInboxItem.findFirst({
+		include: STAGING_INCLUDE,
+		where: {
+			...openItemWhere(input.workspaceId),
+			id: input.itemId,
+		},
+	});
+	return row ? toItemView(row) : null;
 }
 
 export function createCaptureInbox(input: {
@@ -294,8 +405,11 @@ export function createCaptureInbox(input: {
 	clock?: { now: () => Date };
 	connected?: boolean;
 	convertCreate?: ConvertAdapter;
+	fileAttachmentFinalize?: FileAttachmentFinalizeAdapter;
 	prisma: PrismaClient;
 	similarRecords?: (item: CaptureInboxItemView) => SimilarMatch[];
+	stagingRootKey?: Uint8Array;
+	stagingStore?: CaptureStagingStore;
 	workCreate?: WorkCreateAdapter;
 	workspaceId: string;
 }): CaptureInbox {
@@ -303,16 +417,26 @@ export function createCaptureInbox(input: {
 	const clock = { now: () => now };
 	const workCreate = input.workCreate ?? handOffWorkCreate;
 	const convertCreate = input.convertCreate ?? handOffConvert;
+	const fileAttachmentFinalize =
+		input.fileAttachmentFinalize ?? handOffFileAttachmentPromote;
 	const binder = input.binder ?? createRecordBinder([]);
 	const similarRecords = input.similarRecords ?? (() => []);
+	const store =
+		input.stagingStore ?? createPrismaCaptureStagingStore(input.prisma);
+	const rootKey = input.stagingRootKey ?? stagingRootKey();
 	let lastSuccessfulSaveAt: Date | null = null;
 	const connected = () => input.connected !== false;
+	async function deleteStaging(inboxItemId: string) {
+		await store.deleteByInboxItemId(inboxItemId);
+	}
 	const triage = createTriageExits({
 		actorId: input.actorId,
 		binder,
 		clock,
 		connected,
 		convertCreate,
+		deleteStaging,
+		fileAttachmentFinalize,
 		prisma: input.prisma,
 		similarRecords,
 		toItemView,
@@ -324,6 +448,13 @@ export function createCaptureInbox(input: {
 			now = instant;
 		},
 		attach: triage.attach,
+		async attachment(itemId) {
+			const item = await loadItemView(input.prisma, {
+				itemId,
+				workspaceId: input.workspaceId,
+			});
+			return item?.attachment ?? null;
+		},
 		convert: triage.convert,
 		async createBug(command) {
 			if (!connected()) {
@@ -385,11 +516,15 @@ export function createCaptureInbox(input: {
 			return outcome;
 		},
 		deleteItem: triage.deleteItem,
+		exportRows() {
+			return [];
+		},
 		lastSuccessfulSaveAt() {
 			return lastSuccessfulSaveAt;
 		},
 		async list(scope) {
 			const rows = await input.prisma.captureInboxItem.findMany({
+				include: STAGING_INCLUDE,
 				orderBy: { capturedAt: "asc" },
 				where: {
 					...openItemWhere(input.workspaceId),
@@ -403,6 +538,7 @@ export function createCaptureInbox(input: {
 		},
 		async listAll() {
 			const rows = await input.prisma.captureInboxItem.findMany({
+				include: STAGING_INCLUDE,
 				orderBy: { capturedAt: "asc" },
 				where: openItemWhere(input.workspaceId),
 			});
@@ -430,12 +566,29 @@ export function createCaptureInbox(input: {
 				);
 			}
 			const capturedAt = clock.now();
-			const item = await insertCaptureItem(input.prisma, {
+			let item = await insertCaptureItem(input.prisma, {
 				actorId: input.actorId,
 				capturedAt,
 				command,
 				workspaceId: input.workspaceId,
 			});
+			if (command.attachment) {
+				await persistStaging({
+					attachment: command.attachment,
+					inboxItemId: item.id,
+					prisma: input.prisma,
+					rootKey,
+					store,
+					workspaceId: input.workspaceId,
+				});
+				const reloaded = await loadItemView(input.prisma, {
+					itemId: item.id,
+					workspaceId: input.workspaceId,
+				});
+				if (reloaded) {
+					item = reloaded;
+				}
+			}
 			const outcome: SaveCaptureOutcome = {
 				item,
 				lastSuccessfulSaveAt: capturedAt,
@@ -456,6 +609,68 @@ export function createCaptureInbox(input: {
 		searchHits() {
 			return [];
 		},
+		sharedMediaLibrary() {
+			return [];
+		},
+		async stageAttachment(command) {
+			if (!connected()) {
+				return { queued: false, reason: "offline", status: "refused" };
+			}
+			const payload = {
+				attachment: attachmentFingerprint(command.attachment),
+				itemId: command.itemId,
+			};
+			const existing = await readHumanReceipt(
+				input.prisma,
+				command.idempotencyKey,
+				payload
+			);
+			if (existing?.kind === "conflict") {
+				return { reason: MUTATION_COPY.conflict, status: "conflict" };
+			}
+			if (existing?.kind === "replay") {
+				const replayed = JSON.parse(existing.resultValue) as {
+					attachment: CaptureAttachmentView;
+					lastSuccessfulSaveAt: Date | string;
+					status: "staged";
+				};
+				return {
+					...replayed,
+					lastSuccessfulSaveAt: reviveDate(replayed.lastSuccessfulSaveAt),
+				};
+			}
+			const open = await loadItemView(input.prisma, {
+				itemId: command.itemId,
+				workspaceId: input.workspaceId,
+			});
+			if (!open) {
+				return { status: "not-found" };
+			}
+			const attachment = await persistStaging({
+				attachment: command.attachment,
+				inboxItemId: command.itemId,
+				prisma: input.prisma,
+				rootKey,
+				store,
+				workspaceId: input.workspaceId,
+			});
+			const savedAt = clock.now();
+			const outcome = {
+				attachment,
+				lastSuccessfulSaveAt: savedAt,
+				status: "staged" as const,
+			};
+			await writeHumanReceipt(input.prisma, {
+				actorId: input.actorId,
+				commandKey: command.idempotencyKey,
+				kind: "stage-attachment",
+				payload,
+				resultValue: JSON.stringify(outcome),
+				targetId: command.itemId,
+			});
+			lastSuccessfulSaveAt = savedAt;
+			return outcome;
+		},
 		suggestSimilar: triage.suggestSimilar,
 		async surfaces(itemId) {
 			const row = await input.prisma.captureInboxItem.findFirst({
@@ -475,6 +690,9 @@ export function createCaptureInbox(input: {
 			return hasUnsavedChanges
 				? CAPTURE_INBOX_COPY.unsavedChangesMayBeLost
 				: null;
+		},
+		visibleFileAttachments() {
+			return [];
 		},
 		writeQueue() {
 			return [];

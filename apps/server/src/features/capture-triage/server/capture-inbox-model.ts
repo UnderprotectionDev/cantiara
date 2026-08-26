@@ -3,6 +3,7 @@ import { z } from "zod";
 export const CAPTURE_INBOX_COPY = {
 	attachToExisting: "Attach to existing",
 	bugCapture: "Bug Capture",
+	captureAttachment: "Capture attachment",
 	captureInbox: "Capture Inbox",
 	channel: "Channel",
 	contact: "Contact",
@@ -118,7 +119,14 @@ export type CaptureInboxScope =
 	| { kind: "workspace" }
 	| { kind: "project"; projectId: string };
 
+export interface CaptureAttachmentView {
+	filename: string;
+	itemId: string;
+	kind: "capture-attachment";
+}
+
 export interface CaptureInboxItemView {
+	attachment?: CaptureAttachmentView;
 	attachmentRef: string | null;
 	body: string;
 	capturedAt: Date;
@@ -212,12 +220,21 @@ export interface CaptureInboxItemRow {
 	link: string;
 	origin: string;
 	projectId: string | null;
+	staging?: { filename: string } | null;
 	template: string | null;
 }
 
 export function toItemView(row: CaptureInboxItemRow): CaptureInboxItemView {
 	const parsed = miniTemplateIdSchema.safeParse(row.template);
+	const attachment = row.staging
+		? {
+				filename: row.staging.filename,
+				itemId: row.id,
+				kind: "capture-attachment" as const,
+			}
+		: undefined;
 	return {
+		...(attachment ? { attachment } : {}),
 		attachmentRef: row.attachmentRef,
 		body: row.body,
 		capturedAt: row.capturedAt,

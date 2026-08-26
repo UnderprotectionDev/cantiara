@@ -292,6 +292,7 @@ _Avoid_: Etiket, ilişki, kalıcı küme kaydı
 
 **Yakalama eki**:
 Yalnız Yakalama Gelen Kutusu öğesine ait şifreli staging nesnesi; kalıcı kayda dönüşümde hedef kapsamda [Dosya Ekine terfi eder](docs/prd/05-capture-and-intake.md#hızlı-yakalama).
+UI: `Capture attachment`
 _Avoid_: Dosya Eki, paylaşılmış ek, kalıcı medya kütüphanesi
 
 **Dönüştür**:
