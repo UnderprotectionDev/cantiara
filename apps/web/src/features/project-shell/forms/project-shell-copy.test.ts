@@ -8,6 +8,7 @@ import {
 	projectShellChrome,
 	projectShellSearch,
 	STARTER_CONFIGURATIONS,
+	structureCopyPreviewItems,
 } from "./project-shell-copy";
 
 const COPY_BRANDING_PATTERN = /color|CSS|font/i;
@@ -17,6 +18,7 @@ test("English chrome uses Project Name and Short code", () => {
 		addStage: "Add stage",
 		allTools: "All Tools",
 		configurationMode: "Configuration Mode",
+		copyProjectStructure: "Copy project structure",
 		create: "Create",
 		createProject: "Create Project",
 		customField: "Custom field",
@@ -99,4 +101,67 @@ test("Configuration Mode is presentation search, not a Project write", () => {
 			configurationEditor: CONFIGURATION_MODE_EDITORS.customField,
 		})
 	).toEqual({});
+});
+
+test("Copy project structure preview lists structure without records", () => {
+	expect(
+		structureCopyPreviewItems({
+			customFieldDefinitions: [],
+			enabledAreas: ["Work", "Documents", "Tests"],
+			priorityMetricDefinitions: [],
+			selectedSkeletons: [
+				{
+					emptyHeadings: [
+						"Primary Navigation",
+						"Secondary Navigation",
+						"Utility",
+						"External",
+					],
+					name: "Sitemap",
+				},
+			],
+			stages: [{ name: "Discovery", state: "Active" }],
+			workContextCardLayouts: [],
+			workStatuses: [{ label: "Todo" }],
+			workViews: ["Backlog", "Board"],
+		})
+	).toEqual([
+		{
+			items: ["Discovery · Active"],
+			label: "Stages",
+		},
+		{
+			items: ["Work", "Documents", "Tests"],
+			label: "Project areas",
+		},
+		{
+			items: ["Todo"],
+			label: "Work statuses",
+		},
+		{
+			items: ["Backlog", "Board"],
+			label: "Saved views",
+		},
+		{
+			items: [],
+			label: "Work Context Card layout",
+		},
+		{
+			items: [],
+			label: "Custom field",
+		},
+		{
+			items: [],
+			label: "Priority metrics",
+		},
+		{
+			items: [
+				"Primary Navigation",
+				"Secondary Navigation",
+				"Utility",
+				"External",
+			],
+			label: "Sitemap",
+		},
+	]);
 });

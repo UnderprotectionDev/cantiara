@@ -57,6 +57,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Proje alanları | `Project areas` | Kapalı Proje alanı kataloğunun etkinleştirme girişi |
 | Navigasyona sabitle | `Pin to navigation` | Proje alanını navigasyon üstverisine sabitleme; alan etkinleştirme değildir |
 | Varsayılan navigasyonu geri yükle | `Restore default navigation` | Yalnız pin ve sıra üstverisini Başlangıç yapılandırması varsayılanına döndürme |
+| Proje yapısını kopyalama | `Copy project structure` | Aşama, etkin alan, durum, hazır görünüm, düzen, özel alan tanımı, öncelik ölçütü ve boş duvar iskeletini içeriksiz yeni Projeye aktarma; kayıt, şablon, test senaryosu ve otomasyon kopyalamaz |
 | Planlanmadı | `Not Planned` | Proje aşaması durumu; İş akışı durumu değildir |
 | Hazır | `Ready` | Proje aşaması durumu; İş akışı durumu değildir |
 | Gizle | `Hide` | Kapalı katalogdaki Proje alanını gizleme; kayıt silmez |

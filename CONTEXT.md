@@ -216,6 +216,10 @@ _Avoid_: ana menü, gizli alan silme, Overview
 Aşama, İş durumu adı, etkin alan, özel alan, öncelik ölçütü, kayıtlı görünüm ve İş Bağlam Kartı düzenini günlük içerik düzenlemesinden ayıran görünür sunum durumu; izin veya yönetici rolü değildir ([yapılandırma modu](docs/prd/04-workspace-and-projects.md#yapılandırma-modu)). UI: `Configuration Mode`.
 _Avoid_: yönetici rolü, izin duvarı, ayarlar sayfası, workflow kapısı
 
+**Proje yapısını kopyalama**:
+Aşama, etkin alan, durum, hazır görünüm, İş Bağlam Kartı düzeni, özel alan tanımı, öncelik ölçütü tanımı ve boş duvar iskelet tanımını içeriksiz yeni Projeye aktarma; kayıt, geçmiş, ilişki, şablon, Planlı Test Senaryosu veya otomasyon kopyalamaz ([proje yapısını kopyalama](docs/prd/04-workspace-and-projects.md#proje-yapısını-kopyalama)). UI: `Copy project structure`.
+_Avoid_: Projeyi çoğalt, Duplicate project, içerikli fork, şablon pazarı, ortak Workspace alan kimliği
+
 **Öncelik ölçütü**:
 İşin önceliğini ifade eden Proje yapılandırması; skaler öncelik alanı veya otomatik skor değildir ([öncelik ölçütleri](docs/prd/06-work-management-and-planning.md#öncelik-ölçütleri)). UI: `Priority metrics`.
 _Avoid_: öncelik puanı, otomatik sıralama, skaler öncelik alanı

@@ -156,6 +156,7 @@ export const PROJECT_SHELL_COPY = {
 	addStage: "Add stage",
 	allTools: "All Tools",
 	configurationMode: "Configuration Mode",
+	copyProjectStructure: "Copy project structure",
 	create: "Create",
 	createProject: "Create Project",
 	customField: "Custom field",
@@ -229,6 +230,7 @@ export const projectViewSchema = z.object({
 		z.literal("Documents"),
 		z.literal("All Tools"),
 	]),
+	customFieldDefinitions: z.array(z.never()),
 	enabledAreas: z.array(z.enum(PROJECT_AREAS)),
 	firstOpenExplanation: z.string().min(1).nullable(),
 	firstOpenExplanationVisible: z.boolean(),
@@ -237,6 +239,7 @@ export const projectViewSchema = z.object({
 	logoFileName: z.string().min(1).nullable(),
 	name: z.string().min(1),
 	pinnedAreas: z.array(z.enum(PROJECT_AREAS)),
+	priorityMetricDefinitions: z.array(z.never()),
 	problem: z.string().min(1).nullable(),
 	purpose: z.string().min(1).nullable(),
 	revision: z.number().int().positive(),
@@ -385,6 +388,123 @@ export const configureProjectCommandSchema = z.object({
 
 export type ConfigureProjectCommand = z.infer<
 	typeof configureProjectCommandSchema
+>;
+
+export const STRUCTURE_COPY_EXCLUDED = {
+	automationRules: true,
+	cards: true,
+	history: true,
+	plannedTestCases: true,
+	records: true,
+	relations: true,
+	workTemplates: true,
+} as const;
+
+const copiedWorkStatusSchema = z.object({
+	label: z.string().min(1),
+	semantic: z.enum(PROTECTED_WORK_STATUSES),
+});
+
+export const structureCopyPreviewSchema = z.object({
+	customFieldDefinitions: z.array(z.never()),
+	emptyWallSkeletonDefinitions: z.array(
+		z.object({
+			emptyHeadings: z.array(z.string().min(1)),
+			name: z.enum(SKELETON_NAMES),
+			surface: z.literal("Project Wall"),
+		})
+	),
+	enabledAreas: z.array(z.enum(PROJECT_AREAS)),
+	excluded: z.object({
+		automationRules: z.literal(true),
+		cards: z.literal(true),
+		history: z.literal(true),
+		plannedTestCases: z.literal(true),
+		records: z.literal(true),
+		relations: z.literal(true),
+		workTemplates: z.literal(true),
+	}),
+	pinnedAreas: z.array(z.enum(PROJECT_AREAS)),
+	priorityMetricDefinitions: z.array(z.never()),
+	selectedSkeletons: z.array(
+		z.object({
+			emptyHeadings: z.array(z.string().min(1)),
+			name: z.enum(SKELETON_NAMES),
+			surface: z.enum(SKELETON_SURFACES),
+		})
+	),
+	stages: z.array(
+		z.object({
+			name: z.string().min(1),
+			state: z.enum(STAGE_STATES),
+		})
+	),
+	starterConfigurationOffered: z.literal(false),
+	workContextCardLayouts: z.array(z.never()),
+	workStatuses: z.tuple([
+		copiedWorkStatusSchema.extend({ semantic: z.literal("Not Started") }),
+		copiedWorkStatusSchema.extend({ semantic: z.literal("In Progress") }),
+		copiedWorkStatusSchema.extend({ semantic: z.literal("Blocked") }),
+		copiedWorkStatusSchema.extend({ semantic: z.literal("Closed") }),
+	]),
+	workViews: z.array(z.string().min(1)),
+});
+
+export type StructureCopyPreview = z.infer<typeof structureCopyPreviewSchema>;
+
+export function structureCopyPreview(
+	project: ProjectView
+): StructureCopyPreview {
+	return {
+		customFieldDefinitions: [],
+		emptyWallSkeletonDefinitions: project.selectedSkeletons.flatMap(
+			(skeleton) =>
+				skeleton.surface === "Project Wall"
+					? [
+							{
+								emptyHeadings: skeleton.emptyHeadings,
+								name: skeleton.name,
+								surface: "Project Wall" as const,
+							},
+						]
+					: []
+		),
+		enabledAreas: project.enabledAreas,
+		excluded: STRUCTURE_COPY_EXCLUDED,
+		pinnedAreas: project.pinnedAreas,
+		priorityMetricDefinitions: [],
+		selectedSkeletons: project.selectedSkeletons,
+		stages: project.stages.map((stage) => ({
+			name: stage.name,
+			state: stage.state,
+		})),
+		starterConfigurationOffered: false,
+		workContextCardLayouts: [],
+		workStatuses: project.workStatuses,
+		workViews: project.workViews,
+	};
+}
+
+export const copyProjectStructurePayloadSchema = z.object({
+	name: z.string().optional(),
+	shortCode: z.string().optional(),
+	sourceProjectId: z.string().min(1),
+});
+
+export type CopyProjectStructurePayload = z.infer<
+	typeof copyProjectStructurePayloadSchema
+>;
+
+export const copyProjectStructureCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: copyProjectStructurePayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type CopyProjectStructureCommand = z.infer<
+	typeof copyProjectStructureCommandSchema
 >;
 
 export type ProjectShellRejectionReason =

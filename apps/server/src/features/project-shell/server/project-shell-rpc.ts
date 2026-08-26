@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import {
 	configureProject,
+	copyProjectStructure,
 	createProject,
 	dismissFirstOpenExplanation,
 	getProject,
@@ -14,6 +15,7 @@ import {
 	updateShortCode,
 } from "./project-shell";
 import {
+	copyProjectStructurePayloadSchema,
 	createProjectPayloadSchema,
 	PROJECT_AREAS,
 	PROJECT_SHELL_COPY,
@@ -21,6 +23,7 @@ import {
 	STAGE_STATES,
 	STARTER_CONFIGURATIONS,
 	structureChangeSchema,
+	structureCopyPreview,
 } from "./project-shell-model";
 
 async function requireAccess(userId: string) {
@@ -61,6 +64,30 @@ export const projectShell = {
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				projectId: input.projectId,
+			});
+		}),
+	copyStructure: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: copyProjectStructurePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const source = await getProject(
+				getPrismaClient(),
+				input.payload.sourceProjectId
+			);
+			if (!source || source.workspaceId !== access.workspaceId) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return await copyProjectStructure(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
 			});
 		}),
 	create: protectedWriteProcedure
@@ -116,6 +143,16 @@ export const projectShell = {
 		const access = await requireAccess(context.session.user.id);
 		return await listProjects(getPrismaClient(), access.workspaceId);
 	}),
+	previewCopyStructure: protectedProcedure
+		.input(z.object({ projectId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const project = await getProject(getPrismaClient(), input.projectId);
+			if (!project || project.workspaceId !== access.workspaceId) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return structureCopyPreview(project);
+		}),
 	suggestShortCode: protectedProcedure
 		.input(z.object({ name: z.string() }))
 		.handler(async ({ context, input }) => {

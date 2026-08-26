@@ -12,9 +12,11 @@ import {
 	ALWAYS_ON_SURFACES,
 	appliedStructureFor,
 	type ConfigureProjectCommand,
+	type CopyProjectStructureCommand,
 	type CreateProjectCommand,
 	type CreateProjectPayload,
 	configureProjectCommandSchema,
+	copyProjectStructureCommandSchema,
 	createProjectCommandSchema,
 	type DismissFirstOpenExplanationCommand,
 	dismissFirstOpenExplanationCommandSchema,
@@ -39,8 +41,10 @@ import {
 	STAGE_STATE,
 	type STARTER_CONFIGURATIONS,
 	type StructureChange,
+	type StructureCopyPreview,
 	selectedSkeletonsFor,
 	structureChangeSchema,
+	structureCopyPreview,
 	suggestAvailableShortCode,
 	type UpdateShortCodeCommand,
 	updateShortCodeCommandSchema,
@@ -171,6 +175,35 @@ export async function configureProject(
 	);
 	return await prisma.$transaction((tx) =>
 		configureInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function previewCopyProjectStructure(
+	prisma: PrismaClient,
+	projectId: string
+): Promise<StructureCopyPreview | null> {
+	const project = await getProject(prisma, projectId);
+	if (!project) {
+		return null;
+	}
+	return structureCopyPreview(project);
+}
+
+export async function copyProjectStructure(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ProjectShellOutcome> {
+	const parsed = parseCopyCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint(parsed.command.payload);
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		copyInTransaction(tx, parsed.command, commandKey, fingerprint)
 	);
 }
 
@@ -370,6 +403,36 @@ function parseConfigureCommand(
 		};
 	}
 	const parsed = configureProjectCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return {
+			outcome: { reason: "missing-idempotency-key", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	return { command: parsed.data, status: "ok" };
+}
+
+function parseCopyCommand(
+	command: unknown
+):
+	| { command: CopyProjectStructureCommand; status: "ok" }
+	| { outcome: ProjectShellOutcome; status: "rejected" } {
+	if (!isRecord(command)) {
+		return {
+			outcome: { reason: "missing-idempotency-key", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	if (
+		typeof command.idempotencyKey !== "string" ||
+		command.idempotencyKey.length === 0
+	) {
+		return {
+			outcome: { reason: "missing-idempotency-key", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	const parsed = copyProjectStructureCommandSchema.safeParse(command);
 	if (!parsed.success) {
 		return {
 			outcome: { reason: "missing-idempotency-key", status: "rejected" },
@@ -614,6 +677,91 @@ async function configureInTransaction(
 		return { reason: "target-not-found", status: "rejected" };
 	}
 	const project = toView(updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		project,
+	});
+	return { project, status: "committed" };
+}
+
+async function copyInTransaction(
+	tx: PrismaTransaction,
+	command: CopyProjectStructureCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<ProjectShellOutcome> {
+	const source = await loadProject(tx, command.payload.sourceProjectId);
+	if (!source || source.workspaceId !== command.workspaceId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await lockWorkspace(tx, source.workspaceId);
+	await lockProject(tx, source.id);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const locked = await loadProject(tx, source.id);
+	if (!locked || locked.workspaceId !== command.workspaceId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const name = optionalText(command.payload.name);
+	if (!name) {
+		return { reason: "missing-project-name", status: "rejected" };
+	}
+	if (!isStarterConfiguration(locked.starterConfiguration)) {
+		return { reason: "unknown-starter-configuration", status: "rejected" };
+	}
+	let requestedShortCode: string | null = null;
+	if (
+		command.payload.shortCode !== undefined &&
+		command.payload.shortCode.trim().length > 0
+	) {
+		requestedShortCode = normalizeShortCode(command.payload.shortCode);
+		if (!requestedShortCode) {
+			return { reason: "short-code-invalid", status: "rejected" };
+		}
+	}
+	const reserved = await reservedCodes(tx, command.workspaceId);
+	const shortCode = resolveShortCode(requestedShortCode, name, reserved);
+	if (shortCode.status !== "ok") {
+		return shortCode.outcome;
+	}
+	const projectId = crypto.randomUUID();
+	const claimed = await claimShortCode(
+		tx,
+		command.workspaceId,
+		projectId,
+		shortCode.value
+	);
+	if (claimed === "taken") {
+		return { reason: "short-code-taken", status: "rejected" };
+	}
+	await tx.project.create({
+		data: {
+			firstOpenExplanationDismissed: true,
+			hasWork: false,
+			id: projectId,
+			lifecycleStatus: PROJECT_LIFECYCLE.active,
+			logoFileName: null,
+			name,
+			problem: null,
+			purpose: null,
+			revision: 1,
+			scope: null,
+			shortCode: shortCode.value,
+			starterConfiguration: locked.starterConfiguration,
+			targetDate: null,
+			workspaceId: command.workspaceId,
+		},
+	});
+	await persistCopiedStructure(tx, projectId, locked);
+	const row = await loadProject(tx, projectId);
+	if (!row) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const project = toView(row);
 	await writeReceipt(tx, {
 		actorId: command.actorId,
 		commandKey,
@@ -1204,6 +1352,83 @@ async function persistAppliedStructure(
 	await persistSkeletonSelections(tx, projectId, starterConfiguration);
 }
 
+async function persistCopiedStructure(
+	tx: PrismaTransaction,
+	projectId: string,
+	source: ProjectRow
+): Promise<void> {
+	const stages = [...source.stages].sort(
+		(left, right) => left.sortOrder - right.sortOrder
+	);
+	if (stages.length > 0) {
+		await tx.projectStage.createMany({
+			data: stages.map((stage, sortOrder) => ({
+				id: crypto.randomUUID(),
+				name: stage.name,
+				projectId,
+				sortOrder,
+				state: stage.state,
+			})),
+		});
+	}
+	const settings = new Map(
+		source.areaSettings.map((setting) => [setting.name, setting])
+	);
+	await tx.projectAreaSetting.createMany({
+		data: PROJECT_AREAS.map((name) => {
+			const setting = settings.get(name);
+			return {
+				enabled: setting?.enabled ?? false,
+				id: crypto.randomUUID(),
+				name,
+				pinned: setting?.pinned ?? false,
+				pinOrder: setting?.pinOrder ?? null,
+				projectId,
+			};
+		}),
+	});
+	const views = [...source.workViews].sort(
+		(left, right) => left.sortOrder - right.sortOrder
+	);
+	if (views.length > 0) {
+		await tx.projectWorkView.createMany({
+			data: views.map((view, sortOrder) => ({
+				id: crypto.randomUUID(),
+				name: view.name,
+				projectId,
+				sortOrder,
+			})),
+		});
+	}
+	const statuses = [...source.workStatuses].sort(
+		(left, right) => left.sortOrder - right.sortOrder
+	);
+	await tx.projectWorkStatus.createMany({
+		data: statuses.map((status, sortOrder) => ({
+			id: crypto.randomUUID(),
+			label: status.label,
+			projectId,
+			semantic: status.semantic,
+			sortOrder,
+		})),
+	});
+	const skeletons = [...source.skeletonSelections].sort(
+		(left, right) => left.sortOrder - right.sortOrder
+	);
+	if (skeletons.length > 0) {
+		await tx.projectSkeletonSelection.createMany({
+			data: skeletons.map((skeleton, sortOrder) => ({
+				emptyHeadings: skeleton.emptyHeadings,
+				id: crypto.randomUUID(),
+				name: skeleton.name,
+				projectId,
+				sortOrder,
+				surface: skeleton.surface,
+			})),
+		});
+	}
+}
+
 async function persistSkeletonSelections(
 	tx: PrismaTransaction,
 	projectId: string,
@@ -1265,6 +1490,7 @@ function toView(row: ProjectRow): ProjectView {
 	return {
 		allToolsAreas,
 		alwaysOnSurfaces: [...ALWAYS_ON_SURFACES],
+		customFieldDefinitions: [],
 		enabledAreas,
 		firstOpenExplanation: row.firstOpenExplanationDismissed
 			? null
@@ -1275,6 +1501,7 @@ function toView(row: ProjectRow): ProjectView {
 		logoFileName: row.logoFileName,
 		name: row.name,
 		pinnedAreas,
+		priorityMetricDefinitions: [],
 		problem: row.problem,
 		purpose: row.purpose,
 		revision: row.revision,
