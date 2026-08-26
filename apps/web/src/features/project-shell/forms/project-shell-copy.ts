@@ -22,6 +22,7 @@ export const PROJECT_SHELL_COPY = {
 	addStage: "Add stage",
 	allTools: "All Tools",
 	configurationMode: "Configuration Mode",
+	copyProjectStructure: "Copy project structure",
 	create: "Create",
 	createProject: "Create Project",
 	customField: "Custom field",
@@ -91,6 +92,55 @@ export interface ProjectShellSearch {
 
 export function projectShellChrome() {
 	return PROJECT_SHELL_COPY;
+}
+
+export function structureCopyPreviewItems(preview: {
+	customFieldDefinitions: readonly unknown[];
+	enabledAreas: readonly string[];
+	priorityMetricDefinitions: readonly unknown[];
+	selectedSkeletons: readonly {
+		emptyHeadings: readonly string[];
+		name: string;
+	}[];
+	stages: readonly { name: string; state: string }[];
+	workContextCardLayouts: readonly unknown[];
+	workStatuses: readonly { label: string }[];
+	workViews: readonly string[];
+}) {
+	return [
+		{
+			items: preview.stages.map((stage) => `${stage.name} · ${stage.state}`),
+			label: PROJECT_SHELL_COPY.stages,
+		},
+		{
+			items: [...preview.enabledAreas],
+			label: PROJECT_SHELL_COPY.projectAreas,
+		},
+		{
+			items: preview.workStatuses.map((status) => status.label),
+			label: PROJECT_SHELL_COPY.workStatuses,
+		},
+		{
+			items: [...preview.workViews],
+			label: PROJECT_SHELL_COPY.savedViews,
+		},
+		{
+			items: preview.workContextCardLayouts.map(() => ""),
+			label: PROJECT_SHELL_COPY.workContextCardLayout,
+		},
+		{
+			items: preview.customFieldDefinitions.map(() => ""),
+			label: PROJECT_SHELL_COPY.customField,
+		},
+		{
+			items: preview.priorityMetricDefinitions.map(() => ""),
+			label: PROJECT_SHELL_COPY.priorityMetrics,
+		},
+		...preview.selectedSkeletons.map((skeleton) => ({
+			items: [...skeleton.emptyHeadings],
+			label: skeleton.name,
+		})),
+	];
 }
 
 export function projectShellSearch(

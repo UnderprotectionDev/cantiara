@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
 import ConfigurationMode from "@/features/project-shell/forms/configuration-mode";
+import CopyProjectStructureForm from "@/features/project-shell/forms/copy-project-structure-form";
 import FirstOpenExplanation from "@/features/project-shell/forms/first-open-explanation";
 import ProjectAreasForm from "@/features/project-shell/forms/project-areas-form";
 import {
@@ -95,6 +96,7 @@ export default function ProjectProfile({
 					shortCode={data.shortCode}
 					shortCodeLocked={data.shortCodeLocked}
 				/>
+				<CopyProjectStructureForm projectId={data.id} />
 				<nav aria-label={PROJECT_SHELL_COPY.overview}>
 					<ul>
 						{data.alwaysOnSurfaces.map((surface) => (

@@ -4,8 +4,10 @@
  * first Work (Work create is a test double that only exists), GitHub
  * not required, four-configuration apply-once matrix, no sample
  * content, dismissible first-open explanation, and skeleton catalog
- * selection metadata without living Document or Wall records. Synthetic
- * fixture for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
+ * selection metadata without living Document or Wall records, and copy
+ * of current structure into a contentless new Project without records,
+ * history, or a re-applied Starter Configuration. Synthetic fixture
+ * for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (İlk Proje selection half; Başlangıç iskeletleri golden living
  * structures wait on 31 and 51).
  */
@@ -17,11 +19,13 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import {
 	configureProject,
+	copyProjectStructure,
 	createProject,
 	dismissFirstOpenExplanation,
 	getProject,
 	listProjects,
 	permanentlyDeleteProject,
+	previewCopyProjectStructure,
 	recordWorkExists,
 	suggestShortCode,
 	updateShortCode,
@@ -127,6 +131,7 @@ const OVERVIEW_MODULE_PATTERN =
 	/attentionRequired|dashboard|healthScore|overviewModule/i;
 const TEST_PRODUCT_PATTERN =
 	/plannedTest|testHandoff|testSession|testGap|testAssessment/i;
+const WORKSPACE_FIELD_ID_PATTERN = /workspaceFieldId/i;
 
 function stageNames(project: { stages: Array<{ name: string }> }) {
 	return project.stages.map((stage) => stage.name);
@@ -233,6 +238,127 @@ function createCommand(
 		},
 		workspaceId: input.workspaceId,
 	};
+}
+
+function copyCommand(
+	input: {
+		idempotencyKey?: string;
+		name?: string;
+		shortCode?: string;
+		sourceProjectId: string;
+		workspaceId: string;
+	},
+	actorId = ACTOR_ID
+) {
+	return {
+		actorId,
+		idempotencyKey: input.idempotencyKey,
+		origin: "human" as const,
+		payload: {
+			name: input.name,
+			shortCode: input.shortCode,
+			sourceProjectId: input.sourceProjectId,
+		},
+		workspaceId: input.workspaceId,
+	};
+}
+
+async function customizeBlankStructure(
+	prisma: PrismaClient,
+	source: {
+		id: string;
+		revision: number;
+	},
+	actorId: string
+) {
+	const added = await configureProject(
+		prisma,
+		configureCommand(
+			{
+				baseRevision: source.revision,
+				change: { action: "add-stage", name: "Discovery" },
+				idempotencyKey: "copy-add-discovery",
+				projectId: source.id,
+			},
+			actorId
+		)
+	);
+	if (added.status !== "committed") {
+		throw new Error("expected added stage");
+	}
+	const activated = await configureProject(
+		prisma,
+		configureCommand(
+			{
+				baseRevision: added.project.revision,
+				change: {
+					action: "set-stage-state",
+					stageId: added.project.stages[0]?.id ?? "",
+					state: "Active",
+				},
+				idempotencyKey: "copy-activate-discovery",
+				projectId: source.id,
+			},
+			actorId
+		)
+	);
+	if (activated.status !== "committed") {
+		throw new Error("expected Active stage");
+	}
+	const enabled = await configureProject(
+		prisma,
+		configureCommand(
+			{
+				baseRevision: activated.project.revision,
+				change: {
+					action: "set-area-enabled",
+					area: "Tests",
+					enabled: true,
+				},
+				idempotencyKey: "copy-enable-tests",
+				projectId: source.id,
+			},
+			actorId
+		)
+	);
+	if (enabled.status !== "committed") {
+		throw new Error("expected enabled Tests");
+	}
+	const pinned = await configureProject(
+		prisma,
+		configureCommand(
+			{
+				baseRevision: enabled.project.revision,
+				change: { action: "pin-to-navigation", area: "Tests" },
+				idempotencyKey: "copy-pin-tests",
+				projectId: source.id,
+			},
+			actorId
+		)
+	);
+	if (pinned.status !== "committed") {
+		throw new Error("expected pinned Tests");
+	}
+	const renamed = await configureProject(
+		prisma,
+		configureCommand(
+			{
+				baseRevision: pinned.project.revision,
+				change: {
+					action: "rename-work-status",
+					label: "Todo",
+					semantic: "Not Started",
+				},
+				idempotencyKey: "copy-rename-status",
+				projectId: source.id,
+			},
+			actorId
+		)
+	);
+	if (renamed.status !== "committed") {
+		throw new Error("expected renamed Work status");
+	}
+	return renamed.project;
 }
 
 describe("Project Shell", () => {
@@ -1313,6 +1439,9 @@ describe("Project Shell", () => {
 		expect(PROJECT_SHELL_COPY.restoreDefaultNavigation).toBe(
 			"Restore default navigation"
 		);
+		expect(PROJECT_SHELL_COPY.copyProjectStructure).toBe(
+			"Copy project structure"
+		);
 		expect(PROJECT_SHELL_COPY.notPlanned).toBe("Not Planned");
 		expect(PROJECT_SHELL_COPY.ready).toBe("Ready");
 		expect(PROJECT_SHELL_COPY.hide).toBe("Hide");
@@ -1971,6 +2100,317 @@ describe("Project Shell", () => {
 		expect(
 			configurationModeView({ open: true, savedViews: ["Backlog"] }).hosts
 		).not.toContain("Formula");
+	});
+
+	it("previews Copy project structure without starter configuration, records, or a Workspace field identity", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "preview-source",
+					name: "Payments",
+					purpose: "Ship the workspace",
+					starterConfiguration: "Blank Project",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const source = await customizeBlankStructure(
+			prisma,
+			created.project,
+			actorId
+		);
+		const preview = await previewCopyProjectStructure(prisma, source.id);
+		expect(preview).toEqual({
+			customFieldDefinitions: [],
+			emptyWallSkeletonDefinitions: [],
+			enabledAreas: ["Work", "Documents", "Tests"],
+			excluded: {
+				automationRules: true,
+				cards: true,
+				history: true,
+				plannedTestCases: true,
+				records: true,
+				relations: true,
+				workTemplates: true,
+			},
+			pinnedAreas: ["Tests"],
+			priorityMetricDefinitions: [],
+			selectedSkeletons: [],
+			stages: [{ name: "Discovery", state: "Active" }],
+			starterConfigurationOffered: false,
+			workContextCardLayouts: [],
+			workStatuses: [
+				{ label: "Todo", semantic: "Not Started" },
+				{ label: "In Progress", semantic: "In Progress" },
+				{ label: "Blocked", semantic: "Blocked" },
+				{ label: "Closed", semantic: "Closed" },
+			],
+			workViews: ["Backlog", "Board"],
+		});
+		expect(preview).not.toHaveProperty("name");
+		expect(preview).not.toHaveProperty("starterConfiguration");
+		expect(preview).not.toHaveProperty("purpose");
+		expect(JSON.stringify(preview)).not.toMatch(WORKSPACE_FIELD_ID_PATTERN);
+		expect(preview).not.toHaveProperty("plannedTestCases");
+		expect(preview?.excluded.plannedTestCases).toBe(true);
+		expect(preview).not.toHaveProperty("walls");
+		expect(preview).not.toHaveProperty("documents");
+		expect(preview).not.toHaveProperty("workTemplates");
+	});
+
+	it("copies customized structure into a contentless Project and leaves the source unchanged", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "copy-source",
+					name: "Payments",
+					purpose: "Ship the workspace",
+					starterConfiguration: "Blank Project",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const source = await customizeBlankStructure(
+			prisma,
+			created.project,
+			actorId
+		);
+		const before = await getProject(prisma, source.id);
+		const copied = await copyProjectStructure(
+			prisma,
+			copyCommand(
+				{
+					idempotencyKey: "copy-north",
+					name: "North",
+					sourceProjectId: source.id,
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		expect(copied).toMatchObject({
+			project: {
+				customFieldDefinitions: [],
+				enabledAreas: ["Work", "Documents", "Tests"],
+				firstOpenExplanationVisible: false,
+				lifecycleStatus: PROJECT_LIFECYCLE.active,
+				logoFileName: null,
+				name: "North",
+				pinnedAreas: ["Tests"],
+				priorityMetricDefinitions: [],
+				problem: null,
+				purpose: null,
+				scope: null,
+				selectedSkeletons: [],
+				shortCode: "NOR",
+				shortCodeLocked: false,
+				starterConfiguration: "Blank Project",
+				targetDate: null,
+				workContextCardLayouts: [],
+				workStatuses: [
+					{ label: "Todo", semantic: "Not Started" },
+					{ label: "In Progress", semantic: "In Progress" },
+					{ label: "Blocked", semantic: "Blocked" },
+					{ label: "Closed", semantic: "Closed" },
+				],
+				workViews: ["Backlog", "Board"],
+			},
+			status: "committed",
+		});
+		if (copied.status !== "committed") {
+			throw new Error("expected copied Project");
+		}
+		expect(copied.project.id).not.toBe(source.id);
+		expect(stageNames(copied.project)).toEqual(["Discovery"]);
+		expect(stageStates(copied.project)).toEqual(["Active"]);
+		expect(copied.project.stages.map((stage) => stage.id)).not.toEqual(
+			source.stages.map((stage) => stage.id)
+		);
+		expect(copied.project).not.toHaveProperty("workspaceFieldId");
+		expect(copied.project).not.toHaveProperty("plannedTestCases");
+		expect(copied.project).not.toHaveProperty("workTemplates");
+		expect(copied.project).not.toHaveProperty("automationRules");
+		expect(copied.project).not.toHaveProperty("walls");
+		expect(copied.project).not.toHaveProperty("documents");
+		expect(copied.project).not.toHaveProperty("history");
+		expect(copied.project).not.toHaveProperty("relations");
+		expect(livingRecordKeys(copied.project)).toEqual([]);
+		expect(JSON.stringify(copied.project)).not.toMatch(TEST_PRODUCT_PATTERN);
+		expect(await getProject(prisma, source.id)).toEqual(before);
+		expect(before?.revision).toBe(source.revision);
+		expect(await listProjects(prisma, workspaceId)).toEqual([
+			before,
+			copied.project,
+		]);
+		const replayed = await copyProjectStructure(
+			prisma,
+			copyCommand(
+				{
+					idempotencyKey: "copy-north",
+					name: "North",
+					sourceProjectId: source.id,
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		expect(replayed).toEqual({
+			project: copied.project,
+			status: "replayed",
+		});
+	});
+
+	it("copies empty wall skeleton definitions without living Walls, templates, or a contentful fork", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "copy-saas-source",
+					name: "Atlas",
+					starterConfiguration: "Solo SaaS",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const preview = await previewCopyProjectStructure(
+			prisma,
+			created.project.id
+		);
+		expect(preview?.emptyWallSkeletonDefinitions).toEqual(
+			CLOSED_SKELETON_CATALOG.filter(
+				(skeleton) => skeleton.surface === "Project Wall"
+			)
+		);
+		expect(preview?.selectedSkeletons).toEqual(CLOSED_SKELETON_CATALOG);
+		expect(preview?.starterConfigurationOffered).toBe(false);
+		expect(preview?.excluded).toEqual({
+			automationRules: true,
+			cards: true,
+			history: true,
+			plannedTestCases: true,
+			records: true,
+			relations: true,
+			workTemplates: true,
+		});
+		const copied = await copyProjectStructure(
+			prisma,
+			copyCommand(
+				{
+					idempotencyKey: "copy-saas",
+					name: "Beacon",
+					sourceProjectId: created.project.id,
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (copied.status !== "committed") {
+			throw new Error("expected copied Project");
+		}
+		expect(stageNames(copied.project)).toEqual(stageNames(created.project));
+		expect(copied.project.enabledAreas).toEqual(created.project.enabledAreas);
+		expect(copied.project.pinnedAreas).toEqual(created.project.pinnedAreas);
+		expect(copied.project.workViews).toEqual(created.project.workViews);
+		expect(copied.project.selectedSkeletons).toEqual(CLOSED_SKELETON_CATALOG);
+		expect(copied.project.name).toBe("Beacon");
+		expect(copied.project.name).not.toBe(created.project.name);
+		expect(copied.project).not.toHaveProperty("walls");
+		expect(copied.project).not.toHaveProperty("documents");
+		expect(copied.project).not.toHaveProperty("templateMarketplace");
+		expect(copied.project).not.toHaveProperty("duplicateProject");
+		expect(livingRecordKeys(copied.project)).toEqual([]);
+		expect(await getProject(prisma, created.project.id)).toEqual(
+			created.project
+		);
+	});
+
+	it("requires a founder-entered Project Name and a Workspace-unique Short code", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "copy-validate-source",
+					name: "Payments",
+					starterConfiguration: "Blank Project",
+					workspaceId,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		expect(
+			await copyProjectStructure(
+				prisma,
+				copyCommand(
+					{
+						idempotencyKey: "copy-missing-name",
+						sourceProjectId: created.project.id,
+						workspaceId,
+					},
+					actorId
+				)
+			)
+		).toEqual({
+			reason: "missing-project-name",
+			status: "rejected",
+		});
+		expect(
+			await copyProjectStructure(
+				prisma,
+				copyCommand(
+					{
+						idempotencyKey: "copy-taken-code",
+						name: "North",
+						shortCode: "PAY",
+						sourceProjectId: created.project.id,
+						workspaceId,
+					},
+					actorId
+				)
+			)
+		).toEqual({
+			reason: "short-code-taken",
+			status: "rejected",
+		});
+		expect(
+			await copyProjectStructure(
+				prisma,
+				copyCommand(
+					{
+						idempotencyKey: "copy-invalid-code",
+						name: "North",
+						shortCode: "N",
+						sourceProjectId: created.project.id,
+						workspaceId,
+					},
+					actorId
+				)
+			)
+		).toEqual({
+			reason: "short-code-invalid",
+			status: "rejected",
+		});
+		expect(await listProjects(prisma, workspaceId)).toEqual([created.project]);
 	});
 
 	it("drops a Prisma client that cannot record skeleton catalog selection", () => {
