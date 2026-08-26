@@ -703,15 +703,11 @@ async function hydrateStructure(
 	prisma: PrismaClient,
 	row: ProjectRow
 ): Promise<ProjectRow> {
+	if (row.workStatuses.length > 0) {
+		return row;
+	}
 	if (!isStarterConfiguration(row.starterConfiguration)) {
 		throw new Error("unknown-starter-configuration");
-	}
-	const needsStructure = row.workStatuses.length === 0;
-	const needsSkeletons =
-		row.skeletonSelections.length === 0 &&
-		selectedSkeletonsFor(row.starterConfiguration).length > 0;
-	if (!(needsStructure || needsSkeletons)) {
-		return row;
 	}
 	return await prisma.$transaction(async (tx) => {
 		await lockProject(tx, row.id);
@@ -719,22 +715,13 @@ async function hydrateStructure(
 		if (!locked) {
 			throw new Error("target-not-found");
 		}
+		if (locked.workStatuses.length > 0) {
+			return locked;
+		}
 		if (!isStarterConfiguration(locked.starterConfiguration)) {
 			throw new Error("unknown-starter-configuration");
 		}
-		const lockedNeedsStructure = locked.workStatuses.length === 0;
-		const lockedNeedsSkeletons =
-			locked.skeletonSelections.length === 0 &&
-			selectedSkeletonsFor(locked.starterConfiguration).length > 0;
-		if (lockedNeedsStructure) {
-			await persistAppliedStructure(tx, locked.id, locked.starterConfiguration);
-		} else if (lockedNeedsSkeletons) {
-			await persistSkeletonSelections(
-				tx,
-				locked.id,
-				locked.starterConfiguration
-			);
-		}
+		await persistAppliedStructure(tx, locked.id, locked.starterConfiguration);
 		const hydrated = await loadProject(tx, locked.id);
 		if (!hydrated) {
 			throw new Error("target-not-found");
