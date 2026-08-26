@@ -1,10 +1,12 @@
 model Workspace {
-  id        String   @id
-  name      String
-  ownerId   String   @unique
-  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                    String                          @id
+  name                  String
+  ownerId               String                          @unique
+  owner                 User                            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt             DateTime                        @default(now())
+  updatedAt             DateTime                        @updatedAt
+  projects              Project[]
+  shortCodeReservations WorkspaceShortCodeReservation[]
 
   @@map("workspace")
 }
