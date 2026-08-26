@@ -63,9 +63,6 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Köken konumu | `Origin Location` | Sahipli bileşenden üretilen kaydın kesin kaynak öğe işaretidir; bağımsız ilişki ucu değildir |
 | Hedefe katkı | `Contributes to Goal` | İş, Kilometre Taşı veya Proje Sürümünün Proje Hedefine türlenmiş katkı ilişkisidir |
 | Çalışma Alanı çıkış paketi | `Workspace Exit Package` | Kullanıcı parolasıyla şifrelenmiş tam Çalışma Alanı arşividir; ürün içi restore değildir |
-| Çevrimdışısın | `You’re offline` | Online-only çalışmada bağlantı kesilince kurucuya gösterilen boş durum başlığı |
-| Son kayıt | `Last saved` | Son başarılı sunucu yazmasının Hesap locale ve saat diliminde biçimlenmiş zamanı |
-| Yazılmamış değişiklikler kaybolabilir | `Unsaved changes may be lost` | Sunucuya yazılmamış değişiklik varken bağlantı kesilince gösterilen risk satırı |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 
