@@ -23,6 +23,7 @@ CREATE TABLE "project" (
 CREATE TABLE "workspace_short_code_reservation" (
     "id" TEXT NOT NULL,
     "workspaceId" TEXT NOT NULL,
+    "projectId" TEXT,
     "shortCode" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

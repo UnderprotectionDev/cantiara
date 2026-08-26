@@ -24,6 +24,7 @@ model WorkspaceShortCodeReservation {
   id          String    @id
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projectId   String?
   shortCode   String
   createdAt   DateTime  @default(now())
 

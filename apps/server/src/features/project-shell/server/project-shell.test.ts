@@ -419,6 +419,26 @@ describe("Project Shell", () => {
 			reason: "short-code-taken",
 			status: "rejected",
 		});
+		if (renamed.status !== "committed") {
+			throw new Error("expected committed Short code");
+		}
+		expect(
+			await updateShortCode(prisma, {
+				actorId,
+				baseRevision: renamed.project.revision,
+				idempotencyKey: "restore-bil",
+				origin: "human",
+				projectId: created.project.id,
+				shortCode: "BIL",
+			})
+		).toMatchObject({
+			project: {
+				id: created.project.id,
+				shortCode: "BIL",
+				shortCodeLocked: false,
+			},
+			status: "committed",
+		});
 	});
 
 	it("locks the Short code after the first Work exists", async () => {
@@ -632,6 +652,9 @@ describe("Project Shell", () => {
 			"Starter Configuration"
 		);
 		expect(PROJECT_SHELL_COPY.createProject).toBe("Create Project");
+		expect(PROJECT_SHELL_COPY.shortCodeLocked).toBe(
+			"Short code is locked after the first Work."
+		);
 		expect(JSON.stringify(PROJECT_SHELL_COPY)).not.toMatch(
 			COPY_BRANDING_PATTERN
 		);

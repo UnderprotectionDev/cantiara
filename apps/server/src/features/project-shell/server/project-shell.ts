@@ -138,7 +138,13 @@ export async function permanentlyDeleteProject(
 	prisma: PrismaClient,
 	projectId: string
 ): Promise<void> {
-	await prisma.project.deleteMany({ where: { id: projectId } });
+	await prisma.$transaction(async (tx) => {
+		await tx.workspaceShortCodeReservation.updateMany({
+			data: { projectId: null },
+			where: { projectId },
+		});
+		await tx.project.deleteMany({ where: { id: projectId } });
+	});
 }
 
 function parseCreateCommand(
@@ -226,6 +232,15 @@ async function createInTransaction(
 		return shortCode.outcome;
 	}
 	const projectId = crypto.randomUUID();
+	const claimed = await claimShortCode(
+		tx,
+		command.workspaceId,
+		projectId,
+		shortCode.value
+	);
+	if (claimed === "taken") {
+		return { reason: "short-code-taken", status: "rejected" };
+	}
 	const row = await tx.project.create({
 		data: {
 			hasWork: false,
@@ -240,13 +255,6 @@ async function createInTransaction(
 			shortCode: shortCode.value,
 			starterConfiguration: validated.starterConfiguration,
 			targetDate: validated.targetDate,
-			workspaceId: command.workspaceId,
-		},
-	});
-	await tx.workspaceShortCodeReservation.create({
-		data: {
-			id: crypto.randomUUID(),
-			shortCode: shortCode.value,
 			workspaceId: command.workspaceId,
 		},
 	});
@@ -297,17 +305,15 @@ async function updateInTransaction(
 		return { reason: "short-code-invalid", status: "rejected" };
 	}
 	if (shortCode !== locked.shortCode) {
-		const reserved = await reservedCodes(tx, locked.workspaceId);
-		if (reserved.has(shortCode)) {
+		const claimed = await claimShortCode(
+			tx,
+			locked.workspaceId,
+			locked.id,
+			shortCode
+		);
+		if (claimed === "taken") {
 			return { reason: "short-code-taken", status: "rejected" };
 		}
-		await tx.workspaceShortCodeReservation.create({
-			data: {
-				id: crypto.randomUUID(),
-				shortCode,
-				workspaceId: locked.workspaceId,
-			},
-		});
 	}
 	const updated = await tx.project.update({
 		data: {
@@ -461,6 +467,31 @@ async function writeReceipt(
 			targetId: input.project.id,
 		},
 	});
+}
+
+async function claimShortCode(
+	tx: PrismaTransaction,
+	workspaceId: string,
+	projectId: string,
+	shortCode: string
+): Promise<"ok" | "taken"> {
+	const existing = await tx.workspaceShortCodeReservation.findUnique({
+		where: {
+			workspaceId_shortCode: { shortCode, workspaceId },
+		},
+	});
+	if (existing) {
+		return existing.projectId === projectId ? "ok" : "taken";
+	}
+	await tx.workspaceShortCodeReservation.create({
+		data: {
+			id: crypto.randomUUID(),
+			projectId,
+			shortCode,
+			workspaceId,
+		},
+	});
+	return "ok";
 }
 
 async function reservedCodes(

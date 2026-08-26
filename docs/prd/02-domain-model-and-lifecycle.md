@@ -30,6 +30,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Başlangıç yapılandırması | `Starter Configuration` | Yeni Projeye bir kez uygulanan, içerik üretmeyen kapalı varsayılan yapı seçimi; sonradan başka yapılandırmayla değiştirilmez |
 | Proje adı | `Project Name` | Yeni Proje oluştururken zorunlu ad |
 | Proje kısa kodu | `Short code` | İş anahtarı öneki; Çalışma Alanında benzersizdir ve ilk İşten sonra değişmez |
+| Kısa kod kilitli | `Short code is locked after the first Work.` | İlk İşten sonra kısa kodun değişmeyeceğini bildiren metin |
 | Amaç | `Purpose` | İsteğe bağlı Proje profil alanı |
 | Problem | `Problem` | İsteğe bağlı çözülmek istenen problem |
 | Kapsam | `Scope` | İsteğe bağlı kapsam sınırı |

@@ -13,6 +13,7 @@ test("English chrome uses Project Name and Short code", () => {
 		createProject: "Create Project",
 		projectName: "Project Name",
 		shortCode: "Short code",
+		shortCodeLocked: "Short code is locked after the first Work.",
 		starterConfiguration: "Starter Configuration",
 	});
 	expect(STARTER_CONFIGURATIONS).toEqual([
