@@ -3,9 +3,11 @@
  * short-code suggest/reserve, uniqueness in the Workspace, lock after
  * first Work (Work create is a test double that only exists), GitHub
  * not required, four-configuration apply-once matrix, no sample
- * content, and dismissible first-open explanation. Synthetic/real-project
+ * content, dismissible first-open explanation, and skeleton catalog
+ * selection metadata without living Document or Wall records. Synthetic
  * fixture for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (İlk Proje).
+ * (İlk Proje selection half; Başlangıç iskeletleri golden living
+ * structures wait on 31 and 51).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -36,6 +38,78 @@ const DATABASE_URL =
 const ACTOR_ID = "founder-1";
 const BRANDING_KEY_PATTERN = /color|css|font|theme|github/i;
 const COPY_BRANDING_PATTERN = /color|CSS|font/i;
+const LIVING_RECORD_KEY_PATTERN =
+	/closure|document|marketplace|sample|template|wall/i;
+const CLOSED_SKELETON_CATALOG = [
+	{
+		emptyHeadings: [
+			"Primary Navigation",
+			"Secondary Navigation",
+			"Utility",
+			"External",
+		],
+		name: "Sitemap",
+		surface: "Project Wall",
+	},
+	{
+		emptyHeadings: [
+			"Awareness",
+			"Consideration",
+			"Onboarding",
+			"Core Use",
+			"Retention",
+		],
+		name: "Customer Journey",
+		surface: "Project Wall",
+	},
+	{
+		emptyHeadings: [
+			"Context",
+			"Goals",
+			"Behaviors",
+			"Pain Points",
+			"Constraints",
+			"Evidence",
+			"Open Questions",
+		],
+		name: "Persona",
+		surface: "Document",
+	},
+	{
+		emptyHeadings: [
+			"Period",
+			"What worked?",
+			"What did not?",
+			"What did we learn?",
+			"Decisions",
+			"Next changes",
+			"Related records",
+		],
+		name: "Retrospective",
+		surface: "Document",
+	},
+	{
+		emptyHeadings: [
+			"Release",
+			"Audience",
+			"Scope",
+			"Readiness",
+			"Communication",
+			"Launch steps",
+			"Risks",
+			"Observation plan",
+			"Related records",
+		],
+		name: "Launch Plan",
+		surface: "Document",
+	},
+] as const;
+
+function livingRecordKeys(value: object): string[] {
+	return Object.keys(value).filter((key) =>
+		LIVING_RECORD_KEY_PATTERN.test(key)
+	);
+}
 
 function brandingKeys(value: object): string[] {
 	return Object.keys(value).filter((key) => BRANDING_KEY_PATTERN.test(key));
@@ -815,6 +889,50 @@ describe("Project Shell", () => {
 		]);
 	});
 
+	it("selects the closed skeleton catalog as metadata without living Document or Wall records", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await Promise.all(
+			STARTER_CONFIGURATIONS.map(async (starterConfiguration) => {
+				const outcome = await createProject(
+					prisma,
+					createCommand(
+						{
+							idempotencyKey: `skeleton-${starterConfiguration}`,
+							name: starterConfiguration,
+							starterConfiguration,
+							workspaceId,
+						},
+						actorId
+					)
+				);
+				expect(outcome.status).toBe("committed");
+				if (outcome.status !== "committed") {
+					throw new Error("expected committed Project");
+				}
+				return outcome.project;
+			})
+		);
+		const [blank, saas, library, mobile] = created;
+		expect(blank?.selectedSkeletons).toEqual([]);
+		expect(saas?.selectedSkeletons).toEqual(CLOSED_SKELETON_CATALOG);
+		expect(library?.selectedSkeletons).toEqual(CLOSED_SKELETON_CATALOG);
+		expect(mobile?.selectedSkeletons).toEqual(CLOSED_SKELETON_CATALOG);
+		expect(
+			created.flatMap((project) => livingRecordKeys(project ?? {}))
+		).toEqual([]);
+		for (const project of created) {
+			expect(project).not.toHaveProperty("closureSummaryDraft");
+			expect(project).not.toHaveProperty("documents");
+			expect(project).not.toHaveProperty("templateMarketplace");
+			expect(project).not.toHaveProperty("walls");
+		}
+		expect(
+			await Promise.all(
+				created.map((project) => getProject(prisma, project?.id ?? ""))
+			)
+		).toEqual(created);
+	});
+
 	it("does not re-apply a Starter Configuration after create", async () => {
 		const { actorId, workspaceId } = await seedWorkspace(prisma);
 		const blank = await createProject(
@@ -851,6 +969,7 @@ describe("Project Shell", () => {
 		expect(afterOtherCreate?.stages).toEqual([]);
 		expect(afterOtherCreate?.enabledAreas).toEqual(["Work", "Documents"]);
 		expect(afterOtherCreate?.pinnedAreas).toEqual([]);
+		expect(afterOtherCreate?.selectedSkeletons).toEqual([]);
 		expect(afterOtherCreate?.workViews).toEqual(["Backlog", "Board"]);
 		expect(afterOtherCreate?.starterConfiguration).toBe("Blank Project");
 		const renamed = await updateShortCode(prisma, {
@@ -866,8 +985,10 @@ describe("Project Shell", () => {
 		}
 		expect(renamed.project.stages).toEqual([]);
 		expect(renamed.project.enabledAreas).toEqual(["Work", "Documents"]);
+		expect(renamed.project.selectedSkeletons).toEqual([]);
 		expect(renamed.project.starterConfiguration).toBe("Blank Project");
 		expect(renamed.project.workViews).toEqual(["Backlog", "Board"]);
+		expect(saas.project.selectedSkeletons).toEqual(CLOSED_SKELETON_CATALOG);
 		expect(saas.project.stages).toEqual([
 			"Discovery",
 			"Design",
@@ -966,6 +1087,7 @@ describe("Project Shell", () => {
 				"GitHub",
 			],
 			pinnedAreas: ["Discovery", "Decisions", "Design", "Tests", "Releases"],
+			selectedSkeletons: CLOSED_SKELETON_CATALOG,
 			stages: [
 				"Discovery",
 				"Design",

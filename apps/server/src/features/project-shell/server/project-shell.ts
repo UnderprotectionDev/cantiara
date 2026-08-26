@@ -18,6 +18,8 @@ import {
 	dismissFirstOpenExplanationCommandSchema,
 	firstOpenExplanationFor,
 	isProjectAreaName,
+	isSkeletonName,
+	isSkeletonSurface,
 	isStarterConfiguration,
 	normalizeShortCode,
 	optionalDate,
@@ -31,6 +33,7 @@ import {
 	projectViewSchema,
 	STAGE_STATE,
 	type STARTER_CONFIGURATIONS,
+	selectedSkeletonsFor,
 	suggestAvailableShortCode,
 	type UpdateShortCodeCommand,
 	updateShortCodeCommandSchema,
@@ -56,6 +59,12 @@ interface ProjectRow {
 	revision: number;
 	scope: string | null;
 	shortCode: string;
+	skeletonSelections: Array<{
+		emptyHeadings: string[];
+		name: string;
+		sortOrder: number;
+		surface: string;
+	}>;
 	stages: Array<{ name: string; sortOrder: number }>;
 	starterConfiguration: string;
 	targetDate: string | null;
@@ -66,6 +75,7 @@ interface ProjectRow {
 
 const PROJECT_STRUCTURE_INCLUDE = {
 	areaSettings: true,
+	skeletonSelections: true,
 	stages: true,
 	workStatuses: true,
 	workViews: true,
@@ -693,11 +703,15 @@ async function hydrateStructure(
 	prisma: PrismaClient,
 	row: ProjectRow
 ): Promise<ProjectRow> {
-	if (row.workStatuses.length > 0) {
-		return row;
-	}
 	if (!isStarterConfiguration(row.starterConfiguration)) {
 		throw new Error("unknown-starter-configuration");
+	}
+	const needsStructure = row.workStatuses.length === 0;
+	const needsSkeletons =
+		row.skeletonSelections.length === 0 &&
+		selectedSkeletonsFor(row.starterConfiguration).length > 0;
+	if (!(needsStructure || needsSkeletons)) {
+		return row;
 	}
 	return await prisma.$transaction(async (tx) => {
 		await lockProject(tx, row.id);
@@ -705,13 +719,22 @@ async function hydrateStructure(
 		if (!locked) {
 			throw new Error("target-not-found");
 		}
-		if (locked.workStatuses.length > 0) {
-			return locked;
-		}
 		if (!isStarterConfiguration(locked.starterConfiguration)) {
 			throw new Error("unknown-starter-configuration");
 		}
-		await persistAppliedStructure(tx, locked.id, locked.starterConfiguration);
+		const lockedNeedsStructure = locked.workStatuses.length === 0;
+		const lockedNeedsSkeletons =
+			locked.skeletonSelections.length === 0 &&
+			selectedSkeletonsFor(locked.starterConfiguration).length > 0;
+		if (lockedNeedsStructure) {
+			await persistAppliedStructure(tx, locked.id, locked.starterConfiguration);
+		} else if (lockedNeedsSkeletons) {
+			await persistSkeletonSelections(
+				tx,
+				locked.id,
+				locked.starterConfiguration
+			);
+		}
 		const hydrated = await loadProject(tx, locked.id);
 		if (!hydrated) {
 			throw new Error("target-not-found");
@@ -768,6 +791,28 @@ async function persistAppliedStructure(
 			sortOrder,
 		})),
 	});
+	await persistSkeletonSelections(tx, projectId, starterConfiguration);
+}
+
+async function persistSkeletonSelections(
+	tx: PrismaTransaction,
+	projectId: string,
+	starterConfiguration: (typeof STARTER_CONFIGURATIONS)[number]
+): Promise<void> {
+	const selected = selectedSkeletonsFor(starterConfiguration);
+	if (selected.length === 0) {
+		return;
+	}
+	await tx.projectSkeletonSelection.createMany({
+		data: selected.map((skeleton, sortOrder) => ({
+			emptyHeadings: skeleton.emptyHeadings,
+			id: crypto.randomUUID(),
+			name: skeleton.name,
+			projectId,
+			sortOrder,
+			surface: skeleton.surface,
+		})),
+	});
 }
 
 function toView(row: ProjectRow): ProjectView {
@@ -822,6 +867,22 @@ function toView(row: ProjectRow): ProjectView {
 		purpose: row.purpose,
 		revision: row.revision,
 		scope: row.scope,
+		selectedSkeletons: [...row.skeletonSelections]
+			.sort((left, right) => left.sortOrder - right.sortOrder)
+			.map((skeleton) => {
+				if (
+					!(
+						isSkeletonName(skeleton.name) && isSkeletonSurface(skeleton.surface)
+					)
+				) {
+					throw new Error("unknown-starter-skeleton");
+				}
+				return {
+					emptyHeadings: skeleton.emptyHeadings,
+					name: skeleton.name,
+					surface: skeleton.surface,
+				};
+			}),
 		shortCode: row.shortCode,
 		shortCodeLocked: row.hasWork,
 		stages: [...row.stages]
