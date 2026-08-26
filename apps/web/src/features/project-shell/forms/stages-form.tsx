@@ -167,7 +167,7 @@ function StageRow({
 			<form className="flex flex-col gap-2" onSubmit={onNameSubmit}>
 				<Field>
 					<FieldLabel htmlFor={`stage-name-${stage.id}`}>
-						{PROJECT_SHELL_COPY.stages}
+						{stage.name}
 					</FieldLabel>
 					<Input
 						id={`stage-name-${stage.id}`}
@@ -179,23 +179,19 @@ function StageRow({
 					{PROJECT_SHELL_COPY.save}
 				</Button>
 			</form>
-			<Field>
-				<FieldLabel htmlFor={`stage-state-${stage.id}`}>
-					{PROJECT_SHELL_COPY.status}
-				</FieldLabel>
-				<NativeSelect
-					disabled={disabled}
-					id={`stage-state-${stage.id}`}
-					onChange={onStateChange}
-					value={stage.state}
-				>
-					{STAGE_STATES.map((state) => (
-						<NativeSelectOption key={state} value={state}>
-							{state}
-						</NativeSelectOption>
-					))}
-				</NativeSelect>
-			</Field>
+			<NativeSelect
+				aria-label={stage.name}
+				disabled={disabled}
+				id={`stage-state-${stage.id}`}
+				onChange={onStateChange}
+				value={stage.state}
+			>
+				{STAGE_STATES.map((state) => (
+					<NativeSelectOption key={state} value={state}>
+						{state}
+					</NativeSelectOption>
+				))}
+			</NativeSelect>
 			<div className="flex flex-wrap gap-2">
 				<Button
 					disabled={disabled || index === 0}

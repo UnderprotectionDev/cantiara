@@ -33,7 +33,9 @@ export function useConfigureProject(projectId: string, revision: number) {
 					setError(null);
 					return;
 				}
-				setError("Conflict");
+				if (outcome.status === "conflict") {
+					setError("Conflict");
+				}
 			},
 		})
 	);
