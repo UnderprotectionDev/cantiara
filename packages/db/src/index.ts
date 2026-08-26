@@ -1,6 +1,8 @@
 import { env } from "@cantiara/env/server";
 import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
 import { PrismaClient } from "../prisma/generated/client";
 
@@ -15,19 +17,23 @@ if (process.env.NEON_LOCAL === "true") {
 	neonConfig.useSecureWebSocket = false;
 	neonConfig.pipelineConnect = false;
 	neonConfig.wsProxy = () => `${proxy}/v1`;
-} else {
-	// Long-running bun --hot / Hono processes keep a PrismaNeon WebSocket open.
-	// When that socket dies, every session lookup hangs ~15s then throws
-	// Better Auth's "Failed to get session". HTTP fetch avoids that stale socket.
-	neonConfig.poolQueryViaFetch = true;
 }
 
 export function createPrismaClient() {
-	const adapter = new PrismaNeon({
-		connectionString: env.DATABASE_URL,
+	if (process.env.NEON_LOCAL === "true") {
+		return new PrismaClient({
+			adapter: new PrismaNeon({
+				connectionString: env.DATABASE_URL,
+			}),
+		});
+	}
+	// Long-running bun --hot / Hono processes cannot keep a PrismaNeon
+	// WebSocket alive. When that socket dies, Project writes hang ~16s then
+	// throw "Connection terminated unexpectedly". TCP pg is the same adapter
+	// Project Shell tests already use.
+	return new PrismaClient({
+		adapter: new PrismaPg(new Pool({ connectionString: env.DATABASE_URL })),
 	});
-
-	return new PrismaClient({ adapter });
 }
 
 let defaultPrisma: PrismaClient | undefined;
