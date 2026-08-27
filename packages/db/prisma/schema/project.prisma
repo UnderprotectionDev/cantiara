@@ -23,6 +23,7 @@ model Project {
   workStatuses                    ProjectWorkStatus[]
   works                           Work[]
   workKeyCounter                  ProjectWorkKeyCounter?
+  customFieldDefinitions          ProjectCustomFieldDefinition[]
 
   @@index([workspaceId])
   @@map("project")
