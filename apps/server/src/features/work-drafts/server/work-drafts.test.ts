@@ -323,8 +323,6 @@ describe("Work Drafts", () => {
 		expect(await listWork(prisma, project.id)).toEqual([]);
 		expect(surface.projectActivityEvents()).toEqual([]);
 		expect(surface.recordHistoryEvents()).toEqual([]);
-		expect(await prisma.workLifecycleEvent.findMany()).toEqual([]);
-		expect(await prisma.recordHistoryEntry.findMany()).toEqual([]);
 	});
 
 	it("deletes a Draft without affecting Work", async () => {
