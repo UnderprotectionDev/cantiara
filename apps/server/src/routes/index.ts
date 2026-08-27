@@ -6,6 +6,7 @@ import { accountPreferences } from "../features/account-preferences/server/prefe
 import { captureInbox } from "../features/capture-triage/server/capture-inbox-router";
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
+import { relationsRouter } from "../features/relations/server/relations-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
 import { workLifecycle } from "../features/work-lifecycle/server/work-lifecycle-rpc";
 
@@ -16,6 +17,7 @@ export const appRouter = {
 	clientShell,
 	projectOverview: projectOverviewRouter,
 	projectShell,
+	relations: relationsRouter,
 	workLifecycle,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	privateData: protectedProcedure.handler(({ context }) => ({

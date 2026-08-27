@@ -102,6 +102,14 @@ _Avoid_: Proje kabuğunu silme, bağımsız çocuk silme, kısmi Proje geri yük
 Bir ilişkinin sahibi yaşarken karşı ucunun çözülemediğini içerik sızdırmadan gösteren güvenli referans durumu ([kırık referans sunumu](docs/prd/02-domain-model-and-lifecycle.md#kirik-referans-sunumu)).
 _Avoid_: Yetim kaydı kopyalama, başka hedefe otomatik yönlendirme, silinmiş başlığı gösterme
 
+**Standart ilişki**:
+Kapalı katalogdaki iki uç, yön ve anlamı olan semantik bağ; gömülü kullanım veya Kanıt bağı uzmanlığı değildir ([standart ilişki türleri](docs/prd/02-domain-model-and-lifecycle.md#standart-ilişki-türleri)). UI: `Related`.
+_Avoid_: related-pile, kullanım bağı, otomatik grafik
+
+**Kullanım bağı**:
+Gömülü canlı kart, blok veya konumun kaynak kimliğini kopyasız izleyen türetilmiş bağ; semantik ilişki, `Related` veya Kanıt bağı değildir ([kullanım bağları](docs/prd/02-domain-model-and-lifecycle.md#kullanim-baglari)).
+_Avoid_: Related, geri bağlantı, Kanıt Rolü, ilişki sayısı
+
 **Belge kapsam taşıma seçimi**:
 Etkin bir Projedeki Belgeyi yalnız açıkça seçilen çocuk Belgeler ve aynı kaynağın sahip olduğu Dosya Ekleriyle kimliklerini koruyarak başka kapsama alan [taşıma sınırı](docs/prd/07-documents-and-knowledge.md#belge-kapsamı-taşıma-ve-kopyalama).
 _Avoid_: Bütün ilişki grafiğini taşıma, Belge kopyası, İş kapsamını değiştirme

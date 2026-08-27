@@ -1,5 +1,7 @@
 import { Button } from "@cantiara/ui/components/button";
 
+import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
+
 import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
 import ChangeWorkTypeForm from "../forms/change-work-type-form";
@@ -111,6 +113,11 @@ export default function WorkDetail({
 				revision={work.revision}
 				type={work.type}
 				workId={work.id}
+				works={works}
+			/>
+			<UsageLinksPanel
+				hostRecordId={work.id}
+				key={`${work.id}:usage:${work.revision}`}
 				works={works}
 			/>
 			<ChangeWorkTypeForm

@@ -32,6 +32,8 @@ describe("Prisma client current delegates", () => {
 			prismaClientHasCurrentDelegates({
 				...workDelegates(),
 				featureHealthUpdate: { findMany },
+				usageHostEmbed: { findMany },
+				usageLink: { findMany },
 				workMergeEvent: { create: () => undefined, findFirst: findMany },
 				workRelatedEdge: { findMany },
 				workRelation: { findMany },
