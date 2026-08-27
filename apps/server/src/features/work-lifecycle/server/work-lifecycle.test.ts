@@ -19,6 +19,7 @@ import {
 } from "../../project-shell/server/project-shell";
 import {
 	applyPlanningMembership,
+	archiveWork,
 	changeWorkStatus,
 	changeWorkType,
 	closeWork,
@@ -32,6 +33,7 @@ import {
 	previewClose,
 	previewWorkTypeChange,
 	reopenWork,
+	unarchiveWork,
 	updateWorkTitle,
 } from "./work-lifecycle";
 import { DEFAULT_WORK_TYPE } from "./work-lifecycle-model";
@@ -42,7 +44,7 @@ const DATABASE_URL =
 
 const HIERARCHY_PATTERN = /epic|subtask|parentId|parentWork/i;
 const MOVE_PATTERN = /moveWork|changeProject|reassignProject/i;
-const ARCHIVE_PATTERN = /archiv/i;
+const TRASH_PATTERN = /trash|deletedAt/i;
 const ENGLISH_WORK_TYPES = [
 	"Feature",
 	"Bug",
@@ -842,7 +844,10 @@ describe("Work Lifecycle", () => {
 		expect((await getProject(prisma, project.id))?.stages).toEqual(
 			stagesBefore
 		);
-		expect(JSON.stringify(abandoned)).not.toMatch(ARCHIVE_PATTERN);
+		expect(abandoned).toMatchObject({
+			status: "committed",
+			work: { archived: false, closureResult: "Abandoned" },
+		});
 		expect(
 			await closeWork(prisma, {
 				actorId,
@@ -1074,6 +1079,132 @@ describe("Work Lifecycle", () => {
 			closureResult: null,
 			status: "Not Started",
 		});
+	});
+
+	it("archives Work independently of status and result, drops it from the default list, and unarchives with the same identity", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const created = await createWork(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "archive-intake",
+					projectId: project.id,
+					title: "Intake checkout",
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const closed = await closeWork(prisma, {
+			actorId,
+			baseRevision: created.work.revision,
+			idempotencyKey: "archive-close",
+			origin: "human",
+			result: "Completed",
+			workId: created.work.id,
+		});
+		if (closed.status !== "committed") {
+			throw new Error("expected closed Work");
+		}
+		expect(closed.work.archived).toBe(false);
+		expect(await listWork(prisma, project.id)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					archived: false,
+					id: created.work.id,
+					key: "PAY-1",
+					status: "Closed",
+				}),
+			])
+		);
+		const archived = await archiveWork(prisma, {
+			actorId,
+			baseRevision: closed.work.revision,
+			idempotencyKey: "archive-closed",
+			origin: "human",
+			workId: created.work.id,
+		});
+		expect(archived).toMatchObject({
+			status: "committed",
+			work: {
+				archived: true,
+				closureResult: "Completed",
+				id: created.work.id,
+				key: "PAY-1",
+				status: "Closed",
+				title: "Intake checkout",
+			},
+		});
+		if (archived.status !== "committed") {
+			throw new Error("expected archived Work");
+		}
+		expect(JSON.stringify(archived.work)).not.toMatch(TRASH_PATTERN);
+		expect(await listWork(prisma, project.id)).toEqual([]);
+		expect(await listWork(prisma, project.id, { archived: true })).toEqual([
+			archived.work,
+		]);
+		expect(await getWork(prisma, created.work.id)).toEqual(archived.work);
+		const restored = await unarchiveWork(prisma, {
+			actorId,
+			baseRevision: archived.work.revision,
+			idempotencyKey: "unarchive-closed",
+			origin: "human",
+			workId: created.work.id,
+		});
+		expect(restored).toMatchObject({
+			status: "committed",
+			work: {
+				archived: false,
+				closureResult: "Completed",
+				id: created.work.id,
+				key: "PAY-1",
+				status: "Closed",
+			},
+		});
+		if (restored.status !== "committed") {
+			throw new Error("expected unarchived Work");
+		}
+		expect(await listWork(prisma, project.id)).toEqual([restored.work]);
+		expect(await listWork(prisma, project.id, { archived: true })).toEqual([]);
+		const openWork = await createWork(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "archive-open-create",
+					projectId: project.id,
+					title: "Parked idea",
+				},
+				actorId
+			)
+		);
+		if (openWork.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const archivedOpen = await archiveWork(prisma, {
+			actorId,
+			baseRevision: openWork.work.revision,
+			idempotencyKey: "archive-open",
+			origin: "human",
+			workId: openWork.work.id,
+		});
+		expect(archivedOpen).toMatchObject({
+			status: "committed",
+			work: {
+				archived: true,
+				closureResult: null,
+				id: openWork.work.id,
+				key: "PAY-2",
+				status: "Not Started",
+			},
+		});
+		expect(await listWork(prisma, project.id)).toEqual([restored.work]);
+		expect(
+			(await listWork(prisma, project.id, { archived: true })).map(
+				(work) => work.key
+			)
+		).toEqual(["PAY-2"]);
 	});
 
 	it("rejects a human create missing the client idempotency key", async () => {

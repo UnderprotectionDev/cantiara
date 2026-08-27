@@ -1,5 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
 
+import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
 import ChangeWorkTypeForm from "../forms/change-work-type-form";
 import ReopenWorkForm from "../forms/reopen-work-form";
@@ -11,6 +12,7 @@ import {
 } from "../forms/work-lifecycle-copy";
 
 export interface WorkRecord {
+	archived: boolean;
 	closureResult: ClosureResult | null;
 	id: string;
 	key: string;
@@ -76,6 +78,13 @@ export default function WorkDetail({
 				projectId={projectId}
 				revision={work.revision}
 				type={work.type}
+				workId={work.id}
+			/>
+			<ArchiveWorkForm
+				archived={work.archived}
+				key={`${work.id}:archive:${work.revision}`}
+				projectId={projectId}
+				revision={work.revision}
 				workId={work.id}
 			/>
 		</article>

@@ -1,3 +1,4 @@
+import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 
@@ -5,13 +6,17 @@ import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell
 import { orpc } from "@/utils/orpc";
 
 import CreateWorkForm from "../forms/create-work-form";
+import { WORK_LIFECYCLE_COPY } from "../forms/work-lifecycle-copy";
 import WorkDetail from "./work-detail";
 import WorkList from "./work-list";
 import { nextSelectedWorkId } from "./work-selection";
 
 export default function WorkArea({ projectId }: { projectId: string }) {
+	const [archived, setArchived] = useState(false);
 	const work = useQuery(
-		orpc.workLifecycle.list.queryOptions({ input: { projectId } })
+		orpc.workLifecycle.list.queryOptions({
+			input: { archived, projectId },
+		})
 	);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -23,6 +28,11 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 	}, []);
 	const onCreated = useCallback((workId: string) => {
 		setSelectedId(workId);
+		setArchived(false);
+	}, []);
+	const onToggleArchiveFilter = useCallback(() => {
+		setArchived((current) => !current);
+		setSelectedId(null);
 	}, []);
 
 	useEffect(() => {
@@ -52,6 +62,15 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 	return (
 		<div className="flex flex-col gap-6">
 			<CreateWorkForm onCreated={onCreated} projectId={projectId} />
+			<Button
+				aria-pressed={archived}
+				onClick={onToggleArchiveFilter}
+				size="sm"
+				type="button"
+				variant={archived ? "secondary" : "ghost"}
+			>
+				{WORK_LIFECYCLE_COPY.archive}
+			</Button>
 			<WorkList
 				items={work.data}
 				onSelect={onSelect}

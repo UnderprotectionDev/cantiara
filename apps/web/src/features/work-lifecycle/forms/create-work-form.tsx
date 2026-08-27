@@ -40,6 +40,11 @@ export default function CreateWorkForm({
 				if (outcome.status === "committed" || outcome.status === "replayed") {
 					await queryClient.invalidateQueries({
 						queryKey: orpc.workLifecycle.list.queryKey({
+							input: { archived: false, projectId },
+						}),
+					});
+					await queryClient.invalidateQueries({
+						queryKey: orpc.workLifecycle.list.queryKey({
 							input: { projectId },
 						}),
 					});
