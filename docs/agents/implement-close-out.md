@@ -41,6 +41,6 @@ Değişiklik tarayıcıda test edilemiyorsa, bunu tek cümleyle söyle — komut
 
 ## Voice
 
-- Turkish prose throughout.
+- Anlaşılır, günlük Türkçe — kısa cümleler; jargon, iç şaka ve gereksiz teknik terim yok.
 - English UI labels from the owning spec stay English in backticks.
 - Proportional length — a one-file fix gets short sections; a feature gets more detail in **Ne eklendi** and **Nasıl test edilir**, not in **İnceleme**.
