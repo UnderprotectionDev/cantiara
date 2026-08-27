@@ -67,12 +67,18 @@ export const WORK_LIFECYCLE_COPY = {
 	inProgress: WORK_STATUS.inProgress,
 	keepLastingContext: "Keep lasting context",
 	key: "Key",
+	mergeAsDuplicate: "Merge as duplicate",
+	mergePreview: "Merge Preview",
 	notStarted: WORK_STATUS.notStarted,
 	noWork: "No Work yet.",
+	origin: "Origin",
 	primarySpec: "Primary spec",
 	reason: "Reason",
+	related: "Related",
+	relationsToRewrite: "Relations",
 	reopen: "Reopen",
 	returnToWork: "Return to work",
+	survivingRecord: "Surviving record",
 	title: "Title",
 	type: "Type",
 	work: "Work",
@@ -83,12 +89,20 @@ export const workStatusSchema = z.enum(WORK_STATUSES);
 export const nonTerminalWorkStatusSchema = z.enum(NON_TERMINAL_WORK_STATUSES);
 export const closureResultSchema = z.enum(CLOSURE_RESULTS);
 
+export const workOriginSchema = z.object({
+	id: z.string().min(1),
+	key: z.string().min(1),
+});
+
 export const workViewSchema = z.object({
 	closureResult: closureResultSchema.nullable().default(null),
 	id: z.string().min(1),
 	key: z.string().min(1),
+	latestMergeEventId: z.string().min(1).nullable().default(null),
 	number: z.number().int().positive(),
+	origin: workOriginSchema.nullable().default(null),
 	projectId: z.string().min(1),
+	retiredIdentities: z.array(workOriginSchema).default([]),
 	revision: z.number().int().positive(),
 	status: workStatusSchema,
 	title: z.string().min(1),
@@ -284,10 +298,127 @@ export const typeChangeImpactSchema = z.object({
 
 export type TypeChangeImpact = z.infer<typeof typeChangeImpactSchema>;
 
+export const WORK_MERGE_FIELDS = [
+	"title",
+	"type",
+	"status",
+	"closureResult",
+] as const;
+
+export type WorkMergeField = (typeof WORK_MERGE_FIELDS)[number];
+
+export const workMergeFieldChoiceSchema = z.enum(["survivor", "duplicate"]);
+
+export const workMergeFieldChoicesSchema = z.object({
+	closureResult: workMergeFieldChoiceSchema.optional(),
+	status: workMergeFieldChoiceSchema.optional(),
+	title: workMergeFieldChoiceSchema.optional(),
+	type: workMergeFieldChoiceSchema.optional(),
+});
+
+export type WorkMergeFieldChoices = z.infer<typeof workMergeFieldChoicesSchema>;
+
+export const previewWorkMergeInputSchema = z.object({
+	duplicateId: z.string().min(1),
+	survivorId: z.string().min(1),
+});
+
+export type PreviewWorkMergeInput = z.infer<typeof previewWorkMergeInputSchema>;
+
+export const mergeWorkCommandSchema = z.object({
+	actorId: z.string().min(1),
+	duplicateBaseRevision: z.number().int().nonnegative(),
+	duplicateId: z.string().min(1),
+	fieldChoices: workMergeFieldChoicesSchema.optional(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	previewAcknowledged: z.boolean().optional(),
+	survivorBaseRevision: z.number().int().nonnegative(),
+	survivorId: z.string().min(1),
+});
+
+export type MergeWorkCommand = z.infer<typeof mergeWorkCommandSchema>;
+
+export const undoWorkMergeCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	mergeEventId: z.string().min(1),
+	origin: z.literal("human"),
+	survivorId: z.string().min(1),
+});
+
+export type UndoWorkMergeCommand = z.infer<typeof undoWorkMergeCommandSchema>;
+
+export const workMergeConflictSchema = z.object({
+	duplicateValue: z.string(),
+	field: z.enum(WORK_MERGE_FIELDS),
+	survivorValue: z.string(),
+});
+
+export const workRelationRewriteSchema = z.object({
+	fromId: z.string().min(1),
+	kind: z.literal(WORK_LIFECYCLE_COPY.related),
+	rewrittenFromId: z.string().min(1),
+	rewrittenToId: z.string().min(1),
+	toId: z.string().min(1),
+});
+
+export const workMergePreviewSchema = z.object({
+	copy: z.object({
+		fieldConflicts: z.literal("Field conflicts"),
+		mergeAsDuplicate: z.literal(WORK_LIFECYCLE_COPY.mergeAsDuplicate),
+		mergePreview: z.literal(WORK_LIFECYCLE_COPY.mergePreview),
+		origin: z.literal(WORK_LIFECYCLE_COPY.origin),
+		related: z.literal(WORK_LIFECYCLE_COPY.related),
+		relationsToRewrite: z.literal(WORK_LIFECYCLE_COPY.relationsToRewrite),
+		survivingRecord: z.literal(WORK_LIFECYCLE_COPY.survivingRecord),
+	}),
+	duplicate: workViewSchema,
+	fieldConflicts: z.array(workMergeConflictSchema),
+	relationsToRewrite: z.array(workRelationRewriteSchema),
+	survivor: workViewSchema,
+});
+
+export type WorkMergePreview = z.infer<typeof workMergePreviewSchema>;
+
+export type WorkMergeOutcome =
+	| {
+			mergeEventId: string;
+			status: "committed";
+			undo: "Undo";
+			work: WorkView;
+	  }
+	| {
+			mergeEventId: string;
+			status: "replayed";
+			undo: "Undo";
+			work: WorkView;
+	  }
+	| { conflict: "Conflict"; status: "conflict" }
+	| {
+			conflict: "Conflict";
+			current: WorkView;
+			currentValueLabel: "Current value";
+			status: "conflict";
+	  }
+	| {
+			current: WorkView;
+			currentValueLabel: "Current value";
+			status: "stale";
+	  }
+	| {
+			reason: WorkLifecycleRejectionReason;
+			status: "rejected";
+	  };
+
 export type WorkLifecycleRejectionReason =
 	| "close-step-required"
 	| "feature-exit-blocked"
 	| "feature-impact-preview-required"
+	| "merge-conflicts-unresolved"
+	| "merge-preview-required"
+	| "merge-same-work"
 	| "missing-idempotency-key"
 	| "missing-title"
 	| "reopen-confirm-required"
@@ -391,6 +522,60 @@ export function typeChangeImpact(
 
 export function workKey(shortCode: string, number: number): string {
 	return `${shortCode}-${number}`;
+}
+
+export function workMergePreviewCopy() {
+	return {
+		fieldConflicts: "Field conflicts",
+		mergeAsDuplicate: WORK_LIFECYCLE_COPY.mergeAsDuplicate,
+		mergePreview: WORK_LIFECYCLE_COPY.mergePreview,
+		origin: WORK_LIFECYCLE_COPY.origin,
+		related: WORK_LIFECYCLE_COPY.related,
+		relationsToRewrite: WORK_LIFECYCLE_COPY.relationsToRewrite,
+		survivingRecord: WORK_LIFECYCLE_COPY.survivingRecord,
+	} as const;
+}
+
+export function mergeFieldDisplay(value: string | null): string {
+	return value ?? "";
+}
+
+export function workMergeConflicts(
+	survivor: WorkView,
+	duplicate: WorkView
+): Array<{
+	duplicateValue: string;
+	field: WorkMergeField;
+	survivorValue: string;
+}> {
+	return WORK_MERGE_FIELDS.flatMap((field) => {
+		const survivorValue = mergeFieldDisplay(survivor[field]);
+		const duplicateValue = mergeFieldDisplay(duplicate[field]);
+		if (survivorValue === duplicateValue) {
+			return [];
+		}
+		return [{ duplicateValue, field, survivorValue }];
+	});
+}
+
+export function chooseMergeFields(
+	survivor: WorkView,
+	duplicate: WorkView,
+	choices: WorkMergeFieldChoices | undefined
+):
+	| { attributed: Partial<Record<WorkMergeField, string>>; status: "ok" }
+	| { status: "unresolved" } {
+	const conflicts = workMergeConflicts(survivor, duplicate);
+	if (conflicts.some((conflict) => choices?.[conflict.field] === undefined)) {
+		return { status: "unresolved" };
+	}
+	const attributed: Partial<Record<WorkMergeField, string>> = {};
+	for (const conflict of conflicts) {
+		if (choices?.[conflict.field] === "duplicate") {
+			attributed[conflict.field] = conflict.duplicateValue;
+		}
+	}
+	return { attributed, status: "ok" };
 }
 
 export function optionalText(value: string | null | undefined): string | null {

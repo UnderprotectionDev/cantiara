@@ -26,12 +26,17 @@ import {
 	createWork,
 	finalizeDraft,
 	getWork,
+	getWorkByKey,
 	listWork,
 	listWorkLifecycleHistory,
+	listWorkRelations,
+	mergeWork,
 	permanentlyDeleteWork,
 	previewClose,
+	previewWorkMerge,
 	previewWorkTypeChange,
 	reopenWork,
+	undoWorkMerge,
 	updateWorkTitle,
 } from "./work-lifecycle";
 import { DEFAULT_WORK_TYPE } from "./work-lifecycle-model";
@@ -43,6 +48,10 @@ const DATABASE_URL =
 const HIERARCHY_PATTERN = /epic|subtask|parentId|parentWork/i;
 const MOVE_PATTERN = /moveWork|changeProject|reassignProject/i;
 const ARCHIVE_PATTERN = /archiv/i;
+const DUPLICATE_CLOSE_RESULT = /"closureResult":"Duplicate"/;
+const RECREATE_IN_ANOTHER_PROJECT = /recreate in another project/i;
+const CLOSED_STATUS = /"status":"Closed"/;
+const RECREATE_WORD = /recreate/i;
 const ENGLISH_WORK_TYPES = [
 	"Feature",
 	"Bug",
@@ -1094,4 +1103,369 @@ describe("Work Lifecycle", () => {
 			status: "rejected",
 		});
 	});
+
+	it("refuses Merge as duplicate without a preview of the surviving record", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const first = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-checkout"
+		);
+		const second = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout copy",
+			"create-checkout-copy"
+		);
+		expect(
+			await mergeWork(prisma, {
+				actorId,
+				duplicateBaseRevision: second.revision,
+				duplicateId: second.id,
+				idempotencyKey: "silent-merge",
+				origin: "human",
+				survivorBaseRevision: first.revision,
+				survivorId: first.id,
+			})
+		).toEqual({
+			reason: "merge-preview-required",
+			status: "rejected",
+		});
+		expect(await listWork(prisma, project.id)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: first.id, key: "PAY-1" }),
+				expect.objectContaining({ id: second.id, key: "PAY-2" }),
+			])
+		);
+	});
+
+	it("previews survivor, field conflicts, and relations before Merge as duplicate", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const survivor = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-survivor"
+		);
+		const duplicate = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout copy",
+			"create-duplicate",
+			"Bug"
+		);
+		const related = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Receipts",
+			"create-related"
+		);
+		await prisma.workRelation.create({
+			data: {
+				fromId: duplicate.id,
+				id: crypto.randomUUID(),
+				kind: "Related",
+				toId: related.id,
+			},
+		});
+		const preview = await previewWorkMerge(prisma, {
+			duplicateId: duplicate.id,
+			survivorId: survivor.id,
+		});
+		expect(preview).toMatchObject({
+			copy: {
+				fieldConflicts: "Field conflicts",
+				mergeAsDuplicate: "Merge as duplicate",
+				mergePreview: "Merge Preview",
+				origin: "Origin",
+				related: "Related",
+				relationsToRewrite: "Relations",
+				survivingRecord: "Surviving record",
+			},
+			duplicate: { id: duplicate.id, key: "PAY-2", title: "Checkout copy" },
+			fieldConflicts: [
+				{
+					duplicateValue: "Checkout copy",
+					field: "title",
+					survivorValue: "Checkout",
+				},
+				{
+					duplicateValue: "Bug",
+					field: "type",
+					survivorValue: "Task",
+				},
+			],
+			relationsToRewrite: [
+				{
+					fromId: duplicate.id,
+					kind: "Related",
+					rewrittenFromId: survivor.id,
+					rewrittenToId: related.id,
+					toId: related.id,
+				},
+			],
+			survivor: { id: survivor.id, key: "PAY-1", title: "Checkout" },
+		});
+		expect(JSON.stringify(preview)).not.toMatch(DUPLICATE_CLOSE_RESULT);
+		expect(JSON.stringify(preview)).not.toMatch(RECREATE_IN_ANOTHER_PROJECT);
+	});
+
+	it("consolidates into one surviving Work and retires the loser key as visible origin", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const survivor = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-survivor-commit"
+		);
+		const duplicate = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout copy",
+			"create-duplicate-commit",
+			"Bug"
+		);
+		const related = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Receipts",
+			"create-related-commit"
+		);
+		await prisma.workRelation.create({
+			data: {
+				fromId: duplicate.id,
+				id: crypto.randomUUID(),
+				kind: "Related",
+				toId: related.id,
+			},
+		});
+		const merged = await mergeWork(prisma, {
+			actorId,
+			duplicateBaseRevision: duplicate.revision,
+			duplicateId: duplicate.id,
+			fieldChoices: { title: "survivor", type: "duplicate" },
+			idempotencyKey: "merge-checkout",
+			origin: "human",
+			previewAcknowledged: true,
+			survivorBaseRevision: survivor.revision,
+			survivorId: survivor.id,
+		});
+		expect(merged).toMatchObject({
+			status: "committed",
+			undo: "Undo",
+			work: {
+				id: survivor.id,
+				key: "PAY-1",
+				retiredIdentities: [{ id: duplicate.id, key: "PAY-2" }],
+				title: "Checkout",
+				type: "Bug",
+			},
+		});
+		if (merged.status !== "committed") {
+			throw new Error("expected committed merge");
+		}
+		expect(merged.work.closureResult).not.toBe("Duplicate");
+		expect(await listWork(prisma, project.id)).toEqual([
+			expect.objectContaining({ id: survivor.id, key: "PAY-1" }),
+			expect.objectContaining({ id: related.id, key: "PAY-3" }),
+		]);
+		expect(await getWork(prisma, duplicate.id)).toMatchObject({
+			id: survivor.id,
+			key: "PAY-1",
+			origin: { id: duplicate.id, key: "PAY-2" },
+		});
+		expect(await getWorkByKey(prisma, project.id, "PAY-2")).toMatchObject({
+			id: survivor.id,
+			origin: { id: duplicate.id, key: "PAY-2" },
+		});
+		expect(await listWorkRelations(prisma, survivor.id)).toEqual([
+			{
+				fromId: survivor.id,
+				kind: "Related",
+				toId: related.id,
+			},
+		]);
+		expect(JSON.stringify(await listWork(prisma, project.id))).not.toMatch(
+			CLOSED_STATUS
+		);
+	});
+
+	it("does not merge from title similarity and is not Recreate in another Project", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		await createNamedWork(prisma, actorId, project.id, "Checkout", "similar-a");
+		await createNamedWork(prisma, actorId, project.id, "Checkout", "similar-b");
+		const listed = await listWork(prisma, project.id);
+		expect(listed).toHaveLength(2);
+		expect(listed.map((row) => row.key)).toEqual(["PAY-1", "PAY-2"]);
+		expect(listed[0]?.id).not.toBe(listed[1]?.id);
+		expect(listed[0]?.projectId).toBe(project.id);
+		expect(listed[1]?.projectId).toBe(project.id);
+		expect(JSON.stringify(listed)).not.toMatch(RECREATE_WORD);
+	});
+
+	it("undoes Merge as duplicate without deleting a later unrelated title write", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const survivor = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"undo-survivor"
+		);
+		const duplicate = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout copy",
+			"undo-duplicate",
+			"Bug"
+		);
+		const merged = await mergeWork(prisma, {
+			actorId,
+			duplicateBaseRevision: duplicate.revision,
+			duplicateId: duplicate.id,
+			fieldChoices: { title: "survivor", type: "duplicate" },
+			idempotencyKey: "merge-for-undo",
+			origin: "human",
+			previewAcknowledged: true,
+			survivorBaseRevision: survivor.revision,
+			survivorId: survivor.id,
+		});
+		if (merged.status !== "committed") {
+			throw new Error("expected committed merge");
+		}
+		const renamed = await updateWorkTitle(prisma, {
+			actorId,
+			baseRevision: merged.work.revision,
+			idempotencyKey: "later-title",
+			origin: "human",
+			title: "Checkout later",
+			workId: survivor.id,
+		});
+		if (renamed.status !== "committed") {
+			throw new Error("expected later title");
+		}
+		const undone = await undoWorkMerge(prisma, {
+			actorId,
+			baseRevision: renamed.work.revision,
+			idempotencyKey: "undo-merge",
+			mergeEventId: merged.mergeEventId,
+			origin: "human",
+			survivorId: survivor.id,
+		});
+		expect(undone).toMatchObject({
+			status: "committed",
+			work: {
+				id: survivor.id,
+				key: "PAY-1",
+				title: "Checkout later",
+				type: "Task",
+			},
+		});
+		expect(await getWork(prisma, duplicate.id)).toMatchObject({
+			id: duplicate.id,
+			key: "PAY-2",
+			origin: null,
+			title: "Checkout copy",
+			type: "Bug",
+		});
+		expect(await listWork(prisma, project.id)).toHaveLength(2);
+	});
+
+	it("refuses undo when a later write touched a merge-attributed field", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const survivor = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"conflict-survivor"
+		);
+		const duplicate = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout copy",
+			"conflict-duplicate"
+		);
+		const merged = await mergeWork(prisma, {
+			actorId,
+			duplicateBaseRevision: duplicate.revision,
+			duplicateId: duplicate.id,
+			fieldChoices: { title: "duplicate" },
+			idempotencyKey: "merge-attributed-title",
+			origin: "human",
+			previewAcknowledged: true,
+			survivorBaseRevision: survivor.revision,
+			survivorId: survivor.id,
+		});
+		if (merged.status !== "committed") {
+			throw new Error("expected committed merge");
+		}
+		const renamed = await updateWorkTitle(prisma, {
+			actorId,
+			baseRevision: merged.work.revision,
+			idempotencyKey: "later-attributed-title",
+			origin: "human",
+			title: "Checkout rewritten",
+			workId: survivor.id,
+		});
+		if (renamed.status !== "committed") {
+			throw new Error("expected later attributed title");
+		}
+		expect(
+			await undoWorkMerge(prisma, {
+				actorId,
+				baseRevision: renamed.work.revision,
+				idempotencyKey: "undo-attributed",
+				mergeEventId: merged.mergeEventId,
+				origin: "human",
+				survivorId: survivor.id,
+			})
+		).toMatchObject({
+			conflict: "Conflict",
+			current: { title: "Checkout rewritten" },
+			currentValueLabel: "Current value",
+			status: "conflict",
+		});
+		expect(await getWork(prisma, duplicate.id)).toMatchObject({
+			id: survivor.id,
+			origin: { key: "PAY-2" },
+		});
+	});
 });
+
+async function createNamedWork(
+	prisma: PrismaClient,
+	actorId: string,
+	projectId: string,
+	title: string,
+	idempotencyKey: string,
+	type?: string
+) {
+	const outcome = await createWork(
+		prisma,
+		createCommand(
+			{
+				idempotencyKey,
+				projectId,
+				title,
+				type,
+			},
+			actorId
+		)
+	);
+	if (outcome.status !== "committed") {
+		throw new Error(`expected committed ${title}`);
+	}
+	return outcome.work;
+}

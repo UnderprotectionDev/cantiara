@@ -18,6 +18,7 @@ import {
 	type CreateWorkCommand,
 	changeWorkStatusCommandSchema,
 	changeWorkTypeCommandSchema,
+	chooseMergeFields,
 	closePreviewCopy,
 	closeWorkCommandSchema,
 	createWorkCommandSchema,
@@ -26,23 +27,35 @@ import {
 	isNonTerminalWorkStatus,
 	isWorkStatus,
 	isWorkType,
+	type MergeWorkCommand,
+	mergeWorkCommandSchema,
 	optionalText,
 	type PlanningMembershipOutcome,
 	type PreviewCloseInput,
 	previewCloseInputSchema,
+	previewWorkMergeInputSchema,
 	type ReopenWorkCommand,
 	reopenWorkCommandSchema,
 	type TypeChangeImpact,
 	typeChangeImpact,
+	type UndoWorkMergeCommand,
 	type UpdateWorkTitleCommand,
+	undoWorkMergeCommandSchema,
 	updateWorkTitleCommandSchema,
+	WORK_MERGE_FIELDS,
 	WORK_STATUS,
 	type WorkCreateSource,
 	type WorkLifecycleEventView,
 	type WorkLifecycleOutcome,
+	type WorkLifecycleRejectionReason,
+	type WorkMergeField,
+	type WorkMergeOutcome,
+	type WorkMergePreview,
 	type WorkType,
 	type WorkView,
 	workKey,
+	workMergeConflicts,
+	workMergePreviewCopy,
 	workViewSchema,
 } from "./work-lifecycle-model";
 
@@ -54,10 +67,25 @@ interface WorkRow {
 	key: string;
 	number: number;
 	projectId: string;
+	retiredIntoId: string | null;
 	revision: number;
 	status: string;
 	title: string;
 	type: string;
+}
+
+interface WorkOrigin {
+	id: string;
+	key: string;
+}
+
+interface MovedWorkRelation {
+	id: string;
+	kind: string;
+	originalFromId: string;
+	originalToId: string;
+	rewrittenFromId: string;
+	rewrittenToId: string;
 }
 
 export async function createWork(
@@ -276,12 +304,137 @@ export async function previewWorkTypeChange(
 	return typeChangeImpact(work.type, type);
 }
 
+export async function previewWorkMerge(
+	prisma: PrismaClient,
+	input: unknown
+): Promise<
+	| WorkMergePreview
+	| { reason: "target-not-found" | "merge-same-work" | "work-not-portable" }
+> {
+	const parsed = previewWorkMergeInputSchema.safeParse(input);
+	if (!parsed.success) {
+		return { reason: "target-not-found" };
+	}
+	if (parsed.data.survivorId === parsed.data.duplicateId) {
+		return { reason: "merge-same-work" };
+	}
+	const survivorRow = await prisma.work.findUnique({
+		where: { id: parsed.data.survivorId },
+	});
+	const duplicateRow = await prisma.work.findUnique({
+		where: { id: parsed.data.duplicateId },
+	});
+	if (!(survivorRow && duplicateRow)) {
+		return { reason: "target-not-found" };
+	}
+	if (survivorRow.retiredIntoId || duplicateRow.retiredIntoId) {
+		return { reason: "target-not-found" };
+	}
+	if (survivorRow.projectId !== duplicateRow.projectId) {
+		return { reason: "work-not-portable" };
+	}
+	return await buildMergePreview(prisma, survivorRow, duplicateRow);
+}
+
+export async function mergeWork(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkMergeOutcome> {
+	const parsed = parseMergeCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({
+		duplicateId: parsed.command.duplicateId,
+		fieldChoices: parsed.command.fieldChoices ?? {},
+		previewAcknowledged: parsed.command.previewAcknowledged ?? false,
+		survivorId: parsed.command.survivorId,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		mergeInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function undoWorkMerge(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkMergeOutcome> {
+	const parsed = parseUndoMergeCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({
+		mergeEventId: parsed.command.mergeEventId,
+		undo: true,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		undoMergeInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function listWorkRelations(
+	prisma: PrismaClient,
+	workId: string
+): Promise<Array<{ fromId: string; kind: string; toId: string }>> {
+	const rows = await prisma.workRelation.findMany({
+		orderBy: { createdAt: "asc" },
+		where: { OR: [{ fromId: workId }, { toId: workId }] },
+	});
+	return rows.map((row) => ({
+		fromId: row.fromId,
+		kind: row.kind,
+		toId: row.toId,
+	}));
+}
+
+export async function getWorkByKey(
+	prisma: PrismaClient,
+	projectId: string,
+	key: string
+): Promise<WorkView | null> {
+	const row = await prisma.work.findFirst({
+		where: { key, projectId },
+	});
+	if (!row) {
+		return null;
+	}
+	return await getWork(prisma, row.id);
+}
+
 export async function getWork(
 	prisma: PrismaClient,
 	workId: string
 ): Promise<WorkView | null> {
 	const row = await prisma.work.findUnique({ where: { id: workId } });
-	return row ? toView(row) : null;
+	if (!row) {
+		return null;
+	}
+	if (row.retiredIntoId) {
+		const survivor = await prisma.work.findUnique({
+			where: { id: row.retiredIntoId },
+		});
+		if (!survivor) {
+			return null;
+		}
+		return toView(survivor, {
+			latestMergeEventId: await loadLatestMergeEventId(prisma, survivor.id),
+			origin: { id: row.id, key: row.key },
+			retiredIdentities: await loadRetiredIdentities(prisma, survivor.id),
+		});
+	}
+	return toView(row, {
+		latestMergeEventId: await loadLatestMergeEventId(prisma, row.id),
+		origin: null,
+		retiredIdentities: await loadRetiredIdentities(prisma, row.id),
+	});
 }
 
 export async function listWork(
@@ -290,9 +443,38 @@ export async function listWork(
 ): Promise<WorkView[]> {
 	const rows = await prisma.work.findMany({
 		orderBy: { number: "asc" },
-		where: { projectId },
+		where: { projectId, retiredIntoId: null },
 	});
-	return rows.map(toView);
+	const identities = await prisma.work.findMany({
+		select: { id: true, key: true, retiredIntoId: true },
+		where: { retiredIntoId: { in: rows.map((row) => row.id) } },
+	});
+	const events = await prisma.workMergeEvent.findMany({
+		orderBy: { createdAt: "desc" },
+		where: { survivorId: { in: rows.map((row) => row.id) } },
+	});
+	const eventBySurvivor = new Map<string, string>();
+	for (const event of events) {
+		if (!eventBySurvivor.has(event.survivorId)) {
+			eventBySurvivor.set(event.survivorId, event.id);
+		}
+	}
+	const bySurvivor = new Map<string, WorkOrigin[]>();
+	for (const identity of identities) {
+		if (!identity.retiredIntoId) {
+			continue;
+		}
+		const current = bySurvivor.get(identity.retiredIntoId) ?? [];
+		current.push({ id: identity.id, key: identity.key });
+		bySurvivor.set(identity.retiredIntoId, current);
+	}
+	return rows.map((row) =>
+		toView(row, {
+			latestMergeEventId: eventBySurvivor.get(row.id) ?? null,
+			origin: null,
+			retiredIdentities: bySurvivor.get(row.id) ?? [],
+		})
+	);
 }
 
 export async function permanentlyDeleteWork(
@@ -385,6 +567,22 @@ function parseReopenCommand(
 	return parseKeyedCommand(command, reopenWorkCommandSchema);
 }
 
+function parseMergeCommand(
+	command: unknown
+):
+	| { command: MergeWorkCommand; status: "ok" }
+	| { outcome: WorkMergeOutcome; status: "rejected" } {
+	return parseKeyedCommand(command, mergeWorkCommandSchema);
+}
+
+function parseUndoMergeCommand(
+	command: unknown
+):
+	| { command: UndoWorkMergeCommand; status: "ok" }
+	| { outcome: WorkMergeOutcome; status: "rejected" } {
+	return parseKeyedCommand(command, undoWorkMergeCommandSchema);
+}
+
 function parseKeyedCommand<T>(
 	command: unknown,
 	schema: {
@@ -394,7 +592,10 @@ function parseKeyedCommand<T>(
 	}
 ):
 	| { command: T; status: "ok" }
-	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
+	| {
+			outcome: { reason: WorkLifecycleRejectionReason; status: "rejected" };
+			status: "rejected";
+	  } {
 	if (!isRecord(command)) {
 		return {
 			outcome: { reason: "missing-idempotency-key", status: "rejected" },
@@ -489,7 +690,7 @@ async function updateTitleInTransaction(
 	fingerprint: string
 ): Promise<WorkLifecycleOutcome> {
 	const current = await tx.work.findUnique({ where: { id: command.workId } });
-	if (!current) {
+	if (!current || current.retiredIntoId) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
 	await lockProject(tx, current.projectId);
@@ -498,7 +699,7 @@ async function updateTitleInTransaction(
 		return replayed;
 	}
 	const locked = await loadWork(tx, current.id);
-	if (!locked) {
+	if (!locked || locked.retiredIntoId) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
 	if (locked.revision !== command.baseRevision) {
@@ -523,7 +724,7 @@ async function updateTitleInTransaction(
 	if (!updated) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
-	const work = toView(updated);
+	const work = await viewFor(tx, updated);
 	await writeReceipt(tx, {
 		actorId: command.actorId,
 		commandKey,
@@ -540,7 +741,7 @@ async function changeTypeInTransaction(
 	fingerprint: string
 ): Promise<WorkLifecycleOutcome> {
 	const current = await tx.work.findUnique({ where: { id: command.workId } });
-	if (!current) {
+	if (!current || current.retiredIntoId) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
 	await lockProject(tx, current.projectId);
@@ -549,7 +750,7 @@ async function changeTypeInTransaction(
 		return replayed;
 	}
 	const locked = await loadWork(tx, current.id);
-	if (!(locked && isWorkType(locked.type))) {
+	if (!(locked && isWorkType(locked.type)) || locked.retiredIntoId) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
 	if (locked.revision !== command.baseRevision) {
@@ -590,7 +791,7 @@ async function changeTypeInTransaction(
 	if (!updated) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
-	const work = toView(updated);
+	const work = await viewFor(tx, updated);
 	await writeReceipt(tx, {
 		actorId: command.actorId,
 		commandKey,
@@ -813,7 +1014,7 @@ async function prepareWorkWrite(
 	| { row: WorkRow; status: "ok" }
 > {
 	const current = await tx.work.findUnique({ where: { id: workId } });
-	if (!current) {
+	if (!current || current.retiredIntoId) {
 		return {
 			outcome: { reason: "target-not-found", status: "rejected" },
 			status: "done",
@@ -845,7 +1046,7 @@ async function finishWrite(
 	if (!updated) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
-	const work = toView(updated);
+	const work = await viewFor(tx, updated);
 	await writeReceipt(tx, {
 		actorId,
 		commandKey,
@@ -938,7 +1139,7 @@ async function replayOrConflict(
 	}
 	const live = await loadWork(tx, existing.targetId);
 	if (live) {
-		return { status: "replayed", work: toView(live) };
+		return { status: "replayed", work: await viewFor(tx, live) };
 	}
 	const stored = storedWork(existing.resultValue);
 	if (!stored) {
@@ -990,7 +1191,18 @@ async function loadWork(
 	return await db.work.findUnique({ where: { id: workId } });
 }
 
-function toView(row: WorkRow): WorkView {
+function toView(
+	row: WorkRow,
+	identities: {
+		latestMergeEventId: string | null;
+		origin: WorkOrigin | null;
+		retiredIdentities: WorkOrigin[];
+	} = {
+		latestMergeEventId: null,
+		origin: null,
+		retiredIdentities: [],
+	}
+): WorkView {
 	if (!isWorkType(row.type)) {
 		throw new Error("unknown-work-type");
 	}
@@ -1008,13 +1220,589 @@ function toView(row: WorkRow): WorkView {
 		closureResult: row.status === WORK_STATUS.closed ? closureResult : null,
 		id: row.id,
 		key: row.key,
+		latestMergeEventId: identities.latestMergeEventId,
 		number: row.number,
+		origin: identities.origin,
 		projectId: row.projectId,
+		retiredIdentities: identities.retiredIdentities,
 		revision: row.revision,
 		status: row.status,
 		title: row.title,
 		type: row.type,
 	};
+}
+
+async function viewFor(
+	db: PrismaClient | PrismaTransaction,
+	row: WorkRow,
+	origin: WorkOrigin | null = null
+): Promise<WorkView> {
+	return toView(row, {
+		latestMergeEventId: await loadLatestMergeEventId(db, row.id),
+		origin,
+		retiredIdentities: await loadRetiredIdentities(db, row.id),
+	});
+}
+
+async function loadLatestMergeEventId(
+	db: PrismaClient | PrismaTransaction,
+	survivorId: string
+): Promise<string | null> {
+	const event = await db.workMergeEvent.findFirst({
+		orderBy: { createdAt: "desc" },
+		select: { id: true },
+		where: { survivorId },
+	});
+	return event?.id ?? null;
+}
+
+async function loadRetiredIdentities(
+	db: PrismaClient | PrismaTransaction,
+	survivorId: string
+): Promise<WorkOrigin[]> {
+	const rows = await db.work.findMany({
+		orderBy: { number: "asc" },
+		select: { id: true, key: true },
+		where: { retiredIntoId: survivorId },
+	});
+	return rows.map((row) => ({ id: row.id, key: row.key }));
+}
+
+async function buildMergePreview(
+	db: PrismaClient | PrismaTransaction,
+	survivorRow: WorkRow,
+	duplicateRow: WorkRow
+): Promise<WorkMergePreview> {
+	const survivor = await viewFor(db, survivorRow);
+	const duplicate = await viewFor(db, duplicateRow);
+	const relations = await db.workRelation.findMany({
+		orderBy: { createdAt: "asc" },
+		where: {
+			OR: [{ fromId: duplicateRow.id }, { toId: duplicateRow.id }],
+		},
+	});
+	return {
+		copy: workMergePreviewCopy(),
+		duplicate,
+		fieldConflicts: workMergeConflicts(survivor, duplicate),
+		relationsToRewrite: relations.flatMap((relation) => {
+			const rewrite = rewriteRelation(
+				relation,
+				survivorRow.id,
+				duplicateRow.id
+			);
+			if (!rewrite || rewrite.drop) {
+				return [];
+			}
+			return [
+				{
+					fromId: relation.fromId,
+					kind: "Related" as const,
+					rewrittenFromId: rewrite.fromId,
+					rewrittenToId: rewrite.toId,
+					toId: relation.toId,
+				},
+			];
+		}),
+		survivor,
+	};
+}
+
+function rewriteRelation(
+	relation: { fromId: string; toId: string },
+	survivorId: string,
+	duplicateId: string
+): { drop: boolean; fromId: string; toId: string } | null {
+	const fromId = relation.fromId === duplicateId ? survivorId : relation.fromId;
+	const toId = relation.toId === duplicateId ? survivorId : relation.toId;
+	if (fromId === toId) {
+		return { drop: true, fromId, toId };
+	}
+	if (fromId === relation.fromId && toId === relation.toId) {
+		return null;
+	}
+	return { drop: false, fromId, toId };
+}
+
+async function mergeInTransaction(
+	tx: PrismaTransaction,
+	command: MergeWorkCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkMergeOutcome> {
+	if (command.survivorId === command.duplicateId) {
+		return { reason: "merge-same-work", status: "rejected" };
+	}
+	const survivorRow = await tx.work.findUnique({
+		where: { id: command.survivorId },
+	});
+	const duplicateRow = await tx.work.findUnique({
+		where: { id: command.duplicateId },
+	});
+	if (
+		!(survivorRow && duplicateRow) ||
+		survivorRow.retiredIntoId ||
+		duplicateRow.retiredIntoId
+	) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await lockProject(tx, survivorRow.projectId);
+	const replayed = await replayMergeOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const survivor = await loadWork(tx, survivorRow.id);
+	const duplicate = await loadWork(tx, duplicateRow.id);
+	if (!(survivor && duplicate)) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (survivor.projectId !== duplicate.projectId) {
+		return { reason: "work-not-portable", status: "rejected" };
+	}
+	if (
+		survivor.revision !== command.survivorBaseRevision ||
+		duplicate.revision !== command.duplicateBaseRevision
+	) {
+		return {
+			current: await viewFor(tx, survivor),
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	if (command.previewAcknowledged !== true) {
+		return { reason: "merge-preview-required", status: "rejected" };
+	}
+	const survivorView = await viewFor(tx, survivor);
+	const duplicateView = await viewFor(tx, duplicate);
+	const chosen = chooseMergeFields(
+		survivorView,
+		duplicateView,
+		command.fieldChoices
+	);
+	if (chosen.status !== "ok") {
+		return { reason: "merge-conflicts-unresolved", status: "rejected" };
+	}
+	const nextFields = applyAttributedFields(survivor, chosen.attributed);
+	if (nextFields.status === WORK_STATUS.closed && !nextFields.closureResult) {
+		return { reason: "unknown-closure-result", status: "rejected" };
+	}
+	const moved = await rewriteDuplicateRelations(tx, survivor.id, duplicate.id);
+	await tx.work.update({
+		data: {
+			closureResult: nextFields.closureResult,
+			revision: survivor.revision + 1,
+			status: nextFields.status,
+			title: nextFields.title,
+			type: nextFields.type,
+		},
+		where: { id: survivor.id },
+	});
+	await tx.work.update({
+		data: { retiredIntoId: survivor.id },
+		where: { id: duplicate.id },
+	});
+	const mergeEventId = crypto.randomUUID();
+	const postMerge = await loadWork(tx, survivor.id);
+	if (!postMerge) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await tx.workMergeEvent.create({
+		data: {
+			attributedFields: JSON.stringify(chosen.attributed),
+			id: mergeEventId,
+			movedRelations: JSON.stringify(moved),
+			postMergeSurvivor: JSON.stringify(fieldSnapshot(postMerge)),
+			previousSurvivor: JSON.stringify(fieldSnapshot(survivor)),
+			retiredId: duplicate.id,
+			retiredSnapshot: JSON.stringify(duplicate),
+			survivorId: survivor.id,
+		},
+	});
+	const work = await viewFor(tx, postMerge);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		work,
+	});
+	return {
+		mergeEventId,
+		status: "committed",
+		undo: MUTATION_COPY.undo,
+		work,
+	};
+}
+
+function applyAttributedFields(
+	survivor: WorkRow,
+	attributed: Partial<Record<WorkMergeField, string>>
+): {
+	closureResult: string | null;
+	status: string;
+	title: string;
+	type: string;
+} {
+	const nextFields = {
+		closureResult: survivor.closureResult,
+		status: survivor.status,
+		title: survivor.title,
+		type: survivor.type,
+	};
+	for (const field of WORK_MERGE_FIELDS) {
+		const value = attributed[field];
+		if (value === undefined) {
+			continue;
+		}
+		if (field === "closureResult") {
+			nextFields.closureResult = value.length === 0 ? null : value;
+			continue;
+		}
+		nextFields[field] = value;
+	}
+	return nextFields;
+}
+
+async function rewriteDuplicateRelations(
+	tx: PrismaTransaction,
+	survivorId: string,
+	duplicateId: string
+): Promise<MovedWorkRelation[]> {
+	const relations = await tx.workRelation.findMany({
+		where: {
+			OR: [{ fromId: duplicateId }, { toId: duplicateId }],
+		},
+	});
+	const survivorRelations = await tx.workRelation.findMany({
+		where: {
+			OR: [{ fromId: survivorId }, { toId: survivorId }],
+		},
+	});
+	const existingKeys = new Set(
+		survivorRelations.map((row) => `${row.kind}:${row.fromId}:${row.toId}`)
+	);
+	const deleteIds: string[] = [];
+	const updates: Array<{ fromId: string; id: string; toId: string }> = [];
+	const moved: MovedWorkRelation[] = [];
+	for (const relation of relations) {
+		const rewrite = rewriteRelation(relation, survivorId, duplicateId);
+		if (!rewrite) {
+			continue;
+		}
+		moved.push({
+			id: relation.id,
+			kind: relation.kind,
+			originalFromId: relation.fromId,
+			originalToId: relation.toId,
+			rewrittenFromId: rewrite.fromId,
+			rewrittenToId: rewrite.toId,
+		});
+		if (rewrite.drop) {
+			deleteIds.push(relation.id);
+			continue;
+		}
+		const key = `${relation.kind}:${rewrite.fromId}:${rewrite.toId}`;
+		if (existingKeys.has(key)) {
+			deleteIds.push(relation.id);
+			continue;
+		}
+		existingKeys.add(key);
+		updates.push({
+			fromId: rewrite.fromId,
+			id: relation.id,
+			toId: rewrite.toId,
+		});
+	}
+	if (deleteIds.length > 0) {
+		await tx.workRelation.deleteMany({ where: { id: { in: deleteIds } } });
+	}
+	await Promise.all(
+		updates.map((update) =>
+			tx.workRelation.update({
+				data: { fromId: update.fromId, toId: update.toId },
+				where: { id: update.id },
+			})
+		)
+	);
+	return moved;
+}
+
+function fieldSnapshot(row: WorkRow): Record<WorkMergeField, string | null> {
+	return {
+		closureResult: row.closureResult,
+		status: row.status,
+		title: row.title,
+		type: row.type,
+	};
+}
+
+async function replayMergeOrConflict(
+	tx: PrismaTransaction,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkMergeOutcome | null> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (!existing) {
+		return null;
+	}
+	if (existing.payloadFingerprint !== fingerprint) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const live = await loadWork(tx, existing.targetId);
+	if (!live) {
+		const stored = storedWork(existing.resultValue);
+		if (!stored) {
+			return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		}
+		return {
+			mergeEventId: "",
+			status: "replayed",
+			undo: MUTATION_COPY.undo,
+			work: stored,
+		};
+	}
+	const event = await tx.workMergeEvent.findFirst({
+		orderBy: { createdAt: "desc" },
+		where: { survivorId: live.id },
+	});
+	return {
+		mergeEventId: event?.id ?? "",
+		status: "replayed",
+		undo: MUTATION_COPY.undo,
+		work: await viewFor(tx, live),
+	};
+}
+
+async function undoMergeInTransaction(
+	tx: PrismaTransaction,
+	command: UndoWorkMergeCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkMergeOutcome> {
+	const survivorRow = await tx.work.findUnique({
+		where: { id: command.survivorId },
+	});
+	if (!survivorRow || survivorRow.retiredIntoId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await lockProject(tx, survivorRow.projectId);
+	const replayed = await replayMergeOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const survivor = await loadWork(tx, survivorRow.id);
+	if (!survivor) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (survivor.revision !== command.baseRevision) {
+		return {
+			current: await viewFor(tx, survivor),
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	const event = await tx.workMergeEvent.findUnique({
+		where: { id: command.mergeEventId },
+	});
+	if (!event || event.survivorId !== survivor.id) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const attributed = parseAttributed(event.attributedFields);
+	const postMerge = parseFieldSnapshot(event.postMergeSurvivor);
+	const previous = parseFieldSnapshot(event.previousSurvivor);
+	if (hasLaterAttributedWrite(survivor, attributed, postMerge)) {
+		return {
+			conflict: MUTATION_COPY.conflict,
+			current: await viewFor(tx, survivor),
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "conflict",
+		};
+	}
+	const retiredSnapshot = parseRetiredSnapshot(event.retiredSnapshot);
+	if (!retiredSnapshot) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const restore: Record<string, string | null> = {};
+	for (const field of Object.keys(attributed) as WorkMergeField[]) {
+		restore[field] = previous[field] ?? null;
+	}
+	await tx.work.update({
+		data: {
+			closureResult:
+				"closureResult" in restore
+					? restore.closureResult
+					: survivor.closureResult,
+			revision: survivor.revision + 1,
+			status:
+				typeof restore.status === "string" ? restore.status : survivor.status,
+			title: typeof restore.title === "string" ? restore.title : survivor.title,
+			type: typeof restore.type === "string" ? restore.type : survivor.type,
+		},
+		where: { id: survivor.id },
+	});
+	await tx.work.update({
+		data: {
+			closureResult: retiredSnapshot.closureResult,
+			retiredIntoId: null,
+			status: retiredSnapshot.status,
+			title: retiredSnapshot.title,
+			type: retiredSnapshot.type,
+		},
+		where: { id: event.retiredId },
+	});
+	await restoreMovedRelations(tx, parseMovedRelations(event.movedRelations));
+	await tx.workMergeEvent.delete({ where: { id: event.id } });
+	const restored = await loadWork(tx, survivor.id);
+	if (!restored) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const work = await viewFor(tx, restored);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		work,
+	});
+	return {
+		mergeEventId: event.id,
+		status: "committed",
+		undo: MUTATION_COPY.undo,
+		work,
+	};
+}
+
+function hasLaterAttributedWrite(
+	survivor: WorkRow,
+	attributed: Partial<Record<WorkMergeField, string>>,
+	postMerge: Partial<Record<WorkMergeField, string | null>>
+): boolean {
+	return (Object.keys(attributed) as WorkMergeField[]).some(
+		(field) => mergeLiveValue(survivor, field) !== (postMerge[field] ?? "")
+	);
+}
+
+async function restoreMovedRelations(
+	tx: PrismaTransaction,
+	moved: MovedWorkRelation[]
+): Promise<void> {
+	if (moved.length === 0) {
+		return;
+	}
+	const existing = await tx.workRelation.findMany({
+		where: { id: { in: moved.map((relation) => relation.id) } },
+	});
+	const existingIds = new Set(existing.map((row) => row.id));
+	await Promise.all(
+		moved.map((relation) => {
+			if (existingIds.has(relation.id)) {
+				return tx.workRelation.update({
+					data: {
+						fromId: relation.originalFromId,
+						toId: relation.originalToId,
+					},
+					where: { id: relation.id },
+				});
+			}
+			return tx.workRelation.create({
+				data: {
+					fromId: relation.originalFromId,
+					id: relation.id,
+					kind: relation.kind,
+					toId: relation.originalToId,
+				},
+			});
+		})
+	);
+}
+
+function mergeLiveValue(row: WorkRow, field: WorkMergeField): string {
+	if (field === "closureResult") {
+		return row.closureResult ?? "";
+	}
+	return row[field];
+}
+
+function parseAttributed(
+	text: string
+): Partial<Record<WorkMergeField, string>> {
+	try {
+		const parsed: unknown = JSON.parse(text);
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			return {};
+		}
+		const record = parsed as Record<string, unknown>;
+		const attributed: Partial<Record<WorkMergeField, string>> = {};
+		for (const field of WORK_MERGE_FIELDS) {
+			if (typeof record[field] === "string") {
+				attributed[field] = record[field];
+			}
+		}
+		return attributed;
+	} catch {
+		return {};
+	}
+}
+
+function parseFieldSnapshot(
+	text: string
+): Partial<Record<WorkMergeField, string | null>> {
+	try {
+		const parsed: unknown = JSON.parse(text);
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			return {};
+		}
+		return parsed as Partial<Record<WorkMergeField, string | null>>;
+	} catch {
+		return {};
+	}
+}
+
+function parseRetiredSnapshot(text: string): WorkRow | null {
+	try {
+		const parsed: unknown = JSON.parse(text);
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			return null;
+		}
+		const record = parsed as Record<string, unknown>;
+		if (typeof record.id !== "string" || typeof record.key !== "string") {
+			return null;
+		}
+		return {
+			closureResult:
+				typeof record.closureResult === "string" ? record.closureResult : null,
+			id: record.id,
+			key: record.key,
+			number: typeof record.number === "number" ? record.number : 0,
+			projectId: String(record.projectId),
+			retiredIntoId:
+				typeof record.retiredIntoId === "string" ? record.retiredIntoId : null,
+			revision: typeof record.revision === "number" ? record.revision : 1,
+			status: String(record.status),
+			title: String(record.title),
+			type: String(record.type),
+		};
+	} catch {
+		return null;
+	}
+}
+
+function parseMovedRelations(text: string): MovedWorkRelation[] {
+	try {
+		const parsed: unknown = JSON.parse(text);
+		if (!Array.isArray(parsed)) {
+			return [];
+		}
+		return parsed.filter((row): row is MovedWorkRelation =>
+			Boolean(
+				row &&
+					typeof row === "object" &&
+					typeof (row as MovedWorkRelation).id === "string"
+			)
+		);
+	} catch {
+		return [];
+	}
 }
 
 function storedWork(text: string): WorkView | null {

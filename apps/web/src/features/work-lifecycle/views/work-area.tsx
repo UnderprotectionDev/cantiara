@@ -59,7 +59,15 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 			/>
 			{selected ? (
 				<WorkDetail
+					candidates={work.data
+						.filter((item) => item.id !== selected.id)
+						.map((item) => ({
+							id: item.id,
+							key: item.key,
+							title: item.title,
+						}))}
 					onClose={onClose}
+					onMerged={onCreated}
 					projectId={projectId}
 					work={selected}
 				/>

@@ -110,6 +110,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Araştırma | `Research` | İş türü |
 | İyileştirme | `Improvement` | İş türü |
 | İş oluştur | `Create Work` | Projede yalnız başlıkla İş oluşturma eylemi |
+| Kopya olarak birleştir | `Merge as duplicate` | Gerçek kopya iki İşi tek hayatta kalan ana kayıtta birleştirme; kaybedenin anahtarı emekli kimlik yönlendirmesidir |
+| Birleştirme önizlemesi | `Merge Preview` | Hayatta kalan kayıt, alan çatışmaları ve yeniden yazılacak ilişkilerin onay öncesi görünümü |
+| Hayatta kalan kayıt | `Surviving record` | Birleştirmede kalacak kanonik İş |
+| Alan çatışmaları | `Field conflicts` | Birleştirmede kullanıcı çözümü isteyen ayrışan alanlar |
+| İlişkiler | `Relations` | Birleştirmede hayatta kalana yazılacak ilişkiler |
+| Köken | `Origin` | Emekli kimliğin hayatta kalan kayda görünür yönlendirmesi |
+| İlgili | `Related` | Anlamsal bağ; kendiliğinden birleştirme değildir |
 | Başlık | `Title` | İş oluştururken zorunlu alan |
 | Tür | `Type` | İş türü alanı |
 | Anahtar | `Key` | Kullanıcıya dönük `{shortCode}-{n}` İş anahtarı |
