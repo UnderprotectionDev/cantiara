@@ -64,7 +64,7 @@ export type TagWriteOutcome =
 	| { conflict: string; status: "conflict" }
 	| { reason: string; status: "rejected" };
 
-export type TagMembershipOutcome =
+export type TagApplyOutcome =
 	| {
 			record: TaggedRecordView;
 			status: "committed";

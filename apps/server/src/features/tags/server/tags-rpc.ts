@@ -9,13 +9,12 @@ import { getWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	applyTag,
 	createTag,
-	listMemberships,
 	listRecords,
 	listTags,
+	listWorkTags,
 	removeTag,
 	suggestTags,
 } from "./tags";
-import { TAGS_COPY } from "./tags-model";
 
 async function requireAccess(userId: string) {
 	const access = await getAccountAccessForUser(getPrismaClient(), userId);
@@ -42,16 +41,16 @@ async function requireWork(workspaceId: string, workId: string) {
 	return work;
 }
 
+const applyInput = z.object({
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string(),
+	tagId: z.string().min(1),
+	workId: z.string().min(1),
+});
+
 export const tags = {
 	apply: protectedWriteProcedure
-		.input(
-			z.object({
-				baseRevision: z.number().int().nonnegative(),
-				idempotencyKey: z.string(),
-				tagId: z.string().min(1),
-				workId: z.string().min(1),
-			})
-		)
+		.input(applyInput)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireWork(access.workspaceId, input.workId);
@@ -61,7 +60,6 @@ export const tags = {
 				...input,
 			});
 		}),
-	catalog: protectedProcedure.handler(() => ({ copy: TAGS_COPY })),
 	create: protectedWriteProcedure
 		.input(
 			z.object({
@@ -83,13 +81,6 @@ export const tags = {
 		const access = await requireAccess(context.session.user.id);
 		return await listTags(getPrismaClient(), access.workspaceId);
 	}),
-	listMemberships: protectedProcedure
-		.input(z.object({ projectId: z.string().min(1) }))
-		.handler(async ({ context, input }) => {
-			const access = await requireAccess(context.session.user.id);
-			await requireProject(access.workspaceId, input.projectId);
-			return await listMemberships(getPrismaClient(), input.projectId);
-		}),
 	listRecords: protectedProcedure
 		.input(z.object({ tagId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -99,15 +90,15 @@ export const tags = {
 				workspaceId: access.workspaceId,
 			});
 		}),
+	listWorkTags: protectedProcedure
+		.input(z.object({ projectId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await listWorkTags(getPrismaClient(), input.projectId);
+		}),
 	remove: protectedWriteProcedure
-		.input(
-			z.object({
-				baseRevision: z.number().int().nonnegative(),
-				idempotencyKey: z.string(),
-				tagId: z.string().min(1),
-				workId: z.string().min(1),
-			})
-		)
+		.input(applyInput)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireWork(access.workspaceId, input.workId);

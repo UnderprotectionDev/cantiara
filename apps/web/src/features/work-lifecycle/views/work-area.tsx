@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
-import TagFilter from "@/features/tags/forms/tag-filter";
+import TagFilter from "@/features/tags/views/tag-filter";
 import { orpc } from "@/utils/orpc";
 
 import CreateWorkForm from "../forms/create-work-form";
@@ -24,9 +24,15 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 	const suggestions = useQuery(
 		orpc.tags.suggest.queryOptions({ input: { projectId } })
 	);
-	const memberships = useQuery(
-		orpc.tags.listMemberships.queryOptions({ input: { projectId } })
+	const workTags = useQuery(
+		orpc.tags.listWorkTags.queryOptions({ input: { projectId } })
 	);
+	const taggedRecords = useQuery({
+		...orpc.tags.listRecords.queryOptions({
+			input: { tagId: tagFilter },
+		}),
+		enabled: tagFilter !== "",
+	});
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 
 	const onSelect = useCallback((id: string) => {
@@ -67,11 +73,11 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 
 	const tagsByWork = useMemo(() => {
 		const map = new Map<string, string[]>();
-		for (const row of memberships.data ?? []) {
+		for (const row of workTags.data ?? []) {
 			map.set(row.workId, row.tagIds);
 		}
 		return map;
-	}, [memberships.data]);
+	}, [workTags.data]);
 	const tagName = useMemo(() => {
 		const map = new Map<string, string>();
 		for (const tag of suggestions.data ?? []) {
@@ -86,12 +92,20 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 	if (work.isError) {
 		return <p role="alert">{PROJECT_SHELL_COPY.unavailable}</p>;
 	}
+	if (tagFilter !== "" && taggedRecords.isPending) {
+		return <p>{PROJECT_SHELL_COPY.loading}</p>;
+	}
+	if (tagFilter !== "" && taggedRecords.isError) {
+		return <p role="alert">{PROJECT_SHELL_COPY.unavailable}</p>;
+	}
 
+	const taggedIds = new Set(
+		(taggedRecords.data ?? [])
+			.filter((record) => record.projectId === projectId)
+			.map((record) => record.id)
+	);
 	const items = work.data
-		.filter(
-			(item) =>
-				tagFilter === "" || (tagsByWork.get(item.id) ?? []).includes(tagFilter)
-		)
+		.filter((item) => tagFilter === "" || taggedIds.has(item.id))
 		.map((item) => ({
 			...item,
 			tags: (tagsByWork.get(item.id) ?? [])

@@ -1,6 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
 
-import WorkTagPicker from "@/features/tags/forms/work-tag-picker";
+import WorkTagPicker from "@/features/tags/views/work-tag-picker";
 
 import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";

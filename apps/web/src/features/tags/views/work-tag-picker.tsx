@@ -52,7 +52,7 @@ export default function WorkTagPicker({
 		orpc.tags.apply.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidateTags(projectId, workId);
+					await invalidateTags(projectId, workId, outcome.tag.id);
 					recordSave();
 					setError(null);
 					return;
@@ -65,7 +65,7 @@ export default function WorkTagPicker({
 		orpc.tags.remove.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidateTags(projectId, workId);
+					await invalidateTags(projectId, workId, outcome.tag.id);
 					recordSave();
 					setError(null);
 					return;
@@ -129,8 +129,17 @@ export default function WorkTagPicker({
 	);
 	const tags = suggestions.data ?? [];
 	const applied = new Set(appliedTagIds);
+	const query = name.trim().toLowerCase();
 	const appliedTags = tags.filter((tag) => applied.has(tag.id));
-	const available = tags.filter((tag) => !applied.has(tag.id));
+	const available = tags.filter((tag) => {
+		if (applied.has(tag.id)) {
+			return false;
+		}
+		if (query === "") {
+			return true;
+		}
+		return tag.name.toLowerCase().includes(query);
+	});
 	const pending = create.isPending || apply.isPending || remove.isPending;
 
 	return (

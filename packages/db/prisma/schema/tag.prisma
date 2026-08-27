@@ -6,7 +6,7 @@ model Tag {
   revision    Int
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  applications WorkTag[]
+  workTags WorkTag[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])

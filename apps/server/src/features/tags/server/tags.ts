@@ -14,8 +14,8 @@ import {
 	createTagCommandSchema,
 	type RemoveTagCommand,
 	removeTagCommandSchema,
+	type TagApplyOutcome,
 	type TaggedRecordView,
-	type TagMembershipOutcome,
 	type TagView,
 	type TagWriteOutcome,
 } from "./tags-model";
@@ -43,15 +43,15 @@ export async function createTag(
 export async function applyTag(
 	prisma: PrismaClient,
 	command: unknown
-): Promise<TagMembershipOutcome> {
-	return await mutateMembership(prisma, command, "apply");
+): Promise<TagApplyOutcome> {
+	return await mutateApply(prisma, command, "apply");
 }
 
 export async function removeTag(
 	prisma: PrismaClient,
 	command: unknown
-): Promise<TagMembershipOutcome> {
-	return await mutateMembership(prisma, command, "remove");
+): Promise<TagApplyOutcome> {
+	return await mutateApply(prisma, command, "remove");
 }
 
 export async function listTags(
@@ -114,13 +114,13 @@ export async function listRecords(
 		},
 	});
 	const workIds = rows.map((row) => row.workId);
-	const memberships = await loadTagIds(prisma, workIds);
+	const tagIdsByWork = await loadTagIds(prisma, workIds);
 	return rows.map((row) =>
-		toRecordView(row.work, memberships.get(row.workId) ?? [])
+		toRecordView(row.work, tagIdsByWork.get(row.workId) ?? [])
 	);
 }
 
-export async function listMemberships(
+export async function listWorkTags(
 	prisma: PrismaClient,
 	projectId: string
 ): Promise<Array<{ tagIds: string[]; workId: string }>> {
@@ -137,11 +137,11 @@ export async function listMemberships(
 	return [...byWork.entries()].map(([workId, tagIds]) => ({ tagIds, workId }));
 }
 
-async function mutateMembership(
+async function mutateApply(
 	prisma: PrismaClient,
 	command: unknown,
 	kind: "apply" | "remove"
-): Promise<TagMembershipOutcome> {
+): Promise<TagApplyOutcome> {
 	const parsed =
 		kind === "apply"
 			? applyTagCommandSchema.safeParse(command)
@@ -159,7 +159,7 @@ async function mutateMembership(
 		parsed.data.idempotencyKey
 	);
 	return await prisma.$transaction((tx) =>
-		membershipInTransaction(tx, parsed.data, commandKey, fingerprint, kind)
+		applyOrRemoveInTransaction(tx, parsed.data, commandKey, fingerprint, kind)
 	);
 }
 
@@ -211,13 +211,13 @@ async function createInTransaction(
 	return { status: "committed", tag };
 }
 
-async function membershipInTransaction(
+async function applyOrRemoveInTransaction(
 	tx: PrismaTransaction,
 	command: ApplyTagCommand | RemoveTagCommand,
 	commandKey: string,
 	fingerprint: string,
 	kind: "apply" | "remove"
-): Promise<TagMembershipOutcome> {
+): Promise<TagApplyOutcome> {
 	const work = await tx.work.findUnique({
 		include: { project: { select: { workspaceId: true } } },
 		where: { id: command.workId },
@@ -226,7 +226,7 @@ async function membershipInTransaction(
 		return { reason: "target-not-found", status: "rejected" };
 	}
 	await lockProject(tx, work.projectId);
-	const replayed = await replayMembership(tx, commandKey, fingerprint);
+	const replayed = await replayApply(tx, commandKey, fingerprint);
 	if (replayed) {
 		return replayed;
 	}
@@ -264,7 +264,7 @@ async function membershipInTransaction(
 	});
 	const tagIds = await loadTagIds(tx, [updated.id]);
 	const record = toRecordView(updated, tagIds.get(updated.id) ?? []);
-	await writeMembershipReceipt(tx, {
+	await writeApplyReceipt(tx, {
 		actorId: command.actorId,
 		commandKey,
 		fingerprint,
@@ -295,11 +295,11 @@ async function replayTagWrite(
 	return { conflict: MUTATION_COPY.conflict, status: "conflict" };
 }
 
-async function replayMembership(
+async function replayApply(
 	tx: PrismaTransaction,
 	commandKey: string,
 	fingerprint: string
-): Promise<TagMembershipOutcome | null> {
+): Promise<TagApplyOutcome | null> {
 	const existing = await tx.mutationReceipt.findUnique({
 		where: { commandKey },
 	});
@@ -309,7 +309,7 @@ async function replayMembership(
 	if (existing.payloadFingerprint !== fingerprint) {
 		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
 	}
-	const stored = storedMembership(existing.resultValue);
+	const stored = storedApply(existing.resultValue);
 	if (!stored) {
 		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
 	}
@@ -340,7 +340,7 @@ async function writeTagReceipt(
 	});
 }
 
-async function writeMembershipReceipt(
+async function writeApplyReceipt(
 	tx: PrismaTransaction,
 	input: {
 		actorId: string;
@@ -447,7 +447,7 @@ function toRecordView(
 	};
 }
 
-function storedMembership(
+function storedApply(
 	value: string
 ): { record: TaggedRecordView; tag: TagView } | null {
 	try {

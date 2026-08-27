@@ -1,6 +1,10 @@
 import { orpc, queryClient } from "@/utils/orpc";
 
-export async function invalidateTags(projectId: string, workId: string) {
+export async function invalidateTags(
+	projectId: string,
+	workId: string,
+	tagId?: string
+) {
 	await queryClient.invalidateQueries({
 		queryKey: orpc.workLifecycle.list.queryKey({
 			input: { archived: false, projectId },
@@ -30,8 +34,15 @@ export async function invalidateTags(projectId: string, workId: string) {
 		}),
 	});
 	await queryClient.invalidateQueries({
-		queryKey: orpc.tags.listMemberships.queryKey({
+		queryKey: orpc.tags.listWorkTags.queryKey({
 			input: { projectId },
 		}),
 	});
+	if (tagId) {
+		await queryClient.invalidateQueries({
+			queryKey: orpc.tags.listRecords.queryKey({
+				input: { tagId },
+			}),
+		});
+	}
 }

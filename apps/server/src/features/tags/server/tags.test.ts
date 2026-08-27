@@ -20,9 +20,9 @@ import {
 import {
 	applyTag,
 	createTag,
-	listMemberships,
 	listRecords,
 	listTags,
+	listWorkTags,
 	removeTag,
 	suggestTags,
 } from "./tags";
@@ -283,7 +283,7 @@ describe("Tags", () => {
 				title: "Intake",
 			},
 		]);
-		expect(await listMemberships(prisma, project.id)).toEqual([
+		expect(await listWorkTags(prisma, project.id)).toEqual([
 			{
 				tagIds: [created.tag.id],
 				workId: work.id,
