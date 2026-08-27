@@ -448,12 +448,8 @@ export async function previewWorkMerge(
 	if (parsed.data.survivorId === parsed.data.duplicateId) {
 		return { reason: "merge-same-work" };
 	}
-	const survivorRow = await prisma.work.findUnique({
-		where: { id: parsed.data.survivorId },
-	});
-	const duplicateRow = await prisma.work.findUnique({
-		where: { id: parsed.data.duplicateId },
-	});
+	const survivorRow = await loadWork(prisma, parsed.data.survivorId);
+	const duplicateRow = await loadWork(prisma, parsed.data.duplicateId);
 	if (!(survivorRow && duplicateRow)) {
 		return { reason: "target-not-found" };
 	}
