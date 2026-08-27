@@ -56,6 +56,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Test Handoff'u | `Test Handoff` | Overview Tests özetindeki kaynak türü; Testler alanı ürünü değildir |
 | Test Oturumu | `Test Session` | Overview Tests özetindeki kaynak türü |
 | Test Açığı | `Test Gap` | Overview Tests özetindeki kaynak türü |
+| Kaynak kaydı aç | `Open source record` | Ana kaydı kopyalamadan açan ortak eylem |
 | All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
 | Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |
