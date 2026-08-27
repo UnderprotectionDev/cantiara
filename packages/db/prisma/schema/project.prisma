@@ -21,6 +21,8 @@ model Project {
   skeletonSelections              ProjectSkeletonSelection[]
   workViews                       ProjectWorkView[]
   workStatuses                    ProjectWorkStatus[]
+  works                           Work[]
+  workKeyCounter                  ProjectWorkKeyCounter?
 
   @@index([workspaceId])
   @@map("project")

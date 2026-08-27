@@ -105,6 +105,22 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | In Progress | `In Progress` | Korunan İş akışı durumu |
 | Blocked | `Blocked` | Korunan İş akışı durumu |
 | Closed | `Closed` | Korunan İş akışı durumu |
+| Bug | `Bug` | İş türü |
+| Görev | `Task` | İş türü; subtask değildir |
+| Araştırma | `Research` | İş türü |
+| İyileştirme | `Improvement` | İş türü |
+| İş oluştur | `Create Work` | Projede yalnız başlıkla İş oluşturma eylemi |
+| Başlık | `Title` | İş oluştururken zorunlu alan |
+| Tür | `Type` | İş türü alanı |
+| Anahtar | `Key` | Kullanıcıya dönük `{shortCode}-{n}` İş anahtarı |
+| Türü değiştir | `Change type` | Feature dışı tür değişimi |
+| Etki önizlemesi | `Impact preview` | Feature’a giriş veya çıkış önizlemesi |
+| Kapsanan iş | `Included Work` | Özellik kapsamındaki bağımsız İşler |
+| Birincil spec | `Primary spec` | Özelliğe bağlı belge |
+| Özellik sağlığı | `Feature health` | Yalnız Özellikte tutulan sağlık geçmişi |
+| Tür değişimini onayla | `Confirm type change` | Feature etki önizlemesini onaylayan eylem |
+| Feature çıkışı engelli | `Detach included Work, Feature health history, and Primary spec before leaving Feature.` | Kapsanan İş, sağlık geçmişi veya Birincil spec varken Feature’dan çıkışı durduran metin |
+| İş yok | `No Work yet.` | Projede henüz İş olmadığını söyleyen boş durum |
 | Açıklamayı kapat | `Dismiss` | İlk açılış açıklamasını kapatan eylem |
 | Herkese açık durum etiketi | `Public Status Label` | İş akışı durumunu değiştirmeyen, yalnız herkese açık Roadmap sunumunda kullanılan ziyaretçi etiketi |
 | GitHub kimliğini yeniden teyit etme | `Confirm GitHub Identity` | Yüksek riskli işlem için yeni OAuth turunda aynı değişmez GitHub kimliğini doğrulayan fakat parola/MFA girişi iddia etmeyen güvenlik eylemi |
