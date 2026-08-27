@@ -319,6 +319,7 @@
 │       │   │   ├── record-discovery/
 │       │   │   │   └── views/
 │       │   │   ├── relations/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── release-communication/
 │       │   │   │   └── views/

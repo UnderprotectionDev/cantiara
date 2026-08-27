@@ -125,8 +125,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kalıcı silindi | `Permanently deleted` | Kırık referans nedeni |
 | Güvenlik nedeniyle redakte edildi | `Redacted for security` | Kırık referans nedeni |
 | Erişim yok | `No access` | Kırık referans nedeni; yetkisiz ad sızdırmaz |
+| Kırık referans arşivi | `Archived` | Kırık referans nedeni; İş arşiv filtresiyle aynı İngilizce etiket |
 | İlişkiyi onayla | `Confirm relation` | Tür ve iki ucun önizlemesinden sonra ilişki yazma |
 | Kaynak öğe artık yok | `Source item is gone` | Köken konumunda sahipli bileşenin çözülemediğini açıklar |
+| İlişki yok | `No relations yet.` | Henüz standart ilişki olmadığını söyleyen boş durum |
+| Kaldır | `Remove` | Standart ilişkiyi güvenli geri alma ile kaldırma |
 | Açıklama | `Description` | İşin taşınabilir gövde alanı |
 | Hafif kontrol listesi | `Checklist` | İşteki metin maddeleri; bağımsız İş değildir |
 | Başka Projede yeniden oluştur | `Recreate in another Project` | Yanlış Projede oluşan İşten hedefte yeni kimlikli İş üretme; taşıma değildir |

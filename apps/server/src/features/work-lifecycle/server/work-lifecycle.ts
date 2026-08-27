@@ -10,6 +10,8 @@ import {
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
 import { markProjectHasWork } from "../../project-shell/server/project-shell";
+import { createRelation } from "../../relations/server/relations";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
 	type ArchiveWorkCommand,
 	applyPlanningMembershipCommandSchema,
@@ -708,6 +710,32 @@ export async function relateWork(
 	if (parsed.status !== "ok") {
 		return parsed.outcome;
 	}
+	const fromWork = await loadWork(prisma, parsed.command.fromWorkId);
+	if (!fromWork) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const project = await prisma.project.findUnique({
+		where: { id: fromWork.projectId },
+	});
+	if (!project) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const linked = await createRelation(prisma, {
+		actorId: parsed.command.actorId,
+		from: { id: parsed.command.fromWorkId, kind: "Work" },
+		idempotencyKey: `${parsed.command.idempotencyKey}:relation`,
+		origin: "human",
+		previewAcknowledged: true,
+		to: { id: parsed.command.toWorkId, kind: "Work" },
+		type: RELATIONS_COPY.related,
+		viewerWorkspaceId: project.workspaceId,
+	});
+	if (linked.status === "conflict") {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	if (linked.status === "rejected") {
+		return { reason: "target-not-found", status: "rejected" };
+	}
 	const fingerprint = payloadFingerprint({
 		fromWorkId: parsed.command.fromWorkId,
 		kind: WORK_LIFECYCLE_COPY.related,
@@ -1112,27 +1140,6 @@ async function relateInTransaction(
 	if (target.projectId !== prepared.row.projectId) {
 		return { reason: "work-not-portable", status: "rejected" };
 	}
-	await tx.typedRelation.upsert({
-		create: {
-			fromId: command.fromWorkId,
-			fromKind: "Work",
-			id: crypto.randomUUID(),
-			revision: 1,
-			toId: command.toWorkId,
-			toKind: "Work",
-			type: WORK_LIFECYCLE_COPY.related,
-		},
-		update: {},
-		where: {
-			type_fromKind_fromId_toKind_toId: {
-				fromId: command.fromWorkId,
-				fromKind: "Work",
-				toId: command.toWorkId,
-				toKind: "Work",
-				type: WORK_LIFECYCLE_COPY.related,
-			},
-		},
-	});
 	await tx.work.update({
 		data: { revision: prepared.row.revision + 1 },
 		where: { id: prepared.row.id },
