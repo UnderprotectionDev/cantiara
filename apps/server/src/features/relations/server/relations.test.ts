@@ -119,7 +119,7 @@ describe("Relations usage links", () => {
 	});
 
 	it("stores usage without entering Related or changing status", async () => {
-		const { actorId, project } = await openPayments(prisma);
+		const { actorId, project, workspaceId } = await openPayments(prisma);
 		const host = await createNamedWork(
 			prisma,
 			actorId,
@@ -141,6 +141,7 @@ describe("Relations usage links", () => {
 			kind: USAGE_KIND.inlineRecordReference,
 			origin: "human",
 			sourceRecordId: source.id,
+			workspaceId,
 		});
 		expect(created.status).toBe("committed");
 		if (created.status !== "committed") {
@@ -163,7 +164,7 @@ describe("Relations usage links", () => {
 	});
 
 	it("rejects unknown usage kinds and Evidence Role", async () => {
-		const { actorId, project } = await openPayments(prisma);
+		const { actorId, project, workspaceId } = await openPayments(prisma);
 		const host = await createNamedWork(
 			prisma,
 			actorId,
@@ -185,6 +186,7 @@ describe("Relations usage links", () => {
 			kind: RELATIONS_COPY.related,
 			origin: "human",
 			sourceRecordId: source.id,
+			workspaceId,
 		});
 		expect(unknown).toEqual({
 			reason: "unknown-usage-kind",
@@ -198,6 +200,7 @@ describe("Relations usage links", () => {
 			kind: USAGE_KIND.liveContentBlock,
 			origin: "human",
 			sourceRecordId: source.id,
+			workspaceId,
 		});
 		expect(withRole).toEqual({
 			reason: "evidence-role-not-allowed",
@@ -209,7 +212,7 @@ describe("Relations usage links", () => {
 	});
 
 	it("unlinks the embed and keeps the source record", async () => {
-		const { actorId, project } = await openPayments(prisma);
+		const { actorId, project, workspaceId } = await openPayments(prisma);
 		const host = await createNamedWork(
 			prisma,
 			actorId,
@@ -231,6 +234,7 @@ describe("Relations usage links", () => {
 			kind: USAGE_KIND.flowNodeScreenReference,
 			origin: "human",
 			sourceRecordId: source.id,
+			workspaceId,
 		});
 		if (created.status !== "committed") {
 			throw new Error("expected committed usage");
@@ -242,6 +246,7 @@ describe("Relations usage links", () => {
 			kind: USAGE_KIND.flowNodeScreenReference,
 			origin: "human",
 			sourceRecordId: source.id,
+			workspaceId,
 		});
 		expect(second.status).toBe("committed");
 		const unlinked = await unlinkUsageLink(prisma, {
@@ -274,7 +279,7 @@ describe("Relations usage links", () => {
 	});
 
 	it("keeps Related beside usage without mixing counts", async () => {
-		const { actorId, project } = await openPayments(prisma);
+		const { actorId, project, workspaceId } = await openPayments(prisma);
 		const host = await createNamedWork(
 			prisma,
 			actorId,
@@ -305,6 +310,7 @@ describe("Relations usage links", () => {
 			kind: USAGE_KIND.pinnedFileOrWireframeBind,
 			origin: "human",
 			sourceRecordId: source.id,
+			workspaceId,
 		});
 		expect(created.status).toBe("committed");
 		const graph = await inspectRelations(prisma, host.id);
@@ -312,5 +318,36 @@ describe("Relations usage links", () => {
 		expect(graph.typedRelations[0]?.type).toBe("Related");
 		expect(graph.usageLinks).toHaveLength(1);
 		expect(graph.usageLinks[0]?.kindLabel).toBe("Pinned bind");
+	});
+
+	it("tracks a flow Screen usage without a Work host", async () => {
+		const { actorId, workspaceId } = await openPayments(prisma);
+		const created = await createUsageLink(prisma, {
+			actorId,
+			hostRecordId: "flow-node-pay",
+			idempotencyKey: "flow-screen",
+			kind: USAGE_KIND.flowNodeScreenReference,
+			origin: "human",
+			sourceRecordId: "screen-pay",
+			workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected committed usage");
+		}
+		expect(created.usageLink.kindLabel).toBe("Screen reference");
+		expect(created.usageLink.kindLabel).not.toBe(RELATIONS_COPY.related);
+		const graph = await inspectRelations(prisma, "screen-pay");
+		expect(graph.relationCount).toBe(0);
+		expect(graph.usageLinks).toHaveLength(1);
+		const unlinked = await unlinkUsageLink(prisma, {
+			actorId,
+			idempotencyKey: "unlink-flow",
+			origin: "human",
+			usageLinkId: created.usageLink.id,
+		});
+		expect(unlinked.status).toBe("committed");
+		const after = await inspectRelations(prisma, "screen-pay");
+		expect(after.usageLinks).toEqual([]);
 	});
 });

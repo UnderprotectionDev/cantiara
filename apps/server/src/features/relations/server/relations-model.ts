@@ -91,6 +91,7 @@ export const createUsageLinkCommandSchema = z.object({
 	kind: z.string().min(1),
 	origin: z.literal("human"),
 	sourceRecordId: z.string().min(1),
+	workspaceId: z.string().min(1),
 });
 
 export type CreateUsageLinkCommand = z.infer<

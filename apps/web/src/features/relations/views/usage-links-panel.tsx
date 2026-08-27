@@ -13,12 +13,7 @@ import { useClientShell } from "@/features/web-macos-client/views/client-shell-h
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
-import {
-	RELATIONS_COPY,
-	USAGE_KIND_LABEL,
-	USAGE_KINDS,
-	type UsageKind,
-} from "./relations-copy";
+import { RELATIONS_COPY } from "./relations-copy";
 
 async function invalidateUsage(recordId: string) {
 	await queryClient.invalidateQueries({
@@ -143,7 +138,6 @@ function CreateUsageForm({
 	);
 	const form = useForm({
 		defaultValues: {
-			kind: "inline-record-reference" as UsageKind,
 			sourceRecordId: firstCandidate ? firstCandidate.id : "",
 		},
 		onSubmit: async ({ value }) => {
@@ -155,7 +149,7 @@ function CreateUsageForm({
 				create.mutateAsync({
 					hostRecordId,
 					idempotencyKey: newIdempotencyKey(),
-					kind: value.kind,
+					kind: "inline-record-reference",
 					sourceRecordId: value.sourceRecordId,
 				})
 			);
@@ -178,18 +172,9 @@ function CreateUsageForm({
 		<form className="flex flex-col gap-3" onSubmit={onSubmit}>
 			{error ? <p role="alert">{error}</p> : null}
 			<FieldGroup>
-				<form.Field name="kind">
-					{(field) => (
-						<KindField
-							onValueChange={field.handleChange}
-							value={field.state.value}
-						/>
-					)}
-				</form.Field>
 				<form.Field name="sourceRecordId">
 					{(field) => (
 						<SourceField
-							kind={form.getFieldValue("kind")}
 							onValueChange={field.handleChange}
 							options={candidates}
 							value={field.state.value}
@@ -198,46 +183,17 @@ function CreateUsageForm({
 				</form.Field>
 			</FieldGroup>
 			<Button size="sm" type="submit">
-				{USAGE_KIND_LABEL[form.getFieldValue("kind")]}
+				{RELATIONS_COPY.inlineReference}
 			</Button>
 		</form>
 	);
 }
 
-function KindField({
-	onValueChange,
-	value,
-}: {
-	onValueChange: (value: UsageKind) => void;
-	value: UsageKind;
-}) {
-	const onChange = useCallback(
-		(event: ChangeEvent<HTMLSelectElement>) => {
-			onValueChange(event.target.value as UsageKind);
-		},
-		[onValueChange]
-	);
-	return (
-		<Field>
-			<FieldLabel htmlFor="usage-kind">{USAGE_KIND_LABEL[value]}</FieldLabel>
-			<NativeSelect id="usage-kind" onChange={onChange} value={value}>
-				{USAGE_KINDS.map((kind) => (
-					<NativeSelectOption key={kind} value={kind}>
-						{USAGE_KIND_LABEL[kind]}
-					</NativeSelectOption>
-				))}
-			</NativeSelect>
-		</Field>
-	);
-}
-
 function SourceField({
-	kind,
 	onValueChange,
 	options,
 	value,
 }: {
-	kind: UsageKind;
 	onValueChange: (value: string) => void;
 	options: Array<{ id: string; key: string; title: string }>;
 	value: string;
@@ -250,7 +206,9 @@ function SourceField({
 	);
 	return (
 		<Field>
-			<FieldLabel htmlFor="usage-source">{USAGE_KIND_LABEL[kind]}</FieldLabel>
+			<FieldLabel htmlFor="usage-source">
+				{RELATIONS_COPY.inlineReference}
+			</FieldLabel>
 			<NativeSelect id="usage-source" onChange={onChange} value={value}>
 				{options.map((item) => (
 					<NativeSelectOption key={item.id} value={item.id}>

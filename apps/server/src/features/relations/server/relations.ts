@@ -52,6 +52,7 @@ export function createUsageLink(
 		hostRecordId: parsed.data.hostRecordId,
 		kind: parsed.data.kind,
 		sourceRecordId: parsed.data.sourceRecordId,
+		workspaceId: parsed.data.workspaceId,
 	});
 	const commandKey = commandKeyFor(
 		parsed.data.actorId,
@@ -143,19 +144,21 @@ async function createUsageInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<RelationsWriteOutcome> {
-	const host = await tx.work.findUnique({
+	const hostWork = await tx.work.findUnique({
 		where: { id: command.hostRecordId },
 	});
-	const source = await tx.work.findUnique({
+	const sourceWork = await tx.work.findUnique({
 		where: { id: command.sourceRecordId },
 	});
-	if (!(host && source) || host.retiredIntoId || source.retiredIntoId) {
+	if (hostWork?.retiredIntoId || sourceWork?.retiredIntoId) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
-	if (host.projectId !== source.projectId) {
+	if (hostWork && sourceWork && hostWork.projectId !== sourceWork.projectId) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
-	await lockProject(tx, host.projectId);
+	if (hostWork) {
+		await lockProject(tx, hostWork.projectId);
+	}
 	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
 	if (replayed) {
 		return replayed;
@@ -163,42 +166,38 @@ async function createUsageInTransaction(
 	const kind = command.kind as UsageKind;
 	const embedId = crypto.randomUUID();
 	const usageId = crypto.randomUUID();
-	const project = await tx.project.findUnique({
-		where: { id: host.projectId },
-	});
-	if (!project) {
-		return { reason: "target-not-found", status: "rejected" };
-	}
 	await tx.usageHostEmbed.create({
 		data: {
-			hostRecordId: host.id,
+			hostRecordId: command.hostRecordId,
 			id: embedId,
 			kind,
-			sourceRecordId: source.id,
+			sourceRecordId: command.sourceRecordId,
 		},
 	});
 	await tx.usageLink.create({
 		data: {
 			embedId,
-			hostRecordId: host.id,
+			hostRecordId: command.hostRecordId,
 			id: usageId,
 			kind,
-			sourceRecordId: source.id,
-			workspaceId: project.workspaceId,
+			sourceRecordId: command.sourceRecordId,
+			workspaceId: command.workspaceId,
 		},
 	});
-	await tx.work.update({
-		data: { revision: host.revision + 1 },
-		where: { id: host.id },
-	});
+	if (hostWork) {
+		await tx.work.update({
+			data: { revision: hostWork.revision + 1 },
+			where: { id: hostWork.id },
+		});
+	}
 	return await committedUsage(tx, {
 		actorId: command.actorId,
 		commandKey,
 		embedId,
 		fingerprint,
-		hostId: host.id,
+		hostId: command.hostRecordId,
 		kind,
-		sourceId: source.id,
+		sourceId: command.sourceRecordId,
 		usageId,
 	});
 }
@@ -215,23 +214,24 @@ async function unlinkUsageInTransaction(
 	if (!(link && isUsageKind(link.kind))) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
-	const host = await tx.work.findUnique({
+	const hostWork = await tx.work.findUnique({
 		where: { id: link.hostRecordId },
 	});
-	if (!host) {
-		return { reason: "target-not-found", status: "rejected" };
+	if (hostWork) {
+		await lockProject(tx, hostWork.projectId);
 	}
-	await lockProject(tx, host.projectId);
 	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
 	if (replayed) {
 		return replayed;
 	}
 	await tx.usageLink.delete({ where: { id: link.id } });
 	await tx.usageHostEmbed.deleteMany({ where: { id: link.embedId } });
-	await tx.work.update({
-		data: { revision: host.revision + 1 },
-		where: { id: host.id },
-	});
+	if (hostWork) {
+		await tx.work.update({
+			data: { revision: hostWork.revision + 1 },
+			where: { id: hostWork.id },
+		});
+	}
 	return await committedUsage(tx, {
 		actorId: command.actorId,
 		commandKey,
@@ -261,9 +261,6 @@ async function committedUsage(
 	const sourceWork = await tx.work.findUnique({
 		where: { id: input.sourceId },
 	});
-	if (!(hostWork && sourceWork)) {
-		return { reason: "target-not-found", status: "rejected" };
-	}
 	const usageLink = toUsageLinkView({
 		embedId: input.embedId,
 		hostRecordId: input.hostId,
@@ -272,14 +269,14 @@ async function committedUsage(
 		sourceRecordId: input.sourceId,
 	});
 	const host = {
-		id: hostWork.id,
-		revision: hostWork.revision,
-		status: hostWork.status,
+		id: hostWork?.id ?? input.hostId,
+		revision: hostWork?.revision ?? 0,
+		status: hostWork?.status ?? "",
 	};
 	const source = {
-		id: sourceWork.id,
-		revision: sourceWork.revision,
-		status: sourceWork.status,
+		id: sourceWork?.id ?? input.sourceId,
+		revision: sourceWork?.revision ?? 0,
+		status: sourceWork?.status ?? "",
 	};
 	await writeReceipt(tx, {
 		actorId: input.actorId,

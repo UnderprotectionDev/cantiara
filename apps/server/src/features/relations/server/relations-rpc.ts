@@ -54,6 +54,7 @@ export const relationsRouter = {
 				kind: input.kind,
 				origin: "human",
 				sourceRecordId: input.sourceRecordId,
+				workspaceId: access.workspaceId,
 			});
 		}),
 	inspect: protectedProcedure
