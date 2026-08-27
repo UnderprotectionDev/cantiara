@@ -238,8 +238,8 @@ export default function CaptureForm() {
 	}
 
 	return (
-		<div className="flex flex-col gap-8">
-			<form className="flex flex-col gap-6" onSubmit={onSubmit}>
+		<div className="grid items-start gap-12 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+			<form className="flex flex-col gap-5" onSubmit={onSubmit}>
 				<FieldGroup>
 					<Field>
 						<FieldLabel htmlFor="capture-project">{copy.project}</FieldLabel>
@@ -308,30 +308,38 @@ export default function CaptureForm() {
 						{copy.createBug}
 					</Button>
 				</div>
-				<p>
+				<p className="text-muted-foreground text-xs">
 					{canCreateBug
 						? copy.createBugDoesNotStayInInbox
 						: copy.createBugNeedsProjectAndBugCapture}
 				</p>
 				{shell.lastSuccessfulSaveAt && preferences.data ? (
-					<p>
+					<p className="text-muted-foreground text-xs">
 						{CLIENT_SHELL_COPY.lastSaved}{" "}
 						{formatDateTime(shell.lastSuccessfulSaveAt, preferences.data)}
 					</p>
 				) : null}
 				{shell.hasUnsavedChanges ? (
-					<p>{CLIENT_SHELL_COPY.unsavedChangesMayBeLost}</p>
+					<p className="text-muted-foreground text-xs">
+						{CLIENT_SHELL_COPY.unsavedChangesMayBeLost}
+					</p>
 				) : null}
 			</form>
-			<section aria-label={copy.captureInbox} className="flex flex-col gap-8">
-				<Button
-					aria-pressed={bulkOpen}
-					onClick={onToggleBulk}
-					type="button"
-					variant={bulkOpen ? "default" : "outline"}
-				>
-					{copy.bulkSenseMaking}
-				</Button>
+			<section
+				aria-label={copy.captureInbox}
+				className="flex min-w-0 flex-col gap-4"
+			>
+				<div className="flex flex-wrap gap-2">
+					<Button
+						aria-pressed={bulkOpen}
+						onClick={onToggleBulk}
+						size="sm"
+						type="button"
+						variant={bulkOpen ? "secondary" : "outline"}
+					>
+						{copy.bulkSenseMaking}
+					</Button>
+				</div>
 				{bulkOpen ? (
 					<CaptureBulkSenseMaking
 						copy={copy}
@@ -454,8 +462,9 @@ function CaptureInboxList({
 			<Button
 				aria-pressed={sequential.mode === "sequential"}
 				onClick={onToggleSequential}
+				size="sm"
 				type="button"
-				variant={sequential.mode === "sequential" ? "default" : "outline"}
+				variant={sequential.mode === "sequential" ? "secondary" : "outline"}
 			>
 				{copy.sequentialTriage}
 			</Button>
@@ -463,6 +472,7 @@ function CaptureInboxList({
 				<Button
 					disabled={!sequential.previousAvailable}
 					onClick={onGoBackSequential}
+					size="sm"
 					type="button"
 					variant="outline"
 				>
@@ -508,11 +518,11 @@ function CaptureInboxList({
 					className="flex flex-col gap-3"
 					key={group.projectId ?? "workspace"}
 				>
-					<h2 className="font-semibold text-lg">{group.heading}</h2>
+					<h2 className="font-medium text-sm">{group.heading}</h2>
 					{group.projectId ? (
-						<p className="text-sm">{group.projectId}</p>
+						<p className="text-muted-foreground text-xs">{group.projectId}</p>
 					) : null}
-					<ul className="flex flex-col gap-3">
+					<ul className="flex flex-col">
 						{group.items.map((item) => (
 							<CaptureInboxItemCard
 								copy={copy}
@@ -564,10 +574,12 @@ function CaptureInboxItemCard({
 	const preview = captureInboxItemPreview(item, templateLabel);
 
 	return (
-		<li className="rounded-none border border-border p-3">
+		<li className="border-border border-b py-3">
 			<p className="whitespace-pre-wrap text-sm">{preview}</p>
 			{item.attachment ? (
-				<p className="text-sm">{item.attachment.filename}</p>
+				<p className="mt-1 text-muted-foreground text-xs">
+					{item.attachment.filename}
+				</p>
 			) : null}
 			<CaptureTriageActions
 				copy={copy}

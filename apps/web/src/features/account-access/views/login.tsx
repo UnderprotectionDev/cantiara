@@ -16,9 +16,10 @@ export default function Login({ redirect }: { redirect?: string }) {
 	});
 
 	return (
-		<div className="mx-auto mt-16 w-full max-w-md p-6">
-			<h1 className="mb-2 text-center font-bold text-3xl">Cantiara</h1>
-			<p className="mb-8 text-center text-muted-foreground text-sm">
+		<main className="mx-auto flex min-h-full w-full max-w-sm flex-col justify-center px-6 py-16">
+			<p className="mb-12 font-semibold tracking-tight">Cantiara</p>
+			<h1 className="font-semibold text-xl tracking-tight">Sign In</h1>
+			<p className="mt-2 mb-8 text-muted-foreground text-sm text-pretty">
 				{returningToSessions
 					? "Sign in to open Sessions."
 					: "GitHub identity bound to your Account."}
@@ -27,6 +28,6 @@ export default function Login({ redirect }: { redirect?: string }) {
 				availability={availability.data}
 				redirect={redirect}
 			/>
-		</div>
+		</main>
 	);
 }

@@ -21,6 +21,7 @@ export const PROJECT_SHELL_COPY = {
 	active: "Active",
 	addStage: "Add stage",
 	allTools: "All Tools",
+	areaNotAvailable: "This area is not available yet.",
 	configurationMode: "Configuration Mode",
 	copyProjectStructure: "Copy project structure",
 	create: "Create",
@@ -34,6 +35,7 @@ export const PROJECT_SHELL_COPY = {
 	logo: "Logo",
 	moveDown: "Move down",
 	moveUp: "Move up",
+	noProjects: "No Projects yet.",
 	notPlanned: "Not Planned",
 	overview: "Overview",
 	pinToNavigation: "Pin to navigation",
@@ -51,6 +53,7 @@ export const PROJECT_SHELL_COPY = {
 	savedViews: "Saved views",
 	saveShortCode: "Save Short code",
 	scope: "Scope",
+	selectProject: "Select a Project",
 	shortCode: "Short code",
 	shortCodeLocked: "Short code is locked after the first Work.",
 	stageNameRequired: "Stage name is required.",
@@ -71,6 +74,22 @@ export function pinnedNavigationAreas(
 	enabledAreas: readonly string[]
 ): string[] {
 	return pinnedAreas.filter((area) => enabledAreas.includes(area));
+}
+
+const REACHABLE_AREAS = ["Work", "Documents"] as const;
+
+export function projectPersistentNav(
+	pinnedAreas: readonly string[],
+	enabledAreas: readonly string[]
+): string[] {
+	const reachable = REACHABLE_AREAS.filter((area) =>
+		enabledAreas.includes(area)
+	);
+	const listed = new Set<string>(reachable);
+	const pinned = pinnedNavigationAreas(pinnedAreas, enabledAreas).filter(
+		(area) => !listed.has(area)
+	);
+	return [...reachable, ...pinned];
 }
 
 export function stageRemovalPreviewCopy(name: string): string {

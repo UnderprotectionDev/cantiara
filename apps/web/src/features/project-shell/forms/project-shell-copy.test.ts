@@ -4,6 +4,7 @@ import {
 	CONFIGURATION_MODE_EDITORS,
 	PROJECT_SHELL_COPY,
 	pinnedNavigationAreas,
+	projectPersistentNav,
 	projectShellAnchor,
 	projectShellChrome,
 	projectShellSearch,
@@ -17,6 +18,7 @@ test("English chrome uses Project Name and Short code", () => {
 	expect(projectShellChrome()).toMatchObject({
 		addStage: "Add stage",
 		allTools: "All Tools",
+		areaNotAvailable: "This area is not available yet.",
 		configurationMode: "Configuration Mode",
 		copyProjectStructure: "Copy project structure",
 		create: "Create",
@@ -26,6 +28,7 @@ test("English chrome uses Project Name and Short code", () => {
 		edit: "Edit",
 		enable: "Enable",
 		hide: "Hide",
+		noProjects: "No Projects yet.",
 		notPlanned: "Not Planned",
 		overview: "Overview",
 		pinToNavigation: "Pin to navigation",
@@ -74,6 +77,16 @@ test("Overview Work Documents and All Tools are in-page destinations", () => {
 			["Work", "Documents", "Decisions", "Design", "Tests", "Releases"]
 		)
 	).toEqual(["Decisions", "Design", "Tests", "Releases"]);
+	expect(projectPersistentNav([], ["Work", "Documents"])).toEqual([
+		"Work",
+		"Documents",
+	]);
+	expect(
+		projectPersistentNav(
+			["Discovery", "Decisions", "Design", "Tests", "Releases"],
+			["Work", "Documents", "Decisions", "Design", "Tests", "Releases"]
+		)
+	).toEqual(["Work", "Documents", "Decisions", "Design", "Tests", "Releases"]);
 });
 
 test("Configuration Mode is presentation search, not a Project write", () => {

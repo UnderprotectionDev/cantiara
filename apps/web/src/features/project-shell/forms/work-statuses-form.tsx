@@ -20,7 +20,7 @@ export default function WorkStatusesForm({
 	const { error, isPending, run } = useConfigureProject(projectId, revision);
 	return (
 		<section aria-label={PROJECT_SHELL_COPY.workStatuses}>
-			<h2>{PROJECT_SHELL_COPY.workStatuses}</h2>
+			<h2 className="font-medium text-sm">{PROJECT_SHELL_COPY.workStatuses}</h2>
 			<ul>
 				{workStatuses.map((status) => (
 					<li key={`${status.semantic}:${status.label}`}>

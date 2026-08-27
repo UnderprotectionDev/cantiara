@@ -52,7 +52,7 @@ export default function StagesForm({
 	);
 	return (
 		<section aria-label={PROJECT_SHELL_COPY.stages}>
-			<h2>{PROJECT_SHELL_COPY.stages}</h2>
+			<h2 className="font-medium text-sm">{PROJECT_SHELL_COPY.stages}</h2>
 			<ul>
 				{stages.map((stage, index) => (
 					<li key={`${stage.id}:${stage.name}`}>

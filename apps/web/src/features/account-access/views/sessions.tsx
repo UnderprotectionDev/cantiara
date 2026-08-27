@@ -48,31 +48,33 @@ export default function Sessions() {
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{(sessions.data ?? []).map((session) => (
-							<TableRow key={session.id}>
-								<TableCell>{session.device}</TableCell>
-								<TableCell>
-									<time dateTime={session.lastActivity}>
-										{sessionLastActivityDisplay(
-											session.lastActivity,
-											displayPreferences
-										)}
-									</time>
-								</TableCell>
-								<TableCell>
-									{session.current ? (
-										<Badge variant="secondary">Current</Badge>
-									) : null}
-								</TableCell>
-								<TableCell>
-									<RevokeSession
-										current={session.current}
-										device={session.device}
-										sessionId={session.id}
-									/>
-								</TableCell>
-							</TableRow>
-						))}
+						{(Array.isArray(sessions.data) ? sessions.data : []).map(
+							(session) => (
+								<TableRow key={session.id}>
+									<TableCell>{session.device}</TableCell>
+									<TableCell>
+										<time dateTime={session.lastActivity}>
+											{sessionLastActivityDisplay(
+												session.lastActivity,
+												displayPreferences
+											)}
+										</time>
+									</TableCell>
+									<TableCell>
+										{session.current ? (
+											<Badge variant="secondary">Current</Badge>
+										) : null}
+									</TableCell>
+									<TableCell>
+										<RevokeSession
+											current={session.current}
+											device={session.device}
+											sessionId={session.id}
+										/>
+									</TableCell>
+								</TableRow>
+							)
+						)}
 					</TableBody>
 				</Table>
 			)}

@@ -2,6 +2,7 @@ import { ACCOUNT_PREFERENCES_COPY } from "@cantiara/auth/account-preferences-cop
 import { useQuery } from "@tanstack/react-query";
 
 import PreferencesForm from "@/features/account-preferences/forms/preferences-form";
+import { FounderPage } from "@/features/personal-shell/components/founder-page";
 import { orpc } from "@/utils/orpc";
 
 function browserSuggestion() {
@@ -16,14 +17,15 @@ export default function Preferences() {
 	const suggestion = browserSuggestion();
 
 	return (
-		<main className="mx-auto w-full max-w-3xl p-6">
-			<h1 className="mb-6 font-bold text-2xl">
-				{ACCOUNT_PREFERENCES_COPY.heading}
-			</h1>
+		<FounderPage title={ACCOUNT_PREFERENCES_COPY.heading}>
 			{preferences.isPending ? (
-				<p>{ACCOUNT_PREFERENCES_COPY.loading}</p>
+				<p className="text-muted-foreground text-sm">
+					{ACCOUNT_PREFERENCES_COPY.loading}
+				</p>
 			) : preferences.isError || !preferences.data ? (
-				<p role="alert">{ACCOUNT_PREFERENCES_COPY.unavailable}</p>
+				<p className="text-sm" role="alert">
+					{ACCOUNT_PREFERENCES_COPY.unavailable}
+				</p>
 			) : (
 				<PreferencesForm
 					key={`${preferences.data.saved}:${preferences.data.locale}:${preferences.data.timeZone}:${preferences.data.appearance}`}
@@ -31,6 +33,6 @@ export default function Preferences() {
 					suggestion={suggestion}
 				/>
 			)}
-		</main>
+		</FounderPage>
 	);
 }

@@ -32,18 +32,20 @@ export default function ProjectAreasForm({
 		run({ action: "restore-default-navigation" }).catch(() => undefined);
 	}, [run]);
 	return (
-		<div>
+		<div className="flex flex-col gap-3">
 			{showRestore ? (
 				<Button
+					className="self-start"
 					disabled={isPending}
 					onClick={onRestore}
+					size="sm"
 					type="button"
 					variant="outline"
 				>
 					{PROJECT_SHELL_COPY.restoreDefaultNavigation}
 				</Button>
 			) : null}
-			<ul aria-label={label}>
+			<ul aria-label={label} className="flex flex-col">
 				{areas.map((area) => (
 					<AreaRow
 						area={area}
@@ -88,27 +90,34 @@ function AreaRow({
 		}).catch(() => undefined);
 	}, [area.name, area.pinned, run]);
 	return (
-		<li id={reservedAnchors?.has(anchor) ? undefined : anchor}>
-			<p>{area.name}</p>
-			{showEnablement ? (
+		<li
+			className="flex flex-wrap items-center justify-between gap-2 border-border border-b py-2.5"
+			id={reservedAnchors?.has(anchor) ? undefined : anchor}
+		>
+			<p className="text-sm">{area.name}</p>
+			<div className="flex flex-wrap gap-1.5">
+				{showEnablement ? (
+					<Button
+						disabled={disabled}
+						onClick={onEnablement}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						{area.enabled ? PROJECT_SHELL_COPY.hide : PROJECT_SHELL_COPY.enable}
+					</Button>
+				) : null}
 				<Button
+					aria-pressed={area.pinned}
 					disabled={disabled}
-					onClick={onEnablement}
+					onClick={onPin}
+					size="sm"
 					type="button"
-					variant="outline"
+					variant={area.pinned ? "secondary" : "outline"}
 				>
-					{area.enabled ? PROJECT_SHELL_COPY.hide : PROJECT_SHELL_COPY.enable}
+					{PROJECT_SHELL_COPY.pinToNavigation}
 				</Button>
-			) : null}
-			<Button
-				aria-pressed={area.pinned}
-				disabled={disabled}
-				onClick={onPin}
-				type="button"
-				variant={area.pinned ? "secondary" : "outline"}
-			>
-				{PROJECT_SHELL_COPY.pinToNavigation}
-			</Button>
+			</div>
 		</li>
 	);
 }

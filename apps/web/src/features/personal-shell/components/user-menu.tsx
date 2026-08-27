@@ -17,6 +17,7 @@ import { COMMAND_PALETTE_COPY } from "@/features/command-palette/command-palette
 import { useCommandPaletteActions } from "@/features/command-palette/components/founder-command-palette";
 import { authClient } from "@/lib/auth-client";
 
+import { FOUNDER_CHROME_COPY } from "./founder-chrome";
 import { sessionUser } from "./session-user";
 
 export default function UserMenu() {
@@ -32,7 +33,7 @@ export default function UserMenu() {
 	}, [navigate]);
 
 	if (isPending) {
-		return <Skeleton className="h-9 w-24" />;
+		return <Skeleton className="size-8" />;
 	}
 
 	if (!user) {
@@ -46,13 +47,19 @@ export default function UserMenu() {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
-				render={<Button className="min-w-0 max-w-40" variant="outline" />}
+				render={
+					<Button
+						className="max-w-36 px-2 font-normal"
+						size="sm"
+						variant="ghost"
+					/>
+				}
 			>
 				<span className="truncate">{user.name}</span>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="bg-card">
 				<DropdownMenuGroup>
-					<DropdownMenuLabel>My Account</DropdownMenuLabel>
+					<DropdownMenuLabel>{FOUNDER_CHROME_COPY.account}</DropdownMenuLabel>
 					<DropdownMenuSeparator />
 					<DropdownMenuItem>{user.email}</DropdownMenuItem>
 					<DropdownMenuItem onClick={onPreferences}>

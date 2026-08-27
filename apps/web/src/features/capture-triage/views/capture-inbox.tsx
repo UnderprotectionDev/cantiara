@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import CaptureForm from "@/features/capture-triage/forms/capture-form";
+import { FounderPage } from "@/features/personal-shell/components/founder-page";
 import { orpc } from "@/utils/orpc";
 
 export default function CaptureInbox() {
@@ -8,9 +9,8 @@ export default function CaptureInbox() {
 	const heading = catalog.data?.copy.captureInbox ?? "Capture Inbox";
 
 	return (
-		<main className="mx-auto w-full max-w-6xl p-6">
-			<h1 className="mb-6 font-bold text-2xl">{heading}</h1>
+		<FounderPage title={heading} wide>
 			<CaptureForm />
-		</main>
+		</FounderPage>
 	);
 }

@@ -52,7 +52,7 @@ export default function ProjectOverview({ projectId }: { projectId: string }) {
 	const { data } = overview;
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex flex-col divide-y border-y">
 			{data.modules.map((module) => (
 				<OverviewModule
 					key={module.heading}
@@ -92,19 +92,23 @@ function OverviewModule({
 	}, [module.heading, onToggle]);
 	return (
 		<section aria-label={module.heading}>
-			<h2 className="font-medium text-lg">
+			<h2>
 				<Button
 					aria-expanded={opened}
 					aria-label={`${openSourceRecord}: ${module.heading} ${module.count}`}
+					className="h-auto w-full justify-between px-0 py-3 font-medium text-sm"
 					onClick={onClick}
 					type="button"
 					variant="ghost"
 				>
-					{module.heading} {module.count}
+					<span>{module.heading}</span>
+					<span className="font-normal text-muted-foreground tabular-nums">
+						{module.count}
+					</span>
 				</Button>
 			</h2>
 			{opened && module.records.length > 0 ? (
-				<ul>
+				<ul className="pb-3">
 					{module.records.map((record) => (
 						<OverviewSourceRow
 							key={record.id}
@@ -158,13 +162,18 @@ function EnabledAreaEntries({
 	label: string;
 }) {
 	return (
-		<section aria-label={label}>
-			<h2 className="font-medium text-lg">{label}</h2>
+		<section aria-label={label} className="pt-6">
+			<h2 className="font-medium text-sm">{label}</h2>
 			{areas.length > 0 ? (
-				<ul>
+				<ul className="mt-2 flex flex-col gap-1">
 					{areas.map((area) => (
 						<li key={area.name}>
-							<a href={`#${projectShellAnchor(area.name)}`}>{area.entry}</a>
+							<a
+								className="text-muted-foreground text-sm hover:text-foreground"
+								href={`#${projectShellAnchor(area.name)}`}
+							>
+								{area.entry}
+							</a>
 						</li>
 					))}
 				</ul>

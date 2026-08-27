@@ -104,7 +104,6 @@ export function CaptureBulkSenseMaking({
 
 	return (
 		<section aria-label={copy.bulkSenseMaking} className="flex flex-col gap-4">
-			<h2 className="font-semibold text-lg">{copy.bulkSenseMaking}</h2>
 			<form className="flex flex-wrap items-end gap-2" onSubmit={onNameSubmit}>
 				<Field className="min-w-48 flex-1">
 					<FieldLabel htmlFor="bulk-cluster-name">
@@ -116,13 +115,15 @@ export function CaptureBulkSenseMaking({
 						value={clusterName}
 					/>
 				</Field>
-				<Button type="submit">{copy.save}</Button>
+				<Button size="sm" type="submit">
+					{copy.save}
+				</Button>
 			</form>
-			<div className="flex flex-row flex-wrap gap-4">
+			<div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
 				{columns.map((column) => (
 					<section
 						aria-label={column.name ?? copy.bulkSenseMaking}
-						className="min-w-56 flex-1 rounded-none border border-border p-3"
+						className="min-w-0 border-border border-t pt-3"
 						key={column.clusterId ?? "ungrouped"}
 					>
 						{column.name ? (
@@ -130,7 +131,7 @@ export function CaptureBulkSenseMaking({
 						) : (
 							<h3 className="mb-3 font-medium text-sm">{copy.ungrouped}</h3>
 						)}
-						<ul className="flex flex-row flex-wrap gap-3">
+						<ul className="flex flex-col">
 							{column.items.map((item) => {
 								const templateLabel =
 									templates?.find((template) => template.id === item.template)
@@ -140,10 +141,7 @@ export function CaptureBulkSenseMaking({
 										(placement) => placement.itemId === item.id
 									)?.clusterId ?? "";
 								return (
-									<li
-										className="min-w-56 max-w-sm flex-1 rounded-none border border-border p-3"
-										key={item.id}
-									>
+									<li className="border-border border-b py-3" key={item.id}>
 										<p className="whitespace-pre-wrap text-sm">
 											{captureInboxItemPreview(item, templateLabel)}
 										</p>
