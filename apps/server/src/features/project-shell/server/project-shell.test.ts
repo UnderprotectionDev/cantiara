@@ -2427,4 +2427,20 @@ describe("Project Shell", () => {
 		expect(typeof productPrisma.workRelation.findMany).toBe("function");
 		expect(typeof productPrisma.workMergeEvent.findFirst).toBe("function");
 	});
+
+	it("does not reuse a Prisma client that cannot record Merge as duplicate", () => {
+		getPrismaClient();
+		const cached = (
+			globalThis as {
+				cantiaraPrisma?: { client: { workMergeEvent?: unknown } };
+			}
+		).cantiaraPrisma;
+		expect(cached).toBeTruthy();
+		if (cached) {
+			cached.client.workMergeEvent = undefined;
+		}
+		const next = getPrismaClient();
+		expect(typeof next.workMergeEvent.findFirst).toBe("function");
+		expect(typeof next.workRelation.findMany).toBe("function");
+	});
 });
