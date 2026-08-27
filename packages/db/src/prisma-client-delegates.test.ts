@@ -12,6 +12,10 @@ function workDelegates() {
 		captureExtensionLink: { findMany },
 		captureInboxItem: { findMany },
 		captureStagingObject: { findMany },
+		projectCustomFieldDefinition: {
+			create: () => undefined,
+			findMany,
+		},
 		projectSkeletonSelection: { findMany },
 		work: { create: () => undefined, findMany },
 		workLifecycleEvent: { findMany },
