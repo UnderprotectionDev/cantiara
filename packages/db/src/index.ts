@@ -82,7 +82,10 @@ function clientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.captureStagingObject?.findMany === "function" &&
 		typeof client.work?.findMany === "function" &&
 		typeof client.work?.create === "function" &&
-		typeof client.workLifecycleEvent?.findMany === "function"
+		typeof client.workLifecycleEvent?.findMany === "function" &&
+		typeof client.workRelation?.findMany === "function" &&
+		typeof client.workMergeEvent?.findFirst === "function" &&
+		typeof client.workMergeEvent?.create === "function"
 	);
 }
 
@@ -91,7 +94,11 @@ function clientHasCurrentWorkModel(client: PrismaClient): boolean {
 	if (fields.length === 0) {
 		return true;
 	}
-	return fields.includes("originWork") && fields.includes("originWorkId");
+	return (
+		fields.includes("originWork") &&
+		fields.includes("originWorkId") &&
+		fields.includes("retiredIntoId")
+	);
 }
 
 function cachedClient(diskStamp: string): PrismaClient | undefined {

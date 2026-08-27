@@ -3,6 +3,7 @@ import { Button } from "@cantiara/ui/components/button";
 import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
 import ChangeWorkTypeForm from "../forms/change-work-type-form";
+import MergeWorkForm, { MergeUndoButton } from "../forms/merge-work-form";
 import RecreateWorkForm from "../forms/recreate-work-form";
 import ReopenWorkForm from "../forms/reopen-work-form";
 import {
@@ -17,7 +18,9 @@ export interface WorkRecord {
 	closureResult: ClosureResult | null;
 	id: string;
 	key: string;
-	origin?: { id: string; key: string; projectId: string } | null;
+	latestMergeEventId?: string | null;
+	origin?: { id: string; key: string; projectId?: string } | null;
+	retiredIdentities?: Array<{ id: string; key: string }>;
 	revision: number;
 	status: WorkStatus;
 	title: string;
@@ -25,11 +28,15 @@ export interface WorkRecord {
 }
 
 export default function WorkDetail({
+	candidates,
 	onClose,
+	onMerged,
 	projectId,
 	work,
 }: {
+	candidates: Array<{ id: string; key: string; title: string }>;
 	onClose: () => void;
+	onMerged?: (survivorId: string) => void;
 	projectId: string;
 	work: WorkRecord;
 }) {
@@ -58,6 +65,18 @@ export default function WorkDetail({
 						{work.closureResult ? ` · ${work.closureResult}` : ""}
 					</dd>
 				</div>
+				{work.retiredIdentities && work.retiredIdentities.length > 0 ? (
+					<div className="flex gap-2">
+						<dt className="text-muted-foreground">
+							{WORK_LIFECYCLE_COPY.origin}
+						</dt>
+						<dd>
+							{work.retiredIdentities
+								.map((identity) => identity.key)
+								.join(", ")}
+						</dd>
+					</div>
+				) : null}
 				{work.origin ? (
 					<div className="flex gap-2">
 						<dt className="text-muted-foreground">
@@ -90,6 +109,13 @@ export default function WorkDetail({
 				type={work.type}
 				workId={work.id}
 			/>
+			<MergeWorkForm
+				candidates={candidates}
+				onMerged={onMerged}
+				projectId={projectId}
+				revision={work.revision}
+				workId={work.id}
+			/>
 			<RecreateWorkForm
 				key={`${work.id}:recreate`}
 				projectId={projectId}
@@ -102,6 +128,14 @@ export default function WorkDetail({
 				revision={work.revision}
 				workId={work.id}
 			/>
+			{work.latestMergeEventId ? (
+				<MergeUndoButton
+					mergeEventId={work.latestMergeEventId}
+					projectId={projectId}
+					revision={work.revision}
+					workId={work.id}
+				/>
+			) : null}
 		</article>
 	);
 }

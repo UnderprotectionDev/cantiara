@@ -14,14 +14,18 @@ import {
 	createWork,
 	finalizeDraft,
 	getWork,
+	getWorkByKey,
 	listWork,
 	listWorkLifecycleHistory,
+	mergeWork,
 	previewClose,
 	previewRecreate,
+	previewWorkMerge,
 	previewWorkTypeChange,
 	recreateWork,
 	reopenWork,
 	unarchiveWork,
+	undoWorkMerge,
 	updateWorkTitle,
 } from "./work-lifecycle";
 import {
@@ -30,10 +34,12 @@ import {
 	NON_TERMINAL_WORK_STATUSES,
 	previewCloseInputSchema,
 	previewRecreateInputSchema,
+	previewWorkMergeInputSchema,
 	recreateWorkPayloadSchema,
 	WORK_LIFECYCLE_COPY,
 	WORK_STATUSES,
 	WORK_TYPES,
+	workMergeFieldChoicesSchema,
 } from "./work-lifecycle-model";
 
 async function requireAccess(userId: string) {
@@ -233,6 +239,34 @@ export const workLifecycle = {
 			await requireWork(access.workspaceId, input.workId);
 			return await listWorkLifecycleHistory(getPrismaClient(), input.workId);
 		}),
+	merge: protectedWriteProcedure
+		.input(
+			z.object({
+				duplicateBaseRevision: z.number().int().nonnegative(),
+				duplicateId: z.string().min(1),
+				fieldChoices: workMergeFieldChoicesSchema.optional(),
+				idempotencyKey: z.string(),
+				previewAcknowledged: z.boolean().optional(),
+				survivorBaseRevision: z.number().int().nonnegative(),
+				survivorId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.survivorId);
+			await requireWork(access.workspaceId, input.duplicateId);
+			return await mergeWork(getPrismaClient(), {
+				actorId: access.accountId,
+				duplicateBaseRevision: input.duplicateBaseRevision,
+				duplicateId: input.duplicateId,
+				fieldChoices: input.fieldChoices,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				previewAcknowledged: input.previewAcknowledged,
+				survivorBaseRevision: input.survivorBaseRevision,
+				survivorId: input.survivorId,
+			});
+		}),
 	previewClose: protectedProcedure
 		.input(previewCloseInputSchema)
 		.handler(async ({ context, input }) => {
@@ -241,6 +275,18 @@ export const workLifecycle = {
 			const preview = await previewClose(getPrismaClient(), input);
 			if ("reason" in preview) {
 				throw new ORPCError("NOT_FOUND");
+			}
+			return preview;
+		}),
+	previewMerge: protectedProcedure
+		.input(previewWorkMergeInputSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.survivorId);
+			await requireWork(access.workspaceId, input.duplicateId);
+			const preview = await previewWorkMerge(getPrismaClient(), input);
+			if ("reason" in preview) {
+				throw new ORPCError("BAD_REQUEST");
 			}
 			return preview;
 		}),
@@ -317,6 +363,26 @@ export const workLifecycle = {
 				workId: input.workId,
 			});
 		}),
+	resolve: protectedProcedure
+		.input(
+			z.object({
+				key: z.string().min(1),
+				projectId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			const work = await getWorkByKey(
+				getPrismaClient(),
+				input.projectId,
+				input.key
+			);
+			if (!work) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return work;
+		}),
 	unarchive: protectedWriteProcedure
 		.input(
 			z.object({
@@ -334,6 +400,27 @@ export const workLifecycle = {
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				workId: input.workId,
+			});
+		}),
+	undoMerge: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				mergeEventId: z.string().min(1),
+				survivorId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.survivorId);
+			return await undoWorkMerge(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				mergeEventId: input.mergeEventId,
+				origin: "human",
+				survivorId: input.survivorId,
 			});
 		}),
 	updateTitle: protectedWriteProcedure

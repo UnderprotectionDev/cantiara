@@ -71,14 +71,18 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 			>
 				{WORK_LIFECYCLE_COPY.archived}
 			</Button>
-			<WorkList
-				items={work.data}
-				onSelect={onSelect}
-				selectedId={selectedId}
-			/>
+			<WorkList items={work.data} onSelect={onSelect} selectedId={selectedId} />
 			{selected ? (
 				<WorkDetail
+					candidates={work.data
+						.filter((item) => item.id !== selected.id)
+						.map((item) => ({
+							id: item.id,
+							key: item.key,
+							title: item.title,
+						}))}
 					onClose={onClose}
+					onMerged={onCreated}
 					projectId={projectId}
 					work={selected}
 				/>
