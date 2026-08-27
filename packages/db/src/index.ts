@@ -49,6 +49,31 @@ const globalForPrisma = globalThis as unknown as {
 	cantiaraPrisma?: CachedPrisma;
 };
 
+function workModelFieldNames(client: PrismaClient): string[] {
+	const runtime = client as { _runtimeDataModel?: unknown };
+	if (!isRecord(runtime._runtimeDataModel)) {
+		return [];
+	}
+	const { models } = runtime._runtimeDataModel;
+	if (!(isRecord(models) && isRecord(models.Work))) {
+		return [];
+	}
+	const { fields } = models.Work;
+	if (!Array.isArray(fields)) {
+		return [];
+	}
+	return fields.flatMap((field) => {
+		if (isRecord(field) && typeof field.name === "string") {
+			return [field.name];
+		}
+		return [];
+	});
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
 function clientHasCurrentDelegates(client: PrismaClient): boolean {
 	return (
 		typeof client.captureInboxItem?.findMany === "function" &&
@@ -64,12 +89,27 @@ function clientHasCurrentDelegates(client: PrismaClient): boolean {
 	);
 }
 
+function clientHasCurrentWorkModel(client: PrismaClient): boolean {
+	const fields = workModelFieldNames(client);
+	if (fields.length === 0) {
+		return true;
+	}
+	return (
+		fields.includes("originWork") &&
+		fields.includes("originWorkId") &&
+		fields.includes("retiredIntoId")
+	);
+}
+
 function cachedClient(diskStamp: string): PrismaClient | undefined {
 	const cached = globalForPrisma.cantiaraPrisma;
 	if (!(cached && clientStampIsCurrent(cached.stamp, diskStamp))) {
 		return;
 	}
 	if (!clientHasCurrentDelegates(cached.client)) {
+		return;
+	}
+	if (!clientHasCurrentWorkModel(cached.client)) {
 		return;
 	}
 	return cached.client;

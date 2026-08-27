@@ -31,6 +31,8 @@ export type ClosureResult = (typeof CLOSURE_RESULTS)[number];
 
 export const WORK_LIFECYCLE_COPY = {
 	abandoned: "Abandoned",
+	archive: "Archive",
+	archived: "Archived",
 	changeType: "Change type",
 	close: "Close",
 	closeAnyway: "Close anyway",
@@ -40,6 +42,7 @@ export const WORK_LIFECYCLE_COPY = {
 	confirmReopen: "Confirm reopen",
 	confirmTypeChange: "Confirm type change",
 	createWork: "Create Work",
+	description: "Description",
 	detachBeforeLeavingFeature:
 		"Detach included Work, Feature health history, and Primary spec before leaving Feature.",
 	featureHealth: "Feature health",
@@ -48,13 +51,16 @@ export const WORK_LIFECYCLE_COPY = {
 	includedWork: "Included Work",
 	keepLastingContext: "Keep lasting context",
 	key: "Key",
+	lightChecklist: "Checklist",
 	mergeAsDuplicate: "Merge as duplicate",
 	mergePreview: "Merge Preview",
 	notStarted: "Not Started",
 	noWork: "No Work yet.",
+	openSourceRecord: "Open source record",
 	origin: "Origin",
 	primarySpec: "Primary spec",
 	reason: "Reason",
+	recreateInAnotherProject: "Recreate in another Project",
 	related: "Related",
 	relationsToRewrite: "Relations",
 	reopen: "Reopen",
@@ -63,6 +69,7 @@ export const WORK_LIFECYCLE_COPY = {
 	survivingRecord: "Surviving record",
 	title: "Title",
 	type: "Type",
+	unarchive: "Unarchive",
 	work: "Work",
 } as const;
 
