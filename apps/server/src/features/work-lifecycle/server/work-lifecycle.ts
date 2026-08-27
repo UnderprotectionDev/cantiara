@@ -895,6 +895,9 @@ async function recreateInTransaction(
 	if (!target) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
+	if (target.id === source.projectId) {
+		return { reason: "work-not-portable", status: "rejected" };
+	}
 	await lockProject(tx, target.id);
 	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
 	if (replayed) {
@@ -904,12 +907,12 @@ async function recreateInTransaction(
 	if (selectedFields.status !== "ok") {
 		return selectedFields.outcome;
 	}
-	const copiedRelations = resolveCopiedRelations(
+	const portableRelations = resolvePortableRelations(
 		command.payload.relations ?? [],
 		command.payload.selectedRelationIds ?? []
 	);
-	if (copiedRelations.status !== "ok") {
-		return copiedRelations.outcome;
+	if (portableRelations.status !== "ok") {
+		return portableRelations.outcome;
 	}
 	if (!isWorkType(source.type)) {
 		return { reason: "unknown-work-type", status: "rejected" };
@@ -943,7 +946,7 @@ async function recreateInTransaction(
 			lightChecklist,
 			number,
 			originWorkId: source.id,
-			portableRelations: copiedRelations.value,
+			portableRelations: portableRelations.value,
 			projectId: target.id,
 			revision: 1,
 			status: WORK_STATUS.notStarted,
@@ -976,7 +979,7 @@ function resolveSelectedFields(
 	return { status: "ok", value: fields };
 }
 
-function resolveCopiedRelations(
+function resolvePortableRelations(
 	relations: ReadonlyArray<{ id: string; kind: string; title: string }>,
 	selectedRelationIds: readonly string[]
 ):

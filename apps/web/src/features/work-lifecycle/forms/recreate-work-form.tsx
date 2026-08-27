@@ -196,7 +196,11 @@ export default function RecreateWorkForm({
 				</FieldGroup>
 			) : null}
 			<Button
-				disabled={recreate.isPending || targetProjectId.length === 0}
+				disabled={
+					recreate.isPending ||
+					targetProjectId.length === 0 ||
+					previewData === undefined
+				}
 				type="submit"
 			>
 				{WORK_LIFECYCLE_COPY.recreateInAnotherProject}

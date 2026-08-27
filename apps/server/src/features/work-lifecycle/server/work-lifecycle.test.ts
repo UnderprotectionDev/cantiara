@@ -1349,6 +1349,21 @@ describe("Work Lifecycle", () => {
 		});
 		expect(await getWork(prisma, created.work.id)).toEqual(sourceBefore);
 		expect(await listWork(prisma, invoices.id)).toEqual([]);
+		expect(
+			await recreateWork(prisma, {
+				actorId,
+				idempotencyKey: "same-project",
+				origin: "human",
+				payload: {
+					selectedFields: ["title", "type"],
+					targetProjectId: project.id,
+					workId: created.work.id,
+				},
+			})
+		).toEqual({
+			reason: "work-not-portable",
+			status: "rejected",
+		});
 		const recreated = await recreateWork(prisma, {
 			actorId,
 			idempotencyKey: "copy-title-only",
