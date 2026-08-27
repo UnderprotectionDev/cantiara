@@ -166,6 +166,7 @@ describe("Work Lifecycle", () => {
 		expect(outcome).toMatchObject({
 			status: "committed",
 			work: {
+				closureResult: null,
 				key: "PAY-1",
 				number: 1,
 				projectId: project.id,

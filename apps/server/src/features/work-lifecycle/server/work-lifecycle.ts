@@ -457,7 +457,6 @@ async function createInTransaction(
 	const workId = crypto.randomUUID();
 	await tx.work.create({
 		data: {
-			closureResult: null,
 			id: workId,
 			key: workKey(lockedProject.shortCode, number),
 			number,

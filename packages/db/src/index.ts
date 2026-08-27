@@ -44,7 +44,8 @@ function clientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.projectSkeletonSelection?.findMany === "function" &&
 		typeof client.captureExtensionLink?.findMany === "function" &&
 		typeof client.captureStagingObject?.findMany === "function" &&
-		typeof client.work?.findMany === "function"
+		typeof client.work?.findMany === "function" &&
+		typeof client.workLifecycleEvent?.findMany === "function"
 	);
 }
 
