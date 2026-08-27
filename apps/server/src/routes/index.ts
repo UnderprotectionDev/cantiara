@@ -7,6 +7,7 @@ import { captureInbox } from "../features/capture-triage/server/capture-inbox-ro
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
+import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
 import { workLifecycle } from "../features/work-lifecycle/server/work-lifecycle-rpc";
 
 export const appRouter = {
@@ -14,6 +15,7 @@ export const appRouter = {
 	accountPreferences,
 	captureInbox,
 	clientShell,
+	fileAttachments,
 	projectOverview: projectOverviewRouter,
 	projectShell,
 	workLifecycle,

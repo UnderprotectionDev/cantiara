@@ -57,14 +57,21 @@ test("English chrome uses Project Name and Short code", () => {
 	expect(JSON.stringify(PROJECT_SHELL_COPY)).not.toMatch(COPY_BRANDING_PATTERN);
 });
 
-test("Overview Work Documents and All Tools are in-page destinations", () => {
+test("Overview Work Documents File Attachment and All Tools are in-page destinations", () => {
 	const destinations = [
 		projectShellAnchor("Overview"),
 		projectShellAnchor("Work"),
 		projectShellAnchor("Documents"),
+		projectShellAnchor("File Attachment"),
 		projectShellAnchor("All Tools"),
 	];
-	expect(destinations).toEqual(["overview", "work", "documents", "all-tools"]);
+	expect(destinations).toEqual([
+		"overview",
+		"work",
+		"documents",
+		"file-attachment",
+		"all-tools",
+	]);
 	expect(new Set(destinations).size).toBe(destinations.length);
 	expect(projectShellAnchor("Technical Diagrams")).toBe("technical-diagrams");
 	expect(projectShellAnchor("GitHub")).toBe("github");
@@ -80,13 +87,22 @@ test("Overview Work Documents and All Tools are in-page destinations", () => {
 	expect(projectPersistentNav([], ["Work", "Documents"])).toEqual([
 		"Work",
 		"Documents",
+		"File Attachment",
 	]);
 	expect(
 		projectPersistentNav(
 			["Discovery", "Decisions", "Design", "Tests", "Releases"],
 			["Work", "Documents", "Decisions", "Design", "Tests", "Releases"]
 		)
-	).toEqual(["Work", "Documents", "Decisions", "Design", "Tests", "Releases"]);
+	).toEqual([
+		"Work",
+		"Documents",
+		"File Attachment",
+		"Decisions",
+		"Design",
+		"Tests",
+		"Releases",
+	]);
 });
 
 test("Configuration Mode is presentation search, not a Project write", () => {

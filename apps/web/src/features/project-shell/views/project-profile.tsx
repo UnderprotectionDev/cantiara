@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useCallback } from "react";
 
+import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
 import ProjectOverview from "@/features/project-overview/views/project-overview";
 import ConfigurationMode from "@/features/project-shell/forms/configuration-mode";
 import CopyProjectStructureForm from "@/features/project-shell/forms/copy-project-structure-form";
@@ -224,6 +225,7 @@ function ProjectBody({
 }) {
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
+	const fileAttachmentAnchor = projectShellAnchor("File Attachment");
 	const selectedArea = data.allToolsAreas
 		.map((area) => area.name)
 		.find((area) => projectShellAnchor(area) === selectedAnchor);
@@ -274,6 +276,22 @@ function ProjectBody({
 						showEnablement={false}
 						showRestore={true}
 					/>
+				</div>
+			</section>
+		);
+	}
+
+	if (
+		selectedAnchor === fileAttachmentAnchor ||
+		selectedArea === "File Attachment"
+	) {
+		return (
+			<section aria-label="File Attachment" id={fileAttachmentAnchor}>
+				<h1 className="font-semibold text-[1.375rem] tracking-tight">
+					File Attachment
+				</h1>
+				<div className="mt-6">
+					<FileAttachmentArea projectId={data.id} />
 				</div>
 			</section>
 		);

@@ -23,6 +23,7 @@ model Project {
   workStatuses                    ProjectWorkStatus[]
   works                           Work[]
   workKeyCounter                  ProjectWorkKeyCounter?
+  fileAttachments                 FileAttachment[]
 
   @@index([workspaceId])
   @@map("project")

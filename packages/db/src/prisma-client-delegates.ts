@@ -13,6 +13,7 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.workRelatedEdge?.findMany === "function" &&
 		typeof client.workRelation?.findMany === "function" &&
 		typeof client.workMergeEvent?.findFirst === "function" &&
-		typeof client.workMergeEvent?.create === "function"
+		typeof client.workMergeEvent?.create === "function" &&
+		typeof client.fileAttachment?.findMany === "function"
 	);
 }

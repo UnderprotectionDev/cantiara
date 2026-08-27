@@ -27,11 +27,12 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
-	it("accepts a client that can read Feature health and Related edges", () => {
+	it("accepts a client that can read Feature health, Related edges, and File Attachments", () => {
 		expect(
 			prismaClientHasCurrentDelegates({
 				...workDelegates(),
 				featureHealthUpdate: { findMany },
+				fileAttachment: { findMany },
 				workMergeEvent: { create: () => undefined, findFirst: findMany },
 				workRelatedEdge: { findMany },
 				workRelation: { findMany },
