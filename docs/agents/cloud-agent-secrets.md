@@ -34,7 +34,9 @@ Prisma migrate/push against Neon should use the non-pooler host. The app runtime
 2. `turbo.json` `globalPassThroughEnv` forwards those names into `web#dev` and `server#dev`. Without that list Turbo strips them and the API falls back to local Postgres in `.env`.
 3. `scripts/cloud-agent/install.sh` and `start.sh` write localhost fallbacks into `.env` when a key is missing, and drop `NEON_LOCAL` when `DATABASE_URL` is hosted so a snapshot leftover cannot tunnel Neon through the local proxy.
 
-`db push` during install/start always targets local Postgres, not hosted Neon. Schema changes go through `bun run db:migrate`. `bun run db:push` is local throwaway — do not push against hosted `DATABASE_URL`. After adding a Prisma model, apply that schema to the hosted product database with `bun run db:migrate` before the API is used. A bun `--hot` process started before generate still holds a Prisma client without the new delegate; restart that API process after generate.
+`db push` during install/start always targets local Postgres, not hosted Neon. Schema changes go through `bun run db:migrate`. `bun run db:push` is local throwaway — do not push against hosted `DATABASE_URL`. After adding a Prisma model, apply that schema to the hosted product database with `bun run db:migrate` before the API is used.
+
+Prisma Client is generated with `bunx --bun prisma generate` (Prisma CLI shebang is Node; `--bun` keeps the generator on Bun). Cloud `start.sh` and `run-dev.sh` generate after checkout, then `run-dev.sh` replaces leftover listeners on 3000/3001/4000 from a warm snapshot. `getPrismaClient()` keeps one client on `globalThis` in development (Prisma connection-management docs) and replaces it when the generated class file on disk changes, so `bun --hot` does not keep a client from before generate.
 
 ## Terminal commands
 
