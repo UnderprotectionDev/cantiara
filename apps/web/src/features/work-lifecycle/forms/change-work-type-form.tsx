@@ -119,17 +119,28 @@ export default function ChangeWorkTypeForm({
 	);
 
 	return (
-		<form className="flex flex-col gap-4" onSubmit={onSubmit}>
-			<FieldGroup>
+		<form className="flex flex-col gap-3" onSubmit={onSubmit}>
+			<FieldGroup className="flex-row flex-wrap items-end gap-3">
 				<form.Field name="type">
 					{(field) => (
 						<TypeField onValueChange={onTypeChange} value={field.state.value} />
 					)}
 				</form.Field>
+				<Button
+					disabled={change.isPending || !previewReady || previewBlocked}
+					type="submit"
+				>
+					{previewNeeded
+						? WORK_LIFECYCLE_COPY.confirmTypeChange
+						: WORK_LIFECYCLE_COPY.changeType}
+				</Button>
 			</FieldGroup>
 			{previewNeeded && preview.data ? (
-				<section aria-label={WORK_LIFECYCLE_COPY.impactPreview}>
-					<h3 className="font-medium text-sm">
+				<section
+					aria-label={WORK_LIFECYCLE_COPY.impactPreview}
+					className="text-muted-foreground text-sm"
+				>
+					<h3 className="font-medium text-foreground text-sm">
 						{WORK_LIFECYCLE_COPY.impactPreview}
 					</h3>
 					<p>
@@ -150,14 +161,6 @@ export default function ChangeWorkTypeForm({
 				</section>
 			) : null}
 			{error ? <p role="alert">{error}</p> : null}
-			<Button
-				disabled={change.isPending || !previewReady || previewBlocked}
-				type="submit"
-			>
-				{previewNeeded
-					? WORK_LIFECYCLE_COPY.confirmTypeChange
-					: WORK_LIFECYCLE_COPY.changeType}
-			</Button>
 		</form>
 	);
 }
@@ -176,7 +179,7 @@ function TypeField({
 		[onValueChange]
 	);
 	return (
-		<Field>
+		<Field className="w-40">
 			<FieldLabel htmlFor="change-work-type">
 				{WORK_LIFECYCLE_COPY.type}
 			</FieldLabel>

@@ -25,7 +25,13 @@ interface CreateWorkValues {
 	type: WorkType;
 }
 
-export default function CreateWorkForm({ projectId }: { projectId: string }) {
+export default function CreateWorkForm({
+	onCreated,
+	projectId,
+}: {
+	onCreated?: (workId: string) => void;
+	projectId: string;
+}) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [error, setError] = useState<string | null>(null);
 	const create = useMutation(
@@ -42,6 +48,7 @@ export default function CreateWorkForm({ projectId }: { projectId: string }) {
 							input: { projectId },
 						}),
 					});
+					onCreated?.(outcome.work.id);
 					recordSave();
 					setError(null);
 					return;
@@ -92,8 +99,8 @@ export default function CreateWorkForm({ projectId }: { projectId: string }) {
 	);
 
 	return (
-		<form className="flex flex-col gap-4" onSubmit={onSubmit}>
-			<FieldGroup>
+		<form className="flex flex-col gap-3" onSubmit={onSubmit}>
+			<FieldGroup className="flex-row flex-wrap items-end gap-3">
 				<form.Field name="title">
 					{(field) => (
 						<TitleField
@@ -110,11 +117,11 @@ export default function CreateWorkForm({ projectId }: { projectId: string }) {
 						/>
 					)}
 				</form.Field>
+				<Button disabled={create.isPending} type="submit">
+					{WORK_LIFECYCLE_COPY.createWork}
+				</Button>
 			</FieldGroup>
 			{error ? <p role="alert">{error}</p> : null}
-			<Button disabled={create.isPending} type="submit">
-				{WORK_LIFECYCLE_COPY.createWork}
-			</Button>
 		</form>
 	);
 }
@@ -133,7 +140,7 @@ function TitleField({
 		[onValueChange]
 	);
 	return (
-		<Field>
+		<Field className="min-w-48 flex-1">
 			<FieldLabel htmlFor="work-title">{WORK_LIFECYCLE_COPY.title}</FieldLabel>
 			<Input
 				id="work-title"
@@ -159,7 +166,7 @@ function TypeField({
 		[onValueChange]
 	);
 	return (
-		<Field>
+		<Field className="w-40">
 			<FieldLabel htmlFor="work-type">{WORK_LIFECYCLE_COPY.type}</FieldLabel>
 			<NativeSelect
 				className="w-full"

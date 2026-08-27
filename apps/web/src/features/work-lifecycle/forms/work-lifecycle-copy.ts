@@ -10,6 +10,7 @@ export type WorkType = (typeof WORK_TYPES)[number];
 
 export const WORK_LIFECYCLE_COPY = {
 	changeType: "Change type",
+	close: "Close",
 	confirmTypeChange: "Confirm type change",
 	createWork: "Create Work",
 	detachBeforeLeavingFeature:

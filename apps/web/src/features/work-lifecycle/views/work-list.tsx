@@ -1,3 +1,4 @@
+import { cn } from "@cantiara/ui/lib/utils";
 import { type MouseEvent, useCallback } from "react";
 
 import { WORK_LIFECYCLE_COPY } from "../forms/work-lifecycle-copy";
@@ -25,31 +26,40 @@ export default function WorkList({
 	);
 	if (items.length === 0) {
 		return (
-			<p className="mt-6 text-muted-foreground text-sm">
+			<p className="text-muted-foreground text-sm">
 				{WORK_LIFECYCLE_COPY.noWork}
 			</p>
 		);
 	}
 	return (
-		<ul className="mt-6 flex flex-col gap-2">
-			{items.map((item) => (
-				<li key={item.id}>
-					<button
-						aria-current={item.id === selectedId ? "true" : undefined}
-						className="flex w-full items-baseline justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm"
-						onClick={onClick}
-						type="button"
-						value={item.id}
-					>
-						<span>
-							{item.key} {item.title}
-						</span>
-						<span className="text-muted-foreground">
-							{item.type} · {item.status}
-						</span>
-					</button>
-				</li>
-			))}
+		<ul className="flex flex-col">
+			{items.map((item) => {
+				const selected = item.id === selectedId;
+				return (
+					<li key={item.id}>
+						<button
+							aria-pressed={selected}
+							className={cn(
+								"flex w-full items-baseline justify-between gap-3 px-2 py-2 text-left text-sm outline-none transition-colors hover:bg-muted/70 focus-visible:ring-1 focus-visible:ring-ring active:translate-y-px",
+								selected && "bg-muted"
+							)}
+							onClick={onClick}
+							type="button"
+							value={item.id}
+						>
+							<span className="min-w-0 truncate">
+								<span className="font-mono text-muted-foreground text-xs">
+									{item.key}
+								</span>{" "}
+								{item.title}
+							</span>
+							<span className="shrink-0 text-muted-foreground text-xs">
+								{item.type} · {item.status}
+							</span>
+						</button>
+					</li>
+				);
+			})}
 		</ul>
 	);
 }
