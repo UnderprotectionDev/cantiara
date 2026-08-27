@@ -332,7 +332,10 @@ describe("File Attachments", () => {
 			reason: FILE_ATTACHMENT_COPY.quotaExceeded,
 			status: "rejected",
 		});
-		const readable = await getFileAttachment(prisma, first.file.id);
+		const readable = await getFileAttachment(prisma, {
+			id: first.file.id,
+			workspaceId,
+		});
 		expect(readable?.id).toBe(first.file.id);
 		const quota = await getFileQuota(prisma, workspaceId, { quota: limits });
 		expect(quota.usedVersions).toBe(2);
@@ -582,9 +585,24 @@ describe("File Attachments", () => {
 		const body = await readAccessibleFileBytes(prisma, {
 			fileAttachmentId: created.file.id,
 			versionId: created.file.currentVersion.id,
+			workspaceId,
 		});
 		expect(body?.bytes).toEqual(PNG_BYTES);
 		expect(created.file.currentVersion.kind).not.toBe("executed-zip");
+		const other = await seedWorkspace(prisma);
+		expect(
+			await getFileAttachment(prisma, {
+				id: created.file.id,
+				workspaceId: other.workspaceId,
+			})
+		).toBeNull();
+		expect(
+			await readAccessibleFileBytes(prisma, {
+				fileAttachmentId: created.file.id,
+				versionId: created.file.currentVersion.id,
+				workspaceId: other.workspaceId,
+			})
+		).toBeNull();
 	});
 
 	it("sweeps an orphan temporary object after TTL and refuses Cancel after Finalizing", async () => {

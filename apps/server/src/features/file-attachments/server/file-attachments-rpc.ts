@@ -64,25 +64,12 @@ export const fileAttachments = {
 		.input(z.object({ fileAttachmentId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			const file = await getFileAttachment(
-				getPrismaClient(),
-				input.fileAttachmentId
-			);
-			if (!file) {
-				throw new ORPCError("NOT_FOUND");
-			}
-			const listed = await listFileAttachments(getPrismaClient(), {
-				scope: file.scope,
+			const file = await getFileAttachment(getPrismaClient(), {
+				id: input.fileAttachmentId,
 				workspaceId: access.workspaceId,
 			});
-			if (!listed.some((item) => item.id === file.id)) {
-				const owned = await getFileAttachment(
-					getPrismaClient(),
-					input.fileAttachmentId
-				);
-				if (!owned) {
-					throw new ORPCError("NOT_FOUND");
-				}
+			if (!file) {
+				throw new ORPCError("NOT_FOUND");
 			}
 			return file;
 		}),

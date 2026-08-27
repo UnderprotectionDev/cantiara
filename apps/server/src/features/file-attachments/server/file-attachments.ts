@@ -410,6 +410,7 @@ export async function listFileAttachments(
 	prisma: PrismaClient,
 	input: { scope: FileScope; workspaceId: string }
 ): Promise<FileAttachmentView[]> {
+	await sweepExpiredFileStaging(prisma);
 	const rows = await prisma.fileAttachment.findMany({
 		orderBy: { createdAt: "desc" },
 		where: {
@@ -430,18 +431,25 @@ export async function listFileAttachments(
 
 export async function getFileAttachment(
 	prisma: PrismaClient,
-	id: string
+	input: { id: string; workspaceId: string }
 ): Promise<FileAttachmentView | null> {
-	return await loadFileView(prisma, id);
+	const row = await prisma.fileAttachment.findFirst({
+		where: { id: input.id, workspaceId: input.workspaceId },
+	});
+	if (!row) {
+		return null;
+	}
+	return await loadFileView(prisma, row.id);
 }
 
 export async function readAccessibleFileBytes(
 	prisma: PrismaClient,
-	input: { fileAttachmentId: string; versionId: string },
+	input: { fileAttachmentId: string; versionId: string; workspaceId: string },
 	deps: FileAttachmentDeps = {}
 ): Promise<{ bytes: Uint8Array; filename: string; mimeType: string } | null> {
 	const version = await prisma.fileAttachmentVersion.findFirst({
 		where: {
+			fileAttachment: { workspaceId: input.workspaceId },
 			fileAttachmentId: input.fileAttachmentId,
 			id: input.versionId,
 		},

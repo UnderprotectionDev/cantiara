@@ -30,6 +30,7 @@ export async function handleFileAttachmentContent(
 	const body = await readAccessibleFileBytes(getPrismaClient(), {
 		fileAttachmentId,
 		versionId,
+		workspaceId: access.workspaceId,
 	});
 	if (!body) {
 		return c.body(null, 404);

@@ -72,10 +72,18 @@ export default function FileAttachmentArea({
 			</ul>
 			{selected ? (
 				<section aria-label={selected.title} className="flex flex-col gap-3">
-					<p>{selected.currentVersion.filename}</p>
-					<a href={`${serverOrigin()}${selected.contentPath}`} rel="noreferrer">
-						{FILE_ATTACHMENT_COPY.download}
-					</a>
+					<ul className="flex flex-col gap-1">
+						{selected.versions.map((version) => (
+							<li key={version.id}>
+								<a
+									href={`${serverOrigin()}${version.contentPath}`}
+									rel="noreferrer"
+								>
+									{FILE_ATTACHMENT_COPY.download} {version.filename}
+								</a>
+							</li>
+						))}
+					</ul>
 					<UploadFileForm
 						onCreated={onCreated}
 						projectId={projectId}

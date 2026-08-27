@@ -1,4 +1,5 @@
 export const FILE_ATTACHMENT_COPY = {
+	cancel: "Cancel",
 	conflict: "Conflict",
 	currentVersion: "Current version",
 	download: "Download",
@@ -8,6 +9,7 @@ export const FILE_ATTACHMENT_COPY = {
 	personalWiki: "Personal Wiki",
 	quotaExceeded: "Workspace file quota is exceeded.",
 	quotaWarning: "Workspace file storage is at 80% of quota.",
+	restartFromByteZero: "The transfer restarts from byte zero.",
 	targetAttachment: "Target File Attachment",
 	upload: "Upload",
 	uploadNewVersion: "Upload new version",
