@@ -43,10 +43,7 @@ fi
 # later models) must regenerate the client before the API boots, or protected
 # RPC handlers throw Internal server error.
 log "Generating Prisma client"
-(
-  cd packages/db
-  bunx prisma generate >/dev/null
-)
+bash "$REPO_ROOT/scripts/cloud-agent/prisma-generate.sh" >/dev/null
 
 # Reconcile the local throwaway cluster only. Hosted Neon is not a `db push`
 # target; dotenv will not override this explicit local URL.

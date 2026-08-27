@@ -2419,4 +2419,10 @@ describe("Project Shell", () => {
 			"function"
 		);
 	});
+
+	it("loads Work and WorkLifecycleEvent delegates from the generated client on disk", () => {
+		const productPrisma = getPrismaClient();
+		expect(typeof productPrisma.work.create).toBe("function");
+		expect(typeof productPrisma.workLifecycleEvent.findMany).toBe("function");
+	});
 });

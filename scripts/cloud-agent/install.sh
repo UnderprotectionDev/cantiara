@@ -97,11 +97,11 @@ fi
 log "Installing workspace dependencies"
 bun install --frozen-lockfile
 
-# postinstall runs `prisma generate`, but regenerate explicitly so a warm
-# snapshot without the generated client is still repaired. Call Prisma directly
-# because the turbo wrapper task is interactive and needs a TTY.
+# postinstall runs `bunx --bun prisma generate`, but regenerate explicitly so a
+# warm snapshot without the generated client is still repaired. Call Prisma
+# directly because the turbo wrapper task is interactive and needs a TTY.
 log "Generating Prisma client"
-(cd packages/db && bunx prisma generate >/dev/null)
+bash "$REPO_ROOT/scripts/cloud-agent/prisma-generate.sh" >/dev/null
 
 # --- Schema sync ------------------------------------------------------------
 # Always the local throwaway cluster, even when the app .env points at hosted

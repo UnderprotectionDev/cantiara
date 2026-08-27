@@ -9,6 +9,7 @@ export default function WorkList({
 	selectedId,
 }: {
 	items: Array<{
+		closureResult?: string | null;
 		id: string;
 		key: string;
 		status: string;
@@ -55,6 +56,9 @@ export default function WorkList({
 							</span>
 							<span className="shrink-0 text-muted-foreground text-xs">
 								{item.type} · {item.status}
+								{"closureResult" in item && item.closureResult
+									? ` · ${item.closureResult}`
+									: ""}
 							</span>
 						</button>
 					</li>

@@ -6,18 +6,27 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	changeWorkStatus,
 	changeWorkType,
+	closeWork,
 	convertCaptureToWork,
 	createWork,
 	finalizeDraft,
 	getWork,
 	listWork,
+	listWorkLifecycleHistory,
+	previewClose,
 	previewWorkTypeChange,
+	reopenWork,
 	updateWorkTitle,
 } from "./work-lifecycle";
 import {
+	CLOSURE_RESULTS,
 	createWorkPayloadSchema,
+	NON_TERMINAL_WORK_STATUSES,
+	previewCloseInputSchema,
 	WORK_LIFECYCLE_COPY,
+	WORK_STATUSES,
 	WORK_TYPES,
 } from "./work-lifecycle-model";
 
@@ -48,9 +57,33 @@ async function requireWork(workspaceId: string, workId: string) {
 
 export const workLifecycle = {
 	catalog: protectedProcedure.handler(() => ({
+		closureResults: CLOSURE_RESULTS,
 		copy: WORK_LIFECYCLE_COPY,
+		nonTerminalStatuses: NON_TERMINAL_WORK_STATUSES,
+		statuses: WORK_STATUSES,
 		types: WORK_TYPES,
 	})),
+	changeStatus: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				status: z.string(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await changeWorkStatus(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				status: input.status,
+				workId: input.workId,
+			});
+		}),
 	changeType: protectedWriteProcedure
 		.input(
 			z.object({
@@ -71,6 +104,29 @@ export const workLifecycle = {
 				origin: "human",
 				previewAcknowledged: input.previewAcknowledged,
 				type: input.type,
+				workId: input.workId,
+			});
+		}),
+	close: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				reason: z.string().optional(),
+				result: z.string().optional(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await closeWork(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				reason: input.reason,
+				result: input.result,
 				workId: input.workId,
 			});
 		}),
@@ -138,6 +194,24 @@ export const workLifecycle = {
 			await requireProject(access.workspaceId, input.projectId);
 			return await listWork(getPrismaClient(), input.projectId);
 		}),
+	listHistory: protectedProcedure
+		.input(z.object({ workId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await listWorkLifecycleHistory(getPrismaClient(), input.workId);
+		}),
+	previewClose: protectedProcedure
+		.input(previewCloseInputSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			const preview = await previewClose(getPrismaClient(), input);
+			if ("reason" in preview) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return preview;
+		}),
 	previewTypeChange: protectedProcedure
 		.input(
 			z.object({
@@ -157,6 +231,29 @@ export const workLifecycle = {
 				throw new ORPCError("BAD_REQUEST");
 			}
 			return preview;
+		}),
+	reopen: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				reopenConfirmed: z.boolean().optional(),
+				status: z.string(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await reopenWork(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				reopenConfirmed: input.reopenConfirmed,
+				status: input.status,
+				workId: input.workId,
+			});
 		}),
 	updateTitle: protectedWriteProcedure
 		.input(

@@ -13,10 +13,24 @@ export NODE_ENV="${NODE_ENV:-development}"
 # shellcheck source=use-product-database.sh
 source "$REPO_ROOT/scripts/cloud-agent/use-product-database.sh"
 
-(
-	cd "$REPO_ROOT/packages/db"
-	bunx prisma generate >/dev/null
-)
+wait_for_cloud_start() {
+	local start_dir="/tmp/cursor/start-user"
+	if [[ ! -d "$start_dir" ]]; then
+		return 0
+	fi
+	for _ in {1..90}; do
+		if [[ -f "$start_dir/start-user.status" ]]; then
+			return 0
+		fi
+		sleep 1
+	done
+}
+
+wait_for_cloud_start
+
+bash "$REPO_ROOT/scripts/cloud-agent/prisma-generate.sh" >/dev/null
+
+bash "$REPO_ROOT/scripts/cloud-agent/stop-stale-dev-listeners.sh"
 
 cd "$REPO_ROOT"
 exec bun run dev

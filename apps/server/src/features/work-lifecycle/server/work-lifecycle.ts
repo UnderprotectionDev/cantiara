@@ -10,19 +10,35 @@ import {
 } from "../../mutation-core/server/mutation-shared";
 import { markProjectHasWork } from "../../project-shell/server/project-shell";
 import {
+	applyPlanningMembershipCommandSchema,
+	type ChangeWorkStatusCommand,
 	type ChangeWorkTypeCommand,
+	type ClosePreview,
+	type CloseWorkCommand,
 	type CreateWorkCommand,
+	changeWorkStatusCommandSchema,
 	changeWorkTypeCommandSchema,
+	closePreviewCopy,
+	closeWorkCommandSchema,
 	createWorkCommandSchema,
 	DEFAULT_WORK_TYPE,
+	isClosureResult,
+	isNonTerminalWorkStatus,
+	isWorkStatus,
 	isWorkType,
 	optionalText,
+	type PlanningMembershipOutcome,
+	type PreviewCloseInput,
+	previewCloseInputSchema,
+	type ReopenWorkCommand,
+	reopenWorkCommandSchema,
 	type TypeChangeImpact,
 	typeChangeImpact,
 	type UpdateWorkTitleCommand,
 	updateWorkTitleCommandSchema,
 	WORK_STATUS,
 	type WorkCreateSource,
+	type WorkLifecycleEventView,
 	type WorkLifecycleOutcome,
 	type WorkType,
 	type WorkView,
@@ -33,6 +49,7 @@ import {
 type PrismaTransaction = Prisma.TransactionClient;
 
 interface WorkRow {
+	closureResult: string | null;
 	id: string;
 	key: string;
 	number: number;
@@ -112,6 +129,134 @@ export async function changeWorkType(
 	return await prisma.$transaction((tx) =>
 		changeTypeInTransaction(tx, parsed.command, commandKey, fingerprint)
 	);
+}
+
+export async function changeWorkStatus(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parseStatusCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	if (parsed.command.origin !== HUMAN_ORIGIN) {
+		return { reason: "silent-result-forbidden", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({ status: parsed.command.status });
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		changeStatusInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function closeWork(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parseCloseCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	if (parsed.command.origin !== HUMAN_ORIGIN) {
+		return { reason: "silent-result-forbidden", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({
+		reason: parsed.command.reason ?? null,
+		result: parsed.command.result ?? null,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		closeInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function reopenWork(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parseReopenCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	if (parsed.command.origin !== HUMAN_ORIGIN) {
+		return { reason: "silent-result-forbidden", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({
+		reopenConfirmed: parsed.command.reopenConfirmed ?? false,
+		status: parsed.command.status,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		reopenInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function previewClose(
+	prisma: PrismaClient,
+	input: unknown
+): Promise<ClosePreview | { reason: "target-not-found" }> {
+	const parsed = previewCloseInputSchema.safeParse(input);
+	if (!parsed.success) {
+		return { reason: "target-not-found" };
+	}
+	const work = await prisma.work.findUnique({
+		where: { id: parsed.data.workId },
+	});
+	if (!work) {
+		return { reason: "target-not-found" };
+	}
+	return buildClosePreview(work.projectId, work.id, parsed.data);
+}
+
+export async function applyPlanningMembership(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<PlanningMembershipOutcome> {
+	const parsed = applyPlanningMembershipCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (parsed.data.desiredStatus === WORK_STATUS.closed) {
+		return { reason: "close-step-required", status: "rejected" };
+	}
+	const work = await getWork(prisma, parsed.data.workId);
+	if (!work) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	return {
+		membership: { surface: parsed.data.surface },
+		status: "committed",
+		work,
+	};
+}
+
+export async function listWorkLifecycleHistory(
+	prisma: PrismaClient,
+	workId: string
+): Promise<WorkLifecycleEventView[]> {
+	const rows = await prisma.workLifecycleEvent.findMany({
+		orderBy: { createdAt: "asc" },
+		where: { workId },
+	});
+	return rows.map((row) => ({
+		closureResult:
+			row.closureResult && isClosureResult(row.closureResult)
+				? row.closureResult
+				: null,
+		id: row.id,
+		kind: asEventKind(row.kind),
+		reason: row.reason,
+		status: isWorkStatus(row.status) ? row.status : WORK_STATUS.notStarted,
+	}));
 }
 
 export async function previewWorkTypeChange(
@@ -214,6 +359,30 @@ function parseTypeCommand(
 	| { command: ChangeWorkTypeCommand; status: "ok" }
 	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
 	return parseKeyedCommand(command, changeWorkTypeCommandSchema);
+}
+
+function parseStatusCommand(
+	command: unknown
+):
+	| { command: ChangeWorkStatusCommand; status: "ok" }
+	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
+	return parseKeyedCommand(command, changeWorkStatusCommandSchema);
+}
+
+function parseCloseCommand(
+	command: unknown
+):
+	| { command: CloseWorkCommand; status: "ok" }
+	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
+	return parseKeyedCommand(command, closeWorkCommandSchema);
+}
+
+function parseReopenCommand(
+	command: unknown
+):
+	| { command: ReopenWorkCommand; status: "ok" }
+	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
+	return parseKeyedCommand(command, reopenWorkCommandSchema);
 }
 
 function parseKeyedCommand<T>(
@@ -431,6 +600,290 @@ async function changeTypeInTransaction(
 	return { status: "committed", work };
 }
 
+async function changeStatusInTransaction(
+	tx: PrismaTransaction,
+	command: ChangeWorkStatusCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkLifecycleOutcome> {
+	const prepared = await prepareWorkWrite(
+		tx,
+		command.workId,
+		commandKey,
+		fingerprint
+	);
+	if (prepared.status !== "ok") {
+		return prepared.outcome;
+	}
+	if (prepared.row.revision !== command.baseRevision) {
+		return {
+			current: toView(prepared.row),
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	if (command.status === WORK_STATUS.closed) {
+		return { reason: "close-step-required", status: "rejected" };
+	}
+	if (!isNonTerminalWorkStatus(command.status)) {
+		return { reason: "unknown-work-status", status: "rejected" };
+	}
+	if (prepared.row.status === WORK_STATUS.closed) {
+		return { reason: "reopen-required", status: "rejected" };
+	}
+	if (command.status === prepared.row.status) {
+		const work = toView(prepared.row);
+		await writeReceipt(tx, {
+			actorId: command.actorId,
+			commandKey,
+			fingerprint,
+			work,
+		});
+		return { status: "committed", work };
+	}
+	await tx.work.update({
+		data: {
+			revision: prepared.row.revision + 1,
+			status: command.status,
+		},
+		where: { id: prepared.row.id },
+	});
+	await appendEvent(tx, {
+		closureResult: null,
+		kind: "status",
+		reason: null,
+		status: command.status,
+		workId: prepared.row.id,
+	});
+	return await finishWrite(
+		tx,
+		prepared.row.id,
+		command.actorId,
+		commandKey,
+		fingerprint
+	);
+}
+
+async function closeInTransaction(
+	tx: PrismaTransaction,
+	command: CloseWorkCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkLifecycleOutcome> {
+	const prepared = await prepareWorkWrite(
+		tx,
+		command.workId,
+		commandKey,
+		fingerprint
+	);
+	if (prepared.status !== "ok") {
+		return prepared.outcome;
+	}
+	if (prepared.row.revision !== command.baseRevision) {
+		return {
+			current: toView(prepared.row),
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	if (!(command.result && isClosureResult(command.result))) {
+		return { reason: "unknown-closure-result", status: "rejected" };
+	}
+	const reason = optionalText(command.reason);
+	await tx.work.update({
+		data: {
+			closureReason: reason,
+			closureResult: command.result,
+			revision: prepared.row.revision + 1,
+			status: WORK_STATUS.closed,
+		},
+		where: { id: prepared.row.id },
+	});
+	await appendEvent(tx, {
+		closureResult: command.result,
+		kind: "closed",
+		reason,
+		status: WORK_STATUS.closed,
+		workId: prepared.row.id,
+	});
+	return await finishWrite(
+		tx,
+		prepared.row.id,
+		command.actorId,
+		commandKey,
+		fingerprint
+	);
+}
+
+async function reopenInTransaction(
+	tx: PrismaTransaction,
+	command: ReopenWorkCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkLifecycleOutcome> {
+	const prepared = await prepareWorkWrite(
+		tx,
+		command.workId,
+		commandKey,
+		fingerprint
+	);
+	if (prepared.status !== "ok") {
+		return prepared.outcome;
+	}
+	if (prepared.row.revision !== command.baseRevision) {
+		return {
+			current: toView(prepared.row),
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	if (prepared.row.status !== WORK_STATUS.closed) {
+		return { reason: "unknown-work-status", status: "rejected" };
+	}
+	if (command.reopenConfirmed !== true) {
+		return { reason: "reopen-confirm-required", status: "rejected" };
+	}
+	if (!isNonTerminalWorkStatus(command.status)) {
+		return { reason: "unknown-work-status", status: "rejected" };
+	}
+	await tx.work.update({
+		data: {
+			closureReason: null,
+			closureResult: null,
+			revision: prepared.row.revision + 1,
+			status: command.status,
+		},
+		where: { id: prepared.row.id },
+	});
+	await appendEvent(tx, {
+		closureResult: null,
+		kind: "reopened",
+		reason: null,
+		status: command.status,
+		workId: prepared.row.id,
+	});
+	return await finishWrite(
+		tx,
+		prepared.row.id,
+		command.actorId,
+		commandKey,
+		fingerprint
+	);
+}
+
+function buildClosePreview(
+	projectId: string,
+	workId: string,
+	input: PreviewCloseInput
+): ClosePreview {
+	const notes = optionalText(input.notes);
+	return {
+		blocking: false,
+		copy: closePreviewCopy(),
+		findings: {
+			activeBlockers: input.activeBlockers ?? [],
+			incompleteChecklistItems: input.incompleteChecklistItems ?? [],
+		},
+		keepLastingContext:
+			notes === null
+				? null
+				: {
+						decision: {
+							action: "create-decision",
+							body: notes,
+							linkedWorkId: workId,
+						},
+						personalWiki: {
+							action: "create-personal-wiki-document",
+							body: notes,
+							originProjectId: projectId,
+							originWorkId: workId,
+						},
+					},
+	};
+}
+
+async function prepareWorkWrite(
+	tx: PrismaTransaction,
+	workId: string,
+	commandKey: string,
+	fingerprint: string
+): Promise<
+	| { outcome: WorkLifecycleOutcome; status: "done" }
+	| { row: WorkRow; status: "ok" }
+> {
+	const current = await tx.work.findUnique({ where: { id: workId } });
+	if (!current) {
+		return {
+			outcome: { reason: "target-not-found", status: "rejected" },
+			status: "done",
+		};
+	}
+	await lockProject(tx, current.projectId);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return { outcome: replayed, status: "done" };
+	}
+	const locked = await loadWork(tx, current.id);
+	if (!locked) {
+		return {
+			outcome: { reason: "target-not-found", status: "rejected" },
+			status: "done",
+		};
+	}
+	return { row: locked, status: "ok" };
+}
+
+async function finishWrite(
+	tx: PrismaTransaction,
+	workId: string,
+	actorId: string,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkLifecycleOutcome> {
+	const updated = await loadWork(tx, workId);
+	if (!updated) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const work = toView(updated);
+	await writeReceipt(tx, {
+		actorId,
+		commandKey,
+		fingerprint,
+		work,
+	});
+	return { status: "committed", work };
+}
+
+async function appendEvent(
+	tx: PrismaTransaction,
+	input: {
+		closureResult: string | null;
+		kind: WorkLifecycleEventView["kind"];
+		reason: string | null;
+		status: string;
+		workId: string;
+	}
+): Promise<void> {
+	await tx.workLifecycleEvent.create({
+		data: {
+			closureResult: input.closureResult,
+			id: crypto.randomUUID(),
+			kind: input.kind,
+			reason: input.reason,
+			status: input.status,
+			workId: input.workId,
+		},
+	});
+}
+
+function asEventKind(value: string): WorkLifecycleEventView["kind"] {
+	if (value === "closed" || value === "reopened" || value === "status") {
+		return value;
+	}
+	return "status";
+}
+
 function resolveType(
 	value: string | undefined
 ):
@@ -541,16 +994,24 @@ function toView(row: WorkRow): WorkView {
 	if (!isWorkType(row.type)) {
 		throw new Error("unknown-work-type");
 	}
-	if (row.status !== WORK_STATUS.notStarted) {
+	if (!isWorkStatus(row.status)) {
 		throw new Error("unknown-work-status");
 	}
+	const closureResult =
+		row.closureResult && isClosureResult(row.closureResult)
+			? row.closureResult
+			: null;
+	if (row.status === WORK_STATUS.closed && closureResult === null) {
+		throw new Error("unknown-closure-result");
+	}
 	return {
+		closureResult: row.status === WORK_STATUS.closed ? closureResult : null,
 		id: row.id,
 		key: row.key,
 		number: row.number,
 		projectId: row.projectId,
 		revision: row.revision,
-		status: WORK_STATUS.notStarted,
+		status: row.status,
 		title: row.title,
 		type: row.type,
 	};

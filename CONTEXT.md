@@ -132,6 +132,10 @@ _Avoid_: Kapanış sonucu, planlama görünümü, Proje aşaması
 Bir İşin veya Projenin kapanmasının nasıl gerçekleştiğini kalıcı geçmişiyle belirten, İş akışı durumundan ayrı [sonuç](docs/prd/02-domain-model-and-lifecycle.md#ortak-yaşam-döngüsü).
 _Avoid_: İş akışı durumu, arşiv, terminal kolon
 
+**Planlama üyeliği**:
+İşin Backlog, Board, Roadmap veya benzeri bir planlama yüzeyindeki görünürlüğü; [durum yazmaz](docs/prd/06-work-management-and-planning.md#planlama-yüzeyidurum-ayrımı) ve kapatma adımının yerine geçmez.
+_Avoid_: İş akışı durumu, kapanış sonucu, terminal kolon
+
 **İş Bağlam Kartı**:
 Bir İşin kendi alanlarıyla açık doğrudan ilişkilerinden gelen bağlamı kaynaklarında canlı gösteren, [İş türüne özgü sunum düzeni](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı); içerik kopyası, bağımsız sorgu veya durum kapısı değildir.
 _Avoid_: Dashboard, ikinci İş özeti, Başlangıç yapılandırmasına göre farklı İş anlamı

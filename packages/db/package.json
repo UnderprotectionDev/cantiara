@@ -11,11 +11,12 @@
   },
   "scripts": {
     "db:push": "prisma db push",
-    "db:generate": "prisma generate",
+    "db:generate": "bunx --bun prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
-    "postinstall": "prisma generate",
-    "db:studio": "prisma studio"
+    "postinstall": "bunx --bun prisma generate",
+    "db:studio": "prisma studio",
+    "test": "bun test src"
   },
   "dependencies": {
     "@cantiara/env": "workspace:*",
