@@ -95,7 +95,7 @@ export const workLifecycle = {
 			if (input.targetFeatureId) {
 				await requireWork(access.workspaceId, input.targetFeatureId);
 			}
-			return await applyScopeTreeDrag(getPrismaClient(), {
+			return applyScopeTreeDrag(getPrismaClient(), {
 				targetFeatureId: input.targetFeatureId,
 				workId: input.workId,
 			});

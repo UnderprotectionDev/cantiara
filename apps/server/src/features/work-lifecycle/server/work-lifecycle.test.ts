@@ -2566,7 +2566,6 @@ describe("Work Lifecycle", () => {
 						{
 							id: intake.id,
 							key: "PAY-3",
-							relatedMilestone: null,
 							status: "Not Started",
 							title: "Intake checkout",
 						},

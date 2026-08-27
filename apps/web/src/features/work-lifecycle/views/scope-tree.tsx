@@ -1,6 +1,12 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { type MouseEvent, useCallback, useState } from "react";
+import {
+	type MouseEvent,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { orpc } from "@/utils/orpc";
@@ -36,6 +42,14 @@ export default function ScopeTree({
 		orpc.workLifecycle.getScopeTree.queryOptions({ input: { projectId } })
 	);
 	const [expandedIds, setExpandedIds] = useState<readonly string[]>([]);
+	const seededProject = useRef(false);
+	useEffect(() => {
+		if (!(tree.data && !seededProject.current)) {
+			return;
+		}
+		seededProject.current = true;
+		setExpandedIds([tree.data.project.id]);
+	}, [tree.data]);
 	const onToggle = useCallback((event: MouseEvent<HTMLButtonElement>) => {
 		const { value } = event.currentTarget;
 		setExpandedIds((current) => nextExpandedNodeIds(current, value));
@@ -54,25 +68,38 @@ export default function ScopeTree({
 		return <p role="alert">{PROJECT_SHELL_COPY.unavailable}</p>;
 	}
 
+	const projectExpanded = expandedIds.includes(tree.data.project.id);
+
 	return (
 		<section aria-label={tree.data.copy.scopeTree}>
 			<h2 className="font-medium text-sm">{tree.data.copy.scopeTree}</h2>
 			<ul className="mt-2 flex flex-col">
 				<li>
-					<p className="px-2 py-2 text-sm">{tree.data.project.name}</p>
-					<ul className="flex flex-col pl-4">
-						{tree.data.features.map((feature) => (
-							<FeatureNode
-								expanded={expandedIds.includes(feature.id)}
-								feature={feature}
-								key={feature.id}
-								onOpen={onOpen}
-								onToggle={onToggle}
-								openedRecordId={openedRecordId}
-								openSourceRecord={tree.data.copy.openSourceRecord}
-							/>
-						))}
-					</ul>
+					<Button
+						aria-expanded={projectExpanded}
+						onClick={onToggle}
+						size="sm"
+						type="button"
+						value={tree.data.project.id}
+						variant="ghost"
+					>
+						{tree.data.project.name}
+					</Button>
+					{projectExpanded ? (
+						<ul className="flex flex-col pl-4">
+							{tree.data.features.map((feature) => (
+								<FeatureNode
+									expanded={expandedIds.includes(feature.id)}
+									feature={feature}
+									key={feature.id}
+									onOpen={onOpen}
+									onToggle={onToggle}
+									openedRecordId={openedRecordId}
+									openSourceRecord={tree.data.copy.openSourceRecord}
+								/>
+							))}
+						</ul>
+					) : null}
 				</li>
 			</ul>
 		</section>

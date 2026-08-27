@@ -67,6 +67,7 @@ import {
 	reopenWorkCommandSchema,
 	type ScopeTree,
 	type ScopeTreeDragOutcome,
+	type ScopeTreeWorkNode,
 	scopeCopy,
 	scopeTreeCopy,
 	type TypeChangeImpact,
@@ -907,15 +908,13 @@ function asTreeWorkNode(row: {
 	status: string;
 	title: string;
 	type: string;
-}): ScopeTree["features"][number]["includedWork"][number] | null {
+}): ScopeTreeWorkNode | null {
 	if (!(isWorkType(row.type) && isWorkStatus(row.status))) {
 		return null;
 	}
 	return {
-		blockers: [],
 		id: row.id,
 		key: row.key,
-		relatedMilestone: null,
 		status: row.status,
 		title: row.title,
 		type: row.type,
@@ -953,7 +952,6 @@ export async function getScopeTree(
 			});
 			return [
 				{
-					blockers: [],
 					id: feature.id,
 					includedWork,
 					key: feature.key,
@@ -964,7 +962,6 @@ export async function getScopeTree(
 						featureStatus: feature.status,
 						includedCount: includedWork.length,
 					},
-					relatedMilestone: null,
 					status: feature.status,
 					title: feature.title,
 					type: "Feature" as const,
@@ -975,14 +972,11 @@ export async function getScopeTree(
 	};
 }
 
-export async function applyScopeTreeDrag(
-	prisma: PrismaClient,
+export function applyScopeTreeDrag(
+	_prisma: PrismaClient,
 	command: unknown
-): Promise<ScopeTreeDragOutcome> {
-	const parsed = applyScopeTreeDragCommandSchema.safeParse(command);
-	if (parsed.success) {
-		await prisma.work.findUnique({ where: { id: parsed.data.workId } });
-	}
+): ScopeTreeDragOutcome {
+	applyScopeTreeDragCommandSchema.safeParse(command);
 	return { reason: "scope-tree-read-only", status: "rejected" };
 }
 

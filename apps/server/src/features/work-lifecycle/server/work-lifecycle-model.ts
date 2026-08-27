@@ -694,10 +694,8 @@ export const featureProgressSchema = z.object({
 export type FeatureProgress = z.infer<typeof featureProgressSchema>;
 
 export const scopeTreeWorkNodeSchema = z.object({
-	blockers: z.array(z.never()),
 	id: z.string().min(1),
 	key: z.string().min(1),
-	relatedMilestone: z.null(),
 	status: workStatusSchema,
 	title: z.string().min(1),
 	type: workTypeSchema,
