@@ -18,6 +18,19 @@ import { WORK_LIFECYCLE_COPY } from "./work-lifecycle-copy";
 
 type MergeField = "title" | "type" | "status" | "closureResult";
 
+function mergeFieldLabel(field: string): string {
+	if (field === "title") {
+		return WORK_LIFECYCLE_COPY.title;
+	}
+	if (field === "type") {
+		return WORK_LIFECYCLE_COPY.type;
+	}
+	if (field === "status") {
+		return WORK_LIFECYCLE_COPY.status;
+	}
+	return WORK_LIFECYCLE_COPY.closed;
+}
+
 export default function MergeWorkForm({
 	candidates,
 	onMerged,
@@ -33,10 +46,7 @@ export default function MergeWorkForm({
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [error, setError] = useState<string | null>(null);
-	const initialDuplicate = candidates.at(0);
-	const [duplicateId, setDuplicateId] = useState(
-		initialDuplicate ? initialDuplicate.id : ""
-	);
+	const [duplicateId, setDuplicateId] = useState("");
 	const previewNeeded = duplicateId.length > 0;
 	const preview = useQuery({
 		...orpc.workLifecycle.previewMerge.queryOptions({
@@ -133,6 +143,7 @@ export default function MergeWorkForm({
 						onChange={onDuplicateChange}
 						value={duplicateId}
 					>
+						<NativeSelectOption value="">—</NativeSelectOption>
 						{candidates.map((item) => (
 							<NativeSelectOption key={item.id} value={item.id}>
 								{item.key} {item.title}
@@ -156,7 +167,7 @@ export default function MergeWorkForm({
 						{WORK_LIFECYCLE_COPY.survivingRecord} {preview.data.survivor.key}
 					</p>
 					<p>
-						{WORK_LIFECYCLE_COPY.origin} {preview.data.duplicate.key}
+						{WORK_LIFECYCLE_COPY.mergeAsDuplicate} {preview.data.duplicate.key}
 					</p>
 					<h4 className="mt-2 font-medium text-foreground text-sm">
 						{WORK_LIFECYCLE_COPY.fieldConflicts}
@@ -221,7 +232,7 @@ function ConflictChoice({
 	return (
 		<Field className="mt-1">
 			<FieldLabel htmlFor={`merge-field-${conflict.field}`}>
-				{conflict.field}
+				{mergeFieldLabel(conflict.field)}
 			</FieldLabel>
 			<NativeSelect
 				className="w-full"

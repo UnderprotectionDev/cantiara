@@ -79,7 +79,7 @@ interface WorkOrigin {
 	key: string;
 }
 
-interface MovedWorkRelation {
+interface RewrittenWorkRelation {
 	id: string;
 	kind: string;
 	originalFromId: string;
@@ -1466,7 +1466,7 @@ async function rewriteDuplicateRelations(
 	tx: PrismaTransaction,
 	survivorId: string,
 	duplicateId: string
-): Promise<MovedWorkRelation[]> {
+): Promise<RewrittenWorkRelation[]> {
 	const relations = await tx.workRelation.findMany({
 		where: {
 			OR: [{ fromId: duplicateId }, { toId: duplicateId }],
@@ -1482,7 +1482,7 @@ async function rewriteDuplicateRelations(
 	);
 	const deleteIds: string[] = [];
 	const updates: Array<{ fromId: string; id: string; toId: string }> = [];
-	const moved: MovedWorkRelation[] = [];
+	const moved: RewrittenWorkRelation[] = [];
 	for (const relation of relations) {
 		const rewrite = rewriteRelation(relation, survivorId, duplicateId);
 		if (!rewrite) {
@@ -1684,7 +1684,7 @@ function hasLaterAttributedWrite(
 
 async function restoreMovedRelations(
 	tx: PrismaTransaction,
-	moved: MovedWorkRelation[]
+	moved: RewrittenWorkRelation[]
 ): Promise<void> {
 	if (moved.length === 0) {
 		return;
@@ -1787,17 +1787,17 @@ function parseRetiredSnapshot(text: string): WorkRow | null {
 	}
 }
 
-function parseMovedRelations(text: string): MovedWorkRelation[] {
+function parseMovedRelations(text: string): RewrittenWorkRelation[] {
 	try {
 		const parsed: unknown = JSON.parse(text);
 		if (!Array.isArray(parsed)) {
 			return [];
 		}
-		return parsed.filter((row): row is MovedWorkRelation =>
+		return parsed.filter((row): row is RewrittenWorkRelation =>
 			Boolean(
 				row &&
 					typeof row === "object" &&
-					typeof (row as MovedWorkRelation).id === "string"
+					typeof (row as RewrittenWorkRelation).id === "string"
 			)
 		);
 	} catch {
