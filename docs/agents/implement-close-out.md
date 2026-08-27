@@ -26,14 +26,15 @@ If no spec was available, say so under Spec. If review was skipped, say why — 
 
 ## 3. Nasıl test edilir
 
-Concrete verification the reader can run alone:
+Tarayıcıda adım adım doğrulama — komut, terminal veya otomatik test çıktısı yok:
 
-- Commands already executed (typecheck, targeted tests, full suite) and their outcome
-- Exact commands to re-run locally
-- Manual path when UI or integration behaviour changed — URL, clicks, expected result
-- Prerequisites only when non-obvious (env vars, migrations, seed data)
+- Hangi URL'ye git
+- Hangi tıklamalar / girişler / akış
+- Her adımda ne görmeli
 
-**Done when** the reader can verify the change without asking the agent.
+Değişiklik tarayıcıda test edilemiyorsa, bunu tek cümleyle söyle — komut önerme.
+
+**Done when** okuyucu tarayıcıda tek başına doğrulayabilir veya neden edemeyeceğini anlar.
 
 ## Voice
 

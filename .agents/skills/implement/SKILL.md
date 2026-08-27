@@ -14,4 +14,4 @@ Once done, use /code-review to review the work.
 
 Commit your work to the current branch.
 
-Before your final message, read [`docs/agents/implement-close-out.md`](../../docs/agents/implement-close-out.md) and follow its three-section format — Turkish, in order: Ne eklendi, İnceleme, Nasıl test edilir.
+Before your final message, read [`docs/agents/implement-close-out.md`](../../docs/agents/implement-close-out.md) and follow its three-section format — Turkish, in order: Ne eklendi, İnceleme, Nasıl test edilir (tarayıcı adımları only; no commands).
