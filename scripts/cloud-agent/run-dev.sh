@@ -30,6 +30,10 @@ wait_for_cloud_start
 
 bash "$REPO_ROOT/scripts/cloud-agent/prisma-generate.sh" >/dev/null
 
+# Hosted Neon: generate does not create columns. Official Prisma deploy path is
+# migrate deploy on the same DATABASE_URL the API will use (direct host, not pooler).
+bash "$REPO_ROOT/scripts/cloud-agent/prisma-migrate-deploy.sh"
+
 bash "$REPO_ROOT/scripts/cloud-agent/stop-stale-dev-listeners.sh"
 
 cd "$REPO_ROOT"
