@@ -41,6 +41,7 @@ describe("Work Drafts catalog", () => {
 				delete: "Delete",
 				draft: "Draft",
 				drafts: "Drafts",
+				loading: "Loading…",
 				noDrafts: "No drafts.",
 				resume: "Resume",
 			},

@@ -1,3 +1,4 @@
+import { CLIENT_SHELL_COPY as MAIN_FLOW_COPY } from "@cantiara/api/client-shell-failure";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
@@ -9,6 +10,7 @@ import { orpc, queryClient } from "@/utils/orpc";
 
 import WorkDraftForm from "../forms/work-draft-form";
 import { WORK_DRAFTS_COPY } from "../forms/work-drafts-copy";
+import { draftsListPresentation } from "./drafts-list-presentation";
 
 export default function DraftsArea() {
 	const { attemptOnlineWork, markUnsaved } = useClientShell();
@@ -59,22 +61,53 @@ export default function DraftsArea() {
 				onDraftId={setDraftId}
 				resumeKey={resumeKey}
 			/>
-			{list.data?.length ? (
-				<ul aria-label={copy.drafts}>
-					{list.data.map((draft) => (
-						<DraftListItem
-							copy={copy}
-							draft={draft}
-							key={draft.id}
-							onDelete={onDelete}
-							onResume={onResume}
-						/>
-					))}
-				</ul>
-			) : (
-				<p>{copy.noDrafts}</p>
-			)}
+			<DraftsList
+				copy={copy}
+				list={list}
+				onDelete={onDelete}
+				onResume={onResume}
+			/>
 		</FounderPage>
+	);
+}
+
+function DraftsList({
+	copy,
+	list,
+	onDelete,
+	onResume,
+}: {
+	copy: typeof WORK_DRAFTS_COPY;
+	list: {
+		data: ReadonlyArray<{ form: { title: string }; id: string }> | undefined;
+		isError: boolean;
+		isPending: boolean;
+	};
+	onDelete: (id: string) => void;
+	onResume: (id: string) => void;
+}) {
+	const presentation = draftsListPresentation(list);
+	if (presentation.kind === "failed") {
+		return <p>{MAIN_FLOW_COPY.failed}</p>;
+	}
+	if (presentation.kind === "loading") {
+		return <p>{copy.loading}</p>;
+	}
+	if (presentation.kind === "empty") {
+		return <p>{copy.noDrafts}</p>;
+	}
+	return (
+		<ul aria-label={copy.drafts}>
+			{presentation.drafts.map((draft) => (
+				<DraftListItem
+					copy={copy}
+					draft={draft}
+					key={draft.id}
+					onDelete={onDelete}
+					onResume={onResume}
+				/>
+			))}
+		</ul>
 	);
 }
 
