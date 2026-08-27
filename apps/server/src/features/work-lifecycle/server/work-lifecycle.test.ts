@@ -38,6 +38,8 @@ import {
 } from "./work-lifecycle";
 import { DEFAULT_WORK_TYPE } from "./work-lifecycle-model";
 
+const SCHEMA_MISSING_IN_DATABASE = /does not exist in the current database/;
+
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
 	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
@@ -262,6 +264,30 @@ describe("Work Lifecycle", () => {
 			status: "rejected",
 		});
 		expect(await listWork(prisma, project.id)).toEqual([]);
+	});
+
+	it("fails listing Work when the generated client is ahead of the database", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const created = await createWork(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "schema-drift-list",
+					projectId: project.id,
+					title: "Intake",
+				},
+				actorId
+			)
+		);
+		expect(created.status).toBe("committed");
+		await prisma.$executeRaw`ALTER TABLE "work" DROP COLUMN IF EXISTS "description"`;
+		try {
+			await expect(listWork(prisma, project.id)).rejects.toThrow(
+				SCHEMA_MISSING_IN_DATABASE
+			);
+		} finally {
+			await prisma.$executeRaw`ALTER TABLE "work" ADD COLUMN IF NOT EXISTS "description" TEXT`;
+		}
 	});
 
 	it("allocates unique keys under concurrency and does not reuse a deleted number", async () => {

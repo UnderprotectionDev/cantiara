@@ -199,3 +199,56 @@ test("a thrown failure marked written presents Data was written and no Retry", (
 	expect(presented.retry).toBeUndefined();
 	expect(presented.supportReference).toBe("CANT-CAFEBABE");
 });
+
+test("a Prisma Work list schema mismatch stays secret-free and still says Data was not written", () => {
+	const prismaListFailure =
+		new Error(`Invalid \`prisma.work.findMany()\` invocation in
+/workspace/apps/server/src/features/work-lifecycle/server/work-lifecycle.ts:386:33
+
+The column \`work.description\` does not exist in the current database.`);
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(prismaListFailure, undefined, {
+			trackingId: "CANT-4F1C9DA6",
+		})
+	);
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.pendingMigrations);
+	expect(presented.reason).not.toBe(CLIENT_SHELL_COPY.failed);
+	expect(presented.writeOutcome).toBe("Data was not written.");
+	expect(presented.retryBound).toBe("You can retry once.");
+	expect(presented.retry).toBe("Retry");
+	expect(presented.supportReference).toBe("CANT-4F1C9DA6");
+	expect(presented.description).toBe(
+		"Data was not written. You can retry once. Support reference CANT-4F1C9DA6"
+	);
+});
+
+test("a Prisma P2022 code maps to pending migrations without leaking a workspace path", () => {
+	const prismaKnown = Object.assign(
+		new Error("Invalid prisma.work.findMany() invocation"),
+		{ code: "P2022" }
+	);
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(prismaKnown, undefined, {
+			trackingId: "CANT-00P2022A",
+		})
+	);
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.pendingMigrations);
+	expect(JSON.stringify(presented)).not.toContain("/workspace/");
+});
+
+test("a multiline failure without secrets keeps a readable reason", () => {
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(
+			new Error("Couldn't list Work.\nRetry after the database catches up."),
+			undefined,
+			{ trackingId: "CANT-0A1B2C3D" }
+		)
+	);
+
+	expect(presented.reason).toBe(
+		"Couldn't list Work. Retry after the database catches up."
+	);
+	expect(presented.reason).not.toBe(CLIENT_SHELL_COPY.failed);
+});
