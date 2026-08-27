@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
+import { z } from "zod";
 
 import {
 	advisoryKeys,
@@ -20,19 +21,31 @@ import {
 	type CreateWorkCommand,
 	changeWorkStatusCommandSchema,
 	changeWorkTypeCommandSchema,
+	classifyRecreateRelations,
 	closePreviewCopy,
 	closeWorkCommandSchema,
 	createWorkCommandSchema,
 	DEFAULT_WORK_TYPE,
+	defaultSelectedFields,
 	isClosureResult,
 	isNonTerminalWorkStatus,
+	isPortableRelationKind,
+	isPortableWorkField,
 	isWorkStatus,
 	isWorkType,
+	type LightChecklistItem,
+	lightChecklistItemSchema,
 	optionalText,
 	type PlanningMembershipOutcome,
 	type PreviewCloseInput,
+	portableFieldPreviews,
 	previewCloseInputSchema,
+	previewRecreateInputSchema,
+	type RecreatePreview,
+	type RecreateWorkCommand,
 	type ReopenWorkCommand,
+	recreatePreviewCopy,
+	recreateWorkCommandSchema,
 	reopenWorkCommandSchema,
 	type TypeChangeImpact,
 	typeChangeImpact,
@@ -44,9 +57,12 @@ import {
 	type WorkCreateSource,
 	type WorkLifecycleEventView,
 	type WorkLifecycleOutcome,
+	type WorkOrigin,
+	type WorkRelationView,
 	type WorkType,
 	type WorkView,
 	workKey,
+	workRelationSchema,
 	workViewSchema,
 } from "./work-lifecycle-model";
 
@@ -55,9 +71,14 @@ type PrismaTransaction = Prisma.TransactionClient;
 interface WorkRow {
 	archived: boolean;
 	closureResult: string | null;
+	description: string | null;
 	id: string;
 	key: string;
+	lightChecklist: Prisma.JsonValue;
 	number: number;
+	originWork: WorkOrigin | null;
+	originWorkId: string | null;
+	portableRelations: Prisma.JsonValue;
 	projectId: string;
 	revision: number;
 	status: string;
@@ -258,6 +279,79 @@ export async function previewClose(
 	return buildClosePreview(work.projectId, work.id, parsed.data);
 }
 
+export async function previewRecreate(
+	prisma: PrismaClient,
+	input: unknown
+): Promise<RecreatePreview | { reason: "target-not-found" }> {
+	const parsed = previewRecreateInputSchema.safeParse(input);
+	if (!parsed.success) {
+		return { reason: "target-not-found" };
+	}
+	const work = await loadWork(prisma, parsed.data.workId);
+	if (!work) {
+		return { reason: "target-not-found" };
+	}
+	const target = await prisma.project.findUnique({
+		select: { id: true, name: true },
+		where: { id: parsed.data.targetProjectId },
+	});
+	if (!target) {
+		return { reason: "target-not-found" };
+	}
+	if (!(isWorkType(work.type) && isWorkStatus(work.status))) {
+		return { reason: "target-not-found" };
+	}
+	const closureResult =
+		work.closureResult && isClosureResult(work.closureResult)
+			? work.closureResult
+			: null;
+	return {
+		copy: recreatePreviewCopy(),
+		portableFields: portableFieldPreviews({
+			description: work.description,
+			lightChecklist: asChecklist(work.lightChecklist),
+			title: work.title,
+			type: work.type,
+		}),
+		relations: classifyRecreateRelations(parsed.data.relations ?? []),
+		source: {
+			closureResult: work.status === WORK_STATUS.closed ? closureResult : null,
+			id: work.id,
+			key: work.key,
+			status: work.status,
+			type: work.type,
+		},
+		targetProject: {
+			id: target.id,
+			name: target.name,
+		},
+	};
+}
+
+export async function recreateWork(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parseRecreateCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({
+		relations: parsed.command.payload.relations ?? [],
+		selectedFields: parsed.command.payload.selectedFields ?? null,
+		selectedRelationIds: parsed.command.payload.selectedRelationIds ?? [],
+		targetProjectId: parsed.command.payload.targetProjectId,
+		workId: parsed.command.payload.workId,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		recreateInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
 export async function applyPlanningMembership(
 	prisma: PrismaClient,
 	command: unknown
@@ -321,7 +415,7 @@ export async function getWork(
 	prisma: PrismaClient,
 	workId: string
 ): Promise<WorkView | null> {
-	const row = await prisma.work.findUnique({ where: { id: workId } });
+	const row = await loadWork(prisma, workId);
 	return row ? toView(row) : null;
 }
 
@@ -335,7 +429,7 @@ export async function listWork(
 		orderBy: { number: "asc" },
 		where: { archived, projectId },
 	});
-	return rows.map(toView);
+	return await toViews(prisma, rows);
 }
 
 export async function permanentlyDeleteWork(
@@ -426,6 +520,14 @@ function parseReopenCommand(
 	| { command: ReopenWorkCommand; status: "ok" }
 	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
 	return parseKeyedCommand(command, reopenWorkCommandSchema);
+}
+
+function parseRecreateCommand(
+	command: unknown
+):
+	| { command: RecreateWorkCommand; status: "ok" }
+	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
+	return parseKeyedCommand(command, recreateWorkCommandSchema);
 }
 
 function parseArchiveCommand(
@@ -830,6 +932,92 @@ async function reopenInTransaction(
 	);
 }
 
+async function recreateInTransaction(
+	tx: PrismaTransaction,
+	command: RecreateWorkCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkLifecycleOutcome> {
+	const source = await loadWork(tx, command.payload.workId);
+	if (!source) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const target = await tx.project.findUnique({
+		select: { id: true, shortCode: true },
+		where: { id: command.payload.targetProjectId },
+	});
+	if (!target) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (target.id === source.projectId) {
+		return { reason: "work-not-portable", status: "rejected" };
+	}
+	await lockProject(tx, target.id);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const selectedFields = resolveSelectedFields(command.payload.selectedFields);
+	if (selectedFields.status !== "ok") {
+		return selectedFields.outcome;
+	}
+	const portableRelations = resolvePortableRelations(
+		command.payload.relations ?? [],
+		command.payload.selectedRelationIds ?? []
+	);
+	if (portableRelations.status !== "ok") {
+		return portableRelations.outcome;
+	}
+	if (!isWorkType(source.type)) {
+		return { reason: "unknown-work-type", status: "rejected" };
+	}
+	const title = selectedFields.value.includes("title")
+		? optionalText(source.title)
+		: null;
+	if (!title) {
+		return { reason: "missing-title", status: "rejected" };
+	}
+	const type = selectedFields.value.includes("type")
+		? source.type
+		: DEFAULT_WORK_TYPE;
+	const description = selectedFields.value.includes("description")
+		? source.description
+		: null;
+	const lightChecklist = selectedFields.value.includes("lightChecklist")
+		? asChecklist(source.lightChecklist).map((item) => ({
+				completed: item.completed,
+				id: crypto.randomUUID(),
+				title: item.title,
+			}))
+		: [];
+	const number = await allocateNumber(tx, target.id);
+	const workId = crypto.randomUUID();
+	await tx.work.create({
+		data: {
+			description,
+			id: workId,
+			key: workKey(target.shortCode, number),
+			lightChecklist,
+			number,
+			originWorkId: source.id,
+			portableRelations: portableRelations.value,
+			projectId: target.id,
+			revision: 1,
+			status: WORK_STATUS.notStarted,
+			title,
+			type,
+		},
+	});
+	await markProjectHasWork(tx, target.id);
+	return await finishWrite(
+		tx,
+		workId,
+		command.actorId,
+		commandKey,
+		fingerprint
+	);
+}
+
 async function setArchivedInTransaction(
 	tx: PrismaTransaction,
 	command: ArchiveWorkCommand,
@@ -877,6 +1065,46 @@ async function setArchivedInTransaction(
 		commandKey,
 		fingerprint
 	);
+}
+
+function resolveSelectedFields(
+	selectedFields: string[] | undefined
+):
+	| { status: "ok"; value: string[] }
+	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
+	const fields = selectedFields ?? defaultSelectedFields();
+	if (fields.some((field) => !isPortableWorkField(field))) {
+		return {
+			outcome: { reason: "work-not-portable", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	return { status: "ok", value: fields };
+}
+
+function resolvePortableRelations(
+	relations: ReadonlyArray<{ id: string; kind: string; title: string }>,
+	selectedRelationIds: readonly string[]
+):
+	| { status: "ok"; value: WorkRelationView[] }
+	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
+	const byId = new Map(relations.map((relation) => [relation.id, relation]));
+	const copied: WorkRelationView[] = [];
+	for (const id of selectedRelationIds) {
+		const relation = byId.get(id);
+		if (!(relation && isPortableRelationKind(relation.kind))) {
+			return {
+				outcome: { reason: "work-not-portable", status: "rejected" },
+				status: "rejected",
+			};
+		}
+		copied.push({
+			id: crypto.randomUUID(),
+			kind: relation.kind,
+			title: relation.title,
+		});
+	}
+	return { status: "ok", value: copied };
 }
 
 function buildClosePreview(
@@ -1095,7 +1323,51 @@ async function loadWork(
 	db: PrismaClient | PrismaTransaction,
 	workId: string
 ): Promise<WorkRow | null> {
-	return await db.work.findUnique({ where: { id: workId } });
+	const row = await db.work.findUnique({
+		where: { id: workId },
+	});
+	if (!row) {
+		return null;
+	}
+	const [viewRow] = await withOrigins(db, [row]);
+	return viewRow ?? null;
+}
+
+async function toViews(
+	db: PrismaClient | PrismaTransaction,
+	rows: readonly Omit<WorkRow, "originWork">[]
+): Promise<WorkView[]> {
+	const withOrigin = await withOrigins(db, rows);
+	return withOrigin.map(toView);
+}
+
+async function withOrigins(
+	db: PrismaClient | PrismaTransaction,
+	rows: readonly Omit<WorkRow, "originWork">[]
+): Promise<WorkRow[]> {
+	const originIds = [
+		...new Set(
+			rows
+				.map((row) => row.originWorkId)
+				.filter((id): id is string => typeof id === "string" && id.length > 0)
+		),
+	];
+	const origins =
+		originIds.length === 0
+			? []
+			: await db.work.findMany({
+					select: { id: true, key: true, projectId: true },
+					where: { id: { in: originIds } },
+				});
+	const originById = new Map(
+		origins.map((origin) => [origin.id, origin satisfies WorkOrigin])
+	);
+	return rows.map((row) => ({
+		...row,
+		originWork: row.originWorkId
+			? (originById.get(row.originWorkId) ?? null)
+			: null,
+	}));
 }
 
 function toView(row: WorkRow): WorkView {
@@ -1115,15 +1387,29 @@ function toView(row: WorkRow): WorkView {
 	return {
 		archived: row.archived,
 		closureResult: row.status === WORK_STATUS.closed ? closureResult : null,
+		description: row.description,
 		id: row.id,
 		key: row.key,
+		lightChecklist: asChecklist(row.lightChecklist),
 		number: row.number,
+		origin: row.originWork ?? null,
 		projectId: row.projectId,
+		relations: asRelations(row.portableRelations),
 		revision: row.revision,
 		status: row.status,
 		title: row.title,
 		type: row.type,
 	};
+}
+
+function asChecklist(value: Prisma.JsonValue): LightChecklistItem[] {
+	const parsed = z.array(lightChecklistItemSchema).safeParse(value);
+	return parsed.success ? parsed.data : [];
+}
+
+function asRelations(value: Prisma.JsonValue): WorkRelationView[] {
+	const parsed = z.array(workRelationSchema).safeParse(value);
+	return parsed.success ? parsed.data : [];
 }
 
 function storedWork(text: string): WorkView | null {

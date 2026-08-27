@@ -113,6 +113,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Araştırma | `Research` | İş türü |
 | İyileştirme | `Improvement` | İş türü |
 | İş oluştur | `Create Work` | Projede yalnız başlıkla İş oluşturma eylemi |
+| Açıklama | `Description` | İşin taşınabilir gövde alanı |
+| Hafif kontrol listesi | `Checklist` | İşteki metin maddeleri; bağımsız İş değildir |
+| Başka Projede yeniden oluştur | `Recreate in another Project` | Yanlış Projede oluşan İşten hedefte yeni kimlikli İş üretme; taşıma değildir |
 | Başlık | `Title` | İş oluştururken zorunlu alan |
 | Tür | `Type` | İş türü alanı |
 | Anahtar | `Key` | Kullanıcıya dönük `{shortCode}-{n}` İş anahtarı |

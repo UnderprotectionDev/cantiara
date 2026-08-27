@@ -3,6 +3,7 @@ import { Button } from "@cantiara/ui/components/button";
 import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
 import ChangeWorkTypeForm from "../forms/change-work-type-form";
+import RecreateWorkForm from "../forms/recreate-work-form";
 import ReopenWorkForm from "../forms/reopen-work-form";
 import {
 	type ClosureResult,
@@ -16,6 +17,7 @@ export interface WorkRecord {
 	closureResult: ClosureResult | null;
 	id: string;
 	key: string;
+	origin?: { id: string; key: string; projectId: string } | null;
 	revision: number;
 	status: WorkStatus;
 	title: string;
@@ -56,6 +58,14 @@ export default function WorkDetail({
 						{work.closureResult ? ` · ${work.closureResult}` : ""}
 					</dd>
 				</div>
+				{work.origin ? (
+					<div className="flex gap-2">
+						<dt className="text-muted-foreground">
+							{WORK_LIFECYCLE_COPY.openSourceRecord}
+						</dt>
+						<dd className="font-mono">{work.origin.key}</dd>
+					</div>
+				) : null}
 			</dl>
 			{work.status === "Closed" ? (
 				<ReopenWorkForm
@@ -78,6 +88,11 @@ export default function WorkDetail({
 				projectId={projectId}
 				revision={work.revision}
 				type={work.type}
+				workId={work.id}
+			/>
+			<RecreateWorkForm
+				key={`${work.id}:recreate`}
+				projectId={projectId}
 				workId={work.id}
 			/>
 			<ArchiveWorkForm

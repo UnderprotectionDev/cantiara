@@ -61,6 +61,7 @@ export const WORK_LIFECYCLE_COPY = {
 	confirmReopen: "Confirm reopen",
 	confirmTypeChange: "Confirm type change",
 	createWork: "Create Work",
+	description: "Description",
 	detachBeforeLeavingFeature:
 		"Detach included Work, Feature health history, and Primary spec before leaving Feature.",
 	featureHealth: "Feature health",
@@ -69,10 +70,13 @@ export const WORK_LIFECYCLE_COPY = {
 	inProgress: WORK_STATUS.inProgress,
 	keepLastingContext: "Keep lasting context",
 	key: "Key",
+	lightChecklist: "Checklist",
 	notStarted: WORK_STATUS.notStarted,
 	noWork: "No Work yet.",
+	openSourceRecord: "Open source record",
 	primarySpec: "Primary spec",
 	reason: "Reason",
+	recreateInAnotherProject: "Recreate in another Project",
 	reopen: "Reopen",
 	returnToWork: "Return to work",
 	title: "Title",
@@ -80,6 +84,58 @@ export const WORK_LIFECYCLE_COPY = {
 	unarchive: "Unarchive",
 	work: "Work",
 } as const;
+
+export const PORTABLE_WORK_FIELDS = [
+	"title",
+	"type",
+	"description",
+	"lightChecklist",
+] as const;
+
+export type PortableWorkField = (typeof PORTABLE_WORK_FIELDS)[number];
+
+export const PORTABLE_RELATION_KIND = "related" as const;
+
+export const NON_PORTABLE_RELATION_KINDS = [
+	"github-completion",
+	"automation",
+	"planning-membership",
+	"publish",
+	"parentage",
+	"merge-state",
+	"source-history",
+	"closure-result",
+	"current-status",
+	"date-typed-custom-value",
+	"absolute-date",
+] as const;
+
+export type NonPortableRelationKind =
+	(typeof NON_PORTABLE_RELATION_KINDS)[number];
+
+export const workRelationSchema = z.object({
+	id: z.string().min(1),
+	kind: z.string().min(1),
+	title: z.string().min(1),
+});
+
+export type WorkRelationView = z.infer<typeof workRelationSchema>;
+
+export const lightChecklistItemSchema = z.object({
+	completed: z.boolean(),
+	id: z.string().min(1),
+	title: z.string().min(1),
+});
+
+export type LightChecklistItem = z.infer<typeof lightChecklistItemSchema>;
+
+export const workOriginSchema = z.object({
+	id: z.string().min(1),
+	key: z.string().min(1),
+	projectId: z.string().min(1),
+});
+
+export type WorkOrigin = z.infer<typeof workOriginSchema>;
 
 export const workTypeSchema = z.enum(WORK_TYPES);
 export const workStatusSchema = z.enum(WORK_STATUSES);
@@ -89,10 +145,14 @@ export const closureResultSchema = z.enum(CLOSURE_RESULTS);
 export const workViewSchema = z.object({
 	archived: z.boolean().default(false),
 	closureResult: closureResultSchema.nullable().default(null),
+	description: z.string().nullable().default(null),
 	id: z.string().min(1),
 	key: z.string().min(1),
+	lightChecklist: z.array(lightChecklistItemSchema).default([]),
 	number: z.number().int().positive(),
+	origin: workOriginSchema.nullable().default(null),
 	projectId: z.string().min(1),
+	relations: z.array(workRelationSchema).default([]),
 	revision: z.number().int().positive(),
 	status: workStatusSchema,
 	title: z.string().min(1),
@@ -188,6 +248,78 @@ export const reopenWorkCommandSchema = z.object({
 });
 
 export type ReopenWorkCommand = z.infer<typeof reopenWorkCommandSchema>;
+
+export const recreateSourceRelationSchema = z.object({
+	id: z.string().min(1),
+	kind: z.string().min(1),
+	title: z.string().min(1),
+});
+
+export const recreateWorkPayloadSchema = z.object({
+	relations: z.array(recreateSourceRelationSchema).optional(),
+	selectedFields: z.array(z.string()).optional(),
+	selectedRelationIds: z.array(z.string()).optional(),
+	targetProjectId: z.string().min(1),
+	workId: z.string().min(1),
+});
+
+export type RecreateWorkPayload = z.infer<typeof recreateWorkPayloadSchema>;
+
+export const recreateWorkCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: recreateWorkPayloadSchema,
+});
+
+export type RecreateWorkCommand = z.infer<typeof recreateWorkCommandSchema>;
+
+export const previewRecreateInputSchema = z.object({
+	relations: z.array(recreateSourceRelationSchema).optional(),
+	targetProjectId: z.string().min(1),
+	workId: z.string().min(1),
+});
+
+export type PreviewRecreateInput = z.infer<typeof previewRecreateInputSchema>;
+
+export const portableFieldPreviewSchema = z.object({
+	id: z.enum(PORTABLE_WORK_FIELDS),
+	selectedByDefault: z.literal(true),
+	value: z.union([z.string(), z.null(), z.array(lightChecklistItemSchema)]),
+});
+
+export const recreateRelationPreviewSchema =
+	recreateSourceRelationSchema.extend({
+		portable: z.boolean(),
+	});
+
+export const recreatePreviewSchema = z.object({
+	copy: z.object({
+		description: z.literal(WORK_LIFECYCLE_COPY.description),
+		lightChecklist: z.literal(WORK_LIFECYCLE_COPY.lightChecklist),
+		openSourceRecord: z.literal(WORK_LIFECYCLE_COPY.openSourceRecord),
+		recreateInAnotherProject: z.literal(
+			WORK_LIFECYCLE_COPY.recreateInAnotherProject
+		),
+		title: z.literal(WORK_LIFECYCLE_COPY.title),
+		type: z.literal(WORK_LIFECYCLE_COPY.type),
+	}),
+	portableFields: z.array(portableFieldPreviewSchema),
+	relations: z.array(recreateRelationPreviewSchema),
+	source: z.object({
+		closureResult: closureResultSchema.nullable(),
+		id: z.string().min(1),
+		key: z.string().min(1),
+		status: workStatusSchema,
+		type: workTypeSchema,
+	}),
+	targetProject: z.object({
+		id: z.string().min(1),
+		name: z.string().min(1),
+	}),
+});
+
+export type RecreatePreview = z.infer<typeof recreatePreviewSchema>;
 
 export const archiveWorkCommandSchema = z.object({
 	actorId: z.string().min(1),
@@ -417,4 +549,68 @@ export function optionalText(value: string | null | undefined): string | null {
 	}
 	const trimmed = value.trim();
 	return trimmed.length === 0 ? null : trimmed;
+}
+
+export function isPortableWorkField(value: string): value is PortableWorkField {
+	return (PORTABLE_WORK_FIELDS as readonly string[]).includes(value);
+}
+
+export function isPortableRelationKind(kind: string): boolean {
+	return kind === PORTABLE_RELATION_KIND;
+}
+
+export function recreatePreviewCopy() {
+	return {
+		description: WORK_LIFECYCLE_COPY.description,
+		lightChecklist: WORK_LIFECYCLE_COPY.lightChecklist,
+		openSourceRecord: WORK_LIFECYCLE_COPY.openSourceRecord,
+		recreateInAnotherProject: WORK_LIFECYCLE_COPY.recreateInAnotherProject,
+		title: WORK_LIFECYCLE_COPY.title,
+		type: WORK_LIFECYCLE_COPY.type,
+	} as const;
+}
+
+export function classifyRecreateRelations(
+	relations: ReadonlyArray<{ id: string; kind: string; title: string }>
+) {
+	return relations.map((relation) => ({
+		id: relation.id,
+		kind: relation.kind,
+		portable: isPortableRelationKind(relation.kind),
+		title: relation.title,
+	}));
+}
+
+export function defaultSelectedFields(): PortableWorkField[] {
+	return [...PORTABLE_WORK_FIELDS];
+}
+
+export function portableFieldPreviews(input: {
+	description: string | null;
+	lightChecklist: LightChecklistItem[];
+	title: string;
+	type: WorkType;
+}) {
+	return [
+		{
+			id: "title" as const,
+			selectedByDefault: true as const,
+			value: input.title,
+		},
+		{
+			id: "type" as const,
+			selectedByDefault: true as const,
+			value: input.type,
+		},
+		{
+			id: "description" as const,
+			selectedByDefault: true as const,
+			value: input.description,
+		},
+		{
+			id: "lightChecklist" as const,
+			selectedByDefault: true as const,
+			value: input.lightChecklist,
+		},
+	];
 }

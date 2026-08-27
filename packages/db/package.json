@@ -13,7 +13,7 @@
     "db:push": "prisma db push",
     "db:generate": "bunx --bun prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:deploy": "bunx --bun prisma migrate deploy",
     "postinstall": "bunx --bun prisma generate",
     "db:studio": "prisma studio",
     "test": "bun test src"
