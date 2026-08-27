@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
+import ProjectOverview from "@/features/project-overview/views/project-overview";
 import ConfigurationMode from "@/features/project-shell/forms/configuration-mode";
 import CopyProjectStructureForm from "@/features/project-shell/forms/copy-project-structure-form";
 import FirstOpenExplanation from "@/features/project-shell/forms/first-open-explanation";
@@ -111,11 +112,6 @@ export default function ProjectProfile({
 						))}
 					</ul>
 				</nav>
-				{data.purpose ? (
-					<p>
-						{PROJECT_SHELL_COPY.purpose} {data.purpose}
-					</p>
-				) : null}
 				{data.problem ? (
 					<p>
 						{PROJECT_SHELL_COPY.problem} {data.problem}
@@ -126,16 +122,12 @@ export default function ProjectProfile({
 						{PROJECT_SHELL_COPY.scope} {data.scope}
 					</p>
 				) : null}
-				{data.targetDate ? (
-					<p>
-						{PROJECT_SHELL_COPY.targetDate} {data.targetDate}
-					</p>
-				) : null}
 				{data.logoFileName ? (
 					<p>
 						{PROJECT_SHELL_COPY.logo} {data.logoFileName}
 					</p>
 				) : null}
+				<ProjectOverview projectId={data.id} />
 			</section>
 			{data.alwaysOnSurfaces
 				.filter(
