@@ -16,7 +16,9 @@ import {
 	listWork,
 	listWorkLifecycleHistory,
 	previewClose,
+	previewRecreate,
 	previewWorkTypeChange,
+	recreateWork,
 	reopenWork,
 	updateWorkTitle,
 } from "./work-lifecycle";
@@ -25,6 +27,8 @@ import {
 	createWorkPayloadSchema,
 	NON_TERMINAL_WORK_STATUSES,
 	previewCloseInputSchema,
+	previewRecreateInputSchema,
+	recreateWorkPayloadSchema,
 	WORK_LIFECYCLE_COPY,
 	WORK_STATUSES,
 	WORK_TYPES,
@@ -212,6 +216,18 @@ export const workLifecycle = {
 			}
 			return preview;
 		}),
+	previewRecreate: protectedProcedure
+		.input(previewRecreateInputSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			await requireProject(access.workspaceId, input.targetProjectId);
+			const preview = await previewRecreate(getPrismaClient(), input);
+			if ("reason" in preview) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return preview;
+		}),
 	previewTypeChange: protectedProcedure
 		.input(
 			z.object({
@@ -231,6 +247,24 @@ export const workLifecycle = {
 				throw new ORPCError("BAD_REQUEST");
 			}
 			return preview;
+		}),
+	recreate: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: recreateWorkPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.payload.workId);
+			await requireProject(access.workspaceId, input.payload.targetProjectId);
+			return await recreateWork(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
 		}),
 	reopen: protectedWriteProcedure
 		.input(

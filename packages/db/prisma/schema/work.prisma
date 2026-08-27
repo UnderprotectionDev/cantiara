@@ -1,22 +1,29 @@
 model Work {
-  id              String               @id
-  projectId       String
-  project         Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  key             String
-  number          Int
-  title           String
-  type            String
-  status          String
-  closureResult   String?
-  closureReason   String?
-  revision        Int
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  lifecycleEvents WorkLifecycleEvent[]
+  id                String               @id
+  projectId         String
+  project           Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key               String
+  number            Int
+  title             String
+  type              String
+  status            String
+  closureResult     String?
+  closureReason     String?
+  description       String?
+  originWorkId      String?
+  originWork        Work?                @relation("WorkOrigin", fields: [originWorkId], references: [id], onDelete: SetNull)
+  recreatedFromThis Work[]               @relation("WorkOrigin")
+  lightChecklist    Json                 @default("[]")
+  portableRelations Json                 @default("[]")
+  revision          Int
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  lifecycleEvents   WorkLifecycleEvent[]
 
   @@unique([projectId, number])
   @@unique([projectId, key])
   @@index([projectId])
+  @@index([originWorkId])
   @@map("work")
 }
 
