@@ -314,6 +314,7 @@ export type WorkLifecycleRejectionReason =
 	| "feature-impact-preview-required"
 	| "missing-idempotency-key"
 	| "missing-title"
+	| "nested-inclusion-refused"
 	| "not-a-feature"
 	| "reopen-confirm-required"
 	| "reopen-required"

@@ -1203,6 +1203,22 @@ describe("Work Lifecycle", () => {
 		expect(await getWorkScope(prisma, intake.id)).toMatchObject({
 			includedIn: { id: checkout.id },
 		});
+		expect(
+			await includeWork(prisma, {
+				actorId,
+				baseRevision: other.revision,
+				featureId: checkout.id,
+				idempotencyKey: "include-feature",
+				origin: "human",
+				workId: other.id,
+			})
+		).toEqual({
+			reason: "nested-inclusion-refused",
+			status: "rejected",
+		});
+		expect(JSON.stringify(await getWorkScope(prisma, checkout.id))).not.toMatch(
+			HIERARCHY_PATTERN
+		);
 	});
 
 	it("keeps Related Features out of inclusion progress", async () => {

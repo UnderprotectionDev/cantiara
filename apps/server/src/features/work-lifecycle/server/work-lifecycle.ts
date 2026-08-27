@@ -522,13 +522,17 @@ export async function getWorkScope(
 				});
 	return {
 		copy: scopeCopy(),
-		healthHistory: healthHistory.map((entry) => ({
-			id: entry.id,
-			reason: entry.reason,
-			status: isFeatureHealthStatus(entry.status)
-				? entry.status
-				: WORK_LIFECYCLE_COPY.onTrack,
-		})),
+		healthHistory: healthHistory.flatMap((entry) =>
+			isFeatureHealthStatus(entry.status)
+				? [
+						{
+							id: entry.id,
+							reason: entry.reason,
+							status: entry.status,
+						},
+					]
+				: []
+		),
 		includedIn: includedIn
 			? { id: includedIn.id, key: includedIn.key, title: includedIn.title }
 			: null,
@@ -599,6 +603,9 @@ async function includeInTransaction(
 	}
 	if (feature.projectId !== prepared.row.projectId) {
 		return { reason: "work-not-portable", status: "rejected" };
+	}
+	if (feature.includedInFeatureId || prepared.row.type === "Feature") {
+		return { reason: "nested-inclusion-refused", status: "rejected" };
 	}
 	if (prepared.row.includedInFeatureId) {
 		return { reason: "already-included", status: "rejected" };

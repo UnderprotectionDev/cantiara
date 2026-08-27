@@ -68,7 +68,7 @@ export default function FeatureInclusionPanel({
 			{type === "Feature" ? (
 				<>
 					<IncludeWorkForm
-						candidates={candidates}
+						candidates={candidates.filter((item) => item.type !== "Feature")}
 						featureId={workId}
 						included={scope.data.includedWork}
 						projectId={projectId}
@@ -437,6 +437,7 @@ function PrimarySpecForm({
 	workId: string;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const [specId, setSpecId] = useState(primarySpec ? primarySpec.id : "");
 	const [title, setTitle] = useState(primarySpec ? primarySpec.title : "");
 	const bind = useMutation(
 		orpc.workLifecycle.bindPrimarySpec.mutationOptions({
@@ -461,8 +462,9 @@ function PrimarySpecForm({
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
-			const trimmed = title.trim();
-			if (trimmed.length === 0) {
+			const trimmedTitle = title.trim();
+			const trimmedId = specId.trim();
+			if (trimmedTitle.length === 0 || trimmedId.length === 0) {
 				return;
 			}
 			markUnsaved();
@@ -471,8 +473,8 @@ function PrimarySpecForm({
 					baseRevision: revision,
 					idempotencyKey: newIdempotencyKey(),
 					primarySpec: {
-						id: primarySpec ? primarySpec.id : crypto.randomUUID(),
-						title: trimmed,
+						id: trimmedId,
+						title: trimmedTitle,
 					},
 					workId,
 				})
@@ -481,7 +483,7 @@ function PrimarySpecForm({
 				result.value.catch(() => undefined);
 			}
 		},
-		[attemptOnlineWork, bind, markUnsaved, primarySpec, revision, title, workId]
+		[attemptOnlineWork, bind, markUnsaved, revision, specId, title, workId]
 	);
 	const onDetach = useCallback(() => {
 		markUnsaved();
@@ -503,8 +505,14 @@ function PrimarySpecForm({
 			<form className="flex flex-col gap-3" onSubmit={onSubmit}>
 				<FieldGroup className="flex-row flex-wrap items-end gap-3">
 					<TitleField
-						id="primary-spec-title"
+						id="primary-spec-id"
 						label={WORK_LIFECYCLE_COPY.primarySpec}
+						onValueChange={setSpecId}
+						value={specId}
+					/>
+					<TitleField
+						id="primary-spec-title"
+						label={WORK_LIFECYCLE_COPY.title}
 						onValueChange={setTitle}
 						value={title}
 					/>
