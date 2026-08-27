@@ -802,6 +802,18 @@ export async function detachPrimarySpec(
 	);
 }
 
+function relatedOtherId(
+	edge:
+		| { fromId: string; fromKind?: string; toId: string }
+		| { fromWorkId: string; toWorkId: string },
+	workId: string
+): string {
+	if ("fromId" in edge) {
+		return edge.fromId === workId ? edge.toId : edge.fromId;
+	}
+	return edge.fromWorkId === workId ? edge.toWorkId : edge.fromWorkId;
+}
+
 export async function getWorkScope(
 	prisma: PrismaClient,
 	workId: string
@@ -827,20 +839,28 @@ export async function getWorkScope(
 					where: { featureId: workId },
 				})
 			: [];
-	const relatedEdges =
-		typeof prisma.workRelatedEdge?.findMany === "function"
-			? await prisma.workRelatedEdge.findMany({
-					where: {
-						OR: [{ fromWorkId: workId }, { toWorkId: workId }],
-					},
-				})
-			: [];
+	let relatedEdges:
+		| Array<{ fromId: string; fromKind?: string; toId: string }>
+		| Array<{ fromWorkId: string; toWorkId: string }> = [];
+	if (typeof prisma.typedRelation?.findMany === "function") {
+		relatedEdges = await prisma.typedRelation.findMany({
+			where: {
+				OR: [
+					{ fromId: workId, fromKind: "Work" },
+					{ toId: workId, toKind: "Work" },
+				],
+				type: WORK_LIFECYCLE_COPY.related,
+			},
+		});
+	} else if (typeof prisma.workRelatedEdge?.findMany === "function") {
+		relatedEdges = await prisma.workRelatedEdge.findMany({
+			where: {
+				OR: [{ fromWorkId: workId }, { toWorkId: workId }],
+			},
+		});
+	}
 	const relatedIds = [
-		...new Set(
-			relatedEdges.map((edge) =>
-				edge.fromWorkId === workId ? edge.toWorkId : edge.fromWorkId
-			)
-		),
+		...new Set(relatedEdges.map((edge) => relatedOtherId(edge, workId))),
 	];
 	const relatedRows =
 		relatedIds.length === 0
@@ -1092,19 +1112,24 @@ async function relateInTransaction(
 	if (target.projectId !== prepared.row.projectId) {
 		return { reason: "work-not-portable", status: "rejected" };
 	}
-	await tx.workRelatedEdge.upsert({
+	await tx.typedRelation.upsert({
 		create: {
-			fromWorkId: command.fromWorkId,
+			fromId: command.fromWorkId,
+			fromKind: "Work",
 			id: crypto.randomUUID(),
-			kind: WORK_LIFECYCLE_COPY.related,
-			toWorkId: command.toWorkId,
+			revision: 1,
+			toId: command.toWorkId,
+			toKind: "Work",
+			type: WORK_LIFECYCLE_COPY.related,
 		},
 		update: {},
 		where: {
-			fromWorkId_toWorkId_kind: {
-				fromWorkId: command.fromWorkId,
-				kind: WORK_LIFECYCLE_COPY.related,
-				toWorkId: command.toWorkId,
+			type_fromKind_fromId_toKind_toId: {
+				fromId: command.fromWorkId,
+				fromKind: "Work",
+				toId: command.toWorkId,
+				toKind: "Work",
+				type: WORK_LIFECYCLE_COPY.related,
 			},
 		},
 	});

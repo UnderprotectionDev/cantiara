@@ -196,6 +196,7 @@ async function seedWorkspace(prisma: PrismaClient, email?: string) {
 }
 
 async function resetSharedTables(prisma: PrismaClient) {
+	await prisma.typedRelation.deleteMany();
 	await prisma.mutationReceipt.deleteMany();
 	await prisma.workspaceShortCodeReservation.deleteMany();
 	await prisma.project.deleteMany();
@@ -2426,6 +2427,7 @@ describe("Project Shell", () => {
 		expect(typeof productPrisma.workLifecycleEvent.findMany).toBe("function");
 		expect(typeof productPrisma.workRelation.findMany).toBe("function");
 		expect(typeof productPrisma.workMergeEvent.findFirst).toBe("function");
+		expect(typeof productPrisma.typedRelation.findMany).toBe("function");
 	});
 
 	it("does not reuse a Prisma client that cannot record Merge as duplicate", () => {
