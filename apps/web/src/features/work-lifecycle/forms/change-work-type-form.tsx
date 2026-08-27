@@ -11,8 +11,9 @@ import { useCallback, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
-import { orpc, queryClient } from "@/utils/orpc";
+import { orpc } from "@/utils/orpc";
 
+import { invalidateWork } from "./invalidate-work";
 import {
 	involvesFeature,
 	WORK_LIFECYCLE_COPY,
@@ -47,16 +48,7 @@ export default function ChangeWorkTypeForm({
 		orpc.workLifecycle.changeType.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await queryClient.invalidateQueries({
-						queryKey: orpc.workLifecycle.list.queryKey({
-							input: { projectId },
-						}),
-					});
-					await queryClient.invalidateQueries({
-						queryKey: orpc.workLifecycle.get.queryKey({
-							input: { workId },
-						}),
-					});
+					await invalidateWork(projectId, workId);
 					recordSave();
 					setError(null);
 					return;

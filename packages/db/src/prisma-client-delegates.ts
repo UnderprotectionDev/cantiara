@@ -10,6 +10,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.work?.create === "function" &&
 		typeof client.workLifecycleEvent?.findMany === "function" &&
 		typeof client.featureHealthUpdate?.findMany === "function" &&
-		typeof client.workRelatedEdge?.findMany === "function"
+		typeof client.workRelatedEdge?.findMany === "function" &&
+		typeof client.workRelation?.findMany === "function" &&
+		typeof client.workMergeEvent?.findFirst === "function" &&
+		typeof client.workMergeEvent?.create === "function"
 	);
 }

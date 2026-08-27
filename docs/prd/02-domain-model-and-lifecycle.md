@@ -10,6 +10,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Çalışma alanı | `Workspace` | Projeleri, Kişisel Wiki'yi ve ortak yapılandırmayı kapsayan sınır |
 | Proje yaşam durumu | `Active`, `Pending`, `Completed`, `Abandoned` | PRD terimleri `Aktif`, `Bekleyen`, `Tamamlandı` ve `Vazgeçildi`nin kullanıcıya gösterilen karşılıkları; çalışma aşamasından ayrıdır |
 | İş | `Work` | Genel kayıt; Özellik, Bug, Görev, Araştırma ve İyileştirme bunun türleridir |
+| İş arşivi | `Archive` | İş akışı durumu ve kapanış sonucundan bağımsız görünürlük; Çöp Kutusu ve Proje arşivi değildir |
+| İş arşiv filtresi | `Archived` | Varsayılan İş listesinden ayrı açık arşiv görünürlüğü |
+| İş arşivini geri al | `Unarchive` | Arşivlenen İşi varsayılan listeye kimliği değiştirmeden döndürme |
 | Özellik | `Feature` | İş türü |
 | Kullanıcı Akışı | `User Flow` | Kullanıcının arayüz hedefi ve karar yolunu taşıyan tasarım türü |
 | Herkese açık | `Public` | Dışarıdan anonim erişilebilen kullanıcı görünürlüğü; `Build in Public` ürün adı, teknik alan ve wire değerleri özgün adını korur |
@@ -110,6 +113,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Araştırma | `Research` | İş türü |
 | İyileştirme | `Improvement` | İş türü |
 | İş oluştur | `Create Work` | Projede yalnız başlıkla İş oluşturma eylemi |
+| Kopya olarak birleştir | `Merge as duplicate` | Gerçek kopya iki İşi tek hayatta kalan ana kayıtta birleştirme; kaybedenin anahtarı emekli kimlik yönlendirmesidir |
+| Birleştirme önizlemesi | `Merge Preview` | Hayatta kalan kayıt, alan çatışmaları ve yeniden yazılacak ilişkilerin onay öncesi görünümü |
+| Hayatta kalan kayıt | `Surviving record` | Birleştirmede kalacak kanonik İş |
+| Alan çatışmaları | `Field conflicts` | Birleştirmede kullanıcı çözümü isteyen ayrışan alanlar |
+| İlişkiler | `Relations` | Birleştirmede hayatta kalana yazılacak ilişkiler |
+| Köken | `Origin` | Emekli kimliğin hayatta kalan kayda görünür yönlendirmesi |
+| İlgili | `Related` | Anlamsal bağ; kendiliğinden birleştirme değildir |
+| Açıklama | `Description` | İşin taşınabilir gövde alanı |
+| Hafif kontrol listesi | `Checklist` | İşteki metin maddeleri; bağımsız İş değildir |
+| Başka Projede yeniden oluştur | `Recreate in another Project` | Yanlış Projede oluşan İşten hedefte yeni kimlikli İş üretme; taşıma değildir |
 | Başlık | `Title` | İş oluştururken zorunlu alan |
 | Tür | `Type` | İş türü alanı |
 | Anahtar | `Key` | Kullanıcıya dönük `{shortCode}-{n}` İş anahtarı |

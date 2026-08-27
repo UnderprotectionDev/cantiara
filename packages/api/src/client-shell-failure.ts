@@ -4,8 +4,11 @@ export const CLIENT_SHELL_COPY = {
 	doNotRetry: "Do not retry.",
 	failed: "This action could not be completed.",
 	notWritten: "Data was not written.",
+	pendingMigrations:
+		"Pending Prisma migrations must be applied to this database.",
 	retry: "Retry",
 	retryOnce: "You can retry once.",
+	staleGeneratedClient: "Restart the API after prisma generate.",
 	supportReference: "Support reference",
 	written: "Data was written.",
 } as const;
@@ -42,6 +45,7 @@ const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const JWT = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 const BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const SESSION_SECRET = /session_token=[^;\s]+/gi;
+const UNKNOWN_INCLUDE_FIELD = /Unknown field '[^']+' for include statement/;
 
 export function issueMainFlowFailure(
 	input: {
@@ -88,7 +92,7 @@ export function toMainFlowFailureError(
 		issueMainFlowFailure(
 			{
 				privateContent: options?.privateContent,
-				reason: messageFrom(error),
+				reason: schemaMismatchReason(error) ?? messageFrom(error),
 				trackingId: options?.trackingId,
 				written: options?.written ?? writtenFrom(error),
 			},
@@ -196,24 +200,51 @@ function messageFrom(value: unknown): string {
 	return CLIENT_SHELL_COPY.failed;
 }
 
+function requestCode(value: unknown): string | null {
+	if (typeof value !== "object" || value === null || !("code" in value)) {
+		return null;
+	}
+	const { code } = value as { code: unknown };
+	return typeof code === "string" ? code : null;
+}
+
+function schemaMismatchReason(error: unknown): string | null {
+	const code = requestCode(error);
+	if (code === "P2021" || code === "P2022") {
+		return CLIENT_SHELL_COPY.pendingMigrations;
+	}
+	const message = messageFrom(error);
+	if (message.includes("does not exist in the current database")) {
+		return CLIENT_SHELL_COPY.pendingMigrations;
+	}
+	if (UNKNOWN_INCLUDE_FIELD.test(message)) {
+		return CLIENT_SHELL_COPY.staleGeneratedClient;
+	}
+	return null;
+}
+
+function collapseReason(value: string): string {
+	return value.replace(/\s+/g, " ").trim();
+}
+
 function safeReason(reason: string, privateContent: string[]): string {
-	let next = reason;
+	const collapsed = collapseReason(reason);
+	let redacted = collapsed;
 	for (const piece of privateContent) {
 		if (piece.length > 0) {
-			next = next.split(piece).join("");
+			redacted = redacted.split(piece).join("");
 		}
 	}
-	next = next
+	redacted = redacted
 		.replace(JWT, "")
 		.replace(BEARER, "")
 		.replace(SESSION_SECRET, "")
-		.replace(EMAIL, "")
-		.replace(/\s+/g, " ")
-		.trim();
-	if (next !== reason.trim() || next.length === 0) {
+		.replace(EMAIL, "");
+	const compact = collapseReason(redacted);
+	if (compact.length === 0 || compact.length < collapsed.length) {
 		return CLIENT_SHELL_COPY.failed;
 	}
-	return next;
+	return compact;
 }
 
 export function writeMainFlowFailureLog(

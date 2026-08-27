@@ -1,8 +1,11 @@
 import { Button } from "@cantiara/ui/components/button";
 
+import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
 import ChangeWorkTypeForm from "../forms/change-work-type-form";
 import FeatureInclusionPanel from "../forms/feature-inclusion-panel";
+import MergeWorkForm, { MergeUndoButton } from "../forms/merge-work-form";
+import RecreateWorkForm from "../forms/recreate-work-form";
 import ReopenWorkForm from "../forms/reopen-work-form";
 import {
 	type ClosureResult,
@@ -12,9 +15,13 @@ import {
 } from "../forms/work-lifecycle-copy";
 
 export interface WorkRecord {
+	archived: boolean;
 	closureResult: ClosureResult | null;
 	id: string;
 	key: string;
+	latestMergeEventId?: string | null;
+	origin?: { id: string; key: string; projectId?: string } | null;
+	retiredIdentities?: Array<{ id: string; key: string }>;
 	revision: number;
 	status: WorkStatus;
 	title: string;
@@ -22,12 +29,16 @@ export interface WorkRecord {
 }
 
 export default function WorkDetail({
+	candidates,
 	onClose,
+	onMerged,
 	projectId,
 	work,
 	works,
 }: {
+	candidates: Array<{ id: string; key: string; title: string }>;
 	onClose: () => void;
+	onMerged?: (survivorId: string) => void;
 	projectId: string;
 	work: WorkRecord;
 	works: WorkRecord[];
@@ -57,6 +68,26 @@ export default function WorkDetail({
 						{work.closureResult ? ` · ${work.closureResult}` : ""}
 					</dd>
 				</div>
+				{work.retiredIdentities && work.retiredIdentities.length > 0 ? (
+					<div className="flex gap-2">
+						<dt className="text-muted-foreground">
+							{WORK_LIFECYCLE_COPY.origin}
+						</dt>
+						<dd>
+							{work.retiredIdentities
+								.map((identity) => identity.key)
+								.join(", ")}
+						</dd>
+					</div>
+				) : null}
+				{work.origin ? (
+					<div className="flex gap-2">
+						<dt className="text-muted-foreground">
+							{WORK_LIFECYCLE_COPY.openSourceRecord}
+						</dt>
+						<dd className="font-mono">{work.origin.key}</dd>
+					</div>
+				) : null}
 			</dl>
 			{work.status === "Closed" ? (
 				<ReopenWorkForm
@@ -89,6 +120,33 @@ export default function WorkDetail({
 				type={work.type}
 				workId={work.id}
 			/>
+			<MergeWorkForm
+				candidates={candidates}
+				onMerged={onMerged}
+				projectId={projectId}
+				revision={work.revision}
+				workId={work.id}
+			/>
+			<RecreateWorkForm
+				key={`${work.id}:recreate`}
+				projectId={projectId}
+				workId={work.id}
+			/>
+			<ArchiveWorkForm
+				archived={work.archived}
+				key={`${work.id}:archive:${work.revision}`}
+				projectId={projectId}
+				revision={work.revision}
+				workId={work.id}
+			/>
+			{work.latestMergeEventId ? (
+				<MergeUndoButton
+					mergeEventId={work.latestMergeEventId}
+					projectId={projectId}
+					revision={work.revision}
+					workId={work.id}
+				/>
+			) : null}
 		</article>
 	);
 }

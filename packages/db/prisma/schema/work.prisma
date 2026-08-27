@@ -1,31 +1,48 @@
 model Work {
-  id                  String                 @id
-  projectId           String
-  project             Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  key                 String
-  number              Int
-  title               String
-  type                String
-  status              String
-  closureResult       String?
-  closureReason       String?
-  includedInFeatureId String?
-  includedInFeature   Work?                  @relation("FeatureInclusion", fields: [includedInFeatureId], references: [id], onDelete: SetNull)
-  includedWorks       Work[]                 @relation("FeatureInclusion")
-  primarySpecId       String?
-  primarySpecTitle    String?
-  revision            Int
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
-  lifecycleEvents     WorkLifecycleEvent[]
-  healthUpdates       FeatureHealthUpdate[]
-  relatedFrom         WorkRelatedEdge[]      @relation("RelatedFrom")
-  relatedTo           WorkRelatedEdge[]      @relation("RelatedTo")
+  id                    String                 @id
+  projectId             String
+  project               Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key                   String
+  number                Int
+  title                 String
+  type                  String
+  status                String
+  closureResult         String?
+  closureReason         String?
+  description           String?
+  includedInFeatureId   String?
+  includedInFeature     Work?                  @relation("FeatureInclusion", fields: [includedInFeatureId], references: [id], onDelete: SetNull)
+  includedWorks         Work[]                 @relation("FeatureInclusion")
+  primarySpecId         String?
+  primarySpecTitle      String?
+  originWorkId          String?
+  originWork            Work?                  @relation("WorkOrigin", fields: [originWorkId], references: [id], onDelete: SetNull)
+  recreatedFromThis     Work[]                 @relation("WorkOrigin")
+  lightChecklist        Json                   @default("[]")
+  portableRelations     Json                   @default("[]")
+  archived              Boolean                @default(false)
+  retiredIntoId         String?
+  retiredInto           Work?                  @relation("WorkRetiredIdentity", fields: [retiredIntoId], references: [id], onDelete: SetNull)
+  retiredIdentities     Work[]                 @relation("WorkRetiredIdentity")
+  revision              Int
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  lifecycleEvents       WorkLifecycleEvent[]
+  healthUpdates         FeatureHealthUpdate[]
+  relatedFrom           WorkRelatedEdge[]      @relation("RelatedFrom")
+  relatedTo             WorkRelatedEdge[]      @relation("RelatedTo")
+  outgoingRelations     WorkRelation[]         @relation("WorkRelationFrom")
+  incomingRelations     WorkRelation[]         @relation("WorkRelationTo")
+  mergeEventsAsSurvivor WorkMergeEvent[]       @relation("WorkMergeSurvivor")
+  mergeEventsAsRetired  WorkMergeEvent[]       @relation("WorkMergeRetired")
 
   @@unique([projectId, number])
   @@unique([projectId, key])
   @@index([projectId])
   @@index([includedInFeatureId])
+  @@index([retiredIntoId])
+  @@index([originWorkId])
+  @@index([projectId, archived])
   @@map("work")
 }
 
@@ -53,6 +70,37 @@ model WorkRelatedEdge {
   @@unique([fromWorkId, toWorkId, kind])
   @@index([toWorkId])
   @@map("work_related_edge")
+}
+
+model WorkRelation {
+  id        String   @id
+  fromId    String
+  from      Work     @relation("WorkRelationFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toId      String
+  to        Work     @relation("WorkRelationTo", fields: [toId], references: [id], onDelete: Cascade)
+  kind      String
+  createdAt DateTime @default(now())
+
+  @@index([fromId])
+  @@index([toId])
+  @@map("work_relation")
+}
+
+model WorkMergeEvent {
+  id                String   @id
+  survivorId        String
+  survivor          Work     @relation("WorkMergeSurvivor", fields: [survivorId], references: [id], onDelete: Cascade)
+  retiredId         String
+  retired           Work     @relation("WorkMergeRetired", fields: [retiredId], references: [id], onDelete: Cascade)
+  attributedFields  String
+  previousSurvivor  String
+  postMergeSurvivor String
+  retiredSnapshot   String
+  movedRelations    String
+  createdAt         DateTime @default(now())
+
+  @@index([survivorId])
+  @@map("work_merge_event")
 }
 
 model WorkLifecycleEvent {
