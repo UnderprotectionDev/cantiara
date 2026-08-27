@@ -57,7 +57,10 @@ function clientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.captureStagingObject?.findMany === "function" &&
 		typeof client.work?.findMany === "function" &&
 		typeof client.work?.create === "function" &&
-		typeof client.workLifecycleEvent?.findMany === "function"
+		typeof client.workLifecycleEvent?.findMany === "function" &&
+		typeof client.workRelation?.findMany === "function" &&
+		typeof client.workMergeEvent?.findFirst === "function" &&
+		typeof client.workMergeEvent?.create === "function"
 	);
 }
 

@@ -2424,5 +2424,7 @@ describe("Project Shell", () => {
 		const productPrisma = getPrismaClient();
 		expect(typeof productPrisma.work.create).toBe("function");
 		expect(typeof productPrisma.workLifecycleEvent.findMany).toBe("function");
+		expect(typeof productPrisma.workRelation.findMany).toBe("function");
+		expect(typeof productPrisma.workMergeEvent.findFirst).toBe("function");
 	});
 });

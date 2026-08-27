@@ -6,7 +6,7 @@
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (İş yaşam döngüsü: identity allocation, no reuse, type matrix).
  */
-import { PrismaClient } from "@cantiara/db";
+import { getPrismaClient, PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -1102,6 +1102,22 @@ describe("Work Lifecycle", () => {
 			reason: "missing-idempotency-key",
 			status: "rejected",
 		});
+	});
+
+	it("does not reuse a Prisma client that cannot record Merge as duplicate", () => {
+		getPrismaClient();
+		const cached = (
+			globalThis as {
+				cantiaraPrisma?: { client: { workMergeEvent?: unknown } };
+			}
+		).cantiaraPrisma;
+		expect(cached).toBeTruthy();
+		if (cached) {
+			cached.client.workMergeEvent = undefined;
+		}
+		const next = getPrismaClient();
+		expect(typeof next.workMergeEvent.findFirst).toBe("function");
+		expect(typeof next.workRelation.findMany).toBe("function");
 	});
 
 	it("refuses Merge as duplicate without a preview of the surviving record", async () => {
