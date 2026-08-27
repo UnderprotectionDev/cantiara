@@ -18,14 +18,20 @@ import {
 	updateShortCode,
 } from "../../project-shell/server/project-shell";
 import {
+	applyPlanningMembership,
+	changeWorkStatus,
 	changeWorkType,
+	closeWork,
 	convertCaptureToWork,
 	createWork,
 	finalizeDraft,
 	getWork,
 	listWork,
+	listWorkLifecycleHistory,
 	permanentlyDeleteWork,
+	previewClose,
 	previewWorkTypeChange,
+	reopenWork,
 	updateWorkTitle,
 } from "./work-lifecycle";
 import { DEFAULT_WORK_TYPE } from "./work-lifecycle-model";
@@ -36,6 +42,7 @@ const DATABASE_URL =
 
 const HIERARCHY_PATTERN = /epic|subtask|parentId|parentWork/i;
 const MOVE_PATTERN = /moveWork|changeProject|reassignProject/i;
+const ARCHIVE_PATTERN = /archiv/i;
 const ENGLISH_WORK_TYPES = [
 	"Feature",
 	"Bug",
@@ -649,6 +656,423 @@ describe("Work Lifecycle", () => {
 			status: "conflict",
 		});
 		expect(await listWork(prisma, project.id)).toHaveLength(1);
+	});
+
+	it("keeps workflow status and closure result separate and moves freely among non-terminal statuses", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const created = await createWork(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "status-intake",
+					projectId: project.id,
+					title: "Intake checkout",
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		expect(created.work).toMatchObject({
+			closureResult: null,
+			status: "Not Started",
+		});
+		const inProgress = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: created.work.revision,
+			idempotencyKey: "to-in-progress",
+			origin: "human",
+			status: "In Progress",
+			workId: created.work.id,
+		});
+		expect(inProgress).toMatchObject({
+			status: "committed",
+			work: {
+				closureResult: null,
+				key: "PAY-1",
+				status: "In Progress",
+			},
+		});
+		if (inProgress.status !== "committed") {
+			throw new Error("expected committed status");
+		}
+		const blocked = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: inProgress.work.revision,
+			idempotencyKey: "to-blocked",
+			origin: "human",
+			status: "Blocked",
+			workId: created.work.id,
+		});
+		expect(blocked).toMatchObject({
+			status: "committed",
+			work: { closureResult: null, status: "Blocked" },
+		});
+		if (blocked.status !== "committed") {
+			throw new Error("expected committed status");
+		}
+		const back = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: blocked.work.revision,
+			idempotencyKey: "to-not-started",
+			origin: "human",
+			status: "Not Started",
+			workId: created.work.id,
+		});
+		expect(back).toMatchObject({
+			status: "committed",
+			work: { closureResult: null, status: "Not Started" },
+		});
+		expect(
+			await changeWorkStatus(prisma, {
+				actorId,
+				baseRevision:
+					back.status === "committed"
+						? back.work.revision
+						: created.work.revision,
+				idempotencyKey: "closed-without-result",
+				origin: "human",
+				status: "Closed",
+				workId: created.work.id,
+			})
+		).toEqual({
+			reason: "close-step-required",
+			status: "rejected",
+		});
+		expect(await getWork(prisma, created.work.id)).toMatchObject({
+			closureResult: null,
+			status: "Not Started",
+		});
+	});
+
+	it("closes only through the close step with Completed or Abandoned and leaves status on cancel", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const created = await createWork(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "close-intake",
+					projectId: project.id,
+					title: "Intake checkout",
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const beforeCancel = await getWork(prisma, created.work.id);
+		expect(beforeCancel).toMatchObject({
+			closureResult: null,
+			status: "Not Started",
+		});
+		expect(
+			await closeWork(prisma, {
+				actorId,
+				baseRevision: created.work.revision,
+				idempotencyKey: "close-missing-result",
+				origin: "human",
+				workId: created.work.id,
+			})
+		).toEqual({
+			reason: "unknown-closure-result",
+			status: "rejected",
+		});
+		expect(await getWork(prisma, created.work.id)).toEqual(beforeCancel);
+		const completed = await closeWork(prisma, {
+			actorId,
+			baseRevision: created.work.revision,
+			idempotencyKey: "close-completed",
+			origin: "human",
+			reason: "Shipped checkout",
+			result: "Completed",
+			workId: created.work.id,
+		});
+		expect(completed).toMatchObject({
+			status: "committed",
+			work: {
+				closureResult: "Completed",
+				status: "Closed",
+			},
+		});
+		if (completed.status !== "committed") {
+			throw new Error("expected closed Work");
+		}
+		const abandonedWork = await createWork(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "close-abandoned-create",
+					projectId: project.id,
+					title: "Old experiment",
+				},
+				actorId
+			)
+		);
+		if (abandonedWork.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const stagesBefore = (await getProject(prisma, project.id))?.stages;
+		const abandoned = await closeWork(prisma, {
+			actorId,
+			baseRevision: abandonedWork.work.revision,
+			idempotencyKey: "close-abandoned",
+			origin: "human",
+			result: "Abandoned",
+			workId: abandonedWork.work.id,
+		});
+		expect(abandoned).toMatchObject({
+			status: "committed",
+			work: {
+				closureResult: "Abandoned",
+				status: "Closed",
+			},
+		});
+		expect(await listWork(prisma, project.id)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: abandonedWork.work.id,
+					key: "PAY-2",
+					status: "Closed",
+				}),
+			])
+		);
+		expect((await getProject(prisma, project.id))?.stages).toEqual(
+			stagesBefore
+		);
+		expect(JSON.stringify(abandoned)).not.toMatch(ARCHIVE_PATTERN);
+		expect(
+			await closeWork(prisma, {
+				actorId,
+				baseRevision: abandonedWork.work.revision,
+				idempotencyKey: "github-close",
+				origin: "github",
+				result: "Completed",
+				workId: abandonedWork.work.id,
+			})
+		).toEqual({
+			reason: "silent-result-forbidden",
+			status: "rejected",
+		});
+		expect(
+			await closeWork(prisma, {
+				actorId,
+				baseRevision: abandonedWork.work.revision,
+				idempotencyKey: "automation-close",
+				origin: "system-automation",
+				result: "Abandoned",
+				workId: abandonedWork.work.id,
+			})
+		).toEqual({
+			reason: "silent-result-forbidden",
+			status: "rejected",
+		});
+	});
+
+	it("reopens with confirm and a non-terminal status while keeping the previous result in history", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const created = await createWork(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "reopen-intake",
+					projectId: project.id,
+					title: "Intake checkout",
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const closed = await closeWork(prisma, {
+			actorId,
+			baseRevision: created.work.revision,
+			idempotencyKey: "reopen-close",
+			origin: "human",
+			reason: "Shipped",
+			result: "Completed",
+			workId: created.work.id,
+		});
+		if (closed.status !== "committed") {
+			throw new Error("expected closed Work");
+		}
+		expect(
+			await reopenWork(prisma, {
+				actorId,
+				baseRevision: closed.work.revision,
+				idempotencyKey: "reopen-unconfirmed",
+				origin: "human",
+				status: "In Progress",
+				workId: created.work.id,
+			})
+		).toEqual({
+			reason: "reopen-confirm-required",
+			status: "rejected",
+		});
+		expect(
+			await reopenWork(prisma, {
+				actorId,
+				baseRevision: closed.work.revision,
+				idempotencyKey: "reopen-closed-target",
+				origin: "human",
+				reopenConfirmed: true,
+				status: "Closed",
+				workId: created.work.id,
+			})
+		).toEqual({
+			reason: "unknown-work-status",
+			status: "rejected",
+		});
+		const reopened = await reopenWork(prisma, {
+			actorId,
+			baseRevision: closed.work.revision,
+			idempotencyKey: "reopen-confirmed",
+			origin: "human",
+			reopenConfirmed: true,
+			status: "In Progress",
+			workId: created.work.id,
+		});
+		expect(reopened).toMatchObject({
+			status: "committed",
+			work: {
+				closureResult: null,
+				status: "In Progress",
+			},
+		});
+		expect(await listWorkLifecycleHistory(prisma, created.work.id)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					closureResult: "Completed",
+					kind: "closed",
+					reason: "Shipped",
+					status: "Closed",
+				}),
+				expect.objectContaining({
+					closureResult: null,
+					kind: "reopened",
+					status: "In Progress",
+				}),
+			])
+		);
+	});
+
+	it("warns on Closure check without blocking close and previews Keep lasting context without generating text", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const created = await createWork(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "check-intake",
+					projectId: project.id,
+					title: "Intake checkout",
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const notes = "Checkout auth belongs in the Decision log.";
+		const preview = await previewClose(prisma, {
+			activeBlockers: [{ id: "block-1", title: "Waiting on GitHub App" }],
+			incompleteChecklistItems: [{ id: "item-1", title: "Write the receipt" }],
+			notes,
+			workId: created.work.id,
+		});
+		expect(preview).toMatchObject({
+			blocking: false,
+			copy: {
+				closeAnyway: "Close anyway",
+				closureCheck: "Closure check",
+				keepLastingContext: "Keep lasting context",
+				returnToWork: "Return to work",
+			},
+			findings: {
+				activeBlockers: [{ id: "block-1", title: "Waiting on GitHub App" }],
+				incompleteChecklistItems: [
+					{ id: "item-1", title: "Write the receipt" },
+				],
+			},
+			keepLastingContext: {
+				decision: {
+					action: "create-decision",
+					body: notes,
+					linkedWorkId: created.work.id,
+				},
+				personalWiki: {
+					action: "create-personal-wiki-document",
+					body: notes,
+					originProjectId: project.id,
+					originWorkId: created.work.id,
+				},
+			},
+		});
+		if ("reason" in preview) {
+			throw new Error("expected close preview");
+		}
+		expect(preview.keepLastingContext?.decision.body).toBe(notes);
+		const closed = await closeWork(prisma, {
+			actorId,
+			baseRevision: created.work.revision,
+			idempotencyKey: "close-anyway",
+			origin: "human",
+			result: "Completed",
+			workId: created.work.id,
+		});
+		expect(closed).toMatchObject({
+			status: "committed",
+			work: { closureResult: "Completed", status: "Closed" },
+		});
+		expect(await getWork(prisma, created.work.id)).toMatchObject({
+			title: "Intake checkout",
+		});
+	});
+
+	it("does not let planning membership write status or skip the close step", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const created = await createWork(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "board-intake",
+					projectId: project.id,
+					title: "Intake checkout",
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const membership = await applyPlanningMembership(prisma, {
+			desiredStatus: "In Progress",
+			surface: "Board",
+			workId: created.work.id,
+		});
+		expect(membership).toMatchObject({
+			membership: { surface: "Board" },
+			status: "committed",
+			work: {
+				closureResult: null,
+				status: "Not Started",
+			},
+		});
+		expect(
+			await applyPlanningMembership(prisma, {
+				desiredStatus: "Closed",
+				surface: "Board",
+				workId: created.work.id,
+			})
+		).toEqual({
+			reason: "close-step-required",
+			status: "rejected",
+		});
+		expect(await getWork(prisma, created.work.id)).toMatchObject({
+			closureResult: null,
+			status: "Not Started",
+		});
 	});
 
 	it("rejects a human create missing the client idempotency key", async () => {

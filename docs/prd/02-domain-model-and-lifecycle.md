@@ -121,6 +121,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tür değişimini onayla | `Confirm type change` | Feature etki önizlemesini onaylayan eylem |
 | Feature çıkışı engelli | `Detach included Work, Feature health history, and Primary spec before leaving Feature.` | Kapsanan İş, sağlık geçmişi veya Birincil spec varken Feature’dan çıkışı durduran metin |
 | İş yok | `No Work yet.` | Projede henüz İş olmadığını söyleyen boş durum |
+| Kapanış kontrolü | `Closure check` | Kapatma adımında tamamlanmamış kontrol listesi veya aktif blokaj uyarısı; zorunlu kapı değildir |
+| İşe dön | `Return to work` | Kapanış kontrolünden kapatmayı iptal eden eylem |
+| Yine de kapat | `Close anyway` | Kapanış kontrolündeki uyarıya rağmen kapatmayı uygulayan eylem |
+| Kalıcı bağlamı koru | `Keep lasting context` | Kapatma adımında Karar veya Kişisel Wiki oluşturma komutunu önizleyen isteğe bağlı bölüm |
+| Yeniden aç | `Reopen` | Kapanmış İşi terminal olmayan duruma döndürme |
+| Yeniden açmayı onayla | `Confirm reopen` | Yeniden açmayı onaylayan eylem |
+| Gerekçe | `Reason` | Kapatma adımındaki isteğe bağlı gerekçe |
 | Açıklamayı kapat | `Dismiss` | İlk açılış açıklamasını kapatan eylem |
 | Herkese açık durum etiketi | `Public Status Label` | İş akışı durumunu değiştirmeyen, yalnız herkese açık Roadmap sunumunda kullanılan ziyaretçi etiketi |
 | GitHub kimliğini yeniden teyit etme | `Confirm GitHub Identity` | Yüksek riskli işlem için yeni OAuth turunda aynı değişmez GitHub kimliğini doğrulayan fakat parola/MFA girişi iddia etmeyen güvenlik eylemi |

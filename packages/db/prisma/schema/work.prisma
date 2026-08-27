@@ -1,20 +1,37 @@
 model Work {
-  id        String   @id
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  key       String
-  number    Int
-  title     String
-  type      String
-  status    String
-  revision  Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String               @id
+  projectId       String
+  project         Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key             String
+  number          Int
+  title           String
+  type            String
+  status          String
+  closureResult   String?
+  closureReason   String?
+  revision        Int
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  lifecycleEvents WorkLifecycleEvent[]
 
   @@unique([projectId, number])
   @@unique([projectId, key])
   @@index([projectId])
   @@map("work")
+}
+
+model WorkLifecycleEvent {
+  id            String   @id
+  workId        String
+  work          Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  kind          String
+  status        String
+  closureResult String?
+  reason        String?
+  createdAt     DateTime @default(now())
+
+  @@index([workId, createdAt])
+  @@map("work_lifecycle_event")
 }
 
 model ProjectWorkKeyCounter {
