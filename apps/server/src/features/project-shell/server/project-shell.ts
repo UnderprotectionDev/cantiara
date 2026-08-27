@@ -249,23 +249,33 @@ export async function recordWorkExists(
 	projectId: string
 ): Promise<ProjectView | null> {
 	return await prisma.$transaction(async (tx) => {
-		await lockProject(tx, projectId);
+		await markProjectHasWork(tx, projectId);
 		const current = await loadProject(tx, projectId);
 		if (!current) {
 			return null;
 		}
-		if (current.hasWork) {
-			return toView(current);
-		}
-		const updated = await tx.project.update({
-			data: {
-				hasWork: true,
-				revision: current.revision + 1,
-			},
-			include: PROJECT_STRUCTURE_INCLUDE,
-			where: { id: projectId },
-		});
-		return toView(updated);
+		return toView(current);
+	});
+}
+
+export async function markProjectHasWork(
+	tx: PrismaTransaction,
+	projectId: string
+): Promise<void> {
+	await lockProject(tx, projectId);
+	const current = await tx.project.findUnique({
+		select: { hasWork: true, revision: true },
+		where: { id: projectId },
+	});
+	if (!current || current.hasWork) {
+		return;
+	}
+	await tx.project.update({
+		data: {
+			hasWork: true,
+			revision: current.revision + 1,
+		},
+		where: { id: projectId },
 	});
 }
 

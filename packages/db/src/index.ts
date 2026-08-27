@@ -38,16 +38,31 @@ export function createPrismaClient() {
 
 let defaultPrisma: PrismaClient | undefined;
 
+function clientHasCurrentDelegates(client: PrismaClient): boolean {
+	return (
+		typeof client.captureInboxItem?.findMany === "function" &&
+		typeof client.projectSkeletonSelection?.findMany === "function" &&
+		typeof client.captureExtensionLink?.findMany === "function" &&
+		typeof client.captureStagingObject?.findMany === "function" &&
+		typeof client.work?.findMany === "function"
+	);
+}
+
 export function getPrismaClient() {
 	if (
 		defaultPrisma !== undefined &&
-		(typeof defaultPrisma.captureInboxItem?.findMany !== "function" ||
-			typeof defaultPrisma.projectSkeletonSelection?.findMany !== "function" ||
-			typeof defaultPrisma.captureExtensionLink?.findMany !== "function" ||
-			typeof defaultPrisma.captureStagingObject?.findMany !== "function")
+		!clientHasCurrentDelegates(defaultPrisma)
 	) {
+		defaultPrisma.$disconnect().catch(() => undefined);
 		defaultPrisma = undefined;
 	}
 	defaultPrisma ??= createPrismaClient();
+	if (!clientHasCurrentDelegates(defaultPrisma)) {
+		defaultPrisma.$disconnect().catch(() => undefined);
+		defaultPrisma = undefined;
+		throw new Error(
+			"Prisma client is missing current models; restart the API after prisma generate"
+		);
+	}
 	return defaultPrisma;
 }

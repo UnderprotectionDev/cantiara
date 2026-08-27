@@ -17,6 +17,7 @@ import {
 	type StageState,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
+import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
 
 const HASH_PREFIX = /^#/;
@@ -282,19 +283,20 @@ function ProjectBody({
 		return (
 			<section aria-label="Work" id={projectShellAnchor("Work")}>
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">Work</h1>
-				<ul className="mt-6 flex flex-col gap-1 text-sm">
-					<li>{PROJECT_SHELL_COPY.create}</li>
-					<li>{PROJECT_SHELL_COPY.edit}</li>
-					<li>{PROJECT_SHELL_COPY.status}</li>
-					<li>{PROJECT_SHELL_COPY.planning}</li>
-				</ul>
-				<ul className="mt-4 flex flex-col gap-1 text-sm">
+				<p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground text-xs">
+					<span>{PROJECT_SHELL_COPY.create}</span>
+					<span>{PROJECT_SHELL_COPY.edit}</span>
+					<span>{PROJECT_SHELL_COPY.status}</span>
+					<span>{PROJECT_SHELL_COPY.planning}</span>
 					{data.workViews.map((view) => (
-						<li id={projectShellAnchor(view)} key={view}>
+						<span id={projectShellAnchor(view)} key={view}>
 							{view}
-						</li>
+						</span>
 					))}
-				</ul>
+				</p>
+				<div className="mt-6">
+					<WorkArea projectId={data.id} />
+				</div>
 			</section>
 		);
 	}
