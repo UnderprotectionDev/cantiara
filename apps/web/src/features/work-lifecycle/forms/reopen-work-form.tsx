@@ -31,6 +31,7 @@ export default function ReopenWorkForm({
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [error, setError] = useState<string | null>(null);
+	const [reopenConfirmed, setReopenConfirmed] = useState(false);
 	const reopen = useMutation(
 		orpc.workLifecycle.reopen.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -59,7 +60,7 @@ export default function ReopenWorkForm({
 				reopen.mutateAsync({
 					baseRevision: revision,
 					idempotencyKey: newIdempotencyKey(),
-					reopenConfirmed: true,
+					reopenConfirmed,
 					status: value.status,
 					workId,
 				})
@@ -78,6 +79,9 @@ export default function ReopenWorkForm({
 		},
 		[form, markUnsaved]
 	);
+	const onConfirmIntent = useCallback(() => {
+		setReopenConfirmed(true);
+	}, []);
 
 	return (
 		<form className="flex flex-col gap-3" onSubmit={onSubmit}>
@@ -90,9 +94,15 @@ export default function ReopenWorkForm({
 						/>
 					)}
 				</form.Field>
-				<Button disabled={reopen.isPending} type="submit">
-					{WORK_LIFECYCLE_COPY.confirmReopen}
-				</Button>
+				{reopenConfirmed ? (
+					<Button disabled={reopen.isPending} type="submit">
+						{WORK_LIFECYCLE_COPY.confirmReopen}
+					</Button>
+				) : (
+					<Button onClick={onConfirmIntent} type="button">
+						{WORK_LIFECYCLE_COPY.reopen}
+					</Button>
+				)}
 			</FieldGroup>
 			{error ? <p role="alert">{error}</p> : null}
 		</form>

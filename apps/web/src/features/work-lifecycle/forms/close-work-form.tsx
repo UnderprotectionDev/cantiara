@@ -134,7 +134,9 @@ export default function CloseWorkForm({
 					<h3 className="font-medium text-foreground text-sm">
 						{WORK_LIFECYCLE_COPY.keepLastingContext}
 					</h3>
+					<p>{preview.data.keepLastingContext.decision.action}</p>
 					<p>{preview.data.keepLastingContext.decision.body}</p>
+					<p>{preview.data.keepLastingContext.personalWiki.action}</p>
 					<p>{preview.data.keepLastingContext.personalWiki.body}</p>
 				</section>
 			) : null}
@@ -144,11 +146,15 @@ export default function CloseWorkForm({
 						? WORK_LIFECYCLE_COPY.returnToWork
 						: MUTATION_COPY.cancel}
 				</Button>
-				<Button disabled={close.isPending} type="submit">
-					{hasFindings
-						? WORK_LIFECYCLE_COPY.closeAnyway
-						: WORK_LIFECYCLE_COPY.closed}
-				</Button>
+				{hasFindings ? (
+					<Button disabled={close.isPending} type="submit">
+						{WORK_LIFECYCLE_COPY.closeAnyway}
+					</Button>
+				) : (
+					<Button disabled={close.isPending} type="submit">
+						{WORK_LIFECYCLE_COPY.completed}
+					</Button>
+				)}
 			</div>
 			{error ? <p role="alert">{error}</p> : null}
 		</form>
@@ -169,9 +175,9 @@ function ResultField({
 		[onValueChange]
 	);
 	return (
-		<Field className="w-40">
+		<Field className="w-44">
 			<FieldLabel htmlFor="close-work-result">
-				{WORK_LIFECYCLE_COPY.closed}
+				{WORK_LIFECYCLE_COPY.completed}
 			</FieldLabel>
 			<NativeSelect
 				className="w-full"
