@@ -8,6 +8,7 @@ export const CLIENT_SHELL_COPY = {
 		"Pending Prisma migrations must be applied to this database.",
 	retry: "Retry",
 	retryOnce: "You can retry once.",
+	staleGeneratedClient: "Restart the API after prisma generate.",
 	supportReference: "Support reference",
 	written: "Data was written.",
 } as const;
@@ -44,6 +45,7 @@ const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const JWT = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 const BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const SESSION_SECRET = /session_token=[^;\s]+/gi;
+const UNKNOWN_INCLUDE_FIELD = /Unknown field '[^']+' for include statement/;
 
 export function issueMainFlowFailure(
 	input: {
@@ -211,8 +213,12 @@ function schemaMismatchReason(error: unknown): string | null {
 	if (code === "P2021" || code === "P2022") {
 		return CLIENT_SHELL_COPY.pendingMigrations;
 	}
-	if (messageFrom(error).includes("does not exist in the current database")) {
+	const message = messageFrom(error);
+	if (message.includes("does not exist in the current database")) {
 		return CLIENT_SHELL_COPY.pendingMigrations;
+	}
+	if (UNKNOWN_INCLUDE_FIELD.test(message)) {
+		return CLIENT_SHELL_COPY.staleGeneratedClient;
 	}
 	return null;
 }

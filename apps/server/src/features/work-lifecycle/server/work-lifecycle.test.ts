@@ -266,6 +266,77 @@ describe("Work Lifecycle", () => {
 		expect(await listWork(prisma, project.id)).toEqual([]);
 	});
 
+	it("lists Work when the generated client does not know originWork include", async () => {
+		const staleUnknownOrigin = new Error(
+			"Unknown field 'originWork' for include statement on model 'Work'."
+		);
+		const listed = [
+			{
+				closureResult: null,
+				description: null,
+				id: "work-1",
+				key: "PAY-1",
+				lightChecklist: [],
+				number: 1,
+				originWorkId: "origin-1",
+				portableRelations: [],
+				projectId: "project-1",
+				revision: 1,
+				status: "Not Started",
+				title: "Intake",
+				type: "Task",
+			},
+		];
+		const origins = [
+			{
+				id: "origin-1",
+				key: "CORE-1",
+				projectId: "project-2",
+			},
+		];
+		const prismaWithoutOriginInclude = {
+			work: {
+				findMany: (args: {
+					include?: { originWork?: unknown };
+					where?: { id?: { in?: string[] }; projectId?: string };
+				}) => {
+					if (args.include && "originWork" in args.include) {
+						throw staleUnknownOrigin;
+					}
+					if (args.where?.id?.in) {
+						return origins.filter((row) =>
+							args.where?.id?.in?.includes(row.id)
+						);
+					}
+					return listed;
+				},
+			},
+		};
+
+		await expect(
+			listWork(
+				prismaWithoutOriginInclude as unknown as PrismaClient,
+				"project-1"
+			)
+		).resolves.toEqual([
+			{
+				closureResult: null,
+				description: null,
+				id: "work-1",
+				key: "PAY-1",
+				lightChecklist: [],
+				number: 1,
+				origin: origins[0],
+				projectId: "project-1",
+				relations: [],
+				revision: 1,
+				status: "Not Started",
+				title: "Intake",
+				type: "Task",
+			},
+		]);
+	});
+
 	it("fails listing Work when the generated client is ahead of the database", async () => {
 		const { actorId, project } = await openPayments(prisma);
 		const created = await createWork(

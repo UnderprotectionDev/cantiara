@@ -383,15 +383,10 @@ export async function listWork(
 	projectId: string
 ): Promise<WorkView[]> {
 	const rows = await prisma.work.findMany({
-		include: {
-			originWork: {
-				select: { id: true, key: true, projectId: true },
-			},
-		},
 		orderBy: { number: "asc" },
 		where: { projectId },
 	});
-	return rows.map(toView);
+	return await toViews(prisma, rows);
 }
 
 export async function permanentlyDeleteWork(
@@ -1220,14 +1215,51 @@ async function loadWork(
 	db: PrismaClient | PrismaTransaction,
 	workId: string
 ): Promise<WorkRow | null> {
-	return await db.work.findUnique({
-		include: {
-			originWork: {
-				select: { id: true, key: true, projectId: true },
-			},
-		},
+	const row = await db.work.findUnique({
 		where: { id: workId },
 	});
+	if (!row) {
+		return null;
+	}
+	const [viewRow] = await withOrigins(db, [row]);
+	return viewRow ?? null;
+}
+
+async function toViews(
+	db: PrismaClient | PrismaTransaction,
+	rows: readonly Omit<WorkRow, "originWork">[]
+): Promise<WorkView[]> {
+	const withOrigin = await withOrigins(db, rows);
+	return withOrigin.map(toView);
+}
+
+async function withOrigins(
+	db: PrismaClient | PrismaTransaction,
+	rows: readonly Omit<WorkRow, "originWork">[]
+): Promise<WorkRow[]> {
+	const originIds = [
+		...new Set(
+			rows
+				.map((row) => row.originWorkId)
+				.filter((id): id is string => typeof id === "string" && id.length > 0)
+		),
+	];
+	const origins =
+		originIds.length === 0
+			? []
+			: await db.work.findMany({
+					select: { id: true, key: true, projectId: true },
+					where: { id: { in: originIds } },
+				});
+	const originById = new Map(
+		origins.map((origin) => [origin.id, origin satisfies WorkOrigin])
+	);
+	return rows.map((row) => ({
+		...row,
+		originWork: row.originWorkId
+			? (originById.get(row.originWorkId) ?? null)
+			: null,
+	}));
 }
 
 function toView(row: WorkRow): WorkView {

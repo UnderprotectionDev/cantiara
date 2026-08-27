@@ -223,6 +223,22 @@ The column \`work.description\` does not exist in the current database.`);
 	);
 });
 
+test("a Prisma unknown originWork include stays secret-free and still says Data was not written", () => {
+	const prismaListFailure = new Error(
+		"Unknown field 'originWork' for include statement on model 'Work'."
+	);
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(prismaListFailure, undefined, {
+			trackingId: "CANT-25F768C5",
+		})
+	);
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.staleGeneratedClient);
+	expect(presented.writeOutcome).toBe("Data was not written.");
+	expect(presented.retry).toBe("Retry");
+	expect(presented.supportReference).toBe("CANT-25F768C5");
+});
+
 test("a Prisma P2022 code maps to pending migrations without leaking a workspace path", () => {
 	const prismaKnown = Object.assign(
 		new Error("Invalid prisma.work.findMany() invocation"),
