@@ -457,7 +457,7 @@ export const recordFeatureHealthCommandSchema = z.object({
 	idempotencyKey: z.string().min(1),
 	origin: z.literal("human"),
 	reason: z.string().optional(),
-	status: z.string(),
+	status: z.enum(FEATURE_HEALTH_STATUSES),
 	workId: z.string().min(1),
 });
 
@@ -477,13 +477,17 @@ export type DetachFeatureAttachmentsCommand = z.infer<
 	typeof detachFeatureAttachmentsCommandSchema
 >;
 
-export const bindPrimarySpecCommandSchema =
-	detachFeatureAttachmentsCommandSchema.extend({
-		primarySpec: z.object({
-			id: z.string().min(1),
-			title: z.string().min(1),
-		}),
-	});
+export const bindPrimarySpecCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	primarySpec: z.object({
+		id: z.string().min(1),
+		title: z.string().min(1),
+	}),
+	workId: z.string().min(1),
+});
 
 export type BindPrimarySpecCommand = z.infer<
 	typeof bindPrimarySpecCommandSchema

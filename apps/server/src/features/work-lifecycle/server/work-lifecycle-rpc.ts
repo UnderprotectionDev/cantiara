@@ -365,7 +365,7 @@ export const workLifecycle = {
 				baseRevision: z.number().int().nonnegative(),
 				idempotencyKey: z.string(),
 				reason: z.string().optional(),
-				status: z.string(),
+				status: z.enum(FEATURE_HEALTH_STATUSES),
 				workId: z.string().min(1),
 			})
 		)

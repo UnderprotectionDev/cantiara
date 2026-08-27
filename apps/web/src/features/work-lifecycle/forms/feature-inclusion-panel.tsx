@@ -5,9 +5,10 @@ import {
 	NativeSelect,
 	NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -117,7 +118,6 @@ function IncludeWorkForm({
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [firstCandidate] = candidates;
-	const [workId, setWorkId] = useState(firstCandidate ? firstCandidate.id : "");
 	const include = useMutation(
 		orpc.workLifecycle.include.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -142,28 +142,34 @@ function IncludeWorkForm({
 			},
 		})
 	);
-	const onSubmit = useCallback(
-		(event: FormEvent<HTMLFormElement>) => {
-			event.preventDefault();
-			const selected = candidates.find((item) => item.id === workId);
+	const form = useForm({
+		defaultValues: { workId: firstCandidate ? firstCandidate.id : "" },
+		onSubmit: async ({ value }) => {
+			const selected = candidates.find((item) => item.id === value.workId);
 			if (!selected) {
 				return;
 			}
-			markUnsaved();
 			const result = attemptOnlineWork("record-create", () =>
 				include.mutateAsync({
 					baseRevision: selected.revision,
 					featureId,
 					idempotencyKey: newIdempotencyKey(),
-					workId,
+					workId: value.workId,
 				})
 			);
 			if (result.status === "refused") {
 				return;
 			}
-			result.value.catch(() => undefined);
+			await result.value;
 		},
-		[attemptOnlineWork, candidates, featureId, include, markUnsaved, workId]
+	});
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			markUnsaved();
+			form.handleSubmit().catch(() => undefined);
+		},
+		[form, markUnsaved]
 	);
 	return (
 		<div className="flex flex-col gap-2">
@@ -180,15 +186,19 @@ function IncludeWorkForm({
 			</ul>
 			<form className="flex flex-col gap-3" onSubmit={onSubmit}>
 				<FieldGroup className="flex-row flex-wrap items-end gap-3">
-					<WorkOptionField
-						id="include-work"
-						label={WORK_LIFECYCLE_COPY.includedWork}
-						onValueChange={setWorkId}
-						options={candidates}
-						value={workId}
-					/>
+					<form.Field name="workId">
+						{(field) => (
+							<WorkOptionField
+								id="include-work"
+								label={WORK_LIFECYCLE_COPY.includedWork}
+								onValueChange={field.handleChange}
+								options={candidates}
+								value={field.state.value}
+							/>
+						)}
+					</form.Field>
 					<Button
-						disabled={include.isPending || workId.length === 0}
+						disabled={include.isPending || candidates.length === 0}
 						type="submit"
 					>
 						{WORK_LIFECYCLE_COPY.includes}
@@ -258,40 +268,44 @@ function RelateWorkForm({
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [firstCandidate] = candidates;
-	const [toWorkId, setToWorkId] = useState(
-		firstCandidate ? firstCandidate.id : ""
-	);
 	const relate = useMutation(
 		orpc.workLifecycle.relate.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
 					await invalidateWork(projectId, fromWorkId);
-					await invalidateWork(projectId, toWorkId);
 					recordSave();
 				}
 			},
 		})
 	);
-	const onSubmit = useCallback(
-		(event: FormEvent<HTMLFormElement>) => {
-			event.preventDefault();
-			if (toWorkId.length === 0) {
+	const form = useForm({
+		defaultValues: { toWorkId: firstCandidate ? firstCandidate.id : "" },
+		onSubmit: async ({ value }) => {
+			if (value.toWorkId.length === 0) {
 				return;
 			}
-			markUnsaved();
 			const result = attemptOnlineWork("record-create", () =>
 				relate.mutateAsync({
 					baseRevision: revision,
 					fromWorkId,
 					idempotencyKey: newIdempotencyKey(),
-					toWorkId,
+					toWorkId: value.toWorkId,
 				})
 			);
-			if (result.status !== "refused") {
-				result.value.catch(() => undefined);
+			if (result.status === "refused") {
+				return;
 			}
+			await result.value;
+			await invalidateWork(projectId, value.toWorkId);
 		},
-		[attemptOnlineWork, fromWorkId, markUnsaved, relate, revision, toWorkId]
+	});
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			markUnsaved();
+			form.handleSubmit().catch(() => undefined);
+		},
+		[form, markUnsaved]
 	);
 	return (
 		<div className="flex flex-col gap-2">
@@ -306,15 +320,19 @@ function RelateWorkForm({
 			</ul>
 			<form className="flex flex-col gap-3" onSubmit={onSubmit}>
 				<FieldGroup className="flex-row flex-wrap items-end gap-3">
-					<WorkOptionField
-						id="relate-work"
-						label={WORK_LIFECYCLE_COPY.related}
-						onValueChange={setToWorkId}
-						options={candidates}
-						value={toWorkId}
-					/>
+					<form.Field name="toWorkId">
+						{(field) => (
+							<WorkOptionField
+								id="relate-work"
+								label={WORK_LIFECYCLE_COPY.related}
+								onValueChange={field.handleChange}
+								options={candidates}
+								value={field.state.value}
+							/>
+						)}
+					</form.Field>
 					<Button
-						disabled={relate.isPending || toWorkId.length === 0}
+						disabled={relate.isPending || candidates.length === 0}
 						type="submit"
 					>
 						{WORK_LIFECYCLE_COPY.related}
@@ -337,8 +355,6 @@ function FeatureHealthForm({
 	workId: string;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
-	const [status, setStatus] = useState<FeatureHealthStatus>("On Track");
-	const [reason, setReason] = useState("");
 	const record = useMutation(
 		orpc.workLifecycle.recordHealth.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -359,24 +375,34 @@ function FeatureHealthForm({
 			},
 		})
 	);
-	const onSubmit = useCallback(
-		(event: FormEvent<HTMLFormElement>) => {
-			event.preventDefault();
-			markUnsaved();
+	const form = useForm({
+		defaultValues: {
+			reason: "",
+			status: "On Track" as FeatureHealthStatus,
+		},
+		onSubmit: async ({ value }) => {
 			const result = attemptOnlineWork("record-create", () =>
 				record.mutateAsync({
 					baseRevision: revision,
 					idempotencyKey: newIdempotencyKey(),
-					reason: reason.trim() || undefined,
-					status,
+					reason: value.reason.trim() || undefined,
+					status: value.status,
 					workId,
 				})
 			);
-			if (result.status !== "refused") {
-				result.value.catch(() => undefined);
+			if (result.status === "refused") {
+				return;
 			}
+			await result.value;
 		},
-		[attemptOnlineWork, markUnsaved, reason, record, revision, status, workId]
+	});
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			markUnsaved();
+			form.handleSubmit().catch(() => undefined);
+		},
+		[form, markUnsaved]
 	);
 	const onDetach = useCallback(() => {
 		markUnsaved();
@@ -406,8 +432,22 @@ function FeatureHealthForm({
 			</ul>
 			<form className="flex flex-col gap-3" onSubmit={onSubmit}>
 				<FieldGroup className="flex-row flex-wrap items-end gap-3">
-					<HealthField onValueChange={setStatus} value={status} />
-					<ReasonField onValueChange={setReason} value={reason} />
+					<form.Field name="status">
+						{(field) => (
+							<HealthField
+								onValueChange={field.handleChange}
+								value={field.state.value}
+							/>
+						)}
+					</form.Field>
+					<form.Field name="reason">
+						{(field) => (
+							<ReasonField
+								onValueChange={field.handleChange}
+								value={field.state.value}
+							/>
+						)}
+					</form.Field>
 					<Button disabled={record.isPending} type="submit">
 						{WORK_LIFECYCLE_COPY.recordHealth}
 					</Button>
@@ -437,8 +477,6 @@ function PrimarySpecForm({
 	workId: string;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
-	const [specId, setSpecId] = useState(primarySpec ? primarySpec.id : "");
-	const [title, setTitle] = useState(primarySpec ? primarySpec.title : "");
 	const bind = useMutation(
 		orpc.workLifecycle.bindPrimarySpec.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -459,31 +497,38 @@ function PrimarySpecForm({
 			},
 		})
 	);
-	const onSubmit = useCallback(
-		(event: FormEvent<HTMLFormElement>) => {
-			event.preventDefault();
-			const trimmedTitle = title.trim();
-			const trimmedId = specId.trim();
+	const form = useForm({
+		defaultValues: {
+			specId: primarySpec ? primarySpec.id : "",
+			title: primarySpec ? primarySpec.title : "",
+		},
+		onSubmit: async ({ value }) => {
+			const trimmedTitle = value.title.trim();
+			const trimmedId = value.specId.trim();
 			if (trimmedTitle.length === 0 || trimmedId.length === 0) {
 				return;
 			}
-			markUnsaved();
 			const result = attemptOnlineWork("record-create", () =>
 				bind.mutateAsync({
 					baseRevision: revision,
 					idempotencyKey: newIdempotencyKey(),
-					primarySpec: {
-						id: trimmedId,
-						title: trimmedTitle,
-					},
+					primarySpec: { id: trimmedId, title: trimmedTitle },
 					workId,
 				})
 			);
-			if (result.status !== "refused") {
-				result.value.catch(() => undefined);
+			if (result.status === "refused") {
+				return;
 			}
+			await result.value;
 		},
-		[attemptOnlineWork, bind, markUnsaved, revision, specId, title, workId]
+	});
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			markUnsaved();
+			form.handleSubmit().catch(() => undefined);
+		},
+		[form, markUnsaved]
 	);
 	const onDetach = useCallback(() => {
 		markUnsaved();
@@ -504,18 +549,26 @@ function PrimarySpecForm({
 			{primarySpec ? <p className="text-sm">{primarySpec.title}</p> : null}
 			<form className="flex flex-col gap-3" onSubmit={onSubmit}>
 				<FieldGroup className="flex-row flex-wrap items-end gap-3">
-					<TitleField
-						id="primary-spec-id"
-						label={WORK_LIFECYCLE_COPY.primarySpec}
-						onValueChange={setSpecId}
-						value={specId}
-					/>
-					<TitleField
-						id="primary-spec-title"
-						label={WORK_LIFECYCLE_COPY.title}
-						onValueChange={setTitle}
-						value={title}
-					/>
+					<form.Field name="specId">
+						{(field) => (
+							<TitleField
+								id="primary-spec-id"
+								label={WORK_LIFECYCLE_COPY.primarySpec}
+								onValueChange={field.handleChange}
+								value={field.state.value}
+							/>
+						)}
+					</form.Field>
+					<form.Field name="title">
+						{(field) => (
+							<TitleField
+								id="primary-spec-title"
+								label={WORK_LIFECYCLE_COPY.title}
+								onValueChange={field.handleChange}
+								value={field.state.value}
+							/>
+						)}
+					</form.Field>
 					<Button disabled={bind.isPending} type="submit">
 						{WORK_LIFECYCLE_COPY.primarySpec}
 					</Button>

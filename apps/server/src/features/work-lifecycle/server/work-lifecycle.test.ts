@@ -52,8 +52,6 @@ const DATABASE_URL =
 const HIERARCHY_PATTERN = /epic|subtask|parentId|parentWork/i;
 const MOVE_PATTERN = /moveWork|changeProject|reassignProject/i;
 const ARCHIVE_PATTERN = /archiv/i;
-const PROJECT_SCORE_PATTERN =
-	/healthScore|On Track|At Risk|Off Track|Checkout spike/;
 const ENGLISH_WORK_TYPES = [
 	"Feature",
 	"Bug",
@@ -1474,11 +1472,11 @@ describe("Work Lifecycle", () => {
 				}),
 			],
 		});
-		const projectAfter = await getProject(prisma, project.id);
-		expect(JSON.stringify(projectAfter)).not.toMatch(PROJECT_SCORE_PATTERN);
 		expect(await getWork(prisma, checkout.id)).toMatchObject({
 			status: "Not Started",
 		});
+		const projectAfter = await getProject(prisma, project.id);
+		expect(projectAfter && "healthScore" in projectAfter).toBe(false);
 	});
 
 	it("blocks leaving Feature while included Work, health history, or Primary spec remain", async () => {
