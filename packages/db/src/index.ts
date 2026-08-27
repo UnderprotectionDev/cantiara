@@ -9,8 +9,10 @@ import {
 	loadGeneratedPrismaClient,
 	readGeneratedClientStamp,
 } from "./generated-prisma-client";
+import { prismaClientHasCurrentDelegates } from "./prisma-client-delegates";
 
 export { Prisma, PrismaClient } from "../prisma/generated/client";
+export { prismaClientHasCurrentDelegates } from "./prisma-client-delegates";
 
 // Local development: route the Neon serverless driver's WebSocket transport to a
 // local proxy (see scripts/neon-local-proxy.ts) that tunnels to a local Postgres
@@ -74,21 +76,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
 
-function clientHasCurrentDelegates(client: PrismaClient): boolean {
-	return (
-		typeof client.captureInboxItem?.findMany === "function" &&
-		typeof client.projectSkeletonSelection?.findMany === "function" &&
-		typeof client.captureExtensionLink?.findMany === "function" &&
-		typeof client.captureStagingObject?.findMany === "function" &&
-		typeof client.work?.findMany === "function" &&
-		typeof client.work?.create === "function" &&
-		typeof client.workLifecycleEvent?.findMany === "function" &&
-		typeof client.workRelation?.findMany === "function" &&
-		typeof client.workMergeEvent?.findFirst === "function" &&
-		typeof client.workMergeEvent?.create === "function"
-	);
-}
-
 function clientHasCurrentWorkModel(client: PrismaClient): boolean {
 	const fields = workModelFieldNames(client);
 	if (fields.length === 0) {
@@ -97,7 +84,8 @@ function clientHasCurrentWorkModel(client: PrismaClient): boolean {
 	return (
 		fields.includes("originWork") &&
 		fields.includes("originWorkId") &&
-		fields.includes("retiredIntoId")
+		fields.includes("retiredIntoId") &&
+		fields.includes("includedInFeatureId")
 	);
 }
 
@@ -106,7 +94,7 @@ function cachedClient(diskStamp: string): PrismaClient | undefined {
 	if (!(cached && clientStampIsCurrent(cached.stamp, diskStamp))) {
 		return;
 	}
-	if (!clientHasCurrentDelegates(cached.client)) {
+	if (!prismaClientHasCurrentDelegates(cached.client)) {
 		return;
 	}
 	if (!clientHasCurrentWorkModel(cached.client)) {
@@ -129,7 +117,7 @@ export function getPrismaClient() {
 	const diskStamp = readGeneratedClientStamp();
 	if (process.env.NODE_ENV === "production") {
 		productionPrisma ??= createPrismaClient();
-		if (!clientHasCurrentDelegates(productionPrisma)) {
+		if (!prismaClientHasCurrentDelegates(productionPrisma)) {
 			throw new Error(
 				"Prisma client is missing current models; restart the API after prisma generate"
 			);
@@ -142,7 +130,7 @@ export function getPrismaClient() {
 	}
 	dropCachedPrisma();
 	const client = createPrismaClient();
-	if (!clientHasCurrentDelegates(client)) {
+	if (!prismaClientHasCurrentDelegates(client)) {
 		client.$disconnect().catch(() => undefined);
 		throw new Error(
 			"Prisma client is missing current models; restart the API after prisma generate"

@@ -85,6 +85,7 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 					onMerged={onCreated}
 					projectId={projectId}
 					work={selected}
+					works={work.data}
 				/>
 			) : null}
 		</div>

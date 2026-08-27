@@ -21,4 +21,14 @@ export async function invalidateWork(projectId: string, workId: string) {
 			input: { workId },
 		}),
 	});
+	await queryClient.invalidateQueries({
+		queryKey: orpc.workLifecycle.getScope.queryKey({
+			input: { workId },
+		}),
+	});
+	await queryClient.invalidateQueries({
+		queryKey: orpc.workLifecycle.progress.queryKey({
+			input: { workId },
+		}),
+	});
 }

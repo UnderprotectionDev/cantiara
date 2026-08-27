@@ -1,7 +1,7 @@
 model Work {
-  id                    String               @id
+  id                    String                 @id
   projectId             String
-  project               Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project               Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   key                   String
   number                Int
   title                 String
@@ -10,31 +10,66 @@ model Work {
   closureResult         String?
   closureReason         String?
   description           String?
+  includedInFeatureId   String?
+  includedInFeature     Work?                  @relation("FeatureInclusion", fields: [includedInFeatureId], references: [id], onDelete: SetNull)
+  includedWorks         Work[]                 @relation("FeatureInclusion")
+  primarySpecId         String?
+  primarySpecTitle      String?
   originWorkId          String?
-  originWork            Work?                @relation("WorkOrigin", fields: [originWorkId], references: [id], onDelete: SetNull)
-  recreatedFromThis     Work[]               @relation("WorkOrigin")
-  lightChecklist        Json                 @default("[]")
-  portableRelations     Json                 @default("[]")
-  archived              Boolean              @default(false)
+  originWork            Work?                  @relation("WorkOrigin", fields: [originWorkId], references: [id], onDelete: SetNull)
+  recreatedFromThis     Work[]                 @relation("WorkOrigin")
+  lightChecklist        Json                   @default("[]")
+  portableRelations     Json                   @default("[]")
+  archived              Boolean                @default(false)
   retiredIntoId         String?
-  retiredInto           Work?                @relation("WorkRetiredIdentity", fields: [retiredIntoId], references: [id], onDelete: SetNull)
-  retiredIdentities     Work[]               @relation("WorkRetiredIdentity")
+  retiredInto           Work?                  @relation("WorkRetiredIdentity", fields: [retiredIntoId], references: [id], onDelete: SetNull)
+  retiredIdentities     Work[]                 @relation("WorkRetiredIdentity")
   revision              Int
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
   lifecycleEvents       WorkLifecycleEvent[]
-  outgoingRelations     WorkRelation[]       @relation("WorkRelationFrom")
-  incomingRelations     WorkRelation[]       @relation("WorkRelationTo")
-  mergeEventsAsSurvivor WorkMergeEvent[]     @relation("WorkMergeSurvivor")
-  mergeEventsAsRetired  WorkMergeEvent[]     @relation("WorkMergeRetired")
+  healthUpdates         FeatureHealthUpdate[]
+  relatedFrom           WorkRelatedEdge[]      @relation("RelatedFrom")
+  relatedTo             WorkRelatedEdge[]      @relation("RelatedTo")
+  outgoingRelations     WorkRelation[]         @relation("WorkRelationFrom")
+  incomingRelations     WorkRelation[]         @relation("WorkRelationTo")
+  mergeEventsAsSurvivor WorkMergeEvent[]       @relation("WorkMergeSurvivor")
+  mergeEventsAsRetired  WorkMergeEvent[]       @relation("WorkMergeRetired")
 
   @@unique([projectId, number])
   @@unique([projectId, key])
   @@index([projectId])
+  @@index([includedInFeatureId])
   @@index([retiredIntoId])
   @@index([originWorkId])
   @@index([projectId, archived])
   @@map("work")
+}
+
+model FeatureHealthUpdate {
+  id        String   @id
+  featureId String
+  feature   Work     @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  status    String
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([featureId, createdAt])
+  @@map("feature_health_update")
+}
+
+model WorkRelatedEdge {
+  id         String   @id
+  fromWorkId String
+  fromWork   Work     @relation("RelatedFrom", fields: [fromWorkId], references: [id], onDelete: Cascade)
+  toWorkId   String
+  toWork     Work     @relation("RelatedTo", fields: [toWorkId], references: [id], onDelete: Cascade)
+  kind       String
+  createdAt  DateTime @default(now())
+
+  @@unique([fromWorkId, toWorkId, kind])
+  @@index([toWorkId])
+  @@map("work_related_edge")
 }
 
 model WorkRelation {

@@ -3,6 +3,7 @@ import { Button } from "@cantiara/ui/components/button";
 import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
 import ChangeWorkTypeForm from "../forms/change-work-type-form";
+import FeatureInclusionPanel from "../forms/feature-inclusion-panel";
 import MergeWorkForm, { MergeUndoButton } from "../forms/merge-work-form";
 import RecreateWorkForm from "../forms/recreate-work-form";
 import ReopenWorkForm from "../forms/reopen-work-form";
@@ -33,12 +34,14 @@ export default function WorkDetail({
 	onMerged,
 	projectId,
 	work,
+	works,
 }: {
 	candidates: Array<{ id: string; key: string; title: string }>;
 	onClose: () => void;
 	onMerged?: (survivorId: string) => void;
 	projectId: string;
 	work: WorkRecord;
+	works: WorkRecord[];
 }) {
 	return (
 		<article className="flex flex-col gap-4 border-t pt-4">
@@ -102,6 +105,14 @@ export default function WorkDetail({
 					workId={work.id}
 				/>
 			)}
+			<FeatureInclusionPanel
+				key={`${work.id}:inclusion:${work.revision}`}
+				projectId={projectId}
+				revision={work.revision}
+				type={work.type}
+				workId={work.id}
+				works={works}
+			/>
 			<ChangeWorkTypeForm
 				key={`${work.id}:${work.type}:${work.revision}`}
 				projectId={projectId}

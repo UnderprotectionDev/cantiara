@@ -14,6 +14,8 @@ import {
 	type ArchiveWorkCommand,
 	applyPlanningMembershipCommandSchema,
 	archiveWorkCommandSchema,
+	type BindPrimarySpecCommand,
+	bindPrimarySpecCommandSchema,
 	type ChangeWorkStatusCommand,
 	type ChangeWorkTypeCommand,
 	type ClosePreview,
@@ -27,8 +29,15 @@ import {
 	closeWorkCommandSchema,
 	createWorkCommandSchema,
 	DEFAULT_WORK_TYPE,
+	type DetachIncludedWorkCommand,
 	defaultSelectedFields,
+	detachFeatureAttachmentsCommandSchema,
+	detachIncludedWorkCommandSchema,
+	type FeatureProgress,
+	type IncludeWorkCommand,
+	includeWorkCommandSchema,
 	isClosureResult,
+	isFeatureHealthStatus,
 	isNonTerminalWorkStatus,
 	isPortableRelationKind,
 	isPortableWorkField,
@@ -45,12 +54,17 @@ import {
 	previewCloseInputSchema,
 	previewRecreateInputSchema,
 	previewWorkMergeInputSchema,
+	type RecordFeatureHealthCommand,
 	type RecreatePreview,
 	type RecreateWorkCommand,
+	type RelateWorkCommand,
 	type ReopenWorkCommand,
+	recordFeatureHealthCommandSchema,
 	recreatePreviewCopy,
 	recreateWorkCommandSchema,
+	relateWorkCommandSchema,
 	reopenWorkCommandSchema,
+	scopeCopy,
 	type TypeChangeImpact,
 	typeChangeImpact,
 	type UnarchiveWorkCommand,
@@ -59,6 +73,7 @@ import {
 	unarchiveWorkCommandSchema,
 	undoWorkMergeCommandSchema,
 	updateWorkTitleCommandSchema,
+	WORK_LIFECYCLE_COPY,
 	WORK_MERGE_FIELDS,
 	WORK_STATUS,
 	type WorkCreateSource,
@@ -70,6 +85,7 @@ import {
 	type WorkMergePreview,
 	type WorkOrigin,
 	type WorkRelationView,
+	type WorkScope,
 	type WorkType,
 	type WorkView,
 	workKey,
@@ -86,12 +102,15 @@ interface WorkRow {
 	closureResult: string | null;
 	description: string | null;
 	id: string;
+	includedInFeatureId: string | null;
 	key: string;
 	lightChecklist: Prisma.JsonValue;
 	number: number;
 	originWork: WorkOrigin | null;
 	originWorkId: string | null;
 	portableRelations: Prisma.JsonValue;
+	primarySpecId: string | null;
+	primarySpecTitle: string | null;
 	projectId: string;
 	retiredIntoId: string | null;
 	revision: number;
@@ -431,7 +450,11 @@ export async function previewWorkTypeChange(
 	if (!(work && isWorkType(work.type))) {
 		return { reason: "target-not-found" };
 	}
-	return typeChangeImpact(work.type, type);
+	return typeChangeImpact(
+		work.type,
+		type,
+		await loadTypeChangeAttachments(prisma, work.id)
+	);
 }
 
 export async function previewWorkMerge(
@@ -630,6 +653,570 @@ function withSource(command: unknown, source: WorkCreateSource): unknown {
 			...command.payload,
 			source,
 		},
+	};
+}
+
+export async function includeWork(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parseKeyedCommand(command, includeWorkCommandSchema);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({
+		featureId: parsed.command.featureId,
+		workId: parsed.command.workId,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		includeInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function detachIncludedWork(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parseKeyedCommand(command, detachIncludedWorkCommandSchema);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({ workId: parsed.command.workId });
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		detachIncludedInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function relateWork(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parseKeyedCommand(command, relateWorkCommandSchema);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({
+		fromWorkId: parsed.command.fromWorkId,
+		kind: WORK_LIFECYCLE_COPY.related,
+		toWorkId: parsed.command.toWorkId,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		relateInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function recordFeatureHealth(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parseKeyedCommand(command, recordFeatureHealthCommandSchema);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({
+		reason: parsed.command.reason ?? null,
+		status: parsed.command.status,
+		workId: parsed.command.workId,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		recordHealthInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function detachFeatureHealthHistory(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	return await mutateFeatureAttachment(
+		prisma,
+		command,
+		{ kind: "health" },
+		async (tx, row) => {
+			await tx.featureHealthUpdate.deleteMany({
+				where: { featureId: row.id },
+			});
+		}
+	);
+}
+
+export async function bindPrimarySpec(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parseKeyedCommand(command, bindPrimarySpecCommandSchema);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({
+		primarySpec: parsed.command.primarySpec,
+		workId: parsed.command.workId,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		bindPrimarySpecInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function detachPrimarySpec(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	return await mutateFeatureAttachment(
+		prisma,
+		command,
+		{ kind: "primary-spec" },
+		async (tx, row) => {
+			await tx.work.update({
+				data: {
+					primarySpecId: null,
+					primarySpecTitle: null,
+					revision: row.revision + 1,
+				},
+				where: { id: row.id },
+			});
+		}
+	);
+}
+
+export async function getWorkScope(
+	prisma: PrismaClient,
+	workId: string
+): Promise<WorkScope | null> {
+	const work = await prisma.work.findUnique({ where: { id: workId } });
+	if (!work) {
+		return null;
+	}
+	const includedWork = await prisma.work.findMany({
+		orderBy: { number: "asc" },
+		where: { includedInFeatureId: workId },
+	});
+	const includedIn =
+		work.includedInFeatureId === null || work.includedInFeatureId === undefined
+			? null
+			: await prisma.work.findUnique({
+					where: { id: work.includedInFeatureId },
+				});
+	const healthHistory =
+		typeof prisma.featureHealthUpdate?.findMany === "function"
+			? await prisma.featureHealthUpdate.findMany({
+					orderBy: { createdAt: "asc" },
+					where: { featureId: workId },
+				})
+			: [];
+	const relatedEdges =
+		typeof prisma.workRelatedEdge?.findMany === "function"
+			? await prisma.workRelatedEdge.findMany({
+					where: {
+						OR: [{ fromWorkId: workId }, { toWorkId: workId }],
+					},
+				})
+			: [];
+	const relatedIds = [
+		...new Set(
+			relatedEdges.map((edge) =>
+				edge.fromWorkId === workId ? edge.toWorkId : edge.fromWorkId
+			)
+		),
+	];
+	const relatedRows =
+		relatedIds.length === 0
+			? []
+			: await prisma.work.findMany({
+					orderBy: { number: "asc" },
+					where: { id: { in: relatedIds } },
+				});
+	return {
+		copy: scopeCopy(),
+		healthHistory: healthHistory.flatMap((entry) =>
+			isFeatureHealthStatus(entry.status)
+				? [
+						{
+							id: entry.id,
+							reason: entry.reason,
+							status: entry.status,
+						},
+					]
+				: []
+		),
+		includedIn: includedIn
+			? { id: includedIn.id, key: includedIn.key, title: includedIn.title }
+			: null,
+		includedWork: includedWork.map((row) => ({
+			id: row.id,
+			key: row.key,
+			title: row.title,
+		})),
+		primarySpec:
+			work.primarySpecId && work.primarySpecTitle
+				? { id: work.primarySpecId, title: work.primarySpecTitle }
+				: null,
+		relatedWork: relatedRows.map((row) => ({
+			id: row.id,
+			key: row.key,
+			title: row.title,
+		})),
+	};
+}
+
+export async function summarizeFeatureProgress(
+	prisma: PrismaClient,
+	featureId: string
+): Promise<FeatureProgress | { reason: "target-not-found" }> {
+	const feature = await prisma.work.findUnique({ where: { id: featureId } });
+	if (!(feature && isWorkType(feature.type) && isWorkStatus(feature.status))) {
+		return { reason: "target-not-found" };
+	}
+	const includedWork = await prisma.work.findMany({
+		where: { includedInFeatureId: featureId },
+	});
+	return {
+		closedCount: includedWork.filter((row) => row.status === WORK_STATUS.closed)
+			.length,
+		copy: { includedWork: WORK_LIFECYCLE_COPY.includedWork },
+		featureStatus: feature.status,
+		includedCount: includedWork.length,
+	};
+}
+
+async function includeInTransaction(
+	tx: PrismaTransaction,
+	command: IncludeWorkCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkLifecycleOutcome> {
+	const prepared = await prepareWorkWrite(
+		tx,
+		command.workId,
+		commandKey,
+		fingerprint
+	);
+	if (prepared.status !== "ok") {
+		return prepared.outcome;
+	}
+	if (prepared.row.revision !== command.baseRevision) {
+		return stale(prepared.row);
+	}
+	if (command.workId === command.featureId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const feature = await loadWork(tx, command.featureId);
+	if (!feature) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (feature.type !== "Feature") {
+		return { reason: "not-a-feature", status: "rejected" };
+	}
+	if (feature.projectId !== prepared.row.projectId) {
+		return { reason: "work-not-portable", status: "rejected" };
+	}
+	if (feature.includedInFeatureId || prepared.row.type === "Feature") {
+		return { reason: "nested-inclusion-refused", status: "rejected" };
+	}
+	if (prepared.row.includedInFeatureId) {
+		return { reason: "already-included", status: "rejected" };
+	}
+	await tx.work.update({
+		data: {
+			includedInFeatureId: feature.id,
+			revision: prepared.row.revision + 1,
+		},
+		where: { id: prepared.row.id },
+	});
+	return await finishWrite(
+		tx,
+		prepared.row.id,
+		command.actorId,
+		commandKey,
+		fingerprint
+	);
+}
+
+async function detachIncludedInTransaction(
+	tx: PrismaTransaction,
+	command: DetachIncludedWorkCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkLifecycleOutcome> {
+	const prepared = await prepareWorkWrite(
+		tx,
+		command.workId,
+		commandKey,
+		fingerprint
+	);
+	if (prepared.status !== "ok") {
+		return prepared.outcome;
+	}
+	if (prepared.row.revision !== command.baseRevision) {
+		return stale(prepared.row);
+	}
+	await tx.work.update({
+		data: {
+			includedInFeatureId: null,
+			revision: prepared.row.revision + 1,
+		},
+		where: { id: prepared.row.id },
+	});
+	return await finishWrite(
+		tx,
+		prepared.row.id,
+		command.actorId,
+		commandKey,
+		fingerprint
+	);
+}
+
+async function relateInTransaction(
+	tx: PrismaTransaction,
+	command: RelateWorkCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkLifecycleOutcome> {
+	const prepared = await prepareWorkWrite(
+		tx,
+		command.fromWorkId,
+		commandKey,
+		fingerprint
+	);
+	if (prepared.status !== "ok") {
+		return prepared.outcome;
+	}
+	if (prepared.row.revision !== command.baseRevision) {
+		return stale(prepared.row);
+	}
+	const target = await loadWork(tx, command.toWorkId);
+	if (!target) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (target.projectId !== prepared.row.projectId) {
+		return { reason: "work-not-portable", status: "rejected" };
+	}
+	await tx.workRelatedEdge.upsert({
+		create: {
+			fromWorkId: command.fromWorkId,
+			id: crypto.randomUUID(),
+			kind: WORK_LIFECYCLE_COPY.related,
+			toWorkId: command.toWorkId,
+		},
+		update: {},
+		where: {
+			fromWorkId_toWorkId_kind: {
+				fromWorkId: command.fromWorkId,
+				kind: WORK_LIFECYCLE_COPY.related,
+				toWorkId: command.toWorkId,
+			},
+		},
+	});
+	await tx.work.update({
+		data: { revision: prepared.row.revision + 1 },
+		where: { id: prepared.row.id },
+	});
+	return await finishWrite(
+		tx,
+		prepared.row.id,
+		command.actorId,
+		commandKey,
+		fingerprint
+	);
+}
+
+async function recordHealthInTransaction(
+	tx: PrismaTransaction,
+	command: RecordFeatureHealthCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkLifecycleOutcome> {
+	const prepared = await prepareWorkWrite(
+		tx,
+		command.workId,
+		commandKey,
+		fingerprint
+	);
+	if (prepared.status !== "ok") {
+		return prepared.outcome;
+	}
+	if (prepared.row.revision !== command.baseRevision) {
+		return stale(prepared.row);
+	}
+	if (prepared.row.type !== "Feature") {
+		return { reason: "feature-health-not-allowed", status: "rejected" };
+	}
+	if (!isFeatureHealthStatus(command.status)) {
+		return { reason: "unknown-feature-health", status: "rejected" };
+	}
+	await tx.featureHealthUpdate.create({
+		data: {
+			featureId: prepared.row.id,
+			id: crypto.randomUUID(),
+			reason: optionalText(command.reason),
+			status: command.status,
+		},
+	});
+	await tx.work.update({
+		data: { revision: prepared.row.revision + 1 },
+		where: { id: prepared.row.id },
+	});
+	return await finishWrite(
+		tx,
+		prepared.row.id,
+		command.actorId,
+		commandKey,
+		fingerprint
+	);
+}
+
+async function bindPrimarySpecInTransaction(
+	tx: PrismaTransaction,
+	command: BindPrimarySpecCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkLifecycleOutcome> {
+	const prepared = await prepareWorkWrite(
+		tx,
+		command.workId,
+		commandKey,
+		fingerprint
+	);
+	if (prepared.status !== "ok") {
+		return prepared.outcome;
+	}
+	if (prepared.row.revision !== command.baseRevision) {
+		return stale(prepared.row);
+	}
+	if (prepared.row.type !== "Feature") {
+		return { reason: "not-a-feature", status: "rejected" };
+	}
+	await tx.work.update({
+		data: {
+			primarySpecId: command.primarySpec.id,
+			primarySpecTitle: command.primarySpec.title,
+			revision: prepared.row.revision + 1,
+		},
+		where: { id: prepared.row.id },
+	});
+	return await finishWrite(
+		tx,
+		prepared.row.id,
+		command.actorId,
+		commandKey,
+		fingerprint
+	);
+}
+
+async function mutateFeatureAttachment(
+	prisma: PrismaClient,
+	command: unknown,
+	fingerprintPayload: { kind: string },
+	write: (tx: PrismaTransaction, row: WorkRow) => Promise<void>
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parseKeyedCommand(
+		command,
+		detachFeatureAttachmentsCommandSchema
+	);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({
+		kind: fingerprintPayload.kind,
+		workId: parsed.command.workId,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction(async (tx) => {
+		const prepared = await prepareWorkWrite(
+			tx,
+			parsed.command.workId,
+			commandKey,
+			fingerprint
+		);
+		if (prepared.status !== "ok") {
+			return prepared.outcome;
+		}
+		if (prepared.row.revision !== parsed.command.baseRevision) {
+			return stale(prepared.row);
+		}
+		if (prepared.row.type !== "Feature") {
+			return { reason: "not-a-feature", status: "rejected" };
+		}
+		await write(tx, prepared.row);
+		if (fingerprintPayload.kind === "health") {
+			await tx.work.update({
+				data: { revision: prepared.row.revision + 1 },
+				where: { id: prepared.row.id },
+			});
+		}
+		return await finishWrite(
+			tx,
+			prepared.row.id,
+			parsed.command.actorId,
+			commandKey,
+			fingerprint
+		);
+	});
+}
+
+function stale(row: WorkRow): WorkLifecycleOutcome {
+	return {
+		current: toView(row),
+		currentValueLabel: MUTATION_COPY.currentValue,
+		status: "stale",
+	};
+}
+
+async function loadTypeChangeAttachments(
+	db: PrismaClient | PrismaTransaction,
+	workId: string
+): Promise<{
+	healthHistory: TypeChangeImpact["healthHistory"];
+	includedWork: TypeChangeImpact["includedWork"];
+	primarySpec: TypeChangeImpact["primarySpec"];
+}> {
+	const includedWork = await db.work.findMany({
+		orderBy: { number: "asc" },
+		where: { includedInFeatureId: workId },
+	});
+	const healthHistory =
+		typeof db.featureHealthUpdate?.findMany === "function"
+			? await db.featureHealthUpdate.findMany({
+					orderBy: { createdAt: "asc" },
+					where: { featureId: workId },
+				})
+			: [];
+	const work = await db.work.findUnique({
+		select: { primarySpecId: true, primarySpecTitle: true },
+		where: { id: workId },
+	});
+	return {
+		healthHistory: healthHistory.map((entry) => ({ id: entry.id })),
+		includedWork: includedWork.map((row) => ({
+			id: row.id,
+			key: row.key,
+			title: row.title,
+		})),
+		primarySpec:
+			work?.primarySpecId && work.primarySpecTitle
+				? { id: work.primarySpecId, title: work.primarySpecTitle }
+				: null,
 	};
 }
 
@@ -933,7 +1520,11 @@ async function changeTypeInTransaction(
 		});
 		return { status: "committed", work };
 	}
-	const impact = typeChangeImpact(locked.type, command.type);
+	const impact = typeChangeImpact(
+		locked.type,
+		command.type,
+		await loadTypeChangeAttachments(tx, locked.id)
+	);
 	if (impact.requiresPreview && command.previewAcknowledged !== true) {
 		return { reason: "feature-impact-preview-required", status: "rejected" };
 	}
@@ -2154,6 +2745,10 @@ function parseRetiredSnapshot(text: string): WorkRow | null {
 			description:
 				typeof record.description === "string" ? record.description : null,
 			id: record.id,
+			includedInFeatureId:
+				typeof record.includedInFeatureId === "string"
+					? record.includedInFeatureId
+					: null,
 			key: record.key,
 			lightChecklist: Array.isArray(record.lightChecklist)
 				? record.lightChecklist
@@ -2165,6 +2760,12 @@ function parseRetiredSnapshot(text: string): WorkRow | null {
 			portableRelations: Array.isArray(record.portableRelations)
 				? record.portableRelations
 				: [],
+			primarySpecId:
+				typeof record.primarySpecId === "string" ? record.primarySpecId : null,
+			primarySpecTitle:
+				typeof record.primarySpecTitle === "string"
+					? record.primarySpecTitle
+					: null,
 			projectId: String(record.projectId),
 			retiredIntoId:
 				typeof record.retiredIntoId === "string" ? record.retiredIntoId : null,

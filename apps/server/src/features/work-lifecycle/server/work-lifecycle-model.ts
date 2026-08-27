@@ -52,6 +52,7 @@ export const WORK_LIFECYCLE_COPY = {
 	abandoned: CLOSURE_RESULT.abandoned,
 	archive: "Archive",
 	archived: "Archived",
+	atRisk: "At Risk",
 	blocked: WORK_STATUS.blocked,
 	changeType: "Change type",
 	closeAnyway: "Close anyway",
@@ -62,11 +63,14 @@ export const WORK_LIFECYCLE_COPY = {
 	confirmTypeChange: "Confirm type change",
 	createWork: "Create Work",
 	description: "Description",
+	detach: "Detach",
 	detachBeforeLeavingFeature:
 		"Detach included Work, Feature health history, and Primary spec before leaving Feature.",
 	featureHealth: "Feature health",
 	impactPreview: "Impact preview",
+	includedIn: "Included in",
 	includedWork: "Included Work",
+	includes: "Includes",
 	inProgress: WORK_STATUS.inProgress,
 	keepLastingContext: "Keep lasting context",
 	key: "Key",
@@ -75,10 +79,13 @@ export const WORK_LIFECYCLE_COPY = {
 	mergePreview: "Merge Preview",
 	notStarted: WORK_STATUS.notStarted,
 	noWork: "No Work yet.",
+	offTrack: "Off Track",
+	onTrack: "On Track",
 	openSourceRecord: "Open source record",
 	origin: "Origin",
 	primarySpec: "Primary spec",
 	reason: "Reason",
+	recordHealth: "Record Feature health",
 	recreateInAnotherProject: "Recreate in another Project",
 	related: "Related",
 	relationsToRewrite: "Relations",
@@ -90,6 +97,20 @@ export const WORK_LIFECYCLE_COPY = {
 	unarchive: "Unarchive",
 	work: "Work",
 } as const;
+
+export const FEATURE_HEALTH = {
+	atRisk: WORK_LIFECYCLE_COPY.atRisk,
+	offTrack: WORK_LIFECYCLE_COPY.offTrack,
+	onTrack: WORK_LIFECYCLE_COPY.onTrack,
+} as const;
+
+export const FEATURE_HEALTH_STATUSES = [
+	FEATURE_HEALTH.onTrack,
+	FEATURE_HEALTH.atRisk,
+	FEATURE_HEALTH.offTrack,
+] as const;
+
+export type FeatureHealthStatus = (typeof FEATURE_HEALTH_STATUSES)[number];
 
 export const PORTABLE_WORK_FIELDS = [
 	"title",
@@ -557,19 +578,24 @@ export type WorkMergeOutcome =
 	  };
 
 export type WorkLifecycleRejectionReason =
+	| "already-included"
 	| "close-step-required"
 	| "feature-exit-blocked"
+	| "feature-health-not-allowed"
 	| "feature-impact-preview-required"
 	| "merge-conflicts-unresolved"
 	| "merge-preview-required"
 	| "merge-same-work"
 	| "missing-idempotency-key"
 	| "missing-title"
+	| "nested-inclusion-refused"
+	| "not-a-feature"
 	| "reopen-confirm-required"
 	| "reopen-required"
 	| "silent-result-forbidden"
 	| "target-not-found"
 	| "unknown-closure-result"
+	| "unknown-feature-health"
 	| "unknown-work-status"
 	| "unknown-work-type"
 	| "work-not-portable";
@@ -608,6 +634,151 @@ export function isNonTerminalWorkStatus(
 
 export function isClosureResult(value: string): value is ClosureResult {
 	return (CLOSURE_RESULTS as readonly string[]).includes(value);
+}
+
+export function isFeatureHealthStatus(
+	value: string
+): value is FeatureHealthStatus {
+	return (FEATURE_HEALTH_STATUSES as readonly string[]).includes(value);
+}
+
+export const workRefSchema = z.object({
+	id: z.string().min(1),
+	key: z.string().min(1),
+	title: z.string().min(1),
+});
+
+export const featureHealthEntrySchema = z.object({
+	id: z.string().min(1),
+	reason: z.string().nullable(),
+	status: z.enum(FEATURE_HEALTH_STATUSES),
+});
+
+export const workScopeSchema = z.object({
+	copy: z.object({
+		atRisk: z.literal(WORK_LIFECYCLE_COPY.atRisk),
+		featureHealth: z.literal(WORK_LIFECYCLE_COPY.featureHealth),
+		includedIn: z.literal(WORK_LIFECYCLE_COPY.includedIn),
+		includedWork: z.literal(WORK_LIFECYCLE_COPY.includedWork),
+		includes: z.literal(WORK_LIFECYCLE_COPY.includes),
+		offTrack: z.literal(WORK_LIFECYCLE_COPY.offTrack),
+		onTrack: z.literal(WORK_LIFECYCLE_COPY.onTrack),
+		primarySpec: z.literal(WORK_LIFECYCLE_COPY.primarySpec),
+		related: z.literal(WORK_LIFECYCLE_COPY.related),
+	}),
+	healthHistory: z.array(featureHealthEntrySchema),
+	includedIn: workRefSchema.nullable(),
+	includedWork: z.array(workRefSchema),
+	primarySpec: z
+		.object({
+			id: z.string().min(1),
+			title: z.string().min(1),
+		})
+		.nullable(),
+	relatedWork: z.array(workRefSchema),
+});
+
+export type WorkScope = z.infer<typeof workScopeSchema>;
+
+export const featureProgressSchema = z.object({
+	closedCount: z.number().int().nonnegative(),
+	copy: z.object({
+		includedWork: z.literal(WORK_LIFECYCLE_COPY.includedWork),
+	}),
+	featureStatus: workStatusSchema,
+	includedCount: z.number().int().nonnegative(),
+});
+
+export type FeatureProgress = z.infer<typeof featureProgressSchema>;
+
+export const includeWorkCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	featureId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	workId: z.string().min(1),
+});
+
+export type IncludeWorkCommand = z.infer<typeof includeWorkCommandSchema>;
+
+export const detachIncludedWorkCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	workId: z.string().min(1),
+});
+
+export type DetachIncludedWorkCommand = z.infer<
+	typeof detachIncludedWorkCommandSchema
+>;
+
+export const relateWorkCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	fromWorkId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	toWorkId: z.string().min(1),
+});
+
+export type RelateWorkCommand = z.infer<typeof relateWorkCommandSchema>;
+
+export const recordFeatureHealthCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	reason: z.string().optional(),
+	status: z.enum(FEATURE_HEALTH_STATUSES),
+	workId: z.string().min(1),
+});
+
+export type RecordFeatureHealthCommand = z.infer<
+	typeof recordFeatureHealthCommandSchema
+>;
+
+export const detachFeatureAttachmentsCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	workId: z.string().min(1),
+});
+
+export type DetachFeatureAttachmentsCommand = z.infer<
+	typeof detachFeatureAttachmentsCommandSchema
+>;
+
+export const bindPrimarySpecCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	primarySpec: z.object({
+		id: z.string().min(1),
+		title: z.string().min(1),
+	}),
+	workId: z.string().min(1),
+});
+
+export type BindPrimarySpecCommand = z.infer<
+	typeof bindPrimarySpecCommandSchema
+>;
+
+export function scopeCopy() {
+	return {
+		atRisk: WORK_LIFECYCLE_COPY.atRisk,
+		featureHealth: WORK_LIFECYCLE_COPY.featureHealth,
+		includedIn: WORK_LIFECYCLE_COPY.includedIn,
+		includedWork: WORK_LIFECYCLE_COPY.includedWork,
+		includes: WORK_LIFECYCLE_COPY.includes,
+		offTrack: WORK_LIFECYCLE_COPY.offTrack,
+		onTrack: WORK_LIFECYCLE_COPY.onTrack,
+		primarySpec: WORK_LIFECYCLE_COPY.primarySpec,
+		related: WORK_LIFECYCLE_COPY.related,
+	} as const;
 }
 
 export function closePreviewCopy() {

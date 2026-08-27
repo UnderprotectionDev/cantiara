@@ -124,6 +124,10 @@ _Avoid_: Görev, ticket, yalnız yapılacak madde
 Bir kullanıcı yeteneğini veya ürün değişikliğini temsil eden ve [başka bağımsız İşleri kapsayabilen](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı) İş türü; iç içe epic veya subtask hiyerarşisi değildir.
 _Avoid_: Epic, Proje, Kilometre Taşı
 
+**Özellik sağlığı**:
+Yalnız Özellikte tutulan isteğe bağlı `On Track` / `At Risk` / `Off Track` güncellemesi ve gerekçesi; türetilen ilerleme, bildirim veya Manuel Proje Güncellemesi değildir ([İş öğeleri](docs/prd/06-work-management-and-planning.md#iş-öğeleri)). UI: `Feature health`.
+_Avoid_: Proje skoru, İş akışı durumu, Manuel Proje Güncellemesi
+
 **İş akışı durumu**:
 Bir İşin Projede tanımlanan akıştaki güncel yerini gösteren, Kapanış sonucundan ayrı [değer](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı).
 _Avoid_: Kapanış sonucu, planlama görünümü, Proje aşaması

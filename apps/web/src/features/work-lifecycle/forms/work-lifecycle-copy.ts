@@ -33,6 +33,7 @@ export const WORK_LIFECYCLE_COPY = {
 	abandoned: "Abandoned",
 	archive: "Archive",
 	archived: "Archived",
+	atRisk: "At Risk",
 	changeType: "Change type",
 	close: "Close",
 	closeAnyway: "Close anyway",
@@ -43,12 +44,15 @@ export const WORK_LIFECYCLE_COPY = {
 	confirmTypeChange: "Confirm type change",
 	createWork: "Create Work",
 	description: "Description",
+	detach: "Detach",
 	detachBeforeLeavingFeature:
 		"Detach included Work, Feature health history, and Primary spec before leaving Feature.",
 	featureHealth: "Feature health",
 	fieldConflicts: "Field conflicts",
 	impactPreview: "Impact preview",
+	includedIn: "Included in",
 	includedWork: "Included Work",
+	includes: "Includes",
 	keepLastingContext: "Keep lasting context",
 	key: "Key",
 	lightChecklist: "Checklist",
@@ -56,10 +60,13 @@ export const WORK_LIFECYCLE_COPY = {
 	mergePreview: "Merge Preview",
 	notStarted: "Not Started",
 	noWork: "No Work yet.",
+	offTrack: "Off Track",
+	onTrack: "On Track",
 	openSourceRecord: "Open source record",
 	origin: "Origin",
 	primarySpec: "Primary spec",
 	reason: "Reason",
+	recordHealth: "Record Feature health",
 	recreateInAnotherProject: "Recreate in another Project",
 	related: "Related",
 	relationsToRewrite: "Relations",
@@ -72,6 +79,14 @@ export const WORK_LIFECYCLE_COPY = {
 	unarchive: "Unarchive",
 	work: "Work",
 } as const;
+
+export const FEATURE_HEALTH_STATUSES = [
+	"On Track",
+	"At Risk",
+	"Off Track",
+] as const;
+
+export type FeatureHealthStatus = (typeof FEATURE_HEALTH_STATUSES)[number];
 
 export function involvesFeature(fromType: string, toType: string): boolean {
 	return (
