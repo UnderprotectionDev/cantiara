@@ -210,6 +210,10 @@ _Avoid_: Epic hiyerarşisi, subtask ağacı, planlama üyeliği
 Tek Projenin amacı, yaşamı, işi, bilgisi, belirsizliği, testi ve olaylarını kaynaklarından nötr özetleyen yüzey; otomatik sağlık skoru değildir ([Proje genel bakışı](docs/prd/04-workspace-and-projects.md#proje-genel-bakışı)). UI: `Overview`. Proje alanı değildir ve kapanmaz. Modül adları: `Purpose`, `Lifecycle`, `Goals`, `Stages`, `Milestones`, `Work`, `Documents`, `Decisions`, `Risks`, `Tests`, `Production`, `Blockers`, `Dates`, `Recent changes`.
 _Avoid_: Dashboard skoru, Çalışma Alanı genel bakışı, Manuel Proje Güncellemesi
 
+**Kaynak kaydı aç**:
+Ana kaydı kopyalamadan açan ortak eylem; ikinci doğruluk kaynağı veya kayıt yazması değildir ([etkileşim tutarlılığı](docs/prd/15-product-quality.md#etkilesim-tutarliligi)). UI: `Open source record`.
+_Avoid_: Open record, View details, ikinci kayıt kopyası
+
 **All Tools**:
 Etkin veya henüz navigasyona sabitlenmemiş hazır Proje alanlarını tek keşif yüzeyinde gösteren, Proje alanı olmayan daima erişilir giriş ([Proje alanlarını etkinleştirme](docs/prd/04-workspace-and-projects.md#proje-alanlarını-etkinleştirme)). UI: `All Tools`.
 _Avoid_: ana menü, gizli alan silme, Overview

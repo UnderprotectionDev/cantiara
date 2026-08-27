@@ -1,4 +1,7 @@
-import { STAGE_STATE } from "../../project-shell/server/project-shell-model";
+import {
+	type ProjectAreaName,
+	STAGE_STATE,
+} from "../../project-shell/server/project-shell-model";
 
 export const OVERVIEW_COPY = {
 	blockers: "Blockers",
@@ -8,8 +11,10 @@ export const OVERVIEW_COPY = {
 	goals: "Goals",
 	lifecycle: "Lifecycle",
 	milestones: "Milestones",
+	openSourceRecord: "Open source record",
 	overview: "Overview",
 	production: "Production",
+	projectAreas: "Project areas",
 	purpose: "Purpose",
 	recentChanges: "Recent changes",
 	risks: "Risks",
@@ -44,12 +49,14 @@ export const TEST_SOURCE_DETAIL = {
 } as const;
 
 export interface OverviewRecordSeed {
+	accessible?: boolean;
 	detail?: string;
 	id: string;
 	title: string;
 }
 
 export interface OverviewProjectSource {
+	enabledAreas?: readonly ProjectAreaName[];
 	id: string;
 	lifecycleStatus: string;
 	name: string;
@@ -67,6 +74,7 @@ export interface OverviewSources {
 	dates: readonly OverviewRecordSeed[];
 	decisions: readonly OverviewRecordSeed[];
 	documents: readonly OverviewRecordSeed[];
+	enabledAreas: readonly ProjectAreaName[];
 	goals: readonly OverviewRecordSeed[];
 	milestones: readonly OverviewRecordSeed[];
 	productionIncidents: readonly OverviewRecordSeed[];
@@ -86,12 +94,27 @@ export interface OverviewRecord {
 }
 
 export interface OverviewModule {
+	count: number;
+	heading: OverviewModuleHeading;
+	records: OverviewRecord[];
+}
+
+export interface OverviewAreaEntry {
+	entry: ProjectAreaName;
+	name: ProjectAreaName;
+}
+
+export interface OverviewSourceSet {
+	action: typeof OVERVIEW_COPY.openSourceRecord;
 	heading: OverviewModuleHeading;
 	records: OverviewRecord[];
 }
 
 export interface ProjectOverview {
+	enabledAreas: OverviewAreaEntry[];
+	enabledAreasLabel: typeof OVERVIEW_COPY.projectAreas;
 	modules: OverviewModule[];
+	openSourceRecord: typeof OVERVIEW_COPY.openSourceRecord;
 }
 
 const EMPTY_RECORD_LISTS = {
@@ -113,11 +136,28 @@ function asRecords(
 	records: readonly OverviewRecordSeed[],
 	detail?: string
 ): OverviewRecord[] {
-	return records.map((record) => ({
-		detail: detail ?? record.detail ?? null,
-		id: record.id,
-		title: record.title,
-	}));
+	return records
+		.filter((record) => record.accessible !== false)
+		.map((record) => ({
+			detail: detail ?? record.detail ?? null,
+			id: record.id,
+			title: record.title,
+		}));
+}
+
+function asModule(
+	heading: OverviewModuleHeading,
+	records: OverviewRecord[]
+): OverviewModule {
+	return {
+		count: records.length,
+		heading,
+		records,
+	};
+}
+
+function areaEntries(areas: readonly ProjectAreaName[]): OverviewAreaEntry[] {
+	return areas.map((name) => ({ entry: name, name }));
 }
 
 function datesFromProject(
@@ -142,6 +182,7 @@ export function overviewSourcesFromProject(
 	return {
 		...EMPTY_RECORD_LISTS,
 		dates: datesFromProject(project),
+		enabledAreas: project.enabledAreas ?? [],
 		...extras,
 		project,
 	};
@@ -150,30 +191,26 @@ export function overviewSourcesFromProject(
 export function projectOverview(sources: OverviewSources): ProjectOverview {
 	const { project } = sources;
 	return {
+		enabledAreas: areaEntries(sources.enabledAreas),
+		enabledAreasLabel: OVERVIEW_COPY.projectAreas,
 		modules: [
-			{
-				heading: OVERVIEW_COPY.purpose,
-				records: project.purpose
+			asModule(
+				OVERVIEW_COPY.purpose,
+				project.purpose
 					? [{ detail: null, id: project.id, title: project.purpose }]
-					: [],
-			},
-			{
-				heading: OVERVIEW_COPY.lifecycle,
-				records: [
-					{
-						detail: null,
-						id: project.id,
-						title: project.lifecycleStatus,
-					},
-				],
-			},
-			{
-				heading: OVERVIEW_COPY.goals,
-				records: asRecords(sources.goals),
-			},
-			{
-				heading: OVERVIEW_COPY.stages,
-				records: asRecords(
+					: []
+			),
+			asModule(OVERVIEW_COPY.lifecycle, [
+				{
+					detail: null,
+					id: project.id,
+					title: project.lifecycleStatus,
+				},
+			]),
+			asModule(OVERVIEW_COPY.goals, asRecords(sources.goals)),
+			asModule(
+				OVERVIEW_COPY.stages,
+				asRecords(
 					project.stages
 						.filter((stage) => stage.state === STAGE_STATE.active)
 						.map((stage) => ({
@@ -181,52 +218,41 @@ export function projectOverview(sources: OverviewSources): ProjectOverview {
 							id: stage.id,
 							title: stage.name,
 						}))
-				),
-			},
-			{
-				heading: OVERVIEW_COPY.milestones,
-				records: asRecords(sources.milestones),
-			},
-			{
-				heading: OVERVIEW_COPY.work,
-				records: asRecords(sources.work),
-			},
-			{
-				heading: OVERVIEW_COPY.documents,
-				records: asRecords(sources.documents),
-			},
-			{
-				heading: OVERVIEW_COPY.decisions,
-				records: asRecords(sources.decisions),
-			},
-			{
-				heading: OVERVIEW_COPY.risks,
-				records: asRecords(sources.risks),
-			},
-			{
-				heading: OVERVIEW_COPY.tests,
-				records: [
-					...asRecords(sources.testHandoffs, TEST_SOURCE_DETAIL.handoff),
-					...asRecords(sources.testSessions, TEST_SOURCE_DETAIL.session),
-					...asRecords(sources.testGaps, TEST_SOURCE_DETAIL.gap),
-				],
-			},
-			{
-				heading: OVERVIEW_COPY.production,
-				records: asRecords(sources.productionIncidents),
-			},
-			{
-				heading: OVERVIEW_COPY.blockers,
-				records: asRecords(sources.blockers),
-			},
-			{
-				heading: OVERVIEW_COPY.dates,
-				records: asRecords(sources.dates),
-			},
-			{
-				heading: OVERVIEW_COPY.recentChanges,
-				records: asRecords(sources.recentChanges),
-			},
+				)
+			),
+			asModule(OVERVIEW_COPY.milestones, asRecords(sources.milestones)),
+			asModule(OVERVIEW_COPY.work, asRecords(sources.work)),
+			asModule(OVERVIEW_COPY.documents, asRecords(sources.documents)),
+			asModule(OVERVIEW_COPY.decisions, asRecords(sources.decisions)),
+			asModule(OVERVIEW_COPY.risks, asRecords(sources.risks)),
+			asModule(OVERVIEW_COPY.tests, [
+				...asRecords(sources.testHandoffs, TEST_SOURCE_DETAIL.handoff),
+				...asRecords(sources.testSessions, TEST_SOURCE_DETAIL.session),
+				...asRecords(sources.testGaps, TEST_SOURCE_DETAIL.gap),
+			]),
+			asModule(
+				OVERVIEW_COPY.production,
+				asRecords(sources.productionIncidents)
+			),
+			asModule(OVERVIEW_COPY.blockers, asRecords(sources.blockers)),
+			asModule(OVERVIEW_COPY.dates, asRecords(sources.dates)),
+			asModule(OVERVIEW_COPY.recentChanges, asRecords(sources.recentChanges)),
 		],
+		openSourceRecord: OVERVIEW_COPY.openSourceRecord,
+	};
+}
+
+export function openOverviewSourceSet(
+	overview: ProjectOverview,
+	heading: OverviewModuleHeading
+): OverviewSourceSet {
+	const module = overview.modules.find((item) => item.heading === heading);
+	if (!module) {
+		throw new Error(`missing ${heading} module`);
+	}
+	return {
+		action: OVERVIEW_COPY.openSourceRecord,
+		heading: module.heading,
+		records: module.records,
 	};
 }

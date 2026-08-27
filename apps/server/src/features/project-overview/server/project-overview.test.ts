@@ -3,17 +3,21 @@
  * honest empty, no health score, no Workspace overview / Value Chain /
  * Manual Project Update mix, Tests summaries are not the Tests area
  * product, Goals reachable and not a Project area, no Açık Soru
- * uncertainty module. Synthetic fixture for
+ * uncertainty module, counts open the exact accessible source set,
+ * enabled areas come from Project Shell without deleting records,
+ * click does not write. Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (İlk Proje overview half).
+ * (İlk Proje overview half and navigation).
  */
 import { describe, expect, it } from "vitest";
 
 import { PROJECT_AREAS } from "../../project-shell/server/project-shell-model";
 import {
+	OVERVIEW_COPY,
 	OVERVIEW_MODULE_HEADINGS,
 	type OverviewProjectSource,
 	type OverviewSources,
+	openOverviewSourceSet,
 	overviewSourcesFromProject,
 	projectOverview,
 } from "./project-overview";
@@ -79,7 +83,7 @@ function headingsOf(
 	return overview.modules.map((module) => module.heading);
 }
 
-function recordsOf(
+function moduleOf(
 	overview: ReturnType<typeof projectOverview>,
 	heading: (typeof OVERVIEW_MODULE_HEADINGS)[number]
 ) {
@@ -87,7 +91,14 @@ function recordsOf(
 	if (!module) {
 		throw new Error(`missing ${heading} module`);
 	}
-	return module.records;
+	return module;
+}
+
+function recordsOf(
+	overview: ReturnType<typeof projectOverview>,
+	heading: (typeof OVERVIEW_MODULE_HEADINGS)[number]
+) {
+	return moduleOf(overview, heading).records;
 }
 
 function sourcesFrom(
@@ -264,5 +275,101 @@ describe("Project Overview", () => {
 		expect(headingsOf(overview)).not.toContain("Open Question");
 		expect(collectKeys(overview)).not.toContain("openQuestions");
 		expect(collectKeys(overview)).not.toContain("qualitativeUncertainty");
+	});
+
+	it("opens the exact accessible source set from a count and heading with Open source record", () => {
+		const overview = projectOverview(
+			sourcesFrom(ATLAS, {
+				work: [
+					{ id: "work-1", title: "Create Project" },
+					{ id: "work-2", title: "Rename Short code" },
+					{
+						accessible: false,
+						id: "work-secret",
+						title: "Other workspace secret",
+					},
+				],
+			})
+		);
+		const work = moduleOf(overview, "Work");
+		expect(work.count).toBe(2);
+		expect(work.records).toEqual([
+			{ detail: null, id: "work-1", title: "Create Project" },
+			{ detail: null, id: "work-2", title: "Rename Short code" },
+		]);
+		expect(openOverviewSourceSet(overview, "Work")).toEqual({
+			action: OVERVIEW_COPY.openSourceRecord,
+			heading: "Work",
+			records: work.records,
+		});
+		expect(openOverviewSourceSet(overview, "Milestones")).toEqual({
+			action: OVERVIEW_COPY.openSourceRecord,
+			heading: "Milestones",
+			records: [],
+		});
+		expect(overview.openSourceRecord).toBe("Open source record");
+		expect(JSON.stringify(overview)).not.toContain("Other workspace secret");
+		expect(JSON.stringify(overview)).not.toContain("work-secret");
+	});
+
+	it("lists enabled Project areas from Project Shell without deleting hidden-area records", () => {
+		const documents = [{ id: "doc-1", title: "Founder notes" }];
+		const shown = projectOverview(
+			sourcesFrom(
+				{
+					...ATLAS,
+					enabledAreas: ["Work", "Documents", "Tests"],
+				},
+				{ documents }
+			)
+		);
+		expect(shown.enabledAreas).toEqual([
+			{ entry: "Work", name: "Work" },
+			{ entry: "Documents", name: "Documents" },
+			{ entry: "Tests", name: "Tests" },
+		]);
+		expect(shown.enabledAreasLabel).toBe("Project areas");
+		expect(shown.enabledAreas.map((area) => area.name)).not.toContain("Goals");
+		expect(recordsOf(shown, "Documents")).toEqual([
+			{ detail: null, id: "doc-1", title: "Founder notes" },
+		]);
+		const hidden = projectOverview(
+			sourcesFrom(
+				{
+					...ATLAS,
+					enabledAreas: ["Work", "Tests"],
+				},
+				{ documents }
+			)
+		);
+		expect(hidden.enabledAreas).toEqual([
+			{ entry: "Work", name: "Work" },
+			{ entry: "Tests", name: "Tests" },
+		]);
+		expect(recordsOf(hidden, "Documents")).toEqual([
+			{ detail: null, id: "doc-1", title: "Founder notes" },
+		]);
+		expect(moduleOf(hidden, "Documents").count).toBe(1);
+	});
+
+	it("does not write sample content, relations, or a health score when a source set is opened", () => {
+		const sources = sourcesFrom(ATLAS, {
+			work: [{ id: "work-1", title: "Create Project" }],
+		});
+		const before = structuredClone(sources);
+		const overview = projectOverview(sources);
+		const snapshot = structuredClone(overview);
+		const opened = openOverviewSourceSet(overview, "Work");
+		expect(opened.action).toBe("Open source record");
+		expect(opened.records).toEqual(recordsOf(overview, "Work"));
+		expect(sources).toEqual(before);
+		expect(overview).toEqual(snapshot);
+		for (const key of ["healthScore", "sampleContent"] as const) {
+			expect(collectKeys(overview)).not.toContain(key);
+		}
+		expect(JSON.stringify(opened)).not.toMatch(INVENTED_ROW_PATTERN);
+		expect(headingsOf(overview)).not.toContain("Open Question");
+		expect(JSON.stringify(opened)).not.toContain("Open Question");
+		expect(JSON.stringify(opened)).not.toContain("qualitativeUncertainty");
 	});
 });
