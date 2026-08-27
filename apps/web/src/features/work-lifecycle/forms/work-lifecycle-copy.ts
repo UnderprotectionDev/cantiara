@@ -72,6 +72,7 @@ export const WORK_LIFECYCLE_COPY = {
 	relationsToRewrite: "Relations",
 	reopen: "Reopen",
 	returnToWork: "Return to work",
+	scopeTree: "Scope Tree",
 	status: "Status",
 	survivingRecord: "Surviving record",
 	title: "Title",

@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	applyScopeTreeDrag,
 	archiveWork,
 	bindPrimarySpec,
 	changeWorkStatus,
@@ -17,6 +18,7 @@ import {
 	detachIncludedWork,
 	detachPrimarySpec,
 	finalizeDraft,
+	getScopeTree,
 	getWork,
 	getWorkByKey,
 	getWorkScope,
@@ -78,6 +80,26 @@ async function requireWork(workspaceId: string, workId: string) {
 }
 
 export const workLifecycle = {
+	applyScopeTreeDrag: protectedProcedure
+		.input(
+			z.object({
+				projectId: z.string().min(1),
+				targetFeatureId: z.string().min(1).nullable(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			await requireWork(access.workspaceId, input.workId);
+			if (input.targetFeatureId) {
+				await requireWork(access.workspaceId, input.targetFeatureId);
+			}
+			return await applyScopeTreeDrag(getPrismaClient(), {
+				targetFeatureId: input.targetFeatureId,
+				workId: input.workId,
+			});
+		}),
 	archive: protectedWriteProcedure
 		.input(
 			z.object({
@@ -311,6 +333,17 @@ export const workLifecycle = {
 				throw new ORPCError("NOT_FOUND");
 			}
 			return scope;
+		}),
+	getScopeTree: protectedProcedure
+		.input(z.object({ projectId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			const tree = await getScopeTree(getPrismaClient(), input.projectId);
+			if (!tree) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return tree;
 		}),
 	include: protectedWriteProcedure
 		.input(

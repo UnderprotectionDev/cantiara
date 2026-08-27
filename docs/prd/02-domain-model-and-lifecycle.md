@@ -131,6 +131,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kapsanan iş | `Included Work` | Özellik kapsamındaki bağımsız İşler |
 | Kapsar | `Includes` | Özellikten kapsanan İşe birincil kapsam yazması |
 | Kapsanır | `Included in` | İşin birincil Özellik kapsamı |
+| Kapsam Ağacı | `Scope Tree` | Mevcut Proje → Özellik → Kapsanan işler ilişkisinin salt okunur görünümü; sürükleme kapsam yazmaz |
 | İlgili | `Related` | İkinci kapsam sayımı üretmeyen standart ilişki |
 | Yolunda | `On Track` | Özellik sağlığı işareti |
 | Riskli | `At Risk` | Özellik sağlığı işareti |

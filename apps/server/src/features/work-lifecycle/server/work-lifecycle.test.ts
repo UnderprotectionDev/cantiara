@@ -19,6 +19,7 @@ import {
 } from "../../project-shell/server/project-shell";
 import {
 	applyPlanningMembership,
+	applyScopeTreeDrag,
 	archiveWork,
 	bindPrimarySpec,
 	changeWorkStatus,
@@ -30,6 +31,7 @@ import {
 	detachIncludedWork,
 	detachPrimarySpec,
 	finalizeDraft,
+	getScopeTree,
 	getWork,
 	getWorkByKey,
 	getWorkScope,
@@ -2509,6 +2511,203 @@ describe("Work Lifecycle", () => {
 		});
 		expect(await getWorkScope(prisma, intake.id)).toMatchObject({
 			includedIn: null,
+		});
+	});
+
+	it("opens Scope Tree as a read of Project → Feature → included Work", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const checkout = await committedWork(prisma, actorId, {
+			idempotencyKey: "tree-checkout",
+			projectId: project.id,
+			title: "Checkout",
+			type: "Feature",
+		});
+		const wallet = await committedWork(prisma, actorId, {
+			idempotencyKey: "tree-wallet",
+			projectId: project.id,
+			title: "Wallet",
+			type: "Feature",
+		});
+		const intake = await committedWork(prisma, actorId, {
+			idempotencyKey: "tree-intake",
+			projectId: project.id,
+			title: "Intake checkout",
+		});
+		const included = await includeWork(prisma, {
+			actorId,
+			baseRevision: intake.revision,
+			featureId: checkout.id,
+			idempotencyKey: "tree-include",
+			origin: "human",
+			workId: intake.id,
+		});
+		if (included.status !== "committed") {
+			throw new Error("expected inclusion");
+		}
+		const related = await relateWork(prisma, {
+			actorId,
+			baseRevision: included.work.revision,
+			fromWorkId: intake.id,
+			idempotencyKey: "tree-relate",
+			origin: "human",
+			toWorkId: wallet.id,
+		});
+		expect(related).toMatchObject({ status: "committed" });
+		const tree = await getScopeTree(prisma, project.id);
+		expect(tree).toMatchObject({
+			copy: {
+				openSourceRecord: "Open source record",
+				scopeTree: "Scope Tree",
+			},
+			features: [
+				{
+					id: checkout.id,
+					includedWork: [
+						{
+							id: intake.id,
+							key: "PAY-3",
+							relatedMilestone: null,
+							status: "Not Started",
+							title: "Intake checkout",
+						},
+					],
+					key: "PAY-1",
+					progress: {
+						closedCount: 0,
+						featureStatus: "Not Started",
+						includedCount: 1,
+					},
+					status: "Not Started",
+					title: "Checkout",
+				},
+				{
+					id: wallet.id,
+					includedWork: [],
+					key: "PAY-2",
+					progress: {
+						closedCount: 0,
+						featureStatus: "Not Started",
+						includedCount: 0,
+					},
+					title: "Wallet",
+				},
+			],
+			project: { id: project.id, name: "Payments" },
+		});
+		expect(
+			tree?.features.flatMap((feature) =>
+				feature.includedWork.map((work) => work.id)
+			)
+		).toEqual([intake.id]);
+		expect(JSON.stringify(tree)).not.toMatch(HIERARCHY_PATTERN);
+	});
+
+	it("refuses Scope Tree drag so Includes stay on the primary Feature", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const checkout = await committedWork(prisma, actorId, {
+			idempotencyKey: "drag-checkout",
+			projectId: project.id,
+			title: "Checkout",
+			type: "Feature",
+		});
+		const wallet = await committedWork(prisma, actorId, {
+			idempotencyKey: "drag-wallet",
+			projectId: project.id,
+			title: "Wallet",
+			type: "Feature",
+		});
+		const intake = await committedWork(prisma, actorId, {
+			idempotencyKey: "drag-intake",
+			projectId: project.id,
+			title: "Intake checkout",
+		});
+		const included = await includeWork(prisma, {
+			actorId,
+			baseRevision: intake.revision,
+			featureId: checkout.id,
+			idempotencyKey: "drag-include",
+			origin: "human",
+			workId: intake.id,
+		});
+		if (included.status !== "committed") {
+			throw new Error("expected inclusion");
+		}
+		expect(
+			await applyScopeTreeDrag(prisma, {
+				targetFeatureId: wallet.id,
+				workId: intake.id,
+			})
+		).toEqual({
+			reason: "scope-tree-read-only",
+			status: "rejected",
+		});
+		expect(await getWorkScope(prisma, intake.id)).toMatchObject({
+			includedIn: { id: checkout.id },
+		});
+		expect(await getWorkScope(prisma, wallet.id)).toMatchObject({
+			includedWork: [],
+		});
+		expect(await getScopeTree(prisma, project.id)).toMatchObject({
+			features: [
+				{ id: checkout.id, includedWork: [{ id: intake.id }] },
+				{ id: wallet.id, includedWork: [] },
+			],
+		});
+	});
+
+	it("shows Scope Tree status and Feature progress from the Work records", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const checkout = await committedWork(prisma, actorId, {
+			idempotencyKey: "source-checkout",
+			projectId: project.id,
+			title: "Checkout",
+			type: "Feature",
+		});
+		const intake = await committedWork(prisma, actorId, {
+			idempotencyKey: "source-intake",
+			projectId: project.id,
+			title: "Intake checkout",
+		});
+		const included = await includeWork(prisma, {
+			actorId,
+			baseRevision: intake.revision,
+			featureId: checkout.id,
+			idempotencyKey: "source-include",
+			origin: "human",
+			workId: intake.id,
+		});
+		if (included.status !== "committed") {
+			throw new Error("expected inclusion");
+		}
+		const closed = await closeWork(prisma, {
+			actorId,
+			baseRevision: included.work.revision,
+			idempotencyKey: "source-close",
+			origin: "human",
+			result: "Completed",
+			workId: intake.id,
+		});
+		if (closed.status !== "committed") {
+			throw new Error("expected close");
+		}
+		expect(await summarizeFeatureProgress(prisma, checkout.id)).toMatchObject({
+			closedCount: 1,
+			featureStatus: "Not Started",
+			includedCount: 1,
+		});
+		expect(await getScopeTree(prisma, project.id)).toMatchObject({
+			features: [
+				{
+					id: checkout.id,
+					includedWork: [{ id: intake.id, status: "Closed" }],
+					progress: {
+						closedCount: 1,
+						featureStatus: "Not Started",
+						includedCount: 1,
+					},
+					status: "Not Started",
+				},
+			],
 		});
 	});
 });

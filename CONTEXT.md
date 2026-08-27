@@ -215,7 +215,7 @@ Filtrelenen İşleri alanlarıyla yoğun ve taranabilir düzende sunan aynı İ�
 _Avoid_: Tablo Görünümü, ikinci kayıt sistemi, Backlog
 
 **Kapsam Ağacı**:
-Mevcut `Proje → Özellik → Kapsanan işler` ilişkisini salt okunur açan görünüm; sürükleme parent–child üretmez ([Kapsam Ağacı](docs/prd/06-work-management-and-planning.md#kapsam-ağacı)).
+Mevcut `Proje → Özellik → Kapsanan işler` ilişkisini salt okunur açan görünüm; sürükleme parent–child üretmez ([Kapsam Ağacı](docs/prd/06-work-management-and-planning.md#kapsam-ağacı)). UI: `Scope Tree`.
 _Avoid_: Epic hiyerarşisi, subtask ağacı, planlama üyeliği
 
 **Proje genel bakışı**:

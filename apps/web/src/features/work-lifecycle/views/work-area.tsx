@@ -7,6 +7,7 @@ import { orpc } from "@/utils/orpc";
 
 import CreateWorkForm from "../forms/create-work-form";
 import { WORK_LIFECYCLE_COPY } from "../forms/work-lifecycle-copy";
+import ScopeTree from "./scope-tree";
 import WorkDetail from "./work-detail";
 import WorkList from "./work-list";
 import { nextSelectedWorkId } from "./work-selection";
@@ -22,6 +23,9 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 
 	const onSelect = useCallback((id: string) => {
 		setSelectedId((current) => nextSelectedWorkId(current, id));
+	}, []);
+	const onOpenSourceRecord = useCallback((id: string) => {
+		setSelectedId(id);
 	}, []);
 	const onClose = useCallback(() => {
 		setSelectedId(null);
@@ -72,6 +76,11 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 				{WORK_LIFECYCLE_COPY.archived}
 			</Button>
 			<WorkList items={work.data} onSelect={onSelect} selectedId={selectedId} />
+			<ScopeTree
+				onOpenSourceRecord={onOpenSourceRecord}
+				openedRecordId={selectedId}
+				projectId={projectId}
+			/>
 			{selected ? (
 				<WorkDetail
 					candidates={work.data
