@@ -9,8 +9,10 @@ import {
 	loadGeneratedPrismaClient,
 	readGeneratedClientStamp,
 } from "./generated-prisma-client";
+import { prismaClientHasCurrentDelegates } from "./prisma-client-delegates";
 
 export { Prisma, PrismaClient } from "../prisma/generated/client";
+export { prismaClientHasCurrentDelegates } from "./prisma-client-delegates";
 
 // Local development: route the Neon serverless driver's WebSocket transport to a
 // local proxy (see scripts/neon-local-proxy.ts) that tunnels to a local Postgres
@@ -49,24 +51,12 @@ const globalForPrisma = globalThis as unknown as {
 	cantiaraPrisma?: CachedPrisma;
 };
 
-function clientHasCurrentDelegates(client: PrismaClient): boolean {
-	return (
-		typeof client.captureInboxItem?.findMany === "function" &&
-		typeof client.projectSkeletonSelection?.findMany === "function" &&
-		typeof client.captureExtensionLink?.findMany === "function" &&
-		typeof client.captureStagingObject?.findMany === "function" &&
-		typeof client.work?.findMany === "function" &&
-		typeof client.work?.create === "function" &&
-		typeof client.workLifecycleEvent?.findMany === "function"
-	);
-}
-
 function cachedClient(diskStamp: string): PrismaClient | undefined {
 	const cached = globalForPrisma.cantiaraPrisma;
 	if (!(cached && clientStampIsCurrent(cached.stamp, diskStamp))) {
 		return;
 	}
-	if (!clientHasCurrentDelegates(cached.client)) {
+	if (!prismaClientHasCurrentDelegates(cached.client)) {
 		return;
 	}
 	return cached.client;
@@ -86,7 +76,7 @@ export function getPrismaClient() {
 	const diskStamp = readGeneratedClientStamp();
 	if (process.env.NODE_ENV === "production") {
 		productionPrisma ??= createPrismaClient();
-		if (!clientHasCurrentDelegates(productionPrisma)) {
+		if (!prismaClientHasCurrentDelegates(productionPrisma)) {
 			throw new Error(
 				"Prisma client is missing current models; restart the API after prisma generate"
 			);
@@ -99,7 +89,7 @@ export function getPrismaClient() {
 	}
 	dropCachedPrisma();
 	const client = createPrismaClient();
-	if (!clientHasCurrentDelegates(client)) {
+	if (!prismaClientHasCurrentDelegates(client)) {
 		client.$disconnect().catch(() => undefined);
 		throw new Error(
 			"Prisma client is missing current models; restart the API after prisma generate"

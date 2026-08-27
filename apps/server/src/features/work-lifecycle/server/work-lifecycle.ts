@@ -492,20 +492,26 @@ export async function getWorkScope(
 		where: { includedInFeatureId: workId },
 	});
 	const includedIn =
-		work.includedInFeatureId === null
+		work.includedInFeatureId === null || work.includedInFeatureId === undefined
 			? null
 			: await prisma.work.findUnique({
 					where: { id: work.includedInFeatureId },
 				});
-	const healthHistory = await prisma.featureHealthUpdate.findMany({
-		orderBy: { createdAt: "asc" },
-		where: { featureId: workId },
-	});
-	const relatedEdges = await prisma.workRelatedEdge.findMany({
-		where: {
-			OR: [{ fromWorkId: workId }, { toWorkId: workId }],
-		},
-	});
+	const healthHistory =
+		typeof prisma.featureHealthUpdate?.findMany === "function"
+			? await prisma.featureHealthUpdate.findMany({
+					orderBy: { createdAt: "asc" },
+					where: { featureId: workId },
+				})
+			: [];
+	const relatedEdges =
+		typeof prisma.workRelatedEdge?.findMany === "function"
+			? await prisma.workRelatedEdge.findMany({
+					where: {
+						OR: [{ fromWorkId: workId }, { toWorkId: workId }],
+					},
+				})
+			: [];
 	const relatedIds = [
 		...new Set(
 			relatedEdges.map((edge) =>
@@ -871,10 +877,13 @@ async function loadTypeChangeAttachments(
 		orderBy: { number: "asc" },
 		where: { includedInFeatureId: workId },
 	});
-	const healthHistory = await db.featureHealthUpdate.findMany({
-		orderBy: { createdAt: "asc" },
-		where: { featureId: workId },
-	});
+	const healthHistory =
+		typeof db.featureHealthUpdate?.findMany === "function"
+			? await db.featureHealthUpdate.findMany({
+					orderBy: { createdAt: "asc" },
+					where: { featureId: workId },
+				})
+			: [];
 	const work = await db.work.findUnique({
 		select: { primarySpecId: true, primarySpecTitle: true },
 		where: { id: workId },

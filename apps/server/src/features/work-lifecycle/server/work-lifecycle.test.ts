@@ -1615,3 +1615,68 @@ describe("Work Lifecycle", () => {
 		});
 	});
 });
+
+describe("Feature inclusion scope reads", () => {
+	it("opens a Task without treating a missing inclusion host as a lookup", async () => {
+		const prisma = scopeReader({
+			includedInFeatureId: undefined,
+		});
+		await expect(getWorkScope(prisma, "task-1")).resolves.toMatchObject({
+			includedIn: null,
+			includedWork: [],
+			relatedWork: [],
+		});
+	});
+
+	it("opens a Task when Feature health and Related delegates are absent", async () => {
+		const prisma = scopeReader({
+			includedInFeatureId: null,
+			omitFeatureDelegates: true,
+		});
+		await expect(getWorkScope(prisma, "task-1")).resolves.toMatchObject({
+			healthHistory: [],
+			includedIn: null,
+			relatedWork: [],
+		});
+	});
+});
+
+function scopeReader(input: {
+	includedInFeatureId: string | null | undefined;
+	omitFeatureDelegates?: boolean;
+}): PrismaClient {
+	const work = {
+		id: "task-1",
+		includedInFeatureId: input.includedInFeatureId,
+		key: "CLO-4",
+		primarySpecId: null,
+		primarySpecTitle: null,
+		title: "Cloud Work 02",
+	};
+	const reader = {
+		featureHealthUpdate: input.omitFeatureDelegates
+			? undefined
+			: {
+					findMany: () => Promise.resolve([]),
+				},
+		work: {
+			findMany: () => Promise.resolve([]),
+			findUnique: (args: { where: { id?: string } }) => {
+				if (typeof args.where.id !== "string" || args.where.id.length === 0) {
+					return Promise.reject(
+						new Error(
+							"Invalid `prisma.work.findUnique()` invocation: missing id"
+						)
+					);
+				}
+				return Promise.resolve(args.where.id === work.id ? work : null);
+			},
+		},
+		workRelatedEdge: input.omitFeatureDelegates
+			? undefined
+			: {
+					findMany: () => Promise.resolve([]),
+				},
+	};
+	return reader as unknown as PrismaClient;
+}
