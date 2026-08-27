@@ -346,8 +346,12 @@ Yakalamayı mevcut kayda kanıt olarak bağlayan ilişki; Kanıt bağı uzmanlı
 _Avoid_: Kanıt bağı uzmanlığı, otomatik doğrulama, İlgili ilişkisi
 
 **Taslak**:
-Kullanıcı oluşturma eylemini tamamlamadan önce korunan, henüz kaydedilmemiş ayrıntılı İş formu; Yakalama Gelen Kutusu öğesi veya ana kayıt değildir.
+Kullanıcı oluşturma eylemini tamamlamadan önce korunan, henüz kaydedilmemiş ayrıntılı İş formu; Yakalama Gelen Kutusu öğesi veya ana kayıt değildir. UI: `Draft`.
 _Avoid_: Yakalama, İş, Belge taslağı
+
+**Taslaklar**:
+Kişisel Taslakların sürdürüldüğü veya açıkça silindiği yüzey; ana kayıt listesi, arama veya planlama yüzeyi değildir. UI: `Drafts`.
+_Avoid_: İş listesi, Yakalama Gelen Kutusu, Belge taslağı
 
 **Ürün Boşluğu**:
 Kurucunun Cantiara kapsamında karşılanmadığını düşündüğü ihtiyacı ve bu ihtiyaca ilişkin değerlendirme durumunu taşıyan Çalışma Alanı ana kaydı; tekrar sayısı [Dış araca kaçış günlüğünde](docs/prd/04-workspace-and-projects.md#dış-araca-kaçış-günlüğü) yaşar.
