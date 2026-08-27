@@ -14,6 +14,7 @@ import { useClientShell } from "@/features/web-macos-client/views/client-shell-h
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
+import { invalidateWork } from "./invalidate-work";
 import {
 	WORK_LIFECYCLE_COPY,
 	WORK_TYPES,
@@ -38,16 +39,7 @@ export default function CreateWorkForm({
 		orpc.workLifecycle.create.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await queryClient.invalidateQueries({
-						queryKey: orpc.workLifecycle.list.queryKey({
-							input: { archived: false, projectId },
-						}),
-					});
-					await queryClient.invalidateQueries({
-						queryKey: orpc.workLifecycle.list.queryKey({
-							input: { projectId },
-						}),
-					});
+					await invalidateWork(projectId, outcome.work.id);
 					await queryClient.invalidateQueries({
 						queryKey: orpc.projectShell.get.queryKey({
 							input: { projectId },

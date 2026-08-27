@@ -1146,14 +1146,23 @@ describe("Work Lifecycle", () => {
 			archived.work,
 		]);
 		expect(await getWork(prisma, created.work.id)).toEqual(archived.work);
-		const restored = await unarchiveWork(prisma, {
+		expect(await listWorkLifecycleHistory(prisma, created.work.id)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					closureResult: "Completed",
+					kind: "closed",
+					status: "Closed",
+				}),
+			])
+		);
+		const unarchived = await unarchiveWork(prisma, {
 			actorId,
 			baseRevision: archived.work.revision,
 			idempotencyKey: "unarchive-closed",
 			origin: "human",
 			workId: created.work.id,
 		});
-		expect(restored).toMatchObject({
+		expect(unarchived).toMatchObject({
 			status: "committed",
 			work: {
 				archived: false,
@@ -1163,11 +1172,20 @@ describe("Work Lifecycle", () => {
 				status: "Closed",
 			},
 		});
-		if (restored.status !== "committed") {
+		if (unarchived.status !== "committed") {
 			throw new Error("expected unarchived Work");
 		}
-		expect(await listWork(prisma, project.id)).toEqual([restored.work]);
+		expect(await listWork(prisma, project.id)).toEqual([unarchived.work]);
 		expect(await listWork(prisma, project.id, { archived: true })).toEqual([]);
+		expect(await listWorkLifecycleHistory(prisma, created.work.id)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					closureResult: "Completed",
+					kind: "closed",
+					status: "Closed",
+				}),
+			])
+		);
 		const openWork = await createWork(
 			prisma,
 			createCommand(
@@ -1199,7 +1217,7 @@ describe("Work Lifecycle", () => {
 				status: "Not Started",
 			},
 		});
-		expect(await listWork(prisma, project.id)).toEqual([restored.work]);
+		expect(await listWork(prisma, project.id)).toEqual([unarchived.work]);
 		expect(
 			(await listWork(prisma, project.id, { archived: true })).map(
 				(work) => work.key

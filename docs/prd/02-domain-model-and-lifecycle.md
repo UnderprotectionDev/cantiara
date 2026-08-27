@@ -11,6 +11,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Proje yaşam durumu | `Active`, `Pending`, `Completed`, `Abandoned` | PRD terimleri `Aktif`, `Bekleyen`, `Tamamlandı` ve `Vazgeçildi`nin kullanıcıya gösterilen karşılıkları; çalışma aşamasından ayrıdır |
 | İş | `Work` | Genel kayıt; Özellik, Bug, Görev, Araştırma ve İyileştirme bunun türleridir |
 | İş arşivi | `Archive` | İş akışı durumu ve kapanış sonucundan bağımsız görünürlük; Çöp Kutusu ve Proje arşivi değildir |
+| İş arşiv filtresi | `Archived` | Varsayılan İş listesinden ayrı açık arşiv görünürlüğü |
 | İş arşivini geri al | `Unarchive` | Arşivlenen İşi varsayılan listeye kimliği değiştirmeden döndürme |
 | Özellik | `Feature` | İş türü |
 | Kullanıcı Akışı | `User Flow` | Kullanıcının arayüz hedefi ve karar yolunu taşıyan tasarım türü |

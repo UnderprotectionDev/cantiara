@@ -12,10 +12,10 @@ import WorkList from "./work-list";
 import { nextSelectedWorkId } from "./work-selection";
 
 export default function WorkArea({ projectId }: { projectId: string }) {
-	const [archived, setArchived] = useState(false);
+	const [archiveFilter, setArchiveFilter] = useState(false);
 	const work = useQuery(
 		orpc.workLifecycle.list.queryOptions({
-			input: { archived, projectId },
+			input: { archived: archiveFilter, projectId },
 		})
 	);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -28,10 +28,10 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 	}, []);
 	const onCreated = useCallback((workId: string) => {
 		setSelectedId(workId);
-		setArchived(false);
+		setArchiveFilter(false);
 	}, []);
 	const onToggleArchiveFilter = useCallback(() => {
-		setArchived((current) => !current);
+		setArchiveFilter((current) => !current);
 		setSelectedId(null);
 	}, []);
 
@@ -63,13 +63,13 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 		<div className="flex flex-col gap-6">
 			<CreateWorkForm onCreated={onCreated} projectId={projectId} />
 			<Button
-				aria-pressed={archived}
+				aria-pressed={archiveFilter}
 				onClick={onToggleArchiveFilter}
 				size="sm"
 				type="button"
-				variant={archived ? "secondary" : "ghost"}
+				variant={archiveFilter ? "secondary" : "ghost"}
 			>
-				{WORK_LIFECYCLE_COPY.archive}
+				{WORK_LIFECYCLE_COPY.archived}
 			</Button>
 			<WorkList
 				items={work.data}
