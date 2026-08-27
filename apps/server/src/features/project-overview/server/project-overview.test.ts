@@ -302,6 +302,11 @@ describe("Project Overview", () => {
 			heading: "Work",
 			records: work.records,
 		});
+		expect(openOverviewSourceSet(overview, "Milestones")).toEqual({
+			action: OVERVIEW_COPY.openSourceRecord,
+			heading: "Milestones",
+			records: [],
+		});
 		expect(overview.openSourceRecord).toBe("Open source record");
 		expect(JSON.stringify(overview)).not.toContain("Other workspace secret");
 		expect(JSON.stringify(overview)).not.toContain("work-secret");

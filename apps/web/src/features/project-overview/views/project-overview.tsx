@@ -29,9 +29,17 @@ export default function ProjectOverview({ projectId }: { projectId: string }) {
 	const overview = useQuery(
 		orpc.projectOverview.get.queryOptions({ input: { projectId } })
 	);
-	const [openedHeading, setOpenedHeading] = useState<string | null>(null);
+	const [openedHeadings, setOpenedHeadings] = useState<readonly string[]>([]);
+	const [openedRecordId, setOpenedRecordId] = useState<string | null>(null);
 	const onToggle = useCallback((heading: string) => {
-		setOpenedHeading((current) => (current === heading ? null : heading));
+		setOpenedHeadings((current) =>
+			current.includes(heading)
+				? current.filter((item) => item !== heading)
+				: [...current, heading]
+		);
+	}, []);
+	const onOpenSourceRecord = useCallback((recordId: string) => {
+		setOpenedRecordId(recordId);
 	}, []);
 
 	if (overview.isPending) {
@@ -49,8 +57,10 @@ export default function ProjectOverview({ projectId }: { projectId: string }) {
 				<OverviewModule
 					key={module.heading}
 					module={module}
+					onOpenSourceRecord={onOpenSourceRecord}
 					onToggle={onToggle}
-					opened={openedHeading === module.heading}
+					opened={openedHeadings.includes(module.heading)}
+					openedRecordId={openedRecordId}
 					openSourceRecord={data.openSourceRecord}
 				/>
 			))}
@@ -64,14 +74,18 @@ export default function ProjectOverview({ projectId }: { projectId: string }) {
 
 function OverviewModule({
 	module,
+	onOpenSourceRecord,
 	onToggle,
 	openSourceRecord,
 	opened,
+	openedRecordId,
 }: {
 	module: OverviewModuleView;
+	onOpenSourceRecord: (recordId: string) => void;
 	onToggle: (heading: string) => void;
 	openSourceRecord: string;
 	opened: boolean;
+	openedRecordId: string | null;
 }) {
 	const onClick = useCallback(() => {
 		onToggle(module.heading);
@@ -81,6 +95,7 @@ function OverviewModule({
 			<h2 className="font-medium text-lg">
 				<Button
 					aria-expanded={opened}
+					aria-label={`${openSourceRecord}: ${module.heading} ${module.count}`}
 					onClick={onClick}
 					type="button"
 					variant="ghost"
@@ -93,6 +108,8 @@ function OverviewModule({
 					{module.records.map((record) => (
 						<OverviewSourceRow
 							key={record.id}
+							onOpenSourceRecord={onOpenSourceRecord}
+							opened={openedRecordId === record.id}
 							openSourceRecord={openSourceRecord}
 							record={record}
 						/>
@@ -104,17 +121,29 @@ function OverviewModule({
 }
 
 function OverviewSourceRow({
+	onOpenSourceRecord,
 	openSourceRecord,
+	opened,
 	record,
 }: {
+	onOpenSourceRecord: (recordId: string) => void;
 	openSourceRecord: string;
+	opened: boolean;
 	record: OverviewRecordView;
 }) {
+	const onClick = useCallback(() => {
+		onOpenSourceRecord(record.id);
+	}, [onOpenSourceRecord, record.id]);
 	return (
 		<li>
 			{record.title}
 			{record.detail ? ` · ${record.detail}` : null}{" "}
-			<Button type="button" variant="outline">
+			<Button
+				aria-pressed={opened}
+				onClick={onClick}
+				type="button"
+				variant="outline"
+			>
 				{openSourceRecord}
 			</Button>
 		</li>
