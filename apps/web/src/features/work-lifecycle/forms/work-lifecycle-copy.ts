@@ -31,6 +31,8 @@ export type ClosureResult = (typeof CLOSURE_RESULTS)[number];
 
 export const WORK_LIFECYCLE_COPY = {
 	abandoned: "Abandoned",
+	archive: "Archive",
+	archived: "Archived",
 	changeType: "Change type",
 	close: "Close",
 	closeAnyway: "Close anyway",
@@ -60,6 +62,7 @@ export const WORK_LIFECYCLE_COPY = {
 	status: "Status",
 	title: "Title",
 	type: "Type",
+	unarchive: "Unarchive",
 	work: "Work",
 } as const;
 

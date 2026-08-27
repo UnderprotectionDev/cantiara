@@ -11,7 +11,9 @@ import {
 } from "../../mutation-core/server/mutation-shared";
 import { markProjectHasWork } from "../../project-shell/server/project-shell";
 import {
+	type ArchiveWorkCommand,
 	applyPlanningMembershipCommandSchema,
+	archiveWorkCommandSchema,
 	type ChangeWorkStatusCommand,
 	type ChangeWorkTypeCommand,
 	type ClosePreview,
@@ -47,7 +49,9 @@ import {
 	reopenWorkCommandSchema,
 	type TypeChangeImpact,
 	typeChangeImpact,
+	type UnarchiveWorkCommand,
 	type UpdateWorkTitleCommand,
+	unarchiveWorkCommandSchema,
 	updateWorkTitleCommandSchema,
 	WORK_STATUS,
 	type WorkCreateSource,
@@ -65,6 +69,7 @@ import {
 type PrismaTransaction = Prisma.TransactionClient;
 
 interface WorkRow {
+	archived: boolean;
 	closureResult: string | null;
 	description: string | null;
 	id: string;
@@ -218,6 +223,42 @@ export async function reopenWork(
 	);
 	return await prisma.$transaction((tx) =>
 		reopenInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function archiveWork(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parseArchiveCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({ archived: true });
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		setArchivedInTransaction(tx, parsed.command, commandKey, fingerprint, true)
+	);
+}
+
+export async function unarchiveWork(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parseUnarchiveCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({ archived: false });
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		setArchivedInTransaction(tx, parsed.command, commandKey, fingerprint, false)
 	);
 }
 
@@ -380,11 +421,13 @@ export async function getWork(
 
 export async function listWork(
 	prisma: PrismaClient,
-	projectId: string
+	projectId: string,
+	filter: { archived?: boolean } = {}
 ): Promise<WorkView[]> {
+	const archived = filter.archived === true;
 	const rows = await prisma.work.findMany({
 		orderBy: { number: "asc" },
-		where: { projectId },
+		where: { archived, projectId },
 	});
 	return await toViews(prisma, rows);
 }
@@ -485,6 +528,22 @@ function parseRecreateCommand(
 	| { command: RecreateWorkCommand; status: "ok" }
 	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
 	return parseKeyedCommand(command, recreateWorkCommandSchema);
+}
+
+function parseArchiveCommand(
+	command: unknown
+):
+	| { command: ArchiveWorkCommand; status: "ok" }
+	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
+	return parseKeyedCommand(command, archiveWorkCommandSchema);
+}
+
+function parseUnarchiveCommand(
+	command: unknown
+):
+	| { command: UnarchiveWorkCommand; status: "ok" }
+	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
+	return parseKeyedCommand(command, unarchiveWorkCommandSchema);
 }
 
 function parseKeyedCommand<T>(
@@ -959,6 +1018,55 @@ async function recreateInTransaction(
 	);
 }
 
+async function setArchivedInTransaction(
+	tx: PrismaTransaction,
+	command: ArchiveWorkCommand,
+	commandKey: string,
+	fingerprint: string,
+	archived: boolean
+): Promise<WorkLifecycleOutcome> {
+	const prepared = await prepareWorkWrite(
+		tx,
+		command.workId,
+		commandKey,
+		fingerprint
+	);
+	if (prepared.status !== "ok") {
+		return prepared.outcome;
+	}
+	if (prepared.row.revision !== command.baseRevision) {
+		return {
+			current: toView(prepared.row),
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	if (prepared.row.archived === archived) {
+		const work = toView(prepared.row);
+		await writeReceipt(tx, {
+			actorId: command.actorId,
+			commandKey,
+			fingerprint,
+			work,
+		});
+		return { status: "committed", work };
+	}
+	await tx.work.update({
+		data: {
+			archived,
+			revision: prepared.row.revision + 1,
+		},
+		where: { id: prepared.row.id },
+	});
+	return await finishWrite(
+		tx,
+		prepared.row.id,
+		command.actorId,
+		commandKey,
+		fingerprint
+	);
+}
+
 function resolveSelectedFields(
 	selectedFields: string[] | undefined
 ):
@@ -1277,6 +1385,7 @@ function toView(row: WorkRow): WorkView {
 		throw new Error("unknown-closure-result");
 	}
 	return {
+		archived: row.archived,
 		closureResult: row.status === WORK_STATUS.closed ? closureResult : null,
 		description: row.description,
 		id: row.id,

@@ -15,6 +15,7 @@ model Work {
   recreatedFromThis Work[]               @relation("WorkOrigin")
   lightChecklist    Json                 @default("[]")
   portableRelations Json                 @default("[]")
+  archived          Boolean              @default(false)
   revision          Int
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
@@ -24,6 +25,7 @@ model Work {
   @@unique([projectId, key])
   @@index([projectId])
   @@index([originWorkId])
+  @@index([projectId, archived])
   @@map("work")
 }
 
