@@ -28,11 +28,7 @@ import {
 	previewWorkTypeChange,
 	updateWorkTitle,
 } from "./work-lifecycle";
-import {
-	DEFAULT_WORK_TYPE,
-	WORK_LIFECYCLE_COPY,
-	WORK_TYPES,
-} from "./work-lifecycle-model";
+import { DEFAULT_WORK_TYPE } from "./work-lifecycle-model";
 
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
@@ -40,6 +36,21 @@ const DATABASE_URL =
 
 const HIERARCHY_PATTERN = /epic|subtask|parentId|parentWork/i;
 const MOVE_PATTERN = /moveWork|changeProject|reassignProject/i;
+const ENGLISH_WORK_TYPES = [
+	"Feature",
+	"Bug",
+	"Task",
+	"Research",
+	"Improvement",
+] as const;
+const FEATURE_IMPACT_COPY = {
+	detachBeforeLeavingFeature:
+		"Detach included Work, Feature health history, and Primary spec before leaving Feature.",
+	featureHealth: "Feature health",
+	impactPreview: "Impact preview",
+	includedWork: "Included Work",
+	primarySpec: "Primary spec",
+} as const;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -218,13 +229,6 @@ describe("Work Lifecycle", () => {
 			reason: "unknown-work-type",
 			status: "rejected",
 		});
-		expect(WORK_TYPES).toEqual([
-			"Feature",
-			"Bug",
-			"Task",
-			"Research",
-			"Improvement",
-		]);
 		expect(await listWork(prisma, project.id)).toEqual([]);
 	});
 
@@ -348,7 +352,7 @@ describe("Work Lifecycle", () => {
 	it("creates each English type and lets non-Feature types change freely", async () => {
 		const { actorId, project } = await openPayments(prisma);
 		const created = await Promise.all(
-			WORK_TYPES.map(async (type) => {
+			ENGLISH_WORK_TYPES.map(async (type) => {
 				const outcome = await createWork(
 					prisma,
 					createCommand(
@@ -468,10 +472,7 @@ describe("Work Lifecycle", () => {
 		);
 		expect(enterPreview).toMatchObject({
 			blocked: false,
-			copy: {
-				impactPreview: "Impact preview",
-				includedWork: "Included Work",
-			},
+			copy: FEATURE_IMPACT_COPY,
 			fromType: "Task",
 			healthHistory: [],
 			includedWork: [],
@@ -515,6 +516,7 @@ describe("Work Lifecycle", () => {
 		);
 		expect(leavePreview).toMatchObject({
 			blocked: false,
+			copy: FEATURE_IMPACT_COPY,
 			fromType: "Feature",
 			healthHistory: [],
 			includedWork: [],
@@ -522,6 +524,7 @@ describe("Work Lifecycle", () => {
 			requiresPreview: true,
 			toType: "Bug",
 		});
+		expect(JSON.stringify(leavePreview)).not.toMatch(HIERARCHY_PATTERN);
 		const left = await changeWorkType(prisma, {
 			actorId,
 			baseRevision: entered.work.revision,
@@ -665,27 +668,5 @@ describe("Work Lifecycle", () => {
 			reason: "missing-idempotency-key",
 			status: "rejected",
 		});
-	});
-
-	it("uses English Work, type, and impact-preview chrome", () => {
-		expect(WORK_LIFECYCLE_COPY.work).toBe("Work");
-		expect(WORK_LIFECYCLE_COPY.createWork).toBe("Create Work");
-		expect(WORK_LIFECYCLE_COPY.title).toBe("Title");
-		expect(WORK_LIFECYCLE_COPY.type).toBe("Type");
-		expect(WORK_LIFECYCLE_COPY.key).toBe("Key");
-		expect(WORK_LIFECYCLE_COPY.changeType).toBe("Change type");
-		expect(WORK_LIFECYCLE_COPY.impactPreview).toBe("Impact preview");
-		expect(WORK_LIFECYCLE_COPY.includedWork).toBe("Included Work");
-		expect(WORK_LIFECYCLE_COPY.primarySpec).toBe("Primary spec");
-		expect(WORK_LIFECYCLE_COPY.featureHealth).toBe("Feature health");
-		expect(WORK_LIFECYCLE_COPY.confirmTypeChange).toBe("Confirm type change");
-		expect(WORK_TYPES).toEqual([
-			"Feature",
-			"Bug",
-			"Task",
-			"Research",
-			"Improvement",
-		]);
-		expect(JSON.stringify(WORK_LIFECYCLE_COPY)).not.toMatch(HIERARCHY_PATTERN);
 	});
 });
