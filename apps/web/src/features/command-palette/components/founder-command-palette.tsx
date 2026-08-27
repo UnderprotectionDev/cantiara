@@ -14,7 +14,6 @@ import {
 	DialogTitle,
 } from "@cantiara/ui/components/dialog";
 import { Kbd } from "@cantiara/ui/components/kbd";
-import { CommandIcon } from "lucide-react";
 import {
 	createContext,
 	type KeyboardEvent as ReactKeyboardEvent,
@@ -111,8 +110,10 @@ function PaletteCommandItem({
 	return (
 		<CommandItem onSelect={onSelect} value={command.id}>
 			<div className="flex min-w-0 flex-1 flex-col gap-0.5">
-				<span>{command.label}</span>
-				<span className="text-muted-foreground">{previewLine(command)}</span>
+				<span className="text-sm">{command.label}</span>
+				<span className="text-muted-foreground text-xs">
+					{previewLine(command)}
+				</span>
 			</div>
 			{command.shortcutHint ? (
 				<CommandShortcut>{command.shortcutHint}</CommandShortcut>
@@ -131,17 +132,14 @@ export function CommandPaletteTrigger() {
 		<Button
 			aria-keyshortcuts={COMMAND_PALETTE_SHORTCUT_HINT}
 			aria-label={COMMAND_PALETTE_COPY.title}
-			className="h-8 gap-1.5 px-2 font-normal text-muted-foreground"
+			className="h-7 px-1.5 text-muted-foreground"
 			onClick={actions.openPalette}
 			size="sm"
-			title={`${COMMAND_PALETTE_COPY.title} (${COMMAND_PALETTE_SHORTCUT_HINT})`}
+			title={`${COMMAND_PALETTE_COPY.title} (⌘K)`}
 			type="button"
 			variant="ghost"
 		>
-			<CommandIcon aria-hidden="true" className="size-4" />
-			<Kbd className="hidden sm:inline-flex">
-				{COMMAND_PALETTE_SHORTCUT_HINT}
-			</Kbd>
+			<Kbd>⌘K</Kbd>
 		</Button>
 	);
 }
@@ -313,13 +311,13 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 	return (
 		<CommandPaletteActionsContext.Provider value={actions}>
 			{children}
-			{mountPalette ? (
+			{mountPalette && snapshot.visible ? (
 				<Dialog onOpenChange={onOpenChange} open={snapshot.visible}>
 					<DialogContent
-						className="data-closed:zoom-out-100 data-open:zoom-in-100 top-[20%] translate-y-0 overflow-hidden p-0 duration-0 sm:max-w-lg"
+						className="top-[18%] translate-y-0 overflow-hidden p-0 sm:max-w-lg"
 						showCloseButton={false}
 					>
-						<DialogHeader className="border-b px-3 py-2">
+						<DialogHeader className="sr-only">
 							<DialogTitle>{snapshot.title}</DialogTitle>
 						</DialogHeader>
 						<Command shouldFilter={false}>
@@ -327,12 +325,15 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
 								autoFocus
 								onKeyDown={onFilterKeyDown}
 								onValueChange={onQuery}
-								placeholder=""
+								placeholder={COMMAND_PALETTE_COPY.title}
 								value={snapshot.query}
 							/>
 							<CommandList>
 								{snapshot.commands.length === 0 ? (
-									<p className="py-6 text-center text-xs" role="status">
+									<p
+										className="px-3 py-8 text-center text-muted-foreground text-sm"
+										role="status"
+									>
 										{snapshot.emptyReason}
 									</p>
 								) : (

@@ -65,16 +65,18 @@ export default function ExtensionLinks() {
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{(links.data ?? []).map((link) => (
+						{(Array.isArray(links.data) ? links.data : []).map((link) => (
 							<TableRow key={link.id}>
 								<TableCell>{link.device}</TableCell>
 								<TableCell>{link.browser}</TableCell>
 								<TableCell>
-									<time dateTime={String(link.lastUsedAt)}>
-										{formatDateTime(
-											new Date(link.lastUsedAt),
-											displayPreferences
-										)}
+									<time dateTime={String(link.lastUsedAt ?? "")}>
+										{link.lastUsedAt
+											? formatDateTime(
+													new Date(link.lastUsedAt),
+													displayPreferences
+												)
+											: ""}
 									</time>
 								</TableCell>
 								<TableCell>
