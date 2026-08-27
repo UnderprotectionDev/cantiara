@@ -51,6 +51,8 @@ Installed skills live in `.agents/skills`.
 
 **Better Auth** — `/better-auth-best-practices` and `/better-auth-security-best-practices`. Read before changing GitHub login, sessions, or cookies.
 
+**Implement close-out** — [`docs/agents/implement-close-out.md`](docs/agents/implement-close-out.md). After `/implement`, the final user message is Turkish: Ne eklendi, İnceleme, Nasıl test edilir.
+
 ## Agent skills
 
 ### Issue tracker
