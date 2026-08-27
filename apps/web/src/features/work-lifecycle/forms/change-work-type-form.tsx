@@ -41,6 +41,8 @@ export default function ChangeWorkTypeForm({
 		}),
 		enabled: previewNeeded,
 	});
+	const previewReady = !previewNeeded || Boolean(preview.data);
+	const previewBlocked = Boolean(preview.data?.blocked);
 	const change = useMutation(
 		orpc.workLifecycle.changeType.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -77,6 +79,14 @@ export default function ChangeWorkTypeForm({
 		defaultValues: { type },
 		onSubmit: async ({ value }) => {
 			setError(null);
+			if (involvesFeature(type, value.type) && !preview.data) {
+				setError(WORK_LIFECYCLE_COPY.impactPreview);
+				return;
+			}
+			if (preview.data?.blocked) {
+				setError(WORK_LIFECYCLE_COPY.detachBeforeLeavingFeature);
+				return;
+			}
 			const result = attemptOnlineWork("record-create", () =>
 				change.mutateAsync({
 					baseRevision: revision,
@@ -140,7 +150,10 @@ export default function ChangeWorkTypeForm({
 				</section>
 			) : null}
 			{error ? <p role="alert">{error}</p> : null}
-			<Button disabled={change.isPending} type="submit">
+			<Button
+				disabled={change.isPending || !previewReady || previewBlocked}
+				type="submit"
+			>
 				{previewNeeded
 					? WORK_LIFECYCLE_COPY.confirmTypeChange
 					: WORK_LIFECYCLE_COPY.changeType}

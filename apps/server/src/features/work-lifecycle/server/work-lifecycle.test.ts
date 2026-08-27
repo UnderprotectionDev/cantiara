@@ -30,7 +30,6 @@ import {
 } from "./work-lifecycle";
 import {
 	DEFAULT_WORK_TYPE,
-	typeChangeImpact,
 	WORK_LIFECYCLE_COPY,
 	WORK_TYPES,
 } from "./work-lifecycle-model";
@@ -467,13 +466,16 @@ describe("Work Lifecycle", () => {
 			task.work.id,
 			"Feature"
 		);
-		expect(enterPreview).toEqual(typeChangeImpact("Task", "Feature"));
 		expect(enterPreview).toMatchObject({
 			blocked: false,
 			copy: {
 				impactPreview: "Impact preview",
 				includedWork: "Included Work",
 			},
+			fromType: "Task",
+			healthHistory: [],
+			includedWork: [],
+			primarySpec: null,
 			requiresPreview: true,
 			toType: "Feature",
 		});

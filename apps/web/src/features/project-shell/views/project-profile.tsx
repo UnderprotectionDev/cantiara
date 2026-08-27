@@ -282,7 +282,23 @@ function ProjectBody({
 	if (selectedArea === "Work") {
 		return (
 			<section aria-label="Work" id={projectShellAnchor("Work")}>
-				<WorkArea projectId={data.id} />
+				<h1 className="font-semibold text-[1.375rem] tracking-tight">Work</h1>
+				<ul className="mt-6 flex flex-col gap-1 text-sm">
+					<li>{PROJECT_SHELL_COPY.create}</li>
+					<li>{PROJECT_SHELL_COPY.edit}</li>
+					<li>{PROJECT_SHELL_COPY.status}</li>
+					<li>{PROJECT_SHELL_COPY.planning}</li>
+				</ul>
+				<ul className="mt-4 flex flex-col gap-1 text-sm">
+					{data.workViews.map((view) => (
+						<li id={projectShellAnchor(view)} key={view}>
+							{view}
+						</li>
+					))}
+				</ul>
+				<div className="mt-8">
+					<WorkArea projectId={data.id} />
+				</div>
 			</section>
 		);
 	}

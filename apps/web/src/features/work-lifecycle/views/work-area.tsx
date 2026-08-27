@@ -5,7 +5,6 @@ import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell
 import { orpc } from "@/utils/orpc";
 
 import CreateWorkForm from "../forms/create-work-form";
-import { WORK_LIFECYCLE_COPY } from "../forms/work-lifecycle-copy";
 import WorkDetail from "./work-detail";
 import WorkList from "./work-list";
 
@@ -25,19 +24,14 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 	const selected = work.data.find((item) => item.id === selectedId) ?? null;
 
 	return (
-		<section aria-label={WORK_LIFECYCLE_COPY.work}>
-			<h1 className="font-semibold text-[1.375rem] tracking-tight">
-				{WORK_LIFECYCLE_COPY.work}
-			</h1>
-			<div className="mt-6">
-				<CreateWorkForm projectId={projectId} />
-			</div>
+		<>
+			<CreateWorkForm projectId={projectId} />
 			<WorkList
 				items={work.data}
 				onSelect={setSelectedId}
 				selectedId={selectedId}
 			/>
 			{selected ? <WorkDetail projectId={projectId} work={selected} /> : null}
-		</section>
+		</>
 	);
 }

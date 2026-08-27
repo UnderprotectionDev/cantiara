@@ -35,6 +35,7 @@ export default function WorkDetail({
 				{WORK_LIFECYCLE_COPY.status} {work.status}
 			</p>
 			<ChangeWorkTypeForm
+				key={`${work.id}:${work.type}:${work.revision}`}
 				projectId={projectId}
 				revision={work.revision}
 				type={work.type}
