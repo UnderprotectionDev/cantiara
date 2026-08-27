@@ -37,6 +37,12 @@ export function shouldAutosaveWorkDraft(values: WorkDraftFormValues): boolean {
 	if (values.title.trim().length > 0) {
 		return true;
 	}
+	if (values.projectId.trim().length > 0) {
+		return true;
+	}
+	if (values.type !== EMPTY_WORK_DRAFT_FORM.type) {
+		return true;
+	}
 	return Object.values(values.customFieldValues).some(
 		(value) => value.trim().length > 0
 	);

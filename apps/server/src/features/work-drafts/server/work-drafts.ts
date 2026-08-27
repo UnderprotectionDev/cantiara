@@ -35,7 +35,8 @@ export type AutosaveDraftOutcome =
 			status: "saved";
 	  }
 	| { queued: false; reason: "offline"; status: "refused" }
-	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" };
+	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
+	| { status: "not-found" };
 
 export type DeleteDraftOutcome =
 	| { status: "deleted" }
@@ -238,7 +239,7 @@ export function createWorkDrafts(input: {
 					},
 				});
 				if (!current) {
-					return { queued: false, reason: "offline", status: "refused" };
+					return { status: "not-found" };
 				}
 				row = await input.prisma.workDraft.update({
 					data: {

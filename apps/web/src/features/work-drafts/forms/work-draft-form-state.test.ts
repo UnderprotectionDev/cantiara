@@ -8,7 +8,7 @@ import {
 	workDraftFormFromDraft,
 } from "./work-draft-form-state";
 
-test("autosave waits until the Draft form has title or field values", () => {
+test("autosave keeps any filled Draft form field, including type and Project", () => {
 	expect(shouldAutosaveWorkDraft(EMPTY_WORK_DRAFT_FORM)).toBe(false);
 	expect(
 		shouldAutosaveWorkDraft({
@@ -19,7 +19,13 @@ test("autosave waits until the Draft form has title or field values", () => {
 	expect(
 		shouldAutosaveWorkDraft({
 			...EMPTY_WORK_DRAFT_FORM,
-			customFieldValues: { severity: "High" },
+			type: "Bug",
+		})
+	).toBe(true);
+	expect(
+		shouldAutosaveWorkDraft({
+			...EMPTY_WORK_DRAFT_FORM,
+			projectId: "proj-payments",
 		})
 	).toBe(true);
 });
