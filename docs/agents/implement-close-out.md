@@ -8,21 +8,24 @@ Run after work is committed, `/code-review` has finished, and tests have run.
 
 ## 1. Ne eklendi
 
-Plain-language summary of what landed:
+Spec veya ticket'tan ne çıktı — `/implement`'in yaptığı işin özeti:
 
-- User-visible behaviour or capability delivered
-- Main files, routes, APIs, or schema touched — enough to orient, not a raw diff dump
-- Scope boundaries: what this change deliberately does not cover
+- Teslim edilen davranış veya yetenek (ürün değişikliği) ya da süreç/kural değişikliği (agent doc, skill)
+- Dokunan ana dosya, route, API veya şema — yönlendirme için yeterli, ham diff değil
+- Kapsam dışı: bilinçli olarak yapılmayan
 
-**Done when** the reader can answer “what did this deliver?” without opening the diff.
+**Done when** okuyucu diff açmadan “ne teslim edildi?” sorusunu yanıtlayabilir.
 
 ## 2. İnceleme
 
-Carry forward `/code-review` under `## Standards` and `## Spec` — lightly cleaned, not reranked. End with the one-line summary from that skill (findings per axis, worst issue within each axis).
+`/implement` içindeki `/code-review` çıktısını taşı — yeniden sıralama yok:
 
-If no spec was available, say so under Spec. If review was skipped, say why — do not invent findings.
+- `## Standards` ve `## Spec` başlıkları aynen kalır; bulgular Türkçe özetlenebilir
+- `/code-review`'ın tek satırlık özetiyle bitir (eksen başına bulgu sayısı, varsa en kötü bulgu)
 
-**Done when** both axes are reported or explicitly skipped with reason.
+Spec yoksa Spec altında belirt. Review atlandıysa nedenini yaz — uydurma.
+
+**Done when** her iki eksen raporlandı veya atlama gerekçesiyle açıklandı.
 
 ## 3. Nasıl test edilir
 
