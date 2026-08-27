@@ -50,6 +50,8 @@ export type ClosureResult = (typeof CLOSURE_RESULTS)[number];
 
 export const WORK_LIFECYCLE_COPY = {
 	abandoned: CLOSURE_RESULT.abandoned,
+	archive: "Archive",
+	archived: "Archived",
 	blocked: WORK_STATUS.blocked,
 	changeType: "Change type",
 	closeAnyway: "Close anyway",
@@ -75,6 +77,7 @@ export const WORK_LIFECYCLE_COPY = {
 	returnToWork: "Return to work",
 	title: "Title",
 	type: "Type",
+	unarchive: "Unarchive",
 	work: "Work",
 } as const;
 
@@ -84,6 +87,7 @@ export const nonTerminalWorkStatusSchema = z.enum(NON_TERMINAL_WORK_STATUSES);
 export const closureResultSchema = z.enum(CLOSURE_RESULTS);
 
 export const workViewSchema = z.object({
+	archived: z.boolean().default(false),
 	closureResult: closureResultSchema.nullable().default(null),
 	id: z.string().min(1),
 	key: z.string().min(1),
@@ -184,6 +188,20 @@ export const reopenWorkCommandSchema = z.object({
 });
 
 export type ReopenWorkCommand = z.infer<typeof reopenWorkCommandSchema>;
+
+export const archiveWorkCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	workId: z.string().min(1),
+});
+
+export type ArchiveWorkCommand = z.infer<typeof archiveWorkCommandSchema>;
+
+export const unarchiveWorkCommandSchema = archiveWorkCommandSchema;
+
+export type UnarchiveWorkCommand = z.infer<typeof unarchiveWorkCommandSchema>;
 
 export const applyPlanningMembershipCommandSchema = z.object({
 	desiredStatus: z.string().optional(),

@@ -9,6 +9,7 @@ model Work {
   status          String
   closureResult   String?
   closureReason   String?
+  archived        Boolean              @default(false)
   revision        Int
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
@@ -17,6 +18,7 @@ model Work {
   @@unique([projectId, number])
   @@unique([projectId, key])
   @@index([projectId])
+  @@index([projectId, archived])
   @@map("work")
 }
 

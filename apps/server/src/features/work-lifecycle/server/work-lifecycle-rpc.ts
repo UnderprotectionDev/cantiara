@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	archiveWork,
 	changeWorkStatus,
 	changeWorkType,
 	closeWork,
@@ -18,6 +19,7 @@ import {
 	previewClose,
 	previewWorkTypeChange,
 	reopenWork,
+	unarchiveWork,
 	updateWorkTitle,
 } from "./work-lifecycle";
 import {
@@ -56,6 +58,25 @@ async function requireWork(workspaceId: string, workId: string) {
 }
 
 export const workLifecycle = {
+	archive: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await archiveWork(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				workId: input.workId,
+			});
+		}),
 	catalog: protectedProcedure.handler(() => ({
 		closureResults: CLOSURE_RESULTS,
 		copy: WORK_LIFECYCLE_COPY,
@@ -188,11 +209,18 @@ export const workLifecycle = {
 			return await requireWork(access.workspaceId, input.workId);
 		}),
 	list: protectedProcedure
-		.input(z.object({ projectId: z.string().min(1) }))
+		.input(
+			z.object({
+				archived: z.boolean().optional(),
+				projectId: z.string().min(1),
+			})
+		)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
-			return await listWork(getPrismaClient(), input.projectId);
+			return await listWork(getPrismaClient(), input.projectId, {
+				archived: input.archived,
+			});
 		}),
 	listHistory: protectedProcedure
 		.input(z.object({ workId: z.string().min(1) }))
@@ -252,6 +280,25 @@ export const workLifecycle = {
 				origin: "human",
 				reopenConfirmed: input.reopenConfirmed,
 				status: input.status,
+				workId: input.workId,
+			});
+		}),
+	unarchive: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await unarchiveWork(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
 				workId: input.workId,
 			});
 		}),
