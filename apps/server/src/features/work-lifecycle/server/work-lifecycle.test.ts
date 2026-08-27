@@ -19,19 +19,28 @@ import {
 } from "../../project-shell/server/project-shell";
 import {
 	applyPlanningMembership,
+	bindPrimarySpec,
 	changeWorkStatus,
 	changeWorkType,
 	closeWork,
 	convertCaptureToWork,
 	createWork,
+	detachFeatureHealthHistory,
+	detachIncludedWork,
+	detachPrimarySpec,
 	finalizeDraft,
 	getWork,
+	getWorkScope,
+	includeWork,
 	listWork,
 	listWorkLifecycleHistory,
 	permanentlyDeleteWork,
 	previewClose,
 	previewWorkTypeChange,
+	recordFeatureHealth,
+	relateWork,
 	reopenWork,
+	summarizeFeatureProgress,
 	updateWorkTitle,
 } from "./work-lifecycle";
 import { DEFAULT_WORK_TYPE } from "./work-lifecycle-model";
@@ -43,6 +52,8 @@ const DATABASE_URL =
 const HIERARCHY_PATTERN = /epic|subtask|parentId|parentWork/i;
 const MOVE_PATTERN = /moveWork|changeProject|reassignProject/i;
 const ARCHIVE_PATTERN = /archiv/i;
+const PROJECT_SCORE_PATTERN =
+	/healthScore|On Track|At Risk|Off Track|Checkout spike/;
 const ENGLISH_WORK_TYPES = [
 	"Feature",
 	"Bug",
@@ -129,6 +140,23 @@ function createCommand(
 			type: input.type,
 		},
 	};
+}
+
+async function committedWork(
+	prisma: PrismaClient,
+	actorId: string,
+	input: {
+		idempotencyKey: string;
+		projectId: string;
+		title: string;
+		type?: string;
+	}
+) {
+	const created = await createWork(prisma, createCommand(input, actorId));
+	if (created.status !== "committed") {
+		throw new Error(`expected committed Work, got ${created.status}`);
+	}
+	return created.work;
 }
 
 describe("Work Lifecycle", () => {
@@ -1092,6 +1120,484 @@ describe("Work Lifecycle", () => {
 		).toEqual({
 			reason: "missing-idempotency-key",
 			status: "rejected",
+		});
+	});
+
+	it("lets a Feature include Work once via Includes and refuses a second primary Feature", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const checkout = await committedWork(prisma, actorId, {
+			idempotencyKey: "feature-checkout",
+			projectId: project.id,
+			title: "Checkout",
+			type: "Feature",
+		});
+		const other = await committedWork(prisma, actorId, {
+			idempotencyKey: "feature-wallet",
+			projectId: project.id,
+			title: "Wallet",
+			type: "Feature",
+		});
+		const intake = await committedWork(prisma, actorId, {
+			idempotencyKey: "task-intake",
+			projectId: project.id,
+			title: "Intake checkout",
+			type: "Task",
+		});
+		const included = await includeWork(prisma, {
+			actorId,
+			baseRevision: intake.revision,
+			featureId: checkout.id,
+			idempotencyKey: "include-intake",
+			origin: "human",
+			workId: intake.id,
+		});
+		expect(included).toMatchObject({
+			status: "committed",
+			work: {
+				id: intake.id,
+				key: "PAY-3",
+				status: "Not Started",
+				title: "Intake checkout",
+				type: "Task",
+			},
+		});
+		expect(await getWorkScope(prisma, checkout.id)).toMatchObject({
+			copy: {
+				includedIn: "Included in",
+				includedWork: "Included Work",
+				includes: "Includes",
+			},
+			includedIn: null,
+			includedWork: [
+				{
+					id: intake.id,
+					key: "PAY-3",
+					title: "Intake checkout",
+				},
+			],
+		});
+		expect(await getWorkScope(prisma, intake.id)).toMatchObject({
+			includedIn: {
+				id: checkout.id,
+				key: "PAY-1",
+				title: "Checkout",
+			},
+			includedWork: [],
+		});
+		expect(
+			await includeWork(prisma, {
+				actorId,
+				baseRevision: intake.revision + 1,
+				featureId: other.id,
+				idempotencyKey: "second-primary",
+				origin: "human",
+				workId: intake.id,
+			})
+		).toEqual({
+			reason: "already-included",
+			status: "rejected",
+		});
+		expect(await getWorkScope(prisma, other.id)).toMatchObject({
+			includedWork: [],
+		});
+		expect(await getWorkScope(prisma, intake.id)).toMatchObject({
+			includedIn: { id: checkout.id },
+		});
+	});
+
+	it("keeps Related Features out of inclusion progress", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const checkout = await committedWork(prisma, actorId, {
+			idempotencyKey: "related-checkout",
+			projectId: project.id,
+			title: "Checkout",
+			type: "Feature",
+		});
+		const wallet = await committedWork(prisma, actorId, {
+			idempotencyKey: "related-wallet",
+			projectId: project.id,
+			title: "Wallet",
+			type: "Feature",
+		});
+		const intake = await committedWork(prisma, actorId, {
+			idempotencyKey: "related-intake",
+			projectId: project.id,
+			title: "Intake checkout",
+		});
+		const included = await includeWork(prisma, {
+			actorId,
+			baseRevision: intake.revision,
+			featureId: checkout.id,
+			idempotencyKey: "include-for-related",
+			origin: "human",
+			workId: intake.id,
+		});
+		if (included.status !== "committed") {
+			throw new Error("expected inclusion");
+		}
+		const related = await relateWork(prisma, {
+			actorId,
+			baseRevision: included.work.revision,
+			fromWorkId: intake.id,
+			idempotencyKey: "relate-wallet",
+			origin: "human",
+			toWorkId: wallet.id,
+		});
+		expect(related).toMatchObject({
+			status: "committed",
+			work: { id: intake.id, type: "Task" },
+		});
+		expect(await getWorkScope(prisma, wallet.id)).toMatchObject({
+			copy: { related: "Related" },
+			includedWork: [],
+			relatedWork: [{ id: intake.id, key: "PAY-3" }],
+		});
+		expect(await summarizeFeatureProgress(prisma, checkout.id)).toMatchObject({
+			closedCount: 0,
+			featureStatus: "Not Started",
+			includedCount: 1,
+		});
+		expect(await summarizeFeatureProgress(prisma, wallet.id)).toMatchObject({
+			closedCount: 0,
+			featureStatus: "Not Started",
+			includedCount: 0,
+		});
+	});
+
+	it("leaves included Work type, status, planning, and history independent of the Feature", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const checkout = await committedWork(prisma, actorId, {
+			idempotencyKey: "independent-feature",
+			projectId: project.id,
+			title: "Checkout",
+			type: "Feature",
+		});
+		const intake = await committedWork(prisma, actorId, {
+			idempotencyKey: "independent-task",
+			projectId: project.id,
+			title: "Intake checkout",
+		});
+		const included = await includeWork(prisma, {
+			actorId,
+			baseRevision: intake.revision,
+			featureId: checkout.id,
+			idempotencyKey: "include-independent",
+			origin: "human",
+			workId: intake.id,
+		});
+		if (included.status !== "committed") {
+			throw new Error("expected inclusion");
+		}
+		const retitled = await updateWorkTitle(prisma, {
+			actorId,
+			baseRevision: included.work.revision,
+			idempotencyKey: "rename-intake",
+			origin: "human",
+			title: "Intake tax",
+			workId: intake.id,
+		});
+		if (retitled.status !== "committed") {
+			throw new Error("expected title");
+		}
+		const asBug = await changeWorkType(prisma, {
+			actorId,
+			baseRevision: retitled.work.revision,
+			idempotencyKey: "intake-to-bug",
+			origin: "human",
+			type: "Bug",
+			workId: intake.id,
+		});
+		if (asBug.status !== "committed") {
+			throw new Error("expected Bug");
+		}
+		const inProgress = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: asBug.work.revision,
+			idempotencyKey: "intake-progress",
+			origin: "human",
+			status: "In Progress",
+			workId: intake.id,
+		});
+		if (inProgress.status !== "committed") {
+			throw new Error("expected In Progress");
+		}
+		await applyPlanningMembership(prisma, {
+			desiredStatus: "Blocked",
+			surface: "Board",
+			workId: intake.id,
+		});
+		const closed = await closeWork(prisma, {
+			actorId,
+			baseRevision: inProgress.work.revision,
+			idempotencyKey: "intake-close",
+			origin: "human",
+			result: "Completed",
+			workId: intake.id,
+		});
+		expect(closed).toMatchObject({
+			status: "committed",
+			work: { closureResult: "Completed", status: "Closed", type: "Bug" },
+		});
+		expect(await getWork(prisma, checkout.id)).toMatchObject({
+			status: "Not Started",
+			title: "Checkout",
+			type: "Feature",
+		});
+		expect(await listWorkLifecycleHistory(prisma, checkout.id)).toEqual([]);
+		expect(await listWorkLifecycleHistory(prisma, intake.id)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "status",
+					status: "In Progress",
+				}),
+				expect.objectContaining({
+					closureResult: "Completed",
+					kind: "closed",
+					status: "Closed",
+				}),
+			])
+		);
+	});
+
+	it("does not let derived Feature progress write Feature status", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const checkout = await committedWork(prisma, actorId, {
+			idempotencyKey: "progress-feature",
+			projectId: project.id,
+			title: "Checkout",
+			type: "Feature",
+		});
+		const intake = await committedWork(prisma, actorId, {
+			idempotencyKey: "progress-task",
+			projectId: project.id,
+			title: "Intake checkout",
+		});
+		await includeWork(prisma, {
+			actorId,
+			baseRevision: intake.revision,
+			featureId: checkout.id,
+			idempotencyKey: "include-progress",
+			origin: "human",
+			workId: intake.id,
+		});
+		const live = await getWork(prisma, intake.id);
+		if (!live) {
+			throw new Error("expected intake");
+		}
+		await closeWork(prisma, {
+			actorId,
+			baseRevision: live.revision,
+			idempotencyKey: "close-for-progress",
+			origin: "human",
+			result: "Completed",
+			workId: intake.id,
+		});
+		expect(await summarizeFeatureProgress(prisma, checkout.id)).toMatchObject({
+			closedCount: 1,
+			copy: { includedWork: "Included Work" },
+			featureStatus: "Not Started",
+			includedCount: 1,
+		});
+		expect(await getWork(prisma, checkout.id)).toMatchObject({
+			closureResult: null,
+			status: "Not Started",
+		});
+	});
+
+	it("keeps Feature health on the Feature and off the Project score", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const checkout = await committedWork(prisma, actorId, {
+			idempotencyKey: "health-feature",
+			projectId: project.id,
+			title: "Checkout",
+			type: "Feature",
+		});
+		const intake = await committedWork(prisma, actorId, {
+			idempotencyKey: "health-task",
+			projectId: project.id,
+			title: "Intake checkout",
+		});
+		expect(
+			await recordFeatureHealth(prisma, {
+				actorId,
+				baseRevision: intake.revision,
+				idempotencyKey: "task-health",
+				origin: "human",
+				reason: "Payments lag",
+				status: "At Risk",
+				workId: intake.id,
+			})
+		).toEqual({
+			reason: "feature-health-not-allowed",
+			status: "rejected",
+		});
+		const recorded = await recordFeatureHealth(prisma, {
+			actorId,
+			baseRevision: checkout.revision,
+			idempotencyKey: "feature-health",
+			origin: "human",
+			reason: "Checkout spike",
+			status: "At Risk",
+			workId: checkout.id,
+		});
+		expect(recorded).toMatchObject({
+			status: "committed",
+			work: { id: checkout.id, status: "Not Started", type: "Feature" },
+		});
+		expect(await getWorkScope(prisma, checkout.id)).toMatchObject({
+			copy: {
+				atRisk: "At Risk",
+				featureHealth: "Feature health",
+				offTrack: "Off Track",
+				onTrack: "On Track",
+			},
+			healthHistory: [
+				expect.objectContaining({
+					reason: "Checkout spike",
+					status: "At Risk",
+				}),
+			],
+		});
+		const projectAfter = await getProject(prisma, project.id);
+		expect(JSON.stringify(projectAfter)).not.toMatch(PROJECT_SCORE_PATTERN);
+		expect(await getWork(prisma, checkout.id)).toMatchObject({
+			status: "Not Started",
+		});
+	});
+
+	it("blocks leaving Feature while included Work, health history, or Primary spec remain", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const checkout = await committedWork(prisma, actorId, {
+			idempotencyKey: "exit-feature",
+			projectId: project.id,
+			title: "Checkout",
+			type: "Feature",
+		});
+		const intake = await committedWork(prisma, actorId, {
+			idempotencyKey: "exit-task",
+			projectId: project.id,
+			title: "Intake checkout",
+		});
+		const included = await includeWork(prisma, {
+			actorId,
+			baseRevision: intake.revision,
+			featureId: checkout.id,
+			idempotencyKey: "include-exit",
+			origin: "human",
+			workId: intake.id,
+		});
+		if (included.status !== "committed") {
+			throw new Error("expected inclusion");
+		}
+		const withHealth = await recordFeatureHealth(prisma, {
+			actorId,
+			baseRevision: checkout.revision,
+			idempotencyKey: "health-exit",
+			origin: "human",
+			status: "Off Track",
+			workId: checkout.id,
+		});
+		if (withHealth.status !== "committed") {
+			throw new Error("expected health");
+		}
+		const withSpec = await bindPrimarySpec(prisma, {
+			actorId,
+			baseRevision: withHealth.work.revision,
+			idempotencyKey: "spec-exit",
+			origin: "human",
+			primarySpec: { id: "spec-checkout", title: "Checkout spec" },
+			workId: checkout.id,
+		});
+		if (withSpec.status !== "committed") {
+			throw new Error("expected Primary spec");
+		}
+		const blockedPreview = await previewWorkTypeChange(
+			prisma,
+			checkout.id,
+			"Task"
+		);
+		expect(blockedPreview).toMatchObject({
+			blocked: true,
+			copy: FEATURE_IMPACT_COPY,
+			healthHistory: [{ id: expect.any(String) }],
+			includedWork: [{ id: intake.id, key: "PAY-2", title: "Intake checkout" }],
+			primarySpec: { id: "spec-checkout", title: "Checkout spec" },
+			requiresPreview: true,
+			toType: "Task",
+		});
+		expect(
+			await changeWorkType(prisma, {
+				actorId,
+				baseRevision: withSpec.work.revision,
+				idempotencyKey: "leave-blocked",
+				origin: "human",
+				previewAcknowledged: true,
+				type: "Task",
+				workId: checkout.id,
+			})
+		).toEqual({
+			reason: "feature-exit-blocked",
+			status: "rejected",
+		});
+		const liveIncluded = await getWork(prisma, intake.id);
+		if (!liveIncluded) {
+			throw new Error("expected included Work");
+		}
+		await detachIncludedWork(prisma, {
+			actorId,
+			baseRevision: liveIncluded.revision,
+			idempotencyKey: "detach-work",
+			origin: "human",
+			workId: intake.id,
+		});
+		await detachFeatureHealthHistory(prisma, {
+			actorId,
+			baseRevision: withSpec.work.revision,
+			idempotencyKey: "detach-health",
+			origin: "human",
+			workId: checkout.id,
+		});
+		const afterHealth = await getWork(prisma, checkout.id);
+		if (!afterHealth) {
+			throw new Error("expected Feature");
+		}
+		await detachPrimarySpec(prisma, {
+			actorId,
+			baseRevision: afterHealth.revision,
+			idempotencyKey: "detach-spec",
+			origin: "human",
+			workId: checkout.id,
+		});
+		const clearPreview = await previewWorkTypeChange(
+			prisma,
+			checkout.id,
+			"Task"
+		);
+		expect(clearPreview).toMatchObject({
+			blocked: false,
+			healthHistory: [],
+			includedWork: [],
+			primarySpec: null,
+		});
+		const detached = await getWork(prisma, checkout.id);
+		if (!detached) {
+			throw new Error("expected Feature after detach");
+		}
+		const left = await changeWorkType(prisma, {
+			actorId,
+			baseRevision: detached.revision,
+			idempotencyKey: "leave-after-detach",
+			origin: "human",
+			previewAcknowledged: true,
+			type: "Task",
+			workId: checkout.id,
+		});
+		expect(left).toMatchObject({
+			status: "committed",
+			work: { id: checkout.id, type: "Task" },
+		});
+		expect(await getWorkScope(prisma, intake.id)).toMatchObject({
+			includedIn: null,
 		});
 	});
 });

@@ -116,6 +116,14 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Türü değiştir | `Change type` | Feature dışı tür değişimi |
 | Etki önizlemesi | `Impact preview` | Feature’a giriş veya çıkış önizlemesi |
 | Kapsanan iş | `Included Work` | Özellik kapsamındaki bağımsız İşler |
+| Kapsar | `Includes` | Özellikten kapsanan İşe birincil kapsam yazması |
+| Kapsanır | `Included in` | İşin birincil Özellik kapsamı |
+| İlgili | `Related` | İkinci kapsam sayımı üretmeyen standart ilişki |
+| Yolunda | `On Track` | Özellik sağlığı işareti |
+| Riskli | `At Risk` | Özellik sağlığı işareti |
+| Yolunda değil | `Off Track` | Özellik sağlığı işareti |
+| Özellik sağlığını kaydet | `Record Feature health` | Özellikte sağlık güncellemesi yazma |
+| Ayır | `Detach` | Kapsanan İş, sağlık geçmişi veya Birincil spec’i Özellikten ayırma |
 | Birincil spec | `Primary spec` | Özelliğe bağlı belge |
 | Özellik sağlığı | `Feature health` | Yalnız Özellikte tutulan sağlık geçmişi |
 | Tür değişimini onayla | `Confirm type change` | Feature etki önizlemesini onaylayan eylem |

@@ -31,6 +31,7 @@ export type ClosureResult = (typeof CLOSURE_RESULTS)[number];
 
 export const WORK_LIFECYCLE_COPY = {
 	abandoned: "Abandoned",
+	atRisk: "At Risk",
 	changeType: "Change type",
 	close: "Close",
 	closeAnyway: "Close anyway",
@@ -40,17 +41,24 @@ export const WORK_LIFECYCLE_COPY = {
 	confirmReopen: "Confirm reopen",
 	confirmTypeChange: "Confirm type change",
 	createWork: "Create Work",
+	detach: "Detach",
 	detachBeforeLeavingFeature:
 		"Detach included Work, Feature health history, and Primary spec before leaving Feature.",
 	featureHealth: "Feature health",
 	impactPreview: "Impact preview",
+	includedIn: "Included in",
 	includedWork: "Included Work",
+	includes: "Includes",
 	keepLastingContext: "Keep lasting context",
 	key: "Key",
 	notStarted: "Not Started",
 	noWork: "No Work yet.",
+	offTrack: "Off Track",
+	onTrack: "On Track",
 	primarySpec: "Primary spec",
 	reason: "Reason",
+	recordHealth: "Record Feature health",
+	related: "Related",
 	reopen: "Reopen",
 	returnToWork: "Return to work",
 	status: "Status",
@@ -58,6 +66,14 @@ export const WORK_LIFECYCLE_COPY = {
 	type: "Type",
 	work: "Work",
 } as const;
+
+export const FEATURE_HEALTH_STATUSES = [
+	"On Track",
+	"At Risk",
+	"Off Track",
+] as const;
+
+export type FeatureHealthStatus = (typeof FEATURE_HEALTH_STATUSES)[number];
 
 export function involvesFeature(fromType: string, toType: string): boolean {
 	return (

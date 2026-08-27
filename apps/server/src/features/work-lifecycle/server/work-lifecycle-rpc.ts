@@ -6,23 +6,33 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	bindPrimarySpec,
 	changeWorkStatus,
 	changeWorkType,
 	closeWork,
 	convertCaptureToWork,
 	createWork,
+	detachFeatureHealthHistory,
+	detachIncludedWork,
+	detachPrimarySpec,
 	finalizeDraft,
 	getWork,
+	getWorkScope,
+	includeWork,
 	listWork,
 	listWorkLifecycleHistory,
 	previewClose,
 	previewWorkTypeChange,
+	recordFeatureHealth,
+	relateWork,
 	reopenWork,
+	summarizeFeatureProgress,
 	updateWorkTitle,
 } from "./work-lifecycle";
 import {
 	CLOSURE_RESULTS,
 	createWorkPayloadSchema,
+	FEATURE_HEALTH_STATUSES,
 	NON_TERMINAL_WORK_STATUSES,
 	previewCloseInputSchema,
 	WORK_LIFECYCLE_COPY,
@@ -56,9 +66,31 @@ async function requireWork(workspaceId: string, workId: string) {
 }
 
 export const workLifecycle = {
+	bindPrimarySpec: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				primarySpec: z.object({
+					id: z.string().min(1),
+					title: z.string().min(1),
+				}),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await bindPrimarySpec(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				...input,
+			});
+		}),
 	catalog: protectedProcedure.handler(() => ({
 		closureResults: CLOSURE_RESULTS,
 		copy: WORK_LIFECYCLE_COPY,
+		featureHealth: FEATURE_HEALTH_STATUSES,
 		nonTerminalStatuses: NON_TERMINAL_WORK_STATUSES,
 		statuses: WORK_STATUSES,
 		types: WORK_TYPES,
@@ -164,6 +196,57 @@ export const workLifecycle = {
 				payload: input.payload,
 			});
 		}),
+	detachHealth: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await detachFeatureHealthHistory(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				...input,
+			});
+		}),
+	detachIncluded: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await detachIncludedWork(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				...input,
+			});
+		}),
+	detachPrimarySpec: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await detachPrimarySpec(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				...input,
+			});
+		}),
 	finalizeDraft: protectedWriteProcedure
 		.input(
 			z.object({
@@ -186,6 +269,36 @@ export const workLifecycle = {
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			return await requireWork(access.workspaceId, input.workId);
+		}),
+	getScope: protectedProcedure
+		.input(z.object({ workId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			const scope = await getWorkScope(getPrismaClient(), input.workId);
+			if (!scope) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return scope;
+		}),
+	include: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				featureId: z.string().min(1),
+				idempotencyKey: z.string(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.featureId);
+			await requireWork(access.workspaceId, input.workId);
+			return await includeWork(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				...input,
+			});
 		}),
 	list: protectedProcedure
 		.input(z.object({ projectId: z.string().min(1) }))
@@ -231,6 +344,58 @@ export const workLifecycle = {
 				throw new ORPCError("BAD_REQUEST");
 			}
 			return preview;
+		}),
+	progress: protectedProcedure
+		.input(z.object({ workId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			const progress = await summarizeFeatureProgress(
+				getPrismaClient(),
+				input.workId
+			);
+			if ("reason" in progress) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return progress;
+		}),
+	recordHealth: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				reason: z.string().optional(),
+				status: z.string(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await recordFeatureHealth(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				...input,
+			});
+		}),
+	relate: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				fromWorkId: z.string().min(1),
+				idempotencyKey: z.string(),
+				toWorkId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.fromWorkId);
+			await requireWork(access.workspaceId, input.toWorkId);
+			return await relateWork(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				...input,
+			});
 		}),
 	reopen: protectedWriteProcedure
 		.input(

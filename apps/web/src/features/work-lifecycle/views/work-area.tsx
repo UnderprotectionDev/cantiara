@@ -62,6 +62,7 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 					onClose={onClose}
 					projectId={projectId}
 					work={selected}
+					works={work.data}
 				/>
 			) : null}
 		</div>

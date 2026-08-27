@@ -1,23 +1,58 @@
 model Work {
-  id              String               @id
-  projectId       String
-  project         Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  key             String
-  number          Int
-  title           String
-  type            String
-  status          String
-  closureResult   String?
-  closureReason   String?
-  revision        Int
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  lifecycleEvents WorkLifecycleEvent[]
+  id                  String                 @id
+  projectId           String
+  project             Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key                 String
+  number              Int
+  title               String
+  type                String
+  status              String
+  closureResult       String?
+  closureReason       String?
+  includedInFeatureId String?
+  includedInFeature   Work?                  @relation("FeatureInclusion", fields: [includedInFeatureId], references: [id], onDelete: SetNull)
+  includedWorks       Work[]                 @relation("FeatureInclusion")
+  primarySpecId       String?
+  primarySpecTitle    String?
+  revision            Int
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  lifecycleEvents     WorkLifecycleEvent[]
+  healthUpdates       FeatureHealthUpdate[]
+  relatedFrom         WorkRelatedEdge[]      @relation("RelatedFrom")
+  relatedTo           WorkRelatedEdge[]      @relation("RelatedTo")
 
   @@unique([projectId, number])
   @@unique([projectId, key])
   @@index([projectId])
+  @@index([includedInFeatureId])
   @@map("work")
+}
+
+model FeatureHealthUpdate {
+  id        String   @id
+  featureId String
+  feature   Work     @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  status    String
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([featureId, createdAt])
+  @@map("feature_health_update")
+}
+
+model WorkRelatedEdge {
+  id         String   @id
+  fromWorkId String
+  fromWork   Work     @relation("RelatedFrom", fields: [fromWorkId], references: [id], onDelete: Cascade)
+  toWorkId   String
+  toWork     Work     @relation("RelatedTo", fields: [toWorkId], references: [id], onDelete: Cascade)
+  kind       String
+  createdAt  DateTime @default(now())
+
+  @@unique([fromWorkId, toWorkId, kind])
+  @@index([toWorkId])
+  @@map("work_related_edge")
 }
 
 model WorkLifecycleEvent {
