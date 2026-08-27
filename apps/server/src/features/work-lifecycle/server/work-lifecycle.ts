@@ -13,6 +13,7 @@ import { markProjectHasWork } from "../../project-shell/server/project-shell";
 import {
 	type ArchiveWorkCommand,
 	applyPlanningMembershipCommandSchema,
+	applyScopeTreeDragCommandSchema,
 	archiveWorkCommandSchema,
 	type BindPrimarySpecCommand,
 	bindPrimarySpecCommandSchema,
@@ -64,7 +65,11 @@ import {
 	recreateWorkCommandSchema,
 	relateWorkCommandSchema,
 	reopenWorkCommandSchema,
+	type ScopeTree,
+	type ScopeTreeDragOutcome,
+	type ScopeTreeWorkNode,
 	scopeCopy,
+	scopeTreeCopy,
 	type TypeChangeImpact,
 	typeChangeImpact,
 	type UnarchiveWorkCommand,
@@ -895,6 +900,84 @@ export async function summarizeFeatureProgress(
 		featureStatus: feature.status,
 		includedCount: includedWork.length,
 	};
+}
+
+function asTreeWorkNode(row: {
+	id: string;
+	key: string;
+	status: string;
+	title: string;
+	type: string;
+}): ScopeTreeWorkNode | null {
+	if (!(isWorkType(row.type) && isWorkStatus(row.status))) {
+		return null;
+	}
+	return {
+		id: row.id,
+		key: row.key,
+		status: row.status,
+		title: row.title,
+		type: row.type,
+	};
+}
+
+export async function getScopeTree(
+	prisma: PrismaClient,
+	projectId: string
+): Promise<ScopeTree | null> {
+	const project = await prisma.project.findUnique({
+		select: { id: true, name: true },
+		where: { id: projectId },
+	});
+	if (!project) {
+		return null;
+	}
+	const rows = await prisma.work.findMany({
+		orderBy: { number: "asc" },
+		where: { projectId, retiredIntoId: null },
+	});
+	const features = rows.filter((row) => row.type === "Feature");
+	return {
+		copy: scopeTreeCopy(),
+		features: features.flatMap((feature) => {
+			if (!isWorkStatus(feature.status)) {
+				return [];
+			}
+			const includedWork = rows.flatMap((row) => {
+				if (row.includedInFeatureId !== feature.id) {
+					return [];
+				}
+				const node = asTreeWorkNode(row);
+				return node ? [node] : [];
+			});
+			return [
+				{
+					id: feature.id,
+					includedWork,
+					key: feature.key,
+					progress: {
+						closedCount: includedWork.filter(
+							(row) => row.status === WORK_STATUS.closed
+						).length,
+						featureStatus: feature.status,
+						includedCount: includedWork.length,
+					},
+					status: feature.status,
+					title: feature.title,
+					type: "Feature" as const,
+				},
+			];
+		}),
+		project: { id: project.id, name: project.name },
+	};
+}
+
+export function applyScopeTreeDrag(
+	_prisma: PrismaClient,
+	command: unknown
+): ScopeTreeDragOutcome {
+	applyScopeTreeDragCommandSchema.safeParse(command);
+	return { reason: "scope-tree-read-only", status: "rejected" };
 }
 
 async function includeInTransaction(

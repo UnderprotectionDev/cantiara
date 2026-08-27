@@ -91,6 +91,7 @@ export const WORK_LIFECYCLE_COPY = {
 	relationsToRewrite: "Relations",
 	reopen: "Reopen",
 	returnToWork: "Return to work",
+	scopeTree: "Scope Tree",
 	survivingRecord: "Surviving record",
 	title: "Title",
 	type: "Type",
@@ -592,6 +593,7 @@ export type WorkLifecycleRejectionReason =
 	| "not-a-feature"
 	| "reopen-confirm-required"
 	| "reopen-required"
+	| "scope-tree-read-only"
 	| "silent-result-forbidden"
 	| "target-not-found"
 	| "unknown-closure-result"
@@ -691,6 +693,53 @@ export const featureProgressSchema = z.object({
 
 export type FeatureProgress = z.infer<typeof featureProgressSchema>;
 
+export const scopeTreeWorkNodeSchema = z.object({
+	id: z.string().min(1),
+	key: z.string().min(1),
+	status: workStatusSchema,
+	title: z.string().min(1),
+	type: workTypeSchema,
+});
+
+export const scopeTreeFeatureNodeSchema = scopeTreeWorkNodeSchema.extend({
+	includedWork: z.array(scopeTreeWorkNodeSchema),
+	progress: z.object({
+		closedCount: z.number().int().nonnegative(),
+		featureStatus: workStatusSchema,
+		includedCount: z.number().int().nonnegative(),
+	}),
+});
+
+export const scopeTreeSchema = z.object({
+	copy: z.object({
+		openSourceRecord: z.literal(WORK_LIFECYCLE_COPY.openSourceRecord),
+		scopeTree: z.literal(WORK_LIFECYCLE_COPY.scopeTree),
+	}),
+	features: z.array(scopeTreeFeatureNodeSchema),
+	project: z.object({
+		id: z.string().min(1),
+		name: z.string().min(1),
+	}),
+});
+
+export type ScopeTree = z.infer<typeof scopeTreeSchema>;
+export type ScopeTreeFeatureNode = z.infer<typeof scopeTreeFeatureNodeSchema>;
+export type ScopeTreeWorkNode = z.infer<typeof scopeTreeWorkNodeSchema>;
+
+export const applyScopeTreeDragCommandSchema = z.object({
+	targetFeatureId: z.string().min(1).nullable(),
+	workId: z.string().min(1),
+});
+
+export type ApplyScopeTreeDragCommand = z.infer<
+	typeof applyScopeTreeDragCommandSchema
+>;
+
+export interface ScopeTreeDragOutcome {
+	reason: "scope-tree-read-only";
+	status: "rejected";
+}
+
 export const includeWorkCommandSchema = z.object({
 	actorId: z.string().min(1),
 	baseRevision: z.number().int().nonnegative(),
@@ -778,6 +827,13 @@ export function scopeCopy() {
 		onTrack: WORK_LIFECYCLE_COPY.onTrack,
 		primarySpec: WORK_LIFECYCLE_COPY.primarySpec,
 		related: WORK_LIFECYCLE_COPY.related,
+	} as const;
+}
+
+export function scopeTreeCopy() {
+	return {
+		openSourceRecord: WORK_LIFECYCLE_COPY.openSourceRecord,
+		scopeTree: WORK_LIFECYCLE_COPY.scopeTree,
 	} as const;
 }
 
