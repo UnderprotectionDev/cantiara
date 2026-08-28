@@ -2,6 +2,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { type ReactNode, useCallback } from "react";
 
 import CustomFieldEditor from "@/features/custom-fields/forms/custom-field-editor";
+import PriorityCriterionEditor from "@/features/priority/forms/priority-criterion-editor";
 
 import ProjectAreasForm from "./project-areas-form";
 import {
@@ -44,6 +45,9 @@ export default function ConfigurationMode({
 }) {
 	const openCustomField = useCallback(() => {
 		onOpenEditor(CONFIGURATION_MODE_EDITORS.customField);
+	}, [onOpenEditor]);
+	const openPriorityMetrics = useCallback(() => {
+		onOpenEditor(CONFIGURATION_MODE_EDITORS.priorityMetrics);
 	}, [onOpenEditor]);
 	const openWorkContextCardLayout = useCallback(() => {
 		onOpenEditor(CONFIGURATION_MODE_EDITORS.workContextCardLayout);
@@ -111,6 +115,20 @@ export default function ConfigurationMode({
 						<h2 className="font-medium text-sm">
 							{PROJECT_SHELL_COPY.priorityMetrics}
 						</h2>
+						<Button
+							aria-expanded={
+								editor === CONFIGURATION_MODE_EDITORS.priorityMetrics
+							}
+							onClick={openPriorityMetrics}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							{PROJECT_SHELL_COPY.priorityMetrics}
+						</Button>
+						{editor === CONFIGURATION_MODE_EDITORS.priorityMetrics ? (
+							<PriorityCriterionEditor projectId={projectId} />
+						) : null}
 					</section>
 					<section
 						aria-label={PROJECT_SHELL_COPY.savedViews}

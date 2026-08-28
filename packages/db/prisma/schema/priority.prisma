@@ -1,0 +1,37 @@
+model ProjectPriorityCriterion {
+  id                String                           @id
+  projectId         String
+  project           Project                          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name              String
+  description       String                           @default("")
+  rankExplanations  Json
+  enabled           Boolean
+  preparedKind      String?
+  trashedAt         DateTime?
+  sortOrder         Int
+  revision          Int
+  createdAt         DateTime                         @default(now())
+  updatedAt         DateTime                         @updatedAt
+  values            ProjectPriorityCriterionValue[]
+
+  @@index([projectId])
+  @@index([projectId, trashedAt])
+  @@map("project_priority_criterion")
+}
+
+model ProjectPriorityCriterionValue {
+  id           String                    @id
+  criterionId  String
+  criterion    ProjectPriorityCriterion  @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  workId       String
+  work         Work                      @relation(fields: [workId], references: [id], onDelete: Cascade)
+  rank         String?
+  revision     Int
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  @@unique([criterionId, workId])
+  @@index([workId])
+  @@index([criterionId])
+  @@map("project_priority_criterion_value")
+}

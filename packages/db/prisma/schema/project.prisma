@@ -24,6 +24,7 @@ model Project {
   works                           Work[]
   workKeyCounter                  ProjectWorkKeyCounter?
   customFieldDefinitions          ProjectCustomFieldDefinition[]
+  priorityCriterionDefinitions    ProjectPriorityCriterion[]
   fileAttachments                 FileAttachment[]
 
   @@index([workspaceId])

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { priorityMetricSummarySchema } from "../../priority/server/priority-model";
+
 export const STARTER_CONFIGURATIONS = [
 	"Blank Project",
 	"Solo SaaS",
@@ -245,7 +247,7 @@ export const projectViewSchema = z.object({
 	logoFileName: z.string().min(1).nullable(),
 	name: z.string().min(1),
 	pinnedAreas: z.array(z.enum(PROJECT_AREAS)),
-	priorityMetricDefinitions: z.array(z.never()),
+	priorityMetricDefinitions: z.array(priorityMetricSummarySchema),
 	problem: z.string().min(1).nullable(),
 	purpose: z.string().min(1).nullable(),
 	revision: z.number().int().positive(),
@@ -437,7 +439,7 @@ export const structureCopyPreviewSchema = z.object({
 		workTemplates: z.literal(true),
 	}),
 	pinnedAreas: z.array(z.enum(PROJECT_AREAS)),
-	priorityMetricDefinitions: z.array(z.never()),
+	priorityMetricDefinitions: z.array(priorityMetricSummarySchema),
 	selectedSkeletons: z.array(
 		z.object({
 			emptyHeadings: z.array(z.string().min(1)),
@@ -484,7 +486,7 @@ export function structureCopyPreview(
 		enabledAreas: project.enabledAreas,
 		excluded: STRUCTURE_COPY_EXCLUDED,
 		pinnedAreas: project.pinnedAreas,
-		priorityMetricDefinitions: [],
+		priorityMetricDefinitions: project.priorityMetricDefinitions,
 		selectedSkeletons: project.selectedSkeletons,
 		stages: project.stages.map((stage) => ({
 			name: stage.name,
@@ -674,6 +676,7 @@ export function firstOpenExplanationFor(
 
 export const CONFIGURATION_MODE_EDITORS = {
 	customField: "custom-field",
+	priorityMetrics: "priority-metrics",
 	workContextCardLayout: "work-context-card-layout",
 } as const;
 
