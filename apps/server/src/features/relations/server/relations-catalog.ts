@@ -141,6 +141,7 @@ export const ORIGIN_SOURCE_KINDS = [
 	"Test Session",
 	"User Research Session",
 	"Test Gap",
+	"File Attachment",
 ] as const satisfies readonly RecordKind[];
 
 export const EVIDENCE_SOURCE_KINDS = [

@@ -18,6 +18,13 @@ test("English File Attachment labels stay File Attachment, Upload new version, F
 	expect(FILE_ATTACHMENT_COPY.selectFileAttachment).toBe(
 		"Select a File Attachment"
 	);
+	expect(FILE_ATTACHMENT_COPY.pen).toBe("Pen");
+	expect(FILE_ATTACHMENT_COPY.highlighter).toBe("Highlighter");
+	expect(FILE_ATTACHMENT_COPY.arrow).toBe("Arrow");
+	expect(FILE_ATTACHMENT_COPY.rectangle).toBe("Rectangle");
+	expect(FILE_ATTACHMENT_COPY.originLocation).toBe("Origin Location");
+	expect(FILE_ATTACHMENT_COPY.markingLayer).toBe("Marking layer");
+	expect(FILE_ATTACHMENT_COPY.sourceVisual).toBe("Source visual");
 	expect(fileScopeFor("project-1")).toEqual({
 		kind: "project",
 		projectId: "project-1",

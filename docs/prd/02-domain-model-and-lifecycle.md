@@ -217,6 +217,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Diğer oturumları iptal et | `Revoke Other Sessions` | Geçerli oturum dışındaki bütün ürün oturumlarını derhal yetkisiz bırakma eylemi |
 | Kullanıcı başlatmalı İş başarısı | `User-initiated Work Success` | Kullanıcının açık kapatma eylemiyle başlattığı ve sunucuda PRD terimi `Tamamlandı` (`UI: Completed`) kapanış sonucu olarak kesinleşen İş geçişi; otomatik kapanış ve başka terminal olaylar değildir |
 | Köken konumu | `Origin Location` | Sahipli bileşenden üretilen kaydın kesin kaynak öğe işaretidir; bağımsız ilişki ucu değildir |
+| İşaretleme katmanı | `Marking layer` | Kesin Dosya Eki sürümüne bağlı, özgün dosyadan ayrı geri alınabilir görsel not |
+| Kaynak görsel | `Source visual` | Paylaşım/yayın önizlemesinde işaretlemeden ayrı onaylanan görsel öğe |
+| Kalem | `Pen` | İşaretleme katmanı aracı |
+| Vurgulayıcı | `Highlighter` | İşaretleme katmanı aracı |
+| Ok | `Arrow` | İşaretleme katmanı aracı |
+| Dikdörtgen | `Rectangle` | İşaretleme katmanı aracı |
+| Köken olarak bağla | `Bind as origin` | Seçilen nokta veya bölgeyi İşe Köken konumu olarak bağlama |
 | Hedefe katkı | `Contributes to Goal` | İş, Kilometre Taşı veya Proje Sürümünün Proje Hedefine türlenmiş katkı ilişkisidir |
 | Çalışma Alanı çıkış paketi | `Workspace Exit Package` | Kullanıcı parolasıyla şifrelenmiş tam Çalışma Alanı arşividir; ürün içi restore değildir |
 | Destek referansı | `Support reference` | Başarısız ana akışta secret veya özel içerik taşımayan sunucu takip kimliği |

@@ -6,10 +6,12 @@ import {
 	DefaultVideoLayout,
 	defaultLayoutIcons,
 } from "@vidstack/react/player/layouts/default";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 
 import { FILE_ATTACHMENT_COPY } from "../forms/file-attachments-copy";
+import FileMarkingOverlay from "./file-marking-overlay";
 import { fetchProductMedia } from "./file-preview-media";
 import {
 	filePreviewKind,
@@ -50,11 +52,17 @@ interface Preview {
 export default function FilePreview({
 	contentPath,
 	kind,
+	marking,
 	preview,
 	title,
 }: {
 	contentPath: string;
 	kind: string;
+	marking?: {
+		projectId: string | null;
+		scope: { kind: string; projectId?: string };
+		versionId: string;
+	};
 	preview: Preview;
 	title: string;
 }) {
@@ -88,18 +96,24 @@ export default function FilePreview({
 		);
 	}
 	if (surface === "visual" && preview.previewPath) {
-		return (
+		return withMarking(
 			<ProductMedia
 				alt={title}
 				className="mx-auto max-h-[28rem] w-full object-contain"
 				height={384}
 				href={preview.previewPath}
 				width={640}
-			/>
+			/>,
+			kind,
+			marking
 		);
 	}
 	if (surface === "paged" && preview.previewPath) {
-		return <PdfPreview src={preview.previewPath} title={title} />;
+		return withMarking(
+			<PdfPreview src={preview.previewPath} title={title} />,
+			kind,
+			marking
+		);
 	}
 	if (surface === "csv" && preview.csvRows) {
 		return (
@@ -137,6 +151,32 @@ export default function FilePreview({
 		<p className="text-muted-foreground text-xs" role="status">
 			{FILE_ATTACHMENT_COPY.unavailable}
 		</p>
+	);
+}
+
+function withMarking(
+	child: ReactNode,
+	fileKind: string,
+	marking:
+		| {
+				projectId: string | null;
+				scope: { kind: string; projectId?: string };
+				versionId: string;
+		  }
+		| undefined
+) {
+	if (!marking) {
+		return child;
+	}
+	return (
+		<FileMarkingOverlay
+			fileKind={fileKind}
+			projectId={marking.projectId}
+			scope={marking.scope}
+			versionId={marking.versionId}
+		>
+			{child}
+		</FileMarkingOverlay>
 	);
 }
 
