@@ -20,7 +20,9 @@ import {
 	renameTagCommandSchema,
 	type TagApplyOutcome,
 	type TagDocumentChangeView,
+	type TaggedDocumentView,
 	type TaggedRecordView,
+	type TagImportPreview,
 	type TagInlineUseOutcome,
 	type TagMarkdownExport,
 	type TagRenameOutcome,
@@ -144,6 +146,62 @@ export async function markdownExportTags(
 	};
 }
 
+export async function previewTagImport(
+	prisma: PrismaClient,
+	input: {
+		manifestIdentities?: Array<{ id: string; name: string }>;
+		recognizedTokens: string[];
+		workspaceId: string;
+	}
+): Promise<TagImportPreview> {
+	const tags = await listTags(prisma, input.workspaceId);
+	const byId = new Map(tags.map((tag) => [tag.id, tag] as const));
+	const byName = new Map(tags.map((tag) => [tag.name, tag] as const));
+	const mappings: TagImportPreview["mappings"] = [];
+	const claimedTokens = new Set<string>();
+	const tokens = [...input.recognizedTokens];
+	for (const identity of input.manifestIdentities ?? []) {
+		const live = byId.get(identity.id);
+		if (live) {
+			mappings.push(existingImportMapping(live, identity.name));
+			claimedTokens.add(identity.name);
+			claimedTokens.add(live.name);
+			continue;
+		}
+		if (!tokens.includes(identity.name)) {
+			tokens.push(identity.name);
+		}
+	}
+	for (const token of tokens) {
+		if (claimedTokens.has(token)) {
+			continue;
+		}
+		const live = byName.get(token);
+		if (live) {
+			mappings.push(existingImportMapping(live, token));
+			continue;
+		}
+		mappings.push({
+			name: token,
+			status: "new-flat-candidate",
+			token,
+		});
+	}
+	return { mappings };
+}
+
+function existingImportMapping(
+	live: TagView,
+	token: string
+): TagImportPreview["mappings"][number] {
+	return {
+		name: live.name,
+		status: "existing",
+		tagId: live.id,
+		token,
+	};
+}
+
 export async function listTags(
 	prisma: PrismaClient,
 	workspaceId: string
@@ -208,6 +266,28 @@ export async function listRecords(
 	return rows.map((row) =>
 		toRecordView(row.work, tagIdsByWork.get(row.workId) ?? [])
 	);
+}
+
+export async function listTaggedDocuments(
+	prisma: PrismaClient,
+	input: { tagId: string; workspaceId: string }
+): Promise<TaggedDocumentView[]> {
+	const tag = await prisma.tag.findFirst({
+		select: { id: true },
+		where: { id: input.tagId, workspaceId: input.workspaceId },
+	});
+	if (!tag) {
+		return [];
+	}
+	const uses = await prisma.tagInlineUse.findMany({
+		orderBy: { documentId: "asc" },
+		select: { documentId: true, tagId: true },
+		where: { tagId: tag.id },
+	});
+	return uses.map((use) => ({
+		documentId: use.documentId,
+		tagId: use.tagId,
+	}));
 }
 
 export async function listWorkTags(

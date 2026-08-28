@@ -3,6 +3,8 @@ import { expect, test } from "vitest";
 import { TAGS_COPY } from "./tags-copy";
 
 const MERGE_UI_PATTERN = /mergeTags|tagMerge|archiveTag|usageSuggestion/i;
+const CONSUMER_UI_PATTERN =
+	/universalSearch|saveSmartCollection|importTagsUi|lineContext|sourceLine/i;
 
 test("English UI uses Tags for the Workspace dictionary", () => {
 	expect(TAGS_COPY).toMatchObject({
@@ -19,4 +21,5 @@ test("English UI uses Tags for the Workspace dictionary", () => {
 		undo: "Undo",
 	});
 	expect(JSON.stringify(TAGS_COPY)).not.toMatch(MERGE_UI_PATTERN);
+	expect(JSON.stringify(TAGS_COPY)).not.toMatch(CONSUMER_UI_PATTERN);
 });
