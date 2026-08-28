@@ -123,7 +123,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Planlama | `Planning` | Yapılandırma modu dışında günlük planlama |
 | Belgeler | `Documents` | Belge kayıtlarını toplayan Proje alanı |
 | Discovery | `Discovery` | Geri Bildirim ve araştırma kayıtlarını toplayan Proje alanı veya hazır aşama adı |
-| Decisions | `Decisions` | Karar, Risk, Varsayım ve Açık Soruyu toplayan Proje alanı |
+| Decisions | `Decisions` | Karar, Risk, Varsayım ve Açık Soruyu toplayan Proje alanı; Research hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Design | `Design` | Duvar, Ekran ve akış kayıtlarını toplayan Proje alanı veya hazır aşama adı |
 | Tests | `Tests` | Test kayıtlarını toplayan Proje alanı; ayrı test ürünü değildir |
 | Releases | `Releases` | Proje Sürümü girişini toplayan Proje alanı |
@@ -170,7 +170,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kaynak öğe artık yok | `Source item is gone` | Köken konumunda sahipli bileşenin çözülemediğini açıklar |
 | İlişki yok | `No relations yet.` | Henüz standart ilişki olmadığını söyleyen boş durum |
 | Kaldır | `Remove` | Standart ilişkiyi güvenli geri alma ile kaldırma |
-| Açıklama | `Description` | İşin taşınabilir gövde alanı |
+| Açıklama | `Description` | İşin taşınabilir gövde alanı; Task hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Hafif kontrol listesi | `Checklist` | İşteki metin maddeleri; bağımsız İş değildir |
 | Başka Projede yeniden oluştur | `Recreate in another Project` | Yanlış Projede oluşan İşten hedefte yeni kimlikli İş üretme; taşıma değildir |
 | Başlık | `Title` | İş oluştururken zorunlu alan |
@@ -178,7 +178,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Anahtar | `Key` | Kullanıcıya dönük `{shortCode}-{n}` İş anahtarı |
 | Türü değiştir | `Change type` | Feature dışı tür değişimi |
 | Etki önizlemesi | `Impact preview` | Feature’a giriş veya çıkış önizlemesi |
-| Kapsanan iş | `Included Work` | Özellik kapsamındaki bağımsız İşler |
+| Kapsanan iş | `Included Work` | Özellik kapsamındaki bağımsız İşler; Feature hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Kapsar | `Includes` | Özellikten kapsanan İşe birincil kapsam yazması |
 | Kapsanır | `Included in` | İşin birincil Özellik kapsamı |
 | Kapsam Ağacı | `Scope Tree` | Mevcut Proje → Özellik → Kapsanan işler ilişkisinin salt okunur görünümü; sürükleme kapsam yazmaz |

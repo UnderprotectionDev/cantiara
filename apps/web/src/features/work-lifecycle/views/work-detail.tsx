@@ -73,11 +73,7 @@ export default function WorkDetail({
 			</header>
 			<WorkContextCard
 				key={`${work.id}:${work.type}:${work.revision}`}
-				status={
-					work.closureResult
-						? `${work.status} · ${work.closureResult}`
-						: work.status
-				}
+				status={work.status}
 				title={work.title}
 				type={work.type}
 			/>

@@ -14,7 +14,7 @@ import {
 	revealPreparedSection,
 	WORK_CONTEXT_COPY,
 	type WorkContextCardView,
-} from "../forms/work-context-copy";
+} from "./work-context-copy";
 
 function visibleFieldValue(
 	field: WorkContextCardView["initiallyVisibleFields"][number],
