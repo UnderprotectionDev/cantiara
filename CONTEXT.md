@@ -103,8 +103,12 @@ Bir ilişkinin sahibi yaşarken karşı ucunun çözülemediğini içerik sızd�
 _Avoid_: Yetim kaydı kopyalama, başka hedefe otomatik yönlendirme, silinmiş başlığı gösterme
 
 **Standart ilişki**:
-Kapalı katalogdaki türlenmiş bağ; iki uç, yön ve anlam taşır ve kullanıcı yeni tür icat etmez ([standart ilişki türleri](docs/prd/02-domain-model-and-lifecycle.md#standart-ilişki-türleri)).
+Kapalı katalogdaki türlenmiş bağ; iki uç, yön ve anlam taşır ve kullanıcı yeni tür icat etmez; gömülü kullanım veya Kanıt bağı uzmanlığı değildir ([standart ilişki türleri](docs/prd/02-domain-model-and-lifecycle.md#standart-ilişki-türleri)). UI: `Related`.
 _Avoid_: related-pile, serbest etiket grafiği, otomatik grafik, kullanım bağı
+
+**Kullanım bağı**:
+Gömülü canlı kart, blok veya konumun kaynak kimliğini kopyasız izleyen türetilmiş bağ; semantik ilişki, `Related` veya Kanıt bağı değildir ([kullanım bağları](docs/prd/02-domain-model-and-lifecycle.md#kullanim-baglari)).
+_Avoid_: Related, geri bağlantı, Kanıt Rolü, ilişki sayısı
 
 **Türetilen**:
 Köken ilişkisinin üretilen uç için gösterilen etiketi; genel `Related` veya Kanıt bağı değildir.

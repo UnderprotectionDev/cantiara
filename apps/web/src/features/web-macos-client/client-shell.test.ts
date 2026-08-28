@@ -223,6 +223,21 @@ The column \`work.description\` does not exist in the current database.`);
 	);
 });
 
+test("a missing Postgres relation after reset still says pending migrations", () => {
+	const missingTable = Object.assign(
+		new Error('relation "usage_link" does not exist'),
+		{ code: "42P01" }
+	);
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(missingTable, undefined, {
+			trackingId: "CANT-USAGE01",
+		})
+	);
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.pendingMigrations);
+	expect(presented.writeOutcome).toBe("Data was not written.");
+});
+
 test("a Prisma unknown originWork include stays secret-free and still says Data was not written", () => {
 	const prismaListFailure = new Error(
 		"Unknown field 'originWork' for include statement on model 'Work'."
@@ -267,4 +282,34 @@ test("a multiline failure without secrets keeps a readable reason", () => {
 		"Couldn't list Work. Retry after the database catches up."
 	);
 	expect(presented.reason).not.toBe(CLIENT_SHELL_COPY.failed);
+});
+
+test("an unmatched usage RPC 404 asks to restart the API instead of Not Found", () => {
+	const honoText = presentFailedMainFlow({
+		message: "Not Found",
+		status: 404,
+	});
+	const honoPlain = presentFailedMainFlow(new Error("404 Not Found"));
+
+	expect(honoText.reason).toBe(CLIENT_SHELL_COPY.staleRpcRouter);
+	expect(honoPlain.reason).toBe(CLIENT_SHELL_COPY.staleRpcRouter);
+	expect(honoText.writeOutcome).toBe("Data was not written.");
+	expect(honoText.retry).toBe("Retry");
+});
+
+test("a defined handler Not Found keeps Not Found", () => {
+	const presented = presentFailedMainFlow({
+		code: "NOT_FOUND",
+		data: issueMainFlowFailure({
+			reason: "Not Found",
+			trackingId: "CANT-DEFINED1",
+			written: false,
+		}),
+		defined: true,
+		message: "Not Found",
+		status: 404,
+	});
+
+	expect(presented.reason).toBe("Not Found");
+	expect(presented.supportReference).toBe("CANT-DEFINED1");
 });

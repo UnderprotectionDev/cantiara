@@ -2,6 +2,8 @@ import { Button } from "@cantiara/ui/components/button";
 
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
 import RelationsPanel from "@/features/relations/views/relations-panel";
+import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
+
 import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
 import ChangeWorkTypeForm from "../forms/change-work-type-form";
@@ -28,6 +30,12 @@ export interface WorkRecord {
 	status: WorkStatus;
 	title: string;
 	type: WorkType;
+	usageLinks?: Array<{
+		hostRecordId: string;
+		id: string;
+		kindLabel: string;
+		sourceRecordId: string;
+	}>;
 }
 
 export default function WorkDetail({
@@ -115,6 +123,13 @@ export default function WorkDetail({
 				revision={work.revision}
 				type={work.type}
 				workId={work.id}
+				works={works}
+			/>
+			<UsageLinksPanel
+				hostRecordId={work.id}
+				key={`${work.id}:usage:${work.revision}`}
+				projectId={projectId}
+				usageLinks={work.usageLinks ?? []}
 				works={works}
 			/>
 			<RelationsPanel

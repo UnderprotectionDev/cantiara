@@ -127,6 +127,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İlişkiler | `Relations` | Birleştirmede hayatta kalana yazılacak ilişkiler |
 | Köken | `Origin` | Emekli kimliğin hayatta kalan kayda görünür yönlendirmesi |
 | İlgili | `Related` | Anlamsal bağ; kendiliğinden birleştirme değildir |
+| Satır içi kayıt referansı | `Inline reference` | Belge gövdesindeki kullanım bağı; standart ilişki değildir |
+| Kararlı bölüm referansı | `Section reference` | Kararlı Belge bölümüne kullanım bağı |
+| Canlı içerik bloğu | `Live block` | Kaynak kimliğini koruyan canlı gömü |
+| Konuma sabitlenmiş bağ | `Pinned bind` | Dosya Eki veya Wireframe konumuna sabitlenmiş kullanım bağı |
+| Akış düğümü Ekran referansı | `Screen reference` | Kullanıcı Akışı düğümünün Ekran kullanım bağı |
+| Bağı kaldır | `Unlink` | Gömüyü kaldırıp kaynak ana kaydı silmeyen eylem |
 | Türetilen | `Derived` | Köken ilişkisinin üretilen uç etiketi; `Related` yerine geçmez |
 | Çöp Kutusunda | `In Trash` | Kırık referans nedeni |
 | Kalıcı silindi | `Permanently deleted` | Kırık referans nedeni |

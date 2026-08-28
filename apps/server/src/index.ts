@@ -1,4 +1,5 @@
 import {
+	CLIENT_SHELL_COPY,
 	issueMainFlowFailure,
 	writeMainFlowFailureLog,
 } from "@cantiara/api/client-shell-failure";
@@ -112,8 +113,12 @@ app.get(
 	}
 );
 
-export const apiHandler = new OpenAPIHandler(appRouter, {
+const handlerOptions = {
 	clientInterceptors: [attachMainFlowFailure],
+} as const;
+
+let apiHandler = new OpenAPIHandler(appRouter, {
+	...handlerOptions,
 	plugins: [
 		new OpenAPIReferencePlugin({
 			schemaConverters: [new ZodToJsonSchemaConverter()],
@@ -121,9 +126,24 @@ export const apiHandler = new OpenAPIHandler(appRouter, {
 	],
 });
 
-export const rpcHandler = new RPCHandler(appRouter, {
-	clientInterceptors: [attachMainFlowFailure],
-});
+let rpcHandler = new RPCHandler(appRouter, handlerOptions);
+let boundRouter: typeof appRouter = appRouter;
+
+function handlersForCurrentRouter() {
+	if (boundRouter !== appRouter) {
+		boundRouter = appRouter;
+		apiHandler = new OpenAPIHandler(appRouter, {
+			...handlerOptions,
+			plugins: [
+				new OpenAPIReferencePlugin({
+					schemaConverters: [new ZodToJsonSchemaConverter()],
+				}),
+			],
+		});
+		rpcHandler = new RPCHandler(appRouter, handlerOptions);
+	}
+	return { apiHandler, rpcHandler };
+}
 
 app.use("/*", async (c, next) => {
 	const context = {
@@ -131,7 +151,8 @@ app.use("/*", async (c, next) => {
 		log: c.get("log"),
 	};
 
-	const rpcResult = await rpcHandler.handle(c.req.raw, {
+	const handlers = handlersForCurrentRouter();
+	const rpcResult = await handlers.rpcHandler.handle(c.req.raw, {
 		context,
 		prefix: "/rpc",
 	});
@@ -140,13 +161,37 @@ app.use("/*", async (c, next) => {
 		return c.newResponse(rpcResult.response.body, rpcResult.response);
 	}
 
-	const apiResult = await apiHandler.handle(c.req.raw, {
+	const apiResult = await handlers.apiHandler.handle(c.req.raw, {
 		context,
 		prefix: "/api-reference",
 	});
 
 	if (apiResult.matched) {
 		return c.newResponse(apiResult.response.body, apiResult.response);
+	}
+
+	if (c.req.path.startsWith("/rpc/") && c.req.method === "POST") {
+		const failure = issueMainFlowFailure(
+			{
+				reason: CLIENT_SHELL_COPY.staleRpcRouter,
+				written: false,
+			},
+			{
+				write: (record) => {
+					writeMainFlowFailureLog(c.get("log"), record);
+				},
+			}
+		);
+		return c.json(
+			{
+				code: "NOT_FOUND",
+				data: failure,
+				defined: false,
+				message: failure.reason,
+				status: 404,
+			},
+			404
+		);
 	}
 
 	await next();
