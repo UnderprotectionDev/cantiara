@@ -82,6 +82,21 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tek seçim | `Single select` | Proje bazlı özel alan türü; seçenekler tanımda Proje-yereldir |
 | Çoklu seçim | `Multi select` | Proje bazlı özel alan türü; seçenekler tanımda Proje-yereldir |
 | İş Bağlam Kartı düzeni | `Work Context Card layout` | İş Bağlam Kartı bölüm düzeninin Yapılandırma modu girişi; şema veya düzen motoru değildir |
+| Bağlam ekle | `Add Context` | Gizli hazır İş Bağlam Kartı bölümünü aşamalı açma; oluşturma veya durum kapısı değildir |
+| Problem/Fırsat | `Problem/Opportunity` | Feature hazır İş Bağlam Kartı bölümü |
+| Beklenen sonuç | `Expected Outcome` | Feature ve Improvement hazır İş Bağlam Kartı bölümü |
+| Kanıt ve kararlar | `Evidence & Decisions` | Feature hazır İş Bağlam Kartı bölümü |
+| Riskler ve açık sorular | `Risks & Open Questions` | Feature hazır İş Bağlam Kartı bölümü |
+| GitHub ve testler | `GitHub & Tests` | Feature, Bug, Task ve Improvement hazır İş Bağlam Kartı bölümü |
+| Hedef sürüm | `Target Release` | Feature ve Task hazır İş Bağlam Kartı bölümü |
+| Gözlenen/beklenen davranış | `Observed/Expected Behavior` | Bug hazır İş Bağlam Kartı bölümü |
+| Etkilenen sürümler | `Affected Releases` | Bug hazır İş Bağlam Kartı bölümü |
+| Kanıt | `Evidence` | Bug ve Improvement hazır İş Bağlam Kartı bölümü |
+| Bağımlılıklar | `Dependencies` | Task hazır İş Bağlam Kartı bölümü |
+| Araştırma sorusu | `Research Question` | Research hazır İş Bağlam Kartı bölümü |
+| Kaynaklar ve kanıt | `Sources & Evidence` | Research hazır İş Bağlam Kartı bölümü |
+| İlgili iş | `Related Work` | Research hazır İş Bağlam Kartı bölümü |
+| Mevcut durum | `Current Situation` | Improvement hazır İş Bağlam Kartı bölümü |
 | Öncelik ölçütü | `Priority metrics` | İş önceliğini ifade eden Proje yapılandırması; skaler öncelik alanı değildir |
 | Kayıtlı görünüm | `Saved views` | Yapılandırma modunda adlandırılmış İş görünümü girişi; günlük planlama eylemi değildir |
 | Aşamalar | `Stages` | Yapılandırılabilir Proje aşamalarının Yapılandırma modu girişi |
