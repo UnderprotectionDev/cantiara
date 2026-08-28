@@ -1,7 +1,7 @@
 import type { PrismaClient } from "../prisma/generated/client";
 
 export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
-	return (
+	const knownDelegates =
 		typeof client.captureInboxItem?.findMany === "function" &&
 		typeof client.projectSkeletonSelection?.findMany === "function" &&
 		typeof client.captureExtensionLink?.findMany === "function" &&
@@ -36,8 +36,44 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.fileAttachmentStaging?.findMany === "function" &&
 		typeof client.fileAttachmentReceipt?.findMany === "function" &&
 		typeof client.fileObjectBlob?.findMany === "function" &&
-		typeof client.fileImageDerivative?.findMany === "function"
-	);
+		typeof client.fileImageDerivative?.findMany === "function";
+	if (!knownDelegates) {
+		return false;
+	}
+
+	const runtime = client as { _runtimeDataModel?: unknown };
+	if (!isRecord(runtime._runtimeDataModel)) {
+		return true;
+	}
+	const { models } = runtime._runtimeDataModel;
+	if (!isRecord(models)) {
+		return true;
+	}
+	return Object.keys(models).every((modelName) => {
+		const delegateName = modelName.charAt(0).toLowerCase() + modelName.slice(1);
+		const delegate = (client as unknown as Record<string, unknown>)[
+			delegateName
+		];
+		if (!isRecord(delegate)) {
+			return false;
+		}
+		return [
+			"count",
+			"create",
+			"createMany",
+			"delete",
+			"deleteMany",
+			"findFirst",
+			"findFirstOrThrow",
+			"findMany",
+			"findUnique",
+			"findUniqueOrThrow",
+			"groupBy",
+			"update",
+			"updateMany",
+			"upsert",
+		].every((method) => typeof delegate[method] === "function");
+	});
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

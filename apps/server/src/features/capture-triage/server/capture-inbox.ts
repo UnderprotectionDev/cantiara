@@ -853,6 +853,7 @@ export function createCaptureInbox(input: {
 		previewWebCapture: webCapture.previewWebCapture,
 		revokeAllExtensionLinks: webCapture.revokeAllExtensionLinks,
 		revokeExtensionLink: webCapture.revokeExtensionLink,
+		// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: this public command coordinates the Inbox transaction and staging compensation.
 		async save(command) {
 			if (!connected()) {
 				return { queued: false, reason: "offline", status: "refused" };
@@ -872,6 +873,9 @@ export function createCaptureInbox(input: {
 				);
 			}
 			const capturedAt = clock.now();
+			// The staging store is an external boundary, so it cannot share the
+			// Prisma transaction. Compensation removes the item and staged bytes
+			// if either side of the attachment commit fails.
 			let stagedAttachment: {
 				attachment: CaptureAttachmentView;
 				stagingId: string;
@@ -906,23 +910,43 @@ export function createCaptureInbox(input: {
 				return created;
 			});
 			if (command.attachment) {
-				stagedAttachment = await persistStaging({
-					attachment: command.attachment,
-					inboxItemId: item.id,
-					rootKey,
-					store,
-					workspaceId: input.workspaceId,
-				});
-				await input.prisma.captureInboxItem.update({
-					data: { attachmentRef: stagedAttachment.stagingId },
-					where: { id: item.id },
-				});
-				const reloaded = await loadItemView(input.prisma, {
-					itemId: item.id,
-					workspaceId: input.workspaceId,
-				});
-				if (reloaded) {
-					item = reloaded;
+				try {
+					stagedAttachment = await persistStaging({
+						attachment: command.attachment,
+						inboxItemId: item.id,
+						rootKey,
+						store,
+						workspaceId: input.workspaceId,
+					});
+					if (!stagedAttachment) {
+						throw new Error("Capture attachment staging did not complete");
+					}
+					const reloaded = await input.prisma.$transaction(async (tx) => {
+						await lockMutation(
+							tx,
+							`capture-save:${input.actorId}:${command.idempotencyKey}`
+						);
+						await tx.captureInboxItem.update({
+							data: { attachmentRef: stagedAttachment.stagingId },
+							where: { id: item.id },
+						});
+						return tx.captureInboxItem.findUnique({
+							include: STAGING_INCLUDE,
+							where: { id: item.id },
+						});
+					});
+					if (reloaded) {
+						item = toItemView(reloaded);
+					}
+				} catch (error) {
+					await store.deleteByInboxItemId(item.id).catch(() => undefined);
+					await input.prisma.$transaction(async (tx) => {
+						await tx.captureInboxItem.deleteMany({ where: { id: item.id } });
+						await tx.mutationReceipt.deleteMany({
+							where: { commandKey: command.idempotencyKey },
+						});
+					});
+					throw error;
 				}
 			}
 			const outcome: SaveCaptureOutcome = {

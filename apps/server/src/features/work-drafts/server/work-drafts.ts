@@ -5,7 +5,10 @@ import {
 	writeDurableReceipt,
 } from "../../mutation-core/server/durable-mutation";
 import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
-import { finalizeDraft } from "../../work-lifecycle/server/work-lifecycle";
+import {
+	createWorkInTransaction,
+	finalizeDraft,
+} from "../../work-lifecycle/server/work-lifecycle";
 import type { WorkLifecycleOutcome } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
 	DRAFT_SURFACE_EXCLUSION,
@@ -185,11 +188,12 @@ export function createWorkDrafts(input: {
 	let now = input.clock ? input.clock.now() : new Date();
 	let online = input.connected !== false;
 	const fieldDefinitions = input.workFieldDefinitions ?? (() => []);
+	const customWorkCreate = input.workCreate;
 	const knownIds = new Set<string>();
 	let lastSuccessfulSaveAt: Date | null = null;
 	let lastSavedDraftId: string | null = null;
 	const workCreate: WorkDraftCreateAdapter =
-		input.workCreate ??
+		customWorkCreate ??
 		((command) =>
 			finalizeDraft(input.prisma, {
 				actorId: input.actorId,
@@ -282,16 +286,95 @@ export function createWorkDrafts(input: {
 		if (!projectId) {
 			return { reason: "missing-project", status: "rejected" };
 		}
-		const created = fromWorkCreate(
-			await workCreate({
-				idempotencyKey: command.idempotencyKey,
-				payload: {
-					projectId,
-					title: form.title,
-					type: form.type,
-				},
-			})
-		);
+		const created = customWorkCreate
+			? fromWorkCreate(
+					await workCreate({
+						idempotencyKey: command.idempotencyKey,
+						payload: {
+							projectId,
+							title: form.title,
+							type: form.type,
+						},
+					})
+				)
+			: await input.prisma.$transaction(
+					async (
+						tx
+					): Promise<
+						| FinalizeDraftOutcome
+						| {
+								status: "ok";
+								work: { id: string; key: string; title: string; type: string };
+						  }
+						// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: finalize coordinates the draft lock, Work creation, consumption, and receipt barrier.
+					> => {
+						await lockMutation(
+							tx,
+							`work-draft-finalize:${input.actorId}:${command.draftId ?? "new"}`
+						);
+						const lockedReceipt = await readDurableReceipt(
+							tx,
+							command.idempotencyKey,
+							payload
+						);
+						if (lockedReceipt?.kind === "conflict") {
+							return { reason: MUTATION_COPY.conflict, status: "conflict" };
+						}
+						if (lockedReceipt?.kind === "replay") {
+							return JSON.parse(
+								lockedReceipt.resultValue
+							) as FinalizeDraftOutcome;
+						}
+						if (command.draftId) {
+							const draft = await tx.workDraft.findFirst({
+								where: {
+									...ownerWhere(input.workspaceId, input.actorId),
+									id: command.draftId,
+								},
+							});
+							if (!draft) {
+								return { status: "consumed" };
+							}
+						}
+						const work = fromWorkCreate(
+							await createWorkInTransaction(tx, {
+								actorId: input.actorId,
+								idempotencyKey: command.idempotencyKey,
+								origin: "human",
+								payload: {
+									projectId,
+									title: form.title,
+									type: form.type,
+								},
+							})
+						);
+						if (work.status !== "ok") {
+							return work;
+						}
+						if (command.draftId) {
+							await tx.workDraft.deleteMany({
+								where: {
+									...ownerWhere(input.workspaceId, input.actorId),
+									id: command.draftId,
+								},
+							});
+						}
+						const committed: FinalizeDraftOutcome = {
+							draft: null,
+							status: "created",
+							work: work.work,
+						};
+						await writeDurableReceipt(tx, {
+							actorId: input.actorId,
+							commandKey: command.idempotencyKey,
+							kind: "work-draft-finalize",
+							payload,
+							resultValue: JSON.stringify(committed),
+							targetId: command.draftId ?? work.work.id,
+						});
+						return committed;
+					}
+				);
 		if (created.status !== "ok") {
 			return created;
 		}

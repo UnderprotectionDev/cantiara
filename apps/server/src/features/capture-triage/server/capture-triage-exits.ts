@@ -748,16 +748,6 @@ export function createTriageExits(ctx: TriageExitsContext) {
 			}
 			const attributed = originAttributedFields(item);
 			const mergeId = crypto.randomUUID();
-			const bound = ctx.binder.bind({
-				attributedFields: attributed,
-				captureId: item.id,
-				mergeId,
-				relation: input.relation,
-				targetId: target.id,
-			});
-			if (!bound) {
-				return { status: "not-found" };
-			}
 			const outcome: AttachOutcome = {
 				bind: {
 					fields: attributed,
@@ -794,6 +784,33 @@ export function createTriageExits(ctx: TriageExitsContext) {
 					targetId: item.id,
 				});
 			});
+			const bound = ctx.binder.bind({
+				attributedFields: attributed,
+				captureId: item.id,
+				mergeId,
+				relation: input.relation,
+				targetId: target.id,
+			});
+			if (!bound) {
+				await ctx.prisma.$transaction(async (tx) => {
+					await lockMutation(tx, `capture-item:${item.id}`);
+					await tx.captureInboxItem.updateMany({
+						data: {
+							consumedAt: null,
+							consumedAttributedText: "{}",
+							consumedExit: null,
+							consumedMergeId: null,
+							consumedRelation: null,
+							consumedTargetId: null,
+						},
+						where: { consumedMergeId: mergeId, id: item.id },
+					});
+					await tx.mutationReceipt.deleteMany({
+						where: { commandKey: input.idempotencyKey },
+					});
+				});
+				return { status: "not-found" };
+			}
 			return outcome;
 		},
 		async convert(input: {
@@ -835,6 +852,9 @@ export function createTriageExits(ctx: TriageExitsContext) {
 					status: "needs-preview",
 				};
 			}
+			// Promotion is an external boundary and is deliberately completed
+			// before the Inbox commit. The adapter's idempotency key makes a
+			// retry safe; an adapter failure never produces a consumed outcome.
 			const created = await promoteThenCreateRecord(ctx, {
 				idempotencyKey: input.idempotencyKey,
 				item,
@@ -844,7 +864,6 @@ export function createTriageExits(ctx: TriageExitsContext) {
 			if (created.status === "failed") {
 				return created.outcome;
 			}
-			await ctx.deleteStaging(item.id);
 			const outcome: ConvertOutcome = {
 				exit: "convert",
 				inboxItem: null,
@@ -875,6 +894,7 @@ export function createTriageExits(ctx: TriageExitsContext) {
 					targetId: item.id,
 				});
 			});
+			await ctx.deleteStaging(item.id);
 			return outcome;
 		},
 		async deleteItem(input: {
@@ -907,7 +927,6 @@ export function createTriageExits(ctx: TriageExitsContext) {
 			};
 			await ctx.prisma.$transaction(async (tx) => {
 				await lockMutation(tx, `capture-item:${row.id}`);
-				await ctx.deleteStaging(row.id);
 				await tx.captureInboxItem.delete({ where: { id: row.id } });
 				await writeDurableReceipt(tx, {
 					actorId: ctx.actorId,
@@ -918,6 +937,7 @@ export function createTriageExits(ctx: TriageExitsContext) {
 					targetId: row.id,
 				});
 			});
+			await ctx.deleteStaging(row.id);
 			return outcome;
 		},
 		async previewAttach(input: {

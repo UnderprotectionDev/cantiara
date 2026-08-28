@@ -1,12 +1,9 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
 import { lockMutation } from "../../mutation-core/server/durable-mutation";
-import { createRelation } from "../../relations/server/relations";
+import { createRelationInTransaction } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
-import {
-	createWork,
-	getWork,
-} from "../../work-lifecycle/server/work-lifecycle";
-import { getFileAttachment, pinFileVersion } from "./file-attachments";
+import { createWorkInTransaction } from "../../work-lifecycle/server/work-lifecycle";
+import { getFileAttachment } from "./file-attachments";
 import {
 	FILE_ATTACHMENT_COPY,
 	FILE_KIND,
@@ -174,6 +171,9 @@ export async function appendMark(
 		versionId: string;
 	}
 ): Promise<MarkingOutcome> {
+	// The public marking command has no idempotency key; the transaction lock
+	// prevents lost updates, while a repeated command intentionally appends
+	// another mark rather than guessing whether it was a retry.
 	if ((FORBIDDEN_MARKING_TOOLS as readonly string[]).includes(input.tool)) {
 		return { reason: FILE_ATTACHMENT_COPY.typeRejected, status: "rejected" };
 	}
@@ -210,6 +210,8 @@ export async function undoMark(
 	prisma: PrismaClient,
 	versionId: string
 ): Promise<MarkingOutcome> {
+	// Undo has no public idempotency key. Serializing the version is the
+	// strongest safe behavior without changing the command contract.
 	return await prisma.$transaction(async (tx) => {
 		await lockMutation(tx, `file-marking:${versionId}`);
 		const row = await versionRow(tx, versionId);
@@ -250,6 +252,8 @@ export async function approveSharePublishItem(
 	prisma: PrismaClient,
 	input: { kind: string; versionId: string }
 ): Promise<SharePublishOutcome> {
+	// Approval has no public idempotency key; setting the same boolean is
+	// naturally idempotent under the version lock.
 	if (
 		input.kind !== SHARE_PUBLISH_ITEM_KIND.markingLayer &&
 		input.kind !== SHARE_PUBLISH_ITEM_KIND.sourceVisual
@@ -322,42 +326,6 @@ export function previewLocationWorkBind(input: {
 	};
 }
 
-async function resolveBoundWork(
-	prisma: PrismaClient,
-	input: {
-		actorId: string;
-		existingWorkId?: string;
-		idempotencyKey: string;
-		projectId: string;
-		title?: string;
-	}
-): Promise<
-	{ status: "ok"; title: string; workId: string } | LocationBindOutcome
-> {
-	if (input.existingWorkId) {
-		const existing = await getWork(prisma, input.existingWorkId);
-		if (!existing || existing.projectId !== input.projectId) {
-			return { reason: "target-not-found", status: "rejected" };
-		}
-		return { status: "ok", title: existing.title, workId: existing.id };
-	}
-	const title = input.title?.trim() || FILE_ATTACHMENT_COPY.newWork;
-	const created = await createWork(prisma, {
-		actorId: input.actorId,
-		idempotencyKey: `${input.idempotencyKey}:work`,
-		origin: "human",
-		payload: { projectId: input.projectId, title },
-	});
-	if (created.status !== "committed" && created.status !== "replayed") {
-		return { reason: "work-create-failed", status: "rejected" };
-	}
-	return {
-		status: "ok",
-		title: created.work.title,
-		workId: created.work.id,
-	};
-}
-
 function rejectWireframeSurface(surface: string): LocationBindOutcome | null {
 	if (
 		surface === LOCATION_SURFACE.wireframe ||
@@ -417,55 +385,84 @@ export async function confirmLocationWorkBind(
 			status: "rejected",
 		};
 	}
-	const work = await resolveBoundWork(prisma, {
-		actorId: input.actorId,
-		existingWorkId: input.existingWorkId,
-		idempotencyKey: input.idempotencyKey,
-		projectId,
-		title: input.title,
+	const locationId = crypto.randomUUID();
+	const work = await prisma.$transaction(async (tx) => {
+		await lockMutation(tx, `file-location-bind:${row.id}`);
+		const lockedVersion = await versionRow(tx, row.id);
+		if (!lockedVersion) {
+			return { reason: "target-not-found", status: "rejected" } as const;
+		}
+		let workId: string;
+		let title: string;
+		if (input.existingWorkId) {
+			const existing = await tx.work.findUnique({
+				where: { id: input.existingWorkId },
+			});
+			if (!existing || existing.projectId !== projectId) {
+				return { reason: "target-not-found", status: "rejected" } as const;
+			}
+			workId = existing.id;
+			({ title } = existing);
+		} else {
+			const created = await createWorkInTransaction(tx, {
+				actorId: input.actorId,
+				idempotencyKey: `${input.idempotencyKey}:work`,
+				origin: "human",
+				payload: {
+					projectId,
+					title: input.title?.trim() || FILE_ATTACHMENT_COPY.newWork,
+				},
+			});
+			if (created.status !== "committed" && created.status !== "replayed") {
+				return { reason: "work-create-failed", status: "rejected" } as const;
+			}
+			workId = created.work.id;
+			({ title } = created.work);
+		}
+		await tx.fileAttachmentOriginLocation.create({
+			data: {
+				geometry: geometry.data as Prisma.InputJsonValue,
+				id: locationId,
+				kind: geometry.data.kind,
+				versionId: lockedVersion.id,
+			},
+		});
+		const related = await createRelationInTransaction(tx, {
+			actorId: input.actorId,
+			from: { id: file.id, kind: "File Attachment" },
+			idempotencyKey: `${input.idempotencyKey}:origin`,
+			origin: "human",
+			originLocation: {
+				componentId: locationId,
+				ownerId: file.id,
+				ownerKind: "File Attachment",
+				sourceVersion: lockedVersion.id,
+			},
+			previewAcknowledged: true,
+			to: { id: workId, kind: "Work" },
+			type: RELATIONS_COPY.origin,
+			viewerWorkspaceId: input.workspaceId,
+		});
+		if (related.status !== "committed" && related.status !== "replayed") {
+			return {
+				reason:
+					related.status === "rejected" ? related.reason : "origin-failed",
+				status: "rejected",
+			} as const;
+		}
+		await tx.fileAttachmentVersionPin.create({
+			data: {
+				id: crypto.randomUUID(),
+				kind: FILE_PIN_KIND.location,
+				targetId: workId,
+				versionId: lockedVersion.id,
+			},
+		});
+		return { status: "ok", title, workId } as const;
 	});
 	if (work.status !== "ok") {
 		return work;
 	}
-	const locationId = crypto.randomUUID();
-	await prisma.fileAttachmentOriginLocation.create({
-		data: {
-			geometry: geometry.data as Prisma.InputJsonValue,
-			id: locationId,
-			kind: geometry.data.kind,
-			versionId: row.id,
-		},
-	});
-	const related = await createRelation(prisma, {
-		actorId: input.actorId,
-		from: { id: file.id, kind: "File Attachment" },
-		idempotencyKey: `${input.idempotencyKey}:origin`,
-		origin: "human",
-		originLocation: {
-			componentId: locationId,
-			ownerId: file.id,
-			ownerKind: "File Attachment",
-			sourceVersion: row.id,
-		},
-		previewAcknowledged: true,
-		to: { id: work.workId, kind: "Work" },
-		type: RELATIONS_COPY.origin,
-		viewerWorkspaceId: input.workspaceId,
-	});
-	if (related.status !== "committed" && related.status !== "replayed") {
-		await prisma.fileAttachmentOriginLocation.deleteMany({
-			where: { id: locationId },
-		});
-		return {
-			reason: related.status === "rejected" ? related.reason : "origin-failed",
-			status: "rejected",
-		};
-	}
-	await pinFileVersion(prisma, {
-		kind: FILE_PIN_KIND.location,
-		targetId: work.workId,
-		versionId: row.id,
-	});
 	const refreshed = await getFileAttachment(prisma, {
 		id: file.id,
 		workspaceId: input.workspaceId,

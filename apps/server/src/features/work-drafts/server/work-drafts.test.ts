@@ -666,6 +666,41 @@ describe("Work Drafts", () => {
 		expect(await listWork(prisma, project.id)).toHaveLength(1);
 	});
 
+	it("finalizes a Draft once when different keys race", async () => {
+		const project = await openPayments();
+		const surface = drafts();
+		const saved = await surface.autosave({
+			form: {
+				customFieldValues: {},
+				projectId: project.id,
+				title: "Race once",
+				type: "Task",
+			},
+			idempotencyKey: `save-${crypto.randomUUID()}`,
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved Draft");
+		}
+		const [first, second] = await Promise.all([
+			surface.finalize({
+				draftId: saved.draft.id,
+				form: saved.draft.form,
+				idempotencyKey: `finalize-a-${crypto.randomUUID()}`,
+			}),
+			surface.finalize({
+				draftId: saved.draft.id,
+				form: saved.draft.form,
+				idempotencyKey: `finalize-b-${crypto.randomUUID()}`,
+			}),
+		]);
+
+		expect([first.status, second.status].sort()).toEqual([
+			"consumed",
+			"created",
+		]);
+		expect(await listWork(prisma, project.id)).toHaveLength(1);
+	});
+
 	it("refuses offline Create without a queue and keeps the Draft", async () => {
 		const project = await openPayments();
 		const online = drafts({

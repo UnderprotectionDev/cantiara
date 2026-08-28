@@ -1447,6 +1447,33 @@ describe("Capture Inbox", () => {
 		);
 	});
 
+	it("compensates the Inbox item when attachment staging fails", async () => {
+		const deleted: string[] = [];
+		const capture = inbox({
+			stagingStore: {
+				deleteByInboxItemId(itemId) {
+					deleted.push(itemId);
+				},
+				put() {
+					throw new Error("staging-unavailable");
+				},
+				readMeta() {
+					return null;
+				},
+			},
+		});
+
+		await expect(
+			capture.save({
+				attachment: SHOT_ATTACHMENT,
+				idempotencyKey: crypto.randomUUID(),
+				text: "Do not leave a partial item",
+			})
+		).rejects.toThrow("staging-unavailable");
+		expect(deleted).toHaveLength(1);
+		expect(await capture.list({ kind: "workspace" })).toEqual([]);
+	});
+
 	it("shows the convert target scope and leaves File Attachment finalize to that feature", async () => {
 		const promotions: Array<{ filename: string; targetScopeKind: string }> = [];
 		const capture = inbox({

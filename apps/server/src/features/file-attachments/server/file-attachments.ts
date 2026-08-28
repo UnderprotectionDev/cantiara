@@ -1248,6 +1248,8 @@ export async function pinFileVersion(
 		versionId: string;
 	}
 ): Promise<FileAttachmentView | null> {
+	// The public command has no idempotency key. The unique logical lookup
+	// below makes retries idempotent without changing the API shape.
 	return await prisma.$transaction(async (tx) => {
 		const version = await tx.fileAttachmentVersion.findUnique({
 			where: { id: input.versionId },
@@ -1260,6 +1262,16 @@ export async function pinFileVersion(
 			version.fileAttachmentId,
 			`pin:${input.kind}:${input.targetId}`
 		);
+		const existingPin = await tx.fileAttachmentVersionPin.findFirst({
+			where: {
+				kind: input.kind,
+				targetId: input.targetId,
+				versionId: version.id,
+			},
+		});
+		if (existingPin) {
+			return await loadFileView(tx, version.fileAttachmentId);
+		}
 		await tx.fileAttachmentVersionPin.create({
 			data: {
 				id: crypto.randomUUID(),
@@ -1276,6 +1288,8 @@ export async function relateFileAttachment(
 	prisma: PrismaClient,
 	input: { fileAttachmentId: string; kind: string; targetId: string }
 ): Promise<FileAttachmentView | null> {
+	// The public command has no idempotency key; deduplication by its logical
+	// edge identity is the safe retry behavior available at this seam.
 	return await prisma.$transaction(async (tx) => {
 		const file = await tx.fileAttachment.findUnique({
 			where: { id: input.fileAttachmentId },
@@ -1288,6 +1302,16 @@ export async function relateFileAttachment(
 			file.id,
 			`relation:${input.kind}:${input.targetId}`
 		);
+		const existingRelation = await tx.fileAttachmentRelation.findFirst({
+			where: {
+				fromId: file.id,
+				kind: input.kind,
+				targetId: input.targetId,
+			},
+		});
+		if (existingRelation) {
+			return await loadFileView(tx, file.id);
+		}
 		await tx.fileAttachmentRelation.create({
 			data: {
 				fromId: file.id,
@@ -1315,8 +1339,19 @@ export async function setFileLifecycle(
 	prisma: PrismaClient,
 	input: { fileAttachmentId: string; lifecycle: FileLifecycle }
 ): Promise<FileAttachmentView | null> {
+	// Lifecycle has no idempotency key. Reapplying the current value is a
+	// no-op so retries do not advance the revision.
 	return await prisma.$transaction(async (tx) => {
 		await lockWorkspaceCommand(tx, input.fileAttachmentId, "lifecycle");
+		const current = await tx.fileAttachment.findUnique({
+			where: { id: input.fileAttachmentId },
+		});
+		if (!current) {
+			return null;
+		}
+		if (current.lifecycle === input.lifecycle) {
+			return await loadFileView(tx, current.id);
+		}
 		const updated = await tx.fileAttachment.update({
 			data: { lifecycle: input.lifecycle, revision: { increment: 1 } },
 			where: { id: input.fileAttachmentId },
