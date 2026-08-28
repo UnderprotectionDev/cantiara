@@ -26,6 +26,11 @@ export default function WorkTagPicker({
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [name, setName] = useState("");
 	const [error, setError] = useState<string | null>(null);
+	const [lastRename, setLastRename] = useState<{
+		historyEntryId: string;
+		revision: number;
+		tagId: string;
+	} | null>(null);
 	const suggestions = useQuery(
 		orpc.tags.suggest.queryOptions({ input: { projectId } })
 	);
@@ -55,6 +60,38 @@ export default function WorkTagPicker({
 					await invalidateTags(projectId, workId, outcome.tag.id);
 					recordSave();
 					setError(null);
+					return;
+				}
+				setError("Conflict");
+			},
+		})
+	);
+	const rename = useMutation(
+		orpc.tags.rename.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidateTags(projectId, workId, outcome.tag.id);
+					recordSave();
+					setError(null);
+					setLastRename({
+						historyEntryId: outcome.historyEntryId,
+						revision: outcome.tag.revision,
+						tagId: outcome.tag.id,
+					});
+					return;
+				}
+				setError("Conflict");
+			},
+		})
+	);
+	const undoRename = useMutation(
+		orpc.tags.undoRename.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidateTags(projectId, workId, outcome.tag.id);
+					recordSave();
+					setError(null);
+					setLastRename(null);
 					return;
 				}
 				setError("Conflict");
@@ -127,6 +164,50 @@ export default function WorkTagPicker({
 		},
 		[attemptOnlineWork, markUnsaved, remove, revision, workId]
 	);
+	const onRename = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			const form = event.currentTarget;
+			const { revision: tagRevision, tagId } = form.dataset;
+			const baseRevision = Number(tagRevision);
+			const nextName = String(new FormData(form).get("name") ?? "");
+			if (!tagId || Number.isNaN(baseRevision)) {
+				return;
+			}
+			markUnsaved();
+			const result = attemptOnlineWork("record-create", () =>
+				rename.mutateAsync({
+					baseRevision,
+					idempotencyKey: newIdempotencyKey(),
+					name: nextName,
+					tagId,
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[attemptOnlineWork, markUnsaved, rename]
+	);
+	const onUndoRename = useCallback(() => {
+		if (!lastRename) {
+			return;
+		}
+		markUnsaved();
+		const result = attemptOnlineWork("record-create", () =>
+			undoRename.mutateAsync({
+				baseRevision: lastRename.revision,
+				historyEntryId: lastRename.historyEntryId,
+				idempotencyKey: newIdempotencyKey(),
+				tagId: lastRename.tagId,
+			})
+		);
+		if (result.status === "refused") {
+			return;
+		}
+		result.value.catch(() => undefined);
+	}, [attemptOnlineWork, lastRename, markUnsaved, undoRename]);
 	const tags = suggestions.data ?? [];
 	const applied = new Set(appliedTagIds);
 	const query = name.trim().toLowerCase();
@@ -140,7 +221,12 @@ export default function WorkTagPicker({
 		}
 		return tag.name.toLowerCase().includes(query);
 	});
-	const pending = create.isPending || apply.isPending || remove.isPending;
+	const pending =
+		create.isPending ||
+		apply.isPending ||
+		remove.isPending ||
+		rename.isPending ||
+		undoRename.isPending;
 
 	return (
 		<section aria-label={TAGS_COPY.tags} className="flex flex-col gap-3">
@@ -153,16 +239,35 @@ export default function WorkTagPicker({
 							key={tag.id}
 						>
 							<span>{tag.name}</span>
-							<Button
-								disabled={pending}
-								onClick={onRemove}
-								size="sm"
-								type="button"
-								value={tag.id}
-								variant="ghost"
-							>
-								{TAGS_COPY.removeTag}
-							</Button>
+							<div className="flex flex-wrap items-center gap-2">
+								<AppliedTagRename
+									disabled={pending}
+									onRename={onRename}
+									revision={tag.revision}
+									tagId={tag.id}
+								/>
+								{lastRename?.tagId === tag.id ? (
+									<Button
+										disabled={pending}
+										onClick={onUndoRename}
+										size="sm"
+										type="button"
+										variant="ghost"
+									>
+										{TAGS_COPY.undo}
+									</Button>
+								) : null}
+								<Button
+									disabled={pending}
+									onClick={onRemove}
+									size="sm"
+									type="button"
+									value={tag.id}
+									variant="ghost"
+								>
+									{TAGS_COPY.removeTag}
+								</Button>
+							</div>
 						</li>
 					))}
 				</ul>
@@ -210,6 +315,46 @@ export default function WorkTagPicker({
 			</div>
 			{error ? <p role="alert">{error}</p> : null}
 		</section>
+	);
+}
+
+function AppliedTagRename({
+	disabled,
+	onRename,
+	revision,
+	tagId,
+}: {
+	disabled: boolean;
+	onRename: (event: FormEvent<HTMLFormElement>) => void;
+	revision: number;
+	tagId: string;
+}) {
+	const [value, setValue] = useState("");
+	const onChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+		setValue(event.target.value);
+	}, []);
+	return (
+		<form
+			className="flex flex-wrap items-end gap-2"
+			data-revision={String(revision)}
+			data-tag-id={tagId}
+			onSubmit={onRename}
+		>
+			<Field>
+				<FieldLabel htmlFor={`rename-tag-${tagId}`}>
+					{TAGS_COPY.name}
+				</FieldLabel>
+				<Input
+					id={`rename-tag-${tagId}`}
+					name="name"
+					onChange={onChange}
+					value={value}
+				/>
+			</Field>
+			<Button disabled={disabled} size="sm" type="submit">
+				{TAGS_COPY.renameTag}
+			</Button>
+		</form>
 	);
 }
 

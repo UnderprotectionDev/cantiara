@@ -12,12 +12,22 @@ import {
 	applyTagCommandSchema,
 	type CreateTagCommand,
 	createTagCommandSchema,
+	type RecordResolvedInlineUseCommand,
 	type RemoveTagCommand,
+	type RenameTagCommand,
+	recordResolvedInlineUseCommandSchema,
 	removeTagCommandSchema,
+	renameTagCommandSchema,
 	type TagApplyOutcome,
+	type TagDocumentChangeView,
 	type TaggedRecordView,
+	type TagInlineUseOutcome,
+	type TagMarkdownExport,
+	type TagRenameOutcome,
 	type TagView,
 	type TagWriteOutcome,
+	type UndoTagRenameCommand,
+	undoTagRenameCommandSchema,
 } from "./tags-model";
 
 type PrismaTransaction = Prisma.TransactionClient;
@@ -52,6 +62,86 @@ export async function removeTag(
 	command: unknown
 ): Promise<TagApplyOutcome> {
 	return await mutateApply(prisma, command, "remove");
+}
+
+export async function renameTag(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<TagRenameOutcome> {
+	const parsed = renameTagCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({
+		name: parsed.data.name,
+		tagId: parsed.data.tagId,
+	});
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		renameInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function undoTagRename(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<TagRenameOutcome> {
+	const parsed = undoTagRenameCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({
+		historyEntryId: parsed.data.historyEntryId,
+		tagId: parsed.data.tagId,
+		undo: true,
+	});
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		undoRenameInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function recordResolvedInlineUse(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<TagInlineUseOutcome> {
+	const parsed = recordResolvedInlineUseCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	return await prisma.$transaction((tx) =>
+		recordInlineInTransaction(tx, parsed.data)
+	);
+}
+
+export async function markdownExportTags(
+	prisma: PrismaClient,
+	workspaceId: string
+): Promise<TagMarkdownExport> {
+	const tags = await prisma.tag.findMany({
+		orderBy: { name: "asc" },
+		where: { workspaceId },
+	});
+	const uses = await prisma.tagInlineUse.findMany({
+		orderBy: { documentId: "asc" },
+		where: { tagId: { in: tags.map((tag) => tag.id) } },
+	});
+	const inlineByDocumentId: Record<string, string> = {};
+	for (const use of uses) {
+		inlineByDocumentId[use.documentId] = use.body;
+	}
+	return {
+		inlineByDocumentId,
+		manifest: {
+			identities: tags.map((tag) => ({ id: tag.id, name: tag.name })),
+		},
+	};
 }
 
 export async function listTags(
@@ -274,6 +364,279 @@ async function applyOrRemoveInTransaction(
 	return { record, status: "committed", tag: toTagView(tag) };
 }
 
+async function renameInTransaction(
+	tx: PrismaTransaction,
+	command: RenameTagCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<TagRenameOutcome> {
+	const tag = await tx.tag.findUnique({ where: { id: command.tagId } });
+	if (!tag) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await lockWorkspace(tx, tag.workspaceId);
+	const replayed = await replayRename(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const locked = await tx.tag.findUnique({ where: { id: tag.id } });
+	if (!locked) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (locked.revision !== command.baseRevision) {
+		return {
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	const name = optionalText(command.name);
+	if (!name) {
+		return { reason: "missing-name", status: "rejected" };
+	}
+	const taken = await tx.tag.findUnique({
+		where: {
+			workspaceId_name: { name, workspaceId: locked.workspaceId },
+		},
+	});
+	if (taken && taken.id !== locked.id) {
+		return { reason: "name-taken", status: "rejected" };
+	}
+	const updated = await tx.tag.update({
+		data: { name, revision: locked.revision + 1 },
+		where: { id: locked.id },
+	});
+	const documentChanges = await rewriteInlineUses(
+		tx,
+		updated.id,
+		locked.name,
+		name
+	);
+	const view = toTagView(updated);
+	const historyEntryId = crypto.randomUUID();
+	await writeRenameReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		historyEntryId,
+		previousName: locked.name,
+		result: {
+			documentChanges,
+			historyEntryId,
+			tag: view,
+			undo: MUTATION_COPY.undo,
+		},
+		tag: view,
+	});
+	return {
+		documentChanges,
+		historyEntryId,
+		status: "committed",
+		tag: view,
+		undo: MUTATION_COPY.undo,
+	};
+}
+
+async function undoRenameInTransaction(
+	tx: PrismaTransaction,
+	command: UndoTagRenameCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<TagRenameOutcome> {
+	const tag = await tx.tag.findUnique({ where: { id: command.tagId } });
+	if (!tag) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await lockWorkspace(tx, tag.workspaceId);
+	const replayed = await replayRename(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	if (tag.revision !== command.baseRevision) {
+		return {
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	const history = await tx.mutationReceipt.findUnique({
+		where: { id: command.historyEntryId },
+	});
+	if (!history || history.targetId !== tag.id) {
+		return { reason: "history-not-found", status: "rejected" };
+	}
+	const stored = storedRename(history.resultValue);
+	if (!stored) {
+		return { reason: "history-not-found", status: "rejected" };
+	}
+	const previousName = storedPreviousName(history.resultValue);
+	if (!previousName) {
+		return { reason: "undo-not-safe", status: "rejected" };
+	}
+	const liveRows = await Promise.all(
+		stored.documentChanges.map((change) =>
+			tx.tagInlineUse.findUnique({
+				where: {
+					tagId_documentId: {
+						documentId: change.documentId,
+						tagId: tag.id,
+					},
+				},
+			})
+		)
+	);
+	if (
+		liveRows.some(
+			(live, index) =>
+				!live || live.body !== stored.documentChanges[index]?.nextBody
+		)
+	) {
+		return { reason: "undo-not-safe", status: "rejected" };
+	}
+	const taken = await tx.tag.findUnique({
+		where: {
+			workspaceId_name: {
+				name: previousName,
+				workspaceId: tag.workspaceId,
+			},
+		},
+	});
+	if (taken && taken.id !== tag.id) {
+		return { reason: "name-taken", status: "rejected" };
+	}
+	const updated = await tx.tag.update({
+		data: { name: previousName, revision: tag.revision + 1 },
+		where: { id: tag.id },
+	});
+	const restoredRows = await Promise.all(
+		stored.documentChanges.map((change) =>
+			tx.tagInlineUse.update({
+				data: {
+					body: change.previousBody,
+					revision: change.revision + 1,
+				},
+				where: {
+					tagId_documentId: {
+						documentId: change.documentId,
+						tagId: tag.id,
+					},
+				},
+			})
+		)
+	);
+	const documentChanges: TagDocumentChangeView[] = restoredRows.map(
+		(restored, index) => ({
+			documentId: restored.documentId,
+			nextBody: restored.body,
+			previousBody: stored.documentChanges[index]?.nextBody ?? restored.body,
+			revision: restored.revision,
+			undo: MUTATION_COPY.undo,
+		})
+	);
+	const view = toTagView(updated);
+	const historyEntryId = crypto.randomUUID();
+	await writeRenameReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		historyEntryId,
+		previousName: tag.name,
+		result: {
+			documentChanges,
+			historyEntryId,
+			tag: view,
+			undo: MUTATION_COPY.undo,
+		},
+		tag: view,
+	});
+	return {
+		documentChanges,
+		historyEntryId,
+		status: "committed",
+		tag: view,
+		undo: MUTATION_COPY.undo,
+	};
+}
+
+async function recordInlineInTransaction(
+	tx: PrismaTransaction,
+	command: RecordResolvedInlineUseCommand
+): Promise<TagInlineUseOutcome> {
+	const tag = await tx.tag.findUnique({ where: { id: command.tagId } });
+	if (!tag) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const existing = await tx.tagInlineUse.findUnique({
+		where: {
+			tagId_documentId: {
+				documentId: command.documentId,
+				tagId: tag.id,
+			},
+		},
+	});
+	const row = existing
+		? await tx.tagInlineUse.update({
+				data: {
+					body: command.body,
+					revision: existing.revision + 1,
+				},
+				where: { id: existing.id },
+			})
+		: await tx.tagInlineUse.create({
+				data: {
+					body: command.body,
+					documentId: command.documentId,
+					id: crypto.randomUUID(),
+					revision: 1,
+					tagId: tag.id,
+				},
+			});
+	return {
+		body: row.body,
+		documentId: row.documentId,
+		revision: row.revision,
+		status: "committed",
+		tagId: tag.id,
+	};
+}
+
+async function rewriteInlineUses(
+	tx: PrismaTransaction,
+	tagId: string,
+	previousName: string,
+	nextName: string
+): Promise<TagDocumentChangeView[]> {
+	const uses = await tx.tagInlineUse.findMany({
+		orderBy: { documentId: "asc" },
+		where: { tagId },
+	});
+	const updatedRows = await Promise.all(
+		uses.map((use) =>
+			tx.tagInlineUse.update({
+				data: {
+					body: rewriteToken(use.body, previousName, nextName),
+					revision: use.revision + 1,
+				},
+				where: { id: use.id },
+			})
+		)
+	);
+	return updatedRows.map((updated, index) => ({
+		documentId: updated.documentId,
+		nextBody: updated.body,
+		previousBody: uses[index]?.body ?? updated.body,
+		revision: updated.revision,
+		undo: MUTATION_COPY.undo,
+	}));
+}
+
+function rewriteToken(
+	body: string,
+	previousName: string,
+	nextName: string
+): string {
+	const token = `#${previousName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`;
+	return body.replace(new RegExp(token, "g"), `#${nextName}`);
+}
+
 async function replayTagWrite(
 	tx: PrismaTransaction,
 	commandKey: string,
@@ -366,6 +729,62 @@ async function writeApplyReceipt(
 			targetId: input.record.id,
 		},
 	});
+}
+
+async function writeRenameReceipt(
+	tx: PrismaTransaction,
+	input: {
+		actorId: string;
+		commandKey: string;
+		fingerprint: string;
+		historyEntryId: string;
+		previousName: string;
+		result: {
+			documentChanges: TagDocumentChangeView[];
+			historyEntryId: string;
+			tag: TagView;
+			undo: typeof MUTATION_COPY.undo;
+		};
+		tag: TagView;
+	}
+): Promise<void> {
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: input.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey: input.commandKey,
+			committedRevision: input.tag.revision,
+			id: input.historyEntryId,
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: input.fingerprint,
+			resultValue: JSON.stringify({
+				...input.result,
+				previousName: input.previousName,
+			}),
+			targetId: input.tag.id,
+		},
+	});
+}
+
+async function replayRename(
+	tx: PrismaTransaction,
+	commandKey: string,
+	fingerprint: string
+): Promise<TagRenameOutcome | null> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (!existing) {
+		return null;
+	}
+	if (existing.payloadFingerprint !== fingerprint) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const stored = storedRename(existing.resultValue);
+	if (!stored) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	return { ...stored, status: "replayed" };
 }
 
 async function loadTagIds(
@@ -461,6 +880,58 @@ function storedApply(
 			return null;
 		}
 		return parsed as { record: TaggedRecordView; tag: TagView };
+	} catch {
+		return null;
+	}
+}
+
+function storedRename(value: string): {
+	documentChanges: TagDocumentChangeView[];
+	historyEntryId: string;
+	tag: TagView;
+	undo: typeof MUTATION_COPY.undo;
+} | null {
+	try {
+		const parsed = JSON.parse(value) as unknown;
+		if (
+			typeof parsed !== "object" ||
+			parsed === null ||
+			!("documentChanges" in parsed) ||
+			!("historyEntryId" in parsed) ||
+			!("tag" in parsed) ||
+			!("undo" in parsed)
+		) {
+			return null;
+		}
+		const row = parsed as {
+			documentChanges: TagDocumentChangeView[];
+			historyEntryId: string;
+			tag: TagView;
+			undo: typeof MUTATION_COPY.undo;
+		};
+		return {
+			documentChanges: row.documentChanges,
+			historyEntryId: row.historyEntryId,
+			tag: row.tag,
+			undo: row.undo,
+		};
+	} catch {
+		return null;
+	}
+}
+
+function storedPreviousName(value: string): string | null {
+	try {
+		const parsed = JSON.parse(value) as unknown;
+		if (
+			typeof parsed !== "object" ||
+			parsed === null ||
+			!("previousName" in parsed) ||
+			typeof (parsed as { previousName: unknown }).previousName !== "string"
+		) {
+			return null;
+		}
+		return (parsed as { previousName: string }).previousName;
 	} catch {
 		return null;
 	}

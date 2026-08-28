@@ -13,7 +13,9 @@ import {
 	listTags,
 	listWorkTags,
 	removeTag,
+	renameTag,
 	suggestTags,
+	undoTagRename,
 } from "./tags";
 
 async function requireAccess(userId: string) {
@@ -108,6 +110,23 @@ export const tags = {
 				...input,
 			});
 		}),
+	rename: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				name: z.string(),
+				tagId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await renameTag(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				...input,
+			});
+		}),
 	suggest: protectedProcedure
 		.input(z.object({ projectId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -116,6 +135,23 @@ export const tags = {
 			return await suggestTags(getPrismaClient(), {
 				projectId: input.projectId,
 				workspaceId: access.workspaceId,
+			});
+		}),
+	undoRename: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				historyEntryId: z.string().min(1),
+				idempotencyKey: z.string(),
+				tagId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await undoTagRename(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				...input,
 			});
 		}),
 };

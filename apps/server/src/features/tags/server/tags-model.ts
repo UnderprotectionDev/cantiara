@@ -9,8 +9,10 @@ export const TAGS_COPY = {
 	noMatchingTags: "No matching tags.",
 	noTags: "No tags yet.",
 	removeTag: "Remove tag",
+	renameTag: "Rename Tag",
 	suggestedInThisProject: "Suggested in this Project",
 	tags: "Tags",
+	undo: "Undo",
 } as const;
 
 export const tagViewSchema = z.object({
@@ -58,6 +60,62 @@ export const removeTagCommandSchema = applyTagCommandSchema;
 
 export type RemoveTagCommand = z.infer<typeof removeTagCommandSchema>;
 
+export const renameTagCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	name: z.string(),
+	origin: z.literal("human"),
+	tagId: z.string().min(1),
+});
+
+export type RenameTagCommand = z.infer<typeof renameTagCommandSchema>;
+
+export const undoTagRenameCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	historyEntryId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	tagId: z.string().min(1),
+});
+
+export type UndoTagRenameCommand = z.infer<typeof undoTagRenameCommandSchema>;
+
+export const recordResolvedInlineUseCommandSchema = z.object({
+	body: z.string(),
+	documentId: z.string().min(1),
+	tagId: z.string().min(1),
+});
+
+export type RecordResolvedInlineUseCommand = z.infer<
+	typeof recordResolvedInlineUseCommandSchema
+>;
+
+export const tagDocumentChangeViewSchema = z.object({
+	documentId: z.string().min(1),
+	nextBody: z.string(),
+	previousBody: z.string(),
+	revision: z.number().int().positive(),
+	undo: z.literal("Undo"),
+});
+
+export type TagDocumentChangeView = z.infer<typeof tagDocumentChangeViewSchema>;
+
+export const tagMarkdownExportSchema = z.object({
+	inlineByDocumentId: z.record(z.string(), z.string()),
+	manifest: z.object({
+		identities: z.array(
+			z.object({
+				id: z.string().min(1),
+				name: z.string().min(1),
+			})
+		),
+	}),
+});
+
+export type TagMarkdownExport = z.infer<typeof tagMarkdownExportSchema>;
+
 export type TagWriteOutcome =
 	| { status: "committed"; tag: TagView }
 	| { status: "replayed"; tag: TagView }
@@ -81,3 +139,35 @@ export type TagApplyOutcome =
 			currentValueLabel: string;
 			status: "stale";
 	  };
+
+export type TagRenameOutcome =
+	| {
+			documentChanges: TagDocumentChangeView[];
+			historyEntryId: string;
+			status: "committed";
+			tag: TagView;
+			undo: "Undo";
+	  }
+	| {
+			documentChanges: TagDocumentChangeView[];
+			historyEntryId: string;
+			status: "replayed";
+			tag: TagView;
+			undo: "Undo";
+	  }
+	| { conflict: string; status: "conflict" }
+	| { reason: string; status: "rejected" }
+	| {
+			currentValueLabel: string;
+			status: "stale";
+	  };
+
+export type TagInlineUseOutcome =
+	| {
+			body: string;
+			documentId: string;
+			revision: number;
+			status: "committed";
+			tagId: string;
+	  }
+	| { reason: string; status: "rejected" };

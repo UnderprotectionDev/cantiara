@@ -72,6 +72,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Eşleşen etiket yok | `No matching tags.` | Seçicide uygulanacak öneri kalmadığında boş durum |
 | Etiket yok | `No tags yet.` | Kayıtta henüz Etiket olmadığını söyleyen boş durum |
 | Etiketi kaldır | `Remove tag` | Etiketi kayıttan ayırma; kimliği silmez |
+| Etiketi yeniden adlandır | `Rename Tag` | Çalışma Alanı etiket kimliğini koruyarak görünen adı atomik güncelleme |
 | Bu Projede önerilen | `Suggested in this Project` | Proje seçicisinde sık kullanılanları önce gösteren kişisel öneri; kapsam değildir |
 | Metin | `Text` | Proje bazlı özel alan türü; Lookup veya Formula değildir |
 | Boolean | `Boolean` | Proje bazlı özel alan türü |

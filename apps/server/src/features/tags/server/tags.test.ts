@@ -23,8 +23,12 @@ import {
 	listRecords,
 	listTags,
 	listWorkTags,
+	markdownExportTags,
+	recordResolvedInlineUse,
 	removeTag,
+	renameTag,
 	suggestTags,
+	undoTagRename,
 } from "./tags";
 import { TAGS_COPY } from "./tags-model";
 
@@ -36,6 +40,9 @@ const HIERARCHY_PATTERN = /parentId|parentTag|childTag|nestedDictionary/i;
 const SCOPE_PATTERN =
 	/projectId|projectLocal|folderId|smartCollection|favoriteId|evidence/i;
 const PROJECT_LOCAL_PATTERN = /projectLocal/;
+const MERGE_PATTERN =
+	/mergeTags|tagMerge|archiveTag|usageSuggestion|tokenizeMarkdown|fencedCode/i;
+const FROZEN_URGENT_NAME = /"urgent"/;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -446,6 +453,312 @@ describe("Tags", () => {
 		).toEqual([]);
 		expect(JSON.stringify(created.tag)).not.toMatch(SCOPE_PATTERN);
 		expect(TAGS_COPY.tags).toBe("Tags");
+		expect(TAGS_COPY.renameTag).toBe("Rename Tag");
 		expect(MUTATION_COPY.conflict).toBe("Conflict");
+		expect(JSON.stringify(TAGS_COPY)).not.toMatch(MERGE_PATTERN);
+	});
+
+	it("renames a tag in one commit without changing identity", async () => {
+		const { actorId, project, workspaceId } = await openPayments(prisma);
+		const created = await createTag(prisma, {
+			actorId,
+			idempotencyKey: "create-billing",
+			name: "billing",
+			origin: "human",
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Tag");
+		}
+		const first = await addWork(prisma, actorId, project.id, "Intake", "w1");
+		const second = await addWork(prisma, actorId, project.id, "Payout", "w2");
+		const appliedFirst = await applyTag(prisma, {
+			actorId,
+			baseRevision: first.revision,
+			idempotencyKey: "apply-1",
+			origin: "human",
+			tagId: created.tag.id,
+			workId: first.id,
+		});
+		const appliedSecond = await applyTag(prisma, {
+			actorId,
+			baseRevision: second.revision,
+			idempotencyKey: "apply-2",
+			origin: "human",
+			tagId: created.tag.id,
+			workId: second.id,
+		});
+		expect(appliedFirst.status).toBe("committed");
+		expect(appliedSecond.status).toBe("committed");
+		const renamed = await renameTag(prisma, {
+			actorId,
+			baseRevision: created.tag.revision,
+			idempotencyKey: "rename-billing",
+			name: "invoicing",
+			origin: "human",
+			tagId: created.tag.id,
+		});
+		expect(renamed).toMatchObject({
+			status: "committed",
+			tag: {
+				id: created.tag.id,
+				name: "invoicing",
+				workspaceId,
+			},
+			undo: MUTATION_COPY.undo,
+		});
+		if (renamed.status !== "committed") {
+			throw new Error("expected committed rename");
+		}
+		expect(renamed.tag.id).toBe(created.tag.id);
+		expect(await listTags(prisma, workspaceId)).toEqual([renamed.tag]);
+		const records = await listRecords(prisma, {
+			tagId: created.tag.id,
+			workspaceId,
+		});
+		expect(records.map((record) => record.id).sort()).toEqual(
+			[first.id, second.id].sort()
+		);
+		expect(
+			records.every((record) => record.tagIds.includes(created.tag.id))
+		).toBe(true);
+	});
+
+	it("keeps the same identity filter after rename without a frozen display name", async () => {
+		const { actorId, project, workspaceId } = await openPayments(prisma);
+		const created = await createTag(prisma, {
+			actorId,
+			idempotencyKey: "create-urgent",
+			name: "urgent",
+			origin: "human",
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Tag");
+		}
+		const work = await addWork(prisma, actorId, project.id, "Intake", "work");
+		await applyTag(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: "apply-urgent",
+			origin: "human",
+			tagId: created.tag.id,
+			workId: work.id,
+		});
+		const renamed = await renameTag(prisma, {
+			actorId,
+			baseRevision: created.tag.revision,
+			idempotencyKey: "rename-urgent",
+			name: "today",
+			origin: "human",
+			tagId: created.tag.id,
+		});
+		expect(renamed.status).toBe("committed");
+		expect(
+			(await listRecords(prisma, { tagId: created.tag.id, workspaceId })).map(
+				(record) => record.id
+			)
+		).toEqual([work.id]);
+		expect(
+			(await listTags(prisma, workspaceId)).map((tag) => tag.name)
+		).toEqual(["today"]);
+		expect(JSON.stringify(await listTags(prisma, workspaceId))).not.toMatch(
+			FROZEN_URGENT_NAME
+		);
+	});
+
+	it("does not merge two tag identities when the new name is already taken", async () => {
+		const { actorId, workspaceId } = await openPayments(prisma);
+		const billing = await createTag(prisma, {
+			actorId,
+			idempotencyKey: "create-billing",
+			name: "billing",
+			origin: "human",
+			workspaceId,
+		});
+		const urgent = await createTag(prisma, {
+			actorId,
+			idempotencyKey: "create-urgent",
+			name: "urgent",
+			origin: "human",
+			workspaceId,
+		});
+		if (billing.status !== "committed" || urgent.status !== "committed") {
+			throw new Error("expected committed Tags");
+		}
+		const renamed = await renameTag(prisma, {
+			actorId,
+			baseRevision: billing.tag.revision,
+			idempotencyKey: "rename-merge",
+			name: "urgent",
+			origin: "human",
+			tagId: billing.tag.id,
+		});
+		expect(renamed).toMatchObject({
+			reason: "name-taken",
+			status: "rejected",
+		});
+		expect(await listTags(prisma, workspaceId)).toEqual(
+			[billing.tag, urgent.tag].sort((left, right) =>
+				left.name.localeCompare(right.name)
+			)
+		);
+	});
+
+	it("updates resolved inline uses with the structured name and returns versioned undo", async () => {
+		const { actorId, project, workspaceId } = await openPayments(prisma);
+		const created = await createTag(prisma, {
+			actorId,
+			idempotencyKey: "create-billing",
+			name: "billing",
+			origin: "human",
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Tag");
+		}
+		const work = await addWork(prisma, actorId, project.id, "Intake", "work");
+		await applyTag(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: "apply-billing",
+			origin: "human",
+			tagId: created.tag.id,
+			workId: work.id,
+		});
+		const bound = await recordResolvedInlineUse(prisma, {
+			body: "Pay #billing today.",
+			documentId: "doc-intake",
+			tagId: created.tag.id,
+		});
+		expect(bound).toMatchObject({
+			body: "Pay #billing today.",
+			documentId: "doc-intake",
+			status: "committed",
+			tagId: created.tag.id,
+		});
+		if (bound.status !== "committed") {
+			throw new Error("expected committed inline use");
+		}
+		const renamed = await renameTag(prisma, {
+			actorId,
+			baseRevision: created.tag.revision,
+			idempotencyKey: "rename-inline",
+			name: "invoicing",
+			origin: "human",
+			tagId: created.tag.id,
+		});
+		expect(renamed.status).toBe("committed");
+		if (renamed.status !== "committed") {
+			throw new Error("expected committed rename");
+		}
+		expect(renamed.tag.name).toBe("invoicing");
+		expect(renamed.documentChanges).toEqual([
+			{
+				documentId: "doc-intake",
+				nextBody: "Pay #invoicing today.",
+				previousBody: "Pay #billing today.",
+				revision: bound.revision + 1,
+				undo: MUTATION_COPY.undo,
+			},
+		]);
+		expect(await markdownExportTags(prisma, workspaceId)).toEqual({
+			inlineByDocumentId: { "doc-intake": "Pay #invoicing today." },
+			manifest: {
+				identities: [{ id: created.tag.id, name: "invoicing" }],
+			},
+		});
+		const undone = await undoTagRename(prisma, {
+			actorId,
+			baseRevision: renamed.tag.revision,
+			historyEntryId: renamed.historyEntryId,
+			idempotencyKey: "undo-rename",
+			origin: "human",
+			tagId: created.tag.id,
+		});
+		expect(undone).toMatchObject({
+			status: "committed",
+			tag: { id: created.tag.id, name: "billing" },
+		});
+		if (undone.status !== "committed") {
+			throw new Error("expected committed undo");
+		}
+		expect(await listTags(prisma, workspaceId)).toEqual([undone.tag]);
+		expect(await markdownExportTags(prisma, workspaceId)).toEqual({
+			inlineByDocumentId: { "doc-intake": "Pay #billing today." },
+			manifest: {
+				identities: [{ id: created.tag.id, name: "billing" }],
+			},
+		});
+	});
+
+	it("leaves no mixed names when rename fails after the dictionary write", async () => {
+		const { actorId, workspaceId } = await openPayments(prisma);
+		const created = await createTag(prisma, {
+			actorId,
+			idempotencyKey: "create-billing",
+			name: "billing",
+			origin: "human",
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Tag");
+		}
+		await recordResolvedInlineUse(prisma, {
+			body: "#billing",
+			documentId: "doc-one",
+			tagId: created.tag.id,
+		});
+		const failing = prisma.$extends({
+			query: {
+				tagInlineUse: {
+					update() {
+						throw new Error("injected-failure");
+					},
+				},
+			},
+		});
+		await expect(
+			renameTag(failing as unknown as PrismaClient, {
+				actorId,
+				baseRevision: created.tag.revision,
+				idempotencyKey: "rename-fail",
+				name: "invoicing",
+				origin: "human",
+				tagId: created.tag.id,
+			})
+		).rejects.toThrow("injected-failure");
+		expect(await listTags(prisma, workspaceId)).toEqual([created.tag]);
+		expect(await markdownExportTags(prisma, workspaceId)).toEqual({
+			inlineByDocumentId: { "doc-one": "#billing" },
+			manifest: {
+				identities: [{ id: created.tag.id, name: "billing" }],
+			},
+		});
+	});
+
+	it("keeps inline hash text in Markdown export and identity mapping in the manifest", async () => {
+		const { actorId, workspaceId } = await openPayments(prisma);
+		const created = await createTag(prisma, {
+			actorId,
+			idempotencyKey: "create-area",
+			name: "area/billing",
+			origin: "human",
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Tag");
+		}
+		await recordResolvedInlineUse(prisma, {
+			body: "See #area/billing.",
+			documentId: "doc-note",
+			tagId: created.tag.id,
+		});
+		expect(await markdownExportTags(prisma, workspaceId)).toEqual({
+			inlineByDocumentId: { "doc-note": "See #area/billing." },
+			manifest: {
+				identities: [{ id: created.tag.id, name: "area/billing" }],
+			},
+		});
 	});
 });

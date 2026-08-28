@@ -57,7 +57,7 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
-	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Drafts, File Attachments, and Tags", () => {
+	it("refuses a bun --hot client generated before tag inline uses", () => {
 		expect(
 			prismaClientHasCurrentDelegates({
 				...workDelegates(),
@@ -65,6 +65,21 @@ describe("Prisma client current delegates", () => {
 				fileAttachment: { findMany },
 				fileImageDerivative: { findMany },
 				tag: { findMany },
+				usageHostEmbed: { findMany },
+				usageLink: { findMany },
+				workTag: { findMany },
+			} as unknown as PrismaClient)
+		).toBe(false);
+	});
+
+	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Drafts, File Attachments, and Tags", () => {
+		expect(
+			prismaClientHasCurrentDelegates({
+				...workDelegates(),
+				...currentLifecycleDelegates(),
+				fileAttachment: { findMany },
+				tag: { findMany },
+				tagInlineUse: { findMany },
 				usageHostEmbed: { findMany },
 				usageLink: { findMany },
 				workTag: { findMany },
