@@ -944,7 +944,16 @@ export function createTriageExits(ctx: TriageExitsContext) {
 			};
 			await ctx.prisma.$transaction(async (tx) => {
 				await lockMutation(tx, `capture-item:${row.id}`);
-				await tx.captureInboxItem.delete({ where: { id: row.id } });
+				await tx.captureInboxItem.update({
+					data: {
+						consumedAt: ctx.clock.now(),
+						consumedExit: "delete",
+						stagingCleanupAt: ctx.clock.now(),
+						stagingCleanupError: null,
+						stagingCleanupStatus: "pending",
+					},
+					where: { id: row.id },
+				});
 				await writeDurableReceipt(tx, {
 					actorId: ctx.actorId,
 					commandKey: input.idempotencyKey,
@@ -955,6 +964,7 @@ export function createTriageExits(ctx: TriageExitsContext) {
 				});
 			});
 			await ctx.deleteStaging(row.id);
+			await ctx.prisma.captureInboxItem.delete({ where: { id: row.id } });
 			return outcome;
 		},
 		async previewAttach(input: {
