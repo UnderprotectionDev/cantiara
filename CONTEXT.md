@@ -140,6 +140,10 @@ _Avoid_: Görev, ticket, yalnız yapılacak madde
 İş üzerindeki, yalnız metin ve tamamlanma işareti taşıyan sahipli bileşen; bağımsız ana kayıt, İş durumu veya planlama üyeliği değildir ([Hafif iş kontrol listeleri](docs/prd/06-work-management-and-planning.md#hafif-iş-kontrol-listeleri)). UI: `Checklist`.
 _Avoid_: subtask, epic, checklist-as-Work, Test Scenario, Handoff
 
+**Kontrol listesi maddesi**:
+Hafif kontrol listesindeki metin ve tamamlanma işareti; ana kayıt, İş durumu veya planlama üyeliği değildir. UI: `Item`.
+_Avoid_: subtask, bağımsız İş, checklist-as-Work
+
 **Özellik**:
 Bir kullanıcı yeteneğini veya ürün değişikliğini temsil eden ve [başka bağımsız İşleri kapsayabilen](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı) İş türü; iç içe epic veya subtask hiyerarşisi değildir.
 _Avoid_: Epic, Proje, Kilometre Taşı

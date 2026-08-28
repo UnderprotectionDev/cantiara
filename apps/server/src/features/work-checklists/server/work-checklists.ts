@@ -27,6 +27,7 @@ import {
 	updateChecklistItemCommandSchema,
 	type WorkChecklistOutcome,
 	type WorkChecklistView,
+	workChecklistViewSchema,
 } from "./work-checklists-model";
 
 type PrismaTransaction = Prisma.TransactionClient;
@@ -353,21 +354,8 @@ function optionalText(value: string): string | null {
 function workChecklistViewSchemaSafe(text: string): WorkChecklistView | null {
 	try {
 		const parsed: unknown = JSON.parse(text);
-		if (
-			!(
-				parsed &&
-				typeof parsed === "object" &&
-				"items" in parsed &&
-				"work" in parsed
-			)
-		) {
-			return null;
-		}
-		const record = parsed as WorkChecklistView;
-		if (!Array.isArray(record.items) || typeof record.work !== "object") {
-			return null;
-		}
-		return record;
+		const result = workChecklistViewSchema.safeParse(parsed);
+		return result.success ? result.data : null;
 	} catch {
 		return null;
 	}
