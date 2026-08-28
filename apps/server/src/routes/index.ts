@@ -9,6 +9,7 @@ import { projectOverviewRouter } from "../features/project-overview/server/proje
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
 import { relations } from "../features/relations/server/relations-rpc";
+import { workDrafts } from "../features/work-drafts/server/work-drafts-rpc";
 import { workLifecycle } from "../features/work-lifecycle/server/work-lifecycle-rpc";
 
 export const appRouter = {
@@ -20,6 +21,7 @@ export const appRouter = {
 	projectOverview: projectOverviewRouter,
 	projectShell,
 	relations,
+	workDrafts,
 	workLifecycle,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	privateData: protectedProcedure.handler(({ context }) => ({

@@ -19,6 +19,8 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.projectCustomFieldDefinition?.findMany === "function" &&
 		typeof client.projectCustomFieldDefinition?.create === "function" &&
 		typeof client.projectCustomFieldValue?.findMany === "function" &&
-		typeof client.projectCustomFieldValue?.create === "function"
+		typeof client.projectCustomFieldValue?.create === "function" &&
+		typeof client.workDraft?.findMany === "function" &&
+		typeof client.workDraft?.create === "function"
 	);
 }

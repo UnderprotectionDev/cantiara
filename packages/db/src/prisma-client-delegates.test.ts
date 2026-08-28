@@ -30,6 +30,7 @@ function currentLifecycleDelegates() {
 	return {
 		featureHealthUpdate: { findMany },
 		typedRelation: { create: () => undefined, findMany },
+		workDraft: { create: () => undefined, findMany },
 		workMergeEvent: { create: () => undefined, findFirst: findMany },
 		workRelatedEdge: { findMany },
 		workRelation: { findMany },
@@ -56,7 +57,7 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
-	it("accepts a client that can read Feature health, Related edges, typed relations, and Custom field values", () => {
+	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, and Work Drafts", () => {
 		expect(
 			prismaClientHasCurrentDelegates({
 				...workDelegates(),

@@ -1,0 +1,14 @@
+model WorkDraft {
+  id                     String   @id
+  workspaceId            String
+  ownerId                String
+  projectId              String?
+  title                  String   @default("")
+  type                   String
+  customFieldValuesText  String   @default("{}")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([workspaceId, ownerId, updatedAt])
+  @@map("work_draft")
+}
