@@ -1447,6 +1447,66 @@ describe("Capture Inbox", () => {
 		);
 	});
 
+	it("makes concurrent attachment saves with one key durable and idempotent", async () => {
+		let release!: () => void;
+		let started!: () => void;
+		const stagingStarted = new Promise<void>((resolve) => {
+			started = resolve;
+		});
+		const stagingRelease = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const inner = createPrismaCaptureStagingStore(prisma);
+		const secondPool = new Pool({ connectionString: DATABASE_URL });
+		const secondPrisma = new PrismaClient({
+			adapter: new PrismaPg(secondPool),
+		});
+		const stagingStore = {
+			deleteByInboxItemId: inner.deleteByInboxItemId,
+			async put(input: Parameters<typeof inner.put>[0]) {
+				started();
+				await stagingRelease;
+				await inner.put(input);
+			},
+			readMeta: inner.readMeta,
+		};
+		const first = inbox({ stagingStore });
+		const second = createCaptureInbox({
+			actorId,
+			clock: { now: () => CAPTURED_AT },
+			prisma: secondPrisma,
+			stagingRootKey: TEST_STAGING_ROOT_KEY,
+			stagingStore,
+			workspaceId,
+		});
+		const key = crypto.randomUUID();
+		const firstSave = first.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: key,
+			text: "same payload",
+		});
+		await stagingStarted;
+		const secondSave = second.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: key,
+			text: "same payload",
+		});
+		release();
+		const [winner, replay] = await Promise.all([firstSave, secondSave]);
+		expect(winner).toEqual(replay);
+		expect(await first.listAll()).toHaveLength(1);
+		expect(await prisma.captureStagingObject.count()).toBe(1);
+		expect(
+			await second.save({
+				attachment: { ...SHOT_ATTACHMENT, filename: "different.png" },
+				idempotencyKey: key,
+				text: "same payload",
+			})
+		).toEqual({ reason: "Conflict", status: "conflict" });
+		await secondPrisma.$disconnect();
+		await secondPool.end();
+	}, 20_000);
+
 	it("compensates the Inbox item when attachment staging fails", async () => {
 		const deleted: string[] = [];
 		const capture = inbox({
@@ -1630,6 +1690,50 @@ describe("Capture Inbox", () => {
 		});
 		expect(capture.visibleFileAttachments()).toEqual([]);
 		expect(capture.sharedMediaLibrary()).toEqual([]);
+	});
+
+	it("records uncertain staging cleanup after a committed Convert", async () => {
+		const inner = createPrismaCaptureStagingStore(prisma);
+		const capture = inbox({
+			fileAttachmentFinalize: () =>
+				Promise.resolve({
+					fileAttachmentId: null,
+					status: "promoted" as const,
+					visibleAttachment: null,
+				}),
+			stagingStore: {
+				deleteByInboxItemId() {
+					return Promise.reject(new Error("cleanup-unavailable"));
+				},
+				put: inner.put,
+				readMeta: inner.readMeta,
+			},
+		});
+		const saved = await capture.save({
+			attachment: SHOT_ATTACHMENT,
+			idempotencyKey: crypto.randomUUID(),
+			text: "cleanup marker",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+		await expect(
+			capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+				previewed: true,
+				targetKind: "work",
+			})
+		).rejects.toThrow("cleanup-unavailable");
+		expect(
+			await prisma.captureInboxItem.findUnique({
+				select: { stagingCleanupError: true, stagingCleanupStatus: true },
+				where: { id: saved.item.id },
+			})
+		).toEqual({
+			stagingCleanupError: "cleanup-unavailable",
+			stagingCleanupStatus: "pending",
+		});
 	});
 
 	it("deletes the Capture attachment when the Inbox item is deleted", async () => {

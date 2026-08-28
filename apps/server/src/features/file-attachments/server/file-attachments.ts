@@ -12,6 +12,7 @@ import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
+import { withPrismaWriteRetry } from "../../mutation-core/server/prisma-write-retry";
 import type { CaptureStagingSource } from "./file-attachments-capture-staging";
 import {
 	ensureImageDerivatives,
@@ -797,8 +798,8 @@ export async function stageFileUpload(
 	if (classified.status !== "ok") {
 		return classified;
 	}
-	return await prisma.$transaction((tx) =>
-		stageInTransaction(tx, parsed.command, deps)
+	return await withPrismaWriteRetry(() =>
+		prisma.$transaction((tx) => stageInTransaction(tx, parsed.command, deps))
 	);
 }
 
@@ -812,7 +813,7 @@ async function stageInTransaction(
 		where: { commandKey: command.idempotencyKey },
 	});
 	if (receipt) {
-		const file = await loadFileView(tx, receipt.fileAttachmentId);
+		const file = await loadFileView(tx, receipt.fileAttachmentId, false);
 		if (!file) {
 			return { reason: "target-not-found", status: "rejected" };
 		}
@@ -911,28 +912,55 @@ export async function putStagingBytes(
 			status: "rejected",
 		};
 	}
-	return await prisma.$transaction((tx) =>
-		putBytesInTransaction(tx, input, deps)
+	const staged = await prisma.fileAttachmentStaging.findUnique({
+		where: { id: input.operationId },
+	});
+	if (!staged) {
+		return { reason: "operation-not-found", status: "rejected" };
+	}
+	if (staged.status !== STAGED) {
+		return {
+			status: "refused",
+			ui: { cancelAvailable: false, label: FILE_ATTACHMENT_COPY.finalizing },
+		};
+	}
+	const classified = classifyBytes({
+		byteLength: input.bytes.byteLength,
+		declaredMime: staged.declaredMime,
+		filename: staged.filename,
+		sniff: await sniffOf(deps)(input.bytes),
+	});
+	if (classified.status !== "ok") {
+		await storeOf(deps).remove(prisma, staged.objectKey);
+		await prisma.fileAttachmentStaging.delete({ where: { id: staged.id } });
+		return classified;
+	}
+	await storeOf(deps).putTemp(prisma, {
+		bytes: input.bytes,
+		objectKey: staged.objectKey,
+		workspaceId: staged.workspaceId,
+	});
+	return await withPrismaWriteRetry(() =>
+		prisma.$transaction((tx) =>
+			putBytesInTransaction(tx, input.operationId, input.bytes.byteLength)
+		)
 	);
 }
 
 async function putBytesInTransaction(
 	tx: PrismaTransaction,
-	input: {
-		bytes: Uint8Array;
-		operationId: string;
-	},
-	deps: FileAttachmentDeps
+	operationId: string,
+	byteLength: number
 ): Promise<FileAttachmentOutcome> {
 	const row = await tx.fileAttachmentStaging.findUnique({
-		where: { id: input.operationId },
+		where: { id: operationId },
 	});
 	if (!row) {
 		return { reason: "operation-not-found", status: "rejected" };
 	}
 	await lockWorkspaceCommand(tx, row.workspaceId, row.commandKey);
 	const locked = await tx.fileAttachmentStaging.findUnique({
-		where: { id: input.operationId },
+		where: { id: operationId },
 	});
 	if (!locked) {
 		return { reason: "operation-not-found", status: "rejected" };
@@ -946,26 +974,10 @@ async function putBytesInTransaction(
 			},
 		};
 	}
-	const classified = classifyBytes({
-		byteLength: input.bytes.byteLength,
-		declaredMime: locked.declaredMime,
-		filename: locked.filename,
-		sniff: await sniffOf(deps)(input.bytes),
-	});
-	if (classified.status !== "ok") {
-		await storeOf(deps).remove(tx, locked.objectKey);
-		await tx.fileAttachmentStaging.delete({ where: { id: locked.id } });
-		return classified;
-	}
-	await storeOf(deps).putTemp(tx, {
-		bytes: input.bytes,
-		objectKey: locked.objectKey,
-		workspaceId: locked.workspaceId,
-	});
 	const updated = await tx.fileAttachmentStaging.update({
 		data: {
 			bytesComplete: true,
-			expectedByteLength: input.bytes.byteLength,
+			expectedByteLength: byteLength,
 		},
 		where: { id: locked.id },
 	});
@@ -977,43 +989,58 @@ export async function cancelFileUpload(
 	operationId: string,
 	deps: FileAttachmentDeps = {}
 ): Promise<FileAttachmentOutcome> {
-	return await prisma.$transaction(async (tx) => {
-		const row = await tx.fileAttachmentStaging.findUnique({
-			where: { id: operationId },
-		});
-		if (!row) {
-			return { reason: "operation-not-found", status: "rejected" };
-		}
-		await lockWorkspaceCommand(tx, row.workspaceId, row.commandKey);
-		const locked = await tx.fileAttachmentStaging.findUnique({
-			where: { id: operationId },
-		});
-		if (!locked) {
-			return { reason: "operation-not-found", status: "rejected" };
-		}
-		if (locked.status !== STAGED) {
+	const cancelled = await prisma.$transaction(
+		async (
+			tx
+		): Promise<
+			| FileAttachmentOutcome
+			| {
+					objectKey: string;
+					operation: FileStagingView;
+					status: "cancelled";
+			  }
+		> => {
+			const row = await tx.fileAttachmentStaging.findUnique({
+				where: { id: operationId },
+			});
+			if (!row) {
+				return { reason: "operation-not-found", status: "rejected" };
+			}
+			await lockWorkspaceCommand(tx, row.workspaceId, row.commandKey);
+			const locked = await tx.fileAttachmentStaging.findUnique({
+				where: { id: operationId },
+			});
+			if (!locked) {
+				return { reason: "operation-not-found", status: "rejected" };
+			}
+			if (locked.status !== STAGED) {
+				return {
+					status: "refused",
+					ui: {
+						cancelAvailable: false,
+						label: FILE_ATTACHMENT_COPY.finalizing,
+					},
+				};
+			}
+			await tx.fileAttachmentStaging.delete({ where: { id: locked.id } });
 			return {
-				status: "refused",
-				ui: {
-					cancelAvailable: false,
-					label: FILE_ATTACHMENT_COPY.finalizing,
-				},
+				objectKey: locked.objectKey,
+				operation: stagingView(locked),
+				status: "cancelled",
 			};
 		}
-		await storeOf(deps).remove(tx, locked.objectKey);
-		await tx.fileAttachmentStaging.delete({ where: { id: locked.id } });
-		return {
-			operation: {
-				cancelAvailable: false,
-				operationId: locked.id,
-				status: STAGED,
-				ui: { label: MUTATION_COPY.cancel },
-			},
-			status: "cancelled",
-		};
-	});
+	);
+	if (!("objectKey" in cancelled)) {
+		return cancelled;
+	}
+	await storeOf(deps).remove(prisma, cancelled.objectKey);
+	return {
+		operation: cancelled.operation,
+		status: "cancelled",
+	};
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: finalize coordinates validation, durable metadata, and post-commit derivatives.
 export async function finalizeFileUpload(
 	prisma: PrismaClient,
 	command: unknown,
@@ -1024,9 +1051,89 @@ export async function finalizeFileUpload(
 		return parsed.outcome;
 	}
 	try {
-		const outcome = await prisma.$transaction((tx) =>
-			commitFinalize(tx, parsed.command, deps)
+		const existingReceipt = await prisma.fileAttachmentReceipt.findUnique({
+			where: { commandKey: parsed.command.idempotencyKey },
+		});
+		if (existingReceipt) {
+			const replayed = await replayCommitted(
+				prisma,
+				parsed.command,
+				deps,
+				existingReceipt
+			);
+			if (replayed) {
+				return replayed;
+			}
+		}
+		const staged = await prisma.fileAttachmentStaging.findUnique({
+			where: { commandKey: parsed.command.idempotencyKey },
+		});
+		if (!staged) {
+			return { reason: "operation-not-found", status: "rejected" };
+		}
+		if (!staged.bytesComplete) {
+			return { reason: "bytes-incomplete", status: "rejected" };
+		}
+		const blob = await storeOf(deps).read(prisma, staged.objectKey);
+		if (!blob || blob.accessible) {
+			return { reason: "bytes-incomplete", status: "rejected" };
+		}
+		const classified = classifyBytes({
+			byteLength: blob.bytes.byteLength,
+			declaredMime: staged.declaredMime,
+			filename: staged.filename,
+			sniff: await sniffOf(deps)(blob.bytes),
+		});
+		if (classified.status !== "ok") {
+			await storeOf(deps).remove(prisma, staged.objectKey);
+			await prisma.fileAttachmentStaging.delete({ where: { id: staged.id } });
+			return classified;
+		}
+		await storeOf(deps).promote(prisma, staged.objectKey);
+		const outcome = await withPrismaWriteRetry(() =>
+			prisma.$transaction(
+				(tx) =>
+					commitFinalize(
+						tx,
+						parsed.command,
+						staged.id,
+						{
+							bytes: blob.bytes.byteLength,
+							hash: contentHashOf(blob.bytes),
+							kind: classified.kind,
+							mime: classified.mime,
+						},
+						quotaLimits(deps)
+					),
+				{ timeout: 15_000 }
+			)
 		);
+		if (outcome.status === "committed-meta") {
+			const file = await loadFileView(prisma, outcome.fileAttachmentId);
+			if (!file) {
+				throw new Error("visible-file-missing");
+			}
+			if (file.kind === FILE_KIND.image) {
+				await ensureImageDerivatives(
+					prisma,
+					{
+						contentHash: file.currentVersion.contentHash,
+						kind: file.kind,
+						versionId: file.currentVersion.id,
+						workspaceId: parsed.command.workspaceId,
+					},
+					{
+						engine: deps.derivatives,
+						store: storeOf(deps),
+					}
+				);
+				const refreshed = await loadFileView(prisma, file.id);
+				if (refreshed) {
+					return { file: refreshed, status: "committed" };
+				}
+			}
+			return { file, status: "committed" };
+		}
 		if (
 			(outcome.status === "committed" || outcome.status === "replayed") &&
 			outcome.file.kind === FILE_KIND.image
@@ -1064,7 +1171,7 @@ export async function finalizeFileUpload(
 }
 
 async function replayCommitted(
-	tx: PrismaTransaction,
+	db: PrismaClient | PrismaTransaction,
 	command: StageFileUploadCommand,
 	deps: FileAttachmentDeps,
 	receipt: {
@@ -1073,11 +1180,11 @@ async function replayCommitted(
 		versionId: string;
 	}
 ): Promise<FileAttachmentOutcome | null> {
-	const version = await tx.fileAttachmentVersion.findUnique({
+	const version = await db.fileAttachmentVersion.findUnique({
 		where: { id: receipt.versionId },
 	});
-	const blob = await storeOf(deps).read(tx, version?.objectKey ?? "");
-	const file = await loadFileView(tx, receipt.fileAttachmentId);
+	const blob = await storeOf(deps).read(db, version?.objectKey ?? "");
+	const file = await loadFileView(db, receipt.fileAttachmentId);
 	if (!(file && blob?.accessible)) {
 		return null;
 	}
@@ -1097,20 +1204,15 @@ async function replayCommitted(
 async function commitFinalize(
 	tx: PrismaTransaction,
 	command: StageFileUploadCommand,
-	deps: FileAttachmentDeps
-): Promise<FileAttachmentOutcome> {
+	stagedId: string,
+	prepared: { bytes: number; hash: string; kind: string; mime: string },
+	limits: FileAttachmentQuotaLimits
+): Promise<
+	FileAttachmentOutcome | { fileAttachmentId: string; status: "committed-meta" }
+> {
 	await lockWorkspaceCommand(tx, command.workspaceId, command.idempotencyKey);
-	const receipt = await tx.fileAttachmentReceipt.findUnique({
-		where: { commandKey: command.idempotencyKey },
-	});
-	if (receipt) {
-		const replayed = await replayCommitted(tx, command, deps, receipt);
-		if (replayed) {
-			return replayed;
-		}
-	}
 	const staged = await tx.fileAttachmentStaging.findUnique({
-		where: { commandKey: command.idempotencyKey },
+		where: { id: stagedId },
 	});
 	if (!staged) {
 		return { reason: "operation-not-found", status: "rejected" };
@@ -1133,29 +1235,11 @@ async function commitFinalize(
 	if (!staged.bytesComplete) {
 		return { reason: "bytes-incomplete", status: "rejected" };
 	}
-	const blob = await storeOf(deps).read(tx, staged.objectKey);
-	if (!blob || blob.accessible) {
-		return { reason: "bytes-incomplete", status: "rejected" };
-	}
-	const sniff = await sniffOf(deps)(blob.bytes);
-	const classified = classifyBytes({
-		byteLength: blob.bytes.byteLength,
-		declaredMime: staged.declaredMime,
-		filename: staged.filename,
-		sniff,
-	});
-	if (classified.status !== "ok") {
-		await storeOf(deps).remove(tx, staged.objectKey);
-		await tx.fileAttachmentStaging.delete({ where: { id: staged.id } });
-		return classified;
-	}
 	const usage = await countedUsage(tx, command.workspaceId);
-	const limits = quotaLimits(deps);
 	if (
-		usage.bytes + blob.bytes.byteLength > limits.maxOriginalBytes ||
+		usage.bytes + prepared.bytes > limits.maxOriginalBytes ||
 		usage.versions + 1 > limits.maxVersions
 	) {
-		await storeOf(deps).remove(tx, staged.objectKey);
 		await tx.fileAttachmentStaging.delete({ where: { id: staged.id } });
 		return {
 			reason: FILE_ATTACHMENT_COPY.quotaExceeded,
@@ -1166,9 +1250,7 @@ async function commitFinalize(
 		data: { status: FINALIZING },
 		where: { id: staged.id },
 	});
-	await storeOf(deps).promote(tx, staged.objectKey);
-	const hash = contentHashOf(blob.bytes);
-	const fingerprint = finalizeFingerprint(command.payload, hash);
+	const fingerprint = finalizeFingerprint(command.payload, prepared.hash);
 	let attachmentId = staged.targetFileAttachmentId;
 	let versionNumber = 1;
 	if (attachmentId) {
@@ -1200,16 +1282,16 @@ async function commitFinalize(
 	}
 	const version = await tx.fileAttachmentVersion.create({
 		data: {
-			byteLength: blob.bytes.byteLength,
-			contentHash: hash,
+			byteLength: prepared.bytes,
+			contentHash: prepared.hash,
 			fileAttachmentId: attachmentId,
 			filename: staged.filename,
 			id: crypto.randomUUID(),
-			kind: classified.kind,
-			mimeType: classified.mime,
+			kind: prepared.kind,
+			mimeType: prepared.mime,
 			objectKey: staged.objectKey,
 			previewStatus:
-				classified.kind === FILE_KIND.image
+				prepared.kind === FILE_KIND.image
 					? PREVIEW_STATUS.pending
 					: PREVIEW_STATUS.ready,
 			versionNumber,
@@ -1233,11 +1315,7 @@ async function commitFinalize(
 		},
 		where: { id: staged.id },
 	});
-	const file = await loadFileView(tx, attachmentId);
-	if (!file) {
-		throw new Error("visible-file-missing");
-	}
-	return { file, status: "committed" };
+	return { fileAttachmentId: attachmentId, status: "committed-meta" };
 }
 
 export async function pinFileVersion(
@@ -1270,7 +1348,7 @@ export async function pinFileVersion(
 			},
 		});
 		if (existingPin) {
-			return await loadFileView(tx, version.fileAttachmentId);
+			return await loadFileView(tx, version.fileAttachmentId, false);
 		}
 		await tx.fileAttachmentVersionPin.create({
 			data: {
@@ -1280,7 +1358,7 @@ export async function pinFileVersion(
 				versionId: version.id,
 			},
 		});
-		return await loadFileView(tx, version.fileAttachmentId);
+		return await loadFileView(tx, version.fileAttachmentId, false);
 	});
 }
 
@@ -1310,7 +1388,7 @@ export async function relateFileAttachment(
 			},
 		});
 		if (existingRelation) {
-			return await loadFileView(tx, file.id);
+			return await loadFileView(tx, file.id, false);
 		}
 		await tx.fileAttachmentRelation.create({
 			data: {
@@ -1320,7 +1398,7 @@ export async function relateFileAttachment(
 				targetId: input.targetId,
 			},
 		});
-		return await loadFileView(tx, file.id);
+		return await loadFileView(tx, file.id, false);
 	});
 }
 
@@ -1350,13 +1428,13 @@ export async function setFileLifecycle(
 			return null;
 		}
 		if (current.lifecycle === input.lifecycle) {
-			return await loadFileView(tx, current.id);
+			return await loadFileView(tx, current.id, false);
 		}
 		const updated = await tx.fileAttachment.update({
 			data: { lifecycle: input.lifecycle, revision: { increment: 1 } },
 			where: { id: input.fileAttachmentId },
 		});
-		return await loadFileView(tx, updated.id);
+		return await loadFileView(tx, updated.id, false);
 	});
 }
 
@@ -1367,24 +1445,39 @@ export async function permanentlyDeleteFileAttachment(
 ): Promise<
 	{ status: "deleted" } | { status: "rejected"; reason: "target-not-found" }
 > {
-	return await prisma.$transaction(async (tx) => {
+	const deleted = await prisma.$transaction(async (tx) => {
 		const row = await tx.fileAttachment.findUnique({
 			include: { versions: true },
 			where: { id: fileAttachmentId },
 		});
 		if (!row) {
-			return { reason: "target-not-found", status: "rejected" };
+			return {
+				reason: "target-not-found" as const,
+				status: "rejected" as const,
+			};
 		}
 		const hashes = row.versions.map((version) => version.contentHash);
-		await Promise.all(
-			row.versions.map((version) => storeOf(deps).remove(tx, version.objectKey))
-		);
 		await tx.fileAttachment.delete({ where: { id: row.id } });
-		await Promise.all(
-			hashes.map((hash) => removeDerivativesForHash(tx, hash, storeOf(deps)))
-		);
-		return { status: "deleted" };
+		return {
+			hashes,
+			objectKeys: row.versions.map((version) => version.objectKey),
+			status: "deleted" as const,
+		};
 	});
+	if (deleted.status === "rejected") {
+		return deleted;
+	}
+	await Promise.all(
+		deleted.objectKeys.map((objectKey) =>
+			storeOf(deps).remove(prisma, objectKey)
+		)
+	);
+	await Promise.all(
+		deleted.hashes.map((hash) =>
+			removeDerivativesForHash(prisma, hash, storeOf(deps))
+		)
+	);
+	return { status: "deleted" };
 }
 
 export async function sweepExpiredFileStaging(
@@ -1392,21 +1485,27 @@ export async function sweepExpiredFileStaging(
 	deps: FileAttachmentDeps = {}
 ): Promise<number> {
 	const now = nowOf(deps);
-	return await prisma.$transaction(async (tx) => {
-		const expired = await tx.fileAttachmentStaging.findMany({
+	const expired = await prisma.$transaction(async (tx) => {
+		const rows = await tx.fileAttachmentStaging.findMany({
 			where: {
 				expiresAt: { lte: now },
 				status: STAGED,
 			},
 		});
-		await Promise.all(
-			expired.map(async (row) => {
-				await storeOf(deps).remove(tx, row.objectKey);
-				await tx.fileAttachmentStaging.delete({ where: { id: row.id } });
-			})
-		);
-		return expired.length;
+		await tx.fileAttachmentStaging.deleteMany({
+			where: { id: { in: rows.map((row) => row.id) } },
+		});
+		return {
+			count: rows.length,
+			objectKeys: rows.map((row) => row.objectKey),
+		};
 	});
+	await Promise.all(
+		expired.objectKeys.map((objectKey) =>
+			storeOf(deps).remove(prisma, objectKey)
+		)
+	);
+	return expired.count;
 }
 
 function promotionReason(reason: string): string {

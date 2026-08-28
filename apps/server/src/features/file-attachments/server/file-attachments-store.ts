@@ -1,4 +1,6 @@
-import type { Prisma } from "@cantiara/db";
+import type { Prisma, PrismaClient } from "@cantiara/db";
+
+type FileStorageDb = PrismaClient | Prisma.TransactionClient;
 
 export interface FileObjectRecord {
 	accessible: boolean;
@@ -7,16 +9,16 @@ export interface FileObjectRecord {
 }
 
 export interface FileObjectStore {
-	promote: (tx: Prisma.TransactionClient, objectKey: string) => Promise<void>;
+	promote: (db: FileStorageDb, objectKey: string) => Promise<void>;
 	putTemp: (
-		tx: Prisma.TransactionClient,
+		db: FileStorageDb,
 		input: { bytes: Uint8Array; objectKey: string; workspaceId: string }
 	) => Promise<void>;
 	read: (
-		tx: Prisma.TransactionClient,
+		db: FileStorageDb,
 		objectKey: string
 	) => Promise<FileObjectRecord | null>;
-	remove: (tx: Prisma.TransactionClient, objectKey: string) => Promise<void>;
+	remove: (db: FileStorageDb, objectKey: string) => Promise<void>;
 }
 
 export function createPrismaFileObjectStore(): FileObjectStore {

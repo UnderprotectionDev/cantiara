@@ -13,6 +13,7 @@ import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
+import { withPrismaWriteRetry } from "../../mutation-core/server/prisma-write-retry";
 import { convertCaptureToWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	createBulkSenseMaking,
@@ -361,6 +362,7 @@ async function insertCaptureItem(
 		actorId: string;
 		capturedAt: Date;
 		command: Omit<SaveCaptureInput, "actorId" | "workspaceId">;
+		id?: string;
 		workspaceId: string;
 	}
 ): Promise<CaptureInboxItemView> {
@@ -380,7 +382,7 @@ async function insertCaptureItem(
 			body,
 			capturedAt: input.capturedAt,
 			fieldsText: JSON.stringify(fields),
-			id: crypto.randomUUID(),
+			id: input.id ?? crypto.randomUUID(),
 			link: input.command.link ?? "",
 			origin: input.command.origin ?? "",
 			ownerId: input.actorId,
@@ -402,6 +404,54 @@ function stagingRootKey(secret?: string): Buffer {
 		return deriveCaptureStagingRootKey(fromEnv);
 	}
 	throw new Error("Capture staging root key is required");
+}
+
+const PENDING_SAVE = "__pending_capture_save__";
+
+function pendingSaveItemId(resultValue: string): string | null {
+	try {
+		const value = JSON.parse(resultValue) as {
+			itemId?: unknown;
+			status?: unknown;
+		};
+		return value.status === PENDING_SAVE && typeof value.itemId === "string"
+			? value.itemId
+			: null;
+	} catch {
+		return null;
+	}
+}
+
+function isUniqueConstraint(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		(error as { code?: unknown }).code === "P2002"
+	);
+}
+
+async function waitForSaveReceipt(
+	prisma: PrismaClient,
+	commandKey: string,
+	payload: unknown
+): Promise<SaveCaptureOutcome | "retry" | "conflict"> {
+	for (let attempt = 0; attempt < 100; attempt += 1) {
+		// biome-ignore lint/performance/noAwaitInLoops: polling is intentionally sequential.
+		const receipt = await readDurableReceipt(prisma, commandKey, payload);
+		if (!receipt) {
+			return "retry";
+		}
+		if (receipt.kind === "conflict") {
+			return "conflict";
+		}
+		if (!pendingSaveItemId(receipt.resultValue)) {
+			return reviveSaveOutcome(
+				JSON.parse(receipt.resultValue) as SaveCaptureOutcome
+			);
+		}
+		await new Promise((resolve) => setTimeout(resolve, 10));
+	}
+	throw new Error("capture-save-finalization-uncertain");
 }
 
 async function persistStaging(input: {
@@ -607,7 +657,35 @@ export function createCaptureInbox(input: {
 		workspaceId: input.workspaceId,
 	});
 	async function deleteStaging(inboxItemId: string) {
-		await store.deleteByInboxItemId(inboxItemId);
+		await input.prisma.captureInboxItem.updateMany({
+			data: {
+				stagingCleanupAt: clock.now(),
+				stagingCleanupError: null,
+				stagingCleanupStatus: "pending",
+			},
+			where: { id: inboxItemId, workspaceId: input.workspaceId },
+		});
+		try {
+			await store.deleteByInboxItemId(inboxItemId);
+			await input.prisma.captureInboxItem.updateMany({
+				data: {
+					stagingCleanupAt: clock.now(),
+					stagingCleanupError: null,
+					stagingCleanupStatus: null,
+				},
+				where: { id: inboxItemId, workspaceId: input.workspaceId },
+			});
+		} catch (error) {
+			await input.prisma.captureInboxItem.updateMany({
+				data: {
+					stagingCleanupAt: clock.now(),
+					stagingCleanupError:
+						error instanceof Error ? error.message : "cleanup-failed",
+				},
+				where: { id: inboxItemId, workspaceId: input.workspaceId },
+			});
+			throw error;
+		}
 	}
 	const triage = createTriageExits({
 		actorId: input.actorId,
@@ -853,7 +931,7 @@ export function createCaptureInbox(input: {
 		previewWebCapture: webCapture.previewWebCapture,
 		revokeAllExtensionLinks: webCapture.revokeAllExtensionLinks,
 		revokeExtensionLink: webCapture.revokeExtensionLink,
-		// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: this public command coordinates the Inbox transaction and staging compensation.
+		// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: this public command coordinates durable reservation and external staging.
 		async save(command) {
 			if (!connected()) {
 				return { queued: false, reason: "offline", status: "refused" };
@@ -868,11 +946,30 @@ export function createCaptureInbox(input: {
 				return { reason: MUTATION_COPY.conflict, status: "conflict" };
 			}
 			if (existing?.kind === "replay") {
+				if (pendingSaveItemId(existing.resultValue)) {
+					const waited = await waitForSaveReceipt(
+						input.prisma,
+						command.idempotencyKey,
+						payload
+					);
+					if (waited === "retry") {
+						return this.save(command);
+					}
+					if (waited === "conflict") {
+						return { reason: MUTATION_COPY.conflict, status: "conflict" };
+					}
+					lastSuccessfulSaveAt =
+						waited.status === "saved"
+							? waited.lastSuccessfulSaveAt
+							: lastSuccessfulSaveAt;
+					return waited;
+				}
 				return reviveSaveOutcome(
 					JSON.parse(existing.resultValue) as SaveCaptureOutcome
 				);
 			}
 			const capturedAt = clock.now();
+			const createdItemId = crypto.randomUUID();
 			// The staging store is an external boundary, so it cannot share the
 			// Prisma transaction. Compensation removes the item and staged bytes
 			// if either side of the attachment commit fails.
@@ -880,35 +977,142 @@ export function createCaptureInbox(input: {
 				attachment: CaptureAttachmentView;
 				stagingId: string;
 			} | null = null;
-			let item = await input.prisma.$transaction(async (tx) => {
-				await lockMutation(
-					tx,
-					`capture-save:${input.actorId}:${command.idempotencyKey}`
+			let transactionResult:
+				| { item: CaptureInboxItemView; kind: "created" }
+				| { kind: "conflict" }
+				| { item: SaveCaptureOutcome; kind: "replay" }
+				| { itemId: string; kind: "pending" }
+				| { itemId: string; kind: "winner"; resultValue: string };
+			try {
+				transactionResult = await withPrismaWriteRetry(() =>
+					input.prisma.$transaction(
+						// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: reservation transaction coordinates durable idempotency and staging ownership.
+						async (tx) => {
+							await lockMutation(
+								tx,
+								`capture-save:${input.actorId}:${command.idempotencyKey}`
+							);
+							const lockedReceipt = await readDurableReceipt(
+								tx,
+								command.idempotencyKey,
+								payload
+							);
+							if (lockedReceipt?.kind === "conflict") {
+								return { kind: "conflict" as const };
+							}
+							if (lockedReceipt?.kind === "replay") {
+								const pendingItemId = pendingSaveItemId(
+									lockedReceipt.resultValue
+								);
+								if (pendingItemId) {
+									return pendingItemId === createdItemId
+										? { itemId: pendingItemId, kind: "pending" as const }
+										: {
+												itemId: pendingItemId,
+												kind: "winner" as const,
+												resultValue: lockedReceipt.resultValue,
+											};
+								}
+								return {
+									item: reviveSaveOutcome(
+										JSON.parse(lockedReceipt.resultValue) as SaveCaptureOutcome
+									),
+									kind: "replay" as const,
+								};
+							}
+							if (command.attachment) {
+								await writeDurableReceipt(tx, {
+									actorId: input.actorId,
+									commandKey: command.idempotencyKey,
+									kind: "save",
+									payload,
+									resultValue: JSON.stringify({
+										itemId: createdItemId,
+										status: PENDING_SAVE,
+									}),
+									targetId: createdItemId,
+								});
+							}
+							const created = await insertCaptureItem(tx, {
+								actorId: input.actorId,
+								capturedAt,
+								command,
+								id: createdItemId,
+								workspaceId: input.workspaceId,
+							});
+							if (!command.attachment) {
+								const outcome: SaveCaptureOutcome = {
+									item: created,
+									lastSuccessfulSaveAt: capturedAt,
+									mainRecord: null,
+									status: "saved",
+								};
+								await writeDurableReceipt(tx, {
+									actorId: input.actorId,
+									commandKey: command.idempotencyKey,
+									kind: "save",
+									payload,
+									resultValue: JSON.stringify(outcome),
+									targetId: created.id,
+								});
+							}
+							return { item: created, kind: "created" as const };
+						}
+					)
 				);
-				const created = await insertCaptureItem(tx, {
-					actorId: input.actorId,
-					capturedAt,
-					command,
-					workspaceId: input.workspaceId,
-				});
-				if (!command.attachment) {
-					const outcome: SaveCaptureOutcome = {
-						item: created,
-						lastSuccessfulSaveAt: capturedAt,
-						mainRecord: null,
-						status: "saved",
-					};
-					await writeDurableReceipt(tx, {
-						actorId: input.actorId,
-						commandKey: command.idempotencyKey,
-						kind: "save",
-						payload,
-						resultValue: JSON.stringify(outcome),
-						targetId: created.id,
-					});
+			} catch (error) {
+				if (!isUniqueConstraint(error)) {
+					throw error;
 				}
-				return created;
-			});
+				const winner = await waitForSaveReceipt(
+					input.prisma,
+					command.idempotencyKey,
+					payload
+				);
+				if (winner === "conflict" || winner === "retry") {
+					return this.save(command);
+				}
+				return winner;
+			}
+			if (transactionResult.kind === "conflict") {
+				return { reason: MUTATION_COPY.conflict, status: "conflict" };
+			}
+			if (transactionResult.kind === "replay") {
+				return transactionResult.item;
+			}
+			if (transactionResult.kind === "pending") {
+				const waited = await waitForSaveReceipt(
+					input.prisma,
+					command.idempotencyKey,
+					payload
+				);
+				if (waited === "retry") {
+					return this.save(command);
+				}
+				if (waited === "conflict") {
+					return { reason: MUTATION_COPY.conflict, status: "conflict" };
+				}
+				return waited;
+			}
+			if (transactionResult.kind === "winner") {
+				const winner = await waitForSaveReceipt(
+					input.prisma,
+					command.idempotencyKey,
+					payload
+				);
+				await store
+					.deleteByInboxItemId(transactionResult.itemId)
+					.catch(() => undefined);
+				await input.prisma.captureInboxItem.deleteMany({
+					where: { id: transactionResult.itemId },
+				});
+				if (winner === "conflict" || winner === "retry") {
+					return this.save(command);
+				}
+				return winner;
+			}
+			const { item: initialItem } = transactionResult;
+			let item = initialItem;
 			if (command.attachment) {
 				try {
 					const staged = await persistStaging({
@@ -962,32 +1166,64 @@ export function createCaptureInbox(input: {
 				if (!stagedAttachment) {
 					throw new Error("Capture attachment staging did not complete");
 				}
-				await input.prisma.$transaction(async (tx) => {
-					await lockMutation(
-						tx,
-						`capture-save:${input.actorId}:${command.idempotencyKey}`
+				try {
+					await withPrismaWriteRetry(() =>
+						input.prisma.$transaction(async (tx) => {
+							await lockMutation(
+								tx,
+								`capture-save:${input.actorId}:${command.idempotencyKey}`
+							);
+							const receipt = await readDurableReceipt(
+								tx,
+								command.idempotencyKey,
+								payload
+							);
+							if (receipt?.kind === "conflict") {
+								throw new Error("capture-save-conflict");
+							}
+							if (
+								receipt?.kind === "replay" &&
+								!pendingSaveItemId(receipt.resultValue)
+							) {
+								return;
+							}
+							await tx.captureInboxItem.update({
+								data: { attachmentRef: stagedAttachment.stagingId },
+								where: { id: item.id },
+							});
+							await tx.mutationReceipt.update({
+								data: {
+									payloadFingerprint: payloadFingerprint(payload),
+									resultValue: JSON.stringify(outcome),
+									targetId: item.id,
+								},
+								where: { commandKey: command.idempotencyKey },
+							});
+						})
 					);
-					const receipt = await readDurableReceipt(
-						tx,
+				} catch (error) {
+					if (!isUniqueConstraint(error)) {
+						throw error;
+					}
+					const winner = await readDurableReceipt(
+						input.prisma,
 						command.idempotencyKey,
 						payload
 					);
-					if (receipt) {
-						return;
+					if (
+						winner?.kind !== "replay" ||
+						pendingSaveItemId(winner.resultValue)
+					) {
+						throw error;
 					}
-					await tx.captureInboxItem.update({
-						data: { attachmentRef: stagedAttachment.stagingId },
+					await store.deleteByInboxItemId(item.id).catch(() => undefined);
+					await input.prisma.captureInboxItem.deleteMany({
 						where: { id: item.id },
 					});
-					await writeDurableReceipt(tx, {
-						actorId: input.actorId,
-						commandKey: command.idempotencyKey,
-						kind: "save",
-						payload,
-						resultValue: JSON.stringify(outcome),
-						targetId: item.id,
-					});
-				});
+					return reviveSaveOutcome(
+						JSON.parse(winner.resultValue) as SaveCaptureOutcome
+					);
+				}
 			}
 			lastSuccessfulSaveAt = capturedAt;
 			return outcome;
