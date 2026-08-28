@@ -225,5 +225,8 @@ function sourceLabel(
 			return `${work.key} ${work.title}`;
 		}
 	}
+	if (source.kind === "Question") {
+		return `Open Question ${source.id}`;
+	}
 	return `${source.kind} ${source.id}`;
 }

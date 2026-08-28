@@ -137,7 +137,7 @@ describe("Work Blockers", () => {
 		);
 	});
 
-	it("establishes an Active Work-to-Work Engellers relation as a readable blocker fact", async () => {
+	it("establishes an Active Work-to-Work Engeller relation as a readable blocker fact", async () => {
 		const { actorId, project, workspaceId } = await openPayments(prisma);
 		const source = await createNamedWork(
 			prisma,

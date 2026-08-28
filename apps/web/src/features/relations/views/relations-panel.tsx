@@ -9,6 +9,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
+import { BLOCKERS_COPY } from "@/features/blockers/views/blockers-copy";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -66,12 +67,15 @@ export default function RelationsPanel({
 			input: { id: workId, kind: "Work" },
 		})
 	);
+	const related = (listed.data ?? []).filter(
+		(row) => row.type !== BLOCKERS_COPY.blocks
+	);
 	return (
 		<section className="flex flex-col gap-3">
 			<h3 className="font-medium text-sm">{RELATIONS_COPY.related}</h3>
-			{listed.data && listed.data.length > 0 ? (
+			{related.length > 0 ? (
 				<ul className="flex flex-col gap-2 text-sm">
-					{listed.data.map((relation) => (
+					{related.map((relation) => (
 						<RelationRow
 							key={relation.id}
 							onOpenSourceRecord={onOpenSourceRecord}
