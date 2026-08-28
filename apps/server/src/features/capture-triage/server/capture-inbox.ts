@@ -939,7 +939,9 @@ export function createCaptureInbox(input: {
 						item = toItemView(reloaded);
 					}
 				} catch (error) {
-					await store.deleteByInboxItemId(item.id).catch(() => undefined);
+					await Promise.resolve(store.deleteByInboxItemId(item.id)).catch(
+						() => undefined
+					);
 					await input.prisma.$transaction(async (tx) => {
 						await tx.captureInboxItem.deleteMany({ where: { id: item.id } });
 						await tx.mutationReceipt.deleteMany({
