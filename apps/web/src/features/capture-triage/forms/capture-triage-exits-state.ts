@@ -1,3 +1,5 @@
+import { CLIENT_SHELL_COPY } from "@cantiara/api/client-shell-failure";
+
 export type ConvertTargetKind = "work" | "document" | "file-attachment";
 
 export interface SimilarMatchView {
@@ -52,6 +54,31 @@ export function convertTargetScopeLine(scope: {
 	return scope.projectId
 		? `${scope.heading} ${scope.projectId}`
 		: scope.heading;
+}
+
+export function convertFinalizeFailedLine(explanation?: {
+	reason: string;
+	retryBound: "none" | "once";
+	supportReference: string;
+	written: boolean;
+}): string {
+	if (!explanation) {
+		return `${CLIENT_SHELL_COPY.failed} ${CLIENT_SHELL_COPY.notWritten} ${CLIENT_SHELL_COPY.retryOnce}`;
+	}
+	const retry =
+		explanation.retryBound === "none"
+			? CLIENT_SHELL_COPY.doNotRetry
+			: CLIENT_SHELL_COPY.retryOnce;
+	const reference = explanation.supportReference
+		? `${CLIENT_SHELL_COPY.supportReference} ${explanation.supportReference}`
+		: "";
+	return [
+		`${explanation.reason} ${CLIENT_SHELL_COPY.notWritten}`,
+		retry,
+		reference,
+	]
+		.filter((part) => part.length > 0)
+		.join(" ");
 }
 
 export interface MergeUndoPreviewLine {

@@ -474,6 +474,10 @@ function fileAttachmentPromoteAdapter(
 	return async (
 		command: FileAttachmentPromotionCommand
 	): Promise<FileAttachmentPromotionResult> => {
+		const { kind, projectId } = command.targetScope;
+		if (kind === "project" && !projectId) {
+			return { status: "failed", visibleAttachment: null };
+		}
 		const outcome = await promoteCaptureAttachment(
 			prisma,
 			{
@@ -483,11 +487,10 @@ function fileAttachmentPromoteAdapter(
 				payload: {
 					inboxItemId: command.item.id,
 					scope:
-						command.targetScope.kind === "project" &&
-						command.targetScope.projectId
+						kind === "project" && projectId
 							? {
 									kind: FILE_SCOPE_KIND.project,
-									projectId: command.targetScope.projectId,
+									projectId,
 								}
 							: { kind: FILE_SCOPE_KIND.personalWiki },
 				},

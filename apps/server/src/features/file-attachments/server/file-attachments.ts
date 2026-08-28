@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 
-import { issueMainFlowFailure } from "@cantiara/api/client-shell-failure";
+import {
+	CLIENT_SHELL_COPY,
+	issueMainFlowFailure,
+} from "@cantiara/api/client-shell-failure";
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
 import {
@@ -1092,7 +1095,7 @@ function promotionReason(reason: string): string {
 	) {
 		return reason;
 	}
-	return FILE_ATTACHMENT_COPY.typeRejected;
+	return CLIENT_SHELL_COPY.failed;
 }
 
 function failedPromotion(

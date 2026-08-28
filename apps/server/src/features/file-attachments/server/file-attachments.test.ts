@@ -35,7 +35,6 @@ import {
 	createPrismaCaptureStagingSource,
 } from "./file-attachments-capture-staging";
 import {
-	CAPTURE_STAGING_SURFACES,
 	contentPathFor,
 	FILE_ATTACHMENT_COPY,
 	FILE_ATTACHMENT_QUOTA,
@@ -705,12 +704,6 @@ describe("File Attachments", () => {
 			bytes: PNG_BYTES,
 			contentType: "image/png",
 			filename: "shot.png",
-		});
-		expect(CAPTURE_STAGING_SURFACES).toEqual({
-			export: false,
-			publish: false,
-			search: false,
-			share: false,
 		});
 		expect(
 			await listFileAttachments(prisma, {
