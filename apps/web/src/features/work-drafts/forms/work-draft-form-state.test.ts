@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 import {
 	customFieldWidgetsFromDefinitions,
 	EMPTY_WORK_DRAFT_FORM,
+	resumeListedDraft,
 	shouldAutosaveWorkDraft,
 	workDraftFormForAutosave,
 	workDraftFormFromDraft,
@@ -72,6 +73,28 @@ test("resume restores Draft form state without a Work key", () => {
 		projectId: "",
 		title: "Unfinished",
 		type: "Research",
+	});
+});
+
+test("Resume fills the form from the listed Draft, not a second fetch", () => {
+	expect(
+		resumeListedDraft({
+			form: {
+				customFieldValues: { severity: "High" },
+				projectId: "proj-payments",
+				title: "HelloIAm",
+				type: "Task",
+			},
+			id: "draft-hello",
+		})
+	).toEqual({
+		draftId: "draft-hello",
+		form: {
+			customFieldValues: { severity: "High" },
+			projectId: "proj-payments",
+			title: "HelloIAm",
+			type: "Task",
+		},
 	});
 });
 

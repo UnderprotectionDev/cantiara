@@ -9,15 +9,32 @@ import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
 import WorkDraftForm from "../forms/work-draft-form";
+import {
+	resumeListedDraft,
+	type WorkDraftFormValues,
+} from "../forms/work-draft-form-state";
 import { WORK_DRAFTS_COPY } from "../forms/work-drafts-copy";
 import { draftsListPresentation } from "./drafts-list-presentation";
+
+interface ListedDraft {
+	form: {
+		customFieldValues: Record<string, string>;
+		projectId: string | null;
+		title: string;
+		type: WorkDraftFormValues["type"];
+	};
+	id: string;
+}
 
 export default function DraftsArea() {
 	const { attemptOnlineWork, markUnsaved } = useClientShell();
 	const catalog = useQuery(orpc.workDrafts.catalog.queryOptions());
 	const list = useQuery(orpc.workDrafts.list.queryOptions());
 	const [draftId, setDraftId] = useState<string | null>(null);
-	const [resumeKey, setResumeKey] = useState<string | null>(null);
+	const [formInstance, setFormInstance] = useState(0);
+	const [initialForm, setInitialForm] = useState<
+		WorkDraftFormValues | undefined
+	>();
 	const copy = catalog.data?.copy ?? WORK_DRAFTS_COPY;
 	const remove = useMutation(
 		orpc.workDrafts.delete.mutationOptions({
@@ -28,9 +45,11 @@ export default function DraftsArea() {
 			},
 		})
 	);
-	const onResume = useCallback((id: string) => {
-		setDraftId(id);
-		setResumeKey(id);
+	const onResume = useCallback((draft: ListedDraft) => {
+		const resumed = resumeListedDraft(draft);
+		setDraftId(resumed.draftId);
+		setInitialForm(resumed.form);
+		setFormInstance((current) => current + 1);
 	}, []);
 	const onDelete = useCallback(
 		(id: string) => {
@@ -46,20 +65,25 @@ export default function DraftsArea() {
 			}
 			result.value
 				.then(() => {
-					setDraftId((current) => (current === id ? null : current));
-					setResumeKey((current) => (current === id ? null : current));
+					if (draftId !== id) {
+						return;
+					}
+					setDraftId(null);
+					setInitialForm(undefined);
+					setFormInstance((current) => current + 1);
 				})
 				.catch(() => undefined);
 		},
-		[attemptOnlineWork, markUnsaved, remove]
+		[attemptOnlineWork, draftId, markUnsaved, remove]
 	);
 
 	return (
 		<FounderPage title={copy.drafts} wide>
 			<WorkDraftForm
 				draftId={draftId}
+				initialForm={initialForm}
+				key={formInstance}
 				onDraftId={setDraftId}
-				resumeKey={resumeKey}
 			/>
 			<DraftsList
 				copy={copy}
@@ -79,12 +103,12 @@ function DraftsList({
 }: {
 	copy: typeof WORK_DRAFTS_COPY;
 	list: {
-		data: ReadonlyArray<{ form: { title: string }; id: string }> | undefined;
+		data: readonly ListedDraft[] | undefined;
 		isError: boolean;
 		isPending: boolean;
 	};
 	onDelete: (id: string) => void;
-	onResume: (id: string) => void;
+	onResume: (draft: ListedDraft) => void;
 }) {
 	const presentation = draftsListPresentation(list);
 	if (presentation.kind === "failed") {
@@ -118,13 +142,13 @@ function DraftListItem({
 	onResume,
 }: {
 	copy: typeof WORK_DRAFTS_COPY;
-	draft: { form: { title: string }; id: string };
+	draft: ListedDraft;
 	onDelete: (id: string) => void;
-	onResume: (id: string) => void;
+	onResume: (draft: ListedDraft) => void;
 }) {
 	const resume = useCallback(() => {
-		onResume(draft.id);
-	}, [draft.id, onResume]);
+		onResume(draft);
+	}, [draft, onResume]);
 	const remove = useCallback(() => {
 		onDelete(draft.id);
 	}, [draft.id, onDelete]);

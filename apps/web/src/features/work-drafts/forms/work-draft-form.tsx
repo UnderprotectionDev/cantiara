@@ -9,7 +9,7 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useDebouncer } from "@tanstack/react-pacer";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
@@ -28,7 +28,6 @@ import {
 	type WorkCustomFieldWidget,
 	type WorkDraftFormValues,
 	workDraftFormForAutosave,
-	workDraftFormFromDraft,
 } from "./work-draft-form-state";
 
 const AUTOSAVE_WAIT_MS = 400;
@@ -36,17 +35,17 @@ const AUTOSAVE_WAIT_MS = 400;
 export default function WorkDraftForm({
 	createDisabled,
 	draftId,
+	initialForm,
 	lockProjectId,
 	onCreate,
 	onDraftId,
-	resumeKey,
 }: {
 	createDisabled?: boolean;
 	draftId: string | null;
+	initialForm?: WorkDraftFormValues;
 	lockProjectId?: string;
 	onCreate?: (values: WorkDraftFormValues) => void;
 	onDraftId: (draftId: string) => void;
-	resumeKey?: string | null;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const draftIdRef = useRef(draftId);
@@ -56,7 +55,8 @@ export default function WorkDraftForm({
 	const form = useForm({
 		defaultValues: {
 			...EMPTY_WORK_DRAFT_FORM,
-			projectId: lockProjectId ?? "",
+			...initialForm,
+			projectId: lockProjectId ?? initialForm?.projectId ?? "",
 		} satisfies WorkDraftFormValues,
 	});
 	const values = useStore(form.store, (state) => state.values);
@@ -103,19 +103,6 @@ export default function WorkDraftForm({
 		[attemptOnlineWork, autosave, markUnsaved]
 	);
 	const debouncer = useDebouncer(runAutosave, { wait: AUTOSAVE_WAIT_MS });
-	const resume = useQuery({
-		...orpc.workDrafts.resume.queryOptions({
-			input: { draftId: resumeKey ?? "" },
-		}),
-		enabled: Boolean(resumeKey),
-	});
-
-	useEffect(() => {
-		if (!resume.data) {
-			return;
-		}
-		form.reset(workDraftFormFromDraft(resume.data));
-	}, [form, resume.data]);
 
 	const onTitleChange = useCallback(
 		(event: ChangeEvent<HTMLInputElement>) => {

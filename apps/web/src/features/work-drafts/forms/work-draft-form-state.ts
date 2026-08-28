@@ -64,6 +64,21 @@ export function workDraftFormFromDraft(draft: {
 	};
 }
 
+export function resumeListedDraft(draft: {
+	form: {
+		customFieldValues: Record<string, string>;
+		projectId: string | null;
+		title: string;
+		type: WorkType;
+	};
+	id: string;
+}): { draftId: string; form: WorkDraftFormValues } {
+	return {
+		draftId: draft.id,
+		form: workDraftFormFromDraft(draft),
+	};
+}
+
 export function customFieldWidgetsFromDefinitions(
 	definitions: readonly WorkCustomFieldWidget[]
 ): readonly WorkCustomFieldWidget[] {
