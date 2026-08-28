@@ -157,6 +157,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kaldır | `Remove` | Standart ilişkiyi güvenli geri alma ile kaldırma |
 | Açıklama | `Description` | İşin taşınabilir gövde alanı |
 | Hafif kontrol listesi | `Checklist` | İşteki metin maddeleri; bağımsız İş değildir |
+| Kontrol listesi maddesi | `Item` | Hafif listedeki metin alanı; İş başlığı değildir |
+| Madde ekle | `Add item` | Hafif kontrol listesine metin maddesi ekleme |
 | Başka Projede yeniden oluştur | `Recreate in another Project` | Yanlış Projede oluşan İşten hedefte yeni kimlikli İş üretme; taşıma değildir |
 | Başlık | `Title` | İş oluştururken zorunlu alan |
 | Tür | `Type` | İş türü alanı |

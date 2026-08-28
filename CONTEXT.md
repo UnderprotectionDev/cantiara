@@ -136,6 +136,10 @@ _Avoid_: Kart, görünüm satırı, sahipli bileşen
 Bir Projede yapılması, araştırılması veya iyileştirilmesi amaçlanan şeyi bağımsız kimlik, durum ve geçmişle taşıyan genel ana kayıt; [İş türleri](docs/prd/02-domain-model-and-lifecycle.md#terim-sözlüğü) onun altında yaşar.
 _Avoid_: Görev, ticket, yalnız yapılacak madde
 
+**Hafif kontrol listesi**:
+İş üzerindeki, yalnız metin ve tamamlanma işareti taşıyan sahipli bileşen; bağımsız ana kayıt, İş durumu veya planlama üyeliği değildir ([Hafif iş kontrol listeleri](docs/prd/06-work-management-and-planning.md#hafif-iş-kontrol-listeleri)). UI: `Checklist`.
+_Avoid_: subtask, epic, checklist-as-Work, Test Scenario, Handoff
+
 **Özellik**:
 Bir kullanıcı yeteneğini veya ürün değişikliğini temsil eden ve [başka bağımsız İşleri kapsayabilen](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı) İş türü; iç içe epic veya subtask hiyerarşisi değildir.
 _Avoid_: Epic, Proje, Kilometre Taşı
