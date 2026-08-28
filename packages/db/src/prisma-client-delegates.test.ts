@@ -81,6 +81,7 @@ describe("Prisma client current delegates", () => {
 				...workDelegates(),
 				...currentLifecycleDelegates(),
 				fileAttachment: { findMany },
+				fileImageDerivative: { findMany },
 				tag: { findMany },
 				tagInlineUse: { findMany },
 				usageHostEmbed: { findMany },
