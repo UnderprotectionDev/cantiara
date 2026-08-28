@@ -6,10 +6,12 @@ import {
 	DefaultVideoLayout,
 	defaultLayoutIcons,
 } from "@vidstack/react/player/layouts/default";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 
 import { FILE_ATTACHMENT_COPY } from "../forms/file-attachments-copy";
+import FileMarkingOverlay from "./file-marking-overlay";
 import { fetchProductMedia } from "./file-preview-media";
 import {
 	filePreviewKind,
@@ -50,11 +52,17 @@ interface Preview {
 export default function FilePreview({
 	contentPath,
 	kind,
+	marking,
 	preview,
 	title,
 }: {
 	contentPath: string;
 	kind: string;
+	marking?: {
+		projectId: string | null;
+		scope: { kind: string; projectId?: string };
+		versionId: string;
+	};
 	preview: Preview;
 	title: string;
 }) {
@@ -88,18 +96,27 @@ export default function FilePreview({
 		);
 	}
 	if (surface === "visual" && preview.previewPath) {
-		return (
+		return withMarking(
 			<ProductMedia
 				alt={title}
 				className="mx-auto max-h-[28rem] w-full object-contain"
 				height={384}
 				href={preview.previewPath}
 				width={640}
-			/>
+			/>,
+			kind,
+			marking
 		);
 	}
 	if (surface === "paged" && preview.previewPath) {
-		return <PdfPreview src={preview.previewPath} title={title} />;
+		return (
+			<PdfPreview
+				kind={kind}
+				marking={marking}
+				src={preview.previewPath}
+				title={title}
+			/>
+		);
 	}
 	if (surface === "csv" && preview.csvRows) {
 		return (
@@ -137,6 +154,34 @@ export default function FilePreview({
 		<p className="text-muted-foreground text-xs" role="status">
 			{FILE_ATTACHMENT_COPY.unavailable}
 		</p>
+	);
+}
+
+function withMarking(
+	child: ReactNode,
+	fileKind: string,
+	marking:
+		| {
+				projectId: string | null;
+				scope: { kind: string; projectId?: string };
+				versionId: string;
+		  }
+		| undefined,
+	page?: number
+) {
+	if (!marking) {
+		return child;
+	}
+	return (
+		<FileMarkingOverlay
+			fileKind={fileKind}
+			page={page}
+			projectId={marking.projectId}
+			scope={marking.scope}
+			versionId={marking.versionId}
+		>
+			{child}
+		</FileMarkingOverlay>
 	);
 }
 
@@ -251,7 +296,21 @@ function PlaybackPreview({
 	);
 }
 
-function PdfPreview({ src, title }: { src: string; title: string }) {
+function PdfPreview({
+	kind,
+	marking,
+	src,
+	title,
+}: {
+	kind: string;
+	marking?: {
+		projectId: string | null;
+		scope: { kind: string; projectId?: string };
+		versionId: string;
+	};
+	src: string;
+	title: string;
+}) {
 	const [page, setPage] = useState(1);
 	const [pages, setPages] = useState(1);
 	const onLoad = useCallback(({ numPages }: { numPages: number }) => {
@@ -264,11 +323,14 @@ function PdfPreview({ src, title }: { src: string; title: string }) {
 		setPage((current) => Math.min(pages, current + 1));
 	}, [pages]);
 	const objectUrl = useProductObjectUrl(src);
+	const pageView = (
+		<Document file={objectUrl ?? src} onLoadSuccess={onLoad}>
+			<Page pageNumber={page} width={480} />
+		</Document>
+	);
 	return (
 		<div className="flex flex-col gap-2">
-			<Document file={objectUrl ?? src} onLoadSuccess={onLoad}>
-				<Page pageNumber={page} width={480} />
-			</Document>
+			{withMarking(pageView, kind, marking, page)}
 			<div className="flex gap-2">
 				<Button onClick={previous} type="button" variant="ghost">
 					{FILE_ATTACHMENT_COPY.previous}

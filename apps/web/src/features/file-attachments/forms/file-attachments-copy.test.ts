@@ -18,6 +18,24 @@ test("English File Attachment labels stay File Attachment, Upload new version, F
 	expect(FILE_ATTACHMENT_COPY.selectFileAttachment).toBe(
 		"Select a File Attachment"
 	);
+	expect(FILE_ATTACHMENT_COPY.pen).toBe("Pen");
+	expect(FILE_ATTACHMENT_COPY.highlighter).toBe("Highlighter");
+	expect(FILE_ATTACHMENT_COPY.arrow).toBe("Arrow");
+	expect(FILE_ATTACHMENT_COPY.rectangle).toBe("Rectangle");
+	expect(FILE_ATTACHMENT_COPY.originLocation).toBe("Origin Location");
+	expect(FILE_ATTACHMENT_COPY.markingLayer).toBe("Marking layer");
+	expect(FILE_ATTACHMENT_COPY.sourceVisual).toBe("Source visual");
+	expect(FILE_ATTACHMENT_COPY.point).toBe("Point");
+	expect(FILE_ATTACHMENT_COPY.region).toBe("Region");
+	expect(FILE_ATTACHMENT_COPY.newWork).toBe("New Work");
+	expect(FILE_ATTACHMENT_COPY.existingWork).toBe("Existing Work");
+	expect(FILE_ATTACHMENT_COPY.confirm).toBe("Confirm");
+	expect(FILE_ATTACHMENT_COPY.previewRequired).toBe(
+		"Preview the Origin Location bind before confirming."
+	);
+	expect(FILE_ATTACHMENT_COPY.workRequiresProject).toBe(
+		"Origin Location binds to Work in a Project."
+	);
 	expect(fileScopeFor("project-1")).toEqual({
 		kind: "project",
 		projectId: "project-1",

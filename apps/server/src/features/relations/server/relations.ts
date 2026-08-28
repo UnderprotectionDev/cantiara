@@ -1272,6 +1272,9 @@ async function presentEnd(
 			workStatus: work.status,
 		};
 	}
+	if (input.kind === "File Attachment") {
+		return await presentFileAttachmentEnd(db, input);
+	}
 	if (input.kind === "Capture") {
 		const capture = await db.captureInboxItem.findUnique({
 			where: { id: input.id },
@@ -1300,6 +1303,34 @@ async function presentEnd(
 		};
 	}
 	return brokenEnd(input, { reason: RELATIONS_COPY.permanentlyDeleted });
+}
+
+async function presentFileAttachmentEnd(
+	db: PrismaClient | PrismaTransaction,
+	input: {
+		establishedAt: string;
+		id: string;
+		kind: RecordKind;
+		overrides: Record<string, EndLifecycleOverride>;
+		viewerWorkspaceId: string;
+	}
+): Promise<PresentedEnd> {
+	const file = await db.fileAttachment.findUnique({
+		where: { id: input.id },
+	});
+	if (!file) {
+		return brokenEnd(input, { reason: RELATIONS_COPY.permanentlyDeleted });
+	}
+	if (file.workspaceId !== input.viewerWorkspaceId) {
+		return brokenEnd(input, { reason: RELATIONS_COPY.noAccess });
+	}
+	return {
+		id: file.id,
+		kind: "File Attachment",
+		openSourceRecord: true,
+		status: "resolved",
+		title: file.title,
+	};
 }
 
 function brokenEnd(

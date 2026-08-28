@@ -162,9 +162,11 @@ function SelectedFileCard({
 		contentPath: string;
 		currentVersion: Parameters<typeof previewFromVersion>[0] & {
 			filename?: string;
+			id: string;
 		};
 		id: string;
 		kind: string;
+		scope: { kind: string; projectId?: string };
 		title: string;
 		versions: Array<{
 			contentPath: string;
@@ -205,6 +207,15 @@ function SelectedFileCard({
 					<FilePreview
 						contentPath={downloadHref}
 						kind={selected.kind}
+						marking={
+							selected.kind === "image" || selected.kind === "pdf"
+								? {
+										projectId,
+										scope: selected.scope,
+										versionId: selected.currentVersion.id,
+									}
+								: undefined
+						}
 						preview={{
 							...preview,
 							galleryThumbnailPath: absoluteProductPath(

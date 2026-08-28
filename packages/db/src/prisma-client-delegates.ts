@@ -31,3 +31,40 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.fileImageDerivative?.findMany === "function"
 	);
 }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function modelFieldNames(client: PrismaClient, model: string): string[] {
+	const runtime = client as { _runtimeDataModel?: unknown };
+	if (!isRecord(runtime._runtimeDataModel)) {
+		return [];
+	}
+	const { models } = runtime._runtimeDataModel;
+	if (!(isRecord(models) && isRecord(models[model]))) {
+		return [];
+	}
+	const { fields } = models[model];
+	if (!Array.isArray(fields)) {
+		return [];
+	}
+	return fields.flatMap((field) => {
+		if (isRecord(field) && typeof field.name === "string") {
+			return [field.name];
+		}
+		return [];
+	});
+}
+
+export function prismaClientHasCurrentFileAttachmentVersionModel(
+	client: PrismaClient
+): boolean {
+	const fields = modelFieldNames(client, "FileAttachmentVersion");
+	if (fields.length === 0) {
+		return true;
+	}
+	return (
+		fields.includes("markingMarks") && fields.includes("shareItemApprovals")
+	);
+}

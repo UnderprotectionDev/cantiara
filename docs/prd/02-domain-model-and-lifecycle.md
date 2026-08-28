@@ -219,6 +219,18 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Diğer oturumları iptal et | `Revoke Other Sessions` | Geçerli oturum dışındaki bütün ürün oturumlarını derhal yetkisiz bırakma eylemi |
 | Kullanıcı başlatmalı İş başarısı | `User-initiated Work Success` | Kullanıcının açık kapatma eylemiyle başlattığı ve sunucuda PRD terimi `Tamamlandı` (`UI: Completed`) kapanış sonucu olarak kesinleşen İş geçişi; otomatik kapanış ve başka terminal olaylar değildir |
 | Köken konumu | `Origin Location` | Sahipli bileşenden üretilen kaydın kesin kaynak öğe işaretidir; bağımsız ilişki ucu değildir |
+| İşaretleme katmanı | `Marking layer` | Kesin Dosya Eki sürümüne bağlı, özgün dosyadan ayrı geri alınabilir görsel not |
+| Kaynak görsel | `Source visual` | Paylaşım/yayın önizlemesinde işaretlemeden ayrı onaylanan görsel öğe |
+| Kalem | `Pen` | İşaretleme katmanı aracı |
+| Vurgulayıcı | `Highlighter` | İşaretleme katmanı aracı |
+| Ok | `Arrow` | İşaretleme katmanı aracı |
+| Dikdörtgen | `Rectangle` | İşaretleme katmanı aracı |
+| Köken olarak bağla | `Bind as origin` | Seçilen nokta veya bölgeyi İşe Köken konumu olarak bağlama |
+| Nokta | `Point` | Görsel veya PDF üzerinde tek konum seçimi |
+| Bölge | `Region` | Görsel veya PDF üzerinde dikdörtgen konum seçimi |
+| Yeni İş | `New Work` | Köken konumunu yeni tam İşe bağlama |
+| Mevcut İş | `Existing Work` | Köken konumunu var olan tam İşe bağlama |
+| Onayla | `Confirm` | Köken konumu önizlemesini uygulayan eylem |
 | Hedefe katkı | `Contributes to Goal` | İş, Kilometre Taşı veya Proje Sürümünün Proje Hedefine türlenmiş katkı ilişkisidir |
 | Çalışma Alanı çıkış paketi | `Workspace Exit Package` | Kullanıcı parolasıyla şifrelenmiş tam Çalışma Alanı arşividir; ürün içi restore değildir |
 | Destek referansı | `Support reference` | Başarısız ana akışta secret veya özel içerik taşımayan sunucu takip kimliği |

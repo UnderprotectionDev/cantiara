@@ -15,9 +15,19 @@ import {
 	stageFileUpload,
 } from "./file-attachments";
 import {
+	appendMark,
+	approveSharePublishItem,
+	confirmLocationWorkBind,
+	getMarkingLayer,
+	listSharePublishItems,
+	previewLocationWorkBind,
+	undoMark,
+} from "./file-attachments-marking";
+import {
 	EXTERNAL_SURFACE_AUDIENCE,
 	FILE_ATTACHMENT_COPY,
 	fileScopeSchema,
+	locationGeometrySchema,
 	stageFileUploadCommandSchema,
 } from "./file-attachments-model";
 import { fileCanEnterExternalSurface } from "./file-attachments-preview";
@@ -35,6 +45,56 @@ const scopeInput = z.object({
 });
 
 export const fileAttachments = {
+	appendMark: protectedWriteProcedure
+		.input(
+			z.object({
+				geometry: z.record(z.string(), z.unknown()),
+				page: z.number().int().positive().optional(),
+				tool: z.string().min(1),
+				versionId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await requireAccess(context.session.user.id);
+			return await appendMark(getPrismaClient(), input);
+		}),
+	approveSharePublishItem: protectedWriteProcedure
+		.input(
+			z.object({
+				kind: z.string().min(1),
+				versionId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await requireAccess(context.session.user.id);
+			return await approveSharePublishItem(getPrismaClient(), input);
+		}),
+	bindLocation: protectedWriteProcedure
+		.input(
+			z.object({
+				existingWorkId: z.string().min(1).optional(),
+				geometry: locationGeometrySchema,
+				idempotencyKey: z.string().min(1),
+				previewAcknowledged: z.boolean(),
+				surface: z.string().min(1),
+				title: z.string().optional(),
+				versionId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await confirmLocationWorkBind(getPrismaClient(), {
+				actorId: access.accountId,
+				existingWorkId: input.existingWorkId,
+				geometry: input.geometry,
+				idempotencyKey: input.idempotencyKey,
+				previewAcknowledged: input.previewAcknowledged,
+				surface: input.surface,
+				title: input.title,
+				versionId: input.versionId,
+				workspaceId: access.workspaceId,
+			});
+		}),
 	cancel: protectedWriteProcedure
 		.input(z.object({ operationId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -74,6 +134,12 @@ export const fileAttachments = {
 			}
 			return file;
 		}),
+	getMarkingLayer: protectedProcedure
+		.input(z.object({ versionId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			await requireAccess(context.session.user.id);
+			return await getMarkingLayer(getPrismaClient(), input.versionId);
+		}),
 	list: protectedProcedure
 		.input(scopeInput)
 		.handler(async ({ context, input }) => {
@@ -82,6 +148,34 @@ export const fileAttachments = {
 				scope: input.scope,
 				workspaceId: access.workspaceId,
 			});
+		}),
+	listSharePublishItems: protectedProcedure
+		.input(z.object({ versionId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			await requireAccess(context.session.user.id);
+			return await listSharePublishItems(getPrismaClient(), input.versionId);
+		}),
+	previewLocationBind: protectedProcedure
+		.input(
+			z.object({
+				existingWork: z
+					.object({ id: z.string().min(1), title: z.string().min(1) })
+					.nullable()
+					.optional(),
+				fileKind: z.string().min(1),
+				geometry: locationGeometrySchema,
+				scope: z.object({
+					kind: z.string().min(1),
+					projectId: z.string().min(1).optional(),
+				}),
+				surface: z.string().min(1),
+				title: z.string().optional(),
+				versionId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await requireAccess(context.session.user.id);
+			return previewLocationWorkBind(input);
 		}),
 	previewNewVersion: protectedProcedure
 		.input(
@@ -131,6 +225,12 @@ export const fileAttachments = {
 				payload: input.payload,
 				workspaceId: access.workspaceId,
 			});
+		}),
+	undoMark: protectedWriteProcedure
+		.input(z.object({ versionId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			await requireAccess(context.session.user.id);
+			return await undoMark(getPrismaClient(), input.versionId);
 		}),
 	zipExternalSurfaceAllowed: protectedProcedure
 		.input(

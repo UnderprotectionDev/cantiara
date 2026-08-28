@@ -1,7 +1,8 @@
 /**
  * File Attachments seam — accept/reject, quota, atomic finalize,
  * version pins, retry idempotency, isolated preview, derived Gallery thumbnails,
- * and Capture attachment promotion. Synthetic `Dosya sınırları` fixture for
+ * Capture attachment promotion, marking layer, and location-bound Work origin.
+ * Synthetic `Dosya sınırları` fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Dosya güvenliği).
  */
@@ -12,6 +13,12 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { envelopeSeal } from "../../capture-triage/server/capture-staging-crypto";
 import { createProject } from "../../project-shell/server/project-shell";
+import { listRelations } from "../../relations/server/relations";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
+import {
+	createWork,
+	listWork,
+} from "../../work-lifecycle/server/work-lifecycle";
 import {
 	cancelFileUpload,
 	discardCaptureStaging,
@@ -39,6 +46,15 @@ import {
 } from "./file-attachments-capture-staging";
 import type { ImageDerivativeEngine } from "./file-attachments-derivatives";
 import {
+	appendMark,
+	approveSharePublishItem,
+	confirmLocationWorkBind,
+	getMarkingLayer,
+	listSharePublishItems,
+	previewLocationWorkBind,
+	undoMark,
+} from "./file-attachments-marking";
+import {
 	CSV_PREVIEW_MAX_ROWS,
 	contentPathFor,
 	EXTERNAL_SURFACE_AUDIENCE,
@@ -49,9 +65,13 @@ import {
 	FILE_PIN_KIND,
 	FILE_TYPE_INTEGRITY_BUDGET_MS,
 	IMAGE_DERIVATIVE_LIMITS,
+	LOCATION_SURFACE,
+	MARKING_TOOLS,
+	ORIGIN_LOCATION_KIND,
 	PREVIEW_MODE,
 	PREVIEW_STATUS,
 	previewPathFor,
+	SHARE_PUBLISH_ITEM_KIND,
 	STAGING_TTL_MS,
 	THUMBNAIL_SIZE,
 	thumbnailPathFor,
@@ -281,6 +301,7 @@ describe("File Attachments", () => {
 		await prisma.fileObjectBlob.deleteMany();
 		await prisma.fileImageDerivative.deleteMany();
 		await prisma.fileAttachmentStaging.deleteMany();
+		await prisma.typedRelation.deleteMany();
 		await prisma.fileAttachment.deleteMany();
 		await prisma.captureStagingObject.deleteMany();
 		await prisma.captureInboxItem.deleteMany();
@@ -1459,5 +1480,359 @@ describe("File Attachments", () => {
 				})
 			).map((row) => row.id)
 		).toEqual([promoted.file.id]);
+	});
+
+	it("keeps marking on a separate undoable layer pinned to the exact version", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const created = await commitPng(prisma, {
+			actorId,
+			idempotencyKey: "mark-v1",
+			projectId: project.id,
+			workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			return;
+		}
+		const { contentHash: hash, id: versionId } = created.file.currentVersion;
+		const { objectKey } = await prisma.fileAttachmentVersion.findUniqueOrThrow({
+			where: { id: versionId },
+		});
+		const marked = await appendMark(prisma, {
+			geometry: { points: [0.1, 0.1, 0.4, 0.4] },
+			tool: MARKING_TOOLS.pen,
+			versionId,
+		});
+		expect(marked.status).toBe("committed");
+		if (marked.status !== "committed") {
+			return;
+		}
+		expect(marked.layer.marks.map((mark) => mark.tool)).toEqual([
+			MARKING_TOOLS.pen,
+		]);
+		await appendMark(prisma, {
+			geometry: { height: 0.2, width: 0.3, x: 0.2, y: 0.2 },
+			tool: MARKING_TOOLS.rectangle,
+			versionId,
+		});
+		await appendMark(prisma, {
+			geometry: { x1: 0.1, x2: 0.9, y1: 0.8, y2: 0.2 },
+			tool: MARKING_TOOLS.arrow,
+			versionId,
+		});
+		await appendMark(prisma, {
+			geometry: { points: [0.2, 0.5, 0.6, 0.5] },
+			page: 2,
+			tool: MARKING_TOOLS.highlighter,
+			versionId,
+		});
+		expect(
+			await appendMark(prisma, {
+				geometry: { body: "note" },
+				tool: "comment",
+				versionId,
+			})
+		).toMatchObject({
+			reason: FILE_ATTACHMENT_COPY.typeRejected,
+			status: "rejected",
+		});
+		const layer = await getMarkingLayer(prisma, versionId);
+		expect(layer.status).toBe("committed");
+		if (layer.status !== "committed") {
+			return;
+		}
+		expect(layer.layer.marks).toHaveLength(4);
+		expect(layer.layer.marks[3]?.page).toBe(2);
+		expect(layer.layer.contentHash).toBe(hash);
+		expect(layer.layer).not.toHaveProperty("objectKey");
+		expect(
+			(
+				await prisma.fileAttachmentVersion.findUniqueOrThrow({
+					where: { id: versionId },
+				})
+			).objectKey
+		).toBe(objectKey);
+		expect(
+			(
+				await readAccessibleFileBytes(prisma, {
+					fileAttachmentId: created.file.id,
+					versionId,
+					workspaceId,
+				})
+			)?.bytes
+		).toEqual(PNG_BYTES);
+		expect(await listFileAttachmentRelations(prisma, created.file.id)).toEqual(
+			[]
+		);
+		expect(await prisma.fileAttachment.count()).toBe(1);
+		expect(
+			await prisma.fileAttachmentVersion.count({
+				where: { fileAttachmentId: created.file.id },
+			})
+		).toBe(1);
+		const undone = await undoMark(prisma, versionId);
+		expect(undone.status).toBe("committed");
+		if (undone.status !== "committed") {
+			return;
+		}
+		expect(undone.layer.marks).toHaveLength(3);
+		const next = await commitPng(prisma, {
+			actorId,
+			filename: "shot-v2.png",
+			idempotencyKey: "mark-v2",
+			projectId: project.id,
+			targetFileAttachmentId: created.file.id,
+			workspaceId,
+		});
+		expect(next.status).toBe("committed");
+		if (next.status !== "committed") {
+			return;
+		}
+		const prior = await getMarkingLayer(prisma, versionId);
+		const current = await getMarkingLayer(prisma, next.file.currentVersion.id);
+		expect(prior.status === "committed" && prior.layer.marks).toHaveLength(3);
+		expect(current.status === "committed" && current.layer.marks).toEqual([]);
+	});
+
+	it("lists source visual and marking as separate share items", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const created = await commitPng(prisma, {
+			actorId,
+			idempotencyKey: "share-items",
+			projectId: project.id,
+			workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			return;
+		}
+		const listed = await listSharePublishItems(
+			prisma,
+			created.file.currentVersion.id
+		);
+		expect(listed).toEqual({
+			items: [
+				{
+					approved: false,
+					kind: SHARE_PUBLISH_ITEM_KIND.sourceVisual,
+					label: FILE_ATTACHMENT_COPY.sourceVisual,
+				},
+				{
+					approved: false,
+					kind: SHARE_PUBLISH_ITEM_KIND.markingLayer,
+					label: FILE_ATTACHMENT_COPY.markingLayer,
+				},
+			],
+			status: "ok",
+		});
+		const approved = await approveSharePublishItem(prisma, {
+			kind: SHARE_PUBLISH_ITEM_KIND.sourceVisual,
+			versionId: created.file.currentVersion.id,
+		});
+		expect(approved.status).toBe("ok");
+		if (approved.status !== "ok") {
+			return;
+		}
+		expect(
+			approved.items.find(
+				(item) => item.kind === SHARE_PUBLISH_ITEM_KIND.sourceVisual
+			)?.approved
+		).toBe(true);
+		expect(
+			approved.items.find(
+				(item) => item.kind === SHARE_PUBLISH_ITEM_KIND.markingLayer
+			)?.approved
+		).toBe(false);
+	});
+
+	it("binds a point or region as Origin Location to Work after preview", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const created = await commitPng(prisma, {
+			actorId,
+			idempotencyKey: "origin-file",
+			projectId: project.id,
+			workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			return;
+		}
+		const versionId = created.file.currentVersion.id;
+		expect(
+			previewLocationWorkBind({
+				fileKind: FILE_KIND.image,
+				geometry: { kind: ORIGIN_LOCATION_KIND.point, x: 0.25, y: 0.4 },
+				scope: created.file.scope,
+				surface: LOCATION_SURFACE.wireframe,
+				versionId,
+			})
+		).toEqual({
+			reason: FILE_ATTACHMENT_COPY.wireframeOriginNotThisFeature,
+			status: "rejected",
+		});
+		expect(
+			await confirmLocationWorkBind(prisma, {
+				actorId,
+				geometry: { kind: ORIGIN_LOCATION_KIND.point, x: 0.25, y: 0.4 },
+				idempotencyKey: "no-preview",
+				previewAcknowledged: false,
+				surface: LOCATION_SURFACE.fileAttachment,
+				title: "Ghost observation",
+				versionId,
+				workspaceId,
+			})
+		).toEqual({
+			reason: FILE_ATTACHMENT_COPY.previewRequired,
+			status: "rejected",
+		});
+		expect(await listWork(prisma, project.id)).toEqual([]);
+		const preview = previewLocationWorkBind({
+			fileKind: FILE_KIND.image,
+			geometry: { kind: ORIGIN_LOCATION_KIND.point, x: 0.25, y: 0.4 },
+			scope: created.file.scope,
+			surface: LOCATION_SURFACE.fileAttachment,
+			title: "Hotspot bug",
+			versionId,
+		});
+		expect(preview).toMatchObject({
+			observationIsWork: false,
+			status: "ok",
+			work: { id: null, title: "Hotspot bug" },
+		});
+		const bound = await confirmLocationWorkBind(prisma, {
+			actorId,
+			geometry: { kind: ORIGIN_LOCATION_KIND.point, x: 0.25, y: 0.4 },
+			idempotencyKey: "bind-new",
+			previewAcknowledged: true,
+			surface: LOCATION_SURFACE.fileAttachment,
+			title: "Hotspot bug",
+			versionId,
+			workspaceId,
+		});
+		expect(bound.status).toBe("committed");
+		if (bound.status !== "committed") {
+			return;
+		}
+		expect(bound.observationIsWork).toBe(false);
+		expect(bound.file.scope).toEqual({
+			kind: "project",
+			projectId: project.id,
+		});
+		expect(bound.file.currentVersion.pins).toEqual([
+			{ kind: FILE_PIN_KIND.location, targetId: bound.work.id },
+		]);
+		const relations = await listRelations(prisma, {
+			record: { id: bound.work.id, kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(relations).toHaveLength(1);
+		expect(relations[0]).toMatchObject({
+			originLocation: {
+				componentId: bound.locationId,
+				missing: false,
+				sourceVersion: versionId,
+			},
+			type: RELATIONS_COPY.origin,
+		});
+		expect(relations[0]?.from.kind).toBe("File Attachment");
+		const existing = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "existing-work",
+			origin: "human",
+			payload: { projectId: project.id, title: "Already open" },
+		});
+		expect(existing.status).toBe("committed");
+		if (existing.status !== "committed") {
+			return;
+		}
+		const regionBound = await confirmLocationWorkBind(prisma, {
+			actorId,
+			existingWorkId: existing.work.id,
+			geometry: {
+				height: 0.2,
+				kind: ORIGIN_LOCATION_KIND.region,
+				width: 0.3,
+				x: 0.1,
+				y: 0.1,
+			},
+			idempotencyKey: "bind-existing",
+			previewAcknowledged: true,
+			surface: LOCATION_SURFACE.fileAttachment,
+			versionId,
+			workspaceId,
+		});
+		expect(regionBound.status).toBe("committed");
+		if (regionBound.status !== "committed") {
+			return;
+		}
+		expect(regionBound.work.id).toBe(existing.work.id);
+		const next = await commitPng(prisma, {
+			actorId,
+			filename: "later.png",
+			idempotencyKey: "origin-v2",
+			projectId: project.id,
+			targetFileAttachmentId: created.file.id,
+			workspaceId,
+		});
+		expect(next.status).toBe("committed");
+		if (next.status !== "committed") {
+			return;
+		}
+		expect(next.file.currentVersion.pins).toEqual([]);
+		expect(next.file.versions[0]?.pins).toEqual([
+			{ kind: FILE_PIN_KIND.location, targetId: bound.work.id },
+			{ kind: FILE_PIN_KIND.location, targetId: existing.work.id },
+		]);
+		expect(
+			await prisma.fileAttachmentOriginLocation.count({
+				where: { versionId: next.file.currentVersion.id },
+			})
+		).toBe(0);
+	});
+
+	it("rejects marking undo on non-visual files and wiki Origin Location bind", async () => {
+		const wikiOwner = await seedWorkspace(prisma);
+		const wiki = await commitPng(prisma, {
+			actorId: wikiOwner.actorId,
+			idempotencyKey: "wiki-origin",
+			workspaceId: wikiOwner.workspaceId,
+		});
+		expect(wiki.status).toBe("committed");
+		if (wiki.status !== "committed") {
+			return;
+		}
+		expect(
+			await confirmLocationWorkBind(prisma, {
+				actorId: wikiOwner.actorId,
+				geometry: { kind: ORIGIN_LOCATION_KIND.point, x: 0.1, y: 0.1 },
+				idempotencyKey: "wiki-bind",
+				previewAcknowledged: true,
+				surface: LOCATION_SURFACE.fileAttachment,
+				title: "Wiki hotspot",
+				versionId: wiki.file.currentVersion.id,
+				workspaceId: wikiOwner.workspaceId,
+			})
+		).toEqual({
+			reason: FILE_ATTACHMENT_COPY.workRequiresProject,
+			status: "rejected",
+		});
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const note = await commitTyped(prisma, {
+			actorId,
+			bytes: new TextEncoder().encode("log line"),
+			filename: "note.txt",
+			idempotencyKey: "txt-undo",
+			mime: "text/plain",
+			projectId: project.id,
+			workspaceId,
+		});
+		expect(note.status).toBe("committed");
+		if (note.status !== "committed") {
+			return;
+		}
+		expect(await undoMark(prisma, note.file.currentVersion.id)).toEqual({
+			reason: FILE_ATTACHMENT_COPY.typeRejected,
+			status: "rejected",
+		});
 	});
 });

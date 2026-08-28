@@ -35,8 +35,11 @@ model FileAttachmentVersion {
   previewCause             String?
   previewSupportReference  String?
   previewDataWritten       Boolean                     @default(false)
+  markingMarks             Json                        @default("[]")
+  shareItemApprovals       Json                        @default("{}")
   createdAt                DateTime                    @default(now())
   pins                     FileAttachmentVersionPin[]
+  originLocations          FileAttachmentOriginLocation[]
 
   @@unique([fileAttachmentId, versionNumber])
   @@index([fileAttachmentId])
@@ -54,6 +57,18 @@ model FileImageDerivative {
   @@unique([contentHash, size])
   @@index([contentHash])
   @@map("file_image_derivative")
+}
+
+model FileAttachmentOriginLocation {
+  id        String                @id
+  versionId String
+  version   FileAttachmentVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  kind      String
+  geometry  Json
+  createdAt DateTime              @default(now())
+
+  @@index([versionId])
+  @@map("file_attachment_origin_location")
 }
 
 model FileAttachmentVersionPin {

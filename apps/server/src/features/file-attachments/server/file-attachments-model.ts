@@ -1,24 +1,43 @@
 import { z } from "zod";
 
 export const FILE_ATTACHMENT_COPY = {
+	arrow: "Arrow",
+	bindAsOrigin: "Bind as origin",
+	confirm: "Confirm",
 	conflict: "Conflict",
 	download: "Download",
+	existingWork: "Existing Work",
 	fileAttachment: "File Attachment",
 	finalizing: "Finalizing",
+	highlighter: "Highlighter",
 	incomingFile: "Incoming file",
+	markingLayer: "Marking layer",
 	mimeMismatch: "MIME and extension do not match. The file was not repaired.",
+	newWork: "New Work",
+	originLocation: "Origin Location",
+	pen: "Pen",
 	personalWiki: "Personal Wiki",
+	point: "Point",
+	preview: "Preview",
+	previewRequired: "Preview the Origin Location bind before confirming.",
 	quotaExceeded: "Workspace file quota is exceeded.",
 	quotaWarning: "Workspace file storage is at 80% of quota.",
+	rectangle: "Rectangle",
+	region: "Region",
 	restartFromByteZero: "The transfer restarts from byte zero.",
+	sourceVisual: "Source visual",
 	targetAttachment: "Target File Attachment",
 	tooLarge: "This file exceeds the size limit for its type.",
 	typeRejected: "This file type is not accepted.",
 	unavailable: "Unavailable",
+	undo: "Undo",
 	unscannedZip:
 		"Unscanned ZIP cannot enter a link-limited or public External Surface.",
 	upload: "Upload",
 	uploadNewVersion: "Upload new version",
+	wireframeOriginNotThisFeature:
+		"Wireframe-screen origin location is not a File Attachment action.",
+	workRequiresProject: "Origin Location binds to Work in a Project.",
 } as const;
 
 export const CAPTURE_STAGING_SURFACES = {
@@ -82,6 +101,91 @@ export const FILE_PIN_KIND = {
 } as const;
 
 export type FilePinKind = (typeof FILE_PIN_KIND)[keyof typeof FILE_PIN_KIND];
+
+export const MARKING_TOOLS = {
+	arrow: "arrow",
+	highlighter: "highlighter",
+	pen: "pen",
+	rectangle: "rectangle",
+} as const;
+
+export type MarkingTool = (typeof MARKING_TOOLS)[keyof typeof MARKING_TOOLS];
+
+export const MARKING_TOOL_LABELS: Record<MarkingTool, string> = {
+	arrow: FILE_ATTACHMENT_COPY.arrow,
+	highlighter: FILE_ATTACHMENT_COPY.highlighter,
+	pen: FILE_ATTACHMENT_COPY.pen,
+	rectangle: FILE_ATTACHMENT_COPY.rectangle,
+};
+
+export const FORBIDDEN_MARKING_TOOLS = [
+	"comment",
+	"mention",
+	"review",
+	"task",
+] as const;
+
+export const SHARE_PUBLISH_ITEM_KIND = {
+	markingLayer: "marking-layer",
+	sourceVisual: "source-visual",
+} as const;
+
+export type SharePublishItemKind =
+	(typeof SHARE_PUBLISH_ITEM_KIND)[keyof typeof SHARE_PUBLISH_ITEM_KIND];
+
+export const ORIGIN_LOCATION_KIND = {
+	point: "point",
+	region: "region",
+} as const;
+
+export type OriginLocationKind =
+	(typeof ORIGIN_LOCATION_KIND)[keyof typeof ORIGIN_LOCATION_KIND];
+
+export const LOCATION_SURFACE = {
+	fileAttachment: "file-attachment",
+	screen: "screen",
+	wireframe: "wireframe",
+} as const;
+
+export const locationGeometrySchema = z.discriminatedUnion("kind", [
+	z.object({
+		kind: z.literal(ORIGIN_LOCATION_KIND.point),
+		page: z.number().int().positive().optional(),
+		x: z.number().min(0).max(1),
+		y: z.number().min(0).max(1),
+	}),
+	z.object({
+		height: z.number().gt(0).max(1),
+		kind: z.literal(ORIGIN_LOCATION_KIND.region),
+		page: z.number().int().positive().optional(),
+		width: z.number().gt(0).max(1),
+		x: z.number().min(0).max(1),
+		y: z.number().min(0).max(1),
+	}),
+]);
+
+export type LocationGeometry = z.infer<typeof locationGeometrySchema>;
+
+export const fileMarkSchema = z.object({
+	geometry: z.record(z.string(), z.unknown()),
+	id: z.string().min(1),
+	page: z.number().int().positive().optional(),
+	tool: z.enum([
+		MARKING_TOOLS.pen,
+		MARKING_TOOLS.highlighter,
+		MARKING_TOOLS.arrow,
+		MARKING_TOOLS.rectangle,
+	]),
+});
+
+export type FileMark = z.infer<typeof fileMarkSchema>;
+
+export const fileMarksSchema = z.array(fileMarkSchema);
+
+export const shareItemApprovalsSchema = z.object({
+	[SHARE_PUBLISH_ITEM_KIND.markingLayer]: z.boolean().optional(),
+	[SHARE_PUBLISH_ITEM_KIND.sourceVisual]: z.boolean().optional(),
+});
 
 export const STAGING_TTL_MS = 24 * 60 * 60 * 1000;
 
