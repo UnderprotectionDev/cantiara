@@ -15,6 +15,7 @@ export const RELATIONS_COPY = {
 	remove: "Remove",
 	sourceItemGone: "Source item is gone",
 	type: "Type",
+	usedIn: "Used in",
 } as const;
 
 export const GENERIC_RELATION_TYPES = [

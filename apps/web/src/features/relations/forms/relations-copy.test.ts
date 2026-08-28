@@ -12,5 +12,6 @@ test("English relation labels match the closed catalog", () => {
 	expect(RELATIONS_COPY.redactedForSecurity).toBe("Redacted for security");
 	expect(RELATIONS_COPY.noAccess).toBe("No access");
 	expect(RELATIONS_COPY.openSourceRecord).toBe("Open source record");
+	expect(RELATIONS_COPY.usedIn).toBe("Used in");
 	expect(GENERIC_RELATION_TYPES).toEqual(["Related", "Origin"]);
 });

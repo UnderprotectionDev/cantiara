@@ -32,6 +32,7 @@ import {
 	inspectRecordGraph,
 	isRecord,
 	isUsageKind,
+	presentUsedIn,
 	previewRelationInputSchema,
 	type RecordGraphView,
 	type RelationsWriteOutcome,
@@ -39,8 +40,10 @@ import {
 	toUsageLinkView,
 	type UndoRelationCommand,
 	type UnlinkUsageLinkCommand,
+	USAGE_KIND,
 	type UsageKind,
 	type UsageLinkView,
+	type UsedInRow,
 	undoRelationCommandSchema,
 	unlinkUsageLinkCommandSchema,
 } from "./relations-model";
@@ -177,7 +180,36 @@ export async function inspectRelations(
 				type: STANDARD_RELATION_TYPE.related,
 			})),
 	];
-	return inspectRecordGraph({ typedRelations, usageLinks });
+	const listed = await listRelations(prisma, {
+		record: { id: recordId, kind: "Work" },
+		viewerWorkspaceId: workspaceId,
+	});
+	const relationBacklinks: UsedInRow[] = [];
+	for (const relation of listed) {
+		const viewpoint = relation.from.id === recordId ? "from" : "to";
+		const other = viewpoint === "from" ? relation.to : relation.from;
+		const groupLabel =
+			viewpoint === "from" ? relation.typeLabelFrom : relation.typeLabelTo;
+		const row = usedInRowFromEnd(relation.id, other, groupLabel);
+		if (row) {
+			relationBacklinks.push(row);
+		}
+	}
+	const usedInUsageRows = (
+		await Promise.all(
+			usageLinks
+				.filter((link) => link.sourceRecordId === recordId)
+				.map((link) => usedInRowForUsageHost(prisma, link, workspaceId))
+		)
+	).filter((row): row is UsedInRow => row !== null);
+	return inspectRecordGraph({
+		typedRelations,
+		usageLinks,
+		usedIn: presentUsedIn({
+			relationBacklinks,
+			usageRows: usedInUsageRows,
+		}),
+	});
 }
 
 export async function listUsageLinksForHosts(
@@ -613,6 +645,66 @@ function isMissingUsageStore(error: unknown): boolean {
 		"code" in error &&
 		(error.code === "P2021" || error.code === "P2022")
 	);
+}
+
+function usedInRowFromEnd(
+	id: string,
+	end: PresentedEnd,
+	groupLabel: string
+): UsedInRow | null {
+	if (end.status === "broken") {
+		if (
+			end.reason === RELATIONS_COPY.noAccess ||
+			end.reason === RELATIONS_COPY.permanentlyDeleted ||
+			end.reason === RELATIONS_COPY.redactedForSecurity
+		) {
+			return null;
+		}
+		return {
+			groupLabel,
+			id,
+			openSourceRecord: end.openSourceRecord,
+			sourceRecordId: end.id,
+			title: end.title,
+		};
+	}
+	return {
+		groupLabel,
+		id,
+		key: end.key,
+		openSourceRecord: true,
+		sourceRecordId: end.id,
+		title: end.title,
+	};
+}
+
+async function usedInRowForUsageHost(
+	db: PrismaClient | PrismaTransaction,
+	link: UsageLinkView,
+	workspaceId: string
+): Promise<UsedInRow | null> {
+	const work = await db.work.findUnique({
+		where: { id: link.hostRecordId },
+	});
+	if (!work) {
+		if (link.kind !== USAGE_KIND.flowNodeScreenReference) {
+			return null;
+		}
+		return {
+			groupLabel: link.kindLabel,
+			id: link.id,
+			openSourceRecord: true,
+			sourceRecordId: link.hostRecordId,
+		};
+	}
+	const end = await presentEnd(db, {
+		establishedAt: new Date(0).toISOString(),
+		id: work.id,
+		kind: "Work",
+		overrides: {},
+		viewerWorkspaceId: workspaceId,
+	});
+	return usedInRowFromEnd(link.id, end, link.kindLabel);
 }
 
 function overlayKey(kind: string, id: string): string {

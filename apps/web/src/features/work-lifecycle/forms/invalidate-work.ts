@@ -1,3 +1,4 @@
+import { USED_IN_QUERY_ROOT } from "@/features/relations/views/used-in-query-key";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export async function invalidateWork(projectId: string, workId: string) {
@@ -35,5 +36,8 @@ export async function invalidateWork(projectId: string, workId: string) {
 		queryKey: orpc.workLifecycle.getScopeTree.queryKey({
 			input: { projectId },
 		}),
+	});
+	await queryClient.invalidateQueries({
+		queryKey: [USED_IN_QUERY_ROOT],
 	});
 }

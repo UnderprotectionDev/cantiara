@@ -16,6 +16,7 @@ export const RELATIONS_COPY = {
 	screenReference: "Screen reference",
 	sectionReference: "Section reference",
 	unlink: "Unlink",
+	usedIn: "Used in",
 } as const;
 
 export const USAGE_KIND_LABEL: Record<UsageKind, string> = {

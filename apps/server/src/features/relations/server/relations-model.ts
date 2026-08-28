@@ -23,11 +23,13 @@ export type UsageKind = (typeof USAGE_KINDS)[number];
 export const RELATIONS_COPY = {
 	inlineReference: "Inline reference",
 	liveBlock: "Live block",
+	openSourceRecord: "Open source record",
 	pinnedBind: "Pinned bind",
 	related: "Related",
 	screenReference: "Screen reference",
 	sectionReference: "Section reference",
 	unlink: "Unlink",
+	usedIn: "Used in",
 } as const;
 
 export const USAGE_KIND_LABEL = {
@@ -68,19 +70,52 @@ export const typedRelationViewSchema = z.object({
 
 export type TypedRelationView = z.infer<typeof typedRelationViewSchema>;
 
+export const usedInRowSchema = z.object({
+	groupLabel: z.string().min(1),
+	id: z.string().min(1),
+	key: z.string().min(1).optional(),
+	openSourceRecord: z.boolean(),
+	sourceRecordId: z.string().min(1),
+	title: z.string().min(1).optional(),
+});
+
+export type UsedInRow = z.infer<typeof usedInRowSchema>;
+
+export const usedInGroupSchema = z.object({
+	label: z.string().min(1),
+	rows: z.array(usedInRowSchema),
+});
+
+export type UsedInGroup = z.infer<typeof usedInGroupSchema>;
+
+export const usedInViewSchema = z.object({
+	copy: z.object({
+		openSourceRecord: z.literal(RELATIONS_COPY.openSourceRecord),
+		usedIn: z.literal(RELATIONS_COPY.usedIn),
+	}),
+	relationBacklinks: z.array(usedInGroupSchema),
+	relationCount: z.number().int().nonnegative(),
+	usageGroups: z.array(usedInGroupSchema),
+});
+
+export type UsedInView = z.infer<typeof usedInViewSchema>;
+
 export const recordGraphViewSchema = z.object({
 	copy: z.object({
 		inlineReference: z.literal(RELATIONS_COPY.inlineReference),
 		liveBlock: z.literal(RELATIONS_COPY.liveBlock),
+		openSourceRecord: z.literal(RELATIONS_COPY.openSourceRecord),
 		pinnedBind: z.literal(RELATIONS_COPY.pinnedBind),
 		related: z.literal(RELATIONS_COPY.related),
 		screenReference: z.literal(RELATIONS_COPY.screenReference),
 		sectionReference: z.literal(RELATIONS_COPY.sectionReference),
 		unlink: z.literal(RELATIONS_COPY.unlink),
+		usedIn: z.literal(RELATIONS_COPY.usedIn),
 	}),
 	relationCount: z.number().int().nonnegative(),
 	typedRelations: z.array(typedRelationViewSchema),
 	usageLinks: z.array(usageLinkViewSchema),
+	usedIn: usedInViewSchema,
 });
 
 export type RecordGraphView = z.infer<typeof recordGraphViewSchema>;
@@ -158,9 +193,46 @@ export function toUsageLinkView(input: {
 	};
 }
 
+export function presentUsedIn(input: {
+	relationBacklinks: readonly UsedInRow[];
+	usageRows: readonly UsedInRow[];
+}): UsedInView {
+	const usageRows = input.usageRows.filter(
+		(row) => row.groupLabel !== RELATIONS_COPY.related
+	);
+	return {
+		copy: {
+			openSourceRecord: RELATIONS_COPY.openSourceRecord,
+			usedIn: RELATIONS_COPY.usedIn,
+		},
+		relationBacklinks: groupUsedInRows(input.relationBacklinks),
+		relationCount: input.relationBacklinks.length,
+		usageGroups: groupUsedInRows(usageRows),
+	};
+}
+
+function groupUsedInRows(rows: readonly UsedInRow[]): UsedInGroup[] {
+	const labels: string[] = [];
+	const grouped = new Map<string, UsedInRow[]>();
+	for (const row of rows) {
+		const existing = grouped.get(row.groupLabel);
+		if (existing) {
+			existing.push(row);
+			continue;
+		}
+		labels.push(row.groupLabel);
+		grouped.set(row.groupLabel, [row]);
+	}
+	return labels.map((label) => ({
+		label,
+		rows: grouped.get(label) ?? [],
+	}));
+}
+
 export function inspectRecordGraph(input: {
 	typedRelations: readonly TypedRelationView[];
 	usageLinks: readonly UsageLinkView[];
+	usedIn?: UsedInView;
 }): RecordGraphView {
 	const usageLinks = input.usageLinks.filter(
 		(link) => link.kindLabel !== RELATIONS_COPY.related
@@ -170,6 +242,8 @@ export function inspectRecordGraph(input: {
 		relationCount: input.typedRelations.length,
 		typedRelations: [...input.typedRelations],
 		usageLinks,
+		usedIn:
+			input.usedIn ?? presentUsedIn({ relationBacklinks: [], usageRows: [] }),
 	};
 }
 
