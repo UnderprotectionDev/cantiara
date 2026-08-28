@@ -13,6 +13,7 @@ import { tags } from "../features/tags/server/tags-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
 import { workDrafts } from "../features/work-drafts/server/work-drafts-rpc";
 import { workLifecycle } from "../features/work-lifecycle/server/work-lifecycle-rpc";
+import { workTemplates } from "../features/work-templates/server/work-templates-rpc";
 
 export const appRouter = {
 	accountAccess,
@@ -27,6 +28,7 @@ export const appRouter = {
 	tags,
 	workDrafts,
 	workLifecycle,
+	workTemplates,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	privateData: protectedProcedure.handler(({ context }) => ({
 		message: "This is private",

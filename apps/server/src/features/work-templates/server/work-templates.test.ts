@@ -13,6 +13,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createCustomField } from "../../custom-fields/server/custom-fields";
 import { createProject } from "../../project-shell/server/project-shell";
+import { STRUCTURE_COPY_EXCLUDED } from "../../project-shell/server/project-shell-model";
 import {
 	createWorkTemplate,
 	getWorkTemplate,
@@ -117,6 +118,7 @@ describe("Work Templates", () => {
 		expect(JSON.stringify(catalog)).not.toMatch(OTHER_TEMPLATE_SURFACES);
 		expect(catalog.copy).not.toHaveProperty("createFromTemplate");
 		expect(catalog.copy).not.toHaveProperty("duplicateWork");
+		expect(STRUCTURE_COPY_EXCLUDED.workTemplates).toBe(true);
 		expect(FORBIDDEN_TEMPLATE_PAYLOAD_KEYS).toEqual(
 			expect.arrayContaining([
 				"history",

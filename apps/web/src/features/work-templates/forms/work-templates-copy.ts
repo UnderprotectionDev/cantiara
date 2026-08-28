@@ -32,12 +32,3 @@ export const WORK_TEMPLATE_COPY = {
 	unknownWorkType: "Unknown Work type.",
 	workTemplate: "Work Template",
 } as const;
-
-export type WorkTemplateStoredValue =
-	| { kind: "unset" }
-	| { kind: "text"; text: string }
-	| { kind: "number"; number: number }
-	| { kind: "boolean"; boolean: boolean }
-	| { date: string; kind: "date" }
-	| { kind: "single-select"; option: string }
-	| { kind: "multi-select"; options: string[] };

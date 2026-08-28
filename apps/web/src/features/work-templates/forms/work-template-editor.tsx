@@ -94,7 +94,7 @@ export default function WorkTemplateEditor({
 		Record<string, CustomFieldStoredValue>
 	>({});
 	const templates = useQuery(
-		orpc.workLifecycle.workTemplates.list.queryOptions({ input: { projectId } })
+		orpc.workTemplates.list.queryOptions({ input: { projectId } })
 	);
 	const fields = useQuery(
 		orpc.customFields.surface.queryOptions({
@@ -163,13 +163,13 @@ export default function WorkTemplateEditor({
 	});
 	const invalidateList = useCallback(async () => {
 		await queryClient.invalidateQueries({
-			queryKey: orpc.workLifecycle.workTemplates.list.queryKey({
+			queryKey: orpc.workTemplates.list.queryKey({
 				input: { projectId },
 			}),
 		});
 	}, [projectId]);
 	const create = useMutation(
-		orpc.workLifecycle.workTemplates.create.mutationOptions({
+		orpc.workTemplates.create.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
 					await invalidateList();
@@ -185,7 +185,7 @@ export default function WorkTemplateEditor({
 		})
 	);
 	const update = useMutation(
-		orpc.workLifecycle.workTemplates.update.mutationOptions({
+		orpc.workTemplates.update.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
 					await invalidateList();
@@ -201,7 +201,7 @@ export default function WorkTemplateEditor({
 		})
 	);
 	const trash = useMutation(
-		orpc.workLifecycle.workTemplates.trash.mutationOptions({
+		orpc.workTemplates.trash.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
 					await invalidateList();
@@ -434,7 +434,7 @@ function DatePreview({
 	targetDateOffset: string;
 }) {
 	const preview = useQuery(
-		orpc.workLifecycle.workTemplates.previewDates.queryOptions({
+		orpc.workTemplates.previewDates.queryOptions({
 			input: {
 				createDay,
 				plannedStartRule: parseOffset(plannedStartOffset),

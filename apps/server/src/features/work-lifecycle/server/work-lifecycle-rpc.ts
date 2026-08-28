@@ -11,7 +11,6 @@ import {
 	unlinkUsageLink,
 } from "../../relations/server/relations";
 import { USAGE_KINDS } from "../../relations/server/relations-model";
-import { workTemplates } from "../../work-templates/server/work-templates-rpc";
 import {
 	applyScopeTreeDrag,
 	archiveWork,
@@ -713,5 +712,4 @@ export const workLifecycle = {
 				workId: input.workId,
 			});
 		}),
-	workTemplates,
 };

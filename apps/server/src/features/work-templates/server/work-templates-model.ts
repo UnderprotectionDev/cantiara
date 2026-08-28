@@ -66,16 +66,18 @@ export type SelectedFieldDefaultView = z.infer<
 	typeof selectedFieldDefaultViewSchema
 >;
 
-export const createWorkTemplatePayloadSchema = z.object({
-	descriptionSkeleton: z.string().optional(),
-	lightChecklist: z.array(workTemplateChecklistItemSchema).optional(),
-	name: z.string().optional(),
-	plannedStartRule: relativeDateRuleSchema.nullable().optional(),
-	projectId: z.string().min(1),
-	selectedFieldDefaults: z.array(selectedFieldDefaultSchema).optional(),
-	targetDateRule: relativeDateRuleSchema.nullable().optional(),
-	workType: z.string().optional(),
-});
+export const createWorkTemplatePayloadSchema = z
+	.object({
+		descriptionSkeleton: z.string().optional(),
+		lightChecklist: z.array(workTemplateChecklistItemSchema).optional(),
+		name: z.string().optional(),
+		plannedStartRule: relativeDateRuleSchema.nullable().optional(),
+		projectId: z.string().min(1),
+		selectedFieldDefaults: z.array(selectedFieldDefaultSchema).optional(),
+		targetDateRule: relativeDateRuleSchema.nullable().optional(),
+		workType: z.string().optional(),
+	})
+	.passthrough();
 
 export type CreateWorkTemplatePayload = z.infer<
 	typeof createWorkTemplatePayloadSchema
