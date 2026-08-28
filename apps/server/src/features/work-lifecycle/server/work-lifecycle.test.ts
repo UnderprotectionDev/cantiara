@@ -105,6 +105,7 @@ async function seedWorkspace(prisma: PrismaClient) {
 }
 
 async function resetSharedTables(prisma: PrismaClient) {
+	await prisma.typedRelation.deleteMany();
 	await prisma.mutationReceipt.deleteMany();
 	await prisma.workspaceShortCodeReservation.deleteMany();
 	await prisma.project.deleteMany();

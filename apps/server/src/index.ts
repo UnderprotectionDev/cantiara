@@ -12,6 +12,7 @@ import {
 	auth,
 	productCorsOrigins,
 } from "@cantiara/auth";
+import { resetPrismaClientCache } from "@cantiara/db";
 import { env } from "@cantiara/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
@@ -27,6 +28,7 @@ import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
+import { handleFileAttachmentContent } from "./features/file-attachments/server/file-attachments-http";
 import { attachMainFlowFailure } from "./features/web-macos-client/server/main-flow-failure";
 import { appRouter } from "./routes";
 
@@ -99,6 +101,17 @@ app.use("/rpc/*", async (c, next) => {
 	}
 	await next();
 });
+
+app.get(
+	"/api/file-attachments/:fileAttachmentId/versions/:versionId",
+	async (c) => {
+		const context = {
+			...(await createContext({ context: c })),
+			log: c.get("log"),
+		};
+		return (await handleFileAttachmentContent(c, context)) ?? c.body(null, 404);
+	}
+);
 
 const handlerOptions = {
 	clientInterceptors: [attachMainFlowFailure],
@@ -187,3 +200,9 @@ app.use("/*", async (c, next) => {
 app.get("/", (c) => c.text("OK"));
 
 export default app;
+
+if (import.meta.hot) {
+	import.meta.hot.dispose(() => {
+		resetPrismaClientCache();
+	});
+}

@@ -15,6 +15,15 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.usageLink?.findMany === "function" &&
 		typeof client.usageHostEmbed?.findMany === "function" &&
 		typeof client.workMergeEvent?.findFirst === "function" &&
-		typeof client.workMergeEvent?.create === "function"
+		typeof client.workMergeEvent?.create === "function" &&
+		typeof client.typedRelation?.findMany === "function" &&
+		typeof client.typedRelation?.create === "function" &&
+		typeof client.projectCustomFieldDefinition?.findMany === "function" &&
+		typeof client.projectCustomFieldDefinition?.create === "function" &&
+		typeof client.projectCustomFieldValue?.findMany === "function" &&
+		typeof client.projectCustomFieldValue?.create === "function" &&
+		typeof client.workDraft?.findMany === "function" &&
+		typeof client.workDraft?.create === "function" &&
+		typeof client.fileAttachment?.findMany === "function"
 	);
 }

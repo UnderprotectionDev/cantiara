@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
+import { cloneCustomFieldDefinitions } from "../../custom-fields/server/custom-fields";
 import {
 	advisoryKeys,
 	HUMAN_ORIGIN,
@@ -59,6 +60,11 @@ interface ProjectRow {
 		pinOrder: number | null;
 		pinned: boolean;
 	}>;
+	customFieldDefinitions: Array<{
+		id: string;
+		name: string;
+		type: string;
+	}>;
 	firstOpenExplanationDismissed: boolean;
 	hasWork: boolean;
 	id: string;
@@ -95,6 +101,10 @@ interface ProjectRow {
 
 const PROJECT_STRUCTURE_INCLUDE = {
 	areaSettings: true,
+	customFieldDefinitions: {
+		orderBy: { createdAt: "asc" as const },
+		select: { id: true, name: true, type: true },
+	},
 	skeletonSelections: true,
 	stages: true,
 	workStatuses: true,
@@ -1437,6 +1447,7 @@ async function persistCopiedStructure(
 			})),
 		});
 	}
+	await cloneCustomFieldDefinitions(tx, source.id, projectId);
 }
 
 async function persistSkeletonSelections(
@@ -1500,7 +1511,11 @@ function toView(row: ProjectRow): ProjectView {
 	return {
 		allToolsAreas,
 		alwaysOnSurfaces: [...ALWAYS_ON_SURFACES],
-		customFieldDefinitions: [],
+		customFieldDefinitions: row.customFieldDefinitions.map((definition) => ({
+			id: definition.id,
+			name: definition.name,
+			type: definition.type,
+		})),
 		enabledAreas,
 		firstOpenExplanation: row.firstOpenExplanationDismissed
 			? null

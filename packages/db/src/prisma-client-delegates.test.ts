@@ -12,9 +12,28 @@ function workDelegates() {
 		captureExtensionLink: { findMany },
 		captureInboxItem: { findMany },
 		captureStagingObject: { findMany },
+		projectCustomFieldDefinition: {
+			create: () => undefined,
+			findMany,
+		},
+		projectCustomFieldValue: {
+			create: () => undefined,
+			findMany,
+		},
 		projectSkeletonSelection: { findMany },
 		work: { create: () => undefined, findMany },
 		workLifecycleEvent: { findMany },
+	};
+}
+
+function currentLifecycleDelegates() {
+	return {
+		featureHealthUpdate: { findMany },
+		typedRelation: { create: () => undefined, findMany },
+		workDraft: { create: () => undefined, findMany },
+		workMergeEvent: { create: () => undefined, findFirst: findMany },
+		workRelatedEdge: { findMany },
+		workRelation: { findMany },
 	};
 }
 
@@ -27,16 +46,25 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
-	it("accepts a client that can read Feature health and Related edges", () => {
+	it("refuses a bun --hot client generated before Custom field values", () => {
+		const { projectCustomFieldValue: _dropped, ...beforeValues } =
+			workDelegates();
+		expect(
+			prismaClientHasCurrentDelegates({
+				...beforeValues,
+				...currentLifecycleDelegates(),
+			} as unknown as PrismaClient)
+		).toBe(false);
+	});
+
+	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Drafts, and File Attachments", () => {
 		expect(
 			prismaClientHasCurrentDelegates({
 				...workDelegates(),
-				featureHealthUpdate: { findMany },
+				...currentLifecycleDelegates(),
+				fileAttachment: { findMany },
 				usageHostEmbed: { findMany },
 				usageLink: { findMany },
-				workMergeEvent: { create: () => undefined, findFirst: findMany },
-				workRelatedEdge: { findMany },
-				workRelation: { findMany },
 			} as unknown as PrismaClient)
 		).toBe(true);
 	});

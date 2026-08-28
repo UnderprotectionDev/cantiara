@@ -6,12 +6,14 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import type { PrismaClient } from "../prisma/generated/client";
 import {
 	clientStampIsCurrent,
+	forgetGeneratedPrismaClientCache,
 	loadGeneratedPrismaClient,
 	readGeneratedClientStamp,
 } from "./generated-prisma-client";
 import { prismaClientHasCurrentDelegates } from "./prisma-client-delegates";
 
 export { Prisma, PrismaClient } from "../prisma/generated/client";
+export { readGeneratedClientStamp } from "./generated-prisma-client";
 export { prismaClientHasCurrentDelegates } from "./prisma-client-delegates";
 
 // Local development: route the Neon serverless driver's WebSocket transport to a
@@ -112,6 +114,15 @@ function dropCachedPrisma() {
 }
 
 let productionPrisma: PrismaClient | undefined;
+
+export function resetPrismaClientCache() {
+	dropCachedPrisma();
+	if (productionPrisma) {
+		productionPrisma.$disconnect().catch(() => undefined);
+		productionPrisma = undefined;
+	}
+	forgetGeneratedPrismaClientCache();
+}
 
 export function getPrismaClient() {
 	const diskStamp = readGeneratedClientStamp();
