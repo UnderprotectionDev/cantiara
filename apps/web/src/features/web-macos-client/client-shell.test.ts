@@ -200,6 +200,26 @@ test("a thrown failure marked written presents Data was written and no Retry", (
 	expect(presented.supportReference).toBe("CANT-CAFEBABE");
 });
 
+test("a Prisma schema dump stays secret-free and still says Data was not written", () => {
+	const prismaSchemaDump = new Error(`model AccountPreference { id String @id
+  accountId String @unique
+  locale String
+}`);
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(prismaSchemaDump, undefined, {
+			trackingId: "CANT-C09398DB",
+		})
+	);
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.pendingMigrations);
+	expect(presented.reason).not.toContain("AccountPreference");
+	expect(presented.writeOutcome).toBe("Data was not written.");
+	expect(presented.supportReference).toBe("CANT-C09398DB");
+	expect(presented.description).toBe(
+		"Data was not written. You can retry once. Support reference CANT-C09398DB"
+	);
+});
+
 test("a Prisma Work list schema mismatch stays secret-free and still says Data was not written", () => {
 	const prismaListFailure =
 		new Error(`Invalid \`prisma.work.findMany()\` invocation in

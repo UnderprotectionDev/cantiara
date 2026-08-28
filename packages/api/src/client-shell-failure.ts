@@ -46,6 +46,7 @@ const JWT = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 const BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const SESSION_SECRET = /session_token=[^;\s]+/gi;
 const UNKNOWN_INCLUDE_FIELD = /Unknown field '[^']+' for include statement/;
+const PRISMA_SCHEMA_MODEL = /\bmodel [A-Z][A-Za-z0-9]*\s*\{/;
 
 export function issueMainFlowFailure(
 	input: {
@@ -219,6 +220,9 @@ function schemaMismatchReason(error: unknown): string | null {
 	}
 	if (UNKNOWN_INCLUDE_FIELD.test(message)) {
 		return CLIENT_SHELL_COPY.staleGeneratedClient;
+	}
+	if (PRISMA_SCHEMA_MODEL.test(message)) {
+		return CLIENT_SHELL_COPY.pendingMigrations;
 	}
 	return null;
 }
