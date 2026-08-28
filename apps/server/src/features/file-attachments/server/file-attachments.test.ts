@@ -1522,6 +1522,7 @@ describe("File Attachments", () => {
 		});
 		await appendMark(prisma, {
 			geometry: { points: [0.2, 0.5, 0.6, 0.5] },
+			page: 2,
 			tool: MARKING_TOOLS.highlighter,
 			versionId,
 		});
@@ -1541,8 +1542,16 @@ describe("File Attachments", () => {
 			return;
 		}
 		expect(layer.layer.marks).toHaveLength(4);
+		expect(layer.layer.marks[3]?.page).toBe(2);
 		expect(layer.layer.contentHash).toBe(hash);
-		expect(layer.layer.objectKey).toBe(objectKey);
+		expect(layer.layer).not.toHaveProperty("objectKey");
+		expect(
+			(
+				await prisma.fileAttachmentVersion.findUniqueOrThrow({
+					where: { id: versionId },
+				})
+			).objectKey
+		).toBe(objectKey);
 		expect(
 			(
 				await readAccessibleFileBytes(prisma, {

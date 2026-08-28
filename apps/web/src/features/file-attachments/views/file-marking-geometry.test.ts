@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 
 import {
 	isMarkingTool,
+	marksOnPage,
 	normalizePoint,
 	regionFromDrag,
 	undoDrawnMarks,
@@ -23,4 +24,13 @@ test("marking tools stay pen, highlighter, arrow, and rectangle", () => {
 		x: 0.2,
 		y: 0.2,
 	});
+	expect(
+		marksOnPage(
+			[
+				{ geometry: {}, id: "1", page: 1, tool: "pen" },
+				{ geometry: {}, id: "2", page: 2, tool: "arrow" },
+			],
+			2
+		)
+	).toEqual([{ geometry: {}, id: "2", page: 2, tool: "arrow" }]);
 });

@@ -24,6 +24,16 @@ export function undoDrawnMarks(marks: DrawnMark[]): DrawnMark[] {
 	return marks.slice(0, -1);
 }
 
+export function marksOnPage(
+	marks: DrawnMark[],
+	page: number | undefined
+): DrawnMark[] {
+	if (page === undefined) {
+		return marks.filter((mark) => mark.page === undefined);
+	}
+	return marks.filter((mark) => mark.page === page);
+}
+
 export function normalizePoint(
 	x: number,
 	y: number,

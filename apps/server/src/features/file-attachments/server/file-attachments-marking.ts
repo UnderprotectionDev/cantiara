@@ -31,7 +31,6 @@ export interface MarkingLayerView {
 	contentHash: string;
 	fileAttachmentId: string;
 	marks: FileMark[];
-	objectKey: string;
 	versionId: string;
 	versionNumber: number;
 }
@@ -139,7 +138,6 @@ function layerView(row: {
 	fileAttachmentId: string;
 	id: string;
 	markingMarks: Prisma.JsonValue;
-	objectKey: string;
 	versionNumber: number;
 }): MarkingLayerView {
 	const marks = parseMarks(row.markingMarks);
@@ -148,7 +146,6 @@ function layerView(row: {
 		contentHash: row.contentHash,
 		fileAttachmentId: row.fileAttachmentId,
 		marks,
-		objectKey: row.objectKey,
 		versionId: row.id,
 		versionNumber: row.versionNumber,
 	};
@@ -233,6 +230,9 @@ export async function listSharePublishItems(
 	const row = await versionRow(prisma, versionId);
 	if (!row) {
 		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (!isMarkingKind(row.kind)) {
+		return { reason: FILE_ATTACHMENT_COPY.typeRejected, status: "rejected" };
 	}
 	return {
 		items: shareItemsFrom(parseApprovals(row.shareItemApprovals)),

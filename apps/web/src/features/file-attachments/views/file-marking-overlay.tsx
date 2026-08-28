@@ -23,6 +23,7 @@ import {
 	type DrawnMark,
 	MARKING_TOOLS,
 	type MarkingTool,
+	marksOnPage,
 	regionFromDrag,
 } from "./file-marking-geometry";
 
@@ -141,7 +142,7 @@ export default function FileMarkingOverlay({
 	);
 	const marks: DrawnMark[] =
 		layer.data?.status === "committed"
-			? layer.data.layer.marks.filter(isDrawnMark)
+			? marksOnPage(layer.data.layer.marks.filter(isDrawnMark), page)
 			: [];
 	useLayoutEffect(() => {
 		const node = frameRef.current;
@@ -270,6 +271,9 @@ export default function FileMarkingOverlay({
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex flex-wrap gap-2">
+				<p className="w-full font-medium text-xs">
+					{FILE_ATTACHMENT_COPY.markingLayer}
+				</p>
 				{MARKING_TOOLS.map((tool) => (
 					<Button
 						data-mode={tool}
@@ -283,6 +287,9 @@ export default function FileMarkingOverlay({
 				))}
 				{canBindWork ? (
 					<>
+						<p className="w-full font-medium text-xs">
+							{FILE_ATTACHMENT_COPY.bindAsOrigin}
+						</p>
 						<Button
 							data-mode="point"
 							onClick={onSelectMode}
