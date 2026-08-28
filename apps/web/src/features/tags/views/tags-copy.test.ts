@@ -2,6 +2,8 @@ import { expect, test } from "vitest";
 
 import { TAGS_COPY } from "./tags-copy";
 
+const MERGE_UI_PATTERN = /mergeTags|tagMerge|archiveTag|usageSuggestion/i;
+
 test("English UI uses Tags for the Workspace dictionary", () => {
 	expect(TAGS_COPY).toMatchObject({
 		allTags: "All tags",
@@ -11,7 +13,10 @@ test("English UI uses Tags for the Workspace dictionary", () => {
 		noMatchingTags: "No matching tags.",
 		noTags: "No tags yet.",
 		removeTag: "Remove tag",
+		renameTag: "Rename Tag",
 		suggestedInThisProject: "Suggested in this Project",
 		tags: "Tags",
+		undo: "Undo",
 	});
+	expect(JSON.stringify(TAGS_COPY)).not.toMatch(MERGE_UI_PATTERN);
 });

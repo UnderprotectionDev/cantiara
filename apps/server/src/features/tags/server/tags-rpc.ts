@@ -12,8 +12,11 @@ import {
 	listRecords,
 	listTags,
 	listWorkTags,
+	markdownExportTags,
 	removeTag,
+	renameTag,
 	suggestTags,
+	undoTagRename,
 } from "./tags";
 
 async function requireAccess(userId: string) {
@@ -97,12 +100,33 @@ export const tags = {
 			await requireProject(access.workspaceId, input.projectId);
 			return await listWorkTags(getPrismaClient(), input.projectId);
 		}),
+	markdownExport: protectedProcedure.handler(async ({ context }) => {
+		const access = await requireAccess(context.session.user.id);
+		return await markdownExportTags(getPrismaClient(), access.workspaceId);
+	}),
 	remove: protectedWriteProcedure
 		.input(applyInput)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireWork(access.workspaceId, input.workId);
 			return await removeTag(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				...input,
+			});
+		}),
+	rename: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				name: z.string(),
+				tagId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await renameTag(getPrismaClient(), {
 				actorId: access.accountId,
 				origin: "human",
 				...input,
@@ -116,6 +140,23 @@ export const tags = {
 			return await suggestTags(getPrismaClient(), {
 				projectId: input.projectId,
 				workspaceId: access.workspaceId,
+			});
+		}),
+	undoRename: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				historyEntryId: z.string().min(1),
+				idempotencyKey: z.string(),
+				tagId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await undoTagRename(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				...input,
 			});
 		}),
 };

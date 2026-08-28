@@ -10,6 +10,28 @@ import { unmatchedRpcEnvelope } from "./rpc-dispatch";
 
 const SUPPORT_REFERENCE = /^CANT-[0-9A-F]{8}$/;
 
+test("Tags rename is a mounted RPC procedure", async () => {
+	const handler = new RPCHandler(appRouter);
+	const result = await handler.handle(
+		new Request("http://127.0.0.1/rpc/tags/rename", {
+			body: JSON.stringify({
+				json: {
+					baseRevision: 1,
+					idempotencyKey: "rename",
+					name: "invoicing",
+					tagId: "tag_1",
+				},
+			}),
+			headers: { "content-type": "application/json" },
+			method: "POST",
+		}),
+		{ context: {}, prefix: "/rpc" }
+	);
+
+	expect(result.matched).toBe(true);
+	expect(result.response?.status).not.toBe(404);
+});
+
 test("Tags suggest is a mounted RPC procedure", async () => {
 	const handler = new RPCHandler(appRouter);
 	const result = await handler.handle(

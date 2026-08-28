@@ -7,6 +7,8 @@ export const TAGS_COPY = {
 	noMatchingTags: "No matching tags.",
 	noTags: "No tags yet.",
 	removeTag: "Remove tag",
+	renameTag: "Rename Tag",
 	suggestedInThisProject: "Suggested in this Project",
 	tags: "Tags",
+	undo: "Undo",
 } as const;
