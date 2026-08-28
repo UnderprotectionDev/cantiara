@@ -13,6 +13,7 @@ export default function WorkList({
 		id: string;
 		key: string;
 		status: string;
+		tags?: string[];
 		title: string;
 		type: string;
 	}>;
@@ -53,6 +54,12 @@ export default function WorkList({
 									{item.key}
 								</span>{" "}
 								{item.title}
+								{item.tags && item.tags.length > 0 ? (
+									<span className="text-muted-foreground">
+										{" "}
+										· {item.tags.join(", ")}
+									</span>
+								) : null}
 							</span>
 							<span className="shrink-0 text-muted-foreground text-xs">
 								{item.type} · {item.status}

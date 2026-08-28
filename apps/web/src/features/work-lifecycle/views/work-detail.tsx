@@ -3,6 +3,7 @@ import { Button } from "@cantiara/ui/components/button";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
 import RelationsPanel from "@/features/relations/views/relations-panel";
 import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
+import WorkTagPicker from "@/features/tags/views/work-tag-picker";
 
 import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
@@ -39,6 +40,7 @@ export interface WorkRecord {
 }
 
 export default function WorkDetail({
+	appliedTagIds,
 	candidates,
 	onClose,
 	onMerged,
@@ -47,6 +49,7 @@ export default function WorkDetail({
 	work,
 	works,
 }: {
+	appliedTagIds: string[];
 	candidates: Array<{ id: string; key: string; title: string }>;
 	onClose: () => void;
 	onMerged?: (survivorId: string) => void;
@@ -124,6 +127,13 @@ export default function WorkDetail({
 				type={work.type}
 				workId={work.id}
 				works={works}
+			/>
+			<WorkTagPicker
+				appliedTagIds={appliedTagIds}
+				key={`${work.id}:tags:${work.revision}`}
+				projectId={projectId}
+				revision={work.revision}
+				workId={work.id}
 			/>
 			<UsageLinksPanel
 				hostRecordId={work.id}
