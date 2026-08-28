@@ -6,12 +6,6 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
-	createUsageLink,
-	inspectRelations,
-	unlinkUsageLink,
-} from "../../relations/server/relations";
-import { USAGE_KINDS } from "../../relations/server/relations-model";
-import {
 	applyScopeTreeDrag,
 	archiveWork,
 	bindPrimarySpec,
@@ -255,29 +249,6 @@ export const workLifecycle = {
 				payload: input.payload,
 			});
 		}),
-	createUsageLink: protectedWriteProcedure
-		.input(
-			z.object({
-				hostRecordId: z.string().min(1),
-				idempotencyKey: z.string().min(1),
-				kind: z.enum(USAGE_KINDS),
-				sourceRecordId: z.string().min(1),
-			})
-		)
-		.handler(async ({ context, input }) => {
-			const access = await requireAccess(context.session.user.id);
-			await requireWork(access.workspaceId, input.hostRecordId);
-			await requireWork(access.workspaceId, input.sourceRecordId);
-			return await createUsageLink(getPrismaClient(), {
-				actorId: access.accountId,
-				hostRecordId: input.hostRecordId,
-				idempotencyKey: input.idempotencyKey,
-				kind: input.kind,
-				origin: "human",
-				sourceRecordId: input.sourceRecordId,
-				workspaceId: access.workspaceId,
-			});
-		}),
 	detachHealth: protectedWriteProcedure
 		.input(
 			z.object({
@@ -392,13 +363,6 @@ export const workLifecycle = {
 				origin: "human",
 				...input,
 			});
-		}),
-	inspectUsageLinks: protectedProcedure
-		.input(z.object({ recordId: z.string().min(1) }))
-		.handler(async ({ context, input }) => {
-			const access = await requireAccess(context.session.user.id);
-			await requireWork(access.workspaceId, input.recordId);
-			return await inspectRelations(getPrismaClient(), input.recordId);
 		}),
 	list: protectedProcedure
 		.input(
@@ -655,29 +619,6 @@ export const workLifecycle = {
 				mergeEventId: input.mergeEventId,
 				origin: "human",
 				survivorId: input.survivorId,
-			});
-		}),
-	unlinkUsageLink: protectedWriteProcedure
-		.input(
-			z.object({
-				idempotencyKey: z.string().min(1),
-				usageLinkId: z.string().min(1),
-			})
-		)
-		.handler(async ({ context, input }) => {
-			const access = await requireAccess(context.session.user.id);
-			const row = await getPrismaClient().usageLink.findUnique({
-				where: { id: input.usageLinkId },
-			});
-			if (!row || row.workspaceId !== access.workspaceId) {
-				throw new ORPCError("NOT_FOUND", { message: "Work was not found." });
-			}
-			await requireWork(access.workspaceId, row.hostRecordId);
-			return await unlinkUsageLink(getPrismaClient(), {
-				actorId: access.accountId,
-				idempotencyKey: input.idempotencyKey,
-				origin: "human",
-				usageLinkId: input.usageLinkId,
 			});
 		}),
 	updateTitle: protectedWriteProcedure

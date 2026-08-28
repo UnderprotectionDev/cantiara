@@ -15,24 +15,9 @@ import { orpc, queryClient } from "@/utils/orpc";
 
 import { RELATIONS_COPY } from "./relations-copy";
 
-const silentMeta = { silent: true } as const;
-
-function failureMessage(failure: unknown): string {
-	if (
-		typeof failure === "object" &&
-		failure !== null &&
-		"message" in failure &&
-		typeof failure.message === "string" &&
-		failure.message.length > 0
-	) {
-		return failure.message;
-	}
-	return RELATIONS_COPY.inlineReference;
-}
-
 async function invalidateUsage(recordId: string) {
 	await queryClient.invalidateQueries({
-		queryKey: orpc.workLifecycle.inspectUsageLinks.queryKey({
+		queryKey: orpc.relations.inspect.queryKey({
 			input: { recordId },
 		}),
 	});
@@ -46,9 +31,8 @@ export default function UsageLinksPanel({
 	works: Array<{ id: string; key: string; title: string }>;
 }) {
 	const graph = useQuery(
-		orpc.workLifecycle.inspectUsageLinks.queryOptions({
+		orpc.relations.inspect.queryOptions({
 			input: { recordId: hostRecordId },
-			meta: silentMeta,
 		})
 	);
 	const hosted = (graph.data?.usageLinks ?? []).filter(
@@ -58,7 +42,6 @@ export default function UsageLinksPanel({
 
 	return (
 		<section className="flex flex-col gap-3">
-			{graph.isError ? <p role="alert">{failureMessage(graph.error)}</p> : null}
 			{hosted.map((link) => (
 				<UsageEmbedRow
 					hostRecordId={hostRecordId}
@@ -87,19 +70,13 @@ function UsageEmbedRow({
 	usageLinkId: string;
 }) {
 	const { attemptOnlineWork, recordSave } = useClientShell();
-	const [error, setError] = useState<string | null>(null);
 	const unlink = useMutation(
-		orpc.workLifecycle.unlinkUsageLink.mutationOptions({
-			meta: silentMeta,
-			onError: (failure) => {
-				setError(failureMessage(failure));
-			},
+		orpc.relations.unlinkUsageLink.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
 					await invalidateUsage(hostRecordId);
 					await invalidateUsage(outcome.source.id);
 					recordSave();
-					setError(null);
 				}
 			},
 		})
@@ -118,24 +95,21 @@ function UsageEmbedRow({
 	}, [attemptOnlineWork, unlink, usageLinkId]);
 
 	return (
-		<div className="flex flex-col gap-2">
-			{error ? <p role="alert">{error}</p> : null}
-			<div className="flex items-center justify-between gap-2">
-				<p className="text-sm">
-					<span className="text-muted-foreground">{kindLabel}</span>{" "}
-					{source ? (
-						<>
-							<span className="font-mono text-muted-foreground">
-								{source.key}
-							</span>{" "}
-							{source.title}
-						</>
-					) : null}
-				</p>
-				<Button onClick={onUnlink} size="sm" type="button" variant="ghost">
-					{RELATIONS_COPY.unlink}
-				</Button>
-			</div>
+		<div className="flex items-center justify-between gap-2">
+			<p className="text-sm">
+				<span className="text-muted-foreground">{kindLabel}</span>{" "}
+				{source ? (
+					<>
+						<span className="font-mono text-muted-foreground">
+							{source.key}
+						</span>{" "}
+						{source.title}
+					</>
+				) : null}
+			</p>
+			<Button onClick={onUnlink} size="sm" type="button" variant="ghost">
+				{RELATIONS_COPY.unlink}
+			</Button>
 		</div>
 	);
 }
@@ -151,11 +125,7 @@ function CreateUsageForm({
 	const [error, setError] = useState<string | null>(null);
 	const [firstCandidate] = candidates;
 	const create = useMutation(
-		orpc.workLifecycle.createUsageLink.mutationOptions({
-			meta: silentMeta,
-			onError: (failure) => {
-				setError(failureMessage(failure));
-			},
+		orpc.relations.createUsageLink.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
 					await invalidateUsage(hostRecordId);

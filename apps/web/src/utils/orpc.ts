@@ -10,7 +10,6 @@ import {
 	showMainFlowFailure,
 	showQueryMainFlowFailure,
 } from "@/features/web-macos-client/show-main-flow-failure";
-import { hasSilentMeta } from "@/features/web-macos-client/silent-query-meta";
 import { withDesktopApiHeaders } from "@/features/web-macos-client/views/client-shell";
 
 export function createQueryClient() {
@@ -21,9 +20,6 @@ export function createQueryClient() {
 		},
 		mutationCache: new MutationCache({
 			onError: (error, variables, _onMutateResult, mutation) => {
-				if (hasSilentMeta(mutation.meta)) {
-					return;
-				}
 				showMainFlowFailure(error, () => {
 					mutation.execute(variables);
 				});
@@ -31,9 +27,6 @@ export function createQueryClient() {
 		}),
 		queryCache: new QueryCache({
 			onError: (error, query) => {
-				if (hasSilentMeta(query.meta)) {
-					return;
-				}
 				showQueryMainFlowFailure(error, () => {
 					query.invalidate();
 				});
