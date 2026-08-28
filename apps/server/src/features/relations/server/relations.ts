@@ -664,6 +664,7 @@ function usedInRowFromEnd(
 			groupLabel,
 			id,
 			openSourceRecord: end.openSourceRecord,
+			reason: end.reason,
 			sourceRecordId: end.id,
 			title: end.title,
 		};
@@ -693,7 +694,7 @@ async function usedInRowForUsageHost(
 		return {
 			groupLabel: link.kindLabel,
 			id: link.id,
-			openSourceRecord: true,
+			openSourceRecord: false,
 			sourceRecordId: link.hostRecordId,
 		};
 	}

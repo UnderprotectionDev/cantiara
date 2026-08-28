@@ -75,6 +75,7 @@ export const usedInRowSchema = z.object({
 	id: z.string().min(1),
 	key: z.string().min(1).optional(),
 	openSourceRecord: z.boolean(),
+	reason: z.string().min(1).optional(),
 	sourceRecordId: z.string().min(1),
 	title: z.string().min(1).optional(),
 });

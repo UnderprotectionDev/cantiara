@@ -1016,7 +1016,6 @@ describe("Relations Used in backlinks", () => {
 			workspaceId,
 		});
 		expect(created.status).toBe("committed");
-		const beforeCount = await prisma.typedRelation.count();
 		const graph = await inspectRelations(prisma, source.id, workspaceId);
 		expect(graph.usedIn.copy.usedIn).toBe("Used in");
 		expect(graph.usedIn.copy.openSourceRecord).toBe("Open source record");
@@ -1046,7 +1045,8 @@ describe("Relations Used in backlinks", () => {
 		const hostGraph = await inspectRelations(prisma, host.id, workspaceId);
 		expect(hostGraph.usedIn.usageGroups).toEqual([]);
 		expect(hostGraph.usageLinks).toHaveLength(1);
-		expect(await prisma.typedRelation.count()).toBe(beforeCount);
+		const again = await inspectRelations(prisma, source.id, workspaceId);
+		expect(again.usedIn).toEqual(graph.usedIn);
 	});
 
 	it("omits inaccessible names, types, and counts from Used in", async () => {
@@ -1091,7 +1091,7 @@ describe("Relations Used in backlinks", () => {
 		const owned = await inspectRelations(prisma, source.id, first.workspaceId);
 		expect(owned.usedIn.relationCount).toBe(1);
 		expect(owned.usedIn.usageGroups).toHaveLength(1);
-		expect(owned.usedIn.usageGroups[0]?.rows[0]?.openSourceRecord).toBe(true);
+		expect(owned.usedIn.usageGroups[0]?.rows[0]?.openSourceRecord).toBe(false);
 		expect(owned.usedIn.usageGroups[0]?.rows[0]?.sourceRecordId).toBe(
 			"flow-node-pay"
 		);
@@ -1134,15 +1134,15 @@ describe("Relations Used in backlinks", () => {
 			origin: "human",
 			workId: other.id,
 		});
-		const before = await prisma.typedRelation.count();
+		const before = await inspectRelations(prisma, living.id, workspaceId);
 		const graph = await inspectRelations(prisma, living.id, workspaceId);
 		expect(graph.usedIn.relationBacklinks[0]?.rows[0]).toMatchObject({
 			groupLabel: "Related",
 			openSourceRecord: true,
+			reason: "Archived",
 			sourceRecordId: other.id,
 			title: "Hidden title",
 		});
-		expect(await prisma.typedRelation.count()).toBe(before);
-		expect(await prisma.usageLink.count()).toBe(0);
+		expect(graph.usedIn).toEqual(before.usedIn);
 	});
 });

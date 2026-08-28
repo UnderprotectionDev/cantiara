@@ -11,6 +11,7 @@ interface UsedInRow {
 	id: string;
 	key?: string;
 	openSourceRecord: boolean;
+	reason?: string;
 	sourceRecordId: string;
 	title?: string;
 }
@@ -32,20 +33,17 @@ export default function UsedInPanel({
 		queryKey: usedInQueryKey(workId),
 	});
 	const usedIn = inspect.data?.usedIn;
-	if (!usedIn) {
-		return null;
-	}
 	return (
 		<section className="flex flex-col gap-3">
-			<h3 className="font-medium text-sm">{usedIn.copy.usedIn}</h3>
-			{usedIn.relationBacklinks.map((group) => (
+			<h3 className="font-medium text-sm">{RELATIONS_COPY.usedIn}</h3>
+			{usedIn?.relationBacklinks.map((group) => (
 				<UsedInGroupList
 					group={group}
 					key={`relation:${group.label}`}
 					onOpenSourceRecord={onOpenSourceRecord}
 				/>
 			))}
-			{usedIn.usageGroups.map((group) => (
+			{usedIn?.usageGroups.map((group) => (
 				<UsedInGroupList
 					group={group}
 					key={`usage:${group.label}`}
@@ -96,6 +94,7 @@ function UsedInRowItem({
 						</span>{" "}
 					</>
 				) : null}
+				{row.reason ? `${row.reason} ` : null}
 				{row.title}
 			</p>
 			{row.openSourceRecord ? (
