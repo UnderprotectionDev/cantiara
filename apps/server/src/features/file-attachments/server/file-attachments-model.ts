@@ -19,6 +19,13 @@ export const FILE_ATTACHMENT_COPY = {
 	uploadNewVersion: "Upload new version",
 } as const;
 
+export const CAPTURE_STAGING_SURFACES = {
+	export: false,
+	publish: false,
+	search: false,
+	share: false,
+} as const;
+
 export const FILE_ATTACHMENT_QUOTA = {
 	maxOriginalBytes: 25 * 1024 * 1024 * 1024,
 	maxVersions: 20_000,
@@ -99,6 +106,7 @@ export const stageFileUploadPayloadSchema = z.object({
 	filename: z.string().min(1),
 	scope: fileScopeSchema,
 	targetFileAttachmentId: z.string().min(1).optional(),
+	title: z.string().min(1).optional(),
 });
 
 export const stageFileUploadCommandSchema = z.object({
@@ -111,4 +119,22 @@ export const stageFileUploadCommandSchema = z.object({
 
 export type StageFileUploadCommand = z.infer<
 	typeof stageFileUploadCommandSchema
+>;
+
+export const promoteCaptureAttachmentPayloadSchema = z.object({
+	inboxItemId: z.string().min(1),
+	scope: fileScopeSchema,
+	title: z.string().min(1).optional(),
+});
+
+export const promoteCaptureAttachmentCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: promoteCaptureAttachmentPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type PromoteCaptureAttachmentCommand = z.infer<
+	typeof promoteCaptureAttachmentCommandSchema
 >;
