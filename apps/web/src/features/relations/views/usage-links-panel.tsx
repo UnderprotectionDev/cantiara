@@ -12,9 +12,9 @@ import { useCallback, useState } from "react";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { invalidateWork } from "@/features/work-lifecycle/forms/invalidate-work";
 import { newIdempotencyKey } from "@/lib/mutation";
-import { orpc } from "@/utils/orpc";
 
 import { RELATIONS_COPY } from "./relations-copy";
+import { createUsageLinkWrite, unlinkUsageLinkWrite } from "./write-usage-link";
 
 export default function UsageLinksPanel({
 	hostRecordId,
@@ -74,16 +74,15 @@ function UsageEmbedRow({
 	usageLinkId: string;
 }) {
 	const { attemptOnlineWork, recordSave } = useClientShell();
-	const unlink = useMutation(
-		orpc.workLifecycle.unlinkUsageLink.mutationOptions({
-			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidateWork(projectId, hostRecordId);
-					recordSave();
-				}
-			},
-		})
-	);
+	const unlink = useMutation({
+		mutationFn: unlinkUsageLinkWrite,
+		onSuccess: async (outcome) => {
+			if (outcome.status === "committed" || outcome.status === "replayed") {
+				await invalidateWork(projectId, hostRecordId);
+				recordSave();
+			}
+		},
+	});
 	const onUnlink = useCallback(() => {
 		const result = attemptOnlineWork("record-create", () =>
 			unlink.mutateAsync({
@@ -129,17 +128,16 @@ function CreateUsageForm({
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [error, setError] = useState<string | null>(null);
 	const [firstCandidate] = candidates;
-	const create = useMutation(
-		orpc.workLifecycle.createUsageLink.mutationOptions({
-			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidateWork(projectId, hostRecordId);
-					recordSave();
-					setError(null);
-				}
-			},
-		})
-	);
+	const create = useMutation({
+		mutationFn: createUsageLinkWrite,
+		onSuccess: async (outcome) => {
+			if (outcome.status === "committed" || outcome.status === "replayed") {
+				await invalidateWork(projectId, hostRecordId);
+				recordSave();
+				setError(null);
+			}
+		},
+	});
 	const form = useForm({
 		defaultValues: {
 			sourceRecordId: firstCandidate ? firstCandidate.id : "",

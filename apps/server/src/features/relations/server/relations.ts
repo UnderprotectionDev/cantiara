@@ -156,13 +156,21 @@ export async function listUsageLinksForHosts(
 	if (hostRecordIds.length === 0) {
 		return grouped;
 	}
-	const usageRows = await prisma.usageLink.findMany({
-		orderBy: { createdAt: "asc" },
-		where: {
-			hostRecordId: { in: [...hostRecordIds] },
-			workspaceId,
-		},
-	});
+	let usageRows: Awaited<ReturnType<PrismaClient["usageLink"]["findMany"]>>;
+	try {
+		usageRows = await prisma.usageLink.findMany({
+			orderBy: { createdAt: "asc" },
+			where: {
+				hostRecordId: { in: [...hostRecordIds] },
+				workspaceId,
+			},
+		});
+	} catch (error) {
+		if (isMissingUsageStore(error)) {
+			return grouped;
+		}
+		throw error;
+	}
 	for (const row of usageRows) {
 		if (!isUsageKind(row.kind)) {
 			continue;
@@ -468,6 +476,15 @@ function storedUsage(
 
 function commandKeyFor(actorId: string, idempotencyKey: string): string {
 	return `human:${actorId}:${idempotencyKey}`;
+}
+
+function isMissingUsageStore(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		(error.code === "P2021" || error.code === "P2022")
+	);
 }
 
 async function lockProject(
