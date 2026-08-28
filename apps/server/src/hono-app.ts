@@ -105,6 +105,28 @@ app.get(
 	}
 );
 
+app.get(
+	"/api/file-attachments/:fileAttachmentId/versions/:versionId/preview",
+	async (c) => {
+		const context = {
+			...(await createContext({ context: c })),
+			log: c.get("log"),
+		};
+		return (await handleFileAttachmentContent(c, context)) ?? c.body(null, 404);
+	}
+);
+
+app.get(
+	"/api/file-attachments/:fileAttachmentId/versions/:versionId/thumbnails/:size",
+	async (c) => {
+		const context = {
+			...(await createContext({ context: c })),
+			log: c.get("log"),
+		};
+		return (await handleFileAttachmentContent(c, context)) ?? c.body(null, 404);
+	}
+);
+
 app.use("/*", async (c, next) => {
 	const { appRouter: liveRouter } = await import("./routes");
 	const liveRpcHandler = rpcHandlerFor(liveRouter);

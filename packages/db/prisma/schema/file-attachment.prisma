@@ -20,22 +20,40 @@ model FileAttachment {
 }
 
 model FileAttachmentVersion {
-  id               String                      @id
-  fileAttachmentId String
-  fileAttachment   FileAttachment              @relation(fields: [fileAttachmentId], references: [id], onDelete: Cascade)
-  versionNumber    Int
-  filename         String
-  mimeType         String
-  kind             String
-  byteLength       Int
-  contentHash      String
-  objectKey        String
-  createdAt        DateTime                    @default(now())
-  pins             FileAttachmentVersionPin[]
+  id                       String                      @id
+  fileAttachmentId         String
+  fileAttachment           FileAttachment              @relation(fields: [fileAttachmentId], references: [id], onDelete: Cascade)
+  versionNumber            Int
+  filename                 String
+  mimeType                 String
+  kind                     String
+  byteLength               Int
+  contentHash              String
+  objectKey                String
+  previewStatus            String                      @default("pending")
+  previewAttempts          Int                         @default(0)
+  previewCause             String?
+  previewSupportReference  String?
+  previewDataWritten       Boolean                     @default(false)
+  createdAt                DateTime                    @default(now())
+  pins                     FileAttachmentVersionPin[]
 
   @@unique([fileAttachmentId, versionNumber])
   @@index([fileAttachmentId])
+  @@index([contentHash])
   @@map("file_attachment_version")
+}
+
+model FileImageDerivative {
+  id          String   @id
+  contentHash String
+  size        String
+  objectKey   String
+  createdAt   DateTime @default(now())
+
+  @@unique([contentHash, size])
+  @@index([contentHash])
+  @@map("file_image_derivative")
 }
 
 model FileAttachmentVersionPin {

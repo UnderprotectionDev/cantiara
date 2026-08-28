@@ -417,6 +417,10 @@ _Avoid_: Dosya Eki, harici Markdown dosyası, kayıt açıklaması
 Tam olarak bir Proje veya Kişisel Wiki kapsamında yaşayan, dosya içeriğini ve sürümlerini taşıyan ana kayıt; başka kapsamdaki ilişki sahipliğini veya görünürlüğünü değiştirmez.
 _Avoid_: Belge, ilişki eki, paylaşılan global dosya
 
+**Görsel türevi**:
+Kesin bir Dosya Eki sürümünün özgün parmak izinden üretilen, küçük ve orta Gallery thumbnail cache'i; ayrı Dosya Eki, dosya sürümü veya kaynak dosya değildir ([görsel sunum](docs/prd/07-documents-and-knowledge.md#dosya-ekleri)). UI: `Unavailable` fallback kaynak kaydı bozuk saymaz.
+_Avoid_: ikinci Dosya Eki, kapak görseli, ham nesne URL'si
+
 **Komut Paleti**:
 Kurucu yüzeylerinde klavyeyle komut, gezinme, kayıt oluşturma ve Proje geçişi çalıştıran [yüzey](docs/prd/04-workspace-and-projects.md#komut-paleti-ve-klavye-odaklı-kullanım); Evrensel Arama sonuç listesi değildir. UI: `Command Palette`.
 _Avoid_: Search, Universal Search, komut pazarı, yeniden eşlenebilir kısayol profili

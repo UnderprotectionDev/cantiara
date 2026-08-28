@@ -281,6 +281,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Uzantı bağlantısını iptal et | `Revoke` | Tek bir uzantı bağlantısını iptal etme eylemi |
 | Belge | `Document` | Markdown Belgesi dönüşüm hedefi |
 | Dosya Eki | `File Attachment` | Dosya Eki dönüşüm hedefi |
+| Dosya seç | `Choose file` | Dosya Eki yükleme denetiminin görünür dosya seçme eylemi |
+| Dosya seçilmedi | `No file selected` | Dosya Eki yükleme denetiminde henüz dosya seçilmediğini söyleyen durum |
+| Dosya Eki seç | `Select a File Attachment` | Gallery listesinde henüz bir Dosya Eki seçilmediğinde önizleme boş durumu |
+| Sürümler | `Versions` | Seçili Dosya Ekinin sürüm zinciri başlığı |
 | Yakalama eki | `Capture attachment` | Yalnız Yakalama Gelen Kutusu öğesine ait şifreli staging nesnesi; Dosya Eki veya paylaşılmış medya kütüphanesi değildir |
 | Taslak | `Draft` | Henüz kaydedilmemiş ayrıntılı İş formu; ana kayıt, Yakalama Gelen Kutusu öğesi veya Belge taslağı değildir |
 | Taslaklar | `Drafts` | Kişisel Taslakların sürdürüldüğü veya silindiği yüzey |

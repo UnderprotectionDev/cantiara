@@ -1,13 +1,15 @@
 /**
  * File Attachments seam — accept/reject, quota, atomic finalize,
- * version pins, and retry idempotency. Synthetic `Dosya sınırları`
- * fixture for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
+ * version pins, retry idempotency, isolated preview, derived Gallery thumbnails,
+ * and Capture attachment promotion. Synthetic `Dosya sınırları` fixture for
+ * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Dosya güvenliği).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
 import { envelopeSeal } from "../../capture-triage/server/capture-staging-crypto";
 import { createProject } from "../../project-shell/server/project-shell";
 import {
@@ -24,6 +26,7 @@ import {
 	promoteCaptureAttachment,
 	putStagingBytes,
 	readAccessibleFileBytes,
+	readIsolatedPreviewBytes,
 	relateFileAttachment,
 	setFileLifecycle,
 	stageFileUpload,
@@ -34,16 +37,26 @@ import {
 	createMemoryCaptureStagingSource,
 	createPrismaCaptureStagingSource,
 } from "./file-attachments-capture-staging";
+import type { ImageDerivativeEngine } from "./file-attachments-derivatives";
 import {
+	CSV_PREVIEW_MAX_ROWS,
 	contentPathFor,
+	EXTERNAL_SURFACE_AUDIENCE,
 	FILE_ATTACHMENT_COPY,
 	FILE_ATTACHMENT_QUOTA,
 	FILE_KIND,
 	FILE_LIFECYCLE,
 	FILE_PIN_KIND,
 	FILE_TYPE_INTEGRITY_BUDGET_MS,
+	IMAGE_DERIVATIVE_LIMITS,
+	PREVIEW_MODE,
+	PREVIEW_STATUS,
+	previewPathFor,
 	STAGING_TTL_MS,
+	THUMBNAIL_SIZE,
+	thumbnailPathFor,
 } from "./file-attachments-model";
+import { fileCanEnterExternalSurface } from "./file-attachments-preview";
 import { sniffFileBytes } from "./file-attachments-sniff";
 import {
 	createFailingPromoteStore,
@@ -63,6 +76,7 @@ const PNG_BYTES = Uint8Array.from(
 
 const HTML_BYTES = new TextEncoder().encode("<html><body>run</body></html>");
 const RAW_OBJECT_URL = /r2\.|amazonaws|cloudflarestorage|cdn\./i;
+const IFRAME_MARK = /<iframe/i;
 const SUPPORT_REFERENCE = /^CANT-[0-9A-F]{8}$/;
 const SECRET_FREE_FAILURE = /html><body|BETTER_AUTH|r2\./i;
 
@@ -169,6 +183,90 @@ async function commitPng(
 	return await finalizeFileUpload(prisma, command, deps);
 }
 
+async function commitTyped(
+	prisma: PrismaClient,
+	input: {
+		actorId: string;
+		bytes: Uint8Array;
+		filename: string;
+		idempotencyKey: string;
+		mime: string;
+		projectId?: string;
+		workspaceId: string;
+	},
+	deps?: Parameters<typeof stageFileUpload>[2]
+) {
+	const command = uploadCommand({
+		actorId: input.actorId,
+		declaredMime: input.mime,
+		filename: input.filename,
+		idempotencyKey: input.idempotencyKey,
+		projectId: input.projectId,
+		workspaceId: input.workspaceId,
+	});
+	const staged = await stageFileUpload(prisma, command, deps);
+	if (staged.status !== "staged") {
+		return staged;
+	}
+	const put = await putStagingBytes(
+		prisma,
+		{
+			bytes: input.bytes,
+			operationId: staged.operation.operationId,
+		},
+		deps
+	);
+	if (put.status !== "staged") {
+		return put;
+	}
+	return await finalizeFileUpload(prisma, command, deps);
+}
+
+async function commitTypedCases(
+	prisma: PrismaClient,
+	actorId: string,
+	projectId: string,
+	workspaceId: string,
+	cases: readonly {
+		bytes: Uint8Array;
+		filename: string;
+		kind: string;
+		mime: string;
+		mode: string;
+		sniff?: { ext: string; mime: string };
+	}[],
+	index = 0
+): Promise<Awaited<ReturnType<typeof commitTyped>>[]> {
+	const file = cases[index];
+	if (!file) {
+		return [];
+	}
+	const outcome = await commitTyped(
+		prisma,
+		{
+			actorId,
+			bytes: file.bytes,
+			filename: file.filename,
+			idempotencyKey: file.filename,
+			mime: file.mime,
+			projectId,
+			workspaceId,
+		},
+		{
+			sniff: file.sniff ? () => Promise.resolve(file.sniff) : undefined,
+		}
+	);
+	const rest = await commitTypedCases(
+		prisma,
+		actorId,
+		projectId,
+		workspaceId,
+		cases,
+		index + 1
+	);
+	return [outcome, ...rest];
+}
+
 describe("File Attachments", () => {
 	let prisma: PrismaClient;
 	let pool: Pool;
@@ -181,6 +279,7 @@ describe("File Attachments", () => {
 		pool = new Pool({ connectionString: DATABASE_URL });
 		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 		await prisma.fileObjectBlob.deleteMany();
+		await prisma.fileImageDerivative.deleteMany();
 		await prisma.fileAttachmentStaging.deleteMany();
 		await prisma.fileAttachment.deleteMany();
 		await prisma.captureStagingObject.deleteMany();
@@ -695,6 +794,343 @@ describe("File Attachments", () => {
 			FILE_TYPE_INTEGRITY_BUDGET_MS.p99
 		);
 		expect(HTML_BYTES.byteLength).toBeGreaterThan(0);
+	});
+
+	it("previews the type matrix in an isolated product path and never unpacks ZIP", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const csvRows = Array.from({ length: CSV_PREVIEW_MAX_ROWS + 10 }, (_, i) =>
+			i === 0 ? "name,count" : `row-${i},${i}`
+		).join("\n");
+		const cases = [
+			{
+				bytes: PNG_BYTES,
+				filename: "shot.png",
+				kind: FILE_KIND.image,
+				mime: "image/png",
+				mode: PREVIEW_MODE.visual,
+			},
+			{
+				bytes: new TextEncoder().encode("%PDF-1.4\n1 0 obj<<>>endobj\n%%EOF\n"),
+				filename: "spec.pdf",
+				kind: FILE_KIND.pdf,
+				mime: "application/pdf",
+				mode: PREVIEW_MODE.paged,
+				sniff: { ext: "pdf", mime: "application/pdf" },
+			},
+			{
+				bytes: new TextEncoder().encode(csvRows),
+				filename: "dump.csv",
+				kind: FILE_KIND.csv,
+				mime: "text/csv",
+				mode: PREVIEW_MODE.csvRows,
+			},
+			{
+				bytes: new TextEncoder().encode("<script>alert(1)</script>\nlog line"),
+				filename: "notes.txt",
+				kind: FILE_KIND.text,
+				mime: "text/plain",
+				mode: PREVIEW_MODE.plainText,
+			},
+			{
+				bytes: new TextEncoder().encode("ID3audio"),
+				filename: "clip.mp3",
+				kind: FILE_KIND.audio,
+				mime: "audio/mpeg",
+				mode: PREVIEW_MODE.playback,
+				sniff: { ext: "mp3", mime: "audio/mpeg" },
+			},
+			{
+				bytes: new TextEncoder().encode("ftypisomvideo"),
+				filename: "clip.mp4",
+				kind: FILE_KIND.video,
+				mime: "video/mp4",
+				mode: PREVIEW_MODE.playback,
+				sniff: { ext: "mp4", mime: "video/mp4" },
+			},
+			{
+				bytes: Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]),
+				filename: "bundle.zip",
+				kind: FILE_KIND.zip,
+				mime: "application/zip",
+				mode: PREVIEW_MODE.downloadOnly,
+				sniff: { ext: "zip", mime: "application/zip" },
+			},
+		] as const;
+		const committed = await commitTypedCases(
+			prisma,
+			actorId,
+			project.id,
+			workspaceId,
+			cases
+		);
+		for (const [index, outcome] of committed.entries()) {
+			const file = cases[index];
+			if (!file) {
+				return;
+			}
+			expect(outcome.status).toBe("committed");
+			if (outcome.status !== "committed") {
+				return;
+			}
+			const { preview } = outcome.file.currentVersion;
+			expect(preview.mode).toBe(file.mode);
+			expect(preview.autoplay).toBe(false);
+			expect(preview.unpack).toBe(false);
+			expect(JSON.stringify(outcome.file)).not.toMatch(RAW_OBJECT_URL);
+			if (file.kind === FILE_KIND.zip) {
+				expect(preview.previewPath).toBeNull();
+				expect(
+					fileCanEnterExternalSurface({
+						audience: EXTERNAL_SURFACE_AUDIENCE.public,
+						kind: FILE_KIND.zip,
+					})
+				).toEqual({
+					allowed: false,
+					reason: FILE_ATTACHMENT_COPY.unscannedZip,
+				});
+				expect(
+					fileCanEnterExternalSurface({
+						audience: EXTERNAL_SURFACE_AUDIENCE.linkLimited,
+						kind: FILE_KIND.zip,
+					}).allowed
+				).toBe(false);
+			} else {
+				expect(preview.previewPath).toBe(
+					previewPathFor(outcome.file.id, outcome.file.currentVersion.id)
+				);
+			}
+			if (file.kind === FILE_KIND.csv) {
+				expect(preview.csvRows).toHaveLength(CSV_PREVIEW_MAX_ROWS);
+			}
+			if (file.kind === FILE_KIND.text) {
+				expect(preview.textExcerpt).toContain("log line");
+				expect(preview.textExcerpt).not.toMatch(IFRAME_MARK);
+			}
+			if (file.kind === FILE_KIND.audio || file.kind === FILE_KIND.video) {
+				expect(preview.playback).toEqual({
+					autoplay: false,
+					fullscreen: true,
+					loopOptional: true,
+					speed: true,
+				});
+			}
+		}
+		const zipOutcome = committed.find(
+			(outcome) =>
+				outcome.status === "committed" && outcome.file.kind === FILE_KIND.zip
+		);
+		if (zipOutcome?.status === "committed") {
+			expect(
+				await readIsolatedPreviewBytes(prisma, {
+					fileAttachmentId: zipOutcome.file.id,
+					kind: "preview",
+					versionId: zipOutcome.file.currentVersion.id,
+					workspaceId,
+				})
+			).toBeNull();
+		}
+		const listed = await listFileAttachments(prisma, {
+			scope: { kind: "project", projectId: project.id },
+			workspaceId,
+		});
+		const csvList = listed.find((item) => item.kind === FILE_KIND.csv);
+		expect(csvList?.currentVersion.preview.csvRows).toBeNull();
+		const imageList = listed.find((item) => item.kind === FILE_KIND.image);
+		expect(imageList?.currentVersion.preview.galleryThumbnailPath).not.toBe(
+			imageList?.contentPath
+		);
+	});
+
+	it("derives Gallery thumbnails idempotently from the original fingerprint without EXIF or a second File Attachment", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const gpsPng = Uint8Array.from(
+			Buffer.concat([
+				Buffer.from(PNG_BYTES),
+				Buffer.from("GPSLatitude iPhone Make"),
+			])
+		);
+		const cleanThumb = new TextEncoder().encode("WEBP-THUMB-NO-EXIF");
+		const engine: ImageDerivativeEngine = {
+			produce: (bytes) => {
+				expect(Buffer.from(bytes).includes(Buffer.from("GPSLatitude"))).toBe(
+					true
+				);
+				return Promise.resolve({
+					medium: cleanThumb,
+					small: cleanThumb,
+					status: "ok",
+				});
+			},
+		};
+		const first = await commitPng(
+			prisma,
+			{
+				actorId,
+				bytes: gpsPng,
+				filename: "gps.png",
+				idempotencyKey: "thumb-1",
+				projectId: project.id,
+				workspaceId,
+			},
+			{
+				derivatives: engine,
+				sniff: () => Promise.resolve({ ext: "png", mime: "image/png" }),
+			}
+		);
+		expect(first.status).toBe("committed");
+		if (first.status !== "committed") {
+			return;
+		}
+		const { preview } = first.file.currentVersion;
+		expect(preview.status).toBe(PREVIEW_STATUS.ready);
+		expect(preview.galleryThumbnailPath).toBe(
+			thumbnailPathFor(
+				first.file.id,
+				first.file.currentVersion.id,
+				THUMBNAIL_SIZE.small
+			)
+		);
+		expect(preview.galleryThumbnailPath).not.toBe(first.file.contentPath);
+		expect(preview.mediumThumbnailPath).not.toBe(first.file.contentPath);
+		const listed = await listFileAttachments(prisma, {
+			scope: { kind: "project", projectId: project.id },
+			workspaceId,
+		});
+		expect(listed[0]?.currentVersion.preview.galleryThumbnailPath).not.toBe(
+			listed[0]?.contentPath
+		);
+		const original = await readAccessibleFileBytes(prisma, {
+			fileAttachmentId: first.file.id,
+			versionId: first.file.currentVersion.id,
+			workspaceId,
+		});
+		expect(original?.bytes).toEqual(gpsPng);
+		const small = await readIsolatedPreviewBytes(prisma, {
+			fileAttachmentId: first.file.id,
+			kind: THUMBNAIL_SIZE.small,
+			versionId: first.file.currentVersion.id,
+			workspaceId,
+		});
+		expect(small?.bytes).toEqual(cleanThumb);
+		expect(
+			Buffer.from(small?.bytes ?? []).includes(Buffer.from("GPSLatitude"))
+		).toBe(false);
+		expect(await prisma.fileImageDerivative.count()).toBe(2);
+		expect(await prisma.fileAttachment.count()).toBe(1);
+		const again = await commitPng(
+			prisma,
+			{
+				actorId,
+				bytes: gpsPng,
+				filename: "gps-copy.png",
+				idempotencyKey: "thumb-2",
+				projectId: project.id,
+				workspaceId,
+			},
+			{
+				derivatives: engine,
+				sniff: () => Promise.resolve({ ext: "png", mime: "image/png" }),
+			}
+		);
+		expect(again.status).toBe("committed");
+		expect(await prisma.fileImageDerivative.count()).toBe(2);
+		await permanentlyDeleteFileAttachment(prisma, first.file.id);
+		expect(await prisma.fileImageDerivative.count()).toBe(2);
+		if (again.status === "committed") {
+			await permanentlyDeleteFileAttachment(prisma, again.file.id);
+		}
+		expect(await prisma.fileImageDerivative.count()).toBe(0);
+	});
+
+	it("rebuilds pending image derivatives when the File Attachment is opened", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const created = await commitPng(prisma, {
+			actorId,
+			idempotencyKey: "pending-open",
+			projectId: project.id,
+			workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			return;
+		}
+		await prisma.fileImageDerivative.deleteMany({
+			where: { contentHash: created.file.currentVersion.contentHash },
+		});
+		await prisma.fileAttachmentVersion.update({
+			data: {
+				previewAttempts: 0,
+				previewCause: null,
+				previewStatus: PREVIEW_STATUS.pending,
+			},
+			where: { id: created.file.currentVersion.id },
+		});
+		const opened = await getFileAttachment(prisma, {
+			id: created.file.id,
+			workspaceId,
+		});
+		expect(opened?.currentVersion.preview.status).toBe(PREVIEW_STATUS.ready);
+		expect(opened?.currentVersion.preview.galleryThumbnailPath).toBe(
+			thumbnailPathFor(
+				created.file.id,
+				created.file.currentVersion.id,
+				THUMBNAIL_SIZE.small
+			)
+		);
+		expect(opened?.currentVersion.preview.previewPath).toBe(
+			previewPathFor(created.file.id, created.file.currentVersion.id)
+		);
+	});
+
+	it("keeps an over-limit image downloadable with Unavailable preview and a bounded observable retry", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		let produces = 0;
+		const engine: ImageDerivativeEngine = {
+			produce: () => {
+				produces += 1;
+				return Promise.resolve({
+					cause: "decode-limit" as const,
+					status: "limit-exceeded" as const,
+				});
+			},
+		};
+		const created = await commitPng(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: "too-many-frames",
+				projectId: project.id,
+				workspaceId,
+			},
+			{ derivatives: engine }
+		);
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			return;
+		}
+		expect(produces).toBe(IMAGE_DERIVATIVE_LIMITS.retryLimit);
+		const { preview } = created.file.currentVersion;
+		expect(preview.status).toBe(PREVIEW_STATUS.unavailable);
+		expect(preview.previewPath).toBeNull();
+		expect(preview.galleryThumbnailPath).toBeNull();
+		expect(preview.cause).toBe("decode-limit");
+		expect(preview.written).toBe(false);
+		expect(preview.retryLimit).toBe(IMAGE_DERIVATIVE_LIMITS.retryLimit);
+		expect(preview.supportReference).toMatch(SUPPORT_REFERENCE);
+		const original = await readAccessibleFileBytes(prisma, {
+			fileAttachmentId: created.file.id,
+			versionId: created.file.currentVersion.id,
+			workspaceId,
+		});
+		expect(original?.bytes).toEqual(PNG_BYTES);
+		expect(
+			await readIsolatedPreviewBytes(prisma, {
+				fileAttachmentId: created.file.id,
+				kind: "preview",
+				versionId: created.file.currentVersion.id,
+				workspaceId,
+			})
+		).toBeNull();
 	});
 
 	it("promotes a Capture attachment into a File Attachment in the target scope", async () => {
