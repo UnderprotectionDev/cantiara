@@ -1,5 +1,7 @@
 import { Button } from "@cantiara/ui/components/button";
 
+import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
+
 import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
 import ChangeWorkTypeForm from "../forms/change-work-type-form";
@@ -119,6 +121,12 @@ export default function WorkDetail({
 				revision={work.revision}
 				type={work.type}
 				workId={work.id}
+			/>
+			<CustomFieldValuesEditor
+				key={`${work.id}:custom-fields`}
+				projectId={projectId}
+				recordId={work.id}
+				recordType="Work"
 			/>
 			<MergeWorkForm
 				candidates={candidates}

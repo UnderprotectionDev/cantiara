@@ -65,6 +65,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |
 | Metin | `Text` | Proje bazlı özel alan türü; Lookup veya Formula değildir |
 | Boolean | `Boolean` | Proje bazlı özel alan türü |
+| True | `True` | Boolean özel alanın ayarlanmış evet değeri; Değerlendirilmedi değildir |
+| False | `False` | Boolean özel alanın ayarlanmış hayır değeri; boş veya Değerlendirilmedi değildir |
+| Değerlendirilmedi | `Not evaluated` | Proje bazlı özel alanda boş veya ayarlanmamış değer; Boolean false veya seçim değeri değildir |
 | Tek seçim | `Single select` | Proje bazlı özel alan türü; seçenekler tanımda Proje-yereldir |
 | Çoklu seçim | `Multi select` | Proje bazlı özel alan türü; seçenekler tanımda Proje-yereldir |
 | İş Bağlam Kartı düzeni | `Work Context Card layout` | İş Bağlam Kartı bölüm düzeninin Yapılandırma modu girişi; şema veya düzen motoru değildir |
