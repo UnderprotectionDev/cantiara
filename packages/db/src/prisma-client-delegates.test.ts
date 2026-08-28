@@ -57,11 +57,12 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
-	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, and Work Drafts", () => {
+	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Drafts, and File Attachments", () => {
 		expect(
 			prismaClientHasCurrentDelegates({
 				...workDelegates(),
 				...currentLifecycleDelegates(),
+				fileAttachment: { findMany },
 			} as unknown as PrismaClient)
 		).toBe(true);
 	});

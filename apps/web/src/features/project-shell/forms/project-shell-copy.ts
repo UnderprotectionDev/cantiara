@@ -76,14 +76,14 @@ export function pinnedNavigationAreas(
 	return pinnedAreas.filter((area) => enabledAreas.includes(area));
 }
 
-const REACHABLE_AREAS = ["Work", "Documents"] as const;
+const REACHABLE_AREAS = ["Work", "Documents", "File Attachment"] as const;
 
 export function projectPersistentNav(
 	pinnedAreas: readonly string[],
 	enabledAreas: readonly string[]
 ): string[] {
-	const reachable = REACHABLE_AREAS.filter((area) =>
-		enabledAreas.includes(area)
+	const reachable = REACHABLE_AREAS.filter(
+		(area) => area === "File Attachment" || enabledAreas.includes(area)
 	);
 	const listed = new Set<string>(reachable);
 	const pinned = pinnedNavigationAreas(pinnedAreas, enabledAreas).filter(
@@ -189,6 +189,7 @@ export function projectShellSearch(
 const ALWAYS_ON_ANCHORS = {
 	"All Tools": "all-tools",
 	Documents: "documents",
+	"File Attachment": "file-attachment",
 	Overview: "overview",
 	Work: "work",
 } as const;

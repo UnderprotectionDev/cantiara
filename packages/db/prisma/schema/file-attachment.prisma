@@ -1,0 +1,113 @@
+model FileAttachment {
+  id          String                   @id
+  workspaceId String
+  workspace   Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  scopeKind   String
+  projectId   String?
+  project     Project?                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  lifecycle   String
+  revision    Int
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  versions    FileAttachmentVersion[]
+  relations   FileAttachmentRelation[]
+  receipts    FileAttachmentReceipt[]
+
+  @@index([workspaceId, scopeKind, projectId])
+  @@index([workspaceId, lifecycle])
+  @@map("file_attachment")
+}
+
+model FileAttachmentVersion {
+  id               String                      @id
+  fileAttachmentId String
+  fileAttachment   FileAttachment              @relation(fields: [fileAttachmentId], references: [id], onDelete: Cascade)
+  versionNumber    Int
+  filename         String
+  mimeType         String
+  kind             String
+  byteLength       Int
+  contentHash      String
+  objectKey        String
+  createdAt        DateTime                    @default(now())
+  pins             FileAttachmentVersionPin[]
+
+  @@unique([fileAttachmentId, versionNumber])
+  @@index([fileAttachmentId])
+  @@map("file_attachment_version")
+}
+
+model FileAttachmentVersionPin {
+  id        String                @id
+  versionId String
+  version   FileAttachmentVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  kind      String
+  targetId  String
+  createdAt DateTime              @default(now())
+
+  @@index([versionId])
+  @@map("file_attachment_version_pin")
+}
+
+model FileAttachmentRelation {
+  id        String         @id
+  fromId    String
+  from      FileAttachment @relation(fields: [fromId], references: [id], onDelete: Cascade)
+  kind      String
+  targetId  String
+  createdAt DateTime       @default(now())
+
+  @@index([fromId])
+  @@map("file_attachment_relation")
+}
+
+model FileAttachmentStaging {
+  id                     String    @id
+  workspaceId            String
+  actorId                String
+  commandKey             String    @unique
+  payloadFingerprint     String
+  scopeKind              String
+  projectId              String?
+  targetFileAttachmentId String?
+  filename               String
+  declaredMime           String
+  expectedByteLength     Int
+  objectKey              String
+  status                 String
+  bytesComplete          Boolean   @default(false)
+  committedAttachmentId  String?
+  committedVersionId     String?
+  expiresAt              DateTime
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([workspaceId, status, expiresAt])
+  @@map("file_attachment_staging")
+}
+
+model FileAttachmentReceipt {
+  id                     String         @id
+  commandKey             String         @unique
+  fileAttachmentId       String
+  fileAttachment         FileAttachment @relation(fields: [fileAttachmentId], references: [id], onDelete: Cascade)
+  payloadFingerprint     String
+  versionId              String
+  kind                   String
+  createdAt              DateTime       @default(now())
+
+  @@index([fileAttachmentId])
+  @@map("file_attachment_receipt")
+}
+
+model FileObjectBlob {
+  objectKey   String   @id
+  workspaceId String
+  bytes       Bytes
+  accessible  Boolean
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, accessible])
+  @@map("file_object_blob")
+}
