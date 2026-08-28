@@ -33,6 +33,7 @@ export default function FileMarkingOverlay({
 	fileKind,
 	page,
 	projectId,
+	scope,
 	versionId,
 }: {
 	children: ReactNode;
@@ -70,6 +71,31 @@ export default function FileMarkingOverlay({
 		}),
 		enabled: Boolean(projectId),
 	});
+	const selectedWork = (works.data ?? []).find(
+		(work) => work.id === existingWorkId
+	);
+	const previewBind = useQuery({
+		...orpc.fileAttachments.previewLocationBind.queryOptions({
+			input: {
+				existingWork: selectedWork
+					? { id: selectedWork.id, title: selectedWork.title }
+					: null,
+				fileKind,
+				geometry: pendingGeometry
+					? bindGeometry(pendingGeometry, page)
+					: { kind: "point", x: 0, y: 0 },
+				scope:
+					scope ??
+					(projectId
+						? { kind: "project", projectId }
+						: { kind: "personal-wiki" }),
+				surface: "file-attachment",
+				title,
+				versionId,
+			},
+		}),
+		enabled: Boolean(pendingGeometry),
+	});
 	const invalidateLayer = useCallback(async () => {
 		await queryClient.invalidateQueries({
 			queryKey: orpc.fileAttachments.getMarkingLayer.queryKey({
@@ -106,7 +132,9 @@ export default function FileMarkingOverlay({
 					return;
 				}
 				setBindError(
-					outcome.status === "rejected" ? outcome.reason : "Conflict"
+					outcome.status === "rejected"
+						? rejectCopy(outcome)
+						: FILE_ATTACHMENT_COPY.conflict
 				);
 			},
 		})
@@ -130,6 +158,7 @@ export default function FileMarkingOverlay({
 		return () => observer.disconnect();
 	}, []);
 	const { height, width } = size;
+	const canBindWork = Boolean(projectId);
 	const onDrawStart = useCallback(
 		(point: { x: number; y: number }) => {
 			if (mode === "point") {
@@ -188,6 +217,10 @@ export default function FileMarkingOverlay({
 		if (!pendingGeometry) {
 			return;
 		}
+		if (previewBind.data?.status !== "ok") {
+			setBindError(rejectCopy(previewBind.data));
+			return;
+		}
 		bind.mutate({
 			existingWorkId: existingWorkId.length > 0 ? existingWorkId : undefined,
 			geometry: bindGeometry(pendingGeometry, page),
@@ -197,7 +230,15 @@ export default function FileMarkingOverlay({
 			title: title.length > 0 ? title : undefined,
 			versionId,
 		});
-	}, [bind, existingWorkId, page, pendingGeometry, title, versionId]);
+	}, [
+		bind,
+		existingWorkId,
+		page,
+		pendingGeometry,
+		previewBind.data,
+		title,
+		versionId,
+	]);
 	const onSelectMode = useCallback(
 		(event: { currentTarget: HTMLButtonElement }) => {
 			const next = event.currentTarget.dataset.mode;
@@ -240,22 +281,26 @@ export default function FileMarkingOverlay({
 						{toolLabel(tool)}
 					</Button>
 				))}
-				<Button
-					data-mode="point"
-					onClick={onSelectMode}
-					type="button"
-					variant={mode === "point" ? "default" : "outline"}
-				>
-					{FILE_ATTACHMENT_COPY.point}
-				</Button>
-				<Button
-					data-mode="region"
-					onClick={onSelectMode}
-					type="button"
-					variant={mode === "region" ? "default" : "outline"}
-				>
-					{FILE_ATTACHMENT_COPY.region}
-				</Button>
+				{canBindWork ? (
+					<>
+						<Button
+							data-mode="point"
+							onClick={onSelectMode}
+							type="button"
+							variant={mode === "point" ? "default" : "outline"}
+						>
+							{FILE_ATTACHMENT_COPY.point}
+						</Button>
+						<Button
+							data-mode="region"
+							onClick={onSelectMode}
+							type="button"
+							variant={mode === "region" ? "default" : "outline"}
+						>
+							{FILE_ATTACHMENT_COPY.region}
+						</Button>
+					</>
+				) : null}
 				<Button onClick={onUndo} type="button" variant="ghost">
 					{FILE_ATTACHMENT_COPY.undo}
 				</Button>
@@ -278,6 +323,9 @@ export default function FileMarkingOverlay({
 					<p className="font-medium text-xs">
 						{FILE_ATTACHMENT_COPY.originLocation} ·{" "}
 						{FILE_ATTACHMENT_COPY.preview}
+						{previewBind.data?.status === "ok"
+							? ` · ${previewBind.data.work.title}`
+							: ""}
 					</p>
 					<FieldGroup>
 						<Field>
@@ -379,6 +427,17 @@ function bindGeometry(
 		x: pending.x,
 		y: pending.y,
 	};
+}
+
+function rejectCopy(outcome?: { reason?: string }) {
+	if (
+		outcome?.reason === FILE_ATTACHMENT_COPY.previewRequired ||
+		outcome?.reason === FILE_ATTACHMENT_COPY.workRequiresProject ||
+		outcome?.reason === FILE_ATTACHMENT_COPY.conflict
+	) {
+		return outcome.reason;
+	}
+	return FILE_ATTACHMENT_COPY.unavailable;
 }
 
 function toolLabel(tool: MarkingTool): string {

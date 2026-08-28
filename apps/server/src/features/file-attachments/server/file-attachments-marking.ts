@@ -214,6 +214,9 @@ export async function undoMark(
 	if (!row) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
+	if (!isMarkingKind(row.kind)) {
+		return { reason: FILE_ATTACHMENT_COPY.typeRejected, status: "rejected" };
+	}
 	const marks = parseMarks(row.markingMarks);
 	const next = marks.slice(0, -1);
 	const updated = await prisma.fileAttachmentVersion.update({
@@ -374,7 +377,7 @@ export async function confirmLocationWorkBind(
 	}
 ): Promise<LocationBindOutcome> {
 	if (input.previewAcknowledged !== true) {
-		return { reason: "preview-required", status: "rejected" };
+		return { reason: FILE_ATTACHMENT_COPY.previewRequired, status: "rejected" };
 	}
 	const blockedSurface = rejectWireframeSurface(input.surface);
 	if (blockedSurface) {
@@ -399,7 +402,9 @@ export async function confirmLocationWorkBind(
 		file?.scope.kind === "project" ? file.scope.projectId : undefined;
 	if (!(file && projectId)) {
 		return {
-			reason: file ? FILE_ATTACHMENT_COPY.typeRejected : "target-not-found",
+			reason: file
+				? FILE_ATTACHMENT_COPY.workRequiresProject
+				: "target-not-found",
 			status: "rejected",
 		};
 	}
@@ -439,6 +444,9 @@ export async function confirmLocationWorkBind(
 		viewerWorkspaceId: input.workspaceId,
 	});
 	if (related.status !== "committed" && related.status !== "replayed") {
+		await prisma.fileAttachmentOriginLocation.deleteMany({
+			where: { id: locationId },
+		});
 		return {
 			reason: related.status === "rejected" ? related.reason : "origin-failed",
 			status: "rejected",

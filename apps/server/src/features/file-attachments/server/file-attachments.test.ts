@@ -1672,7 +1672,10 @@ describe("File Attachments", () => {
 				versionId,
 				workspaceId,
 			})
-		).toEqual({ reason: "preview-required", status: "rejected" });
+		).toEqual({
+			reason: FILE_ATTACHMENT_COPY.previewRequired,
+			status: "rejected",
+		});
 		expect(await listWork(prisma, project.id)).toEqual([]);
 		const preview = previewLocationWorkBind({
 			fileKind: FILE_KIND.image,
@@ -1776,5 +1779,51 @@ describe("File Attachments", () => {
 				where: { versionId: next.file.currentVersion.id },
 			})
 		).toBe(0);
+	});
+
+	it("rejects marking undo on non-visual files and wiki Origin Location bind", async () => {
+		const wikiOwner = await seedWorkspace(prisma);
+		const wiki = await commitPng(prisma, {
+			actorId: wikiOwner.actorId,
+			idempotencyKey: "wiki-origin",
+			workspaceId: wikiOwner.workspaceId,
+		});
+		expect(wiki.status).toBe("committed");
+		if (wiki.status !== "committed") {
+			return;
+		}
+		expect(
+			await confirmLocationWorkBind(prisma, {
+				actorId: wikiOwner.actorId,
+				geometry: { kind: ORIGIN_LOCATION_KIND.point, x: 0.1, y: 0.1 },
+				idempotencyKey: "wiki-bind",
+				previewAcknowledged: true,
+				surface: LOCATION_SURFACE.fileAttachment,
+				title: "Wiki hotspot",
+				versionId: wiki.file.currentVersion.id,
+				workspaceId: wikiOwner.workspaceId,
+			})
+		).toEqual({
+			reason: FILE_ATTACHMENT_COPY.workRequiresProject,
+			status: "rejected",
+		});
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const note = await commitTyped(prisma, {
+			actorId,
+			bytes: new TextEncoder().encode("log line"),
+			filename: "note.txt",
+			idempotencyKey: "txt-undo",
+			mime: "text/plain",
+			projectId: project.id,
+			workspaceId,
+		});
+		expect(note.status).toBe("committed");
+		if (note.status !== "committed") {
+			return;
+		}
+		expect(await undoMark(prisma, note.file.currentVersion.id)).toEqual({
+			reason: FILE_ATTACHMENT_COPY.typeRejected,
+			status: "rejected",
+		});
 	});
 });

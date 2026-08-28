@@ -19,6 +19,7 @@ export const FILE_ATTACHMENT_COPY = {
 	personalWiki: "Personal Wiki",
 	point: "Point",
 	preview: "Preview",
+	previewRequired: "Preview the Origin Location bind before confirming.",
 	quotaExceeded: "Workspace file quota is exceeded.",
 	quotaWarning: "Workspace file storage is at 80% of quota.",
 	rectangle: "Rectangle",
@@ -36,6 +37,7 @@ export const FILE_ATTACHMENT_COPY = {
 	uploadNewVersion: "Upload new version",
 	wireframeOriginNotThisFeature:
 		"Wireframe-screen origin location is not a File Attachment action.",
+	workRequiresProject: "Origin Location binds to Work in a Project.",
 } as const;
 
 export const CAPTURE_STAGING_SURFACES = {

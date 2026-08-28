@@ -224,6 +224,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ok | `Arrow` | İşaretleme katmanı aracı |
 | Dikdörtgen | `Rectangle` | İşaretleme katmanı aracı |
 | Köken olarak bağla | `Bind as origin` | Seçilen nokta veya bölgeyi İşe Köken konumu olarak bağlama |
+| Nokta | `Point` | Görsel veya PDF üzerinde tek konum seçimi |
+| Bölge | `Region` | Görsel veya PDF üzerinde dikdörtgen konum seçimi |
+| Yeni İş | `New Work` | Köken konumunu yeni tam İşe bağlama |
+| Mevcut İş | `Existing Work` | Köken konumunu var olan tam İşe bağlama |
+| Onayla | `Confirm` | Köken konumu önizlemesini uygulayan eylem |
 | Hedefe katkı | `Contributes to Goal` | İş, Kilometre Taşı veya Proje Sürümünün Proje Hedefine türlenmiş katkı ilişkisidir |
 | Çalışma Alanı çıkış paketi | `Workspace Exit Package` | Kullanıcı parolasıyla şifrelenmiş tam Çalışma Alanı arşividir; ürün içi restore değildir |
 | Destek referansı | `Support reference` | Başarısız ana akışta secret veya özel içerik taşımayan sunucu takip kimliği |

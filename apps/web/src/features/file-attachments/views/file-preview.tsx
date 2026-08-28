@@ -109,10 +109,13 @@ export default function FilePreview({
 		);
 	}
 	if (surface === "paged" && preview.previewPath) {
-		return withMarking(
-			<PdfPreview src={preview.previewPath} title={title} />,
-			kind,
-			marking
+		return (
+			<PdfPreview
+				kind={kind}
+				marking={marking}
+				src={preview.previewPath}
+				title={title}
+			/>
 		);
 	}
 	if (surface === "csv" && preview.csvRows) {
@@ -163,7 +166,8 @@ function withMarking(
 				scope: { kind: string; projectId?: string };
 				versionId: string;
 		  }
-		| undefined
+		| undefined,
+	page?: number
 ) {
 	if (!marking) {
 		return child;
@@ -171,6 +175,7 @@ function withMarking(
 	return (
 		<FileMarkingOverlay
 			fileKind={fileKind}
+			page={page}
 			projectId={marking.projectId}
 			scope={marking.scope}
 			versionId={marking.versionId}
@@ -291,7 +296,21 @@ function PlaybackPreview({
 	);
 }
 
-function PdfPreview({ src, title }: { src: string; title: string }) {
+function PdfPreview({
+	kind,
+	marking,
+	src,
+	title,
+}: {
+	kind: string;
+	marking?: {
+		projectId: string | null;
+		scope: { kind: string; projectId?: string };
+		versionId: string;
+	};
+	src: string;
+	title: string;
+}) {
 	const [page, setPage] = useState(1);
 	const [pages, setPages] = useState(1);
 	const onLoad = useCallback(({ numPages }: { numPages: number }) => {
@@ -304,11 +323,14 @@ function PdfPreview({ src, title }: { src: string; title: string }) {
 		setPage((current) => Math.min(pages, current + 1));
 	}, [pages]);
 	const objectUrl = useProductObjectUrl(src);
+	const pageView = (
+		<Document file={objectUrl ?? src} onLoadSuccess={onLoad}>
+			<Page pageNumber={page} width={480} />
+		</Document>
+	);
 	return (
 		<div className="flex flex-col gap-2">
-			<Document file={objectUrl ?? src} onLoadSuccess={onLoad}>
-				<Page pageNumber={page} width={480} />
-			</Document>
+			{withMarking(pageView, kind, marking, page)}
 			<div className="flex gap-2">
 				<Button onClick={previous} type="button" variant="ghost">
 					{FILE_ATTACHMENT_COPY.previous}

@@ -23,6 +23,7 @@ export const FILE_ATTACHMENT_COPY = {
 	personalWiki: "Personal Wiki",
 	point: "Point",
 	preview: "Preview",
+	previewRequired: "Preview the Origin Location bind before confirming.",
 	previous: "Previous",
 	quotaExceeded: "Workspace file quota is exceeded.",
 	quotaWarning: "Workspace file storage is at 80% of quota.",
@@ -38,6 +39,7 @@ export const FILE_ATTACHMENT_COPY = {
 	upload: "Upload",
 	uploadNewVersion: "Upload new version",
 	versions: "Versions",
+	workRequiresProject: "Origin Location binds to Work in a Project.",
 } as const;
 
 export function fileToBase64(file: File): Promise<string> {

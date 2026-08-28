@@ -421,6 +421,10 @@ _Avoid_: Belge, ilişki eki, paylaşılan global dosya
 Kesin bir Dosya Eki sürümünün özgün parmak izinden üretilen, küçük ve orta Gallery thumbnail cache'i; ayrı Dosya Eki, dosya sürümü veya kaynak dosya değildir ([görsel sunum](docs/prd/07-documents-and-knowledge.md#dosya-ekleri)). UI: `Unavailable` fallback kaynak kaydı bozuk saymaz.
 _Avoid_: ikinci Dosya Eki, kapak görseli, ham nesne URL'si
 
+**Kaynak görsel**:
+Paylaşım/yayın önizlemesinde işaretleme katmanından ayrı onaylanan Dosya Eki görseli; katmanı onaylamaz.
+_Avoid_: otomatik paylaşım, ikinci Dosya Eki
+
 **İşaretleme katmanı**:
 Kesin bir Dosya Eki sürümüne bağlı, özgün byte'tan ayrı geri alınabilir üstveri; kalem, vurgulayıcı, ok ve dikdörtgen ile sınırlı kanıt notu. Yeni Dosya Eki, dosya sürümü, yorum veya ilişki üretmez ve sonraki sürüme taşınmaz.
 _Avoid_: üretim tasarım aracı, Wireframe belgesi, yorum dizisi
