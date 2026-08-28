@@ -12,6 +12,8 @@ const TAG_MAINTENANCE_PATTERN =
 
 test("English Custom field catalog is the closed six types", () => {
 	expect(CUSTOM_FIELD_COPY.customField).toBe("Custom field");
+	expect(CUSTOM_FIELD_COPY.notEvaluated).toBe("Not evaluated");
+	expect(CUSTOM_FIELD_COPY.filter).toBe("Filter");
 	expect(CUSTOM_FIELD_TYPES).toEqual([
 		"Text",
 		"Number",

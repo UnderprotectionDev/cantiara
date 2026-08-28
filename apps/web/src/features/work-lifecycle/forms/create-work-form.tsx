@@ -6,10 +6,14 @@ import {
 	NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
+import { CustomFieldValueFields } from "@/features/custom-fields/forms/custom-field-value-control";
+import { invalidateCustomFieldValues } from "@/features/custom-fields/forms/custom-field-values-editor";
+import type { CustomFieldStoredValue } from "@/features/custom-fields/forms/custom-fields-copy";
+import { writeCustomFieldValues } from "@/features/custom-fields/forms/write-custom-field-values";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -35,6 +39,17 @@ export default function CreateWorkForm({
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [error, setError] = useState<string | null>(null);
+	const [values, setValues] = useState<Record<string, CustomFieldStoredValue>>(
+		{}
+	);
+	const fields = useQuery(
+		orpc.customFields.surface.queryOptions({
+			input: { projectId, recordType: "Work" },
+		})
+	);
+	const setCustomValue = useMutation(
+		orpc.customFields.setValue.mutationOptions()
+	);
 	const create = useMutation(
 		orpc.workLifecycle.create.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -82,10 +97,34 @@ export default function CreateWorkForm({
 			}
 			const outcome = await result.value;
 			if (outcome.status === "committed" || outcome.status === "replayed") {
+				const message = await writeCustomFieldValues({
+					attempt: attemptOnlineWork,
+					fields: fields.data ?? [],
+					recordId: outcome.work.id,
+					recordType: "Work",
+					setValue: setCustomValue.mutateAsync,
+					values,
+				});
+				if (message) {
+					setError(message);
+					form.reset();
+					return;
+				}
+				await invalidateCustomFieldValues(projectId, "Work", outcome.work.id);
 				form.reset();
+				setValues({});
 			}
 		},
 	});
+	const onCustomFieldValueChange = useCallback(
+		(definitionId: string, value: CustomFieldStoredValue) => {
+			setValues((current) => ({
+				...current,
+				[definitionId]: value,
+			}));
+		},
+		[]
+	);
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
@@ -118,6 +157,13 @@ export default function CreateWorkForm({
 					{WORK_LIFECYCLE_COPY.createWork}
 				</Button>
 			</FieldGroup>
+			{fields.data && fields.data.length > 0 ? (
+				<CustomFieldValueFields
+					fields={fields.data}
+					onValueChange={onCustomFieldValueChange}
+					values={values}
+				/>
+			) : null}
 			{error ? <p role="alert">{error}</p> : null}
 		</form>
 	);

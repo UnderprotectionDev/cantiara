@@ -230,7 +230,13 @@ export const projectViewSchema = z.object({
 		z.literal("Documents"),
 		z.literal("All Tools"),
 	]),
-	customFieldDefinitions: z.array(z.never()),
+	customFieldDefinitions: z.array(
+		z.object({
+			id: z.string().min(1),
+			name: z.string().min(1),
+			type: z.string().min(1),
+		})
+	),
 	enabledAreas: z.array(z.enum(PROJECT_AREAS)),
 	firstOpenExplanation: z.string().min(1).nullable(),
 	firstOpenExplanationVisible: z.boolean(),
@@ -406,7 +412,13 @@ const copiedWorkStatusSchema = z.object({
 });
 
 export const structureCopyPreviewSchema = z.object({
-	customFieldDefinitions: z.array(z.never()),
+	customFieldDefinitions: z.array(
+		z.object({
+			id: z.string().min(1),
+			name: z.string().min(1),
+			type: z.string().min(1),
+		})
+	),
 	emptyWallSkeletonDefinitions: z.array(
 		z.object({
 			emptyHeadings: z.array(z.string().min(1)),
@@ -456,7 +468,7 @@ export function structureCopyPreview(
 	project: ProjectView
 ): StructureCopyPreview {
 	return {
-		customFieldDefinitions: [],
+		customFieldDefinitions: project.customFieldDefinitions,
 		emptyWallSkeletonDefinitions: project.selectedSkeletons.flatMap(
 			(skeleton) =>
 				skeleton.surface === "Project Wall"

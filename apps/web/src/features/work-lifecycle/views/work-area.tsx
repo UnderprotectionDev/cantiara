@@ -2,6 +2,8 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 
+import CustomFieldFilter from "@/features/custom-fields/forms/custom-field-filter";
+import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-record-values";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { orpc } from "@/utils/orpc";
 
@@ -14,6 +16,7 @@ import { nextSelectedWorkId } from "./work-selection";
 
 export default function WorkArea({ projectId }: { projectId: string }) {
 	const [archiveFilter, setArchiveFilter] = useState(false);
+	const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
 	const work = useQuery(
 		orpc.workLifecycle.list.queryOptions({
 			input: { archived: archiveFilter, projectId },
@@ -62,10 +65,19 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 	}
 
 	const selected = work.data.find((item) => item.id === selectedId) ?? null;
+	const items =
+		filteredIds === null
+			? work.data
+			: work.data.filter((item) => filteredIds.includes(item.id));
 
 	return (
 		<div className="flex flex-col gap-6">
 			<CreateWorkForm onCreated={onCreated} projectId={projectId} />
+			<CustomFieldFilter
+				onRecordIds={setFilteredIds}
+				projectId={projectId}
+				recordType="Work"
+			/>
 			<Button
 				aria-pressed={archiveFilter}
 				onClick={onToggleArchiveFilter}
@@ -75,7 +87,7 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 			>
 				{WORK_LIFECYCLE_COPY.archived}
 			</Button>
-			<WorkList items={work.data} onSelect={onSelect} selectedId={selectedId} />
+			<WorkList items={items} onSelect={onSelect} selectedId={selectedId} />
 			<ScopeTree
 				onOpenSourceRecord={onOpenSourceRecord}
 				openedRecordId={selectedId}
@@ -97,6 +109,7 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 					works={work.data}
 				/>
 			) : null}
+			<BoundRecordValuesSurface projectId={projectId} recordType="Feedback" />
 		</div>
 	);
 }
