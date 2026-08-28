@@ -1,0 +1,33 @@
+model ProjectCustomFieldDefinition {
+  id                String                     @id
+  projectId         String
+  project           Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name              String
+  type              String
+  boundRecordTypes  String[]
+  options           String[]
+  revision          Int
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  values            ProjectCustomFieldValue[]
+
+  @@index([projectId])
+  @@map("project_custom_field_definition")
+}
+
+model ProjectCustomFieldValue {
+  id            String                         @id
+  definitionId  String
+  definition    ProjectCustomFieldDefinition   @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  recordType    String
+  recordId      String
+  revision      Int
+  value         Json
+  createdAt     DateTime                       @default(now())
+  updatedAt     DateTime                       @updatedAt
+
+  @@unique([definitionId, recordType, recordId])
+  @@index([recordType, recordId])
+  @@index([definitionId])
+  @@map("project_custom_field_value")
+}
