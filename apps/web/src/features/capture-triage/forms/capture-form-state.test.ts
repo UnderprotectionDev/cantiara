@@ -9,6 +9,7 @@ import {
 	captureInboxItemPreview,
 	captureInboxListHeading,
 	captureInboxListInput,
+	captureProjectOptions,
 	createBugIsAvailable,
 	fileToCaptureAttachment,
 	nextBulkPosition,
@@ -96,16 +97,19 @@ test("the Capture Inbox page groups items by Workspace and each Project Inbox", 
 			heading: "Workspace Capture Inbox",
 			items: [workspaceItem],
 			projectId: null,
+			projectName: null,
 		},
 		{
 			heading: "Project Capture Inbox",
 			items: [feedbackItem],
 			projectId: "Feedback",
+			projectName: "Feedback",
 		},
 		{
 			heading: "Project Capture Inbox",
 			items: [researchItem],
 			projectId: "Research Fragment",
+			projectName: "Research Fragment",
 		},
 	]);
 });
@@ -128,6 +132,39 @@ test("a Project Inbox groups items together without requiring the same capital l
 			heading: "Project Capture Inbox",
 			items: [firstSeen, otherCasing],
 			projectId: "Feedback",
+			projectName: "Feedback",
+		},
+	]);
+});
+
+test("Project options list each Project by name and keep the empty Workspace choice", () => {
+	expect(
+		captureProjectOptions([
+			{ id: "proj-nova", name: "Nova" },
+			{ id: "proj-atlas", name: "Atlas" },
+		])
+	).toEqual([
+		{ id: "", name: "" },
+		{ id: "proj-atlas", name: "Atlas" },
+		{ id: "proj-nova", name: "Nova" },
+	]);
+});
+
+test("a Project Inbox heading uses the Project name when the catalog knows it", () => {
+	const item = {
+		body: "Crash shot",
+		id: "p-1",
+		scope: { kind: "project" as const, projectId: "proj-atlas" },
+		template: null,
+	};
+	expect(
+		captureInboxGroups([item], LIST_COPY, [{ id: "proj-atlas", name: "Atlas" }])
+	).toEqual([
+		{
+			heading: "Project Capture Inbox",
+			items: [item],
+			projectId: "proj-atlas",
+			projectName: "Atlas",
 		},
 	]);
 });

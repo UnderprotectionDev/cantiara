@@ -56,6 +56,29 @@ export function captureInboxListHeading(
 		: copy.workspaceCaptureInbox;
 }
 
+export function captureProjectOptions(
+	projects: Array<{ id: string; name: string }>
+): Array<{ id: string; name: string }> {
+	const named = [...projects].sort((left, right) =>
+		left.name.localeCompare(right.name, "en-US")
+	);
+	return [{ id: "", name: "" }, ...named];
+}
+
+export function captureProjectName(
+	projectId: string,
+	projects: Array<{ id: string; name: string }>
+): string {
+	const trimmed = projectId.trim();
+	const match = projects.find(
+		(project) =>
+			project.id === trimmed ||
+			project.name.toLocaleLowerCase("en-US") ===
+				trimmed.toLocaleLowerCase("en-US")
+	);
+	return match?.name ?? trimmed;
+}
+
 export function captureInboxItemPreview(
 	item: { body: string; template: string | null },
 	templateLabel: string | null
@@ -103,6 +126,7 @@ export interface CaptureInboxGroup {
 	heading: string;
 	items: CaptureInboxGroupItem[];
 	projectId: string | null;
+	projectName: string | null;
 }
 
 export function captureInboxGroups(
@@ -110,7 +134,8 @@ export function captureInboxGroups(
 	copy: {
 		projectCaptureInbox: string;
 		workspaceCaptureInbox: string;
-	}
+	},
+	projects: Array<{ id: string; name: string }> = []
 ): CaptureInboxGroup[] {
 	const workspaceItems = items.filter(
 		(item) => item.scope.kind === "workspace"
@@ -140,6 +165,7 @@ export function captureInboxGroups(
 			heading: copy.workspaceCaptureInbox,
 			items: workspaceItems,
 			projectId: null,
+			projectName: null,
 		});
 	}
 	const projectKeys = [...byProject.keys()].sort((left, right) =>
@@ -154,6 +180,7 @@ export function captureInboxGroups(
 			heading: copy.projectCaptureInbox,
 			items: group.items,
 			projectId: group.projectId,
+			projectName: captureProjectName(group.projectId, projects),
 		});
 	}
 	return groups;

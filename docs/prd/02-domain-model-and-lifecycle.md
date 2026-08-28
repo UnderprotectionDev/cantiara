@@ -63,6 +63,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
 | Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |
+| Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
+| Tüm etiketler | `All tags` | Etiket süzgecinin süzmeyi kaldırma seçeneği |
+| Etiket uygula | `Apply tag` | Erişilebilir kayda mevcut Etiketi bağlama |
+| Etiket oluştur | `Create tag` | Çalışma Alanı sözlüğüne düz Etiket ekleme |
+| Etikete göre süz | `Filter by tag` | Erişilebilir kayıt listesini Etiket kimliğiyle daraltma |
+| Etiket adı | `Name` | Etiket görünen adı |
+| Eşleşen etiket yok | `No matching tags.` | Seçicide uygulanacak öneri kalmadığında boş durum |
+| Etiket yok | `No tags yet.` | Kayıtta henüz Etiket olmadığını söyleyen boş durum |
+| Etiketi kaldır | `Remove tag` | Etiketi kayıttan ayırma; kimliği silmez |
+| Bu Projede önerilen | `Suggested in this Project` | Proje seçicisinde sık kullanılanları önce gösteren kişisel öneri; kapsam değildir |
 | Metin | `Text` | Proje bazlı özel alan türü; Lookup veya Formula değildir |
 | Boolean | `Boolean` | Proje bazlı özel alan türü |
 | True | `True` | Boolean özel alanın ayarlanmış evet değeri; Değerlendirilmedi değildir |
@@ -127,6 +137,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İlişkiler | `Relations` | Birleştirmede hayatta kalana yazılacak ilişkiler |
 | Köken | `Origin` | Emekli kimliğin hayatta kalan kayda görünür yönlendirmesi |
 | İlgili | `Related` | Anlamsal bağ; kendiliğinden birleştirme değildir |
+| Satır içi kayıt referansı | `Inline reference` | Belge gövdesindeki kullanım bağı; standart ilişki değildir |
+| Kararlı bölüm referansı | `Section reference` | Kararlı Belge bölümüne kullanım bağı |
+| Canlı içerik bloğu | `Live block` | Kaynak kimliğini koruyan canlı gömü |
+| Konuma sabitlenmiş bağ | `Pinned bind` | Dosya Eki veya Wireframe konumuna sabitlenmiş kullanım bağı |
+| Akış düğümü Ekran referansı | `Screen reference` | Kullanıcı Akışı düğümünün Ekran kullanım bağı |
+| Bağı kaldır | `Unlink` | Gömüyü kaldırıp kaynak ana kaydı silmeyen eylem |
 | Türetilen | `Derived` | Köken ilişkisinin üretilen uç etiketi; `Related` yerine geçmez |
 | Çöp Kutusunda | `In Trash` | Kırık referans nedeni |
 | Kalıcı silindi | `Permanently deleted` | Kırık referans nedeni |
@@ -272,6 +288,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yakalama eki | `Capture attachment` | Yalnız Yakalama Gelen Kutusu öğesine ait şifreli staging nesnesi; Dosya Eki veya paylaşılmış medya kütüphanesi değildir |
 | Taslak | `Draft` | Henüz kaydedilmemiş ayrıntılı İş formu; ana kayıt, Yakalama Gelen Kutusu öğesi veya Belge taslağı değildir |
 | Taslaklar | `Drafts` | Kişisel Taslakların sürdürüldüğü veya silindiği yüzey |
+| Son kayıt | `Last saved` | Son başarılı otomatik kayıt zamanı; Client Shell online-only kromu |
+| Yazılmamış risk | `Unsaved changes may be lost` | Henüz sunucuya yazılmamış değişiklik uyarısı; yalnız unsaved-risk bayrağı varken |
 | Komut Paleti | `Command Palette` | Kurucu yüzeylerinde klavyeyle komut, gezinme, kayıt oluşturma ve Proje geçişi çalıştıran yüzey; Evrensel Arama (`Search`) değildir |
 | Proje geçişi | `Switch Project` | Palette ve görünür menüden yetkili Projeler arasında geçiş |
 | Oluştur | `Create` | Palette ve görünür menüden yetkili kapsamda desteklenen kayıt oluşturma |

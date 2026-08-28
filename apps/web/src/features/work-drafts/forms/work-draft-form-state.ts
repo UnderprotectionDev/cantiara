@@ -1,4 +1,8 @@
+import { formatDateTime } from "@cantiara/auth/account-preferences-format";
+import type { AccountPreferencesInput } from "@cantiara/auth/account-preferences-model";
 import type { WorkType } from "@/features/work-lifecycle/forms/work-lifecycle-copy";
+
+import { WORK_DRAFTS_COPY } from "./work-drafts-copy";
 
 export interface WorkDraftFormValues {
 	customFieldValues: Record<string, string>;
@@ -48,6 +52,27 @@ export function shouldAutosaveWorkDraft(values: WorkDraftFormValues): boolean {
 	);
 }
 
+export function workDraftLastSavedLine(
+	lastSuccessfulSaveAt: Date | string | null | undefined,
+	preferences: AccountPreferencesInput | undefined
+): string | null {
+	if (!(lastSuccessfulSaveAt && preferences)) {
+		return null;
+	}
+	const instant =
+		lastSuccessfulSaveAt instanceof Date
+			? lastSuccessfulSaveAt
+			: new Date(lastSuccessfulSaveAt);
+	if (Number.isNaN(instant.getTime())) {
+		return null;
+	}
+	const display = formatDateTime(instant, preferences);
+	if (display.trim().length === 0) {
+		return null;
+	}
+	return `${WORK_DRAFTS_COPY.lastSaved}: ${display}`;
+}
+
 export function workDraftFormFromDraft(draft: {
 	form: {
 		customFieldValues: Record<string, string>;
@@ -76,6 +101,61 @@ export function resumeListedDraft(draft: {
 	return {
 		draftId: draft.id,
 		form: workDraftFormFromDraft(draft),
+	};
+}
+
+export interface ListedWorkDraft {
+	form: {
+		customFieldValues: Record<string, string>;
+		projectId: string | null;
+		title: string;
+		type: WorkType;
+	};
+	id: string;
+	updatedAt: Date | string;
+}
+
+export function latestWorkDraftForProject(
+	drafts: readonly ListedWorkDraft[],
+	projectId: string
+): ListedWorkDraft | null {
+	let latest: ListedWorkDraft | null = null;
+	let latestTime = Number.NEGATIVE_INFINITY;
+	for (const draft of drafts) {
+		if (draft.form.projectId !== projectId) {
+			continue;
+		}
+		const time = new Date(draft.updatedAt).getTime();
+		if (Number.isNaN(time) || time < latestTime) {
+			continue;
+		}
+		latest = draft;
+		latestTime = time;
+	}
+	return latest;
+}
+
+export function createWorkFormSeedFromListedDrafts(
+	drafts: readonly ListedWorkDraft[],
+	projectId: string
+): {
+	draftId: string | null;
+	form: WorkDraftFormValues | undefined;
+	lastSuccessfulSaveAt: Date | string | null;
+} {
+	const latest = latestWorkDraftForProject(drafts, projectId);
+	if (!latest) {
+		return {
+			draftId: null,
+			form: undefined,
+			lastSuccessfulSaveAt: null,
+		};
+	}
+	const resumed = resumeListedDraft(latest);
+	return {
+		draftId: resumed.draftId,
+		form: resumed.form,
+		lastSuccessfulSaveAt: latest.updatedAt,
 	};
 }
 

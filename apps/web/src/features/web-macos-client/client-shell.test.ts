@@ -172,6 +172,26 @@ test("a failure without a server tracking ID does not invent a Support reference
 	expect(presented.description).not.toContain("Support reference");
 });
 
+test("an unmatched RPC Not Found stays secret-free and does not use HTTP jargon as the reason", () => {
+	const presented = presentFailedMainFlow(new Error("Not Found"));
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.staleRpcRouter);
+	expect(presented.reason).not.toBe("Not Found");
+	expect(presented.writeOutcome).toBe("Data was not written.");
+	expect(presented.retryBound).toBe("You can retry once.");
+	expect(presented.retry).toBe("Retry");
+	expect(presented.description).toBe(
+		"Data was not written. You can retry once."
+	);
+});
+
+test("a plain HTTP 404 Not Found body stays secret-free and does not use HTTP jargon as the reason", () => {
+	const presented = presentFailedMainFlow(new Error("404 Not Found"));
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.staleRpcRouter);
+	expect(presented.reason).not.toContain("404");
+});
+
 test("the server tracking ID on a failed RPC is the Support reference Client Shell shows", () => {
 	const presented = presentFailedMainFlow(
 		toMainFlowFailureError(new Error("Couldn't save Preferences."), undefined, {
@@ -200,6 +220,26 @@ test("a thrown failure marked written presents Data was written and no Retry", (
 	expect(presented.supportReference).toBe("CANT-CAFEBABE");
 });
 
+test("a Prisma schema dump stays secret-free and still says Data was not written", () => {
+	const prismaSchemaDump = new Error(`model AccountPreference { id String @id
+  accountId String @unique
+  locale String
+}`);
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(prismaSchemaDump, undefined, {
+			trackingId: "CANT-C09398DB",
+		})
+	);
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.pendingMigrations);
+	expect(presented.reason).not.toContain("AccountPreference");
+	expect(presented.writeOutcome).toBe("Data was not written.");
+	expect(presented.supportReference).toBe("CANT-C09398DB");
+	expect(presented.description).toBe(
+		"Data was not written. You can retry once. Support reference CANT-C09398DB"
+	);
+});
+
 test("a Prisma Work list schema mismatch stays secret-free and still says Data was not written", () => {
 	const prismaListFailure =
 		new Error(`Invalid \`prisma.work.findMany()\` invocation in
@@ -221,6 +261,21 @@ The column \`work.description\` does not exist in the current database.`);
 	expect(presented.description).toBe(
 		"Data was not written. You can retry once. Support reference CANT-4F1C9DA6"
 	);
+});
+
+test("a missing Postgres relation after reset still says pending migrations", () => {
+	const missingTable = Object.assign(
+		new Error('relation "usage_link" does not exist'),
+		{ code: "42P01" }
+	);
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(missingTable, undefined, {
+			trackingId: "CANT-USAGE01",
+		})
+	);
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.pendingMigrations);
+	expect(presented.writeOutcome).toBe("Data was not written.");
 });
 
 test("a Prisma unknown originWork include stays secret-free and still says Data was not written", () => {
@@ -267,4 +322,34 @@ test("a multiline failure without secrets keeps a readable reason", () => {
 		"Couldn't list Work. Retry after the database catches up."
 	);
 	expect(presented.reason).not.toBe(CLIENT_SHELL_COPY.failed);
+});
+
+test("an unmatched usage RPC 404 asks to restart the API instead of Not Found", () => {
+	const honoText = presentFailedMainFlow({
+		message: "Not Found",
+		status: 404,
+	});
+	const honoPlain = presentFailedMainFlow(new Error("404 Not Found"));
+
+	expect(honoText.reason).toBe(CLIENT_SHELL_COPY.staleRpcRouter);
+	expect(honoPlain.reason).toBe(CLIENT_SHELL_COPY.staleRpcRouter);
+	expect(honoText.writeOutcome).toBe("Data was not written.");
+	expect(honoText.retry).toBe("Retry");
+});
+
+test("a defined handler Not Found keeps Not Found", () => {
+	const presented = presentFailedMainFlow({
+		code: "NOT_FOUND",
+		data: issueMainFlowFailure({
+			reason: "Not Found",
+			trackingId: "CANT-DEFINED1",
+			written: false,
+		}),
+		defined: true,
+		message: "Not Found",
+		status: 404,
+	});
+
+	expect(presented.reason).toBe("Not Found");
+	expect(presented.supportReference).toBe("CANT-DEFINED1");
 });

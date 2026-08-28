@@ -9,6 +9,7 @@ export const CLIENT_SHELL_COPY = {
 	retry: "Retry",
 	retryOnce: "You can retry once.",
 	staleGeneratedClient: "Restart the API after prisma generate.",
+	staleRpcRouter: "Restart the API so new procedures are registered.",
 	supportReference: "Support reference",
 	written: "Data was written.",
 } as const;
@@ -46,6 +47,8 @@ const JWT = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 const BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const SESSION_SECRET = /session_token=[^;\s]+/gi;
 const UNKNOWN_INCLUDE_FIELD = /Unknown field '[^']+' for include statement/;
+const MISSING_PG_RELATION = /relation ".+" does not exist/i;
+const PRISMA_SCHEMA_MODEL = /\bmodel [A-Z][A-Za-z0-9]*\s*\{/;
 
 export function issueMainFlowFailure(
 	input: {
@@ -114,7 +117,10 @@ export function toMainFlowFailureError(
 export function presentFailedMainFlow(
 	failure: MainFlowFailurePackage | unknown
 ): PresentedMainFlowFailure {
-	const packaged = extractPackage(failure) ?? localFailure(failure);
+	const packaged =
+		extractPackage(failure) ??
+		unmatchedRpcFailure(failure) ??
+		localFailure(failure);
 	const writeOutcome = packaged.written
 		? CLIENT_SHELL_COPY.written
 		: CLIENT_SHELL_COPY.notWritten;
@@ -208,17 +214,65 @@ function requestCode(value: unknown): string | null {
 	return typeof code === "string" ? code : null;
 }
 
-function schemaMismatchReason(error: unknown): string | null {
+function unmatchedRpcFailure(value: unknown): MainFlowFailurePackage | null {
+	if (unmatchedRpcReason(value) === null) {
+		return null;
+	}
+	return {
+		reason: CLIENT_SHELL_COPY.staleRpcRouter,
+		retryBound: "once",
+		supportReference: "",
+		written: false,
+	};
+}
+
+function unmatchedRpcReason(error: unknown): string | null {
+	if (typeof error !== "object" || error === null) {
+		return null;
+	}
+	if ("defined" in error && error.defined === true) {
+		return null;
+	}
+	const status = "status" in error ? error.status : undefined;
 	const code = requestCode(error);
-	if (code === "P2021" || code === "P2022") {
+	const message = messageFrom(error);
+	if (
+		status === 404 ||
+		code === "NOT_FOUND" ||
+		message === "Not Found" ||
+		message === "404 Not Found"
+	) {
+		return CLIENT_SHELL_COPY.staleRpcRouter;
+	}
+	return null;
+}
+
+function schemaMismatchReason(error: unknown): string | null {
+	const unmatched = unmatchedRpcReason(error);
+	if (unmatched) {
+		return unmatched;
+	}
+	const code = requestCode(error);
+	if (
+		code === "P2021" ||
+		code === "P2022" ||
+		code === "42P01" ||
+		code === "42703"
+	) {
 		return CLIENT_SHELL_COPY.pendingMigrations;
 	}
 	const message = messageFrom(error);
-	if (message.includes("does not exist in the current database")) {
+	if (
+		message.includes("does not exist in the current database") ||
+		MISSING_PG_RELATION.test(message)
+	) {
 		return CLIENT_SHELL_COPY.pendingMigrations;
 	}
 	if (UNKNOWN_INCLUDE_FIELD.test(message)) {
 		return CLIENT_SHELL_COPY.staleGeneratedClient;
+	}
+	if (PRISMA_SCHEMA_MODEL.test(message)) {
+		return CLIENT_SHELL_COPY.pendingMigrations;
 	}
 	return null;
 }

@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 
 import {
+	convertFinalizeFailedLine,
 	convertTargetOptions,
 	convertTargetScopeLine,
 	mergeUndoPreviewLines,
@@ -32,8 +33,22 @@ test("convert preview names Workspace or Project Capture Inbox as the target sco
 		convertTargetScopeLine({
 			heading: "Project Capture Inbox",
 			projectId: "proj-cantiara",
+			projectName: "Atlas",
 		})
-	).toBe("Project Capture Inbox proj-cantiara");
+	).toBe("Project Capture Inbox Atlas");
+});
+
+test("failed capture promotion explains a secret-free retry", () => {
+	expect(
+		convertFinalizeFailedLine({
+			reason: "This file type is not accepted.",
+			retryBound: "once",
+			supportReference: "CANT-0F1E2D3C",
+			written: false,
+		})
+	).toBe(
+		"This file type is not accepted. Data was not written. You can retry once. Support reference CANT-0F1E2D3C"
+	);
 });
 
 test("merge undo preview lists original Inbox fields and only this merge's binds", () => {

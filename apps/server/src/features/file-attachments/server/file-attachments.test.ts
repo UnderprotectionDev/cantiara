@@ -1,7 +1,7 @@
 /**
  * File Attachments seam — accept/reject, quota, atomic finalize,
- * version pins, retry idempotency, isolated preview, and derived
- * Gallery thumbnails. Synthetic `Dosya sınırları` fixture for
+ * version pins, retry idempotency, isolated preview, derived Gallery thumbnails,
+ * and Capture attachment promotion. Synthetic `Dosya sınırları` fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Dosya güvenliği).
  */
@@ -10,9 +10,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { envelopeSeal } from "../../capture-triage/server/capture-staging-crypto";
 import { createProject } from "../../project-shell/server/project-shell";
 import {
 	cancelFileUpload,
+	discardCaptureStaging,
 	finalizeFileUpload,
 	getFileAttachment,
 	getFileQuota,
@@ -21,6 +23,7 @@ import {
 	permanentlyDeleteFileAttachment,
 	pinFileVersion,
 	previewUploadNewVersion,
+	promoteCaptureAttachment,
 	putStagingBytes,
 	readAccessibleFileBytes,
 	readIsolatedPreviewBytes,
@@ -30,6 +33,10 @@ import {
 	sweepExpiredFileStaging,
 	zipCanEnterExternalSurface,
 } from "./file-attachments";
+import {
+	createMemoryCaptureStagingSource,
+	createPrismaCaptureStagingSource,
+} from "./file-attachments-capture-staging";
 import type { ImageDerivativeEngine } from "./file-attachments-derivatives";
 import {
 	CSV_PREVIEW_MAX_ROWS,
@@ -71,6 +78,7 @@ const HTML_BYTES = new TextEncoder().encode("<html><body>run</body></html>");
 const RAW_OBJECT_URL = /r2\.|amazonaws|cloudflarestorage|cdn\./i;
 const IFRAME_MARK = /<iframe/i;
 const SUPPORT_REFERENCE = /^CANT-[0-9A-F]{8}$/;
+const SECRET_FREE_FAILURE = /html><body|BETTER_AUTH|r2\./i;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -274,6 +282,8 @@ describe("File Attachments", () => {
 		await prisma.fileImageDerivative.deleteMany();
 		await prisma.fileAttachmentStaging.deleteMany();
 		await prisma.fileAttachment.deleteMany();
+		await prisma.captureStagingObject.deleteMany();
+		await prisma.captureInboxItem.deleteMany();
 		await prisma.mutationReceipt.deleteMany();
 		await prisma.workspaceShortCodeReservation.deleteMany();
 		await prisma.project.deleteMany();
@@ -1121,5 +1131,333 @@ describe("File Attachments", () => {
 				workspaceId,
 			})
 		).toBeNull();
+	});
+
+	it("promotes a Capture attachment into a File Attachment in the target scope", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const staging = createMemoryCaptureStagingSource();
+		await staging.put("inbox-project", {
+			bytes: PNG_BYTES,
+			contentType: "image/png",
+			filename: "shot.png",
+		});
+		expect(
+			await listFileAttachments(prisma, {
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual([]);
+		const promoted = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: "promote-project",
+				origin: "human",
+				payload: {
+					inboxItemId: "inbox-project",
+					scope: { kind: "project", projectId: project.id },
+				},
+				workspaceId,
+			},
+			{ captureStaging: staging }
+		);
+		expect(promoted.status).toBe("committed");
+		if (promoted.status !== "committed") {
+			return;
+		}
+		expect(promoted.file.scope).toEqual({
+			kind: "project",
+			projectId: project.id,
+		});
+		expect(promoted.file.title).toBe("shot.png");
+		expect(promoted.file.currentVersion.filename).toBe("shot.png");
+		expect(await staging.read("inbox-project")).toBeNull();
+		expect(
+			(
+				await listFileAttachments(prisma, {
+					scope: { kind: "project", projectId: project.id },
+					workspaceId,
+				})
+			).map((item) => item.id)
+		).toEqual([promoted.file.id]);
+		await staging.put("inbox-named", {
+			bytes: PNG_BYTES,
+			contentType: "image/png",
+			filename: "conductor.png",
+		});
+		const named = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: "promote-named",
+				origin: "human",
+				payload: {
+					inboxItemId: "inbox-named",
+					scope: { kind: "project", projectId: project.id },
+					title: "Crash on save after login",
+				},
+				workspaceId,
+			},
+			{ captureStaging: staging }
+		);
+		expect(named.status).toBe("committed");
+		if (named.status !== "committed") {
+			return;
+		}
+		expect(named.file.title).toBe("Crash on save after login");
+		expect(named.file.currentVersion.filename).toBe("conductor.png");
+		await staging.put("inbox-wiki", {
+			bytes: PNG_BYTES,
+			contentType: "image/png",
+			filename: "wiki.png",
+		});
+		const wiki = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: "promote-wiki",
+				origin: "human",
+				payload: {
+					inboxItemId: "inbox-wiki",
+					scope: { kind: "personal-wiki" },
+				},
+				workspaceId,
+			},
+			{ captureStaging: staging }
+		);
+		expect(wiki.status).toBe("committed");
+		if (wiki.status !== "committed") {
+			return;
+		}
+		expect(wiki.file.scope).toEqual({ kind: "personal-wiki" });
+		const replay = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: "promote-project",
+				origin: "human",
+				payload: {
+					inboxItemId: "inbox-project",
+					scope: { kind: "project", projectId: project.id },
+				},
+				workspaceId,
+			},
+			{ captureStaging: staging }
+		);
+		expect(replay.status).toBe("replayed");
+		if (replay.status !== "replayed") {
+			return;
+		}
+		expect(replay.file.id).toBe(promoted.file.id);
+	});
+
+	it("leaves no visible File Attachment when capture promotion fails and explains a safe retry", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const staging = createMemoryCaptureStagingSource();
+		await staging.put("inbox-html", {
+			bytes: HTML_BYTES,
+			contentType: "text/html",
+			filename: "page.html",
+		});
+		const rejected = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: "promote-html",
+				origin: "human",
+				payload: {
+					inboxItemId: "inbox-html",
+					scope: { kind: "project", projectId: project.id },
+				},
+				workspaceId,
+			},
+			{ captureStaging: staging }
+		);
+		expect(rejected.status).toBe("rejected");
+		if (rejected.status !== "rejected") {
+			return;
+		}
+		expect(rejected.reason).toBe(FILE_ATTACHMENT_COPY.typeRejected);
+		expect(rejected.explanation.written).toBe(false);
+		expect(rejected.explanation.retryBound).toBe("once");
+		expect(rejected.explanation.reason).toBe(FILE_ATTACHMENT_COPY.typeRejected);
+		expect(rejected.explanation.supportReference).toMatch(SUPPORT_REFERENCE);
+		expect(JSON.stringify(rejected)).not.toMatch(SECRET_FREE_FAILURE);
+		expect(await staging.read("inbox-html")).toEqual({
+			bytes: HTML_BYTES,
+			contentType: "text/html",
+			filename: "page.html",
+		});
+		expect(
+			await listFileAttachments(prisma, {
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual([]);
+		const limits = {
+			maxOriginalBytes: PNG_BYTES.byteLength,
+			maxVersions: 1,
+		};
+		await staging.put("inbox-quota", {
+			bytes: PNG_BYTES,
+			contentType: "image/png",
+			filename: "first.png",
+		});
+		const first = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: "promote-quota-1",
+				origin: "human",
+				payload: {
+					inboxItemId: "inbox-quota",
+					scope: { kind: "project", projectId: project.id },
+				},
+				workspaceId,
+			},
+			{ captureStaging: staging, quota: limits }
+		);
+		expect(first.status).toBe("committed");
+		await staging.put("inbox-quota-2", {
+			bytes: PNG_BYTES,
+			contentType: "image/png",
+			filename: "second.png",
+		});
+		const blocked = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: "promote-quota-2",
+				origin: "human",
+				payload: {
+					inboxItemId: "inbox-quota-2",
+					scope: { kind: "project", projectId: project.id },
+				},
+				workspaceId,
+			},
+			{ captureStaging: staging, quota: limits }
+		);
+		expect(blocked).toMatchObject({
+			reason: FILE_ATTACHMENT_COPY.quotaExceeded,
+			status: "rejected",
+		});
+		expect(await staging.read("inbox-quota-2")).not.toBeNull();
+		const failedStore = createMemoryCaptureStagingSource();
+		await failedStore.put("inbox-fail", {
+			bytes: PNG_BYTES,
+			contentType: "image/png",
+			filename: "fail.png",
+		});
+		const failed = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: "promote-fail-store",
+				origin: "human",
+				payload: {
+					inboxItemId: "inbox-fail",
+					scope: { kind: "project", projectId: project.id },
+				},
+				workspaceId,
+			},
+			{
+				captureStaging: failedStore,
+				store: createFailingPromoteStore(createPrismaFileObjectStore()),
+			}
+		);
+		expect(failed.status).toBe("rejected");
+		expect(await failedStore.read("inbox-fail")).not.toBeNull();
+		expect(await prisma.fileAttachment.findMany()).toHaveLength(1);
+	});
+
+	it("deletes Capture staging without minting a File Attachment", async () => {
+		const { project, workspaceId } = await openProject(prisma);
+		const staging = createMemoryCaptureStagingSource();
+		await staging.put("inbox-delete", {
+			bytes: PNG_BYTES,
+			contentType: "image/png",
+			filename: "shot.png",
+		});
+		const discarded = await discardCaptureStaging(
+			prisma,
+			{ inboxItemId: "inbox-delete", workspaceId },
+			{ captureStaging: staging }
+		);
+		expect(discarded).toEqual({ status: "deleted" });
+		expect(await staging.read("inbox-delete")).toBeNull();
+		expect(
+			await listFileAttachments(prisma, {
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual([]);
+		expect(await prisma.fileAttachment.findMany()).toEqual([]);
+	});
+
+	it("promotes an encrypted Capture staging object through the Prisma adapter", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const rootKey = Buffer.alloc(32, 7);
+		const sealed = envelopeSeal(PNG_BYTES, rootKey);
+		const item = await prisma.captureInboxItem.create({
+			data: {
+				body: "Crash shot",
+				capturedAt: new Date(),
+				fieldsText: "{}",
+				id: crypto.randomUUID(),
+				ownerId: actorId,
+				projectId: project.id,
+				workspaceId,
+			},
+		});
+		await prisma.captureStagingObject.create({
+			data: {
+				byteLength: PNG_BYTES.byteLength,
+				ciphertext: Buffer.from(sealed.ciphertext),
+				contentType: "image/png",
+				filename: "shot.png",
+				id: crypto.randomUUID(),
+				inboxItemId: item.id,
+				keyVersion: sealed.keyVersion,
+				workspaceId,
+				wrappedDek: Buffer.from(sealed.wrappedDek),
+			},
+		});
+		const promoted = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: "promote-encrypted",
+				origin: "human",
+				payload: {
+					inboxItemId: item.id,
+					scope: { kind: "project", projectId: project.id },
+				},
+				workspaceId,
+			},
+			{
+				captureStaging: createPrismaCaptureStagingSource(prisma, rootKey),
+			}
+		);
+		expect(promoted.status).toBe("committed");
+		if (promoted.status !== "committed") {
+			return;
+		}
+		expect(promoted.file.scope).toEqual({
+			kind: "project",
+			projectId: project.id,
+		});
+		expect(
+			await prisma.captureStagingObject.findUnique({
+				where: { inboxItemId: item.id },
+			})
+		).toBeNull();
+		expect(
+			(
+				await listFileAttachments(prisma, {
+					scope: { kind: "project", projectId: project.id },
+					workspaceId,
+				})
+			).map((row) => row.id)
+		).toEqual([promoted.file.id]);
 	});
 });

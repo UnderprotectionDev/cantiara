@@ -1,0 +1,25 @@
+model UsageLink {
+  id             String   @id
+  workspaceId    String
+  kind           String
+  sourceRecordId String
+  hostRecordId   String
+  embedId        String
+  createdAt      DateTime @default(now())
+
+  @@unique([hostRecordId, embedId])
+  @@index([sourceRecordId])
+  @@index([workspaceId])
+  @@map("usage_link")
+}
+
+model UsageHostEmbed {
+  id             String   @id
+  hostRecordId   String
+  sourceRecordId String
+  kind           String
+  createdAt      DateTime @default(now())
+
+  @@index([hostRecordId])
+  @@map("usage_host_embed")
+}

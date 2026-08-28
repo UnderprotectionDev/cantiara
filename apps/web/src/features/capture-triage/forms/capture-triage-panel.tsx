@@ -1,4 +1,3 @@
-import { CLIENT_SHELL_COPY as MAIN_FLOW_COPY } from "@cantiara/api/client-shell-failure";
 import { Button } from "@cantiara/ui/components/button";
 import {
 	Dialog,
@@ -17,8 +16,10 @@ import type { ChangeEvent } from "react";
 import { useCallback, useState } from "react";
 import { MUTATION_COPY, newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
+import { captureProjectName } from "./capture-form-state";
 import {
 	type ConvertTargetKind,
+	convertFinalizeFailedLine,
 	convertTargetOptions,
 	convertTargetScopeLine,
 	mergeUndoPreviewLines,
@@ -174,6 +175,11 @@ export function CaptureTriageActions({
 			</Button>
 			<ConvertDialog
 				copy={copy}
+				explanation={
+					convert.data?.status === "finalize-failed"
+						? convert.data.explanation
+						: undefined
+				}
 				finalizeFailed={convert.data?.status === "finalize-failed"}
 				itemId={itemId}
 				onConfirm={confirmConvert}
@@ -281,6 +287,7 @@ export function CaptureMergeUndo({
 
 function ConvertDialog({
 	copy,
+	explanation,
 	finalizeFailed,
 	itemId,
 	onConfirm,
@@ -290,6 +297,12 @@ function ConvertDialog({
 	targetKind,
 }: {
 	copy: TriageCopy;
+	explanation?: {
+		reason: string;
+		retryBound: "none" | "once";
+		supportReference: string;
+		written: boolean;
+	};
 	finalizeFailed: boolean;
 	itemId: string;
 	onConfirm: () => void;
@@ -304,8 +317,20 @@ function ConvertDialog({
 		}),
 		enabled: open,
 	});
+	const projects = useQuery(orpc.projectShell.list.queryOptions());
 	const previewData =
 		preview.data && !isNotFound(preview.data) ? preview.data : null;
+	const targetScopeLine = previewData
+		? convertTargetScopeLine({
+				...previewData.proposed.targetScope,
+				projectName: previewData.proposed.targetScope.projectId
+					? captureProjectName(
+							previewData.proposed.targetScope.projectId,
+							projects.data ?? []
+						)
+					: null,
+			})
+		: "";
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
@@ -331,7 +356,7 @@ function ConvertDialog({
 				</Field>
 				{previewData ? (
 					<div className="flex flex-col gap-3 text-sm">
-						<p>{convertTargetScopeLine(previewData.proposed.targetScope)}</p>
+						<p>{targetScopeLine}</p>
 						<p className="whitespace-pre-wrap">{previewData.original.text}</p>
 						{previewData.original.link ? (
 							<p>{previewData.original.link}</p>
@@ -352,7 +377,9 @@ function ConvertDialog({
 						))}
 					</div>
 				) : null}
-				{finalizeFailed ? <p>{MAIN_FLOW_COPY.notWritten}</p> : null}
+				{finalizeFailed ? (
+					<p>{convertFinalizeFailedLine(explanation)}</p>
+				) : null}
 				<DialogFooter>
 					<Button disabled={!previewData} onClick={onConfirm} type="button">
 						{copy.convert}

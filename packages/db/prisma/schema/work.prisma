@@ -35,6 +35,7 @@ model Work {
   incomingRelations     WorkRelation[]         @relation("WorkRelationTo")
   mergeEventsAsSurvivor WorkMergeEvent[]       @relation("WorkMergeSurvivor")
   mergeEventsAsRetired  WorkMergeEvent[]       @relation("WorkMergeRetired")
+  tags                  WorkTag[]
 
   @@unique([projectId, number])
   @@unique([projectId, key])
