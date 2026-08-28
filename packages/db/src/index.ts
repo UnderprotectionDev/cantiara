@@ -142,11 +142,6 @@ export function getPrismaClient() {
 				"Prisma client is missing current models; restart the API after prisma generate"
 			);
 		}
-		if (!prismaClientHasCurrentFileAttachmentVersionModel(productionPrisma)) {
-			throw new Error(
-				"Prisma client is missing current models; restart the API after prisma generate"
-			);
-		}
 		return productionPrisma;
 	}
 	const reused = cachedClient(diskStamp);
@@ -156,12 +151,6 @@ export function getPrismaClient() {
 	dropCachedPrisma();
 	const client = createPrismaClient();
 	if (!prismaClientHasCurrentDelegates(client)) {
-		client.$disconnect().catch(() => undefined);
-		throw new Error(
-			"Prisma client is missing current models; restart the API after prisma generate"
-		);
-	}
-	if (!prismaClientHasCurrentFileAttachmentVersionModel(client)) {
 		client.$disconnect().catch(() => undefined);
 		throw new Error(
 			"Prisma client is missing current models; restart the API after prisma generate"
