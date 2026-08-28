@@ -9,9 +9,10 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useDebouncer } from "@tanstack/react-pacer";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
+import { CLIENT_SHELL_COPY } from "@/features/web-macos-client/views/client-shell";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import {
 	WORK_LIFECYCLE_COPY,
@@ -28,7 +29,9 @@ import {
 	type WorkCustomFieldWidget,
 	type WorkDraftFormValues,
 	workDraftFormForAutosave,
+	workDraftLastSavedLine,
 } from "./work-draft-form-state";
+import { WORK_DRAFTS_COPY } from "./work-drafts-copy";
 
 const AUTOSAVE_WAIT_MS = 400;
 
@@ -36,6 +39,7 @@ export default function WorkDraftForm({
 	createDisabled,
 	draftId,
 	initialForm,
+	lastSuccessfulSaveAt,
 	lockProjectId,
 	onCreate,
 	onDraftId,
@@ -43,15 +47,26 @@ export default function WorkDraftForm({
 	createDisabled?: boolean;
 	draftId: string | null;
 	initialForm?: WorkDraftFormValues;
+	lastSuccessfulSaveAt?: Date | string | null;
 	lockProjectId?: string;
-	onCreate?: (values: WorkDraftFormValues) => void | Promise<void>;
+	onCreate?: (
+		values: WorkDraftFormValues,
+		persistedDraftId: string | null
+	) => void | Promise<void>;
 	onDraftId: (draftId: string) => void;
 }) {
-	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const { attemptOnlineWork, markUnsaved, recordSave, shell } =
+		useClientShell();
 	const draftIdRef = useRef(draftId);
 	draftIdRef.current = draftId;
 	const projects = useQuery(orpc.projectShell.list.queryOptions());
 	const catalog = useQuery(orpc.workDrafts.catalog.queryOptions());
+	const preferences = useQuery(orpc.accountPreferences.get.queryOptions());
+	const copy = catalog.data?.copy ?? WORK_DRAFTS_COPY;
+	const [draftSaveAt, setDraftSaveAt] = useState<Date | string | null>(
+		lastSuccessfulSaveAt ?? null
+	);
+	const lastSavedLine = workDraftLastSavedLine(draftSaveAt, preferences.data);
 	const form = useForm({
 		defaultValues: {
 			...EMPTY_WORK_DRAFT_FORM,
@@ -77,15 +92,16 @@ export default function WorkDraftForm({
 					await queryClient.invalidateQueries({
 						queryKey: orpc.workDrafts.list.queryKey(),
 					});
-					recordSave();
+					recordSave(new Date(outcome.lastSuccessfulSaveAt));
+					setDraftSaveAt(outcome.lastSuccessfulSaveAt);
 				}
 			},
 		})
 	);
-	const runAutosave = useCallback(
-		(next: WorkDraftFormValues) => {
+	const persistAutosave = useCallback(
+		async (next: WorkDraftFormValues) => {
 			if (!shouldAutosaveWorkDraft(next)) {
-				return;
+				return draftIdRef.current;
 			}
 			markUnsaved();
 			const result = attemptOnlineWork("record-create", () =>
@@ -96,13 +112,34 @@ export default function WorkDraftForm({
 				})
 			);
 			if (result.status === "refused") {
-				return;
+				return draftIdRef.current;
 			}
-			result.value.catch(() => undefined);
+			const outcome = await result.value;
+			if (outcome.status === "saved") {
+				return outcome.draft.id;
+			}
+			return draftIdRef.current;
 		},
 		[attemptOnlineWork, autosave, markUnsaved]
 	);
+	const runAutosave = useCallback(
+		(next: WorkDraftFormValues) => {
+			persistAutosave(next).catch(() => undefined);
+		},
+		[persistAutosave]
+	);
 	const debouncer = useDebouncer(runAutosave, { wait: AUTOSAVE_WAIT_MS });
+
+	const onReconnect = useCallback(() => {
+		debouncer.cancel();
+	}, [debouncer]);
+
+	useEffect(() => {
+		window.addEventListener("online", onReconnect);
+		return () => {
+			window.removeEventListener("online", onReconnect);
+		};
+	}, [onReconnect]);
 
 	const onTitleChange = useCallback(
 		(event: ChangeEvent<HTMLInputElement>) => {
@@ -153,17 +190,18 @@ export default function WorkDraftForm({
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
-			const created = onCreate?.(form.store.state.values);
-			if (created) {
-				created.catch(() => undefined);
-			}
+			debouncer.cancel();
+			const next = form.store.state.values;
+			persistAutosave(next)
+				.then((persistedDraftId) => onCreate?.(next, persistedDraftId))
+				.catch(() => undefined);
 		},
-		[form, onCreate]
+		[debouncer, form, onCreate, persistAutosave]
 	);
 
 	return (
 		<form
-			aria-label={catalog.data?.copy.draft ?? "Draft"}
+			aria-label={copy.draft}
 			className="flex flex-col gap-3"
 			onSubmit={onSubmit}
 		>
@@ -220,7 +258,7 @@ export default function WorkDraftForm({
 				)}
 				{onCreate ? (
 					<Button disabled={createDisabled} type="submit">
-						{WORK_LIFECYCLE_COPY.createWork}
+						{copy.create}
 					</Button>
 				) : null}
 			</FieldGroup>
@@ -232,6 +270,14 @@ export default function WorkDraftForm({
 					widget={widget}
 				/>
 			))}
+			{lastSavedLine ? (
+				<p className="text-muted-foreground text-xs">{lastSavedLine}</p>
+			) : null}
+			{shell.hasUnsavedChanges ? (
+				<p className="text-muted-foreground text-xs">
+					{CLIENT_SHELL_COPY.unsavedChangesMayBeLost}
+				</p>
+			) : null}
 		</form>
 	);
 }

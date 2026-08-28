@@ -44,6 +44,18 @@ export const workDrafts = {
 			const drafts = await draftsFor(context.session.user.id);
 			return drafts.deleteDraft(input);
 		}),
+	finalize: protectedWriteProcedure
+		.input(
+			z.object({
+				draftId: z.string().min(1).optional(),
+				form: workDraftFormSchema,
+				idempotencyKey: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const drafts = await draftsFor(context.session.user.id);
+			return drafts.finalize(input);
+		}),
 	list: protectedProcedure.handler(async ({ context }) => {
 		const drafts = await draftsFor(context.session.user.id);
 		return drafts.list();
