@@ -23,6 +23,7 @@ export default function CreateWorkForm({
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [draftId, setDraftId] = useState<string | null>(null);
+	const [consumed, setConsumed] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [values, setValues] = useState<Record<string, CustomFieldStoredValue>>(
 		{}
@@ -36,21 +37,30 @@ export default function CreateWorkForm({
 		orpc.customFields.setValue.mutationOptions()
 	);
 	const create = useMutation(
-		orpc.workLifecycle.create.mutationOptions({
+		orpc.workDrafts.finalize.mutationOptions({
 			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
+				if (outcome.status === "created") {
 					await invalidateWork(projectId, outcome.work.id);
 					await queryClient.invalidateQueries({
 						queryKey: orpc.projectShell.get.queryKey({
 							input: { projectId },
 						}),
 					});
+					await queryClient.invalidateQueries({
+						queryKey: orpc.workDrafts.list.queryKey(),
+					});
 					onCreated?.(outcome.work.id);
+					setConsumed(true);
+					setDraftId(null);
 					recordSave();
 					setError(null);
 					return;
 				}
-				if (outcome.status === "rejected" || outcome.status === "conflict") {
+				if (outcome.status === "consumed") {
+					setConsumed(true);
+					return;
+				}
+				if (outcome.status === "conflict" || outcome.status === "rejected") {
 					setError(
 						outcome.status === "conflict"
 							? "Conflict"
@@ -66,19 +76,21 @@ export default function CreateWorkForm({
 			markUnsaved();
 			const result = attemptOnlineWork("record-create", () =>
 				create.mutateAsync({
-					idempotencyKey: newIdempotencyKey(),
-					payload: {
+					draftId: draftId ?? undefined,
+					form: {
+						customFieldValues: formValues.customFieldValues,
 						projectId,
 						title: formValues.title,
 						type: formValues.type,
 					},
+					idempotencyKey: newIdempotencyKey(),
 				})
 			);
 			if (result.status === "refused") {
 				return;
 			}
 			const outcome = await result.value;
-			if (outcome.status === "committed" || outcome.status === "replayed") {
+			if (outcome.status === "created") {
 				const message = await writeCustomFieldValues({
 					attempt: attemptOnlineWork,
 					fields: fields.data ?? [],
@@ -98,6 +110,7 @@ export default function CreateWorkForm({
 		[
 			attemptOnlineWork,
 			create,
+			draftId,
 			fields.data,
 			markUnsaved,
 			projectId,
@@ -118,7 +131,7 @@ export default function CreateWorkForm({
 	return (
 		<div className="flex flex-col gap-3">
 			<WorkDraftForm
-				createDisabled={create.isPending}
+				createDisabled={create.isPending || consumed}
 				draftId={draftId}
 				lockProjectId={projectId}
 				onCreate={onCreate}

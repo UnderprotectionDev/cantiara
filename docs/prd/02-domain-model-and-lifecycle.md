@@ -268,6 +268,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yakalama eki | `Capture attachment` | Yalnız Yakalama Gelen Kutusu öğesine ait şifreli staging nesnesi; Dosya Eki veya paylaşılmış medya kütüphanesi değildir |
 | Taslak | `Draft` | Henüz kaydedilmemiş ayrıntılı İş formu; ana kayıt, Yakalama Gelen Kutusu öğesi veya Belge taslağı değildir |
 | Taslaklar | `Drafts` | Kişisel Taslakların sürdürüldüğü veya silindiği yüzey |
+| Son kayıt | `Last saved` | Son başarılı otomatik kayıt zamanı; Client Shell online-only kromu |
+| Yazılmamış risk | `Unsaved changes may be lost` | Henüz sunucuya yazılmamış değişiklik uyarısı; yalnız unsaved-risk bayrağı varken |
 | Komut Paleti | `Command Palette` | Kurucu yüzeylerinde klavyeyle komut, gezinme, kayıt oluşturma ve Proje geçişi çalıştıran yüzey; Evrensel Arama (`Search`) değildir |
 | Proje geçişi | `Switch Project` | Palette ve görünür menüden yetkili Projeler arasında geçiş |
 | Oluştur | `Create` | Palette ve görünür menüden yetkili kapsamda desteklenen kayıt oluşturma |

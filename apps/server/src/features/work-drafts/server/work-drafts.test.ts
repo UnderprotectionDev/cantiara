@@ -5,7 +5,8 @@
  * of search, planning, relations, sharing, publishing, export,
  * Capture Inbox, and Document drafts. Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Taslak: autosave, anti-search, time-advance).
+ * (Taslak: autosave, anti-search, time-advance, disconnect,
+ * recovery, single finalize).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -16,6 +17,7 @@ import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import { createProject } from "../../project-shell/server/project-shell";
 import {
 	createWork,
+	finalizeDraft,
 	getWork,
 	listWork,
 } from "../../work-lifecycle/server/work-lifecycle";
@@ -38,18 +40,26 @@ describe("Work Drafts catalog", () => {
 	it("exposes English Draft and Drafts without a custom-field schema", () => {
 		expect(workDraftsCatalog()).toEqual({
 			copy: {
+				create: "Create",
 				delete: "Delete",
 				draft: "Draft",
 				drafts: "Drafts",
+				lastSaved: "Last saved",
 				loading: "Loading…",
 				noDrafts: "No drafts.",
 				resume: "Resume",
+				unsavedChangesMayBeLost: "Unsaved changes may be lost",
 			},
 			customFieldSchema: null,
 			workCustomFields: [],
 		});
 		expect(WORK_DRAFTS_COPY.draft).toBe("Draft");
 		expect(WORK_DRAFTS_COPY.drafts).toBe("Drafts");
+		expect(WORK_DRAFTS_COPY.create).toBe("Create");
+		expect(WORK_DRAFTS_COPY.lastSaved).toBe("Last saved");
+		expect(WORK_DRAFTS_COPY.unsavedChangesMayBeLost).toBe(
+			"Unsaved changes may be lost"
+		);
 	});
 });
 
@@ -101,6 +111,7 @@ describe("Work Drafts", () => {
 	function drafts(
 		overrides: {
 			connected?: boolean;
+			workCreate?: Parameters<typeof createWorkDrafts>[0]["workCreate"];
 			workFieldDefinitions?: (
 				projectId: string | null
 			) => readonly WorkCustomFieldDefinition[];
@@ -111,6 +122,7 @@ describe("Work Drafts", () => {
 			clock: { now: () => SAVED_AT },
 			connected: overrides.connected,
 			prisma,
+			workCreate: overrides.workCreate,
 			workFieldDefinitions: overrides.workFieldDefinitions,
 			workspaceId,
 		});
@@ -436,5 +448,218 @@ describe("Work Drafts", () => {
 			reason: MUTATION_COPY.conflict,
 			status: "conflict",
 		});
+	});
+
+	it("shows Last saved and unsaved risk on disconnect with no queue row", async () => {
+		const surface = drafts();
+		const saved = await surface.autosave({
+			form: {
+				customFieldValues: {},
+				projectId: null,
+				title: "Landed",
+				type: "Bug",
+			},
+			idempotencyKey: crypto.randomUUID(),
+		});
+		expect(saved.status).toBe("saved");
+		expect(surface.disconnectChrome(true)).toBeNull();
+
+		surface.goOffline();
+
+		expect(surface.disconnectChrome(true)).toEqual({
+			lastSavedLabel: "Last saved",
+			lastSuccessfulSaveAt: SAVED_AT,
+			queueRow: null,
+			unsavedRisk: "Unsaved changes may be lost",
+		});
+		expect(surface.disconnectChrome(false)).toEqual({
+			lastSavedLabel: "Last saved",
+			lastSuccessfulSaveAt: SAVED_AT,
+			queueRow: null,
+			unsavedRisk: null,
+		});
+		expect(surface.writeQueue()).toEqual([]);
+		expect(surface.unsavedRisk(true)).toBe("Unsaved changes may be lost");
+		expect(surface.unsavedRisk(false)).toBeNull();
+	});
+
+	it("does not hidden-replay unsaved keystrokes on reconnect", async () => {
+		const surface = drafts();
+		const saved = await surface.autosave({
+			form: {
+				customFieldValues: {},
+				projectId: null,
+				title: "On the server",
+				type: "Task",
+			},
+			idempotencyKey: crypto.randomUUID(),
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved Draft");
+		}
+
+		const reconnect = await surface.reconnect({
+			customFieldValues: {},
+			projectId: null,
+			title: "Typed while disconnected",
+			type: "Task",
+		});
+
+		expect(reconnect).toEqual({
+			draft: saved.draft,
+			lastSuccessfulSaveAt: SAVED_AT,
+			queued: false,
+			replayed: false,
+		});
+		expect(surface.writeQueue()).toEqual([]);
+		expect(await surface.resume(saved.draft.id)).toEqual(saved.draft);
+		expect((await surface.list())[0]?.form.title).toBe("On the server");
+	});
+
+	it("Create finalizes once through Work Lifecycle and consumes the Draft", async () => {
+		const project = await openPayments();
+		let createCalls = 0;
+		const surface = drafts({
+			workCreate: async (command) => {
+				createCalls += 1;
+				return await finalizeDraft(prisma, {
+					actorId,
+					idempotencyKey: command.idempotencyKey,
+					origin: "human",
+					payload: command.payload,
+				});
+			},
+		});
+		const saved = await surface.autosave({
+			form: {
+				customFieldValues: {},
+				projectId: project.id,
+				title: "Ready to create",
+				type: "Research",
+			},
+			idempotencyKey: crypto.randomUUID(),
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved Draft");
+		}
+
+		const created = await surface.finalize({
+			draftId: saved.draft.id,
+			form: saved.draft.form,
+			idempotencyKey: `finalize-${saved.draft.id}`,
+		});
+
+		expect(createCalls).toBe(1);
+		expect(created).toMatchObject({
+			draft: null,
+			status: "created",
+			work: {
+				title: "Ready to create",
+				type: "Research",
+			},
+		});
+		if (created.status !== "created") {
+			throw new Error("expected created Work");
+		}
+		expect(created.work.key).toMatch(WORK_KEY_PATTERN);
+		expect(await surface.list()).toEqual([]);
+		expect(await surface.resume(saved.draft.id)).toBeNull();
+		expect(await listWork(prisma, project.id)).toEqual([
+			await getWork(prisma, created.work.id),
+		]);
+	});
+
+	it("refuses a second Create from a consumed Draft and does not mint another Work", async () => {
+		const project = await openPayments();
+		let createCalls = 0;
+		const surface = drafts({
+			workCreate: async (command) => {
+				createCalls += 1;
+				return await finalizeDraft(prisma, {
+					actorId,
+					idempotencyKey: command.idempotencyKey,
+					origin: "human",
+					payload: command.payload,
+				});
+			},
+		});
+		const saved = await surface.autosave({
+			form: {
+				customFieldValues: {},
+				projectId: project.id,
+				title: "Only once",
+				type: "Task",
+			},
+			idempotencyKey: crypto.randomUUID(),
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved Draft");
+		}
+		const first = await surface.finalize({
+			draftId: saved.draft.id,
+			form: saved.draft.form,
+			idempotencyKey: `first-${saved.draft.id}`,
+		});
+		const second = await surface.finalize({
+			draftId: saved.draft.id,
+			form: {
+				customFieldValues: {},
+				projectId: project.id,
+				title: "Second mint",
+				type: "Task",
+			},
+			idempotencyKey: `second-${saved.draft.id}`,
+		});
+		const replayed = await surface.finalize({
+			draftId: saved.draft.id,
+			form: saved.draft.form,
+			idempotencyKey: `first-${saved.draft.id}`,
+		});
+
+		expect(first.status).toBe("created");
+		expect(second).toEqual({ status: "consumed" });
+		expect(replayed.status).toBe("created");
+		expect(createCalls).toBe(1);
+		expect(await listWork(prisma, project.id)).toHaveLength(1);
+	});
+
+	it("refuses offline Create without a queue and keeps the Draft", async () => {
+		const project = await openPayments();
+		const online = drafts({
+			workCreate: async (command) =>
+				await finalizeDraft(prisma, {
+					actorId,
+					idempotencyKey: command.idempotencyKey,
+					origin: "human",
+					payload: command.payload,
+				}),
+		});
+		const saved = await online.autosave({
+			form: {
+				customFieldValues: {},
+				projectId: project.id,
+				title: "Still a Draft",
+				type: "Bug",
+			},
+			idempotencyKey: crypto.randomUUID(),
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved Draft");
+		}
+		const offline = drafts({ connected: false });
+		const refused = await offline.finalize({
+			draftId: saved.draft.id,
+			form: saved.draft.form,
+			idempotencyKey: crypto.randomUUID(),
+		});
+
+		expect(refused).toEqual({
+			queued: false,
+			reason: "offline",
+			status: "refused",
+		});
+		expect(offline.writeQueue()).toEqual([]);
+		expect(await online.list()).toHaveLength(1);
+		expect(await listWork(prisma, project.id)).toEqual([]);
 	});
 });

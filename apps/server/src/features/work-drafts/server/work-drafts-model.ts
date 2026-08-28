@@ -6,12 +6,15 @@ import {
 } from "../../work-lifecycle/server/work-lifecycle-model";
 
 export const WORK_DRAFTS_COPY = {
+	create: "Create",
 	delete: "Delete",
 	draft: "Draft",
 	drafts: "Drafts",
+	lastSaved: "Last saved",
 	loading: "Loading…",
 	noDrafts: "No drafts.",
 	resume: "Resume",
+	unsavedChangesMayBeLost: "Unsaved changes may be lost",
 } as const;
 
 export const DRAFT_SURFACE_EXCLUSION = {

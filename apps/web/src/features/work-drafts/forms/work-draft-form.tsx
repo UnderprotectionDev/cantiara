@@ -1,3 +1,4 @@
+import { formatDateTime } from "@cantiara/auth/account-preferences-format";
 import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
@@ -9,9 +10,10 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useDebouncer } from "@tanstack/react-pacer";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
+import { CLIENT_SHELL_COPY } from "@/features/web-macos-client/views/client-shell";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import {
 	WORK_LIFECYCLE_COPY,
@@ -29,6 +31,7 @@ import {
 	type WorkDraftFormValues,
 	workDraftFormForAutosave,
 } from "./work-draft-form-state";
+import { WORK_DRAFTS_COPY } from "./work-drafts-copy";
 
 const AUTOSAVE_WAIT_MS = 400;
 
@@ -47,11 +50,14 @@ export default function WorkDraftForm({
 	onCreate?: (values: WorkDraftFormValues) => void | Promise<void>;
 	onDraftId: (draftId: string) => void;
 }) {
-	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const { attemptOnlineWork, markUnsaved, recordSave, shell } =
+		useClientShell();
 	const draftIdRef = useRef(draftId);
 	draftIdRef.current = draftId;
 	const projects = useQuery(orpc.projectShell.list.queryOptions());
 	const catalog = useQuery(orpc.workDrafts.catalog.queryOptions());
+	const preferences = useQuery(orpc.accountPreferences.get.queryOptions());
+	const copy = catalog.data?.copy ?? WORK_DRAFTS_COPY;
 	const form = useForm({
 		defaultValues: {
 			...EMPTY_WORK_DRAFT_FORM,
@@ -77,7 +83,7 @@ export default function WorkDraftForm({
 					await queryClient.invalidateQueries({
 						queryKey: orpc.workDrafts.list.queryKey(),
 					});
-					recordSave();
+					recordSave(new Date(outcome.lastSuccessfulSaveAt));
 				}
 			},
 		})
@@ -103,6 +109,17 @@ export default function WorkDraftForm({
 		[attemptOnlineWork, autosave, markUnsaved]
 	);
 	const debouncer = useDebouncer(runAutosave, { wait: AUTOSAVE_WAIT_MS });
+
+	const onReconnect = useCallback(() => {
+		debouncer.cancel();
+	}, [debouncer]);
+
+	useEffect(() => {
+		window.addEventListener("online", onReconnect);
+		return () => {
+			window.removeEventListener("online", onReconnect);
+		};
+	}, [onReconnect]);
 
 	const onTitleChange = useCallback(
 		(event: ChangeEvent<HTMLInputElement>) => {
@@ -153,17 +170,18 @@ export default function WorkDraftForm({
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
+			debouncer.cancel();
 			const created = onCreate?.(form.store.state.values);
 			if (created) {
 				created.catch(() => undefined);
 			}
 		},
-		[form, onCreate]
+		[debouncer, form, onCreate]
 	);
 
 	return (
 		<form
-			aria-label={catalog.data?.copy.draft ?? "Draft"}
+			aria-label={copy.draft}
 			className="flex flex-col gap-3"
 			onSubmit={onSubmit}
 		>
@@ -220,7 +238,7 @@ export default function WorkDraftForm({
 				)}
 				{onCreate ? (
 					<Button disabled={createDisabled} type="submit">
-						{WORK_LIFECYCLE_COPY.createWork}
+						{copy.create}
 					</Button>
 				) : null}
 			</FieldGroup>
@@ -232,6 +250,17 @@ export default function WorkDraftForm({
 					widget={widget}
 				/>
 			))}
+			{shell.lastSuccessfulSaveAt && preferences.data ? (
+				<p className="text-muted-foreground text-xs">
+					{CLIENT_SHELL_COPY.lastSaved}{" "}
+					{formatDateTime(shell.lastSuccessfulSaveAt, preferences.data)}
+				</p>
+			) : null}
+			{shell.hasUnsavedChanges ? (
+				<p className="text-muted-foreground text-xs">
+					{CLIENT_SHELL_COPY.unsavedChangesMayBeLost}
+				</p>
+			) : null}
 		</form>
 	);
 }
