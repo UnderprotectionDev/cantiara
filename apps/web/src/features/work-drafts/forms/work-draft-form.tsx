@@ -44,7 +44,7 @@ export default function WorkDraftForm({
 	draftId: string | null;
 	initialForm?: WorkDraftFormValues;
 	lockProjectId?: string;
-	onCreate?: (values: WorkDraftFormValues) => void;
+	onCreate?: (values: WorkDraftFormValues) => void | Promise<void>;
 	onDraftId: (draftId: string) => void;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
@@ -153,7 +153,10 @@ export default function WorkDraftForm({
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
-			onCreate?.(form.store.state.values);
+			const created = onCreate?.(form.store.state.values);
+			if (created) {
+				created.catch(() => undefined);
+			}
 		},
 		[form, onCreate]
 	);
