@@ -1,0 +1,26 @@
+model Tag {
+  id          String    @id
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  revision    Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workTags WorkTag[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+  @@map("tag")
+}
+
+model WorkTag {
+  tagId     String
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  workId    String
+  work      Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([tagId, workId])
+  @@index([workId])
+  @@map("work_tag")
+}

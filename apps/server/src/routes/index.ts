@@ -9,6 +9,7 @@ import { fileAttachments } from "../features/file-attachments/server/file-attach
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
 import { relations } from "../features/relations/server/relations-rpc";
+import { tags } from "../features/tags/server/tags-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
 import { workDrafts } from "../features/work-drafts/server/work-drafts-rpc";
 import { workLifecycle } from "../features/work-lifecycle/server/work-lifecycle-rpc";
@@ -23,6 +24,7 @@ export const appRouter = {
 	projectOverview: projectOverviewRouter,
 	projectShell,
 	relations,
+	tags,
 	workDrafts,
 	workLifecycle,
 	healthCheck: publicProcedure.handler(() => "OK"),

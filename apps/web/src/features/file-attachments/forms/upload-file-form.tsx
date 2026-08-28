@@ -1,7 +1,14 @@
+import {
+	Attachment,
+	AttachmentContent,
+	AttachmentDescription,
+	AttachmentMedia,
+	AttachmentTitle,
+} from "@cantiara/ui/components/attachment";
 import { Button } from "@cantiara/ui/components/button";
-import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
-import { Input } from "@cantiara/ui/components/input";
+import { Field, FieldGroup } from "@cantiara/ui/components/field";
 import { useQuery } from "@tanstack/react-query";
+import { FileUp } from "lucide-react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
@@ -144,24 +151,47 @@ export default function UploadFileForm({
 		]
 	);
 
+	const picker = pickerVisualState({
+		error,
+		file,
+		status,
+	});
+	const actionLabel = submitActionLabel(
+		status,
+		Boolean(targetFileAttachmentId)
+	);
+
 	return (
 		<form className="flex flex-col gap-3" onSubmit={onSubmit}>
 			<FieldGroup className="flex-row flex-wrap items-end gap-3">
 				<Field className="min-w-48 flex-1">
-					<FieldLabel htmlFor={inputId}>
-						{targetFileAttachmentId
-							? FILE_ATTACHMENT_COPY.uploadNewVersion
-							: FILE_ATTACHMENT_COPY.fileAttachment}
-					</FieldLabel>
-					<Input id={inputId} onChange={onFile} type="file" />
+					<input
+						className="sr-only"
+						id={inputId}
+						onChange={onFile}
+						type="file"
+					/>
+					<label className="block cursor-pointer" htmlFor={inputId}>
+						<Attachment className="w-full max-w-full" state={picker}>
+							<AttachmentMedia>
+								<FileUp />
+							</AttachmentMedia>
+							<AttachmentContent>
+								<AttachmentTitle>
+									{file?.name ?? FILE_ATTACHMENT_COPY.chooseFile}
+								</AttachmentTitle>
+								<AttachmentDescription>
+									{pickerDescription(file, Boolean(targetFileAttachmentId))}
+								</AttachmentDescription>
+							</AttachmentContent>
+						</Attachment>
+					</label>
 				</Field>
 				<Button
 					disabled={!file || status === FILE_ATTACHMENT_COPY.finalizing}
 					type="submit"
 				>
-					{targetFileAttachmentId
-						? FILE_ATTACHMENT_COPY.uploadNewVersion
-						: FILE_ATTACHMENT_COPY.upload}
+					{actionLabel}
 				</Button>
 				{operationId && status !== FILE_ATTACHMENT_COPY.finalizing ? (
 					<CancelUploadButton
@@ -188,6 +218,46 @@ export default function UploadFileForm({
 			{error ? <p role="alert">{error}</p> : null}
 		</form>
 	);
+}
+
+function pickerVisualState(input: {
+	error: string | null;
+	file: File | null;
+	status: string | null;
+}): "idle" | "done" | "processing" | "error" {
+	if (input.error) {
+		return "error";
+	}
+	if (input.status === FILE_ATTACHMENT_COPY.finalizing) {
+		return "processing";
+	}
+	if (input.file) {
+		return "done";
+	}
+	return "idle";
+}
+
+function pickerDescription(file: File | null, isNewVersion: boolean): string {
+	if (!file) {
+		return FILE_ATTACHMENT_COPY.noFileSelected;
+	}
+	if (isNewVersion) {
+		return FILE_ATTACHMENT_COPY.uploadNewVersion;
+	}
+	return FILE_ATTACHMENT_COPY.upload;
+}
+
+function submitActionLabel(
+	status: string | null,
+	isNewVersion: boolean
+): string {
+	if (status === FILE_ATTACHMENT_COPY.finalizing) {
+		return FILE_ATTACHMENT_COPY.finalizing;
+	}
+	if (isNewVersion) {
+		return FILE_ATTACHMENT_COPY.uploadNewVersion;
+	}
+	return FILE_ATTACHMENT_COPY.upload;
 }
 
 function CancelUploadButton({

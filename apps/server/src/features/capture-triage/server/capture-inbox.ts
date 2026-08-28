@@ -1,10 +1,14 @@
 import type { PrismaClient } from "@cantiara/db";
 
+import { promoteCaptureAttachment } from "../../file-attachments/server/file-attachments";
+import { createPrismaCaptureStagingSource } from "../../file-attachments/server/file-attachments-capture-staging";
+import { FILE_SCOPE_KIND } from "../../file-attachments/server/file-attachments-model";
 import {
 	MUTATION_ACTOR,
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
+import { convertCaptureToWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	createBulkSenseMaking,
 	type NameBulkClusterOutcome,
@@ -46,8 +50,9 @@ import {
 	createTriageExits,
 	type DeleteOutcome,
 	type FileAttachmentFinalizeAdapter,
+	type FileAttachmentPromotionCommand,
+	type FileAttachmentPromotionResult,
 	handOffConvert,
-	handOffFileAttachmentPromote,
 	type MergeUndoPreview,
 	type RecordBinder,
 	type SimilarMatch,
@@ -371,6 +376,24 @@ function saveCommandPayload(
 
 const STAGING_INCLUDE = { staging: true } as const;
 
+async function resolveCaptureProjectId(
+	prisma: PrismaClient,
+	workspaceId: string,
+	projectId: string | null | undefined
+): Promise<string | null> {
+	const trimmed = projectId?.trim() ?? "";
+	if (!trimmed) {
+		return null;
+	}
+	const match = await prisma.project.findFirst({
+		where: {
+			OR: [{ id: trimmed }, { name: { equals: trimmed, mode: "insensitive" } }],
+			workspaceId,
+		},
+	});
+	return match?.id ?? trimmed;
+}
+
 async function insertCaptureItem(
 	prisma: PrismaClient,
 	input: {
@@ -385,6 +408,11 @@ async function insertCaptureItem(
 	const body = template
 		? formatTemplateBody(template, fields)
 		: (input.command.text ?? "");
+	const projectId = await resolveCaptureProjectId(
+		prisma,
+		input.workspaceId,
+		input.command.projectId
+	);
 	const row = await prisma.captureInboxItem.create({
 		data: {
 			attachmentRef: input.command.attachmentRef ?? null,
@@ -395,7 +423,7 @@ async function insertCaptureItem(
 			link: input.command.link ?? "",
 			origin: input.command.origin ?? "",
 			ownerId: input.actorId,
-			projectId: input.command.projectId ?? null,
+			projectId,
 			template,
 			workspaceId: input.workspaceId,
 		},
@@ -461,6 +489,123 @@ async function loadItemView(
 	return row ? toItemView(row) : null;
 }
 
+function fileAttachmentPromoteAdapter(
+	prisma: PrismaClient,
+	workspaceId: string,
+	rootKey: Uint8Array
+): FileAttachmentFinalizeAdapter {
+	const captureStaging = createPrismaCaptureStagingSource(prisma, rootKey);
+	return async (
+		command: FileAttachmentPromotionCommand
+	): Promise<FileAttachmentPromotionResult> => {
+		const { kind, projectId } = command.targetScope;
+		if (kind === "project" && !projectId) {
+			return { status: "failed", visibleAttachment: null };
+		}
+		const resolvedProjectId =
+			kind === "project"
+				? await resolveCaptureProjectId(prisma, workspaceId, projectId)
+				: null;
+		if (kind === "project" && !resolvedProjectId) {
+			return { status: "failed", visibleAttachment: null };
+		}
+		const outcome = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId: command.actorId,
+				idempotencyKey: command.idempotencyKey,
+				origin: "human",
+				payload: {
+					inboxItemId: command.item.id,
+					scope:
+						kind === "project" && resolvedProjectId
+							? {
+									kind: FILE_SCOPE_KIND.project,
+									projectId: resolvedProjectId,
+								}
+							: { kind: FILE_SCOPE_KIND.personalWiki },
+					title: captureMessageTitle(command.item.body),
+				},
+				workspaceId,
+			},
+			{ captureStaging }
+		);
+		if (outcome.status === "committed" || outcome.status === "replayed") {
+			return {
+				fileAttachmentId: outcome.file.id,
+				status: "promoted",
+				visibleAttachment: null,
+			};
+		}
+		return {
+			...(outcome.status === "rejected" || outcome.status === "conflict"
+				? { explanation: outcome.explanation }
+				: {}),
+			status: "failed",
+			visibleAttachment: null,
+		};
+	};
+}
+
+function captureMessageTitle(body: string): string | undefined {
+	const title = body.trim();
+	return title ? title : undefined;
+}
+
+export function captureConvertAdapter(
+	prisma: PrismaClient,
+	workspaceId: string
+): ConvertAdapter {
+	return async (command) => {
+		if (command.targetKind !== "work") {
+			return {
+				handedOff: true,
+				recordId: null,
+				targetKind: command.targetKind,
+			};
+		}
+		const projectId =
+			command.item.scope.kind === "project"
+				? await resolveCaptureProjectId(
+						prisma,
+						workspaceId,
+						command.item.scope.projectId
+					)
+				: null;
+		const title = captureMessageTitle(command.item.body);
+		if (!(projectId && title)) {
+			return {
+				handedOff: false,
+				recordId: null,
+				targetKind: "work",
+			};
+		}
+		const outcome = await convertCaptureToWork(prisma, {
+			actorId: command.actorId,
+			idempotencyKey: command.idempotencyKey,
+			origin: "human",
+			payload: {
+				projectId,
+				source: "capture-convert",
+				title,
+				type: command.item.template === "bug-capture" ? "Bug" : undefined,
+			},
+		});
+		if (outcome.status === "committed" || outcome.status === "replayed") {
+			return {
+				handedOff: true,
+				recordId: outcome.work.id,
+				targetKind: "work",
+			};
+		}
+		return {
+			handedOff: false,
+			recordId: null,
+			targetKind: "work",
+		};
+	};
+}
+
 export function createCaptureInbox(input: {
 	actorId: string;
 	binder?: RecordBinder;
@@ -479,13 +624,14 @@ export function createCaptureInbox(input: {
 	const clock = { now: () => now };
 	const workCreate = input.workCreate ?? handOffWorkCreate;
 	const convertCreate = input.convertCreate ?? handOffConvert;
-	const fileAttachmentFinalize =
-		input.fileAttachmentFinalize ?? handOffFileAttachmentPromote;
 	const binder = input.binder ?? createRecordBinder([]);
 	const similarRecords = input.similarRecords ?? (() => []);
 	const store =
 		input.stagingStore ?? createPrismaCaptureStagingStore(input.prisma);
 	const rootKey = input.stagingRootKey ?? stagingRootKey();
+	const fileAttachmentFinalize =
+		input.fileAttachmentFinalize ??
+		fileAttachmentPromoteAdapter(input.prisma, input.workspaceId, rootKey);
 	let lastSuccessfulSaveAt: Date | null = null;
 	let sequentialFocusedId: string | null = null;
 	const connected = () => input.connected !== false;

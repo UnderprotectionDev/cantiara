@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 
+import {
+	CLIENT_SHELL_COPY,
+	issueMainFlowFailure,
+} from "@cantiara/api/client-shell-failure";
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
 import {
@@ -8,6 +12,12 @@ import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
+import type { CaptureStagingSource } from "./file-attachments-capture-staging";
+import {
+	ensureImageDerivatives,
+	type ImageDerivativeEngine,
+	removeDerivativesForHash,
+} from "./file-attachments-derivatives";
 import {
 	contentPathFor,
 	FILE_ATTACHMENT_COPY,
@@ -18,10 +28,27 @@ import {
 	type FileLifecycle,
 	type FilePinKind,
 	type FileScope,
+	IMAGE_DERIVATIVE_LIMITS,
+	PREVIEW_STATUS,
+	type PreviewMode,
+	type PreviewStatus,
+	type PromoteCaptureAttachmentCommand,
+	previewPathFor,
+	promoteCaptureAttachmentCommandSchema,
 	STAGING_TTL_MS,
 	type StageFileUploadCommand,
 	stageFileUploadCommandSchema,
+	THUMBNAIL_SIZE,
+	type ThumbnailSize,
+	thumbnailPathFor,
 } from "./file-attachments-model";
+import {
+	boundedCsvRows,
+	fileCanEnterExternalSurface,
+	playbackContractFor,
+	previewModeFor,
+	safePlainTextExcerpt,
+} from "./file-attachments-preview";
 import { sniffFileBytes } from "./file-attachments-sniff";
 import {
 	createPrismaFileObjectStore,
@@ -41,14 +68,39 @@ export interface FileAttachmentQuotaLimits {
 }
 
 export interface FileAttachmentDeps {
+	captureStaging?: CaptureStagingSource;
 	clock?: { now?: Date };
+	derivatives?: ImageDerivativeEngine;
 	quota?: FileAttachmentQuotaLimits;
 	sniff?: (bytes: Uint8Array) => Promise<FileSniff | null>;
 	store?: FileObjectStore;
 }
 
+export interface FilePreviewView {
+	autoplay: false;
+	cause: string | null;
+	csvRows: string[][] | null;
+	galleryThumbnailPath: string | null;
+	mediumThumbnailPath: string | null;
+	mode: PreviewMode;
+	playback: {
+		autoplay: false;
+		fullscreen: boolean;
+		loopOptional: boolean;
+		speed: boolean;
+	} | null;
+	previewPath: string | null;
+	retryLimit: number;
+	status: PreviewStatus;
+	supportReference: string | null;
+	textExcerpt: string | null;
+	unpack: false;
+	written: boolean;
+}
+
 export interface FileVersionView {
 	byteLength: number;
+	contentHash: string;
 	contentPath: string;
 	createdAt: string;
 	filename: string;
@@ -56,6 +108,7 @@ export interface FileVersionView {
 	kind: string;
 	mimeType: string;
 	pins: Array<{ kind: FilePinKind; targetId: string }>;
+	preview: FilePreviewView;
 	versionNumber: number;
 }
 
@@ -132,6 +185,31 @@ export interface NewVersionPreview {
 	target: { id: string; title: string };
 }
 
+export type CapturePromotionOutcome =
+	| { file: FileAttachmentView; status: "committed" }
+	| { file: FileAttachmentView; status: "replayed" }
+	| {
+			conflict: typeof FILE_ATTACHMENT_COPY.conflict;
+			explanation: ReturnType<typeof issueMainFlowFailure>;
+			status: "conflict";
+	  }
+	| {
+			explanation: ReturnType<typeof issueMainFlowFailure>;
+			reason:
+				| typeof FILE_ATTACHMENT_COPY.mimeMismatch
+				| typeof FILE_ATTACHMENT_COPY.quotaExceeded
+				| typeof FILE_ATTACHMENT_COPY.restartFromByteZero
+				| typeof FILE_ATTACHMENT_COPY.tooLarge
+				| typeof FILE_ATTACHMENT_COPY.typeRejected
+				| "bytes-incomplete"
+				| "missing-authorization"
+				| "missing-idempotency-key"
+				| "operation-not-found"
+				| "scope-not-found"
+				| "target-not-found";
+			status: "rejected";
+	  };
+
 function quotaLimits(deps: FileAttachmentDeps): FileAttachmentQuotaLimits {
 	return deps.quota ?? FILE_ATTACHMENT_QUOTA;
 }
@@ -162,6 +240,7 @@ function metadataFingerprint(
 		filename: payload.filename,
 		scope: payload.scope,
 		targetFileAttachmentId: payload.targetFileAttachmentId ?? null,
+		title: payload.title ?? payload.filename,
 	});
 }
 
@@ -175,6 +254,7 @@ function finalizeFingerprint(
 		filename: payload.filename,
 		scope: payload.scope,
 		targetFileAttachmentId: payload.targetFileAttachmentId ?? null,
+		title: payload.title ?? payload.filename,
 	});
 }
 
@@ -276,17 +356,20 @@ function versionView(
 	attachmentId: string,
 	row: {
 		byteLength: number;
+		contentHash: string;
 		createdAt: Date;
 		filename: string;
 		id: string;
 		kind: string;
 		mimeType: string;
 		pins: Array<{ kind: string; targetId: string }>;
+		preview: FilePreviewView;
 		versionNumber: number;
 	}
 ): FileVersionView {
 	return {
 		byteLength: row.byteLength,
+		contentHash: row.contentHash,
 		contentPath: contentPathFor(attachmentId, row.id),
 		createdAt: row.createdAt.toISOString(),
 		filename: row.filename,
@@ -297,13 +380,100 @@ function versionView(
 			kind: pin.kind as FilePinKind,
 			targetId: pin.targetId,
 		})),
+		preview: row.preview,
 		versionNumber: row.versionNumber,
+	};
+}
+
+async function previewViewFor(
+	tx: PrismaClient | PrismaTransaction,
+	attachmentId: string,
+	version: {
+		contentHash: string;
+		id: string;
+		kind: string;
+		objectKey: string;
+		previewCause: string | null;
+		previewDataWritten: boolean;
+		previewStatus: string;
+		previewSupportReference: string | null;
+	},
+	previewBody: boolean
+): Promise<FilePreviewView> {
+	const mode = previewModeFor(version.kind);
+	const playback = playbackContractFor(version.kind);
+	const status = (version.previewStatus ||
+		PREVIEW_STATUS.pending) as PreviewStatus;
+	const downloadOnly = mode === "download-only";
+	const isolatedPreview =
+		downloadOnly || status === PREVIEW_STATUS.unavailable
+			? null
+			: previewPathFor(attachmentId, version.id);
+	const derivatives =
+		version.kind === FILE_KIND.image
+			? await tx.fileImageDerivative.findMany({
+					where: { contentHash: version.contentHash },
+				})
+			: [];
+	const small = derivatives.find((row) => row.size === THUMBNAIL_SIZE.small);
+	const medium = derivatives.find((row) => row.size === THUMBNAIL_SIZE.medium);
+	const galleryReady =
+		status === PREVIEW_STATUS.ready && Boolean(small) && Boolean(medium);
+	let csvRows: string[][] | null = null;
+	let textExcerpt: string | null = null;
+	if (
+		previewBody &&
+		status === PREVIEW_STATUS.ready &&
+		version.kind === FILE_KIND.csv
+	) {
+		const blob = await tx.fileObjectBlob.findUnique({
+			where: { objectKey: version.objectKey },
+		});
+		if (blob) {
+			csvRows = boundedCsvRows(Uint8Array.from(blob.bytes));
+		}
+	}
+	if (
+		previewBody &&
+		status === PREVIEW_STATUS.ready &&
+		version.kind === FILE_KIND.text
+	) {
+		const blob = await tx.fileObjectBlob.findUnique({
+			where: { objectKey: version.objectKey },
+		});
+		if (blob) {
+			textExcerpt = safePlainTextExcerpt(Uint8Array.from(blob.bytes));
+		}
+	}
+	return {
+		autoplay: false,
+		cause: status === PREVIEW_STATUS.unavailable ? version.previewCause : null,
+		csvRows,
+		galleryThumbnailPath: galleryReady
+			? thumbnailPathFor(attachmentId, version.id, THUMBNAIL_SIZE.small)
+			: null,
+		mediumThumbnailPath: galleryReady
+			? thumbnailPathFor(attachmentId, version.id, THUMBNAIL_SIZE.medium)
+			: null,
+		mode,
+		playback,
+		previewPath: isolatedPreview,
+		retryLimit: IMAGE_DERIVATIVE_LIMITS.retryLimit,
+		status: version.kind === FILE_KIND.image ? status : PREVIEW_STATUS.ready,
+		supportReference:
+			status === PREVIEW_STATUS.unavailable
+				? version.previewSupportReference
+				: null,
+		textExcerpt,
+		unpack: false,
+		written: version.previewDataWritten,
 	};
 }
 
 async function loadFileView(
 	tx: PrismaClient | PrismaTransaction,
-	id: string
+	id: string,
+	previewBody = true
 ): Promise<FileAttachmentView | null> {
 	const row = await tx.fileAttachment.findUnique({
 		include: {
@@ -325,16 +495,28 @@ async function loadFileView(
 		row.scopeKind === FILE_SCOPE_KIND.project && row.projectId
 			? { kind: FILE_SCOPE_KIND.project, projectId: row.projectId }
 			: { kind: FILE_SCOPE_KIND.personalWiki };
+	const versions = await Promise.all(
+		row.versions.map(async (version) =>
+			versionView(row.id, {
+				...version,
+				preview: await previewViewFor(tx, row.id, version, previewBody),
+			})
+		)
+	);
+	const currentView = versions.at(-1);
+	if (!currentView) {
+		return null;
+	}
 	return {
 		contentPath: contentPathFor(row.id, current.id),
-		currentVersion: versionView(row.id, current),
+		currentVersion: currentView,
 		id: row.id,
 		kind: current.kind,
 		lifecycle: row.lifecycle as FileLifecycle,
 		revision: row.revision,
 		scope,
 		title: row.title,
-		versions: row.versions.map((version) => versionView(row.id, version)),
+		versions,
 	};
 }
 
@@ -424,14 +606,15 @@ export async function listFileAttachments(
 		},
 	});
 	const views = (
-		await Promise.all(rows.map((row) => loadFileView(prisma, row.id)))
+		await Promise.all(rows.map((row) => loadFileView(prisma, row.id, false)))
 	).filter((view): view is FileAttachmentView => view !== null);
 	return views;
 }
 
 export async function getFileAttachment(
 	prisma: PrismaClient,
-	input: { id: string; workspaceId: string }
+	input: { id: string; workspaceId: string },
+	deps: FileAttachmentDeps = {}
 ): Promise<FileAttachmentView | null> {
 	const row = await prisma.fileAttachment.findFirst({
 		where: { id: input.id, workspaceId: input.workspaceId },
@@ -439,7 +622,27 @@ export async function getFileAttachment(
 	if (!row) {
 		return null;
 	}
-	return await loadFileView(prisma, row.id);
+	const view = await loadFileView(prisma, row.id);
+	if (
+		view?.kind === FILE_KIND.image &&
+		view.currentVersion.preview.status === PREVIEW_STATUS.pending
+	) {
+		await ensureImageDerivatives(
+			prisma,
+			{
+				contentHash: view.currentVersion.contentHash,
+				kind: view.kind,
+				versionId: view.currentVersion.id,
+				workspaceId: input.workspaceId,
+			},
+			{
+				engine: deps.derivatives,
+				store: storeOf(deps),
+			}
+		);
+		return await loadFileView(prisma, row.id);
+	}
+	return view;
 }
 
 export async function readAccessibleFileBytes(
@@ -468,8 +671,70 @@ export async function readAccessibleFileBytes(
 	};
 }
 
+export async function readIsolatedPreviewBytes(
+	prisma: PrismaClient,
+	input: {
+		fileAttachmentId: string;
+		kind: "preview" | ThumbnailSize;
+		versionId: string;
+		workspaceId: string;
+	},
+	deps: FileAttachmentDeps = {}
+): Promise<{ bytes: Uint8Array; filename: string; mimeType: string } | null> {
+	const version = await prisma.fileAttachmentVersion.findFirst({
+		where: {
+			fileAttachment: { workspaceId: input.workspaceId },
+			fileAttachmentId: input.fileAttachmentId,
+			id: input.versionId,
+		},
+	});
+	if (!version) {
+		return null;
+	}
+	if (input.kind === "preview") {
+		if (version.kind === FILE_KIND.zip) {
+			return null;
+		}
+		if (version.previewStatus === PREVIEW_STATUS.unavailable) {
+			return null;
+		}
+		const blob = await storeOf(deps).read(prisma, version.objectKey);
+		if (!blob?.accessible) {
+			return null;
+		}
+		return {
+			bytes: blob.bytes,
+			filename: version.filename,
+			mimeType: version.mimeType,
+		};
+	}
+	const derivative = await prisma.fileImageDerivative.findUnique({
+		where: {
+			contentHash_size: {
+				contentHash: version.contentHash,
+				size: input.kind,
+			},
+		},
+	});
+	if (!derivative) {
+		return null;
+	}
+	const blob = await storeOf(deps).read(prisma, derivative.objectKey);
+	if (!blob?.accessible) {
+		return null;
+	}
+	return {
+		bytes: blob.bytes,
+		filename: `${version.filename}.${input.kind}.webp`,
+		mimeType: "image/webp",
+	};
+}
+
 export function zipCanEnterExternalSurface(kind: string): boolean {
-	return kind !== FILE_KIND.zip;
+	return fileCanEnterExternalSurface({
+		audience: "public",
+		kind,
+	}).allowed;
 }
 
 export async function previewUploadNewVersion(
@@ -556,6 +821,7 @@ async function stageInTransaction(
 			filename: file.currentVersion.filename,
 			scope: file.scope,
 			targetFileAttachmentId: command.payload.targetFileAttachmentId,
+			title: file.title,
 		});
 		if (committedMeta !== metadataFingerprint(command.payload)) {
 			return {
@@ -758,9 +1024,32 @@ export async function finalizeFileUpload(
 		return parsed.outcome;
 	}
 	try {
-		return await prisma.$transaction((tx) =>
+		const outcome = await prisma.$transaction((tx) =>
 			commitFinalize(tx, parsed.command, deps)
 		);
+		if (
+			(outcome.status === "committed" || outcome.status === "replayed") &&
+			outcome.file.kind === FILE_KIND.image
+		) {
+			await ensureImageDerivatives(
+				prisma,
+				{
+					contentHash: outcome.file.currentVersion.contentHash,
+					kind: outcome.file.kind,
+					versionId: outcome.file.currentVersion.id,
+					workspaceId: parsed.command.workspaceId,
+				},
+				{
+					engine: deps.derivatives,
+					store: storeOf(deps),
+				}
+			);
+			const refreshed = await loadFileView(prisma, outcome.file.id);
+			if (refreshed) {
+				return { file: refreshed, status: outcome.status };
+			}
+		}
+		return outcome;
 	} catch {
 		return { reason: "bytes-incomplete", status: "rejected" };
 	}
@@ -895,7 +1184,7 @@ async function commitFinalize(
 				projectId: staged.projectId,
 				revision: 1,
 				scopeKind: staged.scopeKind,
-				title: staged.filename,
+				title: command.payload.title ?? staged.filename,
 				workspaceId: staged.workspaceId,
 			},
 		});
@@ -911,6 +1200,10 @@ async function commitFinalize(
 			kind: classified.kind,
 			mimeType: classified.mime,
 			objectKey: staged.objectKey,
+			previewStatus:
+				classified.kind === FILE_KIND.image
+					? PREVIEW_STATUS.pending
+					: PREVIEW_STATUS.ready,
 			versionNumber,
 		},
 	});
@@ -1022,10 +1315,14 @@ export async function permanentlyDeleteFileAttachment(
 		if (!row) {
 			return { reason: "target-not-found", status: "rejected" };
 		}
+		const hashes = row.versions.map((version) => version.contentHash);
 		await Promise.all(
 			row.versions.map((version) => storeOf(deps).remove(tx, version.objectKey))
 		);
 		await tx.fileAttachment.delete({ where: { id: row.id } });
+		await Promise.all(
+			hashes.map((hash) => removeDerivativesForHash(tx, hash, storeOf(deps)))
+		);
 		return { status: "deleted" };
 	});
 }
@@ -1050,4 +1347,152 @@ export async function sweepExpiredFileStaging(
 		);
 		return expired.length;
 	});
+}
+
+function promotionReason(reason: string): string {
+	if (
+		reason === FILE_ATTACHMENT_COPY.mimeMismatch ||
+		reason === FILE_ATTACHMENT_COPY.quotaExceeded ||
+		reason === FILE_ATTACHMENT_COPY.restartFromByteZero ||
+		reason === FILE_ATTACHMENT_COPY.tooLarge ||
+		reason === FILE_ATTACHMENT_COPY.typeRejected
+	) {
+		return reason;
+	}
+	return CLIENT_SHELL_COPY.failed;
+}
+
+function failedPromotion(
+	reason: Extract<CapturePromotionOutcome, { status: "rejected" }>["reason"]
+): CapturePromotionOutcome {
+	return {
+		explanation: issueMainFlowFailure({
+			reason: promotionReason(reason),
+			written: false,
+		}),
+		reason,
+		status: "rejected",
+	};
+}
+
+function uploadCommandFromPromotion(
+	command: PromoteCaptureAttachmentCommand,
+	plaintext: {
+		contentType: string;
+		filename: string;
+	}
+): StageFileUploadCommand {
+	return {
+		actorId: command.actorId,
+		idempotencyKey: command.idempotencyKey,
+		origin: HUMAN_ORIGIN,
+		payload: {
+			declaredMime: plaintext.contentType,
+			filename: plaintext.filename,
+			scope: command.payload.scope,
+			title: command.payload.title,
+		},
+		workspaceId: command.workspaceId,
+	};
+}
+
+function outcomeFromFinalize(
+	outcome: FileAttachmentOutcome
+): CapturePromotionOutcome {
+	if (outcome.status === "committed" || outcome.status === "replayed") {
+		return outcome;
+	}
+	if (outcome.status === "conflict") {
+		return {
+			conflict: outcome.conflict,
+			explanation: issueMainFlowFailure({
+				reason: FILE_ATTACHMENT_COPY.conflict,
+				written: false,
+			}),
+			status: "conflict",
+		};
+	}
+	if (outcome.status === "rejected") {
+		return failedPromotion(outcome.reason);
+	}
+	return failedPromotion("bytes-incomplete");
+}
+
+export async function promoteCaptureAttachment(
+	prisma: PrismaClient,
+	command: unknown,
+	deps: FileAttachmentDeps = {}
+): Promise<CapturePromotionOutcome> {
+	const parsed = promoteCaptureAttachmentCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		if (
+			typeof command === "object" &&
+			command !== null &&
+			"idempotencyKey" in command &&
+			(command as { idempotencyKey?: unknown }).idempotencyKey === ""
+		) {
+			return failedPromotion("missing-idempotency-key");
+		}
+		return failedPromotion("missing-authorization");
+	}
+	if (parsed.data.origin !== HUMAN_ORIGIN) {
+		return failedPromotion("missing-authorization");
+	}
+	const source = deps.captureStaging;
+	if (!source) {
+		return failedPromotion("operation-not-found");
+	}
+	const plaintext = await source.read(parsed.data.payload.inboxItemId);
+	if (!plaintext) {
+		const receipt = await prisma.fileAttachmentReceipt.findUnique({
+			where: { commandKey: parsed.data.idempotencyKey },
+		});
+		if (receipt) {
+			const file = await loadFileView(prisma, receipt.fileAttachmentId);
+			if (file) {
+				return { file, status: "replayed" };
+			}
+		}
+		return failedPromotion("operation-not-found");
+	}
+	const upload = uploadCommandFromPromotion(parsed.data, plaintext);
+	const staged = await stageFileUpload(prisma, upload, deps);
+	if (staged.status === "replayed" || staged.status === "committed") {
+		await source.delete(parsed.data.payload.inboxItemId);
+		return staged;
+	}
+	if (staged.status !== "staged") {
+		return outcomeFromFinalize(staged);
+	}
+	const put = await putStagingBytes(
+		prisma,
+		{
+			bytes: plaintext.bytes,
+			operationId: staged.operation.operationId,
+		},
+		deps
+	);
+	if (put.status !== "staged") {
+		return outcomeFromFinalize(put);
+	}
+	const finalized = await finalizeFileUpload(prisma, upload, deps);
+	const result = outcomeFromFinalize(finalized);
+	if (result.status === "committed" || result.status === "replayed") {
+		await source.delete(parsed.data.payload.inboxItemId);
+	}
+	return result;
+}
+
+export async function discardCaptureStaging(
+	_prisma: PrismaClient,
+	input: { inboxItemId: string; workspaceId: string },
+	deps: FileAttachmentDeps = {}
+): Promise<
+	{ status: "deleted" } | { reason: "operation-not-found"; status: "rejected" }
+> {
+	if (!deps.captureStaging) {
+		return { reason: "operation-not-found", status: "rejected" };
+	}
+	await deps.captureStaging.delete(input.inboxItemId);
+	return { status: "deleted" };
 }

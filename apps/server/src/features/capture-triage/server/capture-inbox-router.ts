@@ -9,6 +9,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import {
+	captureConvertAdapter,
 	captureInboxCatalog,
 	createCaptureInbox,
 	handOffWorkCreate,
@@ -100,6 +101,7 @@ async function inboxFor(userId: string) {
 	}
 	return createCaptureInbox({
 		actorId: userId,
+		convertCreate: captureConvertAdapter(getPrismaClient(), access.workspaceId),
 		prisma: getPrismaClient(),
 		workCreate: handOffWorkCreate,
 		workspaceId: access.workspaceId,
@@ -118,6 +120,7 @@ async function inboxForExtension(request: Request) {
 	return {
 		inbox: createCaptureInbox({
 			actorId: link.ownerId,
+			convertCreate: captureConvertAdapter(getPrismaClient(), link.workspaceId),
 			prisma: getPrismaClient(),
 			workCreate: handOffWorkCreate,
 			workspaceId: link.workspaceId,

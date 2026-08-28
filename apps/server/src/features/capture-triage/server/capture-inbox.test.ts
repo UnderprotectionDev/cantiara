@@ -11,8 +11,13 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { listFileAttachments } from "../../file-attachments/server/file-attachments";
+import { createProject } from "../../project-shell/server/project-shell";
+import { listWork } from "../../work-lifecycle/server/work-lifecycle";
+
 import {
 	type CaptureInbox,
+	captureConvertAdapter,
 	createCaptureInbox,
 	type WorkCreateCommand,
 } from "./capture-inbox";
@@ -1370,6 +1375,29 @@ describe("Capture Inbox", () => {
 		contentType: "image/png",
 		filename: "shot.png",
 	};
+	const PNG_BYTES = Uint8Array.from(
+		Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+			"base64"
+		)
+	);
+
+	async function openProject() {
+		const created = await createProject(prisma, {
+			actorId,
+			idempotencyKey: `project-${crypto.randomUUID()}`,
+			origin: "human",
+			payload: {
+				name: "Atlas",
+				starterConfiguration: "Blank Project",
+			},
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		return created.project;
+	}
 
 	it("keeps an encrypted Capture attachment on the Inbox item, not a File Attachment or shared library", async () => {
 		const puts: Uint8Array[] = [];
@@ -1486,6 +1514,52 @@ describe("Capture Inbox", () => {
 		expect(await capture.attachment(saved.item.id)).toBeNull();
 		expect(
 			await capture.list({ kind: "project", projectId: "proj-cantiara" })
+		).toEqual([]);
+	});
+
+	it("keeps the capture message on the File Attachment and creates Work on convert", async () => {
+		const project = await openProject();
+		const capture = inbox({
+			convertCreate: captureConvertAdapter(prisma, workspaceId),
+		});
+		const saved = await capture.save({
+			attachment: {
+				bytes: PNG_BYTES,
+				contentType: "image/png",
+				filename: "conductor.png",
+			},
+			idempotencyKey: crypto.randomUUID(),
+			projectId: project.id,
+			text: "Crash on save after login",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+		expect(
+			await capture.convert({
+				idempotencyKey: crypto.randomUUID(),
+				itemId: saved.item.id,
+				previewed: true,
+				targetKind: "work",
+			})
+		).toMatchObject({
+			exit: "convert",
+			inboxItem: null,
+			status: "consumed",
+		});
+		expect(
+			(await listWork(prisma, project.id)).map((work) => work.title)
+		).toEqual(["Crash on save after login"]);
+		const files = await listFileAttachments(prisma, {
+			scope: { kind: "project", projectId: project.id },
+			workspaceId,
+		});
+		expect(files.map((file) => file.title)).toEqual([
+			"Crash on save after login",
+		]);
+		expect(files[0]?.currentVersion.filename).toBe("conductor.png");
+		expect(
+			await capture.list({ kind: "project", projectId: project.id })
 		).toEqual([]);
 	});
 

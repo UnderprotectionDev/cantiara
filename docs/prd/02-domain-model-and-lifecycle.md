@@ -63,6 +63,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
 | Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |
+| Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
+| Tüm etiketler | `All tags` | Etiket süzgecinin süzmeyi kaldırma seçeneği |
+| Etiket uygula | `Apply tag` | Erişilebilir kayda mevcut Etiketi bağlama |
+| Etiket oluştur | `Create tag` | Çalışma Alanı sözlüğüne düz Etiket ekleme |
+| Etikete göre süz | `Filter by tag` | Erişilebilir kayıt listesini Etiket kimliğiyle daraltma |
+| Etiket adı | `Name` | Etiket görünen adı |
+| Eşleşen etiket yok | `No matching tags.` | Seçicide uygulanacak öneri kalmadığında boş durum |
+| Etiket yok | `No tags yet.` | Kayıtta henüz Etiket olmadığını söyleyen boş durum |
+| Etiketi kaldır | `Remove tag` | Etiketi kayıttan ayırma; kimliği silmez |
+| Bu Projede önerilen | `Suggested in this Project` | Proje seçicisinde sık kullanılanları önce gösteren kişisel öneri; kapsam değildir |
 | Metin | `Text` | Proje bazlı özel alan türü; Lookup veya Formula değildir |
 | Boolean | `Boolean` | Proje bazlı özel alan türü |
 | True | `True` | Boolean özel alanın ayarlanmış evet değeri; Değerlendirilmedi değildir |
@@ -272,6 +282,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Uzantı bağlantısını iptal et | `Revoke` | Tek bir uzantı bağlantısını iptal etme eylemi |
 | Belge | `Document` | Markdown Belgesi dönüşüm hedefi |
 | Dosya Eki | `File Attachment` | Dosya Eki dönüşüm hedefi |
+| Dosya seç | `Choose file` | Dosya Eki yükleme denetiminin görünür dosya seçme eylemi |
+| Dosya seçilmedi | `No file selected` | Dosya Eki yükleme denetiminde henüz dosya seçilmediğini söyleyen durum |
+| Dosya Eki seç | `Select a File Attachment` | Gallery listesinde henüz bir Dosya Eki seçilmediğinde önizleme boş durumu |
+| Sürümler | `Versions` | Seçili Dosya Ekinin sürüm zinciri başlığı |
 | Yakalama eki | `Capture attachment` | Yalnız Yakalama Gelen Kutusu öğesine ait şifreli staging nesnesi; Dosya Eki veya paylaşılmış medya kütüphanesi değildir |
 | Taslak | `Draft` | Henüz kaydedilmemiş ayrıntılı İş formu; ana kayıt, Yakalama Gelen Kutusu öğesi veya Belge taslağı değildir |
 | Taslaklar | `Drafts` | Kişisel Taslakların sürdürüldüğü veya silindiği yüzey |
