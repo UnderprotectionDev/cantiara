@@ -12,7 +12,6 @@ import {
 	listRecords,
 	listTags,
 	listWorkTags,
-	markdownExportTags,
 	removeTag,
 	renameTag,
 	suggestTags,
@@ -100,10 +99,6 @@ export const tags = {
 			await requireProject(access.workspaceId, input.projectId);
 			return await listWorkTags(getPrismaClient(), input.projectId);
 		}),
-	markdownExport: protectedProcedure.handler(async ({ context }) => {
-		const access = await requireAccess(context.session.user.id);
-		return await markdownExportTags(getPrismaClient(), access.workspaceId);
-	}),
 	remove: protectedWriteProcedure
 		.input(applyInput)
 		.handler(async ({ context, input }) => {

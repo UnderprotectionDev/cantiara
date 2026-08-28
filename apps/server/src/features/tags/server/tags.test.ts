@@ -712,7 +712,7 @@ describe("Tags", () => {
 		const failing = prisma.$extends({
 			query: {
 				tagInlineUse: {
-					$allOperations() {
+					update() {
 						throw new Error("injected-failure");
 					},
 				},
