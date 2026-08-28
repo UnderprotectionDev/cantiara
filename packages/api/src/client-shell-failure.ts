@@ -47,6 +47,7 @@ const BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const SESSION_SECRET = /session_token=[^;\s]+/gi;
 const UNKNOWN_INCLUDE_FIELD = /Unknown field '[^']+' for include statement/;
 const PRISMA_SCHEMA_MODEL = /\bmodel [A-Z][A-Za-z0-9]*\s*\{/;
+const UNMATCHED_HTTP_NOT_FOUND = /^(404 Not Found|Not Found)$/;
 
 export function issueMainFlowFailure(
 	input: {
@@ -93,7 +94,7 @@ export function toMainFlowFailureError(
 		issueMainFlowFailure(
 			{
 				privateContent: options?.privateContent,
-				reason: schemaMismatchReason(error) ?? messageFrom(error),
+				reason: publicReason(error),
 				trackingId: options?.trackingId,
 				written: options?.written ?? writtenFrom(error),
 			},
@@ -170,7 +171,7 @@ function extractPackage(value: unknown): MainFlowFailurePackage | undefined {
 
 function localFailure(value: unknown): MainFlowFailurePackage {
 	return {
-		reason: safeReason(messageFrom(value), []),
+		reason: publicReason(value),
 		retryBound: "once",
 		supportReference: "",
 		written: false,
@@ -209,12 +210,19 @@ function requestCode(value: unknown): string | null {
 	return typeof code === "string" ? code : null;
 }
 
+function publicReason(error: unknown): string {
+	return schemaMismatchReason(error) ?? safeReason(messageFrom(error), []);
+}
+
 function schemaMismatchReason(error: unknown): string | null {
 	const code = requestCode(error);
 	if (code === "P2021" || code === "P2022") {
 		return CLIENT_SHELL_COPY.pendingMigrations;
 	}
 	const message = messageFrom(error);
+	if (UNMATCHED_HTTP_NOT_FOUND.test(message)) {
+		return CLIENT_SHELL_COPY.failed;
+	}
 	if (message.includes("does not exist in the current database")) {
 		return CLIENT_SHELL_COPY.pendingMigrations;
 	}

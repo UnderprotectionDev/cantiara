@@ -172,6 +172,26 @@ test("a failure without a server tracking ID does not invent a Support reference
 	expect(presented.description).not.toContain("Support reference");
 });
 
+test("an unmatched RPC Not Found stays secret-free and does not use HTTP jargon as the reason", () => {
+	const presented = presentFailedMainFlow(new Error("Not Found"));
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.failed);
+	expect(presented.reason).not.toBe("Not Found");
+	expect(presented.writeOutcome).toBe("Data was not written.");
+	expect(presented.retryBound).toBe("You can retry once.");
+	expect(presented.retry).toBe("Retry");
+	expect(presented.description).toBe(
+		"Data was not written. You can retry once."
+	);
+});
+
+test("a plain HTTP 404 Not Found body stays secret-free and does not use HTTP jargon as the reason", () => {
+	const presented = presentFailedMainFlow(new Error("404 Not Found"));
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.failed);
+	expect(presented.reason).not.toContain("404");
+});
+
 test("the server tracking ID on a failed RPC is the Support reference Client Shell shows", () => {
 	const presented = presentFailedMainFlow(
 		toMainFlowFailureError(new Error("Couldn't save Preferences."), undefined, {
