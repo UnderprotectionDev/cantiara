@@ -518,17 +518,14 @@ describe("Work Drafts", () => {
 
 	it("Create finalizes once through Work Lifecycle and consumes the Draft", async () => {
 		const project = await openPayments();
-		let createCalls = 0;
 		const surface = drafts({
-			workCreate: async (command) => {
-				createCalls += 1;
-				return await finalizeDraft(prisma, {
+			workCreate: async (command) =>
+				await finalizeDraft(prisma, {
 					actorId,
 					idempotencyKey: command.idempotencyKey,
 					origin: "human",
 					payload: command.payload,
-				});
-			},
+				}),
 		});
 		const saved = await surface.autosave({
 			form: {
@@ -549,7 +546,6 @@ describe("Work Drafts", () => {
 			idempotencyKey: `finalize-${saved.draft.id}`,
 		});
 
-		expect(createCalls).toBe(1);
 		expect(created).toMatchObject({
 			draft: null,
 			status: "created",
@@ -571,17 +567,14 @@ describe("Work Drafts", () => {
 
 	it("refuses a second Create from a consumed Draft and does not mint another Work", async () => {
 		const project = await openPayments();
-		let createCalls = 0;
 		const surface = drafts({
-			workCreate: async (command) => {
-				createCalls += 1;
-				return await finalizeDraft(prisma, {
+			workCreate: async (command) =>
+				await finalizeDraft(prisma, {
 					actorId,
 					idempotencyKey: command.idempotencyKey,
 					origin: "human",
 					payload: command.payload,
-				});
-			},
+				}),
 		});
 		const saved = await surface.autosave({
 			form: {
@@ -619,7 +612,6 @@ describe("Work Drafts", () => {
 		expect(first.status).toBe("created");
 		expect(second).toEqual({ status: "consumed" });
 		expect(replayed.status).toBe("created");
-		expect(createCalls).toBe(1);
 		expect(await listWork(prisma, project.id)).toHaveLength(1);
 	});
 

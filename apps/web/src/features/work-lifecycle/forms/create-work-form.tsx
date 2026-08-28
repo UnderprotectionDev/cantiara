@@ -71,12 +71,15 @@ export default function CreateWorkForm({
 		})
 	);
 	const onCreate = useCallback(
-		async (formValues: WorkDraftFormValues) => {
+		async (
+			formValues: WorkDraftFormValues,
+			persistedDraftId: string | null
+		) => {
 			setError(null);
 			markUnsaved();
 			const result = attemptOnlineWork("record-create", () =>
 				create.mutateAsync({
-					draftId: draftId ?? undefined,
+					draftId: persistedDraftId ?? undefined,
 					form: {
 						customFieldValues: formValues.customFieldValues,
 						projectId,
@@ -110,7 +113,6 @@ export default function CreateWorkForm({
 		[
 			attemptOnlineWork,
 			create,
-			draftId,
 			fields.data,
 			markUnsaved,
 			projectId,

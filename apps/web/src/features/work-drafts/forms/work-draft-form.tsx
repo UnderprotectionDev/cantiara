@@ -47,7 +47,10 @@ export default function WorkDraftForm({
 	draftId: string | null;
 	initialForm?: WorkDraftFormValues;
 	lockProjectId?: string;
-	onCreate?: (values: WorkDraftFormValues) => void | Promise<void>;
+	onCreate?: (
+		values: WorkDraftFormValues,
+		persistedDraftId: string | null
+	) => void | Promise<void>;
 	onDraftId: (draftId: string) => void;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave, shell } =
@@ -88,10 +91,10 @@ export default function WorkDraftForm({
 			},
 		})
 	);
-	const runAutosave = useCallback(
-		(next: WorkDraftFormValues) => {
+	const persistAutosave = useCallback(
+		async (next: WorkDraftFormValues) => {
 			if (!shouldAutosaveWorkDraft(next)) {
-				return;
+				return draftIdRef.current;
 			}
 			markUnsaved();
 			const result = attemptOnlineWork("record-create", () =>
@@ -102,11 +105,21 @@ export default function WorkDraftForm({
 				})
 			);
 			if (result.status === "refused") {
-				return;
+				return draftIdRef.current;
 			}
-			result.value.catch(() => undefined);
+			const outcome = await result.value;
+			if (outcome.status === "saved") {
+				return outcome.draft.id;
+			}
+			return draftIdRef.current;
 		},
 		[attemptOnlineWork, autosave, markUnsaved]
+	);
+	const runAutosave = useCallback(
+		(next: WorkDraftFormValues) => {
+			persistAutosave(next).catch(() => undefined);
+		},
+		[persistAutosave]
 	);
 	const debouncer = useDebouncer(runAutosave, { wait: AUTOSAVE_WAIT_MS });
 
@@ -171,12 +184,12 @@ export default function WorkDraftForm({
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
 			debouncer.cancel();
-			const created = onCreate?.(form.store.state.values);
-			if (created) {
-				created.catch(() => undefined);
-			}
+			const next = form.store.state.values;
+			persistAutosave(next)
+				.then((persistedDraftId) => onCreate?.(next, persistedDraftId))
+				.catch(() => undefined);
 		},
-		[debouncer, form, onCreate]
+		[debouncer, form, onCreate, persistAutosave]
 	);
 
 	return (

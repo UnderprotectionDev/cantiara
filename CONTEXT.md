@@ -361,6 +361,14 @@ _Avoid_: Yakalama, İş, Belge taslağı
 Kişisel Taslakların sürdürüldüğü veya açıkça silindiği yüzey; ana kayıt listesi, arama veya planlama yüzeyi değildir. UI: `Drafts`.
 _Avoid_: İş listesi, Yakalama Gelen Kutusu, Belge taslağı
 
+**Son kayıt**:
+Son başarılı otomatik kaydın zamanı; bağlantı kesilince Client Shell kromunda gösterilir. UI: `Last saved`.
+_Avoid_: yerel kuyruk satırı, Last successful save (uzantı gönderimi)
+
+**Yazılmamış risk**:
+Henüz sunucuya yazılmamış değişiklik uyarısı; yalnız unsaved-risk bayrağı varken. UI: `Unsaved changes may be lost`.
+_Avoid_: çevrimdışı kuyruk, gizli replay
+
 **Ürün Boşluğu**:
 Kurucunun Cantiara kapsamında karşılanmadığını düşündüğü ihtiyacı ve bu ihtiyaca ilişkin değerlendirme durumunu taşıyan Çalışma Alanı ana kaydı; tekrar sayısı [Dış araca kaçış günlüğünde](docs/prd/04-workspace-and-projects.md#dış-araca-kaçış-günlüğü) yaşar.
 _Avoid_: Özellik isteği, otomatik öncelik, dış araç oturumu
