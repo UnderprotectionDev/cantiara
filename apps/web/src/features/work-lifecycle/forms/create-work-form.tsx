@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { CustomFieldValueFields } from "@/features/custom-fields/forms/custom-field-value-control";
 import { invalidateCustomFieldValues } from "@/features/custom-fields/forms/custom-field-values-editor";
@@ -7,7 +7,10 @@ import type { CustomFieldStoredValue } from "@/features/custom-fields/forms/cust
 import { writeCustomFieldValues } from "@/features/custom-fields/forms/write-custom-field-values";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import WorkDraftForm from "@/features/work-drafts/forms/work-draft-form";
-import type { WorkDraftFormValues } from "@/features/work-drafts/forms/work-draft-form-state";
+import {
+	createWorkFormSeedFromListedDrafts,
+	type WorkDraftFormValues,
+} from "@/features/work-drafts/forms/work-draft-form-state";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -21,8 +24,51 @@ export default function CreateWorkForm({
 	onCreated?: (workId: string) => void;
 	projectId: string;
 }) {
+	const drafts = useQuery(orpc.workDrafts.list.queryOptions());
+	const seedCapture = useRef<{
+		draftId: string | null;
+		form: WorkDraftFormValues | undefined;
+		lastSuccessfulSaveAt: Date | string | null;
+		projectId: string;
+	} | null>(null);
+	if (!drafts.isPending && seedCapture.current?.projectId !== projectId) {
+		seedCapture.current = {
+			...createWorkFormSeedFromListedDrafts(drafts.data ?? [], projectId),
+			projectId,
+		};
+	}
+	const seed = seedCapture.current;
+	if (!seed || seed.projectId !== projectId) {
+		return <div className="flex flex-col gap-3" />;
+	}
+
+	return (
+		<HydratedCreateWorkForm
+			initialDraftId={seed.draftId}
+			initialForm={seed.form}
+			key={projectId}
+			lastSuccessfulSaveAt={seed.lastSuccessfulSaveAt}
+			onCreated={onCreated}
+			projectId={projectId}
+		/>
+	);
+}
+
+function HydratedCreateWorkForm({
+	initialDraftId,
+	initialForm,
+	lastSuccessfulSaveAt,
+	onCreated,
+	projectId,
+}: {
+	initialDraftId: string | null;
+	initialForm: WorkDraftFormValues | undefined;
+	lastSuccessfulSaveAt: Date | string | null;
+	onCreated?: (workId: string) => void;
+	projectId: string;
+}) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
-	const [draftId, setDraftId] = useState<string | null>(null);
+	const [draftId, setDraftId] = useState<string | null>(initialDraftId);
 	const [consumed, setConsumed] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [values, setValues] = useState<Record<string, CustomFieldStoredValue>>(
@@ -135,6 +181,8 @@ export default function CreateWorkForm({
 			<WorkDraftForm
 				createDisabled={create.isPending || consumed}
 				draftId={draftId}
+				initialForm={initialForm}
+				lastSuccessfulSaveAt={lastSuccessfulSaveAt}
 				lockProjectId={projectId}
 				onCreate={onCreate}
 				onDraftId={setDraftId}

@@ -104,6 +104,61 @@ export function resumeListedDraft(draft: {
 	};
 }
 
+export interface ListedWorkDraft {
+	form: {
+		customFieldValues: Record<string, string>;
+		projectId: string | null;
+		title: string;
+		type: WorkType;
+	};
+	id: string;
+	updatedAt: Date | string;
+}
+
+export function latestWorkDraftForProject(
+	drafts: readonly ListedWorkDraft[],
+	projectId: string
+): ListedWorkDraft | null {
+	let latest: ListedWorkDraft | null = null;
+	let latestTime = Number.NEGATIVE_INFINITY;
+	for (const draft of drafts) {
+		if (draft.form.projectId !== projectId) {
+			continue;
+		}
+		const time = new Date(draft.updatedAt).getTime();
+		if (Number.isNaN(time) || time < latestTime) {
+			continue;
+		}
+		latest = draft;
+		latestTime = time;
+	}
+	return latest;
+}
+
+export function createWorkFormSeedFromListedDrafts(
+	drafts: readonly ListedWorkDraft[],
+	projectId: string
+): {
+	draftId: string | null;
+	form: WorkDraftFormValues | undefined;
+	lastSuccessfulSaveAt: Date | string | null;
+} {
+	const latest = latestWorkDraftForProject(drafts, projectId);
+	if (!latest) {
+		return {
+			draftId: null,
+			form: undefined,
+			lastSuccessfulSaveAt: null,
+		};
+	}
+	const resumed = resumeListedDraft(latest);
+	return {
+		draftId: resumed.draftId,
+		form: resumed.form,
+		lastSuccessfulSaveAt: latest.updatedAt,
+	};
+}
+
 export function customFieldWidgetsFromDefinitions(
 	definitions: readonly WorkCustomFieldWidget[]
 ): readonly WorkCustomFieldWidget[] {

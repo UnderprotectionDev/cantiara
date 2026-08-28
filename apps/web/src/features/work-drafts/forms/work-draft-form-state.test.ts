@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 
 import {
+	createWorkFormSeedFromListedDrafts,
 	customFieldWidgetsFromDefinitions,
 	EMPTY_WORK_DRAFT_FORM,
 	resumeListedDraft,
@@ -117,6 +118,71 @@ test("Resume fills the form from the listed Draft, not a second fetch", () => {
 			title: "HelloIAm",
 			type: "Task",
 		},
+	});
+});
+
+test("Create Work restores the latest Draft for this Project after remount", () => {
+	expect(createWorkFormSeedFromListedDrafts([], "proj-payments")).toEqual({
+		draftId: null,
+		form: undefined,
+		lastSuccessfulSaveAt: null,
+	});
+	expect(
+		createWorkFormSeedFromListedDrafts(
+			[
+				{
+					form: {
+						customFieldValues: {},
+						projectId: "proj-other",
+						title: "Other Project",
+						type: "Task",
+					},
+					id: "draft-other",
+					updatedAt: "2026-03-29T12:00:00.000Z",
+				},
+			],
+			"proj-payments"
+		)
+	).toEqual({
+		draftId: null,
+		form: undefined,
+		lastSuccessfulSaveAt: null,
+	});
+	expect(
+		createWorkFormSeedFromListedDrafts(
+			[
+				{
+					form: {
+						customFieldValues: {},
+						projectId: "proj-payments",
+						title: "Older title",
+						type: "Task",
+					},
+					id: "draft-older",
+					updatedAt: "2026-03-29T11:00:00.000Z",
+				},
+				{
+					form: {
+						customFieldValues: { severity: "High" },
+						projectId: "proj-payments",
+						title: "Last saved Title",
+						type: "Bug",
+					},
+					id: "draft-latest",
+					updatedAt: "2026-03-29T12:00:00.000Z",
+				},
+			],
+			"proj-payments"
+		)
+	).toEqual({
+		draftId: "draft-latest",
+		form: {
+			customFieldValues: { severity: "High" },
+			projectId: "proj-payments",
+			title: "Last saved Title",
+			type: "Bug",
+		},
+		lastSuccessfulSaveAt: "2026-03-29T12:00:00.000Z",
 	});
 });
 
