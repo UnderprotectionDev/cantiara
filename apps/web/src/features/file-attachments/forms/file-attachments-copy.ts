@@ -1,5 +1,6 @@
 export const FILE_ATTACHMENT_COPY = {
 	cancel: "Cancel",
+	chooseFile: "Choose file",
 	conflict: "Conflict",
 	currentVersion: "Current version",
 	download: "Download",
@@ -9,16 +10,19 @@ export const FILE_ATTACHMENT_COPY = {
 	incomingFile: "Incoming file",
 	loop: "Loop",
 	next: "Next",
+	noFileSelected: "No file selected",
 	personalWiki: "Personal Wiki",
 	previous: "Previous",
 	quotaExceeded: "Workspace file quota is exceeded.",
 	quotaWarning: "Workspace file storage is at 80% of quota.",
 	restartFromByteZero: "The transfer restarts from byte zero.",
+	selectFileAttachment: "Select a File Attachment",
 	speed: "Speed",
 	targetAttachment: "Target File Attachment",
 	unavailable: "Unavailable",
 	upload: "Upload",
 	uploadNewVersion: "Upload new version",
+	versions: "Versions",
 } as const;
 
 export function fileToBase64(file: File): Promise<string> {

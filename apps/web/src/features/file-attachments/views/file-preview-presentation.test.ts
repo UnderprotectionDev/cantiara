@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 
 import {
+	fileKindLabel,
 	filePreviewKind,
 	galleryThumbnailPathFromFile,
 	galleryThumbnailSrc,
@@ -33,6 +34,8 @@ test("Gallery list never uses the original content path as a thumbnail", () => {
 	expect(
 		filePreviewKind({ kind: "image", status: "ready", unpack: false })
 	).toBe("visual");
+	expect(fileKindLabel("image")).toBe("Image");
+	expect(fileKindLabel("zip")).toBe("ZIP");
 });
 
 test("listing a File Attachment does not crash when preview is missing", () => {

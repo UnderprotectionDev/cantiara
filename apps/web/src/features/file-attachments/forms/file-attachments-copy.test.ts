@@ -12,6 +12,12 @@ test("English File Attachment labels stay File Attachment, Upload new version, F
 	expect(FILE_ATTACHMENT_COPY.speed).toBe("Speed");
 	expect(FILE_ATTACHMENT_COPY.fullscreen).toBe("Fullscreen");
 	expect(FILE_ATTACHMENT_COPY.loop).toBe("Loop");
+	expect(FILE_ATTACHMENT_COPY.chooseFile).toBe("Choose file");
+	expect(FILE_ATTACHMENT_COPY.noFileSelected).toBe("No file selected");
+	expect(FILE_ATTACHMENT_COPY.versions).toBe("Versions");
+	expect(FILE_ATTACHMENT_COPY.selectFileAttachment).toBe(
+		"Select a File Attachment"
+	);
 	expect(fileScopeFor("project-1")).toEqual({
 		kind: "project",
 		projectId: "project-1",

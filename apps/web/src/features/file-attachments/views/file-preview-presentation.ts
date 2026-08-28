@@ -46,6 +46,31 @@ export function filePreviewKind(input: {
 	return "download";
 }
 
+export function fileKindLabel(kind: string): string {
+	if (kind === "image") {
+		return "Image";
+	}
+	if (kind === "pdf") {
+		return "PDF";
+	}
+	if (kind === "csv") {
+		return "CSV";
+	}
+	if (kind === "text") {
+		return "Text";
+	}
+	if (kind === "audio") {
+		return "Audio";
+	}
+	if (kind === "video") {
+		return "Video";
+	}
+	if (kind === "zip") {
+		return "ZIP";
+	}
+	return "File Attachment";
+}
+
 export function galleryThumbnailPathFromFile(item: {
 	currentVersion?: {
 		preview?: { galleryThumbnailPath?: string | null } | null;

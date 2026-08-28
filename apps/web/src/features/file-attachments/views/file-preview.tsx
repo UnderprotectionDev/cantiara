@@ -1,4 +1,5 @@
 import { Button } from "@cantiara/ui/components/button";
+import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
 import { MediaPlayer, MediaProvider } from "@vidstack/react";
 import {
 	DefaultAudioLayout,
@@ -64,15 +65,17 @@ export default function FilePreview({
 	});
 	if (surface === "unavailable") {
 		return (
-			<div role="status">
-				<p>{FILE_ATTACHMENT_COPY.unavailable}</p>
-				{preview.supportReference ? (
-					<p>
-						{preview.supportReference}
-						{preview.cause ? ` ${preview.cause}` : ""}
-					</p>
-				) : null}
-			</div>
+			<Empty role="status">
+				<EmptyHeader>
+					<EmptyTitle>{FILE_ATTACHMENT_COPY.unavailable}</EmptyTitle>
+					{preview.supportReference ? (
+						<p className="text-muted-foreground text-xs">
+							{preview.supportReference}
+							{preview.cause ? ` ${preview.cause}` : ""}
+						</p>
+					) : null}
+				</EmptyHeader>
+			</Empty>
 		);
 	}
 	if (surface === "download") {
@@ -88,7 +91,7 @@ export default function FilePreview({
 		return (
 			<ProductMedia
 				alt={title}
-				className="max-h-96 max-w-full"
+				className="mx-auto max-h-[28rem] w-full object-contain"
 				height={384}
 				href={preview.previewPath}
 				width={640}
@@ -130,7 +133,11 @@ export default function FilePreview({
 			<PlaybackPreview href={preview.previewPath} kind={kind} title={title} />
 		);
 	}
-	return <p role="status">{FILE_ATTACHMENT_COPY.unavailable}</p>;
+	return (
+		<p className="text-muted-foreground text-xs" role="status">
+			{FILE_ATTACHMENT_COPY.unavailable}
+		</p>
+	);
 }
 
 export function GalleryThumb({
@@ -147,7 +154,7 @@ export function GalleryThumb({
 	return (
 		<ProductMedia
 			alt=""
-			className="h-12 w-12 object-cover"
+			className="size-full object-cover"
 			height={48}
 			href={src}
 			width={48}
