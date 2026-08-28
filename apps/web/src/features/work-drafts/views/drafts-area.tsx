@@ -24,6 +24,7 @@ interface ListedDraft {
 		type: WorkDraftFormValues["type"];
 	};
 	id: string;
+	updatedAt: Date | string;
 }
 
 export default function DraftsArea() {
@@ -35,6 +36,9 @@ export default function DraftsArea() {
 	const [initialForm, setInitialForm] = useState<
 		WorkDraftFormValues | undefined
 	>();
+	const [lastSuccessfulSaveAt, setLastSuccessfulSaveAt] = useState<
+		Date | string | null
+	>(null);
 	const copy = catalog.data?.copy ?? WORK_DRAFTS_COPY;
 	const remove = useMutation(
 		orpc.workDrafts.delete.mutationOptions({
@@ -49,6 +53,7 @@ export default function DraftsArea() {
 		const resumed = resumeListedDraft(draft);
 		setDraftId(resumed.draftId);
 		setInitialForm(resumed.form);
+		setLastSuccessfulSaveAt(draft.updatedAt);
 		setFormInstance((current) => current + 1);
 	}, []);
 	const onDelete = useCallback(
@@ -70,6 +75,7 @@ export default function DraftsArea() {
 					}
 					setDraftId(null);
 					setInitialForm(undefined);
+					setLastSuccessfulSaveAt(null);
 					setFormInstance((current) => current + 1);
 				})
 				.catch(() => undefined);
@@ -83,6 +89,7 @@ export default function DraftsArea() {
 				draftId={draftId}
 				initialForm={initialForm}
 				key={formInstance}
+				lastSuccessfulSaveAt={lastSuccessfulSaveAt}
 				onDraftId={setDraftId}
 			/>
 			<DraftsList

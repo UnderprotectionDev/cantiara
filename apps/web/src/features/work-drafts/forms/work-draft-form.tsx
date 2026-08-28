@@ -1,4 +1,3 @@
-import { formatDateTime } from "@cantiara/auth/account-preferences-format";
 import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
@@ -10,7 +9,7 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useDebouncer } from "@tanstack/react-pacer";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { CLIENT_SHELL_COPY } from "@/features/web-macos-client/views/client-shell";
@@ -30,6 +29,7 @@ import {
 	type WorkCustomFieldWidget,
 	type WorkDraftFormValues,
 	workDraftFormForAutosave,
+	workDraftLastSavedLine,
 } from "./work-draft-form-state";
 import { WORK_DRAFTS_COPY } from "./work-drafts-copy";
 
@@ -39,6 +39,7 @@ export default function WorkDraftForm({
 	createDisabled,
 	draftId,
 	initialForm,
+	lastSuccessfulSaveAt,
 	lockProjectId,
 	onCreate,
 	onDraftId,
@@ -46,6 +47,7 @@ export default function WorkDraftForm({
 	createDisabled?: boolean;
 	draftId: string | null;
 	initialForm?: WorkDraftFormValues;
+	lastSuccessfulSaveAt?: Date | string | null;
 	lockProjectId?: string;
 	onCreate?: (
 		values: WorkDraftFormValues,
@@ -61,6 +63,10 @@ export default function WorkDraftForm({
 	const catalog = useQuery(orpc.workDrafts.catalog.queryOptions());
 	const preferences = useQuery(orpc.accountPreferences.get.queryOptions());
 	const copy = catalog.data?.copy ?? WORK_DRAFTS_COPY;
+	const [draftSaveAt, setDraftSaveAt] = useState<Date | string | null>(
+		lastSuccessfulSaveAt ?? null
+	);
+	const lastSavedLine = workDraftLastSavedLine(draftSaveAt, preferences.data);
 	const form = useForm({
 		defaultValues: {
 			...EMPTY_WORK_DRAFT_FORM,
@@ -87,6 +93,7 @@ export default function WorkDraftForm({
 						queryKey: orpc.workDrafts.list.queryKey(),
 					});
 					recordSave(new Date(outcome.lastSuccessfulSaveAt));
+					setDraftSaveAt(outcome.lastSuccessfulSaveAt);
 				}
 			},
 		})
@@ -263,11 +270,8 @@ export default function WorkDraftForm({
 					widget={widget}
 				/>
 			))}
-			{shell.lastSuccessfulSaveAt && preferences.data ? (
-				<p className="text-muted-foreground text-xs">
-					{CLIENT_SHELL_COPY.lastSaved}{" "}
-					{formatDateTime(shell.lastSuccessfulSaveAt, preferences.data)}
-				</p>
+			{lastSavedLine ? (
+				<p className="text-muted-foreground text-xs">{lastSavedLine}</p>
 			) : null}
 			{shell.hasUnsavedChanges ? (
 				<p className="text-muted-foreground text-xs">

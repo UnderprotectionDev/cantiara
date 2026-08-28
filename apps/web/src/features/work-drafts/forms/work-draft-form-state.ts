@@ -1,4 +1,8 @@
+import { formatDateTime } from "@cantiara/auth/account-preferences-format";
+import type { AccountPreferencesInput } from "@cantiara/auth/account-preferences-model";
 import type { WorkType } from "@/features/work-lifecycle/forms/work-lifecycle-copy";
+
+import { WORK_DRAFTS_COPY } from "./work-drafts-copy";
 
 export interface WorkDraftFormValues {
 	customFieldValues: Record<string, string>;
@@ -46,6 +50,27 @@ export function shouldAutosaveWorkDraft(values: WorkDraftFormValues): boolean {
 	return Object.values(values.customFieldValues).some(
 		(value) => value.trim().length > 0
 	);
+}
+
+export function workDraftLastSavedLine(
+	lastSuccessfulSaveAt: Date | string | null | undefined,
+	preferences: AccountPreferencesInput | undefined
+): string | null {
+	if (!(lastSuccessfulSaveAt && preferences)) {
+		return null;
+	}
+	const instant =
+		lastSuccessfulSaveAt instanceof Date
+			? lastSuccessfulSaveAt
+			: new Date(lastSuccessfulSaveAt);
+	if (Number.isNaN(instant.getTime())) {
+		return null;
+	}
+	const display = formatDateTime(instant, preferences);
+	if (display.trim().length === 0) {
+		return null;
+	}
+	return `${WORK_DRAFTS_COPY.lastSaved}: ${display}`;
 }
 
 export function workDraftFormFromDraft(draft: {

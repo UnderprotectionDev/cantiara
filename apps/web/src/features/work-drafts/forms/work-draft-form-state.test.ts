@@ -7,7 +7,29 @@ import {
 	shouldAutosaveWorkDraft,
 	workDraftFormForAutosave,
 	workDraftFormFromDraft,
+	workDraftLastSavedLine,
 } from "./work-draft-form-state";
+
+const SAVE_INSTANT = new Date("2026-03-29T12:00:00.000Z");
+const ISTANBUL = {
+	appearance: "Dark" as const,
+	dateFormat: "locale" as const,
+	firstDayOfWeek: "Monday" as const,
+	locale: "en-GB",
+	timeZone: "Europe/Istanbul",
+};
+
+test("Last saved line is omitted until this Draft has a successful save time", () => {
+	expect(workDraftLastSavedLine(null, ISTANBUL)).toBeNull();
+	expect(workDraftLastSavedLine(SAVE_INSTANT, undefined)).toBeNull();
+	expect(workDraftLastSavedLine("not-a-time", ISTANBUL)).toBeNull();
+});
+
+test("Last saved line uses Client Shell phrasing with Hesap locale time", () => {
+	expect(workDraftLastSavedLine(SAVE_INSTANT, ISTANBUL)).toBe(
+		"Last saved: 29/03/2026, 15:00"
+	);
+});
 
 test("autosave keeps any filled Draft form field, including type and Project", () => {
 	expect(shouldAutosaveWorkDraft(EMPTY_WORK_DRAFT_FORM)).toBe(false);
