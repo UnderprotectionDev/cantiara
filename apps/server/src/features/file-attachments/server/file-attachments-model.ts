@@ -106,6 +106,7 @@ export const stageFileUploadPayloadSchema = z.object({
 	filename: z.string().min(1),
 	scope: fileScopeSchema,
 	targetFileAttachmentId: z.string().min(1).optional(),
+	title: z.string().min(1).optional(),
 });
 
 export const stageFileUploadCommandSchema = z.object({
@@ -123,6 +124,7 @@ export type StageFileUploadCommand = z.infer<
 export const promoteCaptureAttachmentPayloadSchema = z.object({
 	inboxItemId: z.string().min(1),
 	scope: fileScopeSchema,
+	title: z.string().min(1).optional(),
 });
 
 export const promoteCaptureAttachmentCommandSchema = z.object({

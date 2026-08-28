@@ -195,6 +195,7 @@ function metadataFingerprint(
 		filename: payload.filename,
 		scope: payload.scope,
 		targetFileAttachmentId: payload.targetFileAttachmentId ?? null,
+		title: payload.title ?? payload.filename,
 	});
 }
 
@@ -208,6 +209,7 @@ function finalizeFingerprint(
 		filename: payload.filename,
 		scope: payload.scope,
 		targetFileAttachmentId: payload.targetFileAttachmentId ?? null,
+		title: payload.title ?? payload.filename,
 	});
 }
 
@@ -589,6 +591,7 @@ async function stageInTransaction(
 			filename: file.currentVersion.filename,
 			scope: file.scope,
 			targetFileAttachmentId: command.payload.targetFileAttachmentId,
+			title: file.title,
 		});
 		if (committedMeta !== metadataFingerprint(command.payload)) {
 			return {
@@ -928,7 +931,7 @@ async function commitFinalize(
 				projectId: staged.projectId,
 				revision: 1,
 				scopeKind: staged.scopeKind,
-				title: staged.filename,
+				title: command.payload.title ?? staged.filename,
 				workspaceId: staged.workspaceId,
 			},
 		});
@@ -1126,6 +1129,7 @@ function uploadCommandFromPromotion(
 			declaredMime: plaintext.contentType,
 			filename: plaintext.filename,
 			scope: command.payload.scope,
+			title: command.payload.title,
 		},
 		workspaceId: command.workspaceId,
 	};

@@ -8,6 +8,7 @@ import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
+import { convertCaptureToWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	createBulkSenseMaking,
 	type NameBulkClusterOutcome,
@@ -523,6 +524,7 @@ function fileAttachmentPromoteAdapter(
 									projectId: resolvedProjectId,
 								}
 							: { kind: FILE_SCOPE_KIND.personalWiki },
+					title: captureMessageTitle(command.item.body),
 				},
 				workspaceId,
 			},
@@ -541,6 +543,65 @@ function fileAttachmentPromoteAdapter(
 				: {}),
 			status: "failed",
 			visibleAttachment: null,
+		};
+	};
+}
+
+function captureMessageTitle(body: string): string | undefined {
+	const title = body.trim();
+	return title ? title : undefined;
+}
+
+export function captureConvertAdapter(
+	prisma: PrismaClient,
+	workspaceId: string
+): ConvertAdapter {
+	return async (command) => {
+		if (command.targetKind !== "work") {
+			return {
+				handedOff: true,
+				recordId: null,
+				targetKind: command.targetKind,
+			};
+		}
+		const projectId =
+			command.item.scope.kind === "project"
+				? await resolveCaptureProjectId(
+						prisma,
+						workspaceId,
+						command.item.scope.projectId
+					)
+				: null;
+		const title = captureMessageTitle(command.item.body);
+		if (!(projectId && title)) {
+			return {
+				handedOff: false,
+				recordId: null,
+				targetKind: "work",
+			};
+		}
+		const outcome = await convertCaptureToWork(prisma, {
+			actorId: command.actorId,
+			idempotencyKey: command.idempotencyKey,
+			origin: "human",
+			payload: {
+				projectId,
+				source: "capture-convert",
+				title,
+				type: command.item.template === "bug-capture" ? "Bug" : undefined,
+			},
+		});
+		if (outcome.status === "committed" || outcome.status === "replayed") {
+			return {
+				handedOff: true,
+				recordId: outcome.work.id,
+				targetKind: "work",
+			};
+		}
+		return {
+			handedOff: false,
+			recordId: null,
+			targetKind: "work",
 		};
 	};
 }

@@ -100,8 +100,8 @@ export interface ConvertCommand {
 }
 
 export interface ConvertResult {
-	handedOff: true;
-	recordId: null;
+	handedOff: boolean;
+	recordId: string | null;
 	targetKind: ConvertTargetKind;
 }
 
@@ -585,6 +585,65 @@ function reviveItem(item: CaptureInboxItemView): CaptureInboxItemView {
 	};
 }
 
+function convertFinalizeFailed(
+	item: CaptureInboxItemView,
+	explanation?: {
+		reason: string;
+		retryBound: "none" | "once";
+		supportReference: string;
+		written: boolean;
+	}
+): ConvertOutcome {
+	return {
+		...(explanation ? { explanation } : {}),
+		inboxItem: item,
+		status: "finalize-failed",
+		visibleAttachment: null,
+	};
+}
+
+async function promoteThenCreateRecord(
+	ctx: TriageExitsContext,
+	input: {
+		idempotencyKey: string;
+		item: CaptureInboxItemView;
+		targetKind: ConvertTargetKind;
+		targetScope: ConvertPreview["proposed"]["targetScope"];
+	}
+): Promise<
+	| { recordCreate: ConvertResult; status: "ok" }
+	| { outcome: ConvertOutcome; status: "failed" }
+> {
+	if (input.item.attachment) {
+		const promotion = await ctx.fileAttachmentFinalize({
+			actorId: ctx.actorId,
+			idempotencyKey: input.idempotencyKey,
+			item: input.item,
+			staging: input.item.attachment,
+			targetScope: input.targetScope,
+		});
+		if (promotion.status === "failed") {
+			return {
+				outcome: convertFinalizeFailed(input.item, promotion.explanation),
+				status: "failed",
+			};
+		}
+	}
+	const recordCreate = await ctx.convertCreate({
+		actorId: ctx.actorId,
+		idempotencyKey: input.idempotencyKey,
+		item: input.item,
+		targetKind: input.targetKind,
+	});
+	if (!recordCreate.handedOff) {
+		return {
+			outcome: convertFinalizeFailed(input.item),
+			status: "failed",
+		};
+	}
+	return { recordCreate, status: "ok" };
+}
+
 function reviveConvertOutcome(outcome: ConvertOutcome): ConvertOutcome {
 	if (outcome.status === "needs-preview") {
 		return {
@@ -795,31 +854,15 @@ export function createTriageExits(ctx: TriageExitsContext) {
 					status: "needs-preview",
 				};
 			}
-			if (item.attachment) {
-				const promotion = await ctx.fileAttachmentFinalize({
-					actorId: ctx.actorId,
-					idempotencyKey: input.idempotencyKey,
-					item,
-					staging: item.attachment,
-					targetScope: preview.proposed.targetScope,
-				});
-				if (promotion.status === "failed") {
-					return {
-						...(promotion.explanation
-							? { explanation: promotion.explanation }
-							: {}),
-						inboxItem: item,
-						status: "finalize-failed",
-						visibleAttachment: null,
-					};
-				}
-			}
-			const recordCreate = await ctx.convertCreate({
-				actorId: ctx.actorId,
+			const created = await promoteThenCreateRecord(ctx, {
 				idempotencyKey: input.idempotencyKey,
 				item,
 				targetKind: input.targetKind,
+				targetScope: preview.proposed.targetScope,
 			});
+			if (created.status === "failed") {
+				return created.outcome;
+			}
 			await ctx.deleteStaging(item.id);
 			await ctx.prisma.captureInboxItem.update({
 				data: {
@@ -833,7 +876,7 @@ export function createTriageExits(ctx: TriageExitsContext) {
 				exit: "convert",
 				inboxItem: null,
 				mainRecord: null,
-				recordCreate,
+				recordCreate: created.recordCreate,
 				status: "consumed",
 				visibleAttachment: null,
 			};

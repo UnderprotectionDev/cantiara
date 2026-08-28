@@ -734,6 +734,7 @@ describe("File Attachments", () => {
 			projectId: project.id,
 		});
 		expect(promoted.file.title).toBe("shot.png");
+		expect(promoted.file.currentVersion.filename).toBe("shot.png");
 		expect(await staging.read("inbox-project")).toBeNull();
 		expect(
 			(
@@ -743,6 +744,32 @@ describe("File Attachments", () => {
 				})
 			).map((item) => item.id)
 		).toEqual([promoted.file.id]);
+		await staging.put("inbox-named", {
+			bytes: PNG_BYTES,
+			contentType: "image/png",
+			filename: "conductor.png",
+		});
+		const named = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: "promote-named",
+				origin: "human",
+				payload: {
+					inboxItemId: "inbox-named",
+					scope: { kind: "project", projectId: project.id },
+					title: "Crash on save after login",
+				},
+				workspaceId,
+			},
+			{ captureStaging: staging }
+		);
+		expect(named.status).toBe("committed");
+		if (named.status !== "committed") {
+			return;
+		}
+		expect(named.file.title).toBe("Crash on save after login");
+		expect(named.file.currentVersion.filename).toBe("conductor.png");
 		await staging.put("inbox-wiki", {
 			bytes: PNG_BYTES,
 			contentType: "image/png",

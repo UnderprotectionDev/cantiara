@@ -72,6 +72,7 @@ export default function FileAttachmentArea({
 			</ul>
 			{selected ? (
 				<section aria-label={selected.title} className="flex flex-col gap-3">
+					<p>{selected.title}</p>
 					<ul className="flex flex-col gap-1">
 						{selected.versions.map((version) => (
 							<li key={version.id}>
