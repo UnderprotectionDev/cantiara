@@ -283,3 +283,33 @@ test("a multiline failure without secrets keeps a readable reason", () => {
 	);
 	expect(presented.reason).not.toBe(CLIENT_SHELL_COPY.failed);
 });
+
+test("an unmatched usage RPC 404 asks to restart the API instead of Not Found", () => {
+	const honoText = presentFailedMainFlow({
+		message: "Not Found",
+		status: 404,
+	});
+	const honoPlain = presentFailedMainFlow(new Error("404 Not Found"));
+
+	expect(honoText.reason).toBe(CLIENT_SHELL_COPY.staleRpcRouter);
+	expect(honoPlain.reason).toBe(CLIENT_SHELL_COPY.staleRpcRouter);
+	expect(honoText.writeOutcome).toBe("Data was not written.");
+	expect(honoText.retry).toBe("Retry");
+});
+
+test("a defined handler Not Found keeps Not Found", () => {
+	const presented = presentFailedMainFlow({
+		code: "NOT_FOUND",
+		data: issueMainFlowFailure({
+			reason: "Not Found",
+			trackingId: "CANT-DEFINED1",
+			written: false,
+		}),
+		defined: true,
+		message: "Not Found",
+		status: 404,
+	});
+
+	expect(presented.reason).toBe("Not Found");
+	expect(presented.supportReference).toBe("CANT-DEFINED1");
+});
