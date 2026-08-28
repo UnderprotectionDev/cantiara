@@ -507,6 +507,54 @@ describe("Prioritization", () => {
 		expect(JSON.stringify(PRIORITY_COPY)).not.toMatch(TRASH_UI_PATTERN);
 	});
 
+	it("edits rank explanations on an existing Project criterion", async () => {
+		const { actorId, project } = await openProject(prisma);
+		const created = await createPriorityCriterion(
+			prisma,
+			createCriterionCommand(
+				{
+					name: "Urgency",
+					projectId: project.id,
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed criterion");
+		}
+		const updated = await updatePriorityCriterion(prisma, {
+			actorId,
+			baseRevision: created.definition.revision,
+			idempotencyKey: "edit-explanations",
+			origin: "human",
+			payload: {
+				criterionId: created.definition.id,
+				description: "How soon",
+				rankExplanations: {
+					High: "Soon",
+					Low: "Later",
+					Medium: "This month",
+					"Very high": "Now",
+					"Very low": "Someday",
+				},
+			},
+		});
+		expect(updated).toMatchObject({
+			definition: {
+				description: "How soon",
+				name: "Urgency",
+				rankExplanations: {
+					High: "Soon",
+					Low: "Later",
+					Medium: "This month",
+					"Very high": "Now",
+					"Very low": "Someday",
+				},
+			},
+			status: "committed",
+		});
+	});
+
 	it("copies criterion definitions as independent identities", async () => {
 		const { actorId, project, workspaceId } = await openProject(prisma);
 		const created = await createPriorityCriterion(

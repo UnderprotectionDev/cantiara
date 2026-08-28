@@ -56,7 +56,7 @@ export default function PriorityCriterionEditor({
 			},
 		})
 	);
-	const enable = useMutation(
+	const update = useMutation(
 		orpc.priority.update.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
@@ -117,9 +117,9 @@ export default function PriorityCriterionEditor({
 						<CriterionRow
 							attemptOnlineWork={attemptOnlineWork}
 							definition={definition}
-							enable={enable.mutateAsync}
 							key={definition.id}
 							markUnsaved={markUnsaved}
+							update={update.mutateAsync}
 						/>
 					))}
 				</ul>
@@ -163,22 +163,31 @@ export default function PriorityCriterionEditor({
 function CriterionRow({
 	attemptOnlineWork,
 	definition,
-	enable,
 	markUnsaved,
+	update,
 }: {
 	attemptOnlineWork: ReturnType<typeof useClientShell>["attemptOnlineWork"];
 	definition: PriorityCriterionDefinitionView;
-	enable: (command: {
+	markUnsaved: () => void;
+	update: (command: {
 		baseRevision: number;
 		idempotencyKey: string;
-		payload: { criterionId: string; enabled: boolean };
+		payload: {
+			criterionId: string;
+			description?: string;
+			enabled?: boolean;
+			rankExplanations?: RankExplanations;
+		};
 	}) => Promise<unknown>;
-	markUnsaved: () => void;
 }) {
+	const [description, setDescription] = useState(definition.description);
+	const [rankExplanations, setRankExplanations] = useState(
+		definition.rankExplanations
+	);
 	const onEnable = useCallback(() => {
 		markUnsaved();
 		const result = attemptOnlineWork("record-create", () =>
-			enable({
+			update({
 				baseRevision: definition.revision,
 				idempotencyKey: newIdempotencyKey(),
 				payload: {
@@ -195,21 +204,62 @@ function CriterionRow({
 		attemptOnlineWork,
 		definition.id,
 		definition.revision,
-		enable,
 		markUnsaved,
+		update,
+	]);
+	const onSave = useCallback(() => {
+		markUnsaved();
+		const result = attemptOnlineWork("record-create", () =>
+			update({
+				baseRevision: definition.revision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: {
+					criterionId: definition.id,
+					description,
+					rankExplanations,
+				},
+			})
+		);
+		if (result.status === "refused") {
+			return;
+		}
+		result.value.catch(() => undefined);
+	}, [
+		attemptOnlineWork,
+		definition.id,
+		definition.revision,
+		description,
+		markUnsaved,
+		rankExplanations,
+		update,
 	]);
 
 	return (
-		<li className="flex items-center justify-between gap-2">
-			<span>
-				{definition.name}
-				{definition.enabled ? "" : ` · ${PRIORITY_COPY.enable}`}
-			</span>
-			{definition.enabled ? null : (
-				<Button onClick={onEnable} size="sm" type="button" variant="outline">
-					{PRIORITY_COPY.enable}
-				</Button>
-			)}
+		<li className="flex flex-col gap-2">
+			<div className="flex items-center justify-between gap-2">
+				<span>
+					{definition.name}
+					{definition.enabled ? "" : ` · ${PRIORITY_COPY.enable}`}
+				</span>
+				{definition.enabled ? null : (
+					<Button onClick={onEnable} size="sm" type="button" variant="outline">
+						{PRIORITY_COPY.enable}
+					</Button>
+				)}
+			</div>
+			<DescriptionField
+				id={`priority-criterion-description-${definition.id}`}
+				onValueChange={setDescription}
+				value={description}
+			/>
+			<RankExplanationFields
+				idPrefix={`priority-rank-${definition.id}`}
+				onValueChange={setRankExplanations}
+				value={rankExplanations}
+			/>
+			<Button onClick={onSave} size="sm" type="button" variant="outline">
+				{PRIORITY_COPY.save}
+			</Button>
 		</li>
 	);
 }
@@ -243,9 +293,11 @@ function NameField({
 }
 
 function DescriptionField({
+	id = "priority-criterion-description",
 	onValueChange,
 	value,
 }: {
+	id?: string;
 	onValueChange: (value: string) => void;
 	value: string;
 }) {
@@ -257,22 +309,18 @@ function DescriptionField({
 	);
 	return (
 		<Field>
-			<FieldLabel htmlFor="priority-criterion-description">
-				{PRIORITY_COPY.description}
-			</FieldLabel>
-			<Textarea
-				id="priority-criterion-description"
-				onChange={onChange}
-				value={value}
-			/>
+			<FieldLabel htmlFor={id}>{PRIORITY_COPY.description}</FieldLabel>
+			<Textarea id={id} onChange={onChange} value={value} />
 		</Field>
 	);
 }
 
 function RankExplanationFields({
+	idPrefix = "priority-rank",
 	onValueChange,
 	value,
 }: {
+	idPrefix?: string;
 	onValueChange: (value: RankExplanations) => void;
 	value: RankExplanations;
 }) {
@@ -282,6 +330,7 @@ function RankExplanationFields({
 			<ul className="flex flex-col gap-2">
 				{PRIORITY_RANKS.map((rank) => (
 					<RankExplanationRow
+						idPrefix={idPrefix}
 						key={rank}
 						onValueChange={onValueChange}
 						rank={rank}
@@ -294,14 +343,17 @@ function RankExplanationFields({
 }
 
 function RankExplanationRow({
+	idPrefix,
 	onValueChange,
 	rank,
 	value,
 }: {
+	idPrefix: string;
 	onValueChange: (value: RankExplanations) => void;
 	rank: (typeof PRIORITY_RANKS)[number];
 	value: RankExplanations;
 }) {
+	const fieldId = `${idPrefix}-${rank}`;
 	const onChange = useCallback(
 		(event: ChangeEvent<HTMLInputElement>) => {
 			onValueChange({ ...value, [rank]: event.target.value });
@@ -310,12 +362,8 @@ function RankExplanationRow({
 	);
 	return (
 		<li>
-			<FieldLabel htmlFor={`priority-rank-${rank}`}>{rank}</FieldLabel>
-			<Input
-				id={`priority-rank-${rank}`}
-				onChange={onChange}
-				value={value[rank]}
-			/>
+			<FieldLabel htmlFor={fieldId}>{rank}</FieldLabel>
+			<Input id={fieldId} onChange={onChange} value={value[rank]} />
 		</li>
 	);
 }
