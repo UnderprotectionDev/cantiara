@@ -1757,6 +1757,7 @@ function outcomeFromFinalize(
 	return failedPromotion("bytes-incomplete");
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: promotion coordinates staging, finalization, and source cleanup.
 export async function promoteCaptureAttachment(
 	prisma: PrismaClient,
 	command: unknown,
@@ -1797,7 +1798,16 @@ export async function promoteCaptureAttachment(
 	const upload = uploadCommandFromPromotion(parsed.data, plaintext);
 	const staged = await stageFileUpload(prisma, upload, deps);
 	if (staged.status === "replayed" || staged.status === "committed") {
-		await source.delete(parsed.data.payload.inboxItemId);
+		try {
+			await source.delete(parsed.data.payload.inboxItemId);
+		} catch (error) {
+			await markCaptureSourceCleanupPending(
+				prisma,
+				parsed.data.payload.inboxItemId,
+				parsed.data.workspaceId,
+				error
+			);
+		}
 		return staged;
 	}
 	if (staged.status !== "staged") {
@@ -1817,9 +1827,65 @@ export async function promoteCaptureAttachment(
 	const finalized = await finalizeFileUpload(prisma, upload, deps);
 	const result = outcomeFromFinalize(finalized);
 	if (result.status === "committed" || result.status === "replayed") {
-		await source.delete(parsed.data.payload.inboxItemId);
+		try {
+			await source.delete(parsed.data.payload.inboxItemId);
+		} catch (error) {
+			await markCaptureSourceCleanupPending(
+				prisma,
+				parsed.data.payload.inboxItemId,
+				parsed.data.workspaceId,
+				error
+			);
+		}
 	}
 	return result;
+}
+
+async function markCaptureSourceCleanupPending(
+	prisma: PrismaClient,
+	inboxItemId: string,
+	workspaceId: string,
+	error: unknown
+): Promise<void> {
+	await prisma.captureInboxItem.updateMany({
+		data: {
+			stagingCleanupAt: new Date(),
+			stagingCleanupError:
+				error instanceof Error ? error.message : "cleanup-failed",
+			stagingCleanupStatus: "pending",
+		},
+		where: { id: inboxItemId, workspaceId },
+	});
+}
+
+export async function retryCaptureSourceCleanup(
+	prisma: PrismaClient,
+	source: CaptureStagingSource,
+	workspaceId: string
+): Promise<number> {
+	const pending = await prisma.captureInboxItem.findMany({
+		select: { consumedExit: true, id: true },
+		where: { stagingCleanupStatus: "pending", workspaceId },
+	});
+	let cleaned = 0;
+	for (const row of pending) {
+		try {
+			// biome-ignore lint/performance/noAwaitInLoops: cleanup is serialized per Inbox item.
+			await source.delete(row.id);
+			await prisma.captureInboxItem.updateMany({
+				data: {
+					stagingCleanupAt: new Date(),
+					stagingCleanupError: null,
+					stagingCleanupStatus: null,
+				},
+				where: { id: row.id, workspaceId },
+			});
+			cleaned += 1;
+		} catch {
+			// Keep the marker for the next retry.
+		}
+	}
+	return cleaned;
 }
 
 export async function discardCaptureStaging(

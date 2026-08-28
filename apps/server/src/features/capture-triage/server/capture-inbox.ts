@@ -570,6 +570,69 @@ async function waitForStageAttachmentReceipt(
 	throw new Error("capture-stage-attachment-uncertain");
 }
 
+async function markCaptureCleanupPending(
+	prisma: PrismaClient,
+	itemId: string,
+	workspaceId: string,
+	error: unknown
+): Promise<void> {
+	await prisma.captureInboxItem.updateMany({
+		data: {
+			stagingCleanupAt: new Date(),
+			stagingCleanupError:
+				error instanceof Error ? error.message : "cleanup-failed",
+			stagingCleanupStatus: "pending",
+		},
+		where: { id: itemId, workspaceId },
+	});
+}
+
+async function clearPendingStageReceipt(
+	prisma: PrismaClient,
+	commandKey: string
+): Promise<void> {
+	const receipt = await prisma.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (receipt && pendingStageAttachmentId(receipt.resultValue)) {
+		await prisma.mutationReceipt.delete({ where: { commandKey } });
+	}
+}
+
+async function compensateStageAttachmentFailure(input: {
+	commandKey: string;
+	inboxItemId: string;
+	prisma: PrismaClient;
+	store: CaptureStagingStore;
+	workspaceId: string;
+}): Promise<void> {
+	await markCaptureCleanupPending(
+		input.prisma,
+		input.inboxItemId,
+		input.workspaceId,
+		new Error("capture-stage-attachment-failed")
+	);
+	try {
+		await input.store.deleteByInboxItemId(input.inboxItemId);
+		await input.prisma.captureInboxItem.updateMany({
+			data: {
+				stagingCleanupAt: new Date(),
+				stagingCleanupError: null,
+				stagingCleanupStatus: null,
+			},
+			where: { id: input.inboxItemId, workspaceId: input.workspaceId },
+		});
+	} catch (cleanupError) {
+		await markCaptureCleanupPending(
+			input.prisma,
+			input.inboxItemId,
+			input.workspaceId,
+			cleanupError
+		);
+	}
+	await clearPendingStageReceipt(input.prisma, input.commandKey);
+}
+
 async function loadItemView(
 	prisma: PrismaClient,
 	input: { itemId: string; workspaceId: string }
@@ -1454,14 +1517,26 @@ export function createCaptureInbox(input: {
 				}
 				return { reason: MUTATION_COPY.conflict, status: "conflict" };
 			}
-			const staged = await persistStaging({
-				attachment: command.attachment,
-				inboxItemId: command.itemId,
-				rootKey,
-				stagingId: reservation.stagingId,
-				store,
-				workspaceId: input.workspaceId,
-			});
+			let staged: { attachment: CaptureAttachmentView; stagingId: string };
+			try {
+				staged = await persistStaging({
+					attachment: command.attachment,
+					inboxItemId: command.itemId,
+					rootKey,
+					stagingId: reservation.stagingId,
+					store,
+					workspaceId: input.workspaceId,
+				});
+			} catch (error) {
+				await compensateStageAttachmentFailure({
+					commandKey: command.idempotencyKey,
+					inboxItemId: command.itemId,
+					prisma: input.prisma,
+					store,
+					workspaceId: input.workspaceId,
+				});
+				throw error;
+			}
 			const savedAt = clock.now();
 			const outcome = {
 				attachment: staged.attachment,
@@ -1469,49 +1544,64 @@ export function createCaptureInbox(input: {
 				stagingId: staged.stagingId,
 				status: "staged" as const,
 			};
-			const committedOutcome = await input.prisma.$transaction(async (tx) => {
-				await lockMutation(
-					tx,
-					`capture-stage-attachment:${input.workspaceId}:${command.itemId}`
-				);
-				const receipt = await readDurableReceipt(
-					tx,
-					command.idempotencyKey,
-					payload
-				);
-				if (receipt?.kind === "conflict") {
-					return {
-						reason: MUTATION_COPY.conflict,
-						status: "conflict",
-					} as const;
-				}
-				if (
-					receipt?.kind === "replay" &&
-					!pendingStageAttachmentId(receipt.resultValue)
-				) {
-					const replayed = JSON.parse(receipt.resultValue) as {
-						attachment: CaptureAttachmentView;
-						lastSuccessfulSaveAt: Date | string;
-						status: "staged";
-					};
-					return {
-						...replayed,
-						lastSuccessfulSaveAt: reviveDate(replayed.lastSuccessfulSaveAt),
-					};
-				}
-				await tx.captureInboxItem.update({
-					data: { attachmentRef: staged.stagingId },
-					where: { id: command.itemId },
+			let committedOutcome:
+				| typeof outcome
+				| { reason: typeof MUTATION_COPY.conflict; status: "conflict" };
+			try {
+				committedOutcome = await input.prisma.$transaction(async (tx) => {
+					await lockMutation(
+						tx,
+						`capture-stage-attachment:${input.workspaceId}:${command.itemId}`
+					);
+					const receipt = await readDurableReceipt(
+						tx,
+						command.idempotencyKey,
+						payload
+					);
+					if (receipt?.kind === "conflict") {
+						return {
+							reason: MUTATION_COPY.conflict,
+							status: "conflict",
+						} as const;
+					}
+					if (
+						receipt?.kind === "replay" &&
+						!pendingStageAttachmentId(receipt.resultValue)
+					) {
+						const replayed = JSON.parse(receipt.resultValue) as {
+							attachment: CaptureAttachmentView;
+							lastSuccessfulSaveAt: Date | string;
+							stagingId: string;
+							status: "staged";
+						};
+						return {
+							...replayed,
+							lastSuccessfulSaveAt: reviveDate(replayed.lastSuccessfulSaveAt),
+						};
+					}
+					await tx.captureInboxItem.update({
+						data: { attachmentRef: staged.stagingId },
+						where: { id: command.itemId },
+					});
+					await tx.mutationReceipt.update({
+						data: {
+							resultValue: JSON.stringify(outcome),
+							targetId: command.itemId,
+						},
+						where: { commandKey: command.idempotencyKey },
+					});
+					return outcome;
 				});
-				await tx.mutationReceipt.update({
-					data: {
-						resultValue: JSON.stringify(outcome),
-						targetId: command.itemId,
-					},
-					where: { commandKey: command.idempotencyKey },
+			} catch (error) {
+				await compensateStageAttachmentFailure({
+					commandKey: command.idempotencyKey,
+					inboxItemId: command.itemId,
+					prisma: input.prisma,
+					store,
+					workspaceId: input.workspaceId,
 				});
-				return outcome;
-			});
+				throw error;
+			}
 			lastSuccessfulSaveAt = savedAt;
 			return committedOutcome;
 		},

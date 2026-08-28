@@ -35,6 +35,7 @@ import {
 	readAccessibleFileBytes,
 	readIsolatedPreviewBytes,
 	relateFileAttachment,
+	retryCaptureSourceCleanup,
 	retryPendingFilePromotionCleanup,
 	setFileLifecycle,
 	stageFileUpload,
@@ -1625,6 +1626,72 @@ describe("File Attachments", () => {
 				})
 			).map((row) => row.id)
 		).toEqual([promoted.file.id]);
+	});
+
+	it("records and retries source cleanup after successful Capture promotion", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const item = await prisma.captureInboxItem.create({
+			data: {
+				body: "Cleanup source",
+				capturedAt: new Date(),
+				fieldsText: "{}",
+				id: crypto.randomUUID(),
+				ownerId: actorId,
+				projectId: project.id,
+				workspaceId,
+			},
+		});
+		const inner = createMemoryCaptureStagingSource();
+		await inner.put(item.id, {
+			bytes: PNG_BYTES,
+			contentType: "image/png",
+			filename: "source.png",
+		});
+		let failuresRemaining = 1;
+		const source = {
+			delete: async (inboxItemId: string) => {
+				if (failuresRemaining > 0) {
+					failuresRemaining -= 1;
+					throw new Error("source-cleanup-unavailable");
+				}
+				await inner.delete(inboxItemId);
+			},
+			read: inner.read,
+		};
+		const promoted = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: "promote-source-cleanup",
+				origin: "human",
+				payload: {
+					inboxItemId: item.id,
+					scope: { kind: "project", projectId: project.id },
+				},
+				workspaceId,
+			},
+			{ captureStaging: source }
+		);
+		expect(promoted.status).toBe("committed");
+		expect(
+			await prisma.captureInboxItem.findUnique({
+				select: { stagingCleanupError: true, stagingCleanupStatus: true },
+				where: { id: item.id },
+			})
+		).toMatchObject({
+			stagingCleanupError: "source-cleanup-unavailable",
+			stagingCleanupStatus: "pending",
+		});
+		expect(await retryCaptureSourceCleanup(prisma, source, workspaceId)).toBe(
+			1
+		);
+		expect(await inner.read(item.id)).toBeNull();
+		expect(
+			await prisma.captureInboxItem.findUnique({
+				select: { stagingCleanupStatus: true },
+				where: { id: item.id },
+			})
+		).toMatchObject({ stagingCleanupStatus: null });
 	});
 
 	it("keeps marking on a separate undoable layer pinned to the exact version", async () => {
