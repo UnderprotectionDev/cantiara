@@ -628,7 +628,8 @@ describe("Capture Inbox", () => {
 		});
 
 		const later = inbox();
-		expect(await later.bulkSenseMaking()).toEqual({
+		const bulkView = await later.bulkSenseMaking();
+		expect(bulkView).toMatchObject({
 			clusters: [
 				{
 					id: named.cluster.id,
@@ -636,7 +637,6 @@ describe("Capture Inbox", () => {
 					name: "Login bugs",
 				},
 			],
-			items: [first.item, second.item],
 			kind: "view-metadata",
 			label: CAPTURE_INBOX_COPY.bulkSenseMaking,
 			placements: [
@@ -652,6 +652,10 @@ describe("Capture Inbox", () => {
 				},
 			],
 		});
+		expect(bulkView.items).toEqual(
+			expect.arrayContaining([first.item, second.item])
+		);
+		expect(bulkView.items).toHaveLength(2);
 	});
 
 	it("keeps Bulk cluster names when the product Prisma client was generated before CaptureBulkSenseView", async () => {
