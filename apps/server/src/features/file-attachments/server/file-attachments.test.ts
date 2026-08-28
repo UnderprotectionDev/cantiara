@@ -35,6 +35,7 @@ import {
 	readAccessibleFileBytes,
 	readIsolatedPreviewBytes,
 	relateFileAttachment,
+	retryPendingFilePromotionCleanup,
 	setFileLifecycle,
 	stageFileUpload,
 	sweepExpiredFileStaging,
@@ -561,6 +562,71 @@ describe("File Attachments", () => {
 			})
 		);
 		expect(conflict.status).toBe("conflict");
+	});
+
+	it("serializes same-key finalize across clients and preserves the winner object", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const command = uploadCommand({
+			actorId,
+			idempotencyKey: "finalize-race",
+			projectId: project.id,
+			workspaceId,
+		});
+		const staged = await stageFileUpload(prisma, command);
+		expect(staged.status).toBe("staged");
+		if (staged.status !== "staged") {
+			return;
+		}
+		await putStagingBytes(prisma, {
+			bytes: PNG_BYTES,
+			operationId: staged.operation.operationId,
+		});
+		let releasePromotion!: () => void;
+		let promotionStarted!: () => void;
+		const promotionRelease = new Promise<void>((resolve) => {
+			releasePromotion = resolve;
+		});
+		const started = new Promise<void>((resolve) => {
+			promotionStarted = resolve;
+		});
+		const inner = createPrismaFileObjectStore();
+		const store = {
+			promote: async (db: Parameters<typeof inner.promote>[0], key: string) => {
+				promotionStarted();
+				await promotionRelease;
+				await inner.promote(db, key);
+			},
+			putTemp: inner.putTemp,
+			read: inner.read,
+			remove: inner.remove,
+		};
+		const secondPool = new Pool({ connectionString: DATABASE_URL });
+		const secondPrisma = new PrismaClient({
+			adapter: new PrismaPg(secondPool),
+		});
+		const firstFinalize = finalizeFileUpload(prisma, command, { store });
+		await started;
+		const secondFinalize = finalizeFileUpload(secondPrisma, command, { store });
+		releasePromotion();
+		const [winner, replay] = await Promise.all([firstFinalize, secondFinalize]);
+
+		expect(winner.status).toBe("committed");
+		expect(replay.status).toBe("replayed");
+		if (winner.status !== "committed" || replay.status !== "replayed") {
+			return;
+		}
+		expect(replay.file.id).toBe(winner.file.id);
+		expect(await prisma.fileAttachment.count()).toBe(1);
+		const winnerVersion = await prisma.fileAttachmentVersion.findUniqueOrThrow({
+			where: { id: winner.file.currentVersion.id },
+		});
+		expect(
+			await prisma.fileObjectBlob.count({
+				where: { accessible: true, objectKey: winnerVersion.objectKey },
+			})
+		).toBe(1);
+		await secondPrisma.$disconnect();
+		await secondPool.end();
 	});
 
 	it("restarts from byte zero and refuses ranged resume", async () => {
@@ -1417,11 +1483,18 @@ describe("File Attachments", () => {
 			return;
 		}
 		const inner = createPrismaFileObjectStore();
+		let cleanupFailuresRemaining = 1;
 		const store = {
 			promote: inner.promote,
 			putTemp: inner.putTemp,
 			read: inner.read,
-			remove: () => Promise.reject(new Error("storage-unavailable")),
+			remove: (...args: Parameters<typeof inner.remove>) => {
+				const shouldFail = cleanupFailuresRemaining > 0;
+				cleanupFailuresRemaining -= 1;
+				return shouldFail
+					? Promise.reject(new Error("storage-unavailable"))
+					: inner.remove(...args);
+			},
 		};
 		await putStagingBytes(
 			prisma,
@@ -1453,6 +1526,14 @@ describe("File Attachments", () => {
 			})
 		).toMatchObject({ status: "cleanup-pending" });
 		expect(await prisma.fileObjectBlob.count()).toBe(1);
+
+		expect(await retryPendingFilePromotionCleanup(prisma, { store })).toBe(1);
+		expect(
+			await prisma.fileAttachmentStaging.findUnique({
+				where: { id: staged.operation.operationId },
+			})
+		).toBeNull();
+		expect(await prisma.fileObjectBlob.count()).toBe(0);
 	});
 
 	it("deletes Capture staging without minting a File Attachment", async () => {

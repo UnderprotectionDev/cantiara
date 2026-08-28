@@ -60,6 +60,7 @@ import { classifyUpload, type FileSniff } from "./file-attachments-types";
 const STAGED = "staged";
 const FINALIZING = "finalizing";
 const COMMITTED = "committed";
+const FILE_PROMOTION_CLEANUP_PENDING = "cleanup-pending";
 
 type PrismaTransaction = Prisma.TransactionClient;
 
@@ -1074,7 +1075,51 @@ export async function finalizeFileUpload(
 		if (!staged.bytesComplete) {
 			return { reason: "bytes-incomplete", status: "rejected" };
 		}
-		const blob = await storeOf(deps).read(prisma, staged.objectKey);
+		const store = storeOf(deps);
+		const claim = await claimFinalize(prisma, parsed.command, staged.id);
+		if (claim === "replayed") {
+			const receipt = await prisma.fileAttachmentReceipt.findUniqueOrThrow({
+				where: { commandKey: parsed.command.idempotencyKey },
+			});
+			const replayed = await replayCommitted(
+				prisma,
+				parsed.command,
+				deps,
+				receipt
+			);
+			if (replayed) {
+				return replayed;
+			}
+			return { reason: "operation-not-found", status: "rejected" };
+		}
+		if (claim === "in-flight") {
+			for (let attempt = 0; attempt < 100; attempt += 1) {
+				// biome-ignore lint/performance/noAwaitInLoops: receipt polling is intentionally sequential.
+				const receipt = await prisma.fileAttachmentReceipt.findUnique({
+					where: { commandKey: parsed.command.idempotencyKey },
+				});
+				if (receipt) {
+					const replayed = await replayCommitted(
+						prisma,
+						parsed.command,
+						deps,
+						receipt
+					);
+					if (replayed) {
+						return replayed;
+					}
+				}
+				await new Promise((resolve) => setTimeout(resolve, 10));
+			}
+			return {
+				status: "refused",
+				ui: { cancelAvailable: false, label: FILE_ATTACHMENT_COPY.finalizing },
+			};
+		}
+		if (claim === "cleanup-pending") {
+			return { reason: "bytes-incomplete", status: "rejected" };
+		}
+		const blob = await store.read(prisma, staged.objectKey);
 		if (!blob || blob.accessible) {
 			return { reason: "bytes-incomplete", status: "rejected" };
 		}
@@ -1089,7 +1134,6 @@ export async function finalizeFileUpload(
 			await prisma.fileAttachmentStaging.delete({ where: { id: staged.id } });
 			return classified;
 		}
-		const store = storeOf(deps);
 		let promoted = false;
 		try {
 			await store.promote(prisma, staged.objectKey);
@@ -1209,7 +1253,38 @@ export async function finalizeFileUpload(
 	}
 }
 
-const FILE_PROMOTION_CLEANUP_PENDING = "cleanup-pending";
+async function claimFinalize(
+	prisma: PrismaClient,
+	command: StageFileUploadCommand,
+	stagingId: string
+): Promise<"claimed" | "in-flight" | "replayed" | "cleanup-pending"> {
+	return await prisma.$transaction(async (tx) => {
+		await lockWorkspaceCommand(tx, command.workspaceId, command.idempotencyKey);
+		const receipt = await tx.fileAttachmentReceipt.findUnique({
+			where: { commandKey: command.idempotencyKey },
+		});
+		if (receipt) {
+			return "replayed";
+		}
+		const staged = await tx.fileAttachmentStaging.findUnique({
+			where: { id: stagingId },
+		});
+		if (staged?.status === FILE_PROMOTION_CLEANUP_PENDING) {
+			return "cleanup-pending";
+		}
+		if (staged?.status === FINALIZING) {
+			return "in-flight";
+		}
+		if (staged?.status !== STAGED) {
+			return "in-flight";
+		}
+		await tx.fileAttachmentStaging.update({
+			data: { status: FINALIZING },
+			where: { id: stagingId },
+		});
+		return "claimed";
+	});
+}
 
 async function compensatePromotedObject(
 	prisma: PrismaClient,
@@ -1217,6 +1292,22 @@ async function compensatePromotedObject(
 	objectKey: string,
 	store: FileObjectStore
 ): Promise<void> {
+	const canCompensate = await prisma.$transaction(async (tx) => {
+		const staged = await tx.fileAttachmentStaging.findUnique({
+			where: { id: stagingId },
+		});
+		if (!staged) {
+			return false;
+		}
+		await lockWorkspaceCommand(tx, staged.workspaceId, staged.commandKey);
+		const receipt = await tx.fileAttachmentReceipt.findUnique({
+			where: { commandKey: staged.commandKey },
+		});
+		return !receipt && staged?.status !== COMMITTED;
+	});
+	if (!canCompensate) {
+		return;
+	}
 	try {
 		await store.remove(prisma, objectKey);
 		await prisma.fileAttachmentStaging.delete({ where: { id: stagingId } });
@@ -1232,6 +1323,32 @@ async function compensatePromotedObject(
 			});
 		}
 	}
+}
+
+export async function retryPendingFilePromotionCleanup(
+	prisma: PrismaClient,
+	deps: FileAttachmentDeps = {}
+): Promise<number> {
+	const pending = await prisma.fileAttachmentStaging.findMany({
+		select: { id: true, objectKey: true },
+		where: { status: FILE_PROMOTION_CLEANUP_PENDING },
+	});
+	let cleaned = 0;
+	for (const row of pending) {
+		try {
+			// biome-ignore lint/performance/noAwaitInLoops: cleanup retries are intentionally serialized per row.
+			await compensatePromotedObject(
+				prisma,
+				row.id,
+				row.objectKey,
+				storeOf(deps)
+			);
+			cleaned += 1;
+		} catch {
+			// Keep the marker for the next retry.
+		}
+	}
+	return cleaned;
 }
 
 async function replayCommitted(
@@ -1287,7 +1404,7 @@ async function commitFinalize(
 			status: "conflict",
 		};
 	}
-	if (staged.status === FINALIZING) {
+	if (staged.status !== FINALIZING && staged.status !== STAGED) {
 		return {
 			status: "refused",
 			ui: {
