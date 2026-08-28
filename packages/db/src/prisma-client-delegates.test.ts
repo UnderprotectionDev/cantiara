@@ -12,6 +12,7 @@ function findMany(): Promise<never[]> {
 
 function workDelegates() {
 	return {
+		captureBulkSenseView: { findMany },
 		captureExtensionLink: { findMany },
 		captureInboxItem: { findMany },
 		captureStagingObject: { findMany },
@@ -66,7 +67,14 @@ describe("Prisma client current delegates", () => {
 				...workDelegates(),
 				...currentLifecycleDelegates(),
 				fileAttachment: { findMany },
+				fileAttachmentOriginLocation: { findMany },
+				fileAttachmentReceipt: { findMany },
+				fileAttachmentRelation: { findMany },
+				fileAttachmentStaging: { findMany },
+				fileAttachmentVersion: { findMany },
+				fileAttachmentVersionPin: { findMany },
 				fileImageDerivative: { findMany },
+				fileObjectBlob: { findMany },
 				tag: { findMany },
 				usageHostEmbed: { findMany },
 				usageLink: { findMany },
@@ -81,6 +89,14 @@ describe("Prisma client current delegates", () => {
 				...workDelegates(),
 				...currentLifecycleDelegates(),
 				fileAttachment: { findMany },
+				fileAttachmentOriginLocation: { findMany },
+				fileAttachmentReceipt: { findMany },
+				fileAttachmentRelation: { findMany },
+				fileAttachmentStaging: { findMany },
+				fileAttachmentVersion: { findMany },
+				fileAttachmentVersionPin: { findMany },
+				fileImageDerivative: { findMany },
+				fileObjectBlob: { findMany },
 				tag: { findMany },
 				tagInlineUse: { findMany },
 				usageHostEmbed: { findMany },
@@ -121,5 +137,32 @@ describe("Prisma client current delegates", () => {
 				},
 			} as unknown as PrismaClient)
 		).toBe(true);
+	});
+
+	it("refuses a generated client missing a delegate method used by the server", () => {
+		const client = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			_runtimeDataModel: {
+				models: { Work: { fields: [] } },
+			},
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(client as unknown as PrismaClient)
+		).toBe(false);
 	});
 });

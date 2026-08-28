@@ -16,6 +16,9 @@ model CaptureInboxItem {
   consumedTargetKind     String?
   consumedRelation       String?
   consumedAttributedText String                 @default("{}")
+  stagingCleanupStatus   String?
+  stagingCleanupError    String?
+  stagingCleanupAt       DateTime?
   consumedMergeId        String?
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt

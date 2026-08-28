@@ -807,6 +807,17 @@ export async function createRelation(
 	command: unknown,
 	endOverrides: Record<string, EndLifecycleOverride> = {}
 ): Promise<RelationOutcome> {
+	return await prisma.$transaction((tx) =>
+		createRelationInTransaction(tx, command, endOverrides)
+	);
+}
+
+export async function createRelationInTransaction(
+	tx: PrismaTransaction,
+	command: unknown,
+	endOverrides: Record<string, EndLifecycleOverride> = {}
+): Promise<RelationOutcome> {
+	await Promise.resolve();
 	const parsed = parseKeyedCommand(command, createRelationCommandSchema);
 	if (parsed.status !== "ok") {
 		return parsed.outcome;
@@ -836,8 +847,12 @@ export async function createRelation(
 		parsed.command.actorId,
 		parsed.command.idempotencyKey
 	);
-	return await prisma.$transaction((tx) =>
-		createInTransaction(tx, typedCommand, commandKey, fingerprint, endOverrides)
+	return createInTransaction(
+		tx,
+		typedCommand,
+		commandKey,
+		fingerprint,
+		endOverrides
 	);
 }
 

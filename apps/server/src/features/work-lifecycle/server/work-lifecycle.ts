@@ -153,6 +153,23 @@ export async function createWork(
 	);
 }
 
+export async function createWorkInTransaction(
+	tx: PrismaTransaction,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	await Promise.resolve();
+	const parsed = parseCreateCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint(parsed.command.payload);
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return createInTransaction(tx, parsed.command, commandKey, fingerprint);
+}
+
 export async function finalizeDraft(
 	prisma: PrismaClient,
 	command: unknown
