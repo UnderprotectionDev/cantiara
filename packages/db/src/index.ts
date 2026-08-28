@@ -12,6 +12,7 @@ import {
 import { prismaClientHasCurrentDelegates } from "./prisma-client-delegates";
 
 export { Prisma, PrismaClient } from "../prisma/generated/client";
+export { readGeneratedClientStamp } from "./generated-prisma-client";
 export { prismaClientHasCurrentDelegates } from "./prisma-client-delegates";
 
 // Local development: route the Neon serverless driver's WebSocket transport to a
