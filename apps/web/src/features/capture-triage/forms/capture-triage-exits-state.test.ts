@@ -33,8 +33,9 @@ test("convert preview names Workspace or Project Capture Inbox as the target sco
 		convertTargetScopeLine({
 			heading: "Project Capture Inbox",
 			projectId: "proj-cantiara",
+			projectName: "Atlas",
 		})
-	).toBe("Project Capture Inbox proj-cantiara");
+	).toBe("Project Capture Inbox Atlas");
 });
 
 test("failed capture promotion explains a secret-free retry", () => {

@@ -16,6 +16,7 @@ import type { ChangeEvent } from "react";
 import { useCallback, useState } from "react";
 import { MUTATION_COPY, newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
+import { captureProjectName } from "./capture-form-state";
 import {
 	type ConvertTargetKind,
 	convertFinalizeFailedLine,
@@ -316,8 +317,20 @@ function ConvertDialog({
 		}),
 		enabled: open,
 	});
+	const projects = useQuery(orpc.projectShell.list.queryOptions());
 	const previewData =
 		preview.data && !isNotFound(preview.data) ? preview.data : null;
+	const targetScopeLine = previewData
+		? convertTargetScopeLine({
+				...previewData.proposed.targetScope,
+				projectName: previewData.proposed.targetScope.projectId
+					? captureProjectName(
+							previewData.proposed.targetScope.projectId,
+							projects.data ?? []
+						)
+					: null,
+			})
+		: "";
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
@@ -343,7 +356,7 @@ function ConvertDialog({
 				</Field>
 				{previewData ? (
 					<div className="flex flex-col gap-3 text-sm">
-						<p>{convertTargetScopeLine(previewData.proposed.targetScope)}</p>
+						<p>{targetScopeLine}</p>
 						<p className="whitespace-pre-wrap">{previewData.original.text}</p>
 						{previewData.original.link ? (
 							<p>{previewData.original.link}</p>

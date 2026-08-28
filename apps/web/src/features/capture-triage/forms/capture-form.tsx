@@ -28,10 +28,12 @@ import {
 	captureFormHasUnsavedCapture,
 	captureInboxGroups,
 	captureInboxItemPreview,
+	captureProjectOptions,
 	createBugIsAvailable,
 	EMPTY_CAPTURE_FORM,
 	fileToCaptureAttachment,
 } from "./capture-form-state";
+import { convertTargetScopeLine } from "./capture-triage-exits-state";
 import { CaptureMergeUndo, CaptureTriageActions } from "./capture-triage-panel";
 import {
 	goBackSequentialFocus,
@@ -45,6 +47,7 @@ export default function CaptureForm() {
 		useClientShell();
 	const catalog = useQuery(orpc.captureInbox.catalog.queryOptions());
 	const preferences = useQuery(orpc.accountPreferences.get.queryOptions());
+	const projects = useQuery(orpc.projectShell.list.queryOptions());
 	const copy = catalog.data?.copy;
 	const attachmentFileRef = useRef<File | null>(null);
 	const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
@@ -116,8 +119,10 @@ export default function CaptureForm() {
 		copy ?? {
 			projectCaptureInbox: "Project Capture Inbox",
 			workspaceCaptureInbox: "Workspace Capture Inbox",
-		}
+		},
+		projects.data ?? []
 	);
+	const projectOptions = captureProjectOptions(projects.data ?? []);
 	const [bulkOpen, setBulkOpen] = useState(false);
 	const [sequentialFocusedId, setSequentialFocusedId] = useState<string | null>(
 		null
@@ -197,7 +202,7 @@ export default function CaptureForm() {
 		result.value.catch(() => undefined);
 	}, [attemptOnlineWork, createBug, values]);
 	const onProjectChange = useCallback(
-		(event: ChangeEvent<HTMLInputElement>) => {
+		(event: ChangeEvent<HTMLSelectElement>) => {
 			form.setFieldValue("projectId", event.target.value);
 		},
 		[form]
@@ -243,11 +248,21 @@ export default function CaptureForm() {
 				<FieldGroup>
 					<Field>
 						<FieldLabel htmlFor="capture-project">{copy.project}</FieldLabel>
-						<Input
+						<NativeSelect
+							className="w-full"
 							id="capture-project"
 							onChange={onProjectChange}
 							value={values.projectId}
-						/>
+						>
+							{projectOptions.map((project) => (
+								<NativeSelectOption
+									key={project.id || "workspace"}
+									value={project.id}
+								>
+									{project.name}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
 						<FieldDescription>
 							{copy.leaveEmptyForWorkspaceCaptureInbox}
 						</FieldDescription>
@@ -412,6 +427,7 @@ function CaptureInboxList({
 			template: string | null;
 		}>;
 		projectId: string | null;
+		projectName: string | null;
 	}>;
 	list: {
 		data?: unknown[];
@@ -510,17 +526,19 @@ function CaptureInboxList({
 			{sequentialControls}
 			{groups.map((group) => (
 				<section
-					aria-label={
-						group.projectId
-							? `${group.heading} ${group.projectId}`
-							: group.heading
-					}
+					aria-label={convertTargetScopeLine({
+						heading: group.heading,
+						projectId: group.projectId,
+						projectName: group.projectName,
+					})}
 					className="flex flex-col gap-3"
 					key={group.projectId ?? "workspace"}
 				>
 					<h2 className="font-medium text-sm">{group.heading}</h2>
-					{group.projectId ? (
-						<p className="text-muted-foreground text-xs">{group.projectId}</p>
+					{group.projectName || group.projectId ? (
+						<p className="text-muted-foreground text-xs">
+							{group.projectName ?? group.projectId}
+						</p>
 					) : null}
 					<ul className="flex flex-col">
 						{group.items.map((item) => (

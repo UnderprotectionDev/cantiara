@@ -375,6 +375,24 @@ function saveCommandPayload(
 
 const STAGING_INCLUDE = { staging: true } as const;
 
+async function resolveCaptureProjectId(
+	prisma: PrismaClient,
+	workspaceId: string,
+	projectId: string | null | undefined
+): Promise<string | null> {
+	const trimmed = projectId?.trim() ?? "";
+	if (!trimmed) {
+		return null;
+	}
+	const match = await prisma.project.findFirst({
+		where: {
+			OR: [{ id: trimmed }, { name: { equals: trimmed, mode: "insensitive" } }],
+			workspaceId,
+		},
+	});
+	return match?.id ?? trimmed;
+}
+
 async function insertCaptureItem(
 	prisma: PrismaClient,
 	input: {
@@ -389,6 +407,11 @@ async function insertCaptureItem(
 	const body = template
 		? formatTemplateBody(template, fields)
 		: (input.command.text ?? "");
+	const projectId = await resolveCaptureProjectId(
+		prisma,
+		input.workspaceId,
+		input.command.projectId
+	);
 	const row = await prisma.captureInboxItem.create({
 		data: {
 			attachmentRef: input.command.attachmentRef ?? null,
@@ -399,7 +422,7 @@ async function insertCaptureItem(
 			link: input.command.link ?? "",
 			origin: input.command.origin ?? "",
 			ownerId: input.actorId,
-			projectId: input.command.projectId ?? null,
+			projectId,
 			template,
 			workspaceId: input.workspaceId,
 		},
@@ -478,6 +501,13 @@ function fileAttachmentPromoteAdapter(
 		if (kind === "project" && !projectId) {
 			return { status: "failed", visibleAttachment: null };
 		}
+		const resolvedProjectId =
+			kind === "project"
+				? await resolveCaptureProjectId(prisma, workspaceId, projectId)
+				: null;
+		if (kind === "project" && !resolvedProjectId) {
+			return { status: "failed", visibleAttachment: null };
+		}
 		const outcome = await promoteCaptureAttachment(
 			prisma,
 			{
@@ -487,10 +517,10 @@ function fileAttachmentPromoteAdapter(
 				payload: {
 					inboxItemId: command.item.id,
 					scope:
-						kind === "project" && projectId
+						kind === "project" && resolvedProjectId
 							? {
 									kind: FILE_SCOPE_KIND.project,
-									projectId,
+									projectId: resolvedProjectId,
 								}
 							: { kind: FILE_SCOPE_KIND.personalWiki },
 				},

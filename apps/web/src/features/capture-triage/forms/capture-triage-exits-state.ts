@@ -50,7 +50,11 @@ export function convertTargetOptions(copy: {
 export function convertTargetScopeLine(scope: {
 	heading: string;
 	projectId: string | null;
+	projectName?: string | null;
 }): string {
+	if (scope.projectName) {
+		return `${scope.heading} ${scope.projectName}`;
+	}
 	return scope.projectId
 		? `${scope.heading} ${scope.projectId}`
 		: scope.heading;
