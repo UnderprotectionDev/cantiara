@@ -18,6 +18,4 @@ migrate_url="${DATABASE_URL/-pooler./.}"
 
 cd "$REPO_ROOT/packages/db"
 DATABASE_URL="$migrate_url" bunx --bun prisma migrate status || true
-if ! DATABASE_URL="$migrate_url" bunx --bun prisma migrate deploy "$@"; then
-	printf '%s\n' "prisma migrate deploy failed; starting the API anyway so GitHub sign-in is not blocked by migration history drift" >&2
-fi
+DATABASE_URL="$migrate_url" bunx --bun prisma migrate deploy "$@"

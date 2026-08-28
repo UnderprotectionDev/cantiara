@@ -1,5 +1,5 @@
 model TypedRelation {
-  id                     String    @id
+  id                     String   @id
   type                   String
   fromKind               String
   fromId                 String
@@ -9,12 +9,12 @@ model TypedRelation {
   originOwnerId          String?
   originComponentId      String?
   originSourceVersion    String?
-  originComponentMissing Boolean   @default(false)
+  originComponentMissing Boolean  @default(false)
   blockerState           String?
-  establishedAt          DateTime  @default(now())
+  establishedAt          DateTime @default(now())
   revision               Int
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@unique([type, fromKind, fromId, toKind, toId])
   @@index([fromKind, fromId])
