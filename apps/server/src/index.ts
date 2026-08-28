@@ -11,6 +11,7 @@ import {
 	auth,
 	productCorsOrigins,
 } from "@cantiara/auth";
+import { resetPrismaClientCache } from "@cantiara/db";
 import { env } from "@cantiara/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
@@ -154,3 +155,9 @@ app.use("/*", async (c, next) => {
 app.get("/", (c) => c.text("OK"));
 
 export default app;
+
+if (import.meta.hot) {
+	import.meta.hot.dispose(() => {
+		resetPrismaClientCache();
+	});
+}

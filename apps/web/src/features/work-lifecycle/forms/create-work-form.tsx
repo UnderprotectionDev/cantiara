@@ -1,30 +1,18 @@
-import { Button } from "@cantiara/ui/components/button";
-import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
-import { Input } from "@cantiara/ui/components/input";
-import {
-	NativeSelect,
-	NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
-import { useMutation } from "@tanstack/react-query";
-import type { ChangeEvent, FormEvent } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
+import { CustomFieldValueFields } from "@/features/custom-fields/forms/custom-field-value-control";
+import { invalidateCustomFieldValues } from "@/features/custom-fields/forms/custom-field-values-editor";
+import type { CustomFieldStoredValue } from "@/features/custom-fields/forms/custom-fields-copy";
+import { writeCustomFieldValues } from "@/features/custom-fields/forms/write-custom-field-values";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
+import WorkDraftForm from "@/features/work-drafts/forms/work-draft-form";
+import type { WorkDraftFormValues } from "@/features/work-drafts/forms/work-draft-form-state";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
 import { invalidateWork } from "./invalidate-work";
-import {
-	WORK_LIFECYCLE_COPY,
-	WORK_TYPES,
-	type WorkType,
-} from "./work-lifecycle-copy";
-
-interface CreateWorkValues {
-	title: string;
-	type: WorkType;
-}
+import { WORK_LIFECYCLE_COPY } from "./work-lifecycle-copy";
 
 export default function CreateWorkForm({
 	onCreated,
@@ -34,7 +22,19 @@ export default function CreateWorkForm({
 	projectId: string;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const [draftId, setDraftId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [values, setValues] = useState<Record<string, CustomFieldStoredValue>>(
+		{}
+	);
+	const fields = useQuery(
+		orpc.customFields.surface.queryOptions({
+			input: { projectId, recordType: "Work" },
+		})
+	);
+	const setCustomValue = useMutation(
+		orpc.customFields.setValue.mutationOptions()
+	);
 	const create = useMutation(
 		orpc.workLifecycle.create.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -60,20 +60,17 @@ export default function CreateWorkForm({
 			},
 		})
 	);
-	const form = useForm({
-		defaultValues: {
-			title: "",
-			type: "Task" as WorkType,
-		} satisfies CreateWorkValues,
-		onSubmit: async ({ value }) => {
+	const onCreate = useCallback(
+		async (formValues: WorkDraftFormValues) => {
 			setError(null);
+			markUnsaved();
 			const result = attemptOnlineWork("record-create", () =>
 				create.mutateAsync({
 					idempotencyKey: newIdempotencyKey(),
 					payload: {
 						projectId,
-						title: value.title,
-						type: value.type,
+						title: formValues.title,
+						type: formValues.type,
 					},
 				})
 			);
@@ -82,101 +79,59 @@ export default function CreateWorkForm({
 			}
 			const outcome = await result.value;
 			if (outcome.status === "committed" || outcome.status === "replayed") {
-				form.reset();
+				const message = await writeCustomFieldValues({
+					attempt: attemptOnlineWork,
+					fields: fields.data ?? [],
+					recordId: outcome.work.id,
+					recordType: "Work",
+					setValue: setCustomValue.mutateAsync,
+					values,
+				});
+				if (message) {
+					setError(message);
+					return;
+				}
+				await invalidateCustomFieldValues(projectId, "Work", outcome.work.id);
+				setValues({});
 			}
 		},
-	});
-	const onSubmit = useCallback(
-		(event: FormEvent<HTMLFormElement>) => {
-			event.preventDefault();
-			markUnsaved();
-			form.handleSubmit().catch(() => undefined);
+		[
+			attemptOnlineWork,
+			create,
+			fields.data,
+			markUnsaved,
+			projectId,
+			setCustomValue,
+			values,
+		]
+	);
+	const onCustomFieldValueChange = useCallback(
+		(definitionId: string, value: CustomFieldStoredValue) => {
+			setValues((current) => ({
+				...current,
+				[definitionId]: value,
+			}));
 		},
-		[form, markUnsaved]
+		[]
 	);
 
 	return (
-		<form className="flex flex-col gap-3" onSubmit={onSubmit}>
-			<FieldGroup className="flex-row flex-wrap items-end gap-3">
-				<form.Field name="title">
-					{(field) => (
-						<TitleField
-							onValueChange={field.handleChange}
-							value={field.state.value}
-						/>
-					)}
-				</form.Field>
-				<form.Field name="type">
-					{(field) => (
-						<TypeField
-							onValueChange={field.handleChange}
-							value={field.state.value}
-						/>
-					)}
-				</form.Field>
-				<Button disabled={create.isPending} type="submit">
-					{WORK_LIFECYCLE_COPY.createWork}
-				</Button>
-			</FieldGroup>
-			{error ? <p role="alert">{error}</p> : null}
-		</form>
-	);
-}
-
-function TitleField({
-	onValueChange,
-	value,
-}: {
-	onValueChange: (value: string) => void;
-	value: string;
-}) {
-	const onChange = useCallback(
-		(event: ChangeEvent<HTMLInputElement>) => {
-			onValueChange(event.target.value);
-		},
-		[onValueChange]
-	);
-	return (
-		<Field className="min-w-48 flex-1">
-			<FieldLabel htmlFor="work-title">{WORK_LIFECYCLE_COPY.title}</FieldLabel>
-			<Input
-				id="work-title"
-				onChange={onChange}
-				required={true}
-				value={value}
+		<div className="flex flex-col gap-3">
+			<WorkDraftForm
+				createDisabled={create.isPending}
+				draftId={draftId}
+				lockProjectId={projectId}
+				onCreate={onCreate}
+				onDraftId={setDraftId}
 			/>
-		</Field>
-	);
-}
-
-function TypeField({
-	onValueChange,
-	value,
-}: {
-	onValueChange: (value: WorkType) => void;
-	value: WorkType;
-}) {
-	const onChange = useCallback(
-		(event: ChangeEvent<HTMLSelectElement>) => {
-			onValueChange(event.target.value as WorkType);
-		},
-		[onValueChange]
-	);
-	return (
-		<Field className="w-40">
-			<FieldLabel htmlFor="work-type">{WORK_LIFECYCLE_COPY.type}</FieldLabel>
-			<NativeSelect
-				className="w-full"
-				id="work-type"
-				onChange={onChange}
-				value={value}
-			>
-				{WORK_TYPES.map((type) => (
-					<NativeSelectOption key={type} value={type}>
-						{type}
-					</NativeSelectOption>
-				))}
-			</NativeSelect>
-		</Field>
+			{fields.data && fields.data.length > 0 ? (
+				<CustomFieldValueFields
+					fields={fields.data}
+					onValueChange={onCustomFieldValueChange}
+					values={values}
+				/>
+			) : null}
+			{error ? <p role="alert">{error}</p> : null}
+		</div>
 	);
 }

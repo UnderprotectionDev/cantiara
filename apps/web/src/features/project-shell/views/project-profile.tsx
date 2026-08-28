@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useCallback } from "react";
 
+import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-record-values";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
 import ProjectOverview from "@/features/project-overview/views/project-overview";
 import ConfigurationMode from "@/features/project-shell/forms/configuration-mode";
@@ -314,6 +315,19 @@ function ProjectBody({
 				</p>
 				<div className="mt-6">
 					<WorkArea projectId={data.id} />
+				</div>
+			</section>
+		);
+	}
+
+	if (selectedArea === "Discovery") {
+		return (
+			<section aria-label={selectedArea} id={projectShellAnchor(selectedArea)}>
+				<h1 className="font-semibold text-[1.375rem] tracking-tight">
+					{selectedArea}
+				</h1>
+				<div className="mt-6">
+					<BoundRecordValuesSurface projectId={data.id} recordType="Feedback" />
 				</div>
 			</section>
 		);

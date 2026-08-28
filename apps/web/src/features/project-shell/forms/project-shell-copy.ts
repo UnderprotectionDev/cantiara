@@ -114,7 +114,7 @@ export function projectShellChrome() {
 }
 
 export function structureCopyPreviewItems(preview: {
-	customFieldDefinitions: readonly unknown[];
+	customFieldDefinitions: readonly { name: string }[];
 	enabledAreas: readonly string[];
 	priorityMetricDefinitions: readonly unknown[];
 	selectedSkeletons: readonly {
@@ -148,7 +148,9 @@ export function structureCopyPreviewItems(preview: {
 			label: PROJECT_SHELL_COPY.workContextCardLayout,
 		},
 		{
-			items: preview.customFieldDefinitions.map(() => ""),
+			items: preview.customFieldDefinitions.map(
+				(definition) => definition.name
+			),
 			label: PROJECT_SHELL_COPY.customField,
 		},
 		{

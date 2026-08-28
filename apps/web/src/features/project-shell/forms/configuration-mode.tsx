@@ -1,6 +1,8 @@
 import { Button } from "@cantiara/ui/components/button";
 import { type ReactNode, useCallback } from "react";
 
+import CustomFieldEditor from "@/features/custom-fields/forms/custom-field-editor";
+
 import ProjectAreasForm from "./project-areas-form";
 import {
 	CONFIGURATION_MODE_EDITORS,
@@ -134,11 +136,7 @@ export default function ConfigurationMode({
 							{PROJECT_SHELL_COPY.customField}
 						</Button>
 						{editor === CONFIGURATION_MODE_EDITORS.customField ? (
-							<section aria-label={PROJECT_SHELL_COPY.customField}>
-								<h2 className="font-medium text-sm">
-									{PROJECT_SHELL_COPY.customField}
-								</h2>
-							</section>
+							<CustomFieldEditor projectId={projectId} />
 						) : null}
 						<Button
 							aria-expanded={

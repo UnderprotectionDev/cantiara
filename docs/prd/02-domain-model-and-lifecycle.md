@@ -63,6 +63,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
 | Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |
+| Metin | `Text` | Proje bazlı özel alan türü; Lookup veya Formula değildir |
+| Boolean | `Boolean` | Proje bazlı özel alan türü |
+| True | `True` | Boolean özel alanın ayarlanmış evet değeri; Değerlendirilmedi değildir |
+| False | `False` | Boolean özel alanın ayarlanmış hayır değeri; boş veya Değerlendirilmedi değildir |
+| Değerlendirilmedi | `Not evaluated` | Proje bazlı özel alanda boş veya ayarlanmamış değer; Boolean false veya seçim değeri değildir |
+| Tek seçim | `Single select` | Proje bazlı özel alan türü; seçenekler tanımda Proje-yereldir |
+| Çoklu seçim | `Multi select` | Proje bazlı özel alan türü; seçenekler tanımda Proje-yereldir |
 | İş Bağlam Kartı düzeni | `Work Context Card layout` | İş Bağlam Kartı bölüm düzeninin Yapılandırma modu girişi; şema veya düzen motoru değildir |
 | Öncelik ölçütü | `Priority metrics` | İş önceliğini ifade eden Proje yapılandırması; skaler öncelik alanı değildir |
 | Kayıtlı görünüm | `Saved views` | Yapılandırma modunda adlandırılmış İş görünümü girişi; günlük planlama eylemi değildir |
@@ -120,6 +127,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İlişkiler | `Relations` | Birleştirmede hayatta kalana yazılacak ilişkiler |
 | Köken | `Origin` | Emekli kimliğin hayatta kalan kayda görünür yönlendirmesi |
 | İlgili | `Related` | Anlamsal bağ; kendiliğinden birleştirme değildir |
+| Türetilen | `Derived` | Köken ilişkisinin üretilen uç etiketi; `Related` yerine geçmez |
+| Çöp Kutusunda | `In Trash` | Kırık referans nedeni |
+| Kalıcı silindi | `Permanently deleted` | Kırık referans nedeni |
+| Güvenlik nedeniyle redakte edildi | `Redacted for security` | Kırık referans nedeni |
+| Erişim yok | `No access` | Kırık referans nedeni; yetkisiz ad sızdırmaz |
+| Kırık referans arşivi | `Archived` | Kırık referans nedeni; İş arşiv filtresiyle aynı İngilizce etiket |
+| İlişkiyi onayla | `Confirm relation` | Tür ve iki ucun önizlemesinden sonra ilişki yazma |
+| Kaynak öğe artık yok | `Source item is gone` | Köken konumunda sahipli bileşenin çözülemediğini açıklar |
+| İlişki yok | `No relations yet.` | Henüz standart ilişki olmadığını söyleyen boş durum |
+| Kaldır | `Remove` | Standart ilişkiyi güvenli geri alma ile kaldırma |
 | Açıklama | `Description` | İşin taşınabilir gövde alanı |
 | Hafif kontrol listesi | `Checklist` | İşteki metin maddeleri; bağımsız İş değildir |
 | Başka Projede yeniden oluştur | `Recreate in another Project` | Yanlış Projede oluşan İşten hedefte yeni kimlikli İş üretme; taşıma değildir |
@@ -249,6 +266,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belge | `Document` | Markdown Belgesi dönüşüm hedefi |
 | Dosya Eki | `File Attachment` | Dosya Eki dönüşüm hedefi |
 | Yakalama eki | `Capture attachment` | Yalnız Yakalama Gelen Kutusu öğesine ait şifreli staging nesnesi; Dosya Eki veya paylaşılmış medya kütüphanesi değildir |
+| Taslak | `Draft` | Henüz kaydedilmemiş ayrıntılı İş formu; ana kayıt, Yakalama Gelen Kutusu öğesi veya Belge taslağı değildir |
+| Taslaklar | `Drafts` | Kişisel Taslakların sürdürüldüğü veya silindiği yüzey |
 | Komut Paleti | `Command Palette` | Kurucu yüzeylerinde klavyeyle komut, gezinme, kayıt oluşturma ve Proje geçişi çalıştıran yüzey; Evrensel Arama (`Search`) değildir |
 | Proje geçişi | `Switch Project` | Palette ve görünür menüden yetkili Projeler arasında geçiş |
 | Oluştur | `Create` | Palette ve görünür menüden yetkili kapsamda desteklenen kayıt oluşturma |
