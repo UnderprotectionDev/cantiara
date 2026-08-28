@@ -32,7 +32,7 @@ import {
 	suggestTags,
 	undoTagRename,
 } from "./tags";
-import { TAGS_COPY } from "./tags-model";
+import { TAGS_COPY, tagIdentityFilterSchema } from "./tags-model";
 
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
@@ -896,6 +896,25 @@ describe("Tags", () => {
 		expect(await listTags(prisma, workspaceId)).toEqual([created.tag]);
 	});
 
+	it("maps a missing manifest identity to a new flat candidate without minting", async () => {
+		const { workspaceId } = await openPayments(prisma);
+		const preview = await previewTagImport(prisma, {
+			manifestIdentities: [{ id: "missing-tag", name: "backlog" }],
+			recognizedTokens: [],
+			workspaceId,
+		});
+		expect(preview).toEqual({
+			mappings: [
+				{
+					name: "backlog",
+					status: "new-flat-candidate",
+					token: "backlog",
+				},
+			],
+		});
+		expect(await listTags(prisma, workspaceId)).toEqual([]);
+	});
+
 	it("treats a reused old display name as a different identity from the renamed filter", async () => {
 		const { actorId, project, workspaceId } = await openPayments(prisma);
 		const created = await createTag(prisma, {
@@ -956,6 +975,19 @@ describe("Tags", () => {
 				(record) => record.id
 			)
 		).toEqual([second.id]);
+		const condition = tagIdentityFilterSchema.parse({ tagId: created.tag.id });
+		expect(condition).toEqual({ tagId: created.tag.id });
+		expect(
+			tagIdentityFilterSchema.safeParse({
+				name: "urgent",
+				tagId: created.tag.id,
+			}).success
+		).toBe(false);
+		expect(
+			(await listRecords(prisma, { ...condition, workspaceId })).map(
+				(record) => record.id
+			)
+		).toEqual([first.id]);
 	});
 
 	it("binds a Document by tag identity without line-context UI", async () => {

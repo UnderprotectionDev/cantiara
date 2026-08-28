@@ -159,32 +159,26 @@ export async function previewTagImport(
 	const byName = new Map(tags.map((tag) => [tag.name, tag] as const));
 	const mappings: TagImportPreview["mappings"] = [];
 	const claimedTokens = new Set<string>();
+	const tokens = [...input.recognizedTokens];
 	for (const identity of input.manifestIdentities ?? []) {
 		const live = byId.get(identity.id);
-		if (!live) {
+		if (live) {
+			mappings.push(existingImportMapping(live, identity.name));
+			claimedTokens.add(identity.name);
+			claimedTokens.add(live.name);
 			continue;
 		}
-		mappings.push({
-			name: live.name,
-			status: "existing",
-			tagId: live.id,
-			token: identity.name,
-		});
-		claimedTokens.add(identity.name);
-		claimedTokens.add(live.name);
+		if (!tokens.includes(identity.name)) {
+			tokens.push(identity.name);
+		}
 	}
-	for (const token of input.recognizedTokens) {
+	for (const token of tokens) {
 		if (claimedTokens.has(token)) {
 			continue;
 		}
 		const live = byName.get(token);
 		if (live) {
-			mappings.push({
-				name: live.name,
-				status: "existing",
-				tagId: live.id,
-				token,
-			});
+			mappings.push(existingImportMapping(live, token));
 			continue;
 		}
 		mappings.push({
@@ -194,6 +188,18 @@ export async function previewTagImport(
 		});
 	}
 	return { mappings };
+}
+
+function existingImportMapping(
+	live: TagView,
+	token: string
+): TagImportPreview["mappings"][number] {
+	return {
+		name: live.name,
+		status: "existing",
+		tagId: live.id,
+		token,
+	};
 }
 
 export async function listTags(

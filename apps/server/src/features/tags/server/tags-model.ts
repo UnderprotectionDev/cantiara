@@ -33,7 +33,13 @@ export const taggedRecordViewSchema = z.object({
 	title: z.string().min(1),
 });
 
-export type TaggedRecordView = z.infer<typeof taggedRecordViewSchema>;
+export const tagIdentityFilterSchema = z
+	.object({
+		tagId: z.string().min(1),
+	})
+	.strict();
+
+export type TagIdentityFilter = z.infer<typeof tagIdentityFilterSchema>;
 
 export const taggedDocumentViewSchema = z.object({
 	documentId: z.string().min(1),
