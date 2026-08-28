@@ -8,11 +8,11 @@ import {
 import { useCallback, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 
+import { FILE_ATTACHMENT_COPY } from "../forms/file-attachments-copy";
 import {
-	FILE_ATTACHMENT_COPY,
 	filePreviewKind,
 	galleryThumbnailSrc,
-} from "../forms/file-attachments-copy";
+} from "./file-preview-presentation";
 
 import "@vidstack/react/player/styles/default/theme.css";
 import "@vidstack/react/player/styles/default/layouts/audio.css";
@@ -26,6 +26,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 interface Preview {
+	cause: string | null;
 	csvRows: string[][] | null;
 	galleryThumbnailPath: string | null;
 	mode: string;
@@ -36,9 +37,12 @@ interface Preview {
 		speed: boolean;
 	} | null;
 	previewPath: string | null;
+	retryLimit: number;
 	status: string;
+	supportReference: string | null;
 	textExcerpt: string | null;
 	unpack: boolean;
+	written: boolean;
 }
 
 export default function FilePreview({
@@ -58,7 +62,17 @@ export default function FilePreview({
 		unpack: preview.unpack,
 	});
 	if (surface === "unavailable") {
-		return <p role="status">{FILE_ATTACHMENT_COPY.unavailable}</p>;
+		return (
+			<div role="status">
+				<p>{FILE_ATTACHMENT_COPY.unavailable}</p>
+				{preview.supportReference ? (
+					<p>
+						{preview.supportReference}
+						{preview.cause ? ` ${preview.cause}` : ""}
+					</p>
+				) : null}
+			</div>
+		);
 	}
 	if (surface === "download") {
 		return (
@@ -115,6 +129,7 @@ export default function FilePreview({
 			<MediaPlayer
 				autoPlay={false}
 				className="w-full"
+				loop={false}
 				src={preview.previewPath}
 				title={title}
 			>
@@ -173,13 +188,13 @@ function PdfPreview({ src, title }: { src: string; title: string }) {
 			</Document>
 			<div className="flex gap-2">
 				<Button onClick={previous} type="button" variant="ghost">
-					Previous
+					{FILE_ATTACHMENT_COPY.previous}
 				</Button>
 				<p>
 					{page} / {pages} {title}
 				</p>
 				<Button onClick={next} type="button" variant="ghost">
-					Next
+					{FILE_ATTACHMENT_COPY.next}
 				</Button>
 			</div>
 		</div>

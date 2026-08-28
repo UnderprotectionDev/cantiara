@@ -11,6 +11,7 @@ import {
 } from "../forms/file-attachments-copy";
 import UploadFileForm from "../forms/upload-file-form";
 import FilePreview, { GalleryThumb } from "./file-preview";
+import { absoluteProductPath } from "./file-preview-presentation";
 
 const TRAILING_SLASH = /\/$/;
 
@@ -31,11 +32,17 @@ export default function FileAttachmentArea({
 	projectId: string | null;
 }) {
 	const scope = fileScopeFor(projectId);
+	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const files = useQuery(
 		orpc.fileAttachments.list.queryOptions({ input: { scope } })
 	);
+	const selectedFile = useQuery({
+		...orpc.fileAttachments.get.queryOptions({
+			input: { fileAttachmentId: selectedId ?? "" },
+		}),
+		enabled: Boolean(selectedId),
+	});
 	const quota = useQuery(orpc.fileAttachments.quota.queryOptions());
-	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const onCreated = useCallback((fileId: string) => {
 		setSelectedId(fileId);
 	}, []);
@@ -50,7 +57,7 @@ export default function FileAttachmentArea({
 		return <p role="alert">{PROJECT_SHELL_COPY.unavailable}</p>;
 	}
 
-	const selected = files.data.find((item) => item.id === selectedId) ?? null;
+	const selected = selectedFile.data ?? null;
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -63,12 +70,14 @@ export default function FileAttachmentArea({
 				{files.data.map((item) => (
 					<li key={item.id}>
 						<FileRow
-							contentPath={`${serverOrigin()}${item.contentPath}`}
-							galleryThumbnailPath={
-								item.currentVersion.preview.galleryThumbnailPath
-									? `${serverOrigin()}${item.currentVersion.preview.galleryThumbnailPath}`
-									: null
+							contentPath={
+								absoluteProductPath(serverOrigin(), item.contentPath) ??
+								item.contentPath
 							}
+							galleryThumbnailPath={absoluteProductPath(
+								serverOrigin(),
+								item.currentVersion.preview.galleryThumbnailPath
+							)}
 							id={item.id}
 							onSelect={onSelect}
 							selected={item.id === selectedId}
@@ -80,17 +89,21 @@ export default function FileAttachmentArea({
 			{selected ? (
 				<section aria-label={selected.title} className="flex flex-col gap-3">
 					<FilePreview
-						contentPath={`${serverOrigin()}${selected.contentPath}`}
+						contentPath={
+							absoluteProductPath(serverOrigin(), selected.contentPath) ??
+							selected.contentPath
+						}
 						kind={selected.kind}
 						preview={{
 							...selected.currentVersion.preview,
-							galleryThumbnailPath: selected.currentVersion.preview
-								.galleryThumbnailPath
-								? `${serverOrigin()}${selected.currentVersion.preview.galleryThumbnailPath}`
-								: null,
-							previewPath: selected.currentVersion.preview.previewPath
-								? `${serverOrigin()}${selected.currentVersion.preview.previewPath}`
-								: null,
+							galleryThumbnailPath: absoluteProductPath(
+								serverOrigin(),
+								selected.currentVersion.preview.galleryThumbnailPath
+							),
+							previewPath: absoluteProductPath(
+								serverOrigin(),
+								selected.currentVersion.preview.previewPath
+							),
 						}}
 						title={selected.title}
 					/>

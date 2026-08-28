@@ -362,7 +362,8 @@ async function previewViewFor(
 		previewDataWritten: boolean;
 		previewStatus: string;
 		previewSupportReference: string | null;
-	}
+	},
+	previewBody: boolean
 ): Promise<FilePreviewView> {
 	const mode = previewModeFor(version.kind);
 	const playback = playbackContractFor(version.kind);
@@ -385,7 +386,11 @@ async function previewViewFor(
 		status === PREVIEW_STATUS.ready && Boolean(small) && Boolean(medium);
 	let csvRows: string[][] | null = null;
 	let textExcerpt: string | null = null;
-	if (status === PREVIEW_STATUS.ready && version.kind === FILE_KIND.csv) {
+	if (
+		previewBody &&
+		status === PREVIEW_STATUS.ready &&
+		version.kind === FILE_KIND.csv
+	) {
 		const blob = await tx.fileObjectBlob.findUnique({
 			where: { objectKey: version.objectKey },
 		});
@@ -393,7 +398,11 @@ async function previewViewFor(
 			csvRows = boundedCsvRows(Uint8Array.from(blob.bytes));
 		}
 	}
-	if (status === PREVIEW_STATUS.ready && version.kind === FILE_KIND.text) {
+	if (
+		previewBody &&
+		status === PREVIEW_STATUS.ready &&
+		version.kind === FILE_KIND.text
+	) {
 		const blob = await tx.fileObjectBlob.findUnique({
 			where: { objectKey: version.objectKey },
 		});
@@ -428,7 +437,8 @@ async function previewViewFor(
 
 async function loadFileView(
 	tx: PrismaClient | PrismaTransaction,
-	id: string
+	id: string,
+	previewBody = true
 ): Promise<FileAttachmentView | null> {
 	const row = await tx.fileAttachment.findUnique({
 		include: {
@@ -454,7 +464,7 @@ async function loadFileView(
 		row.versions.map(async (version) =>
 			versionView(row.id, {
 				...version,
-				preview: await previewViewFor(tx, row.id, version),
+				preview: await previewViewFor(tx, row.id, version, previewBody),
 			})
 		)
 	);
@@ -561,7 +571,7 @@ export async function listFileAttachments(
 		},
 	});
 	const views = (
-		await Promise.all(rows.map((row) => loadFileView(prisma, row.id)))
+		await Promise.all(rows.map((row) => loadFileView(prisma, row.id, false)))
 	).filter((view): view is FileAttachmentView => view !== null);
 	return views;
 }

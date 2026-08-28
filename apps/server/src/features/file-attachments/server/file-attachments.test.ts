@@ -919,6 +919,16 @@ describe("File Attachments", () => {
 				})
 			).toBeNull();
 		}
+		const listed = await listFileAttachments(prisma, {
+			scope: { kind: "project", projectId: project.id },
+			workspaceId,
+		});
+		const csvList = listed.find((item) => item.kind === FILE_KIND.csv);
+		expect(csvList?.currentVersion.preview.csvRows).toBeNull();
+		const imageList = listed.find((item) => item.kind === FILE_KIND.image);
+		expect(imageList?.currentVersion.preview.galleryThumbnailPath).not.toBe(
+			imageList?.contentPath
+		);
 	});
 
 	it("derives Gallery thumbnails idempotently from the original fingerprint without EXIF or a second File Attachment", async () => {

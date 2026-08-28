@@ -29,8 +29,8 @@ export interface ImageDerivativeEngine {
 	produce: (bytes: Uint8Array) => Promise<DerivativeProduceResult>;
 }
 
-const GPS_MARKERS = ["GPSLatitude", "GPSLongitude", "GPSInfo", "GPS "];
-const DEVICE_MARKERS = ["Make", "Model", "iPhone", "Canon", "Nikon"];
+const GPS_MARKERS = ["GPSLatitude", "GPSLongitude", "GPSInfo"];
+const DEVICE_MARKERS = ["Apple iPhone", "iPhone"];
 
 export function derivativeContainsSensitiveExif(bytes: Uint8Array): boolean {
 	const ascii = Buffer.from(bytes).toString("latin1");
@@ -257,13 +257,28 @@ async function produceUntilReady(
 		};
 	}
 	const produced = await engine.produce(bytes);
-	if (produced.status === "ok") {
+	if (
+		produced.status === "ok" &&
+		!(
+			derivativeContainsSensitiveExif(produced.small) ||
+			derivativeContainsSensitiveExif(produced.medium)
+		)
+	) {
 		return {
 			attempts,
 			medium: produced.medium,
 			small: produced.small,
 			status: "ok",
 		};
+	}
+	if (produced.status === "ok") {
+		return await produceUntilReady(
+			engine,
+			bytes,
+			attempts + 1,
+			supportReference ?? previewSupportReference(),
+			"decode-limit"
+		);
 	}
 	return await produceUntilReady(
 		engine,
