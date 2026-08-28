@@ -1,8 +1,10 @@
 import type { PrismaClient } from "@cantiara/db";
 import { z } from "zod";
-
 import {
-	MUTATION_ACTOR,
+	lockMutation,
+	writeDurableReceipt,
+} from "../../mutation-core/server/durable-mutation";
+import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
@@ -551,33 +553,6 @@ async function readHumanReceipt(
 	return { kind: "replay" as const, resultValue: existing.resultValue };
 }
 
-async function writeHumanReceipt(
-	prisma: PrismaClient,
-	input: {
-		actorId: string;
-		commandKey: string;
-		kind: string;
-		payload: unknown;
-		resultValue: string;
-		targetId: string;
-	}
-) {
-	await prisma.mutationReceipt.create({
-		data: {
-			actorId: input.actorId,
-			actorType: MUTATION_ACTOR.user,
-			commandKey: input.commandKey,
-			committedRevision: 1,
-			id: crypto.randomUUID(),
-			kind: input.kind,
-			origin: "human",
-			payloadFingerprint: payloadFingerprint(input.payload),
-			resultValue: input.resultValue,
-			targetId: input.targetId,
-		},
-	});
-}
-
 function reviveItem(item: CaptureInboxItemView): CaptureInboxItemView {
 	return {
 		...item,
@@ -783,17 +758,6 @@ export function createTriageExits(ctx: TriageExitsContext) {
 			if (!bound) {
 				return { status: "not-found" };
 			}
-			await ctx.prisma.captureInboxItem.update({
-				data: {
-					consumedAt: ctx.clock.now(),
-					consumedAttributedText: JSON.stringify(attributed),
-					consumedExit: "attach",
-					consumedMergeId: mergeId,
-					consumedRelation: input.relation,
-					consumedTargetId: target.id,
-				},
-				where: { id: item.id },
-			});
 			const outcome: AttachOutcome = {
 				bind: {
 					fields: attributed,
@@ -805,13 +769,30 @@ export function createTriageExits(ctx: TriageExitsContext) {
 				mergeId,
 				status: "consumed",
 			};
-			await writeHumanReceipt(ctx.prisma, {
-				actorId: ctx.actorId,
-				commandKey: input.idempotencyKey,
-				kind: "attach",
-				payload,
-				resultValue: JSON.stringify(outcome),
-				targetId: item.id,
+			await ctx.prisma.$transaction(async (tx) => {
+				await lockMutation(tx, `capture-item:${item.id}`);
+				const updated = await tx.captureInboxItem.updateMany({
+					data: {
+						consumedAt: ctx.clock.now(),
+						consumedAttributedText: JSON.stringify(attributed),
+						consumedExit: "attach",
+						consumedMergeId: mergeId,
+						consumedRelation: input.relation,
+						consumedTargetId: target.id,
+					},
+					where: { consumedAt: null, id: item.id },
+				});
+				if (updated.count !== 1) {
+					throw new Error("capture-already-consumed");
+				}
+				await writeDurableReceipt(tx, {
+					actorId: ctx.actorId,
+					commandKey: input.idempotencyKey,
+					kind: "attach",
+					payload,
+					resultValue: JSON.stringify(outcome),
+					targetId: item.id,
+				});
 			});
 			return outcome;
 		},
@@ -864,14 +845,6 @@ export function createTriageExits(ctx: TriageExitsContext) {
 				return created.outcome;
 			}
 			await ctx.deleteStaging(item.id);
-			await ctx.prisma.captureInboxItem.update({
-				data: {
-					consumedAt: ctx.clock.now(),
-					consumedExit: "convert",
-					consumedTargetKind: input.targetKind,
-				},
-				where: { id: item.id },
-			});
 			const outcome: ConvertOutcome = {
 				exit: "convert",
 				inboxItem: null,
@@ -880,13 +853,27 @@ export function createTriageExits(ctx: TriageExitsContext) {
 				status: "consumed",
 				visibleAttachment: null,
 			};
-			await writeHumanReceipt(ctx.prisma, {
-				actorId: ctx.actorId,
-				commandKey: input.idempotencyKey,
-				kind: "convert",
-				payload,
-				resultValue: JSON.stringify(outcome),
-				targetId: item.id,
+			await ctx.prisma.$transaction(async (tx) => {
+				await lockMutation(tx, `capture-item:${item.id}`);
+				const updated = await tx.captureInboxItem.updateMany({
+					data: {
+						consumedAt: ctx.clock.now(),
+						consumedExit: "convert",
+						consumedTargetKind: input.targetKind,
+					},
+					where: { consumedAt: null, id: item.id },
+				});
+				if (updated.count !== 1) {
+					throw new Error("capture-already-consumed");
+				}
+				await writeDurableReceipt(tx, {
+					actorId: ctx.actorId,
+					commandKey: input.idempotencyKey,
+					kind: "convert",
+					payload,
+					resultValue: JSON.stringify(outcome),
+					targetId: item.id,
+				});
 			});
 			return outcome;
 		},
@@ -913,20 +900,23 @@ export function createTriageExits(ctx: TriageExitsContext) {
 			if (!row) {
 				return { status: "not-found" };
 			}
-			await ctx.deleteStaging(row.id);
-			await ctx.prisma.captureInboxItem.delete({ where: { id: row.id } });
 			const outcome: DeleteOutcome = {
 				exit: "delete",
 				inboxItem: null,
 				status: "consumed",
 			};
-			await writeHumanReceipt(ctx.prisma, {
-				actorId: ctx.actorId,
-				commandKey: input.idempotencyKey,
-				kind: "delete",
-				payload,
-				resultValue: JSON.stringify(outcome),
-				targetId: row.id,
+			await ctx.prisma.$transaction(async (tx) => {
+				await lockMutation(tx, `capture-item:${row.id}`);
+				await ctx.deleteStaging(row.id);
+				await tx.captureInboxItem.delete({ where: { id: row.id } });
+				await writeDurableReceipt(tx, {
+					actorId: ctx.actorId,
+					commandKey: input.idempotencyKey,
+					kind: "delete",
+					payload,
+					resultValue: JSON.stringify(outcome),
+					targetId: row.id,
+				});
 			});
 			return outcome;
 		},
@@ -1032,30 +1022,39 @@ export function createTriageExits(ctx: TriageExitsContext) {
 				return { status: "not-found" };
 			}
 			ctx.binder.unbind(input.mergeId);
-			const restored = await ctx.prisma.captureInboxItem.update({
-				data: {
-					consumedAt: null,
-					consumedAttributedText: "{}",
-					consumedExit: null,
-					consumedMergeId: null,
-					consumedRelation: null,
-					consumedTargetId: null,
-				},
-				where: { id: row.id },
+			const restored = await ctx.prisma.$transaction(async (tx) => {
+				await lockMutation(tx, `capture-item:${row.id}`);
+				const restoredRow = await tx.captureInboxItem.update({
+					data: {
+						consumedAt: null,
+						consumedAttributedText: "{}",
+						consumedExit: null,
+						consumedMergeId: null,
+						consumedRelation: null,
+						consumedTargetId: null,
+					},
+					where: { id: row.id },
+				});
+				const inboxItem = ctx.toItemView(restoredRow);
+				const outcome: UndoMergeOutcome = {
+					inboxItem,
+					status: "restored",
+				};
+				await writeDurableReceipt(tx, {
+					actorId: ctx.actorId,
+					commandKey: input.idempotencyKey,
+					kind: "undo-merge",
+					payload,
+					resultValue: JSON.stringify(outcome),
+					targetId: row.id,
+				});
+				return restoredRow;
 			});
 			const inboxItem = ctx.toItemView(restored);
 			const outcome: UndoMergeOutcome = {
 				inboxItem,
 				status: "restored",
 			};
-			await writeHumanReceipt(ctx.prisma, {
-				actorId: ctx.actorId,
-				commandKey: input.idempotencyKey,
-				kind: "undo-merge",
-				payload,
-				resultValue: JSON.stringify(outcome),
-				targetId: row.id,
-			});
 			return outcome;
 		},
 	};

@@ -35,6 +35,8 @@ const DATABASE_URL =
 const SAVED_AT = new Date("2026-08-27T12:00:00.000Z");
 const NINETY_DAYS_LATER = new Date("2026-11-25T12:00:00.000Z");
 const WORK_KEY_PATTERN = /^[A-Z]+-\d+$/;
+const CONCURRENT_SAVE_TITLE_PATTERN =
+	/^First concurrent save|Second concurrent save$/;
 
 describe("Work Drafts catalog", () => {
 	it("exposes English Draft and Drafts without a custom-field schema", () => {
@@ -448,6 +450,55 @@ describe("Work Drafts", () => {
 			reason: MUTATION_COPY.conflict,
 			status: "conflict",
 		});
+	});
+
+	it("serializes concurrent autosaves so the draft remains a complete form", async () => {
+		const surface = drafts();
+		const saved = await surface.autosave({
+			form: {
+				customFieldValues: {},
+				projectId: null,
+				title: "Initial",
+				type: "Task",
+			},
+			idempotencyKey: crypto.randomUUID(),
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved Draft");
+		}
+		const [first, second] = await Promise.all([
+			surface.autosave({
+				draftId: saved.draft.id,
+				form: {
+					customFieldValues: { source: "first" },
+					projectId: null,
+					title: "First concurrent save",
+					type: "Bug",
+				},
+				idempotencyKey: crypto.randomUUID(),
+			}),
+			surface.autosave({
+				draftId: saved.draft.id,
+				form: {
+					customFieldValues: { source: "second" },
+					projectId: null,
+					title: "Second concurrent save",
+					type: "Research",
+				},
+				idempotencyKey: crypto.randomUUID(),
+			}),
+		]);
+
+		expect(first.status).toBe("saved");
+		expect(second.status).toBe("saved");
+		const current = await surface.resume(saved.draft.id);
+		expect(current?.form.title).toMatch(CONCURRENT_SAVE_TITLE_PATTERN);
+		expect(current?.form.customFieldValues).toEqual(
+			current?.form.title === "First concurrent save"
+				? { source: "first" }
+				: { source: "second" }
+		);
+		expect(await surface.list()).toHaveLength(1);
 	});
 
 	it("shows Last saved and unsaved risk on disconnect with no queue row", async () => {

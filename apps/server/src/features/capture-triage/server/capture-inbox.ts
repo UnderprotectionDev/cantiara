@@ -4,7 +4,12 @@ import { promoteCaptureAttachment } from "../../file-attachments/server/file-att
 import { createPrismaCaptureStagingSource } from "../../file-attachments/server/file-attachments-capture-staging";
 import { FILE_SCOPE_KIND } from "../../file-attachments/server/file-attachments-model";
 import {
-	MUTATION_ACTOR,
+	lockMutation,
+	type MutationDb,
+	readDurableReceipt,
+	writeDurableReceipt,
+} from "../../mutation-core/server/durable-mutation";
+import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
@@ -294,50 +299,6 @@ function reviveCreateBugOutcome(outcome: CreateBugOutcome): CreateBugOutcome {
 	};
 }
 
-async function readHumanReceipt(
-	prisma: PrismaClient,
-	commandKey: string,
-	payload: unknown
-) {
-	const existing = await prisma.mutationReceipt.findUnique({
-		where: { commandKey },
-	});
-	if (!existing) {
-		return null;
-	}
-	if (existing.payloadFingerprint !== payloadFingerprint(payload)) {
-		return { kind: "conflict" as const };
-	}
-	return { kind: "replay" as const, resultValue: existing.resultValue };
-}
-
-async function writeHumanReceipt(
-	prisma: PrismaClient,
-	input: {
-		actorId: string;
-		commandKey: string;
-		kind: string;
-		payload: unknown;
-		resultValue: string;
-		targetId: string;
-	}
-) {
-	await prisma.mutationReceipt.create({
-		data: {
-			actorId: input.actorId,
-			actorType: MUTATION_ACTOR.user,
-			commandKey: input.commandKey,
-			committedRevision: 1,
-			id: crypto.randomUUID(),
-			kind: input.kind,
-			origin: "human",
-			payloadFingerprint: payloadFingerprint(input.payload),
-			resultValue: input.resultValue,
-			targetId: input.targetId,
-		},
-	});
-}
-
 function openItemWhere(workspaceId: string) {
 	return {
 		consumedAt: null,
@@ -377,7 +338,7 @@ function saveCommandPayload(
 const STAGING_INCLUDE = { staging: true } as const;
 
 async function resolveCaptureProjectId(
-	prisma: PrismaClient,
+	prisma: MutationDb,
 	workspaceId: string,
 	projectId: string | null | undefined
 ): Promise<string | null> {
@@ -395,7 +356,7 @@ async function resolveCaptureProjectId(
 }
 
 async function insertCaptureItem(
-	prisma: PrismaClient,
+	prisma: MutationDb,
 	input: {
 		actorId: string;
 		capturedAt: Date;
@@ -446,11 +407,10 @@ function stagingRootKey(secret?: string): Buffer {
 async function persistStaging(input: {
 	attachment: CaptureAttachmentInput;
 	inboxItemId: string;
-	prisma: PrismaClient;
 	rootKey: Uint8Array;
 	store: CaptureStagingStore;
 	workspaceId: string;
-}): Promise<CaptureAttachmentView> {
+}): Promise<{ attachment: CaptureAttachmentView; stagingId: string }> {
 	const sealed = envelopeSeal(input.attachment.bytes, input.rootKey);
 	const stagingId = crypto.randomUUID();
 	await input.store.put({
@@ -464,14 +424,13 @@ async function persistStaging(input: {
 		workspaceId: input.workspaceId,
 		wrappedDek: sealed.wrappedDek,
 	});
-	await input.prisma.captureInboxItem.update({
-		data: { attachmentRef: stagingId },
-		where: { id: input.inboxItemId },
-	});
 	return {
-		filename: input.attachment.filename,
-		itemId: input.inboxItemId,
-		kind: "capture-attachment",
+		attachment: {
+			filename: input.attachment.filename,
+			itemId: input.inboxItemId,
+			kind: "capture-attachment",
+		},
+		stagingId,
 	};
 }
 
@@ -771,7 +730,7 @@ export function createCaptureInbox(input: {
 				template: command.template ?? "",
 				text: command.text ?? "",
 			};
-			const existing = await readHumanReceipt(
+			const existing = await readDurableReceipt(
 				input.prisma,
 				command.idempotencyKey,
 				payload
@@ -800,16 +759,42 @@ export function createCaptureInbox(input: {
 				status: "handed-off",
 				workCreate: workCreateResult,
 			};
-			await writeHumanReceipt(input.prisma, {
-				actorId: input.actorId,
-				commandKey: command.idempotencyKey,
-				kind: "create-bug",
-				payload,
-				resultValue: JSON.stringify(outcome),
-				targetId: command.projectId,
+			const committedOutcome = await input.prisma.$transaction(async (tx) => {
+				await lockMutation(
+					tx,
+					`capture-create-bug:${input.actorId}:${command.idempotencyKey}`
+				);
+				const receipt = await readDurableReceipt(
+					tx,
+					command.idempotencyKey,
+					payload
+				);
+				if (receipt?.kind === "conflict") {
+					return {
+						reason: MUTATION_COPY.conflict,
+						status: "conflict",
+					} as const;
+				}
+				if (receipt?.kind === "replay") {
+					return reviveCreateBugOutcome(
+						JSON.parse(receipt.resultValue) as CreateBugOutcome
+					);
+				}
+				await writeDurableReceipt(tx, {
+					actorId: input.actorId,
+					commandKey: command.idempotencyKey,
+					kind: "create-bug",
+					payload,
+					resultValue: JSON.stringify(outcome),
+					targetId: command.projectId,
+				});
+				return outcome;
 			});
+			if (committedOutcome.status === "conflict") {
+				return committedOutcome;
+			}
 			lastSuccessfulSaveAt = savedAt;
-			return outcome;
+			return committedOutcome;
 		},
 		deleteItem: async (command) =>
 			dropLayoutIfConsumed(
@@ -873,7 +858,7 @@ export function createCaptureInbox(input: {
 				return { queued: false, reason: "offline", status: "refused" };
 			}
 			const payload = saveCommandPayload(command);
-			const existing = await readHumanReceipt(
+			const existing = await readDurableReceipt(
 				input.prisma,
 				command.idempotencyKey,
 				payload
@@ -887,20 +872,50 @@ export function createCaptureInbox(input: {
 				);
 			}
 			const capturedAt = clock.now();
-			let item = await insertCaptureItem(input.prisma, {
-				actorId: input.actorId,
-				capturedAt,
-				command,
-				workspaceId: input.workspaceId,
+			let stagedAttachment: {
+				attachment: CaptureAttachmentView;
+				stagingId: string;
+			} | null = null;
+			let item = await input.prisma.$transaction(async (tx) => {
+				await lockMutation(
+					tx,
+					`capture-save:${input.actorId}:${command.idempotencyKey}`
+				);
+				const created = await insertCaptureItem(tx, {
+					actorId: input.actorId,
+					capturedAt,
+					command,
+					workspaceId: input.workspaceId,
+				});
+				if (!command.attachment) {
+					const outcome: SaveCaptureOutcome = {
+						item: created,
+						lastSuccessfulSaveAt: capturedAt,
+						mainRecord: null,
+						status: "saved",
+					};
+					await writeDurableReceipt(tx, {
+						actorId: input.actorId,
+						commandKey: command.idempotencyKey,
+						kind: "save",
+						payload,
+						resultValue: JSON.stringify(outcome),
+						targetId: created.id,
+					});
+				}
+				return created;
 			});
 			if (command.attachment) {
-				await persistStaging({
+				stagedAttachment = await persistStaging({
 					attachment: command.attachment,
 					inboxItemId: item.id,
-					prisma: input.prisma,
 					rootKey,
 					store,
 					workspaceId: input.workspaceId,
+				});
+				await input.prisma.captureInboxItem.update({
+					data: { attachmentRef: stagedAttachment.stagingId },
+					where: { id: item.id },
 				});
 				const reloaded = await loadItemView(input.prisma, {
 					itemId: item.id,
@@ -916,14 +931,37 @@ export function createCaptureInbox(input: {
 				mainRecord: null,
 				status: "saved",
 			};
-			await writeHumanReceipt(input.prisma, {
-				actorId: input.actorId,
-				commandKey: command.idempotencyKey,
-				kind: "save",
-				payload,
-				resultValue: JSON.stringify(outcome),
-				targetId: item.id,
-			});
+			if (command.attachment) {
+				if (!stagedAttachment) {
+					throw new Error("Capture attachment staging did not complete");
+				}
+				await input.prisma.$transaction(async (tx) => {
+					await lockMutation(
+						tx,
+						`capture-save:${input.actorId}:${command.idempotencyKey}`
+					);
+					const receipt = await readDurableReceipt(
+						tx,
+						command.idempotencyKey,
+						payload
+					);
+					if (receipt) {
+						return;
+					}
+					await tx.captureInboxItem.update({
+						data: { attachmentRef: stagedAttachment.stagingId },
+						where: { id: item.id },
+					});
+					await writeDurableReceipt(tx, {
+						actorId: input.actorId,
+						commandKey: command.idempotencyKey,
+						kind: "save",
+						payload,
+						resultValue: JSON.stringify(outcome),
+						targetId: item.id,
+					});
+				});
+			}
 			lastSuccessfulSaveAt = capturedAt;
 			return outcome;
 		},
@@ -947,7 +985,7 @@ export function createCaptureInbox(input: {
 				attachment: attachmentFingerprint(command.attachment),
 				itemId: command.itemId,
 			};
-			const existing = await readHumanReceipt(
+			const existing = await readDurableReceipt(
 				input.prisma,
 				command.idempotencyKey,
 				payload
@@ -973,30 +1011,62 @@ export function createCaptureInbox(input: {
 			if (!open) {
 				return { status: "not-found" };
 			}
-			const attachment = await persistStaging({
+			const staged = await persistStaging({
 				attachment: command.attachment,
 				inboxItemId: command.itemId,
-				prisma: input.prisma,
 				rootKey,
 				store,
 				workspaceId: input.workspaceId,
 			});
 			const savedAt = clock.now();
 			const outcome = {
-				attachment,
+				attachment: staged.attachment,
 				lastSuccessfulSaveAt: savedAt,
 				status: "staged" as const,
 			};
-			await writeHumanReceipt(input.prisma, {
-				actorId: input.actorId,
-				commandKey: command.idempotencyKey,
-				kind: "stage-attachment",
-				payload,
-				resultValue: JSON.stringify(outcome),
-				targetId: command.itemId,
+			const committedOutcome = await input.prisma.$transaction(async (tx) => {
+				await lockMutation(
+					tx,
+					`capture-stage-attachment:${input.workspaceId}:${command.itemId}`
+				);
+				const receipt = await readDurableReceipt(
+					tx,
+					command.idempotencyKey,
+					payload
+				);
+				if (receipt?.kind === "conflict") {
+					return {
+						reason: MUTATION_COPY.conflict,
+						status: "conflict",
+					} as const;
+				}
+				if (receipt?.kind === "replay") {
+					const replayed = JSON.parse(receipt.resultValue) as {
+						attachment: CaptureAttachmentView;
+						lastSuccessfulSaveAt: Date | string;
+						status: "staged";
+					};
+					return {
+						...replayed,
+						lastSuccessfulSaveAt: reviveDate(replayed.lastSuccessfulSaveAt),
+					};
+				}
+				await tx.captureInboxItem.update({
+					data: { attachmentRef: staged.stagingId },
+					where: { id: command.itemId },
+				});
+				await writeDurableReceipt(tx, {
+					actorId: input.actorId,
+					commandKey: command.idempotencyKey,
+					kind: "stage-attachment",
+					payload,
+					resultValue: JSON.stringify(outcome),
+					targetId: command.itemId,
+				});
+				return outcome;
 			});
 			lastSuccessfulSaveAt = savedAt;
-			return outcome;
+			return committedOutcome;
 		},
 		stageWebCapture: webCapture.stageWebCapture,
 		async startSequentialTriage(command = {}) {

@@ -6,6 +6,7 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.projectSkeletonSelection?.findMany === "function" &&
 		typeof client.captureExtensionLink?.findMany === "function" &&
 		typeof client.captureStagingObject?.findMany === "function" &&
+		typeof client.captureBulkSenseView?.findMany === "function" &&
 		typeof client.work?.findMany === "function" &&
 		typeof client.work?.create === "function" &&
 		typeof client.workLifecycleEvent?.findMany === "function" &&
@@ -28,6 +29,13 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.workDraft?.findMany === "function" &&
 		typeof client.workDraft?.create === "function" &&
 		typeof client.fileAttachment?.findMany === "function" &&
+		typeof client.fileAttachmentVersion?.findMany === "function" &&
+		typeof client.fileAttachmentVersionPin?.findMany === "function" &&
+		typeof client.fileAttachmentRelation?.findMany === "function" &&
+		typeof client.fileAttachmentOriginLocation?.findMany === "function" &&
+		typeof client.fileAttachmentStaging?.findMany === "function" &&
+		typeof client.fileAttachmentReceipt?.findMany === "function" &&
+		typeof client.fileObjectBlob?.findMany === "function" &&
 		typeof client.fileImageDerivative?.findMany === "function"
 	);
 }

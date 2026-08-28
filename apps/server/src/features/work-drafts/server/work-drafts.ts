@@ -1,10 +1,10 @@
 import type { PrismaClient } from "@cantiara/db";
-
 import {
-	MUTATION_ACTOR,
-	MUTATION_COPY,
-	payloadFingerprint,
-} from "../../mutation-core/server/mutation-shared";
+	lockMutation,
+	readDurableReceipt,
+	writeDurableReceipt,
+} from "../../mutation-core/server/durable-mutation";
+import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import { finalizeDraft } from "../../work-lifecycle/server/work-lifecycle";
 import type { WorkLifecycleOutcome } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
@@ -138,50 +138,6 @@ function reviveAutosave(outcome: AutosaveDraftOutcome): AutosaveDraftOutcome {
 	};
 }
 
-async function readHumanReceipt(
-	prisma: PrismaClient,
-	commandKey: string,
-	payload: unknown
-) {
-	const existing = await prisma.mutationReceipt.findUnique({
-		where: { commandKey },
-	});
-	if (!existing) {
-		return null;
-	}
-	if (existing.payloadFingerprint !== payloadFingerprint(payload)) {
-		return { kind: "conflict" as const };
-	}
-	return { kind: "replay" as const, resultValue: existing.resultValue };
-}
-
-async function writeHumanReceipt(
-	prisma: PrismaClient,
-	input: {
-		actorId: string;
-		commandKey: string;
-		kind: string;
-		payload: unknown;
-		resultValue: string;
-		targetId: string;
-	}
-) {
-	await prisma.mutationReceipt.create({
-		data: {
-			actorId: input.actorId,
-			actorType: MUTATION_ACTOR.user,
-			commandKey: input.commandKey,
-			committedRevision: 1,
-			id: crypto.randomUUID(),
-			kind: input.kind,
-			origin: "human",
-			payloadFingerprint: payloadFingerprint(input.payload),
-			resultValue: input.resultValue,
-			targetId: input.targetId,
-		},
-	});
-}
-
 function toView(row: {
 	customFieldValuesText: string;
 	id: string;
@@ -308,7 +264,7 @@ export function createWorkDrafts(input: {
 			draftId: command.draftId ?? "",
 			form,
 		};
-		const existing = await readHumanReceipt(
+		const existing = await readDurableReceipt(
 			input.prisma,
 			command.idempotencyKey,
 			payload
@@ -348,7 +304,7 @@ export function createWorkDrafts(input: {
 			work: created.work,
 		};
 		lastSuccessfulSaveAt = now;
-		await writeHumanReceipt(input.prisma, {
+		await writeDurableReceipt(input.prisma, {
 			actorId: input.actorId,
 			commandKey: command.idempotencyKey,
 			kind: "work-draft-finalize",
@@ -367,86 +323,94 @@ export function createWorkDrafts(input: {
 			if (!online) {
 				return { queued: false, reason: "offline", status: "refused" };
 			}
-			const form = workDraftFormSchema.parse(command.form);
-			const payload = {
-				draftId: command.draftId ?? "",
-				form,
-			};
-			const existing = await readHumanReceipt(
-				input.prisma,
-				command.idempotencyKey,
-				payload
-			);
-			if (existing?.kind === "conflict") {
-				return { reason: MUTATION_COPY.conflict, status: "conflict" };
-			}
-			if (existing?.kind === "replay") {
-				return reviveAutosave(
-					JSON.parse(existing.resultValue) as AutosaveDraftOutcome
-				);
-			}
-			const savedAt = now;
-			let row: {
-				customFieldValuesText: string;
-				id: string;
-				projectId: string | null;
-				title: string;
-				type: string;
-				updatedAt: Date;
-			};
-			if (command.draftId) {
-				const current = await input.prisma.workDraft.findFirst({
-					where: {
-						...ownerWhere(input.workspaceId, input.actorId),
-						id: command.draftId,
-					},
-				});
-				if (!current) {
-					return { status: "not-found" };
+			return await input.prisma.$transaction(
+				async (tx): Promise<AutosaveDraftOutcome> => {
+					await lockMutation(
+						tx,
+						`work-draft:${command.draftId ?? `new:${input.actorId}`}`
+					);
+					const form = workDraftFormSchema.parse(command.form);
+					const payload = {
+						draftId: command.draftId ?? "",
+						form,
+					};
+					const existing = await readDurableReceipt(
+						tx,
+						command.idempotencyKey,
+						payload
+					);
+					if (existing?.kind === "conflict") {
+						return { reason: MUTATION_COPY.conflict, status: "conflict" };
+					}
+					if (existing?.kind === "replay") {
+						return reviveAutosave(
+							JSON.parse(existing.resultValue) as AutosaveDraftOutcome
+						);
+					}
+					const savedAt = now;
+					let row: {
+						customFieldValuesText: string;
+						id: string;
+						projectId: string | null;
+						title: string;
+						type: string;
+						updatedAt: Date;
+					};
+					if (command.draftId) {
+						const current = await tx.workDraft.findFirst({
+							where: {
+								...ownerWhere(input.workspaceId, input.actorId),
+								id: command.draftId,
+							},
+						});
+						if (!current) {
+							return { status: "not-found" };
+						}
+						row = await tx.workDraft.update({
+							data: {
+								customFieldValuesText: JSON.stringify(form.customFieldValues),
+								projectId: form.projectId,
+								title: form.title,
+								type: form.type,
+								updatedAt: savedAt,
+							},
+							where: { id: current.id },
+						});
+					} else {
+						row = await tx.workDraft.create({
+							data: {
+								customFieldValuesText: JSON.stringify(form.customFieldValues),
+								id: crypto.randomUUID(),
+								ownerId: input.actorId,
+								projectId: form.projectId,
+								title: form.title,
+								type: form.type,
+								updatedAt: savedAt,
+								workspaceId: input.workspaceId,
+							},
+						});
+					}
+					const draft = toView(row);
+					knownIds.add(draft.id);
+					const outcome: AutosaveDraftOutcome = {
+						draft,
+						lastSuccessfulSaveAt: savedAt,
+						mainRecord: null,
+						status: "saved",
+					};
+					lastSuccessfulSaveAt = savedAt;
+					lastSavedDraftId = draft.id;
+					await writeDurableReceipt(tx, {
+						actorId: input.actorId,
+						commandKey: command.idempotencyKey,
+						kind: "work-draft-autosave",
+						payload,
+						resultValue: JSON.stringify(outcome),
+						targetId: draft.id,
+					});
+					return outcome;
 				}
-				row = await input.prisma.workDraft.update({
-					data: {
-						customFieldValuesText: JSON.stringify(form.customFieldValues),
-						projectId: form.projectId,
-						title: form.title,
-						type: form.type,
-						updatedAt: savedAt,
-					},
-					where: { id: current.id },
-				});
-			} else {
-				row = await input.prisma.workDraft.create({
-					data: {
-						customFieldValuesText: JSON.stringify(form.customFieldValues),
-						id: crypto.randomUUID(),
-						ownerId: input.actorId,
-						projectId: form.projectId,
-						title: form.title,
-						type: form.type,
-						updatedAt: savedAt,
-						workspaceId: input.workspaceId,
-					},
-				});
-			}
-			const draft = toView(row);
-			knownIds.add(draft.id);
-			const outcome: AutosaveDraftOutcome = {
-				draft,
-				lastSuccessfulSaveAt: savedAt,
-				mainRecord: null,
-				status: "saved",
-			};
-			lastSuccessfulSaveAt = savedAt;
-			lastSavedDraftId = draft.id;
-			await writeHumanReceipt(input.prisma, {
-				actorId: input.actorId,
-				commandKey: command.idempotencyKey,
-				kind: "work-draft-autosave",
-				payload,
-				resultValue: JSON.stringify(outcome),
-				targetId: draft.id,
-			});
-			return outcome;
+			);
 		},
 		backlogRows() {
 			return [];
@@ -462,38 +426,44 @@ export function createWorkDrafts(input: {
 				return { queued: false, reason: "offline", status: "refused" };
 			}
 			const payload = { draftId: command.draftId };
-			const existing = await readHumanReceipt(
-				input.prisma,
-				command.idempotencyKey,
-				payload
+			const result = await input.prisma.$transaction(
+				async (tx): Promise<DeleteDraftOutcome> => {
+					await lockMutation(tx, `work-draft:${command.draftId}`);
+					const existing = await readDurableReceipt(
+						tx,
+						command.idempotencyKey,
+						payload
+					);
+					if (existing?.kind === "conflict") {
+						return { reason: MUTATION_COPY.conflict, status: "conflict" };
+					}
+					if (existing?.kind === "replay") {
+						return JSON.parse(existing.resultValue) as DeleteDraftOutcome;
+					}
+					const current = await tx.workDraft.findFirst({
+						where: {
+							...ownerWhere(input.workspaceId, input.actorId),
+							id: command.draftId,
+						},
+					});
+					if (!current) {
+						return { status: "not-found" };
+					}
+					await tx.workDraft.delete({ where: { id: current.id } });
+					knownIds.delete(current.id);
+					const outcome: DeleteDraftOutcome = { status: "deleted" };
+					await writeDurableReceipt(tx, {
+						actorId: input.actorId,
+						commandKey: command.idempotencyKey,
+						kind: "work-draft-delete",
+						payload,
+						resultValue: JSON.stringify(outcome),
+						targetId: current.id,
+					});
+					return outcome;
+				}
 			);
-			if (existing?.kind === "conflict") {
-				return { reason: MUTATION_COPY.conflict, status: "conflict" };
-			}
-			if (existing?.kind === "replay") {
-				return JSON.parse(existing.resultValue) as DeleteDraftOutcome;
-			}
-			const current = await input.prisma.workDraft.findFirst({
-				where: {
-					...ownerWhere(input.workspaceId, input.actorId),
-					id: command.draftId,
-				},
-			});
-			if (!current) {
-				return { status: "not-found" };
-			}
-			await input.prisma.workDraft.delete({ where: { id: current.id } });
-			knownIds.delete(current.id);
-			const outcome: DeleteDraftOutcome = { status: "deleted" };
-			await writeHumanReceipt(input.prisma, {
-				actorId: input.actorId,
-				commandKey: command.idempotencyKey,
-				kind: "work-draft-delete",
-				payload,
-				resultValue: JSON.stringify(outcome),
-				targetId: current.id,
-			});
-			return outcome;
+			return result;
 		},
 		disconnectChrome(hasUnsavedChanges) {
 			if (online) {

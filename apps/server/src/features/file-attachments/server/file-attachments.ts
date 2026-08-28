@@ -1050,8 +1050,16 @@ export async function finalizeFileUpload(
 			}
 		}
 		return outcome;
-	} catch {
-		return { reason: "bytes-incomplete", status: "rejected" };
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			(error.message === "promote-failed" ||
+				error.message === "target-missing" ||
+				error.message === "visible-file-missing")
+		) {
+			return { reason: "bytes-incomplete", status: "rejected" };
+		}
+		throw error;
 	}
 }
 
@@ -1240,42 +1248,56 @@ export async function pinFileVersion(
 		versionId: string;
 	}
 ): Promise<FileAttachmentView | null> {
-	const version = await prisma.fileAttachmentVersion.findUnique({
-		where: { id: input.versionId },
+	return await prisma.$transaction(async (tx) => {
+		const version = await tx.fileAttachmentVersion.findUnique({
+			where: { id: input.versionId },
+		});
+		if (!version) {
+			return null;
+		}
+		await lockWorkspaceCommand(
+			tx,
+			version.fileAttachmentId,
+			`pin:${input.kind}:${input.targetId}`
+		);
+		await tx.fileAttachmentVersionPin.create({
+			data: {
+				id: crypto.randomUUID(),
+				kind: input.kind,
+				targetId: input.targetId,
+				versionId: version.id,
+			},
+		});
+		return await loadFileView(tx, version.fileAttachmentId);
 	});
-	if (!version) {
-		return null;
-	}
-	await prisma.fileAttachmentVersionPin.create({
-		data: {
-			id: crypto.randomUUID(),
-			kind: input.kind,
-			targetId: input.targetId,
-			versionId: version.id,
-		},
-	});
-	return await loadFileView(prisma, version.fileAttachmentId);
 }
 
 export async function relateFileAttachment(
 	prisma: PrismaClient,
 	input: { fileAttachmentId: string; kind: string; targetId: string }
 ): Promise<FileAttachmentView | null> {
-	const file = await prisma.fileAttachment.findUnique({
-		where: { id: input.fileAttachmentId },
+	return await prisma.$transaction(async (tx) => {
+		const file = await tx.fileAttachment.findUnique({
+			where: { id: input.fileAttachmentId },
+		});
+		if (!file) {
+			return null;
+		}
+		await lockWorkspaceCommand(
+			tx,
+			file.id,
+			`relation:${input.kind}:${input.targetId}`
+		);
+		await tx.fileAttachmentRelation.create({
+			data: {
+				fromId: file.id,
+				id: crypto.randomUUID(),
+				kind: input.kind,
+				targetId: input.targetId,
+			},
+		});
+		return await loadFileView(tx, file.id);
 	});
-	if (!file) {
-		return null;
-	}
-	await prisma.fileAttachmentRelation.create({
-		data: {
-			fromId: file.id,
-			id: crypto.randomUUID(),
-			kind: input.kind,
-			targetId: input.targetId,
-		},
-	});
-	return await loadFileView(prisma, file.id);
 }
 
 export async function listFileAttachmentRelations(
@@ -1293,11 +1315,14 @@ export async function setFileLifecycle(
 	prisma: PrismaClient,
 	input: { fileAttachmentId: string; lifecycle: FileLifecycle }
 ): Promise<FileAttachmentView | null> {
-	const updated = await prisma.fileAttachment.update({
-		data: { lifecycle: input.lifecycle, revision: { increment: 1 } },
-		where: { id: input.fileAttachmentId },
+	return await prisma.$transaction(async (tx) => {
+		await lockWorkspaceCommand(tx, input.fileAttachmentId, "lifecycle");
+		const updated = await tx.fileAttachment.update({
+			data: { lifecycle: input.lifecycle, revision: { increment: 1 } },
+			where: { id: input.fileAttachmentId },
+		});
+		return await loadFileView(tx, updated.id);
 	});
-	return await loadFileView(prisma, updated.id);
 }
 
 export async function permanentlyDeleteFileAttachment(

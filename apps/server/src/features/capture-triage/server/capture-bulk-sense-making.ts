@@ -1,11 +1,12 @@
 import type { PrismaClient } from "@cantiara/db";
 import { z } from "zod";
-
 import {
-	MUTATION_ACTOR,
-	MUTATION_COPY,
-	payloadFingerprint,
-} from "../../mutation-core/server/mutation-shared";
+	lockMutation,
+	type MutationDb,
+	readDurableReceipt,
+	writeDurableReceipt,
+} from "../../mutation-core/server/durable-mutation";
+import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import {
 	type BulkClusterView,
 	type BulkPlacementView,
@@ -52,54 +53,10 @@ function toClusterView(cluster: { id: string; name: string }): BulkClusterView {
 	};
 }
 
-async function readHumanReceipt(
-	prisma: PrismaClient,
-	commandKey: string,
-	payload: unknown
-) {
-	const existing = await prisma.mutationReceipt.findUnique({
-		where: { commandKey },
-	});
-	if (!existing) {
-		return null;
-	}
-	if (existing.payloadFingerprint !== payloadFingerprint(payload)) {
-		return { kind: "conflict" as const };
-	}
-	return { kind: "replay" as const, resultValue: existing.resultValue };
-}
-
-async function writeHumanReceipt(
-	prisma: PrismaClient,
-	input: {
-		actorId: string;
-		commandKey: string;
-		kind: string;
-		payload: unknown;
-		resultValue: string;
-		targetId: string;
-	}
-) {
-	await prisma.mutationReceipt.create({
-		data: {
-			actorId: input.actorId,
-			actorType: MUTATION_ACTOR.user,
-			commandKey: input.commandKey,
-			committedRevision: 1,
-			id: crypto.randomUUID(),
-			kind: input.kind,
-			origin: "human",
-			payloadFingerprint: payloadFingerprint(input.payload),
-			resultValue: input.resultValue,
-			targetId: input.targetId,
-		},
-	});
-}
-
 // bun --hot can keep a PrismaClient generated before CaptureBulkSenseView.
 // Table SQL still writes view metadata; the generated delegate is optional.
 async function findBulkView(
-	prisma: PrismaClient,
+	prisma: MutationDb,
 	input: { ownerId: string; workspaceId: string }
 ): Promise<{ id: string; layoutText: string } | null> {
 	const rows = await prisma.$queryRaw<
@@ -114,7 +71,7 @@ async function findBulkView(
 }
 
 async function insertBulkView(
-	prisma: PrismaClient,
+	prisma: MutationDb,
 	input: {
 		id: string;
 		layoutText: string;
@@ -144,7 +101,7 @@ async function insertBulkView(
 }
 
 async function updateBulkView(
-	prisma: PrismaClient,
+	prisma: MutationDb,
 	input: { id: string; layoutText: string }
 ) {
 	const now = new Date();
@@ -156,7 +113,7 @@ async function updateBulkView(
 }
 
 async function loadOrCreateLayout(
-	prisma: PrismaClient,
+	prisma: MutationDb,
 	input: { actorId: string; workspaceId: string }
 ): Promise<{ id: string; layout: BulkLayout }> {
 	const existing = await findBulkView(prisma, {
@@ -177,7 +134,7 @@ async function loadOrCreateLayout(
 }
 
 async function writeLayout(
-	prisma: PrismaClient,
+	prisma: MutationDb,
 	input: { id: string; layout: BulkLayout }
 ) {
 	await updateBulkView(prisma, {
@@ -224,37 +181,43 @@ export function createBulkSenseMaking(ctx: {
 			}
 			const name = input.name.trim();
 			const payload = { name };
-			const existing = await readHumanReceipt(
-				ctx.prisma,
-				input.idempotencyKey,
-				payload
-			);
-			if (existing?.kind === "conflict") {
-				return { reason: MUTATION_COPY.conflict, status: "conflict" };
-			}
-			if (existing?.kind === "replay") {
-				return JSON.parse(existing.resultValue) as NameBulkClusterOutcome;
-			}
-			const stored = await loadOrCreateLayout(ctx.prisma, {
-				actorId: ctx.actorId,
-				workspaceId: ctx.workspaceId,
+			return await ctx.prisma.$transaction(async (tx) => {
+				await lockMutation(
+					tx,
+					`capture-bulk:${ctx.workspaceId}:${ctx.actorId}`
+				);
+				const existing = await readDurableReceipt(
+					tx,
+					input.idempotencyKey,
+					payload
+				);
+				if (existing?.kind === "conflict") {
+					return { reason: MUTATION_COPY.conflict, status: "conflict" };
+				}
+				if (existing?.kind === "replay") {
+					return JSON.parse(existing.resultValue) as NameBulkClusterOutcome;
+				}
+				const stored = await loadOrCreateLayout(tx, {
+					actorId: ctx.actorId,
+					workspaceId: ctx.workspaceId,
+				});
+				const cluster = { id: crypto.randomUUID(), name };
+				stored.layout.clusters.push(cluster);
+				await writeLayout(tx, stored);
+				const outcome: NameBulkClusterOutcome = {
+					cluster: toClusterView(cluster),
+					status: "named",
+				};
+				await writeDurableReceipt(tx, {
+					actorId: ctx.actorId,
+					commandKey: input.idempotencyKey,
+					kind: "name-bulk-cluster",
+					payload,
+					resultValue: JSON.stringify(outcome),
+					targetId: cluster.id,
+				});
+				return outcome;
 			});
-			const cluster = { id: crypto.randomUUID(), name };
-			stored.layout.clusters.push(cluster);
-			await writeLayout(ctx.prisma, stored);
-			const outcome: NameBulkClusterOutcome = {
-				cluster: toClusterView(cluster),
-				status: "named",
-			};
-			await writeHumanReceipt(ctx.prisma, {
-				actorId: ctx.actorId,
-				commandKey: input.idempotencyKey,
-				kind: "name-bulk-cluster",
-				payload,
-				resultValue: JSON.stringify(outcome),
-				targetId: cluster.id,
-			});
-			return outcome;
 		},
 		async placeInBulk(input: {
 			clusterId: string | null;
@@ -271,86 +234,98 @@ export function createBulkSenseMaking(ctx: {
 				x: input.position.x,
 				y: input.position.y,
 			};
-			const existing = await readHumanReceipt(
-				ctx.prisma,
-				input.idempotencyKey,
-				payload
-			);
-			if (existing?.kind === "conflict") {
-				return { reason: MUTATION_COPY.conflict, status: "conflict" };
-			}
-			if (existing?.kind === "replay") {
-				return JSON.parse(existing.resultValue) as PlaceInBulkOutcome;
-			}
 			const items = await ctx.listAll();
 			const item = items.find((candidate) => candidate.id === input.itemId);
 			if (!item) {
 				return { status: "not-found" };
 			}
-			const stored = await loadOrCreateLayout(ctx.prisma, {
-				actorId: ctx.actorId,
-				workspaceId: ctx.workspaceId,
+			return await ctx.prisma.$transaction(async (tx) => {
+				await lockMutation(
+					tx,
+					`capture-bulk:${ctx.workspaceId}:${ctx.actorId}`
+				);
+				const existing = await readDurableReceipt(
+					tx,
+					input.idempotencyKey,
+					payload
+				);
+				if (existing?.kind === "conflict") {
+					return { reason: MUTATION_COPY.conflict, status: "conflict" };
+				}
+				if (existing?.kind === "replay") {
+					return JSON.parse(existing.resultValue) as PlaceInBulkOutcome;
+				}
+				const stored = await loadOrCreateLayout(tx, {
+					actorId: ctx.actorId,
+					workspaceId: ctx.workspaceId,
+				});
+				if (
+					input.clusterId !== null &&
+					!stored.layout.clusters.some(
+						(cluster) => cluster.id === input.clusterId
+					)
+				) {
+					return { status: "not-found" };
+				}
+				const placement: BulkPlacementView = {
+					clusterId: input.clusterId,
+					itemId: input.itemId,
+					position: input.position,
+				};
+				stored.layout.placements = stored.layout.placements.filter(
+					(candidate) => candidate.itemId !== input.itemId
+				);
+				stored.layout.placements.push(placement);
+				await writeLayout(tx, stored);
+				const outcome: PlaceInBulkOutcome = {
+					placement,
+					status: "placed",
+				};
+				await writeDurableReceipt(tx, {
+					actorId: ctx.actorId,
+					commandKey: input.idempotencyKey,
+					kind: "place-in-bulk",
+					payload,
+					resultValue: JSON.stringify(outcome),
+					targetId: input.itemId,
+				});
+				return outcome;
 			});
-			if (
-				input.clusterId !== null &&
-				!stored.layout.clusters.some(
-					(cluster) => cluster.id === input.clusterId
-				)
-			) {
-				return { status: "not-found" };
-			}
-			const placement: BulkPlacementView = {
-				clusterId: input.clusterId,
-				itemId: input.itemId,
-				position: input.position,
-			};
-			stored.layout.placements = stored.layout.placements.filter(
-				(candidate) => candidate.itemId !== input.itemId
-			);
-			stored.layout.placements.push(placement);
-			await writeLayout(ctx.prisma, stored);
-			const outcome: PlaceInBulkOutcome = {
-				placement,
-				status: "placed",
-			};
-			await writeHumanReceipt(ctx.prisma, {
-				actorId: ctx.actorId,
-				commandKey: input.idempotencyKey,
-				kind: "place-in-bulk",
-				payload,
-				resultValue: JSON.stringify(outcome),
-				targetId: input.itemId,
-			});
-			return outcome;
 		},
 		async removePlacement(itemId: string) {
-			const row = await findBulkView(ctx.prisma, {
-				ownerId: ctx.actorId,
-				workspaceId: ctx.workspaceId,
-			});
-			if (!row) {
-				return;
-			}
-			const layout = parseLayout(row.layoutText);
-			const nextPlacements = layout.placements.filter(
-				(placement) => placement.itemId !== itemId
-			);
-			if (nextPlacements.length === layout.placements.length) {
-				return;
-			}
-			const usedClusterIds = new Set(
-				nextPlacements
-					.map((placement) => placement.clusterId)
-					.filter((clusterId): clusterId is string => clusterId !== null)
-			);
-			await writeLayout(ctx.prisma, {
-				id: row.id,
-				layout: {
-					clusters: layout.clusters.filter((cluster) =>
-						usedClusterIds.has(cluster.id)
-					),
-					placements: nextPlacements,
-				},
+			await ctx.prisma.$transaction(async (tx) => {
+				await lockMutation(
+					tx,
+					`capture-bulk:${ctx.workspaceId}:${ctx.actorId}`
+				);
+				const row = await findBulkView(tx, {
+					ownerId: ctx.actorId,
+					workspaceId: ctx.workspaceId,
+				});
+				if (!row) {
+					return;
+				}
+				const layout = parseLayout(row.layoutText);
+				const nextPlacements = layout.placements.filter(
+					(placement) => placement.itemId !== itemId
+				);
+				if (nextPlacements.length === layout.placements.length) {
+					return;
+				}
+				const usedClusterIds = new Set(
+					nextPlacements
+						.map((placement) => placement.clusterId)
+						.filter((clusterId): clusterId is string => clusterId !== null)
+				);
+				await writeLayout(tx, {
+					id: row.id,
+					layout: {
+						clusters: layout.clusters.filter((cluster) =>
+							usedClusterIds.has(cluster.id)
+						),
+						placements: nextPlacements,
+					},
+				});
 			});
 		},
 	};

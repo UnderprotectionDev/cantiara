@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
-
+import { lockMutation } from "../../mutation-core/server/durable-mutation";
 import { createRelation } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
@@ -180,47 +180,53 @@ export async function appendMark(
 	if (!isMarkingTool(input.tool)) {
 		return { reason: FILE_ATTACHMENT_COPY.typeRejected, status: "rejected" };
 	}
-	const row = await versionRow(prisma, input.versionId);
-	if (!row) {
-		return { reason: "target-not-found", status: "rejected" };
-	}
-	if (!isMarkingKind(row.kind)) {
-		return { reason: FILE_ATTACHMENT_COPY.typeRejected, status: "rejected" };
-	}
-	const marks = [
-		...parseMarks(row.markingMarks),
-		{
-			geometry: input.geometry,
-			id: crypto.randomUUID(),
-			page: input.page,
-			tool: input.tool,
-		} satisfies FileMark,
-	];
-	const updated = await prisma.fileAttachmentVersion.update({
-		data: { markingMarks: marks as Prisma.InputJsonValue },
-		where: { id: row.id },
+	return await prisma.$transaction(async (tx) => {
+		await lockMutation(tx, `file-marking:${input.versionId}`);
+		const row = await versionRow(tx, input.versionId);
+		if (!row) {
+			return { reason: "target-not-found", status: "rejected" };
+		}
+		if (!isMarkingKind(row.kind)) {
+			return { reason: FILE_ATTACHMENT_COPY.typeRejected, status: "rejected" };
+		}
+		const marks = [
+			...parseMarks(row.markingMarks),
+			{
+				geometry: input.geometry,
+				id: crypto.randomUUID(),
+				page: input.page,
+				tool: input.tool as MarkingTool,
+			} satisfies FileMark,
+		];
+		const updated = await tx.fileAttachmentVersion.update({
+			data: { markingMarks: marks as Prisma.InputJsonValue },
+			where: { id: row.id },
+		});
+		return { layer: layerView(updated), status: "committed" };
 	});
-	return { layer: layerView(updated), status: "committed" };
 }
 
 export async function undoMark(
 	prisma: PrismaClient,
 	versionId: string
 ): Promise<MarkingOutcome> {
-	const row = await versionRow(prisma, versionId);
-	if (!row) {
-		return { reason: "target-not-found", status: "rejected" };
-	}
-	if (!isMarkingKind(row.kind)) {
-		return { reason: FILE_ATTACHMENT_COPY.typeRejected, status: "rejected" };
-	}
-	const marks = parseMarks(row.markingMarks);
-	const next = marks.slice(0, -1);
-	const updated = await prisma.fileAttachmentVersion.update({
-		data: { markingMarks: next as Prisma.InputJsonValue },
-		where: { id: row.id },
+	return await prisma.$transaction(async (tx) => {
+		await lockMutation(tx, `file-marking:${versionId}`);
+		const row = await versionRow(tx, versionId);
+		if (!row) {
+			return { reason: "target-not-found", status: "rejected" };
+		}
+		if (!isMarkingKind(row.kind)) {
+			return { reason: FILE_ATTACHMENT_COPY.typeRejected, status: "rejected" };
+		}
+		const marks = parseMarks(row.markingMarks);
+		const next = marks.slice(0, -1);
+		const updated = await tx.fileAttachmentVersion.update({
+			data: { markingMarks: next as Prisma.InputJsonValue },
+			where: { id: row.id },
+		});
+		return { layer: layerView(updated), status: "committed" };
 	});
-	return { layer: layerView(updated), status: "committed" };
 }
 
 export async function listSharePublishItems(
@@ -250,20 +256,23 @@ export async function approveSharePublishItem(
 	) {
 		return { reason: FILE_ATTACHMENT_COPY.typeRejected, status: "rejected" };
 	}
-	const row = await versionRow(prisma, input.versionId);
-	if (!row) {
-		return { reason: "target-not-found", status: "rejected" };
-	}
-	const approvals = parseApprovals(row.shareItemApprovals);
-	approvals[input.kind] = true;
-	const updated = await prisma.fileAttachmentVersion.update({
-		data: { shareItemApprovals: approvals as Prisma.InputJsonValue },
-		where: { id: row.id },
+	return await prisma.$transaction(async (tx) => {
+		await lockMutation(tx, `file-share-approval:${input.versionId}`);
+		const row = await versionRow(tx, input.versionId);
+		if (!row) {
+			return { reason: "target-not-found", status: "rejected" };
+		}
+		const approvals = parseApprovals(row.shareItemApprovals);
+		approvals[input.kind as SharePublishItemKind] = true;
+		const updated = await tx.fileAttachmentVersion.update({
+			data: { shareItemApprovals: approvals as Prisma.InputJsonValue },
+			where: { id: row.id },
+		});
+		return {
+			items: shareItemsFrom(parseApprovals(updated.shareItemApprovals)),
+			status: "ok",
+		};
 	});
-	return {
-		items: shareItemsFrom(parseApprovals(updated.shareItemApprovals)),
-		status: "ok",
-	};
 }
 
 export function previewLocationWorkBind(input: {
