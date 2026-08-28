@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 
 import CustomFieldFilter from "@/features/custom-fields/forms/custom-field-filter";
-import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-record-values";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { orpc } from "@/utils/orpc";
 
@@ -109,7 +108,6 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 					works={work.data}
 				/>
 			) : null}
-			<BoundRecordValuesSurface projectId={projectId} recordType="Feedback" />
 		</div>
 	);
 }

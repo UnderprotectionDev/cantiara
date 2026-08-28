@@ -124,7 +124,7 @@ export default function BoundRecordValuesSurface({
 			{recordIds.length > 0 ? (
 				<ul className="mt-4 flex flex-col gap-2 text-sm">
 					{recordIds.map((id) => (
-						<FeedbackRecordItem
+						<BoundRecordItem
 							id={id}
 							key={id}
 							onSelect={setSelectedId}
@@ -147,7 +147,7 @@ export default function BoundRecordValuesSurface({
 	);
 }
 
-function FeedbackRecordItem({
+function BoundRecordItem({
 	id,
 	onSelect,
 	selected,

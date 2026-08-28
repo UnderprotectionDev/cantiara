@@ -83,11 +83,3 @@ export interface CustomFieldValueView {
 export function isSelectFieldType(value: string): boolean {
 	return value === "Single select" || value === "Multi select";
 }
-
-export function fieldsOnSurface<
-	T extends { boundRecordTypes: readonly string[] },
->(definitions: readonly T[], recordType: string): T[] {
-	return definitions.filter((definition) =>
-		definition.boundRecordTypes.includes(recordType)
-	);
-}

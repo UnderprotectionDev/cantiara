@@ -262,7 +262,9 @@ function DateValueField({
 					className="inline-flex h-8 items-center border px-3 text-sm"
 					id={fieldId}
 				>
-					{value.kind === "date" ? value.date : CUSTOM_FIELD_COPY.notEvaluated}
+					{value.kind === "date"
+						? parseCalendarDate(value.date).toLocaleDateString()
+						: CUSTOM_FIELD_COPY.notEvaluated}
 				</PopoverTrigger>
 				<PopoverContent>
 					<Calendar mode="single" onSelect={onSelect} selected={selected} />
