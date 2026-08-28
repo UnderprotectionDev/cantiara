@@ -3,6 +3,7 @@ import { Button } from "@cantiara/ui/components/button";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
 import RelationsPanel from "@/features/relations/views/relations-panel";
 import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
+import UsedInPanel from "@/features/relations/views/used-in-panel";
 import WorkTagPicker from "@/features/tags/views/work-tag-picker";
 
 import ArchiveWorkForm from "../forms/archive-work-form";
@@ -148,6 +149,7 @@ export default function WorkDetail({
 				projectId={projectId}
 				workId={work.id}
 			/>
+			<UsedInPanel onOpenSourceRecord={onOpenSourceRecord} workId={work.id} />
 			<ChangeWorkTypeForm
 				key={`${work.id}:${work.type}:${work.revision}`}
 				projectId={projectId}

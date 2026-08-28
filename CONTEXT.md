@@ -110,6 +110,10 @@ _Avoid_: related-pile, serbest etiket grafiği, otomatik grafik, kullanım bağ�
 Gömülü canlı kart, blok veya konumun kaynak kimliğini kopyasız izleyen türetilmiş bağ; semantik ilişki, `Related` veya Kanıt bağı değildir ([kullanım bağları](docs/prd/02-domain-model-and-lifecycle.md#kullanim-baglari)).
 _Avoid_: Related, geri bağlantı, Kanıt Rolü, ilişki sayısı
 
+**Kullanıldığı yerler**:
+Kayıt detayındaki türetilmiş özet; standart ilişki geri bağlantıları ile kullanım bağlarını kaynak türüne göre ayrı listeler. Kopya içerik, ikinci sahiplik veya yeni ilişki yazması değildir ([içerik ilişkileri ve geri bağlantılar](docs/prd/08-search-relations-and-evidence.md#içerik-ilişkileri-ve-geri-bağlantılar)). UI: `Used in`.
+_Avoid_: related-pile, otomatik grafik, paylaşım grafiği, kullanım-as-relation
+
 **Türetilen**:
 Köken ilişkisinin üretilen uç için gösterilen etiketi; genel `Related` veya Kanıt bağı değildir.
 _Avoid_: Related, Kanıt bağı, otomatik dönüşüm

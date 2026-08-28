@@ -18,6 +18,7 @@ import {
 	type GenericRelationType,
 	RELATIONS_COPY,
 } from "../forms/relations-copy";
+import { USED_IN_QUERY_ROOT } from "./used-in-query-key";
 
 interface WorkOption {
 	id: string;
@@ -332,6 +333,9 @@ async function invalidateRelations(projectId: string, workId: string) {
 		queryKey: orpc.workLifecycle.list.queryKey({
 			input: { projectId },
 		}),
+	});
+	await queryClient.invalidateQueries({
+		queryKey: [USED_IN_QUERY_ROOT],
 	});
 }
 

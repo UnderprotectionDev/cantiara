@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	inspectRecordGraph,
+	presentUsedIn,
 	RELATIONS_COPY,
 	toUsageLinkView,
 	USAGE_KIND,
@@ -58,5 +59,81 @@ describe("Relations usage catalog", () => {
 		expect(graph.usageLinks).toHaveLength(1);
 		expect(graph.usageLinks[0]?.kindLabel).toBe("Screen reference");
 		expect(graph.copy.unlink).toBe("Unlink");
+	});
+});
+
+describe("Relations Used in", () => {
+	it("keeps relation backlinks and usage in separate groups and out of each other's counts", () => {
+		const usedIn = presentUsedIn({
+			relationBacklinks: [
+				{
+					groupLabel: RELATIONS_COPY.related,
+					id: "rel-1",
+					key: "PAY-1",
+					openSourceRecord: true,
+					sourceRecordId: "wallet",
+					title: "Wallet",
+				},
+			],
+			usageRows: [
+				{
+					groupLabel: "Inline reference",
+					id: "usage-1",
+					key: "PAY-2",
+					openSourceRecord: true,
+					sourceRecordId: "spec-host",
+					title: "Checkout spec",
+				},
+				{
+					groupLabel: "Screen reference",
+					id: "usage-2",
+					openSourceRecord: true,
+					sourceRecordId: "flow-node-pay",
+				},
+			],
+		});
+		expect(usedIn.copy.usedIn).toBe("Used in");
+		expect(usedIn.copy.openSourceRecord).toBe("Open source record");
+		expect(usedIn.relationCount).toBe(1);
+		expect(usedIn.relationBacklinks).toEqual([
+			{
+				label: "Related",
+				rows: [
+					{
+						groupLabel: "Related",
+						id: "rel-1",
+						key: "PAY-1",
+						openSourceRecord: true,
+						sourceRecordId: "wallet",
+						title: "Wallet",
+					},
+				],
+			},
+		]);
+		expect(usedIn.usageGroups.map((group) => group.label)).toEqual([
+			"Inline reference",
+			"Screen reference",
+		]);
+		expect(
+			usedIn.usageGroups.flatMap((group) =>
+				group.rows.map((row) => row.groupLabel)
+			)
+		).not.toContain(RELATIONS_COPY.related);
+		expect(JSON.stringify(usedIn)).not.toMatch(USAGE_METADATA);
+		const mergedLabels = [
+			...usedIn.relationBacklinks.map((group) => group.label),
+			...usedIn.usageGroups.map((group) => group.label),
+		];
+		expect(new Set(mergedLabels).size).toBe(mergedLabels.length);
+	});
+
+	it("does not name or count inaccessible ends", () => {
+		const usedIn = presentUsedIn({
+			relationBacklinks: [],
+			usageRows: [],
+		});
+		expect(usedIn.relationCount).toBe(0);
+		expect(usedIn.relationBacklinks).toEqual([]);
+		expect(usedIn.usageGroups).toEqual([]);
 	});
 });

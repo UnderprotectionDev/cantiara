@@ -23,4 +23,5 @@ test("usage kind labels stay off the Related catalog", () => {
 	]);
 	expect(Object.values(USAGE_KIND_LABEL)).not.toContain(RELATIONS_COPY.related);
 	expect(RELATIONS_COPY.unlink).toBe("Unlink");
+	expect(RELATIONS_COPY.usedIn).toBe("Used in");
 });

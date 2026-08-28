@@ -143,6 +143,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Konuma sabitlenmiş bağ | `Pinned bind` | Dosya Eki veya Wireframe konumuna sabitlenmiş kullanım bağı |
 | Akış düğümü Ekran referansı | `Screen reference` | Kullanıcı Akışı düğümünün Ekran kullanım bağı |
 | Bağı kaldır | `Unlink` | Gömüyü kaldırıp kaynak ana kaydı silmeyen eylem |
+| Kullanıldığı yerler | `Used in` | Standart ilişki geri bağlantıları ile kullanım bağlarının kaynak türüne göre ayrı özeti; kopya içerik veya yeni yazma değildir |
 | Türetilen | `Derived` | Köken ilişkisinin üretilen uç etiketi; `Related` yerine geçmez |
 | Çöp Kutusunda | `In Trash` | Kırık referans nedeni |
 | Kalıcı silindi | `Permanently deleted` | Kırık referans nedeni |

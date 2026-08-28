@@ -157,6 +157,8 @@ describe("Relations", () => {
 		expect(relationsCatalog().copy.related).toBe("Related");
 		expect(relationsCatalog().copy.origin).toBe("Origin");
 		expect(relationsCatalog().copy.derived).toBe("Derived");
+		expect(relationsCatalog().copy.usedIn).toBe("Used in");
+		expect(relationsCatalog().copy.openSourceRecord).toBe("Open source record");
 		expect(
 			await createRelation(prisma, {
 				actorId,
@@ -940,5 +942,207 @@ describe("Relations usage links", () => {
 			["flow-node-pay"]
 		);
 		expect(otherHosted["flow-node-pay"]).toEqual([]);
+	});
+});
+
+describe("Relations Used in backlinks", () => {
+	let prisma: PrismaClient;
+	let pool: Pool;
+
+	beforeAll(() => {
+		process.env.NODE_ENV = "test";
+	});
+
+	beforeEach(async () => {
+		pool = new Pool({ connectionString: DATABASE_URL });
+		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+		await resetSharedTables(prisma);
+	});
+
+	afterEach(async () => {
+		await prisma.$disconnect();
+		await pool.end();
+	});
+
+	it("lists relation backlinks and usage by source kind without mixing counts", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const source = await committedWork(prisma, actorId, {
+			idempotencyKey: "source",
+			projectId: project.id,
+			title: "Pay screen",
+		});
+		const related = await committedWork(prisma, actorId, {
+			idempotencyKey: "related",
+			projectId: project.id,
+			title: "Wallet",
+		});
+		const host = await committedWork(prisma, actorId, {
+			idempotencyKey: "host",
+			projectId: project.id,
+			title: "Checkout spec",
+		});
+		const origin = await committedWork(prisma, actorId, {
+			idempotencyKey: "origin",
+			projectId: project.id,
+			title: "Intake note",
+		});
+		await createRelation(prisma, {
+			actorId,
+			from: workRef(source.id),
+			idempotencyKey: "related-edge",
+			origin: "human",
+			previewAcknowledged: true,
+			to: workRef(related.id),
+			type: RELATIONS_COPY.related,
+			viewerWorkspaceId: workspaceId,
+		});
+		await createRelation(prisma, {
+			actorId,
+			from: workRef(origin.id),
+			idempotencyKey: "origin-edge",
+			origin: "human",
+			previewAcknowledged: true,
+			to: workRef(source.id),
+			type: RELATIONS_COPY.origin,
+			viewerWorkspaceId: workspaceId,
+		});
+		const created = await createUsageLink(prisma, {
+			actorId,
+			hostRecordId: host.id,
+			idempotencyKey: "embed",
+			kind: USAGE_KIND.inlineRecordReference,
+			origin: "human",
+			sourceRecordId: source.id,
+			workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		const graph = await inspectRelations(prisma, source.id, workspaceId);
+		expect(graph.usedIn.copy.usedIn).toBe("Used in");
+		expect(graph.usedIn.copy.openSourceRecord).toBe("Open source record");
+		expect(graph.usedIn.relationCount).toBe(2);
+		expect(graph.usedIn.relationBacklinks.map((group) => group.label)).toEqual([
+			"Related",
+			"Origin",
+		]);
+		expect(
+			graph.usedIn.relationBacklinks.flatMap((group) =>
+				group.rows.map((row) => row.title)
+			)
+		).toEqual(["Wallet", "Intake note"]);
+		expect(graph.usedIn.usageGroups.map((group) => group.label)).toEqual([
+			"Inline reference",
+		]);
+		expect(graph.usedIn.usageGroups[0]?.rows[0]).toMatchObject({
+			groupLabel: "Inline reference",
+			key: host.key,
+			openSourceRecord: true,
+			sourceRecordId: host.id,
+			title: "Checkout spec",
+		});
+		expect(JSON.stringify(graph.usedIn.usageGroups)).not.toMatch(
+			USAGE_METADATA
+		);
+		const hostGraph = await inspectRelations(prisma, host.id, workspaceId);
+		expect(hostGraph.usedIn.usageGroups).toEqual([]);
+		expect(hostGraph.usageLinks).toHaveLength(1);
+		const again = await inspectRelations(prisma, source.id, workspaceId);
+		expect(again.usedIn).toEqual(graph.usedIn);
+	});
+
+	it("omits inaccessible names, types, and counts from Used in", async () => {
+		const first = await openProject(prisma);
+		const source = await committedWork(prisma, first.actorId, {
+			idempotencyKey: "source",
+			projectId: first.project.id,
+			title: "Secret screen",
+		});
+		const related = await committedWork(prisma, first.actorId, {
+			idempotencyKey: "related",
+			projectId: first.project.id,
+			title: "Secret wallet",
+		});
+		await createRelation(prisma, {
+			actorId: first.actorId,
+			from: workRef(source.id),
+			idempotencyKey: "related-edge",
+			origin: "human",
+			previewAcknowledged: true,
+			to: workRef(related.id),
+			type: RELATIONS_COPY.related,
+			viewerWorkspaceId: first.workspaceId,
+		});
+		await createUsageLink(prisma, {
+			actorId: first.actorId,
+			hostRecordId: "flow-node-pay",
+			idempotencyKey: "flow",
+			kind: USAGE_KIND.flowNodeScreenReference,
+			origin: "human",
+			sourceRecordId: source.id,
+			workspaceId: first.workspaceId,
+		});
+		const other = await seedWorkspace(prisma);
+		const leaked = await inspectRelations(prisma, source.id, other.workspaceId);
+		expect(leaked.usedIn.relationCount).toBe(0);
+		expect(leaked.usedIn.relationBacklinks).toEqual([]);
+		expect(leaked.usedIn.usageGroups).toEqual([]);
+		expect(JSON.stringify(leaked.usedIn)).not.toContain("Secret screen");
+		expect(JSON.stringify(leaked.usedIn)).not.toContain("Secret wallet");
+		expect(JSON.stringify(leaked.usedIn)).not.toContain(source.key);
+		const owned = await inspectRelations(prisma, source.id, first.workspaceId);
+		expect(owned.usedIn.relationCount).toBe(1);
+		expect(owned.usedIn.usageGroups).toHaveLength(1);
+		expect(owned.usedIn.usageGroups[0]?.rows[0]?.openSourceRecord).toBe(false);
+		expect(owned.usedIn.usageGroups[0]?.rows[0]?.sourceRecordId).toBe(
+			"flow-node-pay"
+		);
+		await permanentlyDeleteWork(prisma, related.id);
+		const afterDelete = await inspectRelations(
+			prisma,
+			source.id,
+			first.workspaceId
+		);
+		expect(afterDelete.usedIn.relationCount).toBe(0);
+		expect(JSON.stringify(afterDelete.usedIn)).not.toContain("Secret wallet");
+	});
+
+	it("keeps Open source record for Archived backlinks and does not write from inspect", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const living = await committedWork(prisma, actorId, {
+			idempotencyKey: "living",
+			projectId: project.id,
+			title: "Living",
+		});
+		const other = await committedWork(prisma, actorId, {
+			idempotencyKey: "other",
+			projectId: project.id,
+			title: "Hidden title",
+		});
+		await createRelation(prisma, {
+			actorId,
+			from: workRef(living.id),
+			idempotencyKey: "related-hidden",
+			origin: "human",
+			previewAcknowledged: true,
+			to: workRef(other.id),
+			type: RELATIONS_COPY.related,
+			viewerWorkspaceId: workspaceId,
+		});
+		await archiveWork(prisma, {
+			actorId,
+			baseRevision: other.revision,
+			idempotencyKey: "archive-other",
+			origin: "human",
+			workId: other.id,
+		});
+		const before = await inspectRelations(prisma, living.id, workspaceId);
+		const graph = await inspectRelations(prisma, living.id, workspaceId);
+		expect(graph.usedIn.relationBacklinks[0]?.rows[0]).toMatchObject({
+			groupLabel: "Related",
+			openSourceRecord: true,
+			reason: "Archived",
+			sourceRecordId: other.id,
+			title: "Hidden title",
+		});
+		expect(graph.usedIn).toEqual(before.usedIn);
 	});
 });

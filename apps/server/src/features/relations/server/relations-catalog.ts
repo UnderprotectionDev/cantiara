@@ -34,6 +34,7 @@ export const RELATIONS_COPY = {
 	supersededBy: "Superseded by",
 	supersedes: "Supersedes",
 	type: "Type",
+	usedIn: "Used in",
 } as const;
 
 export const BROKEN_REASONS = [
