@@ -1507,6 +1507,60 @@ describe("Capture Inbox", () => {
 		await secondPool.end();
 	}, 20_000);
 
+	it("replays a concurrent Attach to existing race from the durable result", async () => {
+		const binder = createRecordBinder([
+			{
+				fields: {},
+				id: "work-race",
+				projectId: "proj-cantiara",
+				projectName: "Cantiara",
+				title: "Concurrent attach target",
+			},
+		]);
+		const first = inbox({ binder });
+		const secondPool = new Pool({ connectionString: DATABASE_URL });
+		const secondPrisma = new PrismaClient({
+			adapter: new PrismaPg(secondPool),
+		});
+		const second = createCaptureInbox({
+			actorId,
+			binder,
+			clock: { now: () => CAPTURED_AT },
+			prisma: secondPrisma,
+			stagingRootKey: TEST_STAGING_ROOT_KEY,
+			workspaceId,
+		});
+		const saved = await first.save({
+			idempotencyKey: crypto.randomUUID(),
+			text: "Attach this exactly once",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+
+		const command = {
+			itemId: saved.item.id,
+			previewed: true as const,
+			relation: "origin" as const,
+			targetId: "work-race",
+		};
+		const [firstOutcome, secondOutcome] = await Promise.all([
+			first.attach({ ...command, idempotencyKey: "attach-race" }),
+			second.attach({ ...command, idempotencyKey: "attach-race" }),
+		]);
+
+		expect(firstOutcome).toEqual(secondOutcome);
+		expect(firstOutcome).toMatchObject({
+			exit: "attach",
+			inboxItem: null,
+			status: "consumed",
+		});
+		expect(binder.get("work-race")?.binds).toHaveLength(1);
+		expect(await first.listAll()).toEqual([]);
+		await secondPrisma.$disconnect();
+		await secondPool.end();
+	}, 20_000);
+
 	it("compensates the Inbox item when attachment staging fails", async () => {
 		const deleted: string[] = [];
 		const capture = inbox({

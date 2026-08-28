@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@cantiara/db";
+import type { Prisma, PrismaClient } from "@cantiara/db";
 import { z } from "zod";
 import {
 	lockMutation,
@@ -537,7 +537,7 @@ export interface TriageExitsContext {
 }
 
 async function readHumanReceipt(
-	prisma: PrismaClient,
+	prisma: PrismaClient | Prisma.TransactionClient,
 	commandKey: string,
 	payload: unknown
 ) {
@@ -759,7 +759,7 @@ export function createTriageExits(ctx: TriageExitsContext) {
 				mergeId,
 				status: "consumed",
 			};
-			await ctx.prisma.$transaction(async (tx) => {
+			const committed = await ctx.prisma.$transaction(async (tx) => {
 				await lockMutation(tx, `capture-item:${item.id}`);
 				const updated = await tx.captureInboxItem.updateMany({
 					data: {
@@ -773,6 +773,19 @@ export function createTriageExits(ctx: TriageExitsContext) {
 					where: { consumedAt: null, id: item.id },
 				});
 				if (updated.count !== 1) {
+					const receipt = await readHumanReceipt(
+						tx,
+						input.idempotencyKey,
+						payload
+					);
+					if (receipt?.kind === "replay") {
+						return {
+							outcome: reviveAttachOutcome(
+								JSON.parse(receipt.resultValue) as AttachOutcome
+							),
+							replayed: true,
+						};
+					}
 					throw new Error("capture-already-consumed");
 				}
 				await writeDurableReceipt(tx, {
@@ -783,7 +796,11 @@ export function createTriageExits(ctx: TriageExitsContext) {
 					resultValue: JSON.stringify(outcome),
 					targetId: item.id,
 				});
+				return { outcome, replayed: false };
 			});
+			if (committed.replayed) {
+				return committed.outcome;
+			}
 			const bound = ctx.binder.bind({
 				attributedFields: attributed,
 				captureId: item.id,

@@ -1089,25 +1089,64 @@ export async function finalizeFileUpload(
 			await prisma.fileAttachmentStaging.delete({ where: { id: staged.id } });
 			return classified;
 		}
-		await storeOf(deps).promote(prisma, staged.objectKey);
-		const outcome = await withPrismaWriteRetry(() =>
-			prisma.$transaction(
-				(tx) =>
-					commitFinalize(
-						tx,
-						parsed.command,
-						staged.id,
-						{
-							bytes: blob.bytes.byteLength,
-							hash: contentHashOf(blob.bytes),
-							kind: classified.kind,
-							mime: classified.mime,
-						},
-						quotaLimits(deps)
-					),
-				{ timeout: 15_000 }
-			)
-		);
+		const store = storeOf(deps);
+		let promoted = false;
+		try {
+			await store.promote(prisma, staged.objectKey);
+			promoted = true;
+		} catch (error) {
+			await compensatePromotedObject(
+				prisma,
+				staged.id,
+				staged.objectKey,
+				store
+			);
+			throw error;
+		}
+		let outcome: Awaited<ReturnType<typeof commitFinalize>>;
+		try {
+			outcome = await withPrismaWriteRetry(() =>
+				prisma.$transaction(
+					(tx) =>
+						commitFinalize(
+							tx,
+							parsed.command,
+							staged.id,
+							{
+								bytes: blob.bytes.byteLength,
+								hash: contentHashOf(blob.bytes),
+								kind: classified.kind,
+								mime: classified.mime,
+							},
+							quotaLimits(deps)
+						),
+					{ timeout: 15_000 }
+				)
+			);
+		} catch (error) {
+			if (promoted) {
+				await compensatePromotedObject(
+					prisma,
+					staged.id,
+					staged.objectKey,
+					store
+				);
+			}
+			throw error;
+		}
+		if (
+			promoted &&
+			outcome.status !== "committed-meta" &&
+			outcome.status !== "committed" &&
+			outcome.status !== "replayed"
+		) {
+			await compensatePromotedObject(
+				prisma,
+				staged.id,
+				staged.objectKey,
+				store
+			);
+		}
 		if (outcome.status === "committed-meta") {
 			const file = await loadFileView(prisma, outcome.fileAttachmentId);
 			if (!file) {
@@ -1167,6 +1206,31 @@ export async function finalizeFileUpload(
 			return { reason: "bytes-incomplete", status: "rejected" };
 		}
 		throw error;
+	}
+}
+
+const FILE_PROMOTION_CLEANUP_PENDING = "cleanup-pending";
+
+async function compensatePromotedObject(
+	prisma: PrismaClient,
+	stagingId: string,
+	objectKey: string,
+	store: FileObjectStore
+): Promise<void> {
+	try {
+		await store.remove(prisma, objectKey);
+		await prisma.fileAttachmentStaging.delete({ where: { id: stagingId } });
+	} catch {
+		try {
+			await prisma.fileAttachmentStaging.update({
+				data: { status: FILE_PROMOTION_CLEANUP_PENDING },
+				where: { id: stagingId },
+			});
+		} catch (error) {
+			throw new Error("file-promotion-cleanup-uncertain", {
+				cause: error,
+			});
+		}
 	}
 }
 
@@ -1240,7 +1304,6 @@ async function commitFinalize(
 		usage.bytes + prepared.bytes > limits.maxOriginalBytes ||
 		usage.versions + 1 > limits.maxVersions
 	) {
-		await tx.fileAttachmentStaging.delete({ where: { id: staged.id } });
 		return {
 			reason: FILE_ATTACHMENT_COPY.quotaExceeded,
 			status: "rejected",

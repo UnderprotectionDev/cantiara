@@ -1100,12 +1100,6 @@ export function createCaptureInbox(input: {
 					command.idempotencyKey,
 					payload
 				);
-				await store
-					.deleteByInboxItemId(transactionResult.itemId)
-					.catch(() => undefined);
-				await input.prisma.captureInboxItem.deleteMany({
-					where: { id: transactionResult.itemId },
-				});
 				if (winner === "conflict" || winner === "retry") {
 					return this.save(command);
 				}

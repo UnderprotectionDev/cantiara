@@ -1339,6 +1339,9 @@ describe("File Attachments", () => {
 			{ captureStaging: staging, quota: limits }
 		);
 		expect(first.status).toBe("committed");
+		const objectKeysBeforeQuota = (
+			await prisma.fileObjectBlob.findMany({ select: { objectKey: true } })
+		).map((row) => row.objectKey);
 		await staging.put("inbox-quota-2", {
 			bytes: PNG_BYTES,
 			contentType: "image/png",
@@ -1363,6 +1366,13 @@ describe("File Attachments", () => {
 			status: "rejected",
 		});
 		expect(await staging.read("inbox-quota-2")).not.toBeNull();
+		expect(
+			(
+				await prisma.fileObjectBlob.findMany({
+					select: { objectKey: true },
+				})
+			).map((row) => row.objectKey)
+		).toEqual(objectKeysBeforeQuota);
 		const failedStore = createMemoryCaptureStagingSource();
 		await failedStore.put("inbox-fail", {
 			bytes: PNG_BYTES,
@@ -1389,6 +1399,60 @@ describe("File Attachments", () => {
 		expect(failed.status).toBe("rejected");
 		expect(await failedStore.read("inbox-fail")).not.toBeNull();
 		expect(await prisma.fileAttachment.findMany()).toHaveLength(1);
+	});
+
+	it("records a durable cleanup marker when promoted-object compensation fails", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const staged = await stageFileUpload(
+			prisma,
+			uploadCommand({
+				actorId,
+				idempotencyKey: "cleanup-marker",
+				projectId: project.id,
+				workspaceId,
+			})
+		);
+		expect(staged.status).toBe("staged");
+		if (staged.status !== "staged") {
+			return;
+		}
+		const inner = createPrismaFileObjectStore();
+		const store = {
+			promote: inner.promote,
+			putTemp: inner.putTemp,
+			read: inner.read,
+			remove: () => Promise.reject(new Error("storage-unavailable")),
+		};
+		await putStagingBytes(
+			prisma,
+			{ bytes: PNG_BYTES, operationId: staged.operation.operationId },
+			{ store }
+		);
+
+		const rejected = await finalizeFileUpload(
+			prisma,
+			uploadCommand({
+				actorId,
+				idempotencyKey: "cleanup-marker",
+				projectId: project.id,
+				workspaceId,
+			}),
+			{ quota: { maxOriginalBytes: 1, maxVersions: 1 }, store }
+		);
+
+		expect(rejected).toMatchObject({
+			reason: FILE_ATTACHMENT_COPY.quotaExceeded,
+			status: "rejected",
+		});
+		expect(JSON.stringify(rejected)).not.toMatch(RAW_OBJECT_URL);
+		expect(await prisma.fileAttachment.count()).toBe(0);
+		expect(
+			await prisma.fileAttachmentStaging.findUnique({
+				select: { objectKey: true, status: true },
+				where: { id: staged.operation.operationId },
+			})
+		).toMatchObject({ status: "cleanup-pending" });
+		expect(await prisma.fileObjectBlob.count()).toBe(1);
 	});
 
 	it("deletes Capture staging without minting a File Attachment", async () => {
