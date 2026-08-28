@@ -35,6 +35,13 @@ export const taggedRecordViewSchema = z.object({
 
 export type TaggedRecordView = z.infer<typeof taggedRecordViewSchema>;
 
+export const taggedDocumentViewSchema = z.object({
+	documentId: z.string().min(1),
+	tagId: z.string().min(1),
+});
+
+export type TaggedDocumentView = z.infer<typeof taggedDocumentViewSchema>;
+
 export const createTagCommandSchema = z.object({
 	actorId: z.string().min(1),
 	idempotencyKey: z.string().min(1),
@@ -115,6 +122,30 @@ export const tagMarkdownExportSchema = z.object({
 });
 
 export type TagMarkdownExport = z.infer<typeof tagMarkdownExportSchema>;
+
+export const tagImportExistingMappingSchema = z.object({
+	name: z.string().min(1),
+	status: z.literal("existing"),
+	tagId: z.string().min(1),
+	token: z.string().min(1),
+});
+
+export const tagImportCandidateMappingSchema = z.object({
+	name: z.string().min(1),
+	status: z.literal("new-flat-candidate"),
+	token: z.string().min(1),
+});
+
+export const tagImportPreviewSchema = z.object({
+	mappings: z.array(
+		z.discriminatedUnion("status", [
+			tagImportExistingMappingSchema,
+			tagImportCandidateMappingSchema,
+		])
+	),
+});
+
+export type TagImportPreview = z.infer<typeof tagImportPreviewSchema>;
 
 export type TagWriteOutcome =
 	| { status: "committed"; tag: TagView }
