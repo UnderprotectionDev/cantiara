@@ -485,7 +485,7 @@ describe("Workspace Overview", () => {
 						id: "project-done",
 						lifecycleStatus: PROJECT_LIFECYCLE.completed,
 						name: "Shipped",
-						targetDate: null,
+						targetDate: "2026-10-01",
 					},
 				],
 				works: [
@@ -519,6 +519,7 @@ describe("Workspace Overview", () => {
 			},
 		]);
 		expect(JSON.stringify(overview)).not.toContain("Archived note");
+		expect(JSON.stringify(overview)).not.toContain("Shipped");
 	});
 
 	it("rejects a seventh live block and free-form widgets, and keeps the limit closed", () => {

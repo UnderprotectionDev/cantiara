@@ -460,18 +460,22 @@ export function sourcesFromWorkspaceSnapshot(snapshot: {
 			})),
 		sessionActiveWorkSet: [],
 		smartCollections: [],
-		upcoming: snapshot.projects.flatMap((project) =>
-			project.targetDate
-				? [
-						{
-							date: project.targetDate,
-							id: project.id,
-							kind: "goalDate",
-							title: project.name,
-						},
-					]
-				: []
-		),
+		upcoming: snapshot.projects.flatMap((project) => {
+			if (
+				project.lifecycleStatus !== PROJECT_LIFECYCLE.active ||
+				!project.targetDate
+			) {
+				return [];
+			}
+			return [
+				{
+					date: project.targetDate,
+					id: project.id,
+					kind: "goalDate",
+					title: project.name,
+				},
+			];
+		}),
 	};
 }
 
