@@ -11,7 +11,11 @@ import {
 } from "../forms/file-attachments-copy";
 import UploadFileForm from "../forms/upload-file-form";
 import FilePreview, { GalleryThumb } from "./file-preview";
-import { absoluteProductPath } from "./file-preview-presentation";
+import {
+	absoluteProductPath,
+	galleryThumbnailPathFromFile,
+	previewFromVersion,
+} from "./file-preview-presentation";
 
 const TRAILING_SLASH = /\/$/;
 
@@ -76,7 +80,7 @@ export default function FileAttachmentArea({
 							}
 							galleryThumbnailPath={absoluteProductPath(
 								serverOrigin(),
-								item.currentVersion.preview.galleryThumbnailPath
+								galleryThumbnailPathFromFile(item)
 							)}
 							id={item.id}
 							onSelect={onSelect}
@@ -88,25 +92,7 @@ export default function FileAttachmentArea({
 			</ul>
 			{selected ? (
 				<section aria-label={selected.title} className="flex flex-col gap-3">
-					<FilePreview
-						contentPath={
-							absoluteProductPath(serverOrigin(), selected.contentPath) ??
-							selected.contentPath
-						}
-						kind={selected.kind}
-						preview={{
-							...selected.currentVersion.preview,
-							galleryThumbnailPath: absoluteProductPath(
-								serverOrigin(),
-								selected.currentVersion.preview.galleryThumbnailPath
-							),
-							previewPath: absoluteProductPath(
-								serverOrigin(),
-								selected.currentVersion.preview.previewPath
-							),
-						}}
-						title={selected.title}
-					/>
+					<SelectedFilePreview origin={serverOrigin()} selected={selected} />
 					<ul className="flex flex-col gap-1">
 						{selected.versions.map((version) => (
 							<li key={version.id}>
@@ -127,6 +113,39 @@ export default function FileAttachmentArea({
 				</section>
 			) : null}
 		</div>
+	);
+}
+
+function SelectedFilePreview({
+	origin,
+	selected,
+}: {
+	origin: string;
+	selected: {
+		contentPath: string;
+		currentVersion: Parameters<typeof previewFromVersion>[0];
+		kind: string;
+		title: string;
+	};
+}) {
+	const preview = previewFromVersion(selected.currentVersion);
+	return (
+		<FilePreview
+			contentPath={
+				absoluteProductPath(origin, selected.contentPath) ??
+				selected.contentPath
+			}
+			kind={selected.kind}
+			preview={{
+				...preview,
+				galleryThumbnailPath: absoluteProductPath(
+					origin,
+					preview.galleryThumbnailPath
+				),
+				previewPath: absoluteProductPath(origin, preview.previewPath),
+			}}
+			title={selected.title}
+		/>
 	);
 }
 

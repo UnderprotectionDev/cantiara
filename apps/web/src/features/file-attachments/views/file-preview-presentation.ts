@@ -44,6 +44,72 @@ export function filePreviewKind(input: {
 	return "download";
 }
 
+export function galleryThumbnailPathFromFile(item: {
+	currentVersion?: {
+		preview?: { galleryThumbnailPath?: string | null } | null;
+	} | null;
+}): string | null {
+	return item.currentVersion?.preview?.galleryThumbnailPath ?? null;
+}
+
+export function previewFromVersion(
+	version: {
+		preview?: {
+			cause?: string | null;
+			csvRows?: string[][] | null;
+			galleryThumbnailPath?: string | null;
+			mode?: string;
+			playback?: {
+				autoplay: false;
+				fullscreen: boolean;
+				loopOptional: boolean;
+				speed: boolean;
+			} | null;
+			previewPath?: string | null;
+			retryLimit?: number;
+			status?: string;
+			supportReference?: string | null;
+			textExcerpt?: string | null;
+			unpack?: boolean;
+			written?: boolean;
+		} | null;
+	} | null
+): {
+	cause: string | null;
+	csvRows: string[][] | null;
+	galleryThumbnailPath: string | null;
+	mode: string;
+	playback: {
+		autoplay: false;
+		fullscreen: boolean;
+		loopOptional: boolean;
+		speed: boolean;
+	} | null;
+	previewPath: string | null;
+	retryLimit: number;
+	status: string;
+	supportReference: string | null;
+	textExcerpt: string | null;
+	unpack: boolean;
+	written: boolean;
+} {
+	const preview = version?.preview;
+	return {
+		cause: preview?.cause ?? null,
+		csvRows: preview?.csvRows ?? null,
+		galleryThumbnailPath: preview?.galleryThumbnailPath ?? null,
+		mode: preview?.mode ?? "download-only",
+		playback: preview?.playback ?? null,
+		previewPath: preview?.previewPath ?? null,
+		retryLimit: preview?.retryLimit ?? 0,
+		status: preview?.status ?? "unavailable",
+		supportReference: preview?.supportReference ?? null,
+		textExcerpt: preview?.textExcerpt ?? null,
+		unpack: preview?.unpack ?? false,
+		written: preview?.written ?? false,
+	};
+}
+
 export function absoluteProductPath(
 	origin: string,
 	path: string | null

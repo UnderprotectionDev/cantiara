@@ -2,7 +2,9 @@ import { expect, test } from "vitest";
 
 import {
 	filePreviewKind,
+	galleryThumbnailPathFromFile,
 	galleryThumbnailSrc,
+	previewFromVersion,
 } from "./file-preview-presentation";
 
 test("Gallery list never uses the original content path as a thumbnail", () => {
@@ -25,4 +27,19 @@ test("Gallery list never uses the original content path as a thumbnail", () => {
 	expect(
 		filePreviewKind({ kind: "image", status: "unavailable", unpack: false })
 	).toBe("unavailable");
+});
+
+test("listing a File Attachment does not crash when preview is missing", () => {
+	expect(() =>
+		galleryThumbnailPathFromFile({
+			currentVersion: {},
+		})
+	).not.toThrow();
+	expect(
+		galleryThumbnailPathFromFile({
+			currentVersion: {},
+		})
+	).toBeNull();
+	expect(previewFromVersion({}).galleryThumbnailPath).toBeNull();
+	expect(previewFromVersion({}).status).toBe("unavailable");
 });
