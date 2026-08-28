@@ -6,6 +6,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import type { PrismaClient } from "../prisma/generated/client";
 import {
 	clientStampIsCurrent,
+	forgetGeneratedPrismaClientCache,
 	loadGeneratedPrismaClient,
 	readGeneratedClientStamp,
 } from "./generated-prisma-client";
@@ -112,6 +113,15 @@ function dropCachedPrisma() {
 }
 
 let productionPrisma: PrismaClient | undefined;
+
+export function resetPrismaClientCache() {
+	dropCachedPrisma();
+	if (productionPrisma) {
+		productionPrisma.$disconnect().catch(() => undefined);
+		productionPrisma = undefined;
+	}
+	forgetGeneratedPrismaClientCache();
+}
 
 export function getPrismaClient() {
 	const diskStamp = readGeneratedClientStamp();
