@@ -8,6 +8,8 @@ export function galleryThumbnailSrc(input: {
 	return input.galleryThumbnailPath;
 }
 
+const TRAILING_SLASH = /\/$/;
+
 export function filePreviewKind(input: {
 	kind: string;
 	status: string;
@@ -20,7 +22,7 @@ export function filePreviewKind(input: {
 	| "csv"
 	| "text"
 	| "playback" {
-	if (input.status === "unavailable" || input.status === "pending") {
+	if (input.status === "unavailable") {
 		return "unavailable";
 	}
 	if (input.kind === "zip" || input.unpack) {
@@ -52,6 +54,15 @@ export function galleryThumbnailPathFromFile(item: {
 	return item.currentVersion?.preview?.galleryThumbnailPath ?? null;
 }
 
+export function isolatedPreviewPathFromContent(
+	contentPath: string | null | undefined
+): string | null {
+	if (!contentPath) {
+		return null;
+	}
+	return `${contentPath.replace(TRAILING_SLASH, "")}/preview`;
+}
+
 export function previewFromVersion(
 	version: {
 		preview?: {
@@ -73,7 +84,8 @@ export function previewFromVersion(
 			unpack?: boolean;
 			written?: boolean;
 		} | null;
-	} | null
+	} | null,
+	contentPath?: string | null
 ): {
 	cause: string | null;
 	csvRows: string[][] | null;
@@ -100,9 +112,10 @@ export function previewFromVersion(
 		galleryThumbnailPath: preview?.galleryThumbnailPath ?? null,
 		mode: preview?.mode ?? "download-only",
 		playback: preview?.playback ?? null,
-		previewPath: preview?.previewPath ?? null,
+		previewPath:
+			preview?.previewPath ?? isolatedPreviewPathFromContent(contentPath),
 		retryLimit: preview?.retryLimit ?? 0,
-		status: preview?.status ?? "unavailable",
+		status: preview?.status ?? "pending",
 		supportReference: preview?.supportReference ?? null,
 		textExcerpt: preview?.textExcerpt ?? null,
 		unpack: preview?.unpack ?? false,

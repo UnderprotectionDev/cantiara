@@ -128,7 +128,10 @@ function SelectedFilePreview({
 		title: string;
 	};
 }) {
-	const preview = previewFromVersion(selected.currentVersion);
+	const preview = previewFromVersion(
+		selected.currentVersion,
+		selected.contentPath
+	);
 	return (
 		<FilePreview
 			contentPath={
@@ -177,7 +180,6 @@ function FileRow({
 			<GalleryThumb
 				contentPath={contentPath}
 				galleryThumbnailPath={galleryThumbnailPath}
-				title={title}
 			/>
 			{title}
 		</Button>

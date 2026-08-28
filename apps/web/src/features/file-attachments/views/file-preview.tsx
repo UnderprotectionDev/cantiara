@@ -5,10 +5,11 @@ import {
 	DefaultVideoLayout,
 	defaultLayoutIcons,
 } from "@vidstack/react/player/layouts/default";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 
 import { FILE_ATTACHMENT_COPY } from "../forms/file-attachments-copy";
+import { fetchProductMedia } from "./file-preview-media";
 import {
 	filePreviewKind,
 	galleryThumbnailSrc,
@@ -85,11 +86,11 @@ export default function FilePreview({
 	}
 	if (surface === "visual" && preview.previewPath) {
 		return (
-			<img
+			<ProductMedia
 				alt={title}
 				className="max-h-96 max-w-full"
 				height={384}
-				src={preview.previewPath}
+				href={preview.previewPath}
 				width={640}
 			/>
 		);
@@ -126,20 +127,7 @@ export default function FilePreview({
 	}
 	if (surface === "playback" && preview.previewPath) {
 		return (
-			<MediaPlayer
-				autoPlay={false}
-				className="w-full"
-				loop={false}
-				src={preview.previewPath}
-				title={title}
-			>
-				<MediaProvider />
-				{kind === "audio" ? (
-					<DefaultAudioLayout icons={defaultLayoutIcons} />
-				) : (
-					<DefaultVideoLayout icons={defaultLayoutIcons} />
-				)}
-			</MediaPlayer>
+			<PlaybackPreview href={preview.previewPath} kind={kind} title={title} />
 		);
 	}
 	return <p role="status">{FILE_ATTACHMENT_COPY.unavailable}</p>;
@@ -148,24 +136,111 @@ export default function FilePreview({
 export function GalleryThumb({
 	contentPath,
 	galleryThumbnailPath,
-	title,
 }: {
 	contentPath: string;
 	galleryThumbnailPath: string | null;
-	title: string;
 }) {
 	const src = galleryThumbnailSrc({ contentPath, galleryThumbnailPath });
 	if (!src) {
-		return <span>{title}</span>;
+		return null;
 	}
 	return (
-		<img
+		<ProductMedia
 			alt=""
 			className="h-12 w-12 object-cover"
 			height={48}
-			src={src}
+			href={src}
 			width={48}
 		/>
+	);
+}
+
+function useProductObjectUrl(href: string | null) {
+	const [objectUrl, setObjectUrl] = useState<string | null>(null);
+	const createdRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (!href) {
+			setObjectUrl(null);
+			return;
+		}
+		let cancelled = false;
+		const load = async () => {
+			try {
+				const blob = await fetchProductMedia(href);
+				if (cancelled) {
+					return;
+				}
+				createdRef.current = URL.createObjectURL(blob);
+				setObjectUrl(createdRef.current);
+			} catch {
+				if (!cancelled) {
+					setObjectUrl(null);
+				}
+			}
+		};
+		load();
+		return () => {
+			cancelled = true;
+			if (createdRef.current) {
+				URL.revokeObjectURL(createdRef.current);
+				createdRef.current = null;
+			}
+			setObjectUrl(null);
+		};
+	}, [href]);
+	return objectUrl;
+}
+
+function ProductMedia({
+	alt,
+	className,
+	height,
+	href,
+	width,
+}: {
+	alt: string;
+	className: string;
+	height: number;
+	href: string;
+	width: number;
+}) {
+	const objectUrl = useProductObjectUrl(href);
+	return (
+		<img
+			alt={alt}
+			className={className}
+			height={height}
+			src={objectUrl ?? href}
+			width={width}
+		/>
+	);
+}
+
+function PlaybackPreview({
+	href,
+	kind,
+	title,
+}: {
+	href: string;
+	kind: string;
+	title: string;
+}) {
+	const objectUrl = useProductObjectUrl(href);
+	return (
+		<MediaPlayer
+			autoPlay={false}
+			className="w-full"
+			loop={false}
+			src={objectUrl ?? href}
+			title={title}
+		>
+			<MediaProvider />
+			{kind === "audio" ? (
+				<DefaultAudioLayout icons={defaultLayoutIcons} />
+			) : (
+				<DefaultVideoLayout icons={defaultLayoutIcons} />
+			)}
+		</MediaPlayer>
 	);
 }
 
@@ -181,9 +256,10 @@ function PdfPreview({ src, title }: { src: string; title: string }) {
 	const next = useCallback(() => {
 		setPage((current) => Math.min(pages, current + 1));
 	}, [pages]);
+	const objectUrl = useProductObjectUrl(src);
 	return (
 		<div className="flex flex-col gap-2">
-			<Document file={src} onLoadSuccess={onLoad}>
+			<Document file={objectUrl ?? src} onLoadSuccess={onLoad}>
 				<Page pageNumber={page} width={480} />
 			</Document>
 			<div className="flex gap-2">

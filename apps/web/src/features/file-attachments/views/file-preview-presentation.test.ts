@@ -27,6 +27,12 @@ test("Gallery list never uses the original content path as a thumbnail", () => {
 	expect(
 		filePreviewKind({ kind: "image", status: "unavailable", unpack: false })
 	).toBe("unavailable");
+	expect(
+		filePreviewKind({ kind: "image", status: "pending", unpack: false })
+	).toBe("visual");
+	expect(
+		filePreviewKind({ kind: "image", status: "ready", unpack: false })
+	).toBe("visual");
 });
 
 test("listing a File Attachment does not crash when preview is missing", () => {
@@ -41,5 +47,8 @@ test("listing a File Attachment does not crash when preview is missing", () => {
 		})
 	).toBeNull();
 	expect(previewFromVersion({}).galleryThumbnailPath).toBeNull();
-	expect(previewFromVersion({}).status).toBe("unavailable");
+	expect(previewFromVersion({}).status).toBe("pending");
+	expect(
+		previewFromVersion({}, "/api/file-attachments/a/versions/b").previewPath
+	).toBe("/api/file-attachments/a/versions/b/preview");
 });

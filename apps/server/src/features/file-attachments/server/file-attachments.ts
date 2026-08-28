@@ -578,7 +578,8 @@ export async function listFileAttachments(
 
 export async function getFileAttachment(
 	prisma: PrismaClient,
-	input: { id: string; workspaceId: string }
+	input: { id: string; workspaceId: string },
+	deps: FileAttachmentDeps = {}
 ): Promise<FileAttachmentView | null> {
 	const row = await prisma.fileAttachment.findFirst({
 		where: { id: input.id, workspaceId: input.workspaceId },
@@ -586,7 +587,27 @@ export async function getFileAttachment(
 	if (!row) {
 		return null;
 	}
-	return await loadFileView(prisma, row.id);
+	const view = await loadFileView(prisma, row.id);
+	if (
+		view?.kind === FILE_KIND.image &&
+		view.currentVersion.preview.status === PREVIEW_STATUS.pending
+	) {
+		await ensureImageDerivatives(
+			prisma,
+			{
+				contentHash: view.currentVersion.contentHash,
+				kind: view.kind,
+				versionId: view.currentVersion.id,
+				workspaceId: input.workspaceId,
+			},
+			{
+				engine: deps.derivatives,
+				store: storeOf(deps),
+			}
+		);
+		return await loadFileView(prisma, row.id);
+	}
+	return view;
 }
 
 export async function readAccessibleFileBytes(

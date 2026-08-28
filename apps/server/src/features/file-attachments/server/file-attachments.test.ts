@@ -1032,6 +1032,46 @@ describe("File Attachments", () => {
 		expect(await prisma.fileImageDerivative.count()).toBe(0);
 	});
 
+	it("rebuilds pending image derivatives when the File Attachment is opened", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const created = await commitPng(prisma, {
+			actorId,
+			idempotencyKey: "pending-open",
+			projectId: project.id,
+			workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			return;
+		}
+		await prisma.fileImageDerivative.deleteMany({
+			where: { contentHash: created.file.currentVersion.contentHash },
+		});
+		await prisma.fileAttachmentVersion.update({
+			data: {
+				previewAttempts: 0,
+				previewCause: null,
+				previewStatus: PREVIEW_STATUS.pending,
+			},
+			where: { id: created.file.currentVersion.id },
+		});
+		const opened = await getFileAttachment(prisma, {
+			id: created.file.id,
+			workspaceId,
+		});
+		expect(opened?.currentVersion.preview.status).toBe(PREVIEW_STATUS.ready);
+		expect(opened?.currentVersion.preview.galleryThumbnailPath).toBe(
+			thumbnailPathFor(
+				created.file.id,
+				created.file.currentVersion.id,
+				THUMBNAIL_SIZE.small
+			)
+		);
+		expect(opened?.currentVersion.preview.previewPath).toBe(
+			previewPathFor(created.file.id, created.file.currentVersion.id)
+		);
+	});
+
 	it("keeps an over-limit image downloadable with Unavailable preview and a bounded observable retry", async () => {
 		const { actorId, project, workspaceId } = await openProject(prisma);
 		let produces = 0;
