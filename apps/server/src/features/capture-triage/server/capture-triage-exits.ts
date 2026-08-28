@@ -129,11 +129,20 @@ export interface FileAttachmentPromotionCommand {
 
 export type FileAttachmentPromotionResult =
 	| {
-			fileAttachmentId: null;
+			fileAttachmentId: string | null;
 			status: "promoted";
 			visibleAttachment: null;
 	  }
-	| { status: "failed"; visibleAttachment: null };
+	| {
+			explanation?: {
+				reason: string;
+				retryBound: "none" | "once";
+				supportReference: string;
+				written: boolean;
+			};
+			status: "failed";
+			visibleAttachment: null;
+	  };
 
 export type FileAttachmentFinalizeAdapter = (
 	command: FileAttachmentPromotionCommand
@@ -302,6 +311,12 @@ export type ConvertOutcome =
 			visibleAttachment: null;
 	  }
 	| {
+			explanation?: {
+				reason: string;
+				retryBound: "none" | "once";
+				supportReference: string;
+				written: boolean;
+			};
 			inboxItem: CaptureInboxItemView;
 			status: "finalize-failed";
 			visibleAttachment: null;
@@ -789,20 +804,14 @@ export function createTriageExits(ctx: TriageExitsContext) {
 					targetScope: preview.proposed.targetScope,
 				});
 				if (promotion.status === "failed") {
-					const outcome: ConvertOutcome = {
+					return {
+						...(promotion.explanation
+							? { explanation: promotion.explanation }
+							: {}),
 						inboxItem: item,
 						status: "finalize-failed",
 						visibleAttachment: null,
 					};
-					await writeHumanReceipt(ctx.prisma, {
-						actorId: ctx.actorId,
-						commandKey: input.idempotencyKey,
-						kind: "convert",
-						payload,
-						resultValue: JSON.stringify(outcome),
-						targetId: item.id,
-					});
-					return outcome;
 				}
 			}
 			const recordCreate = await ctx.convertCreate({

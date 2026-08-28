@@ -1,5 +1,8 @@
 import type { PrismaClient } from "@cantiara/db";
 
+import { promoteCaptureAttachment } from "../../file-attachments/server/file-attachments";
+import { createPrismaCaptureStagingSource } from "../../file-attachments/server/file-attachments-capture-staging";
+import { FILE_SCOPE_KIND } from "../../file-attachments/server/file-attachments-model";
 import {
 	MUTATION_ACTOR,
 	MUTATION_COPY,
@@ -46,8 +49,9 @@ import {
 	createTriageExits,
 	type DeleteOutcome,
 	type FileAttachmentFinalizeAdapter,
+	type FileAttachmentPromotionCommand,
+	type FileAttachmentPromotionResult,
 	handOffConvert,
-	handOffFileAttachmentPromote,
 	type MergeUndoPreview,
 	type RecordBinder,
 	type SimilarMatch,
@@ -461,6 +465,53 @@ async function loadItemView(
 	return row ? toItemView(row) : null;
 }
 
+function fileAttachmentPromoteAdapter(
+	prisma: PrismaClient,
+	workspaceId: string,
+	rootKey: Uint8Array
+): FileAttachmentFinalizeAdapter {
+	const captureStaging = createPrismaCaptureStagingSource(prisma, rootKey);
+	return async (
+		command: FileAttachmentPromotionCommand
+	): Promise<FileAttachmentPromotionResult> => {
+		const outcome = await promoteCaptureAttachment(
+			prisma,
+			{
+				actorId: command.actorId,
+				idempotencyKey: command.idempotencyKey,
+				origin: "human",
+				payload: {
+					inboxItemId: command.item.id,
+					scope:
+						command.targetScope.kind === "project" &&
+						command.targetScope.projectId
+							? {
+									kind: FILE_SCOPE_KIND.project,
+									projectId: command.targetScope.projectId,
+								}
+							: { kind: FILE_SCOPE_KIND.personalWiki },
+				},
+				workspaceId,
+			},
+			{ captureStaging }
+		);
+		if (outcome.status === "committed" || outcome.status === "replayed") {
+			return {
+				fileAttachmentId: outcome.file.id,
+				status: "promoted",
+				visibleAttachment: null,
+			};
+		}
+		return {
+			...(outcome.status === "rejected" || outcome.status === "conflict"
+				? { explanation: outcome.explanation }
+				: {}),
+			status: "failed",
+			visibleAttachment: null,
+		};
+	};
+}
+
 export function createCaptureInbox(input: {
 	actorId: string;
 	binder?: RecordBinder;
@@ -479,13 +530,14 @@ export function createCaptureInbox(input: {
 	const clock = { now: () => now };
 	const workCreate = input.workCreate ?? handOffWorkCreate;
 	const convertCreate = input.convertCreate ?? handOffConvert;
-	const fileAttachmentFinalize =
-		input.fileAttachmentFinalize ?? handOffFileAttachmentPromote;
 	const binder = input.binder ?? createRecordBinder([]);
 	const similarRecords = input.similarRecords ?? (() => []);
 	const store =
 		input.stagingStore ?? createPrismaCaptureStagingStore(input.prisma);
 	const rootKey = input.stagingRootKey ?? stagingRootKey();
+	const fileAttachmentFinalize =
+		input.fileAttachmentFinalize ??
+		fileAttachmentPromoteAdapter(input.prisma, input.workspaceId, rootKey);
 	let lastSuccessfulSaveAt: Date | null = null;
 	let sequentialFocusedId: string | null = null;
 	const connected = () => input.connected !== false;

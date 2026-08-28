@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { issueMainFlowFailure } from "@cantiara/api/client-shell-failure";
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
 import {
@@ -8,6 +9,7 @@ import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
+import type { CaptureStagingSource } from "./file-attachments-capture-staging";
 import {
 	contentPathFor,
 	FILE_ATTACHMENT_COPY,
@@ -18,6 +20,8 @@ import {
 	type FileLifecycle,
 	type FilePinKind,
 	type FileScope,
+	type PromoteCaptureAttachmentCommand,
+	promoteCaptureAttachmentCommandSchema,
 	STAGING_TTL_MS,
 	type StageFileUploadCommand,
 	stageFileUploadCommandSchema,
@@ -41,6 +45,7 @@ export interface FileAttachmentQuotaLimits {
 }
 
 export interface FileAttachmentDeps {
+	captureStaging?: CaptureStagingSource;
 	clock?: { now?: Date };
 	quota?: FileAttachmentQuotaLimits;
 	sniff?: (bytes: Uint8Array) => Promise<FileSniff | null>;
@@ -131,6 +136,31 @@ export interface NewVersionPreview {
 	incoming: { declaredMime: string; filename: string };
 	target: { id: string; title: string };
 }
+
+export type CapturePromotionOutcome =
+	| { file: FileAttachmentView; status: "committed" }
+	| { file: FileAttachmentView; status: "replayed" }
+	| {
+			conflict: typeof FILE_ATTACHMENT_COPY.conflict;
+			explanation: ReturnType<typeof issueMainFlowFailure>;
+			status: "conflict";
+	  }
+	| {
+			explanation: ReturnType<typeof issueMainFlowFailure>;
+			reason:
+				| typeof FILE_ATTACHMENT_COPY.mimeMismatch
+				| typeof FILE_ATTACHMENT_COPY.quotaExceeded
+				| typeof FILE_ATTACHMENT_COPY.restartFromByteZero
+				| typeof FILE_ATTACHMENT_COPY.tooLarge
+				| typeof FILE_ATTACHMENT_COPY.typeRejected
+				| "bytes-incomplete"
+				| "missing-authorization"
+				| "missing-idempotency-key"
+				| "operation-not-found"
+				| "scope-not-found"
+				| "target-not-found";
+			status: "rejected";
+	  };
 
 function quotaLimits(deps: FileAttachmentDeps): FileAttachmentQuotaLimits {
 	return deps.quota ?? FILE_ATTACHMENT_QUOTA;
@@ -1050,4 +1080,151 @@ export async function sweepExpiredFileStaging(
 		);
 		return expired.length;
 	});
+}
+
+function promotionReason(reason: string): string {
+	if (
+		reason === FILE_ATTACHMENT_COPY.mimeMismatch ||
+		reason === FILE_ATTACHMENT_COPY.quotaExceeded ||
+		reason === FILE_ATTACHMENT_COPY.restartFromByteZero ||
+		reason === FILE_ATTACHMENT_COPY.tooLarge ||
+		reason === FILE_ATTACHMENT_COPY.typeRejected
+	) {
+		return reason;
+	}
+	return FILE_ATTACHMENT_COPY.typeRejected;
+}
+
+function failedPromotion(
+	reason: Extract<CapturePromotionOutcome, { status: "rejected" }>["reason"]
+): CapturePromotionOutcome {
+	return {
+		explanation: issueMainFlowFailure({
+			reason: promotionReason(reason),
+			written: false,
+		}),
+		reason,
+		status: "rejected",
+	};
+}
+
+function uploadCommandFromPromotion(
+	command: PromoteCaptureAttachmentCommand,
+	plaintext: {
+		contentType: string;
+		filename: string;
+	}
+): StageFileUploadCommand {
+	return {
+		actorId: command.actorId,
+		idempotencyKey: command.idempotencyKey,
+		origin: HUMAN_ORIGIN,
+		payload: {
+			declaredMime: plaintext.contentType,
+			filename: plaintext.filename,
+			scope: command.payload.scope,
+		},
+		workspaceId: command.workspaceId,
+	};
+}
+
+function outcomeFromFinalize(
+	outcome: FileAttachmentOutcome
+): CapturePromotionOutcome {
+	if (outcome.status === "committed" || outcome.status === "replayed") {
+		return outcome;
+	}
+	if (outcome.status === "conflict") {
+		return {
+			conflict: outcome.conflict,
+			explanation: issueMainFlowFailure({
+				reason: FILE_ATTACHMENT_COPY.conflict,
+				written: false,
+			}),
+			status: "conflict",
+		};
+	}
+	if (outcome.status === "rejected") {
+		return failedPromotion(outcome.reason);
+	}
+	return failedPromotion("bytes-incomplete");
+}
+
+export async function promoteCaptureAttachment(
+	prisma: PrismaClient,
+	command: unknown,
+	deps: FileAttachmentDeps = {}
+): Promise<CapturePromotionOutcome> {
+	const parsed = promoteCaptureAttachmentCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		if (
+			typeof command === "object" &&
+			command !== null &&
+			"idempotencyKey" in command &&
+			(command as { idempotencyKey?: unknown }).idempotencyKey === ""
+		) {
+			return failedPromotion("missing-idempotency-key");
+		}
+		return failedPromotion("missing-authorization");
+	}
+	if (parsed.data.origin !== HUMAN_ORIGIN) {
+		return failedPromotion("missing-authorization");
+	}
+	const source = deps.captureStaging;
+	if (!source) {
+		return failedPromotion("operation-not-found");
+	}
+	const plaintext = await source.read(parsed.data.payload.inboxItemId);
+	if (!plaintext) {
+		const receipt = await prisma.fileAttachmentReceipt.findUnique({
+			where: { commandKey: parsed.data.idempotencyKey },
+		});
+		if (receipt) {
+			const file = await loadFileView(prisma, receipt.fileAttachmentId);
+			if (file) {
+				return { file, status: "replayed" };
+			}
+		}
+		return failedPromotion("operation-not-found");
+	}
+	const upload = uploadCommandFromPromotion(parsed.data, plaintext);
+	const staged = await stageFileUpload(prisma, upload, deps);
+	if (staged.status === "replayed" || staged.status === "committed") {
+		await source.delete(parsed.data.payload.inboxItemId);
+		return staged;
+	}
+	if (staged.status !== "staged") {
+		return outcomeFromFinalize(staged);
+	}
+	const put = await putStagingBytes(
+		prisma,
+		{
+			bytes: plaintext.bytes,
+			operationId: staged.operation.operationId,
+		},
+		deps
+	);
+	if (put.status !== "staged") {
+		return outcomeFromFinalize(put);
+	}
+	const finalized = await finalizeFileUpload(prisma, upload, deps);
+	const result = outcomeFromFinalize(finalized);
+	if (result.status === "committed" || result.status === "replayed") {
+		await source.delete(parsed.data.payload.inboxItemId);
+	}
+	return result;
+}
+
+export async function discardCaptureStaging(
+	_prisma: PrismaClient,
+	input: { inboxItemId: string; workspaceId: string },
+	deps: FileAttachmentDeps = {}
+): Promise<
+	{ status: "deleted" } | { reason: "operation-not-found"; status: "rejected" }
+> {
+	if (!deps.captureStaging) {
+		return { reason: "operation-not-found", status: "rejected" };
+	}
+	await deps.captureStaging.delete(input.inboxItemId);
+	return { status: "deleted" };
 }
