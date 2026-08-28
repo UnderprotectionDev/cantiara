@@ -911,23 +911,24 @@ export function createCaptureInbox(input: {
 			});
 			if (command.attachment) {
 				try {
-					stagedAttachment = await persistStaging({
+					const staged = await persistStaging({
 						attachment: command.attachment,
 						inboxItemId: item.id,
 						rootKey,
 						store,
 						workspaceId: input.workspaceId,
 					});
-					if (!stagedAttachment) {
+					if (!staged) {
 						throw new Error("Capture attachment staging did not complete");
 					}
+					stagedAttachment = staged;
 					const reloaded = await input.prisma.$transaction(async (tx) => {
 						await lockMutation(
 							tx,
 							`capture-save:${input.actorId}:${command.idempotencyKey}`
 						);
 						await tx.captureInboxItem.update({
-							data: { attachmentRef: stagedAttachment.stagingId },
+							data: { attachmentRef: staged.stagingId },
 							where: { id: item.id },
 						});
 						return tx.captureInboxItem.findUnique({

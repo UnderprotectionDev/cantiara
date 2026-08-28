@@ -153,10 +153,11 @@ export async function createWork(
 	);
 }
 
-export function createWorkInTransaction(
+export async function createWorkInTransaction(
 	tx: PrismaTransaction,
 	command: unknown
 ): Promise<WorkLifecycleOutcome> {
+	await Promise.resolve();
 	const parsed = parseCreateCommand(command);
 	if (parsed.status !== "ok") {
 		return parsed.outcome;

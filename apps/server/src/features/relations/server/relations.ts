@@ -812,11 +812,12 @@ export async function createRelation(
 	);
 }
 
-export function createRelationInTransaction(
+export async function createRelationInTransaction(
 	tx: PrismaTransaction,
 	command: unknown,
 	endOverrides: Record<string, EndLifecycleOverride> = {}
 ): Promise<RelationOutcome> {
+	await Promise.resolve();
 	const parsed = parseKeyedCommand(command, createRelationCommandSchema);
 	if (parsed.status !== "ok") {
 		return parsed.outcome;
