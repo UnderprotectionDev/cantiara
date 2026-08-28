@@ -5,37 +5,34 @@ import {
 	NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
+import { invalidateWork } from "@/features/work-lifecycle/forms/invalidate-work";
 import { newIdempotencyKey } from "@/lib/mutation";
-import { orpc, queryClient } from "@/utils/orpc";
+import { orpc } from "@/utils/orpc";
 
 import { RELATIONS_COPY } from "./relations-copy";
 
-async function invalidateUsage(recordId: string) {
-	await queryClient.invalidateQueries({
-		queryKey: orpc.relations.inspect.queryKey({
-			input: { recordId },
-		}),
-	});
-}
-
 export default function UsageLinksPanel({
 	hostRecordId,
+	projectId,
+	usageLinks,
 	works,
 }: {
 	hostRecordId: string;
+	projectId: string;
+	usageLinks: Array<{
+		hostRecordId: string;
+		id: string;
+		kindLabel: string;
+		sourceRecordId: string;
+	}>;
 	works: Array<{ id: string; key: string; title: string }>;
 }) {
-	const graph = useQuery(
-		orpc.relations.inspect.queryOptions({
-			input: { recordId: hostRecordId },
-		})
-	);
-	const hosted = (graph.data?.usageLinks ?? []).filter(
+	const hosted = usageLinks.filter(
 		(link) => link.hostRecordId === hostRecordId
 	);
 	const candidates = works.filter((item) => item.id !== hostRecordId);
@@ -47,12 +44,17 @@ export default function UsageLinksPanel({
 					hostRecordId={hostRecordId}
 					key={link.id}
 					kindLabel={link.kindLabel}
+					projectId={projectId}
 					source={works.find((item) => item.id === link.sourceRecordId)}
 					usageLinkId={link.id}
 				/>
 			))}
 			{candidates.length > 0 ? (
-				<CreateUsageForm candidates={candidates} hostRecordId={hostRecordId} />
+				<CreateUsageForm
+					candidates={candidates}
+					hostRecordId={hostRecordId}
+					projectId={projectId}
+				/>
 			) : null}
 		</section>
 	);
@@ -61,21 +63,22 @@ export default function UsageLinksPanel({
 function UsageEmbedRow({
 	hostRecordId,
 	kindLabel,
+	projectId,
 	source,
 	usageLinkId,
 }: {
 	hostRecordId: string;
 	kindLabel: string;
+	projectId: string;
 	source: { key: string; title: string } | undefined;
 	usageLinkId: string;
 }) {
 	const { attemptOnlineWork, recordSave } = useClientShell();
 	const unlink = useMutation(
-		orpc.relations.unlinkUsageLink.mutationOptions({
+		orpc.workLifecycle.unlinkUsageLink.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidateUsage(hostRecordId);
-					await invalidateUsage(outcome.source.id);
+					await invalidateWork(projectId, hostRecordId);
 					recordSave();
 				}
 			},
@@ -117,19 +120,20 @@ function UsageEmbedRow({
 function CreateUsageForm({
 	candidates,
 	hostRecordId,
+	projectId,
 }: {
 	candidates: Array<{ id: string; key: string; title: string }>;
 	hostRecordId: string;
+	projectId: string;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [error, setError] = useState<string | null>(null);
 	const [firstCandidate] = candidates;
 	const create = useMutation(
-		orpc.relations.createUsageLink.mutationOptions({
+		orpc.workLifecycle.createUsageLink.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidateUsage(hostRecordId);
-					await invalidateUsage(outcome.usageLink.sourceRecordId);
+					await invalidateWork(projectId, hostRecordId);
 					recordSave();
 					setError(null);
 				}

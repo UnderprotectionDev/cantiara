@@ -19,6 +19,7 @@ import {
 import {
 	createUsageLink,
 	inspectRelations,
+	listUsageLinksForHosts,
 	unlinkUsageLink,
 } from "./relations";
 import { RELATIONS_COPY, USAGE_KIND } from "./relations-model";
@@ -387,5 +388,17 @@ describe("Relations usage links", () => {
 			first.workspaceId
 		);
 		expect(owned.usageLinks).toHaveLength(1);
+		const hosted = await listUsageLinksForHosts(prisma, first.workspaceId, [
+			"flow-node-pay",
+			"missing-host",
+		]);
+		expect(hosted["flow-node-pay"]).toHaveLength(1);
+		expect(hosted["missing-host"]).toEqual([]);
+		const otherHosted = await listUsageLinksForHosts(
+			prisma,
+			other.workspaceId,
+			["flow-node-pay"]
+		);
+		expect(otherHosted["flow-node-pay"]).toEqual([]);
 	});
 });

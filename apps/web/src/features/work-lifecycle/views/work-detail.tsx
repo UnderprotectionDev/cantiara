@@ -28,6 +28,12 @@ export interface WorkRecord {
 	status: WorkStatus;
 	title: string;
 	type: WorkType;
+	usageLinks?: Array<{
+		hostRecordId: string;
+		id: string;
+		kindLabel: string;
+		sourceRecordId: string;
+	}>;
 }
 
 export default function WorkDetail({
@@ -118,6 +124,8 @@ export default function WorkDetail({
 			<UsageLinksPanel
 				hostRecordId={work.id}
 				key={`${work.id}:usage:${work.revision}`}
+				projectId={projectId}
+				usageLinks={work.usageLinks ?? []}
 				works={works}
 			/>
 			<ChangeWorkTypeForm

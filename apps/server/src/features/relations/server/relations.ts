@@ -144,6 +144,42 @@ export async function inspectRelations(
 	return inspectRecordGraph({ typedRelations, usageLinks });
 }
 
+export async function listUsageLinksForHosts(
+	prisma: PrismaClient,
+	workspaceId: string,
+	hostRecordIds: readonly string[]
+): Promise<Record<string, UsageLinkView[]>> {
+	const grouped: Record<string, UsageLinkView[]> = {};
+	for (const hostRecordId of hostRecordIds) {
+		grouped[hostRecordId] = [];
+	}
+	if (hostRecordIds.length === 0) {
+		return grouped;
+	}
+	const usageRows = await prisma.usageLink.findMany({
+		orderBy: { createdAt: "asc" },
+		where: {
+			hostRecordId: { in: [...hostRecordIds] },
+			workspaceId,
+		},
+	});
+	for (const row of usageRows) {
+		if (!isUsageKind(row.kind)) {
+			continue;
+		}
+		grouped[row.hostRecordId]?.push(
+			toUsageLinkView({
+				embedId: row.embedId,
+				hostRecordId: row.hostRecordId,
+				id: row.id,
+				kind: row.kind,
+				sourceRecordId: row.sourceRecordId,
+			})
+		);
+	}
+	return grouped;
+}
+
 async function createUsageInTransaction(
 	tx: PrismaTransaction,
 	command: CreateUsageLinkCommand,

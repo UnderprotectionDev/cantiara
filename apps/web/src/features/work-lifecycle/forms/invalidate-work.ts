@@ -36,9 +36,4 @@ export async function invalidateWork(projectId: string, workId: string) {
 			input: { projectId },
 		}),
 	});
-	await queryClient.invalidateQueries({
-		queryKey: orpc.relations.inspect.queryKey({
-			input: { recordId: workId },
-		}),
-	});
 }
