@@ -26,6 +26,16 @@ function workDelegates() {
 	};
 }
 
+function currentLifecycleDelegates() {
+	return {
+		featureHealthUpdate: { findMany },
+		typedRelation: { create: () => undefined, findMany },
+		workMergeEvent: { create: () => undefined, findFirst: findMany },
+		workRelatedEdge: { findMany },
+		workRelation: { findMany },
+	};
+}
+
 describe("Prisma client current delegates", () => {
 	it("refuses a bun --hot client generated before Feature inclusion", () => {
 		expect(
@@ -41,22 +51,16 @@ describe("Prisma client current delegates", () => {
 		expect(
 			prismaClientHasCurrentDelegates({
 				...beforeValues,
-				featureHealthUpdate: { findMany },
-				workMergeEvent: { create: () => undefined, findFirst: findMany },
-				workRelatedEdge: { findMany },
-				workRelation: { findMany },
+				...currentLifecycleDelegates(),
 			} as unknown as PrismaClient)
 		).toBe(false);
 	});
 
-	it("accepts a client that can read Feature health and Related edges", () => {
+	it("accepts a client that can read Feature health, Related edges, typed relations, and Custom field values", () => {
 		expect(
 			prismaClientHasCurrentDelegates({
 				...workDelegates(),
-				featureHealthUpdate: { findMany },
-				workMergeEvent: { create: () => undefined, findFirst: findMany },
-				workRelatedEdge: { findMany },
-				workRelation: { findMany },
+				...currentLifecycleDelegates(),
 			} as unknown as PrismaClient)
 		).toBe(true);
 	});

@@ -8,6 +8,7 @@ import { customFields } from "../features/custom-fields/server/custom-fields-rpc
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
+import { relations } from "../features/relations/server/relations-rpc";
 import { workLifecycle } from "../features/work-lifecycle/server/work-lifecycle-rpc";
 
 export const appRouter = {
@@ -18,6 +19,7 @@ export const appRouter = {
 	customFields,
 	projectOverview: projectOverviewRouter,
 	projectShell,
+	relations,
 	workLifecycle,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	privateData: protectedProcedure.handler(({ context }) => ({

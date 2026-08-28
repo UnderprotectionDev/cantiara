@@ -1,7 +1,7 @@
 import { Button } from "@cantiara/ui/components/button";
 
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
-
+import RelationsPanel from "@/features/relations/views/relations-panel";
 import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
 import ChangeWorkTypeForm from "../forms/change-work-type-form";
@@ -34,6 +34,7 @@ export default function WorkDetail({
 	candidates,
 	onClose,
 	onMerged,
+	onOpenSourceRecord,
 	projectId,
 	work,
 	works,
@@ -41,6 +42,7 @@ export default function WorkDetail({
 	candidates: Array<{ id: string; key: string; title: string }>;
 	onClose: () => void;
 	onMerged?: (survivorId: string) => void;
+	onOpenSourceRecord?: (id: string) => void;
 	projectId: string;
 	work: WorkRecord;
 	works: WorkRecord[];
@@ -114,6 +116,12 @@ export default function WorkDetail({
 				type={work.type}
 				workId={work.id}
 				works={works}
+			/>
+			<RelationsPanel
+				candidates={candidates}
+				onOpenSourceRecord={onOpenSourceRecord}
+				projectId={projectId}
+				workId={work.id}
 			/>
 			<ChangeWorkTypeForm
 				key={`${work.id}:${work.type}:${work.revision}`}
