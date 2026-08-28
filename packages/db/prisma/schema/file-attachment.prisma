@@ -20,26 +20,26 @@ model FileAttachment {
 }
 
 model FileAttachmentVersion {
-  id                      String                         @id
-  fileAttachmentId        String
-  fileAttachment          FileAttachment                 @relation(fields: [fileAttachmentId], references: [id], onDelete: Cascade)
-  versionNumber           Int
-  filename                String
-  mimeType                String
-  kind                    String
-  byteLength              Int
-  contentHash             String
-  objectKey               String
-  previewStatus           String                         @default("pending")
-  previewAttempts         Int                            @default(0)
-  previewCause            String?
-  previewSupportReference String?
-  previewDataWritten      Boolean                        @default(false)
-  markingMarks            Json                           @default("[]")
-  shareItemApprovals      Json                           @default("{}")
-  createdAt               DateTime                       @default(now())
-  pins                    FileAttachmentVersionPin[]
-  originLocations         FileAttachmentOriginLocation[]
+  id                       String                      @id
+  fileAttachmentId         String
+  fileAttachment           FileAttachment              @relation(fields: [fileAttachmentId], references: [id], onDelete: Cascade)
+  versionNumber            Int
+  filename                 String
+  mimeType                 String
+  kind                     String
+  byteLength               Int
+  contentHash              String
+  objectKey                String
+  previewStatus            String                      @default("pending")
+  previewAttempts          Int                         @default(0)
+  previewCause             String?
+  previewSupportReference  String?
+  previewDataWritten       Boolean                     @default(false)
+  markingMarks             Json                        @default("[]")
+  shareItemApprovals       Json                        @default("{}")
+  createdAt                DateTime                    @default(now())
+  pins                     FileAttachmentVersionPin[]
+  originLocations          FileAttachmentOriginLocation[]
 
   @@unique([fileAttachmentId, versionNumber])
   @@index([fileAttachmentId])
@@ -96,10 +96,10 @@ model FileAttachmentRelation {
 }
 
 model FileAttachmentStaging {
-  id                     String   @id
+  id                     String    @id
   workspaceId            String
   actorId                String
-  commandKey             String   @unique
+  commandKey             String    @unique
   payloadFingerprint     String
   scopeKind              String
   projectId              String?
@@ -109,26 +109,26 @@ model FileAttachmentStaging {
   expectedByteLength     Int
   objectKey              String
   status                 String
-  bytesComplete          Boolean  @default(false)
+  bytesComplete          Boolean   @default(false)
   committedAttachmentId  String?
   committedVersionId     String?
   expiresAt              DateTime
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   @@index([workspaceId, status, expiresAt])
   @@map("file_attachment_staging")
 }
 
 model FileAttachmentReceipt {
-  id                 String         @id
-  commandKey         String         @unique
-  fileAttachmentId   String
-  fileAttachment     FileAttachment @relation(fields: [fileAttachmentId], references: [id], onDelete: Cascade)
-  payloadFingerprint String
-  versionId          String
-  kind               String
-  createdAt          DateTime       @default(now())
+  id                     String         @id
+  commandKey             String         @unique
+  fileAttachmentId       String
+  fileAttachment         FileAttachment @relation(fields: [fileAttachmentId], references: [id], onDelete: Cascade)
+  payloadFingerprint     String
+  versionId              String
+  kind                   String
+  createdAt              DateTime       @default(now())
 
   @@index([fileAttachmentId])
   @@map("file_attachment_receipt")
