@@ -10,6 +10,7 @@ import {
 	fileScopeFor,
 } from "../forms/file-attachments-copy";
 import UploadFileForm from "../forms/upload-file-form";
+import FilePreview, { GalleryThumb } from "./file-preview";
 
 const TRAILING_SLASH = /\/$/;
 
@@ -62,6 +63,12 @@ export default function FileAttachmentArea({
 				{files.data.map((item) => (
 					<li key={item.id}>
 						<FileRow
+							contentPath={`${serverOrigin()}${item.contentPath}`}
+							galleryThumbnailPath={
+								item.currentVersion.preview.galleryThumbnailPath
+									? `${serverOrigin()}${item.currentVersion.preview.galleryThumbnailPath}`
+									: null
+							}
 							id={item.id}
 							onSelect={onSelect}
 							selected={item.id === selectedId}
@@ -72,6 +79,21 @@ export default function FileAttachmentArea({
 			</ul>
 			{selected ? (
 				<section aria-label={selected.title} className="flex flex-col gap-3">
+					<FilePreview
+						contentPath={`${serverOrigin()}${selected.contentPath}`}
+						kind={selected.kind}
+						preview={{
+							...selected.currentVersion.preview,
+							galleryThumbnailPath: selected.currentVersion.preview
+								.galleryThumbnailPath
+								? `${serverOrigin()}${selected.currentVersion.preview.galleryThumbnailPath}`
+								: null,
+							previewPath: selected.currentVersion.preview.previewPath
+								? `${serverOrigin()}${selected.currentVersion.preview.previewPath}`
+								: null,
+						}}
+						title={selected.title}
+					/>
 					<ul className="flex flex-col gap-1">
 						{selected.versions.map((version) => (
 							<li key={version.id}>
@@ -96,11 +118,15 @@ export default function FileAttachmentArea({
 }
 
 function FileRow({
+	contentPath,
+	galleryThumbnailPath,
 	id,
 	onSelect,
 	selected,
 	title,
 }: {
+	contentPath: string;
+	galleryThumbnailPath: string | null;
 	id: string;
 	onSelect: (id: string) => void;
 	selected: boolean;
@@ -116,6 +142,11 @@ function FileRow({
 			type="button"
 			variant={selected ? "secondary" : "ghost"}
 		>
+			<GalleryThumb
+				contentPath={contentPath}
+				galleryThumbnailPath={galleryThumbnailPath}
+				title={title}
+			/>
 			{title}
 		</Button>
 	);

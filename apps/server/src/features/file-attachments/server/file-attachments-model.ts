@@ -15,6 +15,8 @@ export const FILE_ATTACHMENT_COPY = {
 	tooLarge: "This file exceeds the size limit for its type.",
 	typeRejected: "This file type is not accepted.",
 	unavailable: "Unavailable",
+	unscannedZip:
+		"Unscanned ZIP cannot enter a link-limited or public External Surface.",
 	upload: "Upload",
 	uploadNewVersion: "Upload new version",
 } as const;
@@ -76,10 +78,77 @@ export type FilePinKind = (typeof FILE_PIN_KIND)[keyof typeof FILE_PIN_KIND];
 
 export const STAGING_TTL_MS = 24 * 60 * 60 * 1000;
 
+export const PREVIEW_MODE = {
+	csvRows: "csv-rows",
+	downloadOnly: "download-only",
+	paged: "paged",
+	plainText: "plain-text",
+	playback: "playback",
+	visual: "visual",
+} as const;
+
+export type PreviewMode = (typeof PREVIEW_MODE)[keyof typeof PREVIEW_MODE];
+
+export const PREVIEW_STATUS = {
+	pending: "pending",
+	ready: "ready",
+	unavailable: "unavailable",
+} as const;
+
+export type PreviewStatus =
+	(typeof PREVIEW_STATUS)[keyof typeof PREVIEW_STATUS];
+
+export const THUMBNAIL_SIZE = {
+	medium: "medium",
+	small: "small",
+} as const;
+
+export type ThumbnailSize =
+	(typeof THUMBNAIL_SIZE)[keyof typeof THUMBNAIL_SIZE];
+
+export const IMAGE_DERIVATIVE_LIMITS = {
+	cpuMs: 5000,
+	maxFrames: 300,
+	maxHeight: 8192,
+	maxPixels: 40_000_000,
+	maxWidth: 8192,
+	mediumPx: 960,
+	retryLimit: 3,
+	smallPx: 320,
+} as const;
+
+export const CSV_PREVIEW_MAX_ROWS = 50;
+export const TEXT_PREVIEW_MAX_CHARS = 32_768;
+
+export const EXTERNAL_SURFACE_AUDIENCE = {
+	linkLimited: "link-limited",
+	public: "public",
+} as const;
+
+export type ExternalSurfaceAudience =
+	(typeof EXTERNAL_SURFACE_AUDIENCE)[keyof typeof EXTERNAL_SURFACE_AUDIENCE];
+
 export const contentPathFor = (
 	fileAttachmentId: string,
 	versionId: string
 ): string => `/api/file-attachments/${fileAttachmentId}/versions/${versionId}`;
+
+export const previewPathFor = (
+	fileAttachmentId: string,
+	versionId: string
+): string => `${contentPathFor(fileAttachmentId, versionId)}/preview`;
+
+export const thumbnailPathFor = (
+	fileAttachmentId: string,
+	versionId: string,
+	size: ThumbnailSize
+): string =>
+	`${contentPathFor(fileAttachmentId, versionId)}/thumbnails/${size}`;
+
+export const derivativeObjectKeyFor = (
+	contentHash: string,
+	size: ThumbnailSize
+): string => `deriv/${contentHash}/${size}.webp`;
 
 export const fileScopeSchema = z.discriminatedUnion("kind", [
 	z.object({

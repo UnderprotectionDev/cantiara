@@ -13,13 +13,14 @@ import {
 	previewUploadNewVersion,
 	putStagingBytes,
 	stageFileUpload,
-	zipCanEnterExternalSurface,
 } from "./file-attachments";
 import {
+	EXTERNAL_SURFACE_AUDIENCE,
 	FILE_ATTACHMENT_COPY,
 	fileScopeSchema,
 	stageFileUploadCommandSchema,
 } from "./file-attachments-model";
+import { fileCanEnterExternalSurface } from "./file-attachments-preview";
 
 async function requireAccess(userId: string) {
 	const access = await getAccountAccessForUser(getPrismaClient(), userId);
@@ -132,6 +133,16 @@ export const fileAttachments = {
 			});
 		}),
 	zipExternalSurfaceAllowed: protectedProcedure
-		.input(z.object({ kind: z.string().min(1) }))
-		.handler(({ input }) => zipCanEnterExternalSurface(input.kind)),
+		.input(
+			z.object({
+				audience: z
+					.enum([
+						EXTERNAL_SURFACE_AUDIENCE.linkLimited,
+						EXTERNAL_SURFACE_AUDIENCE.public,
+					])
+					.default(EXTERNAL_SURFACE_AUDIENCE.public),
+				kind: z.string().min(1),
+			})
+		)
+		.handler(({ input }) => fileCanEnterExternalSurface(input)),
 };

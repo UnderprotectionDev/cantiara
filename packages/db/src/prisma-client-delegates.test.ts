@@ -63,6 +63,7 @@ describe("Prisma client current delegates", () => {
 				...workDelegates(),
 				...currentLifecycleDelegates(),
 				fileAttachment: { findMany },
+				fileImageDerivative: { findMany },
 			} as unknown as PrismaClient)
 		).toBe(true);
 	});

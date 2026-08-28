@@ -1,0 +1,187 @@
+import { Button } from "@cantiara/ui/components/button";
+import { MediaPlayer, MediaProvider } from "@vidstack/react";
+import {
+	DefaultAudioLayout,
+	DefaultVideoLayout,
+	defaultLayoutIcons,
+} from "@vidstack/react/player/layouts/default";
+import { useCallback, useState } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+
+import {
+	FILE_ATTACHMENT_COPY,
+	filePreviewKind,
+	galleryThumbnailSrc,
+} from "../forms/file-attachments-copy";
+
+import "@vidstack/react/player/styles/default/theme.css";
+import "@vidstack/react/player/styles/default/layouts/audio.css";
+import "@vidstack/react/player/styles/default/layouts/video.css";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+	"pdfjs-dist/build/pdf.worker.min.mjs",
+	import.meta.url
+).toString();
+
+interface Preview {
+	csvRows: string[][] | null;
+	galleryThumbnailPath: string | null;
+	mode: string;
+	playback: {
+		autoplay: false;
+		fullscreen: boolean;
+		loopOptional: boolean;
+		speed: boolean;
+	} | null;
+	previewPath: string | null;
+	status: string;
+	textExcerpt: string | null;
+	unpack: boolean;
+}
+
+export default function FilePreview({
+	contentPath,
+	kind,
+	preview,
+	title,
+}: {
+	contentPath: string;
+	kind: string;
+	preview: Preview;
+	title: string;
+}) {
+	const surface = filePreviewKind({
+		kind,
+		status: preview.status,
+		unpack: preview.unpack,
+	});
+	if (surface === "unavailable") {
+		return <p role="status">{FILE_ATTACHMENT_COPY.unavailable}</p>;
+	}
+	if (surface === "download") {
+		return (
+			<p>
+				<a href={contentPath} rel="noreferrer">
+					{FILE_ATTACHMENT_COPY.download} {title}
+				</a>
+			</p>
+		);
+	}
+	if (surface === "visual" && preview.previewPath) {
+		return (
+			<img
+				alt={title}
+				className="max-h-96 max-w-full"
+				height={384}
+				src={preview.previewPath}
+				width={640}
+			/>
+		);
+	}
+	if (surface === "paged" && preview.previewPath) {
+		return <PdfPreview src={preview.previewPath} title={title} />;
+	}
+	if (surface === "csv" && preview.csvRows) {
+		return (
+			<table className="w-full text-left text-sm">
+				<tbody>
+					{preview.csvRows.map((row) => (
+						<tr key={row.join("\u001f")}>
+							{row.map((cell) => (
+								<td
+									className="border px-2 py-1"
+									key={`${row.join("\u001f")}-${cell}`}
+								>
+									{cell}
+								</td>
+							))}
+						</tr>
+					))}
+				</tbody>
+			</table>
+		);
+	}
+	if (surface === "text" && preview.textExcerpt !== null) {
+		return (
+			<pre className="max-h-96 overflow-auto whitespace-pre-wrap text-sm">
+				{preview.textExcerpt}
+			</pre>
+		);
+	}
+	if (surface === "playback" && preview.previewPath) {
+		return (
+			<MediaPlayer
+				autoPlay={false}
+				className="w-full"
+				src={preview.previewPath}
+				title={title}
+			>
+				<MediaProvider />
+				{kind === "audio" ? (
+					<DefaultAudioLayout icons={defaultLayoutIcons} />
+				) : (
+					<DefaultVideoLayout icons={defaultLayoutIcons} />
+				)}
+			</MediaPlayer>
+		);
+	}
+	return <p role="status">{FILE_ATTACHMENT_COPY.unavailable}</p>;
+}
+
+export function GalleryThumb({
+	contentPath,
+	galleryThumbnailPath,
+	title,
+}: {
+	contentPath: string;
+	galleryThumbnailPath: string | null;
+	title: string;
+}) {
+	const src = galleryThumbnailSrc({ contentPath, galleryThumbnailPath });
+	if (!src) {
+		return <span>{title}</span>;
+	}
+	return (
+		<img
+			alt=""
+			className="h-12 w-12 object-cover"
+			height={48}
+			src={src}
+			width={48}
+		/>
+	);
+}
+
+function PdfPreview({ src, title }: { src: string; title: string }) {
+	const [page, setPage] = useState(1);
+	const [pages, setPages] = useState(1);
+	const onLoad = useCallback(({ numPages }: { numPages: number }) => {
+		setPages(numPages);
+	}, []);
+	const previous = useCallback(() => {
+		setPage((current) => Math.max(1, current - 1));
+	}, []);
+	const next = useCallback(() => {
+		setPage((current) => Math.min(pages, current + 1));
+	}, [pages]);
+	return (
+		<div className="flex flex-col gap-2">
+			<Document file={src} onLoadSuccess={onLoad}>
+				<Page pageNumber={page} width={480} />
+			</Document>
+			<div className="flex gap-2">
+				<Button onClick={previous} type="button" variant="ghost">
+					Previous
+				</Button>
+				<p>
+					{page} / {pages} {title}
+				</p>
+				<Button onClick={next} type="button" variant="ghost">
+					Next
+				</Button>
+			</div>
+		</div>
+	);
+}
