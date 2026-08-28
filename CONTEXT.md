@@ -136,6 +136,10 @@ _Avoid_: Kart, görünüm satırı, sahipli bileşen
 Bir Projede yapılması, araştırılması veya iyileştirilmesi amaçlanan şeyi bağımsız kimlik, durum ve geçmişle taşıyan genel ana kayıt; [İş türleri](docs/prd/02-domain-model-and-lifecycle.md#terim-sözlüğü) onun altında yaşar.
 _Avoid_: Görev, ticket, yalnız yapılacak madde
 
+**Şablon**:
+Bir Projede tekrar kullanılan İş başlangıç bağlamı; tür, açıklama iskeleti, seçili alan varsayılanları, hafif kontrol listesi ve isteğe bağlı göreli planlanan başlangıç/hedef tarihi kuralları taşır. Üretilen İş bağımsız kimlik alır; şablon geçmiş, ilişki, kapanış sonucu, mevcut durum veya mutlak tarih taşımaz ([iş öğesi şablonları](docs/prd/06-work-management-and-planning.md#iş-öğesi-şablonları-ve-tek-seferlik-kopyalama)). UI: `Work Template`.
+_Avoid_: live-bound fleet, marketplace, workflow gate, Project fork, Belge şablonu, Başlangıç yapılandırması, Yakalama mini şablonu
+
 **Özellik**:
 Bir kullanıcı yeteneğini veya ürün değişikliğini temsil eden ve [başka bağımsız İşleri kapsayabilen](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı) İş türü; iç içe epic veya subtask hiyerarşisi değildir.
 _Avoid_: Epic, Proje, Kilometre Taşı

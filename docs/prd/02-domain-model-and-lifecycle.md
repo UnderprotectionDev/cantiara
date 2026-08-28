@@ -63,6 +63,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
 | Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |
+| İş şablonu | `Work Template` | Proje kapsamlı tekrar kullanılan İş başlangıç bağlamı; Belge şablonu, Başlangıç yapılandırması veya yakalama mini şablonu değildir |
+| Planlanan başlangıç | `Planned start` | İşin ne zaman başlamasının düşünüldüğü tarih; göreli şablon kuralı oluşturma gününe göre çözülür |
 | Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
 | Tüm etiketler | `All tags` | Etiket süzgecinin süzmeyi kaldırma seçeneği |
 | Etiket uygula | `Apply tag` | Erişilebilir kayda mevcut Etiketi bağlama |
