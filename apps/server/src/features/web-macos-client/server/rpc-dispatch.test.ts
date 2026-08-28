@@ -29,8 +29,12 @@ test("an unmatched RPC envelope carries a secret-free Support reference", () => 
 	const envelope = unmatchedRpcEnvelope();
 
 	expect(envelope.status).toBe(404);
-	expect(envelope.json.message).toBe("This action could not be completed.");
-	expect(envelope.json.data.reason).toBe("This action could not be completed.");
+	expect(envelope.json.message).toBe(
+		"Restart the API so new procedures are registered."
+	);
+	expect(envelope.json.data.reason).toBe(
+		"Restart the API so new procedures are registered."
+	);
 	expect(envelope.json.data.written).toBe(false);
 	expect(envelope.json.data.retryBound).toBe("once");
 	expect(envelope.json.data.supportReference).toMatch(SUPPORT_REFERENCE);

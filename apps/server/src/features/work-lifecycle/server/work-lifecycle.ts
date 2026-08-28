@@ -10,6 +10,8 @@ import {
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
 import { markProjectHasWork } from "../../project-shell/server/project-shell";
+import { createRelation } from "../../relations/server/relations";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
 	type ArchiveWorkCommand,
 	applyPlanningMembershipCommandSchema,
@@ -708,6 +710,32 @@ export async function relateWork(
 	if (parsed.status !== "ok") {
 		return parsed.outcome;
 	}
+	const fromWork = await loadWork(prisma, parsed.command.fromWorkId);
+	if (!fromWork) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const project = await prisma.project.findUnique({
+		where: { id: fromWork.projectId },
+	});
+	if (!project) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const linked = await createRelation(prisma, {
+		actorId: parsed.command.actorId,
+		from: { id: parsed.command.fromWorkId, kind: "Work" },
+		idempotencyKey: `${parsed.command.idempotencyKey}:relation`,
+		origin: "human",
+		previewAcknowledged: true,
+		to: { id: parsed.command.toWorkId, kind: "Work" },
+		type: RELATIONS_COPY.related,
+		viewerWorkspaceId: project.workspaceId,
+	});
+	if (linked.status === "conflict") {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	if (linked.status === "rejected") {
+		return { reason: "target-not-found", status: "rejected" };
+	}
 	const fingerprint = payloadFingerprint({
 		fromWorkId: parsed.command.fromWorkId,
 		kind: WORK_LIFECYCLE_COPY.related,
@@ -802,6 +830,18 @@ export async function detachPrimarySpec(
 	);
 }
 
+function relatedOtherId(
+	edge:
+		| { fromId: string; fromKind?: string; toId: string }
+		| { fromWorkId: string; toWorkId: string },
+	workId: string
+): string {
+	if ("fromId" in edge) {
+		return edge.fromId === workId ? edge.toId : edge.fromId;
+	}
+	return edge.fromWorkId === workId ? edge.toWorkId : edge.fromWorkId;
+}
+
 export async function getWorkScope(
 	prisma: PrismaClient,
 	workId: string
@@ -827,20 +867,28 @@ export async function getWorkScope(
 					where: { featureId: workId },
 				})
 			: [];
-	const relatedEdges =
-		typeof prisma.workRelatedEdge?.findMany === "function"
-			? await prisma.workRelatedEdge.findMany({
-					where: {
-						OR: [{ fromWorkId: workId }, { toWorkId: workId }],
-					},
-				})
-			: [];
+	let relatedEdges:
+		| Array<{ fromId: string; fromKind?: string; toId: string }>
+		| Array<{ fromWorkId: string; toWorkId: string }> = [];
+	if (typeof prisma.typedRelation?.findMany === "function") {
+		relatedEdges = await prisma.typedRelation.findMany({
+			where: {
+				OR: [
+					{ fromId: workId, fromKind: "Work" },
+					{ toId: workId, toKind: "Work" },
+				],
+				type: WORK_LIFECYCLE_COPY.related,
+			},
+		});
+	} else if (typeof prisma.workRelatedEdge?.findMany === "function") {
+		relatedEdges = await prisma.workRelatedEdge.findMany({
+			where: {
+				OR: [{ fromWorkId: workId }, { toWorkId: workId }],
+			},
+		});
+	}
 	const relatedIds = [
-		...new Set(
-			relatedEdges.map((edge) =>
-				edge.fromWorkId === workId ? edge.toWorkId : edge.fromWorkId
-			)
-		),
+		...new Set(relatedEdges.map((edge) => relatedOtherId(edge, workId))),
 	];
 	const relatedRows =
 		relatedIds.length === 0
@@ -1092,22 +1140,6 @@ async function relateInTransaction(
 	if (target.projectId !== prepared.row.projectId) {
 		return { reason: "work-not-portable", status: "rejected" };
 	}
-	await tx.workRelatedEdge.upsert({
-		create: {
-			fromWorkId: command.fromWorkId,
-			id: crypto.randomUUID(),
-			kind: WORK_LIFECYCLE_COPY.related,
-			toWorkId: command.toWorkId,
-		},
-		update: {},
-		where: {
-			fromWorkId_toWorkId_kind: {
-				fromWorkId: command.fromWorkId,
-				kind: WORK_LIFECYCLE_COPY.related,
-				toWorkId: command.toWorkId,
-			},
-		},
-	});
 	await tx.work.update({
 		data: { revision: prepared.row.revision + 1 },
 		where: { id: prepared.row.id },

@@ -1,0 +1,23 @@
+model TypedRelation {
+  id                     String    @id
+  type                   String
+  fromKind               String
+  fromId                 String
+  toKind                 String
+  toId                   String
+  originOwnerKind        String?
+  originOwnerId          String?
+  originComponentId      String?
+  originSourceVersion    String?
+  originComponentMissing Boolean   @default(false)
+  blockerState           String?
+  establishedAt          DateTime  @default(now())
+  revision               Int
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@unique([type, fromKind, fromId, toKind, toId])
+  @@index([fromKind, fromId])
+  @@index([toKind, toId])
+  @@map("typed_relation")
+}

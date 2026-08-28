@@ -8,6 +8,7 @@ model Workspace {
   projects              Project[]
   shortCodeReservations WorkspaceShortCodeReservation[]
   tags                  Tag[]
+  fileAttachments       FileAttachment[]
 
   @@map("workspace")
 }

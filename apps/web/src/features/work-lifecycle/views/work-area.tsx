@@ -2,6 +2,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import CustomFieldFilter from "@/features/custom-fields/forms/custom-field-filter";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import TagFilter from "@/features/tags/views/tag-filter";
 import { orpc } from "@/utils/orpc";
@@ -15,6 +16,7 @@ import { nextSelectedWorkId } from "./work-selection";
 
 export default function WorkArea({ projectId }: { projectId: string }) {
 	const [archiveFilter, setArchiveFilter] = useState(false);
+	const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
 	const [tagFilter, setTagFilter] = useState("");
 	const work = useQuery(
 		orpc.workLifecycle.list.queryOptions({
@@ -106,6 +108,7 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 	);
 	const items = work.data
 		.filter((item) => tagFilter === "" || taggedIds.has(item.id))
+		.filter((item) => filteredIds === null || filteredIds.includes(item.id))
 		.map((item) => ({
 			...item,
 			tags: (tagsByWork.get(item.id) ?? [])
@@ -118,6 +121,11 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 		<div className="flex flex-col gap-6">
 			<CreateWorkForm onCreated={onCreated} projectId={projectId} />
 			<div className="flex flex-wrap items-end gap-3">
+				<CustomFieldFilter
+					onRecordIds={setFilteredIds}
+					projectId={projectId}
+					recordType="Work"
+				/>
 				<Button
 					aria-pressed={archiveFilter}
 					onClick={onToggleArchiveFilter}
@@ -151,6 +159,7 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 						}))}
 					onClose={onClose}
 					onMerged={onCreated}
+					onOpenSourceRecord={onOpenSourceRecord}
 					projectId={projectId}
 					work={selected}
 					works={items}

@@ -1,5 +1,8 @@
 import { Button } from "@cantiara/ui/components/button";
 
+import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
+import RelationsPanel from "@/features/relations/views/relations-panel";
+import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
 import WorkTagPicker from "@/features/tags/views/work-tag-picker";
 
 import ArchiveWorkForm from "../forms/archive-work-form";
@@ -28,6 +31,12 @@ export interface WorkRecord {
 	status: WorkStatus;
 	title: string;
 	type: WorkType;
+	usageLinks?: Array<{
+		hostRecordId: string;
+		id: string;
+		kindLabel: string;
+		sourceRecordId: string;
+	}>;
 }
 
 export default function WorkDetail({
@@ -35,6 +44,7 @@ export default function WorkDetail({
 	candidates,
 	onClose,
 	onMerged,
+	onOpenSourceRecord,
 	projectId,
 	work,
 	works,
@@ -43,6 +53,7 @@ export default function WorkDetail({
 	candidates: Array<{ id: string; key: string; title: string }>;
 	onClose: () => void;
 	onMerged?: (survivorId: string) => void;
+	onOpenSourceRecord?: (id: string) => void;
 	projectId: string;
 	work: WorkRecord;
 	works: WorkRecord[];
@@ -124,12 +135,31 @@ export default function WorkDetail({
 				revision={work.revision}
 				workId={work.id}
 			/>
+			<UsageLinksPanel
+				hostRecordId={work.id}
+				key={`${work.id}:usage:${work.revision}`}
+				projectId={projectId}
+				usageLinks={work.usageLinks ?? []}
+				works={works}
+			/>
+			<RelationsPanel
+				candidates={candidates}
+				onOpenSourceRecord={onOpenSourceRecord}
+				projectId={projectId}
+				workId={work.id}
+			/>
 			<ChangeWorkTypeForm
 				key={`${work.id}:${work.type}:${work.revision}`}
 				projectId={projectId}
 				revision={work.revision}
 				type={work.type}
 				workId={work.id}
+			/>
+			<CustomFieldValuesEditor
+				key={`${work.id}:custom-fields`}
+				projectId={projectId}
+				recordId={work.id}
+				recordType="Work"
 			/>
 			<MergeWorkForm
 				candidates={candidates}

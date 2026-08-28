@@ -243,6 +243,7 @@
 │       │   │   ├── contact-and-company/
 │       │   │   │   └── views/
 │       │   │   ├── custom-fields/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── daily-focus/
 │       │   │   │   └── views/
@@ -268,6 +269,7 @@
 │       │   │   │   └── views/
 │       │   │   ├── file-attachments/
 │       │   │   │   ├── components/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── focus-period/
 │       │   │   │   └── views/
@@ -319,6 +321,7 @@
 │       │   │   ├── record-discovery/
 │       │   │   │   └── views/
 │       │   │   ├── relations/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── release-communication/
 │       │   │   │   └── views/

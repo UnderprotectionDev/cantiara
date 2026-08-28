@@ -21,6 +21,7 @@
     "better-auth": "catalog:",
     "dotenv": "catalog:",
     "evlog": "^2.22.4",
+    "file-type": "^21.3.3",
     "hono": "catalog:",
     "zod": "catalog:"
   },

@@ -79,7 +79,7 @@ export function apiHandlerFor(router: AppRouter) {
 export function unmatchedRpcEnvelope(log?: unknown): UnmatchedRpcEnvelope {
 	const failure = issueMainFlowFailure(
 		{
-			reason: CLIENT_SHELL_COPY.failed,
+			reason: CLIENT_SHELL_COPY.staleRpcRouter,
 			written: false,
 		},
 		{

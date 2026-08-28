@@ -102,6 +102,18 @@ _Avoid_: Proje kabuğunu silme, bağımsız çocuk silme, kısmi Proje geri yük
 Bir ilişkinin sahibi yaşarken karşı ucunun çözülemediğini içerik sızdırmadan gösteren güvenli referans durumu ([kırık referans sunumu](docs/prd/02-domain-model-and-lifecycle.md#kirik-referans-sunumu)).
 _Avoid_: Yetim kaydı kopyalama, başka hedefe otomatik yönlendirme, silinmiş başlığı gösterme
 
+**Standart ilişki**:
+Kapalı katalogdaki türlenmiş bağ; iki uç, yön ve anlam taşır ve kullanıcı yeni tür icat etmez; gömülü kullanım veya Kanıt bağı uzmanlığı değildir ([standart ilişki türleri](docs/prd/02-domain-model-and-lifecycle.md#standart-ilişki-türleri)). UI: `Related`.
+_Avoid_: related-pile, serbest etiket grafiği, otomatik grafik, kullanım bağı
+
+**Kullanım bağı**:
+Gömülü canlı kart, blok veya konumun kaynak kimliğini kopyasız izleyen türetilmiş bağ; semantik ilişki, `Related` veya Kanıt bağı değildir ([kullanım bağları](docs/prd/02-domain-model-and-lifecycle.md#kullanim-baglari)).
+_Avoid_: Related, geri bağlantı, Kanıt Rolü, ilişki sayısı
+
+**Türetilen**:
+Köken ilişkisinin üretilen uç için gösterilen etiketi; genel `Related` veya Kanıt bağı değildir.
+_Avoid_: Related, Kanıt bağı, otomatik dönüşüm
+
 **Belge kapsam taşıma seçimi**:
 Etkin bir Projedeki Belgeyi yalnız açıkça seçilen çocuk Belgeler ve aynı kaynağın sahip olduğu Dosya Ekleriyle kimliklerini koruyarak başka kapsama alan [taşıma sınırı](docs/prd/07-documents-and-knowledge.md#belge-kapsamı-taşıma-ve-kopyalama).
 _Avoid_: Bütün ilişki grafiğini taşıma, Belge kopyası, İş kapsamını değiştirme
@@ -346,8 +358,20 @@ Yakalamayı mevcut kayda kanıt olarak bağlayan ilişki; Kanıt bağı uzmanlı
 _Avoid_: Kanıt bağı uzmanlığı, otomatik doğrulama, İlgili ilişkisi
 
 **Taslak**:
-Kullanıcı oluşturma eylemini tamamlamadan önce korunan, henüz kaydedilmemiş ayrıntılı İş formu; Yakalama Gelen Kutusu öğesi veya ana kayıt değildir.
+Kullanıcı oluşturma eylemini tamamlamadan önce korunan, henüz kaydedilmemiş ayrıntılı İş formu; Yakalama Gelen Kutusu öğesi veya ana kayıt değildir. UI: `Draft`.
 _Avoid_: Yakalama, İş, Belge taslağı
+
+**Taslaklar**:
+Kişisel Taslakların sürdürüldüğü veya açıkça silindiği yüzey; ana kayıt listesi, arama veya planlama yüzeyi değildir. UI: `Drafts`.
+_Avoid_: İş listesi, Yakalama Gelen Kutusu, Belge taslağı
+
+**Son kayıt**:
+Son başarılı otomatik kaydın zamanı; bağlantı kesilince Client Shell kromunda gösterilir. UI: `Last saved`.
+_Avoid_: yerel kuyruk satırı, Last successful save (uzantı gönderimi)
+
+**Yazılmamış risk**:
+Henüz sunucuya yazılmamış değişiklik uyarısı; yalnız unsaved-risk bayrağı varken. UI: `Unsaved changes may be lost`.
+_Avoid_: çevrimdışı kuyruk, gizli replay
 
 **Ürün Boşluğu**:
 Kurucunun Cantiara kapsamında karşılanmadığını düşündüğü ihtiyacı ve bu ihtiyaca ilişkin değerlendirme durumunu taşıyan Çalışma Alanı ana kaydı; tekrar sayısı [Dış araca kaçış günlüğünde](docs/prd/04-workspace-and-projects.md#dış-araca-kaçış-günlüğü) yaşar.

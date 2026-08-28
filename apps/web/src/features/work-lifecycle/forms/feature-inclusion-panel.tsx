@@ -94,13 +94,6 @@ export default function FeatureInclusionPanel({
 					/>
 				</>
 			) : null}
-			<RelateWorkForm
-				candidates={candidates.filter((item) => item.type === "Feature")}
-				fromWorkId={workId}
-				projectId={projectId}
-				related={scope.data.relatedWork}
-				revision={revision}
-			/>
 		</section>
 	);
 }
@@ -250,96 +243,6 @@ function IncludedWorkRow({
 				{WORK_LIFECYCLE_COPY.detach}
 			</Button>
 		</li>
-	);
-}
-
-function RelateWorkForm({
-	candidates,
-	fromWorkId,
-	projectId,
-	related,
-	revision,
-}: {
-	candidates: WorkOption[];
-	fromWorkId: string;
-	projectId: string;
-	related: Array<{ id: string; key: string; title: string }>;
-	revision: number;
-}) {
-	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
-	const [firstCandidate] = candidates;
-	const relate = useMutation(
-		orpc.workLifecycle.relate.mutationOptions({
-			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidateWork(projectId, fromWorkId);
-					recordSave();
-				}
-			},
-		})
-	);
-	const form = useForm({
-		defaultValues: { toWorkId: firstCandidate ? firstCandidate.id : "" },
-		onSubmit: async ({ value }) => {
-			if (value.toWorkId.length === 0) {
-				return;
-			}
-			const result = attemptOnlineWork("record-create", () =>
-				relate.mutateAsync({
-					baseRevision: revision,
-					fromWorkId,
-					idempotencyKey: newIdempotencyKey(),
-					toWorkId: value.toWorkId,
-				})
-			);
-			if (result.status === "refused") {
-				return;
-			}
-			await result.value;
-			await invalidateWork(projectId, value.toWorkId);
-		},
-	});
-	const onSubmit = useCallback(
-		(event: FormEvent<HTMLFormElement>) => {
-			event.preventDefault();
-			markUnsaved();
-			form.handleSubmit().catch(() => undefined);
-		},
-		[form, markUnsaved]
-	);
-	return (
-		<div className="flex flex-col gap-2">
-			<h3 className="font-medium text-sm">{WORK_LIFECYCLE_COPY.related}</h3>
-			<ul className="text-sm">
-				{related.map((item) => (
-					<li key={item.id}>
-						<span className="font-mono text-muted-foreground">{item.key}</span>{" "}
-						{item.title}
-					</li>
-				))}
-			</ul>
-			<form className="flex flex-col gap-3" onSubmit={onSubmit}>
-				<FieldGroup className="flex-row flex-wrap items-end gap-3">
-					<form.Field name="toWorkId">
-						{(field) => (
-							<WorkOptionField
-								id="relate-work"
-								label={WORK_LIFECYCLE_COPY.related}
-								onValueChange={field.handleChange}
-								options={candidates}
-								value={field.state.value}
-							/>
-						)}
-					</form.Field>
-					<Button
-						disabled={relate.isPending || candidates.length === 0}
-						type="submit"
-					>
-						{WORK_LIFECYCLE_COPY.related}
-					</Button>
-				</FieldGroup>
-			</form>
-		</div>
 	);
 }
 

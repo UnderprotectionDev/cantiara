@@ -1,3 +1,4 @@
+import { resetPrismaClientCache } from "@cantiara/db";
 import { initLogger } from "evlog";
 
 initLogger({
@@ -10,3 +11,9 @@ export default {
 	},
 	port: 3000,
 };
+
+if (import.meta.hot) {
+	import.meta.hot.dispose(() => {
+		resetPrismaClientCache();
+	});
+}
