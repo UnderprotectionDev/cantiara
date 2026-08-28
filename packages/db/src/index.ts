@@ -10,11 +10,17 @@ import {
 	loadGeneratedPrismaClient,
 	readGeneratedClientStamp,
 } from "./generated-prisma-client";
-import { prismaClientHasCurrentDelegates } from "./prisma-client-delegates";
+import {
+	prismaClientHasCurrentDelegates,
+	prismaClientHasCurrentFileAttachmentVersionModel,
+} from "./prisma-client-delegates";
 
 export { Prisma, PrismaClient } from "../prisma/generated/client";
 export { readGeneratedClientStamp } from "./generated-prisma-client";
-export { prismaClientHasCurrentDelegates } from "./prisma-client-delegates";
+export {
+	prismaClientHasCurrentDelegates,
+	prismaClientHasCurrentFileAttachmentVersionModel,
+} from "./prisma-client-delegates";
 
 // Local development: route the Neon serverless driver's WebSocket transport to a
 // local proxy (see scripts/neon-local-proxy.ts) that tunnels to a local Postgres
@@ -102,6 +108,9 @@ function cachedClient(diskStamp: string): PrismaClient | undefined {
 	if (!clientHasCurrentWorkModel(cached.client)) {
 		return;
 	}
+	if (!prismaClientHasCurrentFileAttachmentVersionModel(cached.client)) {
+		return;
+	}
 	return cached.client;
 }
 
@@ -133,6 +142,11 @@ export function getPrismaClient() {
 				"Prisma client is missing current models; restart the API after prisma generate"
 			);
 		}
+		if (!prismaClientHasCurrentFileAttachmentVersionModel(productionPrisma)) {
+			throw new Error(
+				"Prisma client is missing current models; restart the API after prisma generate"
+			);
+		}
 		return productionPrisma;
 	}
 	const reused = cachedClient(diskStamp);
@@ -142,6 +156,12 @@ export function getPrismaClient() {
 	dropCachedPrisma();
 	const client = createPrismaClient();
 	if (!prismaClientHasCurrentDelegates(client)) {
+		client.$disconnect().catch(() => undefined);
+		throw new Error(
+			"Prisma client is missing current models; restart the API after prisma generate"
+		);
+	}
+	if (!prismaClientHasCurrentFileAttachmentVersionModel(client)) {
 		client.$disconnect().catch(() => undefined);
 		throw new Error(
 			"Prisma client is missing current models; restart the API after prisma generate"

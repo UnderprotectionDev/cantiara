@@ -1,7 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
 import type { PrismaClient } from "../prisma/generated/client";
-import { prismaClientHasCurrentDelegates } from "./prisma-client-delegates";
+import {
+	prismaClientHasCurrentDelegates,
+	prismaClientHasCurrentFileAttachmentVersionModel,
+} from "./prisma-client-delegates";
 
 function findMany(): Promise<never[]> {
 	return Promise.resolve([]);
@@ -68,6 +71,39 @@ describe("Prisma client current delegates", () => {
 				usageHostEmbed: { findMany },
 				usageLink: { findMany },
 				workTag: { findMany },
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
+	it("refuses a bun --hot client generated before File Attachment marking", () => {
+		expect(
+			prismaClientHasCurrentFileAttachmentVersionModel({
+				_runtimeDataModel: {
+					models: {
+						FileAttachmentVersion: {
+							fields: [
+								{ name: "id" },
+								{ name: "objectKey" },
+								{ name: "previewStatus" },
+							],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(false);
+		expect(
+			prismaClientHasCurrentFileAttachmentVersionModel({
+				_runtimeDataModel: {
+					models: {
+						FileAttachmentVersion: {
+							fields: [
+								{ name: "id" },
+								{ name: "markingMarks" },
+								{ name: "shareItemApprovals" },
+							],
+						},
+					},
+				},
 			} as unknown as PrismaClient)
 		).toBe(true);
 	});

@@ -294,6 +294,23 @@ test("a Prisma unknown originWork include stays secret-free and still says Data 
 	expect(presented.supportReference).toBe("CANT-25F768C5");
 });
 
+test("a Prisma unknown markingMarks argument stays secret-free and still says Data was not written", () => {
+	const prismaWriteFailure = new Error(
+		"Unknown argument `markingMarks`. Available options are marked with ?."
+	);
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(prismaWriteFailure, undefined, {
+			trackingId: "CANT-FFEE4F19",
+		})
+	);
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.staleGeneratedClient);
+	expect(presented.reason).not.toContain("markingMarks");
+	expect(presented.writeOutcome).toBe("Data was not written.");
+	expect(presented.retryBound).toBe("You can retry once.");
+	expect(presented.supportReference).toBe("CANT-FFEE4F19");
+});
+
 test("a Prisma P2022 code maps to pending migrations without leaking a workspace path", () => {
 	const prismaKnown = Object.assign(
 		new Error("Invalid prisma.work.findMany() invocation"),
