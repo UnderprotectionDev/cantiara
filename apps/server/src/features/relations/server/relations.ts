@@ -88,12 +88,18 @@ export function unlinkUsageLink(
 
 export async function inspectRelations(
 	prisma: PrismaClient,
-	recordId: string
+	recordId: string,
+	workspaceId: string
 ): Promise<RecordGraphView> {
 	const usageRows = await prisma.usageLink.findMany({
 		orderBy: { createdAt: "asc" },
 		where: {
-			OR: [{ hostRecordId: recordId }, { sourceRecordId: recordId }],
+			AND: [
+				{ workspaceId },
+				{
+					OR: [{ hostRecordId: recordId }, { sourceRecordId: recordId }],
+				},
+			],
 		},
 	});
 	const usageLinks: UsageLinkView[] = [];

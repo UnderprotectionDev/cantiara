@@ -154,7 +154,7 @@ describe("Relations usage links", () => {
 		expect(created.source.revision).toBe(source.revision);
 		expect(created.embed.sourceRecordId).toBe(source.id);
 		expect(JSON.stringify(created.usageLink)).not.toMatch(USAGE_METADATA);
-		const graph = await inspectRelations(prisma, host.id);
+		const graph = await inspectRelations(prisma, host.id, workspaceId);
 		expect(graph.relationCount).toBe(0);
 		expect(graph.typedRelations).toEqual([]);
 		expect(graph.usageLinks).toEqual([created.usageLink]);
@@ -206,7 +206,7 @@ describe("Relations usage links", () => {
 			reason: "evidence-role-not-allowed",
 			status: "rejected",
 		});
-		const graph = await inspectRelations(prisma, host.id);
+		const graph = await inspectRelations(prisma, host.id, workspaceId);
 		expect(graph.usageLinks).toEqual([]);
 		expect(graph.relationCount).toBe(0);
 	});
@@ -261,7 +261,7 @@ describe("Relations usage links", () => {
 		}
 		expect(unlinked.source.id).toBe(source.id);
 		expect(unlinked.source.status).toBe("Not Started");
-		const graph = await inspectRelations(prisma, host.id);
+		const graph = await inspectRelations(prisma, host.id, workspaceId);
 		expect(graph.usageLinks).toHaveLength(1);
 		expect(graph.usageLinks[0]?.id).toBe(
 			second.status === "committed" ? second.usageLink.id : ""
@@ -272,7 +272,11 @@ describe("Relations usage links", () => {
 			status: "Not Started",
 			title: "Pay screen",
 		});
-		const unlinkedAgain = await inspectRelations(prisma, source.id);
+		const unlinkedAgain = await inspectRelations(
+			prisma,
+			source.id,
+			workspaceId
+		);
 		expect(
 			unlinkedAgain.usageLinks.some((link) => link.id === created.usageLink.id)
 		).toBe(false);
@@ -313,7 +317,7 @@ describe("Relations usage links", () => {
 			workspaceId,
 		});
 		expect(created.status).toBe("committed");
-		const graph = await inspectRelations(prisma, host.id);
+		const graph = await inspectRelations(prisma, host.id, workspaceId);
 		expect(graph.relationCount).toBe(1);
 		expect(graph.typedRelations[0]?.type).toBe("Related");
 		expect(graph.usageLinks).toHaveLength(1);
@@ -337,7 +341,7 @@ describe("Relations usage links", () => {
 		}
 		expect(created.usageLink.kindLabel).toBe("Screen reference");
 		expect(created.usageLink.kindLabel).not.toBe(RELATIONS_COPY.related);
-		const graph = await inspectRelations(prisma, "screen-pay");
+		const graph = await inspectRelations(prisma, "screen-pay", workspaceId);
 		expect(graph.relationCount).toBe(0);
 		expect(graph.usageLinks).toHaveLength(1);
 		const unlinked = await unlinkUsageLink(prisma, {
@@ -347,7 +351,41 @@ describe("Relations usage links", () => {
 			usageLinkId: created.usageLink.id,
 		});
 		expect(unlinked.status).toBe("committed");
-		const after = await inspectRelations(prisma, "screen-pay");
+		const after = await inspectRelations(prisma, "screen-pay", workspaceId);
 		expect(after.usageLinks).toEqual([]);
+	});
+
+	it("inspect of a missing Work record is empty and hides another Workspace", async () => {
+		const first = await openPayments(prisma);
+		const created = await createUsageLink(prisma, {
+			actorId: first.actorId,
+			hostRecordId: "flow-node-pay",
+			idempotencyKey: "owned-screen",
+			kind: USAGE_KIND.flowNodeScreenReference,
+			origin: "human",
+			sourceRecordId: "screen-pay",
+			workspaceId: first.workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		const other = await seedWorkspace(prisma);
+		const missing = await inspectRelations(
+			prisma,
+			crypto.randomUUID(),
+			first.workspaceId
+		);
+		expect(missing.usageLinks).toEqual([]);
+		expect(missing.relationCount).toBe(0);
+		const leaked = await inspectRelations(
+			prisma,
+			"screen-pay",
+			other.workspaceId
+		);
+		expect(leaked.usageLinks).toEqual([]);
+		const owned = await inspectRelations(
+			prisma,
+			"screen-pay",
+			first.workspaceId
+		);
+		expect(owned.usageLinks).toHaveLength(1);
 	});
 });

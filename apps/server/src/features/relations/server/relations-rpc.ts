@@ -5,7 +5,6 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
-import { getWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	createUsageLink,
 	inspectRelations,
@@ -21,16 +20,17 @@ async function requireAccess(userId: string) {
 	return access;
 }
 
-async function requireWork(workspaceId: string, workId: string) {
-	const work = await getWork(getPrismaClient(), workId);
+async function rejectForeignWork(workspaceId: string, recordId: string) {
+	const work = await getPrismaClient().work.findUnique({
+		where: { id: recordId },
+	});
 	if (!work) {
-		throw new ORPCError("NOT_FOUND");
+		return;
 	}
 	const project = await getProject(getPrismaClient(), work.projectId);
 	if (!project || project.workspaceId !== workspaceId) {
 		throw new ORPCError("NOT_FOUND");
 	}
-	return work;
 }
 
 export const relationsRouter = {
@@ -45,8 +45,8 @@ export const relationsRouter = {
 		)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			await requireWork(access.workspaceId, input.hostRecordId);
-			await requireWork(access.workspaceId, input.sourceRecordId);
+			await rejectForeignWork(access.workspaceId, input.hostRecordId);
+			await rejectForeignWork(access.workspaceId, input.sourceRecordId);
 			return await createUsageLink(getPrismaClient(), {
 				actorId: access.accountId,
 				hostRecordId: input.hostRecordId,
@@ -61,8 +61,12 @@ export const relationsRouter = {
 		.input(z.object({ recordId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			await requireWork(access.workspaceId, input.recordId);
-			return await inspectRelations(getPrismaClient(), input.recordId);
+			await rejectForeignWork(access.workspaceId, input.recordId);
+			return await inspectRelations(
+				getPrismaClient(),
+				input.recordId,
+				access.workspaceId
+			);
 		}),
 	unlinkUsageLink: protectedWriteProcedure
 		.input(
@@ -79,7 +83,7 @@ export const relationsRouter = {
 			if (!row || row.workspaceId !== access.workspaceId) {
 				throw new ORPCError("NOT_FOUND");
 			}
-			await requireWork(access.workspaceId, row.hostRecordId);
+			await rejectForeignWork(access.workspaceId, row.hostRecordId);
 			return await unlinkUsageLink(getPrismaClient(), {
 				actorId: access.accountId,
 				idempotencyKey: input.idempotencyKey,
