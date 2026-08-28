@@ -46,6 +46,7 @@ const JWT = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 const BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const SESSION_SECRET = /session_token=[^;\s]+/gi;
 const UNKNOWN_INCLUDE_FIELD = /Unknown field '[^']+' for include statement/;
+const MISSING_PG_RELATION = /relation ".+" does not exist/i;
 
 export function issueMainFlowFailure(
 	input: {
@@ -210,11 +211,19 @@ function requestCode(value: unknown): string | null {
 
 function schemaMismatchReason(error: unknown): string | null {
 	const code = requestCode(error);
-	if (code === "P2021" || code === "P2022") {
+	if (
+		code === "P2021" ||
+		code === "P2022" ||
+		code === "42P01" ||
+		code === "42703"
+	) {
 		return CLIENT_SHELL_COPY.pendingMigrations;
 	}
 	const message = messageFrom(error);
-	if (message.includes("does not exist in the current database")) {
+	if (
+		message.includes("does not exist in the current database") ||
+		MISSING_PG_RELATION.test(message)
+	) {
 		return CLIENT_SHELL_COPY.pendingMigrations;
 	}
 	if (UNKNOWN_INCLUDE_FIELD.test(message)) {
