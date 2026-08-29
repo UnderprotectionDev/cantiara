@@ -45,6 +45,7 @@ const COLUMN_HELPER = createColumnHelper<
 >();
 
 export interface SavedListsCopy {
+	any: string;
 	archived: string;
 	areas: string;
 	columns: string;
@@ -53,11 +54,15 @@ export interface SavedListsCopy {
 	lifecycle: string;
 	listName: string;
 	membershipFromConditions: string;
+	none: string;
+	notArchived: string;
 	openSourceRecord: string;
 	remove: string;
 	savedLists: string;
 	saveList: string;
 	sort: string;
+	sortAsc: string;
+	sortDesc: string;
 	stage: string;
 	targetDate: string;
 }
@@ -261,8 +266,10 @@ function SavedListForm({
 						id="saved-list-archived"
 						name="archived"
 					>
-						<NativeSelectOption value="any">Any</NativeSelectOption>
-						<NativeSelectOption value="no">Not archived</NativeSelectOption>
+						<NativeSelectOption value="any">{copy.any}</NativeSelectOption>
+						<NativeSelectOption value="no">
+							{copy.notArchived}
+						</NativeSelectOption>
 						<NativeSelectOption value="yes">{copy.archived}</NativeSelectOption>
 					</NativeSelect>
 				</Field>
@@ -337,8 +344,12 @@ function SavedListForm({
 							defaultValue="asc"
 							name="sortDirection"
 						>
-							<NativeSelectOption value="asc">A–Z</NativeSelectOption>
-							<NativeSelectOption value="desc">Z–A</NativeSelectOption>
+							<NativeSelectOption value="asc">
+								{copy.sortAsc}
+							</NativeSelectOption>
+							<NativeSelectOption value="desc">
+								{copy.sortDesc}
+							</NativeSelectOption>
 						</NativeSelect>
 					</div>
 				</Field>
@@ -349,7 +360,7 @@ function SavedListForm({
 						id="saved-list-grouping"
 						name="grouping"
 					>
-						<NativeSelectOption value="">None</NativeSelectOption>
+						<NativeSelectOption value="">{copy.none}</NativeSelectOption>
 						{CROSS_PROJECT_LIST_COLUMNS.map((column) => (
 							<NativeSelectOption key={column} value={column}>
 								{columnHeader(column, copy)}

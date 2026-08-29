@@ -34,6 +34,7 @@ interface LiveBlockView {
 
 interface OverviewCopy {
 	addLiveBlock: string;
+	any: string;
 	archived: string;
 	areas: string;
 	columns: string;
@@ -45,12 +46,16 @@ interface OverviewCopy {
 	membershipFromConditions: string;
 	moveDown: string;
 	moveUp: string;
+	none: string;
+	notArchived: string;
 	openSourceRecord: string;
 	remove: string;
 	savedLists: string;
 	saveList: string;
 	show: string;
 	sort: string;
+	sortAsc: string;
+	sortDesc: string;
 	stage: string;
 	targetDate: string;
 	workspace: string;
@@ -286,9 +291,16 @@ function WorkspaceSavedLists({
 	);
 	const onSave = useCallback(
 		(item: SavedListLayoutItem) => {
+			const existing = layout.savedLists.find(
+				(list) => list.name === item.name
+			);
 			persist({
 				...layout,
-				savedLists: [...layout.savedLists, item],
+				savedLists: existing
+					? layout.savedLists.map((list) =>
+							list.id === existing.id ? { ...item, id: existing.id } : list
+						)
+					: [...layout.savedLists, item],
 			});
 		},
 		[layout, persist]

@@ -97,20 +97,3 @@ export function cellForColumn(
 			return "";
 	}
 }
-
-export function emptyListDraft(): Omit<SavedListLayoutItem, "id"> {
-	return {
-		columns: ["name", "lifecycle", "lastReportedHealth"],
-		conditions: {
-			archived: null,
-			enabledAreas: [],
-			lifecycleStatuses: [],
-			stageNames: [],
-			targetDateOnOrAfter: null,
-			targetDateOnOrBefore: null,
-		},
-		grouping: null,
-		name: "",
-		sort: { column: "name", direction: "asc" },
-	};
-}
