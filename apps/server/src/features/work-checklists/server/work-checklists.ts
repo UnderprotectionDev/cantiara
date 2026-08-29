@@ -265,9 +265,16 @@ export async function convertChecklistItem(
 		kind: "convert-to-independent-work",
 	});
 	const commandKey = `human:${parsed.data.actorId}:${parsed.data.idempotencyKey}`;
-	return await prisma.$transaction((tx) =>
-		convertInTransaction(tx, parsed.data, commandKey, fingerprint)
-	);
+	try {
+		return await prisma.$transaction((tx) =>
+			convertInTransaction(tx, parsed.data, commandKey, fingerprint)
+		);
+	} catch (error) {
+		if (error instanceof ConvertBarrierError) {
+			return error.outcome;
+		}
+		throw error;
+	}
 }
 
 async function convertInTransaction(
@@ -321,10 +328,10 @@ async function convertInTransaction(
 		},
 	});
 	if (created.status === "conflict") {
-		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		abortConvert({ conflict: MUTATION_COPY.conflict, status: "conflict" });
 	}
 	if (created.status !== "committed" && created.status !== "replayed") {
-		return { reason: "invalid-command", status: "rejected" };
+		abortConvert({ reason: "invalid-command", status: "rejected" });
 	}
 	const related = await createRelationInTransaction(tx, {
 		actorId: command.actorId,
@@ -343,10 +350,10 @@ async function convertInTransaction(
 		viewerWorkspaceId: project.workspaceId,
 	});
 	if (related.status === "conflict") {
-		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		abortConvert({ conflict: MUTATION_COPY.conflict, status: "conflict" });
 	}
 	if (related.status !== "committed" && related.status !== "replayed") {
-		return { reason: "invalid-command", status: "rejected" };
+		abortConvert({ reason: "invalid-command", status: "rejected" });
 	}
 	const nextItems = items.map((entry) =>
 		entry.id === item.id
@@ -370,7 +377,7 @@ async function convertInTransaction(
 	});
 	const updated = await tx.work.findUnique({ where: { id: locked.id } });
 	if (!updated) {
-		return { reason: "target-not-found", status: "rejected" };
+		abortConvert({ reason: "target-not-found", status: "rejected" });
 	}
 	const checklist = toChecklistView(updated);
 	const convertedWork = {
@@ -423,6 +430,19 @@ async function replayConvert(
 		};
 	}
 	return { ...stored, status: "replayed" };
+}
+
+class ConvertBarrierError extends Error {
+	readonly outcome: ConvertChecklistOutcome;
+
+	constructor(outcome: ConvertChecklistOutcome) {
+		super("convert-barrier");
+		this.outcome = outcome;
+	}
+}
+
+function abortConvert(outcome: ConvertChecklistOutcome): never {
+	throw new ConvertBarrierError(outcome);
 }
 
 function convertResultSafe(text: string): ConvertChecklistResult | null {
