@@ -752,6 +752,39 @@ describe("Work Blockers", () => {
 		expect(listedAgain.signals).toHaveLength(1);
 	});
 
+	it("emits work-blocked for a Decision source onto Work", async () => {
+		const { actorId, project, workspaceId } = await openPayments(prisma);
+		const blocked = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-blocked"
+		);
+		const added = await addActiveBlockingRelation(prisma, {
+			actorId,
+			blockedWorkId: blocked.id,
+			idempotencyKey: "block-from-decision",
+			origin: "human",
+			source: { id: "decision-auth", kind: "Decision" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(added.status).toBe("committed");
+		if (added.status !== "committed") {
+			throw new Error("expected committed blocking relation");
+		}
+		expect(added.emissions).toEqual([
+			{
+				blockedWorkId: blocked.id,
+				relationId: added.relation.id,
+				relationTime: added.relation.establishedAt,
+				section: WORK_BLOCKED_SIGNAL_SECTION,
+				signalId: WORK_BLOCKED_SIGNAL_ID,
+				source: { id: "decision-auth", kind: "Decision" },
+			},
+		]);
+	});
+
 	it("does not emit on resolve, source close, or a detected cycle", async () => {
 		const { actorId, project, workspaceId } = await openPayments(prisma);
 		const auth = await createNamedWork(
@@ -806,6 +839,10 @@ describe("Work Blockers", () => {
 		expect(afterClose.signals[0]?.signalId).toBe(WORK_BLOCKED_SIGNAL_ID);
 		const afterCycleOnAuth = await listWorkBlockers(prisma, auth.id);
 		expect(afterCycleOnAuth.signals).toHaveLength(1);
+		const looping = await projectDependencies(prisma, [auth.id, checkout.id]);
+		expect(looping.cycles).toHaveLength(1);
+		expect(looping.cycles[0]?.explanation).toBe(BLOCKERS_COPY.cycle);
+		expect(JSON.stringify(looping)).not.toMatch(CYCLE_SIGNAL_PATTERN);
 		const resolved = await markBlockerResolved(prisma, {
 			actorId,
 			idempotencyKey: "resolve-auth",
@@ -821,10 +858,12 @@ describe("Work Blockers", () => {
 			throw new Error("expected committed resolve");
 		}
 		expect((await listWorkBlockers(prisma, checkout.id)).signals).toEqual([]);
-		const graph = await projectDependencies(prisma, [auth.id, checkout.id]);
-		expect(graph.cycles).toHaveLength(1);
-		expect(graph.cycles[0]?.explanation).toBe(BLOCKERS_COPY.cycle);
-		expect(JSON.stringify(graph)).not.toMatch(CYCLE_SIGNAL_PATTERN);
+		const afterResolve = await projectDependencies(prisma, [
+			auth.id,
+			checkout.id,
+		]);
+		expect(afterResolve.cycles).toEqual([]);
+		expect(JSON.stringify(afterResolve)).not.toMatch(CYCLE_SIGNAL_PATTERN);
 	});
 
 	it("re-emits work-blocked when a Resolved relation is made Active again", async () => {
@@ -875,19 +914,22 @@ describe("Work Blockers", () => {
 		if (reactivated.status !== "committed") {
 			throw new Error("expected committed reactivate");
 		}
-		expect(reactivated.emissions).toEqual([
+		expect(reactivated.emissions).toMatchObject([
 			{
 				blockedWorkId: blocked.id,
 				relationId: added.relation.id,
-				relationTime: reactivated.relation.establishedAt,
 				section: WORK_BLOCKED_SIGNAL_SECTION,
 				signalId: WORK_BLOCKED_SIGNAL_ID,
 				source: { id: source.id, kind: "Work" },
 			},
 		]);
-		expect((await listWorkBlockers(prisma, blocked.id)).signals).toEqual(
-			reactivated.emissions
+		expect(reactivated.emissions[0]?.relationTime).not.toBe(
+			reactivated.relation.establishedAt
 		);
+		const listed = await listWorkBlockers(prisma, blocked.id);
+		expect(listed.signals).toHaveLength(1);
+		expect(listed.signals[0]?.relationId).toBe(added.relation.id);
+		expect(listed.signals[0]?.signalId).toBe(WORK_BLOCKED_SIGNAL_ID);
 	});
 
 	it("projects a read-only Dependencies graph from existing relations without writing a layout", async () => {

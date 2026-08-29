@@ -98,7 +98,8 @@ function toView(
 }
 
 function asWorkBlockedSignal(
-	view: BlockingRelationView
+	view: BlockingRelationView,
+	relationTime = view.establishedAt
 ): WorkBlockedSignalView | null {
 	if (view.state !== BLOCKERS_COPY.active) {
 		return null;
@@ -106,7 +107,7 @@ function asWorkBlockedSignal(
 	return {
 		blockedWorkId: view.blockedWorkId,
 		relationId: view.id,
-		relationTime: view.establishedAt,
+		relationTime,
 		section: WORK_BLOCKED_SIGNAL_SECTION,
 		signalId: WORK_BLOCKED_SIGNAL_ID,
 		source: view.source,
@@ -116,9 +117,10 @@ function asWorkBlockedSignal(
 function writeSuccess(
 	relation: BlockingRelationView,
 	status: "committed" | "replayed",
-	emit: boolean
+	emit: boolean,
+	relationTime = relation.establishedAt
 ): WorkBlockersWriteOutcome {
-	const signal = asWorkBlockedSignal(relation);
+	const signal = asWorkBlockedSignal(relation, relationTime);
 	return {
 		emissions: emit && signal ? [signal] : [],
 		relation,
@@ -427,7 +429,12 @@ async function mutateLifeInTransaction(
 	const emit =
 		change.state === BLOCKERS_COPY.active &&
 		previousState === BLOCKERS_COPY.resolved;
-	return writeSuccess(view, "committed", emit);
+	return writeSuccess(
+		view,
+		"committed",
+		emit,
+		emit ? updated.updatedAt.toISOString() : view.establishedAt
+	);
 }
 
 function parseStoredView(value: string): BlockingRelationView | null {
@@ -538,7 +545,7 @@ export async function projectDependencies(
 			state: view.state,
 			to: { id: view.blockedWorkId, kind: "Work" },
 		});
-		if (view.source.kind === "Work") {
+		if (view.source.kind === "Work" && view.state === BLOCKERS_COPY.active) {
 			workEdges.push({
 				fromId: view.source.id,
 				id: view.id,
