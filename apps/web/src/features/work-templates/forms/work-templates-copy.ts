@@ -17,6 +17,8 @@ export const WORK_TEMPLATE_COPY = {
 	description: "Description",
 	documentPlaceholderRefused:
 		"Work Template cannot carry Document placeholder syntax.",
+	duplicateWork: "Duplicate Work",
+	fieldsToCopy: "Fields to copy",
 	forbiddenPayload:
 		"A Work Template cannot carry history, relations, close outcome, current status, or absolute dates.",
 	moveToTrash: "Move to Trash",
@@ -24,9 +26,11 @@ export const WORK_TEMPLATE_COPY = {
 	nameRequired: "Name is required.",
 	plannedStart: "Planned start",
 	previewDates: "Preview dates",
+	previewRequired: "Review the fields to copy before duplicating.",
 	relativeDateUnresolved: "Relative dates could not be resolved.",
 	save: "Save",
 	targetDate: "Target date",
+	title: "Title",
 	trashedNotEffective: "A trashed Work Template is not effective.",
 	type: "Type",
 	unknownWorkType: "Unknown Work type.",

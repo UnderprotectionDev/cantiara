@@ -1,8 +1,8 @@
 /**
  * Work Templates seam — Project-scoped Work Template definition,
- * relative date preview from the create day, and refusal of living
- * payload (history, relations, close outcome, status, absolute dates).
- * Instantiation and one-off copy are later tickets. Synthetic fixture
+ * relative date preview from the create day, refusal of living
+ * payload, and one-off Duplicate Work in the same Project.
+ * Instantiation is a later ticket. Synthetic fixture
  * for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (İş yaşam döngüsü start-context package).
  */
@@ -11,13 +11,29 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { createCustomField } from "../../custom-fields/server/custom-fields";
+import {
+	createCustomField,
+	listSurfaceFields,
+	setCustomFieldValue,
+} from "../../custom-fields/server/custom-fields";
 import { createProject } from "../../project-shell/server/project-shell";
 import { STRUCTURE_COPY_EXCLUDED } from "../../project-shell/server/project-shell-model";
+import { addChecklistItem } from "../../work-checklists/server/work-checklists";
+import {
+	changeWorkStatus,
+	closeWork,
+	createWork,
+	getWork,
+	listWork,
+	listWorkLifecycleHistory,
+	listWorkRelations,
+} from "../../work-lifecycle/server/work-lifecycle";
 import {
 	createWorkTemplate,
+	duplicateWork,
 	getWorkTemplate,
 	listWorkTemplates,
+	previewDuplicateWork,
 	previewWorkTemplateDates,
 	trashWorkTemplate,
 	updateWorkTemplate,
@@ -117,7 +133,7 @@ describe("Work Templates", () => {
 		]);
 		expect(JSON.stringify(catalog)).not.toMatch(OTHER_TEMPLATE_SURFACES);
 		expect(catalog.copy).not.toHaveProperty("createFromTemplate");
-		expect(catalog.copy).not.toHaveProperty("duplicateWork");
+		expect(catalog.copy.duplicateWork).toBe("Duplicate Work");
 		expect(STRUCTURE_COPY_EXCLUDED.workTemplates).toBe(true);
 		expect(FORBIDDEN_TEMPLATE_PAYLOAD_KEYS).toEqual(
 			expect.arrayContaining([
@@ -504,5 +520,294 @@ describe("Work Templates", () => {
 			},
 		});
 		expect(replayed.status).toBe("replayed");
+	});
+
+	it("previews Duplicate Work fields without writing a Work or a Work Template", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const created = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "source-work",
+			origin: "human",
+			payload: {
+				projectId: project.id,
+				title: "Checkout bug",
+				type: "Bug",
+			},
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		await prisma.work.update({
+			data: { description: "Empty cart fails" },
+			where: { id: created.work.id },
+		});
+		const preview = await previewDuplicateWork(prisma, created.work.id);
+		expect(preview).toMatchObject({
+			preview: {
+				becomesTemplate: false,
+				copy: {
+					duplicateWork: "Duplicate Work",
+					fieldsToCopy: "Fields to copy",
+				},
+				copyableFields: {
+					description: "Empty cart fails",
+					title: "Checkout bug",
+					type: "Bug",
+				},
+				excluded: {
+					absoluteDates: true,
+					closeOutcome: true,
+					currentStatus: true,
+					history: true,
+					planningMemberships: true,
+					relations: true,
+				},
+				projectId: project.id,
+			},
+			status: "ok",
+		});
+		expect(await listWork(prisma, project.id)).toHaveLength(1);
+		expect(await listWorkTemplates(prisma, project.id)).toEqual([]);
+		expect(
+			await duplicateWork(prisma, {
+				actorId,
+				idempotencyKey: "no-preview",
+				origin: "human",
+				payload: { workId: created.work.id },
+			})
+		).toEqual({ reason: "preview-required", status: "rejected" });
+		expect(await listWork(prisma, project.id)).toHaveLength(1);
+	});
+
+	it("copies start context into a new same-Project Work without making a template", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const severity = await createCustomField(prisma, {
+			actorId,
+			idempotencyKey: "severity",
+			origin: "human",
+			payload: {
+				boundRecordTypes: ["Work"],
+				name: "Severity",
+				options: ["High", "Low"],
+				projectId: project.id,
+				type: "Single select",
+			},
+		});
+		expect(severity.status).toBe("committed");
+		if (severity.status !== "committed") {
+			throw new Error("expected committed Custom field");
+		}
+		const due = await createCustomField(prisma, {
+			actorId,
+			idempotencyKey: "due-field",
+			origin: "human",
+			payload: {
+				boundRecordTypes: ["Work"],
+				name: "Customer due",
+				projectId: project.id,
+				type: "Date",
+			},
+		});
+		expect(due.status).toBe("committed");
+		if (due.status !== "committed") {
+			throw new Error("expected committed Custom field");
+		}
+		const source = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "source-work",
+			origin: "human",
+			payload: {
+				projectId: project.id,
+				title: "Checkout bug",
+				type: "Bug",
+			},
+		});
+		expect(source.status).toBe("committed");
+		if (source.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		await prisma.work.update({
+			data: { description: "Empty cart fails" },
+			where: { id: source.work.id },
+		});
+		const listed = await addChecklistItem(prisma, {
+			actorId,
+			baseRevision: source.work.revision,
+			idempotencyKey: "check-repro",
+			origin: "human",
+			title: "Confirm reproduction",
+			workId: source.work.id,
+		});
+		expect(listed.status).toBe("committed");
+		if (listed.status !== "committed") {
+			throw new Error("expected checklist item");
+		}
+		await setCustomFieldValue(prisma, {
+			actorId,
+			baseRevision: 0,
+			idempotencyKey: "severity-high",
+			origin: "human",
+			payload: {
+				definitionId: severity.definition.id,
+				recordId: source.work.id,
+				recordType: "Work",
+				value: { kind: "single-select", option: "High" },
+			},
+		});
+		await setCustomFieldValue(prisma, {
+			actorId,
+			baseRevision: 0,
+			idempotencyKey: "due-date",
+			origin: "human",
+			payload: {
+				definitionId: due.definition.id,
+				recordId: source.work.id,
+				recordType: "Work",
+				value: { date: "2026-09-01", kind: "date" },
+			},
+		});
+		const related = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "related-work",
+			origin: "human",
+			payload: {
+				projectId: project.id,
+				title: "Receipts",
+				type: "Task",
+			},
+		});
+		expect(related.status).toBe("committed");
+		if (related.status !== "committed") {
+			throw new Error("expected related Work");
+		}
+		await prisma.workRelation.create({
+			data: {
+				fromId: source.work.id,
+				id: crypto.randomUUID(),
+				kind: "Related",
+				toId: related.work.id,
+			},
+		});
+		const progressed = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: listed.checklist.work.revision,
+			idempotencyKey: "in-progress",
+			origin: "human",
+			status: "In Progress",
+			workId: source.work.id,
+		});
+		expect(progressed.status).toBe("committed");
+		if (progressed.status !== "committed") {
+			throw new Error("expected status change");
+		}
+		const closed = await closeWork(prisma, {
+			actorId,
+			baseRevision: progressed.work.revision,
+			idempotencyKey: "close-source",
+			origin: "human",
+			reason: "Shipped",
+			result: "Completed",
+			workId: source.work.id,
+		});
+		expect(closed.status).toBe("committed");
+		const preview = await previewDuplicateWork(prisma, source.work.id);
+		expect(preview.status).toBe("ok");
+		if (preview.status !== "ok") {
+			throw new Error("expected duplicate preview");
+		}
+		expect(preview.preview.copyableFields.customFields).toEqual([
+			{
+				definitionId: severity.definition.id,
+				name: "Severity",
+				type: "Single select",
+				value: { kind: "single-select", option: "High" },
+			},
+		]);
+		expect(preview.preview.copyableFields.lightChecklist).toEqual([
+			expect.objectContaining({ title: "Confirm reproduction" }),
+		]);
+		expect(preview.preview.source).toMatchObject({
+			closureResult: "Completed",
+			status: "Closed",
+		});
+		const copied = await duplicateWork(prisma, {
+			actorId,
+			idempotencyKey: "duplicate-checkout",
+			origin: "human",
+			payload: {
+				previewAcknowledged: true,
+				workId: source.work.id,
+			},
+		});
+		expect(copied).toMatchObject({
+			status: "committed",
+			templateCreated: false,
+			work: {
+				closureResult: null,
+				description: "Empty cart fails",
+				origin: null,
+				projectId: project.id,
+				relations: [],
+				status: "Not Started",
+				title: "Checkout bug",
+				type: "Bug",
+			},
+		});
+		if (copied.status !== "committed") {
+			throw new Error("expected committed duplicate");
+		}
+		expect(copied.work.id).not.toBe(source.work.id);
+		expect(copied.work.key).toBe("PAY-3");
+		expect(copied.work.key).not.toBe(source.work.key);
+		expect(copied.work.lightChecklist).toEqual([
+			expect.objectContaining({
+				completed: false,
+				title: "Confirm reproduction",
+			}),
+		]);
+		expect(copied.work.lightChecklist[0]?.id).not.toBe(
+			preview.preview.copyableFields.lightChecklist[0]?.id
+		);
+		expect(await listWorkTemplates(prisma, project.id)).toEqual([]);
+		expect(await listWorkRelations(prisma, copied.work.id)).toEqual([]);
+		expect(await listWorkLifecycleHistory(prisma, copied.work.id)).toEqual([]);
+		const copyFields = await listSurfaceFields(
+			prisma,
+			project.id,
+			"Work",
+			copied.work.id
+		);
+		expect(
+			copyFields.find((field) => field.definitionId === severity.definition.id)
+		).toMatchObject({
+			value: { kind: "single-select", option: "High" },
+		});
+		expect(
+			copyFields.find((field) => field.definitionId === due.definition.id)
+		).toMatchObject({
+			notEvaluated: true,
+			value: { kind: "unset" },
+		});
+		expect(await getWork(prisma, source.work.id)).toMatchObject({
+			closureResult: "Completed",
+			id: source.work.id,
+			status: "Closed",
+		});
+		const replayed = await duplicateWork(prisma, {
+			actorId,
+			idempotencyKey: "duplicate-checkout",
+			origin: "human",
+			payload: {
+				previewAcknowledged: true,
+				workId: source.work.id,
+			},
+		});
+		expect(replayed).toMatchObject({
+			status: "replayed",
+			templateCreated: false,
+			work: { id: copied.work.id, key: "PAY-3" },
+		});
+		expect(await listWork(prisma, project.id)).toHaveLength(3);
 	});
 });
