@@ -144,6 +144,10 @@ _Avoid_: Görev, ticket, yalnız yapılacak madde
 Bir Projede tekrar kullanılan İş başlangıç bağlamı; tür, açıklama iskeleti, seçili alan varsayılanları, hafif kontrol listesi ve isteğe bağlı göreli planlanan başlangıç/hedef tarihi kuralları taşır. Üretilen İş bağımsız kimlik alır; şablon geçmiş, ilişki, kapanış sonucu, mevcut durum veya mutlak tarih taşımaz ([iş öğesi şablonları](docs/prd/06-work-management-and-planning.md#iş-öğesi-şablonları-ve-tek-seferlik-kopyalama)). UI: `Work Template`. Şablondan İş açma eylemi UI: `Create from template`; şablona canlı bağ veya zorunlu workflow kapısı değildir.
 _Avoid_: live-bound fleet, marketplace, workflow gate, Project fork, Belge şablonu, Başlangıç yapılandırması, Yakalama mini şablonu
 
+**Tek seferlik kopya**:
+Mevcut bir İşi şablona dönüştürmeden aynı Projede yeni kimlik ve anahtarla kopyalama; geçmiş, ilişki, kapanış, durum, planlama üyeliği ve mutlak tarih taşınmaz ([iş öğesi şablonları](docs/prd/06-work-management-and-planning.md#iş-öğesi-şablonları-ve-tek-seferlik-kopyalama)). UI: `Duplicate Work`.
+_Avoid_: Başka Projede yeniden oluşturma, şablona çevirme, canlı bağlı kopya
+
 **Hafif kontrol listesi**:
 İş üzerindeki, yalnız metin ve tamamlanma işareti taşıyan sahipli bileşen; bağımsız ana kayıt, İş durumu veya planlama üyeliği değildir ([Hafif iş kontrol listeleri](docs/prd/06-work-management-and-planning.md#hafif-iş-kontrol-listeleri)). UI: `Checklist`.
 _Avoid_: subtask, epic, checklist-as-Work, Test Scenario, Handoff

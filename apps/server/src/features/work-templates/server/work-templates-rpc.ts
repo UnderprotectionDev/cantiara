@@ -7,15 +7,19 @@ import { z } from "zod";
 import { getProject } from "../../project-shell/server/project-shell";
 import {
 	createWorkTemplate,
+	duplicateWork,
 	instantiateWorkFromTemplate,
 	listWorkTemplates,
+	previewDuplicateWork,
 	previewWorkTemplateDates,
 	trashWorkTemplate,
 	updateWorkTemplate,
 } from "./work-templates";
 import {
 	createWorkTemplatePayloadSchema,
+	duplicateWorkPayloadSchema,
 	instantiateWorkFromTemplatePayloadSchema,
+	previewDuplicateWorkInputSchema,
 	previewRelativeDatesInputSchema,
 	trashWorkTemplatePayloadSchema,
 	updateWorkTemplatePayloadSchema,
@@ -51,6 +55,30 @@ export const workTemplates = {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.payload.projectId);
 			return await createWorkTemplate(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	duplicate: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: duplicateWorkPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const row = await getPrismaClient().work.findUnique({
+				select: { projectId: true },
+				where: { id: input.payload.workId },
+			});
+			if (!row) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, row.projectId);
+			return await duplicateWork(getPrismaClient(), {
 				actorId: access.accountId,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
@@ -105,6 +133,20 @@ export const workTemplates = {
 				await requireProject(access.workspaceId, row.projectId);
 			}
 			return await previewWorkTemplateDates(getPrismaClient(), input);
+		}),
+	previewDuplicate: protectedProcedure
+		.input(previewDuplicateWorkInputSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const row = await getPrismaClient().work.findUnique({
+				select: { projectId: true },
+				where: { id: input.workId },
+			});
+			if (!row) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, row.projectId);
+			return await previewDuplicateWork(getPrismaClient(), input.workId);
 		}),
 	trash: protectedWriteProcedure
 		.input(

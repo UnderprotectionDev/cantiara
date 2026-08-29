@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
 import { z } from "zod";
 
+import { listSurfaceFields } from "../../custom-fields/server/custom-fields";
 import {
 	type CustomFieldStoredValue,
 	customFieldStoredValueSchema,
@@ -15,11 +16,27 @@ import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
+import { markProjectHasWork } from "../../project-shell/server/project-shell";
 import { createWorkInTransaction } from "../../work-lifecycle/server/work-lifecycle";
-import type { LightChecklistItem } from "../../work-lifecycle/server/work-lifecycle-model";
+import {
+	isClosureResult,
+	isWorkStatus,
+	type LightChecklistItem,
+	lightChecklistItemSchema,
+	WORK_STATUS,
+	type WorkView,
+	workKey,
+	workViewSchema,
+} from "../../work-lifecycle/server/work-lifecycle-model";
 import {
 	type CreateWorkTemplateCommand,
 	createWorkTemplateCommandSchema,
+	type DuplicateWorkCommand,
+	type DuplicateWorkOutcome,
+	type DuplicateWorkPreview,
+	type DuplicateWorkPreviewOutcome,
+	duplicateWorkCommandSchema,
+	FORBIDDEN_DUPLICATE_PAYLOAD_KEYS,
 	FORBIDDEN_TEMPLATE_PAYLOAD_KEYS,
 	type InstantiatedWorkView,
 	type InstantiateWorkFromTemplateCommand,
@@ -37,6 +54,7 @@ import {
 	trashWorkTemplateCommandSchema,
 	type UpdateWorkTemplateCommand,
 	updateWorkTemplateCommandSchema,
+	WORK_TEMPLATE_COPY,
 	type WorkTemplateChecklistItem,
 	type WorkTemplateOutcome,
 	type WorkTemplateRejectionReason,
@@ -171,6 +189,39 @@ export async function previewWorkTemplateDates(
 	});
 }
 
+export async function previewDuplicateWork(
+	prisma: PrismaClient,
+	workId: string
+): Promise<DuplicateWorkPreviewOutcome> {
+	const source = await prisma.work.findUnique({ where: { id: workId } });
+	if (!source || source.retiredIntoId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (!(isWorkType(source.type) && isWorkStatus(source.status))) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const preview = await buildDuplicatePreview(prisma, source);
+	return { preview, status: "ok" };
+}
+
+export async function duplicateWork(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<DuplicateWorkOutcome> {
+	const parsed = parseDuplicateCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint(parsed.command.payload);
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		duplicateInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
 function parseCreateCommand(
 	command: unknown
 ):
@@ -263,6 +314,62 @@ function parseEnvelope(
 		};
 	}
 	return { command, status: "ok" };
+}
+
+function parseDuplicateCommand(
+	command: unknown
+):
+	| { command: DuplicateWorkCommand; status: "ok" }
+	| { outcome: DuplicateWorkOutcome; status: "rejected" } {
+	const envelope = parseEnvelope(command);
+	if (envelope.status !== "ok") {
+		return {
+			outcome: {
+				reason:
+					envelope.outcome.status === "rejected"
+						? envelope.outcome.reason
+						: "missing-idempotency-key",
+				status: "rejected",
+			},
+			status: "rejected",
+		};
+	}
+	const { payload } = envelope.command;
+	if (isRecord(payload)) {
+		for (const key of FORBIDDEN_DUPLICATE_PAYLOAD_KEYS) {
+			if (key in payload) {
+				if (
+					key === "plannedStart" ||
+					key === "targetDate" ||
+					key === "due" ||
+					key === "absoluteDates"
+				) {
+					return {
+						outcome: { reason: "absolute-date", status: "rejected" },
+						status: "rejected",
+					};
+				}
+				return {
+					outcome: { reason: "forbidden-payload", status: "rejected" },
+					status: "rejected",
+				};
+			}
+		}
+	}
+	const parsed = duplicateWorkCommandSchema.safeParse(envelope.command);
+	if (!parsed.success) {
+		return {
+			outcome: { reason: "missing-idempotency-key", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	if (parsed.data.payload.previewAcknowledged !== true) {
+		return {
+			outcome: { reason: "preview-required", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	return { command: parsed.data, status: "ok" };
 }
 
 function parseInstantiateCommand(
@@ -463,6 +570,148 @@ async function trashInTransaction(
 		template,
 	});
 	return { status: "committed", template };
+}
+
+async function duplicateInTransaction(
+	tx: PrismaTransaction,
+	command: DuplicateWorkCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<DuplicateWorkOutcome> {
+	const source = await tx.work.findUnique({
+		where: { id: command.payload.workId },
+	});
+	if (!source || source.retiredIntoId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (!(isWorkType(source.type) && isWorkStatus(source.status))) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const project = await tx.project.findUnique({
+		select: { id: true, shortCode: true },
+		where: { id: source.projectId },
+	});
+	if (!project) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await lockProject(tx, project.id);
+	const replayed = await replayDuplicateOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const number = await allocateWorkNumber(tx, project.id);
+	const workId = crypto.randomUUID();
+	const lightChecklist = copyLightChecklist(source.lightChecklist);
+	const key = workKey(project.shortCode, number);
+	await tx.work.create({
+		data: {
+			description: source.description,
+			id: workId,
+			key,
+			lightChecklist,
+			number,
+			projectId: project.id,
+			revision: 1,
+			status: WORK_STATUS.notStarted,
+			title: source.title,
+			type: source.type,
+		},
+	});
+	await copyNonDateCustomFields(tx, source.id, workId, project.id);
+	await markProjectHasWork(tx, project.id);
+	const work = independentStartWorkView({
+		description: source.description,
+		id: workId,
+		key,
+		lightChecklist,
+		number,
+		projectId: project.id,
+		title: source.title,
+		type: source.type,
+	});
+	await writeDuplicateReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		work,
+	});
+	return { status: "committed", templateCreated: false, work };
+}
+
+async function buildDuplicatePreview(
+	db: PrismaClient | PrismaTransaction,
+	source: {
+		closureResult: string | null;
+		description: string | null;
+		id: string;
+		key: string;
+		lightChecklist: Prisma.JsonValue;
+		projectId: string;
+		status: string;
+		title: string;
+		type: string;
+	}
+): Promise<DuplicateWorkPreview> {
+	const fields = await listSurfaceFields(
+		db as PrismaClient,
+		source.projectId,
+		"Work",
+		source.id
+	);
+	const customFields = fields.flatMap((field) => {
+		if (field.type === "Date" || field.value.kind === "date") {
+			return [];
+		}
+		if (field.value.kind === "unset") {
+			return [];
+		}
+		return [
+			{
+				definitionId: field.definitionId,
+				name: field.name,
+				type: field.type,
+				value: field.value,
+			},
+		];
+	});
+	const closureResult =
+		source.closureResult && isClosureResult(source.closureResult)
+			? source.closureResult
+			: null;
+	return {
+		becomesTemplate: false,
+		copy: {
+			checklist: WORK_TEMPLATE_COPY.checklist,
+			description: WORK_TEMPLATE_COPY.description,
+			duplicateWork: WORK_TEMPLATE_COPY.duplicateWork,
+			fieldsToCopy: WORK_TEMPLATE_COPY.fieldsToCopy,
+			title: WORK_TEMPLATE_COPY.title,
+			type: WORK_TEMPLATE_COPY.type,
+		},
+		copyableFields: {
+			customFields,
+			description: source.description,
+			lightChecklist: listedChecklist(source.lightChecklist),
+			title: source.title,
+			type: source.type,
+		},
+		excluded: {
+			absoluteDates: true,
+			closeOutcome: true,
+			currentStatus: true,
+			history: true,
+			planningMemberships: true,
+			relations: true,
+		},
+		projectId: source.projectId,
+		source: {
+			closureResult:
+				source.status === WORK_STATUS.closed ? closureResult : null,
+			id: source.id,
+			key: source.key,
+			status: source.status,
+		},
+	};
 }
 
 async function instantiateInTransaction(
@@ -1019,6 +1268,214 @@ async function hydrateDefaults(
 function storedTemplate(value: string): WorkTemplateView | null {
 	try {
 		return workTemplateViewSchema.parse(JSON.parse(value));
+	} catch {
+		return null;
+	}
+}
+
+function listedChecklist(
+	value: Prisma.JsonValue
+): Array<{ completed: boolean; id: string; title: string }> {
+	const parsed = z.array(lightChecklistItemSchema).safeParse(value);
+	if (!parsed.success) {
+		return [];
+	}
+	return parsed.data.map((item) => ({
+		completed: item.completed,
+		id: item.id,
+		title: item.title,
+	}));
+}
+
+function copyLightChecklist(
+	value: Prisma.JsonValue
+): Array<{ completed: boolean; id: string; title: string }> {
+	return listedChecklist(value).map((item) => ({
+		completed: false,
+		id: crypto.randomUUID(),
+		title: item.title,
+	}));
+}
+
+async function copyNonDateCustomFields(
+	tx: PrismaTransaction,
+	sourceWorkId: string,
+	targetWorkId: string,
+	projectId: string
+): Promise<void> {
+	const definitions = await tx.projectCustomFieldDefinition.findMany({
+		where: { projectId },
+	});
+	const copyable = definitions.filter(
+		(definition) =>
+			definition.type !== "Date" && definition.boundRecordTypes.includes("Work")
+	);
+	if (copyable.length === 0) {
+		return;
+	}
+	const rows = await tx.projectCustomFieldValue.findMany({
+		where: {
+			definitionId: { in: copyable.map((definition) => definition.id) },
+			recordId: sourceWorkId,
+			recordType: "Work",
+		},
+	});
+	const copied = rows.flatMap((row) => {
+		const stored = customFieldStoredValueSchema.safeParse(row.value);
+		if (
+			!stored.success ||
+			stored.data.kind === "date" ||
+			stored.data.kind === "unset"
+		) {
+			return [];
+		}
+		return [
+			{
+				definitionId: row.definitionId,
+				id: crypto.randomUUID(),
+				recordId: targetWorkId,
+				recordType: "Work",
+				revision: 1,
+				value: stored.data,
+			},
+		];
+	});
+	if (copied.length > 0) {
+		await tx.projectCustomFieldValue.createMany({ data: copied });
+	}
+}
+
+async function allocateWorkNumber(
+	tx: PrismaTransaction,
+	projectId: string
+): Promise<number> {
+	const existing = await tx.projectWorkKeyCounter.findUnique({
+		where: { projectId },
+	});
+	if (!existing) {
+		await tx.projectWorkKeyCounter.create({
+			data: { nextNumber: 2, projectId },
+		});
+		return 1;
+	}
+	const number = existing.nextNumber;
+	await tx.projectWorkKeyCounter.update({
+		data: { nextNumber: number + 1 },
+		where: { projectId },
+	});
+	return number;
+}
+
+function independentStartWorkView(input: {
+	description: string | null;
+	id: string;
+	key: string;
+	lightChecklist: Array<{ completed: boolean; id: string; title: string }>;
+	number: number;
+	projectId: string;
+	title: string;
+	type: string;
+}): WorkView {
+	const {
+		description,
+		id,
+		key,
+		lightChecklist,
+		number,
+		projectId,
+		title,
+		type,
+	} = input;
+	if (!isWorkType(type)) {
+		throw new Error("unknown-work-type");
+	}
+	return {
+		archived: false,
+		closureResult: null,
+		description,
+		id,
+		key,
+		latestMergeEventId: null,
+		lightChecklist,
+		number,
+		origin: null,
+		projectId,
+		relations: [],
+		retiredIdentities: [],
+		revision: 1,
+		status: WORK_STATUS.notStarted,
+		title,
+		type,
+	};
+}
+
+async function replayDuplicateOrConflict(
+	tx: PrismaTransaction,
+	commandKey: string,
+	fingerprint: string
+): Promise<DuplicateWorkOutcome | null> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (!existing) {
+		return null;
+	}
+	if (existing.payloadFingerprint !== fingerprint) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const live = await tx.work.findUnique({
+		where: { id: existing.targetId },
+	});
+	if (live && !live.retiredIntoId && isWorkType(live.type)) {
+		return {
+			status: "replayed",
+			templateCreated: false,
+			work: independentStartWorkView({
+				description: live.description,
+				id: live.id,
+				key: live.key,
+				lightChecklist: listedChecklist(live.lightChecklist),
+				number: live.number,
+				projectId: live.projectId,
+				title: live.title,
+				type: live.type,
+			}),
+		};
+	}
+	const stored = storedWork(existing.resultValue);
+	if (!stored) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	return { status: "replayed", templateCreated: false, work: stored };
+}
+
+async function writeDuplicateReceipt(
+	tx: PrismaTransaction,
+	input: {
+		actorId: string;
+		commandKey: string;
+		fingerprint: string;
+		work: WorkView;
+	}
+): Promise<void> {
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: input.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey: input.commandKey,
+			committedRevision: input.work.revision,
+			id: crypto.randomUUID(),
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: input.fingerprint,
+			resultValue: JSON.stringify(input.work),
+			targetId: input.work.id,
+		},
+	});
+}
+
+function storedWork(value: string): WorkView | null {
+	try {
+		return workViewSchema.parse(JSON.parse(value));
 	} catch {
 		return null;
 	}

@@ -5,6 +5,7 @@ import {
 	customFieldStoredValueSchema,
 } from "../../custom-fields/server/custom-fields-model";
 import {
+	lightChecklistItemSchema,
 	WORK_TYPES,
 	type WorkView,
 	workViewSchema,
@@ -20,6 +21,8 @@ export const WORK_TEMPLATE_COPY = {
 	description: "Description",
 	documentPlaceholderRefused:
 		"Work Template cannot carry Document placeholder syntax.",
+	duplicateWork: "Duplicate Work",
+	fieldsToCopy: "Fields to copy",
 	forbiddenPayload:
 		"A Work Template cannot carry history, relations, close outcome, current status, or absolute dates.",
 	moveToTrash: "Move to Trash",
@@ -27,9 +30,11 @@ export const WORK_TEMPLATE_COPY = {
 	nameRequired: "Name is required.",
 	plannedStart: "Planned start",
 	previewDates: "Preview dates",
+	previewRequired: "Review the fields to copy before duplicating.",
 	relativeDateUnresolved: "Relative dates could not be resolved.",
 	save: "Save",
 	targetDate: "Target date",
+	title: "Title",
 	trashedNotEffective: "A trashed Work Template is not effective.",
 	type: "Type",
 	unknownWorkType: "Unknown Work type.",
@@ -194,6 +199,71 @@ export type PreviewRelativeDatesInput = z.infer<
 	typeof previewRelativeDatesInputSchema
 >;
 
+export const duplicateWorkPreviewFieldSchema = z.object({
+	definitionId: z.string().min(1),
+	name: z.string().min(1),
+	type: z.string().min(1),
+	value: customFieldStoredValueSchema,
+});
+
+export const duplicateWorkPreviewSchema = z.object({
+	becomesTemplate: z.literal(false),
+	copy: z.object({
+		checklist: z.literal(WORK_TEMPLATE_COPY.checklist),
+		description: z.literal(WORK_TEMPLATE_COPY.description),
+		duplicateWork: z.literal(WORK_TEMPLATE_COPY.duplicateWork),
+		fieldsToCopy: z.literal(WORK_TEMPLATE_COPY.fieldsToCopy),
+		title: z.literal(WORK_TEMPLATE_COPY.title),
+		type: z.literal(WORK_TEMPLATE_COPY.type),
+	}),
+	copyableFields: z.object({
+		customFields: z.array(duplicateWorkPreviewFieldSchema),
+		description: z.string().nullable(),
+		lightChecklist: z.array(lightChecklistItemSchema),
+		title: z.string().min(1),
+		type: z.string().min(1),
+	}),
+	excluded: z.object({
+		absoluteDates: z.literal(true),
+		closeOutcome: z.literal(true),
+		currentStatus: z.literal(true),
+		history: z.literal(true),
+		planningMemberships: z.literal(true),
+		relations: z.literal(true),
+	}),
+	projectId: z.string().min(1),
+	source: z.object({
+		closureResult: z.string().nullable(),
+		id: z.string().min(1),
+		key: z.string().min(1),
+		status: z.string().min(1),
+	}),
+});
+
+export type DuplicateWorkPreview = z.infer<typeof duplicateWorkPreviewSchema>;
+
+export const previewDuplicateWorkInputSchema = z.object({
+	workId: z.string().min(1),
+});
+
+export const duplicateWorkPayloadSchema = z
+	.object({
+		previewAcknowledged: z.boolean().optional(),
+		workId: z.string().min(1),
+	})
+	.passthrough();
+
+export type DuplicateWorkPayload = z.infer<typeof duplicateWorkPayloadSchema>;
+
+export const duplicateWorkCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: duplicateWorkPayloadSchema,
+});
+
+export type DuplicateWorkCommand = z.infer<typeof duplicateWorkCommandSchema>;
+
 export const WORK_TEMPLATE_REJECTION_REASONS = [
 	"absolute-date",
 	"date-field-default",
@@ -201,6 +271,7 @@ export const WORK_TEMPLATE_REJECTION_REASONS = [
 	"forbidden-payload",
 	"missing-idempotency-key",
 	"missing-name",
+	"preview-required",
 	"relative-date-unresolved",
 	"target-not-found",
 	"trashed-not-effective",
@@ -243,6 +314,39 @@ export type RelativeDatePreviewOutcome =
 	| { preview: RelativeDatePreview; status: "ok" }
 	| { reason: WorkTemplateRejectionReason; status: "rejected" };
 
+export type DuplicateWorkPreviewOutcome =
+	| { preview: DuplicateWorkPreview; status: "ok" }
+	| { reason: WorkTemplateRejectionReason; status: "rejected" };
+
+export type DuplicateWorkOutcome =
+	| {
+			status: "committed";
+			templateCreated: false;
+			work: WorkView;
+	  }
+	| {
+			status: "replayed";
+			templateCreated: false;
+			work: WorkView;
+	  }
+	| { conflict: string; status: "conflict" }
+	| { reason: WorkTemplateRejectionReason; status: "rejected" };
+
+export const FORBIDDEN_DUPLICATE_PAYLOAD_KEYS = [
+	"absoluteDates",
+	"closeOutcome",
+	"closureResult",
+	"currentStatus",
+	"due",
+	"history",
+	"plannedStart",
+	"planningMemberships",
+	"relations",
+	"status",
+	"targetDate",
+	"workingHistory",
+] as const;
+
 export const FORBIDDEN_TEMPLATE_PAYLOAD_KEYS = [
 	"absoluteDates",
 	"closeOutcome",
@@ -264,7 +368,9 @@ export function workTemplatesCatalog() {
 	} as const;
 }
 
-export function isWorkType(value: string): boolean {
+export function isWorkType(
+	value: string
+): value is (typeof WORK_TYPES)[number] {
 	return (WORK_TYPES as readonly string[]).includes(value);
 }
 

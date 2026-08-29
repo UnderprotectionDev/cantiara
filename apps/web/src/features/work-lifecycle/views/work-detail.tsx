@@ -9,6 +9,7 @@ import UsedInPanel from "@/features/relations/views/used-in-panel";
 import WorkTagPicker from "@/features/tags/views/work-tag-picker";
 import WorkChecklistPanel from "@/features/work-checklists/views/work-checklist-panel";
 import WorkContextCard from "@/features/work-context/views/work-context-card";
+import DuplicateWorkForm from "@/features/work-templates/forms/duplicate-work-form";
 
 import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
@@ -48,6 +49,7 @@ export default function WorkDetail({
 	appliedTagIds,
 	candidates,
 	onClose,
+	onDuplicated,
 	onMerged,
 	onOpenSourceRecord,
 	projectId,
@@ -57,6 +59,7 @@ export default function WorkDetail({
 	appliedTagIds: string[];
 	candidates: Array<{ id: string; key: string; title: string }>;
 	onClose: () => void;
+	onDuplicated?: (workId: string) => void;
 	onMerged?: (survivorId: string) => void;
 	onOpenSourceRecord?: (id: string) => void;
 	projectId: string;
@@ -185,6 +188,12 @@ export default function WorkDetail({
 				onMerged={onMerged}
 				projectId={projectId}
 				revision={work.revision}
+				workId={work.id}
+			/>
+			<DuplicateWorkForm
+				key={`${work.id}:duplicate`}
+				onDuplicated={onDuplicated}
+				projectId={projectId}
 				workId={work.id}
 			/>
 			<RecreateWorkForm

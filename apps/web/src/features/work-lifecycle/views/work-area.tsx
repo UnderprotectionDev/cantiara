@@ -160,6 +160,7 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 							title: item.title,
 						}))}
 					onClose={onClose}
+					onDuplicated={onCreated}
 					onMerged={onCreated}
 					onOpenSourceRecord={onOpenSourceRecord}
 					projectId={projectId}

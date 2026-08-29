@@ -29,6 +29,9 @@ export function workTemplateMutationError(
 	if (outcome.reason === "relative-date-unresolved") {
 		return WORK_TEMPLATE_COPY.relativeDateUnresolved;
 	}
+	if (outcome.reason === "preview-required") {
+		return WORK_TEMPLATE_COPY.previewRequired;
+	}
 	if (outcome.reason === "trashed-not-effective") {
 		return WORK_TEMPLATE_COPY.trashedNotEffective;
 	}
