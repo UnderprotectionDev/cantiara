@@ -225,13 +225,7 @@ export const priorityMapUnevaluatedSchema = z.object({
 export const priorityMapViewSchema = z.object({
 	horizontal: priorityMapAxisSchema,
 	plotted: z.array(priorityMapPlottedSchema),
-	ranks: z.tuple([
-		z.literal("Very low"),
-		z.literal("Low"),
-		z.literal("Medium"),
-		z.literal("High"),
-		z.literal("Very high"),
-	]),
+	ranks: z.array(z.enum(PRIORITY_RANKS)),
 	unevaluated: z.array(priorityMapUnevaluatedSchema),
 	vertical: priorityMapAxisSchema,
 });

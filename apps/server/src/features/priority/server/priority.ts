@@ -946,7 +946,7 @@ function placeOnMap(
 	return {
 		horizontal,
 		plotted,
-		ranks: PRIORITY_RANKS,
+		ranks: [...PRIORITY_RANKS],
 		unevaluated,
 		vertical,
 	};
