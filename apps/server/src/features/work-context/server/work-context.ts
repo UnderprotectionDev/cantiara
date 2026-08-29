@@ -73,6 +73,7 @@ interface FoundationCountSets {
 	source: PriorityFoundationsItem[];
 	"unique-company": PriorityFoundationsItem[];
 	"unique-contact": PriorityFoundationsItem[];
+	"user-research-session": PriorityFoundationsItem[];
 	[key: string]: PriorityFoundationsItem[];
 }
 
@@ -466,6 +467,7 @@ function emptyCountSets(): FoundationCountSets {
 		source: [],
 		"unique-company": [],
 		"unique-contact": [],
+		"user-research-session": [],
 	};
 }
 
@@ -586,6 +588,12 @@ function countsFromSets(
 			countSets.research
 		),
 		countChip(
+			"user-research-session",
+			WORK_CONTEXT_COPY.researchSession,
+			WORK_CONTEXT_COPY.researchSession,
+			countSets["user-research-session"]
+		),
+		countChip(
 			"decision",
 			WORK_CONTEXT_COPY.decision,
 			WORK_CONTEXT_COPY.decision,
@@ -662,6 +670,9 @@ function countIdForKind(kind: string): keyof FoundationCountSets | null {
 	if (kind === WORK_CONTEXT_COPY.feedback) {
 		return "feedback";
 	}
+	if (kind === WORK_CONTEXT_COPY.researchSession) {
+		return "user-research-session";
+	}
 	return null;
 }
 
@@ -674,16 +685,14 @@ function pushIntoCount(
 	if (!(source && isCountableSource(source) && source.sourceId)) {
 		return;
 	}
-	const visibleName =
-		source.status === "live" ? source.visibleName : source.visibleName;
+	const { reason, sourceId, status, visibleName } = source;
 	if (!visibleName) {
 		return;
 	}
 	const item = {
-		archiveVisible:
-			source.status === "broken" && source.reason === RELATIONS_COPY.archived,
+		archiveVisible: status === "broken" && reason === RELATIONS_COPY.archived,
 		kind,
-		sourceId: source.sourceId,
+		sourceId,
 		visibleName,
 	};
 	items.push(item);
@@ -709,10 +718,10 @@ function isCountableRelated(related: RelatedLiveSource): boolean {
 }
 
 function foundationKind(related: RelatedLiveSource): string | null {
-	if (
-		related.relationType === RELATIONS_COPY.blocks ||
-		related.relationType === RELATIONS_COPY.blockedBy
-	) {
+	if (related.relationType === RELATIONS_COPY.blocks) {
+		return WORK_CONTEXT_COPY.blocks;
+	}
+	if (related.relationType === RELATIONS_COPY.blockedBy) {
 		return WORK_CONTEXT_COPY.blocker;
 	}
 	if (related.kind === "Project Goal") {
@@ -736,10 +745,10 @@ function foundationKind(related: RelatedLiveSource): string | null {
 	if (related.kind === "Question") {
 		return WORK_CONTEXT_COPY.openQuestion;
 	}
-	if (
-		related.kind === "User Research Session" ||
-		related.workType === "Research"
-	) {
+	if (related.kind === "User Research Session") {
+		return WORK_CONTEXT_COPY.researchSession;
+	}
+	if (related.workType === "Research") {
 		return WORK_CONTEXT_COPY.research;
 	}
 	return null;
@@ -768,14 +777,18 @@ function pushCountableItem(
 	source: LiveSource | null | undefined,
 	kind: string
 ) {
-	if (source?.status !== "live") {
+	if (!(source && isCountableSource(source) && source.sourceId)) {
+		return;
+	}
+	const { reason, sourceId, status, visibleName } = source;
+	if (!visibleName) {
 		return;
 	}
 	items.push({
-		archiveVisible: false,
+		archiveVisible: status === "broken" && reason === RELATIONS_COPY.archived,
 		kind,
-		sourceId: source.sourceId,
-		visibleName: source.visibleName,
+		sourceId,
+		visibleName,
 	});
 }
 

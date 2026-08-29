@@ -563,6 +563,66 @@ describe("Work Context Card", () => {
 			"dec-gone"
 		);
 	});
+
+	it("keeps Blocks and Blocked by, Research, and User Research Session distinct and includes an archived Project Goal", () => {
+		const card = presentWorkContextCard({
+			projectGoal: {
+				kind: "Project Goal",
+				openSourceRecord: true,
+				opensWorkSurface: false,
+				reason: "Archived",
+				sourceId: "goal-archived",
+				status: "broken",
+				visibleName: "Launch checkout",
+			},
+			relatedSources: [
+				{
+					kind: "Work",
+					other: liveSource("Work", "blocker-1", "Payments API", "In Progress"),
+					relationType: "Blocked by",
+				},
+				{
+					kind: "Work",
+					other: liveSource("Work", "blocked-1", "Receipts", "Not Started"),
+					relationType: "Blocks",
+				},
+				{
+					kind: "User Research Session",
+					other: liveSource(
+						"User Research Session",
+						"session-1",
+						"Checkout interviews",
+						"Open"
+					),
+					relationType: "Related",
+				},
+			],
+			starterConfiguration: "Solo SaaS",
+			workType: "Feature",
+		});
+		expect(card.priorityFoundations.items.map((item) => item.kind)).toEqual([
+			"Project Goal",
+			"Blocked by",
+			"Blocks",
+			"User Research Session",
+		]);
+		expect(card.priorityFoundations.items[0]).toMatchObject({
+			archiveVisible: true,
+			sourceId: "goal-archived",
+		});
+		expect(
+			card.priorityFoundations.counts.find(
+				(count) => count.id === "user-research-session"
+			)
+		).toMatchObject({
+			kind: "User Research Session",
+			label: "User Research Session",
+			value: 1,
+		});
+		expect(
+			card.priorityFoundations.counts.find((count) => count.id === "research")
+		).toBeUndefined();
+	});
 });
 
 function liveSource(
