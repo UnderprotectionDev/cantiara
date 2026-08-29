@@ -67,6 +67,7 @@ export const PROJECT_SHELL_COPY = {
 	workContextCardLayout: "Work Context Card layout",
 	workStatuses: "Work statuses",
 	workStatusLabelRequired: "Work status label is required.",
+	workTemplate: "Work Template",
 } as const;
 
 export function pinnedNavigationAreas(
@@ -99,6 +100,7 @@ export function stageRemovalPreviewCopy(name: string): string {
 export const CONFIGURATION_MODE_EDITORS = {
 	customField: "custom-field",
 	workContextCardLayout: "work-context-card-layout",
+	workTemplate: "work-template",
 } as const;
 
 export type ConfigurationModeEditor =
@@ -177,7 +179,8 @@ export function projectShellSearch(
 	const configurationEditor =
 		search.configurationEditor === CONFIGURATION_MODE_EDITORS.customField ||
 		search.configurationEditor ===
-			CONFIGURATION_MODE_EDITORS.workContextCardLayout
+			CONFIGURATION_MODE_EDITORS.workContextCardLayout ||
+		search.configurationEditor === CONFIGURATION_MODE_EDITORS.workTemplate
 			? search.configurationEditor
 			: undefined;
 	return {
