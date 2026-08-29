@@ -2,9 +2,8 @@ import { protectedProcedure, protectedWriteProcedure } from "@cantiara/api";
 import { getAccountAccessForUser } from "@cantiara/auth";
 import {
 	getPrismaClient,
-	prismaClientHasCurrentWorkspaceModel,
-	resetPrismaClientCache,
-	workspaceOverviewLayoutSelect,
+	readWorkspaceOverviewLayout,
+	writeWorkspaceOverviewLayout,
 } from "@cantiara/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -39,25 +38,10 @@ async function requireAccess(userId: string) {
 	return access;
 }
 
-function prismaForOverviewLayoutWrite() {
-	let prisma = getPrismaClient();
-	if (!prismaClientHasCurrentWorkspaceModel(prisma)) {
-		resetPrismaClientCache();
-		prisma = getPrismaClient();
-	}
-	if (!prismaClientHasCurrentWorkspaceModel(prisma)) {
-		throw new ORPCError("INTERNAL_SERVER_ERROR");
-	}
-	return prisma;
-}
-
 async function loadOverview(workspaceId: string) {
 	const prisma = getPrismaClient();
-	const [workspace, projects, works] = await Promise.all([
-		prisma.workspace.findUnique({
-			select: workspaceOverviewLayoutSelect(prisma),
-			where: { id: workspaceId },
-		}),
+	const [overviewLayout, projects, works] = await Promise.all([
+		readWorkspaceOverviewLayout(prisma, workspaceId),
 		prisma.project.findMany({
 			select: {
 				id: true,
@@ -79,11 +63,7 @@ async function loadOverview(workspaceId: string) {
 			where: { archived: false, project: { workspaceId } },
 		}),
 	]);
-	const layout = parseWorkspaceOverviewLayout(
-		workspace && "overviewLayout" in workspace
-			? workspace.overviewLayout
-			: undefined
-	);
+	const layout = parseWorkspaceOverviewLayout(overviewLayout);
 	return workspaceOverview(
 		sourcesFromWorkspaceSnapshot({ projects, works }),
 		layout
@@ -99,16 +79,11 @@ export const workspaceOverviewRouter = {
 		.input(layoutInputSchema)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			const prisma = prismaForOverviewLayoutWrite();
-			await prisma.workspace.update({
-				data: {
-					overviewLayout: {
-						hidden: input.hidden,
-						liveBlocks: input.liveBlocks,
-						order: input.order,
-					},
-				},
-				where: { id: access.workspaceId },
+			const prisma = getPrismaClient();
+			await writeWorkspaceOverviewLayout(prisma, access.workspaceId, {
+				hidden: input.hidden,
+				liveBlocks: input.liveBlocks,
+				order: input.order,
 			});
 			return await loadOverview(access.workspaceId);
 		}),
