@@ -238,6 +238,14 @@ _Avoid_: Epic hiyerarşisi, subtask ağacı, planlama üyeliği
 Tek Projenin amacı, yaşamı, işi, bilgisi, belirsizliği, testi ve olaylarını kaynaklarından nötr özetleyen yüzey; otomatik sağlık skoru değildir ([Proje genel bakışı](docs/prd/04-workspace-and-projects.md#proje-genel-bakışı)). UI: `Overview`. Proje alanı değildir ve kapanmaz. Modül adları: `Purpose`, `Lifecycle`, `Goals`, `Stages`, `Milestones`, `Work`, `Documents`, `Decisions`, `Risks`, `Tests`, `Production`, `Blockers`, `Dates`, `Recent changes`.
 _Avoid_: Dashboard skoru, Çalışma Alanı genel bakışı, Manuel Proje Güncellemesi
 
+**Çalışma Alanı genel bakışı**:
+Tek Çalışma Alanının `Active Projects`, `Attention Required`, `Upcoming` ve `Recent Work` hazır modülleriyle açılan ufku; özetler kaynak kayıtlardan türetilir ve sağlık hükmü, Portfolio veya ikinci dashboard değildir ([Çalışma alanı genel bakışı](docs/prd/04-workspace-and-projects.md#çalışma-alanı-genel-bakışı)).
+_Avoid_: Workspace dashboard, Portfolio, Mission Control, Home board, Proje genel bakışı
+
+**Kişisel canlı blok**:
+Çalışma Alanı genel bakışına eklenen mevcut Belge veya adlandırılmış Akıllı Koleksiyon görünümü referansı; gövde, üyelik kuralı, serbest widget veya kopya kayıt değildir ([Çalışma alanı genel bakışı](docs/prd/04-workspace-and-projects.md#çalışma-alanı-genel-bakışı)). UI: `Add live block`.
+_Avoid_: widget, dashboard kartı, kopya Belge, sorgu bloğu
+
 **Kaynak kaydı aç**:
 Ana kaydı kopyalamadan açan ortak eylem; ikinci doğruluk kaynağı veya kayıt yazması değildir ([etkileşim tutarlılığı](docs/prd/15-product-quality.md#etkilesim-tutarliligi)). UI: `Open source record`.
 _Avoid_: Open record, View details, ikinci kayıt kopyası

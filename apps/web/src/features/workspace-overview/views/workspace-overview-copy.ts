@@ -1,0 +1,16 @@
+export const WORKSPACE_OVERVIEW_UI_COPY = {
+	activeProjects: "Active Projects",
+	addLiveBlock: "Add live block",
+	attentionRequired: "Attention Required",
+	hide: "Hide",
+	loading: "Loading…",
+	moveDown: "Move down",
+	moveUp: "Move up",
+	openSourceRecord: "Open source record",
+	recentWork: "Recent Work",
+	remove: "Remove",
+	show: "Show",
+	unavailable: "Workspace overview is unavailable.",
+	upcoming: "Upcoming",
+	workspace: "Workspace",
+} as const;
