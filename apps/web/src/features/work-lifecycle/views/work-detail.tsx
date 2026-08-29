@@ -5,6 +5,7 @@ import RelationsPanel from "@/features/relations/views/relations-panel";
 import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
 import UsedInPanel from "@/features/relations/views/used-in-panel";
 import WorkTagPicker from "@/features/tags/views/work-tag-picker";
+import WorkChecklistPanel from "@/features/work-checklists/views/work-checklist-panel";
 import WorkContextCard from "@/features/work-context/views/work-context-card";
 
 import ArchiveWorkForm from "../forms/archive-work-form";
@@ -124,6 +125,12 @@ export default function WorkDetail({
 				type={work.type}
 				workId={work.id}
 				works={works}
+			/>
+			<WorkChecklistPanel
+				key={`${work.id}:checklist:${work.revision}`}
+				projectId={projectId}
+				revision={work.revision}
+				workId={work.id}
 			/>
 			<WorkTagPicker
 				appliedTagIds={appliedTagIds}

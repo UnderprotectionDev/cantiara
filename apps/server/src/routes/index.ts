@@ -11,6 +11,7 @@ import { projectShell } from "../features/project-shell/server/project-shell-rpc
 import { relations } from "../features/relations/server/relations-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
+import { workChecklists } from "../features/work-checklists/server/work-checklists-rpc";
 import { workDrafts } from "../features/work-drafts/server/work-drafts-rpc";
 import { workLifecycle } from "../features/work-lifecycle/server/work-lifecycle-rpc";
 import { workspaceOverviewRouter } from "../features/workspace-overview/server/workspace-overview-rpc";
@@ -26,6 +27,7 @@ export const appRouter = {
 	projectShell,
 	relations,
 	tags,
+	workChecklists,
 	workDrafts,
 	workLifecycle,
 	workspaceOverview: workspaceOverviewRouter,
