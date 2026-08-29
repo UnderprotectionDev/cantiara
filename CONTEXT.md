@@ -106,6 +106,10 @@ _Avoid_: Yetim kaydı kopyalama, başka hedefe otomatik yönlendirme, silinmiş 
 Kapalı katalogdaki türlenmiş bağ; iki uç, yön ve anlam taşır ve kullanıcı yeni tür icat etmez; gömülü kullanım veya Kanıt bağı uzmanlığı değildir ([standart ilişki türleri](docs/prd/02-domain-model-and-lifecycle.md#standart-ilişki-türleri)). UI: `Related`.
 _Avoid_: related-pile, serbest etiket grafiği, otomatik grafik, kullanım bağı
 
+**Engeller / Engellenir**:
+İş, Karar veya Açık Soru ile bir İş arasındaki türlenmiş bekletme bağı; `Active` veya `Resolved` taşır ve Kanban sütunu, etiket veya öncelik puanı değildir ([iş bağımlılıkları ve blokajlar](docs/prd/06-work-management-and-planning.md#iş-bağımlılıkları-ve-blokajlar)). UI: `Blocks` / `Blocked by`.
+_Avoid_: Kanban sütunu olarak blokaj, tag-as-blocker, priority score, serbest ilişki türü
+
 **Kullanım bağı**:
 Gömülü canlı kart, blok veya konumun kaynak kimliğini kopyasız izleyen türetilmiş bağ; semantik ilişki, `Related` veya Kanıt bağı değildir ([kullanım bağları](docs/prd/02-domain-model-and-lifecycle.md#kullanim-baglari)).
 _Avoid_: Related, geri bağlantı, Kanıt Rolü, ilişki sayısı

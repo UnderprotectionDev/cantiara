@@ -1,5 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
 
+import WorkBlockersPanel from "@/features/blockers/views/work-blockers-panel";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
 import RelationsPanel from "@/features/relations/views/relations-panel";
 import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
@@ -145,6 +146,11 @@ export default function WorkDetail({
 				projectId={projectId}
 				usageLinks={work.usageLinks ?? []}
 				works={works}
+			/>
+			<WorkBlockersPanel
+				candidates={candidates}
+				projectId={projectId}
+				workId={work.id}
 			/>
 			<RelationsPanel
 				candidates={candidates}
