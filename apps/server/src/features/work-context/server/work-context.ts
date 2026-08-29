@@ -956,12 +956,13 @@ function pushIntoCount(
 	if (!(source && isCountableSource(source) && source.sourceId)) {
 		return;
 	}
-	const { reason, sourceId, status, visibleName } = source;
+	const { sourceId, visibleName } = source;
 	if (!visibleName) {
 		return;
 	}
 	const item = {
-		archiveVisible: status === "broken" && reason === RELATIONS_COPY.archived,
+		archiveVisible:
+			source.status === "broken" && source.reason === RELATIONS_COPY.archived,
 		kind,
 		sourceId,
 		visibleName,
@@ -1051,12 +1052,13 @@ function pushCountableItem(
 	if (!(source && isCountableSource(source) && source.sourceId)) {
 		return;
 	}
-	const { reason, sourceId, status, visibleName } = source;
+	const { sourceId, visibleName } = source;
 	if (!visibleName) {
 		return;
 	}
 	items.push({
-		archiveVisible: status === "broken" && reason === RELATIONS_COPY.archived,
+		archiveVisible:
+			source.status === "broken" && source.reason === RELATIONS_COPY.archived,
 		kind,
 		sourceId,
 		visibleName,
