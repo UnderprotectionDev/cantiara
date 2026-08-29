@@ -4,7 +4,9 @@ import type { WorkType } from "../../work-lifecycle/forms/work-lifecycle-copy";
 export const WORK_CONTEXT_COPY = {
 	add: "Add",
 	addContext: "Add Context",
+	addCustomSection: "Add custom section",
 	affectedReleases: "Affected Releases",
+	confirm: "Confirm",
 	currentSituation: "Current Situation",
 	decisions: "Decisions",
 	dependencies: "Dependencies",
@@ -12,22 +14,31 @@ export const WORK_CONTEXT_COPY = {
 	emptySection: "Nothing here yet.",
 	evidence: "Evidence",
 	evidenceAndDecisions: "Evidence & Decisions",
+	evidenceRole: "Evidence Role",
 	expectedOutcome: "Expected Outcome",
 	githubAndTests: "GitHub & Tests",
+	hide: "Hide",
+	impactPreview: "Impact preview",
 	includedWork: "Included Work",
 	link: "Link",
+	moveDown: "Move down",
+	moveUp: "Move up",
 	observedExpectedBehavior: "Observed/Expected Behavior",
 	openSourceRecord: "Open source record",
 	planning: "Planning",
 	problemOpportunity: "Problem/Opportunity",
+	recordType: "Record type",
 	relatedWork: "Related Work",
+	relation: "Relation",
 	researchQuestion: "Research Question",
 	risksAndOpenQuestions: "Risks & Open Questions",
+	show: "Show",
 	sourcesAndEvidence: "Sources & Evidence",
 	status: "Status",
 	targetRelease: "Target Release",
 	title: "Title",
 	type: "Type",
+	undo: "Undo",
 	whyAmIDoingThisWork: "Why am I doing this work?",
 } as const;
 
@@ -79,8 +90,13 @@ export type PreparedSection = (typeof PREPARED_LAYOUTS)[WorkType][number];
 export interface WorkContextCardView {
 	addContext: {
 		label: typeof WORK_CONTEXT_COPY.addContext;
-		remainingSections: PreparedSection[];
+		remainingSections: string[];
 	};
+	configuredSections: Array<{
+		hidden: boolean;
+		kind: "custom" | "prepared";
+		name: string;
+	}>;
 	effects: {
 		close: false;
 		completenessScore: false;
@@ -94,8 +110,18 @@ export interface WorkContextCardView {
 		create: false;
 		statusTransition: false;
 	};
+	hiddenSections: Array<{ name: string; treatedAsMissing: false }>;
 	initiallyVisibleFields: typeof INITIALLY_VISIBLE_FIELDS;
+	layout: {
+		projectScoped: true;
+		revision: number;
+		workType: WorkType;
+	};
 	preparedSections: PreparedSection[];
+	shareScope: {
+		buildInPublic: false;
+		linkSharing: false;
+	};
 	starterConfiguration: StarterConfiguration;
 	visiblePreparedSections: PreparedSection[];
 	visibleSections: Array<{
@@ -112,7 +138,7 @@ export interface WorkContextCardView {
 			status: "live" | "broken";
 			visibleName?: string;
 		}>;
-		name: PreparedSection;
+		name: string;
 	}>;
 	whyChain: {
 		empty: boolean;
@@ -162,6 +188,11 @@ export function presentWorkContextCard(input: {
 				(section) => !revealed.has(section)
 			),
 		},
+		configuredSections: preparedSections.map((name) => ({
+			hidden: false,
+			kind: "prepared" as const,
+			name,
+		})),
 		effects: {
 			close: false,
 			completenessScore: false,
@@ -175,8 +206,18 @@ export function presentWorkContextCard(input: {
 			create: false,
 			statusTransition: false,
 		},
+		hiddenSections: [],
 		initiallyVisibleFields: INITIALLY_VISIBLE_FIELDS,
+		layout: {
+			projectScoped: true,
+			revision: 1,
+			workType: input.workType,
+		},
 		preparedSections,
+		shareScope: {
+			buildInPublic: false,
+			linkSharing: false,
+		},
 		starterConfiguration: input.starterConfiguration,
 		visiblePreparedSections,
 		visibleSections: visiblePreparedSections.map((name) => {

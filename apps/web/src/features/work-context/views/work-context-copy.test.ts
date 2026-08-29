@@ -44,6 +44,8 @@ const DASHBOARD_PATTERN = /dashboard|readiness score|wsjf|free query/i;
 
 test("English prepared section names and Add Context match the PRD table", () => {
 	expect(WORK_CONTEXT_COPY.addContext).toBe("Add Context");
+	expect(WORK_CONTEXT_COPY.hide).toBe("Hide");
+	expect(WORK_CONTEXT_COPY.addCustomSection).toBe("Add custom section");
 	expect(WORK_CONTEXT_COPY.problemOpportunity).toBe("Problem/Opportunity");
 	expect(JSON.stringify(WORK_CONTEXT_COPY)).not.toMatch(DASHBOARD_PATTERN);
 	for (const workType of WORK_TYPES) {

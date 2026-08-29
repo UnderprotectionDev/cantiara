@@ -207,8 +207,8 @@ function LiveItem({
 	item: WorkContextCardView["visibleSections"][number]["items"][number];
 	onOpenSourceRecord?: (id: string) => void;
 }) {
-	if (item.status === "broken") {
-		return <span>{item.reason}</span>;
+	if (item.status === "broken" || !item.sourceId) {
+		return <span>{item.reason ?? item.visibleName}</span>;
 	}
 	return (
 		<OpenSourceButton

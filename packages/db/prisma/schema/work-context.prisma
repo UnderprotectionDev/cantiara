@@ -1,0 +1,28 @@
+model ProjectWorkContextLayout {
+  id        String                              @id
+  projectId String
+  project   Project                             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workType  String
+  revision  Int
+  sections   Json
+  createdAt DateTime                            @default(now())
+  updatedAt DateTime                            @updatedAt
+  history   ProjectWorkContextLayoutRevision[]
+
+  @@unique([projectId, workType])
+  @@index([projectId])
+  @@map("project_work_context_layout")
+}
+
+model ProjectWorkContextLayoutRevision {
+  id        String                    @id
+  layoutId  String
+  layout    ProjectWorkContextLayout  @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+  revision  Int
+  sections  Json
+  createdAt DateTime                  @default(now())
+
+  @@unique([layoutId, revision])
+  @@index([layoutId])
+  @@map("project_work_context_layout_revision")
+}

@@ -262,7 +262,14 @@ export const projectViewSchema = z.object({
 	stages: z.array(projectStageViewSchema),
 	starterConfiguration: z.enum(STARTER_CONFIGURATIONS),
 	targetDate: z.string().nullable(),
-	workContextCardLayouts: z.array(z.never()),
+	workContextCardLayouts: z
+		.array(
+			z.object({
+				revision: z.number().int().positive(),
+				workType: z.string().min(1),
+			})
+		)
+		.default([]),
 	workStatuses: z.tuple([
 		z.object({
 			label: z.string().min(1),
@@ -452,7 +459,14 @@ export const structureCopyPreviewSchema = z.object({
 		})
 	),
 	starterConfigurationOffered: z.literal(false),
-	workContextCardLayouts: z.array(z.never()),
+	workContextCardLayouts: z
+		.array(
+			z.object({
+				revision: z.number().int().positive(),
+				workType: z.string().min(1),
+			})
+		)
+		.default([]),
 	workStatuses: z.tuple([
 		copiedWorkStatusSchema.extend({ semantic: z.literal("Not Started") }),
 		copiedWorkStatusSchema.extend({ semantic: z.literal("In Progress") }),
@@ -491,7 +505,7 @@ export function structureCopyPreview(
 			state: stage.state,
 		})),
 		starterConfigurationOffered: false,
-		workContextCardLayouts: [],
+		workContextCardLayouts: project.workContextCardLayouts,
 		workStatuses: project.workStatuses,
 		workViews: project.workViews,
 	};

@@ -2,6 +2,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { type ReactNode, useCallback } from "react";
 
 import CustomFieldEditor from "@/features/custom-fields/forms/custom-field-editor";
+import WorkContextLayoutEditor from "@/features/work-context/views/work-context-layout-editor";
 
 import ProjectAreasForm from "./project-areas-form";
 import {
@@ -150,11 +151,7 @@ export default function ConfigurationMode({
 							{PROJECT_SHELL_COPY.workContextCardLayout}
 						</Button>
 						{editor === CONFIGURATION_MODE_EDITORS.workContextCardLayout ? (
-							<section aria-label={PROJECT_SHELL_COPY.workContextCardLayout}>
-								<h2 className="font-medium text-sm">
-									{PROJECT_SHELL_COPY.workContextCardLayout}
-								</h2>
-							</section>
+							<WorkContextLayoutEditor projectId={projectId} />
 						) : null}
 					</section>
 				</div>
