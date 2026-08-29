@@ -112,3 +112,19 @@ export function prismaClientHasCurrentFileAttachmentVersionModel(
 		fields.includes("markingMarks") && fields.includes("shareItemApprovals")
 	);
 }
+
+/**
+ * Project.priorityCriterionDefinitions is required for Projects list
+ * (`listProjects` include). A bun `--hot` client generated before that
+ * relation still has a Project delegate; include then throws
+ * "Unknown field 'priorityCriterionDefinitions'".
+ */
+export function prismaClientHasCurrentProjectModel(
+	client: PrismaClient
+): boolean {
+	const fields = modelFieldNames(client, "Project");
+	if (fields.length === 0) {
+		return true;
+	}
+	return fields.includes("priorityCriterionDefinitions");
+}
