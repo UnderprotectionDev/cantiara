@@ -140,6 +140,10 @@ _Avoid_: Kart, görünüm satırı, sahipli bileşen
 Bir Projede yapılması, araştırılması veya iyileştirilmesi amaçlanan şeyi bağımsız kimlik, durum ve geçmişle taşıyan genel ana kayıt; [İş türleri](docs/prd/02-domain-model-and-lifecycle.md#terim-sözlüğü) onun altında yaşar.
 _Avoid_: Görev, ticket, yalnız yapılacak madde
 
+**Şablon**:
+Bir Projede tekrar kullanılan İş başlangıç bağlamı; tür, açıklama iskeleti, seçili alan varsayılanları, hafif kontrol listesi ve isteğe bağlı göreli planlanan başlangıç/hedef tarihi kuralları taşır. Üretilen İş bağımsız kimlik alır; şablon geçmiş, ilişki, kapanış sonucu, mevcut durum veya mutlak tarih taşımaz ([iş öğesi şablonları](docs/prd/06-work-management-and-planning.md#iş-öğesi-şablonları-ve-tek-seferlik-kopyalama)). UI: `Work Template`.
+_Avoid_: live-bound fleet, marketplace, workflow gate, Project fork, Belge şablonu, Başlangıç yapılandırması, Yakalama mini şablonu
+
 **Hafif kontrol listesi**:
 İş üzerindeki, yalnız metin ve tamamlanma işareti taşıyan sahipli bileşen; bağımsız ana kayıt, İş durumu veya planlama üyeliği değildir ([Hafif iş kontrol listeleri](docs/prd/06-work-management-and-planning.md#hafif-iş-kontrol-listeleri)). UI: `Checklist`.
 _Avoid_: subtask, epic, checklist-as-Work, Test Scenario, Handoff
@@ -191,6 +195,10 @@ _Avoid_: kart snapshot'ı, paylaşım kapsamı, ikinci doğruluk kaynağı
 **Ana kaynak uygulamadadır**:
 Kopyalanan Markdown'ın asıl kaydın uygulamada kaldığını belirten not; dış snapshot veya paylaşım izni değildir. UI: `Primary source is in the app`.
 _Avoid_: dış doğruluk kaynağı, paylaşım şablonu
+
+**Özel bölüm ekle**:
+Yalnız desteklenen kayıt türü, doğrudan ilişki veya Kanıt Rolü ve durum koşuluyla adlandırılmış İş Bağlam Kartı bölümü kurma; serbest sorgu değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Add custom section`.
+_Avoid_: serbest sorgu, formül, grafik, dashboard widget
 
 **Başlangıç yapılandırması**:
 Yeni Projeye örnek içerik üretmeden yapı ve sunum varsayılanlarını bir kez uygulayan [kurulum seçimi](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları); çalışma sırası veya durum geçişi kapısı oluşturmaz.

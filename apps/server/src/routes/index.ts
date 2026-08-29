@@ -16,6 +16,7 @@ import { workChecklists } from "../features/work-checklists/server/work-checklis
 import { workContext } from "../features/work-context/server/work-context-rpc";
 import { workDrafts } from "../features/work-drafts/server/work-drafts-rpc";
 import { workLifecycle } from "../features/work-lifecycle/server/work-lifecycle-rpc";
+import { workTemplates } from "../features/work-templates/server/work-templates-rpc";
 import { workspaceOverviewRouter } from "../features/workspace-overview/server/workspace-overview-rpc";
 
 export const appRouter = {
@@ -40,6 +41,7 @@ export const appRouter = {
 	workDrafts,
 	workLifecycle,
 	workspaceOverview: workspaceOverviewRouter,
+	workTemplates,
 };
 
 export type AppRouter = typeof appRouter;

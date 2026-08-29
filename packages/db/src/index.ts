@@ -13,6 +13,7 @@ import {
 import {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentFileAttachmentVersionModel,
+	prismaClientHasCurrentTypedRelationModel,
 	prismaClientHasCurrentWorkspaceModel,
 } from "./prisma-client-delegates";
 
@@ -21,6 +22,7 @@ export { readGeneratedClientStamp } from "./generated-prisma-client";
 export {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentFileAttachmentVersionModel,
+	prismaClientHasCurrentTypedRelationModel,
 	prismaClientHasCurrentWorkspaceModel,
 	workspaceOverviewLayoutSelect,
 } from "./prisma-client-delegates";
@@ -121,6 +123,9 @@ function cachedClient(diskStamp: string): PrismaClient | undefined {
 	if (!prismaClientHasCurrentWorkspaceModel(cached.client)) {
 		return;
 	}
+	if (!prismaClientHasCurrentTypedRelationModel(cached.client)) {
+		return;
+	}
 	return cached.client;
 }
 
@@ -147,7 +152,12 @@ export function getPrismaClient() {
 	const diskStamp = readGeneratedClientStamp();
 	if (process.env.NODE_ENV === "production") {
 		productionPrisma ??= createPrismaClient();
-		if (!prismaClientHasCurrentDelegates(productionPrisma)) {
+		if (
+			!(
+				prismaClientHasCurrentDelegates(productionPrisma) &&
+				prismaClientHasCurrentTypedRelationModel(productionPrisma)
+			)
+		) {
 			throw new Error(
 				"Prisma client is missing current models; restart the API after prisma generate"
 			);
@@ -160,7 +170,12 @@ export function getPrismaClient() {
 	}
 	dropCachedPrisma();
 	const client = createPrismaClient();
-	if (!prismaClientHasCurrentDelegates(client)) {
+	if (
+		!(
+			prismaClientHasCurrentDelegates(client) &&
+			prismaClientHasCurrentTypedRelationModel(client)
+		)
+	) {
 		client.$disconnect().catch(() => undefined);
 		throw new Error(
 			"Prisma client is missing current models; restart the API after prisma generate"

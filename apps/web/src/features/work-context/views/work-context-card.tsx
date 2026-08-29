@@ -14,7 +14,6 @@ import type { WorkType } from "../../work-lifecycle/forms/work-lifecycle-copy";
 
 import {
 	presentWorkContextCard,
-	revealPreparedSection,
 	WORK_CONTEXT_COPY,
 	type WorkContextCardView,
 } from "./work-context-copy";
@@ -78,11 +77,12 @@ export default function WorkContextCard({
 			if (typeof section !== "string" || section.length === 0) {
 				return;
 			}
-			setRevealedSections(
-				revealPreparedSection(local, section).visiblePreparedSections
-			);
+			if (!card.addContext.remainingSections.some((item) => item === section)) {
+				return;
+			}
+			setRevealedSections((current) => [...current, section]);
 		},
-		[local]
+		[card]
 	);
 	const onCopyContext = useCallback(() => {
 		if (!workId) {

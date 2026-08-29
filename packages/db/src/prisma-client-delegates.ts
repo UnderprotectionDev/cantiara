@@ -26,6 +26,8 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.projectCustomFieldDefinition?.create === "function" &&
 		typeof client.projectCustomFieldValue?.findMany === "function" &&
 		typeof client.projectCustomFieldValue?.create === "function" &&
+		typeof client.workTemplate?.findMany === "function" &&
+		typeof client.workTemplate?.create === "function" &&
 		typeof client.workDraft?.findMany === "function" &&
 		typeof client.workDraft?.create === "function" &&
 		typeof client.fileAttachment?.findMany === "function" &&
@@ -121,6 +123,16 @@ export function prismaClientHasCurrentWorkspaceModel(
 		return true;
 	}
 	return fields.includes("overviewLayout");
+}
+
+export function prismaClientHasCurrentTypedRelationModel(
+	client: PrismaClient
+): boolean {
+	const fields = modelFieldNames(client, "TypedRelation");
+	if (fields.length === 0) {
+		return true;
+	}
+	return fields.includes("resolvedAt") && fields.includes("resolutionNote");
 }
 
 export function workspaceOverviewLayoutSelect(client: PrismaClient) {
