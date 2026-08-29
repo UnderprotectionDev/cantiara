@@ -13,6 +13,7 @@ import { relations } from "../features/relations/server/relations-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
 import { workChecklists } from "../features/work-checklists/server/work-checklists-rpc";
+import { workContext } from "../features/work-context/server/work-context-rpc";
 import { workDrafts } from "../features/work-drafts/server/work-drafts-rpc";
 import { workLifecycle } from "../features/work-lifecycle/server/work-lifecycle-rpc";
 import { workspaceOverviewRouter } from "../features/workspace-overview/server/workspace-overview-rpc";
@@ -25,19 +26,20 @@ export const appRouter = {
 	clientShell,
 	customFields,
 	fileAttachments,
-	projectOverview: projectOverviewRouter,
-	projectShell,
-	relations,
-	tags,
-	workChecklists,
-	workDrafts,
-	workLifecycle,
-	workspaceOverview: workspaceOverviewRouter,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	privateData: protectedProcedure.handler(({ context }) => ({
 		message: "This is private",
 		user: context.session?.user,
 	})),
+	projectOverview: projectOverviewRouter,
+	projectShell,
+	relations,
+	tags,
+	workChecklists,
+	workContext,
+	workDrafts,
+	workLifecycle,
+	workspaceOverview: workspaceOverviewRouter,
 };
 
 export type AppRouter = typeof appRouter;

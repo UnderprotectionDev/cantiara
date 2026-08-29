@@ -2,18 +2,22 @@ import type { StarterConfiguration } from "../../project-shell/server/project-sh
 import type { WorkType } from "../../work-lifecycle/server/work-lifecycle-model";
 
 export const WORK_CONTEXT_COPY = {
+	add: "Add",
 	addContext: "Add Context",
 	affectedReleases: "Affected Releases",
 	currentSituation: "Current Situation",
 	decisions: "Decisions",
 	dependencies: "Dependencies",
 	description: "Description",
+	emptySection: "Nothing here yet.",
 	evidence: "Evidence",
 	evidenceAndDecisions: "Evidence & Decisions",
 	expectedOutcome: "Expected Outcome",
 	githubAndTests: "GitHub & Tests",
 	includedWork: "Included Work",
+	link: "Link",
 	observedExpectedBehavior: "Observed/Expected Behavior",
+	openSourceRecord: "Open source record",
 	planning: "Planning",
 	problemOpportunity: "Problem/Opportunity",
 	relatedWork: "Related Work",
@@ -24,6 +28,16 @@ export const WORK_CONTEXT_COPY = {
 	targetRelease: "Target Release",
 	title: "Title",
 	type: "Type",
+	whyAmIDoingThisWork: "Why am I doing this work?",
+} as const;
+
+export const WHY_CHAIN_ROLES = {
+	decision: "Decision",
+	github: "GitHub",
+	originResearch: "Origin",
+	primaryFeature: "Feature",
+	primarySpec: "Primary spec",
+	projectGoal: "Project Goal",
 } as const;
 
 export const INITIALLY_VISIBLE_FIELDS = [
@@ -71,10 +85,64 @@ export const PREPARED_LAYOUTS = {
 
 export type PreparedSection = (typeof PREPARED_LAYOUTS)[WorkType][number];
 
+export type LiveSource =
+	| {
+			kind: string;
+			openSourceRecord: true;
+			opensWorkSurface: false;
+			recordStatus: string;
+			sourceId: string;
+			status: "live";
+			visibleName: string;
+	  }
+	| {
+			kind: string;
+			openSourceRecord: boolean;
+			opensWorkSurface: false;
+			reason: string;
+			status: "broken";
+			visibleName?: string;
+	  };
+
+export interface RelatedLiveSource {
+	kind: string;
+	other: LiveSource;
+	relationType: string;
+}
+
+export interface WhyChainStep {
+	openSourceRecord: boolean;
+	opensWorkSurface: false;
+	reason?: string;
+	role: (typeof WHY_CHAIN_ROLES)[keyof typeof WHY_CHAIN_ROLES];
+	sourceId?: string;
+	visibleName?: string;
+}
+
+export interface VisibleSectionView {
+	action: {
+		kind: "add" | "link";
+		label: typeof WORK_CONTEXT_COPY.add | typeof WORK_CONTEXT_COPY.link;
+	};
+	empty: boolean;
+	emptyState: typeof WORK_CONTEXT_COPY.emptySection | null;
+	items: LiveSource[];
+	name: PreparedSection;
+}
+
 export interface WorkContextCardView {
 	addContext: {
 		label: typeof WORK_CONTEXT_COPY.addContext;
 		remainingSections: PreparedSection[];
+	};
+	effects: {
+		close: false;
+		completenessScore: false;
+		health: false;
+		priority: false;
+		processGate: false;
+		releaseScope: false;
+		status: false;
 	};
 	gates: {
 		create: false;
@@ -84,11 +152,33 @@ export interface WorkContextCardView {
 	preparedSections: PreparedSection[];
 	starterConfiguration: StarterConfiguration;
 	visiblePreparedSections: PreparedSection[];
+	visibleSections: VisibleSectionView[];
+	whyChain: {
+		empty: boolean;
+		emptyState: typeof WORK_CONTEXT_COPY.emptySection | null;
+		label: typeof WORK_CONTEXT_COPY.whyAmIDoingThisWork;
+		steps: WhyChainStep[];
+	};
 	workType: WorkType;
+	writes: {
+		bodyCopy: false;
+		contextRecord: false;
+		relation: false;
+	};
 }
 
 export interface PresentWorkContextCardInput {
+	description?: string | null;
+	expectedOutcome?: string | null;
+	includedWork?: readonly LiveSource[];
+	originResearch?: LiveSource | null;
+	primaryFeature?: LiveSource | null;
+	primarySpec?: LiveSource | null;
+	projectGoal?: LiveSource | null;
+	relatedSources?: readonly RelatedLiveSource[];
 	revealedSections?: readonly string[];
 	starterConfiguration: StarterConfiguration;
+	workId?: string;
+	workStatus?: string;
 	workType: WorkType;
 }

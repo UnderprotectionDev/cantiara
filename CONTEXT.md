@@ -176,6 +176,10 @@ _Avoid_: İş akışı durumu, kapanış sonucu, terminal kolon
 Bir İşin kendi alanlarıyla açık doğrudan ilişkilerinden gelen bağlamı kaynaklarında canlı gösteren, [İş türüne özgü sunum düzeni](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı); içerik kopyası, bağımsız sorgu veya durum kapısı değildir.
 _Avoid_: Dashboard, ikinci İş özeti, Başlangıç yapılandırmasına göre farklı İş anlamı
 
+**Neden zinciri**:
+İş Bağlam Kartında en yakın anlamlı kaynakları görünür adlarıyla bağlayan türetilmiş zincir; yeni kayıt, ilişki veya özet metni değildir. UI: `Why am I doing this work?`.
+_Avoid_: ikinci doğruluk kaynağı, özet paragrafı, Bağlam kaydı
+
 **Bağlam ekle**:
 Gizli hazır İş Bağlam Kartı bölümünü aşamalı açan eylem; oluşturma veya durum geçişi kapısı değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Add Context`.
 _Avoid_: zorunlu alan, durum kapısı, dashboard widget

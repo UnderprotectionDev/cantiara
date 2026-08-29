@@ -2,18 +2,22 @@ import type { StarterConfiguration } from "../../project-shell/forms/project-she
 import type { WorkType } from "../../work-lifecycle/forms/work-lifecycle-copy";
 
 export const WORK_CONTEXT_COPY = {
+	add: "Add",
 	addContext: "Add Context",
 	affectedReleases: "Affected Releases",
 	currentSituation: "Current Situation",
 	decisions: "Decisions",
 	dependencies: "Dependencies",
 	description: "Description",
+	emptySection: "Nothing here yet.",
 	evidence: "Evidence",
 	evidenceAndDecisions: "Evidence & Decisions",
 	expectedOutcome: "Expected Outcome",
 	githubAndTests: "GitHub & Tests",
 	includedWork: "Included Work",
+	link: "Link",
 	observedExpectedBehavior: "Observed/Expected Behavior",
+	openSourceRecord: "Open source record",
 	planning: "Planning",
 	problemOpportunity: "Problem/Opportunity",
 	relatedWork: "Related Work",
@@ -24,6 +28,7 @@ export const WORK_CONTEXT_COPY = {
 	targetRelease: "Target Release",
 	title: "Title",
 	type: "Type",
+	whyAmIDoingThisWork: "Why am I doing this work?",
 } as const;
 
 export const INITIALLY_VISIBLE_FIELDS = [
@@ -76,6 +81,15 @@ export interface WorkContextCardView {
 		label: typeof WORK_CONTEXT_COPY.addContext;
 		remainingSections: PreparedSection[];
 	};
+	effects: {
+		close: false;
+		completenessScore: false;
+		health: false;
+		priority: false;
+		processGate: false;
+		releaseScope: false;
+		status: false;
+	};
 	gates: {
 		create: false;
 		statusTransition: false;
@@ -84,7 +98,41 @@ export interface WorkContextCardView {
 	preparedSections: PreparedSection[];
 	starterConfiguration: StarterConfiguration;
 	visiblePreparedSections: PreparedSection[];
+	visibleSections: Array<{
+		action: { kind: "add" | "link"; label: "Add" | "Link" };
+		empty: boolean;
+		emptyState: typeof WORK_CONTEXT_COPY.emptySection | null;
+		items: Array<{
+			kind: string;
+			openSourceRecord: boolean;
+			opensWorkSurface: false;
+			reason?: string;
+			recordStatus?: string;
+			sourceId?: string;
+			status: "live" | "broken";
+			visibleName?: string;
+		}>;
+		name: PreparedSection;
+	}>;
+	whyChain: {
+		empty: boolean;
+		emptyState: typeof WORK_CONTEXT_COPY.emptySection | null;
+		label: typeof WORK_CONTEXT_COPY.whyAmIDoingThisWork;
+		steps: Array<{
+			openSourceRecord: boolean;
+			opensWorkSurface: false;
+			reason?: string;
+			role: string;
+			sourceId?: string;
+			visibleName?: string;
+		}>;
+	};
 	workType: WorkType;
+	writes: {
+		bodyCopy: false;
+		contextRecord: false;
+		relation: false;
+	};
 }
 
 export function presentWorkContextCard(input: {
@@ -96,12 +144,32 @@ export function presentWorkContextCard(input: {
 		...PREPARED_LAYOUTS[input.workType],
 	] as PreparedSection[];
 	const revealed = new Set(input.revealedSections ?? []);
+	const visiblePreparedSections = preparedSections.filter((section) =>
+		revealed.has(section)
+	);
+	const addSections = new Set<string>([
+		WORK_CONTEXT_COPY.currentSituation,
+		WORK_CONTEXT_COPY.description,
+		WORK_CONTEXT_COPY.expectedOutcome,
+		WORK_CONTEXT_COPY.observedExpectedBehavior,
+		WORK_CONTEXT_COPY.problemOpportunity,
+		WORK_CONTEXT_COPY.researchQuestion,
+	]);
 	return {
 		addContext: {
 			label: WORK_CONTEXT_COPY.addContext,
 			remainingSections: preparedSections.filter(
 				(section) => !revealed.has(section)
 			),
+		},
+		effects: {
+			close: false,
+			completenessScore: false,
+			health: false,
+			priority: false,
+			processGate: false,
+			releaseScope: false,
+			status: false,
 		},
 		gates: {
 			create: false,
@@ -110,10 +178,31 @@ export function presentWorkContextCard(input: {
 		initiallyVisibleFields: INITIALLY_VISIBLE_FIELDS,
 		preparedSections,
 		starterConfiguration: input.starterConfiguration,
-		visiblePreparedSections: preparedSections.filter((section) =>
-			revealed.has(section)
-		),
+		visiblePreparedSections,
+		visibleSections: visiblePreparedSections.map((name) => {
+			const add = addSections.has(name);
+			return {
+				action: add
+					? { kind: "add" as const, label: WORK_CONTEXT_COPY.add }
+					: { kind: "link" as const, label: WORK_CONTEXT_COPY.link },
+				empty: true,
+				emptyState: WORK_CONTEXT_COPY.emptySection,
+				items: [],
+				name,
+			};
+		}),
+		whyChain: {
+			empty: true,
+			emptyState: WORK_CONTEXT_COPY.emptySection,
+			label: WORK_CONTEXT_COPY.whyAmIDoingThisWork,
+			steps: [],
+		},
 		workType: input.workType,
+		writes: {
+			bodyCopy: false,
+			contextRecord: false,
+			relation: false,
+		},
 	};
 }
 
