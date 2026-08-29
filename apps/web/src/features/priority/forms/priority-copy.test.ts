@@ -10,6 +10,9 @@ test("English priority catalog is the closed five ranks", () => {
 	expect(PRIORITY_COPY.evidenceStrength).toBe("Evidence strength");
 	expect(PRIORITY_COPY.unevaluated).toBe("Unevaluated");
 	expect(PRIORITY_COPY.addPriorityMetric).toBe("Add priority metric");
+	expect(PRIORITY_COPY.createPrioritizationSession).toBe(
+		"Create Prioritization Session"
+	);
 	expect(PRIORITY_COPY.enable).toBe("Enable");
 	expect(PRIORITY_RANKS).toEqual([
 		"Very low",

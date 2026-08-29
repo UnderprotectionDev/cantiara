@@ -36,7 +36,8 @@ model Work {
   mergeEventsAsSurvivor WorkMergeEvent[]       @relation("WorkMergeSurvivor")
   mergeEventsAsRetired  WorkMergeEvent[]       @relation("WorkMergeRetired")
   tags                  WorkTag[]
-  priorityValues        ProjectPriorityCriterionValue[]
+  priorityValues                 ProjectPriorityCriterionValue[]
+  prioritizationSessionItems     PrioritizationSessionItem[]
 
   @@unique([projectId, number])
   @@unique([projectId, key])

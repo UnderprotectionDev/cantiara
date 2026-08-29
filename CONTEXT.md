@@ -330,6 +330,10 @@ _Avoid_: öncelik puanı, otomatik sıralama, çeyrek kararı, analitik dashboar
 Görüşlü Başlangıç yapılandırmasının varsayılan kapalı hazır Öncelik ölçütü; kurucu etkinleştirir ve kademeyi eliyle seçer ([öncelik ölçütleri](docs/prd/06-work-management-and-planning.md#öncelik-ölçütleri)). UI: `Evidence strength`.
 _Avoid_: otomatik kanıt skoru, Geri Bildirim sayısı, popülerlik puanı
 
+**Önceliklendirme oturumu**:
+Proje kapsamlı, adlandırılmış karar görünümü; seçili İş kapsamı ile görünüm-yerel manuel sıra tutar, Backlog sırası, ölçüt değeri veya İş durumu yazmaz ([önceliklendirme oturumları](docs/prd/06-work-management-and-planning.md#önceliklendirme-oturumları)). UI: `Create Prioritization Session`.
+_Avoid_: Günlük Odak, Odak Dönemi, oturum skoru, otomatik kazanan, Karar kaydı, ikinci öncelik gerçeği
+
 **Kayıtlı görünüm**:
 Proje kabuğunda adlandırılmış İş görünümü; günlük planlama eylemi veya ikinci üyelik listesi değildir ([yapılandırma modu](docs/prd/04-workspace-and-projects.md#yapılandırma-modu)). UI: `Saved views`.
 _Avoid_: Planning, ikinci Backlog, klasör üyeliği
