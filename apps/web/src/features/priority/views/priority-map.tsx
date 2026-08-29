@@ -11,7 +11,12 @@ import { useClientShell } from "@/features/web-macos-client/views/client-shell-h
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
-import { PRIORITY_COPY, PRIORITY_RANKS } from "../forms/priority-copy";
+import { createPriorityCriterionError } from "../forms/create-priority-criterion-error";
+import {
+	PRIORITY_COPY,
+	PRIORITY_RANKS,
+	type PriorityRank,
+} from "../forms/priority-copy";
 
 export default function PriorityMap({
 	onSelectWork,
@@ -55,18 +60,6 @@ export default function PriorityMap({
 		setHorizontalId(saved.data.horizontalCriterionId);
 		setVerticalId(saved.data.verticalCriterionId);
 	}, [saved.data]);
-
-	useEffect(() => {
-		if (saved.data || enabled.length < 2 || horizontalId || verticalId) {
-			return;
-		}
-		const [first, second] = enabled;
-		if (!(first && second)) {
-			return;
-		}
-		setHorizontalId(first.id);
-		setVerticalId(second.id);
-	}, [enabled, horizontalId, saved.data, verticalId]);
 
 	const onHorizontal = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
 		setHorizontalId(event.target.value);
@@ -239,7 +232,211 @@ export default function PriorityMap({
 					))}
 				</ul>
 			</section>
+			{selectedWorkId && axesReady ? (
+				<MapAxisEditor
+					horizontalCriterionId={horizontalId}
+					horizontalName={view?.horizontal.name ?? PRIORITY_COPY.horizontal}
+					projectId={projectId}
+					verticalCriterionId={verticalId}
+					verticalName={view?.vertical.name ?? PRIORITY_COPY.vertical}
+					workId={selectedWorkId}
+				/>
+			) : null}
 		</section>
+	);
+}
+
+function MapAxisEditor({
+	horizontalCriterionId,
+	horizontalName,
+	projectId,
+	verticalCriterionId,
+	verticalName,
+	workId,
+}: {
+	horizontalCriterionId: string;
+	horizontalName: string;
+	projectId: string;
+	verticalCriterionId: string;
+	verticalName: string;
+	workId: string;
+}) {
+	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const [error, setError] = useState<string | null>(null);
+	const [ranks, setRanks] = useState<Record<string, PriorityRank | null>>({});
+	const values = useQuery(
+		orpc.priority.workValues.queryOptions({
+			input: { projectId, workId },
+		})
+	);
+	const setValue = useMutation(orpc.priority.setValue.mutationOptions());
+
+	useEffect(() => {
+		if (!values.data) {
+			return;
+		}
+		setRanks(
+			Object.fromEntries(
+				values.data
+					.filter(
+						(item) =>
+							item.criterionId === horizontalCriterionId ||
+							item.criterionId === verticalCriterionId
+					)
+					.map((item) => [item.criterionId, item.rank])
+			)
+		);
+	}, [horizontalCriterionId, values.data, verticalCriterionId]);
+
+	const onSave = useCallback(async () => {
+		if (!values.data) {
+			return;
+		}
+		setError(null);
+		markUnsaved();
+		const outcomes = await Promise.all(
+			values.data
+				.filter(
+					(item) =>
+						item.criterionId === horizontalCriterionId ||
+						item.criterionId === verticalCriterionId
+				)
+				.map(async (item) => {
+					const rank = ranks[item.criterionId] ?? null;
+					const result = attemptOnlineWork("record-create", () =>
+						setValue.mutateAsync({
+							baseRevision: item.revision,
+							idempotencyKey: newIdempotencyKey(),
+							payload: {
+								criterionId: item.criterionId,
+								rank,
+								workId,
+							},
+						})
+					);
+					if (result.status === "refused") {
+						return { reason: "offline", status: "rejected" as const };
+					}
+					return await result.value;
+				})
+		);
+		for (const outcome of outcomes) {
+			if (outcome.status === "committed" || outcome.status === "replayed") {
+				continue;
+			}
+			if (outcome.status === "rejected" && outcome.reason === "offline") {
+				return;
+			}
+			const message = createPriorityCriterionError(outcome);
+			if (message) {
+				setError(message);
+				return;
+			}
+		}
+		await queryClient.invalidateQueries({
+			queryKey: orpc.priority.workValues.queryKey({
+				input: { projectId, workId },
+			}),
+		});
+		await queryClient.invalidateQueries({
+			queryKey: orpc.priority.map.queryKey({
+				input: {
+					horizontalCriterionId,
+					projectId,
+					verticalCriterionId,
+				},
+			}),
+		});
+		recordSave();
+	}, [
+		attemptOnlineWork,
+		horizontalCriterionId,
+		markUnsaved,
+		projectId,
+		ranks,
+		recordSave,
+		setValue,
+		values.data,
+		verticalCriterionId,
+		workId,
+	]);
+	const onClickSave = useCallback(() => {
+		onSave().catch(() => undefined);
+	}, [onSave]);
+
+	return (
+		<section aria-label={PRIORITY_COPY.priorityMetrics}>
+			<h3 className="font-medium text-sm">{PRIORITY_COPY.priorityMetrics}</h3>
+			<ul className="mt-3 flex flex-col gap-3">
+				<WorkRankField
+					criterionId={horizontalCriterionId}
+					name={horizontalName}
+					onRankChange={setRanks}
+					rank={ranks[horizontalCriterionId] ?? null}
+				/>
+				<WorkRankField
+					criterionId={verticalCriterionId}
+					name={verticalName}
+					onRankChange={setRanks}
+					rank={ranks[verticalCriterionId] ?? null}
+				/>
+			</ul>
+			<Button className="mt-3" onClick={onClickSave} size="sm" type="button">
+				{PRIORITY_COPY.save}
+			</Button>
+			{error ? <p role="alert">{error}</p> : null}
+		</section>
+	);
+}
+
+function WorkRankField({
+	criterionId,
+	name,
+	onRankChange,
+	rank,
+}: {
+	criterionId: string;
+	name: string;
+	onRankChange: (
+		update: (
+			current: Record<string, PriorityRank | null>
+		) => Record<string, PriorityRank | null>
+	) => void;
+	rank: PriorityRank | null;
+}) {
+	const onChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			const next = event.target.value;
+			onRankChange((current) => ({
+				...current,
+				[criterionId]: next === "" ? null : (next as PriorityRank),
+			}));
+		},
+		[criterionId, onRankChange]
+	);
+	return (
+		<li>
+			<Field>
+				<FieldLabel htmlFor={`priority-map-value-${criterionId}`}>
+					{name}
+				</FieldLabel>
+				<NativeSelect
+					className="w-full"
+					id={`priority-map-value-${criterionId}`}
+					onChange={onChange}
+					value={rank ?? ""}
+				>
+					<NativeSelectOption value="">
+						{PRIORITY_COPY.unevaluated}
+					</NativeSelectOption>
+					{PRIORITY_RANKS.map((option) => (
+						<NativeSelectOption key={option} value={option}>
+							{option}
+						</NativeSelectOption>
+					))}
+				</NativeSelect>
+			</Field>
+		</li>
 	);
 }
 

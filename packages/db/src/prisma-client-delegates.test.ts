@@ -28,6 +28,11 @@ function workDelegates() {
 			create: () => undefined,
 			findMany,
 		},
+		projectPriorityMapPresentation: {
+			findMany,
+			findUnique: findMany,
+			upsert: () => undefined,
+		},
 		projectSkeletonSelection: { findMany },
 		work: { create: () => undefined, findMany },
 		workLifecycleEvent: { findMany },
@@ -138,6 +143,30 @@ describe("Prisma client current delegates", () => {
 				workTag: { findMany },
 			} as unknown as PrismaClient)
 		).toBe(true);
+	});
+
+	it("refuses a bun --hot client generated before Priority Map presentation", () => {
+		const { projectPriorityMapPresentation: _dropped, ...beforeMap } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(beforeMap as unknown as PrismaClient)
+		).toBe(false);
 	});
 
 	it("refuses a bun --hot client generated before Project priority criteria", () => {

@@ -61,7 +61,7 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 	const onTagFilter = useCallback((tagId: string) => {
 		setTagFilter(tagId);
 	}, []);
-	const onShowMap = useCallback(() => {
+	const onTogglePriorityMap = useCallback(() => {
 		setSurface((current) =>
 			current === "priority-map" ? "list" : "priority-map"
 		);
@@ -152,7 +152,7 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 				/>
 				<Button
 					aria-pressed={surface === "priority-map"}
-					onClick={onShowMap}
+					onClick={onTogglePriorityMap}
 					size="sm"
 					type="button"
 					variant={surface === "priority-map" ? "secondary" : "ghost"}
