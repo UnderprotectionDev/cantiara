@@ -2,10 +2,15 @@ import type { StarterConfiguration } from "../../project-shell/forms/project-she
 import type { WorkType } from "../../work-lifecycle/forms/work-lifecycle-copy";
 
 export const WORK_CONTEXT_COPY = {
+	activeBlockers: "Active blockers",
 	add: "Add",
 	addContext: "Add Context",
+	addCustomSection: "Add custom section",
 	affectedReleases: "Affected Releases",
 	archive: "Archive",
+	checklist: "Checklist",
+	confirm: "Confirm",
+	copyContextAsMarkdown: "Copy Context as Markdown",
 	currentSituation: "Current Situation",
 	decisions: "Decisions",
 	dependencies: "Dependencies",
@@ -13,23 +18,38 @@ export const WORK_CONTEXT_COPY = {
 	emptySection: "Nothing here yet.",
 	evidence: "Evidence",
 	evidenceAndDecisions: "Evidence & Decisions",
+	evidenceRole: "Evidence Role",
 	expectedOutcome: "Expected Outcome",
+	githubAndExternal: "GitHub and external links",
 	githubAndTests: "GitHub & Tests",
+	hide: "Hide",
+	impactPreview: "Impact preview",
 	includedWork: "Included Work",
+	key: "Key",
 	link: "Link",
+	moveDown: "Move down",
+	moveUp: "Move up",
 	observedExpectedBehavior: "Observed/Expected Behavior",
 	openSourceRecord: "Open source record",
 	planning: "Planning",
+	primarySourceIsInTheApp: "Primary source is in the app",
+	primarySpec: "Primary spec",
 	priorityFoundations: "Priority Foundations",
 	problemOpportunity: "Problem/Opportunity",
+	producedAt: "Produced at",
+	recordType: "Record type",
+	relatedUncertainty: "Related Decision, Risk, and Open Question",
 	relatedWork: "Related Work",
+	relation: "Relation",
 	researchQuestion: "Research Question",
 	risksAndOpenQuestions: "Risks & Open Questions",
+	show: "Show",
 	sourcesAndEvidence: "Sources & Evidence",
 	status: "Status",
 	targetRelease: "Target Release",
 	title: "Title",
 	type: "Type",
+	undo: "Undo",
 	whyAmIDoingThisWork: "Why am I doing this work?",
 } as const;
 
@@ -81,7 +101,21 @@ export type PreparedSection = (typeof PREPARED_LAYOUTS)[WorkType][number];
 export interface WorkContextCardView {
 	addContext: {
 		label: typeof WORK_CONTEXT_COPY.addContext;
-		remainingSections: PreparedSection[];
+		remainingSections: string[];
+	};
+	configuredSections: Array<{
+		hidden: boolean;
+		kind: "custom" | "prepared";
+		name: string;
+	}>;
+	copyContext: {
+		label: typeof WORK_CONTEXT_COPY.copyContextAsMarkdown;
+		writes: {
+			contextRecord: false;
+			relation: false;
+			shareObject: false;
+			snapshot: false;
+		};
 	};
 	effects: {
 		close: false;
@@ -96,7 +130,13 @@ export interface WorkContextCardView {
 		create: false;
 		statusTransition: false;
 	};
+	hiddenSections: Array<{ name: string; treatedAsMissing: false }>;
 	initiallyVisibleFields: typeof INITIALLY_VISIBLE_FIELDS;
+	layout: {
+		projectScoped: true;
+		revision: number;
+		workType: WorkType;
+	};
 	preparedSections: PreparedSection[];
 	priorityFoundations: {
 		claims: {
@@ -125,6 +165,7 @@ export interface WorkContextCardView {
 			label: string;
 			value: number;
 		}>;
+		empty: boolean;
 		items: Array<{
 			archiveVisible: boolean;
 			kind: string;
@@ -139,6 +180,10 @@ export interface WorkContextCardView {
 			sourceId: string;
 			visibleName: string;
 		}> | null;
+	};
+	shareScope: {
+		buildInPublic: false;
+		linkSharing: false;
 	};
 	starterConfiguration: StarterConfiguration;
 	visiblePreparedSections: PreparedSection[];
@@ -156,7 +201,7 @@ export interface WorkContextCardView {
 			status: "live" | "broken";
 			visibleName?: string;
 		}>;
-		name: PreparedSection;
+		name: string;
 	}>;
 	whyChain: {
 		empty: boolean;
@@ -206,6 +251,20 @@ export function presentWorkContextCard(input: {
 				(section) => !revealed.has(section)
 			),
 		},
+		configuredSections: preparedSections.map((name) => ({
+			hidden: false,
+			kind: "prepared" as const,
+			name,
+		})),
+		copyContext: {
+			label: WORK_CONTEXT_COPY.copyContextAsMarkdown,
+			writes: {
+				contextRecord: false,
+				relation: false,
+				shareObject: false,
+				snapshot: false,
+			},
+		},
 		effects: {
 			close: false,
 			completenessScore: false,
@@ -219,7 +278,13 @@ export function presentWorkContextCard(input: {
 			create: false,
 			statusTransition: false,
 		},
+		hiddenSections: [],
 		initiallyVisibleFields: INITIALLY_VISIBLE_FIELDS,
+		layout: {
+			projectScoped: true,
+			revision: 1,
+			workType: input.workType,
+		},
 		preparedSections,
 		priorityFoundations: {
 			claims: {
@@ -235,10 +300,15 @@ export function presentWorkContextCard(input: {
 			},
 			countSets: {},
 			counts: [],
+			empty: true,
 			items: [],
 			label: WORK_CONTEXT_COPY.priorityFoundations,
 			openedCountId: null,
 			openedSet: null,
+		},
+		shareScope: {
+			buildInPublic: false,
+			linkSharing: false,
 		},
 		starterConfiguration: input.starterConfiguration,
 		visiblePreparedSections,

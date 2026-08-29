@@ -8,14 +8,13 @@ import { useQuery } from "@tanstack/react-query";
 import type { FormEvent, ReactNode } from "react";
 import { useCallback, useState } from "react";
 
-import { orpc } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 import type { WorkType } from "../../work-lifecycle/forms/work-lifecycle-copy";
 
 import {
 	openPriorityFoundationsCount,
 	presentWorkContextCard,
-	revealPreparedSection,
 	WORK_CONTEXT_COPY,
 	type WorkContextCardView,
 } from "./work-context-copy";
@@ -84,25 +83,46 @@ export default function WorkContextCard({
 			if (typeof section !== "string" || section.length === 0) {
 				return;
 			}
-			setRevealedSections(
-				revealPreparedSection(local, section).visiblePreparedSections
-			);
+			if (!card.addContext.remainingSections.some((item) => item === section)) {
+				return;
+			}
+			setRevealedSections((current) => [...current, section]);
 		},
-		[local]
+		[card]
 	);
 	const onToggleCount = useCallback((countId: string) => {
 		setOpenedCountId((current) => (current === countId ? null : countId));
 	}, []);
+	const onCopyContext = useCallback(() => {
+		if (!workId) {
+			return;
+		}
+		client.workContext
+			.copyMarkdown({ workId })
+			.then((copy) => navigator.clipboard.writeText(copy.markdown))
+			.catch(() => undefined);
+	}, [workId]);
 	return (
 		<section className="flex flex-col gap-3">
-			<dl className="grid gap-1 text-sm">
-				{card.initiallyVisibleFields.map((field) => (
-					<div className="flex gap-2" key={field}>
-						<dt className="text-muted-foreground">{field}</dt>
-						<dd>{visibleFieldValue(field, values)}</dd>
-					</div>
-				))}
-			</dl>
+			<div className="flex flex-wrap items-start justify-between gap-2">
+				<dl className="grid gap-1 text-sm">
+					{card.initiallyVisibleFields.map((field) => (
+						<div className="flex gap-2" key={field}>
+							<dt className="text-muted-foreground">{field}</dt>
+							<dd>{visibleFieldValue(field, values)}</dd>
+						</div>
+					))}
+				</dl>
+				<Button
+					disabled={!workId}
+					onClick={onCopyContext}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					{card.copyContext.label}
+				</Button>
+			</div>
 			<section aria-label={card.whyChain.label} className="flex flex-col gap-1">
 				<h3 className="font-medium text-sm">{card.whyChain.label}</h3>
 				{card.whyChain.empty ? (
@@ -299,7 +319,7 @@ function LiveItem({
 	onOpenSourceRecord?: (id: string) => void;
 }) {
 	if (item.status === "broken" || !item.sourceId) {
-		return <span>{item.reason}</span>;
+		return <span>{item.reason ?? item.visibleName}</span>;
 	}
 	return (
 		<OpenSourceButton

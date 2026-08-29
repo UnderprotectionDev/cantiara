@@ -1,6 +1,7 @@
 export const COMMAND_PALETTE_COPY = {
 	cantRunThisHere: "Can't run this here",
 	close: "Close",
+	copyContextAsMarkdown: "Copy Context as Markdown",
 	create: "Create",
 	noMatchingCommand: "No matching command",
 	open: "Open",

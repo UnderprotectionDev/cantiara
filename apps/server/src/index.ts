@@ -1,13 +1,15 @@
 import { resetPrismaClientCache } from "@cantiara/db";
 import { initLogger } from "evlog";
 
+import { app } from "./hono-app";
+
 initLogger({
 	env: { service: "cantiara-server" },
 });
 
 export default {
 	fetch(request: Request) {
-		return import("./hono-app").then((mod) => mod.app.fetch(request));
+		return app.fetch(request);
 	},
 	port: 3000,
 };

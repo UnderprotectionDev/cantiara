@@ -397,6 +397,7 @@
 │       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── work-templates/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── workspace-exit/
 │       │   │   │   └── views/

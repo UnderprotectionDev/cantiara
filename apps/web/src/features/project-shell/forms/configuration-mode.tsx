@@ -2,6 +2,8 @@ import { Button } from "@cantiara/ui/components/button";
 import { type ReactNode, useCallback } from "react";
 
 import CustomFieldEditor from "@/features/custom-fields/forms/custom-field-editor";
+import WorkContextLayoutEditor from "@/features/work-context/views/work-context-layout-editor";
+import WorkTemplateEditor from "@/features/work-templates/forms/work-template-editor";
 
 import ProjectAreasForm from "./project-areas-form";
 import {
@@ -44,6 +46,9 @@ export default function ConfigurationMode({
 }) {
 	const openCustomField = useCallback(() => {
 		onOpenEditor(CONFIGURATION_MODE_EDITORS.customField);
+	}, [onOpenEditor]);
+	const openWorkTemplate = useCallback(() => {
+		onOpenEditor(CONFIGURATION_MODE_EDITORS.workTemplate);
 	}, [onOpenEditor]);
 	const openWorkContextCardLayout = useCallback(() => {
 		onOpenEditor(CONFIGURATION_MODE_EDITORS.workContextCardLayout);
@@ -139,6 +144,18 @@ export default function ConfigurationMode({
 							<CustomFieldEditor projectId={projectId} />
 						) : null}
 						<Button
+							aria-expanded={editor === CONFIGURATION_MODE_EDITORS.workTemplate}
+							onClick={openWorkTemplate}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							{PROJECT_SHELL_COPY.workTemplate}
+						</Button>
+						{editor === CONFIGURATION_MODE_EDITORS.workTemplate ? (
+							<WorkTemplateEditor projectId={projectId} />
+						) : null}
+						<Button
 							aria-expanded={
 								editor === CONFIGURATION_MODE_EDITORS.workContextCardLayout
 							}
@@ -150,11 +167,7 @@ export default function ConfigurationMode({
 							{PROJECT_SHELL_COPY.workContextCardLayout}
 						</Button>
 						{editor === CONFIGURATION_MODE_EDITORS.workContextCardLayout ? (
-							<section aria-label={PROJECT_SHELL_COPY.workContextCardLayout}>
-								<h2 className="font-medium text-sm">
-									{PROJECT_SHELL_COPY.workContextCardLayout}
-								</h2>
-							</section>
+							<WorkContextLayoutEditor projectId={projectId} />
 						) : null}
 					</section>
 				</div>

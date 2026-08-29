@@ -1,13 +1,20 @@
+import { z } from "zod";
+
 import type { StarterConfiguration } from "../../project-shell/server/project-shell-model";
 import type { WorkType } from "../../work-lifecycle/server/work-lifecycle-model";
 
 export const WORK_CONTEXT_COPY = {
+	activeBlockers: "Active blockers",
 	add: "Add",
 	addContext: "Add Context",
+	addCustomSection: "Add custom section",
 	affectedReleases: "Affected Releases",
 	archive: "Archive",
 	blocker: "Blocked by",
 	blocks: "Blocks",
+	checklist: "Checklist",
+	confirm: "Confirm",
+	copyContextAsMarkdown: "Copy Context as Markdown",
 	currentSituation: "Current Situation",
 	decision: "Decision",
 	decisions: "Decisions",
@@ -17,26 +24,40 @@ export const WORK_CONTEXT_COPY = {
 	emptySection: "Nothing here yet.",
 	evidence: "Evidence",
 	evidenceAndDecisions: "Evidence & Decisions",
+	evidenceRole: "Evidence Role",
 	expectedOutcome: "Expected Outcome",
 	feedback: "Feedback",
+	githubAndExternal: "GitHub and external links",
 	githubAndTests: "GitHub & Tests",
+	hide: "Hide",
+	impactPreview: "Impact preview",
 	includedWork: "Included Work",
+	key: "Key",
 	link: "Link",
 	milestone: "Milestone",
+	moveDown: "Move down",
+	moveUp: "Move up",
 	observedExpectedBehavior: "Observed/Expected Behavior",
 	openQuestion: "Open Question",
 	openSourceRecord: "Open source record",
 	planning: "Planning",
+	primarySourceIsInTheApp: "Primary source is in the app",
+	primarySpec: "Primary spec",
 	priorityFoundations: "Priority Foundations",
 	priorityMetrics: "Priority metrics",
 	problemOpportunity: "Problem/Opportunity",
+	producedAt: "Produced at",
 	projectGoal: "Project Goal",
+	recordType: "Record type",
+	relatedUncertainty: "Related Decision, Risk, and Open Question",
 	relatedWork: "Related Work",
+	relation: "Relation",
 	research: "Research",
 	researchQuestion: "Research Question",
 	researchSession: "User Research Session",
 	risk: "Risk",
 	risksAndOpenQuestions: "Risks & Open Questions",
+	show: "Show",
 	source: "Source",
 	sourcesAndEvidence: "Sources & Evidence",
 	status: "Status",
@@ -44,6 +65,7 @@ export const WORK_CONTEXT_COPY = {
 	targetRelease: "Target Release",
 	title: "Title",
 	type: "Type",
+	undo: "Undo",
 	uniqueCompany: "Unique Company",
 	uniqueContact: "Unique Contact",
 	whyAmIDoingThisWork: "Why am I doing this work?",
@@ -103,6 +125,137 @@ export const PREPARED_LAYOUTS = {
 
 export type PreparedSection = (typeof PREPARED_LAYOUTS)[WorkType][number];
 
+export const CUSTOM_SECTION_RECORD_TYPES = [
+	"Assumption",
+	"Decision",
+	"Experiment/Validation",
+	"Feature",
+	"Feedback",
+	"GitHub PR/check",
+	"Open Question",
+	"Primary spec",
+	"Project Goal",
+	"Project Release",
+	"Research",
+	"Risk",
+	"Session Test",
+	"Source",
+	"Test Gap",
+	"User Research Session",
+] as const;
+
+export type CustomSectionRecordType =
+	(typeof CUSTOM_SECTION_RECORD_TYPES)[number];
+
+export const DIRECT_RELATION_TYPES = [
+	"Blocked by",
+	"Blocks",
+	"Contributes to Goal",
+	"Contributes to Milestone",
+	"Derived",
+	"Evidence",
+	"Implements",
+	"Included in",
+	"Includes",
+	"Origin",
+	"Primary spec",
+	"Provides evidence",
+	"Related",
+	"Supersedes",
+] as const;
+
+export type DirectRelationType = (typeof DIRECT_RELATION_TYPES)[number];
+
+export const EVIDENCE_ROLES = [
+	"Contradicts",
+	"Inconclusive",
+	"Provides context",
+	"Supports",
+	"Unspecified",
+] as const;
+
+export type EvidenceRole = (typeof EVIDENCE_ROLES)[number];
+
+export const STATUS_CONDITIONS = [
+	"Blocked",
+	"Closed",
+	"In Progress",
+	"Not Started",
+] as const;
+
+export type StatusCondition = (typeof STATUS_CONDITIONS)[number];
+
+export const layoutSectionConditionSchema = z.object({
+	evidenceRole: z.enum(EVIDENCE_ROLES).optional(),
+	recordType: z.enum(CUSTOM_SECTION_RECORD_TYPES).optional(),
+	relationType: z.enum(DIRECT_RELATION_TYPES).optional(),
+	status: z.enum(STATUS_CONDITIONS).optional(),
+});
+
+export type LayoutSectionCondition = z.infer<
+	typeof layoutSectionConditionSchema
+>;
+
+export const layoutSectionSchema = z.object({
+	condition: layoutSectionConditionSchema.optional(),
+	hidden: z.boolean(),
+	kind: z.enum(["custom", "prepared"]),
+	name: z.string().min(1),
+});
+
+export type LayoutSection = z.infer<typeof layoutSectionSchema>;
+
+export const workContextCardLayoutViewSchema = z.object({
+	projectId: z.string().min(1),
+	revision: z.number().int().positive(),
+	sections: z.array(layoutSectionSchema),
+	workType: z.enum(["Bug", "Feature", "Improvement", "Research", "Task"]),
+});
+
+export type WorkContextCardLayoutView = z.infer<
+	typeof workContextCardLayoutViewSchema
+>;
+
+export const applyWorkContextLayoutPayloadSchema = z.object({
+	projectId: z.string().min(1),
+	sections: z.array(layoutSectionSchema),
+	workType: z.enum(["Bug", "Feature", "Improvement", "Research", "Task"]),
+});
+
+export type ApplyWorkContextLayoutPayload = z.infer<
+	typeof applyWorkContextLayoutPayloadSchema
+>;
+
+export function defaultLayoutSections(workType: WorkType): LayoutSection[] {
+	return PREPARED_LAYOUTS[workType].map((name) => ({
+		hidden: false,
+		kind: "prepared" as const,
+		name,
+	}));
+}
+
+export function workContextLayoutCatalog() {
+	return {
+		copy: {
+			addCustomSection: WORK_CONTEXT_COPY.addCustomSection,
+			confirm: WORK_CONTEXT_COPY.confirm,
+			evidenceRole: WORK_CONTEXT_COPY.evidenceRole,
+			hide: WORK_CONTEXT_COPY.hide,
+			impactPreview: WORK_CONTEXT_COPY.impactPreview,
+			moveDown: WORK_CONTEXT_COPY.moveDown,
+			moveUp: WORK_CONTEXT_COPY.moveUp,
+			recordType: WORK_CONTEXT_COPY.recordType,
+			relation: WORK_CONTEXT_COPY.relation,
+			show: WORK_CONTEXT_COPY.show,
+			undo: WORK_CONTEXT_COPY.undo,
+		},
+		evidenceRoles: EVIDENCE_ROLES,
+		recordTypes: CUSTOM_SECTION_RECORD_TYPES,
+		relationTypes: DIRECT_RELATION_TYPES,
+		statusConditions: STATUS_CONDITIONS,
+	};
+}
+
 export type LiveSource =
 	| {
 			kind: string;
@@ -128,6 +281,7 @@ export interface RelatedLiveSource {
 	companyName?: string;
 	contactId?: string;
 	contactName?: string;
+	evidenceRole?: string;
 	kind: string;
 	other: LiveSource;
 	relationType: string;
@@ -187,13 +341,23 @@ export interface VisibleSectionView {
 	empty: boolean;
 	emptyState: typeof WORK_CONTEXT_COPY.emptySection | null;
 	items: LiveSource[];
-	name: PreparedSection;
+	name: string;
 }
 
 export interface WorkContextCardView {
 	addContext: {
 		label: typeof WORK_CONTEXT_COPY.addContext;
-		remainingSections: PreparedSection[];
+		remainingSections: string[];
+	};
+	configuredSections: LayoutSection[];
+	copyContext: {
+		label: typeof WORK_CONTEXT_COPY.copyContextAsMarkdown;
+		writes: {
+			contextRecord: false;
+			relation: false;
+			shareObject: false;
+			snapshot: false;
+		};
 	};
 	effects: {
 		close: false;
@@ -208,9 +372,19 @@ export interface WorkContextCardView {
 		create: false;
 		statusTransition: false;
 	};
+	hiddenSections: Array<{ name: string; treatedAsMissing: false }>;
 	initiallyVisibleFields: typeof INITIALLY_VISIBLE_FIELDS;
+	layout: {
+		projectScoped: true;
+		revision: number;
+		workType: WorkType;
+	};
 	preparedSections: PreparedSection[];
 	priorityFoundations: PriorityFoundationsView;
+	shareScope: {
+		buildInPublic: false;
+		linkSharing: false;
+	};
 	starterConfiguration: StarterConfiguration;
 	visiblePreparedSections: PreparedSection[];
 	visibleSections: VisibleSectionView[];
@@ -228,6 +402,42 @@ export interface WorkContextCardView {
 	};
 }
 
+export interface CopyContextSource {
+	href?: string;
+	kind?: string;
+	reason?: string;
+	role?: string;
+	sourceId?: string;
+	visibleName?: string;
+}
+
+export interface CopyWorkContextInput {
+	activeBlockers?: readonly CopyContextSource[];
+	checklist?: ReadonlyArray<{ completed: boolean; title: string }>;
+	description?: string | null;
+	githubAndExternal?: readonly CopyContextSource[];
+	key: string;
+	primarySpec?: CopyContextSource | null;
+	producedAt: string;
+	relatedUncertainty?: readonly CopyContextSource[];
+	status: string;
+	title: string;
+	type: string;
+	whyChain?: readonly CopyContextSource[];
+}
+
+export interface WorkContextCopyView {
+	markdown: string;
+	producedAt: string;
+	widensAccess: false;
+	writes: {
+		contextRecord: false;
+		relation: false;
+		shareObject: false;
+		snapshot: false;
+	};
+}
+
 export interface PresentWorkContextCardInput {
 	criterionValues?: readonly {
 		name: string;
@@ -239,6 +449,8 @@ export interface PresentWorkContextCardInput {
 	effort?: string | null;
 	expectedOutcome?: string | null;
 	includedWork?: readonly LiveSource[];
+	layoutRevision?: number;
+	layoutSections?: readonly LayoutSection[];
 	openedCountId?: string | null;
 	originResearch?: LiveSource | null;
 	primaryFeature?: LiveSource | null;

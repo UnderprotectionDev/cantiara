@@ -484,6 +484,7 @@ test("an empty founder palette still opens with the product command names", () =
 	expect(snapshot.visible).toBe(true);
 	expect(snapshot.commands.map((command) => command.label)).toEqual([
 		"Create",
+		"Copy Context as Markdown",
 		"Switch Project",
 	]);
 	expect(snapshot.commands.every((command) => command.runnable === false)).toBe(
@@ -551,4 +552,41 @@ test("the visibility budget still holds on a large authorized catalog", () => {
 test("the public snapshot never titles the palette Search", () => {
 	const snapshot: PaletteSnapshot = createCommandPalette(founderInput()).open();
 	expect(JSON.stringify(snapshot)).not.toMatch(SEARCH_TITLE);
+});
+
+test("Copy Context as Markdown is the same command as the Work Context Card action", () => {
+	expect(COMMAND_PALETTE_COPY.copyContextAsMarkdown).toBe(
+		"Copy Context as Markdown"
+	);
+	const closed = createCommandPalette(founderInput()).open();
+	const idle = closed.commands.find((command) => command.id === "copy-context");
+	expect(idle?.label).toBe("Copy Context as Markdown");
+	expect(idle?.menuCounterpartId).toBe("copy-context");
+	expect(idle?.runnable).toBe(false);
+	expect(idle?.reversible).toBe(false);
+	expect(
+		closed.visibleMenuActions.some((action) => action.id === "copy-context")
+	).toBe(true);
+	const mutation = memoryMutation();
+	const failed = createCommandPalette(founderInput({ mutation })).run(
+		"copy-context"
+	);
+	expect(failed.status).toBe("failed");
+	expect(failed.reason).toBe("Can't run this here");
+	expect(failed.wrote).toBe(false);
+	expect(mutation.writes).toHaveLength(0);
+	const copied = createCommandPalette(
+		founderInput({
+			context: {
+				currentProjectId: ATLAS.id,
+				currentWorkKey: "PAY-1",
+				recordRevision: 3,
+				selectionIds: ["record-home"],
+			},
+			mutation,
+		})
+	).run("copy-context");
+	expect(copied.status).toBe("copied");
+	expect(copied.wrote).toBe(false);
+	expect(mutation.writes).toHaveLength(0);
 });

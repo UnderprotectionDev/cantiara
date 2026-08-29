@@ -47,6 +47,7 @@ test("English chrome uses Project Name and Short code", () => {
 		status: "Status",
 		workContextCardLayout: "Work Context Card layout",
 		workStatusLabelRequired: "Work status label is required.",
+		workTemplate: "Work Template",
 	});
 	expect(STARTER_CONFIGURATIONS).toEqual([
 		"Blank Project",
