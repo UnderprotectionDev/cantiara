@@ -10,6 +10,8 @@ test("English UI uses Active, Resolved, Mark blocker resolved, and Remove relati
 		active: "Active",
 		blockedBy: "Blocked by",
 		blocks: "Blocks",
+		cycle: "These records wait on each other.",
+		dependencies: "Dependencies",
 		markBlockerResolved: "Mark blocker resolved",
 		note: "Note",
 		removeRelation: "Remove relation",
