@@ -54,6 +54,20 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yaklaşan | `Upcoming` | Çalışma Alanı genel bakışı hazır modülü; yaklaşan hedef tarihleri ve hatırlatmalar |
 | Son çalışma | `Recent Work` | Çalışma Alanı genel bakışı hazır modülü; son dokunulan İşler |
 | Canlı blok ekle | `Add live block` | Mevcut Belge veya adlandırılmış Akıllı Koleksiyon görünümünü kopyasız referans olarak ekleme |
+| Kaydedilmiş çapraz Proje listesi | `Saved lists` | Çalışma Alanı çapında Proje koşullarından canlı üyelik türeten adlandırılmış görünüm; Portfolio veya Akıllı Koleksiyon değildir |
+| Listeyi kaydet | `Save list` | Çapraz Proje listesi koşullarını ve görünümünü kaydetme |
+| Son bildirilen sağlık | `Last reported health` | Son Manuel Proje Güncellemesinin tarihiyle gösterilen sağlık işareti; güncel Project health alanı değildir |
+| Üyelik koşullardan gelir | `Membership comes from list conditions.` | Sürükleyerek liste üyesi eklenemeyeceğini söyleyen metin |
+| Kolonlar | `Columns` | Kaydedilmiş çapraz Proje listesinde saklanan desteklenen kolonlar |
+| Sıralama | `Sort` | Kaydedilmiş listenin kolon sıralaması |
+| A–Z | `A–Z` | Artan sıralama |
+| Z–A | `Z–A` | Azalan sıralama |
+| Gruplama | `Grouping` | Kaydedilmiş listenin kolon gruplaması |
+| Yok | `None` | Gruplama seçilmedi |
+| Herhangi | `Any` | Arşiv koşulu uygulanmaz |
+| Arşivlenmemiş | `Not archived` | Yalnız arşivde olmayan Projeler |
+| Arşivlenmiş | `Archived` | Yalnız arşivdeki Projeler; İş arşiv filtresi değildir |
+| Alanlar | `Areas` | Desteklenen Proje alanları koşulu |
 | Yaşam durumu | `Lifecycle` | Overview modülü; Proje yaşam durumunun nötr özeti, sağlık skoru değildir |
 | Proje Hedefi | `Goals` | Overview girişi; gizlenebilir Proje alanı değildir |
 | Kilometre taşları | `Milestones` | Overview kaynak özeti |

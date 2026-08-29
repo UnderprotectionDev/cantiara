@@ -8,6 +8,7 @@ import {
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { CROSS_PROJECT_LIST_COLUMNS } from "./cross-project-lists";
 import {
 	LIVE_BLOCK_KINDS,
 	LIVE_BLOCK_LIMIT,
@@ -16,6 +17,25 @@ import {
 	sourcesFromWorkspaceSnapshot,
 	workspaceOverview,
 } from "./workspace-overview";
+
+const savedListInputSchema = z.object({
+	columns: z.array(z.enum(CROSS_PROJECT_LIST_COLUMNS)),
+	conditions: z.object({
+		archived: z.boolean().nullable(),
+		enabledAreas: z.array(z.string()),
+		lifecycleStatuses: z.array(z.string()),
+		stageNames: z.array(z.string()),
+		targetDateOnOrAfter: z.string().nullable(),
+		targetDateOnOrBefore: z.string().nullable(),
+	}),
+	grouping: z.enum(CROSS_PROJECT_LIST_COLUMNS).nullable(),
+	id: z.string().min(1),
+	name: z.string().min(1),
+	sort: z.object({
+		column: z.enum(CROSS_PROJECT_LIST_COLUMNS),
+		direction: z.enum(["asc", "desc"]),
+	}),
+});
 
 const layoutInputSchema = z.object({
 	hidden: z.array(z.enum(PREPARED_MODULE_HEADINGS)),
@@ -28,6 +48,7 @@ const layoutInputSchema = z.object({
 		)
 		.max(LIVE_BLOCK_LIMIT),
 	order: z.array(z.enum(PREPARED_MODULE_HEADINGS)),
+	savedLists: z.array(savedListInputSchema),
 });
 
 async function requireAccess(userId: string) {
@@ -44,9 +65,16 @@ async function loadOverview(workspaceId: string) {
 		readWorkspaceOverviewLayout(prisma, workspaceId),
 		prisma.project.findMany({
 			select: {
+				areaSettings: {
+					select: { enabled: true, name: true },
+				},
 				id: true,
 				lifecycleStatus: true,
 				name: true,
+				stages: {
+					orderBy: { sortOrder: "asc" },
+					select: { name: true },
+				},
 				targetDate: true,
 			},
 			where: { workspaceId },
@@ -84,6 +112,7 @@ export const workspaceOverviewRouter = {
 				hidden: input.hidden,
 				liveBlocks: input.liveBlocks,
 				order: input.order,
+				savedLists: input.savedLists,
 			});
 			return await loadOverview(access.workspaceId);
 		}),
