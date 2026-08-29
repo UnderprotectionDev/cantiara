@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import { WORK_TYPES } from "../../work-lifecycle/server/work-lifecycle-model";
-import { loadWorkContextCard } from "./work-context";
+import { loadWorkContextCard, loadWorkContextCopy } from "./work-context";
 import {
 	applyWorkContextLayout,
 	getWorkContextCardLayout,
@@ -55,6 +55,23 @@ export const workContext = {
 			});
 		}),
 	catalog: protectedProcedure.handler(() => workContextLayoutCatalog()),
+	copyMarkdown: protectedProcedure
+		.input(
+			z.object({
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const copy = await loadWorkContextCopy(getPrismaClient(), {
+				viewerWorkspaceId: access.workspaceId,
+				workId: input.workId,
+			});
+			if (!copy) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return copy;
+		}),
 	get: protectedProcedure
 		.input(
 			z.object({

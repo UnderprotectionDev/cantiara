@@ -2,11 +2,14 @@ import type { StarterConfiguration } from "../../project-shell/forms/project-she
 import type { WorkType } from "../../work-lifecycle/forms/work-lifecycle-copy";
 
 export const WORK_CONTEXT_COPY = {
+	activeBlockers: "Active blockers",
 	add: "Add",
 	addContext: "Add Context",
 	addCustomSection: "Add custom section",
 	affectedReleases: "Affected Releases",
+	checklist: "Checklist",
 	confirm: "Confirm",
+	copyContextAsMarkdown: "Copy Context as Markdown",
 	currentSituation: "Current Situation",
 	decisions: "Decisions",
 	dependencies: "Dependencies",
@@ -16,18 +19,24 @@ export const WORK_CONTEXT_COPY = {
 	evidenceAndDecisions: "Evidence & Decisions",
 	evidenceRole: "Evidence Role",
 	expectedOutcome: "Expected Outcome",
+	githubAndExternal: "GitHub and external links",
 	githubAndTests: "GitHub & Tests",
 	hide: "Hide",
 	impactPreview: "Impact preview",
 	includedWork: "Included Work",
+	key: "Key",
 	link: "Link",
 	moveDown: "Move down",
 	moveUp: "Move up",
 	observedExpectedBehavior: "Observed/Expected Behavior",
 	openSourceRecord: "Open source record",
 	planning: "Planning",
+	primarySourceIsInTheApp: "Primary source is in the app",
+	primarySpec: "Primary spec",
 	problemOpportunity: "Problem/Opportunity",
+	producedAt: "Produced at",
 	recordType: "Record type",
+	relatedUncertainty: "Related Decision, Risk, and Open Question",
 	relatedWork: "Related Work",
 	relation: "Relation",
 	researchQuestion: "Research Question",
@@ -97,6 +106,15 @@ export interface WorkContextCardView {
 		kind: "custom" | "prepared";
 		name: string;
 	}>;
+	copyContext: {
+		label: typeof WORK_CONTEXT_COPY.copyContextAsMarkdown;
+		writes: {
+			contextRecord: false;
+			relation: false;
+			shareObject: false;
+			snapshot: false;
+		};
+	};
 	effects: {
 		close: false;
 		completenessScore: false;
@@ -193,6 +211,15 @@ export function presentWorkContextCard(input: {
 			kind: "prepared" as const,
 			name,
 		})),
+		copyContext: {
+			label: WORK_CONTEXT_COPY.copyContextAsMarkdown,
+			writes: {
+				contextRecord: false,
+				relation: false,
+				shareObject: false,
+				snapshot: false,
+			},
+		},
 		effects: {
 			close: false,
 			completenessScore: false,

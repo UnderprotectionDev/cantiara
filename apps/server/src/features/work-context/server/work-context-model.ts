@@ -4,11 +4,14 @@ import type { StarterConfiguration } from "../../project-shell/server/project-sh
 import type { WorkType } from "../../work-lifecycle/server/work-lifecycle-model";
 
 export const WORK_CONTEXT_COPY = {
+	activeBlockers: "Active blockers",
 	add: "Add",
 	addContext: "Add Context",
 	addCustomSection: "Add custom section",
 	affectedReleases: "Affected Releases",
+	checklist: "Checklist",
 	confirm: "Confirm",
+	copyContextAsMarkdown: "Copy Context as Markdown",
 	currentSituation: "Current Situation",
 	decisions: "Decisions",
 	dependencies: "Dependencies",
@@ -18,18 +21,24 @@ export const WORK_CONTEXT_COPY = {
 	evidenceAndDecisions: "Evidence & Decisions",
 	evidenceRole: "Evidence Role",
 	expectedOutcome: "Expected Outcome",
+	githubAndExternal: "GitHub and external links",
 	githubAndTests: "GitHub & Tests",
 	hide: "Hide",
 	impactPreview: "Impact preview",
 	includedWork: "Included Work",
+	key: "Key",
 	link: "Link",
 	moveDown: "Move down",
 	moveUp: "Move up",
 	observedExpectedBehavior: "Observed/Expected Behavior",
 	openSourceRecord: "Open source record",
 	planning: "Planning",
+	primarySourceIsInTheApp: "Primary source is in the app",
+	primarySpec: "Primary spec",
 	problemOpportunity: "Problem/Opportunity",
+	producedAt: "Produced at",
 	recordType: "Record type",
+	relatedUncertainty: "Related Decision, Risk, and Open Question",
 	relatedWork: "Related Work",
 	relation: "Relation",
 	researchQuestion: "Research Question",
@@ -281,6 +290,15 @@ export interface WorkContextCardView {
 		remainingSections: string[];
 	};
 	configuredSections: LayoutSection[];
+	copyContext: {
+		label: typeof WORK_CONTEXT_COPY.copyContextAsMarkdown;
+		writes: {
+			contextRecord: false;
+			relation: false;
+			shareObject: false;
+			snapshot: false;
+		};
+	};
 	effects: {
 		close: false;
 		completenessScore: false;
@@ -320,6 +338,42 @@ export interface WorkContextCardView {
 		bodyCopy: false;
 		contextRecord: false;
 		relation: false;
+	};
+}
+
+export interface CopyContextSource {
+	href?: string;
+	kind?: string;
+	reason?: string;
+	role?: string;
+	sourceId?: string;
+	visibleName?: string;
+}
+
+export interface CopyWorkContextInput {
+	activeBlockers?: readonly CopyContextSource[];
+	checklist?: ReadonlyArray<{ completed: boolean; title: string }>;
+	description?: string | null;
+	githubAndExternal?: readonly CopyContextSource[];
+	key: string;
+	primarySpec?: CopyContextSource | null;
+	producedAt: string;
+	relatedUncertainty?: readonly CopyContextSource[];
+	status: string;
+	title: string;
+	type: string;
+	whyChain?: readonly CopyContextSource[];
+}
+
+export interface WorkContextCopyView {
+	markdown: string;
+	producedAt: string;
+	widensAccess: false;
+	writes: {
+		contextRecord: false;
+		relation: false;
+		shareObject: false;
+		snapshot: false;
 	};
 }
 
