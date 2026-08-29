@@ -666,6 +666,17 @@ describe("Work Blockers", () => {
 		if (included.status !== "committed") {
 			throw new Error("expected included source");
 		}
+		const includedBlocked = await includeWork(prisma, {
+			actorId,
+			baseRevision: blocked.revision,
+			featureId: feature.id,
+			idempotencyKey: "include-checkout",
+			origin: "human",
+			workId: blocked.id,
+		});
+		if (includedBlocked.status !== "committed") {
+			throw new Error("expected included blocked Work");
+		}
 		const closedParent = await closeWork(prisma, {
 			actorId,
 			baseRevision: feature.revision,

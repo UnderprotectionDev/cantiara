@@ -220,7 +220,9 @@ export async function listWorkBlockers(
 	const relations = rows.flatMap((row) => {
 		const view = toView(
 			row,
-			row.fromKind === "Work" && closedSourceIds.has(row.fromId)
+			row.blockerState === BLOCKERS_COPY.active &&
+				row.fromKind === "Work" &&
+				closedSourceIds.has(row.fromId)
 				? suggestion
 				: null
 		);
