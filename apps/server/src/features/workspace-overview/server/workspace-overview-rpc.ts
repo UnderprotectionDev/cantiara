@@ -1,6 +1,10 @@
 import { protectedProcedure, protectedWriteProcedure } from "@cantiara/api";
 import { getAccountAccessForUser } from "@cantiara/auth";
-import { getPrismaClient } from "@cantiara/db";
+import {
+	getPrismaClient,
+	prismaClientHasCurrentWorkspaceModel,
+	workspaceOverviewLayoutSelect,
+} from "@cantiara/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
@@ -38,7 +42,7 @@ async function loadOverview(workspaceId: string) {
 	const prisma = getPrismaClient();
 	const [workspace, projects, works] = await Promise.all([
 		prisma.workspace.findUnique({
-			select: { overviewLayout: true },
+			select: workspaceOverviewLayoutSelect(prisma),
 			where: { id: workspaceId },
 		}),
 		prisma.project.findMany({
@@ -62,7 +66,11 @@ async function loadOverview(workspaceId: string) {
 			where: { archived: false, project: { workspaceId } },
 		}),
 	]);
-	const layout = parseWorkspaceOverviewLayout(workspace?.overviewLayout);
+	const layout = parseWorkspaceOverviewLayout(
+		workspace && "overviewLayout" in workspace
+			? workspace.overviewLayout
+			: undefined
+	);
 	return workspaceOverview(
 		sourcesFromWorkspaceSnapshot({ projects, works }),
 		layout
@@ -78,16 +86,19 @@ export const workspaceOverviewRouter = {
 		.input(layoutInputSchema)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			await getPrismaClient().workspace.update({
-				data: {
-					overviewLayout: {
-						hidden: input.hidden,
-						liveBlocks: input.liveBlocks,
-						order: input.order,
+			const prisma = getPrismaClient();
+			if (prismaClientHasCurrentWorkspaceModel(prisma)) {
+				await prisma.workspace.update({
+					data: {
+						overviewLayout: {
+							hidden: input.hidden,
+							liveBlocks: input.liveBlocks,
+							order: input.order,
+						},
 					},
-				},
-				where: { id: access.workspaceId },
-			});
+					where: { id: access.workspaceId },
+				});
+			}
 			return await loadOverview(access.workspaceId);
 		}),
 };

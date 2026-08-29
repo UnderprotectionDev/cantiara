@@ -13,6 +13,7 @@ import {
 import {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentFileAttachmentVersionModel,
+	prismaClientHasCurrentWorkspaceModel,
 } from "./prisma-client-delegates";
 
 export { Prisma, PrismaClient } from "../prisma/generated/client";
@@ -20,6 +21,8 @@ export { readGeneratedClientStamp } from "./generated-prisma-client";
 export {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentFileAttachmentVersionModel,
+	prismaClientHasCurrentWorkspaceModel,
+	workspaceOverviewLayoutSelect,
 } from "./prisma-client-delegates";
 
 // Local development: route the Neon serverless driver's WebSocket transport to a
@@ -109,6 +112,9 @@ function cachedClient(diskStamp: string): PrismaClient | undefined {
 		return;
 	}
 	if (!prismaClientHasCurrentFileAttachmentVersionModel(cached.client)) {
+		return;
+	}
+	if (!prismaClientHasCurrentWorkspaceModel(cached.client)) {
 		return;
 	}
 	return cached.client;
