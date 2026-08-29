@@ -1,5 +1,12 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@cantiara/ui/components/dialog";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -13,11 +20,20 @@ import { orpc, queryClient } from "@/utils/orpc";
 
 import { WORK_CHECKLISTS_COPY } from "./work-checklists-copy";
 
+interface ChecklistItem {
+	completed: boolean;
+	convertedWork?: { id: string; key: string };
+	id: string;
+	title: string;
+}
+
 export default function WorkChecklistPanel({
+	onOpenSourceRecord,
 	projectId,
 	revision,
 	workId,
 }: {
+	onOpenSourceRecord?: (id: string) => void;
 	projectId: string;
 	revision: number;
 	workId: string;
@@ -35,6 +51,11 @@ export default function WorkChecklistPanel({
 				await queryClient.invalidateQueries({
 					queryKey: orpc.workChecklists.get.queryKey({
 						input: { workId },
+					}),
+				});
+				await queryClient.invalidateQueries({
+					queryKey: orpc.relations.list.queryKey({
+						input: { id: workId, kind: "Work" },
 					}),
 				});
 				recordSave();
@@ -75,6 +96,11 @@ export default function WorkChecklistPanel({
 			onSuccess: onOutcome,
 		})
 	);
+	const convert = useMutation(
+		orpc.workChecklists.convert.mutationOptions({
+			onSuccess: onOutcome,
+		})
+	);
 	const items = checklist.data?.items ?? [];
 	const itemIds = items.map((row) => row.id);
 	const liveRevision = checklist.data?.work.revision ?? revision;
@@ -83,7 +109,8 @@ export default function WorkChecklistPanel({
 		update.isPending ||
 		setCompleted.isPending ||
 		reorder.isPending ||
-		remove.isPending;
+		remove.isPending ||
+		convert.isPending;
 	const onAdd = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
@@ -125,6 +152,7 @@ export default function WorkChecklistPanel({
 					{items.map((item, index) => (
 						<ChecklistItemRow
 							attemptOnlineWork={attemptOnlineWork}
+							convertItem={convert.mutateAsync}
 							disabled={pending}
 							index={index}
 							item={item}
@@ -132,6 +160,7 @@ export default function WorkChecklistPanel({
 							key={item.id}
 							liveRevision={liveRevision}
 							markUnsaved={markUnsaved}
+							onOpenSourceRecord={onOpenSourceRecord}
 							removeItem={remove.mutateAsync}
 							reorderItems={reorder.mutateAsync}
 							setItemCompleted={setCompleted.mutateAsync}
@@ -165,12 +194,14 @@ export default function WorkChecklistPanel({
 
 function ChecklistItemRow({
 	attemptOnlineWork,
+	convertItem,
 	disabled,
 	index,
 	item,
 	itemIds,
 	liveRevision,
 	markUnsaved,
+	onOpenSourceRecord,
 	removeItem,
 	reorderItems,
 	setItemCompleted,
@@ -178,12 +209,20 @@ function ChecklistItemRow({
 	workId,
 }: {
 	attemptOnlineWork: ReturnType<typeof useClientShell>["attemptOnlineWork"];
+	convertItem: (input: {
+		baseRevision: number;
+		idempotencyKey: string;
+		itemId: string;
+		previewAcknowledged: boolean;
+		workId: string;
+	}) => Promise<{ status: string }>;
 	disabled: boolean;
 	index: number;
-	item: { completed: boolean; id: string; title: string };
+	item: ChecklistItem;
 	itemIds: string[];
 	liveRevision: number;
 	markUnsaved: ReturnType<typeof useClientShell>["markUnsaved"];
+	onOpenSourceRecord?: (id: string) => void;
 	removeItem: (input: {
 		baseRevision: number;
 		idempotencyKey: string;
@@ -290,6 +329,60 @@ function ChecklistItemRow({
 		},
 		[index, itemIds, liveRevision, reorderItems, runWrite, workId]
 	);
+	const [previewOpen, setPreviewOpen] = useState(false);
+	const onOpenPreview = useCallback(() => {
+		setPreviewOpen(true);
+	}, []);
+	const onOpenConverted = useCallback(() => {
+		if (item.convertedWork) {
+			onOpenSourceRecord?.(item.convertedWork.id);
+		}
+	}, [item.convertedWork, onOpenSourceRecord]);
+	if (item.convertedWork) {
+		return (
+			<li className="flex flex-col gap-2">
+				<div className="flex flex-wrap items-center gap-2">
+					<Button
+						onClick={onOpenConverted}
+						size="sm"
+						type="button"
+						variant="link"
+					>
+						{item.convertedWork.key}
+					</Button>
+					<Button
+						disabled={disabled || index === 0}
+						onClick={onMove}
+						size="sm"
+						type="button"
+						value="-1"
+						variant="ghost"
+					>
+						{WORK_CHECKLISTS_COPY.moveUp}
+					</Button>
+					<Button
+						disabled={disabled || index === itemIds.length - 1}
+						onClick={onMove}
+						size="sm"
+						type="button"
+						value="1"
+						variant="ghost"
+					>
+						{WORK_CHECKLISTS_COPY.moveDown}
+					</Button>
+					<Button
+						disabled={disabled}
+						onClick={onRemove}
+						size="sm"
+						type="button"
+						variant="ghost"
+					>
+						{WORK_CHECKLISTS_COPY.remove}
+					</Button>
+				</div>
+			</li>
+		);
+	}
 	return (
 		<li className="flex flex-col gap-2">
 			<div className="flex flex-wrap items-center gap-2">
@@ -318,6 +411,15 @@ function ChecklistItemRow({
 						{WORK_CHECKLISTS_COPY.save}
 					</Button>
 				</form>
+				<Button
+					disabled={disabled}
+					onClick={onOpenPreview}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					{WORK_CHECKLISTS_COPY.convertToIndependentWork}
+				</Button>
 				<Button
 					disabled={disabled || index === 0}
 					onClick={onMove}
@@ -348,6 +450,109 @@ function ChecklistItemRow({
 					{WORK_CHECKLISTS_COPY.remove}
 				</Button>
 			</div>
+			<ConvertChecklistDialog
+				convertItem={convertItem}
+				itemId={item.id}
+				liveRevision={liveRevision}
+				onOpenChange={setPreviewOpen}
+				open={previewOpen}
+				runWrite={runWrite}
+				workId={workId}
+			/>
 		</li>
+	);
+}
+
+function ConvertChecklistDialog({
+	convertItem,
+	itemId,
+	liveRevision,
+	onOpenChange,
+	open,
+	runWrite,
+	workId,
+}: {
+	convertItem: (input: {
+		baseRevision: number;
+		idempotencyKey: string;
+		itemId: string;
+		previewAcknowledged: boolean;
+		workId: string;
+	}) => Promise<{ status: string }>;
+	itemId: string;
+	liveRevision: number;
+	onOpenChange: (open: boolean) => void;
+	open: boolean;
+	runWrite: (work: () => Promise<{ status: string }>) => void;
+	workId: string;
+}) {
+	const preview = useQuery({
+		...orpc.workChecklists.previewConvert.queryOptions({
+			input: { itemId, workId },
+		}),
+		enabled: open,
+	});
+	const previewData =
+		preview.data && preview.data.status === "ok" ? preview.data.preview : null;
+	const onConfirm = useCallback(() => {
+		if (!previewData) {
+			return;
+		}
+		runWrite(() =>
+			convertItem({
+				baseRevision: liveRevision,
+				idempotencyKey: newIdempotencyKey(),
+				itemId,
+				previewAcknowledged: true,
+				workId,
+			})
+		);
+		onOpenChange(false);
+	}, [
+		convertItem,
+		itemId,
+		liveRevision,
+		onOpenChange,
+		previewData,
+		runWrite,
+		workId,
+	]);
+	return (
+		<Dialog onOpenChange={onOpenChange} open={open}>
+			<DialogContent className="sm:max-w-lg">
+				<DialogHeader>
+					<DialogTitle>
+						{WORK_CHECKLISTS_COPY.convertToIndependentWork}
+					</DialogTitle>
+				</DialogHeader>
+				{previewData ? (
+					<dl className="grid gap-2 text-sm">
+						<div className="flex gap-2">
+							<dt className="text-muted-foreground">
+								{WORK_CHECKLISTS_COPY.title}
+							</dt>
+							<dd>{previewData.title}</dd>
+						</div>
+						<div className="flex gap-2">
+							<dt className="text-muted-foreground">
+								{WORK_CHECKLISTS_COPY.project}
+							</dt>
+							<dd>{previewData.projectName}</dd>
+						</div>
+						<div className="flex gap-2">
+							<dt className="text-muted-foreground">
+								{WORK_CHECKLISTS_COPY.startStatus}
+							</dt>
+							<dd>{previewData.startStatus}</dd>
+						</div>
+					</dl>
+				) : null}
+				<DialogFooter>
+					<Button disabled={!previewData} onClick={onConfirm} type="button">
+						{WORK_CHECKLISTS_COPY.confirmConvert}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 }

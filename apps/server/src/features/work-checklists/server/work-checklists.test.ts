@@ -12,6 +12,8 @@ import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createProject } from "../../project-shell/server/project-shell";
+import { listRelations } from "../../relations/server/relations";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
 	applyPlanningMembership,
 	createWork,
@@ -25,7 +27,9 @@ import {
 } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	addChecklistItem,
+	convertChecklistItem,
 	getWorkChecklist,
+	previewConvertChecklistItem,
 	removeChecklistItem,
 	reorderChecklistItems,
 	setChecklistItemCompleted,
@@ -39,6 +43,7 @@ const DATABASE_URL =
 
 const FORBIDDEN_PRODUCT =
 	/subtask|epic|Test Scenario|Handoff|checklist-as-Work/i;
+const HIERARCHY_PATTERN = /epic|subtask|parentId|parentWork|parent\/child/i;
 const ITEM_WORKFLOW_FIELDS =
 	/status|closureResult|priority|dueDate|plannedStart|planningMembership|relation/;
 
@@ -432,5 +437,235 @@ describe("Work Checklists", () => {
 		expect(listed.map((row) => row.id).sort()).toEqual(
 			[feature.id, intake.id].sort()
 		);
+	});
+
+	it("previews Convert to independent Work without writing", async () => {
+		const { actorId, project, workspaceId } = await openPayments(prisma);
+		const work = await committedWork(prisma, actorId, {
+			idempotencyKey: "task-intake",
+			projectId: project.id,
+			title: "Intake",
+		});
+		const added = await addChecklistItem(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: "add-draft",
+			origin: "human",
+			title: "Draft copy",
+			workId: work.id,
+		});
+		expect(added.status).toBe("committed");
+		if (added.status !== "committed") {
+			throw new Error("expected committed add");
+		}
+		const receiptsBefore = await prisma.mutationReceipt.count();
+		const preview = await previewConvertChecklistItem(prisma, {
+			itemId: added.checklist.items[0].id,
+			workId: work.id,
+		});
+		expect(preview).toMatchObject({
+			preview: {
+				origin: { id: work.id, key: "PAY-1" },
+				originLocation: {
+					componentId: added.checklist.items[0].id,
+					ownerId: work.id,
+					ownerKind: "Work",
+					sourceVersion: String(added.checklist.work.revision),
+				},
+				projectId: project.id,
+				projectName: "Payments",
+				startStatus: "Not Started",
+				title: "Draft copy",
+			},
+			status: "ok",
+		});
+		expect(await listWork(prisma, project.id)).toHaveLength(1);
+		expect(await prisma.mutationReceipt.count()).toBe(receiptsBefore);
+		expect(JSON.stringify(WORK_CHECKLISTS_COPY)).toContain(
+			"Convert to independent Work"
+		);
+		expect(JSON.stringify(preview)).not.toMatch(FORBIDDEN_PRODUCT);
+		expect(workspaceId).toBeTruthy();
+	});
+
+	it("converts an item to independent Work with origin and no hierarchy", async () => {
+		const { actorId, project, workspaceId } = await openPayments(prisma);
+		const work = await committedWork(prisma, actorId, {
+			idempotencyKey: "task-intake",
+			projectId: project.id,
+			title: "Intake",
+		});
+		const added = await addChecklistItem(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: "add-draft",
+			origin: "human",
+			title: "Draft copy",
+			workId: work.id,
+		});
+		expect(added.status).toBe("committed");
+		if (added.status !== "committed") {
+			throw new Error("expected committed add");
+		}
+		const itemId = added.checklist.items[0].id;
+		const sourceVersion = String(added.checklist.work.revision);
+		expect(
+			await convertChecklistItem(prisma, {
+				actorId,
+				baseRevision: added.checklist.work.revision,
+				idempotencyKey: "convert-draft",
+				itemId,
+				origin: "human",
+				workId: work.id,
+			})
+		).toMatchObject({ reason: "preview-required", status: "rejected" });
+		expect(await listWork(prisma, project.id)).toHaveLength(1);
+		const converted = await convertChecklistItem(prisma, {
+			actorId,
+			baseRevision: added.checklist.work.revision,
+			idempotencyKey: "convert-draft",
+			itemId,
+			origin: "human",
+			previewAcknowledged: true,
+			workId: work.id,
+		});
+		expect(converted.status).toBe("committed");
+		if (converted.status !== "committed") {
+			throw new Error("expected committed convert");
+		}
+		expect(converted.convertedWork).toMatchObject({
+			projectId: project.id,
+			status: "Not Started",
+			title: "Draft copy",
+		});
+		expect(converted.convertedWork.id).not.toBe(work.id);
+		expect(converted.convertedWork.id).not.toBe(itemId);
+		expect(converted.checklist.work).toMatchObject({
+			closureResult: null,
+			id: work.id,
+			status: "Not Started",
+		});
+		expect(converted.checklist.items).toEqual([
+			{
+				completed: false,
+				convertedWork: {
+					id: converted.convertedWork.id,
+					key: converted.convertedWork.key,
+				},
+				id: itemId,
+				title: "Draft copy",
+			},
+		]);
+		const listed = await listWork(prisma, project.id);
+		expect(listed.map((row) => row.id).sort()).toEqual(
+			[work.id, converted.convertedWork.id].sort()
+		);
+		expect(await getWork(prisma, itemId)).toBeNull();
+		expect(await getWorkByKey(prisma, project.id, "Draft copy")).toBeNull();
+		expect(
+			await getWorkByKey(prisma, project.id, converted.convertedWork.key)
+		).toMatchObject({
+			id: converted.convertedWork.id,
+			status: "Not Started",
+		});
+		const origin = await listRelations(prisma, {
+			record: { id: converted.convertedWork.id, kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(origin).toMatchObject([
+			{
+				from: { id: work.id, kind: "Work" },
+				originLocation: {
+					componentId: itemId,
+					missing: false,
+					ownerId: work.id,
+					ownerKind: "Work",
+					sourceVersion,
+				},
+				to: { id: converted.convertedWork.id, kind: "Work" },
+				type: RELATIONS_COPY.origin,
+			},
+		]);
+		expect(origin[0]?.typeLabelTo).toBe(RELATIONS_COPY.origin);
+		expect(origin[0]?.typeLabelFrom).toBe(RELATIONS_COPY.derived);
+		expect(await getWorkScope(prisma, work.id)).toMatchObject({
+			includedWork: [],
+		});
+		expect(
+			await getWorkScope(prisma, converted.convertedWork.id)
+		).toMatchObject({
+			includedWork: [],
+		});
+		expect(JSON.stringify(converted)).not.toMatch(HIERARCHY_PATTERN);
+		expect(JSON.stringify(origin)).not.toMatch(HIERARCHY_PATTERN);
+		const replayed = await convertChecklistItem(prisma, {
+			actorId,
+			baseRevision: added.checklist.work.revision,
+			idempotencyKey: "convert-draft",
+			itemId,
+			origin: "human",
+			previewAcknowledged: true,
+			workId: work.id,
+		});
+		expect(replayed).toMatchObject({
+			convertedWork: { id: converted.convertedWork.id },
+			status: "replayed",
+		});
+		expect(await listWork(prisma, project.id)).toHaveLength(2);
+		expect(
+			await convertChecklistItem(prisma, {
+				actorId,
+				baseRevision: converted.checklist.work.revision,
+				idempotencyKey: "convert-again",
+				itemId,
+				origin: "human",
+				previewAcknowledged: true,
+				workId: work.id,
+			})
+		).toMatchObject({ reason: "already-converted", status: "rejected" });
+		expect(await listWork(prisma, project.id)).toHaveLength(2);
+	});
+
+	it("does not convert when a Checklist item is checked", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await committedWork(prisma, actorId, {
+			idempotencyKey: "task-intake",
+			projectId: project.id,
+			title: "Intake",
+		});
+		const added = await addChecklistItem(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: "add-draft",
+			origin: "human",
+			title: "Draft copy",
+			workId: work.id,
+		});
+		expect(added.status).toBe("committed");
+		if (added.status !== "committed") {
+			throw new Error("expected committed add");
+		}
+		const checked = await setChecklistItemCompleted(prisma, {
+			actorId,
+			baseRevision: added.checklist.work.revision,
+			completed: true,
+			idempotencyKey: "check-draft",
+			itemId: added.checklist.items[0].id,
+			origin: "human",
+			workId: work.id,
+		});
+		expect(checked.status).toBe("committed");
+		if (checked.status !== "committed") {
+			throw new Error("expected committed check");
+		}
+		expect(checked.checklist.items[0]).toMatchObject({
+			completed: true,
+			title: "Draft copy",
+		});
+		expect(checked.checklist.items[0].convertedWork).toBeUndefined();
+		expect(await listWork(prisma, project.id)).toEqual([
+			expect.objectContaining({ id: work.id, status: "Not Started" }),
+		]);
+		expect(await listWorkLifecycleHistory(prisma, work.id)).toEqual([]);
 	});
 });
