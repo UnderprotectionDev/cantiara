@@ -178,6 +178,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Engeller | `Blocks` | Engelleme ilişkisinin kaynak ucu; serbest ilişki türü değildir |
 | Engellenir | `Blocked by` | Engellenen İş ucu; planlama tüketicisinin okuduğu bekletme yönü |
 | Aktif engelleme | `Active` | Engelleme ilişkisinin bekleyen durumu; İş akışı durumu `Blocked` değildir |
+| Çözülmüş engelleme | `Resolved` | Engelleme ilişkisinin tarihsel durumu; aktif blokaj sinyalinden çıkar |
+| Engel çözüldü | `Mark blocker resolved` | Çözüm tarihi ve isteğe bağlı not yazan eylem; kaynak kapanışı değildir |
+| Çözüm notu | `Note` | Engel çözüldü eyleminin isteğe bağlı notu |
 | İlişkiyi kaldır | `Remove relation` | Yanlış kurulmuş engelleme bağını silme; çözüm geçmişi değildir |
 | Açıklama | `Description` | İşin taşınabilir gövde alanı; Task hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Hafif kontrol listesi | `Checklist` | İşteki metin maddeleri; bağımsız İş değildir |

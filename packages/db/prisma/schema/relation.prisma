@@ -11,6 +11,8 @@ model TypedRelation {
   originSourceVersion    String?
   originComponentMissing Boolean   @default(false)
   blockerState           String?
+  resolvedAt             DateTime?
+  resolutionNote         String?
   establishedAt          DateTime  @default(now())
   revision               Int
   createdAt              DateTime  @default(now())
