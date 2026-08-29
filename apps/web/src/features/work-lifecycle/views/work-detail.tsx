@@ -73,9 +73,11 @@ export default function WorkDetail({
 			</header>
 			<WorkContextCard
 				key={`${work.id}:${work.type}:${work.revision}`}
+				onOpenSourceRecord={onOpenSourceRecord}
 				status={work.status}
 				title={work.title}
 				type={work.type}
+				workId={work.id}
 			/>
 			{work.retiredIdentities && work.retiredIdentities.length > 0 ? (
 				<dl className="grid gap-1 text-sm">

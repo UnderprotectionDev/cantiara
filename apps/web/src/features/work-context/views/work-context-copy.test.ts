@@ -73,3 +73,27 @@ test("Add Context reveals a hidden prepared section without gating save", () => 
 	]);
 	expect(opened.gates).toEqual({ create: false, statusTransition: false });
 });
+
+test("Why am I doing this work? and empty visible sections stay English and ungated", () => {
+	expect(WORK_CONTEXT_COPY.whyAmIDoingThisWork).toBe(
+		"Why am I doing this work?"
+	);
+	expect(WORK_CONTEXT_COPY.emptySection).toBe("Nothing here yet.");
+	expect(WORK_CONTEXT_COPY.openSourceRecord).toBe("Open source record");
+	const opened = revealPreparedSection(
+		presentWorkContextCard({
+			starterConfiguration: "Blank Project",
+			workType: "Feature",
+		}),
+		"Problem/Opportunity"
+	);
+	expect(opened.whyChain.label).toBe("Why am I doing this work?");
+	expect(opened.visibleSections[0]).toMatchObject({
+		action: { kind: "add", label: "Add" },
+		empty: true,
+		emptyState: "Nothing here yet.",
+		name: "Problem/Opportunity",
+	});
+	expect(opened.effects.completenessScore).toBe(false);
+	expect(opened.writes.contextRecord).toBe(false);
+});
