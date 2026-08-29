@@ -17,9 +17,11 @@ import {
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
 import { markProjectHasWork } from "../../project-shell/server/project-shell";
+import { createWorkInTransaction } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	isClosureResult,
 	isWorkStatus,
+	type LightChecklistItem,
 	lightChecklistItemSchema,
 	WORK_STATUS,
 	type WorkView,
@@ -36,6 +38,11 @@ import {
 	duplicateWorkCommandSchema,
 	FORBIDDEN_DUPLICATE_PAYLOAD_KEYS,
 	FORBIDDEN_TEMPLATE_PAYLOAD_KEYS,
+	type InstantiatedWorkView,
+	type InstantiateWorkFromTemplateCommand,
+	type InstantiateWorkOutcome,
+	instantiatedWorkViewSchema,
+	instantiateWorkFromTemplateCommandSchema,
 	isWorkType,
 	type PreviewRelativeDatesInput,
 	previewRelativeDateRules,
@@ -111,6 +118,24 @@ export async function trashWorkTemplate(
 	);
 	return await prisma.$transaction((tx) =>
 		trashInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function instantiateWorkFromTemplate(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<InstantiateWorkOutcome> {
+	const parsed = parseInstantiateCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint(parsed.command.payload);
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		instantiateInTransaction(tx, parsed.command, commandKey, fingerprint)
 	);
 }
 
@@ -341,6 +366,37 @@ function parseDuplicateCommand(
 	if (parsed.data.payload.previewAcknowledged !== true) {
 		return {
 			outcome: { reason: "preview-required", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	return { command: parsed.data, status: "ok" };
+}
+
+function parseInstantiateCommand(
+	command: unknown
+):
+	| { command: InstantiateWorkFromTemplateCommand; status: "ok" }
+	| { outcome: InstantiateWorkOutcome; status: "rejected" } {
+	const envelope = parseEnvelope(command);
+	if (envelope.status !== "ok") {
+		return {
+			outcome: { reason: "missing-idempotency-key", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	const forbidden = forbiddenPayloadReason(envelope.command.payload);
+	if (forbidden) {
+		return {
+			outcome: { reason: forbidden, status: "rejected" },
+			status: "rejected",
+		};
+	}
+	const parsed = instantiateWorkFromTemplateCommandSchema.safeParse(
+		envelope.command
+	);
+	if (!parsed.success) {
+		return {
+			outcome: { reason: "missing-idempotency-key", status: "rejected" },
 			status: "rejected",
 		};
 	}
@@ -658,6 +714,180 @@ async function buildDuplicatePreview(
 	};
 }
 
+async function instantiateInTransaction(
+	tx: PrismaTransaction,
+	command: InstantiateWorkFromTemplateCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<InstantiateWorkOutcome> {
+	const existing = await tx.workTemplate.findUnique({
+		where: { id: command.payload.templateId },
+	});
+	if (!existing) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await lockProject(tx, existing.projectId);
+	const replayed = await replayInstantiate(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	if (existing.trashedAt) {
+		return { reason: "trashed-not-effective", status: "rejected" };
+	}
+	if (existing.revision !== command.baseRevision) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const dates = relativeDatesForInstantiate(
+		existing,
+		command.payload.createDay
+	);
+	if (dates.status === "rejected") {
+		return dates;
+	}
+	const minted = await mintIndependentWork(tx, command, existing);
+	if (minted.status !== "ok") {
+		return minted.outcome;
+	}
+	await writeInstantiateReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		selectedFieldDefaults: minted.selectedFieldDefaults,
+		work: minted.work,
+	});
+	return {
+		selectedFieldDefaults: minted.selectedFieldDefaults,
+		status: "committed",
+		work: minted.work,
+	};
+}
+
+function relativeDatesForInstantiate(
+	existing: {
+		plannedStartOffsetDays: number | null;
+		targetDateOffsetDays: number | null;
+	},
+	createDay: string | undefined
+): RelativeDatePreviewOutcome | { status: "ok" } {
+	if (
+		existing.plannedStartOffsetDays === null &&
+		existing.targetDateOffsetDays === null
+	) {
+		return { status: "ok" };
+	}
+	return previewRelativeDateRules({
+		createDay: createDay ?? "",
+		plannedStartRule: ruleFromOffset(existing.plannedStartOffsetDays),
+		targetDateRule: ruleFromOffset(existing.targetDateOffsetDays),
+	});
+}
+
+async function mintIndependentWork(
+	tx: PrismaTransaction,
+	command: InstantiateWorkFromTemplateCommand,
+	existing: {
+		descriptionSkeleton: string | null;
+		lightChecklist: Prisma.JsonValue;
+		name: string;
+		projectId: string;
+		selectedFieldDefaults: Prisma.JsonValue;
+		workType: string;
+	}
+): Promise<
+	| {
+			selectedFieldDefaults: SelectedFieldDefaultView[];
+			status: "ok";
+			work: InstantiatedWorkView["work"];
+	  }
+	| { outcome: InstantiateWorkOutcome; status: "rejected" }
+> {
+	const title = (command.payload.title ?? existing.name).trim();
+	if (title.length === 0) {
+		return {
+			outcome: { reason: "missing-name", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	const created = await createWorkInTransaction(tx, {
+		actorId: command.actorId,
+		idempotencyKey: `${command.idempotencyKey}:work`,
+		origin: HUMAN_ORIGIN,
+		payload: {
+			projectId: existing.projectId,
+			title,
+			type: existing.workType,
+		},
+	});
+	if (created.status !== "committed") {
+		return { outcome: mapCreatedWorkOutcome(created), status: "rejected" };
+	}
+	const lightChecklist = asChecklist(existing.lightChecklist).map(
+		(item): LightChecklistItem => ({
+			completed: false,
+			id: crypto.randomUUID(),
+			title: item.title,
+		})
+	);
+	await tx.work.update({
+		data: {
+			description: existing.descriptionSkeleton,
+			lightChecklist,
+			revision: created.work.revision + 1,
+		},
+		where: { id: created.work.id },
+	});
+	const selectedFieldDefaults = await hydrateDefaults(
+		tx,
+		existing.projectId,
+		existing.selectedFieldDefaults
+	);
+	await Promise.all(
+		selectedFieldDefaults.map((field) =>
+			tx.projectCustomFieldValue.create({
+				data: {
+					definitionId: field.definitionId,
+					id: crypto.randomUUID(),
+					recordId: created.work.id,
+					recordType: "Work",
+					revision: 1,
+					value: field.value,
+				},
+			})
+		)
+	);
+	return {
+		selectedFieldDefaults,
+		status: "ok",
+		work: {
+			...created.work,
+			description: existing.descriptionSkeleton,
+			lightChecklist,
+			revision: created.work.revision + 1,
+		},
+	};
+}
+
+function mapCreatedWorkOutcome(
+	created: Exclude<
+		Awaited<ReturnType<typeof createWorkInTransaction>>,
+		{ status: "committed" }
+	>
+): InstantiateWorkOutcome {
+	if (created.status === "conflict") {
+		return created;
+	}
+	if (created.status === "rejected" && created.reason === "unknown-work-type") {
+		return { reason: created.reason, status: "rejected" };
+	}
+	if (created.status === "rejected" && created.reason === "target-not-found") {
+		return { reason: created.reason, status: "rejected" };
+	}
+	if (created.status === "rejected" && created.reason === "missing-title") {
+		return { reason: "missing-name", status: "rejected" };
+	}
+	return { reason: "target-not-found", status: "rejected" };
+}
+
 async function validateDefinitionPayload(
 	tx: PrismaTransaction,
 	payload: CreateWorkTemplateCommand["payload"]
@@ -867,6 +1097,67 @@ async function writeReceipt(
 			targetId: input.template.id,
 		},
 	});
+}
+
+async function replayInstantiate(
+	tx: PrismaTransaction,
+	commandKey: string,
+	fingerprint: string
+): Promise<InstantiateWorkOutcome | null> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (!existing) {
+		return null;
+	}
+	if (existing.payloadFingerprint !== fingerprint) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const stored = storedInstantiated(existing.resultValue);
+	if (!stored) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	return {
+		selectedFieldDefaults: stored.selectedFieldDefaults,
+		status: "replayed",
+		work: stored.work,
+	};
+}
+
+async function writeInstantiateReceipt(
+	tx: PrismaTransaction,
+	input: {
+		actorId: string;
+		commandKey: string;
+		fingerprint: string;
+		selectedFieldDefaults: SelectedFieldDefaultView[];
+		work: InstantiatedWorkView["work"];
+	}
+): Promise<void> {
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: input.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey: input.commandKey,
+			committedRevision: input.work.revision,
+			id: crypto.randomUUID(),
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: input.fingerprint,
+			resultValue: JSON.stringify({
+				selectedFieldDefaults: input.selectedFieldDefaults,
+				work: input.work,
+			}),
+			targetId: input.work.id,
+		},
+	});
+}
+
+function storedInstantiated(value: string): InstantiatedWorkView | null {
+	try {
+		return instantiatedWorkViewSchema.parse(JSON.parse(value));
+	} catch {
+		return null;
+	}
 }
 
 async function lockProject(

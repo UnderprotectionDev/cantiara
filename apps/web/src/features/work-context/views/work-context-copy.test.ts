@@ -44,6 +44,8 @@ const DASHBOARD_PATTERN = /dashboard|readiness score|wsjf|free query/i;
 
 test("English prepared section names and Add Context match the PRD table", () => {
 	expect(WORK_CONTEXT_COPY.addContext).toBe("Add Context");
+	expect(WORK_CONTEXT_COPY.hide).toBe("Hide");
+	expect(WORK_CONTEXT_COPY.addCustomSection).toBe("Add custom section");
 	expect(WORK_CONTEXT_COPY.problemOpportunity).toBe("Problem/Opportunity");
 	expect(JSON.stringify(WORK_CONTEXT_COPY)).not.toMatch(DASHBOARD_PATTERN);
 	for (const workType of WORK_TYPES) {
@@ -96,4 +98,24 @@ test("Why am I doing this work? and empty visible sections stay English and unga
 	});
 	expect(opened.effects.completenessScore).toBe(false);
 	expect(opened.writes.contextRecord).toBe(false);
+});
+
+test("Copy Context as Markdown is English and does not mint a snapshot record", () => {
+	expect(WORK_CONTEXT_COPY.copyContextAsMarkdown).toBe(
+		"Copy Context as Markdown"
+	);
+	expect(WORK_CONTEXT_COPY.primarySourceIsInTheApp).toBe(
+		"Primary source is in the app"
+	);
+	const card = presentWorkContextCard({
+		starterConfiguration: "Blank Project",
+		workType: "Bug",
+	});
+	expect(card.copyContext.label).toBe("Copy Context as Markdown");
+	expect(card.copyContext.writes).toEqual({
+		contextRecord: false,
+		relation: false,
+		shareObject: false,
+		snapshot: false,
+	});
 });

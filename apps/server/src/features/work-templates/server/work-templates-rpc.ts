@@ -8,6 +8,7 @@ import { getProject } from "../../project-shell/server/project-shell";
 import {
 	createWorkTemplate,
 	duplicateWork,
+	instantiateWorkFromTemplate,
 	listWorkTemplates,
 	previewDuplicateWork,
 	previewWorkTemplateDates,
@@ -17,6 +18,7 @@ import {
 import {
 	createWorkTemplatePayloadSchema,
 	duplicateWorkPayloadSchema,
+	instantiateWorkFromTemplatePayloadSchema,
 	previewDuplicateWorkInputSchema,
 	previewRelativeDatesInputSchema,
 	trashWorkTemplatePayloadSchema,
@@ -78,6 +80,32 @@ export const workTemplates = {
 			await requireProject(access.workspaceId, row.projectId);
 			return await duplicateWork(getPrismaClient(), {
 				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	instantiate: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: instantiateWorkFromTemplatePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const row = await getPrismaClient().workTemplate.findUnique({
+				select: { projectId: true },
+				where: { id: input.payload.templateId },
+			});
+			if (!row) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, row.projectId);
+			return await instantiateWorkFromTemplate(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				payload: input.payload,

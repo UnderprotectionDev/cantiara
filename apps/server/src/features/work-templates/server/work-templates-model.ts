@@ -7,7 +7,8 @@ import {
 import {
 	lightChecklistItemSchema,
 	WORK_TYPES,
-	type workViewSchema,
+	type WorkView,
+	workViewSchema,
 } from "../../work-lifecycle/server/work-lifecycle-model";
 
 export const WORK_TEMPLATE_COPY = {
@@ -15,6 +16,7 @@ export const WORK_TEMPLATE_COPY = {
 	addWorkTemplate: "Add Work Template",
 	checklist: "Checklist",
 	createDay: "Create day",
+	createFromTemplate: "Create from template",
 	daysFromCreate: "Days from create",
 	description: "Description",
 	documentPlaceholderRefused:
@@ -139,6 +141,30 @@ export type TrashWorkTemplateCommand = z.infer<
 	typeof trashWorkTemplateCommandSchema
 >;
 
+export const instantiateWorkFromTemplatePayloadSchema = z
+	.object({
+		createDay: z.string().optional(),
+		templateId: z.string().min(1),
+		title: z.string().optional(),
+	})
+	.passthrough();
+
+export type InstantiateWorkFromTemplatePayload = z.infer<
+	typeof instantiateWorkFromTemplatePayloadSchema
+>;
+
+export const instantiateWorkFromTemplateCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: instantiateWorkFromTemplatePayloadSchema,
+});
+
+export type InstantiateWorkFromTemplateCommand = z.infer<
+	typeof instantiateWorkFromTemplateCommandSchema
+>;
+
 export const workTemplateViewSchema = z.object({
 	descriptionSkeleton: z.string().nullable(),
 	id: z.string().min(1),
@@ -257,9 +283,30 @@ export const WORK_TEMPLATE_REJECTION_REASONS = [
 export type WorkTemplateRejectionReason =
 	(typeof WORK_TEMPLATE_REJECTION_REASONS)[number];
 
+export const instantiatedWorkViewSchema = z.object({
+	selectedFieldDefaults: z.array(selectedFieldDefaultViewSchema),
+	work: workViewSchema,
+});
+
+export type InstantiatedWorkView = z.infer<typeof instantiatedWorkViewSchema>;
+
 export type WorkTemplateOutcome =
 	| { status: "committed"; template: WorkTemplateView }
 	| { status: "replayed"; template: WorkTemplateView }
+	| { conflict: string; status: "conflict" }
+	| { reason: WorkTemplateRejectionReason; status: "rejected" };
+
+export type InstantiateWorkOutcome =
+	| {
+			selectedFieldDefaults: SelectedFieldDefaultView[];
+			status: "committed";
+			work: WorkView;
+	  }
+	| {
+			selectedFieldDefaults: SelectedFieldDefaultView[];
+			status: "replayed";
+			work: WorkView;
+	  }
 	| { conflict: string; status: "conflict" }
 	| { reason: WorkTemplateRejectionReason; status: "rejected" };
 
@@ -275,12 +322,12 @@ export type DuplicateWorkOutcome =
 	| {
 			status: "committed";
 			templateCreated: false;
-			work: z.infer<typeof workViewSchema>;
+			work: WorkView;
 	  }
 	| {
 			status: "replayed";
 			templateCreated: false;
-			work: z.infer<typeof workViewSchema>;
+			work: WorkView;
 	  }
 	| { conflict: string; status: "conflict" }
 	| { reason: WorkTemplateRejectionReason; status: "rejected" };

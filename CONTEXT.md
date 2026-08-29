@@ -141,7 +141,7 @@ Bir Projede yapılması, araştırılması veya iyileştirilmesi amaçlanan şey
 _Avoid_: Görev, ticket, yalnız yapılacak madde
 
 **Şablon**:
-Bir Projede tekrar kullanılan İş başlangıç bağlamı; tür, açıklama iskeleti, seçili alan varsayılanları, hafif kontrol listesi ve isteğe bağlı göreli planlanan başlangıç/hedef tarihi kuralları taşır. Üretilen İş bağımsız kimlik alır; şablon geçmiş, ilişki, kapanış sonucu, mevcut durum veya mutlak tarih taşımaz ([iş öğesi şablonları](docs/prd/06-work-management-and-planning.md#iş-öğesi-şablonları-ve-tek-seferlik-kopyalama)). UI: `Work Template`.
+Bir Projede tekrar kullanılan İş başlangıç bağlamı; tür, açıklama iskeleti, seçili alan varsayılanları, hafif kontrol listesi ve isteğe bağlı göreli planlanan başlangıç/hedef tarihi kuralları taşır. Üretilen İş bağımsız kimlik alır; şablon geçmiş, ilişki, kapanış sonucu, mevcut durum veya mutlak tarih taşımaz ([iş öğesi şablonları](docs/prd/06-work-management-and-planning.md#iş-öğesi-şablonları-ve-tek-seferlik-kopyalama)). UI: `Work Template`. Şablondan İş açma eylemi UI: `Create from template`; şablona canlı bağ veya zorunlu workflow kapısı değildir.
 _Avoid_: live-bound fleet, marketplace, workflow gate, Project fork, Belge şablonu, Başlangıç yapılandırması, Yakalama mini şablonu
 
 **Tek seferlik kopya**:
@@ -191,6 +191,18 @@ _Avoid_: ikinci doğruluk kaynağı, özet paragrafı, Bağlam kaydı
 **Bağlam ekle**:
 Gizli hazır İş Bağlam Kartı bölümünü aşamalı açan eylem; oluşturma veya durum geçişi kapısı değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Add Context`.
 _Avoid_: zorunlu alan, durum kapısı, dashboard widget
+
+**Bağlamı Markdown kopyala**:
+İş Bağlam Kartının canlı bağlamını panoya okunabilir Markdown olarak aktaran eylem; yeni kayıt, kalıcı snapshot veya paylaşım nesnesi değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Copy Context as Markdown`.
+_Avoid_: kart snapshot'ı, paylaşım kapsamı, ikinci doğruluk kaynağı
+
+**Ana kaynak uygulamadadır**:
+Kopyalanan Markdown'ın asıl kaydın uygulamada kaldığını belirten not; dış snapshot veya paylaşım izni değildir. UI: `Primary source is in the app`.
+_Avoid_: dış doğruluk kaynağı, paylaşım şablonu
+
+**Özel bölüm ekle**:
+Yalnız desteklenen kayıt türü, doğrudan ilişki veya Kanıt Rolü ve durum koşuluyla adlandırılmış İş Bağlam Kartı bölümü kurma; serbest sorgu değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Add custom section`.
+_Avoid_: serbest sorgu, formül, grafik, dashboard widget
 
 **Başlangıç yapılandırması**:
 Yeni Projeye örnek içerik üretmeden yapı ve sunum varsayılanlarını bir kez uygulayan [kurulum seçimi](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları); çalışma sırası veya durum geçişi kapısı oluşturmaz.

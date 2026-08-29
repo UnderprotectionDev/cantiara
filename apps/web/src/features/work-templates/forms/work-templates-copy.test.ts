@@ -20,7 +20,7 @@ test("English Work Template copy is not a Document, Starter, or capture surface"
 	expect(JSON.stringify(WORK_TEMPLATE_COPY)).not.toMatch(
 		OTHER_TEMPLATE_SURFACES
 	);
-	expect(WORK_TEMPLATE_COPY).not.toHaveProperty("createFromTemplate");
+	expect(WORK_TEMPLATE_COPY.createFromTemplate).toBe("Create from template");
 	expect(WORK_TEMPLATE_COPY.duplicateWork).toBe("Duplicate Work");
 	expect(WORK_TEMPLATE_COPY.fieldsToCopy).toBe("Fields to copy");
 });

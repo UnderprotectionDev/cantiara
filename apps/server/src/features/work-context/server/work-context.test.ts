@@ -9,7 +9,10 @@ import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createProject } from "../../project-shell/server/project-shell";
+import {
+	copyProjectStructure,
+	createProject,
+} from "../../project-shell/server/project-shell";
 import { STARTER_CONFIGURATIONS } from "../../project-shell/server/project-shell-model";
 import { createRelation } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
@@ -21,11 +24,19 @@ import {
 } from "../../work-lifecycle/server/work-lifecycle";
 import { WORK_TYPES } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
+	copyWorkContextAsMarkdown,
 	loadWorkContextCard,
+	loadWorkContextCopy,
 	presentWorkContextCard,
 	revealPreparedSection,
 } from "./work-context";
-import { WORK_CONTEXT_COPY } from "./work-context-model";
+import {
+	applyWorkContextLayout,
+	getWorkContextCardLayout,
+	previewWorkContextLayoutChange,
+	undoWorkContextLayout,
+} from "./work-context-layout";
+import { defaultLayoutSections, WORK_CONTEXT_COPY } from "./work-context-model";
 
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
@@ -63,6 +74,7 @@ const PREPARED_BY_TYPE = {
 } as const;
 
 const DASHBOARD_PATTERN = /dashboard|readiness score|wsjf|free query/i;
+const COPY_RESULT_PATTERN = /Checkout|card result/i;
 
 describe("Work Context Card", () => {
 	it("uses the same prepared layout for each Work type in every Starter Configuration", () => {
@@ -240,6 +252,163 @@ describe("Work Context Card", () => {
 		expect(card.whyChain.steps.every((step) => !step.opensWorkSurface)).toBe(
 			true
 		);
+	});
+
+	it("copies live context as Markdown without a snapshot record", () => {
+		const copy = copyWorkContextAsMarkdown({
+			activeBlockers: [
+				{
+					kind: "Work",
+					sourceId: "PAY-2",
+					visibleName: "Auth token refresh",
+				},
+			],
+			checklist: [
+				{ completed: true, title: "Write the failing test" },
+				{ completed: false, title: "Ship the fix" },
+			],
+			description: "Empty cart fails checkout",
+			githubAndExternal: [
+				{
+					href: "https://github.com/example/pay/pull/88",
+					kind: "GitHub PR",
+					sourceId: "pr-1",
+					visibleName: "PR 88",
+				},
+			],
+			key: "PAY-1",
+			primarySpec: {
+				kind: "Document",
+				sourceId: "spec-1",
+				visibleName: "Checkout spec",
+			},
+			producedAt: "2026-08-29T20:06:00.000Z",
+			relatedUncertainty: [
+				{
+					kind: "Decision",
+					sourceId: "dec-1",
+					visibleName: "Use hosted pay",
+				},
+				{
+					kind: "Risk",
+					sourceId: "risk-1",
+					visibleName: "PCI scope",
+				},
+				{
+					kind: "Open Question",
+					sourceId: "q-1",
+					visibleName: "Who owns retries?",
+				},
+			],
+			status: "In Progress",
+			title: "Checkout",
+			type: "Feature",
+			whyChain: [
+				{
+					role: "Project Goal",
+					sourceId: "goal-1",
+					visibleName: "Launch checkout",
+				},
+				{
+					role: "Primary spec",
+					sourceId: "spec-1",
+					visibleName: "Checkout spec",
+				},
+			],
+		});
+		expect(copy.writes).toEqual({
+			contextRecord: false,
+			relation: false,
+			shareObject: false,
+			snapshot: false,
+		});
+		expect(copy.widensAccess).toBe(false);
+		expect(copy.markdown).toBe(
+			[
+				"# PAY-1 Checkout",
+				"",
+				"- Key: PAY-1",
+				"- Title: Checkout",
+				"- Type: Feature",
+				"- Status: In Progress",
+				"- Description: Empty cart fails checkout",
+				"",
+				"## Why am I doing this work?",
+				"- Project Goal: Launch checkout (`goal-1`)",
+				"- Primary spec: Checkout spec (`spec-1`)",
+				"",
+				"## Checklist",
+				"- [x] Write the failing test",
+				"- [ ] Ship the fix",
+				"",
+				"## Primary spec",
+				"- Checkout spec (`spec-1`)",
+				"",
+				"## Related Decision, Risk, and Open Question",
+				"- Decision: Use hosted pay (`dec-1`)",
+				"- Risk: PCI scope (`risk-1`)",
+				"- Open Question: Who owns retries? (`q-1`)",
+				"",
+				"## Active blockers",
+				"- Work: Auth token refresh (`PAY-2`)",
+				"",
+				"## GitHub and external links",
+				"- GitHub PR: PR 88 (`pr-1`) https://github.com/example/pay/pull/88",
+				"",
+				"Produced at: 2026-08-29T20:06:00.000Z",
+				"",
+				"Primary source is in the app",
+				"",
+			].join("\n")
+		);
+		expect(WORK_CONTEXT_COPY.copyContextAsMarkdown).toBe(
+			"Copy Context as Markdown"
+		);
+		expect(WORK_CONTEXT_COPY.primarySourceIsInTheApp).toBe(
+			"Primary source is in the app"
+		);
+	});
+
+	it("omits secrets, inaccessible fields, and private attachment bytes from Markdown copy", () => {
+		const secret = "secret body that must not leak";
+		const copy = copyWorkContextAsMarkdown({
+			activeBlockers: [
+				{
+					kind: "Work",
+					reason: "No access",
+				},
+			],
+			checklist: [],
+			description: "Visible description",
+			githubAndExternal: [
+				{
+					kind: "File Attachment",
+					reason: "No access",
+				},
+			],
+			key: "PAY-9",
+			producedAt: "2026-08-29T20:06:00.000Z",
+			relatedUncertainty: [
+				{
+					kind: "Decision",
+					reason: "No access",
+				},
+			],
+			status: "Blocked",
+			title: "Retry",
+			type: "Bug",
+			whyChain: [
+				{
+					reason: "No access",
+					role: "Origin",
+				},
+			],
+		});
+		expect(copy.markdown).toContain("Origin: No access");
+		expect(copy.markdown).toContain("Decision: No access");
+		expect(copy.markdown).toContain("Work: No access");
+		expect(copy.markdown).not.toContain(secret);
+		expect(copy.widensAccess).toBe(false);
 	});
 
 	it("explains a broken why-chain step without leaking source content", () => {
@@ -541,5 +710,316 @@ describe("Work Context Card counterparts", () => {
 		expect(serialized).not.toContain("secret body that must not leak");
 		expect(serialized).not.toContain("Hidden title");
 		expect(card?.effects.status).toBe(false);
+		const receiptsBefore = await prisma.mutationReceipt.count();
+		const copy = await loadWorkContextCopy(prisma, {
+			producedAt: "2026-08-29T20:06:00.000Z",
+			viewerWorkspaceId: workspace.id,
+			workId: feature.work.id,
+		});
+		expect(copy?.writes.snapshot).toBe(false);
+		expect(copy?.markdown).toContain(`# ${feature.work.key} Checkout`);
+		expect(copy?.markdown).toContain("Empty cart fails checkout");
+		expect(copy?.markdown).toContain("Checkout spec");
+		expect(copy?.markdown).toContain("Primary source is in the app");
+		expect(copy?.markdown).not.toContain("secret body that must not leak");
+		expect(copy?.markdown).not.toContain("Hidden title");
+		expect(await prisma.mutationReceipt.count()).toBe(receiptsBefore);
 	}, 30_000);
 });
+
+describe("Work Context Card layout configuration", () => {
+	let prisma: PrismaClient;
+	let pool: Pool;
+
+	beforeAll(() => {
+		process.env.NODE_ENV = "test";
+	});
+
+	beforeEach(async () => {
+		pool = new Pool({ connectionString: DATABASE_URL });
+		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+		await prisma.typedRelation.deleteMany();
+		await prisma.mutationReceipt.deleteMany();
+		await prisma.workspaceShortCodeReservation.deleteMany();
+		await prisma.project.deleteMany();
+		await prisma.accountPreference.deleteMany();
+		await prisma.workspace.deleteMany();
+		await prisma.session.deleteMany();
+		await prisma.account.deleteMany();
+		await prisma.verification.deleteMany();
+		await prisma.user.deleteMany();
+	});
+
+	afterEach(async () => {
+		await prisma.$disconnect();
+		await pool.end();
+	});
+
+	it("keeps Configuration Mode layout per Project and Work type, not daily content", () => {
+		const card = presentWorkContextCard({
+			layoutSections: defaultLayoutSections("Feature").map((section) =>
+				section.name === "Target Release"
+					? { ...section, hidden: true }
+					: section
+			),
+			starterConfiguration: "Solo SaaS",
+			workType: "Feature",
+		});
+		expect(card.layout.projectScoped).toBe(true);
+		expect(card.layout.workType).toBe("Feature");
+		expect(card.addContext.remainingSections).not.toContain("Target Release");
+		expect(card.hiddenSections).toEqual([
+			{ name: "Target Release", treatedAsMissing: false },
+		]);
+		expect(card.shareScope).toEqual({
+			buildInPublic: false,
+			linkSharing: false,
+		});
+	});
+
+	it("fills a custom section only from records reachable through the closed catalog", () => {
+		const card = presentWorkContextCard({
+			layoutSections: [
+				...defaultLayoutSections("Feature"),
+				{
+					condition: {
+						evidenceRole: "Supports",
+						recordType: "Decision",
+						relationType: "Related",
+						status: "Closed",
+					},
+					hidden: false,
+					kind: "custom",
+					name: "Supported decisions",
+				},
+			],
+			relatedSources: [
+				{
+					evidenceRole: "Supports",
+					kind: "Decision",
+					other: liveSource("Decision", "dec-1", "Use hosted pay", "Closed"),
+					relationType: "Related",
+				},
+				{
+					evidenceRole: "Contradicts",
+					kind: "Decision",
+					other: liveSource("Decision", "dec-2", "Skip hosted pay", "Closed"),
+					relationType: "Related",
+				},
+				{
+					kind: "Risk",
+					other: liveSource("Risk", "risk-1", "PCI scope", "Open"),
+					relationType: "Related",
+				},
+			],
+			revealedSections: ["Supported decisions"],
+			starterConfiguration: "Blank Project",
+			workType: "Feature",
+		});
+		expect(sectionNamed(card, "Supported decisions")?.items).toEqual([
+			liveSource("Decision", "dec-1", "Use hosted pay", "Closed"),
+		]);
+		expect(card.writes).toEqual({
+			bodyCopy: false,
+			contextRecord: false,
+			relation: false,
+		});
+	});
+
+	it("previews, applies, and undoes layout without mutating Work fields", async () => {
+		const { project, user, workspace } = await seedProject(prisma);
+		const created = await createWork(prisma, {
+			actorId: user.id,
+			idempotencyKey: "layout-feature",
+			origin: "human",
+			payload: {
+				projectId: project.id,
+				title: "Checkout",
+				type: "Feature",
+			},
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected Feature");
+		}
+		await prisma.work.update({
+			data: { description: "Empty cart fails checkout" },
+			where: { id: created.work.id },
+		});
+		const second = await createWork(prisma, {
+			actorId: user.id,
+			idempotencyKey: "layout-feature-2",
+			origin: "human",
+			payload: {
+				projectId: project.id,
+				title: "Refunds",
+				type: "Feature",
+			},
+		});
+		if (second.status !== "committed") {
+			throw new Error("expected second Feature");
+		}
+		const hiddenTarget = defaultLayoutSections("Feature").map((section) =>
+			section.name === "Target Release" ? { ...section, hidden: true } : section
+		);
+		const preview = previewWorkContextLayoutChange(
+			defaultLayoutSections("Feature"),
+			hiddenTarget,
+			"Feature"
+		);
+		expect(preview.affectedWorkTypes).toEqual(["Feature"]);
+		expect(preview.sectionDiff.hidden).toEqual(["Target Release"]);
+		expect(preview.copy.impactPreview).toBe("Impact preview");
+		const applied = await applyWorkContextLayout(prisma, {
+			actorId: user.id,
+			idempotencyKey: "hide-target",
+			payload: {
+				projectId: project.id,
+				sections: hiddenTarget,
+				workType: "Feature",
+			},
+		});
+		expect(applied.status).toBe("committed");
+		if (applied.status !== "committed") {
+			throw new Error("expected layout apply");
+		}
+		expect(applied.layout.revision).toBe(1);
+		const firstCard = await loadWorkContextCard(prisma, {
+			viewerWorkspaceId: workspace.id,
+			workId: created.work.id,
+		});
+		const secondCard = await loadWorkContextCard(prisma, {
+			viewerWorkspaceId: workspace.id,
+			workId: second.work.id,
+		});
+		expect(firstCard?.addContext.remainingSections).not.toContain(
+			"Target Release"
+		);
+		expect(secondCard?.addContext.remainingSections).not.toContain(
+			"Target Release"
+		);
+		expect(firstCard?.hiddenSections[0]?.treatedAsMissing).toBe(false);
+		const rejected = await applyWorkContextLayout(prisma, {
+			actorId: user.id,
+			idempotencyKey: "free-query",
+			payload: {
+				projectId: project.id,
+				query: "SELECT * FROM work",
+				sections: hiddenTarget,
+				workType: "Feature",
+			},
+		});
+		expect(rejected).toEqual({
+			reason: "free-query-not-allowed",
+			status: "rejected",
+		});
+		const undone = await undoWorkContextLayout(prisma, {
+			actorId: user.id,
+			idempotencyKey: "undo-layout",
+			projectId: project.id,
+			workType: "Feature",
+		});
+		expect(undone.status).toBe("committed");
+		const restored = await loadWorkContextCard(prisma, {
+			revealedSections: ["Problem/Opportunity"],
+			viewerWorkspaceId: workspace.id,
+			workId: created.work.id,
+		});
+		expect(restored?.addContext.remainingSections).toContain("Target Release");
+		expect(
+			sectionNamed(restored ?? firstCard, "Problem/Opportunity")?.items[0]
+				?.visibleName
+		).toBe("Empty cart fails checkout");
+		const work = await prisma.work.findUnique({
+			where: { id: created.work.id },
+		});
+		expect(work?.description).toBe("Empty cart fails checkout");
+		expect(work?.title).toBe("Checkout");
+	}, 30_000);
+
+	it("copies layout as independent versioned configuration without Work or card results", async () => {
+		const { project, user, workspace } = await seedProject(prisma);
+		const custom = [
+			...defaultLayoutSections("Bug"),
+			{
+				condition: { recordType: "Decision" as const },
+				hidden: false,
+				kind: "custom" as const,
+				name: "Linked decisions",
+			},
+		];
+		const applied = await applyWorkContextLayout(prisma, {
+			actorId: user.id,
+			idempotencyKey: "bug-layout",
+			payload: {
+				projectId: project.id,
+				sections: custom,
+				workType: "Bug",
+			},
+		});
+		expect(applied.status).toBe("committed");
+		const copied = await copyProjectStructure(prisma, {
+			actorId: user.id,
+			idempotencyKey: "copy-layout",
+			origin: "human",
+			payload: {
+				name: "North",
+				sourceProjectId: project.id,
+			},
+			workspaceId: workspace.id,
+		});
+		expect(copied.status).toBe("committed");
+		if (copied.status !== "committed") {
+			throw new Error("expected copy");
+		}
+		expect(copied.project.workContextCardLayouts).toEqual([
+			{ revision: 1, workType: "Bug" },
+		]);
+		expect(copied.project.id).not.toBe(project.id);
+		const sourceLayout = await getWorkContextCardLayout(
+			prisma,
+			project.id,
+			"Bug"
+		);
+		const targetLayout = await getWorkContextCardLayout(
+			prisma,
+			copied.project.id,
+			"Bug"
+		);
+		expect(targetLayout.sections).toEqual(custom);
+		expect(targetLayout.revision).toBe(1);
+		expect(sourceLayout.projectId).not.toBe(targetLayout.projectId);
+		expect(JSON.stringify(copied.project)).not.toMatch(COPY_RESULT_PATTERN);
+	}, 30_000);
+});
+
+async function seedProject(prisma: PrismaClient) {
+	const user = await prisma.user.create({
+		data: {
+			email: `founder-${crypto.randomUUID()}@example.com`,
+			emailVerified: true,
+			id: crypto.randomUUID(),
+			name: "Founder",
+		},
+	});
+	const workspace = await prisma.workspace.create({
+		data: {
+			id: crypto.randomUUID(),
+			name: "Workspace",
+			ownerId: user.id,
+		},
+	});
+	const createdProject = await createProject(prisma, {
+		actorId: user.id,
+		idempotencyKey: "create-layout-project",
+		origin: "human",
+		payload: {
+			name: "Payments",
+			starterConfiguration: "Solo SaaS",
+		},
+		workspaceId: workspace.id,
+	});
+	if (createdProject.status !== "committed") {
+		throw new Error("expected committed Project");
+	}
+	return { project: createdProject.project, user, workspace };
+}

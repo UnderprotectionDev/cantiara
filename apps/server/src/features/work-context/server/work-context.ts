@@ -1,3 +1,4 @@
+import { listWorkBlockers } from "../../blockers/server/blockers";
 import { getProject } from "../../project-shell/server/project-shell";
 import type { StarterConfiguration } from "../../project-shell/server/project-shell-model";
 import {
@@ -11,8 +12,13 @@ import {
 	getWorkScope,
 } from "../../work-lifecycle/server/work-lifecycle";
 import type { WorkType } from "../../work-lifecycle/server/work-lifecycle-model";
+import { getWorkContextCardLayout } from "./work-context-layout";
 import {
+	type CopyContextSource,
+	type CopyWorkContextInput,
+	defaultLayoutSections,
 	INITIALLY_VISIBLE_FIELDS,
+	type LayoutSection,
 	type LiveSource,
 	PREPARED_LAYOUTS,
 	type PreparedSection,
@@ -23,6 +29,7 @@ import {
 	type WhyChainStep,
 	WORK_CONTEXT_COPY,
 	type WorkContextCardView,
+	type WorkContextCopyView,
 } from "./work-context-model";
 
 const OWN_FIELD_SECTION: Record<WorkType, PreparedSection> = {
@@ -66,16 +73,39 @@ export function presentWorkContextCard(
 	const preparedSections = [
 		...PREPARED_LAYOUTS[input.workType],
 	] as PreparedSection[];
+	const layoutSections = [
+		...(input.layoutSections ?? defaultLayoutSections(input.workType)),
+	];
+	const shown = layoutSections.filter((section) => !section.hidden);
+	const hiddenSections = layoutSections
+		.filter((section) => section.hidden)
+		.map((section) => ({
+			name: section.name,
+			treatedAsMissing: false as const,
+		}));
 	const revealed = new Set(input.revealedSections ?? []);
-	const visiblePreparedSections = preparedSections.filter((section) =>
-		revealed.has(section)
+	const visibleLayoutSections = shown.filter((section) =>
+		revealed.has(section.name)
 	);
+	const visiblePreparedSections = visibleLayoutSections
+		.filter((section) => section.kind === "prepared")
+		.map((section) => section.name) as PreparedSection[];
 	return {
 		addContext: {
 			label: WORK_CONTEXT_COPY.addContext,
-			remainingSections: preparedSections.filter(
-				(section) => !revealed.has(section)
-			),
+			remainingSections: shown
+				.filter((section) => !revealed.has(section.name))
+				.map((section) => section.name),
+		},
+		configuredSections: layoutSections,
+		copyContext: {
+			label: WORK_CONTEXT_COPY.copyContextAsMarkdown,
+			writes: {
+				contextRecord: false,
+				relation: false,
+				shareObject: false,
+				snapshot: false,
+			},
 		},
 		effects: {
 			close: false,
@@ -90,12 +120,22 @@ export function presentWorkContextCard(
 			create: false,
 			statusTransition: false,
 		},
+		hiddenSections,
 		initiallyVisibleFields: INITIALLY_VISIBLE_FIELDS,
+		layout: {
+			projectScoped: true,
+			revision: input.layoutRevision ?? 1,
+			workType: input.workType,
+		},
 		preparedSections,
+		shareScope: {
+			buildInPublic: false,
+			linkSharing: false,
+		},
 		starterConfiguration: input.starterConfiguration,
 		visiblePreparedSections,
-		visibleSections: visiblePreparedSections.map((name) =>
-			presentVisibleSection(name, input)
+		visibleSections: visibleLayoutSections.map((section) =>
+			presentVisibleSection(section, input)
 		),
 		whyChain: presentWhyChain(input),
 		workType: input.workType,
@@ -115,10 +155,222 @@ export function revealPreparedSection(
 		return card;
 	}
 	return presentWorkContextCard({
-		revealedSections: [...card.visiblePreparedSections, section],
+		layoutRevision: card.layout.revision,
+		layoutSections: card.configuredSections,
+		revealedSections: [
+			...card.visibleSections.map((item) => item.name),
+			section,
+		],
 		starterConfiguration: card.starterConfiguration,
 		workType: card.workType,
 	});
+}
+
+const COPY_NO_WRITES = {
+	contextRecord: false,
+	relation: false,
+	shareObject: false,
+	snapshot: false,
+} as const;
+
+const UNCERTAINTY_KIND: Record<string, string> = {
+	Decision: "Decision",
+	Question: "Open Question",
+	Risk: "Risk",
+};
+
+const EXTERNAL_KINDS = new Set(["GitHub PR", "Source"]);
+
+export function copyWorkContextAsMarkdown(
+	input: CopyWorkContextInput
+): WorkContextCopyView {
+	const why = (input.whyChain ?? []).map((item) =>
+		formatCopySource(item, item.role)
+	);
+	const checklist = (input.checklist ?? []).map(
+		(item) => `- [${item.completed ? "x" : " "}] ${item.title}`
+	);
+	const spec = input.primarySpec
+		? [formatCopySource(input.primarySpec, null)]
+		: [];
+	const uncertainty = (input.relatedUncertainty ?? []).map((item) =>
+		formatCopySource(item, item.kind)
+	);
+	const blockers = (input.activeBlockers ?? []).map((item) =>
+		formatCopySource(item, item.kind)
+	);
+	const links = (input.githubAndExternal ?? []).map((item) =>
+		formatCopySource(item, item.kind)
+	);
+	const markdown = [
+		`# ${input.key} ${input.title}`,
+		"",
+		`- ${WORK_CONTEXT_COPY.key}: ${input.key}`,
+		`- ${WORK_CONTEXT_COPY.title}: ${input.title}`,
+		`- ${WORK_CONTEXT_COPY.type}: ${input.type}`,
+		`- ${WORK_CONTEXT_COPY.status}: ${input.status}`,
+		`- ${WORK_CONTEXT_COPY.description}: ${input.description ?? ""}`,
+		"",
+		`## ${WORK_CONTEXT_COPY.whyAmIDoingThisWork}`,
+		...orEmpty(why),
+		"",
+		`## ${WORK_CONTEXT_COPY.checklist}`,
+		...orEmpty(checklist),
+		"",
+		`## ${WORK_CONTEXT_COPY.primarySpec}`,
+		...orEmpty(spec),
+		"",
+		`## ${WORK_CONTEXT_COPY.relatedUncertainty}`,
+		...orEmpty(uncertainty),
+		"",
+		`## ${WORK_CONTEXT_COPY.activeBlockers}`,
+		...orEmpty(blockers),
+		"",
+		`## ${WORK_CONTEXT_COPY.githubAndExternal}`,
+		...orEmpty(links),
+		"",
+		`${WORK_CONTEXT_COPY.producedAt}: ${input.producedAt}`,
+		"",
+		WORK_CONTEXT_COPY.primarySourceIsInTheApp,
+		"",
+	].join("\n");
+	return {
+		markdown,
+		producedAt: input.producedAt,
+		widensAccess: false,
+		writes: COPY_NO_WRITES,
+	};
+}
+
+function orEmpty(lines: string[]): string[] {
+	return lines.length > 0 ? lines : [`- ${WORK_CONTEXT_COPY.emptySection}`];
+}
+
+function formatCopySource(
+	item: CopyContextSource,
+	label?: string | null
+): string {
+	const heading = label === null ? "" : (label ?? item.kind ?? item.role ?? "");
+	if (item.reason && !item.visibleName) {
+		return heading.length > 0
+			? `- ${heading}: ${item.reason}`
+			: `- ${item.reason}`;
+	}
+	const id = item.sourceId ? ` (\`${item.sourceId}\`)` : "";
+	const href = item.href ? ` ${item.href}` : "";
+	const visible = item.visibleName ?? item.reason ?? "";
+	return heading.length > 0
+		? `- ${heading}: ${visible}${id}${href}`
+		: `- ${visible}${id}${href}`;
+}
+
+export async function loadWorkContextCopy(
+	prisma: Parameters<typeof getWork>[0],
+	query: {
+		producedAt?: string;
+		viewerWorkspaceId: string;
+		workId: string;
+	}
+): Promise<WorkContextCopyView | null> {
+	const work = await getWork(prisma, query.workId);
+	if (!work) {
+		return null;
+	}
+	const card = await loadWorkContextCard(prisma, {
+		viewerWorkspaceId: query.viewerWorkspaceId,
+		workId: query.workId,
+	});
+	if (!card) {
+		return null;
+	}
+	const relations = await listRelations(prisma, {
+		record: { id: work.id, kind: "Work" },
+		viewerWorkspaceId: query.viewerWorkspaceId,
+	});
+	const relatedUncertainty: CopyContextSource[] = [];
+	const githubAndExternal: CopyContextSource[] = [];
+	for (const relation of relations) {
+		const other = otherEnd(relation, work.id);
+		const live = liveSourceFromEnd(other);
+		const uncertaintyKind = UNCERTAINTY_KIND[other.kind];
+		if (uncertaintyKind) {
+			relatedUncertainty.push(copySourceFromLive(live, uncertaintyKind));
+		}
+		if (EXTERNAL_KINDS.has(other.kind)) {
+			githubAndExternal.push(copySourceFromLive(live, other.kind));
+		}
+	}
+	const blockers = await listWorkBlockers(prisma, work.id);
+	const activeBlockers = await Promise.all(
+		blockers.relations.map((relation) =>
+			resolveBlockerSource(prisma, relation.source)
+		)
+	);
+	const primaryStep = card.whyChain.steps.find(
+		(step) => step.role === WHY_CHAIN_ROLES.primarySpec
+	);
+	return copyWorkContextAsMarkdown({
+		activeBlockers,
+		checklist: work.lightChecklist.map((item) => ({
+			completed: item.completed,
+			title: item.title,
+		})),
+		description: work.description,
+		githubAndExternal,
+		key: work.key,
+		primarySpec: primaryStep
+			? {
+					kind: "Document",
+					reason: primaryStep.reason,
+					sourceId: primaryStep.sourceId,
+					visibleName: primaryStep.visibleName,
+				}
+			: null,
+		producedAt: query.producedAt ?? new Date().toISOString(),
+		relatedUncertainty,
+		status: work.status,
+		title: work.title,
+		type: work.type,
+		whyChain: card.whyChain.steps.map((step) => ({
+			reason: step.reason,
+			role: step.role,
+			sourceId: step.sourceId,
+			visibleName: step.visibleName,
+		})),
+	});
+}
+
+function copySourceFromLive(live: LiveSource, kind: string): CopyContextSource {
+	if (live.status === "broken") {
+		return {
+			kind,
+			reason: live.reason,
+			visibleName: live.visibleName,
+		};
+	}
+	return {
+		kind,
+		sourceId: live.sourceId,
+		visibleName: live.visibleName,
+	};
+}
+
+async function resolveBlockerSource(
+	prisma: Parameters<typeof getWork>[0],
+	source: { id: string; kind: string }
+): Promise<CopyContextSource> {
+	if (source.kind === "Work") {
+		const work = await getWork(prisma, source.id);
+		if (!work) {
+			return { kind: "Work", reason: RELATIONS_COPY.noAccess };
+		}
+		return {
+			kind: "Work",
+			sourceId: work.key,
+			visibleName: work.title,
+		};
+	}
+	return { kind: source.kind, sourceId: source.id };
 }
 
 export async function loadWorkContextCard(
@@ -186,6 +438,11 @@ export async function loadWorkContextCard(
 	const includedIn = scope?.includedIn
 		? await getWork(prisma, scope.includedIn.id)
 		: null;
+	const layout = await getWorkContextCardLayout(
+		prisma,
+		work.projectId,
+		work.type as WorkType
+	);
 	return presentWorkContextCard({
 		description: work.description,
 		includedWork: (scope?.includedWork ?? []).map((item) => ({
@@ -197,6 +454,8 @@ export async function loadWorkContextCard(
 			status: "live",
 			visibleName: item.title,
 		})),
+		layoutRevision: layout.revision,
+		layoutSections: layout.sections,
 		originResearch,
 		primaryFeature: includedIn
 			? {
@@ -283,9 +542,31 @@ function toWhyStep(
 }
 
 function presentVisibleSection(
-	name: PreparedSection,
+	section: LayoutSection,
 	input: PresentWorkContextCardInput
 ): VisibleSectionView {
+	const { name } = section;
+	const items =
+		section.kind === "custom"
+			? customSectionItems(section, input)
+			: preparedSectionItems(name, input);
+	const empty = items.length === 0;
+	const add = ADD_SECTIONS.has(name);
+	return {
+		action: add
+			? { kind: "add", label: WORK_CONTEXT_COPY.add }
+			: { kind: "link", label: WORK_CONTEXT_COPY.link },
+		empty,
+		emptyState: empty ? WORK_CONTEXT_COPY.emptySection : null,
+		items,
+		name,
+	};
+}
+
+function preparedSectionItems(
+	name: string,
+	input: PresentWorkContextCardInput
+): LiveSource[] {
 	const items: LiveSource[] = [];
 	const ownField = OWN_FIELD_SECTION[input.workType];
 	if (
@@ -331,17 +612,7 @@ function presentVisibleSection(
 			items.push(related.other);
 		}
 	}
-	const empty = items.length === 0;
-	const add = ADD_SECTIONS.has(name);
-	return {
-		action: add
-			? { kind: "add", label: WORK_CONTEXT_COPY.add }
-			: { kind: "link", label: WORK_CONTEXT_COPY.link },
-		empty,
-		emptyState: empty ? WORK_CONTEXT_COPY.emptySection : null,
-		items,
-		name,
-	};
+	return items;
 }
 
 export function sectionForRelated(
@@ -401,6 +672,116 @@ export function sectionForRelated(
 		return pick(WORK_CONTEXT_COPY.sourcesAndEvidence);
 	}
 	return null;
+}
+
+function customSectionItems(
+	section: LayoutSection,
+	input: PresentWorkContextCardInput
+): LiveSource[] {
+	const { condition } = section;
+	if (!condition) {
+		return [];
+	}
+	const items: LiveSource[] = [];
+	if (
+		matchesSpecialSource(
+			condition.recordType,
+			"Project Goal",
+			input.projectGoal
+		)
+	) {
+		items.push(input.projectGoal as LiveSource);
+	}
+	if (
+		matchesSpecialSource(condition.recordType, "Research", input.originResearch)
+	) {
+		items.push(input.originResearch as LiveSource);
+	}
+	if (
+		matchesSpecialSource(condition.recordType, "Feature", input.primaryFeature)
+	) {
+		items.push(input.primaryFeature as LiveSource);
+	}
+	if (
+		matchesSpecialSource(
+			condition.recordType,
+			"Primary spec",
+			input.primarySpec
+		)
+	) {
+		items.push(input.primarySpec as LiveSource);
+	}
+	for (const related of input.relatedSources ?? []) {
+		if (relatedMatchesCondition(related, condition)) {
+			items.push(related.other);
+		}
+	}
+	return items.filter(
+		(item) =>
+			condition.status === undefined ||
+			item.status !== "live" ||
+			item.recordStatus === condition.status
+	);
+}
+
+function matchesSpecialSource(
+	recordType: string | undefined,
+	wanted: string,
+	source: LiveSource | null | undefined
+): source is LiveSource {
+	return recordType === wanted && source !== null && source !== undefined;
+}
+
+function relatedMatchesCondition(
+	related: RelatedLiveSource,
+	condition: NonNullable<LayoutSection["condition"]>
+): boolean {
+	if (
+		condition.recordType !== undefined &&
+		catalogKind(related.kind) !== condition.recordType
+	) {
+		return false;
+	}
+	if (
+		condition.relationType !== undefined &&
+		!relationMatches(related.relationType, condition.relationType)
+	) {
+		return false;
+	}
+	if (condition.evidenceRole !== undefined) {
+		const role = related.evidenceRole ?? "Unspecified";
+		if (role !== condition.evidenceRole) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function catalogKind(kind: string): string {
+	if (kind === "Question") {
+		return "Open Question";
+	}
+	if (kind === "GitHub PR") {
+		return "GitHub PR/check";
+	}
+	return kind;
+}
+
+function relationMatches(actual: string, wanted: string): boolean {
+	if (actual === wanted) {
+		return true;
+	}
+	const pairs: Record<string, string> = {
+		"Blocked by": RELATIONS_COPY.blocks,
+		Blocks: RELATIONS_COPY.blockedBy,
+		Derived: RELATIONS_COPY.origin,
+		Evidence: RELATIONS_COPY.providesEvidence,
+		"Included in": RELATIONS_COPY.includes,
+		Includes: RELATIONS_COPY.includedIn,
+		Origin: RELATIONS_COPY.derived,
+		"Provides evidence": RELATIONS_COPY.evidence,
+	};
+	return pairs[wanted] === actual;
 }
 
 function otherEnd(relation: PresentedRelation, workId: string): PresentedEnd {

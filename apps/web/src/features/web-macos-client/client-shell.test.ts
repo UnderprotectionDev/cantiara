@@ -294,6 +294,22 @@ test("a Prisma unknown originWork include stays secret-free and still says Data 
 	expect(presented.supportReference).toBe("CANT-25F768C5");
 });
 
+test("a Prisma unknown resolvedAt argument stays secret-free and still says Data was not written", () => {
+	const prismaWriteFailure = new Error(
+		"Unknown argument `resolvedAt`. Available options are marked with ?."
+	);
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(prismaWriteFailure, undefined, {
+			trackingId: "CANT-66D71CA0",
+		})
+	);
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.staleGeneratedClient);
+	expect(presented.reason).not.toContain("resolvedAt");
+	expect(presented.writeOutcome).toBe("Data was not written.");
+	expect(presented.supportReference).toBe("CANT-66D71CA0");
+});
+
 test("a Prisma unknown markingMarks argument stays secret-free and still says Data was not written", () => {
 	const prismaWriteFailure = new Error(
 		"Unknown argument `markingMarks`. Available options are marked with ?."
