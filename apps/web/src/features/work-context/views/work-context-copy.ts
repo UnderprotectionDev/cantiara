@@ -5,6 +5,7 @@ export const WORK_CONTEXT_COPY = {
 	add: "Add",
 	addContext: "Add Context",
 	affectedReleases: "Affected Releases",
+	copyContextAsMarkdown: "Copy Context as Markdown",
 	currentSituation: "Current Situation",
 	decisions: "Decisions",
 	dependencies: "Dependencies",
@@ -19,6 +20,7 @@ export const WORK_CONTEXT_COPY = {
 	observedExpectedBehavior: "Observed/Expected Behavior",
 	openSourceRecord: "Open source record",
 	planning: "Planning",
+	primarySourceIsInTheApp: "Primary source is in the app",
 	problemOpportunity: "Problem/Opportunity",
 	relatedWork: "Related Work",
 	researchQuestion: "Research Question",
@@ -80,6 +82,15 @@ export interface WorkContextCardView {
 	addContext: {
 		label: typeof WORK_CONTEXT_COPY.addContext;
 		remainingSections: PreparedSection[];
+	};
+	copyContext: {
+		label: typeof WORK_CONTEXT_COPY.copyContextAsMarkdown;
+		writes: {
+			contextRecord: false;
+			relation: false;
+			shareObject: false;
+			snapshot: false;
+		};
 	};
 	effects: {
 		close: false;
@@ -161,6 +172,15 @@ export function presentWorkContextCard(input: {
 			remainingSections: preparedSections.filter(
 				(section) => !revealed.has(section)
 			),
+		},
+		copyContext: {
+			label: WORK_CONTEXT_COPY.copyContextAsMarkdown,
+			writes: {
+				contextRecord: false,
+				relation: false,
+				shareObject: false,
+				snapshot: false,
+			},
 		},
 		effects: {
 			close: false,

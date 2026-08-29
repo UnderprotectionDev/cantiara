@@ -184,6 +184,14 @@ _Avoid_: ikinci doğruluk kaynağı, özet paragrafı, Bağlam kaydı
 Gizli hazır İş Bağlam Kartı bölümünü aşamalı açan eylem; oluşturma veya durum geçişi kapısı değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Add Context`.
 _Avoid_: zorunlu alan, durum kapısı, dashboard widget
 
+**Bağlamı Markdown kopyala**:
+İş Bağlam Kartının canlı bağlamını panoya okunabilir Markdown olarak aktaran eylem; yeni kayıt, kalıcı snapshot veya paylaşım nesnesi değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Copy Context as Markdown`.
+_Avoid_: kart snapshot'ı, paylaşım kapsamı, ikinci doğruluk kaynağı
+
+**Ana kaynak uygulamadadır**:
+Kopyalanan Markdown'ın asıl kaydın uygulamada kaldığını belirten not; dış snapshot veya paylaşım izni değildir. UI: `Primary source is in the app`.
+_Avoid_: dış doğruluk kaynağı, paylaşım şablonu
+
 **Başlangıç yapılandırması**:
 Yeni Projeye örnek içerik üretmeden yapı ve sunum varsayılanlarını bir kez uygulayan [kurulum seçimi](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları); çalışma sırası veya durum geçişi kapısı oluşturmaz.
 _Avoid_: Örnek Proje, içerik şablonu, zorunlu workflow, ürün türü

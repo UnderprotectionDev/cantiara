@@ -106,6 +106,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Henüz bir şey yok | `Nothing here yet.` | Yapılandırılmış görünür boş İş Bağlam Kartı bölümünün tarafsız boş durumu; sağlık veya tamlık skoru değildir |
 | Ekle | `Add` | Görünür boş bölümde desteklenen kaynak alanı ekleme eylemi; Bağlam kaydı üretmez |
 | İlişkilendir | `Link` | Görünür boş bölümde desteklenen doğrudan ilişki eylemi; kartın kendisi ilişki yazmaz |
+| Bağlamı Markdown kopyala | `Copy Context as Markdown` | İş Bağlam Kartı bağlamını panoya okunabilir Markdown olarak aktarma; kayıt veya kalıcı snapshot üretmez |
+| Ana kaynak uygulamadadır | `Primary source is in the app` | Kopyalanan Markdown'ın asıl kaydın uygulamada kaldığını belirten not |
 | Problem/Fırsat | `Problem/Opportunity` | Feature hazır İş Bağlam Kartı bölümü |
 | Beklenen sonuç | `Expected Outcome` | Feature ve Improvement hazır İş Bağlam Kartı bölümü |
 | Kanıt ve kararlar | `Evidence & Decisions` | Feature hazır İş Bağlam Kartı bölümü |

@@ -5,6 +5,7 @@ export const WORK_CONTEXT_COPY = {
 	add: "Add",
 	addContext: "Add Context",
 	affectedReleases: "Affected Releases",
+	copyContextAsMarkdown: "Copy Context as Markdown",
 	currentSituation: "Current Situation",
 	decisions: "Decisions",
 	dependencies: "Dependencies",
@@ -19,6 +20,7 @@ export const WORK_CONTEXT_COPY = {
 	observedExpectedBehavior: "Observed/Expected Behavior",
 	openSourceRecord: "Open source record",
 	planning: "Planning",
+	primarySourceIsInTheApp: "Primary source is in the app",
 	problemOpportunity: "Problem/Opportunity",
 	relatedWork: "Related Work",
 	researchQuestion: "Research Question",
@@ -135,6 +137,15 @@ export interface WorkContextCardView {
 		label: typeof WORK_CONTEXT_COPY.addContext;
 		remainingSections: PreparedSection[];
 	};
+	copyContext: {
+		label: typeof WORK_CONTEXT_COPY.copyContextAsMarkdown;
+		writes: {
+			contextRecord: false;
+			relation: false;
+			shareObject: false;
+			snapshot: false;
+		};
+	};
 	effects: {
 		close: false;
 		completenessScore: false;
@@ -164,6 +175,45 @@ export interface WorkContextCardView {
 		bodyCopy: false;
 		contextRecord: false;
 		relation: false;
+	};
+}
+
+export interface CopyContextSource {
+	href?: string;
+	kind?: string;
+	reason?: string;
+	role?: string;
+	sourceId?: string;
+	visibleName?: string;
+}
+
+export interface CopyWorkContextInput {
+	activeBlockers?: readonly CopyContextSource[];
+	attachmentBytes?: string;
+	checklist?: ReadonlyArray<{ completed: boolean; title: string }>;
+	description?: string | null;
+	githubAndExternal?: readonly CopyContextSource[];
+	inaccessibleFields?: Record<string, string>;
+	key: string;
+	primarySpec?: CopyContextSource | null;
+	producedAt: string;
+	relatedUncertainty?: readonly CopyContextSource[];
+	secrets?: Record<string, unknown>;
+	status: string;
+	title: string;
+	type: string;
+	whyChain?: readonly CopyContextSource[];
+}
+
+export interface WorkContextCopyView {
+	markdown: string;
+	producedAt: string;
+	widensAccess: false;
+	writes: {
+		contextRecord: false;
+		relation: false;
+		shareObject: false;
+		snapshot: false;
 	};
 }
 

@@ -21,7 +21,9 @@ import {
 } from "../../work-lifecycle/server/work-lifecycle";
 import { WORK_TYPES } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
+	copyWorkContextAsMarkdown,
 	loadWorkContextCard,
+	loadWorkContextCopy,
 	presentWorkContextCard,
 	revealPreparedSection,
 } from "./work-context";
@@ -240,6 +242,169 @@ describe("Work Context Card", () => {
 		expect(card.whyChain.steps.every((step) => !step.opensWorkSurface)).toBe(
 			true
 		);
+	});
+
+	it("copies live context as Markdown without a snapshot record", () => {
+		const copy = copyWorkContextAsMarkdown({
+			activeBlockers: [
+				{
+					kind: "Work",
+					sourceId: "PAY-2",
+					visibleName: "Auth token refresh",
+				},
+			],
+			checklist: [
+				{ completed: true, title: "Write the failing test" },
+				{ completed: false, title: "Ship the fix" },
+			],
+			description: "Empty cart fails checkout",
+			githubAndExternal: [
+				{
+					href: "https://github.com/example/pay/pull/88",
+					kind: "GitHub PR",
+					sourceId: "pr-1",
+					visibleName: "PR 88",
+				},
+			],
+			key: "PAY-1",
+			primarySpec: {
+				kind: "Document",
+				sourceId: "spec-1",
+				visibleName: "Checkout spec",
+			},
+			producedAt: "2026-08-29T20:06:00.000Z",
+			relatedUncertainty: [
+				{
+					kind: "Decision",
+					sourceId: "dec-1",
+					visibleName: "Use hosted pay",
+				},
+				{
+					kind: "Risk",
+					sourceId: "risk-1",
+					visibleName: "PCI scope",
+				},
+				{
+					kind: "Open Question",
+					sourceId: "q-1",
+					visibleName: "Who owns retries?",
+				},
+			],
+			status: "In Progress",
+			title: "Checkout",
+			type: "Feature",
+			whyChain: [
+				{
+					role: "Project Goal",
+					sourceId: "goal-1",
+					visibleName: "Launch checkout",
+				},
+				{
+					role: "Primary spec",
+					sourceId: "spec-1",
+					visibleName: "Checkout spec",
+				},
+			],
+		});
+		expect(copy.writes).toEqual({
+			contextRecord: false,
+			relation: false,
+			shareObject: false,
+			snapshot: false,
+		});
+		expect(copy.widensAccess).toBe(false);
+		expect(copy.markdown).toBe(
+			[
+				"# PAY-1 Checkout",
+				"",
+				"- Key: PAY-1",
+				"- Title: Checkout",
+				"- Type: Feature",
+				"- Status: In Progress",
+				"- Description: Empty cart fails checkout",
+				"",
+				"## Why am I doing this work?",
+				"- Project Goal: Launch checkout (`goal-1`)",
+				"- Primary spec: Checkout spec (`spec-1`)",
+				"",
+				"## Checklist",
+				"- [x] Write the failing test",
+				"- [ ] Ship the fix",
+				"",
+				"## Primary spec",
+				"- Checkout spec (`spec-1`)",
+				"",
+				"## Related Decision, Risk, and Open Question",
+				"- Decision: Use hosted pay (`dec-1`)",
+				"- Risk: PCI scope (`risk-1`)",
+				"- Open Question: Who owns retries? (`q-1`)",
+				"",
+				"## Active blockers",
+				"- Work: Auth token refresh (`PAY-2`)",
+				"",
+				"## GitHub and external links",
+				"- GitHub PR: PR 88 (`pr-1`) https://github.com/example/pay/pull/88",
+				"",
+				"Produced at: 2026-08-29T20:06:00.000Z",
+				"",
+				"Primary source is in the app",
+				"",
+			].join("\n")
+		);
+		expect(WORK_CONTEXT_COPY.copyContextAsMarkdown).toBe(
+			"Copy Context as Markdown"
+		);
+		expect(WORK_CONTEXT_COPY.primarySourceIsInTheApp).toBe(
+			"Primary source is in the app"
+		);
+	});
+
+	it("omits secrets, inaccessible fields, and private attachment bytes from Markdown copy", () => {
+		const secret = "secret body that must not leak";
+		const attachmentBytes = "PK\u0003\u0004private-bytes";
+		const copy = copyWorkContextAsMarkdown({
+			activeBlockers: [
+				{
+					kind: "Work",
+					reason: "No access",
+				},
+			],
+			attachmentBytes,
+			checklist: [],
+			description: "Visible description",
+			githubAndExternal: [
+				{
+					kind: "File Attachment",
+					reason: "No access",
+				},
+			],
+			inaccessibleFields: { apiToken: secret },
+			key: "PAY-9",
+			producedAt: "2026-08-29T20:06:00.000Z",
+			relatedUncertainty: [
+				{
+					kind: "Decision",
+					reason: "No access",
+				},
+			],
+			secrets: { [secret]: true },
+			status: "Blocked",
+			title: "Retry",
+			type: "Bug",
+			whyChain: [
+				{
+					reason: "No access",
+					role: "Origin",
+				},
+			],
+		});
+		expect(copy.markdown).toContain("Origin: No access");
+		expect(copy.markdown).toContain("Decision: No access");
+		expect(copy.markdown).toContain("Work: No access");
+		expect(copy.markdown).not.toContain(secret);
+		expect(copy.markdown).not.toContain(attachmentBytes);
+		expect(copy.markdown).not.toContain("apiToken");
+		expect(copy.widensAccess).toBe(false);
 	});
 
 	it("explains a broken why-chain step without leaking source content", () => {
@@ -541,5 +706,19 @@ describe("Work Context Card counterparts", () => {
 		expect(serialized).not.toContain("secret body that must not leak");
 		expect(serialized).not.toContain("Hidden title");
 		expect(card?.effects.status).toBe(false);
+		const receiptsBefore = await prisma.mutationReceipt.count();
+		const copy = await loadWorkContextCopy(prisma, {
+			producedAt: "2026-08-29T20:06:00.000Z",
+			viewerWorkspaceId: workspace.id,
+			workId: feature.work.id,
+		});
+		expect(copy?.writes.snapshot).toBe(false);
+		expect(copy?.markdown).toContain(`# ${feature.work.key} Checkout`);
+		expect(copy?.markdown).toContain("Empty cart fails checkout");
+		expect(copy?.markdown).toContain("Checkout spec");
+		expect(copy?.markdown).toContain("Primary source is in the app");
+		expect(copy?.markdown).not.toContain("secret body that must not leak");
+		expect(copy?.markdown).not.toContain("Hidden title");
+		expect(await prisma.mutationReceipt.count()).toBe(receiptsBefore);
 	}, 30_000);
 });
