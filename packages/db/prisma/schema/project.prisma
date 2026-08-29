@@ -26,6 +26,8 @@ model Project {
   customFieldDefinitions          ProjectCustomFieldDefinition[]
   priorityCriterionDefinitions    ProjectPriorityCriterion[]
   fileAttachments                 FileAttachment[]
+  workContextCardLayouts          ProjectWorkContextLayout[]
+  workTemplates                   WorkTemplate[]
 
   @@index([workspaceId])
   @@map("project")

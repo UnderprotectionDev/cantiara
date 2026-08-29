@@ -106,6 +106,10 @@ _Avoid_: Yetim kaydı kopyalama, başka hedefe otomatik yönlendirme, silinmiş 
 Kapalı katalogdaki türlenmiş bağ; iki uç, yön ve anlam taşır ve kullanıcı yeni tür icat etmez; gömülü kullanım veya Kanıt bağı uzmanlığı değildir ([standart ilişki türleri](docs/prd/02-domain-model-and-lifecycle.md#standart-ilişki-türleri)). UI: `Related`.
 _Avoid_: related-pile, serbest etiket grafiği, otomatik grafik, kullanım bağı
 
+**Engeller / Engellenir**:
+İş, Karar veya Açık Soru ile bir İş arasındaki türlenmiş bekletme bağı; `Active` veya `Resolved` taşır ve Kanban sütunu, etiket veya öncelik puanı değildir ([iş bağımlılıkları ve blokajlar](docs/prd/06-work-management-and-planning.md#iş-bağımlılıkları-ve-blokajlar)). UI: `Blocks` / `Blocked by`.
+_Avoid_: Kanban sütunu olarak blokaj, tag-as-blocker, priority score, serbest ilişki türü
+
 **Kullanım bağı**:
 Gömülü canlı kart, blok veya konumun kaynak kimliğini kopyasız izleyen türetilmiş bağ; semantik ilişki, `Related` veya Kanıt bağı değildir ([kullanım bağları](docs/prd/02-domain-model-and-lifecycle.md#kullanim-baglari)).
 _Avoid_: Related, geri bağlantı, Kanıt Rolü, ilişki sayısı
@@ -136,6 +140,18 @@ _Avoid_: Kart, görünüm satırı, sahipli bileşen
 Bir Projede yapılması, araştırılması veya iyileştirilmesi amaçlanan şeyi bağımsız kimlik, durum ve geçmişle taşıyan genel ana kayıt; [İş türleri](docs/prd/02-domain-model-and-lifecycle.md#terim-sözlüğü) onun altında yaşar.
 _Avoid_: Görev, ticket, yalnız yapılacak madde
 
+**Şablon**:
+Bir Projede tekrar kullanılan İş başlangıç bağlamı; tür, açıklama iskeleti, seçili alan varsayılanları, hafif kontrol listesi ve isteğe bağlı göreli planlanan başlangıç/hedef tarihi kuralları taşır. Üretilen İş bağımsız kimlik alır; şablon geçmiş, ilişki, kapanış sonucu, mevcut durum veya mutlak tarih taşımaz ([iş öğesi şablonları](docs/prd/06-work-management-and-planning.md#iş-öğesi-şablonları-ve-tek-seferlik-kopyalama)). UI: `Work Template`. Şablondan İş açma eylemi UI: `Create from template`; şablona canlı bağ veya zorunlu workflow kapısı değildir.
+_Avoid_: live-bound fleet, marketplace, workflow gate, Project fork, Belge şablonu, Başlangıç yapılandırması, Yakalama mini şablonu
+
+**Hafif kontrol listesi**:
+İş üzerindeki, yalnız metin ve tamamlanma işareti taşıyan sahipli bileşen; bağımsız ana kayıt, İş durumu veya planlama üyeliği değildir ([Hafif iş kontrol listeleri](docs/prd/06-work-management-and-planning.md#hafif-iş-kontrol-listeleri)). UI: `Checklist`.
+_Avoid_: subtask, epic, checklist-as-Work, Test Scenario, Handoff
+
+**Kontrol listesi maddesi**:
+Hafif kontrol listesindeki metin ve tamamlanma işareti; ana kayıt, İş durumu veya planlama üyeliği değildir. UI: `Item`.
+_Avoid_: subtask, bağımsız İş, checklist-as-Work
+
 **Özellik**:
 Bir kullanıcı yeteneğini veya ürün değişikliğini temsil eden ve [başka bağımsız İşleri kapsayabilen](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı) İş türü; iç içe epic veya subtask hiyerarşisi değildir.
 _Avoid_: Epic, Proje, Kilometre Taşı
@@ -163,6 +179,26 @@ _Avoid_: İş akışı durumu, kapanış sonucu, terminal kolon
 **İş Bağlam Kartı**:
 Bir İşin kendi alanlarıyla açık doğrudan ilişkilerinden gelen bağlamı kaynaklarında canlı gösteren, [İş türüne özgü sunum düzeni](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı); içerik kopyası, bağımsız sorgu veya durum kapısı değildir.
 _Avoid_: Dashboard, ikinci İş özeti, Başlangıç yapılandırmasına göre farklı İş anlamı
+
+**Neden zinciri**:
+İş Bağlam Kartında en yakın anlamlı kaynakları görünür adlarıyla bağlayan türetilmiş zincir; yeni kayıt, ilişki veya özet metni değildir. UI: `Why am I doing this work?`.
+_Avoid_: ikinci doğruluk kaynağı, özet paragrafı, Bağlam kaydı
+
+**Bağlam ekle**:
+Gizli hazır İş Bağlam Kartı bölümünü aşamalı açan eylem; oluşturma veya durum geçişi kapısı değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Add Context`.
+_Avoid_: zorunlu alan, durum kapısı, dashboard widget
+
+**Bağlamı Markdown kopyala**:
+İş Bağlam Kartının canlı bağlamını panoya okunabilir Markdown olarak aktaran eylem; yeni kayıt, kalıcı snapshot veya paylaşım nesnesi değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Copy Context as Markdown`.
+_Avoid_: kart snapshot'ı, paylaşım kapsamı, ikinci doğruluk kaynağı
+
+**Ana kaynak uygulamadadır**:
+Kopyalanan Markdown'ın asıl kaydın uygulamada kaldığını belirten not; dış snapshot veya paylaşım izni değildir. UI: `Primary source is in the app`.
+_Avoid_: dış doğruluk kaynağı, paylaşım şablonu
+
+**Özel bölüm ekle**:
+Yalnız desteklenen kayıt türü, doğrudan ilişki veya Kanıt Rolü ve durum koşuluyla adlandırılmış İş Bağlam Kartı bölümü kurma; serbest sorgu değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Add custom section`.
+_Avoid_: serbest sorgu, formül, grafik, dashboard widget
 
 **Başlangıç yapılandırması**:
 Yeni Projeye örnek içerik üretmeden yapı ve sunum varsayılanlarını bir kez uygulayan [kurulum seçimi](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları); çalışma sırası veya durum geçişi kapısı oluşturmaz.
@@ -237,6 +273,22 @@ _Avoid_: Epic hiyerarşisi, subtask ağacı, planlama üyeliği
 **Proje genel bakışı**:
 Tek Projenin amacı, yaşamı, işi, bilgisi, belirsizliği, testi ve olaylarını kaynaklarından nötr özetleyen yüzey; otomatik sağlık skoru değildir ([Proje genel bakışı](docs/prd/04-workspace-and-projects.md#proje-genel-bakışı)). UI: `Overview`. Proje alanı değildir ve kapanmaz. Modül adları: `Purpose`, `Lifecycle`, `Goals`, `Stages`, `Milestones`, `Work`, `Documents`, `Decisions`, `Risks`, `Tests`, `Production`, `Blockers`, `Dates`, `Recent changes`.
 _Avoid_: Dashboard skoru, Çalışma Alanı genel bakışı, Manuel Proje Güncellemesi
+
+**Çalışma Alanı genel bakışı**:
+Tek Çalışma Alanının `Active Projects`, `Attention Required`, `Upcoming` ve `Recent Work` hazır modülleriyle açılan ufku; özetler kaynak kayıtlardan türetilir ve sağlık hükmü, Portfolio veya ikinci dashboard değildir ([Çalışma alanı genel bakışı](docs/prd/04-workspace-and-projects.md#çalışma-alanı-genel-bakışı)).
+_Avoid_: Workspace dashboard, Portfolio, Mission Control, Home board, Proje genel bakışı
+
+**Kişisel canlı blok**:
+Çalışma Alanı genel bakışına eklenen mevcut Belge veya adlandırılmış Akıllı Koleksiyon görünümü referansı; gövde, üyelik kuralı, serbest widget veya kopya kayıt değildir ([Çalışma alanı genel bakışı](docs/prd/04-workspace-and-projects.md#çalışma-alanı-genel-bakışı)). UI: `Add live block`.
+_Avoid_: widget, dashboard kartı, kopya Belge, sorgu bloğu
+
+**Kaydedilmiş çapraz Proje listesi**:
+Çalışma Alanı çapında Proje yaşam durumu, aşama, tarih, arşiv ve desteklenen Proje alanları gibi görünür koşullardan canlı üyelik türeten adlandırılmış görünüm; Portfolio, Program, klasör, üst Proje, Proje skoru veya Akıllı Koleksiyon değildir ([Kaydedilmiş çapraz proje listeleri](docs/prd/04-workspace-and-projects.md#kaydedilmiş-çapraz-proje-listeleri)). UI: `Saved lists`.
+_Avoid_: Portfolio, Program, Smart Collection, statik üyelik, rapor doğruluk kaynağı
+
+**Son bildirilen sağlık**:
+Son Manuel Proje Güncellemesinin tarihiyle gösterilen sağlık işareti; güncel Project health alanı, otomatik hüküm veya tarihsiz rozet değildir ([Kaydedilmiş çapraz proje listeleri](docs/prd/04-workspace-and-projects.md#kaydedilmiş-çapraz-proje-listeleri)). UI: `Last reported health`.
+_Avoid_: Project health, Mission Control, tarihsiz sağlık rozeti
 
 **Kaynak kaydı aç**:
 Ana kaydı kopyalamadan açan ortak eylem; ikinci doğruluk kaynağı veya kayıt yazması değildir ([etkileşim tutarlılığı](docs/prd/15-product-quality.md#etkilesim-tutarliligi)). UI: `Open source record`.

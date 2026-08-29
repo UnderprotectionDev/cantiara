@@ -41,6 +41,7 @@ export interface PaletteSession {
 
 export interface PaletteContext {
 	currentProjectId: string | null;
+	currentWorkKey?: string | null;
 	recordRevision?: number;
 	selectionIds: readonly string[];
 }
@@ -76,7 +77,11 @@ export interface CommandPaletteInput {
 	surface: PaletteSurface;
 }
 
-export type PaletteCommandKind = "create" | "open" | "switch-project";
+export type PaletteCommandKind =
+	| "copy-context"
+	| "create"
+	| "open"
+	| "switch-project";
 
 export interface PaletteCommandPreview {
 	scope: string;
@@ -117,7 +122,7 @@ export interface PaletteSnapshot {
 export interface PaletteRunResult {
 	reason?: typeof COMMAND_PALETTE_COPY.cantRunThisHere;
 	snapshot: PaletteSnapshot;
-	status: "committed" | "failed" | "opened" | "switched";
+	status: "committed" | "copied" | "failed" | "opened" | "switched";
 	undoLabel?: typeof MUTATION_COPY.undo;
 	wrote: boolean;
 }
@@ -146,6 +151,11 @@ const MENU_ACTIONS: readonly VisibleMenuAction[] = [
 	{
 		id: "create:work",
 		label: COMMAND_PALETTE_COPY.create,
+		shortcutHint: null,
+	},
+	{
+		id: "copy-context",
+		label: COMMAND_PALETTE_COPY.copyContextAsMarkdown,
 		shortcutHint: null,
 	},
 	{
@@ -304,6 +314,25 @@ export function createCommandPalette(
 		return text.toLowerCase().includes(needle);
 	}
 
+	function copyContextCommand(): PaletteCommand {
+		const workKey = input.context.currentWorkKey;
+		const runnable = typeof workKey === "string" && workKey.length > 0;
+		return {
+			id: "copy-context",
+			kind: "copy-context",
+			label: COMMAND_PALETTE_COPY.copyContextAsMarkdown,
+			menuCounterpartId: "copy-context",
+			preview: {
+				scope: runnable ? workKey : input.session.workspaceLabel,
+				selectionCount: runnable ? 1 : 0,
+				target: COMMAND_PALETTE_COPY.copyContextAsMarkdown,
+			},
+			reversible: false,
+			runnable,
+			shortcutHint: null,
+		};
+	}
+
 	function createCommand(): PaletteCommand {
 		const target = createTarget();
 		return {
@@ -390,6 +419,9 @@ export function createCommandPalette(
 		if (commandId === "create:work") {
 			return createCommand();
 		}
+		if (commandId === "copy-context") {
+			return copyContextCommand();
+		}
 		const switchCommand = switchCommands().find(
 			(command) => command.id === commandId
 		);
@@ -419,9 +451,11 @@ export function createCommandPalette(
 		if (input.surface !== "founder") {
 			return [];
 		}
-		const actions = [createCommand(), ...switchCommands()].filter((command) =>
-			matchesCommand(command)
-		);
+		const actions = [
+			createCommand(),
+			copyContextCommand(),
+			...switchCommands(),
+		].filter((command) => matchesCommand(command));
 		return [...actions, ...openCommands()];
 	}
 
@@ -523,6 +557,12 @@ export function createCommandPalette(
 		}
 		if (command.kind === "create") {
 			return runCreate(command);
+		}
+		if (command.kind === "copy-context") {
+			failure = null;
+			isOpen = false;
+			query = "";
+			return { snapshot: snapshot(), status: "copied", wrote: false };
 		}
 		failure = null;
 		isOpen = false;

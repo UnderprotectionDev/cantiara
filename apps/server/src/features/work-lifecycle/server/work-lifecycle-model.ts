@@ -149,8 +149,14 @@ export const workRelationSchema = z.object({
 
 export type WorkRelationView = z.infer<typeof workRelationSchema>;
 
+export const convertedWorkRefSchema = z.object({
+	id: z.string().min(1),
+	key: z.string().min(1),
+});
+
 export const lightChecklistItemSchema = z.object({
 	completed: z.boolean(),
+	convertedWork: convertedWorkRefSchema.optional(),
 	id: z.string().min(1),
 	title: z.string().min(1),
 });

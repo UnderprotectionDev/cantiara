@@ -14,6 +14,8 @@ import {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentFileAttachmentVersionModel,
 	prismaClientHasCurrentProjectModel,
+	prismaClientHasCurrentTypedRelationModel,
+	prismaClientHasCurrentWorkspaceModel,
 } from "./prisma-client-delegates";
 
 export { Prisma, PrismaClient } from "../prisma/generated/client";
@@ -22,7 +24,14 @@ export {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentFileAttachmentVersionModel,
 	prismaClientHasCurrentProjectModel,
+	prismaClientHasCurrentTypedRelationModel,
+	prismaClientHasCurrentWorkspaceModel,
+	workspaceOverviewLayoutSelect,
 } from "./prisma-client-delegates";
+export {
+	readWorkspaceOverviewLayout,
+	writeWorkspaceOverviewLayout,
+} from "./workspace-overview-layout";
 
 // Local development: route the Neon serverless driver's WebSocket transport to a
 // local proxy (see scripts/neon-local-proxy.ts) that tunnels to a local Postgres
@@ -116,6 +125,12 @@ function cachedClient(diskStamp: string): PrismaClient | undefined {
 	if (!prismaClientHasCurrentProjectModel(cached.client)) {
 		return;
 	}
+	if (!prismaClientHasCurrentWorkspaceModel(cached.client)) {
+		return;
+	}
+	if (!prismaClientHasCurrentTypedRelationModel(cached.client)) {
+		return;
+	}
 	return cached.client;
 }
 
@@ -142,7 +157,12 @@ export function getPrismaClient() {
 	const diskStamp = readGeneratedClientStamp();
 	if (process.env.NODE_ENV === "production") {
 		productionPrisma ??= createPrismaClient();
-		if (!prismaClientHasCurrentDelegates(productionPrisma)) {
+		if (
+			!(
+				prismaClientHasCurrentDelegates(productionPrisma) &&
+				prismaClientHasCurrentTypedRelationModel(productionPrisma)
+			)
+		) {
 			throw new Error(
 				"Prisma client is missing current models; restart the API after prisma generate"
 			);
@@ -155,7 +175,12 @@ export function getPrismaClient() {
 	}
 	dropCachedPrisma();
 	const client = createPrismaClient();
-	if (!prismaClientHasCurrentDelegates(client)) {
+	if (
+		!(
+			prismaClientHasCurrentDelegates(client) &&
+			prismaClientHasCurrentTypedRelationModel(client)
+		)
+	) {
 		client.$disconnect().catch(() => undefined);
 		throw new Error(
 			"Prisma client is missing current models; restart the API after prisma generate"

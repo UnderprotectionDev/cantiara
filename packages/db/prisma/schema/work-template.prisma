@@ -1,0 +1,20 @@
+model WorkTemplate {
+  id                     String    @id
+  projectId              String
+  project                Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name                   String
+  workType               String
+  descriptionSkeleton    String?
+  selectedFieldDefaults  Json      @default("[]")
+  lightChecklist         Json      @default("[]")
+  plannedStartOffsetDays Int?
+  targetDateOffsetDays   Int?
+  trashedAt              DateTime?
+  revision               Int
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([projectId, trashedAt])
+  @@map("work_template")
+}

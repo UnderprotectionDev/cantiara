@@ -13,6 +13,7 @@ import {
 	clonePriorityCriteria,
 	seedPreparedEvidenceStrength,
 } from "../../priority/server/priority";
+import { cloneWorkContextCardLayouts } from "../../work-context/server/work-context-layout";
 import {
 	ALWAYS_ON_SURFACES,
 	appliedStructureFor,
@@ -100,6 +101,7 @@ interface ProjectRow {
 	}>;
 	starterConfiguration: string;
 	targetDate: string | null;
+	workContextCardLayouts: Array<{ revision: number; workType: string }>;
 	workStatuses: Array<{
 		label: string;
 		semantic: string;
@@ -127,6 +129,10 @@ const PROJECT_STRUCTURE_INCLUDE = {
 	},
 	skeletonSelections: true,
 	stages: true,
+	workContextCardLayouts: {
+		orderBy: { workType: "asc" as const },
+		select: { revision: true, workType: true },
+	},
 	workStatuses: true,
 	workViews: true,
 } as const;
@@ -1470,6 +1476,7 @@ async function persistCopiedStructure(
 	}
 	await cloneCustomFieldDefinitions(tx, source.id, projectId);
 	await clonePriorityCriteria(tx, source.id, projectId);
+	await cloneWorkContextCardLayouts(tx, source.id, projectId);
 }
 
 async function persistSkeletonSelections(
@@ -1595,7 +1602,10 @@ function toView(row: ProjectRow): ProjectView {
 			}),
 		starterConfiguration: row.starterConfiguration,
 		targetDate: row.targetDate,
-		workContextCardLayouts: [],
+		workContextCardLayouts: row.workContextCardLayouts.map((layout) => ({
+			revision: layout.revision,
+			workType: layout.workType,
+		})),
 		workStatuses: [
 			{ label: notStarted.label, semantic: "Not Started" },
 			{ label: inProgress.label, semantic: "In Progress" },
