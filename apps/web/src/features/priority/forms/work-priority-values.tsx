@@ -91,6 +91,9 @@ export default function WorkPriorityValues({
 				input: { projectId, workId },
 			}),
 		});
+		await queryClient.invalidateQueries({
+			predicate: (query) => JSON.stringify(query.queryKey).includes(projectId),
+		});
 		recordSave();
 	}, [
 		attemptOnlineWork,

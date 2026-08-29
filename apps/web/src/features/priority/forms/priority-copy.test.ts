@@ -6,6 +6,7 @@ const SCORE_WSJF_PATTERN = /wsjf|auto-?sort|auto-?fill|single score|weighting/i;
 
 test("English priority catalog is the closed five ranks", () => {
 	expect(PRIORITY_COPY.priorityMetrics).toBe("Priority metrics");
+	expect(PRIORITY_COPY.priorityMap).toBe("Priority Map");
 	expect(PRIORITY_COPY.evidenceStrength).toBe("Evidence strength");
 	expect(PRIORITY_COPY.unevaluated).toBe("Unevaluated");
 	expect(PRIORITY_COPY.addPriorityMetric).toBe("Add priority metric");

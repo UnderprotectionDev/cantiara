@@ -8,21 +8,33 @@ import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
 	type CreatePriorityCriterionCommand,
 	createPriorityCriterionCommandSchema,
 	emptyRankExplanations,
 	isPriorityRank,
 	PRIORITY_COPY,
+	PRIORITY_RANKS,
 	type PriorityCriterionDefinitionView,
 	type PriorityCriterionOutcome,
 	type PriorityCriterionValueOutcome,
 	type PriorityCriterionValueView,
+	type PriorityMapEvidence,
+	type PriorityMapPresentation,
+	type PriorityMapPresentationOutcome,
+	type PriorityMapReadOutcome,
+	type PriorityMapView,
+	type PriorityRank,
 	priorityCriterionDefinitionSchema,
 	priorityCriterionValueSchema,
 	type RankExplanations,
+	type RelocatePriorityMapPointOutcome,
 	rankExplanationsSchema,
+	readPriorityMapInputSchema,
+	type SavePriorityMapPresentationCommand,
 	type SetPriorityCriterionValueCommand,
+	savePriorityMapPresentationCommandSchema,
 	setPriorityCriterionValueCommandSchema,
 	type TrashPriorityCriterionCommand,
 	trashPriorityCriterionCommandSchema,
@@ -139,6 +151,114 @@ export async function listWorkPriorityValues(
 	return definitions.map((definition) => {
 		const row = byCriterion.get(definition.id);
 		return toValueView(definition, workId, row ?? null);
+	});
+}
+
+export async function readPriorityMap(
+	prisma: PrismaClient,
+	input: unknown
+): Promise<PriorityMapReadOutcome> {
+	const parsed = readPriorityMapInputSchema.safeParse(input);
+	if (!parsed.success) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (parsed.data.horizontalCriterionId === parsed.data.verticalCriterionId) {
+		return { reason: "axes-not-distinct", status: "rejected" };
+	}
+	const axes = await loadAxes(prisma, parsed.data);
+	if (axes.status !== "ok") {
+		return axes;
+	}
+	const works = await prisma.work.findMany({
+		orderBy: { number: "asc" },
+		select: { id: true, key: true, title: true },
+		where: {
+			archived: false,
+			projectId: parsed.data.projectId,
+			retiredIntoId: null,
+		},
+	});
+	const values = await prisma.projectPriorityCriterionValue.findMany({
+		where: {
+			criterionId: {
+				in: [axes.horizontal.id, axes.vertical.id],
+			},
+			workId: { in: works.map((work) => work.id) },
+		},
+	});
+	const evidenceByWork = await evidenceCounts(
+		prisma,
+		works.map((work) => work.id)
+	);
+	return {
+		status: "ok",
+		view: placeOnMap(
+			works,
+			values,
+			axes.horizontal,
+			axes.vertical,
+			evidenceByWork
+		),
+	};
+}
+
+export async function savePriorityMapPresentation(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<PriorityMapPresentationOutcome> {
+	if (!isRecord(command)) {
+		return { reason: "missing-idempotency-key", status: "rejected" };
+	}
+	if (
+		typeof command.idempotencyKey !== "string" ||
+		command.idempotencyKey.length === 0
+	) {
+		return { reason: "missing-idempotency-key", status: "rejected" };
+	}
+	const parsed = savePriorityMapPresentationCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "missing-idempotency-key", status: "rejected" };
+	}
+	if (
+		parsed.data.payload.horizontalCriterionId ===
+		parsed.data.payload.verticalCriterionId
+	) {
+		return { reason: "axes-not-distinct", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		savePresentationInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function getPriorityMapPresentation(
+	prisma: PrismaClient,
+	projectId: string
+): Promise<PriorityMapPresentation | null> {
+	const row = await prisma.projectPriorityMapPresentation.findUnique({
+		where: { projectId },
+	});
+	if (!row) {
+		return null;
+	}
+	return {
+		horizontalCriterionId: row.horizontalCriterionId,
+		projectId: row.projectId,
+		verticalCriterionId: row.verticalCriterionId,
+	};
+}
+
+export function relocatePriorityMapPoint(
+	_prisma: PrismaClient,
+	_command: unknown
+): Promise<RelocatePriorityMapPointOutcome> {
+	return Promise.resolve({
+		reason: "position-is-not-order",
+		status: "rejected",
 	});
 }
 
@@ -738,6 +858,340 @@ function storedDefinition(
 function storedValue(value: string): PriorityCriterionValueView | null {
 	try {
 		return priorityCriterionValueSchema.parse(JSON.parse(value));
+	} catch {
+		return null;
+	}
+}
+
+async function loadAxes(
+	prisma: PrismaClient | PrismaTransaction,
+	input: {
+		horizontalCriterionId: string;
+		projectId: string;
+		verticalCriterionId: string;
+	}
+): Promise<
+	| {
+			horizontal: { id: string; name: string };
+			status: "ok";
+			vertical: { id: string; name: string };
+	  }
+	| { reason: "target-not-found"; status: "rejected" }
+> {
+	const rows = await prisma.projectPriorityCriterion.findMany({
+		where: {
+			enabled: true,
+			id: {
+				in: [input.horizontalCriterionId, input.verticalCriterionId],
+			},
+			projectId: input.projectId,
+			trashedAt: null,
+		},
+	});
+	const horizontal = rows.find((row) => row.id === input.horizontalCriterionId);
+	const vertical = rows.find((row) => row.id === input.verticalCriterionId);
+	if (!(horizontal && vertical)) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	return {
+		horizontal: { id: horizontal.id, name: horizontal.name },
+		status: "ok",
+		vertical: { id: vertical.id, name: vertical.name },
+	};
+}
+
+function placeOnMap(
+	works: readonly { id: string; key: string; title: string }[],
+	values: readonly {
+		criterionId: string;
+		rank: string | null;
+		workId: string;
+	}[],
+	horizontal: { id: string; name: string },
+	vertical: { id: string; name: string },
+	evidenceByWork: Map<string, PriorityMapEvidence | null>
+): PriorityMapView {
+	const plotted: PriorityMapView["plotted"] = [];
+	const unevaluated: PriorityMapView["unevaluated"] = [];
+	for (const work of works) {
+		const horizontalRank = rankFor(values, work.id, horizontal.id);
+		const verticalRank = rankFor(values, work.id, vertical.id);
+		const evidence = evidenceByWork.get(work.id) ?? null;
+		if (horizontalRank && verticalRank) {
+			plotted.push({
+				evidence,
+				horizontalRank,
+				key: work.key,
+				title: work.title,
+				verticalRank,
+				workId: work.id,
+			});
+			continue;
+		}
+		const missingAxes: Array<"horizontal" | "vertical"> = [];
+		if (!horizontalRank) {
+			missingAxes.push("horizontal");
+		}
+		if (!verticalRank) {
+			missingAxes.push("vertical");
+		}
+		unevaluated.push({
+			evidence,
+			key: work.key,
+			missingAxes,
+			title: work.title,
+			workId: work.id,
+		});
+	}
+	return {
+		horizontal,
+		plotted,
+		ranks: [...PRIORITY_RANKS],
+		unevaluated,
+		vertical,
+	};
+}
+
+function rankFor(
+	values: readonly {
+		criterionId: string;
+		rank: string | null;
+		workId: string;
+	}[],
+	workId: string,
+	criterionId: string
+): PriorityRank | null {
+	const row = values.find(
+		(value) => value.workId === workId && value.criterionId === criterionId
+	);
+	if (!(row?.rank && isPriorityRank(row.rank))) {
+		return null;
+	}
+	return row.rank;
+}
+
+async function evidenceCounts(
+	prisma: PrismaClient,
+	workIds: string[]
+): Promise<Map<string, PriorityMapEvidence | null>> {
+	const counts = new Map<string, PriorityMapEvidence | null>();
+	if (workIds.length === 0) {
+		return counts;
+	}
+	const feedbackIdsByWork = await feedbackIdsForWorks(prisma, workIds);
+	const feedbackIds = uniqueIds(feedbackIdsByWork);
+	const contactsByFeedback = await contactsForFeedback(prisma, feedbackIds);
+	const companyByContact = await companiesForContacts(
+		prisma,
+		uniqueIds(contactsByFeedback)
+	);
+	for (const workId of workIds) {
+		counts.set(
+			workId,
+			evidenceForWork(
+				feedbackIdsByWork.get(workId) ?? new Set<string>(),
+				contactsByFeedback,
+				companyByContact
+			)
+		);
+	}
+	return counts;
+}
+
+async function feedbackIdsForWorks(
+	prisma: PrismaClient,
+	workIds: string[]
+): Promise<Map<string, Set<string>>> {
+	const rows = await prisma.typedRelation.findMany({
+		where: {
+			OR: [
+				{
+					fromKind: "Feedback",
+					toId: { in: workIds },
+					toKind: "Work",
+					type: RELATIONS_COPY.evidence,
+				},
+				{
+					fromId: { in: workIds },
+					fromKind: "Work",
+					toKind: "Feedback",
+					type: RELATIONS_COPY.evidence,
+				},
+			],
+		},
+	});
+	const feedbackIdsByWork = new Map<string, Set<string>>();
+	for (const row of rows) {
+		const workId = row.toKind === "Work" ? row.toId : row.fromId;
+		const feedbackId = row.fromKind === "Feedback" ? row.fromId : row.toId;
+		const set = feedbackIdsByWork.get(workId) ?? new Set<string>();
+		set.add(feedbackId);
+		feedbackIdsByWork.set(workId, set);
+	}
+	return feedbackIdsByWork;
+}
+
+async function contactsForFeedback(
+	prisma: PrismaClient,
+	feedbackIds: string[]
+): Promise<Map<string, Set<string>>> {
+	const contactsByFeedback = new Map<string, Set<string>>();
+	if (feedbackIds.length === 0) {
+		return contactsByFeedback;
+	}
+	const rows = await prisma.typedRelation.findMany({
+		where: {
+			OR: [
+				{
+					fromId: { in: feedbackIds },
+					fromKind: "Feedback",
+					toKind: "Contact",
+					type: RELATIONS_COPY.related,
+				},
+				{
+					fromKind: "Contact",
+					toId: { in: feedbackIds },
+					toKind: "Feedback",
+					type: RELATIONS_COPY.related,
+				},
+			],
+		},
+	});
+	for (const row of rows) {
+		const feedbackId = row.fromKind === "Feedback" ? row.fromId : row.toId;
+		const contactId = row.fromKind === "Contact" ? row.fromId : row.toId;
+		const set = contactsByFeedback.get(feedbackId) ?? new Set<string>();
+		set.add(contactId);
+		contactsByFeedback.set(feedbackId, set);
+	}
+	return contactsByFeedback;
+}
+
+async function companiesForContacts(
+	prisma: PrismaClient,
+	contactIds: string[]
+): Promise<Map<string, string>> {
+	if (contactIds.length === 0) {
+		return new Map();
+	}
+	const rows = await prisma.typedRelation.findMany({
+		where: {
+			fromId: { in: contactIds },
+			fromKind: "Contact",
+			toKind: "Company",
+			type: RELATIONS_COPY.belongsToCompany,
+		},
+	});
+	return new Map(rows.map((row) => [row.fromId, row.toId]));
+}
+
+function uniqueIds(grouped: Map<string, Set<string>>): string[] {
+	return [...new Set([...grouped.values()].flatMap((set) => [...set]))];
+}
+
+function evidenceForWork(
+	feedback: Set<string>,
+	contactsByFeedback: Map<string, Set<string>>,
+	companyByContact: Map<string, string>
+): PriorityMapEvidence | null {
+	const contacts = new Set<string>();
+	const companies = new Set<string>();
+	for (const feedbackId of feedback) {
+		for (const contactId of contactsByFeedback.get(feedbackId) ?? []) {
+			contacts.add(contactId);
+			const companyId = companyByContact.get(contactId);
+			if (companyId) {
+				companies.add(companyId);
+			}
+		}
+	}
+	if (feedback.size === 0 && contacts.size === 0 && companies.size === 0) {
+		return null;
+	}
+	return {
+		feedbackCount: feedback.size,
+		uniqueCompanyCount: companies.size,
+		uniqueContactCount: contacts.size,
+	};
+}
+
+async function savePresentationInTransaction(
+	tx: PrismaTransaction,
+	command: SavePriorityMapPresentationCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<PriorityMapPresentationOutcome> {
+	const project = await tx.project.findUnique({
+		where: { id: command.payload.projectId },
+	});
+	if (!project) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const axes = await loadAxes(tx, command.payload);
+	if (axes.status !== "ok") {
+		return axes;
+	}
+	await lockProject(tx, project.id);
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (existing) {
+		if (existing.payloadFingerprint !== fingerprint) {
+			return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		}
+		const stored = storedPresentation(existing.resultValue);
+		if (!stored) {
+			return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		}
+		return { presentation: stored, status: "replayed" };
+	}
+	const presentation: PriorityMapPresentation = {
+		horizontalCriterionId: command.payload.horizontalCriterionId,
+		projectId: project.id,
+		verticalCriterionId: command.payload.verticalCriterionId,
+	};
+	await tx.projectPriorityMapPresentation.upsert({
+		create: {
+			horizontalCriterionId: presentation.horizontalCriterionId,
+			id: crypto.randomUUID(),
+			projectId: presentation.projectId,
+			revision: 1,
+			verticalCriterionId: presentation.verticalCriterionId,
+		},
+		update: {
+			horizontalCriterionId: presentation.horizontalCriterionId,
+			revision: { increment: 1 },
+			verticalCriterionId: presentation.verticalCriterionId,
+		},
+		where: { projectId: presentation.projectId },
+	});
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: command.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey,
+			committedRevision: 1,
+			id: crypto.randomUUID(),
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: fingerprint,
+			resultValue: JSON.stringify(presentation),
+			targetId: project.id,
+		},
+	});
+	return { presentation, status: "committed" };
+}
+
+function storedPresentation(value: string): PriorityMapPresentation | null {
+	try {
+		const parsed = JSON.parse(value) as PriorityMapPresentation;
+		if (
+			typeof parsed.horizontalCriterionId === "string" &&
+			typeof parsed.projectId === "string" &&
+			typeof parsed.verticalCriterionId === "string"
+		) {
+			return parsed;
+		}
+		return null;
 	} catch {
 		return null;
 	}

@@ -7,8 +7,11 @@ import { z } from "zod";
 import { getProject } from "../../project-shell/server/project-shell";
 import {
 	createPriorityCriterion,
+	getPriorityMapPresentation,
 	listPriorityCriteria,
 	listWorkPriorityValues,
+	readPriorityMap,
+	savePriorityMapPresentation,
 	setPriorityCriterionValue,
 	trashPriorityCriterion,
 	updatePriorityCriterion,
@@ -16,6 +19,8 @@ import {
 import {
 	createPriorityCriterionPayloadSchema,
 	priorityCatalog,
+	readPriorityMapInputSchema,
+	savePriorityMapPresentationPayloadSchema,
 	setPriorityCriterionValuePayloadSchema,
 	trashPriorityCriterionPayloadSchema,
 	updatePriorityCriterionPayloadSchema,
@@ -62,6 +67,40 @@ export const priority = {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
 			return await listPriorityCriteria(getPrismaClient(), input.projectId);
+		}),
+	map: protectedProcedure
+		.input(readPriorityMapInputSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await readPriorityMap(getPrismaClient(), input);
+		}),
+	presentation: protectedProcedure
+		.input(z.object({ projectId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await getPriorityMapPresentation(
+				getPrismaClient(),
+				input.projectId
+			);
+		}),
+	saveMap: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: savePriorityMapPresentationPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.payload.projectId);
+			return await savePriorityMapPresentation(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
 		}),
 	setValue: protectedWriteProcedure
 		.input(
