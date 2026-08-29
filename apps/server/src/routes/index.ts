@@ -14,6 +14,7 @@ import { clientShell } from "../features/web-macos-client/server/desktop-api-win
 import { workChecklists } from "../features/work-checklists/server/work-checklists-rpc";
 import { workDrafts } from "../features/work-drafts/server/work-drafts-rpc";
 import { workLifecycle } from "../features/work-lifecycle/server/work-lifecycle-rpc";
+import { workspaceOverviewRouter } from "../features/workspace-overview/server/workspace-overview-rpc";
 
 export const appRouter = {
 	accountAccess,
@@ -29,6 +30,7 @@ export const appRouter = {
 	workChecklists,
 	workDrafts,
 	workLifecycle,
+	workspaceOverview: workspaceOverviewRouter,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	privateData: protectedProcedure.handler(({ context }) => ({
 		message: "This is private",

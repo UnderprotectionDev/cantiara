@@ -6,6 +6,7 @@ import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
 import UsedInPanel from "@/features/relations/views/used-in-panel";
 import WorkTagPicker from "@/features/tags/views/work-tag-picker";
 import WorkChecklistPanel from "@/features/work-checklists/views/work-checklist-panel";
+import WorkContextCard from "@/features/work-context/views/work-context-card";
 
 import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
@@ -71,21 +72,14 @@ export default function WorkDetail({
 					{WORK_LIFECYCLE_COPY.close}
 				</Button>
 			</header>
-			<dl className="grid gap-1 text-sm">
-				<div className="flex gap-2">
-					<dt className="text-muted-foreground">{WORK_LIFECYCLE_COPY.type}</dt>
-					<dd>{work.type}</dd>
-				</div>
-				<div className="flex gap-2">
-					<dt className="text-muted-foreground">
-						{WORK_LIFECYCLE_COPY.status}
-					</dt>
-					<dd>
-						{work.status}
-						{work.closureResult ? ` · ${work.closureResult}` : ""}
-					</dd>
-				</div>
-				{work.retiredIdentities && work.retiredIdentities.length > 0 ? (
+			<WorkContextCard
+				key={`${work.id}:${work.type}:${work.revision}`}
+				status={work.status}
+				title={work.title}
+				type={work.type}
+			/>
+			{work.retiredIdentities && work.retiredIdentities.length > 0 ? (
+				<dl className="grid gap-1 text-sm">
 					<div className="flex gap-2">
 						<dt className="text-muted-foreground">
 							{WORK_LIFECYCLE_COPY.origin}
@@ -96,16 +90,18 @@ export default function WorkDetail({
 								.join(", ")}
 						</dd>
 					</div>
-				) : null}
-				{work.origin ? (
+				</dl>
+			) : null}
+			{work.origin ? (
+				<dl className="grid gap-1 text-sm">
 					<div className="flex gap-2">
 						<dt className="text-muted-foreground">
 							{WORK_LIFECYCLE_COPY.openSourceRecord}
 						</dt>
 						<dd className="font-mono">{work.origin.key}</dd>
 					</div>
-				) : null}
-			</dl>
+				</dl>
+			) : null}
 			{work.status === "Closed" ? (
 				<ReopenWorkForm
 					key={`${work.id}:reopen:${work.revision}`}
