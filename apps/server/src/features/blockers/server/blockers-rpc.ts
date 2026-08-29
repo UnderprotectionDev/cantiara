@@ -10,6 +10,7 @@ import {
 	addActiveBlockingRelation,
 	listWorkBlockers,
 	markBlockerResolved,
+	projectDependencies,
 	reactivateBlockingRelation,
 	removeBlockingRelation,
 } from "./blockers";
@@ -65,6 +66,15 @@ export const blockers = {
 			const access = await requireAccess(context.session.user.id);
 			await requireWork(access.workspaceId, input.workId);
 			return await listWorkBlockers(getPrismaClient(), input.workId);
+		}),
+	projectDependencies: protectedProcedure
+		.input(z.object({ workIds: z.array(z.string().min(1)) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await Promise.all(
+				input.workIds.map((workId) => requireWork(access.workspaceId, workId))
+			);
+			return await projectDependencies(getPrismaClient(), input.workIds);
 		}),
 	reactivate: protectedWriteProcedure
 		.input(

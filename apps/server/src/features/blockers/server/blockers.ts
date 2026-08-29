@@ -21,12 +21,16 @@ import {
 	type BlockerRelationState,
 	type BlockerSourceKind,
 	type BlockingRelationView,
+	type DependenciesProjection,
 	type MarkBlockerResolvedCommand,
 	markBlockerResolvedCommandSchema,
 	type ReactivateBlockingRelationCommand,
 	type RemoveBlockingRelationCommand,
 	reactivateBlockingRelationCommandSchema,
 	removeBlockingRelationCommandSchema,
+	WORK_BLOCKED_SIGNAL_ID,
+	WORK_BLOCKED_SIGNAL_SECTION,
+	type WorkBlockedSignalView,
 	type WorkBlockersView,
 	type WorkBlockersWriteOutcome,
 } from "./blockers-model";
@@ -61,6 +65,7 @@ function relationCopy() {
 function toView(
 	row: {
 		blockerState: string | null;
+		establishedAt: Date;
 		fromId: string;
 		fromKind: string;
 		id: string;
@@ -79,6 +84,7 @@ function toView(
 	return {
 		blockedWorkId: row.toId,
 		copy: relationCopy(),
+		establishedAt: row.establishedAt.toISOString(),
 		id: row.id,
 		resolutionNote: optionalNote(row.resolutionNote),
 		resolvedAt: row.resolvedAt ? row.resolvedAt.toISOString() : null,
@@ -88,6 +94,35 @@ function toView(
 		type: BLOCKERS_COPY.blocks,
 		typeLabelFrom: BLOCKERS_COPY.blocks,
 		typeLabelTo: BLOCKERS_COPY.blockedBy,
+	};
+}
+
+function asWorkBlockedSignal(
+	view: BlockingRelationView
+): WorkBlockedSignalView | null {
+	if (view.state !== BLOCKERS_COPY.active) {
+		return null;
+	}
+	return {
+		blockedWorkId: view.blockedWorkId,
+		relationId: view.id,
+		relationTime: view.establishedAt,
+		section: WORK_BLOCKED_SIGNAL_SECTION,
+		signalId: WORK_BLOCKED_SIGNAL_ID,
+		source: view.source,
+	};
+}
+
+function writeSuccess(
+	relation: BlockingRelationView,
+	status: "committed" | "replayed",
+	emit: boolean
+): WorkBlockersWriteOutcome {
+	const signal = asWorkBlockedSignal(relation);
+	return {
+		emissions: emit && signal ? [signal] : [],
+		relation,
+		status,
 	};
 }
 
@@ -152,7 +187,7 @@ async function addParsed(
 		if (!view) {
 			return { reason: "already-exists", status: "rejected" };
 		}
-		return { relation: view, status: "committed" };
+		return writeSuccess(view, "committed", false);
 	}
 	const created = await createRelation(prisma, {
 		actorId: command.actorId,
@@ -181,7 +216,7 @@ async function addParsed(
 	if (!view) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
-	return { relation: view, status: created.status };
+	return writeSuccess(view, created.status, created.status === "committed");
 }
 
 export async function listWorkBlockers(
@@ -234,6 +269,10 @@ export async function listWorkBlockers(
 			(relation) => relation.state === BLOCKERS_COPY.active
 		),
 		relations,
+		signals: relations.flatMap((relation) => {
+			const signal = asWorkBlockedSignal(relation);
+			return signal ? [signal] : [];
+		}),
 		workId,
 		workStatus: work?.status ?? "Not Started",
 	};
@@ -280,7 +319,7 @@ async function removeParsed(
 	if (deleted.status === "rejected") {
 		return { reason: deleted.reason, status: "rejected" };
 	}
-	return { relation: view, status: deleted.status };
+	return writeSuccess(view, deleted.status, false);
 }
 
 export async function markBlockerResolved(
@@ -343,7 +382,7 @@ async function mutateLifeInTransaction(
 		}
 		const stored = parseStoredView(existingReceipt.resultValue);
 		if (stored) {
-			return { relation: stored, status: "replayed" };
+			return writeSuccess(stored, "replayed", false);
 		}
 	}
 	const row = await tx.typedRelation.findUnique({
@@ -352,6 +391,7 @@ async function mutateLifeInTransaction(
 	if (!row || row.type !== RELATIONS_COPY.blocks) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
+	const previousState = row.blockerState;
 	const resolvedAt =
 		change.state === BLOCKERS_COPY.resolved ? new Date() : row.resolvedAt;
 	const resolutionNote =
@@ -384,7 +424,10 @@ async function mutateLifeInTransaction(
 			targetId: updated.id,
 		},
 	});
-	return { relation: view, status: "committed" };
+	const emit =
+		change.state === BLOCKERS_COPY.active &&
+		previousState === BLOCKERS_COPY.resolved;
+	return writeSuccess(view, "committed", emit);
 }
 
 function parseStoredView(value: string): BlockingRelationView | null {
@@ -397,4 +440,154 @@ function parseStoredView(value: string): BlockingRelationView | null {
 	} catch {
 		return null;
 	}
+}
+
+function nodeKey(kind: string, id: string): string {
+	return `${kind}:${id}`;
+}
+
+function stronglyConnectedWorkIds(
+	workIds: readonly string[],
+	edges: readonly { fromId: string; toId: string }[]
+): string[][] {
+	const nodes = [...new Set(workIds)];
+	const outgoing = new Map<string, string[]>();
+	for (const id of nodes) {
+		outgoing.set(id, []);
+	}
+	for (const edge of edges) {
+		outgoing.get(edge.fromId)?.push(edge.toId);
+	}
+	let index = 0;
+	const indices = new Map<string, number>();
+	const lowlink = new Map<string, number>();
+	const stack: string[] = [];
+	const onStack = new Set<string>();
+	const components: string[][] = [];
+
+	function strongconnect(id: string) {
+		indices.set(id, index);
+		lowlink.set(id, index);
+		index += 1;
+		stack.push(id);
+		onStack.add(id);
+		for (const next of outgoing.get(id) ?? []) {
+			if (!indices.has(next)) {
+				strongconnect(next);
+				lowlink.set(id, Math.min(lowlink.get(id) ?? 0, lowlink.get(next) ?? 0));
+			} else if (onStack.has(next)) {
+				lowlink.set(id, Math.min(lowlink.get(id) ?? 0, indices.get(next) ?? 0));
+			}
+		}
+		if (lowlink.get(id) === indices.get(id)) {
+			const component: string[] = [];
+			let current = "";
+			do {
+				current = stack.pop() ?? "";
+				onStack.delete(current);
+				component.push(current);
+			} while (current !== id);
+			components.push(component);
+		}
+	}
+
+	for (const id of nodes) {
+		if (!indices.has(id)) {
+			strongconnect(id);
+		}
+	}
+	return components;
+}
+
+export async function projectDependencies(
+	prisma: PrismaClient,
+	workIds: readonly string[]
+): Promise<DependenciesProjection> {
+	const scope = new Set(workIds);
+	const rows =
+		scope.size === 0
+			? []
+			: await prisma.typedRelation.findMany({
+					orderBy: { establishedAt: "asc" },
+					where: {
+						toId: { in: [...scope] },
+						toKind: "Work",
+						type: RELATIONS_COPY.blocks,
+					},
+				});
+	const views = rows.flatMap((row) => {
+		const view = toView(row, null);
+		return view ? [view] : [];
+	});
+	const nodes = new Map<string, DependenciesProjection["nodes"][number]>();
+	const edges: DependenciesProjection["edges"] = [];
+	const workEdges: { fromId: string; id: string; toId: string }[] = [];
+	for (const view of views) {
+		nodes.set(nodeKey(view.source.kind, view.source.id), {
+			id: view.source.id,
+			kind: view.source.kind,
+		});
+		nodes.set(nodeKey("Work", view.blockedWorkId), {
+			id: view.blockedWorkId,
+			kind: "Work",
+		});
+		edges.push({
+			direction: BLOCKERS_COPY.blocks,
+			from: view.source,
+			id: view.id,
+			state: view.state,
+			to: { id: view.blockedWorkId, kind: "Work" },
+		});
+		if (view.source.kind === "Work") {
+			workEdges.push({
+				fromId: view.source.id,
+				id: view.id,
+				toId: view.blockedWorkId,
+			});
+		}
+	}
+	const workIdsInGraph = [
+		...new Set(workEdges.flatMap((edge) => [edge.fromId, edge.toId])),
+	];
+	const cycles = stronglyConnectedWorkIds(workIdsInGraph, workEdges).flatMap(
+		(component) => {
+			const inComponent = new Set(component);
+			const relationIds = workEdges
+				.filter(
+					(edge) => inComponent.has(edge.fromId) && inComponent.has(edge.toId)
+				)
+				.map((edge) => edge.id);
+			const looping =
+				component.length > 1 ||
+				workEdges.some(
+					(edge) => edge.fromId === component[0] && edge.toId === component[0]
+				);
+			if (!looping) {
+				return [];
+			}
+			return [
+				{
+					explanation: BLOCKERS_COPY.cycle,
+					relationIds,
+					workIds: [...component].sort(),
+				},
+			];
+		}
+	);
+	return {
+		copy: {
+			active: BLOCKERS_COPY.active,
+			blockedBy: BLOCKERS_COPY.blockedBy,
+			blocks: BLOCKERS_COPY.blocks,
+			cycle: BLOCKERS_COPY.cycle,
+			dependencies: BLOCKERS_COPY.dependencies,
+			resolved: BLOCKERS_COPY.resolved,
+		},
+		cycles,
+		edges,
+		nodes: [...nodes.values()].sort((left, right) =>
+			left.id.localeCompare(right.id)
+		),
+		writable: false,
+	};
 }
