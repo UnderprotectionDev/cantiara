@@ -13,6 +13,7 @@ import { client, orpc } from "@/utils/orpc";
 import type { WorkType } from "../../work-lifecycle/forms/work-lifecycle-copy";
 
 import {
+	openPriorityFoundationsCount,
 	presentWorkContextCard,
 	WORK_CONTEXT_COPY,
 	type WorkContextCardView,
@@ -52,6 +53,7 @@ export default function WorkContextCard({
 	workId?: string;
 }) {
 	const [revealedSections, setRevealedSections] = useState<string[]>([]);
+	const [openedCountId, setOpenedCountId] = useState<string | null>(null);
 	const local = presentWorkContextCard({
 		revealedSections,
 		starterConfiguration: "Blank Project",
@@ -64,6 +66,10 @@ export default function WorkContextCard({
 		enabled: Boolean(workId),
 	});
 	const card = remote.data ?? local;
+	const foundations =
+		openedCountId === null
+			? card
+			: openPriorityFoundationsCount(card, openedCountId);
 	const values = {
 		planning: planning ?? "",
 		status,
@@ -84,6 +90,9 @@ export default function WorkContextCard({
 		},
 		[card]
 	);
+	const onToggleCount = useCallback((countId: string) => {
+		setOpenedCountId((current) => (current === countId ? null : countId));
+	}, []);
 	const onCopyContext = useCallback(() => {
 		if (!workId) {
 			return;
@@ -133,6 +142,63 @@ export default function WorkContextCard({
 						))}
 					</ol>
 				)}
+			</section>
+			<section
+				aria-label={foundations.priorityFoundations.label}
+				className="flex flex-col gap-2"
+			>
+				<h3 className="font-medium text-sm">
+					{foundations.priorityFoundations.label}
+				</h3>
+				{foundations.priorityFoundations.items.length > 0 ? (
+					<ul className="flex flex-col gap-1 text-sm">
+						{foundations.priorityFoundations.items.map((item) => (
+							<li key={`${item.kind}:${item.sourceId}`}>
+								<OpenSourceButton
+									className="text-left"
+									onOpenSourceRecord={onOpenSourceRecord}
+									sourceId={item.sourceId}
+								>
+									{item.kind} · {item.visibleName}
+									{item.archiveVisible ? ` · ${WORK_CONTEXT_COPY.archive}` : ""}
+								</OpenSourceButton>
+							</li>
+						))}
+					</ul>
+				) : null}
+				{foundations.priorityFoundations.counts.length > 0 ? (
+					<div className="flex flex-wrap gap-2">
+						{foundations.priorityFoundations.counts.map((count) => (
+							<FoundationCountButton
+								count={count}
+								key={count.id}
+								onToggle={onToggleCount}
+								opened={
+									foundations.priorityFoundations.openedCountId === count.id
+								}
+							/>
+						))}
+					</div>
+				) : null}
+				{foundations.priorityFoundations.openedSet ? (
+					<ul className="flex flex-col gap-1 text-sm">
+						{foundations.priorityFoundations.openedSet.map((item) => (
+							<li key={`opened:${item.kind}:${item.sourceId}`}>
+								<OpenSourceButton
+									className="text-left"
+									onOpenSourceRecord={onOpenSourceRecord}
+									sourceId={item.sourceId}
+								>
+									<span className="sr-only">
+										{WORK_CONTEXT_COPY.openSourceRecord}{" "}
+									</span>
+									{item.visibleName}
+									{item.archiveVisible ? ` · ${WORK_CONTEXT_COPY.archive}` : ""}
+								</OpenSourceButton>
+							</li>
+						))}
+					</ul>
+				) : null}
 			</section>
 			{card.visibleSections.map((section) => (
 				<section className="flex flex-col gap-1" key={section.name}>
@@ -197,6 +263,31 @@ export default function WorkContextCard({
 				</form>
 			) : null}
 		</section>
+	);
+}
+
+function FoundationCountButton({
+	count,
+	onToggle,
+	opened,
+}: {
+	count: WorkContextCardView["priorityFoundations"]["counts"][number];
+	onToggle: (id: string) => void;
+	opened: boolean;
+}) {
+	const onClick = useCallback(() => {
+		onToggle(count.id);
+	}, [count.id, onToggle]);
+	return (
+		<Button
+			aria-pressed={opened}
+			onClick={onClick}
+			size="sm"
+			type="button"
+			variant={opened ? "default" : "outline"}
+		>
+			{count.label} {count.value}
+		</Button>
 	);
 }
 

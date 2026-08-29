@@ -80,6 +80,8 @@ test("Why am I doing this work? and empty visible sections stay English and unga
 	expect(WORK_CONTEXT_COPY.whyAmIDoingThisWork).toBe(
 		"Why am I doing this work?"
 	);
+	expect(WORK_CONTEXT_COPY.priorityFoundations).toBe("Priority Foundations");
+	expect(WORK_CONTEXT_COPY.archive).toBe("Archive");
 	expect(WORK_CONTEXT_COPY.emptySection).toBe("Nothing here yet.");
 	expect(WORK_CONTEXT_COPY.openSourceRecord).toBe("Open source record");
 	const opened = revealPreparedSection(
@@ -98,6 +100,9 @@ test("Why am I doing this work? and empty visible sections stay English and unga
 	});
 	expect(opened.effects.completenessScore).toBe(false);
 	expect(opened.writes.contextRecord).toBe(false);
+	expect(opened.priorityFoundations.claims.numericScore).toBe(false);
+	expect(opened.priorityFoundations.claims.isPrioritizationSession).toBe(false);
+	expect(opened.priorityFoundations.claims.isBacklogOrder).toBe(false);
 });
 
 test("Copy Context as Markdown is English and does not mint a snapshot record", () => {

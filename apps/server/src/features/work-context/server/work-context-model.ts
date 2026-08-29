@@ -9,18 +9,24 @@ export const WORK_CONTEXT_COPY = {
 	addContext: "Add Context",
 	addCustomSection: "Add custom section",
 	affectedReleases: "Affected Releases",
+	archive: "Archive",
+	blocker: "Blocked by",
+	blocks: "Blocks",
 	checklist: "Checklist",
 	confirm: "Confirm",
 	copyContextAsMarkdown: "Copy Context as Markdown",
 	currentSituation: "Current Situation",
+	decision: "Decision",
 	decisions: "Decisions",
 	dependencies: "Dependencies",
 	description: "Description",
+	effort: "Effort",
 	emptySection: "Nothing here yet.",
 	evidence: "Evidence",
 	evidenceAndDecisions: "Evidence & Decisions",
 	evidenceRole: "Evidence Role",
 	expectedOutcome: "Expected Outcome",
+	feedback: "Feedback",
 	githubAndExternal: "GitHub and external links",
 	githubAndTests: "GitHub & Tests",
 	hide: "Hide",
@@ -28,28 +34,40 @@ export const WORK_CONTEXT_COPY = {
 	includedWork: "Included Work",
 	key: "Key",
 	link: "Link",
+	milestone: "Milestone",
 	moveDown: "Move down",
 	moveUp: "Move up",
 	observedExpectedBehavior: "Observed/Expected Behavior",
+	openQuestion: "Open Question",
 	openSourceRecord: "Open source record",
 	planning: "Planning",
 	primarySourceIsInTheApp: "Primary source is in the app",
 	primarySpec: "Primary spec",
+	priorityFoundations: "Priority Foundations",
+	priorityMetrics: "Priority metrics",
 	problemOpportunity: "Problem/Opportunity",
 	producedAt: "Produced at",
+	projectGoal: "Project Goal",
 	recordType: "Record type",
 	relatedUncertainty: "Related Decision, Risk, and Open Question",
 	relatedWork: "Related Work",
 	relation: "Relation",
+	research: "Research",
 	researchQuestion: "Research Question",
+	researchSession: "User Research Session",
+	risk: "Risk",
 	risksAndOpenQuestions: "Risks & Open Questions",
 	show: "Show",
+	source: "Source",
 	sourcesAndEvidence: "Sources & Evidence",
 	status: "Status",
+	targetDate: "Target date",
 	targetRelease: "Target Release",
 	title: "Title",
 	type: "Type",
 	undo: "Undo",
+	uniqueCompany: "Unique Company",
+	uniqueContact: "Unique Contact",
 	whyAmIDoingThisWork: "Why am I doing this work?",
 } as const;
 
@@ -253,15 +271,57 @@ export type LiveSource =
 			openSourceRecord: boolean;
 			opensWorkSurface: false;
 			reason: string;
+			sourceId?: string;
 			status: "broken";
 			visibleName?: string;
 	  };
 
 export interface RelatedLiveSource {
+	companyId?: string;
+	companyName?: string;
+	contactId?: string;
+	contactName?: string;
 	evidenceRole?: string;
 	kind: string;
 	other: LiveSource;
 	relationType: string;
+	workType?: WorkType;
+}
+
+export const PRIORITY_FOUNDATIONS_CLAIMS = {
+	automaticPriorityInput: false,
+	automaticRank: false,
+	countsAreDemand: false,
+	countsArePopularity: false,
+	countsAreVotes: false,
+	isBacklogOrder: false,
+	isPrioritizationSession: false,
+	numericScore: false,
+	wsjf: false,
+} as const;
+
+export interface PriorityFoundationsItem {
+	archiveVisible: boolean;
+	kind: string;
+	sourceId: string;
+	visibleName: string;
+}
+
+export interface PriorityFoundationsCount {
+	id: string;
+	kind: string;
+	label: string;
+	value: number;
+}
+
+export interface PriorityFoundationsView {
+	claims: typeof PRIORITY_FOUNDATIONS_CLAIMS;
+	countSets: Record<string, PriorityFoundationsItem[]>;
+	counts: PriorityFoundationsCount[];
+	items: PriorityFoundationsItem[];
+	label: typeof WORK_CONTEXT_COPY.priorityFoundations;
+	openedCountId: string | null;
+	openedSet: PriorityFoundationsItem[] | null;
 }
 
 export interface WhyChainStep {
@@ -320,6 +380,7 @@ export interface WorkContextCardView {
 		workType: WorkType;
 	};
 	preparedSections: PreparedSection[];
+	priorityFoundations: PriorityFoundationsView;
 	shareScope: {
 		buildInPublic: false;
 		linkSharing: false;
@@ -378,11 +439,19 @@ export interface WorkContextCopyView {
 }
 
 export interface PresentWorkContextCardInput {
+	criterionValues?: readonly {
+		name: string;
+		sourceId: string;
+		value: string;
+	}[];
+	dates?: readonly { label: string; value: string }[];
 	description?: string | null;
+	effort?: string | null;
 	expectedOutcome?: string | null;
 	includedWork?: readonly LiveSource[];
 	layoutRevision?: number;
 	layoutSections?: readonly LayoutSection[];
+	openedCountId?: string | null;
 	originResearch?: LiveSource | null;
 	primaryFeature?: LiveSource | null;
 	primarySpec?: LiveSource | null;

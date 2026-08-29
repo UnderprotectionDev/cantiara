@@ -21,8 +21,12 @@ import {
 	type LayoutSection,
 	type LiveSource,
 	PREPARED_LAYOUTS,
+	PRIORITY_FOUNDATIONS_CLAIMS,
 	type PreparedSection,
 	type PresentWorkContextCardInput,
+	type PriorityFoundationsCount,
+	type PriorityFoundationsItem,
+	type PriorityFoundationsView,
 	type RelatedLiveSource,
 	type VisibleSectionView,
 	WHY_CHAIN_ROLES,
@@ -66,6 +70,19 @@ const TEST_KINDS = new Set([
 	"Test Gap",
 	"Test Session",
 ]);
+
+interface FoundationCountSets {
+	decision: PriorityFoundationsItem[];
+	feedback: PriorityFoundationsItem[];
+	"open-question": PriorityFoundationsItem[];
+	research: PriorityFoundationsItem[];
+	risk: PriorityFoundationsItem[];
+	source: PriorityFoundationsItem[];
+	"unique-company": PriorityFoundationsItem[];
+	"unique-contact": PriorityFoundationsItem[];
+	"user-research-session": PriorityFoundationsItem[];
+	[key: string]: PriorityFoundationsItem[];
+}
 
 export function presentWorkContextCard(
 	input: PresentWorkContextCardInput
@@ -128,6 +145,7 @@ export function presentWorkContextCard(
 			workType: input.workType,
 		},
 		preparedSections,
+		priorityFoundations: presentPriorityFoundations(input),
 		shareScope: {
 			buildInPublic: false,
 			linkSharing: false,
@@ -164,6 +182,26 @@ export function revealPreparedSection(
 		starterConfiguration: card.starterConfiguration,
 		workType: card.workType,
 	});
+}
+
+export function openPriorityFoundationsCount(
+	card: WorkContextCardView,
+	countId: string
+): WorkContextCardView {
+	const count = card.priorityFoundations.counts.find(
+		(item) => item.id === countId
+	);
+	if (!count) {
+		return card;
+	}
+	return {
+		...card,
+		priorityFoundations: {
+			...card.priorityFoundations,
+			openedCountId: countId,
+			openedSet: itemsForCount(card.priorityFoundations, countId),
+		},
+	};
 }
 
 const COPY_NO_WRITES = {
@@ -405,11 +443,7 @@ export async function loadWorkContextCard(
 			other: live,
 			relationType: relation.type,
 		});
-		if (
-			relation.type === RELATIONS_COPY.origin &&
-			other.status === "resolved" &&
-			other.kind === "Work"
-		) {
+		if (relation.type === RELATIONS_COPY.origin && other.kind === "Work") {
 			originWorkIds.push(other.id);
 		}
 		if (
@@ -432,8 +466,9 @@ export async function loadWorkContextCard(
 		relatedSources.find(
 			(item) =>
 				item.relationType === RELATIONS_COPY.origin &&
-				item.other.status === "live" &&
-				researchOriginIds.has(item.other.sourceId)
+				item.other.sourceId !== undefined &&
+				researchOriginIds.has(item.other.sourceId) &&
+				isCountableSource(item.other)
 		)?.other ?? null;
 	const includedIn = scope?.includedIn
 		? await getWork(prisma, scope.includedIn.id)
@@ -674,6 +709,362 @@ export function sectionForRelated(
 	return null;
 }
 
+function presentPriorityFoundations(
+	input: PresentWorkContextCardInput
+): PriorityFoundationsView {
+	const countSets = emptyCountSets();
+	const items = collectFoundationItems(input, countSets);
+	const counts = countsFromSets(countSets);
+	return {
+		claims: PRIORITY_FOUNDATIONS_CLAIMS,
+		countSets,
+		counts,
+		items,
+		label: WORK_CONTEXT_COPY.priorityFoundations,
+		openedCountId: input.openedCountId ?? null,
+		openedSet: input.openedCountId
+			? (countSets[input.openedCountId] ?? [])
+			: null,
+	};
+}
+
+function emptyCountSets(): FoundationCountSets {
+	return {
+		decision: [],
+		feedback: [],
+		"open-question": [],
+		research: [],
+		risk: [],
+		source: [],
+		"unique-company": [],
+		"unique-contact": [],
+		"user-research-session": [],
+	};
+}
+
+function collectFoundationItems(
+	input: PresentWorkContextCardInput,
+	countSets: FoundationCountSets
+): PriorityFoundationsItem[] {
+	const items: PriorityFoundationsItem[] = [];
+	const workId = input.workId ?? "work";
+	pushCountableItem(items, input.projectGoal, WORK_CONTEXT_COPY.projectGoal);
+	for (const date of input.dates ?? []) {
+		items.push({
+			archiveVisible: false,
+			kind: date.label,
+			sourceId: workId,
+			visibleName: date.value,
+		});
+	}
+	pushIntoCount(
+		items,
+		countSets.research,
+		input.originResearch,
+		WORK_CONTEXT_COPY.research
+	);
+	collectRelatedFoundationItems(input.relatedSources ?? [], items, countSets);
+	if (typeof input.effort === "string" && input.effort.length > 0) {
+		items.push({
+			archiveVisible: false,
+			kind: WORK_CONTEXT_COPY.effort,
+			sourceId: workId,
+			visibleName: input.effort,
+		});
+	}
+	for (const criterion of input.criterionValues ?? []) {
+		items.push({
+			archiveVisible: false,
+			kind: WORK_CONTEXT_COPY.priorityMetrics,
+			sourceId: criterion.sourceId,
+			visibleName: `${criterion.name}: ${criterion.value}`,
+		});
+	}
+	return items;
+}
+
+function collectRelatedFoundationItems(
+	relatedSources: readonly RelatedLiveSource[],
+	items: PriorityFoundationsItem[],
+	countSets: FoundationCountSets
+) {
+	const contacts = new Map<string, PriorityFoundationsItem>();
+	const companies = new Map<string, PriorityFoundationsItem>();
+	for (const related of relatedSources) {
+		appendRelatedFoundation(related, items, countSets, contacts, companies);
+	}
+	countSets["unique-contact"] = [...contacts.values()];
+	countSets["unique-company"] = [...companies.values()];
+}
+
+function appendRelatedFoundation(
+	related: RelatedLiveSource,
+	items: PriorityFoundationsItem[],
+	countSets: FoundationCountSets,
+	contacts: Map<string, PriorityFoundationsItem>,
+	companies: Map<string, PriorityFoundationsItem>
+) {
+	if (!isCountableRelated(related)) {
+		return;
+	}
+	const kind = foundationKind(related);
+	if (!kind) {
+		return;
+	}
+	const item = foundationItem(related, kind);
+	if (!item) {
+		return;
+	}
+	items.push(item);
+	const countId = countIdForKind(kind);
+	const bucket = countId ? countSets[countId] : undefined;
+	if (bucket) {
+		bucket.push(item);
+	}
+	if (kind !== WORK_CONTEXT_COPY.feedback) {
+		return;
+	}
+	if (related.contactId && related.contactName) {
+		contacts.set(related.contactId, {
+			archiveVisible: item.archiveVisible,
+			kind: "Contact",
+			sourceId: related.contactId,
+			visibleName: related.contactName,
+		});
+	}
+	if (related.companyId && related.companyName) {
+		companies.set(related.companyId, {
+			archiveVisible: item.archiveVisible,
+			kind: "Company",
+			sourceId: related.companyId,
+			visibleName: related.companyName,
+		});
+	}
+}
+
+function countsFromSets(
+	countSets: FoundationCountSets
+): PriorityFoundationsCount[] {
+	const chips = [
+		countChip(
+			"source",
+			WORK_CONTEXT_COPY.source,
+			WORK_CONTEXT_COPY.source,
+			countSets.source
+		),
+		countChip(
+			"research",
+			WORK_CONTEXT_COPY.research,
+			WORK_CONTEXT_COPY.research,
+			countSets.research
+		),
+		countChip(
+			"user-research-session",
+			WORK_CONTEXT_COPY.researchSession,
+			WORK_CONTEXT_COPY.researchSession,
+			countSets["user-research-session"]
+		),
+		countChip(
+			"decision",
+			WORK_CONTEXT_COPY.decision,
+			WORK_CONTEXT_COPY.decision,
+			countSets.decision
+		),
+		countChip(
+			"risk",
+			WORK_CONTEXT_COPY.risk,
+			WORK_CONTEXT_COPY.risk,
+			countSets.risk
+		),
+		countChip(
+			"open-question",
+			WORK_CONTEXT_COPY.openQuestion,
+			WORK_CONTEXT_COPY.openQuestion,
+			countSets["open-question"]
+		),
+		countChip(
+			"feedback",
+			WORK_CONTEXT_COPY.feedback,
+			WORK_CONTEXT_COPY.feedback,
+			countSets.feedback
+		),
+		countChip(
+			"unique-contact",
+			"Contact",
+			WORK_CONTEXT_COPY.uniqueContact,
+			countSets["unique-contact"]
+		),
+	];
+	if (countSets["unique-company"].length > 0) {
+		chips.push(
+			countChip(
+				"unique-company",
+				"Company",
+				WORK_CONTEXT_COPY.uniqueCompany,
+				countSets["unique-company"]
+			)
+		);
+	}
+	return chips.filter((count) => count.value > 0);
+}
+
+function countChip(
+	id: string,
+	kind: string,
+	label: string,
+	set: PriorityFoundationsItem[]
+): PriorityFoundationsCount {
+	return {
+		id,
+		kind,
+		label,
+		value: set.length,
+	};
+}
+
+function countIdForKind(kind: string): keyof FoundationCountSets | null {
+	if (kind === WORK_CONTEXT_COPY.source) {
+		return "source";
+	}
+	if (kind === WORK_CONTEXT_COPY.research) {
+		return "research";
+	}
+	if (kind === WORK_CONTEXT_COPY.decision) {
+		return "decision";
+	}
+	if (kind === WORK_CONTEXT_COPY.risk) {
+		return "risk";
+	}
+	if (kind === WORK_CONTEXT_COPY.openQuestion) {
+		return "open-question";
+	}
+	if (kind === WORK_CONTEXT_COPY.feedback) {
+		return "feedback";
+	}
+	if (kind === WORK_CONTEXT_COPY.researchSession) {
+		return "user-research-session";
+	}
+	return null;
+}
+
+function pushIntoCount(
+	items: PriorityFoundationsItem[],
+	set: PriorityFoundationsItem[],
+	source: LiveSource | null | undefined,
+	kind: string
+) {
+	if (!(source && isCountableSource(source) && source.sourceId)) {
+		return;
+	}
+	const { sourceId, visibleName } = source;
+	if (!visibleName) {
+		return;
+	}
+	const item = {
+		archiveVisible:
+			source.status === "broken" && source.reason === RELATIONS_COPY.archived,
+		kind,
+		sourceId,
+		visibleName,
+	};
+	items.push(item);
+	set.push(item);
+}
+
+function itemsForCount(
+	foundations: PriorityFoundationsView,
+	countId: string
+): PriorityFoundationsItem[] {
+	return foundations.countSets[countId] ?? [];
+}
+
+function isCountableSource(source: LiveSource): boolean {
+	if (source.status === "live") {
+		return true;
+	}
+	return source.reason === RELATIONS_COPY.archived;
+}
+
+function isCountableRelated(related: RelatedLiveSource): boolean {
+	return isCountableSource(related.other);
+}
+
+function foundationKind(related: RelatedLiveSource): string | null {
+	if (related.relationType === RELATIONS_COPY.blocks) {
+		return WORK_CONTEXT_COPY.blocks;
+	}
+	if (related.relationType === RELATIONS_COPY.blockedBy) {
+		return WORK_CONTEXT_COPY.blocker;
+	}
+	if (related.kind === "Project Goal") {
+		return WORK_CONTEXT_COPY.projectGoal;
+	}
+	if (related.kind === "Risk") {
+		return WORK_CONTEXT_COPY.risk;
+	}
+	if (related.kind === "Milestone") {
+		return WORK_CONTEXT_COPY.milestone;
+	}
+	if (related.kind === "Feedback") {
+		return WORK_CONTEXT_COPY.feedback;
+	}
+	if (related.kind === "Decision") {
+		return WORK_CONTEXT_COPY.decision;
+	}
+	if (related.kind === "Source") {
+		return WORK_CONTEXT_COPY.source;
+	}
+	if (related.kind === "Question") {
+		return WORK_CONTEXT_COPY.openQuestion;
+	}
+	if (related.kind === "User Research Session") {
+		return WORK_CONTEXT_COPY.researchSession;
+	}
+	if (related.workType === "Research") {
+		return WORK_CONTEXT_COPY.research;
+	}
+	return null;
+}
+
+function foundationItem(
+	related: RelatedLiveSource,
+	kind: string
+): PriorityFoundationsItem | null {
+	const { sourceId, visibleName } = related.other;
+	if (!(sourceId && visibleName)) {
+		return null;
+	}
+	return {
+		archiveVisible:
+			related.other.status === "broken" &&
+			related.other.reason === RELATIONS_COPY.archived,
+		kind,
+		sourceId,
+		visibleName,
+	};
+}
+
+function pushCountableItem(
+	items: PriorityFoundationsItem[],
+	source: LiveSource | null | undefined,
+	kind: string
+) {
+	if (!(source && isCountableSource(source) && source.sourceId)) {
+		return;
+	}
+	const { sourceId, visibleName } = source;
+	if (!visibleName) {
+		return;
+	}
+	items.push({
+		archiveVisible:
+			source.status === "broken" && source.reason === RELATIONS_COPY.archived,
+		kind,
+		sourceId,
+		visibleName,
+	});
+}
+
 function customSectionItems(
 	section: LayoutSection,
 	input: PresentWorkContextCardInput
@@ -795,6 +1186,7 @@ export function liveSourceFromEnd(end: PresentedEnd): LiveSource {
 			openSourceRecord: end.openSourceRecord,
 			opensWorkSurface: false,
 			reason: end.reason,
+			sourceId: end.id,
 			status: "broken",
 			...(end.openSourceRecord && typeof end.title === "string"
 				? { visibleName: end.title }

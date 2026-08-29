@@ -7,6 +7,7 @@ export const WORK_CONTEXT_COPY = {
 	addContext: "Add Context",
 	addCustomSection: "Add custom section",
 	affectedReleases: "Affected Releases",
+	archive: "Archive",
 	checklist: "Checklist",
 	confirm: "Confirm",
 	copyContextAsMarkdown: "Copy Context as Markdown",
@@ -33,6 +34,7 @@ export const WORK_CONTEXT_COPY = {
 	planning: "Planning",
 	primarySourceIsInTheApp: "Primary source is in the app",
 	primarySpec: "Primary spec",
+	priorityFoundations: "Priority Foundations",
 	problemOpportunity: "Problem/Opportunity",
 	producedAt: "Produced at",
 	recordType: "Record type",
@@ -136,6 +138,49 @@ export interface WorkContextCardView {
 		workType: WorkType;
 	};
 	preparedSections: PreparedSection[];
+	priorityFoundations: {
+		claims: {
+			automaticPriorityInput: false;
+			automaticRank: false;
+			countsAreDemand: false;
+			countsArePopularity: false;
+			countsAreVotes: false;
+			isBacklogOrder: false;
+			isPrioritizationSession: false;
+			numericScore: false;
+			wsjf: false;
+		};
+		countSets: Record<
+			string,
+			Array<{
+				archiveVisible: boolean;
+				kind: string;
+				sourceId: string;
+				visibleName: string;
+			}>
+		>;
+		counts: Array<{
+			id: string;
+			kind: string;
+			label: string;
+			value: number;
+		}>;
+		empty: boolean;
+		items: Array<{
+			archiveVisible: boolean;
+			kind: string;
+			sourceId: string;
+			visibleName: string;
+		}>;
+		label: typeof WORK_CONTEXT_COPY.priorityFoundations;
+		openedCountId: string | null;
+		openedSet: Array<{
+			archiveVisible: boolean;
+			kind: string;
+			sourceId: string;
+			visibleName: string;
+		}> | null;
+	};
 	shareScope: {
 		buildInPublic: false;
 		linkSharing: false;
@@ -241,6 +286,26 @@ export function presentWorkContextCard(input: {
 			workType: input.workType,
 		},
 		preparedSections,
+		priorityFoundations: {
+			claims: {
+				automaticPriorityInput: false,
+				automaticRank: false,
+				countsAreDemand: false,
+				countsArePopularity: false,
+				countsAreVotes: false,
+				isBacklogOrder: false,
+				isPrioritizationSession: false,
+				numericScore: false,
+				wsjf: false,
+			},
+			countSets: {},
+			counts: [],
+			empty: true,
+			items: [],
+			label: WORK_CONTEXT_COPY.priorityFoundations,
+			openedCountId: null,
+			openedSet: null,
+		},
 		shareScope: {
 			buildInPublic: false,
 			linkSharing: false,
@@ -286,4 +351,22 @@ export function revealPreparedSection(
 		starterConfiguration: card.starterConfiguration,
 		workType: card.workType,
 	});
+}
+
+export function openPriorityFoundationsCount(
+	card: WorkContextCardView,
+	countId: string
+): WorkContextCardView {
+	const set = card.priorityFoundations.countSets[countId];
+	if (!set) {
+		return card;
+	}
+	return {
+		...card,
+		priorityFoundations: {
+			...card.priorityFoundations,
+			openedCountId: countId,
+			openedSet: set,
+		},
+	};
 }

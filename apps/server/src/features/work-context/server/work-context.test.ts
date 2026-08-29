@@ -17,6 +17,7 @@ import { STARTER_CONFIGURATIONS } from "../../project-shell/server/project-shell
 import { createRelation } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
+	archiveWork,
 	bindPrimarySpec,
 	changeWorkStatus,
 	createWork,
@@ -27,6 +28,7 @@ import {
 	copyWorkContextAsMarkdown,
 	loadWorkContextCard,
 	loadWorkContextCopy,
+	openPriorityFoundationsCount,
 	presentWorkContextCard,
 	revealPreparedSection,
 } from "./work-context";
@@ -74,6 +76,7 @@ const PREPARED_BY_TYPE = {
 } as const;
 
 const DASHBOARD_PATTERN = /dashboard|readiness score|wsjf|free query/i;
+const SCORE_KEY_PATTERN = /"score"\s*:/;
 const COPY_RESULT_PATTERN = /Checkout|card result/i;
 
 describe("Work Context Card", () => {
@@ -460,6 +463,335 @@ describe("Work Context Card", () => {
 		expect(card.effects.completenessScore).toBe(false);
 		expect(card.effects.processGate).toBe(false);
 	});
+
+	it("gathers Priority Foundations without a score, rank, or WSJF", () => {
+		const card = presentWorkContextCard({
+			criterionValues: [{ name: "Reach", sourceId: "metric-1", value: "High" }],
+			dates: [{ label: "Target date", value: "2026-09-01" }],
+			effort: "S",
+			projectGoal: liveSource(
+				"Project Goal",
+				"goal-1",
+				"Launch checkout",
+				"Project Goal"
+			),
+			relatedSources: [
+				{
+					kind: "Decision",
+					other: liveSource("Decision", "dec-1", "Use hosted pay", "Accepted"),
+					relationType: "Related",
+				},
+			],
+			starterConfiguration: "Solo SaaS",
+			workId: "work-1",
+			workType: "Feature",
+		});
+		expect(card.priorityFoundations.label).toBe("Priority Foundations");
+		expect(card.priorityFoundations.claims).toEqual({
+			automaticPriorityInput: false,
+			automaticRank: false,
+			countsAreDemand: false,
+			countsArePopularity: false,
+			countsAreVotes: false,
+			isBacklogOrder: false,
+			isPrioritizationSession: false,
+			numericScore: false,
+			wsjf: false,
+		});
+		expect(card.priorityFoundations.openedSet).toBeNull();
+		expect(card.priorityFoundations.items.map((item) => item.kind)).toEqual([
+			"Project Goal",
+			"Target date",
+			"Decision",
+			"Effort",
+			"Priority metrics",
+		]);
+		expect(JSON.stringify(card.priorityFoundations.items)).not.toMatch(
+			SCORE_KEY_PATTERN
+		);
+		expect(card.priorityFoundations).not.toHaveProperty("score");
+	});
+
+	it("opens a clickable type count onto the exact filtered set", () => {
+		const card = presentWorkContextCard({
+			originResearch: liveSource(
+				"Work",
+				"research-1",
+				"Discovery spike",
+				"Closed"
+			),
+			relatedSources: [
+				{
+					kind: "Decision",
+					other: liveSource("Decision", "dec-1", "Use hosted pay", "Accepted"),
+					relationType: "Related",
+				},
+				{
+					kind: "Decision",
+					other: liveSource("Decision", "dec-2", "Keep Stripe", "Accepted"),
+					relationType: "Related",
+				},
+				{
+					kind: "Risk",
+					other: liveSource("Risk", "risk-1", "PCI scope", "Open"),
+					relationType: "Related",
+				},
+				{
+					kind: "Source",
+					other: liveSource("Source", "src-1", "Interview notes", "Source"),
+					relationType: "Evidence",
+				},
+				{
+					kind: "Question",
+					other: liveSource("Question", "q-1", "Who owns refunds?", "Open"),
+					relationType: "Related",
+				},
+			],
+			starterConfiguration: "Solo SaaS",
+			workType: "Feature",
+		});
+		expect(card.priorityFoundations.counts).toEqual([
+			{
+				id: "source",
+				kind: "Source",
+				label: "Source",
+				value: 1,
+			},
+			{
+				id: "research",
+				kind: "Research",
+				label: "Research",
+				value: 1,
+			},
+			{
+				id: "decision",
+				kind: "Decision",
+				label: "Decision",
+				value: 2,
+			},
+			{
+				id: "risk",
+				kind: "Risk",
+				label: "Risk",
+				value: 1,
+			},
+			{
+				id: "open-question",
+				kind: "Open Question",
+				label: "Open Question",
+				value: 1,
+			},
+		]);
+		const opened = openPriorityFoundationsCount(card, "decision");
+		expect(opened.priorityFoundations.openedSet).toEqual([
+			{
+				archiveVisible: false,
+				kind: "Decision",
+				sourceId: "dec-1",
+				visibleName: "Use hosted pay",
+			},
+			{
+				archiveVisible: false,
+				kind: "Decision",
+				sourceId: "dec-2",
+				visibleName: "Keep Stripe",
+			},
+		]);
+	});
+
+	it("keeps Feedback, unique Contact, and unique Company counts separate", () => {
+		const card = presentWorkContextCard({
+			relatedSources: [
+				feedback("fb-1", "Slow checkout", "contact-1", "Ada", "co-1", "Acme"),
+				feedback("fb-2", "Crash on pay", "contact-1", "Ada", "co-1", "Acme"),
+				feedback("fb-3", "Wants guest pay", "contact-1", "Ada", "co-1", "Acme"),
+				feedback("fb-4", "Unclear error", "contact-1", "Ada", "co-1", "Acme"),
+				feedback("fb-5", "Retry loop", "contact-1", "Ada", "co-1", "Acme"),
+			],
+			starterConfiguration: "Blank Project",
+			workType: "Bug",
+		});
+		expect(
+			card.priorityFoundations.counts.filter((count) =>
+				["feedback", "unique-contact", "unique-company"].includes(count.id)
+			)
+		).toEqual([
+			{
+				id: "feedback",
+				kind: "Feedback",
+				label: "Feedback",
+				value: 5,
+			},
+			{
+				id: "unique-contact",
+				kind: "Contact",
+				label: "Unique Contact",
+				value: 1,
+			},
+			{
+				id: "unique-company",
+				kind: "Company",
+				label: "Unique Company",
+				value: 1,
+			},
+		]);
+		expect(
+			openPriorityFoundationsCount(card, "feedback").priorityFoundations
+				.openedSet
+		).toHaveLength(5);
+		expect(
+			openPriorityFoundationsCount(card, "unique-contact").priorityFoundations
+				.openedSet
+		).toEqual([
+			{
+				archiveVisible: false,
+				kind: "Contact",
+				sourceId: "contact-1",
+				visibleName: "Ada",
+			},
+		]);
+	});
+
+	it("includes Archive in counts with Archive visible and excludes Trash and permanent delete", () => {
+		const card = presentWorkContextCard({
+			relatedSources: [
+				{
+					kind: "Decision",
+					other: liveSource(
+						"Decision",
+						"dec-live",
+						"Ship hosted pay",
+						"Accepted"
+					),
+					relationType: "Related",
+				},
+				{
+					kind: "Decision",
+					other: {
+						kind: "Decision",
+						openSourceRecord: true,
+						opensWorkSurface: false,
+						reason: "Archived",
+						sourceId: "dec-archived",
+						status: "broken",
+						visibleName: "Old pay choice",
+					},
+					relationType: "Related",
+				},
+				{
+					kind: "Decision",
+					other: {
+						kind: "Decision",
+						openSourceRecord: true,
+						opensWorkSurface: false,
+						reason: "In Trash",
+						sourceId: "dec-trash",
+						status: "broken",
+						visibleName: "Trashed pay choice",
+					},
+					relationType: "Related",
+				},
+				{
+					kind: "Decision",
+					other: {
+						kind: "Decision",
+						openSourceRecord: false,
+						opensWorkSurface: false,
+						reason: "Permanently deleted",
+						sourceId: "dec-gone",
+						status: "broken",
+					},
+					relationType: "Related",
+				},
+			],
+			starterConfiguration: "Solo SaaS",
+			workType: "Feature",
+		});
+		expect(
+			card.priorityFoundations.counts.find((count) => count.id === "decision")
+		).toMatchObject({ value: 2 });
+		const opened = openPriorityFoundationsCount(card, "decision");
+		expect(opened.priorityFoundations.openedSet).toEqual([
+			{
+				archiveVisible: false,
+				kind: "Decision",
+				sourceId: "dec-live",
+				visibleName: "Ship hosted pay",
+			},
+			{
+				archiveVisible: true,
+				kind: "Decision",
+				sourceId: "dec-archived",
+				visibleName: "Old pay choice",
+			},
+		]);
+		expect(JSON.stringify(opened.priorityFoundations.openedSet)).not.toContain(
+			"Trashed pay choice"
+		);
+		expect(JSON.stringify(opened.priorityFoundations.openedSet)).not.toContain(
+			"dec-gone"
+		);
+	});
+
+	it("keeps Blocks and Blocked by, Research, and User Research Session distinct and includes an archived Project Goal", () => {
+		const card = presentWorkContextCard({
+			projectGoal: {
+				kind: "Project Goal",
+				openSourceRecord: true,
+				opensWorkSurface: false,
+				reason: "Archived",
+				sourceId: "goal-archived",
+				status: "broken",
+				visibleName: "Launch checkout",
+			},
+			relatedSources: [
+				{
+					kind: "Work",
+					other: liveSource("Work", "blocker-1", "Payments API", "In Progress"),
+					relationType: "Blocked by",
+				},
+				{
+					kind: "Work",
+					other: liveSource("Work", "blocked-1", "Receipts", "Not Started"),
+					relationType: "Blocks",
+				},
+				{
+					kind: "User Research Session",
+					other: liveSource(
+						"User Research Session",
+						"session-1",
+						"Checkout interviews",
+						"Open"
+					),
+					relationType: "Related",
+				},
+			],
+			starterConfiguration: "Solo SaaS",
+			workType: "Feature",
+		});
+		expect(card.priorityFoundations.items.map((item) => item.kind)).toEqual([
+			"Project Goal",
+			"Blocked by",
+			"Blocks",
+			"User Research Session",
+		]);
+		expect(card.priorityFoundations.items[0]).toMatchObject({
+			archiveVisible: true,
+			sourceId: "goal-archived",
+		});
+		expect(
+			card.priorityFoundations.counts.find(
+				(count) => count.id === "user-research-session"
+			)
+		).toMatchObject({
+			kind: "User Research Session",
+			label: "User Research Session",
+			value: 1,
+		});
+		expect(
+			card.priorityFoundations.counts.find((count) => count.id === "research")
+		).toBeUndefined();
+	});
 });
 
 function liveSource(
@@ -476,6 +808,25 @@ function liveSource(
 		sourceId,
 		status: "live" as const,
 		visibleName,
+	};
+}
+
+function feedback(
+	sourceId: string,
+	visibleName: string,
+	contactId: string,
+	contactName: string,
+	companyId: string,
+	companyName: string
+) {
+	return {
+		companyId,
+		companyName,
+		contactId,
+		contactName,
+		kind: "Feedback",
+		other: liveSource("Feedback", sourceId, visibleName, "Feedback"),
+		relationType: "Evidence",
 	};
 }
 
@@ -724,6 +1075,132 @@ describe("Work Context Card counterparts", () => {
 		expect(copy?.markdown).not.toContain("secret body that must not leak");
 		expect(copy?.markdown).not.toContain("Hidden title");
 		expect(await prisma.mutationReceipt.count()).toBe(receiptsBefore);
+	}, 30_000);
+
+	it("loads Priority Foundations counts from live sources and keeps Archive out of Trash", async () => {
+		const user = await prisma.user.create({
+			data: {
+				email: `founder-${crypto.randomUUID()}@example.com`,
+				emailVerified: true,
+				id: crypto.randomUUID(),
+				name: "Founder",
+			},
+		});
+		const workspace = await prisma.workspace.create({
+			data: {
+				id: crypto.randomUUID(),
+				name: "Workspace",
+				ownerId: user.id,
+			},
+		});
+		const createdProject = await createProject(prisma, {
+			actorId: user.id,
+			idempotencyKey: "create-foundations",
+			origin: "human",
+			payload: {
+				name: "Foundations",
+				starterConfiguration: "Solo SaaS",
+			},
+			workspaceId: workspace.id,
+		});
+		if (createdProject.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const feature = await createWork(prisma, {
+			actorId: user.id,
+			idempotencyKey: "create-feature-foundations",
+			origin: "human",
+			payload: {
+				projectId: createdProject.project.id,
+				title: "Checkout",
+				type: "Feature",
+			},
+		});
+		if (feature.status !== "committed") {
+			throw new Error("expected Feature");
+		}
+		const research = await createWork(prisma, {
+			actorId: user.id,
+			idempotencyKey: "create-research-foundations",
+			origin: "human",
+			payload: {
+				projectId: createdProject.project.id,
+				title: "Discovery spike",
+				type: "Research",
+			},
+		});
+		if (research.status !== "committed") {
+			throw new Error("expected Research");
+		}
+		const origin = await createRelation(prisma, {
+			actorId: user.id,
+			from: { id: research.work.id, kind: "Work" },
+			idempotencyKey: "origin-foundations",
+			origin: "human",
+			previewAcknowledged: true,
+			to: { id: feature.work.id, kind: "Work" },
+			type: RELATIONS_COPY.origin,
+			viewerWorkspaceId: workspace.id,
+		});
+		expect(origin.status).toBe("committed");
+		const trash = await createRelation(
+			prisma,
+			{
+				actorId: user.id,
+				from: { id: feature.work.id, kind: "Work" },
+				idempotencyKey: "related-trash",
+				origin: "human",
+				previewAcknowledged: true,
+				to: { id: "missing-trash", kind: "Work" },
+				type: RELATIONS_COPY.related,
+				viewerWorkspaceId: workspace.id,
+			},
+			{
+				"Work:missing-trash": {
+					reason: RELATIONS_COPY.inTrash,
+					title: "Trashed spike",
+				},
+			}
+		);
+		expect(trash.status).toBe("committed");
+		const archived = await archiveWork(prisma, {
+			actorId: user.id,
+			baseRevision: research.work.revision,
+			idempotencyKey: "archive-research",
+			origin: "human",
+			workId: research.work.id,
+		});
+		expect(archived.status).toBe("committed");
+		const card = await loadWorkContextCard(prisma, {
+			viewerWorkspaceId: workspace.id,
+			workId: feature.work.id,
+		});
+		expect(card?.priorityFoundations.claims.numericScore).toBe(false);
+		expect(card?.priorityFoundations.claims.isPrioritizationSession).toBe(
+			false
+		);
+		expect(
+			card?.priorityFoundations.counts.find((count) => count.id === "research")
+		).toMatchObject({ value: 1 });
+		const opened = openPriorityFoundationsCount(
+			card ??
+				presentWorkContextCard({
+					starterConfiguration: "Solo SaaS",
+					workType: "Feature",
+				}),
+			"research"
+		);
+		expect(opened.priorityFoundations.openedSet).toEqual([
+			{
+				archiveVisible: true,
+				kind: "Research",
+				sourceId: research.work.id,
+				visibleName: "Discovery spike",
+			},
+		]);
+		expect(JSON.stringify(opened.priorityFoundations.openedSet)).not.toContain(
+			"Trashed spike"
+		);
 	}, 30_000);
 });
 
