@@ -184,6 +184,10 @@ _Avoid_: ikinci doğruluk kaynağı, özet paragrafı, Bağlam kaydı
 Gizli hazır İş Bağlam Kartı bölümünü aşamalı açan eylem; oluşturma veya durum geçişi kapısı değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Add Context`.
 _Avoid_: zorunlu alan, durum kapısı, dashboard widget
 
+**Özel bölüm ekle**:
+Yalnız desteklenen kayıt türü, doğrudan ilişki veya Kanıt Rolü ve durum koşuluyla adlandırılmış İş Bağlam Kartı bölümü kurma; serbest sorgu değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Add custom section`.
+_Avoid_: serbest sorgu, formül, grafik, dashboard widget
+
 **Başlangıç yapılandırması**:
 Yeni Projeye örnek içerik üretmeden yapı ve sunum varsayılanlarını bir kez uygulayan [kurulum seçimi](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları); çalışma sırası veya durum geçişi kapısı oluşturmaz.
 _Avoid_: Örnek Proje, içerik şablonu, zorunlu workflow, ürün türü

@@ -346,7 +346,12 @@ export default function WorkContextLayoutEditor({
 				</section>
 			) : null}
 			<div className="flex flex-wrap gap-2">
-				<Button onClick={onConfirm} size="sm" type="button">
+				<Button
+					disabled={draft === null}
+					onClick={onConfirm}
+					size="sm"
+					type="button"
+				>
 					{WORK_CONTEXT_COPY.confirm}
 				</Button>
 				<Button onClick={onUndo} size="sm" type="button" variant="outline">

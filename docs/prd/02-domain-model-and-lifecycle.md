@@ -105,6 +105,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Göster | `Show` | Yapılandırma modunda gizlenen İş Bağlam Kartı bölümünü yeniden gösterme |
 | Kanıt Rolü | `Evidence Role` | Kanıt ilişkisinin kapalı rolü; İş Bağlam Kartı özel bölüm koşuludur |
 | Kayıt türü | `Record type` | İş Bağlam Kartı özel bölümünün kapalı kayıt türü koşulu |
+| İlişki | `Relation` | İş Bağlam Kartı özel bölümünün kapalı doğrudan ilişki koşulu; serbest ilişki türü değildir |
 | Onayla | `Confirm` | İş Bağlam Kartı düzen farkını sürümlü yapılandırma geçmişine yazma |
 | Bağlam ekle | `Add Context` | Gizli hazır İş Bağlam Kartı bölümünü aşamalı açma; oluşturma veya durum kapısı değildir |
 | Neden bu işi yapıyorum? | `Why am I doing this work?` | İş Bağlam Kartında en yakın anlamlı kaynakları görünür adlarıyla bağlayan türetilmiş neden zinciri; yeni kayıt veya ilişki değildir |
