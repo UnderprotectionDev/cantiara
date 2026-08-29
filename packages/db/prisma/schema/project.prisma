@@ -25,6 +25,7 @@ model Project {
   workKeyCounter                  ProjectWorkKeyCounter?
   customFieldDefinitions          ProjectCustomFieldDefinition[]
   fileAttachments                 FileAttachment[]
+  workTemplates                   WorkTemplate[]
 
   @@index([workspaceId])
   @@map("project")
