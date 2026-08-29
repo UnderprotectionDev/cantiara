@@ -168,6 +168,10 @@ _Avoid_: İş akışı durumu, kapanış sonucu, terminal kolon
 Bir İşin kendi alanlarıyla açık doğrudan ilişkilerinden gelen bağlamı kaynaklarında canlı gösteren, [İş türüne özgü sunum düzeni](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı); içerik kopyası, bağımsız sorgu veya durum kapısı değildir.
 _Avoid_: Dashboard, ikinci İş özeti, Başlangıç yapılandırmasına göre farklı İş anlamı
 
+**Bağlam ekle**:
+Gizli hazır İş Bağlam Kartı bölümünü aşamalı açan eylem; oluşturma veya durum geçişi kapısı değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Add Context`.
+_Avoid_: zorunlu alan, durum kapısı, dashboard widget
+
 **Başlangıç yapılandırması**:
 Yeni Projeye örnek içerik üretmeden yapı ve sunum varsayılanlarını bir kez uygulayan [kurulum seçimi](docs/prd/04-workspace-and-projects.md#görüşlü-başlangıç-yapılandırmaları); çalışma sırası veya durum geçişi kapısı oluşturmaz.
 _Avoid_: Örnek Proje, içerik şablonu, zorunlu workflow, ürün türü
@@ -241,6 +245,14 @@ _Avoid_: Epic hiyerarşisi, subtask ağacı, planlama üyeliği
 **Proje genel bakışı**:
 Tek Projenin amacı, yaşamı, işi, bilgisi, belirsizliği, testi ve olaylarını kaynaklarından nötr özetleyen yüzey; otomatik sağlık skoru değildir ([Proje genel bakışı](docs/prd/04-workspace-and-projects.md#proje-genel-bakışı)). UI: `Overview`. Proje alanı değildir ve kapanmaz. Modül adları: `Purpose`, `Lifecycle`, `Goals`, `Stages`, `Milestones`, `Work`, `Documents`, `Decisions`, `Risks`, `Tests`, `Production`, `Blockers`, `Dates`, `Recent changes`.
 _Avoid_: Dashboard skoru, Çalışma Alanı genel bakışı, Manuel Proje Güncellemesi
+
+**Çalışma Alanı genel bakışı**:
+Tek Çalışma Alanının `Active Projects`, `Attention Required`, `Upcoming` ve `Recent Work` hazır modülleriyle açılan ufku; özetler kaynak kayıtlardan türetilir ve sağlık hükmü, Portfolio veya ikinci dashboard değildir ([Çalışma alanı genel bakışı](docs/prd/04-workspace-and-projects.md#çalışma-alanı-genel-bakışı)).
+_Avoid_: Workspace dashboard, Portfolio, Mission Control, Home board, Proje genel bakışı
+
+**Kişisel canlı blok**:
+Çalışma Alanı genel bakışına eklenen mevcut Belge veya adlandırılmış Akıllı Koleksiyon görünümü referansı; gövde, üyelik kuralı, serbest widget veya kopya kayıt değildir ([Çalışma alanı genel bakışı](docs/prd/04-workspace-and-projects.md#çalışma-alanı-genel-bakışı)). UI: `Add live block`.
+_Avoid_: widget, dashboard kartı, kopya Belge, sorgu bloğu
 
 **Kaynak kaydı aç**:
 Ana kaydı kopyalamadan açan ortak eylem; ikinci doğruluk kaynağı veya kayıt yazması değildir ([etkileşim tutarlılığı](docs/prd/15-product-quality.md#etkilesim-tutarliligi)). UI: `Open source record`.
