@@ -13,6 +13,7 @@ export const WORK_TEMPLATE_COPY = {
 	addWorkTemplate: "Add Work Template",
 	checklist: "Checklist",
 	createDay: "Create day",
+	createFromTemplate: "Create from template",
 	daysFromCreate: "Days from create",
 	description: "Description",
 	documentPlaceholderRefused:

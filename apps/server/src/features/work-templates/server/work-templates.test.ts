@@ -2,7 +2,7 @@
  * Work Templates seam — Project-scoped Work Template definition,
  * relative date preview from the create day, and refusal of living
  * payload (history, relations, close outcome, status, absolute dates).
- * Instantiation and one-off copy are later tickets. Synthetic fixture
+ * Instantiation is this ticket; one-off copy is later. Synthetic fixture
  * for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (İş yaşam döngüsü start-context package).
  */
@@ -15,8 +15,13 @@ import { createCustomField } from "../../custom-fields/server/custom-fields";
 import { createProject } from "../../project-shell/server/project-shell";
 import { STRUCTURE_COPY_EXCLUDED } from "../../project-shell/server/project-shell-model";
 import {
+	createWork,
+	getWork,
+} from "../../work-lifecycle/server/work-lifecycle";
+import {
 	createWorkTemplate,
 	getWorkTemplate,
+	instantiateWorkFromTemplate,
 	listWorkTemplates,
 	previewWorkTemplateDates,
 	trashWorkTemplate,
@@ -116,7 +121,7 @@ describe("Work Templates", () => {
 			"Improvement",
 		]);
 		expect(JSON.stringify(catalog)).not.toMatch(OTHER_TEMPLATE_SURFACES);
-		expect(catalog.copy).not.toHaveProperty("createFromTemplate");
+		expect(catalog.copy.createFromTemplate).toBe("Create from template");
 		expect(catalog.copy).not.toHaveProperty("duplicateWork");
 		expect(STRUCTURE_COPY_EXCLUDED.workTemplates).toBe(true);
 		expect(FORBIDDEN_TEMPLATE_PAYLOAD_KEYS).toEqual(
@@ -504,5 +509,280 @@ describe("Work Templates", () => {
 			},
 		});
 		expect(replayed.status).toBe("replayed");
+	});
+
+	it("Create from template opens independent Work with a new key and Project default start status", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const severity = await createCustomField(prisma, {
+			actorId,
+			idempotencyKey: "severity-instantiate",
+			origin: "human",
+			payload: {
+				boundRecordTypes: ["Work"],
+				name: "Severity",
+				options: ["High", "Low"],
+				projectId: project.id,
+				type: "Single select",
+			},
+		});
+		expect(severity.status).toBe("committed");
+		if (severity.status !== "committed") {
+			throw new Error("expected committed Custom field");
+		}
+		const created = await createWorkTemplate(prisma, {
+			actorId,
+			idempotencyKey: "bug-intake",
+			origin: "human",
+			payload: {
+				descriptionSkeleton: "Observed:\nExpected:",
+				lightChecklist: [{ id: "tpl-check-1", title: "Reproduce" }],
+				name: "Bug intake",
+				projectId: project.id,
+				selectedFieldDefaults: [
+					{
+						definitionId: severity.definition.id,
+						value: { kind: "single-select", option: "High" },
+					},
+				],
+				workType: "Bug",
+			},
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected committed Work Template");
+		}
+		const first = await instantiateWorkFromTemplate(prisma, {
+			actorId,
+			baseRevision: created.template.revision,
+			idempotencyKey: "from-template-1",
+			origin: "human",
+			payload: {
+				createDay: "2026-08-28",
+				templateId: created.template.id,
+			},
+		});
+		expect(first).toMatchObject({
+			selectedFieldDefaults: [
+				{
+					definitionId: severity.definition.id,
+					name: "Severity",
+					type: "Single select",
+					value: { kind: "single-select", option: "High" },
+				},
+			],
+			status: "committed",
+			work: {
+				closureResult: null,
+				description: "Observed:\nExpected:",
+				key: "PAY-1",
+				origin: null,
+				projectId: project.id,
+				status: "Not Started",
+				title: "Bug intake",
+				type: "Bug",
+			},
+		});
+		if (first.status !== "committed") {
+			throw new Error("expected committed instantiate");
+		}
+		expect(first.work.id).not.toBe(created.template.id);
+		expect(first.work.id).not.toBe(first.work.key);
+		expect(first.work).not.toHaveProperty("templateId");
+		expect(first.work.lightChecklist).toHaveLength(1);
+		expect(first.work.lightChecklist[0]).toMatchObject({
+			completed: false,
+			title: "Reproduce",
+		});
+		expect(first.work.lightChecklist[0]?.id).not.toBe("tpl-check-1");
+		expect(JSON.stringify(first.work)).not.toContain(created.template.id);
+		expect(await getWork(prisma, first.work.id)).toEqual(first.work);
+
+		const replayed = await instantiateWorkFromTemplate(prisma, {
+			actorId,
+			baseRevision: created.template.revision,
+			idempotencyKey: "from-template-1",
+			origin: "human",
+			payload: {
+				createDay: "2026-08-28",
+				templateId: created.template.id,
+			},
+		});
+		expect(replayed.status).toBe("replayed");
+		if (replayed.status !== "replayed") {
+			throw new Error("expected replayed instantiate");
+		}
+		expect(replayed.work).toEqual(first.work);
+
+		const second = await instantiateWorkFromTemplate(prisma, {
+			actorId,
+			baseRevision: created.template.revision,
+			idempotencyKey: "from-template-2",
+			origin: "human",
+			payload: {
+				createDay: "2026-08-28",
+				templateId: created.template.id,
+			},
+		});
+		expect(second).toMatchObject({
+			status: "committed",
+			work: { key: "PAY-2", title: "Bug intake", type: "Bug" },
+		});
+		if (second.status !== "committed") {
+			throw new Error("expected second committed instantiate");
+		}
+		expect(second.work.id).not.toBe(first.work.id);
+		expect(second.work.key).not.toBe(first.work.key);
+
+		const edited = await updateWorkTemplate(prisma, {
+			actorId,
+			baseRevision: created.template.revision,
+			idempotencyKey: "rewrite-template",
+			origin: "human",
+			payload: {
+				descriptionSkeleton: "Changed after instantiate",
+				name: "Bug intake v2",
+				projectId: project.id,
+				templateId: created.template.id,
+				workType: "Task",
+			},
+		});
+		expect(edited.status).toBe("committed");
+		expect(await getWork(prisma, first.work.id)).toMatchObject({
+			description: "Observed:\nExpected:",
+			title: "Bug intake",
+			type: "Bug",
+		});
+
+		const withoutTemplate = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "blank-work",
+			origin: "human",
+			payload: {
+				projectId: project.id,
+				title: "Ad hoc Work",
+			},
+		});
+		expect(withoutTemplate).toMatchObject({
+			status: "committed",
+			work: {
+				key: "PAY-3",
+				status: "Not Started",
+				title: "Ad hoc Work",
+			},
+		});
+	});
+
+	it("refuses instantiate that would write current status or close outcome, and ignores a trashed template", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const created = await createWorkTemplate(prisma, {
+			actorId,
+			idempotencyKey: "status-source",
+			origin: "human",
+			payload: {
+				name: "Closed looking",
+				projectId: project.id,
+				workType: "Task",
+			},
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected committed Work Template");
+		}
+		expect(
+			await instantiateWorkFromTemplate(prisma, {
+				actorId,
+				baseRevision: created.template.revision,
+				idempotencyKey: "write-status",
+				origin: "human",
+				payload: {
+					status: "Closed",
+					templateId: created.template.id,
+				},
+			})
+		).toEqual({
+			reason: "forbidden-payload",
+			status: "rejected",
+		});
+		expect(
+			await instantiateWorkFromTemplate(prisma, {
+				actorId,
+				baseRevision: created.template.revision,
+				idempotencyKey: "write-close",
+				origin: "human",
+				payload: {
+					closeOutcome: "Completed",
+					templateId: created.template.id,
+				},
+			})
+		).toEqual({
+			reason: "forbidden-payload",
+			status: "rejected",
+		});
+		expect(
+			await instantiateWorkFromTemplate(prisma, {
+				actorId,
+				baseRevision: created.template.revision + 1,
+				idempotencyKey: "stale-revision",
+				origin: "human",
+				payload: { templateId: created.template.id },
+			})
+		).toEqual({
+			conflict: "Conflict",
+			status: "conflict",
+		});
+		const trashed = await trashWorkTemplate(prisma, {
+			actorId,
+			baseRevision: created.template.revision,
+			idempotencyKey: "trash-for-instantiate",
+			origin: "human",
+			payload: { templateId: created.template.id },
+		});
+		expect(trashed.status).toBe("committed");
+		expect(
+			await instantiateWorkFromTemplate(prisma, {
+				actorId,
+				baseRevision: created.template.revision + 1,
+				idempotencyKey: "from-trash",
+				origin: "human",
+				payload: { templateId: created.template.id },
+			})
+		).toEqual({
+			reason: "trashed-not-effective",
+			status: "rejected",
+		});
+	});
+
+	it("fails closed when relative dates cannot resolve on instantiate", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const created = await createWorkTemplate(prisma, {
+			actorId,
+			idempotencyKey: "dated-template",
+			origin: "human",
+			payload: {
+				name: "Dated",
+				plannedStartRule: { offsetDays: 0 },
+				projectId: project.id,
+				workType: "Task",
+			},
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected committed Work Template");
+		}
+		expect(
+			await instantiateWorkFromTemplate(prisma, {
+				actorId,
+				baseRevision: created.template.revision,
+				idempotencyKey: "bad-day",
+				origin: "human",
+				payload: {
+					createDay: "not-a-day",
+					templateId: created.template.id,
+				},
+			})
+		).toEqual({
+			reason: "relative-date-unresolved",
+			status: "rejected",
+		});
 	});
 });
