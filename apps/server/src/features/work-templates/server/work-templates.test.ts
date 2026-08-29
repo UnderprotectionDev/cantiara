@@ -18,7 +18,10 @@ import {
 } from "../../custom-fields/server/custom-fields";
 import { createProject } from "../../project-shell/server/project-shell";
 import { STRUCTURE_COPY_EXCLUDED } from "../../project-shell/server/project-shell-model";
-import { addChecklistItem } from "../../work-checklists/server/work-checklists";
+import {
+	addChecklistItem,
+	setChecklistItemCompleted,
+} from "../../work-checklists/server/work-checklists";
 import {
 	changeWorkStatus,
 	closeWork,
@@ -643,6 +646,19 @@ describe("Work Templates", () => {
 		if (listed.status !== "committed") {
 			throw new Error("expected checklist item");
 		}
+		const checked = await setChecklistItemCompleted(prisma, {
+			actorId,
+			baseRevision: listed.checklist.work.revision,
+			completed: true,
+			idempotencyKey: "check-done",
+			itemId: listed.checklist.items[0].id,
+			origin: "human",
+			workId: source.work.id,
+		});
+		expect(checked.status).toBe("committed");
+		if (checked.status !== "committed") {
+			throw new Error("expected checked item");
+		}
 		await setCustomFieldValue(prisma, {
 			actorId,
 			baseRevision: 0,
@@ -691,7 +707,7 @@ describe("Work Templates", () => {
 		});
 		const progressed = await changeWorkStatus(prisma, {
 			actorId,
-			baseRevision: listed.checklist.work.revision,
+			baseRevision: checked.checklist.work.revision,
 			idempotencyKey: "in-progress",
 			origin: "human",
 			status: "In Progress",

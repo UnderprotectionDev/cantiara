@@ -1000,7 +1000,7 @@ function copyLightChecklist(
 	value: Prisma.JsonValue
 ): Array<{ completed: boolean; id: string; title: string }> {
 	return listedChecklist(value).map((item) => ({
-		completed: item.completed,
+		completed: false,
 		id: crypto.randomUUID(),
 		title: item.title,
 	}));

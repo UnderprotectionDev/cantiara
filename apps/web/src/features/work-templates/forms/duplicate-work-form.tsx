@@ -1,8 +1,13 @@
 import { Button } from "@cantiara/ui/components/button";
+import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { FormEvent } from "react";
 import { useCallback, useState } from "react";
 
+import {
+	CUSTOM_FIELD_COPY,
+	type CustomFieldStoredValue,
+} from "@/features/custom-fields/forms/custom-fields-copy";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { invalidateWork } from "@/features/work-lifecycle/forms/invalidate-work";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -45,10 +50,10 @@ export default function DuplicateWorkForm({
 			},
 		})
 	);
-	const onSubmit = useCallback(
-		(event: FormEvent<HTMLFormElement>) => {
-			event.preventDefault();
-			markUnsaved();
+	const form = useForm({
+		defaultValues: {},
+		onSubmit: async () => {
+			setError(null);
 			const result = attemptOnlineWork("record-create", () =>
 				duplicate.mutateAsync({
 					idempotencyKey: newIdempotencyKey(),
@@ -58,9 +63,16 @@ export default function DuplicateWorkForm({
 			if (result.status === "refused") {
 				return;
 			}
-			result.value.catch(() => undefined);
+			await result.value;
 		},
-		[attemptOnlineWork, duplicate, markUnsaved, workId]
+	});
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			markUnsaved();
+			form.handleSubmit().catch(() => undefined);
+		},
+		[form, markUnsaved]
 	);
 	const previewData =
 		preview.data?.status === "ok" ? preview.data.preview : null;
@@ -117,28 +129,23 @@ export default function DuplicateWorkForm({
 	);
 }
 
-function displayFieldValue(value: {
-	kind: string;
-	boolean?: boolean;
-	number?: number;
-	option?: string;
-	options?: string[];
-	text?: string;
-}): string {
+function displayFieldValue(value: CustomFieldStoredValue): string {
 	if (value.kind === "text") {
-		return value.text ?? "—";
+		return value.text;
 	}
 	if (value.kind === "number") {
-		return String(value.number ?? "—");
+		return String(value.number);
 	}
 	if (value.kind === "boolean") {
-		return value.boolean === true ? "True" : "False";
+		return value.boolean
+			? CUSTOM_FIELD_COPY.booleanTrue
+			: CUSTOM_FIELD_COPY.booleanFalse;
 	}
 	if (value.kind === "single-select") {
-		return value.option ?? "—";
+		return value.option;
 	}
 	if (value.kind === "multi-select") {
-		return value.options?.join(", ") ?? "—";
+		return value.options.join(", ");
 	}
-	return "—";
+	return CUSTOM_FIELD_COPY.notEvaluated;
 }
