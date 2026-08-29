@@ -176,6 +176,10 @@ _Avoid_: İş akışı durumu, kapanış sonucu, terminal kolon
 Bir İşin kendi alanlarıyla açık doğrudan ilişkilerinden gelen bağlamı kaynaklarında canlı gösteren, [İş türüne özgü sunum düzeni](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı); içerik kopyası, bağımsız sorgu veya durum kapısı değildir.
 _Avoid_: Dashboard, ikinci İş özeti, Başlangıç yapılandırmasına göre farklı İş anlamı
 
+**Öncelik dayanakları**:
+İş Bağlam Kartında hedef, tarih, blokaj, risk, kilometre taşı, Geri Bildirim, Karar, Kaynak, efor ve varsa öncelik ölçütü değerlerini kaynaklarına bağlı toplayan taranabilir özet; skor, otomatik sıra veya Önceliklendirme oturumu değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Priority Foundations`.
+_Avoid_: WSJF, öncelik puanı, otomatik sıralama, talep sayısı, Backlog sırası
+
 **Neden zinciri**:
 İş Bağlam Kartında en yakın anlamlı kaynakları görünür adlarıyla bağlayan türetilmiş zincir; yeni kayıt, ilişki veya özet metni değildir. UI: `Why am I doing this work?`.
 _Avoid_: ikinci doğruluk kaynağı, özet paragrafı, Bağlam kaydı

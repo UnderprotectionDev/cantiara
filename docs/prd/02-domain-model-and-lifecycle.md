@@ -103,6 +103,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İş Bağlam Kartı düzeni | `Work Context Card layout` | İş Bağlam Kartı bölüm düzeninin Yapılandırma modu girişi; şema veya düzen motoru değildir |
 | Bağlam ekle | `Add Context` | Gizli hazır İş Bağlam Kartı bölümünü aşamalı açma; oluşturma veya durum kapısı değildir |
 | Neden bu işi yapıyorum? | `Why am I doing this work?` | İş Bağlam Kartında en yakın anlamlı kaynakları görünür adlarıyla bağlayan türetilmiş neden zinciri; yeni kayıt veya ilişki değildir |
+| Öncelik dayanakları | `Priority Foundations` | İş Bağlam Kartında kaynaklara bağlı taranabilir öncelik özeti; skor, WSJF, otomatik sıra veya Önceliklendirme oturumu değildir |
+| Benzersiz Contact | `Unique Contact` | Öncelik dayanaklarında Geri Bildirim kayıt sayısından ayrı tutulan benzersiz Contact sayısı |
+| Benzersiz Company | `Unique Company` | Öncelik dayanaklarında Company kullanıldığında Geri Bildirim ve Contact sayılarından ayrı tutulan benzersiz Company sayısı |
+| Efor | `Effort` | İsteğe bağlı efor tahmini; zaman takibi veya öncelik skoru değildir |
 | Henüz bir şey yok | `Nothing here yet.` | Yapılandırılmış görünür boş İş Bağlam Kartı bölümünün tarafsız boş durumu; sağlık veya tamlık skoru değildir |
 | Ekle | `Add` | Görünür boş bölümde desteklenen kaynak alanı ekleme eylemi; Bağlam kaydı üretmez |
 | İlişkilendir | `Link` | Görünür boş bölümde desteklenen doğrudan ilişki eylemi; kartın kendisi ilişki yazmaz |

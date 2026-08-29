@@ -5,6 +5,7 @@ export const WORK_CONTEXT_COPY = {
 	add: "Add",
 	addContext: "Add Context",
 	affectedReleases: "Affected Releases",
+	archive: "Archive",
 	currentSituation: "Current Situation",
 	decisions: "Decisions",
 	dependencies: "Dependencies",
@@ -19,6 +20,7 @@ export const WORK_CONTEXT_COPY = {
 	observedExpectedBehavior: "Observed/Expected Behavior",
 	openSourceRecord: "Open source record",
 	planning: "Planning",
+	priorityFoundations: "Priority Foundations",
 	problemOpportunity: "Problem/Opportunity",
 	relatedWork: "Related Work",
 	researchQuestion: "Research Question",
@@ -96,6 +98,48 @@ export interface WorkContextCardView {
 	};
 	initiallyVisibleFields: typeof INITIALLY_VISIBLE_FIELDS;
 	preparedSections: PreparedSection[];
+	priorityFoundations: {
+		claims: {
+			automaticPriorityInput: false;
+			automaticRank: false;
+			countsAreDemand: false;
+			countsArePopularity: false;
+			countsAreVotes: false;
+			isBacklogOrder: false;
+			isPrioritizationSession: false;
+			numericScore: false;
+			wsjf: false;
+		};
+		countSets: Record<
+			string,
+			Array<{
+				archiveVisible: boolean;
+				kind: string;
+				sourceId: string;
+				visibleName: string;
+			}>
+		>;
+		counts: Array<{
+			id: string;
+			kind: string;
+			label: string;
+			value: number;
+		}>;
+		items: Array<{
+			archiveVisible: boolean;
+			kind: string;
+			sourceId: string;
+			visibleName: string;
+		}>;
+		label: typeof WORK_CONTEXT_COPY.priorityFoundations;
+		openedCountId: string | null;
+		openedSet: Array<{
+			archiveVisible: boolean;
+			kind: string;
+			sourceId: string;
+			visibleName: string;
+		}> | null;
+	};
 	starterConfiguration: StarterConfiguration;
 	visiblePreparedSections: PreparedSection[];
 	visibleSections: Array<{
@@ -177,6 +221,25 @@ export function presentWorkContextCard(input: {
 		},
 		initiallyVisibleFields: INITIALLY_VISIBLE_FIELDS,
 		preparedSections,
+		priorityFoundations: {
+			claims: {
+				automaticPriorityInput: false,
+				automaticRank: false,
+				countsAreDemand: false,
+				countsArePopularity: false,
+				countsAreVotes: false,
+				isBacklogOrder: false,
+				isPrioritizationSession: false,
+				numericScore: false,
+				wsjf: false,
+			},
+			countSets: {},
+			counts: [],
+			items: [],
+			label: WORK_CONTEXT_COPY.priorityFoundations,
+			openedCountId: null,
+			openedSet: null,
+		},
 		starterConfiguration: input.starterConfiguration,
 		visiblePreparedSections,
 		visibleSections: visiblePreparedSections.map((name) => {
@@ -218,4 +281,22 @@ export function revealPreparedSection(
 		starterConfiguration: card.starterConfiguration,
 		workType: card.workType,
 	});
+}
+
+export function openPriorityFoundationsCount(
+	card: WorkContextCardView,
+	countId: string
+): WorkContextCardView {
+	const set = card.priorityFoundations.countSets[countId];
+	if (!set) {
+		return card;
+	}
+	return {
+		...card,
+		priorityFoundations: {
+			...card.priorityFoundations,
+			openedCountId: countId,
+			openedSet: set,
+		},
+	};
 }

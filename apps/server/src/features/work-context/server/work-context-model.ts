@@ -5,29 +5,45 @@ export const WORK_CONTEXT_COPY = {
 	add: "Add",
 	addContext: "Add Context",
 	affectedReleases: "Affected Releases",
+	archive: "Archive",
+	blocker: "Blocked by",
 	currentSituation: "Current Situation",
+	decision: "Decision",
 	decisions: "Decisions",
 	dependencies: "Dependencies",
 	description: "Description",
+	effort: "Effort",
 	emptySection: "Nothing here yet.",
 	evidence: "Evidence",
 	evidenceAndDecisions: "Evidence & Decisions",
 	expectedOutcome: "Expected Outcome",
+	feedback: "Feedback",
 	githubAndTests: "GitHub & Tests",
 	includedWork: "Included Work",
 	link: "Link",
+	milestone: "Milestone",
 	observedExpectedBehavior: "Observed/Expected Behavior",
+	openQuestion: "Open Question",
 	openSourceRecord: "Open source record",
 	planning: "Planning",
+	priorityFoundations: "Priority Foundations",
+	priorityMetrics: "Priority metrics",
 	problemOpportunity: "Problem/Opportunity",
+	projectGoal: "Project Goal",
 	relatedWork: "Related Work",
+	research: "Research",
 	researchQuestion: "Research Question",
+	risk: "Risk",
 	risksAndOpenQuestions: "Risks & Open Questions",
+	source: "Source",
 	sourcesAndEvidence: "Sources & Evidence",
 	status: "Status",
+	targetDate: "Target date",
 	targetRelease: "Target Release",
 	title: "Title",
 	type: "Type",
+	uniqueCompany: "Unique Company",
+	uniqueContact: "Unique Contact",
 	whyAmIDoingThisWork: "Why am I doing this work?",
 } as const;
 
@@ -100,14 +116,56 @@ export type LiveSource =
 			openSourceRecord: boolean;
 			opensWorkSurface: false;
 			reason: string;
+			sourceId?: string;
 			status: "broken";
 			visibleName?: string;
 	  };
 
 export interface RelatedLiveSource {
+	companyId?: string;
+	companyName?: string;
+	contactId?: string;
+	contactName?: string;
 	kind: string;
 	other: LiveSource;
 	relationType: string;
+	workType?: WorkType;
+}
+
+export const PRIORITY_FOUNDATIONS_CLAIMS = {
+	automaticPriorityInput: false,
+	automaticRank: false,
+	countsAreDemand: false,
+	countsArePopularity: false,
+	countsAreVotes: false,
+	isBacklogOrder: false,
+	isPrioritizationSession: false,
+	numericScore: false,
+	wsjf: false,
+} as const;
+
+export interface PriorityFoundationsItem {
+	archiveVisible: boolean;
+	kind: string;
+	sourceId: string;
+	visibleName: string;
+}
+
+export interface PriorityFoundationsCount {
+	id: string;
+	kind: string;
+	label: string;
+	value: number;
+}
+
+export interface PriorityFoundationsView {
+	claims: typeof PRIORITY_FOUNDATIONS_CLAIMS;
+	countSets: Record<string, PriorityFoundationsItem[]>;
+	counts: PriorityFoundationsCount[];
+	items: PriorityFoundationsItem[];
+	label: typeof WORK_CONTEXT_COPY.priorityFoundations;
+	openedCountId: string | null;
+	openedSet: PriorityFoundationsItem[] | null;
 }
 
 export interface WhyChainStep {
@@ -150,6 +208,7 @@ export interface WorkContextCardView {
 	};
 	initiallyVisibleFields: typeof INITIALLY_VISIBLE_FIELDS;
 	preparedSections: PreparedSection[];
+	priorityFoundations: PriorityFoundationsView;
 	starterConfiguration: StarterConfiguration;
 	visiblePreparedSections: PreparedSection[];
 	visibleSections: VisibleSectionView[];
@@ -168,9 +227,17 @@ export interface WorkContextCardView {
 }
 
 export interface PresentWorkContextCardInput {
+	criterionValues?: readonly {
+		name: string;
+		sourceId: string;
+		value: string;
+	}[];
+	dates?: readonly { label: string; value: string }[];
 	description?: string | null;
+	effort?: string | null;
 	expectedOutcome?: string | null;
 	includedWork?: readonly LiveSource[];
+	openedCountId?: string | null;
 	originResearch?: LiveSource | null;
 	primaryFeature?: LiveSource | null;
 	primarySpec?: LiveSource | null;
