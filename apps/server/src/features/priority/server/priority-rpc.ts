@@ -11,11 +11,14 @@ import {
 	createPrioritizationSession,
 	createPriorityCriterion,
 	getPrioritizationSession,
+	getPriorityMapPresentation,
 	listPrioritizationSessions,
 	listPriorityCriteria,
 	listWorkPriorityValues,
+	readPriorityMap,
 	reopenPrioritizationSession,
 	reorderPrioritizationSession,
+	savePriorityMapPresentation,
 	setPrioritizationSessionScope,
 	setPriorityCriterionValue,
 	trashPrioritizationSession,
@@ -26,7 +29,9 @@ import {
 	createPrioritizationSessionPayloadSchema,
 	createPriorityCriterionPayloadSchema,
 	priorityCatalog,
+	readPriorityMapInputSchema,
 	reorderPrioritizationSessionPayloadSchema,
+	savePriorityMapPresentationPayloadSchema,
 	sessionIdPayloadSchema,
 	setPrioritizationSessionScopePayloadSchema,
 	setPriorityCriterionValuePayloadSchema,
@@ -155,6 +160,23 @@ export const priority = {
 				input.projectId
 			);
 		}),
+	map: protectedProcedure
+		.input(readPriorityMapInputSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await readPriorityMap(getPrismaClient(), input);
+		}),
+	presentation: protectedProcedure
+		.input(z.object({ projectId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await getPriorityMapPresentation(
+				getPrismaClient(),
+				input.projectId
+			);
+		}),
 	reopenSession: protectedWriteProcedure
 		.input(
 			z.object({
@@ -186,6 +208,23 @@ export const priority = {
 			return await reorderPrioritizationSession(getPrismaClient(), {
 				actorId: access.accountId,
 				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	saveMap: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: savePriorityMapPresentationPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.payload.projectId);
+			return await savePriorityMapPresentation(getPrismaClient(), {
+				actorId: access.accountId,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				payload: input.payload,

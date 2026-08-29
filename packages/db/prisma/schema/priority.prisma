@@ -69,3 +69,16 @@ model ProjectPriorityCriterionValue {
   @@index([criterionId])
   @@map("project_priority_criterion_value")
 }
+
+model ProjectPriorityMapPresentation {
+  id                      String   @id
+  projectId               String   @unique
+  project                 Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  horizontalCriterionId   String
+  verticalCriterionId     String
+  revision                Int
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("project_priority_map_presentation")
+}

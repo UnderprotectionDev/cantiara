@@ -322,6 +322,10 @@ _Avoid_: öncelik puanı, otomatik sıralama, skaler öncelik alanı, özel alan
 Öncelik ölçütünün beş sabit sıralı düzeyi; boş veya henüz değerlendirilmemiş durum bu beşin dışındadır ([öncelik ölçütleri](docs/prd/06-work-management-and-planning.md#öncelik-ölçütleri)). UI: `Very low`, `Low`, `Medium`, `High`, `Very high`. Boş gösterim: `Unevaluated`.
 _Avoid_: Medium varsayılanı, serbest sayı, formül kademesi
 
+**Öncelik Haritası**:
+Aynı Projede iki sıralı Öncelik ölçütünü eksen seçerek İşleri karşılaştıran görünüm; skor, otomatik sıra, çeyrek etiketi, Backlog sırası veya Kanban durumu yazmaz ([Öncelik Haritası](docs/prd/06-work-management-and-planning.md#öncelik-haritası)). UI: `Priority Map`. Boş gösterim: `Unevaluated`.
+_Avoid_: öncelik puanı, otomatik sıralama, çeyrek kararı, analitik dashboard, Backlog sırası
+
 **Kanıt gücü**:
 Görüşlü Başlangıç yapılandırmasının varsayılan kapalı hazır Öncelik ölçütü; kurucu etkinleştirir ve kademeyi eliyle seçer ([öncelik ölçütleri](docs/prd/06-work-management-and-planning.md#öncelik-ölçütleri)). UI: `Evidence strength`.
 _Avoid_: otomatik kanıt skoru, Geri Bildirim sayısı, popülerlik puanı
