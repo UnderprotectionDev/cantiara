@@ -106,6 +106,10 @@ _Avoid_: Yetim kaydı kopyalama, başka hedefe otomatik yönlendirme, silinmiş 
 Kapalı katalogdaki türlenmiş bağ; iki uç, yön ve anlam taşır ve kullanıcı yeni tür icat etmez; gömülü kullanım veya Kanıt bağı uzmanlığı değildir ([standart ilişki türleri](docs/prd/02-domain-model-and-lifecycle.md#standart-ilişki-türleri)). UI: `Related`.
 _Avoid_: related-pile, serbest etiket grafiği, otomatik grafik, kullanım bağı
 
+**Engeller / Engellenir**:
+İş, Karar veya Açık Soru ile bir İş arasındaki türlenmiş bekletme bağı; `Active` veya `Resolved` taşır ve Kanban sütunu, etiket veya öncelik puanı değildir ([iş bağımlılıkları ve blokajlar](docs/prd/06-work-management-and-planning.md#iş-bağımlılıkları-ve-blokajlar)). UI: `Blocks` / `Blocked by`.
+_Avoid_: Kanban sütunu olarak blokaj, tag-as-blocker, priority score, serbest ilişki türü
+
 **Kullanım bağı**:
 Gömülü canlı kart, blok veya konumun kaynak kimliğini kopyasız izleyen türetilmiş bağ; semantik ilişki, `Related` veya Kanıt bağı değildir ([kullanım bağları](docs/prd/02-domain-model-and-lifecycle.md#kullanim-baglari)).
 _Avoid_: Related, geri bağlantı, Kanıt Rolü, ilişki sayısı
@@ -135,6 +139,14 @@ _Avoid_: Kart, görünüm satırı, sahipli bileşen
 **İş**:
 Bir Projede yapılması, araştırılması veya iyileştirilmesi amaçlanan şeyi bağımsız kimlik, durum ve geçmişle taşıyan genel ana kayıt; [İş türleri](docs/prd/02-domain-model-and-lifecycle.md#terim-sözlüğü) onun altında yaşar.
 _Avoid_: Görev, ticket, yalnız yapılacak madde
+
+**Hafif kontrol listesi**:
+İş üzerindeki, yalnız metin ve tamamlanma işareti taşıyan sahipli bileşen; bağımsız ana kayıt, İş durumu veya planlama üyeliği değildir ([Hafif iş kontrol listeleri](docs/prd/06-work-management-and-planning.md#hafif-iş-kontrol-listeleri)). UI: `Checklist`.
+_Avoid_: subtask, epic, checklist-as-Work, Test Scenario, Handoff
+
+**Kontrol listesi maddesi**:
+Hafif kontrol listesindeki metin ve tamamlanma işareti; ana kayıt, İş durumu veya planlama üyeliği değildir. UI: `Item`.
+_Avoid_: subtask, bağımsız İş, checklist-as-Work
 
 **Özellik**:
 Bir kullanıcı yeteneğini veya ürün değişikliğini temsil eden ve [başka bağımsız İşleri kapsayabilen](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı) İş türü; iç içe epic veya subtask hiyerarşisi değildir.

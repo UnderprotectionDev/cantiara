@@ -179,8 +179,14 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kaynak öğe artık yok | `Source item is gone` | Köken konumunda sahipli bileşenin çözülemediğini açıklar |
 | İlişki yok | `No relations yet.` | Henüz standart ilişki olmadığını söyleyen boş durum |
 | Kaldır | `Remove` | Standart ilişkiyi güvenli geri alma ile kaldırma |
+| Engeller | `Blocks` | Engelleme ilişkisinin kaynak ucu; serbest ilişki türü değildir |
+| Engellenir | `Blocked by` | Engellenen İş ucu; planlama tüketicisinin okuduğu bekletme yönü |
+| Aktif engelleme | `Active` | Engelleme ilişkisinin bekleyen durumu; İş akışı durumu `Blocked` değildir |
+| İlişkiyi kaldır | `Remove relation` | Yanlış kurulmuş engelleme bağını silme; çözüm geçmişi değildir |
 | Açıklama | `Description` | İşin taşınabilir gövde alanı; Task hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Hafif kontrol listesi | `Checklist` | İşteki metin maddeleri; bağımsız İş değildir |
+| Kontrol listesi maddesi | `Item` | Hafif listedeki metin alanı; İş başlığı değildir |
+| Madde ekle | `Add item` | Hafif kontrol listesine metin maddesi ekleme |
 | Başka Projede yeniden oluştur | `Recreate in another Project` | Yanlış Projede oluşan İşten hedefte yeni kimlikli İş üretme; taşıma değildir |
 | Başlık | `Title` | İş oluştururken zorunlu alan |
 | Tür | `Type` | İş türü alanı |

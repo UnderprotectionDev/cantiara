@@ -1,11 +1,13 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useCallback } from "react";
 
+import WorkBlockersPanel from "@/features/blockers/views/work-blockers-panel";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
 import RelationsPanel from "@/features/relations/views/relations-panel";
 import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
 import UsedInPanel from "@/features/relations/views/used-in-panel";
 import WorkTagPicker from "@/features/tags/views/work-tag-picker";
+import WorkChecklistPanel from "@/features/work-checklists/views/work-checklist-panel";
 import WorkContextCard from "@/features/work-context/views/work-context-card";
 
 import ArchiveWorkForm from "../forms/archive-work-form";
@@ -132,6 +134,12 @@ export default function WorkDetail({
 				workId={work.id}
 				works={works}
 			/>
+			<WorkChecklistPanel
+				key={`${work.id}:checklist:${work.revision}`}
+				projectId={projectId}
+				revision={work.revision}
+				workId={work.id}
+			/>
 			<WorkTagPicker
 				appliedTagIds={appliedTagIds}
 				key={`${work.id}:tags:${work.revision}`}
@@ -145,6 +153,11 @@ export default function WorkDetail({
 				projectId={projectId}
 				usageLinks={work.usageLinks ?? []}
 				works={works}
+			/>
+			<WorkBlockersPanel
+				candidates={candidates}
+				projectId={projectId}
+				workId={work.id}
 			/>
 			<RelationsPanel
 				candidates={candidates}
