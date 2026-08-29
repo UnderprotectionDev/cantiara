@@ -1,4 +1,5 @@
 import { Button } from "@cantiara/ui/components/button";
+import { useCallback } from "react";
 
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
 import RelationsPanel from "@/features/relations/views/relations-panel";
@@ -60,6 +61,9 @@ export default function WorkDetail({
 	work: WorkRecord;
 	works: WorkRecord[];
 }) {
+	const onLink = useCallback(() => {
+		document.getElementById("work-related")?.scrollIntoView();
+	}, []);
 	return (
 		<article className="flex flex-col gap-4 border-t pt-4">
 			<header className="flex items-start justify-between gap-3">
@@ -73,6 +77,7 @@ export default function WorkDetail({
 			</header>
 			<WorkContextCard
 				key={`${work.id}:${work.type}:${work.revision}`}
+				onLink={onLink}
 				onOpenSourceRecord={onOpenSourceRecord}
 				status={work.status}
 				title={work.title}

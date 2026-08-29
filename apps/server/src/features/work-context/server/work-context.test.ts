@@ -214,6 +214,20 @@ describe("Work Context Card", () => {
 		expect(sectionNamed(card, "GitHub & Tests")?.items[0]?.visibleName).toBe(
 			"PR 88"
 		);
+		expect(
+			presentWorkContextCard({
+				relatedSources: [
+					{
+						kind: "Risk",
+						other: liveSource("Risk", "risk-2", "PCI scope", "Open"),
+						relationType: "Related",
+					},
+				],
+				revealedSections: ["Evidence"],
+				starterConfiguration: "Blank Project",
+				workType: "Bug",
+			}).visibleSections[0]?.items[0]?.kind
+		).toBe("Risk");
 		expect(card.whyChain.label).toBe("Why am I doing this work?");
 		expect(card.whyChain.steps.map((step) => step.visibleName)).toEqual([
 			"Launch checkout",

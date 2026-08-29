@@ -67,7 +67,7 @@ export default function RelationsPanel({
 		})
 	);
 	return (
-		<section className="flex flex-col gap-3">
+		<section className="flex flex-col gap-3" id="work-related">
 			<h3 className="font-medium text-sm">{RELATIONS_COPY.related}</h3>
 			{listed.data && listed.data.length > 0 ? (
 				<ul className="flex flex-col gap-2 text-sm">

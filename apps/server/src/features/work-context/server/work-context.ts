@@ -359,7 +359,12 @@ export function sectionForRelated(
 		);
 	}
 	if (kind === "Risk" || kind === "Question" || kind === "Assumption") {
-		return pick(WORK_CONTEXT_COPY.risksAndOpenQuestions);
+		return (
+			pick(WORK_CONTEXT_COPY.risksAndOpenQuestions) ??
+			pick(WORK_CONTEXT_COPY.evidenceAndDecisions) ??
+			pick(WORK_CONTEXT_COPY.sourcesAndEvidence) ??
+			pick(WORK_CONTEXT_COPY.evidence)
+		);
 	}
 	if (kind === "Project Release") {
 		return (
@@ -410,7 +415,9 @@ export function liveSourceFromEnd(end: PresentedEnd): LiveSource {
 			opensWorkSurface: false,
 			reason: end.reason,
 			status: "broken",
-			...(typeof end.title === "string" ? { visibleName: end.title } : {}),
+			...(end.openSourceRecord && typeof end.title === "string"
+				? { visibleName: end.title }
+				: {}),
 		};
 	}
 	return {
