@@ -172,9 +172,9 @@ export async function loadWorkContextCard(
 		originWorkIds.map((id) => getWork(prisma, id))
 	);
 	const researchOriginIds = new Set(
-		originWorks
-			.filter((origin) => origin?.type === "Research")
-			.map((origin) => origin.id)
+		originWorks.flatMap((origin) =>
+			origin?.type === "Research" ? [origin.id] : []
+		)
 	);
 	const originResearch =
 		relatedSources.find(
