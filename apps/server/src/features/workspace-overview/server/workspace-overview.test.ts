@@ -1,14 +1,20 @@
 /**
  * Workspace Overview seam — four prepared modules from source records,
  * drill-down with Open source record, personal layout, live blocks as
- * references, no health score / Mission Control / Wiki-as-Project /
- * widget builder. Synthetic fixture for
+ * references, named cross-Project lists from live conditions, no health
+ * score / Mission Control / Wiki-as-Project / widget builder / Portfolio
+ * membership. Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (İlk Proje Workspace overview slice).
  */
 import { describe, expect, it } from "vitest";
 
 import { PROJECT_LIFECYCLE } from "../../project-shell/server/project-shell-model";
+import {
+	addCrossProjectListMemberByDrag,
+	CROSS_PROJECT_LIST_KIND,
+	saveCrossProjectList,
+} from "./cross-project-lists";
 import {
 	ACTION_REQUIRED_SIGNAL_IDS,
 	addPersonalLiveBlock,
@@ -21,11 +27,11 @@ import {
 	removePersonalLiveBlock,
 	showPreparedModule,
 	sourcesFromWorkspaceSnapshot,
-	WORKSPACE_OVERVIEW_COPY,
 	type WorkspaceOverviewLayout,
 	type WorkspaceOverviewSources,
 	workspaceOverview,
 } from "./workspace-overview";
+import { WORKSPACE_OVERVIEW_COPY } from "./workspace-overview-copy";
 
 const HEALTH_KEYS = [
 	"atRisk",
@@ -59,6 +65,8 @@ const INVENTED_ROW_PATTERN =
 const FORBIDDEN_SURFACE_PATTERN =
 	/Mission Control|Portfolio|Home board|Lineup|Gantt|widget builder|Daily Focus/;
 const WIKI_AS_PROJECT_PATTERN = /Personal Wiki|Wiki as Project/;
+const FORBIDDEN_LIST_PATTERN =
+	/Portfolio|Program|parent Project|folder|smartCollection/;
 
 const EMPTY_SOURCES: WorkspaceOverviewSources = {
 	attention: [],
@@ -76,6 +84,7 @@ const DEFAULT_LAYOUT: WorkspaceOverviewLayout = {
 	hidden: [],
 	liveBlocks: [],
 	order: [...PREPARED_MODULE_HEADINGS],
+	savedLists: [],
 };
 
 function collectKeys(value: unknown): string[] {
@@ -562,5 +571,272 @@ describe("Workspace Overview", () => {
 		expect(widget.status).toBe("rejected");
 		const removed = removePersonalLiveBlock(layout, "doc-1");
 		expect(removed.liveBlocks).toHaveLength(LIVE_BLOCK_LIMIT - 1);
+	});
+
+	it("derives named cross-Project list membership from live conditions and changes it when conditions change", () => {
+		const sources: WorkspaceOverviewSources = {
+			...EMPTY_SOURCES,
+			projects: [
+				{
+					archived: false,
+					enabledAreas: ["Work", "Documents", "GitHub"],
+					id: "project-atlas",
+					lastManualProjectUpdate: {
+						date: "2026-08-20",
+						mark: "On Track",
+					},
+					lifecycleStatus: PROJECT_LIFECYCLE.active,
+					name: "Atlas",
+					stageNames: ["Build"],
+					targetDate: "2026-09-01",
+				},
+				{
+					archived: false,
+					enabledAreas: ["Work", "Documents"],
+					id: "project-done",
+					lastManualProjectUpdate: null,
+					lifecycleStatus: PROJECT_LIFECYCLE.completed,
+					name: "Shipped",
+					stageNames: ["Operate"],
+					targetDate: "2026-05-01",
+				},
+				{
+					archived: true,
+					enabledAreas: ["Work"],
+					id: "project-old",
+					lastManualProjectUpdate: null,
+					lifecycleStatus: PROJECT_LIFECYCLE.completed,
+					name: "Vault",
+					stageNames: ["Maintain"],
+					targetDate: null,
+				},
+			],
+		};
+		const saved = saveCrossProjectList(DEFAULT_LAYOUT, {
+			columns: ["name", "lifecycle", "lastReportedHealth"],
+			conditions: {
+				archived: false,
+				enabledAreas: ["GitHub"],
+				lifecycleStatuses: [PROJECT_LIFECYCLE.active],
+				stageNames: ["Build"],
+				targetDateOnOrAfter: "2026-08-01",
+				targetDateOnOrBefore: "2026-10-01",
+			},
+			grouping: "lifecycle",
+			id: "list-active-github",
+			name: "Active GitHub",
+			sort: { column: "name", direction: "asc" },
+		});
+		expect(saved.status).toBe("ok");
+		if (saved.status !== "ok") {
+			throw new Error("expected saved list");
+		}
+		const overview = workspaceOverview(sources, saved.layout);
+		expect(overview.savedLists).toEqual([
+			{
+				columns: ["name", "lifecycle", "lastReportedHealth"],
+				conditions: {
+					archived: false,
+					enabledAreas: ["GitHub"],
+					lifecycleStatuses: [PROJECT_LIFECYCLE.active],
+					stageNames: ["Build"],
+					targetDateOnOrAfter: "2026-08-01",
+					targetDateOnOrBefore: "2026-10-01",
+				},
+				grouping: "lifecycle",
+				groups: [
+					{
+						heading: PROJECT_LIFECYCLE.active,
+						rows: [
+							{
+								areas: ["Work", "Documents", "GitHub"],
+								id: "project-atlas",
+								lastReportedHealth: {
+									date: "2026-08-20",
+									label: WORKSPACE_OVERVIEW_COPY.lastReportedHealth,
+									mark: "On Track",
+								},
+								lifecycle: PROJECT_LIFECYCLE.active,
+								name: "Atlas",
+								stage: "Build",
+								targetDate: "2026-09-01",
+							},
+						],
+					},
+				],
+				id: "list-active-github",
+				kind: CROSS_PROJECT_LIST_KIND,
+				name: "Active GitHub",
+				rows: [
+					{
+						areas: ["Work", "Documents", "GitHub"],
+						id: "project-atlas",
+						lastReportedHealth: {
+							date: "2026-08-20",
+							label: WORKSPACE_OVERVIEW_COPY.lastReportedHealth,
+							mark: "On Track",
+						},
+						lifecycle: PROJECT_LIFECYCLE.active,
+						name: "Atlas",
+						stage: "Build",
+						targetDate: "2026-09-01",
+					},
+				],
+				sort: { column: "name", direction: "asc" },
+			},
+		]);
+		expect(overview.layout.savedLists[0]?.id).toBe("list-active-github");
+		const widened = saveCrossProjectList(saved.layout, {
+			conditions: {
+				archived: false,
+				lifecycleStatuses: [PROJECT_LIFECYCLE.completed],
+			},
+			id: "list-active-github",
+			name: "Completed unarchived",
+		});
+		expect(widened.status).toBe("ok");
+		if (widened.status !== "ok") {
+			throw new Error("expected updated list");
+		}
+		const next = workspaceOverview(sources, widened.layout);
+		const [completed] = next.savedLists;
+		if (!completed) {
+			throw new Error("expected updated list");
+		}
+		expect(completed.id).toBe("list-active-github");
+		expect(completed.rows.map((row) => row.name)).toEqual(["Shipped"]);
+		expect(JSON.stringify(next.savedLists)).not.toContain("Vault");
+		expect(JSON.stringify(next.savedLists)).not.toContain("Atlas");
+	});
+
+	it("rejects drag-on membership and does not mint Portfolio, Program, or parent Project records", () => {
+		const sources: WorkspaceOverviewSources = {
+			...EMPTY_SOURCES,
+			projects: [
+				{
+					archived: false,
+					enabledAreas: ["Work"],
+					id: "project-atlas",
+					lastManualProjectUpdate: null,
+					lifecycleStatus: PROJECT_LIFECYCLE.pending,
+					name: "Atlas",
+					stageNames: ["Discovery"],
+					targetDate: null,
+				},
+			],
+		};
+		const saved = saveCrossProjectList(DEFAULT_LAYOUT, {
+			conditions: { lifecycleStatuses: [PROJECT_LIFECYCLE.active] },
+			id: "list-active",
+			name: "Active only",
+		});
+		expect(saved.status).toBe("ok");
+		if (saved.status !== "ok") {
+			throw new Error("expected saved list");
+		}
+		const overview = workspaceOverview(sources, saved.layout);
+		expect(overview.savedLists[0]?.rows).toEqual([]);
+		const dragged = addCrossProjectListMemberByDrag(
+			overview,
+			"list-active",
+			"project-atlas"
+		);
+		expect(dragged).toEqual({
+			copy: WORKSPACE_OVERVIEW_COPY.membershipFromConditions,
+			reason: "membership-from-conditions",
+			status: "rejected",
+		});
+		const afterDrag = workspaceOverview(sources, saved.layout);
+		expect(afterDrag.savedLists[0]?.rows).toEqual([]);
+		expect(JSON.stringify(afterDrag.savedLists)).not.toMatch(
+			FORBIDDEN_LIST_PATTERN
+		);
+		expect(afterDrag.savedLists[0]?.kind).toBe(CROSS_PROJECT_LIST_KIND);
+		expect(CROSS_PROJECT_LIST_KIND).toBe("workspaceCrossProjectList");
+	});
+
+	it("stores supported columns, sort, and grouping without becoming report truth or a Smart Collection", () => {
+		const sources: WorkspaceOverviewSources = {
+			...EMPTY_SOURCES,
+			projects: [
+				{
+					archived: false,
+					enabledAreas: ["Tests"],
+					id: "project-beta",
+					lastManualProjectUpdate: {
+						date: "2026-08-01",
+						mark: "At Risk",
+					},
+					lifecycleStatus: PROJECT_LIFECYCLE.pending,
+					name: "Beta",
+					stageNames: ["Validate"],
+					targetDate: "2026-12-01",
+				},
+				{
+					archived: false,
+					enabledAreas: ["Work"],
+					id: "project-alpha",
+					lastManualProjectUpdate: null,
+					lifecycleStatus: PROJECT_LIFECYCLE.active,
+					name: "Alpha",
+					stageNames: ["Build"],
+					targetDate: "2026-09-01",
+				},
+			],
+			smartCollections: [
+				{
+					id: "collection-1",
+					membershipRule: "type = Feature",
+					title: "Features",
+				},
+			],
+		};
+		const listed = saveCrossProjectList(DEFAULT_LAYOUT, {
+			columns: ["name", "lifecycle", "stage"],
+			grouping: "lifecycle",
+			id: "list-sorted",
+			name: "By lifecycle",
+			sort: { column: "name", direction: "asc" },
+		});
+		expect(listed.status).toBe("ok");
+		if (listed.status !== "ok") {
+			throw new Error("expected saved list");
+		}
+		const overview = workspaceOverview(sources, listed.layout);
+		const [evaluated] = overview.savedLists;
+		if (!evaluated) {
+			throw new Error("expected evaluated list");
+		}
+		expect(evaluated.columns).toEqual(["name", "lifecycle", "stage"]);
+		expect(evaluated.sort).toEqual({
+			column: "name",
+			direction: "asc",
+		});
+		expect(evaluated.grouping).toBe("lifecycle");
+		expect(evaluated.rows.map((row) => row.name)).toEqual(["Alpha", "Beta"]);
+		expect(evaluated.groups?.map((group) => group.heading)).toEqual([
+			PROJECT_LIFECYCLE.active,
+			PROJECT_LIFECYCLE.pending,
+		]);
+		expect(evaluated.kind).not.toBe("smartCollection");
+		expect(JSON.stringify(overview.savedLists)).not.toContain("Features");
+		expect(JSON.stringify(overview.savedLists)).not.toContain("type = Feature");
+		for (const key of HEALTH_KEYS) {
+			expect(JSON.stringify(evaluated)).not.toContain(key);
+		}
+		expect(overview.copy.lastReportedHealth).toBe("Last reported health");
+		const health = evaluated.rows.find(
+			(row) => row.id === "project-beta"
+		)?.lastReportedHealth;
+		expect(health).toEqual({
+			date: "2026-08-01",
+			label: "Last reported health",
+			mark: "At Risk",
+		});
+		expect(health?.date).toBeTruthy();
+		const bare = evaluated.rows.find(
+			(row) => row.id === "project-alpha"
+		)?.lastReportedHealth;
+		expect(bare).toBeNull();
 	});
 });

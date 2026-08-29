@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../prisma/generated/client";
+import type { Prisma, PrismaClient } from "../prisma/generated/client";
 
 import { prismaClientHasCurrentWorkspaceModel } from "./prisma-client-delegates";
 
@@ -6,6 +6,21 @@ export interface WorkspaceOverviewLayoutJson {
 	hidden: readonly string[];
 	liveBlocks: ReadonlyArray<{ kind: string; sourceId: string }>;
 	order: readonly string[];
+	savedLists: ReadonlyArray<{
+		columns: readonly string[];
+		conditions: {
+			archived: boolean | null;
+			enabledAreas: readonly string[];
+			lifecycleStatuses: readonly string[];
+			stageNames: readonly string[];
+			targetDateOnOrAfter: string | null;
+			targetDateOnOrBefore: string | null;
+		};
+		grouping: string | null;
+		id: string;
+		name: string;
+		sort: { column: string; direction: "asc" | "desc" };
+	}>;
 }
 
 export async function readWorkspaceOverviewLayout(
@@ -32,7 +47,7 @@ export async function writeWorkspaceOverviewLayout(
 ): Promise<void> {
 	if (prismaClientHasCurrentWorkspaceModel(prisma)) {
 		await prisma.workspace.update({
-			data: { overviewLayout: layout },
+			data: { overviewLayout: layout as unknown as Prisma.InputJsonValue },
 			where: { id: workspaceId },
 		});
 		return;

@@ -1,19 +1,13 @@
 import { PROJECT_LIFECYCLE } from "../../project-shell/server/project-shell-model";
 
-export const WORKSPACE_OVERVIEW_COPY = {
-	activeProjects: "Active Projects",
-	addLiveBlock: "Add live block",
-	attentionRequired: "Attention Required",
-	hide: "Hide",
-	moveDown: "Move down",
-	moveUp: "Move up",
-	openSourceRecord: "Open source record",
-	recentWork: "Recent Work",
-	remove: "Remove",
-	show: "Show",
-	upcoming: "Upcoming",
-	workspace: "Workspace",
-} as const;
+import {
+	type CrossProjectListProject,
+	type EvaluatedCrossProjectList,
+	evaluateCrossProjectLists,
+	parseSavedCrossProjectLists,
+	type SavedCrossProjectListDefinition,
+} from "./cross-project-lists";
+import { WORKSPACE_OVERVIEW_COPY } from "./workspace-overview-copy";
 
 export const PREPARED_MODULE_HEADINGS = [
 	WORKSPACE_OVERVIEW_COPY.activeProjects,
@@ -81,9 +75,17 @@ export interface OverviewSourceSet {
 }
 
 export interface WorkspaceProjectSource {
+	archived?: boolean;
+	enabledAreas?: readonly string[];
 	id: string;
+	lastManualProjectUpdate?: {
+		date: string;
+		mark: string;
+	} | null;
 	lifecycleStatus: string;
 	name: string;
+	stageNames?: readonly string[];
+	targetDate?: string | null;
 }
 
 export interface WorkspaceAttentionSource {
@@ -133,6 +135,7 @@ export interface WorkspaceOverviewLayout {
 	hidden: readonly PreparedModuleHeading[];
 	liveBlocks: readonly LiveBlockRef[];
 	order: readonly PreparedModuleHeading[];
+	savedLists: readonly SavedCrossProjectListDefinition[];
 }
 
 export interface LiveBlockView {
@@ -149,12 +152,14 @@ export interface WorkspaceOverview {
 	liveBlocks: LiveBlockView[];
 	modules: PreparedModule[];
 	openSourceRecord: typeof WORKSPACE_OVERVIEW_COPY.openSourceRecord;
+	savedLists: EvaluatedCrossProjectList[];
 }
 
 export const DEFAULT_WORKSPACE_OVERVIEW_LAYOUT: WorkspaceOverviewLayout = {
 	hidden: [],
 	liveBlocks: [],
 	order: [...PREPARED_MODULE_HEADINGS],
+	savedLists: [],
 };
 
 const ACTION_REQUIRED = new Set<string>(ACTION_REQUIRED_SIGNAL_IDS);
@@ -300,6 +305,7 @@ export function workspaceOverview(
 	const availableLiveBlocks = [...sourceCatalog.values()].filter(
 		(item) => !placed.has(item.sourceId)
 	);
+	const savedLists = parseSavedCrossProjectLists(layout.savedLists);
 	const normalizedLayout: WorkspaceOverviewLayout = {
 		hidden: orderedHeadings(layout).filter((heading) =>
 			isHidden(layout, heading)
@@ -309,6 +315,7 @@ export function workspaceOverview(
 			sourceId: block.sourceId,
 		})),
 		order: orderedHeadings(layout),
+		savedLists,
 	};
 	return {
 		availableLiveBlocks,
@@ -318,6 +325,25 @@ export function workspaceOverview(
 		liveBlocks,
 		modules,
 		openSourceRecord: WORKSPACE_OVERVIEW_COPY.openSourceRecord,
+		savedLists: evaluateCrossProjectLists(
+			sources.projects.map(asListProject),
+			savedLists
+		),
+	};
+}
+
+function asListProject(
+	project: WorkspaceProjectSource
+): CrossProjectListProject {
+	return {
+		archived: project.archived === true,
+		enabledAreas: project.enabledAreas ?? [],
+		id: project.id,
+		lastManualProjectUpdate: project.lastManualProjectUpdate ?? null,
+		lifecycleStatus: project.lifecycleStatus,
+		name: project.name,
+		stageNames: project.stageNames ?? [],
+		targetDate: project.targetDate ?? null,
 	};
 }
 
@@ -426,9 +452,15 @@ export function removePersonalLiveBlock(
 
 export function sourcesFromWorkspaceSnapshot(snapshot: {
 	projects: ReadonlyArray<{
+		areaSettings?: ReadonlyArray<{ enabled: boolean; name: string }>;
+		archived?: boolean;
+		enabledAreas?: readonly string[];
 		id: string;
+		lastManualProjectUpdate?: { date: string; mark: string } | null;
 		lifecycleStatus: string;
 		name: string;
+		stageNames?: readonly string[];
+		stages?: ReadonlyArray<{ name: string }>;
 		targetDate: string | null;
 	}>;
 	works: ReadonlyArray<{
@@ -444,9 +476,19 @@ export function sourcesFromWorkspaceSnapshot(snapshot: {
 		favorites: [],
 		personalWiki: [],
 		projects: snapshot.projects.map((project) => ({
+			archived: project.archived === true,
+			enabledAreas:
+				project.enabledAreas ??
+				(project.areaSettings ?? [])
+					.filter((area) => area.enabled)
+					.map((area) => area.name),
 			id: project.id,
+			lastManualProjectUpdate: project.lastManualProjectUpdate ?? null,
 			lifecycleStatus: project.lifecycleStatus,
 			name: project.name,
+			stageNames:
+				project.stageNames ?? (project.stages ?? []).map((stage) => stage.name),
+			targetDate: project.targetDate,
 		})),
 		recentWork: snapshot.works
 			.filter((work) => !work.archived)
@@ -514,5 +556,10 @@ export function parseWorkspaceOverviewLayout(
 				return [{ kind: ref.kind as LiveBlockKind, sourceId: ref.sourceId }];
 			})
 		: [];
-	return { hidden, liveBlocks, order };
+	return {
+		hidden,
+		liveBlocks,
+		order,
+		savedLists: parseSavedCrossProjectLists(record.savedLists),
+	};
 }

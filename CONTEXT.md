@@ -246,6 +246,14 @@ _Avoid_: Workspace dashboard, Portfolio, Mission Control, Home board, Proje gene
 Çalışma Alanı genel bakışına eklenen mevcut Belge veya adlandırılmış Akıllı Koleksiyon görünümü referansı; gövde, üyelik kuralı, serbest widget veya kopya kayıt değildir ([Çalışma alanı genel bakışı](docs/prd/04-workspace-and-projects.md#çalışma-alanı-genel-bakışı)). UI: `Add live block`.
 _Avoid_: widget, dashboard kartı, kopya Belge, sorgu bloğu
 
+**Kaydedilmiş çapraz Proje listesi**:
+Çalışma Alanı çapında Proje yaşam durumu, aşama, tarih, arşiv ve desteklenen Proje alanları gibi görünür koşullardan canlı üyelik türeten adlandırılmış görünüm; Portfolio, Program, klasör, üst Proje, Proje skoru veya Akıllı Koleksiyon değildir ([Kaydedilmiş çapraz proje listeleri](docs/prd/04-workspace-and-projects.md#kaydedilmiş-çapraz-proje-listeleri)). UI: `Saved lists`.
+_Avoid_: Portfolio, Program, Smart Collection, statik üyelik, rapor doğruluk kaynağı
+
+**Son bildirilen sağlık**:
+Son Manuel Proje Güncellemesinin tarihiyle gösterilen sağlık işareti; güncel Project health alanı, otomatik hüküm veya tarihsiz rozet değildir ([Kaydedilmiş çapraz proje listeleri](docs/prd/04-workspace-and-projects.md#kaydedilmiş-çapraz-proje-listeleri)). UI: `Last reported health`.
+_Avoid_: Project health, Mission Control, tarihsiz sağlık rozeti
+
 **Kaynak kaydı aç**:
 Ana kaydı kopyalamadan açan ortak eylem; ikinci doğruluk kaynağı veya kayıt yazması değildir ([etkileşim tutarlılığı](docs/prd/15-product-quality.md#etkilesim-tutarliligi)). UI: `Open source record`.
 _Avoid_: Open record, View details, ikinci kayıt kopyası

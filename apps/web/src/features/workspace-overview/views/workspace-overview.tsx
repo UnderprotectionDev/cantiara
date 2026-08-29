@@ -5,6 +5,12 @@ import { useCallback, useState } from "react";
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
 import { orpc, queryClient } from "@/utils/orpc";
 
+import SavedCrossProjectLists from "./saved-cross-project-lists";
+import type {
+	CrossProjectListColumn,
+	SavedCrossProjectListView,
+	SavedListLayoutItem,
+} from "./saved-cross-project-lists-model";
 import { WORKSPACE_OVERVIEW_UI_COPY } from "./workspace-overview-copy";
 
 interface OverviewRecordView {
@@ -28,11 +34,25 @@ interface LiveBlockView {
 
 interface OverviewCopy {
 	addLiveBlock: string;
+	archived: string;
+	areas: string;
+	columns: string;
+	grouping: string;
 	hide: string;
+	lastReportedHealth: string;
+	lifecycle: string;
+	listName: string;
+	membershipFromConditions: string;
 	moveDown: string;
 	moveUp: string;
+	openSourceRecord: string;
 	remove: string;
+	savedLists: string;
+	saveList: string;
 	show: string;
+	sort: string;
+	stage: string;
+	targetDate: string;
 	workspace: string;
 }
 
@@ -40,6 +60,7 @@ interface OverviewLayout {
 	hidden: readonly string[];
 	liveBlocks: ReadonlyArray<{ kind: string; sourceId: string }>;
 	order: readonly string[];
+	savedLists: readonly SavedListLayoutItem[];
 }
 
 const MODULE_HEADINGS = [
@@ -59,6 +80,48 @@ function isLiveBlockKind(
 	value: string
 ): value is "document" | "smartCollection" {
 	return value === "document" || value === "smartCollection";
+}
+
+function isListColumn(value: string): value is CrossProjectListColumn {
+	return (
+		value === "name" ||
+		value === "lifecycle" ||
+		value === "stage" ||
+		value === "targetDate" ||
+		value === "areas" ||
+		value === "lastReportedHealth"
+	);
+}
+
+function persistSavedLists(
+	lists: readonly SavedListLayoutItem[]
+): SavedListLayoutItem[] {
+	return lists.flatMap((list) => {
+		if (list.id.length === 0 || list.name.trim().length === 0) {
+			return [];
+		}
+		return [
+			{
+				columns: [...list.columns.filter(isListColumn)],
+				conditions: {
+					archived: list.conditions.archived,
+					enabledAreas: [...list.conditions.enabledAreas],
+					lifecycleStatuses: [...list.conditions.lifecycleStatuses],
+					stageNames: [...list.conditions.stageNames],
+					targetDateOnOrAfter: list.conditions.targetDateOnOrAfter,
+					targetDateOnOrBefore: list.conditions.targetDateOnOrBefore,
+				},
+				grouping:
+					list.grouping && isListColumn(list.grouping) ? list.grouping : null,
+				id: list.id,
+				name: list.name.trim(),
+				sort: {
+					column: isListColumn(list.sort.column) ? list.sort.column : "name",
+					direction: list.sort.direction === "desc" ? "desc" : "asc",
+				},
+			},
+		];
+	});
 }
 
 export default function WorkspaceOverview() {
@@ -84,6 +147,24 @@ export default function WorkspaceOverview() {
 						: []
 				),
 				order: next.order.filter(isModuleHeading),
+				savedLists: persistSavedLists(next.savedLists).map((list) => ({
+					columns: [...list.columns],
+					conditions: {
+						archived: list.conditions.archived,
+						enabledAreas: [...list.conditions.enabledAreas],
+						lifecycleStatuses: [...list.conditions.lifecycleStatuses],
+						stageNames: [...list.conditions.stageNames],
+						targetDateOnOrAfter: list.conditions.targetDateOnOrAfter,
+						targetDateOnOrBefore: list.conditions.targetDateOnOrBefore,
+					},
+					grouping: list.grouping,
+					id: list.id,
+					name: list.name,
+					sort: {
+						column: list.sort.column,
+						direction: list.sort.direction,
+					},
+				})),
 			});
 		},
 		[saveLayout]
@@ -105,10 +186,16 @@ export default function WorkspaceOverview() {
 	}
 
 	const { data } = overview;
-	const layout =
+	const rawLayout =
 		saveLayout.isPending && saveLayout.variables
 			? saveLayout.variables
 			: data.layout;
+	const layout: OverviewLayout = {
+		hidden: rawLayout.hidden,
+		liveBlocks: rawLayout.liveBlocks,
+		order: rawLayout.order,
+		savedLists: rawLayout.savedLists ?? [],
+	};
 	const orderedCatalog = orderCatalog(data.catalog, layout.order).map(
 		(module) => ({
 			...module,
@@ -161,7 +248,60 @@ export default function WorkspaceOverview() {
 				persist={persist}
 				setOpenedRecordId={setOpenedRecordId}
 			/>
+			<WorkspaceSavedLists
+				copy={data.copy}
+				layout={layout}
+				lists={data.savedLists as readonly SavedCrossProjectListView[]}
+				openedRecordId={openedRecordId}
+				persist={persist}
+				setOpenedRecordId={setOpenedRecordId}
+			/>
 		</FounderPage>
+	);
+}
+
+function WorkspaceSavedLists({
+	copy,
+	layout,
+	lists,
+	openedRecordId,
+	persist,
+	setOpenedRecordId,
+}: {
+	copy: OverviewCopy;
+	layout: OverviewLayout;
+	lists: readonly SavedCrossProjectListView[];
+	openedRecordId: string | null;
+	persist: (layout: OverviewLayout) => void;
+	setOpenedRecordId: (recordId: string) => void;
+}) {
+	const onRemove = useCallback(
+		(id: string) => {
+			persist({
+				...layout,
+				savedLists: layout.savedLists.filter((item) => item.id !== id),
+			});
+		},
+		[layout, persist]
+	);
+	const onSave = useCallback(
+		(item: SavedListLayoutItem) => {
+			persist({
+				...layout,
+				savedLists: [...layout.savedLists, item],
+			});
+		},
+		[layout, persist]
+	);
+	return (
+		<SavedCrossProjectLists
+			copy={copy}
+			lists={lists}
+			onOpen={setOpenedRecordId}
+			onRemove={onRemove}
+			onSave={onSave}
+			openedRecordId={openedRecordId}
+		/>
 	);
 }
 

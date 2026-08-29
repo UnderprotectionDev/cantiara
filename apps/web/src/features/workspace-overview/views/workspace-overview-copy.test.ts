@@ -9,8 +9,10 @@ test("English UI uses the four prepared Workspace Overview modules", () => {
 	expect(WORKSPACE_OVERVIEW_UI_COPY).toMatchObject({
 		activeProjects: "Active Projects",
 		attentionRequired: "Attention Required",
+		lastReportedHealth: "Last reported health",
 		openSourceRecord: "Open source record",
 		recentWork: "Recent Work",
+		savedLists: "Saved lists",
 		upcoming: "Upcoming",
 		workspace: "Workspace",
 	});
