@@ -4,6 +4,7 @@ import type { PrismaClient } from "../prisma/generated/client";
 import {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentFileAttachmentVersionModel,
+	prismaClientHasCurrentTypedRelationModel,
 	prismaClientHasCurrentWorkspaceModel,
 	workspaceOverviewLayoutSelect,
 } from "./prisma-client-delegates";
@@ -205,6 +206,40 @@ describe("Prisma client current delegates", () => {
 								{ name: "id" },
 								{ name: "markingMarks" },
 								{ name: "shareItemApprovals" },
+							],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
+	it("refuses a bun --hot client generated before blocker resolution fields", () => {
+		expect(
+			prismaClientHasCurrentTypedRelationModel({
+				_runtimeDataModel: {
+					models: {
+						TypedRelation: {
+							fields: [
+								{ name: "id" },
+								{ name: "blockerState" },
+								{ name: "establishedAt" },
+							],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(false);
+		expect(
+			prismaClientHasCurrentTypedRelationModel({
+				_runtimeDataModel: {
+					models: {
+						TypedRelation: {
+							fields: [
+								{ name: "id" },
+								{ name: "blockerState" },
+								{ name: "resolvedAt" },
+								{ name: "resolutionNote" },
 							],
 						},
 					},

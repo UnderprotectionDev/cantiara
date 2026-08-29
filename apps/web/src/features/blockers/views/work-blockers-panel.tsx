@@ -1,5 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
+import { Input } from "@cantiara/ui/components/input";
 import {
 	NativeSelect,
 	NativeSelectOption,
@@ -7,7 +8,7 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -72,14 +73,38 @@ function BlockerRow({
 	projectId: string;
 	relation: {
 		id: string;
+		resolutionNote: string | null;
+		resolvedAt: string | null;
 		source: { id: string; kind: string };
+		sourceCloseSuggestion: { reason: string } | null;
 		state: string;
 	};
 	workId: string;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const [note, setNote] = useState("");
 	const remove = useMutation(
 		orpc.blockers.remove.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidateBlockers(projectId, workId);
+					recordSave();
+				}
+			},
+		})
+	);
+	const resolve = useMutation(
+		orpc.blockers.resolve.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidateBlockers(projectId, workId);
+					recordSave();
+				}
+			},
+		})
+	);
+	const reactivate = useMutation(
+		orpc.blockers.reactivate.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
 					await invalidateBlockers(projectId, workId);
@@ -101,15 +126,81 @@ function BlockerRow({
 		}
 		result.value.catch(() => undefined);
 	}, [attemptOnlineWork, markUnsaved, relation.id, remove]);
+	const onResolve = useCallback(() => {
+		markUnsaved();
+		const result = attemptOnlineWork("record-create", () =>
+			resolve.mutateAsync({
+				idempotencyKey: newIdempotencyKey(),
+				relationId: relation.id,
+				resolutionNote: note.length > 0 ? note : undefined,
+			})
+		);
+		if (result.status === "refused") {
+			return;
+		}
+		result.value.catch(() => undefined);
+	}, [attemptOnlineWork, markUnsaved, note, relation.id, resolve]);
+	const onReactivate = useCallback(() => {
+		markUnsaved();
+		const result = attemptOnlineWork("record-create", () =>
+			reactivate.mutateAsync({
+				idempotencyKey: newIdempotencyKey(),
+				relationId: relation.id,
+			})
+		);
+		if (result.status === "refused") {
+			return;
+		}
+		result.value.catch(() => undefined);
+	}, [attemptOnlineWork, markUnsaved, reactivate, relation.id]);
+	const onNoteChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+		setNote(event.target.value);
+	}, []);
 	return (
-		<li className="flex items-center justify-between gap-2">
-			<span>
-				{sourceLabel(relation.source, candidates)}{" "}
-				<span className="text-muted-foreground">{relation.state}</span>
-			</span>
-			<Button onClick={onRemove} size="sm" type="button" variant="ghost">
-				{BLOCKERS_COPY.removeRelation}
-			</Button>
+		<li className="flex flex-col gap-2">
+			<div className="flex items-center justify-between gap-2">
+				<span>
+					{sourceLabel(relation.source, candidates)}{" "}
+					<span className="text-muted-foreground">{relation.state}</span>
+				</span>
+				{relation.state === BLOCKERS_COPY.active ? (
+					<Button onClick={onRemove} size="sm" type="button" variant="ghost">
+						{BLOCKERS_COPY.removeRelation}
+					</Button>
+				) : (
+					<Button onClick={onReactivate} size="sm" type="button">
+						{BLOCKERS_COPY.active}
+					</Button>
+				)}
+			</div>
+			{relation.sourceCloseSuggestion ? (
+				<p className="text-muted-foreground text-xs">
+					{relation.sourceCloseSuggestion.reason}
+				</p>
+			) : null}
+			{relation.state === BLOCKERS_COPY.resolved && relation.resolvedAt ? (
+				<p className="text-muted-foreground text-xs">
+					{relation.resolvedAt}
+					{relation.resolutionNote ? ` — ${relation.resolutionNote}` : ""}
+				</p>
+			) : null}
+			{relation.state === BLOCKERS_COPY.active ? (
+				<FieldGroup className="flex-row flex-wrap items-end gap-3">
+					<Field>
+						<FieldLabel htmlFor={`blocker-note-${relation.id}`}>
+							{BLOCKERS_COPY.note}
+						</FieldLabel>
+						<Input
+							id={`blocker-note-${relation.id}`}
+							onChange={onNoteChange}
+							value={note}
+						/>
+					</Field>
+					<Button onClick={onResolve} size="sm" type="button">
+						{BLOCKERS_COPY.markBlockerResolved}
+					</Button>
+				</FieldGroup>
+			) : null}
 		</li>
 	);
 }
