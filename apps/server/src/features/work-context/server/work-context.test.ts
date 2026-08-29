@@ -361,7 +361,6 @@ describe("Work Context Card", () => {
 
 	it("omits secrets, inaccessible fields, and private attachment bytes from Markdown copy", () => {
 		const secret = "secret body that must not leak";
-		const attachmentBytes = "PK\u0003\u0004private-bytes";
 		const copy = copyWorkContextAsMarkdown({
 			activeBlockers: [
 				{
@@ -369,7 +368,6 @@ describe("Work Context Card", () => {
 					reason: "No access",
 				},
 			],
-			attachmentBytes,
 			checklist: [],
 			description: "Visible description",
 			githubAndExternal: [
@@ -378,7 +376,6 @@ describe("Work Context Card", () => {
 					reason: "No access",
 				},
 			],
-			inaccessibleFields: { apiToken: secret },
 			key: "PAY-9",
 			producedAt: "2026-08-29T20:06:00.000Z",
 			relatedUncertainty: [
@@ -387,7 +384,6 @@ describe("Work Context Card", () => {
 					reason: "No access",
 				},
 			],
-			secrets: { [secret]: true },
 			status: "Blocked",
 			title: "Retry",
 			type: "Bug",
@@ -402,8 +398,6 @@ describe("Work Context Card", () => {
 		expect(copy.markdown).toContain("Decision: No access");
 		expect(copy.markdown).toContain("Work: No access");
 		expect(copy.markdown).not.toContain(secret);
-		expect(copy.markdown).not.toContain(attachmentBytes);
-		expect(copy.markdown).not.toContain("apiToken");
 		expect(copy.widensAccess).toBe(false);
 	});
 

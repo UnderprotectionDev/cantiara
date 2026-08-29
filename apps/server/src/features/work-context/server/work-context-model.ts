@@ -2,9 +2,11 @@ import type { StarterConfiguration } from "../../project-shell/server/project-sh
 import type { WorkType } from "../../work-lifecycle/server/work-lifecycle-model";
 
 export const WORK_CONTEXT_COPY = {
+	activeBlockers: "Active blockers",
 	add: "Add",
 	addContext: "Add Context",
 	affectedReleases: "Affected Releases",
+	checklist: "Checklist",
 	copyContextAsMarkdown: "Copy Context as Markdown",
 	currentSituation: "Current Situation",
 	decisions: "Decisions",
@@ -14,14 +16,19 @@ export const WORK_CONTEXT_COPY = {
 	evidence: "Evidence",
 	evidenceAndDecisions: "Evidence & Decisions",
 	expectedOutcome: "Expected Outcome",
+	githubAndExternal: "GitHub and external links",
 	githubAndTests: "GitHub & Tests",
 	includedWork: "Included Work",
+	key: "Key",
 	link: "Link",
 	observedExpectedBehavior: "Observed/Expected Behavior",
 	openSourceRecord: "Open source record",
 	planning: "Planning",
 	primarySourceIsInTheApp: "Primary source is in the app",
+	primarySpec: "Primary spec",
 	problemOpportunity: "Problem/Opportunity",
+	producedAt: "Produced at",
+	relatedUncertainty: "Related Decision, Risk, and Open Question",
 	relatedWork: "Related Work",
 	researchQuestion: "Research Question",
 	risksAndOpenQuestions: "Risks & Open Questions",
@@ -189,16 +196,13 @@ export interface CopyContextSource {
 
 export interface CopyWorkContextInput {
 	activeBlockers?: readonly CopyContextSource[];
-	attachmentBytes?: string;
 	checklist?: ReadonlyArray<{ completed: boolean; title: string }>;
 	description?: string | null;
 	githubAndExternal?: readonly CopyContextSource[];
-	inaccessibleFields?: Record<string, string>;
 	key: string;
 	primarySpec?: CopyContextSource | null;
 	producedAt: string;
 	relatedUncertainty?: readonly CopyContextSource[];
-	secrets?: Record<string, unknown>;
 	status: string;
 	title: string;
 	type: string;

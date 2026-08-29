@@ -90,12 +90,7 @@ export default function WorkContextCard({
 		}
 		client.workContext
 			.copyMarkdown({ workId })
-			.then(async (copy) => {
-				if (copy.writes.snapshot) {
-					return;
-				}
-				await navigator.clipboard.writeText(copy.markdown);
-			})
+			.then((copy) => navigator.clipboard.writeText(copy.markdown))
 			.catch(() => undefined);
 	}, [workId]);
 	return (
