@@ -5,6 +5,7 @@ import { getPrismaClient } from "./index";
 import { prismaClientHasCurrentWorkspaceModel } from "./prisma-client-delegates";
 import {
 	readWorkspaceOverviewLayout,
+	type WorkspaceOverviewLayoutJson,
 	writeWorkspaceOverviewLayout,
 } from "./workspace-overview-layout";
 
@@ -30,6 +31,7 @@ const HIDE_ATTENTION = {
 		"Upcoming",
 		"Recent Work",
 	] as const,
+	savedLists: [] as const,
 };
 
 function asStaleWorkspaceClient(client: PrismaClient): PrismaClient {
@@ -70,6 +72,7 @@ describe("Workspace Overview layout persistence", () => {
 					hidden?: string[];
 					liveBlocks?: Array<{ kind: string; sourceId: string }>;
 					order?: string[];
+					savedLists?: WorkspaceOverviewLayoutJson["savedLists"];
 				};
 				await writeWorkspaceOverviewLayout(prisma, row.id, {
 					hidden: record.hidden ?? [],
@@ -80,6 +83,7 @@ describe("Workspace Overview layout persistence", () => {
 						"Upcoming",
 						"Recent Work",
 					],
+					savedLists: record.savedLists ?? [],
 				});
 			} else {
 				await writeWorkspaceOverviewLayout(prisma, row.id, {
@@ -91,6 +95,7 @@ describe("Workspace Overview layout persistence", () => {
 						"Upcoming",
 						"Recent Work",
 					],
+					savedLists: [],
 				});
 			}
 		}

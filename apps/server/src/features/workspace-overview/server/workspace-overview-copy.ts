@@ -1,4 +1,4 @@
-export const WORKSPACE_OVERVIEW_UI_COPY = {
+export const WORKSPACE_OVERVIEW_COPY = {
 	activeProjects: "Active Projects",
 	addLiveBlock: "Add live block",
 	any: "Any",
@@ -11,7 +11,6 @@ export const WORKSPACE_OVERVIEW_UI_COPY = {
 	lastReportedHealth: "Last reported health",
 	lifecycle: "Lifecycle",
 	listName: "Name",
-	loading: "Loading…",
 	membershipFromConditions: "Membership comes from list conditions.",
 	moveDown: "Move down",
 	moveUp: "Move up",
@@ -28,7 +27,6 @@ export const WORKSPACE_OVERVIEW_UI_COPY = {
 	sortDesc: "Z–A",
 	stage: "Stage",
 	targetDate: "Target date",
-	unavailable: "Workspace overview is unavailable.",
 	upcoming: "Upcoming",
 	workspace: "Workspace",
 } as const;
