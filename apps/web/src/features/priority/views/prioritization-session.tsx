@@ -2,7 +2,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, FormEvent, MouseEvent } from "react";
 import { useCallback, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
