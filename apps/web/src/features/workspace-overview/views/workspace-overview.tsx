@@ -105,8 +105,16 @@ export default function WorkspaceOverview() {
 	}
 
 	const { data } = overview;
-	const { layout } = data;
-	const orderedCatalog = orderCatalog(data.catalog, layout.order);
+	const layout =
+		saveLayout.isPending && saveLayout.variables
+			? saveLayout.variables
+			: data.layout;
+	const orderedCatalog = orderCatalog(data.catalog, layout.order).map(
+		(module) => ({
+			...module,
+			hidden: layout.hidden.includes(module.heading),
+		})
+	);
 	const visible = orderedCatalog.filter((module) => !module.hidden);
 	const hidden = orderedCatalog.filter((module) => module.hidden);
 

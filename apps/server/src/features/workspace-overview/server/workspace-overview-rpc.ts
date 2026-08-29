@@ -3,6 +3,7 @@ import { getAccountAccessForUser } from "@cantiara/auth";
 import {
 	getPrismaClient,
 	prismaClientHasCurrentWorkspaceModel,
+	resetPrismaClientCache,
 	workspaceOverviewLayoutSelect,
 } from "@cantiara/db";
 import { ORPCError } from "@orpc/server";
@@ -36,6 +37,18 @@ async function requireAccess(userId: string) {
 		throw new ORPCError("UNAUTHORIZED");
 	}
 	return access;
+}
+
+function prismaForOverviewLayoutWrite() {
+	let prisma = getPrismaClient();
+	if (!prismaClientHasCurrentWorkspaceModel(prisma)) {
+		resetPrismaClientCache();
+		prisma = getPrismaClient();
+	}
+	if (!prismaClientHasCurrentWorkspaceModel(prisma)) {
+		throw new ORPCError("INTERNAL_SERVER_ERROR");
+	}
+	return prisma;
 }
 
 async function loadOverview(workspaceId: string) {
@@ -86,19 +99,17 @@ export const workspaceOverviewRouter = {
 		.input(layoutInputSchema)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			const prisma = getPrismaClient();
-			if (prismaClientHasCurrentWorkspaceModel(prisma)) {
-				await prisma.workspace.update({
-					data: {
-						overviewLayout: {
-							hidden: input.hidden,
-							liveBlocks: input.liveBlocks,
-							order: input.order,
-						},
+			const prisma = prismaForOverviewLayoutWrite();
+			await prisma.workspace.update({
+				data: {
+					overviewLayout: {
+						hidden: input.hidden,
+						liveBlocks: input.liveBlocks,
+						order: input.order,
 					},
-					where: { id: access.workspaceId },
-				});
-			}
+				},
+				where: { id: access.workspaceId },
+			});
 			return await loadOverview(access.workspaceId);
 		}),
 };
