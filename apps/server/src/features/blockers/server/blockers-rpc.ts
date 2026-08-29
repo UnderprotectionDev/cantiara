@@ -9,6 +9,8 @@ import { getWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	addActiveBlockingRelation,
 	listWorkBlockers,
+	markBlockerResolved,
+	reactivateBlockingRelation,
 	removeBlockingRelation,
 } from "./blockers";
 import { BLOCKER_SOURCE_KINDS } from "./blockers-model";
@@ -64,6 +66,23 @@ export const blockers = {
 			await requireWork(access.workspaceId, input.workId);
 			return await listWorkBlockers(getPrismaClient(), input.workId);
 		}),
+	reactivate: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				relationId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await reactivateBlockingRelation(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				relationId: input.relationId,
+				viewerWorkspaceId: access.workspaceId,
+			});
+		}),
 	remove: protectedWriteProcedure
 		.input(
 			z.object({
@@ -78,6 +97,25 @@ export const blockers = {
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				relationId: input.relationId,
+				viewerWorkspaceId: access.workspaceId,
+			});
+		}),
+	resolve: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				relationId: z.string().min(1),
+				resolutionNote: z.string().optional(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await markBlockerResolved(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				relationId: input.relationId,
+				resolutionNote: input.resolutionNote,
 				viewerWorkspaceId: access.workspaceId,
 			});
 		}),

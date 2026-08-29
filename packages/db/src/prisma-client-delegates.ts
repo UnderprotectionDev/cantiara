@@ -125,6 +125,16 @@ export function prismaClientHasCurrentWorkspaceModel(
 	return fields.includes("overviewLayout");
 }
 
+export function prismaClientHasCurrentTypedRelationModel(
+	client: PrismaClient
+): boolean {
+	const fields = modelFieldNames(client, "TypedRelation");
+	if (fields.length === 0) {
+		return true;
+	}
+	return fields.includes("resolvedAt") && fields.includes("resolutionNote");
+}
+
 export function workspaceOverviewLayoutSelect(client: PrismaClient) {
 	if (prismaClientHasCurrentWorkspaceModel(client)) {
 		return { overviewLayout: true } as const;

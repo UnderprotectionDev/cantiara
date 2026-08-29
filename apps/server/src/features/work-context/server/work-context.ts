@@ -11,8 +11,11 @@ import {
 	getWorkScope,
 } from "../../work-lifecycle/server/work-lifecycle";
 import type { WorkType } from "../../work-lifecycle/server/work-lifecycle-model";
+import { getWorkContextCardLayout } from "./work-context-layout";
 import {
+	defaultLayoutSections,
 	INITIALLY_VISIBLE_FIELDS,
+	type LayoutSection,
 	type LiveSource,
 	PREPARED_LAYOUTS,
 	type PreparedSection,
@@ -66,17 +69,31 @@ export function presentWorkContextCard(
 	const preparedSections = [
 		...PREPARED_LAYOUTS[input.workType],
 	] as PreparedSection[];
+	const layoutSections = [
+		...(input.layoutSections ?? defaultLayoutSections(input.workType)),
+	];
+	const shown = layoutSections.filter((section) => !section.hidden);
+	const hiddenSections = layoutSections
+		.filter((section) => section.hidden)
+		.map((section) => ({
+			name: section.name,
+			treatedAsMissing: false as const,
+		}));
 	const revealed = new Set(input.revealedSections ?? []);
-	const visiblePreparedSections = preparedSections.filter((section) =>
-		revealed.has(section)
+	const visibleLayoutSections = shown.filter((section) =>
+		revealed.has(section.name)
 	);
+	const visiblePreparedSections = visibleLayoutSections
+		.filter((section) => section.kind === "prepared")
+		.map((section) => section.name) as PreparedSection[];
 	return {
 		addContext: {
 			label: WORK_CONTEXT_COPY.addContext,
-			remainingSections: preparedSections.filter(
-				(section) => !revealed.has(section)
-			),
+			remainingSections: shown
+				.filter((section) => !revealed.has(section.name))
+				.map((section) => section.name),
 		},
+		configuredSections: layoutSections,
 		effects: {
 			close: false,
 			completenessScore: false,
@@ -90,12 +107,22 @@ export function presentWorkContextCard(
 			create: false,
 			statusTransition: false,
 		},
+		hiddenSections,
 		initiallyVisibleFields: INITIALLY_VISIBLE_FIELDS,
+		layout: {
+			projectScoped: true,
+			revision: input.layoutRevision ?? 1,
+			workType: input.workType,
+		},
 		preparedSections,
+		shareScope: {
+			buildInPublic: false,
+			linkSharing: false,
+		},
 		starterConfiguration: input.starterConfiguration,
 		visiblePreparedSections,
-		visibleSections: visiblePreparedSections.map((name) =>
-			presentVisibleSection(name, input)
+		visibleSections: visibleLayoutSections.map((section) =>
+			presentVisibleSection(section, input)
 		),
 		whyChain: presentWhyChain(input),
 		workType: input.workType,
@@ -115,7 +142,12 @@ export function revealPreparedSection(
 		return card;
 	}
 	return presentWorkContextCard({
-		revealedSections: [...card.visiblePreparedSections, section],
+		layoutRevision: card.layout.revision,
+		layoutSections: card.configuredSections,
+		revealedSections: [
+			...card.visibleSections.map((item) => item.name),
+			section,
+		],
 		starterConfiguration: card.starterConfiguration,
 		workType: card.workType,
 	});
@@ -186,6 +218,11 @@ export async function loadWorkContextCard(
 	const includedIn = scope?.includedIn
 		? await getWork(prisma, scope.includedIn.id)
 		: null;
+	const layout = await getWorkContextCardLayout(
+		prisma,
+		work.projectId,
+		work.type as WorkType
+	);
 	return presentWorkContextCard({
 		description: work.description,
 		includedWork: (scope?.includedWork ?? []).map((item) => ({
@@ -197,6 +234,8 @@ export async function loadWorkContextCard(
 			status: "live",
 			visibleName: item.title,
 		})),
+		layoutRevision: layout.revision,
+		layoutSections: layout.sections,
 		originResearch,
 		primaryFeature: includedIn
 			? {
@@ -283,9 +322,31 @@ function toWhyStep(
 }
 
 function presentVisibleSection(
-	name: PreparedSection,
+	section: LayoutSection,
 	input: PresentWorkContextCardInput
 ): VisibleSectionView {
+	const { name } = section;
+	const items =
+		section.kind === "custom"
+			? customSectionItems(section, input)
+			: preparedSectionItems(name, input);
+	const empty = items.length === 0;
+	const add = ADD_SECTIONS.has(name);
+	return {
+		action: add
+			? { kind: "add", label: WORK_CONTEXT_COPY.add }
+			: { kind: "link", label: WORK_CONTEXT_COPY.link },
+		empty,
+		emptyState: empty ? WORK_CONTEXT_COPY.emptySection : null,
+		items,
+		name,
+	};
+}
+
+function preparedSectionItems(
+	name: string,
+	input: PresentWorkContextCardInput
+): LiveSource[] {
 	const items: LiveSource[] = [];
 	const ownField = OWN_FIELD_SECTION[input.workType];
 	if (
@@ -331,17 +392,7 @@ function presentVisibleSection(
 			items.push(related.other);
 		}
 	}
-	const empty = items.length === 0;
-	const add = ADD_SECTIONS.has(name);
-	return {
-		action: add
-			? { kind: "add", label: WORK_CONTEXT_COPY.add }
-			: { kind: "link", label: WORK_CONTEXT_COPY.link },
-		empty,
-		emptyState: empty ? WORK_CONTEXT_COPY.emptySection : null,
-		items,
-		name,
-	};
+	return items;
 }
 
 export function sectionForRelated(
@@ -401,6 +452,116 @@ export function sectionForRelated(
 		return pick(WORK_CONTEXT_COPY.sourcesAndEvidence);
 	}
 	return null;
+}
+
+function customSectionItems(
+	section: LayoutSection,
+	input: PresentWorkContextCardInput
+): LiveSource[] {
+	const { condition } = section;
+	if (!condition) {
+		return [];
+	}
+	const items: LiveSource[] = [];
+	if (
+		matchesSpecialSource(
+			condition.recordType,
+			"Project Goal",
+			input.projectGoal
+		)
+	) {
+		items.push(input.projectGoal as LiveSource);
+	}
+	if (
+		matchesSpecialSource(condition.recordType, "Research", input.originResearch)
+	) {
+		items.push(input.originResearch as LiveSource);
+	}
+	if (
+		matchesSpecialSource(condition.recordType, "Feature", input.primaryFeature)
+	) {
+		items.push(input.primaryFeature as LiveSource);
+	}
+	if (
+		matchesSpecialSource(
+			condition.recordType,
+			"Primary spec",
+			input.primarySpec
+		)
+	) {
+		items.push(input.primarySpec as LiveSource);
+	}
+	for (const related of input.relatedSources ?? []) {
+		if (relatedMatchesCondition(related, condition)) {
+			items.push(related.other);
+		}
+	}
+	return items.filter(
+		(item) =>
+			condition.status === undefined ||
+			item.status !== "live" ||
+			item.recordStatus === condition.status
+	);
+}
+
+function matchesSpecialSource(
+	recordType: string | undefined,
+	wanted: string,
+	source: LiveSource | null | undefined
+): source is LiveSource {
+	return recordType === wanted && source !== null && source !== undefined;
+}
+
+function relatedMatchesCondition(
+	related: RelatedLiveSource,
+	condition: NonNullable<LayoutSection["condition"]>
+): boolean {
+	if (
+		condition.recordType !== undefined &&
+		catalogKind(related.kind) !== condition.recordType
+	) {
+		return false;
+	}
+	if (
+		condition.relationType !== undefined &&
+		!relationMatches(related.relationType, condition.relationType)
+	) {
+		return false;
+	}
+	if (condition.evidenceRole !== undefined) {
+		const role = related.evidenceRole ?? "Unspecified";
+		if (role !== condition.evidenceRole) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function catalogKind(kind: string): string {
+	if (kind === "Question") {
+		return "Open Question";
+	}
+	if (kind === "GitHub PR") {
+		return "GitHub PR/check";
+	}
+	return kind;
+}
+
+function relationMatches(actual: string, wanted: string): boolean {
+	if (actual === wanted) {
+		return true;
+	}
+	const pairs: Record<string, string> = {
+		"Blocked by": RELATIONS_COPY.blocks,
+		Blocks: RELATIONS_COPY.blockedBy,
+		Derived: RELATIONS_COPY.origin,
+		Evidence: RELATIONS_COPY.providesEvidence,
+		"Included in": RELATIONS_COPY.includes,
+		Includes: RELATIONS_COPY.includedIn,
+		Origin: RELATIONS_COPY.derived,
+		"Provides evidence": RELATIONS_COPY.evidence,
+	};
+	return pairs[wanted] === actual;
 }
 
 function otherEnd(relation: PresentedRelation, workId: string): PresentedEnd {

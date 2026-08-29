@@ -104,6 +104,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tek seçim | `Single select` | Proje bazlı özel alan türü; seçenekler tanımda Proje-yereldir |
 | Çoklu seçim | `Multi select` | Proje bazlı özel alan türü; seçenekler tanımda Proje-yereldir |
 | İş Bağlam Kartı düzeni | `Work Context Card layout` | İş Bağlam Kartı bölüm düzeninin Yapılandırma modu girişi; şema veya düzen motoru değildir |
+| Özel bölüm ekle | `Add custom section` | Desteklenen kayıt türü, doğrudan ilişki veya Kanıt Rolüyle adlandırılmış İş Bağlam Kartı bölümü ekleme; serbest sorgu değildir |
+| Göster | `Show` | Yapılandırma modunda gizlenen İş Bağlam Kartı bölümünü yeniden gösterme |
+| Kanıt Rolü | `Evidence Role` | Kanıt ilişkisinin kapalı rolü; İş Bağlam Kartı özel bölüm koşuludur |
+| Kayıt türü | `Record type` | İş Bağlam Kartı özel bölümünün kapalı kayıt türü koşulu |
+| İlişki | `Relation` | İş Bağlam Kartı özel bölümünün kapalı doğrudan ilişki koşulu; serbest ilişki türü değildir |
+| Onayla | `Confirm` | İş Bağlam Kartı düzen farkını sürümlü yapılandırma geçmişine yazma |
 | Bağlam ekle | `Add Context` | Gizli hazır İş Bağlam Kartı bölümünü aşamalı açma; oluşturma veya durum kapısı değildir |
 | Neden bu işi yapıyorum? | `Why am I doing this work?` | İş Bağlam Kartında en yakın anlamlı kaynakları görünür adlarıyla bağlayan türetilmiş neden zinciri; yeni kayıt veya ilişki değildir |
 | Henüz bir şey yok | `Nothing here yet.` | Yapılandırılmış görünür boş İş Bağlam Kartı bölümünün tarafsız boş durumu; sağlık veya tamlık skoru değildir |
@@ -199,6 +205,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Engeller | `Blocks` | Engelleme ilişkisinin kaynak ucu; serbest ilişki türü değildir |
 | Engellenir | `Blocked by` | Engellenen İş ucu; planlama tüketicisinin okuduğu bekletme yönü |
 | Aktif engelleme | `Active` | Engelleme ilişkisinin bekleyen durumu; İş akışı durumu `Blocked` değildir |
+| Çözülmüş engelleme | `Resolved` | Engelleme ilişkisinin tarihsel durumu; aktif blokaj sinyalinden çıkar |
+| Engel çözüldü | `Mark blocker resolved` | Çözüm tarihi ve isteğe bağlı not yazan eylem; kaynak kapanışı değildir |
+| Çözüm notu | `Note` | Engel çözüldü eyleminin isteğe bağlı notu |
 | İlişkiyi kaldır | `Remove relation` | Yanlış kurulmuş engelleme bağını silme; çözüm geçmişi değildir |
 | Açıklama | `Description` | İşin taşınabilir gövde alanı; Task hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Hafif kontrol listesi | `Checklist` | İşteki metin maddeleri; bağımsız İş değildir |
