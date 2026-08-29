@@ -18,12 +18,21 @@ import {
 import {
 	createWork,
 	getWork,
+	listWork,
 } from "../../work-lifecycle/server/work-lifecycle";
 import {
+	archivePrioritizationSession,
+	closePrioritizationSession,
+	createPrioritizationSession,
 	createPriorityCriterion,
+	listPrioritizationSessions,
 	listPriorityCriteria,
 	listWorkPriorityValues,
+	reopenPrioritizationSession,
+	reorderPrioritizationSession,
+	setPrioritizationSessionScope,
 	setPriorityCriterionValue,
+	trashPrioritizationSession,
 	trashPriorityCriterion,
 	updatePriorityCriterion,
 } from "./priority";
@@ -148,6 +157,12 @@ describe("Prioritization", () => {
 		expect(catalog.preparedCriterion).toBe("Evidence strength");
 		expect(PRIORITY_COPY.unevaluated).toBe("Unevaluated");
 		expect(PRIORITY_COPY.priorityMetrics).toBe("Priority metrics");
+		expect(PRIORITY_COPY.createPrioritizationSession).toBe(
+			"Create Prioritization Session"
+		);
+		expect(catalog.independentManualRankViews).toEqual([
+			"Create Prioritization Session",
+		]);
 		expect(PRIORITY_RANKS).toEqual(catalog.ranks);
 		expect(JSON.stringify(catalog)).not.toMatch(SCORE_WSJF_PATTERN);
 		expect(JSON.stringify(PRIORITY_COPY)).not.toMatch(SCORE_WSJF_PATTERN);
@@ -601,5 +616,380 @@ describe("Prioritization", () => {
 		expect(source?.priorityMetricDefinitions[0]?.id).toBe(
 			created.definition.id
 		);
+	});
+
+	it("opens a named Prioritization Session only from explicit create", async () => {
+		const { actorId, project } = await openProject(prisma);
+		const first = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "work-a",
+			origin: "human",
+			payload: { projectId: project.id, title: "Checkout" },
+		});
+		const second = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "work-b",
+			origin: "human",
+			payload: { projectId: project.id, title: "Refunds" },
+		});
+		if (first.status !== "committed" || second.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		expect(
+			await createPrioritizationSession(prisma, {
+				actorId,
+				idempotencyKey: "session-score",
+				origin: "human",
+				payload: {
+					name: "August rank",
+					projectId: project.id,
+					score: 9,
+					workIds: [first.work.id, second.work.id],
+				},
+			})
+		).toEqual({ reason: "formula-not-supported", status: "rejected" });
+		const created = await createPrioritizationSession(prisma, {
+			actorId,
+			idempotencyKey: "session-open",
+			origin: "human",
+			payload: {
+				name: "August rank",
+				projectId: project.id,
+				workIds: [second.work.id, first.work.id],
+			},
+		});
+		expect(created).toMatchObject({
+			session: {
+				name: "August rank",
+				projectId: project.id,
+				writes: {
+					backlogOrder: false,
+					criterionValues: false,
+					dailyFocus: false,
+					decisionRecord: false,
+					focusPeriod: false,
+					roadmapHorizon: false,
+					sessionScore: false,
+					status: false,
+				},
+			},
+			status: "committed",
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed session");
+		}
+		expect(created.session.closedAt).toBeNull();
+		expect(created.session.comparison.implicitSync).toBe(false);
+		expect(created.session.comparison.sessionOrder).toEqual([
+			second.work.id,
+			first.work.id,
+		]);
+		expect(created.session.comparison.backlogOrder).toEqual([
+			first.work.id,
+			second.work.id,
+		]);
+		expect(created.session.cards.map((card) => card.title)).toEqual([
+			"Refunds",
+			"Checkout",
+		]);
+		expect(created.session.cards[0]).toMatchObject({
+			evidence: {
+				feedbackRecords: 0,
+				uniqueCompanies: 0,
+				uniqueContacts: 0,
+			},
+			riskCount: 0,
+			sessionRank: 0,
+			targetDate: null,
+			workId: second.work.id,
+		});
+		expect(created.session.cards[0]?.backlogRank).toBe(1);
+		expect(created.session.cards[1]?.backlogRank).toBe(0);
+		expect(await listWork(prisma, project.id)).toMatchObject([
+			{ id: first.work.id, status: "Not Started", title: "Checkout" },
+			{ id: second.work.id, status: "Not Started", title: "Refunds" },
+		]);
+		expect(await listPrioritizationSessions(prisma, project.id)).toEqual([
+			created.session,
+		]);
+	});
+
+	it("reorders only the session rank and never writes Backlog, status, or criterion values", async () => {
+		const { actorId, project } = await openProject(prisma);
+		const criterion = await createPriorityCriterion(
+			prisma,
+			createCriterionCommand(
+				{ name: "Urgency", projectId: project.id },
+				actorId
+			)
+		);
+		if (criterion.status !== "committed") {
+			throw new Error("expected committed criterion");
+		}
+		const first = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "work-a",
+			origin: "human",
+			payload: { projectId: project.id, title: "Checkout" },
+		});
+		const second = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "work-b",
+			origin: "human",
+			payload: { projectId: project.id, title: "Refunds" },
+		});
+		if (first.status !== "committed" || second.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		await setPriorityCriterionValue(prisma, {
+			actorId,
+			baseRevision: 0,
+			idempotencyKey: "rank-a",
+			origin: "human",
+			payload: {
+				criterionId: criterion.definition.id,
+				rank: "High",
+				workId: first.work.id,
+			},
+		});
+		const opened = await createPrioritizationSession(prisma, {
+			actorId,
+			idempotencyKey: "session-open",
+			origin: "human",
+			payload: {
+				name: "August rank",
+				projectId: project.id,
+				workIds: [first.work.id, second.work.id],
+			},
+		});
+		if (opened.status !== "committed") {
+			throw new Error("expected committed session");
+		}
+		const reordered = await reorderPrioritizationSession(prisma, {
+			actorId,
+			baseRevision: opened.session.revision,
+			idempotencyKey: "session-reorder",
+			origin: "human",
+			payload: {
+				sessionId: opened.session.id,
+				workIds: [second.work.id, first.work.id],
+			},
+		});
+		expect(reordered).toMatchObject({
+			session: {
+				comparison: {
+					backlogOrder: [first.work.id, second.work.id],
+					implicitSync: false,
+					sessionOrder: [second.work.id, first.work.id],
+				},
+			},
+			status: "committed",
+		});
+		if (reordered.status !== "committed") {
+			throw new Error("expected committed reorder");
+		}
+		expect(reordered.session.cards.map((card) => card.workId)).toEqual([
+			second.work.id,
+			first.work.id,
+		]);
+		expect(
+			reordered.session.cards.find((card) => card.workId === first.work.id)
+		).toMatchObject({
+			criterionValues: [
+				{
+					criterionId: criterion.definition.id,
+					name: "Urgency",
+					notEvaluated: false,
+					rank: "High",
+				},
+			],
+		});
+		expect(await listWork(prisma, project.id)).toMatchObject([
+			{ id: first.work.id, status: "Not Started" },
+			{ id: second.work.id, status: "Not Started" },
+		]);
+		expect(
+			await listWorkPriorityValues(prisma, project.id, first.work.id)
+		).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					criterionId: criterion.definition.id,
+					rank: "High",
+				}),
+			])
+		);
+		const scoped = await setPrioritizationSessionScope(prisma, {
+			actorId,
+			baseRevision: reordered.session.revision,
+			idempotencyKey: "session-scope",
+			origin: "human",
+			payload: {
+				sessionId: opened.session.id,
+				workIds: [second.work.id],
+			},
+		});
+		expect(scoped).toMatchObject({
+			session: {
+				comparison: { sessionOrder: [second.work.id] },
+			},
+			status: "committed",
+		});
+		expect(await listWork(prisma, project.id)).toMatchObject([
+			{ id: first.work.id, status: "Not Started" },
+			{ id: second.work.id, status: "Not Started" },
+		]);
+	});
+
+	it("keeps a closed session as dated read-only context and does not erase it with a new session", async () => {
+		const { actorId, project } = await openProject(prisma);
+		const first = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "work-a",
+			origin: "human",
+			payload: { projectId: project.id, title: "Checkout" },
+		});
+		const second = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "work-b",
+			origin: "human",
+			payload: { projectId: project.id, title: "Refunds" },
+		});
+		if (first.status !== "committed" || second.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const opened = await createPrioritizationSession(prisma, {
+			actorId,
+			idempotencyKey: "session-open",
+			origin: "human",
+			payload: {
+				name: "August rank",
+				projectId: project.id,
+				workIds: [first.work.id, second.work.id],
+			},
+		});
+		if (opened.status !== "committed") {
+			throw new Error("expected committed session");
+		}
+		const closed = await closePrioritizationSession(prisma, {
+			actorId,
+			idempotencyKey: "session-close",
+			origin: "human",
+			payload: { sessionId: opened.session.id },
+		});
+		expect(closed).toMatchObject({ status: "committed" });
+		if (closed.status !== "committed") {
+			throw new Error("expected committed close");
+		}
+		expect(closed.session.closedAt).toEqual(expect.any(String));
+		expect(closed.session.comparison.sessionOrder).toEqual([
+			first.work.id,
+			second.work.id,
+		]);
+		expect(
+			await reorderPrioritizationSession(prisma, {
+				actorId,
+				baseRevision: closed.session.revision,
+				idempotencyKey: "session-reorder-closed",
+				origin: "human",
+				payload: {
+					sessionId: opened.session.id,
+					workIds: [second.work.id, first.work.id],
+				},
+			})
+		).toEqual({ reason: "session-closed", status: "rejected" });
+		const later = await createPrioritizationSession(prisma, {
+			actorId,
+			idempotencyKey: "session-later",
+			origin: "human",
+			payload: {
+				name: "September rank",
+				projectId: project.id,
+				workIds: [second.work.id],
+			},
+		});
+		expect(later).toMatchObject({ status: "committed" });
+		const listed = await listPrioritizationSessions(prisma, project.id);
+		expect(listed.map((session) => session.name)).toEqual([
+			"August rank",
+			"September rank",
+		]);
+		const reopened = await reopenPrioritizationSession(prisma, {
+			actorId,
+			idempotencyKey: "session-reopen",
+			origin: "human",
+			payload: { sessionId: opened.session.id },
+		});
+		expect(reopened).toMatchObject({
+			session: { closedAt: null, name: "August rank" },
+			status: "committed",
+		});
+	});
+
+	it("archives or trashes a session without touching Work or Backlog order", async () => {
+		const { actorId, project } = await openProject(prisma);
+		const first = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "work-a",
+			origin: "human",
+			payload: { projectId: project.id, title: "Checkout" },
+		});
+		if (first.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const opened = await createPrioritizationSession(prisma, {
+			actorId,
+			idempotencyKey: "session-open",
+			origin: "human",
+			payload: {
+				name: "August rank",
+				projectId: project.id,
+				workIds: [first.work.id],
+			},
+		});
+		if (opened.status !== "committed") {
+			throw new Error("expected committed session");
+		}
+		const archived = await archivePrioritizationSession(prisma, {
+			actorId,
+			idempotencyKey: "session-archive",
+			origin: "human",
+			payload: { sessionId: opened.session.id },
+		});
+		expect(archived).toMatchObject({ status: "committed" });
+		if (archived.status !== "committed") {
+			throw new Error("expected committed archive");
+		}
+		expect(archived.session.archivedAt).toEqual(expect.any(String));
+		expect(await listPrioritizationSessions(prisma, project.id)).toEqual([]);
+		expect(await listWork(prisma, project.id)).toMatchObject([
+			{ id: first.work.id, status: "Not Started", title: "Checkout" },
+		]);
+		const second = await createPrioritizationSession(prisma, {
+			actorId,
+			idempotencyKey: "session-other",
+			origin: "human",
+			payload: {
+				name: "Keep me",
+				projectId: project.id,
+				workIds: [first.work.id],
+			},
+		});
+		if (second.status !== "committed") {
+			throw new Error("expected committed session");
+		}
+		expect(
+			await trashPrioritizationSession(prisma, {
+				actorId,
+				idempotencyKey: "session-trash",
+				origin: "human",
+				payload: { sessionId: second.session.id },
+			})
+		).toMatchObject({ status: "committed" });
+		expect(await listPrioritizationSessions(prisma, project.id)).toEqual([]);
+		expect(await listWork(prisma, project.id)).toMatchObject([
+			{ id: first.work.id, title: "Checkout" },
+		]);
+		expect(JSON.stringify(PRIORITY_COPY)).not.toMatch(TRASH_UI_PATTERN);
+		expect(JSON.stringify(PRIORITY_COPY)).not.toMatch(SCORE_WSJF_PATTERN);
 	});
 });

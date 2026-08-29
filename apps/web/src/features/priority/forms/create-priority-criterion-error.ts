@@ -23,5 +23,8 @@ export function createPriorityCriterionError(
 	if (outcome.reason === "unknown-rank") {
 		return PRIORITY_COPY.unknownRank;
 	}
+	if (outcome.reason === "session-closed") {
+		return PRIORITY_COPY.sessionClosed;
+	}
 	return PRIORITY_COPY.nameRequired;
 }

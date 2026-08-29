@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import CustomFieldFilter from "@/features/custom-fields/forms/custom-field-filter";
+import PrioritizationSessionArea from "@/features/priority/views/prioritization-session";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import TagFilter from "@/features/tags/views/tag-filter";
 import CreateFromTemplateForm from "@/features/work-templates/forms/create-from-template-form";
@@ -122,6 +123,10 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 		<div className="flex flex-col gap-6">
 			<CreateWorkForm onCreated={onCreated} projectId={projectId} />
 			<CreateFromTemplateForm onCreated={onCreated} projectId={projectId} />
+			<PrioritizationSessionArea
+				projectId={projectId}
+				work={items.map((item) => ({ id: item.id, title: item.title }))}
+			/>
 			<div className="flex flex-wrap items-end gap-3">
 				<CustomFieldFilter
 					onRecordIds={setFilteredIds}

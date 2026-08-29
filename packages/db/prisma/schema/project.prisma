@@ -25,6 +25,7 @@ model Project {
   workKeyCounter                  ProjectWorkKeyCounter?
   customFieldDefinitions          ProjectCustomFieldDefinition[]
   priorityCriterionDefinitions    ProjectPriorityCriterion[]
+  prioritizationSessions          PrioritizationSession[]
   fileAttachments                 FileAttachment[]
   workContextCardLayouts          ProjectWorkContextLayout[]
   workTemplates                   WorkTemplate[]
