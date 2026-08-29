@@ -141,6 +141,14 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İlgili iş | `Related Work` | Research hazır İş Bağlam Kartı bölümü |
 | Mevcut durum | `Current Situation` | Improvement hazır İş Bağlam Kartı bölümü |
 | Öncelik ölçütü | `Priority metrics` | İş önceliğini ifade eden Proje yapılandırması; skaler öncelik alanı değildir |
+| Öncelik kademesi | `Very low`, `Low`, `Medium`, `High`, `Very high` | Beş sabit sıralı düzey; boş durum bu beşin dışındadır |
+| Değerlendirilmemiş | `Unevaluated` | Eksen veya ölçüt değeri henüz seçilmemiş İş |
+| Kanıt gücü | `Evidence strength` | Görüşlü Başlangıç yapılandırmasının varsayılan kapalı hazır Öncelik ölçütü |
+| Öncelik Haritası | `Priority Map` | İki ölçütü eksen alan karşılaştırma görünümü; skor, otomatik sıra veya Backlog sırası değildir |
+| Yatay | `Horizontal` | Öncelik Haritası yatay eksen seçimi |
+| Dikey | `Vertical` | Öncelik Haritası dikey eksen seçimi |
+| Benzersiz Contact | `Unique Contact` | Haritada isteğe bağlı kanıt bağlamı |
+| Benzersiz Company | `Unique Company` | Haritada isteğe bağlı kanıt bağlamı |
 | Kayıtlı görünüm | `Saved views` | Yapılandırma modunda adlandırılmış İş görünümü girişi; günlük planlama eylemi değildir |
 | Aşamalar | `Stages` | Yapılandırılabilir Proje aşamalarının Yapılandırma modu girişi |
 | İş durumları | `Work statuses` | Korunan İş akışı durumlarının kullanıcıya dönük ad girişi |

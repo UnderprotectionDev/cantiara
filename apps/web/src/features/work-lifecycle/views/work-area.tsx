@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import CustomFieldFilter from "@/features/custom-fields/forms/custom-field-filter";
+import { PRIORITY_COPY } from "@/features/priority/forms/priority-copy";
+import PriorityMap from "@/features/priority/views/priority-map";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import TagFilter from "@/features/tags/views/tag-filter";
 import CreateFromTemplateForm from "@/features/work-templates/forms/create-from-template-form";
@@ -19,6 +21,7 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 	const [archiveFilter, setArchiveFilter] = useState(false);
 	const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
 	const [tagFilter, setTagFilter] = useState("");
+	const [surface, setSurface] = useState<"list" | "priority-map">("list");
 	const work = useQuery(
 		orpc.workLifecycle.list.queryOptions({
 			input: { archived: archiveFilter, projectId },
@@ -57,6 +60,11 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 	}, []);
 	const onTagFilter = useCallback((tagId: string) => {
 		setTagFilter(tagId);
+	}, []);
+	const onShowMap = useCallback(() => {
+		setSurface((current) =>
+			current === "priority-map" ? "list" : "priority-map"
+		);
 	}, []);
 
 	useEffect(() => {
@@ -142,8 +150,25 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 					tags={suggestions.data ?? []}
 					value={tagFilter}
 				/>
+				<Button
+					aria-pressed={surface === "priority-map"}
+					onClick={onShowMap}
+					size="sm"
+					type="button"
+					variant={surface === "priority-map" ? "secondary" : "ghost"}
+				>
+					{PRIORITY_COPY.priorityMap}
+				</Button>
 			</div>
-			<WorkList items={items} onSelect={onSelect} selectedId={selectedId} />
+			{surface === "priority-map" ? (
+				<PriorityMap
+					onSelectWork={onSelect}
+					projectId={projectId}
+					selectedWorkId={selectedId}
+				/>
+			) : (
+				<WorkList items={items} onSelect={onSelect} selectedId={selectedId} />
+			)}
 			<ScopeTree
 				onOpenSourceRecord={onOpenSourceRecord}
 				openedRecordId={selectedId}
