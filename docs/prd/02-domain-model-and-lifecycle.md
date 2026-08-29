@@ -49,6 +49,25 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Open Source Library | `Open Source Library` | Scope–Maintain aşamaları ve GitHub ağırlıklı alanlarla açılan Başlangıç yapılandırması |
 | Mobile Application | `Mobile Application` | Discovery–Operate aşamaları ve Production sabitlemesiyle açılan Başlangıç yapılandırması |
 | Proje genel bakışı | `Overview` | Proje alanı olmayan daima erişilir yüzey |
+| Aktif Projeler | `Active Projects` | Çalışma Alanı genel bakışı hazır modülü; Active Projeleri listeler |
+| Dikkat gerekli | `Attention Required` | Çalışma Alanı genel bakışı hazır modülü; kayıtlı Action Required kaynağını toplar |
+| Yaklaşan | `Upcoming` | Çalışma Alanı genel bakışı hazır modülü; yaklaşan hedef tarihleri ve hatırlatmalar |
+| Son çalışma | `Recent Work` | Çalışma Alanı genel bakışı hazır modülü; son dokunulan İşler |
+| Canlı blok ekle | `Add live block` | Mevcut Belge veya adlandırılmış Akıllı Koleksiyon görünümünü kopyasız referans olarak ekleme |
+| Kaydedilmiş çapraz Proje listesi | `Saved lists` | Çalışma Alanı çapında Proje koşullarından canlı üyelik türeten adlandırılmış görünüm; Portfolio veya Akıllı Koleksiyon değildir |
+| Listeyi kaydet | `Save list` | Çapraz Proje listesi koşullarını ve görünümünü kaydetme |
+| Son bildirilen sağlık | `Last reported health` | Son Manuel Proje Güncellemesinin tarihiyle gösterilen sağlık işareti; güncel Project health alanı değildir |
+| Üyelik koşullardan gelir | `Membership comes from list conditions.` | Sürükleyerek liste üyesi eklenemeyeceğini söyleyen metin |
+| Kolonlar | `Columns` | Kaydedilmiş çapraz Proje listesinde saklanan desteklenen kolonlar |
+| Sıralama | `Sort` | Kaydedilmiş listenin kolon sıralaması |
+| A–Z | `A–Z` | Artan sıralama |
+| Z–A | `Z–A` | Azalan sıralama |
+| Gruplama | `Grouping` | Kaydedilmiş listenin kolon gruplaması |
+| Yok | `None` | Gruplama seçilmedi |
+| Herhangi | `Any` | Arşiv koşulu uygulanmaz |
+| Arşivlenmemiş | `Not archived` | Yalnız arşivde olmayan Projeler |
+| Arşivlenmiş | `Archived` | Yalnız arşivdeki Projeler; İş arşiv filtresi değildir |
+| Alanlar | `Areas` | Desteklenen Proje alanları koşulu |
 | Yaşam durumu | `Lifecycle` | Overview modülü; Proje yaşam durumunun nötr özeti, sağlık skoru değildir |
 | Proje Hedefi | `Goals` | Overview girişi; gizlenebilir Proje alanı değildir |
 | Kilometre taşları | `Milestones` | Overview kaynak özeti |
@@ -84,6 +103,25 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tek seçim | `Single select` | Proje bazlı özel alan türü; seçenekler tanımda Proje-yereldir |
 | Çoklu seçim | `Multi select` | Proje bazlı özel alan türü; seçenekler tanımda Proje-yereldir |
 | İş Bağlam Kartı düzeni | `Work Context Card layout` | İş Bağlam Kartı bölüm düzeninin Yapılandırma modu girişi; şema veya düzen motoru değildir |
+| Bağlam ekle | `Add Context` | Gizli hazır İş Bağlam Kartı bölümünü aşamalı açma; oluşturma veya durum kapısı değildir |
+| Neden bu işi yapıyorum? | `Why am I doing this work?` | İş Bağlam Kartında en yakın anlamlı kaynakları görünür adlarıyla bağlayan türetilmiş neden zinciri; yeni kayıt veya ilişki değildir |
+| Henüz bir şey yok | `Nothing here yet.` | Yapılandırılmış görünür boş İş Bağlam Kartı bölümünün tarafsız boş durumu; sağlık veya tamlık skoru değildir |
+| Ekle | `Add` | Görünür boş bölümde desteklenen kaynak alanı ekleme eylemi; Bağlam kaydı üretmez |
+| İlişkilendir | `Link` | Görünür boş bölümde desteklenen doğrudan ilişki eylemi; kartın kendisi ilişki yazmaz |
+| Problem/Fırsat | `Problem/Opportunity` | Feature hazır İş Bağlam Kartı bölümü |
+| Beklenen sonuç | `Expected Outcome` | Feature ve Improvement hazır İş Bağlam Kartı bölümü |
+| Kanıt ve kararlar | `Evidence & Decisions` | Feature hazır İş Bağlam Kartı bölümü |
+| Riskler ve açık sorular | `Risks & Open Questions` | Feature hazır İş Bağlam Kartı bölümü |
+| GitHub ve testler | `GitHub & Tests` | Feature, Bug, Task ve Improvement hazır İş Bağlam Kartı bölümü |
+| Hedef sürüm | `Target Release` | Feature ve Task hazır İş Bağlam Kartı bölümü |
+| Gözlenen/beklenen davranış | `Observed/Expected Behavior` | Bug hazır İş Bağlam Kartı bölümü |
+| Etkilenen sürümler | `Affected Releases` | Bug hazır İş Bağlam Kartı bölümü |
+| Kanıt | `Evidence` | Bug ve Improvement hazır İş Bağlam Kartı bölümü |
+| Bağımlılıklar | `Dependencies` | Task hazır İş Bağlam Kartı bölümü |
+| Araştırma sorusu | `Research Question` | Research hazır İş Bağlam Kartı bölümü |
+| Kaynaklar ve kanıt | `Sources & Evidence` | Research hazır İş Bağlam Kartı bölümü |
+| İlgili iş | `Related Work` | Research hazır İş Bağlam Kartı bölümü |
+| Mevcut durum | `Current Situation` | Improvement hazır İş Bağlam Kartı bölümü |
 | Öncelik ölçütü | `Priority metrics` | İş önceliğini ifade eden Proje yapılandırması; skaler öncelik alanı değildir |
 | Kayıtlı görünüm | `Saved views` | Yapılandırma modunda adlandırılmış İş görünümü girişi; günlük planlama eylemi değildir |
 | Aşamalar | `Stages` | Yapılandırılabilir Proje aşamalarının Yapılandırma modu girişi |
@@ -110,7 +148,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Planlama | `Planning` | Yapılandırma modu dışında günlük planlama |
 | Belgeler | `Documents` | Belge kayıtlarını toplayan Proje alanı |
 | Discovery | `Discovery` | Geri Bildirim ve araştırma kayıtlarını toplayan Proje alanı veya hazır aşama adı |
-| Decisions | `Decisions` | Karar, Risk, Varsayım ve Açık Soruyu toplayan Proje alanı |
+| Decisions | `Decisions` | Karar, Risk, Varsayım ve Açık Soruyu toplayan Proje alanı; Research hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Design | `Design` | Duvar, Ekran ve akış kayıtlarını toplayan Proje alanı veya hazır aşama adı |
 | Tests | `Tests` | Test kayıtlarını toplayan Proje alanı; ayrı test ürünü değildir |
 | Releases | `Releases` | Proje Sürümü girişini toplayan Proje alanı |
@@ -157,15 +195,25 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kaynak öğe artık yok | `Source item is gone` | Köken konumunda sahipli bileşenin çözülemediğini açıklar |
 | İlişki yok | `No relations yet.` | Henüz standart ilişki olmadığını söyleyen boş durum |
 | Kaldır | `Remove` | Standart ilişkiyi güvenli geri alma ile kaldırma |
-| Açıklama | `Description` | İşin taşınabilir gövde alanı |
+| Engeller | `Blocks` | Engelleme ilişkisinin kaynak ucu; serbest ilişki türü değildir |
+| Engellenir | `Blocked by` | Engellenen İş ucu; planlama tüketicisinin okuduğu bekletme yönü |
+| Aktif engelleme | `Active` | Engelleme ilişkisinin bekleyen durumu; İş akışı durumu `Blocked` değildir |
+| İlişkiyi kaldır | `Remove relation` | Yanlış kurulmuş engelleme bağını silme; çözüm geçmişi değildir |
+| Açıklama | `Description` | İşin taşınabilir gövde alanı; Task hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Hafif kontrol listesi | `Checklist` | İşteki metin maddeleri; bağımsız İş değildir |
+| Kontrol listesi maddesi | `Item` | Hafif listedeki metin alanı; İş başlığı değildir |
+| Madde ekle | `Add item` | Hafif kontrol listesine metin maddesi ekleme |
+| Bağımsız işe dönüştür | `Convert to independent Work` | Maddeyi aynı Projede tam İşe dönüştürme; onaydan önce yazılmaz |
+| Dönüşümü onayla | `Confirm convert` | Dönüşüm önizlemesini onaylayıp yazma |
+| Proje | `Project` | Dönüşüm önizlemesinde hedef Proje |
+| Başlangıç durumu | `Start status` | Yeni İşin Proje varsayılanı; `Not Started` semantiği |
 | Başka Projede yeniden oluştur | `Recreate in another Project` | Yanlış Projede oluşan İşten hedefte yeni kimlikli İş üretme; taşıma değildir |
 | Başlık | `Title` | İş oluştururken zorunlu alan |
 | Tür | `Type` | İş türü alanı |
 | Anahtar | `Key` | Kullanıcıya dönük `{shortCode}-{n}` İş anahtarı |
 | Türü değiştir | `Change type` | Feature dışı tür değişimi |
 | Etki önizlemesi | `Impact preview` | Feature’a giriş veya çıkış önizlemesi |
-| Kapsanan iş | `Included Work` | Özellik kapsamındaki bağımsız İşler |
+| Kapsanan iş | `Included Work` | Özellik kapsamındaki bağımsız İşler; Feature hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Kapsar | `Includes` | Özellikten kapsanan İşe birincil kapsam yazması |
 | Kapsanır | `Included in` | İşin birincil Özellik kapsamı |
 | Kapsam Ağacı | `Scope Tree` | Mevcut Proje → Özellik → Kapsanan işler ilişkisinin salt okunur görünümü; sürükleme kapsam yazmaz |

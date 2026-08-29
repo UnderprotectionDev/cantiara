@@ -4,6 +4,8 @@ import type { PrismaClient } from "../prisma/generated/client";
 import {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentFileAttachmentVersionModel,
+	prismaClientHasCurrentWorkspaceModel,
+	workspaceOverviewLayoutSelect,
 } from "./prisma-client-delegates";
 
 function findMany(): Promise<never[]> {
@@ -134,6 +136,48 @@ describe("Prisma client current delegates", () => {
 				workTag: { findMany },
 			} as unknown as PrismaClient)
 		).toBe(true);
+	});
+
+	it("refuses a bun --hot client generated before Workspace overviewLayout", () => {
+		const staleClient = {
+			_runtimeDataModel: {
+				models: {
+					Workspace: {
+						fields: [
+							{ name: "id" },
+							{ name: "name" },
+							{ name: "ownerId" },
+							{ name: "createdAt" },
+							{ name: "updatedAt" },
+							{ name: "owner" },
+							{ name: "projects" },
+							{ name: "shortCodeReservations" },
+							{ name: "tags" },
+							{ name: "fileAttachments" },
+						],
+					},
+				},
+			},
+		} as unknown as PrismaClient;
+		expect(prismaClientHasCurrentWorkspaceModel(staleClient)).toBe(false);
+		expect(workspaceOverviewLayoutSelect(staleClient)).toEqual({ id: true });
+		const currentClient = {
+			_runtimeDataModel: {
+				models: {
+					Workspace: {
+						fields: [
+							{ name: "id" },
+							{ name: "name" },
+							{ name: "overviewLayout" },
+						],
+					},
+				},
+			},
+		} as unknown as PrismaClient;
+		expect(prismaClientHasCurrentWorkspaceModel(currentClient)).toBe(true);
+		expect(workspaceOverviewLayoutSelect(currentClient)).toEqual({
+			overviewLayout: true,
+		});
 	});
 
 	it("refuses a bun --hot client generated before File Attachment marking", () => {

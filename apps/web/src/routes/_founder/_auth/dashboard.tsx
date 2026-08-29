@@ -1,9 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/_founder/_auth/dashboard")({
-	component: RouteComponent,
-});
+import WorkspaceOverview from "@/features/workspace-overview/views/workspace-overview";
 
-function RouteComponent() {
-	return <main className="h-full min-h-0" />;
-}
+export const Route = createFileRoute("/_founder/_auth/dashboard")({
+	component: WorkspaceOverview,
+});

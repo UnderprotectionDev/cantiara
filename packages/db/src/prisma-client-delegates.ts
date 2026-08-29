@@ -114,3 +114,20 @@ export function prismaClientHasCurrentFileAttachmentVersionModel(
 		fields.includes("markingMarks") && fields.includes("shareItemApprovals")
 	);
 }
+
+export function prismaClientHasCurrentWorkspaceModel(
+	client: PrismaClient
+): boolean {
+	const fields = modelFieldNames(client, "Workspace");
+	if (fields.length === 0) {
+		return true;
+	}
+	return fields.includes("overviewLayout");
+}
+
+export function workspaceOverviewLayoutSelect(client: PrismaClient) {
+	if (prismaClientHasCurrentWorkspaceModel(client)) {
+		return { overviewLayout: true } as const;
+	}
+	return { id: true } as const;
+}

@@ -1,10 +1,14 @@
 import { Button } from "@cantiara/ui/components/button";
+import { useCallback } from "react";
 
+import WorkBlockersPanel from "@/features/blockers/views/work-blockers-panel";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
 import RelationsPanel from "@/features/relations/views/relations-panel";
 import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
 import UsedInPanel from "@/features/relations/views/used-in-panel";
 import WorkTagPicker from "@/features/tags/views/work-tag-picker";
+import WorkChecklistPanel from "@/features/work-checklists/views/work-checklist-panel";
+import WorkContextCard from "@/features/work-context/views/work-context-card";
 
 import ArchiveWorkForm from "../forms/archive-work-form";
 import ChangeWorkStatusForm from "../forms/change-work-status-form";
@@ -59,6 +63,9 @@ export default function WorkDetail({
 	work: WorkRecord;
 	works: WorkRecord[];
 }) {
+	const onLink = useCallback(() => {
+		document.getElementById("work-related")?.scrollIntoView();
+	}, []);
 	return (
 		<article className="flex flex-col gap-4 border-t pt-4">
 			<header className="flex items-start justify-between gap-3">
@@ -70,21 +77,17 @@ export default function WorkDetail({
 					{WORK_LIFECYCLE_COPY.close}
 				</Button>
 			</header>
-			<dl className="grid gap-1 text-sm">
-				<div className="flex gap-2">
-					<dt className="text-muted-foreground">{WORK_LIFECYCLE_COPY.type}</dt>
-					<dd>{work.type}</dd>
-				</div>
-				<div className="flex gap-2">
-					<dt className="text-muted-foreground">
-						{WORK_LIFECYCLE_COPY.status}
-					</dt>
-					<dd>
-						{work.status}
-						{work.closureResult ? ` · ${work.closureResult}` : ""}
-					</dd>
-				</div>
-				{work.retiredIdentities && work.retiredIdentities.length > 0 ? (
+			<WorkContextCard
+				key={`${work.id}:${work.type}:${work.revision}`}
+				onLink={onLink}
+				onOpenSourceRecord={onOpenSourceRecord}
+				status={work.status}
+				title={work.title}
+				type={work.type}
+				workId={work.id}
+			/>
+			{work.retiredIdentities && work.retiredIdentities.length > 0 ? (
+				<dl className="grid gap-1 text-sm">
 					<div className="flex gap-2">
 						<dt className="text-muted-foreground">
 							{WORK_LIFECYCLE_COPY.origin}
@@ -95,16 +98,18 @@ export default function WorkDetail({
 								.join(", ")}
 						</dd>
 					</div>
-				) : null}
-				{work.origin ? (
+				</dl>
+			) : null}
+			{work.origin ? (
+				<dl className="grid gap-1 text-sm">
 					<div className="flex gap-2">
 						<dt className="text-muted-foreground">
 							{WORK_LIFECYCLE_COPY.openSourceRecord}
 						</dt>
 						<dd className="font-mono">{work.origin.key}</dd>
 					</div>
-				) : null}
-			</dl>
+				</dl>
+			) : null}
 			{work.status === "Closed" ? (
 				<ReopenWorkForm
 					key={`${work.id}:reopen:${work.revision}`}
@@ -129,6 +134,13 @@ export default function WorkDetail({
 				workId={work.id}
 				works={works}
 			/>
+			<WorkChecklistPanel
+				key={`${work.id}:checklist:${work.revision}`}
+				onOpenSourceRecord={onOpenSourceRecord}
+				projectId={projectId}
+				revision={work.revision}
+				workId={work.id}
+			/>
 			<WorkTagPicker
 				appliedTagIds={appliedTagIds}
 				key={`${work.id}:tags:${work.revision}`}
@@ -142,6 +154,11 @@ export default function WorkDetail({
 				projectId={projectId}
 				usageLinks={work.usageLinks ?? []}
 				works={works}
+			/>
+			<WorkBlockersPanel
+				candidates={candidates}
+				projectId={projectId}
+				workId={work.id}
 			/>
 			<RelationsPanel
 				candidates={candidates}
