@@ -14,6 +14,7 @@ export const PRIORITY_COPY = {
 	backlog: "Backlog",
 	close: "Close",
 	createPrioritizationSession: "Create Prioritization Session",
+	delete: "Delete",
 	description: "Description",
 	enable: "Enable",
 	evidence: "Evidence",

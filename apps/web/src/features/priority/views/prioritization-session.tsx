@@ -180,7 +180,7 @@ export default function PrioritizationSessionArea({
 				</nav>
 			) : null}
 			{opened ? (
-				<SessionDetail onChanged={invalidate} session={opened} />
+				<SessionDetail onChanged={invalidate} session={opened} work={work} />
 			) : null}
 		</section>
 	);
@@ -189,16 +189,20 @@ export default function PrioritizationSessionArea({
 function SessionDetail({
 	onChanged,
 	session,
+	work,
 }: {
 	onChanged: () => Promise<void>;
 	session: PrioritizationSessionView;
+	work: Array<{ id: string; title: string }>;
 }) {
 	const { attemptOnlineWork, recordSave } = useClientShell();
 	const [error, setError] = useState<string | null>(null);
 	const reorder = useMutation(orpc.priority.reorderSession.mutationOptions());
+	const setScope = useMutation(orpc.priority.setSessionScope.mutationOptions());
 	const close = useMutation(orpc.priority.closeSession.mutationOptions());
 	const reopen = useMutation(orpc.priority.reopenSession.mutationOptions());
 	const archive = useMutation(orpc.priority.archiveSession.mutationOptions());
+	const trash = useMutation(orpc.priority.trashSession.mutationOptions());
 	const readOnly = session.closedAt !== null;
 
 	const runFlag = useCallback(
@@ -235,6 +239,38 @@ function SessionDetail({
 	const onArchive = useCallback(() => {
 		runFlag(archive.mutateAsync);
 	}, [archive.mutateAsync, runFlag]);
+	const onTrash = useCallback(() => {
+		runFlag(trash.mutateAsync);
+	}, [runFlag, trash.mutateAsync]);
+	const onToggleScope = useCallback(
+		(event: ChangeEvent<HTMLInputElement>) => {
+			const workId = event.currentTarget.value;
+			const next = session.comparison.sessionOrder.includes(workId)
+				? session.comparison.sessionOrder.filter((id) => id !== workId)
+				: [...session.comparison.sessionOrder, workId];
+			const result = attemptOnlineWork("planning-change", () =>
+				setScope.mutateAsync({
+					baseRevision: session.revision,
+					idempotencyKey: newIdempotencyKey(),
+					payload: { sessionId: session.id, workIds: next },
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value
+				.then(async (outcome) => {
+					if (outcome.status === "committed" || outcome.status === "replayed") {
+						recordSave();
+						await onChanged();
+						return;
+					}
+					setError(createPriorityCriterionError(outcome));
+				})
+				.catch(() => undefined);
+		},
+		[attemptOnlineWork, onChanged, recordSave, session, setScope]
+	);
 	const onMoveWork = useCallback(
 		(workId: string, direction: number) => {
 			const ids = [...session.comparison.sessionOrder];
@@ -295,7 +331,27 @@ function SessionDetail({
 				<Button onClick={onArchive} size="sm" type="button" variant="ghost">
 					{PRIORITY_COPY.archive}
 				</Button>
+				<Button onClick={onTrash} size="sm" type="button" variant="ghost">
+					{PRIORITY_COPY.delete}
+				</Button>
 			</div>
+			{readOnly ? null : (
+				<ul className="flex flex-col gap-1">
+					{work.map((item) => (
+						<li key={item.id}>
+							<label className="flex items-center gap-2 text-sm">
+								<input
+									checked={session.comparison.sessionOrder.includes(item.id)}
+									onChange={onToggleScope}
+									type="checkbox"
+									value={item.id}
+								/>
+								{item.title}
+							</label>
+						</li>
+					))}
+				</ul>
+			)}
 			{error ? (
 				<p className="text-destructive text-sm" role="alert">
 					{error}
@@ -369,7 +425,9 @@ function SessionCard({
 					<p className="text-muted-foreground text-xs">
 						{PRIORITY_COPY.targetDate}: {card.targetDate ?? "—"} ·{" "}
 						{PRIORITY_COPY.risk}: {card.riskCount} · {PRIORITY_COPY.evidence}:{" "}
-						{card.evidence.feedbackRecords}
+						{card.evidence.feedbackRecords} · {PRIORITY_COPY.uniqueContact}:{" "}
+						{card.evidence.uniqueContacts} · {PRIORITY_COPY.uniqueCompany}:{" "}
+						{card.evidence.uniqueCompanies}
 					</p>
 				</div>
 				{readOnly ? null : (

@@ -263,20 +263,19 @@ export async function listPrioritizationSessions(
 		orderBy: { createdAt: "asc" },
 		where: { archivedAt: null, projectId, trashedAt: null },
 	});
-	return await Promise.all(rows.map((row) => toSessionView(prisma, row)));
+	const listed = await Promise.all(
+		rows.map((row) => loadSessionView(prisma, row.id))
+	);
+	return listed.filter(
+		(session): session is PrioritizationSessionView => session !== null
+	);
 }
 
 export async function getPrioritizationSession(
 	prisma: PrismaClient,
 	sessionId: string
 ): Promise<PrioritizationSessionView | null> {
-	const row = await prisma.prioritizationSession.findUnique({
-		where: { id: sessionId },
-	});
-	if (!row) {
-		return null;
-	}
-	return await toSessionView(prisma, row);
+	return await loadSessionView(prisma, sessionId);
 }
 
 export async function clonePriorityCriteria(
@@ -1245,21 +1244,6 @@ async function writeSessionReceipt(
 			targetId: input.session.id,
 		},
 	});
-}
-
-async function toSessionView(
-	db: PrismaClient | PrismaTransaction,
-	row: {
-		archivedAt: Date | null;
-		closedAt: Date | null;
-		createdAt: Date;
-		id: string;
-		name: string;
-		projectId: string;
-		revision: number;
-	}
-): Promise<PrioritizationSessionView> {
-	return (await loadSessionView(db, row.id)) as PrioritizationSessionView;
 }
 
 async function loadSessionView(
