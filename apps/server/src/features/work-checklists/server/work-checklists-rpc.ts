@@ -8,7 +8,9 @@ import { getProject } from "../../project-shell/server/project-shell";
 import { getWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	addChecklistItem,
+	convertChecklistItem,
 	getWorkChecklist,
+	previewConvertChecklistItem,
 	removeChecklistItem,
 	reorderChecklistItems,
 	setChecklistItemCompleted,
@@ -58,12 +60,41 @@ export const workChecklists = {
 				...input,
 			});
 		}),
+	convert: protectedWriteProcedure
+		.input(
+			z.object({
+				...writeBase,
+				itemId: z.string().min(1),
+				previewAcknowledged: z.boolean(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await convertChecklistItem(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				...input,
+			});
+		}),
 	get: protectedProcedure
 		.input(z.object({ workId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireWork(access.workspaceId, input.workId);
 			return await getWorkChecklist(getPrismaClient(), input.workId);
+		}),
+	previewConvert: protectedProcedure
+		.input(
+			z.object({
+				itemId: z.string().min(1),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await previewConvertChecklistItem(getPrismaClient(), input);
 		}),
 	remove: protectedWriteProcedure
 		.input(z.object({ ...writeBase, itemId: z.string().min(1) }))

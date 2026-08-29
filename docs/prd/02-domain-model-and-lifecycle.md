@@ -201,6 +201,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Hafif kontrol listesi | `Checklist` | İşteki metin maddeleri; bağımsız İş değildir |
 | Kontrol listesi maddesi | `Item` | Hafif listedeki metin alanı; İş başlığı değildir |
 | Madde ekle | `Add item` | Hafif kontrol listesine metin maddesi ekleme |
+| Bağımsız işe dönüştür | `Convert to independent Work` | Maddeyi aynı Projede tam İşe dönüştürme; onaydan önce yazılmaz |
+| Dönüşümü onayla | `Confirm convert` | Dönüşüm önizlemesini onaylayıp yazma |
+| Proje | `Project` | Dönüşüm önizlemesinde hedef Proje |
+| Başlangıç durumu | `Start status` | Yeni İşin Proje varsayılanı; `Not Started` semantiği |
 | Başka Projede yeniden oluştur | `Recreate in another Project` | Yanlış Projede oluşan İşten hedefte yeni kimlikli İş üretme; taşıma değildir |
 | Başlık | `Title` | İş oluştururken zorunlu alan |
 | Tür | `Type` | İş türü alanı |

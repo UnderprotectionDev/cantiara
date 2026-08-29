@@ -136,6 +136,7 @@ export default function WorkDetail({
 			/>
 			<WorkChecklistPanel
 				key={`${work.id}:checklist:${work.revision}`}
+				onOpenSourceRecord={onOpenSourceRecord}
 				projectId={projectId}
 				revision={work.revision}
 				workId={work.id}

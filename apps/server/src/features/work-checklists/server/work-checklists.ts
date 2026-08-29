@@ -8,6 +8,9 @@ import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
+import { createRelationInTransaction } from "../../relations/server/relations";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
+import { createWorkInTransaction } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	isClosureResult,
 	WORK_STATUS,
@@ -16,7 +19,14 @@ import {
 	type AddChecklistItemCommand,
 	addChecklistItemCommandSchema,
 	type ChecklistItemView,
+	type ConvertChecklistItemCommand,
+	type ConvertChecklistOutcome,
+	type ConvertChecklistPreviewOutcome,
+	type ConvertChecklistResult,
 	checklistItemSchema,
+	convertChecklistItemCommandSchema,
+	convertChecklistResultSchema,
+	previewConvertChecklistItemInputSchema,
 	type RemoveChecklistItemCommand,
 	type ReorderChecklistItemsCommand,
 	removeChecklistItemCommandSchema,
@@ -102,6 +112,9 @@ export async function updateChecklistItem(
 			if (index < 0) {
 				return { reason: "item-not-found" as const };
 			}
+			if (items[index]?.convertedWork) {
+				return { reason: "already-converted" as const };
+			}
 			return items.map((item, itemIndex) =>
 				itemIndex === index ? { ...item, title } : item
 			);
@@ -129,6 +142,9 @@ export async function setChecklistItemCompleted(
 			const index = items.findIndex((item) => item.id === parsed.data.itemId);
 			if (index < 0) {
 				return { reason: "item-not-found" as const };
+			}
+			if (items[index]?.convertedWork) {
+				return { reason: "already-converted" as const };
 			}
 			return items.map((item, itemIndex) =>
 				itemIndex === index
@@ -182,6 +198,263 @@ export async function removeChecklistItem(
 	);
 }
 
+export async function previewConvertChecklistItem(
+	prisma: PrismaClient,
+	input: unknown
+): Promise<ConvertChecklistPreviewOutcome> {
+	const parsed = previewConvertChecklistItemInputSchema.safeParse(input);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const row = await prisma.work.findUnique({
+		where: { id: parsed.data.workId },
+	});
+	if (!row || row.retiredIntoId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const item = asItems(row.lightChecklist).find(
+		(entry) => entry.id === parsed.data.itemId
+	);
+	if (!item) {
+		return { reason: "item-not-found", status: "rejected" };
+	}
+	if (item.convertedWork) {
+		return { reason: "already-converted", status: "rejected" };
+	}
+	const project = await prisma.project.findUnique({
+		select: { id: true, name: true },
+		where: { id: row.projectId },
+	});
+	if (!project) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	return {
+		preview: {
+			origin: { id: row.id, key: row.key },
+			originLocation: {
+				componentId: item.id,
+				ownerId: row.id,
+				ownerKind: "Work",
+				sourceVersion: String(row.revision),
+			},
+			projectId: project.id,
+			projectName: project.name,
+			startStatus: WORK_STATUS.notStarted,
+			title: item.title,
+		},
+		status: "ok",
+	};
+}
+
+export async function convertChecklistItem(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ConvertChecklistOutcome> {
+	const parsed = convertChecklistItemCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	if (parsed.data.origin !== HUMAN_ORIGIN) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	if (parsed.data.previewAcknowledged !== true) {
+		return { reason: "preview-required", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({
+		itemId: parsed.data.itemId,
+		kind: "convert-to-independent-work",
+	});
+	const commandKey = `human:${parsed.data.actorId}:${parsed.data.idempotencyKey}`;
+	try {
+		return await prisma.$transaction((tx) =>
+			convertInTransaction(tx, parsed.data, commandKey, fingerprint)
+		);
+	} catch (error) {
+		if (error instanceof ConvertBarrierError) {
+			return error.outcome;
+		}
+		throw error;
+	}
+}
+
+async function convertInTransaction(
+	tx: PrismaTransaction,
+	command: ConvertChecklistItemCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<ConvertChecklistOutcome> {
+	const current = await tx.work.findUnique({ where: { id: command.workId } });
+	if (!current || current.retiredIntoId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await lockProject(tx, current.projectId);
+	const replayed = await replayConvert(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const locked = await tx.work.findUnique({ where: { id: current.id } });
+	if (!locked || locked.retiredIntoId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (locked.revision !== command.baseRevision) {
+		return {
+			checklist: toChecklistView(locked),
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	const items = asItems(locked.lightChecklist);
+	const item = items.find((entry) => entry.id === command.itemId);
+	if (!item) {
+		return { reason: "item-not-found", status: "rejected" };
+	}
+	if (item.convertedWork) {
+		return { reason: "already-converted", status: "rejected" };
+	}
+	const project = await tx.project.findUnique({
+		select: { id: true, workspaceId: true },
+		where: { id: locked.projectId },
+	});
+	if (!project) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const created = await createWorkInTransaction(tx, {
+		actorId: command.actorId,
+		idempotencyKey: `${command.idempotencyKey}:work`,
+		origin: HUMAN_ORIGIN,
+		payload: {
+			projectId: locked.projectId,
+			title: item.title,
+		},
+	});
+	if (created.status === "conflict") {
+		abortConvert({ conflict: MUTATION_COPY.conflict, status: "conflict" });
+	}
+	if (created.status !== "committed" && created.status !== "replayed") {
+		abortConvert({ reason: "invalid-command", status: "rejected" });
+	}
+	const related = await createRelationInTransaction(tx, {
+		actorId: command.actorId,
+		from: { id: locked.id, kind: "Work" },
+		idempotencyKey: `${command.idempotencyKey}:relation`,
+		origin: HUMAN_ORIGIN,
+		originLocation: {
+			componentId: item.id,
+			ownerId: locked.id,
+			ownerKind: "Work",
+			sourceVersion: String(locked.revision),
+		},
+		previewAcknowledged: true,
+		to: { id: created.work.id, kind: "Work" },
+		type: RELATIONS_COPY.origin,
+		viewerWorkspaceId: project.workspaceId,
+	});
+	if (related.status === "conflict") {
+		abortConvert({ conflict: MUTATION_COPY.conflict, status: "conflict" });
+	}
+	if (related.status !== "committed" && related.status !== "replayed") {
+		abortConvert({ reason: "invalid-command", status: "rejected" });
+	}
+	const nextItems = items.map((entry) =>
+		entry.id === item.id
+			? {
+					completed: false,
+					convertedWork: {
+						id: created.work.id,
+						key: created.work.key,
+					},
+					id: entry.id,
+					title: entry.title,
+				}
+			: entry
+	);
+	await tx.work.update({
+		data: {
+			lightChecklist: nextItems as Prisma.InputJsonValue,
+			revision: locked.revision + 1,
+		},
+		where: { id: locked.id },
+	});
+	const updated = await tx.work.findUnique({ where: { id: locked.id } });
+	if (!updated) {
+		abortConvert({ reason: "target-not-found", status: "rejected" });
+	}
+	const checklist = toChecklistView(updated);
+	const convertedWork = {
+		id: created.work.id,
+		key: created.work.key,
+		projectId: created.work.projectId,
+		status: created.work.status,
+		title: created.work.title,
+	};
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: command.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey,
+			committedRevision: checklist.work.revision,
+			id: crypto.randomUUID(),
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: fingerprint,
+			resultValue: JSON.stringify({ checklist, convertedWork }),
+			targetId: checklist.work.id,
+		},
+	});
+	return { checklist, convertedWork, status: "committed" };
+}
+
+async function replayConvert(
+	tx: PrismaTransaction,
+	commandKey: string,
+	fingerprint: string
+): Promise<ConvertChecklistOutcome | null> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (!existing) {
+		return null;
+	}
+	if (existing.payloadFingerprint !== fingerprint) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const stored = convertResultSafe(existing.resultValue);
+	if (!stored) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const live = await tx.work.findUnique({ where: { id: existing.targetId } });
+	if (live && !live.retiredIntoId) {
+		return {
+			checklist: toChecklistView(live),
+			convertedWork: stored.convertedWork,
+			status: "replayed",
+		};
+	}
+	return { ...stored, status: "replayed" };
+}
+
+class ConvertBarrierError extends Error {
+	readonly outcome: ConvertChecklistOutcome;
+
+	constructor(outcome: ConvertChecklistOutcome) {
+		super("convert-barrier");
+		this.outcome = outcome;
+	}
+}
+
+function abortConvert(outcome: ConvertChecklistOutcome): never {
+	throw new ConvertBarrierError(outcome);
+}
+
+function convertResultSafe(text: string): ConvertChecklistResult | null {
+	try {
+		const parsed: unknown = JSON.parse(text);
+		const result = convertChecklistResultSchema.safeParse(parsed);
+		return result.success ? result.data : null;
+	} catch {
+		return null;
+	}
+}
+
 async function mutateItems(
 	prisma: PrismaClient,
 	command:
@@ -193,7 +466,9 @@ async function mutateItems(
 	fingerprintPayload: unknown,
 	transform: (
 		items: ChecklistItemView[]
-	) => ChecklistItemView[] | { reason: "invalid-order" | "item-not-found" }
+	) =>
+		| ChecklistItemView[]
+		| { reason: "already-converted" | "invalid-order" | "item-not-found" }
 ): Promise<WorkChecklistOutcome> {
 	if (command.origin !== HUMAN_ORIGIN) {
 		return { reason: "invalid-command", status: "rejected" };
@@ -212,7 +487,9 @@ async function mutateInTransaction(
 	fingerprint: string,
 	transform: (
 		items: ChecklistItemView[]
-	) => ChecklistItemView[] | { reason: "invalid-order" | "item-not-found" }
+	) =>
+		| ChecklistItemView[]
+		| { reason: "already-converted" | "invalid-order" | "item-not-found" }
 ): Promise<WorkChecklistOutcome> {
 	const current = await tx.work.findUnique({ where: { id: command.workId } });
 	if (!current || current.retiredIntoId) {
