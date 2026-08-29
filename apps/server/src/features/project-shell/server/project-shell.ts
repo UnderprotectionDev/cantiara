@@ -9,6 +9,10 @@ import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
+import {
+	clonePriorityCriteria,
+	seedPreparedEvidenceStrength,
+} from "../../priority/server/priority";
 import { cloneWorkContextCardLayouts } from "../../work-context/server/work-context-layout";
 import {
 	ALWAYS_ON_SURFACES,
@@ -72,6 +76,12 @@ interface ProjectRow {
 	lifecycleStatus: string;
 	logoFileName: string | null;
 	name: string;
+	priorityCriterionDefinitions: Array<{
+		enabled: boolean;
+		id: string;
+		name: string;
+		preparedKind: string | null;
+	}>;
 	problem: string | null;
 	purpose: string | null;
 	revision: number;
@@ -106,6 +116,16 @@ const PROJECT_STRUCTURE_INCLUDE = {
 	customFieldDefinitions: {
 		orderBy: { createdAt: "asc" as const },
 		select: { id: true, name: true, type: true },
+	},
+	priorityCriterionDefinitions: {
+		orderBy: { sortOrder: "asc" as const },
+		select: {
+			enabled: true,
+			id: true,
+			name: true,
+			preparedKind: true,
+		},
+		where: { trashedAt: null },
 	},
 	skeletonSelections: true,
 	stages: true,
@@ -1376,6 +1396,7 @@ async function persistAppliedStructure(
 		})),
 	});
 	await persistSkeletonSelections(tx, projectId, starterConfiguration);
+	await seedPreparedEvidenceStrength(tx, projectId, starterConfiguration);
 }
 
 async function persistCopiedStructure(
@@ -1454,6 +1475,7 @@ async function persistCopiedStructure(
 		});
 	}
 	await cloneCustomFieldDefinitions(tx, source.id, projectId);
+	await clonePriorityCriteria(tx, source.id, projectId);
 	await cloneWorkContextCardLayouts(tx, source.id, projectId);
 }
 
@@ -1533,7 +1555,17 @@ function toView(row: ProjectRow): ProjectView {
 		logoFileName: row.logoFileName,
 		name: row.name,
 		pinnedAreas,
-		priorityMetricDefinitions: [],
+		priorityMetricDefinitions: row.priorityCriterionDefinitions.map(
+			(definition) => ({
+				enabled: definition.enabled,
+				id: definition.id,
+				name: definition.name,
+				preparedKind:
+					definition.preparedKind === "Evidence strength"
+						? ("Evidence strength" as const)
+						: null,
+			})
+		),
 		problem: row.problem,
 		purpose: row.purpose,
 		revision: row.revision,

@@ -7,6 +7,7 @@ import { blockers } from "../features/blockers/server/blockers-rpc";
 import { captureInbox } from "../features/capture-triage/server/capture-inbox-router";
 import { customFields } from "../features/custom-fields/server/custom-fields-rpc";
 import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
+import { priority } from "../features/priority/server/priority-rpc";
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
 import { relations } from "../features/relations/server/relations-rpc";
@@ -28,6 +29,7 @@ export const appRouter = {
 	customFields,
 	fileAttachments,
 	healthCheck: publicProcedure.handler(() => "OK"),
+	priority,
 	privateData: protectedProcedure.handler(({ context }) => ({
 		message: "This is private",
 		user: context.session?.user,

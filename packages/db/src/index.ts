@@ -13,6 +13,7 @@ import {
 import {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentFileAttachmentVersionModel,
+	prismaClientHasCurrentProjectModel,
 	prismaClientHasCurrentTypedRelationModel,
 	prismaClientHasCurrentWorkspaceModel,
 } from "./prisma-client-delegates";
@@ -22,6 +23,7 @@ export { readGeneratedClientStamp } from "./generated-prisma-client";
 export {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentFileAttachmentVersionModel,
+	prismaClientHasCurrentProjectModel,
 	prismaClientHasCurrentTypedRelationModel,
 	prismaClientHasCurrentWorkspaceModel,
 	workspaceOverviewLayoutSelect,
@@ -118,6 +120,9 @@ function cachedClient(diskStamp: string): PrismaClient | undefined {
 		return;
 	}
 	if (!prismaClientHasCurrentFileAttachmentVersionModel(cached.client)) {
+		return;
+	}
+	if (!prismaClientHasCurrentProjectModel(cached.client)) {
 		return;
 	}
 	if (!prismaClientHasCurrentWorkspaceModel(cached.client)) {

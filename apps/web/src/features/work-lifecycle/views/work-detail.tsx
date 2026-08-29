@@ -3,6 +3,7 @@ import { useCallback } from "react";
 
 import WorkBlockersPanel from "@/features/blockers/views/work-blockers-panel";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
+import WorkPriorityValues from "@/features/priority/forms/work-priority-values";
 import RelationsPanel from "@/features/relations/views/relations-panel";
 import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
 import UsedInPanel from "@/features/relations/views/used-in-panel";
@@ -175,6 +176,11 @@ export default function WorkDetail({
 				projectId={projectId}
 				revision={work.revision}
 				type={work.type}
+				workId={work.id}
+			/>
+			<WorkPriorityValues
+				key={`${work.id}:priority`}
+				projectId={projectId}
 				workId={work.id}
 			/>
 			<CustomFieldValuesEditor

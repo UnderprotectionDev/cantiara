@@ -99,6 +99,7 @@ export function stageRemovalPreviewCopy(name: string): string {
 
 export const CONFIGURATION_MODE_EDITORS = {
 	customField: "custom-field",
+	priorityMetrics: "priority-metrics",
 	workContextCardLayout: "work-context-card-layout",
 	workTemplate: "work-template",
 } as const;
@@ -118,7 +119,7 @@ export function projectShellChrome() {
 export function structureCopyPreviewItems(preview: {
 	customFieldDefinitions: readonly { name: string }[];
 	enabledAreas: readonly string[];
-	priorityMetricDefinitions: readonly unknown[];
+	priorityMetricDefinitions: readonly { name: string }[];
 	selectedSkeletons: readonly {
 		emptyHeadings: readonly string[];
 		name: string;
@@ -156,7 +157,9 @@ export function structureCopyPreviewItems(preview: {
 			label: PROJECT_SHELL_COPY.customField,
 		},
 		{
-			items: preview.priorityMetricDefinitions.map(() => ""),
+			items: preview.priorityMetricDefinitions.map(
+				(definition) => definition.name
+			),
 			label: PROJECT_SHELL_COPY.priorityMetrics,
 		},
 		...preview.selectedSkeletons.map((skeleton) => ({
@@ -178,6 +181,7 @@ export function projectShellSearch(
 			: undefined;
 	const configurationEditor =
 		search.configurationEditor === CONFIGURATION_MODE_EDITORS.customField ||
+		search.configurationEditor === CONFIGURATION_MODE_EDITORS.priorityMetrics ||
 		search.configurationEditor ===
 			CONFIGURATION_MODE_EDITORS.workContextCardLayout ||
 		search.configurationEditor === CONFIGURATION_MODE_EDITORS.workTemplate

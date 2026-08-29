@@ -312,7 +312,15 @@ _Avoid_: Projeyi çoğalt, Duplicate project, içerikli fork, şablon pazarı, o
 
 **Öncelik ölçütü**:
 İşin önceliğini ifade eden Proje yapılandırması; skaler öncelik alanı veya otomatik skor değildir ([öncelik ölçütleri](docs/prd/06-work-management-and-planning.md#öncelik-ölçütleri)). UI: `Priority metrics`.
-_Avoid_: öncelik puanı, otomatik sıralama, skaler öncelik alanı
+_Avoid_: öncelik puanı, otomatik sıralama, skaler öncelik alanı, özel alan, İş alanı
+
+**Öncelik kademesi**:
+Öncelik ölçütünün beş sabit sıralı düzeyi; boş veya henüz değerlendirilmemiş durum bu beşin dışındadır ([öncelik ölçütleri](docs/prd/06-work-management-and-planning.md#öncelik-ölçütleri)). UI: `Very low`, `Low`, `Medium`, `High`, `Very high`. Boş gösterim: `Unevaluated`.
+_Avoid_: Medium varsayılanı, serbest sayı, formül kademesi
+
+**Kanıt gücü**:
+Görüşlü Başlangıç yapılandırmasının varsayılan kapalı hazır Öncelik ölçütü; kurucu etkinleştirir ve kademeyi eliyle seçer ([öncelik ölçütleri](docs/prd/06-work-management-and-planning.md#öncelik-ölçütleri)). UI: `Evidence strength`.
+_Avoid_: otomatik kanıt skoru, Geri Bildirim sayısı, popülerlik puanı
 
 **Kayıtlı görünüm**:
 Proje kabuğunda adlandırılmış İş görünümü; günlük planlama eylemi veya ikinci üyelik listesi değildir ([yapılandırma modu](docs/prd/04-workspace-and-projects.md#yapılandırma-modu)). UI: `Saved views`.

@@ -2,6 +2,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { type ReactNode, useCallback } from "react";
 
 import CustomFieldEditor from "@/features/custom-fields/forms/custom-field-editor";
+import PriorityCriterionEditor from "@/features/priority/forms/priority-criterion-editor";
 import WorkContextLayoutEditor from "@/features/work-context/views/work-context-layout-editor";
 import WorkTemplateEditor from "@/features/work-templates/forms/work-template-editor";
 
@@ -46,6 +47,9 @@ export default function ConfigurationMode({
 }) {
 	const openCustomField = useCallback(() => {
 		onOpenEditor(CONFIGURATION_MODE_EDITORS.customField);
+	}, [onOpenEditor]);
+	const openPriorityMetrics = useCallback(() => {
+		onOpenEditor(CONFIGURATION_MODE_EDITORS.priorityMetrics);
 	}, [onOpenEditor]);
 	const openWorkTemplate = useCallback(() => {
 		onOpenEditor(CONFIGURATION_MODE_EDITORS.workTemplate);
@@ -116,6 +120,20 @@ export default function ConfigurationMode({
 						<h2 className="font-medium text-sm">
 							{PROJECT_SHELL_COPY.priorityMetrics}
 						</h2>
+						<Button
+							aria-expanded={
+								editor === CONFIGURATION_MODE_EDITORS.priorityMetrics
+							}
+							onClick={openPriorityMetrics}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							{PROJECT_SHELL_COPY.priorityMetrics}
+						</Button>
+						{editor === CONFIGURATION_MODE_EDITORS.priorityMetrics ? (
+							<PriorityCriterionEditor projectId={projectId} />
+						) : null}
 					</section>
 					<section
 						aria-label={PROJECT_SHELL_COPY.savedViews}

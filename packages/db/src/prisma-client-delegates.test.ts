@@ -4,6 +4,7 @@ import type { PrismaClient } from "../prisma/generated/client";
 import {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentFileAttachmentVersionModel,
+	prismaClientHasCurrentProjectModel,
 	prismaClientHasCurrentTypedRelationModel,
 	prismaClientHasCurrentWorkspaceModel,
 	workspaceOverviewLayoutSelect,
@@ -135,6 +136,34 @@ describe("Prisma client current delegates", () => {
 				usageHostEmbed: { findMany },
 				usageLink: { findMany },
 				workTag: { findMany },
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
+	it("refuses a bun --hot client generated before Project priority criteria", () => {
+		expect(
+			prismaClientHasCurrentProjectModel({
+				_runtimeDataModel: {
+					models: {
+						Project: {
+							fields: [{ name: "id" }, { name: "customFieldDefinitions" }],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(false);
+		expect(
+			prismaClientHasCurrentProjectModel({
+				_runtimeDataModel: {
+					models: {
+						Project: {
+							fields: [
+								{ name: "id" },
+								{ name: "priorityCriterionDefinitions" },
+							],
+						},
+					},
+				},
 			} as unknown as PrismaClient)
 		).toBe(true);
 	});
