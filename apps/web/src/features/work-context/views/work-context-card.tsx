@@ -14,7 +14,6 @@ import type { WorkType } from "../../work-lifecycle/forms/work-lifecycle-copy";
 
 import {
 	presentWorkContextCard,
-	revealPreparedSection,
 	WORK_CONTEXT_COPY,
 	type WorkContextCardView,
 } from "./work-context-copy";
@@ -78,11 +77,12 @@ export default function WorkContextCard({
 			if (typeof section !== "string" || section.length === 0) {
 				return;
 			}
-			setRevealedSections(
-				revealPreparedSection(local, section).visiblePreparedSections
-			);
+			if (!card.addContext.remainingSections.some((item) => item === section)) {
+				return;
+			}
+			setRevealedSections((current) => [...current, section]);
 		},
-		[local]
+		[card]
 	);
 	return (
 		<section className="flex flex-col gap-3">
@@ -207,8 +207,8 @@ function LiveItem({
 	item: WorkContextCardView["visibleSections"][number]["items"][number];
 	onOpenSourceRecord?: (id: string) => void;
 }) {
-	if (item.status === "broken") {
-		return <span>{item.reason}</span>;
+	if (item.status === "broken" || !item.sourceId) {
+		return <span>{item.reason ?? item.visibleName}</span>;
 	}
 	return (
 		<OpenSourceButton
