@@ -256,7 +256,7 @@ export default function WorkArea({
 				</Button>
 			</div>
 			{workSurface}
-			{!unavailableView && surface === "list" && bulkTargets.length > 0 ? (
+			{!unavailableView && surface === "list" ? (
 				<BulkEditPreview
 					filterWorkIds={items.map((item) => item.id)}
 					selectedWorkIds={bulkTargets}

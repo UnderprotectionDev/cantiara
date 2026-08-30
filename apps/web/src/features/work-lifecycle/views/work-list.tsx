@@ -37,18 +37,21 @@ export default function WorkList({
 		);
 	}
 	return (
-		<ul className="flex flex-col">
-			{items.map((item) => (
-				<WorkListItem
-					bulkSelected={bulkSelectedIds.includes(item.id)}
-					item={item}
-					key={item.id}
-					onSelect={onSelect}
-					onToggleBulkSelect={onToggleBulkSelect}
-					selected={item.id === selectedId}
-				/>
-			))}
-		</ul>
+		<div className="flex flex-col gap-2">
+			<p className="font-medium text-sm">{BULK_EDITING_COPY.bulkEdit}</p>
+			<ul className="flex flex-col">
+				{items.map((item) => (
+					<WorkListItem
+						bulkSelected={bulkSelectedIds.includes(item.id)}
+						item={item}
+						key={item.id}
+						onSelect={onSelect}
+						onToggleBulkSelect={onToggleBulkSelect}
+						selected={item.id === selectedId}
+					/>
+				))}
+			</ul>
+		</div>
 	);
 }
 
@@ -78,10 +81,11 @@ function WorkListItem({
 		[item.id, onToggleBulkSelect]
 	);
 	return (
-		<li className="flex items-center gap-1">
+		<li className="flex items-center gap-2">
 			<Checkbox
 				aria-label={`${BULK_EDITING_COPY.bulkEdit} ${item.key}`}
 				checked={bulkSelected}
+				className="border-foreground"
 				onCheckedChange={onCheckedChange}
 			/>
 			<button

@@ -106,65 +106,73 @@ export default function BulkEditPreview({
 			className="flex flex-col gap-3"
 		>
 			<h2 className="font-medium text-sm">{BULK_EDITING_COPY.bulkEdit}</h2>
-			<p className="text-muted-foreground text-sm">
-				{BULK_EDITING_COPY.selectedWork} · {selectedWorkIds.length}
-			</p>
-			<form className="flex flex-col gap-3" onSubmit={onSubmit}>
-				<FieldGroup className="flex-row flex-wrap items-end gap-3">
-					<Field className="w-44">
-						<FieldLabel htmlFor="bulk-edit-status">
-							{WORK_LIFECYCLE_COPY.status}
-						</FieldLabel>
-						<NativeSelect
-							className="w-full"
-							id="bulk-edit-status"
-							onChange={onStatusChange}
-							value={status}
-						>
-							<NativeSelectOption value="">—</NativeSelectOption>
-							{WORK_STATUSES.map((workStatus) => (
-								<NativeSelectOption key={workStatus} value={workStatus}>
-									{workStatus}
-								</NativeSelectOption>
-							))}
-						</NativeSelect>
-					</Field>
-					<Field className="min-w-48 flex-1">
-						<FieldLabel htmlFor="bulk-edit-title">
-							{WORK_LIFECYCLE_COPY.title}
-						</FieldLabel>
-						<Input
-							id="bulk-edit-title"
-							onChange={onTitleChange}
-							value={title}
-						/>
-					</Field>
-					{closeCopy ? (
+			{selectedWorkIds.length === 0 ? (
+				<p className="text-muted-foreground text-sm">
+					{BULK_EDITING_COPY.noSelection}
+				</p>
+			) : (
+				<p className="text-muted-foreground text-sm">
+					{BULK_EDITING_COPY.selectedWork} · {selectedWorkIds.length}
+				</p>
+			)}
+			{selectedWorkIds.length === 0 ? null : (
+				<form className="flex flex-col gap-3" onSubmit={onSubmit}>
+					<FieldGroup className="flex-row flex-wrap items-end gap-3">
 						<Field className="w-44">
-							<FieldLabel htmlFor="bulk-edit-close-result">
-								{closeCopy.closureCheck}
+							<FieldLabel htmlFor="bulk-edit-status">
+								{WORK_LIFECYCLE_COPY.status}
 							</FieldLabel>
 							<NativeSelect
 								className="w-full"
-								id="bulk-edit-close-result"
-								onChange={onClosureChange}
-								value={closureResult}
+								id="bulk-edit-status"
+								onChange={onStatusChange}
+								value={status}
 							>
 								<NativeSelectOption value="">—</NativeSelectOption>
-								<NativeSelectOption value={closeCopy.completed}>
-									{closeCopy.completed}
-								</NativeSelectOption>
-								<NativeSelectOption value={closeCopy.abandoned}>
-									{closeCopy.abandoned}
-								</NativeSelectOption>
+								{WORK_STATUSES.map((workStatus) => (
+									<NativeSelectOption key={workStatus} value={workStatus}>
+										{workStatus}
+									</NativeSelectOption>
+								))}
 							</NativeSelect>
 						</Field>
-					) : null}
-					<Button disabled={preview.isPending} type="submit">
-						{BULK_EDITING_COPY.fieldChanges}
-					</Button>
-				</FieldGroup>
-			</form>
+						<Field className="min-w-48 flex-1">
+							<FieldLabel htmlFor="bulk-edit-title">
+								{WORK_LIFECYCLE_COPY.title}
+							</FieldLabel>
+							<Input
+								id="bulk-edit-title"
+								onChange={onTitleChange}
+								value={title}
+							/>
+						</Field>
+						{closeCopy ? (
+							<Field className="w-44">
+								<FieldLabel htmlFor="bulk-edit-close-result">
+									{closeCopy.closureCheck}
+								</FieldLabel>
+								<NativeSelect
+									className="w-full"
+									id="bulk-edit-close-result"
+									onChange={onClosureChange}
+									value={closureResult}
+								>
+									<NativeSelectOption value="">—</NativeSelectOption>
+									<NativeSelectOption value={closeCopy.completed}>
+										{closeCopy.completed}
+									</NativeSelectOption>
+									<NativeSelectOption value={closeCopy.abandoned}>
+										{closeCopy.abandoned}
+									</NativeSelectOption>
+								</NativeSelect>
+							</Field>
+						) : null}
+						<Button disabled={preview.isPending} type="submit">
+							{BULK_EDITING_COPY.fieldChanges}
+						</Button>
+					</FieldGroup>
+				</form>
+			)}
 			{error ? <p role="alert">{error}</p> : null}
 			{records.length > 0 ? (
 				<ul className="flex flex-col gap-2 text-sm">
