@@ -11,6 +11,11 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { MUTATION_ACTOR } from "../../mutation-core/server/mutation-shared";
 import { createProject } from "../../project-shell/server/project-shell";
+import {
+	changeWorkStatus,
+	createWork,
+	getWork,
+} from "../../work-lifecycle/server/work-lifecycle";
 import { WORK_STATUS } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
 	defineRecordAction,
@@ -25,6 +30,11 @@ import {
 	recordActionsCatalog,
 	START_WORK_STEPS,
 } from "./record-actions-model";
+import {
+	applyRecordAction,
+	previewRecordAction,
+	undoRecordAction,
+} from "./record-actions-run";
 
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
@@ -286,4 +296,383 @@ describe("Record Actions", () => {
 			})
 		).toEqual({ reason: "trashed-not-effective", status: "rejected" });
 	});
+
+	it("does not apply a Record Action until the founder explicitly starts it", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const action = await committedAction(prisma, actorId, project.id);
+		const work = await committedWork(prisma, actorId, project.id, "Alpha");
+		expect(work.status).toBe("Not Started");
+		expect(
+			await applyRecordAction(prisma, {
+				actorId,
+				baseRevision: work.revision,
+				idempotencyKey: "silent",
+				origin: "human",
+				payload: {
+					recordActionId: action.id,
+					targetRecordId: work.id,
+				},
+			})
+		).toEqual({ reason: "explicit-start-required", status: "rejected" });
+		expect((await getWork(prisma, work.id))?.status).toBe("Not Started");
+		const previewed = await previewRecordAction(prisma, {
+			actorId,
+			recordActionId: action.id,
+			targetRecordId: work.id,
+		});
+		expect(previewed.status).toBe("ok");
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		expect((await getWork(prisma, work.id))?.status).toBe("Not Started");
+		expect(previewed.preview.copy).toEqual({
+			apply: "Apply",
+			finalizing: "Finalizing",
+			preview: "Preview",
+			start: "Start",
+		});
+	});
+
+	it("applies the previewed Start Work diff atomically and replays the same key", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const action = await committedAction(prisma, actorId, project.id);
+		const work = await committedWork(prisma, actorId, project.id, "Alpha");
+		const previewed = await previewRecordAction(prisma, {
+			actorId,
+			recordActionId: action.id,
+			targetRecordId: work.id,
+		});
+		expect(previewed.status).toBe("ok");
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		expect(previewed.preview.fields).toEqual([
+			{
+				from: "Not Started",
+				id: "status",
+				label: "Set Work status",
+				to: "In Progress",
+			},
+			{
+				from: "Not in Daily Focus",
+				id: "dailyFocusMembership",
+				label: "Add to Daily Focus",
+				to: "In Daily Focus",
+			},
+		]);
+		expect(previewed.preview.actor).toBe("User");
+		const applied = await applyRecordAction(prisma, {
+			actorId,
+			baseRevision: previewed.preview.baseRevision,
+			idempotencyKey: "apply-start",
+			origin: "human",
+			payload: {
+				previewAcknowledged: true,
+				previewFingerprint: previewed.preview.fingerprint,
+				recordActionId: action.id,
+				targetRecordId: work.id,
+			},
+		});
+		expect(applied.status).toBe("committed");
+		if (applied.status !== "committed") {
+			throw new Error("expected committed apply");
+		}
+		expect(applied.run.fields).toEqual(previewed.preview.fields);
+		expect(applied.run.actor).toBe("User");
+		expect(applied.ui).toEqual({
+			cancelAvailable: false,
+			label: "Finalizing",
+		});
+		expect(applied.run.undo).toBe("Undo");
+		expect((await getWork(prisma, work.id))?.status).toBe("In Progress");
+		const after = await previewRecordAction(prisma, {
+			actorId,
+			recordActionId: action.id,
+			targetRecordId: work.id,
+		});
+		expect(after).toMatchObject({
+			preview: { fields: [] },
+			status: "ok",
+		});
+		const replayed = await applyRecordAction(prisma, {
+			actorId,
+			baseRevision: previewed.preview.baseRevision,
+			idempotencyKey: "apply-start",
+			origin: "human",
+			payload: {
+				previewAcknowledged: true,
+				previewFingerprint: previewed.preview.fingerprint,
+				recordActionId: action.id,
+				targetRecordId: work.id,
+			},
+		});
+		expect(replayed.status).toBe("replayed");
+		if (replayed.status !== "replayed") {
+			throw new Error("expected replayed apply");
+		}
+		expect(replayed.run.fields).toEqual(previewed.preview.fields);
+		expect(replayed.ui.label).toBe("Finalizing");
+		expect(
+			await applyRecordAction(prisma, {
+				actorId,
+				baseRevision: previewed.preview.baseRevision,
+				idempotencyKey: "apply-start",
+				origin: "human",
+				payload: {
+					previewAcknowledged: true,
+					previewFingerprint: "other",
+					recordActionId: action.id,
+					targetRecordId: work.id,
+				},
+			})
+		).toEqual({ conflict: "Conflict", status: "conflict" });
+	});
+
+	it("rejects a stale base revision and a failing combination without a partial write", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const action = await committedAction(prisma, actorId, project.id);
+		const work = await committedWork(prisma, actorId, project.id, "Alpha");
+		const previewed = await previewRecordAction(prisma, {
+			actorId,
+			recordActionId: action.id,
+			targetRecordId: work.id,
+		});
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		const changed = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: "status-blocked",
+			origin: "human",
+			status: "Blocked",
+			workId: work.id,
+		});
+		expect(changed.status).toBe("committed");
+		expect(
+			await applyRecordAction(prisma, {
+				actorId,
+				baseRevision: previewed.preview.baseRevision,
+				idempotencyKey: "stale-apply",
+				origin: "human",
+				payload: {
+					previewAcknowledged: true,
+					previewFingerprint: previewed.preview.fingerprint,
+					recordActionId: action.id,
+					targetRecordId: work.id,
+				},
+			})
+		).toMatchObject({
+			currentValueLabel: "Current value",
+			status: "stale",
+		});
+		expect((await getWork(prisma, work.id))?.status).toBe("Blocked");
+		const closed = await defineRecordAction(prisma, {
+			actorId,
+			idempotencyKey: "close-combo",
+			origin: "human",
+			payload: {
+				name: "Close combo",
+				projectId: project.id,
+				steps: [
+					{ kind: "setWorkStatus", status: "Closed" },
+					{ kind: "dailyFocusMembership", operation: "add" },
+				],
+			},
+		});
+		if (closed.status !== "committed") {
+			throw new Error("expected closed combo");
+		}
+		const live = await getWork(prisma, work.id);
+		if (!live) {
+			throw new Error("expected work");
+		}
+		expect(
+			await previewRecordAction(prisma, {
+				actorId,
+				recordActionId: closed.action.id,
+				targetRecordId: work.id,
+			})
+		).toEqual({ reason: "close-step-required", status: "rejected" });
+		expect(
+			await applyRecordAction(prisma, {
+				actorId,
+				baseRevision: live.revision,
+				idempotencyKey: "fail-close",
+				origin: "human",
+				payload: {
+					previewAcknowledged: true,
+					recordActionId: closed.action.id,
+					targetRecordId: work.id,
+				},
+			})
+		).toEqual({ reason: "close-step-required", status: "rejected" });
+		expect((await getWork(prisma, work.id))?.status).toBe("Blocked");
+		const stillPreview = await previewRecordAction(prisma, {
+			actorId,
+			recordActionId: action.id,
+			targetRecordId: work.id,
+		});
+		if (stillPreview.status !== "ok") {
+			throw new Error("expected remaining Start Work preview");
+		}
+		expect(stillPreview.preview.fields).toEqual([
+			{
+				from: "Blocked",
+				id: "status",
+				label: "Set Work status",
+				to: "In Progress",
+			},
+			{
+				from: "Not in Daily Focus",
+				id: "dailyFocusMembership",
+				label: "Add to Daily Focus",
+				to: "In Daily Focus",
+			},
+		]);
+	});
+
+	it("undoes the whole combination or refuses a later attributed write", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const action = await committedAction(prisma, actorId, project.id);
+		const work = await committedWork(prisma, actorId, project.id, "Alpha");
+		const previewed = await previewRecordAction(prisma, {
+			actorId,
+			recordActionId: action.id,
+			targetRecordId: work.id,
+		});
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		const applied = await applyRecordAction(prisma, {
+			actorId,
+			baseRevision: previewed.preview.baseRevision,
+			idempotencyKey: "apply-for-undo",
+			origin: "human",
+			payload: {
+				previewAcknowledged: true,
+				previewFingerprint: previewed.preview.fingerprint,
+				recordActionId: action.id,
+				targetRecordId: work.id,
+			},
+		});
+		if (applied.status !== "committed") {
+			throw new Error("expected committed apply");
+		}
+		const undone = await undoRecordAction(prisma, {
+			actorId,
+			baseRevision: applied.run.revision,
+			idempotencyKey: "undo-start",
+			origin: "human",
+			payload: { runId: applied.run.id },
+		});
+		expect(undone.status).toBe("committed");
+		if (undone.status !== "committed") {
+			throw new Error("expected undo");
+		}
+		expect(undone.run.fields).toEqual([
+			{
+				from: "In Progress",
+				id: "status",
+				label: "Set Work status",
+				to: "Not Started",
+			},
+			{
+				from: "In Daily Focus",
+				id: "dailyFocusMembership",
+				label: "Add to Daily Focus",
+				to: "Not in Daily Focus",
+			},
+		]);
+		expect(undone.ui.label).toBe("Finalizing");
+		expect((await getWork(prisma, work.id))?.status).toBe("Not Started");
+		const restoredPreview = await previewRecordAction(prisma, {
+			actorId,
+			recordActionId: action.id,
+			targetRecordId: work.id,
+		});
+		if (restoredPreview.status !== "ok") {
+			throw new Error("expected restored preview");
+		}
+		expect(restoredPreview.preview.fields).toEqual(previewed.preview.fields);
+		const second = await applyRecordAction(prisma, {
+			actorId,
+			baseRevision: restoredPreview.preview.baseRevision,
+			idempotencyKey: "apply-again",
+			origin: "human",
+			payload: {
+				previewAcknowledged: true,
+				previewFingerprint: restoredPreview.preview.fingerprint,
+				recordActionId: action.id,
+				targetRecordId: work.id,
+			},
+		});
+		if (second.status !== "committed") {
+			throw new Error("expected second apply");
+		}
+		const later = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: second.run.revision,
+			idempotencyKey: "later-status",
+			origin: "human",
+			status: "Blocked",
+			workId: work.id,
+		});
+		expect(later.status).toBe("committed");
+		const live = await getWork(prisma, work.id);
+		expect(
+			await undoRecordAction(prisma, {
+				actorId,
+				baseRevision: live?.revision ?? 0,
+				idempotencyKey: "undo-later",
+				origin: "human",
+				payload: { runId: second.run.id },
+			})
+		).toEqual({
+			explanation:
+				"Undo stopped because a later write changed an attributed field.",
+			reason: "later-write",
+			status: "rejected",
+		});
+		expect((await getWork(prisma, work.id))?.status).toBe("Blocked");
+	});
 });
+
+async function committedAction(
+	prisma: PrismaClient,
+	actorId: string,
+	projectId: string
+) {
+	const outcome = await defineRecordAction(prisma, {
+		actorId,
+		idempotencyKey: `define-${crypto.randomUUID()}`,
+		origin: "human",
+		payload: {
+			name: RECORD_ACTION_COPY.startWork,
+			projectId,
+			steps: [...START_WORK_STEPS],
+		},
+	});
+	if (outcome.status !== "committed") {
+		throw new Error("expected committed Record Action");
+	}
+	return outcome.action;
+}
+
+async function committedWork(
+	prisma: PrismaClient,
+	actorId: string,
+	projectId: string,
+	title: string
+) {
+	const created = await createWork(prisma, {
+		actorId,
+		idempotencyKey: `work-${crypto.randomUUID()}`,
+		origin: "human",
+		payload: { projectId, title },
+	});
+	if (created.status !== "committed") {
+		throw new Error("expected committed Work");
+	}
+	return created.work;
+}

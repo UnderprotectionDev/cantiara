@@ -8,6 +8,7 @@ import {
 	PROJECT_SHELL_COPY,
 	projectShellAnchor,
 } from "@/features/project-shell/forms/project-shell-copy";
+import RecordActionRun from "@/features/record-actions/views/record-action-run";
 import RelationsPanel from "@/features/relations/views/relations-panel";
 import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
 import UsedInPanel from "@/features/relations/views/used-in-panel";
@@ -139,6 +140,11 @@ export default function WorkDetail({
 					/>
 				)}
 			</div>
+			<RecordActionRun
+				projectId={projectId}
+				revision={work.revision}
+				workId={work.id}
+			/>
 			<FeatureInclusionPanel
 				key={`${work.id}:inclusion:${work.revision}`}
 				projectId={projectId}

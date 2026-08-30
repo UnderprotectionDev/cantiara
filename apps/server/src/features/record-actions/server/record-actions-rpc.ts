@@ -12,10 +12,17 @@ import {
 	trashRecordAction,
 } from "./record-actions";
 import {
+	applyRecordActionPayloadSchema,
 	createRecordActionPayloadSchema,
 	recordActionsCatalog,
 	trashRecordActionPayloadSchema,
+	undoRecordActionPayloadSchema,
 } from "./record-actions-model";
+import {
+	applyRecordAction,
+	previewRecordAction,
+	undoRecordAction,
+} from "./record-actions-run";
 
 async function requireAccess(userId: string) {
 	const access = await getAccountAccessForUser(getPrismaClient(), userId);
@@ -34,6 +41,28 @@ async function requireProject(workspaceId: string, projectId: string) {
 }
 
 export const recordActions = {
+	apply: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: applyRecordActionPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireRecordActionProject(
+				access.workspaceId,
+				input.payload.recordActionId
+			);
+			return await applyRecordAction(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	catalog: protectedProcedure.handler(() => recordActionsCatalog()),
 	create: protectedWriteProcedure
 		.input(
@@ -59,6 +88,27 @@ export const recordActions = {
 			await requireProject(access.workspaceId, input.projectId);
 			return await listRecordActions(getPrismaClient(), input.projectId);
 		}),
+	preview: protectedProcedure
+		.input(
+			z.object({
+				recordActionId: z.string().min(1),
+				targetRecordId: z.string().min(1),
+				targetRecordIds: z.array(z.string().min(1)).optional(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireRecordActionProject(
+				access.workspaceId,
+				input.recordActionId
+			);
+			return await previewRecordAction(getPrismaClient(), {
+				actorId: access.accountId,
+				recordActionId: input.recordActionId,
+				targetRecordId: input.targetRecordId,
+				targetRecordIds: input.targetRecordIds,
+			});
+		}),
 	resolve: protectedProcedure
 		.input(
 			z.object({
@@ -69,14 +119,10 @@ export const recordActions = {
 		)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			const row = await getPrismaClient().recordAction.findUnique({
-				select: { projectId: true },
-				where: { id: input.recordActionId },
-			});
-			if (!row) {
-				throw new ORPCError("NOT_FOUND");
-			}
-			await requireProject(access.workspaceId, row.projectId);
+			await requireRecordActionProject(
+				access.workspaceId,
+				input.recordActionId
+			);
 			return await resolveRecordAction(getPrismaClient(), input);
 		}),
 	trash: protectedWriteProcedure
@@ -88,14 +134,10 @@ export const recordActions = {
 		)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			const row = await getPrismaClient().recordAction.findUnique({
-				select: { projectId: true },
-				where: { id: input.payload.recordActionId },
-			});
-			if (!row) {
-				throw new ORPCError("NOT_FOUND");
-			}
-			await requireProject(access.workspaceId, row.projectId);
+			await requireRecordActionProject(
+				access.workspaceId,
+				input.payload.recordActionId
+			);
 			return await trashRecordAction(getPrismaClient(), {
 				actorId: access.accountId,
 				idempotencyKey: input.idempotencyKey,
@@ -103,4 +145,44 @@ export const recordActions = {
 				payload: input.payload,
 			});
 		}),
+	undo: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: undoRecordActionPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const run = await getPrismaClient().recordActionRun.findUnique({
+				select: { recordActionId: true },
+				where: { id: input.payload.runId },
+			});
+			if (!run) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireRecordActionProject(access.workspaceId, run.recordActionId);
+			return await undoRecordAction(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 };
+
+async function requireRecordActionProject(
+	workspaceId: string,
+	recordActionId: string
+) {
+	const row = await getPrismaClient().recordAction.findUnique({
+		select: { projectId: true },
+		where: { id: recordActionId },
+	});
+	if (!row) {
+		throw new ORPCError("NOT_FOUND");
+	}
+	await requireProject(workspaceId, row.projectId);
+}
