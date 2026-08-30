@@ -157,6 +157,21 @@ export function prismaClientHasCurrentTypedRelationModel(
 	return fields.includes("resolvedAt") && fields.includes("resolutionNote");
 }
 
+/**
+ * ExternalExecutionHandoff.cancelReason is required for Cancel Handoff.
+ * A bun `--hot` client generated before that column still has a handoff
+ * delegate; update then throws "Unknown argument `cancelReason`".
+ */
+export function prismaClientHasCurrentExternalExecutionHandoffModel(
+	client: PrismaClient
+): boolean {
+	const fields = modelFieldNames(client, "ExternalExecutionHandoff");
+	if (fields.length === 0) {
+		return true;
+	}
+	return fields.includes("cancelReason");
+}
+
 export function workspaceOverviewLayoutSelect(client: PrismaClient) {
 	if (prismaClientHasCurrentWorkspaceModel(client)) {
 		return { overviewLayout: true } as const;

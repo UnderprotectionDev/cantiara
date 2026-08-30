@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import type { PrismaClient } from "../prisma/generated/client";
 import {
 	prismaClientHasCurrentDelegates,
+	prismaClientHasCurrentExternalExecutionHandoffModel,
 	prismaClientHasCurrentFileAttachmentVersionModel,
 	prismaClientHasCurrentProjectModel,
 	prismaClientHasCurrentTypedRelationModel,
@@ -351,6 +352,36 @@ describe("Prisma client current delegates", () => {
 								{ name: "blockerState" },
 								{ name: "resolvedAt" },
 								{ name: "resolutionNote" },
+							],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
+	it("refuses a bun --hot client generated before Cancel Handoff reason", () => {
+		expect(
+			prismaClientHasCurrentExternalExecutionHandoffModel({
+				_runtimeDataModel: {
+					models: {
+						ExternalExecutionHandoff: {
+							fields: [{ name: "id" }, { name: "workId" }, { name: "status" }],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(false);
+		expect(
+			prismaClientHasCurrentExternalExecutionHandoffModel({
+				_runtimeDataModel: {
+					models: {
+						ExternalExecutionHandoff: {
+							fields: [
+								{ name: "id" },
+								{ name: "workId" },
+								{ name: "status" },
+								{ name: "cancelReason" },
 							],
 						},
 					},
