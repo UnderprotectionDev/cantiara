@@ -22,7 +22,7 @@ function ProjectProfileRoute() {
 	const onPresentationChange = useCallback(
 		(next: { editor: ConfigurationModeEditor | null; open: boolean }) => {
 			navigate({
-				hash: projectShellHashAnchor(hash),
+				hash: next.hash ?? projectShellHashAnchor(hash),
 				search: {
 					configurationEditor: next.editor ?? undefined,
 					configurationMode: next.open ? true : undefined,

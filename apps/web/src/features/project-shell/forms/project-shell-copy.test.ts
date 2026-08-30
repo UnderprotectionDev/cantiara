@@ -237,7 +237,9 @@ test("Work daily actions and Saved views stay on the Work surface", () => {
 	).toBe(false);
 	expect(projectShellHashForWorkSelect("")).toBe("work");
 	expect(projectShellHashForWorkSelect("#overview")).toBe("work");
+	expect(projectShellHashForWorkSelect("#documents")).toBe("work");
 	expect(projectShellHashForWorkSelect("#edit")).toBe("edit");
+	expect(projectShellHashForWorkSelect("#backlog")).toBe("backlog");
 	expect(PROJECT_SHELL_COPY.project).toBe("Project");
 	expect(PROJECT_SHELL_COPY.openNavigation).toBe("Open Project navigation");
 });

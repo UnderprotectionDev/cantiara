@@ -11,7 +11,7 @@ import { cn } from "@cantiara/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
-import { useCallback } from "react";
+import { type MouseEvent, useCallback } from "react";
 
 import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-record-values";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
@@ -29,6 +29,7 @@ import {
 	projectNavRecordAreas,
 	projectPersistentNav,
 	projectShellAnchor,
+	projectShellHashAnchor,
 	projectShellShowsWorkSurface,
 	type StageState,
 	WORK_DAILY_ACTIONS,
@@ -81,6 +82,7 @@ export default function ProjectProfile({
 	configurationMode: boolean;
 	onPresentationChange: (next: {
 		editor: ConfigurationModeEditor | null;
+		hash?: string;
 		open: boolean;
 	}) => void;
 	onWorkId?: (workId: string | null) => void;
@@ -103,12 +105,19 @@ export default function ProjectProfile({
 			open: !configurationMode,
 		});
 	}, [configurationMode, onPresentationChange]);
-	const onLeaveConfiguration = useCallback(() => {
-		if (!configurationMode) {
-			return;
-		}
-		onPresentationChange({ editor: null, open: false });
-	}, [configurationMode, onPresentationChange]);
+	const onLeaveConfiguration = useCallback(
+		(nextHash: string) => {
+			if (!configurationMode) {
+				return;
+			}
+			onPresentationChange({
+				editor: null,
+				hash: nextHash,
+				open: false,
+			});
+		},
+		[configurationMode, onPresentationChange]
+	);
 
 	if (project.isPending) {
 		return (
@@ -235,7 +244,7 @@ function ProjectNav({
 	allToolsHref: string;
 	configurationMode: boolean;
 	navigationAreas: readonly string[];
-	onLeaveConfiguration: () => void;
+	onLeaveConfiguration: (nextHash: string) => void;
 	overviewCurrent: boolean;
 	overviewHref: string;
 	selectedAnchor: string;
@@ -253,6 +262,7 @@ function ProjectNav({
 					<ul className="mt-0.5 flex flex-col gap-0.5">
 						<li>
 							<ProjectNavLink
+								configurationMode={configurationMode}
 								current={overviewCurrent}
 								href={overviewHref}
 								label={PROJECT_SHELL_COPY.overview}
@@ -267,6 +277,7 @@ function ProjectNav({
 							{records.map((area) => (
 								<li key={`record-${area}`}>
 									<ProjectNavLink
+										configurationMode={configurationMode}
 										current={
 											selectedAnchor === projectShellAnchor(area) ||
 											(area === "Work" &&
@@ -290,6 +301,7 @@ function ProjectNav({
 							{pinned.map((area) => (
 								<li key={`pin-${area}`}>
 									<ProjectNavLink
+										configurationMode={configurationMode}
 										current={selectedAnchor === projectShellAnchor(area)}
 										href={`#${projectShellAnchor(area)}`}
 										label={area}
@@ -307,6 +319,7 @@ function ProjectNav({
 					<ul className="mt-0.5 flex flex-col gap-0.5">
 						<li>
 							<ProjectNavLink
+								configurationMode={configurationMode}
 								current={allToolsCurrent}
 								href={allToolsHref}
 								label={PROJECT_SHELL_COPY.allTools}
@@ -326,16 +339,27 @@ function ProjectNav({
 }
 
 function ProjectNavLink({
+	configurationMode,
 	current,
 	href,
 	label,
 	onLeaveConfiguration,
 }: {
+	configurationMode: boolean;
 	current: boolean;
 	href: string;
 	label: string;
-	onLeaveConfiguration: () => void;
+	onLeaveConfiguration: (nextHash: string) => void;
 }) {
+	const onClick = useCallback(
+		(event: MouseEvent<HTMLAnchorElement>) => {
+			if (configurationMode) {
+				event.preventDefault();
+			}
+			onLeaveConfiguration(projectShellHashAnchor(href));
+		},
+		[configurationMode, href, onLeaveConfiguration]
+	);
 	return (
 		<a
 			aria-current={current ? "page" : undefined}
@@ -346,7 +370,7 @@ function ProjectNavLink({
 					: "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 			)}
 			href={href}
-			onClick={onLeaveConfiguration}
+			onClick={onClick}
 		>
 			{label}
 		</a>

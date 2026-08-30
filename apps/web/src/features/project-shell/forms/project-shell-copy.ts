@@ -261,16 +261,24 @@ export function workSavedViewIsList(view: string): boolean {
 
 const HASH_PREFIX = "#";
 
+const WORK_SELECT_RESET_ANCHORS = new Set([
+	"",
+	ALWAYS_ON_ANCHORS.Overview,
+	ALWAYS_ON_ANCHORS["All Tools"],
+	ALWAYS_ON_ANCHORS.Documents,
+	ALWAYS_ON_ANCHORS["File Attachment"],
+]);
+
 export function projectShellHashAnchor(hash: string): string {
 	return hash.startsWith(HASH_PREFIX) ? hash.slice(HASH_PREFIX.length) : hash;
 }
 
 export function projectShellHashForWorkSelect(hash: string): string {
 	const anchor = projectShellHashAnchor(hash);
-	if (isWorkShellAnchor(anchor, [])) {
-		return anchor;
+	if (WORK_SELECT_RESET_ANCHORS.has(anchor)) {
+		return ALWAYS_ON_ANCHORS.Work;
 	}
-	return ALWAYS_ON_ANCHORS.Work;
+	return anchor;
 }
 
 export function projectShellShowsWorkSurface(input: {
