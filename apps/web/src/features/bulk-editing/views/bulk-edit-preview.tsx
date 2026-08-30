@@ -5,19 +5,58 @@ import {
 	NativeSelect,
 	NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
-
+import { invalidateWork } from "@/features/work-lifecycle/forms/invalidate-work";
 import {
 	type ClosureResult,
 	WORK_LIFECYCLE_COPY,
 	WORK_STATUSES,
 	type WorkStatus,
 } from "@/features/work-lifecycle/forms/work-lifecycle-copy";
+import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc } from "@/utils/orpc";
 
 import { BULK_EDITING_COPY } from "./bulk-editing-copy";
+
+function resultLabel(
+	result: "pending" | "succeeded" | "failed",
+	pendingLabel: string
+): string {
+	if (result === "succeeded") {
+		return BULK_EDITING_COPY.succeeded;
+	}
+	if (result === "failed") {
+		return BULK_EDITING_COPY.failed;
+	}
+	return pendingLabel;
+}
+
+function recordsForUndo(
+	polled:
+		| {
+				job?: { records: Array<{ historyEntryId?: string; workId: string }> };
+				status: string;
+		  }
+		| undefined,
+	applied:
+		| {
+				job?: { records: Array<{ historyEntryId?: string; workId: string }> };
+				status: string;
+		  }
+		| undefined
+) {
+	if (polled?.status === "ok" && polled.job) {
+		const { records } = polled.job;
+		return records;
+	}
+	if (applied?.status === "ok" && applied.job) {
+		const { records } = applied.job;
+		return records;
+	}
+	return [];
+}
 
 function rejectionCopy(reason: string): string {
 	if (reason === "close-step-required") {
@@ -34,16 +73,44 @@ function rejectionCopy(reason: string): string {
 
 export default function BulkEditPreview({
 	filterWorkIds,
+	projectId,
 	selectedWorkIds,
 }: {
 	filterWorkIds: string[];
+	projectId: string;
 	selectedWorkIds: string[];
 }) {
 	const [status, setStatus] = useState<WorkStatus | "">("");
 	const [title, setTitle] = useState("");
 	const [closureResult, setClosureResult] = useState<ClosureResult | "">("");
 	const [error, setError] = useState<string | null>(null);
+	const [jobId, setJobId] = useState<string | null>(null);
 	const preview = useMutation(orpc.bulkEditing.preview.mutationOptions());
+	const apply = useMutation(orpc.bulkEditing.apply.mutationOptions());
+	const cancel = useMutation(orpc.bulkEditing.cancel.mutationOptions());
+	const undo = useMutation(orpc.bulkEditing.undo.mutationOptions());
+	const work = useQuery(
+		orpc.workLifecycle.list.queryOptions({
+			input: { projectId },
+		})
+	);
+	const jobQuery = useQuery({
+		...orpc.bulkEditing.get.queryOptions({
+			input: { jobId: jobId ?? "" },
+		}),
+		enabled: Boolean(jobId),
+		refetchInterval: (query) => {
+			const outcome = query.state.data;
+			if (
+				outcome?.status === "ok" &&
+				outcome.job.status !== "cancelled" &&
+				outcome.job.progress.completed < outcome.job.progress.total
+			) {
+				return 250;
+			}
+			return false;
+		},
+	});
 	const onStatusChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
 			setStatus(event.target.value as WorkStatus | "");
@@ -60,23 +127,26 @@ export default function BulkEditPreview({
 		},
 		[]
 	);
+	const buildChanges = useCallback(() => {
+		const changes: Record<string, string> = {};
+		if (status !== "") {
+			changes.status = status;
+		}
+		if (title.trim() !== "") {
+			changes.title = title.trim();
+		}
+		if (status === "Closed" && closureResult !== "") {
+			changes.closureResult = closureResult;
+		}
+		return changes;
+	}, [closureResult, status, title]);
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
 			setError(null);
-			const changes: Record<string, string> = {};
-			if (status !== "") {
-				changes.status = status;
-			}
-			if (title.trim() !== "") {
-				changes.title = title.trim();
-			}
-			if (status === "Closed" && closureResult !== "") {
-				changes.closureResult = closureResult;
-			}
 			preview.mutate(
 				{
-					changes,
+					changes: buildChanges(),
 					filterWorkIds,
 					selectedWorkIds,
 				},
@@ -89,10 +159,83 @@ export default function BulkEditPreview({
 				}
 			);
 		},
-		[closureResult, filterWorkIds, preview, selectedWorkIds, status, title]
+		[buildChanges, filterWorkIds, preview, selectedWorkIds]
 	);
-	const records =
+	const onApply = useCallback(() => {
+		const records =
+			preview.data?.status === "ok"
+				? preview.data.preview.records.map((record) => ({
+						baseRevision: record.revision,
+						idempotencyKey: newIdempotencyKey(),
+						workId: record.workId,
+					}))
+				: [];
+		if (records.length === 0) {
+			return;
+		}
+		setError(null);
+		apply.mutate(
+			{
+				changes: buildChanges(),
+				idempotencyKey: newIdempotencyKey(),
+				records,
+				selectedWorkIds,
+			},
+			{
+				onSuccess: (outcome) => {
+					if (outcome.status === "rejected") {
+						setError(rejectionCopy(outcome.reason));
+						return;
+					}
+					setJobId(outcome.job.jobId);
+				},
+			}
+		);
+	}, [apply, buildChanges, preview.data, selectedWorkIds]);
+	const onCancel = useCallback(() => {
+		if (!jobId) {
+			return;
+		}
+		cancel.mutate({ jobId });
+	}, [cancel, jobId]);
+	const onUndoClick = useCallback(
+		(event: { currentTarget: { value: string } }) => {
+			const workId = event.currentTarget.value;
+			if (!jobId) {
+				return;
+			}
+			const record = recordsForUndo(jobQuery.data, apply.data).find(
+				(item) => item.workId === workId
+			);
+			if (!record?.historyEntryId) {
+				return;
+			}
+			const current = work.data?.find((item) => item.id === record.workId);
+			if (!current) {
+				return;
+			}
+			undo.mutate(
+				{
+					baseRevision: current.revision,
+					historyEntryId: record.historyEntryId,
+					idempotencyKey: newIdempotencyKey(),
+					jobId,
+					workId: record.workId,
+				},
+				{
+					onSuccess: async () => {
+						await invalidateWork(projectId, record.workId);
+					},
+				}
+			);
+		},
+		[apply.data, jobId, jobQuery.data, projectId, undo, work.data]
+	);
+	const previewRecords =
 		preview.data?.status === "ok" ? preview.data.preview.records : [];
+	const polledJob = jobQuery.data?.status === "ok" ? jobQuery.data.job : null;
+	const appliedJob = apply.data?.status === "ok" ? apply.data.job : null;
+	const job = polledJob ?? appliedJob;
 	const closeCopy =
 		preview.data?.status === "rejected" &&
 		preview.data.reason === "close-step-required" &&
@@ -174,9 +317,9 @@ export default function BulkEditPreview({
 				</form>
 			)}
 			{error ? <p role="alert">{error}</p> : null}
-			{records.length > 0 ? (
+			{previewRecords.length > 0 ? (
 				<ul className="flex flex-col gap-2 text-sm">
-					{records.map((record) => (
+					{previewRecords.map((record) => (
 						<li key={record.workId}>
 							<span className="font-mono text-muted-foreground text-xs">
 								{record.key}
@@ -192,6 +335,60 @@ export default function BulkEditPreview({
 						</li>
 					))}
 				</ul>
+			) : null}
+			{previewRecords.length > 0 ? (
+				<Button disabled={apply.isPending} onClick={onApply} type="button">
+					{BULK_EDITING_COPY.apply}
+				</Button>
+			) : null}
+			{job ? (
+				<div aria-live="polite" className="flex flex-col gap-2">
+					<p className="text-sm">
+						{BULK_EDITING_COPY.progress} · {job.progress.completed} /{" "}
+						{job.progress.total} · {job.actor}
+					</p>
+					{job.ui.cancelAvailable ? (
+						<Button
+							disabled={cancel.isPending}
+							onClick={onCancel}
+							type="button"
+							variant="ghost"
+						>
+							{job.ui.label}
+						</Button>
+					) : (
+						<p className="text-muted-foreground text-sm">{job.ui.label}</p>
+					)}
+					<ul className="flex flex-col gap-2 text-sm">
+						{job.records.map((record) => (
+							<li key={record.workId}>
+								<span className="font-mono text-muted-foreground text-xs">
+									{record.key}
+								</span>{" "}
+								{resultLabel(record.result, job.ui.label)}
+								{record.conflict ? ` · ${record.conflict}` : null}
+								{record.supportReference ? (
+									<p>
+										{BULK_EDITING_COPY.supportReference}{" "}
+										{record.supportReference}
+									</p>
+								) : null}
+								{record.undo && record.historyEntryId ? (
+									<Button
+										disabled={undo.isPending}
+										onClick={onUndoClick}
+										size="sm"
+										type="button"
+										value={record.workId}
+										variant="ghost"
+									>
+										{record.undo}
+									</Button>
+								) : null}
+							</li>
+						))}
+					</ul>
+				</div>
 			) : null}
 		</section>
 	);
