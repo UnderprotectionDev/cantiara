@@ -318,6 +318,7 @@
 │       │   │   │   ├── store/
 │       │   │   │   └── views/
 │       │   │   ├── record-actions/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── record-discovery/
 │       │   │   │   └── views/

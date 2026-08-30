@@ -34,6 +34,10 @@ function workDelegates() {
 			upsert: () => undefined,
 		},
 		projectSkeletonSelection: { findMany },
+		recordAction: {
+			create: () => undefined,
+			findMany,
+		},
 		work: { create: () => undefined, findMany },
 		workLifecycleEvent: { findMany },
 		workTemplate: {
@@ -145,7 +149,32 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
-	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Templates, Work Drafts, File Attachments, Tags, and External Execution Handoffs", () => {
+	it("refuses a bun --hot client generated before Record Action", () => {
+		const { recordAction: _dropped, ...beforeActions } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(beforeActions as unknown as PrismaClient)
+		).toBe(false);
+	});
+
+	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Templates, Work Drafts, File Attachments, Tags, Record Actions, and External Execution Handoffs", () => {
 		expect(
 			prismaClientHasCurrentDelegates({
 				...workDelegates(),

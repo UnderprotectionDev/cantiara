@@ -3,6 +3,7 @@ import { type ReactNode, useCallback } from "react";
 
 import CustomFieldEditor from "@/features/custom-fields/forms/custom-field-editor";
 import PriorityCriterionEditor from "@/features/priority/forms/priority-criterion-editor";
+import RecordActionEditor from "@/features/record-actions/forms/record-action-editor";
 import WorkContextLayoutEditor from "@/features/work-context/views/work-context-layout-editor";
 import WorkTemplateEditor from "@/features/work-templates/forms/work-template-editor";
 
@@ -56,6 +57,9 @@ export default function ConfigurationMode({
 	}, [onOpenEditor]);
 	const openWorkContextCardLayout = useCallback(() => {
 		onOpenEditor(CONFIGURATION_MODE_EDITORS.workContextCardLayout);
+	}, [onOpenEditor]);
+	const openRecordAction = useCallback(() => {
+		onOpenEditor(CONFIGURATION_MODE_EDITORS.recordAction);
 	}, [onOpenEditor]);
 
 	return (
@@ -172,6 +176,18 @@ export default function ConfigurationMode({
 						</Button>
 						{editor === CONFIGURATION_MODE_EDITORS.workTemplate ? (
 							<WorkTemplateEditor projectId={projectId} />
+						) : null}
+						<Button
+							aria-expanded={editor === CONFIGURATION_MODE_EDITORS.recordAction}
+							onClick={openRecordAction}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							{PROJECT_SHELL_COPY.recordAction}
+						</Button>
+						{editor === CONFIGURATION_MODE_EDITORS.recordAction ? (
+							<RecordActionEditor projectId={projectId} />
 						) : null}
 						<Button
 							aria-expanded={

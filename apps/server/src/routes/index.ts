@@ -4,6 +4,7 @@ import type { RouterClient } from "@orpc/server";
 import { accountAccess } from "../features/account-access/server/me";
 import { accountPreferences } from "../features/account-preferences/server/preferences";
 import { blockers } from "../features/blockers/server/blockers-rpc";
+import { bulkEditing } from "../features/bulk-editing/server/bulk-editing-rpc";
 import { captureInbox } from "../features/capture-triage/server/capture-inbox-router";
 import { customFields } from "../features/custom-fields/server/custom-fields-rpc";
 import { externalHandoffs } from "../features/external-handoffs/server/external-handoffs-rpc";
@@ -11,6 +12,7 @@ import { fileAttachments } from "../features/file-attachments/server/file-attach
 import { priority } from "../features/priority/server/priority-rpc";
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
+import { recordActions } from "../features/record-actions/server/record-actions-rpc";
 import { relations } from "../features/relations/server/relations-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
@@ -25,6 +27,7 @@ export const appRouter = {
 	accountAccess,
 	accountPreferences,
 	blockers,
+	bulkEditing,
 	captureInbox,
 	clientShell,
 	customFields,
@@ -38,6 +41,7 @@ export const appRouter = {
 	})),
 	projectOverview: projectOverviewRouter,
 	projectShell,
+	recordActions,
 	relations,
 	tags,
 	workChecklists,

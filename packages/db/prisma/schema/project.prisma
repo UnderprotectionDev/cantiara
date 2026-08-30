@@ -30,6 +30,7 @@ model Project {
   fileAttachments                 FileAttachment[]
   workContextCardLayouts          ProjectWorkContextLayout[]
   workTemplates                   WorkTemplate[]
+  recordActions                   RecordAction[]
 
   @@index([workspaceId])
   @@map("project")
