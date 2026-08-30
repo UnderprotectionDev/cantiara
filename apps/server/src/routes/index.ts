@@ -5,6 +5,7 @@ import { accountAccess } from "../features/account-access/server/me";
 import { accountPreferences } from "../features/account-preferences/server/preferences";
 import { blockers } from "../features/blockers/server/blockers-rpc";
 import { captureInbox } from "../features/capture-triage/server/capture-inbox-router";
+import { completionEffects } from "../features/completion-effects/server/completion-effects";
 import { customFields } from "../features/custom-fields/server/custom-fields-rpc";
 import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
 import { priority } from "../features/priority/server/priority-rpc";
@@ -26,6 +27,7 @@ export const appRouter = {
 	blockers,
 	captureInbox,
 	clientShell,
+	completionEffects,
 	customFields,
 	fileAttachments,
 	healthCheck: publicProcedure.handler(() => "OK"),

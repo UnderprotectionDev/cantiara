@@ -59,7 +59,7 @@ Bitiriş efekti varsayılan kapalı, Hesap düzeyinde açıkça etkinleştirilen
 - **No in-flight stop control.** Founder disables the feature from Hesap settings.
 - **Not workflow 02's surface.** Locale, timezone, and light/dark stay account-preferences. This feature owns enablement, theme, palette, preview, and play rules. A preferences row may deep-link here later; 02 must not become catalog owner.
 - **Research vs gate.** Trigger, safety, a11y, and performance are release gates. Perceived satisfaction, repeat fatigue, and value are a source-linked Decision record on a volunteer dogfooding build — not a gate, not auto-removal, not a play-analytics product.
-- **English UI labels.** `Calm`, `Weave`, `Arc`, `Nova`, `Preview`, `Work completed`, `Reopen`, `User-initiated Work Success` as the term-table concept. Palette names when prototyped. Add missing labels in the same change.
+- **English UI labels.** `Completion effects`, `Experimental`, `Enable`, `Theme`, `Palette`, `Calm`, `Weave`, `Arc`, `Nova`, `Haze`, `Pebble`, `Linen`, `Moss`, `Loom`, `Cord`, `Lattice`, `Knot`, `Gleam`, `Trace`, `Halo`, `Span`, `Ember`, `Pulse`, `Orbit`, `Flare`, `Preview`, `Work completed`, `Reopen`, `User-initiated Work Success` as the term-table concept. Add missing labels in the same change.
 - **Stack.** Web + Tauri, no new animation SDK that implies licensed packs. Respect existing a11y stack (`@axe-core/playwright` on screens).
 
 ## Testing Decisions
@@ -84,4 +84,4 @@ Bitiriş efekti varsayılan kapalı, Hesap düzeyinde açıkça etkinleştirilen
 
 - **Orient.** Glossary: Kullanıcı başlatmalı İş başarısı, Bitiriş efekti, Hesap, Kapanış sonucu. Owning PRD: `docs/prd/06-work-management-and-planning.md` (`#bitiris-efektleri`). ADRs: 0017. Related: PRD 02/03 Hesap preference ownership, PRD 15 a11y/perf/interaction, PRD 16 Bitiriş efekti, PRD 19 (no licensed/user packs implied by ADR).
 - **Acceptance.** Bind to [Bitiriş efekti](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari). Gate vs research split is normative there.
-- **Palette names.** Four slots per theme are in-scope now; concrete names land in PRD 06 in the same change that first shows them — this spec does not invent unofficial palette names.
+- **Palette names.** Named in PRD 06: `Calm` `Haze`/`Pebble`/`Linen`/`Moss`; `Weave` `Loom`/`Cord`/`Lattice`/`Knot`; `Arc` `Gleam`/`Trace`/`Halo`/`Span`; `Nova` `Ember`/`Pulse`/`Orbit`/`Flare`.

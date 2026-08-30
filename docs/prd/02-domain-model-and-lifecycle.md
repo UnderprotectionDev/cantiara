@@ -297,6 +297,34 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Oturumu iptal et | `Revoke Session` | Tek bir ürün oturumunu derhal yetkisiz bırakma eylemi |
 | Diğer oturumları iptal et | `Revoke Other Sessions` | Geçerli oturum dışındaki bütün ürün oturumlarını derhal yetkisiz bırakma eylemi |
 | Kullanıcı başlatmalı İş başarısı | `User-initiated Work Success` | Kullanıcının açık kapatma eylemiyle başlattığı ve sunucuda PRD terimi `Tamamlandı` (`UI: Completed`) kapanış sonucu olarak kesinleşen İş geçişi; otomatik kapanış ve başka terminal olaylar değildir |
+| Bitiriş efekti | `Completion effects` | Kullanıcı başlatmalı İş başarısı için isteğe bağlı, Hesap düzeyinde etkinleştirilen özgün birinci taraf dekoratif katalog |
+| Deneysel | `Experimental` | Bitiriş efektinin ilk üründe açıkça etkinleştirilen kişisel geri bildirim olduğunu gösteren durum |
+| Etkinleştir | `Enable` | Bitiriş efektini Hesap düzeyinde açan denetim |
+| Tema | `Theme` | Kapalı Bitiriş efekti arşetipi |
+| Palet | `Palette` | Seçili temanın dört hazır renk/hareket düzeninden biri |
+| Calm | `Calm` | Sakin varsayılan Bitiriş efekti teması |
+| Weave | `Weave` | Soyut bağ/örgü Bitiriş efekti teması |
+| Arc | `Arc` | Işık/ark Bitiriş efekti teması |
+| Nova | `Nova` | Kozmik enerji Bitiriş efekti teması |
+| Haze | `Haze` | Calm paleti |
+| Pebble | `Pebble` | Calm paleti |
+| Linen | `Linen` | Calm paleti |
+| Moss | `Moss` | Calm paleti |
+| Loom | `Loom` | Weave paleti |
+| Cord | `Cord` | Weave paleti |
+| Lattice | `Lattice` | Weave paleti |
+| Knot | `Knot` | Weave paleti |
+| Gleam | `Gleam` | Arc paleti |
+| Trace | `Trace` | Arc paleti |
+| Halo | `Halo` | Arc paleti |
+| Span | `Span` | Arc paleti |
+| Ember | `Ember` | Nova paleti |
+| Pulse | `Pulse` | Nova paleti |
+| Orbit | `Orbit` | Nova paleti |
+| Flare | `Flare` | Nova paleti |
+| Bitiriş efektleri kaydedildi | `Completion effects saved.` | Bitiriş efekti tercihinin yazıldığını bildiren sistem mesajı |
+| Bitiriş efektleri yükleniyor | `Loading completion effects…` | Bitiriş efekti tercihinin okunmakta olduğunu bildiren durum |
+| Bitiriş efektleri kullanılamıyor | `Completion effects are unavailable.` | Bitiriş efekti tercihinin okunamadığını bildiren durum |
 | Köken konumu | `Origin Location` | Sahipli bileşenden üretilen kaydın kesin kaynak öğe işaretidir; bağımsız ilişki ucu değildir |
 | İşaretleme katmanı | `Marking layer` | Kesin Dosya Eki sürümüne bağlı, özgün dosyadan ayrı geri alınabilir görsel not |
 | Kaynak görsel | `Source visual` | Paylaşım/yayın önizlemesinde işaretlemeden ayrı onaylanan görsel öğe |

@@ -60,6 +60,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── capture-triage/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── completion-effects/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── contact-and-company/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── custom-fields/
@@ -239,7 +241,9 @@
 │       │   │   ├── command-palette/
 │       │   │   │   └── components/
 │       │   │   ├── completion-effects/
-│       │   │   │   └── components/
+│       │   │   │   ├── components/
+│       │   │   │   ├── forms/
+│       │   │   │   └── views/
 │       │   │   ├── contact-and-company/
 │       │   │   │   └── views/
 │       │   │   ├── custom-fields/
