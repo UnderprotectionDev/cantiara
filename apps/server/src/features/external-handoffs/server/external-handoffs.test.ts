@@ -673,6 +673,7 @@ describe("External Execution Handoff", () => {
 			"Checkout",
 			"create-checkout"
 		);
+		const auditBefore = await prisma.auditEvent.count();
 		const started = await startHandoff(prisma, {
 			actorId,
 			idempotencyKey: "start-history",
@@ -744,7 +745,7 @@ describe("External Execution Handoff", () => {
 			expect(entry.copy.startHandoff).toBe("Start Handoff");
 			expect(entry.copy.goingPackage).toBe("Going package");
 		}
-		expect(await prisma.auditEvent.count()).toBe(0);
+		expect(await prisma.auditEvent.count()).toBe(auditBefore);
 		expect(await listWorkLifecycleHistory(prisma, work.id)).toEqual([]);
 		expect(Object.keys(appRouter.externalHandoffs).sort()).toEqual([
 			"history",

@@ -697,6 +697,10 @@ _Avoid_: Coding session, ajan görevi, bağımsız Handoff ana kaydı
 Bir Dış yürütme devrinde yalnız kullanıcının seçtiği kesin sürüm manifestinden üretilen tarihli okunabilir Markdown kopyası; canlı senkron, repository kopyası veya yayın artefaktı değildir.
 _Avoid_: canlı senkron, repository kopyası, yayın artefaktı, Test Handoff paketi
 
+**Gidiş paketi sürümü**:
+Aynı Dış yürütme devrinde üretilen tarihli gidiş paketi kopyası; gönderilmiş önceki kopyanın baytlarını değiştirmez.
+_Avoid_: canlı senkron paket, Test Handoff paket sürümü
+
 **Seçilen sürüm**:
 Gidiş paketine alınan kesin İş, Belge, Karar, Risk, Açık Soru veya Kaynak sürümü; seçilmeyen ilişki veya erişilemeyen alan pakete girmez.
 _Avoid_: canlı ilişkileri yürüyen kopya, bütün grafiği paketleme
