@@ -83,7 +83,7 @@ export default function WorkDetail({
 			id={projectShellAnchor(PROJECT_SHELL_COPY.edit)}
 		>
 			<div className="relative flex min-h-64 flex-col gap-4 overflow-hidden">
-				<CompletionEffectsLayer />
+				<CompletionEffectsLayer key={work.id} />
 				<header className="flex items-start justify-between gap-3">
 					<h2 className="min-w-0 font-medium text-sm tracking-tight">
 						<span className="font-mono text-muted-foreground">{work.key}</span>{" "}

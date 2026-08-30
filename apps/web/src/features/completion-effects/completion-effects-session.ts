@@ -59,9 +59,27 @@ export function readCompletionEffectsPresentation(): CompletionEffectsPresentati
 		return defaultCompletionEffectsPresentation;
 	}
 	return {
-		drawingBudgetHeld:
-			lastFrameGapMs === 0 || drawingBudgetHeld(lastFrameGapMs),
+		drawingBudgetHeld: lastFrameGapMs > 0 && drawingBudgetHeld(lastFrameGapMs),
 		reduceMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+	};
+}
+
+export function sampleDrawingBudget(onSampled: () => void) {
+	let cancelled = false;
+	let second = 0;
+	const first = window.requestAnimationFrame((start) => {
+		second = window.requestAnimationFrame((end) => {
+			if (cancelled) {
+				return;
+			}
+			recordDrawingFrameGap(end - start);
+			onSampled();
+		});
+	});
+	return () => {
+		cancelled = true;
+		window.cancelAnimationFrame(first);
+		window.cancelAnimationFrame(second);
 	};
 }
 

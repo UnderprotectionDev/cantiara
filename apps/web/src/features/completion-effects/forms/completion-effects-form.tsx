@@ -172,6 +172,7 @@ export default function CompletionEffectsForm({
 				</fieldset>
 			</FieldGroup>
 			<EffectSample
+				lastFrame={previewFallback(reduceMotion) === "static-last-frame"}
 				motion={motion}
 				palette={preference.palette}
 				theme={preference.theme}

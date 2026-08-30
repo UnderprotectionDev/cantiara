@@ -29,6 +29,7 @@ import {
 	DECORATIVE_LAYER_MS,
 	DECORATIVE_WAIT_MS,
 	defaultCompletionEffectPreference,
+	drawingBudgetHeld,
 	idleCompletionEffectsClientSession,
 	observeCloseAcceptance,
 	PREVIEW_MOTION_MS,
@@ -773,6 +774,8 @@ describe("Completion Effects", () => {
 
 	it("skips decoration when the drawing budget cannot be held and keeps the notice equally fast", () => {
 		const nowMs = 12_000;
+		expect(drawingBudgetHeld(34)).toBe(false);
+		expect(drawingBudgetHeld(16)).toBe(true);
 		const shown = observeCloseAcceptance(
 			{ enabled: true, palette: "Haze", theme: "Calm" },
 			idleCompletionEffectsClientSession(),

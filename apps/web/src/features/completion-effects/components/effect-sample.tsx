@@ -139,10 +139,12 @@ function EffectMarks({
 }
 
 export function EffectSample({
+	lastFrame = false,
 	motion,
 	palette,
 	theme,
 }: {
+	lastFrame?: boolean;
 	motion: "static" | "playing";
 	palette: string;
 	theme: CompletionEffectTheme;
@@ -151,6 +153,7 @@ export function EffectSample({
 		<div
 			aria-hidden="true"
 			className="relative h-40 overflow-hidden rounded-none border border-border"
+			data-frame={lastFrame ? "last" : "sample"}
 			data-motion={motion}
 			data-sample="completion-effect"
 			data-theme={theme}
@@ -158,7 +161,7 @@ export function EffectSample({
 			<EffectMarks
 				motion={motion}
 				palette={palette}
-				surface="sample"
+				surface={lastFrame ? "play" : "sample"}
 				theme={theme}
 			/>
 		</div>

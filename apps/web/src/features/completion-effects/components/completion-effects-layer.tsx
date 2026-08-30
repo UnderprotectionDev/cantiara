@@ -13,8 +13,8 @@ import {
 	clearCompletionEffectsPresentation,
 	getCompletionEffectsClientSession,
 	readCompletionEffectsPresentation,
-	recordDrawingFrameGap,
 	requestReopenConfirmationFromNotice,
+	sampleDrawingBudget,
 	subscribeCompletionEffectsClientSession,
 } from "../completion-effects-session";
 import { EffectPlay } from "./effect-sample";
@@ -31,16 +31,8 @@ export function CompletionEffectsLayer() {
 		useState<CompletionEffectsPresentation>(readCompletionEffectsPresentation);
 
 	useEffect(() => {
-		let cancelled = false;
-		let second = 0;
-		const first = window.requestAnimationFrame((start) => {
-			second = window.requestAnimationFrame((end) => {
-				if (cancelled) {
-					return;
-				}
-				recordDrawingFrameGap(end - start);
-				setPresentation(readCompletionEffectsPresentation());
-			});
+		const stopSample = sampleDrawingBudget(() => {
+			setPresentation(readCompletionEffectsPresentation());
 		});
 		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
 		const onMotion = () => {
@@ -48,9 +40,7 @@ export function CompletionEffectsLayer() {
 		};
 		media.addEventListener("change", onMotion);
 		return () => {
-			cancelled = true;
-			window.cancelAnimationFrame(first);
-			window.cancelAnimationFrame(second);
+			stopSample();
 			media.removeEventListener("change", onMotion);
 			clearCompletionEffectsPresentation();
 		};
@@ -60,22 +50,9 @@ export function CompletionEffectsLayer() {
 		if (session.feedback !== "effect" || session.noticeUntilMs === null) {
 			return;
 		}
-		let cancelled = false;
-		let second = 0;
-		const first = window.requestAnimationFrame((start) => {
-			second = window.requestAnimationFrame((end) => {
-				if (cancelled) {
-					return;
-				}
-				recordDrawingFrameGap(end - start);
-				setPresentation(readCompletionEffectsPresentation());
-			});
+		return sampleDrawingBudget(() => {
+			setPresentation(readCompletionEffectsPresentation());
 		});
-		return () => {
-			cancelled = true;
-			window.cancelAnimationFrame(first);
-			window.cancelAnimationFrame(second);
-		};
 	}, [session.feedback, session.noticeUntilMs]);
 
 	useEffect(() => {
@@ -111,11 +88,14 @@ export function CompletionEffectsLayer() {
 			{visible.notice ? (
 				<div
 					className="pointer-events-auto relative z-10 max-w-full rounded-none border border-border bg-background px-3 py-2 text-foreground text-sm shadow-sm"
-					data-success-notice="work-completed"
+					data-work-completed-notice=""
 				>
 					<p aria-live={visible.ariaLive} role="status">
 						{COMPLETION_EFFECTS_COPY.workCompleted}
 					</p>
+					{session.workStatus ? (
+						<p className="mt-1 text-muted-foreground">{session.workStatus}</p>
+					) : null}
 					<Button
 						className="mt-2"
 						onClick={requestReopenConfirmationFromNotice}
