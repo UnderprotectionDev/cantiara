@@ -47,7 +47,7 @@ function RootComponent() {
 			<ClientShellProvider>
 				<AppearanceProvider>
 					<Outlet />
-					<Toaster richColors />
+					<Toaster />
 				</AppearanceProvider>
 			</ClientShellProvider>
 			<TanStackRouterDevtools position="bottom-left" />

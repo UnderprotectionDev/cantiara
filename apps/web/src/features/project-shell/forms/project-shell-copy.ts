@@ -49,6 +49,7 @@ export const PROJECT_SHELL_COPY = {
 	projects: "Projects",
 	purpose: "Purpose",
 	ready: "Ready",
+	recordAction: "Record Action",
 	removeStage: "Remove stage",
 	restoreDefaultNavigation: "Restore default navigation",
 	save: "Save",
@@ -102,6 +103,7 @@ export function stageRemovalPreviewCopy(name: string): string {
 export const CONFIGURATION_MODE_EDITORS = {
 	customField: "custom-field",
 	priorityMetrics: "priority-metrics",
+	recordAction: "record-action",
 	workContextCardLayout: "work-context-card-layout",
 	workTemplate: "work-template",
 } as const;
@@ -128,6 +130,7 @@ export function projectShellSearch(
 	const configurationEditor =
 		search.configurationEditor === CONFIGURATION_MODE_EDITORS.customField ||
 		search.configurationEditor === CONFIGURATION_MODE_EDITORS.priorityMetrics ||
+		search.configurationEditor === CONFIGURATION_MODE_EDITORS.recordAction ||
 		search.configurationEditor ===
 			CONFIGURATION_MODE_EDITORS.workContextCardLayout ||
 		search.configurationEditor === CONFIGURATION_MODE_EDITORS.workTemplate
