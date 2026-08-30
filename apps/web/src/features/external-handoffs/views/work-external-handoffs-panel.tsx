@@ -19,11 +19,12 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
-import { MUTATION_COPY, newIdempotencyKey } from "@/lib/mutation";
+import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 import {
 	EXTERNAL_HANDOFFS_COPY,
 	presentHandoffCard,
+	presentHandoffWriteError,
 	SELECTED_VERSION_KINDS,
 } from "./external-handoffs-copy";
 import HandoffReturnActions from "./handoff-return-actions";
@@ -75,19 +76,42 @@ export default function WorkExternalHandoffsPanel({
 	}, []);
 	const start = useMutation(
 		orpc.externalHandoffs.start.mutationOptions({
+			onError: () => {
+				setError(EXTERNAL_HANDOFFS_COPY.couldNotComplete);
+			},
 			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await queryClient.invalidateQueries({
-						queryKey: orpc.externalHandoffs.list.queryKey({
-							input: { workId },
-						}),
-					});
-					recordSave();
-					setError(null);
-					clearStartForm();
+				const message = presentHandoffWriteError(outcome);
+				if (message) {
+					setError(message);
 					return;
 				}
-				setError(MUTATION_COPY.conflict);
+				if (outcome.status !== "committed" && outcome.status !== "replayed") {
+					return;
+				}
+				queryClient.setQueryData(
+					orpc.externalHandoffs.list.queryKey({ input: { workId } }),
+					(current: unknown) => {
+						if (!Array.isArray(current)) {
+							return [outcome.handoff];
+						}
+						if (
+							current.some(
+								(item: { id?: string }) => item.id === outcome.handoff.id
+							)
+						) {
+							return current;
+						}
+						return [...current, outcome.handoff];
+					}
+				);
+				await queryClient.invalidateQueries({
+					queryKey: orpc.externalHandoffs.list.queryKey({
+						input: { workId },
+					}),
+				});
+				recordSave();
+				setError(null);
+				clearStartForm();
 			},
 		})
 	);
@@ -173,6 +197,7 @@ export default function WorkExternalHandoffsPanel({
 				})
 			);
 			if (result.status === "refused") {
+				setError(presentHandoffWriteError({ status: "refused" }));
 				return;
 			}
 			result.value.catch(() => undefined);
@@ -203,6 +228,9 @@ export default function WorkExternalHandoffsPanel({
 					{EXTERNAL_HANDOFFS_COPY.sourceOfTruth}
 				</p>
 			</header>
+			{listed.isError ? (
+				<p role="alert">{EXTERNAL_HANDOFFS_COPY.couldNotComplete}</p>
+			) : null}
 			{listed.data && listed.data.length > 0 ? (
 				<ul className="flex flex-col gap-3">
 					{listed.data.map((handoff) => {
@@ -342,7 +370,11 @@ export default function WorkExternalHandoffsPanel({
 						{EXTERNAL_HANDOFFS_COPY.startHandoff}
 					</Button>
 				</div>
-				{error ? <p role="alert">{error}</p> : null}
+				{error ? (
+					<p className="text-destructive" role="alert">
+						{error}
+					</p>
+				) : null}
 			</form>
 		</section>
 	);

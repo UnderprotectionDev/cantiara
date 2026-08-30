@@ -1,3 +1,5 @@
+import { MUTATION_COPY } from "../../../lib/mutation";
+
 export const EXTERNAL_HANDOFFS_COPY = {
 	addFollowUpWork: "Add follow-up Work",
 	addProposedRelation: "Add proposed relation",
@@ -6,6 +8,7 @@ export const EXTERNAL_HANDOFFS_COPY = {
 	changedAssumptions: "Changed assumptions",
 	confirm: "Confirm",
 	constraints: "Constraints",
+	couldNotComplete: "This action could not be completed.",
 	executor: "Executor",
 	executorSummary: "Executor summary",
 	expectedOutput: "Expected output",
@@ -39,6 +42,22 @@ export const EXTERNAL_HANDOFFS_COPY = {
 	toWork: "Related Work",
 	versionId: "Version",
 } as const;
+
+export type HandoffWritePresentation =
+	| { status: "committed" | "replayed" | "conflict" | "refused" }
+	| { reason: string; status: "rejected" };
+
+export function presentHandoffWriteError(
+	outcome: HandoffWritePresentation
+): string | null {
+	if (outcome.status === "committed" || outcome.status === "replayed") {
+		return null;
+	}
+	if (outcome.status === "conflict") {
+		return MUTATION_COPY.conflict;
+	}
+	return EXTERNAL_HANDOFFS_COPY.couldNotComplete;
+}
 
 export function presentHandoffCard(handoff: {
 	goingPackage: { producedAt: string };

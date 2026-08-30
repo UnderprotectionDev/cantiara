@@ -230,6 +230,47 @@ describe("External Execution Handoff", () => {
 		);
 	});
 
+	it("starts a handoff from filled going fields and permitted GitHub context", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-checkout-github"
+		);
+		const started = await startHandoff(prisma, {
+			actorId,
+			idempotencyKey: "start-handoff-github",
+			origin: "human",
+			payload: {
+				constraints: "Constraints Handoff",
+				executorVisibleName: "Executor handoff",
+				expectedOutput: "Expected Handoff",
+				permittedGithubContext: [{ identifier: "Github Handoff" }],
+				purpose: "Purpose Handoff",
+				selectedVersions: [
+					{
+						kind: "Work",
+						recordId: work.id,
+						title: work.title,
+						versionId: String(work.revision),
+					},
+				],
+				workId: work.id,
+			},
+		});
+		expect(started.status).toBe("committed");
+		if (started.status !== "committed") {
+			return;
+		}
+		const listed = await listHandoffsForWork(prisma, work.id);
+		expect(listed.map((item) => item.id)).toEqual([started.handoff.id]);
+		expect(listed[0]?.permittedGithubContext).toEqual([
+			{ identifier: "Github Handoff" },
+		]);
+	});
+
 	it("snapshots the live Work version instead of a stale client title", async () => {
 		const { actorId, project } = await openPayments(prisma);
 		const work = await createNamedWork(

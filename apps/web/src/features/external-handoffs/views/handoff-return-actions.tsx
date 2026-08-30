@@ -15,10 +15,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { invalidateWork } from "@/features/work-lifecycle/forms/invalidate-work";
-import { MUTATION_COPY, newIdempotencyKey } from "@/lib/mutation";
+import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
-import { EXTERNAL_HANDOFFS_COPY } from "./external-handoffs-copy";
+import {
+	EXTERNAL_HANDOFFS_COPY,
+	presentHandoffWriteError,
+} from "./external-handoffs-copy";
 
 interface ProposedRelationDraft {
 	id: string;
@@ -124,14 +127,18 @@ function RecordReturnForm({
 	const [error, setError] = useState<string | null>(null);
 	const record = useMutation(
 		orpc.externalHandoffs.recordReturn.mutationOptions({
+			onError: () => {
+				setError(EXTERNAL_HANDOFFS_COPY.couldNotComplete);
+			},
 			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidateHandoffs(projectId, workId);
-					recordSave();
-					setError(null);
+				const message = presentHandoffWriteError(outcome);
+				if (message) {
+					setError(message);
 					return;
 				}
-				setError(MUTATION_COPY.conflict);
+				await invalidateHandoffs(projectId, workId);
+				recordSave();
+				setError(null);
 			},
 		})
 	);
@@ -181,6 +188,7 @@ function RecordReturnForm({
 				})
 			);
 			if (result.status === "refused") {
+				setError(presentHandoffWriteError({ status: "refused" }));
 				return;
 			}
 			result.value.catch(() => undefined);
@@ -315,28 +323,36 @@ function ReconcilePanel({
 	}, [previewData]);
 	const confirm = useMutation(
 		orpc.externalHandoffs.confirmReconcile.mutationOptions({
+			onError: () => {
+				setError(EXTERNAL_HANDOFFS_COPY.couldNotComplete);
+			},
 			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidateHandoffs(projectId, workId);
-					recordSave();
-					setError(null);
+				const message = presentHandoffWriteError(outcome);
+				if (message) {
+					setError(message);
 					return;
 				}
-				setError(MUTATION_COPY.conflict);
+				await invalidateHandoffs(projectId, workId);
+				recordSave();
+				setError(null);
 			},
 		})
 	);
 	const reject = useMutation(
 		orpc.externalHandoffs.rejectReconcile.mutationOptions({
+			onError: () => {
+				setError(EXTERNAL_HANDOFFS_COPY.couldNotComplete);
+			},
 			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidateHandoffs(projectId, workId);
-					recordSave();
-					setOpen(false);
-					setError(null);
+				const message = presentHandoffWriteError(outcome);
+				if (message) {
+					setError(message);
 					return;
 				}
-				setError(MUTATION_COPY.conflict);
+				await invalidateHandoffs(projectId, workId);
+				recordSave();
+				setOpen(false);
+				setError(null);
 			},
 		})
 	);
@@ -367,6 +383,7 @@ function ReconcilePanel({
 			})
 		);
 		if (result.status === "refused") {
+			setError(presentHandoffWriteError({ status: "refused" }));
 			return;
 		}
 		result.value.catch(() => undefined);
@@ -387,6 +404,7 @@ function ReconcilePanel({
 			})
 		);
 		if (result.status === "refused") {
+			setError(presentHandoffWriteError({ status: "refused" }));
 			return;
 		}
 		result.value.catch(() => undefined);

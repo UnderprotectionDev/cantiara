@@ -787,16 +787,16 @@ function toView(
 	if (!(selectedVersions && permittedGithubContext)) {
 		return null;
 	}
-	const returnRecord =
-		row.returnRecord === null ? null : parseReturnRecord(row.returnRecord);
-	if (row.returnRecord !== null && returnRecord === null) {
+	const returnRecord = isAbsentJson(row.returnRecord)
+		? null
+		: parseReturnRecord(row.returnRecord);
+	if (!isAbsentJson(row.returnRecord) && returnRecord === null) {
 		return null;
 	}
-	const reconcileDecision =
-		row.reconcileDecision === null
-			? null
-			: parseReconcileDecision(row.reconcileDecision);
-	if (row.reconcileDecision !== null && reconcileDecision === null) {
+	const reconcileDecision = isAbsentJson(row.reconcileDecision)
+		? null
+		: parseReconcileDecision(row.reconcileDecision);
+	if (!isAbsentJson(row.reconcileDecision) && reconcileDecision === null) {
 		return null;
 	}
 	return {
@@ -852,6 +852,10 @@ function toView(
 
 function isHandoffStatus(value: string): value is HandoffStatus {
 	return (HANDOFF_STATUSES as readonly string[]).includes(value);
+}
+
+function isAbsentJson(value: Prisma.JsonValue | null | undefined): boolean {
+	return value === null || value === undefined;
 }
 
 function parseSelectedVersions(
