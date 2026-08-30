@@ -38,11 +38,7 @@ import {
 	rejectReconcile,
 	startHandoff,
 } from "./external-handoffs";
-import {
-	EXTERNAL_HANDOFFS_COPY,
-	EXTERNAL_RUN_RETURNED_SIGNAL_ID,
-	EXTERNAL_RUN_RETURNED_SIGNAL_SECTION,
-} from "./external-handoffs-model";
+import { EXTERNAL_HANDOFFS_COPY } from "./external-handoffs-model";
 
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
@@ -1292,15 +1288,12 @@ describe("External Execution Handoff", () => {
 		);
 		const expectedSignal = {
 			handoffId: started.handoff.id,
-			section: EXTERNAL_RUN_RETURNED_SIGNAL_SECTION,
-			signalId: EXTERNAL_RUN_RETURNED_SIGNAL_ID,
+			section: "Action Required",
+			signalId: "external-run-returned",
 			workId: work.id,
 		};
 		expect(returned.handoff.signals).toEqual([expectedSignal]);
-		expect(ACTION_REQUIRED_SIGNAL_IDS).toContain(
-			EXTERNAL_RUN_RETURNED_SIGNAL_ID
-		);
-		expect(EXTERNAL_RUN_RETURNED_SIGNAL_SECTION).toBe("Action Required");
+		expect(ACTION_REQUIRED_SIGNAL_IDS).toContain("external-run-returned");
 		const listed = await listHandoffsForWork(prisma, work.id);
 		expect(listed).toHaveLength(1);
 		expect(listed[0]?.signals).toEqual([expectedSignal]);
@@ -1420,9 +1413,21 @@ describe("External Execution Handoff", () => {
 		}
 		expect(ignored.handoff.status).toBe(EXTERNAL_HANDOFFS_COPY.open);
 		expect(ignored.handoff.signals).toEqual([]);
-		expect(
-			JSON.stringify(afterTime).includes(EXTERNAL_RUN_RETURNED_SIGNAL_ID)
-		).toBe(false);
+		const canceledOpen = await cancelHandoff(prisma, {
+			actorId,
+			idempotencyKey: "cancel-open-no-return",
+			origin: "human",
+			payload: {
+				handoffId: started.handoff.id,
+				reason: "Stopped before a return.",
+			},
+		});
+		expect(canceledOpen.status).toBe("committed");
+		if (canceledOpen.status !== "committed") {
+			return;
+		}
+		expect(canceledOpen.handoff.signals).toEqual([]);
+		expect(canceledOpen.handoff.status).toBe(EXTERNAL_HANDOFFS_COPY.canceled);
 	});
 });
 

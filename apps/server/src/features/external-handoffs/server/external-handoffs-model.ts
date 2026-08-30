@@ -343,7 +343,7 @@ export type ExternalRunReturnedSignalView = z.infer<
 	typeof externalRunReturnedSignalViewSchema
 >;
 
-export function signalsForHandoff(
+export function externalRunReturnedSignalsFor(
 	status: HandoffStatus,
 	handoffId: string,
 	workId: string

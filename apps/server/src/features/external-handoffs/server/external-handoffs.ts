@@ -25,6 +25,7 @@ import {
 	EXTERNAL_HANDOFFS_COPY,
 	type ExternalExecutionHandoffView,
 	externalExecutionHandoffViewSchema,
+	externalRunReturnedSignalsFor,
 	type GithubContext,
 	githubContextSchema,
 	HANDOFF_HISTORY_KIND,
@@ -54,7 +55,6 @@ import {
 	type StartHandoffCommand,
 	type StartHandoffOutcome,
 	selectedVersionSchema,
-	signalsForHandoff,
 	startHandoffCommandSchema,
 } from "./external-handoffs-model";
 
@@ -1107,7 +1107,7 @@ function toView(
 		},
 		selectedVersions,
 		separations: HANDOFF_SEPARATIONS,
-		signals: signalsForHandoff(row.status, row.id, row.workId),
+		signals: externalRunReturnedSignalsFor(row.status, row.id, row.workId),
 		status: row.status,
 		terminal: isTerminalHandoffStatus(row.status),
 		workId: row.workId,
