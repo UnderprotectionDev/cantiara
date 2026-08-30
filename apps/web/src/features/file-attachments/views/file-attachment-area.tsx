@@ -115,27 +115,37 @@ export default function FileAttachmentArea({
 			) : null}
 			<UploadFileForm onCreated={onCreated} projectId={projectId} />
 			<div className="grid gap-6 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
-				<ul className="flex flex-col gap-2">
-					{files.data.map((item) => (
-						<li key={item.id}>
-							<FileRow
-								contentPath={
-									absoluteProductPath(origin, item.contentPath) ??
-									item.contentPath
-								}
-								galleryThumbnailPath={absoluteProductPath(
-									origin,
-									galleryThumbnailPathFromFile(item)
-								)}
-								id={item.id}
-								kind={item.kind}
-								onSelect={onSelect}
-								selected={item.id === selectedId}
-								title={item.title}
-							/>
-						</li>
-					))}
-				</ul>
+				{files.data.length === 0 ? (
+					<Empty>
+						<EmptyHeader>
+							<EmptyTitle>
+								{FILE_ATTACHMENT_COPY.selectFileAttachment}
+							</EmptyTitle>
+						</EmptyHeader>
+					</Empty>
+				) : (
+					<ul className="flex flex-col gap-2">
+						{files.data.map((item) => (
+							<li key={item.id}>
+								<FileRow
+									contentPath={
+										absoluteProductPath(origin, item.contentPath) ??
+										item.contentPath
+									}
+									galleryThumbnailPath={absoluteProductPath(
+										origin,
+										galleryThumbnailPathFromFile(item)
+									)}
+									id={item.id}
+									kind={item.kind}
+									onSelect={onSelect}
+									selected={item.id === selectedId}
+									title={item.title}
+								/>
+							</li>
+						))}
+					</ul>
+				)}
 				<FileAttachmentPane
 					isPending={selectedFile.isPending}
 					onCreated={onCreated}

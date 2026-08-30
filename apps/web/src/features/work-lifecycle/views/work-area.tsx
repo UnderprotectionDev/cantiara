@@ -1,4 +1,5 @@
 import { Button } from "@cantiara/ui/components/button";
+import { Skeleton } from "@cantiara/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -6,7 +7,10 @@ import CustomFieldFilter from "@/features/custom-fields/forms/custom-field-filte
 import { PRIORITY_COPY } from "@/features/priority/forms/priority-copy";
 import PrioritizationSessionArea from "@/features/priority/views/prioritization-session";
 import PriorityMap from "@/features/priority/views/priority-map";
-import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
+import {
+	PROJECT_SHELL_COPY,
+	projectShellAnchor,
+} from "@/features/project-shell/forms/project-shell-copy";
 import TagFilter from "@/features/tags/views/tag-filter";
 import CreateFromTemplateForm from "@/features/work-templates/forms/create-from-template-form";
 import { orpc } from "@/utils/orpc";
@@ -18,7 +22,17 @@ import WorkDetail from "./work-detail";
 import WorkList from "./work-list";
 import { nextSelectedWorkId } from "./work-selection";
 
-export default function WorkArea({ projectId }: { projectId: string }) {
+export default function WorkArea({
+	onSelectedWorkId,
+	projectId,
+	selectedWorkId,
+	unavailableView,
+}: {
+	onSelectedWorkId?: (id: string | null) => void;
+	projectId: string;
+	selectedWorkId?: string | null;
+	unavailableView?: string | null;
+}) {
 	const [archiveFilter, setArchiveFilter] = useState(false);
 	const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
 	const [tagFilter, setTagFilter] = useState("");
@@ -40,21 +54,46 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 		}),
 		enabled: tagFilter !== "",
 	});
-	const [selectedId, setSelectedId] = useState<string | null>(null);
+	const [selectedId, setSelectedId] = useState<string | null>(
+		selectedWorkId ?? null
+	);
 
-	const onSelect = useCallback((id: string) => {
-		setSelectedId((current) => nextSelectedWorkId(current, id));
-	}, []);
-	const onOpenSourceRecord = useCallback((id: string) => {
-		setSelectedId(id);
-	}, []);
+	useEffect(() => {
+		if (selectedWorkId === undefined) {
+			return;
+		}
+		setSelectedId(selectedWorkId);
+	}, [selectedWorkId]);
+
+	const onSelect = useCallback(
+		(id: string) => {
+			setSelectedId((current) => {
+				const next = nextSelectedWorkId(current, id);
+				onSelectedWorkId?.(next);
+				return next;
+			});
+		},
+		[onSelectedWorkId]
+	);
+	const onOpenSourceRecord = useCallback(
+		(id: string) => {
+			setSelectedId(id);
+			onSelectedWorkId?.(id);
+		},
+		[onSelectedWorkId]
+	);
 	const onClose = useCallback(() => {
 		setSelectedId(null);
-	}, []);
-	const onCreated = useCallback((workId: string) => {
-		setSelectedId(workId);
-		setArchiveFilter(false);
-	}, []);
+		onSelectedWorkId?.(null);
+	}, [onSelectedWorkId]);
+	const onCreated = useCallback(
+		(workId: string) => {
+			setSelectedId(workId);
+			setArchiveFilter(false);
+			onSelectedWorkId?.(workId);
+		},
+		[onSelectedWorkId]
+	);
 	const onToggleArchiveFilter = useCallback(() => {
 		setArchiveFilter((current) => !current);
 		setSelectedId(null);
@@ -75,13 +114,14 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape") {
 				setSelectedId(null);
+				onSelectedWorkId?.(null);
 			}
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => {
 			window.removeEventListener("keydown", onKeyDown);
 		};
-	}, [selectedId]);
+	}, [onSelectedWorkId, selectedId]);
 
 	const tagsByWork = useMemo(() => {
 		const map = new Map<string, string[]>();
@@ -99,7 +139,12 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 	}, [suggestions.data]);
 
 	if (work.isPending) {
-		return <p>{PROJECT_SHELL_COPY.loading}</p>;
+		return (
+			<div className="flex flex-col gap-3">
+				<Skeleton className="h-8 w-48" />
+				<p>{PROJECT_SHELL_COPY.loading}</p>
+			</div>
+		);
 	}
 	if (work.isError) {
 		return <p role="alert">{PROJECT_SHELL_COPY.unavailable}</p>;
@@ -127,15 +172,39 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 		}));
 	const selected = items.find((item) => item.id === selectedId) ?? null;
 
+	let workSurface = (
+		<WorkList items={items} onSelect={onSelect} selectedId={selectedId} />
+	);
+	if (unavailableView) {
+		workSurface = (
+			<p className="text-muted-foreground text-sm">
+				{PROJECT_SHELL_COPY.areaNotAvailable}
+			</p>
+		);
+	} else if (surface === "priority-map") {
+		workSurface = (
+			<PriorityMap
+				onSelectWork={onSelect}
+				projectId={projectId}
+				selectedWorkId={selectedId}
+			/>
+		);
+	}
+
 	return (
 		<div className="flex flex-col gap-6">
-			<CreateWorkForm onCreated={onCreated} projectId={projectId} />
+			<div id={projectShellAnchor(PROJECT_SHELL_COPY.create)}>
+				<CreateWorkForm onCreated={onCreated} projectId={projectId} />
+			</div>
 			<CreateFromTemplateForm onCreated={onCreated} projectId={projectId} />
 			<PrioritizationSessionArea
 				projectId={projectId}
 				work={items.map((item) => ({ id: item.id, title: item.title }))}
 			/>
-			<div className="flex flex-wrap items-end gap-3">
+			<div
+				className="flex flex-wrap items-end gap-3"
+				id={projectShellAnchor(PROJECT_SHELL_COPY.planning)}
+			>
 				<CustomFieldFilter
 					onRecordIds={setFilteredIds}
 					projectId={projectId}
@@ -165,15 +234,7 @@ export default function WorkArea({ projectId }: { projectId: string }) {
 					{PRIORITY_COPY.priorityMap}
 				</Button>
 			</div>
-			{surface === "priority-map" ? (
-				<PriorityMap
-					onSelectWork={onSelect}
-					projectId={projectId}
-					selectedWorkId={selectedId}
-				/>
-			) : (
-				<WorkList items={items} onSelect={onSelect} selectedId={selectedId} />
-			)}
+			{workSurface}
 			<ScopeTree
 				onOpenSourceRecord={onOpenSourceRecord}
 				openedRecordId={selectedId}

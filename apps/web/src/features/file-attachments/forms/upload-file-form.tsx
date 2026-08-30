@@ -162,7 +162,16 @@ export default function UploadFileForm({
 	);
 
 	return (
-		<form className="flex flex-col gap-3" onSubmit={onSubmit}>
+		<form
+			aria-describedby={error ? "file-attachment-error" : undefined}
+			className="flex flex-col gap-3"
+			onSubmit={onSubmit}
+		>
+			{error ? (
+				<p id="file-attachment-error" role="alert" tabIndex={-1}>
+					{error}
+				</p>
+			) : null}
 			<FieldGroup className="flex-row flex-wrap items-end gap-3">
 				<Field className="min-w-48 flex-1">
 					<input
@@ -215,7 +224,6 @@ export default function UploadFileForm({
 				</div>
 			) : null}
 			{status ? <p>{status}</p> : null}
-			{error ? <p role="alert">{error}</p> : null}
 		</form>
 	);
 }

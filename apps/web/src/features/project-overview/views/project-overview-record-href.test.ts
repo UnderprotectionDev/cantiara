@@ -1,0 +1,11 @@
+import { expect, test } from "vitest";
+
+import { projectOverviewRecordHref } from "./project-overview-record-href";
+
+test("Open source record stays on Overview or the matching Project area", () => {
+	expect(projectOverviewRecordHref("Work", "work_1")).toBe("?work=work_1#work");
+	expect(projectOverviewRecordHref("Documents", "doc_1")).toBe("#documents");
+	expect(projectOverviewRecordHref("Purpose", "proj_1")).toBe("#overview");
+	expect(projectOverviewRecordHref("Lifecycle", "proj_1")).toBe("#overview");
+	expect(projectOverviewRecordHref("Goals", "goal_1")).toBe("#overview");
+});

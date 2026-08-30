@@ -37,11 +37,13 @@ export const PROJECT_SHELL_COPY = {
 	moveUp: "Move up",
 	noProjects: "No Projects yet.",
 	notPlanned: "Not Planned",
+	openNavigation: "Open Project navigation",
 	overview: "Overview",
 	pinToNavigation: "Pin to navigation",
 	planning: "Planning",
 	priorityMetrics: "Priority metrics",
 	problem: "Problem",
+	project: "Project",
 	projectAreas: "Project areas",
 	projectName: "Project Name",
 	projects: "Projects",
@@ -110,10 +112,38 @@ export type ConfigurationModeEditor =
 export interface ProjectShellSearch {
 	configurationEditor?: ConfigurationModeEditor;
 	configurationMode?: true;
+	work?: string;
 }
 
-export function projectShellChrome() {
-	return PROJECT_SHELL_COPY;
+export function projectShellSearch(
+	search: Record<string, unknown>
+): ProjectShellSearch {
+	const configurationMode =
+		search.configurationMode === true ||
+		search.configurationMode === "true" ||
+		search.configurationMode === 1 ||
+		search.configurationMode === "1"
+			? true
+			: undefined;
+	const configurationEditor =
+		search.configurationEditor === CONFIGURATION_MODE_EDITORS.customField ||
+		search.configurationEditor === CONFIGURATION_MODE_EDITORS.priorityMetrics ||
+		search.configurationEditor ===
+			CONFIGURATION_MODE_EDITORS.workContextCardLayout ||
+		search.configurationEditor === CONFIGURATION_MODE_EDITORS.workTemplate
+			? search.configurationEditor
+			: undefined;
+	const work =
+		typeof search.work === "string" && search.work.length > 0
+			? search.work
+			: undefined;
+	return {
+		...(configurationMode ? { configurationMode: true as const } : {}),
+		...(configurationMode && configurationEditor
+			? { configurationEditor }
+			: {}),
+		...(work ? { work } : {}),
+	};
 }
 
 export function structureCopyPreviewItems(preview: {
@@ -169,28 +199,8 @@ export function structureCopyPreviewItems(preview: {
 	];
 }
 
-export function projectShellSearch(
-	search: Record<string, unknown>
-): ProjectShellSearch {
-	const configurationMode =
-		search.configurationMode === true ||
-		search.configurationMode === "true" ||
-		search.configurationMode === 1 ||
-		search.configurationMode === "1"
-			? true
-			: undefined;
-	const configurationEditor =
-		search.configurationEditor === CONFIGURATION_MODE_EDITORS.customField ||
-		search.configurationEditor === CONFIGURATION_MODE_EDITORS.priorityMetrics ||
-		search.configurationEditor ===
-			CONFIGURATION_MODE_EDITORS.workContextCardLayout ||
-		search.configurationEditor === CONFIGURATION_MODE_EDITORS.workTemplate
-			? search.configurationEditor
-			: undefined;
-	return {
-		configurationEditor: configurationMode ? configurationEditor : undefined,
-		configurationMode,
-	};
+export function projectShellChrome() {
+	return PROJECT_SHELL_COPY;
 }
 
 const ALWAYS_ON_ANCHORS = {
@@ -209,4 +219,78 @@ export function projectShellAnchor(name: string): string {
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "-")
 		.replaceAll(/^-+|-+$/g, "");
+}
+
+export const WORK_DAILY_ACTIONS = [
+	PROJECT_SHELL_COPY.create,
+	PROJECT_SHELL_COPY.edit,
+	PROJECT_SHELL_COPY.status,
+	PROJECT_SHELL_COPY.planning,
+] as const;
+
+export function projectNavRecordAreas(persistent: readonly string[]): string[] {
+	return persistent.filter((area) =>
+		(REACHABLE_AREAS as readonly string[]).includes(area)
+	);
+}
+
+export function projectNavPinnedAreas(persistent: readonly string[]): string[] {
+	return persistent.filter(
+		(area) => !(REACHABLE_AREAS as readonly string[]).includes(area)
+	);
+}
+
+export function isWorkShellAnchor(
+	anchor: string,
+	workViews: readonly string[]
+): boolean {
+	if (anchor === ALWAYS_ON_ANCHORS.Work) {
+		return true;
+	}
+	if (
+		WORK_DAILY_ACTIONS.some((action) => projectShellAnchor(action) === anchor)
+	) {
+		return true;
+	}
+	return workViews.some((view) => projectShellAnchor(view) === anchor);
+}
+
+export function workSavedViewIsList(view: string): boolean {
+	return view === "Backlog";
+}
+
+const HASH_PREFIX = "#";
+
+const WORK_SELECT_RESET_ANCHORS = new Set([
+	"",
+	ALWAYS_ON_ANCHORS.Overview,
+	ALWAYS_ON_ANCHORS["All Tools"],
+	ALWAYS_ON_ANCHORS.Documents,
+	ALWAYS_ON_ANCHORS["File Attachment"],
+]);
+
+export function projectShellHashAnchor(hash: string): string {
+	return hash.startsWith(HASH_PREFIX) ? hash.slice(HASH_PREFIX.length) : hash;
+}
+
+export function projectShellHashForWorkSelect(hash: string): string {
+	const anchor = projectShellHashAnchor(hash);
+	if (WORK_SELECT_RESET_ANCHORS.has(anchor)) {
+		return ALWAYS_ON_ANCHORS.Work;
+	}
+	return anchor;
+}
+
+export function projectShellShowsWorkSurface(input: {
+	anchor: string;
+	workId?: string | null;
+	workViews?: readonly string[];
+}): boolean {
+	if (input.anchor === ALWAYS_ON_ANCHORS.Overview) {
+		return false;
+	}
+	if (input.anchor === "" && input.workId) {
+		return true;
+	}
+	return isWorkShellAnchor(input.anchor, input.workViews ?? []);
 }

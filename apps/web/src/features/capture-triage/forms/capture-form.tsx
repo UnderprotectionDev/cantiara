@@ -245,6 +245,11 @@ export default function CaptureForm() {
 	return (
 		<div className="grid items-start gap-12 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
 			<form className="flex flex-col gap-5" onSubmit={onSubmit}>
+				{save.isError || createBug.isError ? (
+					<p id="capture-save-error" role="alert" tabIndex={-1}>
+						{MAIN_FLOW_COPY.failed}
+					</p>
+				) : null}
 				<FieldGroup>
 					<Field>
 						<FieldLabel htmlFor="capture-project">{copy.project}</FieldLabel>
@@ -313,7 +318,16 @@ export default function CaptureForm() {
 					</Field>
 				</FieldGroup>
 				<div className="flex flex-wrap gap-2">
-					<Button type="submit">{copy.save}</Button>
+					<Button
+						aria-describedby={
+							save.isError || createBug.isError
+								? "capture-save-error"
+								: undefined
+						}
+						type="submit"
+					>
+						{copy.save}
+					</Button>
 					<Button
 						disabled={!canCreateBug}
 						onClick={onCreateBug}
@@ -453,7 +467,7 @@ function CaptureInboxList({
 	templates?: ReadonlyArray<{ id: string; label: string }>;
 }) {
 	if (list.isError) {
-		return <p>{MAIN_FLOW_COPY.failed}</p>;
+		return <p role="alert">{MAIN_FLOW_COPY.failed}</p>;
 	}
 	if (list.isPending && !list.data) {
 		return null;

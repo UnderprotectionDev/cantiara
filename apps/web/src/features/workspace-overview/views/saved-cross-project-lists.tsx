@@ -1,4 +1,4 @@
-import { Button } from "@cantiara/ui/components/button";
+import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
@@ -106,14 +106,10 @@ function archivedFromForm(value: string): boolean | null {
 function ListTable({
 	columns,
 	copy,
-	onOpen,
-	openedRecordId,
 	rows,
 }: {
 	columns: readonly CrossProjectListColumn[];
 	copy: SavedListsCopy;
-	onOpen: (id: string) => void;
-	openedRecordId: string | null;
 	rows: readonly CrossProjectListRow[];
 }) {
 	const tableColumns = useMemo(
@@ -135,12 +131,6 @@ function ListTable({
 		features: TABLE_FEATURES,
 		getRowId: (row) => row.id,
 	});
-	const onOpenClick = useCallback(
-		(event: MouseEvent<HTMLButtonElement>) => {
-			onOpen(event.currentTarget.value);
-		},
-		[onOpen]
-	);
 
 	return (
 		<Table>
@@ -167,15 +157,12 @@ function ListTable({
 							</TableCell>
 						))}
 						<TableCell>
-							<Button
-								aria-pressed={openedRecordId === row.id}
-								onClick={onOpenClick}
-								type="button"
-								value={row.id}
-								variant="outline"
+							<a
+								className={buttonVariants({ variant: "outline" })}
+								href={`/projects/${row.id}#overview`}
 							>
 								{copy.openSourceRecord}
-							</Button>
+							</a>
 						</TableCell>
 					</TableRow>
 				))}
@@ -377,10 +364,8 @@ function SavedListForm({
 export default function SavedCrossProjectLists({
 	copy,
 	lists,
-	onOpen,
 	onRemove,
 	onSave,
-	openedRecordId,
 }: {
 	copy: SavedListsCopy;
 	lists: readonly SavedCrossProjectListView[];
@@ -439,20 +424,12 @@ export default function SavedCrossProjectLists({
 								<ListTable
 									columns={list.columns}
 									copy={copy}
-									onOpen={onOpen}
-									openedRecordId={openedRecordId}
 									rows={group.rows}
 								/>
 							</div>
 						))
 					) : (
-						<ListTable
-							columns={list.columns}
-							copy={copy}
-							onOpen={onOpen}
-							openedRecordId={openedRecordId}
-							rows={list.rows}
-						/>
+						<ListTable columns={list.columns} copy={copy} rows={list.rows} />
 					)}
 				</div>
 			))}

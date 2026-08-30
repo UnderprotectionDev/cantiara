@@ -42,7 +42,7 @@ export default function WorkList({
 						<button
 							aria-pressed={selected}
 							className={cn(
-								"flex w-full items-baseline justify-between gap-3 px-2 py-2 text-left text-sm outline-none transition-colors hover:bg-muted/70 focus-visible:ring-1 focus-visible:ring-ring active:translate-y-px",
+								"flex w-full items-baseline justify-between gap-3 px-2 py-2 text-left text-sm outline-none transition-colors duration-200 hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring active:translate-y-px",
 								selected && "bg-muted"
 							)}
 							onClick={onClick}

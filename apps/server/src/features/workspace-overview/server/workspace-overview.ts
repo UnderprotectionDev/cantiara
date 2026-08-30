@@ -58,6 +58,7 @@ const UPCOMING_KINDS = ["goalDate", "reminder"] as const;
 export interface OverviewRecord {
 	detail: string | null;
 	id: string;
+	projectId?: string;
 	title: string;
 }
 
@@ -98,11 +99,13 @@ export interface WorkspaceUpcomingSource {
 	date: string;
 	id: string;
 	kind: string;
+	projectId?: string;
 	title: string;
 }
 
 export interface WorkspaceWorkSource {
 	id: string;
+	projectId?: string;
 	title: string;
 	touchedAt: string;
 }
@@ -268,6 +271,7 @@ export function workspaceOverview(
 					detail: item.date,
 					id: item.id,
 					title: item.title,
+					...(item.projectId ? { projectId: item.projectId } : {}),
 				})),
 			hidden(WORKSPACE_OVERVIEW_COPY.upcoming)
 		),
@@ -279,6 +283,7 @@ export function workspaceOverview(
 					detail: item.touchedAt,
 					id: item.id,
 					title: item.title,
+					...(item.projectId ? { projectId: item.projectId } : {}),
 				})),
 			hidden(WORKSPACE_OVERVIEW_COPY.recentWork)
 		),
@@ -466,6 +471,7 @@ export function sourcesFromWorkspaceSnapshot(snapshot: {
 	works: ReadonlyArray<{
 		archived: boolean;
 		id: string;
+		projectId?: string;
 		title: string;
 		updatedAt: Date | string;
 	}>;
@@ -494,6 +500,7 @@ export function sourcesFromWorkspaceSnapshot(snapshot: {
 			.filter((work) => !work.archived)
 			.map((work) => ({
 				id: work.id,
+				projectId: work.projectId,
 				title: work.title,
 				touchedAt:
 					typeof work.updatedAt === "string"
@@ -514,6 +521,7 @@ export function sourcesFromWorkspaceSnapshot(snapshot: {
 					date: project.targetDate,
 					id: project.id,
 					kind: "goalDate",
+					projectId: project.id,
 					title: project.name,
 				},
 			];

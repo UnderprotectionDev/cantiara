@@ -84,6 +84,7 @@ async function loadOverview(workspaceId: string) {
 			select: {
 				archived: true,
 				id: true,
+				projectId: true,
 				title: true,
 				updatedAt: true,
 			},

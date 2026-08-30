@@ -66,31 +66,29 @@ export default function UserMenu() {
 						Preferences
 					</DropdownMenuItem>
 					<DropdownMenuItem onClick={onSessions}>Sessions</DropdownMenuItem>
-					{palette ? (
-						<>
-							<DropdownMenuSeparator />
-							<DropdownMenuLabel>
-								{COMMAND_PALETTE_COPY.title}
-							</DropdownMenuLabel>
-							<DropdownMenuItem onClick={palette.openCreate}>
-								{COMMAND_PALETTE_COPY.create}
-							</DropdownMenuItem>
-							<DropdownMenuItem onClick={palette.openSwitchProject}>
-								{COMMAND_PALETTE_COPY.switchProject}
-							</DropdownMenuItem>
-							<DropdownMenuItem onClick={palette.openRecord}>
-								{COMMAND_PALETTE_COPY.open}
-							</DropdownMenuItem>
-							{palette.canUndo && palette.undoLabel ? (
-								<DropdownMenuItem onClick={palette.undoLast}>
-									{palette.undoLabel}
-								</DropdownMenuItem>
-							) : null}
-						</>
-					) : null}
-					<DropdownMenuSeparator />
-					<SignOut />
 				</DropdownMenuGroup>
+				{palette ? (
+					<DropdownMenuGroup>
+						<DropdownMenuSeparator />
+						<DropdownMenuLabel>{COMMAND_PALETTE_COPY.title}</DropdownMenuLabel>
+						<DropdownMenuItem onClick={palette.openCreate}>
+							{COMMAND_PALETTE_COPY.create}
+						</DropdownMenuItem>
+						<DropdownMenuItem onClick={palette.openSwitchProject}>
+							{COMMAND_PALETTE_COPY.switchProject}
+						</DropdownMenuItem>
+						<DropdownMenuItem onClick={palette.openRecord}>
+							{COMMAND_PALETTE_COPY.open}
+						</DropdownMenuItem>
+						{palette.canUndo && palette.undoLabel ? (
+							<DropdownMenuItem onClick={palette.undoLast}>
+								{palette.undoLabel}
+							</DropdownMenuItem>
+						) : null}
+					</DropdownMenuGroup>
+				) : null}
+				<DropdownMenuSeparator />
+				<SignOut />
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
