@@ -42,6 +42,7 @@ test("English chrome uses Project Name and Short code", () => {
 		priorityMetrics: "Priority metrics",
 		projectName: "Project Name",
 		ready: "Ready",
+		recordAction: "Record Action",
 		removeStage: "Remove stage",
 		restoreDefaultNavigation: "Restore default navigation",
 		save: "Save",

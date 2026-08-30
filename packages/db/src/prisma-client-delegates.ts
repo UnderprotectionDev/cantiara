@@ -30,6 +30,8 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.projectPriorityMapPresentation?.upsert === "function" &&
 		typeof client.workTemplate?.findMany === "function" &&
 		typeof client.workTemplate?.create === "function" &&
+		typeof client.recordAction?.findMany === "function" &&
+		typeof client.recordAction?.create === "function" &&
 		typeof client.workDraft?.findMany === "function" &&
 		typeof client.workDraft?.create === "function" &&
 		typeof client.fileAttachment?.findMany === "function" &&

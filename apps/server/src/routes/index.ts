@@ -10,6 +10,7 @@ import { fileAttachments } from "../features/file-attachments/server/file-attach
 import { priority } from "../features/priority/server/priority-rpc";
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
+import { recordActions } from "../features/record-actions/server/record-actions-rpc";
 import { relations } from "../features/relations/server/relations-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
@@ -36,6 +37,7 @@ export const appRouter = {
 	})),
 	projectOverview: projectOverviewRouter,
 	projectShell,
+	recordActions,
 	relations,
 	tags,
 	workChecklists,
