@@ -6,7 +6,6 @@ export const EXTERNAL_HANDOFFS_COPY = {
 	expectedOutput: "Expected output",
 	externalExecutionHandoff: "External Execution Handoff",
 	github: "GitHub",
-	githubAndExternalLinks: "GitHub and external links",
 	goingPackage: "Going package",
 	handoff: "Handoff",
 	includeThisWork: "Include this Work",
@@ -36,7 +35,10 @@ export function presentHandoffCard(handoff: {
 	return {
 		producedAt: handoff.goingPackage.producedAt,
 		status: handoff.status,
-		title: purpose === "" ? EXTERNAL_HANDOFFS_COPY.handoff : purpose,
+		title:
+			purpose === ""
+				? EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff
+				: purpose,
 	};
 }
 

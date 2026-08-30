@@ -3,7 +3,6 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
 	Field,
-	FieldDescription,
 	FieldGroup,
 	FieldLabel,
 	FieldLegend,
@@ -210,10 +209,16 @@ export default function WorkExternalHandoffsPanel({
 							<li className="flex flex-col gap-3 border p-3" key={handoff.id}>
 								<header className="flex items-start justify-between gap-3">
 									<p className="min-w-0 font-medium text-sm leading-snug">
+										<span className="font-mono text-muted-foreground">
+											{handoff.workKey}
+										</span>{" "}
 										{card.title}
 									</p>
 									<Badge variant="secondary">{card.status}</Badge>
 								</header>
+								<p className="font-mono text-muted-foreground text-xs">
+									{EXTERNAL_HANDOFFS_COPY.handoff} {handoff.id}
+								</p>
 								<dl className="grid gap-1 text-muted-foreground text-xs">
 									<div className="flex flex-wrap gap-x-2">
 										<dt>{EXTERNAL_HANDOFFS_COPY.executor}</dt>
@@ -223,6 +228,12 @@ export default function WorkExternalHandoffsPanel({
 										<dt>{EXTERNAL_HANDOFFS_COPY.expectedOutput}</dt>
 										<dd>{handoff.expectedOutput}</dd>
 									</div>
+									{handoff.constraints.trim() === "" ? null : (
+										<div className="flex flex-wrap gap-x-2">
+											<dt>{EXTERNAL_HANDOFFS_COPY.constraints}</dt>
+											<dd>{handoff.constraints}</dd>
+										</div>
+									)}
 									<div className="flex flex-wrap gap-x-2">
 										<dt>{EXTERNAL_HANDOFFS_COPY.producedAt}</dt>
 										<dd>
@@ -230,7 +241,7 @@ export default function WorkExternalHandoffsPanel({
 										</dd>
 									</div>
 								</dl>
-								<details>
+								<details open>
 									<summary className="cursor-pointer font-medium text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring">
 										{EXTERNAL_HANDOFFS_COPY.goingPackage}
 									</summary>
@@ -278,7 +289,6 @@ export default function WorkExternalHandoffsPanel({
 							value={constraints}
 						/>
 						<TextField
-							description={EXTERNAL_HANDOFFS_COPY.githubAndExternalLinks}
 							id={`handoff-github-${workId}`}
 							label={EXTERNAL_HANDOFFS_COPY.github}
 							onValueChange={onGithub}
@@ -332,7 +342,6 @@ export default function WorkExternalHandoffsPanel({
 }
 
 function TextField({
-	description,
 	id,
 	label,
 	multiline,
@@ -340,7 +349,6 @@ function TextField({
 	rows,
 	value,
 }: {
-	description?: string;
 	id: string;
 	label: string;
 	multiline?: boolean;
@@ -362,7 +370,6 @@ function TextField({
 			) : (
 				<Input id={id} onChange={onChange} value={value} />
 			)}
-			{description ? <FieldDescription>{description}</FieldDescription> : null}
 		</Field>
 	);
 }

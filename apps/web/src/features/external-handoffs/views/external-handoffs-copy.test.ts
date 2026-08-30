@@ -44,5 +44,5 @@ test("Open handoff card leads with purpose, not a raw identity", () => {
 			purpose: "   ",
 			status: EXTERNAL_HANDOFFS_COPY.open,
 		}).title
-	).toBe(EXTERNAL_HANDOFFS_COPY.handoff);
+	).toBe(EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff);
 });
