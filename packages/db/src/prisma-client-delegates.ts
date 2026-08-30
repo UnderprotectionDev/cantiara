@@ -159,6 +159,22 @@ export function prismaClientHasCurrentTypedRelationModel(
 	return fields.includes("resolvedAt") && fields.includes("resolutionNote");
 }
 
+/**
+ * ExternalExecutionHandoff.goingPackages is required for Work detail list
+ * (`listHandoffsForWork` include). A bun `--hot` client generated before
+ * package versions still has an ExternalExecutionHandoff delegate; include
+ * then throws "Unknown field 'goingPackages'".
+ */
+export function prismaClientHasCurrentExternalExecutionHandoffModel(
+	client: PrismaClient
+): boolean {
+	const fields = modelFieldNames(client, "ExternalExecutionHandoff");
+	if (fields.length === 0) {
+		return true;
+	}
+	return fields.includes("goingPackages") && fields.includes("events");
+}
+
 export function workspaceOverviewLayoutSelect(client: PrismaClient) {
 	if (prismaClientHasCurrentWorkspaceModel(client)) {
 		return { overviewLayout: true } as const;

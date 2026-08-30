@@ -274,6 +274,10 @@ _Avoid_: macro marketplace, otomasyon kuralı, Toplu Düzenleme, script, çok ka
 Durumu `In Progress` yapan ve İşi Günlük Odak üyeliğine ekleyen ilk Kayıt Eylemi örneği. UI: `Start Work`.
 _Avoid_: otomasyon kuralı, çok kayıtlı düğme, arka plan kuralı
 
+**Çalışma anı girdisi**:
+Kayıt Eyleminin tasarımda tanımladığı, çalıştırmada doldurulan `Date`, `Number`, `Select` veya mevcut ana kayıtla `Relation`; formül, serbest metin makro, yeni kayıt veya ikinci hedef seçimi değildir ([kullanıcı başlatmalı kayıt eylemleri](docs/prd/06-work-management-and-planning.md#kullanıcı-başlatmalı-kayıt-eylemleri)). UI: `Date`, `Number`, `Select`, `Relation`.
+_Avoid_: formula, free-text macro, form builder, yeni kayıt, ikinci hedef
+
 **Birleşik Takvim**:
 Desteklenen tarihli kayıtları türleri karışmadan gün, hafta, ay ve Agenda'da gösteren yüzey; yeni İş türü veya durum üretmez ([Birleşik Takvim](docs/prd/06-work-management-and-planning.md#birleşik-takvim)).
 _Avoid_: Dış takvim senkronu, Event kaydı, durum tahtası
@@ -283,7 +287,7 @@ Filtrelenen İşleri alanlarıyla yoğun ve taranabilir düzende sunan aynı İ�
 _Avoid_: Tablo Görünümü, ikinci kayıt sistemi, Backlog
 
 **Toplu Düzenleme**:
-Açıkça seçilmiş İşlerde mevcut alanların fark önizlemesiyle güncellenmesi; örtük seçim, şema göçü veya içe aktarma değildir ([Toplu düzenleme](docs/prd/06-work-management-and-planning.md#toplu-düzenleme)). UI: `Bulk Edit`.
+Açıkça seçilmiş İşlerde mevcut alanların fark önizlemesiyle güncellenmesi; örtük seçim, şema göçü veya içe aktarma değildir ([Toplu düzenleme](docs/prd/06-work-management-and-planning.md#toplu-düzenleme)). UI: `Bulk Edit`. Uygulama: `Apply`. İlerleme: `Progress`. Kayıt sonucu: `Succeeded`, `Failed`.
 _Avoid_: select-all-unspecified, schema migration, import, record-action catalog, silent partial
 
 **Kapsam Ağacı**:
@@ -697,13 +701,28 @@ _Avoid_: Coding session, ajan görevi, bağımsız Handoff ana kaydı
 Bir Dış yürütme devrinde yalnız kullanıcının seçtiği kesin sürüm manifestinden üretilen tarihli okunabilir Markdown kopyası; canlı senkron, repository kopyası veya yayın artefaktı değildir.
 _Avoid_: canlı senkron, repository kopyası, yayın artefaktı, Test Handoff paketi
 
+**Gidiş paketi sürümü**:
+Aynı Dış yürütme devrinde üretilen tarihli gidiş paketi kopyası; gönderilmiş önceki kopyanın baytlarını değiştirmez.
+_Avoid_: canlı senkron paket, Test Handoff paket sürümü
+
 **Seçilen sürüm**:
 Gidiş paketine alınan kesin İş, Belge, Karar, Risk, Açık Soru veya Kaynak sürümü; seçilmeyen ilişki veya erişilemeyen alan pakete girmez.
 _Avoid_: canlı ilişkileri yürüyen kopya, bütün grafiği paketleme
 
 **Dış yürütme uzlaştırması**:
 Bir Dış yürütme devrinin sonucunu, kanıtını ve açık sorularını kullanıcının inceleyip ana proje gerçeğine bağladığı kapanış kararı; commit, PR veya durum değişikliği bu kararı kendiliğinden oluşturmaz.
+UI: `Reconcile`
 _Avoid_: Commit geldi, otomatik kapanış, İş tamamlandı
+
+**Dönüş kaydı**:
+Dış çalışma dönünce aynı Dış yürütme devrine yazılan yürütücü özeti, değişen varsayımlar, üretilen kanıt veya izinli dış bağlantılar ve kapanmamış sorular; onaylanmadan Karar, Risk, İş, ilişki veya kanıt üretmez.
+UI: `Record return`
+_Avoid_: otomatik içe aktarma, önizlemesiz ana gerçek
+
+**Takip İşi**:
+Uzlaştırma onayında kullanıcının açıkça seçtiği ve yeni kimlikle oluşturulan İş; dönüş metninden kendiliğinden doğmaz.
+UI: `Follow-up Work`
+_Avoid_: dönüş metninden otomatik İş
 
 **Kullanıcı başlatmalı İş başarısı**:
 Kullanıcının açık kapatma kararıyla bir İşin kalıcı kapanış sonucunun kesinleşmesi; [başka terminal olaylar ve otomatik kapanışlar](docs/prd/06-work-management-and-planning.md#bitiris-efektleri) bu başarı değildir.

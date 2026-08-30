@@ -85,6 +85,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İş şablonu | `Work Template` | Proje kapsamlı tekrar kullanılan İş başlangıç bağlamı; Belge şablonu, Başlangıç yapılandırması veya yakalama mini şablonu değildir |
 | Kayıt Eylemi | `Record Action` | Kapalı alan ve üyelik adımlarından adlandırılan, tek hedef kayıt üzerinde çalışan birleşik yazma; otomasyon kuralı, Toplu Düzenleme veya betik değildir |
 | Start Work | `Start Work` | Durumu `In Progress` yapan ve İşi Günlük Odak’a ekleyen ilk Kayıt Eylemi örneği |
+| Çalışma anı girdisi | `Date`, `Number`, `Select`, `Relation` | Kayıt Eyleminin tasarımda tanımlı çalışma anı girdileri; formül, serbest metin makro veya yeni kayıt seçimi değildir |
+| Kayıt eylemini başlat | `Start` | Kayıt Eylemini açıkça başlatıp kesin alan farkını önizlemeye açma |
+| Kayıt eylemini uygula | `Apply` | Önizlenen Kayıt Eylemi farkını tek atomik sonuç olarak yazma |
 | Şablondan oluştur | `Create from template` | Şablondan bağımsız yeni İş açma; şablona canlı bağ değildir ve zorunlu workflow kapısı değildir |
 | İşi kopyala | `Duplicate Work` | Mevcut İşi aynı Projede şablona dönüştürmeden tek seferlik kopyalama |
 | Planlanan başlangıç | `Planned start` | İşin ne zaman başlamasının düşünüldüğü tarih; göreli şablon kuralı oluşturma gününe göre çözülür |
@@ -126,7 +129,26 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ana kaynak uygulamadadır | `Primary source is in the app` | Kopyalanan Markdown'ın asıl kaydın uygulamada kaldığını belirten not |
 | Dış yürütme devri | `External Execution Handoff` | İşe ait test-dışı dış yürütme bileşeni; bağımsız Handoff ana kaydı değildir |
 | Devir başlat | `Start Handoff` | Dış yürütme devri başlatma eylemi |
+| Devir yazılamadı | `This handoff could not be written.` | Dış yürütme devri yazmasının reddedildiği veya uygulanamadığı durum |
+| Uzlaştır | `Reconcile` | Dönen dış yürütmeyi ana kayıt bağlarına ve takip İşlerine bağlayan kapanış kararı |
+| Sonuç döndü | `Result returned` | Dönüş kaydedilmiş, henüz uzlaştırılmamış Dış yürütme devri durumu |
+| Uzlaştırıldı | `Reconciled` | Kullanıcının uzlaştırma onayından sonraki terminal Dış yürütme devri durumu |
+| Dönüşü kaydet | `Record return` | Yürütücü özetini aynı devre yazan eylem; ana kayıt üretmez |
+| Yürütücü özeti | `Executor summary` | Dönen dış çalışmanın yürütücü özeti |
+| Değişen varsayımlar | `Changed assumptions` | Dönen dış çalışmada değişen varsayımlar |
+| Üretilen kanıt | `Produced evidence` | Dönen dış çalışmada üretilen kanıt veya not; onaydan önce Kanıt kaydı değildir |
+| İzinli dış bağlantılar | `Permitted external links` | Dönüşte kaydedilen izinli dış bağlantılar |
+| Kapanmamış sorular | `Open questions` | Dönüşte duran kapanmamış sorular; onaydan önce Açık Soru kaydı değildir |
+| Takip İşi | `Follow-up Work` | Uzlaştırma onayında açıkça oluşturulacak yeni İş |
+| Önerilen ilişki ekle | `Add proposed relation` | Uzlaştırma önizlemesine kurulacak ilişki adayı ekleme |
+| Önerilen ilişkiyi kaldır | `Remove proposed relation` | Uzlaştırma önizlemesinden ilişki adayını çıkarma |
+| Takip İşi ekle | `Add follow-up Work` | Uzlaştırma önizlemesine takip İş adayı ekleme |
+| Takip İşini kaldır | `Remove follow-up Work` | Uzlaştırma önizlemesinden takip İş adayını çıkarma |
+| İlgili İş | `Related Work` | Uzlaştırmada bağlanacak mevcut İş |
+| Reddet | `Reject` | Uzlaştırma önizlemesini yazmadan kapatan eylem |
 | Devir paketi doğruluk notu | `Source of truth is in the app` | Gidiş paketinin kanonik kaynağın uygulamada kaldığını belirten not |
+| Yeni paket sürümü | `New package version` | Aynı Dış yürütme devrinde yeni tarihli gidiş paketi üretme; gönderilmiş kopyayı ezmez |
+| Paket sürümü | `Package version` | Aynı Dış yürütme devrindeki tarihli gidiş paketi sürümü |
 | Yürütücü | `Executor` | Dış yürütme devrindeki yürütücünün görünen adı |
 | Kısıtlar | `Constraints` | Dış yürütme devrindeki kısıtlar |
 | Beklenen çıktı | `Expected output` | Dış yürütme devrindeki beklenen çıktı veya kabul beklentisi |
@@ -213,6 +235,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kopya olarak birleştir | `Merge as duplicate` | Gerçek kopya iki İşi tek hayatta kalan ana kayıtta birleştirme; kaybedenin anahtarı emekli kimlik yönlendirmesidir |
 | Birleştirme önizlemesi | `Merge Preview` | Hayatta kalan kayıt, alan çatışmaları ve yeniden yazılacak ilişkilerin onay öncesi görünümü |
 | Toplu düzenleme | `Bulk Edit` | Açıkça seçilmiş İşlerde mevcut alanların onay öncesi fark önizlemesi; örtük seçim, şema göçü veya içe aktarma değildir |
+| Uygula | `Apply` | Toplu düzenlemede seçilen İşlere alan yazmasını başlatma |
+| İlerleme | `Progress` | Toplu uygulamanın donmayan ilerleme göstergesi |
+| Başarılı | `Succeeded` | Bir seçilen İşin görünür başarı sonucu |
+| Başarısız | `Failed` | Bir seçilen İşin görünür başarısızlık sonucu |
 | Hayatta kalan kayıt | `Surviving record` | Birleştirmede kalacak kanonik İş |
 | Alan çatışmaları | `Field conflicts` | Birleştirmede kullanıcı çözümü isteyen ayrışan alanlar |
 | İlişkiler | `Relations` | Birleştirmede hayatta kalana yazılacak ilişkiler |

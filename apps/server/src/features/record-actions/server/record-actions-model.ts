@@ -8,24 +8,46 @@ import {
 
 export const RECORD_ACTION_COPY = {
 	addRecordAction: "Add Record Action",
+	apply: "Apply",
 	bulkEditNotAllowed:
 		"Bulk field editing is not a named Record Action. Multi-record field updates stay Bulk Editing.",
+	closeStepRequired:
+		"Closed status needs the close step. Data was not written.",
 	dailyFocusAdd: "Add to Daily Focus",
+	dailyFocusMember: "In Daily Focus",
+	dailyFocusNotMember: "Not in Daily Focus",
 	dailyFocusRemove: "Remove from Daily Focus",
+	date: "Date",
+	explicitStartRequired: "Start the Record Action before it can apply.",
+	forbiddenInput:
+		"A Record Action cannot use a formula, free-text macro, script, or new record as a runtime input.",
 	forbiddenStep:
 		"A Record Action cannot run JavaScript, HTTP, new record creation, or GitHub mutation.",
+	laterWrite: "Undo stopped because a later write changed an attributed field.",
+	missingRuntimeInput:
+		"A Record Action cannot write until every runtime input has a value.",
 	moveToTrash: "Move to Trash",
 	multiTarget:
 		"A Record Action targets exactly one record. Multi-record combined buttons are not available.",
 	name: "Name",
 	nameRequired: "Name is required.",
+	number: "Number",
+	preview: "Preview",
+	previewMismatch: "The previewed diff no longer matches the record.",
 	recordAction: "Record Action",
+	relatedRecordRequired: "Relation must point to an existing main record.",
+	relation: "Relation",
+	runtimeInputs: "Runtime inputs",
 	save: "Save",
+	select: "Select",
 	setExistingField: "Set existing field",
 	setWorkStatus: "Set Work status",
+	start: "Start",
 	startWork: "Start Work",
 	steps: "Steps",
 	trashedNotEffective: "A trashed Record Action is not effective.",
+	undoNotSafe: "This Record Action cannot be undone without a partial rewind.",
+	unknownInput: "That runtime input is not in the closed catalog.",
 	unknownStep: "That step is not in the closed catalog.",
 	useStartWork: "Use Start Work",
 } as const;
@@ -73,6 +95,82 @@ export const RECORD_ACTION_STEP_KINDS = [
 
 export type RecordActionStepKind = (typeof RECORD_ACTION_STEP_KINDS)[number];
 
+export const RECORD_ACTION_INPUT_KINDS = [
+	"Date",
+	"Number",
+	"Select",
+	"Relation",
+] as const;
+
+export type RecordActionInputKind = (typeof RECORD_ACTION_INPUT_KINDS)[number];
+
+export const FORBIDDEN_RECORD_ACTION_INPUT_KINDS = [
+	"formula",
+	"freeText",
+	"javascript",
+	"createRecord",
+	"script",
+] as const;
+
+export const CALENDAR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export const dateRuntimeInputSchema = z.object({
+	fieldId: z.string().min(1),
+	key: z.string().min(1),
+	kind: z.literal("Date"),
+	label: z.string().min(1),
+});
+
+export const numberRuntimeInputSchema = z.object({
+	fieldId: z.string().min(1),
+	key: z.string().min(1),
+	kind: z.literal("Number"),
+	label: z.string().min(1),
+});
+
+export const selectRuntimeInputSchema = z.object({
+	fieldId: z.string().min(1),
+	key: z.string().min(1),
+	kind: z.literal("Select"),
+	label: z.string().min(1),
+});
+
+export const relationRuntimeInputSchema = z.object({
+	key: z.string().min(1),
+	kind: z.literal("Relation"),
+	label: z.string().min(1),
+	relatedKind: z.literal(RECORD_ACTION_TARGET_KIND),
+});
+
+export const recordActionInputSchema = z.discriminatedUnion("kind", [
+	dateRuntimeInputSchema,
+	numberRuntimeInputSchema,
+	selectRuntimeInputSchema,
+	relationRuntimeInputSchema,
+]);
+
+export type RecordActionInput = z.infer<typeof recordActionInputSchema>;
+
+export const recordActionInputValueSchema = z.object({
+	key: z.string().min(1),
+	value: z.string(),
+});
+
+export type RecordActionInputValue = z.infer<
+	typeof recordActionInputValueSchema
+>;
+
+export const recordActionChosenInputSchema = z.object({
+	key: z.string().min(1),
+	kind: z.enum(RECORD_ACTION_INPUT_KINDS),
+	label: z.string().min(1),
+	value: z.string().min(1),
+});
+
+export type RecordActionChosenInput = z.infer<
+	typeof recordActionChosenInputSchema
+>;
+
 export const FORBIDDEN_RECORD_ACTION_STEP_KINDS = [
 	"javascript",
 	"http",
@@ -103,6 +201,7 @@ export function recordActionsCatalog() {
 			},
 		},
 		existingFieldKeys: EXISTING_FIELD_KEYS,
+		inputKinds: RECORD_ACTION_INPUT_KINDS,
 		runActor: MUTATION_ACTOR.user,
 		stepKinds: RECORD_ACTION_STEP_KINDS,
 		targetKind: RECORD_ACTION_TARGET_KIND,
@@ -112,6 +211,7 @@ export function recordActionsCatalog() {
 export const recordActionViewSchema = z.object({
 	actor: z.literal(MUTATION_ACTOR.user),
 	id: z.string().min(1),
+	inputs: z.array(recordActionInputSchema),
 	name: z.string().min(1),
 	projectId: z.string().min(1),
 	revision: z.number().int().positive(),
@@ -123,6 +223,7 @@ export type RecordActionView = z.infer<typeof recordActionViewSchema>;
 
 export const createRecordActionPayloadSchema = z
 	.object({
+		inputs: z.array(z.unknown()).optional(),
 		name: z.string().optional(),
 		projectId: z.string().min(1),
 		steps: z.array(z.unknown()).optional(),
@@ -182,13 +283,23 @@ export type ResolvedRecordAction = z.infer<typeof resolvedRecordActionSchema>;
 
 export const RECORD_ACTION_REJECTION_REASONS = [
 	"bulk-edit-not-allowed",
+	"close-step-required",
 	"empty-steps",
+	"explicit-start-required",
+	"forbidden-input",
 	"forbidden-step",
+	"later-write",
+	"missing-base-revision",
 	"missing-idempotency-key",
 	"missing-name",
+	"missing-runtime-input",
 	"multi-target",
+	"preview-mismatch",
+	"related-record-required",
 	"target-not-found",
 	"trashed-not-effective",
+	"undo-not-safe",
+	"unknown-input",
 	"unknown-step",
 	"unknown-target-kind",
 ] as const;
@@ -205,3 +316,123 @@ export type RecordActionOutcome =
 export type ResolveRecordActionOutcome =
 	| { resolved: ResolvedRecordAction; status: "ok" }
 	| { reason: RecordActionRejectionReason; status: "rejected" };
+
+export const recordActionFieldDiffSchema = z.object({
+	from: z.string().nullable(),
+	id: z.string().min(1),
+	label: z.string().min(1),
+	to: z.string(),
+});
+
+export type RecordActionFieldDiff = z.infer<typeof recordActionFieldDiffSchema>;
+
+export const recordActionPreviewSchema = z.object({
+	actor: z.literal(MUTATION_ACTOR.user),
+	baseRevision: z.number().int().nonnegative(),
+	copy: z.object({
+		apply: z.literal(RECORD_ACTION_COPY.apply),
+		finalizing: z.literal("Finalizing"),
+		preview: z.literal(RECORD_ACTION_COPY.preview),
+		start: z.literal(RECORD_ACTION_COPY.start),
+	}),
+	fields: z.array(recordActionFieldDiffSchema),
+	fingerprint: z.string().min(1),
+	inputs: z.array(recordActionChosenInputSchema),
+	recordActionId: z.string().min(1),
+	targetRecordId: z.string().min(1),
+});
+
+export type RecordActionPreview = z.infer<typeof recordActionPreviewSchema>;
+
+export type PreviewRecordActionOutcome =
+	| { preview: RecordActionPreview; status: "ok" }
+	| { reason: RecordActionRejectionReason; status: "rejected" };
+
+export const previewRecordActionInputSchema = z.object({
+	actorId: z.string().min(1).optional(),
+	inputValues: z.array(recordActionInputValueSchema).optional(),
+	recordActionId: z.string().min(1),
+	targetRecordId: z.string().min(1),
+	targetRecordIds: z.array(z.string().min(1)).optional(),
+});
+
+export const applyRecordActionPayloadSchema = z
+	.object({
+		inputValues: z.array(recordActionInputValueSchema).optional(),
+		previewAcknowledged: z.boolean().optional(),
+		previewFingerprint: z.string().min(1).optional(),
+		recordActionId: z.string().min(1),
+		targetRecordId: z.string().min(1),
+		targetRecordIds: z.array(z.string().min(1)).optional(),
+	})
+	.passthrough();
+
+export const applyRecordActionCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: applyRecordActionPayloadSchema,
+});
+
+export type ApplyRecordActionCommand = z.infer<
+	typeof applyRecordActionCommandSchema
+>;
+
+export const undoRecordActionPayloadSchema = z.object({
+	runId: z.string().min(1),
+});
+
+export const undoRecordActionCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: undoRecordActionPayloadSchema,
+});
+
+export type UndoRecordActionCommand = z.infer<
+	typeof undoRecordActionCommandSchema
+>;
+
+export const recordActionRunViewSchema = z.object({
+	actor: z.literal(MUTATION_ACTOR.user),
+	fields: z.array(recordActionFieldDiffSchema),
+	id: z.string().min(1),
+	recordActionId: z.string().min(1),
+	revision: z.number().int().positive(),
+	targetRecordId: z.string().min(1),
+	undo: z.literal("Undo").nullable(),
+});
+
+export type RecordActionRunView = z.infer<typeof recordActionRunViewSchema>;
+
+export const RECORD_ACTION_POST_BARRIER_UI = {
+	cancelAvailable: false,
+	label: "Finalizing",
+} as const;
+
+export type RecordActionPostBarrierUi = typeof RECORD_ACTION_POST_BARRIER_UI;
+
+export type RecordActionRunOutcome =
+	| {
+			run: RecordActionRunView;
+			status: "committed";
+			ui: RecordActionPostBarrierUi;
+	  }
+	| {
+			run: RecordActionRunView;
+			status: "replayed";
+			ui: RecordActionPostBarrierUi;
+	  }
+	| { conflict: string; status: "conflict" }
+	| {
+			currentValueLabel: "Current value";
+			revision: number;
+			status: "stale";
+	  }
+	| {
+			explanation?: string;
+			reason: RecordActionRejectionReason;
+			status: "rejected";
+	  };

@@ -1,16 +1,50 @@
 model RecordAction {
-  id         String    @id
+  id         String           @id
   projectId  String
-  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project    Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name       String
   steps      Json
+  inputs     Json             @default("[]")
   targetKind String
   trashedAt  DateTime?
   revision   Int
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  runs       RecordActionRun[]
 
   @@index([projectId])
   @@index([projectId, trashedAt])
   @@map("record_action")
+}
+
+model RecordActionRun {
+  id                String       @id
+  recordActionId    String
+  recordAction      RecordAction @relation(fields: [recordActionId], references: [id], onDelete: Cascade)
+  workId            String
+  work              Work         @relation(fields: [workId], references: [id], onDelete: Cascade)
+  actorId           String
+  attributedJson    Json
+  appliedJson       Json
+  workRevisionAfter Int
+  undoneAt          DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([workId])
+  @@index([recordActionId])
+  @@map("record_action_run")
+}
+
+model DailyFocusMembership {
+  id        String   @id
+  accountId String
+  workId    String
+  work      Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([accountId, workId])
+  @@index([accountId])
+  @@map("daily_focus_membership")
 }

@@ -259,6 +259,7 @@ export default function WorkArea({
 			{!unavailableView && surface === "list" ? (
 				<BulkEditPreview
 					filterWorkIds={items.map((item) => item.id)}
+					projectId={projectId}
 					selectedWorkIds={bulkTargets}
 				/>
 			) : null}
