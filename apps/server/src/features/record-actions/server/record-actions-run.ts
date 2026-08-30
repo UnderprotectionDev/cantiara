@@ -35,6 +35,170 @@ const MEMBER_VALUES = {
 	notMember: RECORD_ACTION_COPY.dailyFocusNotMember,
 } as const;
 
+type RuntimeDb = PrismaClient | PrismaTransaction;
+
+function hasDelegate(
+	db: RuntimeDb,
+	name: "dailyFocusMembership" | "recordActionRun"
+): boolean {
+	const delegate = (db as unknown as Record<string, { findUnique?: unknown }>)[
+		name
+	];
+	return typeof delegate?.findUnique === "function";
+}
+
+async function findDailyFocusMembership(
+	db: RuntimeDb,
+	accountId: string,
+	workId: string
+): Promise<{ id: string } | null> {
+	if (hasDelegate(db, "dailyFocusMembership")) {
+		return await db.dailyFocusMembership.findUnique({
+			where: { accountId_workId: { accountId, workId } },
+		});
+	}
+	const rows = await db.$queryRaw<Array<{ id: string }>>`
+		SELECT id FROM "daily_focus_membership"
+		WHERE "accountId" = ${accountId} AND "workId" = ${workId}
+		LIMIT 1
+	`;
+	return rows[0] ?? null;
+}
+
+async function insertDailyFocusMembership(
+	db: RuntimeDb,
+	input: { accountId: string; id: string; workId: string }
+): Promise<void> {
+	if (hasDelegate(db, "dailyFocusMembership")) {
+		await db.dailyFocusMembership.create({ data: input });
+		return;
+	}
+	await db.$executeRaw`
+		INSERT INTO "daily_focus_membership" (id, "accountId", "workId", "createdAt", "updatedAt")
+		VALUES (${input.id}, ${input.accountId}, ${input.workId}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`;
+}
+
+async function deleteDailyFocusMembership(
+	db: RuntimeDb,
+	accountId: string,
+	workId: string
+): Promise<void> {
+	if (hasDelegate(db, "dailyFocusMembership")) {
+		await db.dailyFocusMembership.deleteMany({
+			where: { accountId, workId },
+		});
+		return;
+	}
+	await db.$executeRaw`
+		DELETE FROM "daily_focus_membership"
+		WHERE "accountId" = ${accountId} AND "workId" = ${workId}
+	`;
+}
+
+interface StoredRecordActionRun {
+	actorId: string;
+	appliedJson: Prisma.JsonValue;
+	id: string;
+	recordActionId: string;
+	undoneAt: Date | null;
+	workId: string;
+}
+
+async function createRecordActionRunRow(
+	db: RuntimeDb,
+	input: {
+		actorId: string;
+		appliedJson: RecordActionFieldDiff[];
+		attributedJson: Record<string, string | null>;
+		id: string;
+		recordActionId: string;
+		workId: string;
+		workRevisionAfter: number;
+	}
+): Promise<void> {
+	if (hasDelegate(db, "recordActionRun")) {
+		await db.recordActionRun.create({
+			data: {
+				actorId: input.actorId,
+				appliedJson: input.appliedJson,
+				attributedJson: input.attributedJson,
+				id: input.id,
+				recordActionId: input.recordActionId,
+				undoneAt: null,
+				workId: input.workId,
+				workRevisionAfter: input.workRevisionAfter,
+			},
+		});
+		return;
+	}
+	const applied = JSON.stringify(input.appliedJson);
+	const attributed = JSON.stringify(input.attributedJson);
+	await db.$executeRaw`
+		INSERT INTO "record_action_run" (
+			id, "recordActionId", "workId", "actorId",
+			"attributedJson", "appliedJson", "workRevisionAfter",
+			"undoneAt", "createdAt", "updatedAt"
+		)
+		VALUES (
+			${input.id}, ${input.recordActionId}, ${input.workId}, ${input.actorId},
+			CAST(${attributed} AS JSONB), CAST(${applied} AS JSONB), ${input.workRevisionAfter},
+			NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+		)
+	`;
+}
+
+async function findRecordActionRun(
+	db: RuntimeDb,
+	id: string
+): Promise<StoredRecordActionRun | null> {
+	if (hasDelegate(db, "recordActionRun")) {
+		return await db.recordActionRun.findUnique({ where: { id } });
+	}
+	const rows = await db.$queryRaw<
+		Array<{
+			actorId: string;
+			appliedJson: Prisma.JsonValue;
+			id: string;
+			recordActionId: string;
+			undoneAt: Date | null;
+			workId: string;
+		}>
+	>`
+		SELECT id, "recordActionId", "workId", "actorId", "appliedJson", "undoneAt"
+		FROM "record_action_run"
+		WHERE id = ${id}
+		LIMIT 1
+	`;
+	return rows[0] ?? null;
+}
+
+export async function recordActionIdForRun(
+	db: PrismaClient,
+	runId: string
+): Promise<string | null> {
+	const run = await findRecordActionRun(db, runId);
+	return run?.recordActionId ?? null;
+}
+
+async function markRecordActionRunUndone(
+	db: RuntimeDb,
+	id: string
+): Promise<void> {
+	if (hasDelegate(db, "recordActionRun")) {
+		await db.recordActionRun.update({
+			data: { undoneAt: new Date() },
+			where: { id },
+		});
+		return;
+	}
+	await db.$executeRaw`
+		UPDATE "record_action_run"
+		SET "undoneAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
+		WHERE id = ${id}
+	`;
+}
+
 export async function previewRecordAction(
 	prisma: PrismaClient,
 	input: unknown
@@ -157,17 +321,14 @@ async function applyInTransaction(
 			: loaded.work.revision + 1;
 	await writeFields(tx, loaded, preview.fields, nextRevision);
 	const runId = crypto.randomUUID();
-	await tx.recordActionRun.create({
-		data: {
-			actorId: command.actorId,
-			appliedJson: preview.fields,
-			attributedJson: attributedFrom(preview.fields),
-			id: runId,
-			recordActionId: loaded.actionId,
-			undoneAt: null,
-			workId: loaded.work.id,
-			workRevisionAfter: nextRevision,
-		},
+	await createRecordActionRunRow(tx, {
+		actorId: command.actorId,
+		appliedJson: preview.fields,
+		attributedJson: attributedFrom(preview.fields),
+		id: runId,
+		recordActionId: loaded.actionId,
+		workId: loaded.work.id,
+		workRevisionAfter: nextRevision,
 	});
 	const run = toRunView({
 		fields: preview.fields,
@@ -196,9 +357,7 @@ async function undoInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<RecordActionRunOutcome> {
-	const run = await tx.recordActionRun.findUnique({
-		where: { id: command.payload.runId },
-	});
+	const run = await findRecordActionRun(tx, command.payload.runId);
 	if (!run) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
@@ -233,11 +392,7 @@ async function undoInTransaction(
 			status: "rejected",
 		};
 	}
-	const member = await tx.dailyFocusMembership.findUnique({
-		where: {
-			accountId_workId: { accountId: run.actorId, workId: work.id },
-		},
-	});
+	const member = await findDailyFocusMembership(tx, run.actorId, work.id);
 	if (currentDiverged(work, member !== null, applied)) {
 		return {
 			explanation: RECORD_ACTION_COPY.laterWrite,
@@ -248,10 +403,7 @@ async function undoInTransaction(
 	const inverse = inverseFields(applied);
 	const nextRevision = work.revision + 1;
 	await writeInverse(tx, work.id, run.actorId, inverse, nextRevision);
-	await tx.recordActionRun.update({
-		data: { undoneAt: new Date() },
-		where: { id: run.id },
-	});
+	await markRecordActionRunUndone(tx, run.id);
 	const view = toRunView({
 		fields: inverse,
 		id: run.id,
@@ -316,11 +468,7 @@ async function loadTarget(
 	const membership =
 		actorId.length === 0
 			? null
-			: await db.dailyFocusMembership.findUnique({
-					where: {
-						accountId_workId: { accountId: actorId, workId: work.id },
-					},
-				});
+			: await findDailyFocusMembership(db, actorId, work.id);
 	return {
 		actionId: action.id,
 		actorId,
@@ -506,18 +654,14 @@ async function writeFields(
 		return;
 	}
 	if (membership.to === MEMBER_VALUES.member) {
-		await tx.dailyFocusMembership.create({
-			data: {
-				accountId: loaded.actorId,
-				id: crypto.randomUUID(),
-				workId: loaded.work.id,
-			},
+		await insertDailyFocusMembership(tx, {
+			accountId: loaded.actorId,
+			id: crypto.randomUUID(),
+			workId: loaded.work.id,
 		});
 		return;
 	}
-	await tx.dailyFocusMembership.deleteMany({
-		where: { accountId: loaded.actorId, workId: loaded.work.id },
-	});
+	await deleteDailyFocusMembership(tx, loaded.actorId, loaded.work.id);
 }
 
 async function writeInverse(

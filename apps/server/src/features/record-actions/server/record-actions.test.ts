@@ -297,6 +297,55 @@ describe("Record Actions", () => {
 		).toEqual({ reason: "trashed-not-effective", status: "rejected" });
 	});
 
+	it("previews Start Work when bun --hot still lacks Daily Focus membership delegates", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const action = await committedAction(prisma, actorId, project.id);
+		const work = await committedWork(prisma, actorId, project.id, "Alpha");
+		const previewed = await previewRecordAction(
+			withoutRecordActionRuntimeDelegates(prisma),
+			{
+				actorId,
+				recordActionId: action.id,
+				targetRecordId: work.id,
+			}
+		);
+		expect(previewed.status).toBe("ok");
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		expect(previewed.preview.fields).toEqual([
+			{
+				from: "Not Started",
+				id: "status",
+				label: "Set Work status",
+				to: "In Progress",
+			},
+			{
+				from: "Not in Daily Focus",
+				id: "dailyFocusMembership",
+				label: "Add to Daily Focus",
+				to: "In Daily Focus",
+			},
+		]);
+		const applied = await applyRecordAction(
+			withoutRecordActionRuntimeDelegates(prisma),
+			{
+				actorId,
+				baseRevision: previewed.preview.baseRevision,
+				idempotencyKey: "hot-apply",
+				origin: "human",
+				payload: {
+					previewAcknowledged: true,
+					previewFingerprint: previewed.preview.fingerprint,
+					recordActionId: action.id,
+					targetRecordId: work.id,
+				},
+			}
+		);
+		expect(applied.status).toBe("committed");
+		expect((await getWork(prisma, work.id))?.status).toBe("In Progress");
+	});
+
 	it("does not apply a Record Action until the founder explicitly starts it", async () => {
 		const { actorId, project } = await openPayments(prisma);
 		const action = await committedAction(prisma, actorId, project.id);
@@ -684,6 +733,23 @@ describe("Record Actions", () => {
 		expect((await getWork(prisma, work.id))?.status).toBe("Blocked");
 	});
 });
+
+function withoutRecordActionRuntimeDelegates(
+	prisma: PrismaClient
+): PrismaClient {
+	return new Proxy(prisma, {
+		get(target, prop, receiver) {
+			if (prop === "dailyFocusMembership" || prop === "recordActionRun") {
+				return;
+			}
+			const value = Reflect.get(target, prop, receiver);
+			if (typeof value === "function") {
+				return value.bind(target);
+			}
+			return value;
+		},
+	}) as PrismaClient;
+}
 
 async function committedAction(
 	prisma: PrismaClient,

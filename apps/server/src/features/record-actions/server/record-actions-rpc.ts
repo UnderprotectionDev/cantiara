@@ -21,6 +21,7 @@ import {
 import {
 	applyRecordAction,
 	previewRecordAction,
+	recordActionIdForRun,
 	undoRecordAction,
 } from "./record-actions-run";
 
@@ -155,14 +156,14 @@ export const recordActions = {
 		)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			const run = await getPrismaClient().recordActionRun.findUnique({
-				select: { recordActionId: true },
-				where: { id: input.payload.runId },
-			});
-			if (!run) {
+			const recordActionId = await recordActionIdForRun(
+				getPrismaClient(),
+				input.payload.runId
+			);
+			if (!recordActionId) {
 				throw new ORPCError("NOT_FOUND");
 			}
-			await requireRecordActionProject(access.workspaceId, run.recordActionId);
+			await requireRecordActionProject(access.workspaceId, recordActionId);
 			return await undoRecordAction(getPrismaClient(), {
 				actorId: access.accountId,
 				baseRevision: input.baseRevision,
