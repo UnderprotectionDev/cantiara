@@ -97,14 +97,18 @@ export async function listHandoffsForWork(
 		return [];
 	}
 	const rows = await prisma.externalExecutionHandoff.findMany({
-		include: {
-			goingPackages: { orderBy: { version: "asc" } },
-		},
 		orderBy: { createdAt: "asc" },
 		where: { workId },
 	});
+	const packagesByHandoff = await loadGoingPackagesByHandoff(
+		prisma,
+		rows.map((row) => row.id)
+	);
 	return rows.flatMap((row) => {
-		const view = toView(row, work.key);
+		const view = toView(
+			{ ...row, goingPackages: packagesByHandoff.get(row.id) ?? [] },
+			work.key
+		);
 		return view ? [view] : [];
 	});
 }
@@ -115,6 +119,9 @@ export async function listHandoffHistoryForWork(
 ): Promise<HandoffHistoryEntry[]> {
 	const work = await getWork(prisma, workId);
 	if (!work) {
+		return [];
+	}
+	if (!hasHandoffEventDelegate(prisma)) {
 		return [];
 	}
 	const rows = await prisma.externalExecutionHandoffEvent.findMany({
@@ -244,9 +251,6 @@ async function produceInTransaction(
 		return existing;
 	}
 	const handoff = await tx.externalExecutionHandoff.findUnique({
-		include: {
-			goingPackages: { orderBy: { version: "asc" } },
-		},
 		where: { id: command.payload.handoffId },
 	});
 	if (!handoff || handoff.workId !== command.payload.workId) {
@@ -266,9 +270,10 @@ async function produceInTransaction(
 	const permittedGithubContext = normalizeGithubContext(
 		command.payload.permittedGithubContext
 	);
+	const existingPackages = await loadGoingPackages(tx, handoff.id);
 	const producedAt = new Date();
 	const version =
-		handoff.goingPackages.reduce(
+		existingPackages.reduce(
 			(latest, pack) => Math.max(latest, pack.version),
 			0
 		) + 1;
@@ -311,7 +316,7 @@ async function produceInTransaction(
 		workId: work.id,
 	});
 	const packages = [
-		...handoff.goingPackages,
+		...existingPackages,
 		{
 			markdown,
 			permittedGithubContext,
@@ -618,6 +623,63 @@ async function replayReceipt(
 	return { handoff: replayed, status: "replayed" };
 }
 
+function prismaDelegates(prisma: PrismaClient | PrismaTransaction): {
+	externalExecutionGoingPackage?: { create: unknown; findMany: unknown };
+	externalExecutionHandoffEvent?: { create: unknown; findMany: unknown };
+} {
+	return prisma as {
+		externalExecutionGoingPackage?: { create: unknown; findMany: unknown };
+		externalExecutionHandoffEvent?: { create: unknown; findMany: unknown };
+	};
+}
+
+function hasGoingPackageDelegate(
+	prisma: PrismaClient | PrismaTransaction
+): boolean {
+	const { externalExecutionGoingPackage } = prismaDelegates(prisma);
+	return typeof externalExecutionGoingPackage?.findMany === "function";
+}
+
+function hasHandoffEventDelegate(
+	prisma: PrismaClient | PrismaTransaction
+): boolean {
+	const { externalExecutionHandoffEvent } = prismaDelegates(prisma);
+	return typeof externalExecutionHandoffEvent?.findMany === "function";
+}
+
+async function loadGoingPackages(
+	prisma: PrismaClient | PrismaTransaction,
+	handoffId: string
+): Promise<PackageRow[]> {
+	if (!hasGoingPackageDelegate(prisma)) {
+		return [];
+	}
+	return await prisma.externalExecutionGoingPackage.findMany({
+		orderBy: { version: "asc" },
+		where: { handoffId },
+	});
+}
+
+async function loadGoingPackagesByHandoff(
+	prisma: PrismaClient | PrismaTransaction,
+	handoffIds: string[]
+): Promise<Map<string, PackageRow[]>> {
+	const grouped = new Map<string, PackageRow[]>();
+	if (handoffIds.length === 0 || !hasGoingPackageDelegate(prisma)) {
+		return grouped;
+	}
+	const rows = await prisma.externalExecutionGoingPackage.findMany({
+		orderBy: { version: "asc" },
+		where: { handoffId: { in: handoffIds } },
+	});
+	for (const row of rows) {
+		const current = grouped.get(row.handoffId) ?? [];
+		current.push(row);
+		grouped.set(row.handoffId, current);
+	}
+	return grouped;
+}
+
 async function persistPackageVersion(
 	tx: PrismaTransaction,
 	input: {
@@ -629,6 +691,9 @@ async function persistPackageVersion(
 		version: number;
 	}
 ): Promise<void> {
+	if (!hasGoingPackageDelegate(tx)) {
+		return;
+	}
 	await tx.externalExecutionGoingPackage.create({
 		data: {
 			handoffId: input.handoffId,
@@ -653,6 +718,9 @@ async function persistHistoryEvent(
 		workId: string;
 	}
 ): Promise<void> {
+	if (!hasHandoffEventDelegate(tx)) {
+		return;
+	}
 	await tx.externalExecutionHandoffEvent.create({
 		data: {
 			actorId: input.actorId,

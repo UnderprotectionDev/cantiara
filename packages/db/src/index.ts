@@ -12,6 +12,7 @@ import {
 } from "./generated-prisma-client";
 import {
 	prismaClientHasCurrentDelegates,
+	prismaClientHasCurrentExternalExecutionHandoffModel,
 	prismaClientHasCurrentFileAttachmentVersionModel,
 	prismaClientHasCurrentProjectModel,
 	prismaClientHasCurrentTypedRelationModel,
@@ -22,6 +23,7 @@ export { Prisma, PrismaClient } from "../prisma/generated/client";
 export { readGeneratedClientStamp } from "./generated-prisma-client";
 export {
 	prismaClientHasCurrentDelegates,
+	prismaClientHasCurrentExternalExecutionHandoffModel,
 	prismaClientHasCurrentFileAttachmentVersionModel,
 	prismaClientHasCurrentProjectModel,
 	prismaClientHasCurrentTypedRelationModel,
@@ -105,7 +107,8 @@ function clientHasCurrentWorkModel(client: PrismaClient): boolean {
 		fields.includes("originWorkId") &&
 		fields.includes("retiredIntoId") &&
 		fields.includes("includedInFeatureId") &&
-		fields.includes("externalExecutionHandoffs")
+		fields.includes("externalExecutionHandoffs") &&
+		fields.includes("externalExecutionHandoffEvents")
 	);
 }
 
@@ -130,6 +133,9 @@ function cachedClient(diskStamp: string): PrismaClient | undefined {
 		return;
 	}
 	if (!prismaClientHasCurrentTypedRelationModel(cached.client)) {
+		return;
+	}
+	if (!prismaClientHasCurrentExternalExecutionHandoffModel(cached.client)) {
 		return;
 	}
 	return cached.client;
@@ -161,7 +167,8 @@ export function getPrismaClient() {
 		if (
 			!(
 				prismaClientHasCurrentDelegates(productionPrisma) &&
-				prismaClientHasCurrentTypedRelationModel(productionPrisma)
+				prismaClientHasCurrentTypedRelationModel(productionPrisma) &&
+				prismaClientHasCurrentExternalExecutionHandoffModel(productionPrisma)
 			)
 		) {
 			throw new Error(
@@ -179,7 +186,8 @@ export function getPrismaClient() {
 	if (
 		!(
 			prismaClientHasCurrentDelegates(client) &&
-			prismaClientHasCurrentTypedRelationModel(client)
+			prismaClientHasCurrentTypedRelationModel(client) &&
+			prismaClientHasCurrentExternalExecutionHandoffModel(client)
 		)
 	) {
 		client.$disconnect().catch(() => undefined);
