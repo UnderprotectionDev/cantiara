@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 import {
 	EXTERNAL_HANDOFFS_COPY,
 	presentHandoffCard,
+	presentHandoffHistoryKind,
 	presentHandoffWriteError,
 } from "./external-handoffs-copy";
 
@@ -22,7 +23,9 @@ test("English UI uses External Execution Handoff and Start Handoff", () => {
 		followUpWork: "Follow-up Work",
 		github: "GitHub",
 		goingPackage: "Going package",
+		newPackageVersion: "New package version",
 		open: "Open",
+		packageVersion: "Package version",
 		purpose: "Purpose",
 		reconcile: "Reconcile",
 		reconciled: "Reconciled",
@@ -71,4 +74,13 @@ test("Open handoff card leads with purpose, not a raw identity", () => {
 			status: EXTERNAL_HANDOFFS_COPY.open,
 		}).title
 	).toBe(EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff);
+});
+
+test("Work change history uses Start Handoff and Going package labels", () => {
+	expect(presentHandoffHistoryKind("started")).toBe(
+		EXTERNAL_HANDOFFS_COPY.startHandoff
+	);
+	expect(presentHandoffHistoryKind("package-exported")).toBe(
+		EXTERNAL_HANDOFFS_COPY.goingPackage
+	);
 });

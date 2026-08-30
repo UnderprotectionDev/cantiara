@@ -8,24 +8,35 @@ export type RecordActionStepKind = (typeof RECORD_ACTION_STEP_KINDS)[number];
 
 export const RECORD_ACTION_COPY = {
 	addRecordAction: "Add Record Action",
+	apply: "Apply",
 	bulkEditNotAllowed:
 		"Bulk field editing is not a named Record Action. Multi-record field updates stay Bulk Editing.",
+	closeStepRequired:
+		"Closed status needs the close step. Data was not written.",
 	dailyFocusAdd: "Add to Daily Focus",
+	dailyFocusMember: "In Daily Focus",
+	dailyFocusNotMember: "Not in Daily Focus",
 	dailyFocusRemove: "Remove from Daily Focus",
+	explicitStartRequired: "Start the Record Action before it can apply.",
 	forbiddenStep:
 		"A Record Action cannot run JavaScript, HTTP, new record creation, or GitHub mutation.",
+	laterWrite: "Undo stopped because a later write changed an attributed field.",
 	moveToTrash: "Move to Trash",
 	multiTarget:
 		"A Record Action targets exactly one record. Multi-record combined buttons are not available.",
 	name: "Name",
 	nameRequired: "Name is required.",
+	preview: "Preview",
+	previewMismatch: "The previewed diff no longer matches the record.",
 	recordAction: "Record Action",
 	save: "Save",
 	setExistingField: "Set existing field",
 	setWorkStatus: "Set Work status",
+	start: "Start",
 	startWork: "Start Work",
 	steps: "Steps",
 	trashedNotEffective: "A trashed Record Action is not effective.",
+	undoNotSafe: "This Record Action cannot be undone without a partial rewind.",
 	unknownStep: "That step is not in the closed catalog.",
 	useStartWork: "Use Start Work",
 } as const;

@@ -1,0 +1,12 @@
+model CompletionEffectPreference {
+  id        String   @id
+  accountId String   @unique
+  account   User     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  enabled   Boolean  @default(false)
+  theme     String   @default("Calm")
+  palette   String   @default("Haze")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("completion_effect_preference")
+}

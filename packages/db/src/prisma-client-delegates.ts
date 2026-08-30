@@ -36,6 +36,8 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.recordAction?.create === "function" &&
 		typeof client.workDraft?.findMany === "function" &&
 		typeof client.workDraft?.create === "function" &&
+		// Completion effect preference is read via table SQL so a bun --hot
+		// client generated before that model can still serve Hesap settings.
 		typeof client.fileAttachment?.findMany === "function" &&
 		typeof client.fileAttachmentVersion?.findMany === "function" &&
 		typeof client.fileAttachmentVersionPin?.findMany === "function" &&
@@ -155,6 +157,22 @@ export function prismaClientHasCurrentTypedRelationModel(
 		return true;
 	}
 	return fields.includes("resolvedAt") && fields.includes("resolutionNote");
+}
+
+/**
+ * ExternalExecutionHandoff.goingPackages is required for Work detail list
+ * (`listHandoffsForWork` include). A bun `--hot` client generated before
+ * package versions still has an ExternalExecutionHandoff delegate; include
+ * then throws "Unknown field 'goingPackages'".
+ */
+export function prismaClientHasCurrentExternalExecutionHandoffModel(
+	client: PrismaClient
+): boolean {
+	const fields = modelFieldNames(client, "ExternalExecutionHandoff");
+	if (fields.length === 0) {
+		return true;
+	}
+	return fields.includes("goingPackages") && fields.includes("events");
 }
 
 export function workspaceOverviewLayoutSelect(client: PrismaClient) {

@@ -10,6 +10,10 @@ test("GitHub sign-in opens Preferences when that is the intended path", () => {
 	expect(postSignInPath("/account")).toBe("/account");
 });
 
+test("GitHub sign-in opens Completion effects when that is the intended path", () => {
+	expect(postSignInPath("/completion-effects")).toBe("/completion-effects");
+});
+
 test("GitHub sign-in opens Dashboard when no Sessions return is asked", () => {
 	expect(postSignInPath(undefined)).toBe("/dashboard");
 	expect(postSignInPath("/dashboard")).toBe("/dashboard");

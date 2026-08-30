@@ -8,14 +8,17 @@ import { getProject } from "../../project-shell/server/project-shell";
 import { getWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	confirmReconcile,
+	listHandoffHistoryForWork,
 	listHandoffsForWork,
 	previewReconcile,
+	produceGoingPackage,
 	recordReturn,
 	rejectReconcile,
 	startHandoff,
 } from "./external-handoffs";
 import {
 	confirmReconcilePayloadSchema,
+	produceGoingPackagePayloadSchema,
 	recordReturnPayloadSchema,
 	rejectReconcilePayloadSchema,
 	startHandoffPayloadSchema,
@@ -70,6 +73,13 @@ export const externalHandoffs = {
 				payload: input.payload,
 			});
 		}),
+	history: protectedProcedure
+		.input(z.object({ workId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await listHandoffHistoryForWork(getPrismaClient(), input.workId);
+		}),
 	list: protectedProcedure
 		.input(z.object({ workId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -83,6 +93,23 @@ export const externalHandoffs = {
 			const access = await requireAccess(context.session.user.id);
 			await requireHandoffWork(access.workspaceId, input.handoffId);
 			return await previewReconcile(getPrismaClient(), input.handoffId);
+		}),
+	produceGoingPackage: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				payload: produceGoingPackagePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.payload.workId);
+			return await produceGoingPackage(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
 		}),
 	recordReturn: protectedWriteProcedure
 		.input(

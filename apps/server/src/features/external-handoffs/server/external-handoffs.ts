@@ -24,11 +24,16 @@ import {
 	externalExecutionHandoffViewSchema,
 	type GithubContext,
 	githubContextSchema,
+	HANDOFF_HISTORY_KIND,
 	HANDOFF_STATUS,
 	HANDOFF_STATUSES,
+	type HandoffHistoryEntry,
 	type HandoffStatus,
 	type HandoffWriteOutcome,
 	type PreviewReconcileOutcome,
+	type ProduceGoingPackageCommand,
+	type ProduceGoingPackageOutcome,
+	produceGoingPackageCommandSchema,
 	type ReconcileDecision,
 	type ReconcilePreview,
 	type RecordReturnCommand,
@@ -47,12 +52,21 @@ import {
 
 type PrismaTransaction = Prisma.TransactionClient;
 
+interface PackageRow {
+	markdown: string;
+	permittedGithubContext: Prisma.JsonValue;
+	producedAt: Date;
+	selectedVersionManifest: Prisma.JsonValue;
+	version: number;
+}
+
 interface HandoffRow {
 	constraints: string;
 	executorVisibleName: string;
 	expectedOutput: string;
 	goingPackageMarkdown: string;
 	goingPackageProducedAt: Date;
+	goingPackages?: PackageRow[];
 	id: string;
 	permittedGithubContext: Prisma.JsonValue;
 	purpose: string;
@@ -88,6 +102,24 @@ export async function startHandoff(
 	);
 	return await prisma.$transaction((tx) =>
 		startInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function produceGoingPackage(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ProduceGoingPackageOutcome> {
+	const parsed = produceGoingPackageCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		produceInTransaction(tx, parsed.data, commandKey, fingerprint)
 	);
 }
 
@@ -184,9 +216,37 @@ export async function listHandoffsForWork(
 		orderBy: { createdAt: "asc" },
 		where: { workId },
 	});
+	const packagesByHandoff = await loadGoingPackagesByHandoff(
+		prisma,
+		rows.map((row) => row.id)
+	);
 	return rows.flatMap((row) => {
-		const view = toView(row, work.key);
+		const view = toView(
+			{ ...row, goingPackages: packagesByHandoff.get(row.id) ?? [] },
+			work.key
+		);
 		return view ? [view] : [];
+	});
+}
+
+export async function listHandoffHistoryForWork(
+	prisma: PrismaClient,
+	workId: string
+): Promise<HandoffHistoryEntry[]> {
+	const work = await getWork(prisma, workId);
+	if (!work) {
+		return [];
+	}
+	if (!hasHandoffEventDelegate(prisma)) {
+		return [];
+	}
+	const rows = await prisma.externalExecutionHandoffEvent.findMany({
+		orderBy: [{ occurredAt: "asc" }, { createdAt: "asc" }],
+		where: { workId },
+	});
+	return rows.flatMap((row) => {
+		const entry = toHistoryEntry(row);
+		return entry ? [entry] : [];
 	});
 }
 
@@ -196,18 +256,9 @@ async function startInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<StartHandoffOutcome> {
-	const existing = await tx.mutationReceipt.findUnique({
-		where: { commandKey },
-	});
+	const existing = await replayReceipt(tx, commandKey, fingerprint);
 	if (existing) {
-		if (existing.payloadFingerprint !== fingerprint) {
-			return { conflict: MUTATION_COPY.conflict, status: "conflict" };
-		}
-		const replayed = storedView(existing.resultValue);
-		if (!replayed) {
-			return { conflict: MUTATION_COPY.conflict, status: "conflict" };
-		}
-		return { handoff: replayed, status: "replayed" };
+		return existing;
 	}
 	const work = await tx.work.findUnique({
 		where: { id: command.payload.workId },
@@ -220,10 +271,9 @@ async function startInTransaction(
 		work.projectId,
 		command.payload.selectedVersions
 	);
-	const permittedGithubContext = (command.payload.permittedGithubContext ?? [])
-		.map((item) => item.identifier.trim())
-		.filter((identifier) => identifier.length > 0)
-		.map((identifier) => ({ identifier }));
+	const permittedGithubContext = normalizeGithubContext(
+		command.payload.permittedGithubContext
+	);
 	const producedAt = new Date();
 	const id = crypto.randomUUID();
 	const markdown = renderGoingPackage({
@@ -253,16 +303,154 @@ async function startInTransaction(
 			workId: work.id,
 		},
 	});
-	const view = toView(created, work.key);
+	await persistPackageVersion(tx, {
+		handoffId: created.id,
+		markdown,
+		permittedGithubContext,
+		producedAt,
+		selectedVersions,
+		version: 1,
+	});
+	await persistHistoryEvent(tx, {
+		actorId: command.actorId,
+		handoffId: created.id,
+		kind: HANDOFF_HISTORY_KIND.started,
+		occurredAt: producedAt,
+		packageVersion: null,
+		workId: work.id,
+	});
+	await persistHistoryEvent(tx, {
+		actorId: command.actorId,
+		handoffId: created.id,
+		kind: HANDOFF_HISTORY_KIND.packageExported,
+		occurredAt: producedAt,
+		packageVersion: 1,
+		workId: work.id,
+	});
+	const view = toView(
+		{
+			...created,
+			goingPackages: [
+				{
+					markdown,
+					permittedGithubContext,
+					producedAt,
+					selectedVersionManifest: selectedVersions,
+					version: 1,
+				},
+			],
+		},
+		work.key
+	);
 	if (!view) {
 		return { reason: "invalid-handoff", status: "rejected" };
 	}
 	await writeReceipt(tx, {
 		actorId: command.actorId,
 		commandKey,
+		committedRevision: created.revision,
 		fingerprint,
-		revision: created.revision,
 		targetId: created.id,
+		view,
+	});
+	return { handoff: view, status: "committed" };
+}
+
+async function produceInTransaction(
+	tx: PrismaTransaction,
+	command: ProduceGoingPackageCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<ProduceGoingPackageOutcome> {
+	const existing = await replayReceipt(tx, commandKey, fingerprint);
+	if (existing) {
+		return existing;
+	}
+	const handoff = await tx.externalExecutionHandoff.findUnique({
+		where: { id: command.payload.handoffId },
+	});
+	if (!handoff || handoff.workId !== command.payload.workId) {
+		return { reason: "handoff-not-found", status: "rejected" };
+	}
+	const work = await tx.work.findUnique({
+		where: { id: handoff.workId },
+	});
+	if (!work || work.retiredIntoId) {
+		return { reason: "work-not-found", status: "rejected" };
+	}
+	const selectedVersions = await resolveSelectedVersions(
+		tx,
+		work.projectId,
+		command.payload.selectedVersions
+	);
+	const permittedGithubContext = normalizeGithubContext(
+		command.payload.permittedGithubContext
+	);
+	const existingPackages = await loadGoingPackages(tx, handoff.id);
+	const producedAt = new Date();
+	const version =
+		existingPackages.reduce(
+			(latest, pack) => Math.max(latest, pack.version),
+			0
+		) + 1;
+	const markdown = renderGoingPackage({
+		constraints: handoff.constraints,
+		executorVisibleName: handoff.executorVisibleName,
+		expectedOutput: handoff.expectedOutput,
+		handoffId: handoff.id,
+		permittedGithubContext,
+		producedAt,
+		purpose: handoff.purpose,
+		selectedVersions,
+		workKey: work.key,
+	});
+	const nextRevision = handoff.revision + 1;
+	const updated = await tx.externalExecutionHandoff.update({
+		data: {
+			goingPackageMarkdown: markdown,
+			goingPackageProducedAt: producedAt,
+			permittedGithubContext,
+			revision: nextRevision,
+			selectedVersionManifest: selectedVersions,
+		},
+		where: { id: handoff.id },
+	});
+	await persistPackageVersion(tx, {
+		handoffId: handoff.id,
+		markdown,
+		permittedGithubContext,
+		producedAt,
+		selectedVersions,
+		version,
+	});
+	await persistHistoryEvent(tx, {
+		actorId: command.actorId,
+		handoffId: handoff.id,
+		kind: HANDOFF_HISTORY_KIND.packageExported,
+		occurredAt: producedAt,
+		packageVersion: version,
+		workId: work.id,
+	});
+	const packages = [
+		...existingPackages,
+		{
+			markdown,
+			permittedGithubContext,
+			producedAt,
+			selectedVersionManifest: selectedVersions,
+			version,
+		},
+	];
+	const view = toView({ ...updated, goingPackages: packages }, work.key);
+	if (!view) {
+		return { reason: "invalid-handoff", status: "rejected" };
+	}
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		committedRevision: nextRevision,
+		fingerprint,
+		targetId: handoff.id,
 		view,
 	});
 	return { handoff: view, status: "committed" };
@@ -274,7 +462,7 @@ async function recordReturnInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<HandoffWriteOutcome> {
-	const replayed = await replayHandoff(tx, commandKey, fingerprint);
+	const replayed = await replayReceipt(tx, commandKey, fingerprint);
 	if (replayed) {
 		return replayed;
 	}
@@ -297,15 +485,15 @@ async function recordReturnInTransaction(
 		},
 		where: { id: loaded.row.id },
 	});
-	const view = toView(updated, loaded.work.key);
+	const view = await viewFromRow(tx, updated, loaded.work.key);
 	if (!view) {
 		return { reason: "invalid-handoff", status: "rejected" };
 	}
 	await writeReceipt(tx, {
 		actorId: command.actorId,
 		commandKey,
+		committedRevision: updated.revision,
 		fingerprint,
-		revision: updated.revision,
 		targetId: updated.id,
 		view,
 	});
@@ -318,7 +506,7 @@ async function confirmInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<ConfirmReconcileOutcome> {
-	const replayed = await replayHandoff(tx, commandKey, fingerprint);
+	const replayed = await replayReceipt(tx, commandKey, fingerprint);
 	if (replayed) {
 		return replayed;
 	}
@@ -380,15 +568,15 @@ async function confirmInTransaction(
 		},
 		where: { id: loaded.row.id },
 	});
-	const view = toView(updated, loaded.work.key);
+	const view = await viewFromRow(tx, updated, loaded.work.key);
 	if (!view) {
 		throw new ConfirmRollback("invalid-handoff");
 	}
 	await writeReceipt(tx, {
 		actorId: command.actorId,
 		commandKey,
+		committedRevision: updated.revision,
 		fingerprint,
-		revision: updated.revision,
 		targetId: updated.id,
 		view,
 	});
@@ -473,7 +661,7 @@ async function rejectInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<HandoffWriteOutcome> {
-	const replayed = await replayHandoff(tx, commandKey, fingerprint);
+	const replayed = await replayReceipt(tx, commandKey, fingerprint);
 	if (replayed) {
 		return replayed;
 	}
@@ -484,15 +672,15 @@ async function rejectInTransaction(
 	if (loaded.row.status !== HANDOFF_STATUS.resultReturned) {
 		return { reason: "handoff-not-ready", status: "rejected" };
 	}
-	const view = toView(loaded.row, loaded.work.key);
+	const view = await viewFromRow(tx, loaded.row, loaded.work.key);
 	if (!view) {
 		return { reason: "invalid-handoff", status: "rejected" };
 	}
 	await writeReceipt(tx, {
 		actorId: command.actorId,
 		commandKey,
+		committedRevision: loaded.row.revision,
 		fingerprint,
-		revision: loaded.row.revision,
 		targetId: loaded.row.id,
 		view,
 	});
@@ -614,51 +802,13 @@ async function loadOwnedHandoff(
 	return { row, work };
 }
 
-async function replayHandoff(
+async function viewFromRow(
 	tx: PrismaTransaction,
-	commandKey: string,
-	fingerprint: string
-): Promise<HandoffWriteOutcome | null> {
-	const existing = await tx.mutationReceipt.findUnique({
-		where: { commandKey },
-	});
-	if (!existing) {
-		return null;
-	}
-	if (existing.payloadFingerprint !== fingerprint) {
-		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
-	}
-	const replayed = storedView(existing.resultValue);
-	if (!replayed) {
-		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
-	}
-	return { handoff: replayed, status: "replayed" };
-}
-
-async function writeReceipt(
-	tx: PrismaTransaction,
-	input: {
-		actorId: string;
-		commandKey: string;
-		fingerprint: string;
-		revision: number;
-		targetId: string;
-		view: ExternalExecutionHandoffView;
-	}
-): Promise<void> {
-	await tx.mutationReceipt.create({
-		data: {
-			actorId: input.actorId,
-			actorType: MUTATION_ACTOR.user,
-			commandKey: input.commandKey,
-			committedRevision: input.revision,
-			id: crypto.randomUUID(),
-			origin: HUMAN_ORIGIN,
-			payloadFingerprint: input.fingerprint,
-			resultValue: JSON.stringify(input.view),
-			targetId: input.targetId,
-		},
-	});
+	row: HandoffRow,
+	workKeyValue: string
+): Promise<ExternalExecutionHandoffView | null> {
+	const goingPackages = await loadGoingPackages(tx, row.id);
+	return toView({ ...row, goingPackages }, workKeyValue);
 }
 
 function sanitizeSelectedVersions(
@@ -787,6 +937,11 @@ function toView(
 	if (!(selectedVersions && permittedGithubContext)) {
 		return null;
 	}
+	const goingPackageVersions = packageViews(row);
+	const latest = goingPackageVersions.at(-1);
+	if (!latest) {
+		return null;
+	}
 	const returnRecord = isAbsentJson(row.returnRecord)
 		? null
 		: parseReturnRecord(row.returnRecord);
@@ -816,13 +971,8 @@ function toView(
 		},
 		executorVisibleName: row.executorVisibleName,
 		expectedOutput: row.expectedOutput,
-		goingPackage: {
-			liveSync: false,
-			markdown: row.goingPackageMarkdown,
-			producedAt: row.goingPackageProducedAt.toISOString(),
-			publishArtifact: false,
-			repositoryCopy: false,
-		},
+		goingPackage: latest,
+		goingPackageVersions,
 		id: row.id,
 		identity: {
 			independentLifecycle: false,
@@ -850,12 +1000,65 @@ function toView(
 	};
 }
 
-function isHandoffStatus(value: string): value is HandoffStatus {
-	return (HANDOFF_STATUSES as readonly string[]).includes(value);
+function packageViews(
+	row: HandoffRow
+): ExternalExecutionHandoffView["goingPackageVersions"] {
+	const stored = row.goingPackages ?? [];
+	if (stored.length === 0) {
+		return [
+			{
+				liveSync: false,
+				markdown: row.goingPackageMarkdown,
+				producedAt: row.goingPackageProducedAt.toISOString(),
+				publishArtifact: false,
+				repositoryCopy: false,
+				version: 1,
+			},
+		];
+	}
+	return stored.map((pack) => ({
+		liveSync: false,
+		markdown: pack.markdown,
+		producedAt: pack.producedAt.toISOString(),
+		publishArtifact: false,
+		repositoryCopy: false,
+		version: pack.version,
+	}));
 }
 
-function isAbsentJson(value: Prisma.JsonValue | null | undefined): boolean {
-	return value === null || value === undefined;
+function toHistoryEntry(row: {
+	actorId: string;
+	actorType: string;
+	handoffId: string;
+	id: string;
+	kind: string;
+	occurredAt: Date;
+	packageVersion: number | null;
+	workId: string;
+}): HandoffHistoryEntry | null {
+	if (
+		row.kind !== HANDOFF_HISTORY_KIND.started &&
+		row.kind !== HANDOFF_HISTORY_KIND.packageExported
+	) {
+		return null;
+	}
+	if (row.actorType !== MUTATION_ACTOR.user) {
+		return null;
+	}
+	return {
+		actorId: row.actorId,
+		actorType: MUTATION_ACTOR.user,
+		copy: {
+			goingPackage: EXTERNAL_HANDOFFS_COPY.goingPackage,
+			startHandoff: EXTERNAL_HANDOFFS_COPY.startHandoff,
+		},
+		handoffId: row.handoffId,
+		id: row.id,
+		kind: row.kind,
+		occurredAt: row.occurredAt.toISOString(),
+		packageVersion: row.packageVersion,
+		workId: row.workId,
+	};
 }
 
 function parseSelectedVersions(
@@ -868,6 +1071,14 @@ function parseSelectedVersions(
 function parseGithubContext(value: Prisma.JsonValue): GithubContext[] | null {
 	const parsed = z.array(githubContextSchema).safeParse(value);
 	return parsed.success ? parsed.data : null;
+}
+
+function isHandoffStatus(value: string): value is HandoffStatus {
+	return (HANDOFF_STATUSES as readonly string[]).includes(value);
+}
+
+function isAbsentJson(value: Prisma.JsonValue | null | undefined): boolean {
+	return value === null || value === undefined;
 }
 
 function parseReturnRecord(
@@ -894,4 +1105,172 @@ function storedView(value: string): ExternalExecutionHandoffView | null {
 
 function commandKeyFor(actorId: string, idempotencyKey: string): string {
 	return `human:${actorId}:${idempotencyKey}`;
+}
+
+function normalizeGithubContext(
+	items: GithubContext[] | undefined
+): GithubContext[] {
+	return (items ?? [])
+		.map((item) => item.identifier.trim())
+		.filter((identifier) => identifier.length > 0)
+		.map((identifier) => ({ identifier }));
+}
+
+async function replayReceipt(
+	tx: PrismaTransaction,
+	commandKey: string,
+	fingerprint: string
+): Promise<StartHandoffOutcome | null> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (!existing) {
+		return null;
+	}
+	if (existing.payloadFingerprint !== fingerprint) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const replayed = storedView(existing.resultValue);
+	if (!replayed) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	return { handoff: replayed, status: "replayed" };
+}
+
+function prismaDelegates(prisma: PrismaClient | PrismaTransaction): {
+	externalExecutionGoingPackage?: { create: unknown; findMany: unknown };
+	externalExecutionHandoffEvent?: { create: unknown; findMany: unknown };
+} {
+	return prisma as {
+		externalExecutionGoingPackage?: { create: unknown; findMany: unknown };
+		externalExecutionHandoffEvent?: { create: unknown; findMany: unknown };
+	};
+}
+
+function hasGoingPackageDelegate(
+	prisma: PrismaClient | PrismaTransaction
+): boolean {
+	const { externalExecutionGoingPackage } = prismaDelegates(prisma);
+	return typeof externalExecutionGoingPackage?.findMany === "function";
+}
+
+function hasHandoffEventDelegate(
+	prisma: PrismaClient | PrismaTransaction
+): boolean {
+	const { externalExecutionHandoffEvent } = prismaDelegates(prisma);
+	return typeof externalExecutionHandoffEvent?.findMany === "function";
+}
+
+async function loadGoingPackages(
+	prisma: PrismaClient | PrismaTransaction,
+	handoffId: string
+): Promise<PackageRow[]> {
+	if (!hasGoingPackageDelegate(prisma)) {
+		return [];
+	}
+	return await prisma.externalExecutionGoingPackage.findMany({
+		orderBy: { version: "asc" },
+		where: { handoffId },
+	});
+}
+
+async function loadGoingPackagesByHandoff(
+	prisma: PrismaClient | PrismaTransaction,
+	handoffIds: string[]
+): Promise<Map<string, PackageRow[]>> {
+	const grouped = new Map<string, PackageRow[]>();
+	if (handoffIds.length === 0 || !hasGoingPackageDelegate(prisma)) {
+		return grouped;
+	}
+	const rows = await prisma.externalExecutionGoingPackage.findMany({
+		orderBy: { version: "asc" },
+		where: { handoffId: { in: handoffIds } },
+	});
+	for (const row of rows) {
+		const current = grouped.get(row.handoffId) ?? [];
+		current.push(row);
+		grouped.set(row.handoffId, current);
+	}
+	return grouped;
+}
+
+async function persistPackageVersion(
+	tx: PrismaTransaction,
+	input: {
+		handoffId: string;
+		markdown: string;
+		permittedGithubContext: GithubContext[];
+		producedAt: Date;
+		selectedVersions: SelectedVersion[];
+		version: number;
+	}
+): Promise<void> {
+	if (!hasGoingPackageDelegate(tx)) {
+		return;
+	}
+	await tx.externalExecutionGoingPackage.create({
+		data: {
+			handoffId: input.handoffId,
+			id: crypto.randomUUID(),
+			markdown: input.markdown,
+			permittedGithubContext: input.permittedGithubContext,
+			producedAt: input.producedAt,
+			selectedVersionManifest: input.selectedVersions,
+			version: input.version,
+		},
+	});
+}
+
+async function persistHistoryEvent(
+	tx: PrismaTransaction,
+	input: {
+		actorId: string;
+		handoffId: string;
+		kind: (typeof HANDOFF_HISTORY_KIND)[keyof typeof HANDOFF_HISTORY_KIND];
+		occurredAt: Date;
+		packageVersion: number | null;
+		workId: string;
+	}
+): Promise<void> {
+	if (!hasHandoffEventDelegate(tx)) {
+		return;
+	}
+	await tx.externalExecutionHandoffEvent.create({
+		data: {
+			actorId: input.actorId,
+			actorType: MUTATION_ACTOR.user,
+			handoffId: input.handoffId,
+			id: crypto.randomUUID(),
+			kind: input.kind,
+			occurredAt: input.occurredAt,
+			packageVersion: input.packageVersion,
+			workId: input.workId,
+		},
+	});
+}
+
+async function writeReceipt(
+	tx: PrismaTransaction,
+	input: {
+		actorId: string;
+		commandKey: string;
+		committedRevision: number;
+		fingerprint: string;
+		targetId: string;
+		view: ExternalExecutionHandoffView;
+	}
+): Promise<void> {
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: input.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey: input.commandKey,
+			committedRevision: input.committedRevision,
+			id: crypto.randomUUID(),
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: input.fingerprint,
+			resultValue: JSON.stringify(input.view),
+			targetId: input.targetId,
+		},
+	});
 }

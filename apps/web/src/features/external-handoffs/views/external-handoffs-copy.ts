@@ -20,8 +20,10 @@ export const EXTERNAL_HANDOFFS_COPY = {
 	handoff: "Handoff",
 	includeThisWork: "Include this Work",
 	kind: "Kind",
+	newPackageVersion: "New package version",
 	open: "Open",
 	openQuestions: "Open questions",
+	packageVersion: "Package version",
 	permittedExternalLinks: "Permitted external links",
 	producedAt: "Produced at",
 	producedEvidence: "Produced evidence",
@@ -78,6 +80,13 @@ export function presentHandoffCard(handoff: {
 				? EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff
 				: purpose,
 	};
+}
+
+export function presentHandoffHistoryKind(kind: string): string {
+	if (kind === "started") {
+		return EXTERNAL_HANDOFFS_COPY.startHandoff;
+	}
+	return EXTERNAL_HANDOFFS_COPY.goingPackage;
 }
 
 export const SELECTED_VERSION_KINDS = [

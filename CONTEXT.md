@@ -283,7 +283,7 @@ Filtrelenen İşleri alanlarıyla yoğun ve taranabilir düzende sunan aynı İ�
 _Avoid_: Tablo Görünümü, ikinci kayıt sistemi, Backlog
 
 **Toplu Düzenleme**:
-Açıkça seçilmiş İşlerde mevcut alanların fark önizlemesiyle güncellenmesi; örtük seçim, şema göçü veya içe aktarma değildir ([Toplu düzenleme](docs/prd/06-work-management-and-planning.md#toplu-düzenleme)). UI: `Bulk Edit`.
+Açıkça seçilmiş İşlerde mevcut alanların fark önizlemesiyle güncellenmesi; örtük seçim, şema göçü veya içe aktarma değildir ([Toplu düzenleme](docs/prd/06-work-management-and-planning.md#toplu-düzenleme)). UI: `Bulk Edit`. Uygulama: `Apply`. İlerleme: `Progress`. Kayıt sonucu: `Succeeded`, `Failed`.
 _Avoid_: select-all-unspecified, schema migration, import, record-action catalog, silent partial
 
 **Kapsam Ağacı**:
@@ -697,6 +697,10 @@ _Avoid_: Coding session, ajan görevi, bağımsız Handoff ana kaydı
 Bir Dış yürütme devrinde yalnız kullanıcının seçtiği kesin sürüm manifestinden üretilen tarihli okunabilir Markdown kopyası; canlı senkron, repository kopyası veya yayın artefaktı değildir.
 _Avoid_: canlı senkron, repository kopyası, yayın artefaktı, Test Handoff paketi
 
+**Gidiş paketi sürümü**:
+Aynı Dış yürütme devrinde üretilen tarihli gidiş paketi kopyası; gönderilmiş önceki kopyanın baytlarını değiştirmez.
+_Avoid_: canlı senkron paket, Test Handoff paket sürümü
+
 **Seçilen sürüm**:
 Gidiş paketine alınan kesin İş, Belge, Karar, Risk, Açık Soru veya Kaynak sürümü; seçilmeyen ilişki veya erişilemeyen alan pakete girmez.
 _Avoid_: canlı ilişkileri yürüyen kopya, bütün grafiği paketleme
@@ -721,8 +725,8 @@ Kullanıcının açık kapatma kararıyla bir İşin kalıcı kapanış sonucunu
 _Avoid_: Her terminal olay, otomatik kapanış, kapatma girişimi, iyimser tamamlanma
 
 **Bitiriş efekti**:
-Kullanıcı başlatmalı İş başarısını duygusal olarak hissedilir kılan, isteğe bağlı ve [ürünün kendi özgün kataloğuyla sınırlı](docs/adr/0017-bitiris-efektlerini-ozgun-birinci-taraf-katalogla-sinirla.md) dekoratif geri bildirim; başarının kalıcı durumunu veya temel geri bildirimini taşımaz.
-_Avoid_: Konfeti, başarı durumu, lisanslı karakter efekti, kullanıcı yüklemeli efekt
+Kullanıcı başlatmalı İş başarısını duygusal olarak hissedilir kılan, isteğe bağlı ve [ürünün kendi özgün kataloğuyla sınırlı](docs/adr/0017-bitiris-efektlerini-ozgun-birinci-taraf-katalogla-sinirla.md) dekoratif geri bildirim; başarının kalıcı durumunu veya temel geri bildirimini taşımaz. Hesap düzeyinde etkinleştirilir; kapalı katalog `Calm`, `Weave`, `Arc`, `Nova` temaları ve her temanın tam dört paletinden oluşur. Appearance, ürün teması, tasarım tokenı veya Moodboard paleti değildir.
+_Avoid_: Konfeti, başarı durumu, lisanslı karakter efekti, kullanıcı yüklemeli efekt, tema sistemi, Moodboard paleti
 
 **Değer Zinciri**:
 Bir Proje Hedefinden problem ve kanıt üzerinden gözlenen sonuca kadar mevcut kesin kayıt ve ilişkileri gösteren [türetilmiş Proje görünümü](docs/prd/04-workspace-and-projects.md#değer-zinciri); ana kayıt, ilişki, özet metni veya sağlık hükmü üretmez.

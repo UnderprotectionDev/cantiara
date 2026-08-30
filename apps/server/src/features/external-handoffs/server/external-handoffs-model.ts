@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { HUMAN_ORIGIN } from "../../mutation-core/server/mutation-shared";
+import {
+	HUMAN_ORIGIN,
+	MUTATION_ACTOR,
+} from "../../mutation-core/server/mutation-shared";
 
 export const EXTERNAL_HANDOFFS_COPY = {
 	changedAssumptions: "Changed assumptions",
@@ -12,9 +15,12 @@ export const EXTERNAL_HANDOFFS_COPY = {
 	externalExecutionHandoff: "External Execution Handoff",
 	followUpWork: "Follow-up Work",
 	github: "GitHub",
+	goingPackage: "Going package",
 	handoff: "Handoff",
+	newPackageVersion: "New package version",
 	open: "Open",
 	openQuestions: "Open questions",
+	packageVersion: "Package version",
 	permittedExternalLinks: "Permitted external links",
 	producedAt: "Produced at",
 	producedEvidence: "Produced evidence",
@@ -43,6 +49,11 @@ export const HANDOFF_STATUSES = [
 ] as const;
 
 export type HandoffStatus = (typeof HANDOFF_STATUSES)[number];
+
+export const HANDOFF_HISTORY_KIND = {
+	packageExported: "package-exported",
+	started: "started",
+} as const;
 
 export const SELECTED_VERSION_KINDS = [
 	"Work",
@@ -199,12 +210,35 @@ export type RejectReconcileCommand = z.infer<
 	typeof rejectReconcileCommandSchema
 >;
 
+export const produceGoingPackagePayloadSchema = z.object({
+	handoffId: z.string().min(1),
+	permittedGithubContext: z.array(githubContextSchema).optional(),
+	selectedVersions: z.array(selectedVersionSchema),
+	workId: z.string().min(1),
+});
+
+export type ProduceGoingPackagePayload = z.infer<
+	typeof produceGoingPackagePayloadSchema
+>;
+
+export const produceGoingPackageCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal(HUMAN_ORIGIN),
+	payload: produceGoingPackagePayloadSchema,
+});
+
+export type ProduceGoingPackageCommand = z.infer<
+	typeof produceGoingPackageCommandSchema
+>;
+
 export const goingPackageSchema = z.object({
 	liveSync: z.literal(false),
 	markdown: z.string(),
 	producedAt: z.string(),
 	publishArtifact: z.literal(false),
 	repositoryCopy: z.literal(false),
+	version: z.number().int().positive(),
 });
 
 export type GoingPackage = z.infer<typeof goingPackageSchema>;
@@ -248,6 +282,7 @@ export const externalExecutionHandoffViewSchema = z.object({
 	executorVisibleName: z.string(),
 	expectedOutput: z.string(),
 	goingPackage: goingPackageSchema,
+	goingPackageVersions: z.array(goingPackageSchema),
 	id: z.string().min(1),
 	identity: handoffIdentitySchema,
 	permittedGithubContext: z.array(githubContextSchema),
@@ -298,3 +333,27 @@ export type RejectReconcileOutcome = HandoffWriteOutcome;
 export type PreviewReconcileOutcome =
 	| { preview: ReconcilePreview; status: "ok" }
 	| { reason: string; status: "rejected" };
+
+export type ProduceGoingPackageOutcome = StartHandoffOutcome;
+
+export const handoffHistoryCopySchema = z.object({
+	goingPackage: z.literal(EXTERNAL_HANDOFFS_COPY.goingPackage),
+	startHandoff: z.literal(EXTERNAL_HANDOFFS_COPY.startHandoff),
+});
+
+export const handoffHistoryEntrySchema = z.object({
+	actorId: z.string().min(1),
+	actorType: z.literal(MUTATION_ACTOR.user),
+	copy: handoffHistoryCopySchema,
+	handoffId: z.string().min(1),
+	id: z.string().min(1),
+	kind: z.enum([
+		HANDOFF_HISTORY_KIND.packageExported,
+		HANDOFF_HISTORY_KIND.started,
+	]),
+	occurredAt: z.string(),
+	packageVersion: z.number().int().positive().nullable(),
+	workId: z.string().min(1),
+});
+
+export type HandoffHistoryEntry = z.infer<typeof handoffHistoryEntrySchema>;

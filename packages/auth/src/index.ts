@@ -53,6 +53,37 @@ export type {
 } from "./account-sessions";
 export { createPrismaAuditLog } from "./audit-log";
 export {
+	COMPLETION_EFFECT_PALETTE_COPY,
+	COMPLETION_EFFECT_THEME_COPY,
+	COMPLETION_EFFECTS_COPY,
+	completionEffectsChrome,
+} from "./completion-effects-copy";
+export {
+	COMPLETION_EFFECT_PALETTES,
+	COMPLETION_EFFECT_THEMES,
+	type CompletionEffectPreference,
+	type CompletionEffectPreferenceInput,
+	type CompletionEffectsClientSession,
+	type CompletionEffectTheme,
+	catalogBrowseMotion,
+	completionEffectPreferenceInputSchema,
+	completionEffectThemeSchema,
+	defaultCompletionEffectPreference,
+	idleCompletionEffectsClientSession,
+	isCatalogSelection,
+	PALETTE_SWATCHES,
+	PREVIEW_MOTION_MS,
+	paletteSwatches,
+	palettesForTheme,
+	previewMotion,
+	startPreview,
+	themeForPaletteChange,
+} from "./completion-effects-model";
+export {
+	getCompletionEffectPreference,
+	saveCompletionEffectPreference,
+} from "./completion-effects-persist";
+export {
 	CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH,
 	CONFIRM_GITHUB_IDENTITY_GRANT_SECONDS,
 	CONFIRM_GITHUB_IDENTITY_OPERATION_IDS,
