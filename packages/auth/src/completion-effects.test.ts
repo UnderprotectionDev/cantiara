@@ -130,6 +130,26 @@ describe("Completion Effects", () => {
 		expect("eventId" in saved).toBe(false);
 	});
 
+	it("reads and writes Hesap preference when bun --hot kept a Prisma client without the Completion effect preference delegate", async () => {
+		const hotPrisma = new Proxy(prisma, {
+			get(target, prop, receiver) {
+				if (prop === "completionEffectPreference") {
+					return;
+				}
+				return Reflect.get(target, prop, receiver);
+			},
+		}) as PrismaClient;
+		expect(hotPrisma.completionEffectPreference).toBeUndefined();
+		const saved = await saveCompletionEffectPreference(hotPrisma, accountId, {
+			enabled: true,
+			palette: "Moss",
+			theme: "Calm",
+		});
+		await expect(
+			getCompletionEffectPreference(hotPrisma, accountId)
+		).resolves.toEqual(saved);
+	});
+
 	it("keeps a closed catalog of four themes with exactly four palettes each", () => {
 		expect(COMPLETION_EFFECT_THEMES).toEqual(["Calm", "Weave", "Arc", "Nova"]);
 		const expected = catalogLiterals();

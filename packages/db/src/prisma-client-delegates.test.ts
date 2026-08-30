@@ -127,7 +127,7 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
-	it("refuses a bun --hot client generated before Completion effect preference", () => {
+	it("accepts a bun --hot client generated before Completion effect preference", () => {
 		const { completionEffectPreference: _dropped, ...beforePreference } = {
 			...workDelegates(),
 			...currentLifecycleDelegates(),
@@ -150,7 +150,7 @@ describe("Prisma client current delegates", () => {
 			prismaClientHasCurrentDelegates(
 				beforePreference as unknown as PrismaClient
 			)
-		).toBe(false);
+		).toBe(true);
 	});
 
 	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Templates, Work Drafts, File Attachments, and Tags", () => {
