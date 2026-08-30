@@ -57,11 +57,21 @@ export default function WorkExternalHandoffsPanel({
 	const [includeThisWork, setIncludeThisWork] = useState(true);
 	const [extraVersions, setExtraVersions] = useState<ExtraVersion[]>([]);
 	const [error, setError] = useState<string | null>(null);
+	const [cancelReasons, setCancelReasons] = useState<Record<string, string>>(
+		{}
+	);
 	const listed = useQuery(
 		orpc.externalHandoffs.list.queryOptions({
 			input: { workId },
 		})
 	);
+	const invalidateList = useCallback(async () => {
+		await queryClient.invalidateQueries({
+			queryKey: orpc.externalHandoffs.list.queryKey({
+				input: { workId },
+			}),
+		});
+	}, [workId]);
 	const clearStartForm = useCallback(() => {
 		setPurpose("");
 		setExpectedOutput("");
@@ -75,11 +85,7 @@ export default function WorkExternalHandoffsPanel({
 		orpc.externalHandoffs.start.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await queryClient.invalidateQueries({
-						queryKey: orpc.externalHandoffs.list.queryKey({
-							input: { workId },
-						}),
-					});
+					await invalidateList();
 					recordSave();
 					setError(null);
 					clearStartForm();
@@ -88,6 +94,41 @@ export default function WorkExternalHandoffsPanel({
 				setError(MUTATION_COPY.conflict);
 			},
 		})
+	);
+	const cancel = useMutation(
+		orpc.externalHandoffs.cancel.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidateList();
+					recordSave();
+					setError(null);
+					return;
+				}
+				setError(MUTATION_COPY.conflict);
+			},
+		})
+	);
+	const onCancelReason = useCallback((handoffId: string, value: string) => {
+		setCancelReasons((current) => ({ ...current, [handoffId]: value }));
+	}, []);
+	const onCancelHandoff = useCallback(
+		(handoffId: string) => {
+			markUnsaved();
+			const result = attemptOnlineWork("record-create", () =>
+				cancel.mutateAsync({
+					idempotencyKey: newIdempotencyKey(),
+					payload: {
+						handoffId,
+						reason: cancelReasons[handoffId] ?? "",
+					},
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[attemptOnlineWork, cancel, cancelReasons, markUnsaved]
 	);
 	const onPurpose = useCallback((value: string) => {
 		setPurpose(value);
@@ -249,6 +290,20 @@ export default function WorkExternalHandoffsPanel({
 										{handoff.goingPackage.markdown}
 									</pre>
 								</details>
+								{handoff.cancelReason ? (
+									<p className="text-muted-foreground text-xs">
+										{EXTERNAL_HANDOFFS_COPY.reason}: {handoff.cancelReason}
+									</p>
+								) : null}
+								{handoff.terminal ? null : (
+									<CancelHandoffFields
+										disabled={cancel.isPending}
+										handoffId={handoff.id}
+										onCancel={onCancelHandoff}
+										onReasonChange={onCancelReason}
+										reason={cancelReasons[handoff.id] ?? ""}
+									/>
+								)}
 							</li>
 						);
 					})}
@@ -338,6 +393,49 @@ export default function WorkExternalHandoffsPanel({
 				{error ? <p role="alert">{error}</p> : null}
 			</form>
 		</section>
+	);
+}
+
+function CancelHandoffFields({
+	disabled,
+	handoffId,
+	onCancel,
+	onReasonChange,
+	reason,
+}: {
+	disabled: boolean;
+	handoffId: string;
+	onCancel: (handoffId: string) => void;
+	onReasonChange: (handoffId: string, value: string) => void;
+	reason: string;
+}) {
+	const onReason = useCallback(
+		(value: string) => {
+			onReasonChange(handoffId, value);
+		},
+		[handoffId, onReasonChange]
+	);
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			onCancel(handoffId);
+		},
+		[handoffId, onCancel]
+	);
+	return (
+		<form className="flex flex-col gap-2" onSubmit={onSubmit}>
+			<TextField
+				id={`handoff-cancel-reason-${handoffId}`}
+				label={EXTERNAL_HANDOFFS_COPY.reason}
+				multiline
+				onValueChange={onReason}
+				rows={2}
+				value={reason}
+			/>
+			<Button disabled={disabled} size="sm" type="submit" variant="outline">
+				{EXTERNAL_HANDOFFS_COPY.cancelHandoff}
+			</Button>
+		</form>
 	);
 }
 

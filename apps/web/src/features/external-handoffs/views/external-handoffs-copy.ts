@@ -1,6 +1,8 @@
 export const EXTERNAL_HANDOFFS_COPY = {
 	addSelectedVersion: "Add selected version",
 	body: "Body",
+	canceled: "Canceled",
+	cancelHandoff: "Cancel Handoff",
 	constraints: "Constraints",
 	executor: "Executor",
 	expectedOutput: "Expected output",
@@ -13,6 +15,7 @@ export const EXTERNAL_HANDOFFS_COPY = {
 	open: "Open",
 	producedAt: "Produced at",
 	purpose: "Purpose",
+	reason: "Reason",
 	recordId: "Record",
 	removeSelectedVersion: "Remove selected version",
 	selectedVersions: "Selected versions",

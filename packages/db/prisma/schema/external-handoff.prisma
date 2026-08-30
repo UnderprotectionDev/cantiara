@@ -11,6 +11,7 @@ model ExternalExecutionHandoff {
   permittedGithubContext  Json
   goingPackageMarkdown    String
   goingPackageProducedAt  DateTime
+  cancelReason            String?
   revision                Int
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt

@@ -13,12 +13,21 @@ import { appRouter } from "../../../routes";
 import { TEST_SOURCE_DETAIL } from "../../project-overview/server/project-overview";
 import { createProject } from "../../project-shell/server/project-shell";
 import {
+	closeWork,
 	createWork,
 	listWork,
 	relateWork,
 } from "../../work-lifecycle/server/work-lifecycle";
-import { listHandoffsForWork, startHandoff } from "./external-handoffs";
-import { EXTERNAL_HANDOFFS_COPY } from "./external-handoffs-model";
+import {
+	applyNonClosingHandoffEvent,
+	cancelHandoff,
+	listHandoffsForWork,
+	startHandoff,
+} from "./external-handoffs";
+import {
+	EXTERNAL_HANDOFFS_COPY,
+	handoffStatusCatalog,
+} from "./external-handoffs-model";
 
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
@@ -100,6 +109,38 @@ async function createNamedWork(
 	return created.work;
 }
 
+async function startCheckoutHandoff(
+	prisma: PrismaClient,
+	actorId: string,
+	work: { id: string; revision: number; title: string },
+	idempotencyKey: string
+) {
+	const started = await startHandoff(prisma, {
+		actorId,
+		idempotencyKey,
+		origin: "human",
+		payload: {
+			constraints: "Do not change payment capture.",
+			executorVisibleName: "Cursor",
+			expectedOutput: "A dated going package for the checkout Work.",
+			purpose: "Code the checkout path outside Cantiara.",
+			selectedVersions: [
+				{
+					kind: "Work",
+					recordId: work.id,
+					title: work.title,
+					versionId: String(work.revision),
+				},
+			],
+			workId: work.id,
+		},
+	});
+	if (started.status !== "committed") {
+		throw new Error("expected committed handoff");
+	}
+	return started.handoff;
+}
+
 describe("External Execution Handoff", () => {
 	let prisma: PrismaClient;
 	let pool: Pool;
@@ -121,6 +162,8 @@ describe("External Execution Handoff", () => {
 
 	it("uses English External Execution Handoff, Start Handoff, Open, and Source of truth is in the app", () => {
 		expect(EXTERNAL_HANDOFFS_COPY).toEqual({
+			canceled: "Canceled",
+			cancelHandoff: "Cancel Handoff",
 			constraints: "Constraints",
 			executor: "Executor",
 			expectedOutput: "Expected output",
@@ -130,6 +173,9 @@ describe("External Execution Handoff", () => {
 			open: "Open",
 			producedAt: "Produced at",
 			purpose: "Purpose",
+			reason: "Reason",
+			reconciled: "Reconciled",
+			resultReturned: "Result returned",
 			selectedVersions: "Selected versions",
 			sourceOfTruth: "Source of truth is in the app",
 			startHandoff: "Start Handoff",
@@ -137,6 +183,12 @@ describe("External Execution Handoff", () => {
 		expect(JSON.stringify(EXTERNAL_HANDOFFS_COPY)).not.toMatch(
 			FORBIDDEN_PRODUCT
 		);
+		expect(handoffStatusCatalog()).toEqual([
+			{ status: "Open", terminal: false },
+			{ status: "Result returned", terminal: false },
+			{ status: "Reconciled", terminal: true },
+			{ status: "Canceled", terminal: true },
+		]);
 	});
 
 	it("starts an Open Work-owned handoff and does not mint an independent main record", async () => {
@@ -191,20 +243,36 @@ describe("External Execution Handoff", () => {
 			shareableApartFromWork: false,
 		});
 		expect(started.handoff.copy).toEqual({
+			canceled: "Canceled",
+			cancelHandoff: "Cancel Handoff",
 			externalExecutionHandoff: "External Execution Handoff",
 			open: "Open",
+			reconciled: "Reconciled",
+			resultReturned: "Result returned",
 			sourceOfTruth: "Source of truth is in the app",
 			startHandoff: "Start Handoff",
 		});
+		expect(started.handoff.terminal).toBe(false);
+		expect(started.handoff.cancelReason).toBeNull();
 		const listed = await listHandoffsForWork(prisma, work.id);
 		expect(listed.map((item) => item.id)).toEqual([started.handoff.id]);
 		expect(JSON.stringify(started.handoff)).not.toMatch(FORBIDDEN_PRODUCT);
 		const worksAfter = await listWork(prisma, project.id);
 		expect(worksAfter.map((item) => item.id)).toEqual([work.id]);
 		expect(Object.keys(appRouter.externalHandoffs).sort()).toEqual([
+			"cancel",
 			"list",
 			"start",
 		]);
+		expect(Object.keys(appRouter.externalHandoffs)).not.toContain(
+			"assignToExternalHuman"
+		);
+		expect(Object.keys(appRouter.externalHandoffs)).not.toContain(
+			"recordTestSession"
+		);
+		expect(Object.keys(appRouter.externalHandoffs)).not.toContain(
+			"recordProductGapEscape"
+		);
 		expect(TEST_SOURCE_DETAIL.handoff).toBe("Test Handoff");
 		expect(TEST_SOURCE_DETAIL.handoff).not.toBe(
 			EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff
@@ -399,5 +467,188 @@ describe("External Execution Handoff", () => {
 		});
 		expect(JSON.stringify(started.handoff)).not.toMatch(RUNNER_PATTERN);
 		expect(JSON.stringify(started.handoff)).not.toMatch(LIVE_SYNC_PATTERN);
+	});
+
+	it("cancels with a reason, keeps history, and starts a new handoff instead of reopening", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-checkout"
+		);
+		const openHandoff = await startCheckoutHandoff(
+			prisma,
+			actorId,
+			work,
+			"start-handoff"
+		);
+		const goingMarkdown = openHandoff.goingPackage.markdown;
+		expect(
+			await cancelHandoff(prisma, {
+				actorId,
+				idempotencyKey: "cancel-empty",
+				origin: "human",
+				payload: { handoffId: openHandoff.id, reason: "   " },
+			})
+		).toEqual({ reason: "invalid-command", status: "rejected" });
+		expect(await listHandoffsForWork(prisma, work.id)).toEqual([openHandoff]);
+		const canceled = await cancelHandoff(prisma, {
+			actorId,
+			idempotencyKey: "cancel-handoff",
+			origin: "human",
+			payload: {
+				handoffId: openHandoff.id,
+				reason: "Executor path is no longer needed.",
+			},
+		});
+		expect(canceled.status).toBe("committed");
+		if (canceled.status !== "committed") {
+			return;
+		}
+		expect(canceled.handoff.id).toBe(openHandoff.id);
+		expect(canceled.handoff.status).toBe("Canceled");
+		expect(canceled.handoff.terminal).toBe(true);
+		expect(canceled.handoff.cancelReason).toBe(
+			"Executor path is no longer needed."
+		);
+		expect(canceled.handoff.goingPackage.markdown).toBe(goingMarkdown);
+		expect(canceled.handoff.separations).toEqual({
+			externalHumanAssignment: false,
+			officialTestHistory: false,
+			productGapEscape: false,
+			publishArtifact: false,
+			testHandoffPackage: false,
+			testSession: false,
+		});
+		const listedCanceled = await listHandoffsForWork(prisma, work.id);
+		expect(listedCanceled.map((item) => item.id)).toEqual([openHandoff.id]);
+		expect(listedCanceled[0]?.status).toBe("Canceled");
+		expect(listedCanceled[0]?.goingPackage.markdown).toBe(goingMarkdown);
+		const restarted = await startCheckoutHandoff(
+			prisma,
+			actorId,
+			work,
+			"start-after-cancel"
+		);
+		expect(restarted.id).not.toBe(openHandoff.id);
+		expect(restarted.status).toBe("Open");
+		expect(restarted.terminal).toBe(false);
+		const listed = await listHandoffsForWork(prisma, work.id);
+		expect(listed.map((item) => item.id)).toEqual([
+			openHandoff.id,
+			restarted.id,
+		]);
+		expect(listed.map((item) => item.status)).toEqual(["Canceled", "Open"]);
+		const replayed = await cancelHandoff(prisma, {
+			actorId,
+			idempotencyKey: "cancel-handoff",
+			origin: "human",
+			payload: {
+				handoffId: openHandoff.id,
+				reason: "Executor path is no longer needed.",
+			},
+		});
+		expect(replayed.status).toBe("replayed");
+		if (replayed.status !== "replayed") {
+			return;
+		}
+		expect(replayed.handoff.status).toBe("Canceled");
+		expect(
+			await cancelHandoff(prisma, {
+				actorId,
+				idempotencyKey: "cancel-again",
+				origin: "human",
+				payload: {
+					handoffId: openHandoff.id,
+					reason: "Trying to reopen by canceling again.",
+				},
+			})
+		).toEqual({ reason: "already-terminal", status: "rejected" });
+		expect(
+			(await listHandoffsForWork(prisma, work.id)).find(
+				(item) => item.id === openHandoff.id
+			)?.status
+		).toBe("Canceled");
+	});
+
+	it("does not terminal on commit, PR, result-arrived, or Work Closed", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-checkout"
+		);
+		const openHandoff = await startCheckoutHandoff(
+			prisma,
+			actorId,
+			work,
+			"start-handoff"
+		);
+		const commitBound = await applyNonClosingHandoffEvent(prisma, {
+			event: "github-commit-bound",
+			handoffId: openHandoff.id,
+			identifier: "underprotection/cantiara#160",
+		});
+		const prBound = await applyNonClosingHandoffEvent(prisma, {
+			event: "github-pull-request-bound",
+			handoffId: openHandoff.id,
+			identifier: "underprotection/cantiara#160",
+		});
+		const resultArrived = await applyNonClosingHandoffEvent(prisma, {
+			event: "external-result-arrived",
+			handoffId: openHandoff.id,
+			identifier: "underprotection/cantiara#160",
+		});
+		expect(commitBound).toMatchObject({
+			reason: "not-a-terminal-event",
+			status: "ignored",
+		});
+		expect(prBound).toMatchObject({
+			reason: "not-a-terminal-event",
+			status: "ignored",
+		});
+		expect(resultArrived).toMatchObject({
+			reason: "not-a-terminal-event",
+			status: "ignored",
+		});
+		if (
+			commitBound.status !== "ignored" ||
+			prBound.status !== "ignored" ||
+			resultArrived.status !== "ignored"
+		) {
+			return;
+		}
+		expect(commitBound.handoff.status).toBe("Open");
+		expect(prBound.handoff.status).toBe("Open");
+		expect(resultArrived.handoff.status).toBe("Open");
+		expect(commitBound.handoff.terminal).toBe(false);
+		expect(commitBound.handoff.id).toBe(openHandoff.id);
+		const closed = await closeWork(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: "close-checkout",
+			origin: "human",
+			reason: "Shipped checkout",
+			result: "Completed",
+			workId: work.id,
+		});
+		expect(closed).toMatchObject({
+			status: "committed",
+			work: { status: "Closed" },
+		});
+		const afterClose = await listHandoffsForWork(prisma, work.id);
+		expect(afterClose).toHaveLength(1);
+		expect(afterClose[0]?.id).toBe(openHandoff.id);
+		expect(afterClose[0]?.status).toBe("Open");
+		expect(afterClose[0]?.terminal).toBe(false);
+		expect(afterClose[0]?.separations.testHandoffPackage).toBe(false);
+		expect(afterClose[0]?.separations.testSession).toBe(false);
+		expect(afterClose[0]?.separations.productGapEscape).toBe(false);
+		expect(afterClose[0]?.separations.officialTestHistory).toBe(false);
+		expect(afterClose[0]?.goingPackage.publishArtifact).toBe(false);
 	});
 });

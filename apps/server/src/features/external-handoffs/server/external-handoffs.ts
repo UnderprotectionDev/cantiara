@@ -9,12 +9,21 @@ import {
 } from "../../mutation-core/server/mutation-shared";
 import { getWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
+	type CancelHandoffCommand,
+	type CancelHandoffOutcome,
+	cancelHandoffCommandSchema,
 	EXTERNAL_HANDOFFS_COPY,
 	type ExternalExecutionHandoffView,
 	externalExecutionHandoffViewSchema,
 	type GithubContext,
 	githubContextSchema,
+	HANDOFF_SEPARATIONS,
 	HANDOFF_STATUS,
+	type HandoffStatus,
+	isHandoffStatus,
+	isTerminalHandoffStatus,
+	type NonClosingHandoffEventOutcome,
+	nonClosingHandoffEventSchema,
 	type SelectedVersion,
 	type StartHandoffCommand,
 	type StartHandoffOutcome,
@@ -25,6 +34,7 @@ import {
 type PrismaTransaction = Prisma.TransactionClient;
 
 interface HandoffRow {
+	cancelReason: string | null;
 	constraints: string;
 	executorVisibleName: string;
 	expectedOutput: string;
@@ -33,6 +43,7 @@ interface HandoffRow {
 	id: string;
 	permittedGithubContext: Prisma.JsonValue;
 	purpose: string;
+	revision: number;
 	selectedVersionManifest: Prisma.JsonValue;
 	status: string;
 	workId: string;
@@ -54,6 +65,60 @@ export async function startHandoff(
 	return await prisma.$transaction((tx) =>
 		startInTransaction(tx, parsed.data, commandKey, fingerprint)
 	);
+}
+
+export async function cancelHandoff(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<CancelHandoffOutcome> {
+	const parsed = cancelHandoffCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const reason = parsed.data.payload.reason.trim();
+	if (reason.length === 0) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({
+		handoffId: parsed.data.payload.handoffId,
+		reason,
+	});
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		cancelInTransaction(tx, parsed.data, reason, commandKey, fingerprint)
+	);
+}
+
+export async function applyNonClosingHandoffEvent(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<NonClosingHandoffEventOutcome> {
+	const parsed = nonClosingHandoffEventSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const row = await prisma.externalExecutionHandoff.findUnique({
+		where: { id: parsed.data.handoffId },
+	});
+	if (!row) {
+		return { reason: "handoff-not-found", status: "rejected" };
+	}
+	const work = await getWork(prisma, row.workId);
+	if (!work) {
+		return { reason: "work-not-found", status: "rejected" };
+	}
+	const view = toView(row, work.key);
+	if (!view) {
+		return { reason: "invalid-handoff", status: "rejected" };
+	}
+	return {
+		handoff: view,
+		reason: "not-a-terminal-event",
+		status: "ignored",
+	};
 }
 
 export async function listHandoffsForWork(
@@ -152,6 +217,69 @@ async function startInTransaction(
 			payloadFingerprint: fingerprint,
 			resultValue: JSON.stringify(view),
 			targetId: created.id,
+		},
+	});
+	return { handoff: view, status: "committed" };
+}
+
+async function cancelInTransaction(
+	tx: PrismaTransaction,
+	command: CancelHandoffCommand,
+	reason: string,
+	commandKey: string,
+	fingerprint: string
+): Promise<CancelHandoffOutcome> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (existing) {
+		if (existing.payloadFingerprint !== fingerprint) {
+			return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		}
+		const replayed = storedView(existing.resultValue);
+		if (!replayed) {
+			return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		}
+		return { handoff: replayed, status: "replayed" };
+	}
+	const row = await tx.externalExecutionHandoff.findUnique({
+		where: { id: command.payload.handoffId },
+	});
+	if (!row) {
+		return { reason: "handoff-not-found", status: "rejected" };
+	}
+	const work = await tx.work.findUnique({
+		where: { id: row.workId },
+	});
+	if (!work || work.retiredIntoId) {
+		return { reason: "work-not-found", status: "rejected" };
+	}
+	if (isTerminalHandoffStatus(row.status)) {
+		return { reason: "already-terminal", status: "rejected" };
+	}
+	const updated = await tx.externalExecutionHandoff.update({
+		data: {
+			cancelReason: reason,
+			revision: row.revision + 1,
+			status: HANDOFF_STATUS.canceled,
+		},
+		where: { id: row.id },
+	});
+	const view = toView(updated, work.key);
+	if (!view) {
+		return { reason: "invalid-handoff", status: "rejected" };
+	}
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: command.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey,
+			committedRevision: updated.revision,
+			id: crypto.randomUUID(),
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: fingerprint,
+			resultValue: JSON.stringify(view),
+			targetId: updated.id,
 		},
 	});
 	return { handoff: view, status: "committed" };
@@ -275,7 +403,7 @@ function toView(
 	row: HandoffRow,
 	workKey: string
 ): ExternalExecutionHandoffView | null {
-	if (row.status !== HANDOFF_STATUS.open) {
+	if (!isHandoffStatus(row.status)) {
 		return null;
 	}
 	const selectedVersions = parseSelectedVersions(row.selectedVersionManifest);
@@ -283,11 +411,17 @@ function toView(
 	if (!(selectedVersions && permittedGithubContext)) {
 		return null;
 	}
+	const status: HandoffStatus = row.status;
 	return {
+		cancelReason: row.cancelReason,
 		constraints: row.constraints,
 		copy: {
+			canceled: EXTERNAL_HANDOFFS_COPY.canceled,
+			cancelHandoff: EXTERNAL_HANDOFFS_COPY.cancelHandoff,
 			externalExecutionHandoff: EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff,
 			open: EXTERNAL_HANDOFFS_COPY.open,
+			reconciled: EXTERNAL_HANDOFFS_COPY.reconciled,
+			resultReturned: EXTERNAL_HANDOFFS_COPY.resultReturned,
 			sourceOfTruth: EXTERNAL_HANDOFFS_COPY.sourceOfTruth,
 			startHandoff: EXTERNAL_HANDOFFS_COPY.startHandoff,
 		},
@@ -319,7 +453,9 @@ function toView(
 			terminal: false,
 		},
 		selectedVersions,
-		status: HANDOFF_STATUS.open,
+		separations: { ...HANDOFF_SEPARATIONS },
+		status,
+		terminal: isTerminalHandoffStatus(status),
 		workId: row.workId,
 		workKey,
 	};

@@ -10,6 +10,8 @@ const FORBIDDEN_PRODUCT =
 
 test("English UI uses External Execution Handoff and Start Handoff", () => {
 	expect(EXTERNAL_HANDOFFS_COPY).toMatchObject({
+		canceled: "Canceled",
+		cancelHandoff: "Cancel Handoff",
 		constraints: "Constraints",
 		executor: "Executor",
 		expectedOutput: "Expected output",
@@ -18,6 +20,7 @@ test("English UI uses External Execution Handoff and Start Handoff", () => {
 		goingPackage: "Going package",
 		open: "Open",
 		purpose: "Purpose",
+		reason: "Reason",
 		removeSelectedVersion: "Remove selected version",
 		selectedVersions: "Selected versions",
 		sourceOfTruth: "Source of truth is in the app",
