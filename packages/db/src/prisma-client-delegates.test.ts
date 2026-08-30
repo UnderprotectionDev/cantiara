@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import type { PrismaClient } from "../prisma/generated/client";
 import {
 	prismaClientHasCurrentDelegates,
+	prismaClientHasCurrentExternalExecutionHandoffModel,
 	prismaClientHasCurrentFileAttachmentVersionModel,
 	prismaClientHasCurrentProjectModel,
 	prismaClientHasCurrentTypedRelationModel,
@@ -185,7 +186,9 @@ describe("Prisma client current delegates", () => {
 		const { recordAction: _dropped, ...beforeActions } = {
 			...workDelegates(),
 			...currentLifecycleDelegates(),
+			externalExecutionGoingPackage: { create: () => undefined, findMany },
 			externalExecutionHandoff: { create: () => undefined, findMany },
+			externalExecutionHandoffEvent: { create: () => undefined, findMany },
 			fileAttachment: { findMany },
 			fileAttachmentOriginLocation: { findMany },
 			fileAttachmentReceipt: { findMany },
@@ -206,12 +209,64 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
-	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Templates, Work Drafts, File Attachments, Tags, Record Actions, and External Execution Handoffs", () => {
+	it("detects a bun --hot External Execution Handoff generated before going package versions", () => {
 		expect(
 			prismaClientHasCurrentDelegates({
 				...workDelegates(),
 				...currentLifecycleDelegates(),
 				externalExecutionHandoff: { create: () => undefined, findMany },
+				fileAttachment: { findMany },
+				fileAttachmentOriginLocation: { findMany },
+				fileAttachmentReceipt: { findMany },
+				fileAttachmentRelation: { findMany },
+				fileAttachmentStaging: { findMany },
+				fileAttachmentVersion: { findMany },
+				fileAttachmentVersionPin: { findMany },
+				fileImageDerivative: { findMany },
+				fileObjectBlob: { findMany },
+				tag: { findMany },
+				tagInlineUse: { findMany },
+				usageHostEmbed: { findMany },
+				usageLink: { findMany },
+				workTag: { findMany },
+			} as unknown as PrismaClient)
+		).toBe(true);
+		expect(
+			prismaClientHasCurrentExternalExecutionHandoffModel({
+				_runtimeDataModel: {
+					models: {
+						ExternalExecutionHandoff: {
+							fields: [{ name: "id" }, { name: "goingPackageMarkdown" }],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(false);
+		expect(
+			prismaClientHasCurrentExternalExecutionHandoffModel({
+				_runtimeDataModel: {
+					models: {
+						ExternalExecutionHandoff: {
+							fields: [
+								{ name: "id" },
+								{ name: "goingPackages" },
+								{ name: "events" },
+							],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
+	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Templates, Work Drafts, File Attachments, Tags, Record Actions, and External Execution Handoffs", () => {
+		expect(
+			prismaClientHasCurrentDelegates({
+				...workDelegates(),
+				...currentLifecycleDelegates(),
+				externalExecutionGoingPackage: { create: () => undefined, findMany },
+				externalExecutionHandoff: { create: () => undefined, findMany },
+				externalExecutionHandoffEvent: { create: () => undefined, findMany },
 				fileAttachment: { findMany },
 				fileAttachmentOriginLocation: { findMany },
 				fileAttachmentReceipt: { findMany },

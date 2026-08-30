@@ -129,6 +129,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dış yürütme devri | `External Execution Handoff` | İşe ait test-dışı dış yürütme bileşeni; bağımsız Handoff ana kaydı değildir |
 | Devir başlat | `Start Handoff` | Dış yürütme devri başlatma eylemi |
 | Devir paketi doğruluk notu | `Source of truth is in the app` | Gidiş paketinin kanonik kaynağın uygulamada kaldığını belirten not |
+| Yeni paket sürümü | `New package version` | Aynı Dış yürütme devrinde yeni tarihli gidiş paketi üretme; gönderilmiş kopyayı ezmez |
+| Paket sürümü | `Package version` | Aynı Dış yürütme devrindeki tarihli gidiş paketi sürümü |
 | Yürütücü | `Executor` | Dış yürütme devrindeki yürütücünün görünen adı |
 | Kısıtlar | `Constraints` | Dış yürütme devrindeki kısıtlar |
 | Beklenen çıktı | `Expected output` | Dış yürütme devrindeki beklenen çıktı veya kabul beklentisi |

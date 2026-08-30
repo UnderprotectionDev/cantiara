@@ -41,6 +41,7 @@ model Work {
   dailyFocusMemberships          DailyFocusMembership[]
   recordActionRuns               RecordActionRun[]
   externalExecutionHandoffs      ExternalExecutionHandoff[]
+  externalExecutionHandoffEvents ExternalExecutionHandoffEvent[]
 
   @@unique([projectId, number])
   @@unique([projectId, key])

@@ -25,6 +25,7 @@ import { orpc, queryClient } from "@/utils/orpc";
 import {
 	EXTERNAL_HANDOFFS_COPY,
 	presentHandoffCard,
+	presentHandoffHistoryKind,
 	SELECTED_VERSION_KINDS,
 } from "./external-handoffs-copy";
 
@@ -62,6 +63,23 @@ export default function WorkExternalHandoffsPanel({
 			input: { workId },
 		})
 	);
+	const history = useQuery(
+		orpc.externalHandoffs.history.queryOptions({
+			input: { workId },
+		})
+	);
+	const invalidateHandoffs = useCallback(async () => {
+		await queryClient.invalidateQueries({
+			queryKey: orpc.externalHandoffs.list.queryKey({
+				input: { workId },
+			}),
+		});
+		await queryClient.invalidateQueries({
+			queryKey: orpc.externalHandoffs.history.queryKey({
+				input: { workId },
+			}),
+		});
+	}, [workId]);
 	const clearStartForm = useCallback(() => {
 		setPurpose("");
 		setExpectedOutput("");
@@ -75,11 +93,7 @@ export default function WorkExternalHandoffsPanel({
 		orpc.externalHandoffs.start.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await queryClient.invalidateQueries({
-						queryKey: orpc.externalHandoffs.list.queryKey({
-							input: { workId },
-						}),
-					});
+					await invalidateHandoffs();
 					recordSave();
 					setError(null);
 					clearStartForm();
@@ -88,6 +102,64 @@ export default function WorkExternalHandoffsPanel({
 				setError(MUTATION_COPY.conflict);
 			},
 		})
+	);
+	const producePackage = useMutation(
+		orpc.externalHandoffs.produceGoingPackage.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidateHandoffs();
+					recordSave();
+					setError(null);
+					return;
+				}
+				setError(MUTATION_COPY.conflict);
+			},
+		})
+	);
+	const onProducePackage = useCallback(
+		(
+			handoffId: string,
+			selectedVersions: Array<{
+				body?: string;
+				kind: (typeof SELECTED_VERSION_KINDS)[number];
+				recordId: string;
+				title: string;
+				versionId: string;
+			}>
+		) => {
+			markUnsaved();
+			const nextVersions = selectedVersions.map((version) =>
+				version.kind === "Work" && version.recordId === workId
+					? {
+							...version,
+							title: workTitle,
+							versionId: String(revision),
+						}
+					: version
+			);
+			const result = attemptOnlineWork("record-create", () =>
+				producePackage.mutateAsync({
+					idempotencyKey: newIdempotencyKey(),
+					payload: {
+						handoffId,
+						selectedVersions: nextVersions,
+						workId,
+					},
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[
+			attemptOnlineWork,
+			markUnsaved,
+			producePackage,
+			revision,
+			workId,
+			workTitle,
+		]
 	);
 	const onPurpose = useCallback((value: string) => {
 		setPurpose(value);
@@ -201,57 +273,33 @@ export default function WorkExternalHandoffsPanel({
 					{EXTERNAL_HANDOFFS_COPY.sourceOfTruth}
 				</p>
 			</header>
+			{history.data && history.data.length > 0 ? (
+				<ol className="flex flex-col gap-1 text-muted-foreground text-xs">
+					{history.data.map((entry) => (
+						<li key={entry.id}>
+							<span>{presentHandoffHistoryKind(entry.kind)}</span>{" "}
+							<span>{entry.actorType}</span>{" "}
+							<time dateTime={entry.occurredAt}>{entry.occurredAt}</time>
+							{entry.packageVersion ? (
+								<>
+									{" "}
+									{EXTERNAL_HANDOFFS_COPY.packageVersion} {entry.packageVersion}
+								</>
+							) : null}
+						</li>
+					))}
+				</ol>
+			) : null}
 			{listed.data && listed.data.length > 0 ? (
 				<ul className="flex flex-col gap-3">
-					{listed.data.map((handoff) => {
-						const card = presentHandoffCard(handoff);
-						return (
-							<li className="flex flex-col gap-3 border p-3" key={handoff.id}>
-								<header className="flex items-start justify-between gap-3">
-									<p className="min-w-0 font-medium text-sm leading-snug">
-										<span className="font-mono text-muted-foreground">
-											{handoff.workKey}
-										</span>{" "}
-										{card.title}
-									</p>
-									<Badge variant="secondary">{card.status}</Badge>
-								</header>
-								<p className="font-mono text-muted-foreground text-xs">
-									{EXTERNAL_HANDOFFS_COPY.handoff} {handoff.id}
-								</p>
-								<dl className="grid gap-1 text-muted-foreground text-xs">
-									<div className="flex flex-wrap gap-x-2">
-										<dt>{EXTERNAL_HANDOFFS_COPY.executor}</dt>
-										<dd>{handoff.executorVisibleName}</dd>
-									</div>
-									<div className="flex flex-wrap gap-x-2">
-										<dt>{EXTERNAL_HANDOFFS_COPY.expectedOutput}</dt>
-										<dd>{handoff.expectedOutput}</dd>
-									</div>
-									{handoff.constraints.trim() === "" ? null : (
-										<div className="flex flex-wrap gap-x-2">
-											<dt>{EXTERNAL_HANDOFFS_COPY.constraints}</dt>
-											<dd>{handoff.constraints}</dd>
-										</div>
-									)}
-									<div className="flex flex-wrap gap-x-2">
-										<dt>{EXTERNAL_HANDOFFS_COPY.producedAt}</dt>
-										<dd>
-											<time dateTime={card.producedAt}>{card.producedAt}</time>
-										</dd>
-									</div>
-								</dl>
-								<details open>
-									<summary className="cursor-pointer font-medium text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring">
-										{EXTERNAL_HANDOFFS_COPY.goingPackage}
-									</summary>
-									<pre className="mt-2 overflow-auto whitespace-pre-wrap border bg-muted/40 p-2 text-xs leading-relaxed">
-										{handoff.goingPackage.markdown}
-									</pre>
-								</details>
-							</li>
-						);
-					})}
+					{listed.data.map((handoff) => (
+						<HandoffCard
+							handoff={handoff}
+							key={handoff.id}
+							onProducePackage={onProducePackage}
+							producePending={producePackage.isPending}
+						/>
+					))}
 				</ul>
 			) : null}
 			<form className="flex flex-col gap-4" onSubmit={onSubmit}>
@@ -338,6 +386,116 @@ export default function WorkExternalHandoffsPanel({
 				{error ? <p role="alert">{error}</p> : null}
 			</form>
 		</section>
+	);
+}
+
+function HandoffCard({
+	handoff,
+	onProducePackage,
+	producePending,
+}: {
+	handoff: {
+		constraints: string;
+		executorVisibleName: string;
+		expectedOutput: string;
+		goingPackage: { markdown: string; producedAt: string; version?: number };
+		goingPackageVersions?: Array<{
+			markdown: string;
+			producedAt: string;
+			version?: number;
+		}>;
+		id: string;
+		purpose: string;
+		selectedVersions: Array<{
+			body?: string;
+			kind: (typeof SELECTED_VERSION_KINDS)[number];
+			recordId: string;
+			title: string;
+			versionId: string;
+		}>;
+		status: string;
+		workKey: string;
+	};
+	onProducePackage: (
+		handoffId: string,
+		selectedVersions: Array<{
+			body?: string;
+			kind: (typeof SELECTED_VERSION_KINDS)[number];
+			recordId: string;
+			title: string;
+			versionId: string;
+		}>
+	) => void;
+	producePending: boolean;
+}) {
+	const card = presentHandoffCard(handoff);
+	const versions = handoff.goingPackageVersions ?? [handoff.goingPackage];
+	const onNewPackageVersion = useCallback(() => {
+		onProducePackage(handoff.id, handoff.selectedVersions);
+	}, [handoff.id, handoff.selectedVersions, onProducePackage]);
+	return (
+		<li className="flex flex-col gap-3 border p-3">
+			<header className="flex items-start justify-between gap-3">
+				<p className="min-w-0 font-medium text-sm leading-snug">
+					<span className="font-mono text-muted-foreground">
+						{handoff.workKey}
+					</span>{" "}
+					{card.title}
+				</p>
+				<Badge variant="secondary">{card.status}</Badge>
+			</header>
+			<p className="font-mono text-muted-foreground text-xs">
+				{EXTERNAL_HANDOFFS_COPY.handoff} {handoff.id}
+			</p>
+			<dl className="grid gap-1 text-muted-foreground text-xs">
+				<div className="flex flex-wrap gap-x-2">
+					<dt>{EXTERNAL_HANDOFFS_COPY.executor}</dt>
+					<dd>{handoff.executorVisibleName}</dd>
+				</div>
+				<div className="flex flex-wrap gap-x-2">
+					<dt>{EXTERNAL_HANDOFFS_COPY.expectedOutput}</dt>
+					<dd>{handoff.expectedOutput}</dd>
+				</div>
+				{handoff.constraints.trim() === "" ? null : (
+					<div className="flex flex-wrap gap-x-2">
+						<dt>{EXTERNAL_HANDOFFS_COPY.constraints}</dt>
+						<dd>{handoff.constraints}</dd>
+					</div>
+				)}
+				<div className="flex flex-wrap gap-x-2">
+					<dt>{EXTERNAL_HANDOFFS_COPY.producedAt}</dt>
+					<dd>
+						<time dateTime={card.producedAt}>{card.producedAt}</time>
+					</dd>
+				</div>
+			</dl>
+			<details open>
+				<summary className="cursor-pointer font-medium text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring">
+					{EXTERNAL_HANDOFFS_COPY.goingPackage}
+				</summary>
+				<ul className="mt-2 flex flex-col gap-2">
+					{versions.map((pack) => (
+						<li key={`${handoff.id}:${pack.version ?? pack.producedAt}`}>
+							<p className="font-medium text-xs">
+								{EXTERNAL_HANDOFFS_COPY.packageVersion} {pack.version ?? 1}
+							</p>
+							<pre className="mt-1 overflow-auto whitespace-pre-wrap border bg-muted/40 p-2 text-xs leading-relaxed">
+								{pack.markdown}
+							</pre>
+						</li>
+					))}
+				</ul>
+			</details>
+			<Button
+				disabled={producePending}
+				onClick={onNewPackageVersion}
+				size="sm"
+				type="button"
+				variant="outline"
+			>
+				{EXTERNAL_HANDOFFS_COPY.newPackageVersion}
+			</Button>
+		</li>
 	);
 }
 
