@@ -3,6 +3,7 @@ import { useCallback } from "react";
 
 import WorkBlockersPanel from "@/features/blockers/views/work-blockers-panel";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
+import WorkExternalHandoffsPanel from "@/features/external-handoffs/views/work-external-handoffs-panel";
 import WorkPriorityValues from "@/features/priority/forms/work-priority-values";
 import {
 	PROJECT_SHELL_COPY,
@@ -97,6 +98,13 @@ export default function WorkDetail({
 				title={work.title}
 				type={work.type}
 				workId={work.id}
+			/>
+			<WorkExternalHandoffsPanel
+				key={`${work.id}:handoff:${work.revision}`}
+				revision={work.revision}
+				workId={work.id}
+				workKey={work.key}
+				workTitle={work.title}
 			/>
 			{work.retiredIdentities && work.retiredIdentities.length > 0 ? (
 				<dl className="grid gap-1 text-sm">

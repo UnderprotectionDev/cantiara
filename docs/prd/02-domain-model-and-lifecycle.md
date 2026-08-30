@@ -126,6 +126,17 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İlişkilendir | `Link` | Görünür boş bölümde desteklenen doğrudan ilişki eylemi; kartın kendisi ilişki yazmaz |
 | Bağlamı Markdown kopyala | `Copy Context as Markdown` | İş Bağlam Kartı bağlamını panoya okunabilir Markdown olarak aktarma; kayıt veya kalıcı snapshot üretmez |
 | Ana kaynak uygulamadadır | `Primary source is in the app` | Kopyalanan Markdown'ın asıl kaydın uygulamada kaldığını belirten not |
+| Dış yürütme devri | `External Execution Handoff` | İşe ait test-dışı dış yürütme bileşeni; bağımsız Handoff ana kaydı değildir |
+| Devir başlat | `Start Handoff` | Dış yürütme devri başlatma eylemi |
+| Devir paketi doğruluk notu | `Source of truth is in the app` | Gidiş paketinin kanonik kaynağın uygulamada kaldığını belirten not |
+| Yürütücü | `Executor` | Dış yürütme devrindeki yürütücünün görünen adı |
+| Kısıtlar | `Constraints` | Dış yürütme devrindeki kısıtlar |
+| Beklenen çıktı | `Expected output` | Dış yürütme devrindeki beklenen çıktı veya kabul beklentisi |
+| Seçilen sürümler | `Selected versions` | Gidiş paketine alınan kesin sürümler |
+| Seçilen sürüm ekle | `Add selected version` | Gidiş paketi manifestine kesin sürüm satırı ekleme |
+| Seçilen sürümü kaldır | `Remove selected version` | Gidiş paketi manifestinden kesin sürüm satırını çıkarma |
+| Gidiş paketi | `Going package` | Seçilen kesin sürümlerden üretilen tarihli Markdown kopyası; canlı senkron değildir |
+| Bu İşi dahil et | `Include this Work` | Sahip İşin kesin sürümünü gidiş paketine alma |
 | Üretildi | `Produced at` | Markdown kopyasının üretim zamanı etiketi; kalıcı snapshot zamanı değildir |
 | İlgili Karar, Risk ve Açık Soru | `Related Decision, Risk, and Open Question` | Markdown kopyasındaki belirsizlik bölümü |
 | Aktif blokajlar | `Active blockers` | Markdown kopyasındaki aktif blokaj bölümü |
@@ -204,6 +215,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kopya olarak birleştir | `Merge as duplicate` | Gerçek kopya iki İşi tek hayatta kalan ana kayıtta birleştirme; kaybedenin anahtarı emekli kimlik yönlendirmesidir |
 | Birleştirme önizlemesi | `Merge Preview` | Hayatta kalan kayıt, alan çatışmaları ve yeniden yazılacak ilişkilerin onay öncesi görünümü |
 | Toplu düzenleme | `Bulk Edit` | Açıkça seçilmiş İşlerde mevcut alanların onay öncesi fark önizlemesi; örtük seçim, şema göçü veya içe aktarma değildir |
+| Uygula | `Apply` | Toplu düzenlemede seçilen İşlere alan yazmasını başlatma |
+| İlerleme | `Progress` | Toplu uygulamanın donmayan ilerleme göstergesi |
+| Başarılı | `Succeeded` | Bir seçilen İşin görünür başarı sonucu |
+| Başarısız | `Failed` | Bir seçilen İşin görünür başarısızlık sonucu |
 | Hayatta kalan kayıt | `Surviving record` | Birleştirmede kalacak kanonik İş |
 | Alan çatışmaları | `Field conflicts` | Birleştirmede kullanıcı çözümü isteyen ayrışan alanlar |
 | İlişkiler | `Relations` | Birleştirmede hayatta kalana yazılacak ilişkiler |
@@ -302,6 +317,34 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Oturumu iptal et | `Revoke Session` | Tek bir ürün oturumunu derhal yetkisiz bırakma eylemi |
 | Diğer oturumları iptal et | `Revoke Other Sessions` | Geçerli oturum dışındaki bütün ürün oturumlarını derhal yetkisiz bırakma eylemi |
 | Kullanıcı başlatmalı İş başarısı | `User-initiated Work Success` | Kullanıcının açık kapatma eylemiyle başlattığı ve sunucuda PRD terimi `Tamamlandı` (`UI: Completed`) kapanış sonucu olarak kesinleşen İş geçişi; otomatik kapanış ve başka terminal olaylar değildir |
+| Bitiriş efekti | `Completion effects` | Kullanıcı başlatmalı İş başarısı için isteğe bağlı, Hesap düzeyinde etkinleştirilen özgün birinci taraf dekoratif katalog |
+| Deneysel | `Experimental` | Bitiriş efektinin ilk üründe açıkça etkinleştirilen kişisel geri bildirim olduğunu gösteren durum |
+| Etkinleştir | `Enable` | Bitiriş efektini Hesap düzeyinde açan denetim |
+| Tema | `Theme` | Kapalı Bitiriş efekti arşetipi |
+| Palet | `Palette` | Seçili temanın dört hazır renk/hareket düzeninden biri |
+| Calm | `Calm` | Sakin varsayılan Bitiriş efekti teması |
+| Weave | `Weave` | Soyut bağ/örgü Bitiriş efekti teması |
+| Arc | `Arc` | Işık/ark Bitiriş efekti teması |
+| Nova | `Nova` | Kozmik enerji Bitiriş efekti teması |
+| Haze | `Haze` | Calm paleti |
+| Pebble | `Pebble` | Calm paleti |
+| Linen | `Linen` | Calm paleti |
+| Moss | `Moss` | Calm paleti |
+| Loom | `Loom` | Weave paleti |
+| Cord | `Cord` | Weave paleti |
+| Lattice | `Lattice` | Weave paleti |
+| Knot | `Knot` | Weave paleti |
+| Gleam | `Gleam` | Arc paleti |
+| Trace | `Trace` | Arc paleti |
+| Halo | `Halo` | Arc paleti |
+| Span | `Span` | Arc paleti |
+| Ember | `Ember` | Nova paleti |
+| Pulse | `Pulse` | Nova paleti |
+| Orbit | `Orbit` | Nova paleti |
+| Flare | `Flare` | Nova paleti |
+| Bitiriş efektleri kaydedildi | `Completion effects saved.` | Bitiriş efekti tercihinin yazıldığını bildiren sistem mesajı |
+| Bitiriş efektleri yükleniyor | `Loading completion effects…` | Bitiriş efekti tercihinin okunmakta olduğunu bildiren durum |
+| Bitiriş efektleri kullanılamıyor | `Completion effects are unavailable.` | Bitiriş efekti tercihinin okunamadığını bildiren durum |
 | Köken konumu | `Origin Location` | Sahipli bileşenden üretilen kaydın kesin kaynak öğe işaretidir; bağımsız ilişki ucu değildir |
 | İşaretleme katmanı | `Marking layer` | Kesin Dosya Eki sürümüne bağlı, özgün dosyadan ayrı geri alınabilir görsel not |
 | Kaynak görsel | `Source visual` | Paylaşım/yayın önizlemesinde işaretlemeden ayrı onaylanan görsel öğe |

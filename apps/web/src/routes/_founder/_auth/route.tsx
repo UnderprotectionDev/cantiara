@@ -2,6 +2,7 @@ import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 
 import {
 	ACCOUNT_PATH,
+	COMPLETION_EFFECTS_PATH,
 	SESSIONS_PATH,
 	postSignInPath,
 } from "@/features/account-access/forms/post-sign-in-path";
@@ -15,7 +16,9 @@ export const Route = createFileRoute("/_founder/_auth")({
 			const next = postSignInPath(location.pathname);
 			throw redirect({
 				search:
-					next === SESSIONS_PATH || next === ACCOUNT_PATH
+					next === SESSIONS_PATH ||
+					next === ACCOUNT_PATH ||
+					next === COMPLETION_EFFECTS_PATH
 						? { redirect: next }
 						: {},
 				to: "/login",

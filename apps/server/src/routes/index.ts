@@ -6,7 +6,9 @@ import { accountPreferences } from "../features/account-preferences/server/prefe
 import { blockers } from "../features/blockers/server/blockers-rpc";
 import { bulkEditing } from "../features/bulk-editing/server/bulk-editing-rpc";
 import { captureInbox } from "../features/capture-triage/server/capture-inbox-router";
+import { completionEffects } from "../features/completion-effects/server/completion-effects";
 import { customFields } from "../features/custom-fields/server/custom-fields-rpc";
+import { externalHandoffs } from "../features/external-handoffs/server/external-handoffs-rpc";
 import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
 import { priority } from "../features/priority/server/priority-rpc";
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
@@ -29,7 +31,9 @@ export const appRouter = {
 	bulkEditing,
 	captureInbox,
 	clientShell,
+	completionEffects,
 	customFields,
+	externalHandoffs,
 	fileAttachments,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	priority,

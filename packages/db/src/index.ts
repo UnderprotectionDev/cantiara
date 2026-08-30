@@ -104,7 +104,8 @@ function clientHasCurrentWorkModel(client: PrismaClient): boolean {
 		fields.includes("originWork") &&
 		fields.includes("originWorkId") &&
 		fields.includes("retiredIntoId") &&
-		fields.includes("includedInFeatureId")
+		fields.includes("includedInFeatureId") &&
+		fields.includes("externalExecutionHandoffs")
 	);
 }
 
