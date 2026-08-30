@@ -274,6 +274,10 @@ _Avoid_: Dış takvim senkronu, Event kaydı, durum tahtası
 Filtrelenen İşleri alanlarıyla yoğun ve taranabilir düzende sunan aynı İş taraması; satır ayrı kayıt değildir ([Liste görünümü](docs/prd/06-work-management-and-planning.md#liste-görünümü)).
 _Avoid_: Tablo Görünümü, ikinci kayıt sistemi, Backlog
 
+**Toplu Düzenleme**:
+Açıkça seçilmiş İşlerde mevcut alanların fark önizlemesiyle güncellenmesi; örtük seçim, şema göçü veya içe aktarma değildir ([Toplu düzenleme](docs/prd/06-work-management-and-planning.md#toplu-düzenleme)). UI: `Bulk Edit`.
+_Avoid_: select-all-unspecified, schema migration, import, record-action catalog, silent partial
+
 **Kapsam Ağacı**:
 Mevcut `Proje → Özellik → Kapsanan işler` ilişkisini salt okunur açan görünüm; sürükleme parent–child üretmez ([Kapsam Ağacı](docs/prd/06-work-management-and-planning.md#kapsam-ağacı)). UI: `Scope Tree`.
 _Avoid_: Epic hiyerarşisi, subtask ağacı, planlama üyeliği
