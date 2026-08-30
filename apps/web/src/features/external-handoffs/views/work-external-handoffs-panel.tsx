@@ -104,6 +104,9 @@ export default function WorkExternalHandoffsPanel({
 					setError(null);
 					return;
 				}
+				if (outcome.status === "rejected") {
+					return;
+				}
 				setError(MUTATION_COPY.conflict);
 			},
 		})
@@ -113,13 +116,17 @@ export default function WorkExternalHandoffsPanel({
 	}, []);
 	const onCancelHandoff = useCallback(
 		(handoffId: string) => {
+			const reason = (cancelReasons[handoffId] ?? "").trim();
+			if (reason.length === 0) {
+				return;
+			}
 			markUnsaved();
 			const result = attemptOnlineWork("record-create", () =>
 				cancel.mutateAsync({
 					idempotencyKey: newIdempotencyKey(),
 					payload: {
 						handoffId,
-						reason: cancelReasons[handoffId] ?? "",
+						reason,
 					},
 				})
 			);
@@ -432,7 +439,12 @@ function CancelHandoffFields({
 				rows={2}
 				value={reason}
 			/>
-			<Button disabled={disabled} size="sm" type="submit" variant="outline">
+			<Button
+				disabled={disabled || reason.trim() === ""}
+				size="sm"
+				type="submit"
+				variant="outline"
+			>
 				{EXTERNAL_HANDOFFS_COPY.cancelHandoff}
 			</Button>
 		</form>
