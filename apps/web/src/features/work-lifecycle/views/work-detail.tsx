@@ -101,6 +101,7 @@ export default function WorkDetail({
 			/>
 			<WorkExternalHandoffsPanel
 				key={`${work.id}:handoff:${work.revision}`}
+				projectId={projectId}
 				revision={work.revision}
 				workId={work.id}
 				workKey={work.key}

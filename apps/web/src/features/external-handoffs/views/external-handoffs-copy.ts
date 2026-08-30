@@ -1,10 +1,20 @@
+import { MUTATION_COPY } from "../../../lib/mutation";
+
 export const EXTERNAL_HANDOFFS_COPY = {
+	addFollowUpWork: "Add follow-up Work",
+	addProposedRelation: "Add proposed relation",
 	addSelectedVersion: "Add selected version",
 	body: "Body",
+	changedAssumptions: "Changed assumptions",
+	confirm: "Confirm",
 	constraints: "Constraints",
+	couldNotComplete: "This action could not be completed.",
+	couldNotWrite: "This handoff could not be written.",
 	executor: "Executor",
+	executorSummary: "Executor summary",
 	expectedOutput: "Expected output",
 	externalExecutionHandoff: "External Execution Handoff",
+	followUpWork: "Follow-up Work",
 	github: "GitHub",
 	goingPackage: "Going package",
 	handoff: "Handoff",
@@ -12,17 +22,45 @@ export const EXTERNAL_HANDOFFS_COPY = {
 	kind: "Kind",
 	newPackageVersion: "New package version",
 	open: "Open",
+	openQuestions: "Open questions",
 	packageVersion: "Package version",
+	permittedExternalLinks: "Permitted external links",
 	producedAt: "Produced at",
+	producedEvidence: "Produced evidence",
 	purpose: "Purpose",
+	reconcile: "Reconcile",
+	reconciled: "Reconciled",
 	recordId: "Record",
+	recordReturn: "Record return",
+	reject: "Reject",
+	related: "Related",
+	removeFollowUpWork: "Remove follow-up Work",
+	removeProposedRelation: "Remove proposed relation",
 	removeSelectedVersion: "Remove selected version",
+	resultReturned: "Result returned",
 	selectedVersions: "Selected versions",
 	sourceOfTruth: "Source of truth is in the app",
 	startHandoff: "Start Handoff",
 	title: "Title",
+	toWork: "Related Work",
 	versionId: "Version",
 } as const;
+
+export type HandoffWritePresentation =
+	| { status: "committed" | "replayed" | "conflict" | "refused" }
+	| { reason: string; status: "rejected" };
+
+export function presentHandoffWriteError(
+	outcome: HandoffWritePresentation
+): string | null {
+	if (outcome.status === "committed" || outcome.status === "replayed") {
+		return null;
+	}
+	if (outcome.status === "conflict") {
+		return MUTATION_COPY.conflict;
+	}
+	return EXTERNAL_HANDOFFS_COPY.couldNotWrite;
+}
 
 export function presentHandoffCard(handoff: {
 	goingPackage: { producedAt: string };

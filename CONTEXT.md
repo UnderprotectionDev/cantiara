@@ -707,7 +707,18 @@ _Avoid_: canlı ilişkileri yürüyen kopya, bütün grafiği paketleme
 
 **Dış yürütme uzlaştırması**:
 Bir Dış yürütme devrinin sonucunu, kanıtını ve açık sorularını kullanıcının inceleyip ana proje gerçeğine bağladığı kapanış kararı; commit, PR veya durum değişikliği bu kararı kendiliğinden oluşturmaz.
+UI: `Reconcile`
 _Avoid_: Commit geldi, otomatik kapanış, İş tamamlandı
+
+**Dönüş kaydı**:
+Dış çalışma dönünce aynı Dış yürütme devrine yazılan yürütücü özeti, değişen varsayımlar, üretilen kanıt veya izinli dış bağlantılar ve kapanmamış sorular; onaylanmadan Karar, Risk, İş, ilişki veya kanıt üretmez.
+UI: `Record return`
+_Avoid_: otomatik içe aktarma, önizlemesiz ana gerçek
+
+**Takip İşi**:
+Uzlaştırma onayında kullanıcının açıkça seçtiği ve yeni kimlikle oluşturulan İş; dönüş metninden kendiliğinden doğmaz.
+UI: `Follow-up Work`
+_Avoid_: dönüş metninden otomatik İş
 
 **Kullanıcı başlatmalı İş başarısı**:
 Kullanıcının açık kapatma kararıyla bir İşin kalıcı kapanış sonucunun kesinleşmesi; [başka terminal olaylar ve otomatik kapanışlar](docs/prd/06-work-management-and-planning.md#bitiris-efektleri) bu başarı değildir.
