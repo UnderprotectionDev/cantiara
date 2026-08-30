@@ -54,6 +54,7 @@ import {
 	type StartHandoffCommand,
 	type StartHandoffOutcome,
 	selectedVersionSchema,
+	signalsForHandoff,
 	startHandoffCommandSchema,
 } from "./external-handoffs-model";
 
@@ -1106,6 +1107,7 @@ function toView(
 		},
 		selectedVersions,
 		separations: HANDOFF_SEPARATIONS,
+		signals: signalsForHandoff(row.status, row.id, row.workId),
 		status: row.status,
 		terminal: isTerminalHandoffStatus(row.status),
 		workId: row.workId,
