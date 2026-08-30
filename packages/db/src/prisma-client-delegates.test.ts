@@ -20,6 +20,11 @@ function workDelegates() {
 		captureExtensionLink: { findMany },
 		captureInboxItem: { findMany },
 		captureStagingObject: { findMany },
+		dailyFocusMembership: {
+			create: () => undefined,
+			deleteMany: () => undefined,
+			findUnique: findMany,
+		},
 		projectCustomFieldDefinition: {
 			create: () => undefined,
 			findMany,
@@ -37,6 +42,10 @@ function workDelegates() {
 		recordAction: {
 			create: () => undefined,
 			findMany,
+		},
+		recordActionRun: {
+			create: () => undefined,
+			findUnique: findMany,
 		},
 		work: { create: () => undefined, findMany },
 		workLifecycleEvent: { findMany },
@@ -122,6 +131,32 @@ describe("Prisma client current delegates", () => {
 		expect(
 			prismaClientHasCurrentDelegates(
 				beforeTemplates as unknown as PrismaClient
+			)
+		).toBe(false);
+	});
+
+	it("refuses a bun --hot client generated before Daily Focus membership", () => {
+		const { dailyFocusMembership: _dropped, ...beforeMembership } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(
+				beforeMembership as unknown as PrismaClient
 			)
 		).toBe(false);
 	});

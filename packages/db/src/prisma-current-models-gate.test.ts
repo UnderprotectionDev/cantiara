@@ -13,6 +13,8 @@ describe("Prisma current models gate", () => {
 			const client = getPrismaClient();
 			expect(typeof client.recordAction.findMany).toBe("function");
 			expect(typeof client.recordAction.create).toBe("function");
+			expect(typeof client.dailyFocusMembership.findUnique).toBe("function");
+			expect(typeof client.recordActionRun.create).toBe("function");
 			expect(prismaClientHasCurrentDelegates(client)).toBe(true);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
