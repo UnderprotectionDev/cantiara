@@ -19,6 +19,61 @@ export type CompletionEffectPalette =
 	(typeof COMPLETION_EFFECT_PALETTES)[CompletionEffectTheme][number];
 
 export const PREVIEW_MOTION_MS = 1200;
+export const DECORATIVE_WAIT_MS = 30_000;
+
+export type CompletionEffectsFeedback = "effect" | "base-notice" | "none";
+
+export type CloseAcceptanceSource =
+	| "user-initiated-close"
+	| "abandoned"
+	| "checklist"
+	| "pr-merge"
+	| "prepared-pr-merge-rule"
+	| "external-run-reconcile"
+	| "daily-focus-close"
+	| "focus-period-close"
+	| "milestone-reached"
+	| "project-complete"
+	| "stage-complete"
+	| "project-release-publish"
+	| "other-terminal"
+	| "close-step"
+	| "close-check"
+	| "optimistic"
+	| "rejected"
+	| "conflict"
+	| "timeout"
+	| "undo"
+	| "idempotent-retry"
+	| "refresh"
+	| "history-back"
+	| "second-tab"
+	| "background-sync";
+
+export type CloseMutationStatus =
+	| "pending"
+	| "optimistic"
+	| "committed"
+	| "replayed"
+	| "rejected"
+	| "conflict"
+	| "timeout"
+	| "undo";
+
+export interface CloseAcceptance {
+	closeCycleId: string;
+	closureResult: "Completed" | "Abandoned" | null;
+	serverAccepted: boolean;
+	source: CloseAcceptanceSource;
+	workId: string;
+}
+
+export interface CloseOutcomeInput {
+	closeCycleId: string;
+	closureResult: "Completed" | "Abandoned";
+	mutationStatus: CloseMutationStatus;
+	workId: string;
+}
 
 export const completionEffectThemeSchema = z.enum(COMPLETION_EFFECT_THEMES);
 
@@ -92,6 +147,8 @@ export function catalogBrowseMotion(): "static" {
 
 export interface CompletionEffectsClientSession {
 	decorativeWaitUntilMs: number | null;
+	feedback: CompletionEffectsFeedback;
+	lastCloseCycleId: string | null;
 	notice: "Work completed" | null;
 	workStatus: string | null;
 }
@@ -99,6 +156,8 @@ export interface CompletionEffectsClientSession {
 export function idleCompletionEffectsClientSession(): CompletionEffectsClientSession {
 	return {
 		decorativeWaitUntilMs: null,
+		feedback: "none",
+		lastCloseCycleId: null,
 		notice: null,
 		workStatus: null,
 	};
@@ -107,11 +166,101 @@ export function idleCompletionEffectsClientSession(): CompletionEffectsClientSes
 export function startPreview(
 	session: CompletionEffectsClientSession
 ): CompletionEffectsClientSession {
+	return { ...session };
+}
+
+const FAILED_WRITE_SOURCE: Record<
+	Exclude<CloseMutationStatus, "committed" | "replayed">,
+	CloseAcceptanceSource
+> = {
+	conflict: "conflict",
+	optimistic: "optimistic",
+	pending: "close-step",
+	rejected: "rejected",
+	timeout: "timeout",
+	undo: "undo",
+};
+
+export function closeOutcomeToAcceptance(
+	input: CloseOutcomeInput
+): CloseAcceptance {
+	if (
+		input.mutationStatus === "committed" ||
+		input.mutationStatus === "replayed"
+	) {
+		if (input.closureResult === "Abandoned") {
+			return {
+				closeCycleId: input.closeCycleId,
+				closureResult: "Abandoned",
+				serverAccepted: true,
+				source: "abandoned",
+				workId: input.workId,
+			};
+		}
+		return {
+			closeCycleId: input.closeCycleId,
+			closureResult: "Completed",
+			serverAccepted: true,
+			source: "user-initiated-close",
+			workId: input.workId,
+		};
+	}
 	return {
-		decorativeWaitUntilMs: session.decorativeWaitUntilMs,
-		notice: session.notice,
-		workStatus: session.workStatus,
+		closeCycleId: input.closeCycleId,
+		closureResult: input.closureResult,
+		serverAccepted: false,
+		source: FAILED_WRITE_SOURCE[input.mutationStatus],
+		workId: input.workId,
 	};
+}
+
+function isUserInitiatedWorkSuccess(event: CloseAcceptance): boolean {
+	return (
+		event.source === "user-initiated-close" &&
+		event.serverAccepted &&
+		event.closureResult === "Completed"
+	);
+}
+
+export function observeCloseAcceptance(
+	preference: Pick<CompletionEffectPreference, "enabled">,
+	session: CompletionEffectsClientSession,
+	event: CloseAcceptance,
+	nowMs: number
+): {
+	feedback: CompletionEffectsFeedback;
+	session: CompletionEffectsClientSession;
+} {
+	if (!preference.enabled) {
+		return { feedback: "none", session };
+	}
+	if (!isUserInitiatedWorkSuccess(event)) {
+		return { feedback: "none", session };
+	}
+	if (session.lastCloseCycleId === event.closeCycleId) {
+		return { feedback: "none", session };
+	}
+	if (
+		session.decorativeWaitUntilMs !== null &&
+		nowMs < session.decorativeWaitUntilMs
+	) {
+		const next: CompletionEffectsClientSession = {
+			decorativeWaitUntilMs: session.decorativeWaitUntilMs,
+			feedback: "base-notice",
+			lastCloseCycleId: event.closeCycleId,
+			notice: "Work completed",
+			workStatus: "Closed",
+		};
+		return { feedback: "base-notice", session: next };
+	}
+	const next: CompletionEffectsClientSession = {
+		decorativeWaitUntilMs: nowMs + DECORATIVE_WAIT_MS,
+		feedback: "effect",
+		lastCloseCycleId: event.closeCycleId,
+		notice: "Work completed",
+		workStatus: "Closed",
+	};
+	return { feedback: "effect", session: next };
 }
 
 export function previewMotion(

@@ -12,6 +12,7 @@ export const COMPLETION_EFFECTS_COPY = {
 	theme: "Theme",
 	unavailable: "Completion effects are unavailable.",
 	weave: "Weave",
+	workCompleted: "Work completed",
 } as const;
 
 export const COMPLETION_EFFECT_THEME_COPY = {
