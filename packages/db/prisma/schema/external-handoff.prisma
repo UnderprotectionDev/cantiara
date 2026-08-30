@@ -12,10 +12,50 @@ model ExternalExecutionHandoff {
   goingPackageMarkdown    String
   goingPackageProducedAt  DateTime
   cancelReason            String?
+  returnRecord            Json?
+  reconcileDecision       Json?
   revision                Int
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
+  goingPackages           ExternalExecutionGoingPackage[]
+  events                  ExternalExecutionHandoffEvent[]
 
   @@index([workId, createdAt])
   @@map("external_execution_handoff")
+}
+
+model ExternalExecutionGoingPackage {
+  id                       String                   @id
+  handoffId                String
+  handoff                  ExternalExecutionHandoff @relation(fields: [handoffId], references: [id], onDelete: Cascade)
+  version                  Int
+  markdown                 String
+  producedAt               DateTime
+  selectedVersionManifest  Json
+  permittedGithubContext   Json
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+
+  @@unique([handoffId, version])
+  @@index([handoffId, createdAt])
+  @@map("external_execution_going_package")
+}
+
+model ExternalExecutionHandoffEvent {
+  id             String                   @id
+  workId         String
+  work           Work                     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  handoffId      String
+  handoff        ExternalExecutionHandoff @relation(fields: [handoffId], references: [id], onDelete: Cascade)
+  kind           String
+  actorType      String
+  actorId        String
+  occurredAt     DateTime
+  packageVersion Int?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@index([workId, occurredAt])
+  @@index([handoffId, occurredAt])
+  @@map("external_execution_handoff_event")
 }

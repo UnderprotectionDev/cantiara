@@ -11,13 +11,16 @@ import {
 import {
 	type CreateRecordActionCommand,
 	createRecordActionCommandSchema,
+	FORBIDDEN_RECORD_ACTION_INPUT_KINDS,
 	FORBIDDEN_RECORD_ACTION_STEP_KINDS,
 	RECORD_ACTION_TARGET_KIND,
+	type RecordActionInput,
 	type RecordActionOutcome,
 	type RecordActionRejectionReason,
 	type RecordActionStep,
 	type RecordActionView,
 	type ResolveRecordActionOutcome,
+	recordActionInputSchema,
 	recordActionStepSchema,
 	recordActionViewSchema,
 	resolveRecordActionInputSchema,
@@ -178,7 +181,7 @@ async function createInTransaction(
 	if (!project) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
-	const validated = validateDefinitionPayload(command.payload);
+	const validated = await validateDefinitionPayload(tx, command.payload);
 	if (validated.status !== "ok") {
 		return validated.outcome;
 	}
@@ -191,6 +194,7 @@ async function createInTransaction(
 	await tx.recordAction.create({
 		data: {
 			id,
+			inputs: validated.inputs,
 			name: validated.name,
 			projectId: project.id,
 			revision: 1,
@@ -256,15 +260,18 @@ async function trashInTransaction(
 	return { action, status: "committed" };
 }
 
-function validateDefinitionPayload(
+async function validateDefinitionPayload(
+	tx: PrismaTransaction,
 	payload: CreateRecordActionCommand["payload"]
-):
+): Promise<
 	| {
+			inputs: RecordActionInput[];
 			name: string;
 			status: "ok";
 			steps: RecordActionStep[];
 	  }
-	| { outcome: RecordActionOutcome; status: "rejected" } {
+	| { outcome: RecordActionOutcome; status: "rejected" }
+> {
 	if (hasMultipleTargets(payload)) {
 		return {
 			outcome: { reason: "multi-target", status: "rejected" },
@@ -311,7 +318,99 @@ function validateDefinitionPayload(
 			status: "rejected",
 		};
 	}
-	return { name, status: "ok", steps };
+	const inputReason = forbiddenOrUnknownInputs(payload.inputs);
+	if (inputReason) {
+		return {
+			outcome: { reason: inputReason, status: "rejected" },
+			status: "rejected",
+		};
+	}
+	const inputs: RecordActionInput[] = [];
+	const keys = new Set<string>();
+	for (const input of payload.inputs ?? []) {
+		const parsed = recordActionInputSchema.safeParse(input);
+		if (!parsed.success) {
+			return {
+				outcome: { reason: "unknown-input", status: "rejected" },
+				status: "rejected",
+			};
+		}
+		if (keys.has(parsed.data.key)) {
+			return {
+				outcome: { reason: "unknown-input", status: "rejected" },
+				status: "rejected",
+			};
+		}
+		keys.add(parsed.data.key);
+		// biome-ignore lint/performance/noAwaitInLoops: each input binds to an existing field before the next is accepted.
+		const bound = await bindRuntimeInput(tx, payload.projectId, parsed.data);
+		if (bound.status !== "ok") {
+			return bound;
+		}
+		inputs.push(parsed.data);
+	}
+	return { inputs, name, status: "ok", steps };
+}
+
+async function bindRuntimeInput(
+	tx: PrismaTransaction,
+	projectId: string,
+	input: RecordActionInput
+): Promise<
+	{ status: "ok" } | { outcome: RecordActionOutcome; status: "rejected" }
+> {
+	if (input.kind === "Relation") {
+		return { status: "ok" };
+	}
+	const field = await tx.projectCustomFieldDefinition.findUnique({
+		where: { id: input.fieldId },
+	});
+	if (!field || field.projectId !== projectId) {
+		return {
+			outcome: { reason: "unknown-input", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	if (!field.boundRecordTypes.includes(RECORD_ACTION_TARGET_KIND)) {
+		return {
+			outcome: { reason: "unknown-input", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	let expectedType = "Single select";
+	if (input.kind === "Date") {
+		expectedType = "Date";
+	} else if (input.kind === "Number") {
+		expectedType = "Number";
+	}
+	if (field.type !== expectedType) {
+		return {
+			outcome: { reason: "unknown-input", status: "rejected" },
+			status: "rejected",
+		};
+	}
+	return { status: "ok" };
+}
+
+function forbiddenOrUnknownInputs(
+	inputs: unknown[] | undefined
+): RecordActionRejectionReason | null {
+	if (!inputs) {
+		return null;
+	}
+	for (const input of inputs) {
+		if (!isRecord(input) || typeof input.kind !== "string") {
+			return "unknown-input";
+		}
+		if (
+			(FORBIDDEN_RECORD_ACTION_INPUT_KINDS as readonly string[]).includes(
+				input.kind
+			)
+		) {
+			return "forbidden-input";
+		}
+	}
+	return null;
 }
 
 function forbiddenOrUnknownSteps(
@@ -417,6 +516,7 @@ function commandKeyFor(actorId: string, idempotencyKey: string): string {
 
 function toView(row: {
 	id: string;
+	inputs?: Prisma.JsonValue;
 	name: string;
 	projectId: string;
 	revision: number;
@@ -426,12 +526,27 @@ function toView(row: {
 	return {
 		actor: MUTATION_ACTOR.user,
 		id: row.id,
+		inputs: zArrayInputs(row.inputs ?? []),
 		name: row.name,
 		projectId: row.projectId,
 		revision: row.revision,
 		steps,
 		targetKind: RECORD_ACTION_TARGET_KIND,
 	};
+}
+
+function zArrayInputs(value: Prisma.JsonValue): RecordActionInput[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	const inputs: RecordActionInput[] = [];
+	for (const item of value) {
+		const parsed = recordActionInputSchema.safeParse(item);
+		if (parsed.success) {
+			inputs.push(parsed.data);
+		}
+	}
+	return inputs;
 }
 
 function zArraySteps(value: Prisma.JsonValue): RecordActionStep[] {

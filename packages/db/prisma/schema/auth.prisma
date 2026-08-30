@@ -8,8 +8,9 @@ model User {
   updatedAt     DateTime            @updatedAt
   sessions      Session[]
   accounts      Account[]
-  workspace     Workspace?
-  preference    AccountPreference?
+  workspace                   Workspace?
+  preference                  AccountPreference?
+  completionEffectPreference  CompletionEffectPreference?
 
   @@unique([email])
   @@map("user")

@@ -34,8 +34,12 @@ test("founder chrome reaches Capture and Projects, not Home or Dashboard twins",
 	expect(founderChromeNav().map((link) => link.to)).not.toContain("/sessions");
 });
 
-test("Preferences and Sessions stay on the Account menu", () => {
-	expect(founderChromeAccountOnly()).toEqual(["Preferences", "Sessions"]);
+test("Preferences, Completion effects, and Sessions stay on the Account menu", () => {
+	expect(founderChromeAccountOnly()).toEqual([
+		"Preferences",
+		"Completion effects",
+		"Sessions",
+	]);
 	expect(FOUNDER_CHROME_COPY.account).toBe("Account");
 });
 

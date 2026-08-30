@@ -5,6 +5,8 @@ import { bulkEditTargetIds, nextBulkSelectedWorkIds } from "./bulk-selection";
 
 const SCHEMA_IMPORT_PATTERN =
 	/schema migration|create field|import records|select all unspecified/i;
+const RECORD_ACTION_PATTERN =
+	/record action|combined action|select all unspecified/i;
 
 test("English Bulk Edit has no schema, import, or select-all-unspecified copy", () => {
 	expect(BULK_EDITING_COPY.bulkEdit).toBe("Bulk Edit");
@@ -14,8 +16,15 @@ test("English Bulk Edit has no schema, import, or select-all-unspecified copy", 
 	expect(BULK_EDITING_COPY.schemaOrImportRefused).toBe(
 		"Bulk Edit cannot create fields, migrate schema, or import records."
 	);
+	expect(BULK_EDITING_COPY.apply).toBe("Apply");
+	expect(BULK_EDITING_COPY.progress).toBe("Progress");
+	expect(BULK_EDITING_COPY.succeeded).toBe("Succeeded");
+	expect(BULK_EDITING_COPY.failed).toBe("Failed");
+	expect(BULK_EDITING_COPY.finalizing).toBe("Finalizing");
+	expect(BULK_EDITING_COPY.undo).toBe("Undo");
 	expect(BULK_EDITING_COPY.bulkEdit).not.toMatch(SCHEMA_IMPORT_PATTERN);
 	expect(BULK_EDITING_COPY.selectedWork).not.toMatch(SCHEMA_IMPORT_PATTERN);
+	expect(JSON.stringify(BULK_EDITING_COPY)).not.toMatch(RECORD_ACTION_PATTERN);
 });
 
 test("filter-visible Work is not an implicit Bulk Edit selection", () => {

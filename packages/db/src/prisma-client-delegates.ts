@@ -36,6 +36,8 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.recordAction?.create === "function" &&
 		typeof client.workDraft?.findMany === "function" &&
 		typeof client.workDraft?.create === "function" &&
+		// Completion effect preference is read via table SQL so a bun --hot
+		// client generated before that model can still serve Hesap settings.
 		typeof client.fileAttachment?.findMany === "function" &&
 		typeof client.fileAttachmentVersion?.findMany === "function" &&
 		typeof client.fileAttachmentVersionPin?.findMany === "function" &&
@@ -158,9 +160,10 @@ export function prismaClientHasCurrentTypedRelationModel(
 }
 
 /**
- * ExternalExecutionHandoff.cancelReason is required for Cancel Handoff.
- * A bun `--hot` client generated before that column still has a handoff
- * delegate; update then throws "Unknown argument `cancelReason`".
+ * ExternalExecutionHandoff.goingPackages, events, and cancelReason are
+ * required for Work detail list, history, and Cancel Handoff. A bun
+ * `--hot` client generated before those fields still has a handoff
+ * delegate; include/update then throws unknown field or argument.
  */
 export function prismaClientHasCurrentExternalExecutionHandoffModel(
 	client: PrismaClient
@@ -169,7 +172,11 @@ export function prismaClientHasCurrentExternalExecutionHandoffModel(
 	if (fields.length === 0) {
 		return true;
 	}
-	return fields.includes("cancelReason");
+	return (
+		fields.includes("goingPackages") &&
+		fields.includes("events") &&
+		fields.includes("cancelReason")
+	);
 }
 
 export function workspaceOverviewLayoutSelect(client: PrismaClient) {

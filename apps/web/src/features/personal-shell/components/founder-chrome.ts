@@ -41,7 +41,7 @@ export function founderChromeNav() {
 }
 
 export function founderChromeAccountOnly() {
-	return ["Preferences", "Sessions"] as const;
+	return ["Preferences", "Completion effects", "Sessions"] as const;
 }
 
 export function founderChromeNavIsCurrent(
