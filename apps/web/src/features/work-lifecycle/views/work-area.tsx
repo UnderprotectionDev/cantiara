@@ -86,9 +86,6 @@ export default function WorkArea({
 			nextBulkSelectedWorkIds(current, id, checked)
 		);
 	}, []);
-	const onClearBulkSelect = useCallback(() => {
-		setBulkSelectedIds([]);
-	}, []);
 	const onOpenSourceRecord = useCallback(
 		(id: string) => {
 			setSelectedId(id);
@@ -262,7 +259,6 @@ export default function WorkArea({
 			{!unavailableView && surface === "list" && bulkTargets.length > 0 ? (
 				<BulkEditPreview
 					filterWorkIds={items.map((item) => item.id)}
-					onClear={onClearBulkSelect}
 					selectedWorkIds={bulkTargets}
 				/>
 			) : null}

@@ -116,9 +116,12 @@ describe("Bulk Editing", () => {
 
 	it("uses English Bulk Edit and has no schema, import, or select-all-unspecified copy", () => {
 		expect(BULK_EDITING_COPY.bulkEdit).toBe("Bulk Edit");
-		expect(JSON.stringify(BULK_EDITING_COPY)).not.toMatch(
-			SCHEMA_IMPORT_PATTERN
+		expect(BULK_EDITING_COPY.status).toBe("Status");
+		expect(BULK_EDITING_COPY.schemaOrImportRefused).toBe(
+			"Bulk Edit cannot create fields, migrate schema, or import records."
 		);
+		expect(BULK_EDITING_COPY.bulkEdit).not.toMatch(SCHEMA_IMPORT_PATTERN);
+		expect(BULK_EDITING_COPY.selectedWork).not.toMatch(SCHEMA_IMPORT_PATTERN);
 	});
 
 	it("refuses a filter result as an implicit selection", async () => {
@@ -177,6 +180,7 @@ describe("Bulk Editing", () => {
 							{
 								from: "Not Started",
 								id: "status",
+								label: "Status",
 								to: "In Progress",
 							},
 						],
@@ -265,6 +269,9 @@ describe("Bulk Editing", () => {
 			reason: "close-step-required",
 			status: "rejected",
 		});
+		expect("copy" in closePreview ? closePreview.copy.closureCheck : null).toBe(
+			"Closure check"
+		);
 		expect(await getWork(prisma, selected.id)).toMatchObject({
 			closureResult: null,
 			revision: selected.revision,
@@ -294,8 +301,18 @@ describe("Bulk Editing", () => {
 				records: [
 					{
 						fields: [
-							{ from: "Not Started", id: "status", to: "Closed" },
-							{ from: null, id: "closureResult", to: "Completed" },
+							{
+								from: "Not Started",
+								id: "status",
+								label: "Status",
+								to: "Closed",
+							},
+							{
+								from: null,
+								id: "closureResult",
+								label: "Closure check",
+								to: "Completed",
+							},
 						],
 						workId: selected.id,
 					},

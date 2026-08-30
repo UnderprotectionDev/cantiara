@@ -10,24 +10,33 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
 import {
-	CLOSURE_RESULTS,
 	type ClosureResult,
 	WORK_LIFECYCLE_COPY,
 	WORK_STATUSES,
 	type WorkStatus,
 } from "@/features/work-lifecycle/forms/work-lifecycle-copy";
-import { MUTATION_COPY } from "@/lib/mutation";
 import { orpc } from "@/utils/orpc";
 
 import { BULK_EDITING_COPY } from "./bulk-editing-copy";
 
+function rejectionCopy(reason: string): string {
+	if (reason === "close-step-required") {
+		return BULK_EDITING_COPY.closeStepRequired;
+	}
+	if (reason === "selection-required") {
+		return BULK_EDITING_COPY.noSelection;
+	}
+	if (reason === "schema-or-import-refused") {
+		return BULK_EDITING_COPY.schemaOrImportRefused;
+	}
+	return BULK_EDITING_COPY.targetNotFound;
+}
+
 export default function BulkEditPreview({
 	filterWorkIds,
-	onClear,
 	selectedWorkIds,
 }: {
 	filterWorkIds: string[];
-	onClear: () => void;
 	selectedWorkIds: string[];
 }) {
 	const [status, setStatus] = useState<WorkStatus | "">("");
@@ -38,6 +47,7 @@ export default function BulkEditPreview({
 	const onStatusChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
 			setStatus(event.target.value as WorkStatus | "");
+			setClosureResult("");
 		},
 		[]
 	);
@@ -73,15 +83,7 @@ export default function BulkEditPreview({
 				{
 					onSuccess: (outcome) => {
 						if (outcome.status === "rejected") {
-							if (outcome.reason === "close-step-required") {
-								setError(BULK_EDITING_COPY.closeStepRequired);
-								return;
-							}
-							if (outcome.reason === "selection-required") {
-								setError(BULK_EDITING_COPY.noSelection);
-								return;
-							}
-							setError(outcome.reason);
+							setError(rejectionCopy(outcome.reason));
 						}
 					},
 				}
@@ -91,6 +93,12 @@ export default function BulkEditPreview({
 	);
 	const records =
 		preview.data?.status === "ok" ? preview.data.preview.records : [];
+	const closeCopy =
+		preview.data?.status === "rejected" &&
+		preview.data.reason === "close-step-required" &&
+		"copy" in preview.data.closePreview
+			? preview.data.closePreview.copy
+			: null;
 
 	return (
 		<section
@@ -131,10 +139,10 @@ export default function BulkEditPreview({
 							value={title}
 						/>
 					</Field>
-					{status === "Closed" ? (
+					{closeCopy ? (
 						<Field className="w-44">
 							<FieldLabel htmlFor="bulk-edit-close-result">
-								{WORK_LIFECYCLE_COPY.completed}
+								{closeCopy.closureCheck}
 							</FieldLabel>
 							<NativeSelect
 								className="w-full"
@@ -143,19 +151,17 @@ export default function BulkEditPreview({
 								value={closureResult}
 							>
 								<NativeSelectOption value="">—</NativeSelectOption>
-								{CLOSURE_RESULTS.map((result) => (
-									<NativeSelectOption key={result} value={result}>
-										{result}
-									</NativeSelectOption>
-								))}
+								<NativeSelectOption value={closeCopy.completed}>
+									{closeCopy.completed}
+								</NativeSelectOption>
+								<NativeSelectOption value={closeCopy.abandoned}>
+									{closeCopy.abandoned}
+								</NativeSelectOption>
 							</NativeSelect>
 						</Field>
 					) : null}
 					<Button disabled={preview.isPending} type="submit">
 						{BULK_EDITING_COPY.fieldChanges}
-					</Button>
-					<Button onClick={onClear} type="button" variant="ghost">
-						{MUTATION_COPY.cancel}
 					</Button>
 				</FieldGroup>
 			</form>
@@ -171,7 +177,7 @@ export default function BulkEditPreview({
 							<ul className="text-muted-foreground">
 								{record.fields.map((field) => (
 									<li key={field.id}>
-										{field.id}: {field.from ?? "—"} → {field.to}
+										{field.label}: {field.from ?? "—"} → {field.to}
 									</li>
 								))}
 							</ul>

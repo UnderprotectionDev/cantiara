@@ -8,9 +8,15 @@ import {
 export const BULK_EDITING_COPY = {
 	bulkEdit: "Bulk Edit",
 	closeStepRequired: "Close result is required.",
+	closureResult: "Closure check",
 	fieldChanges: "Field changes",
 	noSelection: "Select Work to bulk edit.",
+	schemaOrImportRefused:
+		"Bulk Edit cannot create fields, migrate schema, or import records.",
 	selectedWork: "Selected Work",
+	status: "Status",
+	targetNotFound: "Work is unavailable.",
+	title: "Title",
 } as const;
 
 export const previewBulkFieldChangeSchema = z

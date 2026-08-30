@@ -17,6 +17,7 @@ const FORBIDDEN_CHANGE_KEYS = ["createField", "importRecords", "newField"];
 export interface BulkFieldDiff {
 	from: string | null;
 	id: "status" | "title" | "closureResult";
+	label: string;
 	to: string;
 }
 
@@ -160,7 +161,12 @@ function diffsFor(
 ): BulkFieldDiff[] {
 	const fields: BulkFieldDiff[] = [];
 	if (changes.status !== undefined && changes.status !== row.status) {
-		fields.push({ from: row.status, id: "status", to: changes.status });
+		fields.push({
+			from: row.status,
+			id: "status",
+			label: BULK_EDITING_COPY.status,
+			to: changes.status,
+		});
 	}
 	if (
 		changes.closureResult !== undefined &&
@@ -169,11 +175,17 @@ function diffsFor(
 		fields.push({
 			from: row.closureResult,
 			id: "closureResult",
+			label: BULK_EDITING_COPY.closureResult,
 			to: changes.closureResult,
 		});
 	}
 	if (changes.title !== undefined && changes.title !== row.title) {
-		fields.push({ from: row.title, id: "title", to: changes.title });
+		fields.push({
+			from: row.title,
+			id: "title",
+			label: BULK_EDITING_COPY.title,
+			to: changes.title,
+		});
 	}
 	return fields;
 }
