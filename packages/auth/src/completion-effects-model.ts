@@ -73,16 +73,10 @@ export function defaultCompletionEffectPreference(): CompletionEffectPreference 
 }
 
 export function themeForPaletteChange(
-	currentTheme: CompletionEffectTheme,
+	_currentTheme: CompletionEffectTheme,
 	currentPalette: string,
 	nextTheme: CompletionEffectTheme
 ): Pick<CompletionEffectPreference, "palette" | "theme"> {
-	if (
-		currentTheme === nextTheme &&
-		isCatalogSelection(nextTheme, currentPalette)
-	) {
-		return { palette: currentPalette, theme: nextTheme };
-	}
 	if (isCatalogSelection(nextTheme, currentPalette)) {
 		return { palette: currentPalette, theme: nextTheme };
 	}

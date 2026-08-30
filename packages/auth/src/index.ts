@@ -53,6 +53,8 @@ export type {
 } from "./account-sessions";
 export { createPrismaAuditLog } from "./audit-log";
 export {
+	COMPLETION_EFFECT_PALETTE_COPY,
+	COMPLETION_EFFECT_THEME_COPY,
 	COMPLETION_EFFECTS_COPY,
 	completionEffectsChrome,
 } from "./completion-effects-copy";

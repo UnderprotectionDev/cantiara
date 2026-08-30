@@ -1,4 +1,8 @@
-import { COMPLETION_EFFECTS_COPY } from "@cantiara/auth/completion-effects-copy";
+import {
+	COMPLETION_EFFECT_PALETTE_COPY,
+	COMPLETION_EFFECT_THEME_COPY,
+	COMPLETION_EFFECTS_COPY,
+} from "@cantiara/auth/completion-effects-copy";
 import {
 	COMPLETION_EFFECT_THEMES,
 	type CompletionEffectPreference,
@@ -123,7 +127,7 @@ export default function CompletionEffectsForm({
 						{COMPLETION_EFFECT_THEMES.map((theme) => (
 							<CatalogChoice
 								key={theme}
-								label={theme}
+								label={COMPLETION_EFFECT_THEME_COPY[theme]}
 								onSelect={onTheme}
 								selected={preference.theme === theme}
 								value={theme}
@@ -139,7 +143,7 @@ export default function CompletionEffectsForm({
 						{palettesForTheme(preference.theme).map((palette) => (
 							<CatalogChoice
 								key={palette}
-								label={palette}
+								label={COMPLETION_EFFECT_PALETTE_COPY[palette]}
 								onSelect={onPalette}
 								selected={preference.palette === palette}
 								swatch={paletteSwatches(preference.theme, palette)[1]}
