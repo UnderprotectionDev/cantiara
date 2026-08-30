@@ -266,6 +266,14 @@ _Avoid_: Klasör, etiket, statik liste, Kanban sırası
 Kullanıcının farklı Projelerden bugün ele almak istediği İşleri toplayan kişisel görünüm; durum, öncelik veya proje aşaması yazmaz ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)).
 _Avoid_: Odak Dönemi, sprint, Aktif Çalışma Seti, Takvim olayı
 
+**Kayıt Eylemi**:
+Kullanıcının kapalı alan ve üyelik adımlarından adlandırdığı, tek hedef kayıt üzerinde çalışan birleşik yazma tanımı; otomasyon kuralı, Toplu Düzenleme veya betik pazarı değildir ([kullanıcı başlatmalı kayıt eylemleri](docs/prd/06-work-management-and-planning.md#kullanıcı-başlatmalı-kayıt-eylemleri)). UI: `Record Action`.
+_Avoid_: macro marketplace, otomasyon kuralı, Toplu Düzenleme, script, çok kayıtlı düğme
+
+**Start Work**:
+Durumu `In Progress` yapan ve İşi Günlük Odak üyeliğine ekleyen ilk Kayıt Eylemi örneği. UI: `Start Work`.
+_Avoid_: otomasyon kuralı, çok kayıtlı düğme, arka plan kuralı
+
 **Birleşik Takvim**:
 Desteklenen tarihli kayıtları türleri karışmadan gün, hafta, ay ve Agenda'da gösteren yüzey; yeni İş türü veya durum üretmez ([Birleşik Takvim](docs/prd/06-work-management-and-planning.md#birleşik-takvim)).
 _Avoid_: Dış takvim senkronu, Event kaydı, durum tahtası
@@ -273,6 +281,10 @@ _Avoid_: Dış takvim senkronu, Event kaydı, durum tahtası
 **Liste görünümü**:
 Filtrelenen İşleri alanlarıyla yoğun ve taranabilir düzende sunan aynı İş taraması; satır ayrı kayıt değildir ([Liste görünümü](docs/prd/06-work-management-and-planning.md#liste-görünümü)).
 _Avoid_: Tablo Görünümü, ikinci kayıt sistemi, Backlog
+
+**Toplu Düzenleme**:
+Açıkça seçilmiş İşlerde mevcut alanların fark önizlemesiyle güncellenmesi; örtük seçim, şema göçü veya içe aktarma değildir ([Toplu düzenleme](docs/prd/06-work-management-and-planning.md#toplu-düzenleme)). UI: `Bulk Edit`.
+_Avoid_: select-all-unspecified, schema migration, import, record-action catalog, silent partial
 
 **Kapsam Ağacı**:
 Mevcut `Proje → Özellik → Kapsanan işler` ilişkisini salt okunur açan görünüm; sürükleme parent–child üretmez ([Kapsam Ağacı](docs/prd/06-work-management-and-planning.md#kapsam-ağacı)). UI: `Scope Tree`.
@@ -680,6 +692,14 @@ _Avoid_: Ana kayıt, yardımcı kayıt
 **Dış yürütme devri**:
 Bir İşin AI ajanında veya harici araçta yürütülecek test-dışı çalışmasının kesin bağlamını, dönen sonucunu ve kullanıcı kararını tarihsel koruyan [sahipli bileşen](docs/adr/0015-dis-yurutme-devrini-ise-ait-bilesen-olarak-tut.md); planlı ya da formel test için Test Handoff'unun yerine geçmez.
 _Avoid_: Coding session, ajan görevi, bağımsız Handoff ana kaydı
+
+**Gidiş paketi**:
+Bir Dış yürütme devrinde yalnız kullanıcının seçtiği kesin sürüm manifestinden üretilen tarihli okunabilir Markdown kopyası; canlı senkron, repository kopyası veya yayın artefaktı değildir.
+_Avoid_: canlı senkron, repository kopyası, yayın artefaktı, Test Handoff paketi
+
+**Seçilen sürüm**:
+Gidiş paketine alınan kesin İş, Belge, Karar, Risk, Açık Soru veya Kaynak sürümü; seçilmeyen ilişki veya erişilemeyen alan pakete girmez.
+_Avoid_: canlı ilişkileri yürüyen kopya, bütün grafiği paketleme
 
 **Dış yürütme uzlaştırması**:
 Bir Dış yürütme devrinin sonucunu, kanıtını ve açık sorularını kullanıcının inceleyip ana proje gerçeğine bağladığı kapanış kararı; commit, PR veya durum değişikliği bu kararı kendiliğinden oluşturmaz.

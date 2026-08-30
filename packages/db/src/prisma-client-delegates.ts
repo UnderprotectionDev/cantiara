@@ -28,8 +28,12 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.projectCustomFieldValue?.create === "function" &&
 		typeof client.projectPriorityMapPresentation?.findUnique === "function" &&
 		typeof client.projectPriorityMapPresentation?.upsert === "function" &&
+		typeof client.externalExecutionHandoff?.findMany === "function" &&
+		typeof client.externalExecutionHandoff?.create === "function" &&
 		typeof client.workTemplate?.findMany === "function" &&
 		typeof client.workTemplate?.create === "function" &&
+		typeof client.recordAction?.findMany === "function" &&
+		typeof client.recordAction?.create === "function" &&
 		typeof client.workDraft?.findMany === "function" &&
 		typeof client.workDraft?.create === "function" &&
 		// Completion effect preference is read via table SQL so a bun --hot

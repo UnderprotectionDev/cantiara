@@ -3,6 +3,11 @@ import { Skeleton } from "@cantiara/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import BulkEditPreview from "@/features/bulk-editing/views/bulk-edit-preview";
+import {
+	bulkEditTargetIds,
+	nextBulkSelectedWorkIds,
+} from "@/features/bulk-editing/views/bulk-selection";
 import CustomFieldFilter from "@/features/custom-fields/forms/custom-field-filter";
 import { PRIORITY_COPY } from "@/features/priority/forms/priority-copy";
 import PrioritizationSessionArea from "@/features/priority/views/prioritization-session";
@@ -34,6 +39,7 @@ export default function WorkArea({
 	unavailableView?: string | null;
 }) {
 	const [archiveFilter, setArchiveFilter] = useState(false);
+	const [bulkSelectedIds, setBulkSelectedIds] = useState<string[]>([]);
 	const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
 	const [tagFilter, setTagFilter] = useState("");
 	const [surface, setSurface] = useState<"list" | "priority-map">("list");
@@ -75,6 +81,11 @@ export default function WorkArea({
 		},
 		[onSelectedWorkId]
 	);
+	const onToggleBulkSelect = useCallback((id: string, checked: boolean) => {
+		setBulkSelectedIds((current) =>
+			nextBulkSelectedWorkIds(current, id, checked)
+		);
+	}, []);
 	const onOpenSourceRecord = useCallback(
 		(id: string) => {
 			setSelectedId(id);
@@ -171,9 +182,19 @@ export default function WorkArea({
 				.filter((name): name is string => Boolean(name)),
 		}));
 	const selected = items.find((item) => item.id === selectedId) ?? null;
+	const bulkTargets = bulkEditTargetIds({
+		selectedWorkIds: bulkSelectedIds,
+		visibleWorkIds: items.map((item) => item.id),
+	});
 
 	let workSurface = (
-		<WorkList items={items} onSelect={onSelect} selectedId={selectedId} />
+		<WorkList
+			bulkSelectedIds={bulkSelectedIds}
+			items={items}
+			onSelect={onSelect}
+			onToggleBulkSelect={onToggleBulkSelect}
+			selectedId={selectedId}
+		/>
 	);
 	if (unavailableView) {
 		workSurface = (
@@ -235,6 +256,12 @@ export default function WorkArea({
 				</Button>
 			</div>
 			{workSurface}
+			{!unavailableView && surface === "list" ? (
+				<BulkEditPreview
+					filterWorkIds={items.map((item) => item.id)}
+					selectedWorkIds={bulkTargets}
+				/>
+			) : null}
 			<ScopeTree
 				onOpenSourceRecord={onOpenSourceRecord}
 				openedRecordId={selectedId}
