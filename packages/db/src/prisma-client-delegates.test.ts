@@ -126,10 +126,34 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
+	it("refuses a bun --hot client generated before External Execution Handoff", () => {
+		expect(
+			prismaClientHasCurrentDelegates({
+				...workDelegates(),
+				...currentLifecycleDelegates(),
+				fileAttachment: { findMany },
+				fileAttachmentOriginLocation: { findMany },
+				fileAttachmentReceipt: { findMany },
+				fileAttachmentRelation: { findMany },
+				fileAttachmentStaging: { findMany },
+				fileAttachmentVersion: { findMany },
+				fileAttachmentVersionPin: { findMany },
+				fileImageDerivative: { findMany },
+				fileObjectBlob: { findMany },
+				tag: { findMany },
+				tagInlineUse: { findMany },
+				usageHostEmbed: { findMany },
+				usageLink: { findMany },
+				workTag: { findMany },
+			} as unknown as PrismaClient)
+		).toBe(false);
+	});
+
 	it("refuses a bun --hot client generated before Record Action", () => {
 		const { recordAction: _dropped, ...beforeActions } = {
 			...workDelegates(),
 			...currentLifecycleDelegates(),
+			externalExecutionHandoff: { create: () => undefined, findMany },
 			fileAttachment: { findMany },
 			fileAttachmentOriginLocation: { findMany },
 			fileAttachmentReceipt: { findMany },
@@ -150,11 +174,12 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
-	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Templates, Work Drafts, File Attachments, and Tags", () => {
+	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Templates, Work Drafts, File Attachments, Tags, Record Actions, and External Execution Handoffs", () => {
 		expect(
 			prismaClientHasCurrentDelegates({
 				...workDelegates(),
 				...currentLifecycleDelegates(),
+				externalExecutionHandoff: { create: () => undefined, findMany },
 				fileAttachment: { findMany },
 				fileAttachmentOriginLocation: { findMany },
 				fileAttachmentReceipt: { findMany },

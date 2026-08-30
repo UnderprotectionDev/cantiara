@@ -1,0 +1,20 @@
+model ExternalExecutionHandoff {
+  id                      String   @id
+  workId                  String
+  work                    Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  status                  String
+  purpose                 String
+  expectedOutput          String
+  executorVisibleName     String
+  constraints             String
+  selectedVersionManifest Json
+  permittedGithubContext  Json
+  goingPackageMarkdown    String
+  goingPackageProducedAt  DateTime
+  revision                Int
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([workId, createdAt])
+  @@map("external_execution_handoff")
+}

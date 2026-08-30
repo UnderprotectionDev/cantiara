@@ -693,6 +693,14 @@ _Avoid_: Ana kayıt, yardımcı kayıt
 Bir İşin AI ajanında veya harici araçta yürütülecek test-dışı çalışmasının kesin bağlamını, dönen sonucunu ve kullanıcı kararını tarihsel koruyan [sahipli bileşen](docs/adr/0015-dis-yurutme-devrini-ise-ait-bilesen-olarak-tut.md); planlı ya da formel test için Test Handoff'unun yerine geçmez.
 _Avoid_: Coding session, ajan görevi, bağımsız Handoff ana kaydı
 
+**Gidiş paketi**:
+Bir Dış yürütme devrinde yalnız kullanıcının seçtiği kesin sürüm manifestinden üretilen tarihli okunabilir Markdown kopyası; canlı senkron, repository kopyası veya yayın artefaktı değildir.
+_Avoid_: canlı senkron, repository kopyası, yayın artefaktı, Test Handoff paketi
+
+**Seçilen sürüm**:
+Gidiş paketine alınan kesin İş, Belge, Karar, Risk, Açık Soru veya Kaynak sürümü; seçilmeyen ilişki veya erişilemeyen alan pakete girmez.
+_Avoid_: canlı ilişkileri yürüyen kopya, bütün grafiği paketleme
+
 **Dış yürütme uzlaştırması**:
 Bir Dış yürütme devrinin sonucunu, kanıtını ve açık sorularını kullanıcının inceleyip ana proje gerçeğine bağladığı kapanış kararı; commit, PR veya durum değişikliği bu kararı kendiliğinden oluşturmaz.
 _Avoid_: Commit geldi, otomatik kapanış, İş tamamlandı
