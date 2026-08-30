@@ -129,6 +129,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ana kaynak uygulamadadır | `Primary source is in the app` | Kopyalanan Markdown'ın asıl kaydın uygulamada kaldığını belirten not |
 | Dış yürütme devri | `External Execution Handoff` | İşe ait test-dışı dış yürütme bileşeni; bağımsız Handoff ana kaydı değildir |
 | Devir başlat | `Start Handoff` | Dış yürütme devri başlatma eylemi |
+| Devir iptal | `Cancel Handoff` | Gerekçeli iptal eylemi; geçmişi silmez |
+| Devir açık | `Open` | Dış yürütme devrinin açık, henüz terminal olmayan durumu |
+| Devir iptal edildi | `Canceled` | Gerekçeli iptalin terminal durumu |
 | Devir yazılamadı | `This handoff could not be written.` | Dış yürütme devri yazmasının reddedildiği veya uygulanamadığı durum |
 | Uzlaştır | `Reconcile` | Dönen dış yürütmeyi ana kayıt bağlarına ve takip İşlerine bağlayan kapanış kararı |
 | Sonuç döndü | `Result returned` | Dönüş kaydedilmiş, henüz uzlaştırılmamış Dış yürütme devri durumu |
@@ -303,7 +306,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kalıcı bağlamı koru | `Keep lasting context` | Kapatma adımında Karar veya Kişisel Wiki oluşturma komutunu önizleyen isteğe bağlı bölüm |
 | Yeniden aç | `Reopen` | Kapanmış İşi terminal olmayan duruma döndürme |
 | Yeniden açmayı onayla | `Confirm reopen` | Yeniden açmayı onaylayan eylem |
-| Gerekçe | `Reason` | Kapatma adımındaki isteğe bağlı gerekçe |
+| Gerekçe | `Reason` | Kapatma adımındaki isteğe bağlı gerekçe; `Cancel Handoff` için zorunlu iptal gerekçesi |
 | Açıklamayı kapat | `Dismiss` | İlk açılış açıklamasını kapatan eylem |
 | Herkese açık durum etiketi | `Public Status Label` | İş akışı durumunu değiştirmeyen, yalnız herkese açık Roadmap sunumunda kullanılan ziyaretçi etiketi |
 | GitHub kimliğini yeniden teyit etme | `Confirm GitHub Identity` | Yüksek riskli işlem için yeni OAuth turunda aynı değişmez GitHub kimliğini doğrulayan fakat parola/MFA girişi iddia etmeyen güvenlik eylemi |

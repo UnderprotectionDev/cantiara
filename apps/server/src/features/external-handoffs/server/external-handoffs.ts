@@ -16,8 +16,11 @@ import {
 	workKey,
 } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
+	type CancelHandoffCommand,
+	type CancelHandoffOutcome,
 	type ConfirmReconcileCommand,
 	type ConfirmReconcileOutcome,
+	cancelHandoffCommandSchema,
 	confirmReconcileCommandSchema,
 	EXTERNAL_HANDOFFS_COPY,
 	type ExternalExecutionHandoffView,
@@ -25,11 +28,15 @@ import {
 	type GithubContext,
 	githubContextSchema,
 	HANDOFF_HISTORY_KIND,
+	HANDOFF_SEPARATIONS,
 	HANDOFF_STATUS,
 	HANDOFF_STATUSES,
 	type HandoffHistoryEntry,
 	type HandoffStatus,
 	type HandoffWriteOutcome,
+	isTerminalHandoffStatus,
+	type NonClosingHandoffEventOutcome,
+	nonClosingHandoffEventSchema,
 	type PreviewReconcileOutcome,
 	type ProduceGoingPackageCommand,
 	type ProduceGoingPackageOutcome,
@@ -61,6 +68,7 @@ interface PackageRow {
 }
 
 interface HandoffRow {
+	cancelReason: string | null;
 	constraints: string;
 	executorVisibleName: string;
 	expectedOutput: string;
@@ -372,6 +380,9 @@ async function produceInTransaction(
 	if (!handoff || handoff.workId !== command.payload.workId) {
 		return { reason: "handoff-not-found", status: "rejected" };
 	}
+	if (isTerminalHandoffStatus(handoff.status)) {
+		return { reason: "already-terminal", status: "rejected" };
+	}
 	const work = await tx.work.findUnique({
 		where: { id: handoff.workId },
 	});
@@ -451,6 +462,103 @@ async function produceInTransaction(
 		committedRevision: nextRevision,
 		fingerprint,
 		targetId: handoff.id,
+		view,
+	});
+	return { handoff: view, status: "committed" };
+}
+
+export async function cancelHandoff(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<CancelHandoffOutcome> {
+	const parsed = cancelHandoffCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const reason = parsed.data.payload.reason.trim();
+	if (reason.length === 0) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({
+		handoffId: parsed.data.payload.handoffId,
+		reason,
+	});
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		cancelInTransaction(tx, parsed.data, reason, commandKey, fingerprint)
+	);
+}
+
+export async function applyNonClosingHandoffEvent(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<NonClosingHandoffEventOutcome> {
+	const parsed = nonClosingHandoffEventSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const loaded = await loadOwnedHandoff(prisma, parsed.data.handoffId);
+	if (!loaded) {
+		return { reason: "handoff-not-found", status: "rejected" };
+	}
+	const view = await viewFromRow(prisma, loaded.row, loaded.work.key);
+	if (!view) {
+		return { reason: "invalid-handoff", status: "rejected" };
+	}
+	return {
+		handoff: view,
+		reason: "not-a-terminal-event",
+		status: "ignored",
+	};
+}
+
+async function cancelInTransaction(
+	tx: PrismaTransaction,
+	command: CancelHandoffCommand,
+	reason: string,
+	commandKey: string,
+	fingerprint: string
+): Promise<CancelHandoffOutcome> {
+	const replayed = await replayReceipt(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const loaded = await loadOwnedHandoff(tx, command.payload.handoffId);
+	if (!loaded) {
+		return { reason: "handoff-not-found", status: "rejected" };
+	}
+	if (isTerminalHandoffStatus(loaded.row.status)) {
+		return { reason: "already-terminal", status: "rejected" };
+	}
+	const updated = await tx.externalExecutionHandoff.update({
+		data: {
+			cancelReason: reason,
+			revision: loaded.row.revision + 1,
+			status: HANDOFF_STATUS.canceled,
+		},
+		where: { id: loaded.row.id },
+	});
+	await persistHistoryEvent(tx, {
+		actorId: command.actorId,
+		handoffId: updated.id,
+		kind: HANDOFF_HISTORY_KIND.canceled,
+		occurredAt: new Date(),
+		packageVersion: null,
+		workId: loaded.work.id,
+	});
+	const view = await viewFromRow(tx, updated, loaded.work.key);
+	if (!view) {
+		return { reason: "invalid-handoff", status: "rejected" };
+	}
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		committedRevision: updated.revision,
+		fingerprint,
+		targetId: updated.id,
 		view,
 	});
 	return { handoff: view, status: "committed" };
@@ -781,7 +889,7 @@ async function allocateFollowUpNumber(
 }
 
 async function loadOwnedHandoff(
-	tx: PrismaTransaction,
+	tx: PrismaClient | PrismaTransaction,
 	handoffId: string
 ): Promise<{
 	row: HandoffRow;
@@ -803,7 +911,7 @@ async function loadOwnedHandoff(
 }
 
 async function viewFromRow(
-	tx: PrismaTransaction,
+	tx: PrismaClient | PrismaTransaction,
 	row: HandoffRow,
 	workKeyValue: string
 ): Promise<ExternalExecutionHandoffView | null> {
@@ -955,8 +1063,11 @@ function toView(
 		return null;
 	}
 	return {
+		cancelReason: row.cancelReason,
 		constraints: row.constraints,
 		copy: {
+			canceled: EXTERNAL_HANDOFFS_COPY.canceled,
+			cancelHandoff: EXTERNAL_HANDOFFS_COPY.cancelHandoff,
 			confirm: EXTERNAL_HANDOFFS_COPY.confirm,
 			externalExecutionHandoff: EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff,
 			followUpWork: EXTERNAL_HANDOFFS_COPY.followUpWork,
@@ -994,7 +1105,9 @@ function toView(
 			terminal: false,
 		},
 		selectedVersions,
+		separations: HANDOFF_SEPARATIONS,
 		status: row.status,
+		terminal: isTerminalHandoffStatus(row.status),
 		workId: row.workId,
 		workKey: workKeyValue,
 	};
@@ -1038,7 +1151,8 @@ function toHistoryEntry(row: {
 }): HandoffHistoryEntry | null {
 	if (
 		row.kind !== HANDOFF_HISTORY_KIND.started &&
-		row.kind !== HANDOFF_HISTORY_KIND.packageExported
+		row.kind !== HANDOFF_HISTORY_KIND.packageExported &&
+		row.kind !== HANDOFF_HISTORY_KIND.canceled
 	) {
 		return null;
 	}
@@ -1049,6 +1163,7 @@ function toHistoryEntry(row: {
 		actorId: row.actorId,
 		actorType: MUTATION_ACTOR.user,
 		copy: {
+			cancelHandoff: EXTERNAL_HANDOFFS_COPY.cancelHandoff,
 			goingPackage: EXTERNAL_HANDOFFS_COPY.goingPackage,
 			startHandoff: EXTERNAL_HANDOFFS_COPY.startHandoff,
 		},

@@ -6,6 +6,8 @@ import {
 } from "../../mutation-core/server/mutation-shared";
 
 export const EXTERNAL_HANDOFFS_COPY = {
+	canceled: "Canceled",
+	cancelHandoff: "Cancel Handoff",
 	changedAssumptions: "Changed assumptions",
 	confirm: "Confirm",
 	constraints: "Constraints",
@@ -25,6 +27,7 @@ export const EXTERNAL_HANDOFFS_COPY = {
 	producedAt: "Produced at",
 	producedEvidence: "Produced evidence",
 	purpose: "Purpose",
+	reason: "Reason",
 	reconcile: "Reconcile",
 	reconciled: "Reconciled",
 	recordReturn: "Record return",
@@ -37,6 +40,7 @@ export const EXTERNAL_HANDOFFS_COPY = {
 } as const;
 
 export const HANDOFF_STATUS = {
+	canceled: EXTERNAL_HANDOFFS_COPY.canceled,
 	open: EXTERNAL_HANDOFFS_COPY.open,
 	reconciled: EXTERNAL_HANDOFFS_COPY.reconciled,
 	resultReturned: EXTERNAL_HANDOFFS_COPY.resultReturned,
@@ -46,11 +50,31 @@ export const HANDOFF_STATUSES = [
 	HANDOFF_STATUS.open,
 	HANDOFF_STATUS.resultReturned,
 	HANDOFF_STATUS.reconciled,
+	HANDOFF_STATUS.canceled,
 ] as const;
 
 export type HandoffStatus = (typeof HANDOFF_STATUSES)[number];
 
+export function handoffStatusCatalog(): ReadonlyArray<{
+	status: HandoffStatus;
+	terminal: boolean;
+}> {
+	return [
+		{ status: HANDOFF_STATUS.open, terminal: false },
+		{ status: HANDOFF_STATUS.resultReturned, terminal: false },
+		{ status: HANDOFF_STATUS.reconciled, terminal: true },
+		{ status: HANDOFF_STATUS.canceled, terminal: true },
+	];
+}
+
+export function isTerminalHandoffStatus(status: string): boolean {
+	return handoffStatusCatalog().some(
+		(entry) => entry.status === status && entry.terminal
+	);
+}
+
 export const HANDOFF_HISTORY_KIND = {
+	canceled: "canceled",
 	packageExported: "package-exported",
 	started: "started",
 } as const;
@@ -150,6 +174,32 @@ export const startHandoffCommandSchema = z.object({
 });
 
 export type StartHandoffCommand = z.infer<typeof startHandoffCommandSchema>;
+
+export const cancelHandoffPayloadSchema = z.object({
+	handoffId: z.string().min(1),
+	reason: z.string(),
+});
+
+export type CancelHandoffPayload = z.infer<typeof cancelHandoffPayloadSchema>;
+
+export const cancelHandoffCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal(HUMAN_ORIGIN),
+	payload: cancelHandoffPayloadSchema,
+});
+
+export type CancelHandoffCommand = z.infer<typeof cancelHandoffCommandSchema>;
+
+export const nonClosingHandoffEventSchema = z.object({
+	event: z.enum([
+		"github-commit-bound",
+		"github-pull-request-bound",
+		"external-result-arrived",
+	]),
+	handoffId: z.string().min(1),
+	identifier: z.string().optional(),
+});
 
 export const recordReturnPayloadSchema = z.object({
 	changedAssumptions: z.string(),
@@ -260,7 +310,27 @@ export const runnerEffectsSchema = z.object({
 	terminal: z.literal(false),
 });
 
+export const HANDOFF_SEPARATIONS = {
+	externalHumanAssignment: false,
+	officialTestHistory: false,
+	productGapEscape: false,
+	publishArtifact: false,
+	testHandoffPackage: false,
+	testSession: false,
+} as const;
+
+export const handoffSeparationsSchema = z.object({
+	externalHumanAssignment: z.literal(false),
+	officialTestHistory: z.literal(false),
+	productGapEscape: z.literal(false),
+	publishArtifact: z.literal(false),
+	testHandoffPackage: z.literal(false),
+	testSession: z.literal(false),
+});
+
 export const handoffCopySchema = z.object({
+	canceled: z.literal(EXTERNAL_HANDOFFS_COPY.canceled),
+	cancelHandoff: z.literal(EXTERNAL_HANDOFFS_COPY.cancelHandoff),
 	confirm: z.literal(EXTERNAL_HANDOFFS_COPY.confirm),
 	externalExecutionHandoff: z.literal(
 		EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff
@@ -277,6 +347,7 @@ export const handoffCopySchema = z.object({
 });
 
 export const externalExecutionHandoffViewSchema = z.object({
+	cancelReason: z.string().nullable(),
 	constraints: z.string(),
 	copy: handoffCopySchema,
 	executorVisibleName: z.string(),
@@ -291,7 +362,9 @@ export const externalExecutionHandoffViewSchema = z.object({
 	returnRecord: returnRecordSchema.nullable(),
 	runner: runnerEffectsSchema,
 	selectedVersions: z.array(selectedVersionSchema),
+	separations: handoffSeparationsSchema,
 	status: z.enum(HANDOFF_STATUSES),
+	terminal: z.boolean(),
 	workId: z.string().min(1),
 	workKey: z.string().min(1),
 });
@@ -336,7 +409,18 @@ export type PreviewReconcileOutcome =
 
 export type ProduceGoingPackageOutcome = StartHandoffOutcome;
 
+export type CancelHandoffOutcome = HandoffWriteOutcome;
+
+export type NonClosingHandoffEventOutcome =
+	| {
+			handoff: ExternalExecutionHandoffView;
+			reason: "not-a-terminal-event";
+			status: "ignored";
+	  }
+	| { reason: string; status: "rejected" };
+
 export const handoffHistoryCopySchema = z.object({
+	cancelHandoff: z.literal(EXTERNAL_HANDOFFS_COPY.cancelHandoff),
 	goingPackage: z.literal(EXTERNAL_HANDOFFS_COPY.goingPackage),
 	startHandoff: z.literal(EXTERNAL_HANDOFFS_COPY.startHandoff),
 });
@@ -348,6 +432,7 @@ export const handoffHistoryEntrySchema = z.object({
 	handoffId: z.string().min(1),
 	id: z.string().min(1),
 	kind: z.enum([
+		HANDOFF_HISTORY_KIND.canceled,
 		HANDOFF_HISTORY_KIND.packageExported,
 		HANDOFF_HISTORY_KIND.started,
 	]),

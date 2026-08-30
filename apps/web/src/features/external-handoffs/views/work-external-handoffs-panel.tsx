@@ -61,6 +61,9 @@ export default function WorkExternalHandoffsPanel({
 	const [includeThisWork, setIncludeThisWork] = useState(true);
 	const [extraVersions, setExtraVersions] = useState<ExtraVersion[]>([]);
 	const [error, setError] = useState<string | null>(null);
+	const [cancelReasons, setCancelReasons] = useState<Record<string, string>>(
+		{}
+	);
 	const listed = useQuery(
 		orpc.externalHandoffs.list.queryOptions({
 			input: { workId },
@@ -172,6 +175,50 @@ export default function WorkExternalHandoffsPanel({
 			workId,
 			workTitle,
 		]
+	);
+	const cancel = useMutation(
+		orpc.externalHandoffs.cancel.mutationOptions({
+			onError: () => {
+				setError(EXTERNAL_HANDOFFS_COPY.couldNotComplete);
+			},
+			onSuccess: async (outcome) => {
+				const message = presentHandoffWriteError(outcome);
+				if (message) {
+					setError(message);
+					return;
+				}
+				await invalidateHandoffs();
+				recordSave();
+				setError(null);
+			},
+		})
+	);
+	const onCancelReason = useCallback((handoffId: string, value: string) => {
+		setCancelReasons((current) => ({ ...current, [handoffId]: value }));
+	}, []);
+	const onCancelHandoff = useCallback(
+		(handoffId: string) => {
+			const reason = (cancelReasons[handoffId] ?? "").trim();
+			if (reason.length === 0) {
+				return;
+			}
+			markUnsaved();
+			const result = attemptOnlineWork("record-create", () =>
+				cancel.mutateAsync({
+					idempotencyKey: newIdempotencyKey(),
+					payload: {
+						handoffId,
+						reason,
+					},
+				})
+			);
+			if (result.status === "refused") {
+				setError(presentHandoffWriteError({ status: "refused" }));
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[attemptOnlineWork, cancel, cancelReasons, markUnsaved]
 	);
 	const onPurpose = useCallback((value: string) => {
 		setPurpose(value);
@@ -312,8 +359,12 @@ export default function WorkExternalHandoffsPanel({
 				<ul className="flex flex-col gap-3">
 					{listed.data.map((handoff) => (
 						<HandoffCard
+							cancelPending={cancel.isPending}
+							cancelReason={cancelReasons[handoff.id] ?? ""}
 							handoff={handoff}
 							key={handoff.id}
+							onCancel={onCancelHandoff}
+							onCancelReason={onCancelReason}
 							onProducePackage={onProducePackage}
 							producePending={producePackage.isPending}
 							projectId={projectId}
@@ -414,13 +465,20 @@ export default function WorkExternalHandoffsPanel({
 }
 
 function HandoffCard({
+	cancelPending,
+	cancelReason,
 	handoff,
+	onCancel,
+	onCancelReason,
 	onProducePackage,
 	producePending,
 	projectId,
 	workId,
 }: {
+	cancelPending: boolean;
+	cancelReason: string;
 	handoff: {
+		cancelReason: string | null;
 		constraints: string;
 		executorVisibleName: string;
 		expectedOutput: string;
@@ -460,8 +518,11 @@ function HandoffCard({
 			versionId: string;
 		}>;
 		status: string;
+		terminal: boolean;
 		workKey: string;
 	};
+	onCancel: (handoffId: string) => void;
+	onCancelReason: (handoffId: string, value: string) => void;
 	onProducePackage: (
 		handoffId: string,
 		selectedVersions: Array<{
@@ -534,21 +595,85 @@ function HandoffCard({
 					))}
 				</ul>
 			</details>
-			<Button
-				disabled={producePending}
-				onClick={onNewPackageVersion}
-				size="sm"
-				type="button"
-				variant="outline"
-			>
-				{EXTERNAL_HANDOFFS_COPY.newPackageVersion}
-			</Button>
+			{handoff.terminal ? null : (
+				<Button
+					disabled={producePending}
+					onClick={onNewPackageVersion}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					{EXTERNAL_HANDOFFS_COPY.newPackageVersion}
+				</Button>
+			)}
+			{handoff.cancelReason ? (
+				<p className="text-muted-foreground text-xs">
+					{EXTERNAL_HANDOFFS_COPY.reason}: {handoff.cancelReason}
+				</p>
+			) : null}
+			{handoff.terminal ? null : (
+				<CancelHandoffFields
+					disabled={cancelPending}
+					handoffId={handoff.id}
+					onCancel={onCancel}
+					onReasonChange={onCancelReason}
+					reason={cancelReason}
+				/>
+			)}
 			<HandoffReturnActions
 				handoff={handoff}
 				projectId={projectId}
 				workId={workId}
 			/>
 		</li>
+	);
+}
+
+function CancelHandoffFields({
+	disabled,
+	handoffId,
+	onCancel,
+	onReasonChange,
+	reason,
+}: {
+	disabled: boolean;
+	handoffId: string;
+	onCancel: (handoffId: string) => void;
+	onReasonChange: (handoffId: string, value: string) => void;
+	reason: string;
+}) {
+	const onReason = useCallback(
+		(value: string) => {
+			onReasonChange(handoffId, value);
+		},
+		[handoffId, onReasonChange]
+	);
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			onCancel(handoffId);
+		},
+		[handoffId, onCancel]
+	);
+	return (
+		<form className="flex flex-col gap-2" onSubmit={onSubmit}>
+			<TextField
+				id={`handoff-cancel-reason-${handoffId}`}
+				label={EXTERNAL_HANDOFFS_COPY.reason}
+				multiline
+				onValueChange={onReason}
+				rows={2}
+				value={reason}
+			/>
+			<Button
+				disabled={disabled || reason.trim() === ""}
+				size="sm"
+				type="submit"
+				variant="outline"
+			>
+				{EXTERNAL_HANDOFFS_COPY.cancelHandoff}
+			</Button>
+		</form>
 	);
 }
 

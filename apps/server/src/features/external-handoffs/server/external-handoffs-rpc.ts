@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getProject } from "../../project-shell/server/project-shell";
 import { getWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
+	cancelHandoff,
 	confirmReconcile,
 	listHandoffHistoryForWork,
 	listHandoffsForWork,
@@ -17,6 +18,7 @@ import {
 	startHandoff,
 } from "./external-handoffs";
 import {
+	cancelHandoffPayloadSchema,
 	confirmReconcilePayloadSchema,
 	produceGoingPackagePayloadSchema,
 	recordReturnPayloadSchema,
@@ -56,6 +58,23 @@ async function requireHandoffWork(workspaceId: string, handoffId: string) {
 }
 
 export const externalHandoffs = {
+	cancel: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				payload: cancelHandoffPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireHandoffWork(access.workspaceId, input.payload.handoffId);
+			return await cancelHandoff(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	confirmReconcile: protectedWriteProcedure
 		.input(
 			z.object({

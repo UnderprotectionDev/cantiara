@@ -160,10 +160,10 @@ export function prismaClientHasCurrentTypedRelationModel(
 }
 
 /**
- * ExternalExecutionHandoff.goingPackages is required for Work detail list
- * (`listHandoffsForWork` include). A bun `--hot` client generated before
- * package versions still has an ExternalExecutionHandoff delegate; include
- * then throws "Unknown field 'goingPackages'".
+ * ExternalExecutionHandoff.goingPackages, events, and cancelReason are
+ * required for Work detail list, history, and Cancel Handoff. A bun
+ * `--hot` client generated before those fields still has a handoff
+ * delegate; include/update then throws unknown field or argument.
  */
 export function prismaClientHasCurrentExternalExecutionHandoffModel(
 	client: PrismaClient
@@ -172,7 +172,11 @@ export function prismaClientHasCurrentExternalExecutionHandoffModel(
 	if (fields.length === 0) {
 		return true;
 	}
-	return fields.includes("goingPackages") && fields.includes("events");
+	return (
+		fields.includes("goingPackages") &&
+		fields.includes("events") &&
+		fields.includes("cancelReason")
+	);
 }
 
 export function workspaceOverviewLayoutSelect(client: PrismaClient) {

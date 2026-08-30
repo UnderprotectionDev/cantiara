@@ -12,6 +12,8 @@ const FORBIDDEN_PRODUCT =
 
 test("English UI uses External Execution Handoff and Start Handoff", () => {
 	expect(EXTERNAL_HANDOFFS_COPY).toMatchObject({
+		canceled: "Canceled",
+		cancelHandoff: "Cancel Handoff",
 		confirm: "Confirm",
 		constraints: "Constraints",
 		couldNotComplete: "This action could not be completed.",
@@ -27,6 +29,7 @@ test("English UI uses External Execution Handoff and Start Handoff", () => {
 		open: "Open",
 		packageVersion: "Package version",
 		purpose: "Purpose",
+		reason: "Reason",
 		reconcile: "Reconcile",
 		reconciled: "Reconciled",
 		recordReturn: "Record return",
@@ -82,5 +85,8 @@ test("Work change history uses Start Handoff and Going package labels", () => {
 	);
 	expect(presentHandoffHistoryKind("package-exported")).toBe(
 		EXTERNAL_HANDOFFS_COPY.goingPackage
+	);
+	expect(presentHandoffHistoryKind("canceled")).toBe(
+		EXTERNAL_HANDOFFS_COPY.cancelHandoff
 	);
 });

@@ -5,6 +5,8 @@ export const EXTERNAL_HANDOFFS_COPY = {
 	addProposedRelation: "Add proposed relation",
 	addSelectedVersion: "Add selected version",
 	body: "Body",
+	canceled: "Canceled",
+	cancelHandoff: "Cancel Handoff",
 	changedAssumptions: "Changed assumptions",
 	confirm: "Confirm",
 	constraints: "Constraints",
@@ -28,6 +30,7 @@ export const EXTERNAL_HANDOFFS_COPY = {
 	producedAt: "Produced at",
 	producedEvidence: "Produced evidence",
 	purpose: "Purpose",
+	reason: "Reason",
 	reconcile: "Reconcile",
 	reconciled: "Reconciled",
 	recordId: "Record",
@@ -85,6 +88,9 @@ export function presentHandoffCard(handoff: {
 export function presentHandoffHistoryKind(kind: string): string {
 	if (kind === "started") {
 		return EXTERNAL_HANDOFFS_COPY.startHandoff;
+	}
+	if (kind === "canceled") {
+		return EXTERNAL_HANDOFFS_COPY.cancelHandoff;
 	}
 	return EXTERNAL_HANDOFFS_COPY.goingPackage;
 }
