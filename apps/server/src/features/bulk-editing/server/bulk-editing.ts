@@ -409,7 +409,7 @@ export async function processBulkEdit(
 			where: { id: jobId },
 		});
 	}
-	await applyPendingRecords(job, prisma, 0);
+	await applyPendingRecords(job, prisma, jobId, 0);
 	const completed = job.records.every((record) => record.result !== "pending");
 	const updated = await prisma.mutationStagingOperation.update({
 		data: {
@@ -598,6 +598,7 @@ async function prepareStart(
 async function applyPendingRecords(
 	job: StoredBulkJob,
 	prisma: PrismaClient,
+	jobId: string,
 	index: number
 ): Promise<void> {
 	const record = job.records[index];
@@ -606,8 +607,12 @@ async function applyPendingRecords(
 	}
 	if (record.result === "pending") {
 		await applyOneRecord(prisma, job, record);
+		await prisma.mutationStagingOperation.update({
+			data: { payloadJson: JSON.stringify(job), status: FINALIZING },
+			where: { id: jobId },
+		});
 	}
-	await applyPendingRecords(job, prisma, index + 1);
+	await applyPendingRecords(job, prisma, jobId, index + 1);
 }
 
 async function reverseFields(

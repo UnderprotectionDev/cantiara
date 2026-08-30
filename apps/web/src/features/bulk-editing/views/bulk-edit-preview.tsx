@@ -365,8 +365,11 @@ export default function BulkEditPreview({
 								<span className="font-mono text-muted-foreground text-xs">
 									{record.key}
 								</span>{" "}
-								{resultLabel(record.result, job.ui.label)}
+								{resultLabel(record.result, BULK_EDITING_COPY.progress)}
 								{record.conflict ? ` · ${record.conflict}` : null}
+								{record.currentValueLabel ? (
+									<p>{record.currentValueLabel}</p>
+								) : null}
 								{record.supportReference ? (
 									<p>
 										{BULK_EDITING_COPY.supportReference}{" "}

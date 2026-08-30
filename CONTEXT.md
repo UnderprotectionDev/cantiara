@@ -275,7 +275,7 @@ Filtrelenen İşleri alanlarıyla yoğun ve taranabilir düzende sunan aynı İ�
 _Avoid_: Tablo Görünümü, ikinci kayıt sistemi, Backlog
 
 **Toplu Düzenleme**:
-Açıkça seçilmiş İşlerde mevcut alanların fark önizlemesiyle güncellenmesi; örtük seçim, şema göçü veya içe aktarma değildir ([Toplu düzenleme](docs/prd/06-work-management-and-planning.md#toplu-düzenleme)). UI: `Bulk Edit`.
+Açıkça seçilmiş İşlerde mevcut alanların fark önizlemesiyle güncellenmesi; örtük seçim, şema göçü veya içe aktarma değildir ([Toplu düzenleme](docs/prd/06-work-management-and-planning.md#toplu-düzenleme)). UI: `Bulk Edit`. Uygulama: `Apply`. İlerleme: `Progress`. Kayıt sonucu: `Succeeded`, `Failed`.
 _Avoid_: select-all-unspecified, schema migration, import, record-action catalog, silent partial
 
 **Kapsam Ağacı**:
