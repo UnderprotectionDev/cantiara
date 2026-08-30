@@ -21,12 +21,12 @@ import { useCallback, useState } from "react";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { MUTATION_COPY, newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
-
 import {
 	EXTERNAL_HANDOFFS_COPY,
 	presentHandoffCard,
 	SELECTED_VERSION_KINDS,
 } from "./external-handoffs-copy";
+import HandoffReturnActions from "./handoff-return-actions";
 
 interface ExtraVersion {
 	body: string;
@@ -38,11 +38,13 @@ interface ExtraVersion {
 }
 
 export default function WorkExternalHandoffsPanel({
+	projectId,
 	revision,
 	workId,
 	workKey,
 	workTitle,
 }: {
+	projectId: string;
 	revision: number;
 	workId: string;
 	workKey: string;
@@ -249,6 +251,11 @@ export default function WorkExternalHandoffsPanel({
 										{handoff.goingPackage.markdown}
 									</pre>
 								</details>
+								<HandoffReturnActions
+									handoff={handoff}
+									projectId={projectId}
+									workId={workId}
+								/>
 							</li>
 						);
 					})}

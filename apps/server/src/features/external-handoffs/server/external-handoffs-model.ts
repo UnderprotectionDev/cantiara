@@ -3,15 +3,28 @@ import { z } from "zod";
 import { HUMAN_ORIGIN } from "../../mutation-core/server/mutation-shared";
 
 export const EXTERNAL_HANDOFFS_COPY = {
+	changedAssumptions: "Changed assumptions",
+	confirm: "Confirm",
 	constraints: "Constraints",
 	executor: "Executor",
+	executorSummary: "Executor summary",
 	expectedOutput: "Expected output",
 	externalExecutionHandoff: "External Execution Handoff",
+	followUpWork: "Follow-up Work",
 	github: "GitHub",
 	handoff: "Handoff",
 	open: "Open",
+	openQuestions: "Open questions",
+	permittedExternalLinks: "Permitted external links",
 	producedAt: "Produced at",
+	producedEvidence: "Produced evidence",
 	purpose: "Purpose",
+	reconcile: "Reconcile",
+	reconciled: "Reconciled",
+	recordReturn: "Record return",
+	reject: "Reject",
+	related: "Related",
+	resultReturned: "Result returned",
 	selectedVersions: "Selected versions",
 	sourceOfTruth: "Source of truth is in the app",
 	startHandoff: "Start Handoff",
@@ -19,7 +32,17 @@ export const EXTERNAL_HANDOFFS_COPY = {
 
 export const HANDOFF_STATUS = {
 	open: EXTERNAL_HANDOFFS_COPY.open,
+	reconciled: EXTERNAL_HANDOFFS_COPY.reconciled,
+	resultReturned: EXTERNAL_HANDOFFS_COPY.resultReturned,
 } as const;
+
+export const HANDOFF_STATUSES = [
+	HANDOFF_STATUS.open,
+	HANDOFF_STATUS.resultReturned,
+	HANDOFF_STATUS.reconciled,
+] as const;
+
+export type HandoffStatus = (typeof HANDOFF_STATUSES)[number];
 
 export const SELECTED_VERSION_KINDS = [
 	"Work",
@@ -56,6 +79,46 @@ export const githubContextSchema = z.object({
 
 export type GithubContext = z.infer<typeof githubContextSchema>;
 
+export const proposedRelationSchema = z.object({
+	id: z.string().min(1),
+	toId: z.string().min(1),
+	toKind: z.literal("Work"),
+	toTitle: z.string(),
+	type: z.literal(EXTERNAL_HANDOFFS_COPY.related),
+});
+
+export type ProposedRelation = z.infer<typeof proposedRelationSchema>;
+
+export const proposedFollowUpWorkSchema = z.object({
+	id: z.string().min(1),
+	title: z.string().min(1),
+});
+
+export type ProposedFollowUpWork = z.infer<typeof proposedFollowUpWorkSchema>;
+
+export const returnRecordSchema = z.object({
+	changedAssumptions: z.string(),
+	executorSummary: z.string(),
+	openQuestions: z.string(),
+	permittedExternalLinks: z.array(githubContextSchema),
+	producedEvidence: z.string(),
+	proposedFollowUpWork: z.array(proposedFollowUpWorkSchema),
+	proposedRelations: z.array(proposedRelationSchema),
+});
+
+export type ReturnRecord = z.infer<typeof returnRecordSchema>;
+
+export const reconcileDecisionSchema = z.object({
+	confirmedAt: z.string(),
+	kind: z.literal(EXTERNAL_HANDOFFS_COPY.reconcile),
+	selectedFollowUpWorkIds: z.array(z.string().min(1)),
+	selectedRelationIds: z.array(z.string().min(1)),
+	writtenFollowUpWorkIds: z.array(z.string().min(1)),
+	writtenRelationIds: z.array(z.string().min(1)),
+});
+
+export type ReconcileDecision = z.infer<typeof reconcileDecisionSchema>;
+
 export const startHandoffPayloadSchema = z.object({
 	constraints: z.string(),
 	executorVisibleName: z.string(),
@@ -76,6 +139,65 @@ export const startHandoffCommandSchema = z.object({
 });
 
 export type StartHandoffCommand = z.infer<typeof startHandoffCommandSchema>;
+
+export const recordReturnPayloadSchema = z.object({
+	changedAssumptions: z.string(),
+	executorSummary: z.string(),
+	handoffId: z.string().min(1),
+	openQuestions: z.string(),
+	permittedExternalLinks: z.array(githubContextSchema).optional(),
+	producedEvidence: z.string(),
+	proposedFollowUpWork: z.array(proposedFollowUpWorkSchema).optional(),
+	proposedRelations: z.array(proposedRelationSchema).optional(),
+});
+
+export type RecordReturnPayload = z.infer<typeof recordReturnPayloadSchema>;
+
+export const recordReturnCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal(HUMAN_ORIGIN),
+	payload: recordReturnPayloadSchema,
+});
+
+export type RecordReturnCommand = z.infer<typeof recordReturnCommandSchema>;
+
+export const confirmReconcilePayloadSchema = z.object({
+	handoffId: z.string().min(1),
+	previewAcknowledged: z.boolean(),
+	selectedFollowUpWorkIds: z.array(z.string().min(1)),
+	selectedRelationIds: z.array(z.string().min(1)),
+});
+
+export type ConfirmReconcilePayload = z.infer<
+	typeof confirmReconcilePayloadSchema
+>;
+
+export const confirmReconcileCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal(HUMAN_ORIGIN),
+	payload: confirmReconcilePayloadSchema,
+});
+
+export type ConfirmReconcileCommand = z.infer<
+	typeof confirmReconcileCommandSchema
+>;
+
+export const rejectReconcilePayloadSchema = z.object({
+	handoffId: z.string().min(1),
+});
+
+export const rejectReconcileCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal(HUMAN_ORIGIN),
+	payload: rejectReconcilePayloadSchema,
+});
+
+export type RejectReconcileCommand = z.infer<
+	typeof rejectReconcileCommandSchema
+>;
 
 export const goingPackageSchema = z.object({
 	liveSync: z.literal(false),
@@ -104,16 +226,25 @@ export const runnerEffectsSchema = z.object({
 	terminal: z.literal(false),
 });
 
+export const handoffCopySchema = z.object({
+	confirm: z.literal(EXTERNAL_HANDOFFS_COPY.confirm),
+	externalExecutionHandoff: z.literal(
+		EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff
+	),
+	followUpWork: z.literal(EXTERNAL_HANDOFFS_COPY.followUpWork),
+	open: z.literal(EXTERNAL_HANDOFFS_COPY.open),
+	reconcile: z.literal(EXTERNAL_HANDOFFS_COPY.reconcile),
+	reconciled: z.literal(EXTERNAL_HANDOFFS_COPY.reconciled),
+	recordReturn: z.literal(EXTERNAL_HANDOFFS_COPY.recordReturn),
+	reject: z.literal(EXTERNAL_HANDOFFS_COPY.reject),
+	resultReturned: z.literal(EXTERNAL_HANDOFFS_COPY.resultReturned),
+	sourceOfTruth: z.literal(EXTERNAL_HANDOFFS_COPY.sourceOfTruth),
+	startHandoff: z.literal(EXTERNAL_HANDOFFS_COPY.startHandoff),
+});
+
 export const externalExecutionHandoffViewSchema = z.object({
 	constraints: z.string(),
-	copy: z.object({
-		externalExecutionHandoff: z.literal(
-			EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff
-		),
-		open: z.literal(EXTERNAL_HANDOFFS_COPY.open),
-		sourceOfTruth: z.literal(EXTERNAL_HANDOFFS_COPY.sourceOfTruth),
-		startHandoff: z.literal(EXTERNAL_HANDOFFS_COPY.startHandoff),
-	}),
+	copy: handoffCopySchema,
 	executorVisibleName: z.string(),
 	expectedOutput: z.string(),
 	goingPackage: goingPackageSchema,
@@ -121,9 +252,11 @@ export const externalExecutionHandoffViewSchema = z.object({
 	identity: handoffIdentitySchema,
 	permittedGithubContext: z.array(githubContextSchema),
 	purpose: z.string(),
+	reconcileDecision: reconcileDecisionSchema.nullable(),
+	returnRecord: returnRecordSchema.nullable(),
 	runner: runnerEffectsSchema,
 	selectedVersions: z.array(selectedVersionSchema),
-	status: z.literal(HANDOFF_STATUS.open),
+	status: z.enum(HANDOFF_STATUSES),
 	workId: z.string().min(1),
 	workKey: z.string().min(1),
 });
@@ -132,8 +265,36 @@ export type ExternalExecutionHandoffView = z.infer<
 	typeof externalExecutionHandoffViewSchema
 >;
 
-export type StartHandoffOutcome =
+export const reconcilePreviewSchema = z.object({
+	copy: z.object({
+		confirm: z.literal(EXTERNAL_HANDOFFS_COPY.confirm),
+		followUpWork: z.literal(EXTERNAL_HANDOFFS_COPY.followUpWork),
+		reconcile: z.literal(EXTERNAL_HANDOFFS_COPY.reconcile),
+		reject: z.literal(EXTERNAL_HANDOFFS_COPY.reject),
+		related: z.literal(EXTERNAL_HANDOFFS_COPY.related),
+	}),
+	followUpWork: z.array(proposedFollowUpWorkSchema),
+	gitMerge: z.literal(false),
+	importWizard: z.literal(false),
+	relations: z.array(proposedRelationSchema),
+});
+
+export type ReconcilePreview = z.infer<typeof reconcilePreviewSchema>;
+
+export type HandoffWriteOutcome =
 	| { handoff: ExternalExecutionHandoffView; status: "committed" }
 	| { handoff: ExternalExecutionHandoffView; status: "replayed" }
 	| { conflict: string; status: "conflict" }
+	| { reason: string; status: "rejected" };
+
+export type StartHandoffOutcome = HandoffWriteOutcome;
+
+export type RecordReturnOutcome = HandoffWriteOutcome;
+
+export type ConfirmReconcileOutcome = HandoffWriteOutcome;
+
+export type RejectReconcileOutcome = HandoffWriteOutcome;
+
+export type PreviewReconcileOutcome =
+	| { preview: ReconcilePreview; status: "ok" }
 	| { reason: string; status: "rejected" };

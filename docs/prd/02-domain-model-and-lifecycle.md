@@ -126,6 +126,22 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ana kaynak uygulamadadır | `Primary source is in the app` | Kopyalanan Markdown'ın asıl kaydın uygulamada kaldığını belirten not |
 | Dış yürütme devri | `External Execution Handoff` | İşe ait test-dışı dış yürütme bileşeni; bağımsız Handoff ana kaydı değildir |
 | Devir başlat | `Start Handoff` | Dış yürütme devri başlatma eylemi |
+| Uzlaştır | `Reconcile` | Dönen dış yürütmeyi ana kayıt bağlarına ve takip İşlerine bağlayan kapanış kararı |
+| Sonuç döndü | `Result returned` | Dönüş kaydedilmiş, henüz uzlaştırılmamış Dış yürütme devri durumu |
+| Uzlaştırıldı | `Reconciled` | Kullanıcının uzlaştırma onayından sonraki terminal Dış yürütme devri durumu |
+| Dönüşü kaydet | `Record return` | Yürütücü özetini aynı devre yazan eylem; ana kayıt üretmez |
+| Yürütücü özeti | `Executor summary` | Dönen dış çalışmanın yürütücü özeti |
+| Değişen varsayımlar | `Changed assumptions` | Dönen dış çalışmada değişen varsayımlar |
+| Üretilen kanıt | `Produced evidence` | Dönen dış çalışmada üretilen kanıt veya not; onaydan önce Kanıt kaydı değildir |
+| İzinli dış bağlantılar | `Permitted external links` | Dönüşte kaydedilen izinli dış bağlantılar |
+| Kapanmamış sorular | `Open questions` | Dönüşte duran kapanmamış sorular; onaydan önce Açık Soru kaydı değildir |
+| Takip İşi | `Follow-up Work` | Uzlaştırma onayında açıkça oluşturulacak yeni İş |
+| Önerilen ilişki ekle | `Add proposed relation` | Uzlaştırma önizlemesine kurulacak ilişki adayı ekleme |
+| Önerilen ilişkiyi kaldır | `Remove proposed relation` | Uzlaştırma önizlemesinden ilişki adayını çıkarma |
+| Takip İşi ekle | `Add follow-up Work` | Uzlaştırma önizlemesine takip İş adayı ekleme |
+| Takip İşini kaldır | `Remove follow-up Work` | Uzlaştırma önizlemesinden takip İş adayını çıkarma |
+| İlgili İş | `Related Work` | Uzlaştırmada bağlanacak mevcut İş |
+| Reddet | `Reject` | Uzlaştırma önizlemesini yazmadan kapatan eylem |
 | Devir paketi doğruluk notu | `Source of truth is in the app` | Gidiş paketinin kanonik kaynağın uygulamada kaldığını belirten not |
 | Yürütücü | `Executor` | Dış yürütme devrindeki yürütücünün görünen adı |
 | Kısıtlar | `Constraints` | Dış yürütme devrindeki kısıtlar |
