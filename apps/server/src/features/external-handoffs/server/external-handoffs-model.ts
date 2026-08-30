@@ -46,6 +46,10 @@ export const HANDOFF_STATUS = {
 	resultReturned: EXTERNAL_HANDOFFS_COPY.resultReturned,
 } as const;
 
+export const EXTERNAL_RUN_RETURNED_SIGNAL_ID = "external-run-returned" as const;
+
+export const EXTERNAL_RUN_RETURNED_SIGNAL_SECTION = "Action Required" as const;
+
 export const HANDOFF_STATUSES = [
 	HANDOFF_STATUS.open,
 	HANDOFF_STATUS.resultReturned,
@@ -328,6 +332,35 @@ export const handoffSeparationsSchema = z.object({
 	testSession: z.literal(false),
 });
 
+export const externalRunReturnedSignalViewSchema = z.object({
+	handoffId: z.string().min(1),
+	section: z.literal(EXTERNAL_RUN_RETURNED_SIGNAL_SECTION),
+	signalId: z.literal(EXTERNAL_RUN_RETURNED_SIGNAL_ID),
+	workId: z.string().min(1),
+});
+
+export type ExternalRunReturnedSignalView = z.infer<
+	typeof externalRunReturnedSignalViewSchema
+>;
+
+export function externalRunReturnedSignalsFor(
+	status: HandoffStatus,
+	handoffId: string,
+	workId: string
+): ExternalRunReturnedSignalView[] {
+	if (status !== HANDOFF_STATUS.resultReturned) {
+		return [];
+	}
+	return [
+		{
+			handoffId,
+			section: EXTERNAL_RUN_RETURNED_SIGNAL_SECTION,
+			signalId: EXTERNAL_RUN_RETURNED_SIGNAL_ID,
+			workId,
+		},
+	];
+}
+
 export const handoffCopySchema = z.object({
 	canceled: z.literal(EXTERNAL_HANDOFFS_COPY.canceled),
 	cancelHandoff: z.literal(EXTERNAL_HANDOFFS_COPY.cancelHandoff),
@@ -363,6 +396,7 @@ export const externalExecutionHandoffViewSchema = z.object({
 	runner: runnerEffectsSchema,
 	selectedVersions: z.array(selectedVersionSchema),
 	separations: handoffSeparationsSchema,
+	signals: z.array(externalRunReturnedSignalViewSchema),
 	status: z.enum(HANDOFF_STATUSES),
 	terminal: z.boolean(),
 	workId: z.string().min(1),

@@ -1,9 +1,12 @@
 /**
  * External Execution Handoff seam — Start Handoff on Work
  * creates a Work-owned going package from the selected exact
- * version manifest. Synthetic fixture for
+ * version manifest. Result returned produces
+ * external-run-returned; Reconcile and Cancel Handoff close it.
+ * Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Dış yürütme devri: going package).
+ * (Dış yürütme devri: going package and Dikkat sinyalleri
+ * negatives).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -22,6 +25,7 @@ import {
 	relateWork,
 	updateWorkTitle,
 } from "../../work-lifecycle/server/work-lifecycle";
+import { ACTION_REQUIRED_SIGNAL_IDS } from "../../workspace-overview/server/workspace-overview";
 import {
 	applyNonClosingHandoffEvent,
 	cancelHandoff,
@@ -1266,6 +1270,164 @@ describe("External Execution Handoff", () => {
 		expect(afterClose[0]?.separations.productGapEscape).toBe(false);
 		expect(afterClose[0]?.separations.officialTestHistory).toBe(false);
 		expect(afterClose[0]?.goingPackage.publishArtifact).toBe(false);
+	});
+
+	it("emits one registered external-run-returned for Result returned and opens the Work", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const { related, started, work } = await startCheckoutWithRelated(
+			prisma,
+			actorId,
+			project.id
+		);
+		expect(started.handoff.signals).toEqual([]);
+		const returned = await recordCheckoutReturn(
+			prisma,
+			actorId,
+			started.handoff.id,
+			related
+		);
+		const expectedSignal = {
+			handoffId: started.handoff.id,
+			section: "Action Required",
+			signalId: "external-run-returned",
+			workId: work.id,
+		};
+		expect(returned.handoff.signals).toEqual([expectedSignal]);
+		expect(ACTION_REQUIRED_SIGNAL_IDS).toContain("external-run-returned");
+		const listed = await listHandoffsForWork(prisma, work.id);
+		expect(listed).toHaveLength(1);
+		expect(listed[0]?.signals).toEqual([expectedSignal]);
+		expect(listed[0]?.id).toBe(started.handoff.id);
+		expect(listed[0]?.workId).toBe(work.id);
+		expect(listed[0]?.status).toBe(EXTERNAL_HANDOFFS_COPY.resultReturned);
+		const listedAgain = await listHandoffsForWork(prisma, work.id);
+		expect(listedAgain[0]?.signals).toEqual([expectedSignal]);
+	});
+
+	it("closes external-run-returned on Reconcile and Cancel Handoff without minting terminal signals", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const { related, started, work } = await startCheckoutWithRelated(
+			prisma,
+			actorId,
+			project.id
+		);
+		await recordCheckoutReturn(prisma, actorId, started.handoff.id, related);
+		const confirmed = await confirmReconcile(prisma, {
+			actorId,
+			idempotencyKey: "confirm-closes-signal",
+			origin: "human",
+			payload: {
+				handoffId: started.handoff.id,
+				previewAcknowledged: true,
+				selectedFollowUpWorkIds: [],
+				selectedRelationIds: [],
+			},
+		});
+		expect(confirmed.status).toBe("committed");
+		if (confirmed.status !== "committed") {
+			return;
+		}
+		expect(confirmed.handoff.status).toBe(EXTERNAL_HANDOFFS_COPY.reconciled);
+		expect(confirmed.handoff.signals).toEqual([]);
+		expect((await listHandoffsForWork(prisma, work.id))[0]?.signals).toEqual(
+			[]
+		);
+		const secondWork = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Refunds",
+			"create-refunds"
+		);
+		const second = await startNamedHandoff(
+			prisma,
+			actorId,
+			secondWork,
+			"start-refunds"
+		);
+		await recordReturn(prisma, {
+			actorId,
+			idempotencyKey: "return-refunds",
+			origin: "human",
+			payload: {
+				changedAssumptions: "None.",
+				executorSummary: "Refund path notes.",
+				handoffId: second.handoff.id,
+				openQuestions: "None.",
+				producedEvidence: "Notes.",
+			},
+		});
+		expect(
+			(await listHandoffsForWork(prisma, secondWork.id))[0]?.signals
+		).toHaveLength(1);
+		const canceled = await cancelHandoff(prisma, {
+			actorId,
+			idempotencyKey: "cancel-after-return",
+			origin: "human",
+			payload: {
+				handoffId: second.handoff.id,
+				reason: "Outside run is no longer needed.",
+			},
+		});
+		expect(canceled.status).toBe("committed");
+		if (canceled.status !== "committed") {
+			return;
+		}
+		expect(canceled.handoff.status).toBe(EXTERNAL_HANDOFFS_COPY.canceled);
+		expect(canceled.handoff.signals).toEqual([]);
+		expect(
+			(await listHandoffsForWork(prisma, secondWork.id))[0]?.signals
+		).toEqual([]);
+	});
+
+	it("does not emit external-run-returned for Open, elapsed time, or non-terminal events", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-checkout"
+		);
+		const started = await startNamedHandoff(prisma, actorId, work);
+		expect(started.handoff.signals).toEqual([]);
+		expect(started.handoff.status).toBe(EXTERNAL_HANDOFFS_COPY.open);
+		const listed = await listHandoffsForWork(prisma, work.id);
+		expect(listed[0]?.signals).toEqual([]);
+		await prisma.externalExecutionHandoff.update({
+			data: {
+				goingPackageProducedAt: new Date("2020-01-01T00:00:00.000Z"),
+			},
+			where: { id: started.handoff.id },
+		});
+		const afterTime = await listHandoffsForWork(prisma, work.id);
+		expect(afterTime[0]?.status).toBe(EXTERNAL_HANDOFFS_COPY.open);
+		expect(afterTime[0]?.signals).toEqual([]);
+		const ignored = await applyNonClosingHandoffEvent(prisma, {
+			event: "external-result-arrived",
+			handoffId: started.handoff.id,
+		});
+		expect(ignored.status).toBe("ignored");
+		if (ignored.status !== "ignored") {
+			return;
+		}
+		expect(ignored.handoff.status).toBe(EXTERNAL_HANDOFFS_COPY.open);
+		expect(ignored.handoff.signals).toEqual([]);
+		const canceledOpen = await cancelHandoff(prisma, {
+			actorId,
+			idempotencyKey: "cancel-open-no-return",
+			origin: "human",
+			payload: {
+				handoffId: started.handoff.id,
+				reason: "Stopped before a return.",
+			},
+		});
+		expect(canceledOpen.status).toBe("committed");
+		if (canceledOpen.status !== "committed") {
+			return;
+		}
+		expect(canceledOpen.handoff.signals).toEqual([]);
+		expect(canceledOpen.handoff.status).toBe(EXTERNAL_HANDOFFS_COPY.canceled);
 	});
 });
 
