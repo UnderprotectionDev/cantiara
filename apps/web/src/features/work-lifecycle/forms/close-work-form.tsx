@@ -17,7 +17,7 @@ import {
 } from "@/features/completion-effects/completion-effects-session";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { MUTATION_COPY, newIdempotencyKey } from "@/lib/mutation";
-import { orpc } from "@/utils/orpc";
+import { orpc, queryClient } from "@/utils/orpc";
 
 import { invalidateWork } from "./invalidate-work";
 import {
@@ -48,15 +48,21 @@ export default function CloseWorkForm({
 	);
 	const close = useMutation(
 		orpc.workLifecycle.close.mutationOptions({
-			onError: (_error, variables) => {
+			onError: async (_error, variables) => {
 				if (
 					variables.result !== "Completed" &&
 					variables.result !== "Abandoned"
 				) {
 					return;
 				}
+				const saved =
+					preference.data ??
+					(await queryClient.fetchQuery(
+						orpc.completionEffects.get.queryOptions()
+					)) ??
+					defaultCompletionEffectPreference();
 				reportCloseOutcome(
-					preference.data ?? defaultCompletionEffectPreference(),
+					saved,
 					{
 						closeCycleId: variables.idempotencyKey,
 						closureResult: variables.result,
@@ -77,8 +83,14 @@ export default function CloseWorkForm({
 						outcome.status === "rejected"
 							? closeMutationStatusFromRpc(outcome.status)
 							: closeMutationStatusFromRpc("conflict");
+					const saved =
+						preference.data ??
+						(await queryClient.fetchQuery(
+							orpc.completionEffects.get.queryOptions()
+						)) ??
+						defaultCompletionEffectPreference();
 					reportCloseOutcome(
-						preference.data ?? defaultCompletionEffectPreference(),
+						saved,
 						{
 							closeCycleId: variables.idempotencyKey,
 							closureResult: variables.result,

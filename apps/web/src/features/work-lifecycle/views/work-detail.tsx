@@ -78,76 +78,78 @@ export default function WorkDetail({
 	}, []);
 	return (
 		<article
-			className="relative flex flex-col gap-4 border-t pt-4"
+			className="flex flex-col gap-4 border-t pt-4"
 			id={projectShellAnchor(PROJECT_SHELL_COPY.edit)}
 		>
-			<CompletionEffectsLayer />
-			<header className="flex items-start justify-between gap-3">
-				<h2 className="min-w-0 font-medium text-sm tracking-tight">
-					<span className="font-mono text-muted-foreground">{work.key}</span>{" "}
-					{work.title}
-				</h2>
-				<Button onClick={onClose} size="sm" type="button" variant="ghost">
-					{WORK_LIFECYCLE_COPY.close}
-				</Button>
-			</header>
-			<WorkContextCard
-				key={`${work.id}:${work.type}:${work.revision}`}
-				onLink={onLink}
-				onOpenSourceRecord={onOpenSourceRecord}
-				status={work.status}
-				title={work.title}
-				type={work.type}
-				workId={work.id}
-			/>
-			<WorkExternalHandoffsPanel
-				key={`${work.id}:handoff:${work.revision}`}
-				revision={work.revision}
-				workId={work.id}
-				workKey={work.key}
-				workTitle={work.title}
-			/>
-			{work.retiredIdentities && work.retiredIdentities.length > 0 ? (
-				<dl className="grid gap-1 text-sm">
-					<div className="flex gap-2">
-						<dt className="text-muted-foreground">
-							{WORK_LIFECYCLE_COPY.origin}
-						</dt>
-						<dd>
-							{work.retiredIdentities
-								.map((identity) => identity.key)
-								.join(", ")}
-						</dd>
-					</div>
-				</dl>
-			) : null}
-			{work.origin ? (
-				<dl className="grid gap-1 text-sm">
-					<div className="flex gap-2">
-						<dt className="text-muted-foreground">
-							{WORK_LIFECYCLE_COPY.openSourceRecord}
-						</dt>
-						<dd className="font-mono">{work.origin.key}</dd>
-					</div>
-				</dl>
-			) : null}
-			<div id={projectShellAnchor(PROJECT_SHELL_COPY.status)}>
-				{work.status === "Closed" ? (
-					<ReopenWorkForm
-						key={`${work.id}:reopen:${work.revision}`}
-						projectId={projectId}
-						revision={work.revision}
-						workId={work.id}
-					/>
-				) : (
-					<ChangeWorkStatusForm
-						key={`${work.id}:status:${work.revision}`}
-						projectId={projectId}
-						revision={work.revision}
-						status={work.status}
-						workId={work.id}
-					/>
-				)}
+			<div className="relative flex min-h-64 flex-col gap-4 overflow-hidden">
+				<CompletionEffectsLayer />
+				<header className="flex items-start justify-between gap-3">
+					<h2 className="min-w-0 font-medium text-sm tracking-tight">
+						<span className="font-mono text-muted-foreground">{work.key}</span>{" "}
+						{work.title}
+					</h2>
+					<Button onClick={onClose} size="sm" type="button" variant="ghost">
+						{WORK_LIFECYCLE_COPY.close}
+					</Button>
+				</header>
+				<WorkContextCard
+					key={`${work.id}:${work.type}:${work.revision}`}
+					onLink={onLink}
+					onOpenSourceRecord={onOpenSourceRecord}
+					status={work.status}
+					title={work.title}
+					type={work.type}
+					workId={work.id}
+				/>
+				<WorkExternalHandoffsPanel
+					key={`${work.id}:handoff:${work.revision}`}
+					revision={work.revision}
+					workId={work.id}
+					workKey={work.key}
+					workTitle={work.title}
+				/>
+				{work.retiredIdentities && work.retiredIdentities.length > 0 ? (
+					<dl className="grid gap-1 text-sm">
+						<div className="flex gap-2">
+							<dt className="text-muted-foreground">
+								{WORK_LIFECYCLE_COPY.origin}
+							</dt>
+							<dd>
+								{work.retiredIdentities
+									.map((identity) => identity.key)
+									.join(", ")}
+							</dd>
+						</div>
+					</dl>
+				) : null}
+				{work.origin ? (
+					<dl className="grid gap-1 text-sm">
+						<div className="flex gap-2">
+							<dt className="text-muted-foreground">
+								{WORK_LIFECYCLE_COPY.openSourceRecord}
+							</dt>
+							<dd className="font-mono">{work.origin.key}</dd>
+						</div>
+					</dl>
+				) : null}
+				<div id={projectShellAnchor(PROJECT_SHELL_COPY.status)}>
+					{work.status === "Closed" ? (
+						<ReopenWorkForm
+							key={`${work.id}:reopen:${work.revision}`}
+							projectId={projectId}
+							revision={work.revision}
+							workId={work.id}
+						/>
+					) : (
+						<ChangeWorkStatusForm
+							key={`${work.id}:status:${work.revision}`}
+							projectId={projectId}
+							revision={work.revision}
+							status={work.status}
+							workId={work.id}
+						/>
+					)}
+				</div>
 			</div>
 			<FeatureInclusionPanel
 				key={`${work.id}:inclusion:${work.revision}`}

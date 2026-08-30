@@ -13,7 +13,7 @@ import {
 	getCompletionEffectsClientSession,
 	subscribeCompletionEffectsClientSession,
 } from "../completion-effects-session";
-import { EffectSample } from "./effect-sample";
+import { EffectPlay } from "./effect-sample";
 
 export function CompletionEffectsLayer() {
 	const session = useSyncExternalStore(
@@ -30,6 +30,7 @@ export function CompletionEffectsLayer() {
 		if (session.feedback !== "effect") {
 			return;
 		}
+		setNowMs(Date.now());
 		const frame = window.setInterval(() => {
 			setNowMs(Date.now());
 		}, 50);
@@ -56,21 +57,15 @@ export function CompletionEffectsLayer() {
 
 	return (
 		<div
-			className="pointer-events-none absolute inset-0 z-10 flex items-end justify-center p-3"
+			className="pointer-events-none absolute inset-0 z-20 flex items-end justify-center p-3"
 			data-completion-feedback={session.feedback}
 		>
 			{playing ? (
-				<div className="absolute inset-0 flex items-center justify-center">
-					<EffectSample
-						motion="playing"
-						palette={preference.palette}
-						theme={preference.theme}
-					/>
-				</div>
+				<EffectPlay palette={preference.palette} theme={preference.theme} />
 			) : null}
 			{session.notice ? (
 				<p
-					className="relative rounded-none border border-border bg-background px-3 py-2 text-sm"
+					className="relative z-10 rounded-none border border-border bg-background/95 px-3 py-2 text-sm shadow-sm"
 					role="status"
 				>
 					{COMPLETION_EFFECTS_COPY.workCompleted}
