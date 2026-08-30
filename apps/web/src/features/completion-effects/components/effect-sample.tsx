@@ -122,6 +122,7 @@ function EffectMarks({
 							motion === "playing"
 								? `completion-effect-motion ${1.2 - (index % 4) * 0.1}s ease-out both`
 								: "none",
+						animationIterationCount: 1,
 						background: swatches[index % swatches.length],
 						borderRadius: mark.radius,
 						height: mark.size,

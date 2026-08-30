@@ -12,6 +12,7 @@ test("English UI uses Calm, Weave, Arc, Nova, and Preview", () => {
 		heading: "Completion effects",
 		nova: "Nova",
 		preview: "Preview",
+		reopen: "Reopen",
 		weave: "Weave",
 		workCompleted: "Work completed",
 	});
