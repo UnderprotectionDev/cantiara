@@ -1,4 +1,5 @@
-import { Button } from "@cantiara/ui/components/button";
+import { Button, buttonVariants } from "@cantiara/ui/components/button";
+import { Skeleton } from "@cantiara/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
@@ -7,6 +8,8 @@ import {
 	projectShellAnchor,
 } from "@/features/project-shell/forms/project-shell-copy";
 import { orpc } from "@/utils/orpc";
+
+import { projectOverviewRecordHref } from "./project-overview-record-href";
 
 interface OverviewRecordView {
 	detail: string | null;
@@ -30,7 +33,6 @@ export default function ProjectOverview({ projectId }: { projectId: string }) {
 		orpc.projectOverview.get.queryOptions({ input: { projectId } })
 	);
 	const [openedHeadings, setOpenedHeadings] = useState<readonly string[]>([]);
-	const [openedRecordId, setOpenedRecordId] = useState<string | null>(null);
 	const onToggle = useCallback((heading: string) => {
 		setOpenedHeadings((current) =>
 			current.includes(heading)
@@ -38,12 +40,14 @@ export default function ProjectOverview({ projectId }: { projectId: string }) {
 				: [...current, heading]
 		);
 	}, []);
-	const onOpenSourceRecord = useCallback((recordId: string) => {
-		setOpenedRecordId(recordId);
-	}, []);
 
 	if (overview.isPending) {
-		return <p>{PROJECT_SHELL_COPY.loading}</p>;
+		return (
+			<div className="flex flex-col gap-3">
+				<Skeleton className="h-8 w-48" />
+				<p>{PROJECT_SHELL_COPY.loading}</p>
+			</div>
+		);
 	}
 	if (overview.isError || !overview.data) {
 		return <p role="alert">{PROJECT_SHELL_COPY.unavailable}</p>;
@@ -57,10 +61,8 @@ export default function ProjectOverview({ projectId }: { projectId: string }) {
 				<OverviewModule
 					key={module.heading}
 					module={module}
-					onOpenSourceRecord={onOpenSourceRecord}
 					onToggle={onToggle}
 					opened={openedHeadings.includes(module.heading)}
-					openedRecordId={openedRecordId}
 					openSourceRecord={data.openSourceRecord}
 				/>
 			))}
@@ -74,18 +76,14 @@ export default function ProjectOverview({ projectId }: { projectId: string }) {
 
 function OverviewModule({
 	module,
-	onOpenSourceRecord,
 	onToggle,
 	openSourceRecord,
 	opened,
-	openedRecordId,
 }: {
 	module: OverviewModuleView;
-	onOpenSourceRecord: (recordId: string) => void;
 	onToggle: (heading: string) => void;
 	openSourceRecord: string;
 	opened: boolean;
-	openedRecordId: string | null;
 }) {
 	const onClick = useCallback(() => {
 		onToggle(module.heading);
@@ -111,9 +109,8 @@ function OverviewModule({
 				<ul className="pb-3">
 					{module.records.map((record) => (
 						<OverviewSourceRow
+							heading={module.heading}
 							key={record.id}
-							onOpenSourceRecord={onOpenSourceRecord}
-							opened={openedRecordId === record.id}
 							openSourceRecord={openSourceRecord}
 							record={record}
 						/>
@@ -125,31 +122,22 @@ function OverviewModule({
 }
 
 function OverviewSourceRow({
-	onOpenSourceRecord,
+	heading,
 	openSourceRecord,
-	opened,
 	record,
 }: {
-	onOpenSourceRecord: (recordId: string) => void;
+	heading: string;
 	openSourceRecord: string;
-	opened: boolean;
 	record: OverviewRecordView;
 }) {
-	const onClick = useCallback(() => {
-		onOpenSourceRecord(record.id);
-	}, [onOpenSourceRecord, record.id]);
+	const href = projectOverviewRecordHref(heading, record.id);
 	return (
 		<li>
 			{record.title}
 			{record.detail ? ` · ${record.detail}` : null}{" "}
-			<Button
-				aria-pressed={opened}
-				onClick={onClick}
-				type="button"
-				variant="outline"
-			>
+			<a className={buttonVariants({ variant: "outline" })} href={href}>
 				{openSourceRecord}
-			</Button>
+			</a>
 		</li>
 	);
 }

@@ -1,8 +1,10 @@
-import { Button } from "@cantiara/ui/components/button";
+import { Button, buttonVariants } from "@cantiara/ui/components/button";
+import { Skeleton } from "@cantiara/ui/components/skeleton";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
+import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { orpc, queryClient } from "@/utils/orpc";
 
 import SavedCrossProjectLists from "./saved-cross-project-lists";
@@ -12,10 +14,12 @@ import type {
 	SavedListLayoutItem,
 } from "./saved-cross-project-lists-model";
 import { WORKSPACE_OVERVIEW_UI_COPY } from "./workspace-overview-copy";
+import { workspaceOverviewRecordHref } from "./workspace-overview-record-href";
 
 interface OverviewRecordView {
 	detail: string | null;
 	id: string;
+	projectId?: string;
 	title: string;
 }
 
@@ -178,7 +182,10 @@ export default function WorkspaceOverview() {
 	if (overview.isPending) {
 		return (
 			<FounderPage title={WORKSPACE_OVERVIEW_UI_COPY.workspace}>
-				<p>{WORKSPACE_OVERVIEW_UI_COPY.loading}</p>
+				<div className="flex flex-col gap-3">
+					<Skeleton className="h-8 w-48" />
+					<p>{WORKSPACE_OVERVIEW_UI_COPY.loading}</p>
+				</div>
 			</FounderPage>
 		);
 	}
@@ -446,6 +453,7 @@ function OverviewModule({
 				<ul className="pb-3">
 					{module.records.map((record) => (
 						<OverviewSourceRow
+							heading={module.heading}
 							key={record.id}
 							opened={openedRecordId === record.id}
 							openSourceRecord={openSourceRecord}
@@ -454,6 +462,18 @@ function OverviewModule({
 						/>
 					))}
 				</ul>
+			) : null}
+			{opened &&
+			module.heading === WORKSPACE_OVERVIEW_UI_COPY.activeProjects &&
+			module.records.length === 0 ? (
+				<p className="pb-3">
+					<a
+						className={buttonVariants({ size: "sm", variant: "outline" })}
+						href="/projects/new"
+					>
+						{PROJECT_SHELL_COPY.createProject}
+					</a>
+				</p>
 			) : null}
 		</section>
 	);
@@ -487,16 +507,23 @@ function HiddenModuleRow({
 }
 
 function OverviewSourceRow({
+	heading,
 	opened,
 	openSourceRecord,
 	record,
 	setOpenedRecordId,
 }: {
+	heading: string;
 	opened: boolean;
 	openSourceRecord: string;
 	record: OverviewRecordView;
 	setOpenedRecordId: (recordId: string) => void;
 }) {
+	const href = workspaceOverviewRecordHref({
+		heading,
+		projectId: record.projectId,
+		recordId: record.id,
+	});
 	const onClick = useCallback(() => {
 		setOpenedRecordId(record.id);
 	}, [record.id, setOpenedRecordId]);
@@ -504,14 +531,20 @@ function OverviewSourceRow({
 		<li>
 			{record.title}
 			{record.detail ? ` · ${record.detail}` : null}{" "}
-			<Button
-				aria-pressed={opened}
-				onClick={onClick}
-				type="button"
-				variant="outline"
-			>
-				{openSourceRecord}
-			</Button>
+			{href ? (
+				<a className={buttonVariants({ variant: "outline" })} href={href}>
+					{openSourceRecord}
+				</a>
+			) : (
+				<Button
+					aria-pressed={opened}
+					onClick={onClick}
+					type="button"
+					variant="outline"
+				>
+					{openSourceRecord}
+				</Button>
+			)}
 		</li>
 	);
 }

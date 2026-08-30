@@ -1,11 +1,21 @@
-import { Button, buttonVariants } from "@cantiara/ui/components/button";
+import { Button } from "@cantiara/ui/components/button";
+import {
+	Sheet,
+	SheetContent,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
+} from "@cantiara/ui/components/sheet";
+import { Skeleton } from "@cantiara/ui/components/skeleton";
 import { cn } from "@cantiara/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
+import { Menu } from "lucide-react";
 import { useCallback } from "react";
 
 import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-record-values";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
+import { FOUNDER_MAIN_ID } from "@/features/personal-shell/components/founder-chrome";
 import ProjectOverview from "@/features/project-overview/views/project-overview";
 import ConfigurationMode from "@/features/project-shell/forms/configuration-mode";
 import CopyProjectStructureForm from "@/features/project-shell/forms/copy-project-structure-form";
@@ -13,10 +23,15 @@ import FirstOpenExplanation from "@/features/project-shell/forms/first-open-expl
 import ProjectAreasForm from "@/features/project-shell/forms/project-areas-form";
 import {
 	type ConfigurationModeEditor,
+	isWorkShellAnchor,
 	PROJECT_SHELL_COPY,
+	projectNavPinnedAreas,
+	projectNavRecordAreas,
 	projectPersistentNav,
 	projectShellAnchor,
 	type StageState,
+	WORK_DAILY_ACTIONS,
+	workSavedViewIsList,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
@@ -57,7 +72,9 @@ export default function ProjectProfile({
 	configurationEditor,
 	configurationMode,
 	onPresentationChange,
+	onWorkId,
 	projectId,
+	workId,
 }: {
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
@@ -65,7 +82,9 @@ export default function ProjectProfile({
 		editor: ConfigurationModeEditor | null;
 		open: boolean;
 	}) => void;
+	onWorkId?: (workId: string | null) => void;
 	projectId: string;
+	workId?: string | null;
 }) {
 	const project = useQuery(
 		orpc.projectShell.get.queryOptions({ input: { projectId } })
@@ -91,7 +110,15 @@ export default function ProjectProfile({
 	}, [configurationMode, onPresentationChange]);
 
 	if (project.isPending) {
-		return <p>{PROJECT_SHELL_COPY.loading}</p>;
+		return (
+			<div className="grid h-full min-h-0 gap-4 p-6 md:grid-cols-[13rem_minmax(0,1fr)]">
+				<Skeleton className="hidden h-full md:block" />
+				<div className="flex flex-col gap-3">
+					<Skeleton className="h-8 w-48" />
+					<p>{PROJECT_SHELL_COPY.loading}</p>
+				</div>
+			</div>
+		);
 	}
 	if (project.isError || !project.data) {
 		return <p role="alert">{PROJECT_SHELL_COPY.unavailable}</p>;
@@ -106,78 +133,194 @@ export default function ProjectProfile({
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const overviewCurrent =
-		!configurationMode &&
-		(selectedAnchor === "" || selectedAnchor === overviewAnchor);
+		selectedAnchor === "" || selectedAnchor === overviewAnchor;
+
+	const nav = (
+		<ProjectNav
+			allToolsCurrent={selectedAnchor === allToolsAnchor}
+			allToolsHref={`#${allToolsAnchor}`}
+			configurationMode={configurationMode}
+			navigationAreas={navigationAreas}
+			onLeaveConfiguration={onLeaveConfiguration}
+			overviewCurrent={overviewCurrent}
+			overviewHref={`#${overviewAnchor}`}
+			selectedAnchor={selectedAnchor}
+			workViews={data.workViews}
+		/>
+	);
 
 	return (
-		<div className="grid h-full min-h-0 grid-cols-[13rem_minmax(0,1fr)]">
-			<aside className="flex h-full min-h-0 flex-col gap-3 border-e px-2 py-3">
-				<Button
-					aria-pressed={configurationMode}
-					className="w-full justify-start"
-					onClick={onToggle}
-					size="sm"
-					type="button"
-					variant={configurationMode ? "secondary" : "outline"}
-				>
-					{PROJECT_SHELL_COPY.configurationMode}
-				</Button>
-				<nav aria-label={PROJECT_SHELL_COPY.overview}>
-					<ul className="flex flex-col gap-0.5">
-						<li>
-							<ProjectNavLink
-								current={overviewCurrent}
-								href={`#${overviewAnchor}`}
-								label={PROJECT_SHELL_COPY.overview}
-								onLeaveConfiguration={onLeaveConfiguration}
-							/>
-						</li>
-						<li>
-							<ProjectNavLink
-								current={
-									!configurationMode && selectedAnchor === allToolsAnchor
-								}
-								href={`#${allToolsAnchor}`}
-								label={PROJECT_SHELL_COPY.allTools}
-								onLeaveConfiguration={onLeaveConfiguration}
-							/>
-						</li>
-						{navigationAreas.map((area) => (
-							<li key={`pin-${area}`}>
-								<ProjectNavLink
-									current={
-										!configurationMode &&
-										selectedAnchor === projectShellAnchor(area)
-									}
-									href={`#${projectShellAnchor(area)}`}
-									label={area}
-									onLeaveConfiguration={onLeaveConfiguration}
-								/>
-							</li>
-						))}
-					</ul>
-				</nav>
-				<Link
-					className={cn(
-						buttonVariants({ size: "sm", variant: "ghost" }),
-						"justify-start"
-					)}
-					to="/projects/new"
-				>
-					{PROJECT_SHELL_COPY.createProject}
-				</Link>
+		<div className="grid h-full min-h-0 md:grid-cols-[13rem_minmax(0,1fr)]">
+			<aside className="hidden h-full min-h-0 flex-col gap-3 border-e bg-sidebar px-2 py-3 text-sidebar-foreground md:flex">
+				<ConfigurationToggle
+					configurationMode={configurationMode}
+					onToggle={onToggle}
+				/>
+				{nav}
 			</aside>
-			<main className="min-h-0 overflow-auto px-8 py-8">
+			<main
+				className="min-h-0 overflow-auto px-4 py-6 md:px-8 md:py-8"
+				id={FOUNDER_MAIN_ID}
+			>
+				<div className="mb-4 flex items-center gap-2 md:hidden">
+					<Sheet>
+						<SheetTrigger render={<Button size="sm" variant="outline" />}>
+							<Menu className="size-4" />
+							{PROJECT_SHELL_COPY.openNavigation}
+						</SheetTrigger>
+						<SheetContent className="bg-sidebar p-3" side="left">
+							<SheetHeader>
+								<SheetTitle>{PROJECT_SHELL_COPY.project}</SheetTitle>
+							</SheetHeader>
+							<div className="flex flex-col gap-3 px-2">
+								<ConfigurationToggle
+									configurationMode={configurationMode}
+									onToggle={onToggle}
+								/>
+								{nav}
+							</div>
+						</SheetContent>
+					</Sheet>
+					<p className="truncate font-medium text-sm">{data.name}</p>
+				</div>
 				<ProjectBody
 					configurationEditor={configurationEditor}
 					configurationMode={configurationMode}
 					data={data}
 					onOpenEditor={onOpenEditor}
 					onToggle={onToggle}
+					onWorkId={onWorkId}
 					selectedAnchor={selectedAnchor}
+					workId={workId}
 				/>
 			</main>
 		</div>
+	);
+}
+
+function ConfigurationToggle({
+	configurationMode,
+	onToggle,
+}: {
+	configurationMode: boolean;
+	onToggle: () => void;
+}) {
+	return (
+		<Button
+			aria-pressed={configurationMode}
+			className="w-full justify-start"
+			onClick={onToggle}
+			size="sm"
+			type="button"
+			variant={configurationMode ? "secondary" : "outline"}
+		>
+			{PROJECT_SHELL_COPY.configurationMode}
+		</Button>
+	);
+}
+
+function ProjectNav({
+	allToolsCurrent,
+	allToolsHref,
+	configurationMode,
+	navigationAreas,
+	onLeaveConfiguration,
+	overviewCurrent,
+	overviewHref,
+	selectedAnchor,
+	workViews,
+}: {
+	allToolsCurrent: boolean;
+	allToolsHref: string;
+	configurationMode: boolean;
+	navigationAreas: readonly string[];
+	onLeaveConfiguration: () => void;
+	overviewCurrent: boolean;
+	overviewHref: string;
+	selectedAnchor: string;
+	workViews: readonly string[];
+}) {
+	const records = projectNavRecordAreas(navigationAreas);
+	const pinned = projectNavPinnedAreas(navigationAreas);
+	return (
+		<nav aria-label={PROJECT_SHELL_COPY.project}>
+			<ul className="flex flex-col gap-3">
+				<li>
+					<p className="px-2 font-medium text-muted-foreground text-xs">
+						{PROJECT_SHELL_COPY.overview}
+					</p>
+					<ul className="mt-0.5 flex flex-col gap-0.5">
+						<li>
+							<ProjectNavLink
+								current={overviewCurrent}
+								href={overviewHref}
+								label={PROJECT_SHELL_COPY.overview}
+								onLeaveConfiguration={onLeaveConfiguration}
+							/>
+						</li>
+					</ul>
+				</li>
+				{records.length > 0 ? (
+					<li>
+						<ul className="flex flex-col gap-0.5">
+							{records.map((area) => (
+								<li key={`record-${area}`}>
+									<ProjectNavLink
+										current={
+											selectedAnchor === projectShellAnchor(area) ||
+											(area === "Work" &&
+												isWorkShellAnchor(selectedAnchor, workViews))
+										}
+										href={`#${projectShellAnchor(area)}`}
+										label={area}
+										onLeaveConfiguration={onLeaveConfiguration}
+									/>
+								</li>
+							))}
+						</ul>
+					</li>
+				) : null}
+				{pinned.length > 0 ? (
+					<li>
+						<p className="px-2 font-medium text-muted-foreground text-xs">
+							{PROJECT_SHELL_COPY.projectAreas}
+						</p>
+						<ul className="mt-0.5 flex flex-col gap-0.5">
+							{pinned.map((area) => (
+								<li key={`pin-${area}`}>
+									<ProjectNavLink
+										current={selectedAnchor === projectShellAnchor(area)}
+										href={`#${projectShellAnchor(area)}`}
+										label={area}
+										onLeaveConfiguration={onLeaveConfiguration}
+									/>
+								</li>
+							))}
+						</ul>
+					</li>
+				) : null}
+				<li>
+					<p className="px-2 font-medium text-muted-foreground text-xs">
+						{PROJECT_SHELL_COPY.allTools}
+					</p>
+					<ul className="mt-0.5 flex flex-col gap-0.5">
+						<li>
+							<ProjectNavLink
+								current={allToolsCurrent}
+								href={allToolsHref}
+								label={PROJECT_SHELL_COPY.allTools}
+								onLeaveConfiguration={onLeaveConfiguration}
+							/>
+						</li>
+					</ul>
+				</li>
+			</ul>
+			{configurationMode ? (
+				<p className="sr-only" role="status">
+					{PROJECT_SHELL_COPY.configurationMode}
+				</p>
+			) : null}
+		</nav>
 	);
 }
 
@@ -196,10 +339,10 @@ function ProjectNavLink({
 		<a
 			aria-current={current ? "page" : undefined}
 			className={cn(
-				"block px-2 py-1.5 text-sm transition-colors",
+				"block rounded-sm px-2 py-1.5 text-sm transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring",
 				current
-					? "bg-muted font-medium text-foreground"
-					: "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+					? "border-sidebar-primary border-s-2 bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+					: "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 			)}
 			href={href}
 			onClick={onLeaveConfiguration}
@@ -215,14 +358,18 @@ function ProjectBody({
 	data,
 	onOpenEditor,
 	onToggle,
+	onWorkId,
 	selectedAnchor,
+	workId,
 }: {
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
 	data: ProjectShellRecord;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
 	onToggle: () => void;
+	onWorkId?: (workId: string | null) => void;
 	selectedAnchor: string;
+	workId?: string | null;
 }) {
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
@@ -230,6 +377,9 @@ function ProjectBody({
 	const selectedArea = data.allToolsAreas
 		.map((area) => area.name)
 		.find((area) => projectShellAnchor(area) === selectedAnchor);
+	const showingWork =
+		selectedArea === "Work" ||
+		isWorkShellAnchor(selectedAnchor, data.workViews);
 
 	if (configurationMode) {
 		return (
@@ -298,23 +448,58 @@ function ProjectBody({
 		);
 	}
 
-	if (selectedArea === "Work") {
+	if (showingWork) {
+		const activeView = data.workViews.find(
+			(view) => projectShellAnchor(view) === selectedAnchor
+		);
 		return (
 			<section aria-label="Work" id={projectShellAnchor("Work")}>
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">Work</h1>
-				<p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground text-xs">
-					<span>{PROJECT_SHELL_COPY.create}</span>
-					<span>{PROJECT_SHELL_COPY.edit}</span>
-					<span>{PROJECT_SHELL_COPY.status}</span>
-					<span>{PROJECT_SHELL_COPY.planning}</span>
-					{data.workViews.map((view) => (
-						<span id={projectShellAnchor(view)} key={view}>
-							{view}
-						</span>
+				<nav
+					aria-label={PROJECT_SHELL_COPY.savedViews}
+					className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs"
+				>
+					{WORK_DAILY_ACTIONS.map((action) => (
+						<a
+							className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+							href={`#${projectShellAnchor(action)}`}
+							key={action}
+						>
+							{action}
+						</a>
 					))}
-				</p>
+					{data.workViews.map((view) => {
+						const current =
+							projectShellAnchor(view) === selectedAnchor ||
+							(view === "Backlog" &&
+								(selectedAnchor === "work" || selectedAnchor === "create"));
+						return (
+							<a
+								aria-current={current ? "page" : undefined}
+								className={cn(
+									"underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring",
+									current
+										? "font-medium text-foreground"
+										: "text-muted-foreground hover:text-foreground hover:underline"
+								)}
+								href={`#${projectShellAnchor(view)}`}
+								id={projectShellAnchor(view)}
+								key={view}
+							>
+								{view}
+							</a>
+						);
+					})}
+				</nav>
 				<div className="mt-6">
-					<WorkArea projectId={data.id} />
+					<WorkArea
+						onSelectedWorkId={onWorkId}
+						projectId={data.id}
+						selectedWorkId={workId ?? null}
+						unavailableView={
+							activeView && !workSavedViewIsList(activeView) ? activeView : null
+						}
+					/>
 				</div>
 			</section>
 		);
@@ -326,6 +511,7 @@ function ProjectBody({
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">
 					{selectedArea}
 				</h1>
+				<p className="mt-2 text-muted-foreground text-sm">Feedback</p>
 				<div className="mt-6">
 					<BoundRecordValuesSurface projectId={data.id} recordType="Feedback" />
 				</div>
@@ -348,8 +534,10 @@ function ProjectBody({
 
 	return (
 		<section aria-label={PROJECT_SHELL_COPY.overview} id={overviewAnchor}>
-			<h1 className="font-bold text-2xl">{data.name}</h1>
-			<p className="text-muted-foreground">
+			<h1 className="font-semibold text-[1.375rem] tracking-tight">
+				{data.name}
+			</h1>
+			<p className="text-muted-foreground text-sm">
 				{PROJECT_SHELL_COPY.active} · {data.starterConfiguration}
 			</p>
 			{data.firstOpenExplanationVisible && data.firstOpenExplanation ? (

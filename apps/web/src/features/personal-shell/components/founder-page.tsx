@@ -1,6 +1,8 @@
 import { cn } from "@cantiara/ui/lib/utils";
 import type { ReactNode } from "react";
 
+import { FOUNDER_MAIN_ID } from "./founder-chrome";
+
 export function FounderPage({
 	actions,
 	children,
@@ -18,6 +20,7 @@ export function FounderPage({
 				"mx-auto w-full px-6 py-12",
 				wide ? "max-w-5xl" : "max-w-[40rem]"
 			)}
+			id={FOUNDER_MAIN_ID}
 		>
 			<div className="mb-8 flex items-center justify-between gap-4">
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">

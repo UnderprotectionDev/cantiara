@@ -25,7 +25,7 @@ export default function ProjectList({ compact }: { compact?: boolean }) {
 					<li key={project.id}>
 						<Link
 							className={cn(
-								"flex outline-none transition-colors hover:bg-muted/70 focus-visible:ring-1 focus-visible:ring-ring",
+								"flex outline-none transition-colors duration-200 hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring",
 								compact
 									? "flex-col gap-0.5 px-2 py-1.5"
 									: "items-center justify-between gap-6 px-2 py-3"

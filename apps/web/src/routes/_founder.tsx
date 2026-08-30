@@ -12,7 +12,7 @@ function FounderLayout() {
 		<PaletteSurfaceProvider surface="founder">
 			<div className="grid h-svh grid-rows-[auto_1fr]">
 				<Header />
-				<div className="min-h-0 overflow-auto">
+				<div className="min-h-0 scroll-pt-14 overflow-auto">
 					<Outlet />
 				</div>
 			</div>

@@ -208,7 +208,16 @@ export default function PreferencesForm({
 				</form.Field>
 			</FieldGroup>
 			<PreferencesPreview values={values} />
-			<Button disabled={save.isPending} type="submit">
+			{save.isError ? (
+				<p id="preferences-save-error" role="alert" tabIndex={-1}>
+					{ACCOUNT_PREFERENCES_COPY.unavailable}
+				</p>
+			) : null}
+			<Button
+				aria-describedby={save.isError ? "preferences-save-error" : undefined}
+				disabled={save.isPending}
+				type="submit"
+			>
 				{ACCOUNT_PREFERENCES_COPY.save}
 			</Button>
 		</form>

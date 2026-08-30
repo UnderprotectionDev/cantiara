@@ -2,14 +2,18 @@ import { expect, test } from "vitest";
 
 import {
 	CONFIGURATION_MODE_EDITORS,
+	isWorkShellAnchor,
 	PROJECT_SHELL_COPY,
 	pinnedNavigationAreas,
+	projectNavPinnedAreas,
+	projectNavRecordAreas,
 	projectPersistentNav,
 	projectShellAnchor,
 	projectShellChrome,
 	projectShellSearch,
 	STARTER_CONFIGURATIONS,
 	structureCopyPreviewItems,
+	workSavedViewIsList,
 } from "./project-shell-copy";
 
 const COPY_BRANDING_PATTERN = /color|CSS|font/i;
@@ -131,6 +135,7 @@ test("Configuration Mode is presentation search, not a Project write", () => {
 			configurationEditor: CONFIGURATION_MODE_EDITORS.customField,
 		})
 	).toEqual({});
+	expect(projectShellSearch({ work: "work_1" })).toEqual({ work: "work_1" });
 });
 
 test("Copy project structure preview lists structure without records", () => {
@@ -194,4 +199,25 @@ test("Copy project structure preview lists structure without records", () => {
 			label: "Sitemap",
 		},
 	]);
+});
+
+test("Work daily actions and Saved views stay on the Work surface", () => {
+	const persistent = projectPersistentNav(
+		["Discovery", "Decisions"],
+		["Work", "Documents", "Decisions"]
+	);
+	expect(projectNavRecordAreas(persistent)).toEqual([
+		"Work",
+		"Documents",
+		"File Attachment",
+	]);
+	expect(projectNavPinnedAreas(persistent)).toEqual(["Decisions"]);
+	expect(isWorkShellAnchor("work", ["Backlog", "Board"])).toBe(true);
+	expect(isWorkShellAnchor("create", ["Backlog", "Board"])).toBe(true);
+	expect(isWorkShellAnchor("board", ["Backlog", "Board"])).toBe(true);
+	expect(isWorkShellAnchor("documents", ["Backlog", "Board"])).toBe(false);
+	expect(workSavedViewIsList("Backlog")).toBe(true);
+	expect(workSavedViewIsList("Board")).toBe(false);
+	expect(PROJECT_SHELL_COPY.project).toBe("Project");
+	expect(PROJECT_SHELL_COPY.openNavigation).toBe("Open Project navigation");
 });

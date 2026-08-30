@@ -2,10 +2,14 @@ export const FOUNDER_CHROME_COPY = {
 	account: "Account",
 	capture: "Capture",
 	drafts: "Drafts",
+	menu: "Menu",
 	personalWiki: "Personal Wiki",
 	product: "Cantiara",
 	projects: "Projects",
+	skipToMain: "Skip to main content",
 } as const;
+
+export const FOUNDER_MAIN_ID = "main-content";
 
 export const FOUNDER_CHROME_PATHS = {
 	capture: "/capture",
@@ -38,4 +42,18 @@ export function founderChromeNav() {
 
 export function founderChromeAccountOnly() {
 	return ["Preferences", "Sessions"] as const;
+}
+
+export function founderChromeNavIsCurrent(
+	pathname: string,
+	to: (typeof FOUNDER_CHROME_PATHS)[keyof typeof FOUNDER_CHROME_PATHS]
+): boolean {
+	if (to === FOUNDER_CHROME_PATHS.projects) {
+		return pathname === to || pathname === "/projects/new";
+	}
+	return pathname === to;
+}
+
+export function projectOverviewHref(projectId: string): string {
+	return `/projects/${projectId}#overview`;
 }

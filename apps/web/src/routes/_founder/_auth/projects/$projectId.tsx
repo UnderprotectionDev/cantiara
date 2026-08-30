@@ -22,17 +22,32 @@ function ProjectProfileRoute() {
 				search: {
 					configurationEditor: next.editor ?? undefined,
 					configurationMode: next.open ? true : undefined,
+					work: search.work,
 				},
 			}).catch(() => undefined);
 		},
-		[navigate]
+		[navigate, search.work]
+	);
+	const onWorkId = useCallback(
+		(workId: string | null) => {
+			navigate({
+				search: {
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					work: workId ?? undefined,
+				},
+			}).catch(() => undefined);
+		},
+		[navigate, search.configurationEditor, search.configurationMode]
 	);
 	return (
 		<ProjectProfile
 			configurationEditor={search.configurationEditor ?? null}
 			configurationMode={search.configurationMode === true}
 			onPresentationChange={onPresentationChange}
+			onWorkId={onWorkId}
 			projectId={projectId}
+			workId={search.work ?? null}
 		/>
 	);
 }

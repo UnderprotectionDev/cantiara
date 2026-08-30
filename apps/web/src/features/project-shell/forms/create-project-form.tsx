@@ -1,5 +1,10 @@
 import { Button } from "@cantiara/ui/components/button";
-import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
+import {
+	Field,
+	FieldError,
+	FieldGroup,
+	FieldLabel,
+} from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
 	NativeSelect,
@@ -129,7 +134,16 @@ export default function CreateProjectForm() {
 	);
 
 	return (
-		<form className="flex flex-col gap-6" onSubmit={onSubmit}>
+		<form
+			aria-describedby={error ? "create-project-error" : undefined}
+			className="flex flex-col gap-6"
+			onSubmit={onSubmit}
+		>
+			{error ? (
+				<FieldError id="create-project-error" tabIndex={-1}>
+					{error}
+				</FieldError>
+			) : null}
 			<FieldGroup>
 				<form.Field name="name">
 					{(field) => (
@@ -206,7 +220,6 @@ export default function CreateProjectForm() {
 					{(field) => <LogoField onValueChange={field.handleChange} />}
 				</form.Field>
 			</FieldGroup>
-			{error ? <p role="alert">{error}</p> : null}
 			<Button disabled={create.isPending} type="submit">
 				{PROJECT_SHELL_COPY.createProject}
 			</Button>

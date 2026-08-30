@@ -3,8 +3,11 @@ import { expect, test } from "vitest";
 import {
 	FOUNDER_CHROME_COPY,
 	FOUNDER_CHROME_PATHS,
+	FOUNDER_MAIN_ID,
 	founderChromeAccountOnly,
 	founderChromeNav,
+	founderChromeNavIsCurrent,
+	projectOverviewHref,
 } from "./founder-chrome";
 
 test("founder chrome reaches Capture and Projects, not Home or Dashboard twins", () => {
@@ -34,4 +37,18 @@ test("founder chrome reaches Capture and Projects, not Home or Dashboard twins",
 test("Preferences and Sessions stay on the Account menu", () => {
 	expect(founderChromeAccountOnly()).toEqual(["Preferences", "Sessions"]);
 	expect(FOUNDER_CHROME_COPY.account).toBe("Account");
+});
+
+test("workspace chrome marks the current surface without treating a Project as Projects", () => {
+	expect(FOUNDER_CHROME_COPY.skipToMain).toBe("Skip to main content");
+	expect(FOUNDER_CHROME_COPY.menu).toBe("Menu");
+	expect(FOUNDER_MAIN_ID).toBe("main-content");
+	expect(founderChromeNavIsCurrent("/capture", "/capture")).toBe(true);
+	expect(founderChromeNavIsCurrent("/projects", "/projects")).toBe(true);
+	expect(founderChromeNavIsCurrent("/projects/new", "/projects")).toBe(true);
+	expect(founderChromeNavIsCurrent("/projects/proj_1", "/projects")).toBe(
+		false
+	);
+	expect(founderChromeNavIsCurrent("/wiki", "/capture")).toBe(false);
+	expect(projectOverviewHref("proj_1")).toBe("/projects/proj_1#overview");
 });

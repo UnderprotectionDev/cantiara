@@ -178,6 +178,11 @@ function HydratedCreateWorkForm({
 
 	return (
 		<div className="flex flex-col gap-3">
+			{error ? (
+				<p id="create-work-error" role="alert" tabIndex={-1}>
+					{error}
+				</p>
+			) : null}
 			<WorkDraftForm
 				createDisabled={create.isPending || consumed}
 				draftId={draftId}
@@ -194,7 +199,6 @@ function HydratedCreateWorkForm({
 					values={values}
 				/>
 			) : null}
-			{error ? <p role="alert">{error}</p> : null}
 		</div>
 	);
 }

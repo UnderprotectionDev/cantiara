@@ -4,6 +4,10 @@ import { useCallback } from "react";
 import WorkBlockersPanel from "@/features/blockers/views/work-blockers-panel";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
 import WorkPriorityValues from "@/features/priority/forms/work-priority-values";
+import {
+	PROJECT_SHELL_COPY,
+	projectShellAnchor,
+} from "@/features/project-shell/forms/project-shell-copy";
 import RelationsPanel from "@/features/relations/views/relations-panel";
 import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
 import UsedInPanel from "@/features/relations/views/used-in-panel";
@@ -71,7 +75,10 @@ export default function WorkDetail({
 		document.getElementById("work-related")?.scrollIntoView();
 	}, []);
 	return (
-		<article className="flex flex-col gap-4 border-t pt-4">
+		<article
+			className="flex flex-col gap-4 border-t pt-4"
+			id={projectShellAnchor(PROJECT_SHELL_COPY.edit)}
+		>
 			<header className="flex items-start justify-between gap-3">
 				<h2 className="min-w-0 font-medium text-sm tracking-tight">
 					<span className="font-mono text-muted-foreground">{work.key}</span>{" "}
@@ -114,22 +121,24 @@ export default function WorkDetail({
 					</div>
 				</dl>
 			) : null}
-			{work.status === "Closed" ? (
-				<ReopenWorkForm
-					key={`${work.id}:reopen:${work.revision}`}
-					projectId={projectId}
-					revision={work.revision}
-					workId={work.id}
-				/>
-			) : (
-				<ChangeWorkStatusForm
-					key={`${work.id}:status:${work.revision}`}
-					projectId={projectId}
-					revision={work.revision}
-					status={work.status}
-					workId={work.id}
-				/>
-			)}
+			<div id={projectShellAnchor(PROJECT_SHELL_COPY.status)}>
+				{work.status === "Closed" ? (
+					<ReopenWorkForm
+						key={`${work.id}:reopen:${work.revision}`}
+						projectId={projectId}
+						revision={work.revision}
+						workId={work.id}
+					/>
+				) : (
+					<ChangeWorkStatusForm
+						key={`${work.id}:status:${work.revision}`}
+						projectId={projectId}
+						revision={work.revision}
+						status={work.status}
+						workId={work.id}
+					/>
+				)}
+			</div>
 			<FeatureInclusionPanel
 				key={`${work.id}:inclusion:${work.revision}`}
 				projectId={projectId}
