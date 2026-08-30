@@ -5,11 +5,14 @@ export function workspaceOverviewRecordHref(input: {
 	projectId?: string;
 	recordId: string;
 }): string | null {
-	if (
-		input.heading === WORKSPACE_OVERVIEW_UI_COPY.activeProjects ||
-		input.heading === WORKSPACE_OVERVIEW_UI_COPY.upcoming
-	) {
+	if (input.heading === WORKSPACE_OVERVIEW_UI_COPY.activeProjects) {
 		return `/projects/${input.recordId}#overview`;
+	}
+	if (
+		input.heading === WORKSPACE_OVERVIEW_UI_COPY.upcoming &&
+		input.projectId
+	) {
+		return `/projects/${input.projectId}#overview`;
 	}
 	if (
 		input.heading === WORKSPACE_OVERVIEW_UI_COPY.recentWork &&

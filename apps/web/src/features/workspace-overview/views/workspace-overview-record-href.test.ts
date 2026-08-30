@@ -12,9 +12,16 @@ test("Open source record jumps to the Project or Work surface", () => {
 	expect(
 		workspaceOverviewRecordHref({
 			heading: "Upcoming",
-			recordId: "proj_1",
+			projectId: "proj_1",
+			recordId: "goal-1",
 		})
 	).toBe("/projects/proj_1#overview");
+	expect(
+		workspaceOverviewRecordHref({
+			heading: "Upcoming",
+			recordId: "reminder-1",
+		})
+	).toBeNull();
 	expect(
 		workspaceOverviewRecordHref({
 			heading: "Recent Work",

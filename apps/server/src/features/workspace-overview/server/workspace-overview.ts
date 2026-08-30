@@ -99,6 +99,7 @@ export interface WorkspaceUpcomingSource {
 	date: string;
 	id: string;
 	kind: string;
+	projectId?: string;
 	title: string;
 }
 
@@ -270,6 +271,7 @@ export function workspaceOverview(
 					detail: item.date,
 					id: item.id,
 					title: item.title,
+					...(item.projectId ? { projectId: item.projectId } : {}),
 				})),
 			hidden(WORKSPACE_OVERVIEW_COPY.upcoming)
 		),
@@ -519,6 +521,7 @@ export function sourcesFromWorkspaceSnapshot(snapshot: {
 					date: project.targetDate,
 					id: project.id,
 					kind: "goalDate",
+					projectId: project.id,
 					title: project.name,
 				},
 			];

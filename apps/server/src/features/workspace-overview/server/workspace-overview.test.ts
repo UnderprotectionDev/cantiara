@@ -242,6 +242,7 @@ describe("Workspace Overview", () => {
 						date: "2026-09-01",
 						id: "goal-1",
 						kind: "goalDate",
+						projectId: "proj_1",
 						title: "Reach İlk Proje",
 					},
 					{
@@ -261,7 +262,12 @@ describe("Workspace Overview", () => {
 			DEFAULT_LAYOUT
 		);
 		expect(moduleOf(overview, "Upcoming").records).toEqual([
-			{ detail: "2026-09-01", id: "goal-1", title: "Reach İlk Proje" },
+			{
+				detail: "2026-09-01",
+				id: "goal-1",
+				projectId: "proj_1",
+				title: "Reach İlk Proje",
+			},
 			{ detail: "2026-09-02", id: "reminder-1", title: "Review capture notes" },
 		]);
 		expect(JSON.stringify(overview)).not.toContain("Not a v1 Upcoming source");
@@ -518,7 +524,12 @@ describe("Workspace Overview", () => {
 			{ detail: null, id: "project-atlas", title: "Atlas" },
 		]);
 		expect(moduleOf(overview, "Upcoming").records).toEqual([
-			{ detail: "2026-09-01", id: "project-atlas", title: "Atlas" },
+			{
+				detail: "2026-09-01",
+				id: "project-atlas",
+				projectId: "project-atlas",
+				title: "Atlas",
+			},
 		]);
 		expect(moduleOf(overview, "Recent Work").records).toEqual([
 			{
