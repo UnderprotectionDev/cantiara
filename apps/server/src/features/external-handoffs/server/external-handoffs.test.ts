@@ -15,9 +15,16 @@ import { createProject } from "../../project-shell/server/project-shell";
 import {
 	createWork,
 	listWork,
+	listWorkLifecycleHistory,
 	relateWork,
+	updateWorkTitle,
 } from "../../work-lifecycle/server/work-lifecycle";
-import { listHandoffsForWork, startHandoff } from "./external-handoffs";
+import {
+	listHandoffHistoryForWork,
+	listHandoffsForWork,
+	produceGoingPackage,
+	startHandoff,
+} from "./external-handoffs";
 import { EXTERNAL_HANDOFFS_COPY } from "./external-handoffs-model";
 
 const DATABASE_URL =
@@ -30,6 +37,7 @@ const RUNNER_PATTERN =
 	/launchAgent|pollCi|streamTelemetry|spawnTerminal|cloneRepository/i;
 const LIVE_SYNC_PATTERN =
 	/liveSync":true|repositoryCopy":true|publishArtifact":true/;
+const ISO_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T/;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -126,8 +134,11 @@ describe("External Execution Handoff", () => {
 			expectedOutput: "Expected output",
 			externalExecutionHandoff: "External Execution Handoff",
 			github: "GitHub",
+			goingPackage: "Going package",
 			handoff: "Handoff",
+			newPackageVersion: "New package version",
 			open: "Open",
+			packageVersion: "Package version",
 			producedAt: "Produced at",
 			purpose: "Purpose",
 			selectedVersions: "Selected versions",
@@ -196,13 +207,19 @@ describe("External Execution Handoff", () => {
 			sourceOfTruth: "Source of truth is in the app",
 			startHandoff: "Start Handoff",
 		});
+		expect(started.handoff.goingPackage.version).toBe(1);
+		expect(
+			started.handoff.goingPackageVersions.map((item) => item.version)
+		).toEqual([1]);
 		const listed = await listHandoffsForWork(prisma, work.id);
 		expect(listed.map((item) => item.id)).toEqual([started.handoff.id]);
 		expect(JSON.stringify(started.handoff)).not.toMatch(FORBIDDEN_PRODUCT);
 		const worksAfter = await listWork(prisma, project.id);
 		expect(worksAfter.map((item) => item.id)).toEqual([work.id]);
 		expect(Object.keys(appRouter.externalHandoffs).sort()).toEqual([
+			"history",
 			"list",
+			"produceGoingPackage",
 			"start",
 		]);
 		expect(TEST_SOURCE_DETAIL.handoff).toBe("Test Handoff");
@@ -399,5 +416,341 @@ describe("External Execution Handoff", () => {
 		});
 		expect(JSON.stringify(started.handoff)).not.toMatch(RUNNER_PATTERN);
 		expect(JSON.stringify(started.handoff)).not.toMatch(LIVE_SYNC_PATTERN);
+	});
+
+	it("keeps the first handoff when a second Start Handoff runs on the same Work", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-checkout"
+		);
+		const first = await startHandoff(prisma, {
+			actorId,
+			idempotencyKey: "start-first-coding-pass",
+			origin: "human",
+			payload: {
+				constraints: "Do not change payment capture.",
+				executorVisibleName: "Cursor",
+				expectedOutput: "First going package.",
+				purpose: "First coding pass.",
+				selectedVersions: [
+					{
+						kind: "Work",
+						recordId: work.id,
+						title: work.title,
+						versionId: String(work.revision),
+					},
+				],
+				workId: work.id,
+			},
+		});
+		expect(first.status).toBe("committed");
+		if (first.status !== "committed") {
+			return;
+		}
+		const firstPackage = first.handoff.goingPackage.markdown;
+		const second = await startHandoff(prisma, {
+			actorId,
+			idempotencyKey: "start-second-coding-pass",
+			origin: "human",
+			payload: {
+				constraints: "Keep the first pass history.",
+				executorVisibleName: "Claude",
+				expectedOutput: "Second going package.",
+				purpose: "Second coding pass.",
+				selectedVersions: [
+					{
+						kind: "Work",
+						recordId: work.id,
+						title: work.title,
+						versionId: String(work.revision),
+					},
+				],
+				workId: work.id,
+			},
+		});
+		expect(second.status).toBe("committed");
+		if (second.status !== "committed") {
+			return;
+		}
+		expect(second.handoff.id).not.toBe(first.handoff.id);
+		expect(second.handoff.purpose).toBe("Second coding pass.");
+		const listed = await listHandoffsForWork(prisma, work.id);
+		expect(listed.map((item) => item.id)).toEqual([
+			first.handoff.id,
+			second.handoff.id,
+		]);
+		const kept = listed.find((item) => item.id === first.handoff.id);
+		expect(kept?.purpose).toBe("First coding pass.");
+		expect(kept?.expectedOutput).toBe("First going package.");
+		expect(kept?.executorVisibleName).toBe("Cursor");
+		expect(kept?.constraints).toBe("Do not change payment capture.");
+		expect(kept?.goingPackage.markdown).toBe(firstPackage);
+		expect(kept?.goingPackage.markdown).not.toContain("Second coding pass.");
+		expect(second.handoff.goingPackage.markdown).not.toBe(firstPackage);
+	});
+
+	it("does not rewrite a sent going package when Work or Decision sources change", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-checkout"
+		);
+		const started = await startHandoff(prisma, {
+			actorId,
+			idempotencyKey: "start-frozen-package",
+			origin: "human",
+			payload: {
+				constraints: "Keep capture.",
+				executorVisibleName: "Cursor",
+				expectedOutput: "Dated package.",
+				purpose: "Code checkout.",
+				selectedVersions: [
+					{
+						body: "Checkout remains in Cantiara.",
+						kind: "Work",
+						recordId: work.id,
+						title: work.title,
+						versionId: String(work.revision),
+					},
+					{
+						body: "Pin the checkout contract.",
+						kind: "Decision",
+						recordId: "decision-capture",
+						title: "Capture stays on Work",
+						versionId: "decision-v1",
+					},
+				],
+				workId: work.id,
+			},
+		});
+		expect(started.status).toBe("committed");
+		if (started.status !== "committed") {
+			return;
+		}
+		const sentMarkdown = started.handoff.goingPackage.markdown;
+		expect(sentMarkdown).toContain("Checkout");
+		expect(sentMarkdown).toContain("Pin the checkout contract.");
+		const renamed = await updateWorkTitle(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: "rename-after-send",
+			origin: "human",
+			title: "Checkout after send",
+			workId: work.id,
+		});
+		expect(renamed.status).toBe("committed");
+		const listed = await listHandoffsForWork(prisma, work.id);
+		expect(listed).toHaveLength(1);
+		expect(listed[0]?.goingPackage.markdown).toBe(sentMarkdown);
+		expect(listed[0]?.goingPackage.markdown).not.toContain(
+			"Checkout after send"
+		);
+		expect(listed[0]?.goingPackage.markdown).toContain(
+			"Pin the checkout contract."
+		);
+		expect(listed[0]?.goingPackage.producedAt).toBe(
+			started.handoff.goingPackage.producedAt
+		);
+	});
+
+	it("adds a new going package version on the same handoff without replacing the sent copy", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-checkout"
+		);
+		const started = await startHandoff(prisma, {
+			actorId,
+			idempotencyKey: "start-before-new-version",
+			origin: "human",
+			payload: {
+				constraints: "Keep capture.",
+				executorVisibleName: "Cursor",
+				expectedOutput: "Dated package.",
+				purpose: "Code checkout.",
+				selectedVersions: [
+					{
+						body: "Checkout remains in Cantiara.",
+						kind: "Work",
+						recordId: work.id,
+						title: work.title,
+						versionId: String(work.revision),
+					},
+					{
+						body: "Pin the checkout contract.",
+						kind: "Decision",
+						recordId: "decision-capture",
+						title: "Capture stays on Work",
+						versionId: "decision-v1",
+					},
+				],
+				workId: work.id,
+			},
+		});
+		expect(started.status).toBe("committed");
+		if (started.status !== "committed") {
+			return;
+		}
+		const sentMarkdown = started.handoff.goingPackage.markdown;
+		const renamed = await updateWorkTitle(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: "rename-before-new-version",
+			origin: "human",
+			title: "Checkout after send",
+			workId: work.id,
+		});
+		expect(renamed.status).toBe("committed");
+		if (renamed.status !== "committed") {
+			return;
+		}
+		const produced = await produceGoingPackage(prisma, {
+			actorId,
+			idempotencyKey: "produce-second-package",
+			origin: "human",
+			payload: {
+				handoffId: started.handoff.id,
+				permittedGithubContext: [],
+				selectedVersions: [
+					{
+						body: "Checkout remains in Cantiara.",
+						kind: "Work",
+						recordId: work.id,
+						title: renamed.work.title,
+						versionId: String(renamed.work.revision),
+					},
+					{
+						body: "Capture now allows wallets.",
+						kind: "Decision",
+						recordId: "decision-capture",
+						title: "Capture stays on Work",
+						versionId: "decision-v2",
+					},
+				],
+				workId: work.id,
+			},
+		});
+		expect(produced.status).toBe("committed");
+		if (produced.status !== "committed") {
+			return;
+		}
+		expect(produced.handoff.id).toBe(started.handoff.id);
+		expect(produced.handoff.purpose).toBe("Code checkout.");
+		expect(produced.handoff.goingPackage.markdown).toContain(
+			"Checkout after send"
+		);
+		expect(produced.handoff.goingPackage.markdown).toContain(
+			"Capture now allows wallets."
+		);
+		expect(produced.handoff.goingPackage.markdown).not.toBe(sentMarkdown);
+		const versions = produced.handoff.goingPackageVersions;
+		expect(versions.map((item) => item.version)).toEqual([1, 2]);
+		expect(versions[0]?.markdown).toBe(sentMarkdown);
+		expect(versions[0]?.markdown).not.toContain("Checkout after send");
+		expect(versions[0]?.markdown).not.toContain("Capture now allows wallets.");
+		expect(versions[1]?.markdown).toBe(produced.handoff.goingPackage.markdown);
+		const listed = await listHandoffsForWork(prisma, work.id);
+		expect(listed).toHaveLength(1);
+		expect(listed[0]?.goingPackageVersions[0]?.markdown).toBe(sentMarkdown);
+	});
+
+	it("records start and package export on Work change history with actor and time", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-checkout"
+		);
+		const started = await startHandoff(prisma, {
+			actorId,
+			idempotencyKey: "start-history",
+			origin: "human",
+			payload: {
+				constraints: "Keep capture.",
+				executorVisibleName: "Cursor",
+				expectedOutput: "Dated package.",
+				purpose: "Code checkout.",
+				selectedVersions: [
+					{
+						kind: "Work",
+						recordId: work.id,
+						title: work.title,
+						versionId: String(work.revision),
+					},
+				],
+				workId: work.id,
+			},
+		});
+		expect(started.status).toBe("committed");
+		if (started.status !== "committed") {
+			return;
+		}
+		const produced = await produceGoingPackage(prisma, {
+			actorId,
+			idempotencyKey: "produce-history",
+			origin: "human",
+			payload: {
+				handoffId: started.handoff.id,
+				selectedVersions: [
+					{
+						kind: "Work",
+						recordId: work.id,
+						title: work.title,
+						versionId: String(work.revision),
+					},
+				],
+				workId: work.id,
+			},
+		});
+		expect(produced.status).toBe("committed");
+		const history = await listHandoffHistoryForWork(prisma, work.id);
+		expect(history.map((item) => item.kind)).toEqual([
+			"started",
+			"package-exported",
+			"package-exported",
+		]);
+		expect(history[0]).toMatchObject({
+			actorId,
+			actorType: "User",
+			handoffId: started.handoff.id,
+			kind: "started",
+			workId: work.id,
+		});
+		expect(history[1]).toMatchObject({
+			actorId,
+			actorType: "User",
+			handoffId: started.handoff.id,
+			kind: "package-exported",
+			packageVersion: 1,
+			workId: work.id,
+		});
+		expect(history[2]).toMatchObject({
+			packageVersion: 2,
+		});
+		for (const entry of history) {
+			expect(entry.occurredAt).toMatch(ISO_TIME_PATTERN);
+			expect(entry.copy.startHandoff).toBe("Start Handoff");
+			expect(entry.copy.goingPackage).toBe("Going package");
+		}
+		expect(await prisma.auditEvent.count()).toBe(0);
+		expect(await listWorkLifecycleHistory(prisma, work.id)).toEqual([]);
+		expect(Object.keys(appRouter.externalHandoffs).sort()).toEqual([
+			"history",
+			"list",
+			"produceGoingPackage",
+			"start",
+		]);
 	});
 });

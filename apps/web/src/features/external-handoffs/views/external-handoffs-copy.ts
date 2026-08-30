@@ -10,7 +10,9 @@ export const EXTERNAL_HANDOFFS_COPY = {
 	handoff: "Handoff",
 	includeThisWork: "Include this Work",
 	kind: "Kind",
+	newPackageVersion: "New package version",
 	open: "Open",
+	packageVersion: "Package version",
 	producedAt: "Produced at",
 	purpose: "Purpose",
 	recordId: "Record",
@@ -40,6 +42,13 @@ export function presentHandoffCard(handoff: {
 				? EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff
 				: purpose,
 	};
+}
+
+export function presentHandoffHistoryKind(kind: string): string {
+	if (kind === "started") {
+		return EXTERNAL_HANDOFFS_COPY.startHandoff;
+	}
+	return EXTERNAL_HANDOFFS_COPY.goingPackage;
 }
 
 export const SELECTED_VERSION_KINDS = [
