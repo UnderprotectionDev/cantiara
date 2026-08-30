@@ -13,6 +13,7 @@ import { useCallback, useState } from "react";
 
 import {
 	closeMutationStatusFromRpc,
+	readCompletionEffectsPresentation,
 	reportCloseOutcome,
 } from "@/features/completion-effects/completion-effects-session";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
@@ -69,7 +70,8 @@ export default function CloseWorkForm({
 						mutationStatus: "timeout",
 						workId: variables.workId,
 					},
-					Date.now()
+					Date.now(),
+					readCompletionEffectsPresentation()
 				);
 			},
 			onSuccess: async (outcome, variables) => {
@@ -97,7 +99,8 @@ export default function CloseWorkForm({
 							mutationStatus,
 							workId: variables.workId,
 						},
-						Date.now()
+						Date.now(),
+						readCompletionEffectsPresentation()
 					);
 				}
 				if (outcome.status === "committed" || outcome.status === "replayed") {

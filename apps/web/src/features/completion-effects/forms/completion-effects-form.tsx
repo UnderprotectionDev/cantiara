@@ -1,15 +1,16 @@
 import {
 	COMPLETION_EFFECT_PALETTE_COPY,
 	COMPLETION_EFFECT_THEME_COPY,
+	COMPLETION_EFFECT_THEME_MOTION_COPY,
 	COMPLETION_EFFECTS_COPY,
 } from "@cantiara/auth/completion-effects-copy";
 import {
 	COMPLETION_EFFECT_THEMES,
 	type CompletionEffectPreference,
-	catalogBrowseMotion,
 	PREVIEW_MOTION_MS,
 	paletteSwatches,
 	palettesForTheme,
+	previewFallback,
 	previewMotion,
 	themeForPaletteChange,
 } from "@cantiara/auth/completion-effects-model";
@@ -34,6 +35,11 @@ export default function CompletionEffectsForm({
 		null
 	);
 	const [nowMs, setNowMs] = useState(() => Date.now());
+	const [reduceMotion, setReduceMotion] = useState(() =>
+		typeof window === "undefined"
+			? false
+			: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+	);
 	const save = useMutation(
 		orpc.completionEffects.save.mutationOptions({
 			onSuccess: async () => {
@@ -53,10 +59,22 @@ export default function CompletionEffectsForm({
 		},
 		[attemptOnlineWork, save]
 	);
-	const motion =
-		previewMotion(previewStartedAtMs, nowMs) === "playing"
-			? "playing"
-			: catalogBrowseMotion();
+	const motion = previewMotion(previewStartedAtMs, nowMs, reduceMotion);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+		const onMotion = () => {
+			setReduceMotion(media.matches);
+		};
+		onMotion();
+		media.addEventListener("change", onMotion);
+		return () => {
+			media.removeEventListener("change", onMotion);
+		};
+	}, []);
 
 	useEffect(() => {
 		if (previewStartedAtMs === null) {
@@ -154,10 +172,16 @@ export default function CompletionEffectsForm({
 				</fieldset>
 			</FieldGroup>
 			<EffectSample
+				lastFrame={previewFallback(reduceMotion) === "static-last-frame"}
 				motion={motion}
 				palette={preference.palette}
 				theme={preference.theme}
 			/>
+			{previewFallback(reduceMotion) === "static-last-frame" ? (
+				<p className="text-muted-foreground text-sm">
+					{COMPLETION_EFFECT_THEME_MOTION_COPY[preference.theme]}
+				</p>
+			) : null}
 			{save.isError ? (
 				<p id="completion-effects-save-error" role="alert" tabIndex={-1}>
 					{COMPLETION_EFFECTS_COPY.unavailable}

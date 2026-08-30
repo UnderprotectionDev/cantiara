@@ -7,8 +7,12 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
+import {
+	getCompletionEffectsClientSession,
+	subscribeCompletionEffectsClientSession,
+} from "@/features/completion-effects/completion-effects-session";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc } from "@/utils/orpc";
@@ -32,6 +36,16 @@ export default function ReopenWorkForm({
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [error, setError] = useState<string | null>(null);
 	const [reopenConfirmed, setReopenConfirmed] = useState(false);
+	const completionSession = useSyncExternalStore(
+		subscribeCompletionEffectsClientSession,
+		getCompletionEffectsClientSession,
+		getCompletionEffectsClientSession
+	);
+	useEffect(() => {
+		if (completionSession.reopenConfirmationRequested) {
+			setReopenConfirmed(true);
+		}
+	}, [completionSession.reopenConfirmationRequested]);
 	const reopen = useMutation(
 		orpc.workLifecycle.reopen.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -84,7 +98,11 @@ export default function ReopenWorkForm({
 	}, []);
 
 	return (
-		<form className="flex flex-col gap-3" onSubmit={onSubmit}>
+		<form
+			className="flex flex-col gap-3"
+			id="work-reopen-confirmation"
+			onSubmit={onSubmit}
+		>
 			<FieldGroup className="flex-row flex-wrap items-end gap-3">
 				<form.Field name="status">
 					{(field) => (

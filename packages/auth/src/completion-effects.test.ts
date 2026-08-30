@@ -3,10 +3,12 @@
  * catalog, static samples, Preview that does not touch Work status,
  * the success notice, or the 30-second wait; trigger and exclude
  * matrix for User-initiated Work Success; idempotency/multi-tab;
- * client-only 30-second wait. Synthetic fixture for
+ * client-only 30-second wait; 10-second Work completed notice;
+ * Reduce Motion; 1.2s layer; drawing-budget fallback. Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Bitiriş efekti: settings/preview, allow-list, trigger/exclude,
- * idempotency/multi-tab, 30s wait).
+ * idempotency/multi-tab, 30s wait, 1.2/10s notice, Reduce Motion,
+ * flash/focus/input, low-performance fallback).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -18,19 +20,27 @@ import {
 	completionEffectsChrome,
 } from "./completion-effects-copy";
 import {
+	COMPLETION_EFFECT_MOTION_SAFETY,
 	COMPLETION_EFFECT_THEMES,
 	catalogBrowseMotion,
+	clearPresentationOnSurfaceChange,
 	closeOutcomeToAcceptance,
 	completionEffectPreferenceInputSchema,
+	DECORATIVE_LAYER_MS,
 	DECORATIVE_WAIT_MS,
 	defaultCompletionEffectPreference,
+	drawingBudgetHeld,
 	idleCompletionEffectsClientSession,
 	observeCloseAcceptance,
 	PREVIEW_MOTION_MS,
 	palettesForTheme,
+	previewFallback,
 	previewMotion,
+	requestReopenFromNotice,
+	SUCCESS_NOTICE_MS,
 	startPreview,
 	themeForPaletteChange,
+	visibleSuccessPresentation,
 } from "./completion-effects-model";
 import {
 	getCompletionEffectPreference,
@@ -46,6 +56,7 @@ const FORBIDDEN_CATALOG_PATTERN =
 	/Mario|Pikachu|Elsa|Jedi|Marvel|upload|licensed|Moodboard|System/i;
 const FORBIDDEN_PLAY_RECORD_PATTERN =
 	/played|delivered|seen|waitUntil|closeCycle/i;
+const FORBIDDEN_FEEDBACK_PATTERN = /Stop|sound|haptic|strobe|Needs Action/i;
 
 function catalogLiterals() {
 	return {
@@ -290,6 +301,8 @@ describe("Completion Effects", () => {
 				feedback: "effect",
 				lastCloseCycleId: "cycle-1",
 				notice: "Work completed",
+				noticeUntilMs: nowMs + SUCCESS_NOTICE_MS,
+				reopenConfirmationRequested: false,
 				workStatus: "Closed",
 			},
 		});
@@ -300,8 +313,19 @@ describe("Completion Effects", () => {
 				idleCompletionEffectsClientSession(),
 				accepted,
 				nowMs
-			).feedback
-		).toBe("none");
+			)
+		).toEqual({
+			feedback: "base-notice",
+			session: {
+				decorativeWaitUntilMs: null,
+				feedback: "base-notice",
+				lastCloseCycleId: "cycle-1",
+				notice: "Work completed",
+				noticeUntilMs: nowMs + SUCCESS_NOTICE_MS,
+				reopenConfirmationRequested: false,
+				workStatus: "Closed",
+			},
+		});
 	});
 
 	it("does not start the effect on the close step, optimistic UI, or a failed write", () => {
@@ -596,6 +620,8 @@ describe("Completion Effects", () => {
 				feedback: "base-notice",
 				lastCloseCycleId: "close-b",
 				notice: "Work completed",
+				noticeUntilMs: firstAt + 1000 + SUCCESS_NOTICE_MS,
+				reopenConfirmationRequested: false,
 				workStatus: "Closed",
 			},
 		});
@@ -608,5 +634,177 @@ describe("Completion Effects", () => {
 			getCompletionEffectPreference(prisma, accountId)
 		).resolves.toEqual(saved);
 		expect(JSON.stringify(saved)).not.toMatch(FORBIDDEN_PLAY_RECORD_PATTERN);
+	});
+
+	it("keeps Work completed visible for 10 seconds with Reopen as confirmation, even when the effect is off", () => {
+		const nowMs = 8000;
+		const accepted = closeOutcomeToAcceptance({
+			closeCycleId: "notice-1",
+			closureResult: "Completed",
+			mutationStatus: "committed",
+			workId: "work-1",
+		});
+		const shown = observeCloseAcceptance(
+			{ enabled: false, palette: "Haze", theme: "Calm" },
+			idleCompletionEffectsClientSession(),
+			accepted,
+			nowMs
+		);
+		expect(SUCCESS_NOTICE_MS).toBe(10_000);
+		expect(
+			visibleSuccessPresentation(shown.session, nowMs + 9999, {
+				drawingBudgetHeld: true,
+				reduceMotion: false,
+			})
+		).toEqual({
+			ariaLive: "polite",
+			decorativeLayer: false,
+			notice: true,
+			reopen: true,
+			stopControl: false,
+		});
+		expect(
+			visibleSuccessPresentation(shown.session, nowMs + SUCCESS_NOTICE_MS, {
+				drawingBudgetHeld: true,
+				reduceMotion: false,
+			}).notice
+		).toBe(false);
+		const afterReopen = requestReopenFromNotice(shown.session);
+		expect(afterReopen.reopenConfirmationRequested).toBe(true);
+		expect(afterReopen.workStatus).toBe("Closed");
+		expect(afterReopen.notice).toBe("Work completed");
+	});
+
+	it("suppresses effect and motion preview under Reduce Motion and keeps the notice", () => {
+		const nowMs = 20_000;
+		const accepted = closeOutcomeToAcceptance({
+			closeCycleId: "rm-1",
+			closureResult: "Completed",
+			mutationStatus: "committed",
+			workId: "work-1",
+		});
+		const shown = observeCloseAcceptance(
+			{ enabled: true, palette: "Haze", theme: "Calm" },
+			idleCompletionEffectsClientSession(),
+			accepted,
+			nowMs,
+			{ drawingBudgetHeld: true, reduceMotion: true }
+		);
+		expect(shown.feedback).toBe("base-notice");
+		expect(shown.session.decorativeWaitUntilMs).toBeNull();
+		expect(
+			visibleSuccessPresentation(shown.session, nowMs, {
+				drawingBudgetHeld: true,
+				reduceMotion: true,
+			})
+		).toMatchObject({
+			ariaLive: "polite",
+			decorativeLayer: false,
+			notice: true,
+		});
+		expect(previewMotion(nowMs, nowMs, true)).toBe("static");
+		expect(previewFallback(true)).toBe("static-last-frame");
+		expect(previewFallback(false)).toBe("motion");
+		expect(COMPLETION_EFFECTS_COPY.calmMotion).toBe(
+			"Calm settles as quiet marks in the last frame."
+		);
+	});
+
+	it("does not emit sound, haptics, strobe, a stop control, or a notification-center record", async () => {
+		expect(COMPLETION_EFFECT_MOTION_SAFETY).toEqual({
+			captureFocus: false,
+			captureInput: false,
+			flash: false,
+			haptics: false,
+			notificationCenter: false,
+			sound: false,
+			stopControl: false,
+			strobe: false,
+		});
+		expect(completionEffectsChrome()).not.toHaveProperty("stop");
+		expect(JSON.stringify(completionEffectsChrome())).not.toMatch(
+			FORBIDDEN_FEEDBACK_PATTERN
+		);
+		const model = await import("./completion-effects-model");
+		expect("createAttentionSignal" in model).toBe(false);
+		expect("mintNotification" in model).toBe(false);
+	});
+
+	it("limits the decorative layer to 1.2 seconds, does not capture focus or input, and clears on surface change", () => {
+		const nowMs = 3000;
+		const shown = observeCloseAcceptance(
+			{ enabled: true, palette: "Haze", theme: "Calm" },
+			idleCompletionEffectsClientSession(),
+			closeOutcomeToAcceptance({
+				closeCycleId: "layer-1",
+				closureResult: "Completed",
+				mutationStatus: "committed",
+				workId: "work-1",
+			}),
+			nowMs
+		);
+		expect(DECORATIVE_LAYER_MS).toBe(1200);
+		expect(PREVIEW_MOTION_MS).toBe(1200);
+		expect(
+			visibleSuccessPresentation(shown.session, nowMs + 1199, {
+				drawingBudgetHeld: true,
+				reduceMotion: false,
+			}).decorativeLayer
+		).toBe(true);
+		expect(
+			visibleSuccessPresentation(shown.session, nowMs + DECORATIVE_LAYER_MS, {
+				drawingBudgetHeld: true,
+				reduceMotion: false,
+			})
+		).toEqual({
+			ariaLive: "polite",
+			decorativeLayer: false,
+			notice: true,
+			reopen: true,
+			stopControl: false,
+		});
+		const cleared = clearPresentationOnSurfaceChange(shown.session);
+		expect(cleared.notice).toBeNull();
+		expect(cleared.feedback).toBe("none");
+		expect(cleared.decorativeWaitUntilMs).toBe(nowMs + DECORATIVE_WAIT_MS);
+		expect(cleared.lastCloseCycleId).toBe("layer-1");
+		expect(COMPLETION_EFFECT_MOTION_SAFETY.captureFocus).toBe(false);
+		expect(COMPLETION_EFFECT_MOTION_SAFETY.captureInput).toBe(false);
+	});
+
+	it("skips decoration when the drawing budget cannot be held and keeps the notice equally fast", () => {
+		const nowMs = 12_000;
+		expect(drawingBudgetHeld(34)).toBe(false);
+		expect(drawingBudgetHeld(16)).toBe(true);
+		const shown = observeCloseAcceptance(
+			{ enabled: true, palette: "Haze", theme: "Calm" },
+			idleCompletionEffectsClientSession(),
+			closeOutcomeToAcceptance({
+				closeCycleId: "budget-1",
+				closureResult: "Completed",
+				mutationStatus: "committed",
+				workId: "work-1",
+			}),
+			nowMs,
+			{ drawingBudgetHeld: false, reduceMotion: false }
+		);
+		expect(shown).toEqual({
+			feedback: "base-notice",
+			session: {
+				decorativeWaitUntilMs: null,
+				feedback: "base-notice",
+				lastCloseCycleId: "budget-1",
+				notice: "Work completed",
+				noticeUntilMs: nowMs + SUCCESS_NOTICE_MS,
+				reopenConfirmationRequested: false,
+				workStatus: "Closed",
+			},
+		});
+		expect(
+			visibleSuccessPresentation(shown.session, nowMs, {
+				drawingBudgetHeld: false,
+				reduceMotion: false,
+			}).decorativeLayer
+		).toBe(false);
 	});
 });

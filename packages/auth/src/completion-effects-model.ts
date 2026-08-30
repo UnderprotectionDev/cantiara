@@ -19,7 +19,34 @@ export type CompletionEffectPalette =
 	(typeof COMPLETION_EFFECT_PALETTES)[CompletionEffectTheme][number];
 
 export const PREVIEW_MOTION_MS = 1200;
+export const DECORATIVE_LAYER_MS = PREVIEW_MOTION_MS;
+export const SUCCESS_NOTICE_MS = 10_000;
 export const DECORATIVE_WAIT_MS = 30_000;
+export const DRAWING_FRAME_BUDGET_MS = 33;
+
+export const COMPLETION_EFFECT_MOTION_SAFETY = {
+	captureFocus: false,
+	captureInput: false,
+	flash: false,
+	haptics: false,
+	notificationCenter: false,
+	sound: false,
+	stopControl: false,
+	strobe: false,
+} as const;
+
+export interface CompletionEffectsPresentation {
+	drawingBudgetHeld: boolean;
+	reduceMotion: boolean;
+}
+
+export const defaultCompletionEffectsPresentation: CompletionEffectsPresentation =
+	{
+		drawingBudgetHeld: true,
+		reduceMotion: false,
+	};
+
+export type PreviewFallback = "motion" | "static-last-frame";
 
 export type CompletionEffectsFeedback = "effect" | "base-notice" | "none";
 
@@ -150,6 +177,8 @@ export interface CompletionEffectsClientSession {
 	feedback: CompletionEffectsFeedback;
 	lastCloseCycleId: string | null;
 	notice: "Work completed" | null;
+	noticeUntilMs: number | null;
+	reopenConfirmationRequested: boolean;
 	workStatus: string | null;
 }
 
@@ -159,6 +188,8 @@ export function idleCompletionEffectsClientSession(): CompletionEffectsClientSes
 		feedback: "none",
 		lastCloseCycleId: null,
 		notice: null,
+		noticeUntilMs: null,
+		reopenConfirmationRequested: false,
 		workStatus: null,
 	};
 }
@@ -222,58 +253,132 @@ function isUserInitiatedWorkSuccess(event: CloseAcceptance): boolean {
 	);
 }
 
+export function decorativePlayAllowed(
+	preference: Pick<CompletionEffectPreference, "enabled">,
+	presentation: CompletionEffectsPresentation
+): boolean {
+	return (
+		preference.enabled &&
+		!presentation.reduceMotion &&
+		presentation.drawingBudgetHeld
+	);
+}
+
 export function observeCloseAcceptance(
 	preference: Pick<CompletionEffectPreference, "enabled">,
 	session: CompletionEffectsClientSession,
 	event: CloseAcceptance,
-	nowMs: number
+	nowMs: number,
+	presentation: CompletionEffectsPresentation = defaultCompletionEffectsPresentation
 ): {
 	feedback: CompletionEffectsFeedback;
 	session: CompletionEffectsClientSession;
 } {
-	if (!preference.enabled) {
-		return { feedback: "none", session };
-	}
 	if (!isUserInitiatedWorkSuccess(event)) {
 		return { feedback: "none", session };
 	}
 	if (session.lastCloseCycleId === event.closeCycleId) {
 		return { feedback: "none", session };
 	}
-	if (
+	const waiting =
 		session.decorativeWaitUntilMs !== null &&
-		nowMs < session.decorativeWaitUntilMs
-	) {
-		const next: CompletionEffectsClientSession = {
-			decorativeWaitUntilMs: session.decorativeWaitUntilMs,
-			feedback: "base-notice",
-			lastCloseCycleId: event.closeCycleId,
-			notice: "Work completed",
-			workStatus: "Closed",
-		};
-		return { feedback: "base-notice", session: next };
-	}
+		nowMs < session.decorativeWaitUntilMs;
+	const playEffect =
+		decorativePlayAllowed(preference, presentation) && !waiting;
 	const next: CompletionEffectsClientSession = {
-		decorativeWaitUntilMs: nowMs + DECORATIVE_WAIT_MS,
-		feedback: "effect",
+		decorativeWaitUntilMs: playEffect
+			? nowMs + DECORATIVE_WAIT_MS
+			: session.decorativeWaitUntilMs,
+		feedback: playEffect ? "effect" : "base-notice",
 		lastCloseCycleId: event.closeCycleId,
 		notice: "Work completed",
+		noticeUntilMs: nowMs + SUCCESS_NOTICE_MS,
+		reopenConfirmationRequested: false,
 		workStatus: "Closed",
 	};
-	return { feedback: "effect", session: next };
+	return { feedback: next.feedback, session: next };
 }
 
 export function previewMotion(
 	previewStartedAtMs: number | null,
-	nowMs: number
+	nowMs: number,
+	reduceMotion = false
 ): "static" | "playing" {
-	if (previewStartedAtMs === null) {
+	if (reduceMotion || previewStartedAtMs === null) {
 		return "static";
 	}
 	if (nowMs - previewStartedAtMs >= PREVIEW_MOTION_MS) {
 		return "static";
 	}
 	return "playing";
+}
+
+export function previewFallback(reduceMotion: boolean): PreviewFallback {
+	return reduceMotion ? "static-last-frame" : "motion";
+}
+
+export function decorativeLayerVisible(
+	session: CompletionEffectsClientSession,
+	nowMs: number,
+	presentation: CompletionEffectsPresentation
+): boolean {
+	if (!presentation.drawingBudgetHeld || presentation.reduceMotion) {
+		return false;
+	}
+	if (session.feedback !== "effect" || session.decorativeWaitUntilMs === null) {
+		return false;
+	}
+	const startedAtMs = session.decorativeWaitUntilMs - DECORATIVE_WAIT_MS;
+	return nowMs >= startedAtMs && nowMs - startedAtMs < DECORATIVE_LAYER_MS;
+}
+
+export function visibleSuccessPresentation(
+	session: CompletionEffectsClientSession,
+	nowMs: number,
+	presentation: CompletionEffectsPresentation
+): {
+	ariaLive: "polite";
+	decorativeLayer: boolean;
+	notice: boolean;
+	reopen: boolean;
+	stopControl: false;
+} {
+	const notice =
+		session.notice !== null &&
+		session.noticeUntilMs !== null &&
+		nowMs < session.noticeUntilMs;
+	return {
+		ariaLive: "polite",
+		decorativeLayer: decorativeLayerVisible(session, nowMs, presentation),
+		notice,
+		reopen: notice,
+		stopControl: false,
+	};
+}
+
+export function requestReopenFromNotice(
+	session: CompletionEffectsClientSession
+): CompletionEffectsClientSession {
+	if (session.notice === null) {
+		return session;
+	}
+	return { ...session, reopenConfirmationRequested: true };
+}
+
+export function clearPresentationOnSurfaceChange(
+	session: CompletionEffectsClientSession
+): CompletionEffectsClientSession {
+	return {
+		...session,
+		feedback: "none",
+		notice: null,
+		noticeUntilMs: null,
+		reopenConfirmationRequested: false,
+	};
+}
+
+export function drawingBudgetHeld(frameGapMs: number): boolean {
+	return frameGapMs <= DRAWING_FRAME_BUDGET_MS;
 }
 
 export const PALETTE_SWATCHES: Record<
