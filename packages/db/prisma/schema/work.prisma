@@ -38,6 +38,8 @@ model Work {
   tags                  WorkTag[]
   priorityValues                 ProjectPriorityCriterionValue[]
   prioritizationSessionItems     PrioritizationSessionItem[]
+  dailyFocusMemberships          DailyFocusMembership[]
+  recordActionRuns               RecordActionRun[]
   externalExecutionHandoffs      ExternalExecutionHandoff[]
 
   @@unique([projectId, number])

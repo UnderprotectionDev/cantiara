@@ -13,7 +13,9 @@ test("English Record Action labels match the closed catalog", () => {
 	expect(RECORD_ACTION_COPY.recordAction).toBe("Record Action");
 	expect(RECORD_ACTION_COPY.startWork).toBe("Start Work");
 	expect(RECORD_ACTION_COPY.useStartWork).toBe("Use Start Work");
-	expect(RECORD_ACTION_COPY.addRecordAction).toBe("Add Record Action");
+	expect(RECORD_ACTION_COPY.apply).toBe("Apply");
+	expect(RECORD_ACTION_COPY.preview).toBe("Preview");
+	expect(RECORD_ACTION_COPY.start).toBe("Start");
 	expect(RECORD_ACTION_STEP_KINDS).toEqual([
 		"setWorkStatus",
 		"dailyFocusMembership",
