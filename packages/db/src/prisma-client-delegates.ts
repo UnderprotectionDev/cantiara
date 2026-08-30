@@ -30,10 +30,6 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.projectPriorityMapPresentation?.upsert === "function" &&
 		typeof client.externalExecutionHandoff?.findMany === "function" &&
 		typeof client.externalExecutionHandoff?.create === "function" &&
-		typeof client.externalExecutionGoingPackage?.findMany === "function" &&
-		typeof client.externalExecutionGoingPackage?.create === "function" &&
-		typeof client.externalExecutionHandoffEvent?.findMany === "function" &&
-		typeof client.externalExecutionHandoffEvent?.create === "function" &&
 		typeof client.workTemplate?.findMany === "function" &&
 		typeof client.workTemplate?.create === "function" &&
 		typeof client.recordAction?.findMany === "function" &&

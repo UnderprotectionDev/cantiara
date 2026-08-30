@@ -12,7 +12,6 @@ import {
 } from "./generated-prisma-client";
 import {
 	prismaClientHasCurrentDelegates,
-	prismaClientHasCurrentExternalExecutionHandoffModel,
 	prismaClientHasCurrentFileAttachmentVersionModel,
 	prismaClientHasCurrentProjectModel,
 	prismaClientHasCurrentTypedRelationModel,
@@ -107,8 +106,7 @@ function clientHasCurrentWorkModel(client: PrismaClient): boolean {
 		fields.includes("originWorkId") &&
 		fields.includes("retiredIntoId") &&
 		fields.includes("includedInFeatureId") &&
-		fields.includes("externalExecutionHandoffs") &&
-		fields.includes("externalExecutionHandoffEvents")
+		fields.includes("externalExecutionHandoffs")
 	);
 }
 
@@ -133,9 +131,6 @@ function cachedClient(diskStamp: string): PrismaClient | undefined {
 		return;
 	}
 	if (!prismaClientHasCurrentTypedRelationModel(cached.client)) {
-		return;
-	}
-	if (!prismaClientHasCurrentExternalExecutionHandoffModel(cached.client)) {
 		return;
 	}
 	return cached.client;
@@ -167,8 +162,7 @@ export function getPrismaClient() {
 		if (
 			!(
 				prismaClientHasCurrentDelegates(productionPrisma) &&
-				prismaClientHasCurrentTypedRelationModel(productionPrisma) &&
-				prismaClientHasCurrentExternalExecutionHandoffModel(productionPrisma)
+				prismaClientHasCurrentTypedRelationModel(productionPrisma)
 			)
 		) {
 			throw new Error(
@@ -186,8 +180,7 @@ export function getPrismaClient() {
 	if (
 		!(
 			prismaClientHasCurrentDelegates(client) &&
-			prismaClientHasCurrentTypedRelationModel(client) &&
-			prismaClientHasCurrentExternalExecutionHandoffModel(client)
+			prismaClientHasCurrentTypedRelationModel(client)
 		)
 	) {
 		client.$disconnect().catch(() => undefined);

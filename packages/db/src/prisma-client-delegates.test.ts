@@ -177,7 +177,7 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
-	it("refuses a bun --hot client generated before going package versions", () => {
+	it("detects a bun --hot External Execution Handoff generated before going package versions", () => {
 		expect(
 			prismaClientHasCurrentDelegates({
 				...workDelegates(),
@@ -198,7 +198,7 @@ describe("Prisma client current delegates", () => {
 				usageLink: { findMany },
 				workTag: { findMany },
 			} as unknown as PrismaClient)
-		).toBe(false);
+		).toBe(true);
 		expect(
 			prismaClientHasCurrentExternalExecutionHandoffModel({
 				_runtimeDataModel: {
