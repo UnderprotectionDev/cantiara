@@ -902,6 +902,14 @@ _Avoid_: Ürün oturumu, tarayıcı clip arşivi, Safari Web Clipper
 
 ## Otomasyon
 
+**Kayıt Eylemi**:
+Kullanıcının kapalı alan ve üyelik adımlarından adlandırdığı, tek hedef kayıt üzerinde çalışan birleşik yazma tanımı; otomasyon kuralı, Toplu Düzenleme veya betik pazarı değildir ([kullanıcı başlatmalı kayıt eylemleri](docs/prd/06-work-management-and-planning.md#kullanıcı-başlatmalı-kayıt-eylemleri)). UI: `Record Action`.
+_Avoid_: macro marketplace, otomasyon kuralı, Toplu Düzenleme, script, çok kayıtlı düğme
+
+**Start Work**:
+Durumu `In Progress` yapan ve İşi Günlük Odak üyeliğine ekleyen ilk Kayıt Eylemi örneği. UI: `Start Work`.
+_Avoid_: otomasyon kuralı, çok kayıtlı düğme, arka plan kuralı
+
 **Dikkat sinyali**:
 Ürünün kapalı ve deterministik kurallarla kesin kaynaklardan saptadığı, kullanıcının incelemesine sunulan açıklanabilir olgu; bütün riskleri kapsadığı veya sağlık hükmü verdiği iddiasını taşımaz.
 _Avoid_: Sağlık uyarısı, AI önerisi, eksiksiz risk tespiti

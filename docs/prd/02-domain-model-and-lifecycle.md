@@ -83,6 +83,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |
 | İş şablonu | `Work Template` | Proje kapsamlı tekrar kullanılan İş başlangıç bağlamı; Belge şablonu, Başlangıç yapılandırması veya yakalama mini şablonu değildir |
+| Kayıt Eylemi | `Record Action` | Kapalı alan ve üyelik adımlarından adlandırılan, tek hedef kayıt üzerinde çalışan birleşik yazma; otomasyon kuralı, Toplu Düzenleme veya betik değildir |
+| Start Work | `Start Work` | Durumu `In Progress` yapan ve İşi Günlük Odak’a ekleyen ilk Kayıt Eylemi örneği |
 | Şablondan oluştur | `Create from template` | Şablondan bağımsız yeni İş açma; şablona canlı bağ değildir ve zorunlu workflow kapısı değildir |
 | İşi kopyala | `Duplicate Work` | Mevcut İşi aynı Projede şablona dönüştürmeden tek seferlik kopyalama |
 | Planlanan başlangıç | `Planned start` | İşin ne zaman başlamasının düşünüldüğü tarih; göreli şablon kuralı oluşturma gününe göre çözülür |
