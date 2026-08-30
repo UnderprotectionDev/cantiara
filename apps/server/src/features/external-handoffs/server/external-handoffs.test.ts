@@ -9,10 +9,12 @@ import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-
+import { appRouter } from "../../../routes";
+import { TEST_SOURCE_DETAIL } from "../../project-overview/server/project-overview";
 import { createProject } from "../../project-shell/server/project-shell";
 import {
 	createWork,
+	listWork,
 	relateWork,
 } from "../../work-lifecycle/server/work-lifecycle";
 import { listHandoffsForWork, startHandoff } from "./external-handoffs";
@@ -197,6 +199,16 @@ describe("External Execution Handoff", () => {
 		const listed = await listHandoffsForWork(prisma, work.id);
 		expect(listed.map((item) => item.id)).toEqual([started.handoff.id]);
 		expect(JSON.stringify(started.handoff)).not.toMatch(FORBIDDEN_PRODUCT);
+		const worksAfter = await listWork(prisma, project.id);
+		expect(worksAfter.map((item) => item.id)).toEqual([work.id]);
+		expect(Object.keys(appRouter.externalHandoffs).sort()).toEqual([
+			"list",
+			"start",
+		]);
+		expect(TEST_SOURCE_DETAIL.handoff).toBe("Test Handoff");
+		expect(TEST_SOURCE_DETAIL.handoff).not.toBe(
+			EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff
+		);
 	});
 
 	it("snapshots the live Work version instead of a stale client title", async () => {
@@ -307,6 +319,34 @@ describe("External Execution Handoff", () => {
 						title: "Checkout contract",
 						versionId: "doc-v3",
 					},
+					{
+						body: "Keep capture on the Work.",
+						kind: "Decision",
+						recordId: "decision-capture",
+						title: "Capture stays on Work",
+						versionId: "decision-v1",
+					},
+					{
+						body: "Card brands can drift.",
+						kind: "Risk",
+						recordId: "risk-brands",
+						title: "Brand drift",
+						versionId: "risk-v1",
+					},
+					{
+						body: "Which wallet SDK?",
+						kind: "Open Question",
+						recordId: "question-wallet",
+						title: "Wallet SDK",
+						versionId: "question-v1",
+					},
+					{
+						body: "Stripe checkout guide.",
+						kind: "Source",
+						recordId: "source-stripe",
+						title: "Stripe guide",
+						versionId: "source-v2",
+					},
 				],
 				workId: work.id,
 			},
@@ -323,11 +363,27 @@ describe("External Execution Handoff", () => {
 		expect(markdown).toContain(EXTERNAL_HANDOFFS_COPY.sourceOfTruth);
 		expect(markdown).toContain("Checkout remains in Cantiara.");
 		expect(markdown).toContain("Pin the checkout contract.");
+		expect(markdown).toContain("Keep capture on the Work.");
+		expect(markdown).toContain("Card brands can drift.");
+		expect(markdown).toContain("Which wallet SDK?");
+		expect(markdown).toContain("Stripe checkout guide.");
 		expect(markdown).toContain("Package stays dated.");
 		expect(markdown).toContain("underprotection/cantiara#160");
 		expect(markdown).not.toContain("Unselected Wallet");
 		expect(markdown).not.toContain("sk-live-handoff-secret");
 		expect(markdown).not.toContain("founder-only-note");
+		expect(started.handoff.selectedVersions.map((item) => item.kind)).toEqual([
+			"Work",
+			"Document",
+			"Decision",
+			"Risk",
+			"Open Question",
+			"Source",
+		]);
+		expect(started.handoff.permittedGithubContext).toEqual([
+			{ identifier: "underprotection/cantiara#160" },
+		]);
+		expect(await listHandoffsForWork(prisma, related.id)).toEqual([]);
 		expect(goingPackage).toMatchObject({
 			liveSync: false,
 			publishArtifact: false,
