@@ -8,25 +8,24 @@ import {
 } from "./completion-effects-model";
 
 // bun --hot can keep a PrismaClient generated before CompletionEffectPreference.
-// Table SQL still reads and writes Hesap preference; the generated delegate is optional.
-type PreferenceStore = Pick<PrismaClient, "$executeRaw" | "$queryRaw">;
+// Table SQL still reads and writes Hesap preference when the delegate is missing.
+type PreferenceStore = Pick<PrismaClient, "$executeRaw" | "$queryRaw"> & {
+	completionEffectPreference?: PrismaClient["completionEffectPreference"];
+};
 
-export async function getCompletionEffectPreference(
-	prisma: PreferenceStore,
-	accountId: string
-): Promise<CompletionEffectPreference> {
-	const rows = await prisma.$queryRaw<
-		Array<{ enabled: boolean; palette: string; theme: string }>
-	>`
-		SELECT enabled, palette, theme
-		FROM "completion_effect_preference"
-		WHERE "accountId" = ${accountId}
-		LIMIT 1
-	`;
-	const row = rows[0];
-	if (!row) {
-		return defaultCompletionEffectPreference();
-	}
+function hasPreferenceDelegate(
+	prisma: PreferenceStore
+): prisma is PreferenceStore & {
+	completionEffectPreference: PrismaClient["completionEffectPreference"];
+} {
+	return typeof prisma.completionEffectPreference?.findUnique === "function";
+}
+
+function parseStoredPreference(row: {
+	enabled: boolean;
+	palette: string;
+	theme: string;
+}): CompletionEffectPreference {
 	const parsed = completionEffectPreferenceInputSchema.safeParse({
 		enabled: row.enabled,
 		palette: row.palette,
@@ -38,12 +37,58 @@ export async function getCompletionEffectPreference(
 	return parsed.data;
 }
 
+export async function getCompletionEffectPreference(
+	prisma: PreferenceStore,
+	accountId: string
+): Promise<CompletionEffectPreference> {
+	if (hasPreferenceDelegate(prisma)) {
+		const row = await prisma.completionEffectPreference.findUnique({
+			where: { accountId },
+		});
+		if (!row) {
+			return defaultCompletionEffectPreference();
+		}
+		return parseStoredPreference(row);
+	}
+	const rows = await prisma.$queryRaw<
+		Array<{ enabled: boolean; palette: string; theme: string }>
+	>`
+		SELECT enabled, palette, theme
+		FROM "completion_effect_preference"
+		WHERE "accountId" = ${accountId}
+		LIMIT 1
+	`;
+	const [row] = rows;
+	if (!row) {
+		return defaultCompletionEffectPreference();
+	}
+	return parseStoredPreference(row);
+}
+
 export async function saveCompletionEffectPreference(
 	prisma: PreferenceStore,
 	accountId: string,
 	input: CompletionEffectPreferenceInput
 ): Promise<CompletionEffectPreference> {
 	const parsed = completionEffectPreferenceInputSchema.parse(input);
+	if (hasPreferenceDelegate(prisma)) {
+		await prisma.completionEffectPreference.upsert({
+			create: {
+				accountId,
+				enabled: parsed.enabled,
+				id: crypto.randomUUID(),
+				palette: parsed.palette,
+				theme: parsed.theme,
+			},
+			update: {
+				enabled: parsed.enabled,
+				palette: parsed.palette,
+				theme: parsed.theme,
+			},
+			where: { accountId },
+		});
+		return parsed;
+	}
 	const now = new Date();
 	await prisma.$executeRaw`
 		INSERT INTO "completion_effect_preference" (
