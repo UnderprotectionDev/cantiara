@@ -20,6 +20,11 @@ function workDelegates() {
 		captureExtensionLink: { findMany },
 		captureInboxItem: { findMany },
 		captureStagingObject: { findMany },
+		completionEffectPreference: {
+			findMany,
+			findUnique: findMany,
+			upsert: () => undefined,
+		},
 		projectCustomFieldDefinition: {
 			create: () => undefined,
 			findMany,
@@ -118,6 +123,32 @@ describe("Prisma client current delegates", () => {
 		expect(
 			prismaClientHasCurrentDelegates(
 				beforeTemplates as unknown as PrismaClient
+			)
+		).toBe(false);
+	});
+
+	it("refuses a bun --hot client generated before Completion effect preference", () => {
+		const { completionEffectPreference: _dropped, ...beforePreference } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(
+				beforePreference as unknown as PrismaClient
 			)
 		).toBe(false);
 	});

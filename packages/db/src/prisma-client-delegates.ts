@@ -32,6 +32,7 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.workTemplate?.create === "function" &&
 		typeof client.workDraft?.findMany === "function" &&
 		typeof client.workDraft?.create === "function" &&
+		typeof client.completionEffectPreference?.findUnique === "function" &&
 		typeof client.fileAttachment?.findMany === "function" &&
 		typeof client.fileAttachmentVersion?.findMany === "function" &&
 		typeof client.fileAttachmentVersionPin?.findMany === "function" &&
