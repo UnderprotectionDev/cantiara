@@ -99,7 +99,9 @@ async function startInTransaction(
 	if (!work || work.retiredIntoId) {
 		return { reason: "work-not-found", status: "rejected" };
 	}
-	const selectedVersions = sanitizeSelectedVersions(
+	const selectedVersions = await resolveSelectedVersions(
+		tx,
+		work.projectId,
 		command.payload.selectedVersions
 	);
 	const permittedGithubContext = (command.payload.permittedGithubContext ?? [])
@@ -158,16 +160,64 @@ async function startInTransaction(
 function sanitizeSelectedVersions(
 	versions: SelectedVersion[]
 ): SelectedVersion[] {
-	return versions.map((version) => ({
-		body: version.body,
-		fields: (version.fields ?? []).filter(
+	return versions.map((version) => {
+		const fields = (version.fields ?? []).filter(
 			(field) => !(field.inaccessible || field.secret)
-		),
-		kind: version.kind,
-		recordId: version.recordId,
-		title: version.title,
-		versionId: version.versionId,
-	}));
+		);
+		return {
+			...(version.body ? { body: version.body } : {}),
+			...(fields.length > 0 ? { fields } : {}),
+			kind: version.kind,
+			recordId: version.recordId,
+			title: version.title,
+			versionId: version.versionId,
+		};
+	});
+}
+
+async function resolveSelectedVersions(
+	tx: PrismaTransaction,
+	projectId: string,
+	versions: SelectedVersion[]
+): Promise<SelectedVersion[]> {
+	const sanitized = sanitizeSelectedVersions(versions);
+	const workIds = sanitized
+		.filter((version) => version.kind === "Work")
+		.map((version) => version.recordId);
+	const liveWorks =
+		workIds.length === 0
+			? []
+			: await tx.work.findMany({
+					where: {
+						id: { in: workIds },
+						projectId,
+					},
+				});
+	const liveById = new Map(
+		liveWorks.filter((row) => !row.retiredIntoId).map((row) => [row.id, row])
+	);
+	return sanitized.flatMap((version) => {
+		if (version.kind !== "Work") {
+			return [version];
+		}
+		const live = liveById.get(version.recordId);
+		if (!live) {
+			return [];
+		}
+		const body = live.description ?? version.body;
+		return [
+			{
+				...(body ? { body } : {}),
+				...(version.fields && version.fields.length > 0
+					? { fields: version.fields }
+					: {}),
+				kind: version.kind,
+				recordId: live.id,
+				title: live.title,
+				versionId: String(live.revision),
+			},
+		];
+	});
 }
 
 function renderGoingPackage(input: {
@@ -197,8 +247,8 @@ function renderGoingPackage(input: {
 		`# ${EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff}`,
 		"",
 		`Work: ${input.workKey}`,
-		`Handoff: ${input.handoffId}`,
-		`Produced at: ${input.producedAt.toISOString()}`,
+		`${EXTERNAL_HANDOFFS_COPY.handoff}: ${input.handoffId}`,
+		`${EXTERNAL_HANDOFFS_COPY.producedAt}: ${input.producedAt.toISOString()}`,
 		EXTERNAL_HANDOFFS_COPY.sourceOfTruth,
 		"",
 		`## ${EXTERNAL_HANDOFFS_COPY.purpose}`,

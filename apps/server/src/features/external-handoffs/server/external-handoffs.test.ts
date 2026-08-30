@@ -124,7 +124,9 @@ describe("External Execution Handoff", () => {
 			expectedOutput: "Expected output",
 			externalExecutionHandoff: "External Execution Handoff",
 			github: "GitHub",
+			handoff: "Handoff",
 			open: "Open",
+			producedAt: "Produced at",
 			purpose: "Purpose",
 			selectedVersions: "Selected versions",
 			sourceOfTruth: "Source of truth is in the app",
@@ -195,6 +197,53 @@ describe("External Execution Handoff", () => {
 		const listed = await listHandoffsForWork(prisma, work.id);
 		expect(listed.map((item) => item.id)).toEqual([started.handoff.id]);
 		expect(JSON.stringify(started.handoff)).not.toMatch(FORBIDDEN_PRODUCT);
+	});
+
+	it("snapshots the live Work version instead of a stale client title", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await createNamedWork(
+			prisma,
+			actorId,
+			project.id,
+			"Checkout",
+			"create-checkout"
+		);
+		const started = await startHandoff(prisma, {
+			actorId,
+			idempotencyKey: "start-live-work",
+			origin: "human",
+			payload: {
+				constraints: "Keep capture.",
+				executorVisibleName: "Cursor",
+				expectedOutput: "Dated package.",
+				purpose: "Code checkout.",
+				selectedVersions: [
+					{
+						kind: "Work",
+						recordId: work.id,
+						title: "Stale client title",
+						versionId: "0",
+					},
+				],
+				workId: work.id,
+			},
+		});
+		expect(started.status).toBe("committed");
+		if (started.status !== "committed") {
+			return;
+		}
+		expect(started.handoff.goingPackage.markdown).toContain("Checkout");
+		expect(started.handoff.goingPackage.markdown).not.toContain(
+			"Stale client title"
+		);
+		expect(started.handoff.selectedVersions).toEqual([
+			{
+				kind: "Work",
+				recordId: work.id,
+				title: "Checkout",
+				versionId: String(work.revision),
+			},
+		]);
 	});
 
 	it("produces dated Markdown from the selected version manifest only", async () => {
