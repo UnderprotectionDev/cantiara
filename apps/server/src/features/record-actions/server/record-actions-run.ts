@@ -12,16 +12,21 @@ import { WORK_STATUS } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
 	type ApplyRecordActionCommand,
 	applyRecordActionCommandSchema,
+	CALENDAR_DATE_PATTERN,
 	type PreviewRecordActionOutcome,
 	previewRecordActionInputSchema,
 	RECORD_ACTION_COPY,
 	RECORD_ACTION_POST_BARRIER_UI,
+	type RecordActionChosenInput,
 	type RecordActionFieldDiff,
+	type RecordActionInput,
+	type RecordActionInputValue,
 	type RecordActionPreview,
 	type RecordActionRejectionReason,
 	type RecordActionRunOutcome,
 	type RecordActionRunView,
 	type RecordActionStep,
+	recordActionInputSchema,
 	recordActionRunViewSchema,
 	recordActionStepSchema,
 	type UndoRecordActionCommand,
@@ -223,7 +228,15 @@ export async function previewRecordAction(
 	if (closeReason) {
 		return { reason: closeReason, status: "rejected" };
 	}
-	return { preview: toPreview(loaded), status: "ok" };
+	const previewed = await toPreview(
+		prisma,
+		loaded,
+		parsed.data.inputValues ?? []
+	);
+	if (previewed.status !== "ok") {
+		return previewed;
+	}
+	return { preview: previewed.preview, status: "ok" };
 }
 
 export async function applyRecordAction(
@@ -311,7 +324,15 @@ async function applyInTransaction(
 	if (closeReason) {
 		return { reason: closeReason, status: "rejected" };
 	}
-	const preview = toPreview(loaded);
+	const previewed = await toPreview(
+		tx,
+		loaded,
+		command.payload.inputValues ?? []
+	);
+	if (previewed.status !== "ok") {
+		return previewed;
+	}
+	const { preview } = previewed;
 	if (command.payload.previewFingerprint !== preview.fingerprint) {
 		return { reason: "preview-mismatch", status: "rejected" };
 	}
@@ -393,7 +414,7 @@ async function undoInTransaction(
 		};
 	}
 	const member = await findDailyFocusMembership(tx, run.actorId, work.id);
-	if (currentDiverged(work, member !== null, applied)) {
+	if (await currentDiverged(tx, work, member !== null, applied)) {
 		return {
 			explanation: RECORD_ACTION_COPY.laterWrite,
 			reason: "later-write",
@@ -402,7 +423,14 @@ async function undoInTransaction(
 	}
 	const inverse = inverseFields(applied);
 	const nextRevision = work.revision + 1;
-	await writeInverse(tx, work.id, run.actorId, inverse, nextRevision);
+	await writeInverse(
+		tx,
+		work.id,
+		work.projectId,
+		run.actorId,
+		inverse,
+		nextRevision
+	);
 	await markRecordActionRunUndone(tx, run.id);
 	const view = toRunView({
 		fields: inverse,
@@ -431,22 +459,7 @@ async function loadTarget(
 	targetRecordId: string,
 	actorId: string
 ): Promise<
-	| {
-			actionId: string;
-			actorId: string;
-			member: boolean;
-			status: "ok";
-			steps: RecordActionStep[];
-			work: {
-				description: string | null;
-				id: string;
-				revision: number;
-				status: string;
-				title: string;
-				type: string;
-			};
-	  }
-	| { reason: RecordActionRejectionReason; status: "rejected" }
+	LoadedTarget | { reason: RecordActionRejectionReason; status: "rejected" }
 > {
 	const action = await db.recordAction.findUnique({
 		where: { id: recordActionId },
@@ -465,19 +478,29 @@ async function loadTarget(
 	if (steps.length === 0) {
 		return { reason: "empty-steps", status: "rejected" };
 	}
+	const inputs = parseInputs(
+		"inputs" in action ? (action.inputs as Prisma.JsonValue) : []
+	);
 	const membership =
 		actorId.length === 0
 			? null
 			: await findDailyFocusMembership(db, actorId, work.id);
+	const customFields = await loadCustomFieldState(db, inputs, work.id);
+	const relatedIds = await loadRelatedWorkIds(db, work.id);
 	return {
 		actionId: action.id,
 		actorId,
+		customFields,
+		inputs,
 		member: membership !== null,
+		projectId: work.projectId,
+		relatedIds,
 		status: "ok",
 		steps,
 		work: {
 			description: work.description,
 			id: work.id,
+			key: work.key,
 			revision: work.revision,
 			status: work.status,
 			title: work.title,
@@ -486,34 +509,183 @@ async function loadTarget(
 	};
 }
 
-function toPreview(loaded: {
+interface LoadedTarget {
 	actionId: string;
+	actorId: string;
+	customFields: Record<
+		string,
+		{ current: string | null; options: string[]; type: string }
+	>;
+	inputs: RecordActionInput[];
 	member: boolean;
+	projectId: string;
+	relatedIds: string[];
+	status: "ok";
 	steps: RecordActionStep[];
 	work: {
 		description: string | null;
 		id: string;
+		key: string;
 		revision: number;
 		status: string;
 		title: string;
 		type: string;
 	};
-}): RecordActionPreview {
-	const fields = diffsFor(loaded.work, loaded.member, loaded.steps);
+}
+
+async function toPreview(
+	db: RuntimeDb,
+	loaded: LoadedTarget,
+	inputValues: readonly RecordActionInputValue[]
+): Promise<
+	| { preview: RecordActionPreview; status: "ok" }
+	| { reason: RecordActionRejectionReason; status: "rejected" }
+> {
+	const chosen = chosenInputs(loaded.inputs, inputValues);
+	if (chosen.status !== "ok") {
+		return chosen;
+	}
+	const inputFields = await diffsForInputs(db, loaded, chosen.inputs);
+	if (inputFields.status !== "ok") {
+		return inputFields;
+	}
+	const fields = [
+		...diffsFor(loaded.work, loaded.member, loaded.steps),
+		...inputFields.fields,
+	];
 	return {
-		actor: MUTATION_ACTOR.user,
-		baseRevision: loaded.work.revision,
-		copy: {
-			apply: RECORD_ACTION_COPY.apply,
-			finalizing: MUTATION_COPY.finalizing,
-			preview: RECORD_ACTION_COPY.preview,
-			start: RECORD_ACTION_COPY.start,
+		preview: {
+			actor: MUTATION_ACTOR.user,
+			baseRevision: loaded.work.revision,
+			copy: {
+				apply: RECORD_ACTION_COPY.apply,
+				finalizing: MUTATION_COPY.finalizing,
+				preview: RECORD_ACTION_COPY.preview,
+				start: RECORD_ACTION_COPY.start,
+			},
+			fields,
+			fingerprint: payloadFingerprint({ chosen: chosen.inputs, fields }),
+			inputs: chosen.inputs,
+			recordActionId: loaded.actionId,
+			targetRecordId: loaded.work.id,
 		},
-		fields,
-		fingerprint: payloadFingerprint(fields),
-		recordActionId: loaded.actionId,
-		targetRecordId: loaded.work.id,
+		status: "ok",
 	};
+}
+
+function chosenInputs(
+	declared: readonly RecordActionInput[],
+	values: readonly RecordActionInputValue[]
+):
+	| { inputs: RecordActionChosenInput[]; status: "ok" }
+	| { reason: RecordActionRejectionReason; status: "rejected" } {
+	const byKey = new Map(values.map((item) => [item.key, item.value.trim()]));
+	const inputs: RecordActionChosenInput[] = [];
+	for (const input of declared) {
+		const value = byKey.get(input.key) ?? "";
+		if (value.length === 0) {
+			return { reason: "missing-runtime-input", status: "rejected" };
+		}
+		inputs.push({
+			key: input.key,
+			kind: input.kind,
+			label: input.label,
+			value,
+		});
+	}
+	return { inputs, status: "ok" };
+}
+
+async function diffsForInputs(
+	db: RuntimeDb,
+	loaded: LoadedTarget,
+	chosen: readonly RecordActionChosenInput[]
+): Promise<
+	| { fields: RecordActionFieldDiff[]; status: "ok" }
+	| { reason: RecordActionRejectionReason; status: "rejected" }
+> {
+	const fields: RecordActionFieldDiff[] = [];
+	for (const value of chosen) {
+		const declared = loaded.inputs.find((input) => input.key === value.key);
+		if (!declared) {
+			return { reason: "unknown-input", status: "rejected" };
+		}
+		// biome-ignore lint/performance/noAwaitInLoops: each input can reject before later fields are written.
+		const diff = await diffForInput(db, loaded, declared, value.value);
+		if (diff.status !== "ok") {
+			return diff;
+		}
+		if (diff.field) {
+			fields.push(diff.field);
+		}
+	}
+	return { fields, status: "ok" };
+}
+
+async function diffForInput(
+	db: RuntimeDb,
+	loaded: LoadedTarget,
+	declared: RecordActionInput,
+	value: string
+): Promise<
+	| { field: RecordActionFieldDiff | null; status: "ok" }
+	| { reason: RecordActionRejectionReason; status: "rejected" }
+> {
+	if (declared.kind === "Relation") {
+		if (value === loaded.work.id) {
+			return { reason: "related-record-required", status: "rejected" };
+		}
+		const related = await db.work.findUnique({ where: { id: value } });
+		if (!related || related.projectId !== loaded.projectId) {
+			return { reason: "related-record-required", status: "rejected" };
+		}
+		if (loaded.relatedIds.includes(value)) {
+			return { field: null, status: "ok" };
+		}
+		return {
+			field: {
+				from: null,
+				id: relationFieldId(declared.key),
+				label: RECORD_ACTION_COPY.relation,
+				to: value,
+			},
+			status: "ok",
+		};
+	}
+	if (declared.kind === "Date" && !CALENDAR_DATE_PATTERN.test(value)) {
+		return { reason: "unknown-input", status: "rejected" };
+	}
+	if (declared.kind === "Number" && !Number.isFinite(Number(value))) {
+		return { reason: "unknown-input", status: "rejected" };
+	}
+	const field = loaded.customFields[declared.fieldId];
+	if (!field) {
+		return { reason: "unknown-input", status: "rejected" };
+	}
+	if (declared.kind === "Select" && !field.options.includes(value)) {
+		return { reason: "unknown-input", status: "rejected" };
+	}
+	const next = declared.kind === "Number" ? String(Number(value)) : value;
+	if (field.current === next) {
+		return { field: null, status: "ok" };
+	}
+	return {
+		field: {
+			from: field.current,
+			id: customFieldId(declared.fieldId),
+			label: declared.label,
+			to: next,
+		},
+		status: "ok",
+	};
+}
+
+function customFieldId(fieldId: string): string {
+	return `customField:${fieldId}`;
+}
+
+function relationFieldId(key: string): string {
+	return `relation:${key}`;
 }
 
 function diffsFor(
@@ -605,6 +777,7 @@ async function writeFields(
 	tx: PrismaTransaction,
 	loaded: {
 		actorId: string;
+		projectId: string;
 		work: { id: string; status: string };
 	},
 	fields: RecordActionFieldDiff[],
@@ -650,30 +823,50 @@ async function writeFields(
 	const membership = fields.find(
 		(field) => field.id === "dailyFocusMembership"
 	);
-	if (!membership) {
-		return;
+	if (membership) {
+		if (membership.to === MEMBER_VALUES.member) {
+			await insertDailyFocusMembership(tx, {
+				accountId: loaded.actorId,
+				id: crypto.randomUUID(),
+				workId: loaded.work.id,
+			});
+		} else {
+			await deleteDailyFocusMembership(tx, loaded.actorId, loaded.work.id);
+		}
 	}
-	if (membership.to === MEMBER_VALUES.member) {
-		await insertDailyFocusMembership(tx, {
-			accountId: loaded.actorId,
-			id: crypto.randomUUID(),
-			workId: loaded.work.id,
-		});
-		return;
+	for (const field of fields) {
+		if (field.id.startsWith("customField:")) {
+			// biome-ignore lint/performance/noAwaitInLoops: catalog writes stay in one transaction order.
+			await writeCustomFieldValue(
+				tx,
+				field.id.slice("customField:".length),
+				loaded.work.id,
+				field.to
+			);
+		}
+		if (field.id.startsWith("relation:")) {
+			await writeRelatedWork(
+				tx,
+				loaded.work.id,
+				loaded.projectId,
+				field.to,
+				field.from
+			);
+		}
 	}
-	await deleteDailyFocusMembership(tx, loaded.actorId, loaded.work.id);
 }
 
 async function writeInverse(
 	tx: PrismaTransaction,
 	workId: string,
+	projectId: string,
 	actorId: string,
 	fields: RecordActionFieldDiff[],
 	nextRevision: number
 ): Promise<void> {
 	await writeFields(
 		tx,
-		{ actorId, work: { id: workId, status: "" } },
+		{ actorId, projectId, work: { id: workId, status: "" } },
 		fields,
 		nextRevision
 	);
@@ -700,16 +893,18 @@ function inverseFields(
 	}));
 }
 
-function currentDiverged(
+async function currentDiverged(
+	db: RuntimeDb,
 	work: {
 		description: string | null;
+		id: string;
 		status: string;
 		title: string;
 		type: string;
 	},
 	member: boolean,
 	applied: RecordActionFieldDiff[]
-): boolean {
+): Promise<boolean> {
 	const current: Record<string, string | null> = {
 		dailyFocusMembership: member
 			? MEMBER_VALUES.member
@@ -719,7 +914,36 @@ function currentDiverged(
 		title: work.title,
 		type: work.type,
 	};
-	return applied.some((field) => (current[field.id] ?? "") !== field.to);
+	const relatedIds = await loadRelatedWorkIds(db, work.id);
+	for (const field of applied) {
+		if (field.id.startsWith("customField:")) {
+			const definitionId = field.id.slice("customField:".length);
+			// biome-ignore lint/performance/noAwaitInLoops: later-write checks stop at the first divergence.
+			const row = await db.projectCustomFieldValue.findUnique({
+				where: {
+					definitionId_recordType_recordId: {
+						definitionId,
+						recordId: work.id,
+						recordType: "Work",
+					},
+				},
+			});
+			if ((displayCustomValue(row?.value ?? null) ?? "") !== field.to) {
+				return true;
+			}
+			continue;
+		}
+		if (field.id.startsWith("relation:")) {
+			if (!relatedIds.includes(field.to)) {
+				return true;
+			}
+			continue;
+		}
+		if ((current[field.id] ?? "") !== field.to) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function parseSteps(value: Prisma.JsonValue): RecordActionStep[] {
@@ -734,6 +958,196 @@ function parseSteps(value: Prisma.JsonValue): RecordActionStep[] {
 		}
 	}
 	return steps;
+}
+
+function parseInputs(value: Prisma.JsonValue): RecordActionInput[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	const inputs: RecordActionInput[] = [];
+	for (const item of value) {
+		const parsed = recordActionInputSchema.safeParse(item);
+		if (parsed.success) {
+			inputs.push(parsed.data);
+		}
+	}
+	return inputs;
+}
+
+async function loadCustomFieldState(
+	db: RuntimeDb,
+	inputs: readonly RecordActionInput[],
+	workId: string
+): Promise<
+	Record<string, { current: string | null; options: string[]; type: string }>
+> {
+	const result: Record<
+		string,
+		{ current: string | null; options: string[]; type: string }
+	> = {};
+	for (const input of inputs) {
+		if (input.kind === "Relation") {
+			continue;
+		}
+		// biome-ignore lint/performance/noAwaitInLoops: definitions are loaded only for declared inputs.
+		const definition = await db.projectCustomFieldDefinition.findUnique({
+			where: { id: input.fieldId },
+		});
+		if (!definition) {
+			continue;
+		}
+		const row = await db.projectCustomFieldValue.findUnique({
+			where: {
+				definitionId_recordType_recordId: {
+					definitionId: definition.id,
+					recordId: workId,
+					recordType: "Work",
+				},
+			},
+		});
+		result[definition.id] = {
+			current: displayCustomValue(row?.value ?? null),
+			options: definition.options,
+			type: definition.type,
+		};
+	}
+	return result;
+}
+
+async function loadRelatedWorkIds(
+	db: RuntimeDb,
+	workId: string
+): Promise<string[]> {
+	const rows = await db.typedRelation.findMany({
+		where: {
+			fromId: workId,
+			fromKind: "Work",
+			toKind: "Work",
+			type: "Related",
+		},
+	});
+	return rows.map((row) => row.toId);
+}
+
+function displayCustomValue(value: Prisma.JsonValue | null): string | null {
+	if (!isRecord(value) || typeof value.kind !== "string") {
+		return null;
+	}
+	if (value.kind === "unset") {
+		return null;
+	}
+	if (value.kind === "date" && typeof value.date === "string") {
+		return value.date;
+	}
+	if (value.kind === "number" && typeof value.number === "number") {
+		return String(value.number);
+	}
+	if (value.kind === "single-select" && typeof value.option === "string") {
+		return value.option;
+	}
+	return null;
+}
+
+async function writeCustomFieldValue(
+	tx: PrismaTransaction,
+	definitionId: string,
+	workId: string,
+	to: string
+): Promise<void> {
+	const definition = await tx.projectCustomFieldDefinition.findUnique({
+		where: { id: definitionId },
+	});
+	if (!definition) {
+		return;
+	}
+	let stored: Prisma.InputJsonValue = { kind: "unset" };
+	if (to.length > 0 && definition.type === "Date") {
+		stored = { date: to, kind: "date" };
+	} else if (to.length > 0 && definition.type === "Number") {
+		stored = { kind: "number", number: Number(to) };
+	} else if (to.length > 0) {
+		stored = { kind: "single-select", option: to };
+	}
+	const existing = await tx.projectCustomFieldValue.findUnique({
+		where: {
+			definitionId_recordType_recordId: {
+				definitionId,
+				recordId: workId,
+				recordType: "Work",
+			},
+		},
+	});
+	if (existing) {
+		await tx.projectCustomFieldValue.update({
+			data: {
+				revision: existing.revision + 1,
+				value: stored,
+			},
+			where: { id: existing.id },
+		});
+		return;
+	}
+	await tx.projectCustomFieldValue.create({
+		data: {
+			definitionId,
+			id: crypto.randomUUID(),
+			recordId: workId,
+			recordType: "Work",
+			revision: 1,
+			value: stored,
+		},
+	});
+}
+
+async function writeRelatedWork(
+	tx: PrismaTransaction,
+	fromId: string,
+	projectId: string,
+	toId: string,
+	previousId: string | null
+): Promise<void> {
+	if (previousId && previousId.length > 0 && previousId !== toId) {
+		await tx.typedRelation.deleteMany({
+			where: {
+				fromId,
+				fromKind: "Work",
+				toId: previousId,
+				toKind: "Work",
+				type: "Related",
+			},
+		});
+	}
+	if (toId.length === 0) {
+		return;
+	}
+	const related = await tx.work.findUnique({ where: { id: toId } });
+	if (!related || related.projectId !== projectId) {
+		return;
+	}
+	const existing = await tx.typedRelation.findFirst({
+		where: {
+			fromId,
+			fromKind: "Work",
+			toId,
+			toKind: "Work",
+			type: "Related",
+		},
+	});
+	if (existing) {
+		return;
+	}
+	await tx.typedRelation.create({
+		data: {
+			fromId,
+			fromKind: "Work",
+			id: crypto.randomUUID(),
+			originComponentMissing: false,
+			revision: 1,
+			toId,
+			toKind: "Work",
+			type: "Related",
+		},
+	});
 }
 
 function parseFields(value: Prisma.JsonValue): RecordActionFieldDiff[] {

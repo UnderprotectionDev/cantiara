@@ -92,6 +92,9 @@ export const recordActions = {
 	preview: protectedProcedure
 		.input(
 			z.object({
+				inputValues: z
+					.array(z.object({ key: z.string().min(1), value: z.string() }))
+					.optional(),
 				recordActionId: z.string().min(1),
 				targetRecordId: z.string().min(1),
 				targetRecordIds: z.array(z.string().min(1)).optional(),
@@ -105,6 +108,7 @@ export const recordActions = {
 			);
 			return await previewRecordAction(getPrismaClient(), {
 				actorId: access.accountId,
+				inputValues: input.inputValues,
 				recordActionId: input.recordActionId,
 				targetRecordId: input.targetRecordId,
 				targetRecordIds: input.targetRecordIds,

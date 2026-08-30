@@ -17,19 +17,29 @@ export const RECORD_ACTION_COPY = {
 	dailyFocusMember: "In Daily Focus",
 	dailyFocusNotMember: "Not in Daily Focus",
 	dailyFocusRemove: "Remove from Daily Focus",
+	date: "Date",
 	explicitStartRequired: "Start the Record Action before it can apply.",
+	forbiddenInput:
+		"A Record Action cannot use a formula, free-text macro, script, or new record as a runtime input.",
 	forbiddenStep:
 		"A Record Action cannot run JavaScript, HTTP, new record creation, or GitHub mutation.",
 	laterWrite: "Undo stopped because a later write changed an attributed field.",
+	missingRuntimeInput:
+		"A Record Action cannot write until every runtime input has a value.",
 	moveToTrash: "Move to Trash",
 	multiTarget:
 		"A Record Action targets exactly one record. Multi-record combined buttons are not available.",
 	name: "Name",
 	nameRequired: "Name is required.",
+	number: "Number",
 	preview: "Preview",
 	previewMismatch: "The previewed diff no longer matches the record.",
 	recordAction: "Record Action",
+	relatedRecordRequired: "Relation must point to an existing main record.",
+	relation: "Relation",
+	runtimeInputs: "Runtime inputs",
 	save: "Save",
+	select: "Select",
 	setExistingField: "Set existing field",
 	setWorkStatus: "Set Work status",
 	start: "Start",
@@ -37,6 +47,7 @@ export const RECORD_ACTION_COPY = {
 	steps: "Steps",
 	trashedNotEffective: "A trashed Record Action is not effective.",
 	undoNotSafe: "This Record Action cannot be undone without a partial rewind.",
+	unknownInput: "That runtime input is not in the closed catalog.",
 	unknownStep: "That step is not in the closed catalog.",
 	useStartWork: "Use Start Work",
 } as const;
@@ -84,6 +95,82 @@ export const RECORD_ACTION_STEP_KINDS = [
 
 export type RecordActionStepKind = (typeof RECORD_ACTION_STEP_KINDS)[number];
 
+export const RECORD_ACTION_INPUT_KINDS = [
+	"Date",
+	"Number",
+	"Select",
+	"Relation",
+] as const;
+
+export type RecordActionInputKind = (typeof RECORD_ACTION_INPUT_KINDS)[number];
+
+export const FORBIDDEN_RECORD_ACTION_INPUT_KINDS = [
+	"formula",
+	"freeText",
+	"javascript",
+	"createRecord",
+	"script",
+] as const;
+
+export const CALENDAR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export const dateRuntimeInputSchema = z.object({
+	fieldId: z.string().min(1),
+	key: z.string().min(1),
+	kind: z.literal("Date"),
+	label: z.string().min(1),
+});
+
+export const numberRuntimeInputSchema = z.object({
+	fieldId: z.string().min(1),
+	key: z.string().min(1),
+	kind: z.literal("Number"),
+	label: z.string().min(1),
+});
+
+export const selectRuntimeInputSchema = z.object({
+	fieldId: z.string().min(1),
+	key: z.string().min(1),
+	kind: z.literal("Select"),
+	label: z.string().min(1),
+});
+
+export const relationRuntimeInputSchema = z.object({
+	key: z.string().min(1),
+	kind: z.literal("Relation"),
+	label: z.string().min(1),
+	relatedKind: z.literal(RECORD_ACTION_TARGET_KIND),
+});
+
+export const recordActionInputSchema = z.discriminatedUnion("kind", [
+	dateRuntimeInputSchema,
+	numberRuntimeInputSchema,
+	selectRuntimeInputSchema,
+	relationRuntimeInputSchema,
+]);
+
+export type RecordActionInput = z.infer<typeof recordActionInputSchema>;
+
+export const recordActionInputValueSchema = z.object({
+	key: z.string().min(1),
+	value: z.string(),
+});
+
+export type RecordActionInputValue = z.infer<
+	typeof recordActionInputValueSchema
+>;
+
+export const recordActionChosenInputSchema = z.object({
+	key: z.string().min(1),
+	kind: z.enum(RECORD_ACTION_INPUT_KINDS),
+	label: z.string().min(1),
+	value: z.string().min(1),
+});
+
+export type RecordActionChosenInput = z.infer<
+	typeof recordActionChosenInputSchema
+>;
+
 export const FORBIDDEN_RECORD_ACTION_STEP_KINDS = [
 	"javascript",
 	"http",
@@ -114,6 +201,7 @@ export function recordActionsCatalog() {
 			},
 		},
 		existingFieldKeys: EXISTING_FIELD_KEYS,
+		inputKinds: RECORD_ACTION_INPUT_KINDS,
 		runActor: MUTATION_ACTOR.user,
 		stepKinds: RECORD_ACTION_STEP_KINDS,
 		targetKind: RECORD_ACTION_TARGET_KIND,
@@ -123,6 +211,7 @@ export function recordActionsCatalog() {
 export const recordActionViewSchema = z.object({
 	actor: z.literal(MUTATION_ACTOR.user),
 	id: z.string().min(1),
+	inputs: z.array(recordActionInputSchema),
 	name: z.string().min(1),
 	projectId: z.string().min(1),
 	revision: z.number().int().positive(),
@@ -134,6 +223,7 @@ export type RecordActionView = z.infer<typeof recordActionViewSchema>;
 
 export const createRecordActionPayloadSchema = z
 	.object({
+		inputs: z.array(z.unknown()).optional(),
 		name: z.string().optional(),
 		projectId: z.string().min(1),
 		steps: z.array(z.unknown()).optional(),
@@ -196,16 +286,20 @@ export const RECORD_ACTION_REJECTION_REASONS = [
 	"close-step-required",
 	"empty-steps",
 	"explicit-start-required",
+	"forbidden-input",
 	"forbidden-step",
 	"later-write",
 	"missing-base-revision",
 	"missing-idempotency-key",
 	"missing-name",
+	"missing-runtime-input",
 	"multi-target",
 	"preview-mismatch",
+	"related-record-required",
 	"target-not-found",
 	"trashed-not-effective",
 	"undo-not-safe",
+	"unknown-input",
 	"unknown-step",
 	"unknown-target-kind",
 ] as const;
@@ -243,6 +337,7 @@ export const recordActionPreviewSchema = z.object({
 	}),
 	fields: z.array(recordActionFieldDiffSchema),
 	fingerprint: z.string().min(1),
+	inputs: z.array(recordActionChosenInputSchema),
 	recordActionId: z.string().min(1),
 	targetRecordId: z.string().min(1),
 });
@@ -255,6 +350,7 @@ export type PreviewRecordActionOutcome =
 
 export const previewRecordActionInputSchema = z.object({
 	actorId: z.string().min(1).optional(),
+	inputValues: z.array(recordActionInputValueSchema).optional(),
 	recordActionId: z.string().min(1),
 	targetRecordId: z.string().min(1),
 	targetRecordIds: z.array(z.string().min(1)).optional(),
@@ -262,6 +358,7 @@ export const previewRecordActionInputSchema = z.object({
 
 export const applyRecordActionPayloadSchema = z
 	.object({
+		inputValues: z.array(recordActionInputValueSchema).optional(),
 		previewAcknowledged: z.boolean().optional(),
 		previewFingerprint: z.string().min(1).optional(),
 		recordActionId: z.string().min(1),

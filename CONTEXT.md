@@ -274,6 +274,10 @@ _Avoid_: macro marketplace, otomasyon kuralı, Toplu Düzenleme, script, çok ka
 Durumu `In Progress` yapan ve İşi Günlük Odak üyeliğine ekleyen ilk Kayıt Eylemi örneği. UI: `Start Work`.
 _Avoid_: otomasyon kuralı, çok kayıtlı düğme, arka plan kuralı
 
+**Çalışma anı girdisi**:
+Kayıt Eyleminin tasarımda tanımladığı, çalıştırmada doldurulan `Date`, `Number`, `Select` veya mevcut ana kayıtla `Relation`; formül, serbest metin makro, yeni kayıt veya ikinci hedef seçimi değildir ([kullanıcı başlatmalı kayıt eylemleri](docs/prd/06-work-management-and-planning.md#kullanıcı-başlatmalı-kayıt-eylemleri)). UI: `Date`, `Number`, `Select`, `Relation`.
+_Avoid_: formula, free-text macro, form builder, yeni kayıt, ikinci hedef
+
 **Birleşik Takvim**:
 Desteklenen tarihli kayıtları türleri karışmadan gün, hafta, ay ve Agenda'da gösteren yüzey; yeni İş türü veya durum üretmez ([Birleşik Takvim](docs/prd/06-work-management-and-planning.md#birleşik-takvim)).
 _Avoid_: Dış takvim senkronu, Event kaydı, durum tahtası

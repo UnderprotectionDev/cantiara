@@ -4,6 +4,7 @@ model RecordAction {
   project    Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name       String
   steps      Json
+  inputs     Json             @default("[]")
   targetKind String
   trashedAt  DateTime?
   revision   Int

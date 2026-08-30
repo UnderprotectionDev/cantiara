@@ -85,6 +85,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İş şablonu | `Work Template` | Proje kapsamlı tekrar kullanılan İş başlangıç bağlamı; Belge şablonu, Başlangıç yapılandırması veya yakalama mini şablonu değildir |
 | Kayıt Eylemi | `Record Action` | Kapalı alan ve üyelik adımlarından adlandırılan, tek hedef kayıt üzerinde çalışan birleşik yazma; otomasyon kuralı, Toplu Düzenleme veya betik değildir |
 | Start Work | `Start Work` | Durumu `In Progress` yapan ve İşi Günlük Odak’a ekleyen ilk Kayıt Eylemi örneği |
+| Çalışma anı girdisi | `Date`, `Number`, `Select`, `Relation` | Kayıt Eyleminin tasarımda tanımlı çalışma anı girdileri; formül, serbest metin makro veya yeni kayıt seçimi değildir |
 | Kayıt eylemini başlat | `Start` | Kayıt Eylemini açıkça başlatıp kesin alan farkını önizlemeye açma |
 | Kayıt eylemini uygula | `Apply` | Önizlenen Kayıt Eylemi farkını tek atomik sonuç olarak yazma |
 | Şablondan oluştur | `Create from template` | Şablondan bağımsız yeni İş açma; şablona canlı bağ değildir ve zorunlu workflow kapısı değildir |
