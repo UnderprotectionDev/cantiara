@@ -28,6 +28,9 @@ export default function UserMenu() {
 	const onPreferences = useCallback(() => {
 		navigate({ to: "/account" }).catch(() => undefined);
 	}, [navigate]);
+	const onCompletionEffects = useCallback(() => {
+		navigate({ to: "/completion-effects" }).catch(() => undefined);
+	}, [navigate]);
 	const onSessions = useCallback(() => {
 		navigate({ to: "/sessions" }).catch(() => undefined);
 	}, [navigate]);
@@ -64,6 +67,9 @@ export default function UserMenu() {
 					<DropdownMenuItem>{user.email}</DropdownMenuItem>
 					<DropdownMenuItem onClick={onPreferences}>
 						Preferences
+					</DropdownMenuItem>
+					<DropdownMenuItem onClick={onCompletionEffects}>
+						Completion effects
 					</DropdownMenuItem>
 					<DropdownMenuItem onClick={onSessions}>Sessions</DropdownMenuItem>
 				</DropdownMenuGroup>

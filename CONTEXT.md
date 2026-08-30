@@ -710,8 +710,8 @@ Kullanıcının açık kapatma kararıyla bir İşin kalıcı kapanış sonucunu
 _Avoid_: Her terminal olay, otomatik kapanış, kapatma girişimi, iyimser tamamlanma
 
 **Bitiriş efekti**:
-Kullanıcı başlatmalı İş başarısını duygusal olarak hissedilir kılan, isteğe bağlı ve [ürünün kendi özgün kataloğuyla sınırlı](docs/adr/0017-bitiris-efektlerini-ozgun-birinci-taraf-katalogla-sinirla.md) dekoratif geri bildirim; başarının kalıcı durumunu veya temel geri bildirimini taşımaz.
-_Avoid_: Konfeti, başarı durumu, lisanslı karakter efekti, kullanıcı yüklemeli efekt
+Kullanıcı başlatmalı İş başarısını duygusal olarak hissedilir kılan, isteğe bağlı ve [ürünün kendi özgün kataloğuyla sınırlı](docs/adr/0017-bitiris-efektlerini-ozgun-birinci-taraf-katalogla-sinirla.md) dekoratif geri bildirim; başarının kalıcı durumunu veya temel geri bildirimini taşımaz. Hesap düzeyinde etkinleştirilir; kapalı katalog `Calm`, `Weave`, `Arc`, `Nova` temaları ve her temanın tam dört paletinden oluşur. Appearance, ürün teması, tasarım tokenı veya Moodboard paleti değildir.
+_Avoid_: Konfeti, başarı durumu, lisanslı karakter efekti, kullanıcı yüklemeli efekt, tema sistemi, Moodboard paleti
 
 **Değer Zinciri**:
 Bir Proje Hedefinden problem ve kanıt üzerinden gözlenen sonuca kadar mevcut kesin kayıt ve ilişkileri gösteren [türetilmiş Proje görünümü](docs/prd/04-workspace-and-projects.md#değer-zinciri); ana kayıt, ilişki, özet metni veya sağlık hükmü üretmez.
