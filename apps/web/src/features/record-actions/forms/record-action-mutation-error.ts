@@ -30,6 +30,18 @@ export function recordActionMutationError(
 	if (outcome.reason === "forbidden-step") {
 		return RECORD_ACTION_COPY.forbiddenStep;
 	}
+	if (outcome.reason === "forbidden-input") {
+		return RECORD_ACTION_COPY.forbiddenInput;
+	}
+	if (outcome.reason === "missing-runtime-input") {
+		return RECORD_ACTION_COPY.missingRuntimeInput;
+	}
+	if (outcome.reason === "related-record-required") {
+		return RECORD_ACTION_COPY.relatedRecordRequired;
+	}
+	if (outcome.reason === "unknown-input") {
+		return RECORD_ACTION_COPY.unknownInput;
+	}
 	if (outcome.reason === "multi-target") {
 		return RECORD_ACTION_COPY.multiTarget;
 	}
