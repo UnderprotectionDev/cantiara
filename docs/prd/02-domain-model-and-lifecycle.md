@@ -126,6 +126,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ana kaynak uygulamadadır | `Primary source is in the app` | Kopyalanan Markdown'ın asıl kaydın uygulamada kaldığını belirten not |
 | Dış yürütme devri | `External Execution Handoff` | İşe ait test-dışı dış yürütme bileşeni; bağımsız Handoff ana kaydı değildir |
 | Devir başlat | `Start Handoff` | Dış yürütme devri başlatma eylemi |
+| Devir yazılamadı | `This handoff could not be written.` | Dış yürütme devri yazmasının reddedildiği veya uygulanamadığı durum |
 | Uzlaştır | `Reconcile` | Dönen dış yürütmeyi ana kayıt bağlarına ve takip İşlerine bağlayan kapanış kararı |
 | Sonuç döndü | `Result returned` | Dönüş kaydedilmiş, henüz uzlaştırılmamış Dış yürütme devri durumu |
 | Uzlaştırıldı | `Reconciled` | Kullanıcının uzlaştırma onayından sonraki terminal Dış yürütme devri durumu |

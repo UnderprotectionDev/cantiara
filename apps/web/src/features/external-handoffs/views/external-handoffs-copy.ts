@@ -9,6 +9,7 @@ export const EXTERNAL_HANDOFFS_COPY = {
 	confirm: "Confirm",
 	constraints: "Constraints",
 	couldNotComplete: "This action could not be completed.",
+	couldNotWrite: "This handoff could not be written.",
 	executor: "Executor",
 	executorSummary: "Executor summary",
 	expectedOutput: "Expected output",
@@ -56,7 +57,7 @@ export function presentHandoffWriteError(
 	if (outcome.status === "conflict") {
 		return MUTATION_COPY.conflict;
 	}
-	return EXTERNAL_HANDOFFS_COPY.couldNotComplete;
+	return EXTERNAL_HANDOFFS_COPY.couldNotWrite;
 }
 
 export function presentHandoffCard(handoff: {

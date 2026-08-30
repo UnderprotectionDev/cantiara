@@ -14,6 +14,7 @@ test("English UI uses External Execution Handoff and Start Handoff", () => {
 		confirm: "Confirm",
 		constraints: "Constraints",
 		couldNotComplete: "This action could not be completed.",
+		couldNotWrite: "This handoff could not be written.",
 		executor: "Executor",
 		executorSummary: "Executor summary",
 		expectedOutput: "Expected output",
@@ -45,9 +46,9 @@ test("a rejected Start Handoff is not shown as Conflict", () => {
 			reason: "invalid-handoff",
 			status: "rejected",
 		})
-	).toBe(EXTERNAL_HANDOFFS_COPY.couldNotComplete);
+	).toBe(EXTERNAL_HANDOFFS_COPY.couldNotWrite);
 	expect(presentHandoffWriteError({ status: "refused" })).toBe(
-		EXTERNAL_HANDOFFS_COPY.couldNotComplete
+		EXTERNAL_HANDOFFS_COPY.couldNotWrite
 	);
 });
 
