@@ -351,13 +351,21 @@ describe("Completion Effects", () => {
 			mutationStatus: "replayed",
 			workId: "work-1",
 		});
-		expect(retry.source).toBe("idempotent-retry");
+		expect(retry.source).toBe("user-initiated-close");
 		expect(
 			observeCloseAcceptance(enabled, first.session, retry, nowMs + 10)
 		).toEqual({
 			feedback: "none",
 			session: first.session,
 		});
+		expect(
+			observeCloseAcceptance(
+				enabled,
+				idleCompletionEffectsClientSession(),
+				retry,
+				nowMs
+			).feedback
+		).toBe("effect");
 		expect(
 			observeCloseAcceptance(
 				enabled,

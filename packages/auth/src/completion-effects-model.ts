@@ -184,7 +184,10 @@ const FAILED_WRITE_SOURCE: Record<
 export function closeOutcomeToAcceptance(
 	input: CloseOutcomeInput
 ): CloseAcceptance {
-	if (input.mutationStatus === "committed") {
+	if (
+		input.mutationStatus === "committed" ||
+		input.mutationStatus === "replayed"
+	) {
 		if (input.closureResult === "Abandoned") {
 			return {
 				closeCycleId: input.closeCycleId,
@@ -199,15 +202,6 @@ export function closeOutcomeToAcceptance(
 			closureResult: "Completed",
 			serverAccepted: true,
 			source: "user-initiated-close",
-			workId: input.workId,
-		};
-	}
-	if (input.mutationStatus === "replayed") {
-		return {
-			closeCycleId: input.closeCycleId,
-			closureResult: input.closureResult,
-			serverAccepted: true,
-			source: "idempotent-retry",
 			workId: input.workId,
 		};
 	}
