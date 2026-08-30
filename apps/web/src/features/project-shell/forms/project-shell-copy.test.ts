@@ -10,7 +10,9 @@ import {
 	projectPersistentNav,
 	projectShellAnchor,
 	projectShellChrome,
+	projectShellHashForWorkSelect,
 	projectShellSearch,
+	projectShellShowsWorkSurface,
 	STARTER_CONFIGURATIONS,
 	structureCopyPreviewItems,
 	workSavedViewIsList,
@@ -218,6 +220,24 @@ test("Work daily actions and Saved views stay on the Work surface", () => {
 	expect(isWorkShellAnchor("documents", ["Backlog", "Board"])).toBe(false);
 	expect(workSavedViewIsList("Backlog")).toBe(true);
 	expect(workSavedViewIsList("Board")).toBe(false);
+	expect(projectShellShowsWorkSurface({ anchor: "work", workId: null })).toBe(
+		true
+	);
+	expect(
+		projectShellShowsWorkSurface({
+			anchor: "",
+			workId: "work_1",
+		})
+	).toBe(true);
+	expect(
+		projectShellShowsWorkSurface({
+			anchor: "overview",
+			workId: "work_1",
+		})
+	).toBe(false);
+	expect(projectShellHashForWorkSelect("")).toBe("work");
+	expect(projectShellHashForWorkSelect("#overview")).toBe("work");
+	expect(projectShellHashForWorkSelect("#edit")).toBe("edit");
 	expect(PROJECT_SHELL_COPY.project).toBe("Project");
 	expect(PROJECT_SHELL_COPY.openNavigation).toBe("Open Project navigation");
 });

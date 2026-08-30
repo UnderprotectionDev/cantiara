@@ -258,3 +258,31 @@ export function isWorkShellAnchor(
 export function workSavedViewIsList(view: string): boolean {
 	return view === "Backlog";
 }
+
+const HASH_PREFIX = "#";
+
+export function projectShellHashAnchor(hash: string): string {
+	return hash.startsWith(HASH_PREFIX) ? hash.slice(HASH_PREFIX.length) : hash;
+}
+
+export function projectShellHashForWorkSelect(hash: string): string {
+	const anchor = projectShellHashAnchor(hash);
+	if (isWorkShellAnchor(anchor, [])) {
+		return anchor;
+	}
+	return ALWAYS_ON_ANCHORS.Work;
+}
+
+export function projectShellShowsWorkSurface(input: {
+	anchor: string;
+	workId?: string | null;
+	workViews?: readonly string[];
+}): boolean {
+	if (input.anchor === ALWAYS_ON_ANCHORS.Overview) {
+		return false;
+	}
+	if (input.anchor === "" && input.workId) {
+		return true;
+	}
+	return isWorkShellAnchor(input.anchor, input.workViews ?? []);
+}

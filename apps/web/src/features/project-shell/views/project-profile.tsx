@@ -29,6 +29,7 @@ import {
 	projectNavRecordAreas,
 	projectPersistentNav,
 	projectShellAnchor,
+	projectShellShowsWorkSurface,
 	type StageState,
 	WORK_DAILY_ACTIONS,
 	workSavedViewIsList,
@@ -133,7 +134,7 @@ export default function ProjectProfile({
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const overviewCurrent =
-		selectedAnchor === "" || selectedAnchor === overviewAnchor;
+		(selectedAnchor === "" && !workId) || selectedAnchor === overviewAnchor;
 
 	const nav = (
 		<ProjectNav
@@ -377,9 +378,11 @@ function ProjectBody({
 	const selectedArea = data.allToolsAreas
 		.map((area) => area.name)
 		.find((area) => projectShellAnchor(area) === selectedAnchor);
-	const showingWork =
-		selectedArea === "Work" ||
-		isWorkShellAnchor(selectedAnchor, data.workViews);
+	const showingWork = projectShellShowsWorkSurface({
+		anchor: selectedAnchor,
+		workId,
+		workViews: data.workViews,
+	});
 
 	if (configurationMode) {
 		return (

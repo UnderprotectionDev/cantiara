@@ -1,8 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useLocation } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 import {
 	type ConfigurationModeEditor,
+	projectShellHashAnchor,
+	projectShellHashForWorkSelect,
 	projectShellSearch,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ProjectProfile from "@/features/project-shell/views/project-profile";
@@ -15,10 +17,12 @@ export const Route = createFileRoute("/_founder/_auth/projects/$projectId")({
 function ProjectProfileRoute() {
 	const { projectId } = Route.useParams();
 	const search = Route.useSearch();
+	const hash = useLocation({ select: (location) => location.hash });
 	const navigate = Route.useNavigate();
 	const onPresentationChange = useCallback(
 		(next: { editor: ConfigurationModeEditor | null; open: boolean }) => {
 			navigate({
+				hash: projectShellHashAnchor(hash),
 				search: {
 					configurationEditor: next.editor ?? undefined,
 					configurationMode: next.open ? true : undefined,
@@ -26,11 +30,12 @@ function ProjectProfileRoute() {
 				},
 			}).catch(() => undefined);
 		},
-		[navigate, search.work]
+		[hash, navigate, search.work]
 	);
 	const onWorkId = useCallback(
 		(workId: string | null) => {
 			navigate({
+				hash: projectShellHashForWorkSelect(hash),
 				search: {
 					configurationEditor: search.configurationEditor,
 					configurationMode: search.configurationMode,
@@ -38,7 +43,7 @@ function ProjectProfileRoute() {
 				},
 			}).catch(() => undefined);
 		},
-		[navigate, search.configurationEditor, search.configurationMode]
+		[hash, navigate, search.configurationEditor, search.configurationMode]
 	);
 	return (
 		<ProjectProfile
