@@ -80,7 +80,18 @@ function stepsFromForm(value: RecordActionFormValues): RecordActionStep[] {
 	return steps;
 }
 
-function inputsFromForm(value: RecordActionFormValues): RecordActionInput[] {
+function inputsFromForm(
+	value: RecordActionFormValues
+): { inputs: RecordActionInput[]; status: "ok" } | { status: "missing-field" } {
+	if (value.includeDate && value.dateFieldId.length === 0) {
+		return { status: "missing-field" };
+	}
+	if (value.includeNumber && value.numberFieldId.length === 0) {
+		return { status: "missing-field" };
+	}
+	if (value.includeSelect && value.selectFieldId.length === 0) {
+		return { status: "missing-field" };
+	}
 	const inputs: RecordActionInput[] = [];
 	if (value.includeDate && value.dateFieldId.length > 0) {
 		inputs.push({
@@ -114,7 +125,7 @@ function inputsFromForm(value: RecordActionFormValues): RecordActionInput[] {
 			relatedKind: "Work",
 		});
 	}
-	return inputs;
+	return { inputs, status: "ok" };
 }
 
 export default function RecordActionEditor({
@@ -191,11 +202,16 @@ export default function RecordActionEditor({
 		} as RecordActionFormValues,
 		onSubmit: async ({ formApi, value }) => {
 			setError(null);
+			const declared = inputsFromForm(value);
+			if (declared.status !== "ok") {
+				setError(RECORD_ACTION_COPY.unknownInput);
+				return;
+			}
 			const result = attemptOnlineWork("record-create", () =>
 				create.mutateAsync({
 					idempotencyKey: newIdempotencyKey(),
 					payload: {
-						inputs: inputsFromForm(value),
+						inputs: declared.inputs,
 						name: value.name,
 						projectId,
 						steps: stepsFromForm(value),
