@@ -1,3 +1,4 @@
+import { defaultCompletionEffectPreference } from "@cantiara/auth/completion-effects-model";
 import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import {
@@ -10,6 +11,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
+import {
+	closeMutationStatusFromRpc,
+	reportCloseOutcome,
+} from "@/features/completion-effects/completion-effects-session";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { MUTATION_COPY, newIdempotencyKey } from "@/lib/mutation";
 import { orpc } from "@/utils/orpc";
@@ -35,6 +40,7 @@ export default function CloseWorkForm({
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [error, setError] = useState<string | null>(null);
 	const [notes, setNotes] = useState("");
+	const preference = useQuery(orpc.completionEffects.get.queryOptions());
 	const preview = useQuery(
 		orpc.workLifecycle.previewClose.queryOptions({
 			input: { notes, workId },
@@ -42,7 +48,46 @@ export default function CloseWorkForm({
 	);
 	const close = useMutation(
 		orpc.workLifecycle.close.mutationOptions({
-			onSuccess: async (outcome) => {
+			onError: (_error, variables) => {
+				if (
+					variables.result !== "Completed" &&
+					variables.result !== "Abandoned"
+				) {
+					return;
+				}
+				reportCloseOutcome(
+					preference.data ?? defaultCompletionEffectPreference(),
+					{
+						closeCycleId: variables.idempotencyKey,
+						closureResult: variables.result,
+						mutationStatus: "timeout",
+						workId: variables.workId,
+					},
+					Date.now()
+				);
+			},
+			onSuccess: async (outcome, variables) => {
+				if (
+					variables.result === "Completed" ||
+					variables.result === "Abandoned"
+				) {
+					const mutationStatus =
+						outcome.status === "committed" ||
+						outcome.status === "replayed" ||
+						outcome.status === "rejected"
+							? closeMutationStatusFromRpc(outcome.status)
+							: closeMutationStatusFromRpc("conflict");
+					reportCloseOutcome(
+						preference.data ?? defaultCompletionEffectPreference(),
+						{
+							closeCycleId: variables.idempotencyKey,
+							closureResult: variables.result,
+							mutationStatus,
+							workId: variables.workId,
+						},
+						Date.now()
+					);
+				}
 				if (outcome.status === "committed" || outcome.status === "replayed") {
 					await invalidateWork(projectId, workId);
 					recordSave();

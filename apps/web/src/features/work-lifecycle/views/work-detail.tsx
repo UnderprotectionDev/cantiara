@@ -2,6 +2,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useCallback } from "react";
 
 import WorkBlockersPanel from "@/features/blockers/views/work-blockers-panel";
+import { CompletionEffectsLayer } from "@/features/completion-effects/components/completion-effects-layer";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
 import WorkExternalHandoffsPanel from "@/features/external-handoffs/views/work-external-handoffs-panel";
 import WorkPriorityValues from "@/features/priority/forms/work-priority-values";
@@ -77,9 +78,10 @@ export default function WorkDetail({
 	}, []);
 	return (
 		<article
-			className="flex flex-col gap-4 border-t pt-4"
+			className="relative flex flex-col gap-4 border-t pt-4"
 			id={projectShellAnchor(PROJECT_SHELL_COPY.edit)}
 		>
+			<CompletionEffectsLayer />
 			<header className="flex items-start justify-between gap-3">
 				<h2 className="min-w-0 font-medium text-sm tracking-tight">
 					<span className="font-mono text-muted-foreground">{work.key}</span>{" "}

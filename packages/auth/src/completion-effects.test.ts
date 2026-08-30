@@ -1,9 +1,12 @@
 /**
  * Completion Effects seam — Hesap enablement, closed theme/palette
  * catalog, static samples, Preview that does not touch Work status,
- * the success notice, or the 30-second wait. Synthetic fixture for
+ * the success notice, or the 30-second wait; trigger and exclude
+ * matrix for User-initiated Work Success; idempotency/multi-tab;
+ * client-only 30-second wait. Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Bitiriş efekti: settings/preview, allow-list).
+ * (Bitiriş efekti: settings/preview, allow-list, trigger/exclude,
+ * idempotency/multi-tab, 30s wait).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -17,9 +20,12 @@ import {
 import {
 	COMPLETION_EFFECT_THEMES,
 	catalogBrowseMotion,
+	closeOutcomeToAcceptance,
 	completionEffectPreferenceInputSchema,
+	DECORATIVE_WAIT_MS,
 	defaultCompletionEffectPreference,
 	idleCompletionEffectsClientSession,
+	observeCloseAcceptance,
 	PREVIEW_MOTION_MS,
 	palettesForTheme,
 	previewMotion,
@@ -38,6 +44,8 @@ const DATABASE_URL =
 const FREE_PARAMETER_PATTERN = /random|particle|density|speed/i;
 const FORBIDDEN_CATALOG_PATTERN =
 	/Mario|Pikachu|Elsa|Jedi|Marvel|upload|licensed|Moodboard|System/i;
+const FORBIDDEN_PLAY_RECORD_PATTERN =
+	/played|delivered|seen|waitUntil|closeCycle/i;
 
 function catalogLiterals() {
 	return {
@@ -250,5 +258,347 @@ describe("Completion Effects", () => {
 		expect(Object.values(completionEffectsChrome())).not.toContain(
 			"Appearance"
 		);
+	});
+
+	it("plays the effect only after the visible client close is accepted as Completed", () => {
+		const enabled = { enabled: true, palette: "Haze", theme: "Calm" as const };
+		const nowMs = 10_000;
+		const accepted = closeOutcomeToAcceptance({
+			closeCycleId: "cycle-1",
+			closureResult: "Completed",
+			mutationStatus: "committed",
+			workId: "work-1",
+		});
+		expect(accepted).toEqual({
+			closeCycleId: "cycle-1",
+			closureResult: "Completed",
+			serverAccepted: true,
+			source: "user-initiated-close",
+			workId: "work-1",
+		});
+		expect(
+			observeCloseAcceptance(
+				enabled,
+				idleCompletionEffectsClientSession(),
+				accepted,
+				nowMs
+			)
+		).toEqual({
+			feedback: "effect",
+			session: {
+				decorativeWaitUntilMs: nowMs + DECORATIVE_WAIT_MS,
+				feedback: "effect",
+				lastCloseCycleId: "cycle-1",
+				notice: "Work completed",
+				workStatus: "Closed",
+			},
+		});
+		expect(DECORATIVE_WAIT_MS).toBe(30_000);
+		expect(
+			observeCloseAcceptance(
+				{ enabled: false, palette: "Haze", theme: "Calm" },
+				idleCompletionEffectsClientSession(),
+				accepted,
+				nowMs
+			).feedback
+		).toBe("none");
+	});
+
+	it("does not start the effect on the close step, optimistic UI, or a failed write", () => {
+		const enabled = { enabled: true, palette: "Haze", theme: "Calm" as const };
+		const idle = idleCompletionEffectsClientSession();
+		const failedStatuses = [
+			"pending",
+			"optimistic",
+			"rejected",
+			"conflict",
+			"timeout",
+			"undo",
+		] as const;
+		for (const mutationStatus of failedStatuses) {
+			const event = closeOutcomeToAcceptance({
+				closeCycleId: "cycle-fail",
+				closureResult: "Completed",
+				mutationStatus,
+				workId: "work-1",
+			});
+			expect(event.serverAccepted).toBe(false);
+			expect(observeCloseAcceptance(enabled, idle, event, 1000)).toEqual({
+				feedback: "none",
+				session: idle,
+			});
+		}
+	});
+
+	it("does not replay for the same idempotent request, refresh, back, second tab, or background sync", () => {
+		const enabled = { enabled: true, palette: "Haze", theme: "Calm" as const };
+		const nowMs = 5000;
+		const first = observeCloseAcceptance(
+			enabled,
+			idleCompletionEffectsClientSession(),
+			closeOutcomeToAcceptance({
+				closeCycleId: "same-key",
+				closureResult: "Completed",
+				mutationStatus: "committed",
+				workId: "work-1",
+			}),
+			nowMs
+		);
+		expect(first.feedback).toBe("effect");
+		const retry = closeOutcomeToAcceptance({
+			closeCycleId: "same-key",
+			closureResult: "Completed",
+			mutationStatus: "replayed",
+			workId: "work-1",
+		});
+		expect(retry.source).toBe("idempotent-retry");
+		expect(
+			observeCloseAcceptance(enabled, first.session, retry, nowMs + 10)
+		).toEqual({
+			feedback: "none",
+			session: first.session,
+		});
+		expect(
+			observeCloseAcceptance(
+				enabled,
+				first.session,
+				{
+					closeCycleId: "same-key",
+					closureResult: "Completed",
+					serverAccepted: true,
+					source: "user-initiated-close",
+					workId: "work-1",
+				},
+				nowMs + 20
+			).feedback
+		).toBe("none");
+		const otherClientSources = [
+			"refresh",
+			"history-back",
+			"second-tab",
+			"background-sync",
+		] as const;
+		for (const source of otherClientSources) {
+			const otherTab = idleCompletionEffectsClientSession();
+			expect(
+				observeCloseAcceptance(
+					enabled,
+					otherTab,
+					{
+						closeCycleId: "same-key",
+						closureResult: "Completed",
+						serverAccepted: true,
+						source,
+						workId: "work-1",
+					},
+					nowMs
+				)
+			).toEqual({
+				feedback: "none",
+				session: otherTab,
+			});
+		}
+	});
+
+	it("treats reopen then Completed as a new eligible event and does not replay history", () => {
+		const enabled = { enabled: true, palette: "Haze", theme: "Calm" as const };
+		const firstAt = 1000;
+		const first = observeCloseAcceptance(
+			enabled,
+			idleCompletionEffectsClientSession(),
+			closeOutcomeToAcceptance({
+				closeCycleId: "close-1",
+				closureResult: "Completed",
+				mutationStatus: "committed",
+				workId: "work-1",
+			}),
+			firstAt
+		);
+		expect(first.feedback).toBe("effect");
+		const afterWait = observeCloseAcceptance(
+			enabled,
+			first.session,
+			closeOutcomeToAcceptance({
+				closeCycleId: "close-2",
+				closureResult: "Completed",
+				mutationStatus: "committed",
+				workId: "work-1",
+			}),
+			firstAt + DECORATIVE_WAIT_MS
+		);
+		expect(afterWait.feedback).toBe("effect");
+		expect(afterWait.session.lastCloseCycleId).toBe("close-2");
+		expect(afterWait.session.decorativeWaitUntilMs).toBe(
+			firstAt + DECORATIVE_WAIT_MS + DECORATIVE_WAIT_MS
+		);
+	});
+
+	it("does not trigger on Abandoned, checklist, PR merge, automation, or other terminals", () => {
+		const enabled = { enabled: true, palette: "Haze", theme: "Calm" as const };
+		const idle = idleCompletionEffectsClientSession();
+		const excluded = [
+			closeOutcomeToAcceptance({
+				closeCycleId: "abandoned",
+				closureResult: "Abandoned",
+				mutationStatus: "committed",
+				workId: "work-1",
+			}),
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "checklist" as const,
+				workId: "work-1",
+			},
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "pr-merge" as const,
+				workId: "work-1",
+			},
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "prepared-pr-merge-rule" as const,
+				workId: "work-1",
+			},
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "external-run-reconcile" as const,
+				workId: "work-1",
+			},
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "daily-focus-close" as const,
+				workId: "work-1",
+			},
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "focus-period-close" as const,
+				workId: "work-1",
+			},
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "milestone-reached" as const,
+				workId: "work-1",
+			},
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "project-complete" as const,
+				workId: "work-1",
+			},
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "stage-complete" as const,
+				workId: "work-1",
+			},
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "project-release-publish" as const,
+				workId: "work-1",
+			},
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "other-terminal" as const,
+				workId: "work-1",
+			},
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "close-step" as const,
+				workId: "work-1",
+			},
+			{
+				closeCycleId: "c",
+				closureResult: "Completed" as const,
+				serverAccepted: true,
+				source: "close-check" as const,
+				workId: "work-1",
+			},
+		];
+		expect(excluded[0]).toMatchObject({
+			serverAccepted: true,
+			source: "abandoned",
+		});
+		for (const event of excluded) {
+			expect(observeCloseAcceptance(enabled, idle, event, 2000)).toEqual({
+				feedback: "none",
+				session: idle,
+			});
+		}
+	});
+
+	it("does not offer a general success-event engine", async () => {
+		const model = await import("./completion-effects-model");
+		expect("observeSuccessEvent" in model).toBe(false);
+		expect("onSuccessEvent" in model).toBe(false);
+		expect("successEventToEffect" in model).toBe(false);
+		expect(typeof model.observeCloseAcceptance).toBe("function");
+	});
+
+	it("gives later eligible successes only the base notice during the 30-second client wait", async () => {
+		const enabled = { enabled: true, palette: "Haze", theme: "Calm" as const };
+		const firstAt = 40_000;
+		const first = observeCloseAcceptance(
+			enabled,
+			idleCompletionEffectsClientSession(),
+			closeOutcomeToAcceptance({
+				closeCycleId: "close-a",
+				closureResult: "Completed",
+				mutationStatus: "committed",
+				workId: "work-a",
+			}),
+			firstAt
+		);
+		expect(first.feedback).toBe("effect");
+		const duringWait = observeCloseAcceptance(
+			enabled,
+			first.session,
+			closeOutcomeToAcceptance({
+				closeCycleId: "close-b",
+				closureResult: "Completed",
+				mutationStatus: "committed",
+				workId: "work-b",
+			}),
+			firstAt + 1000
+		);
+		expect(duringWait).toEqual({
+			feedback: "base-notice",
+			session: {
+				decorativeWaitUntilMs: firstAt + DECORATIVE_WAIT_MS,
+				feedback: "base-notice",
+				lastCloseCycleId: "close-b",
+				notice: "Work completed",
+				workStatus: "Closed",
+			},
+		});
+		const saved = await saveCompletionEffectPreference(prisma, accountId, {
+			enabled: true,
+			palette: "Haze",
+			theme: "Calm",
+		});
+		await expect(
+			getCompletionEffectPreference(prisma, accountId)
+		).resolves.toEqual(saved);
+		expect(JSON.stringify(saved)).not.toMatch(FORBIDDEN_PLAY_RECORD_PATTERN);
 	});
 });

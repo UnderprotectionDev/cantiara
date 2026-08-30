@@ -13,6 +13,7 @@ test("English UI uses Calm, Weave, Arc, Nova, and Preview", () => {
 		nova: "Nova",
 		preview: "Preview",
 		weave: "Weave",
+		workCompleted: "Work completed",
 	});
 	expect(COMPLETION_EFFECT_THEMES).toEqual(["Calm", "Weave", "Arc", "Nova"]);
 	expect(JSON.stringify(COMPLETION_EFFECTS_COPY)).not.toMatch(FORBIDDEN_COPY);
