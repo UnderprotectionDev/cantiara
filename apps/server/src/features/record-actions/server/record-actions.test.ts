@@ -532,6 +532,53 @@ describe("Record Actions", () => {
 		]);
 	});
 
+	it("rolls back status when Daily Focus membership write is injected to fail", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const action = await committedAction(prisma, actorId, project.id);
+		const work = await committedWork(prisma, actorId, project.id, "Alpha");
+		const previewed = await previewRecordAction(prisma, {
+			actorId,
+			recordActionId: action.id,
+			targetRecordId: work.id,
+		});
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		const failing = prisma.$extends({
+			query: {
+				dailyFocusMembership: {
+					create() {
+						throw new Error("injected-failure");
+					},
+				},
+			},
+		});
+		await expect(
+			applyRecordAction(failing as unknown as PrismaClient, {
+				actorId,
+				baseRevision: previewed.preview.baseRevision,
+				idempotencyKey: "inject-fail",
+				origin: "human",
+				payload: {
+					previewAcknowledged: true,
+					previewFingerprint: previewed.preview.fingerprint,
+					recordActionId: action.id,
+					targetRecordId: work.id,
+				},
+			})
+		).rejects.toThrow("injected-failure");
+		expect((await getWork(prisma, work.id))?.status).toBe("Not Started");
+		const after = await previewRecordAction(prisma, {
+			actorId,
+			recordActionId: action.id,
+			targetRecordId: work.id,
+		});
+		if (after.status !== "ok") {
+			throw new Error("expected preview after rollback");
+		}
+		expect(after.preview.fields).toEqual(previewed.preview.fields);
+	});
+
 	it("undoes the whole combination or refuses a later attributed write", async () => {
 		const { actorId, project } = await openPayments(prisma);
 		const action = await committedAction(prisma, actorId, project.id);

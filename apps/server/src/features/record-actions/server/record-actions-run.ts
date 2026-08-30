@@ -148,10 +148,7 @@ async function applyInTransaction(
 		return { reason: closeReason, status: "rejected" };
 	}
 	const preview = toPreview(loaded);
-	if (
-		command.payload.previewFingerprint !== undefined &&
-		command.payload.previewFingerprint !== preview.fingerprint
-	) {
+	if (command.payload.previewFingerprint !== preview.fingerprint) {
 		return { reason: "preview-mismatch", status: "rejected" };
 	}
 	const nextRevision =
