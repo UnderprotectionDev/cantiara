@@ -130,6 +130,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Beklenen çıktı | `Expected output` | Dış yürütme devrindeki beklenen çıktı veya kabul beklentisi |
 | Seçilen sürümler | `Selected versions` | Gidiş paketine alınan kesin sürümler |
 | Seçilen sürüm ekle | `Add selected version` | Gidiş paketi manifestine kesin sürüm satırı ekleme |
+| Seçilen sürümü kaldır | `Remove selected version` | Gidiş paketi manifestinden kesin sürüm satırını çıkarma |
+| Gidiş paketi | `Going package` | Seçilen kesin sürümlerden üretilen tarihli Markdown kopyası; canlı senkron değildir |
 | Bu İşi dahil et | `Include this Work` | Sahip İşin kesin sürümünü gidiş paketine alma |
 | Üretildi | `Produced at` | Markdown kopyasının üretim zamanı etiketi; kalıcı snapshot zamanı değildir |
 | İlgili Karar, Risk ve Açık Soru | `Related Decision, Risk, and Open Question` | Markdown kopyasındaki belirsizlik bölümü |

@@ -1,6 +1,14 @@
+import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
-import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
+import {
+	Field,
+	FieldDescription,
+	FieldGroup,
+	FieldLabel,
+	FieldLegend,
+	FieldSet,
+} from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
 	NativeSelect,
@@ -12,11 +20,12 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
-import { newIdempotencyKey } from "@/lib/mutation";
+import { MUTATION_COPY, newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
 import {
 	EXTERNAL_HANDOFFS_COPY,
+	presentHandoffCard,
 	SELECTED_VERSION_KINDS,
 } from "./external-handoffs-copy";
 
@@ -54,6 +63,15 @@ export default function WorkExternalHandoffsPanel({
 			input: { workId },
 		})
 	);
+	const clearStartForm = useCallback(() => {
+		setPurpose("");
+		setExpectedOutput("");
+		setExecutor("");
+		setConstraints("");
+		setGithub("");
+		setIncludeThisWork(true);
+		setExtraVersions([]);
+	}, []);
 	const start = useMutation(
 		orpc.externalHandoffs.start.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -65,9 +83,10 @@ export default function WorkExternalHandoffsPanel({
 					});
 					recordSave();
 					setError(null);
+					clearStartForm();
 					return;
 				}
-				setError("Conflict");
+				setError(MUTATION_COPY.conflict);
 			},
 		})
 	);
@@ -109,6 +128,9 @@ export default function WorkExternalHandoffsPanel({
 		setExtraVersions((current) =>
 			current.map((item) => (item.id === next.id ? next : item))
 		);
+	}, []);
+	const onRemoveExtra = useCallback((id: string) => {
+		setExtraVersions((current) => current.filter((item) => item.id !== id));
 	}, []);
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
@@ -171,81 +193,129 @@ export default function WorkExternalHandoffsPanel({
 		]
 	);
 	return (
-		<section className="flex flex-col gap-3">
-			<h3 className="font-medium text-sm">
-				{EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff}
-			</h3>
+		<section className="flex flex-col gap-4">
+			<header className="flex flex-col gap-1">
+				<h3 className="font-medium text-sm tracking-tight">
+					{EXTERNAL_HANDOFFS_COPY.externalExecutionHandoff}
+				</h3>
+				<p className="text-muted-foreground text-xs leading-relaxed">
+					{EXTERNAL_HANDOFFS_COPY.sourceOfTruth}
+				</p>
+			</header>
 			{listed.data && listed.data.length > 0 ? (
 				<ul className="flex flex-col gap-3">
-					{listed.data.map((handoff) => (
-						<li className="flex flex-col gap-2 text-sm" key={handoff.id}>
-							<p>
-								<span className="font-mono">{handoff.id}</span> {handoff.status}
-							</p>
-							<pre className="overflow-auto whitespace-pre-wrap rounded-none border p-2 text-xs">
-								{handoff.goingPackage.markdown}
-							</pre>
-						</li>
-					))}
+					{listed.data.map((handoff) => {
+						const card = presentHandoffCard(handoff);
+						return (
+							<li className="flex flex-col gap-3 border p-3" key={handoff.id}>
+								<header className="flex items-start justify-between gap-3">
+									<p className="min-w-0 font-medium text-sm leading-snug">
+										{card.title}
+									</p>
+									<Badge variant="secondary">{card.status}</Badge>
+								</header>
+								<dl className="grid gap-1 text-muted-foreground text-xs">
+									<div className="flex flex-wrap gap-x-2">
+										<dt>{EXTERNAL_HANDOFFS_COPY.executor}</dt>
+										<dd>{handoff.executorVisibleName}</dd>
+									</div>
+									<div className="flex flex-wrap gap-x-2">
+										<dt>{EXTERNAL_HANDOFFS_COPY.expectedOutput}</dt>
+										<dd>{handoff.expectedOutput}</dd>
+									</div>
+									<div className="flex flex-wrap gap-x-2">
+										<dt>{EXTERNAL_HANDOFFS_COPY.producedAt}</dt>
+										<dd>
+											<time dateTime={card.producedAt}>{card.producedAt}</time>
+										</dd>
+									</div>
+								</dl>
+								<details>
+									<summary className="cursor-pointer font-medium text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring">
+										{EXTERNAL_HANDOFFS_COPY.goingPackage}
+									</summary>
+									<pre className="mt-2 overflow-auto whitespace-pre-wrap border bg-muted/40 p-2 text-xs leading-relaxed">
+										{handoff.goingPackage.markdown}
+									</pre>
+								</details>
+							</li>
+						);
+					})}
 				</ul>
 			) : null}
-			<form className="flex flex-col gap-3" onSubmit={onSubmit}>
-				<FieldGroup>
-					<TextField
-						id={`handoff-purpose-${workId}`}
-						label={EXTERNAL_HANDOFFS_COPY.purpose}
-						multiline
-						onValueChange={onPurpose}
-						value={purpose}
-					/>
-					<TextField
-						id={`handoff-expected-${workId}`}
-						label={EXTERNAL_HANDOFFS_COPY.expectedOutput}
-						multiline
-						onValueChange={onExpectedOutput}
-						value={expectedOutput}
-					/>
-					<TextField
-						id={`handoff-executor-${workId}`}
-						label={EXTERNAL_HANDOFFS_COPY.executor}
-						onValueChange={onExecutor}
-						value={executor}
-					/>
-					<TextField
-						id={`handoff-constraints-${workId}`}
-						label={EXTERNAL_HANDOFFS_COPY.constraints}
-						multiline
-						onValueChange={onConstraints}
-						value={constraints}
-					/>
-					<TextField
-						id={`handoff-github-${workId}`}
-						label={EXTERNAL_HANDOFFS_COPY.github}
-						onValueChange={onGithub}
-						value={github}
-					/>
-					<Field className="flex flex-row items-center gap-2">
+			<form className="flex flex-col gap-4" onSubmit={onSubmit}>
+				<FieldSet>
+					<FieldLegend>{EXTERNAL_HANDOFFS_COPY.startHandoff}</FieldLegend>
+					<FieldGroup>
+						<TextField
+							id={`handoff-purpose-${workId}`}
+							label={EXTERNAL_HANDOFFS_COPY.purpose}
+							multiline
+							onValueChange={onPurpose}
+							rows={3}
+							value={purpose}
+						/>
+						<TextField
+							id={`handoff-expected-${workId}`}
+							label={EXTERNAL_HANDOFFS_COPY.expectedOutput}
+							multiline
+							onValueChange={onExpectedOutput}
+							rows={3}
+							value={expectedOutput}
+						/>
+						<TextField
+							id={`handoff-executor-${workId}`}
+							label={EXTERNAL_HANDOFFS_COPY.executor}
+							onValueChange={onExecutor}
+							value={executor}
+						/>
+						<TextField
+							id={`handoff-constraints-${workId}`}
+							label={EXTERNAL_HANDOFFS_COPY.constraints}
+							multiline
+							onValueChange={onConstraints}
+							rows={3}
+							value={constraints}
+						/>
+						<TextField
+							description={EXTERNAL_HANDOFFS_COPY.githubAndExternalLinks}
+							id={`handoff-github-${workId}`}
+							label={EXTERNAL_HANDOFFS_COPY.github}
+							onValueChange={onGithub}
+							value={github}
+						/>
+					</FieldGroup>
+				</FieldSet>
+				<FieldSet>
+					<FieldLegend>{EXTERNAL_HANDOFFS_COPY.selectedVersions}</FieldLegend>
+					<Field
+						className="flex flex-row items-center gap-2"
+						orientation="horizontal"
+					>
 						<Checkbox
 							checked={includeThisWork}
 							id={`handoff-include-work-${workId}`}
 							onCheckedChange={onIncludeThisWork}
 						/>
 						<FieldLabel htmlFor={`handoff-include-work-${workId}`}>
-							{EXTERNAL_HANDOFFS_COPY.includeThisWork} {workKey}
+							{EXTERNAL_HANDOFFS_COPY.includeThisWork}{" "}
+							<span className="font-mono text-muted-foreground">{workKey}</span>
 						</FieldLabel>
 					</Field>
-				</FieldGroup>
-				{extraVersions.map((version) => (
-					<ExtraVersionFields
-						key={version.id}
-						onValueChange={onExtraChange}
-						version={version}
-						workId={workId}
-					/>
-				))}
-				<div className="flex flex-wrap gap-2">
+					{extraVersions.map((version) => (
+						<ExtraVersionFields
+							key={version.id}
+							onRemove={onRemoveExtra}
+							onValueChange={onExtraChange}
+							version={version}
+							workId={workId}
+						/>
+					))}
+				</FieldSet>
+				<div className="flex flex-wrap items-center justify-between gap-2">
 					<Button
 						onClick={onAddSelectedVersion}
+						size="sm"
 						type="button"
 						variant="outline"
 					>
@@ -262,16 +332,20 @@ export default function WorkExternalHandoffsPanel({
 }
 
 function TextField({
+	description,
 	id,
 	label,
 	multiline,
 	onValueChange,
+	rows,
 	value,
 }: {
+	description?: string;
 	id: string;
 	label: string;
 	multiline?: boolean;
 	onValueChange: (value: string) => void;
+	rows?: number;
 	value: string;
 }) {
 	const onChange = useCallback(
@@ -284,19 +358,22 @@ function TextField({
 		<Field>
 			<FieldLabel htmlFor={id}>{label}</FieldLabel>
 			{multiline ? (
-				<Textarea id={id} onChange={onChange} value={value} />
+				<Textarea id={id} onChange={onChange} rows={rows} value={value} />
 			) : (
 				<Input id={id} onChange={onChange} value={value} />
 			)}
+			{description ? <FieldDescription>{description}</FieldDescription> : null}
 		</Field>
 	);
 }
 
 function ExtraVersionFields({
+	onRemove,
 	onValueChange,
 	version,
 	workId,
 }: {
+	onRemove: (id: string) => void;
 	onValueChange: (version: ExtraVersion) => void;
 	version: ExtraVersion;
 	workId: string;
@@ -334,8 +411,11 @@ function ExtraVersionFields({
 		},
 		[onValueChange, version]
 	);
+	const onRemoveClick = useCallback(() => {
+		onRemove(version.id);
+	}, [onRemove, version.id]);
 	return (
-		<FieldGroup>
+		<FieldGroup className="border p-3">
 			<Field>
 				<FieldLabel htmlFor={`handoff-kind-${workId}-${version.id}`}>
 					{EXTERNAL_HANDOFFS_COPY.kind}
@@ -375,8 +455,12 @@ function ExtraVersionFields({
 				label={EXTERNAL_HANDOFFS_COPY.body}
 				multiline
 				onValueChange={onBody}
+				rows={3}
 				value={version.body}
 			/>
+			<Button onClick={onRemoveClick} size="sm" type="button" variant="ghost">
+				{EXTERNAL_HANDOFFS_COPY.removeSelectedVersion}
+			</Button>
 		</FieldGroup>
 	);
 }

@@ -1,6 +1,9 @@
 import { expect, test } from "vitest";
 
-import { EXTERNAL_HANDOFFS_COPY } from "./external-handoffs-copy";
+import {
+	EXTERNAL_HANDOFFS_COPY,
+	presentHandoffCard,
+} from "./external-handoffs-copy";
 
 const FORBIDDEN_PRODUCT =
 	/coding session|agent task|independent Handoff main record|commit arrived/i;
@@ -12,11 +15,34 @@ test("English UI uses External Execution Handoff and Start Handoff", () => {
 		expectedOutput: "Expected output",
 		externalExecutionHandoff: "External Execution Handoff",
 		github: "GitHub",
+		goingPackage: "Going package",
 		open: "Open",
 		purpose: "Purpose",
+		removeSelectedVersion: "Remove selected version",
 		selectedVersions: "Selected versions",
 		sourceOfTruth: "Source of truth is in the app",
 		startHandoff: "Start Handoff",
 	});
 	expect(JSON.stringify(EXTERNAL_HANDOFFS_COPY)).not.toMatch(FORBIDDEN_PRODUCT);
+});
+
+test("Open handoff card leads with purpose, not a raw identity", () => {
+	expect(
+		presentHandoffCard({
+			goingPackage: { producedAt: "2026-08-30T12:00:00.000Z" },
+			purpose: "Code checkout outside the app.",
+			status: EXTERNAL_HANDOFFS_COPY.open,
+		})
+	).toEqual({
+		producedAt: "2026-08-30T12:00:00.000Z",
+		status: EXTERNAL_HANDOFFS_COPY.open,
+		title: "Code checkout outside the app.",
+	});
+	expect(
+		presentHandoffCard({
+			goingPackage: { producedAt: "2026-08-30T12:00:00.000Z" },
+			purpose: "   ",
+			status: EXTERNAL_HANDOFFS_COPY.open,
+		}).title
+	).toBe(EXTERNAL_HANDOFFS_COPY.handoff);
 });
