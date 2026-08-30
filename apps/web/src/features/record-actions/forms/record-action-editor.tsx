@@ -1,6 +1,12 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
-import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
+import {
+	Field,
+	FieldGroup,
+	FieldLabel,
+	FieldLegend,
+	FieldSet,
+} from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -144,13 +150,13 @@ export default function RecordActionEditor({
 		<section aria-label={RECORD_ACTION_COPY.recordAction}>
 			<h2 className="font-medium text-sm">{RECORD_ACTION_COPY.recordAction}</h2>
 			{listed.length > 0 ? (
-				<ul className="mt-3 flex flex-col gap-2 text-sm">
+				<ul className="mt-3 flex flex-col divide-y divide-border border-border border-b text-sm">
 					{listed.map((action) => (
 						<ActionRow action={action} key={action.id} onTrash={onTrash} />
 					))}
 				</ul>
 			) : null}
-			<form className="mt-4 flex flex-col gap-3" onSubmit={onSubmit}>
+			<form className="mt-4 flex flex-col gap-4" onSubmit={onSubmit}>
 				<FieldGroup>
 					<form.Field name="name">
 						{(field) => (
@@ -160,38 +166,55 @@ export default function RecordActionEditor({
 							/>
 						)}
 					</form.Field>
-					<p className="font-medium text-sm">{RECORD_ACTION_COPY.steps}</p>
-					<form.Field name="setInProgress">
-						{(field) => (
-							<StepToggle
-								checked={field.state.value}
-								id="record-action-status"
-								label={`${RECORD_ACTION_COPY.setWorkStatus}: In Progress`}
-								onValueChange={field.handleChange}
-							/>
-						)}
-					</form.Field>
-					<form.Field name="dailyFocusAdd">
-						{(field) => (
-							<StepToggle
-								checked={field.state.value}
-								id="record-action-focus"
-								label={RECORD_ACTION_COPY.dailyFocusAdd}
-								onValueChange={field.handleChange}
-							/>
-						)}
-					</form.Field>
+					<FieldSet>
+						<FieldLegend variant="label">
+							{RECORD_ACTION_COPY.steps}
+						</FieldLegend>
+						<ul className="flex flex-col gap-2">
+							<li>
+								<form.Field name="setInProgress">
+									{(field) => (
+										<StepToggle
+											checked={field.state.value}
+											id="record-action-status"
+											label={`${RECORD_ACTION_COPY.setWorkStatus}: In Progress`}
+											onValueChange={field.handleChange}
+										/>
+									)}
+								</form.Field>
+							</li>
+							<li>
+								<form.Field name="dailyFocusAdd">
+									{(field) => (
+										<StepToggle
+											checked={field.state.value}
+											id="record-action-focus"
+											label={RECORD_ACTION_COPY.dailyFocusAdd}
+											onValueChange={field.handleChange}
+										/>
+									)}
+								</form.Field>
+							</li>
+						</ul>
+					</FieldSet>
 				</FieldGroup>
 				{error ? (
 					<p className="text-destructive text-sm" role="alert">
 						{error}
 					</p>
 				) : null}
-				<div className="flex flex-wrap gap-2">
-					<Button onClick={applyStartWork} type="button" variant="outline">
+				<div className="flex flex-wrap items-center gap-2">
+					<Button
+						onClick={applyStartWork}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
 						{RECORD_ACTION_COPY.useStartWork}
 					</Button>
-					<Button type="submit">{RECORD_ACTION_COPY.save}</Button>
+					<Button disabled={create.isPending} size="sm" type="submit">
+						{RECORD_ACTION_COPY.save}
+					</Button>
 				</div>
 			</form>
 		</section>
@@ -209,12 +232,14 @@ function ActionRow({
 		onTrash(action.id);
 	}, [action.id, onTrash]);
 	return (
-		<li className="flex flex-col gap-1 border-border border-b pb-2">
-			<p className="font-medium">{action.name}</p>
-			<p className="text-muted-foreground">
-				{action.steps.map(stepLabel).join(" · ")}
-			</p>
-			<Button onClick={onClick} size="sm" type="button" variant="outline">
+		<li className="flex items-start justify-between gap-3 py-2.5">
+			<div className="min-w-0">
+				<p className="font-medium">{action.name}</p>
+				<p className="text-muted-foreground text-xs leading-snug">
+					{action.steps.map(stepLabel).join(" · ")}
+				</p>
+			</div>
+			<Button onClick={onClick} size="sm" type="button" variant="ghost">
 				{RECORD_ACTION_COPY.moveToTrash}
 			</Button>
 		</li>
@@ -262,7 +287,7 @@ function StepToggle({
 		[onValueChange]
 	);
 	return (
-		<Field className="flex flex-row items-center gap-2">
+		<Field orientation="horizontal">
 			<Checkbox checked={checked} id={id} onCheckedChange={onCheckedChange} />
 			<FieldLabel htmlFor={id}>{label}</FieldLabel>
 		</Field>
