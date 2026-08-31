@@ -1,8 +1,12 @@
 export const KANBAN_COPY = {
+	abandoned: "Abandoned",
 	blocked: "Blocked",
 	board: "Board",
+	cancel: "Cancel",
 	closed: "Closed",
 	collapse: "Collapse",
+	completed: "Completed",
+	confirmReopen: "Confirm reopen",
 	expand: "Expand",
 	focusThreshold: "Focus threshold",
 	inProgress: "In Progress",
@@ -12,6 +16,8 @@ export const KANBAN_COPY = {
 	openBlocker: "Open blocker",
 	openSourceRecord: "Open source record",
 	overLimit: "Over limit",
+	reason: "Reason",
+	reopen: "Reopen",
 	softWip: "Soft WIP",
 	timeInStatus: "Time in status",
 } as const;
@@ -22,6 +28,32 @@ export const KANBAN_COLUMNS = [
 	KANBAN_COPY.blocked,
 	KANBAN_COPY.closed,
 ] as const;
+
+export const KANBAN_CLOSURE_RESULTS = [
+	KANBAN_COPY.completed,
+	KANBAN_COPY.abandoned,
+] as const;
+
+export const KANBAN_REOPEN_TARGETS = [
+	KANBAN_COPY.notStarted,
+	KANBAN_COPY.inProgress,
+	KANBAN_COPY.blocked,
+] as const;
+
+export function presentKanbanClosureStep() {
+	return {
+		copy: {
+			abandoned: KANBAN_COPY.abandoned,
+			cancel: KANBAN_COPY.cancel,
+			completed: KANBAN_COPY.completed,
+			confirmReopen: KANBAN_COPY.confirmReopen,
+			reason: KANBAN_COPY.reason,
+			reopen: KANBAN_COPY.reopen,
+		},
+		reopenTargets: KANBAN_REOPEN_TARGETS,
+		results: KANBAN_CLOSURE_RESULTS,
+	};
+}
 
 export type KanbanColumnStatus = (typeof KANBAN_COLUMNS)[number];
 
@@ -66,6 +98,7 @@ export interface KanbanCardSummaryField {
 }
 
 export interface KanbanCard {
+	closureResult: string | null;
 	id: string;
 	key: string;
 	openBlocker: boolean;
@@ -205,6 +238,7 @@ function toCard(
 	};
 	const active = record.status !== KANBAN_COPY.closed;
 	return {
+		closureResult: record.closureResult ?? null,
 		id: record.id,
 		key: record.key,
 		openBlocker: record.blocker === "Active",

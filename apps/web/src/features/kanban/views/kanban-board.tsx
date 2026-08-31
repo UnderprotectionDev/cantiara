@@ -5,12 +5,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@cantiara/ui/components/card";
-import { Field, FieldLabel } from "@cantiara/ui/components/field";
+import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
 	NativeSelect,
 	NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { Textarea } from "@cantiara/ui/components/textarea";
 import { cn } from "@cantiara/ui/lib/utils";
 import {
 	DndContext,
@@ -22,6 +23,7 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	type ChangeEvent,
@@ -33,16 +35,16 @@ import {
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { invalidateWork } from "@/features/work-lifecycle/forms/invalidate-work";
-import {
-	isNonTerminalWorkStatus,
-	NON_TERMINAL_WORK_STATUSES,
-} from "@/features/work-lifecycle/forms/work-lifecycle-copy";
+import { isNonTerminalWorkStatus } from "@/features/work-lifecycle/forms/work-lifecycle-copy";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc } from "@/utils/orpc";
 
 import {
 	collapseKanbanColumn,
+	KANBAN_CLOSURE_RESULTS,
+	KANBAN_COLUMNS,
 	KANBAN_COPY,
+	KANBAN_REOPEN_TARGETS,
 	type KanbanBoardView,
 	type KanbanCard,
 	type KanbanColumn,
@@ -82,6 +84,11 @@ export default function KanbanBoard({
 	const [collapsedStatuses, setCollapsedStatuses] = useState<
 		KanbanColumnStatus[]
 	>([]);
+	const [closingWorkId, setClosingWorkId] = useState<string | null>(null);
+	const [reopeningWorkId, setReopeningWorkId] = useState<string | null>(null);
+	const [reopenTarget, setReopenTarget] = useState<string>(
+		KANBAN_COPY.inProgress
+	);
 	const remote = useQuery(
 		orpc.kanban.board.queryOptions({ input: { projectId } })
 	);
@@ -91,6 +98,42 @@ export default function KanbanBoard({
 				if (outcome.status === "committed") {
 					await invalidateWork(projectId, variables.workId);
 					recordSave();
+					return;
+				}
+				if (
+					outcome.status === "rejected" &&
+					outcome.reason === "close-step-required"
+				) {
+					setClosingWorkId(variables.workId);
+					return;
+				}
+				if (
+					outcome.status === "rejected" &&
+					outcome.reason === "reopen-required"
+				) {
+					setReopeningWorkId(variables.workId);
+				}
+			},
+		})
+	);
+	const closeCard = useMutation(
+		orpc.kanban.closeCard.mutationOptions({
+			onSuccess: async (outcome, variables) => {
+				if (outcome.status === "committed") {
+					await invalidateWork(projectId, variables.workId);
+					recordSave();
+					setClosingWorkId(null);
+				}
+			},
+		})
+	);
+	const reopenCard = useMutation(
+		orpc.kanban.reopenCard.mutationOptions({
+			onSuccess: async (outcome, variables) => {
+				if (outcome.status === "committed") {
+					await invalidateWork(projectId, variables.workId);
+					recordSave();
+					setReopeningWorkId(null);
 				}
 			},
 		})
@@ -157,6 +200,18 @@ export default function KanbanBoard({
 			if (revision === undefined) {
 				return;
 			}
+			if (targetStatus === KANBAN_COPY.closed) {
+				setClosingWorkId(workId);
+				setReopeningWorkId(null);
+				return;
+			}
+			const current = items.find((item) => item.id === workId);
+			if (current?.status === KANBAN_COPY.closed) {
+				setReopeningWorkId(workId);
+				setReopenTarget(targetStatus);
+				setClosingWorkId(null);
+				return;
+			}
 			attemptOnlineWork("record-create", () =>
 				move.mutateAsync({
 					baseRevision: revision,
@@ -166,7 +221,54 @@ export default function KanbanBoard({
 				})
 			);
 		},
-		[attemptOnlineWork, move, revisionById]
+		[attemptOnlineWork, items, move, revisionById]
+	);
+	const onCancelClose = useCallback(() => {
+		setClosingWorkId(null);
+	}, []);
+	const onCancelReopen = useCallback(() => {
+		setReopeningWorkId(null);
+	}, []);
+	const onStartReopen = useCallback((workId: string) => {
+		setClosingWorkId(null);
+		setReopenTarget(KANBAN_COPY.inProgress);
+		setReopeningWorkId(workId);
+	}, []);
+	const onClose = useCallback(
+		(workId: string, result: string, reason: string) => {
+			const revision = revisionById.get(workId);
+			if (revision === undefined) {
+				return;
+			}
+			attemptOnlineWork("record-create", () =>
+				closeCard.mutateAsync({
+					baseRevision: revision,
+					idempotencyKey: newIdempotencyKey(),
+					reason: reason === "" ? undefined : reason,
+					result,
+					workId,
+				})
+			);
+		},
+		[attemptOnlineWork, closeCard, revisionById]
+	);
+	const onReopen = useCallback(
+		(workId: string, targetStatus: string, confirmed: boolean) => {
+			const revision = revisionById.get(workId);
+			if (revision === undefined) {
+				return;
+			}
+			attemptOnlineWork("record-create", () =>
+				reopenCard.mutateAsync({
+					baseRevision: revision,
+					confirmed,
+					idempotencyKey: newIdempotencyKey(),
+					targetStatus,
+					workId,
+				})
+			);
+		},
+		[attemptOnlineWork, reopenCard, revisionById]
 	);
 	const onDragEnd = useCallback(
 		(event: DragEndEvent) => {
@@ -258,13 +360,21 @@ export default function KanbanBoard({
 				<div className="grid gap-3 md:grid-cols-4">
 					{board.columns.map((column) => (
 						<KanbanColumnLane
+							closingWorkId={closingWorkId}
 							column={column}
 							configurationMode={configurationMode}
 							key={column.status}
+							onCancelClose={onCancelClose}
+							onCancelReopen={onCancelReopen}
+							onClose={onClose}
 							onMove={onMove}
 							onOpenSourceRecord={onOpenSourceRecord}
+							onReopen={onReopen}
 							onSaveColumnLimit={onSaveColumnLimit}
+							onStartReopen={onStartReopen}
 							onToggleCollapse={onToggleCollapse}
+							reopeningWorkId={reopeningWorkId}
+							reopenTarget={reopenTarget}
 							selectedWorkId={selectedWorkId}
 						/>
 					))}
@@ -275,20 +385,36 @@ export default function KanbanBoard({
 }
 
 function KanbanColumnLane({
+	closingWorkId,
 	column,
 	configurationMode,
+	onCancelClose,
+	onCancelReopen,
+	onClose,
 	onMove,
 	onOpenSourceRecord,
+	onReopen,
 	onSaveColumnLimit,
+	onStartReopen,
 	onToggleCollapse,
+	reopeningWorkId,
+	reopenTarget,
 	selectedWorkId,
 }: {
+	closingWorkId: string | null;
 	column: KanbanColumn;
 	configurationMode: boolean;
+	onCancelClose: () => void;
+	onCancelReopen: () => void;
+	onClose: (workId: string, result: string, reason: string) => void;
 	onMove: (workId: string, targetStatus: string) => void;
 	onOpenSourceRecord: (workId: string) => void;
+	onReopen: (workId: string, targetStatus: string, confirmed: boolean) => void;
 	onSaveColumnLimit: (status: string, limit: number | null) => void;
+	onStartReopen: (workId: string) => void;
 	onToggleCollapse: (status: KanbanColumnStatus) => void;
+	reopeningWorkId: string | null;
+	reopenTarget: string;
 	selectedWorkId: string | null;
 }) {
 	const { isOver, setNodeRef } = useDroppable({ id: column.status });
@@ -353,8 +479,16 @@ function KanbanColumnLane({
 						<li key={card.workId}>
 							<KanbanCardItem
 								card={card}
+								closing={card.workId === closingWorkId}
+								onCancelClose={onCancelClose}
+								onCancelReopen={onCancelReopen}
+								onClose={onClose}
 								onMove={onMove}
 								onOpenSourceRecord={onOpenSourceRecord}
+								onReopen={onReopen}
+								onStartReopen={onStartReopen}
+								reopening={card.workId === reopeningWorkId}
+								reopenTarget={reopenTarget}
 								selected={card.workId === selectedWorkId}
 							/>
 						</li>
@@ -367,13 +501,29 @@ function KanbanColumnLane({
 
 function KanbanCardItem({
 	card,
+	closing,
+	onCancelClose,
+	onCancelReopen,
+	onClose,
 	onMove,
 	onOpenSourceRecord,
+	onReopen,
+	onStartReopen,
+	reopenTarget,
+	reopening,
 	selected,
 }: {
 	card: KanbanCard;
+	closing: boolean;
+	onCancelClose: () => void;
+	onCancelReopen: () => void;
+	onClose: (workId: string, result: string, reason: string) => void;
 	onMove: (workId: string, targetStatus: string) => void;
 	onOpenSourceRecord: (workId: string) => void;
+	onReopen: (workId: string, targetStatus: string, confirmed: boolean) => void;
+	onStartReopen: (workId: string) => void;
+	reopenTarget: string;
+	reopening: boolean;
 	selected: boolean;
 }) {
 	const { attributes, listeners, setNodeRef, transform, isDragging } =
@@ -390,6 +540,9 @@ function KanbanCardItem({
 		},
 		[card.status, card.workId, onMove]
 	);
+	const onStartReopenClick = useCallback(() => {
+		onStartReopen(card.workId);
+	}, [card.workId, onStartReopen]);
 	const onOpen = useCallback(() => {
 		onOpenSourceRecord(card.workId);
 	}, [card.workId, onOpenSourceRecord]);
@@ -431,19 +584,44 @@ function KanbanCardItem({
 						</div>
 					) : null}
 				</dl>
-				{isNonTerminalWorkStatus(card.status) ? (
+				{closing ? (
+					<KanbanClosureStep
+						onCancel={onCancelClose}
+						onClose={onClose}
+						workId={card.workId}
+					/>
+				) : null}
+				{reopening ? (
+					<KanbanReopenStep
+						onCancel={onCancelReopen}
+						onReopen={onReopen}
+						targetStatus={reopenTarget}
+						workId={card.workId}
+					/>
+				) : null}
+				{!(closing || reopening) && isNonTerminalWorkStatus(card.status) ? (
 					<NativeSelect
 						aria-label={KANBAN_COPY.kanban}
 						onChange={onStatusChange}
 						size="sm"
 						value={card.status}
 					>
-						{NON_TERMINAL_WORK_STATUSES.map((status) => (
+						{KANBAN_COLUMNS.map((status) => (
 							<NativeSelectOption key={status} value={status}>
 								{status}
 							</NativeSelectOption>
 						))}
 					</NativeSelect>
+				) : null}
+				{!(closing || reopening) && card.status === KANBAN_COPY.closed ? (
+					<Button
+						onClick={onStartReopenClick}
+						size="xs"
+						type="button"
+						variant="outline"
+					>
+						{KANBAN_COPY.reopen}
+					</Button>
 				) : null}
 				<Button onClick={onOpen} size="xs" type="button" variant="outline">
 					{KANBAN_COPY.openSourceRecord}
@@ -546,10 +724,226 @@ function parseOptionalLimit(value: string): number | null {
 }
 
 function isKanbanStatus(value: string): value is KanbanColumnStatus {
+	return (KANBAN_COLUMNS as readonly string[]).includes(value);
+}
+
+function KanbanClosureStep({
+	onCancel,
+	onClose,
+	workId,
+}: {
+	onCancel: () => void;
+	onClose: (workId: string, result: string, reason: string) => void;
+	workId: string;
+}) {
+	const form = useForm({
+		defaultValues: { reason: "", result: KANBAN_COPY.completed as string },
+		onSubmit: ({ value }) => {
+			onClose(workId, value.result, value.reason);
+		},
+	});
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			form.handleSubmit().catch(() => undefined);
+		},
+		[form]
+	);
 	return (
-		value === KANBAN_COPY.notStarted ||
-		value === KANBAN_COPY.inProgress ||
-		value === KANBAN_COPY.blocked ||
-		value === KANBAN_COPY.closed
+		<form
+			aria-label={KANBAN_COPY.closed}
+			className="flex flex-col gap-2"
+			onSubmit={onSubmit}
+		>
+			<FieldGroup className="flex-col gap-2">
+				<form.Field name="result">
+					{(field) => (
+						<ResultField
+							onValueChange={field.handleChange}
+							value={field.state.value}
+							workId={workId}
+						/>
+					)}
+				</form.Field>
+				<form.Field name="reason">
+					{(field) => (
+						<ReasonField
+							onValueChange={field.handleChange}
+							value={field.state.value}
+							workId={workId}
+						/>
+					)}
+				</form.Field>
+			</FieldGroup>
+			<div className="flex flex-wrap gap-2">
+				<Button onClick={onCancel} size="xs" type="button" variant="ghost">
+					{KANBAN_COPY.cancel}
+				</Button>
+				<Button size="xs" type="submit">
+					{KANBAN_COPY.closed}
+				</Button>
+			</div>
+		</form>
+	);
+}
+
+function ResultField({
+	onValueChange,
+	value,
+	workId,
+}: {
+	onValueChange: (value: string) => void;
+	value: string;
+	workId: string;
+}) {
+	const onChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			onValueChange(event.currentTarget.value);
+		},
+		[onValueChange]
+	);
+	return (
+		<Field>
+			<FieldLabel htmlFor={`kanban-close-result-${workId}`}>
+				{KANBAN_COPY.completed}
+			</FieldLabel>
+			<NativeSelect
+				id={`kanban-close-result-${workId}`}
+				onChange={onChange}
+				size="sm"
+				value={value}
+			>
+				{KANBAN_CLOSURE_RESULTS.map((closureResult) => (
+					<NativeSelectOption key={closureResult} value={closureResult}>
+						{closureResult}
+					</NativeSelectOption>
+				))}
+			</NativeSelect>
+		</Field>
+	);
+}
+
+function ReasonField({
+	onValueChange,
+	value,
+	workId,
+}: {
+	onValueChange: (value: string) => void;
+	value: string;
+	workId: string;
+}) {
+	const onChange = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			onValueChange(event.currentTarget.value);
+		},
+		[onValueChange]
+	);
+	return (
+		<Field>
+			<FieldLabel htmlFor={`kanban-close-reason-${workId}`}>
+				{KANBAN_COPY.reason}
+			</FieldLabel>
+			<Textarea
+				id={`kanban-close-reason-${workId}`}
+				onChange={onChange}
+				value={value}
+			/>
+		</Field>
+	);
+}
+
+function KanbanReopenStep({
+	onCancel,
+	onReopen,
+	targetStatus,
+	workId,
+}: {
+	onCancel: () => void;
+	onReopen: (workId: string, targetStatus: string, confirmed: boolean) => void;
+	targetStatus: string;
+	workId: string;
+}) {
+	const [confirmed, setConfirmed] = useState(false);
+	const form = useForm({
+		defaultValues: {
+			status: (isNonTerminalWorkStatus(targetStatus)
+				? targetStatus
+				: KANBAN_COPY.inProgress) as string,
+		},
+		onSubmit: ({ value }) => {
+			if (!confirmed) {
+				setConfirmed(true);
+				return;
+			}
+			onReopen(workId, value.status, true);
+		},
+	});
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			form.handleSubmit().catch(() => undefined);
+		},
+		[form]
+	);
+	return (
+		<form
+			aria-label={KANBAN_COPY.reopen}
+			className="flex flex-col gap-2"
+			onSubmit={onSubmit}
+		>
+			<form.Field name="status">
+				{(field) => (
+					<ReopenTargetField
+						onValueChange={field.handleChange}
+						value={field.state.value}
+						workId={workId}
+					/>
+				)}
+			</form.Field>
+			<div className="flex flex-wrap gap-2">
+				<Button onClick={onCancel} size="xs" type="button" variant="ghost">
+					{KANBAN_COPY.cancel}
+				</Button>
+				<Button size="xs" type="submit">
+					{confirmed ? KANBAN_COPY.confirmReopen : KANBAN_COPY.reopen}
+				</Button>
+			</div>
+		</form>
+	);
+}
+
+function ReopenTargetField({
+	onValueChange,
+	value,
+	workId,
+}: {
+	onValueChange: (value: string) => void;
+	value: string;
+	workId: string;
+}) {
+	const onChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			onValueChange(event.currentTarget.value);
+		},
+		[onValueChange]
+	);
+	return (
+		<Field>
+			<FieldLabel htmlFor={`kanban-reopen-status-${workId}`}>
+				{KANBAN_COPY.reopen}
+			</FieldLabel>
+			<NativeSelect
+				id={`kanban-reopen-status-${workId}`}
+				onChange={onChange}
+				size="sm"
+				value={value}
+			>
+				{KANBAN_REOPEN_TARGETS.map((reopenStatus) => (
+					<NativeSelectOption key={reopenStatus} value={reopenStatus}>
+						{reopenStatus}
+					</NativeSelectOption>
+				))}
+			</NativeSelect>
+		</Field>
 	);
 }

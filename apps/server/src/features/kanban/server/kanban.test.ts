@@ -1,30 +1,35 @@
 /**
  * Kanban seam — Board columns are the four protected workflow
  * statuses; a non-terminal column move writes that status on the
- * source Work; planning membership does not write status; the board
- * does not mint a second Work list; a column move does not write
- * GitHub status or fire silent automation. Work-status test double
- * for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Günlük planlama: column move writes status).
+ * source Work; Closed drop requires the closure step; Completed and
+ * Abandoned stay distinct; reopen needs confirm and a non-terminal
+ * target. Planning membership does not write status. Work-status
+ * test double for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
+ * (Günlük planlama / İş yaşam döngüsü: Closed does not skip closure).
  */
 import { describe, expect, it } from "vitest";
 
 import {
 	applyKanbanPlanningMembership,
+	closeKanbanCard,
 	collapseKanbanColumn,
 	createMemoryWorkStatusPort,
 	moveKanbanCard,
 	presentKanbanBoard,
+	reopenKanbanCard,
 } from "./kanban";
 import {
 	DEFAULT_CARD_VISIBLE_FIELDS,
 	KANBAN_COLUMNS,
 	KANBAN_COPY,
 	PLANNING_MEMBERSHIP_SURFACES,
+	presentKanbanClosureStep,
 } from "./kanban-model";
 
 const SPRINT_RELEASE_ARCHIVE_PATTERN =
-	/sprint|velocity|release commitment|Archive|Completed|Abandoned/i;
+	/sprint|velocity|release commitment|Archive/i;
+const CLOSURE_CHECK_PATTERN =
+	/Closure check|Keep lasting context|Close anyway|Bitiriş/i;
 const FIFTH_COLUMN_PATTERN = /Deferred|Review|Archive|Sprint/i;
 
 function seedPort() {
@@ -84,7 +89,7 @@ describe("Kanban", () => {
 		expect(JSON.stringify(board.copy)).not.toMatch(
 			SPRINT_RELEASE_ARCHIVE_PATTERN
 		);
-		expect(board.copy).toEqual({
+		expect(board.copy).toMatchObject({
 			blocked: "Blocked",
 			board: "Board",
 			closed: "Closed",
@@ -101,6 +106,7 @@ describe("Kanban", () => {
 			softWip: "Soft WIP",
 			timeInStatus: "Time in status",
 		});
+		expect(JSON.stringify(board.copy)).not.toMatch(CLOSURE_CHECK_PATTERN);
 	});
 
 	it("moves a card between non-terminal columns by writing workflow status on the source Work", () => {
@@ -146,6 +152,136 @@ describe("Kanban", () => {
 			status: "rejected",
 		});
 		expect(port.get("work_intake")?.status).toBe("Not Started");
+		expect(closeKanbanCard(port, { workId: "work_intake" })).toEqual({
+			reason: "unknown-closure-result",
+			status: "rejected",
+		});
+		expect(port.get("work_intake")?.status).toBe("Not Started");
+	});
+
+	it("applies Closed only after Completed or Abandoned is chosen and keeps those outcomes distinct on the card", () => {
+		const port = seedPort();
+		const step = presentKanbanClosureStep();
+		expect(step.results).toEqual(["Completed", "Abandoned"]);
+		expect(step.copy.completed).toBe("Completed");
+		expect(step.copy.abandoned).toBe("Abandoned");
+		expect(JSON.stringify(step)).not.toMatch(CLOSURE_CHECK_PATTERN);
+		expect(
+			closeKanbanCard(port, {
+				reason: "Shipped checkout",
+				result: "Completed",
+				workId: "work_intake",
+			})
+		).toEqual({
+			closureResult: "Completed",
+			status: "committed",
+			workflowStatus: "Closed",
+			workId: "work_intake",
+		});
+		expect(port.get("work_intake")).toMatchObject({
+			closureResult: "Completed",
+			status: "Closed",
+		});
+		expect(
+			closeKanbanCard(port, {
+				result: "Abandoned",
+				workId: "work_pay",
+			})
+		).toEqual({
+			closureResult: "Abandoned",
+			status: "committed",
+			workflowStatus: "Closed",
+			workId: "work_pay",
+		});
+		const closed = presentKanbanBoard(port.list()).columns.find(
+			(column) => column.status === "Closed"
+		);
+		const completed = closed?.cards.find(
+			(card) => card.workId === "work_intake"
+		);
+		const abandoned = closed?.cards.find((card) => card.workId === "work_pay");
+		expect(completed?.summary).toContainEqual({
+			field: "Status",
+			value: "Closed · Completed",
+		});
+		expect(abandoned?.summary).toContainEqual({
+			field: "Status",
+			value: "Closed · Abandoned",
+		});
+		expect(completed?.closureResult).toBe("Completed");
+		expect(abandoned?.closureResult).toBe("Abandoned");
+		expect(completed?.closureResult).not.toBe(abandoned?.closureResult);
+	});
+
+	it("reopens from Closed with confirm and a non-terminal target while keeping the previous outcome in history", () => {
+		const port = seedPort();
+		closeKanbanCard(port, {
+			reason: "Shipped checkout",
+			result: "Completed",
+			workId: "work_intake",
+		});
+		expect(
+			reopenKanbanCard(port, {
+				confirmed: false,
+				targetStatus: "In Progress",
+				workId: "work_intake",
+			})
+		).toEqual({
+			reason: "reopen-confirm-required",
+			status: "rejected",
+		});
+		expect(port.get("work_intake")).toMatchObject({
+			closureResult: "Completed",
+			status: "Closed",
+		});
+		expect(
+			reopenKanbanCard(port, {
+				confirmed: true,
+				targetStatus: "Closed",
+				workId: "work_intake",
+			})
+		).toEqual({
+			reason: "unknown-work-status",
+			status: "rejected",
+		});
+		expect(
+			reopenKanbanCard(port, {
+				confirmed: true,
+				targetStatus: "In Progress",
+				workId: "work_intake",
+			})
+		).toEqual({
+			status: "committed",
+			workflowStatus: "In Progress",
+			workId: "work_intake",
+		});
+		expect(port.get("work_intake")).toMatchObject({
+			closureResult: null,
+			status: "In Progress",
+		});
+		expect(port.history("work_intake")).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					closureResult: "Completed",
+					kind: "closed",
+					reason: "Shipped checkout",
+					status: "Closed",
+				}),
+				expect.objectContaining({
+					closureResult: null,
+					kind: "reopened",
+					status: "In Progress",
+				}),
+			])
+		);
+		const card = presentKanbanBoard(port.list())
+			.columns.find((column) => column.status === "In Progress")
+			?.cards.find((item) => item.workId === "work_intake");
+		expect(card?.summary).toContainEqual({
+			field: "Status",
+			value: "In Progress",
+		});
+		expect(card?.closureResult).toBeNull();
 	});
 
 	it("does not write workflow status from Backlog, Daily Focus, Calendar, Roadmap, Favorites, or Focus Period membership", () => {

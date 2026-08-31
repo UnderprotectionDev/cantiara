@@ -7,8 +7,10 @@ import { z } from "zod";
 import { getProject } from "../../project-shell/server/project-shell";
 import { getWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
+	closeKanbanCardForProject,
 	loadKanbanBoard,
 	moveKanbanCardForProject,
+	reopenKanbanCardForProject,
 	saveKanbanLimits,
 } from "./kanban";
 import { KANBAN_COPY } from "./kanban-model";
@@ -49,6 +51,28 @@ export const kanban = {
 	catalog: protectedProcedure.handler(() => ({
 		copy: KANBAN_COPY,
 	})),
+	closeCard: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string().min(1),
+				reason: z.string().optional(),
+				result: z.string().optional(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await closeKanbanCardForProject(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				reason: input.reason,
+				result: input.result,
+				workId: input.workId,
+			});
+		}),
 	moveCard: protectedWriteProcedure
 		.input(
 			z.object({
@@ -64,6 +88,28 @@ export const kanban = {
 			return await moveKanbanCardForProject(getPrismaClient(), {
 				actorId: access.accountId,
 				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				targetStatus: input.targetStatus,
+				workId: input.workId,
+			});
+		}),
+	reopenCard: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				confirmed: z.boolean(),
+				idempotencyKey: z.string().min(1),
+				targetStatus: z.string().min(1),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await reopenKanbanCardForProject(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				confirmed: input.confirmed,
 				idempotencyKey: input.idempotencyKey,
 				targetStatus: input.targetStatus,
 				workId: input.workId,
