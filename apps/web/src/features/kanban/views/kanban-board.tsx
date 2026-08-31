@@ -246,7 +246,7 @@ function KanbanCardItem({
 			ref={setNodeRef}
 			size="sm"
 			style={{
-				opacity: isDragging ? 0.6 : 1,
+				opacity: isDragging ? 0.6 : undefined,
 				transform: CSS.Translate.toString(transform),
 			}}
 		>
