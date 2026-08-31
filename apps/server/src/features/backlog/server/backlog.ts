@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@cantiara/db";
+import { Prisma, type PrismaClient } from "@cantiara/db";
 
 import {
 	isPriorityRank,
@@ -80,11 +80,7 @@ export async function orderedManualWorkIds(
 	projectId: string,
 	preparedIds: readonly string[]
 ): Promise<string[]> {
-	const ranks = await prisma.projectBacklogManualOrderItem.findMany({
-		orderBy: { sortOrder: "asc" },
-		select: { sortOrder: true, workId: true },
-		where: { projectId, workId: { in: [...preparedIds] } },
-	});
+	const ranks = await listManualOrderRows(prisma, projectId, preparedIds);
 	const prepared = new Set(preparedIds);
 	const ordered: string[] = [];
 	const seen = new Set<string>();
@@ -130,20 +126,7 @@ export async function reorderManualOrder(
 		prepared.map((item) => item.id)
 	);
 	await prisma.$transaction(async (tx) => {
-		await tx.projectBacklogManualOrderItem.deleteMany({
-			where: { projectId: parsed.data.projectId },
-		});
-		if (nextIds.length === 0) {
-			return;
-		}
-		await tx.projectBacklogManualOrderItem.createMany({
-			data: nextIds.map((workId, sortOrder) => ({
-				id: crypto.randomUUID(),
-				projectId: parsed.data.projectId,
-				sortOrder,
-				workId,
-			})),
-		});
+		await replaceManualOrderRows(tx, parsed.data.projectId, nextIds);
 	});
 	const backlog = await listPreparedBacklog(prisma, parsed.data.projectId, {
 		sort: BACKLOG_SORT.manualOrder,
@@ -187,15 +170,7 @@ export async function saveBacklogPresentation(
 	if (!project) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
-	await prisma.projectBacklogPresentation.upsert({
-		create: {
-			id: crypto.randomUUID(),
-			projectId: parsed.data.projectId,
-			sort: parsed.data.sort,
-		},
-		update: { sort: parsed.data.sort },
-		where: { projectId: parsed.data.projectId },
-	});
+	await upsertPresentationSort(prisma, parsed.data.projectId, parsed.data.sort);
 	const backlog = await listPreparedBacklog(prisma, parsed.data.projectId);
 	return { backlog, status: "committed", writes: BACKLOG_WRITES };
 }
@@ -303,12 +278,9 @@ async function savedPresentationSort(
 	prisma: BacklogDb,
 	projectId: string
 ): Promise<BacklogSort> {
-	const row = await prisma.projectBacklogPresentation.findUnique({
-		select: { sort: true },
-		where: { projectId },
-	});
-	if (row && isBacklogSort(row.sort)) {
-		return row.sort;
+	const row = await readPresentationSort(prisma, projectId);
+	if (row && isBacklogSort(row)) {
+		return row;
 	}
 	return BACKLOG_SORT.manualOrder;
 }
@@ -456,4 +428,137 @@ function isBacklogSort(value: string): value is BacklogSort {
 		value === BACKLOG_SORT.date ||
 		value === BACKLOG_SORT.field
 	);
+}
+
+function hasDelegate(
+	db: BacklogDb,
+	name: "projectBacklogManualOrderItem" | "projectBacklogPresentation"
+): boolean {
+	const delegate = (db as unknown as Record<string, { findUnique?: unknown }>)[
+		name
+	];
+	return typeof delegate?.findUnique === "function";
+}
+
+async function listManualOrderRows(
+	prisma: BacklogDb,
+	projectId: string,
+	preparedIds: readonly string[]
+): Promise<Array<{ sortOrder: number; workId: string }>> {
+	if (preparedIds.length === 0) {
+		return [];
+	}
+	if (hasDelegate(prisma, "projectBacklogManualOrderItem")) {
+		return await prisma.projectBacklogManualOrderItem.findMany({
+			orderBy: { sortOrder: "asc" },
+			select: { sortOrder: true, workId: true },
+			where: { projectId, workId: { in: [...preparedIds] } },
+		});
+	}
+	return await prisma.$queryRaw<Array<{ sortOrder: number; workId: string }>>`
+		SELECT "sortOrder", "workId"
+		FROM "project_backlog_manual_order_item"
+		WHERE "projectId" = ${projectId}
+			AND "workId" IN (${Prisma.join([...preparedIds])})
+		ORDER BY "sortOrder" ASC
+	`;
+}
+
+async function replaceManualOrderRows(
+	tx: BacklogDb,
+	projectId: string,
+	workIds: readonly string[]
+): Promise<void> {
+	if (hasDelegate(tx, "projectBacklogManualOrderItem")) {
+		await tx.projectBacklogManualOrderItem.deleteMany({
+			where: { projectId },
+		});
+		if (workIds.length === 0) {
+			return;
+		}
+		await tx.projectBacklogManualOrderItem.createMany({
+			data: workIds.map((workId, sortOrder) => ({
+				id: crypto.randomUUID(),
+				projectId,
+				sortOrder,
+				workId,
+			})),
+		});
+		return;
+	}
+	await tx.$executeRaw`
+		DELETE FROM "project_backlog_manual_order_item"
+		WHERE "projectId" = ${projectId}
+	`;
+	if (workIds.length === 0) {
+		return;
+	}
+	await tx.$executeRaw`
+		INSERT INTO "project_backlog_manual_order_item"
+			(id, "projectId", "workId", "sortOrder", "createdAt", "updatedAt")
+		VALUES ${Prisma.join(
+			workIds.map(
+				(workId, sortOrder) =>
+					Prisma.sql`(
+						${crypto.randomUUID()},
+						${projectId},
+						${workId},
+						${sortOrder},
+						CURRENT_TIMESTAMP,
+						CURRENT_TIMESTAMP
+					)`
+			)
+		)}
+	`;
+}
+
+async function readPresentationSort(
+	prisma: BacklogDb,
+	projectId: string
+): Promise<string | null> {
+	if (hasDelegate(prisma, "projectBacklogPresentation")) {
+		const row = await prisma.projectBacklogPresentation.findUnique({
+			select: { sort: true },
+			where: { projectId },
+		});
+		return row?.sort ?? null;
+	}
+	const rows = await prisma.$queryRaw<Array<{ sort: string }>>`
+		SELECT sort FROM "project_backlog_presentation"
+		WHERE "projectId" = ${projectId}
+		LIMIT 1
+	`;
+	return rows[0]?.sort ?? null;
+}
+
+async function upsertPresentationSort(
+	prisma: BacklogDb,
+	projectId: string,
+	sort: BacklogSort
+): Promise<void> {
+	if (hasDelegate(prisma, "projectBacklogPresentation")) {
+		await prisma.projectBacklogPresentation.upsert({
+			create: {
+				id: crypto.randomUUID(),
+				projectId,
+				sort,
+			},
+			update: { sort },
+			where: { projectId },
+		});
+		return;
+	}
+	await prisma.$executeRaw`
+		INSERT INTO "project_backlog_presentation"
+			(id, "projectId", sort, "createdAt", "updatedAt")
+		VALUES (
+			${crypto.randomUUID()},
+			${projectId},
+			${sort},
+			CURRENT_TIMESTAMP,
+			CURRENT_TIMESTAMP
+		)
+		ON CONFLICT ("projectId") DO UPDATE
+		SET sort = EXCLUDED.sort, "updatedAt" = CURRENT_TIMESTAMP
+	`;
 }

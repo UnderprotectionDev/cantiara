@@ -747,4 +747,56 @@ describe("Backlog", () => {
 		});
 		expect(stillPrepared.items.map((item) => item.id)).toContain(second.id);
 	});
+
+	it("lists and saves Backlog when bun --hot kept a client without presentation delegates", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await committedWork(prisma, actorId, {
+			idempotencyKey: "hot-client",
+			projectId: project.id,
+			title: "Intake",
+		});
+		const stale = withoutBacklogPresentation(prisma);
+		const listed = await listPreparedBacklog(stale, project.id);
+		expect(listed.presentation.sort).toBe(BACKLOG_SORT.manualOrder);
+		expect(listed.items.map((item) => item.id)).toEqual([work.id]);
+		const dated = await setReappearDate(stale, {
+			projectId: project.id,
+			reappearDate: "2026-12-01",
+			workId: work.id,
+		});
+		expect(dated.status).toBe("committed");
+		const deferred = await listPreparedBacklog(stale, project.id, {
+			clock: { now: () => new Date("2026-08-31T12:00:00.000Z") },
+		});
+		expect(deferred.deferred.map((item) => item.id)).toEqual([work.id]);
+		const saved = await saveBacklogPresentation(stale, {
+			projectId: project.id,
+			sort: BACKLOG_SORT.field,
+		});
+		expect(saved.status).toBe("committed");
+		expect((await listPreparedBacklog(stale, project.id)).presentation).toEqual(
+			{
+				kind: "saved",
+				sort: BACKLOG_SORT.field,
+			}
+		);
+	});
 });
+
+function withoutBacklogPresentation(prisma: PrismaClient): PrismaClient {
+	return new Proxy(prisma, {
+		get(target, property, receiver) {
+			if (
+				property === "projectBacklogPresentation" ||
+				property === "projectBacklogManualOrderItem"
+			) {
+				return;
+			}
+			const value = Reflect.get(target, property, receiver);
+			if (typeof value === "function") {
+				return value.bind(target);
+			}
+			return value;
+		},
+	}) as PrismaClient;
+}
