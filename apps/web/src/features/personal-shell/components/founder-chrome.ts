@@ -1,6 +1,7 @@
 export const FOUNDER_CHROME_COPY = {
 	account: "Account",
 	capture: "Capture",
+	dailyFocus: "Daily Focus",
 	drafts: "Drafts",
 	menu: "Menu",
 	personalWiki: "Personal Wiki",
@@ -13,6 +14,7 @@ export const FOUNDER_MAIN_ID = "main-content";
 
 export const FOUNDER_CHROME_PATHS = {
 	capture: "/capture",
+	dailyFocus: "/daily-focus",
 	drafts: "/drafts",
 	personalWiki: "/wiki",
 	projects: "/projects",
@@ -28,6 +30,10 @@ export function founderChromeNav() {
 		{
 			label: FOUNDER_CHROME_COPY.drafts,
 			to: FOUNDER_CHROME_PATHS.drafts,
+		},
+		{
+			label: FOUNDER_CHROME_COPY.dailyFocus,
+			to: FOUNDER_CHROME_PATHS.dailyFocus,
 		},
 		{
 			label: FOUNDER_CHROME_COPY.projects,

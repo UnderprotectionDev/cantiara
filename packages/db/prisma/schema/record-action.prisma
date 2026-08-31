@@ -37,14 +37,15 @@ model RecordActionRun {
 }
 
 model DailyFocusMembership {
-  id        String   @id
-  accountId String
-  workId    String
-  work      Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id
+  accountId   String
+  workId      String
+  work        Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  calendarDay String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  @@unique([accountId, workId])
-  @@index([accountId])
+  @@unique([accountId, workId, calendarDay])
+  @@index([accountId, calendarDay])
   @@map("daily_focus_membership")
 }
