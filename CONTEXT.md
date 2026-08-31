@@ -262,6 +262,10 @@ _Avoid_: Sprint tahtası, kapanış kolonu, bağımsız manuel sıra
 Henüz planlanmamış İşler dahil değerlendirilecek İşlerin hazır dinamik koleksiyonu ve Projedeki tek kalıcı manuel sıra; üyelik durum yazmaz ([Backlog](docs/prd/06-work-management-and-planning.md#backlog)).
 _Avoid_: Klasör, etiket, statik liste, Kanban sırası
 
+**Backlog manuel sırası**:
+Projedeki tek kalıcı manuel İş sıralaması; İş alanı, Kanban konumu, Akıllı Koleksiyon rank’i veya Önceliklendirme oturumu rank’i değildir ve alternatif sunum seçilince arka planda korunur ([Backlog](docs/prd/06-work-management-and-planning.md#backlog)). UI: `Manual order`.
+_Avoid_: Kanban sırası, öncelik puanı, kapanış, sprint
+
 **Günlük Odak**:
 Kullanıcının farklı Projelerden bugün ele almak istediği İşleri toplayan kişisel görünüm; durum, öncelik veya proje aşaması yazmaz ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)).
 _Avoid_: Odak Dönemi, sprint, Aktif Çalışma Seti, Takvim olayı

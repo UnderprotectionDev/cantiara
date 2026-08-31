@@ -2,16 +2,26 @@
  * Backlog seam — prepared membership of active, non-archive,
  * non-trash Work, including unplanned Work; view, pick-up, and
  * placement on another planning surface do not write status,
- * closure, or project stage. Synthetic fixture for
- * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
+ * closure, or project stage. One persistent Manual order survives
+ * alternate presentations and does not write Kanban, ordinary
+ * collection, or Prioritization session rank. Synthetic fixture
+ * for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Günlük planlama: view change other than Kanban does not write
- * status).
+ * status; change history).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { loadKanbanBoard } from "../../kanban/server/kanban";
+import {
+	createPrioritizationSession,
+	createPriorityCriterion,
+	getPrioritizationSession,
+	reorderPrioritizationSession,
+	setPriorityCriterionValue,
+} from "../../priority/server/priority";
 import {
 	configureProject,
 	createProject,
@@ -22,16 +32,21 @@ import {
 	changeWorkStatus,
 	createWork,
 	getWork,
+	listWork,
 	listWorkLifecycleHistory,
 } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	listPreparedBacklog,
 	placeOnPlanningSurface,
 	projectStagesForWork,
+	reorderManualOrder,
+	saveBacklogPresentation,
 	takeUpFromBacklog,
 } from "./backlog";
 import {
 	BACKLOG_COPY,
+	BACKLOG_SORT,
+	BACKLOG_WRITES,
 	backlogCatalog,
 	PLANNING_SURFACE,
 	PREPARED_MEMBERSHIP,
@@ -42,6 +57,8 @@ const DATABASE_URL =
 	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara"; // pragma: allowlist secret
 
 const FOLDER_SPRINT_PATTERN = /folder|sprint|staticList|tagAsBacklog/i;
+const CROSS_SURFACE_WRITE_PATTERN =
+	/ordinaryCollectionRank":true|kanbanPosition":true|folder|sprint/i;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -147,8 +164,17 @@ describe("Backlog", () => {
 	it("uses English UI Backlog and derived membership, not a folder or sprint", () => {
 		const catalog = backlogCatalog();
 		expect(catalog.copy.backlog).toBe("Backlog");
+		expect(catalog.copy.manualOrder).toBe("Manual order");
 		expect(BACKLOG_COPY.backlog).toBe("Backlog");
+		expect(BACKLOG_COPY.manualOrder).toBe("Manual order");
 		expect(catalog.membership).toBe("derived");
+		expect(catalog.sorts).toEqual([
+			BACKLOG_SORT.manualOrder,
+			BACKLOG_SORT.priority,
+			BACKLOG_SORT.date,
+			BACKLOG_SORT.field,
+		]);
+		expect(catalog.writes).toEqual(BACKLOG_WRITES);
 		expect(JSON.stringify(catalog)).not.toMatch(FOLDER_SPRINT_PATTERN);
 	});
 
@@ -295,5 +321,244 @@ describe("Backlog", () => {
 		});
 		const stillPrepared = await listPreparedBacklog(prisma, work.projectId);
 		expect(stillPrepared.items.map((item) => item.id)).toEqual([work.id]);
+	});
+
+	it("persists Manual order drag as the Project's single take-up rank", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const first = await committedWork(prisma, actorId, {
+			idempotencyKey: "first-intake",
+			projectId: project.id,
+			title: "Zulu intake",
+		});
+		const second = await committedWork(prisma, actorId, {
+			idempotencyKey: "second-payout",
+			projectId: project.id,
+			title: "Alpha payout",
+		});
+		const before = await listPreparedBacklog(prisma, project.id);
+		expect(before.items.map((item) => item.id)).toEqual([first.id, second.id]);
+		expect(before.manualOrder).toEqual([first.id, second.id]);
+		expect(before.presentation).toEqual({
+			kind: "saved",
+			sort: BACKLOG_SORT.manualOrder,
+		});
+		const reordered = await reorderManualOrder(prisma, {
+			projectId: project.id,
+			workIds: [second.id, first.id],
+		});
+		expect(reordered).toMatchObject({
+			status: "committed",
+			writes: BACKLOG_WRITES,
+		});
+		if (reordered.status !== "committed") {
+			throw new Error("expected committed Manual order");
+		}
+		expect(reordered.backlog.items.map((item) => item.id)).toEqual([
+			second.id,
+			first.id,
+		]);
+		expect(reordered.backlog.manualOrder).toEqual([second.id, first.id]);
+		expect(reordered.backlog.presentation.sort).toBe(BACKLOG_SORT.manualOrder);
+		const again = await listPreparedBacklog(prisma, project.id);
+		expect(again.items.map((item) => item.id)).toEqual([second.id, first.id]);
+		expect(again.manualOrder).toEqual([second.id, first.id]);
+		expect(await getWork(prisma, first.id)).toMatchObject({
+			closureResult: null,
+			status: "Not Started",
+		});
+		expect(await getWork(prisma, second.id)).toMatchObject({
+			closureResult: null,
+			status: "Not Started",
+		});
+		expect(await listWork(prisma, project.id)).toMatchObject([
+			{ id: first.id },
+			{ id: second.id },
+		]);
+	});
+
+	it("keeps stored Manual order when an alternate presentation is selected", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const first = await committedWork(prisma, actorId, {
+			idempotencyKey: "first-intake",
+			projectId: project.id,
+			title: "Alpha intake",
+		});
+		const second = await committedWork(prisma, actorId, {
+			idempotencyKey: "second-payout",
+			projectId: project.id,
+			title: "Zulu payout",
+		});
+		const criterion = await createPriorityCriterion(prisma, {
+			actorId,
+			idempotencyKey: "urgency",
+			origin: "human",
+			payload: { name: "Urgency", projectId: project.id },
+		});
+		if (criterion.status !== "committed") {
+			throw new Error("expected committed criterion");
+		}
+		await setPriorityCriterionValue(prisma, {
+			actorId,
+			baseRevision: 0,
+			idempotencyKey: "rank-first",
+			origin: "human",
+			payload: {
+				criterionId: criterion.definition.id,
+				rank: "High",
+				workId: first.id,
+			},
+		});
+		const stored = await reorderManualOrder(prisma, {
+			projectId: project.id,
+			workIds: [second.id, first.id],
+		});
+		expect(stored.status).toBe("committed");
+		const priority = await listPreparedBacklog(prisma, project.id, {
+			sort: BACKLOG_SORT.priority,
+		});
+		expect(priority.presentation).toEqual({
+			kind: "temporary",
+			sort: BACKLOG_SORT.priority,
+		});
+		expect(priority.items.map((item) => item.id)).toEqual([
+			first.id,
+			second.id,
+		]);
+		expect(priority.manualOrder).toEqual([second.id, first.id]);
+		const byField = await listPreparedBacklog(prisma, project.id, {
+			sort: BACKLOG_SORT.field,
+		});
+		expect(byField.presentation).toEqual({
+			kind: "temporary",
+			sort: BACKLOG_SORT.field,
+		});
+		expect(byField.items.map((item) => item.id)).toEqual([first.id, second.id]);
+		expect(byField.items.map((item) => item.title)).toEqual([
+			"Alpha intake",
+			"Zulu payout",
+		]);
+		expect(byField.manualOrder).toEqual([second.id, first.id]);
+		const byDate = await listPreparedBacklog(prisma, project.id, {
+			sort: BACKLOG_SORT.date,
+		});
+		expect(byDate.presentation).toEqual({
+			kind: "temporary",
+			sort: BACKLOG_SORT.date,
+		});
+		expect(byDate.items.map((item) => item.id)).toEqual([first.id, second.id]);
+		expect(byDate.manualOrder).toEqual([second.id, first.id]);
+		const restored = await listPreparedBacklog(prisma, project.id, {
+			sort: BACKLOG_SORT.manualOrder,
+		});
+		expect(restored.presentation.sort).toBe(BACKLOG_SORT.manualOrder);
+		expect(restored.items.map((item) => item.id)).toEqual([
+			second.id,
+			first.id,
+		]);
+		expect(restored.manualOrder).toEqual([second.id, first.id]);
+		const saved = await saveBacklogPresentation(prisma, {
+			projectId: project.id,
+			sort: BACKLOG_SORT.field,
+		});
+		expect(saved.status).toBe("committed");
+		if (saved.status !== "committed") {
+			throw new Error("expected saved presentation");
+		}
+		expect(saved.backlog.presentation).toEqual({
+			kind: "saved",
+			sort: BACKLOG_SORT.field,
+		});
+		expect(saved.backlog.items.map((item) => item.title)).toEqual([
+			"Alpha intake",
+			"Zulu payout",
+		]);
+		expect(saved.backlog.manualOrder).toEqual([second.id, first.id]);
+		const listedSaved = await listPreparedBacklog(prisma, project.id);
+		expect(listedSaved.presentation).toEqual({
+			kind: "saved",
+			sort: BACKLOG_SORT.field,
+		});
+		expect(listedSaved.items.map((item) => item.title)).toEqual([
+			"Alpha intake",
+			"Zulu payout",
+		]);
+		expect(listedSaved.manualOrder).toEqual([second.id, first.id]);
+		await saveBacklogPresentation(prisma, {
+			projectId: project.id,
+			sort: BACKLOG_SORT.manualOrder,
+		});
+		const backToManual = await listPreparedBacklog(prisma, project.id);
+		expect(backToManual.presentation.sort).toBe(BACKLOG_SORT.manualOrder);
+		expect(backToManual.items.map((item) => item.id)).toEqual([
+			second.id,
+			first.id,
+		]);
+	});
+
+	it("does not write Kanban position, ordinary collection rank, or session rank", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const first = await committedWork(prisma, actorId, {
+			idempotencyKey: "first-intake",
+			projectId: project.id,
+			title: "Zulu intake",
+		});
+		const second = await committedWork(prisma, actorId, {
+			idempotencyKey: "second-payout",
+			projectId: project.id,
+			title: "Alpha payout",
+		});
+		const opened = await createPrioritizationSession(prisma, {
+			actorId,
+			idempotencyKey: "session-open",
+			origin: "human",
+			payload: {
+				name: "August rank",
+				projectId: project.id,
+				workIds: [first.id, second.id],
+			},
+		});
+		if (opened.status !== "committed") {
+			throw new Error("expected committed session");
+		}
+		expect(opened.session.comparison.sessionOrder).toEqual([
+			first.id,
+			second.id,
+		]);
+		const reordered = await reorderManualOrder(prisma, {
+			projectId: project.id,
+			workIds: [second.id, first.id],
+		});
+		expect(reordered).toMatchObject({
+			status: "committed",
+			writes: BACKLOG_WRITES,
+		});
+		const board = await loadKanbanBoard(prisma, project.id);
+		const notStarted = board.columns.find(
+			(column) => column.status === "Not Started"
+		);
+		expect(notStarted?.cards.map((card) => card.workId)).toEqual([
+			first.id,
+			second.id,
+		]);
+		const session = await getPrioritizationSession(prisma, opened.session.id);
+		expect(session?.comparison.sessionOrder).toEqual([first.id, second.id]);
+		expect(session?.comparison.backlogOrder).toEqual([second.id, first.id]);
+		expect(session?.writes.backlogOrder).toBe(false);
+		const sessionReorder = await reorderPrioritizationSession(prisma, {
+			actorId,
+			baseRevision: opened.session.revision,
+			idempotencyKey: "session-reorder",
+			origin: "human",
+			payload: {
+				sessionId: opened.session.id,
+				workIds: [second.id, first.id],
+			},
+		});
+		expect(sessionReorder.status).toBe("committed");
+		const backlog = await listPreparedBacklog(prisma, project.id);
+		expect(backlog.manualOrder).toEqual([second.id, first.id]);
+		expect(backlog.items.map((item) => item.id)).toEqual([second.id, first.id]);
+		expect(backlog.writes).toEqual(BACKLOG_WRITES);
+		expect(JSON.stringify(backlog)).not.toMatch(CROSS_SURFACE_WRITE_PATTERN);
 	});
 });

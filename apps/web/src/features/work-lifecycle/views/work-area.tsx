@@ -3,6 +3,10 @@ import { Skeleton } from "@cantiara/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+	BACKLOG_COPY,
+	type BacklogSort,
+} from "@/features/backlog/views/backlog-copy";
 import PreparedBacklog from "@/features/backlog/views/prepared-backlog";
 import BulkEditPreview from "@/features/bulk-editing/views/bulk-edit-preview";
 import {
@@ -230,6 +234,9 @@ export default function WorkArea({
 				onSelect={onSelect}
 				onToggleBulkSelect={onToggleBulkSelect}
 				preparedBacklog={preparedBacklog}
+				presentationSort={backlogPresentationSort(
+					backlog.data?.presentation.sort
+				)}
 				priorityMapOpen={surface === "priority-map"}
 				projectId={projectId}
 				savedView={savedView}
@@ -336,6 +343,7 @@ function WorkCollectionSurface({
 	onSelect,
 	onToggleBulkSelect,
 	preparedBacklog,
+	presentationSort,
 	priorityMapOpen,
 	projectId,
 	savedView,
@@ -359,6 +367,7 @@ function WorkCollectionSurface({
 	onSelect: (id: string) => void;
 	onToggleBulkSelect: (id: string, selected: boolean) => void;
 	preparedBacklog: boolean;
+	presentationSort: BacklogSort;
 	priorityMapOpen: boolean;
 	projectId: string;
 	savedView?: string | null;
@@ -398,6 +407,8 @@ function WorkCollectionSurface({
 				items={items}
 				onSelect={onSelect}
 				onToggleBulkSelect={onToggleBulkSelect}
+				presentationSort={presentationSort}
+				projectId={projectId}
 				selectedId={selectedId}
 			/>
 		);
@@ -411,4 +422,16 @@ function WorkCollectionSurface({
 			selectedId={selectedId}
 		/>
 	);
+}
+
+function backlogPresentationSort(sort: string | undefined): BacklogSort {
+	if (
+		sort === BACKLOG_COPY.manualOrder ||
+		sort === BACKLOG_COPY.priority ||
+		sort === BACKLOG_COPY.date ||
+		sort === BACKLOG_COPY.field
+	) {
+		return sort;
+	}
+	return BACKLOG_COPY.manualOrder;
 }
