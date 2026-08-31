@@ -274,6 +274,10 @@ _Avoid_: otomatik üyelik, Backlog üyeliği, Odak Dönemi, Takvim olayı
 İşin en erken ne zaman yeniden değerlendirileceğini belirten isteğe bağlı gün; hedef tarihi ve kişisel hatırlatmadan ayrıdır, tarih gelince Günlük Odak adayında görünebilir ([yeniden görünme tarihi](docs/prd/06-work-management-and-planning.md#yeniden-görünme-tarihi)). UI: `Reappear date`.
 _Avoid_: Hedef tarihi, Hatırlatma, Review later
 
+**İş hedef tarihi**:
+İşin isteğe bağlı hedef günü; planlanan başlangıç, yeniden görünme tarihi, Proje hedef tarihi ve kişisel hatırlatmadan ayrıdır ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `Target date`.
+_Avoid_: Yeniden görünme tarihi, Hatırlatma, due date
+
 **Kayıt Eylemi**:
 Kullanıcının kapalı alan ve üyelik adımlarından adlandırdığı, tek hedef kayıt üzerinde çalışan birleşik yazma tanımı; otomasyon kuralı, Toplu Düzenleme veya betik pazarı değildir ([kullanıcı başlatmalı kayıt eylemleri](docs/prd/06-work-management-and-planning.md#kullanıcı-başlatmalı-kayıt-eylemleri)). UI: `Record Action`.
 _Avoid_: macro marketplace, otomasyon kuralı, Toplu Düzenleme, script, çok kayıtlı düğme

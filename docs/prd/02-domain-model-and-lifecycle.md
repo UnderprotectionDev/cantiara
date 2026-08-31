@@ -94,6 +94,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Hedef tarihi yaklaştı | `Target date is near` | Adayın hedef tarihi nedeniyle önerildiğini açıklayan neden |
 | Yeniden görünme tarihi geldi | `Reappear date has arrived` | Adayın yeniden görünme tarihi nedeniyle önerildiğini açıklayan neden |
 | Yeniden görünme tarihi | `Reappear date` | İşin en erken yeniden değerlendirme günü; hedef tarihi değildir |
+| İş hedef tarihi | `Target date` | İşin isteğe bağlı hedef günü; Proje hedef tarihi ve yeniden görünme tarihi değildir |
 | Çalışma anı girdisi | `Date`, `Number`, `Select`, `Relation` | Kayıt Eyleminin tasarımda tanımlı çalışma anı girdileri; formül, serbest metin makro veya yeni kayıt seçimi değildir |
 | Kayıt eylemini başlat | `Start` | Kayıt Eylemini açıkça başlatıp kesin alan farkını önizlemeye açma |
 | Kayıt eylemini uygula | `Apply` | Önizlenen Kayıt Eylemi farkını tek atomik sonuç olarak yazma |
