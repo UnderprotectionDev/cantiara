@@ -25,6 +25,16 @@ export const WHAT_HAPPENED_TODAY_CONTRACT = {
 	rewritesSourceTimestamps: false,
 } as const;
 
+export const WHAT_HAPPENED_TODAY_KIND_COPY = {
+	"decision-recorded": "Decision",
+	"milestone-reached": "Milestone",
+	"production-incident-resolved": "Production Incident",
+	"project-release-published": "Project Release",
+	"work-abandoned": "Abandoned",
+	"work-completed": "Completed",
+	"work-reopened": "Reopened",
+} as const;
+
 export const WHAT_HAPPENED_TODAY_KINDS = [
 	"work-completed",
 	"work-abandoned",
@@ -66,6 +76,15 @@ export const whatHappenedTodayKindSchema = z.enum(WHAT_HAPPENED_TODAY_KINDS);
 export const whatHappenedTodayRowSchema = z.object({
 	id: z.string().min(1),
 	kind: whatHappenedTodayKindSchema,
+	kindLabel: z.enum([
+		WHAT_HAPPENED_TODAY_KIND_COPY["decision-recorded"],
+		WHAT_HAPPENED_TODAY_KIND_COPY["milestone-reached"],
+		WHAT_HAPPENED_TODAY_KIND_COPY["production-incident-resolved"],
+		WHAT_HAPPENED_TODAY_KIND_COPY["project-release-published"],
+		WHAT_HAPPENED_TODAY_KIND_COPY["work-abandoned"],
+		WHAT_HAPPENED_TODAY_KIND_COPY["work-completed"],
+		WHAT_HAPPENED_TODAY_KIND_COPY["work-reopened"],
+	]),
 	occurredAt: z.string().datetime(),
 	occurredAtDisplay: z.string().min(1),
 	openSourceRecord: z.literal(DAILY_FOCUS_COPY.openSourceRecord),

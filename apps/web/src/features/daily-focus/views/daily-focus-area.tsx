@@ -28,6 +28,7 @@ interface DailyFocusWork {
 
 interface WhatHappenedTodayRow {
 	id: string;
+	kindLabel: string;
 	occurredAt: string;
 	occurredAtDisplay: string;
 	openSourceRecord: string;
@@ -292,9 +293,12 @@ function WhatHappenedRow({ row }: { row: WhatHappenedTodayRow }) {
 					{row.occurredAtDisplay}
 				</time>
 				<p className="truncate text-sm">
+					<span className="font-medium">{row.kindLabel}</span>
+					<span className="text-muted-foreground">{` · ${row.projectName}`}</span>
+				</p>
+				<p className="truncate text-sm">
 					<span className="font-medium">{row.sourceKey}</span>
 					<span>{` ${row.sourceTitle}`}</span>
-					<span className="text-muted-foreground">{` · ${row.projectName}`}</span>
 				</p>
 			</div>
 			<a

@@ -465,6 +465,7 @@ describe("Daily Focus", () => {
 			{
 				id: expect.any(String),
 				kind: "work-completed",
+				kindLabel: "Completed",
 				occurredAt: completedAt.toISOString(),
 				occurredAtDisplay: "31/08/2026, 15:00",
 				openSourceRecord: "Open source record",
@@ -479,6 +480,7 @@ describe("Daily Focus", () => {
 			{
 				id: expect.any(String),
 				kind: "work-abandoned",
+				kindLabel: "Abandoned",
 				occurredAt: abandonedAt.toISOString(),
 				occurredAtDisplay: "31/08/2026, 16:00",
 				openSourceRecord: "Open source record",
@@ -493,6 +495,7 @@ describe("Daily Focus", () => {
 			{
 				id: expect.any(String),
 				kind: "work-reopened",
+				kindLabel: "Reopened",
 				occurredAt: reopenedAt.toISOString(),
 				occurredAtDisplay: "31/08/2026, 17:00",
 				openSourceRecord: "Open source record",

@@ -20,6 +20,7 @@ import {
 	type DailyFocusWork,
 	nextCalendarDay,
 	WHAT_HAPPENED_TODAY_CONTRACT,
+	WHAT_HAPPENED_TODAY_KIND_COPY,
 	type WhatHappenedToday,
 	type WhatHappenedTodayRow,
 	workSourceHref,
@@ -274,6 +275,7 @@ async function loadWhatHappenedToday(
 		rows.push({
 			id: event.id,
 			kind,
+			kindLabel: WHAT_HAPPENED_TODAY_KIND_COPY[kind],
 			occurredAt: event.createdAt.toISOString(),
 			occurredAtDisplay: formatDateTime(event.createdAt, preferences),
 			openSourceRecord: DAILY_FOCUS_COPY.openSourceRecord,
