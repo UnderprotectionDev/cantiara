@@ -11,9 +11,12 @@ export const KANBAN_COPY = {
 	closed: WORK_STATUS.closed,
 	inProgress: WORK_STATUS.inProgress,
 	kanban: "Kanban",
+	list: "List",
 	notStarted: WORK_STATUS.notStarted,
 	openSourceRecord: WORK_LIFECYCLE_COPY.openSourceRecord,
 } as const;
+
+export const KANBAN_LIST_LAYOUT = "list" as const;
 
 export const KANBAN_COLUMNS = WORK_STATUSES;
 
@@ -63,6 +66,7 @@ export interface KanbanWorkRecord {
 	targetDate?: string | null;
 	title: string;
 	type: string;
+	unplanned?: boolean;
 }
 
 export interface KanbanCardSummaryField {
@@ -89,6 +93,13 @@ export interface KanbanColumn {
 export interface KanbanBoard {
 	columns: KanbanColumn[];
 	copy: typeof KANBAN_COPY;
+	visibleFields: readonly CardVisibleField[];
+}
+
+export interface KanbanList {
+	copy: typeof KANBAN_COPY;
+	layout: typeof KANBAN_LIST_LAYOUT;
+	rows: KanbanCard[];
 	visibleFields: readonly CardVisibleField[];
 }
 

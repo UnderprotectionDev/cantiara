@@ -21,7 +21,7 @@ import {
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation } from "@tanstack/react-query";
-import { type ChangeEvent, useCallback, useMemo } from "react";
+import { type ChangeEvent, useCallback, useMemo, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { invalidateWork } from "@/features/work-lifecycle/forms/invalidate-work";
@@ -33,11 +33,15 @@ import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc } from "@/utils/orpc";
 
 import {
+	type CardVisibleField,
 	KANBAN_COPY,
 	type KanbanCard,
 	type KanbanColumnStatus,
 	presentKanbanBoard,
+	presentKanbanList,
+	sortKanbanList,
 } from "../store/present-board";
+import KanbanList from "./kanban-list";
 
 interface BoardWorkItem {
 	archived?: boolean;
@@ -63,6 +67,8 @@ export default function KanbanBoard({
 	selectedWorkId: string | null;
 }) {
 	const { attemptOnlineWork, recordSave } = useClientShell();
+	const [layout, setLayout] = useState<"board" | "list">("board");
+	const [sortField, setSortField] = useState<CardVisibleField | null>(null);
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
 	);
@@ -102,6 +108,15 @@ export default function KanbanBoard({
 		[items]
 	);
 	const board = presentKanbanBoard(records);
+	const list = useMemo(() => {
+		const presented = presentKanbanList(records);
+		if (!sortField) {
+			return presented;
+		}
+		return sortKanbanList(presented, sortField);
+	}, [records, sortField]);
+	const onShowBoard = useCallback(() => setLayout("board"), []);
+	const onShowList = useCallback(() => setLayout("list"), []);
 	const revisionById = useMemo(() => {
 		const map = new Map<string, number>();
 		for (const item of items) {
@@ -144,21 +159,54 @@ export default function KanbanBoard({
 
 	return (
 		<section aria-label={KANBAN_COPY.kanban} className="flex flex-col gap-3">
-			<h2 className="font-medium text-sm">{KANBAN_COPY.board}</h2>
-			<DndContext onDragEnd={onDragEnd} sensors={sensors}>
-				<div className="grid gap-3 md:grid-cols-4">
-					{board.columns.map((column) => (
-						<KanbanColumnLane
-							cards={column.cards}
-							key={column.status}
-							onMove={onMove}
-							onOpenSourceRecord={onOpenSourceRecord}
-							selectedWorkId={selectedWorkId}
-							status={column.status}
-						/>
-					))}
-				</div>
-			</DndContext>
+			<div className="flex flex-wrap items-center gap-2">
+				<h2 className="font-medium text-sm">{KANBAN_COPY.board}</h2>
+				<fieldset className="flex gap-1">
+					<legend className="sr-only">{KANBAN_COPY.kanban}</legend>
+					<Button
+						aria-pressed={layout === "board"}
+						onClick={onShowBoard}
+						size="xs"
+						type="button"
+						variant={layout === "board" ? "default" : "outline"}
+					>
+						{KANBAN_COPY.board}
+					</Button>
+					<Button
+						aria-pressed={layout === "list"}
+						onClick={onShowList}
+						size="xs"
+						type="button"
+						variant={layout === "list" ? "default" : "outline"}
+					>
+						{KANBAN_COPY.list}
+					</Button>
+				</fieldset>
+			</div>
+			{layout === "list" ? (
+				<KanbanList
+					list={list}
+					onOpenSourceRecord={onOpenSourceRecord}
+					onSortField={setSortField}
+					selectedWorkId={selectedWorkId}
+					sortField={sortField}
+				/>
+			) : (
+				<DndContext onDragEnd={onDragEnd} sensors={sensors}>
+					<div className="grid gap-3 md:grid-cols-4">
+						{board.columns.map((column) => (
+							<KanbanColumnLane
+								cards={column.cards}
+								key={column.status}
+								onMove={onMove}
+								onOpenSourceRecord={onOpenSourceRecord}
+								selectedWorkId={selectedWorkId}
+								status={column.status}
+							/>
+						))}
+					</div>
+				</DndContext>
+			)}
 		</section>
 	);
 }

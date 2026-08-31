@@ -16,8 +16,10 @@ import {
 	DEFAULT_CARD_VISIBLE_FIELDS,
 	KANBAN_COLUMNS,
 	KANBAN_COPY,
+	KANBAN_LIST_LAYOUT,
 	type KanbanBoard,
 	type KanbanCard,
+	type KanbanList,
 	type KanbanMoveOutcome,
 	type KanbanWorkRecord,
 	type WorkStatusPort,
@@ -95,6 +97,34 @@ export function presentKanbanBoard(
 		})),
 		copy: KANBAN_COPY,
 		visibleFields,
+	};
+}
+
+export function presentKanbanList(
+	records: readonly KanbanWorkRecord[],
+	visibleFields: readonly CardVisibleField[] = DEFAULT_CARD_VISIBLE_FIELDS
+): KanbanList {
+	const board = presentKanbanBoard(records, visibleFields);
+	return {
+		copy: KANBAN_COPY,
+		layout: KANBAN_LIST_LAYOUT,
+		rows: board.columns.flatMap((column) => column.cards),
+		visibleFields,
+	};
+}
+
+export function scanKanbanList(
+	port: WorkStatusPort,
+	input: { field: CardVisibleField }
+): KanbanList {
+	const list = presentKanbanList(port.list());
+	return {
+		...list,
+		rows: [...list.rows].sort((left, right) =>
+			listFieldValue(left, input.field).localeCompare(
+				listFieldValue(right, input.field)
+			)
+		),
 	};
 }
 
@@ -238,6 +268,13 @@ function toCard(
 		type: record.type,
 		workId: record.id,
 	};
+}
+
+function listFieldValue(row: KanbanCard, field: CardVisibleField): string {
+	if (field === "Key") {
+		return row.key;
+	}
+	return row.summary.find((entry) => entry.field === field)?.value ?? "";
 }
 
 function checklistLabel(record: KanbanWorkRecord): string | null {

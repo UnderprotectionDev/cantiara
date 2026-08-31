@@ -4,9 +4,12 @@ export const KANBAN_COPY = {
 	closed: "Closed",
 	inProgress: "In Progress",
 	kanban: "Kanban",
+	list: "List",
 	notStarted: "Not Started",
 	openSourceRecord: "Open source record",
 } as const;
+
+export const KANBAN_LIST_LAYOUT = "list" as const;
 
 export const KANBAN_COLUMNS = [
 	KANBAN_COPY.notStarted,
@@ -49,6 +52,7 @@ export interface KanbanWorkRecord {
 	targetDate?: string | null;
 	title: string;
 	type: string;
+	unplanned?: boolean;
 }
 
 export interface KanbanCardSummaryField {
@@ -78,6 +82,13 @@ export interface KanbanBoardView {
 	visibleFields: readonly CardVisibleField[];
 }
 
+export interface KanbanListView {
+	copy: typeof KANBAN_COPY;
+	layout: typeof KANBAN_LIST_LAYOUT;
+	rows: KanbanCard[];
+	visibleFields: readonly CardVisibleField[];
+}
+
 export function presentKanbanBoard(
 	records: readonly KanbanWorkRecord[],
 	visibleFields: readonly CardVisibleField[] = DEFAULT_CARD_VISIBLE_FIELDS
@@ -93,6 +104,38 @@ export function presentKanbanBoard(
 		copy: KANBAN_COPY,
 		visibleFields,
 	};
+}
+
+export function presentKanbanList(
+	records: readonly KanbanWorkRecord[],
+	visibleFields: readonly CardVisibleField[] = DEFAULT_CARD_VISIBLE_FIELDS
+): KanbanListView {
+	const board = presentKanbanBoard(records, visibleFields);
+	return {
+		copy: KANBAN_COPY,
+		layout: KANBAN_LIST_LAYOUT,
+		rows: board.columns.flatMap((column) => column.cards),
+		visibleFields,
+	};
+}
+
+export function sortKanbanList(
+	list: KanbanListView,
+	field: CardVisibleField
+): KanbanListView {
+	return {
+		...list,
+		rows: [...list.rows].sort((left, right) =>
+			listFieldValue(left, field).localeCompare(listFieldValue(right, field))
+		),
+	};
+}
+
+function listFieldValue(row: KanbanCard, field: CardVisibleField): string {
+	if (field === "Key") {
+		return row.key;
+	}
+	return row.summary.find((entry) => entry.field === field)?.value ?? "";
 }
 
 function toCard(

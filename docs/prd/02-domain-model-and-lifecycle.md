@@ -223,6 +223,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | GitHub | `GitHub` | GitHub bağlantısı girişini toplayan Proje alanı; oluşturmada zorunlu bağlantı değildir |
 | Backlog | `Backlog` | Hazır İş görünümü; tek kalıcı manuel sıra |
 | Board | `Board` | Hazır İş görünümü; Kanban sunumu |
+| Liste görünümü | `List` | Kanban ile aynı İş taramasının yoğun satır düzeni; Tablo Görünümü değildir |
 | Roadmap | `Roadmap` | Hazır İş görünümü |
 | Build | `Build` | Hazır Proje aşaması adı |
 | Validate | `Validate` | Hazır Proje aşaması adı |
