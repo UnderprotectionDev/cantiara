@@ -46,6 +46,8 @@ describe("Daily Focus catalog", () => {
 				add: "Add",
 				candidates: "Candidates",
 				candidatesEmpty: "No Candidates for this day.",
+				candidatesRule:
+					"Work appears here when Target date is this day through the next 7 days, or Reappear date is on or before this day.",
 				dailyFocus: "Daily Focus",
 				empty: "No Work in Daily Focus for this day.",
 				loading: "Loading…",
@@ -483,6 +485,57 @@ describe("Daily Focus", () => {
 			accountId: actorId,
 			clock: { now: () => TODAY },
 			prisma: withoutWorkDates,
+			workspaceId,
+		});
+		const view = await surface.view();
+		expect(view.candidates).toEqual([
+			expect.objectContaining({
+				id: near.id,
+				reason: CANDIDATE_REASON.targetDate,
+			}),
+		]);
+	});
+
+	it("lists Candidates when Prisma returns null Work dates that the table still holds", async () => {
+		const payments = await openProject("Payments");
+		const near = await openWork(payments.id, "Near with null date fields");
+		await prisma.work.update({
+			data: { targetDate: "2026-08-31" },
+			where: { id: near.id },
+		});
+		const nullWorkDates = new Proxy(prisma, {
+			get(target, prop, receiver) {
+				if (prop === "work") {
+					return new Proxy(target.work, {
+						get(workTarget, workProp, workReceiver) {
+							if (workProp === "findMany") {
+								return async (...args: unknown[]) => {
+									const rows = await Reflect.apply(
+										workTarget.findMany as (...inner: unknown[]) => unknown,
+										workTarget,
+										args
+									);
+									if (!Array.isArray(rows)) {
+										return rows;
+									}
+									return rows.map((row) => ({
+										...(row as object),
+										reappearDate: null,
+										targetDate: null,
+									}));
+								};
+							}
+							return Reflect.get(workTarget, workProp, workReceiver);
+						},
+					});
+				}
+				return Reflect.get(target, prop, receiver);
+			},
+		}) as typeof prisma;
+		const surface = createDailyFocus({
+			accountId: actorId,
+			clock: { now: () => TODAY },
+			prisma: nullWorkDates,
 			workspaceId,
 		});
 		const view = await surface.view();

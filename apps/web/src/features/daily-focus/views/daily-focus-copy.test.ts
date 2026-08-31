@@ -8,6 +8,9 @@ test("English Daily Focus copy is Daily Focus", () => {
 	expect(DAILY_FOCUS_COPY.dailyFocus).toBe("Daily Focus");
 	expect(DAILY_FOCUS_COPY.candidates).toBe("Candidates");
 	expect(DAILY_FOCUS_COPY.candidatesEmpty).toBe("No Candidates for this day.");
+	expect(DAILY_FOCUS_COPY.candidatesRule).toBe(
+		"Work appears here when Target date is this day through the next 7 days, or Reappear date is on or before this day."
+	);
 	expect(DAILY_FOCUS_COPY.accept).toBe("Accept");
 	expect(DAILY_FOCUS_COPY.reject).toBe("Reject");
 	expect(DAILY_FOCUS_COPY.targetDateNear).toBe("Target date is near");

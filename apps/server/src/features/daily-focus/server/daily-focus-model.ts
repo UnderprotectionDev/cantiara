@@ -5,6 +5,8 @@ export const DAILY_FOCUS_COPY = {
 	add: "Add",
 	candidates: "Candidates",
 	candidatesEmpty: "No Candidates for this day.",
+	candidatesRule:
+		"Work appears here when Target date is this day through the next 7 days, or Reappear date is on or before this day.",
 	dailyFocus: "Daily Focus",
 	empty: "No Work in Daily Focus for this day.",
 	loading: "Loading…",
@@ -73,6 +75,7 @@ export const dailyFocusViewSchema = z.object({
 		add: z.literal(DAILY_FOCUS_COPY.add),
 		candidates: z.literal(DAILY_FOCUS_COPY.candidates),
 		candidatesEmpty: z.literal(DAILY_FOCUS_COPY.candidatesEmpty),
+		candidatesRule: z.literal(DAILY_FOCUS_COPY.candidatesRule),
 		dailyFocus: z.literal(DAILY_FOCUS_COPY.dailyFocus),
 		empty: z.literal(DAILY_FOCUS_COPY.empty),
 		loading: z.literal(DAILY_FOCUS_COPY.loading),

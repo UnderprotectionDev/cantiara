@@ -324,9 +324,6 @@ async function withWorkPlanningDates<
 		targetDate?: string | null;
 	},
 >(db: MutationDb, rows: T[]): Promise<T[]> {
-	if (rows.every((row) => "targetDate" in row && "reappearDate" in row)) {
-		return rows;
-	}
 	if (rows.length === 0) {
 		return rows;
 	}

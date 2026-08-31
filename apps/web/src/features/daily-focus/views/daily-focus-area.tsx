@@ -248,6 +248,9 @@ function CandidatesList({
 					{copy.candidates}
 				</h2>
 				<p>{copy.candidatesEmpty}</p>
+				<p className="mt-1 text-muted-foreground text-sm">
+					{copy.candidatesRule}
+				</p>
 			</section>
 		);
 	}
