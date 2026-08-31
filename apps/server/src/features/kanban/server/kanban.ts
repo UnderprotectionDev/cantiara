@@ -133,10 +133,6 @@ export function applyKanbanPlanningMembership(
 	};
 }
 
-export function openSourceRecord(card: { workId: string }): { workId: string } {
-	return { workId: card.workId };
-}
-
 export function workViewToKanbanRecord(work: WorkView): KanbanWorkRecord {
 	const checklist = work.lightChecklist ?? [];
 	return {
@@ -215,13 +211,14 @@ function toCard(
 	const values: Record<CardVisibleField, string | null> = {
 		Blocker: record.blocker ?? null,
 		Checklist: checklistLabel(record),
-		Closure: record.closureResult ?? null,
 		Key: record.key,
 		"Planned start": record.plannedStart ?? null,
 		Priority: record.priority ?? null,
 		"Reappear date": record.reappearDate ?? null,
 		Risk: record.risk ?? null,
-		Status: record.status,
+		Status: record.closureResult
+			? `${record.status} · ${record.closureResult}`
+			: record.status,
 		"Target date": record.targetDate ?? null,
 		Type: record.type,
 	};

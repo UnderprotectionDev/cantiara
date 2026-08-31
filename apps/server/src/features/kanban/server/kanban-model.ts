@@ -35,7 +35,6 @@ export const DEFAULT_CARD_VISIBLE_FIELDS = [
 	"Key",
 	"Type",
 	"Status",
-	"Closure",
 	"Priority",
 	"Planned start",
 	"Target date",

@@ -21,7 +21,6 @@ export const DEFAULT_CARD_VISIBLE_FIELDS = [
 	"Key",
 	"Type",
 	"Status",
-	"Closure",
 	"Priority",
 	"Planned start",
 	"Target date",
@@ -96,10 +95,6 @@ export function presentKanbanBoard(
 	};
 }
 
-export function openSourceRecord(card: { workId: string }): { workId: string } {
-	return { workId: card.workId };
-}
-
 function toCard(
 	record: KanbanWorkRecord,
 	visibleFields: readonly CardVisibleField[]
@@ -107,13 +102,14 @@ function toCard(
 	const values: Record<CardVisibleField, string | null> = {
 		Blocker: record.blocker ?? null,
 		Checklist: checklistLabel(record),
-		Closure: record.closureResult ?? null,
 		Key: record.key,
 		"Planned start": record.plannedStart ?? null,
 		Priority: record.priority ?? null,
 		"Reappear date": record.reappearDate ?? null,
 		Risk: record.risk ?? null,
-		Status: record.status,
+		Status: record.closureResult
+			? `${record.status} · ${record.closureResult}`
+			: record.status,
 		"Target date": record.targetDate ?? null,
 		Type: record.type,
 	};

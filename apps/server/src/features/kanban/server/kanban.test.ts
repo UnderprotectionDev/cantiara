@@ -13,7 +13,6 @@ import {
 	applyKanbanPlanningMembership,
 	createMemoryWorkStatusPort,
 	moveKanbanCard,
-	openSourceRecord,
 	presentKanbanBoard,
 } from "./kanban";
 import {
@@ -171,9 +170,8 @@ describe("Kanban", () => {
 			{ field: "Blocker", value: "Active" },
 			{ field: "Checklist", value: "1/3" },
 		]);
-		expect(openSourceRecord(card ?? { workId: "" })).toEqual({
-			workId: "work_pay",
-		});
+		expect(card?.id).toBe("work_pay");
+		expect(card?.workId).toBe("work_pay");
 		expect(
 			board.columns.flatMap((column) => column.cards.map((item) => item.workId))
 		).not.toContain("work_old");
