@@ -2,10 +2,12 @@
  * Kanban seam — Board columns are the four protected workflow
  * statuses; a non-terminal column move writes that status on the
  * source Work; planning membership does not write status; the board
- * does not mint a second Work list; a column move does not write
- * GitHub status or fire silent automation. Work-status test double
- * for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Günlük planlama: column move writes status).
+ * does not mint a second Work list; List is the same scan including
+ * unplanned Work and does not write status or closure; a column move
+ * does not write GitHub status or fire silent automation.
+ * Work-status test double for
+ * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
+ * (Günlük planlama: column move writes status; list is the same Work).
  */
 import { describe, expect, it } from "vitest";
 
