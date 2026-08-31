@@ -38,6 +38,11 @@ export async function invalidateWork(projectId: string, workId: string) {
 		}),
 	});
 	await queryClient.invalidateQueries({
+		queryKey: orpc.kanban.board.queryKey({
+			input: { projectId },
+		}),
+	});
+	await queryClient.invalidateQueries({
 		queryKey: [USED_IN_QUERY_ROOT],
 	});
 }

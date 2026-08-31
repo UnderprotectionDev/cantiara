@@ -9,6 +9,7 @@ import {
 	nextBulkSelectedWorkIds,
 } from "@/features/bulk-editing/views/bulk-selection";
 import CustomFieldFilter from "@/features/custom-fields/forms/custom-field-filter";
+import KanbanBoard from "@/features/kanban/views/kanban-board";
 import { PRIORITY_COPY } from "@/features/priority/forms/priority-copy";
 import PrioritizationSessionArea from "@/features/priority/views/prioritization-session";
 import PriorityMap from "@/features/priority/views/priority-map";
@@ -30,11 +31,13 @@ import { nextSelectedWorkId } from "./work-selection";
 export default function WorkArea({
 	onSelectedWorkId,
 	projectId,
+	savedView,
 	selectedWorkId,
 	unavailableView,
 }: {
 	onSelectedWorkId?: (id: string | null) => void;
 	projectId: string;
+	savedView?: string | null;
 	selectedWorkId?: string | null;
 	unavailableView?: string | null;
 }) {
@@ -202,6 +205,15 @@ export default function WorkArea({
 				{PROJECT_SHELL_COPY.areaNotAvailable}
 			</p>
 		);
+	} else if (savedView === "Board") {
+		workSurface = (
+			<KanbanBoard
+				items={items}
+				onOpenSourceRecord={onOpenSourceRecord}
+				projectId={projectId}
+				selectedWorkId={selectedId}
+			/>
+		);
 	} else if (surface === "priority-map") {
 		workSurface = (
 			<PriorityMap
@@ -256,7 +268,7 @@ export default function WorkArea({
 				</Button>
 			</div>
 			{workSurface}
-			{!unavailableView && surface === "list" ? (
+			{!unavailableView && surface === "list" && savedView !== "Board" ? (
 				<BulkEditPreview
 					filterWorkIds={items.map((item) => item.id)}
 					projectId={projectId}

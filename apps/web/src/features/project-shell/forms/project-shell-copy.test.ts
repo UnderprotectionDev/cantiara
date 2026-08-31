@@ -15,6 +15,7 @@ import {
 	projectShellShowsWorkSurface,
 	STARTER_CONFIGURATIONS,
 	structureCopyPreviewItems,
+	workSavedViewIsBoard,
 	workSavedViewIsList,
 } from "./project-shell-copy";
 
@@ -221,6 +222,8 @@ test("Work daily actions and Saved views stay on the Work surface", () => {
 	expect(isWorkShellAnchor("documents", ["Backlog", "Board"])).toBe(false);
 	expect(workSavedViewIsList("Backlog")).toBe(true);
 	expect(workSavedViewIsList("Board")).toBe(false);
+	expect(workSavedViewIsBoard("Board")).toBe(true);
+	expect(workSavedViewIsBoard("Backlog")).toBe(false);
 	expect(projectShellShowsWorkSurface({ anchor: "work", workId: null })).toBe(
 		true
 	);
