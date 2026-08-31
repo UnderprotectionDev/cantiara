@@ -2,10 +2,14 @@ import type { PrismaClient } from "@cantiara/db";
 
 import {
 	changeWorkStatus,
+	closeWork,
 	getWork,
 	listWork,
+	reopenWork,
 } from "../../work-lifecycle/server/work-lifecycle";
 import {
+	isClosureResult,
+	isNonTerminalWorkStatus,
 	isWorkStatus,
 	NON_TERMINAL_WORK_STATUSES,
 	WORK_STATUS,
@@ -18,7 +22,10 @@ import {
 	KANBAN_COPY,
 	type KanbanBoard,
 	type KanbanCard,
+	type KanbanCloseOutcome,
+	type KanbanLifecycleEvent,
 	type KanbanMoveOutcome,
+	type KanbanReopenOutcome,
 	type KanbanWorkRecord,
 	type WorkStatusPort,
 } from "./kanban-model";
@@ -35,10 +42,35 @@ export function createMemoryWorkStatusPort(
 ): MemoryWorkStatusPort {
 	const work = new Map(records.map((record) => [record.id, { ...record }]));
 	const membershipByWork = new Map<string, string[]>();
+	const eventsByWork = new Map<string, KanbanLifecycleEvent[]>();
 	const githubWrites: Array<{ status: string; workId: string }> = [];
 	const automations: string[] = [];
 	const port: MemoryWorkStatusPort = {
 		automations,
+		closeWork(workId, result, reason) {
+			const record = work.get(workId);
+			if (!record) {
+				return { reason: "target-not-found", status: "rejected" };
+			}
+			if (!(result && isClosureResult(result))) {
+				return { reason: "unknown-closure-result", status: "rejected" };
+			}
+			record.closureResult = result;
+			record.status = WORK_STATUS.closed;
+			record.revision += 1;
+			appendEvent(eventsByWork, workId, {
+				closureResult: result,
+				kind: "closed",
+				reason: reason ?? null,
+				status: WORK_STATUS.closed,
+			});
+			return {
+				closureResult: result,
+				status: "committed",
+				workflowStatus: WORK_STATUS.closed,
+				workId,
+			};
+		},
 		fireSilentAutomation(workId) {
 			automations.push(workId);
 		},
@@ -46,6 +78,9 @@ export function createMemoryWorkStatusPort(
 			return work.get(workId) ?? null;
 		},
 		githubWrites,
+		history(workId) {
+			return eventsByWork.get(workId) ?? [];
+		},
 		list() {
 			return [...work.values()];
 		},
@@ -55,6 +90,31 @@ export function createMemoryWorkStatusPort(
 		recordPlanningMembership(workId, surface) {
 			const current = membershipByWork.get(workId) ?? [];
 			membershipByWork.set(workId, [...current, surface]);
+		},
+		reopenWork(workId, status, confirmed) {
+			const record = work.get(workId);
+			if (!record) {
+				return { reason: "target-not-found", status: "rejected" };
+			}
+			if (record.status !== WORK_STATUS.closed) {
+				return { reason: "unknown-work-status", status: "rejected" };
+			}
+			if (!confirmed) {
+				return { reason: "reopen-confirm-required", status: "rejected" };
+			}
+			if (!isNonTerminalWorkStatus(status)) {
+				return { reason: "unknown-work-status", status: "rejected" };
+			}
+			record.closureResult = null;
+			record.status = status;
+			record.revision += 1;
+			appendEvent(eventsByWork, workId, {
+				closureResult: null,
+				kind: "reopened",
+				reason: null,
+				status,
+			});
+			return { status: "committed", workflowStatus: status, workId };
 		},
 		writeGitHubStatus(workId, status) {
 			githubWrites.push({ status, workId });
@@ -79,6 +139,15 @@ export function createMemoryWorkStatusPort(
 		},
 	};
 	return port;
+}
+
+function appendEvent(
+	eventsByWork: Map<string, KanbanLifecycleEvent[]>,
+	workId: string,
+	event: KanbanLifecycleEvent
+) {
+	const current = eventsByWork.get(workId) ?? [];
+	eventsByWork.set(workId, [...current, event]);
 }
 
 export function presentKanbanBoard(
@@ -110,6 +179,26 @@ export function moveKanbanCard(
 		return { reason: "target-not-found", status: "rejected" };
 	}
 	return port.writeWorkflowStatus(input.workId, input.targetStatus);
+}
+
+export function closeKanbanCard(
+	port: WorkStatusPort,
+	input: { reason?: string; result?: string; workId: string }
+): KanbanCloseOutcome {
+	if (!port.get(input.workId)) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	return port.closeWork(input.workId, input.result, input.reason);
+}
+
+export function reopenKanbanCard(
+	port: WorkStatusPort,
+	input: { confirmed: boolean; targetStatus: string; workId: string }
+): KanbanReopenOutcome {
+	if (!port.get(input.workId)) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	return port.reopenWork(input.workId, input.targetStatus, input.confirmed);
 }
 
 export function applyKanbanPlanningMembership(
@@ -204,6 +293,94 @@ export async function moveKanbanCardForProject(
 	return { reason: "target-not-found", status: "rejected" };
 }
 
+export async function closeKanbanCardForProject(
+	prisma: PrismaClient,
+	command: {
+		actorId: string;
+		baseRevision: number;
+		idempotencyKey: string;
+		reason?: string;
+		result?: string;
+		workId: string;
+	}
+): Promise<KanbanCloseOutcome> {
+	const current = await getWork(prisma, command.workId);
+	if (!current) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const outcome = await closeWork(prisma, {
+		actorId: command.actorId,
+		baseRevision: command.baseRevision,
+		idempotencyKey: command.idempotencyKey,
+		origin: "human",
+		reason: command.reason,
+		result: command.result,
+		workId: command.workId,
+	});
+	if (outcome.status === "committed" || outcome.status === "replayed") {
+		const result = outcome.work.closureResult;
+		if (!(result && isClosureResult(result))) {
+			return { reason: "unknown-closure-result", status: "rejected" };
+		}
+		return {
+			closureResult: result,
+			status: "committed",
+			workflowStatus: WORK_STATUS.closed,
+			workId: outcome.work.id,
+		};
+	}
+	if (
+		outcome.status === "rejected" &&
+		(outcome.reason === "unknown-closure-result" ||
+			outcome.reason === "target-not-found")
+	) {
+		return { reason: outcome.reason, status: "rejected" };
+	}
+	return { reason: "target-not-found", status: "rejected" };
+}
+
+export async function reopenKanbanCardForProject(
+	prisma: PrismaClient,
+	command: {
+		actorId: string;
+		baseRevision: number;
+		confirmed: boolean;
+		idempotencyKey: string;
+		targetStatus: string;
+		workId: string;
+	}
+): Promise<KanbanReopenOutcome> {
+	const current = await getWork(prisma, command.workId);
+	if (!current) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const outcome = await reopenWork(prisma, {
+		actorId: command.actorId,
+		baseRevision: command.baseRevision,
+		idempotencyKey: command.idempotencyKey,
+		origin: "human",
+		reopenConfirmed: command.confirmed,
+		status: command.targetStatus,
+		workId: command.workId,
+	});
+	if (outcome.status === "committed" || outcome.status === "replayed") {
+		return {
+			status: "committed",
+			workflowStatus: outcome.work.status,
+			workId: outcome.work.id,
+		};
+	}
+	if (
+		outcome.status === "rejected" &&
+		(outcome.reason === "reopen-confirm-required" ||
+			outcome.reason === "unknown-work-status" ||
+			outcome.reason === "target-not-found")
+	) {
+		return { reason: outcome.reason, status: "rejected" };
+	}
+	return { reason: "target-not-found", status: "rejected" };
+}
+
 function toCard(
 	record: KanbanWorkRecord,
 	visibleFields: readonly CardVisibleField[]
@@ -223,6 +400,7 @@ function toCard(
 		Type: record.type,
 	};
 	return {
+		closureResult: record.closureResult ?? null,
 		id: record.id,
 		key: record.key,
 		revision: record.revision,
