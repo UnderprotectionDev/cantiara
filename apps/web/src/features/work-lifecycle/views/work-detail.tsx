@@ -32,6 +32,7 @@ import {
 	type WorkStatus,
 	type WorkType,
 } from "../forms/work-lifecycle-copy";
+import WorkPlanningDatesForm from "../forms/work-planning-dates-form";
 
 export interface WorkRecord {
 	archived: boolean;
@@ -40,9 +41,11 @@ export interface WorkRecord {
 	key: string;
 	latestMergeEventId?: string | null;
 	origin?: { id: string; key: string; projectId?: string } | null;
+	reappearDate?: string | null;
 	retiredIdentities?: Array<{ id: string; key: string }>;
 	revision: number;
 	status: WorkStatus;
+	targetDate?: string | null;
 	title: string;
 	type: WorkType;
 	usageLinks?: Array<{
@@ -152,6 +155,14 @@ export default function WorkDetail({
 						/>
 					)}
 				</div>
+				<WorkPlanningDatesForm
+					key={`${work.id}:dates:${work.revision}`}
+					projectId={projectId}
+					reappearDate={work.reappearDate ?? null}
+					revision={work.revision}
+					targetDate={work.targetDate ?? null}
+					workId={work.id}
+				/>
 			</div>
 			<RecordActionRun
 				projectId={projectId}

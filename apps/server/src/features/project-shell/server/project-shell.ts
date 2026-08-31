@@ -105,6 +105,7 @@ interface ProjectRow {
 	workStatuses: Array<{
 		label: string;
 		semantic: string;
+		softWipLimit: number | null;
 		sortOrder: number;
 	}>;
 	workspaceId: string;
@@ -1456,6 +1457,7 @@ async function persistCopiedStructure(
 			label: status.label,
 			projectId,
 			semantic: status.semantic,
+			softWipLimit: status.softWipLimit ?? null,
 			sortOrder,
 		})),
 	});

@@ -1,40 +1,160 @@
-import type { PrismaClient } from "@cantiara/db";
+import type { Prisma, PrismaClient } from "@cantiara/db";
 
+import {
+	isPriorityRank,
+	PRIORITY_RANKS,
+} from "../../priority/server/priority-model";
 import { getProject } from "../../project-shell/server/project-shell";
 import {
 	applyPlanningMembership,
 	getWork,
 	listWork,
 } from "../../work-lifecycle/server/work-lifecycle";
+import type { WorkView } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
 	BACKLOG_COPY,
+	BACKLOG_SORT,
+	BACKLOG_WRITES,
+	type BacklogOrderOutcome,
 	type BacklogPlanningOutcome,
+	type BacklogSort,
 	PLANNING_SURFACE,
 	type PlaceOnPlanningSurfaceCommand,
 	PREPARED_MEMBERSHIP,
 	type PreparedBacklogView,
 	placeOnPlanningSurfaceCommandSchema,
+	reorderManualOrderCommandSchema,
+	saveBacklogPresentationCommandSchema,
 	type TakeUpFromBacklogCommand,
 	takeUpFromBacklogCommandSchema,
 } from "./backlog-model";
 
+type BacklogDb = PrismaClient | Prisma.TransactionClient;
+
+const PRIORITY_WEIGHT = new Map(
+	PRIORITY_RANKS.map((rank, index) => [rank, index])
+);
+
 export async function listPreparedBacklog(
-	prisma: PrismaClient,
-	projectId: string
+	prisma: BacklogDb,
+	projectId: string,
+	query: { sort?: BacklogSort } = {}
 ): Promise<PreparedBacklogView> {
-	const [works, trashed] = await Promise.all([
-		listWork(prisma, projectId, { archived: false }),
-		prisma.work.findMany({
-			select: { id: true },
-			where: { projectId, trashedAt: { not: null } },
-		}),
-	]);
-	const trashedIds = new Set(trashed.map((row) => row.id));
-	return {
-		copy: { backlog: BACKLOG_COPY.backlog },
-		items: works.filter((work) => !(work.archived || trashedIds.has(work.id))),
-		membership: PREPARED_MEMBERSHIP,
-	};
+	const items = await preparedItems(prisma, projectId);
+	const savedSort = await savedPresentationSort(prisma, projectId);
+	const sort = query.sort ?? savedSort;
+	const kind = query.sort === undefined ? "saved" : "temporary";
+	const manualOrder = await orderedManualWorkIds(
+		prisma,
+		projectId,
+		items.map((item) => item.id)
+	);
+	const presented = await presentItems(
+		prisma,
+		projectId,
+		items,
+		sort,
+		manualOrder
+	);
+	return toView(presented, manualOrder, { kind, sort });
+}
+
+export async function orderedManualWorkIds(
+	prisma: BacklogDb,
+	projectId: string,
+	preparedIds: readonly string[]
+): Promise<string[]> {
+	const ranks = await prisma.projectBacklogManualOrderItem.findMany({
+		orderBy: { sortOrder: "asc" },
+		select: { sortOrder: true, workId: true },
+		where: { projectId, workId: { in: [...preparedIds] } },
+	});
+	const prepared = new Set(preparedIds);
+	const ordered: string[] = [];
+	const seen = new Set<string>();
+	for (const rank of ranks) {
+		if (prepared.has(rank.workId) && !seen.has(rank.workId)) {
+			ordered.push(rank.workId);
+			seen.add(rank.workId);
+		}
+	}
+	for (const id of preparedIds) {
+		if (!seen.has(id)) {
+			ordered.push(id);
+		}
+	}
+	return ordered;
+}
+
+export async function reorderManualOrder(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<BacklogOrderOutcome> {
+	const parsed = reorderManualOrderCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const prepared = await preparedItems(prisma, parsed.data.projectId);
+	const preparedIds = new Set(prepared.map((item) => item.id));
+	const unique = new Set(parsed.data.workIds);
+	if (
+		unique.size !== parsed.data.workIds.length ||
+		parsed.data.workIds.some((workId) => !preparedIds.has(workId))
+	) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const nextIds = [
+		...parsed.data.workIds,
+		...prepared.map((item) => item.id).filter((id) => !unique.has(id)),
+	];
+	await prisma.$transaction(async (tx) => {
+		await tx.projectBacklogManualOrderItem.deleteMany({
+			where: { projectId: parsed.data.projectId },
+		});
+		if (nextIds.length === 0) {
+			return;
+		}
+		await tx.projectBacklogManualOrderItem.createMany({
+			data: nextIds.map((workId, sortOrder) => ({
+				id: crypto.randomUUID(),
+				projectId: parsed.data.projectId,
+				sortOrder,
+				workId,
+			})),
+		});
+	});
+	const backlog = await listPreparedBacklog(prisma, parsed.data.projectId, {
+		sort: BACKLOG_SORT.manualOrder,
+	});
+	return { backlog, status: "committed", writes: BACKLOG_WRITES };
+}
+
+export async function saveBacklogPresentation(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<BacklogOrderOutcome> {
+	const parsed = saveBacklogPresentationCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const project = await prisma.project.findUnique({
+		select: { id: true },
+		where: { id: parsed.data.projectId },
+	});
+	if (!project) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await prisma.projectBacklogPresentation.upsert({
+		create: {
+			id: crypto.randomUUID(),
+			projectId: parsed.data.projectId,
+			sort: parsed.data.sort,
+		},
+		update: { sort: parsed.data.sort },
+		where: { projectId: parsed.data.projectId },
+	});
+	const backlog = await listPreparedBacklog(prisma, parsed.data.projectId);
+	return { backlog, status: "committed", writes: BACKLOG_WRITES };
 }
 
 export async function takeUpFromBacklog(
@@ -115,4 +235,133 @@ async function applyPreparedPlanningMove(
 		status: "committed",
 		work: outcome.work,
 	};
+}
+
+async function preparedItems(
+	prisma: BacklogDb,
+	projectId: string
+): Promise<WorkView[]> {
+	const [works, trashed] = await Promise.all([
+		listWork(prisma as PrismaClient, projectId, { archived: false }),
+		prisma.work.findMany({
+			select: { id: true },
+			where: { projectId, trashedAt: { not: null } },
+		}),
+	]);
+	const trashedIds = new Set(trashed.map((row) => row.id));
+	return works.filter((work) => !(work.archived || trashedIds.has(work.id)));
+}
+
+async function savedPresentationSort(
+	prisma: BacklogDb,
+	projectId: string
+): Promise<BacklogSort> {
+	const row = await prisma.projectBacklogPresentation.findUnique({
+		select: { sort: true },
+		where: { projectId },
+	});
+	if (row && isBacklogSort(row.sort)) {
+		return row.sort;
+	}
+	return BACKLOG_SORT.manualOrder;
+}
+
+async function presentItems(
+	prisma: BacklogDb,
+	projectId: string,
+	items: WorkView[],
+	sort: BacklogSort,
+	manualOrder: readonly string[]
+): Promise<WorkView[]> {
+	if (sort === BACKLOG_SORT.manualOrder) {
+		return orderByIds(items, manualOrder);
+	}
+	if (sort === BACKLOG_SORT.field) {
+		return [...items].sort((left, right) =>
+			left.title.localeCompare(right.title)
+		);
+	}
+	if (sort === BACKLOG_SORT.date) {
+		const rows = await prisma.work.findMany({
+			select: { createdAt: true, id: true },
+			where: { id: { in: items.map((item) => item.id) } },
+		});
+		const createdAt = new Map(
+			rows.map((row) => [row.id, row.createdAt.getTime()])
+		);
+		return [...items].sort((left, right) => {
+			const delta =
+				(createdAt.get(left.id) ?? 0) - (createdAt.get(right.id) ?? 0);
+			if (delta !== 0) {
+				return delta;
+			}
+			return left.number - right.number;
+		});
+	}
+	const values = await prisma.projectPriorityCriterionValue.findMany({
+		select: { rank: true, workId: true },
+		where: {
+			criterion: {
+				enabled: true,
+				projectId,
+				trashedAt: null,
+			},
+			workId: { in: items.map((item) => item.id) },
+		},
+	});
+	const best = new Map<string, number>();
+	for (const { rank, workId } of values) {
+		const weight =
+			rank && isPriorityRank(rank)
+				? (PRIORITY_WEIGHT.get(rank) ?? PRIORITY_RANKS.length)
+				: PRIORITY_RANKS.length;
+		const current = best.get(workId) ?? PRIORITY_RANKS.length;
+		if (weight < current) {
+			best.set(workId, weight);
+		}
+	}
+	return [...items].sort((left, right) => {
+		const delta =
+			(best.get(left.id) ?? PRIORITY_RANKS.length) -
+			(best.get(right.id) ?? PRIORITY_RANKS.length);
+		if (delta !== 0) {
+			return delta;
+		}
+		return left.number - right.number;
+	});
+}
+
+function orderByIds(items: WorkView[], ids: readonly string[]): WorkView[] {
+	const byId = new Map(items.map((item) => [item.id, item]));
+	return ids.flatMap((id) => {
+		const item = byId.get(id);
+		return item ? [item] : [];
+	});
+}
+
+function toView(
+	items: WorkView[],
+	manualOrder: string[],
+	presentation: PreparedBacklogView["presentation"]
+): PreparedBacklogView {
+	return {
+		copy: {
+			backlog: BACKLOG_COPY.backlog,
+			manualOrder: BACKLOG_COPY.manualOrder,
+		},
+		items,
+		manualOrder,
+		membership: PREPARED_MEMBERSHIP,
+		presentation,
+		writes: BACKLOG_WRITES,
+	};
+}
+
+function isBacklogSort(value: string): value is BacklogSort {
+	return (
+		value === BACKLOG_SORT.manualOrder ||
+		value === BACKLOG_SORT.priority ||
+		value === BACKLOG_SORT.date ||
+		value === BACKLOG_SORT.field
+	);
 }

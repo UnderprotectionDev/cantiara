@@ -18,9 +18,10 @@ export async function invalidateWork(projectId: string, workId: string) {
 		}),
 	});
 	await queryClient.invalidateQueries({
-		queryKey: orpc.backlog.list.queryKey({
-			input: { projectId },
-		}),
+		predicate: (query) => {
+			const serialized = JSON.stringify(query.queryKey);
+			return serialized.includes("backlog") && serialized.includes("list");
+		},
 	});
 	await queryClient.invalidateQueries({
 		queryKey: orpc.workLifecycle.get.queryKey({
@@ -46,6 +47,10 @@ export async function invalidateWork(projectId: string, workId: string) {
 		queryKey: orpc.kanban.board.queryKey({
 			input: { projectId },
 		}),
+	});
+	await queryClient.invalidateQueries({
+		predicate: (query) =>
+			JSON.stringify(query.queryKey).includes("dailyFocus"),
 	});
 	await queryClient.invalidateQueries({
 		queryKey: [USED_IN_QUERY_ROOT],

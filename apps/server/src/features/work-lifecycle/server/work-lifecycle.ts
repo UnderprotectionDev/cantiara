@@ -76,9 +76,11 @@ import {
 	typeChangeImpact,
 	type UnarchiveWorkCommand,
 	type UndoWorkMergeCommand,
+	type UpdateWorkPlanningDatesCommand,
 	type UpdateWorkTitleCommand,
 	unarchiveWorkCommandSchema,
 	undoWorkMergeCommandSchema,
+	updateWorkPlanningDatesCommandSchema,
 	updateWorkTitleCommandSchema,
 	WORK_LIFECYCLE_COPY,
 	WORK_MERGE_FIELDS,
@@ -119,9 +121,11 @@ interface WorkRow {
 	primarySpecId: string | null;
 	primarySpecTitle: string | null;
 	projectId: string;
+	reappearDate?: string | null;
 	retiredIntoId: string | null;
 	revision: number;
 	status: string;
+	targetDate?: string | null;
 	title: string;
 	type: string;
 }
@@ -199,6 +203,32 @@ export async function updateWorkTitle(
 	);
 	return await prisma.$transaction((tx) =>
 		updateTitleInTransaction(tx, parsed.command, commandKey, fingerprint)
+	);
+}
+
+export async function updateWorkPlanningDates(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	const parsed = parsePlanningDatesCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	const fingerprint = payloadFingerprint({
+		reappearDate: parsed.command.reappearDate,
+		targetDate: parsed.command.targetDate,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		updatePlanningDatesInTransaction(
+			tx,
+			parsed.command,
+			commandKey,
+			fingerprint
+		)
 	);
 }
 
@@ -1390,6 +1420,14 @@ function parseTitleCommand(
 	return parseKeyedCommand(command, updateWorkTitleCommandSchema);
 }
 
+function parsePlanningDatesCommand(
+	command: unknown
+):
+	| { command: UpdateWorkPlanningDatesCommand; status: "ok" }
+	| { outcome: WorkLifecycleOutcome; status: "rejected" } {
+	return parseKeyedCommand(command, updateWorkPlanningDatesCommandSchema);
+}
+
 function parseTypeCommand(
 	command: unknown
 ):
@@ -1596,6 +1634,61 @@ async function updateTitleInTransaction(
 		data: {
 			revision: locked.revision + 1,
 			title,
+		},
+		where: { id: locked.id },
+	});
+	const updated = await loadWork(tx, locked.id);
+	if (!updated) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const work = await viewFor(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		work,
+	});
+	return { status: "committed", work };
+}
+
+function asPlanningDate(value: string | null | undefined): string | null {
+	if (value === null || value === undefined || value === "") {
+		return null;
+	}
+	return value;
+}
+
+async function updatePlanningDatesInTransaction(
+	tx: PrismaTransaction,
+	command: UpdateWorkPlanningDatesCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<WorkLifecycleOutcome> {
+	const current = await tx.work.findUnique({ where: { id: command.workId } });
+	if (!current || current.retiredIntoId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await lockProject(tx, current.projectId);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const locked = await loadWork(tx, current.id);
+	if (!locked || locked.retiredIntoId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (locked.revision !== command.baseRevision) {
+		return {
+			current: toView(locked),
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	await tx.work.update({
+		data: {
+			reappearDate: asPlanningDate(command.reappearDate),
+			revision: locked.revision + 1,
+			targetDate: asPlanningDate(command.targetDate),
 		},
 		where: { id: locked.id },
 	});
@@ -2321,10 +2414,12 @@ function toView(
 		number: row.number,
 		origin: identities.origin ?? row.originWork ?? null,
 		projectId: row.projectId,
+		reappearDate: row.reappearDate ?? null,
 		relations: asRelations(row.portableRelations),
 		retiredIdentities: identities.retiredIdentities,
 		revision: row.revision,
 		status: row.status,
+		targetDate: row.targetDate ?? null,
 		title: row.title,
 		type: row.type,
 	};

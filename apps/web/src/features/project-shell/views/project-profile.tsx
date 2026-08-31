@@ -521,6 +521,7 @@ function ProjectBody({
 				</nav>
 				<div className="mt-6">
 					<WorkArea
+						configurationMode={configurationMode}
 						onSelectedWorkId={onWorkId}
 						projectId={data.id}
 						savedView={activeView ?? "Backlog"}

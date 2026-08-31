@@ -255,16 +255,40 @@ Seçili İşlerle çalışmak için açılan geçici zaman penceresi; kalıcı k
 _Avoid_: Sprint, Kilometre Taşı, Proje Sürümü
 
 **Kanban**:
-İşleri İş akışı durumuna göre sütunlarda gösteren planlama yüzeyi; sütunlar arası kart hareketi duruma yansır, kapanış sonucu veya ikinci kayıt listesi değildir ([Kanban](docs/prd/06-work-management-and-planning.md)).
+İşleri İş akışı durumuna göre sütunlarda gösteren planlama yüzeyi; sütunlar arası kart hareketi duruma yansır, kapanış sonucu veya ikinci kayıt listesi değildir ([Kanban](docs/prd/06-work-management-and-planning.md)). UI: `Board`, `Kanban`, `Over limit`, `Time in status`, `In Progress count`, `Collapse`, `Expand`, `Open blocker`.
 _Avoid_: Sprint tahtası, kapanış kolonu, bağımsız manuel sıra
+
+**Yeniden görünme tarihi**:
+İşin en erken ne zaman yeniden değerlendirileceğini belirten isteğe bağlı tarih; hedef tarihi veya kişisel hatırlatma değildir ([yeniden görünme tarihi](docs/prd/06-work-management-and-planning.md#yeniden-görünme-tarihi)). UI: `Reappear date`.
+_Avoid_: Target date, Hatırlatma, Kanban sütunu, Save for Later
+
+**Soft WIP**:
+Yapılandırma modunda duruma göre tanımlanan, varsayılan kapalı isteğe bağlı sayı sınırı; aşıldığında nötr, yalnız renge dayanmayan işaret verir, hareket kapısı değildir ([Kanban](docs/prd/06-work-management-and-planning.md#kanban)). UI: `Soft WIP`.
+_Avoid_: zorunlu WIP, velocity, sağlık skoru, bildirim, otomatik durum yazımı
+
+**Odak eşiği**:
+Proje veya ilgili Akıllı Koleksiyon için isteğe bağlı kişisel devam eden İş sayısı eşiği; aşıldığında görsel uyarı verir, kart hareketini kesmez ([Kanban](docs/prd/06-work-management-and-planning.md#kanban)). UI: `Focus threshold`.
+_Avoid_: Günlük Odak, Odak Dönemi, sağlık skoru, zorunlu WIP
 
 **Backlog**:
 Henüz planlanmamış İşler dahil değerlendirilecek İşlerin hazır dinamik koleksiyonu ve Projedeki tek kalıcı manuel sıra; üyelik durum yazmaz ([Backlog](docs/prd/06-work-management-and-planning.md#backlog)).
 _Avoid_: Klasör, etiket, statik liste, Kanban sırası
 
+**Backlog manuel sırası**:
+Projedeki tek kalıcı manuel İş sıralaması; İş alanı, Kanban konumu, Akıllı Koleksiyon rank’i veya Önceliklendirme oturumu rank’i değildir ve alternatif sunum seçilince arka planda korunur ([Backlog](docs/prd/06-work-management-and-planning.md#backlog)). UI: `Manual order`.
+_Avoid_: Kanban sırası, öncelik puanı, kapanış, sprint
+
 **Günlük Odak**:
 Kullanıcının farklı Projelerden bugün ele almak istediği İşleri toplayan kişisel görünüm; durum, öncelik veya proje aşaması yazmaz ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `Daily Focus`.
 _Avoid_: Odak Dönemi, sprint, Aktif Çalışma Seti, Takvim olayı
+
+**Adaylar**:
+Günlük Odak’ta hedef tarihi yaklaşan veya yeniden görünme tarihi gelen az sayıda İş önerisi; üyelik değildir ve kabul edilmeden o günün odağına alınmaz ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `Candidates`.
+_Avoid_: otomatik üyelik, Backlog üyeliği, Odak Dönemi, Takvim olayı
+
+**İş hedef tarihi**:
+İşin isteğe bağlı hedef günü; planlanan başlangıç, yeniden görünme tarihi, Proje hedef tarihi ve kişisel hatırlatmadan ayrıdır ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `Target date`.
+_Avoid_: Yeniden görünme tarihi, Hatırlatma, due date
 
 **Bugün ne oldu?**:
 Günlük Odak'ta seçili profil gününde gerçekleşen desteklenen önemli olayların ana kaynaklarından türetilmiş salt okunur listesi; Daily Note, kopya gövde veya ikinci olay geçmişi değildir ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `What happened today?`. Satır eylemi: `Open source record`.
