@@ -88,6 +88,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Günlük Odak | `Daily Focus` | Farklı Projelerden seçili profil gününde ele alınacak İşleri toplayan kişisel görünüm; Odak Dönemi, sprint, Aktif Çalışma Seti veya Takvim olayı değildir |
 | Seçili gün | `Selected day` | Günlük Odak görünümünün profil saat dilimindeki takvim günü seçici etiketi |
 | Günlük Odakta İş yok | `No Work in Daily Focus for this day.` | Seçili günde üyelik olmadığında boş durum |
+| Bugün ne oldu? | `What happened today?` | Seçili profil günündeki türetilmiş önemli olaylar; Daily Note veya ikinci olay geçmişi değildir |
 | Adaylar | `Candidates` | Günlük Odak’ta hedef tarihi yaklaşan veya yeniden görünme tarihi gelen az sayıda İş önerisi; üyelik değildir |
 | Günlük Odakta aday yok | `No Candidates for this day.` | Seçili günde önerilecek aday olmadığında boş durum |
 | Aday kuralı | `Work appears here when Target date is this day through the next 7 days, or Reappear date is on or before this day.` | Aday listesinin hangi tarih alanlarıyla dolduğunu açıklayan metin |
