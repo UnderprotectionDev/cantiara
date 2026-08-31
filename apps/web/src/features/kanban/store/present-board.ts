@@ -32,6 +32,35 @@ export const DEFAULT_CARD_VISIBLE_FIELDS = [
 
 export type CardVisibleField = (typeof DEFAULT_CARD_VISIBLE_FIELDS)[number];
 
+export const KANBAN_SORT_FIELDS = [
+	"Key",
+	"Title",
+	"Type",
+	"Status",
+	"Priority",
+	"Planned start",
+	"Target date",
+	"Reappear date",
+] as const;
+
+export type KanbanSortField = (typeof KANBAN_SORT_FIELDS)[number];
+
+export interface SavedViewSort {
+	direction: "asc" | "desc";
+	field: KanbanSortField;
+}
+
+export const DEFAULT_SAVED_VIEW_SORT: SavedViewSort = {
+	direction: "asc",
+	field: "Key",
+};
+
+export interface KanbanBoardPresentation {
+	asOf?: string;
+	sort?: SavedViewSort;
+	visibleFields?: readonly CardVisibleField[];
+}
+
 export interface KanbanWorkRecord {
 	archived?: boolean;
 	blocker?: string | null;
@@ -57,6 +86,7 @@ export interface KanbanCardSummaryField {
 }
 
 export interface KanbanCard {
+	background: boolean;
 	id: string;
 	key: string;
 	revision: number;
@@ -75,29 +105,38 @@ export interface KanbanColumn {
 export interface KanbanBoardView {
 	columns: KanbanColumn[];
 	copy: typeof KANBAN_COPY;
+	sort: SavedViewSort;
 	visibleFields: readonly CardVisibleField[];
 }
 
 export function presentKanbanBoard(
 	records: readonly KanbanWorkRecord[],
-	visibleFields: readonly CardVisibleField[] = DEFAULT_CARD_VISIBLE_FIELDS
+	presentation: KanbanBoardPresentation = {}
 ): KanbanBoardView {
+	const {
+		asOf,
+		sort = DEFAULT_SAVED_VIEW_SORT,
+		visibleFields = DEFAULT_CARD_VISIBLE_FIELDS,
+	} = presentation;
 	const active = records.filter((record) => record.archived !== true);
 	return {
 		columns: KANBAN_COLUMNS.map((status) => ({
-			cards: active
-				.filter((record) => record.status === status)
-				.map((record) => toCard(record, visibleFields)),
+			cards: sortRecords(
+				active.filter((record) => record.status === status),
+				sort
+			).map((record) => toCard(record, visibleFields, asOf)),
 			status,
 		})),
 		copy: KANBAN_COPY,
+		sort,
 		visibleFields,
 	};
 }
 
 function toCard(
 	record: KanbanWorkRecord,
-	visibleFields: readonly CardVisibleField[]
+	visibleFields: readonly CardVisibleField[],
+	asOf?: string
 ): KanbanCard {
 	const values: Record<CardVisibleField, string | null> = {
 		Blocker: record.blocker ?? null,
@@ -114,6 +153,7 @@ function toCard(
 		Type: record.type,
 	};
 	return {
+		background: isBackground(record, asOf),
 		id: record.id,
 		key: record.key,
 		revision: record.revision,
@@ -129,6 +169,43 @@ function toCard(
 		type: record.type,
 		workId: record.id,
 	};
+}
+
+function isBackground(record: KanbanWorkRecord, asOf?: string): boolean {
+	if (!(asOf && record.reappearDate)) {
+		return false;
+	}
+	return record.reappearDate > asOf;
+}
+
+function sortRecords(
+	records: readonly KanbanWorkRecord[],
+	sort: SavedViewSort
+): KanbanWorkRecord[] {
+	const factor = sort.direction === "desc" ? -1 : 1;
+	return [...records].sort((left, right) => {
+		const compared =
+			sortValue(left, sort.field).localeCompare(sortValue(right, sort.field)) *
+			factor;
+		if (compared !== 0) {
+			return compared;
+		}
+		return left.key.localeCompare(right.key);
+	});
+}
+
+function sortValue(record: KanbanWorkRecord, field: KanbanSortField): string {
+	const values: Record<KanbanSortField, string> = {
+		Key: record.key,
+		"Planned start": record.plannedStart ?? "",
+		Priority: record.priority ?? "",
+		"Reappear date": record.reappearDate ?? "",
+		Status: record.status,
+		"Target date": record.targetDate ?? "",
+		Title: record.title,
+		Type: record.type,
+	};
+	return values[field];
 }
 
 function checklistLabel(record: KanbanWorkRecord): string | null {

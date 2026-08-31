@@ -45,6 +45,7 @@ interface BoardWorkItem {
 	id: string;
 	key: string;
 	lightChecklist?: Array<{ completed: boolean }>;
+	reappearDate?: string | null;
 	revision: number;
 	status: string;
 	title: string;
@@ -92,6 +93,7 @@ export default function KanbanBoard({
 						closureResult: item.closureResult,
 						id: item.id,
 						key: item.key,
+						reappearDate: item.reappearDate,
 						revision: item.revision,
 						status: item.status,
 						title: item.title,
@@ -101,7 +103,9 @@ export default function KanbanBoard({
 			}),
 		[items]
 	);
-	const board = presentKanbanBoard(records);
+	const board = presentKanbanBoard(records, {
+		asOf: new Date().toISOString().slice(0, 10),
+	});
 	const revisionById = useMemo(() => {
 		const map = new Map<string, number>();
 		for (const item of items) {
@@ -235,7 +239,10 @@ function KanbanCardItem({
 	}, [card.workId, onOpenSourceRecord]);
 	return (
 		<Card
-			className={selected ? "ring-2 ring-ring" : undefined}
+			className={cn(
+				selected ? "ring-2 ring-ring" : undefined,
+				card.background ? "opacity-50" : undefined
+			)}
 			ref={setNodeRef}
 			size="sm"
 			style={{

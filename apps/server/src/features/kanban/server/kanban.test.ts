@@ -3,9 +3,12 @@
  * statuses; a non-terminal column move writes that status on the
  * source Work; planning membership does not write status; the board
  * does not mint a second Work list; a column move does not write
- * GitHub status or fire silent automation. Work-status test double
- * for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Günlük planlama: column move writes status).
+ * GitHub status or fire silent automation; cards follow the saved view
+ * explicit sort with no independent Kanban rank; Backlog and Prioritization
+ * session ranks stay untouched; a future Reappear date sits in the
+ * background without writing status; archived Work is absent. Work-status
+ * test double for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
+ * (Günlük planlama: planning-surface–status separation).
  */
 import { describe, expect, it } from "vitest";
 
@@ -25,6 +28,8 @@ import {
 const SPRINT_RELEASE_ARCHIVE_PATTERN =
 	/sprint|velocity|release commitment|Archive|Completed|Abandoned/i;
 const FIFTH_COLUMN_PATTERN = /Deferred|Review|Archive|Sprint/i;
+const KANBAN_RANK_PATTERN = /kanbanRank/;
+const ARCHIVE_COLUMN_PATTERN = /Archive/i;
 
 function seedPort() {
 	return createMemoryWorkStatusPort([
@@ -186,5 +191,124 @@ describe("Kanban", () => {
 		expect(port.get("work_intake")?.status).toBe("Blocked");
 		expect(port.githubWrites).toEqual([]);
 		expect(port.automations).toEqual([]);
+	});
+
+	it("orders cards by the saved view explicit sort and does not mint a Kanban rank on drop", () => {
+		const port = createMemoryWorkStatusPort([
+			{
+				id: "work_zulu",
+				key: "PAY-9",
+				revision: 1,
+				status: "Not Started",
+				title: "Zulu checkout",
+				type: "Task",
+			},
+			{
+				id: "work_alpha",
+				key: "PAY-8",
+				revision: 1,
+				status: "Not Started",
+				title: "Alpha intake",
+				type: "Task",
+			},
+		]);
+		const board = presentKanbanBoard(port.list(), {
+			sort: { direction: "asc", field: "Title" },
+		});
+		expect(board.sort).toEqual({ direction: "asc", field: "Title" });
+		expect(
+			board.columns
+				.find((column) => column.status === "Not Started")
+				?.cards.map((card) => card.workId)
+		).toEqual(["work_alpha", "work_zulu"]);
+		expect(JSON.stringify(board)).not.toMatch(KANBAN_RANK_PATTERN);
+		moveKanbanCard(port, {
+			targetStatus: "In Progress",
+			workId: "work_zulu",
+		});
+		moveKanbanCard(port, {
+			targetStatus: "In Progress",
+			workId: "work_alpha",
+		});
+		const after = presentKanbanBoard(port.list(), {
+			sort: { direction: "asc", field: "Title" },
+		});
+		expect(
+			after.columns
+				.find((column) => column.status === "In Progress")
+				?.cards.map((card) => card.workId)
+		).toEqual(["work_alpha", "work_zulu"]);
+		expect(port.kanbanRanks()).toEqual({});
+	});
+
+	it("does not write Backlog order or Prioritization session rank when a column moves", () => {
+		const port = seedPort();
+		const before = {
+			backlog: port.backlogOrder(),
+			session: port.sessionOrder(),
+		};
+		expect(before.backlog).toEqual(["work_intake", "work_pay", "work_old"]);
+		expect(before.session).toEqual(["work_old", "work_pay", "work_intake"]);
+		moveKanbanCard(port, {
+			targetStatus: "Blocked",
+			workId: "work_intake",
+		});
+		expect(port.get("work_intake")?.status).toBe("Blocked");
+		expect(port.backlogOrder()).toEqual(before.backlog);
+		expect(port.sessionOrder()).toEqual(before.session);
+		expect(port.kanbanRanks()).toEqual({});
+	});
+
+	it("keeps a future Reappear date in the background of the default set without writing status", () => {
+		const port = createMemoryWorkStatusPort([
+			{
+				id: "work_later",
+				key: "PAY-4",
+				reappearDate: "2026-12-01",
+				revision: 1,
+				status: "Not Started",
+				title: "Snoozed intake",
+				type: "Task",
+			},
+			{
+				id: "work_today",
+				key: "PAY-5",
+				reappearDate: "2026-08-31",
+				revision: 1,
+				status: "Not Started",
+				title: "Due intake",
+				type: "Task",
+			},
+		]);
+		const board = presentKanbanBoard(port.list(), { asOf: "2026-08-31" });
+		const later = board.columns
+			.find((column) => column.status === "Not Started")
+			?.cards.find((card) => card.workId === "work_later");
+		const due = board.columns
+			.find((column) => column.status === "Not Started")
+			?.cards.find((card) => card.workId === "work_today");
+		expect(later?.background).toBe(true);
+		expect(later?.status).toBe("Not Started");
+		expect(due?.background).toBe(false);
+		expect(port.get("work_later")?.status).toBe("Not Started");
+		expect(board.columns.map((column) => column.status)).not.toContain(
+			"Deferred"
+		);
+	});
+
+	it("omits archived Work from the default board and does not open an Archive column", () => {
+		const board = presentKanbanBoard(seedPort().list());
+		expect(board.columns.map((column) => column.status)).toEqual([
+			"Not Started",
+			"In Progress",
+			"Blocked",
+			"Closed",
+		]);
+		expect(
+			board.columns.flatMap((column) => column.cards.map((card) => card.workId))
+		).not.toContain("work_old");
+		expect(
+			JSON.stringify(board.columns.map((column) => column.status))
+		).not.toMatch(ARCHIVE_COLUMN_PATTERN);
 	});
 });

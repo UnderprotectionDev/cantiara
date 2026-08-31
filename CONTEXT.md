@@ -258,6 +258,10 @@ _Avoid_: Sprint, Kilometre Taşı, Proje Sürümü
 İşleri İş akışı durumuna göre sütunlarda gösteren planlama yüzeyi; sütunlar arası kart hareketi duruma yansır, kapanış sonucu veya ikinci kayıt listesi değildir ([Kanban](docs/prd/06-work-management-and-planning.md)).
 _Avoid_: Sprint tahtası, kapanış kolonu, bağımsız manuel sıra
 
+**Yeniden görünme tarihi**:
+İşin en erken ne zaman yeniden değerlendirileceğini belirten isteğe bağlı tarih; hedef tarihi veya kişisel hatırlatma değildir ([yeniden görünme tarihi](docs/prd/06-work-management-and-planning.md#yeniden-görünme-tarihi)). UI: `Reappear date`.
+_Avoid_: Target date, Hatırlatma, Kanban sütunu, Save for Later
+
 **Backlog**:
 Henüz planlanmamış İşler dahil değerlendirilecek İşlerin hazır dinamik koleksiyonu ve Projedeki tek kalıcı manuel sıra; üyelik durum yazmaz ([Backlog](docs/prd/06-work-management-and-planning.md#backlog)).
 _Avoid_: Klasör, etiket, statik liste, Kanban sırası

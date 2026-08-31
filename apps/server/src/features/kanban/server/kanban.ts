@@ -14,12 +14,16 @@ import {
 import {
 	type CardVisibleField,
 	DEFAULT_CARD_VISIBLE_FIELDS,
+	DEFAULT_SAVED_VIEW_SORT,
 	KANBAN_COLUMNS,
 	KANBAN_COPY,
 	type KanbanBoard,
+	type KanbanBoardPresentation,
 	type KanbanCard,
 	type KanbanMoveOutcome,
+	type KanbanSortField,
 	type KanbanWorkRecord,
+	type SavedViewSort,
 	type WorkStatusPort,
 } from "./kanban-model";
 
@@ -27,7 +31,10 @@ const NON_TERMINAL = new Set<string>(NON_TERMINAL_WORK_STATUSES);
 
 export interface MemoryWorkStatusPort extends WorkStatusPort {
 	automations: string[];
+	backlogOrder: () => string[];
 	githubWrites: Array<{ status: string; workId: string }>;
+	kanbanRanks: () => Record<string, number>;
+	sessionOrder: () => string[];
 }
 
 export function createMemoryWorkStatusPort(
@@ -37,8 +44,14 @@ export function createMemoryWorkStatusPort(
 	const membershipByWork = new Map<string, string[]>();
 	const githubWrites: Array<{ status: string; workId: string }> = [];
 	const automations: string[] = [];
+	const backlog = records.map((record) => record.id);
+	const session = [...backlog].reverse();
+	const kanbanRanks: Record<string, number> = {};
 	const port: MemoryWorkStatusPort = {
 		automations,
+		backlogOrder() {
+			return [...backlog];
+		},
 		fireSilentAutomation(workId) {
 			automations.push(workId);
 		},
@@ -46,6 +59,9 @@ export function createMemoryWorkStatusPort(
 			return work.get(workId) ?? null;
 		},
 		githubWrites,
+		kanbanRanks() {
+			return { ...kanbanRanks };
+		},
 		list() {
 			return [...work.values()];
 		},
@@ -55,6 +71,9 @@ export function createMemoryWorkStatusPort(
 		recordPlanningMembership(workId, surface) {
 			const current = membershipByWork.get(workId) ?? [];
 			membershipByWork.set(workId, [...current, surface]);
+		},
+		sessionOrder() {
+			return [...session];
 		},
 		writeGitHubStatus(workId, status) {
 			githubWrites.push({ status, workId });
@@ -83,17 +102,24 @@ export function createMemoryWorkStatusPort(
 
 export function presentKanbanBoard(
 	records: readonly KanbanWorkRecord[],
-	visibleFields: readonly CardVisibleField[] = DEFAULT_CARD_VISIBLE_FIELDS
+	presentation: KanbanBoardPresentation = {}
 ): KanbanBoard {
+	const {
+		asOf,
+		sort = DEFAULT_SAVED_VIEW_SORT,
+		visibleFields = DEFAULT_CARD_VISIBLE_FIELDS,
+	} = presentation;
 	const active = records.filter((record) => record.archived !== true);
 	return {
 		columns: KANBAN_COLUMNS.map((status) => ({
-			cards: active
-				.filter((record) => record.status === status)
-				.map((record) => toCard(record, visibleFields)),
+			cards: sortRecords(
+				active.filter((record) => record.status === status),
+				sort
+			).map((record) => toCard(record, visibleFields, asOf)),
 			status,
 		})),
 		copy: KANBAN_COPY,
+		sort,
 		visibleFields,
 	};
 }
@@ -154,7 +180,13 @@ export async function loadKanbanBoard(
 	projectId: string
 ): Promise<KanbanBoard> {
 	const work = await listWork(prisma, projectId, { archived: false });
-	return presentKanbanBoard(work.map(workViewToKanbanRecord));
+	return presentKanbanBoard(work.map(workViewToKanbanRecord), {
+		asOf: calendarDay(new Date()),
+	});
+}
+
+function calendarDay(date: Date): string {
+	return date.toISOString().slice(0, 10);
 }
 
 export async function moveKanbanCardForProject(
@@ -206,7 +238,8 @@ export async function moveKanbanCardForProject(
 
 function toCard(
 	record: KanbanWorkRecord,
-	visibleFields: readonly CardVisibleField[]
+	visibleFields: readonly CardVisibleField[],
+	asOf?: string
 ): KanbanCard {
 	const values: Record<CardVisibleField, string | null> = {
 		Blocker: record.blocker ?? null,
@@ -223,6 +256,7 @@ function toCard(
 		Type: record.type,
 	};
 	return {
+		background: isBackground(record, asOf),
 		id: record.id,
 		key: record.key,
 		revision: record.revision,
@@ -238,6 +272,43 @@ function toCard(
 		type: record.type,
 		workId: record.id,
 	};
+}
+
+function isBackground(record: KanbanWorkRecord, asOf?: string): boolean {
+	if (!(asOf && record.reappearDate)) {
+		return false;
+	}
+	return record.reappearDate > asOf;
+}
+
+function sortRecords(
+	records: readonly KanbanWorkRecord[],
+	sort: SavedViewSort
+): KanbanWorkRecord[] {
+	const factor = sort.direction === "desc" ? -1 : 1;
+	return [...records].sort((left, right) => {
+		const compared =
+			sortValue(left, sort.field).localeCompare(sortValue(right, sort.field)) *
+			factor;
+		if (compared !== 0) {
+			return compared;
+		}
+		return left.key.localeCompare(right.key);
+	});
+}
+
+function sortValue(record: KanbanWorkRecord, field: KanbanSortField): string {
+	const values: Record<KanbanSortField, string> = {
+		Key: record.key,
+		"Planned start": record.plannedStart ?? "",
+		Priority: record.priority ?? "",
+		"Reappear date": record.reappearDate ?? "",
+		Status: record.status,
+		"Target date": record.targetDate ?? "",
+		Title: record.title,
+		Type: record.type,
+	};
+	return values[field];
 }
 
 function checklistLabel(record: KanbanWorkRecord): string | null {
