@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev --hostname 0.0.0.0 --port=4000",
+    "dev": "next dev --port=4000",
     "start": "next start",
     "types:check": "next typegen && tsc --noEmit",
     "lint": "biome check",

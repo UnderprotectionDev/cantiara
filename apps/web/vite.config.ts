@@ -16,10 +16,10 @@ export default defineConfig({
 		tsconfigPaths: true,
 	},
 	server: {
-		// Cursor port detection and forwarding use IPv4 (127.0.0.1 / 0.0.0.0).
-		// `host: true` dual-stack-binds `::`, which never appears in /proc/net/tcp.
+		// Cursor port forwarding hits 127.0.0.1. Vite's default `localhost` bind
+		// is ::1-only on this host, so IPv4 browsers get connection refused.
 		allowedHosts: true,
-		host: "0.0.0.0",
+		host: true,
 		port: 3001,
 		strictPort: true,
 	},
