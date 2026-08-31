@@ -1,13 +1,22 @@
 import { z } from "zod";
 
+import {
+	CLOSURE_RESULT,
+	WORK_STATUS,
+} from "../../work-lifecycle/server/work-lifecycle-model";
+
 export const DAILY_FOCUS_COPY = {
+	abandoned: "Abandoned",
 	accept: "Accept",
 	add: "Add",
 	candidates: "Candidates",
 	candidatesEmpty: "No Candidates for this day.",
 	candidatesRule:
 		"Work appears here when Target date is this day through the next 7 days, or Reappear date is on or before this day.",
+	closeFocus: "Close focus",
+	completed: "Completed",
 	dailyFocus: "Daily Focus",
+	deferred: "Deferred",
 	empty: "No Work in Daily Focus for this day.",
 	loading: "Loading…",
 	openSourceRecord: "Open source record",
@@ -15,6 +24,7 @@ export const DAILY_FOCUS_COPY = {
 	reject: "Reject",
 	remove: "Remove",
 	selectedDay: "Selected day",
+	stillOpen: "Still open",
 	targetDateNear: "Target date is near",
 	whatHappenedToday: "What happened today?",
 	work: "Work",
@@ -34,6 +44,22 @@ export const DAILY_FOCUS_PLANNING_WRITES = {
 	priority: false,
 	stage: false,
 	status: false,
+} as const;
+
+export const DAILY_FOCUS_CLOSE_WRITES = {
+	calendarDay: false,
+	membership: false,
+	status: false,
+	summaryRecord: false,
+} as const;
+
+export const DAILY_FOCUS_CLOSE_RITUAL = {
+	completionEffect: false,
+	mandatory: false,
+	score: false,
+	streak: false,
+	verdict: false,
+	zeroWorkTarget: false,
 } as const;
 
 export const WHAT_HAPPENED_TODAY_CONTRACT = {
@@ -136,12 +162,16 @@ export const dailyFocusViewSchema = z.object({
 	}),
 	candidates: z.array(dailyFocusCandidateSchema),
 	copy: z.object({
+		abandoned: z.literal(DAILY_FOCUS_COPY.abandoned),
 		accept: z.literal(DAILY_FOCUS_COPY.accept),
 		add: z.literal(DAILY_FOCUS_COPY.add),
 		candidates: z.literal(DAILY_FOCUS_COPY.candidates),
 		candidatesEmpty: z.literal(DAILY_FOCUS_COPY.candidatesEmpty),
 		candidatesRule: z.literal(DAILY_FOCUS_COPY.candidatesRule),
+		closeFocus: z.literal(DAILY_FOCUS_COPY.closeFocus),
+		completed: z.literal(DAILY_FOCUS_COPY.completed),
 		dailyFocus: z.literal(DAILY_FOCUS_COPY.dailyFocus),
+		deferred: z.literal(DAILY_FOCUS_COPY.deferred),
 		empty: z.literal(DAILY_FOCUS_COPY.empty),
 		loading: z.literal(DAILY_FOCUS_COPY.loading),
 		openSourceRecord: z.literal(DAILY_FOCUS_COPY.openSourceRecord),
@@ -149,6 +179,7 @@ export const dailyFocusViewSchema = z.object({
 		reject: z.literal(DAILY_FOCUS_COPY.reject),
 		remove: z.literal(DAILY_FOCUS_COPY.remove),
 		selectedDay: z.literal(DAILY_FOCUS_COPY.selectedDay),
+		stillOpen: z.literal(DAILY_FOCUS_COPY.stillOpen),
 		targetDateNear: z.literal(DAILY_FOCUS_COPY.targetDateNear),
 		whatHappenedToday: z.literal(DAILY_FOCUS_COPY.whatHappenedToday),
 		work: z.literal(DAILY_FOCUS_COPY.work),
@@ -166,6 +197,74 @@ export const dailyFocusViewSchema = z.object({
 
 export type DailyFocusView = z.infer<typeof dailyFocusViewSchema>;
 
+export const dailyFocusCloseItemSchema = dailyFocusWorkSchema.extend({
+	closureResult: z.string().nullable(),
+	openSourceRecord: z.literal(true),
+	reappearDate: z.string().nullable(),
+	status: z.string().min(1),
+});
+
+export type DailyFocusCloseItem = z.infer<typeof dailyFocusCloseItemSchema>;
+
+export const dailyFocusCloseViewSchema = z.object({
+	calendarDay: calendarDaySchema,
+	copy: dailyFocusViewSchema.shape.copy,
+	groups: z.object({
+		abandoned: z.array(dailyFocusCloseItemSchema),
+		completed: z.array(dailyFocusCloseItemSchema),
+		reappearDeferred: z.array(dailyFocusCloseItemSchema),
+		stillOpen: z.array(dailyFocusCloseItemSchema),
+	}),
+	ritual: z.object({
+		completionEffect: z.literal(false),
+		mandatory: z.literal(false),
+		score: z.literal(false),
+		streak: z.literal(false),
+		verdict: z.literal(false),
+		zeroWorkTarget: z.literal(false),
+	}),
+	writes: z.object({
+		calendarDay: z.literal(false),
+		membership: z.literal(false),
+		status: z.literal(false),
+		summaryRecord: z.literal(false),
+	}),
+});
+
+export type DailyFocusCloseView = z.infer<typeof dailyFocusCloseViewSchema>;
+
+export function groupCloseFocusWork(
+	members: readonly DailyFocusCloseItem[],
+	calendarDay: string
+): DailyFocusCloseView["groups"] {
+	const abandoned: DailyFocusCloseItem[] = [];
+	const completed: DailyFocusCloseItem[] = [];
+	const reappearDeferred: DailyFocusCloseItem[] = [];
+	const stillOpen: DailyFocusCloseItem[] = [];
+	for (const member of members) {
+		if (
+			member.status === WORK_STATUS.closed &&
+			member.closureResult === CLOSURE_RESULT.completed
+		) {
+			completed.push(member);
+			continue;
+		}
+		if (
+			member.status === WORK_STATUS.closed &&
+			member.closureResult === CLOSURE_RESULT.abandoned
+		) {
+			abandoned.push(member);
+			continue;
+		}
+		if (member.reappearDate !== null && member.reappearDate > calendarDay) {
+			reappearDeferred.push(member);
+			continue;
+		}
+		stillOpen.push(member);
+	}
+	return { abandoned, completed, reappearDeferred, stillOpen };
+}
+
 export function workSourceHref(projectId: string, workId: string): string {
 	return `/projects/${projectId}?work=${encodeURIComponent(workId)}#work`;
 }
@@ -180,6 +279,11 @@ export function nextCalendarDay(day: string): string {
 export function dailyFocusCatalog() {
 	return {
 		candidateCounterparts: CANDIDATE_COUNTERPARTS,
+		closeFocus: {
+			optional: true,
+			ritual: DAILY_FOCUS_CLOSE_RITUAL,
+			writes: DAILY_FOCUS_CLOSE_WRITES,
+		},
 		copy: DAILY_FOCUS_COPY,
 		kind: "daily-focus" as const,
 		planningWrites: DAILY_FOCUS_PLANNING_WRITES,

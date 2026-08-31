@@ -1,10 +1,12 @@
 /**
  * Daily Focus seam — personal day-scoped membership, add/remove
  * that does not write status / priority / stage / Backlog order,
- * no rollover to the next calendar day, and a second Account
- * cannot see the set. Synthetic fixture for
+ * no rollover to the next calendar day, Close focus as a
+ * non-mutating calm view, and a second Account cannot see the set.
+ * Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Günlük planlama: non-Kanban view changes do not write status).
+ * (Günlük planlama: non-Kanban view changes do not write status;
+ * Close focus does not close Work or write membership).
  */
 
 import { saveAccountPreferences } from "@cantiara/auth";
@@ -26,9 +28,12 @@ import { createDailyFocus } from "./daily-focus";
 import {
 	CANDIDATE_COUNTERPARTS,
 	CANDIDATE_REASON,
+	DAILY_FOCUS_CLOSE_RITUAL,
+	DAILY_FOCUS_CLOSE_WRITES,
 	DAILY_FOCUS_COPY,
 	DAILY_FOCUS_PLANNING_WRITES,
 	dailyFocusCatalog,
+	groupCloseFocusWork,
 	WHAT_HAPPENED_TODAY_CONTRACT,
 	WHAT_HAPPENED_TODAY_KINDS,
 	workSourceHref,
@@ -47,14 +52,23 @@ describe("Daily Focus catalog", () => {
 	it("exposes English Daily Focus and does not write planning fields", () => {
 		expect(dailyFocusCatalog()).toEqual({
 			candidateCounterparts: CANDIDATE_COUNTERPARTS,
+			closeFocus: {
+				optional: true,
+				ritual: DAILY_FOCUS_CLOSE_RITUAL,
+				writes: DAILY_FOCUS_CLOSE_WRITES,
+			},
 			copy: {
+				abandoned: "Abandoned",
 				accept: "Accept",
 				add: "Add",
 				candidates: "Candidates",
 				candidatesEmpty: "No Candidates for this day.",
 				candidatesRule:
 					"Work appears here when Target date is this day through the next 7 days, or Reappear date is on or before this day.",
+				closeFocus: "Close focus",
+				completed: "Completed",
 				dailyFocus: "Daily Focus",
+				deferred: "Deferred",
 				empty: "No Work in Daily Focus for this day.",
 				loading: "Loading…",
 				openSourceRecord: "Open source record",
@@ -62,6 +76,7 @@ describe("Daily Focus catalog", () => {
 				reject: "Reject",
 				remove: "Remove",
 				selectedDay: "Selected day",
+				stillOpen: "Still open",
 				targetDateNear: "Target date is near",
 				whatHappenedToday: "What happened today?",
 				work: "Work",
@@ -82,6 +97,7 @@ describe("Daily Focus catalog", () => {
 			},
 		});
 		expect(DAILY_FOCUS_COPY.dailyFocus).toBe("Daily Focus");
+		expect(DAILY_FOCUS_COPY.closeFocus).toBe("Close focus");
 		expect(DAILY_FOCUS_COPY.candidates).toBe("Candidates");
 		expect(DAILY_FOCUS_COPY.whatHappenedToday).toBe("What happened today?");
 		expect(DAILY_FOCUS_COPY.openSourceRecord).toBe("Open source record");
@@ -91,6 +107,26 @@ describe("Daily Focus catalog", () => {
 			rewritesSourceTimestamps: false,
 		});
 		expect(JSON.stringify(dailyFocusCatalog())).not.toMatch(FORBIDDEN_SURFACE);
+	});
+
+	it("groups reappear-deferred Daily Focus Work from a future source reappear date", () => {
+		const deferred = {
+			closureResult: null,
+			id: "work-deferred",
+			key: "PAY-1",
+			openSourceRecord: true as const,
+			projectId: "project-1",
+			projectName: "Payments",
+			reappearDate: "2026-09-15",
+			status: "Not Started",
+			title: "Snoozed intake",
+		};
+		expect(groupCloseFocusWork([deferred], "2026-08-31")).toEqual({
+			abandoned: [],
+			completed: [],
+			reappearDeferred: [deferred],
+			stillOpen: [],
+		});
 	});
 });
 
@@ -379,6 +415,93 @@ describe("Daily Focus", () => {
 		expect(
 			(await focus(boundary).view({ calendarDay: "2026-09-01" })).members
 		).toEqual([]);
+	});
+
+	it("Close focus is a non-mutating view of source groups for the selected day", async () => {
+		const payments = await openProject("Payments");
+		const completedWork = await openWork(payments.id, "Shipped checkout");
+		const abandonedWork = await openWork(payments.id, "Dropped experiment");
+		const openWorkRow = await openWork(payments.id, "Ranking query");
+		const surface = focus();
+		await surface.add({
+			idempotencyKey: crypto.randomUUID(),
+			workId: completedWork.id,
+		});
+		await surface.add({
+			idempotencyKey: crypto.randomUUID(),
+			workId: abandonedWork.id,
+		});
+		await surface.add({
+			idempotencyKey: crypto.randomUUID(),
+			workId: openWorkRow.id,
+		});
+		const completedClose = await closeWork(prisma, {
+			actorId,
+			baseRevision: completedWork.revision,
+			idempotencyKey: `close-completed-${actorId}`,
+			origin: "human",
+			result: "Completed",
+			workId: completedWork.id,
+		});
+		const abandonedClose = await closeWork(prisma, {
+			actorId,
+			baseRevision: abandonedWork.revision,
+			idempotencyKey: `close-abandoned-${actorId}`,
+			origin: "human",
+			result: "Abandoned",
+			workId: abandonedWork.id,
+		});
+		expect(completedClose.status).toBe("committed");
+		expect(abandonedClose.status).toBe("committed");
+		if (completedClose.status !== "committed") {
+			throw new Error("expected Completed Work");
+		}
+		if (abandonedClose.status !== "committed") {
+			throw new Error("expected Abandoned Work");
+		}
+
+		const closeView = await surface.closeView();
+
+		expect(closeView.calendarDay).toBe("2026-08-31");
+		expect(closeView.copy.closeFocus).toBe("Close focus");
+		expect(closeView.copy.dailyFocus).toBe("Daily Focus");
+		expect(closeView.copy.openSourceRecord).toBe("Open source record");
+		expect(closeView.writes).toEqual(DAILY_FOCUS_CLOSE_WRITES);
+		expect(closeView.ritual).toEqual(DAILY_FOCUS_CLOSE_RITUAL);
+		expect(closeView.groups.completed.map((row) => row.id)).toEqual([
+			completedWork.id,
+		]);
+		expect(closeView.groups.abandoned.map((row) => row.id)).toEqual([
+			abandonedWork.id,
+		]);
+		expect(closeView.groups.stillOpen.map((row) => row.id)).toEqual([
+			openWorkRow.id,
+		]);
+		expect(closeView.groups.reappearDeferred).toEqual([]);
+		expect(closeView.groups.completed[0]).toMatchObject({
+			id: completedWork.id,
+			key: completedWork.key,
+			openSourceRecord: true,
+			projectName: "Payments",
+			title: "Shipped checkout",
+		});
+		expect(JSON.stringify(closeView)).not.toMatch(FORBIDDEN_SURFACE);
+
+		expect(await getWork(prisma, openWorkRow.id)).toMatchObject({
+			closureResult: null,
+			status: "Not Started",
+		});
+		expect(await getWork(prisma, completedWork.id)).toMatchObject({
+			closureResult: "Completed",
+			revision: completedClose.work.revision,
+			status: "Closed",
+		});
+		expect((await surface.view()).members.map((row) => row.id).sort()).toEqual(
+			[completedWork.id, abandonedWork.id, openWorkRow.id].sort()
+		);
+		expect((await surface.view({ calendarDay: "2026-09-01" })).members).toEqual(
+			[]
+		);
 	});
 
 	it("derives What happened today from source Work events without a Daily Note", async () => {

@@ -18,11 +18,16 @@ import {
 	CANDIDATE_LIMIT,
 	CANDIDATE_REASON,
 	calendarDaySchema,
+	DAILY_FOCUS_CLOSE_RITUAL,
+	DAILY_FOCUS_CLOSE_WRITES,
 	DAILY_FOCUS_COPY,
 	DAILY_FOCUS_PLANNING_WRITES,
 	type DailyFocusCandidate,
+	type DailyFocusCloseItem,
+	type DailyFocusCloseView,
 	type DailyFocusView,
 	type DailyFocusWork,
+	groupCloseFocusWork,
 	nextCalendarDay,
 	TARGET_DATE_NEAR_DAYS,
 	WHAT_HAPPENED_TODAY_CONTRACT,
@@ -58,6 +63,7 @@ interface MembershipCommand {
 export interface DailyFocus {
 	accept: (input: MembershipCommand) => Promise<MembershipOutcome>;
 	add: (input: MembershipCommand) => Promise<MembershipOutcome>;
+	closeView: (input?: { calendarDay?: string }) => Promise<DailyFocusCloseView>;
 	reject: (input: MembershipCommand) => Promise<MembershipOutcome>;
 	remove: (input: MembershipCommand) => Promise<MembershipOutcome>;
 	view: (input?: { calendarDay?: string }) => Promise<DailyFocusView>;
@@ -171,9 +177,22 @@ export function createDailyFocus(input: CreateDailyFocusInput): DailyFocus {
 		});
 	}
 
+	async function closeView(
+		query: { calendarDay?: string } = {}
+	): Promise<DailyFocusCloseView> {
+		const day = await resolveDay(query.calendarDay);
+		return await loadCloseView(
+			input.prisma,
+			input.accountId,
+			input.workspaceId,
+			day
+		);
+	}
+
 	return {
 		accept: (command) => mutate("accept", command),
 		add: (command) => mutate("add", command),
+		closeView,
 		reject: (command) => mutate("reject", command),
 		remove: (command) => mutate("remove", command),
 		view,
@@ -261,12 +280,12 @@ async function listRejectedWorkIds(
 	return new Set(rows.map((row) => row.workId));
 }
 
-async function loadView(
+async function loadMembershipWork(
 	db: MutationDb,
 	accountId: string,
 	workspaceId: string,
 	day: string
-): Promise<DailyFocusView> {
+) {
 	const rows = await db.dailyFocusMembership.findMany({
 		include: {
 			work: {
@@ -276,13 +295,21 @@ async function loadView(
 		orderBy: { createdAt: "asc" },
 		where: { accountId, calendarDay: day },
 	});
-	const members = rows
-		.filter(
-			(row) =>
-				row.work.project.workspaceId === workspaceId &&
-				row.work.retiredIntoId === null
-		)
-		.map((row) => toWork(row.work));
+	return rows.filter(
+		(row) =>
+			row.work.project.workspaceId === workspaceId &&
+			row.work.retiredIntoId === null
+	);
+}
+
+async function loadView(
+	db: MutationDb,
+	accountId: string,
+	workspaceId: string,
+	day: string
+): Promise<DailyFocusView> {
+	const rows = await loadMembershipWork(db, accountId, workspaceId, day);
+	const members = rows.map((row) => toWork(row.work));
 	const memberIds = new Set(members.map((row) => row.id));
 	const eligibleRows = await db.work.findMany({
 		include: { project: true },
@@ -484,6 +511,53 @@ function toWork(row: {
 		key: row.key,
 		projectId: row.projectId,
 		projectName: row.project.name,
+		title: row.title,
+	};
+}
+
+async function loadCloseView(
+	db: MutationDb,
+	accountId: string,
+	workspaceId: string,
+	day: string
+): Promise<DailyFocusCloseView> {
+	const rows = await loadMembershipWork(db, accountId, workspaceId, day);
+	const members = rows.map((row) => toCloseItem(row.work));
+	return {
+		calendarDay: day,
+		copy: DAILY_FOCUS_COPY,
+		groups: groupCloseFocusWork(members, day),
+		ritual: DAILY_FOCUS_CLOSE_RITUAL,
+		writes: DAILY_FOCUS_CLOSE_WRITES,
+	};
+}
+
+function sourceReappearDate(row: object): string | null {
+	if (!("reappearDate" in row) || typeof row.reappearDate !== "string") {
+		return null;
+	}
+	return row.reappearDate;
+}
+
+function toCloseItem(row: {
+	closureResult: string | null;
+	id: string;
+	key: string;
+	project: { id: string; name: string };
+	projectId: string;
+	reappearDate?: string | null;
+	status: string;
+	title: string;
+}): DailyFocusCloseItem {
+	return {
+		closureResult: row.closureResult,
+		id: row.id,
+		key: row.key,
+		openSourceRecord: true,
+		projectId: row.projectId,
+		projectName: row.project.name,
+		reappearDate: row.reappearDate ?? sourceReappearDate(row),
+		status: row.status,
 		title: row.title,
 	};
 }

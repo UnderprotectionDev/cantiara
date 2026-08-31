@@ -282,6 +282,10 @@ _Avoid_: Parked, snooze durumu, Kanban sütunu
 Kullanıcının farklı Projelerden bugün ele almak istediği İşleri toplayan kişisel görünüm; durum, öncelik veya proje aşaması yazmaz ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `Daily Focus`.
 _Avoid_: Odak Dönemi, sprint, Aktif Çalışma Seti, Takvim olayı
 
+**Odağı kapat**:
+Günlük Odak’ta seçili gün için isteğe bağlı sakin kapanış görünümü; açık İşi kapatmaz, üyelikten çıkarmaz veya başka güne taşımaz; seri, puan veya Bitiriş efekti üretmez ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `Close focus`.
+_Avoid_: zorunlu ritüel, seri, puan, Daily Note, kullanıcı başlatmalı İş başarısı
+
 **Adaylar**:
 Günlük Odak’ta hedef tarihi yaklaşan veya yeniden görünme tarihi gelen az sayıda İş önerisi; üyelik değildir ve kabul edilmeden o günün odağına alınmaz ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `Candidates`.
 _Avoid_: otomatik üyelik, Backlog üyeliği, Odak Dönemi, Takvim olayı
