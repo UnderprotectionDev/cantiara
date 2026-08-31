@@ -11,6 +11,7 @@ import {
 	loadKanbanBoard,
 	moveKanbanCardForProject,
 	reopenKanbanCardForProject,
+	saveKanbanLimits,
 } from "./kanban";
 import { KANBAN_COPY } from "./kanban-model";
 
@@ -112,6 +113,28 @@ export const kanban = {
 				idempotencyKey: input.idempotencyKey,
 				targetStatus: input.targetStatus,
 				workId: input.workId,
+			});
+		}),
+	saveLimits: protectedWriteProcedure
+		.input(
+			z.object({
+				focusThreshold: z.number().int().nullable(),
+				projectId: z.string().min(1),
+				softWipLimits: z.array(
+					z.object({
+						limit: z.number().int().nullable(),
+						status: z.string().min(1),
+					})
+				),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await saveKanbanLimits(getPrismaClient(), {
+				focusThreshold: input.focusThreshold,
+				projectId: input.projectId,
+				softWipLimits: input.softWipLimits,
 			});
 		}),
 };

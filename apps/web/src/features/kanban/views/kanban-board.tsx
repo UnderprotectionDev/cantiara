@@ -6,6 +6,7 @@ import {
 	CardTitle,
 } from "@cantiara/ui/components/card";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
+import { Input } from "@cantiara/ui/components/input";
 import {
 	NativeSelect,
 	NativeSelectOption,
@@ -23,7 +24,7 @@ import {
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useForm } from "@tanstack/react-form";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	type ChangeEvent,
 	type FormEvent,
@@ -39,11 +40,14 @@ import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc } from "@/utils/orpc";
 
 import {
+	collapseKanbanColumn,
 	KANBAN_CLOSURE_RESULTS,
 	KANBAN_COLUMNS,
 	KANBAN_COPY,
 	KANBAN_REOPEN_TARGETS,
+	type KanbanBoardView,
 	type KanbanCard,
+	type KanbanColumn,
 	type KanbanColumnStatus,
 	presentKanbanBoard,
 } from "../store/present-board";
@@ -61,11 +65,13 @@ interface BoardWorkItem {
 }
 
 export default function KanbanBoard({
+	configurationMode = false,
 	items,
 	onOpenSourceRecord,
 	projectId,
 	selectedWorkId,
 }: {
+	configurationMode?: boolean;
 	items: BoardWorkItem[];
 	onOpenSourceRecord: (workId: string) => void;
 	projectId: string;
@@ -75,10 +81,16 @@ export default function KanbanBoard({
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
 	);
+	const [collapsedStatuses, setCollapsedStatuses] = useState<
+		KanbanColumnStatus[]
+	>([]);
 	const [closingWorkId, setClosingWorkId] = useState<string | null>(null);
 	const [reopeningWorkId, setReopeningWorkId] = useState<string | null>(null);
 	const [reopenTarget, setReopenTarget] = useState<string>(
 		KANBAN_COPY.inProgress
+	);
+	const remote = useQuery(
+		orpc.kanban.board.queryOptions({ input: { projectId } })
 	);
 	const move = useMutation(
 		orpc.kanban.moveCard.mutationOptions({
@@ -126,6 +138,14 @@ export default function KanbanBoard({
 			},
 		})
 	);
+	const saveLimits = useMutation(
+		orpc.kanban.saveLimits.mutationOptions({
+			onSuccess: async () => {
+				await invalidateWork(projectId, projectId);
+				recordSave();
+			},
+		})
+	);
 	const records = useMemo(
 		() =>
 			items.flatMap((item) => {
@@ -151,14 +171,29 @@ export default function KanbanBoard({
 			}),
 		[items]
 	);
-	const board = presentKanbanBoard(records);
+	const presented = remote.data ?? presentKanbanBoard(records);
+	const board = useMemo(
+		() =>
+			collapsedStatuses.reduce(
+				(current, status) => collapseKanbanColumn(current, status),
+				presented as KanbanBoardView
+			),
+		[collapsedStatuses, presented]
+	);
 	const revisionById = useMemo(() => {
 		const map = new Map<string, number>();
 		for (const item of items) {
 			map.set(item.id, item.revision);
 		}
+		for (const column of board.columns) {
+			for (const card of column.cards) {
+				if (!map.has(card.workId)) {
+					map.set(card.workId, card.revision);
+				}
+			}
+		}
 		return map;
-	}, [items]);
+	}, [board.columns, items]);
 	const onMove = useCallback(
 		(workId: string, targetStatus: string) => {
 			const revision = revisionById.get(workId);
@@ -250,16 +285,84 @@ export default function KanbanBoard({
 		},
 		[onMove]
 	);
+	const onToggleCollapse = useCallback((status: KanbanColumnStatus) => {
+		setCollapsedStatuses((current) =>
+			current.includes(status)
+				? current.filter((item) => item !== status)
+				: [...current, status]
+		);
+	}, []);
+	const onSaveLimits = useCallback(
+		(next: {
+			focusThreshold: number | null;
+			softWipLimits: Array<{ limit: number | null; status: string }>;
+		}) => {
+			attemptOnlineWork("record-create", () =>
+				saveLimits.mutateAsync({
+					focusThreshold: next.focusThreshold,
+					projectId,
+					softWipLimits: next.softWipLimits,
+				})
+			);
+		},
+		[attemptOnlineWork, projectId, saveLimits]
+	);
+
+	const onSaveFocus = useCallback(
+		(focusThreshold: number | null) => {
+			onSaveLimits({
+				focusThreshold,
+				softWipLimits: board.columns.map((column) => ({
+					limit: column.softWip.limit,
+					status: column.status,
+				})),
+			});
+		},
+		[board.columns, onSaveLimits]
+	);
+	const onSaveColumnLimit = useCallback(
+		(status: string, limit: number | null) => {
+			onSaveLimits({
+				focusThreshold: board.focus.threshold,
+				softWipLimits: board.columns.map((item) => ({
+					limit: item.status === status ? limit : item.softWip.limit,
+					status: item.status,
+				})),
+			});
+		},
+		[board.columns, board.focus.threshold, onSaveLimits]
+	);
 
 	return (
 		<section aria-label={KANBAN_COPY.kanban} className="flex flex-col gap-3">
 			<h2 className="font-medium text-sm">{KANBAN_COPY.board}</h2>
+			<p className="text-muted-foreground text-sm">
+				{KANBAN_COPY.inProgressCount}: {board.inProgressCount}
+				{typeof board.focus.threshold === "number" ? (
+					<span
+						className="ml-2 font-medium"
+						role={board.focus.mark ? "status" : undefined}
+					>
+						{KANBAN_COPY.focusThreshold}
+						{board.focus.mark ? ` ${board.focus.mark}` : ""} ·{" "}
+						{board.focus.count}/{board.focus.threshold}
+					</span>
+				) : null}
+			</p>
+			{configurationMode ? (
+				<FocusThresholdField
+					disabled={saveLimits.isPending}
+					onSave={onSaveFocus}
+					value={board.focus.threshold}
+				/>
+			) : null}
 			<DndContext onDragEnd={onDragEnd} sensors={sensors}>
 				<div className="grid gap-3 md:grid-cols-4">
 					{board.columns.map((column) => (
 						<KanbanColumnLane
-							cards={column.cards}
 							closingWorkId={closingWorkId}
+							column={column}
+							configurationMode={configurationMode}
 							key={column.status}
 							onCancelClose={onCancelClose}
 							onCancelReopen={onCancelReopen}
@@ -267,11 +370,12 @@ export default function KanbanBoard({
 							onMove={onMove}
 							onOpenSourceRecord={onOpenSourceRecord}
 							onReopen={onReopen}
+							onSaveColumnLimit={onSaveColumnLimit}
 							onStartReopen={onStartReopen}
+							onToggleCollapse={onToggleCollapse}
 							reopeningWorkId={reopeningWorkId}
 							reopenTarget={reopenTarget}
 							selectedWorkId={selectedWorkId}
-							status={column.status}
 						/>
 					))}
 				</div>
@@ -281,67 +385,116 @@ export default function KanbanBoard({
 }
 
 function KanbanColumnLane({
-	cards,
 	closingWorkId,
+	column,
+	configurationMode,
 	onCancelClose,
 	onCancelReopen,
 	onClose,
 	onMove,
 	onOpenSourceRecord,
 	onReopen,
+	onSaveColumnLimit,
 	onStartReopen,
+	onToggleCollapse,
 	reopeningWorkId,
 	reopenTarget,
 	selectedWorkId,
-	status,
 }: {
-	cards: KanbanCard[];
 	closingWorkId: string | null;
+	column: KanbanColumn;
+	configurationMode: boolean;
 	onCancelClose: () => void;
 	onCancelReopen: () => void;
 	onClose: (workId: string, result: string, reason: string) => void;
 	onMove: (workId: string, targetStatus: string) => void;
 	onOpenSourceRecord: (workId: string) => void;
 	onReopen: (workId: string, targetStatus: string, confirmed: boolean) => void;
+	onSaveColumnLimit: (status: string, limit: number | null) => void;
 	onStartReopen: (workId: string) => void;
-	reopenTarget: string;
+	onToggleCollapse: (status: KanbanColumnStatus) => void;
 	reopeningWorkId: string | null;
+	reopenTarget: string;
 	selectedWorkId: string | null;
-	status: KanbanColumnStatus;
 }) {
-	const { isOver, setNodeRef } = useDroppable({ id: status });
+	const { isOver, setNodeRef } = useDroppable({ id: column.status });
+	const onCollapse = useCallback(() => {
+		onToggleCollapse(column.status);
+	}, [column.status, onToggleCollapse]);
+	const onSaveLimit = useCallback(
+		(limit: number | null) => {
+			onSaveColumnLimit(column.status, limit);
+		},
+		[column.status, onSaveColumnLimit]
+	);
 	return (
 		<section
-			aria-label={status}
+			aria-label={column.status}
 			className={cn(
 				"flex min-h-48 flex-col gap-2 border p-2",
 				isOver ? "bg-muted/70" : "bg-muted/20"
 			)}
 			ref={setNodeRef}
 		>
-			<h3 className="font-medium text-xs">
-				{status} <span className="text-muted-foreground">{cards.length}</span>
-			</h3>
-			<ul className="flex flex-col gap-2">
-				{cards.map((card) => (
-					<li key={card.workId}>
-						<KanbanCardItem
-							card={card}
-							closing={card.workId === closingWorkId}
-							onCancelClose={onCancelClose}
-							onCancelReopen={onCancelReopen}
-							onClose={onClose}
-							onMove={onMove}
-							onOpenSourceRecord={onOpenSourceRecord}
-							onReopen={onReopen}
-							onStartReopen={onStartReopen}
-							reopening={card.workId === reopeningWorkId}
-							reopenTarget={reopenTarget}
-							selected={card.workId === selectedWorkId}
-						/>
-					</li>
-				))}
-			</ul>
+			<div className="flex items-start justify-between gap-2">
+				<h3 className="font-medium text-xs">
+					{column.status}{" "}
+					<span className="text-muted-foreground">{column.count}</span>
+					{typeof column.softWip.limit === "number" ? (
+						<span
+							className="ml-1 font-medium"
+							role={column.softWip.mark ? "status" : undefined}
+						>
+							{KANBAN_COPY.softWip}
+							{column.softWip.mark ? ` ${column.softWip.mark}` : ""} ·{" "}
+							{column.softWip.count}/{column.softWip.limit}
+						</span>
+					) : null}
+				</h3>
+				<Button
+					aria-expanded={!column.collapsed}
+					onClick={onCollapse}
+					size="xs"
+					type="button"
+					variant="ghost"
+				>
+					{column.collapsed ? KANBAN_COPY.expand : KANBAN_COPY.collapse}
+				</Button>
+			</div>
+			{column.collapsed && column.openBlockerCount > 0 ? (
+				<p className="text-xs">
+					{KANBAN_COPY.openBlocker}: {column.openBlockerCount}
+				</p>
+			) : null}
+			{configurationMode ? (
+				<SoftWipField
+					onSave={onSaveLimit}
+					status={column.status}
+					value={column.softWip.limit}
+				/>
+			) : null}
+			{column.collapsed ? null : (
+				<ul className="flex flex-col gap-2">
+					{column.cards.map((card) => (
+						<li key={card.workId}>
+							<KanbanCardItem
+								card={card}
+								closing={card.workId === closingWorkId}
+								onCancelClose={onCancelClose}
+								onCancelReopen={onCancelReopen}
+								onClose={onClose}
+								onMove={onMove}
+								onOpenSourceRecord={onOpenSourceRecord}
+								onReopen={onReopen}
+								onStartReopen={onStartReopen}
+								reopening={card.workId === reopeningWorkId}
+								reopenTarget={reopenTarget}
+								selected={card.workId === selectedWorkId}
+							/>
+						</li>
+					))}
+				</ul>
+			)}
 		</section>
 	);
 }
@@ -424,6 +577,12 @@ function KanbanCardItem({
 							<dd className="text-foreground">{field.value}</dd>
 						</div>
 					))}
+					{card.timeInCurrentStatus ? (
+						<div className="flex justify-between gap-2">
+							<dt>{KANBAN_COPY.timeInStatus}</dt>
+							<dd className="text-foreground">{card.timeInCurrentStatus}</dd>
+						</div>
+					) : null}
 				</dl>
 				{closing ? (
 					<KanbanClosureStep
@@ -470,6 +629,102 @@ function KanbanCardItem({
 			</CardContent>
 		</Card>
 	);
+}
+
+function FocusThresholdField({
+	disabled,
+	onSave,
+	value,
+}: {
+	disabled: boolean;
+	onSave: (value: number | null) => void;
+	value: number | null;
+}) {
+	const [draft, setDraft] = useState(value === null ? "" : String(value));
+	const onChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+		setDraft(event.currentTarget.value);
+	}, []);
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			onSave(parseOptionalLimit(draft));
+		},
+		[draft, onSave]
+	);
+	return (
+		<form className="flex max-w-xs items-end gap-2" onSubmit={onSubmit}>
+			<Field>
+				<FieldLabel htmlFor="focus-threshold">
+					{KANBAN_COPY.focusThreshold}
+				</FieldLabel>
+				<Input
+					id="focus-threshold"
+					inputMode="numeric"
+					onChange={onChange}
+					value={draft}
+				/>
+			</Field>
+			<Button disabled={disabled} size="sm" type="submit">
+				{KANBAN_COPY.focusThreshold}
+			</Button>
+		</form>
+	);
+}
+
+function SoftWipField({
+	onSave,
+	status,
+	value,
+}: {
+	onSave: (value: number | null) => void;
+	status: string;
+	value: number | null;
+}) {
+	const [draft, setDraft] = useState(value === null ? "" : String(value));
+	const onChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+		setDraft(event.currentTarget.value);
+	}, []);
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			onSave(parseOptionalLimit(draft));
+		},
+		[draft, onSave]
+	);
+	return (
+		<form className="flex flex-col gap-1" onSubmit={onSubmit}>
+			<Field>
+				<FieldLabel htmlFor={`soft-wip-${status}`}>
+					{KANBAN_COPY.softWip}
+				</FieldLabel>
+				<Input
+					id={`soft-wip-${status}`}
+					inputMode="numeric"
+					onChange={onChange}
+					value={draft}
+				/>
+			</Field>
+			<Button size="xs" type="submit">
+				{KANBAN_COPY.softWip}
+			</Button>
+		</form>
+	);
+}
+
+function parseOptionalLimit(value: string): number | null {
+	const trimmed = value.trim();
+	if (trimmed === "") {
+		return null;
+	}
+	const parsed = Number(trimmed);
+	if (!Number.isInteger(parsed) || parsed <= 0) {
+		return null;
+	}
+	return parsed;
+}
+
+function isKanbanStatus(value: string): value is KanbanColumnStatus {
+	return (KANBAN_COLUMNS as readonly string[]).includes(value);
 }
 
 function KanbanClosureStep({
@@ -691,8 +946,4 @@ function ReopenTargetField({
 			</NativeSelect>
 		</Field>
 	);
-}
-
-function isKanbanStatus(value: string): value is KanbanColumnStatus {
-	return (KANBAN_COLUMNS as readonly string[]).includes(value);
 }

@@ -14,14 +14,22 @@ export const KANBAN_COPY = {
 	board: "Board",
 	cancel: "Cancel",
 	closed: WORK_STATUS.closed,
+	collapse: "Collapse",
 	completed: WORK_LIFECYCLE_COPY.completed,
 	confirmReopen: WORK_LIFECYCLE_COPY.confirmReopen,
+	expand: "Expand",
+	focusThreshold: "Focus threshold",
 	inProgress: WORK_STATUS.inProgress,
+	inProgressCount: "In Progress count",
 	kanban: "Kanban",
 	notStarted: WORK_STATUS.notStarted,
+	openBlocker: "Open blocker",
 	openSourceRecord: WORK_LIFECYCLE_COPY.openSourceRecord,
+	overLimit: "Over limit",
 	reason: WORK_LIFECYCLE_COPY.reason,
 	reopen: WORK_LIFECYCLE_COPY.reopen,
+	softWip: "Soft WIP",
+	timeInStatus: "Time in status",
 } as const;
 
 export function presentKanbanClosureStep() {
@@ -84,6 +92,7 @@ export interface KanbanWorkRecord {
 	revision: number;
 	risk?: string | null;
 	status: WorkStatus;
+	statusEnteredAt?: string | null;
 	targetDate?: string | null;
 	title: string;
 	type: string;
@@ -98,23 +107,53 @@ export interface KanbanCard {
 	closureResult: string | null;
 	id: string;
 	key: string;
+	openBlocker: boolean;
 	revision: number;
 	status: WorkStatus;
 	summary: KanbanCardSummaryField[];
+	timeInCurrentStatus: string | null;
 	title: string;
 	type: string;
 	workId: string;
 }
 
+export interface KanbanSoftWipView {
+	count: number;
+	exceeded: boolean;
+	limit: number | null;
+	mark: typeof KANBAN_COPY.overLimit | null;
+}
+
+export interface KanbanFocusView {
+	count: number;
+	exceeded: boolean;
+	mark: typeof KANBAN_COPY.overLimit | null;
+	threshold: number | null;
+}
+
 export interface KanbanColumn {
 	cards: KanbanCard[];
+	collapsed: boolean;
+	count: number;
+	openBlockerCount: number;
+	softWip: KanbanSoftWipView;
 	status: KanbanColumnStatus;
 }
 
 export interface KanbanBoard {
 	columns: KanbanColumn[];
 	copy: typeof KANBAN_COPY;
+	focus: KanbanFocusView;
+	inProgressCount: number;
 	visibleFields: readonly CardVisibleField[];
+}
+
+export interface KanbanPresentationOptions {
+	collapsedStatuses?: readonly KanbanColumnStatus[];
+	focusThreshold?: number | null;
+	now?: Date;
+	softWipLimits?: Partial<Record<KanbanColumnStatus, number>>;
+	visibleFields?: readonly CardVisibleField[];
 }
 
 export type KanbanMoveOutcome =
@@ -148,6 +187,7 @@ export interface KanbanLifecycleEvent {
 }
 
 export interface WorkStatusPort {
+	automaticWorkWrites: string[];
 	closeWork: (
 		workId: string,
 		result?: string,
@@ -155,9 +195,14 @@ export interface WorkStatusPort {
 	) => KanbanCloseOutcome;
 	fireSilentAutomation: (workId: string) => void;
 	get: (workId: string) => KanbanWorkRecord | null;
+	healthVerdicts: string[];
 	history: (workId: string) => readonly KanbanLifecycleEvent[];
 	list: () => KanbanWorkRecord[];
 	memberships: (workId: string) => readonly string[];
+	mintHealthVerdict: (workId: string) => void;
+	mintNotification: (workId: string) => void;
+	mutateWorkAutomatically: (workId: string) => void;
+	notifications: string[];
 	recordPlanningMembership: (workId: string, surface: string) => void;
 	reopenWork: (
 		workId: string,
