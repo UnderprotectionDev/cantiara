@@ -198,23 +198,24 @@ export default function WorkArea({
 			.filter((record) => record.projectId === projectId)
 			.map((record) => record.id)
 	);
-	const records = preparedBacklog
-		? (backlog.data?.items ?? [])
-		: (work.data ?? []);
-	const items = records
-		.filter((item) => tagFilter === "" || taggedIds.has(item.id))
-		.filter((item) => filteredIds === null || filteredIds.includes(item.id))
-		.map((item) => ({
-			...item,
-			tags: (tagsByWork.get(item.id) ?? [])
-				.map((tagId) => tagName.get(tagId))
-				.filter((name): name is string => Boolean(name)),
-		}));
-	const selected = items.find((item) => item.id === selectedId) ?? null;
-	const bulkTargets = bulkEditTargetIds({
-		selectedWorkIds: bulkSelectedIds,
-		visibleWorkIds: items.map((item) => item.id),
-	});
+	const source = preparedCollectionSource(
+		preparedBacklog,
+		backlog.data,
+		work.data
+	);
+	const { bulkTargets, deferredItems, items, selected } = visibleWorkCollection(
+		{
+			deferred: source.deferred,
+			filteredIds,
+			records: source.records,
+			selectedId,
+			selectedWorkIds: bulkSelectedIds,
+			tagFilter,
+			taggedIds,
+			tagName,
+			tagsByWork,
+		}
+	);
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -241,6 +242,7 @@ export default function WorkArea({
 			<WorkCollectionSurface
 				bulkSelectedIds={bulkSelectedIds}
 				configurationMode={configurationMode}
+				deferred={deferredItems}
 				items={items}
 				onOpenSourceRecord={onOpenSourceRecord}
 				onSavedPresentation={onSavedBacklogPresentation}
@@ -353,6 +355,7 @@ function WorkPlanningTools({
 function WorkCollectionSurface({
 	bulkSelectedIds,
 	configurationMode,
+	deferred,
 	items,
 	onOpenSourceRecord,
 	onSavedPresentation,
@@ -369,12 +372,23 @@ function WorkCollectionSurface({
 }: {
 	bulkSelectedIds: string[];
 	configurationMode: boolean;
+	deferred: Array<{
+		closureResult?: string | null;
+		id: string;
+		key: string;
+		reappearDate?: string | null;
+		status: string;
+		tags?: string[];
+		title: string;
+		type: string;
+	}>;
 	items: Array<{
 		archived?: boolean;
 		closureResult?: string | null;
 		id: string;
 		key: string;
 		lightChecklist?: Array<{ completed: boolean }>;
+		reappearDate?: string | null;
 		revision: number;
 		status: string;
 		tags?: string[];
@@ -425,6 +439,7 @@ function WorkCollectionSurface({
 		return (
 			<PreparedBacklog
 				bulkSelectedIds={bulkSelectedIds}
+				deferred={deferred}
 				items={items}
 				onSavedPresentation={onSavedPresentation}
 				onSelect={onSelect}
@@ -457,4 +472,97 @@ function backlogPresentationSort(sort: string | undefined): BacklogSort {
 		return sort;
 	}
 	return BACKLOG_COPY.manualOrder;
+}
+
+function preparedCollectionSource<T>(
+	preparedBacklog: boolean,
+	backlog: { deferred?: T[]; items?: T[] } | undefined,
+	work: T[] | undefined
+): { deferred: T[]; records: T[] } {
+	if (preparedBacklog) {
+		return {
+			deferred: backlog?.deferred ?? [],
+			records: backlog?.items ?? [],
+		};
+	}
+	return { deferred: [], records: work ?? [] };
+}
+
+function visibleWorkCollection<T extends { id: string }>({
+	deferred,
+	filteredIds,
+	records,
+	selectedId,
+	selectedWorkIds,
+	tagFilter,
+	taggedIds,
+	tagName,
+	tagsByWork,
+}: {
+	deferred: T[];
+	filteredIds: string[] | null;
+	records: T[];
+	selectedId: string | null;
+	selectedWorkIds: string[];
+	tagFilter: string;
+	taggedIds: Set<string>;
+	tagName: Map<string, string>;
+	tagsByWork: Map<string, string[]>;
+}) {
+	const items = taggedBacklogRecords({
+		filteredIds,
+		records,
+		tagFilter,
+		taggedIds,
+		tagName,
+		tagsByWork,
+	});
+	const deferredItems = taggedBacklogRecords({
+		filteredIds,
+		records: deferred,
+		tagFilter,
+		taggedIds,
+		tagName,
+		tagsByWork,
+	});
+	const visible = [...items, ...deferredItems];
+	return {
+		bulkTargets: bulkEditTargetIds({
+			selectedWorkIds,
+			visibleWorkIds: visible.map((item) => item.id),
+		}),
+		deferredItems,
+		items,
+		selected: visible.find((item) => item.id === selectedId) ?? null,
+	};
+}
+
+function taggedBacklogRecords<
+	T extends {
+		id: string;
+	},
+>({
+	filteredIds,
+	records,
+	tagFilter,
+	taggedIds,
+	tagName,
+	tagsByWork,
+}: {
+	filteredIds: string[] | null;
+	records: T[];
+	tagFilter: string;
+	taggedIds: Set<string>;
+	tagName: Map<string, string>;
+	tagsByWork: Map<string, string[]>;
+}) {
+	return records
+		.filter((item) => tagFilter === "" || taggedIds.has(item.id))
+		.filter((item) => filteredIds === null || filteredIds.includes(item.id))
+		.map((item) => ({
+			...item,
+			tags: (tagsByWork.get(item.id) ?? [])
+				.map((tagId) => tagName.get(tagId))
+				.filter((name): name is string => Boolean(name)),
+		}));
 }

@@ -1,4 +1,4 @@
-import { resetPrismaClientCache } from "@cantiara/db";
+import { forgetPrismaClientCache } from "@cantiara/db";
 import { initLogger } from "evlog";
 
 import { app } from "./hono-app";
@@ -17,6 +17,6 @@ export default {
 if (import.meta.hot) {
 	import.meta.hot.accept();
 	import.meta.hot.dispose(() => {
-		resetPrismaClientCache();
+		forgetPrismaClientCache();
 	});
 }
