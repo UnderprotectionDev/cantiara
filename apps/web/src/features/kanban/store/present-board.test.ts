@@ -15,10 +15,18 @@ test("English Board copy uses Kanban and the four protected statuses", () => {
 		blocked: "Blocked",
 		board: "Board",
 		closed: "Closed",
+		collapse: "Collapse",
+		expand: "Expand",
+		focusThreshold: "Focus threshold",
 		inProgress: "In Progress",
+		inProgressCount: "In Progress count",
 		kanban: "Kanban",
 		notStarted: "Not Started",
+		openBlocker: "Open blocker",
 		openSourceRecord: "Open source record",
+		overLimit: "Over limit",
+		softWip: "Soft WIP",
+		timeInStatus: "Time in status",
 	});
 	expect(KANBAN_COLUMNS).toEqual([
 		"Not Started",
@@ -54,4 +62,6 @@ test("Board columns are the source Work and Open source record keeps the same id
 	expect(board.visibleFields).toEqual([...DEFAULT_CARD_VISIBLE_FIELDS]);
 	expect(board.columns[0]?.cards[0]?.id).toBe("work_intake");
 	expect(board.columns[0]?.cards[0]?.workId).toBe("work_intake");
+	expect(board.inProgressCount).toBe(0);
+	expect(board.focus.threshold).toBeNull();
 });

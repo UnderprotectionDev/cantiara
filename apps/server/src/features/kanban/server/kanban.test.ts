@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	applyKanbanPlanningMembership,
+	collapseKanbanColumn,
 	createMemoryWorkStatusPort,
 	moveKanbanCard,
 	presentKanbanBoard,
@@ -33,6 +34,7 @@ function seedPort() {
 			key: "PAY-1",
 			revision: 1,
 			status: "Not Started",
+			statusEnteredAt: "2026-08-31T12:00:00.000Z",
 			title: "Intake checkout",
 			type: "Task",
 		},
@@ -45,6 +47,7 @@ function seedPort() {
 			priority: "Must",
 			revision: 2,
 			status: "In Progress",
+			statusEnteredAt: "2026-08-30T14:00:00.000Z",
 			title: "Charge card",
 			type: "Feature",
 		},
@@ -85,10 +88,18 @@ describe("Kanban", () => {
 			blocked: "Blocked",
 			board: "Board",
 			closed: "Closed",
+			collapse: "Collapse",
+			expand: "Expand",
+			focusThreshold: "Focus threshold",
 			inProgress: "In Progress",
+			inProgressCount: "In Progress count",
 			kanban: "Kanban",
 			notStarted: "Not Started",
+			openBlocker: "Open blocker",
 			openSourceRecord: "Open source record",
+			overLimit: "Over limit",
+			softWip: "Soft WIP",
+			timeInStatus: "Time in status",
 		});
 	});
 
@@ -186,5 +197,101 @@ describe("Kanban", () => {
 		expect(port.get("work_intake")?.status).toBe("Blocked");
 		expect(port.githubWrites).toEqual([]);
 		expect(port.automations).toEqual([]);
+	});
+
+	it("shows In Progress count and time in current status on active cards", () => {
+		const board = presentKanbanBoard(seedPort().list(), {
+			now: new Date("2026-08-31T14:00:00.000Z"),
+		});
+		expect(board.inProgressCount).toBe(1);
+		expect(board.copy.inProgressCount).toBe("In Progress count");
+		expect(board.copy.timeInStatus).toBe("Time in status");
+		const inProgress = board.columns
+			.find((column) => column.status === "In Progress")
+			?.cards.find((card) => card.workId === "work_pay");
+		expect(inProgress?.timeInCurrentStatus).toBe("1d");
+		const intake = board.columns
+			.find((column) => column.status === "Not Started")
+			?.cards.find((card) => card.workId === "work_intake");
+		expect(intake?.timeInCurrentStatus).toBe("2h");
+	});
+
+	it("marks Soft WIP and Focus threshold overflow without blocking a move or minting a verdict", () => {
+		const port = seedPort();
+		const before = presentKanbanBoard(port.list(), {
+			focusThreshold: 1,
+			softWipLimits: { "In Progress": 1 },
+		});
+		expect(before.focus).toEqual({
+			count: 1,
+			exceeded: false,
+			mark: null,
+			threshold: 1,
+		});
+		expect(
+			before.columns.find((column) => column.status === "In Progress")?.softWip
+		).toEqual({
+			count: 1,
+			exceeded: false,
+			limit: 1,
+			mark: null,
+		});
+		const moved = moveKanbanCard(port, {
+			targetStatus: "In Progress",
+			workId: "work_intake",
+		});
+		expect(moved).toEqual({
+			status: "committed",
+			workflowStatus: "In Progress",
+			workId: "work_intake",
+		});
+		expect(port.get("work_intake")?.status).toBe("In Progress");
+		const after = presentKanbanBoard(port.list(), {
+			focusThreshold: 1,
+			softWipLimits: { "In Progress": 1 },
+		});
+		expect(after.inProgressCount).toBe(2);
+		expect(after.focus).toEqual({
+			count: 2,
+			exceeded: true,
+			mark: "Over limit",
+			threshold: 1,
+		});
+		expect(
+			after.columns.find((column) => column.status === "In Progress")?.softWip
+		).toEqual({
+			count: 2,
+			exceeded: true,
+			limit: 1,
+			mark: "Over limit",
+		});
+		expect(port.notifications).toEqual([]);
+		expect(port.healthVerdicts).toEqual([]);
+		expect(port.automaticWorkWrites).toEqual([]);
+		expect(port.get("work_intake")?.title).toBe("Intake checkout");
+		expect(port.get("work_pay")?.title).toBe("Charge card");
+	});
+
+	it("collapses a column as layout compression without filtering Work or writing status", () => {
+		const port = seedPort();
+		const open = presentKanbanBoard(port.list());
+		const membershipIds = open.columns.flatMap((column) =>
+			column.cards.map((card) => card.workId)
+		);
+		const collapsed = collapseKanbanColumn(open, "In Progress");
+		const inProgress = collapsed.columns.find(
+			(column) => column.status === "In Progress"
+		);
+		expect(inProgress?.collapsed).toBe(true);
+		expect(inProgress?.count).toBe(1);
+		expect(inProgress?.openBlockerCount).toBe(1);
+		expect(inProgress?.cards.map((card) => card.workId)).toEqual(["work_pay"]);
+		expect(
+			collapsed.columns.flatMap((column) =>
+				column.cards.map((card) => card.workId)
+			)
+		).toEqual(membershipIds);
+		expect(port.get("work_pay")?.status).toBe("In Progress");
+		expect(port.memberships("work_pay")).toEqual([]);
 	});
 });

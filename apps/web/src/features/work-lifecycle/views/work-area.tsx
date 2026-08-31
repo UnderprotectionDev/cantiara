@@ -30,12 +30,14 @@ import WorkList from "./work-list";
 import { nextSelectedWorkId } from "./work-selection";
 
 export default function WorkArea({
+	configurationMode = false,
 	onSelectedWorkId,
 	projectId,
 	savedView,
 	selectedWorkId,
 	unavailableView,
 }: {
+	configurationMode?: boolean;
 	onSelectedWorkId?: (id: string | null) => void;
 	projectId: string;
 	savedView?: string | null;
@@ -225,6 +227,7 @@ export default function WorkArea({
 			/>
 			<WorkCollectionSurface
 				bulkSelectedIds={bulkSelectedIds}
+				configurationMode={configurationMode}
 				items={items}
 				onOpenSourceRecord={onOpenSourceRecord}
 				onSelect={onSelect}
@@ -331,6 +334,7 @@ function WorkPlanningTools({
 
 function WorkCollectionSurface({
 	bulkSelectedIds,
+	configurationMode,
 	items,
 	onOpenSourceRecord,
 	onSelect,
@@ -343,6 +347,7 @@ function WorkCollectionSurface({
 	unavailableView,
 }: {
 	bulkSelectedIds: string[];
+	configurationMode: boolean;
 	items: Array<{
 		archived?: boolean;
 		closureResult?: string | null;
@@ -375,6 +380,7 @@ function WorkCollectionSurface({
 	if (savedView === "Board") {
 		return (
 			<KanbanBoard
+				configurationMode={configurationMode}
 				items={items}
 				onOpenSourceRecord={onOpenSourceRecord}
 				projectId={projectId}
