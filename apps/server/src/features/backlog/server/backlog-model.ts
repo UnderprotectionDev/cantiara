@@ -13,6 +13,7 @@ export const BACKLOG_COPY = {
 	manualOrder: "Manual order",
 	moveDown: "Move down",
 	moveUp: "Move up",
+	notifyOnReappearDate: "Notify on Reappear date",
 	priority: "Priority",
 	reappearDate: "Reappear date",
 	save: "Save",
@@ -56,15 +57,40 @@ export const BACKLOG_DATE_WRITES = {
 	status: false,
 } as const;
 
+export const REAPPEAR_DATE_SIGNAL_ID = "reappear-date" as const;
+
+export const REAPPEAR_DATE_SIGNAL_SECTION = "Action Required" as const;
+
+export const REAPPEAR_SIGNAL_WRITES = {
+	backlogOrder: false,
+	priority: false,
+	status: false,
+} as const;
+
 export const CALENDAR_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export const backlogSortSchema = z.enum(BACKLOG_SORTS);
+
+export const reappearDateSignalViewSchema = z.object({
+	section: z.literal(REAPPEAR_DATE_SIGNAL_SECTION),
+	signalId: z.literal(REAPPEAR_DATE_SIGNAL_ID),
+	source: z.object({
+		id: z.string().min(1),
+		kind: z.literal("Work"),
+	}),
+	workId: z.string().min(1),
+});
+
+export type ReappearDateSignalView = z.infer<
+	typeof reappearDateSignalViewSchema
+>;
 
 export const preparedBacklogSchema = z.object({
 	copy: z.object({
 		backlog: z.literal(BACKLOG_COPY.backlog),
 		deferred: z.literal(BACKLOG_COPY.deferred),
 		manualOrder: z.literal(BACKLOG_COPY.manualOrder),
+		notifyOnReappearDate: z.literal(BACKLOG_COPY.notifyOnReappearDate),
 		reappearDate: z.literal(BACKLOG_COPY.reappearDate),
 	}),
 	deferred: z.array(workViewSchema),
@@ -75,6 +101,10 @@ export const preparedBacklogSchema = z.object({
 		kind: z.enum(["saved", "temporary"]),
 		sort: backlogSortSchema,
 	}),
+	reappearNotification: z.object({
+		optedIn: z.boolean(),
+	}),
+	signals: z.array(reappearDateSignalViewSchema),
 	writes: z.object({
 		closure: z.literal(false),
 		kanbanPosition: z.literal(false),
@@ -105,6 +135,15 @@ export const setReappearDateCommandSchema = z.object({
 
 export type SetReappearDateCommand = z.infer<
 	typeof setReappearDateCommandSchema
+>;
+
+export const setReappearNotificationCommandSchema = z.object({
+	optedIn: z.boolean(),
+	projectId: z.string().min(1),
+});
+
+export type SetReappearNotificationCommand = z.infer<
+	typeof setReappearNotificationCommandSchema
 >;
 
 export const reorderManualOrderCommandSchema = z.object({
@@ -160,6 +199,14 @@ export type BacklogDateOutcome =
 	  }
 	| { reason: "target-not-found"; status: "rejected" };
 
+export type BacklogNotificationOutcome =
+	| {
+			backlog: PreparedBacklogView;
+			status: "committed";
+			writes: typeof REAPPEAR_SIGNAL_WRITES;
+	  }
+	| { reason: "target-not-found"; status: "rejected" };
+
 export type BacklogOrderOutcome =
 	| {
 			backlog: PreparedBacklogView;
@@ -172,6 +219,7 @@ export function backlogCatalog() {
 	return {
 		copy: BACKLOG_COPY,
 		membership: PREPARED_MEMBERSHIP,
+		reappearNotification: { optedIn: false },
 		sorts: BACKLOG_SORTS,
 		writes: BACKLOG_WRITES,
 	};

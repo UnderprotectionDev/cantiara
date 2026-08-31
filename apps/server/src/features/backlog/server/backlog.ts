@@ -17,6 +17,7 @@ import {
 	BACKLOG_SORT,
 	BACKLOG_WRITES,
 	type BacklogDateOutcome,
+	type BacklogNotificationOutcome,
 	type BacklogOrderOutcome,
 	type BacklogPlanningOutcome,
 	type BacklogSort,
@@ -25,9 +26,14 @@ import {
 	PREPARED_MEMBERSHIP,
 	type PreparedBacklogView,
 	placeOnPlanningSurfaceCommandSchema,
+	REAPPEAR_DATE_SIGNAL_ID,
+	REAPPEAR_DATE_SIGNAL_SECTION,
+	REAPPEAR_SIGNAL_WRITES,
+	type ReappearDateSignalView,
 	reorderManualOrderCommandSchema,
 	saveBacklogPresentationCommandSchema,
 	setReappearDateCommandSchema,
+	setReappearNotificationCommandSchema,
 	type TakeUpFromBacklogCommand,
 	takeUpFromBacklogCommandSchema,
 } from "./backlog-model";
@@ -67,11 +73,14 @@ export async function listPreparedBacklog(
 	const deferredIds = new Set(
 		items.filter((item) => isDeferred(item, asOf)).map((item) => item.id)
 	);
+	const optedIn = await readReappearDateNotification(prisma, projectId);
 	return toView(
 		presented.filter((item) => !deferredIds.has(item.id)),
 		orderByIds(items, manualOrder).filter((item) => deferredIds.has(item.id)),
 		manualOrder,
-		{ kind, sort }
+		{ kind, sort },
+		optedIn,
+		reappearDateSignals(items, optedIn, asOf, manualOrder)
 	);
 }
 
@@ -150,6 +159,30 @@ export async function setReappearDate(
 	await writeReappearDate(prisma, work.id, parsed.data.reappearDate);
 	const backlog = await listPreparedBacklog(prisma, parsed.data.projectId);
 	return { backlog, status: "committed", writes: BACKLOG_DATE_WRITES };
+}
+
+export async function setReappearNotification(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<BacklogNotificationOutcome> {
+	const parsed = setReappearNotificationCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const project = await prisma.project.findUnique({
+		select: { id: true },
+		where: { id: parsed.data.projectId },
+	});
+	if (!project) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await writeReappearDateNotification(
+		prisma,
+		parsed.data.projectId,
+		parsed.data.optedIn
+	);
+	const backlog = await listPreparedBacklog(prisma, parsed.data.projectId);
+	return { backlog, status: "committed", writes: REAPPEAR_SIGNAL_WRITES };
 }
 
 export async function saveBacklogPresentation(
@@ -396,17 +429,49 @@ function isDeferred(item: WorkView, asOf: string): boolean {
 	return Boolean(item.reappearDate && item.reappearDate > asOf);
 }
 
+function reappearDateSignals(
+	items: readonly WorkView[],
+	optedIn: boolean,
+	asOf: string,
+	manualOrder: readonly string[]
+): ReappearDateSignalView[] {
+	if (!optedIn) {
+		return [];
+	}
+	const arrived = new Set(
+		items
+			.filter((item) => item.reappearDate && item.reappearDate <= asOf)
+			.map((item) => item.id)
+	);
+	return manualOrder.flatMap((workId) => {
+		if (!arrived.has(workId)) {
+			return [];
+		}
+		return [
+			{
+				section: REAPPEAR_DATE_SIGNAL_SECTION,
+				signalId: REAPPEAR_DATE_SIGNAL_ID,
+				source: { id: workId, kind: "Work" as const },
+				workId,
+			},
+		];
+	});
+}
+
 function toView(
 	items: WorkView[],
 	deferred: WorkView[],
 	manualOrder: string[],
-	presentation: PreparedBacklogView["presentation"]
+	presentation: PreparedBacklogView["presentation"],
+	optedIn: boolean,
+	signals: ReappearDateSignalView[]
 ): PreparedBacklogView {
 	return {
 		copy: {
 			backlog: BACKLOG_COPY.backlog,
 			deferred: BACKLOG_COPY.deferred,
 			manualOrder: BACKLOG_COPY.manualOrder,
+			notifyOnReappearDate: BACKLOG_COPY.notifyOnReappearDate,
 			reappearDate: BACKLOG_COPY.reappearDate,
 		},
 		deferred,
@@ -414,6 +479,8 @@ function toView(
 		manualOrder,
 		membership: PREPARED_MEMBERSHIP,
 		presentation,
+		reappearNotification: { optedIn },
+		signals,
 		writes: BACKLOG_WRITES,
 	};
 }
@@ -446,6 +513,56 @@ async function writeReappearDate(
 			UPDATE "work"
 			SET "reappearDate" = ${reappearDate}, "updatedAt" = CURRENT_TIMESTAMP
 			WHERE id = ${workId}
+		`;
+	}
+}
+
+async function readReappearDateNotification(
+	prisma: BacklogDb,
+	projectId: string
+): Promise<boolean> {
+	try {
+		const row = await prisma.project.findUnique({
+			select: { reappearDateNotification: true },
+			where: { id: projectId },
+		});
+		return row?.reappearDateNotification ?? false;
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		if (!message.includes("reappearDateNotification")) {
+			throw error;
+		}
+		const rows = await prisma.$queryRaw<
+			Array<{ reappearDateNotification: boolean }>
+		>`
+			SELECT "reappearDateNotification"
+			FROM "project"
+			WHERE id = ${projectId}
+			LIMIT 1
+		`;
+		return rows[0]?.reappearDateNotification ?? false;
+	}
+}
+
+async function writeReappearDateNotification(
+	prisma: BacklogDb,
+	projectId: string,
+	optedIn: boolean
+): Promise<void> {
+	try {
+		await prisma.project.update({
+			data: { reappearDateNotification: optedIn },
+			where: { id: projectId },
+		});
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		if (!message.includes("reappearDateNotification")) {
+			throw error;
+		}
+		await prisma.$executeRaw`
+			UPDATE "project"
+			SET "reappearDateNotification" = ${optedIn}, "updatedAt" = CURRENT_TIMESTAMP
+			WHERE id = ${projectId}
 		`;
 	}
 }

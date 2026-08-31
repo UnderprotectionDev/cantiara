@@ -132,10 +132,11 @@ export function prismaClientHasCurrentFileAttachmentVersionModel(
 
 /**
  * Project.priorityCriterionDefinitions is required for Projects list
- * (`listProjects` include). Project.focusThreshold and
- * ProjectWorkStatus.softWipLimit are required for Kanban Soft WIP and
- * Focus threshold. A bun `--hot` client generated before those fields
- * still has a Project delegate; select then throws
+ * (`listProjects` include). Project.focusThreshold,
+ * Project.reappearDateNotification, and ProjectWorkStatus.softWipLimit
+ * are required for Kanban Soft WIP, Focus threshold, and Backlog
+ * Reappear date notification. A bun `--hot` client generated before
+ * those fields still has a Project delegate; select then throws
  * "Unknown field 'focusThreshold'".
  */
 export function prismaClientHasCurrentProjectModel(
@@ -148,7 +149,8 @@ export function prismaClientHasCurrentProjectModel(
 	if (
 		!(
 			projectFields.includes("priorityCriterionDefinitions") &&
-			projectFields.includes("focusThreshold")
+			projectFields.includes("focusThreshold") &&
+			projectFields.includes("reappearDateNotification")
 		)
 	) {
 		return false;

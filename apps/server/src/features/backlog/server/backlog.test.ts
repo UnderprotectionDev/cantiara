@@ -7,16 +7,18 @@
  * collection, or Prioritization session rank. Future Reappear date
  * splits default Backlog into Deferred without writing status;
  * advancing the clock restores the saved Manual order position.
+ * Project Reappear date notification is off by default and mints
+ * one `reappear-date` Action Required signal when the date arrives.
  * Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Günlük planlama: view change other than Kanban does not write
- * status; future Reappear date is Deferred; change history).
+ * status; future Reappear date is Deferred; notification default
+ * off and per-Project opt-in; change history).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-
 import { createDailyFocus } from "../../daily-focus/server/daily-focus";
 import { loadKanbanBoard } from "../../kanban/server/kanban";
 import {
@@ -41,6 +43,7 @@ import {
 	listWork,
 	listWorkLifecycleHistory,
 } from "../../work-lifecycle/server/work-lifecycle";
+import { ACTION_REQUIRED_SIGNAL_IDS } from "../../workspace-overview/server/workspace-overview";
 import {
 	listPreparedBacklog,
 	placeOnPlanningSurface,
@@ -48,6 +51,7 @@ import {
 	reorderManualOrder,
 	saveBacklogPresentation,
 	setReappearDate,
+	setReappearNotification,
 	takeUpFromBacklog,
 } from "./backlog";
 import {
@@ -57,6 +61,9 @@ import {
 	backlogCatalog,
 	PLANNING_SURFACE,
 	PREPARED_MEMBERSHIP,
+	REAPPEAR_DATE_SIGNAL_ID,
+	REAPPEAR_DATE_SIGNAL_SECTION,
+	REAPPEAR_SIGNAL_WRITES,
 } from "./backlog-model";
 
 const DATABASE_URL =
@@ -174,10 +181,13 @@ describe("Backlog", () => {
 		expect(catalog.copy.manualOrder).toBe("Manual order");
 		expect(catalog.copy.deferred).toBe("Deferred");
 		expect(catalog.copy.reappearDate).toBe("Reappear date");
+		expect(catalog.copy.notifyOnReappearDate).toBe("Notify on Reappear date");
+		expect(catalog.reappearNotification.optedIn).toBe(false);
 		expect(BACKLOG_COPY.backlog).toBe("Backlog");
 		expect(BACKLOG_COPY.manualOrder).toBe("Manual order");
 		expect(BACKLOG_COPY.deferred).toBe("Deferred");
 		expect(BACKLOG_COPY.reappearDate).toBe("Reappear date");
+		expect(BACKLOG_COPY.notifyOnReappearDate).toBe("Notify on Reappear date");
 		expect(catalog.membership).toBe("derived");
 		expect(catalog.sorts).toEqual([
 			BACKLOG_SORT.manualOrder,
@@ -746,6 +756,92 @@ describe("Backlog", () => {
 			clock: { now: () => new Date("2026-12-01T08:00:00.000Z") },
 		});
 		expect(stillPrepared.items.map((item) => item.id)).toContain(second.id);
+	});
+
+	it("mints one reappear-date Action Required signal only after Project opt-in, without writing status", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const first = await committedWork(prisma, actorId, {
+			idempotencyKey: "signal-first",
+			projectId: project.id,
+			title: "Zulu intake",
+		});
+		const second = await committedWork(prisma, actorId, {
+			idempotencyKey: "signal-second",
+			projectId: project.id,
+			title: "Alpha payout",
+		});
+		await reorderManualOrder(prisma, {
+			projectId: project.id,
+			workIds: [first.id, second.id],
+		});
+		await setReappearDate(prisma, {
+			projectId: project.id,
+			reappearDate: "2026-08-31",
+			workId: second.id,
+		});
+		const arrived = { now: () => new Date("2026-08-31T12:00:00.000Z") };
+		const catalog = backlogCatalog();
+		expect(catalog.copy.notifyOnReappearDate).toBe("Notify on Reappear date");
+		expect(catalog.reappearNotification.optedIn).toBe(false);
+		expect(ACTION_REQUIRED_SIGNAL_IDS).toContain(REAPPEAR_DATE_SIGNAL_ID);
+		expect(REAPPEAR_DATE_SIGNAL_SECTION).toBe("Action Required");
+		const off = await listPreparedBacklog(prisma, project.id, {
+			clock: arrived,
+		});
+		expect(off.reappearNotification.optedIn).toBe(false);
+		expect(off.signals).toEqual([]);
+		expect(off.items.map((item) => item.id)).toEqual([first.id, second.id]);
+		expect(off.manualOrder).toEqual([first.id, second.id]);
+		expect(await getWork(prisma, second.id)).toMatchObject({
+			closureResult: null,
+			status: "Not Started",
+		});
+		const valuesBefore = await listWorkPriorityValues(
+			prisma,
+			project.id,
+			second.id
+		);
+		const opted = await setReappearNotification(prisma, {
+			optedIn: true,
+			projectId: project.id,
+		});
+		expect(opted).toMatchObject({
+			status: "committed",
+			writes: REAPPEAR_SIGNAL_WRITES,
+		});
+		if (opted.status !== "committed") {
+			throw new Error("expected committed Reappear date notification");
+		}
+		expect(opted.backlog.reappearNotification.optedIn).toBe(true);
+		const on = await listPreparedBacklog(prisma, project.id, {
+			clock: arrived,
+		});
+		const expectedSignal = {
+			section: REAPPEAR_DATE_SIGNAL_SECTION,
+			signalId: REAPPEAR_DATE_SIGNAL_ID,
+			source: { id: second.id, kind: "Work" },
+			workId: second.id,
+		};
+		expect(on.signals).toEqual([expectedSignal]);
+		expect(on.reappearNotification.optedIn).toBe(true);
+		expect(on.manualOrder).toEqual([first.id, second.id]);
+		expect(on.items.map((item) => item.id)).toEqual([first.id, second.id]);
+		expect(await getWork(prisma, second.id)).toMatchObject({
+			closureResult: null,
+			status: "Not Started",
+		});
+		expect(await listWorkPriorityValues(prisma, project.id, second.id)).toEqual(
+			valuesBefore
+		);
+		const again = await listPreparedBacklog(prisma, project.id, {
+			clock: arrived,
+		});
+		expect(again.signals).toEqual([expectedSignal]);
+		const future = await listPreparedBacklog(prisma, project.id, {
+			clock: { now: () => new Date("2026-08-30T12:00:00.000Z") },
+		});
+		expect(future.signals).toEqual([]);
+		expect(future.deferred.map((item) => item.id)).toEqual([second.id]);
 	});
 
 	it("lists and saves Backlog when bun --hot kept a client without presentation delegates", async () => {

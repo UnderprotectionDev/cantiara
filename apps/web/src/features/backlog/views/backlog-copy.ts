@@ -6,6 +6,7 @@ export const BACKLOG_COPY = {
 	manualOrder: "Manual order",
 	moveDown: "Move down",
 	moveUp: "Move up",
+	notifyOnReappearDate: "Notify on Reappear date",
 	priority: "Priority",
 	reappearDate: "Reappear date",
 	save: "Save",

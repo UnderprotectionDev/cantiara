@@ -430,6 +430,7 @@ describe("Prisma client current delegates", () => {
 								{ name: "id" },
 								{ name: "priorityCriterionDefinitions" },
 								{ name: "focusThreshold" },
+								{ name: "reappearDateNotification" },
 							],
 						},
 						ProjectWorkStatus: {

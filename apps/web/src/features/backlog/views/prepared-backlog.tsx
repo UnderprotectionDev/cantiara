@@ -23,7 +23,7 @@ import { useClientShell } from "@/features/web-macos-client/views/client-shell-h
 import { invalidateWork } from "@/features/work-lifecycle/forms/invalidate-work";
 import { WORK_LIFECYCLE_COPY } from "@/features/work-lifecycle/forms/work-lifecycle-copy";
 import WorkList from "@/features/work-lifecycle/views/work-list";
-import { orpc } from "@/utils/orpc";
+import { orpc, queryClient } from "@/utils/orpc";
 
 import { BACKLOG_COPY, BACKLOG_SORTS, type BacklogSort } from "./backlog-copy";
 
@@ -42,6 +42,7 @@ export default function PreparedBacklog({
 	bulkSelectedIds,
 	deferred,
 	items,
+	notifyOnReappearDate,
 	onSavedPresentation,
 	onSelect,
 	onSortChange,
@@ -53,6 +54,7 @@ export default function PreparedBacklog({
 	bulkSelectedIds: string[];
 	deferred: PreparedBacklogItemView[];
 	items: PreparedBacklogItemView[];
+	notifyOnReappearDate: boolean;
 	onSavedPresentation: () => void;
 	onSelect: (id: string) => void;
 	onSortChange: (sort: BacklogSort) => void;
@@ -69,6 +71,9 @@ export default function PreparedBacklog({
 	const reorder = useMutation(orpc.backlog.reorder.mutationOptions());
 	const savePresentation = useMutation(
 		orpc.backlog.savePresentation.mutationOptions()
+	);
+	const notify = useMutation(
+		orpc.backlog.setReappearNotification.mutationOptions()
 	);
 
 	const persistOrder = useCallback(
@@ -87,6 +92,39 @@ export default function PreparedBacklog({
 			);
 		},
 		[attemptOnlineWork, projectId, recordSave, reorder]
+	);
+
+	const onNotifyChange = useCallback(
+		(checked: boolean | "indeterminate") => {
+			attemptOnlineWork("planning-change", () =>
+				notify
+					.mutateAsync({
+						optedIn: checked === true,
+						projectId,
+					})
+					.then(async (outcome) => {
+						if (outcome.status === "committed") {
+							const [first] = items;
+							if (first) {
+								await invalidateWork(projectId, first.id);
+							} else {
+								await queryClient.invalidateQueries({
+									predicate: (query) => {
+										const serialized = JSON.stringify(query.queryKey);
+										return (
+											serialized.includes("backlog") &&
+											serialized.includes("list")
+										);
+									},
+								});
+							}
+							recordSave();
+						}
+						return outcome;
+					})
+			);
+		},
+		[attemptOnlineWork, items, notify, projectId, recordSave]
 	);
 
 	const onSortChangeSelect = useCallback(
@@ -177,6 +215,17 @@ export default function PreparedBacklog({
 				<Button onClick={onSavePresentation} size="sm" type="button">
 					{BACKLOG_COPY.save}
 				</Button>
+				<label
+					className="flex items-center gap-2 text-sm"
+					htmlFor="notify-on-reappear-date"
+				>
+					<Checkbox
+						checked={notifyOnReappearDate}
+						id="notify-on-reappear-date"
+						onCheckedChange={onNotifyChange}
+					/>
+					{BACKLOG_COPY.notifyOnReappearDate}
+				</label>
 			</div>
 			{manual ? (
 				<DndContext onDragEnd={onDragEnd} sensors={sensors}>
