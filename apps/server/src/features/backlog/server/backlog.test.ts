@@ -24,6 +24,7 @@ import {
 	createPriorityCriterion,
 	getPrioritizationSession,
 	listPriorityCriteria,
+	listWorkPriorityValues,
 	reorderPrioritizationSession,
 	setPriorityCriterionValue,
 } from "../../priority/server/priority";
@@ -623,6 +624,11 @@ describe("Backlog", () => {
 		const stagesBefore = await projectStagesForWork(prisma, second.id);
 		const historyBefore = await listWorkLifecycleHistory(prisma, second.id);
 		const criteriaBefore = await listPriorityCriteria(prisma, project.id);
+		const valuesBefore = await listWorkPriorityValues(
+			prisma,
+			project.id,
+			second.id
+		);
 		const clock = { now: () => new Date("2026-08-31T12:00:00.000Z") };
 		const dated = await setReappearDate(prisma, {
 			projectId: project.id,
@@ -662,6 +668,9 @@ describe("Backlog", () => {
 		expect(await listPriorityCriteria(prisma, project.id)).toEqual(
 			criteriaBefore
 		);
+		expect(await listWorkPriorityValues(prisma, project.id, second.id)).toEqual(
+			valuesBefore
+		);
 		expect(JSON.stringify(deferred)).not.toMatch(FOLDER_SPRINT_PATTERN);
 	});
 
@@ -692,12 +701,15 @@ describe("Backlog", () => {
 			workId: second.id,
 		});
 		const before = { now: () => new Date("2026-08-31T12:00:00.000Z") };
-		const snoozed = await listPreparedBacklog(prisma, project.id, {
+		const beforeArrival = await listPreparedBacklog(prisma, project.id, {
 			clock: before,
 		});
-		expect(snoozed.items.map((item) => item.id)).toEqual([first.id, third.id]);
-		expect(snoozed.deferred.map((item) => item.id)).toEqual([second.id]);
-		expect(snoozed.manualOrder).toEqual([first.id, second.id, third.id]);
+		expect(beforeArrival.items.map((item) => item.id)).toEqual([
+			first.id,
+			third.id,
+		]);
+		expect(beforeArrival.deferred.map((item) => item.id)).toEqual([second.id]);
+		expect(beforeArrival.manualOrder).toEqual([first.id, second.id, third.id]);
 		const moved = await reorderManualOrder(prisma, {
 			projectId: project.id,
 			workIds: [third.id, first.id],
