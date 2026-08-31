@@ -95,7 +95,7 @@ fi
 
 # --- Workspace dependencies + Prisma client ---------------------------------
 log "Installing workspace dependencies"
-bun install --frozen-lockfile
+bash "$REPO_ROOT/scripts/cloud-agent/install-workspace-deps.sh"
 
 # postinstall runs `bunx --bun prisma generate`, but regenerate explicitly so a
 # warm snapshot without the generated client is still repaired. Call Prisma
