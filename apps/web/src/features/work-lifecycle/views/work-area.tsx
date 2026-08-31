@@ -3,6 +3,10 @@ import { Skeleton } from "@cantiara/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+	BACKLOG_COPY,
+	type BacklogSort,
+} from "@/features/backlog/views/backlog-copy";
 import PreparedBacklog from "@/features/backlog/views/prepared-backlog";
 import BulkEditPreview from "@/features/bulk-editing/views/bulk-edit-preview";
 import {
@@ -49,6 +53,7 @@ export default function WorkArea({
 	const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
 	const [tagFilter, setTagFilter] = useState("");
 	const [surface, setSurface] = useState<"list" | "priority-map">("list");
+	const [backlogSort, setBacklogSort] = useState<BacklogSort | undefined>();
 	const preparedBacklog = savedView === "Backlog";
 	const work = useQuery({
 		...orpc.workLifecycle.list.queryOptions({
@@ -57,7 +62,9 @@ export default function WorkArea({
 		enabled: !preparedBacklog,
 	});
 	const backlog = useQuery({
-		...orpc.backlog.list.queryOptions({ input: { projectId } }),
+		...orpc.backlog.list.queryOptions({
+			input: backlogSort ? { projectId, sort: backlogSort } : { projectId },
+		}),
 		enabled: preparedBacklog,
 	});
 	const suggestions = useQuery(
@@ -128,6 +135,12 @@ export default function WorkArea({
 		setSurface((current) =>
 			current === "priority-map" ? "list" : "priority-map"
 		);
+	}, []);
+	const onBacklogSort = useCallback((sort: BacklogSort) => {
+		setBacklogSort(sort);
+	}, []);
+	const onSavedBacklogPresentation = useCallback(() => {
+		setBacklogSort(undefined);
 	}, []);
 
 	useEffect(() => {
@@ -230,9 +243,14 @@ export default function WorkArea({
 				configurationMode={configurationMode}
 				items={items}
 				onOpenSourceRecord={onOpenSourceRecord}
+				onSavedPresentation={onSavedBacklogPresentation}
 				onSelect={onSelect}
+				onSortChange={onBacklogSort}
 				onToggleBulkSelect={onToggleBulkSelect}
 				preparedBacklog={preparedBacklog}
+				presentationSort={backlogPresentationSort(
+					backlogSort ?? backlog.data?.presentation.sort
+				)}
 				priorityMapOpen={surface === "priority-map"}
 				projectId={projectId}
 				savedView={savedView}
@@ -337,9 +355,12 @@ function WorkCollectionSurface({
 	configurationMode,
 	items,
 	onOpenSourceRecord,
+	onSavedPresentation,
 	onSelect,
+	onSortChange,
 	onToggleBulkSelect,
 	preparedBacklog,
+	presentationSort,
 	priorityMapOpen,
 	projectId,
 	savedView,
@@ -361,9 +382,12 @@ function WorkCollectionSurface({
 		type: string;
 	}>;
 	onOpenSourceRecord: (id: string) => void;
+	onSavedPresentation: () => void;
 	onSelect: (id: string) => void;
+	onSortChange: (sort: BacklogSort) => void;
 	onToggleBulkSelect: (id: string, selected: boolean) => void;
 	preparedBacklog: boolean;
+	presentationSort: BacklogSort;
 	priorityMapOpen: boolean;
 	projectId: string;
 	savedView?: string | null;
@@ -402,8 +426,12 @@ function WorkCollectionSurface({
 			<PreparedBacklog
 				bulkSelectedIds={bulkSelectedIds}
 				items={items}
+				onSavedPresentation={onSavedPresentation}
 				onSelect={onSelect}
+				onSortChange={onSortChange}
 				onToggleBulkSelect={onToggleBulkSelect}
+				presentationSort={presentationSort}
+				projectId={projectId}
 				selectedId={selectedId}
 			/>
 		);
@@ -417,4 +445,16 @@ function WorkCollectionSurface({
 			selectedId={selectedId}
 		/>
 	);
+}
+
+function backlogPresentationSort(sort: string | undefined): BacklogSort {
+	if (
+		sort === BACKLOG_COPY.manualOrder ||
+		sort === BACKLOG_COPY.priority ||
+		sort === BACKLOG_COPY.date ||
+		sort === BACKLOG_COPY.field
+	) {
+		return sort;
+	}
+	return BACKLOG_COPY.manualOrder;
 }

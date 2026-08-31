@@ -43,6 +43,7 @@ model Work {
   recordActionRuns               RecordActionRun[]
   externalExecutionHandoffs      ExternalExecutionHandoff[]
   externalExecutionHandoffEvents ExternalExecutionHandoffEvent[]
+  backlogManualOrderItems        ProjectBacklogManualOrderItem[]
 
   @@unique([projectId, number])
   @@unique([projectId, key])

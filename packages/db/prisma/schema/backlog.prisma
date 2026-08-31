@@ -1,0 +1,26 @@
+model ProjectBacklogManualOrderItem {
+  id        String   @id
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workId    String
+  work      Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  sortOrder Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, workId])
+  @@index([projectId])
+  @@index([workId])
+  @@map("project_backlog_manual_order_item")
+}
+
+model ProjectBacklogPresentation {
+  id        String   @id
+  projectId String   @unique
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sort      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("project_backlog_presentation")
+}

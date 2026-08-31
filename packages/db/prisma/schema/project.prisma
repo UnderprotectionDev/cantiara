@@ -32,6 +32,8 @@ model Project {
   workContextCardLayouts          ProjectWorkContextLayout[]
   workTemplates                   WorkTemplate[]
   recordActions                   RecordAction[]
+  backlogManualOrderItems         ProjectBacklogManualOrderItem[]
+  backlogPresentation             ProjectBacklogPresentation?
 
   @@index([workspaceId])
   @@map("project")
