@@ -28,6 +28,7 @@ wait_for_cloud_start() {
 
 wait_for_cloud_start
 
+bash "$REPO_ROOT/scripts/cloud-agent/install-workspace-deps.sh"
 bash "$REPO_ROOT/scripts/cloud-agent/prisma-generate.sh" >/dev/null
 
 # Hosted Neon: generate does not create columns. Official Prisma deploy path is

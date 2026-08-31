@@ -39,9 +39,15 @@ if cantiara_is_hosted_database; then
 	unset NEON_LOCAL_PROXY
 fi
 
-# Warm-fork snapshots skip install.sh. Overlayed schema (AccountPreference and
-# later models) must regenerate the client before the API boots, or protected
-# RPC handlers throw Internal server error.
+# Warm-fork snapshots skip install.sh. Overlayed package.json / bun.lock must
+# still install before Vite boots, or import-analysis fails for packages added
+# after the snapshot (the Saved lists overlay for @tanstack/react-table).
+log "Installing workspace dependencies"
+bash "$REPO_ROOT/scripts/cloud-agent/install-workspace-deps.sh"
+
+# Overlayed schema (AccountPreference and later models) must regenerate the
+# client before the API boots, or protected RPC handlers throw Internal server
+# error.
 log "Generating Prisma client"
 bash "$REPO_ROOT/scripts/cloud-agent/prisma-generate.sh" >/dev/null
 
