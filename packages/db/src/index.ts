@@ -141,18 +141,23 @@ function cachedClient(diskStamp: string): PrismaClient | undefined {
 	return cached.client;
 }
 
-function dropCachedPrisma() {
+function takeCachedPrisma(): PrismaClient | undefined {
 	const cached = globalForPrisma.cantiaraPrisma;
-	if (cached) {
-		cached.client.$disconnect().catch(() => undefined);
-	}
 	globalForPrisma.cantiaraPrisma = undefined;
+	return cached?.client;
 }
 
 let productionPrisma: PrismaClient | undefined;
 
+export function forgetPrismaClientCache() {
+	takeCachedPrisma();
+	productionPrisma = undefined;
+	forgetGeneratedPrismaClientCache();
+}
+
 export function resetPrismaClientCache() {
-	dropCachedPrisma();
+	const cached = takeCachedPrisma();
+	cached?.$disconnect().catch(() => undefined);
 	if (productionPrisma) {
 		productionPrisma.$disconnect().catch(() => undefined);
 		productionPrisma = undefined;
@@ -181,7 +186,10 @@ export function getPrismaClient() {
 	if (reused) {
 		return reused;
 	}
-	dropCachedPrisma();
+	// Leave the previous client's pool running. In-flight RPC still holds that
+	// instance; $disconnect() ends pg.Pool and surfaces as "Cannot use a pool
+	// after calling end on the pool". Tests call resetPrismaClientCache().
+	takeCachedPrisma();
 	const client = createPrismaClient();
 	if (
 		!(

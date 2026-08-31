@@ -147,10 +147,7 @@ export async function setReappearDate(
 	if (!work) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
-	await prisma.work.update({
-		data: { reappearDate: parsed.data.reappearDate },
-		where: { id: work.id },
-	});
+	await writeReappearDate(prisma, work.id, parsed.data.reappearDate);
 	const backlog = await listPreparedBacklog(prisma, parsed.data.projectId);
 	return { backlog, status: "committed", writes: BACKLOG_DATE_WRITES };
 }
@@ -428,6 +425,29 @@ function isBacklogSort(value: string): value is BacklogSort {
 		value === BACKLOG_SORT.date ||
 		value === BACKLOG_SORT.field
 	);
+}
+
+async function writeReappearDate(
+	prisma: BacklogDb,
+	workId: string,
+	reappearDate: string | null
+): Promise<void> {
+	try {
+		await prisma.work.update({
+			data: { reappearDate },
+			where: { id: workId },
+		});
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		if (!message.includes("reappearDate")) {
+			throw error;
+		}
+		await prisma.$executeRaw`
+			UPDATE "work"
+			SET "reappearDate" = ${reappearDate}, "updatedAt" = CURRENT_TIMESTAMP
+			WHERE id = ${workId}
+		`;
+	}
 }
 
 function hasDelegate(

@@ -781,6 +781,25 @@ describe("Backlog", () => {
 			}
 		);
 	});
+
+	it("saves Reappear date when bun --hot kept a client that rejects the Work field", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await committedWork(prisma, actorId, {
+			idempotencyKey: "hot-reappear",
+			projectId: project.id,
+			title: "Intake",
+		});
+		const dated = await setReappearDate(withoutReappearDateWrite(prisma), {
+			projectId: project.id,
+			reappearDate: "2026-12-01",
+			workId: work.id,
+		});
+		expect(dated.status).toBe("committed");
+		const deferred = await listPreparedBacklog(prisma, project.id, {
+			clock: { now: () => new Date("2026-08-31T12:00:00.000Z") },
+		});
+		expect(deferred.deferred.map((item) => item.id)).toEqual([work.id]);
+	});
 });
 
 function withoutBacklogPresentation(prisma: PrismaClient): PrismaClient {
@@ -791,6 +810,34 @@ function withoutBacklogPresentation(prisma: PrismaClient): PrismaClient {
 				property === "projectBacklogManualOrderItem"
 			) {
 				return;
+			}
+			const value = Reflect.get(target, property, receiver);
+			if (typeof value === "function") {
+				return value.bind(target);
+			}
+			return value;
+		},
+	}) as PrismaClient;
+}
+
+function withoutReappearDateWrite(prisma: PrismaClient): PrismaClient {
+	return new Proxy(prisma, {
+		get(target, property, receiver) {
+			if (property === "work") {
+				return new Proxy(target.work, {
+					get(workTarget, workProperty, workReceiver) {
+						if (workProperty === "update") {
+							return () => {
+								throw new Error("Unknown argument `reappearDate`");
+							};
+						}
+						const value = Reflect.get(workTarget, workProperty, workReceiver);
+						if (typeof value === "function") {
+							return value.bind(workTarget);
+						}
+						return value;
+					},
+				});
 			}
 			const value = Reflect.get(target, property, receiver);
 			if (typeof value === "function") {
