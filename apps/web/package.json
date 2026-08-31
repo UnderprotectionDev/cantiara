@@ -20,6 +20,8 @@
     "@cantiara/auth": "workspace:*",
     "@cantiara/env": "workspace:*",
     "@cantiara/ui": "workspace:*",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/utilities": "^3.2.2",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/tanstack-query": "^1.14.12",

@@ -10,6 +10,7 @@ import {
 	nextBulkSelectedWorkIds,
 } from "@/features/bulk-editing/views/bulk-selection";
 import CustomFieldFilter from "@/features/custom-fields/forms/custom-field-filter";
+import KanbanBoard from "@/features/kanban/views/kanban-board";
 import { PRIORITY_COPY } from "@/features/priority/forms/priority-copy";
 import PrioritizationSessionArea from "@/features/priority/views/prioritization-session";
 import PriorityMap from "@/features/priority/views/priority-map";
@@ -225,15 +226,17 @@ export default function WorkArea({
 			<WorkCollectionSurface
 				bulkSelectedIds={bulkSelectedIds}
 				items={items}
+				onOpenSourceRecord={onOpenSourceRecord}
 				onSelect={onSelect}
 				onToggleBulkSelect={onToggleBulkSelect}
 				preparedBacklog={preparedBacklog}
 				priorityMapOpen={surface === "priority-map"}
 				projectId={projectId}
+				savedView={savedView}
 				selectedId={selectedId}
 				unavailableView={unavailableView}
 			/>
-			{!unavailableView && surface === "list" ? (
+			{!unavailableView && surface === "list" && savedView !== "Board" ? (
 				<BulkEditPreview
 					filterWorkIds={items.map((item) => item.id)}
 					projectId={projectId}
@@ -329,29 +332,36 @@ function WorkPlanningTools({
 function WorkCollectionSurface({
 	bulkSelectedIds,
 	items,
+	onOpenSourceRecord,
 	onSelect,
 	onToggleBulkSelect,
 	preparedBacklog,
 	priorityMapOpen,
 	projectId,
+	savedView,
 	selectedId,
 	unavailableView,
 }: {
 	bulkSelectedIds: string[];
 	items: Array<{
+		archived?: boolean;
 		closureResult?: string | null;
 		id: string;
 		key: string;
+		lightChecklist?: Array<{ completed: boolean }>;
+		revision: number;
 		status: string;
 		tags?: string[];
 		title: string;
 		type: string;
 	}>;
+	onOpenSourceRecord: (id: string) => void;
 	onSelect: (id: string) => void;
 	onToggleBulkSelect: (id: string, selected: boolean) => void;
 	preparedBacklog: boolean;
 	priorityMapOpen: boolean;
 	projectId: string;
+	savedView?: string | null;
 	selectedId: string | null;
 	unavailableView?: string | null;
 }) {
@@ -360,6 +370,16 @@ function WorkCollectionSurface({
 			<p className="text-muted-foreground text-sm">
 				{PROJECT_SHELL_COPY.areaNotAvailable}
 			</p>
+		);
+	}
+	if (savedView === "Board") {
+		return (
+			<KanbanBoard
+				items={items}
+				onOpenSourceRecord={onOpenSourceRecord}
+				projectId={projectId}
+				selectedWorkId={selectedId}
+			/>
 		);
 	}
 	if (priorityMapOpen) {

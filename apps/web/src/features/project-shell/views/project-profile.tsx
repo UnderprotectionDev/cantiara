@@ -33,6 +33,7 @@ import {
 	projectShellShowsWorkSurface,
 	type StageState,
 	WORK_DAILY_ACTIONS,
+	workSavedViewIsBoard,
 	workSavedViewIsList,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
@@ -525,7 +526,11 @@ function ProjectBody({
 						savedView={activeView ?? "Backlog"}
 						selectedWorkId={workId ?? null}
 						unavailableView={
-							activeView && !workSavedViewIsList(activeView) ? activeView : null
+							activeView &&
+							!workSavedViewIsList(activeView) &&
+							!workSavedViewIsBoard(activeView)
+								? activeView
+								: null
 						}
 					/>
 				</div>

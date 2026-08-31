@@ -11,6 +11,7 @@ import { completionEffects } from "../features/completion-effects/server/complet
 import { customFields } from "../features/custom-fields/server/custom-fields-rpc";
 import { externalHandoffs } from "../features/external-handoffs/server/external-handoffs-rpc";
 import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
+import { kanban } from "../features/kanban/server/kanban-rpc";
 import { priority } from "../features/priority/server/priority-rpc";
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
@@ -38,6 +39,7 @@ export const appRouter = {
 	externalHandoffs,
 	fileAttachments,
 	healthCheck: publicProcedure.handler(() => "OK"),
+	kanban,
 	priority,
 	privateData: protectedProcedure.handler(({ context }) => ({
 		message: "This is private",
