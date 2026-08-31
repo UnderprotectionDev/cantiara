@@ -21,6 +21,8 @@ import {
 } from "../../work-lifecycle/server/work-lifecycle";
 import { createDailyFocus } from "./daily-focus";
 import {
+	CANDIDATE_COUNTERPARTS,
+	CANDIDATE_REASON,
 	DAILY_FOCUS_COPY,
 	DAILY_FOCUS_PLANNING_WRITES,
 	dailyFocusCatalog,
@@ -38,13 +40,19 @@ const FORBIDDEN_SURFACE =
 describe("Daily Focus catalog", () => {
 	it("exposes English Daily Focus and does not write planning fields", () => {
 		expect(dailyFocusCatalog()).toEqual({
+			candidateCounterparts: CANDIDATE_COUNTERPARTS,
 			copy: {
+				accept: "Accept",
 				add: "Add",
+				candidates: "Candidates",
 				dailyFocus: "Daily Focus",
 				empty: "No Work in Daily Focus for this day.",
 				loading: "Loading…",
+				reappearDateArrived: "Reappear date has arrived",
+				reject: "Reject",
 				remove: "Remove",
 				selectedDay: "Selected day",
+				targetDateNear: "Target date is near",
 				work: "Work",
 			},
 			kind: "daily-focus",
@@ -57,6 +65,7 @@ describe("Daily Focus catalog", () => {
 			shared: false,
 		});
 		expect(DAILY_FOCUS_COPY.dailyFocus).toBe("Daily Focus");
+		expect(DAILY_FOCUS_COPY.candidates).toBe("Candidates");
 		expect(JSON.stringify(dailyFocusCatalog())).not.toMatch(FORBIDDEN_SURFACE);
 	});
 });
@@ -98,6 +107,9 @@ describe("Daily Focus", () => {
 			where: { actorId },
 		});
 		await prisma.dailyFocusMembership.deleteMany({
+			where: { accountId: actorId },
+		});
+		await prisma.dailyFocusCandidateRejection.deleteMany({
 			where: { accountId: actorId },
 		});
 		await prisma.workspace.deleteMany({ where: { ownerId: actorId } });
@@ -325,5 +337,160 @@ describe("Daily Focus", () => {
 		expect(
 			(await focus(boundary).view({ calendarDay: "2026-09-01" })).members
 		).toEqual([]);
+	});
+
+	it("explains Candidates by Target date or Reappear date without making them members", async () => {
+		const payments = await openProject("Payments");
+		const near = await openWork(payments.id, "Near target");
+		const arrived = await openWork(payments.id, "Reappear today");
+		const later = await openWork(payments.id, "Far target");
+		const futureReappear = await openWork(payments.id, "Reappear later");
+		await prisma.work.update({
+			data: { targetDate: "2026-09-03" },
+			where: { id: near.id },
+		});
+		await prisma.work.update({
+			data: { reappearDate: "2026-08-31" },
+			where: { id: arrived.id },
+		});
+		await prisma.work.update({
+			data: { targetDate: "2026-09-20" },
+			where: { id: later.id },
+		});
+		await prisma.work.update({
+			data: { reappearDate: "2026-09-10" },
+			where: { id: futureReappear.id },
+		});
+		const view = await focus().view();
+		expect(view.copy.candidates).toBe("Candidates");
+		expect(view.candidateCounterparts).toEqual(CANDIDATE_COUNTERPARTS);
+		expect(view.members).toEqual([]);
+		expect(view.candidates).toEqual([
+			expect.objectContaining({
+				id: arrived.id,
+				reason: CANDIDATE_REASON.reappearDate,
+				title: "Reappear today",
+			}),
+			expect.objectContaining({
+				id: near.id,
+				reason: CANDIDATE_REASON.targetDate,
+				title: "Near target",
+			}),
+		]);
+		expect(view.candidates.map((row) => row.id)).not.toContain(later.id);
+		expect(view.candidates.map((row) => row.id)).not.toContain(
+			futureReappear.id
+		);
+		expect(view.candidates.every((row) => row.reason.length > 0)).toBe(true);
+	});
+
+	it("accepts a candidate into the selected day and rejects without membership or status write", async () => {
+		const payments = await openProject("Payments");
+		const acceptWork = await openWork(payments.id, "Accept me");
+		const rejectWork = await openWork(payments.id, "Reject me");
+		await prisma.work.update({
+			data: { targetDate: "2026-08-31" },
+			where: { id: acceptWork.id },
+		});
+		await prisma.work.update({
+			data: { reappearDate: "2026-08-30" },
+			where: { id: rejectWork.id },
+		});
+		const beforeAccept = await getWork(prisma, acceptWork.id);
+		const beforeReject = await getWork(prisma, rejectWork.id);
+		const beforePriority = await prisma.projectPriorityCriterionValue.count({
+			where: { workId: { in: [acceptWork.id, rejectWork.id] } },
+		});
+		const beforeStages = payments.stages.map((stage) => ({
+			id: stage.id,
+			name: stage.name,
+			sortOrder: stage.sortOrder,
+			state: stage.state,
+		}));
+		const beforeList = (await listWork(prisma, payments.id)).map(
+			(row) => row.id
+		);
+		const surface = focus();
+
+		const accepted = await surface.accept({
+			idempotencyKey: crypto.randomUUID(),
+			workId: acceptWork.id,
+		});
+		const rejected = await surface.reject({
+			idempotencyKey: crypto.randomUUID(),
+			workId: rejectWork.id,
+		});
+		expect(accepted.status).toBe("committed");
+		expect(rejected.status).toBe("committed");
+
+		const view = await surface.view();
+		expect(view.members.map((row) => row.id)).toEqual([acceptWork.id]);
+		expect(view.candidates.map((row) => row.id)).not.toContain(acceptWork.id);
+		expect(view.candidates.map((row) => row.id)).not.toContain(rejectWork.id);
+		expect(view.planningWrites).toEqual(DAILY_FOCUS_PLANNING_WRITES);
+		expect(view.candidateCounterparts).toEqual({
+			backlogMembership: false,
+			calendarEvent: false,
+			focusPeriod: false,
+		});
+		expect(await getWork(prisma, acceptWork.id)).toMatchObject({
+			revision: beforeAccept?.revision,
+			status: "Not Started",
+		});
+		expect(await getWork(prisma, rejectWork.id)).toMatchObject({
+			revision: beforeReject?.revision,
+			status: "Not Started",
+		});
+		expect((await listWork(prisma, payments.id)).map((row) => row.id)).toEqual(
+			beforeList
+		);
+		expect(
+			(
+				await prisma.project.findUnique({
+					include: { stages: { orderBy: { sortOrder: "asc" } } },
+					where: { id: payments.id },
+				})
+			)?.stages.map((stage) => ({
+				id: stage.id,
+				name: stage.name,
+				sortOrder: stage.sortOrder,
+				state: stage.state,
+			}))
+		).toEqual(beforeStages);
+		expect(
+			await prisma.projectPriorityCriterionValue.count({
+				where: { workId: { in: [acceptWork.id, rejectWork.id] } },
+			})
+		).toBe(beforePriority);
+		expect(JSON.stringify(view)).not.toMatch(FORBIDDEN_SURFACE);
+	});
+
+	it("keeps Candidates to a small set and skips Work already in the day", async () => {
+		const payments = await openProject("Payments");
+		const titles = ["One", "Two", "Three", "Four", "Five", "Six", "Already in"];
+		const works = await Promise.all(
+			titles.map((title) => openWork(payments.id, title))
+		);
+		await Promise.all(
+			works.map((work, index) =>
+				prisma.work.update({
+					data: { targetDate: `2026-09-0${(index % 5) + 1}` },
+					where: { id: work.id },
+				})
+			)
+		);
+		const [, , , , , , member] = works;
+		if (!member) {
+			throw new Error("expected seventh Work");
+		}
+		const surface = focus();
+		await surface.add({
+			idempotencyKey: crypto.randomUUID(),
+			workId: member.id,
+		});
+		const view = await surface.view();
+		expect(view.candidates).toHaveLength(5);
+		expect(view.candidates.map((row) => row.id)).not.toContain(member.id);
+		expect(view.members.map((row) => row.id)).toEqual([member.id]);
 	});
 });

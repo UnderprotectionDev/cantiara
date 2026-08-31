@@ -88,6 +88,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Günlük Odak | `Daily Focus` | Farklı Projelerden seçili profil gününde ele alınacak İşleri toplayan kişisel görünüm; Odak Dönemi, sprint, Aktif Çalışma Seti veya Takvim olayı değildir |
 | Seçili gün | `Selected day` | Günlük Odak görünümünün profil saat dilimindeki takvim günü seçici etiketi |
 | Günlük Odakta İş yok | `No Work in Daily Focus for this day.` | Seçili günde üyelik olmadığında boş durum |
+| Adaylar | `Candidates` | Günlük Odak’ta hedef tarihi yaklaşan veya yeniden görünme tarihi gelen az sayıda İş önerisi; üyelik değildir |
+| Kabul | `Accept` | Adayı seçili günün Günlük Odak üyeliğine ekleme; durum yazmaz |
+| Ret | `Reject` | Adayı o günün odağından dışarıda bırakma; durum veya üyelik yazmaz |
+| Hedef tarihi yaklaştı | `Target date is near` | Adayın hedef tarihi nedeniyle önerildiğini açıklayan neden |
+| Yeniden görünme tarihi geldi | `Reappear date has arrived` | Adayın yeniden görünme tarihi nedeniyle önerildiğini açıklayan neden |
+| Yeniden görünme tarihi | `Reappear date` | İşin en erken yeniden değerlendirme günü; hedef tarihi değildir |
 | Çalışma anı girdisi | `Date`, `Number`, `Select`, `Relation` | Kayıt Eyleminin tasarımda tanımlı çalışma anı girdileri; formül, serbest metin makro veya yeni kayıt seçimi değildir |
 | Kayıt eylemini başlat | `Start` | Kayıt Eylemini açıkça başlatıp kesin alan farkını önizlemeye açma |
 | Kayıt eylemini uygula | `Apply` | Önizlenen Kayıt Eylemi farkını tek atomik sonuç olarak yazma |
