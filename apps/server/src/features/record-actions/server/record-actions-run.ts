@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
+import { accountProfileCalendarDay } from "../../daily-focus/server/daily-focus";
 import {
 	advisoryKeys,
 	HUMAN_ORIGIN,
@@ -52,19 +53,29 @@ function hasDelegate(
 	return typeof delegate?.findUnique === "function";
 }
 
+async function membershipDay(
+	db: RuntimeDb,
+	accountId: string
+): Promise<string> {
+	return await accountProfileCalendarDay(db, accountId, new Date());
+}
+
 async function findDailyFocusMembership(
 	db: RuntimeDb,
 	accountId: string,
 	workId: string
 ): Promise<{ id: string } | null> {
+	const calendarDay = await membershipDay(db, accountId);
 	if (hasDelegate(db, "dailyFocusMembership")) {
 		return await db.dailyFocusMembership.findUnique({
-			where: { accountId_workId: { accountId, workId } },
+			where: {
+				accountId_workId_calendarDay: { accountId, calendarDay, workId },
+			},
 		});
 	}
 	const rows = await db.$queryRaw<Array<{ id: string }>>`
 		SELECT id FROM "daily_focus_membership"
-		WHERE "accountId" = ${accountId} AND "workId" = ${workId}
+		WHERE "accountId" = ${accountId} AND "workId" = ${workId} AND "calendarDay" = ${calendarDay}
 		LIMIT 1
 	`;
 	return rows[0] ?? null;
@@ -74,13 +85,16 @@ async function insertDailyFocusMembership(
 	db: RuntimeDb,
 	input: { accountId: string; id: string; workId: string }
 ): Promise<void> {
+	const calendarDay = await membershipDay(db, input.accountId);
 	if (hasDelegate(db, "dailyFocusMembership")) {
-		await db.dailyFocusMembership.create({ data: input });
+		await db.dailyFocusMembership.create({
+			data: { ...input, calendarDay },
+		});
 		return;
 	}
 	await db.$executeRaw`
-		INSERT INTO "daily_focus_membership" (id, "accountId", "workId", "createdAt", "updatedAt")
-		VALUES (${input.id}, ${input.accountId}, ${input.workId}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		INSERT INTO "daily_focus_membership" (id, "accountId", "workId", "calendarDay", "createdAt", "updatedAt")
+		VALUES (${input.id}, ${input.accountId}, ${input.workId}, ${calendarDay}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`;
 }
 
@@ -89,15 +103,16 @@ async function deleteDailyFocusMembership(
 	accountId: string,
 	workId: string
 ): Promise<void> {
+	const calendarDay = await membershipDay(db, accountId);
 	if (hasDelegate(db, "dailyFocusMembership")) {
 		await db.dailyFocusMembership.deleteMany({
-			where: { accountId, workId },
+			where: { accountId, calendarDay, workId },
 		});
 		return;
 	}
 	await db.$executeRaw`
 		DELETE FROM "daily_focus_membership"
-		WHERE "accountId" = ${accountId} AND "workId" = ${workId}
+		WHERE "accountId" = ${accountId} AND "workId" = ${workId} AND "calendarDay" = ${calendarDay}
 	`;
 }
 
