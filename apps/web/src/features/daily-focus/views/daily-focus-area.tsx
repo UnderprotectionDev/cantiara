@@ -26,6 +26,17 @@ interface DailyFocusWork {
 	title: string;
 }
 
+interface WhatHappenedTodayRow {
+	id: string;
+	occurredAt: string;
+	occurredAtDisplay: string;
+	openSourceRecord: string;
+	projectName: string;
+	sourceHref: string;
+	sourceKey: string;
+	sourceTitle: string;
+}
+
 function workHref(work: DailyFocusWork): string {
 	return `/projects/${work.projectId}?work=${encodeURIComponent(work.id)}#work`;
 }
@@ -123,6 +134,11 @@ export default function DailyFocusArea() {
 				members={view.data?.members}
 				onRemove={onRemove}
 				query={view}
+			/>
+			<WhatHappenedToday
+				copy={copy}
+				query={view}
+				rows={view.data?.whatHappenedToday.rows}
 			/>
 		</FounderPage>
 	);
@@ -229,6 +245,64 @@ function MemberRow({
 			<Button onClick={remove} size="sm" type="button" variant="outline">
 				{copy.remove}
 			</Button>
+		</li>
+	);
+}
+
+function WhatHappenedToday({
+	copy,
+	query,
+	rows,
+}: {
+	copy: typeof DAILY_FOCUS_COPY;
+	query: { isError: boolean; isPending: boolean };
+	rows: readonly WhatHappenedTodayRow[] | undefined;
+}) {
+	const presentation = dailyFocusListPresentation({
+		data: rows,
+		isError: query.isError,
+		isPending: query.isPending,
+	});
+	return (
+		<section aria-labelledby="what-happened-today" className="mt-10">
+			<h2 className="mb-3 font-medium text-lg" id="what-happened-today">
+				{copy.whatHappenedToday}
+			</h2>
+			{presentation.kind === "failed" ? <p>{MAIN_FLOW_COPY.failed}</p> : null}
+			{presentation.kind === "loading" ? <p>{copy.loading}</p> : null}
+			{presentation.kind === "list" ? (
+				<ul aria-label={copy.whatHappenedToday}>
+					{presentation.members.map((row) => (
+						<WhatHappenedRow key={row.id} row={row} />
+					))}
+				</ul>
+			) : null}
+		</section>
+	);
+}
+
+function WhatHappenedRow({ row }: { row: WhatHappenedTodayRow }) {
+	return (
+		<li className="flex flex-wrap items-center justify-between gap-3 border-border border-b py-3">
+			<div className="min-w-0">
+				<time
+					className="text-muted-foreground text-sm"
+					dateTime={row.occurredAt}
+				>
+					{row.occurredAtDisplay}
+				</time>
+				<p className="truncate text-sm">
+					<span className="font-medium">{row.sourceKey}</span>
+					<span>{` ${row.sourceTitle}`}</span>
+					<span className="text-muted-foreground">{` · ${row.projectName}`}</span>
+				</p>
+			</div>
+			<a
+				className="text-sm underline-offset-4 hover:underline"
+				href={row.sourceHref}
+			>
+				{row.openSourceRecord}
+			</a>
 		</li>
 	);
 }

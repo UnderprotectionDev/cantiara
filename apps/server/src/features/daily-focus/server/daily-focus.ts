@@ -1,4 +1,9 @@
-import { calendarDay, getAccountPreferences } from "@cantiara/auth";
+import {
+	calendarDay,
+	formatDateTime,
+	getAccountPreferences,
+	instantFromCalendarDate,
+} from "@cantiara/auth";
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
 import {
@@ -13,6 +18,11 @@ import {
 	DAILY_FOCUS_PLANNING_WRITES,
 	type DailyFocusView,
 	type DailyFocusWork,
+	nextCalendarDay,
+	WHAT_HAPPENED_TODAY_CONTRACT,
+	type WhatHappenedToday,
+	type WhatHappenedTodayRow,
+	workSourceHref,
 } from "./daily-focus-model";
 
 type MutationDb = PrismaClient | Prisma.TransactionClient;
@@ -218,7 +228,84 @@ async function loadView(
 			.map((row) => toWork(row)),
 		members,
 		planningWrites: DAILY_FOCUS_PLANNING_WRITES,
+		whatHappenedToday: await loadWhatHappenedToday(
+			db,
+			accountId,
+			workspaceId,
+			day
+		),
 	};
+}
+
+async function loadWhatHappenedToday(
+	db: MutationDb,
+	accountId: string,
+	workspaceId: string,
+	day: string
+): Promise<WhatHappenedToday> {
+	const preferences = await getAccountPreferences(
+		db as PrismaClient,
+		accountId
+	);
+	const start = instantFromCalendarDate(day, preferences);
+	const end = instantFromCalendarDate(nextCalendarDay(day), preferences);
+	const events = await db.workLifecycleEvent.findMany({
+		include: {
+			work: {
+				include: { project: true },
+			},
+		},
+		orderBy: { createdAt: "asc" },
+		where: {
+			createdAt: { gte: start, lt: end },
+			kind: { in: ["closed", "reopened"] },
+			work: {
+				project: { workspaceId },
+				retiredIntoId: null,
+			},
+		},
+	});
+	const rows: WhatHappenedTodayRow[] = [];
+	for (const event of events) {
+		const kind = notableWorkKind(event.kind, event.closureResult);
+		if (!kind) {
+			continue;
+		}
+		rows.push({
+			id: event.id,
+			kind,
+			occurredAt: event.createdAt.toISOString(),
+			occurredAtDisplay: formatDateTime(event.createdAt, preferences),
+			openSourceRecord: DAILY_FOCUS_COPY.openSourceRecord,
+			projectId: event.work.projectId,
+			projectName: event.work.project.name,
+			sourceHref: workSourceHref(event.work.projectId, event.work.id),
+			sourceId: event.work.id,
+			sourceKey: event.work.key,
+			sourceKind: "work",
+			sourceTitle: event.work.title,
+		});
+	}
+	return {
+		...WHAT_HAPPENED_TODAY_CONTRACT,
+		rows,
+	};
+}
+
+function notableWorkKind(
+	kind: string,
+	closureResult: string | null
+): WhatHappenedTodayRow["kind"] | null {
+	if (kind === "reopened") {
+		return "work-reopened";
+	}
+	if (kind === "closed" && closureResult === "Completed") {
+		return "work-completed";
+	}
+	if (kind === "closed" && closureResult === "Abandoned") {
+		return "work-abandoned";
+	}
+	return null;
 }
 
 function toWork(row: {
