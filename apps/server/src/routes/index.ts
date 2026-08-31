@@ -3,6 +3,7 @@ import type { RouterClient } from "@orpc/server";
 
 import { accountAccess } from "../features/account-access/server/me";
 import { accountPreferences } from "../features/account-preferences/server/preferences";
+import { backlog } from "../features/backlog/server/backlog-rpc";
 import { blockers } from "../features/blockers/server/blockers-rpc";
 import { bulkEditing } from "../features/bulk-editing/server/bulk-editing-rpc";
 import { captureInbox } from "../features/capture-triage/server/capture-inbox-router";
@@ -27,6 +28,7 @@ import { workspaceOverviewRouter } from "../features/workspace-overview/server/w
 export const appRouter = {
 	accountAccess,
 	accountPreferences,
+	backlog,
 	blockers,
 	bulkEditing,
 	captureInbox,

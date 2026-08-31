@@ -3,6 +3,7 @@ import { Skeleton } from "@cantiara/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import PreparedBacklog from "@/features/backlog/views/prepared-backlog";
 import BulkEditPreview from "@/features/bulk-editing/views/bulk-edit-preview";
 import {
 	bulkEditTargetIds,
@@ -30,11 +31,13 @@ import { nextSelectedWorkId } from "./work-selection";
 export default function WorkArea({
 	onSelectedWorkId,
 	projectId,
+	savedView,
 	selectedWorkId,
 	unavailableView,
 }: {
 	onSelectedWorkId?: (id: string | null) => void;
 	projectId: string;
+	savedView?: string | null;
 	selectedWorkId?: string | null;
 	unavailableView?: string | null;
 }) {
@@ -43,11 +46,17 @@ export default function WorkArea({
 	const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
 	const [tagFilter, setTagFilter] = useState("");
 	const [surface, setSurface] = useState<"list" | "priority-map">("list");
-	const work = useQuery(
-		orpc.workLifecycle.list.queryOptions({
+	const preparedBacklog = savedView === "Backlog";
+	const work = useQuery({
+		...orpc.workLifecycle.list.queryOptions({
 			input: { archived: archiveFilter, projectId },
-		})
-	);
+		}),
+		enabled: !preparedBacklog,
+	});
+	const backlog = useQuery({
+		...orpc.backlog.list.queryOptions({ input: { projectId } }),
+		enabled: preparedBacklog,
+	});
 	const suggestions = useQuery(
 		orpc.tags.suggest.queryOptions({ input: { projectId } })
 	);
@@ -149,7 +158,8 @@ export default function WorkArea({
 		return map;
 	}, [suggestions.data]);
 
-	if (work.isPending) {
+	const collection = preparedBacklog ? backlog : work;
+	if (collection.isLoading) {
 		return (
 			<div className="flex flex-col gap-3">
 				<Skeleton className="h-8 w-48" />
@@ -157,7 +167,7 @@ export default function WorkArea({
 			</div>
 		);
 	}
-	if (work.isError) {
+	if (collection.isError) {
 		return <p role="alert">{PROJECT_SHELL_COPY.unavailable}</p>;
 	}
 	if (tagFilter !== "" && taggedRecords.isPending) {
@@ -172,7 +182,10 @@ export default function WorkArea({
 			.filter((record) => record.projectId === projectId)
 			.map((record) => record.id)
 	);
-	const items = work.data
+	const records = preparedBacklog
+		? (backlog.data?.items ?? [])
+		: (work.data ?? []);
+	const items = records
 		.filter((item) => tagFilter === "" || taggedIds.has(item.id))
 		.filter((item) => filteredIds === null || filteredIds.includes(item.id))
 		.map((item) => ({
@@ -187,31 +200,6 @@ export default function WorkArea({
 		visibleWorkIds: items.map((item) => item.id),
 	});
 
-	let workSurface = (
-		<WorkList
-			bulkSelectedIds={bulkSelectedIds}
-			items={items}
-			onSelect={onSelect}
-			onToggleBulkSelect={onToggleBulkSelect}
-			selectedId={selectedId}
-		/>
-	);
-	if (unavailableView) {
-		workSurface = (
-			<p className="text-muted-foreground text-sm">
-				{PROJECT_SHELL_COPY.areaNotAvailable}
-			</p>
-		);
-	} else if (surface === "priority-map") {
-		workSurface = (
-			<PriorityMap
-				onSelectWork={onSelect}
-				projectId={projectId}
-				selectedWorkId={selectedId}
-			/>
-		);
-	}
-
 	return (
 		<div className="flex flex-col gap-6">
 			<div id={projectShellAnchor(PROJECT_SHELL_COPY.create)}>
@@ -222,40 +210,29 @@ export default function WorkArea({
 				projectId={projectId}
 				work={items.map((item) => ({ id: item.id, title: item.title }))}
 			/>
-			<div
-				className="flex flex-wrap items-end gap-3"
-				id={projectShellAnchor(PROJECT_SHELL_COPY.planning)}
-			>
-				<CustomFieldFilter
-					onRecordIds={setFilteredIds}
-					projectId={projectId}
-					recordType="Work"
-				/>
-				<Button
-					aria-pressed={archiveFilter}
-					onClick={onToggleArchiveFilter}
-					size="sm"
-					type="button"
-					variant={archiveFilter ? "secondary" : "ghost"}
-				>
-					{WORK_LIFECYCLE_COPY.archived}
-				</Button>
-				<TagFilter
-					onChange={onTagFilter}
-					tags={suggestions.data ?? []}
-					value={tagFilter}
-				/>
-				<Button
-					aria-pressed={surface === "priority-map"}
-					onClick={onTogglePriorityMap}
-					size="sm"
-					type="button"
-					variant={surface === "priority-map" ? "secondary" : "ghost"}
-				>
-					{PRIORITY_COPY.priorityMap}
-				</Button>
-			</div>
-			{workSurface}
+			<WorkPlanningTools
+				archiveFilter={archiveFilter}
+				onRecordIds={setFilteredIds}
+				onTagFilter={onTagFilter}
+				onToggleArchiveFilter={onToggleArchiveFilter}
+				onTogglePriorityMap={onTogglePriorityMap}
+				preparedBacklog={preparedBacklog}
+				priorityMapOpen={surface === "priority-map"}
+				projectId={projectId}
+				tagFilter={tagFilter}
+				tags={suggestions.data ?? []}
+			/>
+			<WorkCollectionSurface
+				bulkSelectedIds={bulkSelectedIds}
+				items={items}
+				onSelect={onSelect}
+				onToggleBulkSelect={onToggleBulkSelect}
+				preparedBacklog={preparedBacklog}
+				priorityMapOpen={surface === "priority-map"}
+				projectId={projectId}
+				selectedId={selectedId}
+				unavailableView={unavailableView}
+			/>
 			{!unavailableView && surface === "list" ? (
 				<BulkEditPreview
 					filterWorkIds={items.map((item) => item.id)}
@@ -288,5 +265,130 @@ export default function WorkArea({
 				/>
 			) : null}
 		</div>
+	);
+}
+
+function WorkPlanningTools({
+	archiveFilter,
+	onRecordIds,
+	onTagFilter,
+	onToggleArchiveFilter,
+	onTogglePriorityMap,
+	preparedBacklog,
+	priorityMapOpen,
+	projectId,
+	tagFilter,
+	tags,
+}: {
+	archiveFilter: boolean;
+	onRecordIds: (ids: string[] | null) => void;
+	onTagFilter: (tagId: string) => void;
+	onToggleArchiveFilter: () => void;
+	onTogglePriorityMap: () => void;
+	preparedBacklog: boolean;
+	priorityMapOpen: boolean;
+	projectId: string;
+	tagFilter: string;
+	tags: Array<{ id: string; name: string }>;
+}) {
+	return (
+		<div
+			className="flex flex-wrap items-end gap-3"
+			id={projectShellAnchor(PROJECT_SHELL_COPY.planning)}
+		>
+			<CustomFieldFilter
+				onRecordIds={onRecordIds}
+				projectId={projectId}
+				recordType="Work"
+			/>
+			{preparedBacklog ? null : (
+				<Button
+					aria-pressed={archiveFilter}
+					onClick={onToggleArchiveFilter}
+					size="sm"
+					type="button"
+					variant={archiveFilter ? "secondary" : "ghost"}
+				>
+					{WORK_LIFECYCLE_COPY.archived}
+				</Button>
+			)}
+			<TagFilter onChange={onTagFilter} tags={tags} value={tagFilter} />
+			<Button
+				aria-pressed={priorityMapOpen}
+				onClick={onTogglePriorityMap}
+				size="sm"
+				type="button"
+				variant={priorityMapOpen ? "secondary" : "ghost"}
+			>
+				{PRIORITY_COPY.priorityMap}
+			</Button>
+		</div>
+	);
+}
+
+function WorkCollectionSurface({
+	bulkSelectedIds,
+	items,
+	onSelect,
+	onToggleBulkSelect,
+	preparedBacklog,
+	priorityMapOpen,
+	projectId,
+	selectedId,
+	unavailableView,
+}: {
+	bulkSelectedIds: string[];
+	items: Array<{
+		closureResult?: string | null;
+		id: string;
+		key: string;
+		status: string;
+		tags?: string[];
+		title: string;
+		type: string;
+	}>;
+	onSelect: (id: string) => void;
+	onToggleBulkSelect: (id: string, selected: boolean) => void;
+	preparedBacklog: boolean;
+	priorityMapOpen: boolean;
+	projectId: string;
+	selectedId: string | null;
+	unavailableView?: string | null;
+}) {
+	if (unavailableView) {
+		return (
+			<p className="text-muted-foreground text-sm">
+				{PROJECT_SHELL_COPY.areaNotAvailable}
+			</p>
+		);
+	}
+	if (priorityMapOpen) {
+		return (
+			<PriorityMap
+				onSelectWork={onSelect}
+				projectId={projectId}
+				selectedWorkId={selectedId}
+			/>
+		);
+	}
+	if (preparedBacklog) {
+		return (
+			<PreparedBacklog
+				bulkSelectedIds={bulkSelectedIds}
+				items={items}
+				onSelect={onSelect}
+				onToggleBulkSelect={onToggleBulkSelect}
+				selectedId={selectedId}
+			/>
+		);
+	}
+	return (
+		<WorkList
+			bulkSelectedIds={bulkSelectedIds}
+			items={items}
+			onSelect={onSelect}
+			onToggleBulkSelect={onToggleBulkSelect}
+			selectedId={selectedId}
+		/>
 	);
 }
