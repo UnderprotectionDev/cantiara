@@ -22,6 +22,8 @@ model Work {
   portableRelations     Json                   @default("[]")
   archived              Boolean                @default(false)
   trashedAt             DateTime?
+  targetDate            String?
+  reappearDate          String?
   retiredIntoId         String?
   retiredInto           Work?                  @relation("WorkRetiredIdentity", fields: [retiredIntoId], references: [id], onDelete: SetNull)
   retiredIdentities     Work[]                 @relation("WorkRetiredIdentity")
@@ -40,6 +42,7 @@ model Work {
   priorityValues                 ProjectPriorityCriterionValue[]
   prioritizationSessionItems     PrioritizationSessionItem[]
   dailyFocusMemberships          DailyFocusMembership[]
+  dailyFocusCandidateRejections  DailyFocusCandidateRejection[]
   recordActionRuns               RecordActionRun[]
   externalExecutionHandoffs      ExternalExecutionHandoff[]
   externalExecutionHandoffEvents ExternalExecutionHandoffEvent[]
