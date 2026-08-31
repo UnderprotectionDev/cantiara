@@ -3,6 +3,10 @@ import { Skeleton } from "@cantiara/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+	BACKLOG_COPY,
+	type BacklogSort,
+} from "@/features/backlog/views/backlog-copy";
 import PreparedBacklog from "@/features/backlog/views/prepared-backlog";
 import BulkEditPreview from "@/features/bulk-editing/views/bulk-edit-preview";
 import {
@@ -30,12 +34,14 @@ import WorkList from "./work-list";
 import { nextSelectedWorkId } from "./work-selection";
 
 export default function WorkArea({
+	configurationMode = false,
 	onSelectedWorkId,
 	projectId,
 	savedView,
 	selectedWorkId,
 	unavailableView,
 }: {
+	configurationMode?: boolean;
 	onSelectedWorkId?: (id: string | null) => void;
 	projectId: string;
 	savedView?: string | null;
@@ -47,6 +53,7 @@ export default function WorkArea({
 	const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
 	const [tagFilter, setTagFilter] = useState("");
 	const [surface, setSurface] = useState<"list" | "priority-map">("list");
+	const [backlogSort, setBacklogSort] = useState<BacklogSort | undefined>();
 	const preparedBacklog = savedView === "Backlog";
 	const work = useQuery({
 		...orpc.workLifecycle.list.queryOptions({
@@ -55,7 +62,9 @@ export default function WorkArea({
 		enabled: !preparedBacklog,
 	});
 	const backlog = useQuery({
-		...orpc.backlog.list.queryOptions({ input: { projectId } }),
+		...orpc.backlog.list.queryOptions({
+			input: backlogSort ? { projectId, sort: backlogSort } : { projectId },
+		}),
 		enabled: preparedBacklog,
 	});
 	const suggestions = useQuery(
@@ -127,6 +136,12 @@ export default function WorkArea({
 			current === "priority-map" ? "list" : "priority-map"
 		);
 	}, []);
+	const onBacklogSort = useCallback((sort: BacklogSort) => {
+		setBacklogSort(sort);
+	}, []);
+	const onSavedBacklogPresentation = useCallback(() => {
+		setBacklogSort(undefined);
+	}, []);
 
 	useEffect(() => {
 		if (!selectedId) {
@@ -183,23 +198,24 @@ export default function WorkArea({
 			.filter((record) => record.projectId === projectId)
 			.map((record) => record.id)
 	);
-	const records = preparedBacklog
-		? (backlog.data?.items ?? [])
-		: (work.data ?? []);
-	const items = records
-		.filter((item) => tagFilter === "" || taggedIds.has(item.id))
-		.filter((item) => filteredIds === null || filteredIds.includes(item.id))
-		.map((item) => ({
-			...item,
-			tags: (tagsByWork.get(item.id) ?? [])
-				.map((tagId) => tagName.get(tagId))
-				.filter((name): name is string => Boolean(name)),
-		}));
-	const selected = items.find((item) => item.id === selectedId) ?? null;
-	const bulkTargets = bulkEditTargetIds({
-		selectedWorkIds: bulkSelectedIds,
-		visibleWorkIds: items.map((item) => item.id),
-	});
+	const source = preparedCollectionSource(
+		preparedBacklog,
+		backlog.data,
+		work.data
+	);
+	const { bulkTargets, deferredItems, items, selected } = visibleWorkCollection(
+		{
+			deferred: source.deferred,
+			filteredIds,
+			records: source.records,
+			selectedId,
+			selectedWorkIds: bulkSelectedIds,
+			tagFilter,
+			taggedIds,
+			tagName,
+			tagsByWork,
+		}
+	);
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -225,11 +241,21 @@ export default function WorkArea({
 			/>
 			<WorkCollectionSurface
 				bulkSelectedIds={bulkSelectedIds}
+				configurationMode={configurationMode}
+				deferred={deferredItems}
 				items={items}
+				notifyOnReappearDate={
+					backlog.data?.reappearNotification.optedIn ?? false
+				}
 				onOpenSourceRecord={onOpenSourceRecord}
+				onSavedPresentation={onSavedBacklogPresentation}
 				onSelect={onSelect}
+				onSortChange={onBacklogSort}
 				onToggleBulkSelect={onToggleBulkSelect}
 				preparedBacklog={preparedBacklog}
+				presentationSort={backlogPresentationSort(
+					backlogSort ?? backlog.data?.presentation.sort
+				)}
 				priorityMapOpen={surface === "priority-map"}
 				projectId={projectId}
 				savedView={savedView}
@@ -331,11 +357,17 @@ function WorkPlanningTools({
 
 function WorkCollectionSurface({
 	bulkSelectedIds,
+	configurationMode,
+	deferred,
 	items,
+	notifyOnReappearDate,
 	onOpenSourceRecord,
+	onSavedPresentation,
 	onSelect,
+	onSortChange,
 	onToggleBulkSelect,
 	preparedBacklog,
+	presentationSort,
 	priorityMapOpen,
 	projectId,
 	savedView,
@@ -343,22 +375,38 @@ function WorkCollectionSurface({
 	unavailableView,
 }: {
 	bulkSelectedIds: string[];
+	configurationMode: boolean;
+	deferred: Array<{
+		closureResult?: string | null;
+		id: string;
+		key: string;
+		reappearDate?: string | null;
+		status: string;
+		tags?: string[];
+		title: string;
+		type: string;
+	}>;
 	items: Array<{
 		archived?: boolean;
 		closureResult?: string | null;
 		id: string;
 		key: string;
 		lightChecklist?: Array<{ completed: boolean }>;
+		reappearDate?: string | null;
 		revision: number;
 		status: string;
 		tags?: string[];
 		title: string;
 		type: string;
 	}>;
+	notifyOnReappearDate: boolean;
 	onOpenSourceRecord: (id: string) => void;
+	onSavedPresentation: () => void;
 	onSelect: (id: string) => void;
+	onSortChange: (sort: BacklogSort) => void;
 	onToggleBulkSelect: (id: string, selected: boolean) => void;
 	preparedBacklog: boolean;
+	presentationSort: BacklogSort;
 	priorityMapOpen: boolean;
 	projectId: string;
 	savedView?: string | null;
@@ -375,6 +423,7 @@ function WorkCollectionSurface({
 	if (savedView === "Board") {
 		return (
 			<KanbanBoard
+				configurationMode={configurationMode}
 				items={items}
 				onOpenSourceRecord={onOpenSourceRecord}
 				projectId={projectId}
@@ -395,9 +444,15 @@ function WorkCollectionSurface({
 		return (
 			<PreparedBacklog
 				bulkSelectedIds={bulkSelectedIds}
+				deferred={deferred}
 				items={items}
+				notifyOnReappearDate={notifyOnReappearDate}
+				onSavedPresentation={onSavedPresentation}
 				onSelect={onSelect}
+				onSortChange={onSortChange}
 				onToggleBulkSelect={onToggleBulkSelect}
+				presentationSort={presentationSort}
+				projectId={projectId}
 				selectedId={selectedId}
 			/>
 		);
@@ -411,4 +466,109 @@ function WorkCollectionSurface({
 			selectedId={selectedId}
 		/>
 	);
+}
+
+function backlogPresentationSort(sort: string | undefined): BacklogSort {
+	if (
+		sort === BACKLOG_COPY.manualOrder ||
+		sort === BACKLOG_COPY.priority ||
+		sort === BACKLOG_COPY.date ||
+		sort === BACKLOG_COPY.field
+	) {
+		return sort;
+	}
+	return BACKLOG_COPY.manualOrder;
+}
+
+function preparedCollectionSource<T>(
+	preparedBacklog: boolean,
+	backlog: { deferred?: T[]; items?: T[] } | undefined,
+	work: T[] | undefined
+): { deferred: T[]; records: T[] } {
+	if (preparedBacklog) {
+		return {
+			deferred: backlog?.deferred ?? [],
+			records: backlog?.items ?? [],
+		};
+	}
+	return { deferred: [], records: work ?? [] };
+}
+
+function visibleWorkCollection<T extends { id: string }>({
+	deferred,
+	filteredIds,
+	records,
+	selectedId,
+	selectedWorkIds,
+	tagFilter,
+	taggedIds,
+	tagName,
+	tagsByWork,
+}: {
+	deferred: T[];
+	filteredIds: string[] | null;
+	records: T[];
+	selectedId: string | null;
+	selectedWorkIds: string[];
+	tagFilter: string;
+	taggedIds: Set<string>;
+	tagName: Map<string, string>;
+	tagsByWork: Map<string, string[]>;
+}) {
+	const items = taggedBacklogRecords({
+		filteredIds,
+		records,
+		tagFilter,
+		taggedIds,
+		tagName,
+		tagsByWork,
+	});
+	const deferredItems = taggedBacklogRecords({
+		filteredIds,
+		records: deferred,
+		tagFilter,
+		taggedIds,
+		tagName,
+		tagsByWork,
+	});
+	const visible = [...items, ...deferredItems];
+	return {
+		bulkTargets: bulkEditTargetIds({
+			selectedWorkIds,
+			visibleWorkIds: visible.map((item) => item.id),
+		}),
+		deferredItems,
+		items,
+		selected: visible.find((item) => item.id === selectedId) ?? null,
+	};
+}
+
+function taggedBacklogRecords<
+	T extends {
+		id: string;
+	},
+>({
+	filteredIds,
+	records,
+	tagFilter,
+	taggedIds,
+	tagName,
+	tagsByWork,
+}: {
+	filteredIds: string[] | null;
+	records: T[];
+	tagFilter: string;
+	taggedIds: Set<string>;
+	tagName: Map<string, string>;
+	tagsByWork: Map<string, string[]>;
+}) {
+	return records
+		.filter((item) => tagFilter === "" || taggedIds.has(item.id))
+		.filter((item) => filteredIds === null || filteredIds.includes(item.id))
+		.map((item) => ({
+			...item,
+			tags: (tagsByWork.get(item.id) ?? [])
+				.map((tagId) => tagName.get(tagId))
+				.filter((name): name is string => Boolean(name)),
+		}));
 }

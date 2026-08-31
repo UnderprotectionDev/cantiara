@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
+import { orderedManualWorkIds } from "../../backlog/server/backlog";
 import {
 	advisoryKeys,
 	HUMAN_ORIGIN,
@@ -1716,7 +1717,14 @@ async function loadSessionView(
 		orderBy: { number: "asc" },
 		where: { projectId: row.projectId, retiredIntoId: null },
 	});
-	const backlogIndex = new Map(works.map((work, index) => [work.id, index]));
+	const backlogOrderIds = await orderedManualWorkIds(
+		db,
+		row.projectId,
+		works.map((work) => work.id)
+	);
+	const backlogIndex = new Map(
+		backlogOrderIds.map((workId, index) => [workId, index])
+	);
 	const workById = new Map(works.map((work) => [work.id, work]));
 	const definitions = await db.projectPriorityCriterion.findMany({
 		orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -1779,9 +1787,10 @@ async function loadSessionView(
 		};
 	});
 	const sessionOrder = cards.map((card) => card.workId);
-	const backlogOrder = works
-		.filter((work) => sessionOrder.includes(work.id))
-		.map((work) => work.id);
+	const sessionWork = new Set(sessionOrder);
+	const backlogOrder = backlogOrderIds.filter((workId) =>
+		sessionWork.has(workId)
+	);
 	return {
 		archivedAt: row.archivedAt?.toISOString() ?? null,
 		cards,

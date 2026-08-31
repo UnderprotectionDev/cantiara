@@ -89,14 +89,25 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Seçili gün | `Selected day` | Günlük Odak görünümünün profil saat dilimindeki takvim günü seçici etiketi |
 | Günlük Odakta İş yok | `No Work in Daily Focus for this day.` | Seçili günde üyelik olmadığında boş durum |
 | Odağı kapat | `Close focus` | Günlük Odak’ta seçili gün için isteğe bağlı sakin kapanış görünümü; açık İşi kapatmaz |
-| Ertelenen | `Deferred` | Gelecek yeniden görünme tarihi taşıyan İşlerin kapanış ve Backlog grubu |
 | Hâlâ açık | `Still open` | Kapanış görünümünde Günlük Odak’ta açık kalan İşler grubu |
+| Bugün ne oldu? | `What happened today?` | Seçili profil günündeki türetilmiş önemli olaylar; Daily Note veya ikinci olay geçmişi değildir |
+| Adaylar | `Candidates` | Günlük Odak’ta hedef tarihi yaklaşan veya yeniden görünme tarihi gelen az sayıda İş önerisi; üyelik değildir |
+| Günlük Odakta aday yok | `No Candidates for this day.` | Seçili günde önerilecek aday olmadığında boş durum |
+| Aday kuralı | `Work appears here when Target date is this day through the next 7 days, or Reappear date is on or before this day.` | Aday listesinin hangi tarih alanlarıyla dolduğunu açıklayan metin |
+| Kabul | `Accept` | Adayı seçili günün Günlük Odak üyeliğine ekleme; durum yazmaz |
+| Ret | `Reject` | Adayı o günün odağından dışarıda bırakma; durum veya üyelik yazmaz |
+| Hedef tarihi yaklaştı | `Target date is near` | Adayın hedef tarihi nedeniyle önerildiğini açıklayan neden |
+| Yeniden görünme tarihi geldi | `Reappear date has arrived` | Adayın yeniden görünme tarihi nedeniyle önerildiğini açıklayan neden |
+| İş hedef tarihi | `Target date` | İşin isteğe bağlı hedef günü; Proje hedef tarihi ve yeniden görünme tarihi değildir |
 | Çalışma anı girdisi | `Date`, `Number`, `Select`, `Relation` | Kayıt Eyleminin tasarımda tanımlı çalışma anı girdileri; formül, serbest metin makro veya yeni kayıt seçimi değildir |
 | Kayıt eylemini başlat | `Start` | Kayıt Eylemini açıkça başlatıp kesin alan farkını önizlemeye açma |
 | Kayıt eylemini uygula | `Apply` | Önizlenen Kayıt Eylemi farkını tek atomik sonuç olarak yazma |
 | Şablondan oluştur | `Create from template` | Şablondan bağımsız yeni İş açma; şablona canlı bağ değildir ve zorunlu workflow kapısı değildir |
 | İşi kopyala | `Duplicate Work` | Mevcut İşi aynı Projede şablona dönüştürmeden tek seferlik kopyalama |
 | Planlanan başlangıç | `Planned start` | İşin ne zaman başlamasının düşünüldüğü tarih; göreli şablon kuralı oluşturma gününe göre çözülür |
+| Yeniden görünme tarihi | `Reappear date` | İşin en erken ne zaman yeniden değerlendirileceğini belirten isteğe bağlı tarih; hedef tarihi veya hatırlatma değildir |
+| Deferred | `Deferred` | Varsayılan Backlog görünümünde gelecek yeniden görünme tarihi taşıyan İşlerin bölümü; durum değildir |
+| Yeniden görünme bildirimi | `Notify on Reappear date` | Proje bazında varsayılan kapalı opt-in; tarih gelince `reappear-date` Dikkat sinyali üretir |
 | Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
 | Tüm etiketler | `All tags` | Etiket süzgecinin süzmeyi kaldırma seçeneği |
 | Etiket uygula | `Apply tag` | Erişilebilir kayda mevcut Etiketi bağlama |
@@ -225,7 +236,20 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Production | `Production` | Üretim olayları girişini toplayan Proje alanı |
 | GitHub | `GitHub` | GitHub bağlantısı girişini toplayan Proje alanı; oluşturmada zorunlu bağlantı değildir |
 | Backlog | `Backlog` | Hazır İş görünümü; tek kalıcı manuel sıra |
+| Manuel sıra | `Manual order` | Backlog’un tek kalıcı ele alma sırası; alternatif sunum bunu silmez |
+| Öncelik sıralaması | `Priority` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
+| Tarih sıralaması | `Date` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
+| Alan sıralaması | `Field` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
 | Board | `Board` | Hazır İş görünümü; Kanban sunumu |
+| Liste görünümü | `List` | Kanban ile aynı İş taramasının yoğun satır düzeni; Tablo Görünümü değildir |
+| Soft WIP | `Soft WIP` | Durum bazlı isteğe bağlı sayı sınırı; aşıldığında nötr işaret, hareket kapısı değildir |
+| Odak eşiği | `Focus threshold` | Proje veya ilgili Akıllı Koleksiyon için isteğe bağlı kişisel devam eden İş sayısı eşiği |
+| Sınır aşıldı | `Over limit` | Soft WIP veya odak eşiği aşımının yalnız renge dayanmayan işareti |
+| Mevcut durumda geçen süre | `Time in status` | Aktif kartın mevcut İş akışı durumunda geçirdiği süre |
+| Devam eden İş sayısı | `In Progress count` | Tahtadaki `In Progress` İş adedi |
+| Daralt | `Collapse` | Kanban sütununu yalnız görünümde sıkıştırma; filtre değildir |
+| Genişlet | `Expand` | Daraltılmış Kanban sütununu açma |
+| Açık blokaj | `Open blocker` | Daraltılmış sütunda kalan önemli blokaj sinyali |
 | Roadmap | `Roadmap` | Hazır İş görünümü |
 | Build | `Build` | Hazır Proje aşaması adı |
 | Validate | `Validate` | Hazır Proje aşaması adı |

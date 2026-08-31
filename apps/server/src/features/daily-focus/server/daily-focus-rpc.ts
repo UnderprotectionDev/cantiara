@@ -26,6 +26,12 @@ const membershipInput = z.object({
 });
 
 export const dailyFocus = {
+	accept: protectedWriteProcedure
+		.input(membershipInput)
+		.handler(async ({ context, input }) => {
+			const surface = await focusFor(context.session.user.id);
+			return surface.accept(input);
+		}),
 	add: protectedWriteProcedure
 		.input(membershipInput)
 		.handler(async ({ context, input }) => {
@@ -38,6 +44,12 @@ export const dailyFocus = {
 		.handler(async ({ context, input }) => {
 			const surface = await focusFor(context.session.user.id);
 			return surface.closeView(input);
+		}),
+	reject: protectedWriteProcedure
+		.input(membershipInput)
+		.handler(async ({ context, input }) => {
+			const surface = await focusFor(context.session.user.id);
+			return surface.reject(input);
 		}),
 	remove: protectedWriteProcedure
 		.input(membershipInput)

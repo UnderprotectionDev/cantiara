@@ -43,6 +43,7 @@ import {
 	summarizeFeatureProgress,
 	unarchiveWork,
 	undoWorkMerge,
+	updateWorkPlanningDates,
 	updateWorkTitle,
 } from "./work-lifecycle";
 import {
@@ -689,6 +690,29 @@ export const workLifecycle = {
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				usageLinkId: input.usageLinkId,
+			});
+		}),
+	updatePlanningDates: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				reappearDate: z.string().nullable(),
+				targetDate: z.string().nullable(),
+				workId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await updateWorkPlanningDates(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				reappearDate: input.reappearDate,
+				targetDate: input.targetDate,
+				workId: input.workId,
 			});
 		}),
 	updateTitle: protectedWriteProcedure

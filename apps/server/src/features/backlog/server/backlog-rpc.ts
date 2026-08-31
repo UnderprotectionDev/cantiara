@@ -9,9 +9,20 @@ import { getWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	listPreparedBacklog,
 	placeOnPlanningSurface,
+	reorderManualOrder,
+	saveBacklogPresentation,
+	setReappearDate,
+	setReappearNotification,
 	takeUpFromBacklog,
 } from "./backlog";
-import { backlogCatalog } from "./backlog-model";
+import {
+	backlogCatalog,
+	listPreparedBacklogQuerySchema,
+	reorderManualOrderCommandSchema,
+	saveBacklogPresentationCommandSchema,
+	setReappearDateCommandSchema,
+	setReappearNotificationCommandSchema,
+} from "./backlog-model";
 
 async function requireAccess(userId: string) {
 	const access = await getAccountAccessForUser(getPrismaClient(), userId);
@@ -41,11 +52,13 @@ async function requireWork(workspaceId: string, workId: string) {
 export const backlog = {
 	catalog: protectedProcedure.handler(() => backlogCatalog()),
 	list: protectedProcedure
-		.input(z.object({ projectId: z.string().min(1) }))
+		.input(listPreparedBacklogQuerySchema)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
-			return await listPreparedBacklog(getPrismaClient(), input.projectId);
+			return await listPreparedBacklog(getPrismaClient(), input.projectId, {
+				sort: input.sort,
+			});
 		}),
 	placeOnSurface: protectedWriteProcedure
 		.input(
@@ -58,6 +71,34 @@ export const backlog = {
 			const access = await requireAccess(context.session.user.id);
 			await requireWork(access.workspaceId, input.workId);
 			return await placeOnPlanningSurface(getPrismaClient(), input);
+		}),
+	reorder: protectedWriteProcedure
+		.input(reorderManualOrderCommandSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await reorderManualOrder(getPrismaClient(), input);
+		}),
+	savePresentation: protectedWriteProcedure
+		.input(saveBacklogPresentationCommandSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await saveBacklogPresentation(getPrismaClient(), input);
+		}),
+	setReappearDate: protectedWriteProcedure
+		.input(setReappearDateCommandSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await setReappearDate(getPrismaClient(), input);
+		}),
+	setReappearNotification: protectedWriteProcedure
+		.input(setReappearNotificationCommandSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await setReappearNotification(getPrismaClient(), input);
 		}),
 	takeUp: protectedWriteProcedure
 		.input(

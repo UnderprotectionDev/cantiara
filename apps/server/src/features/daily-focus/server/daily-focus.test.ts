@@ -17,19 +17,26 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createProject } from "../../project-shell/server/project-shell";
 import {
+	changeWorkStatus,
 	closeWork,
 	createWork,
 	getWork,
 	listWork,
+	reopenWork,
 } from "../../work-lifecycle/server/work-lifecycle";
 import { createDailyFocus } from "./daily-focus";
 import {
+	CANDIDATE_COUNTERPARTS,
+	CANDIDATE_REASON,
 	DAILY_FOCUS_CLOSE_RITUAL,
 	DAILY_FOCUS_CLOSE_WRITES,
 	DAILY_FOCUS_COPY,
 	DAILY_FOCUS_PLANNING_WRITES,
 	dailyFocusCatalog,
 	groupCloseFocusWork,
+	WHAT_HAPPENED_TODAY_CONTRACT,
+	WHAT_HAPPENED_TODAY_KINDS,
+	workSourceHref,
 } from "./daily-focus-model";
 
 const DATABASE_URL =
@@ -44,6 +51,7 @@ const FORBIDDEN_SURFACE =
 describe("Daily Focus catalog", () => {
 	it("exposes English Daily Focus and does not write planning fields", () => {
 		expect(dailyFocusCatalog()).toEqual({
+			candidateCounterparts: CANDIDATE_COUNTERPARTS,
 			closeFocus: {
 				optional: true,
 				ritual: DAILY_FOCUS_CLOSE_RITUAL,
@@ -51,7 +59,12 @@ describe("Daily Focus catalog", () => {
 			},
 			copy: {
 				abandoned: "Abandoned",
+				accept: "Accept",
 				add: "Add",
+				candidates: "Candidates",
+				candidatesEmpty: "No Candidates for this day.",
+				candidatesRule:
+					"Work appears here when Target date is this day through the next 7 days, or Reappear date is on or before this day.",
 				closeFocus: "Close focus",
 				completed: "Completed",
 				dailyFocus: "Daily Focus",
@@ -59,9 +72,13 @@ describe("Daily Focus catalog", () => {
 				empty: "No Work in Daily Focus for this day.",
 				loading: "Loading…",
 				openSourceRecord: "Open source record",
+				reappearDateArrived: "Reappear date has arrived",
+				reject: "Reject",
 				remove: "Remove",
 				selectedDay: "Selected day",
 				stillOpen: "Still open",
+				targetDateNear: "Target date is near",
+				whatHappenedToday: "What happened today?",
 				work: "Work",
 			},
 			kind: "daily-focus",
@@ -72,10 +89,23 @@ describe("Daily Focus catalog", () => {
 				status: false,
 			},
 			shared: false,
+			whatHappenedToday: {
+				createsDocument: false,
+				editable: false,
+				kinds: WHAT_HAPPENED_TODAY_KINDS,
+				rewritesSourceTimestamps: false,
+			},
 		});
 		expect(DAILY_FOCUS_COPY.dailyFocus).toBe("Daily Focus");
 		expect(DAILY_FOCUS_COPY.closeFocus).toBe("Close focus");
+		expect(DAILY_FOCUS_COPY.candidates).toBe("Candidates");
+		expect(DAILY_FOCUS_COPY.whatHappenedToday).toBe("What happened today?");
 		expect(DAILY_FOCUS_COPY.openSourceRecord).toBe("Open source record");
+		expect(WHAT_HAPPENED_TODAY_CONTRACT).toEqual({
+			createsDocument: false,
+			editable: false,
+			rewritesSourceTimestamps: false,
+		});
 		expect(JSON.stringify(dailyFocusCatalog())).not.toMatch(FORBIDDEN_SURFACE);
 	});
 
@@ -139,6 +169,9 @@ describe("Daily Focus", () => {
 		await prisma.dailyFocusMembership.deleteMany({
 			where: { accountId: actorId },
 		});
+		await prisma.dailyFocusCandidateRejection.deleteMany({
+			where: { accountId: actorId },
+		});
 		await prisma.workspace.deleteMany({ where: { ownerId: actorId } });
 		await prisma.user.deleteMany({ where: { id: actorId } });
 		await prisma.$disconnect();
@@ -151,6 +184,24 @@ describe("Daily Focus", () => {
 			clock: { now: () => now },
 			prisma,
 			workspaceId,
+		});
+	}
+
+	async function pinLifecycleEvent(
+		workId: string,
+		kind: "closed" | "reopened",
+		createdAt: Date
+	) {
+		const row = await prisma.workLifecycleEvent.findFirst({
+			orderBy: { createdAt: "desc" },
+			where: { kind, workId },
+		});
+		if (!row) {
+			throw new Error(`expected ${kind} lifecycle event`);
+		}
+		return await prisma.workLifecycleEvent.update({
+			data: { createdAt },
+			where: { id: row.id },
 		});
 	}
 
@@ -451,5 +502,525 @@ describe("Daily Focus", () => {
 		expect((await surface.view({ calendarDay: "2026-09-01" })).members).toEqual(
 			[]
 		);
+	});
+
+	it("derives What happened today from source Work events without a Daily Note", async () => {
+		const payments = await openProject("Payments");
+		const search = await openProject("Search");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const ranking = await openWork(search.id, "Ranking query");
+		const parked = await openWork(payments.id, "Parked refund");
+		const surface = focus();
+
+		const progressed = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: intake.revision,
+			idempotencyKey: `progress-${intake.id}`,
+			origin: "human",
+			status: "In Progress",
+			workId: intake.id,
+		});
+		if (progressed.status !== "committed") {
+			throw new Error("expected In Progress");
+		}
+		const completed = await closeWork(prisma, {
+			actorId,
+			baseRevision: progressed.work.revision,
+			idempotencyKey: `close-${intake.id}`,
+			origin: "human",
+			result: "Completed",
+			workId: intake.id,
+		});
+		if (completed.status !== "committed") {
+			throw new Error("expected Completed");
+		}
+		const abandoned = await closeWork(prisma, {
+			actorId,
+			baseRevision: ranking.revision,
+			idempotencyKey: `abandon-${ranking.id}`,
+			origin: "human",
+			result: "Abandoned",
+			workId: ranking.id,
+		});
+		if (abandoned.status !== "committed") {
+			throw new Error("expected Abandoned");
+		}
+		const reopened = await reopenWork(prisma, {
+			actorId,
+			baseRevision: abandoned.work.revision,
+			idempotencyKey: `reopen-${ranking.id}`,
+			origin: "human",
+			reopenConfirmed: true,
+			status: "In Progress",
+			workId: ranking.id,
+		});
+		if (reopened.status !== "committed") {
+			throw new Error("expected reopened");
+		}
+		await closeWork(prisma, {
+			actorId,
+			baseRevision: parked.revision,
+			idempotencyKey: `close-${parked.id}`,
+			origin: "human",
+			result: "Abandoned",
+			workId: parked.id,
+		});
+
+		const completedAt = new Date("2026-08-31T12:00:00.000Z");
+		const abandonedAt = new Date("2026-08-31T13:00:00.000Z");
+		const reopenedAt = new Date("2026-08-31T14:00:00.000Z");
+		const otherDayAt = new Date("2026-09-01T12:00:00.000Z");
+		await pinLifecycleEvent(intake.id, "closed", completedAt);
+		await pinLifecycleEvent(ranking.id, "closed", abandonedAt);
+		await pinLifecycleEvent(ranking.id, "reopened", reopenedAt);
+		await pinLifecycleEvent(parked.id, "closed", otherDayAt);
+
+		const beforeCount = await prisma.workLifecycleEvent.count({
+			where: { work: { project: { workspaceId } } },
+		});
+		const first = await surface.view();
+		const second = await surface.view();
+		expect(first.whatHappenedToday).toEqual(second.whatHappenedToday);
+		expect(
+			await prisma.workLifecycleEvent.count({
+				where: { work: { project: { workspaceId } } },
+			})
+		).toBe(beforeCount);
+		expect(first.whatHappenedToday.createsDocument).toBe(false);
+		expect(first.whatHappenedToday.editable).toBe(false);
+		expect(first.whatHappenedToday.rewritesSourceTimestamps).toBe(false);
+		expect(first.copy.whatHappenedToday).toBe("What happened today?");
+		expect(first.copy.openSourceRecord).toBe("Open source record");
+		expect(JSON.stringify(first.whatHappenedToday)).not.toMatch(
+			FORBIDDEN_SURFACE
+		);
+		expect(first.whatHappenedToday.rows.map((row) => row.kind)).toEqual([
+			"work-completed",
+			"work-abandoned",
+			"work-reopened",
+		]);
+		expect(first.whatHappenedToday.rows).toEqual([
+			{
+				id: expect.any(String),
+				kind: "work-completed",
+				kindLabel: "Completed",
+				occurredAt: completedAt.toISOString(),
+				occurredAtDisplay: "31/08/2026, 15:00",
+				openSourceRecord: "Open source record",
+				projectId: payments.id,
+				projectName: "Payments",
+				sourceHref: workSourceHref(payments.id, intake.id),
+				sourceId: intake.id,
+				sourceKey: intake.key,
+				sourceKind: "work",
+				sourceTitle: "Intake checkout",
+			},
+			{
+				id: expect.any(String),
+				kind: "work-abandoned",
+				kindLabel: "Abandoned",
+				occurredAt: abandonedAt.toISOString(),
+				occurredAtDisplay: "31/08/2026, 16:00",
+				openSourceRecord: "Open source record",
+				projectId: search.id,
+				projectName: "Search",
+				sourceHref: workSourceHref(search.id, ranking.id),
+				sourceId: ranking.id,
+				sourceKey: ranking.key,
+				sourceKind: "work",
+				sourceTitle: "Ranking query",
+			},
+			{
+				id: expect.any(String),
+				kind: "work-reopened",
+				kindLabel: "Reopened",
+				occurredAt: reopenedAt.toISOString(),
+				occurredAtDisplay: "31/08/2026, 17:00",
+				openSourceRecord: "Open source record",
+				projectId: search.id,
+				projectName: "Search",
+				sourceHref: workSourceHref(search.id, ranking.id),
+				sourceId: ranking.id,
+				sourceKey: ranking.key,
+				sourceKind: "work",
+				sourceTitle: "Ranking query",
+			},
+		]);
+		expect(
+			first.whatHappenedToday.rows.map((row) => row.sourceId)
+		).not.toContain(parked.id);
+	});
+
+	it("recomputes What happened today day bounds when the profile time zone changes", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const closed = await closeWork(prisma, {
+			actorId,
+			baseRevision: intake.revision,
+			idempotencyKey: `close-boundary-${intake.id}`,
+			origin: "human",
+			result: "Completed",
+			workId: intake.id,
+		});
+		if (closed.status !== "committed") {
+			throw new Error("expected Completed");
+		}
+		const occurredAt = new Date("2026-09-01T02:00:00.000Z");
+		const event = await pinLifecycleEvent(intake.id, "closed", occurredAt);
+		expect(event.createdAt.toISOString()).toBe(occurredAt.toISOString());
+
+		const utcDay = await focus().view({ calendarDay: "2026-08-31" });
+		expect(utcDay.whatHappenedToday.rows).toEqual([]);
+		expect(
+			(await focus().view({ calendarDay: "2026-09-01" })).whatHappenedToday.rows
+		).toEqual([
+			expect.objectContaining({
+				kind: "work-completed",
+				occurredAt: occurredAt.toISOString(),
+				sourceId: intake.id,
+			}),
+		]);
+
+		await saveAccountPreferences(prisma, actorId, {
+			appearance: "Dark",
+			dateFormat: "locale",
+			firstDayOfWeek: "Monday",
+			locale: "en-US",
+			timeZone: "America/New_York",
+		});
+		const nyDay = await focus().view({ calendarDay: "2026-08-31" });
+		expect(nyDay.whatHappenedToday.rows).toEqual([
+			expect.objectContaining({
+				kind: "work-completed",
+				occurredAt: occurredAt.toISOString(),
+				occurredAtDisplay: "08/31/2026, 10:00 PM",
+				sourceId: intake.id,
+			}),
+		]);
+		expect(
+			(await focus().view({ calendarDay: "2026-09-01" })).whatHappenedToday.rows
+		).toEqual([]);
+		expect(
+			(
+				await prisma.workLifecycleEvent.findUnique({
+					where: { id: event.id },
+				})
+			)?.createdAt.toISOString()
+		).toBe(occurredAt.toISOString());
+	});
+
+	it("explains Candidates by Target date or Reappear date without making them members", async () => {
+		const payments = await openProject("Payments");
+		const near = await openWork(payments.id, "Near target");
+		const arrived = await openWork(payments.id, "Reappear today");
+		const later = await openWork(payments.id, "Far target");
+		const futureReappear = await openWork(payments.id, "Reappear later");
+		await prisma.work.update({
+			data: { targetDate: "2026-09-03" },
+			where: { id: near.id },
+		});
+		await prisma.work.update({
+			data: { reappearDate: "2026-08-31" },
+			where: { id: arrived.id },
+		});
+		await prisma.work.update({
+			data: { targetDate: "2026-09-20" },
+			where: { id: later.id },
+		});
+		await prisma.work.update({
+			data: { reappearDate: "2026-09-10" },
+			where: { id: futureReappear.id },
+		});
+		const view = await focus().view();
+		expect(view.copy.candidates).toBe("Candidates");
+		expect(view.candidateCounterparts).toEqual(CANDIDATE_COUNTERPARTS);
+		expect(view.members).toEqual([]);
+		expect(view.candidates).toEqual([
+			expect.objectContaining({
+				id: arrived.id,
+				reason: CANDIDATE_REASON.reappearDate,
+				title: "Reappear today",
+			}),
+			expect.objectContaining({
+				id: near.id,
+				reason: CANDIDATE_REASON.targetDate,
+				title: "Near target",
+			}),
+		]);
+		expect(view.candidates.map((row) => row.id)).not.toContain(later.id);
+		expect(view.candidates.map((row) => row.id)).not.toContain(
+			futureReappear.id
+		);
+		expect(view.candidates.every((row) => row.reason.length > 0)).toBe(true);
+	});
+
+	it("keeps Candidates copy when no Work has a near Target date or arrived Reappear date", async () => {
+		await openProject("Payments");
+		const view = await focus().view();
+		expect(view.copy.candidates).toBe("Candidates");
+		expect(view.copy.candidatesEmpty).toBe("No Candidates for this day.");
+		expect(view.candidates).toEqual([]);
+	});
+
+	it("lists Candidates when the Prisma client has no rejection delegate", async () => {
+		const payments = await openProject("Payments");
+		const near = await openWork(payments.id, "Near without delegate");
+		await prisma.work.update({
+			data: { targetDate: "2026-08-31" },
+			where: { id: near.id },
+		});
+		const withoutRejection = new Proxy(prisma, {
+			get(target, prop, receiver) {
+				if (prop === "dailyFocusCandidateRejection") {
+					return;
+				}
+				if (prop === "$transaction") {
+					return (fn: (tx: typeof prisma) => unknown, options?: unknown) =>
+						target.$transaction(async (tx) => {
+							const inner = new Proxy(tx, {
+								get(innerTarget, innerProp, innerReceiver) {
+									if (innerProp === "dailyFocusCandidateRejection") {
+										return;
+									}
+									return Reflect.get(innerTarget, innerProp, innerReceiver);
+								},
+							});
+							return await fn(inner as typeof prisma);
+						}, options as never);
+				}
+				return Reflect.get(target, prop, receiver);
+			},
+		}) as typeof prisma;
+		const surface = createDailyFocus({
+			accountId: actorId,
+			clock: { now: () => TODAY },
+			prisma: withoutRejection,
+			workspaceId,
+		});
+		const view = await surface.view();
+		expect(view.candidates).toEqual([
+			expect.objectContaining({
+				id: near.id,
+				reason: CANDIDATE_REASON.targetDate,
+			}),
+		]);
+	});
+
+	it("lists Candidates when the Prisma Work model omits Target date and Reappear date", async () => {
+		const payments = await openProject("Payments");
+		const near = await openWork(payments.id, "Near without Work dates");
+		await prisma.work.update({
+			data: { targetDate: "2026-08-31" },
+			where: { id: near.id },
+		});
+		const withoutWorkDates = new Proxy(prisma, {
+			get(target, prop, receiver) {
+				if (prop === "work") {
+					return new Proxy(target.work, {
+						get(workTarget, workProp, workReceiver) {
+							if (workProp === "findMany") {
+								return async (...args: unknown[]) => {
+									const rows = await Reflect.apply(
+										workTarget.findMany as (...inner: unknown[]) => unknown,
+										workTarget,
+										args
+									);
+									if (!Array.isArray(rows)) {
+										return rows;
+									}
+									return rows.map((row) => {
+										const {
+											reappearDate: _reappearDate,
+											targetDate: _targetDate,
+											...rest
+										} = row as {
+											reappearDate?: string | null;
+											targetDate?: string | null;
+										};
+										return rest;
+									});
+								};
+							}
+							return Reflect.get(workTarget, workProp, workReceiver);
+						},
+					});
+				}
+				return Reflect.get(target, prop, receiver);
+			},
+		}) as typeof prisma;
+		const surface = createDailyFocus({
+			accountId: actorId,
+			clock: { now: () => TODAY },
+			prisma: withoutWorkDates,
+			workspaceId,
+		});
+		const view = await surface.view();
+		expect(view.candidates).toEqual([
+			expect.objectContaining({
+				id: near.id,
+				reason: CANDIDATE_REASON.targetDate,
+			}),
+		]);
+	});
+
+	it("lists Candidates when Prisma returns null Work dates that the table still holds", async () => {
+		const payments = await openProject("Payments");
+		const near = await openWork(payments.id, "Near with null date fields");
+		await prisma.work.update({
+			data: { targetDate: "2026-08-31" },
+			where: { id: near.id },
+		});
+		const nullWorkDates = new Proxy(prisma, {
+			get(target, prop, receiver) {
+				if (prop === "work") {
+					return new Proxy(target.work, {
+						get(workTarget, workProp, workReceiver) {
+							if (workProp === "findMany") {
+								return async (...args: unknown[]) => {
+									const rows = await Reflect.apply(
+										workTarget.findMany as (...inner: unknown[]) => unknown,
+										workTarget,
+										args
+									);
+									if (!Array.isArray(rows)) {
+										return rows;
+									}
+									return rows.map((row) => ({
+										...(row as object),
+										reappearDate: null,
+										targetDate: null,
+									}));
+								};
+							}
+							return Reflect.get(workTarget, workProp, workReceiver);
+						},
+					});
+				}
+				return Reflect.get(target, prop, receiver);
+			},
+		}) as typeof prisma;
+		const surface = createDailyFocus({
+			accountId: actorId,
+			clock: { now: () => TODAY },
+			prisma: nullWorkDates,
+			workspaceId,
+		});
+		const view = await surface.view();
+		expect(view.candidates).toEqual([
+			expect.objectContaining({
+				id: near.id,
+				reason: CANDIDATE_REASON.targetDate,
+			}),
+		]);
+	});
+
+	it("accepts a candidate into the selected day and rejects without membership or status write", async () => {
+		const payments = await openProject("Payments");
+		const acceptWork = await openWork(payments.id, "Accept me");
+		const rejectWork = await openWork(payments.id, "Reject me");
+		await prisma.work.update({
+			data: { targetDate: "2026-08-31" },
+			where: { id: acceptWork.id },
+		});
+		await prisma.work.update({
+			data: { reappearDate: "2026-08-30" },
+			where: { id: rejectWork.id },
+		});
+		const beforeAccept = await getWork(prisma, acceptWork.id);
+		const beforeReject = await getWork(prisma, rejectWork.id);
+		const beforePriority = await prisma.projectPriorityCriterionValue.count({
+			where: { workId: { in: [acceptWork.id, rejectWork.id] } },
+		});
+		const beforeStages = payments.stages.map((stage) => ({
+			id: stage.id,
+			name: stage.name,
+			sortOrder: stage.sortOrder,
+			state: stage.state,
+		}));
+		const beforeList = (await listWork(prisma, payments.id)).map(
+			(row) => row.id
+		);
+		const surface = focus();
+
+		const accepted = await surface.accept({
+			idempotencyKey: crypto.randomUUID(),
+			workId: acceptWork.id,
+		});
+		const rejected = await surface.reject({
+			idempotencyKey: crypto.randomUUID(),
+			workId: rejectWork.id,
+		});
+		expect(accepted.status).toBe("committed");
+		expect(rejected.status).toBe("committed");
+
+		const view = await surface.view();
+		expect(view.members.map((row) => row.id)).toEqual([acceptWork.id]);
+		expect(view.candidates.map((row) => row.id)).not.toContain(acceptWork.id);
+		expect(view.candidates.map((row) => row.id)).not.toContain(rejectWork.id);
+		expect(view.planningWrites).toEqual(DAILY_FOCUS_PLANNING_WRITES);
+		expect(view.candidateCounterparts).toEqual({
+			backlogMembership: false,
+			calendarEvent: false,
+			focusPeriod: false,
+		});
+		expect(await getWork(prisma, acceptWork.id)).toMatchObject({
+			revision: beforeAccept?.revision,
+			status: "Not Started",
+		});
+		expect(await getWork(prisma, rejectWork.id)).toMatchObject({
+			revision: beforeReject?.revision,
+			status: "Not Started",
+		});
+		expect((await listWork(prisma, payments.id)).map((row) => row.id)).toEqual(
+			beforeList
+		);
+		expect(
+			(
+				await prisma.project.findUnique({
+					include: { stages: { orderBy: { sortOrder: "asc" } } },
+					where: { id: payments.id },
+				})
+			)?.stages.map((stage) => ({
+				id: stage.id,
+				name: stage.name,
+				sortOrder: stage.sortOrder,
+				state: stage.state,
+			}))
+		).toEqual(beforeStages);
+		expect(
+			await prisma.projectPriorityCriterionValue.count({
+				where: { workId: { in: [acceptWork.id, rejectWork.id] } },
+			})
+		).toBe(beforePriority);
+		expect(JSON.stringify(view)).not.toMatch(FORBIDDEN_SURFACE);
+	});
+
+	it("keeps Candidates to a small set and skips Work already in the day", async () => {
+		const payments = await openProject("Payments");
+		const titles = ["One", "Two", "Three", "Four", "Five", "Six", "Already in"];
+		const works = await Promise.all(
+			titles.map((title) => openWork(payments.id, title))
+		);
+		await Promise.all(
+			works.map((work, index) =>
+				prisma.work.update({
+					data: { targetDate: `2026-09-0${(index % 5) + 1}` },
+					where: { id: work.id },
+				})
+			)
+		);
+		const [, , , , , , member] = works;
+		if (!member) {
+			throw new Error("expected seventh Work");
+		}
+		const surface = focus();
+		await surface.add({
+			idempotencyKey: crypto.randomUUID(),
+			workId: member.id,
+		});
+		const view = await surface.view();
+		expect(view.candidates).toHaveLength(5);
+		expect(view.candidates.map((row) => row.id)).not.toContain(member.id);
+		expect(view.members.map((row) => row.id)).toEqual([member.id]);
 	});
 });

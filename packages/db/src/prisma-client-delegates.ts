@@ -28,6 +28,10 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.projectCustomFieldValue?.create === "function" &&
 		typeof client.projectPriorityMapPresentation?.findUnique === "function" &&
 		typeof client.projectPriorityMapPresentation?.upsert === "function" &&
+		typeof client.projectBacklogManualOrderItem?.findMany === "function" &&
+		typeof client.projectBacklogManualOrderItem?.createMany === "function" &&
+		typeof client.projectBacklogPresentation?.findUnique === "function" &&
+		typeof client.projectBacklogPresentation?.upsert === "function" &&
 		typeof client.externalExecutionHandoff?.findMany === "function" &&
 		typeof client.externalExecutionHandoff?.create === "function" &&
 		typeof client.workTemplate?.findMany === "function" &&
@@ -36,6 +40,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.recordAction?.create === "function" &&
 		typeof client.workDraft?.findMany === "function" &&
 		typeof client.workDraft?.create === "function" &&
+		// Daily Focus membership and candidate rejection are read via table SQL
+		// so a bun --hot client generated before those models can still serve
+		// Daily Focus. Do not gate getPrismaClient on them.
 		// Completion effect preference is read via table SQL so a bun --hot
 		// client generated before that model can still serve Hesap settings.
 		typeof client.fileAttachment?.findMany === "function" &&
@@ -125,18 +132,34 @@ export function prismaClientHasCurrentFileAttachmentVersionModel(
 
 /**
  * Project.priorityCriterionDefinitions is required for Projects list
- * (`listProjects` include). A bun `--hot` client generated before that
- * relation still has a Project delegate; include then throws
- * "Unknown field 'priorityCriterionDefinitions'".
+ * (`listProjects` include). Project.focusThreshold,
+ * Project.reappearDateNotification, and ProjectWorkStatus.softWipLimit
+ * are required for Kanban Soft WIP, Focus threshold, and Backlog
+ * Reappear date notification. A bun `--hot` client generated before
+ * those fields still has a Project delegate; select then throws
+ * "Unknown field 'focusThreshold'".
  */
 export function prismaClientHasCurrentProjectModel(
 	client: PrismaClient
 ): boolean {
-	const fields = modelFieldNames(client, "Project");
-	if (fields.length === 0) {
+	const projectFields = modelFieldNames(client, "Project");
+	if (projectFields.length === 0) {
 		return true;
 	}
-	return fields.includes("priorityCriterionDefinitions");
+	if (
+		!(
+			projectFields.includes("priorityCriterionDefinitions") &&
+			projectFields.includes("focusThreshold") &&
+			projectFields.includes("reappearDateNotification")
+		)
+	) {
+		return false;
+	}
+	const statusFields = modelFieldNames(client, "ProjectWorkStatus");
+	if (statusFields.length === 0) {
+		return true;
+	}
+	return statusFields.includes("softWipLimit");
 }
 
 export function prismaClientHasCurrentWorkspaceModel(

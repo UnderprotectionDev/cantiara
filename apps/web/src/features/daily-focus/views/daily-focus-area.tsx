@@ -27,6 +27,22 @@ interface DailyFocusWork {
 	title: string;
 }
 
+interface WhatHappenedTodayRow {
+	id: string;
+	kindLabel: string;
+	occurredAt: string;
+	occurredAtDisplay: string;
+	openSourceRecord: string;
+	projectName: string;
+	sourceHref: string;
+	sourceKey: string;
+	sourceTitle: string;
+}
+
+interface DailyFocusCandidate extends DailyFocusWork {
+	reason: string;
+}
+
 function workHref(work: DailyFocusWork): string {
 	return `/projects/${work.projectId}?work=${encodeURIComponent(work.id)}#work`;
 }
@@ -48,7 +64,7 @@ export default function DailyFocusArea() {
 		})
 	);
 	const copy = catalog.data?.copy ?? DAILY_FOCUS_COPY;
-	const selectedDay = view.data?.calendarDay ?? calendarDay ?? "";
+	const selectedDay = calendarDay ?? view.data?.calendarDay ?? "";
 	const invalidateView = useCallback(async () => {
 		await Promise.all([
 			queryClient.invalidateQueries({
@@ -76,6 +92,16 @@ export default function DailyFocusArea() {
 	);
 	const remove = useMutation(
 		orpc.dailyFocus.remove.mutationOptions({
+			onSuccess: invalidateView,
+		})
+	);
+	const accept = useMutation(
+		orpc.dailyFocus.accept.mutationOptions({
+			onSuccess: invalidateView,
+		})
+	);
+	const reject = useMutation(
+		orpc.dailyFocus.reject.mutationOptions({
 			onSuccess: invalidateView,
 		})
 	);
@@ -122,6 +148,46 @@ export default function DailyFocusArea() {
 		},
 		[attemptOnlineWork, markUnsaved, remove, selectedDay]
 	);
+	const onAccept = useCallback(
+		(workId: string) => {
+			if (!selectedDay) {
+				return;
+			}
+			markUnsaved();
+			const result = attemptOnlineWork("record-create", () =>
+				accept.mutateAsync({
+					calendarDay: selectedDay,
+					idempotencyKey: newIdempotencyKey(),
+					workId,
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[accept, attemptOnlineWork, markUnsaved, selectedDay]
+	);
+	const onReject = useCallback(
+		(workId: string) => {
+			if (!selectedDay) {
+				return;
+			}
+			markUnsaved();
+			const result = attemptOnlineWork("record-create", () =>
+				reject.mutateAsync({
+					calendarDay: selectedDay,
+					idempotencyKey: newIdempotencyKey(),
+					workId,
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[attemptOnlineWork, markUnsaved, reject, selectedDay]
+	);
 
 	return (
 		<FounderPage
@@ -155,11 +221,22 @@ export default function DailyFocusArea() {
 						eligible={view.data?.eligibleWork ?? []}
 						onAdd={onAdd}
 					/>
+					<CandidatesList
+						candidates={view.data?.candidates ?? []}
+						copy={copy}
+						onAccept={onAccept}
+						onReject={onReject}
+					/>
 					<MembersList
 						copy={copy}
 						members={view.data?.members}
 						onRemove={onRemove}
 						query={view}
+					/>
+					<WhatHappenedToday
+						copy={copy}
+						query={view}
+						rows={view.data?.whatHappenedToday?.rows}
 					/>
 				</>
 			)}
@@ -276,6 +353,92 @@ function EligibleWork({
 	);
 }
 
+function CandidatesList({
+	candidates,
+	copy,
+	onAccept,
+	onReject,
+}: {
+	candidates: readonly DailyFocusCandidate[];
+	copy: typeof DAILY_FOCUS_COPY;
+	onAccept: (workId: string) => void;
+	onReject: (workId: string) => void;
+}) {
+	if (candidates.length === 0) {
+		return (
+			<section aria-labelledby="daily-focus-candidates" className="mb-8">
+				<h2 className="mb-3 font-medium text-sm" id="daily-focus-candidates">
+					{copy.candidates}
+				</h2>
+				<p>{copy.candidatesEmpty}</p>
+				<p className="mt-1 text-muted-foreground text-sm">
+					{copy.candidatesRule}
+				</p>
+			</section>
+		);
+	}
+	return (
+		<section aria-labelledby="daily-focus-candidates" className="mb-8">
+			<h2 className="mb-3 font-medium text-sm" id="daily-focus-candidates">
+				{copy.candidates}
+			</h2>
+			<ul aria-label={copy.candidates}>
+				{candidates.map((work) => (
+					<CandidateRow
+						copy={copy}
+						key={work.id}
+						onAccept={onAccept}
+						onReject={onReject}
+						work={work}
+					/>
+				))}
+			</ul>
+		</section>
+	);
+}
+
+function CandidateRow({
+	copy,
+	onAccept,
+	onReject,
+	work,
+}: {
+	copy: typeof DAILY_FOCUS_COPY;
+	onAccept: (workId: string) => void;
+	onReject: (workId: string) => void;
+	work: DailyFocusCandidate;
+}) {
+	const accept = useCallback(() => {
+		onAccept(work.id);
+	}, [onAccept, work.id]);
+	const reject = useCallback(() => {
+		onReject(work.id);
+	}, [onReject, work.id]);
+	return (
+		<li className="flex items-center justify-between gap-3 border-border border-b py-3">
+			<div className="min-w-0">
+				<a
+					className="block truncate text-sm underline-offset-4 hover:underline"
+					href={workHref(work)}
+				>
+					<span className="font-medium">{work.key}</span>
+					<span>{` ${work.title}`}</span>
+					<span className="text-muted-foreground">{` · ${work.projectName}`}</span>
+				</a>
+				<p className="text-muted-foreground text-sm">{work.reason}</p>
+			</div>
+			<div className="flex shrink-0 gap-2">
+				<Button onClick={accept} size="sm" type="button">
+					{copy.accept}
+				</Button>
+				<Button onClick={reject} size="sm" type="button" variant="outline">
+					{copy.reject}
+				</Button>
+			</div>
+		</li>
+	);
+}
+
 function MembersList({
 	copy,
 	members,
@@ -335,6 +498,67 @@ function MemberRow({
 			<Button onClick={remove} size="sm" type="button" variant="outline">
 				{copy.remove}
 			</Button>
+		</li>
+	);
+}
+
+function WhatHappenedToday({
+	copy,
+	query,
+	rows,
+}: {
+	copy: typeof DAILY_FOCUS_COPY;
+	query: { isError: boolean; isPending: boolean };
+	rows: readonly WhatHappenedTodayRow[] | undefined;
+}) {
+	const presentation = dailyFocusListPresentation({
+		data: rows,
+		isError: query.isError,
+		isPending: query.isPending,
+	});
+	return (
+		<section aria-labelledby="what-happened-today" className="mt-10">
+			<h2 className="mb-3 font-medium text-lg" id="what-happened-today">
+				{copy.whatHappenedToday}
+			</h2>
+			{presentation.kind === "failed" ? <p>{MAIN_FLOW_COPY.failed}</p> : null}
+			{presentation.kind === "loading" ? <p>{copy.loading}</p> : null}
+			{presentation.kind === "list" ? (
+				<ul aria-label={copy.whatHappenedToday}>
+					{presentation.members.map((row) => (
+						<WhatHappenedRow key={row.id} row={row} />
+					))}
+				</ul>
+			) : null}
+		</section>
+	);
+}
+
+function WhatHappenedRow({ row }: { row: WhatHappenedTodayRow }) {
+	return (
+		<li className="flex flex-wrap items-center justify-between gap-3 border-border border-b py-3">
+			<div className="min-w-0">
+				<time
+					className="text-muted-foreground text-sm"
+					dateTime={row.occurredAt}
+				>
+					{row.occurredAtDisplay}
+				</time>
+				<p className="truncate text-sm">
+					<span className="font-medium">{row.kindLabel}</span>
+					<span className="text-muted-foreground">{` · ${row.projectName}`}</span>
+				</p>
+				<p className="truncate text-sm">
+					<span className="font-medium">{row.sourceKey}</span>
+					<span>{` ${row.sourceTitle}`}</span>
+				</p>
+			</div>
+			<a
+				className="text-sm underline-offset-4 hover:underline"
+				href={row.sourceHref}
+			>
+				{row.openSourceRecord}
+			</a>
 		</li>
 	);
 }

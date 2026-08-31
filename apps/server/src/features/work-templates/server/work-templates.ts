@@ -1400,6 +1400,7 @@ function independentStartWorkView(input: {
 		number,
 		origin: null,
 		projectId,
+		reappearDate: null,
 		relations: [],
 		retiredIdentities: [],
 		revision: 1,

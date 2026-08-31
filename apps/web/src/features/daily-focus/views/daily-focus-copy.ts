@@ -1,6 +1,11 @@
 export const DAILY_FOCUS_COPY = {
 	abandoned: "Abandoned",
+	accept: "Accept",
 	add: "Add",
+	candidates: "Candidates",
+	candidatesEmpty: "No Candidates for this day.",
+	candidatesRule:
+		"Work appears here when Target date is this day through the next 7 days, or Reappear date is on or before this day.",
 	closeFocus: "Close focus",
 	completed: "Completed",
 	dailyFocus: "Daily Focus",
@@ -8,8 +13,12 @@ export const DAILY_FOCUS_COPY = {
 	empty: "No Work in Daily Focus for this day.",
 	loading: "Loading…",
 	openSourceRecord: "Open source record",
+	reappearDateArrived: "Reappear date has arrived",
+	reject: "Reject",
 	remove: "Remove",
 	selectedDay: "Selected day",
 	stillOpen: "Still open",
+	targetDateNear: "Target date is near",
+	whatHappenedToday: "What happened today?",
 	work: "Work",
 } as const;

@@ -1,5 +1,10 @@
-import { calendarDay, getAccountPreferences } from "@cantiara/auth";
-import type { Prisma, PrismaClient } from "@cantiara/db";
+import {
+	calendarDay,
+	formatDateTime,
+	getAccountPreferences,
+	instantFromCalendarDate,
+} from "@cantiara/auth";
+import { Prisma, type PrismaClient } from "@cantiara/db";
 
 import {
 	lockMutation,
@@ -7,38 +12,60 @@ import {
 	writeDurableReceipt,
 } from "../../mutation-core/server/durable-mutation";
 import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
+import { WORK_STATUS } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
+	CANDIDATE_COUNTERPARTS,
+	CANDIDATE_LIMIT,
+	CANDIDATE_REASON,
 	calendarDaySchema,
 	DAILY_FOCUS_CLOSE_RITUAL,
 	DAILY_FOCUS_CLOSE_WRITES,
 	DAILY_FOCUS_COPY,
 	DAILY_FOCUS_PLANNING_WRITES,
+	type DailyFocusCandidate,
 	type DailyFocusCloseItem,
 	type DailyFocusCloseView,
 	type DailyFocusView,
 	type DailyFocusWork,
 	groupCloseFocusWork,
+	nextCalendarDay,
+	TARGET_DATE_NEAR_DAYS,
+	WHAT_HAPPENED_TODAY_CONTRACT,
+	WHAT_HAPPENED_TODAY_KIND_COPY,
+	type WhatHappenedToday,
+	type WhatHappenedTodayRow,
+	workSourceHref,
 } from "./daily-focus-model";
 
 type MutationDb = PrismaClient | Prisma.TransactionClient;
+
+function hasDelegate(
+	db: MutationDb,
+	name: "dailyFocusCandidateRejection" | "dailyFocusMembership"
+): boolean {
+	const delegate = (db as unknown as Record<string, { findMany?: unknown }>)[
+		name
+	];
+	return typeof delegate?.findMany === "function";
+}
 
 export type MembershipOutcome =
 	| { status: "committed"; view: DailyFocusView }
 	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
 	| { status: "not-found" };
 
+interface MembershipCommand {
+	calendarDay?: string;
+	idempotencyKey: string;
+	workId: string;
+}
+
 export interface DailyFocus {
-	add: (input: {
-		calendarDay?: string;
-		idempotencyKey: string;
-		workId: string;
-	}) => Promise<MembershipOutcome>;
+	accept: (input: MembershipCommand) => Promise<MembershipOutcome>;
+	add: (input: MembershipCommand) => Promise<MembershipOutcome>;
 	closeView: (input?: { calendarDay?: string }) => Promise<DailyFocusCloseView>;
-	remove: (input: {
-		calendarDay?: string;
-		idempotencyKey: string;
-		workId: string;
-	}) => Promise<MembershipOutcome>;
+	reject: (input: MembershipCommand) => Promise<MembershipOutcome>;
+	remove: (input: MembershipCommand) => Promise<MembershipOutcome>;
 	view: (input?: { calendarDay?: string }) => Promise<DailyFocusView>;
 }
 
@@ -93,12 +120,8 @@ export function createDailyFocus(input: CreateDailyFocusInput): DailyFocus {
 	}
 
 	async function mutate(
-		operation: "add" | "remove",
-		command: {
-			calendarDay?: string;
-			idempotencyKey: string;
-			workId: string;
-		}
+		operation: "accept" | "add" | "reject" | "remove",
+		command: MembershipCommand
 	): Promise<MembershipOutcome> {
 		const day = await resolveDay(command.calendarDay);
 		const payload = {
@@ -134,35 +157,12 @@ export function createDailyFocus(input: CreateDailyFocusInput): DailyFocus {
 				const missing: MembershipOutcome = { status: "not-found" };
 				return missing;
 			}
-			if (operation === "add") {
-				const already = await tx.dailyFocusMembership.findUnique({
-					where: {
-						accountId_workId_calendarDay: {
-							accountId: input.accountId,
-							calendarDay: day,
-							workId: command.workId,
-						},
-					},
-				});
-				if (!already) {
-					await tx.dailyFocusMembership.create({
-						data: {
-							accountId: input.accountId,
-							calendarDay: day,
-							id: crypto.randomUUID(),
-							workId: command.workId,
-						},
-					});
-				}
-			} else {
-				await tx.dailyFocusMembership.deleteMany({
-					where: {
-						accountId: input.accountId,
-						calendarDay: day,
-						workId: command.workId,
-					},
-				});
-			}
+			await applyDailyFocusWrite(tx, {
+				accountId: input.accountId,
+				calendarDay: day,
+				operation,
+				workId: command.workId,
+			});
 			const next = await loadView(tx, input.accountId, input.workspaceId, day);
 			const outcome: MembershipOutcome = { status: "committed", view: next };
 			await writeDurableReceipt(tx, {
@@ -190,11 +190,94 @@ export function createDailyFocus(input: CreateDailyFocusInput): DailyFocus {
 	}
 
 	return {
+		accept: (command) => mutate("accept", command),
 		add: (command) => mutate("add", command),
 		closeView,
+		reject: (command) => mutate("reject", command),
 		remove: (command) => mutate("remove", command),
 		view,
 	};
+}
+
+async function applyDailyFocusWrite(
+	tx: MutationDb,
+	input: {
+		accountId: string;
+		calendarDay: string;
+		operation: "accept" | "add" | "reject" | "remove";
+		workId: string;
+	}
+) {
+	const key = {
+		accountId: input.accountId,
+		calendarDay: input.calendarDay,
+		workId: input.workId,
+	};
+	if (input.operation === "remove") {
+		await tx.dailyFocusMembership.deleteMany({ where: key });
+		return;
+	}
+	if (input.operation === "reject") {
+		await rememberCandidateRejection(tx, key);
+		return;
+	}
+	const already = await tx.dailyFocusMembership.findUnique({
+		where: { accountId_workId_calendarDay: key },
+	});
+	if (!already) {
+		await tx.dailyFocusMembership.create({
+			data: { ...key, id: crypto.randomUUID() },
+		});
+	}
+}
+
+async function rememberCandidateRejection(
+	tx: MutationDb,
+	key: { accountId: string; calendarDay: string; workId: string }
+) {
+	if (hasDelegate(tx, "dailyFocusCandidateRejection")) {
+		const already = await tx.dailyFocusCandidateRejection.findUnique({
+			where: { accountId_workId_calendarDay: key },
+		});
+		if (!already) {
+			await tx.dailyFocusCandidateRejection.create({
+				data: { ...key, id: crypto.randomUUID() },
+			});
+		}
+		return;
+	}
+	await tx.$executeRaw`
+		INSERT INTO "daily_focus_candidate_rejection"
+			(id, "accountId", "workId", "calendarDay", "createdAt", "updatedAt")
+		VALUES (
+			${crypto.randomUUID()},
+			${key.accountId},
+			${key.workId},
+			${key.calendarDay},
+			CURRENT_TIMESTAMP,
+			CURRENT_TIMESTAMP
+		)
+		ON CONFLICT ("accountId", "workId", "calendarDay") DO NOTHING
+	`;
+}
+
+async function listRejectedWorkIds(
+	db: MutationDb,
+	accountId: string,
+	day: string
+): Promise<Set<string>> {
+	if (hasDelegate(db, "dailyFocusCandidateRejection")) {
+		const rejected = await db.dailyFocusCandidateRejection.findMany({
+			select: { workId: true },
+			where: { accountId, calendarDay: day },
+		});
+		return new Set(rejected.map((row) => row.workId));
+	}
+	const rows = await db.$queryRaw<Array<{ workId: string }>>`
+		SELECT "workId" FROM "daily_focus_candidate_rejection"
+		WHERE "accountId" = ${accountId} AND "calendarDay" = ${day}
+	`;
+	return new Set(rows.map((row) => row.workId));
 }
 
 async function loadMembershipWork(
@@ -237,15 +320,183 @@ async function loadView(
 			retiredIntoId: null,
 		},
 	});
+	const rejectedIds = await listRejectedWorkIds(db, accountId, day);
+	const datedRows = await withWorkPlanningDates(db, eligibleRows);
+	const horizon = addCalendarDays(day, TARGET_DATE_NEAR_DAYS);
+	const candidates = datedRows
+		.filter(
+			(row) =>
+				!(
+					memberIds.has(row.id) ||
+					rejectedIds.has(row.id) ||
+					row.status === WORK_STATUS.closed ||
+					row.trashedAt
+				)
+		)
+		.flatMap((row) => {
+			const reason = candidateReason(row, day, horizon);
+			if (!reason) {
+				return [];
+			}
+			return [{ ...toWork(row), reason }];
+		})
+		.sort(compareCandidates)
+		.slice(0, CANDIDATE_LIMIT);
 	return {
 		calendarDay: day,
+		candidateCounterparts: CANDIDATE_COUNTERPARTS,
+		candidates,
 		copy: DAILY_FOCUS_COPY,
 		eligibleWork: eligibleRows
 			.filter((row) => !memberIds.has(row.id))
 			.map((row) => toWork(row)),
 		members,
 		planningWrites: DAILY_FOCUS_PLANNING_WRITES,
+		whatHappenedToday: await loadWhatHappenedToday(
+			db,
+			accountId,
+			workspaceId,
+			day
+		),
 	};
+}
+
+async function loadWhatHappenedToday(
+	db: MutationDb,
+	accountId: string,
+	workspaceId: string,
+	day: string
+): Promise<WhatHappenedToday> {
+	const preferences = await getAccountPreferences(
+		db as PrismaClient,
+		accountId
+	);
+	const start = instantFromCalendarDate(day, preferences);
+	const end = instantFromCalendarDate(nextCalendarDay(day), preferences);
+	const events = await db.workLifecycleEvent.findMany({
+		include: {
+			work: {
+				include: { project: true },
+			},
+		},
+		orderBy: { createdAt: "asc" },
+		where: {
+			createdAt: { gte: start, lt: end },
+			kind: { in: ["closed", "reopened"] },
+			work: {
+				project: { workspaceId },
+				retiredIntoId: null,
+			},
+		},
+	});
+	const rows: WhatHappenedTodayRow[] = [];
+	for (const event of events) {
+		const kind = notableWorkKind(event.kind, event.closureResult);
+		if (!kind) {
+			continue;
+		}
+		rows.push({
+			id: event.id,
+			kind,
+			kindLabel: WHAT_HAPPENED_TODAY_KIND_COPY[kind],
+			occurredAt: event.createdAt.toISOString(),
+			occurredAtDisplay: formatDateTime(event.createdAt, preferences),
+			openSourceRecord: DAILY_FOCUS_COPY.openSourceRecord,
+			projectId: event.work.projectId,
+			projectName: event.work.project.name,
+			sourceHref: workSourceHref(event.work.projectId, event.work.id),
+			sourceId: event.work.id,
+			sourceKey: event.work.key,
+			sourceKind: "work",
+			sourceTitle: event.work.title,
+		});
+	}
+	return {
+		...WHAT_HAPPENED_TODAY_CONTRACT,
+		rows,
+	};
+}
+
+function notableWorkKind(
+	kind: string,
+	closureResult: string | null
+): WhatHappenedTodayRow["kind"] | null {
+	if (kind === "reopened") {
+		return "work-reopened";
+	}
+	if (kind === "closed" && closureResult === "Completed") {
+		return "work-completed";
+	}
+	if (kind === "closed" && closureResult === "Abandoned") {
+		return "work-abandoned";
+	}
+	return null;
+}
+
+async function withWorkPlanningDates<
+	T extends {
+		id: string;
+		reappearDate?: string | null;
+		targetDate?: string | null;
+	},
+>(db: MutationDb, rows: T[]): Promise<T[]> {
+	if (rows.length === 0) {
+		return rows;
+	}
+	const dates = await db.$queryRaw<
+		Array<{
+			id: string;
+			reappearDate: string | null;
+			targetDate: string | null;
+		}>
+	>`
+		SELECT id, "reappearDate", "targetDate"
+		FROM work
+		WHERE id IN (${Prisma.join(
+			rows.map((row) => Prisma.sql`${row.id}`),
+			", "
+		)})
+	`;
+	const byId = new Map(dates.map((row) => [row.id, row]));
+	return rows.map((row) => {
+		const found = byId.get(row.id);
+		if (!found) {
+			return row;
+		}
+		return { ...row, ...found };
+	});
+}
+
+function candidateReason(
+	row: { reappearDate?: string | null; targetDate?: string | null },
+	day: string,
+	horizon: string
+): DailyFocusCandidate["reason"] | null {
+	if (row.reappearDate && row.reappearDate <= day) {
+		return CANDIDATE_REASON.reappearDate;
+	}
+	if (row.targetDate && row.targetDate >= day && row.targetDate <= horizon) {
+		return CANDIDATE_REASON.targetDate;
+	}
+	return null;
+}
+
+function compareCandidates(
+	left: DailyFocusCandidate,
+	right: DailyFocusCandidate
+): number {
+	if (left.reason !== right.reason) {
+		return left.reason === CANDIDATE_REASON.reappearDate ? -1 : 1;
+	}
+	return left.key.localeCompare(right.key);
+}
+
+function addCalendarDays(day: string, days: number): string {
+	const [year, month, date] = day.split("-").map(Number);
+	const next = new Date(
+		Date.UTC(year ?? 0, (month ?? 1) - 1, (date ?? 1) + days)
+	);
+	return next.toISOString().slice(0, 10);
 }
 
 function toWork(row: {
@@ -294,6 +545,7 @@ function toCloseItem(row: {
 	key: string;
 	project: { id: string; name: string };
 	projectId: string;
+	reappearDate?: string | null;
 	status: string;
 	title: string;
 }): DailyFocusCloseItem {
@@ -304,7 +556,7 @@ function toCloseItem(row: {
 		openSourceRecord: true,
 		projectId: row.projectId,
 		projectName: row.project.name,
-		reappearDate: sourceReappearDate(row),
+		reappearDate: row.reappearDate ?? sourceReappearDate(row),
 		status: row.status,
 		title: row.title,
 	};
