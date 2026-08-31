@@ -1,32 +1,39 @@
 /**
  * Kanban seam — Board columns are the four protected workflow
  * statuses; a non-terminal column move writes that status on the
- * source Work; planning membership does not write status; the board
- * does not mint a second Work list; a column move does not write
- * GitHub status or fire silent automation; cards follow the saved view
- * explicit sort with no independent Kanban rank; Backlog and Prioritization
- * session ranks stay untouched; a future Reappear date sits in the
- * background without writing status; archived Work is absent. Work-status
- * test double for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
+ * source Work; Closed drop requires the closure step; Completed and
+ * Abandoned stay distinct; reopen needs confirm and a non-terminal
+ * target. Planning membership does not write status; cards follow the
+ * saved view explicit sort with no independent Kanban rank; Backlog and
+ * Prioritization session ranks stay untouched; a future Reappear date
+ * sits in the background without writing status; archived Work is
+ * absent. Work-status test double for
+ * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Günlük planlama: planning-surface–status separation).
  */
 import { describe, expect, it } from "vitest";
 
 import {
 	applyKanbanPlanningMembership,
+	closeKanbanCard,
+	collapseKanbanColumn,
 	createMemoryWorkStatusPort,
 	moveKanbanCard,
 	presentKanbanBoard,
+	reopenKanbanCard,
 } from "./kanban";
 import {
 	DEFAULT_CARD_VISIBLE_FIELDS,
 	KANBAN_COLUMNS,
 	KANBAN_COPY,
 	PLANNING_MEMBERSHIP_SURFACES,
+	presentKanbanClosureStep,
 } from "./kanban-model";
 
 const SPRINT_RELEASE_ARCHIVE_PATTERN =
-	/sprint|velocity|release commitment|Archive|Completed|Abandoned/i;
+	/sprint|velocity|release commitment|Archive/i;
+const CLOSURE_CHECK_PATTERN =
+	/Closure check|Keep lasting context|Close anyway|Bitiriş/i;
 const FIFTH_COLUMN_PATTERN = /Deferred|Review|Archive|Sprint/i;
 const KANBAN_RANK_PATTERN = /kanbanRank/;
 const ARCHIVE_COLUMN_PATTERN = /Archive/i;
@@ -38,6 +45,7 @@ function seedPort() {
 			key: "PAY-1",
 			revision: 1,
 			status: "Not Started",
+			statusEnteredAt: "2026-08-31T12:00:00.000Z",
 			title: "Intake checkout",
 			type: "Task",
 		},
@@ -50,6 +58,7 @@ function seedPort() {
 			priority: "Must",
 			revision: 2,
 			status: "In Progress",
+			statusEnteredAt: "2026-08-30T14:00:00.000Z",
 			title: "Charge card",
 			type: "Feature",
 		},
@@ -86,15 +95,24 @@ describe("Kanban", () => {
 		expect(JSON.stringify(board.copy)).not.toMatch(
 			SPRINT_RELEASE_ARCHIVE_PATTERN
 		);
-		expect(board.copy).toEqual({
+		expect(board.copy).toMatchObject({
 			blocked: "Blocked",
 			board: "Board",
 			closed: "Closed",
+			collapse: "Collapse",
+			expand: "Expand",
+			focusThreshold: "Focus threshold",
 			inProgress: "In Progress",
+			inProgressCount: "In Progress count",
 			kanban: "Kanban",
 			notStarted: "Not Started",
+			openBlocker: "Open blocker",
 			openSourceRecord: "Open source record",
+			overLimit: "Over limit",
+			softWip: "Soft WIP",
+			timeInStatus: "Time in status",
 		});
+		expect(JSON.stringify(board.copy)).not.toMatch(CLOSURE_CHECK_PATTERN);
 	});
 
 	it("moves a card between non-terminal columns by writing workflow status on the source Work", () => {
@@ -140,6 +158,136 @@ describe("Kanban", () => {
 			status: "rejected",
 		});
 		expect(port.get("work_intake")?.status).toBe("Not Started");
+		expect(closeKanbanCard(port, { workId: "work_intake" })).toEqual({
+			reason: "unknown-closure-result",
+			status: "rejected",
+		});
+		expect(port.get("work_intake")?.status).toBe("Not Started");
+	});
+
+	it("applies Closed only after Completed or Abandoned is chosen and keeps those outcomes distinct on the card", () => {
+		const port = seedPort();
+		const step = presentKanbanClosureStep();
+		expect(step.results).toEqual(["Completed", "Abandoned"]);
+		expect(step.copy.completed).toBe("Completed");
+		expect(step.copy.abandoned).toBe("Abandoned");
+		expect(JSON.stringify(step)).not.toMatch(CLOSURE_CHECK_PATTERN);
+		expect(
+			closeKanbanCard(port, {
+				reason: "Shipped checkout",
+				result: "Completed",
+				workId: "work_intake",
+			})
+		).toEqual({
+			closureResult: "Completed",
+			status: "committed",
+			workflowStatus: "Closed",
+			workId: "work_intake",
+		});
+		expect(port.get("work_intake")).toMatchObject({
+			closureResult: "Completed",
+			status: "Closed",
+		});
+		expect(
+			closeKanbanCard(port, {
+				result: "Abandoned",
+				workId: "work_pay",
+			})
+		).toEqual({
+			closureResult: "Abandoned",
+			status: "committed",
+			workflowStatus: "Closed",
+			workId: "work_pay",
+		});
+		const closed = presentKanbanBoard(port.list()).columns.find(
+			(column) => column.status === "Closed"
+		);
+		const completed = closed?.cards.find(
+			(card) => card.workId === "work_intake"
+		);
+		const abandoned = closed?.cards.find((card) => card.workId === "work_pay");
+		expect(completed?.summary).toContainEqual({
+			field: "Status",
+			value: "Closed · Completed",
+		});
+		expect(abandoned?.summary).toContainEqual({
+			field: "Status",
+			value: "Closed · Abandoned",
+		});
+		expect(completed?.closureResult).toBe("Completed");
+		expect(abandoned?.closureResult).toBe("Abandoned");
+		expect(completed?.closureResult).not.toBe(abandoned?.closureResult);
+	});
+
+	it("reopens from Closed with confirm and a non-terminal target while keeping the previous outcome in history", () => {
+		const port = seedPort();
+		closeKanbanCard(port, {
+			reason: "Shipped checkout",
+			result: "Completed",
+			workId: "work_intake",
+		});
+		expect(
+			reopenKanbanCard(port, {
+				confirmed: false,
+				targetStatus: "In Progress",
+				workId: "work_intake",
+			})
+		).toEqual({
+			reason: "reopen-confirm-required",
+			status: "rejected",
+		});
+		expect(port.get("work_intake")).toMatchObject({
+			closureResult: "Completed",
+			status: "Closed",
+		});
+		expect(
+			reopenKanbanCard(port, {
+				confirmed: true,
+				targetStatus: "Closed",
+				workId: "work_intake",
+			})
+		).toEqual({
+			reason: "unknown-work-status",
+			status: "rejected",
+		});
+		expect(
+			reopenKanbanCard(port, {
+				confirmed: true,
+				targetStatus: "In Progress",
+				workId: "work_intake",
+			})
+		).toEqual({
+			status: "committed",
+			workflowStatus: "In Progress",
+			workId: "work_intake",
+		});
+		expect(port.get("work_intake")).toMatchObject({
+			closureResult: null,
+			status: "In Progress",
+		});
+		expect(port.history("work_intake")).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					closureResult: "Completed",
+					kind: "closed",
+					reason: "Shipped checkout",
+					status: "Closed",
+				}),
+				expect.objectContaining({
+					closureResult: null,
+					kind: "reopened",
+					status: "In Progress",
+				}),
+			])
+		);
+		const card = presentKanbanBoard(port.list())
+			.columns.find((column) => column.status === "In Progress")
+			?.cards.find((item) => item.workId === "work_intake");
+		expect(card?.summary).toContainEqual({
+			field: "Status",
+			value: "In Progress",
+		});
+		expect(card?.closureResult).toBeNull();
 	});
 
 	it("does not write workflow status from Backlog, Daily Focus, Calendar, Roadmap, Favorites, or Focus Period membership", () => {
@@ -191,6 +339,102 @@ describe("Kanban", () => {
 		expect(port.get("work_intake")?.status).toBe("Blocked");
 		expect(port.githubWrites).toEqual([]);
 		expect(port.automations).toEqual([]);
+	});
+
+	it("shows In Progress count and time in current status on active cards", () => {
+		const board = presentKanbanBoard(seedPort().list(), {
+			now: new Date("2026-08-31T14:00:00.000Z"),
+		});
+		expect(board.inProgressCount).toBe(1);
+		expect(board.copy.inProgressCount).toBe("In Progress count");
+		expect(board.copy.timeInStatus).toBe("Time in status");
+		const inProgress = board.columns
+			.find((column) => column.status === "In Progress")
+			?.cards.find((card) => card.workId === "work_pay");
+		expect(inProgress?.timeInCurrentStatus).toBe("1d");
+		const intake = board.columns
+			.find((column) => column.status === "Not Started")
+			?.cards.find((card) => card.workId === "work_intake");
+		expect(intake?.timeInCurrentStatus).toBe("2h");
+	});
+
+	it("marks Soft WIP and Focus threshold overflow without blocking a move or minting a verdict", () => {
+		const port = seedPort();
+		const before = presentKanbanBoard(port.list(), {
+			focusThreshold: 1,
+			softWipLimits: { "In Progress": 1 },
+		});
+		expect(before.focus).toEqual({
+			count: 1,
+			exceeded: false,
+			mark: null,
+			threshold: 1,
+		});
+		expect(
+			before.columns.find((column) => column.status === "In Progress")?.softWip
+		).toEqual({
+			count: 1,
+			exceeded: false,
+			limit: 1,
+			mark: null,
+		});
+		const moved = moveKanbanCard(port, {
+			targetStatus: "In Progress",
+			workId: "work_intake",
+		});
+		expect(moved).toEqual({
+			status: "committed",
+			workflowStatus: "In Progress",
+			workId: "work_intake",
+		});
+		expect(port.get("work_intake")?.status).toBe("In Progress");
+		const after = presentKanbanBoard(port.list(), {
+			focusThreshold: 1,
+			softWipLimits: { "In Progress": 1 },
+		});
+		expect(after.inProgressCount).toBe(2);
+		expect(after.focus).toEqual({
+			count: 2,
+			exceeded: true,
+			mark: "Over limit",
+			threshold: 1,
+		});
+		expect(
+			after.columns.find((column) => column.status === "In Progress")?.softWip
+		).toEqual({
+			count: 2,
+			exceeded: true,
+			limit: 1,
+			mark: "Over limit",
+		});
+		expect(port.notifications).toEqual([]);
+		expect(port.healthVerdicts).toEqual([]);
+		expect(port.automaticWorkWrites).toEqual([]);
+		expect(port.get("work_intake")?.title).toBe("Intake checkout");
+		expect(port.get("work_pay")?.title).toBe("Charge card");
+	});
+
+	it("collapses a column as layout compression without filtering Work or writing status", () => {
+		const port = seedPort();
+		const open = presentKanbanBoard(port.list());
+		const membershipIds = open.columns.flatMap((column) =>
+			column.cards.map((card) => card.workId)
+		);
+		const collapsed = collapseKanbanColumn(open, "In Progress");
+		const inProgress = collapsed.columns.find(
+			(column) => column.status === "In Progress"
+		);
+		expect(inProgress?.collapsed).toBe(true);
+		expect(inProgress?.count).toBe(1);
+		expect(inProgress?.openBlockerCount).toBe(1);
+		expect(inProgress?.cards.map((card) => card.workId)).toEqual(["work_pay"]);
+		expect(
+			collapsed.columns.flatMap((column) =>
+				column.cards.map((card) => card.workId)
+			)
+		).toEqual(membershipIds);
+		expect(port.get("work_pay")?.status).toBe("In Progress");
+		expect(port.memberships("work_pay")).toEqual([]);
 	});
 
 	it("orders cards by the saved view explicit sort and does not mint a Kanban rank on drop", () => {

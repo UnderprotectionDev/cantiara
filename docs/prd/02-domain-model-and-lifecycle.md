@@ -224,6 +224,14 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | GitHub | `GitHub` | GitHub bağlantısı girişini toplayan Proje alanı; oluşturmada zorunlu bağlantı değildir |
 | Backlog | `Backlog` | Hazır İş görünümü; tek kalıcı manuel sıra |
 | Board | `Board` | Hazır İş görünümü; Kanban sunumu |
+| Soft WIP | `Soft WIP` | Durum bazlı isteğe bağlı sayı sınırı; aşıldığında nötr işaret, hareket kapısı değildir |
+| Odak eşiği | `Focus threshold` | Proje veya ilgili Akıllı Koleksiyon için isteğe bağlı kişisel devam eden İş sayısı eşiği |
+| Sınır aşıldı | `Over limit` | Soft WIP veya odak eşiği aşımının yalnız renge dayanmayan işareti |
+| Mevcut durumda geçen süre | `Time in status` | Aktif kartın mevcut İş akışı durumunda geçirdiği süre |
+| Devam eden İş sayısı | `In Progress count` | Tahtadaki `In Progress` İş adedi |
+| Daralt | `Collapse` | Kanban sütununu yalnız görünümde sıkıştırma; filtre değildir |
+| Genişlet | `Expand` | Daraltılmış Kanban sütununu açma |
+| Açık blokaj | `Open blocker` | Daraltılmış sütunda kalan önemli blokaj sinyali |
 | Roadmap | `Roadmap` | Hazır İş görünümü |
 | Build | `Build` | Hazır Proje aşaması adı |
 | Validate | `Validate` | Hazır Proje aşaması adı |

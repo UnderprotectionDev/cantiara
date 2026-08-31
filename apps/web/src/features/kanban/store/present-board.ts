@@ -1,11 +1,25 @@
 export const KANBAN_COPY = {
+	abandoned: "Abandoned",
 	blocked: "Blocked",
 	board: "Board",
+	cancel: "Cancel",
 	closed: "Closed",
+	collapse: "Collapse",
+	completed: "Completed",
+	confirmReopen: "Confirm reopen",
+	expand: "Expand",
+	focusThreshold: "Focus threshold",
 	inProgress: "In Progress",
+	inProgressCount: "In Progress count",
 	kanban: "Kanban",
 	notStarted: "Not Started",
+	openBlocker: "Open blocker",
 	openSourceRecord: "Open source record",
+	overLimit: "Over limit",
+	reason: "Reason",
+	reopen: "Reopen",
+	softWip: "Soft WIP",
+	timeInStatus: "Time in status",
 } as const;
 
 export const KANBAN_COLUMNS = [
@@ -14,6 +28,32 @@ export const KANBAN_COLUMNS = [
 	KANBAN_COPY.blocked,
 	KANBAN_COPY.closed,
 ] as const;
+
+export const KANBAN_CLOSURE_RESULTS = [
+	KANBAN_COPY.completed,
+	KANBAN_COPY.abandoned,
+] as const;
+
+export const KANBAN_REOPEN_TARGETS = [
+	KANBAN_COPY.notStarted,
+	KANBAN_COPY.inProgress,
+	KANBAN_COPY.blocked,
+] as const;
+
+export function presentKanbanClosureStep() {
+	return {
+		copy: {
+			abandoned: KANBAN_COPY.abandoned,
+			cancel: KANBAN_COPY.cancel,
+			completed: KANBAN_COPY.completed,
+			confirmReopen: KANBAN_COPY.confirmReopen,
+			reason: KANBAN_COPY.reason,
+			reopen: KANBAN_COPY.reopen,
+		},
+		reopenTargets: KANBAN_REOPEN_TARGETS,
+		results: KANBAN_CLOSURE_RESULTS,
+	};
+}
 
 export type KanbanColumnStatus = (typeof KANBAN_COLUMNS)[number];
 
@@ -55,12 +95,6 @@ export const DEFAULT_SAVED_VIEW_SORT: SavedViewSort = {
 	field: "Key",
 };
 
-export interface KanbanBoardPresentation {
-	asOf?: string;
-	sort?: SavedViewSort;
-	visibleFields?: readonly CardVisibleField[];
-}
-
 export interface KanbanWorkRecord {
 	archived?: boolean;
 	blocker?: string | null;
@@ -75,6 +109,7 @@ export interface KanbanWorkRecord {
 	revision: number;
 	risk?: string | null;
 	status: KanbanColumnStatus;
+	statusEnteredAt?: string | null;
 	targetDate?: string | null;
 	title: string;
 	type: string;
@@ -87,56 +122,137 @@ export interface KanbanCardSummaryField {
 
 export interface KanbanCard {
 	background: boolean;
+	closureResult: string | null;
 	id: string;
 	key: string;
+	openBlocker: boolean;
 	revision: number;
 	status: KanbanColumnStatus;
 	summary: KanbanCardSummaryField[];
+	timeInCurrentStatus: string | null;
 	title: string;
 	type: string;
 	workId: string;
 }
 
+export interface KanbanSoftWipView {
+	count: number;
+	exceeded: boolean;
+	limit: number | null;
+	mark: typeof KANBAN_COPY.overLimit | null;
+}
+
+export interface KanbanFocusView {
+	count: number;
+	exceeded: boolean;
+	mark: typeof KANBAN_COPY.overLimit | null;
+	threshold: number | null;
+}
+
 export interface KanbanColumn {
 	cards: KanbanCard[];
+	collapsed: boolean;
+	count: number;
+	openBlockerCount: number;
+	softWip: KanbanSoftWipView;
 	status: KanbanColumnStatus;
 }
 
 export interface KanbanBoardView {
 	columns: KanbanColumn[];
 	copy: typeof KANBAN_COPY;
+	focus: KanbanFocusView;
+	inProgressCount: number;
 	sort: SavedViewSort;
 	visibleFields: readonly CardVisibleField[];
 }
 
+export interface KanbanPresentationOptions {
+	asOf?: string;
+	collapsedStatuses?: readonly KanbanColumnStatus[];
+	focusThreshold?: number | null;
+	now?: Date;
+	softWipLimits?: Partial<Record<KanbanColumnStatus, number>>;
+	sort?: SavedViewSort;
+	visibleFields?: readonly CardVisibleField[];
+}
+
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
 export function presentKanbanBoard(
 	records: readonly KanbanWorkRecord[],
-	presentation: KanbanBoardPresentation = {}
+	options: KanbanPresentationOptions = {}
 ): KanbanBoardView {
-	const {
-		asOf,
-		sort = DEFAULT_SAVED_VIEW_SORT,
-		visibleFields = DEFAULT_CARD_VISIBLE_FIELDS,
-	} = presentation;
+	const visibleFields = options.visibleFields ?? DEFAULT_CARD_VISIBLE_FIELDS;
+	const now = options.now ?? new Date();
+	const asOf = options.asOf ?? now.toISOString().slice(0, 10);
+	const sort = options.sort ?? DEFAULT_SAVED_VIEW_SORT;
+	const collapsed = new Set(options.collapsedStatuses ?? []);
 	const active = records.filter((record) => record.archived !== true);
+	const inProgressCount = active.filter(
+		(record) => record.status === KANBAN_COPY.inProgress
+	).length;
+	const threshold =
+		typeof options.focusThreshold === "number" && options.focusThreshold > 0
+			? options.focusThreshold
+			: null;
+	const focusExceeded =
+		typeof threshold === "number" && inProgressCount > threshold;
 	return {
-		columns: KANBAN_COLUMNS.map((status) => ({
-			cards: sortRecords(
+		columns: KANBAN_COLUMNS.map((status) => {
+			const cards = sortRecords(
 				active.filter((record) => record.status === status),
 				sort
-			).map((record) => toCard(record, visibleFields, asOf)),
-			status,
-		})),
+			).map((record) => toCard(record, visibleFields, now, asOf));
+			const limit = options.softWipLimits?.[status] ?? null;
+			const count = cards.length;
+			const exceeded = typeof limit === "number" && count > limit;
+			return {
+				cards,
+				collapsed: collapsed.has(status),
+				count,
+				openBlockerCount: cards.filter((card) => card.openBlocker).length,
+				softWip: {
+					count,
+					exceeded,
+					limit,
+					mark: exceeded ? KANBAN_COPY.overLimit : null,
+				},
+				status,
+			};
+		}),
 		copy: KANBAN_COPY,
+		focus: {
+			count: inProgressCount,
+			exceeded: focusExceeded,
+			mark: focusExceeded ? KANBAN_COPY.overLimit : null,
+			threshold,
+		},
+		inProgressCount,
 		sort,
 		visibleFields,
+	};
+}
+
+export function collapseKanbanColumn(
+	board: KanbanBoardView,
+	status: KanbanColumnStatus
+): KanbanBoardView {
+	return {
+		...board,
+		columns: board.columns.map((column) =>
+			column.status === status ? { ...column, collapsed: true } : column
+		),
 	};
 }
 
 function toCard(
 	record: KanbanWorkRecord,
 	visibleFields: readonly CardVisibleField[],
-	asOf?: string
+	now: Date,
+	asOf: string
 ): KanbanCard {
 	const values: Record<CardVisibleField, string | null> = {
 		Blocker: record.blocker ?? null,
@@ -152,10 +268,13 @@ function toCard(
 		"Target date": record.targetDate ?? null,
 		Type: record.type,
 	};
+	const active = record.status !== KANBAN_COPY.closed;
 	return {
 		background: isBackground(record, asOf),
+		closureResult: record.closureResult ?? null,
 		id: record.id,
 		key: record.key,
+		openBlocker: record.blocker === "Active",
 		revision: record.revision,
 		status: record.status,
 		summary: visibleFields.flatMap((field) => {
@@ -165,14 +284,18 @@ function toCard(
 			}
 			return [{ field, value }];
 		}),
+		timeInCurrentStatus:
+			active && record.statusEnteredAt
+				? formatTimeInCurrentStatus(record.statusEnteredAt, now)
+				: null,
 		title: record.title,
 		type: record.type,
 		workId: record.id,
 	};
 }
 
-function isBackground(record: KanbanWorkRecord, asOf?: string): boolean {
-	if (!(asOf && record.reappearDate)) {
+function isBackground(record: KanbanWorkRecord, asOf: string): boolean {
+	if (!record.reappearDate) {
 		return false;
 	}
 	return record.reappearDate > asOf;
@@ -206,6 +329,17 @@ function sortValue(record: KanbanWorkRecord, field: KanbanSortField): string {
 		Type: record.type,
 	};
 	return values[field];
+}
+
+function formatTimeInCurrentStatus(enteredAt: string, now: Date): string {
+	const elapsed = Math.max(0, now.getTime() - Date.parse(enteredAt));
+	if (elapsed < HOUR_MS) {
+		return `${Math.floor(elapsed / MINUTE_MS)}m`;
+	}
+	if (elapsed < DAY_MS) {
+		return `${Math.floor(elapsed / HOUR_MS)}h`;
+	}
+	return `${Math.floor(elapsed / DAY_MS)}d`;
 }
 
 function checklistLabel(record: KanbanWorkRecord): string | null {
