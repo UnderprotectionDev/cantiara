@@ -21,6 +21,7 @@ model Work {
   lightChecklist        Json                   @default("[]")
   portableRelations     Json                   @default("[]")
   archived              Boolean                @default(false)
+  reappearDate          String?
   trashedAt             DateTime?
   retiredIntoId         String?
   retiredInto           Work?                  @relation("WorkRetiredIdentity", fields: [retiredIntoId], references: [id], onDelete: SetNull)
@@ -53,6 +54,7 @@ model Work {
   @@index([originWorkId])
   @@index([projectId, archived])
   @@index([projectId, trashedAt])
+  @@index([projectId, reappearDate])
   @@map("work")
 }
 

@@ -119,6 +119,7 @@ interface WorkRow {
 	primarySpecId: string | null;
 	primarySpecTitle: string | null;
 	projectId: string;
+	reappearDate?: string | null;
 	retiredIntoId: string | null;
 	revision: number;
 	status: string;
@@ -2321,6 +2322,7 @@ function toView(
 		number: row.number,
 		origin: identities.origin ?? row.originWork ?? null,
 		projectId: row.projectId,
+		reappearDate: row.reappearDate ?? null,
 		relations: asRelations(row.portableRelations),
 		retiredIdentities: identities.retiredIdentities,
 		revision: row.revision,

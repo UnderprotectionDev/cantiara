@@ -11,6 +11,7 @@ import {
 	placeOnPlanningSurface,
 	reorderManualOrder,
 	saveBacklogPresentation,
+	setReappearDate,
 	takeUpFromBacklog,
 } from "./backlog";
 import {
@@ -18,6 +19,7 @@ import {
 	listPreparedBacklogQuerySchema,
 	reorderManualOrderCommandSchema,
 	saveBacklogPresentationCommandSchema,
+	setReappearDateCommandSchema,
 } from "./backlog-model";
 
 async function requireAccess(userId: string) {
@@ -81,6 +83,13 @@ export const backlog = {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
 			return await saveBacklogPresentation(getPrismaClient(), input);
+		}),
+	setReappearDate: protectedWriteProcedure
+		.input(setReappearDateCommandSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await setReappearDate(getPrismaClient(), input);
 		}),
 	takeUp: protectedWriteProcedure
 		.input(

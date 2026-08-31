@@ -365,6 +365,7 @@ describe("Work Lifecycle", () => {
 				number: 1,
 				origin: origins[0],
 				projectId: "project-1",
+				reappearDate: null,
 				relations: [],
 				retiredIdentities: [],
 				revision: 1,

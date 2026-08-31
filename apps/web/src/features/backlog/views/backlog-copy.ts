@@ -1,11 +1,13 @@
 export const BACKLOG_COPY = {
 	backlog: "Backlog",
 	date: "Date",
+	deferred: "Deferred",
 	field: "Field",
 	manualOrder: "Manual order",
 	moveDown: "Move down",
 	moveUp: "Move up",
 	priority: "Priority",
+	reappearDate: "Reappear date",
 	save: "Save",
 } as const;
 

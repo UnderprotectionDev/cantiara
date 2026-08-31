@@ -8,11 +8,13 @@ import {
 export const BACKLOG_COPY = {
 	backlog: "Backlog",
 	date: "Date",
+	deferred: "Deferred",
 	field: "Field",
 	manualOrder: "Manual order",
 	moveDown: "Move down",
 	moveUp: "Move up",
 	priority: "Priority",
+	reappearDate: "Reappear date",
 	save: "Save",
 } as const;
 
@@ -47,13 +49,25 @@ export const BACKLOG_WRITES = {
 	priorityScore: false,
 } as const;
 
+export const BACKLOG_DATE_WRITES = {
+	dailyFocusMembership: false,
+	priority: false,
+	projectStage: false,
+	status: false,
+} as const;
+
+export const CALENDAR_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 export const backlogSortSchema = z.enum(BACKLOG_SORTS);
 
 export const preparedBacklogSchema = z.object({
 	copy: z.object({
 		backlog: z.literal(BACKLOG_COPY.backlog),
+		deferred: z.literal(BACKLOG_COPY.deferred),
 		manualOrder: z.literal(BACKLOG_COPY.manualOrder),
+		reappearDate: z.literal(BACKLOG_COPY.reappearDate),
 	}),
+	deferred: z.array(workViewSchema),
 	items: z.array(workViewSchema),
 	manualOrder: z.array(z.string().min(1)),
 	membership: z.literal(PREPARED_MEMBERSHIP),
@@ -81,6 +95,16 @@ export const listPreparedBacklogQuerySchema = z.object({
 
 export type ListPreparedBacklogQuery = z.infer<
 	typeof listPreparedBacklogQuerySchema
+>;
+
+export const setReappearDateCommandSchema = z.object({
+	projectId: z.string().min(1),
+	reappearDate: z.string().regex(CALENDAR_DAY_PATTERN).nullable(),
+	workId: z.string().min(1),
+});
+
+export type SetReappearDateCommand = z.infer<
+	typeof setReappearDateCommandSchema
 >;
 
 export const reorderManualOrderCommandSchema = z.object({
@@ -127,6 +151,14 @@ export type BacklogPlanningOutcome =
 	  }
 	| { reason: "not-in-prepared-set"; status: "rejected" }
 	| { reason: "close-step-required" | "target-not-found"; status: "rejected" };
+
+export type BacklogDateOutcome =
+	| {
+			backlog: PreparedBacklogView;
+			status: "committed";
+			writes: typeof BACKLOG_DATE_WRITES;
+	  }
+	| { reason: "target-not-found"; status: "rejected" };
 
 export type BacklogOrderOutcome =
 	| {

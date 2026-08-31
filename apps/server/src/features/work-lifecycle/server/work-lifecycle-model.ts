@@ -187,6 +187,7 @@ export const workViewSchema = z.object({
 	number: z.number().int().positive(),
 	origin: workOriginSchema.nullable().default(null),
 	projectId: z.string().min(1),
+	reappearDate: z.string().nullable().default(null),
 	relations: z.array(workRelationSchema).default([]),
 	retiredIdentities: z.array(workOriginSchema).default([]),
 	revision: z.number().int().positive(),

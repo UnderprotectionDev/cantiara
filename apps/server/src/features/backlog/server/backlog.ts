@@ -13,8 +13,10 @@ import {
 import type { WorkView } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
 	BACKLOG_COPY,
+	BACKLOG_DATE_WRITES,
 	BACKLOG_SORT,
 	BACKLOG_WRITES,
+	type BacklogDateOutcome,
 	type BacklogOrderOutcome,
 	type BacklogPlanningOutcome,
 	type BacklogSort,
@@ -25,11 +27,16 @@ import {
 	placeOnPlanningSurfaceCommandSchema,
 	reorderManualOrderCommandSchema,
 	saveBacklogPresentationCommandSchema,
+	setReappearDateCommandSchema,
 	type TakeUpFromBacklogCommand,
 	takeUpFromBacklogCommandSchema,
 } from "./backlog-model";
 
 type BacklogDb = PrismaClient | Prisma.TransactionClient;
+
+interface BacklogClock {
+	now: () => Date;
+}
 
 const PRIORITY_WEIGHT = new Map(
 	PRIORITY_RANKS.map((rank, index) => [rank, index])
@@ -38,7 +45,7 @@ const PRIORITY_WEIGHT = new Map(
 export async function listPreparedBacklog(
 	prisma: BacklogDb,
 	projectId: string,
-	query: { sort?: BacklogSort } = {}
+	query: { clock?: BacklogClock; sort?: BacklogSort } = {}
 ): Promise<PreparedBacklogView> {
 	const items = await preparedItems(prisma, projectId);
 	const savedSort = await savedPresentationSort(prisma, projectId);
@@ -56,7 +63,16 @@ export async function listPreparedBacklog(
 		sort,
 		manualOrder
 	);
-	return toView(presented, manualOrder, { kind, sort });
+	const asOf = calendarDay(query.clock);
+	const deferredIds = new Set(
+		items.filter((item) => isDeferred(item, asOf)).map((item) => item.id)
+	);
+	return toView(
+		presented.filter((item) => !deferredIds.has(item.id)),
+		orderByIds(items, manualOrder).filter((item) => deferredIds.has(item.id)),
+		manualOrder,
+		{ kind, sort }
+	);
 }
 
 export async function orderedManualWorkIds(
@@ -103,10 +119,16 @@ export async function reorderManualOrder(
 	) {
 		return { reason: "target-not-found", status: "rejected" };
 	}
-	const nextIds = [
-		...parsed.data.workIds,
-		...prepared.map((item) => item.id).filter((id) => !unique.has(id)),
-	];
+	const previous = await orderedManualWorkIds(
+		prisma,
+		parsed.data.projectId,
+		prepared.map((item) => item.id)
+	);
+	const nextIds = mergeManualOrder(
+		previous,
+		parsed.data.workIds,
+		prepared.map((item) => item.id)
+	);
 	await prisma.$transaction(async (tx) => {
 		await tx.projectBacklogManualOrderItem.deleteMany({
 			where: { projectId: parsed.data.projectId },
@@ -127,6 +149,27 @@ export async function reorderManualOrder(
 		sort: BACKLOG_SORT.manualOrder,
 	});
 	return { backlog, status: "committed", writes: BACKLOG_WRITES };
+}
+
+export async function setReappearDate(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<BacklogDateOutcome> {
+	const parsed = setReappearDateCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const prepared = await preparedItems(prisma, parsed.data.projectId);
+	const work = prepared.find((item) => item.id === parsed.data.workId);
+	if (!work) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	await prisma.work.update({
+		data: { reappearDate: parsed.data.reappearDate },
+		where: { id: work.id },
+	});
+	const backlog = await listPreparedBacklog(prisma, parsed.data.projectId);
+	return { backlog, status: "committed", writes: BACKLOG_DATE_WRITES };
 }
 
 export async function saveBacklogPresentation(
@@ -210,7 +253,11 @@ async function applyPreparedPlanningMove(
 		return { reason: "target-not-found", status: "rejected" };
 	}
 	const prepared = await listPreparedBacklog(prisma, work.projectId);
-	if (!prepared.items.some((item) => item.id === work.id)) {
+	if (
+		![...prepared.items, ...prepared.deferred].some(
+			(item) => item.id === work.id
+		)
+	) {
 		return { reason: "not-in-prepared-set", status: "rejected" };
 	}
 	const surface =
@@ -339,16 +386,61 @@ function orderByIds(items: WorkView[], ids: readonly string[]): WorkView[] {
 	});
 }
 
+function mergeManualOrder(
+	previous: readonly string[],
+	requested: readonly string[],
+	preparedIds: readonly string[]
+): string[] {
+	const requestedSet = new Set(requested);
+	let nextRequested = 0;
+	const merged = previous.map((id) => {
+		if (!requestedSet.has(id)) {
+			return id;
+		}
+		const replacement = requested[nextRequested];
+		nextRequested += 1;
+		return replacement ?? id;
+	});
+	while (nextRequested < requested.length) {
+		const extra = requested[nextRequested];
+		if (extra) {
+			merged.push(extra);
+		}
+		nextRequested += 1;
+	}
+	const seen = new Set(merged);
+	for (const id of preparedIds) {
+		if (!seen.has(id)) {
+			merged.push(id);
+			seen.add(id);
+		}
+	}
+	return merged;
+}
+
+function calendarDay(clock?: BacklogClock): string {
+	const now = clock ? clock.now() : new Date();
+	return now.toISOString().slice(0, 10);
+}
+
+function isDeferred(item: WorkView, asOf: string): boolean {
+	return Boolean(item.reappearDate && item.reappearDate > asOf);
+}
+
 function toView(
 	items: WorkView[],
+	deferred: WorkView[],
 	manualOrder: string[],
 	presentation: PreparedBacklogView["presentation"]
 ): PreparedBacklogView {
 	return {
 		copy: {
 			backlog: BACKLOG_COPY.backlog,
+			deferred: BACKLOG_COPY.deferred,
 			manualOrder: BACKLOG_COPY.manualOrder,
+			reappearDate: BACKLOG_COPY.reappearDate,
 		},
+		deferred,
 		items,
 		manualOrder,
 		membership: PREPARED_MEMBERSHIP,
