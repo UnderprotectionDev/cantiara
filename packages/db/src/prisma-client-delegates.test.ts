@@ -188,7 +188,7 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
-	it("refuses a bun --hot client generated before Daily Focus candidate rejection", () => {
+	it("accepts a bun --hot client generated before Daily Focus candidate rejection", () => {
 		const { dailyFocusCandidateRejection: _dropped, ...beforeCandidates } = {
 			...workDelegates(),
 			...currentLifecycleDelegates(),
@@ -214,7 +214,36 @@ describe("Prisma client current delegates", () => {
 			prismaClientHasCurrentDelegates(
 				beforeCandidates as unknown as PrismaClient
 			)
-		).toBe(false);
+		).toBe(true);
+	});
+
+	it("accepts a bun --hot client generated before Daily Focus membership", () => {
+		const { dailyFocusMembership: _dropped, ...beforeMembership } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionGoingPackage: { create: () => undefined, findMany },
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			externalExecutionHandoffEvent: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(
+				beforeMembership as unknown as PrismaClient
+			)
+		).toBe(true);
 	});
 
 	it("refuses a bun --hot client generated before Record Action", () => {

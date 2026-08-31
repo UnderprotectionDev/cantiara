@@ -34,11 +34,11 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.workTemplate?.create === "function" &&
 		typeof client.recordAction?.findMany === "function" &&
 		typeof client.recordAction?.create === "function" &&
-		typeof client.dailyFocusMembership?.findMany === "function" &&
-		typeof client.dailyFocusCandidateRejection?.findMany === "function" &&
-		typeof client.dailyFocusCandidateRejection?.create === "function" &&
 		typeof client.workDraft?.findMany === "function" &&
 		typeof client.workDraft?.create === "function" &&
+		// Daily Focus membership and candidate rejection are read via table SQL
+		// so a bun --hot client generated before those models can still serve
+		// Daily Focus. Do not gate getPrismaClient on them.
 		// Completion effect preference is read via table SQL so a bun --hot
 		// client generated before that model can still serve Hesap settings.
 		typeof client.fileAttachment?.findMany === "function" &&
