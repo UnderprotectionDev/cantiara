@@ -4,21 +4,27 @@
  * placement on another planning surface do not write status,
  * closure, or project stage. One persistent Manual order survives
  * alternate presentations and does not write Kanban, ordinary
- * collection, or Prioritization session rank. Synthetic fixture
- * for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
+ * collection, or Prioritization session rank. Future Reappear date
+ * splits default Backlog into Deferred without writing status;
+ * advancing the clock restores the saved Manual order position.
+ * Synthetic fixture for
+ * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Günlük planlama: view change other than Kanban does not write
- * status; change history).
+ * status; future Reappear date is Deferred; change history).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { createDailyFocus } from "../../daily-focus/server/daily-focus";
 import { loadKanbanBoard } from "../../kanban/server/kanban";
 import {
 	createPrioritizationSession,
 	createPriorityCriterion,
 	getPrioritizationSession,
+	listPriorityCriteria,
+	listWorkPriorityValues,
 	reorderPrioritizationSession,
 	setPriorityCriterionValue,
 } from "../../priority/server/priority";
@@ -41,6 +47,7 @@ import {
 	projectStagesForWork,
 	reorderManualOrder,
 	saveBacklogPresentation,
+	setReappearDate,
 	takeUpFromBacklog,
 } from "./backlog";
 import {
@@ -165,8 +172,12 @@ describe("Backlog", () => {
 		const catalog = backlogCatalog();
 		expect(catalog.copy.backlog).toBe("Backlog");
 		expect(catalog.copy.manualOrder).toBe("Manual order");
+		expect(catalog.copy.deferred).toBe("Deferred");
+		expect(catalog.copy.reappearDate).toBe("Reappear date");
 		expect(BACKLOG_COPY.backlog).toBe("Backlog");
 		expect(BACKLOG_COPY.manualOrder).toBe("Manual order");
+		expect(BACKLOG_COPY.deferred).toBe("Deferred");
+		expect(BACKLOG_COPY.reappearDate).toBe("Reappear date");
 		expect(catalog.membership).toBe("derived");
 		expect(catalog.sorts).toEqual([
 			BACKLOG_SORT.manualOrder,
@@ -561,4 +572,278 @@ describe("Backlog", () => {
 		expect(backlog.writes).toEqual(BACKLOG_WRITES);
 		expect(JSON.stringify(backlog)).not.toMatch(CROSS_SURFACE_WRITE_PATTERN);
 	});
+
+	it("puts a future Reappear date in Deferred without writing status, priority, or stage", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const staged = await configureProject(prisma, {
+			actorId,
+			baseRevision: project.revision,
+			change: { action: "add-stage", name: "Discovery" },
+			idempotencyKey: "add-discovery-date",
+			origin: "human",
+			projectId: project.id,
+		});
+		if (staged.status !== "committed") {
+			throw new Error("expected Discovery stage");
+		}
+		const criterion = await createPriorityCriterion(prisma, {
+			actorId,
+			idempotencyKey: "urgency-date",
+			origin: "human",
+			payload: { name: "Urgency", projectId: project.id },
+		});
+		if (criterion.status !== "committed") {
+			throw new Error("expected committed criterion");
+		}
+		const first = await committedWork(prisma, actorId, {
+			idempotencyKey: "first-intake-date",
+			projectId: project.id,
+			title: "Zulu intake",
+		});
+		const second = await committedWork(prisma, actorId, {
+			idempotencyKey: "second-payout-date",
+			projectId: project.id,
+			title: "Alpha payout",
+		});
+		await setPriorityCriterionValue(prisma, {
+			actorId,
+			baseRevision: 0,
+			idempotencyKey: "rank-second-date",
+			origin: "human",
+			payload: {
+				criterionId: criterion.definition.id,
+				rank: "High",
+				workId: second.id,
+			},
+		});
+		const stored = await reorderManualOrder(prisma, {
+			projectId: project.id,
+			workIds: [first.id, second.id],
+		});
+		expect(stored.status).toBe("committed");
+		const stagesBefore = await projectStagesForWork(prisma, second.id);
+		const historyBefore = await listWorkLifecycleHistory(prisma, second.id);
+		const criteriaBefore = await listPriorityCriteria(prisma, project.id);
+		const valuesBefore = await listWorkPriorityValues(
+			prisma,
+			project.id,
+			second.id
+		);
+		const clock = { now: () => new Date("2026-08-31T12:00:00.000Z") };
+		const dated = await setReappearDate(prisma, {
+			projectId: project.id,
+			reappearDate: "2026-12-01",
+			workId: second.id,
+		});
+		expect(dated).toMatchObject({
+			status: "committed",
+			writes: {
+				dailyFocusMembership: false,
+				priority: false,
+				projectStage: false,
+				status: false,
+			},
+		});
+		if (dated.status !== "committed") {
+			throw new Error("expected committed Reappear date");
+		}
+		const deferred = await listPreparedBacklog(prisma, project.id, { clock });
+		expect(deferred.copy.deferred).toBe("Deferred");
+		expect(deferred.copy.reappearDate).toBe("Reappear date");
+		expect(deferred.items.map((item) => item.id)).toEqual([first.id]);
+		expect(deferred.deferred.map((item) => item.id)).toEqual([second.id]);
+		expect(deferred.deferred.map((item) => item.reappearDate)).toEqual([
+			"2026-12-01",
+		]);
+		expect(deferred.manualOrder).toEqual([first.id, second.id]);
+		expect(await getWork(prisma, second.id)).toMatchObject({
+			closureResult: null,
+			reappearDate: "2026-12-01",
+			status: "Not Started",
+		});
+		expect(await listWorkLifecycleHistory(prisma, second.id)).toEqual(
+			historyBefore
+		);
+		expect(await projectStagesForWork(prisma, second.id)).toEqual(stagesBefore);
+		expect(await listPriorityCriteria(prisma, project.id)).toEqual(
+			criteriaBefore
+		);
+		expect(await listWorkPriorityValues(prisma, project.id, second.id)).toEqual(
+			valuesBefore
+		);
+		expect(JSON.stringify(deferred)).not.toMatch(FOLDER_SPRINT_PATTERN);
+	});
+
+	it("restores saved Manual order when the Reappear date arrives, without Daily Focus membership", async () => {
+		const { actorId, project, workspaceId } = await openPayments(prisma);
+		const first = await committedWork(prisma, actorId, {
+			idempotencyKey: "first-restore",
+			projectId: project.id,
+			title: "Zulu intake",
+		});
+		const second = await committedWork(prisma, actorId, {
+			idempotencyKey: "second-restore",
+			projectId: project.id,
+			title: "Alpha payout",
+		});
+		const third = await committedWork(prisma, actorId, {
+			idempotencyKey: "third-restore",
+			projectId: project.id,
+			title: "Bravo settle",
+		});
+		await reorderManualOrder(prisma, {
+			projectId: project.id,
+			workIds: [first.id, second.id, third.id],
+		});
+		await setReappearDate(prisma, {
+			projectId: project.id,
+			reappearDate: "2026-12-01",
+			workId: second.id,
+		});
+		const before = { now: () => new Date("2026-08-31T12:00:00.000Z") };
+		const beforeArrival = await listPreparedBacklog(prisma, project.id, {
+			clock: before,
+		});
+		expect(beforeArrival.items.map((item) => item.id)).toEqual([
+			first.id,
+			third.id,
+		]);
+		expect(beforeArrival.deferred.map((item) => item.id)).toEqual([second.id]);
+		expect(beforeArrival.manualOrder).toEqual([first.id, second.id, third.id]);
+		const moved = await reorderManualOrder(prisma, {
+			projectId: project.id,
+			workIds: [third.id, first.id],
+		});
+		expect(moved.status).toBe("committed");
+		if (moved.status !== "committed") {
+			throw new Error("expected committed Manual order");
+		}
+		expect(moved.backlog.manualOrder).toEqual([third.id, second.id, first.id]);
+		const arrived = await listPreparedBacklog(prisma, project.id, {
+			clock: { now: () => new Date("2026-12-01T08:00:00.000Z") },
+		});
+		expect(arrived.items.map((item) => item.id)).toEqual([
+			third.id,
+			second.id,
+			first.id,
+		]);
+		expect(arrived.deferred).toEqual([]);
+		expect(arrived.manualOrder).toEqual([third.id, second.id, first.id]);
+		expect(await getWork(prisma, second.id)).toMatchObject({
+			closureResult: null,
+			status: "Not Started",
+		});
+		const focus = createDailyFocus({
+			accountId: actorId,
+			clock: { now: () => new Date("2026-12-01T08:00:00.000Z") },
+			prisma,
+			workspaceId,
+		});
+		const view = await focus.view();
+		expect(view.members.map((item) => item.id)).toEqual([]);
+		expect(view.eligibleWork.map((item) => item.id)).toContain(second.id);
+		const stillPrepared = await listPreparedBacklog(prisma, project.id, {
+			clock: { now: () => new Date("2026-12-01T08:00:00.000Z") },
+		});
+		expect(stillPrepared.items.map((item) => item.id)).toContain(second.id);
+	});
+
+	it("lists and saves Backlog when bun --hot kept a client without presentation delegates", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await committedWork(prisma, actorId, {
+			idempotencyKey: "hot-client",
+			projectId: project.id,
+			title: "Intake",
+		});
+		const stale = withoutBacklogPresentation(prisma);
+		const listed = await listPreparedBacklog(stale, project.id);
+		expect(listed.presentation.sort).toBe(BACKLOG_SORT.manualOrder);
+		expect(listed.items.map((item) => item.id)).toEqual([work.id]);
+		const dated = await setReappearDate(stale, {
+			projectId: project.id,
+			reappearDate: "2026-12-01",
+			workId: work.id,
+		});
+		expect(dated.status).toBe("committed");
+		const deferred = await listPreparedBacklog(stale, project.id, {
+			clock: { now: () => new Date("2026-08-31T12:00:00.000Z") },
+		});
+		expect(deferred.deferred.map((item) => item.id)).toEqual([work.id]);
+		const saved = await saveBacklogPresentation(stale, {
+			projectId: project.id,
+			sort: BACKLOG_SORT.field,
+		});
+		expect(saved.status).toBe("committed");
+		expect((await listPreparedBacklog(stale, project.id)).presentation).toEqual(
+			{
+				kind: "saved",
+				sort: BACKLOG_SORT.field,
+			}
+		);
+	});
+
+	it("saves Reappear date when bun --hot kept a client that rejects the Work field", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await committedWork(prisma, actorId, {
+			idempotencyKey: "hot-reappear",
+			projectId: project.id,
+			title: "Intake",
+		});
+		const dated = await setReappearDate(withoutReappearDateWrite(prisma), {
+			projectId: project.id,
+			reappearDate: "2026-12-01",
+			workId: work.id,
+		});
+		expect(dated.status).toBe("committed");
+		const deferred = await listPreparedBacklog(prisma, project.id, {
+			clock: { now: () => new Date("2026-08-31T12:00:00.000Z") },
+		});
+		expect(deferred.deferred.map((item) => item.id)).toEqual([work.id]);
+	});
 });
+
+function withoutBacklogPresentation(prisma: PrismaClient): PrismaClient {
+	return new Proxy(prisma, {
+		get(target, property, receiver) {
+			if (
+				property === "projectBacklogPresentation" ||
+				property === "projectBacklogManualOrderItem"
+			) {
+				return;
+			}
+			const value = Reflect.get(target, property, receiver);
+			if (typeof value === "function") {
+				return value.bind(target);
+			}
+			return value;
+		},
+	}) as PrismaClient;
+}
+
+function withoutReappearDateWrite(prisma: PrismaClient): PrismaClient {
+	return new Proxy(prisma, {
+		get(target, property, receiver) {
+			if (property === "work") {
+				return new Proxy(target.work, {
+					get(workTarget, workProperty, workReceiver) {
+						if (workProperty === "update") {
+							return () => {
+								throw new Error("Unknown argument `reappearDate`");
+							};
+						}
+						const value = Reflect.get(workTarget, workProperty, workReceiver);
+						if (typeof value === "function") {
+							return value.bind(workTarget);
+						}
+						return value;
+					},
+				});
+			}
+			const value = Reflect.get(target, property, receiver);
+			if (typeof value === "function") {
+				return value.bind(target);
+			}
+			return value;
+		},
+	}) as PrismaClient;
+}

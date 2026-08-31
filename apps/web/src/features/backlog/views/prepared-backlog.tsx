@@ -31,6 +31,7 @@ interface PreparedBacklogItemView {
 	closureResult?: string | null;
 	id: string;
 	key: string;
+	reappearDate?: string | null;
 	status: string;
 	tags?: string[];
 	title: string;
@@ -39,6 +40,7 @@ interface PreparedBacklogItemView {
 
 export default function PreparedBacklog({
 	bulkSelectedIds,
+	deferred,
 	items,
 	onSavedPresentation,
 	onSelect,
@@ -49,6 +51,7 @@ export default function PreparedBacklog({
 	selectedId,
 }: {
 	bulkSelectedIds: string[];
+	deferred: PreparedBacklogItemView[];
 	items: PreparedBacklogItemView[];
 	onSavedPresentation: () => void;
 	onSelect: (id: string) => void;
@@ -179,6 +182,7 @@ export default function PreparedBacklog({
 				<DndContext onDragEnd={onDragEnd} sensors={sensors}>
 					<ManualOrderList
 						bulkSelectedIds={bulkSelectedIds}
+						hasDeferred={deferred.length > 0}
 						items={items}
 						onMove={onMove}
 						onSelect={onSelect}
@@ -195,12 +199,28 @@ export default function PreparedBacklog({
 					selectedId={selectedId}
 				/>
 			)}
+			{deferred.length > 0 ? (
+				<div className="flex flex-col gap-2">
+					<h3 className="font-medium text-sm">{BACKLOG_COPY.deferred}</h3>
+					<ol aria-label={BACKLOG_COPY.deferred} className="flex flex-col">
+						{deferred.map((item) => (
+							<DeferredItem
+								item={item}
+								key={item.id}
+								onSelect={onSelect}
+								selected={item.id === selectedId}
+							/>
+						))}
+					</ol>
+				</div>
+			) : null}
 		</div>
 	);
 }
 
 function ManualOrderList({
 	bulkSelectedIds,
+	hasDeferred,
 	items,
 	onMove,
 	onSelect,
@@ -208,6 +228,7 @@ function ManualOrderList({
 	selectedId,
 }: {
 	bulkSelectedIds: string[];
+	hasDeferred: boolean;
 	items: PreparedBacklogItemView[];
 	onMove: (workId: string, direction: number) => void;
 	onSelect: (id: string) => void;
@@ -215,6 +236,9 @@ function ManualOrderList({
 	selectedId: string | null;
 }) {
 	if (items.length === 0) {
+		if (hasDeferred) {
+			return null;
+		}
 		return (
 			<p className="text-muted-foreground text-sm">
 				{WORK_LIFECYCLE_COPY.noWork}
@@ -357,6 +381,48 @@ function ManualOrderItem({
 					{BACKLOG_COPY.moveDown}
 				</Button>
 			</div>
+		</li>
+	);
+}
+
+function DeferredItem({
+	item,
+	onSelect,
+	selected,
+}: {
+	item: PreparedBacklogItemView;
+	onSelect: (id: string) => void;
+	selected: boolean;
+}) {
+	const onClick = useCallback(
+		(event: MouseEvent<HTMLButtonElement>) => {
+			onSelect(event.currentTarget.value);
+		},
+		[onSelect]
+	);
+	return (
+		<li>
+			<button
+				aria-pressed={selected}
+				className={cn(
+					"flex w-full min-w-0 items-baseline justify-between gap-3 px-2 py-2 text-left text-sm outline-none transition-colors duration-200 hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring",
+					selected && "bg-muted"
+				)}
+				onClick={onClick}
+				type="button"
+				value={item.id}
+			>
+				<span className="min-w-0 truncate">
+					<span className="font-mono text-muted-foreground text-xs">
+						{item.key}
+					</span>{" "}
+					{item.title}
+				</span>
+				<span className="shrink-0 text-muted-foreground text-xs">
+					{BACKLOG_COPY.reappearDate}
+					{item.reappearDate ? ` · ${item.reappearDate}` : ""}
+				</span>
+			</button>
 		</li>
 	);
 }
