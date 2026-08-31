@@ -258,6 +258,10 @@ _Avoid_: Sprint, Kilometre Taşı, Proje Sürümü
 İşleri İş akışı durumuna göre sütunlarda gösteren planlama yüzeyi; sütunlar arası kart hareketi duruma yansır, kapanış sonucu veya ikinci kayıt listesi değildir ([Kanban](docs/prd/06-work-management-and-planning.md)). UI: `Board`, `Kanban`, `Over limit`, `Time in status`, `In Progress count`, `Collapse`, `Expand`, `Open blocker`.
 _Avoid_: Sprint tahtası, kapanış kolonu, bağımsız manuel sıra
 
+**Yeniden görünme tarihi**:
+İşin en erken ne zaman yeniden değerlendirileceğini belirten isteğe bağlı tarih; hedef tarihi veya kişisel hatırlatma değildir ([yeniden görünme tarihi](docs/prd/06-work-management-and-planning.md#yeniden-görünme-tarihi)). UI: `Reappear date`.
+_Avoid_: Target date, Hatırlatma, Kanban sütunu, Save for Later
+
 **Soft WIP**:
 Yapılandırma modunda duruma göre tanımlanan, varsayılan kapalı isteğe bağlı sayı sınırı; aşıldığında nötr, yalnız renge dayanmayan işaret verir, hareket kapısı değildir ([Kanban](docs/prd/06-work-management-and-planning.md#kanban)). UI: `Soft WIP`.
 _Avoid_: zorunlu WIP, velocity, sağlık skoru, bildirim, otomatik durum yazımı

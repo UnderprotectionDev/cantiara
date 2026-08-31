@@ -18,6 +18,7 @@ import {
 import {
 	type CardVisibleField,
 	DEFAULT_CARD_VISIBLE_FIELDS,
+	DEFAULT_SAVED_VIEW_SORT,
 	KANBAN_COLUMNS,
 	KANBAN_COPY,
 	type KanbanBoard,
@@ -28,7 +29,9 @@ import {
 	type KanbanMoveOutcome,
 	type KanbanPresentationOptions,
 	type KanbanReopenOutcome,
+	type KanbanSortField,
 	type KanbanWorkRecord,
+	type SavedViewSort,
 	type WorkStatusPort,
 } from "./kanban-model";
 
@@ -40,7 +43,10 @@ const STATUS_EVENT_KINDS = ["status", "closed", "reopened"] as const;
 
 export interface MemoryWorkStatusPort extends WorkStatusPort {
 	automations: string[];
+	backlogOrder: () => string[];
 	githubWrites: Array<{ status: string; workId: string }>;
+	kanbanRanks: () => Record<string, number>;
+	sessionOrder: () => string[];
 }
 
 export function createMemoryWorkStatusPort(
@@ -54,9 +60,15 @@ export function createMemoryWorkStatusPort(
 	const notifications: string[] = [];
 	const healthVerdicts: string[] = [];
 	const automaticWorkWrites: string[] = [];
+	const backlog = records.map((record) => record.id);
+	const session = [...backlog].reverse();
+	const kanbanRanks: Record<string, number> = {};
 	const port: MemoryWorkStatusPort = {
 		automaticWorkWrites,
 		automations,
+		backlogOrder() {
+			return [...backlog];
+		},
 		closeWork(workId, result, reason) {
 			const record = work.get(workId);
 			if (!record) {
@@ -91,6 +103,9 @@ export function createMemoryWorkStatusPort(
 		healthVerdicts,
 		history(workId) {
 			return eventsByWork.get(workId) ?? [];
+		},
+		kanbanRanks() {
+			return { ...kanbanRanks };
 		},
 		list() {
 			return [...work.values()];
@@ -136,6 +151,9 @@ export function createMemoryWorkStatusPort(
 				status,
 			});
 			return { status: "committed", workflowStatus: status, workId };
+		},
+		sessionOrder() {
+			return [...session];
 		},
 		writeGitHubStatus(workId, status) {
 			githubWrites.push({ status, workId });
@@ -186,9 +204,10 @@ export function presentKanbanBoard(
 		inProgressCount > presentation.focusThreshold;
 	return {
 		columns: KANBAN_COLUMNS.map((status) => {
-			const cards = active
-				.filter((record) => record.status === status)
-				.map((record) => toCard(record, presentation));
+			const cards = sortRecords(
+				active.filter((record) => record.status === status),
+				presentation.sort
+			).map((record) => toCard(record, presentation));
 			const limit = presentation.softWipLimits[status] ?? null;
 			const count = cards.length;
 			const exceeded = typeof limit === "number" && count > limit;
@@ -214,6 +233,7 @@ export function presentKanbanBoard(
 			threshold: presentation.focusThreshold,
 		},
 		inProgressCount,
+		sort: presentation.sort,
 		visibleFields: presentation.visibleFields,
 	};
 }
@@ -367,6 +387,7 @@ export async function loadKanbanBoard(
 			)?.toISOString(),
 		})),
 		{
+			asOf: calendarDay(new Date()),
 			focusThreshold: project?.focusThreshold ?? null,
 			now: new Date(),
 			softWipLimits,
@@ -455,15 +476,20 @@ export async function moveKanbanCardForProject(
 function normalizePresentation(options: KanbanPresentationOptions): Required<
 	Pick<KanbanPresentationOptions, "collapsedStatuses" | "visibleFields">
 > & {
+	asOf: string;
 	focusThreshold: number | null;
 	now: Date;
 	softWipLimits: Partial<Record<KanbanColumnStatus, number>>;
+	sort: SavedViewSort;
 } {
+	const now = options.now ?? new Date();
 	return {
+		asOf: options.asOf ?? calendarDay(now),
 		collapsedStatuses: options.collapsedStatuses ?? [],
 		focusThreshold: positiveLimit(options.focusThreshold ?? null),
-		now: options.now ?? new Date(),
+		now,
 		softWipLimits: options.softWipLimits ?? {},
+		sort: options.sort ?? DEFAULT_SAVED_VIEW_SORT,
 		visibleFields: options.visibleFields ?? DEFAULT_CARD_VISIBLE_FIELDS,
 	};
 }
@@ -559,6 +585,7 @@ export async function reopenKanbanCardForProject(
 function toCard(
 	record: KanbanWorkRecord,
 	presentation: {
+		asOf: string;
 		now: Date;
 		visibleFields: readonly CardVisibleField[];
 	}
@@ -579,6 +606,7 @@ function toCard(
 	};
 	const active = record.status !== WORK_STATUS.closed;
 	return {
+		background: isBackground(record, presentation.asOf),
 		closureResult: record.closureResult ?? null,
 		id: record.id,
 		key: record.key,
@@ -600,6 +628,47 @@ function toCard(
 		type: record.type,
 		workId: record.id,
 	};
+}
+
+function calendarDay(date: Date): string {
+	return date.toISOString().slice(0, 10);
+}
+
+function isBackground(record: KanbanWorkRecord, asOf: string): boolean {
+	if (!record.reappearDate) {
+		return false;
+	}
+	return record.reappearDate > asOf;
+}
+
+function sortRecords(
+	records: readonly KanbanWorkRecord[],
+	sort: SavedViewSort
+): KanbanWorkRecord[] {
+	const factor = sort.direction === "desc" ? -1 : 1;
+	return [...records].sort((left, right) => {
+		const compared =
+			sortValue(left, sort.field).localeCompare(sortValue(right, sort.field)) *
+			factor;
+		if (compared !== 0) {
+			return compared;
+		}
+		return left.key.localeCompare(right.key);
+	});
+}
+
+function sortValue(record: KanbanWorkRecord, field: KanbanSortField): string {
+	const values: Record<KanbanSortField, string> = {
+		Key: record.key,
+		"Planned start": record.plannedStart ?? "",
+		Priority: record.priority ?? "",
+		"Reappear date": record.reappearDate ?? "",
+		Status: record.status,
+		"Target date": record.targetDate ?? "",
+		Title: record.title,
+		Type: record.type,
+	};
+	return values[field];
 }
 
 function formatTimeInCurrentStatus(enteredAt: string, now: Date): string {

@@ -78,6 +78,29 @@ export const DEFAULT_CARD_VISIBLE_FIELDS = [
 
 export type CardVisibleField = (typeof DEFAULT_CARD_VISIBLE_FIELDS)[number];
 
+export const KANBAN_SORT_FIELDS = [
+	"Key",
+	"Title",
+	"Type",
+	"Status",
+	"Priority",
+	"Planned start",
+	"Target date",
+	"Reappear date",
+] as const;
+
+export type KanbanSortField = (typeof KANBAN_SORT_FIELDS)[number];
+
+export interface SavedViewSort {
+	direction: "asc" | "desc";
+	field: KanbanSortField;
+}
+
+export const DEFAULT_SAVED_VIEW_SORT: SavedViewSort = {
+	direction: "asc",
+	field: "Key",
+};
+
 export interface KanbanWorkRecord {
 	archived?: boolean;
 	blocker?: string | null;
@@ -104,6 +127,7 @@ export interface KanbanCardSummaryField {
 }
 
 export interface KanbanCard {
+	background: boolean;
 	closureResult: string | null;
 	id: string;
 	key: string;
@@ -145,14 +169,17 @@ export interface KanbanBoard {
 	copy: typeof KANBAN_COPY;
 	focus: KanbanFocusView;
 	inProgressCount: number;
+	sort: SavedViewSort;
 	visibleFields: readonly CardVisibleField[];
 }
 
 export interface KanbanPresentationOptions {
+	asOf?: string;
 	collapsedStatuses?: readonly KanbanColumnStatus[];
 	focusThreshold?: number | null;
 	now?: Date;
 	softWipLimits?: Partial<Record<KanbanColumnStatus, number>>;
+	sort?: SavedViewSort;
 	visibleFields?: readonly CardVisibleField[];
 }
 

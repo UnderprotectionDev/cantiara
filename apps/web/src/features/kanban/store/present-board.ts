@@ -72,6 +72,29 @@ export const DEFAULT_CARD_VISIBLE_FIELDS = [
 
 export type CardVisibleField = (typeof DEFAULT_CARD_VISIBLE_FIELDS)[number];
 
+export const KANBAN_SORT_FIELDS = [
+	"Key",
+	"Title",
+	"Type",
+	"Status",
+	"Priority",
+	"Planned start",
+	"Target date",
+	"Reappear date",
+] as const;
+
+export type KanbanSortField = (typeof KANBAN_SORT_FIELDS)[number];
+
+export interface SavedViewSort {
+	direction: "asc" | "desc";
+	field: KanbanSortField;
+}
+
+export const DEFAULT_SAVED_VIEW_SORT: SavedViewSort = {
+	direction: "asc",
+	field: "Key",
+};
+
 export interface KanbanWorkRecord {
 	archived?: boolean;
 	blocker?: string | null;
@@ -98,6 +121,7 @@ export interface KanbanCardSummaryField {
 }
 
 export interface KanbanCard {
+	background: boolean;
 	closureResult: string | null;
 	id: string;
 	key: string;
@@ -139,14 +163,17 @@ export interface KanbanBoardView {
 	copy: typeof KANBAN_COPY;
 	focus: KanbanFocusView;
 	inProgressCount: number;
+	sort: SavedViewSort;
 	visibleFields: readonly CardVisibleField[];
 }
 
 export interface KanbanPresentationOptions {
+	asOf?: string;
 	collapsedStatuses?: readonly KanbanColumnStatus[];
 	focusThreshold?: number | null;
 	now?: Date;
 	softWipLimits?: Partial<Record<KanbanColumnStatus, number>>;
+	sort?: SavedViewSort;
 	visibleFields?: readonly CardVisibleField[];
 }
 
@@ -160,6 +187,8 @@ export function presentKanbanBoard(
 ): KanbanBoardView {
 	const visibleFields = options.visibleFields ?? DEFAULT_CARD_VISIBLE_FIELDS;
 	const now = options.now ?? new Date();
+	const asOf = options.asOf ?? now.toISOString().slice(0, 10);
+	const sort = options.sort ?? DEFAULT_SAVED_VIEW_SORT;
 	const collapsed = new Set(options.collapsedStatuses ?? []);
 	const active = records.filter((record) => record.archived !== true);
 	const inProgressCount = active.filter(
@@ -173,9 +202,10 @@ export function presentKanbanBoard(
 		typeof threshold === "number" && inProgressCount > threshold;
 	return {
 		columns: KANBAN_COLUMNS.map((status) => {
-			const cards = active
-				.filter((record) => record.status === status)
-				.map((record) => toCard(record, visibleFields, now));
+			const cards = sortRecords(
+				active.filter((record) => record.status === status),
+				sort
+			).map((record) => toCard(record, visibleFields, now, asOf));
 			const limit = options.softWipLimits?.[status] ?? null;
 			const count = cards.length;
 			const exceeded = typeof limit === "number" && count > limit;
@@ -201,6 +231,7 @@ export function presentKanbanBoard(
 			threshold,
 		},
 		inProgressCount,
+		sort,
 		visibleFields,
 	};
 }
@@ -220,7 +251,8 @@ export function collapseKanbanColumn(
 function toCard(
 	record: KanbanWorkRecord,
 	visibleFields: readonly CardVisibleField[],
-	now: Date
+	now: Date,
+	asOf: string
 ): KanbanCard {
 	const values: Record<CardVisibleField, string | null> = {
 		Blocker: record.blocker ?? null,
@@ -238,6 +270,7 @@ function toCard(
 	};
 	const active = record.status !== KANBAN_COPY.closed;
 	return {
+		background: isBackground(record, asOf),
 		closureResult: record.closureResult ?? null,
 		id: record.id,
 		key: record.key,
@@ -259,6 +292,43 @@ function toCard(
 		type: record.type,
 		workId: record.id,
 	};
+}
+
+function isBackground(record: KanbanWorkRecord, asOf: string): boolean {
+	if (!record.reappearDate) {
+		return false;
+	}
+	return record.reappearDate > asOf;
+}
+
+function sortRecords(
+	records: readonly KanbanWorkRecord[],
+	sort: SavedViewSort
+): KanbanWorkRecord[] {
+	const factor = sort.direction === "desc" ? -1 : 1;
+	return [...records].sort((left, right) => {
+		const compared =
+			sortValue(left, sort.field).localeCompare(sortValue(right, sort.field)) *
+			factor;
+		if (compared !== 0) {
+			return compared;
+		}
+		return left.key.localeCompare(right.key);
+	});
+}
+
+function sortValue(record: KanbanWorkRecord, field: KanbanSortField): string {
+	const values: Record<KanbanSortField, string> = {
+		Key: record.key,
+		"Planned start": record.plannedStart ?? "",
+		Priority: record.priority ?? "",
+		"Reappear date": record.reappearDate ?? "",
+		Status: record.status,
+		"Target date": record.targetDate ?? "",
+		Title: record.title,
+		Type: record.type,
+	};
+	return values[field];
 }
 
 function formatTimeInCurrentStatus(enteredAt: string, now: Date): string {
