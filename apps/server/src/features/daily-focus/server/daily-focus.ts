@@ -197,12 +197,12 @@ export function createDailyFocus(input: CreateDailyFocusInput): DailyFocus {
 	};
 }
 
-async function loadView(
+async function loadMembershipWork(
 	db: MutationDb,
 	accountId: string,
 	workspaceId: string,
 	day: string
-): Promise<DailyFocusView> {
+) {
 	const rows = await db.dailyFocusMembership.findMany({
 		include: {
 			work: {
@@ -212,13 +212,21 @@ async function loadView(
 		orderBy: { createdAt: "asc" },
 		where: { accountId, calendarDay: day },
 	});
-	const members = rows
-		.filter(
-			(row) =>
-				row.work.project.workspaceId === workspaceId &&
-				row.work.retiredIntoId === null
-		)
-		.map((row) => toWork(row.work));
+	return rows.filter(
+		(row) =>
+			row.work.project.workspaceId === workspaceId &&
+			row.work.retiredIntoId === null
+	);
+}
+
+async function loadView(
+	db: MutationDb,
+	accountId: string,
+	workspaceId: string,
+	day: string
+): Promise<DailyFocusView> {
+	const rows = await loadMembershipWork(db, accountId, workspaceId, day);
+	const members = rows.map((row) => toWork(row.work));
 	const memberIds = new Set(members.map((row) => row.id));
 	const eligibleRows = await db.work.findMany({
 		include: { project: true },
@@ -262,22 +270,8 @@ async function loadCloseView(
 	workspaceId: string,
 	day: string
 ): Promise<DailyFocusCloseView> {
-	const rows = await db.dailyFocusMembership.findMany({
-		include: {
-			work: {
-				include: { project: true },
-			},
-		},
-		orderBy: { createdAt: "asc" },
-		where: { accountId, calendarDay: day },
-	});
-	const members = rows
-		.filter(
-			(row) =>
-				row.work.project.workspaceId === workspaceId &&
-				row.work.retiredIntoId === null
-		)
-		.map((row) => toCloseItem(row.work));
+	const rows = await loadMembershipWork(db, accountId, workspaceId, day);
+	const members = rows.map((row) => toCloseItem(row.work));
 	return {
 		calendarDay: day,
 		copy: DAILY_FOCUS_COPY,
@@ -285,6 +279,13 @@ async function loadCloseView(
 		ritual: DAILY_FOCUS_CLOSE_RITUAL,
 		writes: DAILY_FOCUS_CLOSE_WRITES,
 	};
+}
+
+function sourceReappearDate(row: object): string | null {
+	if (!("reappearDate" in row) || typeof row.reappearDate !== "string") {
+		return null;
+	}
+	return row.reappearDate;
 }
 
 function toCloseItem(row: {
@@ -303,7 +304,7 @@ function toCloseItem(row: {
 		openSourceRecord: true,
 		projectId: row.projectId,
 		projectName: row.project.name,
-		reappearDate: null,
+		reappearDate: sourceReappearDate(row),
 		status: row.status,
 		title: row.title,
 	};

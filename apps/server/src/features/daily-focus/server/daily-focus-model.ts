@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import {
+	CLOSURE_RESULT,
+	WORK_STATUS,
+} from "../../work-lifecycle/server/work-lifecycle-model";
+
 export const DAILY_FOCUS_COPY = {
 	abandoned: "Abandoned",
 	add: "Add",
@@ -127,11 +132,17 @@ export function groupCloseFocusWork(
 	const reappearDeferred: DailyFocusCloseItem[] = [];
 	const stillOpen: DailyFocusCloseItem[] = [];
 	for (const member of members) {
-		if (member.status === "Closed" && member.closureResult === "Completed") {
+		if (
+			member.status === WORK_STATUS.closed &&
+			member.closureResult === CLOSURE_RESULT.completed
+		) {
 			completed.push(member);
 			continue;
 		}
-		if (member.status === "Closed" && member.closureResult === "Abandoned") {
+		if (
+			member.status === WORK_STATUS.closed &&
+			member.closureResult === CLOSURE_RESULT.abandoned
+		) {
 			abandoned.push(member);
 			continue;
 		}

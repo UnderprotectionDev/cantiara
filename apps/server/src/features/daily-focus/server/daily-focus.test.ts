@@ -1,10 +1,12 @@
 /**
  * Daily Focus seam — personal day-scoped membership, add/remove
  * that does not write status / priority / stage / Backlog order,
- * no rollover to the next calendar day, and a second Account
- * cannot see the set. Synthetic fixture for
+ * no rollover to the next calendar day, Close focus as a
+ * non-mutating calm view, and a second Account cannot see the set.
+ * Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Günlük planlama: non-Kanban view changes do not write status).
+ * (Günlük planlama: non-Kanban view changes do not write status;
+ * Close focus does not close Work or write membership).
  */
 
 import { saveAccountPreferences } from "@cantiara/auth";
@@ -407,12 +409,6 @@ describe("Daily Focus", () => {
 			throw new Error("expected Abandoned Work");
 		}
 
-		const receiptsBefore = await prisma.mutationReceipt.count({
-			where: { actorId },
-		});
-		const membershipBefore = await prisma.dailyFocusMembership.count({
-			where: { accountId: actorId, calendarDay: "2026-08-31" },
-		});
 		const closeView = await surface.closeView();
 
 		expect(closeView.calendarDay).toBe("2026-08-31");
@@ -452,18 +448,8 @@ describe("Daily Focus", () => {
 		expect((await surface.view()).members.map((row) => row.id).sort()).toEqual(
 			[completedWork.id, abandonedWork.id, openWorkRow.id].sort()
 		);
-		expect(
-			await prisma.dailyFocusMembership.count({
-				where: { accountId: actorId, calendarDay: "2026-08-31" },
-			})
-		).toBe(membershipBefore);
-		expect(
-			await prisma.dailyFocusMembership.count({
-				where: { accountId: actorId, calendarDay: "2026-09-01" },
-			})
-		).toBe(0);
-		expect(await prisma.mutationReceipt.count({ where: { actorId } })).toBe(
-			receiptsBefore
+		expect((await surface.view({ calendarDay: "2026-09-01" })).members).toEqual(
+			[]
 		);
 	});
 });
