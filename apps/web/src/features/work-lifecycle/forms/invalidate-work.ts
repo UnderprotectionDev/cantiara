@@ -18,6 +18,11 @@ export async function invalidateWork(projectId: string, workId: string) {
 		}),
 	});
 	await queryClient.invalidateQueries({
+		queryKey: orpc.backlog.list.queryKey({
+			input: { projectId },
+		}),
+	});
+	await queryClient.invalidateQueries({
 		queryKey: orpc.workLifecycle.get.queryKey({
 			input: { workId },
 		}),

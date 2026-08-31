@@ -523,7 +523,7 @@ function ProjectBody({
 					<WorkArea
 						onSelectedWorkId={onWorkId}
 						projectId={data.id}
-						savedView={activeView ?? null}
+						savedView={activeView ?? "Backlog"}
 						selectedWorkId={workId ?? null}
 						unavailableView={
 							activeView &&
