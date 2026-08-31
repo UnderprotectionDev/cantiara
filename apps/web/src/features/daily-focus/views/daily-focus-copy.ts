@@ -1,9 +1,15 @@
 export const DAILY_FOCUS_COPY = {
+	abandoned: "Abandoned",
 	add: "Add",
+	closeFocus: "Close focus",
+	completed: "Completed",
 	dailyFocus: "Daily Focus",
+	deferred: "Deferred",
 	empty: "No Work in Daily Focus for this day.",
 	loading: "Loading…",
+	openSourceRecord: "Open source record",
 	remove: "Remove",
 	selectedDay: "Selected day",
+	stillOpen: "Still open",
 	work: "Work",
 } as const;

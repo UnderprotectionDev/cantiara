@@ -15,6 +15,7 @@ import { useClientShell } from "@/features/web-macos-client/views/client-shell-h
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
+import { dailyFocusCloseGroups } from "./daily-focus-close-groups";
 import { DAILY_FOCUS_COPY } from "./daily-focus-copy";
 import { dailyFocusListPresentation } from "./daily-focus-list-presentation";
 
@@ -34,20 +35,40 @@ export default function DailyFocusArea() {
 	const { attemptOnlineWork, markUnsaved } = useClientShell();
 	const catalog = useQuery(orpc.dailyFocus.catalog.queryOptions());
 	const [calendarDay, setCalendarDay] = useState<string | undefined>();
+	const [closeFocusOpen, setCloseFocusOpen] = useState(false);
+	const viewInput = calendarDay ? { calendarDay } : {};
 	const view = useQuery(
 		orpc.dailyFocus.view.queryOptions({
-			input: calendarDay ? { calendarDay } : {},
+			input: viewInput,
+		})
+	);
+	const closeView = useQuery(
+		orpc.dailyFocus.closeView.queryOptions({
+			input: viewInput,
 		})
 	);
 	const copy = catalog.data?.copy ?? DAILY_FOCUS_COPY;
 	const selectedDay = view.data?.calendarDay ?? calendarDay ?? "";
 	const invalidateView = useCallback(async () => {
-		await queryClient.invalidateQueries({
-			queryKey: orpc.dailyFocus.view.queryKey({
-				input: calendarDay ? { calendarDay } : {},
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: orpc.dailyFocus.view.queryKey({
+					input: calendarDay ? { calendarDay } : {},
+				}),
 			}),
-		});
+			queryClient.invalidateQueries({
+				queryKey: orpc.dailyFocus.closeView.queryKey({
+					input: calendarDay ? { calendarDay } : {},
+				}),
+			}),
+		]);
 	}, [calendarDay]);
+	const openCloseFocus = useCallback(() => {
+		setCloseFocusOpen(true);
+	}, []);
+	const returnToDailyFocus = useCallback(() => {
+		setCloseFocusOpen(false);
+	}, []);
 	const add = useMutation(
 		orpc.dailyFocus.add.mutationOptions({
 			onSuccess: invalidateView,
@@ -103,7 +124,19 @@ export default function DailyFocusArea() {
 	);
 
 	return (
-		<FounderPage title={copy.dailyFocus} wide>
+		<FounderPage
+			actions={
+				<Button
+					onClick={closeFocusOpen ? returnToDailyFocus : openCloseFocus}
+					type="button"
+					variant="outline"
+				>
+					{closeFocusOpen ? copy.dailyFocus : copy.closeFocus}
+				</Button>
+			}
+			title={closeFocusOpen ? copy.closeFocus : copy.dailyFocus}
+			wide
+		>
 			<Field>
 				<FieldLabel htmlFor="daily-focus-day">{copy.selectedDay}</FieldLabel>
 				<Input
@@ -113,18 +146,91 @@ export default function DailyFocusArea() {
 					value={selectedDay}
 				/>
 			</Field>
-			<EligibleWork
-				copy={copy}
-				eligible={view.data?.eligibleWork ?? []}
-				onAdd={onAdd}
-			/>
-			<MembersList
-				copy={copy}
-				members={view.data?.members}
-				onRemove={onRemove}
-				query={view}
-			/>
+			{closeFocusOpen ? (
+				<CloseFocusGroups copy={copy} query={closeView} />
+			) : (
+				<>
+					<EligibleWork
+						copy={copy}
+						eligible={view.data?.eligibleWork ?? []}
+						onAdd={onAdd}
+					/>
+					<MembersList
+						copy={copy}
+						members={view.data?.members}
+						onRemove={onRemove}
+						query={view}
+					/>
+				</>
+			)}
 		</FounderPage>
+	);
+}
+
+function CloseFocusGroups({
+	copy,
+	query,
+}: {
+	copy: typeof DAILY_FOCUS_COPY;
+	query: {
+		data?: {
+			groups: {
+				abandoned: readonly DailyFocusWork[];
+				completed: readonly DailyFocusWork[];
+				reappearDeferred: readonly DailyFocusWork[];
+				stillOpen: readonly DailyFocusWork[];
+			};
+		};
+		isError: boolean;
+		isPending: boolean;
+	};
+}) {
+	if (query.isError) {
+		return <p>{MAIN_FLOW_COPY.failed}</p>;
+	}
+	if (query.isPending && query.data === undefined) {
+		return <p>{copy.loading}</p>;
+	}
+	if (!query.data) {
+		return <p>{copy.empty}</p>;
+	}
+	const { groups } = query.data;
+	const listed = dailyFocusCloseGroups(copy).flatMap((group) => {
+		const members = groups[group.key];
+		if (members.length === 0) {
+			return [];
+		}
+		return [{ heading: group.heading, members }];
+	});
+	if (listed.length === 0) {
+		return <p>{copy.empty}</p>;
+	}
+	return (
+		<div className="flex flex-col gap-8">
+			{listed.map((group) => (
+				<section key={group.heading}>
+					<h2 className="mb-2 font-medium text-sm">{group.heading}</h2>
+					<ul aria-label={group.heading}>
+						{group.members.map((work) => (
+							<li
+								className="flex items-center justify-between gap-3 border-border border-b py-3"
+								key={work.id}
+							>
+								<a
+									aria-label={`${copy.openSourceRecord}: ${work.key} ${work.title}`}
+									className="min-w-0 truncate text-sm underline-offset-4 hover:underline"
+									href={workHref(work)}
+								>
+									<span className="font-medium">{work.key}</span>
+									<span>{` ${work.title}`}</span>
+									<span className="text-muted-foreground">{` · ${work.projectName}`}</span>
+								</a>
+							</li>
+						))}
+					</ul>
+				</section>
+			))}
+		</div>
 	);
 }
 

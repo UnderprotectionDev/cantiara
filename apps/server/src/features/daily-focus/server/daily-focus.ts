@@ -9,10 +9,15 @@ import {
 import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import {
 	calendarDaySchema,
+	DAILY_FOCUS_CLOSE_RITUAL,
+	DAILY_FOCUS_CLOSE_WRITES,
 	DAILY_FOCUS_COPY,
 	DAILY_FOCUS_PLANNING_WRITES,
+	type DailyFocusCloseItem,
+	type DailyFocusCloseView,
 	type DailyFocusView,
 	type DailyFocusWork,
+	groupCloseFocusWork,
 } from "./daily-focus-model";
 
 type MutationDb = PrismaClient | Prisma.TransactionClient;
@@ -28,6 +33,7 @@ export interface DailyFocus {
 		idempotencyKey: string;
 		workId: string;
 	}) => Promise<MembershipOutcome>;
+	closeView: (input?: { calendarDay?: string }) => Promise<DailyFocusCloseView>;
 	remove: (input: {
 		calendarDay?: string;
 		idempotencyKey: string;
@@ -171,8 +177,21 @@ export function createDailyFocus(input: CreateDailyFocusInput): DailyFocus {
 		});
 	}
 
+	async function closeView(
+		query: { calendarDay?: string } = {}
+	): Promise<DailyFocusCloseView> {
+		const day = await resolveDay(query.calendarDay);
+		return await loadCloseView(
+			input.prisma,
+			input.accountId,
+			input.workspaceId,
+			day
+		);
+	}
+
 	return {
 		add: (command) => mutate("add", command),
+		closeView,
 		remove: (command) => mutate("remove", command),
 		view,
 	};
@@ -233,6 +252,59 @@ function toWork(row: {
 		key: row.key,
 		projectId: row.projectId,
 		projectName: row.project.name,
+		title: row.title,
+	};
+}
+
+async function loadCloseView(
+	db: MutationDb,
+	accountId: string,
+	workspaceId: string,
+	day: string
+): Promise<DailyFocusCloseView> {
+	const rows = await db.dailyFocusMembership.findMany({
+		include: {
+			work: {
+				include: { project: true },
+			},
+		},
+		orderBy: { createdAt: "asc" },
+		where: { accountId, calendarDay: day },
+	});
+	const members = rows
+		.filter(
+			(row) =>
+				row.work.project.workspaceId === workspaceId &&
+				row.work.retiredIntoId === null
+		)
+		.map((row) => toCloseItem(row.work));
+	return {
+		calendarDay: day,
+		copy: DAILY_FOCUS_COPY,
+		groups: groupCloseFocusWork(members, day),
+		ritual: DAILY_FOCUS_CLOSE_RITUAL,
+		writes: DAILY_FOCUS_CLOSE_WRITES,
+	};
+}
+
+function toCloseItem(row: {
+	closureResult: string | null;
+	id: string;
+	key: string;
+	project: { id: string; name: string };
+	projectId: string;
+	status: string;
+	title: string;
+}): DailyFocusCloseItem {
+	return {
+		closureResult: row.closureResult,
+		id: row.id,
+		key: row.key,
+		openSourceRecord: true,
+		projectId: row.projectId,
+		projectName: row.project.name,
+		reappearDate: null,
+		status: row.status,
 		title: row.title,
 	};
 }

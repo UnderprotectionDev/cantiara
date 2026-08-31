@@ -33,6 +33,12 @@ export const dailyFocus = {
 			return surface.add(input);
 		}),
 	catalog: protectedProcedure.handler(() => dailyFocusCatalog()),
+	closeView: protectedProcedure
+		.input(z.object({ calendarDay: calendarDaySchema.optional() }))
+		.handler(async ({ context, input }) => {
+			const surface = await focusFor(context.session.user.id);
+			return surface.closeView(input);
+		}),
 	remove: protectedWriteProcedure
 		.input(membershipInput)
 		.handler(async ({ context, input }) => {

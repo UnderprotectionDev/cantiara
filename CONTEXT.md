@@ -266,6 +266,10 @@ _Avoid_: Klasör, etiket, statik liste, Kanban sırası
 Kullanıcının farklı Projelerden bugün ele almak istediği İşleri toplayan kişisel görünüm; durum, öncelik veya proje aşaması yazmaz ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)).
 _Avoid_: Odak Dönemi, sprint, Aktif Çalışma Seti, Takvim olayı
 
+**Odağı kapat**:
+Günlük Odak’ta seçili gün için isteğe bağlı sakin kapanış görünümü; açık İşi kapatmaz, üyelikten çıkarmaz veya başka güne taşımaz; seri, puan veya Bitiriş efekti üretmez ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `Close focus`.
+_Avoid_: zorunlu ritüel, seri, puan, Daily Note, kullanıcı başlatmalı İş başarısı
+
 **Kayıt Eylemi**:
 Kullanıcının kapalı alan ve üyelik adımlarından adlandırdığı, tek hedef kayıt üzerinde çalışan birleşik yazma tanımı; otomasyon kuralı, Toplu Düzenleme veya betik pazarı değildir ([kullanıcı başlatmalı kayıt eylemleri](docs/prd/06-work-management-and-planning.md#kullanıcı-başlatmalı-kayıt-eylemleri)). UI: `Record Action`.
 _Avoid_: macro marketplace, otomasyon kuralı, Toplu Düzenleme, script, çok kayıtlı düğme
