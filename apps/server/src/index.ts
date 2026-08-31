@@ -11,6 +11,7 @@ export default {
 	fetch(request: Request) {
 		return app.fetch(request);
 	},
+	hostname: "0.0.0.0",
 	port: 3000,
 };
 
