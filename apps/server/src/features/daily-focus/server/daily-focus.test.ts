@@ -6,6 +6,8 @@
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Günlük planlama: non-Kanban view changes do not write status).
  */
+
+import { saveAccountPreferences } from "@cantiara/auth";
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -298,5 +300,30 @@ describe("Daily Focus", () => {
 				(row) => row.id
 			)
 		).toEqual([intake.id]);
+	});
+
+	it("uses the profile time zone for the selected calendar day", async () => {
+		await saveAccountPreferences(prisma, actorId, {
+			appearance: "Dark",
+			dateFormat: "locale",
+			firstDayOfWeek: "Monday",
+			locale: "en-US",
+			timeZone: "America/New_York",
+		});
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const boundary = new Date("2026-09-01T02:00:00.000Z");
+		const surface = focus(boundary);
+		await surface.add({
+			idempotencyKey: crypto.randomUUID(),
+			workId: intake.id,
+		});
+		expect((await surface.view()).calendarDay).toBe("2026-08-31");
+		expect((await surface.view()).members.map((row) => row.id)).toEqual([
+			intake.id,
+		]);
+		expect(
+			(await focus(boundary).view({ calendarDay: "2026-09-01" })).members
+		).toEqual([]);
 	});
 });

@@ -33,7 +33,6 @@ export interface DailyFocus {
 		idempotencyKey: string;
 		workId: string;
 	}) => Promise<MembershipOutcome>;
-	shareTargets: () => readonly [];
 	view: (input?: { calendarDay?: string }) => Promise<DailyFocusView>;
 }
 
@@ -175,7 +174,6 @@ export function createDailyFocus(input: CreateDailyFocusInput): DailyFocus {
 	return {
 		add: (command) => mutate("add", command),
 		remove: (command) => mutate("remove", command),
-		shareTargets: () => [],
 		view,
 	};
 }
