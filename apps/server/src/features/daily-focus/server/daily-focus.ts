@@ -1,5 +1,5 @@
 import { calendarDay, getAccountPreferences } from "@cantiara/auth";
-import type { Prisma, PrismaClient } from "@cantiara/db";
+import { Prisma, type PrismaClient } from "@cantiara/db";
 
 import {
 	lockMutation,
@@ -283,8 +283,9 @@ async function loadView(
 		},
 	});
 	const rejectedIds = await listRejectedWorkIds(db, accountId, day);
+	const datedRows = await withWorkPlanningDates(db, eligibleRows);
 	const horizon = addCalendarDays(day, TARGET_DATE_NEAR_DAYS);
-	const candidates = eligibleRows
+	const candidates = datedRows
 		.filter(
 			(row) =>
 				!(
@@ -314,6 +315,43 @@ async function loadView(
 		members,
 		planningWrites: DAILY_FOCUS_PLANNING_WRITES,
 	};
+}
+
+async function withWorkPlanningDates<
+	T extends {
+		id: string;
+		reappearDate?: string | null;
+		targetDate?: string | null;
+	},
+>(db: MutationDb, rows: T[]): Promise<T[]> {
+	if (rows.every((row) => "targetDate" in row && "reappearDate" in row)) {
+		return rows;
+	}
+	if (rows.length === 0) {
+		return rows;
+	}
+	const dates = await db.$queryRaw<
+		Array<{
+			id: string;
+			reappearDate: string | null;
+			targetDate: string | null;
+		}>
+	>`
+		SELECT id, "reappearDate", "targetDate"
+		FROM work
+		WHERE id IN (${Prisma.join(
+			rows.map((row) => Prisma.sql`${row.id}`),
+			", "
+		)})
+	`;
+	const byId = new Map(dates.map((row) => [row.id, row]));
+	return rows.map((row) => {
+		const found = byId.get(row.id);
+		if (!found) {
+			return row;
+		}
+		return { ...row, ...found };
+	});
 }
 
 function candidateReason(

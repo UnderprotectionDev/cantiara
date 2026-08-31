@@ -89,6 +89,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Seçili gün | `Selected day` | Günlük Odak görünümünün profil saat dilimindeki takvim günü seçici etiketi |
 | Günlük Odakta İş yok | `No Work in Daily Focus for this day.` | Seçili günde üyelik olmadığında boş durum |
 | Adaylar | `Candidates` | Günlük Odak’ta hedef tarihi yaklaşan veya yeniden görünme tarihi gelen az sayıda İş önerisi; üyelik değildir |
+| Günlük Odakta aday yok | `No Candidates for this day.` | Seçili günde önerilecek aday olmadığında boş durum |
 | Kabul | `Accept` | Adayı seçili günün Günlük Odak üyeliğine ekleme; durum yazmaz |
 | Ret | `Reject` | Adayı o günün odağından dışarıda bırakma; durum veya üyelik yazmaz |
 | Hedef tarihi yaklaştı | `Target date is near` | Adayın hedef tarihi nedeniyle önerildiğini açıklayan neden |

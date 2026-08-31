@@ -7,6 +7,7 @@ const FORBIDDEN_SURFACE = /Focus Period|sprint|Active Work Set|Daily Note/;
 test("English Daily Focus copy is Daily Focus", () => {
 	expect(DAILY_FOCUS_COPY.dailyFocus).toBe("Daily Focus");
 	expect(DAILY_FOCUS_COPY.candidates).toBe("Candidates");
+	expect(DAILY_FOCUS_COPY.candidatesEmpty).toBe("No Candidates for this day.");
 	expect(DAILY_FOCUS_COPY.accept).toBe("Accept");
 	expect(DAILY_FOCUS_COPY.reject).toBe("Reject");
 	expect(DAILY_FOCUS_COPY.targetDateNear).toBe("Target date is near");

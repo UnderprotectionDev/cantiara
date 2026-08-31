@@ -242,7 +242,14 @@ function CandidatesList({
 	onReject: (workId: string) => void;
 }) {
 	if (candidates.length === 0) {
-		return null;
+		return (
+			<section aria-labelledby="daily-focus-candidates" className="mb-8">
+				<h2 className="mb-3 font-medium text-sm" id="daily-focus-candidates">
+					{copy.candidates}
+				</h2>
+				<p>{copy.candidatesEmpty}</p>
+			</section>
+		);
 	}
 	return (
 		<section aria-labelledby="daily-focus-candidates" className="mb-8">

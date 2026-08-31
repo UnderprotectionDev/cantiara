@@ -187,10 +187,12 @@ export const workViewSchema = z.object({
 	number: z.number().int().positive(),
 	origin: workOriginSchema.nullable().default(null),
 	projectId: z.string().min(1),
+	reappearDate: z.string().nullable().default(null),
 	relations: z.array(workRelationSchema).default([]),
 	retiredIdentities: z.array(workOriginSchema).default([]),
 	revision: z.number().int().positive(),
 	status: workStatusSchema,
+	targetDate: z.string().nullable().default(null),
 	title: z.string().min(1),
 	type: workTypeSchema,
 });
@@ -234,6 +236,26 @@ export const updateWorkTitleCommandSchema = z.object({
 
 export type UpdateWorkTitleCommand = z.infer<
 	typeof updateWorkTitleCommandSchema
+>;
+
+const optionalWorkCalendarDaySchema = z.union([
+	z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+	z.literal(""),
+	z.null(),
+]);
+
+export const updateWorkPlanningDatesCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	reappearDate: optionalWorkCalendarDaySchema,
+	targetDate: optionalWorkCalendarDaySchema,
+	workId: z.string().min(1),
+});
+
+export type UpdateWorkPlanningDatesCommand = z.infer<
+	typeof updateWorkPlanningDatesCommandSchema
 >;
 
 export const changeWorkTypeCommandSchema = z.object({

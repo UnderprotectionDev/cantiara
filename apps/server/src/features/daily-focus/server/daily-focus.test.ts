@@ -45,6 +45,7 @@ describe("Daily Focus catalog", () => {
 				accept: "Accept",
 				add: "Add",
 				candidates: "Candidates",
+				candidatesEmpty: "No Candidates for this day.",
 				dailyFocus: "Daily Focus",
 				empty: "No Work in Daily Focus for this day.",
 				loading: "Loading…",
@@ -384,6 +385,14 @@ describe("Daily Focus", () => {
 		expect(view.candidates.every((row) => row.reason.length > 0)).toBe(true);
 	});
 
+	it("keeps Candidates copy when no Work has a near Target date or arrived Reappear date", async () => {
+		await openProject("Payments");
+		const view = await focus().view();
+		expect(view.copy.candidates).toBe("Candidates");
+		expect(view.copy.candidatesEmpty).toBe("No Candidates for this day.");
+		expect(view.candidates).toEqual([]);
+	});
+
 	it("lists Candidates when the Prisma client has no rejection delegate", async () => {
 		const payments = await openProject("Payments");
 		const near = await openWork(payments.id, "Near without delegate");
@@ -417,6 +426,63 @@ describe("Daily Focus", () => {
 			accountId: actorId,
 			clock: { now: () => TODAY },
 			prisma: withoutRejection,
+			workspaceId,
+		});
+		const view = await surface.view();
+		expect(view.candidates).toEqual([
+			expect.objectContaining({
+				id: near.id,
+				reason: CANDIDATE_REASON.targetDate,
+			}),
+		]);
+	});
+
+	it("lists Candidates when the Prisma Work model omits Target date and Reappear date", async () => {
+		const payments = await openProject("Payments");
+		const near = await openWork(payments.id, "Near without Work dates");
+		await prisma.work.update({
+			data: { targetDate: "2026-08-31" },
+			where: { id: near.id },
+		});
+		const withoutWorkDates = new Proxy(prisma, {
+			get(target, prop, receiver) {
+				if (prop === "work") {
+					return new Proxy(target.work, {
+						get(workTarget, workProp, workReceiver) {
+							if (workProp === "findMany") {
+								return async (...args: unknown[]) => {
+									const rows = await Reflect.apply(
+										workTarget.findMany as (...inner: unknown[]) => unknown,
+										workTarget,
+										args
+									);
+									if (!Array.isArray(rows)) {
+										return rows;
+									}
+									return rows.map((row) => {
+										const {
+											reappearDate: _reappearDate,
+											targetDate: _targetDate,
+											...rest
+										} = row as {
+											reappearDate?: string | null;
+											targetDate?: string | null;
+										};
+										return rest;
+									});
+								};
+							}
+							return Reflect.get(workTarget, workProp, workReceiver);
+						},
+					});
+				}
+				return Reflect.get(target, prop, receiver);
+			},
+		}) as typeof prisma;
+		const surface = createDailyFocus({
+			accountId: actorId,
+			clock: { now: () => TODAY },
+			prisma: withoutWorkDates,
 			workspaceId,
 		});
 		const view = await surface.view();

@@ -48,6 +48,10 @@ export async function invalidateWork(projectId: string, workId: string) {
 		}),
 	});
 	await queryClient.invalidateQueries({
+		predicate: (query) =>
+			JSON.stringify(query.queryKey).includes("dailyFocus"),
+	});
+	await queryClient.invalidateQueries({
 		queryKey: [USED_IN_QUERY_ROOT],
 	});
 }

@@ -2,6 +2,7 @@ export const DAILY_FOCUS_COPY = {
 	accept: "Accept",
 	add: "Add",
 	candidates: "Candidates",
+	candidatesEmpty: "No Candidates for this day.",
 	dailyFocus: "Daily Focus",
 	empty: "No Work in Daily Focus for this day.",
 	loading: "Loading…",
