@@ -22,6 +22,7 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import {
 	type ChangeEvent,
@@ -193,6 +194,11 @@ export default function KanbanBoard({
 	const onCancelReopen = useCallback(() => {
 		setReopeningWorkId(null);
 	}, []);
+	const onStartReopen = useCallback((workId: string) => {
+		setClosingWorkId(null);
+		setReopenTarget(KANBAN_COPY.inProgress);
+		setReopeningWorkId(workId);
+	}, []);
 	const onClose = useCallback(
 		(workId: string, result: string, reason: string) => {
 			const revision = revisionById.get(workId);
@@ -261,6 +267,7 @@ export default function KanbanBoard({
 							onMove={onMove}
 							onOpenSourceRecord={onOpenSourceRecord}
 							onReopen={onReopen}
+							onStartReopen={onStartReopen}
 							reopeningWorkId={reopeningWorkId}
 							reopenTarget={reopenTarget}
 							selectedWorkId={selectedWorkId}
@@ -282,8 +289,9 @@ function KanbanColumnLane({
 	onMove,
 	onOpenSourceRecord,
 	onReopen,
-	reopenTarget,
+	onStartReopen,
 	reopeningWorkId,
+	reopenTarget,
 	selectedWorkId,
 	status,
 }: {
@@ -295,6 +303,7 @@ function KanbanColumnLane({
 	onMove: (workId: string, targetStatus: string) => void;
 	onOpenSourceRecord: (workId: string) => void;
 	onReopen: (workId: string, targetStatus: string, confirmed: boolean) => void;
+	onStartReopen: (workId: string) => void;
 	reopenTarget: string;
 	reopeningWorkId: string | null;
 	selectedWorkId: string | null;
@@ -325,6 +334,7 @@ function KanbanColumnLane({
 							onMove={onMove}
 							onOpenSourceRecord={onOpenSourceRecord}
 							onReopen={onReopen}
+							onStartReopen={onStartReopen}
 							reopening={card.workId === reopeningWorkId}
 							reopenTarget={reopenTarget}
 							selected={card.workId === selectedWorkId}
@@ -345,6 +355,7 @@ function KanbanCardItem({
 	onMove,
 	onOpenSourceRecord,
 	onReopen,
+	onStartReopen,
 	reopenTarget,
 	reopening,
 	selected,
@@ -357,6 +368,7 @@ function KanbanCardItem({
 	onMove: (workId: string, targetStatus: string) => void;
 	onOpenSourceRecord: (workId: string) => void;
 	onReopen: (workId: string, targetStatus: string, confirmed: boolean) => void;
+	onStartReopen: (workId: string) => void;
 	reopenTarget: string;
 	reopening: boolean;
 	selected: boolean;
@@ -375,9 +387,9 @@ function KanbanCardItem({
 		},
 		[card.status, card.workId, onMove]
 	);
-	const onStartReopen = useCallback(() => {
-		onMove(card.workId, KANBAN_COPY.inProgress);
-	}, [card.workId, onMove]);
+	const onStartReopenClick = useCallback(() => {
+		onStartReopen(card.workId);
+	}, [card.workId, onStartReopen]);
 	const onOpen = useCallback(() => {
 		onOpenSourceRecord(card.workId);
 	}, [card.workId, onOpenSourceRecord]);
@@ -444,7 +456,7 @@ function KanbanCardItem({
 				) : null}
 				{!(closing || reopening) && card.status === KANBAN_COPY.closed ? (
 					<Button
-						onClick={onStartReopen}
+						onClick={onStartReopenClick}
 						size="xs"
 						type="button"
 						variant="outline"
@@ -469,26 +481,18 @@ function KanbanClosureStep({
 	onClose: (workId: string, result: string, reason: string) => void;
 	workId: string;
 }) {
-	const [result, setResult] = useState<string>(KANBAN_COPY.completed);
-	const [reason, setReason] = useState("");
-	const onResultChange = useCallback(
-		(event: ChangeEvent<HTMLSelectElement>) => {
-			setResult(event.currentTarget.value);
+	const form = useForm({
+		defaultValues: { reason: "", result: KANBAN_COPY.completed as string },
+		onSubmit: ({ value }) => {
+			onClose(workId, value.result, value.reason);
 		},
-		[]
-	);
-	const onReasonChange = useCallback(
-		(event: ChangeEvent<HTMLTextAreaElement>) => {
-			setReason(event.currentTarget.value);
-		},
-		[]
-	);
+	});
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
-			onClose(workId, result, reason);
+			form.handleSubmit().catch(() => undefined);
 		},
-		[onClose, reason, result, workId]
+		[form]
 	);
 	return (
 		<form
@@ -497,43 +501,99 @@ function KanbanClosureStep({
 			onSubmit={onSubmit}
 		>
 			<FieldGroup className="flex-col gap-2">
-				<Field>
-					<FieldLabel htmlFor={`kanban-close-result-${workId}`}>
-						{KANBAN_COPY.completed}
-					</FieldLabel>
-					<NativeSelect
-						id={`kanban-close-result-${workId}`}
-						onChange={onResultChange}
-						size="sm"
-						value={result}
-					>
-						{KANBAN_CLOSURE_RESULTS.map((closureResult) => (
-							<NativeSelectOption key={closureResult} value={closureResult}>
-								{closureResult}
-							</NativeSelectOption>
-						))}
-					</NativeSelect>
-				</Field>
-				<Field>
-					<FieldLabel htmlFor={`kanban-close-reason-${workId}`}>
-						{KANBAN_COPY.reason}
-					</FieldLabel>
-					<Textarea
-						id={`kanban-close-reason-${workId}`}
-						onChange={onReasonChange}
-						value={reason}
-					/>
-				</Field>
+				<form.Field name="result">
+					{(field) => (
+						<ResultField
+							onValueChange={field.handleChange}
+							value={field.state.value}
+							workId={workId}
+						/>
+					)}
+				</form.Field>
+				<form.Field name="reason">
+					{(field) => (
+						<ReasonField
+							onValueChange={field.handleChange}
+							value={field.state.value}
+							workId={workId}
+						/>
+					)}
+				</form.Field>
 			</FieldGroup>
 			<div className="flex flex-wrap gap-2">
 				<Button onClick={onCancel} size="xs" type="button" variant="ghost">
 					{KANBAN_COPY.cancel}
 				</Button>
 				<Button size="xs" type="submit">
-					{result}
+					{KANBAN_COPY.closed}
 				</Button>
 			</div>
 		</form>
+	);
+}
+
+function ResultField({
+	onValueChange,
+	value,
+	workId,
+}: {
+	onValueChange: (value: string) => void;
+	value: string;
+	workId: string;
+}) {
+	const onChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			onValueChange(event.currentTarget.value);
+		},
+		[onValueChange]
+	);
+	return (
+		<Field>
+			<FieldLabel htmlFor={`kanban-close-result-${workId}`}>
+				{KANBAN_COPY.completed}
+			</FieldLabel>
+			<NativeSelect
+				id={`kanban-close-result-${workId}`}
+				onChange={onChange}
+				size="sm"
+				value={value}
+			>
+				{KANBAN_CLOSURE_RESULTS.map((closureResult) => (
+					<NativeSelectOption key={closureResult} value={closureResult}>
+						{closureResult}
+					</NativeSelectOption>
+				))}
+			</NativeSelect>
+		</Field>
+	);
+}
+
+function ReasonField({
+	onValueChange,
+	value,
+	workId,
+}: {
+	onValueChange: (value: string) => void;
+	value: string;
+	workId: string;
+}) {
+	const onChange = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			onValueChange(event.currentTarget.value);
+		},
+		[onValueChange]
+	);
+	return (
+		<Field>
+			<FieldLabel htmlFor={`kanban-close-reason-${workId}`}>
+				{KANBAN_COPY.reason}
+			</FieldLabel>
+			<Textarea
+				id={`kanban-close-reason-${workId}`}
+				onChange={onChange}
+				value={value}
+			/>
+		</Field>
 	);
 }
 
@@ -548,28 +608,27 @@ function KanbanReopenStep({
 	targetStatus: string;
 	workId: string;
 }) {
-	const [status, setStatus] = useState<string>(
-		isNonTerminalWorkStatus(targetStatus)
-			? targetStatus
-			: KANBAN_COPY.inProgress
-	);
 	const [confirmed, setConfirmed] = useState(false);
-	const onStatusChange = useCallback(
-		(event: ChangeEvent<HTMLSelectElement>) => {
-			setStatus(event.currentTarget.value);
+	const form = useForm({
+		defaultValues: {
+			status: (isNonTerminalWorkStatus(targetStatus)
+				? targetStatus
+				: KANBAN_COPY.inProgress) as string,
 		},
-		[]
-	);
-	const onSubmit = useCallback(
-		(event: FormEvent<HTMLFormElement>) => {
-			event.preventDefault();
+		onSubmit: ({ value }) => {
 			if (!confirmed) {
 				setConfirmed(true);
 				return;
 			}
-			onReopen(workId, status, true);
+			onReopen(workId, value.status, true);
 		},
-		[confirmed, onReopen, status, workId]
+	});
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			form.handleSubmit().catch(() => undefined);
+		},
+		[form]
 	);
 	return (
 		<form
@@ -577,23 +636,15 @@ function KanbanReopenStep({
 			className="flex flex-col gap-2"
 			onSubmit={onSubmit}
 		>
-			<Field>
-				<FieldLabel htmlFor={`kanban-reopen-status-${workId}`}>
-					{KANBAN_COPY.reopen}
-				</FieldLabel>
-				<NativeSelect
-					id={`kanban-reopen-status-${workId}`}
-					onChange={onStatusChange}
-					size="sm"
-					value={status}
-				>
-					{KANBAN_REOPEN_TARGETS.map((reopenStatus) => (
-						<NativeSelectOption key={reopenStatus} value={reopenStatus}>
-							{reopenStatus}
-						</NativeSelectOption>
-					))}
-				</NativeSelect>
-			</Field>
+			<form.Field name="status">
+				{(field) => (
+					<ReopenTargetField
+						onValueChange={field.handleChange}
+						value={field.state.value}
+						workId={workId}
+					/>
+				)}
+			</form.Field>
 			<div className="flex flex-wrap gap-2">
 				<Button onClick={onCancel} size="xs" type="button" variant="ghost">
 					{KANBAN_COPY.cancel}
@@ -603,6 +654,42 @@ function KanbanReopenStep({
 				</Button>
 			</div>
 		</form>
+	);
+}
+
+function ReopenTargetField({
+	onValueChange,
+	value,
+	workId,
+}: {
+	onValueChange: (value: string) => void;
+	value: string;
+	workId: string;
+}) {
+	const onChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			onValueChange(event.currentTarget.value);
+		},
+		[onValueChange]
+	);
+	return (
+		<Field>
+			<FieldLabel htmlFor={`kanban-reopen-status-${workId}`}>
+				{KANBAN_COPY.reopen}
+			</FieldLabel>
+			<NativeSelect
+				id={`kanban-reopen-status-${workId}`}
+				onChange={onChange}
+				size="sm"
+				value={value}
+			>
+				{KANBAN_REOPEN_TARGETS.map((reopenStatus) => (
+					<NativeSelectOption key={reopenStatus} value={reopenStatus}>
+						{reopenStatus}
+					</NativeSelectOption>
+				))}
+			</NativeSelect>
+		</Field>
 	);
 }
 
