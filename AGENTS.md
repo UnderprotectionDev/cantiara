@@ -74,3 +74,9 @@ Schema changes go through `bun run db:migrate`. `bun run db:push` is local throw
 **Local Postgres** — [`docs/tech-stack.md`](docs/tech-stack.md) (yerel geliştirme sınırı) and `scripts/neon-local-proxy.ts` when `NEON_LOCAL=true`.
 
 **Cloud Agent secrets** — [`docs/agents/cloud-agent-secrets.md`](docs/agents/cloud-agent-secrets.md). Read before starting the API, setting `DATABASE_URL`, or exporting `NEON_LOCAL`. Do not put `$(seq)` or any newline-emitting `$(...)` in `.cursor/environment.json` terminal commands.
+
+## Cursor Cloud specific instructions
+
+Source is [`.cursor/environment.json`](.cursor/environment.json) (then personal, then team). A Personal SETUP_FLOW snapshot is a leftover override — edit the committed file and `scripts/cloud-agent/`.
+
+Build uses `install`; each boot uses `start` then `terminals` (`dev`, `neon-proxy`). Dashboard, stale Builds, and Personal vs repo file: [`docs/agents/cloud-agent-environment.md`](docs/agents/cloud-agent-environment.md). Secrets and Neon: [`docs/agents/cloud-agent-secrets.md`](docs/agents/cloud-agent-secrets.md).
