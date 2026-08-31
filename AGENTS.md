@@ -77,10 +77,6 @@ Schema changes go through `bun run db:migrate`. `bun run db:push` is local throw
 
 ## Cursor Cloud specific instructions
 
-Environment source is [`.cursor/environment.json`](.cursor/environment.json). Cursor resolves that file, then a personal saved environment, then a team environment — first match wins. A Personal SETUP_FLOW snapshot is a leftover override. Edit the committed file and `scripts/cloud-agent/`; do not propose or Save a competing dashboard config.
+Source is [`.cursor/environment.json`](.cursor/environment.json) (then personal, then team). A Personal SETUP_FLOW snapshot is a leftover override — edit the committed file and `scripts/cloud-agent/`.
 
-- **Build** — `install`: `bash scripts/cloud-agent/install.sh` (runs while creating a Build, not on every warm-fork boot).
-- **Boot** — `start`: `bash scripts/cloud-agent/start.sh` (Postgres, env hygiene, deps/generate when install was skipped).
-- **Boot** — `terminals`: `dev` and `neon-proxy` in tmux. Brace-wait in the JSON, not `$(seq)`.
-
-Personal vs repo file, base branch, stale Builds: [`docs/agents/cloud-agent-environment.md`](docs/agents/cloud-agent-environment.md). Secrets and Neon: [`docs/agents/cloud-agent-secrets.md`](docs/agents/cloud-agent-secrets.md).
+Build uses `install`; each boot uses `start` then `terminals` (`dev`, `neon-proxy`). Dashboard, stale Builds, and Personal vs repo file: [`docs/agents/cloud-agent-environment.md`](docs/agents/cloud-agent-environment.md). Secrets and Neon: [`docs/agents/cloud-agent-secrets.md`](docs/agents/cloud-agent-secrets.md).
