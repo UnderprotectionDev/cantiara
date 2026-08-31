@@ -44,7 +44,7 @@ export default function DailyFocusArea() {
 		})
 	);
 	const copy = catalog.data?.copy ?? DAILY_FOCUS_COPY;
-	const selectedDay = view.data?.calendarDay ?? calendarDay ?? "";
+	const selectedDay = calendarDay ?? view.data?.calendarDay ?? "";
 	const invalidateView = useCallback(async () => {
 		await queryClient.invalidateQueries({
 			queryKey: orpc.dailyFocus.view.queryKey({
