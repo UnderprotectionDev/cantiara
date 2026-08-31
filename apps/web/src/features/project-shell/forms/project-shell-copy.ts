@@ -262,6 +262,10 @@ export function workSavedViewIsList(view: string): boolean {
 	return view === "Backlog";
 }
 
+export function workSavedViewIsBoard(view: string): boolean {
+	return view === "Board";
+}
+
 const HASH_PREFIX = "#";
 
 const WORK_SELECT_RESET_ANCHORS = new Set([
