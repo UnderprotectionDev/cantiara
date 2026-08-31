@@ -14,7 +14,10 @@ describe("Prisma current models gate", () => {
 		resetPrismaClientCache();
 		try {
 			const client = getPrismaClient();
-			expect(typeof client.recordAction.findMany).toBe("function");
+			expect(typeof client.dailyFocusCandidateRejection.findMany).toBe(
+				"function"
+			);
+			expect(typeof client.dailyFocusMembership.findMany).toBe("function");
 			expect(typeof client.recordAction.create).toBe("function");
 			expect(prismaClientHasCurrentDelegates(client)).toBe(true);
 			expect(prismaClientHasCurrentExternalExecutionHandoffModel(client)).toBe(

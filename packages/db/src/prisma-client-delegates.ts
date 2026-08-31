@@ -34,6 +34,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.workTemplate?.create === "function" &&
 		typeof client.recordAction?.findMany === "function" &&
 		typeof client.recordAction?.create === "function" &&
+		typeof client.dailyFocusMembership?.findMany === "function" &&
+		typeof client.dailyFocusCandidateRejection?.findMany === "function" &&
+		typeof client.dailyFocusCandidateRejection?.create === "function" &&
 		typeof client.workDraft?.findMany === "function" &&
 		typeof client.workDraft?.create === "function" &&
 		// Completion effect preference is read via table SQL so a bun --hot

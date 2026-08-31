@@ -23,6 +23,16 @@ import {
 
 type MutationDb = PrismaClient | Prisma.TransactionClient;
 
+function hasDelegate(
+	db: MutationDb,
+	name: "dailyFocusCandidateRejection" | "dailyFocusMembership"
+): boolean {
+	const delegate = (db as unknown as Record<string, { findMany?: unknown }>)[
+		name
+	];
+	return typeof delegate?.findMany === "function";
+}
+
 export type MembershipOutcome =
 	| { status: "committed"; view: DailyFocusView }
 	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
@@ -178,14 +188,7 @@ async function applyDailyFocusWrite(
 		return;
 	}
 	if (input.operation === "reject") {
-		const already = await tx.dailyFocusCandidateRejection.findUnique({
-			where: { accountId_workId_calendarDay: key },
-		});
-		if (!already) {
-			await tx.dailyFocusCandidateRejection.create({
-				data: { ...key, id: crypto.randomUUID() },
-			});
-		}
+		await rememberCandidateRejection(tx, key);
 		return;
 	}
 	const already = await tx.dailyFocusMembership.findUnique({
@@ -196,6 +199,55 @@ async function applyDailyFocusWrite(
 			data: { ...key, id: crypto.randomUUID() },
 		});
 	}
+}
+
+async function rememberCandidateRejection(
+	tx: MutationDb,
+	key: { accountId: string; calendarDay: string; workId: string }
+) {
+	if (hasDelegate(tx, "dailyFocusCandidateRejection")) {
+		const already = await tx.dailyFocusCandidateRejection.findUnique({
+			where: { accountId_workId_calendarDay: key },
+		});
+		if (!already) {
+			await tx.dailyFocusCandidateRejection.create({
+				data: { ...key, id: crypto.randomUUID() },
+			});
+		}
+		return;
+	}
+	await tx.$executeRaw`
+		INSERT INTO "daily_focus_candidate_rejection"
+			(id, "accountId", "workId", "calendarDay", "createdAt", "updatedAt")
+		VALUES (
+			${crypto.randomUUID()},
+			${key.accountId},
+			${key.workId},
+			${key.calendarDay},
+			CURRENT_TIMESTAMP,
+			CURRENT_TIMESTAMP
+		)
+		ON CONFLICT ("accountId", "workId", "calendarDay") DO NOTHING
+	`;
+}
+
+async function listRejectedWorkIds(
+	db: MutationDb,
+	accountId: string,
+	day: string
+): Promise<Set<string>> {
+	if (hasDelegate(db, "dailyFocusCandidateRejection")) {
+		const rejected = await db.dailyFocusCandidateRejection.findMany({
+			select: { workId: true },
+			where: { accountId, calendarDay: day },
+		});
+		return new Set(rejected.map((row) => row.workId));
+	}
+	const rows = await db.$queryRaw<Array<{ workId: string }>>`
+		SELECT "workId" FROM "daily_focus_candidate_rejection"
+		WHERE "accountId" = ${accountId} AND "calendarDay" = ${day}
+	`;
+	return new Set(rows.map((row) => row.workId));
 }
 
 async function loadView(
@@ -230,11 +282,7 @@ async function loadView(
 			retiredIntoId: null,
 		},
 	});
-	const rejected = await db.dailyFocusCandidateRejection.findMany({
-		select: { workId: true },
-		where: { accountId, calendarDay: day },
-	});
-	const rejectedIds = new Set(rejected.map((row) => row.workId));
+	const rejectedIds = await listRejectedWorkIds(db, accountId, day);
 	const horizon = addCalendarDays(day, TARGET_DATE_NEAR_DAYS);
 	const candidates = eligibleRows
 		.filter(
@@ -269,7 +317,7 @@ async function loadView(
 }
 
 function candidateReason(
-	row: { reappearDate: string | null; targetDate: string | null },
+	row: { reappearDate?: string | null; targetDate?: string | null },
 	day: string,
 	horizon: string
 ): DailyFocusCandidate["reason"] | null {

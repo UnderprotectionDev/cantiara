@@ -384,6 +384,50 @@ describe("Daily Focus", () => {
 		expect(view.candidates.every((row) => row.reason.length > 0)).toBe(true);
 	});
 
+	it("lists Candidates when the Prisma client has no rejection delegate", async () => {
+		const payments = await openProject("Payments");
+		const near = await openWork(payments.id, "Near without delegate");
+		await prisma.work.update({
+			data: { targetDate: "2026-08-31" },
+			where: { id: near.id },
+		});
+		const withoutRejection = new Proxy(prisma, {
+			get(target, prop, receiver) {
+				if (prop === "dailyFocusCandidateRejection") {
+					return;
+				}
+				if (prop === "$transaction") {
+					return (fn: (tx: typeof prisma) => unknown, options?: unknown) =>
+						target.$transaction(async (tx) => {
+							const inner = new Proxy(tx, {
+								get(innerTarget, innerProp, innerReceiver) {
+									if (innerProp === "dailyFocusCandidateRejection") {
+										return;
+									}
+									return Reflect.get(innerTarget, innerProp, innerReceiver);
+								},
+							});
+							return await fn(inner as typeof prisma);
+						}, options as never);
+				}
+				return Reflect.get(target, prop, receiver);
+			},
+		}) as typeof prisma;
+		const surface = createDailyFocus({
+			accountId: actorId,
+			clock: { now: () => TODAY },
+			prisma: withoutRejection,
+			workspaceId,
+		});
+		const view = await surface.view();
+		expect(view.candidates).toEqual([
+			expect.objectContaining({
+				id: near.id,
+				reason: CANDIDATE_REASON.targetDate,
+			}),
+		]);
+	});
+
 	it("accepts a candidate into the selected day and rejects without membership or status write", async () => {
 		const payments = await openProject("Payments");
 		const acceptWork = await openWork(payments.id, "Accept me");
