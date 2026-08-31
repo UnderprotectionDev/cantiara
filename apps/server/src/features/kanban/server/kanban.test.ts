@@ -5,11 +5,13 @@
  * Abandoned stay distinct; reopen needs confirm and a non-terminal
  * target. Planning membership does not write status; cards follow the
  * saved view explicit sort with no independent Kanban rank; Backlog and
- * Prioritization session ranks stay untouched; a future Reappear date
- * sits in the background without writing status; archived Work is
- * absent. Work-status test double for
+ * Prioritization session ranks stay untouched; List is the same scan
+ * including unplanned Work and does not write status or closure; a
+ * future Reappear date sits in the background without writing status;
+ * archived Work is absent. Work-status test double for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Günlük planlama: planning-surface–status separation).
+ * (Günlük planlama: planning-surface–status separation; list is the
+ * same Work).
  */
 import { describe, expect, it } from "vitest";
 
@@ -20,7 +22,9 @@ import {
 	createMemoryWorkStatusPort,
 	moveKanbanCard,
 	presentKanbanBoard,
+	presentKanbanList,
 	reopenKanbanCard,
+	scanKanbanList,
 } from "./kanban";
 import {
 	DEFAULT_CARD_VISIBLE_FIELDS,
@@ -35,6 +39,8 @@ const SPRINT_RELEASE_ARCHIVE_PATTERN =
 const CLOSURE_CHECK_PATTERN =
 	/Closure check|Keep lasting context|Close anyway|Bitiriş/i;
 const FIFTH_COLUMN_PATTERN = /Deferred|Review|Archive|Sprint/i;
+const LIST_NOT_OTHER_SURFACE_PATTERN =
+	/Table View|Smart Collection|manualOrder|backlogRank|cell/;
 const KANBAN_RANK_PATTERN = /kanbanRank/;
 const ARCHIVE_COLUMN_PATTERN = /Archive/i;
 
@@ -71,6 +77,15 @@ function seedPort() {
 			title: "Retired intake",
 			type: "Task",
 		},
+		{
+			id: "work_unplanned",
+			key: "PAY-4",
+			revision: 1,
+			status: "Not Started",
+			title: "Unplanned capture",
+			type: "Task",
+			unplanned: true,
+		},
 	]);
 }
 
@@ -105,6 +120,7 @@ describe("Kanban", () => {
 			inProgress: "In Progress",
 			inProgressCount: "In Progress count",
 			kanban: "Kanban",
+			list: "List",
 			notStarted: "Not Started",
 			openBlocker: "Open blocker",
 			openSourceRecord: "Open source record",
@@ -330,6 +346,60 @@ describe("Kanban", () => {
 		).not.toContain("work_old");
 	});
 
+	it("presents List as the same Work scan including unplanned Work", () => {
+		const records = seedPort().list();
+		const board = presentKanbanBoard(records);
+		const list = presentKanbanList(records);
+		expect(list.layout).toBe("list");
+		expect(list.copy.list).toBe("List");
+		expect(list.rows.map((row) => row.workId)).toEqual([
+			"work_intake",
+			"work_unplanned",
+			"work_pay",
+		]);
+		expect(list.rows.map((row) => row.id)).toEqual([
+			"work_intake",
+			"work_unplanned",
+			"work_pay",
+		]);
+		expect(
+			board.columns.flatMap((column) => column.cards.map((card) => card.workId))
+		).toEqual(list.rows.map((row) => row.workId));
+		expect(list.rows.find((row) => row.workId === "work_unplanned")?.key).toBe(
+			"PAY-4"
+		);
+		expect(list.rows.map((row) => row.workId)).not.toContain("work_old");
+		expect(list.visibleFields).toEqual([...DEFAULT_CARD_VISIBLE_FIELDS]);
+		expect(list.copy.openSourceRecord).toBe("Open source record");
+	});
+
+	it("scans List fields and opens the source Work without writing status or closure", () => {
+		const port = seedPort();
+		const scanned = scanKanbanList(port, { field: "Key" });
+		expect(scanned.rows.map((row) => row.key)).toEqual([
+			"PAY-1",
+			"PAY-2",
+			"PAY-4",
+		]);
+		expect(scanned.rows.map((row) => row.id)).toEqual(
+			scanned.rows.map((row) => row.workId)
+		);
+		expect(scanned.copy.openSourceRecord).toBe("Open source record");
+		expect(port.get("work_intake")?.status).toBe("Not Started");
+		expect(port.get("work_pay")?.status).toBe("In Progress");
+		expect(port.get("work_pay")?.closureResult).toBeUndefined();
+		expect(port.get("work_unplanned")?.status).toBe("Not Started");
+	});
+
+	it("does not present List as Table View, Smart Collection, or Backlog manual order", () => {
+		const list = presentKanbanList(seedPort().list());
+		expect(list.layout).toBe("list");
+		expect(list.layout).not.toBe("table");
+		expect(JSON.stringify(list)).not.toMatch(LIST_NOT_OTHER_SURFACE_PATTERN);
+		expect(list.rows.some((row) => "backlogRank" in row)).toBe(false);
+		expect(list.rows.some((row) => "smartCollectionId" in row)).toBe(false);
+	});
+
 	it("does not write GitHub status or fire silent automation when a column moves", () => {
 		const port = seedPort();
 		moveKanbanCard(port, {
@@ -491,8 +561,18 @@ describe("Kanban", () => {
 			backlog: port.backlogOrder(),
 			session: port.sessionOrder(),
 		};
-		expect(before.backlog).toEqual(["work_intake", "work_pay", "work_old"]);
-		expect(before.session).toEqual(["work_old", "work_pay", "work_intake"]);
+		expect(before.backlog).toEqual([
+			"work_intake",
+			"work_pay",
+			"work_old",
+			"work_unplanned",
+		]);
+		expect(before.session).toEqual([
+			"work_unplanned",
+			"work_old",
+			"work_pay",
+			"work_intake",
+		]);
 		moveKanbanCard(port, {
 			targetStatus: "Blocked",
 			workId: "work_intake",

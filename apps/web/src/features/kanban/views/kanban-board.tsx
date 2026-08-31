@@ -40,17 +40,21 @@ import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc } from "@/utils/orpc";
 
 import {
+	type CardVisibleField,
 	collapseKanbanColumn,
 	KANBAN_CLOSURE_RESULTS,
 	KANBAN_COLUMNS,
 	KANBAN_COPY,
+	KANBAN_LIST_LAYOUT,
 	KANBAN_REOPEN_TARGETS,
 	type KanbanBoardView,
 	type KanbanCard,
 	type KanbanColumn,
 	type KanbanColumnStatus,
 	presentKanbanBoard,
+	sortKanbanList,
 } from "../store/present-board";
+import KanbanList from "./kanban-list";
 
 interface BoardWorkItem {
 	archived?: boolean;
@@ -79,6 +83,8 @@ export default function KanbanBoard({
 	selectedWorkId: string | null;
 }) {
 	const { attemptOnlineWork, recordSave } = useClientShell();
+	const [layout, setLayout] = useState<"board" | "list">("board");
+	const [sortField, setSortField] = useState<CardVisibleField | null>(null);
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
 	);
@@ -186,6 +192,20 @@ export default function KanbanBoard({
 			),
 		[collapsedStatuses, presented]
 	);
+	const list = useMemo(() => {
+		const presentedList = {
+			copy: board.copy,
+			layout: KANBAN_LIST_LAYOUT,
+			rows: board.columns.flatMap((column) => column.cards),
+			visibleFields: board.visibleFields,
+		};
+		if (!sortField) {
+			return presentedList;
+		}
+		return sortKanbanList(presentedList, sortField);
+	}, [board, sortField]);
+	const onShowBoard = useCallback(() => setLayout("board"), []);
+	const onShowList = useCallback(() => setLayout("list"), []);
 	const revisionById = useMemo(() => {
 		const map = new Map<string, number>();
 		for (const item of items) {
@@ -341,7 +361,30 @@ export default function KanbanBoard({
 
 	return (
 		<section aria-label={KANBAN_COPY.kanban} className="flex flex-col gap-3">
-			<h2 className="font-medium text-sm">{KANBAN_COPY.board}</h2>
+			<div className="flex flex-wrap items-center gap-2">
+				<h2 className="font-medium text-sm">{KANBAN_COPY.board}</h2>
+				<fieldset className="flex gap-1">
+					<legend className="sr-only">{KANBAN_COPY.kanban}</legend>
+					<Button
+						aria-pressed={layout === "board"}
+						onClick={onShowBoard}
+						size="xs"
+						type="button"
+						variant={layout === "board" ? "default" : "outline"}
+					>
+						{KANBAN_COPY.board}
+					</Button>
+					<Button
+						aria-pressed={layout === "list"}
+						onClick={onShowList}
+						size="xs"
+						type="button"
+						variant={layout === "list" ? "default" : "outline"}
+					>
+						{KANBAN_COPY.list}
+					</Button>
+				</fieldset>
+			</div>
 			<p className="text-muted-foreground text-sm">
 				{KANBAN_COPY.inProgressCount}: {board.inProgressCount}
 				{typeof board.focus.threshold === "number" ? (
@@ -362,30 +405,40 @@ export default function KanbanBoard({
 					value={board.focus.threshold}
 				/>
 			) : null}
-			<DndContext onDragEnd={onDragEnd} sensors={sensors}>
-				<div className="grid gap-3 md:grid-cols-4">
-					{board.columns.map((column) => (
-						<KanbanColumnLane
-							closingWorkId={closingWorkId}
-							column={column}
-							configurationMode={configurationMode}
-							key={column.status}
-							onCancelClose={onCancelClose}
-							onCancelReopen={onCancelReopen}
-							onClose={onClose}
-							onMove={onMove}
-							onOpenSourceRecord={onOpenSourceRecord}
-							onReopen={onReopen}
-							onSaveColumnLimit={onSaveColumnLimit}
-							onStartReopen={onStartReopen}
-							onToggleCollapse={onToggleCollapse}
-							reopeningWorkId={reopeningWorkId}
-							reopenTarget={reopenTarget}
-							selectedWorkId={selectedWorkId}
-						/>
-					))}
-				</div>
-			</DndContext>
+			{layout === "list" ? (
+				<KanbanList
+					list={list}
+					onOpenSourceRecord={onOpenSourceRecord}
+					onSortField={setSortField}
+					selectedWorkId={selectedWorkId}
+					sortField={sortField}
+				/>
+			) : (
+				<DndContext onDragEnd={onDragEnd} sensors={sensors}>
+					<div className="grid gap-3 md:grid-cols-4">
+						{board.columns.map((column) => (
+							<KanbanColumnLane
+								closingWorkId={closingWorkId}
+								column={column}
+								configurationMode={configurationMode}
+								key={column.status}
+								onCancelClose={onCancelClose}
+								onCancelReopen={onCancelReopen}
+								onClose={onClose}
+								onMove={onMove}
+								onOpenSourceRecord={onOpenSourceRecord}
+								onReopen={onReopen}
+								onSaveColumnLimit={onSaveColumnLimit}
+								onStartReopen={onStartReopen}
+								onToggleCollapse={onToggleCollapse}
+								reopeningWorkId={reopeningWorkId}
+								reopenTarget={reopenTarget}
+								selectedWorkId={selectedWorkId}
+							/>
+						))}
+					</div>
+				</DndContext>
+			)}
 		</section>
 	);
 }

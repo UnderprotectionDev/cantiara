@@ -6,10 +6,14 @@ import {
 	KANBAN_COPY,
 	presentKanbanBoard,
 	presentKanbanClosureStep,
+	presentKanbanList,
+	sortKanbanList,
 } from "./present-board";
 
 const SPRINT_RELEASE_ARCHIVE_PATTERN =
 	/sprint|velocity|release commitment|Archive/i;
+const LIST_NOT_OTHER_SURFACE_PATTERN =
+	/Table View|Smart Collection|manualOrder|backlogRank/;
 const CLOSURE_CHECK_PATTERN =
 	/Closure check|Keep lasting context|Close anyway|Bitiriş/i;
 const ARCHIVE_COLUMN_PATTERN = /Archive/i;
@@ -28,6 +32,7 @@ test("English Board copy uses Kanban and the four protected statuses", () => {
 		inProgress: "In Progress",
 		inProgressCount: "In Progress count",
 		kanban: "Kanban",
+		list: "List",
 		notStarted: "Not Started",
 		openBlocker: "Open blocker",
 		openSourceRecord: "Open source record",
@@ -147,4 +152,54 @@ test("Board uses saved view Title sort and backgrounds a future Reappear date", 
 	expect(board.columns[0].cards[1]?.background).toBe(true);
 	expect(board.columns[0].cards[0]?.background).toBe(false);
 	expect(JSON.stringify(board)).not.toMatch(KANBAN_RANK_PATTERN);
+});
+
+test("List is the same Work scan including unplanned Work and is not Table View", () => {
+	const records = [
+		{
+			id: "work_intake",
+			key: "PAY-1",
+			revision: 1,
+			status: "Not Started" as const,
+			title: "Intake checkout",
+			type: "Task",
+		},
+		{
+			id: "work_pay",
+			key: "PAY-2",
+			revision: 2,
+			status: "In Progress" as const,
+			title: "Charge card",
+			type: "Feature",
+		},
+		{
+			id: "work_unplanned",
+			key: "PAY-4",
+			revision: 1,
+			status: "Not Started" as const,
+			title: "Unplanned capture",
+			type: "Task",
+			unplanned: true,
+		},
+	];
+	const board = presentKanbanBoard(records);
+	const list = presentKanbanList(records);
+	expect(list.layout).toBe("list");
+	expect(list.copy.list).toBe("List");
+	expect(list.rows.map((row) => row.workId)).toEqual(
+		board.columns.flatMap((column) => column.cards.map((card) => card.workId))
+	);
+	expect(list.rows.map((row) => row.id)).toEqual(
+		list.rows.map((row) => row.workId)
+	);
+	expect(JSON.stringify(list)).not.toMatch(LIST_NOT_OTHER_SURFACE_PATTERN);
+	const sorted = sortKanbanList(list, "Key");
+	expect(sorted.rows.map((row) => row.key)).toEqual([
+		"PAY-1",
+		"PAY-2",
+		"PAY-4",
+	]);
+	expect(sorted.rows.find((row) => row.workId === "work_pay")?.status).toBe(
+		"In Progress"
+	);
 });

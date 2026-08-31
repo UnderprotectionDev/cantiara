@@ -21,11 +21,13 @@ import {
 	DEFAULT_SAVED_VIEW_SORT,
 	KANBAN_COLUMNS,
 	KANBAN_COPY,
+	KANBAN_LIST_LAYOUT,
 	type KanbanBoard,
 	type KanbanCard,
 	type KanbanCloseOutcome,
 	type KanbanColumnStatus,
 	type KanbanLifecycleEvent,
+	type KanbanList,
 	type KanbanMoveOutcome,
 	type KanbanPresentationOptions,
 	type KanbanReopenOutcome,
@@ -246,6 +248,34 @@ export function collapseKanbanColumn(
 		...board,
 		columns: board.columns.map((column) =>
 			column.status === status ? { ...column, collapsed: true } : column
+		),
+	};
+}
+
+export function presentKanbanList(
+	records: readonly KanbanWorkRecord[],
+	options: KanbanPresentationOptions = {}
+): KanbanList {
+	const board = presentKanbanBoard(records, options);
+	return {
+		copy: KANBAN_COPY,
+		layout: KANBAN_LIST_LAYOUT,
+		rows: board.columns.flatMap((column) => column.cards),
+		visibleFields: board.visibleFields,
+	};
+}
+
+export function scanKanbanList(
+	port: WorkStatusPort,
+	input: { field: CardVisibleField }
+): KanbanList {
+	const list = presentKanbanList(port.list());
+	return {
+		...list,
+		rows: [...list.rows].sort((left, right) =>
+			listFieldValue(left, input.field).localeCompare(
+				listFieldValue(right, input.field)
+			)
 		),
 	};
 }
@@ -628,6 +658,13 @@ function toCard(
 		type: record.type,
 		workId: record.id,
 	};
+}
+
+function listFieldValue(row: KanbanCard, field: CardVisibleField): string {
+	if (field === "Key") {
+		return row.key;
+	}
+	return row.summary.find((entry) => entry.field === field)?.value ?? "";
 }
 
 function calendarDay(date: Date): string {

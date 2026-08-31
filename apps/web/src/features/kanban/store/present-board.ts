@@ -12,6 +12,7 @@ export const KANBAN_COPY = {
 	inProgress: "In Progress",
 	inProgressCount: "In Progress count",
 	kanban: "Kanban",
+	list: "List",
 	notStarted: "Not Started",
 	openBlocker: "Open blocker",
 	openSourceRecord: "Open source record",
@@ -21,6 +22,8 @@ export const KANBAN_COPY = {
 	softWip: "Soft WIP",
 	timeInStatus: "Time in status",
 } as const;
+
+export const KANBAN_LIST_LAYOUT = "list" as const;
 
 export const KANBAN_COLUMNS = [
 	KANBAN_COPY.notStarted,
@@ -113,6 +116,7 @@ export interface KanbanWorkRecord {
 	targetDate?: string | null;
 	title: string;
 	type: string;
+	unplanned?: boolean;
 }
 
 export interface KanbanCardSummaryField {
@@ -167,6 +171,13 @@ export interface KanbanBoardView {
 	visibleFields: readonly CardVisibleField[];
 }
 
+export interface KanbanListView {
+	copy: typeof KANBAN_COPY;
+	layout: typeof KANBAN_LIST_LAYOUT;
+	rows: KanbanCard[];
+	visibleFields: readonly CardVisibleField[];
+}
+
 export interface KanbanPresentationOptions {
 	asOf?: string;
 	collapsedStatuses?: readonly KanbanColumnStatus[];
@@ -180,7 +191,6 @@ export interface KanbanPresentationOptions {
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
-
 export function presentKanbanBoard(
 	records: readonly KanbanWorkRecord[],
 	options: KanbanPresentationOptions = {}
@@ -236,6 +246,31 @@ export function presentKanbanBoard(
 	};
 }
 
+export function presentKanbanList(
+	records: readonly KanbanWorkRecord[],
+	options: KanbanPresentationOptions = {}
+): KanbanListView {
+	const board = presentKanbanBoard(records, options);
+	return {
+		copy: KANBAN_COPY,
+		layout: KANBAN_LIST_LAYOUT,
+		rows: board.columns.flatMap((column) => column.cards),
+		visibleFields: board.visibleFields,
+	};
+}
+
+export function sortKanbanList(
+	list: KanbanListView,
+	field: CardVisibleField
+): KanbanListView {
+	return {
+		...list,
+		rows: [...list.rows].sort((left, right) =>
+			listFieldValue(left, field).localeCompare(listFieldValue(right, field))
+		),
+	};
+}
+
 export function collapseKanbanColumn(
 	board: KanbanBoardView,
 	status: KanbanColumnStatus
@@ -248,6 +283,12 @@ export function collapseKanbanColumn(
 	};
 }
 
+function listFieldValue(row: KanbanCard, field: CardVisibleField): string {
+	if (field === "Key") {
+		return row.key;
+	}
+	return row.summary.find((entry) => entry.field === field)?.value ?? "";
+}
 function toCard(
 	record: KanbanWorkRecord,
 	visibleFields: readonly CardVisibleField[],

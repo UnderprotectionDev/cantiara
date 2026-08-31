@@ -22,6 +22,7 @@ export const KANBAN_COPY = {
 	inProgress: WORK_STATUS.inProgress,
 	inProgressCount: "In Progress count",
 	kanban: "Kanban",
+	list: "List",
 	notStarted: WORK_STATUS.notStarted,
 	openBlocker: "Open blocker",
 	openSourceRecord: WORK_LIFECYCLE_COPY.openSourceRecord,
@@ -31,6 +32,8 @@ export const KANBAN_COPY = {
 	softWip: "Soft WIP",
 	timeInStatus: "Time in status",
 } as const;
+
+export const KANBAN_LIST_LAYOUT = "list" as const;
 
 export function presentKanbanClosureStep() {
 	return {
@@ -119,6 +122,7 @@ export interface KanbanWorkRecord {
 	targetDate?: string | null;
 	title: string;
 	type: string;
+	unplanned?: boolean;
 }
 
 export interface KanbanCardSummaryField {
@@ -170,6 +174,13 @@ export interface KanbanBoard {
 	focus: KanbanFocusView;
 	inProgressCount: number;
 	sort: SavedViewSort;
+	visibleFields: readonly CardVisibleField[];
+}
+
+export interface KanbanList {
+	copy: typeof KANBAN_COPY;
+	layout: typeof KANBAN_LIST_LAYOUT;
+	rows: KanbanCard[];
 	visibleFields: readonly CardVisibleField[];
 }
 
