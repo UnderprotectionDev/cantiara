@@ -52,6 +52,7 @@ import {
 	summarizeFeatureProgress,
 	unarchiveWork,
 	undoWorkMerge,
+	updateWorkPlanningDates,
 	updateWorkTitle,
 } from "./work-lifecycle";
 import { DEFAULT_WORK_TYPE } from "./work-lifecycle-model";
@@ -370,6 +371,7 @@ describe("Work Lifecycle", () => {
 				retiredIdentities: [],
 				revision: 1,
 				status: "Not Started",
+				targetDate: null,
 				title: "Intake",
 				type: "Task",
 			},
@@ -515,6 +517,42 @@ describe("Work Lifecycle", () => {
 		});
 		expect(created).not.toHaveProperty("moveWork");
 		expect(JSON.stringify(created.work)).not.toMatch(MOVE_PATTERN);
+	});
+
+	it("writes Target date and Reappear date without changing status", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const created = await createWork(
+			prisma,
+			createCommand(
+				{
+					idempotencyKey: "dates-create",
+					projectId: project.id,
+					title: "Dated Work",
+				},
+				actorId
+			)
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const updated = await updateWorkPlanningDates(prisma, {
+			actorId,
+			baseRevision: created.work.revision,
+			idempotencyKey: "set-dates",
+			origin: "human",
+			reappearDate: "2026-08-31",
+			targetDate: "2026-09-03",
+			workId: created.work.id,
+		});
+		expect(updated).toMatchObject({
+			status: "committed",
+			work: {
+				id: created.work.id,
+				reappearDate: "2026-08-31",
+				status: created.work.status,
+				targetDate: "2026-09-03",
+			},
+		});
 	});
 
 	it("creates each English type and lets non-Feature types change freely", async () => {

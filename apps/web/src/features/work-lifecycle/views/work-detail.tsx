@@ -1,7 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useCallback } from "react";
 
-import ReappearDateField from "@/features/backlog/views/reappear-date-field";
 import WorkBlockersPanel from "@/features/blockers/views/work-blockers-panel";
 import { CompletionEffectsLayer } from "@/features/completion-effects/components/completion-effects-layer";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
@@ -33,6 +32,7 @@ import {
 	type WorkStatus,
 	type WorkType,
 } from "../forms/work-lifecycle-copy";
+import WorkPlanningDatesForm from "../forms/work-planning-dates-form";
 
 export interface WorkRecord {
 	archived: boolean;
@@ -45,6 +45,7 @@ export interface WorkRecord {
 	retiredIdentities?: Array<{ id: string; key: string }>;
 	revision: number;
 	status: WorkStatus;
+	targetDate?: string | null;
 	title: string;
 	type: WorkType;
 	usageLinks?: Array<{
@@ -154,10 +155,12 @@ export default function WorkDetail({
 						/>
 					)}
 				</div>
-				<ReappearDateField
-					key={`${work.id}:reappear:${work.reappearDate ?? ""}`}
+				<WorkPlanningDatesForm
+					key={`${work.id}:dates:${work.revision}`}
 					projectId={projectId}
-					reappearDate={work.reappearDate}
+					reappearDate={work.reappearDate ?? null}
+					revision={work.revision}
+					targetDate={work.targetDate ?? null}
 					workId={work.id}
 				/>
 			</div>
