@@ -244,6 +244,9 @@ export default function WorkArea({
 				configurationMode={configurationMode}
 				deferred={deferredItems}
 				items={items}
+				notifyOnReappearDate={
+					backlog.data?.reappearNotification.optedIn ?? false
+				}
 				onOpenSourceRecord={onOpenSourceRecord}
 				onSavedPresentation={onSavedBacklogPresentation}
 				onSelect={onSelect}
@@ -357,6 +360,7 @@ function WorkCollectionSurface({
 	configurationMode,
 	deferred,
 	items,
+	notifyOnReappearDate,
 	onOpenSourceRecord,
 	onSavedPresentation,
 	onSelect,
@@ -395,6 +399,7 @@ function WorkCollectionSurface({
 		title: string;
 		type: string;
 	}>;
+	notifyOnReappearDate: boolean;
 	onOpenSourceRecord: (id: string) => void;
 	onSavedPresentation: () => void;
 	onSelect: (id: string) => void;
@@ -441,6 +446,7 @@ function WorkCollectionSurface({
 				bulkSelectedIds={bulkSelectedIds}
 				deferred={deferred}
 				items={items}
+				notifyOnReappearDate={notifyOnReappearDate}
 				onSavedPresentation={onSavedPresentation}
 				onSelect={onSelect}
 				onSortChange={onSortChange}

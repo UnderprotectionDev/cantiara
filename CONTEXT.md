@@ -290,6 +290,10 @@ _Avoid_: otomatik üyelik, Backlog üyeliği, Odak Dönemi, Takvim olayı
 İşin en erken ne zaman yeniden değerlendirileceğini belirten isteğe bağlı gün; hedef tarihi ve kişisel hatırlatmadan ayrıdır. Varsayılan Backlog’da gelecek tarih Deferred’e alır; tarih gelince Günlük Odak adayında görünebilir ([yeniden görünme tarihi](docs/prd/06-work-management-and-planning.md#yeniden-görünme-tarihi)). UI: `Reappear date`.
 _Avoid_: Hedef tarihi, Hatırlatma, Review later, Kanban sütunu, Save for Later
 
+**Yeniden görünme bildirimi**:
+Proje bazında varsayılan kapalı açık opt-in; tarih gelince kayıtlı `reappear-date` Dikkat sinyali üretir ve durum yazmaz ([yeniden görünme tarihi](docs/prd/06-work-management-and-planning.md#yeniden-görünme-tarihi)). UI: `Notify on Reappear date`.
+_Avoid_: Bildirim Merkezi, Review later, varsayılan bildirim
+
 **İş hedef tarihi**:
 İşin isteğe bağlı hedef günü; planlanan başlangıç, yeniden görünme tarihi, Proje hedef tarihi ve kişisel hatırlatmadan ayrıdır ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `Target date`.
 _Avoid_: Yeniden görünme tarihi, Hatırlatma, due date

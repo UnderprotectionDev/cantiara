@@ -9,6 +9,7 @@ test("English UI uses Backlog, Manual order, Deferred, and Reappear date", () =>
 	expect(BACKLOG_COPY.manualOrder).toBe("Manual order");
 	expect(BACKLOG_COPY.deferred).toBe("Deferred");
 	expect(BACKLOG_COPY.reappearDate).toBe("Reappear date");
+	expect(BACKLOG_COPY.notifyOnReappearDate).toBe("Notify on Reappear date");
 	expect(BACKLOG_SORTS).toEqual(["Manual order", "Priority", "Date", "Field"]);
 	expect(JSON.stringify(BACKLOG_COPY)).not.toMatch(FOLDER_SPRINT_PATTERN);
 });
