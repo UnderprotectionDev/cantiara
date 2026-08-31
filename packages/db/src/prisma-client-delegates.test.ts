@@ -337,6 +337,9 @@ describe("Prisma client current delegates", () => {
 				},
 			} as unknown as PrismaClient)
 		).toBe(false);
+	});
+
+	it("refuses a bun --hot client generated before Kanban Soft WIP and Focus threshold fields", () => {
 		expect(
 			prismaClientHasCurrentProjectModel({
 				_runtimeDataModel: {
@@ -345,6 +348,31 @@ describe("Prisma client current delegates", () => {
 							fields: [
 								{ name: "id" },
 								{ name: "priorityCriterionDefinitions" },
+							],
+						},
+						ProjectWorkStatus: {
+							fields: [{ name: "semantic" }, { name: "label" }],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(false);
+		expect(
+			prismaClientHasCurrentProjectModel({
+				_runtimeDataModel: {
+					models: {
+						Project: {
+							fields: [
+								{ name: "id" },
+								{ name: "priorityCriterionDefinitions" },
+								{ name: "focusThreshold" },
+							],
+						},
+						ProjectWorkStatus: {
+							fields: [
+								{ name: "semantic" },
+								{ name: "label" },
+								{ name: "softWipLimit" },
 							],
 						},
 					},

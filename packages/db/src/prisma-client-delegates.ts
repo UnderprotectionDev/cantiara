@@ -125,18 +125,32 @@ export function prismaClientHasCurrentFileAttachmentVersionModel(
 
 /**
  * Project.priorityCriterionDefinitions is required for Projects list
- * (`listProjects` include). A bun `--hot` client generated before that
- * relation still has a Project delegate; include then throws
- * "Unknown field 'priorityCriterionDefinitions'".
+ * (`listProjects` include). Project.focusThreshold and
+ * ProjectWorkStatus.softWipLimit are required for Kanban Soft WIP and
+ * Focus threshold. A bun `--hot` client generated before those fields
+ * still has a Project delegate; select then throws
+ * "Unknown field 'focusThreshold'".
  */
 export function prismaClientHasCurrentProjectModel(
 	client: PrismaClient
 ): boolean {
-	const fields = modelFieldNames(client, "Project");
-	if (fields.length === 0) {
+	const projectFields = modelFieldNames(client, "Project");
+	if (projectFields.length === 0) {
 		return true;
 	}
-	return fields.includes("priorityCriterionDefinitions");
+	if (
+		!(
+			projectFields.includes("priorityCriterionDefinitions") &&
+			projectFields.includes("focusThreshold")
+		)
+	) {
+		return false;
+	}
+	const statusFields = modelFieldNames(client, "ProjectWorkStatus");
+	if (statusFields.length === 0) {
+		return true;
+	}
+	return statusFields.includes("softWipLimit");
 }
 
 export function prismaClientHasCurrentWorkspaceModel(

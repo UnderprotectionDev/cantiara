@@ -94,6 +94,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Şablondan oluştur | `Create from template` | Şablondan bağımsız yeni İş açma; şablona canlı bağ değildir ve zorunlu workflow kapısı değildir |
 | İşi kopyala | `Duplicate Work` | Mevcut İşi aynı Projede şablona dönüştürmeden tek seferlik kopyalama |
 | Planlanan başlangıç | `Planned start` | İşin ne zaman başlamasının düşünüldüğü tarih; göreli şablon kuralı oluşturma gününe göre çözülür |
+| Yeniden görünme tarihi | `Reappear date` | İşin en erken ne zaman yeniden değerlendirileceğini belirten isteğe bağlı tarih; hedef tarihi veya hatırlatma değildir |
 | Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
 | Tüm etiketler | `All tags` | Etiket süzgecinin süzmeyi kaldırma seçeneği |
 | Etiket uygula | `Apply tag` | Erişilebilir kayda mevcut Etiketi bağlama |
@@ -224,6 +225,14 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Backlog | `Backlog` | Hazır İş görünümü; tek kalıcı manuel sıra |
 | Board | `Board` | Hazır İş görünümü; Kanban sunumu |
 | Liste görünümü | `List` | Kanban ile aynı İş taramasının yoğun satır düzeni; Tablo Görünümü değildir |
+| Soft WIP | `Soft WIP` | Durum bazlı isteğe bağlı sayı sınırı; aşıldığında nötr işaret, hareket kapısı değildir |
+| Odak eşiği | `Focus threshold` | Proje veya ilgili Akıllı Koleksiyon için isteğe bağlı kişisel devam eden İş sayısı eşiği |
+| Sınır aşıldı | `Over limit` | Soft WIP veya odak eşiği aşımının yalnız renge dayanmayan işareti |
+| Mevcut durumda geçen süre | `Time in status` | Aktif kartın mevcut İş akışı durumunda geçirdiği süre |
+| Devam eden İş sayısı | `In Progress count` | Tahtadaki `In Progress` İş adedi |
+| Daralt | `Collapse` | Kanban sütununu yalnız görünümde sıkıştırma; filtre değildir |
+| Genişlet | `Expand` | Daraltılmış Kanban sütununu açma |
+| Açık blokaj | `Open blocker` | Daraltılmış sütunda kalan önemli blokaj sinyali |
 | Roadmap | `Roadmap` | Hazır İş görünümü |
 | Build | `Build` | Hazır Proje aşaması adı |
 | Validate | `Validate` | Hazır Proje aşaması adı |
