@@ -40,7 +40,9 @@ interface PreparedBacklogItemView {
 export default function PreparedBacklog({
 	bulkSelectedIds,
 	items,
+	onSavedPresentation,
 	onSelect,
+	onSortChange,
 	onToggleBulkSelect,
 	presentationSort,
 	projectId,
@@ -48,7 +50,9 @@ export default function PreparedBacklog({
 }: {
 	bulkSelectedIds: string[];
 	items: PreparedBacklogItemView[];
+	onSavedPresentation: () => void;
 	onSelect: (id: string) => void;
+	onSortChange: (sort: BacklogSort) => void;
 	onToggleBulkSelect: (id: string, selected: boolean) => void;
 	presentationSort: BacklogSort;
 	projectId: string;
@@ -82,26 +86,37 @@ export default function PreparedBacklog({
 		[attemptOnlineWork, projectId, recordSave, reorder]
 	);
 
-	const onSortChange = useCallback(
+	const onSortChangeSelect = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
-			const sort = event.currentTarget.value as BacklogSort;
-			attemptOnlineWork("planning-change", () =>
-				savePresentation
-					.mutateAsync({ projectId, sort })
-					.then(async (outcome) => {
-						if (outcome.status === "committed") {
-							const [first] = items;
-							if (first) {
-								await invalidateWork(projectId, first.id);
-							}
-							recordSave();
-						}
-						return outcome;
-					})
-			);
+			onSortChange(event.currentTarget.value as BacklogSort);
 		},
-		[attemptOnlineWork, items, projectId, recordSave, savePresentation]
+		[onSortChange]
 	);
+	const onSavePresentation = useCallback(() => {
+		attemptOnlineWork("planning-change", () =>
+			savePresentation
+				.mutateAsync({ projectId, sort: presentationSort })
+				.then(async (outcome) => {
+					if (outcome.status === "committed") {
+						const [first] = items;
+						if (first) {
+							await invalidateWork(projectId, first.id);
+						}
+						onSavedPresentation();
+						recordSave();
+					}
+					return outcome;
+				})
+		);
+	}, [
+		attemptOnlineWork,
+		items,
+		onSavedPresentation,
+		presentationSort,
+		projectId,
+		recordSave,
+		savePresentation,
+	]);
 
 	const onMove = useCallback(
 		(workId: string, direction: number) => {
@@ -149,17 +164,16 @@ export default function PreparedBacklog({
 		<div className="flex flex-col gap-3">
 			<div className="flex flex-wrap items-center gap-3">
 				<h2 className="font-medium text-sm">{BACKLOG_COPY.backlog}</h2>
-				<NativeSelect
-					aria-label={BACKLOG_COPY.manualOrder}
-					onChange={onSortChange}
-					value={presentationSort}
-				>
+				<NativeSelect onChange={onSortChangeSelect} value={presentationSort}>
 					{BACKLOG_SORTS.map((sort) => (
 						<NativeSelectOption key={sort} value={sort}>
 							{sort}
 						</NativeSelectOption>
 					))}
 				</NativeSelect>
+				<Button onClick={onSavePresentation} size="sm" type="button">
+					{BACKLOG_COPY.save}
+				</Button>
 			</div>
 			{manual ? (
 				<DndContext onDragEnd={onDragEnd} sensors={sensors}>

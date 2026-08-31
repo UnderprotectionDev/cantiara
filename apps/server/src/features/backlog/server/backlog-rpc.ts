@@ -13,7 +13,12 @@ import {
 	saveBacklogPresentation,
 	takeUpFromBacklog,
 } from "./backlog";
-import { backlogCatalog, backlogSortSchema } from "./backlog-model";
+import {
+	backlogCatalog,
+	listPreparedBacklogQuerySchema,
+	reorderManualOrderCommandSchema,
+	saveBacklogPresentationCommandSchema,
+} from "./backlog-model";
 
 async function requireAccess(userId: string) {
 	const access = await getAccountAccessForUser(getPrismaClient(), userId);
@@ -43,12 +48,7 @@ async function requireWork(workspaceId: string, workId: string) {
 export const backlog = {
 	catalog: protectedProcedure.handler(() => backlogCatalog()),
 	list: protectedProcedure
-		.input(
-			z.object({
-				projectId: z.string().min(1),
-				sort: backlogSortSchema.optional(),
-			})
-		)
+		.input(listPreparedBacklogQuerySchema)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
@@ -69,24 +69,14 @@ export const backlog = {
 			return await placeOnPlanningSurface(getPrismaClient(), input);
 		}),
 	reorder: protectedWriteProcedure
-		.input(
-			z.object({
-				projectId: z.string().min(1),
-				workIds: z.array(z.string().min(1)),
-			})
-		)
+		.input(reorderManualOrderCommandSchema)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
 			return await reorderManualOrder(getPrismaClient(), input);
 		}),
 	savePresentation: protectedWriteProcedure
-		.input(
-			z.object({
-				projectId: z.string().min(1),
-				sort: backlogSortSchema,
-			})
-		)
+		.input(saveBacklogPresentationCommandSchema)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);

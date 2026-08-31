@@ -51,6 +51,7 @@ export default function WorkArea({
 	const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
 	const [tagFilter, setTagFilter] = useState("");
 	const [surface, setSurface] = useState<"list" | "priority-map">("list");
+	const [backlogSort, setBacklogSort] = useState<BacklogSort | undefined>();
 	const preparedBacklog = savedView === "Backlog";
 	const work = useQuery({
 		...orpc.workLifecycle.list.queryOptions({
@@ -59,7 +60,9 @@ export default function WorkArea({
 		enabled: !preparedBacklog,
 	});
 	const backlog = useQuery({
-		...orpc.backlog.list.queryOptions({ input: { projectId } }),
+		...orpc.backlog.list.queryOptions({
+			input: backlogSort ? { projectId, sort: backlogSort } : { projectId },
+		}),
 		enabled: preparedBacklog,
 	});
 	const suggestions = useQuery(
@@ -130,6 +133,12 @@ export default function WorkArea({
 		setSurface((current) =>
 			current === "priority-map" ? "list" : "priority-map"
 		);
+	}, []);
+	const onBacklogSort = useCallback((sort: BacklogSort) => {
+		setBacklogSort(sort);
+	}, []);
+	const onSavedBacklogPresentation = useCallback(() => {
+		setBacklogSort(undefined);
 	}, []);
 
 	useEffect(() => {
@@ -231,11 +240,13 @@ export default function WorkArea({
 				bulkSelectedIds={bulkSelectedIds}
 				items={items}
 				onOpenSourceRecord={onOpenSourceRecord}
+				onSavedPresentation={onSavedBacklogPresentation}
 				onSelect={onSelect}
+				onSortChange={onBacklogSort}
 				onToggleBulkSelect={onToggleBulkSelect}
 				preparedBacklog={preparedBacklog}
 				presentationSort={backlogPresentationSort(
-					backlog.data?.presentation.sort
+					backlogSort ?? backlog.data?.presentation.sort
 				)}
 				priorityMapOpen={surface === "priority-map"}
 				projectId={projectId}
@@ -340,7 +351,9 @@ function WorkCollectionSurface({
 	bulkSelectedIds,
 	items,
 	onOpenSourceRecord,
+	onSavedPresentation,
 	onSelect,
+	onSortChange,
 	onToggleBulkSelect,
 	preparedBacklog,
 	presentationSort,
@@ -364,7 +377,9 @@ function WorkCollectionSurface({
 		type: string;
 	}>;
 	onOpenSourceRecord: (id: string) => void;
+	onSavedPresentation: () => void;
 	onSelect: (id: string) => void;
+	onSortChange: (sort: BacklogSort) => void;
 	onToggleBulkSelect: (id: string, selected: boolean) => void;
 	preparedBacklog: boolean;
 	presentationSort: BacklogSort;
@@ -405,7 +420,9 @@ function WorkCollectionSurface({
 			<PreparedBacklog
 				bulkSelectedIds={bulkSelectedIds}
 				items={items}
+				onSavedPresentation={onSavedPresentation}
 				onSelect={onSelect}
+				onSortChange={onSortChange}
 				onToggleBulkSelect={onToggleBulkSelect}
 				presentationSort={presentationSort}
 				projectId={projectId}
