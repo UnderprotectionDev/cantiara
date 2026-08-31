@@ -161,18 +161,6 @@ export function collapseKanbanColumn(
 	};
 }
 
-export function expandKanbanColumn(
-	board: KanbanBoard,
-	status: KanbanColumnStatus
-): KanbanBoard {
-	return {
-		...board,
-		columns: board.columns.map((column) =>
-			column.status === status ? { ...column, collapsed: false } : column
-		),
-	};
-}
-
 export function moveKanbanCard(
 	port: WorkStatusPort,
 	input: { targetStatus: string; workId: string }

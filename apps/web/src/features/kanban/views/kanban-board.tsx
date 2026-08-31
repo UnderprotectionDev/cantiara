@@ -236,9 +236,13 @@ export default function KanbanBoard({
 			<h2 className="font-medium text-sm">{KANBAN_COPY.board}</h2>
 			<p className="text-muted-foreground text-sm">
 				{KANBAN_COPY.inProgressCount}: {board.inProgressCount}
-				{board.focus.mark ? (
-					<span className="ml-2 font-medium" role="status">
-						{KANBAN_COPY.focusThreshold} {board.focus.mark} ·{" "}
+				{typeof board.focus.threshold === "number" ? (
+					<span
+						className="ml-2 font-medium"
+						role={board.focus.mark ? "status" : undefined}
+					>
+						{KANBAN_COPY.focusThreshold}
+						{board.focus.mark ? ` ${board.focus.mark}` : ""} ·{" "}
 						{board.focus.count}/{board.focus.threshold}
 					</span>
 				) : null}
@@ -310,14 +314,24 @@ function KanbanColumnLane({
 				<h3 className="font-medium text-xs">
 					{column.status}{" "}
 					<span className="text-muted-foreground">{column.count}</span>
-					{column.softWip.mark ? (
-						<span className="ml-1 font-medium" role="status">
-							{KANBAN_COPY.softWip} {column.softWip.mark} ·{" "}
+					{typeof column.softWip.limit === "number" ? (
+						<span
+							className="ml-1 font-medium"
+							role={column.softWip.mark ? "status" : undefined}
+						>
+							{KANBAN_COPY.softWip}
+							{column.softWip.mark ? ` ${column.softWip.mark}` : ""} ·{" "}
 							{column.softWip.count}/{column.softWip.limit}
 						</span>
 					) : null}
 				</h3>
-				<Button onClick={onCollapse} size="xs" type="button" variant="ghost">
+				<Button
+					aria-expanded={!column.collapsed}
+					onClick={onCollapse}
+					size="xs"
+					type="button"
+					variant="ghost"
+				>
 					{column.collapsed ? KANBAN_COPY.expand : KANBAN_COPY.collapse}
 				</Button>
 			</div>
