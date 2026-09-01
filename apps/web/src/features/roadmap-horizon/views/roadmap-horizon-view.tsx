@@ -9,16 +9,20 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
-import { orpc, queryClient } from "@/utils/orpc";
+import { invalidateRoadmapHorizon } from "@/features/work-lifecycle/forms/invalidate-work";
+import { orpc } from "@/utils/orpc";
 
-import { ROADMAP_COPY, ROADMAP_HORIZONS } from "./roadmap-copy";
+import {
+	isRoadmapHorizon,
+	ROADMAP_COPY,
+	ROADMAP_HORIZONS,
+} from "./roadmap-copy";
 
 interface RoadmapItem {
 	expectedOutcome: string | null;
 	horizon: string | null;
 	id: string;
 	key: string;
-	openSourceRecord: string;
 	originWorkId: string | null;
 	problemOpportunity: string | null;
 	role: string;
@@ -48,12 +52,8 @@ export default function RoadmapHorizonView({
 	const [horizonFilter, setHorizonFilter] = useState<string>("");
 	const copy = catalog.data?.copy ?? ROADMAP_COPY;
 	const listInput = {
-		horizonFilter:
-			horizonFilter === ROADMAP_COPY.now ||
-			horizonFilter === ROADMAP_COPY.next ||
-			horizonFilter === ROADMAP_COPY.later
-				? horizonFilter
-				: undefined,
+		groupField: ROADMAP_COPY.horizon,
+		horizonFilter: isRoadmapHorizon(horizonFilter) ? horizonFilter : undefined,
 		namedViewId,
 		presentation,
 		projectId,
@@ -70,10 +70,7 @@ export default function RoadmapHorizonView({
 					return;
 				}
 				setNamedViewId(outcome.view.id);
-				await queryClient.invalidateQueries({
-					predicate: (query) =>
-						JSON.stringify(query.queryKey).includes("roadmapHorizon"),
-				});
+				await invalidateRoadmapHorizon();
 			},
 		})
 	);
@@ -104,12 +101,8 @@ export default function RoadmapHorizonView({
 				return;
 			}
 			save.mutate({
-				horizonFilter:
-					horizonFilter === ROADMAP_COPY.now ||
-					horizonFilter === ROADMAP_COPY.next ||
-					horizonFilter === ROADMAP_COPY.later
-						? horizonFilter
-						: null,
+				groupField: ROADMAP_COPY.horizon,
+				horizonFilter: isRoadmapHorizon(horizonFilter) ? horizonFilter : null,
 				name,
 				presentation,
 				projectId,
@@ -148,7 +141,7 @@ export default function RoadmapHorizonView({
 						onChange={onHorizonFilterChange}
 						value={horizonFilter}
 					>
-						<NativeSelectOption value="">{copy.allHorizons}</NativeSelectOption>
+						<NativeSelectOption value="">{copy.roadmap}</NativeSelectOption>
 						{ROADMAP_HORIZONS.map((horizon) => (
 							<NativeSelectOption key={horizon} value={horizon}>
 								{horizon}
@@ -226,9 +219,6 @@ function RoadmapWorkRow({
 				{item.horizon ? (
 					<span className="text-muted-foreground text-xs">{item.horizon}</span>
 				) : null}
-				<span className="text-muted-foreground text-xs">
-					{item.openSourceRecord}
-				</span>
 			</button>
 		</li>
 	);

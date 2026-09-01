@@ -14,7 +14,7 @@ import RecordActionRun from "@/features/record-actions/views/record-action-run";
 import RelationsPanel from "@/features/relations/views/relations-panel";
 import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
 import UsedInPanel from "@/features/relations/views/used-in-panel";
-import WorkHorizonForm from "@/features/roadmap-horizon/views/work-horizon-form";
+import WorkHorizonForm from "@/features/roadmap-horizon/forms/work-horizon-form";
 import WorkTagPicker from "@/features/tags/views/work-tag-picker";
 import WorkChecklistPanel from "@/features/work-checklists/views/work-checklist-panel";
 import WorkContextCard from "@/features/work-context/views/work-context-card";

@@ -164,6 +164,7 @@ describe("Roadmap Horizon", () => {
 	it("uses English Roadmap, Now, Next, Later without a second membership flag", () => {
 		const catalog = roadmapCatalog();
 		expect(catalog.copy.roadmap).toBe("Roadmap");
+		expect(catalog.copy.unplaced).toBe("No horizon");
 		expect(catalog.horizons).toEqual(["Now", "Next", "Later"]);
 		expect(catalog.presentations).toEqual([
 			"Product direction",
@@ -321,6 +322,14 @@ describe("Roadmap Horizon", () => {
 		if ("reason" in view) {
 			throw new Error("expected Roadmap view");
 		}
+		expect(view.groups.map((group) => group.label)).toEqual([
+			"Now",
+			"Next",
+			"Later",
+			"No horizon",
+		]);
+		expect(view.groups[0]?.field).toBe("Horizon");
+		expect(view.groups[0]?.items.map((item) => item.id)).toEqual([work.id]);
 		expect(JSON.stringify(view.copy)).not.toMatch(FORBIDDEN_PATTERN);
 		expect(
 			view.groups.flatMap((group) => group.items.map((item) => item.type))
@@ -371,7 +380,7 @@ describe("Roadmap Horizon", () => {
 			"Now",
 			"Next",
 			"Later",
-			"All",
+			"No horizon",
 		]);
 		expect(filtered.groups[1]?.items.map((item) => item.id)).toEqual([
 			research.id,
@@ -387,8 +396,12 @@ describe("Roadmap Horizon", () => {
 		const research = await committedWork(prisma, actorId, {
 			idempotencyKey: "problem-opportunity",
 			projectId: project.id,
-			title: "Guests drop at checkout",
+			title: "Checkout research",
 			type: "Research",
+		});
+		await prisma.work.update({
+			data: { description: "Guests drop at checkout" },
+			where: { id: research.id },
 		});
 		const feature = await committedWork(prisma, actorId, {
 			idempotencyKey: "wallet-feature",
@@ -418,10 +431,11 @@ describe("Roadmap Horizon", () => {
 		expect(items).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
+					expectedOutcome: null,
 					id: research.id,
-					openSourceRecord: "Open source record",
 					problemOpportunity: "Guests drop at checkout",
 					role: "Primary",
+					title: "Checkout research",
 					type: "Research",
 				}),
 				expect.objectContaining({

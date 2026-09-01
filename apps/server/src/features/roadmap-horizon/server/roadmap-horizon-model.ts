@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 export const ROADMAP_COPY = {
-	allHorizons: "All",
 	allWorkTypes: "All Work types",
 	expectedOutcome: "Expected Outcome",
 	groupField: "Group",
@@ -18,6 +17,7 @@ export const ROADMAP_COPY = {
 	saveNamedView: "Save named view",
 	secondary: "Secondary",
 	type: "Type",
+	unplaced: "No horizon",
 } as const;
 
 export const ROADMAP_HORIZONS = [
@@ -95,7 +95,6 @@ export const roadmapWorkItemSchema = z.object({
 	horizon: roadmapHorizonSchema.nullable(),
 	id: z.string().min(1),
 	key: z.string().min(1),
-	openSourceRecord: z.literal(ROADMAP_COPY.openSourceRecord),
 	originWorkId: z.string().min(1).nullable(),
 	problemOpportunity: z.string().nullable(),
 	role: z.enum([ROADMAP_COPY.primary, ROADMAP_COPY.secondary]),

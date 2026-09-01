@@ -1,5 +1,4 @@
 export const ROADMAP_COPY = {
-	allHorizons: "All",
 	allWorkTypes: "All Work types",
 	group: "Group",
 	horizon: "Horizon",

@@ -10,13 +10,13 @@ import { useCallback, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { invalidateWork } from "@/features/work-lifecycle/forms/invalidate-work";
-import { orpc, queryClient } from "@/utils/orpc";
+import { orpc } from "@/utils/orpc";
 
 import {
 	isRoadmapHorizon,
 	ROADMAP_COPY,
 	ROADMAP_HORIZONS,
-} from "./roadmap-copy";
+} from "../views/roadmap-copy";
 
 export default function WorkHorizonForm({
 	projectId,
@@ -40,10 +40,6 @@ export default function WorkHorizonForm({
 					return;
 				}
 				await invalidateWork(projectId, workId);
-				await queryClient.invalidateQueries({
-					predicate: (query) =>
-						JSON.stringify(query.queryKey).includes("roadmapHorizon"),
-				});
 				recordSave();
 				setError(null);
 			},

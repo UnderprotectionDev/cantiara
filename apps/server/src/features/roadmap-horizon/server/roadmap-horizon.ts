@@ -64,7 +64,8 @@ export async function listRoadmap(
 		namedView?.presentation ??
 		parsed.data.presentation ??
 		ROADMAP_COPY.productDirection;
-	const groupField = namedView?.groupField ?? parsed.data.groupField ?? null;
+	const groupField =
+		namedView?.groupField ?? parsed.data.groupField ?? ROADMAP_COPY.horizon;
 	const horizonFilter =
 		namedView?.horizonFilter ?? parsed.data.horizonFilter ?? null;
 	const items = await roadmapItems(prisma, {
@@ -313,14 +314,18 @@ function toItem(
 	const originWorkId = originLinks.get(row.id) ?? null;
 	const primary =
 		presentation === ROADMAP_COPY.allWorkTypes || row.type === "Research";
+	let problemOpportunity: string | null = null;
+	if (row.type === "Research") {
+		const researchBody = row.description?.trim() ?? "";
+		problemOpportunity = researchBody.length > 0 ? researchBody : row.title;
+	}
 	return {
-		expectedOutcome: row.type === "Research" ? (row.description ?? null) : null,
+		expectedOutcome: null,
 		horizon: asHorizon(row.horizon),
 		id: row.id,
 		key: row.key,
-		openSourceRecord: ROADMAP_COPY.openSourceRecord,
 		originWorkId,
-		problemOpportunity: row.type === "Research" ? row.title : null,
+		problemOpportunity,
 		role: primary ? ROADMAP_COPY.primary : ROADMAP_COPY.secondary,
 		status: row.status,
 		title: row.title,
@@ -354,7 +359,7 @@ function groupItems(
 			}
 			return value === label;
 		}),
-		label: label === "" ? ROADMAP_COPY.allHorizons : label,
+		label: label === "" ? ROADMAP_COPY.unplaced : label,
 	}));
 }
 
