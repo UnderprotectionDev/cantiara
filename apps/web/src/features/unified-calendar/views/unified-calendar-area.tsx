@@ -113,7 +113,7 @@ export default function UnifiedCalendarArea() {
 				return;
 			}
 			markUnsaved();
-			const result = attemptOnlineWork("record-create", () =>
+			const result = attemptOnlineWork("planning-change", () =>
 				move.mutateAsync({
 					baseRevision: draft.revision,
 					idempotencyKey: newIdempotencyKey(),
@@ -175,7 +175,7 @@ export default function UnifiedCalendarArea() {
 			return;
 		}
 		markUnsaved();
-		const result = attemptOnlineWork("record-create", () =>
+		const result = attemptOnlineWork("planning-change", () =>
 			undoMove.mutateAsync({
 				baseRevision: lastMove.revision,
 				historyEntryId: lastMove.historyEntryId,

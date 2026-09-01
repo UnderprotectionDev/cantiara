@@ -686,4 +686,30 @@ describe("Unified Calendar", () => {
 			},
 		});
 	});
+
+	it("moving Reappear date does not write Planned start or Target date", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const dated = await setDates(intake, {
+			plannedStart: "2026-08-31",
+			reappearDate: "2026-09-02",
+			targetDate: "2026-09-04",
+		});
+		const moved = await calendar().moveRepresentedDate({
+			baseRevision: dated.revision,
+			idempotencyKey: `move-reappear-${dated.id}`,
+			kind: "Reappear date",
+			toDate: "2026-09-05",
+			workId: dated.id,
+		});
+		expect(moved).toMatchObject({
+			status: "committed",
+			work: {
+				plannedStart: "2026-08-31",
+				reappearDate: "2026-09-05",
+				status: "Not Started",
+				targetDate: "2026-09-04",
+			},
+		});
+	});
 });
