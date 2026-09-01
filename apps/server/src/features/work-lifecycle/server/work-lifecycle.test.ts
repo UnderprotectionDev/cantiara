@@ -365,6 +365,7 @@ describe("Work Lifecycle", () => {
 				lightChecklist: [],
 				number: 1,
 				origin: origins[0],
+				plannedStart: null,
 				projectId: "project-1",
 				reappearDate: null,
 				relations: [],
@@ -540,6 +541,7 @@ describe("Work Lifecycle", () => {
 			baseRevision: created.work.revision,
 			idempotencyKey: "set-dates",
 			origin: "human",
+			plannedStart: "2026-08-28",
 			reappearDate: "2026-08-31",
 			targetDate: "2026-09-03",
 			workId: created.work.id,
@@ -548,6 +550,7 @@ describe("Work Lifecycle", () => {
 			status: "committed",
 			work: {
 				id: created.work.id,
+				plannedStart: "2026-08-28",
 				reappearDate: "2026-08-31",
 				status: created.work.status,
 				targetDate: "2026-09-03",

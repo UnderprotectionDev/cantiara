@@ -64,6 +64,7 @@ export const WORK_LIFECYCLE_COPY = {
 	onTrack: "On Track",
 	openSourceRecord: "Open source record",
 	origin: "Origin",
+	plannedStart: "Planned start",
 	primarySpec: "Primary spec",
 	reappearDate: "Reappear date",
 	reason: "Reason",

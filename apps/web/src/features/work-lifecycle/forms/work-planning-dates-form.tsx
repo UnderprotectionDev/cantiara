@@ -13,12 +13,14 @@ import { invalidateWork } from "./invalidate-work";
 import { WORK_LIFECYCLE_COPY } from "./work-lifecycle-copy";
 
 export default function WorkPlanningDatesForm({
+	plannedStart,
 	projectId,
 	reappearDate,
 	revision,
 	targetDate,
 	workId,
 }: {
+	plannedStart: string | null;
 	projectId: string;
 	reappearDate: string | null;
 	revision: number;
@@ -46,12 +48,14 @@ export default function WorkPlanningDatesForm({
 			setError(null);
 			markUnsaved();
 			const form = new FormData(event.currentTarget);
+			const nextPlanned = String(form.get("plannedStart") ?? "");
 			const nextTarget = String(form.get("targetDate") ?? "");
 			const nextReappear = String(form.get("reappearDate") ?? "");
 			const result = attemptOnlineWork("record-create", () =>
 				save.mutateAsync({
 					baseRevision: revision,
 					idempotencyKey: newIdempotencyKey(),
+					plannedStart: nextPlanned === "" ? null : nextPlanned,
 					reappearDate: nextReappear === "" ? null : nextReappear,
 					targetDate: nextTarget === "" ? null : nextTarget,
 					workId,
@@ -66,6 +70,17 @@ export default function WorkPlanningDatesForm({
 	);
 	return (
 		<form className="flex flex-col gap-3" onSubmit={onSubmit}>
+			<Field>
+				<FieldLabel htmlFor={`${workId}-planned-start`}>
+					{WORK_LIFECYCLE_COPY.plannedStart}
+				</FieldLabel>
+				<Input
+					defaultValue={plannedStart ?? ""}
+					id={`${workId}-planned-start`}
+					name="plannedStart"
+					type="date"
+				/>
+			</Field>
 			<Field>
 				<FieldLabel htmlFor={`${workId}-target-date`}>
 					{WORK_LIFECYCLE_COPY.targetDate}

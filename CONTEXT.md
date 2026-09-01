@@ -302,6 +302,10 @@ _Avoid_: Bildirim Merkezi, Review later, varsayılan bildirim
 İşin isteğe bağlı hedef günü; planlanan başlangıç, yeniden görünme tarihi, Proje hedef tarihi ve kişisel hatırlatmadan ayrıdır ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `Target date`.
 _Avoid_: Yeniden görünme tarihi, Hatırlatma, due date
 
+**Planlanan başlangıç**:
+İşin ne zaman başlamasının düşünüldüğü isteğe bağlı gün; İş akışı durumunu yazmaz, İşi gizlemez ve otomatik başlatmaz ([planlama yüzeyi–durum ayrımı](docs/prd/06-work-management-and-planning.md#planlama-yüzeyidurum-ayrımı)). UI: `Planned start`.
+_Avoid_: due date, otomatik başlatma, Kanban taşıması, hedef tarihi
+
 **Bugün ne oldu?**:
 Günlük Odak'ta seçili profil gününde gerçekleşen desteklenen önemli olayların ana kaynaklarından türetilmiş salt okunur listesi; Daily Note, kopya gövde veya ikinci olay geçmişi değildir ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `What happened today?`. Satır eylemi: `Open source record`.
 _Avoid_: Daily Note, düzenlenebilir günlük, ikinci olay geçmişi

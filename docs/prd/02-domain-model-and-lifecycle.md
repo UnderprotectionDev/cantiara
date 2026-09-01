@@ -86,6 +86,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kayıt Eylemi | `Record Action` | Kapalı alan ve üyelik adımlarından adlandırılan, tek hedef kayıt üzerinde çalışan birleşik yazma; otomasyon kuralı, Toplu Düzenleme veya betik değildir |
 | Start Work | `Start Work` | Durumu `In Progress` yapan ve İşi Günlük Odak’a ekleyen ilk Kayıt Eylemi örneği |
 | Günlük Odak | `Daily Focus` | Farklı Projelerden seçili profil gününde ele alınacak İşleri toplayan kişisel görünüm; Odak Dönemi, sprint, Aktif Çalışma Seti veya Takvim olayı değildir |
+| Birleşik Takvim | `Calendar` | Desteklenen tarihli kayıtları türleri karışmadan gün, hafta ve ayda gösteren yüzey; durum tahtası, sprint veya Event kaydı değildir |
+| Gün | `Day` | Birleşik Takvimde yalnız seçili gündeki tarih konumlarını gösteren görünüm |
+| Ay | `Month` | Birleşik Takvimde ay penceresindeki konumlar ve başlangıç–hedef aralığı |
+| Bütün Projeler | `All Projects` | Birleşik Takvim kapsamının bütün Projeleri kapsayan seçeneği |
+| Takvimde tarihli İş yok | `No dated Work in this Calendar view.` | Seçili görünüm penceresinde tarihli İş olmadığında boş durum |
 | Seçili gün | `Selected day` | Günlük Odak görünümünün profil saat dilimindeki takvim günü seçici etiketi |
 | Günlük Odakta İş yok | `No Work in Daily Focus for this day.` | Seçili günde üyelik olmadığında boş durum |
 | Odağı kapat | `Close focus` | Günlük Odak’ta seçili gün için isteğe bağlı sakin kapanış görünümü; açık İşi kapatmaz |

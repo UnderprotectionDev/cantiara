@@ -1,5 +1,6 @@
 export const FOUNDER_CHROME_COPY = {
 	account: "Account",
+	calendar: "Calendar",
 	capture: "Capture",
 	dailyFocus: "Daily Focus",
 	drafts: "Drafts",
@@ -13,6 +14,7 @@ export const FOUNDER_CHROME_COPY = {
 export const FOUNDER_MAIN_ID = "main-content";
 
 export const FOUNDER_CHROME_PATHS = {
+	calendar: "/calendar",
 	capture: "/capture",
 	dailyFocus: "/daily-focus",
 	drafts: "/drafts",
@@ -34,6 +36,10 @@ export function founderChromeNav() {
 		{
 			label: FOUNDER_CHROME_COPY.dailyFocus,
 			to: FOUNDER_CHROME_PATHS.dailyFocus,
+		},
+		{
+			label: FOUNDER_CHROME_COPY.calendar,
+			to: FOUNDER_CHROME_PATHS.calendar,
 		},
 		{
 			label: FOUNDER_CHROME_COPY.projects,

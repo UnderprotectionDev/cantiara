@@ -23,6 +23,7 @@ model Work {
   archived              Boolean                @default(false)
   trashedAt             DateTime?
   targetDate            String?
+  plannedStart          String?
   reappearDate          String?
   retiredIntoId         String?
   retiredInto           Work?                  @relation("WorkRetiredIdentity", fields: [retiredIntoId], references: [id], onDelete: SetNull)
@@ -57,6 +58,8 @@ model Work {
   @@index([projectId, archived])
   @@index([projectId, trashedAt])
   @@index([projectId, reappearDate])
+  @@index([projectId, plannedStart])
+  @@index([projectId, targetDate])
   @@map("work")
 }
 
