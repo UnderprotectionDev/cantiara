@@ -1,5 +1,3 @@
-import { UNIFIED_CALENDAR_COPY } from "./unified-calendar-copy";
-
 export interface CalendarKindMark {
 	date: string;
 	kind: string;
@@ -11,6 +9,11 @@ export interface CalendarVisibleRow {
 	kinds: CalendarKindMark[];
 	projectName: string;
 	title: string;
+}
+
+export interface CalendarDaySection {
+	date: string;
+	rows: CalendarVisibleRow[];
 }
 
 export function calendarVisibleRows(input: {
@@ -51,17 +54,25 @@ export function calendarVisibleRows(input: {
 	];
 }
 
-export function kindsStaySeparate(
-	rows: readonly CalendarVisibleRow[]
-): boolean {
-	return rows.every((row) =>
-		row.kinds.every(
-			(mark) =>
-				mark.kind === UNIFIED_CALENDAR_COPY.plannedStart ||
-				mark.kind === UNIFIED_CALENDAR_COPY.targetDate ||
-				mark.kind === UNIFIED_CALENDAR_COPY.reappearDate
-		)
-	);
+export function calendarDaySections(
+	days: readonly {
+		date: string;
+		positions: Parameters<typeof calendarVisibleRows>[0]["positions"];
+		ranges: Parameters<typeof calendarVisibleRows>[0]["ranges"];
+	}[]
+): CalendarDaySection[] {
+	return days
+		.map((day) => ({
+			date: day.date,
+			rows: calendarVisibleRows({
+				positions: day.positions,
+				ranges: day.ranges,
+			}).map((row) => ({
+				...row,
+				id: `${row.id}-${day.date}`,
+			})),
+		}))
+		.filter((section) => section.rows.length > 0);
 }
 
 function workHref(projectId: string, workId: string): string {

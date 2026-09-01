@@ -16,8 +16,8 @@ import { orpc } from "@/utils/orpc";
 import { UNIFIED_CALENDAR_COPY } from "./unified-calendar-copy";
 import { calendarListPresentation } from "./unified-calendar-list-presentation";
 import {
-	type CalendarVisibleRow,
-	calendarVisibleRows,
+	type CalendarDaySection,
+	calendarDaySections,
 } from "./unified-calendar-rows";
 
 type CalendarViewName = "Day" | "Week" | "Month";
@@ -52,14 +52,11 @@ export default function UnifiedCalendarArea() {
 		},
 		[]
 	);
-	const rows = query.data
-		? calendarVisibleRows({
-				positions: query.data.positions,
-				ranges: query.data.ranges,
-			})
+	const sections = query.data
+		? calendarDaySections(query.data.days)
 		: undefined;
 	const presentation = calendarListPresentation({
-		data: rows,
+		data: sections,
 		isError: query.isError,
 		isPending: query.isPending,
 	});
@@ -123,7 +120,7 @@ function CalendarItems({
 	selectedView,
 }: {
 	copy: typeof UNIFIED_CALENDAR_COPY;
-	presentation: ReturnType<typeof calendarListPresentation<CalendarVisibleRow>>;
+	presentation: ReturnType<typeof calendarListPresentation<CalendarDaySection>>;
 	selectedView: string;
 }) {
 	if (presentation.kind === "failed") {
@@ -136,24 +133,35 @@ function CalendarItems({
 		return <p>{copy.empty}</p>;
 	}
 	return (
-		<ul aria-label={selectedView}>
-			{presentation.items.map((item) => (
-				<li
-					className="flex items-center justify-between gap-3 border-border border-b py-3"
-					key={item.id}
-				>
-					<a
-						className="min-w-0 truncate text-sm underline-offset-4 hover:underline"
-						href={item.href}
-					>
-						<span className="font-medium">{item.title}</span>
-						<span className="text-muted-foreground">{` · ${item.projectName}`}</span>
-					</a>
-					<span className="shrink-0 text-muted-foreground text-sm">
-						{item.kinds.map((mark) => `${mark.kind} ${mark.date}`).join(" · ")}
-					</span>
-				</li>
+		<section aria-label={selectedView}>
+			{presentation.items.map((section) => (
+				<section className="mb-6" key={section.date}>
+					<h2 className="mb-1 font-medium text-muted-foreground text-sm">
+						{section.date}
+					</h2>
+					<ul aria-label={section.date}>
+						{section.rows.map((item) => (
+							<li
+								className="flex items-center justify-between gap-3 border-border border-b py-3"
+								key={item.id}
+							>
+								<a
+									className="min-w-0 truncate text-sm underline-offset-4 hover:underline"
+									href={item.href}
+								>
+									<span className="font-medium">{item.title}</span>
+									<span className="text-muted-foreground">{` · ${item.projectName}`}</span>
+								</a>
+								<span className="shrink-0 text-muted-foreground text-sm">
+									{item.kinds
+										.map((mark) => `${mark.kind} ${mark.date}`)
+										.join(" · ")}
+								</span>
+							</li>
+						))}
+					</ul>
+				</section>
 			))}
-		</ul>
+		</section>
 	);
 }

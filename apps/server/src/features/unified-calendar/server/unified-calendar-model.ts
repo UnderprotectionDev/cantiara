@@ -84,6 +84,14 @@ export const calendarRangeSchema = calendarWorkSchema.extend({
 
 export type CalendarRange = z.infer<typeof calendarRangeSchema>;
 
+export const calendarDaySliceSchema = z.object({
+	date: calendarDaySchema,
+	positions: z.array(calendarPositionSchema),
+	ranges: z.array(calendarRangeSchema),
+});
+
+export type CalendarDaySlice = z.infer<typeof calendarDaySliceSchema>;
+
 export const calendarProjectSchema = z.object({
 	id: z.string().min(1),
 	name: z.string().min(1),
@@ -115,6 +123,7 @@ export const unifiedCalendarViewSchema = z.object({
 		sprint: z.literal(false),
 		statusBoard: z.literal(false),
 	}),
+	days: z.array(calendarDaySliceSchema),
 	eventRecord: z.literal(false),
 	plannedStart: z.object({
 		autoStarts: z.literal(false),
@@ -229,6 +238,45 @@ export function presentCalendarWindow(input: {
 		}
 	}
 	return { positions, ranges };
+}
+
+function rangeCoversDate(range: CalendarRange, date: string): boolean {
+	const start =
+		range.start.date <= range.end.date ? range.start.date : range.end.date;
+	const end =
+		range.start.date <= range.end.date ? range.end.date : range.start.date;
+	return start <= date && date <= end;
+}
+
+function eachCalendarDateInclusive(start: string, end: string): string[] {
+	const dates: string[] = [];
+	let current = start;
+	while (current <= end) {
+		dates.push(current);
+		current = addCalendarDays(current, 1);
+	}
+	return dates;
+}
+
+/** Day: one slice, ranges empty. Week/month: every date in the window; a start–target range appears on each day it covers. */
+export function presentCalendarDays(input: {
+	calendarDay: string;
+	rangeEnd: string;
+	rangeStart: string;
+	view: CalendarViewName;
+	works: readonly DatedCalendarWork[];
+}): CalendarDaySlice[] {
+	const presented = presentCalendarWindow(input);
+	const dayView = input.view === UNIFIED_CALENDAR_COPY.day;
+	const windowStart = dayView ? input.calendarDay : input.rangeStart;
+	const windowEnd = dayView ? input.calendarDay : input.rangeEnd;
+	return eachCalendarDateInclusive(windowStart, windowEnd).map((date) => ({
+		date,
+		positions: presented.positions.filter((position) => position.date === date),
+		ranges: dayView
+			? []
+			: presented.ranges.filter((range) => rangeCoversDate(range, date)),
+	}));
 }
 
 export function addCalendarDays(day: string, days: number): string {

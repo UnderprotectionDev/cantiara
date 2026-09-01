@@ -17,6 +17,7 @@ import {
 	type DatedCalendarWork,
 	monthWindow,
 	PLANNED_START_EFFECTS,
+	presentCalendarDays,
 	presentCalendarWindow,
 	UNIFIED_CALENDAR_COPY,
 	type UnifiedCalendarView,
@@ -80,17 +81,19 @@ export function createUnifiedCalendar(
 			input.workspaceId,
 			projectId
 		);
-		const presented = presentCalendarWindow({
+		const windowInput = {
 			calendarDay: calendarDayValue,
 			rangeEnd: window.rangeEnd,
 			rangeStart: window.rangeStart,
 			view: viewName,
 			works,
-		});
+		};
+		const presented = presentCalendarWindow(windowInput);
 		return {
 			calendarDay: calendarDayValue,
 			copy: UNIFIED_CALENDAR_COPY,
 			counterparts: CALENDAR_COUNTERPARTS,
+			days: presentCalendarDays(windowInput),
 			eventRecord: CALENDAR_EVENT_RECORD,
 			plannedStart: PLANNED_START_EFFECTS,
 			positions: presented.positions,

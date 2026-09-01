@@ -26,6 +26,7 @@ import {
 	CALENDAR_EVENT_RECORD,
 	DATE_KINDS,
 	PLANNED_START_EFFECTS,
+	presentCalendarDays,
 	presentCalendarWindow,
 	UNIFIED_CALENDAR_COPY,
 	unifiedCalendarCatalog,
@@ -148,6 +149,109 @@ describe("Unified Calendar catalog", () => {
 		});
 		expect(midpointDay.ranges).toEqual([]);
 		expect(midpointDay.positions).toEqual([]);
+	});
+
+	it("keeps start-only and start+reappear as positions, never a range", () => {
+		const weekWindow = {
+			calendarDay: "2026-09-02",
+			rangeEnd: "2026-09-06",
+			rangeStart: "2026-08-31",
+			view: "Week" as const,
+		};
+		const startOnly = presentCalendarWindow({
+			...weekWindow,
+			works: [{ ...SPAN_WORK, reappearDate: null, targetDate: null }],
+		});
+		expect(startOnly.ranges).toEqual([]);
+		expect(startOnly.positions).toEqual([
+			{
+				date: "2026-08-31",
+				id: SPAN_WORK.id,
+				key: SPAN_WORK.key,
+				kind: "Planned start",
+				projectId: SPAN_WORK.projectId,
+				projectName: SPAN_WORK.projectName,
+				title: SPAN_WORK.title,
+			},
+		]);
+
+		const startAndReappear = presentCalendarWindow({
+			...weekWindow,
+			works: [{ ...SPAN_WORK, targetDate: null }],
+		});
+		expect(startAndReappear.ranges).toEqual([]);
+		expect(
+			startAndReappear.positions
+				.map((row) => row.kind)
+				.toSorted((left, right) => left.localeCompare(right))
+		).toEqual(["Planned start", "Reappear date"]);
+	});
+
+	it("places a week range on each spanned day and keeps Day as positions only", () => {
+		const week = presentCalendarDays({
+			calendarDay: "2026-09-02",
+			rangeEnd: "2026-09-06",
+			rangeStart: "2026-08-31",
+			view: "Week",
+			works: [SPAN_WORK],
+		});
+		expect(week.map((day) => day.date)).toEqual([
+			"2026-08-31",
+			"2026-09-01",
+			"2026-09-02",
+			"2026-09-03",
+			"2026-09-04",
+			"2026-09-05",
+			"2026-09-06",
+		]);
+		const spanned = week.filter((day) =>
+			day.ranges.some((range) => range.id === SPAN_WORK.id)
+		);
+		expect(spanned.map((day) => day.date)).toEqual([
+			"2026-08-31",
+			"2026-09-01",
+			"2026-09-02",
+			"2026-09-03",
+			"2026-09-04",
+		]);
+		expect(week.find((day) => day.date === "2026-09-01")?.positions).toEqual(
+			[]
+		);
+		expect(week.find((day) => day.date === "2026-09-02")?.positions).toEqual([
+			expect.objectContaining({ kind: "Reappear date" }),
+		]);
+
+		const plannedStartDay = presentCalendarDays({
+			calendarDay: "2026-08-31",
+			rangeEnd: "2026-09-06",
+			rangeStart: "2026-08-31",
+			view: "Day",
+			works: [SPAN_WORK],
+		});
+		expect(plannedStartDay).toEqual([
+			{
+				date: "2026-08-31",
+				positions: [
+					expect.objectContaining({
+						date: "2026-08-31",
+						kind: "Planned start",
+					}),
+				],
+				ranges: [],
+			},
+		]);
+
+		const targetDay = presentCalendarDays({
+			calendarDay: "2026-09-04",
+			rangeEnd: "2026-09-06",
+			rangeStart: "2026-08-31",
+			view: "Day",
+			works: [SPAN_WORK],
+		});
+		expect(targetDay[0]?.ranges).toEqual([]);
+		expect(targetDay[0]?.positions.map((row) => row.kind)).toEqual([
+			"Target date",
+		]);
 	});
 });
 
@@ -305,6 +409,31 @@ describe("Unified Calendar", () => {
 		});
 		expect(month.ranges).toHaveLength(1);
 		expect(month.positions.map((row) => row.kind)).toEqual(["Reappear date"]);
+		expect(
+			week.days
+				.filter((slice) => slice.ranges.some((range) => range.id === intake.id))
+				.map((slice) => slice.date)
+		).toEqual([
+			"2026-08-31",
+			"2026-09-01",
+			"2026-09-02",
+			"2026-09-03",
+			"2026-09-04",
+		]);
+		const startDay = await surface.view({
+			calendarDay: "2026-08-31",
+			view: "Day",
+		});
+		expect(startDay.days).toEqual([
+			expect.objectContaining({
+				date: "2026-08-31",
+				ranges: [],
+			}),
+		]);
+		expect(startDay.days[0]?.positions.map((row) => row.kind)).toEqual([
+			"Planned start",
+		]);
+		expect(startDay.ranges).toEqual([]);
 	});
 
 	it("scopes to all Projects or one selected Project", async () => {
