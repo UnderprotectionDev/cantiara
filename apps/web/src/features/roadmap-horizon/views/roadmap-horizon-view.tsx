@@ -14,6 +14,7 @@ import { orpc, queryClient } from "@/utils/orpc";
 import { ROADMAP_COPY, ROADMAP_HORIZONS } from "./roadmap-copy";
 
 interface RoadmapItem {
+	expectedOutcome: string | null;
 	horizon: string | null;
 	id: string;
 	key: string;
@@ -103,7 +104,6 @@ export default function RoadmapHorizonView({
 				return;
 			}
 			save.mutate({
-				groupField: ROADMAP_COPY.horizon,
 				horizonFilter:
 					horizonFilter === ROADMAP_COPY.now ||
 					horizonFilter === ROADMAP_COPY.next ||
@@ -218,6 +218,11 @@ function RoadmapWorkRow({
 				<span>
 					{item.problemOpportunity ?? item.title} · {item.role}
 				</span>
+				{item.expectedOutcome ? (
+					<span className="text-muted-foreground text-xs">
+						{item.expectedOutcome}
+					</span>
+				) : null}
 				{item.horizon ? (
 					<span className="text-muted-foreground text-xs">{item.horizon}</span>
 				) : null}

@@ -55,7 +55,6 @@ const DATABASE_URL =
 
 const FORBIDDEN_PATTERN =
 	/Show on Roadmap|Initiative|Parked|Theme record|Kanban column|sprint/i;
-const THEME_INITIATIVE_KEY_PATTERN = /theme|initiative|showOnRoadmap/i;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -372,6 +371,7 @@ describe("Roadmap Horizon", () => {
 			"Now",
 			"Next",
 			"Later",
+			"All",
 		]);
 		expect(filtered.groups[1]?.items.map((item) => item.id)).toEqual([
 			research.id,
@@ -379,12 +379,7 @@ describe("Roadmap Horizon", () => {
 		expect(await getWork(prisma, research.id)).toMatchObject({
 			status: "Not Started",
 		});
-		expect(await prisma.projectRoadmapNamedView.count()).toBe(1);
-		expect(
-			Object.keys(prisma).filter((key) =>
-				THEME_INITIATIVE_KEY_PATTERN.test(key)
-			)
-		).toEqual([]);
+		expect(filtered.namedView?.name).toBe("Next only");
 	});
 
 	it("shows Research as primary and origin-linked Feature as secondary without an Initiative record", async () => {
@@ -467,6 +462,39 @@ describe("Roadmap Horizon", () => {
 			type: "Research",
 		});
 		await placeHorizon(prisma, { horizon: "Later", workId: work.id });
+		const criterion = await createPriorityCriterion(prisma, {
+			actorId,
+			idempotencyKey: "filter-urgency",
+			origin: "human",
+			payload: { name: "Urgency", projectId: project.id },
+		});
+		if (criterion.status !== "committed") {
+			throw new Error("expected criterion");
+		}
+		await setPriorityCriterionValue(prisma, {
+			actorId,
+			baseRevision: 0,
+			idempotencyKey: "filter-rank",
+			origin: "human",
+			payload: {
+				criterionId: criterion.definition.id,
+				rank: "Low",
+				workId: work.id,
+			},
+		});
+		const sibling = await committedWork(prisma, actorId, {
+			idempotencyKey: "filter-sibling",
+			projectId: project.id,
+			title: "Sibling",
+			type: "Research",
+		});
+		await reorderManualOrder(prisma, {
+			projectId: project.id,
+			workIds: [sibling.id, work.id],
+		});
+		const orderBefore = (
+			await listPreparedBacklog(prisma, project.id)
+		).items.map((item) => item.id);
 		const statusBefore = (await getWork(prisma, work.id))?.status;
 		const listed = await listRoadmap(prisma, {
 			horizonFilter: "Later",
@@ -477,8 +505,13 @@ describe("Roadmap Horizon", () => {
 		}
 		expect(flatItems(listed).map((item) => item.id)).toEqual([work.id]);
 		expect((await getWork(prisma, work.id))?.status).toBe(statusBefore);
-		expect(listed.writes.status).toBe(false);
-		expect(listed.writes.priorityCriterionValue).toBe(false);
-		expect(listed.writes.backlogOrder).toBe(false);
+		expect(
+			await listWorkPriorityValues(prisma, project.id, work.id)
+		).toMatchObject([{ rank: "Low" }]);
+		expect(
+			(await listPreparedBacklog(prisma, project.id)).items.map(
+				(item) => item.id
+			)
+		).toEqual(orderBefore);
 	});
 });

@@ -21,6 +21,7 @@ import PriorityMap from "@/features/priority/views/priority-map";
 import {
 	PROJECT_SHELL_COPY,
 	projectShellAnchor,
+	workSavedViewIsRoadmap,
 } from "@/features/project-shell/forms/project-shell-copy";
 import RoadmapHorizonView from "@/features/roadmap-horizon/views/roadmap-horizon-view";
 import TagFilter from "@/features/tags/views/tag-filter";
@@ -266,7 +267,7 @@ export default function WorkArea({
 			{!unavailableView &&
 			surface === "list" &&
 			savedView !== "Board" &&
-			savedView !== "Roadmap" ? (
+			!workSavedViewIsRoadmap(savedView ?? "") ? (
 				<BulkEditPreview
 					filterWorkIds={items.map((item) => item.id)}
 					projectId={projectId}
@@ -435,7 +436,7 @@ function WorkCollectionSurface({
 			/>
 		);
 	}
-	if (savedView === "Roadmap") {
+	if (workSavedViewIsRoadmap(savedView ?? "")) {
 		return (
 			<RoadmapHorizonView
 				onOpenSourceRecord={onOpenSourceRecord}

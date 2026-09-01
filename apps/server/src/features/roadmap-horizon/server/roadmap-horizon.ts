@@ -294,7 +294,7 @@ function matchesPresentation(
 	if (row.type === "Research") {
 		return true;
 	}
-	return originLinks.has(row.id);
+	return row.type === "Feature" && originLinks.has(row.id);
 }
 
 function toItem(
@@ -343,12 +343,18 @@ function groupItems(
 	}
 	const keys =
 		groupField === ROADMAP_COPY.horizon
-			? [ROADMAP_COPY.now, ROADMAP_COPY.next, ROADMAP_COPY.later]
+			? [ROADMAP_COPY.now, ROADMAP_COPY.next, ROADMAP_COPY.later, ""]
 			: uniqueTypes(items);
 	return keys.map((label) => ({
 		field: groupField,
-		items: items.filter((item) => groupValue(item, groupField) === label),
-		label,
+		items: items.filter((item) => {
+			const value = groupValue(item, groupField);
+			if (label === "") {
+				return value === null;
+			}
+			return value === label;
+		}),
+		label: label === "" ? ROADMAP_COPY.allHorizons : label,
 	}));
 }
 
