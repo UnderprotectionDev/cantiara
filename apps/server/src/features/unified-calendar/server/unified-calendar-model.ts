@@ -3,15 +3,19 @@ import { z } from "zod";
 export const UNIFIED_CALENDAR_COPY = {
 	allProjects: "All Projects",
 	calendar: "Calendar",
+	cancel: "Cancel",
+	confirm: "Confirm",
 	day: "Day",
 	empty: "No dated Work in this Calendar view.",
 	loading: "Loading…",
 	month: "Month",
 	plannedStart: "Planned start",
+	preview: "Preview",
 	project: "Project",
 	reappearDate: "Reappear date",
 	selectedDay: "Selected day",
 	targetDate: "Target date",
+	undo: "Undo",
 	week: "Week",
 } as const;
 
@@ -54,11 +58,20 @@ export const PLANNED_START_EFFECTS = {
 	writesStatus: false,
 } as const;
 
+export const DATE_MOVE_COUNTERPARTS = {
+	eventRecord: false,
+	externalCalendar: false,
+	personalReminder: false,
+	writesOtherDateFields: false,
+	writesStatus: false,
+} as const;
+
 export const calendarWorkSchema = z.object({
 	id: z.string().min(1),
 	key: z.string().min(1),
 	projectId: z.string().min(1),
 	projectName: z.string().min(1),
+	revision: z.number().int().nonnegative(),
 	title: z.string().min(1),
 });
 
@@ -104,15 +117,19 @@ export const unifiedCalendarViewSchema = z.object({
 	copy: z.object({
 		allProjects: z.literal(UNIFIED_CALENDAR_COPY.allProjects),
 		calendar: z.literal(UNIFIED_CALENDAR_COPY.calendar),
+		cancel: z.literal(UNIFIED_CALENDAR_COPY.cancel),
+		confirm: z.literal(UNIFIED_CALENDAR_COPY.confirm),
 		day: z.literal(UNIFIED_CALENDAR_COPY.day),
 		empty: z.literal(UNIFIED_CALENDAR_COPY.empty),
 		loading: z.literal(UNIFIED_CALENDAR_COPY.loading),
 		month: z.literal(UNIFIED_CALENDAR_COPY.month),
 		plannedStart: z.literal(UNIFIED_CALENDAR_COPY.plannedStart),
+		preview: z.literal(UNIFIED_CALENDAR_COPY.preview),
 		project: z.literal(UNIFIED_CALENDAR_COPY.project),
 		reappearDate: z.literal(UNIFIED_CALENDAR_COPY.reappearDate),
 		selectedDay: z.literal(UNIFIED_CALENDAR_COPY.selectedDay),
 		targetDate: z.literal(UNIFIED_CALENDAR_COPY.targetDate),
+		undo: z.literal(UNIFIED_CALENDAR_COPY.undo),
 		week: z.literal(UNIFIED_CALENDAR_COPY.week),
 	}),
 	counterparts: z.object({
@@ -122,6 +139,13 @@ export const unifiedCalendarViewSchema = z.object({
 		roadmap: z.literal(false),
 		sprint: z.literal(false),
 		statusBoard: z.literal(false),
+	}),
+	dateMove: z.object({
+		eventRecord: z.literal(false),
+		externalCalendar: z.literal(false),
+		personalReminder: z.literal(false),
+		writesOtherDateFields: z.literal(false),
+		writesStatus: z.literal(false),
 	}),
 	days: z.array(calendarDaySliceSchema),
 	eventRecord: z.literal(false),
@@ -189,6 +213,7 @@ export function presentCalendarWindow(input: {
 			key: work.key,
 			projectId: work.projectId,
 			projectName: work.projectName,
+			revision: work.revision,
 			title: work.title,
 		};
 		if (
@@ -299,11 +324,64 @@ export function monthWindow(day: string): {
 	return { rangeEnd: `${year}-${pad(month ?? 1)}-${pad(last)}`, rangeStart };
 }
 
+export const calendarDateKindSchema = z.enum(DATE_KINDS);
+
+export const representedDateMovePreviewSchema = z.object({
+	cancel: z.literal(UNIFIED_CALENDAR_COPY.cancel),
+	confirm: z.literal(UNIFIED_CALENDAR_COPY.confirm),
+	eventRecord: z.literal(false),
+	externalCalendar: z.literal(false),
+	fromDate: calendarDaySchema,
+	kind: calendarDateKindSchema,
+	personalReminder: z.literal(false),
+	toDate: calendarDaySchema,
+	undo: z.literal(UNIFIED_CALENDAR_COPY.undo),
+	writesOtherDateFields: z.literal(false),
+	writesStatus: z.literal(false),
+});
+
+export type RepresentedDateMovePreview = z.infer<
+	typeof representedDateMovePreviewSchema
+>;
+
+export function previewRepresentedDateMove(input: {
+	fromDate: string;
+	kind: CalendarDateKind;
+	toDate: string;
+}): RepresentedDateMovePreview {
+	return {
+		cancel: UNIFIED_CALENDAR_COPY.cancel,
+		confirm: UNIFIED_CALENDAR_COPY.confirm,
+		eventRecord: DATE_MOVE_COUNTERPARTS.eventRecord,
+		externalCalendar: DATE_MOVE_COUNTERPARTS.externalCalendar,
+		fromDate: calendarDaySchema.parse(input.fromDate),
+		kind: calendarDateKindSchema.parse(input.kind),
+		personalReminder: DATE_MOVE_COUNTERPARTS.personalReminder,
+		toDate: calendarDaySchema.parse(input.toDate),
+		undo: UNIFIED_CALENDAR_COPY.undo,
+		writesOtherDateFields: DATE_MOVE_COUNTERPARTS.writesOtherDateFields,
+		writesStatus: DATE_MOVE_COUNTERPARTS.writesStatus,
+	};
+}
+
+export function fieldForDateKind(
+	kind: CalendarDateKind
+): "plannedStart" | "reappearDate" | "targetDate" {
+	if (kind === UNIFIED_CALENDAR_COPY.plannedStart) {
+		return "plannedStart";
+	}
+	if (kind === UNIFIED_CALENDAR_COPY.reappearDate) {
+		return "reappearDate";
+	}
+	return "targetDate";
+}
+
 export function unifiedCalendarCatalog() {
 	return {
 		copy: UNIFIED_CALENDAR_COPY,
 		counterparts: CALENDAR_COUNTERPARTS,
 		dateKinds: DATE_KINDS,
+		dateMove: DATE_MOVE_COUNTERPARTS,
 		eventRecord: CALENDAR_EVENT_RECORD,
 		kind: "unified-calendar" as const,
 		plannedStart: PLANNED_START_EFFECTS,

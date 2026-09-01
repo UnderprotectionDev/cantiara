@@ -8,7 +8,9 @@ export interface CalendarVisibleRow {
 	id: string;
 	kinds: CalendarKindMark[];
 	projectName: string;
+	revision: number;
 	title: string;
+	workId: string;
 }
 
 export interface CalendarDaySection {
@@ -24,6 +26,7 @@ export function calendarVisibleRows(input: {
 		kind: string;
 		projectId: string;
 		projectName: string;
+		revision: number;
 		title: string;
 	}[];
 	ranges: readonly {
@@ -32,6 +35,7 @@ export function calendarVisibleRows(input: {
 		key: string;
 		projectId: string;
 		projectName: string;
+		revision: number;
 		start: { date: string; kind: string };
 		title: string;
 	}[];
@@ -42,14 +46,18 @@ export function calendarVisibleRows(input: {
 			id: `${row.id}-range`,
 			kinds: [row.start, row.end],
 			projectName: row.projectName,
+			revision: row.revision,
 			title: `${row.key} ${row.title}`,
+			workId: row.id,
 		})),
 		...input.positions.map((row) => ({
 			href: workHref(row.projectId, row.id),
 			id: `${row.id}-${row.kind}`,
 			kinds: [{ date: row.date, kind: row.kind }],
 			projectName: row.projectName,
+			revision: row.revision,
 			title: `${row.key} ${row.title}`,
+			workId: row.id,
 		})),
 	];
 }

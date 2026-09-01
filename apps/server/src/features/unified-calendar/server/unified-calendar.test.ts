@@ -28,6 +28,7 @@ import {
 	PLANNED_START_EFFECTS,
 	presentCalendarDays,
 	presentCalendarWindow,
+	previewRepresentedDateMove,
 	UNIFIED_CALENDAR_COPY,
 	unifiedCalendarCatalog,
 } from "./unified-calendar-model";
@@ -47,6 +48,7 @@ const SPAN_WORK = {
 	projectId: "project-1",
 	projectName: "Payments",
 	reappearDate: "2026-09-02",
+	revision: 1,
 	targetDate: "2026-09-04",
 	title: "Checkout span",
 };
@@ -57,6 +59,13 @@ describe("Unified Calendar catalog", () => {
 			copy: UNIFIED_CALENDAR_COPY,
 			counterparts: CALENDAR_COUNTERPARTS,
 			dateKinds: DATE_KINDS,
+			dateMove: {
+				eventRecord: false,
+				externalCalendar: false,
+				personalReminder: false,
+				writesOtherDateFields: false,
+				writesStatus: false,
+			},
 			eventRecord: CALENDAR_EVENT_RECORD,
 			kind: "unified-calendar",
 			plannedStart: PLANNED_START_EFFECTS,
@@ -83,6 +92,40 @@ describe("Unified Calendar catalog", () => {
 		expect(JSON.stringify(unifiedCalendarCatalog().copy)).not.toMatch(
 			FORBIDDEN_SURFACE
 		);
+		expect(unifiedCalendarCatalog().dateMove).toEqual({
+			eventRecord: false,
+			externalCalendar: false,
+			personalReminder: false,
+			writesOtherDateFields: false,
+			writesStatus: false,
+		});
+		expect(UNIFIED_CALENDAR_COPY.preview).toBe("Preview");
+		expect(UNIFIED_CALENDAR_COPY.confirm).toBe("Confirm");
+		expect(UNIFIED_CALENDAR_COPY.cancel).toBe("Cancel");
+		expect(UNIFIED_CALENDAR_COPY.undo).toBe("Undo");
+	});
+
+	it("previews a represented date move as kind plus old and new values without mixing fields", () => {
+		const preview = previewRepresentedDateMove({
+			fromDate: "2026-09-04",
+			kind: "Target date",
+			toDate: "2026-09-06",
+		});
+		expect(preview).toEqual({
+			cancel: "Cancel",
+			confirm: "Confirm",
+			eventRecord: false,
+			externalCalendar: false,
+			fromDate: "2026-09-04",
+			kind: "Target date",
+			personalReminder: false,
+			toDate: "2026-09-06",
+			undo: "Undo",
+			writesOtherDateFields: false,
+			writesStatus: false,
+		});
+		expect(preview.kind).not.toBe("Planned start");
+		expect(preview.kind).not.toBe("Reappear date");
 	});
 
 	it("keeps kinds unmixed and uses a range only for start+target in week and month", () => {
@@ -100,6 +143,7 @@ describe("Unified Calendar catalog", () => {
 				key: SPAN_WORK.key,
 				projectId: SPAN_WORK.projectId,
 				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
 				start: { date: "2026-08-31", kind: "Planned start" },
 				title: SPAN_WORK.title,
 			},
@@ -112,6 +156,7 @@ describe("Unified Calendar catalog", () => {
 				kind: "Reappear date",
 				projectId: SPAN_WORK.projectId,
 				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
 				title: SPAN_WORK.title,
 			},
 		]);
@@ -136,6 +181,7 @@ describe("Unified Calendar catalog", () => {
 				kind: "Reappear date",
 				projectId: SPAN_WORK.projectId,
 				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
 				title: SPAN_WORK.title,
 			},
 		]);
@@ -171,6 +217,7 @@ describe("Unified Calendar catalog", () => {
 				kind: "Planned start",
 				projectId: SPAN_WORK.projectId,
 				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
 				title: SPAN_WORK.title,
 			},
 		]);
@@ -500,5 +547,143 @@ describe("Unified Calendar", () => {
 			view: "Day",
 		});
 		expect(stillVisible.positions.map((row) => row.id)).toContain(intake.id);
+	});
+
+	it("previews a Target date move without writing dates, status, or Event records", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const dated = await setDates(intake, {
+			plannedStart: "2026-08-31",
+			reappearDate: "2026-09-02",
+			targetDate: "2026-09-04",
+		});
+		const receiptsBefore = await prisma.mutationReceipt.count({
+			where: { actorId },
+		});
+		const preview = await calendar().previewDateMove({
+			kind: "Target date",
+			toDate: "2026-09-06",
+			workId: dated.id,
+		});
+		expect(preview).toEqual({
+			preview: {
+				cancel: "Cancel",
+				confirm: "Confirm",
+				eventRecord: false,
+				externalCalendar: false,
+				fromDate: "2026-09-04",
+				kind: "Target date",
+				personalReminder: false,
+				toDate: "2026-09-06",
+				undo: "Undo",
+				writesOtherDateFields: false,
+				writesStatus: false,
+			},
+			status: "ready",
+		});
+		const after = await getWork(prisma, dated.id);
+		expect(after?.plannedStart).toBe("2026-08-31");
+		expect(after?.reappearDate).toBe("2026-09-02");
+		expect(after?.targetDate).toBe("2026-09-04");
+		expect(after?.status).toBe("Not Started");
+		expect(await prisma.mutationReceipt.count({ where: { actorId } })).toBe(
+			receiptsBefore
+		);
+	});
+
+	it("writes only the represented date, leaves status, and undoes the field", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const dated = await setDates(intake, {
+			plannedStart: "2026-08-31",
+			reappearDate: "2026-09-02",
+			targetDate: "2026-09-04",
+		});
+		const moved = await calendar().moveRepresentedDate({
+			baseRevision: dated.revision,
+			idempotencyKey: `move-target-${dated.id}`,
+			kind: "Target date",
+			toDate: "2026-09-06",
+			workId: dated.id,
+		});
+		expect(moved).toMatchObject({
+			status: "committed",
+			undo: "Undo",
+			work: {
+				id: dated.id,
+				plannedStart: "2026-08-31",
+				reappearDate: "2026-09-02",
+				status: "Not Started",
+				targetDate: "2026-09-06",
+			},
+		});
+		if (moved.status !== "committed") {
+			throw new Error("expected committed Target date move");
+		}
+		const afterMove = await getWork(prisma, dated.id);
+		expect(afterMove?.plannedStart).toBe("2026-08-31");
+		expect(afterMove?.reappearDate).toBe("2026-09-02");
+		expect(afterMove?.targetDate).toBe("2026-09-06");
+		expect(afterMove?.status).toBe("Not Started");
+		const week = await calendar().view({
+			calendarDay: "2026-09-06",
+			view: "Week",
+		});
+		expect(week.eventRecord).toBe(false);
+		expect(week.dateMove.externalCalendar).toBe(false);
+		expect(week.dateMove.personalReminder).toBe(false);
+		expect(week.ranges).toEqual([
+			expect.objectContaining({
+				end: { date: "2026-09-06", kind: "Target date" },
+				start: { date: "2026-08-31", kind: "Planned start" },
+			}),
+		]);
+		const undone = await calendar().undoRepresentedDateMove({
+			baseRevision: moved.work.revision,
+			historyEntryId: moved.historyEntryId,
+			idempotencyKey: `undo-target-${dated.id}`,
+			workId: dated.id,
+		});
+		expect(undone).toMatchObject({
+			status: "committed",
+			undo: "Undo",
+			work: {
+				plannedStart: "2026-08-31",
+				reappearDate: "2026-09-02",
+				status: "Not Started",
+				targetDate: "2026-09-04",
+			},
+		});
+		const restored = await getWork(prisma, dated.id);
+		expect(restored?.targetDate).toBe("2026-09-04");
+		expect(restored?.plannedStart).toBe("2026-08-31");
+		expect(restored?.reappearDate).toBe("2026-09-02");
+		expect(restored?.status).toBe("Not Started");
+	});
+
+	it("moving Planned start does not write Target date or Reappear date", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const dated = await setDates(intake, {
+			plannedStart: "2026-08-31",
+			reappearDate: "2026-09-02",
+			targetDate: "2026-09-04",
+		});
+		const moved = await calendar().moveRepresentedDate({
+			baseRevision: dated.revision,
+			idempotencyKey: `move-start-${dated.id}`,
+			kind: "Planned start",
+			toDate: "2026-09-01",
+			workId: dated.id,
+		});
+		expect(moved).toMatchObject({
+			status: "committed",
+			work: {
+				plannedStart: "2026-09-01",
+				reappearDate: "2026-09-02",
+				status: "Not Started",
+				targetDate: "2026-09-04",
+			},
+		});
 	});
 });

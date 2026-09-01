@@ -1,14 +1,18 @@
 export const UNIFIED_CALENDAR_COPY = {
 	allProjects: "All Projects",
 	calendar: "Calendar",
+	cancel: "Cancel",
+	confirm: "Confirm",
 	day: "Day",
 	empty: "No dated Work in this Calendar view.",
 	loading: "Loading…",
 	month: "Month",
 	plannedStart: "Planned start",
+	preview: "Preview",
 	project: "Project",
 	reappearDate: "Reappear date",
 	selectedDay: "Selected day",
 	targetDate: "Target date",
+	undo: "Undo",
 	week: "Week",
 } as const;
