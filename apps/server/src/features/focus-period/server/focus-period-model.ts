@@ -11,7 +11,6 @@ export const FOCUS_PERIOD_COPY = {
 	empty: "No Focus Period yet.",
 	endDate: "End date",
 	focusPeriod: "Focus Period",
-	leftoverDecision: "Still-open Work",
 	loading: "Loading…",
 	members: "Work",
 	planned: "Planned",
@@ -19,6 +18,7 @@ export const FOCUS_PERIOD_COPY = {
 	purposeRequired: "Purpose is required.",
 	remove: "Remove",
 	startDate: "Start date",
+	stillOpenWork: "Still-open Work",
 	windowMustBeOneToEightWeeks: "Focus Period must be 1–8 weeks.",
 	work: "Work",
 } as const;
@@ -52,16 +52,12 @@ export const FOCUS_PERIOD_PLANNING_WRITES = {
 } as const;
 
 export const FOCUS_PERIOD_COUNTERPARTS = {
-	cadence: false,
-	capacityScore: false,
 	dailyFocus: false,
 	milestone: false,
 	projectRelease: false,
-	sprint: false,
-	velocity: false,
 } as const;
 
-export const FOCUS_PERIOD_LEFTOVER = {
+export const FOCUS_PERIOD_STILL_OPEN = {
 	autoRollover: false,
 } as const;
 
@@ -107,7 +103,7 @@ export const focusPeriodScopeSchema = z.object({
 
 export type FocusPeriodScope = z.infer<typeof focusPeriodScopeSchema>;
 
-export const leftoverDecisionSchema = z.object({
+export const stillOpenWorkSchema = z.object({
 	autoRollover: z.literal(false),
 	opened: z.boolean(),
 	stillOpen: z.array(focusPeriodWorkSchema),
@@ -126,7 +122,6 @@ export const focusPeriodViewSchema = z.object({
 		empty: z.literal(FOCUS_PERIOD_COPY.empty),
 		endDate: z.literal(FOCUS_PERIOD_COPY.endDate),
 		focusPeriod: z.literal(FOCUS_PERIOD_COPY.focusPeriod),
-		leftoverDecision: z.literal(FOCUS_PERIOD_COPY.leftoverDecision),
 		loading: z.literal(FOCUS_PERIOD_COPY.loading),
 		members: z.literal(FOCUS_PERIOD_COPY.members),
 		planned: z.literal(FOCUS_PERIOD_COPY.planned),
@@ -134,24 +129,20 @@ export const focusPeriodViewSchema = z.object({
 		purposeRequired: z.literal(FOCUS_PERIOD_COPY.purposeRequired),
 		remove: z.literal(FOCUS_PERIOD_COPY.remove),
 		startDate: z.literal(FOCUS_PERIOD_COPY.startDate),
+		stillOpenWork: z.literal(FOCUS_PERIOD_COPY.stillOpenWork),
 		windowMustBeOneToEightWeeks: z.literal(
 			FOCUS_PERIOD_COPY.windowMustBeOneToEightWeeks
 		),
 		work: z.literal(FOCUS_PERIOD_COPY.work),
 	}),
 	counterparts: z.object({
-		cadence: z.literal(false),
-		capacityScore: z.literal(false),
 		dailyFocus: z.literal(false),
 		milestone: z.literal(false),
 		projectRelease: z.literal(false),
-		sprint: z.literal(false),
-		velocity: z.literal(false),
 	}),
 	eligibleWork: z.array(focusPeriodWorkSchema),
 	endDate: calendarDaySchema,
 	id: z.string().min(1),
-	leftoverDecision: leftoverDecisionSchema,
 	members: z.array(focusPeriodWorkSchema),
 	optional: z.literal(true),
 	planningWrites: z.object({
@@ -162,6 +153,7 @@ export const focusPeriodViewSchema = z.object({
 	startDate: calendarDaySchema,
 	startScope: focusPeriodScopeSchema.nullable(),
 	status: z.enum(FOCUS_PERIOD_STATUSES),
+	stillOpenWork: stillOpenWorkSchema,
 });
 
 export type FocusPeriodView = z.infer<typeof focusPeriodViewSchema>;

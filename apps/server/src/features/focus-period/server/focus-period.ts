@@ -12,9 +12,9 @@ import {
 	calendarDaySchema,
 	FOCUS_PERIOD_COPY,
 	FOCUS_PERIOD_COUNTERPARTS,
-	FOCUS_PERIOD_LEFTOVER,
 	FOCUS_PERIOD_PLANNING_WRITES,
 	FOCUS_PERIOD_STATUS,
+	FOCUS_PERIOD_STILL_OPEN,
 	type FocusPeriodStatus,
 	type FocusPeriodView,
 	type FocusPeriodWork,
@@ -157,24 +157,13 @@ export function createFocusPeriod(input: CreateFocusPeriodInput): FocusPeriod {
 			if (existing?.kind === "replay") {
 				return JSON.parse(existing.resultValue) as FocusPeriodOutcome;
 			}
-			const instant = now();
-			const active = await hasReachedStart(
-				tx,
-				input.accountId,
-				startDate.data,
-				instant
-			);
 			const created = await tx.focusPeriod.create({
 				data: {
 					endDate: endDate.data,
 					id: crypto.randomUUID(),
 					purpose,
 					startDate: startDate.data,
-					startScopeLocked: active,
-					startScopeWorkIds: [],
-					status: active
-						? FOCUS_PERIOD_STATUS.active
-						: FOCUS_PERIOD_STATUS.planned,
+					status: FOCUS_PERIOD_STATUS.planned,
 					workspaceId: input.workspaceId,
 				},
 			});
@@ -278,10 +267,9 @@ async function mutateMembership(
 		if (!row) {
 			return { status: "not-found" };
 		}
-		const current = await activateIfDue(tx, input, row, now());
 		if (
-			current.status === FOCUS_PERIOD_STATUS.closed ||
-			current.status === FOCUS_PERIOD_STATUS.canceled
+			row.status === FOCUS_PERIOD_STATUS.closed ||
+			row.status === FOCUS_PERIOD_STATUS.canceled
 		) {
 			return { status: "not-found" };
 		}
@@ -299,13 +287,13 @@ async function mutateMembership(
 		}
 		if (operation === "remove") {
 			await tx.focusPeriodMembership.deleteMany({
-				where: { focusPeriodId: current.id, workId: command.workId },
+				where: { focusPeriodId: row.id, workId: command.workId },
 			});
 		} else {
 			const already = await tx.focusPeriodMembership.findUnique({
 				where: {
 					focusPeriodId_workId: {
-						focusPeriodId: current.id,
+						focusPeriodId: row.id,
 						workId: command.workId,
 					},
 				},
@@ -313,18 +301,19 @@ async function mutateMembership(
 			if (!already) {
 				await tx.focusPeriodMembership.create({
 					data: {
-						focusPeriodId: current.id,
+						focusPeriodId: row.id,
 						id: crypto.randomUUID(),
 						workId: command.workId,
 					},
 				});
 			}
 		}
-		const next = await loadPeriod(tx, input.workspaceId, current.id);
+		const next = await loadPeriod(tx, input.workspaceId, row.id);
 		if (!next) {
 			return { status: "not-found" };
 		}
-		const period = await toView(tx, input, next);
+		const activated = await activateIfDue(tx, input, next, now());
+		const period = await toView(tx, input, activated);
 		const outcome: FocusPeriodOutcome = { period, status: "committed" };
 		await writeDurableReceipt(tx, {
 			actorId: input.accountId,
@@ -332,7 +321,7 @@ async function mutateMembership(
 			kind: `focus-period-${operation}`,
 			payload,
 			resultValue: JSON.stringify(outcome),
-			targetId: current.id,
+			targetId: row.id,
 		});
 		return outcome;
 	});
@@ -393,8 +382,8 @@ async function endPeriod(
 						data: {
 							closeScopeLocked: true,
 							closeScopeWorkIds: workIds,
-							leftoverDecisionOpened: true,
 							status: FOCUS_PERIOD_STATUS.closed,
+							stillOpenDecisionOpened: true,
 						},
 						where: { id: current.id },
 					})
@@ -509,7 +498,7 @@ async function toView(
 	const closeScope = row.closeScopeLocked
 		? { workIds: asWorkIds(row.closeScopeWorkIds) }
 		: null;
-	const stillOpen = row.leftoverDecisionOpened
+	const stillOpen = row.stillOpenDecisionOpened
 		? members
 				.filter((member) => member.status !== WORK_STATUS.closed)
 				.map(withoutStatus)
@@ -521,11 +510,6 @@ async function toView(
 		eligibleWork,
 		endDate: row.endDate,
 		id: row.id,
-		leftoverDecision: {
-			autoRollover: FOCUS_PERIOD_LEFTOVER.autoRollover,
-			opened: row.leftoverDecisionOpened,
-			stillOpen,
-		},
 		members: memberViews,
 		optional: true,
 		planningWrites: FOCUS_PERIOD_PLANNING_WRITES,
@@ -533,6 +517,11 @@ async function toView(
 		startDate: row.startDate,
 		startScope,
 		status: row.status as FocusPeriodStatus,
+		stillOpenWork: {
+			autoRollover: FOCUS_PERIOD_STILL_OPEN.autoRollover,
+			opened: row.stillOpenDecisionOpened,
+			stillOpen,
+		},
 	};
 }
 
@@ -617,11 +606,11 @@ interface PeriodRow {
 	closeScopeWorkIds: Prisma.JsonValue;
 	endDate: string;
 	id: string;
-	leftoverDecisionOpened: boolean;
 	purpose: string;
 	startDate: string;
 	startScopeLocked: boolean;
 	startScopeWorkIds: Prisma.JsonValue;
 	status: string;
+	stillOpenDecisionOpened: boolean;
 	workspaceId: string;
 }

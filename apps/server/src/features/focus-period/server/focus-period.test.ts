@@ -4,7 +4,7 @@
  * workflow status or Project stage; lifecycle is Planned / Active /
  * Closed / Canceled (no sprint). Clock test double for start-instant
  * Planned → Active. Closed writes close-scope snapshot and opens the
- * leftover bulk decision; Canceled does not. Synthetic fixture for
+ * still-open Work bulk decision; Canceled does not. Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Odak Dönemi: 1–8 week window; membership does not write status).
  */
@@ -55,7 +55,6 @@ describe("Focus Period catalog", () => {
 				empty: "No Focus Period yet.",
 				endDate: "End date",
 				focusPeriod: "Focus Period",
-				leftoverDecision: "Still-open Work",
 				loading: "Loading…",
 				members: "Work",
 				planned: "Planned",
@@ -63,6 +62,7 @@ describe("Focus Period catalog", () => {
 				purposeRequired: "Purpose is required.",
 				remove: "Remove",
 				startDate: "Start date",
+				stillOpenWork: "Still-open Work",
 				windowMustBeOneToEightWeeks: "Focus Period must be 1–8 weeks.",
 				work: "Work",
 			},
@@ -79,13 +79,9 @@ describe("Focus Period catalog", () => {
 		expect(FOCUS_PERIOD_COPY.closed).toBe("Closed");
 		expect(FOCUS_PERIOD_COPY.canceled).toBe("Canceled");
 		expect(FOCUS_PERIOD_COUNTERPARTS).toEqual({
-			cadence: false,
-			capacityScore: false,
 			dailyFocus: false,
 			milestone: false,
 			projectRelease: false,
-			sprint: false,
-			velocity: false,
 		});
 		expect(isFocusPeriodWindow("2026-09-01", "2026-09-07")).toBe(true);
 		expect(isFocusPeriodWindow("2026-09-01", "2026-10-26")).toBe(true);
@@ -251,7 +247,7 @@ describe("Focus Period", () => {
 		expect(period.counterparts).toEqual(FOCUS_PERIOD_COUNTERPARTS);
 		expect(period.startScope).toBeNull();
 		expect(period.closeScope).toBeNull();
-		expect(period.leftoverDecision).toEqual({
+		expect(period.stillOpenWork).toEqual({
 			autoRollover: false,
 			opened: false,
 			stillOpen: [],
@@ -417,7 +413,34 @@ describe("Focus Period", () => {
 		expect(viewed?.planningWrites).toEqual(FOCUS_PERIOD_PLANNING_WRITES);
 	});
 
-	it("closes with a close-scope snapshot and leftover bulk decision without writing status", async () => {
+	it("includes Work added at the start instant in the start-scope snapshot", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const period = await openPeriod(
+			"Due window",
+			"2026-09-08",
+			"2026-09-21",
+			START_INSTANT
+		);
+		expect(period.status).toBe(FOCUS_PERIOD_STATUS.planned);
+		expect(period.startScope).toBeNull();
+		const added = await surface(START_INSTANT).add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: intake.id,
+		});
+		expect(added.status).toBe("committed");
+		if (added.status !== "committed") {
+			throw new Error("expected committed add");
+		}
+		expect(added.period.status).toBe(FOCUS_PERIOD_STATUS.active);
+		expect(added.period.startScope).toEqual({ workIds: [intake.id] });
+		expect(await getWork(prisma, intake.id)).toMatchObject({
+			status: "Not Started",
+		});
+	});
+
+	it("closes with a close-scope snapshot and still-open Work decision without writing status", async () => {
 		const payments = await openProject("Payments");
 		const intake = await openWork(payments.id, "Intake checkout");
 		const period = await openPeriod("Close account");
@@ -439,18 +462,18 @@ describe("Focus Period", () => {
 		expect(closed.period.status).toBe(FOCUS_PERIOD_STATUS.closed);
 		expect(closed.period.startScope).toEqual({ workIds: [intake.id] });
 		expect(closed.period.closeScope).toEqual({ workIds: [intake.id] });
-		expect(closed.period.leftoverDecision.opened).toBe(true);
-		expect(closed.period.leftoverDecision.autoRollover).toBe(false);
-		expect(
-			closed.period.leftoverDecision.stillOpen.map((row) => row.id)
-		).toEqual([intake.id]);
+		expect(closed.period.stillOpenWork.opened).toBe(true);
+		expect(closed.period.stillOpenWork.autoRollover).toBe(false);
+		expect(closed.period.stillOpenWork.stillOpen.map((row) => row.id)).toEqual([
+			intake.id,
+		]);
 		expect(await getWork(prisma, intake.id)).toMatchObject({
 			status: "Not Started",
 		});
 		expect(await active.activePeriodIdForWork(intake.id)).toBeNull();
 	});
 
-	it("cancels from Planned without close-scope snapshot or leftover decision", async () => {
+	it("cancels from Planned without close-scope snapshot or still-open Work decision", async () => {
 		const payments = await openProject("Payments");
 		const intake = await openWork(payments.id, "Intake checkout");
 		const period = await openPeriod("Cancel planned");
@@ -471,7 +494,7 @@ describe("Focus Period", () => {
 		expect(canceled.period.status).toBe(FOCUS_PERIOD_STATUS.canceled);
 		expect(canceled.period.startScope).toBeNull();
 		expect(canceled.period.closeScope).toBeNull();
-		expect(canceled.period.leftoverDecision).toEqual({
+		expect(canceled.period.stillOpenWork).toEqual({
 			autoRollover: false,
 			opened: false,
 			stillOpen: [],
@@ -483,7 +506,7 @@ describe("Focus Period", () => {
 		expect(await focus.activePeriodIdForWork(intake.id)).toBeNull();
 	});
 
-	it("cancels from Active keeping start scope and historical membership without leftover", async () => {
+	it("cancels from Active keeping start scope and historical membership without still-open Work decision", async () => {
 		const payments = await openProject("Payments");
 		const intake = await openWork(payments.id, "Intake checkout");
 		const period = await openPeriod("Cancel active");
@@ -507,7 +530,7 @@ describe("Focus Period", () => {
 		expect(canceled.period.status).toBe(FOCUS_PERIOD_STATUS.canceled);
 		expect(canceled.period.startScope).toEqual({ workIds: [intake.id] });
 		expect(canceled.period.closeScope).toBeNull();
-		expect(canceled.period.leftoverDecision.opened).toBe(false);
+		expect(canceled.period.stillOpenWork.opened).toBe(false);
 		expect(canceled.period.members.map((row) => row.id)).toEqual([intake.id]);
 		expect(await getWork(prisma, intake.id)).toMatchObject({
 			status: "Not Started",

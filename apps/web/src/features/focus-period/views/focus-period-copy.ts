@@ -9,7 +9,6 @@ export const FOCUS_PERIOD_COPY = {
 	empty: "No Focus Period yet.",
 	endDate: "End date",
 	focusPeriod: "Focus Period",
-	leftoverDecision: "Still-open Work",
 	loading: "Loading…",
 	members: "Work",
 	planned: "Planned",
@@ -17,6 +16,7 @@ export const FOCUS_PERIOD_COPY = {
 	purposeRequired: "Purpose is required.",
 	remove: "Remove",
 	startDate: "Start date",
+	stillOpenWork: "Still-open Work",
 	windowMustBeOneToEightWeeks: "Focus Period must be 1–8 weeks.",
 	work: "Work",
 } as const;

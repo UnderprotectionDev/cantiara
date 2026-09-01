@@ -31,6 +31,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Odak Dönemi | `Focus Period` | Seçili çalışmalar için geçici çalışma penceresi ve tarihsel kapsam snapshot'ı; ara sonuç veya yayımlanacak kapsam değildir |
 | Odak Dönemi yaşamı | `Planned`, `Active`, `Closed`, `Canceled` | Odak Döneminin İngilizce yaşam etiketleri; sprint kadansı değildir |
 | Odak Dönemi oluştur | `Create Focus Period` | Amaç ve başlangıç/bitiş tarihiyle isteğe bağlı dönem açma |
+| Odak Dönemini kapat | `Close` | Yalnız `Active` dönemden kapanış-kapsamı snapshot’ı ve açık kalan İş kararı |
+| Odak Dönemini iptal et | `Cancel` | `Planned` veya `Active` dönemi kapanış hesabı olmadan bitirme |
 | Başlangıç tarihi | `Start date` | Odak Dönemi penceresinin ilk günü |
 | Bitiş tarihi | `End date` | Odak Dönemi penceresinin son günü |
 | Açık kalan İş | `Still-open Work` | Kapanışta toplu karar bekleyen açık İş listesi |

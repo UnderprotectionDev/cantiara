@@ -14,6 +14,7 @@ test("English Focus Period copy is Focus Period", () => {
 	expect(FOCUS_PERIOD_COPY.purposeRequired).toBe("Purpose is required.");
 	expect(FOCUS_PERIOD_COPY.startDate).toBe("Start date");
 	expect(FOCUS_PERIOD_COPY.endDate).toBe("End date");
+	expect(FOCUS_PERIOD_COPY.stillOpenWork).toBe("Still-open Work");
 	expect(FOCUS_PERIOD_COPY.create).toBe("Create Focus Period");
 	expect(FOCUS_PERIOD_COPY.windowMustBeOneToEightWeeks).toBe(
 		"Focus Period must be 1–8 weeks."

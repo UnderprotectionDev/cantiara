@@ -259,17 +259,15 @@ export default function FocusPeriodArea() {
 						onCancel={onCancel}
 						onClose={onClose}
 					/>
-					{period.leftoverDecision.opened ? (
-						<section aria-labelledby="focus-period-leftover" className="mt-6">
-							<h3 id="focus-period-leftover">{copy.leftoverDecision}</h3>
+					{period.stillOpenWork.opened ? (
+						<section aria-labelledby="focus-period-still-open" className="mt-6">
+							<h3 id="focus-period-still-open">{copy.stillOpenWork}</h3>
 							<ul>
-								{period.leftoverDecision.stillOpen.map(
-									(work: FocusPeriodWork) => (
-										<li key={work.id}>
-											<a href={workHref(work)}>{`${work.key} ${work.title}`}</a>
-										</li>
-									)
-								)}
+								{period.stillOpenWork.stillOpen.map((work: FocusPeriodWork) => (
+									<li key={work.id}>
+										<a href={workHref(work)}>{`${work.key} ${work.title}`}</a>
+									</li>
+								))}
 							</ul>
 						</section>
 					) : null}
