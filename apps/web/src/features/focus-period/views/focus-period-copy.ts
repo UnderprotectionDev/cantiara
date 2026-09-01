@@ -1,6 +1,8 @@
 export const FOCUS_PERIOD_COPY = {
 	active: "Active",
 	add: "Add",
+	alreadyInAnActivePeriod:
+		"Work is already in an active Focus Period. Use Move.",
 	cancel: "Cancel",
 	canceled: "Canceled",
 	close: "Close",
@@ -11,6 +13,7 @@ export const FOCUS_PERIOD_COPY = {
 	focusPeriod: "Focus Period",
 	loading: "Loading…",
 	members: "Work",
+	move: "Move",
 	planned: "Planned",
 	purpose: "Purpose",
 	purposeRequired: "Purpose is required.",

@@ -3,6 +3,8 @@ import { z } from "zod";
 export const FOCUS_PERIOD_COPY = {
 	active: "Active",
 	add: "Add",
+	alreadyInAnActivePeriod:
+		"Work is already in an active Focus Period. Use Move.",
 	cancel: "Cancel",
 	canceled: "Canceled",
 	close: "Close",
@@ -13,6 +15,7 @@ export const FOCUS_PERIOD_COPY = {
 	focusPeriod: "Focus Period",
 	loading: "Loading…",
 	members: "Work",
+	move: "Move",
 	planned: "Planned",
 	purpose: "Purpose",
 	purposeRequired: "Purpose is required.",
@@ -97,6 +100,14 @@ export const focusPeriodWorkSchema = z.object({
 
 export type FocusPeriodWork = z.infer<typeof focusPeriodWorkSchema>;
 
+export const focusPeriodEligibleWorkSchema = focusPeriodWorkSchema.extend({
+	activePeriodId: z.string().min(1).nullable(),
+});
+
+export type FocusPeriodEligibleWork = z.infer<
+	typeof focusPeriodEligibleWorkSchema
+>;
+
 export const focusPeriodScopeSchema = z.object({
 	workIds: z.array(z.string().min(1)),
 });
@@ -114,6 +125,9 @@ export const focusPeriodViewSchema = z.object({
 	copy: z.object({
 		active: z.literal(FOCUS_PERIOD_COPY.active),
 		add: z.literal(FOCUS_PERIOD_COPY.add),
+		alreadyInAnActivePeriod: z.literal(
+			FOCUS_PERIOD_COPY.alreadyInAnActivePeriod
+		),
 		cancel: z.literal(FOCUS_PERIOD_COPY.cancel),
 		canceled: z.literal(FOCUS_PERIOD_COPY.canceled),
 		close: z.literal(FOCUS_PERIOD_COPY.close),
@@ -124,6 +138,7 @@ export const focusPeriodViewSchema = z.object({
 		focusPeriod: z.literal(FOCUS_PERIOD_COPY.focusPeriod),
 		loading: z.literal(FOCUS_PERIOD_COPY.loading),
 		members: z.literal(FOCUS_PERIOD_COPY.members),
+		move: z.literal(FOCUS_PERIOD_COPY.move),
 		planned: z.literal(FOCUS_PERIOD_COPY.planned),
 		purpose: z.literal(FOCUS_PERIOD_COPY.purpose),
 		purposeRequired: z.literal(FOCUS_PERIOD_COPY.purposeRequired),
@@ -140,7 +155,7 @@ export const focusPeriodViewSchema = z.object({
 		milestone: z.literal(false),
 		projectRelease: z.literal(false),
 	}),
-	eligibleWork: z.array(focusPeriodWorkSchema),
+	eligibleWork: z.array(focusPeriodEligibleWorkSchema),
 	endDate: calendarDaySchema,
 	id: z.string().min(1),
 	members: z.array(focusPeriodWorkSchema),

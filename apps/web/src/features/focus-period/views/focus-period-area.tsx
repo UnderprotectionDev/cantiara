@@ -18,6 +18,7 @@ import { orpc, queryClient } from "@/utils/orpc";
 import { FOCUS_PERIOD_COPY } from "./focus-period-copy";
 
 interface FocusPeriodWork {
+	activePeriodId?: string | null;
 	id: string;
 	key: string;
 	projectId: string;
@@ -69,6 +70,11 @@ export default function FocusPeriodArea() {
 	);
 	const add = useMutation(
 		orpc.focusPeriod.add.mutationOptions({
+			onSuccess: invalidate,
+		})
+	);
+	const move = useMutation(
+		orpc.focusPeriod.move.mutationOptions({
 			onSuccess: invalidate,
 		})
 	);
@@ -137,6 +143,26 @@ export default function FocusPeriodArea() {
 			result.value.catch(() => undefined);
 		},
 		[add, attemptOnlineWork, markUnsaved, periodId]
+	);
+	const onMove = useCallback(
+		(workId: string) => {
+			if (!periodId) {
+				return;
+			}
+			markUnsaved();
+			const result = attemptOnlineWork("record-create", () =>
+				move.mutateAsync({
+					idempotencyKey: newIdempotencyKey(),
+					periodId,
+					workId,
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[attemptOnlineWork, markUnsaved, move, periodId]
 	);
 	const onRemove = useCallback(
 		(workId: string) => {
@@ -276,8 +302,10 @@ export default function FocusPeriodArea() {
 							copy={copy}
 							eligible={period.eligibleWork}
 							onAdd={onAdd}
+							onMove={onMove}
 						/>
 					) : null}
+					{add.data?.status === "invalid" ? <p>{add.data.reason}</p> : null}
 					<section aria-labelledby="focus-period-members" className="mt-6">
 						<h3 id="focus-period-members">{copy.members}</h3>
 						<ul>
@@ -334,41 +362,61 @@ function EligibleWork({
 	copy,
 	eligible,
 	onAdd,
+	onMove,
 }: {
 	copy: typeof FOCUS_PERIOD_COPY;
 	eligible: readonly FocusPeriodWork[];
 	onAdd: (workId: string) => void;
+	onMove: (workId: string) => void;
 }) {
-	const onSubmit = useCallback(
-		(event: FormEvent<HTMLFormElement>) => {
-			event.preventDefault();
-			const selected = new FormData(event.currentTarget).get("workId");
-			if (typeof selected === "string" && selected.length > 0) {
-				onAdd(selected);
-			}
-		},
-		[onAdd]
-	);
 	if (eligible.length === 0) {
 		return null;
 	}
 	return (
-		<form className="mt-6 flex flex-wrap items-end gap-3" onSubmit={onSubmit}>
-			<Field className="min-w-56">
-				<FieldLabel htmlFor="focus-period-work">{copy.work}</FieldLabel>
-				<NativeSelect defaultValue="" id="focus-period-work" name="workId">
-					<NativeSelectOption disabled value="">
-						{copy.work}
-					</NativeSelectOption>
-					{eligible.map((work) => (
-						<NativeSelectOption key={work.id} value={work.id}>
-							{`${work.key} ${work.title} · ${work.projectName}`}
-						</NativeSelectOption>
-					))}
-				</NativeSelect>
-			</Field>
-			<Button type="submit">{copy.add}</Button>
-		</form>
+		<section aria-labelledby="focus-period-eligible" className="mt-6">
+			<h3 id="focus-period-eligible">{copy.work}</h3>
+			<ul>
+				{eligible.map((work) => (
+					<EligibleRow
+						copy={copy}
+						key={work.id}
+						onAdd={onAdd}
+						onMove={onMove}
+						work={work}
+					/>
+				))}
+			</ul>
+		</section>
+	);
+}
+
+function EligibleRow({
+	copy,
+	onAdd,
+	onMove,
+	work,
+}: {
+	copy: typeof FOCUS_PERIOD_COPY;
+	onAdd: (workId: string) => void;
+	onMove: (workId: string) => void;
+	work: FocusPeriodWork;
+}) {
+	const take = useCallback(() => {
+		if (work.activePeriodId) {
+			onMove(work.id);
+			return;
+		}
+		onAdd(work.id);
+	}, [onAdd, onMove, work]);
+	return (
+		<li>
+			<a href={workHref(work)}>
+				{`${work.key} ${work.title} (${work.projectName})`}
+			</a>
+			<Button onClick={take} type="button">
+				{work.activePeriodId ? copy.move : copy.add}
+			</Button>
+		</li>
 	);
 }
 

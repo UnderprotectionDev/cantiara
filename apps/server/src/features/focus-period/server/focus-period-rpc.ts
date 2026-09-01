@@ -73,6 +73,12 @@ export const focusPeriod = {
 		const surface = await focusFor(context.session.user.id);
 		return surface.list();
 	}),
+	move: protectedWriteProcedure
+		.input(membershipInput)
+		.handler(async ({ context, input }) => {
+			const surface = await focusFor(context.session.user.id);
+			return surface.move(input);
+		}),
 	remove: protectedWriteProcedure
 		.input(membershipInput)
 		.handler(async ({ context, input }) => {
