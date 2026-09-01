@@ -15,5 +15,13 @@ test("English Roadmap copy uses Roadmap, Now, Next, Later", () => {
 	expect(ROADMAP_COPY.unplaced).toBe("No horizon");
 	expect(ROADMAP_COPY.openSourceRecord).toBe("Open source record");
 	expect(ROADMAP_HORIZONS).toEqual(["Now", "Next", "Later"]);
+	expect(ROADMAP_COPY.milestone).toBe("Milestone");
+	expect(ROADMAP_COPY.planned).toBe("Planned");
+	expect(ROADMAP_COPY.reached).toBe("Reached");
+	expect(ROADMAP_COPY.abandoned).toBe("Abandoned");
+	expect(ROADMAP_COPY.contributesToMilestone).toBe("Contributes to Milestone");
+	expect(ROADMAP_COPY.createMilestone).toBe("Create Milestone");
+	expect(ROADMAP_COPY.reach).toBe("Reach");
+	expect(ROADMAP_COPY.abandon).toBe("Abandon");
 	expect(JSON.stringify(ROADMAP_COPY)).not.toMatch(FORBIDDEN_PATTERN);
 });
