@@ -18,7 +18,15 @@ import { orpc, queryClient } from "@/utils/orpc";
 import { FOCUS_PERIOD_COPY } from "./focus-period-copy";
 
 interface FocusPeriodWork {
-	activePeriodId?: string | null;
+	id: string;
+	key: string;
+	projectId: string;
+	projectName: string;
+	title: string;
+}
+
+interface EligibleWork {
+	activePeriodId: string | null;
 	id: string;
 	key: string;
 	projectId: string;
@@ -365,7 +373,7 @@ function EligibleWork({
 	onMove,
 }: {
 	copy: typeof FOCUS_PERIOD_COPY;
-	eligible: readonly FocusPeriodWork[];
+	eligible: readonly EligibleWork[];
 	onAdd: (workId: string) => void;
 	onMove: (workId: string) => void;
 }) {
@@ -399,7 +407,7 @@ function EligibleRow({
 	copy: typeof FOCUS_PERIOD_COPY;
 	onAdd: (workId: string) => void;
 	onMove: (workId: string) => void;
-	work: FocusPeriodWork;
+	work: EligibleWork;
 }) {
 	const take = useCallback(() => {
 		if (work.activePeriodId) {

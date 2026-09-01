@@ -269,9 +269,14 @@ async function mutateMembership(
 		if (existing?.kind === "replay") {
 			return JSON.parse(existing.resultValue) as FocusPeriodOutcome;
 		}
-		const applied = await applyMembership(tx, input, command, operation);
-		if (applied) {
-			return applied;
+		const membershipError = await applyMembership(
+			tx,
+			input,
+			command,
+			operation
+		);
+		if (membershipError) {
+			return membershipError;
 		}
 		const next = await loadPeriod(tx, input.workspaceId, command.periodId);
 		if (!next) {
@@ -464,28 +469,14 @@ async function activateDuePeriods(
 		return;
 	}
 	const planned = await tx.focusPeriod.findMany({
-		orderBy: [{ startDate: "asc" }, { id: "asc" }],
 		where: {
 			status: FOCUS_PERIOD_STATUS.planned,
 			workspaceId: input.workspaceId,
 		},
 	});
-	await activatePlannedInOrder(tx, input, planned, instant, 0);
-}
-
-async function activatePlannedInOrder(
-	tx: MutationDb,
-	input: CreateFocusPeriodInput,
-	planned: PeriodRow[],
-	instant: Date,
-	index: number
-) {
-	const row = planned[index];
-	if (!row) {
-		return;
-	}
-	await activateIfDue(tx, input, row, instant);
-	await activatePlannedInOrder(tx, input, planned, instant, index + 1);
+	await Promise.all(
+		planned.map((row) => activateIfDue(tx, input, row, instant))
+	);
 }
 
 async function activateIfDue(
@@ -506,7 +497,6 @@ async function activateIfDue(
 	if (!due) {
 		return row;
 	}
-	await releaseWorkClaimedByOtherActivePeriod(tx, input.workspaceId, row.id);
 	const members = await loadMembers(tx, row.id);
 	return await tx.focusPeriod.update({
 		data: {
@@ -717,34 +707,6 @@ async function activePeriodIdsForWorks(
 		byWork.set(row.workId, row.focusPeriodId);
 	}
 	return byWork;
-}
-
-async function releaseWorkClaimedByOtherActivePeriod(
-	db: MutationDb,
-	workspaceId: string,
-	periodId: string
-) {
-	if (!hasDelegate(db, "focusPeriodMembership")) {
-		return;
-	}
-	const members = await db.focusPeriodMembership.findMany({
-		where: { focusPeriodId: periodId },
-	});
-	await Promise.all(
-		members.map(async (member) => {
-			const other = await otherActivePeriodId(
-				db,
-				workspaceId,
-				member.workId,
-				periodId
-			);
-			if (other) {
-				await db.focusPeriodMembership.delete({
-					where: { id: member.id },
-				});
-			}
-		})
-	);
 }
 
 interface PeriodRow {

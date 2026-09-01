@@ -100,13 +100,9 @@ export const focusPeriodWorkSchema = z.object({
 
 export type FocusPeriodWork = z.infer<typeof focusPeriodWorkSchema>;
 
-export const focusPeriodEligibleWorkSchema = focusPeriodWorkSchema.extend({
+const eligibleWorkSchema = focusPeriodWorkSchema.extend({
 	activePeriodId: z.string().min(1).nullable(),
 });
-
-export type FocusPeriodEligibleWork = z.infer<
-	typeof focusPeriodEligibleWorkSchema
->;
 
 export const focusPeriodScopeSchema = z.object({
 	workIds: z.array(z.string().min(1)),
@@ -155,7 +151,7 @@ export const focusPeriodViewSchema = z.object({
 		milestone: z.literal(false),
 		projectRelease: z.literal(false),
 	}),
-	eligibleWork: z.array(focusPeriodEligibleWorkSchema),
+	eligibleWork: z.array(eligibleWorkSchema),
 	endDate: calendarDaySchema,
 	id: z.string().min(1),
 	members: z.array(focusPeriodWorkSchema),
