@@ -44,6 +44,7 @@ model Work {
   prioritizationSessionItems     PrioritizationSessionItem[]
   dailyFocusMemberships          DailyFocusMembership[]
   dailyFocusCandidateRejections  DailyFocusCandidateRejection[]
+  focusPeriodMemberships         FocusPeriodMembership[]
   recordActionRuns               RecordActionRun[]
   externalExecutionHandoffs      ExternalExecutionHandoff[]
   externalExecutionHandoffEvents ExternalExecutionHandoffEvent[]

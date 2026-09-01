@@ -10,6 +10,7 @@ model Workspace {
   shortCodeReservations WorkspaceShortCodeReservation[]
   tags                  Tag[]
   fileAttachments       FileAttachment[]
+  focusPeriods          FocusPeriod[]
 
   @@map("workspace")
 }

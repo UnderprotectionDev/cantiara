@@ -12,6 +12,7 @@ import { customFields } from "../features/custom-fields/server/custom-fields-rpc
 import { dailyFocus } from "../features/daily-focus/server/daily-focus-rpc";
 import { externalHandoffs } from "../features/external-handoffs/server/external-handoffs-rpc";
 import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
+import { focusPeriod } from "../features/focus-period/server/focus-period-rpc";
 import { kanban } from "../features/kanban/server/kanban-rpc";
 import { priority } from "../features/priority/server/priority-rpc";
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
@@ -41,6 +42,7 @@ export const appRouter = {
 	dailyFocus,
 	externalHandoffs,
 	fileAttachments,
+	focusPeriod,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	kanban,
 	priority,
