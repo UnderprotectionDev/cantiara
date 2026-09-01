@@ -1,0 +1,36 @@
+model FocusPeriod {
+  id                      String                   @id
+  workspaceId             String
+  workspace               Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  purpose                 String
+  startDate               String
+  endDate                 String
+  status                  String
+  startScopeWorkIds       Json                     @default("[]")
+  startScopeLocked        Boolean                  @default(false)
+  closeScopeWorkIds       Json                     @default("[]")
+  closeScopeLocked        Boolean                  @default(false)
+  stillOpenDecisionOpened Boolean                  @default(false)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  memberships             FocusPeriodMembership[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+  @@map("focus_period")
+}
+
+model FocusPeriodMembership {
+  id            String      @id
+  focusPeriodId String
+  focusPeriod   FocusPeriod @relation(fields: [focusPeriodId], references: [id], onDelete: Cascade)
+  workId        String
+  work          Work        @relation(fields: [workId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([focusPeriodId, workId])
+  @@index([workId])
+  @@index([focusPeriodId])
+  @@map("focus_period_membership")
+}

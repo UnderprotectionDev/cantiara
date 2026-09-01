@@ -12,12 +12,14 @@ import { customFields } from "../features/custom-fields/server/custom-fields-rpc
 import { dailyFocus } from "../features/daily-focus/server/daily-focus-rpc";
 import { externalHandoffs } from "../features/external-handoffs/server/external-handoffs-rpc";
 import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
+import { focusPeriod } from "../features/focus-period/server/focus-period-rpc";
 import { kanban } from "../features/kanban/server/kanban-rpc";
 import { priority } from "../features/priority/server/priority-rpc";
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
 import { recordActions } from "../features/record-actions/server/record-actions-rpc";
 import { relations } from "../features/relations/server/relations-rpc";
+import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { unifiedCalendar } from "../features/unified-calendar/server/unified-calendar-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
@@ -41,6 +43,7 @@ export const appRouter = {
 	dailyFocus,
 	externalHandoffs,
 	fileAttachments,
+	focusPeriod,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	kanban,
 	priority,
@@ -52,6 +55,7 @@ export const appRouter = {
 	projectShell,
 	recordActions,
 	relations,
+	roadmapHorizon,
 	tags,
 	unifiedCalendar,
 	workChecklists,

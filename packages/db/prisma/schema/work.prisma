@@ -25,6 +25,7 @@ model Work {
   targetDate            String?
   plannedStart          String?
   reappearDate          String?
+  horizon               String?
   retiredIntoId         String?
   retiredInto           Work?                  @relation("WorkRetiredIdentity", fields: [retiredIntoId], references: [id], onDelete: SetNull)
   retiredIdentities     Work[]                 @relation("WorkRetiredIdentity")
@@ -44,6 +45,7 @@ model Work {
   prioritizationSessionItems     PrioritizationSessionItem[]
   dailyFocusMemberships          DailyFocusMembership[]
   dailyFocusCandidateRejections  DailyFocusCandidateRejection[]
+  focusPeriodMemberships         FocusPeriodMembership[]
   recordActionRuns               RecordActionRun[]
   externalExecutionHandoffs      ExternalExecutionHandoff[]
   externalExecutionHandoffEvents ExternalExecutionHandoffEvent[]
@@ -60,6 +62,7 @@ model Work {
   @@index([projectId, reappearDate])
   @@index([projectId, plannedStart])
   @@index([projectId, targetDate])
+  @@index([projectId, horizon])
   @@map("work")
 }
 

@@ -29,6 +29,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Migration Artefaktı | `Migration Artifact` | İki kesin Veri Modeli Diyagramı Sürümü arasındaki onaylanmış schema-only değişikliği ve desteklenen PostgreSQL SQL'ini kaynak manifestiyle koruyan değişmez sahipli bileşen |
 | Kilometre Taşı | `Milestone` | Projedeki önemli ara sonucu temsil eden Proje ana kaydı; çalışma penceresi veya yayımlanacak kapsam değildir |
 | Odak Dönemi | `Focus Period` | Seçili çalışmalar için geçici çalışma penceresi ve tarihsel kapsam snapshot'ı; ara sonuç veya yayımlanacak kapsam değildir |
+| Odak Dönemi yaşamı | `Planned`, `Active`, `Closed`, `Canceled` | Odak Döneminin İngilizce yaşam etiketleri; sprint kadansı değildir |
+| Odak Dönemi oluştur | `Create Focus Period` | Amaç ve başlangıç/bitiş tarihiyle isteğe bağlı dönem açma |
+| Odak Dönemini kapat | `Close` | Yalnız `Active` dönemden kapanış-kapsamı snapshot’ı ve açık kalan İş kararı |
+| Odak Dönemini iptal et | `Cancel` | `Planned` veya `Active` dönemi kapanış hesabı olmadan bitirme |
+| Başlangıç tarihi | `Start date` | Odak Dönemi penceresinin ilk günü |
+| Bitiş tarihi | `End date` | Odak Dönemi penceresinin son günü |
+| Açık kalan İş | `Still-open Work` | Kapanışta toplu karar bekleyen açık İş listesi |
+| Odak Dönemi yok | `No Focus Period yet.` | Henüz dönem açılmamış boş durum |
+| Odak Dönemi penceresi | `Focus Period must be 1–8 weeks.` | 1–8 hafta dışı oluşturma reddi |
+| Amaç gerekli | `Purpose is required.` | Boş Odak Dönemi amacı reddi |
 | Proje Sürümü | `Project Release` | Kullanıcı tarafından yönetilen yayımlanacak kapsam ve onun tarihli erişim/sonuç gözlemleri; Kilometre Taşı, Odak Dönemi veya Ürün sürüm adayı değildir |
 | Başlangıç yapılandırması | `Starter Configuration` | Yeni Projeye bir kez uygulanan, içerik üretmeyen kapalı varsayılan yapı seçimi; sonradan başka yapılandırmayla değiştirilmez |
 | Proje adı | `Project Name` | Yeni Proje oluştururken zorunlu ad |
@@ -258,6 +268,15 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Genişlet | `Expand` | Daraltılmış Kanban sütununu açma |
 | Açık blokaj | `Open blocker` | Daraltılmış sütunda kalan önemli blokaj sinyali |
 | Roadmap | `Roadmap` | Hazır İş görünümü |
+| Şimdi | `Now` | İsteğe bağlı Roadmap ufku |
+| Sırada | `Next` | İsteğe bağlı Roadmap ufku |
+| Sonra | `Later` | İsteğe bağlı Roadmap ufku |
+| Ufuk | `Horizon` | İşin isteğe bağlı Roadmap ufku alanı |
+| Ürün yönü | `Product direction` | Varsayılan Roadmap görünümü; Araştırma birincil, kökenli Özellik ikincil |
+| Tüm İş türleri | `All Work types` | Bütün İş türlerini birincil gösteren adlandırılmış Roadmap görünümü |
+| Ufka yerleştir | `Place on horizon` | İsteğe bağlı ufku yazma eylemi |
+| Ufuk yok | `No horizon` | Ufku boşaltma |
+| Adlandırılmış görünümü kaydet | `Save named view` | Roadmap filtre ve grup üstverisini kaydetme |
 | Build | `Build` | Hazır Proje aşaması adı |
 | Validate | `Validate` | Hazır Proje aşaması adı |
 | Release | `Release` | Hazır Proje aşaması adı; `Releases` alanı veya Proje Sürümü değildir |

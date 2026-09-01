@@ -1,6 +1,13 @@
 import { USED_IN_QUERY_ROOT } from "@/features/relations/views/used-in-query-key";
 import { orpc, queryClient } from "@/utils/orpc";
 
+export async function invalidateRoadmapHorizon() {
+	await queryClient.invalidateQueries({
+		predicate: (query) =>
+			JSON.stringify(query.queryKey).includes("roadmapHorizon"),
+	});
+}
+
 export async function invalidateWork(projectId: string, workId: string) {
 	await queryClient.invalidateQueries({
 		queryKey: orpc.workLifecycle.list.queryKey({
@@ -48,9 +55,13 @@ export async function invalidateWork(projectId: string, workId: string) {
 			input: { projectId },
 		}),
 	});
+	await invalidateRoadmapHorizon();
+	await queryClient.invalidateQueries({
+		predicate: (query) => JSON.stringify(query.queryKey).includes("dailyFocus"),
+	});
 	await queryClient.invalidateQueries({
 		predicate: (query) =>
-			JSON.stringify(query.queryKey).includes("dailyFocus"),
+			JSON.stringify(query.queryKey).includes("focusPeriod"),
 	});
 	await queryClient.invalidateQueries({
 		queryKey: [USED_IN_QUERY_ROOT],

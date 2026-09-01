@@ -342,6 +342,7 @@
 │       │   │   ├── risks/
 │       │   │   │   └── views/
 │       │   │   ├── roadmap-horizon/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── schema-artifacts/
 │       │   │   │   └── views/
@@ -419,6 +420,8 @@
 │       │   │   │   ├── capture/
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── daily-focus/
+│       │   │   │   │   └── index.tsx
+│       │   │   │   ├── focus-periods/
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── drafts/
 │       │   │   │   │   └── index.tsx

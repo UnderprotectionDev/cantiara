@@ -35,6 +35,7 @@ model Project {
   recordActions                   RecordAction[]
   backlogManualOrderItems         ProjectBacklogManualOrderItem[]
   backlogPresentation             ProjectBacklogPresentation?
+  roadmapNamedViews               ProjectRoadmapNamedView[]
 
   @@index([workspaceId])
   @@map("project")

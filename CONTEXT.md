@@ -251,8 +251,17 @@ UI: `Milestone`. Overview modülü: `Milestones`.
 _Avoid_: Odak Dönemi, Proje Sürümü, sprint
 
 **Odak Dönemi**:
-Seçili İşlerle çalışmak için açılan geçici zaman penceresi; kalıcı kapsam grubu, Kilometre Taşının ara sonucu veya Proje Sürümünün yayın kapsamı değildir.
+Seçili İşlerle çalışmak için açılan isteğe bağlı 1–8 haftalık geçici zaman penceresi; kalıcı kapsam grubu, Kilometre Taşının ara sonucu veya Proje Sürümünün yayın kapsamı değildir. Yaşam `Planned`, `Active`, `Closed` veya `Canceled`; üyelik İş akışı durumunu veya proje aşamasını yazmaz.
+UI: `Focus Period`, `Create Focus Period`, `Planned`, `Active`, `Closed`, `Canceled`, `Close`, `Cancel`, `Still-open Work`.
 _Avoid_: Sprint, Kilometre Taşı, Proje Sürümü
+
+**Roadmap**:
+Aynı İş gerçeğini isteğe bağlı ufuk, adlandırılmış görünüm filtresi ve ürün yönü anlatısıyla gösteren planlama yüzeyi; durum, öncelik ölçütü değeri, Backlog sırası, hedef tarih veya yayın taahhüdü yazmaz ve ikinci bir `Show on Roadmap` üyeliği tutmaz ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap)). UI: `Roadmap`.
+_Avoid_: Kanban, Initiative, Idea yaşam döngüsü, `Show on Roadmap` üyeliği, Theme kaydı
+
+**Roadmap ufku**:
+İşin durum, tarih ve Backlog sırasından bağımsız isteğe bağlı `Now`, `Next` veya `Later` anlatı alanı; işi başlatmaz, hedef tarih üretmez veya yayın taahhüdü değildir ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap)). UI: `Now`, `Next`, `Later`.
+_Avoid_: İş akışı durumu, Parked, sprint, yayın kapsamı
 
 **Kanban**:
 İşleri İş akışı durumuna göre sütunlarda gösteren planlama yüzeyi; sütunlar arası kart hareketi duruma yansır, kapanış sonucu veya ikinci kayıt listesi değildir ([Kanban](docs/prd/06-work-management-and-planning.md)). UI: `Board`, `Kanban`, `Over limit`, `Time in status`, `In Progress count`, `Collapse`, `Expand`, `Open blocker`.
