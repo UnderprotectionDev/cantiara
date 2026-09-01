@@ -17,6 +17,7 @@ import {
 	structureCopyPreviewItems,
 	workSavedViewIsBoard,
 	workSavedViewIsList,
+	workSavedViewIsRoadmap,
 } from "./project-shell-copy";
 
 const COPY_BRANDING_PATTERN = /color|CSS|font/i;
@@ -224,6 +225,8 @@ test("Work daily actions and Saved views stay on the Work surface", () => {
 	expect(workSavedViewIsList("Board")).toBe(false);
 	expect(workSavedViewIsBoard("Board")).toBe(true);
 	expect(workSavedViewIsBoard("Backlog")).toBe(false);
+	expect(workSavedViewIsRoadmap("Roadmap")).toBe(true);
+	expect(workSavedViewIsRoadmap("Board")).toBe(false);
 	expect(projectShellShowsWorkSurface({ anchor: "work", workId: null })).toBe(
 		true
 	);

@@ -18,6 +18,7 @@ import { projectOverviewRouter } from "../features/project-overview/server/proje
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
 import { recordActions } from "../features/record-actions/server/record-actions-rpc";
 import { relations } from "../features/relations/server/relations-rpc";
+import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
 import { workChecklists } from "../features/work-checklists/server/work-checklists-rpc";
@@ -51,6 +52,7 @@ export const appRouter = {
 	projectShell,
 	recordActions,
 	relations,
+	roadmapHorizon,
 	tags,
 	workChecklists,
 	workContext,

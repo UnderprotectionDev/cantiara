@@ -266,6 +266,10 @@ export function workSavedViewIsBoard(view: string): boolean {
 	return view === "Board";
 }
 
+export function workSavedViewIsRoadmap(view: string): boolean {
+	return view === "Roadmap";
+}
+
 const HASH_PREFIX = "#";
 
 const WORK_SELECT_RESET_ANCHORS = new Set([

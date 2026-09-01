@@ -1,0 +1,16 @@
+model ProjectRoadmapNamedView {
+  id            String   @id
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name          String
+  presentation  String
+  groupField    String?
+  horizonFilter String?
+  revision      Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("project_roadmap_named_view")
+}

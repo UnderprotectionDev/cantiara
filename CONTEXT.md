@@ -254,6 +254,14 @@ _Avoid_: Odak Dönemi, Proje Sürümü, sprint
 Seçili İşlerle çalışmak için açılan geçici zaman penceresi; kalıcı kapsam grubu, Kilometre Taşının ara sonucu veya Proje Sürümünün yayın kapsamı değildir.
 _Avoid_: Sprint, Kilometre Taşı, Proje Sürümü
 
+**Roadmap**:
+Aynı İş gerçeğini isteğe bağlı ufuk, adlandırılmış görünüm filtresi ve ürün yönü anlatısıyla gösteren planlama yüzeyi; durum, öncelik ölçütü değeri, Backlog sırası, hedef tarih veya yayın taahhüdü yazmaz ve ikinci bir `Show on Roadmap` üyeliği tutmaz ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap)). UI: `Roadmap`.
+_Avoid_: Kanban, Initiative, Idea yaşam döngüsü, `Show on Roadmap` üyeliği, Theme kaydı
+
+**Roadmap ufku**:
+İşin durum, tarih ve Backlog sırasından bağımsız isteğe bağlı `Now`, `Next` veya `Later` anlatı alanı; işi başlatmaz, hedef tarih üretmez veya yayın taahhüdü değildir ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap)). UI: `Now`, `Next`, `Later`.
+_Avoid_: İş akışı durumu, Parked, sprint, yayın kapsamı
+
 **Kanban**:
 İşleri İş akışı durumuna göre sütunlarda gösteren planlama yüzeyi; sütunlar arası kart hareketi duruma yansır, kapanış sonucu veya ikinci kayıt listesi değildir ([Kanban](docs/prd/06-work-management-and-planning.md)). UI: `Board`, `Kanban`, `Over limit`, `Time in status`, `In Progress count`, `Collapse`, `Expand`, `Open blocker`.
 _Avoid_: Sprint tahtası, kapanış kolonu, bağımsız manuel sıra
