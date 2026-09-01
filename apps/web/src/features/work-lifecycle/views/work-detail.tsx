@@ -174,6 +174,7 @@ export default function WorkDetail({
 				/>
 				<WorkNotNowForm
 					key={`${work.id}:not-now:${work.revision}`}
+					onOpenSourceRecord={onOpenSourceRecord}
 					projectId={projectId}
 					workId={work.id}
 					workStatus={work.status}

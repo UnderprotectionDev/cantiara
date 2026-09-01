@@ -625,6 +625,12 @@ describe("Roadmap Horizon", () => {
 			await applyNotNow(prisma, {
 				...draft,
 				actorId,
+			})
+		).toEqual({ reason: "preview-required", status: "rejected" });
+		expect(
+			await applyNotNow(prisma, {
+				...draft,
+				actorId,
 				previewAcknowledged: true,
 			})
 		).toMatchObject({
