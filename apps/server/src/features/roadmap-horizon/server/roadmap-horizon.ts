@@ -4,6 +4,7 @@ import { getProject } from "../../project-shell/server/project-shell";
 import { listRelations } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import { getWork } from "../../work-lifecycle/server/work-lifecycle";
+import { notNowReasonByWorkId } from "./not-now-trail";
 import {
 	isRoadmapGroupField,
 	isRoadmapHorizon,
@@ -239,13 +240,17 @@ async function roadmapItems(
 	const selected = rows.filter((row) =>
 		matchesPresentation(row, input.presentation, originLinks)
 	);
+	const notNowReasons = await notNowReasonByWorkId(
+		prisma,
+		selected.map((row) => row.id)
+	);
 	return selected
 		.filter((row) =>
 			input.horizonFilter === null
 				? true
 				: asHorizon(row.horizon) === input.horizonFilter
 		)
-		.map((row) => toItem(row, originLinks, input.presentation));
+		.map((row) => toItem(row, originLinks, input.presentation, notNowReasons));
 }
 
 async function originFeatureIds(
@@ -309,7 +314,8 @@ function toItem(
 		type: string;
 	},
 	originLinks: Map<string, string>,
-	presentation: RoadmapPresentation
+	presentation: RoadmapPresentation,
+	notNowReasons: Map<string, string>
 ): RoadmapWorkItem {
 	const originWorkId = originLinks.get(row.id) ?? null;
 	const primary =
@@ -319,11 +325,13 @@ function toItem(
 		const researchBody = row.description?.trim() ?? "";
 		problemOpportunity = researchBody.length > 0 ? researchBody : row.title;
 	}
+	const notNowReason = notNowReasons.get(row.id);
 	return {
 		expectedOutcome: null,
 		horizon: asHorizon(row.horizon),
 		id: row.id,
 		key: row.key,
+		notNow: notNowReason ? { reason: notNowReason } : null,
 		originWorkId,
 		problemOpportunity,
 		role: primary ? ROADMAP_COPY.primary : ROADMAP_COPY.secondary,

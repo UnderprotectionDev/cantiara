@@ -263,6 +263,10 @@ _Avoid_: Kanban, Initiative, Idea yaşam döngüsü, `Show on Roadmap` üyeliği
 İşin durum, tarih ve Backlog sırasından bağımsız isteğe bağlı `Now`, `Next` veya `Later` anlatı alanı; işi başlatmaz, hedef tarih üretmez veya yayın taahhüdü değildir ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap)). UI: `Now`, `Next`, `Later`.
 _Avoid_: İş akışı durumu, Parked, sprint, yayın kapsamı
 
+**Şimdi değil karar izi**:
+Açık İş üzerindeki sahipli erteleme izi; kısa gerekçe, isteğe bağlı yeniden değerlendirme koşulu ve dayanak ilişkileri taşır. Ayrı durum, kapanış sonucu, Backlog veya planlama üyeliği, öncelik değeri, Parked sütunu veya Karar kaydı değildir ([`Şimdi değil` karar izi](docs/prd/06-work-management-and-planning.md#şimdi-değil-karar-izi)). UI: `Not now`, `Reconsidering`.
+_Avoid_: Parked, kapanış sonucu, Karar kaydı, Initiative, `Show on Roadmap` üyeliği
+
 **Kanban**:
 İşleri İş akışı durumuna göre sütunlarda gösteren planlama yüzeyi; sütunlar arası kart hareketi duruma yansır, kapanış sonucu veya ikinci kayıt listesi değildir ([Kanban](docs/prd/06-work-management-and-planning.md)). UI: `Board`, `Kanban`, `Over limit`, `Time in status`, `In Progress count`, `Collapse`, `Expand`, `Open blocker`.
 _Avoid_: Sprint tahtası, kapanış kolonu, bağımsız manuel sıra

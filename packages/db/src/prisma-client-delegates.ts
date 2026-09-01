@@ -32,6 +32,8 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.projectBacklogManualOrderItem?.createMany === "function" &&
 		typeof client.projectBacklogPresentation?.findUnique === "function" &&
 		typeof client.projectBacklogPresentation?.upsert === "function" &&
+		typeof client.workNotNowTrail?.findMany === "function" &&
+		typeof client.workNotNowTrail?.create === "function" &&
 		typeof client.externalExecutionHandoff?.findMany === "function" &&
 		typeof client.externalExecutionHandoff?.create === "function" &&
 		typeof client.workTemplate?.findMany === "function" &&

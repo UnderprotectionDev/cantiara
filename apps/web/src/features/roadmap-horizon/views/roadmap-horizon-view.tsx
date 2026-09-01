@@ -11,7 +11,7 @@ import { useCallback, useState } from "react";
 
 import { invalidateRoadmapHorizon } from "@/features/work-lifecycle/forms/invalidate-work";
 import { orpc } from "@/utils/orpc";
-
+import NotNowMark from "./not-now-mark";
 import {
 	isRoadmapHorizon,
 	ROADMAP_COPY,
@@ -23,6 +23,7 @@ interface RoadmapItem {
 	horizon: string | null;
 	id: string;
 	key: string;
+	notNow: { reason: string } | null;
 	originWorkId: string | null;
 	problemOpportunity: string | null;
 	role: string;
@@ -219,6 +220,7 @@ function RoadmapWorkRow({
 				{item.horizon ? (
 					<span className="text-muted-foreground text-xs">{item.horizon}</span>
 				) : null}
+				<NotNowMark reason={item.notNow?.reason} />
 			</button>
 		</li>
 	);

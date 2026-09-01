@@ -15,6 +15,7 @@ import RelationsPanel from "@/features/relations/views/relations-panel";
 import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
 import UsedInPanel from "@/features/relations/views/used-in-panel";
 import WorkHorizonForm from "@/features/roadmap-horizon/forms/work-horizon-form";
+import WorkNotNowForm from "@/features/roadmap-horizon/forms/work-not-now-form";
 import WorkTagPicker from "@/features/tags/views/work-tag-picker";
 import WorkChecklistPanel from "@/features/work-checklists/views/work-checklist-panel";
 import WorkContextCard from "@/features/work-context/views/work-context-card";
@@ -170,6 +171,12 @@ export default function WorkDetail({
 					key={`${work.id}:horizon:${work.revision}`}
 					projectId={projectId}
 					workId={work.id}
+				/>
+				<WorkNotNowForm
+					key={`${work.id}:not-now:${work.revision}`}
+					projectId={projectId}
+					workId={work.id}
+					workStatus={work.status}
 				/>
 			</div>
 			<RecordActionRun
