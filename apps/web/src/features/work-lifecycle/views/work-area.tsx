@@ -22,6 +22,7 @@ import {
 	PROJECT_SHELL_COPY,
 	projectShellAnchor,
 } from "@/features/project-shell/forms/project-shell-copy";
+import RoadmapHorizonView from "@/features/roadmap-horizon/views/roadmap-horizon-view";
 import TagFilter from "@/features/tags/views/tag-filter";
 import CreateFromTemplateForm from "@/features/work-templates/forms/create-from-template-form";
 import { orpc } from "@/utils/orpc";
@@ -262,7 +263,10 @@ export default function WorkArea({
 				selectedId={selectedId}
 				unavailableView={unavailableView}
 			/>
-			{!unavailableView && surface === "list" && savedView !== "Board" ? (
+			{!unavailableView &&
+			surface === "list" &&
+			savedView !== "Board" &&
+			savedView !== "Roadmap" ? (
 				<BulkEditPreview
 					filterWorkIds={items.map((item) => item.id)}
 					projectId={projectId}
@@ -425,6 +429,15 @@ function WorkCollectionSurface({
 			<KanbanBoard
 				configurationMode={configurationMode}
 				items={items}
+				onOpenSourceRecord={onOpenSourceRecord}
+				projectId={projectId}
+				selectedWorkId={selectedId}
+			/>
+		);
+	}
+	if (savedView === "Roadmap") {
+		return (
+			<RoadmapHorizonView
 				onOpenSourceRecord={onOpenSourceRecord}
 				projectId={projectId}
 				selectedWorkId={selectedId}

@@ -35,6 +35,7 @@ import {
 	WORK_DAILY_ACTIONS,
 	workSavedViewIsBoard,
 	workSavedViewIsList,
+	workSavedViewIsRoadmap,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
@@ -529,7 +530,8 @@ function ProjectBody({
 						unavailableView={
 							activeView &&
 							!workSavedViewIsList(activeView) &&
-							!workSavedViewIsBoard(activeView)
+							!workSavedViewIsBoard(activeView) &&
+							!workSavedViewIsRoadmap(activeView)
 								? activeView
 								: null
 						}

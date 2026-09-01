@@ -1405,6 +1405,7 @@ function independentStartWorkView(input: {
 		retiredIdentities: [],
 		revision: 1,
 		status: WORK_STATUS.notStarted,
+		targetDate: null,
 		title,
 		type,
 	};
