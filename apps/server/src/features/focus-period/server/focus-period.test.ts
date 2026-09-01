@@ -2,11 +2,14 @@
  * Focus Period seam — optional 1–8 week working window with purpose
  * and start/end dates; membership add/remove does not write Work
  * workflow status or Project stage; lifecycle is Planned / Active /
- * Closed / Canceled (no sprint). Clock test double for start-instant
+ * Closed / Canceled (no sprint). Read-only Dependencies on the same
+ * seam derive Active and Resolved blockers in period scope and do
+ * not write a relation. Clock test double for start-instant
  * Planned → Active. Closed writes close-scope snapshot and opens the
  * still-open Work bulk decision; Canceled does not. Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Odak Dönemi: 1–8 week window; membership does not write status).
+ * (Odak Dönemi: 1–8 week window; membership does not write status;
+ * Dependencies create no relation).
  */
 
 import { PrismaClient } from "@cantiara/db";
@@ -14,6 +17,10 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import {
+	addActiveBlockingRelation,
+	markBlockerResolved,
+} from "../../blockers/server/blockers";
 import { createProject } from "../../project-shell/server/project-shell";
 import {
 	createWork,
@@ -40,33 +47,25 @@ const BEFORE_START = new Date("2026-09-01T12:00:00.000Z");
 const START_INSTANT = new Date("2026-09-07T21:00:00.000Z");
 const FORBIDDEN_SURFACE =
 	/sprint|velocity|cadence|capacity|Milestone|Project Release|Daily Focus/i;
+const MERMAID_PATTERN = /mermaid/i;
+const GRAPH_LAYOUT_PATTERN = /nodePosition|layoutX|layoutY/;
+const WRITE_ACTIONS_PATTERN =
+	/Mark blocker resolved|Remove relation|Create relation/;
+const COLOR_ONLY_PATTERN = /color-only|hexColor|#(?:[0-9a-f]{3}){1,2}/i;
 
 describe("Focus Period catalog", () => {
 	it("exposes English Focus Period, 1–8 week window, and no sprint semantics", () => {
 		expect(focusPeriodCatalog()).toEqual({
-			copy: {
-				active: "Active",
-				add: "Add",
-				cancel: "Cancel",
-				canceled: "Canceled",
-				close: "Close",
-				closed: "Closed",
-				create: "Create Focus Period",
-				empty: "No Focus Period yet.",
-				endDate: "End date",
-				focusPeriod: "Focus Period",
-				loading: "Loading…",
-				members: "Work",
-				planned: "Planned",
-				purpose: "Purpose",
-				purposeRequired: "Purpose is required.",
-				remove: "Remove",
-				startDate: "Start date",
-				stillOpenWork: "Still-open Work",
-				windowMustBeOneToEightWeeks: "Focus Period must be 1–8 weeks.",
-				work: "Work",
-			},
+			copy: FOCUS_PERIOD_COPY,
 			counterparts: FOCUS_PERIOD_COUNTERPARTS,
+			dependencies: {
+				copy: {
+					dependencies: "Dependencies",
+					openSourceRecord: "Open source record",
+				},
+				optional: true,
+				writable: false,
+			},
 			kind: "focus-period",
 			maxDays: FOCUS_PERIOD_MAX_DAYS,
 			minDays: FOCUS_PERIOD_MIN_DAYS,
@@ -90,6 +89,14 @@ describe("Focus Period catalog", () => {
 		expect(JSON.stringify(focusPeriodCatalog().copy)).not.toMatch(
 			FORBIDDEN_SURFACE
 		);
+		expect(focusPeriodCatalog().dependencies).toMatchObject({
+			copy: {
+				dependencies: "Dependencies",
+				openSourceRecord: "Open source record",
+			},
+			optional: true,
+			writable: false,
+		});
 	});
 });
 
@@ -129,6 +136,19 @@ describe("Focus Period", () => {
 		await prisma.mutationReceipt.deleteMany({
 			where: { actorId },
 		});
+		const workIds = (
+			await prisma.work.findMany({
+				select: { id: true },
+				where: { project: { workspaceId } },
+			})
+		).map((row) => row.id);
+		if (workIds.length > 0) {
+			await prisma.typedRelation.deleteMany({
+				where: {
+					OR: [{ fromId: { in: workIds } }, { toId: { in: workIds } }],
+				},
+			});
+		}
 		await prisma.focusPeriodMembership.deleteMany({
 			where: { focusPeriod: { workspaceId } },
 		});
@@ -536,5 +556,164 @@ describe("Focus Period", () => {
 			status: "Not Started",
 		});
 		expect(await active.activePeriodIdForWork(intake.id)).toBeNull();
+	});
+
+	it("offers optional read-only Dependencies with no create or resolve action", async () => {
+		const period = await openPeriod("Ship checkout");
+		const viewed = await surface().get(period.id);
+		expect(viewed?.dependencies.copy.dependencies).toBe("Dependencies");
+		expect(viewed?.dependencies.copy.openSourceRecord).toBe(
+			"Open source record"
+		);
+		expect(viewed?.dependencies.optional).toBe(true);
+		expect(viewed?.dependencies.writable).toBe(false);
+		expect(viewed?.dependencies.actions).toEqual({
+			createRelation: false,
+			resolveRelation: false,
+		});
+		expect(viewed?.dependencies.criticalPath).toBe(false);
+		expect(viewed?.dependencies.secondPlanningFact).toBe(false);
+		expect(viewed?.dependencies.edges).toEqual([]);
+		expect(viewed?.dependencies.nodes).toEqual([]);
+		expect(viewed?.dependencies.cycles).toEqual([]);
+		expect(viewed?.dependencies).not.toHaveProperty("mermaidSource");
+		expect(viewed?.dependencies).not.toHaveProperty("manualLayout");
+		const serialized = JSON.stringify(viewed?.dependencies);
+		expect(serialized).not.toMatch(MERMAID_PATTERN);
+		expect(serialized).not.toMatch(GRAPH_LAYOUT_PATTERN);
+		expect(serialized).not.toMatch(WRITE_ACTIONS_PATTERN);
+	});
+
+	it("derives Dependencies from Active and Resolved blockers in period scope without writing a relation", async () => {
+		const payments = await openProject("Payments");
+		const auth = await openWork(payments.id, "Auth API");
+		const checkout = await openWork(payments.id, "Checkout");
+		const outsider = await openWork(payments.id, "Unrelated");
+		const period = await openPeriod("Checkout window");
+		const focus = surface();
+		await focus.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: auth.id,
+		});
+		await focus.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: checkout.id,
+		});
+		const added = await addActiveBlockingRelation(prisma, {
+			actorId,
+			blockedWorkId: checkout.id,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			source: { id: auth.id, kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		if (added.status !== "committed") {
+			throw new Error("expected committed blocking relation");
+		}
+		await markBlockerResolved(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			relationId: added.relation.id,
+			viewerWorkspaceId: workspaceId,
+		});
+		await addActiveBlockingRelation(prisma, {
+			actorId,
+			blockedWorkId: outsider.id,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			source: { id: auth.id, kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		const relationCount = await prisma.typedRelation.count();
+		const viewed = await focus.get(period.id);
+		expect(viewed?.dependencies.writable).toBe(false);
+		expect(viewed?.dependencies.edges).toEqual([
+			{
+				direction: "Blocks",
+				from: { id: auth.id, kind: "Work" },
+				id: added.relation.id,
+				state: "Resolved",
+				to: { id: checkout.id, kind: "Work" },
+			},
+		]);
+		expect(viewed?.dependencies.nodes).toEqual(
+			expect.arrayContaining([
+				{
+					href: `/projects/${payments.id}?work=${encodeURIComponent(auth.id)}#work`,
+					id: auth.id,
+					kind: "Work",
+					label: `${auth.key} Auth API`,
+					openSourceRecord: "Open source record",
+				},
+				{
+					href: `/projects/${payments.id}?work=${encodeURIComponent(checkout.id)}#work`,
+					id: checkout.id,
+					kind: "Work",
+					label: `${checkout.key} Checkout`,
+					openSourceRecord: "Open source record",
+				},
+			])
+		);
+		expect(viewed?.dependencies.nodes).toHaveLength(2);
+		expect(viewed?.dependencies.cycles).toEqual([]);
+		expect(await prisma.typedRelation.count()).toBe(relationCount);
+		expect(JSON.stringify(viewed?.dependencies)).not.toMatch(
+			WRITE_ACTIONS_PATTERN
+		);
+	});
+
+	it("explains a safely detected cycle in Dependencies without a color-only signal", async () => {
+		const payments = await openProject("Payments");
+		const auth = await openWork(payments.id, "Auth API");
+		const checkout = await openWork(payments.id, "Checkout");
+		const period = await openPeriod("Loop window");
+		const focus = surface();
+		await focus.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: auth.id,
+		});
+		await focus.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: checkout.id,
+		});
+		const first = await addActiveBlockingRelation(prisma, {
+			actorId,
+			blockedWorkId: checkout.id,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			source: { id: auth.id, kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		const reverse = await addActiveBlockingRelation(prisma, {
+			actorId,
+			blockedWorkId: auth.id,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			source: { id: checkout.id, kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		if (first.status !== "committed" || reverse.status !== "committed") {
+			throw new Error("expected committed cycle");
+		}
+		const viewed = await focus.get(period.id);
+		expect(viewed?.dependencies.cycles).toEqual([
+			{
+				explanation: "These records wait on each other.",
+				relationIds: expect.arrayContaining([
+					first.relation.id,
+					reverse.relation.id,
+				]),
+				workIds: [auth.id, checkout.id].sort(),
+			},
+		]);
+		expect(viewed?.dependencies.cycles[0]?.relationIds).toHaveLength(2);
+		expect(JSON.stringify(viewed?.dependencies.cycles)).not.toMatch(
+			COLOR_ONLY_PATTERN
+		);
 	});
 });

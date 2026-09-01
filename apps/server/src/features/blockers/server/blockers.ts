@@ -507,7 +507,7 @@ function stronglyConnectedWorkIds(
 }
 
 export async function projectDependencies(
-	prisma: PrismaClient,
+	prisma: PrismaClient | Prisma.TransactionClient,
 	workIds: readonly string[]
 ): Promise<DependenciesProjection> {
 	const scope = new Set(workIds);

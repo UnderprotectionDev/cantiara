@@ -1,6 +1,7 @@
 import { getAccountPreferences, instantFromCalendarDate } from "@cantiara/auth";
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
+import { projectDependencies } from "../../blockers/server/blockers";
 import {
 	lockMutation,
 	readDurableReceipt,
@@ -10,6 +11,7 @@ import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import { WORK_STATUS } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
 	calendarDaySchema,
+	emptyFocusPeriodDependencies,
 	FOCUS_PERIOD_COPY,
 	FOCUS_PERIOD_COUNTERPARTS,
 	FOCUS_PERIOD_PLANNING_WRITES,
@@ -20,6 +22,7 @@ import {
 	type FocusPeriodWork,
 	focusPeriodCatalog,
 	isFocusPeriodWindow,
+	sourceRecordHref,
 } from "./focus-period-model";
 
 type MutationDb = PrismaClient | Prisma.TransactionClient;
@@ -503,10 +506,12 @@ async function toView(
 				.filter((member) => member.status !== WORK_STATUS.closed)
 				.map(withoutStatus)
 		: [];
+	const dependencies = await periodDependencies(db, memberViews);
 	return {
 		closeScope,
 		copy: FOCUS_PERIOD_COPY,
 		counterparts: FOCUS_PERIOD_COUNTERPARTS,
+		dependencies,
 		eligibleWork,
 		endDate: row.endDate,
 		id: row.id,
@@ -522,6 +527,60 @@ async function toView(
 			opened: row.stillOpenDecisionOpened,
 			stillOpen,
 		},
+	};
+}
+
+async function periodDependencies(
+	db: MutationDb,
+	members: readonly FocusPeriodWork[]
+) {
+	const empty = emptyFocusPeriodDependencies();
+	if (members.length === 0) {
+		return empty;
+	}
+	const graph = await projectDependencies(
+		db,
+		members.map((member) => member.id)
+	);
+	const workById = new Map(members.map((member) => [member.id, member]));
+	const missingWorkIds = graph.nodes
+		.filter((node) => node.kind === "Work" && !workById.has(node.id))
+		.map((node) => node.id);
+	if (missingWorkIds.length > 0) {
+		const extra = await db.work.findMany({
+			include: { project: true },
+			where: { id: { in: missingWorkIds } },
+		});
+		for (const row of extra) {
+			workById.set(row.id, withoutStatus(toWork(row)));
+		}
+	}
+	const nodes = graph.nodes.flatMap((node) => {
+		const linked = graph.edges.find((edge) => edge.from.id === node.id);
+		const projectId =
+			node.kind === "Work"
+				? workById.get(node.id)?.projectId
+				: (workById.get(linked?.to.id ?? "")?.projectId ??
+					members[0]?.projectId);
+		if (!projectId) {
+			return [];
+		}
+		const work = node.kind === "Work" ? workById.get(node.id) : undefined;
+		return [
+			{
+				href: sourceRecordHref(node.kind, node.id, projectId),
+				id: node.id,
+				kind: node.kind,
+				label: work ? `${work.key} ${work.title}` : node.kind,
+				openSourceRecord: FOCUS_PERIOD_COPY.openSourceRecord,
+			},
+		];
+	});
+	return {
+		...empty,
+		cycles: graph.cycles,
+		edges: graph.edges,
+		nodes,
 	};
 }
 

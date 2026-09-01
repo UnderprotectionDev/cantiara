@@ -207,7 +207,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Gözlenen/beklenen davranış | `Observed/Expected Behavior` | Bug hazır İş Bağlam Kartı bölümü |
 | Etkilenen sürümler | `Affected Releases` | Bug hazır İş Bağlam Kartı bölümü |
 | Kanıt | `Evidence` | Bug ve Improvement hazır İş Bağlam Kartı bölümü |
-| Bağımlılıklar | `Dependencies` | Task hazır İş Bağlam Kartı bölümü |
+| Bağımlılıklar | `Dependencies` | Task hazır İş Bağlam Kartı bölümü; Özellik ve Odak Dönemi detayında salt-okunur blokaj görünümü |
 | Araştırma sorusu | `Research Question` | Research hazır İş Bağlam Kartı bölümü |
 | Kaynaklar ve kanıt | `Sources & Evidence` | Research hazır İş Bağlam Kartı bölümü |
 | İlgili iş | `Related Work` | Research hazır İş Bağlam Kartı bölümü |
