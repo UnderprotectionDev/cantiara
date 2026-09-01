@@ -198,6 +198,120 @@ export function selectedDateKinds(
 	return DATE_KINDS.filter((kind) => dateKinds.includes(kind));
 }
 
+function calendarWindowBounds(input: {
+	calendarDay: string;
+	rangeEnd: string;
+	rangeStart: string;
+	view: CalendarViewName;
+}): { windowEnd: string; windowStart: string } {
+	if (input.view === UNIFIED_CALENDAR_COPY.day) {
+		return { windowEnd: input.calendarDay, windowStart: input.calendarDay };
+	}
+	return { windowEnd: input.rangeEnd, windowStart: input.rangeStart };
+}
+
+function asCalendarWork(work: DatedCalendarWork): CalendarWork {
+	return {
+		id: work.id,
+		key: work.key,
+		projectId: work.projectId,
+		projectName: work.projectName,
+		title: work.title,
+	};
+}
+
+function workRangeOverlapsWindow(
+	work: DatedCalendarWork,
+	windowStart: string,
+	windowEnd: string
+): boolean {
+	return Boolean(
+		work.plannedStart &&
+			work.targetDate &&
+			rangeOverlapsWindow(
+				work.plannedStart,
+				work.targetDate,
+				windowStart,
+				windowEnd
+			)
+	);
+}
+
+function presentAgendaPositions(input: {
+	dateKinds: ReadonlySet<CalendarDateKind>;
+	windowEnd: string;
+	windowStart: string;
+	works: readonly DatedCalendarWork[];
+}): CalendarPosition[] {
+	const positions: CalendarPosition[] = [];
+	for (const work of input.works) {
+		const appears =
+			dateInWindow(work.plannedStart, input.windowStart, input.windowEnd) ||
+			dateInWindow(work.targetDate, input.windowStart, input.windowEnd) ||
+			dateInWindow(work.reappearDate, input.windowStart, input.windowEnd) ||
+			workRangeOverlapsWindow(work, input.windowStart, input.windowEnd);
+		if (!appears) {
+			continue;
+		}
+		const asWork = asCalendarWork(work);
+		if (
+			input.dateKinds.has(UNIFIED_CALENDAR_COPY.plannedStart) &&
+			work.plannedStart
+		) {
+			positions.push({
+				...asWork,
+				date: work.plannedStart,
+				kind: UNIFIED_CALENDAR_COPY.plannedStart,
+			});
+		}
+		if (
+			input.dateKinds.has(UNIFIED_CALENDAR_COPY.targetDate) &&
+			work.targetDate
+		) {
+			positions.push({
+				...asWork,
+				date: work.targetDate,
+				kind: UNIFIED_CALENDAR_COPY.targetDate,
+			});
+		}
+		if (
+			input.dateKinds.has(UNIFIED_CALENDAR_COPY.reappearDate) &&
+			dateInWindow(work.reappearDate, input.windowStart, input.windowEnd)
+		) {
+			positions.push({
+				...asWork,
+				date: work.reappearDate,
+				kind: UNIFIED_CALENDAR_COPY.reappearDate,
+			});
+		}
+	}
+	return positions.toSorted(
+		(left, right) =>
+			left.date.localeCompare(right.date) ||
+			DATE_KINDS.indexOf(left.kind) - DATE_KINDS.indexOf(right.kind) ||
+			left.key.localeCompare(right.key)
+	);
+}
+
+function pushPositionIfKindInWindow(
+	positions: CalendarPosition[],
+	work: DatedCalendarWork,
+	kind: CalendarDateKind,
+	date: string | null,
+	kinds: ReadonlySet<CalendarDateKind>,
+	windowStart: string,
+	windowEnd: string
+): void {
+	if (!(kinds.has(kind) && dateInWindow(date, windowStart, windowEnd))) {
+		return;
+	}
+	positions.push({
+		...asCalendarWork(work),
+		date,
+		kind,
+	});
+}
+
 export function presentCalendarWindow(input: {
 	calendarDay: string;
 	dateKinds?: readonly CalendarDateKind[];
@@ -207,35 +321,28 @@ export function presentCalendarWindow(input: {
 	works: readonly DatedCalendarWork[];
 }): { positions: CalendarPosition[]; ranges: CalendarRange[] } {
 	const kinds = new Set(selectedDateKinds(input.dateKinds));
+	const { windowEnd, windowStart } = calendarWindowBounds(input);
+	if (input.view === UNIFIED_CALENDAR_COPY.agenda) {
+		return {
+			positions: presentAgendaPositions({
+				dateKinds: kinds,
+				windowEnd,
+				windowStart,
+				works: input.works,
+			}),
+			ranges: [],
+		};
+	}
 	const positions: CalendarPosition[] = [];
 	const ranges: CalendarRange[] = [];
-	const dayView = input.view === UNIFIED_CALENDAR_COPY.day;
-	const agendaView = input.view === UNIFIED_CALENDAR_COPY.agenda;
-	const windowStart = dayView ? input.calendarDay : input.rangeStart;
-	const windowEnd = dayView ? input.calendarDay : input.rangeEnd;
 	const useRange =
-		!(dayView || agendaView) &&
+		input.view !== UNIFIED_CALENDAR_COPY.day &&
 		kinds.has(UNIFIED_CALENDAR_COPY.plannedStart) &&
 		kinds.has(UNIFIED_CALENDAR_COPY.targetDate);
 	for (const work of input.works) {
-		const asWork = {
-			id: work.id,
-			key: work.key,
-			projectId: work.projectId,
-			projectName: work.projectName,
-			title: work.title,
-		};
-		if (
-			useRange &&
-			work.plannedStart &&
-			work.targetDate &&
-			rangeOverlapsWindow(
-				work.plannedStart,
-				work.targetDate,
-				windowStart,
-				windowEnd
-			)
-		) {
+		const asWork = asCalendarWork(work);
+		const rangeInWindow = workRangeOverlapsWindow(work, windowStart, windowEnd);
+		if (useRange && rangeInWindow && work.plannedStart && work.targetDate) {
 			ranges.push({
 				...asWork,
 				end: {
@@ -248,44 +355,33 @@ export function presentCalendarWindow(input: {
 				},
 			});
 		} else {
-			if (
-				kinds.has(UNIFIED_CALENDAR_COPY.plannedStart) &&
-				dateInWindow(work.plannedStart, windowStart, windowEnd)
-			) {
-				positions.push({
-					...asWork,
-					date: work.plannedStart,
-					kind: UNIFIED_CALENDAR_COPY.plannedStart,
-				});
-			}
-			if (
-				kinds.has(UNIFIED_CALENDAR_COPY.targetDate) &&
-				dateInWindow(work.targetDate, windowStart, windowEnd)
-			) {
-				positions.push({
-					...asWork,
-					date: work.targetDate,
-					kind: UNIFIED_CALENDAR_COPY.targetDate,
-				});
-			}
+			pushPositionIfKindInWindow(
+				positions,
+				work,
+				UNIFIED_CALENDAR_COPY.plannedStart,
+				work.plannedStart,
+				kinds,
+				windowStart,
+				windowEnd
+			);
+			pushPositionIfKindInWindow(
+				positions,
+				work,
+				UNIFIED_CALENDAR_COPY.targetDate,
+				work.targetDate,
+				kinds,
+				windowStart,
+				windowEnd
+			);
 		}
-		if (
-			kinds.has(UNIFIED_CALENDAR_COPY.reappearDate) &&
-			dateInWindow(work.reappearDate, windowStart, windowEnd)
-		) {
-			positions.push({
-				...asWork,
-				date: work.reappearDate,
-				kind: UNIFIED_CALENDAR_COPY.reappearDate,
-			});
-		}
-	}
-	if (agendaView) {
-		positions.sort(
-			(left, right) =>
-				left.date.localeCompare(right.date) ||
-				DATE_KINDS.indexOf(left.kind) - DATE_KINDS.indexOf(right.kind) ||
-				left.key.localeCompare(right.key)
+		pushPositionIfKindInWindow(
+			positions,
+			work,
+			UNIFIED_CALENDAR_COPY.reappearDate,
+			work.reappearDate,
+			kinds,
+			windowStart,
+			windowEnd
 		);
 	}
 	return { positions, ranges };
@@ -321,24 +417,27 @@ export function presentCalendarDays(input: {
 	const presented = presentCalendarWindow(input);
 	const dayView = input.view === UNIFIED_CALENDAR_COPY.day;
 	const agendaView = input.view === UNIFIED_CALENDAR_COPY.agenda;
-	const windowStart = dayView ? input.calendarDay : input.rangeStart;
-	const windowEnd = dayView ? input.calendarDay : input.rangeEnd;
-	const slices = eachCalendarDateInclusive(windowStart, windowEnd).map(
-		(date) => ({
+	if (agendaView) {
+		const dates = [
+			...new Set(presented.positions.map((position) => position.date)),
+		].toSorted((left, right) => left.localeCompare(right));
+		return dates.map((date) => ({
 			date,
 			positions: presented.positions.filter(
 				(position) => position.date === date
 			),
-			ranges:
-				dayView || agendaView
-					? []
-					: presented.ranges.filter((range) => rangeCoversDate(range, date)),
-		})
-	);
-	if (agendaView) {
-		return slices.filter((slice) => slice.positions.length > 0);
+			ranges: [],
+		}));
 	}
-	return slices;
+	const windowStart = dayView ? input.calendarDay : input.rangeStart;
+	const windowEnd = dayView ? input.calendarDay : input.rangeEnd;
+	return eachCalendarDateInclusive(windowStart, windowEnd).map((date) => ({
+		date,
+		positions: presented.positions.filter((position) => position.date === date),
+		ranges: dayView
+			? []
+			: presented.ranges.filter((range) => rangeCoversDate(range, date)),
+	}));
 }
 
 export function addCalendarDays(day: string, days: number): string {

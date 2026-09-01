@@ -197,12 +197,14 @@ function CalendarItems({
 											.join(" · ")}
 									</p>
 								</div>
-								<a
-									className="shrink-0 text-sm underline-offset-4 hover:underline"
-									href={item.href}
-								>
-									{copy.openSourceRecord}
-								</a>
+								{item.openSourceRecord ? (
+									<a
+										className="shrink-0 text-sm underline-offset-4 hover:underline"
+										href={item.href}
+									>
+										{copy.openSourceRecord}
+									</a>
+								) : null}
 							</li>
 						))}
 					</ul>

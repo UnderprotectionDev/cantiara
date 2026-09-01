@@ -268,6 +268,15 @@ describe("Unified Calendar catalog", () => {
 		expect(agenda.ranges).toEqual([]);
 		expect(agenda.positions).toEqual([
 			{
+				date: "2026-08-31",
+				id: SPAN_WORK.id,
+				key: SPAN_WORK.key,
+				kind: "Planned start",
+				projectId: SPAN_WORK.projectId,
+				projectName: SPAN_WORK.projectName,
+				title: SPAN_WORK.title,
+			},
+			{
 				date: "2026-09-02",
 				id: SPAN_WORK.id,
 				key: SPAN_WORK.key,
@@ -295,7 +304,11 @@ describe("Unified Calendar catalog", () => {
 			view: "Agenda",
 			works: [SPAN_WORK],
 		});
-		expect(dense.map((day) => day.date)).toEqual(["2026-09-02", "2026-09-04"]);
+		expect(dense.map((day) => day.date)).toEqual([
+			"2026-08-31",
+			"2026-09-02",
+			"2026-09-04",
+		]);
 		expect(dense.every((day) => day.ranges.length === 0)).toBe(true);
 	});
 
@@ -613,8 +626,10 @@ describe("Unified Calendar", () => {
 		expect(agenda.positions.map((row) => row.id)).toEqual([
 			intake.id,
 			intake.id,
+			intake.id,
 		]);
 		expect(agenda.positions.map((row) => row.kind)).toEqual([
+			"Planned start",
 			"Reappear date",
 			"Target date",
 		]);
