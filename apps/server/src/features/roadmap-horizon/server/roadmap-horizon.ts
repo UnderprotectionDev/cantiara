@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
-import { BLOCKERS_COPY } from "../../blockers/server/blockers-model";
+import { listActiveBlockerSources } from "../../blockers/server/blockers";
 import { getProject } from "../../project-shell/server/project-shell";
 import { listRelations } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
@@ -21,7 +21,6 @@ import {
 	placeCandidateCommandSchema,
 	placeHorizonCommandSchema,
 	previewPlaceCandidateCommandSchema,
-	ROADMAP_BLOCKER_SOURCE_KINDS,
 	ROADMAP_CANDIDATE_WRITES,
 	ROADMAP_COPY,
 	ROADMAP_INNER_MEMBERSHIP,
@@ -29,7 +28,6 @@ import {
 	ROADMAP_PRESENTATIONS,
 	ROADMAP_WRITES,
 	type RoadmapBlockerBadge,
-	type RoadmapBlockerSourceKind,
 	type RoadmapGroup,
 	type RoadmapGroupField,
 	type RoadmapHorizon,
@@ -123,6 +121,8 @@ export async function listRoadmap(
 		projectId: parsed.data.projectId,
 		workspaceId: project.workspaceId,
 	});
+	const planned = items.filter((item) => !isUnplannedCandidate(item));
+	const candidates = items.filter(isUnplannedCandidate);
 	return {
 		copy: {
 			later: ROADMAP_COPY.later,
@@ -132,7 +132,7 @@ export async function listRoadmap(
 			roadmap: ROADMAP_COPY.roadmap,
 			unplannedCandidates: ROADMAP_COPY.unplannedCandidates,
 		},
-		groups: groupItems(items, groupField),
+		groups: groupItems(planned, groupField),
 		innerMembership: ROADMAP_INNER_MEMBERSHIP,
 		namedView,
 		presentation,
@@ -150,7 +150,7 @@ export async function listRoadmap(
 		unplannedCandidates: {
 			collapsed: true,
 			copy: { unplannedCandidates: ROADMAP_COPY.unplannedCandidates },
-			items: items.filter(isUnplannedCandidate),
+			items: candidates,
 			membership: "live-filter",
 			parked: false,
 		},
@@ -350,41 +350,21 @@ async function activeBlockerBadges(
 	workIds: readonly string[]
 ): Promise<Map<string, RoadmapBlockerBadge>> {
 	const badges = new Map<string, RoadmapBlockerBadge>();
-	if (workIds.length === 0) {
-		return badges;
-	}
-	const rows = await prisma.typedRelation.findMany({
-		orderBy: { establishedAt: "asc" },
-		where: {
-			blockerState: BLOCKERS_COPY.active,
-			toId: { in: [...workIds] },
-			toKind: "Work",
-			type: RELATIONS_COPY.blocks,
-		},
-	});
-	for (const row of rows) {
-		if (!isRoadmapBlockerSourceKind(row.fromKind)) {
+	const sources = await listActiveBlockerSources(
+		prisma as PrismaClient,
+		workIds
+	);
+	for (const [blockedWorkId, sourceList] of sources) {
+		if (sourceList.length === 0) {
 			continue;
 		}
-		const source = { id: row.fromId, kind: row.fromKind };
-		const existing = badges.get(row.toId);
-		if (existing) {
-			existing.sources.push(source);
-			continue;
-		}
-		badges.set(row.toId, {
-			blockedWorkId: row.toId,
+		badges.set(blockedWorkId, {
+			blockedWorkId,
 			copy: { openSourceRecord: ROADMAP_COPY.openSourceRecord },
-			sources: [source],
+			sources: sourceList,
 		});
 	}
 	return badges;
-}
-
-function isRoadmapBlockerSourceKind(
-	value: string
-): value is RoadmapBlockerSourceKind {
-	return (ROADMAP_BLOCKER_SOURCE_KINDS as readonly string[]).includes(value);
 }
 
 async function previewCandidate(

@@ -232,30 +232,26 @@ export default function WorkArea({
 
 	return (
 		<div className="flex flex-col gap-6">
-			{roadmapPresentation ? null : (
-				<>
-					<div id={projectShellAnchor(PROJECT_SHELL_COPY.create)}>
-						<CreateWorkForm onCreated={onCreated} projectId={projectId} />
-					</div>
-					<CreateFromTemplateForm onCreated={onCreated} projectId={projectId} />
-					<PrioritizationSessionArea
-						projectId={projectId}
-						work={items.map((item) => ({ id: item.id, title: item.title }))}
-					/>
-					<WorkPlanningTools
-						archiveFilter={archiveFilter}
-						onRecordIds={setFilteredIds}
-						onTagFilter={onTagFilter}
-						onToggleArchiveFilter={onToggleArchiveFilter}
-						onTogglePriorityMap={onTogglePriorityMap}
-						preparedBacklog={preparedBacklog}
-						priorityMapOpen={surface === "priority-map"}
-						projectId={projectId}
-						tagFilter={tagFilter}
-						tags={suggestions.data ?? []}
-					/>
-				</>
-			)}
+			<div id={projectShellAnchor(PROJECT_SHELL_COPY.create)}>
+				<CreateWorkForm onCreated={onCreated} projectId={projectId} />
+			</div>
+			<CreateFromTemplateForm onCreated={onCreated} projectId={projectId} />
+			<PrioritizationSessionArea
+				projectId={projectId}
+				work={items.map((item) => ({ id: item.id, title: item.title }))}
+			/>
+			<WorkPlanningTools
+				archiveFilter={archiveFilter}
+				onRecordIds={setFilteredIds}
+				onTagFilter={onTagFilter}
+				onToggleArchiveFilter={onToggleArchiveFilter}
+				onTogglePriorityMap={onTogglePriorityMap}
+				preparedBacklog={preparedBacklog}
+				priorityMapOpen={surface === "priority-map"}
+				projectId={projectId}
+				tagFilter={tagFilter}
+				tags={suggestions.data ?? []}
+			/>
 			<WorkCollectionSurface
 				bulkSelectedIds={bulkSelectedIds}
 				configurationMode={configurationMode}
@@ -281,8 +277,7 @@ export default function WorkArea({
 				selectedId={selectedId}
 				unavailableView={unavailableView}
 			/>
-			{roadmapPresentation ||
-			unavailableView ||
+			{unavailableView ||
 			surface !== "list" ||
 			savedView === "Board" ||
 			workSavedViewIsRoadmap(savedView ?? "") ? null : (
@@ -292,13 +287,11 @@ export default function WorkArea({
 					selectedWorkIds={bulkTargets}
 				/>
 			)}
-			{roadmapPresentation ? null : (
-				<ScopeTree
-					onOpenSourceRecord={onOpenSourceRecord}
-					openedRecordId={selectedId}
-					projectId={projectId}
-				/>
-			)}
+			<ScopeTree
+				onOpenSourceRecord={onOpenSourceRecord}
+				openedRecordId={selectedId}
+				projectId={projectId}
+			/>
 			{selected ? (
 				<WorkDetail
 					appliedTagIds={tagsByWork.get(selected.id) ?? []}

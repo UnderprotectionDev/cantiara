@@ -101,7 +101,26 @@ export default function WorkDetail({
 					</Button>
 				</header>
 				{readOnly ? (
-					<p className="text-muted-foreground text-sm">{work.status}</p>
+					<dl className="grid gap-1 text-sm">
+						<div className="flex gap-2">
+							<dt className="text-muted-foreground">
+								{WORK_LIFECYCLE_COPY.status}
+							</dt>
+							<dd>{work.status}</dd>
+						</div>
+						<div className="flex gap-2">
+							<dt className="text-muted-foreground">
+								{WORK_LIFECYCLE_COPY.plannedStart}
+							</dt>
+							<dd>{work.plannedStart ?? "—"}</dd>
+						</div>
+						<div className="flex gap-2">
+							<dt className="text-muted-foreground">
+								{WORK_LIFECYCLE_COPY.targetDate}
+							</dt>
+							<dd>{work.targetDate ?? "—"}</dd>
+						</div>
+					</dl>
 				) : (
 					<>
 						<WorkContextCard

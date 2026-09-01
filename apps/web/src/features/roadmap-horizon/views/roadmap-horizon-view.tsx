@@ -332,6 +332,7 @@ function BlockerBadgeActions({
 	return (
 		<div className="mt-1 flex flex-wrap gap-2 px-1">
 			<Button
+				aria-label={`${badge.copy.openSourceRecord} · Work`}
 				onClick={onOpenBlocked}
 				size="sm"
 				type="button"
@@ -361,10 +362,19 @@ function BlockerSourceButton({
 	source: { id: string; kind: string };
 }) {
 	const onClick = useCallback(() => {
+		if (source.kind !== "Work") {
+			return;
+		}
 		onOpen(source.id);
-	}, [onOpen, source.id]);
+	}, [onOpen, source.id, source.kind]);
 	return (
-		<Button onClick={onClick} size="sm" type="button" variant="ghost">
+		<Button
+			aria-label={`${label} · ${source.kind}`}
+			onClick={onClick}
+			size="sm"
+			type="button"
+			variant="ghost"
+		>
 			{label} · {source.kind}
 		</Button>
 	);
@@ -376,6 +386,7 @@ function PlaceCandidateForm({ workId }: { workId: string }) {
 	>("Horizon");
 	const [value, setValue] = useState<string>(ROADMAP_COPY.next);
 	const [previewText, setPreviewText] = useState<string | null>(null);
+	const [previewedChange, setPreviewedChange] = useState<string | null>(null);
 	const place = useMutation(
 		orpc.roadmapHorizon.placeCandidate.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -406,14 +417,17 @@ function PlaceCandidateForm({ workId }: { workId: string }) {
 			.then((outcome) => {
 				if (outcome.status !== "ready") {
 					setPreviewText(null);
+					setPreviewedChange(null);
 					return;
 				}
+				setPreviewedChange(JSON.stringify(change));
 				setPreviewText(
 					`${outcome.preview.field}: ${outcome.preview.from ?? "—"} → ${outcome.preview.to}`
 				);
 			})
 			.catch(() => {
 				setPreviewText(null);
+				setPreviewedChange(null);
 			});
 	}, [change, workId]);
 	const onConfirm = useCallback(() => {
@@ -426,6 +440,8 @@ function PlaceCandidateForm({ workId }: { workId: string }) {
 	}, [change, place, workId]);
 	const onFieldChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
 		const next = event.currentTarget.value;
+		setPreviewText(null);
+		setPreviewedChange(null);
 		if (next === ROADMAP_COPY.plannedStart) {
 			setField("Planned start");
 			setValue("");
@@ -440,9 +456,13 @@ function PlaceCandidateForm({ workId }: { workId: string }) {
 		setValue(ROADMAP_COPY.next);
 	}, []);
 	const onValueChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+		setPreviewText(null);
+		setPreviewedChange(null);
 		setValue(event.currentTarget.value);
 	}, []);
 	const onDateChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+		setPreviewText(null);
+		setPreviewedChange(null);
 		setValue(event.currentTarget.value);
 	}, []);
 	return (
@@ -502,7 +522,7 @@ function PlaceCandidateForm({ workId }: { workId: string }) {
 					{ROADMAP_COPY.preview}
 				</Button>
 				<Button
-					disabled={!previewText}
+					disabled={previewedChange !== JSON.stringify(change)}
 					onClick={onConfirm}
 					size="sm"
 					type="button"

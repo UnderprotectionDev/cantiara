@@ -154,7 +154,12 @@ function flatItems(view: Awaited<ReturnType<typeof listRoadmap>>) {
 	if ("reason" in view) {
 		throw new Error("expected Roadmap view");
 	}
-	return view.groups.flatMap((group) => group.items);
+	const grouped = view.groups.flatMap((group) => group.items);
+	const seen = new Set(grouped.map((item) => item.id));
+	return [
+		...grouped,
+		...view.unplannedCandidates.items.filter((item) => !seen.has(item.id)),
+	];
 }
 
 describe("Roadmap Horizon", () => {
@@ -481,8 +486,10 @@ describe("Roadmap Horizon", () => {
 			projectId: project.id,
 		});
 		const allItems = flatItems(allTypes);
-		expect(allItems.map((item) => item.id).sort()).toEqual(
-			[research.id, feature.id, strayTask.id].sort()
+		expect(
+			allItems.map((item) => item.id).sort((a, b) => a.localeCompare(b))
+		).toEqual(
+			[research.id, feature.id, strayTask.id].sort((a, b) => a.localeCompare(b))
 		);
 		expect(allItems.find((item) => item.id === strayTask.id)).toMatchObject({
 			role: "Primary",
@@ -681,6 +688,9 @@ describe("Roadmap Horizon", () => {
 		expect(view.unplannedCandidates.items.map((item) => item.id)).toEqual([
 			candidate.id,
 		]);
+		expect(
+			view.groups.flatMap((group) => group.items.map((item) => item.id))
+		).not.toContain(candidate.id);
 		const preview = await previewPlaceCandidate(prisma, {
 			change: { field: "Horizon", horizon: "Next" },
 			workId: candidate.id,
