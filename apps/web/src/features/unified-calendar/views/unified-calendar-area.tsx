@@ -1,4 +1,5 @@
 import { CLIENT_SHELL_COPY as MAIN_FLOW_COPY } from "@cantiara/api/client-shell-failure";
+import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
@@ -6,7 +7,7 @@ import {
 	NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useQuery } from "@tanstack/react-query";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, MouseEvent } from "react";
 import { useCallback, useState } from "react";
 
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
@@ -14,12 +15,12 @@ import { orpc } from "@/utils/orpc";
 
 import { UNIFIED_CALENDAR_COPY } from "./unified-calendar-copy";
 import { calendarListPresentation } from "./unified-calendar-list-presentation";
+import {
+	type CalendarVisibleRow,
+	calendarVisibleRows,
+} from "./unified-calendar-rows";
 
 type CalendarViewName = "Day" | "Week" | "Month";
-
-function workHref(projectId: string, workId: string): string {
-	return `/projects/${projectId}?work=${encodeURIComponent(workId)}#work`;
-}
 
 export default function UnifiedCalendarArea() {
 	const catalog = useQuery(orpc.unifiedCalendar.catalog.queryOptions());
@@ -42,8 +43,8 @@ export default function UnifiedCalendarArea() {
 	const onChangeDay = useCallback((event: ChangeEvent<HTMLInputElement>) => {
 		setCalendarDay(event.target.value);
 	}, []);
-	const onChangeView = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
-		setView(event.target.value as CalendarViewName);
+	const onPickView = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+		setView(event.currentTarget.value as CalendarViewName);
 	}, []);
 	const onChangeProject = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
@@ -51,29 +52,18 @@ export default function UnifiedCalendarArea() {
 		},
 		[]
 	);
-	const items = [
-		...(query.data?.ranges ?? []).map((row) => ({
-			href: workHref(row.projectId, row.id),
-			id: `${row.id}-range`,
-			kind: `${row.start.kind}–${row.end.kind}`,
-			label: `${row.start.date} → ${row.end.date}`,
-			projectName: row.projectName,
-			title: `${row.key} ${row.title}`,
-		})),
-		...(query.data?.positions ?? []).map((row) => ({
-			href: workHref(row.projectId, row.id),
-			id: `${row.id}-${row.kind}`,
-			kind: row.kind,
-			label: row.date,
-			projectName: row.projectName,
-			title: `${row.key} ${row.title}`,
-		})),
-	];
+	const rows = query.data
+		? calendarVisibleRows({
+				positions: query.data.positions,
+				ranges: query.data.ranges,
+			})
+		: undefined;
 	const presentation = calendarListPresentation({
-		data: query.data ? items : undefined,
+		data: rows,
 		isError: query.isError,
 		isPending: query.isPending,
 	});
+	const views = query.data?.views ?? [copy.day, copy.week, copy.month];
 
 	return (
 		<FounderPage title={copy.calendar} wide>
@@ -87,22 +77,21 @@ export default function UnifiedCalendarArea() {
 						value={selectedDay}
 					/>
 				</Field>
-				<Field>
-					<FieldLabel htmlFor="calendar-view">{copy.calendar}</FieldLabel>
-					<NativeSelect
-						id="calendar-view"
-						onChange={onChangeView}
-						value={selectedView}
-					>
-						{(query.data?.views ?? [copy.day, copy.week, copy.month]).map(
-							(name) => (
-								<NativeSelectOption key={name} value={name}>
-									{name}
-								</NativeSelectOption>
-							)
-						)}
-					</NativeSelect>
-				</Field>
+				<fieldset className="flex flex-wrap items-end gap-2 border-0 p-0">
+					<legend className="sr-only">{copy.calendar}</legend>
+					{views.map((name) => (
+						<Button
+							aria-pressed={selectedView === name}
+							key={name}
+							onClick={onPickView}
+							type="button"
+							value={name}
+							variant={selectedView === name ? "default" : "outline"}
+						>
+							{name}
+						</Button>
+					))}
+				</fieldset>
 				<Field className="min-w-56">
 					<FieldLabel htmlFor="calendar-project">{copy.project}</FieldLabel>
 					<NativeSelect
@@ -134,16 +123,7 @@ function CalendarItems({
 	selectedView,
 }: {
 	copy: typeof UNIFIED_CALENDAR_COPY;
-	presentation: ReturnType<
-		typeof calendarListPresentation<{
-			href: string;
-			id: string;
-			kind: string;
-			label: string;
-			projectName: string;
-			title: string;
-		}>
-	>;
+	presentation: ReturnType<typeof calendarListPresentation<CalendarVisibleRow>>;
 	selectedView: string;
 }) {
 	if (presentation.kind === "failed") {
@@ -170,7 +150,7 @@ function CalendarItems({
 						<span className="text-muted-foreground">{` · ${item.projectName}`}</span>
 					</a>
 					<span className="shrink-0 text-muted-foreground text-sm">
-						{`${item.kind} · ${item.label}`}
+						{item.kinds.map((mark) => `${mark.kind} ${mark.date}`).join(" · ")}
 					</span>
 				</li>
 			))}
