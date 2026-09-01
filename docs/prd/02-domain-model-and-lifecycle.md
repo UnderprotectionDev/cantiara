@@ -93,7 +93,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Bütün Projeler | `All Projects` | Birleşik Takvim kapsamının bütün Projeleri kapsayan seçeneği |
 | Takvimde tarihli İş yok | `No dated Work in this Calendar view.` | Seçili görünüm penceresinde tarihli İş olmadığında boş durum |
 | Seçili gün | `Selected day` | Günlük Odak görünümünün profil saat dilimindeki takvim günü seçici etiketi |
-| Seçili gün (Birleşik Takvim) | `Selected day` | Birleşik Takvim `/calendar` `calendarDay` sorgusu; Gün yalnız o günün konumları, Hafta o günü içeren Pazartesi haftası, Ay o günün ayı. Günlük Odak üyelik günü değildir |
+| Seçili gün (Birleşik Takvim) | `Selected day` | Birleşik Takvim `/calendar` `calendarDay` sorgusu; Gün yalnız o günün konumları, Hafta o günü içeren hesap haftası, Ay o günün ayı. Günlük Odak üyelik günü değildir |
 | Günlük Odakta İş yok | `No Work in Daily Focus for this day.` | Seçili günde üyelik olmadığında boş durum |
 | Odağı kapat | `Close focus` | Günlük Odak’ta seçili gün için isteğe bağlı sakin kapanış görünümü; açık İşi kapatmaz |
 | Hâlâ açık | `Still open` | Kapanış görünümünde Günlük Odak’ta açık kalan İşler grubu |

@@ -323,7 +323,7 @@ Kayıt Eyleminin tasarımda tanımladığı, çalıştırmada doldurulan `Date`,
 _Avoid_: formula, free-text macro, form builder, yeni kayıt, ikinci hedef
 
 **Birleşik Takvim**:
-Desteklenen tarihli kayıtları türleri karışmadan gün, hafta, ay ve Agenda'da gösteren yüzey; yeni İş türü veya durum üretmez ([Birleşik Takvim](docs/prd/06-work-management-and-planning.md#birleşik-takvim)). UI: `Calendar`. Seçili gün (`Selected day`) bu yüzeyde `/calendar` `calendarDay` penceresidir: Gün yalnız o günün konumları, Hafta o günü içeren Pazartesi haftası, Ay o günün ayı; Günlük Odak üyelik günü değildir.
+Desteklenen tarihli kayıtları türleri karışmadan gün, hafta, ay ve Agenda'da gösteren yüzey; yeni İş türü veya durum üretmez ([Birleşik Takvim](docs/prd/06-work-management-and-planning.md#birleşik-takvim)). UI: `Calendar`. Seçili gün (`Selected day`) bu yüzeyde takvim penceresini seçer; Günlük Odak üyelik günü değildir.
 _Avoid_: Dış takvim senkronu, Event kaydı, durum tahtası
 
 **Liste görünümü**:
