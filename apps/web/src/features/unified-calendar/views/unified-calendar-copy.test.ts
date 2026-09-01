@@ -9,6 +9,8 @@ test("English Calendar copy is Calendar, Day, Week, and Month", () => {
 	expect(UNIFIED_CALENDAR_COPY.day).toBe("Day");
 	expect(UNIFIED_CALENDAR_COPY.week).toBe("Week");
 	expect(UNIFIED_CALENDAR_COPY.month).toBe("Month");
+	expect(UNIFIED_CALENDAR_COPY.agenda).toBe("Agenda");
+	expect(UNIFIED_CALENDAR_COPY.openSourceRecord).toBe("Open source record");
 	expect(UNIFIED_CALENDAR_COPY.plannedStart).toBe("Planned start");
 	expect(UNIFIED_CALENDAR_COPY.targetDate).toBe("Target date");
 	expect(UNIFIED_CALENDAR_COPY.reappearDate).toBe("Reappear date");

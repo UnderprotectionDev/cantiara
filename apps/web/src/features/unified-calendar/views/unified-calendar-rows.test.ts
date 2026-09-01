@@ -96,3 +96,50 @@ test("week sections show the same range on each spanned day", () => {
 	]);
 	expect(JSON.stringify(sections)).not.toMatch("Planned start–Target date");
 });
+
+test("Agenda rows keep the source Work id and show one date kind", () => {
+	const rows = calendarVisibleRows({
+		positions: [
+			{
+				date: "2026-09-02",
+				id: "work-1",
+				key: "PAY-1",
+				kind: UNIFIED_CALENDAR_COPY.reappearDate,
+				projectId: "p1",
+				projectName: "Payments",
+				title: "Checkout",
+			},
+			{
+				date: "2026-09-04",
+				id: "work-1",
+				key: "PAY-1",
+				kind: UNIFIED_CALENDAR_COPY.targetDate,
+				projectId: "p1",
+				projectName: "Payments",
+				title: "Checkout",
+			},
+		],
+		ranges: [],
+	});
+	expect(rows).toEqual([
+		{
+			href: "/projects/p1?work=work-1#work",
+			id: "work-1-Reappear date",
+			kinds: [{ date: "2026-09-02", kind: "Reappear date" }],
+			openSourceRecord: true,
+			projectName: "Payments",
+			sourceId: "work-1",
+			title: "PAY-1 Checkout",
+		},
+		{
+			href: "/projects/p1?work=work-1#work",
+			id: "work-1-Target date",
+			kinds: [{ date: "2026-09-04", kind: "Target date" }],
+			openSourceRecord: true,
+			projectName: "Payments",
+			sourceId: "work-1",
+			title: "PAY-1 Checkout",
+		},
+	]);
+	expect(new Set(rows.map((row) => row.sourceId))).toEqual(new Set(["work-1"]));
+});

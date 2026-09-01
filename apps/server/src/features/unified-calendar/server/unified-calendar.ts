@@ -9,8 +9,10 @@ import { Prisma, type PrismaClient } from "@cantiara/db";
 
 import {
 	addCalendarDays,
+	CALENDAR_AGENDA,
 	CALENDAR_COUNTERPARTS,
 	CALENDAR_EVENT_RECORD,
+	type CalendarDateKind,
 	type CalendarViewName,
 	calendarDaySchema,
 	calendarViewNameSchema,
@@ -19,6 +21,7 @@ import {
 	PLANNED_START_EFFECTS,
 	presentCalendarDays,
 	presentCalendarWindow,
+	selectedDateKinds,
 	UNIFIED_CALENDAR_COPY,
 	type UnifiedCalendarView,
 	unifiedCalendarCatalog,
@@ -30,6 +33,7 @@ export interface UnifiedCalendar {
 	catalog: () => ReturnType<typeof unifiedCalendarCatalog>;
 	view: (input?: {
 		calendarDay?: string;
+		dateKinds?: readonly CalendarDateKind[];
 		projectId?: string | null;
 		view?: CalendarViewName;
 	}) => Promise<UnifiedCalendarView>;
@@ -55,6 +59,7 @@ export function createUnifiedCalendar(
 	async function view(
 		query: {
 			calendarDay?: string;
+			dateKinds?: readonly CalendarDateKind[];
 			projectId?: string | null;
 			view?: CalendarViewName;
 		} = {}
@@ -69,6 +74,7 @@ export function createUnifiedCalendar(
 		const viewName = calendarViewNameSchema.parse(
 			query.view ?? UNIFIED_CALENDAR_COPY.week
 		);
+		const dateKinds = selectedDateKinds(query.dateKinds);
 		const window = visibleWindow(viewName, calendarDayValue, preferences);
 		const projectId = query.projectId ?? null;
 		const projects = await input.prisma.project.findMany({
@@ -83,6 +89,7 @@ export function createUnifiedCalendar(
 		);
 		const windowInput = {
 			calendarDay: calendarDayValue,
+			dateKinds,
 			rangeEnd: window.rangeEnd,
 			rangeStart: window.rangeStart,
 			view: viewName,
@@ -90,9 +97,11 @@ export function createUnifiedCalendar(
 		};
 		const presented = presentCalendarWindow(windowInput);
 		return {
+			agenda: CALENDAR_AGENDA,
 			calendarDay: calendarDayValue,
 			copy: UNIFIED_CALENDAR_COPY,
 			counterparts: CALENDAR_COUNTERPARTS,
+			dateKinds,
 			days: presentCalendarDays(windowInput),
 			eventRecord: CALENDAR_EVENT_RECORD,
 			plannedStart: PLANNED_START_EFFECTS,
@@ -107,6 +116,7 @@ export function createUnifiedCalendar(
 				UNIFIED_CALENDAR_COPY.day,
 				UNIFIED_CALENDAR_COPY.week,
 				UNIFIED_CALENDAR_COPY.month,
+				UNIFIED_CALENDAR_COPY.agenda,
 			],
 		};
 	}
@@ -125,7 +135,10 @@ function visibleWindow(
 	if (view === UNIFIED_CALENDAR_COPY.day) {
 		return { rangeEnd: day, rangeStart: day };
 	}
-	if (view === UNIFIED_CALENDAR_COPY.month) {
+	if (
+		view === UNIFIED_CALENDAR_COPY.month ||
+		view === UNIFIED_CALENDAR_COPY.agenda
+	) {
 		return monthWindow(day);
 	}
 	const rangeStart = startOfWeekCalendarDate(

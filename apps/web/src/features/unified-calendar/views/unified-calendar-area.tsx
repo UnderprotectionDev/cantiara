@@ -20,24 +20,34 @@ import {
 	calendarDaySections,
 } from "./unified-calendar-rows";
 
-type CalendarViewName = "Day" | "Week" | "Month";
+type CalendarViewName = "Day" | "Week" | "Month" | "Agenda";
+type CalendarDateKind = "Planned start" | "Target date" | "Reappear date";
+
+const DATE_KINDS: readonly CalendarDateKind[] = [
+	UNIFIED_CALENDAR_COPY.plannedStart,
+	UNIFIED_CALENDAR_COPY.targetDate,
+	UNIFIED_CALENDAR_COPY.reappearDate,
+];
 
 export default function UnifiedCalendarArea() {
 	const catalog = useQuery(orpc.unifiedCalendar.catalog.queryOptions());
 	const [calendarDay, setCalendarDay] = useState<string | undefined>();
 	const [view, setView] = useState<CalendarViewName | undefined>();
 	const [projectId, setProjectId] = useState<string>("");
+	const [dateKinds, setDateKinds] = useState<CalendarDateKind[] | undefined>();
+	const copy = catalog.data?.copy ?? UNIFIED_CALENDAR_COPY;
+	const selectedKinds = dateKinds ?? DATE_KINDS;
 	const viewInput = {
 		...(calendarDay ? { calendarDay } : {}),
 		...(view ? { view } : {}),
 		...(projectId ? { projectId } : {}),
+		...(dateKinds ? { dateKinds } : {}),
 	};
 	const query = useQuery(
 		orpc.unifiedCalendar.view.queryOptions({
 			input: viewInput,
 		})
 	);
-	const copy = catalog.data?.copy ?? UNIFIED_CALENDAR_COPY;
 	const selectedDay = calendarDay ?? query.data?.calendarDay ?? "";
 	const selectedView = view ?? query.data?.view ?? copy.week;
 	const onChangeDay = useCallback((event: ChangeEvent<HTMLInputElement>) => {
@@ -45,6 +55,18 @@ export default function UnifiedCalendarArea() {
 	}, []);
 	const onPickView = useCallback((event: MouseEvent<HTMLButtonElement>) => {
 		setView(event.currentTarget.value as CalendarViewName);
+	}, []);
+	const onToggleKind = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+		const kind = event.currentTarget.value as CalendarDateKind;
+		setDateKinds((current) => {
+			const selected = current ?? [...DATE_KINDS];
+			if (selected.includes(kind)) {
+				return selected.filter((item) => item !== kind);
+			}
+			return DATE_KINDS.filter(
+				(item) => selected.includes(item) || item === kind
+			);
+		});
 	}, []);
 	const onChangeProject = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
@@ -60,7 +82,12 @@ export default function UnifiedCalendarArea() {
 		isError: query.isError,
 		isPending: query.isPending,
 	});
-	const views = query.data?.views ?? [copy.day, copy.week, copy.month];
+	const views = query.data?.views ?? [
+		copy.day,
+		copy.week,
+		copy.month,
+		copy.agenda,
+	];
 
 	return (
 		<FounderPage title={copy.calendar} wide>
@@ -86,6 +113,20 @@ export default function UnifiedCalendarArea() {
 							variant={selectedView === name ? "default" : "outline"}
 						>
 							{name}
+						</Button>
+					))}
+				</fieldset>
+				<fieldset className="flex flex-wrap items-end gap-2 border-0 p-0">
+					{DATE_KINDS.map((kind) => (
+						<Button
+							aria-pressed={selectedKinds.includes(kind)}
+							key={kind}
+							onClick={onToggleKind}
+							type="button"
+							value={kind}
+							variant={selectedKinds.includes(kind) ? "default" : "outline"}
+						>
+							{kind}
 						</Button>
 					))}
 				</fieldset>
@@ -145,18 +186,23 @@ function CalendarItems({
 								className="flex items-center justify-between gap-3 border-border border-b py-3"
 								key={item.id}
 							>
+								<div className="min-w-0">
+									<p className="truncate text-sm">
+										<span className="font-medium">{item.title}</span>
+										<span className="text-muted-foreground">{` · ${item.projectName}`}</span>
+									</p>
+									<p className="text-muted-foreground text-sm">
+										{item.kinds
+											.map((mark) => `${mark.kind} ${mark.date}`)
+											.join(" · ")}
+									</p>
+								</div>
 								<a
-									className="min-w-0 truncate text-sm underline-offset-4 hover:underline"
+									className="shrink-0 text-sm underline-offset-4 hover:underline"
 									href={item.href}
 								>
-									<span className="font-medium">{item.title}</span>
-									<span className="text-muted-foreground">{` · ${item.projectName}`}</span>
+									{copy.openSourceRecord}
 								</a>
-								<span className="shrink-0 text-muted-foreground text-sm">
-									{item.kinds
-										.map((mark) => `${mark.kind} ${mark.date}`)
-										.join(" · ")}
-								</span>
 							</li>
 						))}
 					</ul>
