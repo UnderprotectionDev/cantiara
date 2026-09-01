@@ -14,6 +14,7 @@ export const FOCUS_PERIOD_COPY = {
 	members: "Work",
 	planned: "Planned",
 	purpose: "Purpose",
+	purposeRequired: "Purpose is required.",
 	remove: "Remove",
 	startDate: "Start date",
 	windowMustBeOneToEightWeeks: "Focus Period must be 1–8 weeks.",

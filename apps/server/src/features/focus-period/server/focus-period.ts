@@ -119,7 +119,6 @@ export function createFocusPeriod(input: CreateFocusPeriodInput): FocusPeriod {
 		const endDate = calendarDaySchema.safeParse(command.endDate);
 		if (
 			!(
-				purpose.length > 0 &&
 				startDate.success &&
 				endDate.success &&
 				isFocusPeriodWindow(startDate.data, endDate.data)
@@ -127,6 +126,12 @@ export function createFocusPeriod(input: CreateFocusPeriodInput): FocusPeriod {
 		) {
 			return {
 				reason: FOCUS_PERIOD_COPY.windowMustBeOneToEightWeeks,
+				status: "invalid",
+			};
+		}
+		if (purpose.length === 0) {
+			return {
+				reason: FOCUS_PERIOD_COPY.purposeRequired,
 				status: "invalid",
 			};
 		}
@@ -371,6 +376,12 @@ async function endPeriod(
 		if (
 			current.status === FOCUS_PERIOD_STATUS.closed ||
 			current.status === FOCUS_PERIOD_STATUS.canceled
+		) {
+			return { status: "not-found" };
+		}
+		if (
+			operation === "close" &&
+			current.status !== FOCUS_PERIOD_STATUS.active
 		) {
 			return { status: "not-found" };
 		}

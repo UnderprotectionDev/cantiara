@@ -252,16 +252,13 @@ export default function FocusPeriodArea() {
 					<p>
 						{`${copy.startDate} ${period.startDate} · ${copy.endDate} ${period.endDate}`}
 					</p>
-					{live ? (
-						<div className="mt-4 flex gap-2">
-							<Button onClick={onClose} type="button">
-								{copy.close}
-							</Button>
-							<Button onClick={onCancel} type="button" variant="outline">
-								{copy.cancel}
-							</Button>
-						</div>
-					) : null}
+					<PeriodActions
+						canCancel={live}
+						canClose={period.status === copy.active}
+						copy={copy}
+						onCancel={onCancel}
+						onClose={onClose}
+					/>
 					{period.leftoverDecision.opened ? (
 						<section aria-labelledby="focus-period-leftover" className="mt-6">
 							<h3 id="focus-period-leftover">{copy.leftoverDecision}</h3>
@@ -300,6 +297,38 @@ export default function FocusPeriodArea() {
 				</section>
 			) : null}
 		</FounderPage>
+	);
+}
+
+function PeriodActions({
+	canCancel,
+	canClose,
+	copy,
+	onCancel,
+	onClose,
+}: {
+	canCancel: boolean;
+	canClose: boolean;
+	copy: typeof FOCUS_PERIOD_COPY;
+	onCancel: () => void;
+	onClose: () => void;
+}) {
+	if (!(canCancel || canClose)) {
+		return null;
+	}
+	return (
+		<div className="mt-4 flex gap-2">
+			{canClose ? (
+				<Button onClick={onClose} type="button">
+					{copy.close}
+				</Button>
+			) : null}
+			{canCancel ? (
+				<Button onClick={onCancel} type="button" variant="outline">
+					{copy.cancel}
+				</Button>
+			) : null}
+		</div>
 	);
 }
 

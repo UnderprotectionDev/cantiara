@@ -60,6 +60,7 @@ describe("Focus Period catalog", () => {
 				members: "Work",
 				planned: "Planned",
 				purpose: "Purpose",
+				purposeRequired: "Purpose is required.",
 				remove: "Remove",
 				startDate: "Start date",
 				windowMustBeOneToEightWeeks: "Focus Period must be 1–8 weeks.",
@@ -221,6 +222,18 @@ describe("Focus Period", () => {
 			status: "invalid",
 		});
 		expect(await surface().list()).toEqual([]);
+	});
+
+	it("does not close a Planned Focus Period before the start instant", async () => {
+		const period = await openPeriod("Not yet a working window");
+		const closed = await surface(BEFORE_START).close({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+		});
+		expect(closed.status).toBe("not-found");
+		expect((await surface(BEFORE_START).get(period.id))?.status).toBe(
+			FOCUS_PERIOD_STATUS.planned
+		);
 	});
 
 	it("creates an optional 1–8 week Focus Period with purpose and dates", async () => {

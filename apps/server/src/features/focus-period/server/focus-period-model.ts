@@ -16,6 +16,7 @@ export const FOCUS_PERIOD_COPY = {
 	members: "Work",
 	planned: "Planned",
 	purpose: "Purpose",
+	purposeRequired: "Purpose is required.",
 	remove: "Remove",
 	startDate: "Start date",
 	windowMustBeOneToEightWeeks: "Focus Period must be 1–8 weeks.",
@@ -130,6 +131,7 @@ export const focusPeriodViewSchema = z.object({
 		members: z.literal(FOCUS_PERIOD_COPY.members),
 		planned: z.literal(FOCUS_PERIOD_COPY.planned),
 		purpose: z.literal(FOCUS_PERIOD_COPY.purpose),
+		purposeRequired: z.literal(FOCUS_PERIOD_COPY.purposeRequired),
 		remove: z.literal(FOCUS_PERIOD_COPY.remove),
 		startDate: z.literal(FOCUS_PERIOD_COPY.startDate),
 		windowMustBeOneToEightWeeks: z.literal(

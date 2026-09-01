@@ -420,6 +420,8 @@
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── daily-focus/
 │       │   │   │   │   └── index.tsx
+│       │   │   │   ├── focus-periods/
+│       │   │   │   │   └── index.tsx
 │       │   │   │   ├── drafts/
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── favorites/

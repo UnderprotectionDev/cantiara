@@ -30,6 +30,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kilometre Taşı | `Milestone` | Projedeki önemli ara sonucu temsil eden Proje ana kaydı; çalışma penceresi veya yayımlanacak kapsam değildir |
 | Odak Dönemi | `Focus Period` | Seçili çalışmalar için geçici çalışma penceresi ve tarihsel kapsam snapshot'ı; ara sonuç veya yayımlanacak kapsam değildir |
 | Odak Dönemi yaşamı | `Planned`, `Active`, `Closed`, `Canceled` | Odak Döneminin İngilizce yaşam etiketleri; sprint kadansı değildir |
+| Odak Dönemi oluştur | `Create Focus Period` | Amaç ve başlangıç/bitiş tarihiyle isteğe bağlı dönem açma |
+| Başlangıç tarihi | `Start date` | Odak Dönemi penceresinin ilk günü |
+| Bitiş tarihi | `End date` | Odak Dönemi penceresinin son günü |
+| Açık kalan İş | `Still-open Work` | Kapanışta toplu karar bekleyen açık İş listesi |
+| Odak Dönemi yok | `No Focus Period yet.` | Henüz dönem açılmamış boş durum |
+| Odak Dönemi penceresi | `Focus Period must be 1–8 weeks.` | 1–8 hafta dışı oluşturma reddi |
+| Amaç gerekli | `Purpose is required.` | Boş Odak Dönemi amacı reddi |
 | Proje Sürümü | `Project Release` | Kullanıcı tarafından yönetilen yayımlanacak kapsam ve onun tarihli erişim/sonuç gözlemleri; Kilometre Taşı, Odak Dönemi veya Ürün sürüm adayı değildir |
 | Başlangıç yapılandırması | `Starter Configuration` | Yeni Projeye bir kez uygulanan, içerik üretmeyen kapalı varsayılan yapı seçimi; sonradan başka yapılandırmayla değiştirilmez |
 | Proje adı | `Project Name` | Yeni Proje oluştururken zorunlu ad |
