@@ -66,6 +66,7 @@ export default function WorkDetail({
 	onMerged,
 	onOpenSourceRecord,
 	projectId,
+	readOnly = false,
 	work,
 	works,
 }: {
@@ -76,6 +77,7 @@ export default function WorkDetail({
 	onMerged?: (survivorId: string) => void;
 	onOpenSourceRecord?: (id: string) => void;
 	projectId: string;
+	readOnly?: boolean;
 	work: WorkRecord;
 	works: WorkRecord[];
 }) {
@@ -98,177 +100,190 @@ export default function WorkDetail({
 						{WORK_LIFECYCLE_COPY.close}
 					</Button>
 				</header>
-				<WorkContextCard
-					key={`${work.id}:${work.type}:${work.revision}`}
-					onLink={onLink}
-					onOpenSourceRecord={onOpenSourceRecord}
-					status={work.status}
-					title={work.title}
-					type={work.type}
-					workId={work.id}
-				/>
-				<WorkExternalHandoffsPanel
-					key={`${work.id}:handoff:${work.revision}`}
-					projectId={projectId}
-					revision={work.revision}
-					workId={work.id}
-					workKey={work.key}
-					workTitle={work.title}
-				/>
-				{work.retiredIdentities && work.retiredIdentities.length > 0 ? (
-					<dl className="grid gap-1 text-sm">
-						<div className="flex gap-2">
-							<dt className="text-muted-foreground">
-								{WORK_LIFECYCLE_COPY.origin}
-							</dt>
-							<dd>
-								{work.retiredIdentities
-									.map((identity) => identity.key)
-									.join(", ")}
-							</dd>
-						</div>
-					</dl>
-				) : null}
-				{work.origin ? (
-					<dl className="grid gap-1 text-sm">
-						<div className="flex gap-2">
-							<dt className="text-muted-foreground">
-								{WORK_LIFECYCLE_COPY.openSourceRecord}
-							</dt>
-							<dd className="font-mono">{work.origin.key}</dd>
-						</div>
-					</dl>
-				) : null}
-				<div id={projectShellAnchor(PROJECT_SHELL_COPY.status)}>
-					{work.status === "Closed" ? (
-						<ReopenWorkForm
-							key={`${work.id}:reopen:${work.revision}`}
-							projectId={projectId}
-							revision={work.revision}
-							workId={work.id}
-						/>
-					) : (
-						<ChangeWorkStatusForm
-							key={`${work.id}:status:${work.revision}`}
-							projectId={projectId}
-							revision={work.revision}
+				{readOnly ? (
+					<p className="text-muted-foreground text-sm">{work.status}</p>
+				) : (
+					<>
+						<WorkContextCard
+							key={`${work.id}:${work.type}:${work.revision}`}
+							onLink={onLink}
+							onOpenSourceRecord={onOpenSourceRecord}
 							status={work.status}
+							title={work.title}
+							type={work.type}
 							workId={work.id}
 						/>
-					)}
-				</div>
-				<WorkPlanningDatesForm
-					key={`${work.id}:dates:${work.revision}`}
-					plannedStart={work.plannedStart ?? null}
-					projectId={projectId}
-					reappearDate={work.reappearDate ?? null}
-					revision={work.revision}
-					targetDate={work.targetDate ?? null}
-					workId={work.id}
-				/>
-				<WorkHorizonForm
-					key={`${work.id}:horizon:${work.revision}`}
-					projectId={projectId}
-					workId={work.id}
-				/>
+						<WorkExternalHandoffsPanel
+							key={`${work.id}:handoff:${work.revision}`}
+							projectId={projectId}
+							revision={work.revision}
+							workId={work.id}
+							workKey={work.key}
+							workTitle={work.title}
+						/>
+						{work.retiredIdentities && work.retiredIdentities.length > 0 ? (
+							<dl className="grid gap-1 text-sm">
+								<div className="flex gap-2">
+									<dt className="text-muted-foreground">
+										{WORK_LIFECYCLE_COPY.origin}
+									</dt>
+									<dd>
+										{work.retiredIdentities
+											.map((identity) => identity.key)
+											.join(", ")}
+									</dd>
+								</div>
+							</dl>
+						) : null}
+						{work.origin ? (
+							<dl className="grid gap-1 text-sm">
+								<div className="flex gap-2">
+									<dt className="text-muted-foreground">
+										{WORK_LIFECYCLE_COPY.openSourceRecord}
+									</dt>
+									<dd className="font-mono">{work.origin.key}</dd>
+								</div>
+							</dl>
+						) : null}
+						<div id={projectShellAnchor(PROJECT_SHELL_COPY.status)}>
+							{work.status === "Closed" ? (
+								<ReopenWorkForm
+									key={`${work.id}:reopen:${work.revision}`}
+									projectId={projectId}
+									revision={work.revision}
+									workId={work.id}
+								/>
+							) : (
+								<ChangeWorkStatusForm
+									key={`${work.id}:status:${work.revision}`}
+									projectId={projectId}
+									revision={work.revision}
+									status={work.status}
+									workId={work.id}
+								/>
+							)}
+						</div>
+						<WorkPlanningDatesForm
+							key={`${work.id}:dates:${work.revision}`}
+							plannedStart={work.plannedStart ?? null}
+							projectId={projectId}
+							reappearDate={work.reappearDate ?? null}
+							revision={work.revision}
+							targetDate={work.targetDate ?? null}
+							workId={work.id}
+						/>
+						<WorkHorizonForm
+							key={`${work.id}:horizon:${work.revision}`}
+							projectId={projectId}
+							workId={work.id}
+						/>
+					</>
+				)}
 			</div>
-			<RecordActionRun
-				projectId={projectId}
-				revision={work.revision}
-				workId={work.id}
-			/>
-			<FeatureInclusionPanel
-				key={`${work.id}:inclusion:${work.revision}`}
-				projectId={projectId}
-				revision={work.revision}
-				type={work.type}
-				workId={work.id}
-				works={works}
-			/>
-			<WorkChecklistPanel
-				key={`${work.id}:checklist:${work.revision}`}
-				onOpenSourceRecord={onOpenSourceRecord}
-				projectId={projectId}
-				revision={work.revision}
-				workId={work.id}
-			/>
-			<WorkTagPicker
-				appliedTagIds={appliedTagIds}
-				key={`${work.id}:tags:${work.revision}`}
-				projectId={projectId}
-				revision={work.revision}
-				workId={work.id}
-			/>
-			<UsageLinksPanel
-				hostRecordId={work.id}
-				key={`${work.id}:usage:${work.revision}`}
-				projectId={projectId}
-				usageLinks={work.usageLinks ?? []}
-				works={works}
-			/>
-			<WorkBlockersPanel
-				candidates={candidates}
-				projectId={projectId}
-				workId={work.id}
-			/>
-			<RelationsPanel
-				candidates={candidates}
-				onOpenSourceRecord={onOpenSourceRecord}
-				projectId={projectId}
-				workId={work.id}
-			/>
-			<UsedInPanel onOpenSourceRecord={onOpenSourceRecord} workId={work.id} />
-			<ChangeWorkTypeForm
-				key={`${work.id}:${work.type}:${work.revision}`}
-				projectId={projectId}
-				revision={work.revision}
-				type={work.type}
-				workId={work.id}
-			/>
-			<WorkPriorityValues
-				key={`${work.id}:priority`}
-				projectId={projectId}
-				workId={work.id}
-			/>
-			<CustomFieldValuesEditor
-				key={`${work.id}:custom-fields`}
-				projectId={projectId}
-				recordId={work.id}
-				recordType="Work"
-			/>
-			<MergeWorkForm
-				candidates={candidates}
-				onMerged={onMerged}
-				projectId={projectId}
-				revision={work.revision}
-				workId={work.id}
-			/>
-			<DuplicateWorkForm
-				key={`${work.id}:duplicate`}
-				onDuplicated={onDuplicated}
-				projectId={projectId}
-				workId={work.id}
-			/>
-			<RecreateWorkForm
-				key={`${work.id}:recreate`}
-				projectId={projectId}
-				workId={work.id}
-			/>
-			<ArchiveWorkForm
-				archived={work.archived}
-				key={`${work.id}:archive:${work.revision}`}
-				projectId={projectId}
-				revision={work.revision}
-				workId={work.id}
-			/>
-			{work.latestMergeEventId ? (
-				<MergeUndoButton
-					mergeEventId={work.latestMergeEventId}
-					projectId={projectId}
-					revision={work.revision}
-					workId={work.id}
-				/>
-			) : null}
+			{readOnly ? null : (
+				<>
+					<RecordActionRun
+						projectId={projectId}
+						revision={work.revision}
+						workId={work.id}
+					/>
+					<FeatureInclusionPanel
+						key={`${work.id}:inclusion:${work.revision}`}
+						projectId={projectId}
+						revision={work.revision}
+						type={work.type}
+						workId={work.id}
+						works={works}
+					/>
+					<WorkChecklistPanel
+						key={`${work.id}:checklist:${work.revision}`}
+						onOpenSourceRecord={onOpenSourceRecord}
+						projectId={projectId}
+						revision={work.revision}
+						workId={work.id}
+					/>
+					<WorkTagPicker
+						appliedTagIds={appliedTagIds}
+						key={`${work.id}:tags:${work.revision}`}
+						projectId={projectId}
+						revision={work.revision}
+						workId={work.id}
+					/>
+					<UsageLinksPanel
+						hostRecordId={work.id}
+						key={`${work.id}:usage:${work.revision}`}
+						projectId={projectId}
+						usageLinks={work.usageLinks ?? []}
+						works={works}
+					/>
+					<WorkBlockersPanel
+						candidates={candidates}
+						projectId={projectId}
+						workId={work.id}
+					/>
+					<RelationsPanel
+						candidates={candidates}
+						onOpenSourceRecord={onOpenSourceRecord}
+						projectId={projectId}
+						workId={work.id}
+					/>
+					<UsedInPanel
+						onOpenSourceRecord={onOpenSourceRecord}
+						workId={work.id}
+					/>
+					<ChangeWorkTypeForm
+						key={`${work.id}:${work.type}:${work.revision}`}
+						projectId={projectId}
+						revision={work.revision}
+						type={work.type}
+						workId={work.id}
+					/>
+					<WorkPriorityValues
+						key={`${work.id}:priority`}
+						projectId={projectId}
+						workId={work.id}
+					/>
+					<CustomFieldValuesEditor
+						key={`${work.id}:custom-fields`}
+						projectId={projectId}
+						recordId={work.id}
+						recordType="Work"
+					/>
+					<MergeWorkForm
+						candidates={candidates}
+						onMerged={onMerged}
+						projectId={projectId}
+						revision={work.revision}
+						workId={work.id}
+					/>
+					<DuplicateWorkForm
+						key={`${work.id}:duplicate`}
+						onDuplicated={onDuplicated}
+						projectId={projectId}
+						workId={work.id}
+					/>
+					<RecreateWorkForm
+						key={`${work.id}:recreate`}
+						projectId={projectId}
+						workId={work.id}
+					/>
+					<ArchiveWorkForm
+						archived={work.archived}
+						key={`${work.id}:archive:${work.revision}`}
+						projectId={projectId}
+						revision={work.revision}
+						workId={work.id}
+					/>
+					{work.latestMergeEventId ? (
+						<MergeUndoButton
+							mergeEventId={work.latestMergeEventId}
+							projectId={projectId}
+							revision={work.revision}
+							workId={work.id}
+						/>
+					) : null}
+				</>
+			)}
 		</article>
 	);
 }

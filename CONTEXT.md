@@ -263,6 +263,14 @@ _Avoid_: Kanban, Initiative, Idea yaşam döngüsü, `Show on Roadmap` üyeliği
 İşin durum, tarih ve Backlog sırasından bağımsız isteğe bağlı `Now`, `Next` veya `Later` anlatı alanı; işi başlatmaz, hedef tarih üretmez veya yayın taahhüdü değildir ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap)). UI: `Now`, `Next`, `Later`.
 _Avoid_: İş akışı durumu, Parked, sprint, yayın kapsamı
 
+**Planlanmamış adaylar**:
+Roadmap görünümünün filtrelerine uyan fakat planlanan başlangıç, hedef tarihi ve `Now`/`Next`/`Later` ufku olmayan İşlerin varsayılan daraltılmış canlı alanı; Parked durumu, ikinci üyelik veya bağımsız sıra değildir ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap)). UI: `Unplanned candidates`, `Place on plan`.
+_Avoid_: Parked, ikinci Roadmap üyeliği, bağımsız manuel sıra
+
+**Sunum Kipi**:
+Mevcut adlandırılmış Roadmap görünümünü düzenleme ve yapılandırma gizleyerek salt okunur tam ekranda açan kip; çıkışta aynı görünüm ve konuma döner, slayt, sunum kaydı veya içerik kopyası üretmez ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap)). UI: `Presentation Mode`.
+_Avoid_: slayt, sunum kaydı, içerik kopyası, herkese açık snapshot
+
 **Kanban**:
 İşleri İş akışı durumuna göre sütunlarda gösteren planlama yüzeyi; sütunlar arası kart hareketi duruma yansır, kapanış sonucu veya ikinci kayıt listesi değildir ([Kanban](docs/prd/06-work-management-and-planning.md)). UI: `Board`, `Kanban`, `Over limit`, `Time in status`, `In Progress count`, `Collapse`, `Expand`, `Open blocker`.
 _Avoid_: Sprint tahtası, kapanış kolonu, bağımsız manuel sıra

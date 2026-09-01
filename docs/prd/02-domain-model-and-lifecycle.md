@@ -277,6 +277,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ufka yerleştir | `Place on horizon` | İsteğe bağlı ufku yazma eylemi |
 | Ufuk yok | `No horizon` | Ufku boşaltma |
 | Adlandırılmış görünümü kaydet | `Save named view` | Roadmap filtre ve grup üstverisini kaydetme |
+| Planlanmamış adaylar | `Unplanned candidates` | Görünüm filtresine uyan fakat tarih ve ufku olmayan canlı aday alanı |
+| Plana al | `Place on plan` | Adayı tarih veya ufuk yazarak plana alma; önizleme ve onay ister |
+| Sunum Kipi | `Presentation Mode` | Roadmap düzenleme ve yapılandırmayı gizleyen salt okunur tam ekran kip |
+| Sunum Kipinden çık | `Exit Presentation Mode` | Sunum Kipini kapatıp aynı görünüm ve konuma dönme |
 | Build | `Build` | Hazır Proje aşaması adı |
 | Validate | `Validate` | Hazır Proje aşaması adı |
 | Release | `Release` | Hazır Proje aşaması adı; `Releases` alanı veya Proje Sürümü değildir |

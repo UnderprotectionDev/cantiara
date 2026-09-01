@@ -9,12 +9,16 @@ import { getWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	getHorizonPlacement,
 	listRoadmap,
+	placeCandidate,
 	placeHorizon,
+	previewPlaceCandidate,
 	saveRoadmapNamedView,
 } from "./roadmap-horizon";
 import {
 	listRoadmapQuerySchema,
+	placeCandidateCommandSchema,
 	placeHorizonCommandSchema,
+	previewPlaceCandidateCommandSchema,
 	roadmapCatalog,
 	saveRoadmapNamedViewCommandSchema,
 } from "./roadmap-horizon-model";
@@ -64,12 +68,29 @@ export const roadmapHorizon = {
 			await requireWork(access.workspaceId, input.workId);
 			return await placeHorizon(getPrismaClient(), input);
 		}),
+	placeCandidate: protectedWriteProcedure
+		.input(placeCandidateCommandSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await placeCandidate(getPrismaClient(), {
+				...input,
+				actorId: input.actorId ?? context.session.user.id,
+			});
+		}),
 	placement: protectedProcedure
 		.input(z.object({ workId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireWork(access.workspaceId, input.workId);
 			return await getHorizonPlacement(getPrismaClient(), input.workId);
+		}),
+	previewPlaceCandidate: protectedProcedure
+		.input(previewPlaceCandidateCommandSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await previewPlaceCandidate(getPrismaClient(), input);
 		}),
 	saveNamedView: protectedWriteProcedure
 		.input(saveRoadmapNamedViewCommandSchema)
