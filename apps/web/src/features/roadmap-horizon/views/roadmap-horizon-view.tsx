@@ -236,6 +236,7 @@ interface MilestoneRow {
 		status: string;
 		title: string;
 	}>;
+	description: string | null;
 	id: string;
 	status: string;
 	targetDate: string | null;
@@ -351,6 +352,11 @@ function RoadmapMilestones({
 									</span>
 								) : null}
 							</div>
+							{milestone.description ? (
+								<p className="text-muted-foreground text-sm">
+									{milestone.description}
+								</p>
+							) : null}
 							{milestone.contributingWork.length > 0 ? (
 								<ul className="text-muted-foreground text-xs">
 									{milestone.contributingWork.map((work) => (

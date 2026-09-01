@@ -75,7 +75,7 @@ export default function WorkMilestoneForm({
 					name="milestoneId"
 				>
 					<NativeSelectOption value="">
-						{ROADMAP_COPY.emptyMilestone}
+						{ROADMAP_COPY.milestone}
 					</NativeSelectOption>
 					{milestones.map((milestone) => (
 						<NativeSelectOption key={milestone.id} value={milestone.id}>
