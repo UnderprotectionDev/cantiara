@@ -21,6 +21,7 @@ import { recordActions } from "../features/record-actions/server/record-actions-
 import { relations } from "../features/relations/server/relations-rpc";
 import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
+import { unifiedCalendar } from "../features/unified-calendar/server/unified-calendar-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
 import { workChecklists } from "../features/work-checklists/server/work-checklists-rpc";
 import { workContext } from "../features/work-context/server/work-context-rpc";
@@ -56,6 +57,7 @@ export const appRouter = {
 	relations,
 	roadmapHorizon,
 	tags,
+	unifiedCalendar,
 	workChecklists,
 	workContext,
 	workDrafts,

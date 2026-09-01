@@ -42,6 +42,7 @@ export interface WorkRecord {
 	key: string;
 	latestMergeEventId?: string | null;
 	origin?: { id: string; key: string; projectId?: string } | null;
+	plannedStart?: string | null;
 	reappearDate?: string | null;
 	retiredIdentities?: Array<{ id: string; key: string }>;
 	revision: number;
@@ -158,6 +159,7 @@ export default function WorkDetail({
 				</div>
 				<WorkPlanningDatesForm
 					key={`${work.id}:dates:${work.revision}`}
+					plannedStart={work.plannedStart ?? null}
 					projectId={projectId}
 					reappearDate={work.reappearDate ?? null}
 					revision={work.revision}

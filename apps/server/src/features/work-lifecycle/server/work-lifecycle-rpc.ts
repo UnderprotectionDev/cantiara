@@ -697,6 +697,7 @@ export const workLifecycle = {
 			z.object({
 				baseRevision: z.number().int().nonnegative(),
 				idempotencyKey: z.string(),
+				plannedStart: z.string().nullable(),
 				reappearDate: z.string().nullable(),
 				targetDate: z.string().nullable(),
 				workId: z.string().min(1),
@@ -710,6 +711,7 @@ export const workLifecycle = {
 				baseRevision: input.baseRevision,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
+				plannedStart: input.plannedStart,
 				reappearDate: input.reappearDate,
 				targetDate: input.targetDate,
 				workId: input.workId,

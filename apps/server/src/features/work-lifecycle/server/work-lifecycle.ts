@@ -117,6 +117,7 @@ interface WorkRow {
 	number: number;
 	originWork: WorkOrigin | null;
 	originWorkId: string | null;
+	plannedStart?: string | null;
 	portableRelations: Prisma.JsonValue;
 	primarySpecId: string | null;
 	primarySpecTitle: string | null;
@@ -215,6 +216,7 @@ export async function updateWorkPlanningDates(
 		return parsed.outcome;
 	}
 	const fingerprint = payloadFingerprint({
+		plannedStart: parsed.command.plannedStart,
 		reappearDate: parsed.command.reappearDate,
 		targetDate: parsed.command.targetDate,
 	});
@@ -1686,6 +1688,7 @@ async function updatePlanningDatesInTransaction(
 	}
 	await tx.work.update({
 		data: {
+			plannedStart: asPlanningDate(command.plannedStart),
 			reappearDate: asPlanningDate(command.reappearDate),
 			revision: locked.revision + 1,
 			targetDate: asPlanningDate(command.targetDate),
@@ -2413,6 +2416,7 @@ function toView(
 		lightChecklist: asChecklist(row.lightChecklist),
 		number: row.number,
 		origin: identities.origin ?? row.originWork ?? null,
+		plannedStart: row.plannedStart ?? null,
 		projectId: row.projectId,
 		reappearDate: row.reappearDate ?? null,
 		relations: asRelations(row.portableRelations),

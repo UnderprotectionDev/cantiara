@@ -243,7 +243,7 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 ### Birleşik Takvim
 
-- **Birleşik Takvim desteklenen tarihli kayıtları gün, hafta, ay ve `Agenda` görünümünde gösterir.** Planlanan başlangıç, hedef ve yeniden görünme tarihleri ayrı tür ve anlamlarıyla sunulur; takvim bütün projeler veya seçilen proje kapsamında incelenebilir. Başlangıç ile hedef tarihi birlikte bulunan işler hafta ve ay görünümlerinde tarih aralığı olarak gösterilir; gün görünümü yalnız seçili gündeki konumlarını gösterir.
+- **Birleşik Takvim desteklenen tarihli kayıtları gün, hafta, ay ve `Agenda` görünümünde gösterir.** Planlanan başlangıç, hedef ve yeniden görünme tarihleri ayrı tür ve anlamlarıyla sunulur; takvim bütün projeler veya seçilen proje kapsamında incelenebilir. Başlangıç ile hedef tarihi birlikte bulunan işler hafta ve ay görünümlerinde tarih aralığı olarak gösterilir ve aralık kapsadığı her takvim gününde durur; gün görünümü yalnız seçili gündeki konumlarını gösterir.
 
 - **`Agenda`, aynı kayıtları seçilen kapsam ve tarih türü filtrelerini koruyarak kronolojik, yoğun bir listede sunar.** Her satır temsil ettiği tarih türünü açıkça gösterir ve ortak `Kaynak kaydı aç` eylemini kullanır. Agenda üyeliği, bağımsız Event kaydı, yeni tarih alanı veya ikinci takvim doğruluk kaynağı oluşturmaz.
 

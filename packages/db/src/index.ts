@@ -109,7 +109,8 @@ function clientHasCurrentWorkModel(client: PrismaClient): boolean {
 		fields.includes("includedInFeatureId") &&
 		fields.includes("externalExecutionHandoffs") &&
 		fields.includes("reappearDate") &&
-		fields.includes("targetDate")
+		fields.includes("targetDate") &&
+		fields.includes("plannedStart")
 	);
 }
 

@@ -1399,6 +1399,7 @@ function independentStartWorkView(input: {
 		lightChecklist,
 		number,
 		origin: null,
+		plannedStart: null,
 		projectId,
 		reappearDate: null,
 		relations: [],

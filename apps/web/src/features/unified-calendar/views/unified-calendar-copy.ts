@@ -1,0 +1,14 @@
+export const UNIFIED_CALENDAR_COPY = {
+	allProjects: "All Projects",
+	calendar: "Calendar",
+	day: "Day",
+	empty: "No dated Work in this Calendar view.",
+	loading: "Loading…",
+	month: "Month",
+	plannedStart: "Planned start",
+	project: "Project",
+	reappearDate: "Reappear date",
+	selectedDay: "Selected day",
+	targetDate: "Target date",
+	week: "Week",
+} as const;

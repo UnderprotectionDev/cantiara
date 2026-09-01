@@ -23,6 +23,7 @@ model Work {
   archived              Boolean                @default(false)
   trashedAt             DateTime?
   targetDate            String?
+  plannedStart          String?
   reappearDate          String?
   horizon               String?
   retiredIntoId         String?
@@ -59,6 +60,8 @@ model Work {
   @@index([projectId, archived])
   @@index([projectId, trashedAt])
   @@index([projectId, reappearDate])
+  @@index([projectId, plannedStart])
+  @@index([projectId, targetDate])
   @@index([projectId, horizon])
   @@map("work")
 }
