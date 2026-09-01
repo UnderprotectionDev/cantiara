@@ -3,6 +3,7 @@ export const FOUNDER_CHROME_COPY = {
 	capture: "Capture",
 	dailyFocus: "Daily Focus",
 	drafts: "Drafts",
+	focusPeriod: "Focus Period",
 	menu: "Menu",
 	personalWiki: "Personal Wiki",
 	product: "Cantiara",
@@ -16,6 +17,7 @@ export const FOUNDER_CHROME_PATHS = {
 	capture: "/capture",
 	dailyFocus: "/daily-focus",
 	drafts: "/drafts",
+	focusPeriod: "/focus-periods",
 	personalWiki: "/wiki",
 	projects: "/projects",
 	workspaceHome: "/dashboard",
@@ -34,6 +36,10 @@ export function founderChromeNav() {
 		{
 			label: FOUNDER_CHROME_COPY.dailyFocus,
 			to: FOUNDER_CHROME_PATHS.dailyFocus,
+		},
+		{
+			label: FOUNDER_CHROME_COPY.focusPeriod,
+			to: FOUNDER_CHROME_PATHS.focusPeriod,
 		},
 		{
 			label: FOUNDER_CHROME_COPY.projects,

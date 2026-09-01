@@ -29,6 +29,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Migration Artefaktı | `Migration Artifact` | İki kesin Veri Modeli Diyagramı Sürümü arasındaki onaylanmış schema-only değişikliği ve desteklenen PostgreSQL SQL'ini kaynak manifestiyle koruyan değişmez sahipli bileşen |
 | Kilometre Taşı | `Milestone` | Projedeki önemli ara sonucu temsil eden Proje ana kaydı; çalışma penceresi veya yayımlanacak kapsam değildir |
 | Odak Dönemi | `Focus Period` | Seçili çalışmalar için geçici çalışma penceresi ve tarihsel kapsam snapshot'ı; ara sonuç veya yayımlanacak kapsam değildir |
+| Odak Dönemi yaşamı | `Planned`, `Active`, `Closed`, `Canceled` | Odak Döneminin İngilizce yaşam etiketleri; sprint kadansı değildir |
 | Proje Sürümü | `Project Release` | Kullanıcı tarafından yönetilen yayımlanacak kapsam ve onun tarihli erişim/sonuç gözlemleri; Kilometre Taşı, Odak Dönemi veya Ürün sürüm adayı değildir |
 | Başlangıç yapılandırması | `Starter Configuration` | Yeni Projeye bir kez uygulanan, içerik üretmeyen kapalı varsayılan yapı seçimi; sonradan başka yapılandırmayla değiştirilmez |
 | Proje adı | `Project Name` | Yeni Proje oluştururken zorunlu ad |
