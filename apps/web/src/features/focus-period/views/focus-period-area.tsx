@@ -339,6 +339,7 @@ function DependenciesPanel({
 	return (
 		<details className="mt-6">
 			<summary>{dependencies.copy.dependencies}</summary>
+			<p>{`${dependencies.copy.blocks} / ${dependencies.copy.blockedBy}`}</p>
 			{dependencies.cycles.map((cycle) => (
 				<p key={cycle.relationIds.join("-")}>{cycle.explanation}</p>
 			))}
@@ -360,7 +361,7 @@ function DependenciesPanel({
 						edge.to.id;
 					return (
 						<li key={edge.id}>
-							{`${from} ${edge.direction} ${to} — ${edge.state} (${dependencies.copy.blockedBy})`}
+							{`${from} ${edge.direction} ${to} — ${edge.state}`}
 						</li>
 					);
 				})}

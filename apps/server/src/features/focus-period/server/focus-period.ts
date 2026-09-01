@@ -556,11 +556,11 @@ async function periodDependencies(
 		}
 	}
 	const nodes = graph.nodes.flatMap((node) => {
-		const linked = graph.edges.find((edge) => edge.from.id === node.id);
+		const outgoing = graph.edges.find((edge) => edge.from.id === node.id);
 		const projectId =
 			node.kind === "Work"
 				? workById.get(node.id)?.projectId
-				: (workById.get(linked?.to.id ?? "")?.projectId ??
+				: (workById.get(outgoing?.to.id ?? "")?.projectId ??
 					members[0]?.projectId);
 		if (!projectId) {
 			return [];

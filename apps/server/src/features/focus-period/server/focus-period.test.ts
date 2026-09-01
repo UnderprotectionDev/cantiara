@@ -19,6 +19,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
 	addActiveBlockingRelation,
+	listWorkBlockers,
 	markBlockerResolved,
 } from "../../blockers/server/blockers";
 import { createProject } from "../../project-shell/server/project-shell";
@@ -588,6 +589,7 @@ describe("Focus Period", () => {
 		const payments = await openProject("Payments");
 		const auth = await openWork(payments.id, "Auth API");
 		const checkout = await openWork(payments.id, "Checkout");
+		const pay = await openWork(payments.id, "Pay");
 		const outsider = await openWork(payments.id, "Unrelated");
 		const period = await openPeriod("Checkout window");
 		const focus = surface();
@@ -600,6 +602,11 @@ describe("Focus Period", () => {
 			idempotencyKey: crypto.randomUUID(),
 			periodId: period.id,
 			workId: checkout.id,
+		});
+		await focus.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: pay.id,
 		});
 		const added = await addActiveBlockingRelation(prisma, {
 			actorId,
@@ -619,6 +626,17 @@ describe("Focus Period", () => {
 			relationId: added.relation.id,
 			viewerWorkspaceId: workspaceId,
 		});
+		const active = await addActiveBlockingRelation(prisma, {
+			actorId,
+			blockedWorkId: pay.id,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			source: { id: checkout.id, kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		if (active.status !== "committed") {
+			throw new Error("expected committed Active blocking relation");
+		}
 		await addActiveBlockingRelation(prisma, {
 			actorId,
 			blockedWorkId: outsider.id,
@@ -627,7 +645,8 @@ describe("Focus Period", () => {
 			source: { id: auth.id, kind: "Work" },
 			viewerWorkspaceId: workspaceId,
 		});
-		const relationCount = await prisma.typedRelation.count();
+		const beforeCheckout = await listWorkBlockers(prisma, checkout.id);
+		const beforePay = await listWorkBlockers(prisma, pay.id);
 		const viewed = await focus.get(period.id);
 		expect(viewed?.dependencies.writable).toBe(false);
 		expect(viewed?.dependencies.edges).toEqual([
@@ -637,6 +656,13 @@ describe("Focus Period", () => {
 				id: added.relation.id,
 				state: "Resolved",
 				to: { id: checkout.id, kind: "Work" },
+			},
+			{
+				direction: "Blocks",
+				from: { id: checkout.id, kind: "Work" },
+				id: active.relation.id,
+				state: "Active",
+				to: { id: pay.id, kind: "Work" },
 			},
 		]);
 		expect(viewed?.dependencies.nodes).toEqual(
@@ -655,11 +681,19 @@ describe("Focus Period", () => {
 					label: `${checkout.key} Checkout`,
 					openSourceRecord: "Open source record",
 				},
+				{
+					href: `/projects/${payments.id}?work=${encodeURIComponent(pay.id)}#work`,
+					id: pay.id,
+					kind: "Work",
+					label: `${pay.key} Pay`,
+					openSourceRecord: "Open source record",
+				},
 			])
 		);
-		expect(viewed?.dependencies.nodes).toHaveLength(2);
+		expect(viewed?.dependencies.nodes).toHaveLength(3);
 		expect(viewed?.dependencies.cycles).toEqual([]);
-		expect(await prisma.typedRelation.count()).toBe(relationCount);
+		expect(await listWorkBlockers(prisma, checkout.id)).toEqual(beforeCheckout);
+		expect(await listWorkBlockers(prisma, pay.id)).toEqual(beforePay);
 		expect(JSON.stringify(viewed?.dependencies)).not.toMatch(
 			WRITE_ACTIONS_PATTERN
 		);
