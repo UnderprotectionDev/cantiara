@@ -177,6 +177,61 @@ describe("Documents", () => {
 		).toEqual([created.document]);
 	});
 
+	it("edits Markdown body in the database without writing a live file", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const files = createMemoryLiveFiles();
+		const created = await createDocument(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: crypto.randomUUID(),
+				origin: "human",
+				payload: {
+					body: "First draft",
+					scope: { kind: "project", projectId: project.id },
+					title: "Payments spec",
+					type: "Spec",
+				},
+				workspaceId,
+			},
+			{ files }
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const updated = await updateDocument(
+			prisma,
+			{
+				actorId,
+				baseRevision: created.document.revision,
+				idempotencyKey: crypto.randomUUID(),
+				origin: "human",
+				payload: {
+					body: "Second draft",
+					documentId: created.document.id,
+					title: "Payments spec",
+				},
+				workspaceId,
+			},
+			{ files }
+		);
+		expect(updated).toMatchObject({
+			document: {
+				body: "Second draft",
+				id: created.document.id,
+				liveFilePath: null,
+				title: "Payments spec",
+				type: "Spec",
+			},
+			status: "committed",
+		});
+		expect(files.writes).toEqual([]);
+		expect(await getDocument(prisma, created.document.id)).toMatchObject({
+			body: "Second draft",
+			id: created.document.id,
+		});
+	});
+
 	it("keeps identity, body, and relations when type changes", async () => {
 		const { actorId, project, workspaceId } = await openProject(prisma);
 		const created = await createDocument(prisma, {

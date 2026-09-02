@@ -36,20 +36,21 @@ export default function DocumentDetail({
 	projectId: string | null;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const [body, setBody] = useState("");
+	const [error, setError] = useState<string | null>(null);
+	const [title, setTitle] = useState("");
+	const [type, setType] = useState<DocumentType>("General");
 	const selected = useQuery(
 		orpc.documents.get.queryOptions({
 			input: { documentId },
 		})
 	);
-	const presented = useQuery(
-		orpc.documents.present.queryOptions({
-			input: { body: selected.data?.body ?? "" },
-		})
-	);
-	const [body, setBody] = useState("");
-	const [error, setError] = useState<string | null>(null);
-	const [title, setTitle] = useState("");
-	const [type, setType] = useState<DocumentType>("General");
+	const presented = useQuery({
+		...orpc.documents.present.queryOptions({
+			input: { body },
+		}),
+		enabled: Boolean(selected.data),
+	});
 
 	useEffect(() => {
 		if (!selected.data) {
@@ -96,7 +97,7 @@ export default function DocumentDetail({
 	}, []);
 	const onBlockSourceChange = useCallback(
 		(previous: string, next: string) => {
-			setBody((current) => current.replace(previous, next));
+			setBody((current) => replaceFirst(current, previous, next));
 			markUnsaved();
 		},
 		[markUnsaved]
@@ -194,5 +195,15 @@ export default function DocumentDetail({
 				</div>
 			</CardContent>
 		</Card>
+	);
+}
+
+function replaceFirst(haystack: string, needle: string, next: string): string {
+	const index = haystack.indexOf(needle);
+	if (index < 0) {
+		return haystack;
+	}
+	return (
+		haystack.slice(0, index) + next + haystack.slice(index + needle.length)
 	);
 }
