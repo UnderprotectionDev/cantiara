@@ -25,15 +25,18 @@ const DOCUMENT_EXTENSIONS = [
 ];
 
 export default function DocumentEditor({
+	editable = true,
 	onChange,
 	value,
 }: {
+	editable?: boolean;
 	onChange: (markdown: string) => void;
 	value: string;
 }) {
 	const editor = useEditor({
 		content: value,
 		contentType: "markdown",
+		editable,
 		extensions: DOCUMENT_EXTENSIONS,
 		immediatelyRender: false,
 		onUpdate: ({ editor: instance }) => {
@@ -51,6 +54,10 @@ export default function DocumentEditor({
 		}
 		editor.commands.setContent(value, { contentType: "markdown" });
 	}, [editor, value]);
+
+	useEffect(() => {
+		editor?.setEditable(editable);
+	}, [editable, editor]);
 
 	if (!editor) {
 		return null;

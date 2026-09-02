@@ -28,6 +28,7 @@ test("English Document labels stay Document and the six type names", () => {
 	expect(JSON.stringify(DOCUMENTS_COPY)).not.toMatch(DISCOVERY_COPY_PATTERN);
 	expect(JSON.stringify(DOCUMENTS_COPY)).not.toMatch(WORD_EXPORT_PATTERN);
 	expect(DOCUMENTS_COPY.createDocument).toBe("Create Document");
+	expect(DOCUMENTS_COPY.createFromConflictDraft).toBe("Create Document");
 	expect(DOCUMENTS_COPY.documentTemplate).toBe("Document Template");
 	expect(DOCUMENTS_COPY.convertToTemplate).toBe("Convert to template");
 	expect(DOCUMENTS_COPY.createFromTemplate).toBe("Create from template");
@@ -36,6 +37,11 @@ test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.retrospective).toBe("Retrospective");
 	expect(DOCUMENTS_COPY.launchPlan).toBe("Launch Plan");
 	expect(DOCUMENTS_COPY.compare).toBe("Compare");
+	expect(DOCUMENTS_COPY.conflictDraft).toBe("Conflict Draft");
+	expect(DOCUMENTS_COPY.copy).toBe("Copy");
+	expect(DOCUMENTS_COPY.download).toBe("Download");
+	expect(DOCUMENTS_COPY.apply).toBe("Apply");
+	expect(DOCUMENTS_COPY.deleteConflictDraft).toBe("Delete");
 	expect(DOCUMENTS_COPY.restore).toBe("Restore");
 	expect(DOCUMENTS_COPY.version).toBe("Version");
 	expect(DOCUMENTS_COPY.versions).toBe("Versions");

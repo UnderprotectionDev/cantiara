@@ -17,7 +17,8 @@ model Document {
   folder      DocumentFolder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
-  versions    DocumentVersion[]
+  versions      DocumentVersion[]
+  conflictDraft DocumentConflictDraft?
 
   @@index([workspaceId, scopeKind, projectId])
   @@index([workspaceId, updatedAt])
@@ -57,4 +58,22 @@ model DocumentVersion {
   @@unique([documentId, revision])
   @@index([documentId])
   @@map("document_version")
+}
+
+model DocumentConflictDraft {
+  id                    String   @id
+  documentId            String   @unique
+  document              Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  workspaceId           String
+  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  title                 String
+  body                  String
+  type                  String
+  rejectedBaseRevision  Int
+  documentRevision      Int
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@map("document_conflict_draft")
 }

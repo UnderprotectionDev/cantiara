@@ -6,14 +6,19 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	applyConflictDraft,
 	archiveDocument,
+	compareConflictDraft,
 	compareDocumentVersions,
 	convertDocumentToTemplate,
 	copyDocument,
 	createDocument,
 	createDocumentFolder,
+	createDocumentFromConflictDraft,
 	createDocumentTemplate,
+	deleteConflictDraft,
 	exportDocument,
+	getConflictDraft,
 	getDocument,
 	getDocumentTemplate,
 	instantiateDocumentFromTemplate,
@@ -52,11 +57,14 @@ import {
 } from "./documents-convert";
 import { presentLiveDocumentBody } from "./documents-live";
 import {
+	applyConflictDraftPayloadSchema,
 	convertDocumentToTemplatePayloadSchema,
 	copyDocumentPayloadSchema,
 	createDocumentFolderPayloadSchema,
+	createDocumentFromConflictDraftPayloadSchema,
 	createDocumentPayloadSchema,
 	createDocumentTemplatePayloadSchema,
+	deleteConflictDraftPayloadSchema,
 	documentScopeSchema,
 	documentsCatalog,
 	exportDocumentPayloadSchema,
@@ -104,6 +112,23 @@ const documentWriteInput = z.object({
 });
 
 export const documents = {
+	applyConflictDraft: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: applyConflictDraftPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await applyConflictDraft(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				workspaceId: access.workspaceId,
+				...input,
+			});
+		}),
 	archive: protectedWriteProcedure
 		.input(documentWriteInput)
 		.handler(async ({ context, input }) => {
@@ -136,6 +161,29 @@ export const documents = {
 				throw new ORPCError("NOT_FOUND");
 			}
 			return compared;
+		}),
+	compareConflictDraft: protectedProcedure
+		.input(z.object({ documentId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const compared = await compareConflictDraft(getPrismaClient(), {
+				documentId: input.documentId,
+				workspaceId: access.workspaceId,
+			});
+			if (!compared) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return compared;
+		}),
+	conflictDraft: protectedProcedure
+		.input(z.object({ documentId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await getConflictDraft(
+				getPrismaClient(),
+				input.documentId,
+				access.workspaceId
+			);
 		}),
 	convertList: protectedWriteProcedure
 		.input(
@@ -275,6 +323,23 @@ export const documents = {
 				workspaceId: access.workspaceId,
 			});
 		}),
+	createFromConflictDraft: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: createDocumentFromConflictDraftPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await createDocumentFromConflictDraft(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
 	createTemplate: protectedWriteProcedure
 		.input(
 			z.object({
@@ -286,6 +351,23 @@ export const documents = {
 			const access = await requireAccess(context.session.user.id);
 			await requireScope(access.workspaceId, input.payload.scope);
 			return await createDocumentTemplate(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	deleteConflictDraft: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: deleteConflictDraftPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await deleteConflictDraft(getPrismaClient(), {
 				actorId: access.accountId,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
