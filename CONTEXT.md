@@ -590,6 +590,10 @@ _Avoid_: Akıllı Koleksiyon, sahiplik kapsamı, Belge Koleksiyonu
 Aynı sahiplik kapsamındaki en fazla bir ebeveyn Belge; kök dahil hiyerarşi en fazla üç Belge seviyesidir. UI: `Parent Document`.
 _Avoid_: çapraz kapsam ebeveyn, sınırsız ağaç
 
+**Çocuk Belge kartı**:
+Üst Belgede gösterilen, alt Belgeden otomatik türetilen sınırlı önizleme; yeni kayıt, kapak veya ikinci özet değildir ([Belge hiyerarşisi ve klasörleri](docs/prd/07-documents-and-knowledge.md#belge-hiyerarşisi-ve-klasörleri)). UI: `Card`.
+_Avoid_: ayrı kapak kaydı, thumbnail kaydı, kart tasarımcısı
+
 **Dosya Eki**:
 Tam olarak bir Proje veya Kişisel Wiki kapsamında yaşayan, dosya içeriğini ve sürümlerini taşıyan ana kayıt; başka kapsamdaki ilişki sahipliğini veya görünürlüğünü değiştirmez.
 _Avoid_: Belge, ilişki eki, paylaşılan global dosya

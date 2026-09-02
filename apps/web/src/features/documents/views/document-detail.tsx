@@ -31,10 +31,12 @@ import DocumentBodyView, { type DocumentBodyBlock } from "./document-body";
 export default function DocumentDetail({
 	archivedList,
 	documentId,
+	onSelect,
 	projectId,
 }: {
 	archivedList?: boolean;
 	documentId: string;
+	onSelect?: (documentId: string) => void;
 	projectId: string | null;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
@@ -340,6 +342,18 @@ export default function DocumentDetail({
 						{selected.data.inDocTags.map((tag) => `#${tag.name}`).join(" ")}
 					</p>
 				) : null}
+				{selected.data.childCards.length > 0 ? (
+					<section aria-label={DOCUMENTS_COPY.card} className="mt-4">
+						<h3 className="font-medium text-sm">{DOCUMENTS_COPY.card}</h3>
+						<ul className="mt-2 flex flex-col gap-2">
+							{selected.data.childCards.map((card) => (
+								<li key={card.documentId}>
+									<ChildCardButton card={card} onSelect={onSelect} />
+								</li>
+							))}
+						</ul>
+					</section>
+				) : null}
 				<form className="mt-6 flex flex-col gap-3" onSubmit={onPlace}>
 					<Field>
 						<FieldLabel htmlFor="document-parent">
@@ -405,6 +419,44 @@ export default function DocumentDetail({
 				</div>
 			</CardContent>
 		</Card>
+	);
+}
+
+function ChildCardButton({
+	card,
+	onSelect,
+}: {
+	card: {
+		documentId: string;
+		imageUrl: string | null;
+		preview: string;
+		title: string;
+	};
+	onSelect?: (documentId: string) => void;
+}) {
+	const onClick = useCallback(() => {
+		onSelect?.(card.documentId);
+	}, [card.documentId, onSelect]);
+	return (
+		<button
+			className="w-full rounded-none border border-input px-2.5 py-2 text-left text-sm hover:bg-muted/40"
+			onClick={onClick}
+			type="button"
+		>
+			{card.imageUrl ? (
+				<img
+					alt=""
+					className="mb-1 max-h-24 w-full object-cover"
+					height={96}
+					src={card.imageUrl}
+					width={320}
+				/>
+			) : null}
+			<span className="font-medium">{card.title}</span>
+			<span className="mt-0.5 block text-muted-foreground text-xs">
+				{card.preview}
+			</span>
+		</button>
 	);
 }
 

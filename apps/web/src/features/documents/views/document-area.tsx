@@ -150,6 +150,7 @@ export default function DocumentArea({
 					<DocumentDetail
 						archivedList={archived}
 						documentId={selectedId}
+						onSelect={onSelect}
 						projectId={projectId}
 					/>
 				) : (

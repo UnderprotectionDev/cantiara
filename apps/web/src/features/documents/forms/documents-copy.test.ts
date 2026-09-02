@@ -14,6 +14,7 @@ test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.archive).toBe("Archive");
 	expect(DOCUMENTS_COPY.archived).toBe("Archived");
 	expect(DOCUMENTS_COPY.unarchive).toBe("Unarchive");
+	expect(DOCUMENTS_COPY.card).toBe("Card");
 	expect(DOCUMENTS_COPY.folder).toBe("Folder");
 	expect(DOCUMENTS_COPY.parentDocument).toBe("Parent Document");
 	expect(DOCUMENTS_COPY.createFolder).toBe("Create folder");

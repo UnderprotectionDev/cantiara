@@ -18,6 +18,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belge arşivini geri al | `Unarchive` | Arşivlenen Belgeyi varsayılan gezinmeye kimliği değiştirmeden döndürme |
 | Belge klasörü | `Folder` | Aynı sahiplik kapsamında gezinme üstverisi; Akıllı Koleksiyon veya sahiplik kapsamı değildir |
 | Üst belge | `Parent Document` | Aynı kapsamdaki en fazla bir üst Belge; çapraz kapsam ebeveyn yoktur |
+| Çocuk Belge kartı | `Card` | Üst Belgedeki otomatik çocuk önizlemesi; ayrı kapak kaydı değildir |
 | Özellik | `Feature` | İş türü |
 | Kullanıcı Akışı | `User Flow` | Kullanıcının arayüz hedefi ve karar yolunu taşıyan tasarım türü |
 | Herkese açık | `Public` | Dışarıdan anonim erişilebilen kullanıcı görünürlüğü; `Build in Public` ürün adı, teknik alan ve wire değerleri özgün adını korur |

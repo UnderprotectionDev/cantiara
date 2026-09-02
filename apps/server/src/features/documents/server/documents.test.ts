@@ -42,6 +42,7 @@ import {
 	DOCUMENTS_COPY,
 	documentsCatalog,
 	presentDocumentBody,
+	presentDocumentChildCard,
 	resolveInDocTags,
 } from "./documents-model";
 
@@ -53,6 +54,7 @@ const TRASH_PATTERN = /Trash|trash|Çöp/i;
 const DISCOVERY_COPY_PATTERN =
 	/All Documents|Smart Collection|Trash|Unpublish/i;
 const SMART_COLLECTION_PATTERN = /Smart Collection/i;
+const CARD_COVER_PATTERN = /cover|thumbnail|designer/i;
 const BILLING = { id: "tag-billing", name: "billing" };
 
 const FULL_BODY = [
@@ -125,6 +127,7 @@ describe("Documents catalog", () => {
 		expect(DOCUMENTS_COPY.archived).toBe("Archived");
 		expect(DOCUMENTS_COPY.unarchive).toBe("Unarchive");
 		expect(DOCUMENTS_COPY.folder).toBe("Folder");
+		expect(DOCUMENTS_COPY.card).toBe("Card");
 		expect(DOCUMENTS_COPY.parentDocument).toBe("Parent Document");
 		expect(JSON.stringify(DOCUMENTS_COPY)).not.toMatch(DISCOVERY_COPY_PATTERN);
 		expect(DOCUMENT_TYPES).toEqual([
@@ -456,6 +459,47 @@ describe("In-doc tags", () => {
 			resolved: [BILLING],
 		});
 	});
+
+	it("derives a child Card from the child body without a cover record", () => {
+		expect(
+			presentDocumentChildCard({
+				body: [
+					"# Heading",
+					"",
+					"![skip](https://example.com/file.svg)",
+					"![shot](https://cdn.example.com/hero.png)",
+					"Opening paragraph for the child.",
+					"```ts",
+					"not preview",
+					"```",
+				].join("\n"),
+				documentId: "doc-child",
+				title: "Child",
+				type: "Spec",
+			})
+		).toEqual({
+			documentId: "doc-child",
+			imageUrl: "https://cdn.example.com/hero.png",
+			preview: "Opening paragraph for the child.",
+			title: "Child",
+			type: "Spec",
+		});
+		expect(
+			presentDocumentChildCard({
+				body: "",
+				documentId: "doc-empty",
+				title: "Empty",
+				type: "General",
+			})
+		).toEqual({
+			documentId: "doc-empty",
+			imageUrl: null,
+			preview: "Empty · General",
+			title: "Empty",
+			type: "General",
+		});
+		expect(JSON.stringify(DOCUMENTS_COPY.card)).not.toMatch(CARD_COVER_PATTERN);
+	});
 });
 
 describe("Documents tags, hierarchy, and archive", () => {
@@ -678,6 +722,58 @@ describe("Documents tags, hierarchy, and archive", () => {
 				revision: child.revision,
 				scope: { kind: "project", projectId: project.id },
 				title: "Child",
+			},
+			status: "committed",
+		});
+		expect(await getDocument(prisma, parent.id)).toMatchObject({
+			childCards: [
+				{
+					documentId: child.id,
+					imageUrl: null,
+					preview: "Child",
+					title: "Child",
+					type: "General",
+				},
+			],
+			id: parent.id,
+		});
+		const archivedChild = await archiveDocument(prisma, {
+			actorId,
+			baseRevision: placed.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { documentId: child.id },
+			workspaceId,
+		});
+		expect(archivedChild).toMatchObject({
+			document: { archived: true, id: child.id, parentId: parent.id },
+			status: "committed",
+		});
+		if (archivedChild.status !== "committed") {
+			throw new Error("expected archived child");
+		}
+		expect(await getDocument(prisma, parent.id)).toMatchObject({
+			childCards: [],
+			id: parent.id,
+		});
+		const moved = await placeDocument(prisma, {
+			actorId,
+			baseRevision: archivedChild.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				documentId: child.id,
+				folderId: folder.folder.id,
+				parentId: parent.id,
+			},
+			workspaceId,
+		});
+		expect(moved).toMatchObject({
+			document: {
+				archived: true,
+				folderId: folder.folder.id,
+				id: child.id,
+				parentId: parent.id,
 			},
 			status: "committed",
 		});

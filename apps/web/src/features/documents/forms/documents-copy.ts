@@ -13,6 +13,7 @@ export const DOCUMENTS_COPY = {
 	archive: "Archive",
 	archived: "Archived",
 	body: "Body",
+	card: "Card",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
 	createFolder: "Create folder",

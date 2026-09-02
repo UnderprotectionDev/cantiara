@@ -8,30 +8,34 @@ import {
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
 import { getProject } from "../../project-shell/server/project-shell";
+import type {
+	ArchiveDocumentCommand,
+	CreateDocumentCommand,
+	CreateDocumentFolderCommand,
+	DocumentArchivePreview,
+	DocumentChildCard,
+	DocumentFolderView,
+	DocumentFolderWriteOutcome,
+	DocumentHierarchyPreview,
+	DocumentInDocTag,
+	DocumentLiveFiles,
+	DocumentScope,
+	DocumentType,
+	DocumentView,
+	DocumentWriteOutcome,
+	PlaceDocumentCommand,
+	UpdateDocumentCommand,
+} from "./documents-model";
 import {
-	type ArchiveDocumentCommand,
 	archiveDocumentCommandSchema,
-	type CreateDocumentCommand,
-	type CreateDocumentFolderCommand,
 	createDocumentCommandSchema,
 	createDocumentFolderCommandSchema,
 	DOCUMENT_MAX_DEPTH,
 	DOCUMENT_SCOPE_KIND,
-	type DocumentArchivePreview,
-	type DocumentFolderView,
-	type DocumentFolderWriteOutcome,
-	type DocumentHierarchyPreview,
-	type DocumentInDocTag,
-	type DocumentLiveFiles,
-	type DocumentScope,
-	type DocumentType,
-	type DocumentView,
-	type DocumentWriteOutcome,
 	isDocumentType,
-	type PlaceDocumentCommand,
 	placeDocumentCommandSchema,
+	presentDocumentChildCard,
 	resolveInDocTags,
-	type UpdateDocumentCommand,
 	updateDocumentCommandSchema,
 } from "./documents-model";
 
@@ -143,7 +147,8 @@ export async function getDocument(
 		return null;
 	}
 	const tags = await inDocTagsFor(prisma, [row.id]);
-	return toView(row, tags.get(row.id) ?? []);
+	const cards = await childCardsFor(prisma, [row.id]);
+	return toView(row, tags.get(row.id) ?? [], cards.get(row.id) ?? []);
 }
 
 export async function listDocuments(
@@ -178,7 +183,13 @@ export async function listDocuments(
 		prisma,
 		rows.map((row) => row.id)
 	);
-	return rows.map((row) => toView(row, tags.get(row.id) ?? []));
+	const cards = await childCardsFor(
+		prisma,
+		rows.map((row) => row.id)
+	);
+	return rows.map((row) =>
+		toView(row, tags.get(row.id) ?? [], cards.get(row.id) ?? [])
+	);
 }
 
 export async function listDocumentFolders(
@@ -834,7 +845,59 @@ async function viewFromTx(
 	row: DocumentRow
 ): Promise<DocumentView> {
 	const tags = await inDocTagsFor(tx, [row.id]);
-	return toView(row, tags.get(row.id) ?? []);
+	const cards = await childCardsFor(tx, [row.id]);
+	return toView(row, tags.get(row.id) ?? [], cards.get(row.id) ?? []);
+}
+
+async function childCardsFor(
+	prisma: PrismaClient | PrismaTransaction,
+	parentIds: string[]
+): Promise<Map<string, DocumentChildCard[]>> {
+	const grouped = new Map<string, DocumentChildCard[]>();
+	if (parentIds.length === 0) {
+		return grouped;
+	}
+	const children = await prisma.document.findMany({
+		orderBy: { createdAt: "asc" },
+		where: { archivedAt: null, parentId: { in: parentIds } },
+	});
+	for (const child of children) {
+		if (!child.parentId) {
+			continue;
+		}
+		const list = grouped.get(child.parentId) ?? [];
+		list.push(
+			presentDocumentChildCard({
+				body: child.body,
+				documentId: child.id,
+				title: child.title,
+				type: child.type as DocumentType,
+			})
+		);
+		grouped.set(child.parentId, list);
+	}
+	return grouped;
+}
+
+function toView(
+	row: DocumentRow,
+	inDocTags: readonly DocumentInDocTag[] = [],
+	childCards: readonly DocumentChildCard[] = []
+): DocumentView {
+	return {
+		archived: row.archivedAt !== null,
+		body: row.body,
+		childCards,
+		folderId: row.folderId,
+		id: row.id,
+		inDocTags,
+		liveFilePath: null,
+		parentId: row.parentId,
+		revision: row.revision,
+		scope: scopeOf(row),
+		title: row.title,
+		type: row.type as DocumentType,
+	};
 }
 
 function toFolderView(row: {
@@ -849,25 +912,6 @@ function toFolderView(row: {
 		name: row.name,
 		revision: row.revision,
 		scope: scopeOf(row),
-	};
-}
-
-function toView(
-	row: DocumentRow,
-	inDocTags: readonly DocumentInDocTag[] = []
-): DocumentView {
-	return {
-		archived: row.archivedAt !== null,
-		body: row.body,
-		folderId: row.folderId,
-		id: row.id,
-		inDocTags,
-		liveFilePath: null,
-		parentId: row.parentId,
-		revision: row.revision,
-		scope: scopeOf(row),
-		title: row.title,
-		type: row.type as DocumentType,
 	};
 }
 

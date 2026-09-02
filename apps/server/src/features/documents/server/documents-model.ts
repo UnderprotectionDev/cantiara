@@ -4,6 +4,7 @@ export const DOCUMENTS_COPY = {
 	archive: "Archive",
 	archived: "Archived",
 	body: "Body",
+	card: "Card",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
 	createFolder: "Create folder",
@@ -148,9 +149,18 @@ export interface DocumentInDocTag {
 	name: string;
 }
 
+export interface DocumentChildCard {
+	documentId: string;
+	imageUrl: string | null;
+	preview: string;
+	title: string;
+	type: DocumentType;
+}
+
 export interface DocumentView {
 	archived: boolean;
 	body: string;
+	childCards: readonly DocumentChildCard[];
 	folderId: string | null;
 	id: string;
 	inDocTags: readonly DocumentInDocTag[];
@@ -475,4 +485,60 @@ function maskNonTagRegions(text: string): string {
 		.replace(AUTOLINK, " ")
 		.replace(BARE_URL, " ")
 		.replace(ESCAPED_HASH, " ");
+}
+
+const MARKDOWN_IMAGE = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+const SUPPORTED_IMAGE = /\.(?:gif|jpe?g|png|webp)(?:\?|#|$)/i;
+const HEADING_LINE = /^#{1,6}\s+/;
+const PREVIEW_LIMIT = 160;
+
+function firstSupportedImageUrl(text: string): string | null {
+	MARKDOWN_IMAGE.lastIndex = 0;
+	for (const match of text.matchAll(MARKDOWN_IMAGE)) {
+		const source = match[1]?.trim() ?? "";
+		if (source.length > 0 && SUPPORTED_IMAGE.test(source)) {
+			return source;
+		}
+	}
+	return null;
+}
+
+function firstMeaningfulProse(text: string): string {
+	MARKDOWN_IMAGE.lastIndex = 0;
+	const lines = text
+		.replace(MARKDOWN_IMAGE, " ")
+		.replace(INLINE_CODE, " ")
+		.replace(MARKDOWN_LINK, " ")
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0 && !HEADING_LINE.test(line));
+	return lines[0]?.slice(0, PREVIEW_LIMIT) ?? "";
+}
+
+export function presentDocumentChildCard(input: {
+	body: string;
+	documentId: string;
+	title: string;
+	type: DocumentType;
+}): DocumentChildCard {
+	let imageUrl: string | null = null;
+	let preview = "";
+	for (const block of presentDocumentBody(input.body).blocks) {
+		if (block.kind !== "markdown") {
+			continue;
+		}
+		if (imageUrl === null) {
+			imageUrl = firstSupportedImageUrl(block.text);
+		}
+		if (preview.length === 0) {
+			preview = firstMeaningfulProse(block.text);
+		}
+	}
+	return {
+		documentId: input.documentId,
+		imageUrl,
+		preview: preview || `${input.title} · ${input.type}`,
+		title: input.title,
+		type: input.type,
+	};
 }
