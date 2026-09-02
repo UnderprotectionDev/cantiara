@@ -20,6 +20,10 @@ import {
 	usePaletteSurface,
 } from "@/features/command-palette/components/founder-command-palette";
 import UserMenu from "@/features/personal-shell/components/user-menu";
+import {
+	openProjectIdFromLocation,
+	searchLinkSearch,
+} from "@/features/record-discovery/views/search-open-project";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
 
@@ -46,10 +50,16 @@ export default function Header() {
 	const surface = usePaletteSurface();
 	const { data: session } = authClient.useSession();
 	const signedIn = Boolean(session?.user);
-	const pathname = useRouterState({
-		select: (state) => state.location.pathname,
+	const location = useRouterState({
+		select: (state) => state.location,
 	});
-	const projectId = projectIdFromPath(pathname);
+	const { pathname, search } = location;
+	const projectFromPath = projectIdFromPath(pathname);
+	const projectId = openProjectIdFromLocation({
+		pathname,
+		projectFromPath,
+		search: search as Record<string, unknown>,
+	});
 	const project = useQuery({
 		...orpc.projectShell.get.queryOptions({
 			input: { projectId: projectId ?? "" },
@@ -106,6 +116,19 @@ export default function Header() {
 					<div className="hidden min-w-0 items-center gap-3 md:flex">
 						{nav.map(({ to, label }) => {
 							const current = founderChromeNavIsCurrent(pathname, to);
+							if (to === FOUNDER_CHROME_PATHS.search) {
+								return (
+									<Link
+										aria-current={current ? "page" : undefined}
+										className={chromeLinkClass(current)}
+										key={to}
+										search={searchLinkSearch(projectId)}
+										to={to}
+									>
+										{label}
+									</Link>
+								);
+							}
 							return (
 								<Link
 									aria-current={current ? "page" : undefined}
@@ -133,6 +156,7 @@ export default function Header() {
 									current={founderChromeNavIsCurrent(pathname, to)}
 									key={to}
 									label={label}
+									openProjectId={projectId}
 									to={to}
 								/>
 							))}
@@ -154,16 +178,25 @@ export default function Header() {
 function ChromeMenuItem({
 	current,
 	label,
+	openProjectId,
 	to,
 }: {
 	current: boolean;
 	label: string;
+	openProjectId: string | null;
 	to: (typeof FOUNDER_CHROME_PATHS)[keyof typeof FOUNDER_CHROME_PATHS];
 }) {
 	const navigate = useNavigate();
 	const onClick = useCallback(() => {
+		if (to === FOUNDER_CHROME_PATHS.search) {
+			navigate({
+				search: searchLinkSearch(openProjectId),
+				to,
+			}).catch(() => undefined);
+			return;
+		}
 		navigate({ to }).catch(() => undefined);
-	}, [navigate, to]);
+	}, [navigate, openProjectId, to]);
 	return (
 		<DropdownMenuItem
 			aria-current={current ? "page" : undefined}

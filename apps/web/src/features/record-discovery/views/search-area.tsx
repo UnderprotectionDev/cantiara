@@ -11,14 +11,19 @@ import { projectIdFromPath } from "@/features/personal-shell/components/project-
 import { orpc } from "@/utils/orpc";
 
 import { RECORD_DISCOVERY_COPY } from "./record-discovery-copy";
+import { openProjectIdFromLocation } from "./search-open-project";
 
 export default function SearchArea() {
 	const catalog = useQuery(orpc.recordDiscovery.catalog.queryOptions());
 	const copy = catalog.data?.copy ?? RECORD_DISCOVERY_COPY;
-	const pathname = useRouterState({
-		select: (state) => state.location.pathname,
+	const location = useRouterState({
+		select: (state) => state.location,
 	});
-	const openProjectId = projectIdFromPath(pathname);
+	const openProjectId = openProjectIdFromLocation({
+		pathname: location.pathname,
+		projectFromPath: projectIdFromPath(location.pathname),
+		search: location.search as Record<string, unknown>,
+	});
 	const [query, setQuery] = useState("");
 	const [includeArchived, setIncludeArchived] = useState(false);
 	const result = useQuery(

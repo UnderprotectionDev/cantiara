@@ -8,4 +8,7 @@ export const Route = createFileRoute("/_founder/_auth/search")({
 		context.queryClient.ensureQueryData(
 			context.orpc.recordDiscovery.catalog.queryOptions()
 		),
+	validateSearch: (search: Record<string, unknown>): { project?: string } => ({
+		project: typeof search.project === "string" ? search.project : undefined,
+	}),
 });
