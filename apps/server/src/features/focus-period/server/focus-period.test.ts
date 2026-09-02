@@ -6,10 +6,13 @@
  * seam derive Active and Resolved blockers in period scope and do
  * not write a relation. Clock test double for start-instant
  * Planned → Active. Closed writes close-scope snapshot and opens the
- * still-open Work bulk decision; Canceled does not. Synthetic fixture for
+ * still-open Work bulk decision; Canceled does not. One Work is in at
+ * most one active Focus Period; implicit add to a second active period
+ * is rejected and Move keeps past memberships and snapshots. Synthetic
+ * fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Odak Dönemi: 1–8 week window; membership does not write status;
- * Dependencies create no relation).
+ * at most one active period per Work; Dependencies create no relation).
  */
 
 import { PrismaClient } from "@cantiara/db";
@@ -557,6 +560,114 @@ describe("Focus Period", () => {
 			status: "Not Started",
 		});
 		expect(await active.activePeriodIdForWork(intake.id)).toBeNull();
+	});
+
+	it("rejects adding Work that is already in another active Focus Period", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const first = await openPeriod("First window");
+		const second = await openPeriod("Second window");
+		await surface(BEFORE_START).add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: first.id,
+			workId: intake.id,
+		});
+		const active = surface(START_INSTANT);
+		expect((await active.get(first.id))?.status).toBe(
+			FOCUS_PERIOD_STATUS.active
+		);
+		expect((await active.get(second.id))?.status).toBe(
+			FOCUS_PERIOD_STATUS.active
+		);
+		expect(await active.activePeriodIdForWork(intake.id)).toBe(first.id);
+		const added = await active.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: second.id,
+			workId: intake.id,
+		});
+		expect(added).toEqual({
+			reason: FOCUS_PERIOD_COPY.alreadyInAnActivePeriod,
+			status: "invalid",
+		});
+		expect(await active.activePeriodIdForWork(intake.id)).toBe(first.id);
+		expect((await active.get(first.id))?.members.map((row) => row.id)).toEqual([
+			intake.id,
+		]);
+		expect((await active.get(second.id))?.members.map((row) => row.id)).toEqual(
+			[]
+		);
+	});
+
+	it("keeps closed membership and start-scope snapshot when Move takes Work to another active Focus Period", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const closedPeriod = await openPeriod("Closed window");
+		await surface(BEFORE_START).add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: closedPeriod.id,
+			workId: intake.id,
+		});
+		const afterClose = surface(START_INSTANT);
+		const closed = await afterClose.close({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: closedPeriod.id,
+		});
+		expect(closed.status).toBe("committed");
+		const live = await openPeriod("Live window");
+		const addedToLive = await afterClose.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: live.id,
+			workId: intake.id,
+		});
+		expect(addedToLive.status).toBe("committed");
+		if (addedToLive.status !== "committed") {
+			throw new Error("expected committed add");
+		}
+		expect(addedToLive.period.status).toBe(FOCUS_PERIOD_STATUS.active);
+		expect(await afterClose.activePeriodIdForWork(intake.id)).toBe(live.id);
+		expect(
+			(await afterClose.get(closedPeriod.id))?.members.map((row) => row.id)
+		).toEqual([intake.id]);
+		expect((await afterClose.get(closedPeriod.id))?.startScope).toEqual({
+			workIds: [intake.id],
+		});
+		expect((await afterClose.get(closedPeriod.id))?.closeScope).toEqual({
+			workIds: [intake.id],
+		});
+
+		const next = await openPeriod("Next window");
+		expect((await afterClose.get(next.id))?.status).toBe(
+			FOCUS_PERIOD_STATUS.active
+		);
+		const moved = await afterClose.move({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: next.id,
+			workId: intake.id,
+		});
+		expect(moved.status).toBe("committed");
+		if (moved.status !== "committed") {
+			throw new Error("expected committed move");
+		}
+		expect(moved.period.members.map((row) => row.id)).toEqual([intake.id]);
+		expect(await afterClose.activePeriodIdForWork(intake.id)).toBe(next.id);
+		expect(
+			(await afterClose.get(live.id))?.members.map((row) => row.id)
+		).toEqual([]);
+		expect((await afterClose.get(live.id))?.startScope).toEqual({
+			workIds: [intake.id],
+		});
+		expect(
+			(await afterClose.get(closedPeriod.id))?.members.map((row) => row.id)
+		).toEqual([intake.id]);
+		expect((await afterClose.get(closedPeriod.id))?.startScope).toEqual({
+			workIds: [intake.id],
+		});
+		expect((await afterClose.get(closedPeriod.id))?.closeScope).toEqual({
+			workIds: [intake.id],
+		});
+		expect(await getWork(prisma, intake.id)).toMatchObject({
+			status: "Not Started",
+		});
 	});
 
 	it("offers optional read-only Dependencies with no create or resolve action", async () => {
