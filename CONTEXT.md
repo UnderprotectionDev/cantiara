@@ -578,6 +578,10 @@ _Avoid_: Geri Bildirim, Test Oturumu, Deney/Doğrulama
 Bir Proje veya Kişisel Wiki kapsamında yaşayan, sürümlü Markdown içeriğine sahip ana kayıt; başka kaydın metin alanı veya dış dosyayla canlı eşitlenen kopya değildir.
 _Avoid_: Dosya Eki, harici Markdown dosyası, kayıt açıklaması
 
+**Belge sürümü**:
+Belgenin veritabanında tutulan kesin uygulama değişikliği kaydı; Git commit, dış dosya revizyonu veya ortak düzenleme oturumu değildir ([Belge sürüm geçmişi](docs/prd/07-documents-and-knowledge.md#belge-sürüm-geçmişi)). UI: `Version`.
+_Avoid_: Git commit, harici editör senkronu, CRDT
+
 **Dosya Eki**:
 Tam olarak bir Proje veya Kişisel Wiki kapsamında yaşayan, dosya içeriğini ve sürümlerini taşıyan ana kayıt; başka kapsamdaki ilişki sahipliğini veya görünürlüğünü değiştirmez.
 _Avoid_: Belge, ilişki eki, paylaşılan global dosya

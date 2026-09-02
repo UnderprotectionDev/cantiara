@@ -540,6 +540,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Son kullanım | `Last use` | Uzantı bağlantısının son yazma zamanı |
 | Uzantı bağlantısını iptal et | `Revoke` | Tek bir uzantı bağlantısını iptal etme eylemi |
 | Belge | `Document` | Markdown Belgesi dönüşüm hedefi |
+| Belge sürümü | `Version` | Belgenin veritabanındaki uygulama değişikliği; Git commit değildir |
+| Karşılaştır | `Compare` | İki Belge sürümünün gövde farkını gösterme |
+| Geri yükle | `Restore` | Seçilen Belge sürümünü yeni uç olarak yazma; geçmişi silmez |
 | Dosya Eki | `File Attachment` | Dosya Eki dönüşüm hedefi |
 | Dosya seç | `Choose file` | Dosya Eki yükleme denetiminin görünür dosya seçme eylemi |
 | Dosya seçilmedi | `No file selected` | Dosya Eki yükleme denetiminde henüz dosya seçilmediğini söyleyen durum |

@@ -1,7 +1,9 @@
+import { diffLines } from "diff";
 import { z } from "zod";
 
 export const DOCUMENTS_COPY = {
 	body: "Body",
+	compare: "Compare",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
 	document: "Document",
@@ -12,11 +14,14 @@ export const DOCUMENTS_COPY = {
 	plan: "Plan",
 	prd: "PRD",
 	researchNote: "Research Note",
+	restore: "Restore",
 	save: "Save",
 	selectDocument: "Select a Document",
 	spec: "Spec",
 	title: "Title",
 	type: "Type",
+	version: "Version",
+	versions: "Versions",
 } as const;
 
 export const DOCUMENT_TYPES = [
@@ -94,12 +99,53 @@ export interface DocumentView {
 	type: DocumentType;
 }
 
+export interface DocumentVersionView {
+	body: string;
+	documentId: string;
+	id: string;
+	revision: number;
+	title: string;
+	type: DocumentType;
+}
+
+export type DocumentVersionHunkKind = "added" | "removed" | "unchanged";
+
+export interface DocumentVersionHunk {
+	kind: DocumentVersionHunkKind;
+	text: string;
+}
+
+export interface DocumentVersionCompare {
+	hunks: readonly DocumentVersionHunk[];
+	left: DocumentVersionView;
+	right: DocumentVersionView;
+}
+
+export const restoreDocumentPayloadSchema = z.object({
+	documentId: z.string().min(1),
+	versionRevision: z.number().int().positive(),
+});
+
+export const restoreDocumentCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: restoreDocumentPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type RestoreDocumentCommand = z.infer<
+	typeof restoreDocumentCommandSchema
+>;
+
 export type DocumentRejectionReason =
 	| "invalid-command"
 	| "project-not-found"
 	| "title-required"
 	| "unknown-document-type"
-	| "document-not-found";
+	| "document-not-found"
+	| "version-not-found";
 
 export type DocumentWriteOutcome =
 	| { document: DocumentView; status: "committed" }
@@ -125,6 +171,29 @@ export function createMemoryLiveFiles(): DocumentLiveFiles & {
 
 export function isDocumentType(value: string): value is DocumentType {
 	return (DOCUMENT_TYPES as readonly string[]).includes(value);
+}
+
+export function presentDocumentVersionDiff(
+	leftBody: string,
+	rightBody: string
+): DocumentVersionHunk[] {
+	return diffLines(leftBody, rightBody).map((part) => ({
+		kind: hunkKind(part),
+		text: part.value,
+	}));
+}
+
+function hunkKind(part: {
+	added?: boolean;
+	removed?: boolean;
+}): DocumentVersionHunkKind {
+	if (part.added) {
+		return "added";
+	}
+	if (part.removed) {
+		return "removed";
+	}
+	return "unchanged";
 }
 
 export function documentsCatalog(): {

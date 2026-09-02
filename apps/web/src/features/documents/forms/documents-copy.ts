@@ -11,6 +11,7 @@ export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export const DOCUMENTS_COPY = {
 	body: "Body",
+	compare: "Compare",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
 	document: "Document",
@@ -21,6 +22,7 @@ export const DOCUMENTS_COPY = {
 	plan: "Plan",
 	prd: "PRD",
 	researchNote: "Research Note",
+	restore: "Restore",
 	save: "Save",
 	selectDocument: "Select a Document",
 	spec: "Spec",
@@ -56,6 +58,8 @@ export const DOCUMENTS_COPY = {
 		undo: "Undo",
 	},
 	type: "Type",
+	version: "Version",
+	versions: "Versions",
 } as const;
 
 export function documentScopeFor(

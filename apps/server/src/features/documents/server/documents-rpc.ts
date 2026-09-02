@@ -6,9 +6,12 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	compareDocumentVersions,
 	createDocument,
 	getDocument,
 	listDocuments,
+	listDocumentVersions,
+	restoreDocumentVersion,
 	updateDocument,
 } from "./documents";
 import {
@@ -16,6 +19,7 @@ import {
 	documentScopeSchema,
 	documentsCatalog,
 	presentDocumentBody,
+	restoreDocumentPayloadSchema,
 	updateDocumentPayloadSchema,
 } from "./documents-model";
 
@@ -37,6 +41,27 @@ async function requireProject(workspaceId: string, projectId: string) {
 
 export const documents = {
 	catalog: protectedProcedure.handler(() => documentsCatalog()),
+	compare: protectedProcedure
+		.input(
+			z.object({
+				documentId: z.string().min(1),
+				leftRevision: z.number().int().positive(),
+				rightRevision: z.number().int().positive(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const compared = await compareDocumentVersions(getPrismaClient(), {
+				documentId: input.documentId,
+				leftRevision: input.leftRevision,
+				rightRevision: input.rightRevision,
+				workspaceId: access.workspaceId,
+			});
+			if (!compared) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return compared;
+		}),
 	create: protectedWriteProcedure
 		.input(
 			z.object({
@@ -89,6 +114,25 @@ export const documents = {
 	present: protectedProcedure
 		.input(z.object({ body: z.string() }))
 		.handler(({ input }) => presentDocumentBody(input.body)),
+	restore: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: restoreDocumentPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await restoreDocumentVersion(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
 	update: protectedWriteProcedure
 		.input(
 			z.object({
@@ -107,5 +151,18 @@ export const documents = {
 				payload: input.payload,
 				workspaceId: access.workspaceId,
 			});
+		}),
+	versions: protectedProcedure
+		.input(z.object({ documentId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const versions = await listDocumentVersions(getPrismaClient(), {
+				documentId: input.documentId,
+				workspaceId: access.workspaceId,
+			});
+			if (!versions) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return versions;
 		}),
 };
