@@ -26,6 +26,7 @@
     "@orpc/server": "catalog:",
     "@orpc/tanstack-query": "^1.14.12",
     "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/highlight": "^0.0.10",
     "@tanstack/markdown": "^0.0.13",
     "@tanstack/react-form": "^1.33.2",
     "@tanstack/react-pacer": "^0.23.0",

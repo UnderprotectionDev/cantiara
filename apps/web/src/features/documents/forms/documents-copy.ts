@@ -25,6 +25,14 @@ export const DOCUMENTS_COPY = {
 	selectDocument: "Select a Document",
 	spec: "Spec",
 	title: "Title",
+	toolbar: {
+		bold: "Bold",
+		code: "Code",
+		italic: "Italic",
+		latex: "LaTeX",
+		mermaid: "Mermaid",
+		table: "Table",
+	},
 	type: "Type",
 } as const;
 

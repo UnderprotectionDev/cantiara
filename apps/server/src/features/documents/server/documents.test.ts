@@ -51,6 +51,8 @@ const FULL_BODY = [
 	"```",
 	"",
 	"$$E = mc^2$$",
+	"",
+	"Inline $e=mc^2$.",
 ].join("\n");
 
 const BROKEN_MERMAID = ["```mermaid", "not a diagram", "```"].join("\n");
@@ -267,13 +269,23 @@ describe("Documents", () => {
 		expect(loaded?.body).toContain("```ts");
 		expect(loaded?.body).toContain("```mermaid");
 		expect(loaded?.body).toContain("$$E = mc^2$$");
-		const presented = presentDocumentBody(loaded?.body ?? "");
+		expect(loaded?.body).toContain("$e=mc^2$");
+		const presented = presentDocumentBody(created.document.body);
 		expect(presented.source).toBe(FULL_BODY);
 		expect(presented.blocks).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ kind: "fenced-code", language: "ts" }),
 				expect.objectContaining({ kind: "mermaid", status: "ok" }),
-				expect.objectContaining({ kind: "latex", status: "ok" }),
+				expect.objectContaining({
+					kind: "latex",
+					source: "E = mc^2",
+					status: "ok",
+				}),
+				expect.objectContaining({
+					kind: "latex",
+					source: "e=mc^2",
+					status: "ok",
+				}),
 			])
 		);
 	});

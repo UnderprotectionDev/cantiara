@@ -174,6 +174,7 @@ const MERMAID_START =
 const FIRST_LINE = /\r?\n/;
 const FENCE_OPEN = /^```([^\n`]*)$/;
 const LATEX_BLOCK = /\$\$([\s\S]+?)\$\$/g;
+const LATEX_INLINE = /(?<!\$)\$(?!\$)([^$\n]+)\$(?!\$)/g;
 
 function defaultMermaid(source: string): DocumentBodyProcessorResult {
 	const line = source.trim().split(FIRST_LINE, 1)[0] ?? "";
@@ -284,7 +285,11 @@ function pushMarkdown(
 		return;
 	}
 	let cursor = 0;
-	const matches = [...text.matchAll(new RegExp(LATEX_BLOCK.source, "g"))];
+	const latexPattern = new RegExp(
+		`${LATEX_BLOCK.source}|${LATEX_INLINE.source}`,
+		"g"
+	);
+	const matches = [...text.matchAll(latexPattern)];
 	if (matches.length === 0) {
 		blocks.push({ kind: "markdown", text });
 		return;
@@ -294,7 +299,7 @@ function pushMarkdown(
 		if (index > cursor) {
 			blocks.push({ kind: "markdown", text: text.slice(cursor, index) });
 		}
-		const source = match[1] ?? "";
+		const source = match[1] ?? match[2] ?? "";
 		blocks.push(processedBlock("latex", source, processors.latex(source)));
 		cursor = index + match[0].length;
 	}

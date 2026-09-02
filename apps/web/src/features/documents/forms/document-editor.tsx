@@ -68,6 +68,22 @@ function DocumentToolbar({ editor }: { editor: Editor }) {
 			.insertTable({ cols: 2, rows: 2, withHeaderRow: true })
 			.run();
 	}, [editor]);
+	const onMermaid = useCallback(() => {
+		editor
+			.chain()
+			.focus()
+			.insertContent("```mermaid\ngraph TD\n  A-->B\n```\n", {
+				contentType: "markdown",
+			})
+			.run();
+	}, [editor]);
+	const onLatex = useCallback(() => {
+		editor
+			.chain()
+			.focus()
+			.insertContent("$$E = mc^2$$\n", { contentType: "markdown" })
+			.run();
+	}, [editor]);
 
 	return (
 		<div className="flex flex-wrap gap-2">
@@ -76,28 +92,42 @@ function DocumentToolbar({ editor }: { editor: Editor }) {
 				onClick={onBold}
 				type="button"
 			>
-				Bold
+				{DOCUMENTS_COPY.toolbar.bold}
 			</button>
 			<button
 				className="text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
 				onClick={onItalic}
 				type="button"
 			>
-				Italic
+				{DOCUMENTS_COPY.toolbar.italic}
 			</button>
 			<button
 				className="text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
 				onClick={onCode}
 				type="button"
 			>
-				Code
+				{DOCUMENTS_COPY.toolbar.code}
 			</button>
 			<button
 				className="text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
 				onClick={onTable}
 				type="button"
 			>
-				Table
+				{DOCUMENTS_COPY.toolbar.table}
+			</button>
+			<button
+				className="text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
+				onClick={onMermaid}
+				type="button"
+			>
+				{DOCUMENTS_COPY.toolbar.mermaid}
+			</button>
+			<button
+				className="text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
+				onClick={onLatex}
+				type="button"
+			>
+				{DOCUMENTS_COPY.toolbar.latex}
 			</button>
 		</div>
 	);

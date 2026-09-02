@@ -1,9 +1,14 @@
 import { Markdown } from "@tanstack/markdown/react";
 import katex from "katex";
 import mermaid from "mermaid";
-import { useEffect, useId, useState } from "react";
+import type { ChangeEvent } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import { DOCUMENTS_COPY } from "../forms/documents-copy";
+import {
+	documentHighlightCss,
+	highlightDocumentCode,
+} from "./document-highlight";
 
 export type DocumentBodyBlock =
 	| { kind: "markdown"; text: string }
@@ -23,13 +28,20 @@ export type DocumentBodyBlock =
 
 export default function DocumentBodyView({
 	blocks,
+	onBlockSourceChange,
 }: {
 	blocks: readonly DocumentBodyBlock[];
+	onBlockSourceChange?: (previous: string, next: string) => void;
 }) {
 	return (
 		<div className="flex flex-col gap-3 text-sm">
+			<style>{documentHighlightCss}</style>
 			{blocks.map((block) => (
-				<BodyBlock block={block} key={blockKey(block)} />
+				<BodyBlock
+					block={block}
+					key={blockKey(block)}
+					onBlockSourceChange={onBlockSourceChange}
+				/>
 			))}
 		</div>
 	);
@@ -45,27 +57,41 @@ function blockKey(block: DocumentBodyBlock): string {
 	return `${block.kind}:${block.status}:${block.source}`;
 }
 
-function BodyBlock({ block }: { block: DocumentBodyBlock }) {
+function BodyBlock({
+	block,
+	onBlockSourceChange,
+}: {
+	block: DocumentBodyBlock;
+	onBlockSourceChange?: (previous: string, next: string) => void;
+}) {
 	if (block.kind === "markdown") {
 		return <Markdown>{block.text}</Markdown>;
 	}
 	if (block.kind === "fenced-code") {
 		return (
-			<pre className="overflow-x-auto bg-muted p-2">
-				<code>{block.source}</code>
-			</pre>
+			<div
+				className="overflow-x-auto bg-muted p-2"
+				// biome-ignore lint/security/noDangerouslySetInnerHtml: TanStack Highlight HTML
+				dangerouslySetInnerHTML={{
+					__html: highlightDocumentCode(block.source, block.language),
+				}}
+			/>
 		);
 	}
 	if (block.kind === "mermaid") {
-		return <MermaidBlock block={block} />;
+		return (
+			<MermaidBlock block={block} onBlockSourceChange={onBlockSourceChange} />
+		);
 	}
-	return <LatexBlock block={block} />;
+	return <LatexBlock block={block} onBlockSourceChange={onBlockSourceChange} />;
 }
 
 function MermaidBlock({
 	block,
+	onBlockSourceChange,
 }: {
 	block: Extract<DocumentBodyBlock, { kind: "mermaid" }>;
+	onBlockSourceChange?: (previous: string, next: string) => void;
 }) {
 	const reactId = useId().replaceAll(":", "");
 	const [svg, setSvg] = useState<string | null>(null);
@@ -103,10 +129,20 @@ function MermaidBlock({
 	}, [block.error, block.source, block.status, reactId]);
 
 	if (error) {
-		return <RenderFailure error={error} source={block.source} />;
+		return (
+			<RenderFailure
+				error={error}
+				onBlockSourceChange={onBlockSourceChange}
+				source={block.source}
+			/>
+		);
 	}
 	if (!svg) {
-		return null;
+		return (
+			<pre className="overflow-x-auto bg-muted p-2 font-mono text-xs">
+				{block.source}
+			</pre>
+		);
 	}
 	return (
 		<div
@@ -119,13 +155,16 @@ function MermaidBlock({
 
 function LatexBlock({
 	block,
+	onBlockSourceChange,
 }: {
 	block: Extract<DocumentBodyBlock, { kind: "latex" }>;
+	onBlockSourceChange?: (previous: string, next: string) => void;
 }) {
 	if (block.status === "error") {
 		return (
 			<RenderFailure
 				error={block.error ?? DOCUMENTS_COPY.couldNotRender}
+				onBlockSourceChange={onBlockSourceChange}
 				source={block.source}
 			/>
 		);
@@ -145,13 +184,28 @@ function LatexBlock({
 		return (
 			<RenderFailure
 				error={DOCUMENTS_COPY.couldNotRender}
+				onBlockSourceChange={onBlockSourceChange}
 				source={block.source}
 			/>
 		);
 	}
 }
 
-function RenderFailure({ error, source }: { error: string; source: string }) {
+function RenderFailure({
+	error,
+	onBlockSourceChange,
+	source,
+}: {
+	error: string;
+	onBlockSourceChange?: (previous: string, next: string) => void;
+	source: string;
+}) {
+	const onChange = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			onBlockSourceChange?.(source, event.target.value);
+		},
+		[onBlockSourceChange, source]
+	);
 	return (
 		<div className="flex flex-col gap-2 border border-destructive/40 p-2">
 			<p role="alert">{error}</p>
@@ -160,7 +214,8 @@ function RenderFailure({ error, source }: { error: string; source: string }) {
 				<textarea
 					className="min-h-16 border border-input bg-transparent p-2 font-mono text-xs"
 					defaultValue={source}
-					readOnly
+					onChange={onChange}
+					readOnly={!onBlockSourceChange}
 				/>
 			</label>
 		</div>

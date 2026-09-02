@@ -94,6 +94,13 @@ export default function DocumentDetail({
 	const onTypeChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
 		setType(event.target.value as DocumentType);
 	}, []);
+	const onBlockSourceChange = useCallback(
+		(previous: string, next: string) => {
+			setBody((current) => current.replace(previous, next));
+			markUnsaved();
+		},
+		[markUnsaved]
+	);
 
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
@@ -180,7 +187,10 @@ export default function DocumentDetail({
 					<Button type="submit">{DOCUMENTS_COPY.save}</Button>
 				</form>
 				<div className="mt-6">
-					<DocumentBodyView blocks={blocks} />
+					<DocumentBodyView
+						blocks={blocks}
+						onBlockSourceChange={onBlockSourceChange}
+					/>
 				</div>
 			</CardContent>
 		</Card>
