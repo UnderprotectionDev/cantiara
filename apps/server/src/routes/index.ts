@@ -15,6 +15,7 @@ import { externalHandoffs } from "../features/external-handoffs/server/external-
 import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
 import { focusPeriod } from "../features/focus-period/server/focus-period-rpc";
 import { kanban } from "../features/kanban/server/kanban-rpc";
+import { personalWiki } from "../features/personal-wiki/server/personal-wiki";
 import { priority } from "../features/priority/server/priority-rpc";
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
@@ -49,6 +50,7 @@ export const appRouter = {
 	focusPeriod,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	kanban,
+	personalWiki,
 	priority,
 	privateData: protectedProcedure.handler(({ context }) => ({
 		message: "This is private",
