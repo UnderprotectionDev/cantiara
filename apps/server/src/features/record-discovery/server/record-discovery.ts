@@ -53,7 +53,6 @@ export interface SearchIndexRecord {
 	authorized: boolean;
 	body: string;
 	closureResult: string | null;
-	generatedSql?: string;
 	id: string;
 	key: string | null;
 	kind: SearchRecordKind | SearchExcludedKind;
@@ -61,7 +60,6 @@ export interface SearchIndexRecord {
 	metadata: string;
 	projectId: string | null;
 	scope: SearchScope;
-	secretMaterial?: string;
 	status: string;
 	title: string;
 	trashed: boolean;
@@ -234,7 +232,6 @@ export function loadSearchIndexFromRows(input: {
 			authorized: diagram.authorized ?? true,
 			body: "",
 			closureResult: null,
-			generatedSql: diagram.generatedSql,
 			id: diagram.id,
 			key: null,
 			kind: RECORD_DISCOVERY_COPY.technicalDiagram,

@@ -7,8 +7,6 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { CAPTURE_SURFACE_EXCLUSION } from "../../capture-triage/server/capture-inbox-model";
-import { DRAFT_SURFACE_EXCLUSION } from "../../work-drafts/server/work-drafts-model";
 import {
 	loadSearchIndexFromRows,
 	SEARCH_EXCLUDED_KINDS,
@@ -313,9 +311,9 @@ describe("Record Discovery Search", () => {
 				title: "North star capture",
 			}),
 			record({
+				body: token,
 				id: "surface-north",
 				kind: RECORD_DISCOVERY_COPY.externalSurface,
-				secretMaterial: token,
 				title: "North star surface",
 			}),
 			record({
@@ -342,14 +340,14 @@ describe("Record Discovery Search", () => {
 				updatedAt: 8000,
 			}),
 			record({
-				generatedSql: sql,
 				id: "diagram-sql",
 				kind: RECORD_DISCOVERY_COPY.technicalDiagram,
 				title: "Schema diagram",
 			}),
 			record({
-				id: "secret-only",
-				secretMaterial: `${secret} ${password} ${token}`,
+				body: `${secret} ${password} ${token}`,
+				id: "secret-work",
+				kind: RECORD_DISCOVERY_COPY.externalSurface,
 				title: "Credentials",
 			}),
 		];
@@ -430,8 +428,6 @@ describe("Record Discovery Search", () => {
 			RECORD_DISCOVERY_COPY.shareToken,
 			RECORD_DISCOVERY_COPY.linkPassword,
 		]);
-		expect(DRAFT_SURFACE_EXCLUSION.search).toBe(false);
-		expect(CAPTURE_SURFACE_EXCLUSION.search).toBe(false);
 		const sql = "CREATE TABLE north_star_secret_schema (id uuid);";
 		const index = loadSearchIndexFromRows({
 			fileAttachments: [],
@@ -466,6 +462,7 @@ describe("Record Discovery Search", () => {
 			expect.arrayContaining(["diagram-1", "work-ok"])
 		);
 		expect(index).toHaveLength(2);
+		expect(JSON.stringify(index)).not.toContain(sql);
 		expect(ids(index)).toEqual(["work-ok", "diagram-1"]);
 		expect(ids(index, { text: "north star migration" })).toEqual(["diagram-1"]);
 		expect(ids(index, { text: sql })).toEqual([]);
