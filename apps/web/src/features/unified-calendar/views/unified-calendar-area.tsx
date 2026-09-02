@@ -37,10 +37,16 @@ import {
 	calendarDaySections,
 } from "./unified-calendar-rows";
 
-type CalendarViewName = "Day" | "Week" | "Month";
-type CalendarDateKind = "Planned start" | "Reappear date" | "Target date";
+type CalendarViewName = "Day" | "Week" | "Month" | "Agenda";
+type CalendarDateKind = "Planned start" | "Target date" | "Reappear date";
 
 const CALENDAR_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+const DATE_KINDS: readonly CalendarDateKind[] = [
+	UNIFIED_CALENDAR_COPY.plannedStart,
+	UNIFIED_CALENDAR_COPY.targetDate,
+	UNIFIED_CALENDAR_COPY.reappearDate,
+];
 
 interface DateMoveDraft {
 	fromDate: string;
@@ -62,16 +68,20 @@ export default function UnifiedCalendarArea() {
 	const [calendarDay, setCalendarDay] = useState<string | undefined>();
 	const [view, setView] = useState<CalendarViewName | undefined>();
 	const [projectId, setProjectId] = useState<string>("");
+	const [dateKinds, setDateKinds] = useState<CalendarDateKind[] | undefined>();
 	const [hoverPreview, setHoverPreview] = useState<DateMoveDraft | null>(null);
 	const [lastMove, setLastMove] = useState<LastDateMove | null>(null);
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
 	);
+	const copy = catalog.data?.copy ?? UNIFIED_CALENDAR_COPY;
+	const selectedKinds = dateKinds ?? DATE_KINDS;
 	const viewInput = {
 		...(calendarDay ? { calendarDay } : {}),
 		...(view ? { view } : {}),
 		...(projectId ? { projectId } : {}),
+		...(dateKinds ? { dateKinds } : {}),
 	};
 	const query = useQuery(
 		orpc.unifiedCalendar.view.queryOptions({
@@ -84,7 +94,6 @@ export default function UnifiedCalendarArea() {
 	const undoMove = useMutation(
 		orpc.unifiedCalendar.undoRepresentedDateMove.mutationOptions()
 	);
-	const copy = catalog.data?.copy ?? UNIFIED_CALENDAR_COPY;
 	const selectedDay = calendarDay ?? query.data?.calendarDay ?? "";
 	const selectedView = view ?? query.data?.view ?? copy.week;
 	const onChangeDay = useCallback((event: ChangeEvent<HTMLInputElement>) => {
@@ -92,6 +101,18 @@ export default function UnifiedCalendarArea() {
 	}, []);
 	const onPickView = useCallback((event: MouseEvent<HTMLButtonElement>) => {
 		setView(event.currentTarget.value as CalendarViewName);
+	}, []);
+	const onToggleKind = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+		const kind = event.currentTarget.value as CalendarDateKind;
+		setDateKinds((current) => {
+			const selected = current ?? [...DATE_KINDS];
+			if (selected.includes(kind)) {
+				return selected.filter((item) => item !== kind);
+			}
+			return DATE_KINDS.filter(
+				(item) => selected.includes(item) || item === kind
+			);
+		});
 	}, []);
 	const onChangeProject = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
@@ -204,7 +225,12 @@ export default function UnifiedCalendarArea() {
 		isError: query.isError,
 		isPending: query.isPending,
 	});
-	const views = query.data?.views ?? [copy.day, copy.week, copy.month];
+	const views = query.data?.views ?? [
+		copy.day,
+		copy.week,
+		copy.month,
+		copy.agenda,
+	];
 	const preview = hoverPreview
 		? presentCalendarDateMovePreview(hoverPreview)
 		: null;
@@ -233,6 +259,20 @@ export default function UnifiedCalendarArea() {
 							variant={selectedView === name ? "default" : "outline"}
 						>
 							{name}
+						</Button>
+					))}
+				</fieldset>
+				<fieldset className="flex flex-wrap items-end gap-2 border-0 p-0">
+					{DATE_KINDS.map((kind) => (
+						<Button
+							aria-pressed={selectedKinds.includes(kind)}
+							key={kind}
+							onClick={onToggleKind}
+							type="button"
+							value={kind}
+							variant={selectedKinds.includes(kind) ? "default" : "outline"}
+						>
+							{kind}
 						</Button>
 					))}
 				</fieldset>
@@ -356,25 +396,32 @@ function CalendarWorkRow({
 }) {
 	return (
 		<li className="flex flex-wrap items-center justify-between gap-3 border-border border-b py-3">
-			<a
-				className="min-w-0 truncate text-sm underline-offset-4 hover:underline"
-				href={item.href}
-			>
-				<span className="font-medium">{item.title}</span>
-				<span className="text-muted-foreground">{` · ${item.projectName}`}</span>
-			</a>
-			<div className="flex flex-col items-end gap-2">
-				{item.kinds.map((mark) => (
-					<CalendarKindControl
-						copy={copy}
-						key={`${item.workId}-${mark.kind}`}
-						mark={mark}
-						onConfirmMove={onConfirmMove}
-						revision={item.revision}
-						workId={item.workId}
-					/>
-				))}
+			<div className="min-w-0">
+				<p className="truncate text-sm">
+					<span className="font-medium">{item.title}</span>
+					<span className="text-muted-foreground">{` · ${item.projectName}`}</span>
+				</p>
+				<div className="flex flex-col items-start gap-2">
+					{item.kinds.map((mark) => (
+						<CalendarKindControl
+							copy={copy}
+							key={`${item.workId}-${mark.kind}`}
+							mark={mark}
+							onConfirmMove={onConfirmMove}
+							revision={item.revision}
+							workId={item.workId}
+						/>
+					))}
+				</div>
 			</div>
+			{item.openSourceRecord ? (
+				<a
+					className="shrink-0 text-sm underline-offset-4 hover:underline"
+					href={item.href}
+				>
+					{copy.openSourceRecord}
+				</a>
+			) : null}
 		</li>
 	);
 }
@@ -433,7 +480,7 @@ function CalendarKindControl({
 	}, [draft, kind, mark.date, onConfirmMove, revision, workId]);
 	return (
 		<div
-			className="flex flex-wrap items-center justify-end gap-2"
+			className="flex flex-wrap items-center justify-start gap-2"
 			ref={setNodeRef}
 			style={{
 				opacity: isDragging ? 0.6 : undefined,

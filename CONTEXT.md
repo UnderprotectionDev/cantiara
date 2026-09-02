@@ -335,6 +335,10 @@ _Avoid_: formula, free-text macro, form builder, yeni kayıt, ikinci hedef
 Desteklenen tarihli kayıtları türleri karışmadan gün, hafta, ay ve Agenda'da gösteren yüzey; yeni İş türü veya durum üretmez ([Birleşik Takvim](docs/prd/06-work-management-and-planning.md#birleşik-takvim)). UI: `Calendar`. Seçili gün (`Selected day`) bu yüzeyde takvim penceresini seçer; Günlük Odak üyelik günü değildir.
 _Avoid_: Dış takvim senkronu, Event kaydı, durum tahtası
 
+**Agenda**:
+Birleşik Takvimde aynı tarihli kayıtları seçilen kapsam ve tarih türü filtreleriyle kronolojik, yoğun listede sunan görünüm; satır bir tarih türünü gösterir ve kaynağı açar. Event kaydı, Agenda üyeliği, yeni tarih alanı veya ikinci takvim gerçeği değildir ([Birleşik Takvim](docs/prd/06-work-management-and-planning.md#birleşik-takvim)). UI: `Agenda`.
+_Avoid_: Event kaydı, Agenda üyeliği, ikinci takvim doğruluk kaynağı
+
 **Liste görünümü**:
 Filtrelenen İşleri alanlarıyla yoğun ve taranabilir düzende sunan aynı İş taraması; satır ayrı kayıt değildir ([Liste görünümü](docs/prd/06-work-management-and-planning.md#liste-görünümü)).
 _Avoid_: Tablo Görünümü, ikinci kayıt sistemi, Backlog

@@ -7,8 +7,10 @@ export interface CalendarVisibleRow {
 	href: string;
 	id: string;
 	kinds: CalendarKindMark[];
+	openSourceRecord: boolean;
 	projectName: string;
 	revision: number;
+	sourceId: string;
 	title: string;
 	workId: string;
 }
@@ -45,8 +47,10 @@ export function calendarVisibleRows(input: {
 			href: workHref(row.projectId, row.id),
 			id: `${row.id}-range`,
 			kinds: [row.start, row.end],
+			openSourceRecord: true,
 			projectName: row.projectName,
 			revision: row.revision,
+			sourceId: row.id,
 			title: `${row.key} ${row.title}`,
 			workId: row.id,
 		})),
@@ -54,8 +58,10 @@ export function calendarVisibleRows(input: {
 			href: workHref(row.projectId, row.id),
 			id: `${row.id}-${row.kind}`,
 			kinds: [{ date: row.date, kind: row.kind }],
+			openSourceRecord: true,
 			projectName: row.projectName,
 			revision: row.revision,
+			sourceId: row.id,
 			title: `${row.key} ${row.title}`,
 			workId: row.id,
 		})),

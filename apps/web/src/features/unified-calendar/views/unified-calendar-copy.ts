@@ -1,4 +1,5 @@
 export const UNIFIED_CALENDAR_COPY = {
+	agenda: "Agenda",
 	allProjects: "All Projects",
 	calendar: "Calendar",
 	cancel: "Cancel",
@@ -7,6 +8,7 @@ export const UNIFIED_CALENDAR_COPY = {
 	empty: "No dated Work in this Calendar view.",
 	loading: "Loading…",
 	month: "Month",
+	openSourceRecord: "Open source record",
 	plannedStart: "Planned start",
 	preview: "Preview",
 	project: "Project",

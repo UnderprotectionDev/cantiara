@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const UNIFIED_CALENDAR_COPY = {
+	agenda: "Agenda",
 	allProjects: "All Projects",
 	calendar: "Calendar",
 	cancel: "Cancel",
@@ -9,6 +10,7 @@ export const UNIFIED_CALENDAR_COPY = {
 	empty: "No dated Work in this Calendar view.",
 	loading: "Loading…",
 	month: "Month",
+	openSourceRecord: "Open source record",
 	plannedStart: "Planned start",
 	preview: "Preview",
 	project: "Project",
@@ -23,6 +25,7 @@ export const CALENDAR_VIEWS = [
 	UNIFIED_CALENDAR_COPY.day,
 	UNIFIED_CALENDAR_COPY.week,
 	UNIFIED_CALENDAR_COPY.month,
+	UNIFIED_CALENDAR_COPY.agenda,
 ] as const;
 
 export type CalendarViewName = (typeof CALENDAR_VIEWS)[number];
@@ -43,6 +46,11 @@ export const calendarViewNameSchema = z.enum(CALENDAR_VIEWS);
 
 export const CALENDAR_EVENT_RECORD = false;
 
+export const CALENDAR_AGENDA = {
+	membership: false,
+	newDateField: false,
+} as const;
+
 export const CALENDAR_COUNTERPARTS = {
 	dailyFocus: false,
 	kanban: false,
@@ -51,6 +59,8 @@ export const CALENDAR_COUNTERPARTS = {
 	sprint: false,
 	statusBoard: false,
 } as const;
+
+export const calendarDateKindSchema = z.enum(DATE_KINDS);
 
 export const PLANNED_START_EFFECTS = {
 	autoStarts: false,
@@ -113,8 +123,13 @@ export const calendarProjectSchema = z.object({
 export type CalendarProject = z.infer<typeof calendarProjectSchema>;
 
 export const unifiedCalendarViewSchema = z.object({
+	agenda: z.object({
+		membership: z.literal(false),
+		newDateField: z.literal(false),
+	}),
 	calendarDay: calendarDaySchema,
 	copy: z.object({
+		agenda: z.literal(UNIFIED_CALENDAR_COPY.agenda),
 		allProjects: z.literal(UNIFIED_CALENDAR_COPY.allProjects),
 		calendar: z.literal(UNIFIED_CALENDAR_COPY.calendar),
 		cancel: z.literal(UNIFIED_CALENDAR_COPY.cancel),
@@ -123,6 +138,7 @@ export const unifiedCalendarViewSchema = z.object({
 		empty: z.literal(UNIFIED_CALENDAR_COPY.empty),
 		loading: z.literal(UNIFIED_CALENDAR_COPY.loading),
 		month: z.literal(UNIFIED_CALENDAR_COPY.month),
+		openSourceRecord: z.literal(UNIFIED_CALENDAR_COPY.openSourceRecord),
 		plannedStart: z.literal(UNIFIED_CALENDAR_COPY.plannedStart),
 		preview: z.literal(UNIFIED_CALENDAR_COPY.preview),
 		project: z.literal(UNIFIED_CALENDAR_COPY.project),
@@ -140,6 +156,7 @@ export const unifiedCalendarViewSchema = z.object({
 		sprint: z.literal(false),
 		statusBoard: z.literal(false),
 	}),
+	dateKinds: z.array(calendarDateKindSchema),
 	dateMove: z.object({
 		eventRecord: z.literal(false),
 		externalCalendar: z.literal(false),
@@ -165,6 +182,7 @@ export const unifiedCalendarViewSchema = z.object({
 		z.literal(UNIFIED_CALENDAR_COPY.day),
 		z.literal(UNIFIED_CALENDAR_COPY.week),
 		z.literal(UNIFIED_CALENDAR_COPY.month),
+		z.literal(UNIFIED_CALENDAR_COPY.agenda),
 	]),
 });
 
@@ -195,30 +213,45 @@ function rangeOverlapsWindow(
 	return rangeStart <= end && rangeEnd >= start;
 }
 
-export function presentCalendarWindow(input: {
+export function selectedDateKinds(
+	dateKinds?: readonly CalendarDateKind[]
+): CalendarDateKind[] {
+	if (dateKinds === undefined) {
+		return [...DATE_KINDS];
+	}
+	return DATE_KINDS.filter((kind) => dateKinds.includes(kind));
+}
+
+function calendarWindowBounds(input: {
 	calendarDay: string;
 	rangeEnd: string;
 	rangeStart: string;
 	view: CalendarViewName;
-	works: readonly DatedCalendarWork[];
-}): { positions: CalendarPosition[]; ranges: CalendarRange[] } {
-	const positions: CalendarPosition[] = [];
-	const ranges: CalendarRange[] = [];
-	const dayView = input.view === UNIFIED_CALENDAR_COPY.day;
-	const windowStart = dayView ? input.calendarDay : input.rangeStart;
-	const windowEnd = dayView ? input.calendarDay : input.rangeEnd;
-	for (const work of input.works) {
-		const asWork = {
-			id: work.id,
-			key: work.key,
-			projectId: work.projectId,
-			projectName: work.projectName,
-			revision: work.revision,
-			title: work.title,
-		};
-		if (
-			!dayView &&
-			work.plannedStart &&
+}): { windowEnd: string; windowStart: string } {
+	if (input.view === UNIFIED_CALENDAR_COPY.day) {
+		return { windowEnd: input.calendarDay, windowStart: input.calendarDay };
+	}
+	return { windowEnd: input.rangeEnd, windowStart: input.rangeStart };
+}
+
+function asCalendarWork(work: DatedCalendarWork): CalendarWork {
+	return {
+		id: work.id,
+		key: work.key,
+		projectId: work.projectId,
+		projectName: work.projectName,
+		revision: work.revision,
+		title: work.title,
+	};
+}
+
+function workRangeOverlapsWindow(
+	work: DatedCalendarWork,
+	windowStart: string,
+	windowEnd: string
+): boolean {
+	return Boolean(
+		work.plannedStart &&
 			work.targetDate &&
 			rangeOverlapsWindow(
 				work.plannedStart,
@@ -226,7 +259,115 @@ export function presentCalendarWindow(input: {
 				windowStart,
 				windowEnd
 			)
+	);
+}
+
+function presentAgendaPositions(input: {
+	dateKinds: ReadonlySet<CalendarDateKind>;
+	windowEnd: string;
+	windowStart: string;
+	works: readonly DatedCalendarWork[];
+}): CalendarPosition[] {
+	const positions: CalendarPosition[] = [];
+	for (const work of input.works) {
+		const appears =
+			dateInWindow(work.plannedStart, input.windowStart, input.windowEnd) ||
+			dateInWindow(work.targetDate, input.windowStart, input.windowEnd) ||
+			dateInWindow(work.reappearDate, input.windowStart, input.windowEnd) ||
+			workRangeOverlapsWindow(work, input.windowStart, input.windowEnd);
+		if (!appears) {
+			continue;
+		}
+		const asWork = asCalendarWork(work);
+		if (
+			input.dateKinds.has(UNIFIED_CALENDAR_COPY.plannedStart) &&
+			work.plannedStart
 		) {
+			positions.push({
+				...asWork,
+				date: work.plannedStart,
+				kind: UNIFIED_CALENDAR_COPY.plannedStart,
+			});
+		}
+		if (
+			input.dateKinds.has(UNIFIED_CALENDAR_COPY.targetDate) &&
+			work.targetDate
+		) {
+			positions.push({
+				...asWork,
+				date: work.targetDate,
+				kind: UNIFIED_CALENDAR_COPY.targetDate,
+			});
+		}
+		if (
+			input.dateKinds.has(UNIFIED_CALENDAR_COPY.reappearDate) &&
+			dateInWindow(work.reappearDate, input.windowStart, input.windowEnd)
+		) {
+			positions.push({
+				...asWork,
+				date: work.reappearDate,
+				kind: UNIFIED_CALENDAR_COPY.reappearDate,
+			});
+		}
+	}
+	return positions.toSorted(
+		(left, right) =>
+			left.date.localeCompare(right.date) ||
+			DATE_KINDS.indexOf(left.kind) - DATE_KINDS.indexOf(right.kind) ||
+			left.key.localeCompare(right.key)
+	);
+}
+
+function pushPositionIfKindInWindow(
+	positions: CalendarPosition[],
+	work: DatedCalendarWork,
+	kind: CalendarDateKind,
+	date: string | null,
+	kinds: ReadonlySet<CalendarDateKind>,
+	windowStart: string,
+	windowEnd: string
+): void {
+	if (!(kinds.has(kind) && dateInWindow(date, windowStart, windowEnd))) {
+		return;
+	}
+	positions.push({
+		...asCalendarWork(work),
+		date,
+		kind,
+	});
+}
+
+export function presentCalendarWindow(input: {
+	calendarDay: string;
+	dateKinds?: readonly CalendarDateKind[];
+	rangeEnd: string;
+	rangeStart: string;
+	view: CalendarViewName;
+	works: readonly DatedCalendarWork[];
+}): { positions: CalendarPosition[]; ranges: CalendarRange[] } {
+	const kinds = new Set(selectedDateKinds(input.dateKinds));
+	const { windowEnd, windowStart } = calendarWindowBounds(input);
+	if (input.view === UNIFIED_CALENDAR_COPY.agenda) {
+		return {
+			positions: presentAgendaPositions({
+				dateKinds: kinds,
+				windowEnd,
+				windowStart,
+				works: input.works,
+			}),
+			ranges: [],
+		};
+	}
+	const positions: CalendarPosition[] = [];
+	const ranges: CalendarRange[] = [];
+	const useRange =
+		input.view !== UNIFIED_CALENDAR_COPY.day &&
+		kinds.has(UNIFIED_CALENDAR_COPY.plannedStart) &&
+		kinds.has(UNIFIED_CALENDAR_COPY.targetDate);
+	for (const work of input.works) {
+		const asWork = asCalendarWork(work);
+		const rangeInWindow = workRangeOverlapsWindow(work, windowStart, windowEnd);
+		if (useRange && rangeInWindow && work.plannedStart && work.targetDate) {
 			ranges.push({
 				...asWork,
 				end: {
@@ -239,28 +380,34 @@ export function presentCalendarWindow(input: {
 				},
 			});
 		} else {
-			if (dateInWindow(work.plannedStart, windowStart, windowEnd)) {
-				positions.push({
-					...asWork,
-					date: work.plannedStart,
-					kind: UNIFIED_CALENDAR_COPY.plannedStart,
-				});
-			}
-			if (dateInWindow(work.targetDate, windowStart, windowEnd)) {
-				positions.push({
-					...asWork,
-					date: work.targetDate,
-					kind: UNIFIED_CALENDAR_COPY.targetDate,
-				});
-			}
+			pushPositionIfKindInWindow(
+				positions,
+				work,
+				UNIFIED_CALENDAR_COPY.plannedStart,
+				work.plannedStart,
+				kinds,
+				windowStart,
+				windowEnd
+			);
+			pushPositionIfKindInWindow(
+				positions,
+				work,
+				UNIFIED_CALENDAR_COPY.targetDate,
+				work.targetDate,
+				kinds,
+				windowStart,
+				windowEnd
+			);
 		}
-		if (dateInWindow(work.reappearDate, windowStart, windowEnd)) {
-			positions.push({
-				...asWork,
-				date: work.reappearDate,
-				kind: UNIFIED_CALENDAR_COPY.reappearDate,
-			});
-		}
+		pushPositionIfKindInWindow(
+			positions,
+			work,
+			UNIFIED_CALENDAR_COPY.reappearDate,
+			work.reappearDate,
+			kinds,
+			windowStart,
+			windowEnd
+		);
 	}
 	return { positions, ranges };
 }
@@ -283,9 +430,10 @@ function eachCalendarDateInclusive(start: string, end: string): string[] {
 	return dates;
 }
 
-/** Day: one slice, ranges empty. Week/month: every date in the window; a start–target range appears on each day it covers. */
+/** Day: one slice, ranges empty. Week/month: every date in the window; a start–target range appears on each day it covers. Agenda: dense days, positions only. */
 export function presentCalendarDays(input: {
 	calendarDay: string;
+	dateKinds?: readonly CalendarDateKind[];
 	rangeEnd: string;
 	rangeStart: string;
 	view: CalendarViewName;
@@ -293,6 +441,19 @@ export function presentCalendarDays(input: {
 }): CalendarDaySlice[] {
 	const presented = presentCalendarWindow(input);
 	const dayView = input.view === UNIFIED_CALENDAR_COPY.day;
+	const agendaView = input.view === UNIFIED_CALENDAR_COPY.agenda;
+	if (agendaView) {
+		const dates = [
+			...new Set(presented.positions.map((position) => position.date)),
+		].toSorted((left, right) => left.localeCompare(right));
+		return dates.map((date) => ({
+			date,
+			positions: presented.positions.filter(
+				(position) => position.date === date
+			),
+			ranges: [],
+		}));
+	}
 	const windowStart = dayView ? input.calendarDay : input.rangeStart;
 	const windowEnd = dayView ? input.calendarDay : input.rangeEnd;
 	return eachCalendarDateInclusive(windowStart, windowEnd).map((date) => ({
@@ -323,8 +484,6 @@ export function monthWindow(day: string): {
 	const last = new Date(Date.UTC(year ?? 0, month ?? 1, 0)).getUTCDate();
 	return { rangeEnd: `${year}-${pad(month ?? 1)}-${pad(last)}`, rangeStart };
 }
-
-export const calendarDateKindSchema = z.enum(DATE_KINDS);
 
 export const representedDateMovePreviewSchema = z.object({
 	cancel: z.literal(UNIFIED_CALENDAR_COPY.cancel),
