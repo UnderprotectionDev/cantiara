@@ -14,6 +14,8 @@ import { Menu } from "lucide-react";
 import { type MouseEvent, useCallback } from "react";
 
 import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-record-values";
+import { DOCUMENTS_COPY } from "@/features/documents/forms/documents-copy";
+import DocumentArea from "@/features/documents/views/document-area";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
 import { FOUNDER_MAIN_ID } from "@/features/personal-shell/components/founder-chrome";
 import ProjectOverview from "@/features/project-overview/views/project-overview";
@@ -400,6 +402,7 @@ function ProjectBody({
 }) {
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
+	const documentsAnchor = projectShellAnchor("Documents");
 	const fileAttachmentAnchor = projectShellAnchor("File Attachment");
 	const selectedArea = data.allToolsAreas
 		.map((area) => area.name)
@@ -456,6 +459,19 @@ function ProjectBody({
 						showEnablement={false}
 						showRestore={true}
 					/>
+				</div>
+			</section>
+		);
+	}
+
+	if (selectedAnchor === documentsAnchor || selectedArea === "Documents") {
+		return (
+			<section aria-label="Documents" id={documentsAnchor}>
+				<h1 className="font-semibold text-[1.375rem] tracking-tight">
+					{DOCUMENTS_COPY.document}
+				</h1>
+				<div className="mt-6">
+					<DocumentArea projectId={data.id} />
 				</div>
 			</section>
 		);
