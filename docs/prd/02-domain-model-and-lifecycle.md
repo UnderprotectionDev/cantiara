@@ -116,6 +116,25 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Test Oturumu | `Test Session` | Overview Tests özetindeki kaynak türü |
 | Test Açığı | `Test Gap` | Overview Tests özetindeki kaynak türü |
 | Kaynak kaydı aç | `Open source record` | Ana kaydı kopyalamadan açan ortak eylem |
+| Tüm İşler | `All Work` | Sıfır kurulum hazır tür dizini; İş ana kayıtlarını toplar, saklı sorgu veya yeni sahiplik değildir |
+| Tüm Belgeler | `All Documents` | Sıfır kurulum hazır tür dizini; Belgeleri kapsam, tür, klasör ve üstveriyle gezer |
+| Tüm Kararlar | `All Decisions` | Sıfır kurulum hazır tür dizini; Karar ana kayıtlarını toplar |
+| Tüm Riskler | `All Risks` | Sıfır kurulum hazır tür dizini; Risk ana kayıtlarını toplar |
+| Tüm Araştırma Oturumları | `All Research Sessions` | Sıfır kurulum hazır tür dizini; Kullanıcı Araştırması Oturumlarını toplar |
+| Tüm Testler | `All Tests` | Sıfır kurulum hazır tür dizini; Planlı Test Senaryosu, Test Handoff'u, Test Oturumu, Oturum Testi, Test Açığı ve Test değerlendirmesini ayırır |
+| Tüm Tasarımlar | `All Designs` | Sıfır kurulum hazır tür dizini; Ekran, Kullanıcı Akışı, Moodboard ve Proje Duvarı kayıtlarını toplar |
+| Tüm Teknik Diyagramlar | `All Technical Diagrams` | Sıfır kurulum hazır tür dizini; Teknik Mimari, Veri Modeli, Teknik Sıra ve Diyagram otorite kipini ayırır |
+| Tüm Proje Sürümleri | `All Project Releases` | Sıfır kurulum hazır tür dizini; Proje Sürümü ana kayıtlarını toplar |
+| Tüm Kaynaklar | `All Sources` | Sıfır kurulum hazır tür dizini; Kaynak ana kayıtlarını toplar |
+| Tüm Dosyalar | `All Files` | Sıfır kurulum hazır tür dizini; her Dosya Ekini bir kez gösterir |
+| Planlı Test Senaryosu | `Planned Test Case` | Test dizini alt türü; bağımsız senaryo ana kaydı |
+| Oturum Testi | `Session Test` | Test Oturumunun sahipli deneme öğesi; `All Tests` içinde ayırt edilir |
+| Test değerlendirmesi | `Test assessment` | Test dizini alt türü |
+| Teknik Mimari | `Technical Architecture` | Teknik Diyagram türü |
+| Veri Modeli | `Data Model` | Teknik Diyagram türü |
+| Teknik Sıra | `Technical Sequence` | Teknik Diyagram türü |
+| Klasör | `Folder` | Belge ve Dosya Eki dizininde gezinme konumu; sahiplik veya Search değildir |
+| Dizinde kayıt yok | `No records in this index.` | Hazır tür dizini boş durumu |
 | All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
 | Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |

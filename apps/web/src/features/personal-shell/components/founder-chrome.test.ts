@@ -29,6 +29,12 @@ test("founder chrome reaches Capture and Projects, not Home or Dashboard twins",
 		{ label: "Personal Wiki", to: "/wiki" },
 	]);
 	expect(founderChromeNav().map((link) => link.label)).not.toContain("Search");
+	expect(founderChromeNav().map((link) => link.label)).not.toContain(
+		"All Work"
+	);
+	expect(founderChromeNav().map((link) => link.label)).not.toContain(
+		"All Documents"
+	);
 	expect(founderChromeNav().map((link) => link.label)).not.toContain("Home");
 	expect(founderChromeNav().map((link) => link.label)).not.toContain(
 		"Dashboard"
