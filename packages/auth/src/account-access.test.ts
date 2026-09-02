@@ -2298,4 +2298,20 @@ describe("Account Access CORS origins", () => {
 		).toBeUndefined();
 		expect(isClipperExtensionOrigin("safari-web-extension://abcd")).toBe(false);
 	});
+
+	it("reflects http(s) Origins in development so forwarded Cloud Agent browsers can write", () => {
+		const previous = process.env.NODE_ENV;
+		try {
+			process.env.NODE_ENV = "development";
+			expect(
+				allowProductCorsOrigin("https://3001-agent.example.test", WEB_ORIGIN)
+			).toBe("https://3001-agent.example.test");
+			process.env.NODE_ENV = "production";
+			expect(
+				allowProductCorsOrigin("https://3001-agent.example.test", WEB_ORIGIN)
+			).toBeUndefined();
+		} finally {
+			process.env.NODE_ENV = previous;
+		}
+	});
 });

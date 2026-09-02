@@ -2,6 +2,7 @@ import {
 	AccountAccessError,
 	CSRF_REJECTED_MESSAGE,
 } from "./account-access-error";
+import { isDevelopmentBrowserOrigin } from "./tauri-session";
 
 export function assertCookieCsrf(
 	request: Request,
@@ -16,7 +17,12 @@ export function assertCookieCsrf(
 	if (!originHeader || originHeader === "null") {
 		throw new AccountAccessError(403, CSRF_REJECTED_MESSAGE);
 	}
-	if (!trustedOrigins.some((trusted) => originMatches(originHeader, trusted))) {
+	if (
+		!(
+			isDevelopmentBrowserOrigin(originHeader) ||
+			trustedOrigins.some((trusted) => originMatches(originHeader, trusted))
+		)
+	) {
 		throw new AccountAccessError(403, CSRF_REJECTED_MESSAGE);
 	}
 }
