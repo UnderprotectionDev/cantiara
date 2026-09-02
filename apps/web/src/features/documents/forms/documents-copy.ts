@@ -128,4 +128,27 @@ export function documentScopeFor(
 	return { kind: "personal-wiki" };
 }
 
+export function descendantDocuments<
+	T extends { id: string; parentId: string | null },
+>(items: readonly T[], rootId: string): T[] {
+	const found: T[] = [];
+	const seen = new Set([rootId]);
+	const queue = [rootId];
+	while (queue.length > 0) {
+		const parentId = queue.shift();
+		if (!parentId) {
+			continue;
+		}
+		for (const item of items) {
+			if (item.parentId !== parentId || seen.has(item.id)) {
+				continue;
+			}
+			seen.add(item.id);
+			found.push(item);
+			queue.push(item.id);
+		}
+	}
+	return found;
+}
+
 export const PERSONAL_REVIEW_KIND = "personal-review" as const;

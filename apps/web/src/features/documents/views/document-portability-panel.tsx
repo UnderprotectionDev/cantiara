@@ -12,7 +12,11 @@ import { useClientShell } from "@/features/web-macos-client/views/client-shell-h
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
-import { DOCUMENTS_COPY, documentScopeFor } from "../forms/documents-copy";
+import {
+	DOCUMENTS_COPY,
+	descendantDocuments,
+	documentScopeFor,
+} from "../forms/documents-copy";
 
 type DocumentScope =
 	| { kind: "personal-wiki" }
@@ -41,7 +45,7 @@ export default function DocumentPortabilityPanel({
 		})
 	);
 	const children = useMemo(
-		() => (listed.data ?? []).filter((item) => item.parentId === documentId),
+		() => descendantDocuments(listed.data ?? [], documentId),
 		[documentId, listed.data]
 	);
 	const target = targetFromKey(targetKey);
@@ -211,8 +215,7 @@ export default function DocumentPortabilityPanel({
 					{preview.data?.status === "ok" ? (
 						<p className="text-muted-foreground text-sm">
 							{[
-								preview.data.selectedDocumentIds.length,
-								preview.data.movedAttachmentIds.length,
+								`${DOCUMENTS_COPY.preview}: ${String(preview.data.selectedDocumentIds.length)} ${DOCUMENTS_COPY.document}`,
 								preview.data.brokenReferences
 									.map((item) => item.title)
 									.join(", "),

@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 import {
 	DOCUMENT_TYPES,
 	DOCUMENTS_COPY,
+	descendantDocuments,
 	documentScopeFor,
 } from "./documents-copy";
 
@@ -91,4 +92,15 @@ test("English Document labels stay Document and the six type names", () => {
 		projectId: "project-1",
 	});
 	expect(documentScopeFor(null)).toEqual({ kind: "personal-wiki" });
+	expect(
+		descendantDocuments(
+			[
+				{ id: "root", parentId: null, title: "Root" },
+				{ id: "child", parentId: "root", title: "Child" },
+				{ id: "grand", parentId: "child", title: "Grand" },
+				{ id: "other", parentId: null, title: "Other" },
+			],
+			"root"
+		).map((item) => item.id)
+	).toEqual(["child", "grand"]);
 });

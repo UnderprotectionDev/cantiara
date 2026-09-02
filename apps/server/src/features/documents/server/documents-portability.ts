@@ -136,9 +136,9 @@ export async function exportDocument(
 	]);
 	const frozen = freezeLiveBlocksToMarkdown({
 		attachments: attachments.map((file) => ({
-			filename: file.title,
+			filename: file.filename,
 			id: file.id,
-			versionNumber: 1,
+			versionNumber: file.versionNumber,
 		})),
 		blocks: presented.blocks,
 		body: current.body,
@@ -527,7 +527,9 @@ async function ownedAttachments(
 	db: PrismaLike,
 	workspaceId: string,
 	documentIds: readonly string[]
-): Promise<Array<{ id: string; title: string }>> {
+): Promise<
+	Array<{ filename: string; id: string; title: string; versionNumber: number }>
+> {
 	const edges = await db.fileAttachmentRelation.findMany({
 		where: {
 			kind: DOCUMENT_OWNED_FILE_KIND,
@@ -537,13 +539,28 @@ async function ownedAttachments(
 	if (edges.length === 0) {
 		return [];
 	}
-	return await db.fileAttachment.findMany({
-		select: { id: true, title: true },
-		where: {
-			id: { in: edges.map((edge) => edge.fromId) },
-			workspaceId,
-		},
-	});
+	return (
+		await db.fileAttachment.findMany({
+			select: {
+				id: true,
+				title: true,
+				versions: {
+					orderBy: { versionNumber: "desc" },
+					select: { filename: true, versionNumber: true },
+					take: 1,
+				},
+			},
+			where: {
+				id: { in: edges.map((edge) => edge.fromId) },
+				workspaceId,
+			},
+		})
+	).map((file) => ({
+		filename: file.versions[0]?.filename ?? file.title,
+		id: file.id,
+		title: file.title,
+		versionNumber: file.versions[0]?.versionNumber ?? 1,
+	}));
 }
 
 async function unownedProjectAttachments(
