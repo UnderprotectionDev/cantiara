@@ -5,7 +5,12 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { FILE_LIFECYCLE } from "../../file-attachments/server/file-attachments-model";
-import { loadSearchIndexFromRows, searchRecords } from "./record-discovery";
+import {
+	loadSearchIndexFromRows,
+	SEARCH_EXCLUDED_KINDS,
+	SEARCH_SECRET_FIELDS,
+	searchRecords,
+} from "./record-discovery";
 import { RECORD_DISCOVERY_COPY } from "./record-discovery-copy";
 
 async function requireAccess(userId: string) {
@@ -65,6 +70,8 @@ const searchInput = z.object({
 export const recordDiscovery = {
 	catalog: protectedProcedure.handler(() => ({
 		copy: RECORD_DISCOVERY_COPY,
+		excludedKinds: SEARCH_EXCLUDED_KINDS,
+		secretFields: SEARCH_SECRET_FIELDS,
 		surface: RECORD_DISCOVERY_COPY.search,
 	})),
 	search: protectedProcedure
