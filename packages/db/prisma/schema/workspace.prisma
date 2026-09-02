@@ -13,6 +13,7 @@ model Workspace {
   focusPeriods          FocusPeriod[]
   documents             Document[]
   documentFolders       DocumentFolder[]
+  documentTemplates     DocumentTemplate[]
 
   @@map("workspace")
 }

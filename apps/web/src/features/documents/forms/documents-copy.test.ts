@@ -20,6 +20,34 @@ test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.createFolder).toBe("Create folder");
 	expect(JSON.stringify(DOCUMENTS_COPY)).not.toMatch(DISCOVERY_COPY_PATTERN);
 	expect(DOCUMENTS_COPY.createDocument).toBe("Create Document");
+	expect(DOCUMENTS_COPY.documentTemplate).toBe("Document Template");
+	expect(DOCUMENTS_COPY.convertToTemplate).toBe("Convert to template");
+	expect(DOCUMENTS_COPY.createFromTemplate).toBe("Create from template");
+	expect(DOCUMENTS_COPY.personalReview).toBe("Personal Review");
+	expect(DOCUMENTS_COPY.persona).toBe("Persona");
+	expect(DOCUMENTS_COPY.retrospective).toBe("Retrospective");
+	expect(DOCUMENTS_COPY.launchPlan).toBe("Launch Plan");
+	expect(DOCUMENTS_COPY.compare).toBe("Compare");
+	expect(DOCUMENTS_COPY.restore).toBe("Restore");
+	expect(DOCUMENTS_COPY.version).toBe("Version");
+	expect(DOCUMENTS_COPY.versions).toBe("Versions");
+	expect(DOCUMENTS_COPY.liveWorkBlock).toBe("Live Work block");
+	expect(DOCUMENTS_COPY.changeStatus).toBe("Change status");
+	expect(DOCUMENTS_COPY.close).toBe("Close");
+	expect(DOCUMENTS_COPY.openSourceRecord).toBe("Open source record");
+	expect(DOCUMENTS_COPY.importedIndependentCopy).toBe(
+		"Imported Independent Copy"
+	);
+	expect(DOCUMENTS_COPY.readOnlyLiveSection).toBe("Read-only live section");
+	expect(DOCUMENTS_COPY.pinEvidence).toBe("Version-pinned evidence");
+	expect(DOCUMENTS_COPY.convertToRecord).toBe("Convert to record");
+	expect(DOCUMENTS_COPY.convertInBulk).toBe("Convert in bulk");
+	expect(DOCUMENTS_COPY.convertToTechnicalDiagram).toBe(
+		"Convert to Technical Diagram"
+	);
+	expect(DOCUMENTS_COPY.readOnlyLiveSection).not.toBe(
+		DOCUMENTS_COPY.pinEvidence
+	);
 	expect(DOCUMENTS_COPY.couldNotRender).toBe("Could not render this block.");
 	expect(DOCUMENTS_COPY.editableSource).toBe("Editable source");
 	expect(DOCUMENTS_COPY.toolbar.mermaid).toBe("Mermaid");

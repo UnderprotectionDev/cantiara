@@ -464,7 +464,7 @@ _Avoid_: Statik liste, klasör, etiket
 _Avoid_: Klasör, Akıllı Koleksiyon, Proje-yerel etiket sözlüğü, hiyerarşi
 
 **Belge içi etiket**:
-Belge gövdesindeki düz yazı `#tag` tokenının aynı Çalışma Alanı Etiket kimliğine bağlanması; ikinci sözlük veya serbest hashtag değildir ([in-doc tags](docs/prd/07-documents-and-knowledge.md)). UI: `#` + Etiket adı.
+Belge gövdesindeki düz yazı `#tag` tokenının aynı Çalışma Alanı Etiket kimliğine bağlanması; ikinci sözlük veya serbest hashtag değildir ([Etiketler](docs/prd/08-search-relations-and-evidence.md#etiketler)). UI: `#` + Etiket adı.
 _Avoid_: serbest metin hashtag, ikinci etiket sözlüğü
 
 **Proje bazlı özel alan**:
@@ -598,6 +598,30 @@ _Avoid_: çapraz kapsam ebeveyn, sınırsız ağaç
 Üst Belgede gösterilen, alt Belgeden otomatik türetilen sınırlı önizleme; yeni kayıt, kapak veya ikinci özet değildir ([Belge hiyerarşisi ve klasörleri](docs/prd/07-documents-and-knowledge.md#belge-hiyerarşisi-ve-klasörleri)). UI: `Card`.
 _Avoid_: ayrı kapak kaydı, thumbnail kaydı, kart tasarımcısı
 
+**Belge şablonu**:
+Proje veya Kişisel Wiki kapsamında tekrar kullanılan Belge başlangıç iskeleti; üretilen Belge bağımsız kimlik alır. Şablon geçmiş, ilişki, yayın, arşiv veya canlı bağ taşımaz ([belge şablonları](docs/prd/07-documents-and-knowledge.md#belge-şablonları)). UI: `Document Template`. Şablondan Belge açma UI: `Create from template`; mevcut Belgeden iskelet UI: `Convert to template`.
+_Avoid_: Work Template, live-bound, marketplace, Başlangıç iskeleti, İş şablonu
+
+**Personal Review**:
+İsteğe bağlı hazır Belge şablonu; toplantı türü, katılımcı veya zorunlu kullanım sıklığı değildir ([belge şablonları](docs/prd/07-documents-and-knowledge.md#belge-şablonları)). UI: `Personal Review`.
+_Avoid_: meeting type, zorunlu review kaydı, Retrospective toplantısı
+
+**Belge sürümü**:
+Belgenin veritabanında tutulan kesin uygulama değişikliği kaydı; Git commit, dış dosya revizyonu veya ortak düzenleme oturumu değildir ([Belge sürüm geçmişi](docs/prd/07-documents-and-knowledge.md#belge-sürüm-geçmişi)). UI: `Version`.
+_Avoid_: Git commit, harici editör senkronu, CRDT
+
+**Canlı İş bloğu**:
+Belgeye gömülen, kaynak İşin kimliğini kopyasız izleyen eyleme açık canlı kart; belgeye özgü görev kopyası veya ikinci yaşam döngüsü değildir ([uygulama içi Markdown belge yönetimi](docs/prd/07-documents-and-knowledge.md#uygulama-içi-markdown-belge-yönetimi)). UI: `Live Work block`, `Change status`, `Close`, `Open source record`.
+_Avoid_: checkbox görevi, gömülü İş kopyası, Belgeye özel kapanış
+
+**Salt okunur canlı içerik bölümü**:
+Başka bir Belgedeki kararlı bölüm kimliğini kopyasız izleyen salt okunur gömme; sürüme sabit kanıt veya içerik kopyası değildir ([uygulama içi Markdown belge yönetimi](docs/prd/07-documents-and-knowledge.md#uygulama-içi-markdown-belge-yönetimi)). UI: `Read-only live section`.
+_Avoid_: sürüme sabit kanıt, bölüm kopyası, yerinde kaynak düzenleme
+
+**Sürüme sabitlenmiş metin parçası kanıtı**:
+Seçilmiş kesin Belge sürümündeki metin parçasını mevcut kayda bağlayan Kanıt bağı; canlı bölüm gömme veya güncel gövde izi değildir ([sürüme sabitlenmiş metin parçası kanıtı](docs/prd/07-documents-and-knowledge.md#sürüme-sabitlenmiş-metin-parçası-kanıtı)). UI: `Version-pinned evidence`.
+_Avoid_: Read-only live section, canlı gövde, otomatik kanıt
+
 **Dosya Eki**:
 Tam olarak bir Proje veya Kişisel Wiki kapsamında yaşayan, dosya içeriğini ve sürümlerini taşıyan ana kayıt; başka kapsamdaki ilişki sahipliğini veya görünürlüğünü değiştirmez.
 _Avoid_: Belge, ilişki eki, paylaşılan global dosya
@@ -623,8 +647,16 @@ Yetkili ana kayıtları deterministik tam metin sırası ve görünür eşleşme
 _Avoid_: Komut Paleti, anlamsal sıralama, AI arama
 
 **Kayıt Keşfi**:
-Evrensel Arama, hazır tür dizinleri ve tür kapsamlı tablo görünümüyle kaydı yerinde bulma; [keşif, karar ve tasarım alanından](docs/prd/09-discovery-decisions-and-design.md) ayrıdır.
+Evrensel Arama, hazır tür dizinleri, tür kapsamlı tablo görünümü ve bağlam içi kayıt önizlemesiyle kaydı yerinde bulma; [keşif, karar ve tasarım alanından](docs/prd/09-discovery-decisions-and-design.md) ayrıdır.
 _Avoid_: Discovery alanı, ürün keşfi, ayrı belge kütüphanesi
+
+**Tablo Görünümü**:
+Kapalı tür × yüzey matrisinin izin verdiği tek kayıt türünü yoğun satırlarda sıralayıp filtreleyen ve izinli hücreyi aynı ana kayda yazan [görünüm](docs/prd/08-search-relations-and-evidence.md#tür-kapsamlı-table-görünümü); ayrı satır kaydı, dış spreadsheet senkronu veya toplu düzenleme değildir. UI: `Table`.
+_Avoid_: Liste görünümü, ikinci kayıt sistemi, spreadsheet senkronu
+
+**Bağlam içi kayıt önizleme**:
+Desteklenen yüzeylerden `Open source record` ile açılan geçici yan panel; kopya kayıt, kalıcı yerleşim veya oturumlar arası recent-context değildir ([bağlam içi kayıt önizleme](docs/prd/08-search-relations-and-evidence.md#bağlam-içi-kayıt-önizleme)). UI: `Open source record`, `Open full page`.
+_Avoid_: ikinci kayıt, zorunlu yan panel, Akıllı Koleksiyon
 
 **Kaynak**:
 Dış bilgiyi URL, erişim zamanı ve yakalanan içerikle tarihsel sürümler hâlinde koruyan Proje ana kaydı; canlı web sayfası, geçici bağlantı önizlemesi veya kendiliğinden onaylanmış kanıt değildir.
@@ -886,6 +918,18 @@ _Avoid_: Süre dolumu, geçici duraklatma
 **Paylaşım erişim oturumu**:
 Geçerli paylaşım anahtarı ve varsa parolanın ilk doğrulamasından sonra tek Dış yüzeye sınırlı süre erişim veren [tarayıcı oturumu](docs/prd/14-sharing-and-public-publishing.md#bağlantıyla-sınırlı-salt-okunur-paylaşım).
 _Avoid_: İkinci paylaşım bağlantısı, kalıcı tarayıcı anahtarı, çalışma alanı oturumu
+
+**Secret**:
+Kapalı alan veya kayıt türünden gelen gizli değer; bağlantı parolası, oturum, paylaşım ve entegrasyon anahtarı bu sınıftadır ve [aramaya girmez](docs/prd/13-data-security-and-portability.md#database-first-guvenlik-tabani). UI: `Secret`.
+_Avoid_: Markdown içinde secret tarama, hassaslık etiketi
+
+**Paylaşım token'ı**:
+Dış yüzey erişim anahtarı; tahmin edilemez, iptal edilebilir ve arama indeksine girmez. UI: `Share token`.
+_Avoid_: Ürün oturumu, entegrasyon token düz metni
+
+**Bağlantı parolası**:
+Bağlantıyla sınırlı paylaşımın isteğe bağlı ortak parolası; geri okunabilir saklanmaz ve arama indeksine girmez. UI: `Link password`.
+_Avoid_: Hesap parolası, ziyaretçi kimliği
 
 ## Test yönetimi
 

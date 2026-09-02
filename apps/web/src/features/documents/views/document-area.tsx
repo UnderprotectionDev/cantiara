@@ -5,7 +5,7 @@ import { Input } from "@cantiara/ui/components/input";
 import { Spinner } from "@cantiara/ui/components/spinner";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
@@ -13,25 +13,55 @@ import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
 import CreateDocumentForm from "../forms/create-document-form";
+import CreateDocumentFromTemplateForm from "../forms/create-document-from-template-form";
+import CreateDocumentTemplateForm from "../forms/create-document-template-form";
 import { DOCUMENTS_COPY, documentScopeFor } from "../forms/documents-copy";
 import DocumentDetail from "./document-detail";
 
 export default function DocumentArea({
+	onOpenSourceRecord,
 	projectId,
 }: {
+	onOpenSourceRecord?: (id: string) => void;
 	projectId: string | null;
 }) {
 	const scope = documentScopeFor(projectId);
+	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [archived, setArchived] = useState(false);
 	const [folderName, setFolderName] = useState("");
 	const [selectedId, setSelectedId] = useState<string | null>(null);
+	const materialize = useMutation(
+		orpc.documents.materializeStarterSkeletons.mutationOptions({
+			onSuccess: async () => {
+				await queryClient.invalidateQueries({
+					queryKey: orpc.documents.list.queryKey({
+						input: { archived, scope },
+					}),
+				});
+			},
+		})
+	);
+	useEffect(() => {
+		if (!projectId) {
+			return;
+		}
+		const result = attemptOnlineWork("record-create", () =>
+			materialize.mutateAsync({
+				idempotencyKey: `starter-skeleton-documents:${projectId}`,
+				payload: { projectId },
+			})
+		);
+		if (result.status === "refused") {
+			return;
+		}
+		result.value.catch(() => undefined);
+	}, [attemptOnlineWork, materialize.mutateAsync, projectId]);
 	const documents = useQuery(
 		orpc.documents.list.queryOptions({ input: { archived, scope } })
 	);
 	const folders = useQuery(
 		orpc.documents.listFolders.queryOptions({ input: { scope } })
 	);
-	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const createFolder = useMutation(
 		orpc.documents.createFolder.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -84,7 +114,11 @@ export default function DocumentArea({
 		[attemptOnlineWork, createFolder, folderName, markUnsaved, scope]
 	);
 
-	if (documents.isPending || folders.isPending) {
+	if (
+		documents.isPending ||
+		folders.isPending ||
+		(projectId !== null && materialize.isPending)
+	) {
 		return (
 			<p className="flex items-center gap-2 text-muted-foreground text-sm">
 				<Spinner />
@@ -99,6 +133,11 @@ export default function DocumentArea({
 	return (
 		<div className="flex flex-col gap-6">
 			<CreateDocumentForm onCreated={onCreated} projectId={projectId} />
+			<CreateDocumentFromTemplateForm
+				onCreated={onCreated}
+				projectId={projectId}
+			/>
+			<CreateDocumentTemplateForm projectId={projectId} />
 			<form
 				className="flex flex-wrap items-end gap-3"
 				onSubmit={onCreateFolder}
@@ -150,6 +189,7 @@ export default function DocumentArea({
 					<DocumentDetail
 						archivedList={archived}
 						documentId={selectedId}
+						onOpenSourceRecord={onOpenSourceRecord}
 						onSelect={onSelect}
 						projectId={projectId}
 					/>

@@ -18,24 +18,30 @@ import { useCallback, useEffect, useState } from "react";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
-
+import ConvertToTemplateForm from "../forms/convert-to-template-form";
 import DocumentEditor from "../forms/document-editor";
 import {
 	DOCUMENT_TYPES,
 	DOCUMENTS_COPY,
 	type DocumentType,
 	documentScopeFor,
+	ORIGINAL_MERMAID_OUTCOMES,
+	type OriginalMermaidOutcome,
 } from "../forms/documents-copy";
 import DocumentBodyView, { type DocumentBodyBlock } from "./document-body";
+import DocumentConvertPanel from "./document-convert-panel";
+import DocumentVersionHistory from "./document-version-history";
 
 export default function DocumentDetail({
 	archivedList,
 	documentId,
+	onOpenSourceRecord,
 	onSelect,
 	projectId,
 }: {
 	archivedList?: boolean;
 	documentId: string;
+	onOpenSourceRecord?: (id: string) => void;
 	onSelect?: (documentId: string) => void;
 	projectId: string | null;
 }) {
@@ -43,6 +49,9 @@ export default function DocumentDetail({
 	const [body, setBody] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [folderId, setFolderId] = useState<string>("");
+	const [mermaidSource, setMermaidSource] = useState<string | null>(null);
+	const [originalBlockOutcome, setOriginalBlockOutcome] =
+		useState<OriginalMermaidOutcome>("independent");
 	const [parentId, setParentId] = useState<string>("");
 	const [title, setTitle] = useState("");
 	const [type, setType] = useState<DocumentType>("General");
@@ -77,7 +86,7 @@ export default function DocumentDetail({
 		enabled: Boolean(selected.data),
 	});
 	const presented = useQuery({
-		...orpc.documents.present.queryOptions({
+		...orpc.documents.presentLive.queryOptions({
 			input: { body },
 		}),
 		enabled: Boolean(selected.data),
@@ -193,6 +202,97 @@ export default function DocumentDetail({
 		},
 		[markUnsaved]
 	);
+	const onInsert = useCallback(
+		(markdown: string) => {
+			setBody((current) =>
+				current.length === 0 ? markdown : `${current}\n\n${markdown}`
+			);
+			markUnsaved();
+		},
+		[markUnsaved]
+	);
+	const mermaidPreview = useQuery({
+		...orpc.documents.previewConvertMermaid.queryOptions({
+			input: {
+				blockSource: mermaidSource ?? "",
+				documentId,
+				originalBlockOutcome,
+				targetType: "Technical Architecture",
+			},
+		}),
+		enabled: Boolean(selected.data && mermaidSource),
+	});
+	const convertMermaid = useMutation(
+		orpc.documents.convertMermaid.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					if ("document" in outcome) {
+						setBody(outcome.document.body);
+					}
+					await queryClient.invalidateQueries({
+						queryKey: orpc.documents.get.queryKey({
+							input: { documentId },
+						}),
+					});
+					recordSave();
+					setError(null);
+					setMermaidSource(null);
+				}
+			},
+		})
+	);
+	const onConvertMermaid = useCallback((source: string) => {
+		setOriginalBlockOutcome("independent");
+		setMermaidSource(source);
+	}, []);
+	const onOriginalOutcomeChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			setOriginalBlockOutcome(event.target.value as OriginalMermaidOutcome);
+		},
+		[]
+	);
+	const onApplyMermaid = useCallback(
+		(event: FormEvent) => {
+			event.preventDefault();
+			const previewed = mermaidPreview.data;
+			if (!(selected.data && mermaidSource && previewed?.status === "ok")) {
+				return;
+			}
+			markUnsaved();
+			attemptOnlineWork("record-create", () =>
+				convertMermaid.mutateAsync({
+					baseRevision: selected.data.revision,
+					idempotencyKey: newIdempotencyKey(),
+					payload: {
+						blockSource: mermaidSource,
+						documentId,
+						originalBlockOutcome,
+						previewFingerprint: previewed.preview.fingerprint,
+						targetType: "Technical Architecture",
+					},
+					previewAcknowledged: true,
+				})
+			);
+		},
+		[
+			attemptOnlineWork,
+			convertMermaid,
+			documentId,
+			markUnsaved,
+			mermaidPreview.data,
+			mermaidSource,
+			originalBlockOutcome,
+			selected.data,
+		]
+	);
+	const onOpenLiveSource = useCallback(
+		(id: string, kind: string) => {
+			if (kind === "Work") {
+				onOpenSourceRecord?.(id);
+			}
+		},
+		[onOpenSourceRecord]
+	);
 
 	const onPlace = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
@@ -250,6 +350,10 @@ export default function DocumentDetail({
 		selected.data,
 		unarchive,
 	]);
+	const parentChoices = (listed.data ?? []).filter(
+		(item) => item.id !== documentId
+	);
+
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
@@ -291,9 +395,6 @@ export default function DocumentDetail({
 	}
 
 	const blocks = (presented.data?.blocks ?? []) as DocumentBodyBlock[];
-	const parentChoices = (listed.data ?? []).filter(
-		(item) => item.id !== documentId
-	);
 
 	return (
 		<Card className="min-w-0">
@@ -411,12 +512,72 @@ export default function DocumentDetail({
 							: DOCUMENTS_COPY.archive}
 					</Button>
 				</div>
+				<div className="mt-4">
+					<ConvertToTemplateForm
+						documentId={documentId}
+						projectId={projectId}
+					/>
+				</div>
+				<div className="mt-6">
+					<DocumentConvertPanel
+						body={body}
+						documentId={documentId}
+						onInsert={onInsert}
+						projectId={projectId}
+						revision={selected.data.revision}
+					/>
+				</div>
+				{mermaidPreview.data?.status === "ok" ? (
+					<form
+						className="mt-6 flex flex-col gap-2 border border-input p-3"
+						onSubmit={onApplyMermaid}
+					>
+						<p>{mermaidPreview.data.preview.label}</p>
+						<p>
+							{DOCUMENTS_COPY.document} {mermaidPreview.data.preview.documentId}{" "}
+							· {mermaidPreview.data.preview.documentRevision}
+						</p>
+						<p>{mermaidPreview.data.preview.blockLocation}</p>
+						<p>
+							{mermaidPreview.data.preview.targetType} ·{" "}
+							{mermaidPreview.data.preview.origin} ·{" "}
+							{mermaidPreview.data.preview.authorityMode}
+						</p>
+						{mermaidPreview.data.preview.unparseableItems.length > 0 ? (
+							<ul>
+								{mermaidPreview.data.preview.unparseableItems.map((item) => (
+									<li key={item}>{item}</li>
+								))}
+							</ul>
+						) : null}
+						<NativeSelect
+							onChange={onOriginalOutcomeChange}
+							value={originalBlockOutcome}
+						>
+							{ORIGINAL_MERMAID_OUTCOMES.map((outcome) => (
+								<NativeSelectOption key={outcome} value={outcome}>
+									{outcome}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+						<Button type="submit">
+							{DOCUMENTS_COPY.convertToTechnicalDiagram}
+						</Button>
+					</form>
+				) : null}
 				<div className="mt-6">
 					<DocumentBodyView
 						blocks={blocks}
 						onBlockSourceChange={onBlockSourceChange}
+						onConvertMermaid={onConvertMermaid}
+						onOpenSourceRecord={onOpenLiveSource}
 					/>
 				</div>
+				<DocumentVersionHistory
+					baseRevision={selected.data.revision}
+					documentId={documentId}
+					projectId={projectId}
+				/>
 			</CardContent>
 		</Card>
 	);
@@ -460,16 +621,6 @@ function ChildCardButton({
 	);
 }
 
-function replaceFirst(haystack: string, needle: string, next: string): string {
-	const index = haystack.indexOf(needle);
-	if (index < 0) {
-		return haystack;
-	}
-	return (
-		haystack.slice(0, index) + next + haystack.slice(index + needle.length)
-	);
-}
-
 function placementError(reason: string): string {
 	if (reason === "depth-exceeded") {
 		return DOCUMENTS_COPY.depthExceeded;
@@ -478,4 +629,14 @@ function placementError(reason: string): string {
 		return DOCUMENTS_COPY.crossScopeParent;
 	}
 	return reason;
+}
+
+function replaceFirst(haystack: string, needle: string, next: string): string {
+	const index = haystack.indexOf(needle);
+	if (index < 0) {
+		return haystack;
+	}
+	return (
+		haystack.slice(0, index) + next + haystack.slice(index + needle.length)
+	);
 }

@@ -32,6 +32,7 @@ model Project {
   fileAttachments                 FileAttachment[]
   documents                       Document[]
   documentFolders                 DocumentFolder[]
+  documentTemplates               DocumentTemplate[]
   workContextCardLayouts          ProjectWorkContextLayout[]
   workTemplates                   WorkTemplate[]
   recordActions                   RecordAction[]

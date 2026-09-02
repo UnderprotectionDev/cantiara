@@ -9,30 +9,70 @@ export const DOCUMENT_TYPES = [
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
+export const CONVERT_RECORD_KINDS = [
+	"Work",
+	"Decision",
+	"Risk",
+	"Assumption",
+	"Open Question",
+] as const;
+
+export type ConvertRecordKind = (typeof CONVERT_RECORD_KINDS)[number];
+
+export const ORIGINAL_MERMAID_OUTCOMES = [
+	"independent",
+	"live-reference",
+] as const;
+
+export type OriginalMermaidOutcome = (typeof ORIGINAL_MERMAID_OUTCOMES)[number];
+
 export const DOCUMENTS_COPY = {
+	addDocumentTemplate: "Add Document Template",
 	archive: "Archive",
 	archived: "Archived",
 	body: "Body",
 	card: "Card",
+	changeStatus: "Change status",
+	close: "Close",
+	compare: "Compare",
+	convertInBulk: "Convert in bulk",
+	convertToRecord: "Convert to record",
+	convertToTechnicalDiagram: "Convert to Technical Diagram",
+	convertToTemplate: "Convert to template",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
 	createFolder: "Create folder",
+	createFromTemplate: "Create from template",
 	crossScopeParent: "A parent must be in the same ownership scope.",
 	depthExceeded: "This placement would exceed three Document levels.",
 	document: "Document",
+	documentTemplate: "Document Template",
 	editableSource: "Editable source",
 	folder: "Folder",
 	general: "General",
+	importedIndependentCopy: "Imported Independent Copy",
+	launchPlan: "Launch Plan",
+	liveWorkBlock: "Live Work block",
+	name: "Name",
 	noDocuments: "No Documents yet.",
 	noFolder: "No folder",
 	noParent: "No parent",
+	openSourceRecord: "Open source record",
 	parentDocument: "Parent Document",
 	persona: "Persona",
+	personalReview: "Personal Review",
+	pinEvidence: "Version-pinned evidence",
+	placeholders: "Placeholders",
 	plan: "Plan",
 	prd: "PRD",
+	preview: "Preview",
+	readOnlyLiveSection: "Read-only live section",
 	researchNote: "Research Note",
+	restore: "Restore",
+	retrospective: "Retrospective",
 	save: "Save",
 	selectDocument: "Select a Document",
+	skeleton: "Skeleton",
 	spec: "Spec",
 	title: "Title",
 	toolbar: {
@@ -67,6 +107,8 @@ export const DOCUMENTS_COPY = {
 	},
 	type: "Type",
 	unarchive: "Unarchive",
+	version: "Version",
+	versions: "Versions",
 } as const;
 
 export function documentScopeFor(
@@ -77,3 +119,5 @@ export function documentScopeFor(
 	}
 	return { kind: "personal-wiki" };
 }
+
+export const PERSONAL_REVIEW_KIND = "personal-review" as const;

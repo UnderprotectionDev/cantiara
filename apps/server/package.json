@@ -19,6 +19,7 @@
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
     "better-auth": "catalog:",
+    "diff": "^9.0.0",
     "dotenv": "catalog:",
     "evlog": "^2.22.4",
     "file-type": "^21.3.3",

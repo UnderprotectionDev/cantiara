@@ -1,36 +1,147 @@
+import { diffLines } from "diff";
 import { z } from "zod";
 
 export const DOCUMENTS_COPY = {
+	addDocumentTemplate: "Add Document Template",
 	archive: "Archive",
 	archived: "Archived",
 	body: "Body",
 	card: "Card",
+	changeStatus: "Change status",
+	close: "Close",
+	compare: "Compare",
+	convertInBulk: "Convert in bulk",
+	convertToRecord: "Convert to record",
+	convertToTechnicalDiagram: "Convert to Technical Diagram",
+	convertToTemplate: "Convert to template",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
 	createFolder: "Create folder",
+	createFromTemplate: "Create from template",
 	crossScopeParent: "A parent must be in the same ownership scope.",
 	depthExceeded: "This placement would exceed three Document levels.",
 	document: "Document",
+	documentTemplate: "Document Template",
 	editableSource: "Editable source",
 	folder: "Folder",
+	forbiddenTemplatePayload:
+		"A Document Template cannot carry history, relations, publish, archive, or Work Template fields.",
 	general: "General",
+	importedIndependentCopy: "Imported Independent Copy",
+	launchPlan: "Launch Plan",
+	liveWorkBlock: "Live Work block",
+	name: "Name",
 	noDocuments: "No Documents yet.",
 	noFolder: "No folder",
 	noParent: "No parent",
+	openSourceRecord: "Open source record",
 	parentDocument: "Parent Document",
 	persona: "Persona",
+	personalReview: "Personal Review",
+	placeholders: "Placeholders",
 	plan: "Plan",
 	prd: "PRD",
+	preview: "Preview",
+	readOnlyLiveSection: "Read-only live section",
 	researchNote: "Research Note",
+	restore: "Restore",
+	retrospective: "Retrospective",
 	save: "Save",
 	selectDocument: "Select a Document",
+	skeleton: "Skeleton",
 	spec: "Spec",
 	title: "Title",
 	type: "Type",
 	unarchive: "Unarchive",
+	version: "Version",
+	versionPinnedEvidence: "Version-pinned evidence",
+	versions: "Versions",
 } as const;
 
 export const DOCUMENT_MAX_DEPTH = 3;
+
+export const PERSONAL_REVIEW_HEADINGS = [
+	"Period",
+	"What changed?",
+	"What worked?",
+	"What was difficult?",
+	"Decisions and learnings",
+	"What will I change next?",
+	"Related records",
+] as const;
+
+export const PERSONAL_REVIEW_KIND = "personal-review" as const;
+
+export function personalReviewSkeleton(): string {
+	return PERSONAL_REVIEW_HEADINGS.map((heading) => `## ${heading}\n`).join(
+		"\n"
+	);
+}
+
+export const DOCUMENT_PLACEHOLDER_PATTERN = /\{\{([a-z][a-z0-9_]*)\}\}/g;
+
+export function documentTemplatePlaceholders(
+	skeleton: string
+): readonly string[] {
+	const names: string[] = [];
+	const seen = new Set<string>();
+	const pattern = new RegExp(DOCUMENT_PLACEHOLDER_PATTERN.source, "g");
+	for (const match of skeleton.matchAll(pattern)) {
+		const [, name] = match;
+		if (!name || seen.has(name)) {
+			continue;
+		}
+		seen.add(name);
+		names.push(name);
+	}
+	return names;
+}
+
+export function applyDocumentTemplatePlaceholders(
+	skeleton: string,
+	values: Record<string, string>
+): string {
+	return skeleton.replace(
+		DOCUMENT_PLACEHOLDER_PATTERN,
+		(token, name: string) => values[name] ?? token
+	);
+}
+
+export const FORBIDDEN_DOCUMENT_TEMPLATE_PAYLOAD_KEYS = [
+	"archive",
+	"history",
+	"marketplace",
+	"publish",
+	"relations",
+	"share",
+	"workType",
+] as const;
+
+export const CONVERT_RECORD_KINDS = [
+	"Work",
+	"Decision",
+	"Risk",
+	"Assumption",
+	"Open Question",
+] as const;
+
+export type ConvertRecordKind = (typeof CONVERT_RECORD_KINDS)[number];
+
+export const ORIGINAL_MERMAID_OUTCOMES = [
+	"independent",
+	"live-reference",
+] as const;
+
+export type OriginalMermaidOutcome = (typeof ORIGINAL_MERMAID_OUTCOMES)[number];
+
+export const TECHNICAL_DIAGRAM_TARGET_TYPES = [
+	"Technical Architecture",
+	"Data Model",
+	"Technical Sequence",
+] as const;
+
+export type TechnicalDiagramTargetType =
+	(typeof TECHNICAL_DIAGRAM_TARGET_TYPES)[number];
 
 export const DOCUMENT_TYPES = [
 	"General",
@@ -42,6 +153,54 @@ export const DOCUMENT_TYPES = [
 ] as const;
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
+
+export const DOCUMENT_STARTER_SKELETONS = [
+	{
+		emptyHeadings: [
+			"Context",
+			"Goals",
+			"Behaviors",
+			"Pain Points",
+			"Constraints",
+			"Evidence",
+			"Open Questions",
+		],
+		name: DOCUMENTS_COPY.persona,
+		type: "Persona",
+	},
+	{
+		emptyHeadings: [
+			"Period",
+			"What worked?",
+			"What did not?",
+			"What did we learn?",
+			"Decisions",
+			"Next changes",
+			"Related records",
+		],
+		name: DOCUMENTS_COPY.retrospective,
+		type: "General",
+	},
+	{
+		emptyHeadings: [
+			"Release",
+			"Audience",
+			"Scope",
+			"Readiness",
+			"Communication",
+			"Launch steps",
+			"Risks",
+			"Observation plan",
+			"Related records",
+		],
+		name: DOCUMENTS_COPY.launchPlan,
+		type: "General",
+	},
+] as const;
+
+export function emptyHeadingDocumentBody(headings: readonly string[]): string {
+	return headings.map((heading) => `## ${heading}`).join("\n\n");
+}
 
 export const DOCUMENT_SCOPE_KIND = {
 	personalWiki: "personal-wiki",
@@ -59,6 +218,32 @@ export const documentScopeSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type DocumentScope = z.infer<typeof documentScopeSchema>;
+
+export const materializeStarterSkeletonDocumentsPayloadSchema = z.object({
+	projectId: z.string().min(1),
+});
+
+export type MaterializeStarterSkeletonDocumentsPayload = z.infer<
+	typeof materializeStarterSkeletonDocumentsPayloadSchema
+>;
+
+export const materializeStarterSkeletonDocumentsCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: materializeStarterSkeletonDocumentsPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type MaterializeStarterSkeletonDocumentsCommand = z.infer<
+	typeof materializeStarterSkeletonDocumentsCommandSchema
+>;
+
+export type StarterSkeletonDocumentsOutcome =
+	| { documents: DocumentView[]; status: "committed" }
+	| { documents: DocumentView[]; status: "replayed" }
+	| { conflict: "Conflict"; status: "conflict" }
+	| { reason: DocumentRejectionReason; status: "rejected" };
 
 export const createDocumentPayloadSchema = z.object({
 	body: z.string().optional(),
@@ -179,17 +364,69 @@ export interface DocumentFolderView {
 	scope: DocumentScope;
 }
 
+export interface DocumentVersionView {
+	body: string;
+	documentId: string;
+	id: string;
+	revision: number;
+	title: string;
+	type: DocumentType;
+}
+
+export type DocumentVersionHunkKind = "added" | "removed" | "unchanged";
+
+export interface DocumentVersionHunk {
+	kind: DocumentVersionHunkKind;
+	text: string;
+}
+
+export interface DocumentVersionCompare {
+	hunks: readonly DocumentVersionHunk[];
+	left: DocumentVersionView;
+	right: DocumentVersionView;
+}
+
+export const restoreDocumentPayloadSchema = z.object({
+	documentId: z.string().min(1),
+	versionRevision: z.number().int().positive(),
+});
+
+export const restoreDocumentCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: restoreDocumentPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type RestoreDocumentCommand = z.infer<
+	typeof restoreDocumentCommandSchema
+>;
+
 export type DocumentRejectionReason =
+	| "invalid-command"
+	| "project-not-found"
+	| "title-required"
+	| "unknown-document-type"
+	| "document-not-found"
+	| "template-not-found"
+	| "name-required"
+	| "forbidden-payload"
+	| "version-not-found"
+	| "live-section-cycle"
+	| "preview-required"
+	| "preview-mismatch"
+	| "partial-success-forbidden"
+	| "unsupported-record-type"
+	| "list-required"
+	| "target-not-found"
+	| "broken-mermaid"
 	| "cycle"
 	| "cross-scope-parent"
 	| "depth-exceeded"
-	| "document-not-found"
 	| "folder-not-found"
-	| "invalid-command"
-	| "parent-not-found"
-	| "project-not-found"
-	| "title-required"
-	| "unknown-document-type";
+	| "parent-not-found";
 
 export type DocumentHierarchyPreview =
 	| {
@@ -220,6 +457,119 @@ export type DocumentWriteOutcome =
 	| { reason: DocumentRejectionReason; status: "rejected" }
 	| { conflict: "Conflict"; status: "conflict" };
 
+export const createDocumentTemplatePayloadSchema = z
+	.object({
+		documentType: z.string().optional(),
+		name: z.string().optional(),
+		scope: documentScopeSchema,
+		skeleton: z.string().optional(),
+	})
+	.passthrough();
+
+export const createDocumentTemplateCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: createDocumentTemplatePayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type CreateDocumentTemplateCommand = z.infer<
+	typeof createDocumentTemplateCommandSchema
+>;
+
+export const updateDocumentTemplatePayloadSchema = z
+	.object({
+		documentType: z.string().optional(),
+		name: z.string().optional(),
+		skeleton: z.string().optional(),
+		templateId: z.string().min(1),
+	})
+	.passthrough();
+
+export const updateDocumentTemplateCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: updateDocumentTemplatePayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type UpdateDocumentTemplateCommand = z.infer<
+	typeof updateDocumentTemplateCommandSchema
+>;
+
+export const convertDocumentToTemplatePayloadSchema = z
+	.object({
+		documentId: z.string().min(1),
+		name: z.string().optional(),
+	})
+	.passthrough();
+
+export const convertDocumentToTemplateCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: convertDocumentToTemplatePayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type ConvertDocumentToTemplateCommand = z.infer<
+	typeof convertDocumentToTemplateCommandSchema
+>;
+
+export const instantiateDocumentFromTemplatePayloadSchema = z
+	.object({
+		placeholderValues: z.record(z.string(), z.string()).optional(),
+		preparedKind: z.literal(PERSONAL_REVIEW_KIND).optional(),
+		scope: documentScopeSchema.optional(),
+		templateId: z.string().optional(),
+		title: z.string().optional(),
+	})
+	.passthrough();
+
+export const instantiateDocumentFromTemplateCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: instantiateDocumentFromTemplatePayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type InstantiateDocumentFromTemplateCommand = z.infer<
+	typeof instantiateDocumentFromTemplateCommandSchema
+>;
+
+export interface DocumentTemplateView {
+	documentType: DocumentType;
+	id: string;
+	name: string;
+	placeholders: readonly string[];
+	revision: number;
+	scope: DocumentScope;
+	skeleton: string;
+}
+
+export interface ConvertDocumentToTemplatePreview {
+	name: string;
+	placeholders: readonly string[];
+	skeleton: string;
+	sourceDocumentId: string;
+	sourceRevision: number;
+	sourceTitle: string;
+}
+
+export type ConvertDocumentToTemplatePreviewOutcome =
+	| { preview: ConvertDocumentToTemplatePreview; status: "ok" }
+	| { reason: DocumentRejectionReason; status: "rejected" };
+
+export type DocumentTemplateWriteOutcome =
+	| { status: "committed"; template: DocumentTemplateView }
+	| { status: "replayed"; template: DocumentTemplateView }
+	| { reason: DocumentRejectionReason; status: "rejected" }
+	| { conflict: "Conflict"; status: "conflict" };
+
 export interface DocumentLiveFiles {
 	writeMarkdown: (path: string, contents: string) => void;
 }
@@ -240,12 +590,47 @@ export function isDocumentType(value: string): value is DocumentType {
 	return (DOCUMENT_TYPES as readonly string[]).includes(value);
 }
 
+export function presentDocumentVersionDiff(
+	leftBody: string,
+	rightBody: string
+): DocumentVersionHunk[] {
+	return diffLines(leftBody, rightBody).map((part) => ({
+		kind: hunkKind(part),
+		text: part.value,
+	}));
+}
+
+function hunkKind(part: {
+	added?: boolean;
+	removed?: boolean;
+}): DocumentVersionHunkKind {
+	if (part.added) {
+		return "added";
+	}
+	if (part.removed) {
+		return "removed";
+	}
+	return "unchanged";
+}
+
 export function documentsCatalog(): {
 	copy: typeof DOCUMENTS_COPY;
+	personalReview: {
+		headings: typeof PERSONAL_REVIEW_HEADINGS;
+		kind: typeof PERSONAL_REVIEW_KIND;
+		name: typeof DOCUMENTS_COPY.personalReview;
+		skeleton: string;
+	};
 	types: readonly DocumentType[];
 } {
 	return {
 		copy: DOCUMENTS_COPY,
+		personalReview: {
+			headings: PERSONAL_REVIEW_HEADINGS,
+			kind: PERSONAL_REVIEW_KIND,
+			name: DOCUMENTS_COPY.personalReview,
+			skeleton: personalReviewSkeleton(),
+		},
 		types: DOCUMENT_TYPES,
 	};
 }
@@ -259,6 +644,87 @@ export type DocumentBodyProcessorResult =
 export interface DocumentBodyProcessors {
 	latex: (source: string) => DocumentBodyProcessorResult;
 	mermaid: (source: string) => DocumentBodyProcessorResult;
+}
+
+export type DocumentLiveSurface =
+	| "live-work"
+	| "live-collection"
+	| "live-section"
+	| "live-diagram"
+	| "live-diagram-view"
+	| "inline-reference";
+
+export type LiveResolutionStatus = "ok" | "broken";
+
+export interface DocumentBrokenTarget {
+	kind: DocumentLiveSurface;
+	reason: string;
+	resolution: "broken";
+	sourceRecordId: string;
+}
+
+export interface DocumentLiveWorkFields {
+	actions: {
+		changeStatus: typeof DOCUMENTS_COPY.changeStatus;
+		close: typeof DOCUMENTS_COPY.close;
+		openSourceRecord: typeof DOCUMENTS_COPY.openSourceRecord;
+	};
+	id: string;
+	key: string;
+	kind: "live-work";
+	label: typeof DOCUMENTS_COPY.liveWorkBlock;
+	plannedStart: string | null;
+	priority: string | null;
+	projectId: string;
+	resolution: "ok";
+	revision: number;
+	targetDate: string | null;
+	title: string;
+	type: string;
+	workStatus: string;
+}
+
+export interface DocumentLiveCollectionFields {
+	id: string;
+	kind: "live-collection";
+	membershipRuleId: string;
+	name: string;
+	openSourceRecord: typeof DOCUMENTS_COPY.openSourceRecord;
+	presentationId: string;
+	resolution: "ok";
+}
+
+export interface DocumentLiveSectionFields {
+	heading: string;
+	kind: "live-section";
+	label: typeof DOCUMENTS_COPY.readOnlyLiveSection;
+	openSourceRecord: typeof DOCUMENTS_COPY.openSourceRecord;
+	resolution: "ok";
+	sectionId: string;
+	sourceDocumentId: string;
+	sourceTitle: string;
+	text: string;
+	updatedAt: string;
+}
+
+export interface DocumentLiveDiagramFields {
+	authorityMode: typeof DOCUMENTS_COPY.importedIndependentCopy | null;
+	canvas: false;
+	id: string;
+	kind: "live-diagram" | "live-diagram-view";
+	openSourceRecord: typeof DOCUMENTS_COPY.openSourceRecord;
+	readOnly: true;
+	resolution: "ok";
+	title: string;
+}
+
+export interface DocumentInlineReferenceFields {
+	kind: "inline-reference";
+	openSourceRecord: typeof DOCUMENTS_COPY.openSourceRecord;
+	recordKind: string;
+	resolution: "ok";
+	sourceRecordId: string;
+	title: string;
 }
 
 export type DocumentBodyBlock =
@@ -275,7 +741,14 @@ export type DocumentBodyBlock =
 			kind: "latex";
 			source: string;
 			status: "ok" | "error";
-	  };
+	  }
+	| { kind: "live-marker"; language: string; source: string }
+	| DocumentBrokenTarget
+	| DocumentLiveWorkFields
+	| DocumentLiveCollectionFields
+	| DocumentLiveSectionFields
+	| DocumentLiveDiagramFields
+	| DocumentInlineReferenceFields;
 
 export interface DocumentBodyPresentation {
 	blocks: readonly DocumentBodyBlock[];
@@ -364,6 +837,9 @@ function presentFence(
 	processors: DocumentBodyProcessors
 ): DocumentBodyBlock {
 	const lang = language.toLowerCase();
+	if (lang.startsWith("live-")) {
+		return { kind: "live-marker", language: lang, source };
+	}
 	if (lang === "mermaid") {
 		return processedBlock("mermaid", source, processors.mermaid(source));
 	}
