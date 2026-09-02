@@ -517,7 +517,7 @@ function WorkCollectionSurface({
 			<PriorityMap
 				onSelectWork={onSelect}
 				projectId={projectId}
-				selectedWorkId={previewedId ?? selectedId}
+				selectedWorkId={selectedId}
 			/>
 		);
 	}
