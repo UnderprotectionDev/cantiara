@@ -252,7 +252,7 @@ _Avoid_: Odak Dönemi, Proje Sürümü, sprint
 
 **Odak Dönemi**:
 Seçili İşlerle çalışmak için açılan isteğe bağlı 1–8 haftalık geçici zaman penceresi; kalıcı kapsam grubu, Kilometre Taşının ara sonucu veya Proje Sürümünün yayın kapsamı değildir. Yaşam `Planned`, `Active`, `Closed` veya `Canceled`; üyelik İş akışı durumunu veya proje aşamasını yazmaz.
-UI: `Focus Period`, `Create Focus Period`, `Planned`, `Active`, `Closed`, `Canceled`, `Close`, `Cancel`, `Still-open Work`.
+UI: `Focus Period`, `Create Focus Period`, `Planned`, `Active`, `Closed`, `Canceled`, `Close`, `Cancel`, `Still-open Work`, `Dependencies`, `Open source record`.
 _Avoid_: Sprint, Kilometre Taşı, Proje Sürümü
 
 **Roadmap**:
