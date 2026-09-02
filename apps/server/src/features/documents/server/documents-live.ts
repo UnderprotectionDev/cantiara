@@ -102,6 +102,28 @@ export function ensureSectionIds(body: string): string {
 		.join("\n");
 }
 
+export function stripSectionIds(body: string): string {
+	const lines = body.split("\n");
+	let inFence = false;
+	return lines
+		.map((line) => {
+			if (line.startsWith("```")) {
+				inFence = !inFence;
+				return line;
+			}
+			if (inFence) {
+				return line;
+			}
+			const match = HEADING_LINE.exec(line);
+			if (!match?.[3]) {
+				return line;
+			}
+			const heading = match[2]?.trim() ?? "";
+			return `${match[1]} ${heading}`;
+		})
+		.join("\n");
+}
+
 export function usageTargetsFromBody(body: string): DocumentUsageTarget[] {
 	const targets: DocumentUsageTarget[] = [];
 	const seen = new Set<string>();

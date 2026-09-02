@@ -37,6 +37,7 @@ import {
 	previewConvertSelection,
 } from "./documents-convert";
 import {
+	ensureSectionIds,
 	inlineRecordMarkdown,
 	liveCollectionFence,
 	liveDiagramFence,
@@ -44,6 +45,7 @@ import {
 	liveSectionFence,
 	liveWorkFence,
 	presentLiveDocumentBody,
+	stripSectionIds,
 } from "./documents-live";
 import { DOCUMENTS_COPY } from "./documents-model";
 
@@ -117,6 +119,14 @@ async function addDocument(
 	}
 	return created.document;
 }
+
+describe("Document section ids", () => {
+	it("strips live section ids so a template skeleton does not reuse Document identity", () => {
+		const withIds = ensureSectionIds("## Notes\n\nHello {{period}}\n");
+		expect(withIds).toMatch(SECTION_ID_MARK);
+		expect(stripSectionIds(withIds)).toBe("## Notes\n\nHello {{period}}\n");
+	});
+});
 
 describe("Documents live blocks and convert", () => {
 	let prisma: PrismaClient;

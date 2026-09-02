@@ -11,6 +11,7 @@ import { getProject } from "../../project-shell/server/project-shell";
 import {
 	documentsWouldCycle,
 	ensureSectionIds,
+	stripSectionIds,
 	syncDocumentUsageLinks,
 	usageTargetsFromBody,
 } from "./documents-live";
@@ -287,7 +288,7 @@ export async function previewConvertDocumentToTemplate(
 		preview: {
 			name: document.title,
 			placeholders: documentTemplatePlaceholders(document.body),
-			skeleton: document.body,
+			skeleton: stripSectionIds(document.body),
 			sourceDocumentId: document.id,
 			sourceRevision: document.revision,
 			sourceTitle: document.title,
@@ -341,7 +342,7 @@ export async function convertDocumentToTemplate(
 				projectId: current.projectId,
 				revision: 1,
 				scopeKind: current.scopeKind,
-				skeleton: current.body,
+				skeleton: stripSectionIds(current.body),
 				workspaceId: current.workspaceId,
 			},
 		});
