@@ -813,7 +813,6 @@ function toTemplateView(row: DocumentTemplateRow): DocumentTemplateView {
 	return {
 		documentType: row.documentType as DocumentType,
 		id: row.id,
-		liveBound: false,
 		name: row.name,
 		placeholders: documentTemplatePlaceholders(row.skeleton),
 		revision: row.revision,

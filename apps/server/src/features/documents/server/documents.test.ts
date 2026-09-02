@@ -492,7 +492,6 @@ describe("Document templates", () => {
 			status: "committed",
 			template: {
 				documentType: "Spec",
-				liveBound: false,
 				name: "Spec start",
 				placeholders: ["audience"],
 				skeleton: "## Context\n\n{{audience}}\n",
@@ -593,7 +592,6 @@ describe("Document templates", () => {
 		expect(converted).toMatchObject({
 			status: "committed",
 			template: {
-				liveBound: false,
 				name: "Weekly notes",
 				placeholders: ["period"],
 				skeleton: "## Notes\n\nHello {{period}}\n",

@@ -32,6 +32,10 @@ function workDelegates() {
 			findUnique: findMany,
 		},
 		dailyFocusMembership: { findMany, findUnique: findMany },
+		documentTemplate: {
+			create: () => undefined,
+			findMany,
+		},
 		projectCustomFieldDefinition: {
 			create: () => undefined,
 			findMany,
@@ -134,6 +138,32 @@ describe("Prisma client current delegates", () => {
 		expect(
 			prismaClientHasCurrentDelegates(
 				beforeTemplates as unknown as PrismaClient
+			)
+		).toBe(false);
+	});
+
+	it("refuses a bun --hot client generated before Document Template", () => {
+		const { documentTemplate: _dropped, ...beforeDocumentTemplates } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(
+				beforeDocumentTemplates as unknown as PrismaClient
 			)
 		).toBe(false);
 	});

@@ -264,7 +264,6 @@ export type InstantiateDocumentFromTemplateCommand = z.infer<
 export interface DocumentTemplateView {
 	documentType: DocumentType;
 	id: string;
-	liveBound: false;
 	name: string;
 	placeholders: readonly string[];
 	revision: number;
