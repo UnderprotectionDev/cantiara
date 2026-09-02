@@ -13,6 +13,9 @@ test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.convertToTemplate).toBe("Convert to template");
 	expect(DOCUMENTS_COPY.createFromTemplate).toBe("Create from template");
 	expect(DOCUMENTS_COPY.personalReview).toBe("Personal Review");
+	expect(DOCUMENTS_COPY.persona).toBe("Persona");
+	expect(DOCUMENTS_COPY.retrospective).toBe("Retrospective");
+	expect(DOCUMENTS_COPY.launchPlan).toBe("Launch Plan");
 	expect(DOCUMENTS_COPY.compare).toBe("Compare");
 	expect(DOCUMENTS_COPY.restore).toBe("Restore");
 	expect(DOCUMENTS_COPY.version).toBe("Version");

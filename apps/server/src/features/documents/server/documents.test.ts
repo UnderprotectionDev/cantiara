@@ -32,6 +32,7 @@ import {
 	listDocuments,
 	listDocumentTemplates,
 	listDocumentVersions,
+	materializeStarterSkeletonDocuments,
 	previewConvertDocumentToTemplate,
 	restoreDocumentVersion,
 	updateDocument,
@@ -73,6 +74,44 @@ const PERSONAL_REVIEW_BODY = new RegExp(
 		.map((heading) => `## ${heading} ${SECTION_ID}`)
 		.join("\\n\\n")}\\n$`
 );
+
+const PERSONA_HEADINGS = [
+	"Context",
+	"Goals",
+	"Behaviors",
+	"Pain Points",
+	"Constraints",
+	"Evidence",
+	"Open Questions",
+] as const;
+const RETROSPECTIVE_HEADINGS = [
+	"Period",
+	"What worked?",
+	"What did not?",
+	"What did we learn?",
+	"Decisions",
+	"Next changes",
+	"Related records",
+] as const;
+const LAUNCH_PLAN_HEADINGS = [
+	"Release",
+	"Audience",
+	"Scope",
+	"Readiness",
+	"Communication",
+	"Launch steps",
+	"Risks",
+	"Observation plan",
+	"Related records",
+] as const;
+const SAMPLE_SKELETON_CONTENT =
+	/Alex|Jordan|example finding|sample task|we decided|lorem|TODO: fill/i;
+
+function markdownHeadingTitles(body: string): string[] {
+	return [...body.matchAll(/^## (.+?)(?: \{#sec-[^}]+\})?$/gm)].map(
+		(match) => match[1] ?? ""
+	);
+}
 
 const FULL_BODY = [
 	"| Col | Value |",
@@ -177,6 +216,9 @@ describe("Documents catalog", () => {
 		expect(DOCUMENTS_COPY.compare).toBe("Compare");
 		expect(DOCUMENTS_COPY.restore).toBe("Restore");
 		expect(DOCUMENTS_COPY.version).toBe("Version");
+		expect(DOCUMENTS_COPY.persona).toBe("Persona");
+		expect(DOCUMENTS_COPY.retrospective).toBe("Retrospective");
+		expect(DOCUMENTS_COPY.launchPlan).toBe("Launch Plan");
 		expect(DOCUMENT_TYPES).toEqual([
 			"General",
 			"PRD",
@@ -484,6 +526,181 @@ describe("Documents", () => {
 			status: "committed",
 		});
 		expect(files.writes).toEqual([]);
+	});
+
+	it("does not create living skeleton Documents when the project shell has no catalog selection", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		expect(project.selectedSkeletons).toEqual([]);
+		expect(
+			await listDocuments(prisma, {
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual([]);
+		const materialized = await materializeStarterSkeletonDocuments(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-documents:${project.id}`,
+			origin: "human",
+			payload: { projectId: project.id },
+			workspaceId,
+		});
+		expect(materialized).toEqual({ documents: [], status: "committed" });
+		expect(
+			await listDocuments(prisma, {
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual([]);
+	});
+
+	it("materializes Persona, Retrospective, and Launch Plan as empty-heading Documents after catalog selection", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(prisma, {
+			actorId,
+			idempotencyKey: `saas-${crypto.randomUUID()}`,
+			origin: "human",
+			payload: {
+				name: "Billing",
+				starterConfiguration: "Solo SaaS",
+			},
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		expect(created.project).not.toHaveProperty("documents");
+		expect(
+			await listDocuments(prisma, {
+				scope: { kind: "project", projectId: created.project.id },
+				workspaceId,
+			})
+		).toEqual([]);
+		const files = createMemoryLiveFiles();
+		const materialized = await materializeStarterSkeletonDocuments(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: `starter-skeleton-documents:${created.project.id}`,
+				origin: "human",
+				payload: { projectId: created.project.id },
+				workspaceId,
+			},
+			{ files }
+		);
+		expect(materialized.status).toBe("committed");
+		if (materialized.status !== "committed") {
+			throw new Error("expected committed skeletons");
+		}
+		expect(files.writes).toEqual([]);
+		expect(
+			materialized.documents.map((document) => ({
+				headings: markdownHeadingTitles(document.body),
+				title: document.title,
+				type: document.type,
+			}))
+		).toEqual([
+			{
+				headings: [...PERSONA_HEADINGS],
+				title: "Persona",
+				type: "Persona",
+			},
+			{
+				headings: [...RETROSPECTIVE_HEADINGS],
+				title: "Retrospective",
+				type: "General",
+			},
+			{
+				headings: [...LAUNCH_PLAN_HEADINGS],
+				title: "Launch Plan",
+				type: "General",
+			},
+		]);
+		for (const document of materialized.documents) {
+			expect(document.body).not.toMatch(SAMPLE_SKELETON_CONTENT);
+			expect(document.liveFilePath).toBeNull();
+			expect(document.body.replace(/^## .+$/gm, "").trim()).toBe("");
+		}
+		expect(
+			await Promise.all(
+				materialized.documents.map((document) =>
+					getDocument(prisma, document.id, workspaceId)
+				)
+			)
+		).toEqual(materialized.documents);
+		expect(
+			(
+				await listDocuments(prisma, {
+					scope: { kind: "project", projectId: created.project.id },
+					workspaceId,
+				})
+			).map((document) => document.title)
+		).toEqual(["Persona", "Retrospective", "Launch Plan"]);
+		expect(
+			await prisma.work.count({ where: { projectId: created.project.id } })
+		).toBe(0);
+		expect(
+			materialized.documents.some((document) =>
+				["Sitemap", "Customer Journey"].includes(document.title)
+			)
+		).toBe(false);
+		const replayed = await materializeStarterSkeletonDocuments(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-documents:${created.project.id}`,
+			origin: "human",
+			payload: { projectId: created.project.id },
+			workspaceId,
+		});
+		expect(replayed.status).toBe("replayed");
+		if (replayed.status !== "replayed") {
+			throw new Error("expected replayed skeletons");
+		}
+		expect(replayed.documents.map((document) => document.id)).toEqual(
+			materialized.documents.map((document) => document.id)
+		);
+		const edited = await updateDocument(prisma, {
+			actorId,
+			baseRevision: materialized.documents[0]?.revision ?? 0,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: `${materialized.documents[0]?.body ?? ""}\n\nFounder notes`,
+				documentId: materialized.documents[0]?.id ?? "",
+				title: "Primary buyer",
+			},
+			workspaceId,
+		});
+		expect(edited).toMatchObject({
+			document: {
+				title: "Primary buyer",
+				type: "Persona",
+			},
+			status: "committed",
+		});
+		if (edited.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		expect(edited.document.body).toContain("Founder notes");
+		expect(markdownHeadingTitles(edited.document.body)).toEqual([
+			...PERSONA_HEADINGS,
+		]);
+		await prisma.document.delete({
+			where: { id: materialized.documents[1]?.id ?? "" },
+		});
+		const afterDelete = await materializeStarterSkeletonDocuments(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-documents:${created.project.id}`,
+			origin: "human",
+			payload: { projectId: created.project.id },
+			workspaceId,
+		});
+		expect(afterDelete.status).toBe("replayed");
+		if (afterDelete.status !== "replayed") {
+			throw new Error("expected replayed skeletons");
+		}
+		expect(afterDelete.documents.map((document) => document.title)).toEqual([
+			"Primary buyer",
+			"Launch Plan",
+		]);
 	});
 
 	it("lists application versions after create and keeps earlier ones after edit", async () => {

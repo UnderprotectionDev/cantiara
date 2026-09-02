@@ -16,6 +16,7 @@ import {
 	listDocuments,
 	listDocumentTemplates,
 	listDocumentVersions,
+	materializeStarterSkeletonDocuments,
 	previewConvertDocumentToTemplate,
 	restoreDocumentVersion,
 	updateDocument,
@@ -46,6 +47,7 @@ import {
 	documentScopeSchema,
 	documentsCatalog,
 	instantiateDocumentFromTemplatePayloadSchema,
+	materializeStarterSkeletonDocumentsPayloadSchema,
 	presentDocumentBody,
 	restoreDocumentPayloadSchema,
 	updateDocumentPayloadSchema,
@@ -290,6 +292,24 @@ export const documents = {
 			}
 			return await listDocumentTemplates(getPrismaClient(), {
 				scope: input.scope,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	materializeStarterSkeletons: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: materializeStarterSkeletonDocumentsPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.payload.projectId);
+			return await materializeStarterSkeletonDocuments(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
 				workspaceId: access.workspaceId,
 			});
 		}),
