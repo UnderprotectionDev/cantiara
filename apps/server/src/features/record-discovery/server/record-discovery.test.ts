@@ -99,6 +99,8 @@ describe("Record Discovery Search", () => {
 			}),
 		];
 		expect(ids(index)).toEqual(["work-key", "work-title", "work-body"]);
+		const [first] = search(index).hits;
+		expect(first?.recordKey).toBe("ATL-north star");
 	});
 
 	it("puts the founder’s open Project before other Projects", () => {

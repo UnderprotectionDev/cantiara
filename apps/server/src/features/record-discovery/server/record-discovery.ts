@@ -66,6 +66,7 @@ export interface SearchHit {
 	kind: SearchRecordKind;
 	matchCount: number;
 	matchPlace: SearchMatchPlace;
+	recordKey: string | null;
 	scope: SearchScope;
 	snippetParts: readonly SearchSnippetPart[];
 	sourceHref: string;
@@ -340,6 +341,7 @@ function toHit(
 			countMatches(record.body, text) +
 			countMatches(record.metadata, text),
 		matchPlace,
+		recordKey: record.key,
 		scope: record.scope,
 		snippetParts: snippetParts(sourceField, text),
 		sourceHref: sourceHref(record),

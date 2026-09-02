@@ -551,7 +551,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Son kayıt | `Last saved` | Son başarılı otomatik kayıt zamanı; Client Shell online-only kromu |
 | Yazılmamış risk | `Unsaved changes may be lost` | Henüz sunucuya yazılmamış değişiklik uyarısı; yalnız unsaved-risk bayrağı varken |
 | Komut Paleti | `Command Palette` | Kurucu yüzeylerinde klavyeyle komut, gezinme, kayıt oluşturma ve Proje geçişi çalıştıran yüzey; Evrensel Arama (`Search`) değildir |
-| Evrensel Arama | `Search` | Yetkili ana kayıtları deterministik tam metin sırası ve görünür eşleşme bağlamıyla bulan yüzey; Komut Paleti değildir |
+| Evrensel Arama | `Search` | Yetkili ana kayıtları deterministik tam metin sırası ve görünür eşleşme bağlamıyla bulan yüzey; Komut Paleti veya ana navigasyon sayfası değildir |
+| Evrensel Arama kısayolu | `Ctrl+/` | Evrensel Arama’yı bulunduğu yerde açan sabit kısayol; `Ctrl+K` Komut Paleti’nindir |
 | Sorgu | `Query` | Evrensel Arama metin alanı |
 | Arşivi dahil et | `Include archived` | Arşivlenmiş kayıtları sonuçlara katan açık arşiv filtresi; varsayılan sıra arşivi dışlar |
 | eşleşme | `matches` | Aynı kayıt içindeki eşleşme sayısı |
