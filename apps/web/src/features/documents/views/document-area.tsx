@@ -1,10 +1,16 @@
+import { Button } from "@cantiara/ui/components/button";
 import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
+import { Field, FieldLabel } from "@cantiara/ui/components/field";
+import { Input } from "@cantiara/ui/components/input";
 import { Spinner } from "@cantiara/ui/components/spinner";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
-import { orpc } from "@/utils/orpc";
+import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
+import { newIdempotencyKey } from "@/lib/mutation";
+import { orpc, queryClient } from "@/utils/orpc";
 
 import CreateDocumentForm from "../forms/create-document-form";
 import { DOCUMENTS_COPY, documentScopeFor } from "../forms/documents-copy";
@@ -16,9 +22,30 @@ export default function DocumentArea({
 	projectId: string | null;
 }) {
 	const scope = documentScopeFor(projectId);
+	const [archived, setArchived] = useState(false);
+	const [folderName, setFolderName] = useState("");
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const documents = useQuery(
-		orpc.documents.list.queryOptions({ input: { scope } })
+		orpc.documents.list.queryOptions({ input: { archived, scope } })
+	);
+	const folders = useQuery(
+		orpc.documents.listFolders.queryOptions({ input: { scope } })
+	);
+	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const createFolder = useMutation(
+		orpc.documents.createFolder.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await queryClient.invalidateQueries({
+						queryKey: orpc.documents.listFolders.queryKey({
+							input: { scope },
+						}),
+					});
+					recordSave();
+					setFolderName("");
+				}
+			},
+		})
 	);
 	const onCreated = useCallback((documentId: string) => {
 		setSelectedId(documentId);
@@ -26,8 +53,38 @@ export default function DocumentArea({
 	const onSelect = useCallback((documentId: string) => {
 		setSelectedId(documentId);
 	}, []);
+	const onArchivedChange = useCallback(
+		(event: ChangeEvent<HTMLInputElement>) => {
+			setArchived(event.target.checked);
+			setSelectedId(null);
+		},
+		[]
+	);
+	const onFolderNameChange = useCallback(
+		(event: ChangeEvent<HTMLInputElement>) => {
+			setFolderName(event.target.value);
+		},
+		[]
+	);
+	const onCreateFolder = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			const name = folderName.trim();
+			if (name.length === 0) {
+				return;
+			}
+			markUnsaved();
+			attemptOnlineWork("record-create", () =>
+				createFolder.mutateAsync({
+					idempotencyKey: newIdempotencyKey(),
+					payload: { name, scope },
+				})
+			);
+		},
+		[attemptOnlineWork, createFolder, folderName, markUnsaved, scope]
+	);
 
-	if (documents.isPending) {
+	if (documents.isPending || folders.isPending) {
 		return (
 			<p className="flex items-center gap-2 text-muted-foreground text-sm">
 				<Spinner />
@@ -35,13 +92,33 @@ export default function DocumentArea({
 			</p>
 		);
 	}
-	if (documents.isError) {
+	if (documents.isError || folders.isError) {
 		return <p role="alert">{PROJECT_SHELL_COPY.unavailable}</p>;
 	}
 
 	return (
 		<div className="flex flex-col gap-6">
 			<CreateDocumentForm onCreated={onCreated} projectId={projectId} />
+			<form
+				className="flex flex-wrap items-end gap-3"
+				onSubmit={onCreateFolder}
+			>
+				<Field>
+					<FieldLabel htmlFor="document-folder-name">
+						{DOCUMENTS_COPY.folder}
+					</FieldLabel>
+					<Input
+						id="document-folder-name"
+						onChange={onFolderNameChange}
+						value={folderName}
+					/>
+				</Field>
+				<Button type="submit">{DOCUMENTS_COPY.createFolder}</Button>
+			</form>
+			<label className="flex items-center gap-2 text-sm">
+				<input checked={archived} onChange={onArchivedChange} type="checkbox" />
+				{DOCUMENTS_COPY.archived}
+			</label>
 			<div className="grid gap-6 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
 				{documents.data.length === 0 ? (
 					<Empty>
@@ -54,8 +131,13 @@ export default function DocumentArea({
 						{documents.data.map((item) => (
 							<li key={item.id}>
 								<DocumentRow
+									folderName={
+										folders.data.find((folder) => folder.id === item.folderId)
+											?.name
+									}
 									id={item.id}
 									onSelect={onSelect}
+									parent={Boolean(item.parentId)}
 									selected={item.id === selectedId}
 									title={item.title}
 									type={item.type}
@@ -65,7 +147,11 @@ export default function DocumentArea({
 					</ul>
 				)}
 				{selectedId ? (
-					<DocumentDetail documentId={selectedId} projectId={projectId} />
+					<DocumentDetail
+						archivedList={archived}
+						documentId={selectedId}
+						projectId={projectId}
+					/>
 				) : (
 					<Empty>
 						<EmptyHeader>
@@ -79,14 +165,18 @@ export default function DocumentArea({
 }
 
 function DocumentRow({
+	folderName,
 	id,
 	onSelect,
+	parent,
 	selected,
 	title,
 	type,
 }: {
+	folderName?: string;
 	id: string;
 	onSelect: (id: string) => void;
+	parent: boolean;
 	selected: boolean;
 	title: string;
 	type: string;
@@ -101,8 +191,12 @@ function DocumentRow({
 			onClick={onClick}
 			type="button"
 		>
-			<span className="font-medium">{title}</span>
-			<span className="mt-0.5 block text-muted-foreground text-xs">{type}</span>
+			<span className={parent ? "ml-4 block font-medium" : "font-medium"}>
+				{title}
+			</span>
+			<span className="mt-0.5 block text-muted-foreground text-xs">
+				{`${folderName ? `${folderName} · ` : ""}${type}`}
+			</span>
 		</button>
 	);
 }

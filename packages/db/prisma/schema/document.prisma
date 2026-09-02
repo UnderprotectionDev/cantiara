@@ -1,18 +1,44 @@
 model Document {
-  id          String    @id
+  id          String          @id
   workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   scopeKind   String
   projectId   String?
-  project     Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   title       String
   body        String
   type        String
   revision    Int
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+  parentId    String?
+  parent      Document?       @relation("DocumentHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children    Document[]      @relation("DocumentHierarchy")
+  folderId    String?
+  folder      DocumentFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@index([workspaceId, scopeKind, projectId])
   @@index([workspaceId, updatedAt])
+  @@index([workspaceId, archivedAt])
+  @@index([parentId])
+  @@index([folderId])
   @@map("document")
+}
+
+model DocumentFolder {
+  id          String     @id
+  workspaceId String
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  scopeKind   String
+  projectId   String?
+  project     Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  revision    Int
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  documents   Document[]
+
+  @@index([workspaceId, scopeKind, projectId])
+  @@map("document_folder")
 }

@@ -10,13 +10,22 @@ export const DOCUMENT_TYPES = [
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export const DOCUMENTS_COPY = {
+	archive: "Archive",
+	archived: "Archived",
 	body: "Body",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
+	createFolder: "Create folder",
+	crossScopeParent: "A parent must be in the same ownership scope.",
+	depthExceeded: "This placement would exceed three Document levels.",
 	document: "Document",
 	editableSource: "Editable source",
+	folder: "Folder",
 	general: "General",
 	noDocuments: "No Documents yet.",
+	noFolder: "No folder",
+	noParent: "No parent",
+	parentDocument: "Parent Document",
 	persona: "Persona",
 	plan: "Plan",
 	prd: "PRD",
@@ -56,6 +65,7 @@ export const DOCUMENTS_COPY = {
 		undo: "Undo",
 	},
 	type: "Type",
+	unarchive: "Unarchive",
 } as const;
 
 export function documentScopeFor(

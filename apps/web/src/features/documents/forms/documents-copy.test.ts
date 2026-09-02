@@ -6,8 +6,18 @@ import {
 	documentScopeFor,
 } from "./documents-copy";
 
+const DISCOVERY_COPY_PATTERN =
+	/All Documents|Smart Collection|Trash|Unpublish/i;
+
 test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.document).toBe("Document");
+	expect(DOCUMENTS_COPY.archive).toBe("Archive");
+	expect(DOCUMENTS_COPY.archived).toBe("Archived");
+	expect(DOCUMENTS_COPY.unarchive).toBe("Unarchive");
+	expect(DOCUMENTS_COPY.folder).toBe("Folder");
+	expect(DOCUMENTS_COPY.parentDocument).toBe("Parent Document");
+	expect(DOCUMENTS_COPY.createFolder).toBe("Create folder");
+	expect(JSON.stringify(DOCUMENTS_COPY)).not.toMatch(DISCOVERY_COPY_PATTERN);
 	expect(DOCUMENTS_COPY.createDocument).toBe("Create Document");
 	expect(DOCUMENTS_COPY.couldNotRender).toBe("Could not render this block.");
 	expect(DOCUMENTS_COPY.editableSource).toBe("Editable source");

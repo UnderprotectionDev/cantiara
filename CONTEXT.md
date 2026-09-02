@@ -578,6 +578,18 @@ _Avoid_: Geri Bildirim, Test Oturumu, Deney/Doğrulama
 Bir Proje veya Kişisel Wiki kapsamında yaşayan, sürümlü Markdown içeriğine sahip ana kayıt; başka kaydın metin alanı veya dış dosyayla canlı eşitlenen kopya değildir.
 _Avoid_: Dosya Eki, harici Markdown dosyası, kayıt açıklaması
 
+**Belge arşivi**:
+Belgeyi silmeden varsayılan gezinmeden ayıran görünürlük; kimlik, sürüm, ilişki ve çocuk bağlarını korur ([Belge arşivi](docs/prd/07-documents-and-knowledge.md#belge-arşivi)). UI: `Archive`.
+_Avoid_: Çöp Kutusu, Proje arşivi, Wiki yayını durdurma
+
+**Belge klasörü**:
+Aynı Proje veya Kişisel Wiki kapsamında Belgeleri düzenleyen gezinme üstverisi; sahiplik, yaşam döngüsü veya üyelik görünümü değildir ([Belge hiyerarşisi ve klasörleri](docs/prd/07-documents-and-knowledge.md#belge-hiyerarşisi-ve-klasörleri)). UI: `Folder`.
+_Avoid_: Akıllı Koleksiyon, sahiplik kapsamı, Belge Koleksiyonu
+
+**Üst belge**:
+Aynı sahiplik kapsamındaki en fazla bir ebeveyn Belge; kök dahil hiyerarşi en fazla üç Belge seviyesidir. UI: `Parent Document`.
+_Avoid_: çapraz kapsam ebeveyn, sınırsız ağaç
+
 **Dosya Eki**:
 Tam olarak bir Proje veya Kişisel Wiki kapsamında yaşayan, dosya içeriğini ve sürümlerini taşıyan ana kayıt; başka kapsamdaki ilişki sahipliğini veya görünürlüğünü değiştirmez.
 _Avoid_: Belge, ilişki eki, paylaşılan global dosya
