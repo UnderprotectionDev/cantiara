@@ -1,21 +1,33 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
+import { listActiveBlockerSources } from "../../blockers/server/blockers";
 import { getProject } from "../../project-shell/server/project-shell";
 import { listRelations } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
-import { getWork } from "../../work-lifecycle/server/work-lifecycle";
+import {
+	getWork,
+	updateWorkPlanningDates,
+} from "../../work-lifecycle/server/work-lifecycle";
 import {
 	isRoadmapGroupField,
 	isRoadmapHorizon,
 	isRoadmapPresentation,
 	type ListRoadmapQuery,
 	listRoadmapQuerySchema,
+	type PlaceCandidateChange,
+	type PlaceCandidateCommand,
 	type PlaceHorizonCommand,
+	type PreviewPlaceCandidateCommand,
+	placeCandidateCommandSchema,
 	placeHorizonCommandSchema,
+	previewPlaceCandidateCommandSchema,
+	ROADMAP_CANDIDATE_WRITES,
 	ROADMAP_COPY,
 	ROADMAP_INNER_MEMBERSHIP,
+	ROADMAP_PRESENTATION_WRITES,
 	ROADMAP_PRESENTATIONS,
 	ROADMAP_WRITES,
+	type RoadmapBlockerBadge,
 	type RoadmapGroup,
 	type RoadmapGroupField,
 	type RoadmapHorizon,
@@ -47,6 +59,41 @@ export type SaveNamedViewOutcome =
 	| { status: "committed"; view: RoadmapNamedView }
 	| { reason: "target-not-found" | "unknown-presentation"; status: "rejected" };
 
+export type PreviewPlaceCandidateOutcome =
+	| {
+			confirmRequired: true;
+			preview: {
+				field: PlaceCandidateChange["field"];
+				from: string | null;
+				to: string;
+			};
+			status: "ready";
+			workId: string;
+			writes: typeof ROADMAP_CANDIDATE_WRITES;
+	  }
+	| { reason: "target-not-found" | "unknown-change"; status: "rejected" };
+
+export type PlaceCandidateOutcome =
+	| {
+			status: "committed";
+			work: {
+				horizon: RoadmapHorizon | null;
+				id: string;
+				plannedStart: string | null;
+				status: string;
+				targetDate: string | null;
+			};
+			writes: typeof ROADMAP_CANDIDATE_WRITES;
+	  }
+	| {
+			reason:
+				| "confirm-required"
+				| "target-not-found"
+				| "unknown-change"
+				| "unknown-horizon";
+			status: "rejected";
+	  };
+
 export async function listRoadmap(
 	prisma: PrismaClient,
 	query: unknown
@@ -74,18 +121,39 @@ export async function listRoadmap(
 		projectId: parsed.data.projectId,
 		workspaceId: project.workspaceId,
 	});
+	const planned = items.filter((item) => !isUnplannedCandidate(item));
+	const candidates = items.filter(isUnplannedCandidate);
 	return {
 		copy: {
 			later: ROADMAP_COPY.later,
 			next: ROADMAP_COPY.next,
 			now: ROADMAP_COPY.now,
+			presentationMode: ROADMAP_COPY.presentationMode,
 			roadmap: ROADMAP_COPY.roadmap,
+			unplannedCandidates: ROADMAP_COPY.unplannedCandidates,
 		},
-		groups: groupItems(items, groupField),
+		groups: groupItems(planned, groupField),
 		innerMembership: ROADMAP_INNER_MEMBERSHIP,
 		namedView,
 		presentation,
+		presentationMode: parsed.data.presentationMode
+			? {
+					configurationHidden: true,
+					detailsReadOnly: true,
+					editingHidden: true,
+					mode: ROADMAP_COPY.presentationMode,
+					namedViewId: namedView?.id ?? parsed.data.namedViewId ?? null,
+					writes: ROADMAP_PRESENTATION_WRITES,
+				}
+			: null,
 		showOnRoadmap: false,
+		unplannedCandidates: {
+			collapsed: true,
+			copy: { unplannedCandidates: ROADMAP_COPY.unplannedCandidates },
+			items: candidates,
+			membership: "live-filter",
+			parked: false,
+		},
 		writes: ROADMAP_WRITES,
 	};
 }
@@ -135,6 +203,31 @@ export async function saveRoadmapNamedView(
 		return { reason: "target-not-found", status: "rejected" };
 	}
 	return await upsertNamedView(prisma, parsed.data);
+}
+
+export async function previewPlaceCandidate(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<PreviewPlaceCandidateOutcome> {
+	const parsed = previewPlaceCandidateCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "unknown-change", status: "rejected" };
+	}
+	return await previewCandidate(prisma, parsed.data);
+}
+
+export async function placeCandidate(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<PlaceCandidateOutcome> {
+	const parsed = placeCandidateCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "unknown-change", status: "rejected" };
+	}
+	if (!parsed.data.confirmed) {
+		return { reason: "confirm-required", status: "rejected" };
+	}
+	return await applyCandidate(prisma, parsed.data);
 }
 
 async function applyHorizon(
@@ -239,13 +332,167 @@ async function roadmapItems(
 	const selected = rows.filter((row) =>
 		matchesPresentation(row, input.presentation, originLinks)
 	);
+	const badges = await activeBlockerBadges(
+		prisma,
+		selected.map((row) => row.id)
+	);
 	return selected
 		.filter((row) =>
 			input.horizonFilter === null
 				? true
 				: asHorizon(row.horizon) === input.horizonFilter
 		)
-		.map((row) => toItem(row, originLinks, input.presentation));
+		.map((row) => toItem(row, originLinks, input.presentation, badges));
+}
+
+async function activeBlockerBadges(
+	prisma: RoadmapDb,
+	workIds: readonly string[]
+): Promise<Map<string, RoadmapBlockerBadge>> {
+	const badges = new Map<string, RoadmapBlockerBadge>();
+	const sources = await listActiveBlockerSources(
+		prisma as PrismaClient,
+		workIds
+	);
+	for (const [blockedWorkId, sourceList] of sources) {
+		if (sourceList.length === 0) {
+			continue;
+		}
+		badges.set(blockedWorkId, {
+			blockedWorkId,
+			copy: { openSourceRecord: ROADMAP_COPY.openSourceRecord },
+			sources: sourceList,
+		});
+	}
+	return badges;
+}
+
+async function previewCandidate(
+	prisma: RoadmapDb,
+	command: PreviewPlaceCandidateCommand
+): Promise<PreviewPlaceCandidateOutcome> {
+	const row = await prisma.work.findFirst({
+		where: { id: command.workId, retiredIntoId: null },
+	});
+	if (!row) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	return {
+		confirmRequired: true,
+		preview: candidatePreview(row, command.change),
+		status: "ready",
+		workId: command.workId,
+		writes: ROADMAP_CANDIDATE_WRITES,
+	};
+}
+
+async function applyCandidate(
+	prisma: PrismaClient,
+	command: PlaceCandidateCommand
+): Promise<PlaceCandidateOutcome> {
+	if (command.change.field === ROADMAP_COPY.horizon) {
+		const placed = await applyHorizon(prisma, {
+			horizon: command.change.horizon,
+			workId: command.workId,
+		});
+		if (placed.status !== "committed") {
+			return placed;
+		}
+		const dates = await prisma.work.findFirst({
+			select: { plannedStart: true, targetDate: true },
+			where: { id: command.workId },
+		});
+		return {
+			status: "committed",
+			work: {
+				horizon: placed.work.horizon,
+				id: placed.work.id,
+				plannedStart: dates?.plannedStart ?? null,
+				status: placed.work.status,
+				targetDate: dates?.targetDate ?? placed.work.targetDate,
+			},
+			writes: ROADMAP_CANDIDATE_WRITES,
+		};
+	}
+	const current = await getWork(prisma, command.workId);
+	if (!current) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (!(command.actorId && command.idempotencyKey)) {
+		return { reason: "unknown-change", status: "rejected" };
+	}
+	const dated = await updateWorkPlanningDates(prisma, {
+		actorId: command.actorId,
+		baseRevision: current.revision,
+		idempotencyKey: command.idempotencyKey,
+		origin: "human",
+		plannedStart:
+			command.change.field === ROADMAP_COPY.plannedStart
+				? command.change.plannedStart
+				: (current.plannedStart ?? null),
+		reappearDate: current.reappearDate ?? null,
+		targetDate:
+			command.change.field === ROADMAP_COPY.targetDate
+				? command.change.targetDate
+				: (current.targetDate ?? null),
+		workId: command.workId,
+	});
+	if (dated.status !== "committed") {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const placement = await getHorizonPlacement(prisma, command.workId);
+	return {
+		status: "committed",
+		work: {
+			horizon: placement?.horizon ?? null,
+			id: dated.work.id,
+			plannedStart: dated.work.plannedStart ?? null,
+			status: dated.work.status,
+			targetDate: dated.work.targetDate ?? null,
+		},
+		writes: ROADMAP_CANDIDATE_WRITES,
+	};
+}
+
+function candidatePreview(
+	row: {
+		horizon: string | null;
+		plannedStart: string | null;
+		targetDate: string | null;
+	},
+	change: PlaceCandidateChange
+): {
+	field: PlaceCandidateChange["field"];
+	from: string | null;
+	to: string;
+} {
+	if (change.field === ROADMAP_COPY.horizon) {
+		return {
+			field: change.field,
+			from: asHorizon(row.horizon),
+			to: change.horizon,
+		};
+	}
+	if (change.field === ROADMAP_COPY.plannedStart) {
+		return {
+			field: change.field,
+			from: row.plannedStart,
+			to: change.plannedStart,
+		};
+	}
+	return {
+		field: change.field,
+		from: row.targetDate,
+		to: change.targetDate,
+	};
+}
+
+function isUnplannedCandidate(item: RoadmapWorkItem): boolean {
+	return (
+		item.horizon === null &&
+		item.plannedStart === null &&
+		item.targetDate === null
+	);
 }
 
 async function originFeatureIds(
@@ -304,12 +551,15 @@ function toItem(
 		horizon: string | null;
 		id: string;
 		key: string;
+		plannedStart: string | null;
 		status: string;
+		targetDate: string | null;
 		title: string;
 		type: string;
 	},
 	originLinks: Map<string, string>,
-	presentation: RoadmapPresentation
+	presentation: RoadmapPresentation,
+	badges: Map<string, RoadmapBlockerBadge>
 ): RoadmapWorkItem {
 	const originWorkId = originLinks.get(row.id) ?? null;
 	const primary =
@@ -320,14 +570,17 @@ function toItem(
 		problemOpportunity = researchBody.length > 0 ? researchBody : row.title;
 	}
 	return {
+		blockerBadge: badges.get(row.id) ?? null,
 		expectedOutcome: null,
 		horizon: asHorizon(row.horizon),
 		id: row.id,
 		key: row.key,
 		originWorkId,
+		plannedStart: row.plannedStart,
 		problemOpportunity,
 		role: primary ? ROADMAP_COPY.primary : ROADMAP_COPY.secondary,
 		status: row.status,
+		targetDate: row.targetDate,
 		title: row.title,
 		type: row.type,
 	};

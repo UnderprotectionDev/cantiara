@@ -29,6 +29,7 @@ test("week range keeps Planned start and Target date as separate kinds", () => {
 				kind: UNIFIED_CALENDAR_COPY.reappearDate,
 				projectId: "p1",
 				projectName: "Payments",
+				revision: 1,
 				title: "Checkout",
 			},
 		],
@@ -39,6 +40,7 @@ test("week range keeps Planned start and Target date as separate kinds", () => {
 				key: "PAY-1",
 				projectId: "p1",
 				projectName: "Payments",
+				revision: 1,
 				start: { date: "2026-08-31", kind: UNIFIED_CALENDAR_COPY.plannedStart },
 				title: "Checkout",
 			},
@@ -62,6 +64,7 @@ test("week sections show the same range on each spanned day", () => {
 		key: "PAY-1",
 		projectId: "p1",
 		projectName: "Payments",
+		revision: 1,
 		start: { date: "2026-08-31", kind: UNIFIED_CALENDAR_COPY.plannedStart },
 		title: "Checkout",
 	};
@@ -78,6 +81,7 @@ test("week sections show the same range on each spanned day", () => {
 					kind: UNIFIED_CALENDAR_COPY.reappearDate,
 					projectId: "p1",
 					projectName: "Payments",
+					revision: 1,
 					title: "Checkout",
 				},
 			],
@@ -95,4 +99,57 @@ test("week sections show the same range on each spanned day", () => {
 		{ date: "2026-09-04", kind: "Target date" },
 	]);
 	expect(JSON.stringify(sections)).not.toMatch("Planned start–Target date");
+});
+
+test("Agenda rows keep the source Work id and show one date kind", () => {
+	const rows = calendarVisibleRows({
+		positions: [
+			{
+				date: "2026-09-02",
+				id: "work-1",
+				key: "PAY-1",
+				kind: UNIFIED_CALENDAR_COPY.reappearDate,
+				projectId: "p1",
+				projectName: "Payments",
+				revision: 1,
+				title: "Checkout",
+			},
+			{
+				date: "2026-09-04",
+				id: "work-1",
+				key: "PAY-1",
+				kind: UNIFIED_CALENDAR_COPY.targetDate,
+				projectId: "p1",
+				projectName: "Payments",
+				revision: 1,
+				title: "Checkout",
+			},
+		],
+		ranges: [],
+	});
+	expect(rows).toEqual([
+		{
+			href: "/projects/p1?work=work-1#work",
+			id: "work-1-Reappear date",
+			kinds: [{ date: "2026-09-02", kind: "Reappear date" }],
+			openSourceRecord: true,
+			projectName: "Payments",
+			revision: 1,
+			sourceId: "work-1",
+			title: "PAY-1 Checkout",
+			workId: "work-1",
+		},
+		{
+			href: "/projects/p1?work=work-1#work",
+			id: "work-1-Target date",
+			kinds: [{ date: "2026-09-04", kind: "Target date" }],
+			openSourceRecord: true,
+			projectName: "Payments",
+			revision: 1,
+			sourceId: "work-1",
+			title: "PAY-1 Checkout",
+			workId: "work-1",
+		},
+	]);
+	expect(new Set(rows.map((row) => row.sourceId))).toEqual(new Set(["work-1"]));
 });

@@ -1,10 +1,13 @@
 /**
- * Unified Calendar seam — Day, Week, and Month present the same
+ * Unified Calendar seam — Day, Week, Month, and Agenda present the same
  * dated Work records with Planned start, Target date, and Reappear
  * date kept as separate kinds. Week/month show a start+target range;
- * Day shows only that day's positions. Planned start does not hide
- * Work, auto-start it, or write workflow status. Synthetic fixture
- * for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
+ * Day shows only that day's positions. Agenda is a chronological dense
+ * list of the same kinds, not an Event record or Agenda membership.
+ * Planned start does not hide Work, auto-start it, or write workflow
+ * status. A represented-date move writes one field and is undoable.
+ * Synthetic fixture for
+ * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Günlük planlama: non-Kanban view changes do not write status).
  */
 
@@ -28,6 +31,7 @@ import {
 	PLANNED_START_EFFECTS,
 	presentCalendarDays,
 	presentCalendarWindow,
+	previewRepresentedDateMove,
 	UNIFIED_CALENDAR_COPY,
 	unifiedCalendarCatalog,
 } from "./unified-calendar-model";
@@ -47,6 +51,7 @@ const SPAN_WORK = {
 	projectId: "project-1",
 	projectName: "Payments",
 	reappearDate: "2026-09-02",
+	revision: 1,
 	targetDate: "2026-09-04",
 	title: "Checkout span",
 };
@@ -57,15 +62,24 @@ describe("Unified Calendar catalog", () => {
 			copy: UNIFIED_CALENDAR_COPY,
 			counterparts: CALENDAR_COUNTERPARTS,
 			dateKinds: DATE_KINDS,
+			dateMove: {
+				eventRecord: false,
+				externalCalendar: false,
+				personalReminder: false,
+				writesOtherDateFields: false,
+				writesStatus: false,
+			},
 			eventRecord: CALENDAR_EVENT_RECORD,
 			kind: "unified-calendar",
 			plannedStart: PLANNED_START_EFFECTS,
-			views: ["Day", "Week", "Month"],
+			views: ["Day", "Week", "Month", "Agenda"],
 		});
 		expect(UNIFIED_CALENDAR_COPY.calendar).toBe("Calendar");
 		expect(UNIFIED_CALENDAR_COPY.day).toBe("Day");
 		expect(UNIFIED_CALENDAR_COPY.week).toBe("Week");
 		expect(UNIFIED_CALENDAR_COPY.month).toBe("Month");
+		expect(UNIFIED_CALENDAR_COPY.agenda).toBe("Agenda");
+		expect(UNIFIED_CALENDAR_COPY.openSourceRecord).toBe("Open source record");
 		expect(UNIFIED_CALENDAR_COPY.plannedStart).toBe("Planned start");
 		expect(UNIFIED_CALENDAR_COPY.targetDate).toBe("Target date");
 		expect(UNIFIED_CALENDAR_COPY.reappearDate).toBe("Reappear date");
@@ -83,6 +97,40 @@ describe("Unified Calendar catalog", () => {
 		expect(JSON.stringify(unifiedCalendarCatalog().copy)).not.toMatch(
 			FORBIDDEN_SURFACE
 		);
+		expect(unifiedCalendarCatalog().dateMove).toEqual({
+			eventRecord: false,
+			externalCalendar: false,
+			personalReminder: false,
+			writesOtherDateFields: false,
+			writesStatus: false,
+		});
+		expect(UNIFIED_CALENDAR_COPY.preview).toBe("Preview");
+		expect(UNIFIED_CALENDAR_COPY.confirm).toBe("Confirm");
+		expect(UNIFIED_CALENDAR_COPY.cancel).toBe("Cancel");
+		expect(UNIFIED_CALENDAR_COPY.undo).toBe("Undo");
+	});
+
+	it("previews a represented date move as kind plus old and new values without mixing fields", () => {
+		const preview = previewRepresentedDateMove({
+			fromDate: "2026-09-04",
+			kind: "Target date",
+			toDate: "2026-09-06",
+		});
+		expect(preview).toEqual({
+			cancel: "Cancel",
+			confirm: "Confirm",
+			eventRecord: false,
+			externalCalendar: false,
+			fromDate: "2026-09-04",
+			kind: "Target date",
+			personalReminder: false,
+			toDate: "2026-09-06",
+			undo: "Undo",
+			writesOtherDateFields: false,
+			writesStatus: false,
+		});
+		expect(preview.kind).not.toBe("Planned start");
+		expect(preview.kind).not.toBe("Reappear date");
 	});
 
 	it("keeps kinds unmixed and uses a range only for start+target in week and month", () => {
@@ -100,6 +148,7 @@ describe("Unified Calendar catalog", () => {
 				key: SPAN_WORK.key,
 				projectId: SPAN_WORK.projectId,
 				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
 				start: { date: "2026-08-31", kind: "Planned start" },
 				title: SPAN_WORK.title,
 			},
@@ -112,6 +161,7 @@ describe("Unified Calendar catalog", () => {
 				kind: "Reappear date",
 				projectId: SPAN_WORK.projectId,
 				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
 				title: SPAN_WORK.title,
 			},
 		]);
@@ -136,6 +186,7 @@ describe("Unified Calendar catalog", () => {
 				kind: "Reappear date",
 				projectId: SPAN_WORK.projectId,
 				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
 				title: SPAN_WORK.title,
 			},
 		]);
@@ -171,6 +222,7 @@ describe("Unified Calendar catalog", () => {
 				kind: "Planned start",
 				projectId: SPAN_WORK.projectId,
 				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
 				title: SPAN_WORK.title,
 			},
 		]);
@@ -252,6 +304,93 @@ describe("Unified Calendar catalog", () => {
 		expect(targetDay[0]?.positions.map((row) => row.kind)).toEqual([
 			"Target date",
 		]);
+	});
+
+	it("presents Agenda as a chronological dense list of the same kinds, not a range or Event", () => {
+		const agenda = presentCalendarWindow({
+			calendarDay: "2026-09-02",
+			rangeEnd: "2026-09-30",
+			rangeStart: "2026-09-01",
+			view: "Agenda",
+			works: [SPAN_WORK],
+		});
+		expect(agenda.ranges).toEqual([]);
+		expect(agenda.positions).toEqual([
+			{
+				date: "2026-08-31",
+				id: SPAN_WORK.id,
+				key: SPAN_WORK.key,
+				kind: "Planned start",
+				projectId: SPAN_WORK.projectId,
+				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
+				title: SPAN_WORK.title,
+			},
+			{
+				date: "2026-09-02",
+				id: SPAN_WORK.id,
+				key: SPAN_WORK.key,
+				kind: "Reappear date",
+				projectId: SPAN_WORK.projectId,
+				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
+				title: SPAN_WORK.title,
+			},
+			{
+				date: "2026-09-04",
+				id: SPAN_WORK.id,
+				key: SPAN_WORK.key,
+				kind: "Target date",
+				projectId: SPAN_WORK.projectId,
+				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
+				title: SPAN_WORK.title,
+			},
+		]);
+		expect(agenda.positions.every((row) => row.id === SPAN_WORK.id)).toBe(true);
+
+		const dense = presentCalendarDays({
+			calendarDay: "2026-09-02",
+			rangeEnd: "2026-09-30",
+			rangeStart: "2026-09-01",
+			view: "Agenda",
+			works: [SPAN_WORK],
+		});
+		expect(dense.map((day) => day.date)).toEqual([
+			"2026-08-31",
+			"2026-09-02",
+			"2026-09-04",
+		]);
+		expect(dense.every((day) => day.ranges.length === 0)).toBe(true);
+	});
+
+	it("keeps the same date-kind filter on Week and Agenda", () => {
+		const window = {
+			calendarDay: "2026-09-02",
+			dateKinds: ["Reappear date"] as const,
+			rangeEnd: "2026-09-06",
+			rangeStart: "2026-08-31",
+		};
+		const week = presentCalendarWindow({
+			...window,
+			view: "Week",
+			works: [SPAN_WORK],
+		});
+		const agenda = presentCalendarWindow({
+			...window,
+			view: "Agenda",
+			works: [SPAN_WORK],
+		});
+		expect(week.ranges).toEqual([]);
+		expect(week.positions).toEqual([
+			expect.objectContaining({
+				date: "2026-09-02",
+				id: SPAN_WORK.id,
+				kind: "Reappear date",
+			}),
+		]);
+		expect(agenda.ranges).toEqual([]);
+		expect(agenda.positions).toEqual(week.positions);
 	});
 });
 
@@ -500,5 +639,231 @@ describe("Unified Calendar", () => {
 			view: "Day",
 		});
 		expect(stillVisible.positions.map((row) => row.id)).toContain(intake.id);
+	});
+
+	it("shows Agenda as the same scoped Work positions with Open source record, without an Event or Agenda membership", async () => {
+		const payments = await openProject("Payments");
+		const search = await openProject("Search");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const ranking = await openWork(search.id, "Ranking query");
+		await setDates(intake, {
+			plannedStart: "2026-08-31",
+			reappearDate: "2026-09-02",
+			targetDate: "2026-09-04",
+		});
+		await setDates(ranking, { targetDate: "2026-09-03" });
+		const surface = calendar();
+		const month = await surface.view({
+			calendarDay: "2026-09-02",
+			projectId: payments.id,
+			view: "Month",
+		});
+		const agenda = await surface.view({
+			calendarDay: "2026-09-02",
+			projectId: payments.id,
+			view: "Agenda",
+		});
+		const filtered = await surface.view({
+			calendarDay: "2026-09-02",
+			dateKinds: ["Reappear date"],
+			projectId: payments.id,
+			view: "Agenda",
+		});
+		expect(agenda.view).toBe("Agenda");
+		expect(agenda.eventRecord).toBe(false);
+		expect(agenda.agenda.membership).toBe(false);
+		expect(agenda.agenda.newDateField).toBe(false);
+		expect(agenda.copy.openSourceRecord).toBe("Open source record");
+		expect(agenda.ranges).toEqual([]);
+		expect(agenda.positions.map((row) => row.id)).toEqual([
+			intake.id,
+			intake.id,
+			intake.id,
+		]);
+		expect(agenda.positions.map((row) => row.kind)).toEqual([
+			"Planned start",
+			"Reappear date",
+			"Target date",
+		]);
+		expect(month.projectId).toBe(payments.id);
+		expect(new Set(month.ranges.map((row) => row.id))).toEqual(
+			new Set([intake.id])
+		);
+		expect(filtered.positions).toEqual([
+			expect.objectContaining({
+				id: intake.id,
+				kind: "Reappear date",
+			}),
+		]);
+		const worksAfter = await prisma.work.findMany({
+			where: { project: { workspaceId } },
+		});
+		expect(worksAfter.map((row) => row.id).sort()).toEqual(
+			[intake.id, ranking.id].sort()
+		);
+	});
+
+	it("previews a Target date move without writing dates, status, or Event records", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const dated = await setDates(intake, {
+			plannedStart: "2026-08-31",
+			reappearDate: "2026-09-02",
+			targetDate: "2026-09-04",
+		});
+		const receiptsBefore = await prisma.mutationReceipt.count({
+			where: { actorId },
+		});
+		const preview = await calendar().previewDateMove({
+			kind: "Target date",
+			toDate: "2026-09-06",
+			workId: dated.id,
+		});
+		expect(preview).toEqual({
+			preview: {
+				cancel: "Cancel",
+				confirm: "Confirm",
+				eventRecord: false,
+				externalCalendar: false,
+				fromDate: "2026-09-04",
+				kind: "Target date",
+				personalReminder: false,
+				toDate: "2026-09-06",
+				undo: "Undo",
+				writesOtherDateFields: false,
+				writesStatus: false,
+			},
+			status: "ready",
+		});
+		const after = await getWork(prisma, dated.id);
+		expect(after?.plannedStart).toBe("2026-08-31");
+		expect(after?.reappearDate).toBe("2026-09-02");
+		expect(after?.targetDate).toBe("2026-09-04");
+		expect(after?.status).toBe("Not Started");
+		expect(await prisma.mutationReceipt.count({ where: { actorId } })).toBe(
+			receiptsBefore
+		);
+	});
+
+	it("writes only the represented date, leaves status, and undoes the field", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const dated = await setDates(intake, {
+			plannedStart: "2026-08-31",
+			reappearDate: "2026-09-02",
+			targetDate: "2026-09-04",
+		});
+		const moved = await calendar().moveRepresentedDate({
+			baseRevision: dated.revision,
+			idempotencyKey: `move-target-${dated.id}`,
+			kind: "Target date",
+			toDate: "2026-09-06",
+			workId: dated.id,
+		});
+		expect(moved).toMatchObject({
+			status: "committed",
+			undo: "Undo",
+			work: {
+				id: dated.id,
+				plannedStart: "2026-08-31",
+				reappearDate: "2026-09-02",
+				status: "Not Started",
+				targetDate: "2026-09-06",
+			},
+		});
+		if (moved.status !== "committed") {
+			throw new Error("expected committed Target date move");
+		}
+		const afterMove = await getWork(prisma, dated.id);
+		expect(afterMove?.plannedStart).toBe("2026-08-31");
+		expect(afterMove?.reappearDate).toBe("2026-09-02");
+		expect(afterMove?.targetDate).toBe("2026-09-06");
+		expect(afterMove?.status).toBe("Not Started");
+		const week = await calendar().view({
+			calendarDay: "2026-09-06",
+			view: "Week",
+		});
+		expect(week.eventRecord).toBe(false);
+		expect(week.dateMove.externalCalendar).toBe(false);
+		expect(week.dateMove.personalReminder).toBe(false);
+		expect(week.ranges).toEqual([
+			expect.objectContaining({
+				end: { date: "2026-09-06", kind: "Target date" },
+				start: { date: "2026-08-31", kind: "Planned start" },
+			}),
+		]);
+		const undone = await calendar().undoRepresentedDateMove({
+			baseRevision: moved.work.revision,
+			historyEntryId: moved.historyEntryId,
+			idempotencyKey: `undo-target-${dated.id}`,
+			workId: dated.id,
+		});
+		expect(undone).toMatchObject({
+			status: "committed",
+			undo: "Undo",
+			work: {
+				plannedStart: "2026-08-31",
+				reappearDate: "2026-09-02",
+				status: "Not Started",
+				targetDate: "2026-09-04",
+			},
+		});
+		const restored = await getWork(prisma, dated.id);
+		expect(restored?.targetDate).toBe("2026-09-04");
+		expect(restored?.plannedStart).toBe("2026-08-31");
+		expect(restored?.reappearDate).toBe("2026-09-02");
+		expect(restored?.status).toBe("Not Started");
+	});
+
+	it("moving Planned start does not write Target date or Reappear date", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const dated = await setDates(intake, {
+			plannedStart: "2026-08-31",
+			reappearDate: "2026-09-02",
+			targetDate: "2026-09-04",
+		});
+		const moved = await calendar().moveRepresentedDate({
+			baseRevision: dated.revision,
+			idempotencyKey: `move-start-${dated.id}`,
+			kind: "Planned start",
+			toDate: "2026-09-01",
+			workId: dated.id,
+		});
+		expect(moved).toMatchObject({
+			status: "committed",
+			work: {
+				plannedStart: "2026-09-01",
+				reappearDate: "2026-09-02",
+				status: "Not Started",
+				targetDate: "2026-09-04",
+			},
+		});
+	});
+
+	it("moving Reappear date does not write Planned start or Target date", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const dated = await setDates(intake, {
+			plannedStart: "2026-08-31",
+			reappearDate: "2026-09-02",
+			targetDate: "2026-09-04",
+		});
+		const moved = await calendar().moveRepresentedDate({
+			baseRevision: dated.revision,
+			idempotencyKey: `move-reappear-${dated.id}`,
+			kind: "Reappear date",
+			toDate: "2026-09-05",
+			workId: dated.id,
+		});
+		expect(moved).toMatchObject({
+			status: "committed",
+			work: {
+				plannedStart: "2026-08-31",
+				reappearDate: "2026-09-05",
+				status: "Not Started",
+				targetDate: "2026-09-04",
+			},
+		});
 	});
 });
