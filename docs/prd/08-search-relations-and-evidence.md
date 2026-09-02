@@ -29,7 +29,7 @@ Bu belge arama, sınıflandırma, ilişkiler, kanıt semantiği ve geri bildirim
 
 ### Evrensel Arama
 
-- **Evrensel Arama bütün ana kayıtları kendi dizin/detay sözleşmesiyle bulur.** Yakalama Gelen Kutusu öğesi, Taslak, Dış yüzey ve GitHub dış kaydı arama sonucu olmaz; kendi yüzeylerinde kalır. Desteklenen Dosya Ekleri, kontrol listesi metinleri ve geçmiş İş anahtarları ilgili ana kaydın parçası olarak bulunur.
+- **Evrensel Arama bütün ana kayıtları kendi dizin/detay sözleşmesiyle bulur.** Yakalama Gelen Kutusu öğesi, Taslak, Dış yüzey ve GitHub dış kaydı arama sonucu olmaz; kendi yüzeylerinde kalır. Desteklenen Dosya Ekleri, kontrol listesi metinleri ve geçmiş İş anahtarları ilgili ana kaydın parçası olarak bulunur. Arama kurucu kromundan bulunduğu yerde açılır; ayrı bir ana navigasyon sayfası değildir.
 
 - **Evrensel Arama indekslenen alanlarda Karar, Risk, Varsayım, Kullanıcı Araştırması Oturumu ve izinli notu, Geri Bildirim, Contact, Company, Ürün Boşluğu, Dış Araca Kaçış, Ekran, tasarım, Kilometre Taşı ve Kişisel Wiki Belgesi ile ilişkili eklerini bulur.**
 

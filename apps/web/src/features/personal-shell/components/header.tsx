@@ -20,6 +20,7 @@ import {
 	usePaletteSurface,
 } from "@/features/command-palette/components/founder-command-palette";
 import UserMenu from "@/features/personal-shell/components/user-menu";
+import { SearchOverlay } from "@/features/record-discovery/views/search-overlay";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
 
@@ -140,7 +141,8 @@ export default function Header() {
 					</DropdownMenu>
 				</nav>
 				<CommandPaletteProvider>
-					<div className="flex shrink-0 items-center gap-1">
+					<div className="flex shrink-0 items-center gap-2">
+						<SearchOverlay />
 						<CommandPaletteTrigger />
 						<AppearanceToggle />
 						<UserMenu />

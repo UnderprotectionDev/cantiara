@@ -18,6 +18,7 @@ import { priority } from "../features/priority/server/priority-rpc";
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
 import { recordActions } from "../features/record-actions/server/record-actions-rpc";
+import { recordDiscovery } from "../features/record-discovery/server/record-discovery-rpc";
 import { relations } from "../features/relations/server/relations-rpc";
 import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
@@ -54,6 +55,7 @@ export const appRouter = {
 	projectOverview: projectOverviewRouter,
 	projectShell,
 	recordActions,
+	recordDiscovery,
 	relations,
 	roadmapHorizon,
 	tags,

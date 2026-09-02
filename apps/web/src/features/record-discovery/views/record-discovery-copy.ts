@@ -1,0 +1,15 @@
+export const RECORD_DISCOVERY_COPY = {
+	archived: "Archived",
+	document: "Document",
+	emptyQuery: "Type to search authorized records.",
+	fileAttachment: "File Attachment",
+	includeArchived: "Include archived",
+	matches: "matches",
+	noMatches: "No matching records.",
+	personalWiki: "Personal Wiki",
+	project: "Project",
+	query: "Query",
+	search: "Search",
+	unavailable: "Search is unavailable.",
+	work: "Work",
+} as const;
