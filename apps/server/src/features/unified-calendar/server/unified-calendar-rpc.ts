@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { createUnifiedCalendar } from "./unified-calendar";
 import {
+	calendarDateKindSchema,
 	calendarDaySchema,
 	calendarViewNameSchema,
 	unifiedCalendarCatalog,
@@ -29,6 +30,7 @@ export const unifiedCalendar = {
 		.input(
 			z.object({
 				calendarDay: calendarDaySchema.optional(),
+				dateKinds: z.array(calendarDateKindSchema).optional(),
 				projectId: z.string().min(1).nullable().optional(),
 				view: calendarViewNameSchema.optional(),
 			})
