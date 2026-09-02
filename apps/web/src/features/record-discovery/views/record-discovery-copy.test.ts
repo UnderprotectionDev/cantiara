@@ -12,6 +12,10 @@ test("English Search copy is Search, not Command Palette", () => {
 	expect(RECORD_DISCOVERY_COPY.work).toBe("Work");
 	expect(RECORD_DISCOVERY_COPY.document).toBe("Document");
 	expect(RECORD_DISCOVERY_COPY.fileAttachment).toBe("File Attachment");
+	expect(RECORD_DISCOVERY_COPY.table).toBe("Table");
+	expect(RECORD_DISCOVERY_COPY.saveAsSmartCollection).toBe(
+		"Save as Smart Collection"
+	);
 	expect(RECORD_DISCOVERY_COPY.technicalDiagram).toBe("Technical Diagram");
 	expect(RECORD_DISCOVERY_COPY.captureInboxItem).toBe("Capture Inbox item");
 	expect(RECORD_DISCOVERY_COPY.draft).toBe("Draft");
