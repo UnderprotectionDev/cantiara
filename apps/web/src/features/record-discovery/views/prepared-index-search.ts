@@ -127,7 +127,7 @@ export function preparedIndexTypeFilters(index: string): readonly string[] {
 	return [];
 }
 
-export function preparedIndexUsesLibraryFilters(index: string): boolean {
+export function preparedIndexUsesFolderFilters(index: string): boolean {
 	return (
 		index === RECORD_DISCOVERY_COPY.allDocuments ||
 		index === RECORD_DISCOVERY_COPY.allFiles

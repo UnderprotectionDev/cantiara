@@ -133,6 +133,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Teknik Mimari | `Technical Architecture` | Teknik Diyagram türü |
 | Veri Modeli | `Data Model` | Teknik Diyagram türü |
 | Teknik Sıra | `Technical Sequence` | Teknik Diyagram türü |
+| Klasör | `Folder` | Belge ve Dosya Eki dizininde gezinme konumu; sahiplik veya Search değildir |
+| Dizinde kayıt yok | `No records in this index.` | Hazır tür dizini boş durumu |
 | All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
 | Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |

@@ -16,6 +16,7 @@ import {
 	TableRow,
 } from "@cantiara/ui/components/table";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import type { ChangeEvent } from "react";
 import { useCallback, useId } from "react";
 
@@ -25,9 +26,9 @@ import { orpc } from "@/utils/orpc";
 import {
 	PREPARED_INDEX_LABELS,
 	type PreparedIndexSearch,
-	preparedIndexHref,
+	preparedIndexSearch,
 	preparedIndexTypeFilters,
-	preparedIndexUsesLibraryFilters,
+	preparedIndexUsesFolderFilters,
 } from "./prepared-index-search";
 import { RECORD_DISCOVERY_COPY } from "./record-discovery-copy";
 
@@ -51,6 +52,7 @@ export default function PreparedIndexArea({
 }: {
 	search: PreparedIndexSearch;
 }) {
+	const navigate = useNavigate();
 	const catalog = useQuery(orpc.recordDiscovery.catalog.queryOptions());
 	const copy = catalog.data?.copy ?? RECORD_DISCOVERY_COPY;
 	const indexes = catalog.data?.indexes ?? PREPARED_INDEX_LABELS;
@@ -70,83 +72,92 @@ export default function PreparedIndexArea({
 	const rows = browse.data?.rows ?? [];
 	const folders = browse.data?.folders ?? [];
 	const typeFilters = preparedIndexTypeFilters(search.index);
-	const library = preparedIndexUsesLibraryFilters(search.index);
-	const onIndexChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
-		window.location.assign(preparedIndexHref(event.target.value));
-	}, []);
+	const folderFilters = preparedIndexUsesFolderFilters(search.index);
+	const showAuthority =
+		search.index === RECORD_DISCOVERY_COPY.allTechnicalDiagrams;
+	const go = useCallback(
+		(next: Record<string, unknown>) => {
+			navigate({
+				search: preparedIndexSearch(next),
+				to: "/indexes",
+			}).catch(() => undefined);
+		},
+		[navigate]
+	);
+	const onIndexChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			go({ index: event.target.value });
+		},
+		[go]
+	);
 	const onScopeChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
 			const scope = event.target.value;
-			window.location.assign(
-				preparedIndexHref(search.index, {
-					folder: search.folder,
-					includeArchived: search.includeArchived,
-					metadata: search.metadata,
-					recordType: search.recordType,
-					scope:
-						scope === copy.project || scope === copy.personalWiki
-							? scope
-							: undefined,
-				})
-			);
+			go({
+				folder: search.folder,
+				includeArchived: search.includeArchived,
+				index: search.index,
+				metadata: search.metadata,
+				recordType: search.recordType,
+				scope:
+					scope === copy.project || scope === copy.personalWiki
+						? scope
+						: undefined,
+			});
 		},
-		[copy.personalWiki, copy.project, search]
+		[copy.personalWiki, copy.project, go, search]
 	);
 	const onTypeChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
-			window.location.assign(
-				preparedIndexHref(search.index, {
-					folder: search.folder,
-					includeArchived: search.includeArchived,
-					metadata: search.metadata,
-					recordType: event.target.value || undefined,
-					scope: search.scope,
-				})
-			);
+			go({
+				folder: search.folder,
+				includeArchived: search.includeArchived,
+				index: search.index,
+				metadata: search.metadata,
+				recordType: event.target.value || undefined,
+				scope: search.scope,
+			});
 		},
-		[search]
+		[go, search]
 	);
 	const onFolderChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
-			window.location.assign(
-				preparedIndexHref(search.index, {
-					folder: event.target.value || undefined,
-					includeArchived: search.includeArchived,
-					metadata: search.metadata,
-					recordType: search.recordType,
-					scope: search.scope,
-				})
-			);
+			go({
+				folder: event.target.value || undefined,
+				includeArchived: search.includeArchived,
+				index: search.index,
+				metadata: search.metadata,
+				recordType: search.recordType,
+				scope: search.scope,
+			});
 		},
-		[search]
+		[go, search]
 	);
 	const onMetadataChange = useCallback(
 		(event: ChangeEvent<HTMLInputElement>) => {
-			window.location.assign(
-				preparedIndexHref(search.index, {
-					folder: search.folder,
-					includeArchived: search.includeArchived,
-					metadata: event.target.value || undefined,
-					recordType: search.recordType,
-					scope: search.scope,
-				})
-			);
+			go({
+				folder: search.folder,
+				includeArchived: search.includeArchived,
+				index: search.index,
+				metadata: event.target.value || undefined,
+				recordType: search.recordType,
+				scope: search.scope,
+			});
 		},
-		[search]
+		[go, search]
 	);
 	const onArchiveChange = useCallback(
 		(next: boolean | "indeterminate") => {
-			window.location.assign(
-				preparedIndexHref(search.index, {
-					folder: search.folder,
-					includeArchived: next === true ? true : undefined,
-					metadata: search.metadata,
-					recordType: search.recordType,
-					scope: search.scope,
-				})
-			);
+			go({
+				folder: search.folder,
+				includeArchived: next === true ? true : undefined,
+				index: search.index,
+				metadata: search.metadata,
+				recordType: search.recordType,
+				scope: search.scope,
+			});
 		},
-		[search]
+		[go, search]
 	);
 
 	return (
@@ -201,7 +212,7 @@ export default function PreparedIndexArea({
 							</NativeSelect>
 						</Field>
 					) : null}
-					{library ? (
+					{folderFilters ? (
 						<Field>
 							<FieldLabel htmlFor="prepared-index-folder">
 								{copy.folder}
@@ -222,7 +233,7 @@ export default function PreparedIndexArea({
 							</NativeSelect>
 						</Field>
 					) : null}
-					{library ? (
+					{folderFilters ? (
 						<Field>
 							<FieldLabel htmlFor="prepared-index-metadata">
 								{copy.metadata}
@@ -244,7 +255,12 @@ export default function PreparedIndexArea({
 					</Field>
 				</div>
 			</div>
-			<IndexTable browse={browse} copy={copy} rows={rows} />
+			<IndexTable
+				browse={browse}
+				copy={copy}
+				rows={rows}
+				showAuthority={showAuthority}
+			/>
 		</FounderPage>
 	);
 }
@@ -253,10 +269,12 @@ function IndexTable({
 	browse,
 	copy,
 	rows,
+	showAuthority,
 }: {
 	browse: { isError: boolean; isPending: boolean };
 	copy: IndexCopy;
 	rows: readonly IndexRow[];
+	showAuthority: boolean;
 }) {
 	if (browse.isError) {
 		return <p className="text-muted-foreground text-sm">{copy.unavailable}</p>;
@@ -271,7 +289,9 @@ function IndexTable({
 					<TableHead />
 					<TableHead>{copy.recordType}</TableHead>
 					<TableHead>{copy.scope}</TableHead>
-					<TableHead>{copy.diagramAuthorityMode}</TableHead>
+					{showAuthority ? (
+						<TableHead>{copy.diagramAuthorityMode}</TableHead>
+					) : null}
 					<TableHead>{copy.openSourceRecord}</TableHead>
 				</TableRow>
 			</TableHeader>
@@ -292,7 +312,9 @@ function IndexTable({
 						</TableCell>
 						<TableCell>{row.recordType}</TableCell>
 						<TableCell>{row.scope}</TableCell>
-						<TableCell>{row.diagramAuthorityMode ?? ""}</TableCell>
+						{showAuthority ? (
+							<TableCell>{row.diagramAuthorityMode ?? ""}</TableCell>
+						) : null}
 						<TableCell>
 							<a
 								className={buttonVariants({ variant: "outline" })}
