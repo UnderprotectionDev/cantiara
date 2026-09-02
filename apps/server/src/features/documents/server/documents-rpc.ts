@@ -7,12 +7,19 @@ import { z } from "zod";
 import { getProject } from "../../project-shell/server/project-shell";
 import {
 	compareDocumentVersions,
+	convertDocumentToTemplate,
 	createDocument,
+	createDocumentTemplate,
 	getDocument,
+	getDocumentTemplate,
+	instantiateDocumentFromTemplate,
 	listDocuments,
+	listDocumentTemplates,
 	listDocumentVersions,
+	previewConvertDocumentToTemplate,
 	restoreDocumentVersion,
 	updateDocument,
+	updateDocumentTemplate,
 } from "./documents";
 import {
 	convertList,
@@ -33,12 +40,16 @@ import {
 } from "./documents-convert";
 import { presentLiveDocumentBody } from "./documents-live";
 import {
+	convertDocumentToTemplatePayloadSchema,
 	createDocumentPayloadSchema,
+	createDocumentTemplatePayloadSchema,
 	documentScopeSchema,
 	documentsCatalog,
+	instantiateDocumentFromTemplatePayloadSchema,
 	presentDocumentBody,
 	restoreDocumentPayloadSchema,
 	updateDocumentPayloadSchema,
+	updateDocumentTemplatePayloadSchema,
 } from "./documents-model";
 
 const diagramStore = createMemoryTechnicalDiagramImport();
@@ -57,6 +68,15 @@ async function requireProject(workspaceId: string, projectId: string) {
 		throw new ORPCError("NOT_FOUND");
 	}
 	return project;
+}
+
+async function requireScope(
+	workspaceId: string,
+	scope: z.infer<typeof documentScopeSchema>
+) {
+	if (scope.kind === "project") {
+		await requireProject(workspaceId, scope.projectId);
+	}
 }
 
 export const documents = {
@@ -137,6 +157,32 @@ export const documents = {
 				workspaceId: access.workspaceId,
 			});
 		}),
+	convertToTemplate: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: convertDocumentToTemplatePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const document = await getDocument(
+				getPrismaClient(),
+				input.payload.documentId,
+				access.workspaceId
+			);
+			if (!document) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireScope(access.workspaceId, document.scope);
+			return await convertDocumentToTemplate(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
 	create: protectedWriteProcedure
 		.input(
 			z.object({
@@ -150,6 +196,24 @@ export const documents = {
 				await requireProject(access.workspaceId, input.payload.scope.projectId);
 			}
 			return await createDocument(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	createTemplate: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: createDocumentTemplatePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireScope(access.workspaceId, input.payload.scope);
+			return await createDocumentTemplate(getPrismaClient(), {
 				actorId: access.accountId,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
@@ -174,6 +238,37 @@ export const documents = {
 			}
 			return document;
 		}),
+	instantiateFromTemplate: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: instantiateDocumentFromTemplatePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			if (input.payload.scope) {
+				await requireScope(access.workspaceId, input.payload.scope);
+			}
+			if (input.payload.templateId) {
+				const template = await getDocumentTemplate(
+					getPrismaClient(),
+					input.payload.templateId,
+					access.workspaceId
+				);
+				if (!template) {
+					throw new ORPCError("NOT_FOUND");
+				}
+				await requireScope(access.workspaceId, template.scope);
+			}
+			return await instantiateDocumentFromTemplate(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
 	list: protectedProcedure
 		.input(z.object({ scope: documentScopeSchema }))
 		.handler(async ({ context, input }) => {
@@ -182,6 +277,18 @@ export const documents = {
 				await requireProject(access.workspaceId, input.scope.projectId);
 			}
 			return await listDocuments(getPrismaClient(), {
+				scope: input.scope,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	listTemplates: protectedProcedure
+		.input(z.object({ scope: documentScopeSchema }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			if (input.scope.kind === "project") {
+				await requireProject(access.workspaceId, input.scope.projectId);
+			}
+			return await listDocumentTemplates(getPrismaClient(), {
 				scope: input.scope,
 				workspaceId: access.workspaceId,
 			});
@@ -260,6 +367,16 @@ export const documents = {
 				workspaceId: access.workspaceId,
 			});
 		}),
+	previewConvertToTemplate: protectedProcedure
+		.input(z.object({ documentId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await previewConvertDocumentToTemplate(
+				getPrismaClient(),
+				input.documentId,
+				access.workspaceId
+			);
+		}),
 	restore: protectedWriteProcedure
 		.input(
 			z.object({
@@ -290,6 +407,34 @@ export const documents = {
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			return await updateDocument(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	updateTemplate: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: updateDocumentTemplatePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const template = await getDocumentTemplate(
+				getPrismaClient(),
+				input.payload.templateId,
+				access.workspaceId
+			);
+			if (!template) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireScope(access.workspaceId, template.scope);
+			return await updateDocumentTemplate(getPrismaClient(), {
 				actorId: access.accountId,
 				baseRevision: input.baseRevision,
 				idempotencyKey: input.idempotencyKey,

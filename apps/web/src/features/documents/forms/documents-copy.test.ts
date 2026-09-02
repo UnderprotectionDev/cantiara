@@ -9,6 +9,10 @@ import {
 test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.document).toBe("Document");
 	expect(DOCUMENTS_COPY.createDocument).toBe("Create Document");
+	expect(DOCUMENTS_COPY.documentTemplate).toBe("Document Template");
+	expect(DOCUMENTS_COPY.convertToTemplate).toBe("Convert to template");
+	expect(DOCUMENTS_COPY.createFromTemplate).toBe("Create from template");
+	expect(DOCUMENTS_COPY.personalReview).toBe("Personal Review");
 	expect(DOCUMENTS_COPY.compare).toBe("Compare");
 	expect(DOCUMENTS_COPY.restore).toBe("Restore");
 	expect(DOCUMENTS_COPY.version).toBe("Version");

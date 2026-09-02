@@ -18,7 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
-
+import ConvertToTemplateForm from "../forms/convert-to-template-form";
 import DocumentEditor from "../forms/document-editor";
 import {
 	DOCUMENT_TYPES,
@@ -287,6 +287,12 @@ export default function DocumentDetail({
 					{error ? <p role="alert">{error}</p> : null}
 					<Button type="submit">{DOCUMENTS_COPY.save}</Button>
 				</form>
+				<div className="mt-4">
+					<ConvertToTemplateForm
+						documentId={documentId}
+						projectId={projectId}
+					/>
+				</div>
 				<div className="mt-6">
 					<DocumentConvertPanel
 						body={body}

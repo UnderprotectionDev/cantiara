@@ -139,6 +139,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |
 | İş şablonu | `Work Template` | Proje kapsamlı tekrar kullanılan İş başlangıç bağlamı; Belge şablonu, Başlangıç yapılandırması veya yakalama mini şablonu değildir |
+| Belge şablonu | `Document Template` | Proje veya Kişisel Wiki kapsamında tekrar kullanılan Belge başlangıç iskeleti; İş şablonu veya şablon pazarı değildir |
+| Şablona dönüştür | `Convert to template` | Mevcut Belgeden iskelet çıkarma; kaynak Belgeyi taşımaz, arşivlemez veya değiştirmez |
+| Şablondan oluştur | `Create from template` | Şablondan bağımsız kimlikli Belge açma; sonraki şablon düzeni eski örnekleri güncellemez |
+| Belge şablonu ekle | `Add Document Template` | Proje veya Kişisel Wiki kapsamında yeni Belge şablonu oluşturma |
+| İskelet | `Skeleton` | Belge şablonunun başlangıç gövdesi; canlı bağ veya örnek kayıt değildir |
+| Yer tutucular | `Placeholders` | Şablon iskeletindeki `{{field_name}}` alanları |
+| Personal Review | `Personal Review` | İsteğe bağlı hazır Belge şablonu; toplantı türü veya zorunlu kullanım sıklığı değildir |
 | Kayıt Eylemi | `Record Action` | Kapalı alan ve üyelik adımlarından adlandırılan, tek hedef kayıt üzerinde çalışan birleşik yazma; otomasyon kuralı, Toplu Düzenleme veya betik değildir |
 | Start Work | `Start Work` | Durumu `In Progress` yapan ve İşi Günlük Odak’a ekleyen ilk Kayıt Eylemi örneği |
 | Günlük Odak | `Daily Focus` | Farklı Projelerden seçili profil gününde ele alınacak İşleri toplayan kişisel görünüm; Odak Dönemi, sprint, Aktif Çalışma Seti veya Takvim olayı değildir |

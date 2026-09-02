@@ -2,6 +2,7 @@ import { diffLines } from "diff";
 import { z } from "zod";
 
 export const DOCUMENTS_COPY = {
+	addDocumentTemplate: "Add Document Template",
 	body: "Body",
 	changeStatus: "Change status",
 	close: "Close",
@@ -9,16 +10,24 @@ export const DOCUMENTS_COPY = {
 	convertInBulk: "Convert in bulk",
 	convertToRecord: "Convert to record",
 	convertToTechnicalDiagram: "Convert to Technical Diagram",
+	convertToTemplate: "Convert to template",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
+	createFromTemplate: "Create from template",
 	document: "Document",
+	documentTemplate: "Document Template",
 	editableSource: "Editable source",
+	forbiddenTemplatePayload:
+		"A Document Template cannot carry history, relations, publish, archive, or Work Template fields.",
 	general: "General",
 	importedIndependentCopy: "Imported Independent Copy",
 	liveWorkBlock: "Live Work block",
+	name: "Name",
 	noDocuments: "No Documents yet.",
 	openSourceRecord: "Open source record",
 	persona: "Persona",
+	personalReview: "Personal Review",
+	placeholders: "Placeholders",
 	plan: "Plan",
 	prd: "PRD",
 	preview: "Preview",
@@ -27,6 +36,7 @@ export const DOCUMENTS_COPY = {
 	restore: "Restore",
 	save: "Save",
 	selectDocument: "Select a Document",
+	skeleton: "Skeleton",
 	spec: "Spec",
 	title: "Title",
 	type: "Type",
@@ -34,6 +44,63 @@ export const DOCUMENTS_COPY = {
 	versionPinnedEvidence: "Version-pinned evidence",
 	versions: "Versions",
 } as const;
+
+export const PERSONAL_REVIEW_HEADINGS = [
+	"Period",
+	"What changed?",
+	"What worked?",
+	"What was difficult?",
+	"Decisions and learnings",
+	"What will I change next?",
+	"Related records",
+] as const;
+
+export const PERSONAL_REVIEW_KIND = "personal-review" as const;
+
+export function personalReviewSkeleton(): string {
+	return PERSONAL_REVIEW_HEADINGS.map((heading) => `## ${heading}\n`).join(
+		"\n"
+	);
+}
+
+export const DOCUMENT_PLACEHOLDER_PATTERN = /\{\{([a-z][a-z0-9_]*)\}\}/g;
+
+export function documentTemplatePlaceholders(
+	skeleton: string
+): readonly string[] {
+	const names: string[] = [];
+	const seen = new Set<string>();
+	const pattern = new RegExp(DOCUMENT_PLACEHOLDER_PATTERN.source, "g");
+	for (const match of skeleton.matchAll(pattern)) {
+		const [, name] = match;
+		if (!name || seen.has(name)) {
+			continue;
+		}
+		seen.add(name);
+		names.push(name);
+	}
+	return names;
+}
+
+export function applyDocumentTemplatePlaceholders(
+	skeleton: string,
+	values: Record<string, string>
+): string {
+	return skeleton.replace(
+		DOCUMENT_PLACEHOLDER_PATTERN,
+		(token, name: string) => values[name] ?? token
+	);
+}
+
+export const FORBIDDEN_DOCUMENT_TEMPLATE_PAYLOAD_KEYS = [
+	"archive",
+	"history",
+	"marketplace",
+	"publish",
+	"relations",
+	"share",
+	"workType",
+] as const;
 
 export const CONVERT_RECORD_KINDS = [
 	"Work",
@@ -182,6 +249,9 @@ export type DocumentRejectionReason =
 	| "title-required"
 	| "unknown-document-type"
 	| "document-not-found"
+	| "template-not-found"
+	| "name-required"
+	| "forbidden-payload"
 	| "version-not-found"
 	| "live-section-cycle"
 	| "preview-required"
@@ -195,6 +265,119 @@ export type DocumentRejectionReason =
 export type DocumentWriteOutcome =
 	| { document: DocumentView; status: "committed" }
 	| { document: DocumentView; status: "replayed" }
+	| { reason: DocumentRejectionReason; status: "rejected" }
+	| { conflict: "Conflict"; status: "conflict" };
+
+export const createDocumentTemplatePayloadSchema = z
+	.object({
+		documentType: z.string().optional(),
+		name: z.string().optional(),
+		scope: documentScopeSchema,
+		skeleton: z.string().optional(),
+	})
+	.passthrough();
+
+export const createDocumentTemplateCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: createDocumentTemplatePayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type CreateDocumentTemplateCommand = z.infer<
+	typeof createDocumentTemplateCommandSchema
+>;
+
+export const updateDocumentTemplatePayloadSchema = z
+	.object({
+		documentType: z.string().optional(),
+		name: z.string().optional(),
+		skeleton: z.string().optional(),
+		templateId: z.string().min(1),
+	})
+	.passthrough();
+
+export const updateDocumentTemplateCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: updateDocumentTemplatePayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type UpdateDocumentTemplateCommand = z.infer<
+	typeof updateDocumentTemplateCommandSchema
+>;
+
+export const convertDocumentToTemplatePayloadSchema = z
+	.object({
+		documentId: z.string().min(1),
+		name: z.string().optional(),
+	})
+	.passthrough();
+
+export const convertDocumentToTemplateCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: convertDocumentToTemplatePayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type ConvertDocumentToTemplateCommand = z.infer<
+	typeof convertDocumentToTemplateCommandSchema
+>;
+
+export const instantiateDocumentFromTemplatePayloadSchema = z
+	.object({
+		placeholderValues: z.record(z.string(), z.string()).optional(),
+		preparedKind: z.literal(PERSONAL_REVIEW_KIND).optional(),
+		scope: documentScopeSchema.optional(),
+		templateId: z.string().optional(),
+		title: z.string().optional(),
+	})
+	.passthrough();
+
+export const instantiateDocumentFromTemplateCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: instantiateDocumentFromTemplatePayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type InstantiateDocumentFromTemplateCommand = z.infer<
+	typeof instantiateDocumentFromTemplateCommandSchema
+>;
+
+export interface DocumentTemplateView {
+	documentType: DocumentType;
+	id: string;
+	name: string;
+	placeholders: readonly string[];
+	revision: number;
+	scope: DocumentScope;
+	skeleton: string;
+}
+
+export interface ConvertDocumentToTemplatePreview {
+	name: string;
+	placeholders: readonly string[];
+	skeleton: string;
+	sourceDocumentId: string;
+	sourceRevision: number;
+	sourceTitle: string;
+}
+
+export type ConvertDocumentToTemplatePreviewOutcome =
+	| { preview: ConvertDocumentToTemplatePreview; status: "ok" }
+	| { reason: DocumentRejectionReason; status: "rejected" };
+
+export type DocumentTemplateWriteOutcome =
+	| { status: "committed"; template: DocumentTemplateView }
+	| { status: "replayed"; template: DocumentTemplateView }
 	| { reason: DocumentRejectionReason; status: "rejected" }
 	| { conflict: "Conflict"; status: "conflict" };
 
@@ -243,10 +426,22 @@ function hunkKind(part: {
 
 export function documentsCatalog(): {
 	copy: typeof DOCUMENTS_COPY;
+	personalReview: {
+		headings: typeof PERSONAL_REVIEW_HEADINGS;
+		kind: typeof PERSONAL_REVIEW_KIND;
+		name: typeof DOCUMENTS_COPY.personalReview;
+		skeleton: string;
+	};
 	types: readonly DocumentType[];
 } {
 	return {
 		copy: DOCUMENTS_COPY,
+		personalReview: {
+			headings: PERSONAL_REVIEW_HEADINGS,
+			kind: PERSONAL_REVIEW_KIND,
+			name: DOCUMENTS_COPY.personalReview,
+			skeleton: personalReviewSkeleton(),
+		},
 		types: DOCUMENT_TYPES,
 	};
 }

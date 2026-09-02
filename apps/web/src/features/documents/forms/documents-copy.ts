@@ -27,6 +27,7 @@ export const ORIGINAL_MERMAID_OUTCOMES = [
 export type OriginalMermaidOutcome = (typeof ORIGINAL_MERMAID_OUTCOMES)[number];
 
 export const DOCUMENTS_COPY = {
+	addDocumentTemplate: "Add Document Template",
 	body: "Body",
 	changeStatus: "Change status",
 	close: "Close",
@@ -34,17 +35,23 @@ export const DOCUMENTS_COPY = {
 	convertInBulk: "Convert in bulk",
 	convertToRecord: "Convert to record",
 	convertToTechnicalDiagram: "Convert to Technical Diagram",
+	convertToTemplate: "Convert to template",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
+	createFromTemplate: "Create from template",
 	document: "Document",
+	documentTemplate: "Document Template",
 	editableSource: "Editable source",
 	general: "General",
 	importedIndependentCopy: "Imported Independent Copy",
 	liveWorkBlock: "Live Work block",
+	name: "Name",
 	noDocuments: "No Documents yet.",
 	openSourceRecord: "Open source record",
 	persona: "Persona",
+	personalReview: "Personal Review",
 	pinEvidence: "Version-pinned evidence",
+	placeholders: "Placeholders",
 	plan: "Plan",
 	prd: "PRD",
 	preview: "Preview",
@@ -53,6 +60,7 @@ export const DOCUMENTS_COPY = {
 	restore: "Restore",
 	save: "Save",
 	selectDocument: "Select a Document",
+	skeleton: "Skeleton",
 	spec: "Spec",
 	title: "Title",
 	toolbar: {
@@ -98,3 +106,5 @@ export function documentScopeFor(
 	}
 	return { kind: "personal-wiki" };
 }
+
+export const PERSONAL_REVIEW_KIND = "personal-review" as const;

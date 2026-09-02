@@ -1,11 +1,13 @@
 /**
  * Documents seam — Markdown Belge in the database, selectable
- * types, tables/fenced code/Mermaid/LaTeX in one body, version
+ * types, tables/fenced code/Mermaid/LaTeX in one body, Document
+ * Template independence, Personal Review headings, version
  * compare/restore as product versions (not Git), and the
  * file-truth counterpart (no live `.md` file). Synthetic fixture
  * for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Belge bütünlüğü: create/edit, type as classification, render
- * error keeps source, version compare and restore).
+ * (Belge bütünlüğü and Belge şablonları: create/edit, type as
+ * classification, render error keeps source, version compare
+ * and restore).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -21,12 +23,19 @@ import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import { createWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	compareDocumentVersions,
+	convertDocumentToTemplate,
 	createDocument,
+	createDocumentTemplate,
 	getDocument,
+	getDocumentTemplate,
+	instantiateDocumentFromTemplate,
 	listDocuments,
+	listDocumentTemplates,
 	listDocumentVersions,
+	previewConvertDocumentToTemplate,
 	restoreDocumentVersion,
 	updateDocument,
+	updateDocumentTemplate,
 } from "./documents";
 import {
 	createMemoryLiveFiles,
@@ -41,7 +50,29 @@ const DATABASE_URL =
 	process.env.DATABASE_URL ??
 	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
 
-const SPEC_HEADING_BODY = /^# Spec \{#sec-[^}]+\}\n\nHello$/;
+const MARKETPLACE_COPY = /marketplace|licensed pack|meeting type/i;
+const SECTION_ID = "\\{#sec-[^}]+\\}";
+const SPEC_HEADING_BODY = new RegExp(`^# Spec ${SECTION_ID}\\n\\nHello$`);
+const PERIOD_FILLED_BODY = new RegExp(
+	`^## Period ${SECTION_ID}\\n\\n2026-W36\\n$`
+);
+const NOTE_HEADING_BODY = new RegExp(`^## Note ${SECTION_ID}\\n$`);
+const PERIOD_TRIMMED_BODY = new RegExp(
+	`^## Period ${SECTION_ID}\\n\\nOnly this heading remains\\.\\n$`
+);
+const PERSONAL_REVIEW_BODY = new RegExp(
+	`^${[
+		"Period",
+		"What changed\\?",
+		"What worked\\?",
+		"What was difficult\\?",
+		"Decisions and learnings",
+		"What will I change next\\?",
+		"Related records",
+	]
+		.map((heading) => `## ${heading} ${SECTION_ID}`)
+		.join("\\n\\n")}\\n$`
+);
 
 const FULL_BODY = [
 	"| Col | Value |",
@@ -106,9 +137,42 @@ describe("Documents catalog", () => {
 	it("exposes English Document and the six first-product types", () => {
 		expect(documentsCatalog()).toEqual({
 			copy: DOCUMENTS_COPY,
+			personalReview: {
+				headings: [
+					"Period",
+					"What changed?",
+					"What worked?",
+					"What was difficult?",
+					"Decisions and learnings",
+					"What will I change next?",
+					"Related records",
+				],
+				kind: "personal-review",
+				name: "Personal Review",
+				skeleton: [
+					"## Period",
+					"",
+					"## What changed?",
+					"",
+					"## What worked?",
+					"",
+					"## What was difficult?",
+					"",
+					"## Decisions and learnings",
+					"",
+					"## What will I change next?",
+					"",
+					"## Related records",
+					"",
+				].join("\n"),
+			},
 			types: DOCUMENT_TYPES,
 		});
 		expect(DOCUMENTS_COPY.document).toBe("Document");
+		expect(DOCUMENTS_COPY.documentTemplate).toBe("Document Template");
+		expect(DOCUMENTS_COPY.convertToTemplate).toBe("Convert to template");
+		expect(DOCUMENTS_COPY.createFromTemplate).toBe("Create from template");
+		expect(DOCUMENTS_COPY.personalReview).toBe("Personal Review");
 		expect(DOCUMENTS_COPY.versions).toBe("Versions");
 		expect(DOCUMENTS_COPY.compare).toBe("Compare");
 		expect(DOCUMENTS_COPY.restore).toBe("Restore");
@@ -622,5 +686,325 @@ describe("Documents", () => {
 				title: "Payments spec",
 			}),
 		]);
+	});
+});
+
+describe("Document templates", () => {
+	let prisma: PrismaClient;
+	let pool: Pool;
+
+	beforeAll(() => {
+		process.env.NODE_ENV = "test";
+	});
+
+	beforeEach(() => {
+		pool = new Pool({ connectionString: DATABASE_URL });
+		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+	});
+
+	afterEach(async () => {
+		await prisma.mutationReceipt.deleteMany();
+		await prisma.workspace.deleteMany();
+		await prisma.user.deleteMany();
+		await prisma.$disconnect();
+		await pool.end();
+	});
+
+	it("stores a Project-scoped Document Template without a Work Template or marketplace", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const created = await createDocumentTemplate(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				documentType: "Spec",
+				name: "Spec start",
+				scope: { kind: "project", projectId: project.id },
+				skeleton: "## Context\n\n{{audience}}\n",
+			},
+			workspaceId,
+		});
+		expect(created).toMatchObject({
+			status: "committed",
+			template: {
+				documentType: "Spec",
+				name: "Spec start",
+				placeholders: ["audience"],
+				skeleton: "## Context\n\n{{audience}}\n",
+			},
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Document Template");
+		}
+		expect(await prisma.workTemplate.count()).toBe(0);
+		expect(
+			await listDocumentTemplates(prisma, {
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual([created.template]);
+	});
+
+	it("refuses Work Template fields and does not open a template marketplace", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const created = await createDocumentTemplate(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				name: "Bad",
+				scope: { kind: "project", projectId: project.id },
+				workType: "Feature",
+			},
+			workspaceId,
+		});
+		expect(created).toEqual({
+			reason: "forbidden-payload",
+			status: "rejected",
+		});
+		expect(JSON.stringify(documentsCatalog())).not.toMatch(MARKETPLACE_COPY);
+	});
+
+	it("Convert to template copies the skeleton and leaves the source Document unchanged", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const source = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: "## Notes\n\nHello {{period}}\n",
+				scope: { kind: "project", projectId: project.id },
+				title: "Weekly notes",
+				type: "General",
+			},
+			workspaceId,
+		});
+		if (source.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { projectId: project.id, title: "Linked work" },
+		});
+		if (work.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const related = await createRelation(prisma, {
+			actorId,
+			from: { id: work.work.id, kind: "Work" },
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			previewAcknowledged: true,
+			to: { id: source.document.id, kind: "Document" },
+			type: RELATIONS_COPY.related,
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(related.status).toBe("committed");
+		const preview = await previewConvertDocumentToTemplate(
+			prisma,
+			source.document.id,
+			workspaceId
+		);
+		expect(preview).toEqual({
+			preview: {
+				name: "Weekly notes",
+				placeholders: ["period"],
+				skeleton: "## Notes\n\nHello {{period}}\n",
+				sourceDocumentId: source.document.id,
+				sourceRevision: source.document.revision,
+				sourceTitle: "Weekly notes",
+			},
+			status: "ok",
+		});
+		const converted = await convertDocumentToTemplate(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { documentId: source.document.id },
+			workspaceId,
+		});
+		expect(converted).toMatchObject({
+			status: "committed",
+			template: {
+				name: "Weekly notes",
+				placeholders: ["period"],
+				skeleton: "## Notes\n\nHello {{period}}\n",
+			},
+		});
+		expect(await getDocument(prisma, source.document.id)).toEqual(
+			source.document
+		);
+		expect(
+			await listRelations(prisma, {
+				record: { id: source.document.id, kind: "Document" },
+				viewerWorkspaceId: workspaceId,
+			})
+		).toHaveLength(1);
+	});
+
+	it("Create from template opens an independent Document that later template edits do not update", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const template = await createDocumentTemplate(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				name: "Review start",
+				scope: { kind: "project", projectId: project.id },
+				skeleton: "## Period\n\n{{period}}\n",
+			},
+			workspaceId,
+		});
+		if (template.status !== "committed") {
+			throw new Error("expected committed Document Template");
+		}
+		const created = await instantiateDocumentFromTemplate(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				placeholderValues: { period: "2026-W36" },
+				templateId: template.template.id,
+				title: "Week 36 review",
+			},
+			workspaceId,
+		});
+		expect(created).toMatchObject({
+			document: {
+				liveFilePath: null,
+				title: "Week 36 review",
+				type: "General",
+			},
+			status: "committed",
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		expect(created.document.body).toMatch(PERIOD_FILLED_BODY);
+		expect(created.document.id).not.toBe(template.template.id);
+		const edited = await updateDocumentTemplate(prisma, {
+			actorId,
+			baseRevision: template.template.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				skeleton: "## Period\n\nCHANGED\n",
+				templateId: template.template.id,
+			},
+			workspaceId,
+		});
+		expect(edited.status).toBe("committed");
+		expect(await getDocument(prisma, created.document.id)).toMatchObject({
+			id: created.document.id,
+		});
+		expect((await getDocument(prisma, created.document.id))?.body).toMatch(
+			PERIOD_FILLED_BODY
+		);
+		expect(
+			await getDocumentTemplate(prisma, template.template.id)
+		).toMatchObject({
+			skeleton: "## Period\n\nCHANGED\n",
+		});
+	});
+
+	it("Personal Review lays down the golden headings and can be ignored or edited on the Document", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const created = await instantiateDocumentFromTemplate(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				preparedKind: "personal-review",
+				scope: { kind: "project", projectId: project.id },
+				title: "September review",
+			},
+			workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		expect(created.document.type).toBe("General");
+		expect(created.document.body).toMatch(PERSONAL_REVIEW_BODY);
+		expect(created.document).not.toHaveProperty("meetingType");
+		expect(created.document).not.toHaveProperty("cadence");
+		const withoutTemplate = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: "Free note",
+				scope: { kind: "project", projectId: project.id },
+				title: "Ignored review",
+				type: "General",
+			},
+			workspaceId,
+		});
+		expect(withoutTemplate).toMatchObject({
+			document: { body: "Free note", title: "Ignored review" },
+			status: "committed",
+		});
+		const trimmed = await updateDocument(prisma, {
+			actorId,
+			baseRevision: created.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: "## Period\n\nOnly this heading remains.\n",
+				documentId: created.document.id,
+			},
+			workspaceId,
+		});
+		expect(trimmed).toMatchObject({
+			document: {
+				id: created.document.id,
+			},
+			status: "committed",
+		});
+		if (trimmed.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		expect(trimmed.document.body).toMatch(PERIOD_TRIMMED_BODY);
+	});
+
+	it("creates a Personal Wiki Document Template and instantiates in that scope", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const template = await createDocumentTemplate(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				name: "Wiki start",
+				scope: { kind: "personal-wiki" },
+				skeleton: "## Note\n",
+			},
+			workspaceId,
+		});
+		if (template.status !== "committed") {
+			throw new Error("expected committed Document Template");
+		}
+		const created = await instantiateDocumentFromTemplate(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				templateId: template.template.id,
+				title: "Wiki instance",
+			},
+			workspaceId,
+		});
+		expect(created).toMatchObject({
+			document: {
+				scope: { kind: "personal-wiki" },
+				title: "Wiki instance",
+			},
+			status: "committed",
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		expect(created.document.body).toMatch(NOTE_HEADING_BODY);
 	});
 });
