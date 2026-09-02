@@ -2,10 +2,12 @@ export const ROADMAP_COPY = {
 	abandon: "Abandon",
 	abandoned: "Abandoned",
 	allWorkTypes: "All Work types",
+	confirm: "Confirm",
 	contributesToMilestone: "Contributes to Milestone",
 	createMilestone: "Create Milestone",
 	description: "Description",
 	emptyMilestone: "No Milestone yet.",
+	exitPresentationMode: "Exit Presentation Mode",
 	group: "Group",
 	horizon: "Horizon",
 	later: "Later",
@@ -15,7 +17,11 @@ export const ROADMAP_COPY = {
 	now: "Now",
 	openSourceRecord: "Open source record",
 	place: "Place on horizon",
+	placeOnPlan: "Place on plan",
 	planned: "Planned",
+	plannedStart: "Planned start",
+	presentationMode: "Presentation Mode",
+	preview: "Preview",
 	primary: "Primary",
 	problemOpportunity: "Problem/Opportunity",
 	productDirection: "Product direction",
@@ -28,6 +34,7 @@ export const ROADMAP_COPY = {
 	title: "Title",
 	type: "Type",
 	unplaced: "No horizon",
+	unplannedCandidates: "Unplanned candidates",
 } as const;
 
 export const ROADMAP_HORIZONS = [

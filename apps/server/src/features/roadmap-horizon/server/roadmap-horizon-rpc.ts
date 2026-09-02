@@ -13,7 +13,9 @@ import {
 	getMilestone,
 	listMilestones,
 	listRoadmap,
+	placeCandidate,
 	placeHorizon,
+	previewPlaceCandidate,
 	saveRoadmapNamedView,
 	setMilestoneStatus,
 } from "./roadmap-horizon";
@@ -23,7 +25,9 @@ import {
 	getMilestoneQuerySchema,
 	listMilestonesQuerySchema,
 	listRoadmapQuerySchema,
+	placeCandidateCommandSchema,
 	placeHorizonCommandSchema,
+	previewPlaceCandidateCommandSchema,
 	roadmapCatalog,
 	saveRoadmapNamedViewCommandSchema,
 	setMilestoneStatusCommandSchema,
@@ -131,12 +135,29 @@ export const roadmapHorizon = {
 			await requireWork(access.workspaceId, input.workId);
 			return await placeHorizon(getPrismaClient(), input);
 		}),
+	placeCandidate: protectedWriteProcedure
+		.input(placeCandidateCommandSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await placeCandidate(getPrismaClient(), {
+				...input,
+				actorId: input.actorId ?? context.session.user.id,
+			});
+		}),
 	placement: protectedProcedure
 		.input(z.object({ workId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireWork(access.workspaceId, input.workId);
 			return await getHorizonPlacement(getPrismaClient(), input.workId);
+		}),
+	previewPlaceCandidate: protectedProcedure
+		.input(previewPlaceCandidateCommandSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await previewPlaceCandidate(getPrismaClient(), input);
 		}),
 	saveNamedView: protectedWriteProcedure
 		.input(saveRoadmapNamedViewCommandSchema)
