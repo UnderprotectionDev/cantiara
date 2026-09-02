@@ -1,33 +1,55 @@
 import { z } from "zod";
 
 export const FOCUS_PERIOD_COPY = {
+	abandon: "Abandon",
 	active: "Active",
 	add: "Add",
+	addedLater: "Added later",
 	alreadyInAnActivePeriod:
 		"Work is already in an active Focus Period. Use Move.",
+	anotherPeriod: "Another period",
+	backlog: "Backlog",
 	blockedBy: "Blocked by",
 	blocks: "Blocks",
 	cancel: "Cancel",
 	canceled: "Canceled",
+	change: "Change",
 	close: "Close",
 	closed: "Closed",
+	completed: "Completed",
+	completedAfter: "Completed after",
+	completedOnTarget: "Completed on target",
+	confirm: "Confirm",
 	create: "Create Focus Period",
 	cycle: "These records wait on each other.",
+	dateComparison: "Date comparison",
 	dependencies: "Dependencies",
 	empty: "No Focus Period yet.",
 	endDate: "End date",
 	focusPeriod: "Focus Period",
+	followUpWork: "Follow-up Work",
+	inStartSnapshot: "In start snapshot",
+	keep: "Keep",
 	loading: "Loading…",
 	members: "Work",
 	move: "Move",
+	movedEarlier: "Moved earlier",
+	movedLater: "Moved later",
+	nextPeriod: "Next period",
 	openSourceRecord: "Open source record",
+	periodEvaluation: "Period evaluation",
 	planned: "Planned",
+	preview: "Preview",
 	purpose: "Purpose",
 	purposeRequired: "Purpose is required.",
 	remove: "Remove",
+	removed: "Removed",
 	resolved: "Resolved",
+	send: "Send",
+	skip: "Skip",
 	startDate: "Start date",
 	stillOpenWork: "Still-open Work",
+	tryNext: "Try next",
 	windowMustBeOneToEightWeeks: "Focus Period must be 1–8 weeks.",
 	work: "Work",
 } as const;
@@ -68,6 +90,33 @@ export const FOCUS_PERIOD_COUNTERPARTS = {
 
 export const FOCUS_PERIOD_STILL_OPEN = {
 	autoRollover: false,
+	writesManualOrder: false,
+} as const;
+
+export const FOCUS_PERIOD_LEFTOVER_DESTINATION = {
+	abandon: "abandon",
+	anotherPeriod: "another-period",
+	backlog: "backlog",
+	nextPeriod: "next-period",
+} as const;
+
+export const FOCUS_PERIOD_LEFTOVER_DESTINATIONS = [
+	FOCUS_PERIOD_LEFTOVER_DESTINATION.nextPeriod,
+	FOCUS_PERIOD_LEFTOVER_DESTINATION.backlog,
+	FOCUS_PERIOD_LEFTOVER_DESTINATION.anotherPeriod,
+	FOCUS_PERIOD_LEFTOVER_DESTINATION.abandon,
+] as const;
+
+export type FocusPeriodLeftoverDestination =
+	(typeof FOCUS_PERIOD_LEFTOVER_DESTINATIONS)[number];
+
+export const FOCUS_PERIOD_CLOSE_JUDGEMENT = {
+	actualDateField: false,
+	generatedActionItems: false,
+	health: false,
+	performanceNote: false,
+	score: false,
+	velocity: false,
 } as const;
 
 export const FOCUS_PERIOD_DEPENDENCY_ACTIONS = {
@@ -228,56 +277,144 @@ export const focusPeriodScopeSchema = z.object({
 
 export type FocusPeriodScope = z.infer<typeof focusPeriodScopeSchema>;
 
+export const focusPeriodDestinationPeriodSchema = z.object({
+	endDate: calendarDaySchema,
+	id: z.string().min(1),
+	purpose: z.string().min(1),
+	startDate: calendarDaySchema,
+	status: z.enum(FOCUS_PERIOD_STATUSES),
+});
+
+export const leftoverDecisionSchema = z.object({
+	destination: z.enum(FOCUS_PERIOD_LEFTOVER_DESTINATIONS),
+	periodId: z.string().min(1).nullable(),
+	workId: z.string().min(1),
+});
+
 export const stillOpenWorkSchema = z.object({
 	autoRollover: z.literal(false),
+	decisions: z.array(leftoverDecisionSchema),
+	destinations: z.object({
+		abandon: z.literal(true),
+		anotherPeriod: z.array(focusPeriodDestinationPeriodSchema),
+		backlog: z.literal(true),
+		nextPeriod: focusPeriodDestinationPeriodSchema.nullable(),
+	}),
 	opened: z.boolean(),
 	stillOpen: z.array(focusPeriodWorkSchema),
+	writesManualOrder: z.literal(false),
+});
+
+export const closeComparisonSchema = z.object({
+	addedLater: z.array(focusPeriodWorkSchema),
+	completed: z.array(focusPeriodWorkSchema),
+	inStartSnapshot: z.array(focusPeriodWorkSchema),
+	performanceNote: z.literal(false),
+	removed: z.array(focusPeriodWorkSchema),
+	score: z.literal(false),
+	stillOpen: z.array(focusPeriodWorkSchema),
+	velocity: z.literal(false),
+});
+
+export const dateComparisonSchema = z.object({
+	actualDateField: z.literal(false),
+	completedAfter: z.array(focusPeriodWorkSchema),
+	completedOnTarget: z.array(focusPeriodWorkSchema),
+	health: z.literal(false),
+	movedEarlier: z.array(focusPeriodWorkSchema),
+	movedLater: z.array(focusPeriodWorkSchema),
+	optional: z.literal(true),
+	score: z.literal(false),
+	stillOpen: z.array(focusPeriodWorkSchema),
+});
+
+export const followUpWorkPreviewSchema = z.object({
+	generatedActionItems: z.literal(false),
+	projectId: z.string().min(1),
+	sourcePeriodId: z.string().min(1),
+	title: z.string().min(1),
+});
+
+export const periodEvaluationSchema = z.object({
+	change: z.string(),
+	followUpWork: z.array(focusPeriodWorkSchema),
+	generatedActionItems: z.literal(false),
+	keep: z.string(),
+	previewRequired: z.literal(true),
+	skippable: z.literal(true),
+	skipped: z.boolean(),
+	tryNext: z.string(),
+});
+
+const focusPeriodCopySchema = z.object({
+	abandon: z.literal(FOCUS_PERIOD_COPY.abandon),
+	active: z.literal(FOCUS_PERIOD_COPY.active),
+	add: z.literal(FOCUS_PERIOD_COPY.add),
+	addedLater: z.literal(FOCUS_PERIOD_COPY.addedLater),
+	alreadyInAnActivePeriod: z.literal(FOCUS_PERIOD_COPY.alreadyInAnActivePeriod),
+	anotherPeriod: z.literal(FOCUS_PERIOD_COPY.anotherPeriod),
+	backlog: z.literal(FOCUS_PERIOD_COPY.backlog),
+	blockedBy: z.literal(FOCUS_PERIOD_COPY.blockedBy),
+	blocks: z.literal(FOCUS_PERIOD_COPY.blocks),
+	cancel: z.literal(FOCUS_PERIOD_COPY.cancel),
+	canceled: z.literal(FOCUS_PERIOD_COPY.canceled),
+	change: z.literal(FOCUS_PERIOD_COPY.change),
+	close: z.literal(FOCUS_PERIOD_COPY.close),
+	closed: z.literal(FOCUS_PERIOD_COPY.closed),
+	completed: z.literal(FOCUS_PERIOD_COPY.completed),
+	completedAfter: z.literal(FOCUS_PERIOD_COPY.completedAfter),
+	completedOnTarget: z.literal(FOCUS_PERIOD_COPY.completedOnTarget),
+	confirm: z.literal(FOCUS_PERIOD_COPY.confirm),
+	create: z.literal(FOCUS_PERIOD_COPY.create),
+	cycle: z.literal(FOCUS_PERIOD_COPY.cycle),
+	dateComparison: z.literal(FOCUS_PERIOD_COPY.dateComparison),
+	dependencies: z.literal(FOCUS_PERIOD_COPY.dependencies),
+	empty: z.literal(FOCUS_PERIOD_COPY.empty),
+	endDate: z.literal(FOCUS_PERIOD_COPY.endDate),
+	focusPeriod: z.literal(FOCUS_PERIOD_COPY.focusPeriod),
+	followUpWork: z.literal(FOCUS_PERIOD_COPY.followUpWork),
+	inStartSnapshot: z.literal(FOCUS_PERIOD_COPY.inStartSnapshot),
+	keep: z.literal(FOCUS_PERIOD_COPY.keep),
+	loading: z.literal(FOCUS_PERIOD_COPY.loading),
+	members: z.literal(FOCUS_PERIOD_COPY.members),
+	move: z.literal(FOCUS_PERIOD_COPY.move),
+	movedEarlier: z.literal(FOCUS_PERIOD_COPY.movedEarlier),
+	movedLater: z.literal(FOCUS_PERIOD_COPY.movedLater),
+	nextPeriod: z.literal(FOCUS_PERIOD_COPY.nextPeriod),
+	openSourceRecord: z.literal(FOCUS_PERIOD_COPY.openSourceRecord),
+	periodEvaluation: z.literal(FOCUS_PERIOD_COPY.periodEvaluation),
+	planned: z.literal(FOCUS_PERIOD_COPY.planned),
+	preview: z.literal(FOCUS_PERIOD_COPY.preview),
+	purpose: z.literal(FOCUS_PERIOD_COPY.purpose),
+	purposeRequired: z.literal(FOCUS_PERIOD_COPY.purposeRequired),
+	remove: z.literal(FOCUS_PERIOD_COPY.remove),
+	removed: z.literal(FOCUS_PERIOD_COPY.removed),
+	resolved: z.literal(FOCUS_PERIOD_COPY.resolved),
+	send: z.literal(FOCUS_PERIOD_COPY.send),
+	skip: z.literal(FOCUS_PERIOD_COPY.skip),
+	startDate: z.literal(FOCUS_PERIOD_COPY.startDate),
+	stillOpenWork: z.literal(FOCUS_PERIOD_COPY.stillOpenWork),
+	tryNext: z.literal(FOCUS_PERIOD_COPY.tryNext),
+	windowMustBeOneToEightWeeks: z.literal(
+		FOCUS_PERIOD_COPY.windowMustBeOneToEightWeeks
+	),
+	work: z.literal(FOCUS_PERIOD_COPY.work),
 });
 
 export const focusPeriodViewSchema = z.object({
 	closeScope: focusPeriodScopeSchema.nullable(),
-	copy: z.object({
-		active: z.literal(FOCUS_PERIOD_COPY.active),
-		add: z.literal(FOCUS_PERIOD_COPY.add),
-		alreadyInAnActivePeriod: z.literal(
-			FOCUS_PERIOD_COPY.alreadyInAnActivePeriod
-		),
-		blockedBy: z.literal(FOCUS_PERIOD_COPY.blockedBy),
-		blocks: z.literal(FOCUS_PERIOD_COPY.blocks),
-		cancel: z.literal(FOCUS_PERIOD_COPY.cancel),
-		canceled: z.literal(FOCUS_PERIOD_COPY.canceled),
-		close: z.literal(FOCUS_PERIOD_COPY.close),
-		closed: z.literal(FOCUS_PERIOD_COPY.closed),
-		create: z.literal(FOCUS_PERIOD_COPY.create),
-		cycle: z.literal(FOCUS_PERIOD_COPY.cycle),
-		dependencies: z.literal(FOCUS_PERIOD_COPY.dependencies),
-		empty: z.literal(FOCUS_PERIOD_COPY.empty),
-		endDate: z.literal(FOCUS_PERIOD_COPY.endDate),
-		focusPeriod: z.literal(FOCUS_PERIOD_COPY.focusPeriod),
-		loading: z.literal(FOCUS_PERIOD_COPY.loading),
-		members: z.literal(FOCUS_PERIOD_COPY.members),
-		move: z.literal(FOCUS_PERIOD_COPY.move),
-		openSourceRecord: z.literal(FOCUS_PERIOD_COPY.openSourceRecord),
-		planned: z.literal(FOCUS_PERIOD_COPY.planned),
-		purpose: z.literal(FOCUS_PERIOD_COPY.purpose),
-		purposeRequired: z.literal(FOCUS_PERIOD_COPY.purposeRequired),
-		remove: z.literal(FOCUS_PERIOD_COPY.remove),
-		resolved: z.literal(FOCUS_PERIOD_COPY.resolved),
-		startDate: z.literal(FOCUS_PERIOD_COPY.startDate),
-		stillOpenWork: z.literal(FOCUS_PERIOD_COPY.stillOpenWork),
-		windowMustBeOneToEightWeeks: z.literal(
-			FOCUS_PERIOD_COPY.windowMustBeOneToEightWeeks
-		),
-		work: z.literal(FOCUS_PERIOD_COPY.work),
-	}),
+	comparison: closeComparisonSchema.nullable(),
+	copy: focusPeriodCopySchema,
 	counterparts: z.object({
 		dailyFocus: z.literal(false),
 		milestone: z.literal(false),
 		projectRelease: z.literal(false),
 	}),
+	dateComparison: dateComparisonSchema.nullable(),
 	dependencies: focusPeriodDependenciesSchema,
 	eligibleWork: z.array(eligibleWorkSchema),
 	endDate: calendarDaySchema,
+	evaluation: periodEvaluationSchema.nullable(),
 	id: z.string().min(1),
 	members: z.array(focusPeriodWorkSchema),
 	optional: z.literal(true),

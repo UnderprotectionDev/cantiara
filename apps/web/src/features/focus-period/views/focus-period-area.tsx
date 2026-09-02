@@ -25,6 +25,48 @@ interface FocusPeriodWork {
 	title: string;
 }
 
+interface DestinationPeriod {
+	endDate: string;
+	id: string;
+	purpose: string;
+	startDate: string;
+	status: string;
+}
+
+interface StillOpenWork {
+	autoRollover: boolean;
+	destinations: {
+		anotherPeriod: DestinationPeriod[];
+		nextPeriod: DestinationPeriod | null;
+	};
+	opened: boolean;
+	stillOpen: FocusPeriodWork[];
+}
+
+interface CloseComparison {
+	addedLater: FocusPeriodWork[];
+	completed: FocusPeriodWork[];
+	inStartSnapshot: FocusPeriodWork[];
+	removed: FocusPeriodWork[];
+	stillOpen: FocusPeriodWork[];
+}
+
+interface DateComparison {
+	completedAfter: FocusPeriodWork[];
+	completedOnTarget: FocusPeriodWork[];
+	movedEarlier: FocusPeriodWork[];
+	movedLater: FocusPeriodWork[];
+	stillOpen: FocusPeriodWork[];
+}
+
+interface PeriodEvaluation {
+	change: string;
+	followUpWork: FocusPeriodWork[];
+	keep: string;
+	skipped: boolean;
+	tryNext: string;
+}
+
 interface EligibleWork {
 	activePeriodId: string | null;
 	id: string;
@@ -325,18 +367,11 @@ export default function FocusPeriodArea() {
 						onCancel={onCancel}
 						onClose={onClose}
 					/>
-					{period.stillOpenWork.opened ? (
-						<section aria-labelledby="focus-period-still-open" className="mt-6">
-							<h3 id="focus-period-still-open">{copy.stillOpenWork}</h3>
-							<ul>
-								{period.stillOpenWork.stillOpen.map((work: FocusPeriodWork) => (
-									<li key={work.id}>
-										<a href={workHref(work)}>{`${work.key} ${work.title}`}</a>
-									</li>
-								))}
-							</ul>
-						</section>
-					) : null}
+					<CloseAccountPanels
+						copy={copy}
+						period={period}
+						periodId={period.id}
+					/>
 					{live ? (
 						<EligibleWork
 							copy={copy}
@@ -525,5 +560,428 @@ function MemberRow({
 				</Button>
 			) : null}
 		</li>
+	);
+}
+
+function CloseAccountPanels({
+	copy,
+	period,
+	periodId,
+}: {
+	copy: typeof FOCUS_PERIOD_COPY;
+	period: {
+		comparison: CloseComparison | null;
+		dateComparison: DateComparison | null;
+		evaluation: PeriodEvaluation | null;
+		members: FocusPeriodWork[];
+		stillOpenWork: StillOpenWork;
+	};
+	periodId: string;
+}) {
+	const { attemptOnlineWork, markUnsaved } = useClientShell();
+	const invalidate = useCallback(async () => {
+		await queryClient.invalidateQueries({
+			predicate: (query) =>
+				JSON.stringify(query.queryKey).includes("focusPeriod"),
+		});
+	}, []);
+	const decideStillOpen = useMutation(
+		orpc.focusPeriod.decideStillOpen.mutationOptions({
+			onSuccess: invalidate,
+		})
+	);
+	const evaluate = useMutation(
+		orpc.focusPeriod.evaluate.mutationOptions({
+			onSuccess: invalidate,
+		})
+	);
+	const previewFollowUp = useMutation(
+		orpc.focusPeriod.previewFollowUp.mutationOptions()
+	);
+	const confirmFollowUp = useMutation(
+		orpc.focusPeriod.confirmFollowUp.mutationOptions({
+			onSuccess: invalidate,
+		})
+	);
+	const onDecide = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			const data = new FormData(event.currentTarget);
+			const destination = String(data.get("destination") ?? "");
+			const targetPeriodId = String(data.get("targetPeriodId") ?? "");
+			const selected = data.getAll("workId").map((value) => String(value));
+			if (selected.length === 0) {
+				return;
+			}
+			markUnsaved();
+			const result = attemptOnlineWork("record-create", () =>
+				decideStillOpen.mutateAsync({
+					idempotencyKey: newIdempotencyKey(),
+					periodId,
+					selections: selected.map((workId) => ({
+						destination: destination as
+							| "abandon"
+							| "another-period"
+							| "backlog"
+							| "next-period",
+						periodId: targetPeriodId.length > 0 ? targetPeriodId : undefined,
+						workId,
+					})),
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[attemptOnlineWork, decideStillOpen, markUnsaved, periodId]
+	);
+	const onEvaluate = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			const data = new FormData(event.currentTarget);
+			markUnsaved();
+			const result = attemptOnlineWork("record-create", () =>
+				evaluate.mutateAsync({
+					change: String(data.get("change") ?? ""),
+					idempotencyKey: newIdempotencyKey(),
+					keep: String(data.get("keep") ?? ""),
+					periodId,
+					skipped: data.get("skip") === "on",
+					tryNext: String(data.get("tryNext") ?? ""),
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[attemptOnlineWork, evaluate, markUnsaved, periodId]
+	);
+	const onPreviewFollowUp = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			const data = new FormData(event.currentTarget);
+			const title = String(data.get("followUpTitle") ?? "").trim();
+			const projectId = String(data.get("followUpProjectId") ?? "");
+			if (!(title && projectId)) {
+				return;
+			}
+			const result = attemptOnlineWork("record-create", () =>
+				previewFollowUp.mutateAsync({
+					idempotencyKey: newIdempotencyKey(),
+					periodId,
+					projectId,
+					title,
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[attemptOnlineWork, periodId, previewFollowUp]
+	);
+	const onConfirmFollowUp = useCallback(() => {
+		const preview = previewFollowUp.data;
+		if (!(preview && preview.status === "committed")) {
+			return;
+		}
+		markUnsaved();
+		const result = attemptOnlineWork("record-create", () =>
+			confirmFollowUp.mutateAsync({
+				idempotencyKey: newIdempotencyKey(),
+				periodId,
+				previewAcknowledged: true,
+				projectId: preview.preview.projectId,
+				title: preview.preview.title,
+			})
+		);
+		if (result.status === "refused") {
+			return;
+		}
+		result.value.catch(() => undefined);
+	}, [
+		attemptOnlineWork,
+		confirmFollowUp,
+		markUnsaved,
+		periodId,
+		previewFollowUp.data,
+	]);
+	return (
+		<>
+			{period.stillOpenWork.opened ? (
+				<StillOpenDecision
+					copy={copy}
+					onDecide={onDecide}
+					stillOpenWork={period.stillOpenWork}
+				/>
+			) : null}
+			{period.comparison ? (
+				<ComparisonPanel comparison={period.comparison} copy={copy} />
+			) : null}
+			{period.dateComparison ? (
+				<DateComparisonPanel comparison={period.dateComparison} copy={copy} />
+			) : null}
+			{period.evaluation ? (
+				<EvaluationPanel
+					copy={copy}
+					evaluation={period.evaluation}
+					onConfirmFollowUp={onConfirmFollowUp}
+					onEvaluate={onEvaluate}
+					onPreviewFollowUp={onPreviewFollowUp}
+					preview={
+						previewFollowUp.data?.status === "committed"
+							? previewFollowUp.data.preview
+							: null
+					}
+					projects={[
+						...new Map(
+							period.members.map((work) => [
+								work.projectId,
+								{ id: work.projectId, name: work.projectName },
+							])
+						).values(),
+					]}
+				/>
+			) : null}
+		</>
+	);
+}
+
+function WorkList({ works }: { works: readonly FocusPeriodWork[] }) {
+	if (works.length === 0) {
+		return null;
+	}
+	return (
+		<ul>
+			{works.map((work) => (
+				<li key={work.id}>
+					<a href={workHref(work)}>{`${work.key} ${work.title}`}</a>
+				</li>
+			))}
+		</ul>
+	);
+}
+
+function ComparisonPanel({
+	comparison,
+	copy,
+}: {
+	comparison: CloseComparison;
+	copy: typeof FOCUS_PERIOD_COPY;
+}) {
+	return (
+		<section aria-labelledby="focus-period-comparison" className="mt-6">
+			<h3 id="focus-period-comparison">{copy.closed}</h3>
+			<h4>{copy.inStartSnapshot}</h4>
+			<WorkList works={comparison.inStartSnapshot} />
+			<h4>{copy.addedLater}</h4>
+			<WorkList works={comparison.addedLater} />
+			<h4>{copy.removed}</h4>
+			<WorkList works={comparison.removed} />
+			<h4>{copy.completed}</h4>
+			<WorkList works={comparison.completed} />
+			<h4>{copy.stillOpenWork}</h4>
+			<WorkList works={comparison.stillOpen} />
+		</section>
+	);
+}
+
+function DateComparisonPanel({
+	comparison,
+	copy,
+}: {
+	comparison: DateComparison;
+	copy: typeof FOCUS_PERIOD_COPY;
+}) {
+	return (
+		<section aria-labelledby="focus-period-dates" className="mt-6">
+			<h3 id="focus-period-dates">{copy.dateComparison}</h3>
+			<h4>{copy.movedEarlier}</h4>
+			<WorkList works={comparison.movedEarlier} />
+			<h4>{copy.movedLater}</h4>
+			<WorkList works={comparison.movedLater} />
+			<h4>{copy.completedOnTarget}</h4>
+			<WorkList works={comparison.completedOnTarget} />
+			<h4>{copy.completedAfter}</h4>
+			<WorkList works={comparison.completedAfter} />
+			<h4>{copy.stillOpenWork}</h4>
+			<WorkList works={comparison.stillOpen} />
+		</section>
+	);
+}
+
+function StillOpenDecision({
+	copy,
+	onDecide,
+	stillOpenWork,
+}: {
+	copy: typeof FOCUS_PERIOD_COPY;
+	onDecide: (event: FormEvent<HTMLFormElement>) => void;
+	stillOpenWork: StillOpenWork;
+}) {
+	const destinations = [
+		stillOpenWork.destinations.nextPeriod
+			? { id: stillOpenWork.destinations.nextPeriod.id, label: copy.nextPeriod }
+			: null,
+		...stillOpenWork.destinations.anotherPeriod.map((period) => ({
+			id: period.id,
+			label: `${copy.anotherPeriod}: ${period.purpose}`,
+		})),
+	].filter((row): row is { id: string; label: string } => row !== null);
+	return (
+		<section aria-labelledby="focus-period-still-open" className="mt-6">
+			<h3 id="focus-period-still-open">{copy.stillOpenWork}</h3>
+			<form className="grid gap-4" onSubmit={onDecide}>
+				<ul>
+					{stillOpenWork.stillOpen.map((work) => (
+						<li key={work.id}>
+							<label>
+								<input name="workId" type="checkbox" value={work.id} />{" "}
+								<a href={workHref(work)}>{`${work.key} ${work.title}`}</a>
+							</label>
+						</li>
+					))}
+				</ul>
+				<Field>
+					<FieldLabel htmlFor="focus-period-destination">
+						{copy.send}
+					</FieldLabel>
+					<NativeSelect
+						defaultValue="backlog"
+						id="focus-period-destination"
+						name="destination"
+					>
+						{stillOpenWork.destinations.nextPeriod ? (
+							<NativeSelectOption value="next-period">
+								{copy.nextPeriod}
+							</NativeSelectOption>
+						) : null}
+						<NativeSelectOption value="backlog">
+							{copy.backlog}
+						</NativeSelectOption>
+						{stillOpenWork.destinations.anotherPeriod.length > 0 ? (
+							<NativeSelectOption value="another-period">
+								{copy.anotherPeriod}
+							</NativeSelectOption>
+						) : null}
+						<NativeSelectOption value="abandon">
+							{copy.abandon}
+						</NativeSelectOption>
+					</NativeSelect>
+				</Field>
+				{destinations.length > 0 ? (
+					<Field>
+						<FieldLabel htmlFor="focus-period-target-period">
+							{copy.anotherPeriod}
+						</FieldLabel>
+						<NativeSelect id="focus-period-target-period" name="targetPeriodId">
+							<NativeSelectOption value="">
+								{copy.nextPeriod}
+							</NativeSelectOption>
+							{destinations.map((period) => (
+								<NativeSelectOption key={period.id} value={period.id}>
+									{period.label}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+					</Field>
+				) : null}
+				<Button type="submit">{copy.send}</Button>
+			</form>
+		</section>
+	);
+}
+
+function EvaluationPanel({
+	copy,
+	evaluation,
+	onConfirmFollowUp,
+	onEvaluate,
+	onPreviewFollowUp,
+	preview,
+	projects,
+}: {
+	copy: typeof FOCUS_PERIOD_COPY;
+	evaluation: PeriodEvaluation;
+	onConfirmFollowUp: () => void;
+	onEvaluate: (event: FormEvent<HTMLFormElement>) => void;
+	onPreviewFollowUp: (event: FormEvent<HTMLFormElement>) => void;
+	preview: { projectId: string; title: string } | null;
+	projects: Array<{ id: string; name: string }>;
+}) {
+	return (
+		<section aria-labelledby="focus-period-evaluation" className="mt-6">
+			<h3 id="focus-period-evaluation">{copy.periodEvaluation}</h3>
+			<form className="grid gap-4" onSubmit={onEvaluate}>
+				<label>
+					<input name="skip" type="checkbox" /> {copy.skip}
+				</label>
+				<Field>
+					<FieldLabel htmlFor="focus-period-keep">{copy.keep}</FieldLabel>
+					<Input
+						defaultValue={evaluation.keep}
+						id="focus-period-keep"
+						name="keep"
+					/>
+				</Field>
+				<Field>
+					<FieldLabel htmlFor="focus-period-change">{copy.change}</FieldLabel>
+					<Input
+						defaultValue={evaluation.change}
+						id="focus-period-change"
+						name="change"
+					/>
+				</Field>
+				<Field>
+					<FieldLabel htmlFor="focus-period-try-next">
+						{copy.tryNext}
+					</FieldLabel>
+					<Input
+						defaultValue={evaluation.tryNext}
+						id="focus-period-try-next"
+						name="tryNext"
+					/>
+				</Field>
+				<Button type="submit">{copy.periodEvaluation}</Button>
+			</form>
+			<form className="mt-6 grid gap-4" onSubmit={onPreviewFollowUp}>
+				<h4>{copy.followUpWork}</h4>
+				<WorkList works={evaluation.followUpWork} />
+				<Field>
+					<FieldLabel htmlFor="focus-period-follow-up-title">
+						{copy.followUpWork}
+					</FieldLabel>
+					<Input id="focus-period-follow-up-title" name="followUpTitle" />
+				</Field>
+				{projects.length > 0 ? (
+					<Field>
+						<FieldLabel htmlFor="focus-period-follow-up-project">
+							{copy.work}
+						</FieldLabel>
+						<NativeSelect
+							id="focus-period-follow-up-project"
+							name="followUpProjectId"
+						>
+							{projects.map((project) => (
+								<NativeSelectOption key={project.id} value={project.id}>
+									{project.name}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+					</Field>
+				) : null}
+				<Button type="submit">{copy.preview}</Button>
+			</form>
+			{preview ? (
+				<div className="mt-4">
+					<p>{`${copy.preview}: ${preview.title}`}</p>
+					<Button onClick={onConfirmFollowUp} type="button">
+						{copy.confirm}
+					</Button>
+				</div>
+			) : null}
+		</section>
 	);
 }

@@ -6,7 +6,12 @@
  * seam derive Active and Resolved blockers in period scope and do
  * not write a relation. Clock test double for start-instant
  * Planned → Active. Closed writes close-scope snapshot and opens the
- * still-open Work bulk decision; Canceled does not. One Work is in at
+ * still-open Work bulk decision; Canceled does not. Close comparison
+ * is a neutral account and does not write live Work fields or mint a
+ * score. Still-open Work moves only through bulk decision — no auto
+ * rollover. Optional date comparison uses existing history and close
+ * time with no actual-date field. Evaluation is skippable prose;
+ * follow-up Work needs preview and confirm. One Work is in at
  * most one active Focus Period; implicit add to a second active period
  * is rejected and Move keeps past memberships and snapshots. Synthetic
  * fixture for
@@ -21,20 +26,27 @@ import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
+	listPreparedBacklog,
+	reorderManualOrder,
+} from "../../backlog/server/backlog";
+import {
 	addActiveBlockingRelation,
 	listWorkBlockers,
 	markBlockerResolved,
 } from "../../blockers/server/blockers";
 import { createProject } from "../../project-shell/server/project-shell";
 import {
+	closeWork,
 	createWork,
 	getWork,
 	listWork,
+	updateWorkPlanningDates,
 } from "../../work-lifecycle/server/work-lifecycle";
 import { createFocusPeriod } from "./focus-period";
 import {
 	FOCUS_PERIOD_COPY,
 	FOCUS_PERIOD_COUNTERPARTS,
+	FOCUS_PERIOD_LEFTOVER_DESTINATION,
 	FOCUS_PERIOD_MAX_DAYS,
 	FOCUS_PERIOD_MIN_DAYS,
 	FOCUS_PERIOD_PLANNING_WRITES,
@@ -271,10 +283,21 @@ describe("Focus Period", () => {
 		expect(period.counterparts).toEqual(FOCUS_PERIOD_COUNTERPARTS);
 		expect(period.startScope).toBeNull();
 		expect(period.closeScope).toBeNull();
+		expect(period.comparison).toBeNull();
+		expect(period.dateComparison).toBeNull();
+		expect(period.evaluation).toBeNull();
 		expect(period.stillOpenWork).toEqual({
 			autoRollover: false,
+			decisions: [],
+			destinations: {
+				abandon: true,
+				anotherPeriod: [],
+				backlog: true,
+				nextPeriod: null,
+			},
 			opened: false,
 			stillOpen: [],
+			writesManualOrder: false,
 		});
 		expect(period.copy.focusPeriod).toBe("Focus Period");
 		const listed = await surface().list();
@@ -488,9 +511,41 @@ describe("Focus Period", () => {
 		expect(closed.period.closeScope).toEqual({ workIds: [intake.id] });
 		expect(closed.period.stillOpenWork.opened).toBe(true);
 		expect(closed.period.stillOpenWork.autoRollover).toBe(false);
+		expect(closed.period.stillOpenWork.writesManualOrder).toBe(false);
 		expect(closed.period.stillOpenWork.stillOpen.map((row) => row.id)).toEqual([
 			intake.id,
 		]);
+		expect(closed.period.comparison).toEqual({
+			addedLater: [],
+			completed: [],
+			inStartSnapshot: [
+				expect.objectContaining({ id: intake.id, title: "Intake checkout" }),
+			],
+			performanceNote: false,
+			removed: [],
+			score: false,
+			stillOpen: [
+				expect.objectContaining({ id: intake.id, title: "Intake checkout" }),
+			],
+			velocity: false,
+		});
+		expect(closed.period.dateComparison).toMatchObject({
+			actualDateField: false,
+			health: false,
+			optional: true,
+			score: false,
+		});
+		expect(closed.period.evaluation).toEqual({
+			change: "",
+			followUpWork: [],
+			generatedActionItems: false,
+			keep: "",
+			previewRequired: true,
+			skippable: true,
+			skipped: false,
+			tryNext: "",
+		});
+		expect(closed.period.comparison).not.toHaveProperty("successScore");
 		expect(await getWork(prisma, intake.id)).toMatchObject({
 			status: "Not Started",
 		});
@@ -518,10 +573,19 @@ describe("Focus Period", () => {
 		expect(canceled.period.status).toBe(FOCUS_PERIOD_STATUS.canceled);
 		expect(canceled.period.startScope).toBeNull();
 		expect(canceled.period.closeScope).toBeNull();
+		expect(canceled.period.comparison).toBeNull();
 		expect(canceled.period.stillOpenWork).toEqual({
 			autoRollover: false,
+			decisions: [],
+			destinations: {
+				abandon: true,
+				anotherPeriod: [],
+				backlog: true,
+				nextPeriod: null,
+			},
 			opened: false,
 			stillOpen: [],
+			writesManualOrder: false,
 		});
 		expect(canceled.period.members.map((row) => row.id)).toEqual([intake.id]);
 		expect(await getWork(prisma, intake.id)).toMatchObject({
@@ -555,6 +619,7 @@ describe("Focus Period", () => {
 		expect(canceled.period.startScope).toEqual({ workIds: [intake.id] });
 		expect(canceled.period.closeScope).toBeNull();
 		expect(canceled.period.stillOpenWork.opened).toBe(false);
+		expect(canceled.period.stillOpenWork.autoRollover).toBe(false);
 		expect(canceled.period.members.map((row) => row.id)).toEqual([intake.id]);
 		expect(await getWork(prisma, intake.id)).toMatchObject({
 			status: "Not Started",
@@ -860,5 +925,455 @@ describe("Focus Period", () => {
 		expect(JSON.stringify(viewed?.dependencies.cycles)).not.toMatch(
 			COLOR_ONLY_PATTERN
 		);
+	});
+
+	it("keeps start and close snapshots historical and compares membership without writing live Work", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const ranking = await openWork(payments.id, "Ranking query");
+		const extra = await openWork(payments.id, "Extra later");
+		const period = await openPeriod("Account window");
+		const planned = surface(BEFORE_START);
+		await planned.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: intake.id,
+		});
+		await planned.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: ranking.id,
+		});
+		const active = surface(START_INSTANT);
+		expect((await active.get(period.id))?.startScope).toEqual({
+			workIds: [intake.id, ranking.id],
+		});
+		await active.remove({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: ranking.id,
+		});
+		await active.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: extra.id,
+		});
+		const beforeIntake = await getWork(prisma, intake.id);
+		const closedWork = await closeWork(prisma, {
+			actorId,
+			baseRevision: extra.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			result: "Completed",
+			workId: extra.id,
+		});
+		expect(closedWork.status).toBe("committed");
+		const closed = await active.close({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+		});
+		expect(closed.status).toBe("committed");
+		if (closed.status !== "committed") {
+			throw new Error("expected committed close");
+		}
+		expect(closed.period.startScope).toEqual({
+			workIds: [intake.id, ranking.id],
+		});
+		expect(closed.period.closeScope).toEqual({
+			workIds: [intake.id, extra.id],
+		});
+		expect(
+			closed.period.comparison?.inStartSnapshot.map((row) => row.id)
+		).toEqual([intake.id, ranking.id]);
+		expect(closed.period.comparison?.addedLater.map((row) => row.id)).toEqual([
+			extra.id,
+		]);
+		expect(closed.period.comparison?.removed.map((row) => row.id)).toEqual([
+			ranking.id,
+		]);
+		expect(closed.period.comparison?.completed.map((row) => row.id)).toEqual([
+			extra.id,
+		]);
+		expect(closed.period.comparison?.stillOpen.map((row) => row.id)).toEqual([
+			intake.id,
+		]);
+		expect(closed.period.comparison?.score).toBe(false);
+		expect(closed.period.comparison?.velocity).toBe(false);
+		expect(closed.period.comparison?.performanceNote).toBe(false);
+		expect(await getWork(prisma, intake.id)).toMatchObject({
+			revision: beforeIntake?.revision,
+			status: "Not Started",
+			title: "Intake checkout",
+		});
+		expect(closed.period.stillOpenWork.autoRollover).toBe(false);
+	});
+
+	it("does not move still-open Work to the next period without a bulk decision", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const current = await openPeriod("Current window");
+		await surface(BEFORE_START).add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: current.id,
+			workId: intake.id,
+		});
+		const next = await openPeriod("Next window", "2026-09-22", "2026-10-05");
+		const active = surface(START_INSTANT);
+		const closed = await active.close({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: current.id,
+		});
+		expect(closed.status).toBe("committed");
+		if (closed.status !== "committed") {
+			throw new Error("expected committed close");
+		}
+		expect(closed.period.stillOpenWork.destinations.nextPeriod?.id).toBe(
+			next.id
+		);
+		expect((await active.get(next.id))?.members.map((row) => row.id)).toEqual(
+			[]
+		);
+		expect(await active.activePeriodIdForWork(intake.id)).toBeNull();
+	});
+
+	it("sends selected still-open Work to the next period, Backlog, another period, or Abandon", async () => {
+		const payments = await openProject("Payments");
+		const toNext = await openWork(payments.id, "Send next");
+		const toBacklog = await openWork(payments.id, "Send backlog");
+		const toOther = await openWork(payments.id, "Send other");
+		const toAbandon = await openWork(payments.id, "Send abandon");
+		const current = await openPeriod("Current window");
+		const planned = surface(BEFORE_START);
+		await planned.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: current.id,
+			workId: toNext.id,
+		});
+		await planned.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: current.id,
+			workId: toBacklog.id,
+		});
+		await planned.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: current.id,
+			workId: toOther.id,
+		});
+		await planned.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: current.id,
+			workId: toAbandon.id,
+		});
+		const next = await openPeriod("Next window", "2026-09-22", "2026-10-05");
+		const other = await openPeriod("Other window", "2026-10-06", "2026-10-19");
+		const active = surface(START_INSTANT);
+		await active.close({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: current.id,
+		});
+		const decided = await active.decideStillOpen({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: current.id,
+			selections: [
+				{
+					destination: FOCUS_PERIOD_LEFTOVER_DESTINATION.nextPeriod,
+					periodId: next.id,
+					workId: toNext.id,
+				},
+				{
+					destination: FOCUS_PERIOD_LEFTOVER_DESTINATION.backlog,
+					workId: toBacklog.id,
+				},
+				{
+					destination: FOCUS_PERIOD_LEFTOVER_DESTINATION.anotherPeriod,
+					periodId: other.id,
+					workId: toOther.id,
+				},
+				{
+					destination: FOCUS_PERIOD_LEFTOVER_DESTINATION.abandon,
+					workId: toAbandon.id,
+				},
+			],
+		});
+		expect(decided.status).toBe("committed");
+		if (decided.status !== "committed") {
+			throw new Error("expected committed leftover decision");
+		}
+		expect(decided.period.stillOpenWork.stillOpen).toEqual([]);
+		expect(decided.period.stillOpenWork.autoRollover).toBe(false);
+		expect((await active.get(next.id))?.members.map((row) => row.id)).toEqual([
+			toNext.id,
+		]);
+		expect((await active.get(other.id))?.members.map((row) => row.id)).toEqual([
+			toOther.id,
+		]);
+		expect(await getWork(prisma, toAbandon.id)).toMatchObject({
+			closureResult: "Abandoned",
+			status: "Closed",
+		});
+		expect(
+			(await active.get(current.id))?.members.map((row) => row.id).sort()
+		).toEqual([toNext.id, toBacklog.id, toOther.id, toAbandon.id].sort());
+		const leftover = await listPreparedBacklog(prisma, payments.id);
+		expect(leftover.items.map((item) => item.id)).toEqual(
+			expect.arrayContaining([toBacklog.id])
+		);
+	});
+
+	it("does not rewrite Backlog Manual order when sending leftover Work to Backlog", async () => {
+		const payments = await openProject("Payments");
+		const first = await openWork(payments.id, "Zulu intake");
+		const second = await openWork(payments.id, "Alpha payout");
+		const leftover = await openWork(payments.id, "Leftover checkout");
+		await reorderManualOrder(prisma, {
+			projectId: payments.id,
+			workIds: [second.id, first.id, leftover.id],
+		});
+		const before = await listPreparedBacklog(prisma, payments.id);
+		expect(before.manualOrder).toEqual([second.id, first.id, leftover.id]);
+		const period = await openPeriod("Close to Backlog");
+		await surface(BEFORE_START).add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: leftover.id,
+		});
+		const active = surface(START_INSTANT);
+		await active.close({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+		});
+		const decided = await active.decideStillOpen({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			selections: [
+				{
+					destination: FOCUS_PERIOD_LEFTOVER_DESTINATION.backlog,
+					workId: leftover.id,
+				},
+			],
+		});
+		expect(decided.status).toBe("committed");
+		if (decided.status !== "committed") {
+			throw new Error("expected committed leftover decision");
+		}
+		expect(decided.period.stillOpenWork.writesManualOrder).toBe(false);
+		const after = await listPreparedBacklog(prisma, payments.id);
+		expect(after.manualOrder).toEqual([second.id, first.id, leftover.id]);
+	});
+
+	it("records skippable period evaluation without generating action items", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const period = await openPeriod("Learn window");
+		await surface(BEFORE_START).add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: intake.id,
+		});
+		const active = surface(START_INSTANT);
+		await active.close({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+		});
+		const skipped = await active.evaluate({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			skipped: true,
+		});
+		expect(skipped.status).toBe("committed");
+		if (skipped.status !== "committed") {
+			throw new Error("expected committed skip");
+		}
+		expect(skipped.period.evaluation).toEqual({
+			change: "",
+			followUpWork: [],
+			generatedActionItems: false,
+			keep: "",
+			previewRequired: true,
+			skippable: true,
+			skipped: true,
+			tryNext: "",
+		});
+		const written = await active.evaluate({
+			change: "Tighten review",
+			idempotencyKey: crypto.randomUUID(),
+			keep: "Daily checkout check",
+			periodId: period.id,
+			skipped: false,
+			tryNext: "Pair the risky path",
+		});
+		expect(written.status).toBe("committed");
+		if (written.status !== "committed") {
+			throw new Error("expected committed evaluation");
+		}
+		expect(written.period.evaluation).toMatchObject({
+			change: "Tighten review",
+			generatedActionItems: false,
+			keep: "Daily checkout check",
+			skippable: true,
+			skipped: false,
+			tryNext: "Pair the risky path",
+		});
+		expect(written.period.evaluation?.followUpWork).toEqual([]);
+	});
+
+	it("creates follow-up Work only after preview and confirm, linked to the source period", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const period = await openPeriod("Follow-up window");
+		await surface(BEFORE_START).add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: intake.id,
+		});
+		const active = surface(START_INSTANT);
+		await active.close({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+		});
+		const preview = await active.previewFollowUp({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			projectId: payments.id,
+			title: "Retry checkout edge",
+		});
+		expect(preview).toEqual({
+			preview: {
+				generatedActionItems: false,
+				projectId: payments.id,
+				sourcePeriodId: period.id,
+				title: "Retry checkout edge",
+			},
+			status: "committed",
+		});
+		const refused = await active.confirmFollowUp({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			projectId: payments.id,
+			title: "Retry checkout edge",
+		});
+		expect(refused.status).toBe("not-found");
+		const confirmed = await active.confirmFollowUp({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			previewAcknowledged: true,
+			projectId: payments.id,
+			title: "Retry checkout edge",
+		});
+		expect(confirmed.status).toBe("committed");
+		if (confirmed.status !== "committed") {
+			throw new Error("expected committed follow-up");
+		}
+		expect(confirmed.period.evaluation?.generatedActionItems).toBe(false);
+		expect(confirmed.period.evaluation?.previewRequired).toBe(true);
+		expect(confirmed.period.evaluation?.followUpWork).toEqual([
+			expect.objectContaining({
+				projectId: payments.id,
+				title: "Retry checkout edge",
+			}),
+		]);
+		const followUp = confirmed.period.evaluation?.followUpWork[0];
+		expect(followUp).toBeDefined();
+		expect(await getWork(prisma, followUp?.id ?? "")).toMatchObject({
+			status: "Not Started",
+			title: "Retry checkout edge",
+		});
+		expect(confirmed.period.closeScope?.workIds).not.toContain(followUp?.id);
+	});
+
+	it("compares start-snapshot target dates without an actual-date field", async () => {
+		const payments = await openProject("Payments");
+		const movedEarlier = await openWork(payments.id, "Moved earlier");
+		const movedLater = await openWork(payments.id, "Moved later");
+		const completedAfter = await openWork(payments.id, "Completed after");
+		const stillOpen = await openWork(payments.id, "Still dated");
+		async function setTarget(
+			work: { id: string; revision: number },
+			targetDate: string
+		) {
+			const updated = await updateWorkPlanningDates(prisma, {
+				actorId,
+				baseRevision: work.revision,
+				idempotencyKey: crypto.randomUUID(),
+				origin: "human",
+				plannedStart: null,
+				reappearDate: null,
+				targetDate,
+				workId: work.id,
+			});
+			if (updated.status !== "committed") {
+				throw new Error("expected planning dates");
+			}
+			return updated.work;
+		}
+		const earlier = await setTarget(movedEarlier, "2026-09-20");
+		const later = await setTarget(movedLater, "2026-09-10");
+		const after = await setTarget(completedAfter, "2026-01-01");
+		const openDated = await setTarget(stillOpen, "2026-09-30");
+		const period = await openPeriod("Date window");
+		const planned = surface(BEFORE_START);
+		await planned.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: earlier.id,
+		});
+		await planned.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: later.id,
+		});
+		await planned.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: after.id,
+		});
+		await planned.add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			workId: openDated.id,
+		});
+		const active = surface(START_INSTANT);
+		expect((await active.get(period.id))?.status).toBe(
+			FOCUS_PERIOD_STATUS.active
+		);
+		await setTarget(earlier, "2026-09-12");
+		await setTarget(later, "2026-09-18");
+		const closedAfter = await closeWork(prisma, {
+			actorId,
+			baseRevision: after.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			result: "Completed",
+			workId: after.id,
+		});
+		expect(closedAfter.status).toBe("committed");
+		const closed = await active.close({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+		});
+		expect(closed.status).toBe("committed");
+		if (closed.status !== "committed") {
+			throw new Error("expected committed close");
+		}
+		expect(closed.period.dateComparison?.optional).toBe(true);
+		expect(closed.period.dateComparison?.actualDateField).toBe(false);
+		expect(closed.period.dateComparison?.health).toBe(false);
+		expect(closed.period.dateComparison?.score).toBe(false);
+		expect(
+			closed.period.dateComparison?.movedEarlier.map((row) => row.id)
+		).toEqual([earlier.id]);
+		expect(
+			closed.period.dateComparison?.movedLater.map((row) => row.id)
+		).toEqual([later.id]);
+		expect(
+			closed.period.dateComparison?.completedAfter.map((row) => row.id)
+		).toEqual([after.id]);
+		expect(
+			closed.period.dateComparison?.stillOpen.map((row) => row.id).sort()
+		).toEqual([earlier.id, later.id, openDated.id].sort());
+		expect(closed.period.dateComparison).not.toHaveProperty("actualDate");
+		expect(await getWork(prisma, earlier.id)).toMatchObject({
+			targetDate: "2026-09-12",
+		});
 	});
 });
