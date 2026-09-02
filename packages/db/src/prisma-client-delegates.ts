@@ -56,7 +56,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.fileAttachmentStaging?.findMany === "function" &&
 		typeof client.fileAttachmentReceipt?.findMany === "function" &&
 		typeof client.fileObjectBlob?.findMany === "function" &&
-		typeof client.fileImageDerivative?.findMany === "function";
+		typeof client.fileImageDerivative?.findMany === "function" &&
+		typeof client.document?.findMany === "function" &&
+		typeof client.documentVersion?.findMany === "function";
 	if (!knownDelegates) {
 		return false;
 	}
