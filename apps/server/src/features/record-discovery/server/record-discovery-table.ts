@@ -147,7 +147,6 @@ const SEARCH_ONLY_KIND_SET = new Set<string>(
 const OWN_SURFACE_SET = new Set<string>(OWN_SURFACE_KINDS);
 
 const WRITABLE_FIELDS = new Set(["title"]);
-const FORBIDDEN_COMPUTED_FIELDS = new Set(["lookup", "formula"]);
 
 export function recordSurface(kind: string): RecordSurface | null {
 	if (TABLE_KIND_SET.has(kind)) {
@@ -240,9 +239,6 @@ export function applyInlineCell(input: {
 	}
 	if (input.field.startsWith("sessionTests.")) {
 		return { reason: "historical-result-not-writable", status: "refused" };
-	}
-	if (FORBIDDEN_COMPUTED_FIELDS.has(input.field)) {
-		return { reason: "field-not-writable", status: "refused" };
 	}
 	if (!WRITABLE_FIELDS.has(input.field)) {
 		return { reason: "field-not-writable", status: "refused" };

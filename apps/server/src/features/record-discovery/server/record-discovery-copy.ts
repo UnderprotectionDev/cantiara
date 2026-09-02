@@ -40,6 +40,7 @@ export const RECORD_DISCOVERY_COPY = {
 	screen: "Screen",
 	search: "Search",
 	sessionTests: "Session Tests",
+	sort: "Sort",
 	source: "Source",
 	table: "Table",
 	tableUnavailable: "Table is not available for this type.",

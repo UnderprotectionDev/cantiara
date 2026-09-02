@@ -1,4 +1,4 @@
-import { Button, buttonVariants } from "@cantiara/ui/components/button";
+import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
@@ -16,6 +16,11 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import {
+	createColumnHelper,
+	tableFeatures,
+	useTable,
+} from "@tanstack/react-table";
 import {
 	type ChangeEvent,
 	type FocusEvent,
@@ -56,6 +61,9 @@ interface PastePreviewRow {
 	title: string;
 }
 
+const TABLE_FEATURES = tableFeatures({});
+const COLUMN_HELPER = createColumnHelper<typeof TABLE_FEATURES, TableRowView>();
+
 async function invalidateTable() {
 	await queryClient.invalidateQueries({
 		predicate: (query) =>
@@ -63,14 +71,89 @@ async function invalidateTable() {
 	});
 }
 
-function sourceHref(row: TableRowView): string {
-	if (row.kind === RECORD_DISCOVERY_COPY.work && row.projectId) {
-		return `/projects/${row.projectId}?work=${encodeURIComponent(row.id)}#work`;
-	}
-	if (row.projectId) {
-		return `/projects/${row.projectId}`;
-	}
-	return "/wiki";
+function RecordsTable({
+	copy,
+	onTitleBlur,
+	rows,
+}: {
+	copy: typeof RECORD_DISCOVERY_COPY;
+	onTitleBlur: (
+		row: TableRowView
+	) => (event: FocusEvent<HTMLInputElement>) => void;
+	rows: TableRowView[];
+}) {
+	const columns = useMemo(
+		() =>
+			COLUMN_HELPER.columns([
+				COLUMN_HELPER.accessor((row) => row.recordKey ?? "", {
+					header: "Key",
+					id: "key",
+				}),
+				COLUMN_HELPER.accessor((row) => row.title, {
+					header: "Title",
+					id: "title",
+				}),
+				COLUMN_HELPER.accessor((row) => row.status, {
+					header: "Status",
+					id: "status",
+				}),
+				COLUMN_HELPER.accessor(
+					(row) =>
+						row.sessionTests
+							.map((item) => `${item.title}: ${item.result}`)
+							.join(", "),
+					{
+						header: copy.sessionTests,
+						id: "sessionTests",
+					}
+				),
+			]),
+		[copy.sessionTests]
+	);
+	const data = useMemo(() => [...rows], [rows]);
+	const table = useTable({
+		columns,
+		data,
+		features: TABLE_FEATURES,
+		getRowId: (row) => row.id,
+	});
+	return (
+		<Table>
+			<TableHeader>
+				{table.getHeaderGroups().map((group) => (
+					<TableRow key={group.id}>
+						{group.headers.map((header) => (
+							<TableHead key={header.id}>
+								{header.isPlaceholder ? null : (
+									<table.FlexRender header={header} />
+								)}
+							</TableHead>
+						))}
+					</TableRow>
+				))}
+			</TableHeader>
+			<TableBody>
+				{table.getRowModel().rows.map((row) => (
+					<TableRow key={row.id}>
+						{row.getAllCells().map((cell) => (
+							<TableCell key={cell.id}>
+								{cell.column.id === "title" ? (
+									<Input
+										aria-label="Title"
+										defaultValue={row.original.title}
+										key={`${row.original.id}-${row.original.revision}`}
+										onBlur={onTitleBlur(row.original)}
+									/>
+								) : (
+									<table.FlexRender cell={cell} />
+								)}
+							</TableCell>
+						))}
+					</TableRow>
+				))}
+			</TableBody>
+		</Table>
+	);
 }
 
 export function TypeScopedTable({ kind }: { kind: string }) {
@@ -80,9 +163,15 @@ export function TypeScopedTable({ kind }: { kind: string }) {
 	const sortId = useId();
 	const pasteId = useId();
 	const projectIdField = useId();
+	const titleMapId = useId();
+	const keyMapId = useId();
 	const [filterText, setFilterText] = useState("");
 	const [sortField, setSortField] = useState<TableSortField>("title");
 	const [pasteText, setPasteText] = useState("");
+	const [mapping, setMapping] = useState({
+		key: null as number | null,
+		title: 0,
+	});
 	const [projectId, setProjectId] = useState("");
 	const [excludedIndexes, setExcludedIndexes] = useState<number[]>([]);
 	const [saveNotice, setSaveNotice] = useState<string | null>(null);
@@ -102,10 +191,6 @@ export function TypeScopedTable({ kind }: { kind: string }) {
 		enabled: tableKinds.some((tableKind) => tableKind === kind),
 	});
 	const parsedPaste = useMemo(() => parseTablePaste(pasteText), [pasteText]);
-	const mapping = useMemo(
-		() => defaultPasteMapping(parsedPaste.headers),
-		[parsedPaste.headers]
-	);
 	const preview = useQuery({
 		...orpc.recordDiscovery.tablePreviewPaste.queryOptions({
 			input: {
@@ -164,14 +249,36 @@ export function TypeScopedTable({ kind }: { kind: string }) {
 	}, []);
 	const onPasteChange = useCallback(
 		(event: ChangeEvent<HTMLTextAreaElement>) => {
-			setPasteText(event.target.value);
+			const { value } = event.target;
+			const parsed = parseTablePaste(value);
+			setPasteText(value);
 			setExcludedIndexes([]);
+			setMapping(defaultPasteMapping(parsed.headers));
 		},
 		[]
 	);
 	const onProjectChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
 			setProjectId(event.target.value);
+		},
+		[]
+	);
+	const onTitleMapChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			setMapping((current) => ({
+				...current,
+				title: Number(event.target.value),
+			}));
+		},
+		[]
+	);
+	const onKeyMapChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			const { value } = event.target;
+			setMapping((current) => ({
+				...current,
+				key: value.length === 0 ? null : Number(value),
+			}));
 		},
 		[]
 	);
@@ -249,11 +356,11 @@ export function TypeScopedTable({ kind }: { kind: string }) {
 						<Input id={filterId} onChange={onFilterChange} value={filterText} />
 					</Field>
 					<Field>
-						<FieldLabel htmlFor={sortId}>{copy.table}</FieldLabel>
+						<FieldLabel htmlFor={sortId}>{copy.sort}</FieldLabel>
 						<NativeSelect id={sortId} onChange={onSortChange} value={sortField}>
-							<NativeSelectOption value="title">title</NativeSelectOption>
-							<NativeSelectOption value="key">key</NativeSelectOption>
-							<NativeSelectOption value="status">status</NativeSelectOption>
+							<NativeSelectOption value="title">Title</NativeSelectOption>
+							<NativeSelectOption value="key">Key</NativeSelectOption>
+							<NativeSelectOption value="status">Status</NativeSelectOption>
 						</NativeSelect>
 					</Field>
 					<Button onClick={onSaveCollection} type="button" variant="outline">
@@ -268,46 +375,7 @@ export function TypeScopedTable({ kind }: { kind: string }) {
 						{copy.tableUnavailable}
 					</p>
 				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>Key</TableHead>
-								<TableHead>Title</TableHead>
-								<TableHead>Status</TableHead>
-								<TableHead>{copy.sessionTests}</TableHead>
-								<TableHead>{copy.openSourceRecord}</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{rows.map((row) => (
-								<TableRow key={row.id}>
-									<TableCell>{row.recordKey}</TableCell>
-									<TableCell>
-										<Input
-											aria-label="Title"
-											defaultValue={row.title}
-											key={`${row.id}-${row.revision}`}
-											onBlur={onTitleBlur(row)}
-										/>
-									</TableCell>
-									<TableCell>{row.status}</TableCell>
-									<TableCell>
-										{row.sessionTests
-											.map((item) => `${item.title}: ${item.result}`)
-											.join(", ")}
-									</TableCell>
-									<TableCell>
-										<a
-											className={buttonVariants({ variant: "outline" })}
-											href={sourceHref(row)}
-										>
-											{copy.openSourceRecord}
-										</a>
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
+					<RecordsTable copy={copy} onTitleBlur={onTitleBlur} rows={rows} />
 				)}
 				<form className="flex flex-col gap-3" onSubmit={onApplyPaste}>
 					<Field>
@@ -319,6 +387,45 @@ export function TypeScopedTable({ kind }: { kind: string }) {
 							value={pasteText}
 						/>
 					</Field>
+					{parsedPaste.headers.length > 0 ? (
+						<div className="flex flex-wrap gap-3">
+							<Field>
+								<FieldLabel htmlFor={titleMapId}>Title</FieldLabel>
+								<NativeSelect
+									id={titleMapId}
+									onChange={onTitleMapChange}
+									value={String(mapping.title)}
+								>
+									{parsedPaste.headers.map((header, index) => (
+										<NativeSelectOption
+											key={`title-${header}`}
+											value={String(index)}
+										>
+											{header}
+										</NativeSelectOption>
+									))}
+								</NativeSelect>
+							</Field>
+							<Field>
+								<FieldLabel htmlFor={keyMapId}>Key</FieldLabel>
+								<NativeSelect
+									id={keyMapId}
+									onChange={onKeyMapChange}
+									value={mapping.key === null ? "" : String(mapping.key)}
+								>
+									<NativeSelectOption value="">Key</NativeSelectOption>
+									{parsedPaste.headers.map((header, index) => (
+										<NativeSelectOption
+											key={`key-${header}`}
+											value={String(index)}
+										>
+											{header}
+										</NativeSelectOption>
+									))}
+								</NativeSelect>
+							</Field>
+						</div>
+					) : null}
 					<Field>
 						<FieldLabel htmlFor={projectIdField}>{copy.project}</FieldLabel>
 						<NativeSelect

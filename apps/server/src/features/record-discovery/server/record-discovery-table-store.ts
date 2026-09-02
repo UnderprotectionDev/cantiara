@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@cantiara/db";
+import type { Prisma, PrismaClient } from "@cantiara/db";
 
 import {
 	createWorkInTransaction,
@@ -9,6 +9,7 @@ import {
 	applyInlineCell,
 	applyTablePaste,
 	openTypeTable,
+	type PastePreviewRow,
 	previewTablePaste,
 	queryTypeTable,
 	type TableRecord,
@@ -78,21 +79,16 @@ export async function applyTypeTableCell(
 	}
 ) {
 	if (input.kind !== RECORD_DISCOVERY_COPY.work) {
-		return applyInlineCell({
-			field: input.field,
-			kind: input.kind,
-			row: {
-				id: input.recordId,
-				kind: input.kind,
-				projectId: null,
-				recordKey: null,
-				revision: input.baseRevision,
-				sessionTests: [],
-				status: "",
-				title: "",
-			},
-			value: input.value,
-		});
+		if (openTypeTable(input.kind).status !== "ok") {
+			return {
+				reason: "table-not-allowed" as const,
+				status: "refused" as const,
+			};
+		}
+		return {
+			reason: "field-not-writable" as const,
+			status: "refused" as const,
+		};
 	}
 	const row = await prisma.work.findFirst({
 		where: {
@@ -163,6 +159,16 @@ export async function persistTablePaste(
 		projectId: input.projectId,
 		rows: input.rows,
 	});
+	if (input.kind !== RECORD_DISCOVERY_COPY.work) {
+		return {
+			decided: {
+				reason: "table-not-allowed" as const,
+				records: existing,
+				status: "rejected" as const,
+			},
+			preview,
+		};
+	}
 	const decided = applyTablePaste({
 		excludedIndexes: input.excludedIndexes,
 		existing,
@@ -174,40 +180,9 @@ export async function persistTablePaste(
 	const excluded = new Set(input.excludedIndexes);
 	const included = preview.rows.filter((row) => !excluded.has(row.index));
 	try {
-		await prisma.$transaction(async (tx) => {
-			for (const row of included) {
-				if (row.action === "update" && row.recordId) {
-					// biome-ignore lint/performance/noAwaitInLoops: paste rows share one transaction and must apply in order or abort together.
-					const current = await tx.work.findUnique({
-						where: { id: row.recordId },
-					});
-					if (!current || current.revision !== row.revision) {
-						throw new Error("paste-aborted");
-					}
-					await tx.work.update({
-						data: {
-							revision: current.revision + 1,
-							title: row.title,
-						},
-						where: { id: current.id },
-					});
-				}
-				if (row.action === "create" && input.projectId) {
-					const outcome = await createWorkInTransaction(tx, {
-						actorId: input.actorId,
-						idempotencyKey: `${input.idempotencyKey}:${row.index}`,
-						origin: "human",
-						payload: {
-							projectId: input.projectId,
-							title: row.title,
-						},
-					});
-					if (outcome.status !== "committed" && outcome.status !== "replayed") {
-						throw new Error("paste-aborted");
-					}
-				}
-			}
-		});
+		await prisma.$transaction((tx) =>
+			writeIncludedPasteRows(tx, included, input)
+		);
 	} catch {
 		return {
 			decided: {
@@ -237,4 +212,49 @@ async function loadWorkRows(prisma: PrismaClient, workspaceId: string) {
 		},
 	});
 	return rows.map(toTableRecord);
+}
+
+async function writeIncludedPasteRows(
+	tx: Prisma.TransactionClient,
+	included: readonly PastePreviewRow[],
+	input: {
+		actorId: string;
+		idempotencyKey: string;
+		projectId: string | null;
+	}
+) {
+	for (const row of included) {
+		if (row.action === "update" && row.recordId) {
+			// biome-ignore lint/performance/noAwaitInLoops: paste rows share one transaction and must apply in order or abort together.
+			const current = await tx.work.findUnique({
+				where: { id: row.recordId },
+			});
+			if (!current || current.revision !== row.revision) {
+				throw new Error("paste-aborted");
+			}
+			if (current.title !== row.title) {
+				await tx.work.update({
+					data: {
+						revision: current.revision + 1,
+						title: row.title,
+					},
+					where: { id: current.id },
+				});
+			}
+		}
+		if (row.action === "create" && input.projectId) {
+			const outcome = await createWorkInTransaction(tx, {
+				actorId: input.actorId,
+				idempotencyKey: `${input.idempotencyKey}:${row.index}`,
+				origin: "human",
+				payload: {
+					projectId: input.projectId,
+					title: row.title,
+				},
+			});
+			if (outcome.status !== "committed" && outcome.status !== "replayed") {
+				throw new Error("paste-aborted");
+			}
+		}
+	}
 }
