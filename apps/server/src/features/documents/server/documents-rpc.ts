@@ -6,19 +6,26 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	archiveDocument,
 	compareDocumentVersions,
 	convertDocumentToTemplate,
 	createDocument,
+	createDocumentFolder,
 	createDocumentTemplate,
 	getDocument,
 	getDocumentTemplate,
 	instantiateDocumentFromTemplate,
+	listDocumentFolders,
 	listDocuments,
 	listDocumentTemplates,
 	listDocumentVersions,
 	materializeStarterSkeletonDocuments,
+	placeDocument,
 	previewConvertDocumentToTemplate,
+	previewDocumentArchive,
+	previewDocumentPlacement,
 	restoreDocumentVersion,
+	unarchiveDocument,
 	updateDocument,
 	updateDocumentTemplate,
 } from "./documents";
@@ -42,12 +49,14 @@ import {
 import { presentLiveDocumentBody } from "./documents-live";
 import {
 	convertDocumentToTemplatePayloadSchema,
+	createDocumentFolderPayloadSchema,
 	createDocumentPayloadSchema,
 	createDocumentTemplatePayloadSchema,
 	documentScopeSchema,
 	documentsCatalog,
 	instantiateDocumentFromTemplatePayloadSchema,
 	materializeStarterSkeletonDocumentsPayloadSchema,
+	placeDocumentPayloadSchema,
 	presentDocumentBody,
 	restoreDocumentPayloadSchema,
 	updateDocumentPayloadSchema,
@@ -81,7 +90,24 @@ async function requireScope(
 	}
 }
 
+const documentWriteInput = z.object({
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string(),
+	payload: z.object({ documentId: z.string().min(1) }),
+});
+
 export const documents = {
+	archive: protectedWriteProcedure
+		.input(documentWriteInput)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await archiveDocument(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				workspaceId: access.workspaceId,
+				...input,
+			});
+		}),
 	catalog: protectedProcedure.handler(() => documentsCatalog()),
 	compare: protectedProcedure
 		.input(
@@ -205,6 +231,26 @@ export const documents = {
 				workspaceId: access.workspaceId,
 			});
 		}),
+	createFolder: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: createDocumentFolderPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			if (input.payload.scope.kind === "project") {
+				await requireProject(access.workspaceId, input.payload.scope.projectId);
+			}
+			return await createDocumentFolder(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
 	createTemplate: protectedWriteProcedure
 		.input(
 			z.object({
@@ -272,13 +318,31 @@ export const documents = {
 			});
 		}),
 	list: protectedProcedure
-		.input(z.object({ scope: documentScopeSchema }))
+		.input(
+			z.object({
+				archived: z.boolean().optional(),
+				scope: documentScopeSchema,
+			})
+		)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			if (input.scope.kind === "project") {
 				await requireProject(access.workspaceId, input.scope.projectId);
 			}
 			return await listDocuments(getPrismaClient(), {
+				archived: input.archived,
+				scope: input.scope,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	listFolders: protectedProcedure
+		.input(z.object({ scope: documentScopeSchema }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			if (input.scope.kind === "project") {
+				await requireProject(access.workspaceId, input.scope.projectId);
+			}
+			return await listDocumentFolders(getPrismaClient(), {
 				scope: input.scope,
 				workspaceId: access.workspaceId,
 			});
@@ -330,6 +394,23 @@ export const documents = {
 				workspaceId: access.workspaceId,
 			});
 		}),
+	place: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: placeDocumentPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await placeDocument(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				workspaceId: access.workspaceId,
+				...input,
+			});
+		}),
 	present: protectedProcedure
 		.input(z.object({ body: z.string() }))
 		.handler(({ input }) => presentDocumentBody(input.body)),
@@ -345,6 +426,15 @@ export const documents = {
 			return await presentLiveDocumentBody(getPrismaClient(), {
 				body: input.body,
 				sources: { diagrams: diagramStore },
+				workspaceId: access.workspaceId,
+			});
+		}),
+	previewArchive: protectedProcedure
+		.input(z.object({ documentId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await previewDocumentArchive(getPrismaClient(), {
+				documentId: input.documentId,
 				workspaceId: access.workspaceId,
 			});
 		}),
@@ -397,6 +487,21 @@ export const documents = {
 				access.workspaceId
 			);
 		}),
+	previewPlacement: protectedProcedure
+		.input(
+			z.object({
+				documentId: z.string().min(1),
+				folderId: z.string().nullable(),
+				parentId: z.string().nullable(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await previewDocumentPlacement(getPrismaClient(), {
+				...input,
+				workspaceId: access.workspaceId,
+			});
+		}),
 	restore: protectedWriteProcedure
 		.input(
 			z.object({
@@ -414,6 +519,17 @@ export const documents = {
 				origin: "human",
 				payload: input.payload,
 				workspaceId: access.workspaceId,
+			});
+		}),
+	unarchive: protectedWriteProcedure
+		.input(documentWriteInput)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await unarchiveDocument(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				workspaceId: access.workspaceId,
+				...input,
 			});
 		}),
 	update: protectedWriteProcedure

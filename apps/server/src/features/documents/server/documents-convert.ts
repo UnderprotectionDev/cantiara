@@ -832,8 +832,11 @@ function storedConvert(text: string): ConvertCommittedResult | null {
 }
 
 function toView(row: {
+	archivedAt?: Date | null;
 	body: string;
+	folderId?: string | null;
 	id: string;
+	parentId?: string | null;
 	projectId: string | null;
 	revision: number;
 	scopeKind: string;
@@ -841,9 +844,14 @@ function toView(row: {
 	type: string;
 }): DocumentView {
 	return {
+		archived: (row.archivedAt ?? null) !== null,
 		body: row.body,
+		childCards: [],
+		folderId: row.folderId ?? null,
 		id: row.id,
+		inDocTags: [],
 		liveFilePath: null,
+		parentId: row.parentId ?? null,
 		revision: row.revision,
 		scope:
 			row.scopeKind === "project" && row.projectId

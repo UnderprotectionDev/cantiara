@@ -17,15 +17,26 @@ import {
 	usageTargetsFromBody,
 } from "./documents-live";
 import {
+	type ArchiveDocumentCommand,
 	applyDocumentTemplatePlaceholders,
+	archiveDocumentCommandSchema,
 	type ConvertDocumentToTemplatePreviewOutcome,
 	type CreateDocumentCommand,
+	type CreateDocumentFolderCommand,
 	type CreateDocumentTemplateCommand,
 	convertDocumentToTemplateCommandSchema,
 	createDocumentCommandSchema,
+	createDocumentFolderCommandSchema,
 	createDocumentTemplateCommandSchema,
+	DOCUMENT_MAX_DEPTH,
 	DOCUMENT_SCOPE_KIND,
 	DOCUMENT_STARTER_SKELETONS,
+	type DocumentArchivePreview,
+	type DocumentChildCard,
+	type DocumentFolderView,
+	type DocumentFolderWriteOutcome,
+	type DocumentHierarchyPreview,
+	type DocumentInDocTag,
 	type DocumentLiveFiles,
 	type DocumentScope,
 	type DocumentTemplateView,
@@ -44,9 +55,13 @@ import {
 	type MaterializeStarterSkeletonDocumentsCommand,
 	materializeStarterSkeletonDocumentsCommandSchema,
 	PERSONAL_REVIEW_KIND,
+	type PlaceDocumentCommand,
 	personalReviewSkeleton,
+	placeDocumentCommandSchema,
+	presentDocumentChildCard,
 	presentDocumentVersionDiff,
 	type RestoreDocumentCommand,
+	resolveInDocTags,
 	restoreDocumentCommandSchema,
 	type StarterSkeletonDocumentsOutcome,
 	type UpdateDocumentCommand,
@@ -58,8 +73,11 @@ import {
 type PrismaTransaction = Prisma.TransactionClient;
 
 interface DocumentRow {
+	archivedAt: Date | null;
 	body: string;
+	folderId: string | null;
 	id: string;
+	parentId: string | null;
 	projectId: string | null;
 	revision: number;
 	scopeKind: string;
@@ -208,12 +226,14 @@ export async function getDocument(
 	if (workspaceId && row.workspaceId !== workspaceId) {
 		return null;
 	}
-	return toView(row);
+	const tags = await inDocTagsFor(prisma, [row.id]);
+	const cards = await childCardsFor(prisma, [row.id]);
+	return toView(row, tags.get(row.id) ?? [], cards.get(row.id) ?? []);
 }
 
 export async function listDocuments(
 	prisma: PrismaClient,
-	input: { scope: DocumentScope; workspaceId: string }
+	input: { archived?: boolean; scope: DocumentScope; workspaceId: string }
 ): Promise<DocumentView[]> {
 	if (
 		!("document" in prisma) ||
@@ -221,7 +241,48 @@ export async function listDocuments(
 	) {
 		return [];
 	}
+	const archived = input.archived === true;
 	const rows = await prisma.document.findMany({
+		orderBy: { createdAt: "asc" },
+		where:
+			input.scope.kind === DOCUMENT_SCOPE_KIND.project
+				? {
+						archivedAt: archived ? { not: null } : null,
+						projectId: input.scope.projectId,
+						scopeKind: DOCUMENT_SCOPE_KIND.project,
+						workspaceId: input.workspaceId,
+					}
+				: {
+						archivedAt: archived ? { not: null } : null,
+						projectId: null,
+						scopeKind: DOCUMENT_SCOPE_KIND.personalWiki,
+						workspaceId: input.workspaceId,
+					},
+	});
+	const tags = await inDocTagsFor(
+		prisma,
+		rows.map((row) => row.id)
+	);
+	const cards = await childCardsFor(
+		prisma,
+		rows.map((row) => row.id)
+	);
+	return rows.map((row) =>
+		toView(row, tags.get(row.id) ?? [], cards.get(row.id) ?? [])
+	);
+}
+
+export async function listDocumentFolders(
+	prisma: PrismaClient,
+	input: { scope: DocumentScope; workspaceId: string }
+): Promise<DocumentFolderView[]> {
+	if (
+		!("documentFolder" in prisma) ||
+		typeof prisma.documentFolder?.findMany !== "function"
+	) {
+		return [];
+	}
+	const rows = await prisma.documentFolder.findMany({
 		orderBy: { createdAt: "asc" },
 		where:
 			input.scope.kind === DOCUMENT_SCOPE_KIND.project
@@ -236,7 +297,110 @@ export async function listDocuments(
 						workspaceId: input.workspaceId,
 					},
 	});
-	return rows.map(toView);
+	return rows.map(toFolderView);
+}
+
+export async function createDocumentFolder(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<DocumentFolderWriteOutcome> {
+	const parsed = createDocumentFolderCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const name = parsed.data.payload.name.trim();
+	if (name.length === 0) {
+		return { reason: "title-required", status: "rejected" };
+	}
+	if (parsed.data.payload.scope.kind === DOCUMENT_SCOPE_KIND.project) {
+		const project = await getProject(
+			prisma,
+			parsed.data.payload.scope.projectId
+		);
+		if (!project || project.workspaceId !== parsed.data.workspaceId) {
+			return { reason: "project-not-found", status: "rejected" };
+		}
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		createFolderInTransaction(tx, parsed.data, commandKey, fingerprint, name)
+	);
+}
+
+export async function previewDocumentPlacement(
+	prisma: PrismaClient,
+	input: {
+		documentId: string;
+		folderId: string | null;
+		parentId: string | null;
+		workspaceId: string;
+	}
+): Promise<DocumentHierarchyPreview> {
+	const current = await prisma.document.findUnique({
+		where: { id: input.documentId },
+	});
+	if (!current || current.workspaceId !== input.workspaceId) {
+		return { reason: "document-not-found", status: "blocked" };
+	}
+	return await evaluatePlacement(prisma, current, input);
+}
+
+export async function placeDocument(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<DocumentWriteOutcome> {
+	const parsed = placeDocumentCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		placeInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function previewDocumentArchive(
+	prisma: PrismaClient,
+	input: { documentId: string; workspaceId: string }
+): Promise<DocumentArchivePreview> {
+	const current = await prisma.document.findUnique({
+		where: { id: input.documentId },
+	});
+	if (!current || current.workspaceId !== input.workspaceId) {
+		return { reason: "document-not-found", status: "blocked" };
+	}
+	const children = await prisma.document.findMany({
+		orderBy: { createdAt: "asc" },
+		select: { title: true },
+		where: { parentId: current.id },
+	});
+	return {
+		childTitles: children.map((child) => child.title),
+		documentId: current.id,
+		status: "ok",
+	};
+}
+
+export async function archiveDocument(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<DocumentWriteOutcome> {
+	return await setArchived(prisma, command, true);
+}
+
+export async function unarchiveDocument(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<DocumentWriteOutcome> {
+	return await setArchived(prisma, command, false);
 }
 
 export async function createDocumentTemplate(
@@ -440,8 +604,11 @@ export async function instantiateDocumentFromTemplate(
 		}
 		const created = await tx.document.create({
 			data: {
+				archivedAt: null,
 				body,
+				folderId: null,
 				id: documentId,
+				parentId: null,
 				projectId:
 					resolved.scope.kind === DOCUMENT_SCOPE_KIND.project
 						? resolved.scope.projectId
@@ -459,7 +626,8 @@ export async function instantiateDocumentFromTemplate(
 			targets: usageTargetsFromBody(created.body),
 			workspaceId: parsed.data.workspaceId,
 		});
-		const view = toView(created);
+		await syncInDocTags(tx, created);
+		const view = await viewFromTx(tx, created);
 		await writeReceipt(tx, {
 			actorId: parsed.data.actorId,
 			commandKey,
@@ -617,8 +785,11 @@ async function createInTransaction(
 	}
 	const created = await tx.document.create({
 		data: {
+			archivedAt: null,
 			body,
+			folderId: null,
 			id: documentId,
+			parentId: null,
 			projectId:
 				command.payload.scope.kind === DOCUMENT_SCOPE_KIND.project
 					? command.payload.scope.projectId
@@ -636,7 +807,8 @@ async function createInTransaction(
 		targets: usageTargetsFromBody(created.body),
 		workspaceId: command.workspaceId,
 	});
-	const view = toView(created);
+	await syncInDocTags(tx, created);
+	const view = await viewFromTx(tx, created);
 	await writeReceipt(tx, {
 		actorId: command.actorId,
 		commandKey,
@@ -691,7 +863,8 @@ async function updateInTransaction(
 		targets: usageTargetsFromBody(updated.body),
 		workspaceId: command.workspaceId,
 	});
-	const view = toView(updated);
+	await syncInDocTags(tx, updated);
+	const view = await viewFromTx(tx, updated);
 	await writeReceipt(tx, {
 		actorId: command.actorId,
 		commandKey,
@@ -734,7 +907,10 @@ async function materializeInTransaction(
 		)
 	);
 	await Promise.all(created.map((row) => recordVersion(tx, row)));
-	const documents = created.map(toView);
+	await Promise.all(created.map((row) => syncInDocTags(tx, row)));
+	const documents = await Promise.all(
+		created.map((row) => viewFromTx(tx, row))
+	);
 	await tx.mutationReceipt.create({
 		data: {
 			actorId: command.actorId,
@@ -776,7 +952,9 @@ async function replaySkeletonsOrConflict(
 		ids.map((id) => tx.document.findUnique({ where: { id } }))
 	);
 	return {
-		documents: rows.flatMap((row) => (row ? [toView(row)] : [])),
+		documents: await Promise.all(
+			rows.flatMap((row) => (row ? [viewFromTx(tx, row)] : []))
+		),
 		status: "replayed",
 	};
 }
@@ -844,7 +1022,8 @@ async function restoreInTransaction(
 		targets: usageTargetsFromBody(restored.body),
 		workspaceId: command.workspaceId,
 	});
-	const view = toView(restored);
+	await syncInDocTags(tx, restored);
+	const view = await viewFromTx(tx, restored);
 	await writeReceipt(tx, {
 		actorId: command.actorId,
 		commandKey,
@@ -888,7 +1067,7 @@ async function replayOrConflict(
 		where: { id: existing.targetId },
 	});
 	if (live) {
-		return { document: toView(live), status: "replayed" };
+		return { document: await viewFromTx(tx, live), status: "replayed" };
 	}
 	return { conflict: MUTATION_COPY.conflict, status: "conflict" };
 }
@@ -1200,15 +1379,447 @@ function scopeFromRow(row: {
 		: { kind: DOCUMENT_SCOPE_KIND.personalWiki };
 }
 
-function toView(row: DocumentRow): DocumentView {
+async function createFolderInTransaction(
+	tx: PrismaTransaction,
+	command: CreateDocumentFolderCommand,
+	commandKey: string,
+	fingerprint: string,
+	name: string
+): Promise<DocumentFolderWriteOutcome> {
+	await lockWorkspace(tx, command.workspaceId);
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (existing) {
+		if (existing.payloadFingerprint !== fingerprint) {
+			return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		}
+		const live = await tx.documentFolder.findUnique({
+			where: { id: existing.targetId },
+		});
+		if (live) {
+			return { folder: toFolderView(live), status: "replayed" };
+		}
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const created = await tx.documentFolder.create({
+		data: {
+			id: crypto.randomUUID(),
+			name,
+			projectId:
+				command.payload.scope.kind === DOCUMENT_SCOPE_KIND.project
+					? command.payload.scope.projectId
+					: null,
+			revision: 1,
+			scopeKind: command.payload.scope.kind,
+			workspaceId: command.workspaceId,
+		},
+	});
+	const view = toFolderView(created);
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: command.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey,
+			committedRevision: view.revision,
+			id: crypto.randomUUID(),
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: fingerprint,
+			resultValue: JSON.stringify(view),
+			targetId: view.id,
+		},
+	});
+	return { folder: view, status: "committed" };
+}
+
+async function placeInTransaction(
+	tx: PrismaTransaction,
+	command: PlaceDocumentCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<DocumentWriteOutcome> {
+	await lockWorkspace(tx, command.workspaceId);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const current = await tx.document.findUnique({
+		where: { id: command.payload.documentId },
+	});
+	if (!current || current.workspaceId !== command.workspaceId) {
+		return { reason: "document-not-found", status: "rejected" };
+	}
+	if (current.revision !== command.baseRevision) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const preview = await evaluatePlacement(tx, current, {
+		folderId: command.payload.folderId,
+		parentId: command.payload.parentId,
+		workspaceId: command.workspaceId,
+	});
+	if (preview.status === "blocked") {
+		return { reason: preview.reason, status: "rejected" };
+	}
+	const updated = await tx.document.update({
+		data: {
+			folderId: preview.folderId,
+			parentId: preview.parentId,
+		},
+		where: { id: current.id },
+	});
+	const view = await viewFromTx(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { document: view, status: "committed" };
+}
+
+async function setArchived(
+	prisma: PrismaClient,
+	command: unknown,
+	archived: boolean
+): Promise<DocumentWriteOutcome> {
+	const parsed = archiveDocumentCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({
+		archived,
+		documentId: parsed.data.payload.documentId,
+	});
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		setArchivedInTransaction(tx, parsed.data, commandKey, fingerprint, archived)
+	);
+}
+
+async function setArchivedInTransaction(
+	tx: PrismaTransaction,
+	command: ArchiveDocumentCommand,
+	commandKey: string,
+	fingerprint: string,
+	archived: boolean
+): Promise<DocumentWriteOutcome> {
+	await lockWorkspace(tx, command.workspaceId);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const current = await tx.document.findUnique({
+		where: { id: command.payload.documentId },
+	});
+	if (!current || current.workspaceId !== command.workspaceId) {
+		return { reason: "document-not-found", status: "rejected" };
+	}
+	if (current.revision !== command.baseRevision) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const updated = await tx.document.update({
+		data: {
+			archivedAt: archived ? new Date() : null,
+			revision: current.revision + 1,
+		},
+		where: { id: current.id },
+	});
+	const view = await viewFromTx(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { document: view, status: "committed" };
+}
+
+async function evaluatePlacement(
+	db: PrismaClient | PrismaTransaction,
+	current: DocumentRow,
+	input: {
+		folderId: string | null;
+		parentId: string | null;
+		workspaceId: string;
+	}
+): Promise<DocumentHierarchyPreview> {
+	if (input.folderId) {
+		const folder = await db.documentFolder.findUnique({
+			where: { id: input.folderId },
+		});
+		if (!folder || folder.workspaceId !== input.workspaceId) {
+			return { reason: "folder-not-found", status: "blocked" };
+		}
+		if (!sameScope(current, folder)) {
+			return { reason: "folder-not-found", status: "blocked" };
+		}
+	}
+	if (!input.parentId) {
+		return {
+			depth: 1,
+			folderId: input.folderId,
+			parentId: null,
+			status: "ok",
+		};
+	}
+	if (input.parentId === current.id) {
+		return { reason: "cycle", status: "blocked" };
+	}
+	const parent = await db.document.findUnique({
+		where: { id: input.parentId },
+	});
+	if (!parent || parent.workspaceId !== input.workspaceId) {
+		return { reason: "parent-not-found", status: "blocked" };
+	}
+	if (!sameScope(current, parent)) {
+		return { reason: "cross-scope-parent", status: "blocked" };
+	}
+	const tree = await loadHierarchy(db, input.workspaceId);
+	if (isAncestor(tree, current.id, parent.id)) {
+		return { reason: "cycle", status: "blocked" };
+	}
+	const parentDepth = depthOf(tree, parent.id);
+	const subtreeHeight = heightBelow(tree, current.id);
+	const placedDepth = parentDepth + 1;
+	if (placedDepth + subtreeHeight > DOCUMENT_MAX_DEPTH) {
+		return { reason: "depth-exceeded", status: "blocked" };
+	}
 	return {
+		depth: placedDepth,
+		folderId: input.folderId,
+		parentId: parent.id,
+		status: "ok",
+	};
+}
+
+function sameScope(
+	left: { projectId: string | null; scopeKind: string },
+	right: { projectId: string | null; scopeKind: string }
+): boolean {
+	return (
+		left.scopeKind === right.scopeKind && left.projectId === right.projectId
+	);
+}
+
+interface HierarchyMap {
+	children: Map<string, string[]>;
+	parentById: Map<string, string | null>;
+}
+
+async function loadHierarchy(
+	db: PrismaClient | PrismaTransaction,
+	workspaceId: string
+): Promise<HierarchyMap> {
+	const rows: Array<{ id: string; parentId: string | null }> =
+		await db.document.findMany({
+			select: { id: true, parentId: true },
+			where: { workspaceId },
+		});
+	const parentById = new Map<string, string | null>();
+	const children = new Map<string, string[]>();
+	for (const row of rows) {
+		parentById.set(row.id, row.parentId);
+		if (!row.parentId) {
+			continue;
+		}
+		const list = children.get(row.parentId) ?? [];
+		list.push(row.id);
+		children.set(row.parentId, list);
+	}
+	return { children, parentById };
+}
+
+function isAncestor(
+	tree: HierarchyMap,
+	ancestorId: string,
+	nodeId: string
+): boolean {
+	let cursor: string | null = nodeId;
+	const seen = new Set<string>();
+	while (cursor) {
+		if (cursor === ancestorId) {
+			return true;
+		}
+		if (seen.has(cursor)) {
+			return true;
+		}
+		seen.add(cursor);
+		cursor = tree.parentById.get(cursor) ?? null;
+	}
+	return false;
+}
+
+function depthOf(tree: HierarchyMap, documentId: string): number {
+	let depth = 1;
+	let cursor: string | null = documentId;
+	const seen = new Set<string>();
+	while (cursor) {
+		if (seen.has(cursor)) {
+			break;
+		}
+		seen.add(cursor);
+		const nextParent: string | null = tree.parentById.get(cursor) ?? null;
+		if (!nextParent) {
+			break;
+		}
+		depth += 1;
+		cursor = nextParent;
+	}
+	return depth;
+}
+
+function heightBelow(tree: HierarchyMap, documentId: string): number {
+	const children = tree.children.get(documentId) ?? [];
+	if (children.length === 0) {
+		return 0;
+	}
+	return 1 + Math.max(...children.map((child) => heightBelow(tree, child)));
+}
+
+async function syncInDocTags(
+	tx: PrismaTransaction,
+	row: DocumentRow
+): Promise<void> {
+	if (!("tag" in tx) || typeof tx.tag?.findMany !== "function") {
+		return;
+	}
+	const dictionary = await tx.tag.findMany({
+		select: { id: true, name: true },
+		where: { workspaceId: row.workspaceId },
+	});
+	const { resolved } = resolveInDocTags(row.body, dictionary);
+	const resolvedIds = new Set(resolved.map((tag) => tag.id));
+	const existing = await tx.tagInlineUse.findMany({
+		where: { documentId: row.id },
+	});
+	const stale = existing.filter((use) => !resolvedIds.has(use.tagId));
+	if (stale.length > 0) {
+		await tx.tagInlineUse.deleteMany({
+			where: { id: { in: stale.map((use) => use.id) } },
+		});
+	}
+	await Promise.all(
+		resolved.map((tag) => {
+			const current = existing.find((use) => use.tagId === tag.id);
+			if (current) {
+				return tx.tagInlineUse.update({
+					data: { body: row.body, revision: current.revision + 1 },
+					where: { id: current.id },
+				});
+			}
+			return tx.tagInlineUse.create({
+				data: {
+					body: row.body,
+					documentId: row.id,
+					id: crypto.randomUUID(),
+					revision: 1,
+					tagId: tag.id,
+				},
+			});
+		})
+	);
+}
+
+async function inDocTagsFor(
+	prisma: PrismaClient | PrismaTransaction,
+	documentIds: string[]
+): Promise<Map<string, DocumentInDocTag[]>> {
+	const grouped = new Map<string, DocumentInDocTag[]>();
+	if (
+		documentIds.length === 0 ||
+		!("tagInlineUse" in prisma) ||
+		typeof prisma.tagInlineUse?.findMany !== "function"
+	) {
+		return grouped;
+	}
+	const uses = await prisma.tagInlineUse.findMany({
+		include: { tag: { select: { id: true, name: true } } },
+		orderBy: { createdAt: "asc" },
+		where: { documentId: { in: documentIds } },
+	});
+	for (const use of uses) {
+		const list = grouped.get(use.documentId) ?? [];
+		list.push({ id: use.tag.id, name: use.tag.name });
+		grouped.set(use.documentId, list);
+	}
+	return grouped;
+}
+
+async function viewFromTx(
+	tx: PrismaTransaction,
+	row: DocumentRow
+): Promise<DocumentView> {
+	const tags = await inDocTagsFor(tx, [row.id]);
+	const cards = await childCardsFor(tx, [row.id]);
+	return toView(row, tags.get(row.id) ?? [], cards.get(row.id) ?? []);
+}
+
+async function childCardsFor(
+	prisma: PrismaClient | PrismaTransaction,
+	parentIds: string[]
+): Promise<Map<string, DocumentChildCard[]>> {
+	const grouped = new Map<string, DocumentChildCard[]>();
+	if (parentIds.length === 0) {
+		return grouped;
+	}
+	const children = await prisma.document.findMany({
+		orderBy: { createdAt: "asc" },
+		where: { archivedAt: null, parentId: { in: parentIds } },
+	});
+	for (const child of children) {
+		if (!child.parentId) {
+			continue;
+		}
+		const list = grouped.get(child.parentId) ?? [];
+		list.push(
+			presentDocumentChildCard({
+				body: child.body,
+				documentId: child.id,
+				title: child.title,
+				type: child.type as DocumentType,
+			})
+		);
+		grouped.set(child.parentId, list);
+	}
+	return grouped;
+}
+
+function toView(
+	row: DocumentRow,
+	inDocTags: readonly DocumentInDocTag[] = [],
+	childCards: readonly DocumentChildCard[] = []
+): DocumentView {
+	return {
+		archived: row.archivedAt !== null,
 		body: row.body,
+		childCards,
+		folderId: row.folderId,
 		id: row.id,
+		inDocTags,
 		liveFilePath: null,
+		parentId: row.parentId,
 		revision: row.revision,
 		scope: scopeFromRow(row),
 		title: row.title,
 		type: row.type as DocumentType,
+	};
+}
+
+function toFolderView(row: {
+	id: string;
+	name: string;
+	projectId: string | null;
+	revision: number;
+	scopeKind: string;
+}): DocumentFolderView {
+	return {
+		id: row.id,
+		name: row.name,
+		revision: row.revision,
+		scope: scopeFromRow(row),
 	};
 }
 

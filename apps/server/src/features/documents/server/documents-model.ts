@@ -3,7 +3,10 @@ import { z } from "zod";
 
 export const DOCUMENTS_COPY = {
 	addDocumentTemplate: "Add Document Template",
+	archive: "Archive",
+	archived: "Archived",
 	body: "Body",
+	card: "Card",
 	changeStatus: "Change status",
 	close: "Close",
 	compare: "Compare",
@@ -13,10 +16,14 @@ export const DOCUMENTS_COPY = {
 	convertToTemplate: "Convert to template",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
+	createFolder: "Create folder",
 	createFromTemplate: "Create from template",
+	crossScopeParent: "A parent must be in the same ownership scope.",
+	depthExceeded: "This placement would exceed three Document levels.",
 	document: "Document",
 	documentTemplate: "Document Template",
 	editableSource: "Editable source",
+	folder: "Folder",
 	forbiddenTemplatePayload:
 		"A Document Template cannot carry history, relations, publish, archive, or Work Template fields.",
 	general: "General",
@@ -25,7 +32,10 @@ export const DOCUMENTS_COPY = {
 	liveWorkBlock: "Live Work block",
 	name: "Name",
 	noDocuments: "No Documents yet.",
+	noFolder: "No folder",
+	noParent: "No parent",
 	openSourceRecord: "Open source record",
+	parentDocument: "Parent Document",
 	persona: "Persona",
 	personalReview: "Personal Review",
 	placeholders: "Placeholders",
@@ -42,10 +52,13 @@ export const DOCUMENTS_COPY = {
 	spec: "Spec",
 	title: "Title",
 	type: "Type",
+	unarchive: "Unarchive",
 	version: "Version",
 	versionPinnedEvidence: "Version-pinned evidence",
 	versions: "Versions",
 } as const;
+
+export const DOCUMENT_MAX_DEPTH = 3;
 
 export const PERSONAL_REVIEW_HEADINGS = [
 	"Period",
@@ -269,14 +282,86 @@ export const updateDocumentCommandSchema = z.object({
 
 export type UpdateDocumentCommand = z.infer<typeof updateDocumentCommandSchema>;
 
-export interface DocumentView {
-	body: string;
+export const createDocumentFolderPayloadSchema = z.object({
+	name: z.string().min(1),
+	scope: documentScopeSchema,
+});
+
+export const createDocumentFolderCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: createDocumentFolderPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type CreateDocumentFolderCommand = z.infer<
+	typeof createDocumentFolderCommandSchema
+>;
+
+export const placeDocumentPayloadSchema = z.object({
+	documentId: z.string().min(1),
+	folderId: z.string().nullable(),
+	parentId: z.string().nullable(),
+});
+
+export const placeDocumentCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: placeDocumentPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type PlaceDocumentCommand = z.infer<typeof placeDocumentCommandSchema>;
+
+export const archiveDocumentCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: z.object({ documentId: z.string().min(1) }),
+	workspaceId: z.string().min(1),
+});
+
+export type ArchiveDocumentCommand = z.infer<
+	typeof archiveDocumentCommandSchema
+>;
+
+export interface DocumentInDocTag {
 	id: string;
+	name: string;
+}
+
+export interface DocumentChildCard {
+	documentId: string;
+	imageUrl: string | null;
+	preview: string;
+	title: string;
+	type: DocumentType;
+}
+
+export interface DocumentView {
+	archived: boolean;
+	body: string;
+	childCards: readonly DocumentChildCard[];
+	folderId: string | null;
+	id: string;
+	inDocTags: readonly DocumentInDocTag[];
 	liveFilePath: null;
+	parentId: string | null;
 	revision: number;
 	scope: DocumentScope;
 	title: string;
 	type: DocumentType;
+}
+
+export interface DocumentFolderView {
+	id: string;
+	name: string;
+	revision: number;
+	scope: DocumentScope;
 }
 
 export interface DocumentVersionView {
@@ -336,7 +421,35 @@ export type DocumentRejectionReason =
 	| "unsupported-record-type"
 	| "list-required"
 	| "target-not-found"
-	| "broken-mermaid";
+	| "broken-mermaid"
+	| "cycle"
+	| "cross-scope-parent"
+	| "depth-exceeded"
+	| "folder-not-found"
+	| "parent-not-found";
+
+export type DocumentHierarchyPreview =
+	| {
+			depth: number;
+			folderId: string | null;
+			parentId: string | null;
+			status: "ok";
+	  }
+	| { reason: DocumentRejectionReason; status: "blocked" };
+
+export type DocumentArchivePreview =
+	| {
+			childTitles: readonly string[];
+			documentId: string;
+			status: "ok";
+	  }
+	| { reason: DocumentRejectionReason; status: "blocked" };
+
+export type DocumentFolderWriteOutcome =
+	| { folder: DocumentFolderView; status: "committed" }
+	| { folder: DocumentFolderView; status: "replayed" }
+	| { reason: DocumentRejectionReason; status: "rejected" }
+	| { conflict: "Conflict"; status: "conflict" };
 
 export type DocumentWriteOutcome =
 	| { document: DocumentView; status: "committed" }
@@ -782,4 +895,126 @@ function pushMarkdown(
 	if (cursor < text.length) {
 		blocks.push({ kind: "markdown", text: text.slice(cursor) });
 	}
+}
+
+const INLINE_CODE = /`[^`]*`/g;
+const MARKDOWN_LINK = /\[[^\]]*\]\([^)]*\)/g;
+const AUTOLINK = /<https?:\/\/[^>]+>/gi;
+const BARE_URL = /https?:\/\/\S+/gi;
+const ESCAPED_HASH = /\\#/g;
+const TAG_TOKEN = /(^|[^A-Za-z0-9_./-])#([A-Za-z][A-Za-z0-9_./-]*)/g;
+
+export interface InDocTagResolution {
+	ignored: readonly string[];
+	resolved: readonly DocumentInDocTag[];
+}
+
+export function resolveInDocTags(
+	body: string,
+	dictionary: readonly DocumentInDocTag[]
+): InDocTagResolution {
+	const byName = new Map(dictionary.map((tag) => [tag.name, tag] as const));
+	const resolved: DocumentInDocTag[] = [];
+	const seenIds = new Set<string>();
+	const ignored: string[] = [];
+	const seenIgnored = new Set<string>();
+	for (const token of collectInDocTokens(body)) {
+		const tag = byName.get(token);
+		if (!tag) {
+			if (!seenIgnored.has(token)) {
+				seenIgnored.add(token);
+				ignored.push(token);
+			}
+			continue;
+		}
+		if (seenIds.has(tag.id)) {
+			continue;
+		}
+		seenIds.add(tag.id);
+		resolved.push({ id: tag.id, name: tag.name });
+	}
+	return { ignored, resolved };
+}
+
+function collectInDocTokens(body: string): string[] {
+	const tokens: string[] = [];
+	for (const block of presentDocumentBody(body).blocks) {
+		if (block.kind !== "markdown") {
+			continue;
+		}
+		const prose = maskNonTagRegions(block.text);
+		TAG_TOKEN.lastIndex = 0;
+		for (const match of prose.matchAll(TAG_TOKEN)) {
+			const [, , token] = match;
+			if (token) {
+				tokens.push(token);
+			}
+		}
+	}
+	return tokens;
+}
+
+function maskNonTagRegions(text: string): string {
+	return text
+		.replace(INLINE_CODE, " ")
+		.replace(MARKDOWN_LINK, " ")
+		.replace(AUTOLINK, " ")
+		.replace(BARE_URL, " ")
+		.replace(ESCAPED_HASH, " ");
+}
+
+const MARKDOWN_IMAGE = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+const SUPPORTED_IMAGE = /\.(?:gif|jpe?g|png|webp)(?:\?|#|$)/i;
+const HEADING_LINE = /^#{1,6}\s+/;
+const PREVIEW_LIMIT = 160;
+
+function firstSupportedImageUrl(text: string): string | null {
+	MARKDOWN_IMAGE.lastIndex = 0;
+	for (const match of text.matchAll(MARKDOWN_IMAGE)) {
+		const source = match[1]?.trim() ?? "";
+		if (source.length > 0 && SUPPORTED_IMAGE.test(source)) {
+			return source;
+		}
+	}
+	return null;
+}
+
+function firstMeaningfulProse(text: string): string {
+	MARKDOWN_IMAGE.lastIndex = 0;
+	const lines = text
+		.replace(MARKDOWN_IMAGE, " ")
+		.replace(INLINE_CODE, " ")
+		.replace(MARKDOWN_LINK, " ")
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0 && !HEADING_LINE.test(line));
+	return lines[0]?.slice(0, PREVIEW_LIMIT) ?? "";
+}
+
+export function presentDocumentChildCard(input: {
+	body: string;
+	documentId: string;
+	title: string;
+	type: DocumentType;
+}): DocumentChildCard {
+	let imageUrl: string | null = null;
+	let preview = "";
+	for (const block of presentDocumentBody(input.body).blocks) {
+		if (block.kind !== "markdown") {
+			continue;
+		}
+		if (imageUrl === null) {
+			imageUrl = firstSupportedImageUrl(block.text);
+		}
+		if (preview.length === 0) {
+			preview = firstMeaningfulProse(block.text);
+		}
+	}
+	return {
+		documentId: input.documentId,
+		imageUrl,
+		preview: preview || `${input.title} · ${input.type}`,
+		title: input.title,
+		type: input.type,
+	};
 }

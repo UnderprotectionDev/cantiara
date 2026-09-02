@@ -20,21 +20,33 @@ import {
 	listRelations,
 } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
+import {
+	createTag,
+	listTaggedDocuments,
+	listTags,
+} from "../../tags/server/tags";
 import { createWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
+	archiveDocument,
 	compareDocumentVersions,
 	convertDocumentToTemplate,
 	createDocument,
+	createDocumentFolder,
 	createDocumentTemplate,
 	getDocument,
 	getDocumentTemplate,
 	instantiateDocumentFromTemplate,
+	listDocumentFolders,
 	listDocuments,
 	listDocumentTemplates,
 	listDocumentVersions,
 	materializeStarterSkeletonDocuments,
+	placeDocument,
 	previewConvertDocumentToTemplate,
+	previewDocumentArchive,
+	previewDocumentPlacement,
 	restoreDocumentVersion,
+	unarchiveDocument,
 	updateDocument,
 	updateDocumentTemplate,
 } from "./documents";
@@ -44,7 +56,9 @@ import {
 	DOCUMENTS_COPY,
 	documentsCatalog,
 	presentDocumentBody,
+	presentDocumentChildCard,
 	presentDocumentVersionDiff,
+	resolveInDocTags,
 } from "./documents-model";
 
 const DATABASE_URL =
@@ -52,6 +66,12 @@ const DATABASE_URL =
 	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
 
 const MARKETPLACE_COPY = /marketplace|licensed pack|meeting type/i;
+const TRASH_PATTERN = /Trash|trash|Çöp/i;
+const DISCOVERY_COPY_PATTERN =
+	/All Documents|Smart Collection|Trash|Unpublish/i;
+const SMART_COLLECTION_PATTERN = /Smart Collection/i;
+const CARD_COVER_PATTERN = /cover|thumbnail|designer/i;
+const BILLING = { id: "tag-billing", name: "billing" };
 const SECTION_ID = "\\{#sec-[^}]+\\}";
 const SPEC_HEADING_BODY = new RegExp(`^# Spec ${SECTION_ID}\\n\\nHello$`);
 const PERIOD_FILLED_BODY = new RegExp(
@@ -208,6 +228,13 @@ describe("Documents catalog", () => {
 			types: DOCUMENT_TYPES,
 		});
 		expect(DOCUMENTS_COPY.document).toBe("Document");
+		expect(DOCUMENTS_COPY.archive).toBe("Archive");
+		expect(DOCUMENTS_COPY.archived).toBe("Archived");
+		expect(DOCUMENTS_COPY.unarchive).toBe("Unarchive");
+		expect(DOCUMENTS_COPY.folder).toBe("Folder");
+		expect(DOCUMENTS_COPY.card).toBe("Card");
+		expect(DOCUMENTS_COPY.parentDocument).toBe("Parent Document");
+		expect(JSON.stringify(DOCUMENTS_COPY)).not.toMatch(DISCOVERY_COPY_PATTERN);
 		expect(DOCUMENTS_COPY.documentTemplate).toBe("Document Template");
 		expect(DOCUMENTS_COPY.convertToTemplate).toBe("Convert to template");
 		expect(DOCUMENTS_COPY.createFromTemplate).toBe("Create from template");
@@ -1225,3 +1252,528 @@ describe("Document templates", () => {
 		expect(created.document.body).toMatch(NOTE_HEADING_BODY);
 	});
 });
+
+describe("In-doc tags", () => {
+	it("binds #tag in prose to the Workspace tag identity and ignores code, URLs, and escapes", () => {
+		const body = [
+			"Ship #billing today.",
+			"",
+			"```ts",
+			"const token = '#billing';",
+			"```",
+			"",
+			"Inline `#billing` stays code.",
+			"See https://example.com/#billing and [docs](https://example.com/path#billing).",
+			"Escaped \\#billing is text.",
+			"# Heading is not a tag",
+			"Unknown #notATag stays unbound.",
+		].join("\n");
+		expect(resolveInDocTags(body, [BILLING])).toEqual({
+			ignored: ["notATag"],
+			resolved: [BILLING],
+		});
+	});
+
+	it("derives a child Card from the child body without a cover record", () => {
+		expect(
+			presentDocumentChildCard({
+				body: [
+					"# Heading",
+					"",
+					"![skip](https://example.com/file.svg)",
+					"![shot](https://cdn.example.com/hero.png)",
+					"Opening paragraph for the child.",
+					"```ts",
+					"not preview",
+					"```",
+				].join("\n"),
+				documentId: "doc-child",
+				title: "Child",
+				type: "Spec",
+			})
+		).toEqual({
+			documentId: "doc-child",
+			imageUrl: "https://cdn.example.com/hero.png",
+			preview: "Opening paragraph for the child.",
+			title: "Child",
+			type: "Spec",
+		});
+		expect(
+			presentDocumentChildCard({
+				body: "",
+				documentId: "doc-empty",
+				title: "Empty",
+				type: "General",
+			})
+		).toEqual({
+			documentId: "doc-empty",
+			imageUrl: null,
+			preview: "Empty · General",
+			title: "Empty",
+			type: "General",
+		});
+		expect(JSON.stringify(DOCUMENTS_COPY.card)).not.toMatch(CARD_COVER_PATTERN);
+	});
+});
+
+describe("Documents tags, hierarchy, and archive", () => {
+	let prisma: PrismaClient;
+	let pool: Pool;
+
+	beforeAll(() => {
+		process.env.NODE_ENV = "test";
+	});
+
+	beforeEach(() => {
+		pool = new Pool({ connectionString: DATABASE_URL });
+		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+	});
+
+	afterEach(async () => {
+		await prisma.mutationReceipt.deleteMany();
+		await prisma.workspace.deleteMany();
+		await prisma.user.deleteMany();
+		await prisma.$disconnect();
+		await pool.end();
+	});
+
+	it("saves resolved in-doc tags without minting unknown tokens", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const createdTag = await createTag(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			name: "billing",
+			origin: "human",
+			workspaceId,
+		});
+		if (createdTag.status !== "committed") {
+			throw new Error("expected committed Tag");
+		}
+		const before = await listTags(prisma, workspaceId);
+		const created = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: [
+					"Pay #billing now.",
+					"```ts",
+					"#billing",
+					"```",
+					"Visit https://example.com/#billing",
+					"Also #ghost",
+				].join("\n"),
+				scope: { kind: "project", projectId: project.id },
+				title: "Intake",
+				type: "Spec",
+			},
+			workspaceId,
+		});
+		expect(created).toMatchObject({
+			document: {
+				inDocTags: [{ id: createdTag.tag.id, name: "billing" }],
+			},
+			status: "committed",
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		expect(await listTags(prisma, workspaceId)).toEqual(before);
+		expect(
+			await listTaggedDocuments(prisma, {
+				tagId: createdTag.tag.id,
+				workspaceId,
+			})
+		).toEqual([{ documentId: created.document.id, tagId: createdTag.tag.id }]);
+	});
+
+	it("blocks a fourth Document level in preview and does not flatten", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const root = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Root"
+		);
+		const child = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Child"
+		);
+		const grandchild = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Grandchild"
+		);
+		const extra = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Too deep"
+		);
+		const nestChild = await placeDocument(prisma, {
+			actorId,
+			baseRevision: child.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				documentId: child.id,
+				folderId: null,
+				parentId: root.id,
+			},
+			workspaceId,
+		});
+		if (nestChild.status !== "committed") {
+			throw new Error("expected nested child");
+		}
+		const nestGrand = await placeDocument(prisma, {
+			actorId,
+			baseRevision: grandchild.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				documentId: grandchild.id,
+				folderId: null,
+				parentId: child.id,
+			},
+			workspaceId,
+		});
+		if (nestGrand.status !== "committed") {
+			throw new Error("expected nested grandchild");
+		}
+		expect(
+			await previewDocumentPlacement(prisma, {
+				documentId: extra.id,
+				folderId: null,
+				parentId: grandchild.id,
+				workspaceId,
+			})
+		).toEqual({ reason: "depth-exceeded", status: "blocked" });
+		const placed = await placeDocument(prisma, {
+			actorId,
+			baseRevision: extra.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				documentId: extra.id,
+				folderId: null,
+				parentId: grandchild.id,
+			},
+			workspaceId,
+		});
+		expect(placed).toEqual({
+			reason: "depth-exceeded",
+			status: "rejected",
+		});
+		expect(await getDocument(prisma, extra.id)).toMatchObject({
+			id: extra.id,
+			parentId: null,
+		});
+		expect(await getDocument(prisma, grandchild.id)).toMatchObject({
+			id: grandchild.id,
+			parentId: child.id,
+		});
+	});
+
+	it("keeps identity, scope, and archive state when placing under a parent in the same scope", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const folder = await createDocumentFolder(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				name: "Specs",
+				scope: { kind: "project", projectId: project.id },
+			},
+			workspaceId,
+		});
+		expect(folder).toMatchObject({
+			folder: { name: "Specs" },
+			status: "committed",
+		});
+		if (folder.status !== "committed") {
+			throw new Error("expected folder");
+		}
+		expect(JSON.stringify(folder.folder)).not.toMatch(SMART_COLLECTION_PATTERN);
+		const parent = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Parent"
+		);
+		const child = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Child"
+		);
+		const placed = await placeDocument(prisma, {
+			actorId,
+			baseRevision: child.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				documentId: child.id,
+				folderId: folder.folder.id,
+				parentId: parent.id,
+			},
+			workspaceId,
+		});
+		expect(placed).toMatchObject({
+			document: {
+				archived: false,
+				folderId: folder.folder.id,
+				id: child.id,
+				parentId: parent.id,
+				revision: child.revision,
+				scope: { kind: "project", projectId: project.id },
+				title: "Child",
+			},
+			status: "committed",
+		});
+		expect(await getDocument(prisma, parent.id)).toMatchObject({
+			childCards: [
+				{
+					documentId: child.id,
+					imageUrl: null,
+					preview: "Child",
+					title: "Child",
+					type: "General",
+				},
+			],
+			id: parent.id,
+		});
+		const archivedChild = await archiveDocument(prisma, {
+			actorId,
+			baseRevision: placed.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { documentId: child.id },
+			workspaceId,
+		});
+		expect(archivedChild).toMatchObject({
+			document: { archived: true, id: child.id, parentId: parent.id },
+			status: "committed",
+		});
+		if (archivedChild.status !== "committed") {
+			throw new Error("expected archived child");
+		}
+		expect(await getDocument(prisma, parent.id)).toMatchObject({
+			childCards: [],
+			id: parent.id,
+		});
+		const moved = await placeDocument(prisma, {
+			actorId,
+			baseRevision: archivedChild.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				documentId: child.id,
+				folderId: folder.folder.id,
+				parentId: parent.id,
+			},
+			workspaceId,
+		});
+		expect(moved).toMatchObject({
+			document: {
+				archived: true,
+				folderId: folder.folder.id,
+				id: child.id,
+				parentId: parent.id,
+			},
+			status: "committed",
+		});
+		const wiki = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			null,
+			"Wiki note"
+		);
+		expect(
+			await previewDocumentPlacement(prisma, {
+				documentId: wiki.id,
+				folderId: null,
+				parentId: parent.id,
+				workspaceId,
+			})
+		).toEqual({ reason: "cross-scope-parent", status: "blocked" });
+		expect(
+			await listDocumentFolders(prisma, {
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual([folder.folder]);
+	});
+
+	it("archives a Document out of default navigation without deleting identity, relations, or children", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const parent = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Parent"
+		);
+		const child = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Child"
+		);
+		const nested = await placeDocument(prisma, {
+			actorId,
+			baseRevision: child.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				documentId: child.id,
+				folderId: null,
+				parentId: parent.id,
+			},
+			workspaceId,
+		});
+		if (nested.status !== "committed") {
+			throw new Error("expected nested child");
+		}
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { projectId: project.id, title: "Related work" },
+		});
+		if (work.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const related = await createRelation(prisma, {
+			actorId,
+			from: { id: work.work.id, kind: "Work" },
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			previewAcknowledged: true,
+			to: { id: parent.id, kind: "Document" },
+			type: RELATIONS_COPY.related,
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(related.status).toBe("committed");
+		const before = await listRelations(prisma, {
+			record: { id: parent.id, kind: "Document" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(
+			await previewDocumentArchive(prisma, {
+				documentId: parent.id,
+				workspaceId,
+			})
+		).toEqual({
+			childTitles: ["Child"],
+			documentId: parent.id,
+			status: "ok",
+		});
+		const archived = await archiveDocument(prisma, {
+			actorId,
+			baseRevision: parent.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { documentId: parent.id },
+			workspaceId,
+		});
+		expect(archived).toMatchObject({
+			document: {
+				archived: true,
+				id: parent.id,
+				title: "Parent",
+			},
+			status: "committed",
+		});
+		if (archived.status !== "committed") {
+			throw new Error("expected archived Document");
+		}
+		expect(JSON.stringify(archived.document)).not.toMatch(TRASH_PATTERN);
+		expect(
+			await listDocuments(prisma, {
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual([await getDocument(prisma, child.id)]);
+		expect(
+			await listDocuments(prisma, {
+				archived: true,
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual([archived.document]);
+		expect(await getDocument(prisma, parent.id)).toEqual(archived.document);
+		expect(await getDocument(prisma, child.id)).toMatchObject({
+			parentId: parent.id,
+		});
+		expect(
+			await listRelations(prisma, {
+				record: { id: parent.id, kind: "Document" },
+				viewerWorkspaceId: workspaceId,
+			})
+		).toEqual(before);
+		const restored = await unarchiveDocument(prisma, {
+			actorId,
+			baseRevision: archived.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { documentId: parent.id },
+			workspaceId,
+		});
+		expect(restored).toMatchObject({
+			document: { archived: false, id: parent.id },
+			status: "committed",
+		});
+		if (restored.status !== "committed") {
+			throw new Error("expected unarchived Document");
+		}
+		expect(
+			await listDocuments(prisma, {
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual(
+			expect.arrayContaining([
+				restored.document,
+				await getDocument(prisma, child.id),
+			])
+		);
+	});
+});
+
+async function addDocument(
+	prisma: PrismaClient,
+	actorId: string,
+	workspaceId: string,
+	projectId: string | null,
+	title: string
+) {
+	const created = await createDocument(prisma, {
+		actorId,
+		idempotencyKey: crypto.randomUUID(),
+		origin: "human",
+		payload: {
+			body: title,
+			scope: projectId
+				? { kind: "project", projectId }
+				: { kind: "personal-wiki" },
+			title,
+			type: "General",
+		},
+		workspaceId,
+	});
+	if (created.status !== "committed") {
+		throw new Error("expected committed Document");
+	}
+	return created.document;
+}

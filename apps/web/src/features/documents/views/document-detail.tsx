@@ -33,27 +33,58 @@ import DocumentConvertPanel from "./document-convert-panel";
 import DocumentVersionHistory from "./document-version-history";
 
 export default function DocumentDetail({
+	archivedList,
 	documentId,
 	onOpenSourceRecord,
+	onSelect,
 	projectId,
 }: {
+	archivedList?: boolean;
 	documentId: string;
 	onOpenSourceRecord?: (id: string) => void;
+	onSelect?: (documentId: string) => void;
 	projectId: string | null;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [body, setBody] = useState("");
 	const [error, setError] = useState<string | null>(null);
+	const [folderId, setFolderId] = useState<string>("");
 	const [mermaidSource, setMermaidSource] = useState<string | null>(null);
 	const [originalBlockOutcome, setOriginalBlockOutcome] =
 		useState<OriginalMermaidOutcome>("independent");
+	const [parentId, setParentId] = useState<string>("");
 	const [title, setTitle] = useState("");
 	const [type, setType] = useState<DocumentType>("General");
+	const scope = documentScopeFor(projectId);
 	const selected = useQuery(
 		orpc.documents.get.queryOptions({
 			input: { documentId },
 		})
 	);
+	const listed = useQuery(
+		orpc.documents.list.queryOptions({
+			input: { scope },
+		})
+	);
+	const folders = useQuery(
+		orpc.documents.listFolders.queryOptions({ input: { scope } })
+	);
+	const placementPreview = useQuery({
+		...orpc.documents.previewPlacement.queryOptions({
+			input: {
+				documentId,
+				folderId: folderId.length > 0 ? folderId : null,
+				parentId: parentId.length > 0 ? parentId : null,
+			},
+		}),
+		enabled: Boolean(selected.data),
+	});
+	const archivePreview = useQuery({
+		...orpc.documents.previewArchive.queryOptions({
+			input: { documentId },
+		}),
+		enabled: Boolean(selected.data),
+	});
 	const presented = useQuery({
 		...orpc.documents.presentLive.queryOptions({
 			input: { body },
@@ -68,22 +99,70 @@ export default function DocumentDetail({
 		setBody(selected.data.body);
 		setTitle(selected.data.title);
 		setType(selected.data.type);
+		setFolderId(selected.data.folderId ?? "");
+		setParentId(selected.data.parentId ?? "");
 	}, [selected.data]);
 
+	const invalidateDocuments = useCallback(async () => {
+		await queryClient.invalidateQueries({
+			queryKey: orpc.documents.list.queryKey({
+				input: { archived: archivedList, scope },
+			}),
+		});
+		await queryClient.invalidateQueries({
+			queryKey: orpc.documents.list.queryKey({
+				input: { scope },
+			}),
+		});
+		await queryClient.invalidateQueries({
+			queryKey: orpc.documents.get.queryKey({
+				input: { documentId },
+			}),
+		});
+	}, [archivedList, documentId, scope]);
+
+	const place = useMutation(
+		orpc.documents.place.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidateDocuments();
+					recordSave();
+					setError(null);
+					return;
+				}
+				if (outcome.status === "rejected") {
+					setError(placementError(outcome.reason));
+				}
+			},
+		})
+	);
+	const archive = useMutation(
+		orpc.documents.archive.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidateDocuments();
+					recordSave();
+					setError(null);
+				}
+			},
+		})
+	);
+	const unarchive = useMutation(
+		orpc.documents.unarchive.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidateDocuments();
+					recordSave();
+					setError(null);
+				}
+			},
+		})
+	);
 	const save = useMutation(
 		orpc.documents.update.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await queryClient.invalidateQueries({
-						queryKey: orpc.documents.list.queryKey({
-							input: { scope: documentScopeFor(projectId) },
-						}),
-					});
-					await queryClient.invalidateQueries({
-						queryKey: orpc.documents.get.queryKey({
-							input: { documentId },
-						}),
-					});
+					await invalidateDocuments();
 					recordSave();
 					setError(null);
 					return;
@@ -104,6 +183,18 @@ export default function DocumentDetail({
 	const onTypeChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
 		setType(event.target.value as DocumentType);
 	}, []);
+	const onFolderChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			setFolderId(event.target.value);
+		},
+		[]
+	);
+	const onParentChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			setParentId(event.target.value);
+		},
+		[]
+	);
 	const onBlockSourceChange = useCallback(
 		(previous: string, next: string) => {
 			setBody((current) => replaceFirst(current, previous, next));
@@ -203,6 +294,66 @@ export default function DocumentDetail({
 		[onOpenSourceRecord]
 	);
 
+	const onPlace = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			if (!selected.data) {
+				return;
+			}
+			if (placementPreview.data?.status === "blocked") {
+				setError(placementError(placementPreview.data.reason));
+				return;
+			}
+			setError(null);
+			markUnsaved();
+			attemptOnlineWork("record-create", () =>
+				place.mutateAsync({
+					baseRevision: selected.data.revision,
+					idempotencyKey: newIdempotencyKey(),
+					payload: {
+						documentId,
+						folderId: folderId.length > 0 ? folderId : null,
+						parentId: parentId.length > 0 ? parentId : null,
+					},
+				})
+			);
+		},
+		[
+			attemptOnlineWork,
+			documentId,
+			folderId,
+			markUnsaved,
+			parentId,
+			place,
+			placementPreview.data,
+			selected.data,
+		]
+	);
+	const onArchive = useCallback(() => {
+		if (!selected.data) {
+			return;
+		}
+		markUnsaved();
+		const procedure = selected.data.archived ? unarchive : archive;
+		attemptOnlineWork("record-create", () =>
+			procedure.mutateAsync({
+				baseRevision: selected.data.revision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: { documentId },
+			})
+		);
+	}, [
+		archive,
+		attemptOnlineWork,
+		documentId,
+		markUnsaved,
+		selected.data,
+		unarchive,
+	]);
+	const parentChoices = (listed.data ?? []).filter(
+		(item) => item.id !== documentId
+	);
+
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
@@ -287,6 +438,80 @@ export default function DocumentDetail({
 					{error ? <p role="alert">{error}</p> : null}
 					<Button type="submit">{DOCUMENTS_COPY.save}</Button>
 				</form>
+				{selected.data.inDocTags.length > 0 ? (
+					<p className="mt-3 text-muted-foreground text-sm">
+						{selected.data.inDocTags.map((tag) => `#${tag.name}`).join(" ")}
+					</p>
+				) : null}
+				{selected.data.childCards.length > 0 ? (
+					<section aria-label={DOCUMENTS_COPY.card} className="mt-4">
+						<h3 className="font-medium text-sm">{DOCUMENTS_COPY.card}</h3>
+						<ul className="mt-2 flex flex-col gap-2">
+							{selected.data.childCards.map((card) => (
+								<li key={card.documentId}>
+									<ChildCardButton card={card} onSelect={onSelect} />
+								</li>
+							))}
+						</ul>
+					</section>
+				) : null}
+				<form className="mt-6 flex flex-col gap-3" onSubmit={onPlace}>
+					<Field>
+						<FieldLabel htmlFor="document-parent">
+							{DOCUMENTS_COPY.parentDocument}
+						</FieldLabel>
+						<NativeSelect
+							id="document-parent"
+							onChange={onParentChange}
+							value={parentId}
+						>
+							<NativeSelectOption value="">
+								{DOCUMENTS_COPY.noParent}
+							</NativeSelectOption>
+							{parentChoices.map((item) => (
+								<NativeSelectOption key={item.id} value={item.id}>
+									{item.title}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor="document-folder">
+							{DOCUMENTS_COPY.folder}
+						</FieldLabel>
+						<NativeSelect
+							id="document-folder"
+							onChange={onFolderChange}
+							value={folderId}
+						>
+							<NativeSelectOption value="">
+								{DOCUMENTS_COPY.noFolder}
+							</NativeSelectOption>
+							{(folders.data ?? []).map((folder) => (
+								<NativeSelectOption key={folder.id} value={folder.id}>
+									{folder.name}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+					</Field>
+					{placementPreview.data?.status === "blocked" ? (
+						<p role="alert">{placementError(placementPreview.data.reason)}</p>
+					) : null}
+					<Button type="submit">{DOCUMENTS_COPY.save}</Button>
+				</form>
+				<div className="mt-4 flex flex-col gap-2">
+					{archivePreview.data?.status === "ok" &&
+					archivePreview.data.childTitles.length > 0 ? (
+						<p className="text-muted-foreground text-sm">
+							{archivePreview.data.childTitles.join(", ")}
+						</p>
+					) : null}
+					<Button onClick={onArchive} type="button">
+						{selected.data.archived
+							? DOCUMENTS_COPY.unarchive
+							: DOCUMENTS_COPY.archive}
+					</Button>
+				</div>
 				<div className="mt-4">
 					<ConvertToTemplateForm
 						documentId={documentId}
@@ -356,6 +581,54 @@ export default function DocumentDetail({
 			</CardContent>
 		</Card>
 	);
+}
+
+function ChildCardButton({
+	card,
+	onSelect,
+}: {
+	card: {
+		documentId: string;
+		imageUrl: string | null;
+		preview: string;
+		title: string;
+	};
+	onSelect?: (documentId: string) => void;
+}) {
+	const onClick = useCallback(() => {
+		onSelect?.(card.documentId);
+	}, [card.documentId, onSelect]);
+	return (
+		<button
+			className="w-full rounded-none border border-input px-2.5 py-2 text-left text-sm hover:bg-muted/40"
+			onClick={onClick}
+			type="button"
+		>
+			{card.imageUrl ? (
+				<img
+					alt=""
+					className="mb-1 max-h-24 w-full object-cover"
+					height={96}
+					src={card.imageUrl}
+					width={320}
+				/>
+			) : null}
+			<span className="font-medium">{card.title}</span>
+			<span className="mt-0.5 block text-muted-foreground text-xs">
+				{card.preview}
+			</span>
+		</button>
+	);
+}
+
+function placementError(reason: string): string {
+	if (reason === "depth-exceeded") {
+		return DOCUMENTS_COPY.depthExceeded;
+	}
+	if (reason === "cross-scope-parent") {
+		return DOCUMENTS_COPY.crossScopeParent;
+	}
+	return reason;
 }
 
 function replaceFirst(haystack: string, needle: string, next: string): string {

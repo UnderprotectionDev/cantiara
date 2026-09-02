@@ -463,6 +463,10 @@ _Avoid_: Statik liste, klasör, etiket
 Çalışma Alanı genelinde yaşayan düz sınıflandırma kimliği; kayıt içeriği, klasör üyeliği veya süzme görünümü değildir ([Etiketler](docs/prd/08-search-relations-and-evidence.md#etiketler)). UI: `Tags`.
 _Avoid_: Klasör, Akıllı Koleksiyon, Proje-yerel etiket sözlüğü, hiyerarşi
 
+**Belge içi etiket**:
+Belge gövdesindeki düz yazı `#tag` tokenının aynı Çalışma Alanı Etiket kimliğine bağlanması; ikinci sözlük veya serbest hashtag değildir ([Etiketler](docs/prd/08-search-relations-and-evidence.md#etiketler)). UI: `#` + Etiket adı.
+_Avoid_: serbest metin hashtag, ikinci etiket sözlüğü
+
 **Proje bazlı özel alan**:
 Yalnız bir Projede yaşayan, Metin, Sayı, Boolean, Tarih, tek seçim veya çoklu seçim türünde yapılandırılmış sınıflandırma alanı ([proje bazlı özel alanlar](docs/prd/08-search-relations-and-evidence.md#proje-bazlı-özel-alanlar)).
 _Avoid_: Lookup, Formula, çalışma alanı genelinde şema, etiket hiyerarşisi
@@ -577,6 +581,22 @@ _Avoid_: Geri Bildirim, Test Oturumu, Deney/Doğrulama
 **Belge**:
 Bir Proje veya Kişisel Wiki kapsamında yaşayan, sürümlü Markdown içeriğine sahip ana kayıt; başka kaydın metin alanı veya dış dosyayla canlı eşitlenen kopya değildir.
 _Avoid_: Dosya Eki, harici Markdown dosyası, kayıt açıklaması
+
+**Belge arşivi**:
+Belgeyi silmeden varsayılan gezinmeden ayıran görünürlük; kimlik, sürüm, ilişki ve çocuk bağlarını korur ([Belge arşivi](docs/prd/07-documents-and-knowledge.md#belge-arşivi)). UI: `Archive`.
+_Avoid_: Çöp Kutusu, Proje arşivi, Wiki yayını durdurma
+
+**Belge klasörü**:
+Aynı Proje veya Kişisel Wiki kapsamında Belgeleri düzenleyen gezinme üstverisi; sahiplik, yaşam döngüsü veya üyelik görünümü değildir ([Belge hiyerarşisi ve klasörleri](docs/prd/07-documents-and-knowledge.md#belge-hiyerarşisi-ve-klasörleri)). UI: `Folder`.
+_Avoid_: Akıllı Koleksiyon, sahiplik kapsamı, Belge Koleksiyonu
+
+**Üst belge**:
+Aynı sahiplik kapsamındaki en fazla bir ebeveyn Belge; kök dahil hiyerarşi en fazla üç Belge seviyesidir. UI: `Parent Document`.
+_Avoid_: çapraz kapsam ebeveyn, sınırsız ağaç
+
+**Çocuk Belge kartı**:
+Üst Belgede gösterilen, alt Belgeden otomatik türetilen sınırlı önizleme; yeni kayıt, kapak veya ikinci özet değildir ([Belge hiyerarşisi ve klasörleri](docs/prd/07-documents-and-knowledge.md#belge-hiyerarşisi-ve-klasörleri)). UI: `Card`.
+_Avoid_: ayrı kapak kaydı, thumbnail kaydı, kart tasarımcısı
 
 **Belge şablonu**:
 Proje veya Kişisel Wiki kapsamında tekrar kullanılan Belge başlangıç iskeleti; üretilen Belge bağımsız kimlik alır. Şablon geçmiş, ilişki, yayın, arşiv veya canlı bağ taşımaz ([belge şablonları](docs/prd/07-documents-and-knowledge.md#belge-şablonları)). UI: `Document Template`. Şablondan Belge açma UI: `Create from template`; mevcut Belgeden iskelet UI: `Convert to template`.
