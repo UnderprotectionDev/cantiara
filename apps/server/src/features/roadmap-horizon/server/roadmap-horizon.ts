@@ -1,8 +1,17 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
 import { listActiveBlockerSources } from "../../blockers/server/blockers";
+import {
+	lockMutation,
+	readDurableReceipt,
+	writeDurableReceipt,
+} from "../../mutation-core/server/durable-mutation";
+import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import { getProject } from "../../project-shell/server/project-shell";
-import { listRelations } from "../../relations/server/relations";
+import {
+	createRelation,
+	listRelations,
+} from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
 	getWork,
@@ -10,11 +19,23 @@ import {
 } from "../../work-lifecycle/server/work-lifecycle";
 import { notNowReasonByWorkId } from "./not-now-trail";
 import {
+	type ContributeToMilestoneCommand,
+	type CreateMilestoneCommand,
+	contributeToMilestoneCommandSchema,
+	createMilestoneCommandSchema,
+	getMilestoneQuerySchema,
+	isMilestoneStatus,
 	isRoadmapGroupField,
 	isRoadmapHorizon,
 	isRoadmapPresentation,
 	type ListRoadmapQuery,
+	listMilestonesQuerySchema,
 	listRoadmapQuerySchema,
+	MILESTONE_COPY,
+	MILESTONE_COUNTERPARTS,
+	MILESTONE_WRITES,
+	type MilestoneStatus,
+	type MilestoneView,
 	type PlaceCandidateChange,
 	type PlaceCandidateCommand,
 	type PlaceHorizonCommand,
@@ -37,7 +58,9 @@ import {
 	type RoadmapView,
 	type RoadmapWorkItem,
 	type SaveRoadmapNamedViewCommand,
+	type SetMilestoneStatusCommand,
 	saveRoadmapNamedViewCommandSchema,
+	setMilestoneStatusCommandSchema,
 } from "./roadmap-horizon-model";
 
 type RoadmapDb = PrismaClient | Prisma.TransactionClient;
@@ -59,6 +82,29 @@ export type PlaceHorizonOutcome =
 export type SaveNamedViewOutcome =
 	| { status: "committed"; view: RoadmapNamedView }
 	| { reason: "target-not-found" | "unknown-presentation"; status: "rejected" };
+
+export type MilestoneWriteOutcome =
+	| { milestone: MilestoneView; status: "committed" }
+	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
+	| { reason: "target-not-found"; status: "rejected" };
+
+export type SetMilestoneStatusOutcome =
+	| {
+			milestone: MilestoneView;
+			status: "committed";
+			work: MilestoneView["contributingWork"];
+	  }
+	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
+	| { reason: "target-not-found"; status: "rejected" };
+
+export type ContributeToMilestoneOutcome =
+	| {
+			milestone: MilestoneView;
+			relation: { type: string };
+			status: "committed";
+	  }
+	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
+	| { reason: "target-not-found" | "ends-not-allowed"; status: "rejected" };
 
 export type PreviewPlaceCandidateOutcome =
 	| {
@@ -669,4 +715,372 @@ function asHorizon(value: string | null): RoadmapHorizon | null {
 		return value;
 	}
 	return null;
+}
+
+export async function createMilestone(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<MilestoneWriteOutcome> {
+	const parsed = createMilestoneCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const project = await getProject(prisma, parsed.data.projectId);
+	if (!project) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	return await persistMilestone(prisma, parsed.data);
+}
+
+export async function listMilestones(
+	prisma: PrismaClient,
+	query: unknown
+): Promise<MilestoneView[]> {
+	const parsed = listMilestonesQuerySchema.safeParse(query);
+	if (!parsed.success) {
+		return [];
+	}
+	const rows = await prisma.milestone.findMany({
+		include: { events: { orderBy: { createdAt: "asc" } } },
+		orderBy: { createdAt: "asc" },
+		where: { projectId: parsed.data.projectId },
+	});
+	return await Promise.all(rows.map((row) => toMilestoneView(prisma, row)));
+}
+
+export async function getMilestone(
+	prisma: PrismaClient,
+	milestoneId: string,
+	workspaceId?: string
+): Promise<MilestoneView | null> {
+	const parsed = getMilestoneQuerySchema.safeParse({ milestoneId });
+	if (!parsed.success) {
+		return null;
+	}
+	const row = await prisma.milestone.findUnique({
+		include: { events: { orderBy: { createdAt: "asc" } }, project: true },
+		where: { id: parsed.data.milestoneId },
+	});
+	if (!row) {
+		return null;
+	}
+	if (workspaceId && row.project.workspaceId !== workspaceId) {
+		return null;
+	}
+	return await toMilestoneView(prisma, row);
+}
+
+export async function setMilestoneStatus(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<SetMilestoneStatusOutcome> {
+	const parsed = setMilestoneStatusCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	return await persistMilestoneStatus(prisma, parsed.data);
+}
+
+export async function contributeToMilestone(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ContributeToMilestoneOutcome> {
+	const parsed = contributeToMilestoneCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	return await persistContribution(prisma, parsed.data);
+}
+
+async function persistMilestone(
+	prisma: PrismaClient,
+	command: CreateMilestoneCommand
+): Promise<MilestoneWriteOutcome> {
+	const title = command.title.trim();
+	if (title.length === 0) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const description = command.description?.trim() ?? "";
+	const targetDate = command.targetDate ?? null;
+	const payload = {
+		description: description.length > 0 ? description : null,
+		projectId: command.projectId,
+		targetDate,
+		title,
+	};
+	return await prisma.$transaction(async (tx) => {
+		await lockMutation(tx, `milestone:${command.projectId}:create`);
+		const existing = await readDurableReceipt(
+			tx,
+			command.idempotencyKey,
+			payload
+		);
+		if (existing?.kind === "conflict") {
+			return { reason: MUTATION_COPY.conflict, status: "conflict" };
+		}
+		if (existing?.kind === "replay") {
+			return JSON.parse(existing.resultValue) as MilestoneWriteOutcome;
+		}
+		const created = await tx.milestone.create({
+			data: {
+				description: payload.description,
+				id: crypto.randomUUID(),
+				projectId: command.projectId,
+				revision: 1,
+				status: MILESTONE_COPY.planned,
+				targetDate,
+				title,
+			},
+			include: { events: { orderBy: { createdAt: "asc" } } },
+		});
+		await tx.milestoneStatusEvent.create({
+			data: {
+				id: crypto.randomUUID(),
+				milestoneId: created.id,
+				previousStatus: null,
+				status: MILESTONE_COPY.planned,
+			},
+		});
+		const withEvents = await tx.milestone.findUniqueOrThrow({
+			include: { events: { orderBy: { createdAt: "asc" } } },
+			where: { id: created.id },
+		});
+		const milestone = await toMilestoneView(tx, withEvents);
+		const outcome: MilestoneWriteOutcome = { milestone, status: "committed" };
+		await writeDurableReceipt(tx, {
+			actorId: command.actorId,
+			commandKey: command.idempotencyKey,
+			kind: "milestone-create",
+			payload,
+			resultValue: JSON.stringify(outcome),
+			targetId: created.id,
+		});
+		return outcome;
+	});
+}
+
+async function persistMilestoneStatus(
+	prisma: PrismaClient,
+	command: SetMilestoneStatusCommand
+): Promise<SetMilestoneStatusOutcome> {
+	const payload = {
+		milestoneId: command.milestoneId,
+		status: command.status,
+	};
+	return await prisma.$transaction(async (tx) => {
+		await lockMutation(tx, `milestone:${command.milestoneId}:status`);
+		const existing = await readDurableReceipt(
+			tx,
+			command.idempotencyKey,
+			payload
+		);
+		if (existing?.kind === "conflict") {
+			return { reason: MUTATION_COPY.conflict, status: "conflict" };
+		}
+		if (existing?.kind === "replay") {
+			return JSON.parse(existing.resultValue) as SetMilestoneStatusOutcome;
+		}
+		const row = await tx.milestone.findUnique({
+			include: { events: { orderBy: { createdAt: "asc" } } },
+			where: { id: command.milestoneId },
+		});
+		if (!row) {
+			return { reason: "target-not-found", status: "rejected" };
+		}
+		const previousStatus = isMilestoneStatus(row.status) ? row.status : null;
+		await tx.milestone.update({
+			data: {
+				revision: { increment: 1 },
+				status: command.status,
+			},
+			where: { id: row.id },
+		});
+		await tx.milestoneStatusEvent.create({
+			data: {
+				id: crypto.randomUUID(),
+				milestoneId: row.id,
+				previousStatus,
+				status: command.status,
+			},
+		});
+		const updated = await tx.milestone.findUniqueOrThrow({
+			include: { events: { orderBy: { createdAt: "asc" } } },
+			where: { id: row.id },
+		});
+		const milestone = await toMilestoneView(tx, updated);
+		const outcome: SetMilestoneStatusOutcome = {
+			milestone,
+			status: "committed",
+			work: milestone.contributingWork,
+		};
+		await writeDurableReceipt(tx, {
+			actorId: command.actorId,
+			commandKey: command.idempotencyKey,
+			committedRevision: updated.revision,
+			kind: "milestone-status",
+			payload,
+			resultValue: JSON.stringify(outcome),
+			targetId: row.id,
+		});
+		return outcome;
+	});
+}
+
+async function persistContribution(
+	prisma: PrismaClient,
+	command: ContributeToMilestoneCommand
+): Promise<ContributeToMilestoneOutcome> {
+	const milestoneRow = await prisma.milestone.findUnique({
+		include: { project: true },
+		where: { id: command.milestoneId },
+	});
+	if (!milestoneRow) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const work = await getWork(prisma, command.workId);
+	if (!work || work.projectId !== milestoneRow.projectId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const existing = await prisma.typedRelation.findFirst({
+		where: {
+			fromId: command.workId,
+			fromKind: "Work",
+			toId: command.milestoneId,
+			toKind: "Milestone",
+			type: RELATIONS_COPY.contributesToMilestone,
+		},
+	});
+	if (existing) {
+		const milestone = await getMilestone(prisma, command.milestoneId);
+		if (!milestone) {
+			return { reason: "target-not-found", status: "rejected" };
+		}
+		return {
+			milestone,
+			relation: { type: RELATIONS_COPY.contributesToMilestone },
+			status: "committed",
+		};
+	}
+	const linked = await createRelation(prisma, {
+		actorId: command.actorId,
+		from: { id: command.workId, kind: "Work" },
+		idempotencyKey: command.idempotencyKey,
+		origin: "human",
+		previewAcknowledged: true,
+		to: { id: command.milestoneId, kind: "Milestone" },
+		type: RELATIONS_COPY.contributesToMilestone,
+		viewerWorkspaceId: milestoneRow.project.workspaceId,
+	});
+	if (linked.status === "conflict") {
+		return { reason: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	if (linked.status === "rejected") {
+		return {
+			reason:
+				linked.reason === "ends-not-allowed"
+					? "ends-not-allowed"
+					: "target-not-found",
+			status: "rejected",
+		};
+	}
+	const milestone = await getMilestone(prisma, command.milestoneId);
+	if (!milestone) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	return {
+		milestone,
+		relation: { type: linked.relation.type },
+		status: "committed",
+	};
+}
+
+async function toMilestoneView(
+	prisma: RoadmapDb,
+	row: {
+		description: string | null;
+		events: readonly {
+			previousStatus: string | null;
+			status: string;
+		}[];
+		id: string;
+		projectId: string;
+		revision: number;
+		status: string;
+		targetDate: string | null;
+		title: string;
+	}
+): Promise<MilestoneView> {
+	const contributingWork = await contributingWorkFor(prisma, row.id);
+	return {
+		contributingWork,
+		copy: {
+			abandoned: MILESTONE_COPY.abandoned,
+			milestone: MILESTONE_COPY.milestone,
+			planned: MILESTONE_COPY.planned,
+			reached: MILESTONE_COPY.reached,
+		},
+		counterparts: MILESTONE_COUNTERPARTS,
+		description: row.description,
+		focusPeriodWindow: false,
+		goalContribution: false,
+		history: row.events.flatMap((event) => {
+			const status = isMilestoneStatus(event.status) ? event.status : null;
+			if (!status) {
+				return [];
+			}
+			const previousStatus =
+				event.previousStatus && isMilestoneStatus(event.previousStatus)
+					? event.previousStatus
+					: null;
+			return [{ previousStatus, status }];
+		}),
+		id: row.id,
+		projectId: row.projectId,
+		releaseScope: false,
+		revision: row.revision,
+		status: asMilestoneStatus(row.status),
+		targetDate: row.targetDate,
+		title: row.title,
+		writes: MILESTONE_WRITES,
+	};
+}
+
+async function contributingWorkFor(
+	prisma: RoadmapDb,
+	milestoneId: string
+): Promise<MilestoneView["contributingWork"]> {
+	const edges = await prisma.typedRelation.findMany({
+		orderBy: { establishedAt: "asc" },
+		where: {
+			toId: milestoneId,
+			toKind: "Milestone",
+			type: RELATIONS_COPY.contributesToMilestone,
+		},
+	});
+	const works = await Promise.all(
+		edges.map((edge) =>
+			prisma.work.findFirst({
+				where: { id: edge.fromId, retiredIntoId: null },
+			})
+		)
+	);
+	return works.flatMap((work) =>
+		work
+			? [
+					{
+						id: work.id,
+						key: work.key,
+						status: work.status,
+						title: work.title,
+					},
+				]
+			: []
+	);
+}
+
+function asMilestoneStatus(value: string): MilestoneStatus {
+	if (isMilestoneStatus(value)) {
+		return value;
+	}
+	return MILESTONE_COPY.planned;
 }

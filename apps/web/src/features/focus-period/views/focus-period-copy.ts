@@ -1,6 +1,8 @@
 export const FOCUS_PERIOD_COPY = {
 	active: "Active",
 	add: "Add",
+	alreadyInAnActivePeriod:
+		"Work is already in an active Focus Period. Use Move.",
 	blockedBy: "Blocked by",
 	blocks: "Blocks",
 	cancel: "Cancel",
@@ -15,6 +17,7 @@ export const FOCUS_PERIOD_COPY = {
 	focusPeriod: "Focus Period",
 	loading: "Loading…",
 	members: "Work",
+	move: "Move",
 	openSourceRecord: "Open source record",
 	planned: "Planned",
 	purpose: "Purpose",

@@ -28,6 +28,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Diyagram Sürümü | `Diagram Version` | Teknik Diyagramın kullanıcı tarafından adlandırılıp değişmez hâle getirilen kesin yapısal model ve görünüm checkpoint'i |
 | Migration Artefaktı | `Migration Artifact` | İki kesin Veri Modeli Diyagramı Sürümü arasındaki onaylanmış schema-only değişikliği ve desteklenen PostgreSQL SQL'ini kaynak manifestiyle koruyan değişmez sahipli bileşen |
 | Kilometre Taşı | `Milestone` | Projedeki önemli ara sonucu temsil eden Proje ana kaydı; çalışma penceresi veya yayımlanacak kapsam değildir |
+| Kilometre Taşı yaşamı | `Planned`, `Reached`, `Abandoned` | Kilometre Taşının İngilizce yaşam etiketleri; Odak Dönemi penceresi veya Proje Sürümü kapsamı değildir |
+| Kilometre Taşı oluştur | `Create Milestone` | Başlık, açıklama ve isteğe bağlı hedef tarihiyle ara sonuç kaydı açma |
+| Kilometre Taşına ulaş | `Reach` | Kilometre Taşı durumunu açık eylemle `Reached` yapan yazma; bağlı İşleri kapatmaz |
+| Kilometre Taşından vazgeç | `Abandon` | Kilometre Taşı durumunu açık eylemle `Abandoned` yapan yazma; bağlı İşleri kapatmaz |
+| Kilometre taşına katkı | `Contributes to Milestone` | İşin Kilometre Taşına türlenmiş üyeliği; Hedefe katkı veya yayın kapsamı değildir |
+| Kilometre taşı kapsamında | `In Milestone` | Katkı ilişkisinin Kilometre Taşı ucu |
+| Kilometre Taşı yok | `No Milestone yet.` | Henüz ara sonuç kaydı açılmamış boş durum |
 | Odak Dönemi | `Focus Period` | Seçili çalışmalar için geçici çalışma penceresi ve tarihsel kapsam snapshot'ı; ara sonuç veya yayımlanacak kapsam değildir |
 | Odak Dönemi yaşamı | `Planned`, `Active`, `Closed`, `Canceled` | Odak Döneminin İngilizce yaşam etiketleri; sprint kadansı değildir |
 | Odak Dönemi oluştur | `Create Focus Period` | Amaç ve başlangıç/bitiş tarihiyle isteğe bağlı dönem açma |
@@ -38,6 +45,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Açık kalan İş | `Still-open Work` | Kapanışta toplu karar bekleyen açık İş listesi |
 | Odak Dönemi yok | `No Focus Period yet.` | Henüz dönem açılmamış boş durum |
 | Odak Dönemi penceresi | `Focus Period must be 1–8 weeks.` | 1–8 hafta dışı oluşturma reddi |
+| Başka etkin döneme taşı | `Move` | İşin mevcut etkin Odak Döneminden açıkça başka etkin döneme alınması |
+| Zaten etkin dönemde | `Work is already in an active Focus Period. Use Move.` | Örtük ikinci etkin üyelik reddi |
 | Amaç gerekli | `Purpose is required.` | Boş Odak Dönemi amacı reddi |
 | Proje Sürümü | `Project Release` | Kullanıcı tarafından yönetilen yayımlanacak kapsam ve onun tarihli erişim/sonuç gözlemleri; Kilometre Taşı, Odak Dönemi veya Ürün sürüm adayı değildir |
 | Başlangıç yapılandırması | `Starter Configuration` | Yeni Projeye bir kez uygulanan, içerik üretmeyen kapalı varsayılan yapı seçimi; sonradan başka yapılandırmayla değiştirilmez |

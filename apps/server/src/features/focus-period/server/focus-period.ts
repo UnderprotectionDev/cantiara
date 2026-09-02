@@ -70,6 +70,7 @@ export interface FocusPeriod {
 	create: (input: CreateCommand) => Promise<FocusPeriodOutcome>;
 	get: (periodId: string) => Promise<FocusPeriodView | null>;
 	list: () => Promise<FocusPeriodView[]>;
+	move: (input: MembershipCommand) => Promise<FocusPeriodOutcome>;
 	remove: (input: MembershipCommand) => Promise<FocusPeriodOutcome>;
 }
 
@@ -188,6 +189,10 @@ export function createFocusPeriod(input: CreateFocusPeriodInput): FocusPeriod {
 		return await mutateMembership(input, now, command, "add");
 	}
 
+	async function move(command: MembershipCommand): Promise<FocusPeriodOutcome> {
+		return await mutateMembership(input, now, command, "move");
+	}
+
 	async function remove(
 		command: MembershipCommand
 	): Promise<FocusPeriodOutcome> {
@@ -231,6 +236,7 @@ export function createFocusPeriod(input: CreateFocusPeriodInput): FocusPeriod {
 		create,
 		get,
 		list,
+		move,
 		remove,
 	};
 }
@@ -239,7 +245,7 @@ async function mutateMembership(
 	input: CreateFocusPeriodInput,
 	now: () => Date,
 	command: MembershipCommand,
-	operation: "add" | "remove"
+	operation: "add" | "move" | "remove"
 ): Promise<FocusPeriodOutcome> {
 	if (!hasDelegate(input.prisma, "focusPeriod")) {
 		return { status: "not-found" };
@@ -253,7 +259,7 @@ async function mutateMembership(
 	return await input.prisma.$transaction(async (tx) => {
 		await lockMutation(
 			tx,
-			`focus-period:${input.workspaceId}:${command.periodId}`
+			`focus-period:${input.workspaceId}:work:${command.workId}`
 		);
 		const existing = await readDurableReceipt(
 			tx,
@@ -266,52 +272,16 @@ async function mutateMembership(
 		if (existing?.kind === "replay") {
 			return JSON.parse(existing.resultValue) as FocusPeriodOutcome;
 		}
-		const row = await loadPeriod(tx, input.workspaceId, command.periodId);
-		if (!row) {
-			return { status: "not-found" };
+		const membershipError = await applyMembership(
+			tx,
+			input,
+			command,
+			operation
+		);
+		if (membershipError) {
+			return membershipError;
 		}
-		if (
-			row.status === FOCUS_PERIOD_STATUS.closed ||
-			row.status === FOCUS_PERIOD_STATUS.canceled
-		) {
-			return { status: "not-found" };
-		}
-		const work = await tx.work.findFirst({
-			where: {
-				archived: false,
-				id: command.workId,
-				project: { workspaceId: input.workspaceId },
-				retiredIntoId: null,
-				trashedAt: null,
-			},
-		});
-		if (!work) {
-			return { status: "not-found" };
-		}
-		if (operation === "remove") {
-			await tx.focusPeriodMembership.deleteMany({
-				where: { focusPeriodId: row.id, workId: command.workId },
-			});
-		} else {
-			const already = await tx.focusPeriodMembership.findUnique({
-				where: {
-					focusPeriodId_workId: {
-						focusPeriodId: row.id,
-						workId: command.workId,
-					},
-				},
-			});
-			if (!already) {
-				await tx.focusPeriodMembership.create({
-					data: {
-						focusPeriodId: row.id,
-						id: crypto.randomUUID(),
-						workId: command.workId,
-					},
-				});
-			}
-		}
-		const next = await loadPeriod(tx, input.workspaceId, row.id);
+		const next = await loadPeriod(tx, input.workspaceId, command.periodId);
 		if (!next) {
 			return { status: "not-found" };
 		}
@@ -324,9 +294,92 @@ async function mutateMembership(
 			kind: `focus-period-${operation}`,
 			payload,
 			resultValue: JSON.stringify(outcome),
-			targetId: row.id,
+			targetId: command.periodId,
 		});
 		return outcome;
+	});
+}
+
+async function applyMembership(
+	tx: MutationDb,
+	input: CreateFocusPeriodInput,
+	command: MembershipCommand,
+	operation: "add" | "move" | "remove"
+): Promise<FocusPeriodOutcome | null> {
+	const row = await loadPeriod(tx, input.workspaceId, command.periodId);
+	if (!row) {
+		return { status: "not-found" };
+	}
+	if (
+		row.status === FOCUS_PERIOD_STATUS.closed ||
+		row.status === FOCUS_PERIOD_STATUS.canceled
+	) {
+		return { status: "not-found" };
+	}
+	const work = await tx.work.findFirst({
+		where: {
+			archived: false,
+			id: command.workId,
+			project: { workspaceId: input.workspaceId },
+			retiredIntoId: null,
+			trashedAt: null,
+		},
+	});
+	if (!work) {
+		return { status: "not-found" };
+	}
+	if (operation === "remove") {
+		await tx.focusPeriodMembership.deleteMany({
+			where: { focusPeriodId: row.id, workId: command.workId },
+		});
+		return null;
+	}
+	const otherActiveId = await otherActivePeriodId(
+		tx,
+		input.workspaceId,
+		command.workId,
+		row.id
+	);
+	if (otherActiveId && operation === "add") {
+		return {
+			reason: FOCUS_PERIOD_COPY.alreadyInAnActivePeriod,
+			status: "invalid",
+		};
+	}
+	if (otherActiveId && operation === "move") {
+		await tx.focusPeriodMembership.deleteMany({
+			where: {
+				focusPeriodId: otherActiveId,
+				workId: command.workId,
+			},
+		});
+	}
+	await ensureMembership(tx, row.id, command.workId);
+	return null;
+}
+
+async function ensureMembership(
+	tx: MutationDb,
+	focusPeriodId: string,
+	workId: string
+) {
+	const already = await tx.focusPeriodMembership.findUnique({
+		where: {
+			focusPeriodId_workId: {
+				focusPeriodId,
+				workId,
+			},
+		},
+	});
+	if (already) {
+		return;
+	}
+	await tx.focusPeriodMembership.create({
+		data: {
+			focusPeriodId,
+			id: crypto.randomUUID(),
+			workId,
+		},
 	});
 }
 
@@ -495,6 +548,15 @@ async function toView(
 	const eligibleWork = (await loadEligibleWork(db, input.workspaceId)).filter(
 		(work) => !memberIds.has(work.id)
 	);
+	const activeByWork = await activePeriodIdsForWorks(
+		db,
+		input.workspaceId,
+		eligibleWork.map((work) => work.id)
+	);
+	const eligible = eligibleWork.map((work) => ({
+		...work,
+		activePeriodId: activeByWork.get(work.id) ?? null,
+	}));
 	const startScope = row.startScopeLocked
 		? { workIds: asWorkIds(row.startScopeWorkIds) }
 		: null;
@@ -512,7 +574,7 @@ async function toView(
 		copy: FOCUS_PERIOD_COPY,
 		counterparts: FOCUS_PERIOD_COUNTERPARTS,
 		dependencies,
-		eligibleWork,
+		eligibleWork: eligible,
 		endDate: row.endDate,
 		id: row.id,
 		members: memberViews,
@@ -658,6 +720,52 @@ function asWorkIds(value: Prisma.JsonValue): string[] {
 		return [];
 	}
 	return value.filter((id): id is string => typeof id === "string");
+}
+
+async function otherActivePeriodId(
+	db: MutationDb,
+	workspaceId: string,
+	workId: string,
+	exceptPeriodId: string
+): Promise<string | null> {
+	if (!hasDelegate(db, "focusPeriodMembership")) {
+		return null;
+	}
+	const membership = await db.focusPeriodMembership.findFirst({
+		where: {
+			focusPeriod: {
+				id: { not: exceptPeriodId },
+				status: FOCUS_PERIOD_STATUS.active,
+				workspaceId,
+			},
+			workId,
+		},
+	});
+	return membership?.focusPeriodId ?? null;
+}
+
+async function activePeriodIdsForWorks(
+	db: MutationDb,
+	workspaceId: string,
+	workIds: string[]
+): Promise<Map<string, string>> {
+	const byWork = new Map<string, string>();
+	if (workIds.length === 0 || !hasDelegate(db, "focusPeriodMembership")) {
+		return byWork;
+	}
+	const rows = await db.focusPeriodMembership.findMany({
+		where: {
+			focusPeriod: {
+				status: FOCUS_PERIOD_STATUS.active,
+				workspaceId,
+			},
+			workId: { in: workIds },
+		},
+	});
+	for (const row of rows) {
+		byWork.set(row.workId, row.focusPeriodId);
+	}
+	return byWork;
 }
 
 interface PeriodRow {

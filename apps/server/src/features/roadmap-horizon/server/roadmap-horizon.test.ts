@@ -5,7 +5,10 @@
  * horizon is not start, Target date, or a release commitment;
  * inner scope is derived (no Show on Roadmap membership). Default
  * Product direction shows Research as primary and origin-linked
- * Feature as secondary, without an Initiative record. Compact
+ * Feature as secondary, without an Initiative record. Kilometre Taşı
+ * is an intermediate outcome: Reach / Abandon does not close Work,
+ * Closed Work does not auto-reach, and the record is not Focus Period,
+ * Project Release, sprint, project stage, or Hedefe katkı. Compact
  * blocker badges open blocked Work and the exact Active source
  * without a standing network or critical path. Unplanned
  * candidates are a live collapsed filter; placing on the plan
@@ -14,8 +17,9 @@
  * named view, not a content copy. Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Roadmap: horizon/filters do not write status, priority values,
- * or Backlog order; blocker badge and unplanned candidates open
- * sources; Presentation Mode is not a second copy).
+ * or Backlog order; Milestone reach does not close Work; blocker
+ * badge and unplanned candidates open sources; Presentation Mode
+ * is not a second copy).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -55,16 +59,25 @@ import {
 	reconsiderNotNow,
 } from "./not-now-trail";
 import {
+	contributeToMilestone,
+	createMilestone,
 	getHorizonPlacement,
+	getMilestone,
+	listMilestones,
 	listRoadmap,
 	placeCandidate,
 	placeHorizon,
 	previewPlaceCandidate,
 	saveRoadmapNamedView,
+	setMilestoneStatus,
 } from "./roadmap-horizon";
 import {
 	enterPresentationMode,
 	exitPresentationMode,
+	MILESTONE_COPY,
+	MILESTONE_COUNTERPARTS,
+	MILESTONE_STATUSES,
+	MILESTONE_WRITES,
 	NOT_NOW_WRITES,
 	openBlockerBadge,
 	ROADMAP_GROUP_FIELDS,
@@ -81,6 +94,9 @@ const DATABASE_URL =
 
 const FORBIDDEN_PATTERN =
 	/Show on Roadmap|Initiative|Parked|Theme record|Kanban column|sprint/i;
+
+const FORBIDDEN_MILESTONE_NOUNS =
+	/sprint|Focus Period|Project Release|Hedefe katkı|Parked/i;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -240,6 +256,45 @@ describe("Roadmap Horizon", () => {
 		expect(catalog.copy.notNow).toBe("Not now");
 		expect(catalog).not.toHaveProperty("showOnRoadmapMembership");
 		expect(catalog).not.toHaveProperty("initiative");
+		expect(catalog.milestone.copy).toEqual({
+			abandon: "Abandon",
+			abandoned: "Abandoned",
+			contributesToMilestone: "Contributes to Milestone",
+			create: "Create Milestone",
+			description: "Description",
+			empty: "No Milestone yet.",
+			milestone: "Milestone",
+			milestones: "Milestones",
+			planned: "Planned",
+			reach: "Reach",
+			reached: "Reached",
+			targetDate: "Target date",
+			title: "Title",
+		});
+		expect(catalog.milestone.statuses).toEqual([
+			"Planned",
+			"Reached",
+			"Abandoned",
+		]);
+		expect(catalog.milestone.counterparts).toEqual({
+			focusPeriod: false,
+			goalContribution: false,
+			projectRelease: false,
+			projectStage: false,
+			sprint: false,
+		});
+		expect(catalog.milestone.writes).toEqual({
+			autoReach: false,
+			closeLinkedWork: false,
+			focusPeriodWindow: false,
+			goalContribution: false,
+			releaseScope: false,
+			workClosure: false,
+			workStatus: false,
+		});
+		expect(JSON.stringify(catalog.milestone.copy)).not.toMatch(
+			FORBIDDEN_MILESTONE_NOUNS
+		);
 	});
 
 	it("places a horizon without writing status, priority value, Backlog order, or Target date", async () => {
@@ -872,6 +927,193 @@ describe("Roadmap Horizon", () => {
 			"Not this quarter"
 		);
 		expect((await getWork(prisma, work.id))?.status).toBe("Closed");
+	});
+
+	it("creates a Milestone that stays Planned until an explicit Reach or Abandon", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const created = await createMilestone(prisma, {
+			actorId,
+			description: "Private beta with paying users",
+			idempotencyKey: "ms-beta",
+			projectId: project.id,
+			targetDate: "2026-10-01",
+			title: "Private beta",
+		});
+		expect(created).toMatchObject({
+			status: "committed",
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Milestone");
+		}
+		expect(created.milestone).toMatchObject({
+			copy: {
+				abandoned: MILESTONE_COPY.abandoned,
+				milestone: MILESTONE_COPY.milestone,
+				planned: MILESTONE_COPY.planned,
+				reached: MILESTONE_COPY.reached,
+			},
+			counterparts: MILESTONE_COUNTERPARTS,
+			description: "Private beta with paying users",
+			focusPeriodWindow: false,
+			goalContribution: false,
+			releaseScope: false,
+			status: MILESTONE_COPY.planned,
+			targetDate: "2026-10-01",
+			title: "Private beta",
+			writes: MILESTONE_WRITES,
+		});
+		expect(created.milestone.history).toEqual([
+			{ previousStatus: null, status: MILESTONE_COPY.planned },
+		]);
+		expect(MILESTONE_STATUSES).toEqual(["Planned", "Reached", "Abandoned"]);
+		const listed = await listMilestones(prisma, { projectId: project.id });
+		expect(listed.map((row) => row.title)).toEqual(["Private beta"]);
+	});
+
+	it("reaches a Milestone without closing contributing Work", async () => {
+		const { actorId, project, workspaceId } = await openPayments(prisma);
+		const work = await committedWork(prisma, actorId, {
+			idempotencyKey: "beta-work",
+			projectId: project.id,
+			title: "Checkout",
+		});
+		const created = await createMilestone(prisma, {
+			actorId,
+			idempotencyKey: "ms-reach",
+			projectId: project.id,
+			title: "Private beta",
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Milestone");
+		}
+		const linked = await contributeToMilestone(prisma, {
+			actorId,
+			idempotencyKey: "link-beta",
+			milestoneId: created.milestone.id,
+			workId: work.id,
+		});
+		expect(linked).toMatchObject({ status: "committed" });
+		if (linked.status !== "committed") {
+			throw new Error("expected committed contribution");
+		}
+		expect(linked.relation.type).toBe(RELATIONS_COPY.contributesToMilestone);
+		expect(linked.relation.type).not.toBe(RELATIONS_COPY.contributesToGoal);
+		expect(linked.milestone.goalContribution).toBe(false);
+		expect(linked.milestone.focusPeriodWindow).toBe(false);
+		expect(linked.milestone.releaseScope).toBe(false);
+		const statusBefore = (await getWork(prisma, work.id))?.status;
+		expect(statusBefore).toBe("Not Started");
+		const reached = await setMilestoneStatus(prisma, {
+			actorId,
+			idempotencyKey: "reach-beta",
+			milestoneId: created.milestone.id,
+			status: MILESTONE_COPY.reached,
+		});
+		expect(reached).toMatchObject({
+			status: "committed",
+		});
+		if (reached.status !== "committed") {
+			throw new Error("expected reached Milestone");
+		}
+		expect(reached.milestone.status).toBe("Reached");
+		expect(reached.milestone.writes.closeLinkedWork).toBe(false);
+		expect(reached.work).toEqual([
+			{
+				id: work.id,
+				key: work.key,
+				status: "Not Started",
+				title: "Checkout",
+			},
+		]);
+		expect((await getWork(prisma, work.id))?.status).toBe(statusBefore);
+		expect((await getWork(prisma, work.id))?.closureResult).toBeNull();
+		const after = await getMilestone(prisma, created.milestone.id, workspaceId);
+		expect(after?.status).toBe("Reached");
+		expect(after?.history).toEqual([
+			{ previousStatus: null, status: "Planned" },
+			{ previousStatus: "Planned", status: "Reached" },
+		]);
+	});
+
+	it("does not auto-reach when every contributing Work is Closed", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const first = await committedWork(prisma, actorId, {
+			idempotencyKey: "closed-one",
+			projectId: project.id,
+			title: "One",
+		});
+		const second = await committedWork(prisma, actorId, {
+			idempotencyKey: "closed-two",
+			projectId: project.id,
+			title: "Two",
+		});
+		const created = await createMilestone(prisma, {
+			actorId,
+			idempotencyKey: "ms-closed",
+			projectId: project.id,
+			title: "Launch",
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Milestone");
+		}
+		await contributeToMilestone(prisma, {
+			actorId,
+			idempotencyKey: "link-one",
+			milestoneId: created.milestone.id,
+			workId: first.id,
+		});
+		await contributeToMilestone(prisma, {
+			actorId,
+			idempotencyKey: "link-two",
+			milestoneId: created.milestone.id,
+			workId: second.id,
+		});
+		const closedFirst = await closeWork(prisma, {
+			actorId,
+			baseRevision: first.revision,
+			idempotencyKey: "close-one",
+			origin: "human",
+			result: "Completed",
+			workId: first.id,
+		});
+		const closedSecond = await closeWork(prisma, {
+			actorId,
+			baseRevision: second.revision,
+			idempotencyKey: "close-two",
+			origin: "human",
+			result: "Completed",
+			workId: second.id,
+		});
+		expect(closedFirst).toMatchObject({
+			status: "committed",
+			work: { status: "Closed" },
+		});
+		expect(closedSecond).toMatchObject({
+			status: "committed",
+			work: { status: "Closed" },
+		});
+		const listed = await listMilestones(prisma, { projectId: project.id });
+		expect(listed).toHaveLength(1);
+		expect(listed[0]?.status).toBe("Planned");
+		expect(listed[0]?.writes.autoReach).toBe(false);
+		expect(listed[0]?.contributingWork.map((row) => row.status)).toEqual([
+			"Closed",
+			"Closed",
+		]);
+		const abandoned = await setMilestoneStatus(prisma, {
+			actorId,
+			idempotencyKey: "abandon-launch",
+			milestoneId: created.milestone.id,
+			status: MILESTONE_COPY.abandoned,
+		});
+		if (abandoned.status !== "committed") {
+			throw new Error("expected abandoned Milestone");
+		}
+		expect(abandoned.milestone.status).toBe("Abandoned");
+		expect(abandoned.work.map((row) => row.status)).toEqual([
+			"Closed",
+			"Closed",
+		]);
 	});
 
 	it("opens the blocked Work and exact Active source from a compact badge without a standing network or critical path", async () => {

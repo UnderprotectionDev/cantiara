@@ -266,6 +266,12 @@ export default function RoadmapHorizonView({
 					))}
 				</ul>
 			</details>
+			{presenting ? null : (
+				<RoadmapMilestones
+					projectId={projectId}
+					selectedWorkId={selectedWorkId}
+				/>
+			)}
 		</section>
 	);
 }
@@ -536,6 +542,220 @@ function PlaceCandidateForm({ workId }: { workId: string }) {
 			{previewText ? (
 				<p className="text-muted-foreground text-xs">{previewText}</p>
 			) : null}
+		</div>
+	);
+}
+
+interface MilestoneRow {
+	contributingWork: Array<{
+		id: string;
+		key: string;
+		status: string;
+		title: string;
+	}>;
+	description: string | null;
+	id: string;
+	status: string;
+	targetDate: string | null;
+	title: string;
+}
+
+function RoadmapMilestones({
+	projectId,
+	selectedWorkId,
+}: {
+	projectId: string;
+	selectedWorkId: string | null;
+}) {
+	const copy = ROADMAP_COPY;
+	const listed = useQuery(
+		orpc.roadmapHorizon.listMilestones.queryOptions({
+			input: { projectId },
+		})
+	);
+	const create = useMutation(
+		orpc.roadmapHorizon.createMilestone.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status !== "committed") {
+					return;
+				}
+				await invalidateRoadmapHorizon();
+			},
+		})
+	);
+	const setStatus = useMutation(
+		orpc.roadmapHorizon.setMilestoneStatus.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status !== "committed") {
+					return;
+				}
+				await invalidateRoadmapHorizon();
+			},
+		})
+	);
+	const contribute = useMutation(
+		orpc.roadmapHorizon.contributeToMilestone.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status !== "committed") {
+					return;
+				}
+				await invalidateRoadmapHorizon();
+			},
+		})
+	);
+	const onCreate = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			const form = new FormData(event.currentTarget);
+			const title = String(form.get("title") ?? "").trim();
+			if (title.length === 0) {
+				return;
+			}
+			const description = String(form.get("description") ?? "").trim();
+			const targetDate = String(form.get("targetDate") ?? "").trim();
+			create.mutate({
+				description: description.length > 0 ? description : undefined,
+				idempotencyKey: newIdempotencyKey(),
+				projectId,
+				targetDate: targetDate.length > 0 ? targetDate : null,
+				title,
+			});
+			event.currentTarget.reset();
+		},
+		[create, projectId]
+	);
+	const milestones = listed.data ?? [];
+	return (
+		<section aria-label={copy.milestones} className="flex flex-col gap-3">
+			<h3 className="font-medium text-sm tracking-tight">{copy.milestones}</h3>
+			<form className="flex flex-wrap items-end gap-3" onSubmit={onCreate}>
+				<Field>
+					<FieldLabel htmlFor="milestone-title">{copy.title}</FieldLabel>
+					<Input id="milestone-title" name="title" required />
+				</Field>
+				<Field>
+					<FieldLabel htmlFor="milestone-description">
+						{copy.description}
+					</FieldLabel>
+					<Input id="milestone-description" name="description" />
+				</Field>
+				<Field>
+					<FieldLabel htmlFor="milestone-target-date">
+						{copy.targetDate}
+					</FieldLabel>
+					<Input id="milestone-target-date" name="targetDate" type="date" />
+				</Field>
+				<Button size="sm" type="submit">
+					{copy.createMilestone}
+				</Button>
+			</form>
+			{milestones.length === 0 ? (
+				<p className="text-muted-foreground text-sm">{copy.emptyMilestone}</p>
+			) : (
+				<ul className="flex flex-col gap-3">
+					{milestones.map((milestone: MilestoneRow) => (
+						<li
+							className="flex flex-col gap-2 rounded-none border px-3 py-2"
+							key={milestone.id}
+						>
+							<div className="flex flex-wrap items-center gap-2">
+								<span className="font-medium text-sm">{milestone.title}</span>
+								<span className="text-muted-foreground text-xs">
+									{milestone.status}
+								</span>
+								{milestone.targetDate ? (
+									<span className="text-muted-foreground text-xs">
+										{milestone.targetDate}
+									</span>
+								) : null}
+							</div>
+							{milestone.description ? (
+								<p className="text-muted-foreground text-sm">
+									{milestone.description}
+								</p>
+							) : null}
+							{milestone.contributingWork.length > 0 ? (
+								<ul className="text-muted-foreground text-xs">
+									{milestone.contributingWork.map((work) => (
+										<li key={work.id}>
+											{work.key} {work.title} · {work.status}
+										</li>
+									))}
+								</ul>
+							) : null}
+							<MilestoneActions
+								milestoneId={milestone.id}
+								onContribute={contribute.mutate}
+								onSetStatus={setStatus.mutate}
+								selectedWorkId={selectedWorkId}
+							/>
+						</li>
+					))}
+				</ul>
+			)}
+		</section>
+	);
+}
+
+function MilestoneActions({
+	milestoneId,
+	onContribute,
+	onSetStatus,
+	selectedWorkId,
+}: {
+	milestoneId: string;
+	onContribute: (input: {
+		idempotencyKey: string;
+		milestoneId: string;
+		workId: string;
+	}) => void;
+	onSetStatus: (input: {
+		idempotencyKey: string;
+		milestoneId: string;
+		status: "Reached" | "Abandoned";
+	}) => void;
+	selectedWorkId: string | null;
+}) {
+	const onReach = useCallback(() => {
+		onSetStatus({
+			idempotencyKey: newIdempotencyKey(),
+			milestoneId,
+			status: ROADMAP_COPY.reached,
+		});
+	}, [milestoneId, onSetStatus]);
+	const onAbandon = useCallback(() => {
+		onSetStatus({
+			idempotencyKey: newIdempotencyKey(),
+			milestoneId,
+			status: ROADMAP_COPY.abandoned,
+		});
+	}, [milestoneId, onSetStatus]);
+	const onLink = useCallback(() => {
+		if (selectedWorkId === null) {
+			return;
+		}
+		onContribute({
+			idempotencyKey: newIdempotencyKey(),
+			milestoneId,
+			workId: selectedWorkId,
+		});
+	}, [milestoneId, onContribute, selectedWorkId]);
+	return (
+		<div className="flex flex-wrap gap-2">
+			<Button onClick={onReach} size="sm" type="button" variant="outline">
+				{ROADMAP_COPY.reach}
+			</Button>
+			<Button onClick={onAbandon} size="sm" type="button" variant="outline">
+				{ROADMAP_COPY.abandon}
+			</Button>
+			<Button
+				disabled={selectedWorkId === null}
+				onClick={onLink}
+				size="sm"
+				type="button"
+			>
+				{ROADMAP_COPY.contributesToMilestone}
+			</Button>
 		</div>
 	);
 }

@@ -3,6 +3,8 @@ import { z } from "zod";
 export const FOCUS_PERIOD_COPY = {
 	active: "Active",
 	add: "Add",
+	alreadyInAnActivePeriod:
+		"Work is already in an active Focus Period. Use Move.",
 	blockedBy: "Blocked by",
 	blocks: "Blocks",
 	cancel: "Cancel",
@@ -17,6 +19,7 @@ export const FOCUS_PERIOD_COPY = {
 	focusPeriod: "Focus Period",
 	loading: "Loading…",
 	members: "Work",
+	move: "Move",
 	openSourceRecord: "Open source record",
 	planned: "Planned",
 	purpose: "Purpose",
@@ -119,6 +122,10 @@ export const focusPeriodWorkSchema = z.object({
 });
 
 export type FocusPeriodWork = z.infer<typeof focusPeriodWorkSchema>;
+
+const eligibleWorkSchema = focusPeriodWorkSchema.extend({
+	activePeriodId: z.string().min(1).nullable(),
+});
 
 export const focusPeriodDependencyNodeSchema = z.object({
 	href: z.string().min(1),
@@ -232,6 +239,9 @@ export const focusPeriodViewSchema = z.object({
 	copy: z.object({
 		active: z.literal(FOCUS_PERIOD_COPY.active),
 		add: z.literal(FOCUS_PERIOD_COPY.add),
+		alreadyInAnActivePeriod: z.literal(
+			FOCUS_PERIOD_COPY.alreadyInAnActivePeriod
+		),
 		blockedBy: z.literal(FOCUS_PERIOD_COPY.blockedBy),
 		blocks: z.literal(FOCUS_PERIOD_COPY.blocks),
 		cancel: z.literal(FOCUS_PERIOD_COPY.cancel),
@@ -246,6 +256,7 @@ export const focusPeriodViewSchema = z.object({
 		focusPeriod: z.literal(FOCUS_PERIOD_COPY.focusPeriod),
 		loading: z.literal(FOCUS_PERIOD_COPY.loading),
 		members: z.literal(FOCUS_PERIOD_COPY.members),
+		move: z.literal(FOCUS_PERIOD_COPY.move),
 		openSourceRecord: z.literal(FOCUS_PERIOD_COPY.openSourceRecord),
 		planned: z.literal(FOCUS_PERIOD_COPY.planned),
 		purpose: z.literal(FOCUS_PERIOD_COPY.purpose),
@@ -265,7 +276,7 @@ export const focusPeriodViewSchema = z.object({
 		projectRelease: z.literal(false),
 	}),
 	dependencies: focusPeriodDependenciesSchema,
-	eligibleWork: z.array(focusPeriodWorkSchema),
+	eligibleWork: z.array(eligibleWorkSchema),
 	endDate: calendarDaySchema,
 	id: z.string().min(1),
 	members: z.array(focusPeriodWorkSchema),
