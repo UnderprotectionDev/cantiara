@@ -25,6 +25,38 @@ interface FocusPeriodWork {
 	title: string;
 }
 
+interface FocusPeriodDependencyNode {
+	href: string;
+	id: string;
+	kind: string;
+	label: string;
+	openSourceRecord: string;
+}
+
+interface FocusPeriodDependencyEdge {
+	direction: string;
+	from: { id: string; kind: string };
+	id: string;
+	state: string;
+	to: { id: string };
+}
+
+interface FocusPeriodDependencies {
+	copy: {
+		blockedBy: string;
+		blocks: string;
+		cycle: string;
+		dependencies: string;
+	};
+	cycles: Array<{
+		explanation: string;
+		relationIds: string[];
+		workIds: string[];
+	}>;
+	edges: FocusPeriodDependencyEdge[];
+	nodes: FocusPeriodDependencyNode[];
+}
+
 interface FocusPeriodSummary {
 	endDate: string;
 	id: string;
@@ -292,9 +324,49 @@ export default function FocusPeriodArea() {
 							))}
 						</ul>
 					</section>
+					<DependenciesPanel dependencies={period.dependencies} />
 				</section>
 			) : null}
 		</FounderPage>
+	);
+}
+
+function DependenciesPanel({
+	dependencies,
+}: {
+	dependencies: FocusPeriodDependencies;
+}) {
+	return (
+		<details className="mt-6">
+			<summary>{dependencies.copy.dependencies}</summary>
+			<p>{`${dependencies.copy.blocks} / ${dependencies.copy.blockedBy}`}</p>
+			{dependencies.cycles.map((cycle) => (
+				<p key={cycle.relationIds.join("-")}>{cycle.explanation}</p>
+			))}
+			<ul>
+				{dependencies.nodes.map((node) => (
+					<li key={`${node.kind}-${node.id}`}>
+						<span>{`${node.label} (${node.kind})`}</span>{" "}
+						<a href={node.href}>{node.openSourceRecord}</a>
+					</li>
+				))}
+			</ul>
+			<ul>
+				{dependencies.edges.map((edge) => {
+					const from =
+						dependencies.nodes.find((node) => node.id === edge.from.id)
+							?.label ?? edge.from.kind;
+					const to =
+						dependencies.nodes.find((node) => node.id === edge.to.id)?.label ??
+						edge.to.id;
+					return (
+						<li key={edge.id}>
+							{`${from} ${edge.direction} ${to} — ${edge.state}`}
+						</li>
+					);
+				})}
+			</ul>
+		</details>
 	);
 }
 

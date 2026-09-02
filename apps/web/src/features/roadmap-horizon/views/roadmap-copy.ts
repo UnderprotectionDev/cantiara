@@ -1,6 +1,8 @@
 export const ROADMAP_COPY = {
 	allWorkTypes: "All Work types",
 	applyNotNow: "Apply Not now",
+	confirm: "Confirm",
+	exitPresentationMode: "Exit Presentation Mode",
 	grounds: "Grounds",
 	group: "Group",
 	horizon: "Horizon",
@@ -11,6 +13,9 @@ export const ROADMAP_COPY = {
 	now: "Now",
 	openSourceRecord: "Open source record",
 	place: "Place on horizon",
+	placeOnPlan: "Place on plan",
+	plannedStart: "Planned start",
+	presentationMode: "Presentation Mode",
 	preview: "Preview",
 	primary: "Primary",
 	problemOpportunity: "Problem/Opportunity",
@@ -23,8 +28,10 @@ export const ROADMAP_COPY = {
 	roadmap: "Roadmap",
 	saveNamedView: "Save named view",
 	secondary: "Secondary",
+	targetDate: "Target date",
 	type: "Type",
 	unplaced: "No horizon",
+	unplannedCandidates: "Unplanned candidates",
 } as const;
 
 export const ROADMAP_HORIZONS = [

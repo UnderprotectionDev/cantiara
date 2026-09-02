@@ -252,7 +252,7 @@ _Avoid_: Odak Dönemi, Proje Sürümü, sprint
 
 **Odak Dönemi**:
 Seçili İşlerle çalışmak için açılan isteğe bağlı 1–8 haftalık geçici zaman penceresi; kalıcı kapsam grubu, Kilometre Taşının ara sonucu veya Proje Sürümünün yayın kapsamı değildir. Yaşam `Planned`, `Active`, `Closed` veya `Canceled`; üyelik İş akışı durumunu veya proje aşamasını yazmaz.
-UI: `Focus Period`, `Create Focus Period`, `Planned`, `Active`, `Closed`, `Canceled`, `Close`, `Cancel`, `Still-open Work`.
+UI: `Focus Period`, `Create Focus Period`, `Planned`, `Active`, `Closed`, `Canceled`, `Close`, `Cancel`, `Still-open Work`, `Dependencies`, `Open source record`.
 _Avoid_: Sprint, Kilometre Taşı, Proje Sürümü
 
 **Roadmap**:
@@ -266,6 +266,14 @@ _Avoid_: İş akışı durumu, Parked, sprint, yayın kapsamı
 **Şimdi değil karar izi**:
 Açık İş üzerindeki sahipli erteleme izi; kısa gerekçe, isteğe bağlı yeniden değerlendirme koşulu ve dayanak ilişkileri taşır. Ayrı durum, kapanış sonucu, Backlog veya planlama üyeliği, öncelik değeri, Parked sütunu veya Karar kaydı değildir ([`Şimdi değil` karar izi](docs/prd/06-work-management-and-planning.md#şimdi-değil-karar-izi)). UI: `Not now`, `Reconsidering`.
 _Avoid_: Parked, kapanış sonucu, Karar kaydı, Initiative, `Show on Roadmap` üyeliği
+
+**Planlanmamış adaylar**:
+Roadmap görünümünün filtrelerine uyan fakat planlanan başlangıç, hedef tarihi ve `Now`/`Next`/`Later` ufku olmayan İşlerin varsayılan daraltılmış canlı alanı; Parked durumu, ikinci üyelik veya bağımsız sıra değildir ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap)). UI: `Unplanned candidates`, `Place on plan`.
+_Avoid_: Parked, ikinci Roadmap üyeliği, bağımsız manuel sıra
+
+**Sunum Kipi**:
+Mevcut adlandırılmış Roadmap görünümünü düzenleme ve yapılandırma gizleyerek salt okunur tam ekranda açan kip; çıkışta aynı görünüm ve konuma döner, slayt, sunum kaydı veya içerik kopyası üretmez ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap)). UI: `Presentation Mode`.
+_Avoid_: slayt, sunum kaydı, içerik kopyası, herkese açık snapshot
 
 **Kanban**:
 İşleri İş akışı durumuna göre sütunlarda gösteren planlama yüzeyi; sütunlar arası kart hareketi duruma yansır, kapanış sonucu veya ikinci kayıt listesi değildir ([Kanban](docs/prd/06-work-management-and-planning.md)). UI: `Board`, `Kanban`, `Over limit`, `Time in status`, `In Progress count`, `Collapse`, `Expand`, `Open blocker`.
@@ -338,6 +346,10 @@ _Avoid_: formula, free-text macro, form builder, yeni kayıt, ikinci hedef
 **Birleşik Takvim**:
 Desteklenen tarihli kayıtları türleri karışmadan gün, hafta, ay ve Agenda'da gösteren yüzey; yeni İş türü veya durum üretmez ([Birleşik Takvim](docs/prd/06-work-management-and-planning.md#birleşik-takvim)). UI: `Calendar`. Seçili gün (`Selected day`) bu yüzeyde takvim penceresini seçer; Günlük Odak üyelik günü değildir.
 _Avoid_: Dış takvim senkronu, Event kaydı, durum tahtası
+
+**Agenda**:
+Birleşik Takvimde aynı tarihli kayıtları seçilen kapsam ve tarih türü filtreleriyle kronolojik, yoğun listede sunan görünüm; satır bir tarih türünü gösterir ve kaynağı açar. Event kaydı, Agenda üyeliği, yeni tarih alanı veya ikinci takvim gerçeği değildir ([Birleşik Takvim](docs/prd/06-work-management-and-planning.md#birleşik-takvim)). UI: `Agenda`.
+_Avoid_: Event kaydı, Agenda üyeliği, ikinci takvim doğruluk kaynağı
 
 **Liste görünümü**:
 Filtrelenen İşleri alanlarıyla yoğun ve taranabilir düzende sunan aynı İş taraması; satır ayrı kayıt değildir ([Liste görünümü](docs/prd/06-work-management-and-planning.md#liste-görünümü)).

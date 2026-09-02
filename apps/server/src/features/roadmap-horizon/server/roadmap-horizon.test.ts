@@ -5,11 +5,17 @@
  * horizon is not start, Target date, or a release commitment;
  * inner scope is derived (no Show on Roadmap membership). Default
  * Product direction shows Research as primary and origin-linked
- * Feature as secondary, without an Initiative record. Synthetic
- * fixture for
+ * Feature as secondary, without an Initiative record. Compact
+ * blocker badges open blocked Work and the exact Active source
+ * without a standing network or critical path. Unplanned
+ * candidates are a live collapsed filter; placing on the plan
+ * previews the date or horizon write and requires confirm without
+ * writing status. Presentation Mode is a mode on the current
+ * named view, not a content copy. Synthetic fixture for
  * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Roadmap: horizon/filters do not write status, priority values,
- * or Backlog order).
+ * or Backlog order; blocker badge and unplanned candidates open
+ * sources; Presentation Mode is not a second copy).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -20,6 +26,10 @@ import {
 	listPreparedBacklog,
 	reorderManualOrder,
 } from "../../backlog/server/backlog";
+import {
+	addActiveBlockingRelation,
+	markBlockerResolved,
+} from "../../blockers/server/blockers";
 import {
 	createPriorityCriterion,
 	listWorkPriorityValues,
@@ -47,11 +57,16 @@ import {
 import {
 	getHorizonPlacement,
 	listRoadmap,
+	placeCandidate,
 	placeHorizon,
+	previewPlaceCandidate,
 	saveRoadmapNamedView,
 } from "./roadmap-horizon";
 import {
+	enterPresentationMode,
+	exitPresentationMode,
 	NOT_NOW_WRITES,
+	openBlockerBadge,
 	ROADMAP_GROUP_FIELDS,
 	ROADMAP_HORIZONS,
 	ROADMAP_INNER_MEMBERSHIP,
@@ -150,7 +165,12 @@ function flatItems(view: Awaited<ReturnType<typeof listRoadmap>>) {
 	if ("reason" in view) {
 		throw new Error("expected Roadmap view");
 	}
-	return view.groups.flatMap((group) => group.items);
+	const grouped = view.groups.flatMap((group) => group.items);
+	const seen = new Set(grouped.map((item) => item.id));
+	return [
+		...grouped,
+		...view.unplannedCandidates.items.filter((item) => !seen.has(item.id)),
+	];
 }
 
 describe("Roadmap Horizon", () => {
@@ -185,12 +205,24 @@ describe("Roadmap Horizon", () => {
 		]);
 		expect(catalog.innerMembership).toBe("derived");
 		expect(catalog.writes).toEqual({
+			autoReschedule: false,
 			backlogOrder: false,
+			contentCopy: false,
+			criticalPath: false,
+			ganttExport: false,
 			initiative: false,
 			kanban: false,
+			parked: false,
+			pngExport: false,
+			presentationRecord: false,
 			priorityCriterionValue: false,
+			publicHtml: false,
+			publicStatusLabel: false,
 			releaseCommitment: false,
+			secondMembership: false,
 			showOnRoadmap: false,
+			slides: false,
+			standingNetwork: false,
 			startWork: false,
 			status: false,
 			targetDate: false,
@@ -467,8 +499,10 @@ describe("Roadmap Horizon", () => {
 			projectId: project.id,
 		});
 		const allItems = flatItems(allTypes);
-		expect(allItems.map((item) => item.id).sort()).toEqual(
-			[research.id, feature.id, strayTask.id].sort()
+		expect(
+			allItems.map((item) => item.id).sort((a, b) => a.localeCompare(b))
+		).toEqual(
+			[research.id, feature.id, strayTask.id].sort((a, b) => a.localeCompare(b))
 		);
 		expect(allItems.find((item) => item.id === strayTask.id)).toMatchObject({
 			role: "Primary",
@@ -838,5 +872,282 @@ describe("Roadmap Horizon", () => {
 			"Not this quarter"
 		);
 		expect((await getWork(prisma, work.id))?.status).toBe("Closed");
+	});
+
+	it("opens the blocked Work and exact Active source from a compact badge without a standing network or critical path", async () => {
+		const { actorId, project, workspaceId } = await openPayments(prisma);
+		const source = await committedWork(prisma, actorId, {
+			idempotencyKey: "blocker-source",
+			projectId: project.id,
+			title: "Auth API",
+			type: "Research",
+		});
+		const blocked = await committedWork(prisma, actorId, {
+			idempotencyKey: "blocked-research",
+			projectId: project.id,
+			title: "Checkout wait",
+			type: "Research",
+		});
+		const added = await addActiveBlockingRelation(prisma, {
+			actorId,
+			blockedWorkId: blocked.id,
+			idempotencyKey: "block-checkout",
+			origin: "human",
+			source: { id: source.id, kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(added.status).toBe("committed");
+		const beforeCount = await prisma.typedRelation.count({
+			where: { type: "Blocks" },
+		});
+		const view = await listRoadmap(prisma, { projectId: project.id });
+		const items = flatItems(view);
+		const badge = items.find((item) => item.id === blocked.id)?.blockerBadge;
+		expect(badge).toEqual({
+			blockedWorkId: blocked.id,
+			copy: { openSourceRecord: "Open source record" },
+			sources: [{ id: source.id, kind: "Work" }],
+		});
+		expect(
+			items.find((item) => item.id === source.id)?.blockerBadge
+		).toBeNull();
+		expect(openBlockerBadge(badge)).toEqual({
+			blockedWorkId: blocked.id,
+			copy: { openSourceRecord: "Open source record" },
+			sources: [{ id: source.id, kind: "Work" }],
+			writes: {
+				autoReschedule: false,
+				blockingRelation: false,
+				criticalPath: false,
+				standingNetwork: false,
+			},
+		});
+		if (added.status !== "committed") {
+			throw new Error("expected committed blocker");
+		}
+		const resolved = await markBlockerResolved(prisma, {
+			actorId,
+			idempotencyKey: "resolve-checkout",
+			origin: "human",
+			relationId: added.relation.id,
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(resolved.status).toBe("committed");
+		const afterResolve = await listRoadmap(prisma, { projectId: project.id });
+		expect(
+			flatItems(afterResolve).find((item) => item.id === blocked.id)
+				?.blockerBadge
+		).toBeNull();
+		expect(
+			await prisma.typedRelation.count({ where: { type: "Blocks" } })
+		).toBe(beforeCount);
+		if ("reason" in view) {
+			throw new Error("expected Roadmap view");
+		}
+		expect(view.writes).toMatchObject({
+			autoReschedule: false,
+			criticalPath: false,
+			standingNetwork: false,
+		});
+	});
+
+	it("lists Unplanned candidates as a live collapsed filter and places with previewed confirm without writing status", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const candidate = await committedWork(prisma, actorId, {
+			idempotencyKey: "unplanned-research",
+			projectId: project.id,
+			title: "Receipt problem",
+			type: "Research",
+		});
+		const dated = await committedWork(prisma, actorId, {
+			idempotencyKey: "dated-research",
+			projectId: project.id,
+			title: "Dated receipt",
+			type: "Research",
+		});
+		const datedWork = await updateWorkPlanningDates(prisma, {
+			actorId,
+			baseRevision: dated.revision,
+			idempotencyKey: "set-target",
+			origin: "human",
+			plannedStart: null,
+			reappearDate: null,
+			targetDate: "2026-10-01",
+			workId: dated.id,
+		});
+		if (datedWork.status !== "committed") {
+			throw new Error("expected Target date");
+		}
+		const placedHorizon = await committedWork(prisma, actorId, {
+			idempotencyKey: "now-research",
+			projectId: project.id,
+			title: "Now receipt",
+			type: "Research",
+		});
+		await placeHorizon(prisma, { horizon: "Now", workId: placedHorizon.id });
+		const view = await listRoadmap(prisma, { projectId: project.id });
+		if ("reason" in view) {
+			throw new Error("expected Roadmap view");
+		}
+		expect(view.unplannedCandidates).toMatchObject({
+			collapsed: true,
+			copy: { unplannedCandidates: "Unplanned candidates" },
+			membership: "live-filter",
+			parked: false,
+		});
+		expect(view.unplannedCandidates.items.map((item) => item.id)).toEqual([
+			candidate.id,
+		]);
+		expect(
+			view.groups.flatMap((group) => group.items.map((item) => item.id))
+		).not.toContain(candidate.id);
+		const preview = await previewPlaceCandidate(prisma, {
+			change: { field: "Horizon", horizon: "Next" },
+			workId: candidate.id,
+		});
+		expect(preview).toMatchObject({
+			confirmRequired: true,
+			preview: { field: "Horizon", from: null, to: "Next" },
+			status: "ready",
+			workId: candidate.id,
+			writes: {
+				parked: false,
+				secondMembership: false,
+				status: false,
+			},
+		});
+		expect(
+			await placeCandidate(prisma, {
+				change: { field: "Horizon", horizon: "Next" },
+				confirmed: false,
+				workId: candidate.id,
+			})
+		).toMatchObject({ reason: "confirm-required", status: "rejected" });
+		const placed = await placeCandidate(prisma, {
+			change: { field: "Horizon", horizon: "Next" },
+			confirmed: true,
+			workId: candidate.id,
+		});
+		expect(placed).toMatchObject({
+			status: "committed",
+			work: { horizon: "Next", id: candidate.id, status: "Not Started" },
+			writes: {
+				parked: false,
+				secondMembership: false,
+				status: false,
+			},
+		});
+		expect(await getWork(prisma, candidate.id)).toMatchObject({
+			status: "Not Started",
+		});
+		const afterPlace = await listRoadmap(prisma, { projectId: project.id });
+		if ("reason" in afterPlace) {
+			throw new Error("expected Roadmap view");
+		}
+		expect(afterPlace.unplannedCandidates.items.map((item) => item.id)).toEqual(
+			[]
+		);
+		const dateCandidate = await committedWork(prisma, actorId, {
+			idempotencyKey: "date-candidate",
+			projectId: project.id,
+			title: "Date candidate",
+			type: "Research",
+		});
+		const datePreview = await previewPlaceCandidate(prisma, {
+			change: { field: "Target date", targetDate: "2026-11-02" },
+			workId: dateCandidate.id,
+		});
+		expect(datePreview).toMatchObject({
+			confirmRequired: true,
+			preview: { field: "Target date", from: null, to: "2026-11-02" },
+			status: "ready",
+		});
+		const datedPlace = await placeCandidate(prisma, {
+			actorId,
+			baseRevision: dateCandidate.revision,
+			change: { field: "Target date", targetDate: "2026-11-02" },
+			confirmed: true,
+			idempotencyKey: "place-target",
+			workId: dateCandidate.id,
+		});
+		expect(datedPlace).toMatchObject({
+			status: "committed",
+			work: {
+				id: dateCandidate.id,
+				status: "Not Started",
+				targetDate: "2026-11-02",
+			},
+			writes: { status: false },
+		});
+		expect(await getWork(prisma, dateCandidate.id)).toMatchObject({
+			status: "Not Started",
+			targetDate: "2026-11-02",
+		});
+	});
+
+	it("enters Presentation Mode on the current named view without a content copy and restores position on exit", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await committedWork(prisma, actorId, {
+			idempotencyKey: "present-research",
+			projectId: project.id,
+			title: "Present receipt",
+			type: "Research",
+		});
+		const saved = await saveRoadmapNamedView(prisma, {
+			groupField: "Horizon",
+			horizonFilter: null,
+			name: "Direction",
+			presentation: "Product direction",
+			projectId: project.id,
+		});
+		if (saved.status !== "committed") {
+			throw new Error("expected named view");
+		}
+		const entered = enterPresentationMode({
+			namedViewId: saved.view.id,
+			position: { selectedWorkId: work.id },
+		});
+		expect(entered).toMatchObject({
+			configurationHidden: true,
+			detailsReadOnly: true,
+			editingHidden: true,
+			mode: "Presentation Mode",
+			namedViewId: saved.view.id,
+			position: { selectedWorkId: work.id },
+			writes: {
+				contentCopy: false,
+				ganttExport: false,
+				pngExport: false,
+				presentationRecord: false,
+				publicHtml: false,
+				publicStatusLabel: false,
+				slides: false,
+			},
+		});
+		const listed = await listRoadmap(prisma, {
+			namedViewId: saved.view.id,
+			presentationMode: true,
+			projectId: project.id,
+		});
+		if ("reason" in listed) {
+			throw new Error("expected Roadmap view");
+		}
+		expect(listed.presentationMode).toMatchObject({
+			configurationHidden: true,
+			detailsReadOnly: true,
+			editingHidden: true,
+			mode: "Presentation Mode",
+			namedViewId: saved.view.id,
+		});
+		expect(listed.namedView?.name).toBe("Direction");
+		expect(exitPresentationMode(entered)).toEqual({
+			mode: null,
+			namedViewId: saved.view.id,
+			position: { selectedWorkId: work.id },
+		});
+		expect(roadmapCatalog().copy.presentationMode).toBe("Presentation Mode");
+		expect(roadmapCatalog().copy.unplannedCandidates).toBe(
+			"Unplanned candidates"
+		);
 	});
 });

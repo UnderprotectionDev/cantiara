@@ -54,6 +54,7 @@ export default function WorkArea({
 	const [bulkSelectedIds, setBulkSelectedIds] = useState<string[]>([]);
 	const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
 	const [tagFilter, setTagFilter] = useState("");
+	const [roadmapPresentation, setRoadmapPresentation] = useState(false);
 	const [surface, setSurface] = useState<"list" | "priority-map">("list");
 	const [backlogSort, setBacklogSort] = useState<BacklogSort | undefined>();
 	const preparedBacklog = savedView === "Backlog";
@@ -123,6 +124,16 @@ export default function WorkArea({
 		setSelectedId(null);
 		onSelectedWorkId?.(null);
 	}, [onSelectedWorkId]);
+	const onRestoreRoadmapPosition = useCallback(
+		(id: string | null) => {
+			if (id) {
+				onOpenSourceRecord(id);
+				return;
+			}
+			onClose();
+		},
+		[onClose, onOpenSourceRecord]
+	);
 	const onCreated = useCallback(
 		(workId: string) => {
 			setSelectedId(workId);
@@ -263,6 +274,8 @@ export default function WorkArea({
 					backlog.data?.reappearNotification.optedIn ?? false
 				}
 				onOpenSourceRecord={onOpenSourceRecord}
+				onPresentationModeChange={setRoadmapPresentation}
+				onRestorePosition={onRestoreRoadmapPosition}
 				onSavedPresentation={onSavedBacklogPresentation}
 				onSelect={onSelect}
 				onSortChange={onBacklogSort}
@@ -277,16 +290,16 @@ export default function WorkArea({
 				selectedId={selectedId}
 				unavailableView={unavailableView}
 			/>
-			{!unavailableView &&
-			surface === "list" &&
-			savedView !== "Board" &&
-			!workSavedViewIsRoadmap(savedView ?? "") ? (
+			{unavailableView ||
+			surface !== "list" ||
+			savedView === "Board" ||
+			workSavedViewIsRoadmap(savedView ?? "") ? null : (
 				<BulkEditPreview
 					filterWorkIds={items.map((item) => item.id)}
 					projectId={projectId}
 					selectedWorkIds={bulkTargets}
 				/>
-			) : null}
+			)}
 			<ScopeTree
 				onOpenSourceRecord={onOpenSourceRecord}
 				openedRecordId={selectedId}
@@ -307,6 +320,7 @@ export default function WorkArea({
 					onMerged={onCreated}
 					onOpenSourceRecord={onOpenSourceRecord}
 					projectId={projectId}
+					readOnly={roadmapPresentation}
 					work={selected}
 					works={items}
 				/>
@@ -380,6 +394,8 @@ function WorkCollectionSurface({
 	items,
 	notifyOnReappearDate,
 	onOpenSourceRecord,
+	onPresentationModeChange,
+	onRestorePosition,
 	onSavedPresentation,
 	onSelect,
 	onSortChange,
@@ -419,6 +435,8 @@ function WorkCollectionSurface({
 	}>;
 	notifyOnReappearDate: boolean;
 	onOpenSourceRecord: (id: string) => void;
+	onPresentationModeChange: (active: boolean) => void;
+	onRestorePosition: (id: string | null) => void;
 	onSavedPresentation: () => void;
 	onSelect: (id: string) => void;
 	onSortChange: (sort: BacklogSort) => void;
@@ -453,6 +471,8 @@ function WorkCollectionSurface({
 		return (
 			<RoadmapHorizonView
 				onOpenSourceRecord={onOpenSourceRecord}
+				onPresentationModeChange={onPresentationModeChange}
+				onRestorePosition={onRestorePosition}
 				projectId={projectId}
 				selectedWorkId={selectedId}
 			/>

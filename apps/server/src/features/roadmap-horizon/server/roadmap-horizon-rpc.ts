@@ -17,7 +17,9 @@ import {
 import {
 	getHorizonPlacement,
 	listRoadmap,
+	placeCandidate,
 	placeHorizon,
+	previewPlaceCandidate,
 	saveRoadmapNamedView,
 } from "./roadmap-horizon";
 import {
@@ -27,7 +29,9 @@ import {
 	listRoadmapQuerySchema,
 	NOT_NOW_REVIEW_LATER_EFFECTS,
 	notNowDraftSchema,
+	placeCandidateCommandSchema,
 	placeHorizonCommandSchema,
+	previewPlaceCandidateCommandSchema,
 	reconsiderNotNowCommandSchema,
 	roadmapCatalog,
 	saveRoadmapNamedViewCommandSchema,
@@ -102,6 +106,16 @@ export const roadmapHorizon = {
 			await requireWork(access.workspaceId, input.workId);
 			return await placeHorizon(getPrismaClient(), input);
 		}),
+	placeCandidate: protectedWriteProcedure
+		.input(placeCandidateCommandSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await placeCandidate(getPrismaClient(), {
+				...input,
+				actorId: input.actorId ?? context.session.user.id,
+			});
+		}),
 	placement: protectedProcedure
 		.input(z.object({ workId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -119,6 +133,13 @@ export const roadmapHorizon = {
 				throw new ORPCError("NOT_FOUND");
 			}
 			return preview;
+		}),
+	previewPlaceCandidate: protectedProcedure
+		.input(previewPlaceCandidateCommandSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWork(access.workspaceId, input.workId);
+			return await previewPlaceCandidate(getPrismaClient(), input);
 		}),
 	previewReconsiderNotNow: protectedProcedure
 		.input(
