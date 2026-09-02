@@ -28,6 +28,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Diyagram Sürümü | `Diagram Version` | Teknik Diyagramın kullanıcı tarafından adlandırılıp değişmez hâle getirilen kesin yapısal model ve görünüm checkpoint'i |
 | Migration Artefaktı | `Migration Artifact` | İki kesin Veri Modeli Diyagramı Sürümü arasındaki onaylanmış schema-only değişikliği ve desteklenen PostgreSQL SQL'ini kaynak manifestiyle koruyan değişmez sahipli bileşen |
 | Kilometre Taşı | `Milestone` | Projedeki önemli ara sonucu temsil eden Proje ana kaydı; çalışma penceresi veya yayımlanacak kapsam değildir |
+| Kilometre Taşı yaşamı | `Planned`, `Reached`, `Abandoned` | Kilometre Taşının İngilizce yaşam etiketleri; Odak Dönemi penceresi veya Proje Sürümü kapsamı değildir |
+| Kilometre Taşı oluştur | `Create Milestone` | Başlık, açıklama ve isteğe bağlı hedef tarihiyle ara sonuç kaydı açma |
+| Kilometre Taşına ulaş | `Reach` | Kilometre Taşı durumunu açık eylemle `Reached` yapan yazma; bağlı İşleri kapatmaz |
+| Kilometre Taşından vazgeç | `Abandon` | Kilometre Taşı durumunu açık eylemle `Abandoned` yapan yazma; bağlı İşleri kapatmaz |
+| Kilometre taşına katkı | `Contributes to Milestone` | İşin Kilometre Taşına türlenmiş üyeliği; Hedefe katkı veya yayın kapsamı değildir |
+| Kilometre taşı kapsamında | `In Milestone` | Katkı ilişkisinin Kilometre Taşı ucu |
+| Kilometre Taşı yok | `No Milestone yet.` | Henüz ara sonuç kaydı açılmamış boş durum |
 | Odak Dönemi | `Focus Period` | Seçili çalışmalar için geçici çalışma penceresi ve tarihsel kapsam snapshot'ı; ara sonuç veya yayımlanacak kapsam değildir |
 | Odak Dönemi yaşamı | `Planned`, `Active`, `Closed`, `Canceled` | Odak Döneminin İngilizce yaşam etiketleri; sprint kadansı değildir |
 | Odak Dönemi oluştur | `Create Focus Period` | Amaç ve başlangıç/bitiş tarihiyle isteğe bağlı dönem açma |

@@ -1,6 +1,10 @@
 import { expect, test } from "vitest";
 
-import { ROADMAP_COPY, ROADMAP_HORIZONS } from "./roadmap-copy";
+import {
+	MILESTONE_STATUSES,
+	ROADMAP_COPY,
+	ROADMAP_HORIZONS,
+} from "./roadmap-copy";
 
 const FORBIDDEN_PATTERN =
 	/Show on Roadmap|Initiative|Parked|Theme record|Kanban column|sprint/i;
@@ -18,5 +22,14 @@ test("English Roadmap copy uses Roadmap, Now, Next, Later", () => {
 	expect(ROADMAP_COPY.presentationMode).toBe("Presentation Mode");
 	expect(ROADMAP_COPY.placeOnPlan).toBe("Place on plan");
 	expect(ROADMAP_HORIZONS).toEqual(["Now", "Next", "Later"]);
+	expect(ROADMAP_COPY.milestone).toBe("Milestone");
+	expect(ROADMAP_COPY.planned).toBe("Planned");
+	expect(ROADMAP_COPY.reached).toBe("Reached");
+	expect(ROADMAP_COPY.abandoned).toBe("Abandoned");
+	expect(ROADMAP_COPY.contributesToMilestone).toBe("Contributes to Milestone");
+	expect(ROADMAP_COPY.createMilestone).toBe("Create Milestone");
+	expect(ROADMAP_COPY.reach).toBe("Reach");
+	expect(ROADMAP_COPY.abandon).toBe("Abandon");
+	expect(MILESTONE_STATUSES).toEqual(["Planned", "Reached", "Abandoned"]);
 	expect(JSON.stringify(ROADMAP_COPY)).not.toMatch(FORBIDDEN_PATTERN);
 });

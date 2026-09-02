@@ -7,20 +7,30 @@ import { z } from "zod";
 import { getProject } from "../../project-shell/server/project-shell";
 import { getWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
+	contributeToMilestone,
+	createMilestone,
 	getHorizonPlacement,
+	getMilestone,
+	listMilestones,
 	listRoadmap,
 	placeCandidate,
 	placeHorizon,
 	previewPlaceCandidate,
 	saveRoadmapNamedView,
+	setMilestoneStatus,
 } from "./roadmap-horizon";
 import {
+	contributeToMilestoneCommandSchema,
+	createMilestoneCommandSchema,
+	getMilestoneQuerySchema,
+	listMilestonesQuerySchema,
 	listRoadmapQuerySchema,
 	placeCandidateCommandSchema,
 	placeHorizonCommandSchema,
 	previewPlaceCandidateCommandSchema,
 	roadmapCatalog,
 	saveRoadmapNamedViewCommandSchema,
+	setMilestoneStatusCommandSchema,
 } from "./roadmap-horizon-model";
 
 async function requireAccess(userId: string) {
@@ -50,6 +60,56 @@ async function requireWork(workspaceId: string, workId: string) {
 
 export const roadmapHorizon = {
 	catalog: protectedProcedure.handler(() => roadmapCatalog()),
+	contributeToMilestone: protectedWriteProcedure
+		.input(
+			contributeToMilestoneCommandSchema.omit({
+				actorId: true,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const milestone = await getMilestone(
+				getPrismaClient(),
+				input.milestoneId,
+				access.workspaceId
+			);
+			if (!milestone) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireWork(access.workspaceId, input.workId);
+			return await contributeToMilestone(getPrismaClient(), {
+				...input,
+				actorId: access.accountId,
+			});
+		}),
+	createMilestone: protectedWriteProcedure
+		.input(
+			createMilestoneCommandSchema.omit({
+				actorId: true,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await createMilestone(getPrismaClient(), {
+				...input,
+				actorId: access.accountId,
+			});
+		}),
+	getMilestone: protectedProcedure
+		.input(getMilestoneQuerySchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const milestone = await getMilestone(
+				getPrismaClient(),
+				input.milestoneId,
+				access.workspaceId
+			);
+			if (!milestone) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return milestone;
+		}),
 	list: protectedProcedure
 		.input(listRoadmapQuerySchema)
 		.handler(async ({ context, input }) => {
@@ -60,6 +120,13 @@ export const roadmapHorizon = {
 				throw new ORPCError("NOT_FOUND");
 			}
 			return view;
+		}),
+	listMilestones: protectedProcedure
+		.input(listMilestonesQuerySchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await listMilestones(getPrismaClient(), input);
 		}),
 	place: protectedWriteProcedure
 		.input(placeHorizonCommandSchema)
@@ -98,5 +165,26 @@ export const roadmapHorizon = {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
 			return await saveRoadmapNamedView(getPrismaClient(), input);
+		}),
+	setMilestoneStatus: protectedWriteProcedure
+		.input(
+			setMilestoneStatusCommandSchema.omit({
+				actorId: true,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const milestone = await getMilestone(
+				getPrismaClient(),
+				input.milestoneId,
+				access.workspaceId
+			);
+			if (!milestone) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return await setMilestoneStatus(getPrismaClient(), {
+				...input,
+				actorId: access.accountId,
+			});
 		}),
 };

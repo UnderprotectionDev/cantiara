@@ -74,6 +74,152 @@ export const ROADMAP_WRITES = {
 	themeRecord: false,
 } as const;
 
+export const MILESTONE_COPY = {
+	abandon: "Abandon",
+	abandoned: "Abandoned",
+	contributesToMilestone: "Contributes to Milestone",
+	create: "Create Milestone",
+	description: "Description",
+	empty: "No Milestone yet.",
+	milestone: "Milestone",
+	milestones: "Milestones",
+	planned: "Planned",
+	reach: "Reach",
+	reached: "Reached",
+	targetDate: "Target date",
+	title: "Title",
+} as const;
+
+export const MILESTONE_STATUSES = [
+	MILESTONE_COPY.planned,
+	MILESTONE_COPY.reached,
+	MILESTONE_COPY.abandoned,
+] as const;
+
+export type MilestoneStatus = (typeof MILESTONE_STATUSES)[number];
+
+export const MILESTONE_COUNTERPARTS = {
+	focusPeriod: false,
+	goalContribution: false,
+	projectRelease: false,
+	projectStage: false,
+	sprint: false,
+} as const;
+
+export const MILESTONE_WRITES = {
+	autoReach: false,
+	closeLinkedWork: false,
+	focusPeriodWindow: false,
+	goalContribution: false,
+	releaseScope: false,
+	workClosure: false,
+	workStatus: false,
+} as const;
+
+export const milestoneStatusSchema = z.enum(MILESTONE_STATUSES);
+
+export const createMilestoneCommandSchema = z.object({
+	actorId: z.string().min(1),
+	description: z.string().optional(),
+	idempotencyKey: z.string().min(1),
+	projectId: z.string().min(1),
+	targetDate: z.string().nullable().optional(),
+	title: z.string().min(1),
+});
+
+export type CreateMilestoneCommand = z.infer<
+	typeof createMilestoneCommandSchema
+>;
+
+export const setMilestoneStatusCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	milestoneId: z.string().min(1),
+	status: milestoneStatusSchema,
+});
+
+export type SetMilestoneStatusCommand = z.infer<
+	typeof setMilestoneStatusCommandSchema
+>;
+
+export const contributeToMilestoneCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	milestoneId: z.string().min(1),
+	workId: z.string().min(1),
+});
+
+export type ContributeToMilestoneCommand = z.infer<
+	typeof contributeToMilestoneCommandSchema
+>;
+
+export const listMilestonesQuerySchema = z.object({
+	projectId: z.string().min(1),
+});
+
+export const getMilestoneQuerySchema = z.object({
+	milestoneId: z.string().min(1),
+});
+
+export const milestoneContributingWorkSchema = z.object({
+	id: z.string().min(1),
+	key: z.string().min(1),
+	status: z.string().min(1),
+	title: z.string().min(1),
+});
+
+export type MilestoneContributingWork = z.infer<
+	typeof milestoneContributingWorkSchema
+>;
+
+export const milestoneStatusEventSchema = z.object({
+	previousStatus: milestoneStatusSchema.nullable(),
+	status: milestoneStatusSchema,
+});
+
+export const milestoneViewSchema = z.object({
+	contributingWork: z.array(milestoneContributingWorkSchema),
+	copy: z.object({
+		abandoned: z.literal(MILESTONE_COPY.abandoned),
+		milestone: z.literal(MILESTONE_COPY.milestone),
+		planned: z.literal(MILESTONE_COPY.planned),
+		reached: z.literal(MILESTONE_COPY.reached),
+	}),
+	counterparts: z.object({
+		focusPeriod: z.literal(false),
+		goalContribution: z.literal(false),
+		projectRelease: z.literal(false),
+		projectStage: z.literal(false),
+		sprint: z.literal(false),
+	}),
+	description: z.string().nullable(),
+	focusPeriodWindow: z.literal(false),
+	goalContribution: z.literal(false),
+	history: z.array(milestoneStatusEventSchema),
+	id: z.string().min(1),
+	projectId: z.string().min(1),
+	releaseScope: z.literal(false),
+	revision: z.number().int().positive(),
+	status: milestoneStatusSchema,
+	targetDate: z.string().nullable(),
+	title: z.string().min(1),
+	writes: z.object({
+		autoReach: z.literal(false),
+		closeLinkedWork: z.literal(false),
+		focusPeriodWindow: z.literal(false),
+		goalContribution: z.literal(false),
+		releaseScope: z.literal(false),
+		workClosure: z.literal(false),
+		workStatus: z.literal(false),
+	}),
+});
+
+export type MilestoneView = z.infer<typeof milestoneViewSchema>;
+
+export function isMilestoneStatus(value: string): value is MilestoneStatus {
+	return (MILESTONE_STATUSES as readonly string[]).includes(value);
+}
+
 export const ROADMAP_BLOCKER_WRITES = {
 	autoReschedule: false,
 	blockingRelation: false,
@@ -323,6 +469,12 @@ export function roadmapCatalog() {
 		groupFields: ROADMAP_GROUP_FIELDS,
 		horizons: ROADMAP_HORIZONS,
 		innerMembership: ROADMAP_INNER_MEMBERSHIP,
+		milestone: {
+			copy: MILESTONE_COPY,
+			counterparts: MILESTONE_COUNTERPARTS,
+			statuses: MILESTONE_STATUSES,
+			writes: MILESTONE_WRITES,
+		},
 		presentations: ROADMAP_PRESENTATIONS,
 		writes: ROADMAP_WRITES,
 	};
