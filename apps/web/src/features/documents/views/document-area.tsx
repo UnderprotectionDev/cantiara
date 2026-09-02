@@ -11,8 +11,10 @@ import { DOCUMENTS_COPY, documentScopeFor } from "../forms/documents-copy";
 import DocumentDetail from "./document-detail";
 
 export default function DocumentArea({
+	onOpenSourceRecord,
 	projectId,
 }: {
+	onOpenSourceRecord?: (id: string) => void;
 	projectId: string | null;
 }) {
 	const scope = documentScopeFor(projectId);
@@ -65,7 +67,11 @@ export default function DocumentArea({
 					</ul>
 				)}
 				{selectedId ? (
-					<DocumentDetail documentId={selectedId} projectId={projectId} />
+					<DocumentDetail
+						documentId={selectedId}
+						onOpenSourceRecord={onOpenSourceRecord}
+						projectId={projectId}
+					/>
 				) : (
 					<Empty>
 						<EmptyHeader>

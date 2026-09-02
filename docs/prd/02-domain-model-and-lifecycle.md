@@ -540,6 +540,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Son kullanım | `Last use` | Uzantı bağlantısının son yazma zamanı |
 | Uzantı bağlantısını iptal et | `Revoke` | Tek bir uzantı bağlantısını iptal etme eylemi |
 | Belge | `Document` | Markdown Belgesi dönüşüm hedefi |
+| Canlı İş bloğu | `Live Work block` | Belgeye gömülen, kaynak İş kimliğini kopyasız izleyen eyleme açık kart |
+| Durumu değiştir | `Change status` | Canlı İş bloğunda olağan İş durum yazması |
+| Salt okunur canlı içerik bölümü | `Read-only live section` | Kararlı bölüm kimliğini izleyen kopyasız gömme |
+| Sürüme sabitlenmiş metin parçası kanıtı | `Version-pinned evidence` | Kesin Belge sürümündeki metin parçasının Kanıt bağı; canlı bölüm değildir |
+| Toplu dönüştür | `Convert in bulk` | Liste satırlarından atomik İş dönüşümü |
+| Kayda dönüştür | `Convert to record` | Seçili metinden tam bir kayıt üretme |
+| Teknik Diyagrama dönüştür | `Convert to Technical Diagram` | Fenced Mermaid’den İçe aktarılmış bağımsız kopya |
 | Dosya Eki | `File Attachment` | Dosya Eki dönüşüm hedefi |
 | Dosya seç | `Choose file` | Dosya Eki yükleme denetiminin görünür dosya seçme eylemi |
 | Dosya seçilmedi | `No file selected` | Dosya Eki yükleme denetiminde henüz dosya seçilmediğini söyleyen durum |

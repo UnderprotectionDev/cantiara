@@ -27,12 +27,15 @@ import {
 	documentScopeFor,
 } from "../forms/documents-copy";
 import DocumentBodyView, { type DocumentBodyBlock } from "./document-body";
+import DocumentConvertPanel from "./document-convert-panel";
 
 export default function DocumentDetail({
 	documentId,
+	onOpenSourceRecord,
 	projectId,
 }: {
 	documentId: string;
+	onOpenSourceRecord?: (id: string) => void;
 	projectId: string | null;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
@@ -46,7 +49,7 @@ export default function DocumentDetail({
 		})
 	);
 	const presented = useQuery({
-		...orpc.documents.present.queryOptions({
+		...orpc.documents.presentLive.queryOptions({
 			input: { body },
 		}),
 		enabled: Boolean(selected.data),
@@ -101,6 +104,78 @@ export default function DocumentDetail({
 			markUnsaved();
 		},
 		[markUnsaved]
+	);
+	const onInsert = useCallback(
+		(markdown: string) => {
+			setBody((current) =>
+				current.length === 0 ? markdown : `${current}\n\n${markdown}`
+			);
+			markUnsaved();
+		},
+		[markUnsaved]
+	);
+	const convertMermaid = useMutation(
+		orpc.documents.convertMermaid.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					if ("document" in outcome) {
+						setBody(outcome.document.body);
+					}
+					await queryClient.invalidateQueries({
+						queryKey: orpc.documents.get.queryKey({
+							input: { documentId },
+						}),
+					});
+					recordSave();
+					setError(null);
+				}
+			},
+		})
+	);
+	const onConvertMermaid = useCallback(
+		(source: string) => {
+			if (!selected.data) {
+				return;
+			}
+			markUnsaved();
+			attemptOnlineWork("record-create", async () => {
+				const previewed = await queryClient.fetchQuery(
+					orpc.documents.previewConvertMermaid.queryOptions({
+						input: {
+							blockSource: source,
+							documentId,
+							originalBlockOutcome: "live-reference",
+							targetType: "Technical Architecture",
+						},
+					})
+				);
+				if (previewed.status !== "ok") {
+					setError(previewed.reason);
+					return;
+				}
+				await convertMermaid.mutateAsync({
+					baseRevision: selected.data.revision,
+					idempotencyKey: newIdempotencyKey(),
+					payload: {
+						blockSource: source,
+						documentId,
+						originalBlockOutcome: "live-reference",
+						previewFingerprint: previewed.preview.fingerprint,
+						targetType: "Technical Architecture",
+					},
+					previewAcknowledged: true,
+				});
+			});
+		},
+		[attemptOnlineWork, convertMermaid, documentId, markUnsaved, selected.data]
+	);
+	const onOpenLiveSource = useCallback(
+		(id: string, kind: string) => {
+			if (kind === "Work") {
+				onOpenSourceRecord?.(id);
+			}
+		},
+		[onOpenSourceRecord]
 	);
 
 	const onSubmit = useCallback(
@@ -188,9 +263,20 @@ export default function DocumentDetail({
 					<Button type="submit">{DOCUMENTS_COPY.save}</Button>
 				</form>
 				<div className="mt-6">
+					<DocumentConvertPanel
+						body={body}
+						documentId={documentId}
+						onInsert={onInsert}
+						projectId={projectId}
+						revision={selected.data.revision}
+					/>
+				</div>
+				<div className="mt-6">
 					<DocumentBodyView
 						blocks={blocks}
 						onBlockSourceChange={onBlockSourceChange}
+						onConvertMermaid={onConvertMermaid}
+						onOpenSourceRecord={onOpenLiveSource}
 					/>
 				</div>
 			</CardContent>

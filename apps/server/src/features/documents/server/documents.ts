@@ -9,6 +9,12 @@ import {
 } from "../../mutation-core/server/mutation-shared";
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	documentsWouldCycle,
+	ensureSectionIds,
+	syncDocumentUsageLinks,
+	usageTargetsFromBody,
+} from "./documents-live";
+import {
 	type CreateDocumentCommand,
 	createDocumentCommandSchema,
 	DOCUMENT_SCOPE_KIND,
@@ -170,11 +176,15 @@ async function createInTransaction(
 	if (replayed) {
 		return replayed;
 	}
-	const body = command.payload.body ?? "";
+	const body = ensureSectionIds(command.payload.body ?? "");
+	const documentId = crypto.randomUUID();
+	if (await documentsWouldCycle(tx, documentId, body)) {
+		return { reason: "live-section-cycle", status: "rejected" };
+	}
 	const created = await tx.document.create({
 		data: {
 			body,
-			id: crypto.randomUUID(),
+			id: documentId,
 			projectId:
 				command.payload.scope.kind === DOCUMENT_SCOPE_KIND.project
 					? command.payload.scope.projectId
@@ -185,6 +195,11 @@ async function createInTransaction(
 			type,
 			workspaceId: command.workspaceId,
 		},
+	});
+	await syncDocumentUsageLinks(tx, {
+		hostRecordId: created.id,
+		targets: usageTargetsFromBody(created.body),
+		workspaceId: command.workspaceId,
 	});
 	const view = toView(created);
 	await writeReceipt(tx, {
@@ -221,7 +236,16 @@ async function updateInTransaction(
 			? current.title
 			: command.payload.title.trim();
 	const nextType = command.payload.type ?? current.type;
-	const nextBody = command.payload.body ?? current.body;
+	const nextBody =
+		command.payload.body === undefined
+			? current.body
+			: ensureSectionIds(command.payload.body);
+	if (
+		command.payload.body !== undefined &&
+		(await documentsWouldCycle(tx, current.id, nextBody))
+	) {
+		return { reason: "live-section-cycle", status: "rejected" };
+	}
 	const updated = await tx.document.update({
 		data: {
 			body: nextBody,
@@ -230,6 +254,11 @@ async function updateInTransaction(
 			type: nextType,
 		},
 		where: { id: current.id },
+	});
+	await syncDocumentUsageLinks(tx, {
+		hostRecordId: updated.id,
+		targets: usageTargetsFromBody(updated.body),
+		workspaceId: command.workspaceId,
 	});
 	const view = toView(updated);
 	await writeReceipt(tx, {

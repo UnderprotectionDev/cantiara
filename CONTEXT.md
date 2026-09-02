@@ -578,6 +578,18 @@ _Avoid_: Geri Bildirim, Test Oturumu, Deney/Doğrulama
 Bir Proje veya Kişisel Wiki kapsamında yaşayan, sürümlü Markdown içeriğine sahip ana kayıt; başka kaydın metin alanı veya dış dosyayla canlı eşitlenen kopya değildir.
 _Avoid_: Dosya Eki, harici Markdown dosyası, kayıt açıklaması
 
+**Canlı İş bloğu**:
+Belgeye gömülen, kaynak İşin kimliğini kopyasız izleyen eyleme açık canlı kart; belgeye özgü görev kopyası veya ikinci yaşam döngüsü değildir ([uygulama içi Markdown belge yönetimi](docs/prd/07-documents-and-knowledge.md#uygulama-içi-markdown-belge-yönetimi)). UI: `Live Work block`, `Change status`, `Close`, `Open source record`.
+_Avoid_: checkbox görevi, gömülü İş kopyası, Belgeye özel kapanış
+
+**Salt okunur canlı içerik bölümü**:
+Başka bir Belgedeki kararlı bölüm kimliğini kopyasız izleyen salt okunur gömme; sürüme sabit kanıt veya içerik kopyası değildir ([uygulama içi Markdown belge yönetimi](docs/prd/07-documents-and-knowledge.md#uygulama-içi-markdown-belge-yönetimi)). UI: `Read-only live section`.
+_Avoid_: sürüme sabit kanıt, bölüm kopyası, yerinde kaynak düzenleme
+
+**Sürüme sabitlenmiş metin parçası kanıtı**:
+Seçilmiş kesin Belge sürümündeki metin parçasını mevcut kayda bağlayan Kanıt bağı; canlı bölüm gömme veya güncel gövde izi değildir ([sürüme sabitlenmiş metin parçası kanıtı](docs/prd/07-documents-and-knowledge.md#sürüme-sabitlenmiş-metin-parçası-kanıtı)). UI: `Version-pinned evidence`.
+_Avoid_: Read-only live section, canlı gövde, otomatik kanıt
+
 **Dosya Eki**:
 Tam olarak bir Proje veya Kişisel Wiki kapsamında yaşayan, dosya içeriğini ve sürümlerini taşıyan ana kayıt; başka kapsamdaki ilişki sahipliğini veya görünürlüğünü değiştirmez.
 _Avoid_: Belge, ilişki eki, paylaşılan global dosya
