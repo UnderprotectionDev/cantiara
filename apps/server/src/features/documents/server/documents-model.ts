@@ -120,6 +120,7 @@ export type MaterializeStarterSkeletonDocumentsCommand = z.infer<
 export type StarterSkeletonDocumentsOutcome =
 	| { documents: DocumentView[]; status: "committed" }
 	| { documents: DocumentView[]; status: "replayed" }
+	| { conflict: "Conflict"; status: "conflict" }
 	| { reason: DocumentRejectionReason; status: "rejected" };
 
 export const createDocumentPayloadSchema = z.object({

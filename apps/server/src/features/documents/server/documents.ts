@@ -344,7 +344,7 @@ async function replaySkeletonsOrConflict(
 		return null;
 	}
 	if (existing.payloadFingerprint !== fingerprint) {
-		return { reason: "invalid-command", status: "rejected" };
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
 	}
 	const stored = JSON.parse(existing.resultValue) as unknown;
 	if (!Array.isArray(stored)) {
