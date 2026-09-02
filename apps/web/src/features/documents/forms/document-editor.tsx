@@ -1,11 +1,28 @@
+import Highlight from "@tiptap/extension-highlight";
+import Link from "@tiptap/extension-link";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
 import { TableKit } from "@tiptap/extension-table";
+import TextAlign from "@tiptap/extension-text-align";
+import Underline from "@tiptap/extension-underline";
 import { Markdown } from "@tiptap/markdown";
-import type { Editor } from "@tiptap/react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { useCallback, useEffect } from "react";
-
+import { useEffect } from "react";
+import DocumentToolbar from "./document-toolbar";
 import { DOCUMENTS_COPY } from "./documents-copy";
+
+const DOCUMENT_EXTENSIONS = [
+	StarterKit,
+	Underline,
+	Highlight,
+	Link.configure({ openOnClick: false }),
+	Subscript,
+	Superscript,
+	TextAlign.configure({ types: ["heading", "paragraph"] }),
+	TableKit,
+	Markdown,
+];
 
 export default function DocumentEditor({
 	onChange,
@@ -17,7 +34,7 @@ export default function DocumentEditor({
 	const editor = useEditor({
 		content: value,
 		contentType: "markdown",
-		extensions: [StarterKit, TableKit, Markdown],
+		extensions: DOCUMENT_EXTENSIONS,
 		immediatelyRender: false,
 		onUpdate: ({ editor: instance }) => {
 			onChange(instance.getMarkdown());
@@ -40,95 +57,13 @@ export default function DocumentEditor({
 	}
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div className="overflow-hidden rounded-none border border-input">
 			<DocumentToolbar editor={editor} />
 			<EditorContent
 				aria-label={DOCUMENTS_COPY.body}
-				className="tiptap-document min-h-48 rounded-none border border-input px-2.5 py-2 text-sm [&_.tiptap]:min-h-40 [&_.tiptap]:outline-none [&_pre]:overflow-x-auto [&_pre]:bg-muted [&_pre]:p-2 [&_table]:w-full [&_td]:border [&_td]:border-border [&_td]:p-1 [&_th]:border [&_th]:border-border [&_th]:p-1"
+				className="tiptap-document px-3 py-2.5 text-sm [&_.tiptap]:min-h-40 [&_.tiptap]:outline-none [&_blockquote]:border-border [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_h1]:font-semibold [&_h1]:text-2xl [&_h2]:font-semibold [&_h2]:text-xl [&_h3]:font-medium [&_h3]:text-lg [&_mark]:bg-yellow-300/40 [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_pre]:bg-muted [&_pre]:p-2 [&_table]:w-full [&_td]:border [&_td]:border-border [&_td]:p-1 [&_th]:border [&_th]:border-border [&_th]:p-1 [&_ul]:list-disc [&_ul]:pl-5"
 				editor={editor}
 			/>
-		</div>
-	);
-}
-
-function DocumentToolbar({ editor }: { editor: Editor }) {
-	const onBold = useCallback(() => {
-		editor.chain().focus().toggleBold().run();
-	}, [editor]);
-	const onItalic = useCallback(() => {
-		editor.chain().focus().toggleItalic().run();
-	}, [editor]);
-	const onCode = useCallback(() => {
-		editor.chain().focus().toggleCodeBlock().run();
-	}, [editor]);
-	const onTable = useCallback(() => {
-		editor
-			.chain()
-			.focus()
-			.insertTable({ cols: 2, rows: 2, withHeaderRow: true })
-			.run();
-	}, [editor]);
-	const onMermaid = useCallback(() => {
-		editor
-			.chain()
-			.focus()
-			.insertContent("```mermaid\ngraph TD\n  A-->B\n```\n", {
-				contentType: "markdown",
-			})
-			.run();
-	}, [editor]);
-	const onLatex = useCallback(() => {
-		editor
-			.chain()
-			.focus()
-			.insertContent("$$E = mc^2$$\n", { contentType: "markdown" })
-			.run();
-	}, [editor]);
-
-	return (
-		<div className="flex flex-wrap gap-2">
-			<button
-				className="text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
-				onClick={onBold}
-				type="button"
-			>
-				{DOCUMENTS_COPY.toolbar.bold}
-			</button>
-			<button
-				className="text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
-				onClick={onItalic}
-				type="button"
-			>
-				{DOCUMENTS_COPY.toolbar.italic}
-			</button>
-			<button
-				className="text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
-				onClick={onCode}
-				type="button"
-			>
-				{DOCUMENTS_COPY.toolbar.code}
-			</button>
-			<button
-				className="text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
-				onClick={onTable}
-				type="button"
-			>
-				{DOCUMENTS_COPY.toolbar.table}
-			</button>
-			<button
-				className="text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
-				onClick={onMermaid}
-				type="button"
-			>
-				{DOCUMENTS_COPY.toolbar.mermaid}
-			</button>
-			<button
-				className="text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline"
-				onClick={onLatex}
-				type="button"
-			>
-				{DOCUMENTS_COPY.toolbar.latex}
-			</button>
 		</div>
 	);
 }
