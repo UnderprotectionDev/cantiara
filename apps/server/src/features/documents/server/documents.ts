@@ -21,9 +21,14 @@ import {
 	type DocumentLiveFiles,
 	type DocumentScope,
 	type DocumentType,
+	type DocumentVersionCompare,
+	type DocumentVersionView,
 	type DocumentView,
 	type DocumentWriteOutcome,
 	isDocumentType,
+	presentDocumentVersionDiff,
+	type RestoreDocumentCommand,
+	restoreDocumentCommandSchema,
 	type UpdateDocumentCommand,
 	updateDocumentCommandSchema,
 } from "./documents-model";
@@ -163,6 +168,82 @@ export async function listDocuments(
 	return rows.map(toView);
 }
 
+export async function listDocumentVersions(
+	prisma: PrismaClient,
+	input: { documentId: string; workspaceId?: string }
+): Promise<DocumentVersionView[] | null> {
+	const document = await getDocument(
+		prisma,
+		input.documentId,
+		input.workspaceId
+	);
+	if (!document) {
+		return null;
+	}
+	if (
+		!("documentVersion" in prisma) ||
+		typeof prisma.documentVersion?.findMany !== "function"
+	) {
+		return [];
+	}
+	const rows = await prisma.documentVersion.findMany({
+		orderBy: { revision: "asc" },
+		where: { documentId: input.documentId },
+	});
+	return rows.map(toVersionView);
+}
+
+export async function compareDocumentVersions(
+	prisma: PrismaClient,
+	input: {
+		documentId: string;
+		leftRevision: number;
+		rightRevision: number;
+		workspaceId?: string;
+	}
+): Promise<DocumentVersionCompare | null> {
+	const versions = await listDocumentVersions(prisma, {
+		documentId: input.documentId,
+		workspaceId: input.workspaceId,
+	});
+	if (!versions) {
+		return null;
+	}
+	const left = versions.find(
+		(version) => version.revision === input.leftRevision
+	);
+	const right = versions.find(
+		(version) => version.revision === input.rightRevision
+	);
+	if (!(left && right)) {
+		return null;
+	}
+	return {
+		hunks: presentDocumentVersionDiff(left.body, right.body),
+		left,
+		right,
+	};
+}
+
+export async function restoreDocumentVersion(
+	prisma: PrismaClient,
+	command: unknown,
+	_deps: DocumentWriteDeps = {}
+): Promise<DocumentWriteOutcome> {
+	const parsed = restoreDocumentCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		restoreInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
 async function createInTransaction(
 	tx: PrismaTransaction,
 	command: CreateDocumentCommand,
@@ -196,6 +277,7 @@ async function createInTransaction(
 			workspaceId: command.workspaceId,
 		},
 	});
+	await recordVersion(tx, created);
 	await syncDocumentUsageLinks(tx, {
 		hostRecordId: created.id,
 		targets: usageTargetsFromBody(created.body),
@@ -255,6 +337,7 @@ async function updateInTransaction(
 		},
 		where: { id: current.id },
 	});
+	await recordVersion(tx, updated);
 	await syncDocumentUsageLinks(tx, {
 		hostRecordId: updated.id,
 		targets: usageTargetsFromBody(updated.body),
@@ -268,6 +351,78 @@ async function updateInTransaction(
 		view,
 	});
 	return { document: view, status: "committed" };
+}
+
+async function restoreInTransaction(
+	tx: PrismaTransaction,
+	command: RestoreDocumentCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<DocumentWriteOutcome> {
+	await lockWorkspace(tx, command.workspaceId);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const current = await tx.document.findUnique({
+		where: { id: command.payload.documentId },
+	});
+	if (!current || current.workspaceId !== command.workspaceId) {
+		return { reason: "document-not-found", status: "rejected" };
+	}
+	if (current.revision !== command.baseRevision) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const source = await tx.documentVersion.findUnique({
+		where: {
+			documentId_revision: {
+				documentId: current.id,
+				revision: command.payload.versionRevision,
+			},
+		},
+	});
+	if (!source) {
+		return { reason: "version-not-found", status: "rejected" };
+	}
+	const restored = await tx.document.update({
+		data: {
+			body: source.body,
+			revision: current.revision + 1,
+			title: source.title,
+			type: source.type,
+		},
+		where: { id: current.id },
+	});
+	await recordVersion(tx, restored);
+	await syncDocumentUsageLinks(tx, {
+		hostRecordId: restored.id,
+		targets: usageTargetsFromBody(restored.body),
+		workspaceId: command.workspaceId,
+	});
+	const view = toView(restored);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { document: view, status: "committed" };
+}
+
+async function recordVersion(
+	tx: PrismaTransaction,
+	row: DocumentRow
+): Promise<void> {
+	await tx.documentVersion.create({
+		data: {
+			body: row.body,
+			documentId: row.id,
+			id: crypto.randomUUID(),
+			revision: row.revision,
+			title: row.title,
+			type: row.type,
+		},
+	});
 }
 
 async function replayOrConflict(
@@ -340,6 +495,26 @@ function toView(row: DocumentRow): DocumentView {
 		liveFilePath: null,
 		revision: row.revision,
 		scope,
+		title: row.title,
+		type: row.type as DocumentType,
+	};
+}
+
+interface DocumentVersionRow {
+	body: string;
+	documentId: string;
+	id: string;
+	revision: number;
+	title: string;
+	type: string;
+}
+
+function toVersionView(row: DocumentVersionRow): DocumentVersionView {
+	return {
+		body: row.body,
+		documentId: row.documentId,
+		id: row.id,
+		revision: row.revision,
 		title: row.title,
 		type: row.type as DocumentType,
 	};

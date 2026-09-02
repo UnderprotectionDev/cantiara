@@ -30,6 +30,7 @@ import {
 } from "../forms/documents-copy";
 import DocumentBodyView, { type DocumentBodyBlock } from "./document-body";
 import DocumentConvertPanel from "./document-convert-panel";
+import DocumentVersionHistory from "./document-version-history";
 
 export default function DocumentDetail({
 	documentId,
@@ -341,6 +342,11 @@ export default function DocumentDetail({
 						onOpenSourceRecord={onOpenLiveSource}
 					/>
 				</div>
+				<DocumentVersionHistory
+					baseRevision={selected.data.revision}
+					documentId={documentId}
+					projectId={projectId}
+				/>
 			</CardContent>
 		</Card>
 	);

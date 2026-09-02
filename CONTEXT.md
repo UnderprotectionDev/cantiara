@@ -578,6 +578,10 @@ _Avoid_: Geri Bildirim, Test Oturumu, Deney/Doğrulama
 Bir Proje veya Kişisel Wiki kapsamında yaşayan, sürümlü Markdown içeriğine sahip ana kayıt; başka kaydın metin alanı veya dış dosyayla canlı eşitlenen kopya değildir.
 _Avoid_: Dosya Eki, harici Markdown dosyası, kayıt açıklaması
 
+**Belge sürümü**:
+Belgenin veritabanında tutulan kesin uygulama değişikliği kaydı; Git commit, dış dosya revizyonu veya ortak düzenleme oturumu değildir ([Belge sürüm geçmişi](docs/prd/07-documents-and-knowledge.md#belge-sürüm-geçmişi)). UI: `Version`.
+_Avoid_: Git commit, harici editör senkronu, CRDT
+
 **Canlı İş bloğu**:
 Belgeye gömülen, kaynak İşin kimliğini kopyasız izleyen eyleme açık canlı kart; belgeye özgü görev kopyası veya ikinci yaşam döngüsü değildir ([uygulama içi Markdown belge yönetimi](docs/prd/07-documents-and-knowledge.md#uygulama-içi-markdown-belge-yönetimi)). UI: `Live Work block`, `Change status`, `Close`, `Open source record`.
 _Avoid_: checkbox görevi, gömülü İş kopyası, Belgeye özel kapanış

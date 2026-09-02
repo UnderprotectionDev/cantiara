@@ -30,6 +30,7 @@ export const DOCUMENTS_COPY = {
 	body: "Body",
 	changeStatus: "Change status",
 	close: "Close",
+	compare: "Compare",
 	convertInBulk: "Convert in bulk",
 	convertToRecord: "Convert to record",
 	convertToTechnicalDiagram: "Convert to Technical Diagram",
@@ -49,6 +50,7 @@ export const DOCUMENTS_COPY = {
 	preview: "Preview",
 	readOnlyLiveSection: "Read-only live section",
 	researchNote: "Research Note",
+	restore: "Restore",
 	save: "Save",
 	selectDocument: "Select a Document",
 	spec: "Spec",
@@ -84,6 +86,8 @@ export const DOCUMENTS_COPY = {
 		undo: "Undo",
 	},
 	type: "Type",
+	version: "Version",
+	versions: "Versions",
 } as const;
 
 export function documentScopeFor(
