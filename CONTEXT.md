@@ -463,6 +463,10 @@ _Avoid_: Statik liste, klasör, etiket
 Çalışma Alanı genelinde yaşayan düz sınıflandırma kimliği; kayıt içeriği, klasör üyeliği veya süzme görünümü değildir ([Etiketler](docs/prd/08-search-relations-and-evidence.md#etiketler)). UI: `Tags`.
 _Avoid_: Klasör, Akıllı Koleksiyon, Proje-yerel etiket sözlüğü, hiyerarşi
 
+**Belge içi etiket**:
+Belge gövdesindeki düz yazı `#tag` tokenının aynı Çalışma Alanı Etiket kimliğine bağlanması; ikinci sözlük veya serbest hashtag değildir ([in-doc tags](docs/prd/07-documents-and-knowledge.md)). UI: `#` + Etiket adı.
+_Avoid_: serbest metin hashtag, ikinci etiket sözlüğü
+
 **Proje bazlı özel alan**:
 Yalnız bir Projede yaşayan, Metin, Sayı, Boolean, Tarih, tek seçim veya çoklu seçim türünde yapılandırılmış sınıflandırma alanı ([proje bazlı özel alanlar](docs/prd/08-search-relations-and-evidence.md#proje-bazlı-özel-alanlar)).
 _Avoid_: Lookup, Formula, çalışma alanı genelinde şema, etiket hiyerarşisi

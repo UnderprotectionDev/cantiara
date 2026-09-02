@@ -19,6 +19,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belge klasörü | `Folder` | Aynı sahiplik kapsamında gezinme üstverisi; Akıllı Koleksiyon veya sahiplik kapsamı değildir |
 | Üst belge | `Parent Document` | Aynı kapsamdaki en fazla bir üst Belge; çapraz kapsam ebeveyn yoktur |
 | Çocuk Belge kartı | `Card` | Üst Belgedeki otomatik çocuk önizlemesi; ayrı kapak kaydı değildir |
+| Belge içi etiket | `#tag` | Belge düz yazısındaki tokenın aynı Çalışma Alanı Etiket kimliğine bağlanması; ikinci sözlük değildir |
 | Özellik | `Feature` | İş türü |
 | Kullanıcı Akışı | `User Flow` | Kullanıcının arayüz hedefi ve karar yolunu taşıyan tasarım türü |
 | Herkese açık | `Public` | Dışarıdan anonim erişilebilen kullanıcı görünürlüğü; `Build in Public` ürün adı, teknik alan ve wire değerleri özgün adını korur |
