@@ -559,6 +559,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yetkili kayıt ara | `Type to search authorized records.` | Boş sorgu yönlendirmesi |
 | Eşleşen kayıt yok | `No matching records.` | Süzgecin yetkili sonuç döndürmediği durum |
 | Arama kullanılamıyor | `Search is unavailable.` | Arama yüzeyinin yüklenemediği durum |
+| Tam sayfa aç | `Open full page` | Derin çalışma için kaynağı tam sayfada açma; geçici önizleme paneli veya kalıcı yerleşim değildir |
 | Proje geçişi | `Switch Project` | Palette ve görünür menüden yetkili Projeler arasında geçiş |
 | Oluştur | `Create` | Palette ve görünür menüden yetkili kapsamda desteklenen kayıt oluşturma |
 | Aç | `Open` | Palette yetkili ana kayda atlama |

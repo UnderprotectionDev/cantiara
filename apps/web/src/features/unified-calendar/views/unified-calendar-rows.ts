@@ -1,3 +1,5 @@
+import { sourceRecordFullPageHref } from "@/features/record-discovery/views/in-context-preview";
+
 export interface CalendarKindMark {
 	date: string;
 	kind: string;
@@ -44,7 +46,7 @@ export function calendarVisibleRows(input: {
 }): CalendarVisibleRow[] {
 	return [
 		...input.ranges.map((row) => ({
-			href: workHref(row.projectId, row.id),
+			href: sourceRecordFullPageHref(row.projectId, row.id),
 			id: `${row.id}-range`,
 			kinds: [row.start, row.end],
 			openSourceRecord: true,
@@ -55,7 +57,7 @@ export function calendarVisibleRows(input: {
 			workId: row.id,
 		})),
 		...input.positions.map((row) => ({
-			href: workHref(row.projectId, row.id),
+			href: sourceRecordFullPageHref(row.projectId, row.id),
 			id: `${row.id}-${row.kind}`,
 			kinds: [{ date: row.date, kind: row.kind }],
 			openSourceRecord: true,
@@ -87,8 +89,4 @@ export function calendarDaySections(
 			})),
 		}))
 		.filter((section) => section.rows.length > 0);
-}
-
-function workHref(projectId: string, workId: string): string {
-	return `/projects/${projectId}?work=${encodeURIComponent(workId)}#work`;
 }

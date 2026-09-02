@@ -23,6 +23,11 @@ import {
 	projectShellAnchor,
 	workSavedViewIsRoadmap,
 } from "@/features/project-shell/forms/project-shell-copy";
+import {
+	type InContextPreviewSurface,
+	sourceRecordFullPageHref,
+} from "@/features/record-discovery/views/in-context-preview";
+import { useInContextPreview } from "@/features/record-discovery/views/in-context-preview-panel";
 import RoadmapHorizonView from "@/features/roadmap-horizon/views/roadmap-horizon-view";
 import TagFilter from "@/features/tags/views/tag-filter";
 import CreateFromTemplateForm from "@/features/work-templates/forms/create-from-template-form";
@@ -87,6 +92,8 @@ export default function WorkArea({
 		}),
 		enabled: tagFilter !== "",
 	});
+	const preview = useInContextPreview();
+	const openPreview = preview.open;
 	const [selectedId, setSelectedId] = useState<string | null>(
 		selectedWorkId ?? null
 	);
@@ -120,6 +127,27 @@ export default function WorkArea({
 		},
 		[onSelectedWorkId]
 	);
+	const onOpenPreview = useCallback(
+		(previewSurface: InContextPreviewSurface) => (id: string) => {
+			openPreview({
+				listPlace: { focusedId: id },
+				recordId: id,
+				sourceHref: sourceRecordFullPageHref(projectId, id),
+				surface: previewSurface,
+			});
+		},
+		[openPreview, projectId]
+	);
+	const onOpenKanban = useMemo(() => onOpenPreview("Kanban"), [onOpenPreview]);
+	const onOpenRoadmap = useMemo(
+		() => onOpenPreview("Roadmap"),
+		[onOpenPreview]
+	);
+	const onOpenScopeTree = useMemo(
+		() => onOpenPreview("Scope Tree"),
+		[onOpenPreview]
+	);
+	const previewedId = preview.session ? preview.session.recordId : null;
 	const onClose = useCallback(() => {
 		setSelectedId(null);
 		onSelectedWorkId?.(null);
@@ -273,7 +301,8 @@ export default function WorkArea({
 				notifyOnReappearDate={
 					backlog.data?.reappearNotification.optedIn ?? false
 				}
-				onOpenSourceRecord={onOpenSourceRecord}
+				onOpenKanban={onOpenKanban}
+				onOpenRoadmap={onOpenRoadmap}
 				onPresentationModeChange={setRoadmapPresentation}
 				onRestorePosition={onRestoreRoadmapPosition}
 				onSavedPresentation={onSavedBacklogPresentation}
@@ -284,6 +313,7 @@ export default function WorkArea({
 				presentationSort={backlogPresentationSort(
 					backlogSort ?? backlog.data?.presentation.sort
 				)}
+				previewedId={previewedId}
 				priorityMapOpen={surface === "priority-map"}
 				projectId={projectId}
 				savedView={savedView}
@@ -301,8 +331,8 @@ export default function WorkArea({
 				/>
 			)}
 			<ScopeTree
-				onOpenSourceRecord={onOpenSourceRecord}
-				openedRecordId={selectedId}
+				onOpenSourceRecord={onOpenScopeTree}
+				openedRecordId={previewedId ?? selectedId}
 				projectId={projectId}
 			/>
 			{selected ? (
@@ -393,7 +423,8 @@ function WorkCollectionSurface({
 	deferred,
 	items,
 	notifyOnReappearDate,
-	onOpenSourceRecord,
+	onOpenKanban,
+	onOpenRoadmap,
 	onPresentationModeChange,
 	onRestorePosition,
 	onSavedPresentation,
@@ -402,6 +433,7 @@ function WorkCollectionSurface({
 	onToggleBulkSelect,
 	preparedBacklog,
 	presentationSort,
+	previewedId,
 	priorityMapOpen,
 	projectId,
 	savedView,
@@ -434,7 +466,8 @@ function WorkCollectionSurface({
 		type: string;
 	}>;
 	notifyOnReappearDate: boolean;
-	onOpenSourceRecord: (id: string) => void;
+	onOpenKanban: (id: string) => void;
+	onOpenRoadmap: (id: string) => void;
 	onPresentationModeChange: (active: boolean) => void;
 	onRestorePosition: (id: string | null) => void;
 	onSavedPresentation: () => void;
@@ -443,6 +476,7 @@ function WorkCollectionSurface({
 	onToggleBulkSelect: (id: string, selected: boolean) => void;
 	preparedBacklog: boolean;
 	presentationSort: BacklogSort;
+	previewedId: string | null;
 	priorityMapOpen: boolean;
 	projectId: string;
 	savedView?: string | null;
@@ -461,20 +495,20 @@ function WorkCollectionSurface({
 			<KanbanBoard
 				configurationMode={configurationMode}
 				items={items}
-				onOpenSourceRecord={onOpenSourceRecord}
+				onOpenSourceRecord={onOpenKanban}
 				projectId={projectId}
-				selectedWorkId={selectedId}
+				selectedWorkId={previewedId ?? selectedId}
 			/>
 		);
 	}
 	if (workSavedViewIsRoadmap(savedView ?? "")) {
 		return (
 			<RoadmapHorizonView
-				onOpenSourceRecord={onOpenSourceRecord}
+				onOpenSourceRecord={onOpenRoadmap}
 				onPresentationModeChange={onPresentationModeChange}
 				onRestorePosition={onRestorePosition}
 				projectId={projectId}
-				selectedWorkId={selectedId}
+				selectedWorkId={previewedId ?? selectedId}
 			/>
 		);
 	}
@@ -483,7 +517,7 @@ function WorkCollectionSurface({
 			<PriorityMap
 				onSelectWork={onSelect}
 				projectId={projectId}
-				selectedWorkId={selectedId}
+				selectedWorkId={previewedId ?? selectedId}
 			/>
 		);
 	}

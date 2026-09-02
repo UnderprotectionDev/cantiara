@@ -6,6 +6,8 @@ export const RECORD_DISCOVERY_COPY = {
 	includeArchived: "Include archived",
 	matches: "matches",
 	noMatches: "No matching records.",
+	openFullPage: "Open full page",
+	openSourceRecord: "Open source record",
 	personalWiki: "Personal Wiki",
 	project: "Project",
 	query: "Query",
