@@ -9,6 +9,9 @@ import {
 test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.document).toBe("Document");
 	expect(DOCUMENTS_COPY.createDocument).toBe("Create Document");
+	expect(DOCUMENTS_COPY.persona).toBe("Persona");
+	expect(DOCUMENTS_COPY.retrospective).toBe("Retrospective");
+	expect(DOCUMENTS_COPY.launchPlan).toBe("Launch Plan");
 	expect(DOCUMENTS_COPY.couldNotRender).toBe("Could not render this block.");
 	expect(DOCUMENTS_COPY.editableSource).toBe("Editable source");
 	expect(DOCUMENTS_COPY.toolbar.mermaid).toBe("Mermaid");

@@ -1,10 +1,11 @@
 import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
 import { Spinner } from "@cantiara/ui/components/spinner";
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useState } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
-import { orpc } from "@/utils/orpc";
+import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
+import { orpc, queryClient } from "@/utils/orpc";
 
 import CreateDocumentForm from "../forms/create-document-form";
 import { DOCUMENTS_COPY, documentScopeFor } from "../forms/documents-copy";
@@ -16,7 +17,34 @@ export default function DocumentArea({
 	projectId: string | null;
 }) {
 	const scope = documentScopeFor(projectId);
+	const { attemptOnlineWork } = useClientShell();
 	const [selectedId, setSelectedId] = useState<string | null>(null);
+	const materialize = useMutation(
+		orpc.documents.materializeStarterSkeletons.mutationOptions({
+			onSuccess: async () => {
+				await queryClient.invalidateQueries({
+					queryKey: orpc.documents.list.queryKey({
+						input: { scope },
+					}),
+				});
+			},
+		})
+	);
+	useEffect(() => {
+		if (!projectId) {
+			return;
+		}
+		const result = attemptOnlineWork("record-create", () =>
+			materialize.mutateAsync({
+				idempotencyKey: `starter-skeleton-documents:${projectId}`,
+				payload: { projectId },
+			})
+		);
+		if (result.status === "refused") {
+			return;
+		}
+		result.value.catch(() => undefined);
+	}, [attemptOnlineWork, materialize.mutateAsync, projectId]);
 	const documents = useQuery(
 		orpc.documents.list.queryOptions({ input: { scope } })
 	);
@@ -27,7 +55,7 @@ export default function DocumentArea({
 		setSelectedId(documentId);
 	}, []);
 
-	if (documents.isPending) {
+	if (documents.isPending || (projectId !== null && materialize.isPending)) {
 		return (
 			<p className="flex items-center gap-2 text-muted-foreground text-sm">
 				<Spinner />

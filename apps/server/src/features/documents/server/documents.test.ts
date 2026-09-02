@@ -22,6 +22,7 @@ import {
 	createDocument,
 	getDocument,
 	listDocuments,
+	materializeStarterSkeletonDocuments,
 	updateDocument,
 } from "./documents";
 import {
@@ -57,6 +58,61 @@ const FULL_BODY = [
 
 const BROKEN_MERMAID = ["```mermaid", "not a diagram", "```"].join("\n");
 const BROKEN_LATEX = ["```latex", "", "```"].join("\n");
+
+const PERSONA_EMPTY_BODY = [
+	"## Context",
+	"",
+	"## Goals",
+	"",
+	"## Behaviors",
+	"",
+	"## Pain Points",
+	"",
+	"## Constraints",
+	"",
+	"## Evidence",
+	"",
+	"## Open Questions",
+].join("\n");
+
+const RETROSPECTIVE_EMPTY_BODY = [
+	"## Period",
+	"",
+	"## What worked?",
+	"",
+	"## What did not?",
+	"",
+	"## What did we learn?",
+	"",
+	"## Decisions",
+	"",
+	"## Next changes",
+	"",
+	"## Related records",
+].join("\n");
+
+const LAUNCH_PLAN_EMPTY_BODY = [
+	"## Release",
+	"",
+	"## Audience",
+	"",
+	"## Scope",
+	"",
+	"## Readiness",
+	"",
+	"## Communication",
+	"",
+	"## Launch steps",
+	"",
+	"## Risks",
+	"",
+	"## Observation plan",
+	"",
+	"## Related records",
+].join("\n");
+
+const SAMPLE_SKELETON_CONTENT =
+	/Alex|Jordan|example finding|sample task|we decided|lorem|TODO: fill/i;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -110,6 +166,9 @@ describe("Documents catalog", () => {
 			"Research Note",
 			"Persona",
 		]);
+		expect(DOCUMENTS_COPY.persona).toBe("Persona");
+		expect(DOCUMENTS_COPY.retrospective).toBe("Retrospective");
+		expect(DOCUMENTS_COPY.launchPlan).toBe("Launch Plan");
 	});
 });
 
@@ -408,5 +467,173 @@ describe("Documents", () => {
 			status: "committed",
 		});
 		expect(files.writes).toEqual([]);
+	});
+
+	it("does not create living skeleton Documents when the project shell has no catalog selection", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		expect(project.selectedSkeletons).toEqual([]);
+		expect(
+			await listDocuments(prisma, {
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual([]);
+		const materialized = await materializeStarterSkeletonDocuments(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-documents:${project.id}`,
+			origin: "human",
+			payload: { projectId: project.id },
+			workspaceId,
+		});
+		expect(materialized).toEqual({ documents: [], status: "committed" });
+		expect(
+			await listDocuments(prisma, {
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual([]);
+	});
+
+	it("materializes Persona, Retrospective, and Launch Plan as empty-heading Documents after catalog selection", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(prisma, {
+			actorId,
+			idempotencyKey: `saas-${crypto.randomUUID()}`,
+			origin: "human",
+			payload: {
+				name: "Billing",
+				starterConfiguration: "Solo SaaS",
+			},
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		expect(created.project).not.toHaveProperty("documents");
+		expect(
+			await listDocuments(prisma, {
+				scope: { kind: "project", projectId: created.project.id },
+				workspaceId,
+			})
+		).toEqual([]);
+		const files = createMemoryLiveFiles();
+		const materialized = await materializeStarterSkeletonDocuments(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: `starter-skeleton-documents:${created.project.id}`,
+				origin: "human",
+				payload: { projectId: created.project.id },
+				workspaceId,
+			},
+			{ files }
+		);
+		expect(materialized.status).toBe("committed");
+		if (materialized.status !== "committed") {
+			throw new Error("expected committed skeletons");
+		}
+		expect(files.writes).toEqual([]);
+		expect(
+			materialized.documents.map((document) => ({
+				body: document.body,
+				title: document.title,
+				type: document.type,
+			}))
+		).toEqual([
+			{
+				body: PERSONA_EMPTY_BODY,
+				title: "Persona",
+				type: "Persona",
+			},
+			{
+				body: RETROSPECTIVE_EMPTY_BODY,
+				title: "Retrospective",
+				type: "General",
+			},
+			{
+				body: LAUNCH_PLAN_EMPTY_BODY,
+				title: "Launch Plan",
+				type: "General",
+			},
+		]);
+		for (const document of materialized.documents) {
+			expect(document.body).not.toMatch(SAMPLE_SKELETON_CONTENT);
+			expect(document.liveFilePath).toBeNull();
+		}
+		expect(
+			await Promise.all(
+				materialized.documents.map((document) =>
+					getDocument(prisma, document.id, workspaceId)
+				)
+			)
+		).toEqual(materialized.documents);
+		expect(
+			(
+				await listDocuments(prisma, {
+					scope: { kind: "project", projectId: created.project.id },
+					workspaceId,
+				})
+			).map((document) => document.title)
+		).toEqual(["Persona", "Retrospective", "Launch Plan"]);
+		expect(
+			await prisma.work.count({ where: { projectId: created.project.id } })
+		).toBe(0);
+		expect(
+			materialized.documents.some((document) =>
+				["Sitemap", "Customer Journey"].includes(document.title)
+			)
+		).toBe(false);
+		const replayed = await materializeStarterSkeletonDocuments(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-documents:${created.project.id}`,
+			origin: "human",
+			payload: { projectId: created.project.id },
+			workspaceId,
+		});
+		expect(replayed.status).toBe("replayed");
+		if (replayed.status !== "replayed") {
+			throw new Error("expected replayed skeletons");
+		}
+		expect(replayed.documents.map((document) => document.id)).toEqual(
+			materialized.documents.map((document) => document.id)
+		);
+		const edited = await updateDocument(prisma, {
+			actorId,
+			baseRevision: materialized.documents[0]?.revision ?? 0,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: `${PERSONA_EMPTY_BODY}\n\nFounder notes`,
+				documentId: materialized.documents[0]?.id ?? "",
+				title: "Primary buyer",
+			},
+			workspaceId,
+		});
+		expect(edited).toMatchObject({
+			document: {
+				body: `${PERSONA_EMPTY_BODY}\n\nFounder notes`,
+				title: "Primary buyer",
+				type: "Persona",
+			},
+			status: "committed",
+		});
+		await prisma.document.delete({
+			where: { id: materialized.documents[1]?.id ?? "" },
+		});
+		const afterDelete = await materializeStarterSkeletonDocuments(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-documents:${created.project.id}`,
+			origin: "human",
+			payload: { projectId: created.project.id },
+			workspaceId,
+		});
+		expect(afterDelete.status).toBe("replayed");
+		if (afterDelete.status !== "replayed") {
+			throw new Error("expected replayed skeletons");
+		}
+		expect(afterDelete.documents.map((document) => document.title)).toEqual([
+			"Primary buyer",
+			"Launch Plan",
+		]);
 	});
 });

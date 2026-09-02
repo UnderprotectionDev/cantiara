@@ -9,12 +9,14 @@ import {
 	createDocument,
 	getDocument,
 	listDocuments,
+	materializeStarterSkeletonDocuments,
 	updateDocument,
 } from "./documents";
 import {
 	createDocumentPayloadSchema,
 	documentScopeSchema,
 	documentsCatalog,
+	materializeStarterSkeletonDocumentsPayloadSchema,
 	presentDocumentBody,
 	updateDocumentPayloadSchema,
 } from "./documents-model";
@@ -83,6 +85,24 @@ export const documents = {
 			}
 			return await listDocuments(getPrismaClient(), {
 				scope: input.scope,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	materializeStarterSkeletons: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: materializeStarterSkeletonDocumentsPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.payload.projectId);
+			return await materializeStarterSkeletonDocuments(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
 				workspaceId: access.workspaceId,
 			});
 		}),

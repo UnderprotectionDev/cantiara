@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from "@cantiara/db";
 import {
 	advisoryKeys,
 	HUMAN_ORIGIN,
+	isRecord,
 	MUTATION_ACTOR,
 	MUTATION_COPY,
 	payloadFingerprint,
@@ -12,12 +13,17 @@ import {
 	type CreateDocumentCommand,
 	createDocumentCommandSchema,
 	DOCUMENT_SCOPE_KIND,
+	DOCUMENT_STARTER_SKELETONS,
 	type DocumentLiveFiles,
 	type DocumentScope,
 	type DocumentType,
 	type DocumentView,
 	type DocumentWriteOutcome,
+	emptyHeadingDocumentBody,
 	isDocumentType,
+	type MaterializeStarterSkeletonDocumentsCommand,
+	materializeStarterSkeletonDocumentsCommandSchema,
+	type StarterSkeletonDocumentsOutcome,
 	type UpdateDocumentCommand,
 	updateDocumentCommandSchema,
 } from "./documents-model";
@@ -103,6 +109,44 @@ export async function updateDocument(
 	);
 	return await prisma.$transaction((tx) =>
 		updateInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function materializeStarterSkeletonDocuments(
+	prisma: PrismaClient,
+	command: unknown,
+	_deps: DocumentWriteDeps = {}
+): Promise<StarterSkeletonDocumentsOutcome> {
+	const parsed =
+		materializeStarterSkeletonDocumentsCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const project = await getProject(prisma, parsed.data.payload.projectId);
+	if (!project || project.workspaceId !== parsed.data.workspaceId) {
+		return { reason: "project-not-found", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	const selectedNames = new Set(
+		project.selectedSkeletons
+			.filter((skeleton) => skeleton.surface === "Document")
+			.map((skeleton) => skeleton.name)
+	);
+	const skeletons = DOCUMENT_STARTER_SKELETONS.filter((skeleton) =>
+		selectedNames.has(skeleton.name)
+	);
+	return await prisma.$transaction((tx) =>
+		materializeInTransaction(
+			tx,
+			parsed.data,
+			commandKey,
+			fingerprint,
+			skeletons
+		)
 	);
 }
 
@@ -239,6 +283,83 @@ async function updateInTransaction(
 		view,
 	});
 	return { document: view, status: "committed" };
+}
+
+async function materializeInTransaction(
+	tx: PrismaTransaction,
+	command: MaterializeStarterSkeletonDocumentsCommand,
+	commandKey: string,
+	fingerprint: string,
+	skeletons: readonly (typeof DOCUMENT_STARTER_SKELETONS)[number][]
+): Promise<StarterSkeletonDocumentsOutcome> {
+	await lockWorkspace(tx, command.workspaceId);
+	const replayed = await replaySkeletonsOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const startedAt = Date.now();
+	const created = await Promise.all(
+		skeletons.map((skeleton, index) =>
+			tx.document.create({
+				data: {
+					body: emptyHeadingDocumentBody(skeleton.emptyHeadings),
+					createdAt: new Date(startedAt + index),
+					id: crypto.randomUUID(),
+					projectId: command.payload.projectId,
+					revision: 1,
+					scopeKind: DOCUMENT_SCOPE_KIND.project,
+					title: skeleton.name,
+					type: skeleton.type,
+					workspaceId: command.workspaceId,
+				},
+			})
+		)
+	);
+	const documents = created.map(toView);
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: command.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey,
+			committedRevision: documents[0]?.revision ?? 0,
+			id: crypto.randomUUID(),
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: fingerprint,
+			resultValue: JSON.stringify(documents),
+			targetId: documents[0]?.id ?? command.payload.projectId,
+		},
+	});
+	return { documents, status: "committed" };
+}
+
+async function replaySkeletonsOrConflict(
+	tx: PrismaTransaction,
+	commandKey: string,
+	fingerprint: string
+): Promise<StarterSkeletonDocumentsOutcome | null> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (!existing) {
+		return null;
+	}
+	if (existing.payloadFingerprint !== fingerprint) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const stored = JSON.parse(existing.resultValue) as unknown;
+	if (!Array.isArray(stored)) {
+		return { documents: [], status: "replayed" };
+	}
+	const ids = stored.flatMap((entry) =>
+		isRecord(entry) && typeof entry.id === "string" ? [entry.id] : []
+	);
+	const rows = await Promise.all(
+		ids.map((id) => tx.document.findUnique({ where: { id } }))
+	);
+	return {
+		documents: rows.flatMap((row) => (row ? [toView(row)] : [])),
+		status: "replayed",
+	};
 }
 
 async function replayOrConflict(

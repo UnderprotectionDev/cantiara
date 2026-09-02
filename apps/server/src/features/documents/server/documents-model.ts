@@ -7,11 +7,13 @@ export const DOCUMENTS_COPY = {
 	document: "Document",
 	editableSource: "Editable source",
 	general: "General",
+	launchPlan: "Launch Plan",
 	noDocuments: "No Documents yet.",
 	persona: "Persona",
 	plan: "Plan",
 	prd: "PRD",
 	researchNote: "Research Note",
+	retrospective: "Retrospective",
 	save: "Save",
 	selectDocument: "Select a Document",
 	spec: "Spec",
@@ -30,6 +32,54 @@ export const DOCUMENT_TYPES = [
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
+export const DOCUMENT_STARTER_SKELETONS = [
+	{
+		emptyHeadings: [
+			"Context",
+			"Goals",
+			"Behaviors",
+			"Pain Points",
+			"Constraints",
+			"Evidence",
+			"Open Questions",
+		],
+		name: DOCUMENTS_COPY.persona,
+		type: "Persona",
+	},
+	{
+		emptyHeadings: [
+			"Period",
+			"What worked?",
+			"What did not?",
+			"What did we learn?",
+			"Decisions",
+			"Next changes",
+			"Related records",
+		],
+		name: DOCUMENTS_COPY.retrospective,
+		type: "General",
+	},
+	{
+		emptyHeadings: [
+			"Release",
+			"Audience",
+			"Scope",
+			"Readiness",
+			"Communication",
+			"Launch steps",
+			"Risks",
+			"Observation plan",
+			"Related records",
+		],
+		name: DOCUMENTS_COPY.launchPlan,
+		type: "General",
+	},
+] as const;
+
+export function emptyHeadingDocumentBody(headings: readonly string[]): string {
+	return headings.map((heading) => `## ${heading}`).join("\n\n");
+}
+
 export const DOCUMENT_SCOPE_KIND = {
 	personalWiki: "personal-wiki",
 	project: "project",
@@ -46,6 +96,31 @@ export const documentScopeSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type DocumentScope = z.infer<typeof documentScopeSchema>;
+
+export const materializeStarterSkeletonDocumentsPayloadSchema = z.object({
+	projectId: z.string().min(1),
+});
+
+export type MaterializeStarterSkeletonDocumentsPayload = z.infer<
+	typeof materializeStarterSkeletonDocumentsPayloadSchema
+>;
+
+export const materializeStarterSkeletonDocumentsCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: materializeStarterSkeletonDocumentsPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type MaterializeStarterSkeletonDocumentsCommand = z.infer<
+	typeof materializeStarterSkeletonDocumentsCommandSchema
+>;
+
+export type StarterSkeletonDocumentsOutcome =
+	| { documents: DocumentView[]; status: "committed" }
+	| { documents: DocumentView[]; status: "replayed" }
+	| { reason: DocumentRejectionReason; status: "rejected" };
 
 export const createDocumentPayloadSchema = z.object({
 	body: z.string().optional(),
