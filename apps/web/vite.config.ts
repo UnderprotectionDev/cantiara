@@ -21,6 +21,10 @@ export default defineConfig({
 		allowedHosts: true,
 		host: true,
 		port: 3001,
+		proxy: {
+			"/api": { changeOrigin: true, target: "http://127.0.0.1:3000" },
+			"/rpc": { changeOrigin: true, target: "http://127.0.0.1:3000" },
+		},
 		strictPort: true,
 	},
 });

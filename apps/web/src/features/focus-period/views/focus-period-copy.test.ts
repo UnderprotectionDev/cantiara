@@ -16,6 +16,16 @@ test("English Focus Period copy is Focus Period", () => {
 	expect(FOCUS_PERIOD_COPY.startDate).toBe("Start date");
 	expect(FOCUS_PERIOD_COPY.endDate).toBe("End date");
 	expect(FOCUS_PERIOD_COPY.stillOpenWork).toBe("Still-open Work");
+	expect(FOCUS_PERIOD_COPY.nextPeriod).toBe("Next period");
+	expect(FOCUS_PERIOD_COPY.anotherPeriod).toBe("Another period");
+	expect(FOCUS_PERIOD_COPY.backlog).toBe("Backlog");
+	expect(FOCUS_PERIOD_COPY.abandon).toBe("Abandon");
+	expect(FOCUS_PERIOD_COPY.send).toBe("Send");
+	expect(FOCUS_PERIOD_COPY.periodEvaluation).toBe("Period evaluation");
+	expect(FOCUS_PERIOD_COPY.followUpWork).toBe("Follow-up Work");
+	expect(FOCUS_PERIOD_COPY.preview).toBe("Preview");
+	expect(FOCUS_PERIOD_COPY.confirm).toBe("Confirm");
+	expect(FOCUS_PERIOD_COPY.dateComparison).toBe("Date comparison");
 	expect(FOCUS_PERIOD_COPY.create).toBe("Create Focus Period");
 	expect(FOCUS_PERIOD_COPY.move).toBe("Move");
 	expect(FOCUS_PERIOD_COPY.alreadyInAnActivePeriod).toBe(

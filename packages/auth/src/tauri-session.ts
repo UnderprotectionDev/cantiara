@@ -51,6 +51,18 @@ export function isClipperExtensionOrigin(origin: string): boolean {
 	}
 }
 
+export function isDevelopmentBrowserOrigin(origin: string): boolean {
+	if (process.env.NODE_ENV !== "development") {
+		return false;
+	}
+	try {
+		const url = new URL(origin);
+		return url.protocol === "http:" || url.protocol === "https:";
+	} catch {
+		return false;
+	}
+}
+
 export function allowProductCorsOrigin(
 	requestOrigin: string,
 	webOrigin: string
@@ -59,6 +71,9 @@ export function allowProductCorsOrigin(
 		return requestOrigin;
 	}
 	if (isClipperExtensionOrigin(requestOrigin)) {
+		return requestOrigin;
+	}
+	if (isDevelopmentBrowserOrigin(requestOrigin)) {
 		return requestOrigin;
 	}
 }

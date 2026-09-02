@@ -175,6 +175,29 @@ export async function createWorkInTransaction(
 	return createInTransaction(tx, parsed.command, commandKey, fingerprint);
 }
 
+export async function closeWorkInTransaction(
+	tx: PrismaTransaction,
+	command: unknown
+): Promise<WorkLifecycleOutcome> {
+	await Promise.resolve();
+	const parsed = parseCloseCommand(command);
+	if (parsed.status !== "ok") {
+		return parsed.outcome;
+	}
+	if (parsed.command.origin !== HUMAN_ORIGIN) {
+		return { reason: "silent-result-forbidden", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({
+		reason: parsed.command.reason ?? null,
+		result: parsed.command.result ?? null,
+	});
+	const commandKey = commandKeyFor(
+		parsed.command.actorId,
+		parsed.command.idempotencyKey
+	);
+	return closeInTransaction(tx, parsed.command, commandKey, fingerprint);
+}
+
 export async function finalizeDraft(
 	prisma: PrismaClient,
 	command: unknown

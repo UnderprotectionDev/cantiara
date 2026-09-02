@@ -48,6 +48,24 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Başka etkin döneme taşı | `Move` | İşin mevcut etkin Odak Döneminden açıkça başka etkin döneme alınması |
 | Zaten etkin dönemde | `Work is already in an active Focus Period. Use Move.` | Örtük ikinci etkin üyelik reddi |
 | Amaç gerekli | `Purpose is required.` | Boş Odak Dönemi amacı reddi |
+| Açık kalanı gönder | `Send` | Kapanışta seçili açık İşleri toplu kararla gönderme |
+| Sonraki dönem | `Next period` | Açık kalan İşin sonraki Odak Dönemine gönderilmesi |
+| Başka dönem | `Another period` | Açık kalan İşin seçilen başka Odak Dönemine gönderilmesi |
+| Odak Döneminde vazgeç | `Abandon` | Kapanışta açık kalan İşi açık kapatma adımıyla `Abandoned` yapmak |
+| Başlangıç snapshot’ında | `In start snapshot` | Kapanış karşılaştırmasında başlangıç kapsamında bulunan İş |
+| Sonradan eklenen | `Added later` | Başlangıçtan sonra kapanış kapsamına giren İş |
+| Kapsamdan çıkan | `Removed` | Başlangıç kapsamındayken kapanışta bulunmayan İş |
+| Dönem değerlendirmesi | `Period evaluation` | Kapanışta atlanabilir öğrenim metni |
+| Atla | `Skip` | Dönem değerlendirmesini atlama |
+| Sürdür | `Keep` | Değerlendirmede sürdürülecek öğrenim |
+| Değiştir | `Change` | Değerlendirmede değiştirilecek öğrenim |
+| Sonrakinde dene | `Try next` | Sonraki dönemde denenecek öğrenim |
+| Onayla | `Confirm` | Takip İş önizlemesini onaylayıp oluşturma |
+| Tarih karşılaştırması | `Date comparison` | Başlangıç snapshot’ındaki hedef tarihlerin mevcut geçmiş ve kapanış anıyla tarafsız karşılaştırması |
+| Hedefi öne alınan | `Moved earlier` | Başlangıçtaki hedef tarihi öne çekilen İş |
+| Hedefi ileri alınan | `Moved later` | Başlangıçtaki hedef tarihi ileri alınan İş |
+| Hedefinde tamamlanan | `Completed on target` | Başlangıçtaki hedef tarihinde tamamlanan İş |
+| Hedefinden sonra tamamlanan | `Completed after` | Başlangıçtaki hedefinden sonra tamamlanan İş |
 | Proje Sürümü | `Project Release` | Kullanıcı tarafından yönetilen yayımlanacak kapsam ve onun tarihli erişim/sonuç gözlemleri; Kilometre Taşı, Odak Dönemi veya Ürün sürüm adayı değildir |
 | Başlangıç yapılandırması | `Starter Configuration` | Yeni Projeye bir kez uygulanan, içerik üretmeyen kapalı varsayılan yapı seçimi; sonradan başka yapılandırmayla değiştirilmez |
 | Proje adı | `Project Name` | Yeni Proje oluştururken zorunlu ad |
