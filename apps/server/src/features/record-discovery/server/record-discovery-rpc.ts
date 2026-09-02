@@ -5,7 +5,13 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { FILE_LIFECYCLE } from "../../file-attachments/server/file-attachments-model";
-import { loadSearchIndexFromRows, searchRecords } from "./record-discovery";
+import {
+	browsePreparedIndex,
+	loadSearchIndexFromRows,
+	PREPARED_INDEX_LABELS,
+	SEARCH_SCOPES,
+	searchRecords,
+} from "./record-discovery";
 import { RECORD_DISCOVERY_COPY } from "./record-discovery-copy";
 
 async function requireAccess(userId: string) {
@@ -62,9 +68,33 @@ const searchInput = z.object({
 	query: z.string(),
 });
 
+const browseIndexInput = z.object({
+	folder: z.string().nullable().optional(),
+	includeArchived: z.boolean().optional(),
+	index: z.enum(PREPARED_INDEX_LABELS),
+	metadata: z.string().nullable().optional(),
+	recordType: z.string().nullable().optional(),
+	scope: z.enum(SEARCH_SCOPES).nullable().optional(),
+});
+
 export const recordDiscovery = {
+	browseIndex: protectedProcedure
+		.input(browseIndexInput)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const index = await loadWorkspaceIndex(access.workspaceId);
+			return browsePreparedIndex(index, {
+				folder: input.folder ?? null,
+				includeArchived: input.includeArchived ?? false,
+				index: input.index,
+				metadata: input.metadata ?? null,
+				recordType: input.recordType ?? null,
+				scope: input.scope ?? null,
+			});
+		}),
 	catalog: protectedProcedure.handler(() => ({
 		copy: RECORD_DISCOVERY_COPY,
+		indexes: PREPARED_INDEX_LABELS,
 		surface: RECORD_DISCOVERY_COPY.search,
 	})),
 	search: protectedProcedure

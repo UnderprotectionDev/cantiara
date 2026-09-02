@@ -1,0 +1,309 @@
+import { Badge } from "@cantiara/ui/components/badge";
+import { buttonVariants } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
+import { Field, FieldLabel } from "@cantiara/ui/components/field";
+import { Input } from "@cantiara/ui/components/input";
+import {
+	NativeSelect,
+	NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@cantiara/ui/components/table";
+import { useQuery } from "@tanstack/react-query";
+import type { ChangeEvent } from "react";
+import { useCallback, useId } from "react";
+
+import { FounderPage } from "@/features/personal-shell/components/founder-page";
+import { orpc } from "@/utils/orpc";
+
+import {
+	PREPARED_INDEX_LABELS,
+	type PreparedIndexSearch,
+	preparedIndexHref,
+	preparedIndexTypeFilters,
+	preparedIndexUsesLibraryFilters,
+} from "./prepared-index-search";
+import { RECORD_DISCOVERY_COPY } from "./record-discovery-copy";
+
+type IndexCopy = typeof RECORD_DISCOVERY_COPY;
+
+interface IndexRow {
+	diagramAuthorityMode: string | null;
+	folder: string | null;
+	id: string;
+	metadata: string;
+	openSourceRecord: string;
+	recordType: string;
+	scope: string;
+	sourceHref: string;
+	status: string;
+	title: string;
+}
+
+export default function PreparedIndexArea({
+	search,
+}: {
+	search: PreparedIndexSearch;
+}) {
+	const catalog = useQuery(orpc.recordDiscovery.catalog.queryOptions());
+	const copy = catalog.data?.copy ?? RECORD_DISCOVERY_COPY;
+	const indexes = catalog.data?.indexes ?? PREPARED_INDEX_LABELS;
+	const archiveId = useId();
+	const browse = useQuery({
+		...orpc.recordDiscovery.browseIndex.queryOptions({
+			input: {
+				folder: search.folder ?? null,
+				includeArchived: search.includeArchived ?? false,
+				index: search.index,
+				metadata: search.metadata ?? null,
+				recordType: search.recordType ?? null,
+				scope: search.scope ?? null,
+			},
+		}),
+	});
+	const rows = browse.data?.rows ?? [];
+	const folders = browse.data?.folders ?? [];
+	const typeFilters = preparedIndexTypeFilters(search.index);
+	const library = preparedIndexUsesLibraryFilters(search.index);
+	const onIndexChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+		window.location.assign(preparedIndexHref(event.target.value));
+	}, []);
+	const onScopeChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			const scope = event.target.value;
+			window.location.assign(
+				preparedIndexHref(search.index, {
+					folder: search.folder,
+					includeArchived: search.includeArchived,
+					metadata: search.metadata,
+					recordType: search.recordType,
+					scope:
+						scope === copy.project || scope === copy.personalWiki
+							? scope
+							: undefined,
+				})
+			);
+		},
+		[copy.personalWiki, copy.project, search]
+	);
+	const onTypeChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			window.location.assign(
+				preparedIndexHref(search.index, {
+					folder: search.folder,
+					includeArchived: search.includeArchived,
+					metadata: search.metadata,
+					recordType: event.target.value || undefined,
+					scope: search.scope,
+				})
+			);
+		},
+		[search]
+	);
+	const onFolderChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			window.location.assign(
+				preparedIndexHref(search.index, {
+					folder: event.target.value || undefined,
+					includeArchived: search.includeArchived,
+					metadata: search.metadata,
+					recordType: search.recordType,
+					scope: search.scope,
+				})
+			);
+		},
+		[search]
+	);
+	const onMetadataChange = useCallback(
+		(event: ChangeEvent<HTMLInputElement>) => {
+			window.location.assign(
+				preparedIndexHref(search.index, {
+					folder: search.folder,
+					includeArchived: search.includeArchived,
+					metadata: event.target.value || undefined,
+					recordType: search.recordType,
+					scope: search.scope,
+				})
+			);
+		},
+		[search]
+	);
+	const onArchiveChange = useCallback(
+		(next: boolean | "indeterminate") => {
+			window.location.assign(
+				preparedIndexHref(search.index, {
+					folder: search.folder,
+					includeArchived: next === true ? true : undefined,
+					metadata: search.metadata,
+					recordType: search.recordType,
+					scope: search.scope,
+				})
+			);
+		},
+		[search]
+	);
+
+	return (
+		<FounderPage title={search.index} wide>
+			<div className="mb-6 flex flex-col gap-4">
+				<NativeSelect
+					aria-label={search.index}
+					onChange={onIndexChange}
+					value={search.index}
+				>
+					{indexes.map((label) => (
+						<NativeSelectOption key={label} value={label}>
+							{label}
+						</NativeSelectOption>
+					))}
+				</NativeSelect>
+				<div className="flex flex-wrap items-end gap-4">
+					<Field>
+						<FieldLabel htmlFor="prepared-index-scope">{copy.scope}</FieldLabel>
+						<NativeSelect
+							id="prepared-index-scope"
+							onChange={onScopeChange}
+							value={search.scope ?? ""}
+						>
+							<NativeSelectOption value="">{copy.anyScope}</NativeSelectOption>
+							<NativeSelectOption value={copy.project}>
+								{copy.project}
+							</NativeSelectOption>
+							<NativeSelectOption value={copy.personalWiki}>
+								{copy.personalWiki}
+							</NativeSelectOption>
+						</NativeSelect>
+					</Field>
+					{typeFilters.length > 0 ? (
+						<Field>
+							<FieldLabel htmlFor="prepared-index-type">
+								{copy.recordType}
+							</FieldLabel>
+							<NativeSelect
+								id="prepared-index-type"
+								onChange={onTypeChange}
+								value={search.recordType ?? ""}
+							>
+								<NativeSelectOption value="">
+									{copy.anyScope}
+								</NativeSelectOption>
+								{typeFilters.map((type) => (
+									<NativeSelectOption key={type} value={type}>
+										{type}
+									</NativeSelectOption>
+								))}
+							</NativeSelect>
+						</Field>
+					) : null}
+					{library ? (
+						<Field>
+							<FieldLabel htmlFor="prepared-index-folder">
+								{copy.folder}
+							</FieldLabel>
+							<NativeSelect
+								id="prepared-index-folder"
+								onChange={onFolderChange}
+								value={search.folder ?? ""}
+							>
+								<NativeSelectOption value="">
+									{copy.anyScope}
+								</NativeSelectOption>
+								{folders.map((folder) => (
+									<NativeSelectOption key={folder} value={folder}>
+										{folder}
+									</NativeSelectOption>
+								))}
+							</NativeSelect>
+						</Field>
+					) : null}
+					{library ? (
+						<Field>
+							<FieldLabel htmlFor="prepared-index-metadata">
+								{copy.metadata}
+							</FieldLabel>
+							<Input
+								defaultValue={search.metadata ?? ""}
+								id="prepared-index-metadata"
+								onBlur={onMetadataChange}
+							/>
+						</Field>
+					) : null}
+					<Field orientation="horizontal">
+						<Checkbox
+							checked={search.includeArchived === true}
+							id={archiveId}
+							onCheckedChange={onArchiveChange}
+						/>
+						<FieldLabel htmlFor={archiveId}>{copy.includeArchived}</FieldLabel>
+					</Field>
+				</div>
+			</div>
+			<IndexTable browse={browse} copy={copy} rows={rows} />
+		</FounderPage>
+	);
+}
+
+function IndexTable({
+	browse,
+	copy,
+	rows,
+}: {
+	browse: { isError: boolean; isPending: boolean };
+	copy: IndexCopy;
+	rows: readonly IndexRow[];
+}) {
+	if (browse.isError) {
+		return <p className="text-muted-foreground text-sm">{copy.unavailable}</p>;
+	}
+	if (!browse.isPending && rows.length === 0) {
+		return <p className="text-muted-foreground text-sm">{copy.emptyIndex}</p>;
+	}
+	return (
+		<Table>
+			<TableHeader>
+				<TableRow>
+					<TableHead />
+					<TableHead>{copy.recordType}</TableHead>
+					<TableHead>{copy.scope}</TableHead>
+					<TableHead>{copy.diagramAuthorityMode}</TableHead>
+					<TableHead>{copy.openSourceRecord}</TableHead>
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				{rows.map((row) => (
+					<TableRow key={row.id}>
+						<TableCell>
+							<p className="font-medium">{row.title}</p>
+							<p className="flex flex-wrap gap-1">
+								<Badge variant="outline">{row.status}</Badge>
+								{row.folder ? (
+									<Badge variant="outline">{row.folder}</Badge>
+								) : null}
+								{row.metadata ? (
+									<Badge variant="ghost">{row.metadata}</Badge>
+								) : null}
+							</p>
+						</TableCell>
+						<TableCell>{row.recordType}</TableCell>
+						<TableCell>{row.scope}</TableCell>
+						<TableCell>{row.diagramAuthorityMode ?? ""}</TableCell>
+						<TableCell>
+							<a
+								className={buttonVariants({ variant: "outline" })}
+								href={row.sourceHref}
+							>
+								{row.openSourceRecord}
+							</a>
+						</TableCell>
+					</TableRow>
+				))}
+			</TableBody>
+		</Table>
+	);
+}
