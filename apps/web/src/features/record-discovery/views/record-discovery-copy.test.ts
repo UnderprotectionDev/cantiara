@@ -14,6 +14,13 @@ test("English Search copy is Search, not Command Palette", () => {
 	expect(RECORD_DISCOVERY_COPY.fileAttachment).toBe("File Attachment");
 	expect(RECORD_DISCOVERY_COPY.openSourceRecord).toBe("Open source record");
 	expect(RECORD_DISCOVERY_COPY.openFullPage).toBe("Open full page");
+	expect(RECORD_DISCOVERY_COPY.technicalDiagram).toBe("Technical Diagram");
+	expect(RECORD_DISCOVERY_COPY.captureInboxItem).toBe("Capture Inbox item");
+	expect(RECORD_DISCOVERY_COPY.draft).toBe("Draft");
+	expect(RECORD_DISCOVERY_COPY.externalSurface).toBe("External Surface");
+	expect(RECORD_DISCOVERY_COPY.githubExternalRecord).toBe(
+		"GitHub external record"
+	);
 	expect(JSON.stringify(RECORD_DISCOVERY_COPY)).not.toMatch(PALETTE);
 	expect(JSON.stringify(RECORD_DISCOVERY_COPY)).not.toMatch(FORBIDDEN_RANKING);
 });

@@ -11,6 +11,7 @@ model Workspace {
   tags                  Tag[]
   fileAttachments       FileAttachment[]
   focusPeriods          FocusPeriod[]
+  documents             Document[]
 
   @@map("workspace")
 }

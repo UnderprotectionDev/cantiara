@@ -871,6 +871,18 @@ _Avoid_: Süre dolumu, geçici duraklatma
 Geçerli paylaşım anahtarı ve varsa parolanın ilk doğrulamasından sonra tek Dış yüzeye sınırlı süre erişim veren [tarayıcı oturumu](docs/prd/14-sharing-and-public-publishing.md#bağlantıyla-sınırlı-salt-okunur-paylaşım).
 _Avoid_: İkinci paylaşım bağlantısı, kalıcı tarayıcı anahtarı, çalışma alanı oturumu
 
+**Secret**:
+Kapalı alan veya kayıt türünden gelen gizli değer; bağlantı parolası, oturum, paylaşım ve entegrasyon anahtarı bu sınıftadır ve [aramaya girmez](docs/prd/13-data-security-and-portability.md#database-first-guvenlik-tabani). UI: `Secret`.
+_Avoid_: Markdown içinde secret tarama, hassaslık etiketi
+
+**Paylaşım token'ı**:
+Dış yüzey erişim anahtarı; tahmin edilemez, iptal edilebilir ve arama indeksine girmez. UI: `Share token`.
+_Avoid_: Ürün oturumu, entegrasyon token düz metni
+
+**Bağlantı parolası**:
+Bağlantıyla sınırlı paylaşımın isteğe bağlı ortak parolası; geri okunabilir saklanmaz ve arama indeksine girmez. UI: `Link password`.
+_Avoid_: Hesap parolası, ziyaretçi kimliği
+
 ## Test yönetimi
 
 **Planlı Test Senaryosu**:
