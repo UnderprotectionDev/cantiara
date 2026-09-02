@@ -1,5 +1,4 @@
-import { protectedProcedure, publicProcedure } from "@cantiara/api";
-import { z } from "zod";
+import { protectedProcedure } from "@cantiara/api";
 
 import { PERSONAL_WIKI_COPY } from "./personal-wiki-copy";
 
@@ -124,13 +123,20 @@ export function openPersonalWikiShell(options?: {
 }
 
 export function wikiOwnership(document: {
-	recordKind: typeof PERSONAL_WIKI_RECORD_KIND;
-}): WikiOwnership {
+	recordKind: string;
+	scope: WikiScope | { kind: "project"; projectId: string };
+}): WikiOwnership | { reason: "not-wiki-scope"; status: "rejected" } {
+	if (
+		document.recordKind !== PERSONAL_WIKI_RECORD_KIND ||
+		document.scope.kind !== PERSONAL_WIKI_SCOPE.kind
+	) {
+		return { reason: "not-wiki-scope", status: "rejected" };
+	}
 	return {
 		canonicalProductSpec: false,
 		parallelProjectTruth: false,
 		projectId: null,
-		recordKind: document.recordKind,
+		recordKind: PERSONAL_WIKI_RECORD_KIND,
 		scopeLabel: PERSONAL_WIKI_COPY.personalWiki,
 	};
 }
@@ -179,7 +185,4 @@ export function leakNothingWikiResponse(): WikiLeakNothingResponse {
 
 export const personalWiki = {
 	shell: protectedProcedure.handler(() => openPersonalWikiShell()),
-	visitorGet: publicProcedure
-		.input(z.object({ documentId: z.string().min(1) }))
-		.handler(() => leakNothingWikiResponse()),
 };

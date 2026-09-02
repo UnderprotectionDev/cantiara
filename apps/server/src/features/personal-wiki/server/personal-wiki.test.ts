@@ -14,8 +14,6 @@ import {
 	createWikiDocument,
 	type DocumentsPort,
 	openPersonalWikiShell,
-	PERSONAL_WIKI_DOCUMENT_COMMANDS,
-	PERSONAL_WIKI_FORBIDDEN_ACTIONS,
 	PERSONAL_WIKI_PATH,
 	PERSONAL_WIKI_RECORD_KIND,
 	PERSONAL_WIKI_SCOPE,
@@ -26,6 +24,17 @@ import {
 	wikiVisitorSurface,
 } from "./personal-wiki";
 import { PERSONAL_WIKI_COPY } from "./personal-wiki-copy";
+
+const DOCUMENT_COMMANDS_IN_WIKI = [
+	"create",
+	"edit",
+	"versions",
+	"templates",
+	"hierarchy",
+	"archive",
+	"references",
+	"export",
+] as const;
 
 const FORBIDDEN_SHELL_COPY = /Publish|Unpublish|Invite|Co-edit|page role/i;
 
@@ -39,7 +48,7 @@ function memoryDocuments(): DocumentsPort & {
 } {
 	const creates: WikiCreateInput[] = [];
 	return {
-		commands: () => PERSONAL_WIKI_DOCUMENT_COMMANDS,
+		commands: () => DOCUMENT_COMMANDS_IN_WIKI,
 		create(input) {
 			creates.push(input);
 			return {
@@ -100,7 +109,7 @@ describe("Personal Wiki ownership and shell", () => {
 			parallelProjectTruth: false,
 			projectId: null,
 			recordKind: "Document",
-			scopeLabel: PERSONAL_WIKI_COPY.personalWiki,
+			scopeLabel: "Personal Wiki",
 		});
 	});
 
@@ -119,10 +128,28 @@ describe("Personal Wiki ownership and shell", () => {
 
 	it("opens as a first-class personal shell target without entering a Project", () => {
 		expect(openPersonalWikiShell()).toEqual({
-			commands: [...PERSONAL_WIKI_DOCUMENT_COMMANDS],
-			forbiddenActions: [...PERSONAL_WIKI_FORBIDDEN_ACTIONS],
+			commands: [
+				"create",
+				"edit",
+				"versions",
+				"templates",
+				"hierarchy",
+				"archive",
+				"references",
+				"export",
+			],
+			forbiddenActions: [
+				"publish",
+				"unpublish",
+				"external-surface",
+				"public-slug",
+				"visitor-html",
+				"invite-team",
+				"page-role",
+				"co-edit",
+			],
 			label: "Personal Wiki",
-			path: PERSONAL_WIKI_PATH,
+			path: "/wiki",
 			recordKind: "Document",
 			requiresProject: false,
 		});
@@ -133,10 +160,28 @@ describe("Personal Wiki ownership and shell", () => {
 	it("exposes the same Documents commands in Wiki scope and no second schema", () => {
 		const documents = memoryDocuments();
 		const shell = openPersonalWikiShell({ documents });
-		expect(shell.commands).toEqual([...PERSONAL_WIKI_DOCUMENT_COMMANDS]);
+		expect(shell.commands).toEqual([
+			"create",
+			"edit",
+			"versions",
+			"templates",
+			"hierarchy",
+			"archive",
+			"references",
+			"export",
+		]);
 		expect(shell.recordKind).toBe("Document");
 		expect(shell.recordKind).not.toBe("Wiki Document");
 		expect(shell.commands).not.toContain("publish");
+	});
+
+	it("does not treat a Project Document as Wiki ownership or a canonical product spec", () => {
+		expect(
+			wikiOwnership({
+				recordKind: "Document",
+				scope: { kind: "project", projectId: "proj_atlas" },
+			})
+		).toEqual({ reason: "not-wiki-scope", status: "rejected" });
 	});
 
 	it("uses English Personal Wiki copy and no publish or team UI", () => {
