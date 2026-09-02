@@ -221,6 +221,37 @@ async function addParsed(
 	return writeSuccess(view, created.status, created.status === "committed");
 }
 
+export async function listActiveBlockerSources(
+	prisma: PrismaClient,
+	workIds: readonly string[]
+): Promise<Map<string, Array<{ id: string; kind: BlockerSourceKind }>>> {
+	const sources = new Map<
+		string,
+		Array<{ id: string; kind: BlockerSourceKind }>
+	>();
+	if (workIds.length === 0) {
+		return sources;
+	}
+	const rows = await prisma.typedRelation.findMany({
+		orderBy: { establishedAt: "asc" },
+		where: {
+			blockerState: BLOCKERS_COPY.active,
+			toId: { in: [...workIds] },
+			toKind: "Work",
+			type: RELATIONS_COPY.blocks,
+		},
+	});
+	for (const row of rows) {
+		if (!isBlockerSourceKind(row.fromKind)) {
+			continue;
+		}
+		const existing = sources.get(row.toId) ?? [];
+		existing.push({ id: row.fromId, kind: row.fromKind });
+		sources.set(row.toId, existing);
+	}
+	return sources;
+}
+
 export async function listWorkBlockers(
 	prisma: PrismaClient,
 	workId: string
