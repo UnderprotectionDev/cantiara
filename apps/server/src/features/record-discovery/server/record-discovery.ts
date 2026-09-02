@@ -16,7 +16,58 @@ export const SEARCH_RECORD_KINDS = [
 	RECORD_DISCOVERY_COPY.technicalDiagram,
 ] as const;
 
-export type SearchRecordKind = (typeof SEARCH_RECORD_KINDS)[number];
+export type SearchRecordKind = string;
+
+export const PREPARED_INDEX_LABELS = [
+	RECORD_DISCOVERY_COPY.allWork,
+	RECORD_DISCOVERY_COPY.allDocuments,
+	RECORD_DISCOVERY_COPY.allDecisions,
+	RECORD_DISCOVERY_COPY.allRisks,
+	RECORD_DISCOVERY_COPY.allResearchSessions,
+	RECORD_DISCOVERY_COPY.allTests,
+	RECORD_DISCOVERY_COPY.allDesigns,
+	RECORD_DISCOVERY_COPY.allTechnicalDiagrams,
+	RECORD_DISCOVERY_COPY.allProjectReleases,
+	RECORD_DISCOVERY_COPY.allSources,
+	RECORD_DISCOVERY_COPY.allFiles,
+] as const;
+
+export type PreparedIndexLabel = (typeof PREPARED_INDEX_LABELS)[number];
+
+const INDEX_MEMBER_TYPES: Record<PreparedIndexLabel, readonly string[]> = {
+	[RECORD_DISCOVERY_COPY.allWork]: [RECORD_DISCOVERY_COPY.work],
+	[RECORD_DISCOVERY_COPY.allDocuments]: [RECORD_DISCOVERY_COPY.document],
+	[RECORD_DISCOVERY_COPY.allDecisions]: [RECORD_DISCOVERY_COPY.decision],
+	[RECORD_DISCOVERY_COPY.allRisks]: [RECORD_DISCOVERY_COPY.risk],
+	[RECORD_DISCOVERY_COPY.allResearchSessions]: [
+		RECORD_DISCOVERY_COPY.researchSession,
+	],
+	[RECORD_DISCOVERY_COPY.allTests]: [
+		RECORD_DISCOVERY_COPY.plannedTestCase,
+		RECORD_DISCOVERY_COPY.testHandoff,
+		RECORD_DISCOVERY_COPY.testSession,
+		RECORD_DISCOVERY_COPY.sessionTest,
+		RECORD_DISCOVERY_COPY.testGap,
+		RECORD_DISCOVERY_COPY.testAssessment,
+	],
+	[RECORD_DISCOVERY_COPY.allDesigns]: [
+		RECORD_DISCOVERY_COPY.screen,
+		RECORD_DISCOVERY_COPY.userFlow,
+		RECORD_DISCOVERY_COPY.moodboard,
+		RECORD_DISCOVERY_COPY.projectWall,
+	],
+	[RECORD_DISCOVERY_COPY.allTechnicalDiagrams]: [
+		RECORD_DISCOVERY_COPY.technicalDiagram,
+		RECORD_DISCOVERY_COPY.technicalArchitecture,
+		RECORD_DISCOVERY_COPY.dataModel,
+		RECORD_DISCOVERY_COPY.technicalSequence,
+	],
+	[RECORD_DISCOVERY_COPY.allProjectReleases]: [
+		RECORD_DISCOVERY_COPY.projectRelease,
+	],
+	[RECORD_DISCOVERY_COPY.allSources]: [RECORD_DISCOVERY_COPY.source],
+	[RECORD_DISCOVERY_COPY.allFiles]: [RECORD_DISCOVERY_COPY.fileAttachment],
+};
 
 export const SEARCH_EXCLUDED_KINDS = [
 	RECORD_DISCOVERY_COPY.captureInboxItem,
@@ -53,12 +104,15 @@ export interface SearchIndexRecord {
 	authorized: boolean;
 	body: string;
 	closureResult: string | null;
+	diagramAuthorityMode: string | null;
+	folder: string | null;
 	id: string;
 	key: string | null;
 	kind: SearchRecordKind | SearchExcludedKind;
 	lifecycle: SearchLifecycle;
 	metadata: string;
 	projectId: string | null;
+	recordType: string;
 	scope: SearchScope;
 	status: string;
 	title: string;
@@ -97,6 +151,41 @@ export interface SearchResult {
 	includeArchived: boolean;
 	query: string;
 	surface: typeof RECORD_DISCOVERY_COPY.search;
+	total: number;
+}
+
+export interface PreparedIndexQuery {
+	folder?: string | null;
+	includeArchived?: boolean;
+	index: PreparedIndexLabel;
+	metadata?: string | null;
+	recordType?: string | null;
+	scope?: SearchScope | null;
+}
+
+export interface PreparedIndexRow {
+	closureResult: string | null;
+	diagramAuthorityMode: string | null;
+	folder: string | null;
+	id: string;
+	metadata: string;
+	openSourceRecord: typeof RECORD_DISCOVERY_COPY.openSourceRecord;
+	projectId: string | null;
+	recordType: string;
+	scope: SearchScope;
+	sourceHref: string;
+	status: string;
+	title: string;
+}
+
+export interface PreparedIndexResult {
+	folders: readonly string[];
+	index: PreparedIndexLabel;
+	openSourceRecord: typeof RECORD_DISCOVERY_COPY.openSourceRecord;
+	rows: readonly PreparedIndexRow[];
+	setupRequired: false;
+	storedQuery: false;
+	surface: PreparedIndexLabel;
 	total: number;
 }
 
@@ -140,6 +229,55 @@ export function searchRecords(
 	};
 }
 
+export function browsePreparedIndex(
+	index: readonly SearchIndexRecord[],
+	query: PreparedIndexQuery
+): PreparedIndexResult {
+	const includeArchived = query.includeArchived ?? false;
+	const members = index.filter((record) =>
+		isIndexMember(record, query.index, includeArchived)
+	);
+	const folders = [
+		...new Set(
+			members
+				.map((record) => record.folder)
+				.filter((folder): folder is string => Boolean(folder))
+		),
+	].sort((left, right) => left.localeCompare(right));
+	const filtered = members.filter((record) => {
+		if (query.scope && record.scope !== query.scope) {
+			return false;
+		}
+		if (query.folder && record.folder !== query.folder) {
+			return false;
+		}
+		if (query.recordType && record.recordType !== query.recordType) {
+			return false;
+		}
+		if (query.metadata && !containsQuery(record.metadata, query.metadata)) {
+			return false;
+		}
+		return true;
+	});
+	const unique =
+		query.index === RECORD_DISCOVERY_COPY.allFiles
+			? uniqueById(filtered)
+			: filtered;
+	const rows = [...unique]
+		.sort(compareIndexRows)
+		.map((record) => toIndexRow(record));
+	return {
+		folders,
+		index: query.index,
+		openSourceRecord: RECORD_DISCOVERY_COPY.openSourceRecord,
+		rows,
+		setupRequired: false,
+		storedQuery: false,
+		surface: query.index,
+		total: rows.length,
+	};
+}
+
 export function isSearchIndexedKind(
 	kind: SearchRecordKind | SearchExcludedKind
 ): kind is SearchRecordKind {
@@ -148,6 +286,7 @@ export function isSearchIndexedKind(
 
 export function loadSearchIndexFromRows(input: {
 	fileAttachments: readonly {
+		folder?: string | null;
 		id: string;
 		lifecycle: string;
 		projectId: string | null;
@@ -188,12 +327,15 @@ export function loadSearchIndexFromRows(input: {
 			authorized: true,
 			body: work.description ?? "",
 			closureResult: closed ? work.closureResult : null,
+			diagramAuthorityMode: null,
+			folder: null,
 			id: work.id,
 			key: work.key,
 			kind: RECORD_DISCOVERY_COPY.work,
 			lifecycle: workLifecycle(archived, closed),
 			metadata: "",
 			projectId: work.projectId,
+			recordType: RECORD_DISCOVERY_COPY.work,
 			scope: RECORD_DISCOVERY_COPY.project,
 			status: archived ? RECORD_DISCOVERY_COPY.archived : work.status,
 			title: work.title,
@@ -210,12 +352,15 @@ export function loadSearchIndexFromRows(input: {
 			authorized: true,
 			body: "",
 			closureResult: null,
+			diagramAuthorityMode: null,
+			folder: file.folder ?? null,
 			id: file.id,
 			key: null,
 			kind: RECORD_DISCOVERY_COPY.fileAttachment,
 			lifecycle: archived ? "archived" : "active",
 			metadata: current?.filename ?? "",
 			projectId: wiki ? null : file.projectId,
+			recordType: RECORD_DISCOVERY_COPY.fileAttachment,
 			scope: wiki
 				? RECORD_DISCOVERY_COPY.personalWiki
 				: RECORD_DISCOVERY_COPY.project,
@@ -232,12 +377,15 @@ export function loadSearchIndexFromRows(input: {
 			authorized: diagram.authorized ?? true,
 			body: "",
 			closureResult: null,
+			diagramAuthorityMode: null,
+			folder: null,
 			id: diagram.id,
 			key: null,
 			kind: RECORD_DISCOVERY_COPY.technicalDiagram,
 			lifecycle: archived ? ("archived" as const) : ("active" as const),
 			metadata: diagram.userFacingNames.join("\n"),
 			projectId: diagram.projectId,
+			recordType: RECORD_DISCOVERY_COPY.technicalDiagram,
 			scope: RECORD_DISCOVERY_COPY.project,
 			status: archived ? RECORD_DISCOVERY_COPY.archived : "Active",
 			title: diagram.title,
@@ -248,6 +396,70 @@ export function loadSearchIndexFromRows(input: {
 	return [...works, ...files, ...diagrams].filter((record) =>
 		isSearchIndexedKind(record.kind)
 	);
+}
+
+function isIndexMember(
+	record: SearchIndexRecord,
+	index: PreparedIndexLabel,
+	includeArchived: boolean
+): boolean {
+	if (!record.authorized || record.trashed) {
+		return false;
+	}
+	if (record.lifecycle === "archived" && !includeArchived) {
+		return false;
+	}
+	const types = INDEX_MEMBER_TYPES[index];
+	return types.includes(record.kind) || types.includes(record.recordType);
+}
+
+function uniqueById(
+	records: readonly SearchIndexRecord[]
+): SearchIndexRecord[] {
+	const seen = new Set<string>();
+	const unique: SearchIndexRecord[] = [];
+	for (const record of records) {
+		if (seen.has(record.id)) {
+			continue;
+		}
+		seen.add(record.id);
+		unique.push(record);
+	}
+	return unique;
+}
+
+function compareIndexRows(
+	left: SearchIndexRecord,
+	right: SearchIndexRecord
+): number {
+	const title = left.title.localeCompare(right.title);
+	if (title !== 0) {
+		return title;
+	}
+	if (left.id < right.id) {
+		return -1;
+	}
+	if (left.id > right.id) {
+		return 1;
+	}
+	return 0;
+}
+
+function toIndexRow(record: SearchIndexRecord): PreparedIndexRow {
+	return {
+		closureResult: record.closureResult,
+		diagramAuthorityMode: record.diagramAuthorityMode,
+		folder: record.folder,
+		id: record.id,
+		metadata: record.metadata,
+		openSourceRecord: RECORD_DISCOVERY_COPY.openSourceRecord,
+		projectId: record.projectId,
+		recordType: record.recordType,
+		scope: record.scope,
+		sourceHref: sourceHref(record),
+		status: record.status,
+		title: record.title,
+	};
 }
 
 function isVisibleHit(

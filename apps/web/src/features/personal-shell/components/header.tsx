@@ -20,6 +20,7 @@ import {
 	usePaletteSurface,
 } from "@/features/command-palette/components/founder-command-palette";
 import UserMenu from "@/features/personal-shell/components/user-menu";
+import { RECORD_DISCOVERY_COPY } from "@/features/record-discovery/views/record-discovery-copy";
 import { SearchOverlay } from "@/features/record-discovery/views/search-overlay";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
@@ -142,6 +143,13 @@ export default function Header() {
 				</nav>
 				<CommandPaletteProvider>
 					<div className="flex shrink-0 items-center gap-2">
+						<Link
+							className={chromeLinkClass(pathname === "/table")}
+							search={{ kind: RECORD_DISCOVERY_COPY.work }}
+							to="/table"
+						>
+							{RECORD_DISCOVERY_COPY.table}
+						</Link>
 						<SearchOverlay />
 						<CommandPaletteTrigger />
 						<AppearanceToggle />
