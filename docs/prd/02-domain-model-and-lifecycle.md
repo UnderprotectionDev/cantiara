@@ -116,10 +116,36 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Test Oturumu | `Test Session` | Overview Tests özetindeki kaynak türü |
 | Test Açığı | `Test Gap` | Overview Tests özetindeki kaynak türü |
 | Kaynak kaydı aç | `Open source record` | Ana kaydı kopyalamadan açan ortak eylem |
+| Tüm İşler | `All Work` | Sıfır kurulum hazır tür dizini; İş ana kayıtlarını toplar, saklı sorgu veya yeni sahiplik değildir |
+| Tüm Belgeler | `All Documents` | Sıfır kurulum hazır tür dizini; Belgeleri kapsam, tür, klasör ve üstveriyle gezer |
+| Tüm Kararlar | `All Decisions` | Sıfır kurulum hazır tür dizini; Karar ana kayıtlarını toplar |
+| Tüm Riskler | `All Risks` | Sıfır kurulum hazır tür dizini; Risk ana kayıtlarını toplar |
+| Tüm Araştırma Oturumları | `All Research Sessions` | Sıfır kurulum hazır tür dizini; Kullanıcı Araştırması Oturumlarını toplar |
+| Tüm Testler | `All Tests` | Sıfır kurulum hazır tür dizini; Planlı Test Senaryosu, Test Handoff'u, Test Oturumu, Oturum Testi, Test Açığı ve Test değerlendirmesini ayırır |
+| Tüm Tasarımlar | `All Designs` | Sıfır kurulum hazır tür dizini; Ekran, Kullanıcı Akışı, Moodboard ve Proje Duvarı kayıtlarını toplar |
+| Tüm Teknik Diyagramlar | `All Technical Diagrams` | Sıfır kurulum hazır tür dizini; Teknik Mimari, Veri Modeli, Teknik Sıra ve Diyagram otorite kipini ayırır |
+| Tüm Proje Sürümleri | `All Project Releases` | Sıfır kurulum hazır tür dizini; Proje Sürümü ana kayıtlarını toplar |
+| Tüm Kaynaklar | `All Sources` | Sıfır kurulum hazır tür dizini; Kaynak ana kayıtlarını toplar |
+| Tüm Dosyalar | `All Files` | Sıfır kurulum hazır tür dizini; her Dosya Ekini bir kez gösterir |
+| Planlı Test Senaryosu | `Planned Test Case` | Test dizini alt türü; bağımsız senaryo ana kaydı |
+| Oturum Testi | `Session Test` | Test Oturumunun sahipli deneme öğesi; `All Tests` içinde ayırt edilir |
+| Test değerlendirmesi | `Test assessment` | Test dizini alt türü |
+| Teknik Mimari | `Technical Architecture` | Teknik Diyagram türü |
+| Veri Modeli | `Data Model` | Teknik Diyagram türü |
+| Teknik Sıra | `Technical Sequence` | Teknik Diyagram türü |
+| Klasör | `Folder` | Belge ve Dosya Eki dizininde gezinme konumu; sahiplik veya Search değildir |
+| Dizinde kayıt yok | `No records in this index.` | Hazır tür dizini boş durumu |
 | All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
 | Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |
 | İş şablonu | `Work Template` | Proje kapsamlı tekrar kullanılan İş başlangıç bağlamı; Belge şablonu, Başlangıç yapılandırması veya yakalama mini şablonu değildir |
+| Belge şablonu | `Document Template` | Proje veya Kişisel Wiki kapsamında tekrar kullanılan Belge başlangıç iskeleti; İş şablonu veya şablon pazarı değildir |
+| Şablona dönüştür | `Convert to template` | Mevcut Belgeden iskelet çıkarma; kaynak Belgeyi taşımaz, arşivlemez veya değiştirmez |
+| Şablondan oluştur | `Create from template` | Şablondan bağımsız kimlikli Belge açma; sonraki şablon düzeni eski örnekleri güncellemez |
+| Belge şablonu ekle | `Add Document Template` | Proje veya Kişisel Wiki kapsamında yeni Belge şablonu oluşturma |
+| İskelet | `Skeleton` | Belge şablonunun başlangıç gövdesi; canlı bağ veya örnek kayıt değildir |
+| Yer tutucular | `Placeholders` | Şablon iskeletindeki `{{field_name}}` alanları |
+| Personal Review | `Personal Review` | İsteğe bağlı hazır Belge şablonu; toplantı türü veya zorunlu kullanım sıklığı değildir |
 | Kayıt Eylemi | `Record Action` | Kapalı alan ve üyelik adımlarından adlandırılan, tek hedef kayıt üzerinde çalışan birleşik yazma; otomasyon kuralı, Toplu Düzenleme veya betik değildir |
 | Start Work | `Start Work` | Durumu `In Progress` yapan ve İşi Günlük Odak’a ekleyen ilk Kayıt Eylemi örneği |
 | Günlük Odak | `Daily Focus` | Farklı Projelerden seçili profil gününde ele alınacak İşleri toplayan kişisel görünüm; Odak Dönemi, sprint, Aktif Çalışma Seti veya Takvim olayı değildir |
@@ -540,6 +566,19 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Son kullanım | `Last use` | Uzantı bağlantısının son yazma zamanı |
 | Uzantı bağlantısını iptal et | `Revoke` | Tek bir uzantı bağlantısını iptal etme eylemi |
 | Belge | `Document` | Markdown Belgesi dönüşüm hedefi |
+| Belge sürümü | `Version` | Belgenin veritabanındaki uygulama değişikliği; Git commit değildir |
+| Karşılaştır | `Compare` | İki Belge sürümünün gövde farkını gösterme |
+| Geri yükle | `Restore` | Seçilen Belge sürümünü yeni uç olarak yazma; geçmişi silmez |
+| Canlı İş bloğu | `Live Work block` | Belgeye gömülen, kaynak İş kimliğini kopyasız izleyen eyleme açık kart |
+| Durumu değiştir | `Change status` | Canlı İş bloğunda olağan İş durum yazması |
+| Kapat | `Close` | Canlı İş bloğunda olağan İş kapanışı |
+| Kaynak kaydı aç | `Open source record` | Canlı gömmenin kaynak kaydını açma |
+| Salt okunur canlı içerik bölümü | `Read-only live section` | Kararlı bölüm kimliğini izleyen kopyasız gömme |
+| Sürüme sabitlenmiş metin parçası kanıtı | `Version-pinned evidence` | Kesin Belge sürümündeki metin parçasının Kanıt bağı; canlı bölüm değildir |
+| Toplu dönüştür | `Convert in bulk` | Liste satırlarından atomik İş dönüşümü |
+| Kayda dönüştür | `Convert to record` | Seçili metinden tam bir kayıt üretme |
+| Teknik Diyagrama dönüştür | `Convert to Technical Diagram` | Fenced Mermaid’den İçe aktarılmış bağımsız kopya |
+| İçe aktarılmış bağımsız kopya | `Imported Independent Copy` | Mermaid dönüşümünün 59’da oluşan kanonik diyagram kopyası |
 | Dosya Eki | `File Attachment` | Dosya Eki dönüşüm hedefi |
 | Dosya seç | `Choose file` | Dosya Eki yükleme denetiminin görünür dosya seçme eylemi |
 | Dosya seçilmedi | `No file selected` | Dosya Eki yükleme denetiminde henüz dosya seçilmediğini söyleyen durum |
@@ -559,6 +598,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yetkili kayıt ara | `Type to search authorized records.` | Boş sorgu yönlendirmesi |
 | Eşleşen kayıt yok | `No matching records.` | Süzgecin yetkili sonuç döndürmediği durum |
 | Arama kullanılamıyor | `Search is unavailable.` | Arama yüzeyinin yüklenemediği durum |
+| Tam sayfa aç | `Open full page` | Derin çalışma için kaynağı tam sayfada açma; geçici önizleme paneli veya kalıcı yerleşim değildir |
+| Yakalama Gelen Kutusu öğesi | `Capture Inbox item` | Henüz ana kayda dönüşmemiş geçici girdi; Evrensel Arama sonucu değildir |
+| GitHub dış kaydı | `GitHub external record` | GitHub kaynak kimliğini taşıyan salt okunur Proje ana kaydı; Evrensel Arama sonucu değildir |
+| Secret | `Secret` | Kapalı alandan gelen gizli değer; arama, export, paylaşım ve yayın kapsamına girmez |
+| Paylaşım token'ı | `Share token` | Dış yüzey erişim anahtarı; Evrensel Arama indeksine girmez |
+| Bağlantı parolası | `Link password` | Bağlantıyla sınırlı paylaşım parolası; Evrensel Arama indeksine girmez |
 | Proje geçişi | `Switch Project` | Palette ve görünür menüden yetkili Projeler arasında geçiş |
 | Oluştur | `Create` | Palette ve görünür menüden yetkili kapsamda desteklenen kayıt oluşturma |
 | Aç | `Open` | Palette yetkili ana kayda atlama |

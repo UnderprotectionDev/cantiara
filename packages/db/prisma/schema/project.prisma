@@ -31,6 +31,7 @@ model Project {
   prioritizationSessions          PrioritizationSession[]
   fileAttachments                 FileAttachment[]
   documents                       Document[]
+  documentTemplates               DocumentTemplate[]
   workContextCardLayouts          ProjectWorkContextLayout[]
   workTemplates                   WorkTemplate[]
   recordActions                   RecordAction[]

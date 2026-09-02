@@ -1,0 +1,17 @@
+model DocumentTemplate {
+  id           String    @id
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  scopeKind    String
+  projectId    String?
+  project      Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name         String
+  skeleton     String
+  documentType String
+  revision     Int
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([workspaceId, scopeKind, projectId])
+  @@map("document_template")
+}

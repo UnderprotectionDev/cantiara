@@ -8,12 +8,16 @@ import { useClientShell } from "@/features/web-macos-client/views/client-shell-h
 import { orpc, queryClient } from "@/utils/orpc";
 
 import CreateDocumentForm from "../forms/create-document-form";
+import CreateDocumentFromTemplateForm from "../forms/create-document-from-template-form";
+import CreateDocumentTemplateForm from "../forms/create-document-template-form";
 import { DOCUMENTS_COPY, documentScopeFor } from "../forms/documents-copy";
 import DocumentDetail from "./document-detail";
 
 export default function DocumentArea({
+	onOpenSourceRecord,
 	projectId,
 }: {
+	onOpenSourceRecord?: (id: string) => void;
 	projectId: string | null;
 }) {
 	const scope = documentScopeFor(projectId);
@@ -70,6 +74,11 @@ export default function DocumentArea({
 	return (
 		<div className="flex flex-col gap-6">
 			<CreateDocumentForm onCreated={onCreated} projectId={projectId} />
+			<CreateDocumentFromTemplateForm
+				onCreated={onCreated}
+				projectId={projectId}
+			/>
+			<CreateDocumentTemplateForm projectId={projectId} />
 			<div className="grid gap-6 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
 				{documents.data.length === 0 ? (
 					<Empty>
@@ -93,7 +102,11 @@ export default function DocumentArea({
 					</ul>
 				)}
 				{selectedId ? (
-					<DocumentDetail documentId={selectedId} projectId={projectId} />
+					<DocumentDetail
+						documentId={selectedId}
+						onOpenSourceRecord={onOpenSourceRecord}
+						projectId={projectId}
+					/>
 				) : (
 					<Empty>
 						<EmptyHeader>
