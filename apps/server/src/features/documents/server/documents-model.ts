@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export const DOCUMENTS_COPY = {
 	addDocumentTemplate: "Add Document Template",
+	apply: "Apply",
 	archive: "Archive",
 	archived: "Archived",
 	body: "Body",
@@ -10,18 +11,23 @@ export const DOCUMENTS_COPY = {
 	changeStatus: "Change status",
 	close: "Close",
 	compare: "Compare",
+	conflictDraft: "Conflict Draft",
 	convertInBulk: "Convert in bulk",
 	convertToRecord: "Convert to record",
 	convertToTechnicalDiagram: "Convert to Technical Diagram",
 	convertToTemplate: "Convert to template",
+	copy: "Copy",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
 	createFolder: "Create folder",
+	createFromConflictDraft: "Create Document",
 	createFromTemplate: "Create from template",
 	crossScopeParent: "A parent must be in the same ownership scope.",
+	deleteConflictDraft: "Delete",
 	depthExceeded: "This placement would exceed three Document levels.",
 	document: "Document",
 	documentTemplate: "Document Template",
+	download: "Download",
 	editableSource: "Editable source",
 	folder: "Folder",
 	forbiddenTemplatePayload:
@@ -386,6 +392,110 @@ export interface DocumentVersionCompare {
 	right: DocumentVersionView;
 }
 
+export interface DocumentConflictDraftView {
+	body: string;
+	documentId: string;
+	documentRevision: number;
+	id: string;
+	rejectedBaseRevision: number;
+	title: string;
+	type: DocumentType;
+}
+
+export type ConflictDraftHunkChoice = "current" | "draft";
+
+export interface DocumentConflictDraftCompare {
+	current: DocumentView;
+	draft: DocumentConflictDraftView;
+	hunks: readonly DocumentVersionHunk[];
+}
+
+export const conflictDraftHunkChoiceSchema = z.enum(["current", "draft"]);
+
+export function mergeConflictDraftHunks(
+	currentBody: string,
+	draftBody: string,
+	choices: readonly ConflictDraftHunkChoice[]
+): string | null {
+	const hunks = presentDocumentVersionDiff(currentBody, draftBody);
+	if (choices.length !== hunks.length) {
+		return null;
+	}
+	let merged = "";
+	for (const [index, hunk] of hunks.entries()) {
+		if (hunk.kind === "unchanged") {
+			merged += hunk.text;
+			continue;
+		}
+		if (hunk.kind === "removed" && choices[index] === "current") {
+			merged += hunk.text;
+		}
+		if (hunk.kind === "added" && choices[index] === "draft") {
+			merged += hunk.text;
+		}
+	}
+	return merged;
+}
+
+export const applyConflictDraftPayloadSchema = z.object({
+	documentId: z.string().min(1),
+	hunkChoices: z.array(conflictDraftHunkChoiceSchema).min(1),
+	title: z.string().optional(),
+});
+
+export const applyConflictDraftCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: applyConflictDraftPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type ApplyConflictDraftCommand = z.infer<
+	typeof applyConflictDraftCommandSchema
+>;
+
+export const createDocumentFromConflictDraftPayloadSchema = z.object({
+	body: z.string().optional(),
+	documentId: z.string().min(1),
+	title: z.string().optional(),
+});
+
+export const createDocumentFromConflictDraftCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: createDocumentFromConflictDraftPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type CreateDocumentFromConflictDraftCommand = z.infer<
+	typeof createDocumentFromConflictDraftCommandSchema
+>;
+
+export const deleteConflictDraftPayloadSchema = z.object({
+	documentId: z.string().min(1),
+});
+
+export const deleteConflictDraftCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: deleteConflictDraftPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type DeleteConflictDraftCommand = z.infer<
+	typeof deleteConflictDraftCommandSchema
+>;
+
+export type DocumentConflictDraftWriteOutcome =
+	| { document: DocumentView; status: "committed" }
+	| { document: DocumentView; status: "replayed" }
+	| { reason: DocumentRejectionReason; status: "rejected" }
+	| { conflict: "Conflict"; status: "conflict" };
+
 export const restoreDocumentPayloadSchema = z.object({
 	documentId: z.string().min(1),
 	versionRevision: z.number().int().positive(),
@@ -410,6 +520,7 @@ export type DocumentRejectionReason =
 	| "title-required"
 	| "unknown-document-type"
 	| "document-not-found"
+	| "conflict-draft-not-found"
 	| "template-not-found"
 	| "name-required"
 	| "forbidden-payload"
@@ -455,6 +566,12 @@ export type DocumentWriteOutcome =
 	| { document: DocumentView; status: "committed" }
 	| { document: DocumentView; status: "replayed" }
 	| { reason: DocumentRejectionReason; status: "rejected" }
+	| {
+			conflict: typeof DOCUMENTS_COPY.conflictDraft;
+			document: DocumentView;
+			draft: DocumentConflictDraftView;
+			status: "conflict";
+	  }
 	| { conflict: "Conflict"; status: "conflict" };
 
 export const createDocumentTemplatePayloadSchema = z

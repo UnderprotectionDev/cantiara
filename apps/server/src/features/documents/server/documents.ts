@@ -9,6 +9,8 @@ import {
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
 import { getProject } from "../../project-shell/server/project-shell";
+import { createRelationInTransaction } from "../../relations/server/relations";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
 	documentsWouldCycle,
 	ensureSectionIds,
@@ -17,22 +19,31 @@ import {
 	usageTargetsFromBody,
 } from "./documents-live";
 import {
+	type ApplyConflictDraftCommand,
 	type ArchiveDocumentCommand,
+	applyConflictDraftCommandSchema,
 	applyDocumentTemplatePlaceholders,
 	archiveDocumentCommandSchema,
 	type ConvertDocumentToTemplatePreviewOutcome,
 	type CreateDocumentCommand,
 	type CreateDocumentFolderCommand,
+	type CreateDocumentFromConflictDraftCommand,
 	type CreateDocumentTemplateCommand,
 	convertDocumentToTemplateCommandSchema,
 	createDocumentCommandSchema,
 	createDocumentFolderCommandSchema,
+	createDocumentFromConflictDraftCommandSchema,
 	createDocumentTemplateCommandSchema,
+	type DeleteConflictDraftCommand,
 	DOCUMENT_MAX_DEPTH,
 	DOCUMENT_SCOPE_KIND,
 	DOCUMENT_STARTER_SKELETONS,
+	DOCUMENTS_COPY,
 	type DocumentArchivePreview,
 	type DocumentChildCard,
+	type DocumentConflictDraftCompare,
+	type DocumentConflictDraftView,
+	type DocumentConflictDraftWriteOutcome,
 	type DocumentFolderView,
 	type DocumentFolderWriteOutcome,
 	type DocumentHierarchyPreview,
@@ -46,6 +57,7 @@ import {
 	type DocumentVersionView,
 	type DocumentView,
 	type DocumentWriteOutcome,
+	deleteConflictDraftCommandSchema,
 	documentTemplatePlaceholders,
 	emptyHeadingDocumentBody,
 	FORBIDDEN_DOCUMENT_TEMPLATE_PAYLOAD_KEYS,
@@ -54,6 +66,7 @@ import {
 	isDocumentType,
 	type MaterializeStarterSkeletonDocumentsCommand,
 	materializeStarterSkeletonDocumentsCommandSchema,
+	mergeConflictDraftHunks,
 	PERSONAL_REVIEW_KIND,
 	type PlaceDocumentCommand,
 	personalReviewSkeleton,
@@ -165,6 +178,124 @@ export async function updateDocument(
 	);
 	return await prisma.$transaction((tx) =>
 		updateInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function getConflictDraft(
+	prisma: PrismaClient,
+	documentId: string,
+	workspaceId?: string
+): Promise<DocumentConflictDraftView | null> {
+	if (
+		!("documentConflictDraft" in prisma) ||
+		typeof prisma.documentConflictDraft?.findUnique !== "function"
+	) {
+		return null;
+	}
+	const row = await prisma.documentConflictDraft.findUnique({
+		where: { documentId },
+	});
+	if (!row) {
+		return null;
+	}
+	if (workspaceId && row.workspaceId !== workspaceId) {
+		return null;
+	}
+	return toConflictDraftView(row);
+}
+
+export async function compareConflictDraft(
+	prisma: PrismaClient,
+	input: { documentId: string; workspaceId?: string }
+): Promise<DocumentConflictDraftCompare | null> {
+	const document = await getDocument(
+		prisma,
+		input.documentId,
+		input.workspaceId
+	);
+	const draft = await getConflictDraft(
+		prisma,
+		input.documentId,
+		input.workspaceId
+	);
+	if (!(document && draft)) {
+		return null;
+	}
+	return {
+		current: document,
+		draft,
+		hunks: presentDocumentVersionDiff(document.body, draft.body),
+	};
+}
+
+export async function applyConflictDraft(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<DocumentConflictDraftWriteOutcome> {
+	const parsed = applyConflictDraftCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	if (
+		parsed.data.payload.title !== undefined &&
+		parsed.data.payload.title.trim().length === 0
+	) {
+		return { reason: "title-required", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		applyConflictDraftInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function createDocumentFromConflictDraft(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<DocumentConflictDraftWriteOutcome> {
+	const parsed =
+		createDocumentFromConflictDraftCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const title = parsed.data.payload.title?.trim() ?? "";
+	if (title.length === 0) {
+		return { reason: "title-required", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		createDocumentFromConflictDraftInTransaction(
+			tx,
+			parsed.data,
+			commandKey,
+			fingerprint,
+			title
+		)
+	);
+}
+
+export async function deleteConflictDraft(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<DocumentConflictDraftWriteOutcome> {
+	const parsed = deleteConflictDraftCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		deleteConflictDraftInTransaction(tx, parsed.data, commandKey, fingerprint)
 	);
 }
 
@@ -836,7 +967,13 @@ async function updateInTransaction(
 		return { reason: "document-not-found", status: "rejected" };
 	}
 	if (current.revision !== command.baseRevision) {
-		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		return await conflictDraftFromStaleSave(
+			tx,
+			command,
+			commandKey,
+			fingerprint,
+			current
+		);
 	}
 	const { nextBody, nextTitle, nextType } = nextDocumentFields(
 		command,
@@ -1063,6 +1200,9 @@ async function replayOrConflict(
 	if (existing.payloadFingerprint !== fingerprint) {
 		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
 	}
+	if (existing.kind === "conflict-draft") {
+		return await replayConflictDraft(tx, existing.targetId);
+	}
 	const live = await tx.document.findUnique({
 		where: { id: existing.targetId },
 	});
@@ -1070,6 +1210,304 @@ async function replayOrConflict(
 		return { document: await viewFromTx(tx, live), status: "replayed" };
 	}
 	return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+}
+
+async function replayConflictDraft(
+	tx: PrismaTransaction,
+	documentId: string
+): Promise<DocumentWriteOutcome> {
+	const live = await tx.document.findUnique({ where: { id: documentId } });
+	const draft = await tx.documentConflictDraft.findUnique({
+		where: { documentId },
+	});
+	if (live && draft) {
+		return {
+			conflict: DOCUMENTS_COPY.conflictDraft,
+			document: await viewFromTx(tx, live),
+			draft: toConflictDraftView(draft),
+			status: "conflict",
+		};
+	}
+	return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+}
+
+async function conflictDraftFromStaleSave(
+	tx: PrismaTransaction,
+	command: UpdateDocumentCommand,
+	commandKey: string,
+	fingerprint: string,
+	current: DocumentRow
+): Promise<DocumentWriteOutcome> {
+	const rejected = nextDocumentFields(command, current);
+	const draft = await upsertConflictDraft(tx, {
+		body: rejected.nextBody,
+		documentId: current.id,
+		documentRevision: current.revision,
+		rejectedBaseRevision: command.baseRevision,
+		title: rejected.nextTitle,
+		type: rejected.nextType,
+		workspaceId: command.workspaceId,
+	});
+	const view = await viewFromTx(tx, current);
+	const draftView = toConflictDraftView(draft);
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: command.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey,
+			committedRevision: current.revision,
+			id: crypto.randomUUID(),
+			kind: "conflict-draft",
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: fingerprint,
+			resultValue: JSON.stringify({ document: view, draft: draftView }),
+			targetId: current.id,
+		},
+	});
+	return {
+		conflict: DOCUMENTS_COPY.conflictDraft,
+		document: view,
+		draft: draftView,
+		status: "conflict",
+	};
+}
+
+async function applyConflictDraftInTransaction(
+	tx: PrismaTransaction,
+	command: ApplyConflictDraftCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<DocumentConflictDraftWriteOutcome> {
+	await lockWorkspace(tx, command.workspaceId);
+	const replayed = await replayResolvedDraft(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const current = await tx.document.findUnique({
+		where: { id: command.payload.documentId },
+	});
+	if (!current || current.workspaceId !== command.workspaceId) {
+		return { reason: "document-not-found", status: "rejected" };
+	}
+	if (current.revision !== command.baseRevision) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const draft = await tx.documentConflictDraft.findUnique({
+		where: { documentId: current.id },
+	});
+	if (!draft) {
+		return { reason: "conflict-draft-not-found", status: "rejected" };
+	}
+	const merged = mergeConflictDraftHunks(
+		current.body,
+		draft.body,
+		command.payload.hunkChoices
+	);
+	if (merged === null) {
+		return { reason: "preview-mismatch", status: "rejected" };
+	}
+	const nextTitle =
+		command.payload.title === undefined
+			? current.title
+			: command.payload.title.trim();
+	const nextBody = ensureSectionIds(merged);
+	if (await documentsWouldCycle(tx, current.id, nextBody)) {
+		return { reason: "live-section-cycle", status: "rejected" };
+	}
+	const updated = await tx.document.update({
+		data: {
+			body: nextBody,
+			revision: current.revision + 1,
+			title: nextTitle,
+		},
+		where: { id: current.id },
+	});
+	await recordVersion(tx, updated);
+	await syncDocumentUsageLinks(tx, {
+		hostRecordId: updated.id,
+		targets: usageTargetsFromBody(updated.body),
+		workspaceId: command.workspaceId,
+	});
+	await syncInDocTags(tx, updated);
+	await tx.documentConflictDraft.delete({ where: { id: draft.id } });
+	const view = await viewFromTx(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { document: view, status: "committed" };
+}
+
+async function createDocumentFromConflictDraftInTransaction(
+	tx: PrismaTransaction,
+	command: CreateDocumentFromConflictDraftCommand,
+	commandKey: string,
+	fingerprint: string,
+	title: string
+): Promise<DocumentConflictDraftWriteOutcome> {
+	await lockWorkspace(tx, command.workspaceId);
+	const replayed = await replayResolvedDraft(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const source = await tx.document.findUnique({
+		where: { id: command.payload.documentId },
+	});
+	if (!source || source.workspaceId !== command.workspaceId) {
+		return { reason: "document-not-found", status: "rejected" };
+	}
+	const draft = await tx.documentConflictDraft.findUnique({
+		where: { documentId: source.id },
+	});
+	if (!draft) {
+		return { reason: "conflict-draft-not-found", status: "rejected" };
+	}
+	const body = ensureSectionIds(command.payload.body ?? draft.body);
+	const documentId = crypto.randomUUID();
+	if (await documentsWouldCycle(tx, documentId, body)) {
+		return { reason: "live-section-cycle", status: "rejected" };
+	}
+	const created = await tx.document.create({
+		data: {
+			archivedAt: null,
+			body,
+			folderId: null,
+			id: documentId,
+			parentId: null,
+			projectId: source.projectId,
+			revision: 1,
+			scopeKind: source.scopeKind,
+			title,
+			type: draft.type,
+			workspaceId: command.workspaceId,
+		},
+	});
+	await recordVersion(tx, created);
+	await syncDocumentUsageLinks(tx, {
+		hostRecordId: created.id,
+		targets: usageTargetsFromBody(created.body),
+		workspaceId: command.workspaceId,
+	});
+	await syncInDocTags(tx, created);
+	const related = await createRelationInTransaction(tx, {
+		actorId: command.actorId,
+		from: { id: created.id, kind: "Document" },
+		idempotencyKey: `${command.idempotencyKey}:origin`,
+		origin: "human",
+		previewAcknowledged: true,
+		to: { id: source.id, kind: "Document" },
+		type: RELATIONS_COPY.origin,
+		viewerWorkspaceId: command.workspaceId,
+	});
+	if (related.status !== "committed" && related.status !== "replayed") {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	await tx.documentConflictDraft.delete({ where: { id: draft.id } });
+	const view = await viewFromTx(tx, created);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { document: view, status: "committed" };
+}
+
+async function deleteConflictDraftInTransaction(
+	tx: PrismaTransaction,
+	command: DeleteConflictDraftCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<DocumentConflictDraftWriteOutcome> {
+	await lockWorkspace(tx, command.workspaceId);
+	const replayed = await replayResolvedDraft(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const current = await tx.document.findUnique({
+		where: { id: command.payload.documentId },
+	});
+	if (!current || current.workspaceId !== command.workspaceId) {
+		return { reason: "document-not-found", status: "rejected" };
+	}
+	const draft = await tx.documentConflictDraft.findUnique({
+		where: { documentId: current.id },
+	});
+	if (!draft) {
+		return { reason: "conflict-draft-not-found", status: "rejected" };
+	}
+	await tx.documentConflictDraft.delete({ where: { id: draft.id } });
+	const view = await viewFromTx(tx, current);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { document: view, status: "committed" };
+}
+
+async function replayResolvedDraft(
+	tx: PrismaTransaction,
+	commandKey: string,
+	fingerprint: string
+): Promise<DocumentConflictDraftWriteOutcome | null> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (!existing) {
+		return null;
+	}
+	if (existing.payloadFingerprint !== fingerprint) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const live = await tx.document.findUnique({
+		where: { id: existing.targetId },
+	});
+	if (live) {
+		return { document: await viewFromTx(tx, live), status: "replayed" };
+	}
+	return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+}
+
+async function upsertConflictDraft(
+	tx: PrismaTransaction,
+	input: {
+		body: string;
+		documentId: string;
+		documentRevision: number;
+		rejectedBaseRevision: number;
+		title: string;
+		type: string;
+		workspaceId: string;
+	}
+) {
+	const existing = await tx.documentConflictDraft.findUnique({
+		where: { documentId: input.documentId },
+	});
+	const data = {
+		body: input.body,
+		documentRevision: input.documentRevision,
+		rejectedBaseRevision: input.rejectedBaseRevision,
+		title: input.title,
+		type: input.type,
+		workspaceId: input.workspaceId,
+	};
+	if (existing) {
+		return await tx.documentConflictDraft.update({
+			data,
+			where: { id: existing.id },
+		});
+	}
+	return await tx.documentConflictDraft.create({
+		data: {
+			...data,
+			documentId: input.documentId,
+			id: crypto.randomUUID(),
+		},
+	});
 }
 
 async function writeReceipt(
@@ -1803,6 +2241,26 @@ function toView(
 		parentId: row.parentId,
 		revision: row.revision,
 		scope: scopeFromRow(row),
+		title: row.title,
+		type: row.type as DocumentType,
+	};
+}
+
+function toConflictDraftView(row: {
+	body: string;
+	documentId: string;
+	documentRevision: number;
+	id: string;
+	rejectedBaseRevision: number;
+	title: string;
+	type: string;
+}): DocumentConflictDraftView {
+	return {
+		body: row.body,
+		documentId: row.documentId,
+		documentRevision: row.documentRevision,
+		id: row.id,
+		rejectedBaseRevision: row.rejectedBaseRevision,
 		title: row.title,
 		type: row.type as DocumentType,
 	};
