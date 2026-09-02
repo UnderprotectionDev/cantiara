@@ -36,6 +36,8 @@ const DATABASE_URL =
 	process.env.DATABASE_URL ??
 	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
 
+const SPEC_HEADING_BODY = /^# Spec \{#sec-[^}]+\}\n\nHello$/;
+
 const FULL_BODY = [
 	"| Col | Value |",
 	"| --- | ----- |",
@@ -127,6 +129,9 @@ describe("Documents", () => {
 	});
 
 	afterEach(async () => {
+		await prisma.usageLink.deleteMany();
+		await prisma.usageHostEmbed.deleteMany();
+		await prisma.typedRelation.deleteMany();
 		await prisma.mutationReceipt.deleteMany();
 		await prisma.workspace.deleteMany();
 		await prisma.user.deleteMany();
@@ -153,18 +158,16 @@ describe("Documents", () => {
 			},
 			{ files }
 		);
-		expect(created).toMatchObject({
-			document: {
-				body: "# Spec\n\nHello",
-				liveFilePath: null,
-				title: "Payments spec",
-				type: "Spec",
-			},
-			status: "committed",
-		});
+		expect(created.status).toBe("committed");
 		if (created.status !== "committed") {
 			throw new Error("expected committed Document");
 		}
+		expect(created.document.body).toMatch(SPEC_HEADING_BODY);
+		expect(created.document).toMatchObject({
+			liveFilePath: null,
+			title: "Payments spec",
+			type: "Spec",
+		});
 		expect(files.writes).toEqual([]);
 		expect(await getDocument(prisma, created.document.id)).toEqual(
 			created.document

@@ -62,7 +62,7 @@ Belge Proje veya Kişisel Wiki kapsamında, yalnız veritabanında yaşayan sür
 - **In-doc tags.** `#tag` in normal prose targets Workspace tag identity. Not in fenced/inline code, URL parts, or escaped text. Invalid token does not mint. Rename of the dictionary is 13; this feature must consume the same id.
 - **Archive / move / copy / export.** Archive ≠ Trash. Move only from Active Project; preview; explicit children + owned attachments; cancel External Surface first if present (73/76 own the surface). Copy = new id. Single Document Markdown/PDF export snapshots live blocks; Word out of first product. Workspace exit package is 82.
 - **Hierarchy.** Folders are navigation metadata. Max one parent, max three Document levels; deeper moves are blocked with preview, not flattened. Child cards auto-preview; no separate cover record. Hierarchy move does not change scope (scope change is `Move`).
-- **English UI labels.** `Document`, `Conflict Draft`, `Personal Review`, `Persona`, `Retrospective`, `Launch Plan`, `Move`, `Copy`, `Archive`, `Focus Mode`, `Find and replace`, `Convert to template`. Missing labels join the PRD term table in the same change that first shows them. No Turkish UI.
+- **English UI labels.** `Document`, `Conflict Draft`, `Personal Review`, `Persona`, `Retrospective`, `Launch Plan`, `Move`, `Copy`, `Archive`, `Focus Mode`, `Find and replace`, `Convert to template`, `Live Work block`, `Change status`, `Close`, `Open source record`, `Read-only live section`, `Version-pinned evidence`, `Convert to record`, `Convert in bulk`, `Convert to Technical Diagram`, `Imported Independent Copy`. Missing labels join the PRD term table in the same change that first shows them. No Turkish UI.
 
 ## Testing Decisions
 

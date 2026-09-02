@@ -381,6 +381,32 @@ function ProjectNavLink({
 	);
 }
 
+function DocumentsProjectSection({
+	onWorkId,
+	projectId,
+	sectionId,
+}: {
+	onWorkId?: (workId: string | null) => void;
+	projectId: string;
+	sectionId: string;
+}) {
+	return (
+		<section aria-label="Documents" id={sectionId}>
+			<h1 className="font-semibold text-[1.375rem] tracking-tight">
+				{DOCUMENTS_COPY.document}
+			</h1>
+			<div className="mt-6">
+				<DocumentArea
+					onOpenSourceRecord={
+						onWorkId ? (id: string) => onWorkId(id) : undefined
+					}
+					projectId={projectId}
+				/>
+			</div>
+		</section>
+	);
+}
+
 function ProjectBody({
 	configurationEditor,
 	configurationMode,
@@ -466,14 +492,11 @@ function ProjectBody({
 
 	if (selectedAnchor === documentsAnchor || selectedArea === "Documents") {
 		return (
-			<section aria-label="Documents" id={documentsAnchor}>
-				<h1 className="font-semibold text-[1.375rem] tracking-tight">
-					{DOCUMENTS_COPY.document}
-				</h1>
-				<div className="mt-6">
-					<DocumentArea projectId={data.id} />
-				</div>
-			</section>
+			<DocumentsProjectSection
+				onWorkId={onWorkId}
+				projectId={data.id}
+				sectionId={documentsAnchor}
+			/>
 		);
 	}
 
