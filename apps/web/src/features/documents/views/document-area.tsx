@@ -83,6 +83,9 @@ export default function DocumentArea({
 	const onSelect = useCallback((documentId: string) => {
 		setSelectedId(documentId);
 	}, []);
+	const onMoved = useCallback(() => {
+		setSelectedId(null);
+	}, []);
 	const onArchivedChange = useCallback(
 		(event: ChangeEvent<HTMLInputElement>) => {
 			setArchived(event.target.checked);
@@ -189,6 +192,7 @@ export default function DocumentArea({
 					<DocumentDetail
 						archivedList={archived}
 						documentId={selectedId}
+						onMoved={onMoved}
 						onOpenSourceRecord={onOpenSourceRecord}
 						onSelect={onSelect}
 						projectId={projectId}

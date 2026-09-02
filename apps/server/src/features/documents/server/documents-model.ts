@@ -7,6 +7,7 @@ export const DOCUMENTS_COPY = {
 	archive: "Archive",
 	archived: "Archived",
 	body: "Body",
+	cancelExternalSurface: "Cancel External Surface",
 	card: "Card",
 	changeStatus: "Change status",
 	close: "Close",
@@ -29,6 +30,7 @@ export const DOCUMENTS_COPY = {
 	documentTemplate: "Document Template",
 	download: "Download",
 	editableSource: "Editable source",
+	export: "Export",
 	folder: "Folder",
 	forbiddenTemplatePayload:
 		"A Document Template cannot carry history, relations, publish, archive, or Work Template fields.",
@@ -36,14 +38,18 @@ export const DOCUMENTS_COPY = {
 	importedIndependentCopy: "Imported Independent Copy",
 	launchPlan: "Launch Plan",
 	liveWorkBlock: "Live Work block",
+	markdown: "Markdown",
+	move: "Move",
 	name: "Name",
 	noDocuments: "No Documents yet.",
 	noFolder: "No folder",
 	noParent: "No parent",
 	openSourceRecord: "Open source record",
 	parentDocument: "Parent Document",
+	pdf: "PDF",
 	persona: "Persona",
 	personalReview: "Personal Review",
+	personalWiki: "Personal Wiki",
 	placeholders: "Placeholders",
 	plan: "Plan",
 	prd: "PRD",
@@ -55,6 +61,7 @@ export const DOCUMENTS_COPY = {
 	save: "Save",
 	selectDocument: "Select a Document",
 	skeleton: "Skeleton",
+	snapshot: "Snapshot",
 	spec: "Spec",
 	title: "Title",
 	type: "Type",
@@ -65,6 +72,17 @@ export const DOCUMENTS_COPY = {
 } as const;
 
 export const DOCUMENT_MAX_DEPTH = 3;
+
+export const DOCUMENT_OWNED_FILE_KIND = "owned-by-document" as const;
+
+export const DOCUMENT_EXPORT_FORMATS = ["markdown", "pdf"] as const;
+
+export type DocumentExportFormat = (typeof DOCUMENT_EXPORT_FORMATS)[number];
+
+export const DOCUMENT_EXPORT_FORMAT_LABELS = [
+	DOCUMENTS_COPY.markdown,
+	DOCUMENTS_COPY.pdf,
+] as const;
 
 export const PERSONAL_REVIEW_HEADINGS = [
 	"Period",
@@ -335,6 +353,126 @@ export type ArchiveDocumentCommand = z.infer<
 	typeof archiveDocumentCommandSchema
 >;
 
+export const moveDocumentPayloadSchema = z.object({
+	cancelExternalSurfaces: z.boolean().optional(),
+	childDocumentIds: z.array(z.string().min(1)).default([]),
+	documentId: z.string().min(1),
+	target: documentScopeSchema,
+});
+
+export const moveDocumentCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: moveDocumentPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type MoveDocumentCommand = z.infer<typeof moveDocumentCommandSchema>;
+
+export const copyDocumentPayloadSchema = z.object({
+	documentId: z.string().min(1),
+	versionRevision: z.number().int().positive().optional(),
+});
+
+export const copyDocumentCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: copyDocumentPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type CopyDocumentCommand = z.infer<typeof copyDocumentCommandSchema>;
+
+export const exportDocumentPayloadSchema = z.object({
+	documentId: z.string().min(1),
+	format: z.string().min(1),
+});
+
+export interface DocumentBrokenReferencePreview {
+	kind: "child-detached" | "unowned-attachment" | "live-section";
+	sourceId: string;
+	title: string;
+}
+
+export interface DocumentPublishEffectPreview {
+	activeSurfaceCount: number;
+	cancelRequired: boolean;
+	documentId: string;
+	historicalScope: DocumentScope | null;
+}
+
+export type DocumentMovePreview =
+	| {
+			brokenReferences: readonly DocumentBrokenReferencePreview[];
+			detachedChildIds: readonly string[];
+			movedAttachmentIds: readonly string[];
+			publishEffect: DocumentPublishEffectPreview;
+			selectedDocumentIds: readonly string[];
+			status: "ok";
+			target: DocumentScope;
+			workIds: readonly string[];
+	  }
+	| { reason: DocumentRejectionReason; status: "blocked" };
+
+export type DocumentExportOutcome =
+	| {
+			format: "markdown";
+			manifest: string;
+			markdown: string;
+			status: "ok";
+	  }
+	| {
+			format: "pdf";
+			manifest: string;
+			markdown: string;
+			pdf: Uint8Array;
+			status: "ok";
+	  }
+	| { reason: DocumentRejectionReason; status: "rejected" };
+
+export interface DocumentExternalSurfaceRecord {
+	historicalScope: DocumentScope;
+	id: string;
+	revoked: boolean;
+}
+
+export interface DocumentExternalSurfaces {
+	listActive: (documentId: string) => DocumentExternalSurfaceRecord[];
+	listHistorical: (documentId: string) => DocumentExternalSurfaceRecord[];
+	revoke: (documentId: string) => DocumentExternalSurfaceRecord[];
+}
+
+export function createMemoryExternalSurfaces(): DocumentExternalSurfaces & {
+	activate: (documentId: string, scope: DocumentScope, id?: string) => string;
+} {
+	const records = new Map<string, DocumentExternalSurfaceRecord[]>();
+	return {
+		activate(documentId, scope, id = crypto.randomUUID()) {
+			const list = records.get(documentId) ?? [];
+			list.push({ historicalScope: scope, id, revoked: false });
+			records.set(documentId, list);
+			return id;
+		},
+		listActive(documentId) {
+			return (records.get(documentId) ?? []).filter((row) => !row.revoked);
+		},
+		listHistorical(documentId) {
+			return (records.get(documentId) ?? []).filter((row) => row.revoked);
+		},
+		revoke(documentId) {
+			const list = records.get(documentId) ?? [];
+			for (const row of list) {
+				row.revoked = true;
+			}
+			records.set(documentId, list);
+			return list;
+		},
+	};
+}
+
 export interface DocumentInDocTag {
 	id: string;
 	name: string;
@@ -356,6 +494,7 @@ export interface DocumentView {
 	id: string;
 	inDocTags: readonly DocumentInDocTag[];
 	liveFilePath: null;
+	originDocumentId: string | null;
 	parentId: string | null;
 	revision: number;
 	scope: DocumentScope;
@@ -537,7 +676,12 @@ export type DocumentRejectionReason =
 	| "cross-scope-parent"
 	| "depth-exceeded"
 	| "folder-not-found"
-	| "parent-not-found";
+	| "parent-not-found"
+	| "source-project-not-active"
+	| "external-surface-active"
+	| "same-scope"
+	| "child-not-found"
+	| "word-export-forbidden";
 
 export type DocumentHierarchyPreview =
 	| {
@@ -732,6 +876,7 @@ function hunkKind(part: {
 
 export function documentsCatalog(): {
 	copy: typeof DOCUMENTS_COPY;
+	exportFormats: typeof DOCUMENT_EXPORT_FORMAT_LABELS;
 	personalReview: {
 		headings: typeof PERSONAL_REVIEW_HEADINGS;
 		kind: typeof PERSONAL_REVIEW_KIND;
@@ -742,6 +887,7 @@ export function documentsCatalog(): {
 } {
 	return {
 		copy: DOCUMENTS_COPY,
+		exportFormats: DOCUMENT_EXPORT_FORMAT_LABELS,
 		personalReview: {
 			headings: PERSONAL_REVIEW_HEADINGS,
 			kind: PERSONAL_REVIEW_KIND,

@@ -16,6 +16,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belge arşivi | `Archive` | Belge kimliğini, sürümleri, ilişkileri ve çocuk bağlarını koruyan görünürlük; Çöp Kutusu, Proje arşivi veya Wiki yayını durdurma değildir |
 | Belge arşiv filtresi | `Archived` | Varsayılan Belge gezinmesinden ayrı açık arşiv görünürlüğü |
 | Belge arşivini geri al | `Unarchive` | Arşivlenen Belgeyi varsayılan gezinmeye kimliği değiştirmeden döndürme |
+| Belge kapsam taşıma | `Move` | Etkin Projedeki Belgeyi kimlik koruyarak hedef kapsama alma; İş taşıması değildir |
+| Belge kopyası | `Copy` | Yeni kimlikli bağımsız Belge; köken kaynağı gösterir |
+| Tek belge dışa aktarma | `Export` | Tek Belgenin Markdown veya PDF snapshot’ı; Word veya Çalışma Alanı çıkış paketi değildir |
+| Markdown | `Markdown` | Tek belge dışa aktarma biçimi |
+| PDF | `PDF` | Tek belge dışa aktarma biçimi |
+| Dış yüzeyi iptal et | `Cancel External Surface` | Taşımadan önce etkin Dış yüzeyi iptal etme onayı |
 | Belge klasörü | `Folder` | Aynı sahiplik kapsamında gezinme üstverisi; Akıllı Koleksiyon veya sahiplik kapsamı değildir |
 | Üst belge | `Parent Document` | Aynı kapsamdaki en fazla bir üst Belge; çapraz kapsam ebeveyn yoktur |
 | Çocuk Belge kartı | `Card` | Üst Belgedeki otomatik çocuk önizlemesi; ayrı kapak kaydı değildir |

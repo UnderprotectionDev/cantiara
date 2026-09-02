@@ -32,6 +32,7 @@ export const DOCUMENTS_COPY = {
 	archive: "Archive",
 	archived: "Archived",
 	body: "Body",
+	cancelExternalSurface: "Cancel External Surface",
 	card: "Card",
 	changeStatus: "Change status",
 	close: "Close",
@@ -54,19 +55,24 @@ export const DOCUMENTS_COPY = {
 	documentTemplate: "Document Template",
 	download: "Download",
 	editableSource: "Editable source",
+	export: "Export",
 	folder: "Folder",
 	general: "General",
 	importedIndependentCopy: "Imported Independent Copy",
 	launchPlan: "Launch Plan",
 	liveWorkBlock: "Live Work block",
+	markdown: "Markdown",
+	move: "Move",
 	name: "Name",
 	noDocuments: "No Documents yet.",
 	noFolder: "No folder",
 	noParent: "No parent",
 	openSourceRecord: "Open source record",
 	parentDocument: "Parent Document",
+	pdf: "PDF",
 	persona: "Persona",
 	personalReview: "Personal Review",
+	personalWiki: "Personal Wiki",
 	pinEvidence: "Version-pinned evidence",
 	placeholders: "Placeholders",
 	plan: "Plan",
@@ -79,6 +85,7 @@ export const DOCUMENTS_COPY = {
 	save: "Save",
 	selectDocument: "Select a Document",
 	skeleton: "Skeleton",
+	snapshot: "Snapshot",
 	spec: "Spec",
 	title: "Title",
 	toolbar: {
@@ -124,6 +131,29 @@ export function documentScopeFor(
 		return { kind: "project", projectId };
 	}
 	return { kind: "personal-wiki" };
+}
+
+export function descendantDocuments<
+	T extends { id: string; parentId: string | null },
+>(items: readonly T[], rootId: string): T[] {
+	const found: T[] = [];
+	const seen = new Set([rootId]);
+	const queue = [rootId];
+	while (queue.length > 0) {
+		const parentId = queue.shift();
+		if (!parentId) {
+			continue;
+		}
+		for (const item of items) {
+			if (item.parentId !== parentId || seen.has(item.id)) {
+				continue;
+			}
+			seen.add(item.id);
+			found.push(item);
+			queue.push(item.id);
+		}
+	}
+	return found;
 }
 
 export const PERSONAL_REVIEW_KIND = "personal-review" as const;
