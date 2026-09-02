@@ -1287,6 +1287,9 @@ async function presentEnd(
 			workStatus: work.status,
 		};
 	}
+	if (input.kind === "Document") {
+		return await presentDocumentEnd(db, input);
+	}
 	if (input.kind === "Milestone") {
 		return await presentMilestoneEnd(db, input);
 	}
@@ -1321,6 +1324,37 @@ async function presentEnd(
 		};
 	}
 	return brokenEnd(input, { reason: RELATIONS_COPY.permanentlyDeleted });
+}
+
+async function presentDocumentEnd(
+	db: PrismaClient | PrismaTransaction,
+	input: {
+		establishedAt: string;
+		id: string;
+		kind: RecordKind;
+		overrides: Record<string, EndLifecycleOverride>;
+		viewerWorkspaceId: string;
+	}
+): Promise<PresentedEnd> {
+	if (!("document" in db) || typeof db.document?.findUnique !== "function") {
+		return brokenEnd(input, { reason: RELATIONS_COPY.permanentlyDeleted });
+	}
+	const document = await db.document.findUnique({
+		where: { id: input.id },
+	});
+	if (!document) {
+		return brokenEnd(input, { reason: RELATIONS_COPY.permanentlyDeleted });
+	}
+	if (document.workspaceId !== input.viewerWorkspaceId) {
+		return brokenEnd(input, { reason: RELATIONS_COPY.noAccess });
+	}
+	return {
+		id: document.id,
+		kind: "Document",
+		openSourceRecord: true,
+		status: "resolved",
+		title: document.title,
+	};
 }
 
 async function presentFileAttachmentEnd(

@@ -12,6 +12,8 @@ import {
 	browsePreparedIndex,
 	loadSearchIndexFromRows,
 	PREPARED_INDEX_LABELS,
+	SEARCH_EXCLUDED_KINDS,
+	SEARCH_SECRET_FIELDS,
 	type SearchIndexRecord,
 	type SearchQuery,
 	searchRecords,
@@ -29,6 +31,8 @@ const NORTH_STAR = /north star/i;
 const SMART_COLLECTION = /Smart Collection/;
 const TRASH_OR_DELETED = /Trash|deleted/i;
 const INDEX_LEAK = /Hidden vault|work-foreign/;
+const EXCLUDED_ROW_IDS =
+	/draft-1|capture-1|surface-1|gh-1|sk_north_star|tok_northstar/;
 
 function record(
 	partial: Partial<SearchIndexRecord> & Pick<SearchIndexRecord, "id" | "title">
@@ -297,6 +301,91 @@ describe("Record Discovery Search", () => {
 		expect(ids(index)).toEqual(["work-title", "doc-body", "file-meta"]);
 	});
 
+	it("keeps forbidden kinds, secrets, SQL bodies, trash, and unauthorized records out of Search", () => {
+		const sql = "CREATE TABLE north_star_secret_schema (id uuid);";
+		const token = "tok_northstar_9f3";
+		const password = "pw-north-star";
+		const secret = "sk_north_star";
+		const index = [
+			record({ id: "work-ok", title: "North star visible" }),
+			record({
+				id: "draft-north",
+				kind: RECORD_DISCOVERY_COPY.draft,
+				title: "North star draft",
+				updatedAt: 9000,
+			}),
+			record({
+				body: "north star capture body",
+				id: "capture-north",
+				kind: RECORD_DISCOVERY_COPY.captureInboxItem,
+				title: "North star capture",
+			}),
+			record({
+				body: token,
+				id: "surface-north",
+				kind: RECORD_DISCOVERY_COPY.externalSurface,
+				title: "North star surface",
+			}),
+			record({
+				id: "github-north",
+				kind: RECORD_DISCOVERY_COPY.githubExternalRecord,
+				title: "North star GitHub issue",
+			}),
+			record({
+				authorized: false,
+				id: "work-foreign",
+				title: "Hidden north star vault",
+			}),
+			record({
+				id: "work-trash",
+				title: "North star trash",
+				trashed: true,
+			}),
+			record({
+				archived: true,
+				id: "work-archived",
+				lifecycle: "archived",
+				status: RECORD_DISCOVERY_COPY.archived,
+				title: "North star archived",
+				updatedAt: 8000,
+			}),
+			record({
+				id: "diagram-sql",
+				kind: RECORD_DISCOVERY_COPY.technicalDiagram,
+				title: "Schema diagram",
+			}),
+			record({
+				body: `${secret} ${password} ${token}`,
+				id: "secret-work",
+				kind: RECORD_DISCOVERY_COPY.externalSurface,
+				title: "Credentials",
+			}),
+		];
+		const leakedValues = [
+			sql,
+			token,
+			password,
+			secret,
+			"draft-north",
+			"capture-north",
+		];
+		const defaultResult = search(index);
+		expect(defaultResult.hits.map((hit) => hit.id)).toEqual(["work-ok"]);
+		const serialized = JSON.stringify(defaultResult);
+		for (const leaked of leakedValues) {
+			expect(serialized).not.toContain(leaked);
+		}
+		expect(ids(index, { includeArchived: true })).toEqual([
+			"work-ok",
+			"work-archived",
+		]);
+		expect(ids(index, { includeArchived: true })).not.toContain("work-trash");
+		expect(ids(index, { text: token })).toEqual([]);
+		expect(ids(index, { text: password })).toEqual([]);
+		expect(ids(index, { text: secret })).toEqual([]);
+		expect(ids(index, { text: sql })).toEqual([]);
+	});
+
 	it("maps Work and File Attachment rows without indexing trash", () => {
 		const index = loadSearchIndexFromRows({
 			fileAttachments: [
@@ -335,6 +424,59 @@ describe("Record Discovery Search", () => {
 			],
 		});
 		expect(ids(index)).toEqual(["work-ok", "file-ok"]);
+	});
+
+	it("finds Migration Artifact names on the owning Technical Diagram, not generated SQL", () => {
+		expect(SEARCH_EXCLUDED_KINDS).toEqual([
+			RECORD_DISCOVERY_COPY.captureInboxItem,
+			RECORD_DISCOVERY_COPY.draft,
+			RECORD_DISCOVERY_COPY.externalSurface,
+			RECORD_DISCOVERY_COPY.githubExternalRecord,
+		]);
+		expect(SEARCH_SECRET_FIELDS).toEqual([
+			RECORD_DISCOVERY_COPY.secret,
+			RECORD_DISCOVERY_COPY.shareToken,
+			RECORD_DISCOVERY_COPY.linkPassword,
+		]);
+		const sql = "CREATE TABLE north_star_secret_schema (id uuid);";
+		const index = loadSearchIndexFromRows({
+			fileAttachments: [],
+			technicalDiagrams: [
+				{
+					archived: false,
+					generatedSql: sql,
+					id: "diagram-1",
+					projectId: OPEN,
+					title: "Payments schema",
+					trashedAt: null,
+					updatedAt: new Date(2000),
+					userFacingNames: ["north star migration"],
+				},
+			],
+			works: [
+				{
+					archived: false,
+					closureResult: null,
+					description: "Body without the term",
+					id: "work-ok",
+					key: "ATL-1",
+					projectId: OPEN,
+					status: "In Progress",
+					title: "North star mapped",
+					trashedAt: null,
+					updatedAt: new Date(1000),
+				},
+			],
+		});
+		expect(index.map((row) => row.id)).toEqual(
+			expect.arrayContaining(["diagram-1", "work-ok"])
+		);
+		expect(index).toHaveLength(2);
+		expect(JSON.stringify(index)).not.toContain(sql);
+		expect(ids(index)).toEqual(["work-ok", "diagram-1"]);
+		expect(ids(index, { text: "north star migration" })).toEqual(["diagram-1"]);
+		expect(ids(index, { text: sql })).toEqual([]);
+		expect(JSON.stringify(search(index).hits)).not.toMatch(EXCLUDED_ROW_IDS);
 	});
 });
 

@@ -30,6 +30,7 @@ model Project {
   priorityMapPresentation         ProjectPriorityMapPresentation?
   prioritizationSessions          PrioritizationSession[]
   fileAttachments                 FileAttachment[]
+  documents                       Document[]
   workContextCardLayouts          ProjectWorkContextLayout[]
   workTemplates                   WorkTemplate[]
   recordActions                   RecordAction[]

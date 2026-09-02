@@ -578,6 +578,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yetkili kayıt ara | `Type to search authorized records.` | Boş sorgu yönlendirmesi |
 | Eşleşen kayıt yok | `No matching records.` | Süzgecin yetkili sonuç döndürmediği durum |
 | Arama kullanılamıyor | `Search is unavailable.` | Arama yüzeyinin yüklenemediği durum |
+| Yakalama Gelen Kutusu öğesi | `Capture Inbox item` | Henüz ana kayda dönüşmemiş geçici girdi; Evrensel Arama sonucu değildir |
+| GitHub dış kaydı | `GitHub external record` | GitHub kaynak kimliğini taşıyan salt okunur Proje ana kaydı; Evrensel Arama sonucu değildir |
+| Secret | `Secret` | Kapalı alandan gelen gizli değer; arama, export, paylaşım ve yayın kapsamına girmez |
+| Paylaşım token'ı | `Share token` | Dış yüzey erişim anahtarı; Evrensel Arama indeksine girmez |
+| Bağlantı parolası | `Link password` | Bağlantıyla sınırlı paylaşım parolası; Evrensel Arama indeksine girmez |
 | Proje geçişi | `Switch Project` | Palette ve görünür menüden yetkili Projeler arasında geçiş |
 | Oluştur | `Create` | Palette ve görünür menüden yetkili kapsamda desteklenen kayıt oluşturma |
 | Aç | `Open` | Palette yetkili ana kayda atlama |

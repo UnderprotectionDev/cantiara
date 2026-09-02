@@ -13,6 +13,7 @@ export const SEARCH_RECORD_KINDS = [
 	RECORD_DISCOVERY_COPY.work,
 	RECORD_DISCOVERY_COPY.document,
 	RECORD_DISCOVERY_COPY.fileAttachment,
+	RECORD_DISCOVERY_COPY.technicalDiagram,
 ] as const;
 
 export type SearchRecordKind = string;
@@ -56,6 +57,7 @@ const INDEX_MEMBER_TYPES: Record<PreparedIndexLabel, readonly string[]> = {
 		RECORD_DISCOVERY_COPY.projectWall,
 	],
 	[RECORD_DISCOVERY_COPY.allTechnicalDiagrams]: [
+		RECORD_DISCOVERY_COPY.technicalDiagram,
 		RECORD_DISCOVERY_COPY.technicalArchitecture,
 		RECORD_DISCOVERY_COPY.dataModel,
 		RECORD_DISCOVERY_COPY.technicalSequence,
@@ -66,6 +68,23 @@ const INDEX_MEMBER_TYPES: Record<PreparedIndexLabel, readonly string[]> = {
 	[RECORD_DISCOVERY_COPY.allSources]: [RECORD_DISCOVERY_COPY.source],
 	[RECORD_DISCOVERY_COPY.allFiles]: [RECORD_DISCOVERY_COPY.fileAttachment],
 };
+
+export const SEARCH_EXCLUDED_KINDS = [
+	RECORD_DISCOVERY_COPY.captureInboxItem,
+	RECORD_DISCOVERY_COPY.draft,
+	RECORD_DISCOVERY_COPY.externalSurface,
+	RECORD_DISCOVERY_COPY.githubExternalRecord,
+] as const;
+
+export type SearchExcludedKind = (typeof SEARCH_EXCLUDED_KINDS)[number];
+
+export const SEARCH_SECRET_FIELDS = [
+	RECORD_DISCOVERY_COPY.secret,
+	RECORD_DISCOVERY_COPY.shareToken,
+	RECORD_DISCOVERY_COPY.linkPassword,
+] as const;
+
+export type SearchSecretField = (typeof SEARCH_SECRET_FIELDS)[number];
 
 export const SEARCH_SCOPES = [
 	RECORD_DISCOVERY_COPY.project,
@@ -89,7 +108,7 @@ export interface SearchIndexRecord {
 	folder: string | null;
 	id: string;
 	key: string | null;
-	kind: SearchRecordKind;
+	kind: SearchRecordKind | SearchExcludedKind;
 	lifecycle: SearchLifecycle;
 	metadata: string;
 	projectId: string | null;
@@ -197,9 +216,12 @@ export function searchRecords(
 		})
 		.sort((left, right) => compareHits(left, right, query.openProjectId));
 	return {
-		hits: ranked.map(({ matchPlace, record }) =>
-			toHit(record, text, matchPlace)
-		),
+		hits: ranked.map(({ matchPlace, record }) => {
+			if (!isSearchIndexedKind(record.kind)) {
+				throw new Error("visible hit must be an indexed kind");
+			}
+			return toHit({ ...record, kind: record.kind }, text, matchPlace);
+		}),
 		includeArchived: query.includeArchived,
 		query: text,
 		surface: RECORD_DISCOVERY_COPY.search,
@@ -256,6 +278,12 @@ export function browsePreparedIndex(
 	};
 }
 
+export function isSearchIndexedKind(
+	kind: SearchRecordKind | SearchExcludedKind
+): kind is SearchRecordKind {
+	return (SEARCH_RECORD_KINDS as readonly string[]).includes(kind);
+}
+
 export function loadSearchIndexFromRows(input: {
 	fileAttachments: readonly {
 		folder?: string | null;
@@ -266,6 +294,17 @@ export function loadSearchIndexFromRows(input: {
 		title: string;
 		updatedAt: Date;
 		versions: readonly { filename: string }[];
+	}[];
+	technicalDiagrams?: readonly {
+		archived: boolean;
+		authorized?: boolean;
+		generatedSql: string;
+		id: string;
+		projectId: string;
+		title: string;
+		trashedAt: Date | null;
+		updatedAt: Date;
+		userFacingNames: readonly string[];
 	}[];
 	works: readonly {
 		archived: boolean;
@@ -331,7 +370,32 @@ export function loadSearchIndexFromRows(input: {
 			updatedAt: file.updatedAt.getTime(),
 		} satisfies SearchIndexRecord;
 	});
-	return [...works, ...files];
+	const diagrams = (input.technicalDiagrams ?? []).map((diagram) => {
+		const { archived } = diagram;
+		return {
+			archived,
+			authorized: diagram.authorized ?? true,
+			body: "",
+			closureResult: null,
+			diagramAuthorityMode: null,
+			folder: null,
+			id: diagram.id,
+			key: null,
+			kind: RECORD_DISCOVERY_COPY.technicalDiagram,
+			lifecycle: archived ? ("archived" as const) : ("active" as const),
+			metadata: diagram.userFacingNames.join("\n"),
+			projectId: diagram.projectId,
+			recordType: RECORD_DISCOVERY_COPY.technicalDiagram,
+			scope: RECORD_DISCOVERY_COPY.project,
+			status: archived ? RECORD_DISCOVERY_COPY.archived : "Active",
+			title: diagram.title,
+			trashed: diagram.trashedAt !== null,
+			updatedAt: diagram.updatedAt.getTime(),
+		} satisfies SearchIndexRecord;
+	});
+	return [...works, ...files, ...diagrams].filter((record) =>
+		isSearchIndexedKind(record.kind)
+	);
 }
 
 function isIndexMember(
@@ -403,6 +467,9 @@ function isVisibleHit(
 	includeArchived: boolean,
 	text: string
 ): boolean {
+	if (!isSearchIndexedKind(record.kind)) {
+		return false;
+	}
 	if (!record.authorized || record.trashed) {
 		return false;
 	}
@@ -534,7 +601,7 @@ function sourceFieldFor(
 }
 
 function toHit(
-	record: SearchIndexRecord,
+	record: SearchIndexRecord & { kind: SearchRecordKind },
 	text: string,
 	matchPlace: SearchMatchPlace
 ): SearchHit {
