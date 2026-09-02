@@ -13,6 +13,9 @@ test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.changeStatus).toBe("Change status");
 	expect(DOCUMENTS_COPY.close).toBe("Close");
 	expect(DOCUMENTS_COPY.openSourceRecord).toBe("Open source record");
+	expect(DOCUMENTS_COPY.importedIndependentCopy).toBe(
+		"Imported Independent Copy"
+	);
 	expect(DOCUMENTS_COPY.readOnlyLiveSection).toBe("Read-only live section");
 	expect(DOCUMENTS_COPY.pinEvidence).toBe("Version-pinned evidence");
 	expect(DOCUMENTS_COPY.convertToRecord).toBe("Convert to record");

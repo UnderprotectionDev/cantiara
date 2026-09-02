@@ -8,13 +8,17 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
-import { DOCUMENTS_COPY } from "../forms/documents-copy";
+import {
+	CONVERT_RECORD_KINDS,
+	type ConvertRecordKind,
+	DOCUMENTS_COPY,
+} from "../forms/documents-copy";
 
 const LIVE_SECTION_SOURCE_SPLIT = /\s+/;
 
@@ -33,7 +37,9 @@ export default function DocumentConvertPanel({
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [error, setError] = useState<string | null>(null);
+	const [recordKind, setRecordKind] = useState<ConvertRecordKind>("Work");
 	const [selection, setSelection] = useState("");
+	const [includedTitles, setIncludedTitles] = useState<readonly string[]>([]);
 	const [workId, setWorkId] = useState("");
 	const [sectionRef, setSectionRef] = useState("");
 	const works = useQuery({
@@ -46,6 +52,12 @@ export default function DocumentConvertPanel({
 	const onSelectionChange = useCallback(
 		(event: ChangeEvent<HTMLTextAreaElement>) => {
 			setSelection(event.target.value);
+		},
+		[]
+	);
+	const onRecordKindChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			setRecordKind(event.target.value as ConvertRecordKind);
 		},
 		[]
 	);
@@ -79,7 +91,7 @@ export default function DocumentConvertPanel({
 			input: {
 				documentId,
 				projectId: projectId ?? "",
-				recordKind: "Work",
+				recordKind,
 				selectedText: selection,
 			},
 		}),
@@ -164,7 +176,7 @@ export default function DocumentConvertPanel({
 						documentId,
 						previewFingerprint: previewed.preview.fingerprint,
 						projectId,
-						recordKind: "Work",
+						recordKind,
 						selectedText: selection,
 					},
 					previewAcknowledged: true,
@@ -178,6 +190,7 @@ export default function DocumentConvertPanel({
 			markUnsaved,
 			previewSelection.data,
 			projectId,
+			recordKind,
 			revision,
 			selection,
 		]
@@ -189,13 +202,20 @@ export default function DocumentConvertPanel({
 			if (previewed?.status !== "ok" || !projectId) {
 				return;
 			}
+			const candidates = previewed.preview.candidates.map((candidate) => ({
+				...candidate,
+				include: includedTitles.includes(candidate.title),
+			}));
+			if (!candidates.some((candidate) => candidate.include)) {
+				return;
+			}
 			markUnsaved();
 			attemptOnlineWork("record-create", () =>
 				convertList.mutateAsync({
 					baseRevision: revision,
 					idempotencyKey: newIdempotencyKey(),
 					payload: {
-						candidates: previewed.preview.candidates,
+						candidates,
 						documentId,
 						previewFingerprint: previewed.preview.fingerprint,
 						projectId,
@@ -209,12 +229,34 @@ export default function DocumentConvertPanel({
 			attemptOnlineWork,
 			convertList,
 			documentId,
+			includedTitles,
 			markUnsaved,
 			previewList.data,
 			projectId,
 			revision,
 			selection,
 		]
+	);
+	useEffect(() => {
+		if (previewList.data?.status !== "ok") {
+			setIncludedTitles([]);
+			return;
+		}
+		setIncludedTitles(
+			previewList.data.preview.candidates.map((candidate) => candidate.title)
+		);
+	}, [previewList.data]);
+	const onToggleCandidate = useCallback(
+		(event: ChangeEvent<HTMLInputElement>) => {
+			const { checked, value: title } = event.target;
+			setIncludedTitles((current) => {
+				if (checked) {
+					return current.includes(title) ? current : [...current, title];
+				}
+				return current.filter((item) => item !== title);
+			});
+		},
+		[]
 	);
 	const onPin = useCallback(
 		(event: FormEvent) => {
@@ -261,13 +303,35 @@ export default function DocumentConvertPanel({
 						value={selection}
 					/>
 				</Field>
+				<Field>
+					<FieldLabel htmlFor="convert-record-kind">
+						{DOCUMENTS_COPY.type}
+					</FieldLabel>
+					<NativeSelect
+						id="convert-record-kind"
+						onChange={onRecordKindChange}
+						value={recordKind}
+					>
+						{CONVERT_RECORD_KINDS.map((kind) => (
+							<NativeSelectOption key={kind} value={kind}>
+								{kind}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</Field>
 			</FieldGroup>
 			{previewSelection.data?.status === "ok" ? (
 				<form className="flex flex-col gap-2" onSubmit={onConvertRecord}>
 					<p>
 						{previewSelection.data.preview.label}:{" "}
 						{previewSelection.data.preview.title} ·{" "}
-						{previewSelection.data.preview.recordKind}
+						{previewSelection.data.preview.recordKind} ·{" "}
+						{previewSelection.data.preview.bind} ·{" "}
+						{previewSelection.data.preview.versionPinnedEvidence}
+					</p>
+					<p>
+						{previewSelection.data.preview.versionPinnedEvidence} ≠{" "}
+						{DOCUMENTS_COPY.readOnlyLiveSection}
 					</p>
 					<Button type="submit">{DOCUMENTS_COPY.convertToRecord}</Button>
 				</form>
@@ -278,7 +342,15 @@ export default function DocumentConvertPanel({
 					<ul>
 						{previewList.data.preview.candidates.map((candidate) => (
 							<li key={candidate.title}>
-								{candidate.title} · {candidate.type}
+								<label className="flex items-center gap-2">
+									<input
+										checked={includedTitles.includes(candidate.title)}
+										onChange={onToggleCandidate}
+										type="checkbox"
+										value={candidate.title}
+									/>
+									{candidate.title} · {candidate.type}
+								</label>
 							</li>
 						))}
 					</ul>

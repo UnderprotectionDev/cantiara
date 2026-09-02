@@ -9,6 +9,23 @@ export const DOCUMENT_TYPES = [
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
+export const CONVERT_RECORD_KINDS = [
+	"Work",
+	"Decision",
+	"Risk",
+	"Assumption",
+	"Open Question",
+] as const;
+
+export type ConvertRecordKind = (typeof CONVERT_RECORD_KINDS)[number];
+
+export const ORIGINAL_MERMAID_OUTCOMES = [
+	"independent",
+	"live-reference",
+] as const;
+
+export type OriginalMermaidOutcome = (typeof ORIGINAL_MERMAID_OUTCOMES)[number];
+
 export const DOCUMENTS_COPY = {
 	body: "Body",
 	changeStatus: "Change status",

@@ -25,6 +25,8 @@ import {
 	DOCUMENTS_COPY,
 	type DocumentType,
 	documentScopeFor,
+	ORIGINAL_MERMAID_OUTCOMES,
+	type OriginalMermaidOutcome,
 } from "../forms/documents-copy";
 import DocumentBodyView, { type DocumentBodyBlock } from "./document-body";
 import DocumentConvertPanel from "./document-convert-panel";
@@ -41,6 +43,9 @@ export default function DocumentDetail({
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [body, setBody] = useState("");
 	const [error, setError] = useState<string | null>(null);
+	const [mermaidSource, setMermaidSource] = useState<string | null>(null);
+	const [originalBlockOutcome, setOriginalBlockOutcome] =
+		useState<OriginalMermaidOutcome>("independent");
 	const [title, setTitle] = useState("");
 	const [type, setType] = useState<DocumentType>("General");
 	const selected = useQuery(
@@ -114,6 +119,17 @@ export default function DocumentDetail({
 		},
 		[markUnsaved]
 	);
+	const mermaidPreview = useQuery({
+		...orpc.documents.previewConvertMermaid.queryOptions({
+			input: {
+				blockSource: mermaidSource ?? "",
+				documentId,
+				originalBlockOutcome,
+				targetType: "Technical Architecture",
+			},
+		}),
+		enabled: Boolean(selected.data && mermaidSource),
+	});
 	const convertMermaid = useMutation(
 		orpc.documents.convertMermaid.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -128,46 +144,54 @@ export default function DocumentDetail({
 					});
 					recordSave();
 					setError(null);
+					setMermaidSource(null);
 				}
 			},
 		})
 	);
-	const onConvertMermaid = useCallback(
-		(source: string) => {
-			if (!selected.data) {
+	const onConvertMermaid = useCallback((source: string) => {
+		setOriginalBlockOutcome("independent");
+		setMermaidSource(source);
+	}, []);
+	const onOriginalOutcomeChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			setOriginalBlockOutcome(event.target.value as OriginalMermaidOutcome);
+		},
+		[]
+	);
+	const onApplyMermaid = useCallback(
+		(event: FormEvent) => {
+			event.preventDefault();
+			const previewed = mermaidPreview.data;
+			if (!(selected.data && mermaidSource && previewed?.status === "ok")) {
 				return;
 			}
 			markUnsaved();
-			attemptOnlineWork("record-create", async () => {
-				const previewed = await queryClient.fetchQuery(
-					orpc.documents.previewConvertMermaid.queryOptions({
-						input: {
-							blockSource: source,
-							documentId,
-							originalBlockOutcome: "live-reference",
-							targetType: "Technical Architecture",
-						},
-					})
-				);
-				if (previewed.status !== "ok") {
-					setError(previewed.reason);
-					return;
-				}
-				await convertMermaid.mutateAsync({
+			attemptOnlineWork("record-create", () =>
+				convertMermaid.mutateAsync({
 					baseRevision: selected.data.revision,
 					idempotencyKey: newIdempotencyKey(),
 					payload: {
-						blockSource: source,
+						blockSource: mermaidSource,
 						documentId,
-						originalBlockOutcome: "live-reference",
+						originalBlockOutcome,
 						previewFingerprint: previewed.preview.fingerprint,
 						targetType: "Technical Architecture",
 					},
 					previewAcknowledged: true,
-				});
-			});
+				})
+			);
 		},
-		[attemptOnlineWork, convertMermaid, documentId, markUnsaved, selected.data]
+		[
+			attemptOnlineWork,
+			convertMermaid,
+			documentId,
+			markUnsaved,
+			mermaidPreview.data,
+			mermaidSource,
+			originalBlockOutcome,
+			selected.data,
+		]
 	);
 	const onOpenLiveSource = useCallback(
 		(id: string, kind: string) => {
@@ -271,6 +295,44 @@ export default function DocumentDetail({
 						revision={selected.data.revision}
 					/>
 				</div>
+				{mermaidPreview.data?.status === "ok" ? (
+					<form
+						className="mt-6 flex flex-col gap-2 border border-input p-3"
+						onSubmit={onApplyMermaid}
+					>
+						<p>{mermaidPreview.data.preview.label}</p>
+						<p>
+							{DOCUMENTS_COPY.document} {mermaidPreview.data.preview.documentId}{" "}
+							· {mermaidPreview.data.preview.documentRevision}
+						</p>
+						<p>{mermaidPreview.data.preview.blockLocation}</p>
+						<p>
+							{mermaidPreview.data.preview.targetType} ·{" "}
+							{mermaidPreview.data.preview.origin} ·{" "}
+							{mermaidPreview.data.preview.authorityMode}
+						</p>
+						{mermaidPreview.data.preview.unparseableItems.length > 0 ? (
+							<ul>
+								{mermaidPreview.data.preview.unparseableItems.map((item) => (
+									<li key={item}>{item}</li>
+								))}
+							</ul>
+						) : null}
+						<NativeSelect
+							onChange={onOriginalOutcomeChange}
+							value={originalBlockOutcome}
+						>
+							{ORIGINAL_MERMAID_OUTCOMES.map((outcome) => (
+								<NativeSelectOption key={outcome} value={outcome}>
+									{outcome}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+						<Button type="submit">
+							{DOCUMENTS_COPY.convertToTechnicalDiagram}
+						</Button>
+					</form>
+				) : null}
 				<div className="mt-6">
 					<DocumentBodyView
 						blocks={blocks}
