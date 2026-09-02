@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 describe("Document disconnect and reconnect", () => {
-	it("stops edits after the in-memory buffer and offers Copy and Download without a queue", () => {
+	it("stops edits after the in-memory buffer and offers Copy and Download", () => {
 		const presented = presentDocumentDisconnect({
 			connected: false,
 			session,
@@ -36,14 +36,13 @@ describe("Document disconnect and reconnect", () => {
 			filename: "Payments-spec.md",
 			lastSuccessfulSaveAt: session.lastSuccessfulSaveAt,
 			markdown: "unsaved buffer",
-			queuedWrites: [],
 		});
 		expect(DOCUMENTS_COPY.copy).toBe("Copy");
 		expect(DOCUMENTS_COPY.download).toBe("Download");
 		expect(DOCUMENTS_COPY.conflictDraft).toBe("Conflict Draft");
 	});
 
-	it("reconnects with one save against the last base revision and does not enqueue writes", () => {
+	it("reconnects with one save against the last base revision", () => {
 		rememberDocumentEditorSession(session);
 		expect(getDocumentEditorSession()).toEqual(session);
 		expect(
@@ -62,11 +61,11 @@ describe("Document disconnect and reconnect", () => {
 			status: "attempt",
 		});
 		expect(
-			presentDocumentDisconnect({
+			presentReconnectSave({
 				connected: true,
-				session,
-			}).queuedWrites
-		).toEqual([]);
+				session: getDocumentEditorSession(),
+			}).status
+		).toBe("attempt");
 		expect(recoveryFilename("Payments spec")).toBe("Payments-spec.md");
 	});
 });

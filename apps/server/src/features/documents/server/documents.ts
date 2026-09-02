@@ -27,10 +27,12 @@ import {
 	type ConvertDocumentToTemplatePreviewOutcome,
 	type CreateDocumentCommand,
 	type CreateDocumentFolderCommand,
+	type CreateDocumentFromConflictDraftCommand,
 	type CreateDocumentTemplateCommand,
 	convertDocumentToTemplateCommandSchema,
 	createDocumentCommandSchema,
 	createDocumentFolderCommandSchema,
+	createDocumentFromConflictDraftCommandSchema,
 	createDocumentTemplateCommandSchema,
 	type DeleteConflictDraftCommand,
 	DOCUMENT_MAX_DEPTH,
@@ -74,10 +76,7 @@ import {
 	type RestoreDocumentCommand,
 	resolveInDocTags,
 	restoreDocumentCommandSchema,
-	type SpawnDocumentFromConflictDraftCommand,
-	type SpawnDocumentFromConflictDraftOutcome,
 	type StarterSkeletonDocumentsOutcome,
-	spawnDocumentFromConflictDraftCommandSchema,
 	type UpdateDocumentCommand,
 	type UpdateDocumentTemplateCommand,
 	updateDocumentCommandSchema,
@@ -253,11 +252,12 @@ export async function applyConflictDraft(
 	);
 }
 
-export async function spawnDocumentFromConflictDraft(
+export async function createDocumentFromConflictDraft(
 	prisma: PrismaClient,
 	command: unknown
-): Promise<SpawnDocumentFromConflictDraftOutcome> {
-	const parsed = spawnDocumentFromConflictDraftCommandSchema.safeParse(command);
+): Promise<DocumentConflictDraftWriteOutcome> {
+	const parsed =
+		createDocumentFromConflictDraftCommandSchema.safeParse(command);
 	if (!parsed.success) {
 		return { reason: "invalid-command", status: "rejected" };
 	}
@@ -271,7 +271,7 @@ export async function spawnDocumentFromConflictDraft(
 		parsed.data.idempotencyKey
 	);
 	return await prisma.$transaction((tx) =>
-		spawnFromConflictDraftInTransaction(
+		createDocumentFromConflictDraftInTransaction(
 			tx,
 			parsed.data,
 			commandKey,
@@ -1340,13 +1340,13 @@ async function applyConflictDraftInTransaction(
 	return { document: view, status: "committed" };
 }
 
-async function spawnFromConflictDraftInTransaction(
+async function createDocumentFromConflictDraftInTransaction(
 	tx: PrismaTransaction,
-	command: SpawnDocumentFromConflictDraftCommand,
+	command: CreateDocumentFromConflictDraftCommand,
 	commandKey: string,
 	fingerprint: string,
 	title: string
-): Promise<SpawnDocumentFromConflictDraftOutcome> {
+): Promise<DocumentConflictDraftWriteOutcome> {
 	await lockWorkspace(tx, command.workspaceId);
 	const replayed = await replayResolvedDraft(tx, commandKey, fingerprint);
 	if (replayed) {

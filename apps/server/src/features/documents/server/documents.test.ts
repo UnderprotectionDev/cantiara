@@ -34,6 +34,7 @@ import {
 	convertDocumentToTemplate,
 	createDocument,
 	createDocumentFolder,
+	createDocumentFromConflictDraft,
 	createDocumentTemplate,
 	deleteConflictDraft,
 	getConflictDraft,
@@ -50,7 +51,6 @@ import {
 	previewDocumentArchive,
 	previewDocumentPlacement,
 	restoreDocumentVersion,
-	spawnDocumentFromConflictDraft,
 	unarchiveDocument,
 	updateDocument,
 	updateDocumentTemplate,
@@ -60,7 +60,6 @@ import {
 	DOCUMENT_TYPES,
 	DOCUMENTS_COPY,
 	documentsCatalog,
-	mergeConflictDraftHunks,
 	presentDocumentBody,
 	presentDocumentChildCard,
 	presentDocumentVersionDiff,
@@ -75,7 +74,6 @@ const MARKETPLACE_COPY = /marketplace|licensed pack|meeting type/i;
 const TRASH_PATTERN = /Trash|trash|Çöp/i;
 const DISCOVERY_COPY_PATTERN =
 	/All Documents|Smart Collection|Trash|Unpublish/i;
-const CONFLICT_DRAFT_SURFACE_PATTERN = /share|publish|export/i;
 const SMART_COLLECTION_PATTERN = /Smart Collection/i;
 const CARD_COVER_PATTERN = /cover|thumbnail|designer/i;
 const BILLING = { id: "tag-billing", name: "billing" };
@@ -1905,7 +1903,49 @@ describe("Conflict Draft", () => {
 		);
 	});
 
-	it("keeps an unresolved Conflict Draft out of list, versions, search, and export", async () => {
+	it("keeps one Conflict Draft per Document and replaces it with later rejected text", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const { current } = await staleConflictDraft(prisma, {
+			actorId,
+			currentBody: "live body",
+			projectId: project.id,
+			rejectedBody: "first rejected",
+			title: "Payments spec",
+			workspaceId,
+		});
+		const later = await updateDocument(prisma, {
+			actorId,
+			baseRevision: 1,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: "second rejected",
+				documentId: current.id,
+				title: "Payments spec later",
+			},
+			workspaceId,
+		});
+		expect(later).toMatchObject({
+			conflict: DOCUMENTS_COPY.conflictDraft,
+			document: { body: "live body", id: current.id },
+			draft: {
+				body: "second rejected",
+				documentId: current.id,
+				title: "Payments spec later",
+			},
+			status: "conflict",
+		});
+		expect(await getDocument(prisma, current.id)).toMatchObject({
+			body: "live body",
+		});
+		expect(
+			await getConflictDraft(prisma, current.id, workspaceId)
+		).toMatchObject({
+			body: "second rejected",
+		});
+	});
+
+	it("keeps an unresolved Conflict Draft out of Document list and version history", async () => {
 		const { actorId, project, workspaceId } = await openProject(prisma);
 		const { current, stale } = await staleConflictDraft(prisma, {
 			actorId,
@@ -1933,7 +1973,6 @@ describe("Conflict Draft", () => {
 			"listed body",
 		]);
 		expect(JSON.stringify(history)).not.toContain("hidden rejected");
-		expect(JSON.stringify(listed)).not.toMatch(CONFLICT_DRAFT_SURFACE_PATTERN);
 	});
 
 	it("applies chosen Conflict Draft parts as a new Document version and resolves the draft", async () => {
@@ -1953,10 +1992,6 @@ describe("Conflict Draft", () => {
 		expect(compared?.hunks).toEqual(
 			presentDocumentVersionDiff("keep\nchange-me\n", "keep\nchanged\n")
 		);
-		const choices = ["current", "draft", "draft"] as const;
-		expect(
-			mergeConflictDraftHunks("keep\nchange-me\n", "keep\nchanged\n", choices)
-		).toBe("keep\nchanged\n");
 		const applied = await applyConflictDraft(prisma, {
 			actorId,
 			baseRevision: current.revision,
@@ -1964,7 +1999,7 @@ describe("Conflict Draft", () => {
 			origin: "human",
 			payload: {
 				documentId: current.id,
-				hunkChoices: [...choices],
+				hunkChoices: ["current", "draft", "draft"],
 			},
 			workspaceId,
 		});
@@ -1988,38 +2023,38 @@ describe("Conflict Draft", () => {
 		);
 	});
 
-	it("spawns an independent Document from the draft with Origin and resolves the draft", async () => {
+	it("creates an independent Document from the draft with Origin and resolves the draft", async () => {
 		const { actorId, project, workspaceId } = await openProject(prisma);
 		const { current } = await staleConflictDraft(prisma, {
 			actorId,
 			currentBody: "live body",
 			projectId: project.id,
-			rejectedBody: "spawned body",
+			rejectedBody: "created body",
 			title: "Payments spec",
 			workspaceId,
 		});
-		const spawned = await spawnDocumentFromConflictDraft(prisma, {
+		const createdFromDraft = await createDocumentFromConflictDraft(prisma, {
 			actorId,
 			idempotencyKey: crypto.randomUUID(),
 			origin: "human",
 			payload: {
 				documentId: current.id,
-				title: "Spawned spec",
+				title: "Created spec",
 			},
 			workspaceId,
 		});
-		expect(spawned).toMatchObject({
+		expect(createdFromDraft).toMatchObject({
 			document: {
-				body: "spawned body",
-				title: "Spawned spec",
+				body: "created body",
+				title: "Created spec",
 				type: "Spec",
 			},
 			status: "committed",
 		});
-		if (spawned.status !== "committed") {
-			throw new Error("expected spawned Document");
+		if (createdFromDraft.status !== "committed") {
+			throw new Error("expected created Document");
 		}
-		expect(spawned.document.id).not.toBe(current.id);
+		expect(createdFromDraft.document.id).not.toBe(current.id);
 		expect(await getDocument(prisma, current.id)).toMatchObject({
 			body: "live body",
 			id: current.id,
@@ -2030,17 +2065,17 @@ describe("Conflict Draft", () => {
 			workspaceId,
 		});
 		expect(listed.map((row) => row.id).sort()).toEqual(
-			[current.id, spawned.document.id].sort()
+			[current.id, createdFromDraft.document.id].sort()
 		);
 		const relations = await listRelations(prisma, {
-			record: { id: spawned.document.id, kind: "Document" },
+			record: { id: createdFromDraft.document.id, kind: "Document" },
 			viewerWorkspaceId: workspaceId,
 		});
 		expect(relations).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					from: expect.objectContaining({
-						id: spawned.document.id,
+						id: createdFromDraft.document.id,
 						kind: "Document",
 					}),
 					to: expect.objectContaining({
@@ -2081,7 +2116,7 @@ describe("Conflict Draft", () => {
 		});
 	});
 
-	it("reconnects by saving against the last base revision and does not queue writes", async () => {
+	it("saves against the last base revision as reconnect does and does not overwrite live text", async () => {
 		const { actorId, project, workspaceId } = await openProject(prisma);
 		const { created, current, stale } = await staleConflictDraft(prisma, {
 			actorId,

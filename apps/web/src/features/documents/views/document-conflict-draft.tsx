@@ -10,6 +10,8 @@ import { orpc, queryClient } from "@/utils/orpc";
 
 import { DOCUMENTS_COPY, documentScopeFor } from "../forms/documents-copy";
 
+type HunkChoice = "current" | "draft";
+
 export default function DocumentConflictDraftPanel({
 	documentId,
 	projectId,
@@ -19,9 +21,9 @@ export default function DocumentConflictDraftPanel({
 	projectId: string | null;
 	revision: number;
 }) {
-	const [choices, setChoices] = useState<("current" | "draft")[]>([]);
+	const [choices, setChoices] = useState<(HunkChoice | null)[]>([]);
+	const [createTitle, setCreateTitle] = useState("");
 	const [error, setError] = useState<string | null>(null);
-	const [spawnTitle, setSpawnTitle] = useState("");
 	const compared = useQuery(
 		orpc.documents.compareConflictDraft.queryOptions({
 			input: { documentId },
@@ -34,9 +36,9 @@ export default function DocumentConflictDraftPanel({
 			return;
 		}
 		setChoices(
-			hunks.map((hunk) => (hunk.kind === "unchanged" ? "current" : "draft"))
+			hunks.map((hunk) => (hunk.kind === "unchanged" ? "current" : null))
 		);
-		setSpawnTitle(compared.data?.draft.title ?? "");
+		setCreateTitle(compared.data?.draft.title ?? "");
 	}, [compared.data]);
 
 	const invalidate = useCallback(async () => {
@@ -63,69 +65,70 @@ export default function DocumentConflictDraftPanel({
 		});
 	}, [documentId, projectId]);
 
+	const onOutcome = useCallback(
+		async (outcome: {
+			reason?: string;
+			status: "committed" | "conflict" | "rejected" | "replayed";
+		}) => {
+			if (outcome.status === "committed" || outcome.status === "replayed") {
+				await invalidate();
+				setError(null);
+				return;
+			}
+			if (outcome.status === "rejected") {
+				setError(outcome.reason ?? null);
+			}
+		},
+		[invalidate]
+	);
+
 	const apply = useMutation(
 		orpc.documents.applyConflictDraft.mutationOptions({
-			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidate();
-					setError(null);
-					return;
-				}
-				if (outcome.status === "rejected") {
-					setError(outcome.reason);
-				}
-			},
+			onSuccess: onOutcome,
 		})
 	);
-	const spawn = useMutation(
-		orpc.documents.spawnFromConflictDraft.mutationOptions({
-			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidate();
-					setError(null);
-					return;
-				}
-				if (outcome.status === "rejected") {
-					setError(outcome.reason);
-				}
-			},
+	const createFromDraft = useMutation(
+		orpc.documents.createFromConflictDraft.mutationOptions({
+			onSuccess: onOutcome,
 		})
 	);
 	const remove = useMutation(
 		orpc.documents.deleteConflictDraft.mutationOptions({
-			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await invalidate();
-					setError(null);
-					return;
-				}
-				if (outcome.status === "rejected") {
-					setError(outcome.reason);
-				}
-			},
+			onSuccess: onOutcome,
 		})
 	);
+
+	const hunksReady =
+		compared.data !== undefined &&
+		choices.length === compared.data.hunks.length &&
+		choices.every((choice) => choice !== null);
 
 	const onApply = useCallback(
 		(event: FormEvent) => {
 			event.preventDefault();
+			if (!hunksReady) {
+				return;
+			}
 			apply.mutate({
 				baseRevision: revision,
 				idempotencyKey: newIdempotencyKey(),
-				payload: { documentId, hunkChoices: choices },
+				payload: {
+					documentId,
+					hunkChoices: choices as HunkChoice[],
+				},
 			});
 		},
-		[apply, choices, documentId, revision]
+		[apply, choices, documentId, hunksReady, revision]
 	);
-	const onSpawn = useCallback(
+	const onCreate = useCallback(
 		(event: FormEvent) => {
 			event.preventDefault();
-			spawn.mutate({
+			createFromDraft.mutate({
 				idempotencyKey: newIdempotencyKey(),
-				payload: { documentId, title: spawnTitle },
+				payload: { documentId, title: createTitle },
 			});
 		},
-		[documentId, spawn, spawnTitle]
+		[createFromDraft, createTitle, documentId]
 	);
 	const onDelete = useCallback(() => {
 		remove.mutate({
@@ -133,10 +136,10 @@ export default function DocumentConflictDraftPanel({
 			payload: { documentId },
 		});
 	}, [documentId, remove]);
-	const onSpawnTitle = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-		setSpawnTitle(event.target.value);
+	const onCreateTitle = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+		setCreateTitle(event.target.value);
 	}, []);
-	const onChoice = useCallback((index: number, value: "current" | "draft") => {
+	const onChoice = useCallback((index: number, value: HunkChoice) => {
 		setChoices((current) =>
 			current.map((choice, choiceIndex) =>
 				choiceIndex === index ? value : choice
@@ -156,7 +159,7 @@ export default function DocumentConflictDraftPanel({
 			<pre className="overflow-x-auto whitespace-pre-wrap rounded-none border border-input p-3 font-mono text-xs">
 				{keyedHunks(compared.data.hunks).map((hunk) => (
 					<ConflictDraftHunk
-						choice={choices[hunk.index] ?? "draft"}
+						choice={choices[hunk.index] ?? null}
 						hunk={hunk}
 						key={hunk.key}
 						onChoice={onChoice}
@@ -165,18 +168,20 @@ export default function DocumentConflictDraftPanel({
 			</pre>
 			{error ? <p role="alert">{error}</p> : null}
 			<form className="mt-3 flex flex-col gap-3" onSubmit={onApply}>
-				<Button type="submit">{DOCUMENTS_COPY.apply}</Button>
+				<Button disabled={!hunksReady} type="submit">
+					{DOCUMENTS_COPY.apply}
+				</Button>
 			</form>
-			<form className="mt-3 flex flex-col gap-3" onSubmit={onSpawn}>
+			<form className="mt-3 flex flex-col gap-3" onSubmit={onCreate}>
 				<FieldGroup>
 					<Field>
-						<FieldLabel htmlFor="conflict-draft-spawn-title">
+						<FieldLabel htmlFor="conflict-draft-create-title">
 							{DOCUMENTS_COPY.title}
 						</FieldLabel>
 						<Input
-							id="conflict-draft-spawn-title"
-							onChange={onSpawnTitle}
-							value={spawnTitle}
+							id="conflict-draft-create-title"
+							onChange={onCreateTitle}
+							value={createTitle}
 						/>
 					</Field>
 				</FieldGroup>
@@ -194,28 +199,44 @@ function ConflictDraftHunk({
 	hunk,
 	onChoice,
 }: {
-	choice: "current" | "draft";
+	choice: HunkChoice | null;
 	hunk: {
 		index: number;
 		key: string;
 		kind: "added" | "removed" | "unchanged";
 		text: string;
 	};
-	onChoice: (index: number, value: "current" | "draft") => void;
+	onChoice: (index: number, value: HunkChoice) => void;
 }) {
-	const onToggle = useCallback(() => {
-		onChoice(hunk.index, choice === "draft" ? "current" : "draft");
-	}, [choice, hunk.index, onChoice]);
+	const onCurrent = useCallback(() => {
+		onChoice(hunk.index, "current");
+	}, [hunk.index, onChoice]);
+	const onDraft = useCallback(() => {
+		onChoice(hunk.index, "draft");
+	}, [hunk.index, onChoice]);
 	return (
 		<span className={hunkClassName(hunk.kind)}>
 			{hunkPrefix(hunk.kind)}
 			{hunk.text}
 			{hunk.kind === "unchanged" ? null : (
-				<button className="ml-2 underline" onClick={onToggle} type="button">
-					{choice === "draft"
-						? DOCUMENTS_COPY.conflictDraft
-						: DOCUMENTS_COPY.document}
-				</button>
+				<span className="ml-2 inline-flex gap-2">
+					<button
+						aria-pressed={choice === "current"}
+						className="underline"
+						onClick={onCurrent}
+						type="button"
+					>
+						{DOCUMENTS_COPY.document}
+					</button>
+					<button
+						aria-pressed={choice === "draft"}
+						className="underline"
+						onClick={onDraft}
+						type="button"
+					>
+						{DOCUMENTS_COPY.conflictDraft}
+					</button>
+				</span>
 			)}
 		</span>
 	);

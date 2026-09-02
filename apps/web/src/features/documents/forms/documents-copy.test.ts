@@ -20,6 +20,7 @@ test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.createFolder).toBe("Create folder");
 	expect(JSON.stringify(DOCUMENTS_COPY)).not.toMatch(DISCOVERY_COPY_PATTERN);
 	expect(DOCUMENTS_COPY.createDocument).toBe("Create Document");
+	expect(DOCUMENTS_COPY.createFromConflictDraft).toBe("Create Document");
 	expect(DOCUMENTS_COPY.documentTemplate).toBe("Document Template");
 	expect(DOCUMENTS_COPY.convertToTemplate).toBe("Convert to template");
 	expect(DOCUMENTS_COPY.createFromTemplate).toBe("Create from template");

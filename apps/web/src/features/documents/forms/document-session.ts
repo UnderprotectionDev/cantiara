@@ -35,7 +35,6 @@ export function presentDocumentDisconnect(input: {
 	filename: string | null;
 	lastSuccessfulSaveAt: Date | null;
 	markdown: string | null;
-	queuedWrites: readonly never[];
 } {
 	const { connected, session } = input;
 	if (connected || !session) {
@@ -46,7 +45,6 @@ export function presentDocumentDisconnect(input: {
 			filename: null,
 			lastSuccessfulSaveAt: session?.lastSuccessfulSaveAt ?? null,
 			markdown: null,
-			queuedWrites: [],
 		};
 	}
 	return {
@@ -56,7 +54,6 @@ export function presentDocumentDisconnect(input: {
 		filename: recoveryFilename(session.title),
 		lastSuccessfulSaveAt: session.lastSuccessfulSaveAt,
 		markdown: session.body,
-		queuedWrites: [],
 	};
 }
 

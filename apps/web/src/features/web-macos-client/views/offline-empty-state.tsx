@@ -1,17 +1,15 @@
-import { Button } from "@cantiara/ui/components/button";
 import {
 	Empty,
-	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
 } from "@cantiara/ui/components/empty";
-import { useCallback } from "react";
 
 import {
 	getDocumentEditorSession,
 	presentDocumentDisconnect,
 } from "@/features/documents/forms/document-session";
+import { DocumentRecoveryActions } from "@/features/documents/views/document-recovery-actions";
 
 import type { OfflineEmptyStateView } from "./client-shell";
 
@@ -46,43 +44,5 @@ export function OfflineEmptyState({ state }: { state: OfflineEmptyStateView }) {
 				/>
 			) : null}
 		</Empty>
-	);
-}
-
-function DocumentRecoveryActions({
-	copyLabel,
-	downloadLabel,
-	filename,
-	markdown,
-}: {
-	copyLabel: string;
-	downloadLabel: string;
-	filename: string;
-	markdown: string;
-}) {
-	const onCopy = useCallback(() => {
-		navigator.clipboard.writeText(markdown).catch(() => undefined);
-	}, [markdown]);
-	const onDownload = useCallback(() => {
-		const blob = new Blob([markdown], {
-			type: "text/markdown;charset=utf-8",
-		});
-		const url = URL.createObjectURL(blob);
-		const link = document.createElement("a");
-		link.download = filename;
-		link.href = url;
-		link.click();
-		URL.revokeObjectURL(url);
-	}, [filename, markdown]);
-
-	return (
-		<EmptyContent>
-			<Button onClick={onCopy} type="button">
-				{copyLabel}
-			</Button>
-			<Button onClick={onDownload} type="button">
-				{downloadLabel}
-			</Button>
-		</EmptyContent>
 	);
 }

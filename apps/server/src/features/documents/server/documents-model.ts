@@ -456,22 +456,22 @@ export type ApplyConflictDraftCommand = z.infer<
 	typeof applyConflictDraftCommandSchema
 >;
 
-export const spawnDocumentFromConflictDraftPayloadSchema = z.object({
+export const createDocumentFromConflictDraftPayloadSchema = z.object({
 	body: z.string().optional(),
 	documentId: z.string().min(1),
 	title: z.string().optional(),
 });
 
-export const spawnDocumentFromConflictDraftCommandSchema = z.object({
+export const createDocumentFromConflictDraftCommandSchema = z.object({
 	actorId: z.string().min(1),
 	idempotencyKey: z.string().min(1),
 	origin: z.literal("human"),
-	payload: spawnDocumentFromConflictDraftPayloadSchema,
+	payload: createDocumentFromConflictDraftPayloadSchema,
 	workspaceId: z.string().min(1),
 });
 
-export type SpawnDocumentFromConflictDraftCommand = z.infer<
-	typeof spawnDocumentFromConflictDraftCommandSchema
+export type CreateDocumentFromConflictDraftCommand = z.infer<
+	typeof createDocumentFromConflictDraftCommandSchema
 >;
 
 export const deleteConflictDraftPayloadSchema = z.object({
@@ -491,12 +491,6 @@ export type DeleteConflictDraftCommand = z.infer<
 >;
 
 export type DocumentConflictDraftWriteOutcome =
-	| { document: DocumentView; status: "committed" }
-	| { document: DocumentView; status: "replayed" }
-	| { reason: DocumentRejectionReason; status: "rejected" }
-	| { conflict: "Conflict"; status: "conflict" };
-
-export type SpawnDocumentFromConflictDraftOutcome =
 	| { document: DocumentView; status: "committed" }
 	| { document: DocumentView; status: "replayed" }
 	| { reason: DocumentRejectionReason; status: "rejected" }
