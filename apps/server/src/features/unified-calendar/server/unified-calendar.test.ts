@@ -323,6 +323,7 @@ describe("Unified Calendar catalog", () => {
 				kind: "Planned start",
 				projectId: SPAN_WORK.projectId,
 				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
 				title: SPAN_WORK.title,
 			},
 			{
@@ -332,6 +333,7 @@ describe("Unified Calendar catalog", () => {
 				kind: "Reappear date",
 				projectId: SPAN_WORK.projectId,
 				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
 				title: SPAN_WORK.title,
 			},
 			{
@@ -341,6 +343,7 @@ describe("Unified Calendar catalog", () => {
 				kind: "Target date",
 				projectId: SPAN_WORK.projectId,
 				projectName: SPAN_WORK.projectName,
+				revision: SPAN_WORK.revision,
 				title: SPAN_WORK.title,
 			},
 		]);
