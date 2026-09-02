@@ -76,6 +76,11 @@ export default function WorkArea({
 	const workTags = useQuery(
 		orpc.tags.listWorkTags.queryOptions({ input: { projectId } })
 	);
+	const notNowMarks = useQuery(
+		orpc.roadmapHorizon.notNowMarks.queryOptions({
+			input: { projectId },
+		})
+	);
 	const taggedRecords = useQuery({
 		...orpc.tags.listRecords.queryOptions({
 			input: { tagId: tagFilter },
@@ -186,6 +191,13 @@ export default function WorkArea({
 		}
 		return map;
 	}, [suggestions.data]);
+	const notNowByWorkId = useMemo(() => {
+		const map = new Map<string, string>();
+		for (const mark of notNowMarks.data ?? []) {
+			map.set(mark.workId, mark.reason);
+		}
+		return map;
+	}, [notNowMarks.data]);
 
 	const collection = preparedBacklog ? backlog : work;
 	if (collection.isLoading) {
@@ -237,6 +249,7 @@ export default function WorkArea({
 			</div>
 			<CreateFromTemplateForm onCreated={onCreated} projectId={projectId} />
 			<PrioritizationSessionArea
+				notNowByWorkId={notNowByWorkId}
 				projectId={projectId}
 				work={items.map((item) => ({ id: item.id, title: item.title }))}
 			/>
@@ -255,8 +268,8 @@ export default function WorkArea({
 			<WorkCollectionSurface
 				bulkSelectedIds={bulkSelectedIds}
 				configurationMode={configurationMode}
-				deferred={deferredItems}
-				items={items}
+				deferred={withNotNowReason(deferredItems, notNowByWorkId)}
+				items={withNotNowReason(items, notNowByWorkId)}
 				notifyOnReappearDate={
 					backlog.data?.reappearNotification.optedIn ?? false
 				}
@@ -605,4 +618,14 @@ function taggedBacklogRecords<
 				.map((tagId) => tagName.get(tagId))
 				.filter((name): name is string => Boolean(name)),
 		}));
+}
+
+function withNotNowReason<T extends { id: string }>(
+	records: T[],
+	notNowByWorkId: Map<string, string>
+) {
+	return records.map((item) => ({
+		...item,
+		notNowReason: notNowByWorkId.get(item.id) ?? null,
+	}));
 }

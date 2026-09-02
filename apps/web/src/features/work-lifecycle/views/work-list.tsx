@@ -3,6 +3,7 @@ import { cn } from "@cantiara/ui/lib/utils";
 import { type MouseEvent, useCallback } from "react";
 
 import { BULK_EDITING_COPY } from "@/features/bulk-editing/views/bulk-editing-copy";
+import NotNowMark from "@/features/roadmap-horizon/views/not-now-mark";
 
 import { WORK_LIFECYCLE_COPY } from "../forms/work-lifecycle-copy";
 
@@ -10,6 +11,7 @@ interface WorkListItemView {
 	closureResult?: string | null;
 	id: string;
 	key: string;
+	notNowReason?: string | null;
 	status: string;
 	tags?: string[];
 	title: string;
@@ -103,6 +105,7 @@ function WorkListItem({
 						{item.key}
 					</span>{" "}
 					{item.title}
+					<NotNowMark reason={item.notNowReason} />
 					{item.tags && item.tags.length > 0 ? (
 						<span className="text-muted-foreground">
 							{" "}

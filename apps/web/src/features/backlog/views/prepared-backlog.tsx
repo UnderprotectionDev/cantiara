@@ -19,6 +19,7 @@ import { useMutation } from "@tanstack/react-query";
 import { type ChangeEvent, type MouseEvent, useCallback } from "react";
 
 import { BULK_EDITING_COPY } from "@/features/bulk-editing/views/bulk-editing-copy";
+import NotNowMark from "@/features/roadmap-horizon/views/not-now-mark";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { invalidateWork } from "@/features/work-lifecycle/forms/invalidate-work";
 import { WORK_LIFECYCLE_COPY } from "@/features/work-lifecycle/forms/work-lifecycle-copy";
@@ -31,6 +32,7 @@ interface PreparedBacklogItemView {
 	closureResult?: string | null;
 	id: string;
 	key: string;
+	notNowReason?: string | null;
 	reappearDate?: string | null;
 	status: string;
 	tags?: string[];
@@ -396,6 +398,7 @@ function ManualOrderItem({
 						{item.key}
 					</span>{" "}
 					{item.title}
+					<NotNowMark reason={item.notNowReason} />
 					{item.tags && item.tags.length > 0 ? (
 						<span className="text-muted-foreground">
 							{" "}
@@ -466,6 +469,7 @@ function DeferredItem({
 						{item.key}
 					</span>{" "}
 					{item.title}
+					<NotNowMark reason={item.notNowReason} />
 				</span>
 				<span className="shrink-0 text-muted-foreground text-xs">
 					{BACKLOG_COPY.reappearDate}

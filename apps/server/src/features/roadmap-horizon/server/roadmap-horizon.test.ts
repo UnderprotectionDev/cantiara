@@ -43,11 +43,21 @@ import { createProject } from "../../project-shell/server/project-shell";
 import { createRelation } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
+	archiveWork,
+	changeWorkStatus,
 	closeWork,
 	createWork,
 	getWork,
 	updateWorkPlanningDates,
 } from "../../work-lifecycle/server/work-lifecycle";
+import {
+	applyNotNow,
+	getNotNowTrail,
+	listNotNowMarks,
+	previewNotNow,
+	previewReconsiderNotNow,
+	reconsiderNotNow,
+} from "./not-now-trail";
 import {
 	contributeToMilestone,
 	createMilestone,
@@ -68,8 +78,8 @@ import {
 	MILESTONE_COUNTERPARTS,
 	MILESTONE_STATUSES,
 	MILESTONE_WRITES,
+	NOT_NOW_WRITES,
 	openBlockerBadge,
-	ROADMAP_COPY,
 	ROADMAP_GROUP_FIELDS,
 	ROADMAP_HORIZONS,
 	ROADMAP_INNER_MEMBERSHIP,
@@ -201,6 +211,8 @@ describe("Roadmap Horizon", () => {
 	it("uses English Roadmap, Now, Next, Later without a second membership flag", () => {
 		const catalog = roadmapCatalog();
 		expect(catalog.copy.roadmap).toBe("Roadmap");
+		expect(catalog.copy.notNow).toBe("Not now");
+		expect(catalog.copy.reconsidering).toBe("Reconsidering");
 		expect(catalog.copy.unplaced).toBe("No horizon");
 		expect(catalog.horizons).toEqual(["Now", "Next", "Later"]);
 		expect(catalog.presentations).toEqual([
@@ -241,7 +253,7 @@ describe("Roadmap Horizon", () => {
 		expect(ROADMAP_INNER_MEMBERSHIP).toBe("derived");
 		expect(ROADMAP_WRITES.showOnRoadmap).toBe(false);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(FORBIDDEN_PATTERN);
-		expect(JSON.stringify(ROADMAP_COPY)).not.toMatch(FORBIDDEN_PATTERN);
+		expect(catalog.copy.notNow).toBe("Not now");
 		expect(catalog).not.toHaveProperty("showOnRoadmapMembership");
 		expect(catalog).not.toHaveProperty("initiative");
 		expect(catalog.milestone.copy).toEqual({
@@ -618,6 +630,303 @@ describe("Roadmap Horizon", () => {
 				(item) => item.id
 			)
 		).toEqual(orderBefore);
+	});
+
+	it("records Not now as a Work trail without writing status, horizon, or a Decision", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await committedWork(prisma, actorId, {
+			idempotencyKey: "defer",
+			projectId: project.id,
+			title: "Native wallet",
+			type: "Feature",
+		});
+		await placeHorizon(prisma, { horizon: "Later", workId: work.id });
+		const criterion = await createPriorityCriterion(prisma, {
+			actorId,
+			idempotencyKey: "reach",
+			origin: "human",
+			payload: { name: "Reach", projectId: project.id },
+		});
+		if (criterion.status !== "committed") {
+			throw new Error("expected criterion");
+		}
+		await setPriorityCriterionValue(prisma, {
+			actorId,
+			baseRevision: 0,
+			idempotencyKey: "rank",
+			origin: "human",
+			payload: {
+				criterionId: criterion.definition.id,
+				rank: "Low",
+				workId: work.id,
+			},
+		});
+		const sibling = await committedWork(prisma, actorId, {
+			idempotencyKey: "sibling",
+			projectId: project.id,
+			title: "Sibling",
+		});
+		await reorderManualOrder(prisma, {
+			projectId: project.id,
+			workIds: [sibling.id, work.id],
+		});
+		const dated = await updateWorkPlanningDates(prisma, {
+			actorId,
+			baseRevision: (await getWork(prisma, work.id))?.revision ?? 1,
+			idempotencyKey: "dates",
+			origin: "human",
+			plannedStart: "2026-10-01",
+			reappearDate: null,
+			targetDate: "2026-11-01",
+			workId: work.id,
+		});
+		if (dated.status !== "committed") {
+			throw new Error("expected dates");
+		}
+		const orderBefore = (
+			await listPreparedBacklog(prisma, project.id)
+		).items.map((item) => item.id);
+		const draft = {
+			grounds: [{ id: "decision-1", kind: "Decision" as const }],
+			linkedReviewLaterIds: ["reminder-1"],
+			reason: "Demand is still a hunch",
+			reevaluationCondition: "three users asked",
+			workId: work.id,
+		};
+		const preview = await previewNotNow(prisma, draft);
+		if ("status" in preview) {
+			throw new Error("expected preview");
+		}
+		expect(preview).toMatchObject({
+			conditionWatched: false,
+			reason: "Demand is still a hunch",
+			reevaluationCondition: "three users asked",
+			replacesActive: false,
+			reviewLater: {
+				effect: "Keep Review later",
+				ids: ["reminder-1"],
+				silentDelete: false,
+			},
+			writes: NOT_NOW_WRITES,
+		});
+		expect(preview.grounds).toEqual([{ id: "decision-1", kind: "Decision" }]);
+		expect(
+			await applyNotNow(prisma, {
+				...draft,
+				actorId,
+			})
+		).toEqual({ reason: "preview-required", status: "rejected" });
+		expect(
+			await applyNotNow(prisma, {
+				...draft,
+				actorId,
+				previewAcknowledged: true,
+			})
+		).toMatchObject({
+			status: "committed",
+			trail: {
+				active: {
+					actorId,
+					grounds: [{ id: "decision-1", kind: "Decision" }],
+					reason: "Demand is still a hunch",
+					reevaluationCondition: "three users asked",
+					state: "active",
+				},
+				autoReactivate: false,
+				conditionWatched: false,
+				decisionRecord: false,
+				parked: false,
+				reviewLater: { ids: ["reminder-1"], silentDelete: false },
+				work: {
+					horizon: "Later",
+					id: work.id,
+					plannedStart: "2026-10-01",
+					status: "Not Started",
+					targetDate: "2026-11-01",
+				},
+				writes: NOT_NOW_WRITES,
+			},
+		});
+		expect((await getWork(prisma, work.id))?.status).toBe("Not Started");
+		expect((await getHorizonPlacement(prisma, work.id))?.horizon).toBe("Later");
+		expect(
+			await listWorkPriorityValues(prisma, project.id, work.id)
+		).toMatchObject([{ rank: "Low" }]);
+		expect(
+			(await listPreparedBacklog(prisma, project.id)).items.map(
+				(item) => item.id
+			)
+		).toEqual(orderBefore);
+		expect(await listNotNowMarks(prisma, project.id)).toEqual([
+			{ reason: "Demand is still a hunch", workId: work.id },
+		]);
+		const listed = await listRoadmap(prisma, {
+			presentation: "All Work types",
+			projectId: project.id,
+		});
+		expect(
+			flatItems(listed).find((item) => item.id === work.id)?.notNow
+		).toEqual({ reason: "Demand is still a hunch" });
+		const trail = await getNotNowTrail(prisma, work.id);
+		expect(trail?.parked).toBe(false);
+		expect(trail?.decisionRecord).toBe(false);
+		expect(trail?.active?.reason).toBe("Demand is still a hunch");
+	});
+
+	it("keeps Not now history on Reconsidering or replace and does not silently drop Review later", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await committedWork(prisma, actorId, {
+			idempotencyKey: "history",
+			projectId: project.id,
+			title: "Wallet",
+			type: "Feature",
+		});
+		await applyNotNow(prisma, {
+			actorId,
+			grounds: [],
+			linkedReviewLaterIds: ["reminder-1"],
+			previewAcknowledged: true,
+			reason: "Wait for research",
+			workId: work.id,
+		});
+		const replaced = await applyNotNow(prisma, {
+			actorId,
+			grounds: [{ id: "risk-1", kind: "Risk" as const }],
+			previewAcknowledged: true,
+			reason: "Wait for pricing",
+			reevaluationCondition: "pricing page exists",
+			workId: work.id,
+		});
+		if (replaced.status !== "committed") {
+			throw new Error("expected replace");
+		}
+		expect(replaced.trail.active?.reason).toBe("Wait for pricing");
+		expect(replaced.trail.history).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					closeAction: "Not now",
+					reason: "Wait for research",
+					state: "closed",
+				}),
+			])
+		);
+		expect(replaced.trail.reviewLater.ids).toEqual(["reminder-1"]);
+		const reconsiderPreview = await previewReconsiderNotNow(prisma, {
+			workId: work.id,
+		});
+		if ("status" in reconsiderPreview) {
+			throw new Error("expected reconsider preview");
+		}
+		expect(reconsiderPreview.reviewLater).toEqual({
+			effect: "Keep Review later",
+			ids: ["reminder-1"],
+			silentDelete: false,
+		});
+		const kept = await reconsiderNotNow(prisma, {
+			actorId,
+			previewAcknowledged: true,
+			workId: work.id,
+		});
+		if (kept.status !== "committed") {
+			throw new Error("expected reconsider");
+		}
+		expect(kept.trail.active).toBeNull();
+		expect(kept.trail.history.map((entry) => entry.reason)).toEqual([
+			"Wait for research",
+			"Wait for pricing",
+		]);
+		expect(kept.trail.history.at(-1)?.closeAction).toBe("Reconsidering");
+		expect(kept.trail.reviewLater.ids).toEqual(["reminder-1"]);
+		await applyNotNow(prisma, {
+			actorId,
+			grounds: [],
+			previewAcknowledged: true,
+			reason: "Pause again",
+			workId: work.id,
+		});
+		const removed = await reconsiderNotNow(prisma, {
+			actorId,
+			previewAcknowledged: true,
+			reviewLaterEffect: "Remove Review later",
+			workId: work.id,
+		});
+		if (removed.status !== "committed") {
+			throw new Error("expected remove");
+		}
+		expect(removed.trail.reviewLater.ids).toEqual([]);
+		expect(removed.trail.reviewLater.silentDelete).toBe(false);
+	});
+
+	it("does not close Not now when Work is closed, archived, or moved, and does not watch the condition", async () => {
+		const { actorId, project } = await openPayments(prisma);
+		const work = await committedWork(prisma, actorId, {
+			idempotencyKey: "survive",
+			projectId: project.id,
+			title: "Wallet",
+			type: "Feature",
+		});
+		await applyNotNow(prisma, {
+			actorId,
+			grounds: [],
+			previewAcknowledged: true,
+			reason: "Not this quarter",
+			reevaluationCondition: "three users asked",
+			workId: work.id,
+		});
+		const progressed = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: (await getWork(prisma, work.id))?.revision ?? 1,
+			idempotencyKey: "progress",
+			origin: "human",
+			status: "In Progress",
+			workId: work.id,
+		});
+		if (progressed.status !== "committed") {
+			throw new Error("expected status");
+		}
+		expect((await getNotNowTrail(prisma, work.id))?.active?.reason).toBe(
+			"Not this quarter"
+		);
+		const closed = await closeWork(prisma, {
+			actorId,
+			baseRevision: progressed.work.revision,
+			idempotencyKey: "close",
+			origin: "human",
+			reason: "Shipped elsewhere",
+			result: "Completed",
+			workId: work.id,
+		});
+		if (closed.status !== "committed") {
+			throw new Error("expected close");
+		}
+		const afterClose = await getNotNowTrail(prisma, work.id);
+		expect(afterClose?.active?.state).toBe("active");
+		expect(afterClose?.work.status).toBe("Closed");
+		expect(afterClose?.autoReactivate).toBe(false);
+		expect(afterClose?.conditionWatched).toBe(false);
+		expect(
+			await applyNotNow(prisma, {
+				actorId,
+				grounds: [],
+				previewAcknowledged: true,
+				reason: "Still not now",
+				workId: work.id,
+			})
+		).toEqual({ reason: "work-not-open", status: "rejected" });
+		const archived = await archiveWork(prisma, {
+			actorId,
+			baseRevision: closed.work.revision,
+			idempotencyKey: "archive",
+			origin: "human",
+			workId: work.id,
+		});
+		if (archived.status !== "committed") {
+			throw new Error("expected archive");
+		}
+		expect((await getNotNowTrail(prisma, work.id))?.active?.reason).toBe(
+			"Not this quarter"
+		);
+		expect((await getWork(prisma, work.id))?.status).toBe("Closed");
 	});
 
 	it("creates a Milestone that stays Planned until an explicit Reach or Abandon", async () => {

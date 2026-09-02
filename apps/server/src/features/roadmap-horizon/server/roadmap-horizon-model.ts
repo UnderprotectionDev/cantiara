@@ -2,20 +2,30 @@ import { z } from "zod";
 
 export const ROADMAP_COPY = {
 	allWorkTypes: "All Work types",
+	applyNotNow: "Apply Not now",
 	expectedOutcome: "Expected Outcome",
+	grounds: "Grounds",
 	groupField: "Group",
 	horizon: "Horizon",
+	keepReviewLater: "Keep Review later",
 	later: "Later",
 	next: "Next",
+	notNow: "Not now",
 	now: "Now",
 	openSourceRecord: "Open source record",
 	place: "Place on horizon",
 	placeOnPlan: "Place on plan",
 	plannedStart: "Planned start",
 	presentationMode: "Presentation Mode",
+	preview: "Preview",
 	primary: "Primary",
 	problemOpportunity: "Problem/Opportunity",
 	productDirection: "Product direction",
+	reason: "Reason",
+	reconsidering: "Reconsidering",
+	reevaluationCondition: "Re-evaluation condition",
+	removeReviewLater: "Remove Review later",
+	reviewLater: "Review later",
 	roadmap: "Roadmap",
 	saveNamedView: "Save named view",
 	secondary: "Secondary",
@@ -73,6 +83,38 @@ export const ROADMAP_WRITES = {
 	targetDate: false,
 	themeRecord: false,
 } as const;
+
+export const NOT_NOW_WRITES = {
+	autoReactivate: false,
+	backlogOrder: false,
+	conditionWatched: false,
+	dates: false,
+	decisionRecord: false,
+	horizon: false,
+	parked: false,
+	planningMembership: false,
+	priorityCriterionValue: false,
+	silentReviewLaterDelete: false,
+	status: false,
+} as const;
+
+export const NOT_NOW_GROUND_KINDS = [
+	"Decision",
+	"Risk",
+	"Feedback",
+	"Source",
+	"Document",
+] as const;
+
+export type NotNowGroundKind = (typeof NOT_NOW_GROUND_KINDS)[number];
+
+export const NOT_NOW_REVIEW_LATER_EFFECTS = [
+	ROADMAP_COPY.keepReviewLater,
+	ROADMAP_COPY.removeReviewLater,
+] as const;
+
+export type NotNowReviewLaterEffect =
+	(typeof NOT_NOW_REVIEW_LATER_EFFECTS)[number];
 
 export const MILESTONE_COPY = {
 	abandon: "Abandon",
@@ -294,6 +336,50 @@ export type SaveRoadmapNamedViewCommand = z.infer<
 	typeof saveRoadmapNamedViewCommandSchema
 >;
 
+export const notNowGroundSchema = z.object({
+	id: z.string().min(1),
+	kind: z.enum(NOT_NOW_GROUND_KINDS),
+});
+
+export type NotNowGround = z.infer<typeof notNowGroundSchema>;
+
+export const notNowDraftSchema = z.object({
+	grounds: z.array(notNowGroundSchema),
+	linkedReviewLaterIds: z.array(z.string().min(1)).optional(),
+	reason: z.string().trim().min(1).max(280),
+	reevaluationCondition: z.string().trim().max(500).nullable().optional(),
+	reviewLaterEffect: z.enum(NOT_NOW_REVIEW_LATER_EFFECTS).optional(),
+	workId: z.string().min(1),
+});
+
+export type NotNowDraft = z.infer<typeof notNowDraftSchema>;
+
+export const applyNotNowCommandSchema = notNowDraftSchema.extend({
+	actorId: z.string().min(1),
+	previewAcknowledged: z.literal(true),
+});
+
+export type ApplyNotNowCommand = z.infer<typeof applyNotNowCommandSchema>;
+
+export const reconsiderNotNowCommandSchema = z.object({
+	actorId: z.string().min(1),
+	previewAcknowledged: z.literal(true),
+	reviewLaterEffect: z.enum(NOT_NOW_REVIEW_LATER_EFFECTS).optional(),
+	workId: z.string().min(1),
+});
+
+export type ReconsiderNotNowCommand = z.infer<
+	typeof reconsiderNotNowCommandSchema
+>;
+
+export const listNotNowMarksQuerySchema = z.object({
+	projectId: z.string().min(1),
+});
+
+export const getNotNowQuerySchema = z.object({
+	workId: z.string().min(1),
+});
+
 export const roadmapBlockerSourceSchema = z.object({
 	id: z.string().min(1),
 	kind: z.enum(ROADMAP_BLOCKER_SOURCE_KINDS),
@@ -315,6 +401,11 @@ export const roadmapWorkItemSchema = z.object({
 	horizon: roadmapHorizonSchema.nullable(),
 	id: z.string().min(1),
 	key: z.string().min(1),
+	notNow: z
+		.object({
+			reason: z.string().min(1),
+		})
+		.nullable(),
 	originWorkId: z.string().min(1).nullable(),
 	plannedStart: z.string().nullable(),
 	problemOpportunity: z.string().nullable(),
@@ -466,6 +557,7 @@ export type RoadmapView = z.infer<typeof roadmapViewSchema>;
 export function roadmapCatalog() {
 	return {
 		copy: ROADMAP_COPY,
+		groundKinds: NOT_NOW_GROUND_KINDS,
 		groupFields: ROADMAP_GROUP_FIELDS,
 		horizons: ROADMAP_HORIZONS,
 		innerMembership: ROADMAP_INNER_MEMBERSHIP,
@@ -475,6 +567,7 @@ export function roadmapCatalog() {
 			statuses: MILESTONE_STATUSES,
 			writes: MILESTONE_WRITES,
 		},
+		notNowWrites: NOT_NOW_WRITES,
 		presentations: ROADMAP_PRESENTATIONS,
 		writes: ROADMAP_WRITES,
 	};

@@ -32,6 +32,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.projectBacklogManualOrderItem?.createMany === "function" &&
 		typeof client.projectBacklogPresentation?.findUnique === "function" &&
 		typeof client.projectBacklogPresentation?.upsert === "function" &&
+		// WorkNotNowTrail is read via its own delegate after generate. Do not
+		// gate getPrismaClient on it: bun --hot mocks used by "accept before"
+		// tests omit the trail while still serving Work.
 		typeof client.externalExecutionHandoff?.findMany === "function" &&
 		typeof client.externalExecutionHandoff?.create === "function" &&
 		typeof client.workTemplate?.findMany === "function" &&

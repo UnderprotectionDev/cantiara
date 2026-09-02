@@ -17,6 +17,7 @@ import {
 	getWork,
 	updateWorkPlanningDates,
 } from "../../work-lifecycle/server/work-lifecycle";
+import { notNowReasonByWorkId } from "./not-now-trail";
 import {
 	type ContributeToMilestoneCommand,
 	type CreateMilestoneCommand,
@@ -378,6 +379,10 @@ async function roadmapItems(
 	const selected = rows.filter((row) =>
 		matchesPresentation(row, input.presentation, originLinks)
 	);
+	const notNowReasons = await notNowReasonByWorkId(
+		prisma,
+		selected.map((row) => row.id)
+	);
 	const badges = await activeBlockerBadges(
 		prisma,
 		selected.map((row) => row.id)
@@ -388,7 +393,9 @@ async function roadmapItems(
 				? true
 				: asHorizon(row.horizon) === input.horizonFilter
 		)
-		.map((row) => toItem(row, originLinks, input.presentation, badges));
+		.map((row) =>
+			toItem(row, originLinks, input.presentation, notNowReasons, badges)
+		);
 }
 
 async function activeBlockerBadges(
@@ -605,6 +612,7 @@ function toItem(
 	},
 	originLinks: Map<string, string>,
 	presentation: RoadmapPresentation,
+	notNowReasons: Map<string, string>,
 	badges: Map<string, RoadmapBlockerBadge>
 ): RoadmapWorkItem {
 	const originWorkId = originLinks.get(row.id) ?? null;
@@ -615,12 +623,14 @@ function toItem(
 		const researchBody = row.description?.trim() ?? "";
 		problemOpportunity = researchBody.length > 0 ? researchBody : row.title;
 	}
+	const notNowReason = notNowReasons.get(row.id);
 	return {
 		blockerBadge: badges.get(row.id) ?? null,
 		expectedOutcome: null,
 		horizon: asHorizon(row.horizon),
 		id: row.id,
 		key: row.key,
+		notNow: notNowReason ? { reason: notNowReason } : null,
 		originWorkId,
 		plannedStart: row.plannedStart,
 		problemOpportunity,

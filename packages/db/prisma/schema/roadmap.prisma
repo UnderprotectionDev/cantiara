@@ -1,3 +1,23 @@
+model WorkNotNowTrail {
+  id                    String   @id
+  workId                String
+  work                  Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  reason                String
+  reevaluationCondition String?
+  grounds               Json     @default("[]")
+  state                 String
+  closeAction           String?
+  actorId               String
+  recordedAt            DateTime @default(now())
+  closedAt              DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([workId, state])
+  @@index([workId, recordedAt])
+  @@map("work_not_now_trail")
+}
+
 model ProjectRoadmapNamedView {
   id            String   @id
   projectId     String

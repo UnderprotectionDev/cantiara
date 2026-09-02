@@ -2,18 +2,22 @@ export const ROADMAP_COPY = {
 	abandon: "Abandon",
 	abandoned: "Abandoned",
 	allWorkTypes: "All Work types",
+	applyNotNow: "Apply Not now",
 	confirm: "Confirm",
 	contributesToMilestone: "Contributes to Milestone",
 	createMilestone: "Create Milestone",
 	description: "Description",
 	emptyMilestone: "No Milestone yet.",
 	exitPresentationMode: "Exit Presentation Mode",
+	grounds: "Grounds",
 	group: "Group",
 	horizon: "Horizon",
+	keepReviewLater: "Keep Review later",
 	later: "Later",
 	milestone: "Milestone",
 	milestones: "Milestones",
 	next: "Next",
+	notNow: "Not now",
 	now: "Now",
 	openSourceRecord: "Open source record",
 	place: "Place on horizon",
@@ -27,6 +31,11 @@ export const ROADMAP_COPY = {
 	productDirection: "Product direction",
 	reach: "Reach",
 	reached: "Reached",
+	reason: "Reason",
+	reconsidering: "Reconsidering",
+	reevaluationCondition: "Re-evaluation condition",
+	removeReviewLater: "Remove Review later",
+	reviewLater: "Review later",
 	roadmap: "Roadmap",
 	saveNamedView: "Save named view",
 	secondary: "Secondary",
@@ -44,6 +53,14 @@ export const ROADMAP_HORIZONS = [
 ] as const;
 
 export type RoadmapHorizon = (typeof ROADMAP_HORIZONS)[number];
+
+export const NOT_NOW_GROUND_KINDS = [
+	"Decision",
+	"Risk",
+	"Feedback",
+	"Source",
+	"Document",
+] as const;
 
 export const MILESTONE_STATUSES = [
 	ROADMAP_COPY.planned,

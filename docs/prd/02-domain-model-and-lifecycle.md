@@ -287,6 +287,14 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ufka yerleştir | `Place on horizon` | İsteğe bağlı ufku yazma eylemi |
 | Ufuk yok | `No horizon` | Ufku boşaltma |
 | Adlandırılmış görünümü kaydet | `Save named view` | Roadmap filtre ve grup üstverisini kaydetme |
+| Şimdi değil | `Not now` | İş üzerindeki sahipli erteleme izi; durum, Parked veya Karar kaydı değildir |
+| Şimdi değil uygula | `Apply Not now` | Açık İşte `Not now` izini kaydetme eylemi |
+| Yeniden değerlendiriliyor | `Reconsidering` | Etkin `Not now` izini kapatan eylem |
+| Yeniden değerlendirme koşulu | `Re-evaluation condition` | Kullanıcının yazdığı serbest metin; sistem izlemez |
+| Dayanaklar | `Grounds` | `Not now` izinin Karar, Risk, Geri Bildirim, Kaynak veya Belge dayanakları |
+| Yeniden bak | `Review later` | Kaynak bağlantılı kişisel hatırlatma; `Not now` sessiz silmez |
+| Yeniden bakı koru | `Keep Review later` | İz kapanınca bağlı hatırlatmayı bırakma |
+| Yeniden bakı kaldır | `Remove Review later` | İz kapanınca bağlı hatırlatmayı açıkça kaldırma |
 | Planlanmamış adaylar | `Unplanned candidates` | Görünüm filtresine uyan fakat tarih ve ufku olmayan canlı aday alanı |
 | Plana al | `Place on plan` | Adayı tarih veya ufuk yazarak plana alma; önizleme ve onay ister |
 | Sunum Kipi | `Presentation Mode` | Roadmap düzenleme ve yapılandırmayı gizleyen salt okunur tam ekran kip |

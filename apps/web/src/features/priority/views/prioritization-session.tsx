@@ -4,11 +4,10 @@ import { Input } from "@cantiara/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent, MouseEvent } from "react";
 import { useCallback, useState } from "react";
-
+import NotNowMark from "@/features/roadmap-horizon/views/not-now-mark";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
-
 import { createPriorityCriterionError } from "../forms/create-priority-criterion-error";
 import {
 	PRIORITY_COPY,
@@ -17,9 +16,11 @@ import {
 } from "../forms/priority-copy";
 
 export default function PrioritizationSessionArea({
+	notNowByWorkId,
 	projectId,
 	work,
 }: {
+	notNowByWorkId?: Map<string, string>;
 	projectId: string;
 	work: Array<{ id: string; title: string }>;
 }) {
@@ -146,6 +147,7 @@ export default function PrioritizationSessionArea({
 									value={item.id}
 								/>
 								{item.title}
+								<NotNowMark reason={notNowByWorkId?.get(item.id)} />
 							</label>
 						</li>
 					))}
@@ -180,17 +182,24 @@ export default function PrioritizationSessionArea({
 				</nav>
 			) : null}
 			{opened ? (
-				<SessionDetail onChanged={invalidate} session={opened} work={work} />
+				<SessionDetail
+					notNowByWorkId={notNowByWorkId}
+					onChanged={invalidate}
+					session={opened}
+					work={work}
+				/>
 			) : null}
 		</section>
 	);
 }
 
 function SessionDetail({
+	notNowByWorkId,
 	onChanged,
 	session,
 	work,
 }: {
+	notNowByWorkId?: Map<string, string>;
 	onChanged: () => Promise<void>;
 	session: PrioritizationSessionView;
 	work: Array<{ id: string; title: string }>;
@@ -367,6 +376,7 @@ function SessionDetail({
 								index={index}
 								key={card.workId}
 								lastIndex={session.cards.length - 1}
+								notNowReason={notNowByWorkId?.get(card.workId)}
 								onMoveWork={onMoveWork}
 								readOnly={readOnly}
 							/>
@@ -394,12 +404,14 @@ function SessionCard({
 	card,
 	index,
 	lastIndex,
+	notNowReason,
 	onMoveWork,
 	readOnly,
 }: {
 	card: PrioritizationSessionCardView;
 	index: number;
 	lastIndex: number;
+	notNowReason?: string;
 	onMoveWork: (workId: string, direction: number) => void;
 	readOnly: boolean;
 }) {
@@ -421,6 +433,7 @@ function SessionCard({
 			<div className="flex items-start justify-between gap-2">
 				<div>
 					<p className="text-sm">{card.title}</p>
+					<NotNowMark reason={notNowReason} />
 					<p className="text-muted-foreground text-xs">{ranks}</p>
 					<p className="text-muted-foreground text-xs">
 						{PRIORITY_COPY.targetDate}: {card.targetDate ?? "—"} ·{" "}
