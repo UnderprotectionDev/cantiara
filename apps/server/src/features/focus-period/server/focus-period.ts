@@ -113,6 +113,10 @@ export type FollowUpPreviewOutcome =
 			preview: {
 				generatedActionItems: false;
 				projectId: string;
+				relation: {
+					kind: "source-period";
+					sourcePeriodId: string;
+				};
 				sourcePeriodId: string;
 				title: string;
 			};
@@ -316,6 +320,10 @@ export function createFocusPeriod(input: CreateFocusPeriodInput): FocusPeriod {
 			preview: {
 				generatedActionItems: false,
 				projectId: command.projectId,
+				relation: {
+					kind: "source-period" as const,
+					sourcePeriodId: command.periodId,
+				},
 				sourcePeriodId: command.periodId,
 				title,
 			},
@@ -562,9 +570,19 @@ async function endPeriod(
 			operation === "close"
 				? await tx.focusPeriod.update({
 						data: {
+							closeCompletedWorkIds: members
+								.filter(
+									(member) =>
+										member.status === WORK_STATUS.closed &&
+										member.closureResult === CLOSURE_RESULT.completed
+								)
+								.map((member) => member.id),
 							closedAt: now(),
 							closeScopeLocked: true,
 							closeScopeWorkIds: workIds,
+							closeStillOpenWorkIds: members
+								.filter((member) => member.status !== WORK_STATUS.closed)
+								.map((member) => member.id),
 							status: FOCUS_PERIOD_STATUS.closed,
 							stillOpenDecisionOpened: true,
 						},
@@ -711,7 +729,7 @@ async function toView(
 	const destinations = await leftoverDestinations(db, input.workspaceId, row);
 	const comparison =
 		row.status === FOCUS_PERIOD_STATUS.closed
-			? await closeComparison(db, row, members, stillOpen)
+			? await closeComparison(db, row, members)
 			: null;
 	const dateComparison =
 		row.status === FOCUS_PERIOD_STATUS.closed
@@ -852,9 +870,7 @@ async function loadEligibleWork(
 	return rows.map((row) => withoutStatus(toWork(row)));
 }
 
-function withoutStatus(
-	work: FocusPeriodWork & { status: string }
-): FocusPeriodWork {
+function withoutStatus(work: FocusPeriodWork): FocusPeriodWork {
 	return {
 		id: work.id,
 		key: work.key,
@@ -944,9 +960,11 @@ async function activePeriodIdsForWorks(
 }
 
 interface PeriodRow {
+	closeCompletedWorkIds: Prisma.JsonValue;
 	closedAt: Date | null;
 	closeScopeLocked: boolean;
 	closeScopeWorkIds: Prisma.JsonValue;
+	closeStillOpenWorkIds: Prisma.JsonValue;
 	endDate: string;
 	evaluationChange: string;
 	evaluationKeep: string;
@@ -1356,9 +1374,7 @@ async function leftoverDestinations(
 		status: period.status as FocusPeriodStatus,
 	}));
 	const nextPeriod =
-		others.find((period) => period.startDate >= row.endDate) ??
-		others[0] ??
-		null;
+		others.find((period) => period.startDate >= row.endDate) ?? null;
 	return {
 		abandon: true as const,
 		anotherPeriod: others.filter((period) => period.id !== nextPeriod?.id),
@@ -1372,8 +1388,7 @@ async function closeComparison(
 	row: PeriodRow,
 	members: Array<
 		FocusPeriodWork & { closureResult: string | null; status: string }
-	>,
-	stillOpen: FocusPeriodWork[]
+	>
 ) {
 	const startIds = asWorkIds(row.startScopeWorkIds);
 	const closeIds = asWorkIds(row.closeScopeWorkIds);
@@ -1393,13 +1408,8 @@ async function closeComparison(
 			const work = byId.get(id);
 			return work ? [work] : [];
 		});
-	const completed = members
-		.filter(
-			(member) =>
-				member.status === WORK_STATUS.closed &&
-				member.closureResult === CLOSURE_RESULT.completed
-		)
-		.map(withoutStatus);
+	const completed = views(asWorkIds(row.closeCompletedWorkIds));
+	const stillOpen = views(asWorkIds(row.closeStillOpenWorkIds));
 	return {
 		addedLater: views(closeIds.filter((id) => !startSet.has(id))),
 		completed,
@@ -1450,24 +1460,28 @@ async function dateComparisonFor(
 	for (const work of extra) {
 		memberById.set(work.id, toWork(work));
 	}
-	const events =
-		targets.length === 0
-			? []
-			: await db.workLifecycleEvent.findMany({
-					orderBy: { createdAt: "asc" },
-					where: {
-						kind: "closed",
-						workId: { in: targets.map((item) => item.workId) },
-					},
-				});
+	const events = await db.workLifecycleEvent.findMany({
+		orderBy: { createdAt: "asc" },
+		where: {
+			kind: "closed",
+			workId: { in: targets.map((item) => item.workId) },
+		},
+	});
 	const closedOn = new Map<string, string>();
 	for (const event of events) {
 		if (!closedOn.has(event.workId)) {
 			closedOn.set(event.workId, calendarDay(event.createdAt, preferences));
 		}
 	}
+	const stillOpenAtClose = new Set(asWorkIds(row.closeStillOpenWorkIds));
 	for (const target of targets) {
-		placeDateComparison(empty, memberById.get(target.workId), target, closedOn);
+		placeDateComparison(
+			empty,
+			memberById.get(target.workId),
+			target,
+			closedOn,
+			stillOpenAtClose
+		);
 	}
 	return empty;
 }
@@ -1480,11 +1494,10 @@ function placeDateComparison(
 		movedLater: FocusPeriodWork[];
 		stillOpen: FocusPeriodWork[];
 	},
-	work:
-		| (FocusPeriodWork & { status: string; targetDate: string | null })
-		| undefined,
+	work: (FocusPeriodWork & { targetDate: string | null }) | undefined,
 	target: { targetDate: string | null; workId: string },
-	closedOn: Map<string, string>
+	closedOn: Map<string, string>,
+	stillOpenAtClose: Set<string>
 ) {
 	if (!(target.targetDate && work)) {
 		return;
@@ -1496,22 +1509,15 @@ function placeDateComparison(
 	if (work.targetDate && work.targetDate > target.targetDate) {
 		buckets.movedLater.push(view);
 	}
-	const completedOn = closedOn.get(work.id);
-	if (
-		work.status === WORK_STATUS.closed &&
-		completedOn &&
-		completedOn === target.targetDate
-	) {
-		buckets.completedOnTarget.push(view);
-	} else if (
-		work.status === WORK_STATUS.closed &&
-		completedOn &&
-		completedOn > target.targetDate
-	) {
-		buckets.completedAfter.push(view);
-	}
-	if (work.status !== WORK_STATUS.closed) {
+	if (stillOpenAtClose.has(work.id)) {
 		buckets.stillOpen.push(view);
+		return;
+	}
+	const completedOn = closedOn.get(work.id);
+	if (completedOn && completedOn === target.targetDate) {
+		buckets.completedOnTarget.push(view);
+	} else if (completedOn && completedOn > target.targetDate) {
+		buckets.completedAfter.push(view);
 	}
 }
 

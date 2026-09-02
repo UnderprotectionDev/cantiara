@@ -10,6 +10,8 @@ model FocusPeriod {
   startScopeLocked        Boolean                  @default(false)
   closeScopeWorkIds       Json                     @default("[]")
   closeScopeLocked        Boolean                  @default(false)
+  closeStillOpenWorkIds   Json                     @default("[]")
+  closeCompletedWorkIds   Json                     @default("[]")
   stillOpenDecisionOpened Boolean                  @default(false)
   startScopeTargetDates   Json                     @default("[]")
   leftoverDecisions       Json                     @default("[]")

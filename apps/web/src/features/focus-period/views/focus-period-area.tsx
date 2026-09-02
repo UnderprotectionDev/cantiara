@@ -367,11 +367,7 @@ export default function FocusPeriodArea() {
 						onCancel={onCancel}
 						onClose={onClose}
 					/>
-					<CloseAccountPanels
-						copy={copy}
-						period={period}
-						periodId={period.id}
-					/>
+					<PeriodClosePanels copy={copy} period={period} periodId={period.id} />
 					{live ? (
 						<EligibleWork
 							copy={copy}
@@ -563,7 +559,7 @@ function MemberRow({
 	);
 }
 
-function CloseAccountPanels({
+function PeriodClosePanels({
 	copy,
 	period,
 	periodId,
@@ -624,7 +620,10 @@ function CloseAccountPanels({
 							| "another-period"
 							| "backlog"
 							| "next-period",
-						periodId: targetPeriodId.length > 0 ? targetPeriodId : undefined,
+						periodId:
+							destination === "another-period" && targetPeriodId.length > 0
+								? targetPeriodId
+								: undefined,
 						workId,
 					})),
 				})
@@ -821,15 +820,12 @@ function StillOpenDecision({
 	onDecide: (event: FormEvent<HTMLFormElement>) => void;
 	stillOpenWork: StillOpenWork;
 }) {
-	const destinations = [
-		stillOpenWork.destinations.nextPeriod
-			? { id: stillOpenWork.destinations.nextPeriod.id, label: copy.nextPeriod }
-			: null,
-		...stillOpenWork.destinations.anotherPeriod.map((period) => ({
+	const destinations = stillOpenWork.destinations.anotherPeriod.map(
+		(period) => ({
 			id: period.id,
 			label: `${copy.anotherPeriod}: ${period.purpose}`,
-		})),
-	].filter((row): row is { id: string; label: string } => row !== null);
+		})
+	);
 	return (
 		<section aria-labelledby="focus-period-still-open" className="mt-6">
 			<h3 id="focus-period-still-open">{copy.stillOpenWork}</h3>
@@ -877,9 +873,6 @@ function StillOpenDecision({
 							{copy.anotherPeriod}
 						</FieldLabel>
 						<NativeSelect id="focus-period-target-period" name="targetPeriodId">
-							<NativeSelectOption value="">
-								{copy.nextPeriod}
-							</NativeSelectOption>
 							{destinations.map((period) => (
 								<NativeSelectOption key={period.id} value={period.id}>
 									{period.label}
@@ -908,7 +901,11 @@ function EvaluationPanel({
 	onConfirmFollowUp: () => void;
 	onEvaluate: (event: FormEvent<HTMLFormElement>) => void;
 	onPreviewFollowUp: (event: FormEvent<HTMLFormElement>) => void;
-	preview: { projectId: string; title: string } | null;
+	preview: {
+		projectId: string;
+		relation: { kind: "source-period"; sourcePeriodId: string };
+		title: string;
+	} | null;
 	projects: Array<{ id: string; name: string }>;
 }) {
 	return (
@@ -977,6 +974,9 @@ function EvaluationPanel({
 			{preview ? (
 				<div className="mt-4">
 					<p>{`${copy.preview}: ${preview.title}`}</p>
+					{preview.relation.kind === "source-period" ? (
+						<p>{`${copy.followUpWork} · ${copy.focusPeriod}`}</p>
+					) : null}
 					<Button onClick={onConfirmFollowUp} type="button">
 						{copy.confirm}
 					</Button>

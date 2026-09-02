@@ -1100,6 +1100,9 @@ describe("Focus Period", () => {
 			throw new Error("expected committed leftover decision");
 		}
 		expect(decided.period.stillOpenWork.stillOpen).toEqual([]);
+		expect(
+			decided.period.comparison?.stillOpen.map((row) => row.id).sort()
+		).toEqual([toNext.id, toBacklog.id, toOther.id, toAbandon.id].sort());
 		expect(decided.period.stillOpenWork.autoRollover).toBe(false);
 		expect((await active.get(next.id))?.members.map((row) => row.id)).toEqual([
 			toNext.id,
@@ -1241,6 +1244,10 @@ describe("Focus Period", () => {
 			preview: {
 				generatedActionItems: false,
 				projectId: payments.id,
+				relation: {
+					kind: "source-period",
+					sourcePeriodId: period.id,
+				},
 				sourcePeriodId: period.id,
 				title: "Retry checkout edge",
 			},
@@ -1375,5 +1382,56 @@ describe("Focus Period", () => {
 		expect(await getWork(prisma, earlier.id)).toMatchObject({
 			targetDate: "2026-09-12",
 		});
+		const abandoned = await active.decideStillOpen({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: period.id,
+			selections: [
+				{
+					destination: FOCUS_PERIOD_LEFTOVER_DESTINATION.abandon,
+					workId: openDated.id,
+				},
+			],
+		});
+		expect(abandoned.status).toBe("committed");
+		if (abandoned.status !== "committed") {
+			throw new Error("expected leftover abandon");
+		}
+		expect(
+			abandoned.period.dateComparison?.stillOpen.map((row) => row.id).sort()
+		).toEqual([earlier.id, later.id, openDated.id].sort());
+		expect(
+			abandoned.period.comparison?.stillOpen.map((row) => row.id).sort()
+		).toEqual([earlier.id, later.id, openDated.id].sort());
+	});
+
+	it("does not label an overlapping period as Next period", async () => {
+		const payments = await openProject("Payments");
+		const intake = await openWork(payments.id, "Intake checkout");
+		const current = await openPeriod("Current window");
+		await surface(BEFORE_START).add({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: current.id,
+			workId: intake.id,
+		});
+		const overlap = await openPeriod(
+			"Overlap window",
+			"2026-09-10",
+			"2026-09-23"
+		);
+		const active = surface(START_INSTANT);
+		const closed = await active.close({
+			idempotencyKey: crypto.randomUUID(),
+			periodId: current.id,
+		});
+		expect(closed.status).toBe("committed");
+		if (closed.status !== "committed") {
+			throw new Error("expected committed close");
+		}
+		expect(closed.period.stillOpenWork.destinations.nextPeriod).toBeNull();
+		expect(
+			closed.period.stillOpenWork.destinations.anotherPeriod.map(
+				(row) => row.id
+			)
+		).toEqual([overlap.id]);
 	});
 });

@@ -331,6 +331,10 @@ export const dateComparisonSchema = z.object({
 export const followUpWorkPreviewSchema = z.object({
 	generatedActionItems: z.literal(false),
 	projectId: z.string().min(1),
+	relation: z.object({
+		kind: z.literal("source-period"),
+		sourcePeriodId: z.string().min(1),
+	}),
 	sourcePeriodId: z.string().min(1),
 	title: z.string().min(1),
 });
