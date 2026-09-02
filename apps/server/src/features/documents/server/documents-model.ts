@@ -3,16 +3,26 @@ import { z } from "zod";
 
 export const DOCUMENTS_COPY = {
 	body: "Body",
+	changeStatus: "Change status",
+	close: "Close",
 	compare: "Compare",
+	convertInBulk: "Convert in bulk",
+	convertToRecord: "Convert to record",
+	convertToTechnicalDiagram: "Convert to Technical Diagram",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
 	document: "Document",
 	editableSource: "Editable source",
 	general: "General",
+	importedIndependentCopy: "Imported Independent Copy",
+	liveWorkBlock: "Live Work block",
 	noDocuments: "No Documents yet.",
+	openSourceRecord: "Open source record",
 	persona: "Persona",
 	plan: "Plan",
 	prd: "PRD",
+	preview: "Preview",
+	readOnlyLiveSection: "Read-only live section",
 	researchNote: "Research Note",
 	restore: "Restore",
 	save: "Save",
@@ -21,8 +31,35 @@ export const DOCUMENTS_COPY = {
 	title: "Title",
 	type: "Type",
 	version: "Version",
+	versionPinnedEvidence: "Version-pinned evidence",
 	versions: "Versions",
 } as const;
+
+export const CONVERT_RECORD_KINDS = [
+	"Work",
+	"Decision",
+	"Risk",
+	"Assumption",
+	"Open Question",
+] as const;
+
+export type ConvertRecordKind = (typeof CONVERT_RECORD_KINDS)[number];
+
+export const ORIGINAL_MERMAID_OUTCOMES = [
+	"independent",
+	"live-reference",
+] as const;
+
+export type OriginalMermaidOutcome = (typeof ORIGINAL_MERMAID_OUTCOMES)[number];
+
+export const TECHNICAL_DIAGRAM_TARGET_TYPES = [
+	"Technical Architecture",
+	"Data Model",
+	"Technical Sequence",
+] as const;
+
+export type TechnicalDiagramTargetType =
+	(typeof TECHNICAL_DIAGRAM_TARGET_TYPES)[number];
 
 export const DOCUMENT_TYPES = [
 	"General",
@@ -145,7 +182,15 @@ export type DocumentRejectionReason =
 	| "title-required"
 	| "unknown-document-type"
 	| "document-not-found"
-	| "version-not-found";
+	| "version-not-found"
+	| "live-section-cycle"
+	| "preview-required"
+	| "preview-mismatch"
+	| "partial-success-forbidden"
+	| "unsupported-record-type"
+	| "list-required"
+	| "target-not-found"
+	| "broken-mermaid";
 
 export type DocumentWriteOutcome =
 	| { document: DocumentView; status: "committed" }
@@ -217,6 +262,87 @@ export interface DocumentBodyProcessors {
 	mermaid: (source: string) => DocumentBodyProcessorResult;
 }
 
+export type DocumentLiveSurface =
+	| "live-work"
+	| "live-collection"
+	| "live-section"
+	| "live-diagram"
+	| "live-diagram-view"
+	| "inline-reference";
+
+export type LiveResolutionStatus = "ok" | "broken";
+
+export interface DocumentBrokenTarget {
+	kind: DocumentLiveSurface;
+	reason: string;
+	resolution: "broken";
+	sourceRecordId: string;
+}
+
+export interface DocumentLiveWorkFields {
+	actions: {
+		changeStatus: typeof DOCUMENTS_COPY.changeStatus;
+		close: typeof DOCUMENTS_COPY.close;
+		openSourceRecord: typeof DOCUMENTS_COPY.openSourceRecord;
+	};
+	id: string;
+	key: string;
+	kind: "live-work";
+	label: typeof DOCUMENTS_COPY.liveWorkBlock;
+	plannedStart: string | null;
+	priority: string | null;
+	projectId: string;
+	resolution: "ok";
+	revision: number;
+	targetDate: string | null;
+	title: string;
+	type: string;
+	workStatus: string;
+}
+
+export interface DocumentLiveCollectionFields {
+	id: string;
+	kind: "live-collection";
+	membershipRuleId: string;
+	name: string;
+	openSourceRecord: typeof DOCUMENTS_COPY.openSourceRecord;
+	presentationId: string;
+	resolution: "ok";
+}
+
+export interface DocumentLiveSectionFields {
+	heading: string;
+	kind: "live-section";
+	label: typeof DOCUMENTS_COPY.readOnlyLiveSection;
+	openSourceRecord: typeof DOCUMENTS_COPY.openSourceRecord;
+	resolution: "ok";
+	sectionId: string;
+	sourceDocumentId: string;
+	sourceTitle: string;
+	text: string;
+	updatedAt: string;
+}
+
+export interface DocumentLiveDiagramFields {
+	authorityMode: typeof DOCUMENTS_COPY.importedIndependentCopy | null;
+	canvas: false;
+	id: string;
+	kind: "live-diagram" | "live-diagram-view";
+	openSourceRecord: typeof DOCUMENTS_COPY.openSourceRecord;
+	readOnly: true;
+	resolution: "ok";
+	title: string;
+}
+
+export interface DocumentInlineReferenceFields {
+	kind: "inline-reference";
+	openSourceRecord: typeof DOCUMENTS_COPY.openSourceRecord;
+	recordKind: string;
+	resolution: "ok";
+	sourceRecordId: string;
+	title: string;
+}
+
 export type DocumentBodyBlock =
 	| { kind: "markdown"; text: string }
 	| { kind: "fenced-code"; language: string; source: string }
@@ -231,7 +357,14 @@ export type DocumentBodyBlock =
 			kind: "latex";
 			source: string;
 			status: "ok" | "error";
-	  };
+	  }
+	| { kind: "live-marker"; language: string; source: string }
+	| DocumentBrokenTarget
+	| DocumentLiveWorkFields
+	| DocumentLiveCollectionFields
+	| DocumentLiveSectionFields
+	| DocumentLiveDiagramFields
+	| DocumentInlineReferenceFields;
 
 export interface DocumentBodyPresentation {
 	blocks: readonly DocumentBodyBlock[];
@@ -320,6 +453,9 @@ function presentFence(
 	processors: DocumentBodyProcessors
 ): DocumentBodyBlock {
 	const lang = language.toLowerCase();
+	if (lang.startsWith("live-")) {
+		return { kind: "live-marker", language: lang, source };
+	}
 	if (lang === "mermaid") {
 		return processedBlock("mermaid", source, processors.mermaid(source));
 	}

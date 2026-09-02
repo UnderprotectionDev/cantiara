@@ -9,18 +9,46 @@ export const DOCUMENT_TYPES = [
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
+export const CONVERT_RECORD_KINDS = [
+	"Work",
+	"Decision",
+	"Risk",
+	"Assumption",
+	"Open Question",
+] as const;
+
+export type ConvertRecordKind = (typeof CONVERT_RECORD_KINDS)[number];
+
+export const ORIGINAL_MERMAID_OUTCOMES = [
+	"independent",
+	"live-reference",
+] as const;
+
+export type OriginalMermaidOutcome = (typeof ORIGINAL_MERMAID_OUTCOMES)[number];
+
 export const DOCUMENTS_COPY = {
 	body: "Body",
+	changeStatus: "Change status",
+	close: "Close",
 	compare: "Compare",
+	convertInBulk: "Convert in bulk",
+	convertToRecord: "Convert to record",
+	convertToTechnicalDiagram: "Convert to Technical Diagram",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
 	document: "Document",
 	editableSource: "Editable source",
 	general: "General",
+	importedIndependentCopy: "Imported Independent Copy",
+	liveWorkBlock: "Live Work block",
 	noDocuments: "No Documents yet.",
+	openSourceRecord: "Open source record",
 	persona: "Persona",
+	pinEvidence: "Version-pinned evidence",
 	plan: "Plan",
 	prd: "PRD",
+	preview: "Preview",
+	readOnlyLiveSection: "Read-only live section",
 	researchNote: "Research Note",
 	restore: "Restore",
 	save: "Save",
