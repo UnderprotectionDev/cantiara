@@ -9,6 +9,7 @@ export const FOUNDER_CHROME_COPY = {
 	personalWiki: "Personal Wiki",
 	product: "Cantiara",
 	projects: "Projects",
+	search: "Search",
 	skipToMain: "Skip to main content",
 } as const;
 
@@ -22,11 +23,16 @@ export const FOUNDER_CHROME_PATHS = {
 	focusPeriod: "/focus-periods",
 	personalWiki: "/wiki",
 	projects: "/projects",
+	search: "/search",
 	workspaceHome: "/dashboard",
 } as const;
 
 export function founderChromeNav() {
 	return [
+		{
+			label: FOUNDER_CHROME_COPY.search,
+			to: FOUNDER_CHROME_PATHS.search,
+		},
 		{
 			label: FOUNDER_CHROME_COPY.capture,
 			to: FOUNDER_CHROME_PATHS.capture,

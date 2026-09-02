@@ -12,6 +12,7 @@ import {
 
 test("founder chrome reaches Capture and Projects, not Home or Dashboard twins", () => {
 	expect(FOUNDER_CHROME_COPY.product).toBe("Cantiara");
+	expect(FOUNDER_CHROME_COPY.search).toBe("Search");
 	expect(FOUNDER_CHROME_COPY.capture).toBe("Capture");
 	expect(FOUNDER_CHROME_COPY.drafts).toBe("Drafts");
 	expect(FOUNDER_CHROME_COPY.dailyFocus).toBe("Daily Focus");
@@ -20,6 +21,7 @@ test("founder chrome reaches Capture and Projects, not Home or Dashboard twins",
 	expect(FOUNDER_CHROME_COPY.projects).toBe("Projects");
 	expect(FOUNDER_CHROME_PATHS.workspaceHome).toBe("/dashboard");
 	expect(founderChromeNav()).toEqual([
+		{ label: "Search", to: "/search" },
 		{ label: "Capture", to: "/capture" },
 		{ label: "Drafts", to: "/drafts" },
 		{ label: "Daily Focus", to: "/daily-focus" },
