@@ -9,6 +9,12 @@ import {
 } from "../../mutation-core/server/mutation-shared";
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	documentsWouldCycle,
+	ensureSectionIds,
+	syncDocumentUsageLinks,
+	usageTargetsFromBody,
+} from "./documents-live";
+import {
 	applyDocumentTemplatePlaceholders,
 	type ConvertDocumentToTemplatePreviewOutcome,
 	type CreateDocumentCommand,
@@ -22,6 +28,8 @@ import {
 	type DocumentTemplateView,
 	type DocumentTemplateWriteOutcome,
 	type DocumentType,
+	type DocumentVersionCompare,
+	type DocumentVersionView,
 	type DocumentView,
 	type DocumentWriteOutcome,
 	documentTemplatePlaceholders,
@@ -31,6 +39,9 @@ import {
 	isDocumentType,
 	PERSONAL_REVIEW_KIND,
 	personalReviewSkeleton,
+	presentDocumentVersionDiff,
+	type RestoreDocumentCommand,
+	restoreDocumentCommandSchema,
 	type UpdateDocumentCommand,
 	type UpdateDocumentTemplateCommand,
 	updateDocumentCommandSchema,
@@ -377,10 +388,15 @@ export async function instantiateDocumentFromTemplate(
 		if ("reason" in resolved) {
 			return resolved;
 		}
+		const body = ensureSectionIds(resolved.body);
+		const documentId = crypto.randomUUID();
+		if (await documentsWouldCycle(tx, documentId, body)) {
+			return { reason: "live-section-cycle", status: "rejected" };
+		}
 		const created = await tx.document.create({
 			data: {
-				body: resolved.body,
-				id: crypto.randomUUID(),
+				body,
+				id: documentId,
 				projectId:
 					resolved.scope.kind === DOCUMENT_SCOPE_KIND.project
 						? resolved.scope.projectId
@@ -391,6 +407,12 @@ export async function instantiateDocumentFromTemplate(
 				type: resolved.documentType,
 				workspaceId: parsed.data.workspaceId,
 			},
+		});
+		await recordVersion(tx, created);
+		await syncDocumentUsageLinks(tx, {
+			hostRecordId: created.id,
+			targets: usageTargetsFromBody(created.body),
+			workspaceId: parsed.data.workspaceId,
 		});
 		const view = toView(created);
 		await writeReceipt(tx, {
@@ -454,6 +476,82 @@ export async function getDocumentTemplate(
 	return toTemplateView(row);
 }
 
+export async function listDocumentVersions(
+	prisma: PrismaClient,
+	input: { documentId: string; workspaceId?: string }
+): Promise<DocumentVersionView[] | null> {
+	const document = await getDocument(
+		prisma,
+		input.documentId,
+		input.workspaceId
+	);
+	if (!document) {
+		return null;
+	}
+	if (
+		!("documentVersion" in prisma) ||
+		typeof prisma.documentVersion?.findMany !== "function"
+	) {
+		return [];
+	}
+	const rows = await prisma.documentVersion.findMany({
+		orderBy: { revision: "asc" },
+		where: { documentId: input.documentId },
+	});
+	return rows.map(toVersionView);
+}
+
+export async function compareDocumentVersions(
+	prisma: PrismaClient,
+	input: {
+		documentId: string;
+		leftRevision: number;
+		rightRevision: number;
+		workspaceId?: string;
+	}
+): Promise<DocumentVersionCompare | null> {
+	const versions = await listDocumentVersions(prisma, {
+		documentId: input.documentId,
+		workspaceId: input.workspaceId,
+	});
+	if (!versions) {
+		return null;
+	}
+	const left = versions.find(
+		(version) => version.revision === input.leftRevision
+	);
+	const right = versions.find(
+		(version) => version.revision === input.rightRevision
+	);
+	if (!(left && right)) {
+		return null;
+	}
+	return {
+		hunks: presentDocumentVersionDiff(left.body, right.body),
+		left,
+		right,
+	};
+}
+
+export async function restoreDocumentVersion(
+	prisma: PrismaClient,
+	command: unknown,
+	_deps: DocumentWriteDeps = {}
+): Promise<DocumentWriteOutcome> {
+	const parsed = restoreDocumentCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		restoreInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
 async function createInTransaction(
 	tx: PrismaTransaction,
 	command: CreateDocumentCommand,
@@ -467,11 +565,15 @@ async function createInTransaction(
 	if (replayed) {
 		return replayed;
 	}
-	const body = command.payload.body ?? "";
+	const body = ensureSectionIds(command.payload.body ?? "");
+	const documentId = crypto.randomUUID();
+	if (await documentsWouldCycle(tx, documentId, body)) {
+		return { reason: "live-section-cycle", status: "rejected" };
+	}
 	const created = await tx.document.create({
 		data: {
 			body,
-			id: crypto.randomUUID(),
+			id: documentId,
 			projectId:
 				command.payload.scope.kind === DOCUMENT_SCOPE_KIND.project
 					? command.payload.scope.projectId
@@ -482,6 +584,12 @@ async function createInTransaction(
 			type,
 			workspaceId: command.workspaceId,
 		},
+	});
+	await recordVersion(tx, created);
+	await syncDocumentUsageLinks(tx, {
+		hostRecordId: created.id,
+		targets: usageTargetsFromBody(created.body),
+		workspaceId: command.workspaceId,
 	});
 	const view = toView(created);
 	await writeReceipt(tx, {
@@ -513,12 +621,16 @@ async function updateInTransaction(
 	if (current.revision !== command.baseRevision) {
 		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
 	}
-	const nextTitle =
-		command.payload.title === undefined
-			? current.title
-			: command.payload.title.trim();
-	const nextType = command.payload.type ?? current.type;
-	const nextBody = command.payload.body ?? current.body;
+	const { nextBody, nextTitle, nextType } = nextDocumentFields(
+		command,
+		current
+	);
+	if (
+		command.payload.body !== undefined &&
+		(await documentsWouldCycle(tx, current.id, nextBody))
+	) {
+		return { reason: "live-section-cycle", status: "rejected" };
+	}
 	const updated = await tx.document.update({
 		data: {
 			body: nextBody,
@@ -528,6 +640,12 @@ async function updateInTransaction(
 		},
 		where: { id: current.id },
 	});
+	await recordVersion(tx, updated);
+	await syncDocumentUsageLinks(tx, {
+		hostRecordId: updated.id,
+		targets: usageTargetsFromBody(updated.body),
+		workspaceId: command.workspaceId,
+	});
 	const view = toView(updated);
 	await writeReceipt(tx, {
 		actorId: command.actorId,
@@ -536,6 +654,95 @@ async function updateInTransaction(
 		view,
 	});
 	return { document: view, status: "committed" };
+}
+
+function nextDocumentFields(
+	command: UpdateDocumentCommand,
+	current: DocumentRow
+): { nextBody: string; nextTitle: string; nextType: string } {
+	return {
+		nextBody:
+			command.payload.body === undefined
+				? current.body
+				: ensureSectionIds(command.payload.body),
+		nextTitle:
+			command.payload.title === undefined
+				? current.title
+				: command.payload.title.trim(),
+		nextType: command.payload.type ?? current.type,
+	};
+}
+
+async function restoreInTransaction(
+	tx: PrismaTransaction,
+	command: RestoreDocumentCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<DocumentWriteOutcome> {
+	await lockWorkspace(tx, command.workspaceId);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const current = await tx.document.findUnique({
+		where: { id: command.payload.documentId },
+	});
+	if (!current || current.workspaceId !== command.workspaceId) {
+		return { reason: "document-not-found", status: "rejected" };
+	}
+	if (current.revision !== command.baseRevision) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const source = await tx.documentVersion.findUnique({
+		where: {
+			documentId_revision: {
+				documentId: current.id,
+				revision: command.payload.versionRevision,
+			},
+		},
+	});
+	if (!source) {
+		return { reason: "version-not-found", status: "rejected" };
+	}
+	const restored = await tx.document.update({
+		data: {
+			body: source.body,
+			revision: current.revision + 1,
+			title: source.title,
+			type: source.type,
+		},
+		where: { id: current.id },
+	});
+	await recordVersion(tx, restored);
+	await syncDocumentUsageLinks(tx, {
+		hostRecordId: restored.id,
+		targets: usageTargetsFromBody(restored.body),
+		workspaceId: command.workspaceId,
+	});
+	const view = toView(restored);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { document: view, status: "committed" };
+}
+
+async function recordVersion(
+	tx: PrismaTransaction,
+	row: DocumentRow
+): Promise<void> {
+	await tx.documentVersion.create({
+		data: {
+			body: row.body,
+			documentId: row.id,
+			id: crypto.randomUUID(),
+			revision: row.revision,
+			title: row.title,
+			type: row.type,
+		},
+	});
 }
 
 async function replayOrConflict(
@@ -723,25 +930,63 @@ async function resolveInstantiateSource(
 			status: "rejected";
 	  }
 > {
-	const values = command.payload.placeholderValues ?? {};
 	if (command.payload.preparedKind === PERSONAL_REVIEW_KIND) {
-		if (command.payload.templateId || !command.payload.scope) {
-			return { reason: "invalid-command", status: "rejected" };
-		}
-		if (command.payload.scope.kind === DOCUMENT_SCOPE_KIND.project) {
-			const project = await tx.project.findUnique({
-				where: { id: command.payload.scope.projectId },
-			});
-			if (!project || project.workspaceId !== command.workspaceId) {
-				return { reason: "project-not-found", status: "rejected" };
-			}
-		}
-		return {
-			body: applyDocumentTemplatePlaceholders(personalReviewSkeleton(), values),
-			documentType: "General",
-			scope: command.payload.scope,
-		};
+		return await resolvePersonalReviewSource(tx, command);
 	}
+	return await resolveStoredTemplateSource(tx, command);
+}
+
+async function resolvePersonalReviewSource(
+	tx: PrismaTransaction,
+	command: InstantiateDocumentFromTemplateCommand
+): Promise<
+	| {
+			body: string;
+			documentType: DocumentType;
+			scope: DocumentScope;
+	  }
+	| {
+			reason: "invalid-command" | "project-not-found";
+			status: "rejected";
+	  }
+> {
+	const values = command.payload.placeholderValues ?? {};
+	if (command.payload.templateId || !command.payload.scope) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	if (command.payload.scope.kind === DOCUMENT_SCOPE_KIND.project) {
+		const project = await tx.project.findUnique({
+			where: { id: command.payload.scope.projectId },
+		});
+		if (!project || project.workspaceId !== command.workspaceId) {
+			return { reason: "project-not-found", status: "rejected" };
+		}
+	}
+	return {
+		body: applyDocumentTemplatePlaceholders(personalReviewSkeleton(), values),
+		documentType: "General",
+		scope: command.payload.scope,
+	};
+}
+
+async function resolveStoredTemplateSource(
+	tx: PrismaTransaction,
+	command: InstantiateDocumentFromTemplateCommand
+): Promise<
+	| {
+			body: string;
+			documentType: DocumentType;
+			scope: DocumentScope;
+	  }
+	| {
+			reason:
+				| "invalid-command"
+				| "template-not-found"
+				| "unknown-document-type";
+			status: "rejected";
+	  }
+> {
+	const values = command.payload.placeholderValues ?? {};
 	const { preparedKind, templateId } = command.payload;
 	if (!templateId || preparedKind) {
 		return { reason: "invalid-command", status: "rejected" };
@@ -837,6 +1082,26 @@ function toView(row: DocumentRow): DocumentView {
 		liveFilePath: null,
 		revision: row.revision,
 		scope: scopeFromRow(row),
+		title: row.title,
+		type: row.type as DocumentType,
+	};
+}
+
+interface DocumentVersionRow {
+	body: string;
+	documentId: string;
+	id: string;
+	revision: number;
+	title: string;
+	type: string;
+}
+
+function toVersionView(row: DocumentVersionRow): DocumentVersionView {
+	return {
+		body: row.body,
+		documentId: row.documentId,
+		id: row.id,
+		revision: row.revision,
 		title: row.title,
 		type: row.type as DocumentType,
 	};

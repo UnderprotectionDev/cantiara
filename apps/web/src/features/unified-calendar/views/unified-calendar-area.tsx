@@ -22,6 +22,7 @@ import type { ChangeEvent, MouseEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
+import { useInContextPreview } from "@/features/record-discovery/views/in-context-preview-panel";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { invalidateWork } from "@/features/work-lifecycle/forms/invalidate-work";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -394,6 +395,15 @@ function CalendarWorkRow({
 	item: CalendarVisibleRow;
 	onConfirmMove: (draft: DateMoveDraft) => Promise<void>;
 }) {
+	const preview = useInContextPreview();
+	const onOpenSourceRecord = useCallback(() => {
+		preview.open({
+			listPlace: { focusedId: item.workId },
+			recordId: item.workId,
+			sourceHref: item.href,
+			surface: "Calendar",
+		});
+	}, [item.href, item.workId, preview.open]);
 	return (
 		<li className="flex flex-wrap items-center justify-between gap-3 border-border border-b py-3">
 			<div className="min-w-0">
@@ -415,12 +425,14 @@ function CalendarWorkRow({
 				</div>
 			</div>
 			{item.openSourceRecord ? (
-				<a
-					className="shrink-0 text-sm underline-offset-4 hover:underline"
-					href={item.href}
+				<Button
+					onClick={onOpenSourceRecord}
+					size="sm"
+					type="button"
+					variant="link"
 				>
 					{copy.openSourceRecord}
-				</a>
+				</Button>
 			) : null}
 		</li>
 	);

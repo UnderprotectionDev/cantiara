@@ -21,6 +21,10 @@ import { projectIdFromPath } from "@/features/personal-shell/components/project-
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
 
+import {
+	PREPARED_INDEX_LABELS,
+	preparedIndexHref,
+} from "./prepared-index-search";
 import { RECORD_DISCOVERY_COPY } from "./record-discovery-copy";
 import { isSearchOpenShortcut, SEARCH_SHORTCUT_HINT } from "./search-surface";
 
@@ -144,6 +148,7 @@ export function SearchOverlay() {
 		enabled: mount,
 	});
 	const copy = catalog.data?.copy ?? RECORD_DISCOVERY_COPY;
+	const indexes = catalog.data?.indexes ?? PREPARED_INDEX_LABELS;
 	const trimmed = query.trim();
 	const result = useQuery({
 		...orpc.recordDiscovery.search.queryOptions({
@@ -277,9 +282,24 @@ export function SearchOverlay() {
 							</p>
 						) : null}
 						{!result.isError && trimmed.length === 0 ? (
-							<p className="px-3 py-8 text-center text-muted-foreground text-sm">
-								{copy.emptyQuery}
-							</p>
+							<div className="flex flex-col gap-2 px-3 py-4">
+								<p className="text-center text-muted-foreground text-sm">
+									{copy.emptyQuery}
+								</p>
+								<ul className="flex flex-col">
+									{indexes.map((label) => (
+										<li key={label}>
+											<a
+												className="block rounded-none px-2 py-2 text-sm hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring"
+												href={preparedIndexHref(label)}
+												onClick={closeSearch}
+											>
+												{label}
+											</a>
+										</li>
+									))}
+								</ul>
+							</div>
 						) : null}
 						{!result.isError &&
 						trimmed.length > 0 &&

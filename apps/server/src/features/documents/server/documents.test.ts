@@ -1,10 +1,13 @@
 /**
  * Documents seam — Markdown Belge in the database, selectable
  * types, tables/fenced code/Mermaid/LaTeX in one body, Document
- * Template independence, Personal Review headings, and the
+ * Template independence, Personal Review headings, version
+ * compare/restore as product versions (not Git), and the
  * file-truth counterpart (no live `.md` file). Synthetic fixture
  * for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Belge bütünlüğü and Belge şablonları).
+ * (Belge bütünlüğü and Belge şablonları: create/edit, type as
+ * classification, render error keeps source, version compare
+ * and restore).
  */
 import { PrismaClient } from "@cantiara/db";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -19,6 +22,7 @@ import {
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import { createWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
+	compareDocumentVersions,
 	convertDocumentToTemplate,
 	createDocument,
 	createDocumentTemplate,
@@ -27,7 +31,9 @@ import {
 	instantiateDocumentFromTemplate,
 	listDocuments,
 	listDocumentTemplates,
+	listDocumentVersions,
 	previewConvertDocumentToTemplate,
+	restoreDocumentVersion,
 	updateDocument,
 	updateDocumentTemplate,
 } from "./documents";
@@ -37,6 +43,7 @@ import {
 	DOCUMENTS_COPY,
 	documentsCatalog,
 	presentDocumentBody,
+	presentDocumentVersionDiff,
 } from "./documents-model";
 
 const DATABASE_URL =
@@ -44,6 +51,28 @@ const DATABASE_URL =
 	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
 
 const MARKETPLACE_COPY = /marketplace|licensed pack|meeting type/i;
+const SECTION_ID = "\\{#sec-[^}]+\\}";
+const SPEC_HEADING_BODY = new RegExp(`^# Spec ${SECTION_ID}\\n\\nHello$`);
+const PERIOD_FILLED_BODY = new RegExp(
+	`^## Period ${SECTION_ID}\\n\\n2026-W36\\n$`
+);
+const NOTE_HEADING_BODY = new RegExp(`^## Note ${SECTION_ID}\\n$`);
+const PERIOD_TRIMMED_BODY = new RegExp(
+	`^## Period ${SECTION_ID}\\n\\nOnly this heading remains\\.\\n$`
+);
+const PERSONAL_REVIEW_BODY = new RegExp(
+	`^${[
+		"Period",
+		"What changed\\?",
+		"What worked\\?",
+		"What was difficult\\?",
+		"Decisions and learnings",
+		"What will I change next\\?",
+		"Related records",
+	]
+		.map((heading) => `## ${heading} ${SECTION_ID}`)
+		.join("\\n\\n")}\\n$`
+);
 
 const FULL_BODY = [
 	"| Col | Value |",
@@ -144,6 +173,10 @@ describe("Documents catalog", () => {
 		expect(DOCUMENTS_COPY.convertToTemplate).toBe("Convert to template");
 		expect(DOCUMENTS_COPY.createFromTemplate).toBe("Create from template");
 		expect(DOCUMENTS_COPY.personalReview).toBe("Personal Review");
+		expect(DOCUMENTS_COPY.versions).toBe("Versions");
+		expect(DOCUMENTS_COPY.compare).toBe("Compare");
+		expect(DOCUMENTS_COPY.restore).toBe("Restore");
+		expect(DOCUMENTS_COPY.version).toBe("Version");
 		expect(DOCUMENT_TYPES).toEqual([
 			"General",
 			"PRD",
@@ -169,6 +202,9 @@ describe("Documents", () => {
 	});
 
 	afterEach(async () => {
+		await prisma.usageLink.deleteMany();
+		await prisma.usageHostEmbed.deleteMany();
+		await prisma.typedRelation.deleteMany();
 		await prisma.mutationReceipt.deleteMany();
 		await prisma.workspace.deleteMany();
 		await prisma.user.deleteMany();
@@ -195,18 +231,16 @@ describe("Documents", () => {
 			},
 			{ files }
 		);
-		expect(created).toMatchObject({
-			document: {
-				body: "# Spec\n\nHello",
-				liveFilePath: null,
-				title: "Payments spec",
-				type: "Spec",
-			},
-			status: "committed",
-		});
+		expect(created.status).toBe("committed");
 		if (created.status !== "committed") {
 			throw new Error("expected committed Document");
 		}
+		expect(created.document.body).toMatch(SPEC_HEADING_BODY);
+		expect(created.document).toMatchObject({
+			liveFilePath: null,
+			title: "Payments spec",
+			type: "Spec",
+		});
 		expect(files.writes).toEqual([]);
 		expect(await getDocument(prisma, created.document.id)).toEqual(
 			created.document
@@ -451,6 +485,208 @@ describe("Documents", () => {
 		});
 		expect(files.writes).toEqual([]);
 	});
+
+	it("lists application versions after create and keeps earlier ones after edit", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const created = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: "alpha",
+				scope: { kind: "project", projectId: project.id },
+				title: "Payments spec",
+				type: "Spec",
+			},
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const afterCreate = await listDocumentVersions(prisma, {
+			documentId: created.document.id,
+			workspaceId,
+		});
+		expect(afterCreate).toEqual([
+			expect.objectContaining({
+				body: "alpha",
+				documentId: created.document.id,
+				revision: 1,
+				title: "Payments spec",
+				type: "Spec",
+			}),
+		]);
+		const updated = await updateDocument(prisma, {
+			actorId,
+			baseRevision: created.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: "beta",
+				documentId: created.document.id,
+			},
+			workspaceId,
+		});
+		if (updated.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const afterEdit = await listDocumentVersions(prisma, {
+			documentId: created.document.id,
+			workspaceId,
+		});
+		expect(afterEdit).toEqual([
+			expect.objectContaining({ body: "alpha", revision: 1 }),
+			expect.objectContaining({ body: "beta", revision: 2 }),
+		]);
+	});
+
+	it("compares two Document versions as body hunks, not a Git commit", async () => {
+		expect(presentDocumentVersionDiff("alpha\n", "beta\n")).toEqual([
+			{ kind: "removed", text: "alpha\n" },
+			{ kind: "added", text: "beta\n" },
+		]);
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const created = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: "alpha\n",
+				scope: { kind: "project", projectId: project.id },
+				title: "Payments spec",
+				type: "Spec",
+			},
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const updated = await updateDocument(prisma, {
+			actorId,
+			baseRevision: created.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: "beta\n",
+				documentId: created.document.id,
+			},
+			workspaceId,
+		});
+		if (updated.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const compared = await compareDocumentVersions(prisma, {
+			documentId: created.document.id,
+			leftRevision: 1,
+			rightRevision: 2,
+			workspaceId,
+		});
+		expect(compared).toMatchObject({
+			hunks: [
+				{ kind: "removed", text: "alpha\n" },
+				{ kind: "added", text: "beta\n" },
+			],
+			left: { body: "alpha\n", revision: 1 },
+			right: { body: "beta\n", revision: 2 },
+		});
+	});
+
+	it("restores a selected version as a new tip without deleting history or writing a live file", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const files = createMemoryLiveFiles();
+		const created = await createDocument(
+			prisma,
+			{
+				actorId,
+				idempotencyKey: crypto.randomUUID(),
+				origin: "human",
+				payload: {
+					body: "alpha",
+					scope: { kind: "project", projectId: project.id },
+					title: "Payments spec",
+					type: "Spec",
+				},
+				workspaceId,
+			},
+			{ files }
+		);
+		if (created.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const updated = await updateDocument(
+			prisma,
+			{
+				actorId,
+				baseRevision: created.document.revision,
+				idempotencyKey: crypto.randomUUID(),
+				origin: "human",
+				payload: {
+					body: "beta",
+					documentId: created.document.id,
+					title: "Payments spec v2",
+				},
+				workspaceId,
+			},
+			{ files }
+		);
+		if (updated.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const restored = await restoreDocumentVersion(
+			prisma,
+			{
+				actorId,
+				baseRevision: updated.document.revision,
+				idempotencyKey: crypto.randomUUID(),
+				origin: "human",
+				payload: {
+					documentId: created.document.id,
+					versionRevision: 1,
+				},
+				workspaceId,
+			},
+			{ files }
+		);
+		expect(restored).toMatchObject({
+			document: {
+				body: "alpha",
+				id: created.document.id,
+				liveFilePath: null,
+				revision: 3,
+				title: "Payments spec",
+				type: "Spec",
+			},
+			status: "committed",
+		});
+		expect(files.writes).toEqual([]);
+		expect(await getDocument(prisma, created.document.id)).toMatchObject({
+			body: "alpha",
+			liveFilePath: null,
+			revision: 3,
+			title: "Payments spec",
+		});
+		const history = await listDocumentVersions(prisma, {
+			documentId: created.document.id,
+			workspaceId,
+		});
+		expect(history).toEqual([
+			expect.objectContaining({
+				body: "alpha",
+				revision: 1,
+				title: "Payments spec",
+			}),
+			expect.objectContaining({
+				body: "beta",
+				revision: 2,
+				title: "Payments spec v2",
+			}),
+			expect.objectContaining({
+				body: "alpha",
+				revision: 3,
+				title: "Payments spec",
+			}),
+		]);
+	});
 });
 
 describe("Document templates", () => {
@@ -637,7 +873,6 @@ describe("Document templates", () => {
 		});
 		expect(created).toMatchObject({
 			document: {
-				body: "## Period\n\n2026-W36\n",
 				liveFilePath: null,
 				title: "Week 36 review",
 				type: "General",
@@ -647,6 +882,7 @@ describe("Document templates", () => {
 		if (created.status !== "committed") {
 			throw new Error("expected committed Document");
 		}
+		expect(created.document.body).toMatch(PERIOD_FILLED_BODY);
 		expect(created.document.id).not.toBe(template.template.id);
 		const edited = await updateDocumentTemplate(prisma, {
 			actorId,
@@ -661,9 +897,11 @@ describe("Document templates", () => {
 		});
 		expect(edited.status).toBe("committed");
 		expect(await getDocument(prisma, created.document.id)).toMatchObject({
-			body: "## Period\n\n2026-W36\n",
 			id: created.document.id,
 		});
+		expect((await getDocument(prisma, created.document.id))?.body).toMatch(
+			PERIOD_FILLED_BODY
+		);
 		expect(
 			await getDocumentTemplate(prisma, template.template.id)
 		).toMatchObject({
@@ -689,24 +927,7 @@ describe("Document templates", () => {
 			throw new Error("expected committed Document");
 		}
 		expect(created.document.type).toBe("General");
-		expect(created.document.body).toBe(
-			[
-				"## Period",
-				"",
-				"## What changed?",
-				"",
-				"## What worked?",
-				"",
-				"## What was difficult?",
-				"",
-				"## Decisions and learnings",
-				"",
-				"## What will I change next?",
-				"",
-				"## Related records",
-				"",
-			].join("\n")
-		);
+		expect(created.document.body).toMatch(PERSONAL_REVIEW_BODY);
 		expect(created.document).not.toHaveProperty("meetingType");
 		expect(created.document).not.toHaveProperty("cadence");
 		const withoutTemplate = await createDocument(prisma, {
@@ -738,11 +959,14 @@ describe("Document templates", () => {
 		});
 		expect(trimmed).toMatchObject({
 			document: {
-				body: "## Period\n\nOnly this heading remains.\n",
 				id: created.document.id,
 			},
 			status: "committed",
 		});
+		if (trimmed.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		expect(trimmed.document.body).toMatch(PERIOD_TRIMMED_BODY);
 	});
 
 	it("creates a Personal Wiki Document Template and instantiates in that scope", async () => {
@@ -773,11 +997,14 @@ describe("Document templates", () => {
 		});
 		expect(created).toMatchObject({
 			document: {
-				body: "## Note\n",
 				scope: { kind: "personal-wiki" },
 				title: "Wiki instance",
 			},
 			status: "committed",
 		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		expect(created.document.body).toMatch(NOTE_HEADING_BODY);
 	});
 });

@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	compareDocumentVersions,
 	convertDocumentToTemplate,
 	createDocument,
 	createDocumentTemplate,
@@ -14,10 +15,30 @@ import {
 	instantiateDocumentFromTemplate,
 	listDocuments,
 	listDocumentTemplates,
+	listDocumentVersions,
 	previewConvertDocumentToTemplate,
+	restoreDocumentVersion,
 	updateDocument,
 	updateDocumentTemplate,
 } from "./documents";
+import {
+	convertList,
+	convertListCommandSchema,
+	convertMermaidCommandSchema,
+	convertMermaidToTechnicalDiagram,
+	convertSelection,
+	convertSelectionCommandSchema,
+	createMemoryTechnicalDiagramImport,
+	pinVersionPinnedEvidence,
+	pinVersionPinnedEvidenceCommandSchema,
+	previewConvertList,
+	previewConvertListInputSchema,
+	previewConvertMermaid,
+	previewConvertMermaidInputSchema,
+	previewConvertSelection,
+	previewConvertSelectionInputSchema,
+} from "./documents-convert";
+import { presentLiveDocumentBody } from "./documents-live";
 import {
 	convertDocumentToTemplatePayloadSchema,
 	createDocumentPayloadSchema,
@@ -26,9 +47,12 @@ import {
 	documentsCatalog,
 	instantiateDocumentFromTemplatePayloadSchema,
 	presentDocumentBody,
+	restoreDocumentPayloadSchema,
 	updateDocumentPayloadSchema,
 	updateDocumentTemplatePayloadSchema,
 } from "./documents-model";
+
+const diagramStore = createMemoryTechnicalDiagramImport();
 
 async function requireAccess(userId: string) {
 	const access = await getAccountAccessForUser(getPrismaClient(), userId);
@@ -57,6 +81,82 @@ async function requireScope(
 
 export const documents = {
 	catalog: protectedProcedure.handler(() => documentsCatalog()),
+	compare: protectedProcedure
+		.input(
+			z.object({
+				documentId: z.string().min(1),
+				leftRevision: z.number().int().positive(),
+				rightRevision: z.number().int().positive(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const compared = await compareDocumentVersions(getPrismaClient(), {
+				documentId: input.documentId,
+				leftRevision: input.leftRevision,
+				rightRevision: input.rightRevision,
+				workspaceId: access.workspaceId,
+			});
+			if (!compared) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return compared;
+		}),
+	convertList: protectedWriteProcedure
+		.input(
+			convertListCommandSchema.omit({
+				actorId: true,
+				origin: true,
+				workspaceId: true,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await convertList(getPrismaClient(), {
+				...input,
+				actorId: access.accountId,
+				origin: "human",
+				workspaceId: access.workspaceId,
+			});
+		}),
+	convertMermaid: protectedWriteProcedure
+		.input(
+			convertMermaidCommandSchema.omit({
+				actorId: true,
+				origin: true,
+				workspaceId: true,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await convertMermaidToTechnicalDiagram(
+				getPrismaClient(),
+				{
+					...input,
+					actorId: access.accountId,
+					origin: "human",
+					workspaceId: access.workspaceId,
+				},
+				diagramStore
+			);
+		}),
+	convertSelection: protectedWriteProcedure
+		.input(
+			convertSelectionCommandSchema.omit({
+				actorId: true,
+				origin: true,
+				workspaceId: true,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await convertSelection(getPrismaClient(), {
+				...input,
+				actorId: access.accountId,
+				origin: "human",
+				workspaceId: access.workspaceId,
+			});
+		}),
 	convertToTemplate: protectedWriteProcedure
 		.input(
 			z.object({
@@ -92,7 +192,9 @@ export const documents = {
 		)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			await requireScope(access.workspaceId, input.payload.scope);
+			if (input.payload.scope.kind === "project") {
+				await requireProject(access.workspaceId, input.payload.scope.projectId);
+			}
 			return await createDocument(getPrismaClient(), {
 				actorId: access.accountId,
 				idempotencyKey: input.idempotencyKey,
@@ -131,7 +233,9 @@ export const documents = {
 			if (!document) {
 				throw new ORPCError("NOT_FOUND");
 			}
-			await requireScope(access.workspaceId, document.scope);
+			if (document.scope.kind === "project") {
+				await requireProject(access.workspaceId, document.scope.projectId);
+			}
 			return document;
 		}),
 	instantiateFromTemplate: protectedWriteProcedure
@@ -169,7 +273,9 @@ export const documents = {
 		.input(z.object({ scope: documentScopeSchema }))
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			await requireScope(access.workspaceId, input.scope);
+			if (input.scope.kind === "project") {
+				await requireProject(access.workspaceId, input.scope.projectId);
+			}
 			return await listDocuments(getPrismaClient(), {
 				scope: input.scope,
 				workspaceId: access.workspaceId,
@@ -179,15 +285,88 @@ export const documents = {
 		.input(z.object({ scope: documentScopeSchema }))
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			await requireScope(access.workspaceId, input.scope);
+			if (input.scope.kind === "project") {
+				await requireProject(access.workspaceId, input.scope.projectId);
+			}
 			return await listDocumentTemplates(getPrismaClient(), {
 				scope: input.scope,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	pinVersionPinnedEvidence: protectedWriteProcedure
+		.input(
+			pinVersionPinnedEvidenceCommandSchema.omit({
+				actorId: true,
+				origin: true,
+				workspaceId: true,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await pinVersionPinnedEvidence(getPrismaClient(), {
+				...input,
+				actorId: access.accountId,
+				origin: "human",
 				workspaceId: access.workspaceId,
 			});
 		}),
 	present: protectedProcedure
 		.input(z.object({ body: z.string() }))
 		.handler(({ input }) => presentDocumentBody(input.body)),
+	presentLive: protectedProcedure
+		.input(
+			z.object({
+				body: z.string(),
+				workspaceId: z.string().min(1).optional(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await presentLiveDocumentBody(getPrismaClient(), {
+				body: input.body,
+				sources: { diagrams: diagramStore },
+				workspaceId: access.workspaceId,
+			});
+		}),
+	previewConvertList: protectedProcedure
+		.input(
+			previewConvertListInputSchema.omit({
+				workspaceId: true,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await previewConvertList(getPrismaClient(), {
+				...input,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	previewConvertMermaid: protectedProcedure
+		.input(
+			previewConvertMermaidInputSchema.omit({
+				workspaceId: true,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await previewConvertMermaid(getPrismaClient(), {
+				...input,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	previewConvertSelection: protectedProcedure
+		.input(
+			previewConvertSelectionInputSchema.omit({
+				workspaceId: true,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await previewConvertSelection(getPrismaClient(), {
+				...input,
+				workspaceId: access.workspaceId,
+			});
+		}),
 	previewConvertToTemplate: protectedProcedure
 		.input(z.object({ documentId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -197,6 +376,25 @@ export const documents = {
 				input.documentId,
 				access.workspaceId
 			);
+		}),
+	restore: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: restoreDocumentPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await restoreDocumentVersion(getPrismaClient(), {
+				actorId: access.accountId,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
 		}),
 	update: protectedWriteProcedure
 		.input(
@@ -244,5 +442,18 @@ export const documents = {
 				payload: input.payload,
 				workspaceId: access.workspaceId,
 			});
+		}),
+	versions: protectedProcedure
+		.input(z.object({ documentId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const versions = await listDocumentVersions(getPrismaClient(), {
+				documentId: input.documentId,
+				workspaceId: access.workspaceId,
+			});
+			if (!versions) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return versions;
 		}),
 };
