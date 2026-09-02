@@ -9,6 +9,10 @@ import {
 test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.document).toBe("Document");
 	expect(DOCUMENTS_COPY.createDocument).toBe("Create Document");
+	expect(DOCUMENTS_COPY.documentTemplate).toBe("Document Template");
+	expect(DOCUMENTS_COPY.convertToTemplate).toBe("Convert to template");
+	expect(DOCUMENTS_COPY.createFromTemplate).toBe("Create from template");
+	expect(DOCUMENTS_COPY.personalReview).toBe("Personal Review");
 	expect(DOCUMENTS_COPY.couldNotRender).toBe("Could not render this block.");
 	expect(DOCUMENTS_COPY.editableSource).toBe("Editable source");
 	expect(DOCUMENTS_COPY.toolbar.mermaid).toBe("Mermaid");

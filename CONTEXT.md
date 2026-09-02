@@ -578,6 +578,14 @@ _Avoid_: Geri Bildirim, Test Oturumu, Deney/Doğrulama
 Bir Proje veya Kişisel Wiki kapsamında yaşayan, sürümlü Markdown içeriğine sahip ana kayıt; başka kaydın metin alanı veya dış dosyayla canlı eşitlenen kopya değildir.
 _Avoid_: Dosya Eki, harici Markdown dosyası, kayıt açıklaması
 
+**Belge şablonu**:
+Proje veya Kişisel Wiki kapsamında tekrar kullanılan Belge başlangıç iskeleti; üretilen Belge bağımsız kimlik alır. Şablon geçmiş, ilişki, yayın, arşiv veya canlı bağ taşımaz ([belge şablonları](docs/prd/07-documents-and-knowledge.md#belge-şablonları)). UI: `Document Template`. Şablondan Belge açma UI: `Create from template`; mevcut Belgeden iskelet UI: `Convert to template`.
+_Avoid_: Work Template, live-bound, marketplace, Başlangıç iskeleti, İş şablonu
+
+**Personal Review**:
+İsteğe bağlı hazır Belge şablonu; toplantı türü, katılımcı veya zorunlu kullanım sıklığı değildir ([belge şablonları](docs/prd/07-documents-and-knowledge.md#belge-şablonları)). UI: `Personal Review`.
+_Avoid_: meeting type, zorunlu review kaydı, Retrospective toplantısı
+
 **Dosya Eki**:
 Tam olarak bir Proje veya Kişisel Wiki kapsamında yaşayan, dosya içeriğini ve sürümlerini taşıyan ana kayıt; başka kapsamdaki ilişki sahipliğini veya görünürlüğünü değiştirmez.
 _Avoid_: Belge, ilişki eki, paylaşılan global dosya

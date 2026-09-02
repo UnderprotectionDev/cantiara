@@ -7,6 +7,8 @@ import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell
 import { orpc } from "@/utils/orpc";
 
 import CreateDocumentForm from "../forms/create-document-form";
+import CreateDocumentFromTemplateForm from "../forms/create-document-from-template-form";
+import CreateDocumentTemplateForm from "../forms/create-document-template-form";
 import { DOCUMENTS_COPY, documentScopeFor } from "../forms/documents-copy";
 import DocumentDetail from "./document-detail";
 
@@ -42,6 +44,11 @@ export default function DocumentArea({
 	return (
 		<div className="flex flex-col gap-6">
 			<CreateDocumentForm onCreated={onCreated} projectId={projectId} />
+			<CreateDocumentFromTemplateForm
+				onCreated={onCreated}
+				projectId={projectId}
+			/>
+			<CreateDocumentTemplateForm projectId={projectId} />
 			<div className="grid gap-6 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
 				{documents.data.length === 0 ? (
 					<Empty>

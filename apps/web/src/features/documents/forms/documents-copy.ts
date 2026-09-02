@@ -10,19 +10,27 @@ export const DOCUMENT_TYPES = [
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export const DOCUMENTS_COPY = {
+	addDocumentTemplate: "Add Document Template",
 	body: "Body",
+	convertToTemplate: "Convert to template",
 	couldNotRender: "Could not render this block.",
 	createDocument: "Create Document",
+	createFromTemplate: "Create from template",
 	document: "Document",
+	documentTemplate: "Document Template",
 	editableSource: "Editable source",
 	general: "General",
+	name: "Name",
 	noDocuments: "No Documents yet.",
 	persona: "Persona",
+	personalReview: "Personal Review",
+	placeholders: "Placeholders",
 	plan: "Plan",
 	prd: "PRD",
 	researchNote: "Research Note",
 	save: "Save",
 	selectDocument: "Select a Document",
+	skeleton: "Skeleton",
 	spec: "Spec",
 	title: "Title",
 	toolbar: {
@@ -66,3 +74,5 @@ export function documentScopeFor(
 	}
 	return { kind: "personal-wiki" };
 }
+
+export const PERSONAL_REVIEW_KIND = "personal-review" as const;

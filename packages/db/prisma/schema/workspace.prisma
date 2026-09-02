@@ -12,6 +12,7 @@ model Workspace {
   fileAttachments       FileAttachment[]
   focusPeriods          FocusPeriod[]
   documents             Document[]
+  documentTemplates     DocumentTemplate[]
 
   @@map("workspace")
 }
