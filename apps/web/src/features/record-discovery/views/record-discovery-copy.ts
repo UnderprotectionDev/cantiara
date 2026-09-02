@@ -40,6 +40,7 @@ export const RECORD_DISCOVERY_COPY = {
 	milestone: "Milestone",
 	moodboard: "Moodboard",
 	noMatches: "No matching records.",
+	openFullPage: "Open full page",
 	openQuestion: "Open Question",
 	openSourceRecord: "Open source record",
 	pasteNotApplied: "Paste did not apply; no rows were written.",

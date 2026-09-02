@@ -603,12 +603,16 @@ Yetkili ana kayıtları deterministik tam metin sırası ve görünür eşleşme
 _Avoid_: Komut Paleti, anlamsal sıralama, AI arama
 
 **Kayıt Keşfi**:
-Evrensel Arama, hazır tür dizinleri ve tür kapsamlı tablo görünümüyle kaydı yerinde bulma; [keşif, karar ve tasarım alanından](docs/prd/09-discovery-decisions-and-design.md) ayrıdır.
+Evrensel Arama, hazır tür dizinleri, tür kapsamlı tablo görünümü ve bağlam içi kayıt önizlemesiyle kaydı yerinde bulma; [keşif, karar ve tasarım alanından](docs/prd/09-discovery-decisions-and-design.md) ayrıdır.
 _Avoid_: Discovery alanı, ürün keşfi, ayrı belge kütüphanesi
 
 **Tablo Görünümü**:
 Kapalı tür × yüzey matrisinin izin verdiği tek kayıt türünü yoğun satırlarda sıralayıp filtreleyen ve izinli hücreyi aynı ana kayda yazan [görünüm](docs/prd/08-search-relations-and-evidence.md#tür-kapsamlı-table-görünümü); ayrı satır kaydı, dış spreadsheet senkronu veya toplu düzenleme değildir. UI: `Table`.
 _Avoid_: Liste görünümü, ikinci kayıt sistemi, spreadsheet senkronu
+
+**Bağlam içi kayıt önizleme**:
+Desteklenen yüzeylerden `Open source record` ile açılan geçici yan panel; kopya kayıt, kalıcı yerleşim veya oturumlar arası recent-context değildir ([bağlam içi kayıt önizleme](docs/prd/08-search-relations-and-evidence.md#bağlam-içi-kayıt-önizleme)). UI: `Open source record`, `Open full page`.
+_Avoid_: ikinci kayıt, zorunlu yan panel, Akıllı Koleksiyon
 
 **Kaynak**:
 Dış bilgiyi URL, erişim zamanı ve yakalanan içerikle tarihsel sürümler hâlinde koruyan Proje ana kaydı; canlı web sayfası, geçici bağlantı önizlemesi veya kendiliğinden onaylanmış kanıt değildir.
