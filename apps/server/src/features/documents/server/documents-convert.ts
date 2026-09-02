@@ -851,6 +851,7 @@ function toView(row: {
 		id: row.id,
 		inDocTags: [],
 		liveFilePath: null,
+		originDocumentId: null,
 		parentId: row.parentId ?? null,
 		revision: row.revision,
 		scope:

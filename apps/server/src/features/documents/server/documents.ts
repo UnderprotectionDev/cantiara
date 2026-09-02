@@ -9,6 +9,7 @@ import {
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
 import { getProject } from "../../project-shell/server/project-shell";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
 	documentsWouldCycle,
 	ensureSectionIds,
@@ -33,11 +34,14 @@ import {
 	DOCUMENT_STARTER_SKELETONS,
 	type DocumentArchivePreview,
 	type DocumentChildCard,
+	type DocumentExportOutcome,
+	type DocumentExternalSurfaces,
 	type DocumentFolderView,
 	type DocumentFolderWriteOutcome,
 	type DocumentHierarchyPreview,
 	type DocumentInDocTag,
 	type DocumentLiveFiles,
+	type DocumentMovePreview,
 	type DocumentScope,
 	type DocumentTemplateView,
 	type DocumentTemplateWriteOutcome,
@@ -69,6 +73,12 @@ import {
 	updateDocumentCommandSchema,
 	updateDocumentTemplateCommandSchema,
 } from "./documents-model";
+import {
+	copyDocument as copyDocumentAtSeam,
+	exportDocument as exportDocumentAtSeam,
+	moveDocument as moveDocumentAtSeam,
+	previewDocumentMove as previewDocumentMoveAtSeam,
+} from "./documents-portability";
 
 type PrismaTransaction = Prisma.TransactionClient;
 
@@ -98,7 +108,9 @@ interface DocumentTemplateRow {
 }
 
 export interface DocumentWriteDeps {
+	clock?: { now: () => Date };
 	files?: DocumentLiveFiles;
+	surfaces?: DocumentExternalSurfaces;
 }
 
 export async function createDocument(
@@ -228,7 +240,13 @@ export async function getDocument(
 	}
 	const tags = await inDocTagsFor(prisma, [row.id]);
 	const cards = await childCardsFor(prisma, [row.id]);
-	return toView(row, tags.get(row.id) ?? [], cards.get(row.id) ?? []);
+	const origins = await originsFor(prisma, [row.id]);
+	return toView(
+		row,
+		tags.get(row.id) ?? [],
+		cards.get(row.id) ?? [],
+		origins.get(row.id) ?? null
+	);
 }
 
 export async function listDocuments(
@@ -267,8 +285,17 @@ export async function listDocuments(
 		prisma,
 		rows.map((row) => row.id)
 	);
+	const origins = await originsFor(
+		prisma,
+		rows.map((row) => row.id)
+	);
 	return rows.map((row) =>
-		toView(row, tags.get(row.id) ?? [], cards.get(row.id) ?? [])
+		toView(
+			row,
+			tags.get(row.id) ?? [],
+			cards.get(row.id) ?? [],
+			origins.get(row.id) ?? null
+		)
 	);
 }
 
@@ -365,6 +392,43 @@ export async function placeDocument(
 	return await prisma.$transaction((tx) =>
 		placeInTransaction(tx, parsed.data, commandKey, fingerprint)
 	);
+}
+
+export async function previewDocumentMove(
+	prisma: PrismaClient,
+	input: {
+		childDocumentIds: readonly string[];
+		documentId: string;
+		target: DocumentScope;
+		workspaceId: string;
+	},
+	deps: DocumentWriteDeps = {}
+): Promise<DocumentMovePreview> {
+	return await previewDocumentMoveAtSeam(prisma, input, portabilityDeps(deps));
+}
+
+export async function moveDocument(
+	prisma: PrismaClient,
+	command: unknown,
+	deps: DocumentWriteDeps = {}
+): Promise<DocumentWriteOutcome> {
+	return await moveDocumentAtSeam(prisma, command, portabilityDeps(deps));
+}
+
+export async function copyDocument(
+	prisma: PrismaClient,
+	command: unknown,
+	deps: DocumentWriteDeps = {}
+): Promise<DocumentWriteOutcome> {
+	return await copyDocumentAtSeam(prisma, command, portabilityDeps(deps));
+}
+
+export async function exportDocument(
+	prisma: PrismaClient,
+	input: unknown,
+	deps: DocumentWriteDeps = {}
+): Promise<DocumentExportOutcome> {
+	return await exportDocumentAtSeam(prisma, input, portabilityDeps(deps));
 }
 
 export async function previewDocumentArchive(
@@ -1754,7 +1818,42 @@ async function viewFromTx(
 ): Promise<DocumentView> {
 	const tags = await inDocTagsFor(tx, [row.id]);
 	const cards = await childCardsFor(tx, [row.id]);
-	return toView(row, tags.get(row.id) ?? [], cards.get(row.id) ?? []);
+	const origins = await originsFor(tx, [row.id]);
+	return toView(
+		row,
+		tags.get(row.id) ?? [],
+		cards.get(row.id) ?? [],
+		origins.get(row.id) ?? null
+	);
+}
+
+async function originsFor(
+	prisma: PrismaClient | PrismaTransaction,
+	documentIds: string[]
+): Promise<Map<string, string>> {
+	const grouped = new Map<string, string>();
+	if (documentIds.length === 0) {
+		return grouped;
+	}
+	const rows = await prisma.typedRelation.findMany({
+		where: {
+			fromId: { in: documentIds },
+			fromKind: "Document",
+			type: RELATIONS_COPY.origin,
+		},
+	});
+	for (const row of rows) {
+		grouped.set(row.fromId, row.toId);
+	}
+	return grouped;
+}
+
+function portabilityDeps(deps: DocumentWriteDeps) {
+	return {
+		clock: deps.clock,
+		surfaces: deps.surfaces,
+		toView: viewFromTx,
+	};
 }
 
 async function childCardsFor(
@@ -1790,7 +1889,8 @@ async function childCardsFor(
 function toView(
 	row: DocumentRow,
 	inDocTags: readonly DocumentInDocTag[] = [],
-	childCards: readonly DocumentChildCard[] = []
+	childCards: readonly DocumentChildCard[] = [],
+	originDocumentId: string | null = null
 ): DocumentView {
 	return {
 		archived: row.archivedAt !== null,
@@ -1800,6 +1900,7 @@ function toView(
 		id: row.id,
 		inDocTags,
 		liveFilePath: null,
+		originDocumentId,
 		parentId: row.parentId,
 		revision: row.revision,
 		scope: scopeFromRow(row),

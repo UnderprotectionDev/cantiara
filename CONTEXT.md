@@ -586,6 +586,14 @@ _Avoid_: Dosya Eki, harici Markdown dosyası, kayıt açıklaması
 Belgeyi silmeden varsayılan gezinmeden ayıran görünürlük; kimlik, sürüm, ilişki ve çocuk bağlarını korur ([Belge arşivi](docs/prd/07-documents-and-knowledge.md#belge-arşivi)). UI: `Archive`.
 _Avoid_: Çöp Kutusu, Proje arşivi, Wiki yayını durdurma
 
+**Belge kopyası**:
+Kaynak Belgeden yeni kimlikli bağımsız Belge; köken kaynağı gösterir, sonraki düzenleme kaynağı güncellemez. Geçmiş, ilişki, yayın veya kapsam kopyalanmaz ([Belge kapsamı, taşıma ve kopyalama](docs/prd/07-documents-and-knowledge.md#belge-kapsamı-taşıma-ve-kopyalama)). UI: `Copy`.
+_Avoid_: Taşıma, canlı senkron kopya, proje çatalı
+
+**Tek belge dışa aktarma**:
+Tek Belgenin Markdown veya PDF çıktısı; canlı bloklar dışa aktarma anının tarihli, kaynağı etiketlenmiş snapshot’ına döner. Word ve Çalışma Alanı çıkış paketi bu eylem değildir ([tek belge dışa aktarma](docs/prd/07-documents-and-knowledge.md#tek-belge-dışa-aktarma)). UI: `Export`, `Markdown`, `PDF`.
+_Avoid_: Word, canlı eşitlenen kopya, Workspace Exit Package
+
 **Belge klasörü**:
 Aynı Proje veya Kişisel Wiki kapsamında Belgeleri düzenleyen gezinme üstverisi; sahiplik, yaşam döngüsü veya üyelik görünümü değildir ([Belge hiyerarşisi ve klasörleri](docs/prd/07-documents-and-knowledge.md#belge-hiyerarşisi-ve-klasörleri)). UI: `Folder`.
 _Avoid_: Akıllı Koleksiyon, sahiplik kapsamı, Belge Koleksiyonu

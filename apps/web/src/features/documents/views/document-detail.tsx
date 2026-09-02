@@ -30,17 +30,20 @@ import {
 } from "../forms/documents-copy";
 import DocumentBodyView, { type DocumentBodyBlock } from "./document-body";
 import DocumentConvertPanel from "./document-convert-panel";
+import DocumentPortabilityPanel from "./document-portability-panel";
 import DocumentVersionHistory from "./document-version-history";
 
 export default function DocumentDetail({
 	archivedList,
 	documentId,
+	onMoved,
 	onOpenSourceRecord,
 	onSelect,
 	projectId,
 }: {
 	archivedList?: boolean;
 	documentId: string;
+	onMoved?: () => void;
 	onOpenSourceRecord?: (id: string) => void;
 	onSelect?: (documentId: string) => void;
 	projectId: string | null;
@@ -518,6 +521,12 @@ export default function DocumentDetail({
 						projectId={projectId}
 					/>
 				</div>
+				<DocumentPortabilityPanel
+					documentId={documentId}
+					onMoved={onMoved}
+					projectId={projectId}
+					revision={selected.data.revision}
+				/>
 				<div className="mt-6">
 					<DocumentConvertPanel
 						body={body}

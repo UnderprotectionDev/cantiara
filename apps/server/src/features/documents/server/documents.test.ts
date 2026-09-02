@@ -14,7 +14,16 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import {
+	listFileAttachments,
+	relateFileAttachment,
+} from "../../file-attachments/server/file-attachments";
+import {
+	FILE_KIND,
+	FILE_LIFECYCLE,
+} from "../../file-attachments/server/file-attachments-model";
 import { createProject } from "../../project-shell/server/project-shell";
+import { PROJECT_LIFECYCLE } from "../../project-shell/server/project-shell-model";
 import {
 	createRelation,
 	listRelations,
@@ -25,14 +34,19 @@ import {
 	listTaggedDocuments,
 	listTags,
 } from "../../tags/server/tags";
-import { createWork } from "../../work-lifecycle/server/work-lifecycle";
+import {
+	createWork,
+	getWork,
+} from "../../work-lifecycle/server/work-lifecycle";
 import {
 	archiveDocument,
 	compareDocumentVersions,
 	convertDocumentToTemplate,
+	copyDocument,
 	createDocument,
 	createDocumentFolder,
 	createDocumentTemplate,
+	exportDocument,
 	getDocument,
 	getDocumentTemplate,
 	instantiateDocumentFromTemplate,
@@ -41,17 +55,22 @@ import {
 	listDocumentTemplates,
 	listDocumentVersions,
 	materializeStarterSkeletonDocuments,
+	moveDocument,
 	placeDocument,
 	previewConvertDocumentToTemplate,
 	previewDocumentArchive,
+	previewDocumentMove,
 	previewDocumentPlacement,
 	restoreDocumentVersion,
 	unarchiveDocument,
 	updateDocument,
 	updateDocumentTemplate,
 } from "./documents";
+import { liveWorkFence } from "./documents-live";
 import {
+	createMemoryExternalSurfaces,
 	createMemoryLiveFiles,
+	DOCUMENT_OWNED_FILE_KIND,
 	DOCUMENT_TYPES,
 	DOCUMENTS_COPY,
 	documentsCatalog,
@@ -69,6 +88,7 @@ const MARKETPLACE_COPY = /marketplace|licensed pack|meeting type/i;
 const TRASH_PATTERN = /Trash|trash|Çöp/i;
 const DISCOVERY_COPY_PATTERN =
 	/All Documents|Smart Collection|Trash|Unpublish/i;
+const WORD_EXPORT_PATTERN = /Word|docx/i;
 const SMART_COLLECTION_PATTERN = /Smart Collection/i;
 const CARD_COVER_PATTERN = /cover|thumbnail|designer/i;
 const BILLING = { id: "tag-billing", name: "billing" };
@@ -196,6 +216,7 @@ describe("Documents catalog", () => {
 	it("exposes English Document and the six first-product types", () => {
 		expect(documentsCatalog()).toEqual({
 			copy: DOCUMENTS_COPY,
+			exportFormats: ["Markdown", "PDF"],
 			personalReview: {
 				headings: [
 					"Period",
@@ -234,6 +255,12 @@ describe("Documents catalog", () => {
 		expect(DOCUMENTS_COPY.folder).toBe("Folder");
 		expect(DOCUMENTS_COPY.card).toBe("Card");
 		expect(DOCUMENTS_COPY.parentDocument).toBe("Parent Document");
+		expect(DOCUMENTS_COPY.move).toBe("Move");
+		expect(DOCUMENTS_COPY.copy).toBe("Copy");
+		expect(DOCUMENTS_COPY.export).toBe("Export");
+		expect(DOCUMENTS_COPY.markdown).toBe("Markdown");
+		expect(DOCUMENTS_COPY.pdf).toBe("PDF");
+		expect(JSON.stringify(documentsCatalog())).not.toMatch(WORD_EXPORT_PATTERN);
 		expect(JSON.stringify(DOCUMENTS_COPY)).not.toMatch(DISCOVERY_COPY_PATTERN);
 		expect(DOCUMENTS_COPY.documentTemplate).toBe("Document Template");
 		expect(DOCUMENTS_COPY.convertToTemplate).toBe("Convert to template");
@@ -1749,6 +1776,412 @@ describe("Documents tags, hierarchy, and archive", () => {
 			])
 		);
 	});
+
+	it("previews Move with target, selection, broken refs, and publish effect, then keeps identity", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const wikiTarget = { kind: "personal-wiki" as const };
+		const root = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Root spec"
+		);
+		const child = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Child spec"
+		);
+		const skipped = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Skipped child"
+		);
+		await placeDocument(prisma, {
+			actorId,
+			baseRevision: child.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				documentId: child.id,
+				folderId: null,
+				parentId: root.id,
+			},
+			workspaceId,
+		});
+		await placeDocument(prisma, {
+			actorId,
+			baseRevision: skipped.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				documentId: skipped.id,
+				folderId: null,
+				parentId: root.id,
+			},
+			workspaceId,
+		});
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { projectId: project.id, title: "Stay in project" },
+		});
+		if (work.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const withWork = await updateDocument(prisma, {
+			actorId,
+			baseRevision: (await getDocument(prisma, root.id))?.revision ?? 0,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: liveWorkFence(work.work.id),
+				documentId: root.id,
+			},
+			workspaceId,
+		});
+		if (withWork.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const owned = await seedOwnedFile(
+			prisma,
+			workspaceId,
+			project.id,
+			root.id,
+			"Owned note"
+		);
+		const stray = await seedOwnedFile(
+			prisma,
+			workspaceId,
+			project.id,
+			crypto.randomUUID(),
+			"Stray file"
+		);
+		const surfaces = createMemoryExternalSurfaces();
+		const preview = await previewDocumentMove(
+			prisma,
+			{
+				childDocumentIds: [child.id],
+				documentId: root.id,
+				target: wikiTarget,
+				workspaceId,
+			},
+			{ surfaces }
+		);
+		expect(preview).toMatchObject({
+			detachedChildIds: [skipped.id],
+			movedAttachmentIds: [owned],
+			selectedDocumentIds: [root.id, child.id],
+			status: "ok",
+			target: wikiTarget,
+			workIds: [work.work.id],
+		});
+		if (preview.status !== "ok") {
+			throw new Error("expected Move preview");
+		}
+		expect(preview.brokenReferences).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "child-detached",
+					sourceId: skipped.id,
+				}),
+				expect.objectContaining({
+					kind: "unowned-attachment",
+					sourceId: stray,
+				}),
+			])
+		);
+		const moved = await moveDocument(
+			prisma,
+			{
+				actorId,
+				baseRevision: withWork.document.revision,
+				idempotencyKey: crypto.randomUUID(),
+				origin: "human",
+				payload: {
+					childDocumentIds: [child.id],
+					documentId: root.id,
+					target: wikiTarget,
+				},
+				workspaceId,
+			},
+			{ surfaces }
+		);
+		expect(moved.status).toBe("committed");
+		if (moved.status !== "committed") {
+			throw new Error("expected committed Move");
+		}
+		expect(moved.document.id).toBe(root.id);
+		expect(moved.document.scope).toEqual(wikiTarget);
+		expect(await getDocument(prisma, root.id)).toMatchObject({
+			id: root.id,
+			scope: wikiTarget,
+		});
+		expect(await getDocument(prisma, child.id)).toMatchObject({
+			parentId: root.id,
+			scope: wikiTarget,
+		});
+		expect(await getDocument(prisma, skipped.id)).toMatchObject({
+			parentId: null,
+			scope: { kind: "project", projectId: project.id },
+		});
+		expect(
+			await listFileAttachments(prisma, {
+				scope: wikiTarget,
+				workspaceId,
+			})
+		).toEqual([expect.objectContaining({ id: owned })]);
+		expect(
+			await listFileAttachments(prisma, {
+				scope: { kind: "project", projectId: project.id },
+				workspaceId,
+			})
+		).toEqual([expect.objectContaining({ id: stray })]);
+		expect(await getWork(prisma, work.work.id)).toMatchObject({
+			projectId: project.id,
+		});
+	});
+
+	it("cancels an active External Surface before Move and keeps the old surface in the source scope", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const root = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Shared spec"
+		);
+		const surfaces = createMemoryExternalSurfaces();
+		const surfaceId = surfaces.activate(root.id, {
+			kind: "project",
+			projectId: project.id,
+		});
+		const blocked = await moveDocument(
+			prisma,
+			{
+				actorId,
+				baseRevision: root.revision,
+				idempotencyKey: crypto.randomUUID(),
+				origin: "human",
+				payload: {
+					childDocumentIds: [],
+					documentId: root.id,
+					target: { kind: "personal-wiki" },
+				},
+				workspaceId,
+			},
+			{ surfaces }
+		);
+		expect(blocked).toEqual({
+			reason: "external-surface-active",
+			status: "rejected",
+		});
+		expect(surfaces.listActive(root.id).map((row) => row.id)).toEqual([
+			surfaceId,
+		]);
+		const moved = await moveDocument(
+			prisma,
+			{
+				actorId,
+				baseRevision: root.revision,
+				idempotencyKey: crypto.randomUUID(),
+				origin: "human",
+				payload: {
+					cancelExternalSurfaces: true,
+					childDocumentIds: [],
+					documentId: root.id,
+					target: { kind: "personal-wiki" },
+				},
+				workspaceId,
+			},
+			{ surfaces }
+		);
+		expect(moved.status).toBe("committed");
+		expect(surfaces.listActive(root.id)).toEqual([]);
+		expect(surfaces.listHistorical(root.id)).toEqual([
+			expect.objectContaining({
+				historicalScope: { kind: "project", projectId: project.id },
+				id: surfaceId,
+				revoked: true,
+			}),
+		]);
+	});
+
+	it("refuses Move when the source Project is not Active", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const root = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Closed project spec"
+		);
+		await prisma.project.update({
+			data: { lifecycleStatus: PROJECT_LIFECYCLE.completed },
+			where: { id: project.id },
+		});
+		expect(
+			await previewDocumentMove(prisma, {
+				childDocumentIds: [],
+				documentId: root.id,
+				target: { kind: "personal-wiki" },
+				workspaceId,
+			})
+		).toEqual({
+			reason: "source-project-not-active",
+			status: "blocked",
+		});
+	});
+
+	it("copies a Document as a new identity with origin and without history or relations", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const source = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Source spec"
+		);
+		const edited = await updateDocument(prisma, {
+			actorId,
+			baseRevision: source.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { body: "Version two", documentId: source.id },
+			workspaceId,
+		});
+		if (edited.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { projectId: project.id, title: "Linked work" },
+		});
+		if (work.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		await createRelation(prisma, {
+			actorId,
+			from: { id: work.work.id, kind: "Work" },
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			previewAcknowledged: true,
+			to: { id: source.id, kind: "Document" },
+			type: RELATIONS_COPY.related,
+			viewerWorkspaceId: workspaceId,
+		});
+		const copied = await copyDocument(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { documentId: source.id },
+			workspaceId,
+		});
+		expect(copied.status).toBe("committed");
+		if (copied.status !== "committed") {
+			throw new Error("expected committed Copy");
+		}
+		expect(copied.document.id).not.toBe(source.id);
+		expect(copied.document.originDocumentId).toBe(source.id);
+		expect(copied.document.body).toBe(edited.document.body);
+		expect(
+			await listDocumentVersions(prisma, {
+				documentId: copied.document.id,
+				workspaceId,
+			})
+		).toEqual([expect.objectContaining({ body: "Version two", revision: 1 })]);
+		expect(
+			await listRelations(prisma, {
+				record: { id: copied.document.id, kind: "Document" },
+				viewerWorkspaceId: workspaceId,
+			})
+		).toEqual([expect.objectContaining({ type: RELATIONS_COPY.origin })]);
+		const changed = await updateDocument(prisma, {
+			actorId,
+			baseRevision: copied.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { body: "Copy only", documentId: copied.document.id },
+			workspaceId,
+		});
+		expect(changed.status).toBe("committed");
+		expect(await getDocument(prisma, source.id)).toMatchObject({
+			body: edited.document.body,
+		});
+		expect(await getDocument(prisma, copied.document.id)).toMatchObject({
+			body: expect.stringContaining("Copy only"),
+			originDocumentId: source.id,
+		});
+	});
+
+	it("exports Markdown and PDF as dated labeled live-block snapshots and refuses Word", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { projectId: project.id, title: "Alpha" },
+		});
+		if (work.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const created = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: liveWorkFence(work.work.id),
+				scope: { kind: "project", projectId: project.id },
+				title: "Live spec",
+				type: "Spec",
+			},
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const clock = { now: () => new Date("2026-09-02T12:00:00.000Z") };
+		const markdown = await exportDocument(
+			prisma,
+			{ documentId: created.document.id, format: "markdown" },
+			{ clock }
+		);
+		expect(markdown.status).toBe("ok");
+		if (markdown.status !== "ok" || markdown.format !== "markdown") {
+			throw new Error("expected Markdown export");
+		}
+		expect(markdown.markdown).toContain("Snapshot");
+		expect(markdown.markdown).toContain("Live Work block");
+		expect(markdown.markdown).toContain("2026-09-02");
+		expect(markdown.markdown).toContain("Alpha");
+		expect(markdown.markdown).not.toContain("```live-work");
+		const pdf = await exportDocument(
+			prisma,
+			{ documentId: created.document.id, format: "pdf" },
+			{ clock }
+		);
+		expect(pdf.status).toBe("ok");
+		if (pdf.status !== "ok" || pdf.format !== "pdf") {
+			throw new Error("expected PDF export");
+		}
+		const pdfText = new TextDecoder().decode(pdf.pdf);
+		expect(pdfText.startsWith("%PDF-")).toBe(true);
+		expect(pdfText).toContain("Snapshot");
+		expect(pdfText).toContain("2026-09-02");
+		expect(
+			await exportDocument(prisma, {
+				documentId: created.document.id,
+				format: "word",
+			})
+		).toEqual({ reason: "word-export-forbidden", status: "rejected" });
+	});
 });
 
 async function addDocument(
@@ -1776,4 +2209,44 @@ async function addDocument(
 		throw new Error("expected committed Document");
 	}
 	return created.document;
+}
+
+async function seedOwnedFile(
+	prisma: PrismaClient,
+	workspaceId: string,
+	projectId: string,
+	documentId: string,
+	title: string
+): Promise<string> {
+	const id = crypto.randomUUID();
+	await prisma.fileAttachment.create({
+		data: {
+			id,
+			lifecycle: FILE_LIFECYCLE.active,
+			projectId,
+			revision: 1,
+			scopeKind: "project",
+			title,
+			workspaceId,
+		},
+	});
+	await prisma.fileAttachmentVersion.create({
+		data: {
+			byteLength: 4,
+			contentHash: `hash-${id}`,
+			fileAttachmentId: id,
+			filename: `${title}.txt`,
+			id: crypto.randomUUID(),
+			kind: FILE_KIND.text,
+			mimeType: "text/plain",
+			objectKey: `obj-${id}`,
+			versionNumber: 1,
+		},
+	});
+	await relateFileAttachment(prisma, {
+		fileAttachmentId: id,
+		kind: DOCUMENT_OWNED_FILE_KIND,
+		targetId: documentId,
+	});
+	return id;
 }

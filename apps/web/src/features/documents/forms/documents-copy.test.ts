@@ -8,6 +8,7 @@ import {
 
 const DISCOVERY_COPY_PATTERN =
 	/All Documents|Smart Collection|Trash|Unpublish/i;
+const WORD_EXPORT_PATTERN = /Word|docx/i;
 
 test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.document).toBe("Document");
@@ -17,8 +18,14 @@ test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.card).toBe("Card");
 	expect(DOCUMENTS_COPY.folder).toBe("Folder");
 	expect(DOCUMENTS_COPY.parentDocument).toBe("Parent Document");
+	expect(DOCUMENTS_COPY.move).toBe("Move");
+	expect(DOCUMENTS_COPY.copy).toBe("Copy");
+	expect(DOCUMENTS_COPY.export).toBe("Export");
+	expect(DOCUMENTS_COPY.markdown).toBe("Markdown");
+	expect(DOCUMENTS_COPY.pdf).toBe("PDF");
 	expect(DOCUMENTS_COPY.createFolder).toBe("Create folder");
 	expect(JSON.stringify(DOCUMENTS_COPY)).not.toMatch(DISCOVERY_COPY_PATTERN);
+	expect(JSON.stringify(DOCUMENTS_COPY)).not.toMatch(WORD_EXPORT_PATTERN);
 	expect(DOCUMENTS_COPY.createDocument).toBe("Create Document");
 	expect(DOCUMENTS_COPY.documentTemplate).toBe("Document Template");
 	expect(DOCUMENTS_COPY.convertToTemplate).toBe("Convert to template");
