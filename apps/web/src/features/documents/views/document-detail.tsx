@@ -58,6 +58,22 @@ export default function DocumentDetail({
 	const folders = useQuery(
 		orpc.documents.listFolders.queryOptions({ input: { scope } })
 	);
+	const placementPreview = useQuery({
+		...orpc.documents.previewPlacement.queryOptions({
+			input: {
+				documentId,
+				folderId: folderId.length > 0 ? folderId : null,
+				parentId: parentId.length > 0 ? parentId : null,
+			},
+		}),
+		enabled: Boolean(selected.data),
+	});
+	const archivePreview = useQuery({
+		...orpc.documents.previewArchive.queryOptions({
+			input: { documentId },
+		}),
+		enabled: Boolean(selected.data),
+	});
 	const presented = useQuery({
 		...orpc.documents.present.queryOptions({
 			input: { body },
@@ -182,6 +198,10 @@ export default function DocumentDetail({
 			if (!selected.data) {
 				return;
 			}
+			if (placementPreview.data?.status === "blocked") {
+				setError(placementError(placementPreview.data.reason));
+				return;
+			}
 			setError(null);
 			markUnsaved();
 			attemptOnlineWork("record-create", () =>
@@ -203,6 +223,7 @@ export default function DocumentDetail({
 			markUnsaved,
 			parentId,
 			place,
+			placementPreview.data,
 			selected.data,
 		]
 	);
@@ -358,9 +379,18 @@ export default function DocumentDetail({
 							))}
 						</NativeSelect>
 					</Field>
+					{placementPreview.data?.status === "blocked" ? (
+						<p role="alert">{placementError(placementPreview.data.reason)}</p>
+					) : null}
 					<Button type="submit">{DOCUMENTS_COPY.save}</Button>
 				</form>
-				<div className="mt-4">
+				<div className="mt-4 flex flex-col gap-2">
+					{archivePreview.data?.status === "ok" &&
+					archivePreview.data.childTitles.length > 0 ? (
+						<p className="text-muted-foreground text-sm">
+							{archivePreview.data.childTitles.join(", ")}
+						</p>
+					) : null}
 					<Button onClick={onArchive} type="button">
 						{selected.data.archived
 							? DOCUMENTS_COPY.unarchive

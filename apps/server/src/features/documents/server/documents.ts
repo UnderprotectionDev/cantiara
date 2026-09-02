@@ -545,7 +545,6 @@ async function placeInTransaction(
 		data: {
 			folderId: preview.folderId,
 			parentId: preview.parentId,
-			revision: current.revision + 1,
 		},
 		where: { id: current.id },
 	});
@@ -636,7 +635,7 @@ async function evaluatePlacement(
 			return { reason: "folder-not-found", status: "blocked" };
 		}
 		if (!sameScope(current, folder)) {
-			return { reason: "cross-scope-parent", status: "blocked" };
+			return { reason: "folder-not-found", status: "blocked" };
 		}
 	}
 	if (!input.parentId) {

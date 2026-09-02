@@ -675,6 +675,7 @@ describe("Documents tags, hierarchy, and archive", () => {
 				folderId: folder.folder.id,
 				id: child.id,
 				parentId: parent.id,
+				revision: child.revision,
 				scope: { kind: "project", projectId: project.id },
 				title: "Child",
 			},
