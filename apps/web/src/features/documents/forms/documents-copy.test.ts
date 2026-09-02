@@ -28,6 +28,11 @@ test("English Document labels stay Document and the six type names", () => {
 	expect(DOCUMENTS_COPY.retrospective).toBe("Retrospective");
 	expect(DOCUMENTS_COPY.launchPlan).toBe("Launch Plan");
 	expect(DOCUMENTS_COPY.compare).toBe("Compare");
+	expect(DOCUMENTS_COPY.conflictDraft).toBe("Conflict Draft");
+	expect(DOCUMENTS_COPY.copy).toBe("Copy");
+	expect(DOCUMENTS_COPY.download).toBe("Download");
+	expect(DOCUMENTS_COPY.apply).toBe("Apply");
+	expect(DOCUMENTS_COPY.deleteConflictDraft).toBe("Delete");
 	expect(DOCUMENTS_COPY.restore).toBe("Restore");
 	expect(DOCUMENTS_COPY.version).toBe("Version");
 	expect(DOCUMENTS_COPY.versions).toBe("Versions");

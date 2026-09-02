@@ -33,6 +33,13 @@ function workDelegates() {
 		},
 		dailyFocusMembership: { findMany, findUnique: findMany },
 		document: { findMany },
+		documentConflictDraft: {
+			create: () => undefined,
+			delete: () => undefined,
+			findMany,
+			findUnique: findMany,
+			update: () => undefined,
+		},
 		documentFolder: {
 			create: () => undefined,
 			findMany,
@@ -206,6 +213,31 @@ describe("Prisma client current delegates", () => {
 		};
 		expect(
 			prismaClientHasCurrentDelegates(beforeVersions as unknown as PrismaClient)
+		).toBe(false);
+	});
+
+	it("refuses a bun --hot client generated before Document Conflict Draft", () => {
+		const { documentConflictDraft: _dropped, ...beforeDrafts } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(beforeDrafts as unknown as PrismaClient)
 		).toBe(false);
 	});
 

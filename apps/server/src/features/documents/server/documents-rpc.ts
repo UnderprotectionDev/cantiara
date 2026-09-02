@@ -6,12 +6,16 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	applyConflictDraft,
 	archiveDocument,
+	compareConflictDraft,
 	compareDocumentVersions,
 	convertDocumentToTemplate,
 	createDocument,
 	createDocumentFolder,
 	createDocumentTemplate,
+	deleteConflictDraft,
+	getConflictDraft,
 	getDocument,
 	getDocumentTemplate,
 	instantiateDocumentFromTemplate,
@@ -25,6 +29,7 @@ import {
 	previewDocumentArchive,
 	previewDocumentPlacement,
 	restoreDocumentVersion,
+	spawnDocumentFromConflictDraft,
 	unarchiveDocument,
 	updateDocument,
 	updateDocumentTemplate,
@@ -48,10 +53,12 @@ import {
 } from "./documents-convert";
 import { presentLiveDocumentBody } from "./documents-live";
 import {
+	applyConflictDraftPayloadSchema,
 	convertDocumentToTemplatePayloadSchema,
 	createDocumentFolderPayloadSchema,
 	createDocumentPayloadSchema,
 	createDocumentTemplatePayloadSchema,
+	deleteConflictDraftPayloadSchema,
 	documentScopeSchema,
 	documentsCatalog,
 	instantiateDocumentFromTemplatePayloadSchema,
@@ -59,6 +66,7 @@ import {
 	placeDocumentPayloadSchema,
 	presentDocumentBody,
 	restoreDocumentPayloadSchema,
+	spawnDocumentFromConflictDraftPayloadSchema,
 	updateDocumentPayloadSchema,
 	updateDocumentTemplatePayloadSchema,
 } from "./documents-model";
@@ -97,6 +105,23 @@ const documentWriteInput = z.object({
 });
 
 export const documents = {
+	applyConflictDraft: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: applyConflictDraftPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await applyConflictDraft(getPrismaClient(), {
+				actorId: access.accountId,
+				origin: "human",
+				workspaceId: access.workspaceId,
+				...input,
+			});
+		}),
 	archive: protectedWriteProcedure
 		.input(documentWriteInput)
 		.handler(async ({ context, input }) => {
@@ -129,6 +154,29 @@ export const documents = {
 				throw new ORPCError("NOT_FOUND");
 			}
 			return compared;
+		}),
+	compareConflictDraft: protectedProcedure
+		.input(z.object({ documentId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const compared = await compareConflictDraft(getPrismaClient(), {
+				documentId: input.documentId,
+				workspaceId: access.workspaceId,
+			});
+			if (!compared) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return compared;
+		}),
+	conflictDraft: protectedProcedure
+		.input(z.object({ documentId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await getConflictDraft(
+				getPrismaClient(),
+				input.documentId,
+				access.workspaceId
+			);
 		}),
 	convertList: protectedWriteProcedure
 		.input(
@@ -262,6 +310,23 @@ export const documents = {
 			const access = await requireAccess(context.session.user.id);
 			await requireScope(access.workspaceId, input.payload.scope);
 			return await createDocumentTemplate(getPrismaClient(), {
+				actorId: access.accountId,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	deleteConflictDraft: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: deleteConflictDraftPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await deleteConflictDraft(getPrismaClient(), {
 				actorId: access.accountId,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
@@ -515,6 +580,23 @@ export const documents = {
 			return await restoreDocumentVersion(getPrismaClient(), {
 				actorId: access.accountId,
 				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	spawnFromConflictDraft: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: spawnDocumentFromConflictDraftPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await spawnDocumentFromConflictDraft(getPrismaClient(), {
+				actorId: access.accountId,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				payload: input.payload,

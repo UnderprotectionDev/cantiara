@@ -13,13 +13,19 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 import ConvertToTemplateForm from "../forms/convert-to-template-form";
 import DocumentEditor from "../forms/document-editor";
+import {
+	clearDocumentEditorSession,
+	getDocumentEditorSession,
+	presentReconnectSave,
+	rememberDocumentEditorSession,
+} from "../forms/document-session";
 import {
 	DOCUMENT_TYPES,
 	DOCUMENTS_COPY,
@@ -29,6 +35,7 @@ import {
 	type OriginalMermaidOutcome,
 } from "../forms/documents-copy";
 import DocumentBodyView, { type DocumentBodyBlock } from "./document-body";
+import DocumentConflictDraftPanel from "./document-conflict-draft";
 import DocumentConvertPanel from "./document-convert-panel";
 import DocumentVersionHistory from "./document-version-history";
 
@@ -45,7 +52,8 @@ export default function DocumentDetail({
 	onSelect?: (documentId: string) => void;
 	projectId: string | null;
 }) {
-	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const { attemptOnlineWork, markUnsaved, recordSave, shell } =
+		useClientShell();
 	const [body, setBody] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [folderId, setFolderId] = useState<string>("");
@@ -103,6 +111,34 @@ export default function DocumentDetail({
 		setParentId(selected.data.parentId ?? "");
 	}, [selected.data]);
 
+	const conflictDraft = useQuery(
+		orpc.documents.conflictDraft.queryOptions({
+			input: { documentId },
+		})
+	);
+	const wasConnected = useRef(shell.connected);
+
+	useEffect(() => {
+		if (!selected.data) {
+			return;
+		}
+		rememberDocumentEditorSession({
+			baseRevision: selected.data.revision,
+			body,
+			documentId,
+			lastSuccessfulSaveAt: shell.lastSuccessfulSaveAt,
+			title,
+			type,
+		});
+	}, [
+		body,
+		documentId,
+		selected.data,
+		shell.lastSuccessfulSaveAt,
+		title,
+		type,
+	]);
+
 	const invalidateDocuments = useCallback(async () => {
 		await queryClient.invalidateQueries({
 			queryKey: orpc.documents.list.queryKey({
@@ -116,6 +152,21 @@ export default function DocumentDetail({
 		});
 		await queryClient.invalidateQueries({
 			queryKey: orpc.documents.get.queryKey({
+				input: { documentId },
+			}),
+		});
+		await queryClient.invalidateQueries({
+			queryKey: orpc.documents.conflictDraft.queryKey({
+				input: { documentId },
+			}),
+		});
+		await queryClient.invalidateQueries({
+			queryKey: orpc.documents.compareConflictDraft.queryKey({
+				input: { documentId },
+			}),
+		});
+		await queryClient.invalidateQueries({
+			queryKey: orpc.documents.versions.queryKey({
 				input: { documentId },
 			}),
 		});
@@ -171,11 +222,38 @@ export default function DocumentDetail({
 					setError(outcome.reason);
 				}
 				if (outcome.status === "conflict") {
+					await invalidateDocuments();
 					setError(outcome.conflict);
 				}
+				clearDocumentEditorSession();
 			},
 		})
 	);
+
+	useEffect(() => {
+		const justReconnected = !wasConnected.current && shell.connected;
+		wasConnected.current = shell.connected;
+		if (!(justReconnected && selected.data)) {
+			return;
+		}
+		const attempt = presentReconnectSave({
+			connected: true,
+			session: getDocumentEditorSession(),
+		});
+		if (attempt.status !== "attempt") {
+			return;
+		}
+		if (attempt.payload.documentId !== documentId) {
+			return;
+		}
+		attemptOnlineWork("record-create", () =>
+			save.mutateAsync({
+				baseRevision: attempt.baseRevision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: attempt.payload,
+			})
+		);
+	}, [attemptOnlineWork, documentId, save, selected.data, shell.connected]);
 
 	const onTitleChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
 		setTitle(event.target.value);
@@ -432,7 +510,11 @@ export default function DocumentDetail({
 						</Field>
 						<Field>
 							<FieldLabel>{DOCUMENTS_COPY.body}</FieldLabel>
-							<DocumentEditor onChange={setBody} value={body} />
+							<DocumentEditor
+								editable={shell.connected}
+								onChange={setBody}
+								value={body}
+							/>
 						</Field>
 					</FieldGroup>
 					{error ? <p role="alert">{error}</p> : null}
@@ -573,6 +655,13 @@ export default function DocumentDetail({
 						onOpenSourceRecord={onOpenLiveSource}
 					/>
 				</div>
+				{conflictDraft.data ? (
+					<DocumentConflictDraftPanel
+						documentId={documentId}
+						projectId={projectId}
+						revision={selected.data.revision}
+					/>
+				) : null}
 				<DocumentVersionHistory
 					baseRevision={selected.data.revision}
 					documentId={documentId}
