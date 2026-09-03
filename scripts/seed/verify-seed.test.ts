@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import "./env.ts";
 import { disconnectSeedPrismaClient, getSeedPrismaClient } from "./prisma";
 
 const DATABASE_URL =

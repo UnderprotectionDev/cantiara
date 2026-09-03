@@ -1,6 +1,6 @@
 # Dev database seed
 
-Synthetic demo data for manual testing and Cloud Agent sessions. The seed resets **workspace content only** (Projects, Work, Documents, Tags, and related records). It preserves the founder account, sessions, and GitHub linkage.
+Synthetic demo data for manual testing. The seed resets **workspace content only** (Projects, Work, Documents, Tags, and related records). It preserves the founder account, sessions, and GitHub linkage.
 
 ## When to use
 
@@ -12,16 +12,23 @@ Synthetic demo data for manual testing and Cloud Agent sessions. The seed resets
 
 - Migrations applied: `bun run db:migrate:deploy` (hosted) or `bun run db:migrate` (local).
 - **Sign in once with GitHub** so your account has a Workspace. Seed attaches to that account — no separate seed user is created.
+- **Neon `DATABASE_URL`** in `apps/server/.env` (copy from Neon dashboard) or exported in the shell.
 
 ## Commands
 
-### Default (local or Neon dev)
+### Seed Neon (or local Postgres)
 
 ```bash
 bun run seed
 ```
 
-When `NODE_ENV=development`, hosted Neon works without extra flags. Seed loads demo data into **your** Workspace (the GitHub account already in the database).
+Reads `DATABASE_URL` from the environment first, then fills missing keys from `.env` or `apps/server/.env`. Hosted Neon works in development without extra flags.
+
+Example with an inline Neon URL:
+
+```bash
+DATABASE_URL='postgresql://user:pass@ep-....neon.tech/neondb?sslmode=require' bun run seed
+```
 
 Dry run (no writes):
 
@@ -58,12 +65,12 @@ The **Cantiara** project is the rich fixture: mixed Work types and statuses, Fea
 
 Each seed run clears workspace-scoped content, then reloads the demo set. User, session, and account preference rows are kept.
 
-To wipe demo data without reloading, stop after the clear step by running with `--dry-run` after a manual clear, or use Prisma Studio.
+To wipe demo data without reloading, run with `--dry-run` after a manual clear, or use Prisma Studio.
 
 ## Implementation
 
 - Entry: [`scripts/seed/run.ts`](../../scripts/seed/run.ts)
-- Env loading: [`scripts/seed/env.ts`](../../scripts/seed/env.ts) (reads `apps/server/.env`)
+- Env loading: [`scripts/seed/env.ts`](../../scripts/seed/env.ts)
 - Domain writes use server feature seams (`createProject`, `createWork`, etc.), not raw inserts.
 
 ## Notes

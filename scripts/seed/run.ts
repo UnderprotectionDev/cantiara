@@ -18,7 +18,7 @@ async function main(): Promise<void> {
 	if (!databaseUrl) {
 		console.error("DATABASE_URL is required.");
 		console.error(
-			"Set it in Cursor My Secrets or export DATABASE_URL before running seed."
+			"Add Neon connection string to apps/server/.env or export DATABASE_URL, then run: bun run seed"
 		);
 		process.exit(1);
 	}

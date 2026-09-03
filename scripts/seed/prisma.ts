@@ -1,3 +1,4 @@
+import "./env.ts";
 import {
 	createPrismaClient,
 	type PrismaClient,
