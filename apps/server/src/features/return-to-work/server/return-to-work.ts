@@ -324,7 +324,7 @@ async function loadSummary(
 		accountId
 	);
 	const today = calendarDay(at, preferences);
-	const records = await loadCurrentRecords(db, accountId, projectId, work?.id);
+	const records = await loadCurrentRecords(db, accountId, projectId);
 	const contextId = work?.id ?? project.id;
 	const cards = selectReturnCards(records, { contextId, today });
 	const nextStepSource = work ?? project;
@@ -383,8 +383,7 @@ async function loadSummary(
 async function loadCurrentRecords(
 	db: MutationDb,
 	accountId: string,
-	projectId: string,
-	workId: string | undefined
+	projectId: string
 ): Promise<ReturnSourceRecord[]> {
 	const works = await db.work.findMany({
 		where: {
@@ -392,7 +391,6 @@ async function loadCurrentRecords(
 			projectId,
 			retiredIntoId: null,
 			trashedAt: null,
-			...(workId ? { id: workId } : {}),
 		},
 	});
 	const views = await db.returnToWorkVisibleOpen.findMany({

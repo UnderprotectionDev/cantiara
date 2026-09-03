@@ -316,6 +316,30 @@ describe("Return to Work", () => {
 		expect(view?.cards.every((card) => card.href.includes("#work"))).toBe(true);
 	});
 
+	it("shows sibling current Work when returning to a Work", async () => {
+		const project = await openProject("Payments");
+		const focus = await openWork(project.id, "Focus work");
+		const sibling = await openWork(project.id, "Sibling work");
+		await prisma.work.update({
+			data: { updatedAt: new Date("2026-09-03T11:00:00.000Z") },
+			where: { id: focus.id },
+		});
+		await prisma.work.update({
+			data: { updatedAt: new Date("2026-09-03T12:00:00.000Z") },
+			where: { id: sibling.id },
+		});
+		const view = await surface().summary({
+			projectId: project.id,
+			workId: focus.id,
+		});
+		expect(view?.cards).toEqual([
+			expect.objectContaining({
+				title: "Sibling work",
+				whyShown: CARD_REASON.recentlyEdited,
+			}),
+		]);
+	});
+
 	it("stores Next concrete step on the source and keeps previous values in history", async () => {
 		const project = await openProject("Payments");
 		const work = await openWork(project.id, "Intake checkout");
