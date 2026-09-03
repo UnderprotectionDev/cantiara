@@ -199,6 +199,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Deferred | `Deferred` | Varsayılan Backlog görünümünde gelecek yeniden görünme tarihi taşıyan İşlerin bölümü; durum değildir |
 | Yeniden görünme bildirimi | `Notify on Reappear date` | Proje bazında varsayılan kapalı opt-in; tarih gelince `reappear-date` Dikkat sinyali üretir |
 | Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
+| Hafif İçgörüler | `Insights` | İş koleksiyonunun mevcut filtre sonucundan sayı ve dağılım özeti; skor, coverage veya yayın kapısı değildir |
+| Kayıt yaşı | `Age` | İş kaydının oluşturulmasından bu yana geçen süre özeti; skor değildir |
 | Tüm etiketler | `All tags` | Etiket süzgecinin süzmeyi kaldırma seçeneği |
 | Etiket uygula | `Apply tag` | Erişilebilir kayda mevcut Etiketi bağlama |
 | Etiket oluştur | `Create tag` | Çalışma Alanı sözlüğüne düz Etiket ekleme |

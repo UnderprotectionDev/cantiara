@@ -473,6 +473,10 @@ _Avoid_: Target date, Yeniden görünme tarihi, standalone reminder, Save for La
 Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm; manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
 _Avoid_: Statik liste, klasör, etiket
 
+**Hafif İçgörüler**:
+İş koleksiyonunun mevcut filtre sonucundan türetilen sayı ve dağılım özeti; skor, coverage veya yayın kapısı değildir ([Hafif İçgörüler](docs/prd/08-search-relations-and-evidence.md#hafif-içgörüler)). UI: `Insights`.
+_Avoid_: dashboard, kalite puanı, coverage, kapasite, cycle-time yönetimi
+
 **Etiket**:
 Çalışma Alanı genelinde yaşayan düz sınıflandırma kimliği; kayıt içeriği, klasör üyeliği veya süzme görünümü değildir ([Etiketler](docs/prd/08-search-relations-and-evidence.md#etiketler)). UI: `Tags`.
 _Avoid_: Klasör, Akıllı Koleksiyon, Proje-yerel etiket sözlüğü, hiyerarşi

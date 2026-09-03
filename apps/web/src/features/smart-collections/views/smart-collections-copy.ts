@@ -1,5 +1,6 @@
 export const SMART_COLLECTIONS_COPY = {
 	addCondition: "Add condition",
+	age: "Age",
 	allProjects: "All Projects",
 	alreadyMatches: "The record already matches. No field write and no pin.",
 	because: "Because",
@@ -10,9 +11,11 @@ export const SMART_COLLECTIONS_COPY = {
 	dragPreview:
 		"This would write fields so the record matches. It does not pin membership.",
 	dropHere: "Drop a record to preview a field write",
+	effort: "Effort",
 	empty: "No records match these conditions.",
 	equals: "is",
 	field: "Field",
+	insights: "Insights",
 	loading: "Loading…",
 	members: "Members",
 	name: "Name",
@@ -25,10 +28,12 @@ export const SMART_COLLECTIONS_COPY = {
 	readableSummary: "Summary",
 	records: "Records",
 	scope: "Scope",
+	showAllRecords: "Show all records",
 	smartCollection: "Smart Collection",
 	sourceKind: "Source",
 	status: "Status",
 	tags: "Tags",
+	timeInStatus: "Time in status",
 	type: "Type",
 	value: "Value",
 } as const;
