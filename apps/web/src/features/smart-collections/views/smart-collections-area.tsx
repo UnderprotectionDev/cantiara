@@ -7,6 +7,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+	type ChangeEvent,
 	type DragEvent,
 	type FormEvent,
 	type MouseEvent,
@@ -112,6 +113,9 @@ export default function SmartCollectionsArea() {
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [pinMessage, setPinMessage] = useState<string | null>(null);
 	const [dragPreview, setDragPreview] = useState<string | null>(null);
+	const [sourceKind, setSourceKind] = useState<string>(
+		RECORD_DISCOVERY_COPY.work
+	);
 	const view = useQuery({
 		...orpc.smartCollections.view.queryOptions({
 			input: { collectionId: selectedId ?? "" },
@@ -140,6 +144,13 @@ export default function SmartCollectionsArea() {
 			},
 		})
 	);
+	const update = useMutation(
+		orpc.smartCollections.update.mutationOptions({
+			onSuccess: async () => {
+				await invalidate();
+			},
+		})
+	);
 	const pin = useMutation(
 		orpc.smartCollections.pin.mutationOptions({
 			onSuccess: (result) => {
@@ -159,7 +170,7 @@ export default function SmartCollectionsArea() {
 					setDragPreview(`${copy.dragPreview} ${writes}`);
 					return;
 				}
-				setDragPreview(copy.dragPreview);
+				setDragPreview(copy.alreadyMatches);
 			},
 		})
 	);
@@ -172,9 +183,6 @@ export default function SmartCollectionsArea() {
 			event.preventDefault();
 			const form = new FormData(event.currentTarget);
 			const name = String(form.get("name") ?? "");
-			const sourceKind = String(
-				form.get("sourceKind") ?? RECORD_DISCOVERY_COPY.work
-			);
 			const projectValue = String(form.get("projectId") ?? "");
 			const field = String(form.get("field") ?? "status") as BuilderField;
 			const value = String(form.get("value") ?? "");
@@ -187,7 +195,33 @@ export default function SmartCollectionsArea() {
 				sourceKind,
 			});
 		},
-		[create]
+		[create, sourceKind]
+	);
+	const onSourceKind = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+		setSourceKind(event.currentTarget.value);
+	}, []);
+	const onAddCondition = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			if (!(selectedId && view.data)) {
+				return;
+			}
+			const form = new FormData(event.currentTarget);
+			const field = String(form.get("field") ?? "status") as BuilderField;
+			const value = String(form.get("value") ?? "");
+			if (value.length === 0) {
+				return;
+			}
+			update.mutate({
+				collectionId: selectedId,
+				conditions: [
+					...view.data.collection.conditions,
+					{ field, operator: "equals", value },
+				],
+				name: view.data.collection.name,
+			});
+		},
+		[selectedId, update, view.data]
 	);
 	const onSelectCollection = useCallback(
 		(event: MouseEvent<HTMLButtonElement>) => {
@@ -245,9 +279,10 @@ export default function SmartCollectionsArea() {
 							{copy.sourceKind}
 						</FieldLabel>
 						<NativeSelect
-							defaultValue={RECORD_DISCOVERY_COPY.work}
 							id="smart-collection-source"
 							name="sourceKind"
+							onChange={onSourceKind}
+							value={sourceKind}
 						>
 							{SOURCE_KIND_OPTIONS.map((kind) => (
 								<NativeSelectOption key={kind} value={kind}>
@@ -284,7 +319,7 @@ export default function SmartCollectionsArea() {
 							id="smart-collection-field"
 							name="field"
 						>
-							{builderFieldsFor(RECORD_DISCOVERY_COPY.work).map((field) => (
+							{builderFieldsFor(sourceKind).map((field) => (
 								<NativeSelectOption key={field} value={field}>
 									{fieldLabel(field)}
 								</NativeSelectOption>
@@ -316,6 +351,42 @@ export default function SmartCollectionsArea() {
 						titleId="smart-collection-summary"
 					>
 						<p>{view.data.membership.summary || copy.empty}</p>
+						<form
+							className="mt-3 flex flex-wrap items-end gap-3"
+							onSubmit={onAddCondition}
+						>
+							<Field>
+								<FieldLabel htmlFor="smart-collection-add-field">
+									{copy.field}
+								</FieldLabel>
+								<NativeSelect
+									defaultValue={
+										builderFieldsFor(view.data.collection.sourceKind)[0]
+									}
+									id="smart-collection-add-field"
+									name="field"
+								>
+									{builderFieldsFor(view.data.collection.sourceKind).map(
+										(field) => (
+											<NativeSelectOption key={field} value={field}>
+												{fieldLabel(field)}
+											</NativeSelectOption>
+										)
+									)}
+								</NativeSelect>
+							</Field>
+							<Field>
+								<FieldLabel htmlFor="smart-collection-add-value">
+									{copy.value}
+								</FieldLabel>
+								<Input
+									id="smart-collection-add-value"
+									name="value"
+									type="text"
+								/>
+							</Field>
+							<Button type="submit">{copy.addCondition}</Button>
+						</form>
 					</FounderSection>
 					<FounderSection
 						title={copy.members}

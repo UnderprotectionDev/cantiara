@@ -1,6 +1,7 @@
 export const SMART_COLLECTIONS_COPY = {
 	addCondition: "Add condition",
 	allProjects: "All Projects",
+	alreadyMatches: "The record already matches. No field write and no pin.",
 	because: "Because",
 	body: "Body",
 	conditions: "Conditions",
@@ -44,7 +45,4 @@ export const SOURCE_KIND_OPTIONS = [
 	"Work",
 	"Document",
 	"Wiki Document",
-	"Decision",
-	"Risk",
-	"Feedback",
 ] as const;
