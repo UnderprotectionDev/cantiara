@@ -471,11 +471,13 @@ describe("Prisma client current delegates", () => {
 		).toBe(true);
 	});
 
-	it("refuses a bun --hot client generated before Project Goal", () => {
+	it("accepts a bun --hot client generated before Project Goal", () => {
 		const { projectGoal: _dropped, ...beforeGoals } = {
 			...workDelegates(),
 			...currentLifecycleDelegates(),
+			externalExecutionGoingPackage: { create: () => undefined, findMany },
 			externalExecutionHandoff: { create: () => undefined, findMany },
+			externalExecutionHandoffEvent: { create: () => undefined, findMany },
 			fileAttachment: { findMany },
 			fileAttachmentOriginLocation: { findMany },
 			fileAttachmentReceipt: { findMany },
@@ -493,7 +495,19 @@ describe("Prisma client current delegates", () => {
 		};
 		expect(
 			prismaClientHasCurrentDelegates(beforeGoals as unknown as PrismaClient)
-		).toBe(false);
+		).toBe(true);
+		expect(
+			prismaClientHasCurrentDelegates({
+				...beforeGoals,
+				_runtimeDataModel: {
+					models: {
+						ProjectGoal: {
+							fields: [{ name: "id" }, { name: "title" }],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(true);
 	});
 
 	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Templates, Work Drafts, File Attachments, Tags, Record Actions, External Execution Handoffs, and Project Goal", () => {

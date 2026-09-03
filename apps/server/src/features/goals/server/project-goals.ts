@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@cantiara/db";
+import type { Prisma, PrismaClient } from "@cantiara/db";
 
 import {
 	lockMutation,
@@ -37,6 +37,188 @@ interface UpdateCommand {
 	title: string;
 }
 
+type MutationDb = PrismaClient | Prisma.TransactionClient;
+
+function hasProjectGoalDelegate(db: MutationDb): boolean {
+	const delegate = (
+		db as unknown as Record<
+			string,
+			{ create?: unknown; findMany?: unknown } | undefined
+		>
+	).projectGoal;
+	if (!delegate) {
+		return false;
+	}
+	return (
+		typeof delegate.findMany === "function" &&
+		typeof delegate.create === "function"
+	);
+}
+
+interface ProjectGoalRow {
+	description: string;
+	id: string;
+	intendedOutcome: string | null;
+	observedOutcome: string | null;
+	projectId: string;
+	revision: number;
+	title: string;
+}
+
+async function listGoalRows(
+	db: MutationDb,
+	projectId: string
+): Promise<ProjectGoalRow[]> {
+	if (hasProjectGoalDelegate(db)) {
+		return await db.projectGoal.findMany({
+			orderBy: { createdAt: "asc" },
+			where: { projectId },
+		});
+	}
+	return await db.$queryRaw<ProjectGoalRow[]>`
+		SELECT
+			"id",
+			"projectId",
+			"title",
+			"description",
+			"intendedOutcome",
+			"observedOutcome",
+			"revision"
+		FROM "project_goal"
+		WHERE "projectId" = ${projectId}
+		ORDER BY "createdAt" ASC
+	`;
+}
+
+async function getGoalRow(
+	db: MutationDb,
+	workspaceId: string,
+	goalId: string
+): Promise<ProjectGoalRow | null> {
+	if (hasProjectGoalDelegate(db)) {
+		return await db.projectGoal.findFirst({
+			where: {
+				id: goalId,
+				project: { workspaceId },
+			},
+		});
+	}
+	const rows = await db.$queryRaw<ProjectGoalRow[]>`
+		SELECT
+			g."id",
+			g."projectId",
+			g."title",
+			g."description",
+			g."intendedOutcome",
+			g."observedOutcome",
+			g."revision"
+		FROM "project_goal" g
+		INNER JOIN "project" p ON p."id" = g."projectId"
+		WHERE g."id" = ${goalId} AND p."workspaceId" = ${workspaceId}
+		LIMIT 1
+	`;
+	const [row] = rows;
+	return row ?? null;
+}
+
+async function insertGoalRow(
+	db: MutationDb,
+	row: ProjectGoalRow
+): Promise<ProjectGoalRow> {
+	if (hasProjectGoalDelegate(db)) {
+		return await db.projectGoal.create({
+			data: {
+				description: row.description,
+				id: row.id,
+				intendedOutcome: row.intendedOutcome,
+				observedOutcome: row.observedOutcome,
+				projectId: row.projectId,
+				revision: row.revision,
+				title: row.title,
+			},
+		});
+	}
+	const rows = await db.$queryRaw<ProjectGoalRow[]>`
+		INSERT INTO "project_goal" (
+			"id",
+			"projectId",
+			"title",
+			"description",
+			"intendedOutcome",
+			"observedOutcome",
+			"revision",
+			"createdAt",
+			"updatedAt"
+		)
+		VALUES (
+			${row.id},
+			${row.projectId},
+			${row.title},
+			${row.description},
+			${row.intendedOutcome},
+			${row.observedOutcome},
+			${row.revision},
+			CURRENT_TIMESTAMP,
+			CURRENT_TIMESTAMP
+		)
+		RETURNING
+			"id",
+			"projectId",
+			"title",
+			"description",
+			"intendedOutcome",
+			"observedOutcome",
+			"revision"
+	`;
+	const [created] = rows;
+	if (!created) {
+		throw new Error("Project Goal insert returned no row");
+	}
+	return created;
+}
+
+async function updateGoalRow(
+	db: MutationDb,
+	row: ProjectGoalRow
+): Promise<ProjectGoalRow> {
+	if (hasProjectGoalDelegate(db)) {
+		return await db.projectGoal.update({
+			data: {
+				description: row.description,
+				intendedOutcome: row.intendedOutcome,
+				observedOutcome: row.observedOutcome,
+				revision: row.revision,
+				title: row.title,
+			},
+			where: { id: row.id },
+		});
+	}
+	const rows = await db.$queryRaw<ProjectGoalRow[]>`
+		UPDATE "project_goal"
+		SET
+			"title" = ${row.title},
+			"description" = ${row.description},
+			"intendedOutcome" = ${row.intendedOutcome},
+			"observedOutcome" = ${row.observedOutcome},
+			"revision" = ${row.revision},
+			"updatedAt" = CURRENT_TIMESTAMP
+		WHERE "id" = ${row.id}
+		RETURNING
+			"id",
+			"projectId",
+			"title",
+			"description",
+			"intendedOutcome",
+			"observedOutcome",
+			"revision"
+	`;
+	const [updated] = rows;
+	if (!updated) {
+		throw new Error("Project Goal update returned no row");
+	}
+	return updated;
+}
+
 export function createProjectGoals(input: {
 	accountId: string;
 	prisma: PrismaClient;
@@ -64,10 +246,7 @@ async function listGoals(
 	if (!project) {
 		return [];
 	}
-	const rows = await input.prisma.projectGoal.findMany({
-		orderBy: { createdAt: "asc" },
-		where: { projectId },
-	});
+	const rows = await listGoalRows(input.prisma, projectId);
 	return rows.map(toView);
 }
 
@@ -78,12 +257,7 @@ async function getGoal(
 	},
 	goalId: string
 ): Promise<ProjectGoalView | null> {
-	const row = await input.prisma.projectGoal.findFirst({
-		where: {
-			id: goalId,
-			project: { workspaceId: input.workspaceId },
-		},
-	});
+	const row = await getGoalRow(input.prisma, input.workspaceId, goalId);
 	return row ? toView(row) : null;
 }
 
@@ -137,16 +311,14 @@ async function createGoal(
 		if (existing?.kind === "replay") {
 			return JSON.parse(existing.resultValue) as ProjectGoalOutcome;
 		}
-		const created = await tx.projectGoal.create({
-			data: {
-				description,
-				id: crypto.randomUUID(),
-				intendedOutcome,
-				observedOutcome,
-				projectId: command.projectId,
-				revision: 1,
-				title,
-			},
+		const created = await insertGoalRow(tx, {
+			description,
+			id: crypto.randomUUID(),
+			intendedOutcome,
+			observedOutcome,
+			projectId: command.projectId,
+			revision: 1,
+			title,
 		});
 		const outcome: ProjectGoalOutcome = {
 			goal: toView(created),
@@ -196,12 +368,7 @@ async function updateGoal(
 		title,
 	};
 	return await input.prisma.$transaction(async (tx) => {
-		const row = await tx.projectGoal.findFirst({
-			where: {
-				id: command.goalId,
-				project: { workspaceId: input.workspaceId },
-			},
-		});
+		const row = await getGoalRow(tx, input.workspaceId, command.goalId);
 		if (!row) {
 			return { status: "not-found" };
 		}
@@ -217,15 +384,14 @@ async function updateGoal(
 		if (existing?.kind === "replay") {
 			return JSON.parse(existing.resultValue) as ProjectGoalOutcome;
 		}
-		const updated = await tx.projectGoal.update({
-			data: {
-				description,
-				intendedOutcome,
-				observedOutcome,
-				revision: row.revision + 1,
-				title,
-			},
-			where: { id: row.id },
+		const updated = await updateGoalRow(tx, {
+			description,
+			id: row.id,
+			intendedOutcome,
+			observedOutcome,
+			projectId: row.projectId,
+			revision: row.revision + 1,
+			title,
 		});
 		const outcome: ProjectGoalOutcome = {
 			goal: toView(updated),

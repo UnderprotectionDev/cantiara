@@ -63,9 +63,10 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.documentFolder?.findMany === "function" &&
 		typeof client.documentFolder?.create === "function" &&
 		typeof client.documentVersion?.findMany === "function" &&
-		typeof client.documentConflictDraft?.findUnique === "function" &&
-		typeof client.projectGoal?.findMany === "function" &&
-		typeof client.projectGoal?.create === "function";
+		typeof client.documentConflictDraft?.findUnique === "function";
+	// Project Goal is read and written via table SQL when bun --hot still
+	// has a client generated before that model. Do not gate getPrismaClient
+	// on it.
 	if (!knownDelegates) {
 		return false;
 	}
@@ -84,7 +85,7 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 			delegateName
 		];
 		if (!isRecord(delegate)) {
-			return false;
+			return delegateName === "projectGoal";
 		}
 		return [
 			"count",

@@ -232,4 +232,60 @@ describe("Project Goal", () => {
 		);
 		expect(lists).toEqual([[], [], [], []]);
 	});
+
+	it("creates a Project Goal through SQL when bun --hot lacks the Project Goal delegate", async () => {
+		const project = await openProject("Atlas");
+		const stale = withoutProjectGoalDelegate(prisma);
+		const created = await createProjectGoals({
+			accountId: actorId,
+			prisma: stale,
+			workspaceId,
+		}).create({
+			description: "Ship the first founder workspace.",
+			idempotencyKey: crypto.randomUUID(),
+			intendedOutcome: "A living Project Goal record.",
+			projectId: project.id,
+			title: "Reach İlk Proje",
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project Goal");
+		}
+		expect(created.goal.title).toBe("Reach İlk Proje");
+		expect(created.goal.intendedOutcome).toBe("A living Project Goal record.");
+		const listed = await createProjectGoals({
+			accountId: actorId,
+			prisma: stale,
+			workspaceId,
+		}).list(project.id);
+		expect(listed).toEqual([created.goal]);
+	});
 });
+
+function withoutProjectGoalDelegate(db: PrismaClient): PrismaClient {
+	return new Proxy(db, {
+		get(target, prop, receiver) {
+			if (prop === "projectGoal") {
+				return;
+			}
+			const value = Reflect.get(target, prop, receiver);
+			if (prop === "$transaction" && typeof value === "function") {
+				return (arg: unknown, options?: unknown) => {
+					if (typeof arg === "function") {
+						return value.call(
+							target,
+							(tx: PrismaClient) =>
+								(arg as (client: PrismaClient) => unknown)(
+									withoutProjectGoalDelegate(tx)
+								),
+							options
+						);
+					}
+					return value.call(target, arg, options);
+				};
+			}
+			return typeof value === "function"
+				? (value as (...args: never[]) => unknown).bind(target)
+				: value;
+		},
+	}) as PrismaClient;
+}
