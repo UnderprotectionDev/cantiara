@@ -775,6 +775,66 @@ describe("Record Discovery prepared type indexes", () => {
 		).toBe("Search");
 	});
 
+	it("keeps Project and Wiki Documents as scoped nests with badges, not one home", () => {
+		const index = [
+			record({
+				id: "doc-project",
+				kind: RECORD_DISCOVERY_COPY.document,
+				projectId: OPEN,
+				recordType: RECORD_DISCOVERY_COPY.document,
+				title: "Launch checklist",
+			}),
+			record({
+				id: "doc-wiki",
+				kind: RECORD_DISCOVERY_COPY.document,
+				projectId: null,
+				recordType: RECORD_DISCOVERY_COPY.document,
+				scope: RECORD_DISCOVERY_COPY.personalWiki,
+				title: "Retry with backoff",
+			}),
+			record({
+				id: "doc-unscoped",
+				kind: RECORD_DISCOVERY_COPY.document,
+				projectId: null,
+				recordType: RECORD_DISCOVERY_COPY.document,
+				scope: "" as never,
+				title: "Merged nest",
+			}),
+		];
+		const mixed = browsePreparedIndex(
+			index.filter((row) => row.id !== "doc-unscoped"),
+			{ index: RECORD_DISCOVERY_COPY.allDocuments }
+		);
+		expect(mixed.rows.map((row) => [row.id, row.scope])).toEqual([
+			["doc-project", "Project"],
+			["doc-wiki", "Personal Wiki"],
+		]);
+		expect(
+			browsePreparedIndex(
+				index.filter((row) => row.id !== "doc-unscoped"),
+				{
+					index: RECORD_DISCOVERY_COPY.allDocuments,
+					scope: RECORD_DISCOVERY_COPY.personalWiki,
+				}
+			).rows.map((row) => row.id)
+		).toEqual(["doc-wiki"]);
+		expect(
+			browsePreparedIndex(index, {
+				index: RECORD_DISCOVERY_COPY.allDocuments,
+			}).rows
+		).toEqual([]);
+		expect(
+			searchRecords(
+				index.filter((row) => row.id !== "doc-unscoped"),
+				{
+					includeArchived: false,
+					openProjectId: OPEN,
+					text: "Retry",
+				}
+			).hits.map((hit) => [hit.id, hit.scope])
+		).toEqual([["doc-wiki", "Personal Wiki"]]);
+	});
+
 	it("never shows unauthorized or Trash records from an index", () => {
 		const index = [
 			record({

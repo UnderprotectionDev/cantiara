@@ -3,6 +3,13 @@ import {
 	FILE_SCOPE_KIND,
 } from "../../file-attachments/server/file-attachments-model";
 import {
+	type DocumentDiscoveryNest,
+	documentHitFromDiscoveryRecord,
+	filterDocumentNest,
+	presentMixedDocumentHits,
+} from "../../personal-wiki/server/personal-wiki";
+import { PERSONAL_WIKI_COPY } from "../../personal-wiki/server/personal-wiki-copy";
+import {
 	CLOSURE_RESULT,
 	WORK_STATUS,
 } from "../../work-lifecycle/server/work-lifecycle-model";
@@ -216,11 +223,14 @@ export function searchRecords(
 		})
 		.sort((left, right) => compareHits(left, right, query.openProjectId));
 	return {
-		hits: ranked.map(({ matchPlace, record }) => {
+		hits: ranked.flatMap(({ matchPlace, record }) => {
 			if (!isSearchIndexedKind(record.kind)) {
 				throw new Error("visible hit must be an indexed kind");
 			}
-			return toHit({ ...record, kind: record.kind }, text, matchPlace);
+			return presentSearchHit(
+				toHit({ ...record, kind: record.kind }, text, matchPlace),
+				record
+			);
 		}),
 		includeArchived: query.includeArchived,
 		query: text,
@@ -245,7 +255,11 @@ export function browsePreparedIndex(
 		),
 	].sort((left, right) => left.localeCompare(right));
 	const filtered = members.filter((record) => {
-		if (query.scope && record.scope !== query.scope) {
+		if (
+			query.scope &&
+			query.index !== RECORD_DISCOVERY_COPY.allDocuments &&
+			record.scope !== query.scope
+		) {
 			return false;
 		}
 		if (query.folder && record.folder !== query.folder) {
@@ -263,9 +277,10 @@ export function browsePreparedIndex(
 		query.index === RECORD_DISCOVERY_COPY.allFiles
 			? uniqueById(filtered)
 			: filtered;
-	const rows = [...unique]
-		.sort(compareIndexRows)
-		.map((record) => toIndexRow(record));
+	const rows =
+		query.index === RECORD_DISCOVERY_COPY.allDocuments
+			? presentDocumentIndexRows(unique, query.scope)
+			: [...unique].sort(compareIndexRows).map((record) => toIndexRow(record));
 	return {
 		folders,
 		index: query.index,
@@ -443,6 +458,75 @@ function compareIndexRows(
 		return 1;
 	}
 	return 0;
+}
+
+function nestFromSearchScope(
+	scope: SearchScope | null | undefined
+): DocumentDiscoveryNest | null {
+	if (scope === RECORD_DISCOVERY_COPY.personalWiki) {
+		return "personal-wiki";
+	}
+	if (scope === RECORD_DISCOVERY_COPY.project) {
+		return "project";
+	}
+	return null;
+}
+
+function presentDocumentIndexRows(
+	records: readonly SearchIndexRecord[],
+	scope: SearchScope | null | undefined
+): PreparedIndexRow[] {
+	const sorted = [...records].sort(compareIndexRows);
+	const presented = presentMixedDocumentHits(
+		sorted.map((record) =>
+			documentHitFromDiscoveryRecord({
+				id: record.id,
+				projectId: record.projectId,
+				scope: record.scope,
+				surface: PERSONAL_WIKI_COPY.allDocuments,
+				title: record.title,
+			})
+		)
+	);
+	if (presented.status !== "presented") {
+		return [];
+	}
+	const nest = nestFromSearchScope(scope);
+	const rows = nest ? filterDocumentNest(presented.rows, nest) : presented.rows;
+	const byId = new Map(sorted.map((record) => [record.id, record]));
+	return rows.flatMap((row) => {
+		const record = byId.get(row.id);
+		if (!record) {
+			return [];
+		}
+		return [{ ...toIndexRow(record), scope: row.scopeBadge }];
+	});
+}
+
+function presentSearchHit(
+	hit: SearchHit,
+	record: SearchIndexRecord
+): SearchHit[] {
+	if (hit.kind !== RECORD_DISCOVERY_COPY.document) {
+		return [hit];
+	}
+	const presented = presentMixedDocumentHits([
+		documentHitFromDiscoveryRecord({
+			id: record.id,
+			projectId: record.projectId,
+			scope: record.scope,
+			surface: PERSONAL_WIKI_COPY.search,
+			title: record.title,
+		}),
+	]);
+	if (presented.status !== "presented") {
+		return [];
+	}
+	const [row] = presented.rows;
+	if (!row) {
+		return [];
+	}
+	return [{ ...hit, scope: row.scopeBadge }];
 }
 
 function toIndexRow(record: SearchIndexRecord): PreparedIndexRow {

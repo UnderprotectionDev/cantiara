@@ -311,7 +311,9 @@ function IndexTable({
 							</p>
 						</TableCell>
 						<TableCell>{row.recordType}</TableCell>
-						<TableCell>{row.scope}</TableCell>
+						<TableCell>
+							<Badge variant="outline">{row.scope}</Badge>
+						</TableCell>
 						{showAuthority ? (
 							<TableCell>{row.diagramAuthorityMode ?? ""}</TableCell>
 						) : null}
