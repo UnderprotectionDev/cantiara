@@ -1,0 +1,28 @@
+model NextConcreteStepChange {
+  id             String    @id
+  workId         String?
+  work           Work?     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  projectId      String?
+  project        Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  previousValue  String?
+  nextValue      String?
+  createdAt      DateTime  @default(now())
+
+  @@index([workId, createdAt])
+  @@index([projectId, createdAt])
+  @@map("next_concrete_step_change")
+}
+
+model ReturnToWorkVisibleOpen {
+  id         String   @id
+  accountId  String
+  sourceKind String
+  sourceId   String
+  viewedAt   DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([accountId, sourceKind, sourceId])
+  @@index([accountId, sourceKind])
+  @@map("return_to_work_visible_open")
+}

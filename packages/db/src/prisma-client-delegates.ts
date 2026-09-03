@@ -48,6 +48,10 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		// Daily Focus membership and candidate rejection are read via table SQL
 		// so a bun --hot client generated before those models can still serve
 		// Daily Focus. Do not gate getPrismaClient on them.
+		// Return to Work writes skip when the delegate is missing
+		// (hasDelegate in return-to-work). Gating getPrismaClient here turned
+		// CANT-56914D28 into CANT-56C7BBAF: every RPC threw
+		// "Prisma client is missing current models; restart the API after prisma generate".
 		// Completion effect preference is read via table SQL so a bun --hot
 		// client generated before that model can still serve Hesap settings.
 		typeof client.fileAttachment?.findMany === "function" &&
@@ -147,7 +151,10 @@ export function prismaClientHasCurrentFileAttachmentVersionModel(
  * are required for Kanban Soft WIP, Focus threshold, and Backlog
  * Reappear date notification. A bun `--hot` client generated before
  * those fields still has a Project delegate; select then throws
- * "Unknown field 'focusThreshold'".
+ * "Unknown field 'focusThreshold'". Project.nextConcreteStep is required
+ * for Return to Work Save; a bun `--hot` client generated before that
+ * field still has a Project delegate; update then throws
+ * "Unknown argument `nextConcreteStep`" (CANT-BD652F27).
  */
 export function prismaClientHasCurrentProjectModel(
 	client: PrismaClient
@@ -160,7 +167,9 @@ export function prismaClientHasCurrentProjectModel(
 		!(
 			projectFields.includes("priorityCriterionDefinitions") &&
 			projectFields.includes("focusThreshold") &&
-			projectFields.includes("reappearDateNotification")
+			projectFields.includes("reappearDateNotification") &&
+			projectFields.includes("nextConcreteStep") &&
+			projectFields.includes("nextConcreteStepUpdatedAt")
 		)
 	) {
 		return false;

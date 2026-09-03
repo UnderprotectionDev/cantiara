@@ -40,6 +40,7 @@ import {
 	workSavedViewIsRoadmap,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
+import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
 
@@ -638,6 +639,7 @@ function ProjectBody({
 				</p>
 			) : null}
 			<div className="mt-6">
+				<ReturnToWorkPanel projectId={data.id} />
 				<ProjectOverview projectId={data.id} />
 			</div>
 		</section>

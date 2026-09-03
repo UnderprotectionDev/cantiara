@@ -14,6 +14,7 @@ import RecordActionRun from "@/features/record-actions/views/record-action-run";
 import RelationsPanel from "@/features/relations/views/relations-panel";
 import UsageLinksPanel from "@/features/relations/views/usage-links-panel";
 import UsedInPanel from "@/features/relations/views/used-in-panel";
+import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
 import WorkHorizonForm from "@/features/roadmap-horizon/forms/work-horizon-form";
 import WorkMilestoneForm from "@/features/roadmap-horizon/forms/work-milestone-form";
 import WorkNotNowForm from "@/features/roadmap-horizon/forms/work-not-now-form";
@@ -102,6 +103,7 @@ export default function WorkDetail({
 						{WORK_LIFECYCLE_COPY.close}
 					</Button>
 				</header>
+				<ReturnToWorkPanel projectId={projectId} workId={work.id} />
 				{readOnly ? (
 					<dl className="grid gap-1 text-sm">
 						<div className="flex gap-2">

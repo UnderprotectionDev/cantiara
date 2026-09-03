@@ -27,6 +27,8 @@ model Work {
   reappearDate          String?
   horizon               String?
   notNowReviewLaterIds  Json                   @default("[]")
+  nextConcreteStep          String?
+  nextConcreteStepUpdatedAt DateTime?
   retiredIntoId         String?
   retiredInto           Work?                  @relation("WorkRetiredIdentity", fields: [retiredIntoId], references: [id], onDelete: SetNull)
   retiredIdentities     Work[]                 @relation("WorkRetiredIdentity")
@@ -52,6 +54,7 @@ model Work {
   externalExecutionHandoffEvents ExternalExecutionHandoffEvent[]
   backlogManualOrderItems        ProjectBacklogManualOrderItem[]
   notNowTrails                   WorkNotNowTrail[]
+  nextConcreteStepChanges        NextConcreteStepChange[]
 
   @@unique([projectId, number])
   @@unique([projectId, key])
