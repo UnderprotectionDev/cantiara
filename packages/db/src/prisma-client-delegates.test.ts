@@ -54,6 +54,10 @@ function workDelegates() {
 			create: () => undefined,
 			findMany,
 		},
+		personalReminder: {
+			create: () => undefined,
+			findMany,
+		},
 		projectBacklogManualOrderItem: {
 			createMany: () => undefined,
 			findMany,
@@ -526,6 +530,45 @@ describe("Prisma client current delegates", () => {
 				usageHostEmbed: { findMany },
 				usageLink: { findMany },
 				workTag: { findMany },
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
+	it("accepts a bun --hot client generated before Personal Reminder", () => {
+		const { personalReminder: _dropped, ...beforeReminders } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionGoingPackage: { create: () => undefined, findMany },
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			externalExecutionHandoffEvent: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(
+				beforeReminders as unknown as PrismaClient
+			)
+		).toBe(true);
+		expect(
+			prismaClientHasCurrentDelegates({
+				...beforeReminders,
+				_runtimeDataModel: {
+					models: {
+						PersonalReminder: { fields: [{ name: "id" }] },
+					},
+				},
 			} as unknown as PrismaClient)
 		).toBe(true);
 	});
