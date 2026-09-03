@@ -70,4 +70,8 @@ export async function invalidateWork(projectId: string, workId: string) {
 		predicate: (query) =>
 			JSON.stringify(query.queryKey).includes("unifiedCalendar"),
 	});
+	await queryClient.invalidateQueries({
+		predicate: (query) =>
+			JSON.stringify(query.queryKey).includes("returnToWork"),
+	});
 }

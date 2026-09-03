@@ -436,8 +436,12 @@ Açık oturum boyunca üzerinde durulan İş ve Belgeleri kaynak bağlamını ka
 _Avoid_: Favori, Günlük Odak, bookmark kuyruğu, planlama üyeliği
 
 **Çalışmaya Dön**:
-Ara verilen Proje veya İşe güncel kayıtlardan seçilen geri dönüş kartlarıyla bağlamı yeniden kuran özet; seans, bildirim yığını veya sekme geri yükleme değildir ([Çalışmaya Dön](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)).
+Ara verilen Proje veya İşe güncel kayıtlardan seçilen geri dönüş kartlarıyla bağlamı yeniden kuran özet; seans, bildirim yığını veya sekme geri yükleme değildir ([Çalışmaya Dön](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)). UI: `Return to Work`, `Open source record`.
 _Avoid_: Bildirim, hatırlatma, recent-tabs, ikinci çalışma listesi
+
+**Sıradaki somut adım**:
+Proje veya İş kaydındaki isteğe bağlı tek metin ipucu; ayrı kayıt, İş, kontrol listesi, Günlük Odak, hatırlatma veya ikinci liste değildir ([Çalışmaya Dön](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)). UI: `Next concrete step`.
+_Avoid_: otomatik adım, ikinci çalışma listesi, kontrol listesi maddesi
 
 **Son ziyaret işareti**:
 Hesapta Proje ve desteklenen İş bağlamı başına son başarılı görünür açılış zamanı; görüntüleme geçmişi, süre, analytics veya denetim olayı değildir ([Çalışmaya Dön özeti](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)).
