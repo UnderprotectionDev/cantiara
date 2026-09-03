@@ -10,6 +10,7 @@
  * and restore).
  */
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -85,9 +86,7 @@ import {
 	resolveInDocTags,
 } from "./documents-model";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
+const DATABASE_URL = localTestDatabaseUrl();
 
 const MARKETPLACE_COPY = /marketplace|licensed pack|meeting type/i;
 const TRASH_PATTERN = /Trash|trash|Çöp/i;

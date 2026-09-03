@@ -7,6 +7,7 @@
  * map/session view does not write Kanban status or Backlog order).
  */
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -50,9 +51,7 @@ import {
 	priorityCatalog,
 } from "./priority-model";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara"; // pragma: allowlist secret
+const DATABASE_URL = localTestDatabaseUrl();
 
 const SCORE_WSJF_PATTERN = /wsjf|auto-?sort|auto-?fill|single score|weighting/i;
 const SCALAR_PRIORITY_PATTERN = /\bpriority\b/;

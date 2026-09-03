@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { PrismaClient } from "../prisma/generated/client";
 import { getPrismaClient } from "./index";
+import { isLoopbackDatabaseUrl } from "./local-test-database-url";
 import { prismaClientHasCurrentWorkspaceModel } from "./prisma-client-delegates";
 import {
 	readWorkspaceOverviewLayout,
@@ -51,6 +52,9 @@ function asStaleWorkspaceClient(client: PrismaClient): PrismaClient {
 
 describe("Workspace Overview layout persistence", () => {
 	it("writes layout through SQL when bun --hot still has a pre-overviewLayout Workspace model", async () => {
+		if (!isLoopbackDatabaseUrl()) {
+			return;
+		}
 		const prisma = getPrismaClient();
 		const row = await prisma.workspace.findFirst({ select: { id: true } });
 		expect(row).toBeTruthy();

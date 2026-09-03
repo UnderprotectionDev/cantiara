@@ -1,11 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
 import "./env.ts";
+import { localTestDatabaseUrl } from "../../packages/db/src/local-test-database-url.ts";
 import { disconnectSeedPrismaClient, getSeedPrismaClient } from "./prisma";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
+const DATABASE_URL = localTestDatabaseUrl();
 
 describe("dev seed verification", () => {
 	it("loads expected demo projects and work in the database", async () => {

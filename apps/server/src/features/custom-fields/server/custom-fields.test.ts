@@ -8,6 +8,7 @@
  * (Arama ve ilişki: custom field type matrix; not Lookup/Formula).
  */
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -33,9 +34,7 @@ import {
 	UNSET_CUSTOM_FIELD_VALUE,
 } from "./custom-fields-model";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
+const DATABASE_URL = localTestDatabaseUrl();
 
 const LOOKUP_FORMULA_PATTERN = /lookup|formula/i;
 const TAG_MAINTENANCE_PATTERN =

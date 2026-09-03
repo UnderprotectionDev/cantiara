@@ -16,18 +16,28 @@ Synthetic demo data for manual testing. The seed resets **workspace content only
 
 ## Commands
 
-### Seed Neon (or local Postgres)
+### Local Postgres
 
 ```bash
 bun run seed
 ```
 
-Reads `DATABASE_URL` from the environment first, then fills missing keys from `.env` or `apps/server/.env`. Hosted Neon works in development without extra flags.
+### Hosted Neon
+
+Seed **clears workspace content** first. Confirm explicitly:
+
+```bash
+SEED_CONFIRM=hosted bun run seed
+```
+
+Do not run seed from a Cloud Agent against the shared product Neon unless the founder asked to reset demo data.
+
+Reads `DATABASE_URL` from the environment first, then fills missing keys from `.env` or `apps/server/.env`.
 
 Example with an inline Neon URL:
 
 ```bash
-DATABASE_URL='postgresql://user:pass@ep-....neon.tech/neondb?sslmode=require' bun run seed
+SEED_CONFIRM=hosted DATABASE_URL='postgresql://user:pass@ep-....neon.tech/neondb?sslmode=require' bun run seed
 ```
 
 Dry run (no writes):
@@ -38,7 +48,7 @@ bun run seed -- --dry-run
 
 ### Production-like hosted runs
 
-Outside `NODE_ENV=development`, hosted databases require explicit confirmation:
+Same confirmation:
 
 ```bash
 SEED_CONFIRM=hosted bun run seed
