@@ -42,6 +42,7 @@ import {
 	productTrustedOrigins,
 	TAURI_CALLBACK_URL,
 } from "./tauri-session";
+import { WEB_SIGN_IN_CODE_PARAM } from "./web-sign-in-code";
 
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
@@ -49,6 +50,7 @@ const DATABASE_URL =
 
 const BASE_URL = "http://localhost:3000";
 const WEB_ORIGIN = "http://localhost:3001";
+const LOOPBACK_WEB_ORIGIN = "http://127.0.0.1:3001";
 
 interface GitHubProfile {
 	email: string;
@@ -216,7 +218,8 @@ async function startGitHubSignIn(
 	handler: (request: Request) => Promise<Response>,
 	cookies: ReturnType<typeof cookieJar>,
 	ip = "203.0.113.10",
-	callbackURL = `${WEB_ORIGIN}/dashboard`
+	callbackURL = `${WEB_ORIGIN}/dashboard`,
+	origin = WEB_ORIGIN
 ) {
 	const response = await handler(
 		new Request(`${BASE_URL}/api/auth/sign-in/social`, {
@@ -227,7 +230,7 @@ async function startGitHubSignIn(
 			headers: {
 				"content-type": "application/json",
 				cookie: cookies.header(),
-				origin: WEB_ORIGIN,
+				origin,
 				"x-forwarded-for": ip,
 			},
 			method: "POST",
@@ -240,14 +243,20 @@ async function startGitHubSignIn(
 async function completeGitHubCallback(
 	handler: (request: Request) => Promise<Response>,
 	cookies: ReturnType<typeof cookieJar>,
-	input: { code: string; state: string; ip?: string; userAgent?: string }
+	input: {
+		code: string;
+		origin?: string;
+		state: string;
+		ip?: string;
+		userAgent?: string;
+	}
 ) {
 	const url = new URL(`${BASE_URL}/api/auth/callback/github`);
 	url.searchParams.set("code", input.code);
 	url.searchParams.set("state", input.state);
 	const headers: Record<string, string> = {
 		cookie: cookies.header(),
-		origin: WEB_ORIGIN,
+		origin: input.origin ?? WEB_ORIGIN,
 		"x-forwarded-for": input.ip ?? "203.0.113.10",
 	};
 	if (input.userAgent) {
@@ -446,6 +455,97 @@ describe("Account Access", () => {
 			workspaceName: WORKSPACE_DEFAULT_NAME,
 		});
 		expect(await prisma.workspace.count()).toBe(1);
+		restore();
+	});
+
+	it("does not treat a GitHub-less Account as a signed-in founder session", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const cookies = await signInDevice(auth, {
+			code: "founder-without-github",
+			userAgent: MAC_USER_AGENT,
+		});
+		await prisma.account.deleteMany({ where: { providerId: "github" } });
+		expect(
+			await auth.accountAccess.current(productRequest(cookies))
+		).toBeNull();
+		const sessionResponse = await auth.handler(
+			new Request(`${BASE_URL}/api/auth/get-session`, {
+				headers: {
+					cookie: cookies.header(),
+					origin: WEB_ORIGIN,
+				},
+			})
+		);
+		expect(await sessionResponse.json()).toBeNull();
+		await expect(
+			auth.accountAccess.write(productRequest(cookies))
+		).rejects.toMatchObject({
+			message: SESSION_WRITE_UNAUTHORIZED_MESSAGE,
+			status: 401,
+		});
+		restore();
+	});
+
+	it("hands the web app a one-time code when GitHub returns on a different hostname", async () => {
+		const restore = installGitHubOAuthDouble({
+			profileForCode: () => founder,
+		});
+		const auth = createAccess();
+		const startCookies = cookieJar();
+		const start = await startGitHubSignIn(
+			auth.handler,
+			startCookies,
+			"203.0.113.10",
+			`${LOOPBACK_WEB_ORIGIN}/dashboard`,
+			LOOPBACK_WEB_ORIGIN
+		);
+		const callback = await completeGitHubCallback(auth.handler, startCookies, {
+			code: "founder-loopback",
+			origin: LOOPBACK_WEB_ORIGIN,
+			state: authorizationState(String((await jsonBody(start)).url)),
+		});
+		const location = callback.headers.get("location") ?? "";
+		expect(location.startsWith(`${LOOPBACK_WEB_ORIGIN}/login?`)).toBe(true);
+		const returned = new URL(location);
+		expect([...returned.searchParams.keys()]).toEqual([WEB_SIGN_IN_CODE_PARAM]);
+		const code = returned.searchParams.get(WEB_SIGN_IN_CODE_PARAM);
+		expect(code).toMatch(TAURI_ONE_TIME_CODE);
+		expect(
+			callback.headers
+				.getSetCookie()
+				.filter((header) => SESSION_COOKIE.test(header))
+		).toHaveLength(0);
+
+		const exchanged = await auth.handler(
+			new Request(`${BASE_URL}/api/auth/web/exchange`, {
+				body: JSON.stringify({ code }),
+				headers: {
+					"content-type": "application/json",
+					origin: LOOPBACK_WEB_ORIGIN,
+				},
+				method: "POST",
+			})
+		);
+		expect(exchanged.ok).toBe(true);
+		const webCookies = cookieJar();
+		webCookies.apply(exchanged);
+		expect(
+			exchanged.headers
+				.getSetCookie()
+				.filter((header) => SESSION_COOKIE.test(header)).length
+		).toBeGreaterThan(0);
+		const session = await auth.accountAccess.current(
+			productRequest(webCookies, { origin: LOOPBACK_WEB_ORIGIN })
+		);
+		expect(session?.user.id).toBeTruthy();
+		await expect(
+			auth.accountAccess.write(
+				productRequest(webCookies, { origin: LOOPBACK_WEB_ORIGIN })
+			)
+		).resolves.toMatchObject({ written: true });
 		restore();
 	});
 

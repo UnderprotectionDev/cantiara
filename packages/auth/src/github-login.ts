@@ -98,3 +98,14 @@ export function isGitHubSignInPath(pathname: string): boolean {
 		pathname.includes("/callback/github")
 	);
 }
+
+export function githubCallbackNeedsWebOneTimeCode(
+	requestUrl: string,
+	location: string
+): boolean {
+	try {
+		return new URL(requestUrl).hostname !== new URL(location).hostname;
+	} catch {
+		return false;
+	}
+}
