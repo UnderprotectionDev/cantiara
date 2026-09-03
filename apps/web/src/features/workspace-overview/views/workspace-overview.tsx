@@ -443,15 +443,13 @@ function OverviewModule({
 							<Button
 								aria-expanded={opened}
 								aria-label={`${openSourceRecord}: ${module.heading} ${module.count}`}
-								className="h-auto w-full flex-col items-start gap-1 px-0 py-0 font-medium text-sm"
+								className="h-auto w-full items-baseline justify-between gap-3 px-0 py-0 font-medium text-sm"
 								onClick={onToggle}
 								type="button"
 								variant="ghost"
 							>
-								<span className="text-muted-foreground text-xs">
-									{module.heading}
-								</span>
-								<span className="font-semibold text-2xl tabular-nums tracking-tight">
+								<span>{module.heading}</span>
+								<span className="font-normal text-muted-foreground tabular-nums">
 									{module.count}
 								</span>
 							</Button>
@@ -462,7 +460,7 @@ function OverviewModule({
 							<DropdownMenuTrigger
 								render={
 									<Button
-										aria-label={`${module.heading}: ${copy.hide}`}
+										aria-label={`${module.heading}: ${copy.hide}, ${copy.moveUp}, ${copy.moveDown}`}
 										size="icon-sm"
 										variant="ghost"
 									/>

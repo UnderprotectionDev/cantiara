@@ -138,7 +138,6 @@ export default function Header() {
 							<DropdownMenuTrigger
 								render={
 									<Button
-										aria-current={moreCurrent ? "page" : undefined}
 										className={cn(
 											"h-7 px-1.5 font-normal",
 											moreCurrent

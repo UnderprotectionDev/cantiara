@@ -44,7 +44,7 @@ Kişisel erişim kabuğu Günlük Odak, Favoriler, Bildirim Merkezi ve Yeniden b
 - **No recent-context.** Open panel, in-panel navigation, scroll, and source-view position are not restored across sessions. Working Set is not restored after session end. Unsaved edits are not this module’s durability path.
 - **Active Working Set.** Session-only selection of İş and Belge. Reopen is one action without losing source-view context. Not Favori, Günlük Odak, priority, status, planning membership, bookmark queue, ana kayıt, or another truth. Not shared. Does not create Dış yüzey.
 - **Canvas viewport.** Not here. Proje Duvarı, Kullanıcı Akışı, Wireframe, Moodboard, Teknik Diyagram keep their own viewport/zoom/collapse. This feature must not persist those values.
-- **English UI labels.** First user-visible copy uses: `Daily Focus`, `Favorites`, `Notification Center`, `Look again`, `Open full page`, `Active Working Set`. Missing labels go to the term table in the same change that first shows them.
+- **English UI labels.** First user-visible copy uses: `Daily Focus`, `Favorites`, `Notification Center`, `Look again`, `Open full page`, `Active Working Set`, `More`. Missing labels go to the term table in the same change that first shows them.
 
 ## Testing Decisions
 
