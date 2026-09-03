@@ -1,4 +1,4 @@
-import { WEB_SIGN_IN_CODE_PARAM } from "@cantiara/auth/web-sign-in-code";
+const GITHUB_SIGN_IN_CODE_PARAM = "code";
 
 export async function completeWebGitHubSignIn(
 	code: string
@@ -32,6 +32,6 @@ export async function completeWebGitHubSignIn(
 export function githubSignInCodeFromSearch(search: {
 	code?: string;
 }): string | null {
-	const code = search[WEB_SIGN_IN_CODE_PARAM];
+	const code = search[GITHUB_SIGN_IN_CODE_PARAM];
 	return typeof code === "string" && code.length > 0 ? code : null;
 }
