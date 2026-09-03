@@ -57,6 +57,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Bitiş tarihi | `End date` | Odak Dönemi penceresinin son günü |
 | Açık kalan İş | `Still-open Work` | Kapanışta toplu karar bekleyen açık İş listesi |
 | Odak Dönemi yok | `No Focus Period yet.` | Henüz dönem açılmamış boş durum |
+| Odak Döneminde İş yok | `No Work in this Focus Period.` | Dönemde üyelik olmadığında boş durum |
 | Odak Dönemi penceresi | `Focus Period must be 1–8 weeks.` | 1–8 hafta dışı oluşturma reddi |
 | Başka etkin döneme taşı | `Move` | İşin mevcut etkin Odak Döneminden açıkça başka etkin döneme alınması |
 | Zaten etkin dönemde | `Work is already in an active Focus Period. Use Move.` | Örtük ikinci etkin üyelik reddi |

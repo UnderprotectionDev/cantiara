@@ -45,7 +45,7 @@ Odak Dönemi farklı Projelerden İşleri isteğe bağlı 1–8 haftalık ortak 
 - **Leftovers.** Bulk decision screen only. Destinations: next period, Backlog, another period, or explicit abandon (Work closure step, not a period side effect). No rule-based auto rollover.
 - **Evaluation.** Skippable. Learnings are user text. Follow-up Work only with preview and confirm; link to source period. No generated action items.
 - **Dependencies.** Optional read-only. Reads existing blocker relations in period scope (workflow 19). Nodes open sources. No new relation, Mermaid source, manual layout, second planning fact, or critical path.
-- **English UI labels.** `Focus Period`, `Dependencies`, `Planned`, `Active`, `Closed`, `Canceled`. Missing labels join the PRD term table in the same change that first shows them. No Turkish UI.
+- **English UI labels.** `Focus Period`, `Dependencies`, `Planned`, `Active`, `Closed`, `Canceled`, `No Work in this Focus Period.`. Missing labels join the PRD term table in the same change that first shows them. No Turkish UI.
 
 ## Testing Decisions
 

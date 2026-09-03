@@ -89,6 +89,9 @@ describe("Focus Period catalog", () => {
 			planningWrites: FOCUS_PERIOD_PLANNING_WRITES,
 		});
 		expect(FOCUS_PERIOD_COPY.focusPeriod).toBe("Focus Period");
+		expect(FOCUS_PERIOD_COPY.membersEmpty).toBe(
+			"No Work in this Focus Period."
+		);
 		expect(FOCUS_PERIOD_COPY.planned).toBe("Planned");
 		expect(FOCUS_PERIOD_COPY.active).toBe("Active");
 		expect(FOCUS_PERIOD_COPY.closed).toBe("Closed");
