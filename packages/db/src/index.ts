@@ -5,11 +5,16 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import type { PrismaClient } from "../prisma/generated/client";
 import {
+	ensureGeneratedPrismaClient,
+	forceRegeneratePrismaClient,
+} from "./ensure-generated-prisma-client";
+import {
 	clientStampIsCurrent,
 	forgetGeneratedPrismaClientCache,
 	loadGeneratedPrismaClient,
 	readGeneratedClientStamp,
 } from "./generated-prisma-client";
+import { prismaAdapterConnectionString } from "./local-test-database-url";
 import {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentExternalExecutionHandoffModel,
@@ -20,6 +25,7 @@ import {
 } from "./prisma-client-delegates";
 
 export { Prisma, PrismaClient } from "../prisma/generated/client";
+export { ensureGeneratedPrismaClient } from "./ensure-generated-prisma-client";
 export { readGeneratedClientStamp } from "./generated-prisma-client";
 export {
 	prismaClientHasCurrentDelegates,
@@ -48,10 +54,11 @@ if (process.env.NEON_LOCAL === "true") {
 
 export function createPrismaClient() {
 	const Client = loadGeneratedPrismaClient();
+	const connectionString = prismaAdapterConnectionString(env.DATABASE_URL);
 	if (process.env.NEON_LOCAL === "true") {
 		return new Client({
 			adapter: new PrismaNeon({
-				connectionString: env.DATABASE_URL,
+				connectionString,
 			}),
 		});
 	}
@@ -59,7 +66,7 @@ export function createPrismaClient() {
 	// Hosted Neon and local TCP use the PrismaPg adapter (Prisma ORM
 	// PostgreSQL driver-adapter docs: PrismaPg({ connectionString })).
 	return new Client({
-		adapter: new PrismaPg({ connectionString: env.DATABASE_URL }),
+		adapter: new PrismaPg({ connectionString }),
 	});
 }
 
@@ -173,16 +180,13 @@ export function resetPrismaClientCache() {
 }
 
 export function getPrismaClient() {
+	if (process.env.NODE_ENV === "development") {
+		ensureGeneratedPrismaClient();
+	}
 	const diskStamp = readGeneratedClientStamp();
 	if (process.env.NODE_ENV === "production") {
 		productionPrisma ??= createPrismaClient();
-		if (
-			!(
-				prismaClientHasCurrentDelegates(productionPrisma) &&
-				prismaClientHasCurrentTypedRelationModel(productionPrisma) &&
-				prismaClientHasCurrentExternalExecutionHandoffModel(productionPrisma)
-			)
-		) {
+		if (!prismaClientHasRequiredModels(productionPrisma)) {
 			throw new Error(
 				"Prisma client is missing current models; restart the API after prisma generate"
 			);
@@ -197,19 +201,37 @@ export function getPrismaClient() {
 	// instance; $disconnect() ends pg.Pool and surfaces as "Cannot use a pool
 	// after calling end on the pool". Tests call resetPrismaClientCache().
 	takeCachedPrisma();
-	const client = createPrismaClient();
-	if (
-		!(
-			prismaClientHasCurrentDelegates(client) &&
-			prismaClientHasCurrentTypedRelationModel(client) &&
-			prismaClientHasCurrentExternalExecutionHandoffModel(client)
-		)
-	) {
-		client.$disconnect().catch(() => undefined);
-		throw new Error(
-			"Prisma client is missing current models; restart the API after prisma generate"
-		);
-	}
-	globalForPrisma.cantiaraPrisma = { client, stamp: diskStamp };
+	const client = loadCurrentPrismaClient();
+	globalForPrisma.cantiaraPrisma = {
+		client,
+		stamp: readGeneratedClientStamp(),
+	};
 	return client;
+}
+
+function prismaClientHasRequiredModels(client: PrismaClient): boolean {
+	return (
+		prismaClientHasCurrentDelegates(client) &&
+		prismaClientHasCurrentTypedRelationModel(client) &&
+		prismaClientHasCurrentExternalExecutionHandoffModel(client)
+	);
+}
+
+function loadCurrentPrismaClient(): PrismaClient {
+	const client = createPrismaClient();
+	if (prismaClientHasRequiredModels(client)) {
+		return client;
+	}
+	client.$disconnect().catch(() => undefined);
+	if (process.env.NODE_ENV === "development") {
+		forceRegeneratePrismaClient();
+		const regenerated = createPrismaClient();
+		if (prismaClientHasRequiredModels(regenerated)) {
+			return regenerated;
+		}
+		regenerated.$disconnect().catch(() => undefined);
+	}
+	throw new Error(
+		"Prisma client is missing current models; restart the API after prisma generate"
+	);
 }

@@ -344,6 +344,21 @@ test("a Prisma unknown markingMarks argument stays secret-free and still says Da
 	expect(presented.supportReference).toBe("CANT-FFEE4F19");
 });
 
+test("a missing current-models gate stays secret-free and still says Data was not written", () => {
+	const prismaWriteFailure = new Error(
+		"Prisma client is missing current models; restart the API after prisma generate"
+	);
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(prismaWriteFailure, undefined, {
+			trackingId: "CANT-00MODELS",
+		})
+	);
+
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.staleGeneratedClient);
+	expect(presented.writeOutcome).toBe("Data was not written.");
+	expect(presented.supportReference).toBe("CANT-00MODELS");
+});
+
 test("a Prisma P2022 code maps to pending migrations without leaking a workspace path", () => {
 	const prismaKnown = Object.assign(
 		new Error("Invalid prisma.work.findMany() invocation"),

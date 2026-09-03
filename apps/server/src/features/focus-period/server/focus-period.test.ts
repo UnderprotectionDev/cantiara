@@ -21,6 +21,7 @@
  */
 
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -55,9 +56,7 @@ import {
 	isFocusPeriodWindow,
 } from "./focus-period-model";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
+const DATABASE_URL = localTestDatabaseUrl();
 
 const BEFORE_START = new Date("2026-09-01T12:00:00.000Z");
 const START_INSTANT = new Date("2026-09-07T21:00:00.000Z");

@@ -9,6 +9,7 @@
  * negatives).
  */
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -40,9 +41,7 @@ import {
 } from "./external-handoffs";
 import { EXTERNAL_HANDOFFS_COPY } from "./external-handoffs-model";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
+const DATABASE_URL = localTestDatabaseUrl();
 
 const FORBIDDEN_PRODUCT =
 	/coding session|agent task|independent Handoff main record|commit arrived/i;

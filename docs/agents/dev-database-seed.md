@@ -5,7 +5,7 @@ Synthetic demo data for manual testing. The seed resets **workspace content only
 ## When to use
 
 - You want Projects, Work, Roadmap, Calendar, and Tags populated without clicking through create flows.
-- You reset a hosted Neon dev database to a known demo state.
+- You reset a hosted Neon dev database to a known demo state (`SEED_CONFIRM=hosted`).
 - You re-run seed after schema changes to refresh the fixture set.
 
 ## Prerequisites
@@ -16,29 +16,39 @@ Synthetic demo data for manual testing. The seed resets **workspace content only
 
 ## Commands
 
-### Seed Neon (or local Postgres)
+### Local Postgres
 
 ```bash
 bun run seed
 ```
 
-Reads `DATABASE_URL` from the environment first, then fills missing keys from `.env` or `apps/server/.env`. Hosted Neon works in development without extra flags.
+### Hosted Neon
+
+Seed **clears workspace content** first. Confirm explicitly:
+
+```bash
+SEED_CONFIRM=hosted bun run seed
+```
+
+Do not run seed from a Cloud Agent against the shared product Neon unless the founder asked to reset demo data.
+
+Reads `DATABASE_URL` from the environment first, then fills missing keys from `.env` or `apps/server/.env`.
 
 Example with an inline Neon URL:
 
 ```bash
-DATABASE_URL='postgresql://user:pass@ep-....neon.tech/neondb?sslmode=require' bun run seed
+SEED_CONFIRM=hosted DATABASE_URL='postgresql://user:pass@ep-....neon.tech/neondb?sslmode=require' bun run seed
 ```
 
-Dry run (no writes):
+Dry run (no writes). Hosted still needs confirmation:
 
 ```bash
-bun run seed -- --dry-run
+SEED_CONFIRM=hosted bun run seed -- --dry-run
 ```
 
 ### Production-like hosted runs
 
-Outside `NODE_ENV=development`, hosted databases require explicit confirmation:
+Same confirmation:
 
 ```bash
 SEED_CONFIRM=hosted bun run seed
@@ -47,7 +57,7 @@ SEED_CONFIRM=hosted bun run seed
 Target a specific founder account:
 
 ```bash
-SEED_USER_EMAIL=you@example.com bun run seed
+SEED_CONFIRM=hosted SEED_USER_EMAIL=you@example.com bun run seed
 ```
 
 ## What gets created
@@ -75,6 +85,6 @@ To wipe demo data without reloading, run with `--dry-run` after a manual clear, 
 
 ## Notes
 
-- `bun run db:push` is local throwaway only; do not push against hosted `DATABASE_URL`.
+- `bun run db:push` refuses hosted `DATABASE_URL`. Install/start push only to local Postgres.
 - Migrate against Neon uses the direct (non-pooler) endpoint; the app runtime may use the pooled URL.
 - Seed does not run in CI or on `db:migrate:deploy`.

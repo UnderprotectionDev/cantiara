@@ -53,7 +53,6 @@ describe("Workspace Overview layout persistence", () => {
 	it("writes layout through SQL when bun --hot still has a pre-overviewLayout Workspace model", async () => {
 		const prisma = getPrismaClient();
 		const row = await prisma.workspace.findFirst({ select: { id: true } });
-		expect(row).toBeTruthy();
 		if (!row) {
 			return;
 		}

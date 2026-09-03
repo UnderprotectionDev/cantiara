@@ -7,10 +7,10 @@
  * (İş yaşam döngüsü: owned checklist component).
  */
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-
 import { createProject } from "../../project-shell/server/project-shell";
 import { listRelations } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
@@ -37,9 +37,7 @@ import {
 } from "./work-checklists";
 import { WORK_CHECKLISTS_COPY } from "./work-checklists-model";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
+const DATABASE_URL = localTestDatabaseUrl();
 
 const FORBIDDEN_PRODUCT =
 	/subtask|epic|Test Scenario|Handoff|checklist-as-Work/i;

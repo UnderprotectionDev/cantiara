@@ -9,6 +9,7 @@
  * recovery, single finalize).
  */
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -28,9 +29,7 @@ import {
 	type WorkCustomFieldDefinition,
 } from "./work-drafts-model";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
+const DATABASE_URL = localTestDatabaseUrl();
 
 const SAVED_AT = new Date("2026-08-27T12:00:00.000Z");
 const NINETY_DAYS_LATER = new Date("2026-11-25T12:00:00.000Z");

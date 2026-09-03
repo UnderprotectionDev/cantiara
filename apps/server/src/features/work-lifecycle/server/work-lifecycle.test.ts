@@ -7,10 +7,10 @@
  * (İş yaşam döngüsü: identity allocation, no reuse, type matrix).
  */
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-
 import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import {
 	createProject,
@@ -59,9 +59,7 @@ import { DEFAULT_WORK_TYPE } from "./work-lifecycle-model";
 
 const SCHEMA_MISSING_IN_DATABASE = /does not exist in the current database/;
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
+const DATABASE_URL = localTestDatabaseUrl();
 
 const HIERARCHY_PATTERN = /epic|subtask|parentId|parentWork/i;
 const MOVE_PATTERN = /moveWork|changeProject|reassignProject/i;

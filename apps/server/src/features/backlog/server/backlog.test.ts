@@ -16,6 +16,7 @@
  * off and per-Project opt-in; change history).
  */
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -66,9 +67,7 @@ import {
 	REAPPEAR_SIGNAL_WRITES,
 } from "./backlog-model";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara"; // pragma: allowlist secret
+const DATABASE_URL = localTestDatabaseUrl();
 
 const FOLDER_SPRINT_PATTERN = /folder|sprint|staticList|tagAsBacklog/i;
 const CROSS_SURFACE_WRITE_PATTERN =

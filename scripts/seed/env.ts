@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 
 import { config } from "dotenv";
 
-const LOCAL_DATABASE_PATTERN = /127\.0\.0\.1|localhost/;
+import { isLoopbackDatabaseUrl } from "../../packages/db/src/local-test-database-url.ts";
 
 const ENV_FILES = [".env", "apps/server/.env"] as const;
 
@@ -12,12 +12,8 @@ for (const path of ENV_FILES) {
 	}
 }
 
-function isHostedDatabaseUrl(url: string): boolean {
-	return url.length > 0 && !LOCAL_DATABASE_PATTERN.test(url);
-}
-
 const databaseUrl = process.env.DATABASE_URL ?? "";
-if (isHostedDatabaseUrl(databaseUrl)) {
+if (databaseUrl && !isLoopbackDatabaseUrl(databaseUrl)) {
 	delete process.env.NEON_LOCAL;
 	delete process.env.NEON_LOCAL_PROXY;
 }

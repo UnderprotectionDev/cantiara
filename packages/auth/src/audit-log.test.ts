@@ -1,14 +1,12 @@
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
 import { createPrismaAuditLog } from "./audit-log";
 import { SESSION_REVOKED_EVENT_TYPE } from "./session-events";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
+const DATABASE_URL = localTestDatabaseUrl();
 
 describe("Prisma Denetim kaydı", () => {
 	let prisma: PrismaClient;

@@ -7,6 +7,7 @@
  * (Mutasyon sözleşmesi).
  */
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -32,9 +33,7 @@ import {
 } from "./bulk-editing";
 import { BULK_EDITING_COPY } from "./bulk-editing-model";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
+const DATABASE_URL = localTestDatabaseUrl();
 
 const SCHEMA_IMPORT_PATTERN =
 	/schema migration|create field|import records|select all unspecified/i;

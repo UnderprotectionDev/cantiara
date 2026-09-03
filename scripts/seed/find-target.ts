@@ -1,26 +1,20 @@
 import type { PrismaClient } from "../../packages/db/src/index.ts";
-
-const LOCAL_DATABASE_PATTERN = /127\.0\.0\.1|localhost/;
+import { isLoopbackDatabaseUrl } from "../../packages/db/src/local-test-database-url.ts";
 
 export function isLocalDatabaseUrl(databaseUrl: string): boolean {
-	return LOCAL_DATABASE_PATTERN.test(databaseUrl);
+	return isLoopbackDatabaseUrl(databaseUrl);
 }
 
 export function assertHostedSeedAllowed(databaseUrl: string): void {
 	if (isLocalDatabaseUrl(databaseUrl)) {
 		return;
 	}
-	if (process.env.NODE_ENV === "development") {
-		return;
-	}
 	if (process.env.SEED_CONFIRM === "hosted") {
 		return;
 	}
-	console.error(
-		"Refusing to seed a hosted database outside development without SEED_CONFIRM=hosted."
+	throw new Error(
+		"Refusing to seed a hosted database without SEED_CONFIRM=hosted."
 	);
-	console.error("Example: SEED_CONFIRM=hosted bun run seed");
-	process.exit(1);
 }
 
 export interface SeedTarget {
@@ -91,6 +85,6 @@ export async function findSeedTarget(
 	}
 
 	throw new Error(
-		"No Workspace found. Sign in once with GitHub, then run: bun run seed"
+		"No Workspace found. Sign in once with GitHub, then run seed (SEED_CONFIRM=hosted on Neon)."
 	);
 }
