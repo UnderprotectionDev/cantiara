@@ -1,4 +1,7 @@
-import { forgetPrismaClientCache } from "@cantiara/db";
+import {
+	ensureGeneratedPrismaClient,
+	forgetPrismaClientCache,
+} from "@cantiara/db";
 import { ORPCError, os } from "@orpc/server";
 
 import {
@@ -15,9 +18,10 @@ import { createGeneratedClientReload } from "./stale-generated-client-reload";
 
 export const o = os.$context<Context>();
 
-const runWithGeneratedClientReload = createGeneratedClientReload(
-	forgetPrismaClientCache
-);
+const runWithGeneratedClientReload = createGeneratedClientReload(() => {
+	forgetPrismaClientCache();
+	ensureGeneratedPrismaClient();
+});
 
 const withMainFlowFailure = o.middleware(async ({ context, next }) => {
 	try {
