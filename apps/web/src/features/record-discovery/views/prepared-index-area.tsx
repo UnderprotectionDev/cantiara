@@ -256,6 +256,7 @@ export default function PreparedIndexArea({
 				</div>
 			</div>
 			<IndexTable
+				badgeScope={search.index === RECORD_DISCOVERY_COPY.allDocuments}
 				browse={browse}
 				copy={copy}
 				rows={rows}
@@ -266,11 +267,13 @@ export default function PreparedIndexArea({
 }
 
 function IndexTable({
+	badgeScope,
 	browse,
 	copy,
 	rows,
 	showAuthority,
 }: {
+	badgeScope: boolean;
 	browse: { isError: boolean; isPending: boolean };
 	copy: IndexCopy;
 	rows: readonly IndexRow[];
@@ -311,7 +314,13 @@ function IndexTable({
 							</p>
 						</TableCell>
 						<TableCell>{row.recordType}</TableCell>
-						<TableCell>{row.scope}</TableCell>
+						<TableCell>
+							{badgeScope ? (
+								<Badge variant="outline">{row.scope}</Badge>
+							) : (
+								row.scope
+							)}
+						</TableCell>
 						{showAuthority ? (
 							<TableCell>{row.diagramAuthorityMode ?? ""}</TableCell>
 						) : null}
