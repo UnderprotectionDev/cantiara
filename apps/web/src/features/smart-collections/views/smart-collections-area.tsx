@@ -1,4 +1,5 @@
 import { Button } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
@@ -184,6 +185,13 @@ export default function SmartCollectionsArea() {
 			},
 		})
 	);
+	const subscribe = useMutation(
+		orpc.smartCollections.subscribe.mutationOptions({
+			onSuccess: async () => {
+				await invalidate();
+			},
+		})
+	);
 	const collections = list.data ?? [];
 	const members = view.data?.membership.members ?? [];
 	const dropCandidates = view.data?.dropCandidates ?? [];
@@ -277,6 +285,35 @@ export default function SmartCollectionsArea() {
 	const onDragStart = useCallback((event: DragEvent<HTMLButtonElement>) => {
 		event.dataTransfer.setData("text/plain", event.currentTarget.value);
 	}, []);
+	const onSubscribeEntry = useCallback(
+		(checked: boolean | "indeterminate") => {
+			if (!selectedId) {
+				return;
+			}
+			subscribe.mutate({
+				collectionId: selectedId,
+				onEntry: checked === true,
+				onExit:
+					checked === true
+						? Boolean(view.data?.collection.subscribeOnExit)
+						: false,
+			});
+		},
+		[selectedId, subscribe, view.data?.collection.subscribeOnExit]
+	);
+	const onSubscribeExit = useCallback(
+		(checked: boolean | "indeterminate") => {
+			if (!selectedId) {
+				return;
+			}
+			subscribe.mutate({
+				collectionId: selectedId,
+				onEntry: true,
+				onExit: checked === true,
+			});
+		},
+		[selectedId, subscribe]
+	);
 
 	return (
 		<FounderPage title={copy.smartCollection}>
@@ -407,6 +444,34 @@ export default function SmartCollectionsArea() {
 							</Field>
 							<Button type="submit">{copy.addCondition}</Button>
 						</form>
+					</FounderSection>
+					<FounderSection
+						title={copy.subscribe}
+						titleId="smart-collection-subscribe"
+					>
+						<label
+							className="flex items-center gap-2 text-sm"
+							htmlFor="smart-collection-subscribe"
+						>
+							<Checkbox
+								checked={Boolean(view.data.collection.subscribeOnEntry)}
+								id="smart-collection-subscribe"
+								onCheckedChange={onSubscribeEntry}
+							/>
+							{copy.subscribe}
+						</label>
+						<label
+							className="mt-3 flex items-center gap-2 text-sm"
+							htmlFor="smart-collection-notify-on-leave"
+						>
+							<Checkbox
+								checked={Boolean(view.data.collection.subscribeOnExit)}
+								disabled={!view.data.collection.subscribeOnEntry}
+								id="smart-collection-notify-on-leave"
+								onCheckedChange={onSubscribeExit}
+							/>
+							{copy.notifyOnLeave}
+						</label>
 					</FounderSection>
 					<FounderSection
 						title={copy.members}

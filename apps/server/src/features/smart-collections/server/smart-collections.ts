@@ -4,6 +4,7 @@ import { RECORD_DISCOVERY_COPY } from "../../record-discovery/server/record-disc
 
 import {
 	type CollectionRecord,
+	conditionMatches,
 	type DefineSmartCollectionResult,
 	DOCUMENT_METADATA_FIELDS,
 	type DragPreviewResult,
@@ -19,6 +20,13 @@ import {
 	type SmartCollectionDefinition,
 	smartCollectionSourceAllowed,
 } from "./smart-collections-model";
+import {
+	type MembershipPeriod,
+	MemorySignalSink,
+	produceSubscriptionSignals,
+	type SmartCollectionEntrySignal,
+	seedOpenMembershipPeriods,
+} from "./smart-collections-subscription";
 
 export interface DefineSmartCollectionInput {
 	conditions: readonly MembershipCondition[];
@@ -28,28 +36,6 @@ export interface DefineSmartCollectionInput {
 	projectId: string | null;
 	query?: unknown;
 	sourceKind: string;
-}
-
-function conditionMatches(
-	record: CollectionRecord,
-	condition: MembershipCondition
-): boolean {
-	switch (condition.field) {
-		case "body":
-			return record.body === condition.value;
-		case "projectId":
-			return record.projectId === condition.value;
-		case "scopeKind":
-			return record.scopeKind === condition.value;
-		case "status":
-			return record.status === condition.value;
-		case "tagId":
-			return (record.tagIds ?? []).includes(condition.value);
-		case "type":
-			return record.type === condition.value;
-		default:
-			return false;
-	}
 }
 
 function becauseFor(
@@ -123,6 +109,8 @@ export function defineSmartCollection(
 			name,
 			projectId: input.projectId,
 			sourceKind: input.sourceKind,
+			subscribeOnEntry: false,
+			subscribeOnExit: false,
 		},
 		status: "ok",
 	};
@@ -213,6 +201,8 @@ interface StoredSmartCollectionRow {
 	name: string;
 	projectId: string | null;
 	sourceKind: string;
+	subscribeOnEntry?: boolean;
+	subscribeOnExit?: boolean;
 }
 
 function hasSmartCollectionDelegate(db: MutationDb): boolean {
@@ -241,6 +231,8 @@ function fromRow(row: StoredSmartCollectionRow): SmartCollectionDefinition {
 		name: row.name,
 		projectId: row.projectId,
 		sourceKind: row.sourceKind,
+		subscribeOnEntry: Boolean(row.subscribeOnEntry),
+		subscribeOnExit: Boolean(row.subscribeOnExit),
 	};
 }
 
@@ -258,12 +250,14 @@ async function insertSmartCollection(
 	if (hasSmartCollectionDelegate(db)) {
 		return await (db as PrismaClient).smartCollection.create({
 			data: {
-				conditions: data.conditions,
+				conditions: data.conditions as Prisma.InputJsonValue,
 				id: data.id,
 				name: data.name,
 				projectId: data.projectId,
 				revision: 1,
 				sourceKind: data.sourceKind,
+				subscribeOnEntry: false,
+				subscribeOnExit: false,
 				workspaceId: data.workspaceId,
 			},
 		});
@@ -271,7 +265,7 @@ async function insertSmartCollection(
 	const payload = JSON.stringify(data.conditions);
 	await db.$executeRaw`
 		INSERT INTO "smart_collection"
-			(id, "workspaceId", "projectId", name, "sourceKind", conditions, revision, "createdAt", "updatedAt")
+			(id, "workspaceId", "projectId", name, "sourceKind", conditions, revision, "subscribeOnEntry", "subscribeOnExit", "createdAt", "updatedAt")
 		VALUES (
 			${data.id},
 			${data.workspaceId},
@@ -280,6 +274,8 @@ async function insertSmartCollection(
 			${data.sourceKind},
 			CAST(${payload} AS JSONB),
 			1,
+			false,
+			false,
 			CURRENT_TIMESTAMP,
 			CURRENT_TIMESTAMP
 		)
@@ -298,7 +294,7 @@ async function selectSmartCollections(
 		});
 	}
 	return await db.$queryRaw<StoredSmartCollectionRow[]>`
-		SELECT id, name, "projectId", "sourceKind", conditions
+		SELECT id, name, "projectId", "sourceKind", conditions, "subscribeOnEntry", "subscribeOnExit"
 		FROM "smart_collection"
 		WHERE "workspaceId" = ${workspaceId}
 		ORDER BY "createdAt" ASC
@@ -316,7 +312,7 @@ async function selectSmartCollection(
 		});
 	}
 	const rows = await db.$queryRaw<StoredSmartCollectionRow[]>`
-		SELECT id, name, "projectId", "sourceKind", conditions
+		SELECT id, name, "projectId", "sourceKind", conditions, "subscribeOnEntry", "subscribeOnExit"
 		FROM "smart_collection"
 		WHERE id = ${collectionId} AND "workspaceId" = ${workspaceId}
 		LIMIT 1
@@ -332,7 +328,7 @@ async function persistSmartCollectionUpdate(
 	if (hasSmartCollectionDelegate(db)) {
 		return await (db as PrismaClient).smartCollection.update({
 			data: {
-				conditions: data.conditions,
+				conditions: data.conditions as Prisma.InputJsonValue,
 				name: data.name,
 				revision: 1,
 			},
@@ -435,6 +431,8 @@ export async function updateSmartCollectionConditions(
 			...fromRow(row),
 			projectId: current.projectId,
 			sourceKind: current.sourceKind,
+			subscribeOnEntry: current.subscribeOnEntry,
+			subscribeOnExit: current.subscribeOnExit,
 		},
 		status: "ok",
 	};
@@ -551,6 +549,272 @@ export interface SmartCollectionView {
 	collection: SmartCollectionDefinition;
 	dropCandidates: readonly CollectionRecord[];
 	membership: MembershipView;
+	signals: readonly SmartCollectionEntrySignal[];
+}
+
+interface StoredPeriodRow {
+	open: boolean;
+	recordId: string;
+	recordKind: string;
+}
+
+interface StoredSignalRow {
+	phase: string;
+	reason: string;
+	recordId: string;
+	recordKind: string;
+	section: string;
+	signalId: string;
+}
+
+function hasPeriodDelegate(db: MutationDb): boolean {
+	const delegate = (
+		db as unknown as {
+			smartCollectionMembershipPeriod?: {
+				createMany?: unknown;
+				deleteMany?: unknown;
+				findMany?: unknown;
+			};
+		}
+	).smartCollectionMembershipPeriod;
+	return (
+		typeof delegate?.createMany === "function" &&
+		typeof delegate?.deleteMany === "function" &&
+		typeof delegate?.findMany === "function"
+	);
+}
+
+function hasSignalDelegate(db: MutationDb): boolean {
+	const delegate = (
+		db as unknown as {
+			smartCollectionAttentionSignal?: {
+				createMany?: unknown;
+				findMany?: unknown;
+			};
+		}
+	).smartCollectionAttentionSignal;
+	return (
+		typeof delegate?.createMany === "function" &&
+		typeof delegate?.findMany === "function"
+	);
+}
+
+function asEntrySignal(row: StoredSignalRow): SmartCollectionEntrySignal {
+	return {
+		parenting: false,
+		phase: row.phase === "leave" ? "leave" : "enter",
+		reason: row.reason,
+		section: "Information flow",
+		signalId: "smart-collection-entry",
+		source: { id: row.recordId, kind: row.recordKind },
+		sourceFieldWrites: false,
+	};
+}
+
+async function loadPeriods(
+	db: MutationDb,
+	collectionId: string
+): Promise<MembershipPeriod[]> {
+	if (hasPeriodDelegate(db)) {
+		const rows = await (
+			db as PrismaClient
+		).smartCollectionMembershipPeriod.findMany({
+			orderBy: { createdAt: "asc" },
+			where: { collectionId },
+		});
+		return rows.map((row) => ({
+			open: row.open,
+			recordId: row.recordId,
+			recordKind: row.recordKind,
+		}));
+	}
+	const rows = await db.$queryRaw<StoredPeriodRow[]>`
+		SELECT open, "recordId", "recordKind"
+		FROM "smart_collection_membership_period"
+		WHERE "collectionId" = ${collectionId}
+		ORDER BY "createdAt" ASC
+	`;
+	return rows.map((row) => ({
+		open: row.open,
+		recordId: row.recordId,
+		recordKind: row.recordKind,
+	}));
+}
+
+async function replacePeriods(
+	db: MutationDb,
+	collectionId: string,
+	periods: readonly MembershipPeriod[]
+): Promise<void> {
+	if (hasPeriodDelegate(db)) {
+		await (db as PrismaClient).smartCollectionMembershipPeriod.deleteMany({
+			where: { collectionId },
+		});
+		if (periods.length === 0) {
+			return;
+		}
+		await (db as PrismaClient).smartCollectionMembershipPeriod.createMany({
+			data: periods.map((period) => ({
+				collectionId,
+				id: crypto.randomUUID(),
+				open: period.open,
+				recordId: period.recordId,
+				recordKind: period.recordKind,
+			})),
+		});
+		return;
+	}
+	await db.$executeRaw`
+		DELETE FROM "smart_collection_membership_period"
+		WHERE "collectionId" = ${collectionId}
+	`;
+	await Promise.all(
+		periods.map((period) => {
+			const id = crypto.randomUUID();
+			return db.$executeRaw`
+			INSERT INTO "smart_collection_membership_period"
+				(id, "collectionId", "recordId", "recordKind", open, "createdAt", "updatedAt")
+			VALUES (
+				${id},
+				${collectionId},
+				${period.recordId},
+				${period.recordKind},
+				${period.open},
+				CURRENT_TIMESTAMP,
+				CURRENT_TIMESTAMP
+			)
+		`;
+		})
+	);
+}
+
+async function loadSignals(
+	db: MutationDb,
+	collectionId: string
+): Promise<SmartCollectionEntrySignal[]> {
+	if (hasSignalDelegate(db)) {
+		const rows = await (
+			db as PrismaClient
+		).smartCollectionAttentionSignal.findMany({
+			orderBy: { createdAt: "asc" },
+			where: { collectionId },
+		});
+		return rows.map(asEntrySignal);
+	}
+	const rows = await db.$queryRaw<StoredSignalRow[]>`
+		SELECT phase, reason, "recordId", "recordKind", section, "signalId"
+		FROM "smart_collection_attention_signal"
+		WHERE "collectionId" = ${collectionId}
+		ORDER BY "createdAt" ASC
+	`;
+	return rows.map(asEntrySignal);
+}
+
+async function appendSignals(
+	db: MutationDb,
+	collectionId: string,
+	signals: readonly SmartCollectionEntrySignal[]
+): Promise<void> {
+	const registered = signals.filter(
+		(signal) => signal.signalId === "smart-collection-entry"
+	);
+	if (registered.length === 0) {
+		return;
+	}
+	if (hasSignalDelegate(db)) {
+		await (db as PrismaClient).smartCollectionAttentionSignal.createMany({
+			data: registered.map((signal) => ({
+				collectionId,
+				id: crypto.randomUUID(),
+				phase: signal.phase,
+				reason: signal.reason,
+				recordId: signal.source.id,
+				recordKind: signal.source.kind,
+				section: signal.section,
+				signalId: signal.signalId,
+			})),
+		});
+		return;
+	}
+	await Promise.all(
+		registered.map((signal) => {
+			const id = crypto.randomUUID();
+			return db.$executeRaw`
+			INSERT INTO "smart_collection_attention_signal"
+				(id, "collectionId", "recordId", "recordKind", "signalId", section, phase, reason, "createdAt", "updatedAt")
+			VALUES (
+				${id},
+				${collectionId},
+				${signal.source.id},
+				${signal.source.kind},
+				${signal.signalId},
+				${signal.section},
+				${signal.phase},
+				${signal.reason},
+				CURRENT_TIMESTAMP,
+				CURRENT_TIMESTAMP
+			)
+		`;
+		})
+	);
+}
+
+async function persistSubscriptionFlags(
+	db: MutationDb,
+	collectionId: string,
+	flags: { subscribeOnEntry: boolean; subscribeOnExit: boolean }
+): Promise<void> {
+	if (hasSmartCollectionDelegate(db)) {
+		await (db as PrismaClient).smartCollection.update({
+			data: {
+				subscribeOnEntry: flags.subscribeOnEntry,
+				subscribeOnExit: flags.subscribeOnExit,
+			},
+			where: { id: collectionId },
+		});
+		return;
+	}
+	await db.$executeRaw`
+		UPDATE "smart_collection"
+		SET
+			"subscribeOnEntry" = ${flags.subscribeOnEntry},
+			"subscribeOnExit" = ${flags.subscribeOnExit},
+			"updatedAt" = CURRENT_TIMESTAMP
+		WHERE id = ${collectionId}
+	`;
+}
+
+async function evaluateStoredSubscription(
+	prisma: PrismaClient,
+	collection: SmartCollectionDefinition,
+	catalog: readonly CollectionRecord[],
+	membership: MembershipView,
+	seedOnly: boolean
+): Promise<SmartCollectionEntrySignal[]> {
+	const periods = await loadPeriods(prisma, collection.id);
+	if (seedOnly) {
+		await replacePeriods(
+			prisma,
+			collection.id,
+			seedOpenMembershipPeriods(membership.members, periods)
+		);
+		return await loadSignals(prisma, collection.id);
+	}
+	const sink = new MemorySignalSink();
+	const produced = produceSubscriptionSignals({
+		catalog,
+		conditions: collection.conditions,
+		members: membership.members,
+		periods,
+		sink,
+		subscription: {
+			onEntry: collection.subscribeOnEntry,
+			onExit: collection.subscribeOnExit,
+		},
+	});
+	await replacePeriods(prisma, collection.id, produced.periods);
+	await appendSignals(prisma, collection.id, sink.emissions);
+	return await loadSignals(prisma, collection.id);
 }
 
 export async function viewSmartCollection(
@@ -569,11 +833,68 @@ export async function viewSmartCollection(
 	const catalog = await loadCollectionCatalog(prisma, workspaceId, collection);
 	const membership = deriveMembership(collection, catalog);
 	const memberIds = new Set(membership.members.map((member) => member.id));
+	const signals = await evaluateStoredSubscription(
+		prisma,
+		collection,
+		catalog,
+		membership,
+		false
+	);
 	return {
 		collection,
 		dropCandidates: catalog.filter((record) => !memberIds.has(record.id)),
 		membership,
+		signals,
 	};
+}
+
+export async function subscribeSmartCollection(
+	prisma: PrismaClient,
+	input: {
+		collectionId: string;
+		onEntry: boolean;
+		onExit: boolean;
+		workspaceId: string;
+	}
+): Promise<
+	| { signals: SmartCollectionEntrySignal[]; status: "ok" }
+	| { status: "not-found" }
+> {
+	const current = await getSmartCollection(
+		prisma,
+		input.workspaceId,
+		input.collectionId
+	);
+	if (!current) {
+		return { status: "not-found" };
+	}
+	const subscribeOnEntry = input.onEntry;
+	const subscribeOnExit = input.onEntry && input.onExit;
+	await persistSubscriptionFlags(prisma, input.collectionId, {
+		subscribeOnEntry,
+		subscribeOnExit,
+	});
+	const collection: SmartCollectionDefinition = {
+		...current,
+		subscribeOnEntry,
+		subscribeOnExit,
+	};
+	const catalog = await loadCollectionCatalog(
+		prisma,
+		input.workspaceId,
+		collection
+	);
+	const membership = deriveMembership(collection, catalog);
+	const signals = subscribeOnEntry
+		? await evaluateStoredSubscription(
+				prisma,
+				collection,
+				catalog,
+				membership,
+				true
+			)
+		: await loadSignals(prisma, collection.id);
+	return { signals, status: "ok" };
 }
 
 export async function previewDragForRecord(

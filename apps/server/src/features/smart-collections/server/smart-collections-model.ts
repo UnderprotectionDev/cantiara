@@ -25,6 +25,7 @@ export const SMART_COLLECTIONS_COPY = {
 	newSmartCollection: "New Smart Collection",
 	noneYet: "No Smart Collection yet.",
 	noPin: "Pinning is not allowed. Membership comes only from conditions.",
+	notifyOnLeave: "Notify on leave",
 	notMembers: "Not members",
 	pin: "Pin",
 	project: "Project",
@@ -34,6 +35,7 @@ export const SMART_COLLECTIONS_COPY = {
 	smartCollection: "Smart Collection",
 	sourceKind: "Source",
 	status: "Status",
+	subscribe: "Subscribe",
 	tags: "Tags",
 	type: "Type",
 	value: "Value",
@@ -57,6 +59,28 @@ export const BUILDER_FIELDS = CONDITION_FIELDS.filter(
 );
 
 const CONDITION_FIELD_SET = new Set<string>(CONDITION_FIELDS);
+
+export function conditionMatches(
+	record: CollectionRecord,
+	condition: MembershipCondition
+): boolean {
+	switch (condition.field) {
+		case "body":
+			return record.body === condition.value;
+		case "projectId":
+			return record.projectId === condition.value;
+		case "scopeKind":
+			return record.scopeKind === condition.value;
+		case "status":
+			return record.status === condition.value;
+		case "tagId":
+			return (record.tagIds ?? []).includes(condition.value);
+		case "type":
+			return record.type === condition.value;
+		default:
+			return false;
+	}
+}
 
 export function parseConditions(value: unknown): MembershipCondition[] {
 	if (!Array.isArray(value)) {
@@ -101,6 +125,8 @@ export interface SmartCollectionDefinition {
 	name: string;
 	projectId: string | null;
 	sourceKind: string;
+	subscribeOnEntry: boolean;
+	subscribeOnExit: boolean;
 }
 
 export interface CollectionRecord {
@@ -201,9 +227,15 @@ export function isStructuredMetadataSource(kind: string): boolean {
 	return METADATA_KIND_SET.has(kind);
 }
 
+export const SMART_COLLECTION_SUBSCRIPTION_COUNTERPARTS = {
+	emailDigest: false,
+	notificationCenterShell: false,
+} as const;
+
 export function smartCollectionsCatalog() {
 	return {
 		copy: SMART_COLLECTIONS_COPY,
+		counterparts: SMART_COLLECTION_SUBSCRIPTION_COUNTERPARTS,
 		kind: "smart-collection" as const,
 		sourceKinds: {
 			document: RECORD_DISCOVERY_COPY.document,

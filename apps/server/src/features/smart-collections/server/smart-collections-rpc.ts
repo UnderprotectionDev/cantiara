@@ -10,6 +10,7 @@ import {
 	listSmartCollections,
 	pinMember,
 	previewDragForRecord,
+	subscribeSmartCollection,
 	updateSmartCollectionConditions,
 	viewSmartCollection,
 } from "./smart-collections";
@@ -108,6 +109,25 @@ export const smartCollections = {
 				throw new ORPCError("NOT_FOUND");
 			}
 			return addException(view.collection, input.recordId);
+		}),
+	subscribe: protectedWriteProcedure
+		.input(
+			z.object({
+				collectionId: z.string().min(1),
+				onEntry: z.boolean(),
+				onExit: z.boolean(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const result = await subscribeSmartCollection(getPrismaClient(), {
+				...input,
+				workspaceId: access.workspaceId,
+			});
+			if (result.status === "not-found") {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return result;
 		}),
 	update: protectedWriteProcedure
 		.input(

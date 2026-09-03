@@ -4,8 +4,10 @@ import { SMART_COLLECTIONS_COPY } from "./smart-collections-copy";
 
 const FREE_QUERY_PATTERN = /advanced query|query language|JQL|Lucene|SQL/i;
 
-test("English UI uses Smart Collection and no free query language", () => {
+test("English UI uses Smart Collection, Subscribe, and no free query language", () => {
 	expect(SMART_COLLECTIONS_COPY.smartCollection).toBe("Smart Collection");
+	expect(SMART_COLLECTIONS_COPY.subscribe).toBe("Subscribe");
+	expect(SMART_COLLECTIONS_COPY.notifyOnLeave).toBe("Notify on leave");
 	expect(SMART_COLLECTIONS_COPY.addCondition).toBe("Add condition");
 	expect(SMART_COLLECTIONS_COPY.noPin).toBe(
 		"Pinning is not allowed. Membership comes only from conditions."
