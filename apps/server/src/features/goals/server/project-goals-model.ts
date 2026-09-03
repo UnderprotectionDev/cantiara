@@ -12,6 +12,7 @@ export const PROJECT_GOAL_COPY = {
 	save: "Save",
 	title: "Title",
 	titleRequired: "Title is required.",
+	unavailable: "Project Goal is unavailable.",
 } as const;
 
 export const PROJECT_GOAL_COUNTERPARTS = {
@@ -41,6 +42,7 @@ const projectGoalCopySchema = z.object({
 	save: z.literal(PROJECT_GOAL_COPY.save),
 	title: z.literal(PROJECT_GOAL_COPY.title),
 	titleRequired: z.literal(PROJECT_GOAL_COPY.titleRequired),
+	unavailable: z.literal(PROJECT_GOAL_COPY.unavailable),
 });
 
 export const projectGoalViewSchema = z.object({

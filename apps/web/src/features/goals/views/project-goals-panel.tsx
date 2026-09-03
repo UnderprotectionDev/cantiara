@@ -3,14 +3,17 @@ import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { FormEvent } from "react";
-import { useCallback } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import { useCallback, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
-import { PROJECT_GOAL_COPY } from "./project-goals-copy";
+import {
+	PROJECT_GOAL_COPY,
+	projectGoalWriteNotice,
+} from "./project-goals-copy";
 
 export default function ProjectGoalsPanel({
 	onGoalId,
@@ -21,7 +24,11 @@ export default function ProjectGoalsPanel({
 	projectId: string;
 	selectedGoalId?: string | null;
 }) {
-	const { attemptOnlineWork, markUnsaved } = useClientShell();
+	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const [description, setDescription] = useState("");
+	const [intendedOutcome, setIntendedOutcome] = useState("");
+	const [title, setTitle] = useState("");
+	const [writeError, setWriteError] = useState<string | null>(null);
 	const catalog = useQuery(orpc.projectGoals.catalog.queryOptions());
 	const list = useQuery(
 		orpc.projectGoals.list.queryOptions({ input: { projectId } })
@@ -60,19 +67,33 @@ export default function ProjectGoalsPanel({
 			onSuccess: invalidate,
 		})
 	);
+	const onTitleChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+		setTitle(event.target.value);
+	}, []);
+	const onDescriptionChange = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			setDescription(event.target.value);
+		},
+		[]
+	);
+	const onIntendedOutcomeChange = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			setIntendedOutcome(event.target.value);
+		},
+		[]
+	);
 	const onCreate = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
-			const form = event.currentTarget;
-			const data = new FormData(form);
+			setWriteError(null);
 			markUnsaved();
 			const result = attemptOnlineWork("record-create", () =>
 				create.mutateAsync({
-					description: String(data.get("description") ?? ""),
+					description,
 					idempotencyKey: newIdempotencyKey(),
-					intendedOutcome: String(data.get("intendedOutcome") ?? ""),
+					intendedOutcome,
 					projectId,
-					title: String(data.get("title") ?? ""),
+					title,
 				})
 			);
 			if (result.status === "refused") {
@@ -80,39 +101,84 @@ export default function ProjectGoalsPanel({
 			}
 			result.value
 				.then((outcome) => {
+					const notice = projectGoalWriteNotice(outcome);
+					if (notice) {
+						setWriteError(notice);
+						return;
+					}
 					if (outcome.status === "committed") {
-						form.reset();
+						setDescription("");
+						setIntendedOutcome("");
+						setTitle("");
+						recordSave();
 						onGoalId?.(outcome.goal.id);
 					}
 				})
-				.catch(() => undefined);
+				.catch(() => {
+					setWriteError(copy.unavailable);
+				});
 		},
-		[attemptOnlineWork, create, markUnsaved, onGoalId, projectId]
+		[
+			attemptOnlineWork,
+			copy.unavailable,
+			create,
+			description,
+			intendedOutcome,
+			markUnsaved,
+			onGoalId,
+			projectId,
+			recordSave,
+			title,
+		]
 	);
 	const onUpdate = useCallback(
-		(event: FormEvent<HTMLFormElement>) => {
-			event.preventDefault();
+		(fields: {
+			description: string;
+			intendedOutcome: string;
+			observedOutcome: string;
+			title: string;
+		}) => {
 			if (!selectedId) {
 				return;
 			}
-			const data = new FormData(event.currentTarget);
+			setWriteError(null);
 			markUnsaved();
 			const result = attemptOnlineWork("record-create", () =>
 				update.mutateAsync({
-					description: String(data.get("description") ?? ""),
+					description: fields.description,
 					goalId: selectedId,
 					idempotencyKey: newIdempotencyKey(),
-					intendedOutcome: String(data.get("intendedOutcome") ?? ""),
-					observedOutcome: String(data.get("observedOutcome") ?? ""),
-					title: String(data.get("title") ?? ""),
+					intendedOutcome: fields.intendedOutcome,
+					observedOutcome: fields.observedOutcome,
+					title: fields.title,
 				})
 			);
 			if (result.status === "refused") {
 				return;
 			}
-			result.value.catch(() => undefined);
+			result.value
+				.then((outcome) => {
+					const notice = projectGoalWriteNotice(outcome);
+					if (notice) {
+						setWriteError(notice);
+						return;
+					}
+					if (outcome.status === "committed") {
+						recordSave();
+					}
+				})
+				.catch(() => {
+					setWriteError(copy.unavailable);
+				});
 		},
-		[attemptOnlineWork, markUnsaved, selectedId, update]
+		[
+			attemptOnlineWork,
+			copy.unavailable,
+			markUnsaved,
+			recordSave,
+			selectedId,
+			update,
+		]
 	);
 	const goal = detail.data;
 	return (
@@ -121,22 +187,43 @@ export default function ProjectGoalsPanel({
 			<form className="mt-3 flex flex-col gap-3" onSubmit={onCreate}>
 				<Field>
 					<FieldLabel htmlFor="project-goal-title">{copy.title}</FieldLabel>
-					<Input id="project-goal-title" name="title" required />
+					<Input
+						id="project-goal-title"
+						onChange={onTitleChange}
+						required
+						value={title}
+					/>
 				</Field>
 				<Field>
 					<FieldLabel htmlFor="project-goal-description">
 						{copy.description}
 					</FieldLabel>
-					<Textarea id="project-goal-description" name="description" required />
+					<Textarea
+						id="project-goal-description"
+						onChange={onDescriptionChange}
+						required
+						value={description}
+					/>
 				</Field>
 				<Field>
 					<FieldLabel htmlFor="project-goal-intended">
 						{copy.intendedOutcome}
 					</FieldLabel>
-					<Textarea id="project-goal-intended" name="intendedOutcome" />
+					<Textarea
+						id="project-goal-intended"
+						onChange={onIntendedOutcomeChange}
+						value={intendedOutcome}
+					/>
 				</Field>
-				<Button type="submit">{copy.create}</Button>
+				<Button disabled={create.isPending} type="submit">
+					{copy.create}
+				</Button>
 			</form>
+			{writeError ? (
+				<p className="mt-3 text-destructive text-sm" role="alert">
+					{writeError}
+				</p>
+			) : null}
 			{goals.length === 0 ? (
 				<p className="mt-4 text-muted-foreground text-sm">{copy.empty}</p>
 			) : (
@@ -159,57 +246,131 @@ export default function ProjectGoalsPanel({
 				</ul>
 			)}
 			{goal ? (
-				<form
-					aria-label={goal.title}
-					className="mt-6 flex flex-col gap-3"
+				<ProjectGoalEditForm
+					copy={copy}
+					goal={goal}
 					key={`${goal.id}:${goal.revision}`}
-					onSubmit={onUpdate}
-				>
-					<Field>
-						<FieldLabel htmlFor="project-goal-edit-title">
-							{copy.title}
-						</FieldLabel>
-						<Input
-							defaultValue={goal.title}
-							id="project-goal-edit-title"
-							name="title"
-							required
-						/>
-					</Field>
-					<Field>
-						<FieldLabel htmlFor="project-goal-edit-description">
-							{copy.description}
-						</FieldLabel>
-						<Textarea
-							defaultValue={goal.description}
-							id="project-goal-edit-description"
-							name="description"
-							required
-						/>
-					</Field>
-					<Field>
-						<FieldLabel htmlFor="project-goal-edit-intended">
-							{copy.intendedOutcome}
-						</FieldLabel>
-						<Textarea
-							defaultValue={goal.intendedOutcome ?? ""}
-							id="project-goal-edit-intended"
-							name="intendedOutcome"
-						/>
-					</Field>
-					<Field>
-						<FieldLabel htmlFor="project-goal-edit-observed">
-							{copy.observedOutcome}
-						</FieldLabel>
-						<Textarea
-							defaultValue={goal.observedOutcome ?? ""}
-							id="project-goal-edit-observed"
-							name="observedOutcome"
-						/>
-					</Field>
-					<Button type="submit">{copy.save}</Button>
-				</form>
+					onSave={onUpdate}
+					pending={update.isPending}
+				/>
 			) : null}
 		</section>
+	);
+}
+
+function ProjectGoalEditForm({
+	copy,
+	goal,
+	onSave,
+	pending,
+}: {
+	copy: typeof PROJECT_GOAL_COPY;
+	goal: {
+		description: string;
+		id: string;
+		intendedOutcome: string | null;
+		observedOutcome: string | null;
+		revision: number;
+		title: string;
+	};
+	onSave: (fields: {
+		description: string;
+		intendedOutcome: string;
+		observedOutcome: string;
+		title: string;
+	}) => void;
+	pending: boolean;
+}) {
+	const [description, setDescription] = useState(goal.description);
+	const [intendedOutcome, setIntendedOutcome] = useState(
+		goal.intendedOutcome ?? ""
+	);
+	const [observedOutcome, setObservedOutcome] = useState(
+		goal.observedOutcome ?? ""
+	);
+	const [title, setTitle] = useState(goal.title);
+	const onTitleChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+		setTitle(event.target.value);
+	}, []);
+	const onDescriptionChange = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			setDescription(event.target.value);
+		},
+		[]
+	);
+	const onIntendedOutcomeChange = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			setIntendedOutcome(event.target.value);
+		},
+		[]
+	);
+	const onObservedOutcomeChange = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			setObservedOutcome(event.target.value);
+		},
+		[]
+	);
+	const onSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			onSave({
+				description,
+				intendedOutcome,
+				observedOutcome,
+				title,
+			});
+		},
+		[description, intendedOutcome, observedOutcome, onSave, title]
+	);
+	return (
+		<form
+			aria-label={goal.title}
+			className="mt-6 flex flex-col gap-3"
+			onSubmit={onSubmit}
+		>
+			<Field>
+				<FieldLabel htmlFor="project-goal-edit-title">{copy.title}</FieldLabel>
+				<Input
+					id="project-goal-edit-title"
+					onChange={onTitleChange}
+					required
+					value={title}
+				/>
+			</Field>
+			<Field>
+				<FieldLabel htmlFor="project-goal-edit-description">
+					{copy.description}
+				</FieldLabel>
+				<Textarea
+					id="project-goal-edit-description"
+					onChange={onDescriptionChange}
+					required
+					value={description}
+				/>
+			</Field>
+			<Field>
+				<FieldLabel htmlFor="project-goal-edit-intended">
+					{copy.intendedOutcome}
+				</FieldLabel>
+				<Textarea
+					id="project-goal-edit-intended"
+					onChange={onIntendedOutcomeChange}
+					value={intendedOutcome}
+				/>
+			</Field>
+			<Field>
+				<FieldLabel htmlFor="project-goal-edit-observed">
+					{copy.observedOutcome}
+				</FieldLabel>
+				<Textarea
+					id="project-goal-edit-observed"
+					onChange={onObservedOutcomeChange}
+					value={observedOutcome}
+				/>
+			</Field>
+			<Button disabled={pending} type="submit">
+				{copy.save}
+			</Button>
+		</form>
 	);
 }

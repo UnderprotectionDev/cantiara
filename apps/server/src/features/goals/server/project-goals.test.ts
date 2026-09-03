@@ -44,6 +44,7 @@ describe("Project Goal catalog", () => {
 		expect(PROJECT_GOAL_COPY.observedOutcome).toBe(
 			"Observed outcome / learning"
 		);
+		expect(PROJECT_GOAL_COPY.unavailable).toBe("Project Goal is unavailable.");
 		expect(PROJECT_GOAL_COUNTERPARTS).toEqual({
 			keyResult: false,
 			milestone: false,

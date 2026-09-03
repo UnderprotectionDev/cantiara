@@ -63,7 +63,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.documentFolder?.findMany === "function" &&
 		typeof client.documentFolder?.create === "function" &&
 		typeof client.documentVersion?.findMany === "function" &&
-		typeof client.documentConflictDraft?.findUnique === "function";
+		typeof client.documentConflictDraft?.findUnique === "function" &&
+		typeof client.projectGoal?.findMany === "function" &&
+		typeof client.projectGoal?.create === "function";
 	if (!knownDelegates) {
 		return false;
 	}

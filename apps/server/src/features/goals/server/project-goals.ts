@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@cantiara/db";
+import type { PrismaClient } from "@cantiara/db";
 
 import {
 	lockMutation,
@@ -12,14 +12,6 @@ import {
 	type ProjectGoalView,
 	projectGoalCatalog,
 } from "./project-goals-model";
-
-type MutationDb = PrismaClient | Prisma.TransactionClient;
-
-function hasDelegate(db: MutationDb): boolean {
-	const delegate = (db as unknown as { projectGoal?: { findMany?: unknown } })
-		.projectGoal;
-	return typeof delegate?.findMany === "function";
-}
 
 export type ProjectGoalOutcome =
 	| { goal: ProjectGoalView; status: "committed" }
@@ -66,9 +58,6 @@ async function listGoals(
 	},
 	projectId: string
 ): Promise<ProjectGoalView[]> {
-	if (!hasDelegate(input.prisma)) {
-		return [];
-	}
 	const project = await input.prisma.project.findFirst({
 		where: { id: projectId, workspaceId: input.workspaceId },
 	});
@@ -89,9 +78,6 @@ async function getGoal(
 	},
 	goalId: string
 ): Promise<ProjectGoalView | null> {
-	if (!hasDelegate(input.prisma)) {
-		return null;
-	}
 	const row = await input.prisma.projectGoal.findFirst({
 		where: {
 			id: goalId,
@@ -122,9 +108,6 @@ async function createGoal(
 			reason: PROJECT_GOAL_COPY.descriptionRequired,
 			status: "invalid",
 		};
-	}
-	if (!hasDelegate(input.prisma)) {
-		return { status: "not-found" };
 	}
 	const intendedOutcome = optionalOutcome(command.intendedOutcome);
 	const observedOutcome = optionalOutcome(command.observedOutcome);
@@ -202,9 +185,6 @@ async function updateGoal(
 			reason: PROJECT_GOAL_COPY.descriptionRequired,
 			status: "invalid",
 		};
-	}
-	if (!hasDelegate(input.prisma)) {
-		return { status: "not-found" };
 	}
 	const intendedOutcome = optionalOutcome(command.intendedOutcome);
 	const observedOutcome = optionalOutcome(command.observedOutcome);
