@@ -43,7 +43,7 @@ async function main(): Promise<void> {
 
 	if (!dryRun) {
 		console.log("Clearing workspace content...");
-		await clearWorkspace(prisma, target.workspaceId);
+		await clearWorkspace(prisma, target.workspaceId, target.actorId);
 	}
 
 	console.log("Seeding demo data...");

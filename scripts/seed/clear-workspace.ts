@@ -2,7 +2,8 @@ import type { PrismaClient } from "../../packages/db/src/index.ts";
 
 export async function clearWorkspace(
 	prisma: PrismaClient,
-	workspaceId: string
+	workspaceId: string,
+	actorId: string
 ): Promise<void> {
 	const projects = await prisma.project.findMany({
 		select: { id: true },
@@ -38,23 +39,11 @@ export async function clearWorkspace(
 	}
 
 	await prisma.mutationReceipt.deleteMany({
-		where: {
-			OR: [
-				{ targetId: workspaceId },
-				...(projectIds.length > 0 ? [{ targetId: { in: projectIds } }] : []),
-				...(workIds.length > 0 ? [{ targetId: { in: workIds } }] : []),
-			],
-		},
+		where: { actorId },
 	});
 
 	await prisma.mutationStagingOperation.deleteMany({
-		where: {
-			OR: [
-				{ targetId: workspaceId },
-				...(projectIds.length > 0 ? [{ targetId: { in: projectIds } }] : []),
-				...(workIds.length > 0 ? [{ targetId: { in: workIds } }] : []),
-			],
-		},
+		where: { actorId },
 	});
 
 	await prisma.usageLink.deleteMany({ where: { workspaceId } });
