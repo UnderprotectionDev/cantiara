@@ -14,6 +14,7 @@ import {
 	loadGeneratedPrismaClient,
 	readGeneratedClientStamp,
 } from "./generated-prisma-client";
+import { prismaAdapterConnectionString } from "./local-test-database-url";
 import {
 	prismaClientHasCurrentDelegates,
 	prismaClientHasCurrentExternalExecutionHandoffModel,
@@ -53,10 +54,11 @@ if (process.env.NEON_LOCAL === "true") {
 
 export function createPrismaClient() {
 	const Client = loadGeneratedPrismaClient();
+	const connectionString = prismaAdapterConnectionString(env.DATABASE_URL);
 	if (process.env.NEON_LOCAL === "true") {
 		return new Client({
 			adapter: new PrismaNeon({
-				connectionString: env.DATABASE_URL,
+				connectionString,
 			}),
 		});
 	}
@@ -64,7 +66,7 @@ export function createPrismaClient() {
 	// Hosted Neon and local TCP use the PrismaPg adapter (Prisma ORM
 	// PostgreSQL driver-adapter docs: PrismaPg({ connectionString })).
 	return new Client({
-		adapter: new PrismaPg({ connectionString: env.DATABASE_URL }),
+		adapter: new PrismaPg({ connectionString }),
 	});
 }
 

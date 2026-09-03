@@ -18,7 +18,7 @@ async function main(): Promise<void> {
 	if (!databaseUrl) {
 		console.error("DATABASE_URL is required.");
 		console.error(
-			"Add Neon connection string to apps/server/.env or export DATABASE_URL, then run: bun run seed"
+			"Add a loopback DATABASE_URL for local seed, or export the Neon URL and run: SEED_CONFIRM=hosted bun run seed"
 		);
 		process.exit(1);
 	}

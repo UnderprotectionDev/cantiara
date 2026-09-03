@@ -85,6 +85,6 @@ To wipe demo data without reloading, run with `--dry-run` after a manual clear, 
 
 ## Notes
 
-- `bun run db:push` is local throwaway only; do not push against hosted `DATABASE_URL`.
+- `bun run db:push` refuses hosted `DATABASE_URL`. Install/start push only to local Postgres.
 - Migrate against Neon uses the direct (non-pooler) endpoint; the app runtime may use the pooled URL.
 - Seed does not run in CI or on `db:migrate:deploy`.
