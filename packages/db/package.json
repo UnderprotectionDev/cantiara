@@ -11,6 +11,7 @@
   },
   "scripts": {
     "db:push": "prisma db push",
+    "dev": "bunx --bun prisma generate --watch --no-hints",
     "db:generate": "bunx --bun prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "bunx --bun prisma migrate deploy",

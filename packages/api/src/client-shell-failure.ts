@@ -48,6 +48,8 @@ const BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const SESSION_SECRET = /session_token=[^;\s]+/gi;
 const UNKNOWN_INCLUDE_FIELD = /Unknown field '[^']+' for include statement/;
 const UNKNOWN_ARGUMENT = /Unknown argument [`'][^`']+[`']/;
+const MISSING_CURRENT_MODELS =
+	/Prisma client is missing current models; restart the API after prisma generate/;
 const MISSING_PG_RELATION = /relation ".+" does not exist/i;
 const PRISMA_SCHEMA_MODEL = /\bmodel [A-Z][A-Za-z0-9]*\s*\{/;
 
@@ -269,7 +271,11 @@ function schemaMismatchReason(error: unknown): string | null {
 	) {
 		return CLIENT_SHELL_COPY.pendingMigrations;
 	}
-	if (UNKNOWN_INCLUDE_FIELD.test(message) || UNKNOWN_ARGUMENT.test(message)) {
+	if (
+		UNKNOWN_INCLUDE_FIELD.test(message) ||
+		UNKNOWN_ARGUMENT.test(message) ||
+		MISSING_CURRENT_MODELS.test(message)
+	) {
 		return CLIENT_SHELL_COPY.staleGeneratedClient;
 	}
 	if (PRISMA_SCHEMA_MODEL.test(message)) {
@@ -332,4 +338,8 @@ function createTrackingId(): string {
 	return `CANT-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"))
 		.join("")
 		.toUpperCase()}`;
+}
+
+export function isStaleGeneratedClientError(error: unknown): boolean {
+	return schemaMismatchReason(error) === CLIENT_SHELL_COPY.staleGeneratedClient;
 }

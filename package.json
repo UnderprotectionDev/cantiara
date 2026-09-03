@@ -29,7 +29,7 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "turbo run dev -F web -F server -F fumadocs",
+    "dev": "turbo run dev -F web -F server -F fumadocs -F @cantiara/db",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
     "dev:web": "turbo run dev -F web --",
