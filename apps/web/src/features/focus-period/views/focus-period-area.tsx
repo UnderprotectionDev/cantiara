@@ -345,10 +345,8 @@ export default function FocusPeriodArea() {
 			<FounderToolbar>
 				{periods.length > 0 ? (
 					<Field className="min-w-56">
-						<FieldLabel htmlFor="focus-period-select">
-							{copy.purpose}
-						</FieldLabel>
 						<NativeSelect
+							aria-label={copy.focusPeriod}
 							id="focus-period-select"
 							onChange={onSelectPeriod}
 							value={periodId ?? ""}
