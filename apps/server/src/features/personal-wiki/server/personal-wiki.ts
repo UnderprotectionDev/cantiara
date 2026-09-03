@@ -1,5 +1,3 @@
-import { protectedProcedure } from "@cantiara/api";
-
 import { PERSONAL_WIKI_COPY } from "./personal-wiki-copy";
 
 export const PERSONAL_WIKI_PATH = "/wiki";
@@ -17,6 +15,8 @@ export const PERSONAL_WIKI_DOCUMENT_COMMANDS = [
 	"archive",
 	"references",
 	"export",
+	"move",
+	"copy",
 ] as const;
 
 export const PERSONAL_WIKI_FORBIDDEN_ACTIONS = [
@@ -92,8 +92,10 @@ export interface WikiCreateInput {
 export interface WikiDocument {
 	body: string;
 	id: string;
+	originDocumentId: string | null;
+	parentId?: string | null;
 	recordKind: typeof PERSONAL_WIKI_RECORD_KIND;
-	scope: WikiScope;
+	scope: WikiScope | { kind: "project"; projectId: string };
 	title: string;
 	type: string;
 }
@@ -102,11 +104,46 @@ export type WikiCreateOutcome =
 	| { document: WikiDocument; status: "committed" }
 	| { reason: "project-scope-forbidden"; status: "rejected" };
 
+export type WikiMovePreview =
+	| {
+			detachedChildIds: readonly string[];
+			selectedDocumentIds: readonly string[];
+			status: "ok";
+			target: WikiScope;
+	  }
+	| { reason: string; status: "blocked" };
+
+export type WikiWriteOutcome =
+	| { document: WikiDocument; status: "committed" | "replayed" }
+	| { reason: string; status: "rejected" }
+	| { conflict: string; status: "conflict" };
+
 export interface DocumentsPort {
 	commands: () => readonly PersonalWikiDocumentCommand[];
+	convertToTemplate?: () => unknown;
+	convertToWork?: () => unknown;
+	copy: (input: {
+		documentId: string;
+		idempotencyKey?: string;
+		target: WikiScope;
+		versionRevision?: number;
+	}) => WikiWriteOutcome | Promise<WikiWriteOutcome>;
 	create: (
 		input: WikiCreateInput
 	) => WikiCreateOutcome | Promise<WikiCreateOutcome>;
+	move: (input: {
+		baseRevision?: number;
+		cancelExternalSurfaces?: boolean;
+		childDocumentIds: readonly string[];
+		documentId: string;
+		idempotencyKey?: string;
+		target: WikiScope;
+	}) => WikiWriteOutcome | Promise<WikiWriteOutcome>;
+	previewMove: (input: {
+		childDocumentIds: readonly string[];
+		documentId: string;
+		target: WikiScope;
+	}) => WikiMovePreview | Promise<WikiMovePreview>;
 }
 
 export interface WikiPublishingPort {
@@ -200,6 +237,53 @@ export async function createWikiDocument(
 	});
 }
 
+export async function previewMoveToWiki(
+	documents: DocumentsPort,
+	input: { childDocumentIds?: readonly string[]; documentId: string }
+): Promise<WikiMovePreview> {
+	return await documents.previewMove({
+		childDocumentIds: input.childDocumentIds ?? [],
+		documentId: input.documentId,
+		target: PERSONAL_WIKI_SCOPE,
+	});
+}
+
+export async function moveToWiki(
+	documents: DocumentsPort,
+	command: {
+		baseRevision?: number;
+		cancelExternalSurfaces?: boolean;
+		childDocumentIds?: readonly string[];
+		documentId: string;
+		idempotencyKey?: string;
+	}
+): Promise<WikiWriteOutcome> {
+	return await documents.move({
+		baseRevision: command.baseRevision,
+		cancelExternalSurfaces: command.cancelExternalSurfaces,
+		childDocumentIds: command.childDocumentIds ?? [],
+		documentId: command.documentId,
+		idempotencyKey: command.idempotencyKey,
+		target: PERSONAL_WIKI_SCOPE,
+	});
+}
+
+export async function copyIntoWiki(
+	documents: DocumentsPort,
+	command: {
+		documentId: string;
+		idempotencyKey?: string;
+		versionRevision?: number;
+	}
+): Promise<WikiWriteOutcome> {
+	return await documents.copy({
+		documentId: command.documentId,
+		idempotencyKey: command.idempotencyKey,
+		target: PERSONAL_WIKI_SCOPE,
+		versionRevision: command.versionRevision,
+	});
+}
+
 export function wikiVisitorSurface(
 	_documentId: string,
 	_publishing: WikiPublishingPort
@@ -289,7 +373,3 @@ export function mixedDocumentHome(rows: readonly BadgedDocumentHit[]): {
 	}
 	return { nests, oneHome: false };
 }
-
-export const personalWiki = {
-	shell: protectedProcedure.handler(() => openPersonalWikiShell()),
-};

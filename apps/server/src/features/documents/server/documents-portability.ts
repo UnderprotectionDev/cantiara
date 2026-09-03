@@ -16,6 +16,7 @@ import {
 } from "./documents-export";
 import { presentLiveDocumentBody } from "./documents-live";
 import {
+	type CopyDocumentCommand,
 	copyDocumentCommandSchema,
 	DOCUMENT_OWNED_FILE_KIND,
 	DOCUMENT_SCOPE_KIND,
@@ -231,11 +232,7 @@ async function moveInTransaction(
 
 async function copyInTransaction(
 	tx: Prisma.TransactionClient,
-	command: {
-		actorId: string;
-		payload: { documentId: string; versionRevision?: number };
-		workspaceId: string;
-	},
+	command: CopyDocumentCommand,
 	commandKey: string,
 	fingerprint: string,
 	deps: DocumentPortabilityDeps
@@ -278,6 +275,8 @@ async function copyInTransaction(
 		({ body, title, type } = version);
 	}
 	const copyId = crypto.randomUUID();
+	const wikiTarget =
+		command.payload.target?.kind === DOCUMENT_SCOPE_KIND.personalWiki;
 	const created = await tx.document.create({
 		data: {
 			archivedAt: null,
@@ -285,9 +284,11 @@ async function copyInTransaction(
 			folderId: null,
 			id: copyId,
 			parentId: null,
-			projectId: source.projectId,
+			projectId: wikiTarget ? null : source.projectId,
 			revision: 1,
-			scopeKind: source.scopeKind,
+			scopeKind: wikiTarget
+				? DOCUMENT_SCOPE_KIND.personalWiki
+				: source.scopeKind,
 			title,
 			type,
 			workspaceId: source.workspaceId,
