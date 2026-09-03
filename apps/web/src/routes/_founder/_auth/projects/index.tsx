@@ -18,6 +18,7 @@ function ProjectsRoute() {
 				</Link>
 			}
 			title={PROJECT_SHELL_COPY.projects}
+			wide
 		>
 			<ProjectList />
 		</FounderPage>

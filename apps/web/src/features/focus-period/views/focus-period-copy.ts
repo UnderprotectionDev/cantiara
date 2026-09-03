@@ -30,6 +30,7 @@ export const FOCUS_PERIOD_COPY = {
 	keep: "Keep",
 	loading: "Loading…",
 	members: "Work",
+	membersEmpty: "No Work in this Focus Period.",
 	move: "Move",
 	movedEarlier: "Moved earlier",
 	movedLater: "Moved later",

@@ -45,11 +45,11 @@ Odak Dönemi farklı Projelerden İşleri isteğe bağlı 1–8 haftalık ortak 
 - **Leftovers.** Bulk decision screen only. Destinations: next period, Backlog, another period, or explicit abandon (Work closure step, not a period side effect). No rule-based auto rollover.
 - **Evaluation.** Skippable. Learnings are user text. Follow-up Work only with preview and confirm; link to source period. No generated action items.
 - **Dependencies.** Optional read-only. Reads existing blocker relations in period scope (workflow 19). Nodes open sources. No new relation, Mermaid source, manual layout, second planning fact, or critical path.
-- **English UI labels.** `Focus Period`, `Dependencies`, `Planned`, `Active`, `Closed`, `Canceled`. Missing labels join the PRD term table in the same change that first shows them. No Turkish UI.
+- **English UI labels.** `Focus Period`, `Dependencies`, `Planned`, `Active`, `Closed`, `Canceled`, `No Work in this Focus Period.`. Missing labels join the PRD term table in the same change that first shows them. No Turkish UI.
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe Focus Period through its public interface: 1–8 week create, membership without status write, one-active-period rule, close snapshots vs live Work, leftover bulk decision, rollover counterpart, read-only Dependencies. They do not assert snapshot-table internals. Expected values are product rules (one active period; snapshots are historical; no auto rollover).
+- **What a good test is.** Tests observe Focus Period through its public interface: 1–8 week create, membership without status write, one-active-period rule, close snapshots vs live Work, leftover bulk decision, rollover counterpart, read-only Dependencies, and empty membership copy `No Work in this Focus Period.`. They do not assert snapshot-table internals. Expected values are product rules (one active period; snapshots are historical; no auto rollover).
 - **Seam (one).** Focus Period — the optional working-window, snapshot, leftover-decision, and read-only dependency-view interface. Daily Focus, Milestone, Project Release, and blocker-relation writes are counterparts, not this module.
 - **Modules under test.** Focus Period only. Daily Focus membership, Milestone reach, Project Release scope, and blocker create/resolve are out except as counterparts.
 - **Prior art.** Contract tests at this seam with a clock test double. Evidence environment for [Odak Dönemi](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) is the founder’s real project. Cloud tests must not use production content.

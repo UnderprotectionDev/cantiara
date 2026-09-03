@@ -27,6 +27,8 @@ test("English Focus Period copy is Focus Period", () => {
 	expect(FOCUS_PERIOD_COPY.confirm).toBe("Confirm");
 	expect(FOCUS_PERIOD_COPY.dateComparison).toBe("Date comparison");
 	expect(FOCUS_PERIOD_COPY.create).toBe("Create Focus Period");
+	expect(FOCUS_PERIOD_COPY.members).toBe("Work");
+	expect(FOCUS_PERIOD_COPY.membersEmpty).toBe("No Work in this Focus Period.");
 	expect(FOCUS_PERIOD_COPY.move).toBe("Move");
 	expect(FOCUS_PERIOD_COPY.alreadyInAnActivePeriod).toBe(
 		"Work is already in an active Focus Period. Use Move."

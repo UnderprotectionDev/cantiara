@@ -21,6 +21,7 @@ import type { ChangeEvent } from "react";
 import { useCallback, useId } from "react";
 
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
+import { FounderToolbar } from "@/features/personal-shell/components/founder-surface";
 import { orpc } from "@/utils/orpc";
 
 import {
@@ -162,7 +163,7 @@ export default function PreparedIndexArea({
 
 	return (
 		<FounderPage title={search.index} wide>
-			<div className="mb-6 flex flex-col gap-4">
+			<FounderToolbar>
 				<NativeSelect
 					aria-label={search.index}
 					onChange={onIndexChange}
@@ -174,87 +175,81 @@ export default function PreparedIndexArea({
 						</NativeSelectOption>
 					))}
 				</NativeSelect>
-				<div className="flex flex-wrap items-end gap-4">
+				<Field>
+					<FieldLabel htmlFor="prepared-index-scope">{copy.scope}</FieldLabel>
+					<NativeSelect
+						id="prepared-index-scope"
+						onChange={onScopeChange}
+						value={search.scope ?? ""}
+					>
+						<NativeSelectOption value="">{copy.anyScope}</NativeSelectOption>
+						<NativeSelectOption value={copy.project}>
+							{copy.project}
+						</NativeSelectOption>
+						<NativeSelectOption value={copy.personalWiki}>
+							{copy.personalWiki}
+						</NativeSelectOption>
+					</NativeSelect>
+				</Field>
+				{typeFilters.length > 0 ? (
 					<Field>
-						<FieldLabel htmlFor="prepared-index-scope">{copy.scope}</FieldLabel>
+						<FieldLabel htmlFor="prepared-index-type">
+							{copy.recordType}
+						</FieldLabel>
 						<NativeSelect
-							id="prepared-index-scope"
-							onChange={onScopeChange}
-							value={search.scope ?? ""}
+							id="prepared-index-type"
+							onChange={onTypeChange}
+							value={search.recordType ?? ""}
 						>
 							<NativeSelectOption value="">{copy.anyScope}</NativeSelectOption>
-							<NativeSelectOption value={copy.project}>
-								{copy.project}
-							</NativeSelectOption>
-							<NativeSelectOption value={copy.personalWiki}>
-								{copy.personalWiki}
-							</NativeSelectOption>
+							{typeFilters.map((type) => (
+								<NativeSelectOption key={type} value={type}>
+									{type}
+								</NativeSelectOption>
+							))}
 						</NativeSelect>
 					</Field>
-					{typeFilters.length > 0 ? (
-						<Field>
-							<FieldLabel htmlFor="prepared-index-type">
-								{copy.recordType}
-							</FieldLabel>
-							<NativeSelect
-								id="prepared-index-type"
-								onChange={onTypeChange}
-								value={search.recordType ?? ""}
-							>
-								<NativeSelectOption value="">
-									{copy.anyScope}
+				) : null}
+				{folderFilters ? (
+					<Field>
+						<FieldLabel htmlFor="prepared-index-folder">
+							{copy.folder}
+						</FieldLabel>
+						<NativeSelect
+							id="prepared-index-folder"
+							onChange={onFolderChange}
+							value={search.folder ?? ""}
+						>
+							<NativeSelectOption value="">{copy.anyScope}</NativeSelectOption>
+							{folders.map((folder) => (
+								<NativeSelectOption key={folder} value={folder}>
+									{folder}
 								</NativeSelectOption>
-								{typeFilters.map((type) => (
-									<NativeSelectOption key={type} value={type}>
-										{type}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-						</Field>
-					) : null}
-					{folderFilters ? (
-						<Field>
-							<FieldLabel htmlFor="prepared-index-folder">
-								{copy.folder}
-							</FieldLabel>
-							<NativeSelect
-								id="prepared-index-folder"
-								onChange={onFolderChange}
-								value={search.folder ?? ""}
-							>
-								<NativeSelectOption value="">
-									{copy.anyScope}
-								</NativeSelectOption>
-								{folders.map((folder) => (
-									<NativeSelectOption key={folder} value={folder}>
-										{folder}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-						</Field>
-					) : null}
-					{folderFilters ? (
-						<Field>
-							<FieldLabel htmlFor="prepared-index-metadata">
-								{copy.metadata}
-							</FieldLabel>
-							<Input
-								defaultValue={search.metadata ?? ""}
-								id="prepared-index-metadata"
-								onBlur={onMetadataChange}
-							/>
-						</Field>
-					) : null}
-					<Field orientation="horizontal">
-						<Checkbox
-							checked={search.includeArchived === true}
-							id={archiveId}
-							onCheckedChange={onArchiveChange}
-						/>
-						<FieldLabel htmlFor={archiveId}>{copy.includeArchived}</FieldLabel>
+							))}
+						</NativeSelect>
 					</Field>
-				</div>
-			</div>
+				) : null}
+				{folderFilters ? (
+					<Field>
+						<FieldLabel htmlFor="prepared-index-metadata">
+							{copy.metadata}
+						</FieldLabel>
+						<Input
+							defaultValue={search.metadata ?? ""}
+							id="prepared-index-metadata"
+							onBlur={onMetadataChange}
+						/>
+					</Field>
+				) : null}
+				<Field orientation="horizontal">
+					<Checkbox
+						checked={search.includeArchived === true}
+						id={archiveId}
+						onCheckedChange={onArchiveChange}
+					/>
+					<FieldLabel htmlFor={archiveId}>{copy.includeArchived}</FieldLabel>
+				</Field>
+			</FounderToolbar>
 			<IndexTable
 				badgeScope={search.index === RECORD_DISCOVERY_COPY.allDocuments}
 				browse={browse}

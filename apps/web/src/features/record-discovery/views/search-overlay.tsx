@@ -115,7 +115,7 @@ export function SearchOverlayTrigger({ onOpen }: { onOpen: () => void }) {
 		<button
 			aria-keyshortcuts={SEARCH_SHORTCUT_HINT}
 			aria-label={RECORD_DISCOVERY_COPY.search}
-			className="flex h-7 min-w-40 items-center gap-2 rounded-none border border-border bg-background px-2 text-muted-foreground text-sm transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+			className="flex h-7 w-36 items-center gap-2 rounded-none border border-border bg-background px-2 text-muted-foreground text-sm transition-colors duration-200 ease-out hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:w-44"
 			onClick={onOpen}
 			title={`${RECORD_DISCOVERY_COPY.search} (${SEARCH_SHORTCUT_HINT})`}
 			type="button"

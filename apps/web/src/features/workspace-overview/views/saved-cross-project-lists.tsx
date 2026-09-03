@@ -1,4 +1,10 @@
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "@cantiara/ui/components/dialog";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
@@ -54,6 +60,7 @@ export interface SavedListsCopy {
 	lifecycle: string;
 	listName: string;
 	membershipFromConditions: string;
+	newList: string;
 	none: string;
 	notArchived: string;
 	openSourceRecord: string;
@@ -221,8 +228,8 @@ function SavedListForm({
 	);
 
 	return (
-		<form className="mt-4 flex flex-col gap-3" onSubmit={onSubmit}>
-			<FieldGroup>
+		<form className="flex flex-col gap-3" onSubmit={onSubmit}>
+			<FieldGroup className="grid gap-3 sm:grid-cols-2">
 				<Field>
 					<FieldLabel htmlFor="saved-list-name">{copy.listName}</FieldLabel>
 					<Input id="saved-list-name" name="name" />
@@ -375,6 +382,7 @@ export default function SavedCrossProjectLists({
 	openedRecordId: string | null;
 }) {
 	const [dragMessage, setDragMessage] = useState<string | null>(null);
+	const [formOpen, setFormOpen] = useState(false);
 	const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
 		event.preventDefault();
 	}, []);
@@ -391,6 +399,19 @@ export default function SavedCrossProjectLists({
 		},
 		[onRemove]
 	);
+	const onSaveList = useCallback(
+		(item: SavedListLayoutItem) => {
+			onSave(item);
+			setFormOpen(false);
+		},
+		[onSave]
+	);
+	const onOpenForm = useCallback(() => {
+		setFormOpen(true);
+	}, []);
+	const onFormOpenChange = useCallback((open: boolean) => {
+		setFormOpen(open);
+	}, []);
 
 	return (
 		// biome-ignore lint/a11y/noNoninteractiveElementInteractions: drop rejects membership
@@ -408,6 +429,7 @@ export default function SavedCrossProjectLists({
 						<h3 className="font-medium text-sm">{list.name}</h3>
 						<Button
 							onClick={onRemoveClick}
+							size="sm"
 							type="button"
 							value={list.id}
 							variant="ghost"
@@ -417,7 +439,7 @@ export default function SavedCrossProjectLists({
 					</div>
 					{list.groups ? (
 						list.groups.map((group) => (
-							<div className="mt-2" key={group.heading}>
+							<div className="mt-2 overflow-x-auto" key={group.heading}>
 								<h4 className="text-muted-foreground text-xs">
 									{group.heading}
 								</h4>
@@ -429,11 +451,29 @@ export default function SavedCrossProjectLists({
 							</div>
 						))
 					) : (
-						<ListTable columns={list.columns} copy={copy} rows={list.rows} />
+						<div className="mt-2 overflow-x-auto">
+							<ListTable columns={list.columns} copy={copy} rows={list.rows} />
+						</div>
 					)}
 				</div>
 			))}
-			<SavedListForm copy={copy} onSave={onSave} />
+			<Button
+				className="mt-4"
+				onClick={onOpenForm}
+				size="sm"
+				type="button"
+				variant="outline"
+			>
+				{copy.newList}
+			</Button>
+			<Dialog onOpenChange={onFormOpenChange} open={formOpen}>
+				<DialogContent className="max-h-[min(40rem,90vh)] overflow-y-auto sm:max-w-lg">
+					<DialogHeader>
+						<DialogTitle>{copy.newList}</DialogTitle>
+					</DialogHeader>
+					<SavedListForm copy={copy} onSave={onSaveList} />
+				</DialogContent>
+			</Dialog>
 		</section>
 	);
 }

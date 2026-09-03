@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
+import { FounderSection } from "@/features/personal-shell/components/founder-surface";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -85,19 +86,23 @@ export default function DraftsArea() {
 
 	return (
 		<FounderPage title={copy.drafts} wide>
-			<WorkDraftForm
-				draftId={draftId}
-				initialForm={initialForm}
-				key={formInstance}
-				lastSuccessfulSaveAt={lastSuccessfulSaveAt}
-				onDraftId={setDraftId}
-			/>
-			<DraftsList
-				copy={copy}
-				list={list}
-				onDelete={onDelete}
-				onResume={onResume}
-			/>
+			<div className="grid items-start gap-8 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+				<FounderSection title={copy.drafts} titleId="drafts-list">
+					<DraftsList
+						copy={copy}
+						list={list}
+						onDelete={onDelete}
+						onResume={onResume}
+					/>
+				</FounderSection>
+				<WorkDraftForm
+					draftId={draftId}
+					initialForm={initialForm}
+					key={formInstance}
+					lastSuccessfulSaveAt={lastSuccessfulSaveAt}
+					onDraftId={setDraftId}
+				/>
+			</div>
 		</FounderPage>
 	);
 }
@@ -160,7 +165,7 @@ function DraftListItem({
 		onDelete(draft.id);
 	}, [draft.id, onDelete]);
 	return (
-		<li className="flex items-center justify-between gap-3 py-2">
+		<li className="flex items-center justify-between gap-3 border-border border-b py-2 last:border-b-0">
 			<span className="truncate">{draft.form.title}</span>
 			<span className="flex gap-2">
 				<Button onClick={resume} size="sm" type="button" variant="ghost">

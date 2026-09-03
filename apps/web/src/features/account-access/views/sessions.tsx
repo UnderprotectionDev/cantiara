@@ -1,5 +1,6 @@
 import { unsavedAccountPreferences } from "@cantiara/auth/account-preferences-model";
 import { Badge } from "@cantiara/ui/components/badge";
+import { buttonVariants } from "@cantiara/ui/components/button";
 import {
 	Table,
 	TableBody,
@@ -16,6 +17,7 @@ import RevokeOtherSessions from "@/features/account-access/forms/revoke-other-se
 import RevokeSession from "@/features/account-access/forms/revoke-session";
 import { sessionLastActivityDisplay } from "@/features/account-access/forms/session-last-activity";
 import ExtensionLinks from "@/features/capture-triage/forms/extension-links";
+import { FounderPage } from "@/features/personal-shell/components/founder-page";
 import { orpc } from "@/utils/orpc";
 
 export default function Sessions() {
@@ -24,14 +26,21 @@ export default function Sessions() {
 	const displayPreferences = preferences.data ?? unsavedAccountPreferences();
 
 	return (
-		<main className="mx-auto w-full max-w-3xl p-6">
-			<div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-				<h1 className="font-bold text-2xl">Sessions</h1>
+		<FounderPage
+			actions={
 				<div className="flex flex-wrap items-center gap-3">
-					<Link to="/confirm-github-identity">Confirm GitHub Identity</Link>
+					<Link
+						className={buttonVariants({ size: "sm", variant: "outline" })}
+						to="/confirm-github-identity"
+					>
+						Confirm GitHub Identity
+					</Link>
 					<RevokeOtherSessions />
 				</div>
-			</div>
+			}
+			title="Sessions"
+			wide
+		>
 			{sessions.isPending ? (
 				<p>Loading sessions…</p>
 			) : (
@@ -78,7 +87,9 @@ export default function Sessions() {
 					</TableBody>
 				</Table>
 			)}
-			<ExtensionLinks />
-		</main>
+			<div className="mt-8">
+				<ExtensionLinks />
+			</div>
+		</FounderPage>
 	);
 }

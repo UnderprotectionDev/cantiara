@@ -2,7 +2,9 @@ import { Button } from "@cantiara/ui/components/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@cantiara/ui/components/dropdown-menu";
 import { Skeleton } from "@cantiara/ui/components/skeleton";
@@ -10,7 +12,7 @@ import { cn } from "@cantiara/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
-import { useCallback } from "react";
+import { Fragment, useCallback } from "react";
 
 import { AppearanceToggle } from "@/features/account-preferences/forms/appearance-toggle";
 import { shouldRenderFounderPalette } from "@/features/command-palette/command-palette";
@@ -29,19 +31,27 @@ import {
 	FOUNDER_CHROME_COPY,
 	FOUNDER_CHROME_PATHS,
 	FOUNDER_MAIN_ID,
-	founderChromeNav,
+	type FounderChromePath,
+	founderChromeMoreNavGroups,
 	founderChromeNavIsCurrent,
+	founderChromePrimaryNav,
 	projectOverviewHref,
 } from "./founder-chrome";
 import { projectIdFromPath } from "./project-id-from-path";
 
 function chromeLinkClass(current: boolean) {
 	return cn(
-		"rounded-sm px-1 py-0.5 text-sm transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+		"rounded-none px-1.5 py-0.5 text-sm transition-colors duration-200 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:opacity-80",
 		current
 			? "border-foreground border-b-2 font-medium text-foreground"
 			: "text-muted-foreground hover:text-foreground"
 	);
+}
+
+function chromeSearch(to: FounderChromePath) {
+	return to === FOUNDER_CHROME_PATHS.table
+		? { kind: RECORD_DISCOVERY_COPY.work }
+		: undefined;
 }
 
 export default function Header() {
@@ -65,7 +75,11 @@ export default function Header() {
 
 	const projectName = project.data?.name;
 	const projectShortCode = project.data?.shortCode;
-	const nav = founderChromeNav();
+	const primary = founderChromePrimaryNav();
+	const moreGroups = founderChromeMoreNavGroups();
+	const moreCurrent = moreGroups.some((group) =>
+		group.some(({ to }) => founderChromeNavIsCurrent(pathname, to))
+	);
 
 	return (
 		<header className="sticky top-0 z-40 border-b bg-background">
@@ -75,7 +89,7 @@ export default function Header() {
 			>
 				{FOUNDER_CHROME_COPY.skipToMain}
 			</a>
-			<div className="flex h-12 items-center gap-3 px-5">
+			<div className="flex h-12 items-center gap-3 px-4">
 				<nav
 					aria-label={FOUNDER_CHROME_COPY.product}
 					className="flex min-w-0 flex-1 items-center gap-3 text-sm"
@@ -105,20 +119,56 @@ export default function Header() {
 						</>
 					) : null}
 					<span aria-hidden="true" className="h-4 w-px bg-border" />
-					<div className="hidden min-w-0 items-center gap-3 md:flex">
-						{nav.map(({ to, label }) => {
+					<div className="hidden min-w-0 items-center gap-1 md:flex">
+						{primary.map(({ to, label }) => {
 							const current = founderChromeNavIsCurrent(pathname, to);
 							return (
 								<Link
 									aria-current={current ? "page" : undefined}
 									className={chromeLinkClass(current)}
 									key={to}
+									search={chromeSearch(to)}
 									to={to}
 								>
 									{label}
 								</Link>
 							);
 						})}
+						<DropdownMenu>
+							<DropdownMenuTrigger
+								render={
+									<Button
+										className={cn(
+											"h-7 px-1.5 font-normal",
+											moreCurrent
+												? "border-foreground border-b-2 font-medium text-foreground"
+												: "text-muted-foreground"
+										)}
+										size="sm"
+										variant="ghost"
+									/>
+								}
+							>
+								{FOUNDER_CHROME_COPY.more}
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="start" className="bg-card">
+								{moreGroups.map((group, groupIndex) => (
+									<Fragment key={group.map((item) => item.to).join("-")}>
+										{groupIndex > 0 ? <DropdownMenuSeparator /> : null}
+										<DropdownMenuGroup>
+											{group.map(({ to, label }) => (
+												<ChromeMenuItem
+													current={founderChromeNavIsCurrent(pathname, to)}
+													key={to}
+													label={label}
+													to={to}
+												/>
+											))}
+										</DropdownMenuGroup>
+									</Fragment>
+								))}
+							</DropdownMenuContent>
+						</DropdownMenu>
 					</div>
 					<DropdownMenu>
 						<DropdownMenuTrigger
@@ -130,26 +180,36 @@ export default function Header() {
 							{FOUNDER_CHROME_COPY.menu}
 						</DropdownMenuTrigger>
 						<DropdownMenuContent className="bg-card">
-							{nav.map(({ to, label }) => (
-								<ChromeMenuItem
-									current={founderChromeNavIsCurrent(pathname, to)}
-									key={to}
-									label={label}
-									to={to}
-								/>
+							<DropdownMenuGroup>
+								{primary.map(({ to, label }) => (
+									<ChromeMenuItem
+										current={founderChromeNavIsCurrent(pathname, to)}
+										key={to}
+										label={label}
+										to={to}
+									/>
+								))}
+							</DropdownMenuGroup>
+							{moreGroups.map((group) => (
+								<Fragment key={group.map((item) => item.to).join("-")}>
+									<DropdownMenuSeparator />
+									<DropdownMenuGroup>
+										{group.map(({ to, label }) => (
+											<ChromeMenuItem
+												current={founderChromeNavIsCurrent(pathname, to)}
+												key={to}
+												label={label}
+												to={to}
+											/>
+										))}
+									</DropdownMenuGroup>
+								</Fragment>
 							))}
 						</DropdownMenuContent>
 					</DropdownMenu>
 				</nav>
 				<CommandPaletteProvider>
-					<div className="flex shrink-0 items-center gap-2">
-						<Link
-							className={chromeLinkClass(pathname === "/table")}
-							search={{ kind: RECORD_DISCOVERY_COPY.work }}
-							to="/table"
-						>
-							{RECORD_DISCOVERY_COPY.table}
-						</Link>
+					<div className="flex shrink-0 items-center gap-1">
 						<SearchOverlay />
 						<CommandPaletteTrigger />
 						<AppearanceToggle />
@@ -168,10 +228,17 @@ function ChromeMenuItem({
 }: {
 	current: boolean;
 	label: string;
-	to: (typeof FOUNDER_CHROME_PATHS)[keyof typeof FOUNDER_CHROME_PATHS];
+	to: FounderChromePath;
 }) {
 	const navigate = useNavigate();
 	const onClick = useCallback(() => {
+		if (to === FOUNDER_CHROME_PATHS.table) {
+			navigate({
+				search: { kind: RECORD_DISCOVERY_COPY.work },
+				to,
+			}).catch(() => undefined);
+			return;
+		}
 		navigate({ to }).catch(() => undefined);
 	}, [navigate, to]);
 	return (

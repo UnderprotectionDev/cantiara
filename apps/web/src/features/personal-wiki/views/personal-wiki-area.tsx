@@ -10,10 +10,10 @@ export default function PersonalWikiArea() {
 				<DocumentArea projectId={null} />
 			</section>
 			<section aria-label={FILE_ATTACHMENT_COPY.fileAttachment}>
-				<h2 className="font-semibold text-[1.375rem] tracking-tight">
+				<h2 className="font-medium text-sm tracking-tight">
 					{FILE_ATTACHMENT_COPY.fileAttachment}
 				</h2>
-				<div className="mt-6">
+				<div className="mt-4">
 					<FileAttachmentArea projectId={null} />
 				</div>
 			</section>
