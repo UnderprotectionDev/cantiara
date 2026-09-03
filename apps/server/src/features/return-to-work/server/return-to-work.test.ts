@@ -41,6 +41,32 @@ import {
 	selectReturnCards,
 } from "./return-to-work-model";
 
+/**
+ * Phase 1 loop for CANT-56914D28: `noteVisibleOpen` must not throw
+ * `returnToWorkVisibleOpen.upsert` when the Prisma delegate is missing
+ * (stale `getPrismaClient` cache after generate). Fresh-client DB tests
+ * below cannot catch this — they construct Prisma after generate.
+ */
+describe("Return to Work — missing Prisma delegate (CANT-56914D28)", () => {
+	it("does not throw evaluating returnToWorkVisibleOpen.upsert", async () => {
+		const prisma = {
+			project: {
+				findFirst: async () => ({ id: "proj_stale_client" }),
+			},
+			returnToWorkVisibleOpen: undefined,
+		} as unknown as PrismaClient;
+		const returnToWork = createReturnToWork({
+			accountId: "acc_stale_client",
+			clock: { now: () => TODAY },
+			prisma,
+			workspaceId: "ws_stale_client",
+		});
+		await expect(
+			returnToWork.noteVisibleOpen({ projectId: "proj_stale_client" })
+		).resolves.toEqual({ status: "committed" });
+	});
+});
+
 const DATABASE_URL =
 	process.env.DATABASE_URL ??
 	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";

@@ -50,6 +50,10 @@ function workDelegates() {
 			findMany,
 		},
 		documentVersion: { findMany },
+		nextConcreteStepChange: {
+			create: () => undefined,
+			findMany,
+		},
 		projectBacklogManualOrderItem: {
 			createMany: () => undefined,
 			findMany,
@@ -75,6 +79,10 @@ function workDelegates() {
 		recordAction: {
 			create: () => undefined,
 			findMany,
+		},
+		returnToWorkVisibleOpen: {
+			findMany,
+			upsert: () => undefined,
 		},
 		work: { create: () => undefined, findMany },
 		workLifecycleEvent: { findMany },
@@ -372,6 +380,35 @@ describe("Prisma client current delegates", () => {
 				beforeMembership as unknown as PrismaClient
 			)
 		).toBe(true);
+	});
+
+	it("refuses a bun --hot client generated before Return to Work visible open", () => {
+		const { returnToWorkVisibleOpen: _dropped, ...beforeVisibleOpen } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionGoingPackage: { create: () => undefined, findMany },
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			externalExecutionHandoffEvent: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(
+				beforeVisibleOpen as unknown as PrismaClient
+			)
+		).toBe(false);
 	});
 
 	it("refuses a bun --hot client generated before Record Action", () => {

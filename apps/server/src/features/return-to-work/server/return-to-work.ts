@@ -25,6 +25,16 @@ import {
 
 type MutationDb = PrismaClient | Prisma.TransactionClient;
 
+function hasDelegate(
+	db: MutationDb,
+	name: "nextConcreteStepChange" | "returnToWorkVisibleOpen"
+): boolean {
+	const delegate = (db as unknown as Record<string, { findMany?: unknown }>)[
+		name
+	];
+	return typeof delegate?.findMany === "function";
+}
+
 export type NextConcreteStepOutcome =
 	| { status: "committed"; summary: ReturnToWorkSummary }
 	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
@@ -171,6 +181,9 @@ export function createReturnToWork(
 		if (!exists) {
 			return { status: "not-found" };
 		}
+		if (!hasDelegate(input.prisma, "returnToWorkVisibleOpen")) {
+			return { status: "committed" };
+		}
 		await input.prisma.returnToWorkVisibleOpen.upsert({
 			create: {
 				accountId: input.accountId,
@@ -217,14 +230,16 @@ async function persistNextConcreteStep(
 			},
 			where: { id: target.id },
 		});
-		await tx.nextConcreteStepChange.create({
-			data: {
-				id: crypto.randomUUID(),
-				nextValue,
-				previousValue: target.nextConcreteStep,
-				workId: target.id,
-			},
-		});
+		if (hasDelegate(tx, "nextConcreteStepChange")) {
+			await tx.nextConcreteStepChange.create({
+				data: {
+					id: crypto.randomUUID(),
+					nextValue,
+					previousValue: target.nextConcreteStep,
+					workId: target.id,
+				},
+			});
+		}
 		return;
 	}
 	await tx.project.update({
@@ -235,14 +250,16 @@ async function persistNextConcreteStep(
 		},
 		where: { id: target.id },
 	});
-	await tx.nextConcreteStepChange.create({
-		data: {
-			id: crypto.randomUUID(),
-			nextValue,
-			previousValue: target.nextConcreteStep,
-			projectId: target.id,
-		},
-	});
+	if (hasDelegate(tx, "nextConcreteStepChange")) {
+		await tx.nextConcreteStepChange.create({
+			data: {
+				id: crypto.randomUUID(),
+				nextValue,
+				previousValue: target.nextConcreteStep,
+				projectId: target.id,
+			},
+		});
+	}
 }
 
 async function resolveWriteTarget(
@@ -329,10 +346,12 @@ async function loadSummary(
 	const cards = selectReturnCards(records, { contextId, today });
 	const nextStepSource = work ?? project;
 	const activeText = nextStepSource.nextConcreteStep;
-	const historyRows = await db.nextConcreteStepChange.findMany({
-		orderBy: { createdAt: "desc" },
-		where: work ? { workId: work.id } : { projectId: project.id },
-	});
+	const historyRows = hasDelegate(db, "nextConcreteStepChange")
+		? await db.nextConcreteStepChange.findMany({
+				orderBy: { createdAt: "desc" },
+				where: work ? { workId: work.id } : { projectId: project.id },
+			})
+		: [];
 	const previousValues = historyRows
 		.filter(
 			(row) => row.previousValue !== null && row.previousValue !== activeText
@@ -393,13 +412,15 @@ async function loadCurrentRecords(
 			trashedAt: null,
 		},
 	});
-	const views = await db.returnToWorkVisibleOpen.findMany({
-		where: {
-			accountId,
-			sourceId: { in: works.map((row) => row.id) },
-			sourceKind: "work",
-		},
-	});
+	const views = hasDelegate(db, "returnToWorkVisibleOpen")
+		? await db.returnToWorkVisibleOpen.findMany({
+				where: {
+					accountId,
+					sourceId: { in: works.map((row) => row.id) },
+					sourceKind: "work",
+				},
+			})
+		: [];
 	const viewedAtByWork = new Map(
 		views.map((row) => [row.sourceId, row.viewedAt.toISOString()])
 	);

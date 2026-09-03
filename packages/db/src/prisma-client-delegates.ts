@@ -48,6 +48,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		// Daily Focus membership and candidate rejection are read via table SQL
 		// so a bun --hot client generated before those models can still serve
 		// Daily Focus. Do not gate getPrismaClient on them.
+		// Return to Work writes through Prisma delegates. A bun --hot client
+		// generated before those models must be discarded or noteVisibleOpen
+		// throws evaluating returnToWorkVisibleOpen.upsert (CANT-56914D28).
 		// Completion effect preference is read via table SQL so a bun --hot
 		// client generated before that model can still serve Hesap settings.
 		typeof client.fileAttachment?.findMany === "function" &&
@@ -63,7 +66,11 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.documentFolder?.findMany === "function" &&
 		typeof client.documentFolder?.create === "function" &&
 		typeof client.documentVersion?.findMany === "function" &&
-		typeof client.documentConflictDraft?.findUnique === "function";
+		typeof client.documentConflictDraft?.findUnique === "function" &&
+		typeof client.returnToWorkVisibleOpen?.findMany === "function" &&
+		typeof client.returnToWorkVisibleOpen?.upsert === "function" &&
+		typeof client.nextConcreteStepChange?.findMany === "function" &&
+		typeof client.nextConcreteStepChange?.create === "function";
 	if (!knownDelegates) {
 		return false;
 	}
