@@ -22,6 +22,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import { handleFileAttachmentContent } from "./features/file-attachments/server/file-attachments-http";
+import { handleWikiVisitorGet } from "./features/personal-wiki/server/personal-wiki-http";
 import {
 	apiHandlerFor,
 	rpcHandlerFor,
@@ -126,6 +127,22 @@ app.get(
 		return (await handleFileAttachmentContent(c, context)) ?? c.body(null, 404);
 	}
 );
+
+app.on(["GET", "HEAD"], "/wiki", async (c) => {
+	const context = {
+		...(await createContext({ context: c })),
+		log: c.get("log"),
+	};
+	return handleWikiVisitorGet(c, context) ?? c.body(null, 404);
+});
+
+app.on(["GET", "HEAD"], "/wiki/*", async (c) => {
+	const context = {
+		...(await createContext({ context: c })),
+		log: c.get("log"),
+	};
+	return handleWikiVisitorGet(c, context) ?? c.body(null, 404);
+});
 
 app.use("/*", async (c, next) => {
 	const { appRouter: liveRouter } = await import("./routes");
