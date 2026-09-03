@@ -19,11 +19,14 @@ import {
 
 type MutationDb = PrismaClient | Prisma.TransactionClient;
 
-function hasDelegate(db: MutationDb): boolean {
-	const client = db as unknown as {
-		personalReminder?: { findMany?: unknown };
-	};
-	return typeof client.personalReminder?.findMany === "function";
+interface ReminderRow {
+	accountId: string;
+	createdByAction: string;
+	fireAt: Date | string;
+	id: string;
+	life: string;
+	sourceId: string;
+	sourceType: string;
 }
 
 export type PersonalReminderOutcome =
@@ -76,24 +79,108 @@ function parseFireAt(value: string): Date | null {
 	return parsed;
 }
 
-function toView(row: {
-	accountId: string;
-	createdByAction: string;
-	fireAt: Date;
-	id: string;
-	life: string;
-	sourceId: string;
-	sourceType: string;
-}): PersonalReminderView {
+function toView(row: ReminderRow): PersonalReminderView {
+	const fireAt = row.fireAt instanceof Date ? row.fireAt : new Date(row.fireAt);
 	return personalReminderViewSchema.parse({
 		accountId: row.accountId,
 		createdByAction: row.createdByAction,
-		fireAt: row.fireAt.toISOString(),
+		fireAt: fireAt.toISOString(),
 		id: row.id,
 		life: row.life,
 		sourceId: row.sourceId,
 		sourceType: row.sourceType,
 	});
+}
+
+async function listReminderRows(
+	db: MutationDb,
+	where: {
+		accountId: string;
+		sourceId?: string;
+		sourceType?: PersonalReminderSourceType;
+	}
+): Promise<ReminderRow[]> {
+	if (where.sourceId !== undefined && where.sourceType !== undefined) {
+		return await db.$queryRaw<ReminderRow[]>`
+			SELECT id, "accountId", "fireAt", "sourceType", "sourceId", "createdByAction", life
+			FROM "personal_reminder"
+			WHERE "accountId" = ${where.accountId}
+				AND "sourceId" = ${where.sourceId}
+				AND "sourceType" = ${where.sourceType}
+			ORDER BY "fireAt" ASC
+		`;
+	}
+	return await db.$queryRaw<ReminderRow[]>`
+		SELECT id, "accountId", "fireAt", "sourceType", "sourceId", "createdByAction", life
+		FROM "personal_reminder"
+		WHERE "accountId" = ${where.accountId}
+		ORDER BY "fireAt" ASC
+	`;
+}
+
+async function getReminderRow(
+	db: MutationDb,
+	accountId: string,
+	reminderId: string
+): Promise<ReminderRow | null> {
+	const rows = await db.$queryRaw<ReminderRow[]>`
+		SELECT id, "accountId", "fireAt", "sourceType", "sourceId", "createdByAction", life
+		FROM "personal_reminder"
+		WHERE "accountId" = ${accountId} AND id = ${reminderId}
+		LIMIT 1
+	`;
+	const [row] = rows;
+	return row ?? null;
+}
+
+async function insertReminderRow(
+	db: MutationDb,
+	row: {
+		accountId: string;
+		createdByAction: PersonalReminderAction;
+		fireAt: Date;
+		id: string;
+		sourceId: string;
+		sourceType: PersonalReminderSourceType;
+	}
+): Promise<ReminderRow> {
+	const inserted = await db.$queryRaw<ReminderRow[]>`
+		INSERT INTO "personal_reminder" (
+			id, "accountId", "fireAt", "sourceType", "sourceId", "createdByAction", life, "createdAt", "updatedAt"
+		)
+		VALUES (
+			${row.id},
+			${row.accountId},
+			${row.fireAt},
+			${row.sourceType},
+			${row.sourceId},
+			${row.createdByAction},
+			${PERSONAL_REMINDER_LIFE.planned},
+			CURRENT_TIMESTAMP,
+			CURRENT_TIMESTAMP
+		)
+		RETURNING id, "accountId", "fireAt", "sourceType", "sourceId", "createdByAction", life
+	`;
+	const [created] = inserted;
+	if (!created) {
+		throw new Error("personal reminder insert returned no row");
+	}
+	return created;
+}
+
+async function cancelReminderRow(
+	db: MutationDb,
+	accountId: string,
+	reminderId: string
+): Promise<ReminderRow | null> {
+	const updated = await db.$queryRaw<ReminderRow[]>`
+		UPDATE "personal_reminder"
+		SET life = ${PERSONAL_REMINDER_LIFE.cancelled}, "updatedAt" = CURRENT_TIMESTAMP
+		WHERE "accountId" = ${accountId} AND id = ${reminderId}
+		RETURNING id, "accountId", "fireAt", "sourceType", "sourceId", "createdByAction", life
+	`;
+	const [row] = updated;
+	return row ?? null;
 }
 
 async function sourceExists(
@@ -133,12 +220,8 @@ export function createPersonalReminders(
 	input: CreatePersonalRemindersInput
 ): PersonalReminders {
 	async function list(): Promise<PersonalReminderView[]> {
-		if (!hasDelegate(input.prisma)) {
-			return [];
-		}
-		const rows = await input.prisma.personalReminder.findMany({
-			orderBy: { fireAt: "asc" },
-			where: { accountId: input.accountId },
+		const rows = await listReminderRows(input.prisma, {
+			accountId: input.accountId,
 		});
 		return rows.map(toView);
 	}
@@ -146,27 +229,16 @@ export function createPersonalReminders(
 	async function listForSource(
 		query: SourceQuery
 	): Promise<PersonalReminderView[]> {
-		if (!hasDelegate(input.prisma)) {
-			return [];
-		}
-		const rows = await input.prisma.personalReminder.findMany({
-			orderBy: { fireAt: "asc" },
-			where: {
-				accountId: input.accountId,
-				sourceId: query.sourceId,
-				sourceType: query.sourceType,
-			},
+		const rows = await listReminderRows(input.prisma, {
+			accountId: input.accountId,
+			sourceId: query.sourceId,
+			sourceType: query.sourceType,
 		});
 		return rows.map(toView);
 	}
 
 	async function get(reminderId: string): Promise<PersonalReminderView | null> {
-		if (!hasDelegate(input.prisma)) {
-			return null;
-		}
-		const row = await input.prisma.personalReminder.findFirst({
-			where: { accountId: input.accountId, id: reminderId },
-		});
+		const row = await getReminderRow(input.prisma, input.accountId, reminderId);
 		if (!row) {
 			return null;
 		}
@@ -196,9 +268,6 @@ export function createPersonalReminders(
 				status: "invalid",
 			};
 		}
-		if (!hasDelegate(input.prisma)) {
-			return { status: "not-found" };
-		}
 		const payload = {
 			accountId: input.accountId,
 			createdByAction: command.createdByAction,
@@ -225,16 +294,13 @@ export function createPersonalReminders(
 			if (!found) {
 				return { status: "not-found" };
 			}
-			const created = await tx.personalReminder.create({
-				data: {
-					accountId: input.accountId,
-					createdByAction: command.createdByAction,
-					fireAt,
-					id: crypto.randomUUID(),
-					life: PERSONAL_REMINDER_LIFE.planned,
-					sourceId,
-					sourceType: command.sourceType,
-				},
+			const created = await insertReminderRow(tx, {
+				accountId: input.accountId,
+				createdByAction: command.createdByAction,
+				fireAt,
+				id: crypto.randomUUID(),
+				sourceId,
+				sourceType: command.sourceType,
 			});
 			const outcome: PersonalReminderOutcome = {
 				reminder: toView(created),
@@ -255,9 +321,6 @@ export function createPersonalReminders(
 	async function cancel(
 		command: CancelCommand
 	): Promise<PersonalReminderOutcome> {
-		if (!hasDelegate(input.prisma)) {
-			return { status: "not-found" };
-		}
 		const payload = { reminderId: command.reminderId };
 		const commandKey = commandKeyFor(input.accountId, command.idempotencyKey);
 		return await input.prisma.$transaction(async (tx) => {
@@ -272,16 +335,14 @@ export function createPersonalReminders(
 			if (existing?.kind === "replay") {
 				return JSON.parse(existing.resultValue) as PersonalReminderOutcome;
 			}
-			const row = await tx.personalReminder.findFirst({
-				where: { accountId: input.accountId, id: command.reminderId },
-			});
-			if (!row) {
+			const updated = await cancelReminderRow(
+				tx,
+				input.accountId,
+				command.reminderId
+			);
+			if (!updated) {
 				return { status: "not-found" };
 			}
-			const updated = await tx.personalReminder.update({
-				data: { life: PERSONAL_REMINDER_LIFE.cancelled },
-				where: { id: row.id },
-			});
 			const outcome: PersonalReminderOutcome = {
 				reminder: toView(updated),
 				status: "committed",

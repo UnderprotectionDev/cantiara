@@ -1,5 +1,13 @@
 import type { PrismaClient } from "../prisma/generated/client";
 
+const OPTIONAL_RUNTIME_MODELS = new Set([
+	"CompletionEffectPreference",
+	"DailyFocusCandidateRejection",
+	"DailyFocusMembership",
+	"PersonalReminder",
+	"WorkNotNowTrail",
+]);
+
 export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	const knownDelegates =
 		typeof client.captureInboxItem?.findMany === "function" &&
@@ -63,9 +71,10 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.documentFolder?.findMany === "function" &&
 		typeof client.documentFolder?.create === "function" &&
 		typeof client.documentVersion?.findMany === "function" &&
-		typeof client.documentConflictDraft?.findUnique === "function" &&
-		typeof client.personalReminder?.findMany === "function" &&
-		typeof client.personalReminder?.create === "function";
+		typeof client.documentConflictDraft?.findUnique === "function";
+	// Personal Reminder is read via table SQL so a bun --hot client
+	// generated before that model can still serve the API. Do not gate
+	// getPrismaClient on it.
 	if (!knownDelegates) {
 		return false;
 	}
@@ -79,6 +88,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		return true;
 	}
 	return Object.keys(models).every((modelName) => {
+		if (OPTIONAL_RUNTIME_MODELS.has(modelName)) {
+			return true;
+		}
 		const delegateName = modelName.charAt(0).toLowerCase() + modelName.slice(1);
 		const delegate = (client as unknown as Record<string, unknown>)[
 			delegateName

@@ -497,7 +497,7 @@ describe("Prisma client current delegates", () => {
 		).toBe(true);
 	});
 
-	it("refuses a bun --hot client generated before Personal Reminder", () => {
+	it("accepts a bun --hot client generated before Personal Reminder", () => {
 		const { personalReminder: _dropped, ...beforeReminders } = {
 			...workDelegates(),
 			...currentLifecycleDelegates(),
@@ -523,7 +523,17 @@ describe("Prisma client current delegates", () => {
 			prismaClientHasCurrentDelegates(
 				beforeReminders as unknown as PrismaClient
 			)
-		).toBe(false);
+		).toBe(true);
+		expect(
+			prismaClientHasCurrentDelegates({
+				...beforeReminders,
+				_runtimeDataModel: {
+					models: {
+						PersonalReminder: { fields: [{ name: "id" }] },
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(true);
 	});
 
 	it("refuses a bun --hot client generated before Priority Map presentation", () => {
