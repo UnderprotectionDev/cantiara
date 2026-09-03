@@ -21,6 +21,8 @@ import {
 	ensureWorkspaceForAccount,
 	GITHUB_IDENTITY_SCOPES,
 	genericSignInFailureResponse,
+	getAccountAccessForUser,
+	githubCallbackNeedsWebOneTimeCode,
 	isGitHubSignInPath,
 	toWebAppCallbackURL,
 } from "./github-login";
@@ -46,6 +48,11 @@ import {
 } from "./session-policy";
 import { consumeTauriOneTimeCode, mintTauriOneTimeCode } from "./tauri-code";
 import { isTauriCallbackURL, tauriDeepLinkWithCode } from "./tauri-session";
+import {
+	consumeWebOneTimeCode,
+	mintWebOneTimeCode,
+	webSignInReturnURL,
+} from "./web-sign-in-code";
 
 const DEFAULT_MAX_ATTEMPTS = 10;
 const DEFAULT_WINDOW_MS = 60_000;
@@ -96,6 +103,7 @@ export function createAuth(options: CreateAuthOptions) {
 				trustedProviders: ["github"],
 			},
 			encryptOAuthTokens: true,
+			storeStateStrategy: "database",
 		},
 		advanced: {
 			defaultCookieAttributes: {
@@ -290,6 +298,12 @@ async function interceptSignInAndTauriExchange(
 	}
 	if (isSignIn && isGitHubWaiting(await deps.githubAvailability())) {
 		return githubWaitingResponse();
+	}
+	if (pathname.endsWith("/web/exchange") && request.method === "POST") {
+		if (!deps.limiter.consume(`ip:${ip}`)) {
+			return genericSignInFailureResponse(429);
+		}
+		return exchangeWebCodeResponse(request, deps);
 	}
 	if (!(pathname.endsWith("/tauri/exchange") && request.method === "POST")) {
 		return null;
@@ -550,10 +564,20 @@ async function admitGitHubCallback(
 	if (!deps.limiter.consume(`account:${session.user.id}`)) {
 		return genericSignInFailureResponse(429);
 	}
-	return toTauriOneTimeCodeRedirect(response, session.session.id, deps);
+	const access = await getAccountAccessForUser(deps.prisma, session.user.id);
+	if (!access) {
+		return genericSignInFailureResponse(401);
+	}
+	return toPostGitHubCallbackRedirect(
+		request,
+		response,
+		session.session.id,
+		deps
+	);
 }
 
-async function toTauriOneTimeCodeRedirect(
+async function toPostGitHubCallbackRedirect(
+	request: Request,
 	response: Response,
 	sessionId: string,
 	deps: {
@@ -562,29 +586,106 @@ async function toTauriOneTimeCodeRedirect(
 	}
 ): Promise<Response> {
 	const location = response.headers.get("location") ?? "";
-	if (!isTauriCallbackURL(location)) {
+	if (isTauriCallbackURL(location)) {
+		return toOneTimeCodeRedirect({
+			code: await mintTauriOneTimeCode({
+				now: deps.now,
+				prisma: deps.prisma,
+				sessionId,
+			}),
+			location: tauriDeepLinkWithCode,
+			response,
+		});
+	}
+	if (!githubCallbackNeedsWebOneTimeCode(request.url, location)) {
 		return response;
 	}
-	const code = await mintTauriOneTimeCode({
+	const sessionCookie = response.headers
+		.getSetCookie()
+		.find((header) => SESSION_TOKEN_COOKIE.test(header));
+	if (!sessionCookie) {
+		return genericSignInFailureResponse(401);
+	}
+	const code = await mintWebOneTimeCode({
 		now: deps.now,
 		prisma: deps.prisma,
+		returnPath: new URL(location).pathname,
+		sessionCookie,
 		sessionId,
 	});
+	return toOneTimeCodeRedirect({
+		code,
+		location: (nextCode) => webSignInReturnURL(location, nextCode),
+		response,
+	});
+}
+
+function toOneTimeCodeRedirect(input: {
+	code: string;
+	location: (code: string) => string;
+	response: Response;
+}): Promise<Response> {
 	const headers = new Headers();
-	for (const [key, value] of response.headers.entries()) {
+	for (const [key, value] of input.response.headers.entries()) {
 		const name = key.toLowerCase();
 		if (name === "set-cookie" || name === "set-auth-token") {
 			continue;
 		}
 		headers.append(key, value);
 	}
-	headers.set("location", tauriDeepLinkWithCode(code));
-	for (const cookie of response.headers.getSetCookie()) {
+	headers.set("location", input.location(input.code));
+	for (const cookie of input.response.headers.getSetCookie()) {
 		if (!SESSION_TOKEN_COOKIE.test(cookie)) {
 			headers.append("set-cookie", cookie);
 		}
 	}
-	return new Response(null, { headers, status: response.status });
+	return new Response(null, { headers, status: input.response.status });
+}
+
+async function exchangeWebCodeResponse(
+	request: Request,
+	deps: {
+		now: () => Date;
+		prisma: PrismaClient;
+	}
+): Promise<Response> {
+	let code = "";
+	try {
+		const { code: submitted } = (await request.json()) as { code?: unknown };
+		if (typeof submitted === "string") {
+			code = submitted;
+		}
+	} catch {
+		return genericSignInFailureResponse(401);
+	}
+	if (!code) {
+		return genericSignInFailureResponse(401);
+	}
+	try {
+		const exchanged = await consumeWebOneTimeCode({
+			code,
+			now: deps.now,
+			prisma: deps.prisma,
+		});
+		return new Response(
+			JSON.stringify({ redirect: exchanged.redirect, status: true }),
+			{
+				headers: {
+					"content-type": "application/json",
+					"set-cookie": exchanged.sessionCookie,
+				},
+				status: 200,
+			}
+		);
+	} catch (error) {
+		if (error instanceof AccountAccessError) {
+			return Response.json(
+				{ message: error.message },
+				{ status: error.status }
+			);
+		}
+		return genericSignInFailureResponse(401);
+	}
 }
 
 function cookieHeadersFromResponse(

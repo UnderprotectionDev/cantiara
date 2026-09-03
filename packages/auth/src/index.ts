@@ -123,6 +123,7 @@ export {
 	type AccountAccess,
 	GITHUB_IDENTITY_SCOPES,
 	getAccountAccessForUser,
+	githubCallbackNeedsWebOneTimeCode,
 	SIGN_IN_FAILED_MESSAGE,
 	WORKSPACE_DEFAULT_NAME,
 } from "./github-login";
@@ -160,3 +161,4 @@ export {
 	TAURI_CALLBACK_URL,
 	TAURI_ONE_TIME_CODE_SECONDS,
 } from "./tauri-session";
+export { WEB_SIGN_IN_CODE_PARAM } from "./web-sign-in-code";

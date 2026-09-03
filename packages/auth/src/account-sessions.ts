@@ -172,6 +172,10 @@ export function createAccountSessionAccess(deps: {
 			});
 			return null;
 		}
+		const access = await getAccountAccessForUser(deps.prisma, session.user.id);
+		if (!access) {
+			return null;
+		}
 		if (isGitHubWaiting(await deps.githubAvailability())) {
 			return session;
 		}
@@ -182,7 +186,7 @@ export function createAccountSessionAccess(deps: {
 			},
 		});
 		if (!githubAccount) {
-			return session;
+			return null;
 		}
 		if (!githubAccount.accessToken) {
 			await applyGitHubLoginOAuthRevoked(githubAccount.accountId);
