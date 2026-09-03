@@ -215,37 +215,23 @@ interface StoredSmartCollectionRow {
 	sourceKind: string;
 }
 
-interface SmartCollectionStore {
-	create: (args: {
-		data: {
-			conditions: MembershipCondition[];
-			id: string;
-			name: string;
-			projectId: string | null;
-			revision: number;
-			sourceKind: string;
-			workspaceId: string;
-		};
-	}) => Promise<StoredSmartCollectionRow>;
-	findFirst: (args: {
-		where: { id: string; workspaceId: string };
-	}) => Promise<StoredSmartCollectionRow | null>;
-	findMany: (args: {
-		orderBy: { createdAt: "asc" };
-		where: { workspaceId: string };
-	}) => Promise<StoredSmartCollectionRow[]>;
-	update: (args: {
-		data: { conditions: MembershipCondition[]; name: string; revision: number };
-		where: { id: string };
-	}) => Promise<StoredSmartCollectionRow>;
-}
-
-function smartCollectionStore(db: MutationDb): SmartCollectionStore | null {
-	const client = db as unknown as { smartCollection?: SmartCollectionStore };
-	if (typeof client.smartCollection?.findMany !== "function") {
-		return null;
-	}
-	return client.smartCollection;
+function hasSmartCollectionDelegate(db: MutationDb): boolean {
+	const delegate = (
+		db as unknown as {
+			smartCollection?: {
+				create?: unknown;
+				findFirst?: unknown;
+				findMany?: unknown;
+				update?: unknown;
+			};
+		}
+	).smartCollection;
+	return (
+		typeof delegate?.create === "function" &&
+		typeof delegate?.findFirst === "function" &&
+		typeof delegate?.findMany === "function" &&
+		typeof delegate?.update === "function"
+	);
 }
 
 function fromRow(row: StoredSmartCollectionRow): SmartCollectionDefinition {
@@ -255,6 +241,120 @@ function fromRow(row: StoredSmartCollectionRow): SmartCollectionDefinition {
 		name: row.name,
 		projectId: row.projectId,
 		sourceKind: row.sourceKind,
+	};
+}
+
+async function insertSmartCollection(
+	db: MutationDb,
+	data: {
+		conditions: MembershipCondition[];
+		id: string;
+		name: string;
+		projectId: string | null;
+		sourceKind: string;
+		workspaceId: string;
+	}
+): Promise<StoredSmartCollectionRow> {
+	if (hasSmartCollectionDelegate(db)) {
+		return await (db as PrismaClient).smartCollection.create({
+			data: {
+				conditions: data.conditions,
+				id: data.id,
+				name: data.name,
+				projectId: data.projectId,
+				revision: 1,
+				sourceKind: data.sourceKind,
+				workspaceId: data.workspaceId,
+			},
+		});
+	}
+	const payload = JSON.stringify(data.conditions);
+	await db.$executeRaw`
+		INSERT INTO "smart_collection"
+			(id, "workspaceId", "projectId", name, "sourceKind", conditions, revision, "createdAt", "updatedAt")
+		VALUES (
+			${data.id},
+			${data.workspaceId},
+			${data.projectId},
+			${data.name},
+			${data.sourceKind},
+			CAST(${payload} AS JSONB),
+			1,
+			CURRENT_TIMESTAMP,
+			CURRENT_TIMESTAMP
+		)
+	`;
+	return data;
+}
+
+async function selectSmartCollections(
+	db: MutationDb,
+	workspaceId: string
+): Promise<StoredSmartCollectionRow[]> {
+	if (hasSmartCollectionDelegate(db)) {
+		return await (db as PrismaClient).smartCollection.findMany({
+			orderBy: { createdAt: "asc" },
+			where: { workspaceId },
+		});
+	}
+	return await db.$queryRaw<StoredSmartCollectionRow[]>`
+		SELECT id, name, "projectId", "sourceKind", conditions
+		FROM "smart_collection"
+		WHERE "workspaceId" = ${workspaceId}
+		ORDER BY "createdAt" ASC
+	`;
+}
+
+async function selectSmartCollection(
+	db: MutationDb,
+	workspaceId: string,
+	collectionId: string
+): Promise<StoredSmartCollectionRow | null> {
+	if (hasSmartCollectionDelegate(db)) {
+		return await (db as PrismaClient).smartCollection.findFirst({
+			where: { id: collectionId, workspaceId },
+		});
+	}
+	const rows = await db.$queryRaw<StoredSmartCollectionRow[]>`
+		SELECT id, name, "projectId", "sourceKind", conditions
+		FROM "smart_collection"
+		WHERE id = ${collectionId} AND "workspaceId" = ${workspaceId}
+		LIMIT 1
+	`;
+	return rows[0] ?? null;
+}
+
+async function persistSmartCollectionUpdate(
+	db: MutationDb,
+	collectionId: string,
+	data: { conditions: MembershipCondition[]; name: string }
+): Promise<StoredSmartCollectionRow> {
+	if (hasSmartCollectionDelegate(db)) {
+		return await (db as PrismaClient).smartCollection.update({
+			data: {
+				conditions: data.conditions,
+				name: data.name,
+				revision: 1,
+			},
+			where: { id: collectionId },
+		});
+	}
+	const payload = JSON.stringify(data.conditions);
+	await db.$executeRaw`
+		UPDATE "smart_collection"
+		SET
+			conditions = CAST(${payload} AS JSONB),
+			name = ${data.name},
+			revision = 1,
+			"updatedAt" = CURRENT_TIMESTAMP
+		WHERE id = ${collectionId}
+	`;
+	return {
+		conditions: data.conditions,
+		id: collectionId,
+		name: data.name,
+		projectId: null,
+		sourceKind: "",
 	};
 }
 
@@ -272,20 +372,13 @@ export async function createSmartCollection(
 	if (defined.status !== "ok") {
 		return defined;
 	}
-	const store = smartCollectionStore(prisma);
-	if (!store) {
-		return { reason: "source-not-allowed", status: "refused" };
-	}
-	const row = await store.create({
-		data: {
-			conditions: [...defined.collection.conditions],
-			id: crypto.randomUUID(),
-			name: defined.collection.name,
-			projectId: defined.collection.projectId,
-			revision: 1,
-			sourceKind: defined.collection.sourceKind,
-			workspaceId: input.workspaceId,
-		},
+	const row = await insertSmartCollection(prisma, {
+		conditions: [...defined.collection.conditions],
+		id: crypto.randomUUID(),
+		name: defined.collection.name,
+		projectId: defined.collection.projectId,
+		sourceKind: defined.collection.sourceKind,
+		workspaceId: input.workspaceId,
 	});
 	return { collection: fromRow(row), status: "ok" };
 }
@@ -294,14 +387,7 @@ export async function listSmartCollections(
 	prisma: PrismaClient,
 	workspaceId: string
 ): Promise<SmartCollectionDefinition[]> {
-	const store = smartCollectionStore(prisma);
-	if (!store) {
-		return [];
-	}
-	const rows = await store.findMany({
-		orderBy: { createdAt: "asc" },
-		where: { workspaceId },
-	});
+	const rows = await selectSmartCollections(prisma, workspaceId);
 	return rows.map(fromRow);
 }
 
@@ -310,13 +396,7 @@ export async function getSmartCollection(
 	workspaceId: string,
 	collectionId: string
 ): Promise<SmartCollectionDefinition | null> {
-	const store = smartCollectionStore(prisma);
-	if (!store) {
-		return null;
-	}
-	const row = await store.findFirst({
-		where: { id: collectionId, workspaceId },
-	});
+	const row = await selectSmartCollection(prisma, workspaceId, collectionId);
 	return row ? fromRow(row) : null;
 }
 
@@ -346,19 +426,18 @@ export async function updateSmartCollectionConditions(
 	if (defined.status !== "ok") {
 		return defined;
 	}
-	const store = smartCollectionStore(prisma);
-	if (!store) {
-		return { reason: "source-not-allowed", status: "refused" };
-	}
-	const row = await store.update({
-		data: {
-			conditions: [...defined.collection.conditions],
-			name: defined.collection.name,
-			revision: 1,
-		},
-		where: { id: input.collectionId },
+	const row = await persistSmartCollectionUpdate(prisma, input.collectionId, {
+		conditions: [...defined.collection.conditions],
+		name: defined.collection.name,
 	});
-	return { collection: fromRow(row), status: "ok" };
+	return {
+		collection: {
+			...fromRow(row),
+			projectId: current.projectId,
+			sourceKind: current.sourceKind,
+		},
+		status: "ok",
+	};
 }
 
 async function loadWorkCatalog(

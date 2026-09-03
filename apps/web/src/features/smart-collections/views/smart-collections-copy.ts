@@ -5,6 +5,7 @@ export const SMART_COLLECTIONS_COPY = {
 	because: "Because",
 	body: "Body",
 	conditions: "Conditions",
+	couldNotCreate: "Could not create this Smart Collection.",
 	create: "Create Smart Collection",
 	dragPreview:
 		"This would write fields so the record matches. It does not pin membership.",
@@ -16,6 +17,7 @@ export const SMART_COLLECTIONS_COPY = {
 	members: "Members",
 	name: "Name",
 	newSmartCollection: "New Smart Collection",
+	noneYet: "No Smart Collection yet.",
 	noPin: "Pinning is not allowed. Membership comes only from conditions.",
 	notMembers: "Not members",
 	pin: "Pin",

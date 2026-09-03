@@ -22,6 +22,7 @@ import {
 	createSmartCollection,
 	defineSmartCollection,
 	deriveMembership,
+	listSmartCollections,
 	pinMember,
 	previewDragOntoCollection,
 	viewSmartCollection,
@@ -72,6 +73,7 @@ describe("Smart Collections catalog", () => {
 	it("uses English Smart Collection copy and no free query language", () => {
 		const catalog = smartCollectionsCatalog();
 		expect(catalog.copy.smartCollection).toBe("Smart Collection");
+		expect(catalog.copy.noneYet).toBe("No Smart Collection yet.");
 		expect(SMART_COLLECTIONS_COPY.smartCollection).toBe("Smart Collection");
 		expect(JSON.stringify(catalog.copy)).not.toMatch(FREE_QUERY_PATTERN);
 		expect(catalog.copy).not.toHaveProperty("query");
@@ -453,5 +455,51 @@ describe("Smart Collections stored definition", () => {
 			open.work.id,
 		]);
 		expect("smartCollectionMember" in prisma).toBe(false);
+	});
+
+	it("stores a Smart Collection when the Prisma delegate is missing", async () => {
+		const user = await prisma.user.create({
+			data: {
+				email: `founder-${crypto.randomUUID()}@example.com`,
+				emailVerified: true,
+				id: crypto.randomUUID(),
+				name: "Founder",
+			},
+		});
+		const workspace = await prisma.workspace.create({
+			data: {
+				id: crypto.randomUUID(),
+				name: "Workspace",
+				ownerId: user.id,
+			},
+		});
+		const withoutDelegate = new Proxy(prisma, {
+			get(target, prop, receiver) {
+				if (prop === "smartCollection") {
+					return;
+				}
+				const value = Reflect.get(target, prop, receiver);
+				if (typeof value === "function") {
+					return value.bind(target);
+				}
+				return value;
+			},
+		}) as PrismaClient;
+		const stored = await createSmartCollection(withoutDelegate, {
+			conditions: [STATUS_IN_PROGRESS],
+			name: "Active Work",
+			projectId: null,
+			sourceKind: RECORD_DISCOVERY_COPY.work,
+			workspaceId: workspace.id,
+		});
+		expect(stored.status).toBe("ok");
+		if (stored.status !== "ok") {
+			return;
+		}
+		const listed = await listSmartCollections(withoutDelegate, workspace.id);
+		expect(listed.map((collection) => collection.name)).toEqual([
+			"Active Work",
+		]);
+		expect(listed[0]?.conditions).toEqual([STATUS_IN_PROGRESS]);
 	});
 });

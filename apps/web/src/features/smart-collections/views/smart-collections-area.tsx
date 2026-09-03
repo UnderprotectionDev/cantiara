@@ -21,6 +21,7 @@ import {
 	FounderToolbar,
 } from "@/features/personal-shell/components/founder-surface";
 import { RECORD_DISCOVERY_COPY } from "@/features/record-discovery/views/record-discovery-copy";
+import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { orpc, queryClient } from "@/utils/orpc";
 
 import {
@@ -85,7 +86,7 @@ function CollectionList({
 		return <p>{copy.loading}</p>;
 	}
 	if (collections.length === 0) {
-		return <p>{copy.empty}</p>;
+		return <p>{copy.noneYet}</p>;
 	}
 	return (
 		<ul className="mb-6 space-y-2">
@@ -106,11 +107,13 @@ function CollectionList({
 }
 
 export default function SmartCollectionsArea() {
+	const { attemptOnlineWork, markUnsaved } = useClientShell();
 	const catalog = useQuery(orpc.smartCollections.catalog.queryOptions());
 	const copy = catalog.data?.copy ?? SMART_COLLECTIONS_COPY;
 	const list = useQuery(orpc.smartCollections.list.queryOptions());
 	const projects = useQuery(orpc.projectShell.list.queryOptions());
 	const [selectedId, setSelectedId] = useState<string | null>(null);
+	const [createMessage, setCreateMessage] = useState<string | null>(null);
 	const [pinMessage, setPinMessage] = useState<string | null>(null);
 	const [dragPreview, setDragPreview] = useState<string | null>(null);
 	const [sourceKind, setSourceKind] = useState<string>(
@@ -122,25 +125,32 @@ export default function SmartCollectionsArea() {
 		}),
 		enabled: Boolean(selectedId),
 	});
-	const invalidate = useCallback(async () => {
-		await queryClient.invalidateQueries({
-			queryKey: orpc.smartCollections.list.queryKey(),
-		});
-		if (selectedId) {
+	const invalidate = useCallback(
+		async (collectionId?: string) => {
 			await queryClient.invalidateQueries({
-				queryKey: orpc.smartCollections.view.queryKey({
-					input: { collectionId: selectedId },
-				}),
+				queryKey: orpc.smartCollections.list.queryKey(),
 			});
-		}
-	}, [selectedId]);
+			const viewId = collectionId ?? selectedId;
+			if (viewId) {
+				await queryClient.invalidateQueries({
+					queryKey: orpc.smartCollections.view.queryKey({
+						input: { collectionId: viewId },
+					}),
+				});
+			}
+		},
+		[selectedId]
+	);
 	const create = useMutation(
 		orpc.smartCollections.create.mutationOptions({
 			onSuccess: async (result) => {
-				if (result.status === "ok") {
-					setSelectedId(result.collection.id);
-					await invalidate();
+				if (result.status !== "ok") {
+					setCreateMessage(copy.couldNotCreate);
+					return;
 				}
+				setCreateMessage(null);
+				setSelectedId(result.collection.id);
+				await invalidate(result.collection.id);
 			},
 		})
 	);
@@ -188,14 +198,21 @@ export default function SmartCollectionsArea() {
 			const value = String(form.get("value") ?? "");
 			const conditions: MembershipCondition[] =
 				value.length > 0 ? [{ field, operator: "equals", value }] : [];
-			create.mutate({
-				conditions,
-				name,
-				projectId: projectValue.length > 0 ? projectValue : null,
-				sourceKind,
-			});
+			setCreateMessage(null);
+			markUnsaved();
+			const result = attemptOnlineWork("record-create", () =>
+				create.mutateAsync({
+					conditions,
+					name,
+					projectId: projectValue.length > 0 ? projectValue : null,
+					sourceKind,
+				})
+			);
+			if (result.status === "refused") {
+				setCreateMessage(copy.couldNotCreate);
+			}
 		},
-		[create, sourceKind]
+		[attemptOnlineWork, copy.couldNotCreate, create, markUnsaved, sourceKind]
 	);
 	const onSourceKind = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
 		setSourceKind(event.currentTarget.value);
@@ -333,6 +350,9 @@ export default function SmartCollectionsArea() {
 						<Input id="smart-collection-value" name="value" type="text" />
 					</Field>
 					<Button type="submit">{copy.create}</Button>
+					{createMessage ? (
+						<p className="basis-full text-sm">{createMessage}</p>
+					) : null}
 				</form>
 			</FounderToolbar>
 			<FounderSection title={copy.smartCollection} titleId="smart-collections">
