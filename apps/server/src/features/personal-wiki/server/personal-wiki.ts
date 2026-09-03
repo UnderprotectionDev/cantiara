@@ -38,6 +38,50 @@ export type PersonalWikiForbiddenAction =
 
 export type WikiScope = typeof PERSONAL_WIKI_SCOPE;
 
+export interface ProjectScope {
+	kind: "project";
+	projectId: string;
+}
+
+export type DocumentDiscoverySurface =
+	| typeof PERSONAL_WIKI_COPY.allDocuments
+	| typeof PERSONAL_WIKI_COPY.search;
+
+export type DocumentDiscoveryNest = "personal-wiki" | "project";
+
+export type DocumentScopeBadge =
+	| typeof PERSONAL_WIKI_COPY.personalWiki
+	| typeof PERSONAL_WIKI_COPY.project;
+
+export interface DocumentDiscoveryHit {
+	home?: string;
+	id: string;
+	recordKind: typeof PERSONAL_WIKI_RECORD_KIND;
+	scope: WikiScope | ProjectScope | null;
+	surface: DocumentDiscoverySurface;
+	title: string;
+}
+
+export interface BadgedDocumentHit {
+	id: string;
+	nest: DocumentDiscoveryNest;
+	oneHome: false;
+	recordKind: typeof PERSONAL_WIKI_RECORD_KIND;
+	scopeBadge: DocumentScopeBadge;
+	surface: DocumentDiscoverySurface;
+	title: string;
+}
+
+export type MixedDocumentPresentation =
+	| { rows: BadgedDocumentHit[]; status: "presented" }
+	| { reason: "badge-less-merge"; status: "rejected" }
+	| { reason: "one-home-collapse"; status: "rejected" };
+
+export interface RecordDiscoveryPort {
+	browseAllDocuments: () => readonly DocumentDiscoveryHit[];
+	search: (query: string) => readonly DocumentDiscoveryHit[];
+}
+
 export interface WikiCreateInput {
 	body?: string;
 	scope: WikiScope;
@@ -181,6 +225,69 @@ export function leakNothingWikiResponse(): WikiLeakNothingResponse {
 		reopenedRevokedUrl: false,
 		status: 404,
 	};
+}
+
+function nestAndBadge(
+	scope: DocumentDiscoveryHit["scope"]
+): { nest: DocumentDiscoveryNest; scopeBadge: DocumentScopeBadge } | null {
+	if (scope?.kind === PERSONAL_WIKI_SCOPE.kind) {
+		return {
+			nest: "personal-wiki",
+			scopeBadge: PERSONAL_WIKI_COPY.personalWiki,
+		};
+	}
+	if (scope?.kind === "project") {
+		return {
+			nest: "project",
+			scopeBadge: PERSONAL_WIKI_COPY.project,
+		};
+	}
+	return null;
+}
+
+export function presentMixedDocumentHits(
+	hits: readonly DocumentDiscoveryHit[]
+): MixedDocumentPresentation {
+	const rows: BadgedDocumentHit[] = [];
+	for (const hit of hits) {
+		if (hit.home) {
+			return { reason: "one-home-collapse", status: "rejected" };
+		}
+		const badged = nestAndBadge(hit.scope);
+		if (!badged) {
+			return { reason: "badge-less-merge", status: "rejected" };
+		}
+		rows.push({
+			id: hit.id,
+			nest: badged.nest,
+			oneHome: false,
+			recordKind: PERSONAL_WIKI_RECORD_KIND,
+			scopeBadge: badged.scopeBadge,
+			surface: hit.surface,
+			title: hit.title,
+		});
+	}
+	return { rows, status: "presented" };
+}
+
+export function filterDocumentNest(
+	rows: readonly BadgedDocumentHit[],
+	nest: DocumentDiscoveryNest
+): BadgedDocumentHit[] {
+	return rows.filter((row) => row.nest === nest);
+}
+
+export function mixedDocumentHome(rows: readonly BadgedDocumentHit[]): {
+	nests: DocumentDiscoveryNest[];
+	oneHome: false;
+} {
+	const nests: DocumentDiscoveryNest[] = [];
+	for (const row of rows) {
+		if (!nests.includes(row.nest)) {
+			nests.push(row.nest);
+		}
+	}
+	return { nests, oneHome: false };
 }
 
 export const personalWiki = {

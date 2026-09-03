@@ -4,7 +4,10 @@
  * no publish/team actions, never-published has no visitor URL,
  * unauthenticated GET from this shell leaks nothing, and this
  * shell keeps no live public copy after 74 unpublish.
- * docs/specs/32-personal-wiki/spec.md and GitHub #236.
+ * Mixed All Documents / Search hits consume Record Discovery
+ * as a counterpart: each row has a scope badge; Wiki is not
+ * one unfilterable nest with Project Documents.
+ * docs/specs/32-personal-wiki/spec.md and GitHub #236 / #237.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Dogfooding wiki). `410 Gone` is 74, not this module.
  */
@@ -13,10 +16,14 @@ import { describe, expect, it } from "vitest";
 import {
 	createWikiDocument,
 	type DocumentsPort,
+	filterDocumentNest,
+	mixedDocumentHome,
 	openPersonalWikiShell,
 	PERSONAL_WIKI_PATH,
 	PERSONAL_WIKI_RECORD_KIND,
 	PERSONAL_WIKI_SCOPE,
+	presentMixedDocumentHits,
+	type RecordDiscoveryPort,
 	unauthenticatedWikiGet,
 	type WikiCreateInput,
 	type WikiPublishingPort,
@@ -78,6 +85,43 @@ function unpublishedAfterRevoke(): WikiPublishingPort {
 	return {
 		isRevoked: (url) => url === REVOKED_URL,
 		visitorUrlFor: () => null,
+	};
+}
+
+function memoryDiscovery(): RecordDiscoveryPort {
+	return {
+		browseAllDocuments: () => [
+			{
+				id: "doc-project",
+				recordKind: PERSONAL_WIKI_RECORD_KIND,
+				scope: { kind: "project", projectId: "proj_atlas" },
+				surface: "All Documents",
+				title: "Launch checklist",
+			},
+			{
+				id: "doc-wiki",
+				recordKind: PERSONAL_WIKI_RECORD_KIND,
+				scope: PERSONAL_WIKI_SCOPE,
+				surface: "All Documents",
+				title: "Retry with backoff",
+			},
+		],
+		search: () => [
+			{
+				id: "doc-project",
+				recordKind: PERSONAL_WIKI_RECORD_KIND,
+				scope: { kind: "project", projectId: "proj_atlas" },
+				surface: "Search",
+				title: "Launch checklist",
+			},
+			{
+				id: "doc-wiki",
+				recordKind: PERSONAL_WIKI_RECORD_KIND,
+				scope: PERSONAL_WIKI_SCOPE,
+				surface: "Search",
+				title: "Retry with backoff",
+			},
+		],
 	};
 }
 
@@ -186,6 +230,9 @@ describe("Personal Wiki ownership and shell", () => {
 
 	it("uses English Personal Wiki copy and no publish or team UI", () => {
 		expect(PERSONAL_WIKI_COPY.personalWiki).toBe("Personal Wiki");
+		expect(PERSONAL_WIKI_COPY.project).toBe("Project");
+		expect(PERSONAL_WIKI_COPY.allDocuments).toBe("All Documents");
+		expect(PERSONAL_WIKI_COPY.search).toBe("Search");
 		const copy = JSON.stringify(PERSONAL_WIKI_COPY);
 		expect(copy).not.toMatch(FORBIDDEN_SHELL_COPY);
 		expect(openPersonalWikiShell().forbiddenActions).toEqual([
@@ -252,5 +299,103 @@ describe("Personal Wiki ownership and shell", () => {
 		expect(response.reopenedRevokedUrl).toBe(false);
 		expect(response.livePublicCopy).toBe(false);
 		expect(response.status).not.toBe(410);
+	});
+});
+
+describe("Personal Wiki scope badges on mixed discovery", () => {
+	it("badges mixed All Documents and Search rows and refuses a badge-less merge", () => {
+		const discovery = memoryDiscovery();
+		const documents = presentMixedDocumentHits(discovery.browseAllDocuments());
+		const search = presentMixedDocumentHits(discovery.search("backoff"));
+		expect(documents).toMatchObject({
+			rows: [
+				{
+					id: "doc-project",
+					nest: "project",
+					oneHome: false,
+					scopeBadge: "Project",
+					surface: "All Documents",
+				},
+				{
+					id: "doc-wiki",
+					nest: "personal-wiki",
+					oneHome: false,
+					scopeBadge: "Personal Wiki",
+					surface: "All Documents",
+				},
+			],
+			status: "presented",
+		});
+		expect(search).toMatchObject({
+			rows: [
+				{
+					id: "doc-project",
+					scopeBadge: "Project",
+					surface: "Search",
+				},
+				{
+					id: "doc-wiki",
+					scopeBadge: "Personal Wiki",
+					surface: "Search",
+				},
+			],
+			status: "presented",
+		});
+		expect(
+			presentMixedDocumentHits([
+				{
+					id: "doc-merged",
+					recordKind: PERSONAL_WIKI_RECORD_KIND,
+					scope: null,
+					surface: "All Documents",
+					title: "Unscoped mix",
+				},
+			])
+		).toEqual({
+			reason: "badge-less-merge",
+			status: "rejected",
+		});
+	});
+
+	it("keeps Wiki Documents in a filterable nest, not one Project home", () => {
+		const presented = presentMixedDocumentHits(
+			memoryDiscovery().browseAllDocuments()
+		);
+		if (presented.status !== "presented") {
+			throw new Error("expected presented mixed hits");
+		}
+		expect(mixedDocumentHome(presented.rows)).toEqual({
+			nests: ["project", "personal-wiki"],
+			oneHome: false,
+		});
+		expect(filterDocumentNest(presented.rows, "personal-wiki")).toEqual([
+			{
+				id: "doc-wiki",
+				nest: "personal-wiki",
+				oneHome: false,
+				recordKind: "Document",
+				scopeBadge: "Personal Wiki",
+				surface: "All Documents",
+				title: "Retry with backoff",
+			},
+		]);
+		expect(
+			filterDocumentNest(presented.rows, "project").map((row) => row.id)
+		).toEqual(["doc-project"]);
+		expect(
+			presentMixedDocumentHits([
+				{
+					home: "Documents",
+					id: "doc-wiki",
+					recordKind: PERSONAL_WIKI_RECORD_KIND,
+					scope: PERSONAL_WIKI_SCOPE,
+					surface: "All Documents",
+					title: "Retry with backoff",
+				},
+			])
+		).toEqual({
+			reason: "one-home-collapse",
+			status: "rejected",
+		});
 	});
 });
