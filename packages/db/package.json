@@ -16,6 +16,7 @@
     "db:migrate:deploy": "bunx --bun prisma migrate deploy",
     "postinstall": "bunx --bun prisma generate",
     "db:studio": "prisma studio",
+    "db:seed": "bunx --bun prisma db seed",
     "test": "bun test src"
   },
   "dependencies": {

@@ -4,15 +4,16 @@ import dotenv from "dotenv";
 import { defineConfig, env } from "prisma/config";
 
 dotenv.config({
-  path: "../../apps/server/.env",
+	path: "../../apps/server/.env",
 });
 
 export default defineConfig({
-  schema: path.join("prisma", "schema"),
-  migrations: {
-    path: path.join("prisma", "migrations"),
-  },
-  datasource: {
-    url: env("DATABASE_URL"),
-  },
+	datasource: {
+		url: env("DATABASE_URL"),
+	},
+	migrations: {
+		path: path.join("prisma", "migrations"),
+		seed: "bun run --cwd ../.. scripts/seed/run.ts",
+	},
+	schema: path.join("prisma", "schema"),
 });
