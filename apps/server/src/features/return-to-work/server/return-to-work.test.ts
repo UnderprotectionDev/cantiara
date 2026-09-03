@@ -526,4 +526,56 @@ describe("Return to Work", () => {
 		expect(saved.summary.nextConcreteStep?.text).toBe("Reopen the board");
 		expect(saved.summary.context.kind).toBe("project");
 	});
+
+	it("saves Next concrete step when Prisma rejects nextConcreteStep as unknown (CANT-BD652F27)", async () => {
+		const project = await openProject("Payments");
+		const stale = prisma.$extends({
+			query: {
+				project: {
+					update({ args, query }) {
+						if (
+							typeof args.data === "object" &&
+							args.data !== null &&
+							"nextConcreteStep" in args.data
+						) {
+							throw new Error(
+								"Unknown argument `nextConcreteStep`. Available options are marked with ?."
+							);
+						}
+						return query(args);
+					},
+				},
+				work: {
+					update({ args, query }) {
+						if (
+							typeof args.data === "object" &&
+							args.data !== null &&
+							"nextConcreteStep" in args.data
+						) {
+							throw new Error(
+								"Unknown argument `nextConcreteStep`. Available options are marked with ?."
+							);
+						}
+						return query(args);
+					},
+				},
+			},
+		});
+		const returnToWork = createReturnToWork({
+			accountId: actorId,
+			clock: { now: () => TODAY },
+			prisma: stale as unknown as PrismaClient,
+			workspaceId,
+		});
+		const saved = await returnToWork.setNextConcreteStep({
+			idempotencyKey: "stale-client-step",
+			projectId: project.id,
+			text: "Gel",
+		});
+		expect(saved.status).toBe("committed");
+		if (saved.status !== "committed") {
+			throw new Error("expected committed step");
+		}
+		expect(saved.summary.nextConcreteStep?.text).toBe("Gel");
+	});
 });

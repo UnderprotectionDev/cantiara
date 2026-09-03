@@ -207,6 +207,35 @@ export function createReturnToWork(
 	return { noteVisibleOpen, setNextConcreteStep, summary };
 }
 
+interface NextConcreteStepRow {
+	nextConcreteStep: string | null;
+	nextConcreteStepUpdatedAt: Date | null;
+}
+
+async function readNextConcreteStep(
+	db: MutationDb,
+	kind: "project" | "work",
+	id: string
+): Promise<{ text: string | null; updatedAt: Date | null }> {
+	const rows =
+		kind === "work"
+			? await db.$queryRaw<NextConcreteStepRow[]>`
+					SELECT "nextConcreteStep", "nextConcreteStepUpdatedAt"
+					FROM "work"
+					WHERE "id" = ${id}
+				`
+			: await db.$queryRaw<NextConcreteStepRow[]>`
+					SELECT "nextConcreteStep", "nextConcreteStepUpdatedAt"
+					FROM "project"
+					WHERE "id" = ${id}
+				`;
+	const [row] = rows;
+	return {
+		text: row?.nextConcreteStep ?? null,
+		updatedAt: row?.nextConcreteStepUpdatedAt ?? null,
+	};
+}
+
 async function persistNextConcreteStep(
 	tx: MutationDb,
 	target: {
@@ -218,48 +247,90 @@ async function persistNextConcreteStep(
 	occurredAt: Date
 ): Promise<void> {
 	const nextValue = text.length > 0 ? text : null;
-	if (target.nextConcreteStep === nextValue) {
+	const current = await readNextConcreteStep(tx, target.kind, target.id);
+	if (current.text === nextValue) {
 		return;
 	}
 	if (target.kind === "work") {
-		await tx.work.update({
-			data: {
-				nextConcreteStep: nextValue,
-				nextConcreteStepUpdatedAt: occurredAt,
-				revision: { increment: 1 },
-			},
-			where: { id: target.id },
-		});
-		if (hasDelegate(tx, "nextConcreteStepChange")) {
-			await tx.nextConcreteStepChange.create({
-				data: {
-					id: crypto.randomUUID(),
-					nextValue,
-					previousValue: target.nextConcreteStep,
-					workId: target.id,
-				},
-			});
-		}
-		return;
+		await tx.$executeRaw`
+			UPDATE "work"
+			SET
+				"nextConcreteStep" = ${nextValue},
+				"nextConcreteStepUpdatedAt" = ${occurredAt},
+				"revision" = "revision" + 1
+			WHERE "id" = ${target.id}
+		`;
+	} else {
+		await tx.$executeRaw`
+			UPDATE "project"
+			SET
+				"nextConcreteStep" = ${nextValue},
+				"nextConcreteStepUpdatedAt" = ${occurredAt},
+				"revision" = "revision" + 1
+			WHERE "id" = ${target.id}
+		`;
 	}
-	await tx.project.update({
-		data: {
-			nextConcreteStep: nextValue,
-			nextConcreteStepUpdatedAt: occurredAt,
-			revision: { increment: 1 },
-		},
-		where: { id: target.id },
-	});
 	if (hasDelegate(tx, "nextConcreteStepChange")) {
 		await tx.nextConcreteStepChange.create({
 			data: {
 				id: crypto.randomUUID(),
 				nextValue,
-				previousValue: target.nextConcreteStep,
-				projectId: target.id,
+				previousValue: current.text,
+				...(target.kind === "work"
+					? { workId: target.id }
+					: { projectId: target.id }),
 			},
 		});
+		return;
 	}
+	await tx.$executeRaw`
+		INSERT INTO "next_concrete_step_change"
+			(id, "workId", "projectId", "previousValue", "nextValue", "createdAt")
+		VALUES (
+			${crypto.randomUUID()},
+			${target.kind === "work" ? target.id : null},
+			${target.kind === "project" ? target.id : null},
+			${current.text},
+			${nextValue},
+			CURRENT_TIMESTAMP
+		)
+	`;
+}
+
+async function loadNextConcreteStepHistory(
+	db: MutationDb,
+	source: { projectId: string } | { workId: string }
+): Promise<Array<{ createdAt: Date; previousValue: string | null }>> {
+	if (hasDelegate(db, "nextConcreteStepChange")) {
+		if ("workId" in source) {
+			return await db.nextConcreteStepChange.findMany({
+				orderBy: { createdAt: "desc" },
+				where: { workId: source.workId },
+			});
+		}
+		return await db.nextConcreteStepChange.findMany({
+			orderBy: { createdAt: "desc" },
+			where: { projectId: source.projectId },
+		});
+	}
+	if ("workId" in source) {
+		return await db.$queryRaw<
+			Array<{ createdAt: Date; previousValue: string | null }>
+		>`
+			SELECT "previousValue", "createdAt"
+			FROM "next_concrete_step_change"
+			WHERE "workId" = ${source.workId}
+			ORDER BY "createdAt" DESC
+		`;
+	}
+	return await db.$queryRaw<
+		Array<{ createdAt: Date; previousValue: string | null }>
+	>`
+		SELECT "previousValue", "createdAt"
+		FROM "next_concrete_step_change"
+		WHERE "projectId" = ${source.projectId}
+		ORDER BY "createdAt" DESC
+	`;
 }
 
 async function resolveWriteTarget(
@@ -344,14 +415,16 @@ async function loadSummary(
 	const records = await loadCurrentRecords(db, accountId, projectId);
 	const contextId = work?.id ?? project.id;
 	const cards = selectReturnCards(records, { contextId, today });
-	const nextStepSource = work ?? project;
-	const activeText = nextStepSource.nextConcreteStep;
-	const historyRows = hasDelegate(db, "nextConcreteStepChange")
-		? await db.nextConcreteStepChange.findMany({
-				orderBy: { createdAt: "desc" },
-				where: work ? { workId: work.id } : { projectId: project.id },
-			})
-		: [];
+	const step = await readNextConcreteStep(
+		db,
+		work ? "work" : "project",
+		work?.id ?? project.id
+	);
+	const activeText = step.text;
+	const historyRows = await loadNextConcreteStepHistory(
+		db,
+		work ? { workId: work.id } : { projectId: project.id }
+	);
 	const previousValues = historyRows
 		.filter(
 			(row) => row.previousValue !== null && row.previousValue !== activeText
@@ -376,7 +449,7 @@ async function loadSummary(
 			save: RETURN_TO_WORK_COPY.save,
 		},
 		nextConcreteStep:
-			activeText && nextStepSource.nextConcreteStepUpdatedAt
+			activeText && step.updatedAt
 				? {
 						openSourceRecord: RETURN_TO_WORK_COPY.openSourceRecord,
 						sourceHref: work
@@ -385,11 +458,8 @@ async function loadSummary(
 						sourceKey: work?.key ?? project.shortCode,
 						sourceTitle: work?.title ?? project.name,
 						text: activeText,
-						updatedAt: nextStepSource.nextConcreteStepUpdatedAt.toISOString(),
-						updatedAtDisplay: formatDateTime(
-							nextStepSource.nextConcreteStepUpdatedAt,
-							preferences
-						),
+						updatedAt: step.updatedAt.toISOString(),
+						updatedAtDisplay: formatDateTime(step.updatedAt, preferences),
 					}
 				: null,
 		nextConcreteStepHistory: previousValues,
