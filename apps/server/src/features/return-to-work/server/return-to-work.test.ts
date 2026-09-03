@@ -23,9 +23,15 @@ import {
 	getProject,
 } from "../../project-shell/server/project-shell";
 import {
+	listSmartCollections,
+	viewSmartCollection,
+} from "../../smart-collections/server/smart-collections";
+import {
 	applyPlanningMembership,
 	changeWorkStatus,
+	closeWork,
 	createWork,
+	getWork,
 	listWork,
 	updateWorkPlanningDates,
 	updateWorkTitle,
@@ -33,6 +39,7 @@ import {
 import { createReturnToWork } from "./return-to-work";
 import {
 	CARD_REASON,
+	LONG_IN_THE_SAME_STATUS_CONTRACT,
 	NEXT_CONCRETE_STEP_CONTRACT,
 	RETURN_TO_WORK_COPY,
 	RETURN_TO_WORK_RESTORES,
@@ -80,6 +87,7 @@ describe("Return to Work catalog", () => {
 		expect(returnToWorkCatalog()).toEqual({
 			copy: RETURN_TO_WORK_COPY,
 			kind: "return-to-work",
+			longInTheSameStatus: LONG_IN_THE_SAME_STATUS_CONTRACT,
 			nextConcreteStep: NEXT_CONCRETE_STEP_CONTRACT,
 			restores: RETURN_TO_WORK_RESTORES,
 			session: RETURN_TO_WORK_SESSION,
@@ -88,9 +96,23 @@ describe("Return to Work catalog", () => {
 		expect(RETURN_TO_WORK_COPY.returnToWork).toBe("Return to Work");
 		expect(RETURN_TO_WORK_COPY.nextConcreteStep).toBe("Next concrete step");
 		expect(RETURN_TO_WORK_COPY.openSourceRecord).toBe("Open source record");
+		expect(RETURN_TO_WORK_COPY.longInTheSameStatus).toBe(
+			"Long in the same status"
+		);
 		expect(JSON.stringify(returnToWorkCatalog())).not.toMatch(
 			FORBIDDEN_SURFACE
 		);
+		expect(returnToWorkCatalog().longInTheSameStatus).toEqual(
+			LONG_IN_THE_SAME_STATUS_CONTRACT
+		);
+		expect(returnToWorkCatalog().longInTheSameStatus.stuckVerdict).toBe(false);
+		expect(returnToWorkCatalog().longInTheSameStatus.healthScore).toBe(false);
+		expect(returnToWorkCatalog().longInTheSameStatus.performanceScore).toBe(
+			false
+		);
+		expect(
+			returnToWorkCatalog().longInTheSameStatus.defaultAttentionSignal
+		).toBe(false);
 	});
 
 	it("selects current records with a closed why-shown list", () => {
@@ -182,6 +204,34 @@ describe("Return to Work catalog", () => {
 			cards.every((card) => card.openSourceRecord === "Open source record")
 		).toBe(true);
 		expect(cards.find((card) => card.title === "Old title")).toBeUndefined();
+	});
+
+	it("selects Long in the same status over recently edited when that reason is present", () => {
+		const cards = selectReturnCards(
+			[
+				{
+					editedAt: "2026-09-03T11:00:00.000Z",
+					href: "/projects/p?work=stale#work",
+					id: "stale",
+					key: "PAY-9",
+					kind: "work",
+					longInTheSameStatus: true,
+					openRisk: false,
+					pendingGitHubDevelopmentSignal: false,
+					title: "Stale work",
+					upcomingDate: null,
+					viewedAt: null,
+				},
+			],
+			{ contextId: "project-1", today: "2026-09-03" }
+		);
+		expect(cards).toEqual([
+			expect.objectContaining({
+				id: "stale",
+				openSourceRecord: "Open source record",
+				whyShown: CARD_REASON.longInTheSameStatus,
+			}),
+		]);
 	});
 });
 
@@ -577,5 +627,141 @@ describe("Return to Work", () => {
 			throw new Error("expected committed step");
 		}
 		expect(saved.summary.nextConcreteStep?.text).toBe("Gel");
+	});
+
+	it("does not mint Long in the same status without a Project threshold", async () => {
+		const project = await openProject("Payments");
+		const work = await openWork(project.id, "Aged intake");
+		await prisma.work.update({
+			data: {
+				createdAt: new Date("2026-08-01T12:00:00.000Z"),
+				updatedAt: new Date("2026-08-01T12:00:00.000Z"),
+			},
+			where: { id: work.id },
+		});
+		const view = await surface().summary({ projectId: project.id });
+		expect(view?.statusAgeThresholdDays).toBeNull();
+		expect(view?.preparedSmartCollection).toBeNull();
+		expect(
+			view?.cards.some(
+				(card) => card.whyShown === CARD_REASON.longInTheSameStatus
+			)
+		).toBe(false);
+		expect(view?.longInTheSameStatus).toEqual(LONG_IN_THE_SAME_STATUS_CONTRACT);
+		expect(view?.cards[0]?.whyShown).toBe(CARD_REASON.recentlyEdited);
+		expect(await listSmartCollections(prisma, workspaceId)).toEqual([]);
+	});
+
+	it("marks active Work past the threshold as Long in the same status without writing status or a default signal", async () => {
+		const project = await openProject("Payments");
+		const aged = await openWork(project.id, "Aged intake");
+		const fresh = await openWork(project.id, "Fresh intake");
+		await prisma.work.update({
+			data: {
+				createdAt: new Date("2026-08-01T12:00:00.000Z"),
+				updatedAt: new Date("2026-08-01T12:00:00.000Z"),
+			},
+			where: { id: aged.id },
+		});
+		const before = await getWork(prisma, aged.id);
+		if (!before) {
+			throw new Error("expected Work");
+		}
+		const saved = await surface().setStatusAgeThresholdDays({
+			projectId: project.id,
+			thresholdDays: 7,
+		});
+		expect(saved.status).toBe("committed");
+		if (saved.status !== "committed") {
+			throw new Error("expected committed threshold");
+		}
+		expect(saved.summary.statusAgeThresholdDays).toBe(7);
+		expect(saved.summary.cards.find((card) => card.id === aged.id)).toEqual(
+			expect.objectContaining({
+				id: aged.id,
+				openSourceRecord: "Open source record",
+				title: "Aged intake",
+				whyShown: CARD_REASON.longInTheSameStatus,
+			})
+		);
+		expect(
+			saved.summary.cards.find((card) => card.id === fresh.id)?.whyShown
+		).not.toBe(CARD_REASON.longInTheSameStatus);
+		expect(saved.summary.preparedSmartCollection).toEqual({
+			members: [
+				expect.objectContaining({
+					because: CARD_REASON.longInTheSameStatus,
+					id: aged.id,
+					title: "Aged intake",
+				}),
+			],
+			name: RETURN_TO_WORK_COPY.longInTheSameStatus,
+		});
+		expect(saved.summary.longInTheSameStatus).toEqual(
+			LONG_IN_THE_SAME_STATUS_CONTRACT
+		);
+		expect(saved.summary.longInTheSameStatus.defaultAttentionSignal).toBe(
+			false
+		);
+		expect(saved.summary.longInTheSameStatus.stuckVerdict).toBe(false);
+		expect(saved.summary.longInTheSameStatus.healthScore).toBe(false);
+		const after = await getWork(prisma, aged.id);
+		expect(after).toMatchObject({
+			closureResult: before.closureResult,
+			status: before.status,
+		});
+		const membership = await applyPlanningMembership(prisma, {
+			desiredStatus: before.status,
+			surface: "Board",
+			workId: aged.id,
+		});
+		expect(membership.status).toBe("committed");
+		const afterMembership = await getWork(prisma, aged.id);
+		expect(afterMembership?.status).toBe(before.status);
+		const collections = await listSmartCollections(prisma, workspaceId);
+		expect(collections).toEqual([
+			expect.objectContaining({
+				name: RETURN_TO_WORK_COPY.longInTheSameStatus,
+				projectId: project.id,
+				sourceKind: "Work",
+			}),
+		]);
+		const collectionId = collections[0]?.id;
+		if (!collectionId) {
+			throw new Error("expected prepared Smart Collection");
+		}
+		const prepared = await viewSmartCollection(
+			prisma,
+			workspaceId,
+			collectionId
+		);
+		expect(prepared?.membership.members.map((member) => member.id)).toEqual([
+			aged.id,
+		]);
+		expect(prepared?.membership.members[0]?.because).toEqual([
+			{
+				field: "status",
+				label: CARD_REASON.longInTheSameStatus,
+			},
+		]);
+		const closed = await closeWork(prisma, {
+			actorId,
+			baseRevision:
+				afterMembership?.revision ?? after?.revision ?? before.revision,
+			idempotencyKey: "close-aged",
+			origin: "human",
+			result: "Completed",
+			workId: aged.id,
+		});
+		expect(closed.status).toBe("committed");
+		const afterClose = await surface().summary({ projectId: project.id });
+		expect(
+			afterClose?.cards.find((card) => card.id === aged.id)?.whyShown
+		).not.toBe(CARD_REASON.longInTheSameStatus);
+		expect(
+			afterClose?.preparedSmartCollection?.members.some(
+				(member) => member.id === aged.id
+			)
+		).toBe(false);
 	});
 });

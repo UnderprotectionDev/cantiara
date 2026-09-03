@@ -3,6 +3,7 @@ import { z } from "zod";
 export const RETURN_TO_WORK_COPY = {
 	empty: "No Return to Work cards from current records.",
 	lastUpdated: "Last updated",
+	longInTheSameStatus: "Long in the same status",
 	nextConcreteStep: "Next concrete step",
 	openRisk: "Open Risk",
 	openSourceRecord: "Open source record",
@@ -15,6 +16,7 @@ export const RETURN_TO_WORK_COPY = {
 } as const;
 
 export const CARD_REASON = {
+	longInTheSameStatus: RETURN_TO_WORK_COPY.longInTheSameStatus,
 	openRisk: RETURN_TO_WORK_COPY.openRisk,
 	pendingGitHubDevelopmentSignal:
 		RETURN_TO_WORK_COPY.pendingGitHubDevelopmentSignal,
@@ -27,6 +29,7 @@ export const CARD_REASONS = [
 	CARD_REASON.pendingGitHubDevelopmentSignal,
 	CARD_REASON.openRisk,
 	CARD_REASON.upcomingDate,
+	CARD_REASON.longInTheSameStatus,
 	CARD_REASON.recentlyViewed,
 	CARD_REASON.recentlyEdited,
 ] as const;
@@ -67,8 +70,21 @@ export const RETURN_TO_WORK_SNAPSHOT = {
 	storedCardSnapshot: false,
 } as const;
 
+export const LONG_IN_THE_SAME_STATUS_CONTRACT = {
+	defaultAttentionSignal: false,
+	healthScore: false,
+	performanceScore: false,
+	stuckVerdict: false,
+	writesClosureResult: false,
+	writesPlanningMembership: false,
+	writesStatus: false,
+} as const;
+
 export const CARD_LIMIT = 8;
 export const UPCOMING_CARD_LIMIT = 3;
+export const LONG_STATUS_CARD_LIMIT = 3;
+export const PREPARED_LONG_STATUS_COLLECTION_PREFIX =
+	"prepared:long-in-the-same-status:" as const;
 
 const CALENDAR_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -89,6 +105,7 @@ export interface ReturnSourceRecord {
 	id: string;
 	key: string;
 	kind: ReturnSourceKind;
+	longInTheSameStatus?: boolean;
 	openRisk: boolean;
 	pendingGitHubDevelopmentSignal: boolean;
 	title: string;
@@ -118,6 +135,7 @@ export function returnToWorkCatalog() {
 	return {
 		copy: RETURN_TO_WORK_COPY,
 		kind: "return-to-work" as const,
+		longInTheSameStatus: LONG_IN_THE_SAME_STATUS_CONTRACT,
 		nextConcreteStep: NEXT_CONCRETE_STEP_CONTRACT,
 		restores: RETURN_TO_WORK_RESTORES,
 		session: RETURN_TO_WORK_SESSION,
@@ -141,6 +159,9 @@ function primaryReason(
 	}
 	if (isUpcoming(record.upcomingDate, today)) {
 		return CARD_REASON.upcomingDate;
+	}
+	if (record.longInTheSameStatus) {
+		return CARD_REASON.longInTheSameStatus;
 	}
 	if (record.viewedAt) {
 		return CARD_REASON.recentlyViewed;
@@ -204,6 +225,9 @@ export function selectReturnCards(
 		.sort((left, right) =>
 			(left.upcomingDate ?? "").localeCompare(right.upcomingDate ?? "")
 		);
+	const longStatus = all
+		.filter((record) => record.longInTheSameStatus)
+		.sort((left, right) => newestIso(left.editedAt, right.editedAt));
 	const viewed = others
 		.filter((record) => record.viewedAt)
 		.sort((left, right) => newestIso(left.viewedAt, right.viewedAt));
@@ -214,10 +238,75 @@ export function selectReturnCards(
 	take(CARD_REASON.pendingGitHubDevelopmentSignal, github, 3);
 	take(CARD_REASON.openRisk, risks, 3);
 	take(CARD_REASON.upcomingDate, upcoming, UPCOMING_CARD_LIMIT);
+	take(CARD_REASON.longInTheSameStatus, longStatus, LONG_STATUS_CARD_LIMIT);
 	take(CARD_REASON.recentlyViewed, viewed, 1);
 	take(CARD_REASON.recentlyEdited, edited, 1);
 
 	return [...chosen.values()];
+}
+
+export function positiveThresholdDays(value: number | null): number | null {
+	if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+		return null;
+	}
+	return value;
+}
+
+export function calendarDayDifference(fromDay: string, toDay: string): number {
+	const from = Date.parse(`${fromDay}T00:00:00.000Z`);
+	const to = Date.parse(`${toDay}T00:00:00.000Z`);
+	if (Number.isNaN(from) || Number.isNaN(to)) {
+		return 0;
+	}
+	return Math.round((to - from) / 86_400_000);
+}
+
+export function exceedsStatusAgeThreshold(input: {
+	statusEnteredOn: string | null;
+	thresholdDays: number | null;
+	today: string;
+}): boolean {
+	if (input.thresholdDays === null || input.statusEnteredOn === null) {
+		return false;
+	}
+	return (
+		calendarDayDifference(input.statusEnteredOn, input.today) >=
+		input.thresholdDays
+	);
+}
+
+export function preparedLongInTheSameStatusCollectionId(
+	projectId: string
+): string {
+	return `${PREPARED_LONG_STATUS_COLLECTION_PREFIX}${projectId}`;
+}
+
+export function parsePreparedLongInTheSameStatusProjectId(
+	collectionId: string
+): string | null {
+	if (!collectionId.startsWith(PREPARED_LONG_STATUS_COLLECTION_PREFIX)) {
+		return null;
+	}
+	const projectId = collectionId.slice(
+		PREPARED_LONG_STATUS_COLLECTION_PREFIX.length
+	);
+	return projectId.length > 0 ? projectId : null;
+}
+
+export function preparedLongInTheSameStatusMembership(
+	records: readonly ReturnSourceRecord[]
+): Array<{
+	because: typeof CARD_REASON.longInTheSameStatus;
+	id: string;
+	title: string;
+}> {
+	return records
+		.filter((record) => record.kind === "work" && record.longInTheSameStatus)
+		.map((record) => ({
+			because: CARD_REASON.longInTheSameStatus,
+			id: record.id,
+			title: record.title,
+		}));
 }
 
 export const nextConcreteStepViewSchema = z
@@ -257,13 +346,35 @@ export const returnToWorkSummarySchema = z.object({
 	copy: z.object({
 		empty: z.literal(RETURN_TO_WORK_COPY.empty),
 		lastUpdated: z.literal(RETURN_TO_WORK_COPY.lastUpdated),
+		longInTheSameStatus: z.literal(RETURN_TO_WORK_COPY.longInTheSameStatus),
 		nextConcreteStep: z.literal(RETURN_TO_WORK_COPY.nextConcreteStep),
 		openSourceRecord: z.literal(RETURN_TO_WORK_COPY.openSourceRecord),
 		returnToWork: z.literal(RETURN_TO_WORK_COPY.returnToWork),
 		save: z.literal(RETURN_TO_WORK_COPY.save),
 	}),
+	longInTheSameStatus: z.object({
+		defaultAttentionSignal: z.literal(false),
+		healthScore: z.literal(false),
+		performanceScore: z.literal(false),
+		stuckVerdict: z.literal(false),
+		writesClosureResult: z.literal(false),
+		writesPlanningMembership: z.literal(false),
+		writesStatus: z.literal(false),
+	}),
 	nextConcreteStep: nextConcreteStepViewSchema,
 	nextConcreteStepHistory: z.array(nextConcreteStepHistoryItemSchema),
+	preparedSmartCollection: z
+		.object({
+			members: z.array(
+				z.object({
+					because: z.literal(CARD_REASON.longInTheSameStatus),
+					id: z.string().min(1),
+					title: z.string().min(1),
+				})
+			),
+			name: z.literal(RETURN_TO_WORK_COPY.longInTheSameStatus),
+		})
+		.nullable(),
 	restores: z.object({
 		filter: z.literal(false),
 		scroll: z.literal(false),
@@ -279,6 +390,7 @@ export const returnToWorkSummarySchema = z.object({
 	snapshot: z.object({
 		storedCardSnapshot: z.literal(false),
 	}),
+	statusAgeThresholdDays: z.number().int().positive().nullable(),
 });
 
 export type ReturnToWorkSummary = z.infer<typeof returnToWorkSummarySchema>;

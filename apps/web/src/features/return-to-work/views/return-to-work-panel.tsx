@@ -62,6 +62,19 @@ export default function ReturnToWorkPanel({
 			},
 		})
 	);
+	const saveThreshold = useMutation(
+		orpc.returnToWork.setStatusAgeThresholdDays.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed") {
+					await queryClient.invalidateQueries({
+						queryKey: orpc.smartCollections.list.queryKey(),
+					});
+					await invalidate();
+					recordSave();
+				}
+			},
+		})
+	);
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
@@ -82,6 +95,30 @@ export default function ReturnToWorkPanel({
 			result.value.catch(() => undefined);
 		},
 		[attemptOnlineWork, markUnsaved, projectId, save, workId]
+	);
+	const onSaveThreshold = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			markUnsaved();
+			const form = new FormData(event.currentTarget);
+			const raw = String(form.get("statusAgeThresholdDays") ?? "").trim();
+			const parsed = raw === "" ? null : Number(raw);
+			const thresholdDays =
+				parsed === null || !Number.isInteger(parsed) || parsed < 1
+					? null
+					: parsed;
+			const result = attemptOnlineWork("record-create", () =>
+				saveThreshold.mutateAsync({
+					projectId,
+					thresholdDays,
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[attemptOnlineWork, markUnsaved, projectId, saveThreshold]
 	);
 	if (summary.isPending) {
 		return (
@@ -117,6 +154,27 @@ export default function ReturnToWorkPanel({
 						/>
 					</p>
 				) : null}
+				<Button size="sm" type="submit">
+					{view.copy.save}
+				</Button>
+			</form>
+			<form className="mb-6 flex flex-col gap-3" onSubmit={onSaveThreshold}>
+				<Field>
+					<FieldLabel htmlFor="status-age-threshold-days">
+						{view.copy.longInTheSameStatus}
+					</FieldLabel>
+					<Input
+						defaultValue={
+							view.statusAgeThresholdDays === null
+								? ""
+								: String(view.statusAgeThresholdDays)
+						}
+						id="status-age-threshold-days"
+						inputMode="numeric"
+						key={String(view.statusAgeThresholdDays ?? "empty")}
+						name="statusAgeThresholdDays"
+					/>
+				</Field>
 				<Button size="sm" type="submit">
 					{view.copy.save}
 				</Button>

@@ -15,6 +15,7 @@ model Project {
   firstOpenExplanationDismissed   Boolean                      @default(false)
   focusThreshold                  Int?
   reappearDateNotification        Boolean                      @default(false)
+  statusAgeThresholdDays          Int?
   nextConcreteStep                String?
   nextConcreteStepUpdatedAt      DateTime?
   revision                        Int

@@ -45,6 +45,17 @@ export const returnToWork = {
 			const surface = await surfaceFor(context.session.user.id);
 			return surface.setNextConcreteStep(input);
 		}),
+	setStatusAgeThresholdDays: protectedWriteProcedure
+		.input(
+			z.object({
+				projectId: z.string().min(1),
+				thresholdDays: z.number().int().nullable(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const surface = await surfaceFor(context.session.user.id);
+			return surface.setStatusAgeThresholdDays(input);
+		}),
 	summary: protectedProcedure
 		.input(
 			z.object({

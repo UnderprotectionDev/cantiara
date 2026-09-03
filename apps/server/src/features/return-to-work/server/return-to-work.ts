@@ -11,7 +11,15 @@ import {
 	writeDurableReceipt,
 } from "../../mutation-core/server/durable-mutation";
 import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
+import { RECORD_DISCOVERY_COPY } from "../../record-discovery/server/record-discovery-copy";
+import { WORK_STATUS } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
+	exceedsStatusAgeThreshold,
+	LONG_IN_THE_SAME_STATUS_CONTRACT,
+	parsePreparedLongInTheSameStatusProjectId,
+	positiveThresholdDays,
+	preparedLongInTheSameStatusCollectionId,
+	preparedLongInTheSameStatusMembership,
 	projectSourceHref,
 	RETURN_TO_WORK_COPY,
 	RETURN_TO_WORK_RESTORES,
@@ -40,6 +48,10 @@ export type NextConcreteStepOutcome =
 	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
 	| { status: "not-found" };
 
+export type StatusAgeThresholdOutcome =
+	| { status: "committed"; summary: ReturnToWorkSummary }
+	| { status: "not-found" };
+
 export interface ReturnToWork {
 	noteVisibleOpen: (input: {
 		projectId?: string;
@@ -51,6 +63,10 @@ export interface ReturnToWork {
 		text: string;
 		workId?: string;
 	}) => Promise<NextConcreteStepOutcome>;
+	setStatusAgeThresholdDays: (input: {
+		projectId: string;
+		thresholdDays: number | null;
+	}) => Promise<StatusAgeThresholdOutcome>;
 	summary: (input: {
 		projectId: string;
 		workId?: string;
@@ -204,7 +220,42 @@ export function createReturnToWork(
 		return { status: "committed" };
 	}
 
-	return { noteVisibleOpen, setNextConcreteStep, summary };
+	async function setStatusAgeThresholdDays(command: {
+		projectId: string;
+		thresholdDays: number | null;
+	}): Promise<StatusAgeThresholdOutcome> {
+		const project = await input.prisma.project.findFirst({
+			where: { id: command.projectId, workspaceId: input.workspaceId },
+		});
+		if (!project) {
+			return { status: "not-found" };
+		}
+		const thresholdDays = positiveThresholdDays(command.thresholdDays);
+		await persistStatusAgeThresholdDays(
+			input.prisma,
+			command.projectId,
+			thresholdDays
+		);
+		const next = await loadSummary(
+			input.prisma,
+			input.accountId,
+			input.workspaceId,
+			command.projectId,
+			undefined,
+			now()
+		);
+		if (!next) {
+			return { status: "not-found" };
+		}
+		return { status: "committed", summary: next };
+	}
+
+	return {
+		noteVisibleOpen,
+		setNextConcreteStep,
+		setStatusAgeThresholdDays,
+		summary,
+	};
 }
 
 interface NextConcreteStepRow {
@@ -235,6 +286,38 @@ async function readNextConcreteStep(
 		updatedAt: row?.nextConcreteStepUpdatedAt ?? null,
 	};
 }
+
+interface StatusAgeThresholdRow {
+	statusAgeThresholdDays: number | null;
+}
+
+async function readStatusAgeThresholdDays(
+	db: MutationDb,
+	projectId: string
+): Promise<number | null> {
+	const rows = await db.$queryRaw<StatusAgeThresholdRow[]>`
+		SELECT "statusAgeThresholdDays"
+		FROM "project"
+		WHERE "id" = ${projectId}
+	`;
+	return positiveThresholdDays(rows[0]?.statusAgeThresholdDays ?? null);
+}
+
+async function persistStatusAgeThresholdDays(
+	db: MutationDb,
+	projectId: string,
+	thresholdDays: number | null
+): Promise<void> {
+	await db.$executeRaw`
+		UPDATE "project"
+		SET
+			"statusAgeThresholdDays" = ${thresholdDays},
+			"revision" = "revision" + 1
+		WHERE "id" = ${projectId}
+	`;
+}
+
+const STATUS_EVENT_KINDS = ["status", "closed", "reopened"] as const;
 
 async function persistNextConcreteStep(
 	tx: MutationDb,
@@ -412,9 +495,15 @@ async function loadSummary(
 		accountId
 	);
 	const today = calendarDay(at, preferences);
-	const records = await loadCurrentRecords(db, accountId, projectId);
+	const thresholdDays = await readStatusAgeThresholdDays(db, projectId);
+	const records = await loadCurrentRecords(db, accountId, projectId, {
+		thresholdDays,
+		timeZone: preferences.timeZone,
+		today,
+	});
 	const contextId = work?.id ?? project.id;
 	const cards = selectReturnCards(records, { contextId, today });
+	const longStatusMembers = preparedLongInTheSameStatusMembership(records);
 	const step = await readNextConcreteStep(
 		db,
 		work ? "work" : "project",
@@ -443,11 +532,13 @@ async function loadSummary(
 		copy: {
 			empty: RETURN_TO_WORK_COPY.empty,
 			lastUpdated: RETURN_TO_WORK_COPY.lastUpdated,
+			longInTheSameStatus: RETURN_TO_WORK_COPY.longInTheSameStatus,
 			nextConcreteStep: RETURN_TO_WORK_COPY.nextConcreteStep,
 			openSourceRecord: RETURN_TO_WORK_COPY.openSourceRecord,
 			returnToWork: RETURN_TO_WORK_COPY.returnToWork,
 			save: RETURN_TO_WORK_COPY.save,
 		},
+		longInTheSameStatus: LONG_IN_THE_SAME_STATUS_CONTRACT,
 		nextConcreteStep:
 			activeText && step.updatedAt
 				? {
@@ -463,16 +554,29 @@ async function loadSummary(
 					}
 				: null,
 		nextConcreteStepHistory: previousValues,
+		preparedSmartCollection:
+			thresholdDays === null
+				? null
+				: {
+						members: longStatusMembers,
+						name: RETURN_TO_WORK_COPY.longInTheSameStatus,
+					},
 		restores: RETURN_TO_WORK_RESTORES,
 		session: RETURN_TO_WORK_SESSION,
 		snapshot: RETURN_TO_WORK_SNAPSHOT,
+		statusAgeThresholdDays: thresholdDays,
 	};
 }
 
 async function loadCurrentRecords(
 	db: MutationDb,
 	accountId: string,
-	projectId: string
+	projectId: string,
+	input: {
+		thresholdDays: number | null;
+		today: string;
+		timeZone: string;
+	}
 ): Promise<ReturnSourceRecord[]> {
 	const works = await db.work.findMany({
 		where: {
@@ -482,11 +586,12 @@ async function loadCurrentRecords(
 			trashedAt: null,
 		},
 	});
+	const ids = works.map((row) => row.id);
 	const views = hasDelegate(db, "returnToWorkVisibleOpen")
 		? await db.returnToWorkVisibleOpen.findMany({
 				where: {
 					accountId,
-					sourceId: { in: works.map((row) => row.id) },
+					sourceId: { in: ids },
 					sourceKind: "work",
 				},
 			})
@@ -494,18 +599,45 @@ async function loadCurrentRecords(
 	const viewedAtByWork = new Map(
 		views.map((row) => [row.sourceId, row.viewedAt.toISOString()])
 	);
-	const workRecords: ReturnSourceRecord[] = works.map((row) => ({
-		editedAt: row.updatedAt.toISOString(),
-		href: workSourceHref(row.projectId, row.id),
-		id: row.id,
-		key: row.key,
-		kind: "work",
-		openRisk: false,
-		pendingGitHubDevelopmentSignal: false,
-		title: row.title,
-		upcomingDate: upcomingDateOf(row),
-		viewedAt: viewedAtByWork.get(row.id) ?? null,
-	}));
+	const events =
+		ids.length === 0
+			? []
+			: await db.workLifecycleEvent.findMany({
+					orderBy: { createdAt: "desc" },
+					select: { createdAt: true, workId: true },
+					where: { kind: { in: [...STATUS_EVENT_KINDS] }, workId: { in: ids } },
+				});
+	const enteredAt = new Map<string, Date>();
+	for (const event of events) {
+		if (!enteredAt.has(event.workId)) {
+			enteredAt.set(event.workId, event.createdAt);
+		}
+	}
+	const workRecords: ReturnSourceRecord[] = works.map((row) => {
+		const statusEnteredAt = enteredAt.get(row.id) ?? row.createdAt;
+		const active = row.status !== WORK_STATUS.closed;
+		return {
+			editedAt: row.updatedAt.toISOString(),
+			href: workSourceHref(row.projectId, row.id),
+			id: row.id,
+			key: row.key,
+			kind: "work",
+			longInTheSameStatus:
+				active &&
+				exceedsStatusAgeThreshold({
+					statusEnteredOn: calendarDay(statusEnteredAt, {
+						timeZone: input.timeZone,
+					}),
+					thresholdDays: input.thresholdDays,
+					today: input.today,
+				}),
+			openRisk: false,
+			pendingGitHubDevelopmentSignal: false,
+			title: row.title,
+			upcomingDate: upcomingDateOf(row),
+			viewedAt: viewedAtByWork.get(row.id) ?? null,
+		};
+	});
 	return [
 		...workRecords,
 		...loadOpenRiskRecords(),
@@ -527,4 +659,109 @@ function loadOpenRiskRecords(): ReturnSourceRecord[] {
 
 function loadPendingGitHubSignalRecords(): ReturnSourceRecord[] {
 	return [];
+}
+
+export async function listPreparedLongInTheSameStatusCollections(
+	prisma: PrismaClient,
+	workspaceId: string
+): Promise<
+	Array<{
+		conditions: [];
+		id: string;
+		name: string;
+		projectId: string;
+		sourceKind: typeof RECORD_DISCOVERY_COPY.work;
+	}>
+> {
+	const rows = await prisma.$queryRaw<
+		Array<{ id: string; statusAgeThresholdDays: number | null }>
+	>`
+		SELECT id, "statusAgeThresholdDays"
+		FROM "project"
+		WHERE "workspaceId" = ${workspaceId}
+	`;
+	return rows.flatMap((row) => {
+		if (positiveThresholdDays(row.statusAgeThresholdDays) === null) {
+			return [];
+		}
+		return [
+			{
+				conditions: [] as [],
+				id: preparedLongInTheSameStatusCollectionId(row.id),
+				name: RETURN_TO_WORK_COPY.longInTheSameStatus,
+				projectId: row.id,
+				sourceKind: RECORD_DISCOVERY_COPY.work,
+			},
+		];
+	});
+}
+
+export async function viewPreparedLongInTheSameStatus(
+	prisma: PrismaClient,
+	workspaceId: string,
+	collectionId: string,
+	input: { accountId: string; now?: Date }
+): Promise<{
+	collection: {
+		conditions: [];
+		id: string;
+		name: string;
+		projectId: string;
+		sourceKind: typeof RECORD_DISCOVERY_COPY.work;
+	};
+	dropCandidates: [];
+	membership: {
+		members: Array<{
+			because: Array<{
+				field: "status";
+				label: typeof RETURN_TO_WORK_COPY.longInTheSameStatus;
+			}>;
+			id: string;
+			kind: typeof RECORD_DISCOVERY_COPY.work;
+			projectId: string;
+			title: string;
+		}>;
+		summary: typeof RETURN_TO_WORK_COPY.longInTheSameStatus;
+	};
+} | null> {
+	const projectId = parsePreparedLongInTheSameStatusProjectId(collectionId);
+	if (!projectId) {
+		return null;
+	}
+	const summary = await loadSummary(
+		prisma,
+		input.accountId,
+		workspaceId,
+		projectId,
+		undefined,
+		input.now ?? new Date()
+	);
+	if (!summary?.preparedSmartCollection) {
+		return null;
+	}
+	return {
+		collection: {
+			conditions: [],
+			id: collectionId,
+			name: RETURN_TO_WORK_COPY.longInTheSameStatus,
+			projectId,
+			sourceKind: RECORD_DISCOVERY_COPY.work,
+		},
+		dropCandidates: [],
+		membership: {
+			members: summary.preparedSmartCollection.members.map((member) => ({
+				because: [
+					{
+						field: "status" as const,
+						label: RETURN_TO_WORK_COPY.longInTheSameStatus,
+					},
+				],
+				id: member.id,
+				kind: RECORD_DISCOVERY_COPY.work,
+				projectId,
+				title: member.title,
+			})),
+			summary: RETURN_TO_WORK_COPY.longInTheSameStatus,
+		},
+	};
 }

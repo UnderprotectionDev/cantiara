@@ -722,6 +722,7 @@ describe("Prisma client current delegates", () => {
 								{ name: "reappearDateNotification" },
 								{ name: "nextConcreteStep" },
 								{ name: "nextConcreteStepUpdatedAt" },
+								{ name: "statusAgeThresholdDays" },
 							],
 						},
 						ProjectWorkStatus: {

@@ -1,6 +1,11 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
 import { RECORD_DISCOVERY_COPY } from "../../record-discovery/server/record-discovery-copy";
+import {
+	listPreparedLongInTheSameStatusCollections,
+	viewPreparedLongInTheSameStatus,
+} from "../../return-to-work/server/return-to-work";
+import { parsePreparedLongInTheSameStatusProjectId } from "../../return-to-work/server/return-to-work-model";
 
 import {
 	type CollectionRecord,
@@ -388,7 +393,11 @@ export async function listSmartCollections(
 	workspaceId: string
 ): Promise<SmartCollectionDefinition[]> {
 	const rows = await selectSmartCollections(prisma, workspaceId);
-	return rows.map(fromRow);
+	const prepared = await listPreparedLongInTheSameStatusCollections(
+		prisma,
+		workspaceId
+	);
+	return [...rows.map(fromRow), ...prepared];
 }
 
 export async function getSmartCollection(
@@ -396,6 +405,14 @@ export async function getSmartCollection(
 	workspaceId: string,
 	collectionId: string
 ): Promise<SmartCollectionDefinition | null> {
+	const prepared = await listPreparedLongInTheSameStatusCollections(
+		prisma,
+		workspaceId
+	);
+	const preparedMatch = prepared.find((item) => item.id === collectionId);
+	if (preparedMatch) {
+		return preparedMatch;
+	}
 	const row = await selectSmartCollection(prisma, workspaceId, collectionId);
 	return row ? fromRow(row) : null;
 }
@@ -415,6 +432,9 @@ export async function updateSmartCollectionConditions(
 		input.collectionId
 	);
 	if (!current) {
+		return { reason: "invalid-name", status: "refused" };
+	}
+	if (parsePreparedLongInTheSameStatusProjectId(input.collectionId)) {
 		return { reason: "invalid-name", status: "refused" };
 	}
 	const defined = defineSmartCollection({
@@ -556,8 +576,25 @@ export interface SmartCollectionView {
 export async function viewSmartCollection(
 	prisma: PrismaClient,
 	workspaceId: string,
-	collectionId: string
+	collectionId: string,
+	options?: { accountId?: string; now?: Date }
 ): Promise<SmartCollectionView | null> {
+	const workspace = await prisma.workspace.findFirst({
+		select: { ownerId: true },
+		where: { id: workspaceId },
+	});
+	const prepared = await viewPreparedLongInTheSameStatus(
+		prisma,
+		workspaceId,
+		collectionId,
+		{
+			accountId: options?.accountId ?? workspace?.ownerId ?? "",
+			now: options?.now,
+		}
+	);
+	if (prepared) {
+		return prepared;
+	}
 	const collection = await getSmartCollection(
 		prisma,
 		workspaceId,
