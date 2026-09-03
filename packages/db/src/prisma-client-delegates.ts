@@ -63,9 +63,10 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.documentFolder?.findMany === "function" &&
 		typeof client.documentFolder?.create === "function" &&
 		typeof client.documentVersion?.findMany === "function" &&
-		typeof client.documentConflictDraft?.findUnique === "function" &&
-		typeof client.decision?.findMany === "function" &&
-		typeof client.decision?.create === "function";
+		typeof client.documentConflictDraft?.findUnique === "function";
+	// Decision is read via its own delegate after generate. Do not gate
+	// getPrismaClient on it: bun --hot can reload this check before prisma
+	// generate, and that must not block Work writes.
 	if (!knownDelegates) {
 		return false;
 	}

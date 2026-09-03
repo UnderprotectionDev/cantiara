@@ -267,7 +267,7 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
-	it("refuses a bun --hot client generated before Decision", () => {
+	it("accepts a bun --hot client generated before Decision", () => {
 		const { decision: _dropped, ...beforeDecision } = {
 			...workDelegates(),
 			...currentLifecycleDelegates(),
@@ -289,7 +289,7 @@ describe("Prisma client current delegates", () => {
 		};
 		expect(
 			prismaClientHasCurrentDelegates(beforeDecision as unknown as PrismaClient)
-		).toBe(false);
+		).toBe(true);
 	});
 
 	it("accepts a bun --hot client generated before Completion effect preference", () => {
