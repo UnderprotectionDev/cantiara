@@ -7,12 +7,12 @@
  * FOUNDER_EMAIL — optional. When unset, requires exactly one GitHub-linked
  * Workspace owner.
  *
- *   bun run scripts/seed-founder-projects.ts
+ *   bun run db:seed-founder-projects
  */
 import { getAccountAccessForUser } from "@cantiara/auth";
 import { getPrismaClient } from "@cantiara/db";
 
-import { createProject } from "../apps/server/src/features/project-shell/server/project-shell";
+import { createProject } from "./project-shell";
 
 const FOUNDER_PROJECTS = [
 	{
