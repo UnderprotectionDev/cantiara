@@ -13,6 +13,8 @@ import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { reorderManualOrder } from "../../backlog/server/backlog";
+import { createDecision } from "../../decisions/server/decisions";
+import { createDocument } from "../../documents/server/documents";
 import {
 	createPriorityCriterion,
 	setPriorityCriterionValue,
@@ -33,11 +35,14 @@ import {
 import { createReturnToWork } from "./return-to-work";
 import {
 	CARD_REASON,
+	groupSinceYouLastLookedEvents,
 	NEXT_CONCRETE_STEP_CONTRACT,
 	RETURN_TO_WORK_COPY,
 	RETURN_TO_WORK_RESTORES,
 	RETURN_TO_WORK_SESSION,
 	returnToWorkCatalog,
+	SINCE_YOU_LAST_LOOKED_CONTRACT,
+	SINCE_YOU_LAST_LOOKED_GROUP_IDS,
 	selectReturnCards,
 } from "./return-to-work-model";
 
@@ -74,6 +79,7 @@ const DATABASE_URL =
 const TODAY = new Date("2026-09-03T12:00:00.000Z");
 const FORBIDDEN_SURFACE =
 	/Active Working Set|sprint|recent-tabs|stuck verdict|mandatory agenda/;
+const FORBIDDEN_ANALYTICS = /analytics visit|session duration|Denetim kaydı/i;
 
 describe("Return to Work catalog", () => {
 	it("exposes English Return to Work and does not restore recent-context", () => {
@@ -83,13 +89,82 @@ describe("Return to Work catalog", () => {
 			nextConcreteStep: NEXT_CONCRETE_STEP_CONTRACT,
 			restores: RETURN_TO_WORK_RESTORES,
 			session: RETURN_TO_WORK_SESSION,
+			sinceYouLastLooked: SINCE_YOU_LAST_LOOKED_CONTRACT,
 			snapshot: { storedCardSnapshot: false },
 		});
 		expect(RETURN_TO_WORK_COPY.returnToWork).toBe("Return to Work");
 		expect(RETURN_TO_WORK_COPY.nextConcreteStep).toBe("Next concrete step");
 		expect(RETURN_TO_WORK_COPY.openSourceRecord).toBe("Open source record");
+		expect(RETURN_TO_WORK_COPY.sinceYouLastLooked).toBe(
+			"Since you last looked"
+		);
+		expect(SINCE_YOU_LAST_LOOKED_CONTRACT.groups).toEqual([
+			"work",
+			"decision",
+			"risk",
+			"document",
+			"github",
+			"publish",
+		]);
 		expect(JSON.stringify(returnToWorkCatalog())).not.toMatch(
 			FORBIDDEN_SURFACE
+		);
+		expect(JSON.stringify(returnToWorkCatalog())).not.toMatch(
+			FORBIDDEN_ANALYTICS
+		);
+	});
+
+	it("groups defined events after the last-visit mark without rank or a summary record", () => {
+		const groups = groupSinceYouLastLookedEvents(
+			[
+				{
+					group: "work",
+					href: "/projects/p?work=w#work",
+					id: "evt-work",
+					occurredAt: "2026-09-03T11:00:00.000Z",
+					sourceKey: "PAY-1",
+					sourceTitle: "Intake",
+				},
+				{
+					group: "decision",
+					href: "/projects/p#decisions",
+					id: "evt-decision",
+					occurredAt: "2026-09-03T11:30:00.000Z",
+					sourceKey: "Decision",
+					sourceTitle: "Use GitHub login",
+				},
+				{
+					group: "work",
+					href: "/projects/p?work=old#work",
+					id: "evt-before",
+					occurredAt: "2026-09-01T12:00:00.000Z",
+					sourceKey: "PAY-0",
+					sourceTitle: "Before the visit",
+				},
+			],
+			{
+				formatOccurredAt: () => "Sep 3, 2026, 11:00 AM",
+				sinceAt: "2026-09-02T12:00:00.000Z",
+			}
+		);
+		expect(
+			groups.map((group) => [
+				group.id,
+				group.items.map((item) => item.sourceTitle),
+			])
+		).toEqual([
+			["work", ["Intake"]],
+			["decision", ["Use GitHub login"]],
+			["risk", []],
+			["document", []],
+			["github", []],
+			["publish", []],
+		]);
+		expect(groups[0].items[0].openSourceRecord).toBe("Open source record");
+		expect(groups.flatMap((group) => group.items)).toEqual(
+			expect.not.arrayContaining([
+				expect.objectContaining({ sourceTitle: "Before the visit" }),
+			])
 		);
 	});
 
@@ -577,5 +652,159 @@ describe("Return to Work", () => {
 			throw new Error("expected committed step");
 		}
 		expect(saved.summary.nextConcreteStep?.text).toBe("Gel");
+	});
+
+	it("stores one last-visit mark per Hesap context and does not write Denetim kaydı", async () => {
+		const project = await openProject("Payments");
+		const beforeAudits = await prisma.auditEvent.count();
+		const first = await surface(
+			new Date("2026-09-01T12:00:00.000Z")
+		).noteVisibleOpen({ projectId: project.id });
+		expect(first.status).toBe("committed");
+		const again = await surface(
+			new Date("2026-09-02T12:00:00.000Z")
+		).noteVisibleOpen({ projectId: project.id });
+		expect(again.status).toBe("committed");
+		const view = await surface().summary({ projectId: project.id });
+		expect(view?.lastVisitAt).toBe("2026-09-02T12:00:00.000Z");
+		expect(view?.sinceYouLastLooked.analytics).toEqual({
+			duration: false,
+			visitStream: false,
+		});
+		expect(view?.sinceYouLastLooked.audit.writesDenetimKaydi).toBe(false);
+		expect(
+			view?.sinceYouLastLooked.externalSurface.publishesLastVisitMark
+		).toBe(false);
+		expect(view?.sinceYouLastLooked.importanceRank).toBe(false);
+		expect(view?.sinceYouLastLooked.storedSummaryRecord).toBe(false);
+		expect(view?.sinceYouLastLooked.title).toBe("Since you last looked");
+		expect(view?.copy.sinceYouLastLooked).toBe("Since you last looked");
+		const audits = await prisma.auditEvent.count();
+		expect(audits).toBe(beforeAudits);
+		const marks = await prisma.returnToWorkVisibleOpen.findMany({
+			where: { accountId: actorId, sourceId: project.id },
+		});
+		expect(marks).toHaveLength(1);
+	});
+
+	it("groups work, decision, and document events after the last successful visible open", async () => {
+		const project = await openProject("Payments");
+		await surface(new Date("2026-09-01T12:00:00.000Z")).noteVisibleOpen({
+			projectId: project.id,
+		});
+		const work = await openWork(project.id, "Intake checkout");
+		const status = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: "status-after-visit",
+			origin: "human",
+			status: "In Progress",
+			workId: work.id,
+		});
+		expect(status.status).toBe("committed");
+		const decision = await createDecision(prisma, {
+			actorId,
+			idempotencyKey: "decision-after-visit",
+			origin: "human",
+			payload: {
+				decision: "Use GitHub login.",
+				projectId: project.id,
+				rationale: "One identity.",
+				title: "GitHub login",
+			},
+		});
+		expect(decision.status).toBe("committed");
+		if (decision.status !== "committed") {
+			throw new Error("expected Decision");
+		}
+		const document = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: "document-after-visit",
+			origin: "human",
+			payload: {
+				scope: { kind: "project", projectId: project.id },
+				title: "Checkout spec",
+			},
+			workspaceId,
+		});
+		expect(document.status).toBe("committed");
+		if (document.status !== "committed") {
+			throw new Error("expected Document");
+		}
+		const view = await surface().summary({ projectId: project.id });
+		const byId = Object.fromEntries(
+			(view?.sinceYouLastLooked.groups ?? []).map((group) => [group.id, group])
+		);
+		expect(view?.sinceYouLastLooked.groups.map((group) => group.id)).toEqual([
+			...SINCE_YOU_LAST_LOOKED_GROUP_IDS,
+		]);
+		expect(byId.work?.label).toBe("Work");
+		expect(byId.work?.items).toEqual([
+			expect.objectContaining({
+				href: expect.stringContaining(work.id),
+				openSourceRecord: "Open source record",
+				sourceKey: work.key,
+				sourceTitle: "Intake checkout",
+			}),
+		]);
+		expect(byId.decision?.items).toEqual([
+			expect.objectContaining({
+				href: `/projects/${project.id}#decisions`,
+				openSourceRecord: "Open source record",
+				sourceTitle: "GitHub login",
+			}),
+		]);
+		expect(byId.document?.items).toEqual([
+			expect.objectContaining({
+				href: `/projects/${project.id}#documents`,
+				openSourceRecord: "Open source record",
+				sourceTitle: "Checkout spec",
+			}),
+		]);
+		expect(byId.risk?.items).toEqual([]);
+		expect(byId.github?.items).toEqual([]);
+		expect(byId.publish?.items).toEqual([]);
+		expect(view?.restores).toEqual(RETURN_TO_WORK_RESTORES);
+	});
+
+	it("does not list events from before the last visit", async () => {
+		const project = await openProject("Payments");
+		const early = await openWork(project.id, "Early work");
+		await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: early.revision,
+			idempotencyKey: "status-before-visit",
+			origin: "human",
+			status: "In Progress",
+			workId: early.id,
+		});
+		await surface(new Date("2026-09-04T12:00:00.000Z")).noteVisibleOpen({
+			projectId: project.id,
+		});
+		const view = await surface().summary({ projectId: project.id });
+		const workItems =
+			view?.sinceYouLastLooked.groups.find((group) => group.id === "work")
+				?.items ?? [];
+		expect(workItems.map((item) => item.sourceTitle)).not.toContain(
+			"Early work"
+		);
+	});
+
+	it("deletes the last-visit mark when the source record is deleted", async () => {
+		const project = await openProject("Payments");
+		const work = await openWork(project.id, "Doomed work");
+		await surface().noteVisibleOpen({ workId: work.id });
+		await prisma.work.delete({ where: { id: work.id } });
+		const noted = await surface().noteVisibleOpen({ workId: work.id });
+		expect(noted.status).toBe("not-found");
+		const view = await surface().summary({
+			projectId: project.id,
+			workId: work.id,
+		});
+		expect(view).toBeNull();
+		const marks = await prisma.returnToWorkVisibleOpen.findMany({
+			where: { sourceId: work.id },
+		});
+		expect(marks).toEqual([]);
 	});
 });

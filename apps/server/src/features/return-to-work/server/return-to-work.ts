@@ -12,6 +12,9 @@ import {
 } from "../../mutation-core/server/durable-mutation";
 import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import {
+	decisionSourceHref,
+	documentSourceHref,
+	groupSinceYouLastLookedEvents,
 	projectSourceHref,
 	RETURN_TO_WORK_COPY,
 	RETURN_TO_WORK_RESTORES,
@@ -19,6 +22,7 @@ import {
 	RETURN_TO_WORK_SNAPSHOT,
 	type ReturnSourceRecord,
 	type ReturnToWorkSummary,
+	SINCE_YOU_LAST_LOOKED_CONTRACT,
 	selectReturnCards,
 	workSourceHref,
 } from "./return-to-work-model";
@@ -27,7 +31,12 @@ type MutationDb = PrismaClient | Prisma.TransactionClient;
 
 function hasDelegate(
 	db: MutationDb,
-	name: "nextConcreteStepChange" | "returnToWorkVisibleOpen"
+	name:
+		| "decisionEvent"
+		| "documentVersion"
+		| "nextConcreteStepChange"
+		| "returnToWorkVisibleOpen"
+		| "workLifecycleEvent"
 ): boolean {
 	const delegate = (db as unknown as Record<string, { findMany?: unknown }>)[
 		name
@@ -179,6 +188,11 @@ export function createReturnToWork(
 					},
 				});
 		if (!exists) {
+			await purgeLastVisitMarks(
+				input.prisma,
+				source.sourceKind,
+				source.sourceId
+			);
 			return { status: "not-found" };
 		}
 		if (!hasDelegate(input.prisma, "returnToWorkVisibleOpen")) {
@@ -433,6 +447,23 @@ async function loadSummary(
 			replacedAt: row.createdAt.toISOString(),
 			text: row.previousValue ?? "",
 		}));
+	const lastVisitAt = await loadLastVisitAt(
+		db,
+		accountId,
+		work ? "work" : "project",
+		work?.id ?? project.id
+	);
+	const sinceEvents = await loadSinceYouLastLookedEvents(
+		db,
+		project.id,
+		work?.id,
+		lastVisitAt
+	);
+	const sinceGroups = groupSinceYouLastLookedEvents(sinceEvents, {
+		formatOccurredAt: (occurredAt) =>
+			formatDateTime(new Date(occurredAt), preferences),
+		sinceAt: lastVisitAt?.toISOString() ?? null,
+	});
 	return {
 		cards,
 		context: {
@@ -447,7 +478,9 @@ async function loadSummary(
 			openSourceRecord: RETURN_TO_WORK_COPY.openSourceRecord,
 			returnToWork: RETURN_TO_WORK_COPY.returnToWork,
 			save: RETURN_TO_WORK_COPY.save,
+			sinceYouLastLooked: RETURN_TO_WORK_COPY.sinceYouLastLooked,
 		},
+		lastVisitAt: lastVisitAt?.toISOString() ?? null,
 		nextConcreteStep:
 			activeText && step.updatedAt
 				? {
@@ -465,6 +498,11 @@ async function loadSummary(
 		nextConcreteStepHistory: previousValues,
 		restores: RETURN_TO_WORK_RESTORES,
 		session: RETURN_TO_WORK_SESSION,
+		sinceYouLastLooked: {
+			...SINCE_YOU_LAST_LOOKED_CONTRACT,
+			groups: sinceGroups,
+			title: RETURN_TO_WORK_COPY.sinceYouLastLooked,
+		},
 		snapshot: RETURN_TO_WORK_SNAPSHOT,
 	};
 }
@@ -527,4 +565,116 @@ function loadOpenRiskRecords(): ReturnSourceRecord[] {
 
 function loadPendingGitHubSignalRecords(): ReturnSourceRecord[] {
 	return [];
+}
+
+async function purgeLastVisitMarks(
+	db: MutationDb,
+	sourceKind: "project" | "work",
+	sourceId: string
+): Promise<void> {
+	if (!hasDelegate(db, "returnToWorkVisibleOpen")) {
+		return;
+	}
+	await db.returnToWorkVisibleOpen.deleteMany({
+		where: { sourceId, sourceKind },
+	});
+}
+
+async function loadLastVisitAt(
+	db: MutationDb,
+	accountId: string,
+	sourceKind: "project" | "work",
+	sourceId: string
+): Promise<Date | null> {
+	if (!hasDelegate(db, "returnToWorkVisibleOpen")) {
+		return null;
+	}
+	const row = await db.returnToWorkVisibleOpen.findUnique({
+		where: {
+			accountId_sourceKind_sourceId: {
+				accountId,
+				sourceId,
+				sourceKind,
+			},
+		},
+	});
+	return row?.viewedAt ?? null;
+}
+
+async function loadSinceYouLastLookedEvents(
+	db: MutationDb,
+	projectId: string,
+	workId: string | undefined,
+	sinceAt: Date | null
+): Promise<
+	Array<{
+		group: "decision" | "document" | "work";
+		href: string;
+		id: string;
+		occurredAt: string;
+		sourceKey: string;
+		sourceTitle: string;
+	}>
+> {
+	if (!sinceAt) {
+		return [];
+	}
+	const workEvents = hasDelegate(db, "workLifecycleEvent")
+		? await db.workLifecycleEvent.findMany({
+				include: { work: true },
+				where: {
+					createdAt: { gt: sinceAt },
+					work: {
+						projectId,
+						retiredIntoId: null,
+						trashedAt: null,
+						...(workId ? { id: workId } : {}),
+					},
+				},
+			})
+		: [];
+	const decisionEvents = hasDelegate(db, "decisionEvent")
+		? await db.decisionEvent.findMany({
+				include: { decision: true },
+				where: {
+					decision: { projectId },
+					occurredAt: { gt: sinceAt },
+				},
+			})
+		: [];
+	const documentEvents = hasDelegate(db, "documentVersion")
+		? await db.documentVersion.findMany({
+				include: { document: true },
+				where: {
+					createdAt: { gt: sinceAt },
+					document: { projectId },
+				},
+			})
+		: [];
+	return [
+		...workEvents.map((row) => ({
+			group: "work" as const,
+			href: workSourceHref(row.work.projectId, row.work.id),
+			id: row.id,
+			occurredAt: row.createdAt.toISOString(),
+			sourceKey: row.work.key,
+			sourceTitle: row.work.title,
+		})),
+		...decisionEvents.map((row) => ({
+			group: "decision" as const,
+			href: decisionSourceHref(row.decision.projectId),
+			id: row.id,
+			occurredAt: row.occurredAt.toISOString(),
+			sourceKey: RETURN_TO_WORK_COPY.decisionGroup,
+			sourceTitle: row.decision.title,
+		})),
+		...documentEvents.map((row) => ({
+			group: "document" as const,
+			href: documentSourceHref(row.document.projectId ?? projectId),
+			id: row.id,
+			occurredAt: row.createdAt.toISOString(),
+			sourceKey: RETURN_TO_WORK_COPY.documentGroup,
+			sourceTitle: row.document.title,
+		})),
+	];
 }
