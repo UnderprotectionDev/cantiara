@@ -520,7 +520,8 @@
 │       └── package.json
 ├── scripts/
 │   ├── check-dev-ports.sh
-│   └── neon-local-proxy.ts
+│   ├── neon-local-proxy.ts
+│   └── seed-founder-projects.ts
 ├── biome.json
 ├── bun.lock
 ├── lefthook.yml
