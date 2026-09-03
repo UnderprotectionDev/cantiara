@@ -294,6 +294,23 @@ test("a Prisma unknown originWork include stays secret-free and still says Data 
 	expect(presented.supportReference).toBe("CANT-25F768C5");
 });
 
+test("a Prisma unknown nextConcreteStep argument stays secret-free and still says Data was not written", () => {
+	const prismaWriteFailure = new Error(
+		"Unknown argument `nextConcreteStep`. Available options are marked with ?."
+	);
+	const presented = presentFailedMainFlow(
+		toMainFlowFailureError(prismaWriteFailure, undefined, {
+			trackingId: "CANT-BD652F27",
+		})
+	);
+	expect(presented.reason).toBe(CLIENT_SHELL_COPY.staleGeneratedClient);
+	expect(presented.reason).not.toContain("nextConcreteStep");
+	expect(presented.writeOutcome).toBe("Data was not written.");
+	expect(presented.description).toBe(
+		"Data was not written. You can retry once. Support reference CANT-BD652F27"
+	);
+});
+
 test("a Prisma unknown resolvedAt argument stays secret-free and still says Data was not written", () => {
 	const prismaWriteFailure = new Error(
 		"Unknown argument `resolvedAt`. Available options are marked with ?."

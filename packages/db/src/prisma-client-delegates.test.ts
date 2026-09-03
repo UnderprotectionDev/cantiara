@@ -596,6 +596,8 @@ describe("Prisma client current delegates", () => {
 								{ name: "priorityCriterionDefinitions" },
 								{ name: "focusThreshold" },
 								{ name: "reappearDateNotification" },
+								{ name: "nextConcreteStep" },
+								{ name: "nextConcreteStepUpdatedAt" },
 							],
 						},
 						ProjectWorkStatus: {
@@ -609,6 +611,32 @@ describe("Prisma client current delegates", () => {
 				},
 			} as unknown as PrismaClient)
 		).toBe(true);
+	});
+
+	it("refuses a bun --hot client generated before Next concrete step on Project (CANT-BD652F27)", () => {
+		expect(
+			prismaClientHasCurrentProjectModel({
+				_runtimeDataModel: {
+					models: {
+						Project: {
+							fields: [
+								{ name: "id" },
+								{ name: "priorityCriterionDefinitions" },
+								{ name: "focusThreshold" },
+								{ name: "reappearDateNotification" },
+							],
+						},
+						ProjectWorkStatus: {
+							fields: [
+								{ name: "semantic" },
+								{ name: "label" },
+								{ name: "softWipLimit" },
+							],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(false);
 	});
 
 	it("refuses a bun --hot client generated before Workspace overviewLayout", () => {
