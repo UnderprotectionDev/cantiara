@@ -15,6 +15,7 @@ model Workspace {
   documentFolders       DocumentFolder[]
   documentTemplates     DocumentTemplate[]
   documentConflictDrafts DocumentConflictDraft[]
+  smartCollections       SmartCollection[]
 
   @@map("workspace")
 }

@@ -43,6 +43,7 @@ model Project {
   roadmapNamedViews               ProjectRoadmapNamedView[]
   milestones                      Milestone[]
   nextConcreteStepChanges         NextConcreteStepChange[]
+  smartCollections                SmartCollection[]
 
   @@index([workspaceId])
   @@map("project")

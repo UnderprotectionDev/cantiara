@@ -24,6 +24,7 @@ import { recordDiscovery } from "../features/record-discovery/server/record-disc
 import { relations } from "../features/relations/server/relations-rpc";
 import { returnToWork } from "../features/return-to-work/server/return-to-work-rpc";
 import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
+import { smartCollections } from "../features/smart-collections/server/smart-collections-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { unifiedCalendar } from "../features/unified-calendar/server/unified-calendar-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
@@ -64,6 +65,7 @@ export const appRouter = {
 	relations,
 	returnToWork,
 	roadmapHorizon,
+	smartCollections,
 	tags,
 	unifiedCalendar,
 	workChecklists,
