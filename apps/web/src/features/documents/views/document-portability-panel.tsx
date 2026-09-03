@@ -143,10 +143,13 @@ export default function DocumentPortabilityPanel({
 		attemptOnlineWork("record-create", () =>
 			copy.mutateAsync({
 				idempotencyKey: newIdempotencyKey(),
-				payload: { documentId },
+				payload:
+					projectId === null
+						? { documentId }
+						: { documentId, target: { kind: "personal-wiki" } },
 			})
 		);
-	}, [attemptOnlineWork, copy, documentId, markUnsaved]);
+	}, [attemptOnlineWork, copy, documentId, markUnsaved, projectId]);
 	const onExport = useCallback(
 		async (format: "markdown" | "pdf") => {
 			setError(null);

@@ -373,6 +373,9 @@ export type MoveDocumentCommand = z.infer<typeof moveDocumentCommandSchema>;
 
 export const copyDocumentPayloadSchema = z.object({
 	documentId: z.string().min(1),
+	target: z
+		.object({ kind: z.literal(DOCUMENT_SCOPE_KIND.personalWiki) })
+		.optional(),
 	versionRevision: z.number().int().positive().optional(),
 });
 

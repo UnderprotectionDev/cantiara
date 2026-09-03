@@ -2129,6 +2129,54 @@ describe("Documents tags, hierarchy, and archive", () => {
 		});
 	});
 
+	it("copies a Document into Personal Wiki as a new identity with origin", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const source = await addDocument(
+			prisma,
+			actorId,
+			workspaceId,
+			project.id,
+			"Project pattern"
+		);
+		const copied = await copyDocument(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				documentId: source.id,
+				target: { kind: "personal-wiki" },
+			},
+			workspaceId,
+		});
+		expect(copied.status).toBe("committed");
+		if (copied.status !== "committed") {
+			throw new Error("expected committed Copy");
+		}
+		expect(copied.document.id).not.toBe(source.id);
+		expect(copied.document.originDocumentId).toBe(source.id);
+		expect(copied.document.scope).toEqual({ kind: "personal-wiki" });
+		expect(await getDocument(prisma, source.id)).toMatchObject({
+			id: source.id,
+			scope: { kind: "project", projectId: project.id },
+			title: "Project pattern",
+		});
+		const edited = await updateDocument(prisma, {
+			actorId,
+			baseRevision: copied.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { body: "Wiki-only edit", documentId: copied.document.id },
+			workspaceId,
+		});
+		expect(edited.status).toBe("committed");
+		expect(await getDocument(prisma, source.id)).toMatchObject({
+			body: "Project pattern",
+		});
+		expect(await getDocument(prisma, copied.document.id)).toMatchObject({
+			body: expect.stringContaining("Wiki-only edit"),
+		});
+	});
+
 	it("exports Markdown and PDF as dated labeled live-block snapshots and refuses Word", async () => {
 		const { actorId, project, workspaceId } = await openProject(prisma);
 		const work = await createWork(prisma, {
