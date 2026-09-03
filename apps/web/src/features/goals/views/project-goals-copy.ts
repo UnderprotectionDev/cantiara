@@ -1,5 +1,3 @@
-import type { MUTATION_COPY } from "@/lib/mutation";
-
 export const PROJECT_GOAL_COPY = {
 	create: "Create Project Goal",
 	description: "Description",
@@ -17,7 +15,7 @@ export const PROJECT_GOAL_COPY = {
 
 export type ProjectGoalWriteOutcome =
 	| { goal: { id: string }; status: "committed" }
-	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
+	| { reason: "Conflict"; status: "conflict" }
 	| { reason: string; status: "invalid" }
 	| { status: "not-found" };
 

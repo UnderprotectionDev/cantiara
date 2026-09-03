@@ -1,7 +1,5 @@
 import { expect, test } from "vitest";
 
-import { MUTATION_COPY } from "@/lib/mutation";
-
 import {
 	PROJECT_GOAL_COPY,
 	projectGoalWriteNotice,
@@ -43,8 +41,8 @@ test("Create Project Goal shows a write notice instead of staying empty", () => 
 	);
 	expect(
 		projectGoalWriteNotice({
-			reason: MUTATION_COPY.conflict,
+			reason: "Conflict",
 			status: "conflict",
 		})
-	).toBe(MUTATION_COPY.conflict);
+	).toBe("Conflict");
 });
