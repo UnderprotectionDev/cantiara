@@ -21,5 +21,10 @@ describe("local test database URL", () => {
 		).toBe("postgresql://cantiara:cantiara@localhost:5432/cantiara");
 		expect(isLoopbackDatabaseUrl(HOSTED)).toBe(false);
 		expect(isLoopbackDatabaseUrl(LOCAL)).toBe(true);
+		expect(
+			isLoopbackDatabaseUrl(
+				"postgresql://localhost:pass@ep-example.eu-central-1.aws.neon.tech/neondb"
+			)
+		).toBe(false);
 	});
 });

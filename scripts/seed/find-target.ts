@@ -85,6 +85,6 @@ export async function findSeedTarget(
 	}
 
 	throw new Error(
-		"No Workspace found. Sign in once with GitHub, then run: bun run seed"
+		"No Workspace found. Sign in once with GitHub, then run seed (SEED_CONFIRM=hosted on Neon)."
 	);
 }

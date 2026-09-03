@@ -5,7 +5,7 @@ Synthetic demo data for manual testing. The seed resets **workspace content only
 ## When to use
 
 - You want Projects, Work, Roadmap, Calendar, and Tags populated without clicking through create flows.
-- You reset a hosted Neon dev database to a known demo state.
+- You reset a hosted Neon dev database to a known demo state (`SEED_CONFIRM=hosted`).
 - You re-run seed after schema changes to refresh the fixture set.
 
 ## Prerequisites
@@ -40,10 +40,10 @@ Example with an inline Neon URL:
 SEED_CONFIRM=hosted DATABASE_URL='postgresql://user:pass@ep-....neon.tech/neondb?sslmode=require' bun run seed
 ```
 
-Dry run (no writes):
+Dry run (no writes). Hosted still needs confirmation:
 
 ```bash
-bun run seed -- --dry-run
+SEED_CONFIRM=hosted bun run seed -- --dry-run
 ```
 
 ### Production-like hosted runs
@@ -57,7 +57,7 @@ SEED_CONFIRM=hosted bun run seed
 Target a specific founder account:
 
 ```bash
-SEED_USER_EMAIL=you@example.com bun run seed
+SEED_CONFIRM=hosted SEED_USER_EMAIL=you@example.com bun run seed
 ```
 
 ## What gets created

@@ -1,12 +1,20 @@
-const LOOPBACK_DATABASE = /127\.0\.0\.1|localhost/;
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
 export const LOCAL_TEST_DATABASE_URL =
 	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
 
+function databaseHostname(databaseUrl: string): string {
+	try {
+		return new URL(databaseUrl).hostname.toLowerCase();
+	} catch {
+		return "";
+	}
+}
+
 export function isLoopbackDatabaseUrl(
 	databaseUrl = process.env.DATABASE_URL ?? ""
 ): boolean {
-	return LOOPBACK_DATABASE.test(databaseUrl);
+	return LOOPBACK_HOSTS.has(databaseHostname(databaseUrl));
 }
 
 export function localTestDatabaseUrl(
