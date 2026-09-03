@@ -4,6 +4,7 @@ import { getPrismaClient } from "@cantiara/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { listDecisions } from "../../decisions/server/decisions";
 import { getProject } from "../../project-shell/server/project-shell";
 import {
 	overviewSourcesFromProject,
@@ -27,6 +28,14 @@ export const projectOverviewRouter = {
 			if (!project || project.workspaceId !== access.workspaceId) {
 				throw new ORPCError("NOT_FOUND");
 			}
-			return projectOverview(overviewSourcesFromProject(project));
+			const decisions = await listDecisions(getPrismaClient(), project.id);
+			return projectOverview(
+				overviewSourcesFromProject(project, {
+					decisions: decisions.map((decision) => ({
+						id: decision.id,
+						title: decision.title,
+					})),
+				})
+			);
 		}),
 };
