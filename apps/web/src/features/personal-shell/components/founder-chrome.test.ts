@@ -29,6 +29,7 @@ test("founder chrome reaches Capture and Projects, not Home or Dashboard twins",
 		{ label: "Focus Period", to: "/focus-periods" },
 		{ label: "Projects", to: "/projects" },
 		{ label: "Personal Wiki", to: "/wiki" },
+		{ label: "Smart Collection", to: "/smart-collections" },
 	]);
 	expect(founderChromeNav().map((link) => link.label)).not.toContain("Search");
 	expect(founderChromeNav().map((link) => link.label)).not.toContain(
@@ -70,6 +71,7 @@ test("more chrome groups Drafts, time surfaces, and knowledge surfaces", () => {
 		[
 			{ label: "Personal Wiki", to: "/wiki" },
 			{ label: "Table", to: "/table" },
+			{ label: "Smart Collection", to: "/smart-collections" },
 		],
 	]);
 	expect(founderChromeNavIsCurrent("/table", "/table")).toBe(true);

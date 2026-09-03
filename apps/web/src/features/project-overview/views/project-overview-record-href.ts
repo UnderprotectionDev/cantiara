@@ -16,6 +16,9 @@ export function projectOverviewRecordHref(
 	if (heading === "Work") {
 		return `?work=${encodeURIComponent(recordId)}#work`;
 	}
+	if (heading === "Goals") {
+		return `?goal=${encodeURIComponent(recordId)}#overview`;
+	}
 	if ((AREA_HEADINGS as readonly string[]).includes(heading)) {
 		return `#${projectShellAnchor(heading)}`;
 	}

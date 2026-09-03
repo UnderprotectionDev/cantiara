@@ -51,6 +51,14 @@ function workDelegates() {
 			findMany,
 		},
 		documentVersion: { findMany },
+		nextConcreteStepChange: {
+			create: () => undefined,
+			findMany,
+		},
+		personalReminder: {
+			create: () => undefined,
+			findMany,
+		},
 		projectBacklogManualOrderItem: {
 			createMany: () => undefined,
 			findMany,
@@ -67,6 +75,10 @@ function workDelegates() {
 			create: () => undefined,
 			findMany,
 		},
+		projectGoal: {
+			create: () => undefined,
+			findMany,
+		},
 		projectPriorityMapPresentation: {
 			findMany,
 			findUnique: findMany,
@@ -76,6 +88,10 @@ function workDelegates() {
 		recordAction: {
 			create: () => undefined,
 			findMany,
+		},
+		returnToWorkVisibleOpen: {
+			findMany,
+			upsert: () => undefined,
 		},
 		work: { create: () => undefined, findMany },
 		workLifecycleEvent: { findMany },
@@ -290,6 +306,18 @@ describe("Prisma client current delegates", () => {
 		expect(
 			prismaClientHasCurrentDelegates(beforeDecision as unknown as PrismaClient)
 		).toBe(true);
+		expect(
+			prismaClientHasCurrentDelegates({
+				...beforeDecision,
+				_runtimeDataModel: {
+					models: {
+						Decision: {
+							fields: [{ name: "id" }, { name: "title" }],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(true);
 	});
 
 	it("accepts a bun --hot client generated before Completion effect preference", () => {
@@ -400,6 +428,35 @@ describe("Prisma client current delegates", () => {
 		).toBe(true);
 	});
 
+	it("accepts a bun --hot client generated before Return to Work visible open", () => {
+		const { returnToWorkVisibleOpen: _dropped, ...beforeVisibleOpen } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionGoingPackage: { create: () => undefined, findMany },
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			externalExecutionHandoffEvent: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(
+				beforeVisibleOpen as unknown as PrismaClient
+			)
+		).toBe(true);
+	});
+
 	it("refuses a bun --hot client generated before Record Action", () => {
 		const { recordAction: _dropped, ...beforeActions } = {
 			...workDelegates(),
@@ -493,7 +550,46 @@ describe("Prisma client current delegates", () => {
 		).toBe(true);
 	});
 
-	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Templates, Work Drafts, File Attachments, Tags, Record Actions, and External Execution Handoffs", () => {
+	it("accepts a bun --hot client generated before Project Goal", () => {
+		const { projectGoal: _dropped, ...beforeGoals } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionGoingPackage: { create: () => undefined, findMany },
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			externalExecutionHandoffEvent: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(beforeGoals as unknown as PrismaClient)
+		).toBe(true);
+		expect(
+			prismaClientHasCurrentDelegates({
+				...beforeGoals,
+				_runtimeDataModel: {
+					models: {
+						ProjectGoal: {
+							fields: [{ name: "id" }, { name: "title" }],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
+	it("accepts a client that can read Feature health, Related edges, typed relations, Custom field values, Work Templates, Work Drafts, File Attachments, Tags, Record Actions, External Execution Handoffs, and Project Goal", () => {
 		expect(
 			prismaClientHasCurrentDelegates({
 				...workDelegates(),
@@ -515,6 +611,45 @@ describe("Prisma client current delegates", () => {
 				usageHostEmbed: { findMany },
 				usageLink: { findMany },
 				workTag: { findMany },
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
+	it("accepts a bun --hot client generated before Personal Reminder", () => {
+		const { personalReminder: _dropped, ...beforeReminders } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionGoingPackage: { create: () => undefined, findMany },
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			externalExecutionHandoffEvent: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(
+				beforeReminders as unknown as PrismaClient
+			)
+		).toBe(true);
+		expect(
+			prismaClientHasCurrentDelegates({
+				...beforeReminders,
+				_runtimeDataModel: {
+					models: {
+						PersonalReminder: { fields: [{ name: "id" }] },
+					},
+				},
 			} as unknown as PrismaClient)
 		).toBe(true);
 	});
@@ -585,6 +720,8 @@ describe("Prisma client current delegates", () => {
 								{ name: "priorityCriterionDefinitions" },
 								{ name: "focusThreshold" },
 								{ name: "reappearDateNotification" },
+								{ name: "nextConcreteStep" },
+								{ name: "nextConcreteStepUpdatedAt" },
 							],
 						},
 						ProjectWorkStatus: {
@@ -598,6 +735,32 @@ describe("Prisma client current delegates", () => {
 				},
 			} as unknown as PrismaClient)
 		).toBe(true);
+	});
+
+	it("refuses a bun --hot client generated before Next concrete step on Project (CANT-BD652F27)", () => {
+		expect(
+			prismaClientHasCurrentProjectModel({
+				_runtimeDataModel: {
+					models: {
+						Project: {
+							fields: [
+								{ name: "id" },
+								{ name: "priorityCriterionDefinitions" },
+								{ name: "focusThreshold" },
+								{ name: "reappearDateNotification" },
+							],
+						},
+						ProjectWorkStatus: {
+							fields: [
+								{ name: "semantic" },
+								{ name: "label" },
+								{ name: "softWipLimit" },
+							],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(false);
 	});
 
 	it("refuses a bun --hot client generated before Workspace overviewLayout", () => {

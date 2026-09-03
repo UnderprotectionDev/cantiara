@@ -5,6 +5,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { listDecisions } from "../../decisions/server/decisions";
+import { createProjectGoals } from "../../goals/server/project-goals";
 import { getProject } from "../../project-shell/server/project-shell";
 import {
 	overviewSourcesFromProject,
@@ -29,11 +30,21 @@ export const projectOverviewRouter = {
 				throw new ORPCError("NOT_FOUND");
 			}
 			const decisions = await listDecisions(getPrismaClient(), project.id);
+			const surface = createProjectGoals({
+				accountId: access.accountId,
+				prisma: getPrismaClient(),
+				workspaceId: access.workspaceId,
+			});
+			const goals = await surface.list(project.id);
 			return projectOverview(
 				overviewSourcesFromProject(project, {
 					decisions: decisions.map((decision) => ({
 						id: decision.id,
 						title: decision.title,
+					})),
+					goals: goals.map((goal) => ({
+						id: goal.id,
+						title: goal.title,
 					})),
 				})
 			);

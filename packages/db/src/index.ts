@@ -113,7 +113,9 @@ function clientHasCurrentWorkModel(client: PrismaClient): boolean {
 		fields.includes("plannedStart") &&
 		fields.includes("horizon") &&
 		fields.includes("notNowReviewLaterIds") &&
-		fields.includes("notNowTrails")
+		fields.includes("notNowTrails") &&
+		fields.includes("nextConcreteStep") &&
+		fields.includes("nextConcreteStepUpdatedAt")
 	);
 }
 

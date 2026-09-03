@@ -11,6 +11,7 @@ export const FOUNDER_CHROME_COPY = {
 	product: "Cantiara",
 	projects: "Projects",
 	skipToMain: "Skip to main content",
+	smartCollection: "Smart Collection",
 	table: "Table",
 } as const;
 
@@ -24,6 +25,7 @@ export const FOUNDER_CHROME_PATHS = {
 	focusPeriod: "/focus-periods",
 	personalWiki: "/wiki",
 	projects: "/projects",
+	smartCollection: "/smart-collections",
 	table: "/table",
 	workspaceHome: "/dashboard",
 } as const;
@@ -75,6 +77,10 @@ export function founderChromeMoreNavGroups() {
 				label: FOUNDER_CHROME_COPY.table,
 				to: FOUNDER_CHROME_PATHS.table,
 			},
+			{
+				label: FOUNDER_CHROME_COPY.smartCollection,
+				to: FOUNDER_CHROME_PATHS.smartCollection,
+			},
 		],
 	] as const;
 }
@@ -108,6 +114,10 @@ export function founderChromeNav() {
 		{
 			label: FOUNDER_CHROME_COPY.personalWiki,
 			to: FOUNDER_CHROME_PATHS.personalWiki,
+		},
+		{
+			label: FOUNDER_CHROME_COPY.smartCollection,
+			to: FOUNDER_CHROME_PATHS.smartCollection,
 		},
 	] as const;
 }

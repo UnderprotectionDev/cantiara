@@ -29,15 +29,29 @@ Spec yoksa Spec altında belirt. Review atlandıysa nedenini yaz — uydurma.
 
 ## 3. Nasıl test edilir
 
-Tarayıcıda adım adım doğrulama — komut, terminal veya otomatik test çıktısı yok:
+Konumlu tarayıcı adımları — komut, terminal veya otomatik test çıktısı yok.
 
-- Hangi URL'ye git
-- Hangi tıklamalar / girişler / akış
-- Her adımda ne görmeli
+**Önkoşul** (bir kez, üstte): giriş durumu; seed kaydı gerekiyorsa ekranda görünen ad ([dev seed](dev-database-seed.md)).
 
-Değişiklik tarayıcıda test edilemiyorsa, bunu tek cümleyle söyle — komut önerme.
+**Her numaralı adım dört parçayı taşır** (eksik parça = adım bitmemiş):
 
-**Done when** okuyucu tarayıcıda tek başına doğrulayabilir veya neden edemeyeceğini anlar.
+1. **Nerede** — route path (`/projects`, `/account`, …) veya bir önceki adımdan kalan ekran
+2. **Bölge** — yalnız: workspace listesi; proje navigasyonu (`Overview` / `Work` / `Documents` / `All Tools` / pin’li alan); sayfa başlığı; kayıt gövdesi; diyalog; kişisel kabuk (`Daily Focus` / `Favorites`)
+3. **Etiket** — tıklanan veya yazılan kontrol; owning spec’teki English UI, backtick
+4. **Beklenen** — aynı ekranda ne görünür (metin, durum, boş veya hata)
+
+Örnek:
+
+Önkoşul: GitHub ile giriş; seed projesi `Cantiara`.
+
+1. `/projects` — workspace listesinde `Cantiara` görünür.
+2. Workspace listesinde `Cantiara` aç. Proje `Overview` görünür.
+3. Proje navigasyonunda `Work` aç. `Backlog` görünür.
+4. Kayıt gövdesinde `Checkout flow` satırını aç. İş detayı açılır; başlık `Checkout flow` durur.
+
+Değişiklik tarayıcıda yoksa: tek cümle.
+
+**Done when** her adımda Nerede, Bölge, Etiket ve Beklenen durur; diff’i görmemiş biri kontrolün ekranda nerede olduğunu sormadan izleyebilir — veya tarayıcıda yoksa bunu tek cümleden anlar.
 
 ## Voice
 

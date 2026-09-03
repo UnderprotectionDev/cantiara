@@ -18,6 +18,7 @@ import DecisionArea from "@/features/decisions/views/decision-area";
 import { DOCUMENTS_COPY } from "@/features/documents/forms/documents-copy";
 import DocumentArea from "@/features/documents/views/document-area";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
+import ProjectGoalsPanel from "@/features/goals/views/project-goals-panel";
 import { FOUNDER_MAIN_ID } from "@/features/personal-shell/components/founder-chrome";
 import ProjectOverview from "@/features/project-overview/views/project-overview";
 import ConfigurationMode from "@/features/project-shell/forms/configuration-mode";
@@ -41,6 +42,7 @@ import {
 	workSavedViewIsRoadmap,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
+import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
 
@@ -78,6 +80,8 @@ interface ProjectShellRecord {
 export default function ProjectProfile({
 	configurationEditor,
 	configurationMode,
+	goalId,
+	onGoalId,
 	onPresentationChange,
 	onWorkId,
 	projectId,
@@ -85,6 +89,8 @@ export default function ProjectProfile({
 }: {
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
+	goalId?: string | null;
+	onGoalId?: (goalId: string | null) => void;
 	onPresentationChange: (next: {
 		editor: ConfigurationModeEditor | null;
 		hash?: string;
@@ -202,6 +208,8 @@ export default function ProjectProfile({
 					configurationEditor={configurationEditor}
 					configurationMode={configurationMode}
 					data={data}
+					goalId={goalId}
+					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
 					onToggle={onToggle}
 					onWorkId={onWorkId}
@@ -483,6 +491,8 @@ function ProjectBody({
 	configurationEditor,
 	configurationMode,
 	data,
+	goalId,
+	onGoalId,
 	onOpenEditor,
 	onToggle,
 	onWorkId,
@@ -492,6 +502,8 @@ function ProjectBody({
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
 	data: ProjectShellRecord;
+	goalId?: string | null;
+	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
 	onToggle: () => void;
 	onWorkId?: (workId: string | null) => void;
@@ -698,6 +710,12 @@ function ProjectBody({
 				</p>
 			) : null}
 			<div className="mt-6">
+				<ReturnToWorkPanel projectId={data.id} />
+				<ProjectGoalsPanel
+					onGoalId={onGoalId}
+					projectId={data.id}
+					selectedGoalId={goalId}
+				/>
 				<ProjectOverview projectId={data.id} />
 			</div>
 		</section>
