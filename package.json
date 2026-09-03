@@ -40,6 +40,7 @@
     "db:migrate": "turbo run db:migrate -F @cantiara/db --",
     "db:migrate:deploy": "turbo run db:migrate:deploy -F @cantiara/db --",
     "db:seed": "turbo run db:seed -F @cantiara/db --",
+    "seed": "turbo run db:seed -F @cantiara/db --",
     "check": "ultracite check",
     "fix": "ultracite fix",
     "test": "turbo run test --concurrency=1"
