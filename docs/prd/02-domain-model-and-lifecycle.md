@@ -320,6 +320,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belgeler | `Documents` | Belge kayıtlarını toplayan Proje alanı |
 | Discovery | `Discovery` | Geri Bildirim ve araştırma kayıtlarını toplayan Proje alanı veya hazır aşama adı |
 | Decisions | `Decisions` | Karar, Risk, Varsayım ve Açık Soruyu toplayan Proje alanı; Research hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
+| Karar hükmü | `Decision text` | Kararın yürürlükteki seçim metni |
+| Karar gerekçesi | `Rationale` | Kararın alınma veya geri çekilme gerekçesi; kapanış `Reason` değildir |
+| Geçerli | `Valid` | Kararın yürürlükteki yaşamı; durumsuz içe aktarım da böyle okunur |
+| Yerine geçildi | `Superseded` | Yalnız açık yerine-geçme ilişkisiyle oluşan Karar yaşamı |
+| Geri çekildi | `Withdrawn` | Halef gerektirmeyen açık geri çekme yaşamı |
+| Geri çek | `Withdraw` | Kararı `Withdrawn` yapan açık eylem |
+| Karar yok | `No Decisions yet.` | Projede henüz Karar olmadığını söyleyen boş durum |
 | Design | `Design` | Duvar, Ekran ve akış kayıtlarını toplayan Proje alanı veya hazır aşama adı |
 | Tests | `Tests` | Test kayıtlarını toplayan Proje alanı; ayrı test ürünü değildir |
 | Releases | `Releases` | Proje Sürümü girişini toplayan Proje alanı |

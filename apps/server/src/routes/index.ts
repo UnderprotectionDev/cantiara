@@ -10,6 +10,7 @@ import { captureInbox } from "../features/capture-triage/server/capture-inbox-ro
 import { completionEffects } from "../features/completion-effects/server/completion-effects";
 import { customFields } from "../features/custom-fields/server/custom-fields-rpc";
 import { dailyFocus } from "../features/daily-focus/server/daily-focus-rpc";
+import { decisions } from "../features/decisions/server/decisions-rpc";
 import { documents } from "../features/documents/server/documents-rpc";
 import { externalHandoffs } from "../features/external-handoffs/server/external-handoffs-rpc";
 import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
@@ -48,6 +49,7 @@ export const appRouter = {
 	completionEffects,
 	customFields,
 	dailyFocus,
+	decisions,
 	documents,
 	externalHandoffs,
 	fileAttachments,

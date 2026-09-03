@@ -570,6 +570,30 @@ _Avoid_: Bilinçli dış sınır, entegrasyon kullanımı, otomatik telemetry
 Alınmış ürün, tasarım veya geliştirme seçimini gerekçe ve ilişkileriyle taşıyan Proje ana kaydı; toplantı notu, Belge paragrafı veya oylama değildir ([Karar kayıtları](docs/prd/09-discovery-decisions-and-design.md#karar-kayıtları)). UI: `Decision`.
 _Avoid_: toplantı notu, oylama, otomatik kazanan, Risk, Varsayım
 
+**Karar hükmü**:
+Kararın yürürlükteki seçimini taşıyan metin alanı; alternatif seti veya oylama sonucu değildir. UI: `Decision text`.
+_Avoid_: alternatif seti, kazanan seçenek
+
+**Karar gerekçesi**:
+Kararın neden alındığını veya geri çekildiğini taşıyan metin; kapanış `Reason` alanı veya oylama değildir. UI: `Rationale`.
+_Avoid_: Reason, oy gerekçesi
+
+**Geçerli**:
+Kararın yürürlükteki yaşamı; durum yoksa veya içe aktarılan kayıt durumsuzsa bu okunur. UI: `Valid`.
+_Avoid_: Active, Open, current-as-status-picker
+
+**Yerine geçildi**:
+Yalnız açık yerine-geçme ilişkisiyle oluşan Karar yaşamı; doğrudan durum seçimi değildir. UI: `Superseded`.
+_Avoid_: replaced-by-status, silent historical
+
+**Geri çekildi**:
+Halef gerektirmeyen, açık geri çekme eylemiyle oluşan Karar yaşamı. UI: `Withdrawn`.
+_Avoid_: Closed, canceled Decision, İş kapanışı
+
+**Geri çek**:
+Kararı isteğe bağlı tarihli gerekçeyle `Withdrawn` yapan açık eylem. UI: `Withdraw`.
+_Avoid_: Close, Archive, silent withdraw
+
 **Risk**:
 Etki, olasılık, yanıt ve durumla belirsiz zararı izleyen Proje ana kaydı; Bug, Test Açığı veya Üretim Olayı değildir ([Risk takibi](docs/prd/09-discovery-decisions-and-design.md#risk-takibi)). UI: `Risk`.
 _Avoid_: Bug, Test Açığı, Üretim Olayı, öncelik puanı, yayın kapısı

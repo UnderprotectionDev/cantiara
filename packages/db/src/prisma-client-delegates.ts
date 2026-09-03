@@ -4,6 +4,7 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"CompletionEffectPreference",
 	"DailyFocusCandidateRejection",
 	"DailyFocusMembership",
+	"Decision",
 	"NextConcreteStepChange",
 	"PersonalReminder",
 	"ProjectGoal",
@@ -79,6 +80,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.documentFolder?.create === "function" &&
 		typeof client.documentVersion?.findMany === "function" &&
 		typeof client.documentConflictDraft?.findUnique === "function";
+	// Decision is read via its own delegate after generate. Do not gate
+	// getPrismaClient on it: bun --hot can reload this check before prisma
+	// generate, and that must not block Work writes.
 	// Project Goal is read and written via table SQL when bun --hot still
 	// has a client generated before that model. Do not gate getPrismaClient
 	// on it.

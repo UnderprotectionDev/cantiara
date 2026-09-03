@@ -32,6 +32,7 @@ function workDelegates() {
 			findUnique: findMany,
 		},
 		dailyFocusMembership: { findMany, findUnique: findMany },
+		decision: { create: () => undefined, findMany },
 		document: { findMany },
 		documentConflictDraft: {
 			create: () => undefined,
@@ -280,6 +281,43 @@ describe("Prisma client current delegates", () => {
 		expect(
 			prismaClientHasCurrentDelegates(beforeFolders as unknown as PrismaClient)
 		).toBe(false);
+	});
+
+	it("accepts a bun --hot client generated before Decision", () => {
+		const { decision: _dropped, ...beforeDecision } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(beforeDecision as unknown as PrismaClient)
+		).toBe(true);
+		expect(
+			prismaClientHasCurrentDelegates({
+				...beforeDecision,
+				_runtimeDataModel: {
+					models: {
+						Decision: {
+							fields: [{ name: "id" }, { name: "title" }],
+						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(true);
 	});
 
 	it("accepts a bun --hot client generated before Completion effect preference", () => {

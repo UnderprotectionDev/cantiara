@@ -14,6 +14,7 @@ import { Menu } from "lucide-react";
 import { type MouseEvent, useCallback } from "react";
 
 import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-record-values";
+import DecisionArea from "@/features/decisions/views/decision-area";
 import { DOCUMENTS_COPY } from "@/features/documents/forms/documents-copy";
 import DocumentArea from "@/features/documents/views/document-area";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
@@ -415,6 +416,77 @@ function DocumentsProjectSection({
 	);
 }
 
+function DecisionsProjectSection({
+	projectId,
+	sectionId,
+}: {
+	projectId: string;
+	sectionId: string;
+}) {
+	return (
+		<section aria-label="Decisions" id={sectionId}>
+			<h1 className="font-semibold text-[1.375rem] tracking-tight">
+				Decisions
+			</h1>
+			<div className="mt-6">
+				<DecisionArea projectId={projectId} />
+			</div>
+		</section>
+	);
+}
+
+function projectRecordArea({
+	decisionsAnchor,
+	documentsAnchor,
+	fileAttachmentAnchor,
+	onWorkId,
+	projectId,
+	selectedAnchor,
+	selectedArea,
+}: {
+	decisionsAnchor: string;
+	documentsAnchor: string;
+	fileAttachmentAnchor: string;
+	onWorkId?: (workId: string | null) => void;
+	projectId: string;
+	selectedAnchor: string;
+	selectedArea: string | undefined;
+}) {
+	if (selectedAnchor === documentsAnchor || selectedArea === "Documents") {
+		return (
+			<DocumentsProjectSection
+				onWorkId={onWorkId}
+				projectId={projectId}
+				sectionId={documentsAnchor}
+			/>
+		);
+	}
+	if (selectedAnchor === decisionsAnchor || selectedArea === "Decisions") {
+		return (
+			<DecisionsProjectSection
+				projectId={projectId}
+				sectionId={decisionsAnchor}
+			/>
+		);
+	}
+	if (
+		selectedAnchor === fileAttachmentAnchor ||
+		selectedArea === "File Attachment"
+	) {
+		return (
+			<section aria-label="File Attachment" id={fileAttachmentAnchor}>
+				<h1 className="font-semibold text-[1.375rem] tracking-tight">
+					File Attachment
+				</h1>
+				<div className="mt-6">
+					<FileAttachmentArea projectId={projectId} />
+				</div>
+			</section>
+		);
+	}
+	return null;
+}
+
 function ProjectBody({
 	configurationEditor,
 	configurationMode,
@@ -441,6 +513,7 @@ function ProjectBody({
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const documentsAnchor = projectShellAnchor("Documents");
+	const decisionsAnchor = projectShellAnchor("Decisions");
 	const fileAttachmentAnchor = projectShellAnchor("File Attachment");
 	const selectedArea = data.allToolsAreas
 		.map((area) => area.name)
@@ -449,6 +522,15 @@ function ProjectBody({
 		anchor: selectedAnchor,
 		workId,
 		workViews: data.workViews,
+	});
+	const recordArea = projectRecordArea({
+		decisionsAnchor,
+		documentsAnchor,
+		fileAttachmentAnchor,
+		onWorkId,
+		projectId: data.id,
+		selectedAnchor,
+		selectedArea,
 	});
 
 	if (configurationMode) {
@@ -502,30 +584,8 @@ function ProjectBody({
 		);
 	}
 
-	if (selectedAnchor === documentsAnchor || selectedArea === "Documents") {
-		return (
-			<DocumentsProjectSection
-				onWorkId={onWorkId}
-				projectId={data.id}
-				sectionId={documentsAnchor}
-			/>
-		);
-	}
-
-	if (
-		selectedAnchor === fileAttachmentAnchor ||
-		selectedArea === "File Attachment"
-	) {
-		return (
-			<section aria-label="File Attachment" id={fileAttachmentAnchor}>
-				<h1 className="font-semibold text-[1.375rem] tracking-tight">
-					File Attachment
-				</h1>
-				<div className="mt-6">
-					<FileAttachmentArea projectId={data.id} />
-				</div>
-			</section>
-		);
+	if (recordArea) {
+		return recordArea;
 	}
 
 	if (showingWork) {
