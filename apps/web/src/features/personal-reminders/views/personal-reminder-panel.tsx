@@ -142,6 +142,9 @@ export default function PersonalReminderPanel({
 	const reminders = (listed.data ?? []) as ReminderRow[];
 	return (
 		<section className="flex flex-col gap-3">
+			<h3 className="font-medium text-sm">
+				{PERSONAL_REMINDERS_COPY.remindMe}
+			</h3>
 			<form className="flex flex-col gap-3" onSubmit={onSubmit}>
 				<Field>
 					<FieldLabel htmlFor={`${sourceId}-reminder-action`}>

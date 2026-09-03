@@ -103,6 +103,9 @@ export default function WorkDetail({
 						{WORK_LIFECYCLE_COPY.close}
 					</Button>
 				</header>
+				{readOnly ? null : (
+					<PersonalReminderPanel sourceId={work.id} sourceType="Work" />
+				)}
 				{readOnly ? (
 					<dl className="grid gap-1 text-sm">
 						<div className="flex gap-2">
@@ -194,7 +197,6 @@ export default function WorkDetail({
 							targetDate={work.targetDate ?? null}
 							workId={work.id}
 						/>
-						<PersonalReminderPanel sourceId={work.id} sourceType="Work" />
 						<WorkHorizonForm
 							key={`${work.id}:horizon:${work.revision}`}
 							projectId={projectId}
