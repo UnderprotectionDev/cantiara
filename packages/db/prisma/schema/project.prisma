@@ -42,6 +42,7 @@ model Project {
   backlogPresentation             ProjectBacklogPresentation?
   roadmapNamedViews               ProjectRoadmapNamedView[]
   milestones                      Milestone[]
+  projectGoals                    ProjectGoal[]
   nextConcreteStepChanges         NextConcreteStepChange[]
   smartCollections                SmartCollection[]
 

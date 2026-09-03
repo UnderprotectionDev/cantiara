@@ -6,6 +6,7 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"DailyFocusMembership",
 	"NextConcreteStepChange",
 	"PersonalReminder",
+	"ProjectGoal",
 	"ReturnToWorkVisibleOpen",
 	"WorkNotNowTrail",
 ]);
@@ -78,6 +79,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.documentFolder?.create === "function" &&
 		typeof client.documentVersion?.findMany === "function" &&
 		typeof client.documentConflictDraft?.findUnique === "function";
+	// Project Goal is read and written via table SQL when bun --hot still
+	// has a client generated before that model. Do not gate getPrismaClient
+	// on it.
 	// Personal Reminder is read via table SQL so a bun --hot client
 	// generated before that model can still serve the API. Do not gate
 	// getPrismaClient on it.
