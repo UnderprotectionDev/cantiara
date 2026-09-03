@@ -1,5 +1,11 @@
 import { CLIENT_SHELL_COPY as MAIN_FLOW_COPY } from "@cantiara/api/client-shell-failure";
 import { Button } from "@cantiara/ui/components/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "@cantiara/ui/components/dialog";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
@@ -11,6 +17,10 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
+import {
+	FounderSection,
+	FounderToolbar,
+} from "@/features/personal-shell/components/founder-surface";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -125,6 +135,7 @@ export default function FocusPeriodArea() {
 	const catalog = useQuery(orpc.focusPeriod.catalog.queryOptions());
 	const list = useQuery(orpc.focusPeriod.list.queryOptions());
 	const [selectedId, setSelectedId] = useState<string | undefined>();
+	const [createOpen, setCreateOpen] = useState(false);
 	const copy = catalog.data?.copy ?? FOCUS_PERIOD_COPY;
 	const periods = list.data ?? [];
 	const periodId = selectedId ?? periods[0]?.id;
@@ -200,6 +211,7 @@ export default function FocusPeriodArea() {
 					if (outcome.status === "committed") {
 						setSelectedId(outcome.period.id);
 						form.reset();
+						setCreateOpen(false);
 					}
 				})
 				.catch(() => undefined);
@@ -307,57 +319,86 @@ export default function FocusPeriodArea() {
 		},
 		[]
 	);
+	const onOpenCreate = useCallback(() => {
+		setCreateOpen(true);
+	}, []);
+	const onCreateOpenChange = useCallback((open: boolean) => {
+		setCreateOpen(open);
+	}, []);
 
 	return (
 		<FounderPage title={copy.focusPeriod} wide>
-			<form className="mb-8 grid gap-4" onSubmit={onCreate}>
-				<Field>
-					<FieldLabel htmlFor="focus-period-purpose">{copy.purpose}</FieldLabel>
-					<Input id="focus-period-purpose" name="purpose" required />
-				</Field>
-				<Field>
-					<FieldLabel htmlFor="focus-period-start">{copy.startDate}</FieldLabel>
-					<Input
-						id="focus-period-start"
-						name="startDate"
-						required
-						type="date"
-					/>
-				</Field>
-				<Field>
-					<FieldLabel htmlFor="focus-period-end">{copy.endDate}</FieldLabel>
-					<Input id="focus-period-end" name="endDate" required type="date" />
-				</Field>
-				<Button type="submit">{copy.create}</Button>
-				{create.data?.status === "invalid" ? <p>{create.data.reason}</p> : null}
-			</form>
+			<FounderToolbar>
+				{periods.length > 0 ? (
+					<Field className="min-w-56">
+						<FieldLabel htmlFor="focus-period-select">
+							{copy.focusPeriod}
+						</FieldLabel>
+						<NativeSelect
+							id="focus-period-select"
+							onChange={onSelectPeriod}
+							value={periodId ?? ""}
+						>
+							{periods.map((row: FocusPeriodSummary) => (
+								<NativeSelectOption key={row.id} value={row.id}>
+									{`${row.purpose} (${row.status})`}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+					</Field>
+				) : null}
+				<Button onClick={onOpenCreate} size="sm" type="button">
+					{copy.create}
+				</Button>
+			</FounderToolbar>
+			<Dialog onOpenChange={onCreateOpenChange} open={createOpen}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>{copy.create}</DialogTitle>
+					</DialogHeader>
+					<form className="grid gap-4" onSubmit={onCreate}>
+						<Field>
+							<FieldLabel htmlFor="focus-period-purpose">
+								{copy.purpose}
+							</FieldLabel>
+							<Input id="focus-period-purpose" name="purpose" required />
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="focus-period-start">
+								{copy.startDate}
+							</FieldLabel>
+							<Input
+								id="focus-period-start"
+								name="startDate"
+								required
+								type="date"
+							/>
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="focus-period-end">{copy.endDate}</FieldLabel>
+							<Input
+								id="focus-period-end"
+								name="endDate"
+								required
+								type="date"
+							/>
+						</Field>
+						<Button type="submit">{copy.create}</Button>
+						{create.data?.status === "invalid" ? (
+							<p>{create.data.reason}</p>
+						) : null}
+					</form>
+				</DialogContent>
+			</Dialog>
 			{list.isError ? <p>{MAIN_FLOW_COPY.failed}</p> : null}
 			{list.isPending && list.data === undefined ? <p>{copy.loading}</p> : null}
 			{periods.length === 0 && !list.isPending ? <p>{copy.empty}</p> : null}
-			{periods.length > 0 ? (
-				<Field>
-					<FieldLabel htmlFor="focus-period-select">
-						{copy.focusPeriod}
-					</FieldLabel>
-					<NativeSelect
-						id="focus-period-select"
-						onChange={onSelectPeriod}
-						value={periodId ?? ""}
-					>
-						{periods.map((row: FocusPeriodSummary) => (
-							<NativeSelectOption key={row.id} value={row.id}>
-								{`${row.purpose} (${row.status})`}
-							</NativeSelectOption>
-						))}
-					</NativeSelect>
-				</Field>
-			) : null}
 			{period ? (
-				<section aria-labelledby="focus-period-detail" className="mt-8">
-					<h2 id="focus-period-detail">
+				<section aria-labelledby="focus-period-detail">
+					<h2 className="font-medium text-sm" id="focus-period-detail">
 						{`${period.purpose} — ${period.status}`}
 					</h2>
-					<p>
+					<p className="mt-1 text-muted-foreground text-sm">
 						{`${copy.startDate} ${period.startDate} · ${copy.endDate} ${period.endDate}`}
 					</p>
 					<PeriodActions
@@ -377,8 +418,11 @@ export default function FocusPeriodArea() {
 						/>
 					) : null}
 					{add.data?.status === "invalid" ? <p>{add.data.reason}</p> : null}
-					<section aria-labelledby="focus-period-members" className="mt-6">
-						<h3 id="focus-period-members">{copy.members}</h3>
+					<FounderSection
+						className="mt-6"
+						title={copy.members}
+						titleId="focus-period-members"
+					>
 						<ul>
 							{period.members.map((work: FocusPeriodWork) => (
 								<MemberRow
@@ -390,7 +434,7 @@ export default function FocusPeriodArea() {
 								/>
 							))}
 						</ul>
-					</section>
+					</FounderSection>
 					<DependenciesPanel dependencies={period.dependencies} />
 				</section>
 			) : null}

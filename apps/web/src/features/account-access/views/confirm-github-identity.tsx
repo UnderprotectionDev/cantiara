@@ -4,6 +4,7 @@ import {
 	confirmGitHubIdentityStatus,
 	githubWaitPollMs,
 } from "@/features/account-access/forms/github-wait";
+import { FounderPage } from "@/features/personal-shell/components/founder-page";
 import { orpc } from "@/utils/orpc";
 
 export default function ConfirmGitHubIdentity() {
@@ -18,13 +19,12 @@ export default function ConfirmGitHubIdentity() {
 	});
 
 	return (
-		<main className="mx-auto w-full max-w-3xl p-6">
-			<h1 className="mb-4 font-bold text-2xl">Confirm GitHub Identity</h1>
+		<FounderPage title="Confirm GitHub Identity">
 			{status ? (
-				<p className="max-w-xl text-muted-foreground" role="status">
+				<p className="text-muted-foreground text-sm" role="status">
 					{status.text}
 				</p>
 			) : null}
-		</main>
+		</FounderPage>
 	);
 }

@@ -22,6 +22,7 @@ import type { ChangeEvent, MouseEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
+import { FounderToolbar } from "@/features/personal-shell/components/founder-surface";
 import { useInContextPreview } from "@/features/record-discovery/views/in-context-preview-panel";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { invalidateWork } from "@/features/work-lifecycle/forms/invalidate-work";
@@ -238,7 +239,7 @@ export default function UnifiedCalendarArea() {
 
 	return (
 		<FounderPage title={copy.calendar} wide>
-			<div className="mb-8 flex flex-wrap items-end gap-3">
+			<FounderToolbar>
 				<Field>
 					<FieldLabel htmlFor="calendar-day">{copy.selectedDay}</FieldLabel>
 					<Input
@@ -255,6 +256,7 @@ export default function UnifiedCalendarArea() {
 							aria-pressed={selectedView === name}
 							key={name}
 							onClick={onPickView}
+							size="sm"
 							type="button"
 							value={name}
 							variant={selectedView === name ? "default" : "outline"}
@@ -269,6 +271,7 @@ export default function UnifiedCalendarArea() {
 							aria-pressed={selectedKinds.includes(kind)}
 							key={kind}
 							onClick={onToggleKind}
+							size="sm"
 							type="button"
 							value={kind}
 							variant={selectedKinds.includes(kind) ? "default" : "outline"}
@@ -292,7 +295,7 @@ export default function UnifiedCalendarArea() {
 						))}
 					</NativeSelect>
 				</Field>
-			</div>
+			</FounderToolbar>
 			{preview ? (
 				<p aria-live="polite" role="status">
 					{copy.preview}: {preview.label}
@@ -366,7 +369,11 @@ function CalendarDayLane({
 	const { isOver, setNodeRef } = useDroppable({ id: section.date });
 	return (
 		<section
-			className={isOver ? "mb-6 rounded-md ring-2 ring-ring" : "mb-6"}
+			className={
+				isOver
+					? "mb-4 rounded-none ring-2 ring-ring"
+					: "mb-4 border-border border-b pb-4"
+			}
 			ref={setNodeRef}
 		>
 			<h2 className="mb-1 font-medium text-muted-foreground text-sm">

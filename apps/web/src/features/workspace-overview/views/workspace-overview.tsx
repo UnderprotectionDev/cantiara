@@ -196,11 +196,7 @@ export default function WorkspaceOverview() {
 
 	if (overview.isPending) {
 		return (
-			<FounderPage
-				className="py-8"
-				title={WORKSPACE_OVERVIEW_UI_COPY.workspace}
-				wide
-			>
+			<FounderPage title={WORKSPACE_OVERVIEW_UI_COPY.workspace} wide>
 				<div className="flex flex-col gap-3">
 					<Skeleton className="h-8 w-48" />
 					<p>{WORKSPACE_OVERVIEW_UI_COPY.loading}</p>
@@ -210,11 +206,7 @@ export default function WorkspaceOverview() {
 	}
 	if (overview.isError || !overview.data) {
 		return (
-			<FounderPage
-				className="py-8"
-				title={WORKSPACE_OVERVIEW_UI_COPY.workspace}
-				wide
-			>
+			<FounderPage title={WORKSPACE_OVERVIEW_UI_COPY.workspace} wide>
 				<p role="alert">{WORKSPACE_OVERVIEW_UI_COPY.unavailable}</p>
 			</FounderPage>
 		);
@@ -241,7 +233,7 @@ export default function WorkspaceOverview() {
 	const hidden = orderedCatalog.filter((module) => module.hidden);
 
 	return (
-		<FounderPage className="py-8" title={data.copy.workspace} wide>
+		<FounderPage title={data.copy.workspace} wide>
 			<div className="grid gap-3 sm:grid-cols-2">
 				{visible.map((module, index) => (
 					<OverviewModule

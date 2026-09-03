@@ -11,6 +11,10 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
+import {
+	FounderSection,
+	FounderToolbar,
+} from "@/features/personal-shell/components/founder-surface";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -194,6 +198,7 @@ export default function DailyFocusArea() {
 			actions={
 				<Button
 					onClick={closeFocusOpen ? returnToDailyFocus : openCloseFocus}
+					size="sm"
 					type="button"
 					variant="outline"
 				>
@@ -203,19 +208,29 @@ export default function DailyFocusArea() {
 			title={closeFocusOpen ? copy.closeFocus : copy.dailyFocus}
 			wide
 		>
-			<Field>
-				<FieldLabel htmlFor="daily-focus-day">{copy.selectedDay}</FieldLabel>
-				<Input
-					id="daily-focus-day"
-					onChange={onChangeDay}
-					type="date"
-					value={selectedDay}
-				/>
-			</Field>
+			<FounderToolbar>
+				<Field className="min-w-44">
+					<FieldLabel htmlFor="daily-focus-day">{copy.selectedDay}</FieldLabel>
+					<Input
+						id="daily-focus-day"
+						onChange={onChangeDay}
+						type="date"
+						value={selectedDay}
+					/>
+				</Field>
+			</FounderToolbar>
 			{closeFocusOpen ? (
 				<CloseFocusGroups copy={copy} query={closeView} />
 			) : (
 				<>
+					<FounderSection title={copy.dailyFocus} titleId="daily-focus-today">
+						<MembersList
+							copy={copy}
+							members={view.data?.members}
+							onRemove={onRemove}
+							query={view}
+						/>
+					</FounderSection>
 					<EligibleWork
 						copy={copy}
 						eligible={view.data?.eligibleWork ?? []}
@@ -226,12 +241,6 @@ export default function DailyFocusArea() {
 						copy={copy}
 						onAccept={onAccept}
 						onReject={onReject}
-					/>
-					<MembersList
-						copy={copy}
-						members={view.data?.members}
-						onRemove={onRemove}
-						query={view}
 					/>
 					<WhatHappenedToday
 						copy={copy}
@@ -517,8 +526,8 @@ function WhatHappenedToday({
 		isPending: query.isPending,
 	});
 	return (
-		<section aria-labelledby="what-happened-today" className="mt-10">
-			<h2 className="mb-3 font-medium text-lg" id="what-happened-today">
+		<section aria-labelledby="what-happened-today" className="mt-2">
+			<h2 className="mb-3 font-medium text-sm" id="what-happened-today">
 				{copy.whatHappenedToday}
 			</h2>
 			{presentation.kind === "failed" ? <p>{MAIN_FLOW_COPY.failed}</p> : null}

@@ -20,15 +20,15 @@ export default function ProjectList({ compact }: { compact?: boolean }) {
 
 	if (projects.data?.length) {
 		return (
-			<ul>
+			<ul className={compact ? undefined : "divide-y border-y"}>
 				{projects.data.map((project) => (
 					<li key={project.id}>
 						<Link
 							className={cn(
-								"flex outline-none transition-colors duration-200 hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring",
+								"flex outline-none transition-colors duration-200 ease-out hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring active:opacity-80",
 								compact
 									? "flex-col gap-0.5 px-2 py-1.5"
-									: "items-center justify-between gap-6 px-2 py-3"
+									: "items-center justify-between gap-6 px-1 py-3"
 							)}
 							params={{ projectId: project.id }}
 							to="/projects/$projectId"
@@ -47,7 +47,12 @@ export default function ProjectList({ compact }: { compact?: boolean }) {
 	}
 
 	return (
-		<p className="px-2 text-muted-foreground text-xs">
+		<p
+			className={cn(
+				compact ? "px-2 text-xs" : "text-sm",
+				"text-muted-foreground"
+			)}
+		>
 			{PROJECT_SHELL_COPY.noProjects}
 		</p>
 	);

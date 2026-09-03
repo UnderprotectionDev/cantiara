@@ -19,13 +19,13 @@ export function FounderPage({
 	return (
 		<main
 			className={cn(
-				"mx-auto w-full px-6 py-12",
+				"mx-auto w-full px-6 py-8",
 				wide ? "max-w-5xl" : "max-w-[40rem]",
 				className
 			)}
 			id={FOUNDER_MAIN_ID}
 		>
-			<div className="mb-8 flex items-center justify-between gap-4">
+			<div className="mb-6 flex items-center justify-between gap-4">
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">
 					{title}
 				</h1>

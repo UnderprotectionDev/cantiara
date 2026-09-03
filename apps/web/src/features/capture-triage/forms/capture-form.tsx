@@ -243,8 +243,11 @@ export default function CaptureForm() {
 	}
 
 	return (
-		<div className="grid items-start gap-12 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
-			<form className="flex flex-col gap-5" onSubmit={onSubmit}>
+		<div className="grid items-start gap-10 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+			<form
+				className="flex flex-col gap-5 lg:sticky lg:top-16"
+				onSubmit={onSubmit}
+			>
 				{save.isError || createBug.isError ? (
 					<p id="capture-save-error" role="alert" tabIndex={-1}>
 						{MAIN_FLOW_COPY.failed}

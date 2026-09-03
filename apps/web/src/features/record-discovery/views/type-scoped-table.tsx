@@ -1,4 +1,10 @@
 import { Button } from "@cantiara/ui/components/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "@cantiara/ui/components/dialog";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
@@ -32,6 +38,7 @@ import {
 } from "react";
 
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
+import { FounderToolbar } from "@/features/personal-shell/components/founder-surface";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -175,6 +182,7 @@ export function TypeScopedTable({ kind }: { kind: string }) {
 	const [projectId, setProjectId] = useState("");
 	const [excludedIndexes, setExcludedIndexes] = useState<number[]>([]);
 	const [saveNotice, setSaveNotice] = useState<string | null>(null);
+	const [pasteOpen, setPasteOpen] = useState(false);
 	const catalog = useQuery(orpc.recordDiscovery.catalog.queryOptions());
 	const copy = catalog.data?.copy ?? RECORD_DISCOVERY_COPY;
 	const tableKinds = catalog.data?.tableKinds ?? [copy.work];
@@ -300,6 +308,12 @@ export function TypeScopedTable({ kind }: { kind: string }) {
 		},
 		[applyPaste, excludedIndexes, kind, mapping, parsedPaste, projectId]
 	);
+	const onOpenPaste = useCallback(() => {
+		setPasteOpen(true);
+	}, []);
+	const onPasteOpenChange = useCallback((open: boolean) => {
+		setPasteOpen(open);
+	}, []);
 	const onTitleBlur = useCallback(
 		(row: TableRowView) => (event: FocusEvent<HTMLInputElement>) => {
 			const value = event.target.value.trim();
@@ -340,7 +354,7 @@ export function TypeScopedTable({ kind }: { kind: string }) {
 	return (
 		<FounderPage title={copy.table} wide>
 			<div className="flex flex-col gap-6">
-				<div className="flex flex-wrap items-end gap-3">
+				<FounderToolbar>
 					<Field>
 						<FieldLabel htmlFor={typeId}>{copy.type}</FieldLabel>
 						<NativeSelect id={typeId} onChange={onKindChange} value={kind}>
@@ -366,7 +380,10 @@ export function TypeScopedTable({ kind }: { kind: string }) {
 					<Button onClick={onSaveCollection} type="button" variant="outline">
 						{copy.saveAsSmartCollection}
 					</Button>
-				</div>
+					<Button onClick={onOpenPaste} type="button" variant="outline">
+						{copy.previewPaste}
+					</Button>
+				</FounderToolbar>
 				{saveNotice ? (
 					<p className="text-muted-foreground text-sm">{saveNotice}</p>
 				) : null}
@@ -377,97 +394,107 @@ export function TypeScopedTable({ kind }: { kind: string }) {
 				) : (
 					<RecordsTable copy={copy} onTitleBlur={onTitleBlur} rows={rows} />
 				)}
-				<form className="flex flex-col gap-3" onSubmit={onApplyPaste}>
-					<Field>
-						<FieldLabel htmlFor={pasteId}>{copy.previewPaste}</FieldLabel>
-						<Textarea
-							id={pasteId}
-							onChange={onPasteChange}
-							rows={6}
-							value={pasteText}
-						/>
-					</Field>
-					{parsedPaste.headers.length > 0 ? (
-						<div className="flex flex-wrap gap-3">
+				<Dialog onOpenChange={onPasteOpenChange} open={pasteOpen}>
+					<DialogContent className="max-h-[min(40rem,90vh)] overflow-y-auto sm:max-w-lg">
+						<DialogHeader>
+							<DialogTitle>{copy.previewPaste}</DialogTitle>
+						</DialogHeader>
+						<form className="flex flex-col gap-3" onSubmit={onApplyPaste}>
 							<Field>
-								<FieldLabel htmlFor={titleMapId}>Title</FieldLabel>
-								<NativeSelect
-									id={titleMapId}
-									onChange={onTitleMapChange}
-									value={String(mapping.title)}
-								>
-									{parsedPaste.headers.map((header, index) => (
-										<NativeSelectOption
-											key={`title-${header}`}
-											value={String(index)}
+								<FieldLabel htmlFor={pasteId}>{copy.previewPaste}</FieldLabel>
+								<Textarea
+									id={pasteId}
+									onChange={onPasteChange}
+									rows={6}
+									value={pasteText}
+								/>
+							</Field>
+							{parsedPaste.headers.length > 0 ? (
+								<div className="flex flex-wrap gap-3">
+									<Field>
+										<FieldLabel htmlFor={titleMapId}>Title</FieldLabel>
+										<NativeSelect
+											id={titleMapId}
+											onChange={onTitleMapChange}
+											value={String(mapping.title)}
 										>
-											{header}
+											{parsedPaste.headers.map((header, index) => (
+												<NativeSelectOption
+													key={`title-${header}`}
+													value={String(index)}
+												>
+													{header}
+												</NativeSelectOption>
+											))}
+										</NativeSelect>
+									</Field>
+									<Field>
+										<FieldLabel htmlFor={keyMapId}>Key</FieldLabel>
+										<NativeSelect
+											id={keyMapId}
+											onChange={onKeyMapChange}
+											value={mapping.key === null ? "" : String(mapping.key)}
+										>
+											<NativeSelectOption value="">Key</NativeSelectOption>
+											{parsedPaste.headers.map((header, index) => (
+												<NativeSelectOption
+													key={`key-${header}`}
+													value={String(index)}
+												>
+													{header}
+												</NativeSelectOption>
+											))}
+										</NativeSelect>
+									</Field>
+								</div>
+							) : null}
+							<Field>
+								<FieldLabel htmlFor={projectIdField}>{copy.project}</FieldLabel>
+								<NativeSelect
+									id={projectIdField}
+									onChange={onProjectChange}
+									value={projectId}
+								>
+									<NativeSelectOption value="">
+										{copy.project}
+									</NativeSelectOption>
+									{(projects.data ?? []).map((project) => (
+										<NativeSelectOption key={project.id} value={project.id}>
+											{project.name}
 										</NativeSelectOption>
 									))}
 								</NativeSelect>
 							</Field>
-							<Field>
-								<FieldLabel htmlFor={keyMapId}>Key</FieldLabel>
-								<NativeSelect
-									id={keyMapId}
-									onChange={onKeyMapChange}
-									value={mapping.key === null ? "" : String(mapping.key)}
-								>
-									<NativeSelectOption value="">Key</NativeSelectOption>
-									{parsedPaste.headers.map((header, index) => (
-										<NativeSelectOption
-											key={`key-${header}`}
-											value={String(index)}
-										>
-											{header}
-										</NativeSelectOption>
+							{previewRows.length > 0 ? (
+								<ul className="flex flex-col gap-1 text-sm">
+									{previewRows.map((row) => (
+										<li key={row.index}>
+											<label className="flex items-center gap-2">
+												<input
+													checked={excludedIndexes.includes(row.index)}
+													data-index={row.index}
+													onChange={onExcludeChange}
+													type="checkbox"
+												/>
+												<span>
+													{copy.excludeFromApply}: {row.action} {row.key}{" "}
+													{row.title}
+												</span>
+											</label>
+										</li>
 									))}
-								</NativeSelect>
-							</Field>
-						</div>
-					) : null}
-					<Field>
-						<FieldLabel htmlFor={projectIdField}>{copy.project}</FieldLabel>
-						<NativeSelect
-							id={projectIdField}
-							onChange={onProjectChange}
-							value={projectId}
-						>
-							<NativeSelectOption value="">{copy.project}</NativeSelectOption>
-							{(projects.data ?? []).map((project) => (
-								<NativeSelectOption key={project.id} value={project.id}>
-									{project.name}
-								</NativeSelectOption>
-							))}
-						</NativeSelect>
-					</Field>
-					{previewRows.length > 0 ? (
-						<ul className="flex flex-col gap-1 text-sm">
-							{previewRows.map((row) => (
-								<li key={row.index}>
-									<label className="flex items-center gap-2">
-										<input
-											checked={excludedIndexes.includes(row.index)}
-											data-index={row.index}
-											onChange={onExcludeChange}
-											type="checkbox"
-										/>
-										<span>
-											{copy.excludeFromApply}: {row.action} {row.key}{" "}
-											{row.title}
-										</span>
-									</label>
-								</li>
-							))}
-						</ul>
-					) : null}
-					<Button type="submit">{copy.applyPaste}</Button>
-					{applyPaste.data && applyPaste.data.decided.status === "rejected" ? (
-						<p className="text-muted-foreground text-sm">
-							{copy.pasteNotApplied}
-						</p>
-					) : null}
-				</form>
+								</ul>
+							) : null}
+							<Button type="submit">{copy.applyPaste}</Button>
+							{applyPaste.data &&
+							applyPaste.data.decided.status === "rejected" ? (
+								<p className="text-muted-foreground text-sm">
+									{copy.pasteNotApplied}
+								</p>
+							) : null}
+						</form>
+					</DialogContent>
+				</Dialog>
 			</div>
 		</FounderPage>
 	);
