@@ -355,6 +355,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yeniden bak | `Review Later` | Kaynak bağlantılı kişisel hatırlatma; `Not now` sessiz silmez; `Review later` aynı etikettir |
 | Hatırlat | `Remind me` | Desteklenen kayda Hesap kapsamında kişisel zaman bağlama eylemi; `Target date` yazmaz |
 | Hatırlatma yaşamı | `Planned`, `Cancelled` | Hatırlatmanın İngilizce yaşam etiketleri; kaynak İş akışı durumu değildir |
+| Hatırlatma zamanı | `When` | Hatırlatmanın kişisel zaman alanı; İş `Target date` değildir |
+| Hatırlatmayı iptal et | `Cancel` | `Planned` Hatırlatmayı `Cancelled` yapan açık eylem |
 | Yeniden bakı koru | `Keep Review later` | İz kapanınca bağlı hatırlatmayı bırakma |
 | Yeniden bakı kaldır | `Remove Review later` | İz kapanınca bağlı hatırlatmayı açıkça kaldırma |
 | Planlanmamış adaylar | `Unplanned candidates` | Görünüm filtresine uyan fakat tarih ve ufku olmayan canlı aday alanı |
