@@ -5,6 +5,7 @@ import WorkBlockersPanel from "@/features/blockers/views/work-blockers-panel";
 import { CompletionEffectsLayer } from "@/features/completion-effects/components/completion-effects-layer";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
 import WorkExternalHandoffsPanel from "@/features/external-handoffs/views/work-external-handoffs-panel";
+import PersonalReminderPanel from "@/features/personal-reminders/views/personal-reminder-panel";
 import WorkPriorityValues from "@/features/priority/forms/work-priority-values";
 import {
 	PROJECT_SHELL_COPY,
@@ -193,6 +194,7 @@ export default function WorkDetail({
 							targetDate={work.targetDate ?? null}
 							workId={work.id}
 						/>
+						<PersonalReminderPanel sourceId={work.id} sourceType="Work" />
 						<WorkHorizonForm
 							key={`${work.id}:horizon:${work.revision}`}
 							projectId={projectId}

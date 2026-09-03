@@ -352,7 +352,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yeniden değerlendiriliyor | `Reconsidering` | Etkin `Not now` izini kapatan eylem |
 | Yeniden değerlendirme koşulu | `Re-evaluation condition` | Kullanıcının yazdığı serbest metin; sistem izlemez |
 | Dayanaklar | `Grounds` | `Not now` izinin Karar, Risk, Geri Bildirim, Kaynak veya Belge dayanakları |
-| Yeniden bak | `Review later` | Kaynak bağlantılı kişisel hatırlatma; `Not now` sessiz silmez |
+| Yeniden bak | `Review Later` | Kaynak bağlantılı kişisel hatırlatma; `Not now` sessiz silmez; `Review later` aynı etikettir |
+| Hatırlat | `Remind me` | Desteklenen kayda Hesap kapsamında kişisel zaman bağlama eylemi; `Target date` yazmaz |
+| Hatırlatma yaşamı | `Planned`, `Cancelled` | Hatırlatmanın İngilizce yaşam etiketleri; kaynak İş akışı durumu değildir |
 | Yeniden bakı koru | `Keep Review later` | İz kapanınca bağlı hatırlatmayı bırakma |
 | Yeniden bakı kaldır | `Remove Review later` | İz kapanınca bağlı hatırlatmayı açıkça kaldırma |
 | Planlanmamış adaylar | `Unplanned candidates` | Görünüm filtresine uyan fakat tarih ve ufku olmayan canlı aday alanı |

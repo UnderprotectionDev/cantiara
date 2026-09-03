@@ -15,6 +15,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import PersonalReminderPanel from "@/features/personal-reminders/views/personal-reminder-panel";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -481,6 +482,10 @@ export default function DocumentDetail({
 		<Card className="min-w-0">
 			<CardHeader className="border-b">
 				<CardTitle>{selected.data.title}</CardTitle>
+				<PersonalReminderPanel
+					sourceId={selected.data.id}
+					sourceType="Document"
+				/>
 			</CardHeader>
 			<CardContent>
 				<form className="flex flex-col gap-3" onSubmit={onSubmit}>
