@@ -8,7 +8,7 @@ export function createGeneratedClientReload(reload: () => void) {
 			return await run();
 		} catch (error) {
 			if (
-				process.env.NODE_ENV === "production" ||
+				process.env.NODE_ENV !== "development" ||
 				!isStaleGeneratedClientError(error)
 			) {
 				throw error;

@@ -52,9 +52,9 @@ describe("generated Prisma client reload", () => {
 		expect(reloads).toBe(0);
 	});
 
-	it("does not retry stale generated-client errors in production", async () => {
+	it("does not retry stale generated-client errors outside development", async () => {
 		const previous = process.env.NODE_ENV;
-		process.env.NODE_ENV = "production";
+		process.env.NODE_ENV = "test";
 		let reloads = 0;
 		const run = createGeneratedClientReload(() => {
 			reloads += 1;
