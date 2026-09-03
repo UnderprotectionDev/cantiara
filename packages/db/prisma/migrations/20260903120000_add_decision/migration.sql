@@ -38,8 +38,17 @@ CREATE INDEX IF NOT EXISTS "decision_projectId_life_idx" ON "decision"("projectI
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "decision_event_decisionId_occurredAt_idx" ON "decision_event"("decisionId", "occurredAt");
 
--- AddForeignKey
-ALTER TABLE "decision" ADD CONSTRAINT "decision_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey (idempotent: parallel Cloud Agent deploys can create the
+-- tables, then a second apply hits "constraint already exists" / P3009 and
+-- the `dev` terminal never binds 3000/3001/4000).
+DO $$ BEGIN
+    ALTER TABLE "decision" ADD CONSTRAINT "decision_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "decision_event" ADD CONSTRAINT "decision_event_decisionId_fkey" FOREIGN KEY ("decisionId") REFERENCES "decision"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "decision_event" ADD CONSTRAINT "decision_event_decisionId_fkey" FOREIGN KEY ("decisionId") REFERENCES "decision"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;

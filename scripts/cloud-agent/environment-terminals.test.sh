@@ -40,6 +40,17 @@ for terminal in data.get("terminals", []):
             )
             failed = True
 
+required_ports = {3000, 3001, 4000, 5432, 5433}
+declared = {item.get("port") for item in data.get("ports") or []}
+missing = sorted(required_ports - declared)
+if missing:
+    print(
+        f"FAIL ports {missing} missing from .cursor/environment.json; "
+        "Cloud Agent will not keep them forwarded",
+        file=sys.stderr,
+    )
+    failed = True
+
 if failed:
     sys.exit(1)
 

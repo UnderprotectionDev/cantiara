@@ -16,8 +16,8 @@
     }
   ],
   "ports": [
-    { "name": "web", "port": 3001 },
     { "name": "api", "port": 3000 },
+    { "name": "web", "port": 3001 },
     { "name": "fumadocs", "port": 4000 },
     { "name": "postgres", "port": 5432 },
     { "name": "neon-proxy", "port": 5433 }
