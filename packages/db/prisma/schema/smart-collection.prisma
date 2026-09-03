@@ -1,0 +1,17 @@
+model SmartCollection {
+  id          String    @id
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  sourceKind  String
+  conditions  Json
+  revision    Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId])
+  @@index([projectId])
+  @@map("smart_collection")
+}

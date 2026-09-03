@@ -23,6 +23,7 @@ import { recordActions } from "../features/record-actions/server/record-actions-
 import { recordDiscovery } from "../features/record-discovery/server/record-discovery-rpc";
 import { relations } from "../features/relations/server/relations-rpc";
 import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
+import { smartCollections } from "../features/smart-collections/server/smart-collections-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { unifiedCalendar } from "../features/unified-calendar/server/unified-calendar-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
@@ -62,6 +63,7 @@ export const appRouter = {
 	recordDiscovery,
 	relations,
 	roadmapHorizon,
+	smartCollections,
 	tags,
 	unifiedCalendar,
 	workChecklists,
