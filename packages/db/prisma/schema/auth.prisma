@@ -11,6 +11,7 @@ model User {
   workspace                   Workspace?
   preference                  AccountPreference?
   completionEffectPreference  CompletionEffectPreference?
+  personalReminders           PersonalReminder[]
 
   @@unique([email])
   @@map("user")

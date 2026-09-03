@@ -1,5 +1,16 @@
 import type { PrismaClient } from "../prisma/generated/client";
 
+const OPTIONAL_RUNTIME_MODELS = new Set([
+	"CompletionEffectPreference",
+	"DailyFocusCandidateRejection",
+	"DailyFocusMembership",
+	"NextConcreteStepChange",
+	"PersonalReminder",
+	"ProjectGoal",
+	"ReturnToWorkVisibleOpen",
+	"WorkNotNowTrail",
+]);
+
 export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	const knownDelegates =
 		typeof client.captureInboxItem?.findMany === "function" &&
@@ -48,6 +59,10 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		// Daily Focus membership and candidate rejection are read via table SQL
 		// so a bun --hot client generated before those models can still serve
 		// Daily Focus. Do not gate getPrismaClient on them.
+		// Return to Work writes skip when the delegate is missing
+		// (hasDelegate in return-to-work). Gating getPrismaClient here turned
+		// CANT-56914D28 into CANT-56C7BBAF: every RPC threw
+		// "Prisma client is missing current models; restart the API after prisma generate".
 		// Completion effect preference is read via table SQL so a bun --hot
 		// client generated before that model can still serve Hesap settings.
 		typeof client.fileAttachment?.findMany === "function" &&
@@ -67,6 +82,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	// Project Goal is read and written via table SQL when bun --hot still
 	// has a client generated before that model. Do not gate getPrismaClient
 	// on it.
+	// Personal Reminder is read via table SQL so a bun --hot client
+	// generated before that model can still serve the API. Do not gate
+	// getPrismaClient on it.
 	if (!knownDelegates) {
 		return false;
 	}
@@ -80,12 +98,15 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		return true;
 	}
 	return Object.keys(models).every((modelName) => {
+		if (OPTIONAL_RUNTIME_MODELS.has(modelName)) {
+			return true;
+		}
 		const delegateName = modelName.charAt(0).toLowerCase() + modelName.slice(1);
 		const delegate = (client as unknown as Record<string, unknown>)[
 			delegateName
 		];
 		if (!isRecord(delegate)) {
-			return delegateName === "projectGoal";
+			return false;
 		}
 		return [
 			"count",
@@ -150,7 +171,10 @@ export function prismaClientHasCurrentFileAttachmentVersionModel(
  * are required for Kanban Soft WIP, Focus threshold, and Backlog
  * Reappear date notification. A bun `--hot` client generated before
  * those fields still has a Project delegate; select then throws
- * "Unknown field 'focusThreshold'".
+ * "Unknown field 'focusThreshold'". Project.nextConcreteStep is required
+ * for Return to Work Save; a bun `--hot` client generated before that
+ * field still has a Project delegate; update then throws
+ * "Unknown argument `nextConcreteStep`" (CANT-BD652F27).
  */
 export function prismaClientHasCurrentProjectModel(
 	client: PrismaClient
@@ -163,7 +187,9 @@ export function prismaClientHasCurrentProjectModel(
 		!(
 			projectFields.includes("priorityCriterionDefinitions") &&
 			projectFields.includes("focusThreshold") &&
-			projectFields.includes("reappearDateNotification")
+			projectFields.includes("reappearDateNotification") &&
+			projectFields.includes("nextConcreteStep") &&
+			projectFields.includes("nextConcreteStepUpdatedAt")
 		)
 	) {
 		return false;

@@ -16,6 +16,7 @@ import { fileAttachments } from "../features/file-attachments/server/file-attach
 import { focusPeriod } from "../features/focus-period/server/focus-period-rpc";
 import { projectGoals } from "../features/goals/server/project-goals-rpc";
 import { kanban } from "../features/kanban/server/kanban-rpc";
+import { personalReminders } from "../features/personal-reminders/server/personal-reminders-rpc";
 import { personalWiki } from "../features/personal-wiki/server/personal-wiki-rpc";
 import { priority } from "../features/priority/server/priority-rpc";
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
@@ -23,7 +24,9 @@ import { projectShell } from "../features/project-shell/server/project-shell-rpc
 import { recordActions } from "../features/record-actions/server/record-actions-rpc";
 import { recordDiscovery } from "../features/record-discovery/server/record-discovery-rpc";
 import { relations } from "../features/relations/server/relations-rpc";
+import { returnToWork } from "../features/return-to-work/server/return-to-work-rpc";
 import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
+import { smartCollections } from "../features/smart-collections/server/smart-collections-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { unifiedCalendar } from "../features/unified-calendar/server/unified-calendar-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
@@ -51,6 +54,7 @@ export const appRouter = {
 	focusPeriod,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	kanban,
+	personalReminders,
 	personalWiki,
 	priority,
 	privateData: protectedProcedure.handler(({ context }) => ({
@@ -63,7 +67,9 @@ export const appRouter = {
 	recordActions,
 	recordDiscovery,
 	relations,
+	returnToWork,
 	roadmapHorizon,
+	smartCollections,
 	tags,
 	unifiedCalendar,
 	workChecklists,
