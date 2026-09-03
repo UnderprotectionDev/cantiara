@@ -33,7 +33,11 @@ bash "$REPO_ROOT/scripts/cloud-agent/prisma-generate.sh" >/dev/null
 
 # Hosted Neon: generate does not create columns. Official Prisma deploy path is
 # migrate deploy on the same DATABASE_URL the API will use (direct host, not pooler).
-bash "$REPO_ROOT/scripts/cloud-agent/prisma-migrate-deploy.sh"
+# A failed or racing deploy must not leave 3000/3001/4000 unbound — Cursor only
+# forwards ports that have a listener.
+if ! bash "$REPO_ROOT/scripts/cloud-agent/prisma-migrate-deploy.sh"; then
+	printf '[dev] migrate deploy failed; still starting so 3000/3001/4000 bind\n' >&2
+fi
 
 bash "$REPO_ROOT/scripts/cloud-agent/stop-stale-dev-listeners.sh"
 

@@ -12,6 +12,8 @@ Do not propose or Save a competing dashboard `environment.json`. Change [`.curso
 
 Secrets, Neon vs local Postgres, and `terminals[].command` expansion: [`cloud-agent-secrets.md`](cloud-agent-secrets.md).
 
+**Ports** — [`.cursor/environment.json`](../../.cursor/environment.json) `ports` is the durable forward list: API `3000`, web `3001`, Fumadocs `4000`, Postgres `5432`, Neon proxy `5433`. Do not delete that array. Cursor still only shows a plug-menu row while a process listens; `terminals` `dev` must keep `run-dev.sh` running so those sockets stay bound.
+
 ## Lifecycle
 
 | Phase | Command | When |
@@ -22,7 +24,7 @@ Secrets, Neon vs local Postgres, and `terminals[].command` expansion: [`cloud-ag
 
 ## Dashboard — make the repo file win
 
-Open the environment: [cantiara Cloud Agent environment](https://cursor.com/dashboard/cloud-agents/environments/e/4591455b-9b0f-11f1-ba66-0e7d0216e441).
+Open the environment: [cantiara Cloud Agent environment](https://cursor.com/dashboard/cloud-agents/environments/e/a0bcff61-a640-11f1-a7d1-d6b4613131ce).
 
 1. Confirm the page lists **`.cursor/environment.json`**, not a Personal snapshot as the configuration source.
 2. If a Personal saved environment still exists for this repo, stop using it (disable or delete). With no Personal override, the committed file is first match.
