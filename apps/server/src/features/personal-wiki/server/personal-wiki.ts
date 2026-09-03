@@ -82,40 +82,6 @@ export interface RecordDiscoveryPort {
 	search: (query: string) => readonly DocumentDiscoveryHit[];
 }
 
-export function documentHitFromDiscoveryRecord(input: {
-	id: string;
-	projectId: string | null;
-	scope: string;
-	surface: DocumentDiscoverySurface;
-	title: string;
-}): DocumentDiscoveryHit {
-	if (input.scope === PERSONAL_WIKI_COPY.personalWiki) {
-		return {
-			id: input.id,
-			recordKind: PERSONAL_WIKI_RECORD_KIND,
-			scope: PERSONAL_WIKI_SCOPE,
-			surface: input.surface,
-			title: input.title,
-		};
-	}
-	if (input.scope === PERSONAL_WIKI_COPY.project) {
-		return {
-			id: input.id,
-			recordKind: PERSONAL_WIKI_RECORD_KIND,
-			scope: { kind: "project", projectId: input.projectId ?? "" },
-			surface: input.surface,
-			title: input.title,
-		};
-	}
-	return {
-		id: input.id,
-		recordKind: PERSONAL_WIKI_RECORD_KIND,
-		scope: null,
-		surface: input.surface,
-		title: input.title,
-	};
-}
-
 export interface WikiCreateInput {
 	body?: string;
 	scope: WikiScope;
