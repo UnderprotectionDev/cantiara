@@ -54,7 +54,7 @@ Kurucu tek Çalışma Alanındaki Projeleri ve kişisel dikkati dağılmış lis
 - **Not other overviews.** This is the Workspace horizon. It does not replace Project Overview (08), the personal shell (72), or Smart Collections (34). Personal Wiki is not shown as a Project summary. Favorites and session Active Work Set are not this Recent Work module.
 - **Cross-Project lists.** Named lists filter Projects by lifecycle status, stage, date, archive, supported Project areas, and other already-visible conditions. Membership is live from conditions. No manual drag-on membership, Program/Portfolio record, Project score, or report truth. View may store supported columns, sort, and grouping. If last Manual Project Update health is used, show `Last reported health` with its date; do not invent a current Project health field, automatic health verdict, or dateless status badge.
 - **Export consumer.** Exact-view CSV/PDF snapshot of a supported cross-Project list is owned by portability (PRD 13); this feature only needs a stable named view identity those exports can target later. Do not implement export here.
-- **English UI labels.** `Active Projects`, `Attention Required`, `Upcoming`, `Recent Work`, `Last reported health`, `Open source record`. Add missing labels to the term table in the same change. No Turkish UI.
+- **English UI labels.** `Active Projects`, `Attention Required`, `Upcoming`, `Recent Work`, `Last reported health`, `Open source record`, `Saved lists`, `Save list`, `New list`. Add missing labels to the term table in the same change. No Turkish UI.
 - **Stack.** TanStack Router for the Workspace route, TanStack Query for derived summaries, TanStack Table for saved lists. No new dashboard framework.
 
 ## Testing Decisions

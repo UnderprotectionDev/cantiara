@@ -106,6 +106,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Canlı blok ekle | `Add live block` | Mevcut Belge veya adlandırılmış Akıllı Koleksiyon görünümünü kopyasız referans olarak ekleme |
 | Kaydedilmiş çapraz Proje listesi | `Saved lists` | Çalışma Alanı çapında Proje koşullarından canlı üyelik türeten adlandırılmış görünüm; Portfolio veya Akıllı Koleksiyon değildir |
 | Listeyi kaydet | `Save list` | Çapraz Proje listesi koşullarını ve görünümünü kaydetme |
+| Yeni liste | `New list` | Kaydedilmiş çapraz Proje listesi oluşturma formunu açma |
 | Son bildirilen sağlık | `Last reported health` | Son Manuel Proje Güncellemesinin tarihiyle gösterilen sağlık işareti; güncel Project health alanı değildir |
 | Üyelik koşullardan gelir | `Membership comes from list conditions.` | Sürükleyerek liste üyesi eklenemeyeceğini söyleyen metin |
 | Kolonlar | `Columns` | Kaydedilmiş çapraz Proje listesinde saklanan desteklenen kolonlar |

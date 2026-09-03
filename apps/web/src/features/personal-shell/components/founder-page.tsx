@@ -6,11 +6,13 @@ import { FOUNDER_MAIN_ID } from "./founder-chrome";
 export function FounderPage({
 	actions,
 	children,
+	className,
 	title,
 	wide,
 }: {
 	actions?: ReactNode;
 	children: ReactNode;
+	className?: string;
 	title: string;
 	wide?: boolean;
 }) {
@@ -18,7 +20,8 @@ export function FounderPage({
 		<main
 			className={cn(
 				"mx-auto w-full px-6 py-12",
-				wide ? "max-w-5xl" : "max-w-[40rem]"
+				wide ? "max-w-5xl" : "max-w-[40rem]",
+				className
 			)}
 			id={FOUNDER_MAIN_ID}
 		>

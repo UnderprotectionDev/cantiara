@@ -10,6 +10,7 @@ test("English UI uses the four prepared Workspace Overview modules", () => {
 		activeProjects: "Active Projects",
 		attentionRequired: "Attention Required",
 		lastReportedHealth: "Last reported health",
+		newList: "New list",
 		openSourceRecord: "Open source record",
 		recentWork: "Recent Work",
 		savedLists: "Saved lists",

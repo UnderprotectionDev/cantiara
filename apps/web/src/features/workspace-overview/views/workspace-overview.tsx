@@ -1,6 +1,20 @@
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
+import {
+	Card,
+	CardAction,
+	CardContent,
+	CardHeader,
+	CardTitle,
+} from "@cantiara/ui/components/card";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@cantiara/ui/components/dropdown-menu";
 import { Skeleton } from "@cantiara/ui/components/skeleton";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { MoreHorizontal } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
@@ -50,6 +64,7 @@ interface OverviewCopy {
 	membershipFromConditions: string;
 	moveDown: string;
 	moveUp: string;
+	newList: string;
 	none: string;
 	notArchived: string;
 	openSourceRecord: string;
@@ -181,7 +196,11 @@ export default function WorkspaceOverview() {
 
 	if (overview.isPending) {
 		return (
-			<FounderPage title={WORKSPACE_OVERVIEW_UI_COPY.workspace}>
+			<FounderPage
+				className="py-8"
+				title={WORKSPACE_OVERVIEW_UI_COPY.workspace}
+				wide
+			>
 				<div className="flex flex-col gap-3">
 					<Skeleton className="h-8 w-48" />
 					<p>{WORKSPACE_OVERVIEW_UI_COPY.loading}</p>
@@ -191,7 +210,11 @@ export default function WorkspaceOverview() {
 	}
 	if (overview.isError || !overview.data) {
 		return (
-			<FounderPage title={WORKSPACE_OVERVIEW_UI_COPY.workspace}>
+			<FounderPage
+				className="py-8"
+				title={WORKSPACE_OVERVIEW_UI_COPY.workspace}
+				wide
+			>
 				<p role="alert">{WORKSPACE_OVERVIEW_UI_COPY.unavailable}</p>
 			</FounderPage>
 		);
@@ -218,8 +241,8 @@ export default function WorkspaceOverview() {
 	const hidden = orderedCatalog.filter((module) => module.hidden);
 
 	return (
-		<FounderPage title={data.copy.workspace}>
-			<div className="flex flex-col divide-y border-y">
+		<FounderPage className="py-8" title={data.copy.workspace} wide>
+			<div className="grid gap-3 sm:grid-cols-2">
 				{visible.map((module, index) => (
 					<OverviewModule
 						canMoveDown={index < visible.length - 1}
@@ -238,7 +261,7 @@ export default function WorkspaceOverview() {
 				))}
 			</div>
 			{hidden.length > 0 ? (
-				<ul className="mt-6 flex flex-col gap-2">
+				<ul className="mt-4 flex flex-wrap gap-2">
 					{hidden.map((module) => (
 						<HiddenModuleRow
 							copy={data.copy}
@@ -413,68 +436,85 @@ function OverviewModule({
 
 	return (
 		<section aria-label={module.heading}>
-			<div className="flex flex-wrap items-center gap-2 py-3">
-				<h2 className="min-w-0 flex-1">
-					<Button
-						aria-expanded={opened}
-						aria-label={`${openSourceRecord}: ${module.heading} ${module.count}`}
-						className="h-auto w-full justify-between px-0 py-0 font-medium text-sm"
-						onClick={onToggle}
-						type="button"
-						variant="ghost"
-					>
-						<span>{module.heading}</span>
-						<span className="font-normal text-muted-foreground tabular-nums">
-							{module.count}
-						</span>
-					</Button>
-				</h2>
-				<Button onClick={onHide} type="button" variant="outline">
-					{copy.hide}
-				</Button>
-				<Button
-					disabled={!canMoveUp}
-					onClick={onMoveUp}
-					type="button"
-					variant="ghost"
-				>
-					{copy.moveUp}
-				</Button>
-				<Button
-					disabled={!canMoveDown}
-					onClick={onMoveDown}
-					type="button"
-					variant="ghost"
-				>
-					{copy.moveDown}
-				</Button>
-			</div>
-			{opened && module.records.length > 0 ? (
-				<ul className="pb-3">
-					{module.records.map((record) => (
-						<OverviewSourceRow
-							heading={module.heading}
-							key={record.id}
-							opened={openedRecordId === record.id}
-							openSourceRecord={openSourceRecord}
-							record={record}
-							setOpenedRecordId={setOpenedRecordId}
-						/>
-					))}
-				</ul>
-			) : null}
-			{opened &&
-			module.heading === WORKSPACE_OVERVIEW_UI_COPY.activeProjects &&
-			module.records.length === 0 ? (
-				<p className="pb-3">
-					<a
-						className={buttonVariants({ size: "sm", variant: "outline" })}
-						href="/projects/new"
-					>
-						{PROJECT_SHELL_COPY.createProject}
-					</a>
-				</p>
-			) : null}
+			<Card size="sm">
+				<CardHeader className="border-b">
+					<CardTitle>
+						<h2 className="min-w-0">
+							<Button
+								aria-expanded={opened}
+								aria-label={`${openSourceRecord}: ${module.heading} ${module.count}`}
+								className="h-auto w-full flex-col items-start gap-1 px-0 py-0 font-medium text-sm"
+								onClick={onToggle}
+								type="button"
+								variant="ghost"
+							>
+								<span className="text-muted-foreground text-xs">
+									{module.heading}
+								</span>
+								<span className="font-semibold text-2xl tabular-nums tracking-tight">
+									{module.count}
+								</span>
+							</Button>
+						</h2>
+					</CardTitle>
+					<CardAction>
+						<DropdownMenu>
+							<DropdownMenuTrigger
+								render={
+									<Button
+										aria-label={`${module.heading}: ${copy.hide}`}
+										size="icon-sm"
+										variant="ghost"
+									/>
+								}
+							>
+								<MoreHorizontal className="size-4" />
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" className="bg-card">
+								<DropdownMenuItem onClick={onHide}>
+									{copy.hide}
+								</DropdownMenuItem>
+								<DropdownMenuItem disabled={!canMoveUp} onClick={onMoveUp}>
+									{copy.moveUp}
+								</DropdownMenuItem>
+								<DropdownMenuItem disabled={!canMoveDown} onClick={onMoveDown}>
+									{copy.moveDown}
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</CardAction>
+				</CardHeader>
+				{opened && module.records.length > 0 ? (
+					<CardContent>
+						<ul className="flex flex-col gap-2 py-1">
+							{module.records.map((record) => (
+								<OverviewSourceRow
+									heading={module.heading}
+									key={record.id}
+									opened={openedRecordId === record.id}
+									openSourceRecord={openSourceRecord}
+									record={record}
+									setOpenedRecordId={setOpenedRecordId}
+								/>
+							))}
+						</ul>
+					</CardContent>
+				) : null}
+				{opened &&
+				module.heading === WORKSPACE_OVERVIEW_UI_COPY.activeProjects &&
+				module.records.length === 0 ? (
+					<CardContent>
+						<p className="py-1">
+							<a
+								className={buttonVariants({ size: "sm", variant: "outline" })}
+								href="/projects/new"
+							>
+								{PROJECT_SHELL_COPY.createProject}
+							</a>
+						</p>
+					</CardContent>
+				) : null}
+			</Card>
 		</section>
 	);
 }
@@ -497,9 +537,9 @@ function HiddenModuleRow({
 		});
 	}, [layout, module.heading, persist]);
 	return (
-		<li>
-			{module.heading}{" "}
-			<Button onClick={onShow} type="button" variant="outline">
+		<li className="flex items-center gap-2 text-sm">
+			<span className="text-muted-foreground">{module.heading}</span>
+			<Button onClick={onShow} size="sm" type="button" variant="outline">
 				{copy.show}
 			</Button>
 		</li>

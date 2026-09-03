@@ -5,8 +5,10 @@ import {
 	FOUNDER_CHROME_PATHS,
 	FOUNDER_MAIN_ID,
 	founderChromeAccountOnly,
+	founderChromeMoreNavGroups,
 	founderChromeNav,
 	founderChromeNavIsCurrent,
+	founderChromePrimaryNav,
 	projectOverviewHref,
 } from "./founder-chrome";
 
@@ -45,6 +47,32 @@ test("founder chrome reaches Capture and Projects, not Home or Dashboard twins",
 	expect(founderChromeNav().map((link) => link.to)).not.toContain("/");
 	expect(founderChromeNav().map((link) => link.to)).not.toContain("/account");
 	expect(founderChromeNav().map((link) => link.to)).not.toContain("/sessions");
+});
+
+test("primary chrome keeps Capture, Daily Focus, and Projects on the bar", () => {
+	expect(founderChromePrimaryNav()).toEqual([
+		{ label: "Capture", to: "/capture" },
+		{ label: "Daily Focus", to: "/daily-focus" },
+		{ label: "Projects", to: "/projects" },
+	]);
+});
+
+test("more chrome groups Drafts, time surfaces, and knowledge surfaces", () => {
+	expect(FOUNDER_CHROME_COPY.more).toBe("More");
+	expect(FOUNDER_CHROME_COPY.table).toBe("Table");
+	expect(FOUNDER_CHROME_PATHS.table).toBe("/table");
+	expect(founderChromeMoreNavGroups()).toEqual([
+		[{ label: "Drafts", to: "/drafts" }],
+		[
+			{ label: "Calendar", to: "/calendar" },
+			{ label: "Focus Period", to: "/focus-periods" },
+		],
+		[
+			{ label: "Personal Wiki", to: "/wiki" },
+			{ label: "Table", to: "/table" },
+		],
+	]);
+	expect(founderChromeNavIsCurrent("/table", "/table")).toBe(true);
 });
 
 test("Preferences, Completion effects, and Sessions stay on the Account menu", () => {

@@ -15,6 +15,7 @@ export const WORKSPACE_OVERVIEW_UI_COPY = {
 	membershipFromConditions: "Membership comes from list conditions.",
 	moveDown: "Move down",
 	moveUp: "Move up",
+	newList: "New list",
 	none: "None",
 	notArchived: "Not archived",
 	openSourceRecord: "Open source record",
