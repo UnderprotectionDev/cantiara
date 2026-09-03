@@ -71,7 +71,7 @@ describe("ensure generated Prisma client", () => {
 		expect(generated).toBe(false);
 	});
 
-	it("does not generate in production", () => {
+	it("does not generate outside development", () => {
 		let generated = false;
 		const ensure = createEnsureGeneratedPrismaClient({
 			forget: () => undefined,

@@ -176,7 +176,7 @@ export function resetPrismaClientCache() {
 }
 
 export function getPrismaClient() {
-	if (process.env.NODE_ENV !== "production") {
+	if (process.env.NODE_ENV === "development") {
 		ensureGeneratedPrismaClient();
 	}
 	const diskStamp = readGeneratedClientStamp();
@@ -219,7 +219,7 @@ function loadCurrentPrismaClient(): PrismaClient {
 		return client;
 	}
 	client.$disconnect().catch(() => undefined);
-	if (process.env.NODE_ENV !== "production") {
+	if (process.env.NODE_ENV === "development") {
 		forceRegeneratePrismaClient();
 		const regenerated = createPrismaClient();
 		if (prismaClientHasRequiredModels(regenerated)) {

@@ -54,7 +54,7 @@ export function createEnsureGeneratedPrismaClient(
 	deps: EnsureGeneratedPrismaClientDeps
 ): () => void {
 	return () => {
-		if (deps.nodeEnv() === "production") {
+		if (deps.nodeEnv() !== "development") {
 			return;
 		}
 		const schemaFingerprint = deps.schemaFingerprint();
@@ -109,7 +109,7 @@ export const ensureGeneratedPrismaClient = createEnsureGeneratedPrismaClient({
 });
 
 export function forceRegeneratePrismaClient(): void {
-	if (process.env.NODE_ENV === "production") {
+	if (process.env.NODE_ENV !== "development") {
 		return;
 	}
 	runPrismaGenerate();
