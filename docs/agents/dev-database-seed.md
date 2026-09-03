@@ -18,7 +18,7 @@ Synthetic demo data for manual testing and Cloud Agent sessions. The seed resets
 ### Default (local or Neon dev)
 
 ```bash
-bun run db:seed
+bun run seed
 ```
 
 When `NODE_ENV=development`, hosted Neon works without extra flags. Seed loads demo data into **your** Workspace (the GitHub account already in the database).
@@ -26,7 +26,7 @@ When `NODE_ENV=development`, hosted Neon works without extra flags. Seed loads d
 Dry run (no writes):
 
 ```bash
-cd packages/db && bunx --bun prisma db seed -- --dry-run
+bun run seed -- --dry-run
 ```
 
 ### Production-like hosted runs
@@ -34,13 +34,13 @@ cd packages/db && bunx --bun prisma db seed -- --dry-run
 Outside `NODE_ENV=development`, hosted databases require explicit confirmation:
 
 ```bash
-SEED_CONFIRM=hosted bun run db:seed
+SEED_CONFIRM=hosted bun run seed
 ```
 
 Target a specific founder account:
 
 ```bash
-SEED_USER_EMAIL=you@example.com bun run db:seed
+SEED_USER_EMAIL=you@example.com bun run seed
 ```
 
 ## What gets created
@@ -63,7 +63,7 @@ To wipe demo data without reloading, stop after the clear step by running with `
 ## Implementation
 
 - Entry: [`scripts/seed/run.ts`](../../scripts/seed/run.ts)
-- Prisma wiring: [`packages/db/prisma.config.ts`](../../packages/db/prisma.config.ts)
+- Env loading: [`scripts/seed/env.ts`](../../scripts/seed/env.ts) (reads `apps/server/.env`)
 - Domain writes use server feature seams (`createProject`, `createWork`, etc.), not raw inserts.
 
 ## Notes

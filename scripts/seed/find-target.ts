@@ -19,7 +19,7 @@ export function assertHostedSeedAllowed(databaseUrl: string): void {
 	console.error(
 		"Refusing to seed a hosted database outside development without SEED_CONFIRM=hosted."
 	);
-	console.error("Example: SEED_CONFIRM=hosted bun run db:seed");
+	console.error("Example: SEED_CONFIRM=hosted bun run seed");
 	process.exit(1);
 }
 
@@ -91,6 +91,6 @@ export async function findSeedTarget(
 	}
 
 	throw new Error(
-		"No Workspace found. Sign in once with GitHub, then run: bun run db:seed"
+		"No Workspace found. Sign in once with GitHub, then run: bun run seed"
 	);
 }

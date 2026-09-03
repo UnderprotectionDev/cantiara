@@ -1,3 +1,4 @@
+import "./env.ts";
 import { clearWorkspace } from "./clear-workspace";
 import {
 	assertHostedSeedAllowed,
@@ -13,8 +14,6 @@ function parseArgs(argv: string[]): { dryRun: boolean } {
 }
 
 async function main(): Promise<void> {
-	process.env.NODE_ENV ??= "development";
-
 	const databaseUrl = process.env.DATABASE_URL ?? "";
 	if (!databaseUrl) {
 		console.error("DATABASE_URL is required.");

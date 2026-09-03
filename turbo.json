@@ -50,9 +50,6 @@
       "cache": false,
       "persistent": true
     },
-    "db:seed": {
-      "cache": false
-    },
     "test": {
       "cache": false
     }

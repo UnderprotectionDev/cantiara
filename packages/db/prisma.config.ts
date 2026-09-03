@@ -13,7 +13,6 @@ export default defineConfig({
 	},
 	migrations: {
 		path: path.join("prisma", "migrations"),
-		seed: "bun run --cwd ../.. scripts/seed/run.ts",
 	},
 	schema: path.join("prisma", "schema"),
 });
