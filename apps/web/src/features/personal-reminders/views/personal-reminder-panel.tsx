@@ -17,6 +17,7 @@ import {
 	PERSONAL_REMINDER_ACTIONS,
 	PERSONAL_REMINDERS_COPY,
 	type PersonalReminderAction,
+	presentPersonalReminderWriteError,
 } from "./personal-reminders-copy";
 
 interface ReminderRow {
@@ -76,6 +77,9 @@ export default function PersonalReminderPanel({
 	);
 	const create = useMutation(
 		orpc.personalReminders.create.mutationOptions({
+			onError: () => {
+				setError(PERSONAL_REMINDERS_COPY.couldNotWrite);
+			},
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed") {
 					await rememberReminder(sourceId, sourceType, outcome.reminder);
@@ -83,16 +87,15 @@ export default function PersonalReminderPanel({
 					setError(null);
 					return;
 				}
-				if (outcome.status === "invalid") {
-					setError(outcome.reason);
-					return;
-				}
-				setError("Conflict");
+				setError(presentPersonalReminderWriteError(outcome));
 			},
 		})
 	);
 	const cancel = useMutation(
 		orpc.personalReminders.cancel.mutationOptions({
+			onError: () => {
+				setError(PERSONAL_REMINDERS_COPY.couldNotWrite);
+			},
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed") {
 					await rememberReminder(sourceId, sourceType, outcome.reminder);
@@ -100,7 +103,7 @@ export default function PersonalReminderPanel({
 					setError(null);
 					return;
 				}
-				setError("Conflict");
+				setError(presentPersonalReminderWriteError(outcome));
 			},
 		})
 	);

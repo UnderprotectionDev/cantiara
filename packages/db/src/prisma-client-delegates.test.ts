@@ -50,6 +50,10 @@ function workDelegates() {
 			findMany,
 		},
 		documentVersion: { findMany },
+		personalReminder: {
+			create: () => undefined,
+			findMany,
+		},
 		projectBacklogManualOrderItem: {
 			createMany: () => undefined,
 			findMany,
@@ -491,6 +495,35 @@ describe("Prisma client current delegates", () => {
 				workTag: { findMany },
 			} as unknown as PrismaClient)
 		).toBe(true);
+	});
+
+	it("refuses a bun --hot client generated before Personal Reminder", () => {
+		const { personalReminder: _dropped, ...beforeReminders } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionGoingPackage: { create: () => undefined, findMany },
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			externalExecutionHandoffEvent: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(
+				beforeReminders as unknown as PrismaClient
+			)
+		).toBe(false);
 	});
 
 	it("refuses a bun --hot client generated before Priority Map presentation", () => {

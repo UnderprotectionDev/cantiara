@@ -343,6 +343,17 @@ describe("Personal Reminders", () => {
 		expect(listed.map((row) => row.life)).toEqual(["Cancelled"]);
 	});
 
+	it("does not treat a missing Work as a reminder write", async () => {
+		const missing = await surface().create({
+			createdByAction: PERSONAL_REMINDER_ACTION.remindMe,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: crypto.randomUUID(),
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.work,
+		});
+		expect(missing.status).toBe("not-found");
+	});
+
 	it("does not write Work status, Target date, Yeniden görünme tarihi, or planning membership", async () => {
 		const project = await openProject("Alpha");
 		const work = await openWork(project.id, "Ship");

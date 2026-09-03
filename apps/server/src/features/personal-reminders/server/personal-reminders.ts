@@ -206,13 +206,10 @@ export function createPersonalReminders(
 			sourceId,
 			sourceType: command.sourceType,
 		};
+		const commandKey = commandKeyFor(input.accountId, command.idempotencyKey);
 		return await input.prisma.$transaction(async (tx) => {
 			await lockMutation(tx, `personal-reminder:${input.accountId}:create`);
-			const existing = await readDurableReceipt(
-				tx,
-				command.idempotencyKey,
-				payload
-			);
+			const existing = await readDurableReceipt(tx, commandKey, payload);
 			if (existing?.kind === "conflict") {
 				return { reason: MUTATION_COPY.conflict, status: "conflict" };
 			}
@@ -245,7 +242,7 @@ export function createPersonalReminders(
 			};
 			await writeDurableReceipt(tx, {
 				actorId: input.accountId,
-				commandKey: command.idempotencyKey,
+				commandKey,
 				kind: "personal-reminder.create",
 				payload,
 				resultValue: JSON.stringify(outcome),
@@ -262,16 +259,13 @@ export function createPersonalReminders(
 			return { status: "not-found" };
 		}
 		const payload = { reminderId: command.reminderId };
+		const commandKey = commandKeyFor(input.accountId, command.idempotencyKey);
 		return await input.prisma.$transaction(async (tx) => {
 			await lockMutation(
 				tx,
 				`personal-reminder:${input.accountId}:${command.reminderId}`
 			);
-			const existing = await readDurableReceipt(
-				tx,
-				command.idempotencyKey,
-				payload
-			);
+			const existing = await readDurableReceipt(tx, commandKey, payload);
 			if (existing?.kind === "conflict") {
 				return { reason: MUTATION_COPY.conflict, status: "conflict" };
 			}
@@ -294,7 +288,7 @@ export function createPersonalReminders(
 			};
 			await writeDurableReceipt(tx, {
 				actorId: input.accountId,
-				commandKey: command.idempotencyKey,
+				commandKey,
 				kind: "personal-reminder.cancel",
 				payload,
 				resultValue: JSON.stringify(outcome),
@@ -312,4 +306,8 @@ export function createPersonalReminders(
 		list,
 		listForSource,
 	};
+}
+
+function commandKeyFor(actorId: string, idempotencyKey: string): string {
+	return `human:${actorId}:${idempotencyKey}`;
 }
