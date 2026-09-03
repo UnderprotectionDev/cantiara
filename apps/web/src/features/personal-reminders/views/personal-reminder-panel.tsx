@@ -26,16 +26,28 @@ interface ReminderRow {
 	life: string;
 }
 
-function invalidateReminders(sourceId: string, sourceType: string) {
+function sourceQueryKey(sourceId: string, sourceType: "Document" | "Work") {
+	return orpc.personalReminders.listForSource.queryKey({
+		input: { sourceId, sourceType },
+	});
+}
+
+function rememberReminder(
+	sourceId: string,
+	sourceType: "Document" | "Work",
+	reminder: ReminderRow
+) {
+	queryClient.setQueryData(
+		sourceQueryKey(sourceId, sourceType),
+		(current: ReminderRow[] | undefined) => {
+			const rows = current ?? [];
+			const next = rows.filter((row) => row.id !== reminder.id);
+			next.push(reminder);
+			return next;
+		}
+	);
 	return queryClient.invalidateQueries({
-		predicate: (query) => {
-			const serialized = JSON.stringify(query.queryKey);
-			return (
-				serialized.includes("personalReminders") &&
-				serialized.includes(sourceId) &&
-				serialized.includes(sourceType)
-			);
-		},
+		queryKey: sourceQueryKey(sourceId, sourceType),
 	});
 }
 
@@ -66,7 +78,7 @@ export default function PersonalReminderPanel({
 		orpc.personalReminders.create.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed") {
-					await invalidateReminders(sourceId, sourceType);
+					await rememberReminder(sourceId, sourceType, outcome.reminder);
 					recordSave();
 					setError(null);
 					return;
@@ -83,7 +95,7 @@ export default function PersonalReminderPanel({
 		orpc.personalReminders.cancel.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed") {
-					await invalidateReminders(sourceId, sourceType);
+					await rememberReminder(sourceId, sourceType, outcome.reminder);
 					recordSave();
 					setError(null);
 					return;
@@ -178,15 +190,19 @@ export default function PersonalReminderPanel({
 				</Button>
 			</form>
 			{error ? <p role="alert">{error}</p> : null}
+			{listed.isError ? <p role="alert">{listed.error.message}</p> : null}
 			{reminders.length === 0 ? (
 				<p className="text-muted-foreground text-sm">
 					{PERSONAL_REMINDERS_COPY.empty}
 				</p>
 			) : (
-				<ul className="flex flex-col gap-2">
+				<ul
+					aria-label={PERSONAL_REMINDERS_COPY.remindMe}
+					className="flex flex-col gap-2"
+				>
 					{reminders.map((reminder) => (
 						<li
-							className="flex flex-wrap items-center gap-2 text-sm"
+							className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm"
 							key={reminder.id}
 						>
 							<span>{reminder.life}</span>
