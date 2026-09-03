@@ -59,35 +59,53 @@ export default function DocumentPortabilityPanel({
 		}),
 		enabled: projectId !== null,
 	});
+	const onMoveSuccess = useCallback(
+		async (outcome: { reason?: string; status: string }) => {
+			if (outcome.status === "committed" || outcome.status === "replayed") {
+				await queryClient.invalidateQueries();
+				recordSave();
+				setError(null);
+				onMoved?.();
+				return;
+			}
+			if (outcome.status === "rejected" && outcome.reason) {
+				setError(outcome.reason);
+			}
+		},
+		[onMoved, recordSave]
+	);
 	const move = useMutation(
 		orpc.documents.move.mutationOptions({
-			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await queryClient.invalidateQueries();
-					recordSave();
-					setError(null);
-					onMoved?.();
-					return;
-				}
-				if (outcome.status === "rejected") {
-					setError(outcome.reason);
-				}
-			},
+			onSuccess: onMoveSuccess,
 		})
+	);
+	const moveToWikiMutation = useMutation(
+		orpc.personalWiki.move.mutationOptions({
+			onSuccess: onMoveSuccess,
+		})
+	);
+	const onCopySuccess = useCallback(
+		async (outcome: { reason?: string; status: string }) => {
+			if (outcome.status === "committed" || outcome.status === "replayed") {
+				await queryClient.invalidateQueries();
+				recordSave();
+				setError(null);
+				return;
+			}
+			if (outcome.status === "rejected" && outcome.reason) {
+				setError(outcome.reason);
+			}
+		},
+		[recordSave]
 	);
 	const copy = useMutation(
 		orpc.documents.copy.mutationOptions({
-			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await queryClient.invalidateQueries();
-					recordSave();
-					setError(null);
-					return;
-				}
-				if (outcome.status === "rejected") {
-					setError(outcome.reason);
-				}
-			},
+			onSuccess: onCopySuccess,
+		})
+	);
+	const copyIntoWiki = useMutation(
+		orpc.personalWiki.copy.mutationOptions({
+			onSuccess: onCopySuccess,
 		})
 	);
 	const onTargetChange = useCallback(
@@ -113,16 +131,26 @@ export default function DocumentPortabilityPanel({
 			setError(null);
 			markUnsaved();
 			attemptOnlineWork("record-create", () =>
-				move.mutateAsync({
-					baseRevision: revision,
-					idempotencyKey: newIdempotencyKey(),
-					payload: {
-						cancelExternalSurfaces: cancelSurface,
-						childDocumentIds: childIds,
-						documentId,
-						target,
-					},
-				})
+				target.kind === "personal-wiki"
+					? moveToWikiMutation.mutateAsync({
+							baseRevision: revision,
+							idempotencyKey: newIdempotencyKey(),
+							payload: {
+								cancelExternalSurfaces: cancelSurface,
+								childDocumentIds: childIds,
+								documentId,
+							},
+						})
+					: move.mutateAsync({
+							baseRevision: revision,
+							idempotencyKey: newIdempotencyKey(),
+							payload: {
+								cancelExternalSurfaces: cancelSurface,
+								childDocumentIds: childIds,
+								documentId,
+								target,
+							},
+						})
 			);
 		},
 		[
@@ -132,6 +160,7 @@ export default function DocumentPortabilityPanel({
 			documentId,
 			markUnsaved,
 			move,
+			moveToWikiMutation,
 			projectId,
 			revision,
 			target,
@@ -141,15 +170,24 @@ export default function DocumentPortabilityPanel({
 		setError(null);
 		markUnsaved();
 		attemptOnlineWork("record-create", () =>
-			copy.mutateAsync({
-				idempotencyKey: newIdempotencyKey(),
-				payload:
-					projectId === null
-						? { documentId }
-						: { documentId, target: { kind: "personal-wiki" } },
-			})
+			projectId === null
+				? copy.mutateAsync({
+						idempotencyKey: newIdempotencyKey(),
+						payload: { documentId },
+					})
+				: copyIntoWiki.mutateAsync({
+						idempotencyKey: newIdempotencyKey(),
+						payload: { documentId },
+					})
 		);
-	}, [attemptOnlineWork, copy, documentId, markUnsaved, projectId]);
+	}, [
+		attemptOnlineWork,
+		copy,
+		copyIntoWiki,
+		documentId,
+		markUnsaved,
+		projectId,
+	]);
 	const onExport = useCallback(
 		async (format: "markdown" | "pdf") => {
 			setError(null);
