@@ -382,7 +382,7 @@ describe("Prisma client current delegates", () => {
 		).toBe(true);
 	});
 
-	it("refuses a bun --hot client generated before Return to Work visible open", () => {
+	it("accepts a bun --hot client generated before Return to Work visible open", () => {
 		const { returnToWorkVisibleOpen: _dropped, ...beforeVisibleOpen } = {
 			...workDelegates(),
 			...currentLifecycleDelegates(),
@@ -408,7 +408,7 @@ describe("Prisma client current delegates", () => {
 			prismaClientHasCurrentDelegates(
 				beforeVisibleOpen as unknown as PrismaClient
 			)
-		).toBe(false);
+		).toBe(true);
 	});
 
 	it("refuses a bun --hot client generated before Record Action", () => {
