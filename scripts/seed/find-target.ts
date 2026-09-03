@@ -10,13 +10,17 @@ export function assertHostedSeedAllowed(databaseUrl: string): void {
 	if (isLocalDatabaseUrl(databaseUrl)) {
 		return;
 	}
-	if (process.env.SEED_CONFIRM !== "hosted") {
-		console.error(
-			"Refusing to seed a hosted database without SEED_CONFIRM=hosted."
-		);
-		console.error("Example: SEED_CONFIRM=hosted bun run db:seed");
-		process.exit(1);
+	if (process.env.NODE_ENV === "development") {
+		return;
 	}
+	if (process.env.SEED_CONFIRM === "hosted") {
+		return;
+	}
+	console.error(
+		"Refusing to seed a hosted database outside development without SEED_CONFIRM=hosted."
+	);
+	console.error("Example: SEED_CONFIRM=hosted bun run db:seed");
+	process.exit(1);
 }
 
 export interface SeedTarget {
@@ -27,7 +31,7 @@ export interface SeedTarget {
 
 export async function findSeedTarget(
 	prisma: PrismaClient,
-	databaseUrl: string
+	_databaseUrl: string
 ): Promise<SeedTarget> {
 	const email = process.env.SEED_USER_EMAIL?.trim();
 	if (email) {
@@ -47,6 +51,33 @@ export async function findSeedTarget(
 		};
 	}
 
+	const githubWorkspace = await prisma.workspace.findFirst({
+		include: {
+			owner: {
+				include: {
+					accounts: {
+						where: { providerId: "github" },
+					},
+				},
+			},
+		},
+		orderBy: { createdAt: "asc" },
+		where: {
+			owner: {
+				accounts: {
+					some: { providerId: "github" },
+				},
+			},
+		},
+	});
+	if (githubWorkspace) {
+		return {
+			actorId: githubWorkspace.ownerId,
+			email: githubWorkspace.owner.email,
+			workspaceId: githubWorkspace.id,
+		};
+	}
+
 	const workspace = await prisma.workspace.findFirst({
 		include: { owner: true },
 		orderBy: { createdAt: "asc" },
@@ -59,35 +90,7 @@ export async function findSeedTarget(
 		};
 	}
 
-	if (isLocalDatabaseUrl(databaseUrl)) {
-		const localEmail = "seed-founder@dev.cantiara.test";
-		const user = await prisma.user.upsert({
-			create: {
-				email: localEmail,
-				emailVerified: true,
-				id: crypto.randomUUID(),
-				name: "Seed Founder",
-			},
-			update: {},
-			where: { email: localEmail },
-		});
-		const ensuredWorkspace = await prisma.workspace.upsert({
-			create: {
-				id: crypto.randomUUID(),
-				name: "Workspace",
-				ownerId: user.id,
-			},
-			update: {},
-			where: { ownerId: user.id },
-		});
-		return {
-			actorId: user.id,
-			email: user.email,
-			workspaceId: ensuredWorkspace.id,
-		};
-	}
-
 	throw new Error(
-		"No Workspace found. Sign in once with GitHub, then rerun seed. Optionally set SEED_USER_EMAIL."
+		"No Workspace found. Sign in once with GitHub, then run: bun run db:seed"
 	);
 }

@@ -11,35 +11,36 @@ Synthetic demo data for manual testing and Cloud Agent sessions. The seed resets
 ## Prerequisites
 
 - Migrations applied: `bun run db:migrate:deploy` (hosted) or `bun run db:migrate` (local).
-- **Hosted Neon:** sign in once with GitHub so a Workspace exists, unless you set `SEED_USER_EMAIL`.
-- **Local Postgres:** seed auto-provisions `seed-founder@dev.cantiara.test` when no Workspace exists.
+- **Sign in once with GitHub** so your account has a Workspace. Seed attaches to that account — no separate seed user is created.
 
 ## Commands
 
-### Local Postgres
+### Default (local or Neon dev)
 
 ```bash
 bun run db:seed
 ```
 
+When `NODE_ENV=development`, hosted Neon works without extra flags. Seed loads demo data into **your** Workspace (the GitHub account already in the database).
+
 Dry run (no writes):
 
 ```bash
-bun run db:seed -- --dry-run
+cd packages/db && bunx --bun prisma db seed -- --dry-run
 ```
 
-### Hosted Neon
+### Production-like hosted runs
 
-Hosted databases require an explicit confirmation:
+Outside `NODE_ENV=development`, hosted databases require explicit confirmation:
 
 ```bash
-SEED_CONFIRM=hosted scripts/cloud-agent/seed-product-database.sh bun run db:seed
+SEED_CONFIRM=hosted bun run db:seed
 ```
 
 Target a specific founder account:
 
 ```bash
-SEED_USER_EMAIL=you@example.com SEED_CONFIRM=hosted scripts/cloud-agent/seed-product-database.sh bun run db:seed
+SEED_USER_EMAIL=you@example.com bun run db:seed
 ```
 
 ## What gets created
