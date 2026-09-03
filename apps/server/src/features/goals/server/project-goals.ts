@@ -9,8 +9,6 @@ import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import {
 	optionalOutcome,
 	PROJECT_GOAL_COPY,
-	PROJECT_GOAL_COUNTERPARTS,
-	PROJECT_GOAL_MEASUREMENT,
 	type ProjectGoalView,
 	projectGoalCatalog,
 } from "./project-goals-model";
@@ -276,11 +274,9 @@ function toView(row: {
 }): ProjectGoalView {
 	return {
 		copy: PROJECT_GOAL_COPY,
-		counterparts: PROJECT_GOAL_COUNTERPARTS,
 		description: row.description,
 		id: row.id,
 		intendedOutcome: row.intendedOutcome,
-		measurement: PROJECT_GOAL_MEASUREMENT,
 		observedOutcome: row.observedOutcome,
 		projectId: row.projectId,
 		revision: row.revision,

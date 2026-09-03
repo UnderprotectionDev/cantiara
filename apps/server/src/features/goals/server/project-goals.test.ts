@@ -149,10 +149,8 @@ describe("Project Goal", () => {
 		}
 		expect(created.goal).toMatchObject({
 			copy: PROJECT_GOAL_COPY,
-			counterparts: PROJECT_GOAL_COUNTERPARTS,
 			description: "Ship the first founder workspace.",
 			intendedOutcome: null,
-			measurement: PROJECT_GOAL_MEASUREMENT,
 			observedOutcome: null,
 			projectId: project.id,
 			title: "Reach İlk Proje",
@@ -160,6 +158,7 @@ describe("Project Goal", () => {
 		expect(created.goal).not.toHaveProperty("status");
 		expect(created.goal).not.toHaveProperty("progressPercent");
 		expect(created.goal).not.toHaveProperty("keyResults");
+		expect(created.goal).not.toHaveProperty("measurement");
 		const listed = await surface().list(project.id);
 		expect(listed).toEqual([created.goal]);
 		expect(await surface().get(created.goal.id)).toEqual(created.goal);
@@ -193,8 +192,8 @@ describe("Project Goal", () => {
 		expect(updated.goal.observedOutcome).toBe(
 			"Blank Project opened without a Goal."
 		);
-		expect(updated.goal.measurement.autoActuals).toBe(false);
-		expect(updated.goal.measurement.progressPercent).toBe(false);
+		expect(updated.goal).not.toHaveProperty("progressPercent");
+		expect(updated.goal).not.toHaveProperty("health");
 	});
 
 	it("rejects a Goal without title or description", async () => {

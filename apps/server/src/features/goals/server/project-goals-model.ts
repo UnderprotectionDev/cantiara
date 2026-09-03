@@ -45,22 +45,9 @@ const projectGoalCopySchema = z.object({
 
 export const projectGoalViewSchema = z.object({
 	copy: projectGoalCopySchema,
-	counterparts: z.object({
-		keyResult: z.literal(false),
-		milestone: z.literal(false),
-		projectRelease: z.literal(false),
-	}),
 	description: z.string(),
 	id: z.string(),
 	intendedOutcome: z.string().nullable(),
-	measurement: z.object({
-		autoActuals: z.literal(false),
-		autoRollup: z.literal(false),
-		health: z.literal(false),
-		openClosedLife: z.literal(false),
-		progressPercent: z.literal(false),
-		projectArea: z.literal(false),
-	}),
 	observedOutcome: z.string().nullable(),
 	projectId: z.string(),
 	revision: z.number(),
