@@ -32,6 +32,7 @@ import {
 import {
 	DECISION_LIFE,
 	DECISIONS_COPY,
+	importedDecisionLife,
 	presentDecisionLife,
 } from "./decisions-model";
 
@@ -270,6 +271,26 @@ describe("Decisions", () => {
 			return;
 		}
 		expect(ingested.decision.life).toBe(DECISION_LIFE.valid);
+		const barred = await ingestImportedDecision(prisma, {
+			actorId,
+			idempotencyKey: "import-superseded-without-relation",
+			origin: "human",
+			payload: {
+				decision: "Keep the board.",
+				life: DECISION_LIFE.superseded,
+				projectId,
+				rationale: "Imported row.",
+				title: "Board copy",
+			},
+		});
+		expect(barred.status).toBe("committed");
+		if (barred.status !== "committed") {
+			return;
+		}
+		expect(barred.decision.life).toBe(DECISION_LIFE.valid);
+		expect(importedDecisionLife(DECISION_LIFE.superseded)).toBe(
+			DECISION_LIFE.valid
+		);
 	});
 
 	it("has English Decision, Valid, and Withdrawn labels and no voting", () => {

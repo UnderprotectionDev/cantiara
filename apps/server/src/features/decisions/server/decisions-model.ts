@@ -44,6 +44,15 @@ export function presentDecisionLife(
 	return DECISION_LIFE.valid;
 }
 
+export function importedDecisionLife(
+	stored: string | null | undefined
+): Exclude<DecisionLife, typeof DECISION_LIFE.superseded> {
+	if (stored === DECISION_LIFE.withdrawn) {
+		return DECISION_LIFE.withdrawn;
+	}
+	return DECISION_LIFE.valid;
+}
+
 export const decisionViewSchema = z.object({
 	decision: z.string(),
 	id: z.string().min(1),

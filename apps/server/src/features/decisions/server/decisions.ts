@@ -15,6 +15,7 @@ import {
 	DECISION_LIFE,
 	type DecisionView,
 	type DecisionWriteOutcome,
+	importedDecisionLife,
 	ingestImportedDecisionCommandSchema,
 	presentDecisionLife,
 	setDecisionLifeCommandSchema,
@@ -68,7 +69,7 @@ export async function ingestImportedDecision(
 				title: parsed.data.payload.title,
 			},
 		},
-		presentDecisionLife(parsed.data.payload.life)
+		importedDecisionLife(parsed.data.payload.life)
 	);
 }
 
@@ -161,6 +162,8 @@ async function createInTransaction(
 	if (replayed) {
 		return replayed;
 	}
+	const withdrawn = life === DECISION_LIFE.withdrawn;
+	const withdrawnAt = withdrawn ? new Date() : null;
 	const created = await tx.decision.create({
 		data: {
 			decisionText: command.payload.decision,
@@ -170,8 +173,8 @@ async function createInTransaction(
 			rationale: command.payload.rationale,
 			revision: 1,
 			title: command.payload.title,
-			withdrawnAt: null,
-			withdrawnRationale: null,
+			withdrawnAt,
+			withdrawnRationale: withdrawn ? command.payload.rationale : null,
 		},
 	});
 	await tx.decisionEvent.create({
