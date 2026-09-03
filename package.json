@@ -39,6 +39,7 @@
     "db:generate": "turbo run db:generate -F @cantiara/db --",
     "db:migrate": "turbo run db:migrate -F @cantiara/db --",
     "db:migrate:deploy": "turbo run db:migrate:deploy -F @cantiara/db --",
+    "seed": "bun run scripts/seed/run.ts",
     "check": "ultracite check",
     "fix": "ultracite fix",
     "test": "turbo run test --concurrency=1"
