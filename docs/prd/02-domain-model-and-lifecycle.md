@@ -123,6 +123,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Alanlar | `Areas` | Desteklenen Proje alanları koşulu |
 | Yaşam durumu | `Lifecycle` | Overview modülü; Proje yaşam durumunun nötr özeti, sağlık skoru değildir |
 | Proje Hedefi | `Goals` | Overview girişi; gizlenebilir Proje alanı değildir |
+| Proje Hedefi kaydı | `Project Goal` | Proje kapsamlı hedef ana kaydı |
+| Hedeflenen sonuç | `Intended outcome` | Proje Hedefinin isteğe bağlı kullanıcı alanı |
+| Gözlenen sonuç / öğrenim | `Observed outcome / learning` | Proje Hedefinde kullanıcı tarafından sonradan girilen sonuç |
 | Kilometre taşları | `Milestones` | Overview kaynak özeti |
 | Riskler | `Risks` | Overview kaynak özeti |
 | Blokajlar | `Blockers` | Overview kaynak özeti |

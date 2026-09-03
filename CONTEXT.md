@@ -238,7 +238,7 @@ _Avoid_: Başlangıç iskeleti, otomatik retrospektif, kapanış ana kaydı
 
 **Proje Hedefi**:
 Bir Projenin ulaşmak istediği sonucu ve isteğe bağlı başarı göstergesini taşıyan hafif ana kayıt; bağlı İşlerden otomatik ilerleme veya sağlık hükmü üretmez.
-UI: `Goals` (Overview girişi; gizlenebilir Proje alanı değildir).
+UI: `Goals` (Overview girişi; gizlenebilir Proje alanı değildir), `Project Goal`, `Intended outcome`, `Observed outcome / learning`.
 _Avoid_: Kilometre Taşı, Proje Sürümü, Key Result
 
 **Hedefe katkı**:

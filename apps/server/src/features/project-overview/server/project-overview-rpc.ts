@@ -4,6 +4,7 @@ import { getPrismaClient } from "@cantiara/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { createProjectGoals } from "../../goals/server/project-goals";
 import { getProject } from "../../project-shell/server/project-shell";
 import {
 	overviewSourcesFromProject,
@@ -27,6 +28,19 @@ export const projectOverviewRouter = {
 			if (!project || project.workspaceId !== access.workspaceId) {
 				throw new ORPCError("NOT_FOUND");
 			}
-			return projectOverview(overviewSourcesFromProject(project));
+			const surface = createProjectGoals({
+				accountId: access.accountId,
+				prisma: getPrismaClient(),
+				workspaceId: access.workspaceId,
+			});
+			const goals = await surface.list(project.id);
+			return projectOverview(
+				overviewSourcesFromProject(project, {
+					goals: goals.map((goal) => ({
+						id: goal.id,
+						title: goal.title,
+					})),
+				})
+			);
 		}),
 };

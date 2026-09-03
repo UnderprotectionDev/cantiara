@@ -14,6 +14,7 @@ import { documents } from "../features/documents/server/documents-rpc";
 import { externalHandoffs } from "../features/external-handoffs/server/external-handoffs-rpc";
 import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
 import { focusPeriod } from "../features/focus-period/server/focus-period-rpc";
+import { projectGoals } from "../features/goals/server/project-goals-rpc";
 import { kanban } from "../features/kanban/server/kanban-rpc";
 import { personalWiki } from "../features/personal-wiki/server/personal-wiki-rpc";
 import { priority } from "../features/priority/server/priority-rpc";
@@ -56,6 +57,7 @@ export const appRouter = {
 		message: "This is private",
 		user: context.session?.user,
 	})),
+	projectGoals,
 	projectOverview: projectOverviewRouter,
 	projectShell,
 	recordActions,

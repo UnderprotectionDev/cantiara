@@ -26,11 +26,12 @@ function ProjectProfileRoute() {
 				search: {
 					configurationEditor: next.editor ?? undefined,
 					configurationMode: next.open ? true : undefined,
+					goal: search.goal,
 					work: search.work,
 				},
 			}).catch(() => undefined);
 		},
-		[hash, navigate, search.work]
+		[hash, navigate, search.goal, search.work]
 	);
 	const onWorkId = useCallback(
 		(workId: string | null) => {
@@ -39,16 +40,44 @@ function ProjectProfileRoute() {
 				search: {
 					configurationEditor: search.configurationEditor,
 					configurationMode: search.configurationMode,
+					goal: search.goal,
 					work: workId ?? undefined,
 				},
 			}).catch(() => undefined);
 		},
-		[hash, navigate, search.configurationEditor, search.configurationMode]
+		[
+			hash,
+			navigate,
+			search.configurationEditor,
+			search.configurationMode,
+			search.goal,
+		]
+	);
+	const onGoalId = useCallback(
+		(goalId: string | null) => {
+			navigate({
+				hash: "overview",
+				search: {
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					goal: goalId ?? undefined,
+					work: search.work,
+				},
+			}).catch(() => undefined);
+		},
+		[
+			navigate,
+			search.configurationEditor,
+			search.configurationMode,
+			search.work,
+		]
 	);
 	return (
 		<ProjectProfile
 			configurationEditor={search.configurationEditor ?? null}
 			configurationMode={search.configurationMode === true}
+			goalId={search.goal ?? null}
+			onGoalId={onGoalId}
 			onPresentationChange={onPresentationChange}
 			onWorkId={onWorkId}
 			projectId={projectId}
