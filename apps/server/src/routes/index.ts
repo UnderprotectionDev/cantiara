@@ -8,6 +8,7 @@ import { blockers } from "../features/blockers/server/blockers-rpc";
 import { bulkEditing } from "../features/bulk-editing/server/bulk-editing-rpc";
 import { captureInbox } from "../features/capture-triage/server/capture-inbox-router";
 import { completionEffects } from "../features/completion-effects/server/completion-effects";
+import { contactAndCompany } from "../features/contact-and-company/server/contact-and-company-rpc";
 import { customFields } from "../features/custom-fields/server/custom-fields-rpc";
 import { dailyFocus } from "../features/daily-focus/server/daily-focus-rpc";
 import { decisions } from "../features/decisions/server/decisions-rpc";
@@ -53,6 +54,7 @@ export const appRouter = {
 	captureInbox,
 	clientShell,
 	completionEffects,
+	contactAndCompany,
 	customFields,
 	dailyFocus,
 	decisions,

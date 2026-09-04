@@ -841,6 +841,10 @@ _Avoid_: Kullanıcı Hesabı, Persona, müşteri kaydı
 Birden fazla Contact ve Geri Bildirimi isteğe bağlı ortak kuruluş bağlamında gruplayan hafif ana kayıt; gelir, sözleşme veya satış aşaması taşımaz.
 _Avoid_: CRM hesabı, ticari Hesap, Invoice müşterisi
 
+**Şirkete ait**:
+Contact'ın Company ile türlenmiş güncel bağı; Contact başına en fazla bir güncel Company vardır ve geçmiş değişiklikte korunur ([standart ilişki türleri](docs/prd/02-domain-model-and-lifecycle.md#standart-ilişki-türleri)). UI: `Belongs to Company`.
+_Avoid_: CRM hesabı, zorunlu şirket, satış aşaması
+
 **Kanıt bağı**:
 Kesin bir Kaynak, Belge, Diyagram veya Dosya Eki sürümünün belirli bir hedef iddiayı desteklediğini açık rol ve atıfla gösteren ilişki; Kaynağın varlığı tek başına bu bağı veya doğruluk hükmünü oluşturmaz.
 _Avoid_: İlgili ilişkisi, belirsiz referans, otomatik doğrulama

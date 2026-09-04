@@ -283,6 +283,42 @@ describe("Prisma client current delegates", () => {
 		).toBe(false);
 	});
 
+	it("accepts a bun --hot client generated before Contact and Company", () => {
+		expect(
+			prismaClientHasCurrentDelegates({
+				...workDelegates(),
+				...currentLifecycleDelegates(),
+				_runtimeDataModel: {
+					models: {
+						Company: { fields: [{ name: "id" }, { name: "name" }] },
+						Contact: { fields: [{ name: "id" }, { name: "displayName" }] },
+						ContactCompanyAffiliation: {
+							fields: [{ name: "id" }, { name: "endedAt" }],
+						},
+						ContactEmailAlias: {
+							fields: [{ name: "id" }, { name: "normalizedEmail" }],
+						},
+					},
+				},
+				externalExecutionHandoff: { create: () => undefined, findMany },
+				fileAttachment: { findMany },
+				fileAttachmentOriginLocation: { findMany },
+				fileAttachmentReceipt: { findMany },
+				fileAttachmentRelation: { findMany },
+				fileAttachmentStaging: { findMany },
+				fileAttachmentVersion: { findMany },
+				fileAttachmentVersionPin: { findMany },
+				fileImageDerivative: { findMany },
+				fileObjectBlob: { findMany },
+				tag: { findMany },
+				tagInlineUse: { findMany },
+				usageHostEmbed: { findMany },
+				usageLink: { findMany },
+				workTag: { findMany },
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
 	it("accepts a bun --hot client generated before Decision", () => {
 		const { decision: _dropped, ...beforeDecision } = {
 			...workDelegates(),

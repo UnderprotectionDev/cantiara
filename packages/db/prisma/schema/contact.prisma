@@ -1,0 +1,58 @@
+model Contact {
+  id            String                       @id
+  workspaceId   String
+  workspace     Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  displayName   String
+  revision      Int
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+  emailAliases  ContactEmailAlias[]
+  affiliations  ContactCompanyAffiliation[]
+
+  @@index([workspaceId])
+  @@map("contact")
+}
+
+model ContactEmailAlias {
+  id               String   @id
+  contactId        String
+  contact          Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  originalEmail    String
+  normalizedEmail  String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([contactId, normalizedEmail])
+  @@index([normalizedEmail])
+  @@map("contact_email_alias")
+}
+
+model Company {
+  id            String                       @id
+  workspaceId   String
+  workspace     Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name          String
+  revision      Int
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+  affiliations  ContactCompanyAffiliation[]
+
+  @@index([workspaceId])
+  @@map("company")
+}
+
+model ContactCompanyAffiliation {
+  id         String    @id
+  contactId  String
+  contact    Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  startedAt  DateTime
+  endedAt    DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([contactId, endedAt])
+  @@index([companyId])
+  @@map("contact_company_affiliation")
+}
