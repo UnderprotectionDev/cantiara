@@ -636,6 +636,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Geri Bildirim bağlantısı | `Link` | İsteğe bağlı URL |
 | Geri Bildirim ekleri | `Attachments` | İsteğe bağlı ekler |
 | Geri Bildirim yok | `No Feedback yet.` | Henüz Geri Bildirim açılmamış boş durum |
+| Geri Bildirim ve Kaynak Feed'i | `Feed` | Aynı Geri Bildirim ve uzun gövdeli Kaynak ana kayıtlarının yoğun okuma görünümü; ikinci kayıt, sosyal gönderi veya Bildirim Merkezi değildir |
+| Feed yok | `No Feed records yet.` | Feed'de gösterilecek Geri Bildirim veya uzun gövdeli Kaynak olmadığında boş durum |
 | İşe dönüştür | `Convert to Work` | Geri Bildirimi önizleyerek tam olarak bir İşe dönüştürme; kayıt silinmez veya arşivlenmez |
 | Geri Bildirim Contact | `Contact` | Geri Bildirimdeki isteğe bağlı katılımcı; bilinmeyen gönderende zorunlu değildir |
 | Geri Bildirim Company | `Company` | Geri Bildirimdeki isteğe bağlı kuruluş bağlamı |

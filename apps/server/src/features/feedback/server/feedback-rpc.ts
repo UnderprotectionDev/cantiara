@@ -14,6 +14,7 @@ import {
 	createFeedback,
 	createFeedbackFromSource,
 	getFeedback,
+	listFeed,
 	listFeedback,
 	listFeedbackEvidence,
 	previewConvertFeedbackToWork,
@@ -31,6 +32,7 @@ import {
 	FEEDBACK_STATUSES,
 	feedbackCatalog,
 	listFeedbackEvidenceInputSchema,
+	listFeedQuerySchema,
 	previewConvertFeedbackToWorkInputSchema,
 	setFeedbackEvidenceFollowUpPayloadSchema,
 	setFeedbackEvidenceQualityPayloadSchema,
@@ -218,6 +220,13 @@ export const feedback = {
 				await requireProject(access.workspaceId, work.projectId);
 			}
 			return await listFeedbackEvidence(getPrismaClient(), input);
+		}),
+	listFeed: protectedProcedure
+		.input(listFeedQuerySchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await listFeed(getPrismaClient(), input);
 		}),
 	previewConvertToWork: protectedProcedure
 		.input(previewConvertFeedbackToWorkInputSchema)

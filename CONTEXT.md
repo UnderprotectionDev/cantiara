@@ -833,6 +833,10 @@ _Avoid_: Akıllı bağlantı önizlemesi, bookmark, canlı web aynası
 Özgün mesajı, kanalı ve zamanı koruyan uzman ana kayıt; Kaynak alt türü, özellik isteği veya destek ticket'ı değildir ([Geri Bildirim Kaydı](docs/prd/08-search-relations-and-evidence.md#geri-bildirim-kaydı)). UI: `Feedback`, `Convert to Work`.
 _Avoid_: Kaynak Kaydı, sosyal gönderi, CRM fırsatı
 
+**Geri Bildirim ve Kaynak Feed'i**:
+Aynı Geri Bildirim ve uzun gövdeli Kaynak ana kayıtlarını kimlik veya kanal, zaman, ekler, proje ve ilişkili İş/Karar ile gösteren yoğun okuma görünümü; ikinci kayıt, sosyal gönderi veya Birleşik Bildirim Merkezi değildir ([Geri Bildirim ve Kaynak Feed görünümü](docs/prd/08-search-relations-and-evidence.md#geri-bildirim-ve-kaynak-feed-görünümü)). UI: `Feed`, `Open Source Record`.
+_Avoid_: Bildirim Merkezi, evrensel arama, inbox, destek aracı, ikinci Feed kaydı
+
 **Contact**:
 Geri bildirimi veren kişiyi geri bildirimler boyunca aynı kimlikle tanıyan Çalışma Alanı ana kaydı; ticari hesap veya CRM kartı değildir ([Contact ve Company kimliği](docs/prd/08-search-relations-and-evidence.md#contact-ve-company-kimliği)).
 _Avoid_: Kullanıcı Hesabı, Persona, müşteri kaydı

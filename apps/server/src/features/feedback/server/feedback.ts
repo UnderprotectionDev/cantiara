@@ -9,6 +9,7 @@ import {
 } from "../../mutation-core/server/mutation-shared";
 import { createRelationInTransaction } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
+import { presentNamedView } from "../../smart-collections/server/smart-collections-model";
 import { createWorkInTransaction } from "../../work-lifecycle/server/work-lifecycle";
 
 import {
@@ -38,8 +39,12 @@ import {
 	type FeedbackStatus,
 	type FeedbackView,
 	type FeedbackWriteOutcome,
+	type FeedRow,
+	type FeedView,
 	type ListFeedbackEvidenceInput,
+	type ListFeedQuery,
 	listFeedbackEvidenceInputSchema,
+	listFeedQuerySchema,
 	type PreviewConvertFeedbackOutcome,
 	previewConvertFeedbackToWorkInputSchema,
 	type SetFeedbackStatusCommand,
@@ -340,6 +345,286 @@ export async function listFeedback(
 		},
 	});
 	return await hydrateFeedbackViews(prisma, rows);
+}
+
+const FEED_WRITES = { priority: false, status: false } as const;
+
+export async function listFeed(
+	prisma: PrismaClient,
+	query: unknown
+): Promise<FeedView> {
+	const parsed = listFeedQuerySchema.safeParse(query);
+	if (!parsed.success) {
+		return emptyFeed();
+	}
+	const rows = await collectFeedRows(prisma, parsed.data);
+	const ordered = orderFeedRows(rows, parsed.data);
+	return {
+		notificationSignals: [],
+		rows: ordered,
+		socialActions: [],
+		writes: FEED_WRITES,
+	};
+}
+
+function emptyFeed(): FeedView {
+	return {
+		notificationSignals: [],
+		rows: [],
+		socialActions: [],
+		writes: FEED_WRITES,
+	};
+}
+
+async function collectFeedRows(
+	prisma: PrismaClient,
+	query: ListFeedQuery
+): Promise<FeedRow[]> {
+	const [feedbackRows, sources] = await Promise.all([
+		listFeedback(prisma, query.projectId),
+		prisma.source.findMany({
+			include: { versions: { orderBy: { versionNumber: "asc" } } },
+			where: { projectId: query.projectId },
+		}),
+	]);
+	const identities = await loadContactNames(
+		prisma,
+		feedbackRows.flatMap((row) => (row.contactId ? [row.contactId] : []))
+	);
+	const project = await prisma.project.findUnique({
+		where: { id: query.projectId },
+	});
+	const projectName = project?.name ?? FEEDBACK_COPY.project;
+	const feedbackFeed = feedbackRows.map((row) => ({
+		attachments: row.attachments,
+		body: row.originalMessage,
+		id: row.id,
+		identityOrChannel:
+			(row.contactId ? identities.get(row.contactId) : undefined) ??
+			row.channel,
+		occurredAt: row.occurredAt,
+		openSourceRecord: FEEDBACK_COPY.openSourceRecord,
+		projectId: row.projectId,
+		projectName,
+		recordKind: FEEDBACK_RECORD_KIND,
+		relatedDecisions: [] as FeedRow["relatedDecisions"],
+		relatedWork: [] as FeedRow["relatedWork"],
+	}));
+	const sourceFeed: FeedRow[] = [];
+	for (const source of sources) {
+		const approved = source.versions.find(
+			(version) => version.versionNumber === source.approvedVersionNumber
+		);
+		if (!approved || approved.capturedContent.trim().length === 0) {
+			continue;
+		}
+		sourceFeed.push({
+			attachments: [],
+			body: approved.capturedContent,
+			id: source.id,
+			identityOrChannel: approved.title,
+			occurredAt: approved.accessedAt.toISOString(),
+			openSourceRecord: FEEDBACK_COPY.openSourceRecord,
+			projectId: source.projectId,
+			projectName,
+			recordKind: "Source",
+			relatedDecisions: [],
+			relatedWork: [],
+		});
+	}
+	const rows = [...feedbackFeed, ...sourceFeed];
+	await attachRelatedRecords(prisma, rows);
+	return rows;
+}
+
+async function loadContactNames(
+	prisma: PrismaClient,
+	contactIds: readonly string[]
+): Promise<Map<string, string>> {
+	const names = new Map<string, string>();
+	if (contactIds.length === 0) {
+		return names;
+	}
+	const contacts = await prisma.contact.findMany({
+		where: { id: { in: [...contactIds] } },
+	});
+	for (const contact of contacts) {
+		if (contact.displayName) {
+			names.set(contact.id, contact.displayName);
+		}
+	}
+	return names;
+}
+
+async function attachRelatedRecords(
+	prisma: PrismaClient,
+	rows: FeedRow[]
+): Promise<void> {
+	if (rows.length === 0) {
+		return;
+	}
+	const ids = rows.map((row) => row.id);
+	const edges = await prisma.typedRelation.findMany({
+		where: {
+			OR: [{ fromId: { in: ids } }, { toId: { in: ids } }],
+		},
+	});
+	const index = indexRelatedOwners(edges, rows);
+	await paintRelatedTitles(prisma, index);
+}
+
+const FEED_RELATION_TYPES = new Set([
+	RELATIONS_COPY.related,
+	RELATIONS_COPY.origin,
+	RELATIONS_COPY.evidence,
+]);
+
+function indexRelatedOwners(
+	edges: ReadonlyArray<{
+		fromId: string;
+		fromKind: string;
+		toId: string;
+		toKind: string;
+		type: string;
+	}>,
+	rows: FeedRow[]
+) {
+	const byId = new Map(rows.map((row) => [row.id, row]));
+	const workIds = new Set<string>();
+	const decisionIds = new Set<string>();
+	const ownersByRelated = new Map<
+		string,
+		{ kind: "Work" | "Decision"; owners: FeedRow[] }
+	>();
+	for (const edge of edges) {
+		if (!FEED_RELATION_TYPES.has(edge.type)) {
+			continue;
+		}
+		const relatedKind = relatedWorkOrDecision(edge);
+		if (!relatedKind) {
+			continue;
+		}
+		const owner = byId.get(edge.fromId) ?? byId.get(edge.toId);
+		if (!owner) {
+			continue;
+		}
+		if (relatedKind.kind === "Work") {
+			workIds.add(relatedKind.id);
+		} else {
+			decisionIds.add(relatedKind.id);
+		}
+		const current = ownersByRelated.get(relatedKind.id) ?? {
+			kind: relatedKind.kind,
+			owners: [],
+		};
+		if (!current.owners.includes(owner)) {
+			current.owners.push(owner);
+		}
+		ownersByRelated.set(relatedKind.id, current);
+	}
+	return { decisionIds, ownersByRelated, workIds };
+}
+
+async function paintRelatedTitles(
+	prisma: PrismaClient,
+	index: {
+		decisionIds: Set<string>;
+		ownersByRelated: Map<
+			string,
+			{ kind: "Work" | "Decision"; owners: FeedRow[] }
+		>;
+		workIds: Set<string>;
+	}
+): Promise<void> {
+	const [works, decisions] = await Promise.all([
+		index.workIds.size === 0
+			? Promise.resolve([])
+			: prisma.work.findMany({
+					where: { id: { in: [...index.workIds] } },
+				}),
+		index.decisionIds.size === 0
+			? Promise.resolve([])
+			: prisma.decision.findMany({
+					where: { id: { in: [...index.decisionIds] } },
+				}),
+	]);
+	const workTitle = new Map(works.map((work) => [work.id, work.title]));
+	const decisionTitle = new Map(
+		decisions.map((decision) => [decision.id, decision.title])
+	);
+	for (const [id, group] of index.ownersByRelated) {
+		const title =
+			group.kind === "Work" ? workTitle.get(id) : decisionTitle.get(id);
+		if (!title) {
+			continue;
+		}
+		pushRelatedTitle(group.owners, group.kind, id, title);
+	}
+}
+
+function pushRelatedTitle(
+	owners: FeedRow[],
+	kind: "Work" | "Decision",
+	id: string,
+	title: string
+): void {
+	for (const owner of owners) {
+		const list = kind === "Work" ? owner.relatedWork : owner.relatedDecisions;
+		if (!list.some((item) => item.id === id)) {
+			list.push({ id, title });
+		}
+	}
+}
+
+function relatedWorkOrDecision(edge: {
+	fromId: string;
+	fromKind: string;
+	toId: string;
+	toKind: string;
+}): { id: string; kind: "Work" | "Decision" } | null {
+	if (edge.toKind === "Work" || edge.toKind === "Decision") {
+		return { id: edge.toId, kind: edge.toKind };
+	}
+	if (edge.fromKind === "Work" || edge.fromKind === "Decision") {
+		return { id: edge.fromId, kind: edge.fromKind };
+	}
+	return null;
+}
+
+function orderFeedRows(rows: FeedRow[], query: ListFeedQuery): FeedRow[] {
+	const byTime = [...rows].sort((left, right) =>
+		right.occurredAt.localeCompare(left.occurredAt)
+	);
+	const presented = presentNamedView(
+		{
+			members: byTime.map((row) => ({
+				because: [],
+				id: row.id,
+				kind: row.recordKind,
+				projectId: row.projectId,
+				title: row.identityOrChannel,
+			})),
+			summary: FEEDBACK_COPY.feed,
+		},
+		{
+			filterText: query.filterText ?? "",
+			groupField: null,
+			id: "feed",
+			isDefault: true,
+			name: FEEDBACK_COPY.feed,
+			presentation: "List",
+			purpose: null,
+			sortDirection:
+				query.sortField === "title" ? (query.sortDirection ?? "asc") : null,
+			sortField: query.sortField === "title" ? "title" : null,
+			visibleFields: [],
+		}
+	);
+	const byId = new Map(byTime.map((row) => [row.id, row]));
+	return presented.presented.flatMap((member) => {
+		const row = byId.get(member.id);
+		return row ? [row] : [];
+	});
 }
 
 async function createInTransaction(
