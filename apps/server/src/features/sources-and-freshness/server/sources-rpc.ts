@@ -5,6 +5,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
+import { undiciHopTransport } from "./isolated-egress-undici";
 import {
 	createSource,
 	getSource,
@@ -16,6 +17,7 @@ import {
 	SOURCES_COPY,
 	saveSourceVersionPayloadSchema,
 } from "./sources-model";
+import { previewSmartLink } from "./sources-preview";
 
 async function requireAccess(userId: string) {
 	const access = await getAccountAccessForUser(getPrismaClient(), userId);
@@ -69,6 +71,14 @@ export const sources = {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
 			return await listSources(getPrismaClient(), input.projectId);
+		}),
+	preview: protectedProcedure
+		.input(z.object({ url: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			await requireAccess(context.session.user.id);
+			return await previewSmartLink(input.url, {
+				transport: undiciHopTransport,
+			});
 		}),
 	saveVersion: protectedWriteProcedure
 		.input(

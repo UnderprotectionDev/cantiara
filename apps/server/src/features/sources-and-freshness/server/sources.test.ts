@@ -334,5 +334,7 @@ describe("Sources and Freshness", () => {
 		expect(SOURCES_COPY.capturedContent).toBe("Captured content");
 		expect(JSON.stringify(SOURCES_COPY)).not.toMatch(FEED_COPY);
 		expect(JSON.stringify(SOURCES_COPY)).not.toMatch(CREDENTIAL_COPY);
+		expect(SOURCES_COPY.saveAsSource).toBe("Save as Source");
+		expect(SOURCES_COPY.liveExternalSource).toBe("Live external source");
 	});
 });

@@ -2,15 +2,18 @@ import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
+import SmartLinkPreviewCard from "@/features/sources-and-freshness/views/smart-link-preview-card";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
 import { SOURCES_COPY } from "./sources-copy";
+
+const HTTP_URL = /^https?:\/\//i;
 
 export default function CreateSourceForm({
 	onCreated,
@@ -29,6 +32,13 @@ export default function CreateSourceForm({
 	const [provider, setProvider] = useState("");
 	const [title, setTitle] = useState("");
 	const [url, setUrl] = useState("");
+	const previewUrl = url.trim();
+	const preview = useQuery({
+		...orpc.sources.preview.queryOptions({
+			input: { url: previewUrl },
+		}),
+		enabled: HTTP_URL.test(previewUrl),
+	});
 	const create = useMutation(
 		orpc.sources.create.mutationOptions({
 			onSuccess: async (outcome) => {
@@ -98,6 +108,24 @@ export default function CreateSourceForm({
 			url,
 		]
 	);
+	const onSaveAsSource = useCallback(() => {
+		if (preview.data?.status !== "preview") {
+			return;
+		}
+		setError(null);
+		markUnsaved();
+		attemptOnlineWork("record-create", () =>
+			create.mutateAsync({
+				idempotencyKey: newIdempotencyKey(),
+				payload: {
+					capturedContent: preview.data.capturedContent,
+					projectId,
+					title: preview.data.title,
+					url: preview.data.originalUrl,
+				},
+			})
+		);
+	}, [attemptOnlineWork, create, markUnsaved, preview.data, projectId]);
 	const onTitleChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
 		setTitle(event.target.value);
 	}, []);
@@ -227,6 +255,12 @@ export default function CreateSourceForm({
 					/>
 				</Field>
 			</FieldGroup>
+			{preview.data?.status === "preview" ? (
+				<SmartLinkPreviewCard
+					onSaveAsSource={onSaveAsSource}
+					preview={preview.data}
+				/>
+			) : null}
 			{error ? <p role="alert">{error}</p> : null}
 			<Button type="submit">{SOURCES_COPY.createSource}</Button>
 		</form>
