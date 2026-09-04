@@ -473,6 +473,14 @@ _Avoid_: Target date, Yeniden görünme tarihi, standalone reminder, Save for La
 Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm; manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
 _Avoid_: Statik liste, klasör, etiket
 
+**Koleksiyon görünümü**:
+Aynı Akıllı Koleksiyon üyeliği üzerinde saklanan sunum; `List`, `Table`, `Gallery`, Kanban veya Roadmap ayarıdır ve ikinci üyelik kümesi değildir. UI: `List`, `Table`, `Gallery`. İsteğe bağlı cümle: `Purpose`.
+_Avoid_: kapak kaydı, Moodboard, Dosya Eki kütüphanesi, Backlog sırası
+
+**Gallery**:
+Akıllı Koleksiyonun sözleşmeli türlerdeki görsel sunumu; ayrı kapak kaydı, Dosya Eki kütüphanesi veya Moodboard değildir. UI: `Gallery`.
+_Avoid_: File library, Moodboard, ayrı küçük görsel kaydı
+
 **Etiket**:
 Çalışma Alanı genelinde yaşayan düz sınıflandırma kimliği; kayıt içeriği, klasör üyeliği veya süzme görünümü değildir ([Etiketler](docs/prd/08-search-relations-and-evidence.md#etiketler)). UI: `Tags`.
 _Avoid_: Klasör, Akıllı Koleksiyon, Proje-yerel etiket sözlüğü, hiyerarşi

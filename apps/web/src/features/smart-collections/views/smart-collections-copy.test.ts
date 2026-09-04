@@ -4,9 +4,18 @@ import { SMART_COLLECTIONS_COPY } from "./smart-collections-copy";
 
 const FREE_QUERY_PATTERN = /advanced query|query language|JQL|Lucene|SQL/i;
 
-test("English UI uses Smart Collection and no free query language", () => {
+test("English UI uses Smart Collection presentation labels", () => {
 	expect(SMART_COLLECTIONS_COPY.smartCollection).toBe("Smart Collection");
 	expect(SMART_COLLECTIONS_COPY.addCondition).toBe("Add condition");
+	expect(SMART_COLLECTIONS_COPY.gallery).toBe("Gallery");
+	expect(SMART_COLLECTIONS_COPY.list).toBe("List");
+	expect(SMART_COLLECTIONS_COPY.table).toBe("Table");
+	expect(SMART_COLLECTIONS_COPY.newWork).toBe("New work");
+	expect(SMART_COLLECTIONS_COPY.purpose).toBe("Purpose");
+	expect(SMART_COLLECTIONS_COPY.unsavedChanges).toBe("Unsaved changes");
+	expect(SMART_COLLECTIONS_COPY.save).toBe("Save");
+	expect(SMART_COLLECTIONS_COPY.saveAs).toBe("Save as");
+	expect(SMART_COLLECTIONS_COPY.revert).toBe("Revert");
 	expect(SMART_COLLECTIONS_COPY.noPin).toBe(
 		"Pinning is not allowed. Membership comes only from conditions."
 	);
