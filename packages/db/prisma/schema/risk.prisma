@@ -1,0 +1,35 @@
+model Risk {
+  id                    String      @id
+  projectId             String
+  project               Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title                 String
+  description           String
+  impact                String
+  probability           String
+  response              String
+  status                String
+  acceptanceRationale   String?
+  revision              Int
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  events                RiskEvent[]
+
+  @@index([projectId])
+  @@index([projectId, status])
+  @@map("risk")
+}
+
+model RiskEvent {
+  id             String   @id
+  riskId         String
+  risk           Risk     @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  kind           String
+  actorId        String
+  rationale      String?
+  previousStatus String?
+  nextStatus     String
+  occurredAt     DateTime @default(now())
+
+  @@index([riskId, occurredAt])
+  @@map("risk_event")
+}

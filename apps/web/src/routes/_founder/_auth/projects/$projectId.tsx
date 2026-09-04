@@ -35,6 +35,7 @@ function ProjectProfileRoute() {
 					goal: search.goal,
 					openQuestion: search.openQuestion,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: search.source,
 					work: search.work,
 				},
@@ -48,6 +49,7 @@ function ProjectProfileRoute() {
 			search.goal,
 			search.openQuestion,
 			search.researchSession,
+			search.risk,
 			search.source,
 			search.work,
 		]
@@ -64,6 +66,7 @@ function ProjectProfileRoute() {
 					goal: search.goal,
 					openQuestion: search.openQuestion,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: search.source,
 					work: workId ?? undefined,
 				},
@@ -79,6 +82,7 @@ function ProjectProfileRoute() {
 			search.goal,
 			search.openQuestion,
 			search.researchSession,
+			search.risk,
 			search.source,
 		]
 	);
@@ -94,6 +98,7 @@ function ProjectProfileRoute() {
 					goal: search.goal,
 					openQuestion: search.openQuestion,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: search.source,
 					work: search.work,
 				},
@@ -107,6 +112,7 @@ function ProjectProfileRoute() {
 			search.goal,
 			search.openQuestion,
 			search.researchSession,
+			search.risk,
 			search.source,
 			search.work,
 		]
@@ -123,6 +129,7 @@ function ProjectProfileRoute() {
 					goal: search.goal,
 					openQuestion: search.openQuestion,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: search.source,
 					work: search.work,
 				},
@@ -130,6 +137,38 @@ function ProjectProfileRoute() {
 		},
 		[
 			navigate,
+			search.configurationEditor,
+			search.configurationMode,
+			search.decision,
+			search.goal,
+			search.openQuestion,
+			search.researchSession,
+			search.risk,
+			search.source,
+			search.work,
+		]
+	);
+	const onRiskId = useCallback(
+		(riskId: string | null) => {
+			navigate({
+				hash: "risks",
+				search: {
+					assumption: search.assumption,
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					decision: search.decision,
+					goal: search.goal,
+					openQuestion: search.openQuestion,
+					researchSession: search.researchSession,
+					risk: riskId ?? undefined,
+					source: search.source,
+					work: search.work,
+				},
+			}).catch(() => undefined);
+		},
+		[
+			navigate,
+			search.assumption,
 			search.configurationEditor,
 			search.configurationMode,
 			search.decision,
@@ -152,6 +191,7 @@ function ProjectProfileRoute() {
 					goal: goalId ?? undefined,
 					openQuestion: search.openQuestion,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: search.source,
 					work: search.work,
 				},
@@ -165,6 +205,7 @@ function ProjectProfileRoute() {
 			search.decision,
 			search.openQuestion,
 			search.researchSession,
+			search.risk,
 			search.source,
 			search.work,
 		]
@@ -181,6 +222,7 @@ function ProjectProfileRoute() {
 					goal: search.goal,
 					openQuestion: openQuestionId ?? undefined,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: search.source,
 					work: search.work,
 				},
@@ -194,6 +236,7 @@ function ProjectProfileRoute() {
 			search.decision,
 			search.goal,
 			search.researchSession,
+			search.risk,
 			search.source,
 			search.work,
 		]
@@ -210,6 +253,7 @@ function ProjectProfileRoute() {
 					goal: search.goal,
 					openQuestion: search.openQuestion,
 					researchSession: sessionId ?? undefined,
+					risk: search.risk,
 					source: search.source,
 					work: search.work,
 				},
@@ -223,6 +267,7 @@ function ProjectProfileRoute() {
 			search.decision,
 			search.goal,
 			search.openQuestion,
+			search.risk,
 			search.source,
 			search.work,
 		]
@@ -239,6 +284,7 @@ function ProjectProfileRoute() {
 					goal: search.goal,
 					openQuestion: search.openQuestion,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: sourceId ?? undefined,
 					work: search.work,
 				},
@@ -253,6 +299,7 @@ function ProjectProfileRoute() {
 			search.goal,
 			search.openQuestion,
 			search.researchSession,
+			search.risk,
 			search.work,
 		]
 	);
@@ -269,11 +316,13 @@ function ProjectProfileRoute() {
 			onOpenQuestionId={onOpenQuestionId}
 			onPresentationChange={onPresentationChange}
 			onResearchSessionId={onResearchSessionId}
+			onRiskId={onRiskId}
 			onSourceId={onSourceId}
 			onWorkId={onWorkId}
 			openQuestionId={search.openQuestion ?? null}
 			projectId={projectId}
 			researchSessionId={search.researchSession ?? null}
+			riskId={search.risk ?? null}
 			sourceId={search.source ?? null}
 			workId={search.work ?? null}
 		/>

@@ -39,6 +39,7 @@ model Project {
   openQuestions                   OpenQuestion[]
   assumptions                     Assumption[]
   researchSessions                ResearchSession[]
+  risks                           Risk[]
   sources                         Source[]
   documentFolders                 DocumentFolder[]
   documentTemplates               DocumentTemplate[]
