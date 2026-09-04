@@ -833,6 +833,7 @@ export function createPersonalReminders(
 	};
 
 	async function list(): Promise<PersonalReminderView[]> {
+		await fireDue();
 		const rows = await listReminderRows(input.prisma, {
 			accountId: input.accountId,
 		});
@@ -842,6 +843,7 @@ export function createPersonalReminders(
 	async function listForSource(
 		query: SourceQuery
 	): Promise<PersonalReminderView[]> {
+		await fireDue();
 		const rows = await listReminderRows(input.prisma, {
 			accountId: input.accountId,
 			sourceId: query.sourceId,
@@ -851,6 +853,7 @@ export function createPersonalReminders(
 	}
 
 	async function get(reminderId: string): Promise<PersonalReminderView | null> {
+		await fireDue();
 		const row = await getReminderRow(input.prisma, input.accountId, reminderId);
 		if (!row) {
 			return null;
@@ -1117,6 +1120,7 @@ export function createPersonalReminders(
 	}
 
 	async function listSignals(): Promise<PersonalReminderSignalView[]> {
+		await fireDue();
 		const rows = await listOpenSignalRows(input.prisma, input.accountId);
 		return rows.map((row) =>
 			personalReminderSignalViewSchema.parse({
