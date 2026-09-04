@@ -4,17 +4,24 @@ export const FEEDBACK_COPY = {
 	archived: "Archived",
 	attachments: "Attachments",
 	channel: "Channel",
+	company: "Company",
+	contact: "Contact",
+	convertToWork: "Convert to Work",
 	createFeedback: "Create Feedback",
 	createFromSource: "Create from Source",
+	description: "Description",
 	feedback: "Feedback",
 	link: "Link",
 	new: "New",
 	noFeedback: "No Feedback yet.",
 	occurredAt: "Occurred at",
+	origin: "Origin",
 	originalMessage: "Original message",
+	project: "Project",
 	reviewed: "Reviewed",
 	source: "Source",
 	status: "Status",
+	title: "Title",
 } as const;
 
 export const FEEDBACK_STATUS = {
@@ -39,10 +46,13 @@ export const FEEDBACK_EVENT_KIND = {
 } as const;
 
 export const FEEDBACK_COUNTERPARTS = {
+	ai: false,
+	automaticPriority: false,
 	candidateSnapshot: false,
 	comments: false,
 	contactMerge: false,
 	featureRequest: false,
+	multiRecordSpawn: false,
 	personalDataErase: false,
 	publicForm: false,
 	requesterThread: false,
@@ -50,6 +60,7 @@ export const FEEDBACK_COUNTERPARTS = {
 	sourceSubtype: false,
 	sourceVersionLife: false,
 	urlRecheck: false,
+	voteScoring: false,
 	votes: false,
 	workRecord: false,
 	writesWorkPlanning: false,
@@ -82,6 +93,8 @@ export const feedbackAttachmentViewSchema = z.object({
 export const feedbackViewSchema = z.object({
 	attachments: z.array(feedbackAttachmentViewSchema),
 	channel: z.string().min(1),
+	companyId: z.string().min(1).nullable(),
+	contactId: z.string().min(1).nullable(),
 	id: z.string().min(1),
 	occurredAt: z.string().min(1),
 	originalMessage: z.string().min(1),
@@ -104,6 +117,8 @@ export const createFeedbackPayloadSchema = z
 	.object({
 		attachmentIds: z.array(z.string().min(1)).optional(),
 		channel: z.string().trim().min(1),
+		companyId: z.string().min(1).optional(),
+		contactId: z.string().min(1).optional(),
 		occurredAt: z.string().optional(),
 		originalMessage: z.string().trim().min(1),
 		projectId: z.string().min(1),
@@ -118,6 +133,7 @@ export const createFeedbackCommandSchema = z.object({
 	idempotencyKey: z.string().min(1),
 	origin: z.literal("human"),
 	payload: createFeedbackPayloadSchema,
+	viewerWorkspaceId: z.string().min(1).optional(),
 });
 
 export type CreateFeedbackCommand = z.infer<typeof createFeedbackCommandSchema>;
@@ -179,9 +195,163 @@ export const feedbackWriteOutcomeSchema = z.discriminatedUnion("status", [
 			"feedback-not-found",
 			"source-not-found",
 			"origin-not-created",
+			"contact-not-found",
+			"company-not-found",
+			"identity-not-linked",
+			"work-not-found",
 		]),
 		status: z.literal("rejected"),
 	}),
 ]);
 
 export type FeedbackWriteOutcome = z.infer<typeof feedbackWriteOutcomeSchema>;
+
+export const previewConvertFeedbackToWorkInputSchema = z.object({
+	feedbackId: z.string().min(1),
+	projectId: z.string().min(1).optional(),
+	title: z.string().optional(),
+});
+
+export type PreviewConvertFeedbackToWorkInput = z.infer<
+	typeof previewConvertFeedbackToWorkInputSchema
+>;
+
+export const convertFeedbackPreviewSchema = z.object({
+	body: z.string(),
+	fingerprint: z.string().min(1),
+	label: z.literal(FEEDBACK_COPY.convertToWork),
+	origin: z.literal("Origin"),
+	projectId: z.string().min(1),
+	recordKind: z.literal("Work"),
+	recordsToCreate: z.literal(1),
+	title: z.string(),
+});
+
+export type ConvertFeedbackPreview = z.infer<
+	typeof convertFeedbackPreviewSchema
+>;
+
+export const previewConvertFeedbackOutcomeSchema = z.union([
+	z.object({
+		preview: convertFeedbackPreviewSchema,
+		status: z.literal("ok"),
+	}),
+	z.object({
+		reason: z.enum(["invalid-command", "feedback-not-found"]),
+		status: z.literal("rejected"),
+	}),
+]);
+
+export type PreviewConvertFeedbackOutcome = z.infer<
+	typeof previewConvertFeedbackOutcomeSchema
+>;
+
+export const convertFeedbackToWorkPayloadSchema = z
+	.object({
+		feedbackId: z.string().min(1),
+		previewAcknowledged: z.literal(true).optional(),
+		previewFingerprint: z.string().min(1).optional(),
+		projectId: z.string().min(1).optional(),
+		title: z.string().optional(),
+	})
+	.strict();
+
+export const convertFeedbackToWorkCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: convertFeedbackToWorkPayloadSchema,
+	viewerWorkspaceId: z.string().min(1),
+});
+
+export type ConvertFeedbackToWorkCommand = z.infer<
+	typeof convertFeedbackToWorkCommandSchema
+>;
+
+export const convertedWorkRecordSchema = z.object({
+	id: z.string().min(1),
+	kind: z.literal("Work"),
+	title: z.string().min(1),
+});
+
+export const convertFeedbackOutcomeSchema = z.discriminatedUnion("status", [
+	z.object({
+		feedback: feedbackViewSchema,
+		records: z.array(convertedWorkRecordSchema).length(1),
+		status: z.literal("committed"),
+	}),
+	z.object({
+		feedback: feedbackViewSchema,
+		records: z.array(convertedWorkRecordSchema).length(1),
+		status: z.literal("replayed"),
+	}),
+	z.object({
+		conflict: z.literal("Conflict"),
+		status: z.literal("conflict"),
+	}),
+	z.object({
+		reason: z.enum([
+			"invalid-command",
+			"feedback-not-found",
+			"preview-required",
+			"preview-mismatch",
+			"missing-title",
+			"origin-not-created",
+			"work-not-found",
+		]),
+		status: z.literal("rejected"),
+	}),
+]);
+
+export type ConvertFeedbackOutcome = z.infer<
+	typeof convertFeedbackOutcomeSchema
+>;
+
+export const bindFeedbackOriginPayloadSchema = z
+	.object({
+		feedbackId: z.string().min(1),
+		workId: z.string().min(1),
+	})
+	.strict();
+
+export const bindFeedbackOriginCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: bindFeedbackOriginPayloadSchema,
+	viewerWorkspaceId: z.string().min(1),
+});
+
+export type BindFeedbackOriginCommand = z.infer<
+	typeof bindFeedbackOriginCommandSchema
+>;
+
+export const bindFeedbackOriginOutcomeSchema = z.discriminatedUnion("status", [
+	z.object({
+		feedback: feedbackViewSchema,
+		status: z.literal("committed"),
+		workId: z.string().min(1),
+	}),
+	z.object({
+		feedback: feedbackViewSchema,
+		status: z.literal("replayed"),
+		workId: z.string().min(1),
+	}),
+	z.object({
+		conflict: z.literal("Conflict"),
+		status: z.literal("conflict"),
+	}),
+	z.object({
+		reason: z.enum([
+			"invalid-command",
+			"feedback-not-found",
+			"work-not-found",
+			"origin-not-created",
+		]),
+		status: z.literal("rejected"),
+	}),
+]);
+
+export type BindFeedbackOriginOutcome = z.infer<
+	typeof bindFeedbackOriginOutcomeSchema
+>;

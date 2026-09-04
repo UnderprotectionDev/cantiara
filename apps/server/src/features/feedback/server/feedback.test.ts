@@ -17,6 +17,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import {
+	createCompany,
+	createContact,
+	getContact,
+} from "../../contact-and-company/server/contact-and-company";
 import { createProject } from "../../project-shell/server/project-shell";
 import {
 	createRelation,
@@ -30,14 +35,18 @@ import {
 import {
 	createWork,
 	getWork,
+	listWork,
 } from "../../work-lifecycle/server/work-lifecycle";
 import { WORK_STATUS } from "../../work-lifecycle/server/work-lifecycle-model";
 
 import {
+	bindFeedbackOrigin,
+	convertFeedbackToWork,
 	createFeedback,
 	createFeedbackFromSource,
 	getFeedback,
 	listFeedback,
+	previewConvertFeedbackToWork,
 	setFeedbackStatus,
 } from "./feedback";
 import {
@@ -81,6 +90,10 @@ async function resetSharedTables(prisma: PrismaClient) {
 	await prisma.feedbackAttachment.deleteMany();
 	await prisma.feedbackEvent.deleteMany();
 	await prisma.feedback.deleteMany();
+	await prisma.contactCompanyAffiliation.deleteMany();
+	await prisma.contactEmailAlias.deleteMany();
+	await prisma.contact.deleteMany();
+	await prisma.company.deleteMany();
 	await prisma.sourceCheck.deleteMany();
 	await prisma.sourceEvidencePin.deleteMany();
 	await prisma.sourceVersionInUseSignal.deleteMany();
@@ -143,6 +156,13 @@ describe("Feedback catalog", () => {
 		expect(FEEDBACK_COUNTERPARTS.contactMerge).toBe(false);
 		expect(FEEDBACK_COUNTERPARTS.personalDataErase).toBe(false);
 		expect(FEEDBACK_COUNTERPARTS.writesWorkStatus).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.automaticPriority).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.voteScoring).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.ai).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.multiRecordSpawn).toBe(false);
+		expect(catalog.copy.convertToWork).toBe("Convert to Work");
+		expect(catalog.copy.contact).toBe("Contact");
+		expect(catalog.copy.company).toBe("Company");
 		expect(JSON.stringify(catalog.copy)).not.toMatch(SOCIAL_OR_PUBLIC);
 		expect(JSON.stringify(FEEDBACK_COPY)).not.toMatch(SOURCE_LIFE);
 		expect(FEEDBACK_FOREIGN_RECORD_KINDS).toEqual([
@@ -198,6 +218,8 @@ describe("Feedback", () => {
 		expect(Object.keys(created.feedback).sort()).toEqual([
 			"attachments",
 			"channel",
+			"companyId",
+			"contactId",
 			"id",
 			"occurredAt",
 			"originalMessage",
@@ -207,6 +229,8 @@ describe("Feedback", () => {
 			"status",
 			"url",
 		]);
+		expect(created.feedback.contactId).toBeNull();
+		expect(created.feedback.companyId).toBeNull();
 		expect(created.feedback).not.toHaveProperty("summary");
 		expect(created.feedback.originalMessage).toBe("Checkout fails on retry.");
 		expect(created.feedback.channel).toBe("Email");
@@ -383,5 +407,317 @@ describe("Feedback", () => {
 		});
 		expect(planningRows).toBe(0);
 		expect(FEEDBACK_STATUSES).toEqual(["New", "Reviewed", "Archived"]);
+	});
+
+	it("saves Feedback without Contact and does not invent one for an unknown sender", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const created = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "unknown-sender",
+			origin: "human",
+			payload: {
+				channel: "Email",
+				originalMessage: "Guest checkout failed.",
+				projectId,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected create");
+		}
+		expect(created.feedback.contactId).toBeNull();
+		expect(created.feedback.companyId).toBeNull();
+		const loaded = await getFeedback(prisma, created.feedback.id);
+		expect(loaded?.contactId).toBeNull();
+		expect(loaded?.companyId).toBeNull();
+		expect(
+			await createFeedback(prisma, {
+				actorId,
+				idempotencyKey: "force-contact",
+				origin: "human",
+				payload: {
+					channel: "Email",
+					contactRequired: true,
+					originalMessage: "Must invent a person.",
+					projectId,
+				},
+				viewerWorkspaceId: workspaceId,
+			})
+		).toEqual({ reason: "invalid-command", status: "rejected" });
+		const contacts = await prisma.contact.count();
+		expect(contacts).toBe(0);
+	});
+
+	it("attaches optional Contact and Company when they already exist", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const company = await createCompany(prisma, {
+			actorId,
+			idempotencyKey: "company-1",
+			origin: "human",
+			payload: { name: "Northwind" },
+			workspaceId,
+		});
+		expect(company.status).toBe("committed");
+		if (company.status !== "committed") {
+			throw new Error("expected company");
+		}
+		const contact = await createContact(prisma, {
+			actorId,
+			idempotencyKey: "contact-1",
+			origin: "human",
+			payload: { displayName: "Maya" },
+			workspaceId,
+		});
+		expect(contact.status).toBe("committed");
+		if (contact.status !== "committed") {
+			throw new Error("expected contact");
+		}
+		const created = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "known-sender",
+			origin: "human",
+			payload: {
+				channel: "Call",
+				companyId: company.company.id,
+				contactId: contact.contact.id,
+				originalMessage: "Retry still loops.",
+				projectId,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected create");
+		}
+		expect(created.feedback.contactId).toBe(contact.contact.id);
+		expect(created.feedback.companyId).toBe(company.company.id);
+		const relations = await listRelations(prisma, {
+			record: { id: created.feedback.id, kind: "Feedback" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(relations.map((row) => row.type).sort()).toEqual([
+			RELATIONS_COPY.participant,
+			RELATIONS_COPY.related,
+		]);
+		const profile = await getContact(prisma, contact.contact.id, workspaceId);
+		expect(profile?.relatedFeedback.map((row) => row.id)).toEqual([
+			created.feedback.id,
+		]);
+	});
+
+	it("binds multiple Feedback origins to one Work without treating the count as a vote or priority", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const first = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "origin-a",
+			origin: "human",
+			payload: {
+				channel: "Email",
+				originalMessage: "Pay button does nothing.",
+				projectId,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		const second = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "origin-b",
+			origin: "human",
+			payload: {
+				channel: "Forum",
+				originalMessage: "Same retry loop here.",
+				projectId,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(first.status).toBe("committed");
+		expect(second.status).toBe("committed");
+		if (first.status !== "committed" || second.status !== "committed") {
+			throw new Error("expected feedback");
+		}
+		const previewed = await previewConvertFeedbackToWork(prisma, {
+			feedbackId: first.feedback.id,
+			projectId,
+		});
+		expect(previewed.status).toBe("ok");
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		const converted = await convertFeedbackToWork(prisma, {
+			actorId,
+			idempotencyKey: "convert-first",
+			origin: "human",
+			payload: {
+				feedbackId: first.feedback.id,
+				previewAcknowledged: true,
+				previewFingerprint: previewed.preview.fingerprint,
+				projectId,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(converted.status).toBe("committed");
+		if (converted.status !== "committed") {
+			throw new Error("expected convert");
+		}
+		expect(converted.records).toHaveLength(1);
+		expect(converted.records[0]?.kind).toBe("Work");
+		const bound = await bindFeedbackOrigin(prisma, {
+			actorId,
+			idempotencyKey: "bind-second",
+			origin: "human",
+			payload: {
+				feedbackId: second.feedback.id,
+				workId: converted.records[0]?.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(bound.status).toBe("committed");
+		const origins = await listRelations(prisma, {
+			record: { id: converted.records[0]?.id ?? "", kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		const originEnds = origins.filter(
+			(row) => row.type === RELATIONS_COPY.origin
+		);
+		expect(originEnds).toHaveLength(2);
+		expect(new Set(originEnds.map((row) => row.from.id))).toEqual(
+			new Set([first.feedback.id, second.feedback.id])
+		);
+		expect(FEEDBACK_COUNTERPARTS.voteScoring).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.automaticPriority).toBe(false);
+		const priorityRows = await prisma.projectPriorityCriterionValue.count({
+			where: { workId: converted.records[0]?.id },
+		});
+		expect(priorityRows).toBe(0);
+	});
+
+	it("previews Convert to Work and only creates one Work on confirm without deleting Feedback", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const created = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "convert-source",
+			origin: "human",
+			payload: {
+				channel: "Support",
+				originalMessage: "Checkout fails on retry.\nKeep the original.",
+				projectId,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected create");
+		}
+		const previewed = await previewConvertFeedbackToWork(prisma, {
+			feedbackId: created.feedback.id,
+			projectId,
+		});
+		expect(previewed.status).toBe("ok");
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		expect(previewed.preview.label).toBe(FEEDBACK_COPY.convertToWork);
+		expect(previewed.preview.recordKind).toBe("Work");
+		expect(previewed.preview.projectId).toBe(projectId);
+		expect(previewed.preview.title).toBe("Checkout fails on retry.");
+		expect(previewed.preview.body).toBe(
+			"Checkout fails on retry.\nKeep the original."
+		);
+		expect(previewed.preview.origin).toBe(RELATIONS_COPY.origin);
+		expect(previewed.preview.recordsToCreate).toBe(1);
+		expect(previewed.preview).not.toHaveProperty("ai");
+		expect(previewed.preview).not.toHaveProperty("batch");
+		expect((await listWork(prisma, projectId)).length).toBe(0);
+		expect(
+			await convertFeedbackToWork(prisma, {
+				actorId,
+				idempotencyKey: "no-ack",
+				origin: "human",
+				payload: {
+					feedbackId: created.feedback.id,
+					previewFingerprint: previewed.preview.fingerprint,
+					projectId,
+				},
+				viewerWorkspaceId: workspaceId,
+			})
+		).toEqual({ reason: "preview-required", status: "rejected" });
+		expect((await listWork(prisma, projectId)).length).toBe(0);
+		expect(
+			await convertFeedbackToWork(prisma, {
+				actorId,
+				idempotencyKey: "blank-title",
+				origin: "human",
+				payload: {
+					feedbackId: created.feedback.id,
+					previewAcknowledged: true,
+					previewFingerprint: previewed.preview.fingerprint,
+					projectId,
+					title: "   ",
+				},
+				viewerWorkspaceId: workspaceId,
+			})
+		).toEqual({ reason: "preview-mismatch", status: "rejected" });
+		const blankPreview = await previewConvertFeedbackToWork(prisma, {
+			feedbackId: created.feedback.id,
+			projectId,
+			title: "   ",
+		});
+		expect(blankPreview.status).toBe("ok");
+		if (blankPreview.status !== "ok") {
+			throw new Error("expected blank preview");
+		}
+		expect(blankPreview.preview.title).toBe("");
+		expect(
+			await convertFeedbackToWork(prisma, {
+				actorId,
+				idempotencyKey: "skip-title",
+				origin: "human",
+				payload: {
+					feedbackId: created.feedback.id,
+					previewAcknowledged: true,
+					previewFingerprint: blankPreview.preview.fingerprint,
+					projectId,
+					title: "   ",
+				},
+				viewerWorkspaceId: workspaceId,
+			})
+		).toEqual({ reason: "missing-title", status: "rejected" });
+		expect((await listWork(prisma, projectId)).length).toBe(0);
+		const converted = await convertFeedbackToWork(prisma, {
+			actorId,
+			idempotencyKey: "confirm",
+			origin: "human",
+			payload: {
+				feedbackId: created.feedback.id,
+				previewAcknowledged: true,
+				previewFingerprint: previewed.preview.fingerprint,
+				projectId,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(converted.status).toBe("committed");
+		if (converted.status !== "committed") {
+			throw new Error("expected convert");
+		}
+		expect(converted.records).toHaveLength(1);
+		expect(converted.feedback.id).toBe(created.feedback.id);
+		expect(converted.feedback.status).toBe(FEEDBACK_STATUS.new);
+		const live = await getFeedback(prisma, created.feedback.id);
+		expect(live?.originalMessage).toBe(
+			"Checkout fails on retry.\nKeep the original."
+		);
+		expect(live?.status).toBe(FEEDBACK_STATUS.new);
+		const work = await getWork(prisma, converted.records[0]?.id ?? "");
+		expect(work?.title).toBe("Checkout fails on retry.");
+		expect(work?.description).toBe(
+			"Checkout fails on retry.\nKeep the original."
+		);
+		const origins = await listRelations(prisma, {
+			record: { id: created.feedback.id, kind: "Feedback" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(origins.map((row) => row.type)).toContain(RELATIONS_COPY.origin);
+		expect(FEEDBACK_COUNTERPARTS.ai).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.multiRecordSpawn).toBe(false);
 	});
 });

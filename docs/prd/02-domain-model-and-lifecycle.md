@@ -632,6 +632,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Geri Bildirim bağlantısı | `Link` | İsteğe bağlı URL |
 | Geri Bildirim ekleri | `Attachments` | İsteğe bağlı ekler |
 | Geri Bildirim yok | `No Feedback yet.` | Henüz Geri Bildirim açılmamış boş durum |
+| İşe dönüştür | `Convert to Work` | Geri Bildirimi önizleyerek tam olarak bir İşe dönüştürme; kayıt silinmez veya arşivlenmez |
+| Geri Bildirim Contact | `Contact` | Geri Bildirimdeki isteğe bağlı katılımcı; bilinmeyen gönderende zorunlu değildir |
+| Geri Bildirim Company | `Company` | Geri Bildirimdeki isteğe bağlı kuruluş bağlamı |
 | İletişim (yakalama alanı) | `Contact` | Feedback Capture isteğe bağlı yönlendirici alanı; Contact ana kaydı oluşturmaz |
 | Geri bildirim (yakalama alanı) | `Feedback` | Feedback Capture yönlendirici alanı |
 | Kanal | `Channel` | Feedback Capture yönlendirici alanı |
