@@ -89,7 +89,7 @@ export const createRiskPayloadSchema = z
 		probability: z.string(),
 		projectId: z.string().min(1),
 		response: z.string(),
-		title: z.string(),
+		title: z.string().min(1),
 	})
 	.strict();
 
