@@ -477,6 +477,10 @@ _Avoid_: Statik liste, klasör, etiket
 İş koleksiyonunun mevcut filtre sonucundan türetilen sayı ve dağılım özeti; skor, coverage veya yayın kapısı değildir ([Hafif İçgörüler](docs/prd/08-search-relations-and-evidence.md#hafif-içgörüler)). UI: `Insights`.
 _Avoid_: dashboard, kalite puanı, coverage, kapasite, cycle-time yönetimi
 
+**Kayıt yaşı**:
+İş kaydının oluşturulmasından bu yana geçen süre; Hafif İçgörüler dilimidir, skor değildir. UI: `Age`.
+_Avoid_: kalite puanı, cycle-time performansı
+
 **Etiket**:
 Çalışma Alanı genelinde yaşayan düz sınıflandırma kimliği; kayıt içeriği, klasör üyeliği veya süzme görünümü değildir ([Etiketler](docs/prd/08-search-relations-and-evidence.md#etiketler)). UI: `Tags`.
 _Avoid_: Klasör, Akıllı Koleksiyon, Proje-yerel etiket sözlüğü, hiyerarşi

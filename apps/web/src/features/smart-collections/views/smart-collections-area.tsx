@@ -600,7 +600,6 @@ export default function SmartCollectionsArea() {
 			...current.filter((item) => item.dimension !== parsed.dimension),
 			parsed,
 		]);
-		setSurface("members");
 	}, []);
 	const onShowAllRecords = useCallback(() => {
 		setSlices([]);
