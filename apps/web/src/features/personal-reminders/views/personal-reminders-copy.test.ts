@@ -15,9 +15,11 @@ test("English Personal Reminders copy uses Remind me, Planned, and Cancelled", (
 	expect(PERSONAL_REMINDERS_COPY.remindMe).toBe("Remind me");
 	expect(PERSONAL_REMINDERS_COPY.reviewLater).toBe("Review Later");
 	expect(PERSONAL_REMINDERS_COPY.planned).toBe("Planned");
+	expect(PERSONAL_REMINDERS_COPY.triggered).toBe("Triggered");
 	expect(PERSONAL_REMINDERS_COPY.cancelled).toBe("Cancelled");
 	expect(PERSONAL_REMINDERS_COPY.fireAt).toBe("When");
 	expect(PERSONAL_REMINDERS_COPY.cancel).toBe("Cancel");
+	expect(PERSONAL_REMINDERS_COPY.dismiss).toBe("Dismiss");
 	expect(PERSONAL_REMINDERS_COPY.inAnyCase).toBe("In any case");
 	expect(PERSONAL_REMINDERS_COPY.onlyIfStillOpen).toBe("Only if still open");
 	expect(PERSONAL_REMINDERS_COPY.section).toBe("Section");

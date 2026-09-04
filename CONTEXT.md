@@ -471,7 +471,7 @@ Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim
 _Avoid_: Bookmark kuyruğu, Aktif Çalışma Seti, planlama üyeliği
 
 **Hatırlatma**:
-Desteklenen kayda Hesap kapsamında kişisel zaman bağlayan ana kayıt; kaynak sahiplik değil köken referansıdır ve kaynak yaşamı veya planlama üyeliği yazmaz ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Remind me`, `Review Later`, `Planned`, `Cancelled`, `When`, `Cancel`, `In any case`, `Only if still open`, `Section`.
+Desteklenen kayda Hesap kapsamında kişisel zaman bağlayan ana kayıt; kaynak sahiplik değil köken referansıdır ve kaynak yaşamı veya planlama üyeliği yazmaz ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Remind me`, `Review Later`, `Planned`, `Triggered`, `Cancelled`, `When`, `Cancel`, `Dismiss`, `In any case`, `Only if still open`, `Section`.
 _Avoid_: Target date, Yeniden görünme tarihi, standalone reminder, Save for Later kuyruğu
 
 **Açık kalma koşulu**:

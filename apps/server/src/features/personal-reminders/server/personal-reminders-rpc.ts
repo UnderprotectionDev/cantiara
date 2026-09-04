@@ -70,21 +70,47 @@ export const personalReminders = {
 			const surface = await remindersFor(context.session.user.id);
 			return surface.createFromReassessImpact(input);
 		}),
+	dismiss: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				reminderId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const surface = await remindersFor(context.session.user.id);
+			return surface.dismiss(input);
+		}),
 	evaluateCondition: protectedProcedure
 		.input(z.object({ reminderId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
 			const surface = await remindersFor(context.session.user.id);
 			return surface.evaluateCondition(input.reminderId);
 		}),
+	fireDue: protectedWriteProcedure.handler(async ({ context }) => {
+		const surface = await remindersFor(context.session.user.id);
+		await surface.fireDue();
+		return { status: "committed" as const };
+	}),
 	get: protectedProcedure
 		.input(z.object({ reminderId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
 			const surface = await remindersFor(context.session.user.id);
 			return surface.get(input.reminderId);
 		}),
+	history: protectedProcedure
+		.input(z.object({ reminderId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const surface = await remindersFor(context.session.user.id);
+			return surface.history(input.reminderId);
+		}),
 	list: protectedProcedure.handler(async ({ context }) => {
 		const surface = await remindersFor(context.session.user.id);
 		return surface.list();
+	}),
+	listDue: protectedProcedure.handler(async ({ context }) => {
+		const surface = await remindersFor(context.session.user.id);
+		return surface.listDue();
 	}),
 	listForSource: protectedProcedure
 		.input(sourceInput)
@@ -92,10 +118,26 @@ export const personalReminders = {
 			const surface = await remindersFor(context.session.user.id);
 			return surface.listForSource(input);
 		}),
+	listSignals: protectedProcedure.handler(async ({ context }) => {
+		const surface = await remindersFor(context.session.user.id);
+		return surface.listSignals();
+	}),
 	openTarget: protectedProcedure
 		.input(z.object({ reminderId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
 			const surface = await remindersFor(context.session.user.id);
 			return surface.openTarget(input.reminderId);
+		}),
+	reschedule: protectedWriteProcedure
+		.input(
+			z.object({
+				fireAt: z.string().min(1),
+				idempotencyKey: z.string().min(1),
+				reminderId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const surface = await remindersFor(context.session.user.id);
+			return surface.reschedule(input);
 		}),
 };

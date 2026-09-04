@@ -385,9 +385,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dayanaklar | `Grounds` | `Not now` izinin Karar, Risk, Geri Bildirim, Kaynak veya Belge dayanakları |
 | Yeniden bak | `Review Later` | Kaynak bağlantılı kişisel hatırlatma; `Not now` sessiz silmez; `Review later` aynı etikettir |
 | Hatırlat | `Remind me` | Desteklenen kayda Hesap kapsamında kişisel zaman bağlama eylemi; `Target date` yazmaz |
-| Hatırlatma yaşamı | `Planned`, `Cancelled` | Hatırlatmanın İngilizce yaşam etiketleri; kaynak İş akışı durumu değildir |
+| Hatırlatma yaşamı | `Planned`, `Triggered`, `Cancelled` | Hatırlatmanın İngilizce yaşam etiketleri; kaynak İş akışı durumu değildir |
 | Hatırlatma zamanı | `When` | Hatırlatmanın kişisel zaman alanı; İş `Target date` değildir |
 | Hatırlatmayı iptal et | `Cancel` | `Planned` Hatırlatmayı `Cancelled` yapan açık eylem |
+| Hatırlatmayı kapat | `Dismiss` | Tetiklenmiş Hatırlatma sinyalini kapatan açık eylem; İş veya kopya üretmez |
 | Her durumda | `In any case` | Hatırlatmanın varsayılan koşulsuz açık kalma koşulu |
 | Yalnız hâlâ açıksa | `Only if still open` | Zamanı gelince kaynağın açık/çözülmüş yaşamını okuyan kapalı koşul; genel sorgu değildir |
 | Bölüm | `Section` | Belge `Review Later` hedefinin kararlı Markdown başlık kimliği |

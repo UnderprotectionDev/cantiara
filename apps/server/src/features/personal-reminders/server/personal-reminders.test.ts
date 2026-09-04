@@ -70,9 +70,11 @@ describe("Personal Reminders catalog", () => {
 			kind: "personal-reminders",
 			lives: [
 				PERSONAL_REMINDERS_COPY.planned,
+				PERSONAL_REMINDERS_COPY.triggered,
 				PERSONAL_REMINDERS_COPY.cancelled,
 			],
 			planningWrites: PERSONAL_REMINDERS_PLANNING_WRITES,
+			signalIds: ["personal-reminder", "review-later"],
 			sourceTypes: PERSONAL_REMINDER_SOURCE_TYPES,
 			stillOpenSourceTypes: ["Work", "Decision", "Milestone"],
 		});
@@ -92,7 +94,9 @@ describe("Personal Reminders catalog", () => {
 		expect(PERSONAL_REMINDERS_COPY.remindMe).toBe("Remind me");
 		expect(PERSONAL_REMINDERS_COPY.reviewLater).toBe("Review Later");
 		expect(PERSONAL_REMINDERS_COPY.planned).toBe("Planned");
+		expect(PERSONAL_REMINDERS_COPY.triggered).toBe("Triggered");
 		expect(PERSONAL_REMINDERS_COPY.cancelled).toBe("Cancelled");
+		expect(PERSONAL_REMINDERS_COPY.dismiss).toBe("Dismiss");
 		expect(PERSONAL_REMINDERS_COPY.inAnyCase).toBe("In any case");
 		expect(PERSONAL_REMINDERS_COPY.onlyIfStillOpen).toBe("Only if still open");
 		expect(PERSONAL_REMINDERS_COPY.missingSection).toBe(
@@ -105,6 +109,7 @@ describe("Personal Reminders catalog", () => {
 		expect(JSON.stringify(personalRemindersCatalog())).not.toMatch(
 			FORBIDDEN_SURFACE
 		);
+		expect(personalRemindersCatalog().signalIds).not.toContain("due-date");
 	});
 });
 
@@ -893,5 +898,415 @@ describe("Personal Reminders", () => {
 		const after = await snapshotWorkPlanning(work.id, project.id);
 		expect(after.targetDate).toBeNull();
 		expect(after.reappearDate).toBeNull();
+	});
+});
+
+describe("Personal Reminders fire", () => {
+	let actorId: string;
+	let prisma: PrismaClient;
+	let pool: Pool;
+	let workspaceId: string;
+	let now: Date;
+	let scheduler: {
+		cancel: (reminderId: string) => Promise<void>;
+		dueIds: (instant: Date) => Promise<string[]>;
+		schedule: (reminderId: string, fireAt: Date) => Promise<void>;
+		scheduled: Map<string, Date>;
+	};
+
+	beforeAll(() => {
+		process.env.NODE_ENV = "test";
+	});
+
+	beforeEach(async () => {
+		actorId = crypto.randomUUID();
+		now = new Date("2026-09-10T15:00:00.000Z");
+		const scheduled = new Map<string, Date>();
+		scheduler = {
+			cancel: (reminderId) => {
+				scheduled.delete(reminderId);
+				return Promise.resolve();
+			},
+			dueIds: (instant) =>
+				Promise.resolve(
+					[...scheduled.entries()]
+						.filter(([, fireAt]) => fireAt.getTime() <= instant.getTime())
+						.map(([id]) => id)
+				),
+			schedule: (reminderId, fireAt) => {
+				scheduled.set(reminderId, fireAt);
+				return Promise.resolve();
+			},
+			scheduled,
+		};
+		pool = new Pool({ connectionString: DATABASE_URL });
+		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+		const user = await prisma.user.create({
+			data: {
+				email: `${actorId}@example.com`,
+				emailVerified: true,
+				id: actorId,
+				name: "Founder",
+			},
+		});
+		const workspace = await prisma.workspace.create({
+			data: {
+				id: crypto.randomUUID(),
+				name: "Solo",
+				ownerId: user.id,
+			},
+		});
+		workspaceId = workspace.id;
+	});
+
+	afterEach(async () => {
+		await prisma.mutationReceipt.deleteMany({
+			where: { actorId },
+		});
+		await prisma.personalReminder.deleteMany({
+			where: { accountId: actorId },
+		});
+		await prisma.workspace.deleteMany({ where: { ownerId: actorId } });
+		await prisma.user.deleteMany({ where: { id: actorId } });
+		await prisma.$disconnect();
+		await pool.end();
+	});
+
+	function surface() {
+		return createPersonalReminders({
+			accountId: actorId,
+			clock: { now: () => now },
+			prisma,
+			scheduler,
+			workspaceId,
+		});
+	}
+
+	async function openProject(name: string) {
+		const created = await createProject(prisma, {
+			actorId,
+			idempotencyKey: `create-${name}-${actorId}`,
+			origin: "human",
+			payload: {
+				name,
+				starterConfiguration: "Blank Project",
+			},
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		return created.project;
+	}
+
+	async function openWork(projectId: string, title: string) {
+		const created = await createWork(prisma, {
+			actorId,
+			idempotencyKey: `work-${title}-${actorId}`,
+			origin: "human",
+			payload: { projectId, title },
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		return created.work;
+	}
+
+	async function snapshotWorkPlanning(workId: string, projectId: string) {
+		const work = await getWork(prisma, workId);
+		const row = await prisma.work.findUniqueOrThrow({
+			select: { horizon: true },
+			where: { id: workId },
+		});
+		const backlog = await listPreparedBacklog(prisma, projectId);
+		const daily = await createDailyFocus({
+			accountId: actorId,
+			prisma,
+			workspaceId,
+		}).view();
+		const periods = await createFocusPeriod({
+			accountId: actorId,
+			prisma,
+			workspaceId,
+		}).list();
+		const project = await prisma.project.findUniqueOrThrow({
+			include: { stages: { orderBy: { sortOrder: "asc" } } },
+			where: { id: projectId },
+		});
+		return {
+			backlogOrder: backlog.manualOrder,
+			closureResult: work?.closureResult ?? null,
+			dailyFocusIds: daily.members.map((member) => member.id),
+			focusPeriodIds: periods.flatMap((period) =>
+				period.members.map((member) => member.id)
+			),
+			horizon: row.horizon,
+			plannedStart: work?.plannedStart ?? null,
+			reappearDate: work?.reappearDate ?? null,
+			stages: project.stages.map((stage) => ({
+				id: stage.id,
+				state: stage.state,
+			})),
+			status: work?.status,
+			targetDate: work?.targetDate ?? null,
+			workCount: await prisma.work.count({ where: { projectId } }),
+		};
+	}
+
+	it("fires Remind me as personal-reminder and Review Later as review-later, never both", async () => {
+		const project = await openProject("Alpha");
+		const work = await openWork(project.id, "Ship");
+		const reminders = surface();
+		const remind = await reminders.create({
+			createdByAction: PERSONAL_REMINDER_ACTION.remindMe,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: work.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.work,
+		});
+		const review = await reminders.create({
+			createdByAction: PERSONAL_REMINDER_ACTION.reviewLater,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: work.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.work,
+		});
+		if (remind.status !== "committed" || review.status !== "committed") {
+			throw new Error("expected committed reminders");
+		}
+		expect(scheduler.scheduled.has(remind.reminder.id)).toBe(true);
+		now = new Date("2026-09-10T14:59:59.000Z");
+		await reminders.fireDue();
+		expect(await reminders.listSignals()).toEqual([]);
+		now = new Date("2026-09-10T15:00:00.000Z");
+		await reminders.fireDue();
+		const signals = await reminders.listSignals();
+		expect(signals.map((signal) => signal.signalId).sort()).toEqual([
+			"personal-reminder",
+			"review-later",
+		]);
+		expect(signals).toHaveLength(2);
+		expect(
+			signals.find((signal) => signal.reminderId === remind.reminder.id)
+				?.signalId
+		).toBe("personal-reminder");
+		expect(
+			signals.find((signal) => signal.reminderId === review.reminder.id)
+				?.signalId
+		).toBe("review-later");
+		expect(signals.map((signal) => signal.signalId)).not.toContain("due-date");
+		expect((await reminders.get(remind.reminder.id))?.life).toBe("Triggered");
+		expect((await reminders.get(review.reminder.id))?.life).toBe("Triggered");
+		const opened = await reminders.openTarget(review.reminder.id);
+		expect(opened).toMatchObject({
+			kind: "record",
+			sourceId: work.id,
+			sourceType: "Work",
+		});
+		const due = await reminders.listDue();
+		expect(due.map((row) => row.id)).toEqual([review.reminder.id]);
+		expect(due[0]?.openTarget).toEqual({ kind: "record" });
+		await reminders.fireDue();
+		expect(await reminders.listSignals()).toHaveLength(2);
+	});
+
+	it("does not mint due-date or a Hatırlatma from a due Work Target date", async () => {
+		const project = await openProject("Alpha");
+		const work = await openWork(project.id, "Ship");
+		await updateWorkPlanningDates(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: `due-fire-${actorId}`,
+			origin: "human",
+			plannedStart: null,
+			reappearDate: null,
+			targetDate: "2020-01-01",
+			workId: work.id,
+		});
+		await surface().fireDue();
+		expect(await surface().list()).toEqual([]);
+		expect(await surface().listSignals()).toEqual([]);
+		expect(await snapshotWorkPlanning(work.id, project.id)).toMatchObject({
+			targetDate: "2020-01-01",
+		});
+	});
+
+	it("suppresses Only if still open when the source is resolved and records why", async () => {
+		const project = await openProject("Alpha");
+		const work = await openWork(project.id, "Ship");
+		const reminders = surface();
+		const created = await reminders.create({
+			createdByAction: PERSONAL_REMINDER_ACTION.reviewLater,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: work.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.work,
+			stillOpenCondition: PERSONAL_REMINDER_CONDITION.onlyIfStillOpen,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed reminder");
+		}
+		const closed = await closeWork(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: `close-fire-${actorId}`,
+			origin: "human",
+			result: "Completed",
+			workId: work.id,
+		});
+		if (closed.status !== "committed") {
+			throw new Error("expected closed Work");
+		}
+		await reminders.fireDue();
+		expect(await reminders.listSignals()).toEqual([]);
+		expect((await reminders.get(created.reminder.id))?.life).toBe("Planned");
+		expect(await reminders.history(created.reminder.id)).toEqual([
+			expect.objectContaining({
+				kind: "suppressed",
+				reason: PERSONAL_REMINDERS_COPY.sourceNoLongerOpen,
+				signalId: null,
+				sourceLife: "resolved",
+			}),
+		]);
+		expect(await reminders.history(created.reminder.id)).toHaveLength(1);
+		scheduler.scheduled.set(
+			created.reminder.id,
+			new Date("2026-09-10T15:00:00.000Z")
+		);
+		await reminders.fireDue();
+		expect(await reminders.history(created.reminder.id)).toHaveLength(1);
+	});
+
+	it("emits a source-linked unevaluable signal instead of dropping the row", async () => {
+		const project = await openProject("Alpha");
+		const work = await openWork(project.id, "Ship");
+		const reminders = surface();
+		const created = await reminders.create({
+			createdByAction: PERSONAL_REMINDER_ACTION.remindMe,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: work.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.work,
+			stillOpenCondition: PERSONAL_REMINDER_CONDITION.onlyIfStillOpen,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed reminder");
+		}
+		await prisma.work.delete({ where: { id: work.id } });
+		await reminders.fireDue();
+		const listed = await reminders.list();
+		expect(listed).toHaveLength(1);
+		expect(listed[0]?.life).toBe("Triggered");
+		expect(listed[0]?.openTarget).toEqual({
+			kind: "broken-reference",
+			reason: PERSONAL_REMINDERS_COPY.permanentlyDeleted,
+		});
+		const signals = await reminders.listSignals();
+		expect(signals).toEqual([
+			{
+				dismissed: false,
+				reason: PERSONAL_REMINDERS_COPY.couldNotEvaluate,
+				reminderId: created.reminder.id,
+				signalId: "personal-reminder",
+				sourceId: work.id,
+				sourceType: "Work",
+			},
+		]);
+		expect(await reminders.openTarget(created.reminder.id)).toEqual({
+			kind: "broken-reference",
+			reason: PERSONAL_REMINDERS_COPY.permanentlyDeleted,
+			sourceId: work.id,
+			sourceType: "Work",
+		});
+	});
+
+	it("does not fire toward an archived Project", async () => {
+		const project = await openProject("Alpha");
+		const work = await openWork(project.id, "Ship");
+		const reminders = surface();
+		const created = await reminders.create({
+			createdByAction: PERSONAL_REMINDER_ACTION.remindMe,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: work.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.work,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed reminder");
+		}
+		await prisma.project.update({
+			data: { archivedAt: new Date("2026-09-10T12:00:00.000Z") },
+			where: { id: project.id },
+		});
+		await reminders.fireDue();
+		expect(await reminders.listSignals()).toEqual([]);
+		expect((await reminders.get(created.reminder.id))?.life).toBe("Planned");
+		expect(await reminders.history(created.reminder.id)).toEqual([
+			expect.objectContaining({
+				kind: "archive-stopped",
+				reason: PERSONAL_REMINDERS_COPY.archivedProject,
+				signalId: null,
+				sourceLife: null,
+			}),
+		]);
+	});
+
+	it("dismisses and reschedules without writing Work, copies, or planning membership", async () => {
+		const project = await openProject("Alpha");
+		const work = await openWork(project.id, "Ship");
+		const reminders = surface();
+		const created = await reminders.create({
+			createdByAction: PERSONAL_REMINDER_ACTION.reviewLater,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: work.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.work,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed reminder");
+		}
+		await reminders.fireDue();
+		const before = await snapshotWorkPlanning(work.id, project.id);
+		const dismissed = await reminders.dismiss({
+			idempotencyKey: crypto.randomUUID(),
+			reminderId: created.reminder.id,
+		});
+		expect(dismissed.status).toBe("committed");
+		if (dismissed.status !== "committed") {
+			return;
+		}
+		expect(dismissed.reminder.life).toBe("Triggered");
+		expect(await reminders.listSignals()).toEqual([]);
+		expect(await reminders.listDue()).toEqual([]);
+		expect(await snapshotWorkPlanning(work.id, project.id)).toEqual(before);
+		const again = await reminders.create({
+			createdByAction: PERSONAL_REMINDER_ACTION.remindMe,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: work.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.work,
+		});
+		if (again.status !== "committed") {
+			throw new Error("expected second reminder");
+		}
+		await reminders.fireDue();
+		const nextFire = "2026-09-11T09:00:00.000Z";
+		const moved = await reminders.reschedule({
+			fireAt: nextFire,
+			idempotencyKey: crypto.randomUUID(),
+			reminderId: again.reminder.id,
+		});
+		expect(moved.status).toBe("committed");
+		if (moved.status !== "committed") {
+			return;
+		}
+		expect(moved.reminder.life).toBe("Planned");
+		expect(moved.reminder.fireAt).toBe(nextFire);
+		expect(scheduler.scheduled.get(again.reminder.id)?.toISOString()).toBe(
+			nextFire
+		);
+		expect(await reminders.listSignals()).toEqual([]);
+		expect((await getWork(prisma, work.id))?.status).toBe(before.status);
+		expect(await snapshotWorkPlanning(work.id, project.id)).toEqual(before);
 	});
 });

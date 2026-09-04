@@ -11,9 +11,40 @@ model PersonalReminder {
   life               String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  history            PersonalReminderHistory[]
+  signals            PersonalReminderSignal[]
 
   @@index([accountId])
   @@index([accountId, life])
   @@index([accountId, sourceType, sourceId])
   @@map("personal_reminder")
+}
+
+model PersonalReminderHistory {
+  id         String           @id
+  reminderId String
+  reminder   PersonalReminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  at         DateTime
+  kind       String
+  sourceLife String?
+  reason     String?
+  signalId   String?
+  createdAt  DateTime         @default(now())
+
+  @@index([reminderId])
+  @@map("personal_reminder_history")
+}
+
+model PersonalReminderSignal {
+  id           String           @id
+  reminderId   String
+  reminder     PersonalReminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  signalId     String
+  reason       String?
+  dismissedAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([reminderId])
+  @@map("personal_reminder_signal")
 }

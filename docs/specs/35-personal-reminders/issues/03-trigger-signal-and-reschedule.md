@@ -6,10 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] Ateşlemede koşul bir kez değerlendirilir; başarı `Triggered` ve tam olarak bir Hatırlatma sinyal kimliği üretir: `Remind me` → `personal-reminder`, `Review Later` → `review-later`. Merkez sunumu 71’dedir.
-- [ ] `Only if still open` başarısızsa sinyal yoktur ve hatırlatma geçmişi kaynak yaşamı ile nedeni gösterir.
-- [ ] Çözülemeyen kaynak yaşamı “koşul değerlendirilemedi” kaynak bağlı sinyal üretir; satır sessizce düşmez.
-- [ ] Sinyali kapatmak veya yeni zaman seçmek yeni İş, içerik kopyası veya planlama üyeliği yazmaz; kaynak durumu değişmez.
-- [ ] Vadesi gelen İş `Target date` bu seam’den Hatırlatma satırı veya `due-date` üretmez; alanı yazılmaz. `reappear-date` bu ticket’ta yoktur.
-- [ ] Arşivli Projedeki kayda ateşleme durur. Silinmiş kaynak kırık referans sunar, içerik dirilmez.
-- [ ] Kabul kanıtı aynı seam’de saat/scheduler double ile: ateşleme, id ayrımı, `due-date` yokluğu, bastırma+gerekçe, çözülememe, arşiv, yeniden zamanlama, kaynak yazmama. Kabuk 72 zamanı gelen öğeyi açar; üyelik burada kalır.
+- [x] Ateşlemede koşul bir kez değerlendirilir; başarı `Triggered` ve tam olarak bir Hatırlatma sinyal kimliği üretir: `Remind me` → `personal-reminder`, `Review Later` → `review-later`. Merkez sunumu 71’dedir.
+- [x] `Only if still open` başarısızsa sinyal yoktur ve hatırlatma geçmişi kaynak yaşamı ile nedeni gösterir.
+- [x] Çözülemeyen kaynak yaşamı “koşul değerlendirilemedi” kaynak bağlı sinyal üretir; satır sessizce düşmez.
+- [x] Sinyali kapatmak veya yeni zaman seçmek yeni İş, içerik kopyası veya planlama üyeliği yazmaz; kaynak durumu değişmez.
+- [x] Vadesi gelen İş `Target date` bu seam’den Hatırlatma satırı veya `due-date` üretmez; alanı yazılmaz. `reappear-date` bu ticket’ta yoktur.
+- [x] Arşivli Projedeki kayda ateşleme durur. Silinmiş kaynak kırık referans sunar, içerik dirilmez.
+- [x] Kabul kanıtı aynı seam’de saat/scheduler double ile: ateşleme, id ayrımı, `due-date` yokluğu, bastırma+gerekçe, çözülememe, arşiv, yeniden zamanlama, kaynak yazmama. Kabuk 72 zamanı gelen öğeyi açar; üyelik burada kalır.

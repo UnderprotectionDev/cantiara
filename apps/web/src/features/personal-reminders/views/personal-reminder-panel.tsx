@@ -36,7 +36,8 @@ interface ReminderRow {
 				explanation: string;
 				kind: "missing-section";
 				sectionId: string;
-		  };
+		  }
+		| { kind: "broken-reference"; reason: string };
 	stillOpenCondition: PersonalReminderCondition;
 }
 
@@ -122,6 +123,38 @@ export default function PersonalReminderPanel({
 			},
 		})
 	);
+	const dismiss = useMutation(
+		orpc.personalReminders.dismiss.mutationOptions({
+			onError: () => {
+				setError(PERSONAL_REMINDERS_COPY.couldNotWrite);
+			},
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed") {
+					await rememberReminder(sourceId, sourceType, outcome.reminder);
+					recordSave();
+					setError(null);
+					return;
+				}
+				setError(presentPersonalReminderWriteError(outcome));
+			},
+		})
+	);
+	const reschedule = useMutation(
+		orpc.personalReminders.reschedule.mutationOptions({
+			onError: () => {
+				setError(PERSONAL_REMINDERS_COPY.couldNotWrite);
+			},
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed") {
+					await rememberReminder(sourceId, sourceType, outcome.reminder);
+					recordSave();
+					setError(null);
+					return;
+				}
+				setError(presentPersonalReminderWriteError(outcome));
+			},
+		})
+	);
 	const onSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
@@ -181,6 +214,49 @@ export default function PersonalReminderPanel({
 			result.value.catch(() => undefined);
 		},
 		[attemptOnlineWork, cancel, markUnsaved]
+	);
+	const onDismiss = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			setError(null);
+			markUnsaved();
+			const form = new FormData(event.currentTarget);
+			const reminderId = String(form.get("reminderId") ?? "");
+			const result = attemptOnlineWork("record-create", () =>
+				dismiss.mutateAsync({
+					idempotencyKey: newIdempotencyKey(),
+					reminderId,
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[attemptOnlineWork, dismiss, markUnsaved]
+	);
+	const onReschedule = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			setError(null);
+			markUnsaved();
+			const form = new FormData(event.currentTarget);
+			const reminderId = String(form.get("reminderId") ?? "");
+			const local = String(form.get("fireAt") ?? "");
+			const fireAt = local === "" ? "" : new Date(local).toISOString();
+			const result = attemptOnlineWork("record-create", () =>
+				reschedule.mutateAsync({
+					fireAt,
+					idempotencyKey: newIdempotencyKey(),
+					reminderId,
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value.catch(() => undefined);
+		},
+		[attemptOnlineWork, markUnsaved, reschedule]
 	);
 	const reminders = (listed.data ?? []) as ReminderRow[];
 	const sections = listDocumentHeadingSections(documentBody);
@@ -296,6 +372,9 @@ export default function PersonalReminderPanel({
 							{reminder.openTarget.kind === "missing-section" ? (
 								<span>{reminder.openTarget.explanation}</span>
 							) : null}
+							{reminder.openTarget.kind === "broken-reference" ? (
+								<span>{reminder.openTarget.reason}</span>
+							) : null}
 							<time dateTime={reminder.fireAt}>
 								{fireAtLocalValue(reminder.fireAt)}
 							</time>
@@ -306,6 +385,44 @@ export default function PersonalReminderPanel({
 										{PERSONAL_REMINDERS_COPY.cancel}
 									</Button>
 								</form>
+							) : null}
+							{reminder.life === PERSONAL_REMINDERS_COPY.triggered ? (
+								<>
+									<form onSubmit={onDismiss}>
+										<input
+											name="reminderId"
+											type="hidden"
+											value={reminder.id}
+										/>
+										<Button size="sm" type="submit" variant="outline">
+											{PERSONAL_REMINDERS_COPY.dismiss}
+										</Button>
+									</form>
+									<form
+										className="flex flex-wrap items-end gap-2"
+										onSubmit={onReschedule}
+									>
+										<input
+											name="reminderId"
+											type="hidden"
+											value={reminder.id}
+										/>
+										<Field>
+											<FieldLabel htmlFor={`${reminder.id}-reschedule-when`}>
+												{PERSONAL_REMINDERS_COPY.fireAt}
+											</FieldLabel>
+											<Input
+												id={`${reminder.id}-reschedule-when`}
+												name="fireAt"
+												required
+												type="datetime-local"
+											/>
+										</Field>
+										<Button size="sm" type="submit">
+											{PERSONAL_REMINDERS_COPY.fireAt}
+										</Button>
+									</form>
+								</>
 							) : null}
 						</li>
 					))}

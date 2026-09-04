@@ -1,14 +1,17 @@
 import { z } from "zod";
 
 export const PERSONAL_REMINDERS_COPY = {
+	archivedProject: "This Project is archived.",
 	cancel: "Cancel",
 	cancelled: "Cancelled",
 	couldNotEvaluate: "The source life could not be evaluated.",
+	dismiss: "Dismiss",
 	empty: "No reminder on this record.",
 	fireAt: "When",
 	inAnyCase: "In any case",
 	missingSection: "This section is missing.",
 	onlyIfStillOpen: "Only if still open",
+	permanentlyDeleted: "Permanently deleted",
 	planned: "Planned",
 	remindMe: "Remind me",
 	reviewLater: "Review Later",
@@ -20,16 +23,19 @@ export const PERSONAL_REMINDERS_COPY = {
 	stillOpenNeedsDefinedLife:
 		"Only if still open needs a source with open or resolved life.",
 	timeRequired: "A reminder needs a time.",
+	triggered: "Triggered",
 	unsupportedSource: "This record type cannot carry a reminder.",
 } as const;
 
 export const PERSONAL_REMINDER_LIFE = {
 	cancelled: PERSONAL_REMINDERS_COPY.cancelled,
 	planned: PERSONAL_REMINDERS_COPY.planned,
+	triggered: PERSONAL_REMINDERS_COPY.triggered,
 } as const;
 
 export const PERSONAL_REMINDER_LIVES = [
 	PERSONAL_REMINDER_LIFE.planned,
+	PERSONAL_REMINDER_LIFE.triggered,
 	PERSONAL_REMINDER_LIFE.cancelled,
 ] as const;
 
@@ -108,6 +114,36 @@ export function sourceTypeHasStillOpenLife(
 	).includes(sourceType);
 }
 
+export const PERSONAL_REMINDER_SIGNAL_ID = {
+	personalReminder: "personal-reminder",
+	reviewLater: "review-later",
+} as const;
+
+export const PERSONAL_REMINDER_SIGNAL_IDS = [
+	PERSONAL_REMINDER_SIGNAL_ID.personalReminder,
+	PERSONAL_REMINDER_SIGNAL_ID.reviewLater,
+] as const;
+
+export type PersonalReminderSignalId =
+	(typeof PERSONAL_REMINDER_SIGNAL_IDS)[number];
+
+export function signalIdForAction(
+	action: PersonalReminderAction
+): PersonalReminderSignalId {
+	return action === PERSONAL_REMINDER_ACTION.remindMe
+		? PERSONAL_REMINDER_SIGNAL_ID.personalReminder
+		: PERSONAL_REMINDER_SIGNAL_ID.reviewLater;
+}
+
+export const PERSONAL_REMINDER_HISTORY_KIND = {
+	archiveStopped: "archive-stopped",
+	dismissed: "dismissed",
+	fired: "fired",
+	rescheduled: "rescheduled",
+	suppressed: "suppressed",
+	unevaluable: "unevaluable",
+} as const;
+
 export const PERSONAL_REMINDERS_COUNTERPARTS = {
 	dailyFocus: false,
 	datelessQueue: false,
@@ -141,6 +177,7 @@ export function personalRemindersCatalog() {
 		kind: "personal-reminders",
 		lives: PERSONAL_REMINDER_LIVES,
 		planningWrites: PERSONAL_REMINDERS_PLANNING_WRITES,
+		signalIds: PERSONAL_REMINDER_SIGNAL_IDS,
 		sourceTypes: PERSONAL_REMINDER_SOURCE_TYPES,
 		stillOpenSourceTypes: PERSONAL_REMINDER_STILL_OPEN_SOURCE_TYPES,
 	};
@@ -157,6 +194,10 @@ export const personalReminderOpenTargetSchema = z.discriminatedUnion("kind", [
 		explanation: z.literal(PERSONAL_REMINDERS_COPY.missingSection),
 		kind: z.literal("missing-section"),
 		sectionId: z.string().min(1),
+	}),
+	z.object({
+		kind: z.literal("broken-reference"),
+		reason: z.literal(PERSONAL_REMINDERS_COPY.permanentlyDeleted),
 	}),
 ]);
 
@@ -185,3 +226,37 @@ export type PersonalReminderConditionEvaluation = z.infer<
 >;
 
 export type PersonalReminderView = z.infer<typeof personalReminderViewSchema>;
+
+export const personalReminderHistoryEntrySchema = z.object({
+	at: z.string().datetime(),
+	kind: z.enum([
+		PERSONAL_REMINDER_HISTORY_KIND.archiveStopped,
+		PERSONAL_REMINDER_HISTORY_KIND.dismissed,
+		PERSONAL_REMINDER_HISTORY_KIND.fired,
+		PERSONAL_REMINDER_HISTORY_KIND.rescheduled,
+		PERSONAL_REMINDER_HISTORY_KIND.suppressed,
+		PERSONAL_REMINDER_HISTORY_KIND.unevaluable,
+	]),
+	reason: z.string().nullable(),
+	signalId: z.enum(PERSONAL_REMINDER_SIGNAL_IDS).nullable(),
+	sourceLife: z
+		.enum(["open", "resolved", "not-applicable", "unevaluable"])
+		.nullable(),
+});
+
+export type PersonalReminderHistoryEntry = z.infer<
+	typeof personalReminderHistoryEntrySchema
+>;
+
+export const personalReminderSignalViewSchema = z.object({
+	dismissed: z.boolean(),
+	reason: z.string().nullable(),
+	reminderId: z.string().min(1),
+	signalId: z.enum(PERSONAL_REMINDER_SIGNAL_IDS),
+	sourceId: z.string().min(1),
+	sourceType: z.enum(PERSONAL_REMINDER_SOURCE_TYPES),
+});
+
+export type PersonalReminderSignalView = z.infer<
+	typeof personalReminderSignalViewSchema
+>;
