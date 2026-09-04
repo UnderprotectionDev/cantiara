@@ -1168,6 +1168,13 @@ describe("Personal Reminders fire", () => {
 				sourceLife: "resolved",
 			}),
 		]);
+		expect(await reminders.history(created.reminder.id)).toHaveLength(1);
+		scheduler.scheduled.set(
+			created.reminder.id,
+			new Date("2026-09-10T15:00:00.000Z")
+		);
+		await reminders.fireDue();
+		expect(await reminders.history(created.reminder.id)).toHaveLength(1);
 	});
 
 	it("emits a source-linked unevaluable signal instead of dropping the row", async () => {

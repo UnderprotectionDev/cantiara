@@ -808,6 +808,19 @@ async function triggerDueReminder(
 	});
 }
 
+async function hasTerminalFireHistory(
+	db: MutationDb,
+	reminderId: string
+): Promise<boolean> {
+	const prior = await listHistoryRows(db, reminderId);
+	return prior.some(
+		(entry) =>
+			entry.kind === PERSONAL_REMINDER_HISTORY_KIND.suppressed ||
+			entry.kind === PERSONAL_REMINDER_HISTORY_KIND.fired ||
+			entry.kind === PERSONAL_REMINDER_HISTORY_KIND.unevaluable
+	);
+}
+
 export function createPersonalReminders(
 	input: CreatePersonalRemindersInput
 ): PersonalReminders {
@@ -826,6 +839,15 @@ export function createPersonalReminders(
 				WHERE "accountId" = ${input.accountId}
 					AND life = ${PERSONAL_REMINDER_LIFE.planned}
 					AND "fireAt" <= ${instant}
+					AND id NOT IN (
+						SELECT "reminderId"
+						FROM "personal_reminder_history"
+						WHERE kind IN (
+							${PERSONAL_REMINDER_HISTORY_KIND.suppressed},
+							${PERSONAL_REMINDER_HISTORY_KIND.fired},
+							${PERSONAL_REMINDER_HISTORY_KIND.unevaluable}
+						)
+					)
 			`;
 			return rows.map((row) => row.id);
 		},
@@ -1077,6 +1099,9 @@ export function createPersonalReminders(
 			);
 			const row = await getReminderRow(tx, input.accountId, reminderId);
 			if (!row || row.life !== PERSONAL_REMINDER_LIFE.planned) {
+				return;
+			}
+			if (await hasTerminalFireHistory(tx, reminderId)) {
 				return;
 			}
 			const sourceType = row.sourceType as PersonalReminderSourceType;
