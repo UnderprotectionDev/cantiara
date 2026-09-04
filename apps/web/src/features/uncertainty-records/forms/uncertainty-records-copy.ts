@@ -7,7 +7,6 @@ export const UNCERTAINTY_COPY = {
 	noAssumptions: "No Assumptions yet.",
 	noLongerApplicable: "No longer applicable",
 	open: "Open",
-	openQuestion: "Open Question",
 	rationale: "Rationale",
 	recordOutcome: "Record outcome",
 	refuted: "Refuted",

@@ -9,7 +9,6 @@ export const UNCERTAINTY_COPY = {
 	noAssumptions: "No Assumptions yet.",
 	noLongerApplicable: "No longer applicable",
 	open: "Open",
-	openQuestion: "Open Question",
 	rationale: "Rationale",
 	recordOutcome: "Record outcome",
 	refuted: "Refuted",
@@ -139,7 +138,6 @@ export const assumptionWriteOutcomeSchema = z.discriminatedUnion("status", [
 		reason: z.enum([
 			"invalid-command",
 			"assumption-not-found",
-			"evidence-not-accepted",
 			"invalid-evidence",
 		]),
 		status: z.literal("rejected"),

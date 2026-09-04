@@ -14,6 +14,5 @@ test("English Assumption labels stay Assumption and the four lives", () => {
 	expect(UNCERTAINTY_COPY.rationale).toBe("Rationale");
 	expect(UNCERTAINTY_COPY.missingEvidence).toBe("Missing evidence");
 	expect(UNCERTAINTY_COPY.createAssumption).toBe("Create Assumption");
-	expect(UNCERTAINTY_COPY.openQuestion).toBe("Open Question");
 	expect(JSON.stringify(UNCERTAINTY_COPY)).not.toMatch(FUTURE_COPY);
 });

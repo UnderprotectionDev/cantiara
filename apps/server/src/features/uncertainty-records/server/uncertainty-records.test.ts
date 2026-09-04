@@ -189,9 +189,7 @@ describe("Uncertainty Records", () => {
 			return;
 		}
 		expect(outcome.assumption.recordKind).toBe(UNCERTAINTY_COPY.assumption);
-		expect(outcome.assumption.recordKind).not.toBe(
-			UNCERTAINTY_COPY.openQuestion
-		);
+		expect(outcome.assumption.recordKind).not.toBe("Open Question");
 		expect(outcome.assumption.recordKind).not.toBe("Experiment/Validation");
 		expect(outcome.assumption.recordKind).not.toBe("User Research Session");
 		expect(outcome.assumption.recordKind).not.toBe("Question");
@@ -338,7 +336,7 @@ describe("Uncertainty Records", () => {
 		expect(live?.evidence).toHaveLength(1);
 	});
 
-	it("rejects new evidence on No longer applicable", async () => {
+	it("does not attach new evidence on No longer applicable", async () => {
 		const { actorId, projectId, workspaceId } = await openPayments(prisma);
 		const created = await committedAssumption(prisma, {
 			actorId,
@@ -363,12 +361,14 @@ describe("Uncertainty Records", () => {
 				life: ASSUMPTION_LIFE.noLongerApplicable,
 			},
 		});
-		expect(retired).toEqual({
-			reason: "evidence-not-accepted",
-			status: "rejected",
-		});
+		expect(retired.status).toBe("committed");
+		if (retired.status !== "committed") {
+			return;
+		}
+		expect(retired.assumption.life).toBe(ASSUMPTION_LIFE.noLongerApplicable);
+		expect(retired.assumption.evidence).toEqual([]);
 		const live = await getAssumption(prisma, created.id);
-		expect(live?.life).toBe(ASSUMPTION_LIFE.open);
+		expect(live?.life).toBe(ASSUMPTION_LIFE.noLongerApplicable);
 		expect(live?.evidence).toEqual([]);
 	});
 

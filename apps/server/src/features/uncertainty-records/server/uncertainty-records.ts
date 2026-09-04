@@ -78,12 +78,6 @@ export async function setAssumptionLife(
 	if (!parsed.success) {
 		return { reason: "invalid-command", status: "rejected" };
 	}
-	if (
-		parsed.data.payload.evidence &&
-		!isAssumptionOutcomeLife(parsed.data.payload.life)
-	) {
-		return { reason: "evidence-not-accepted", status: "rejected" };
-	}
 	const fingerprint = payloadFingerprint({
 		assumptionId: parsed.data.payload.assumptionId,
 		evidence: parsed.data.payload.evidence ?? null,
@@ -200,7 +194,10 @@ async function setLifeInTransaction(
 	if (locked.revision !== command.baseRevision) {
 		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
 	}
-	if (command.payload.evidence) {
+	if (
+		command.payload.evidence &&
+		isAssumptionOutcomeLife(command.payload.life)
+	) {
 		const attached = await attachEvidence(tx, {
 			assumptionId: locked.id,
 			fromId: command.payload.evidence.fromId,

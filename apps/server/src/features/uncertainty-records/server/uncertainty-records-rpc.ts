@@ -9,13 +9,11 @@ import {
 	createAssumption,
 	getAssumption,
 	listAssumptions,
-	listRefutedAssumptionReview,
 	setAssumptionLife,
 } from "./uncertainty-records";
 import {
 	ASSUMPTION_LIVES,
 	createAssumptionPayloadSchema,
-	firstProductUncertaintySurfaces,
 	setAssumptionLifePayloadSchema,
 	UNCERTAINTY_COPY,
 } from "./uncertainty-records-model";
@@ -37,11 +35,7 @@ async function requireProject(workspaceId: string, projectId: string) {
 }
 
 export const uncertaintyRecords = {
-	catalog: protectedProcedure.handler(() => ({
-		copy: UNCERTAINTY_COPY,
-		lives: ASSUMPTION_LIVES,
-		surfaces: firstProductUncertaintySurfaces(),
-	})),
+	catalog: protectedProcedure.handler(() => UNCERTAINTY_COPY),
 	createAssumption: protectedWriteProcedure
 		.input(
 			z.object({
@@ -87,9 +81,6 @@ export const uncertaintyRecords = {
 				life: input.life,
 			});
 		}),
-	listRefutedAssumptionReview: protectedProcedure.handler(() =>
-		listRefutedAssumptionReview()
-	),
 	setAssumptionLife: protectedWriteProcedure
 		.input(
 			z.object({
