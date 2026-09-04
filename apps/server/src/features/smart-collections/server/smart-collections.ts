@@ -15,7 +15,11 @@ import {
 	type FieldWrite,
 	fieldLabel,
 	galleryAllowedFor,
+	type InsightBucket,
+	type InsightSlice,
+	type InsightSliceOptions,
 	isStructuredMetadataSource,
+	type LightInsights,
 	type MembershipCondition,
 	type MembershipMember,
 	type MembershipReason,
@@ -29,7 +33,9 @@ import {
 	type PresentationDraft,
 	parseConditions,
 	parsePresentation,
+	SMART_COLLECTIONS_COPY,
 	type SmartCollectionDefinition,
+	type SmartCollectionPresentation,
 	smartCollectionSourceAllowed,
 } from "./smart-collections-model";
 import {
@@ -89,6 +95,114 @@ function kindMatchesSource(recordKind: string, sourceKind: string): boolean {
 	);
 }
 
+function isAccessibleRecord(record: CollectionRecord): boolean {
+	return record.accessible !== false;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function daysBetween(fromIso: string | undefined, now: Date): number | null {
+	if (!fromIso) {
+		return null;
+	}
+	const from = Date.parse(fromIso);
+	if (Number.isNaN(from)) {
+		return null;
+	}
+	return Math.floor(Math.max(0, now.getTime() - from) / DAY_MS);
+}
+
+function dayBucket(days: number | null): string {
+	if (days === null) {
+		return SMART_COLLECTIONS_COPY.notSet;
+	}
+	if (days <= 7) {
+		return SMART_COLLECTIONS_COPY.age0to7;
+	}
+	if (days <= 30) {
+		return SMART_COLLECTIONS_COPY.age8to30;
+	}
+	return SMART_COLLECTIONS_COPY.age31plus;
+}
+
+function effortValue(record: CollectionRecord): string {
+	if (typeof record.effort === "string" && record.effort.length > 0) {
+		return record.effort;
+	}
+	return SMART_COLLECTIONS_COPY.notSet;
+}
+
+function ageValue(record: CollectionRecord, now: Date): string {
+	return dayBucket(daysBetween(record.createdAt, now));
+}
+
+function timeInStatusValue(record: CollectionRecord, now: Date): string {
+	return dayBucket(
+		daysBetween(record.statusEnteredAt ?? record.createdAt, now)
+	);
+}
+
+function sliceValue(
+	record: CollectionRecord,
+	slice: InsightSlice,
+	now: Date
+): string {
+	switch (slice.dimension) {
+		case "age":
+			return ageValue(record, now);
+		case "effort":
+			return effortValue(record);
+		case "status":
+			return record.status ?? SMART_COLLECTIONS_COPY.notSet;
+		case "timeInStatus":
+			return timeInStatusValue(record, now);
+		default:
+			return SMART_COLLECTIONS_COPY.notSet;
+	}
+}
+
+function recordMatchesSlices(
+	record: CollectionRecord,
+	slices: readonly InsightSlice[],
+	now: Date
+): boolean {
+	return slices.every(
+		(slice) => sliceValue(record, slice, now) === slice.value
+	);
+}
+
+function countBuckets(values: readonly string[]): InsightBucket[] {
+	const counts = new Map<string, number>();
+	for (const value of values) {
+		counts.set(value, (counts.get(value) ?? 0) + 1);
+	}
+	return [...counts.entries()]
+		.map(([value, count]) => ({ count, value }))
+		.sort((left, right) => {
+			if (right.count !== left.count) {
+				return right.count - left.count;
+			}
+			return left.value.localeCompare(right.value);
+		});
+}
+
+function insightsFor(
+	records: readonly CollectionRecord[],
+	now: Date
+): LightInsights {
+	return {
+		age: countBuckets(records.map((record) => ageValue(record, now))),
+		effort: countBuckets(records.map(effortValue)),
+		recordCount: records.length,
+		status: countBuckets(
+			records.map((record) => record.status ?? SMART_COLLECTIONS_COPY.notSet)
+		),
+		timeInStatus: countBuckets(
+			records.map((record) => timeInStatusValue(record, now))
+		),
+	};
+}
+
 export function defineSmartCollection(
 	input: DefineSmartCollectionInput
 ): DefineSmartCollectionResult {
@@ -134,6 +248,9 @@ export function deriveMembership(
 	records: readonly CollectionRecord[]
 ): MembershipView {
 	const members: MembershipMember[] = records.flatMap((record) => {
+		if (!isAccessibleRecord(record)) {
+			return [];
+		}
 		if (!kindMatchesSource(record.kind, collection.sourceKind)) {
 			return [];
 		}
@@ -207,6 +324,35 @@ export function previewDragOntoCollection(
 		return { parenting: false, status: "impossible" };
 	}
 	return { parenting: false, status: "preview", writes };
+}
+
+export function applyInsightSlices(
+	collection: SmartCollectionDefinition,
+	records: readonly CollectionRecord[],
+	options: InsightSliceOptions = {}
+): SmartCollectionPresentation {
+	const now = options.now ?? new Date();
+	const slices = options.slices ?? [];
+	const membership = deriveMembership(collection, records);
+	if (collection.sourceKind !== RECORD_DISCOVERY_COPY.work) {
+		return { insights: null, membership };
+	}
+	const byId = new Map(records.map((record) => [record.id, record]));
+	const matching = membership.members.filter((member) => {
+		const record = byId.get(member.id);
+		return record ? recordMatchesSlices(record, slices, now) : false;
+	});
+	const matchingRecords = matching.flatMap((member) => {
+		const record = byId.get(member.id);
+		return record ? [record] : [];
+	});
+	return {
+		insights: insightsFor(matchingRecords, now),
+		membership: {
+			members: matching,
+			summary: membership.summary,
+		},
+	};
 }
 
 type MutationDb = PrismaClient | Prisma.TransactionClient;
@@ -775,6 +921,7 @@ async function loadWorkCatalog(
 	const rows = await prisma.work.findMany({
 		orderBy: [{ projectId: "asc" }, { number: "asc" }],
 		select: {
+			createdAt: true,
 			id: true,
 			projectId: true,
 			status: true,
@@ -789,11 +936,31 @@ async function loadWorkCatalog(
 			trashedAt: null,
 		},
 	});
+	const ids = rows.map((row) => row.id);
+	const events =
+		ids.length === 0
+			? []
+			: await prisma.workLifecycleEvent.findMany({
+					orderBy: { createdAt: "desc" },
+					select: { createdAt: true, workId: true },
+					where: {
+						kind: { in: ["status", "closed", "reopened"] },
+						workId: { in: ids },
+					},
+				});
+	const enteredAt = new Map<string, Date>();
+	for (const event of events) {
+		if (!enteredAt.has(event.workId)) {
+			enteredAt.set(event.workId, event.createdAt);
+		}
+	}
 	return rows.map((row) => ({
+		createdAt: row.createdAt.toISOString(),
 		id: row.id,
 		kind: RECORD_DISCOVERY_COPY.work,
 		projectId: row.projectId,
 		status: row.status,
+		statusEnteredAt: (enteredAt.get(row.id) ?? row.createdAt).toISOString(),
 		tagIds: row.tags.map((tag) => tag.tagId),
 		title: row.title,
 		type: row.type,
@@ -877,6 +1044,7 @@ export async function loadCollectionCatalog(
 export interface SmartCollectionView {
 	collection: SmartCollectionDefinition;
 	dropCandidates: readonly CollectionRecord[];
+	insights: LightInsights | null;
 	membership: MembershipView;
 	namedViews: readonly NamedViewDefinition[];
 	signals: readonly SmartCollectionEntrySignal[];
@@ -1188,7 +1356,8 @@ async function evaluateStoredSubscription(
 export async function viewSmartCollection(
 	prisma: PrismaClient,
 	workspaceId: string,
-	collectionId: string
+	collectionId: string,
+	options: InsightSliceOptions = {}
 ): Promise<SmartCollectionView | null> {
 	const collection = await getSmartCollection(
 		prisma,
@@ -1199,20 +1368,22 @@ export async function viewSmartCollection(
 		return null;
 	}
 	const catalog = await loadCollectionCatalog(prisma, workspaceId, collection);
-	const membership = deriveMembership(collection, catalog);
-	const memberIds = new Set(membership.members.map((member) => member.id));
+	const unfiltered = deriveMembership(collection, catalog);
+	const presented = applyInsightSlices(collection, catalog, options);
+	const unfilteredIds = new Set(unfiltered.members.map((member) => member.id));
 	const namedViews = await listNamedViews(prisma, collectionId);
 	const signals = await evaluateStoredSubscription(
 		prisma,
 		collection,
 		catalog,
-		membership,
+		unfiltered,
 		false
 	);
 	return {
 		collection,
-		dropCandidates: catalog.filter((record) => !memberIds.has(record.id)),
-		membership,
+		dropCandidates: catalog.filter((record) => !unfilteredIds.has(record.id)),
+		insights: presented.insights,
+		membership: presented.membership,
 		namedViews,
 		signals,
 	};

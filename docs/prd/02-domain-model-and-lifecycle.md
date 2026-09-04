@@ -206,6 +206,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ayrılınca bildir | `Notify on leave` | Aboneliğe ek, kaydın koleksiyondan çıkışında aynı sinyal kimliğiyle ayrılma nedeni |
 | Önce Abone ol | `Turn on Subscribe first.` | `Subscribe` kapalıyken `Notify on leave` neden tıklanamadığını söyleyen ipucu |
 | Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
+| Hafif İçgörüler | `Insights` | İş koleksiyonunun mevcut filtre sonucundan sayı ve dağılım özeti; skor, coverage veya yayın kapısı değildir |
+| Kayıt yaşı | `Age` | İş kaydının oluşturulmasından bu yana geçen süre özeti; skor değildir |
+| Tüm kayıtları göster | `Show all records` | Insights dilimini kaldırıp koleksiyonun mevcut koşul sonucuna dönme |
+| Ayarlanmadı | `Not set` | Eforu boş kaydın Insights dilimi; skor değildir |
+| Yaş ve time-in-status dilimleri | `0–7 days`, `8–30 days`, `31+ days` | Hafif İçgörüler gün aralığı özeti; performans eşiği değildir |
 | Tüm etiketler | `All tags` | Etiket süzgecinin süzmeyi kaldırma seçeneği |
 | Etiket uygula | `Apply tag` | Erişilebilir kayda mevcut Etiketi bağlama |
 | Etiket oluştur | `Create tag` | Çalışma Alanı sözlüğüne düz Etiket ekleme |

@@ -481,6 +481,14 @@ _Avoid_: paragraf aralığı, kayan metin aralığı, sessiz başka başlık
 Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm; manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
 _Avoid_: Statik liste, klasör, etiket
 
+**Hafif İçgörüler**:
+İş koleksiyonunun mevcut filtre sonucundan türetilen sayı ve dağılım özeti; skor, coverage veya yayın kapısı değildir ([Hafif İçgörüler](docs/prd/08-search-relations-and-evidence.md#hafif-içgörüler)). UI: `Insights`.
+_Avoid_: dashboard, kalite puanı, coverage, kapasite, cycle-time yönetimi
+
+**Kayıt yaşı**:
+İş kaydının oluşturulmasından bu yana geçen süre; Hafif İçgörüler dilimidir, skor değildir. UI: `Age`.
+_Avoid_: kalite puanı, cycle-time performansı
+
 **Akıllı Koleksiyon aboneliği**:
 Kayda koleksiyon koşuluna ilk girişte (ve seçilirse çıkışta) üyelik dönemi başına tek `smart-collection-entry` Dikkat sinyali üreten opt-in; kaydı koleksiyonun çocuğu yapmaz ve kaynak alan yazmaz ([Akıllı Koleksiyon abonelikleri](docs/prd/08-search-relations-and-evidence.md#akıllı-koleksiyon-abonelikleri)). UI: `Subscribe`, `Notify on leave`, `Turn on Subscribe first.`.
 _Avoid_: e-posta özeti, kayıtsız sinyal türü, Bildirim Merkezi kabuğu

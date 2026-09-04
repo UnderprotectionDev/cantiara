@@ -57,6 +57,18 @@ interface CollectionSummary {
 	name: string;
 }
 
+type InsightDimension = "status" | "effort" | "age" | "timeInStatus";
+
+interface InsightSlice {
+	dimension: InsightDimension;
+	value: string;
+}
+
+interface InsightBucket {
+	count: number;
+	value: string;
+}
+
 function fieldLabel(field: string): string {
 	switch (field) {
 		case "projectId":
@@ -139,6 +151,307 @@ function CollectionList({
 				</li>
 			))}
 		</ul>
+	);
+}
+
+function InsightGroup({
+	buckets,
+	copy,
+	dimension,
+	onSelect,
+	title,
+}: {
+	buckets: readonly InsightBucket[];
+	copy: typeof SMART_COLLECTIONS_COPY;
+	dimension: InsightDimension;
+	onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
+	title: string;
+}) {
+	return (
+		<div className="mb-4">
+			<h3 className="mb-2 font-medium text-sm">{title}</h3>
+			{buckets.length === 0 ? (
+				<p>{copy.empty}</p>
+			) : (
+				<ul className="flex flex-wrap gap-2">
+					{buckets.map((bucket) => (
+						<li key={`${dimension}-${bucket.value}`}>
+							<Button
+								onClick={onSelect}
+								type="button"
+								value={JSON.stringify({ dimension, value: bucket.value })}
+								variant="outline"
+							>
+								{bucket.value} ({bucket.count})
+							</Button>
+						</li>
+					))}
+				</ul>
+			)}
+		</div>
+	);
+}
+
+function CollectionTabs({
+	copy,
+	onSelect,
+	surface,
+}: {
+	copy: typeof SMART_COLLECTIONS_COPY;
+	onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
+	surface: "members" | "insights";
+}) {
+	return (
+		<div
+			aria-label={copy.smartCollection}
+			className="mb-6 flex flex-wrap gap-2"
+			role="tablist"
+		>
+			<Button
+				aria-selected={surface === "members"}
+				onClick={onSelect}
+				role="tab"
+				type="button"
+				value="members"
+				variant={surface === "members" ? "default" : "outline"}
+			>
+				{copy.members}
+			</Button>
+			<Button
+				aria-selected={surface === "insights"}
+				onClick={onSelect}
+				role="tab"
+				type="button"
+				value="insights"
+				variant={surface === "insights" ? "default" : "outline"}
+			>
+				{copy.insights}
+			</Button>
+		</div>
+	);
+}
+
+function InsightsPanel({
+	copy,
+	insights,
+	onSelectSlice,
+	onShowAllRecords,
+	sliced,
+}: {
+	copy: typeof SMART_COLLECTIONS_COPY;
+	insights: {
+		age: readonly InsightBucket[];
+		effort: readonly InsightBucket[];
+		recordCount: number;
+		status: readonly InsightBucket[];
+		timeInStatus: readonly InsightBucket[];
+	};
+	onSelectSlice: (event: MouseEvent<HTMLButtonElement>) => void;
+	onShowAllRecords: () => void;
+	sliced: boolean;
+}) {
+	return (
+		<FounderSection title={copy.insights} titleId="smart-collection-insights">
+			<p className="mb-4">
+				{copy.records}: {insights.recordCount}
+			</p>
+			{sliced ? (
+				<Button
+					className="mb-4"
+					onClick={onShowAllRecords}
+					type="button"
+					variant="outline"
+				>
+					{copy.showAllRecords}
+				</Button>
+			) : null}
+			<InsightGroup
+				buckets={insights.status}
+				copy={copy}
+				dimension="status"
+				onSelect={onSelectSlice}
+				title={copy.status}
+			/>
+			<InsightGroup
+				buckets={insights.effort}
+				copy={copy}
+				dimension="effort"
+				onSelect={onSelectSlice}
+				title={copy.effort}
+			/>
+			<InsightGroup
+				buckets={insights.age}
+				copy={copy}
+				dimension="age"
+				onSelect={onSelectSlice}
+				title={copy.age}
+			/>
+			<InsightGroup
+				buckets={insights.timeInStatus}
+				copy={copy}
+				dimension="timeInStatus"
+				onSelect={onSelectSlice}
+				title={copy.timeInStatus}
+			/>
+		</FounderSection>
+	);
+}
+
+function useInsightSurface() {
+	const [slices, setSlices] = useState<InsightSlice[]>([]);
+	const [surface, setSurface] = useState<"members" | "insights">("members");
+	const reset = useCallback(() => {
+		setSlices([]);
+		setSurface("members");
+	}, []);
+	const onInsightSlice = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+		const parsed = JSON.parse(event.currentTarget.value) as InsightSlice;
+		setSlices((current) => [
+			...current.filter((item) => item.dimension !== parsed.dimension),
+			parsed,
+		]);
+	}, []);
+	const onShowAllRecords = useCallback(() => {
+		setSlices([]);
+	}, []);
+	const onSurface = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+		const next = event.currentTarget.value;
+		if (next === "members" || next === "insights") {
+			setSurface(next);
+		}
+	}, []);
+	return {
+		onInsightSlice,
+		onShowAllRecords,
+		onSurface,
+		reset,
+		slices,
+		surface,
+	};
+}
+
+function CollectionInsightsAndMembers({
+	copy,
+	dragPreview,
+	dropCandidates,
+	insights,
+	onDragOver,
+	onDragStart,
+	onDrop,
+	onInsightSlice,
+	onPin,
+	onShowAllRecords,
+	onSurface,
+	pinMessage,
+	presented,
+	presentation,
+	slices,
+	surface,
+	workCollection,
+}: {
+	copy: typeof SMART_COLLECTIONS_COPY;
+	dragPreview: string | null;
+	dropCandidates: readonly { id: string; title: string }[];
+	insights: {
+		age: readonly InsightBucket[];
+		effort: readonly InsightBucket[];
+		recordCount: number;
+		status: readonly InsightBucket[];
+		timeInStatus: readonly InsightBucket[];
+	} | null;
+	onDragOver: (event: DragEvent<HTMLElement>) => void;
+	onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
+	onDrop: (event: DragEvent<HTMLElement>) => void;
+	onInsightSlice: (event: MouseEvent<HTMLButtonElement>) => void;
+	onPin: (event: MouseEvent<HTMLButtonElement>) => void;
+	onShowAllRecords: () => void;
+	onSurface: (event: MouseEvent<HTMLButtonElement>) => void;
+	pinMessage: string | null;
+	presented: readonly {
+		because: readonly { field: string; label: string }[];
+		id: string;
+		kind: string;
+		projectId: string | null;
+		title: string;
+	}[];
+	presentation: Presentation | undefined;
+	slices: readonly InsightSlice[];
+	surface: "members" | "insights";
+	workCollection: boolean;
+}) {
+	return (
+		<>
+			{workCollection ? (
+				<CollectionTabs copy={copy} onSelect={onSurface} surface={surface} />
+			) : null}
+			{workCollection && surface === "insights" && insights ? (
+				<InsightsPanel
+					copy={copy}
+					insights={insights}
+					onSelectSlice={onInsightSlice}
+					onShowAllRecords={onShowAllRecords}
+					sliced={slices.length > 0}
+				/>
+			) : null}
+			{surface === "members" ? (
+				<>
+					<FounderSection
+						title={copy.members}
+						titleId="smart-collection-members"
+					>
+						{slices.length > 0 ? (
+							<Button
+								className="mb-3"
+								onClick={onShowAllRecords}
+								type="button"
+								variant="outline"
+							>
+								{copy.showAllRecords}
+							</Button>
+						) : null}
+						{/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: drop previews a field write, not a pin */}
+						<section
+							aria-label={copy.dropHere}
+							className="min-h-24 rounded-md border border-dashed p-3"
+							onDragOver={onDragOver}
+							onDrop={onDrop}
+						>
+							<p className="mb-3 text-muted-foreground text-sm">
+								{copy.dropHere}
+							</p>
+							<MembershipBody
+								copy={copy}
+								onPin={onPin}
+								presentation={presentation}
+								presented={presented}
+							/>
+						</section>
+						{pinMessage ? <p className="mt-3 text-sm">{pinMessage}</p> : null}
+						{dragPreview ? <p className="mt-3 text-sm">{dragPreview}</p> : null}
+					</FounderSection>
+					<FounderSection
+						title={copy.notMembers}
+						titleId="smart-collection-not-members"
+					>
+						<ul className="space-y-2">
+							{dropCandidates.map((record) => (
+								<li key={record.id}>
+									<Button
+										draggable={true}
+										onDragStart={onDragStart}
+										type="button"
+										value={record.id}
+										variant="ghost"
+									>
+										{record.title}
+									</Button>
+								</li>
+							))}
+						</ul>
+					</FounderSection>
+				</>
+			) : null}
+		</>
 	);
 }
 
@@ -323,9 +636,20 @@ export default function SmartCollectionsArea() {
 	);
 	const [saveAsName, setSaveAsName] = useState("");
 	const [newWorkMessage, setNewWorkMessage] = useState<string | null>(null);
+	const {
+		onInsightSlice,
+		onShowAllRecords,
+		onSurface,
+		reset: resetInsights,
+		slices,
+		surface,
+	} = useInsightSurface();
 	const view = useQuery({
 		...orpc.smartCollections.view.queryOptions({
-			input: { collectionId: selectedId ?? "" },
+			input: {
+				collectionId: selectedId ?? "",
+				slices,
+			},
 		}),
 		enabled: Boolean(selectedId),
 	});
@@ -338,12 +662,12 @@ export default function SmartCollectionsArea() {
 			if (viewId) {
 				await queryClient.invalidateQueries({
 					queryKey: orpc.smartCollections.view.queryKey({
-						input: { collectionId: viewId },
+						input: { collectionId: viewId, slices },
 					}),
 				});
 			}
 		},
-		[selectedId]
+		[selectedId, slices]
 	);
 	const create = useMutation(
 		orpc.smartCollections.create.mutationOptions({
@@ -463,6 +787,9 @@ export default function SmartCollectionsArea() {
 		return rows;
 	}, [draft, members]);
 	const dropCandidates = view.data?.dropCandidates ?? [];
+	const insights = view.data?.insights ?? null;
+	const workCollection =
+		view.data?.collection.sourceKind === RECORD_DISCOVERY_COPY.work;
 	const { onEntry: subscribeOnEntry, onExit: subscribeOnExit } =
 		subscriptionFlags(
 			subscribe.isPending,
@@ -534,8 +861,9 @@ export default function SmartCollectionsArea() {
 			setPinMessage(null);
 			setDragPreview(null);
 			setNewWorkMessage(null);
+			resetInsights();
 		},
-		[setDraft, setSelectedViewId]
+		[resetInsights, setDraft, setSelectedViewId]
 	);
 	const onPin = useCallback(
 		(event: MouseEvent<HTMLButtonElement>) => {
@@ -835,50 +1163,25 @@ export default function SmartCollectionsArea() {
 							onSubscribeExit={onSubscribeExit}
 						/>
 					</FounderSection>
-					<FounderSection
-						title={copy.members}
-						titleId="smart-collection-members"
-					>
-						{/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: drop previews a field write, not a pin */}
-						<section
-							aria-label={copy.dropHere}
-							className="min-h-24 rounded-md border border-dashed p-3"
-							onDragOver={onDragOver}
-							onDrop={onDrop}
-						>
-							<p className="mb-3 text-muted-foreground text-sm">
-								{copy.dropHere}
-							</p>
-							<MembershipBody
-								copy={copy}
-								onPin={onPin}
-								presentation={draft?.presentation}
-								presented={presented}
-							/>
-						</section>
-						{pinMessage ? <p className="mt-3 text-sm">{pinMessage}</p> : null}
-						{dragPreview ? <p className="mt-3 text-sm">{dragPreview}</p> : null}
-					</FounderSection>
-					<FounderSection
-						title={copy.notMembers}
-						titleId="smart-collection-not-members"
-					>
-						<ul className="space-y-2">
-							{dropCandidates.map((record) => (
-								<li key={record.id}>
-									<Button
-										draggable={true}
-										onDragStart={onDragStart}
-										type="button"
-										value={record.id}
-										variant="ghost"
-									>
-										{record.title}
-									</Button>
-								</li>
-							))}
-						</ul>
-					</FounderSection>
+					<CollectionInsightsAndMembers
+						copy={copy}
+						dragPreview={dragPreview}
+						dropCandidates={dropCandidates}
+						insights={insights}
+						onDragOver={onDragOver}
+						onDragStart={onDragStart}
+						onDrop={onDrop}
+						onInsightSlice={onInsightSlice}
+						onPin={onPin}
+						onShowAllRecords={onShowAllRecords}
+						onSurface={onSurface}
+						pinMessage={pinMessage}
+						presentation={draft?.presentation}
+						presented={presented}
+						slices={slices}
+						surface={surface}
+						workCollection={workCollection}
+					/>
 				</>
 			) : null}
 		</FounderPage>

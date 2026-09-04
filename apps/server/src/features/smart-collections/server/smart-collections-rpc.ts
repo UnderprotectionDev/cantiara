@@ -21,6 +21,7 @@ import {
 import {
 	CONDITION_FIELDS,
 	CONDITION_OPERATORS,
+	INSIGHT_DIMENSIONS,
 	PRESENTATIONS,
 	smartCollectionsCatalog,
 } from "./smart-collections-model";
@@ -231,13 +232,26 @@ export const smartCollections = {
 			});
 		}),
 	view: protectedProcedure
-		.input(z.object({ collectionId: z.string().min(1) }))
+		.input(
+			z.object({
+				collectionId: z.string().min(1),
+				slices: z
+					.array(
+						z.object({
+							dimension: z.enum(INSIGHT_DIMENSIONS),
+							value: z.string().min(1),
+						})
+					)
+					.optional(),
+			})
+		)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			const view = await viewSmartCollection(
 				getPrismaClient(),
 				access.workspaceId,
-				input.collectionId
+				input.collectionId,
+				{ slices: input.slices }
 			);
 			if (!view) {
 				throw new ORPCError("NOT_FOUND");

@@ -24,6 +24,7 @@ import {
 } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	addException,
+	applyInsightSlices,
 	createNamedView,
 	createSmartCollection,
 	createWorkFromCollection,
@@ -54,6 +55,10 @@ import {
 } from "./smart-collections-model";
 
 const FREE_QUERY_PATTERN = /advanced query|query language|JQL|Lucene|SQL/i;
+const SCORE_PATTERN =
+	/score|coverage|quality|capacity|readiness|dashboard|cycle-time|throughput|health/i;
+
+const INSIGHTS_NOW = new Date("2026-09-03T12:00:00.000Z");
 
 const STATUS_IN_PROGRESS: MembershipCondition = {
 	field: "status",
@@ -102,7 +107,13 @@ describe("Smart Collections catalog", () => {
 		expect(catalog.writes).toEqual(PRESENTATION_WRITES);
 		expect(SMART_COLLECTIONS_COPY.smartCollection).toBe("Smart Collection");
 		expect(JSON.stringify(catalog.copy)).not.toMatch(FREE_QUERY_PATTERN);
+		expect(JSON.stringify(catalog.copy)).not.toMatch(SCORE_PATTERN);
 		expect(catalog.copy).not.toHaveProperty("query");
+		expect(catalog.copy.insights).toBe("Insights");
+		expect(catalog.copy.age).toBe("Age");
+		expect(catalog.copy.timeInStatus).toBe("Time in status");
+		expect(catalog.copy.effort).toBe("Effort");
+		expect(catalog.copy.showAllRecords).toBe("Show all records");
 		expect(catalog.copy.subscribe).toBe("Subscribe");
 		expect(catalog.counterparts.emailDigest).toBe(false);
 	});
@@ -349,6 +360,48 @@ describe("Smart Collections live membership", () => {
 		).toBe("source-not-allowed");
 	});
 
+	it("keeps unauthorized records out of membership and Insights counts", () => {
+		const defined = defineSmartCollection({
+			conditions: [STATUS_IN_PROGRESS],
+			name: "Active Work",
+			projectId: "project-atlas",
+			sourceKind: RECORD_DISCOVERY_COPY.work,
+		});
+		expect(defined.status).toBe("ok");
+		if (defined.status !== "ok") {
+			return;
+		}
+		const catalog = [
+			workRecord({
+				accessible: true,
+				createdAt: "2026-09-01T12:00:00.000Z",
+				id: "work-open",
+				status: "In Progress",
+				statusEnteredAt: "2026-09-01T12:00:00.000Z",
+				title: "Ship login",
+			}),
+			workRecord({
+				accessible: false,
+				createdAt: "2026-09-01T12:00:00.000Z",
+				id: "work-secret",
+				status: "In Progress",
+				statusEnteredAt: "2026-09-01T12:00:00.000Z",
+				title: "Secret launch",
+			}),
+		];
+		const membership = deriveMembership(defined.collection, catalog);
+		expect(membership.members.map((member) => member.id)).toEqual([
+			"work-open",
+		]);
+		const presented = applyInsightSlices(defined.collection, catalog, {
+			now: INSIGHTS_NOW,
+		});
+		expect(presented.insights?.recordCount).toBe(1);
+		expect(presented.membership.members.map((member) => member.id)).toEqual([
+			"work-open",
+		]);
+	});
+
 	it("refuses a free query string instead of visual conditions", () => {
 		expect(
 			defineSmartCollection({
@@ -359,6 +412,137 @@ describe("Smart Collections live membership", () => {
 				sourceKind: RECORD_DISCOVERY_COPY.work,
 			}).reason
 		).toBe("free-query");
+	});
+});
+
+describe("Smart Collections light Insights", () => {
+	const defined = defineSmartCollection({
+		conditions: [],
+		name: "All Work",
+		projectId: "project-atlas",
+		sourceKind: RECORD_DISCOVERY_COPY.work,
+	});
+
+	const catalog: CollectionRecord[] = [
+		workRecord({
+			createdAt: "2026-09-01T12:00:00.000Z",
+			effort: "S",
+			id: "work-open",
+			status: "In Progress",
+			statusEnteredAt: "2026-09-02T12:00:00.000Z",
+			title: "Ship login",
+		}),
+		workRecord({
+			createdAt: "2026-08-01T12:00:00.000Z",
+			effort: "M",
+			id: "work-idle",
+			status: "Not Started",
+			statusEnteredAt: "2026-08-01T12:00:00.000Z",
+			title: "Write ADR",
+		}),
+		workRecord({
+			createdAt: "2026-08-20T12:00:00.000Z",
+			id: "work-unset",
+			status: "Not Started",
+			statusEnteredAt: "2026-08-25T12:00:00.000Z",
+			title: "Polish copy",
+		}),
+	];
+
+	it("summarizes count, status, effort, age, and time in status from the current filter", () => {
+		expect(defined.status).toBe("ok");
+		if (defined.status !== "ok") {
+			return;
+		}
+		const presented = applyInsightSlices(defined.collection, catalog, {
+			now: INSIGHTS_NOW,
+		});
+		expect(presented.insights).toEqual({
+			age: [
+				{ count: 1, value: "0–7 days" },
+				{ count: 1, value: "31+ days" },
+				{ count: 1, value: "8–30 days" },
+			],
+			effort: [
+				{ count: 1, value: "M" },
+				{ count: 1, value: "Not set" },
+				{ count: 1, value: "S" },
+			],
+			recordCount: 3,
+			status: [
+				{ count: 2, value: "Not Started" },
+				{ count: 1, value: "In Progress" },
+			],
+			timeInStatus: [
+				{ count: 1, value: "0–7 days" },
+				{ count: 1, value: "31+ days" },
+				{ count: 1, value: "8–30 days" },
+			],
+		});
+		expect(JSON.stringify(presented.insights)).not.toMatch(SCORE_PATTERN);
+		expect(presented.insights).not.toHaveProperty("score");
+		expect(presented.insights).not.toHaveProperty("coverage");
+		expect(presented.insights).not.toHaveProperty("readiness");
+		expect(presented.insights).not.toHaveProperty("capacity");
+		expect(presented.insights).not.toHaveProperty("quality");
+	});
+
+	it("drills a slice to those exact records and recomputes Insights", () => {
+		expect(defined.status).toBe("ok");
+		if (defined.status !== "ok") {
+			return;
+		}
+		const presented = applyInsightSlices(defined.collection, catalog, {
+			now: INSIGHTS_NOW,
+			slices: [{ dimension: "status", value: "In Progress" }],
+		});
+		expect(presented.membership.members.map((member) => member.id)).toEqual([
+			"work-open",
+		]);
+		expect(presented.insights?.recordCount).toBe(1);
+		expect(presented.insights?.status).toEqual([
+			{ count: 1, value: "In Progress" },
+		]);
+		expect(presented.insights?.effort).toEqual([{ count: 1, value: "S" }]);
+		expect(presented.insights?.age).toEqual([{ count: 1, value: "0–7 days" }]);
+		expect(presented.insights?.timeInStatus).toEqual([
+			{ count: 1, value: "0–7 days" },
+		]);
+		expect(JSON.stringify(presented.insights)).not.toMatch(SCORE_PATTERN);
+	});
+
+	it("is not a test summary, release evidence package, or health dashboard", () => {
+		expect(defined.status).toBe("ok");
+		if (defined.status !== "ok") {
+			return;
+		}
+		const presented = applyInsightSlices(defined.collection, catalog, {
+			now: INSIGHTS_NOW,
+		});
+		expect(presented.insights).not.toHaveProperty("testSummary");
+		expect(presented.insights).not.toHaveProperty("releaseEvidence");
+		expect(presented.insights).not.toHaveProperty("health");
+		expect(SMART_COLLECTIONS_COPY.insights).toBe("Insights");
+		expect(JSON.stringify(SMART_COLLECTIONS_COPY)).not.toMatch(SCORE_PATTERN);
+	});
+
+	it("does not offer Insights on a Document collection", () => {
+		const documents = defineSmartCollection({
+			conditions: [],
+			name: "Notes",
+			projectId: "project-atlas",
+			sourceKind: RECORD_DISCOVERY_COPY.document,
+		});
+		expect(documents.status).toBe("ok");
+		if (documents.status !== "ok") {
+			return;
+		}
+		const presented = applyInsightSlices(
+			documents.collection,
+			[documentRecord({ id: "doc-1", title: "Login spec" })],
+			{ now: INSIGHTS_NOW }
+		);
+		expect(presented.insights).toBeNull();
 	});
 });
 
@@ -480,6 +664,11 @@ describe("Smart Collections stored definition", () => {
 		expect(view?.membership.members.map((member) => member.id)).toEqual([
 			open.work.id,
 		]);
+		expect(view?.insights?.recordCount).toBe(1);
+		expect(view?.insights?.status).toEqual([
+			{ count: 1, value: "In Progress" },
+		]);
+		expect(JSON.stringify(view?.insights)).not.toMatch(SCORE_PATTERN);
 		expect("smartCollectionMember" in prisma).toBe(false);
 	});
 

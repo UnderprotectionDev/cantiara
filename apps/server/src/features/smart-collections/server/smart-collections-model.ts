@@ -6,6 +6,10 @@ import {
 
 export const SMART_COLLECTIONS_COPY = {
 	addCondition: "Add condition",
+	age: "Age",
+	age0to7: "0–7 days",
+	age8to30: "8–30 days",
+	age31plus: "31+ days",
 	allProjects: "All Projects",
 	alreadyMatches: "The record already matches. No field write and no pin.",
 	because: "Because",
@@ -17,12 +21,14 @@ export const SMART_COLLECTIONS_COPY = {
 	dragPreview:
 		"This would write fields so the record matches. It does not pin membership.",
 	dropHere: "Drop a record to preview a field write",
+	effort: "Effort",
 	empty: "No records match these conditions.",
 	equals: "is",
 	field: "Field",
 	filter: "Filter",
 	gallery: "Gallery",
 	galleryUnavailable: "Gallery is not available for this source.",
+	insights: "Insights",
 	kanban: "Kanban",
 	list: "List",
 	loading: "Loading…",
@@ -37,6 +43,7 @@ export const SMART_COLLECTIONS_COPY = {
 	noPin: "Pinning is not allowed. Membership comes only from conditions.",
 	notifyOnLeave: "Notify on leave",
 	notMembers: "Not members",
+	notSet: "Not set",
 	pin: "Pin",
 	project: "Project",
 	purpose: "Purpose",
@@ -47,6 +54,7 @@ export const SMART_COLLECTIONS_COPY = {
 	save: "Save",
 	saveAs: "Save as",
 	scope: "Scope",
+	showAllRecords: "Show all records",
 	smartCollection: "Smart Collection",
 	sort: "Sort",
 	sourceKind: "Source",
@@ -54,6 +62,7 @@ export const SMART_COLLECTIONS_COPY = {
 	subscribe: "Subscribe",
 	table: "Table",
 	tags: "Tags",
+	timeInStatus: "Time in status",
 	title: "Title",
 	turnOnSubscribeFirst: "Turn on Subscribe first.",
 	type: "Type",
@@ -213,8 +222,11 @@ export interface SmartCollectionDefinition {
 }
 
 export interface CollectionRecord {
+	accessible?: boolean;
 	body?: string;
+	createdAt?: string;
 	documentVisualPath?: string | null;
+	effort?: string;
 	fileAttachmentVisualPath?: string | null;
 	id: string;
 	kind: string;
@@ -224,6 +236,7 @@ export interface CollectionRecord {
 	selectedDiagramViewId?: string | null;
 	selectedWireframeVersionId?: string | null;
 	status?: string;
+	statusEnteredAt?: string;
 	tagIds?: readonly string[];
 	title: string;
 	type?: string;
@@ -245,6 +258,43 @@ export interface MembershipMember {
 export interface MembershipView {
 	members: readonly MembershipMember[];
 	summary: string;
+}
+
+export const INSIGHT_DIMENSIONS = [
+	"status",
+	"effort",
+	"age",
+	"timeInStatus",
+] as const;
+
+export type InsightDimension = (typeof INSIGHT_DIMENSIONS)[number];
+
+export interface InsightSlice {
+	dimension: InsightDimension;
+	value: string;
+}
+
+export interface InsightBucket {
+	count: number;
+	value: string;
+}
+
+export interface LightInsights {
+	age: readonly InsightBucket[];
+	effort: readonly InsightBucket[];
+	recordCount: number;
+	status: readonly InsightBucket[];
+	timeInStatus: readonly InsightBucket[];
+}
+
+export interface InsightSliceOptions {
+	now?: Date;
+	slices?: readonly InsightSlice[];
+}
+
+export interface SmartCollectionPresentation {
+	insights: LightInsights | null;
+	membership: MembershipView;
 }
 
 export type DefineSmartCollectionResult =
