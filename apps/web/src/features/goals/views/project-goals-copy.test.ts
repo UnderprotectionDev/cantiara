@@ -53,5 +53,5 @@ test("Create Project Goal shows a write notice instead of staying empty", () => 
 			reason: "ends-not-allowed",
 			status: "rejected",
 		})
-	).toBe("ends-not-allowed");
+	).toBe("Project Goal is unavailable.");
 });

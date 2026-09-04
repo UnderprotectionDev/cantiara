@@ -34,12 +34,8 @@ export function projectGoalWriteNotice(
 	if (outcome.status === "committed") {
 		return null;
 	}
-	if (
-		outcome.status === "invalid" ||
-		outcome.status === "conflict" ||
-		outcome.status === "rejected"
-	) {
-		return outcome.reason ?? copy.unavailable;
+	if (outcome.status === "invalid" || outcome.status === "conflict") {
+		return outcome.reason;
 	}
 	return copy.unavailable;
 }

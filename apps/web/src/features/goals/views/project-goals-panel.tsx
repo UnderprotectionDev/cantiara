@@ -631,7 +631,10 @@ function ProjectGoalMembership({
 					{copy.contributesToGoal}
 				</Button>
 			</form>
-			<ul className="flex flex-col gap-2 text-sm">
+			<ul
+				aria-label={summary.copy.contributesToGoal}
+				className="flex flex-col gap-2 text-sm"
+			>
 				{summary.statusMix.map((item) => (
 					<li key={`${item.kind}:${item.id}`}>
 						{item.workType ? `${item.workType} · ` : null}
