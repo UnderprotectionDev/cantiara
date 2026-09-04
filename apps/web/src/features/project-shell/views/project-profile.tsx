@@ -17,6 +17,7 @@ import DecisionArea from "@/features/decisions/views/decision-area";
 import { DOCUMENTS_COPY } from "@/features/documents/forms/documents-copy";
 import DocumentArea from "@/features/documents/views/document-area";
 import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
+import FeedbackArea from "@/features/feedback/views/feedback-area";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
 import ProjectGoalsPanel from "@/features/goals/views/project-goals-panel";
 import { FOUNDER_MAIN_ID } from "@/features/personal-shell/components/founder-chrome";
@@ -680,7 +681,9 @@ function DiscoveryProjectSection({
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">
 				Discovery
 			</h1>
-			<p className="mt-2 text-muted-foreground text-sm">Feedback</p>
+			<div className="mt-6">
+				<FeedbackArea projectId={projectId} />
+			</div>
 			<div className="mt-6">
 				<BoundRecordValuesSurface projectId={projectId} recordType="Feedback" />
 			</div>

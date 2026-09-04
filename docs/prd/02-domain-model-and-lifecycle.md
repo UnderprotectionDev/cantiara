@@ -623,6 +623,15 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Beklenen davranış | `Expected Behavior` | Bug Capture yönlendirici alanı |
 | Yeniden üretim bağlamı | `Reproduction Context` | Bug Capture yönlendirici alanı |
 | Geri bildirim yakalama | `Feedback Capture` | `Feedback`, `Channel` ve isteğe bağlı `Contact` yönlendirici alanlarıyla Inbox öğesini biçimlendiren kapalı mini şablon; Contact ana kaydı oluşturmaz |
+| Geri Bildirim | `Feedback` | Özgün mesajı, kanalı ve zamanı koruyan uzman ana kayıt; Kaynak alt türü değildir |
+| Geri Bildirim yaşamı | `New`, `Reviewed`, `Archived` | Geri Bildirim durumları; ilişkili İş durumunu, önceliğini veya planlama üyeliğini yazmaz |
+| Geri Bildirim oluştur | `Create Feedback` | Özgün mesaj, kanal ve zamanla Geri Bildirim açma |
+| Mevcut kaynaktan oluştur | `Create from Source` | Mevcut Kaynaktan köken kopyalayarak Geri Bildirim açma; Kaynak alt türü yapmaz |
+| Özgün mesaj | `Original message` | Geri Bildirimin asıl metni; özet bunun yerine geçmez |
+| Geri Bildirim zamanı | `Occurred at` | Özgün mesajın zamanı |
+| Geri Bildirim bağlantısı | `Link` | İsteğe bağlı URL |
+| Geri Bildirim ekleri | `Attachments` | İsteğe bağlı ekler |
+| Geri Bildirim yok | `No Feedback yet.` | Henüz Geri Bildirim açılmamış boş durum |
 | İletişim (yakalama alanı) | `Contact` | Feedback Capture isteğe bağlı yönlendirici alanı; Contact ana kaydı oluşturmaz |
 | Geri bildirim (yakalama alanı) | `Feedback` | Feedback Capture yönlendirici alanı |
 | Kanal | `Channel` | Feedback Capture yönlendirici alanı |

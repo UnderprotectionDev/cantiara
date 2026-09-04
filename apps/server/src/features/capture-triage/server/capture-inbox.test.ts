@@ -11,7 +11,7 @@ import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-
+import { getFeedback } from "../../feedback/server/feedback";
 import { listFileAttachments } from "../../file-attachments/server/file-attachments";
 import { createProject } from "../../project-shell/server/project-shell";
 import { listWork } from "../../work-lifecycle/server/work-lifecycle";
@@ -1805,6 +1805,48 @@ describe("Capture Inbox", () => {
 			"Crash on save after login",
 		]);
 		expect(files[0]?.currentVersion.filename).toBe("conductor.png");
+		expect(
+			await capture.list({ kind: "project", projectId: project.id })
+		).toEqual([]);
+	});
+
+	it("converts Feedback Capture into a Feedback master record and keeps the original message", async () => {
+		const project = await openProject();
+		const capture = inbox({
+			convertCreate: captureConvertAdapter(prisma, workspaceId),
+		});
+		const saved = await capture.save({
+			fields: {
+				channel: "Email",
+				feedback: "Checkout fails on retry.",
+			},
+			idempotencyKey: crypto.randomUUID(),
+			projectId: project.id,
+			template: "feedback-capture",
+			text: "Checkout fails on retry.",
+		});
+		if (saved.status !== "saved") {
+			throw new Error("expected a saved capture");
+		}
+		const converted = await capture.convert({
+			idempotencyKey: crypto.randomUUID(),
+			itemId: saved.item.id,
+			previewed: true,
+			targetKind: "feedback",
+		});
+		expect(converted.status).toBe("consumed");
+		if (converted.status !== "consumed") {
+			throw new Error("expected consumed convert");
+		}
+		expect(converted.recordCreate?.targetKind).toBe("feedback");
+		expect(converted.recordCreate?.recordId).toEqual(expect.any(String));
+		const record = await getFeedback(
+			prisma,
+			converted.recordCreate?.recordId ?? ""
+		);
+		expect(record?.originalMessage).toBe("Checkout fails on retry.");
+		expect(record?.channel).toBe("Email");
+		expect(record?.recordKind).toBe("Feedback");
 		expect(
 			await capture.list({ kind: "project", projectId: project.id })
 		).toEqual([]);

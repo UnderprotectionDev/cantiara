@@ -8,10 +8,11 @@ import {
 	otherProjectGroups,
 } from "./capture-triage-exits-state";
 
-test("Convert targets are Work, Document, and File Attachment", () => {
+test("Convert targets are Work, Document, File Attachment, and Feedback", () => {
 	expect(
 		convertTargetOptions({
 			document: "Document",
+			feedback: "Feedback",
 			fileAttachment: "File Attachment",
 			work: "Work",
 		})
@@ -19,6 +20,7 @@ test("Convert targets are Work, Document, and File Attachment", () => {
 		{ id: "work", label: "Work" },
 		{ id: "document", label: "Document" },
 		{ id: "file-attachment", label: "File Attachment" },
+		{ id: "feedback", label: "Feedback" },
 	]);
 });
 

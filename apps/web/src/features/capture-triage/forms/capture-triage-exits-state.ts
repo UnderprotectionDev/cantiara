@@ -1,6 +1,10 @@
 import { CLIENT_SHELL_COPY } from "@cantiara/api/client-shell-failure";
 
-export type ConvertTargetKind = "work" | "document" | "file-attachment";
+export type ConvertTargetKind =
+	| "work"
+	| "document"
+	| "file-attachment"
+	| "feedback";
 
 export interface SimilarMatchView {
 	basis: { excerpt: string; kind: string };
@@ -37,6 +41,7 @@ export function otherProjectGroups(
 
 export function convertTargetOptions(copy: {
 	document: string;
+	feedback: string;
 	fileAttachment: string;
 	work: string;
 }): Array<{ id: ConvertTargetKind; label: string }> {
@@ -44,6 +49,7 @@ export function convertTargetOptions(copy: {
 		{ id: "work", label: copy.work },
 		{ id: "document", label: copy.document },
 		{ id: "file-attachment", label: copy.fileAttachment },
+		{ id: "feedback", label: copy.feedback },
 	];
 }
 
