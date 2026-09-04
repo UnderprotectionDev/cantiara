@@ -198,6 +198,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yeniden görünme tarihi | `Reappear date` | İşin en erken ne zaman yeniden değerlendirileceğini belirten isteğe bağlı tarih; hedef tarihi veya hatırlatma değildir |
 | Deferred | `Deferred` | Varsayılan Backlog görünümünde gelecek yeniden görünme tarihi taşıyan İşlerin bölümü; durum değildir |
 | Yeniden görünme bildirimi | `Notify on Reappear date` | Proje bazında varsayılan kapalı opt-in; tarih gelince `reappear-date` Dikkat sinyali üretir |
+| Akıllı Koleksiyon | `Smart Collection` | Koşullardan canlı üyelik türeten adlandırılmış görünüm; statik liste veya klasör değildir |
+| Abone ol | `Subscribe` | Kaydın Akıllı Koleksiyona ilk girişinde `smart-collection-entry` Dikkat sinyali açma |
+| Ayrılınca bildir | `Notify on leave` | Aboneliğe ek, kaydın koleksiyondan çıkışında aynı sinyal kimliğiyle ayrılma nedeni |
+| Önce Abone ol | `Turn on Subscribe first.` | `Subscribe` kapalıyken `Notify on leave` neden tıklanamadığını söyleyen ipucu |
 | Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
 | Tüm etiketler | `All tags` | Etiket süzgecinin süzmeyi kaldırma seçeneği |
 | Etiket uygula | `Apply tag` | Erişilebilir kayda mevcut Etiketi bağlama |

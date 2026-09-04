@@ -481,6 +481,10 @@ _Avoid_: paragraf aralığı, kayan metin aralığı, sessiz başka başlık
 Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm; manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
 _Avoid_: Statik liste, klasör, etiket
 
+**Akıllı Koleksiyon aboneliği**:
+Kayda koleksiyon koşuluna ilk girişte (ve seçilirse çıkışta) üyelik dönemi başına tek `smart-collection-entry` Dikkat sinyali üreten opt-in; kaydı koleksiyonun çocuğu yapmaz ve kaynak alan yazmaz ([Akıllı Koleksiyon abonelikleri](docs/prd/08-search-relations-and-evidence.md#akıllı-koleksiyon-abonelikleri)). UI: `Subscribe`, `Notify on leave`, `Turn on Subscribe first.`.
+_Avoid_: e-posta özeti, kayıtsız sinyal türü, Bildirim Merkezi kabuğu
+
 **Koleksiyon görünümü**:
 Aynı Akıllı Koleksiyon üyeliği üzerinde saklanan sunum; `List`, `Table`, `Gallery`, Kanban veya Roadmap ayarıdır ve ikinci üyelik kümesi değildir. UI: `Named view`, `List`, `Table`, `Gallery`. İsteğe bağlı cümle: `Purpose`.
 _Avoid_: kapak kaydı, Moodboard, Dosya Eki kütüphanesi, Backlog sırası

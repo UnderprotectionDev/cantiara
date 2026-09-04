@@ -1,10 +1,12 @@
 import { Button } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
 	NativeSelect,
 	NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { cn } from "@cantiara/ui/lib/utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	type ChangeEvent,
@@ -140,6 +142,67 @@ function CollectionList({
 	);
 }
 
+function SubscribeControls({
+	copy,
+	onEntry,
+	onExit,
+	onSubscribeEntry,
+	onSubscribeExit,
+}: {
+	copy: typeof SMART_COLLECTIONS_COPY;
+	onEntry: boolean;
+	onExit: boolean;
+	onSubscribeEntry: (checked: boolean | "indeterminate") => void;
+	onSubscribeExit: (checked: boolean | "indeterminate") => void;
+}) {
+	return (
+		<>
+			<label
+				className="flex items-center gap-2 text-sm"
+				htmlFor="smart-collection-subscribe"
+			>
+				<Checkbox
+					checked={onEntry}
+					id="smart-collection-subscribe"
+					onCheckedChange={onSubscribeEntry}
+				/>
+				{copy.subscribe}
+			</label>
+			<label
+				className={cn(
+					"mt-3 flex items-start gap-2 text-sm",
+					!onEntry && "cursor-not-allowed"
+				)}
+				htmlFor="smart-collection-notify-on-leave"
+			>
+				<Checkbox
+					aria-describedby={
+						onEntry ? undefined : "smart-collection-notify-on-leave-hint"
+					}
+					checked={onExit}
+					className="data-disabled:cursor-not-allowed data-disabled:opacity-50"
+					disabled={!onEntry}
+					id="smart-collection-notify-on-leave"
+					onCheckedChange={onSubscribeExit}
+				/>
+				<span>
+					<span className={cn(!onEntry && "text-muted-foreground")}>
+						{copy.notifyOnLeave}
+					</span>
+					{onEntry ? null : (
+						<span
+							className="mt-0.5 block text-muted-foreground text-xs"
+							id="smart-collection-notify-on-leave-hint"
+						>
+							{copy.turnOnSubscribeFirst}
+						</span>
+					)}
+				</span>
+			</label>
+		</>
+	);
+}
+
 function CreateCollectionForm({
 	copy,
 	createMessage,
@@ -226,6 +289,25 @@ function CreateCollectionForm({
 	);
 }
 
+function subscriptionFlags(
+	pending: boolean,
+	variables: { onEntry?: boolean; onExit?: boolean } | undefined,
+	collection:
+		| { subscribeOnEntry?: boolean; subscribeOnExit?: boolean }
+		| undefined
+): { onEntry: boolean; onExit: boolean } {
+	if (pending) {
+		return {
+			onEntry: Boolean(variables?.onEntry),
+			onExit: Boolean(variables?.onEntry && variables?.onExit),
+		};
+	}
+	return {
+		onEntry: Boolean(collection?.subscribeOnEntry),
+		onExit: Boolean(collection?.subscribeOnExit),
+	};
+}
+
 export default function SmartCollectionsArea() {
 	const { attemptOnlineWork, markUnsaved } = useClientShell();
 	const catalog = useQuery(orpc.smartCollections.catalog.queryOptions());
@@ -306,6 +388,17 @@ export default function SmartCollectionsArea() {
 			},
 		})
 	);
+	const subscribe = useMutation(
+		orpc.smartCollections.subscribe.mutationOptions({
+			onSuccess: async (_result, variables) => {
+				await queryClient.invalidateQueries({
+					queryKey: orpc.smartCollections.view.queryKey({
+						input: { collectionId: variables.collectionId },
+					}),
+				});
+			},
+		})
+	);
 	const persistView = useMutation(
 		orpc.smartCollections.saveNamedView.mutationOptions({
 			onSuccess: async (result) => {
@@ -370,6 +463,12 @@ export default function SmartCollectionsArea() {
 		return rows;
 	}, [draft, members]);
 	const dropCandidates = view.data?.dropCandidates ?? [];
+	const { onEntry: subscribeOnEntry, onExit: subscribeOnExit } =
+		subscriptionFlags(
+			subscribe.isPending,
+			subscribe.variables,
+			view.data?.collection
+		);
 	const presentations = allowedPresentationsFor(
 		view.data?.collection.sourceKind ?? sourceKind
 	);
@@ -467,6 +566,35 @@ export default function SmartCollectionsArea() {
 	const onDragStart = useCallback((event: DragEvent<HTMLButtonElement>) => {
 		event.dataTransfer.setData("text/plain", event.currentTarget.value);
 	}, []);
+	const onSubscribeEntry = useCallback(
+		(checked: boolean | "indeterminate") => {
+			if (!selectedId) {
+				return;
+			}
+			subscribe.mutate({
+				collectionId: selectedId,
+				onEntry: checked === true,
+				onExit:
+					checked === true
+						? Boolean(view.data?.collection.subscribeOnExit)
+						: false,
+			});
+		},
+		[selectedId, subscribe, view.data?.collection.subscribeOnExit]
+	);
+	const onSubscribeExit = useCallback(
+		(checked: boolean | "indeterminate") => {
+			if (!selectedId) {
+				return;
+			}
+			subscribe.mutate({
+				collectionId: selectedId,
+				onEntry: true,
+				onExit: checked === true,
+			});
+		},
+		[selectedId, subscribe]
+	);
 	const onSaveView = useCallback(() => {
 		if (!(selectedId && selectedViewId && draft)) {
 			return;
@@ -695,6 +823,18 @@ export default function SmartCollectionsArea() {
 							projects={projects.data ?? []}
 						/>
 					) : null}
+					<FounderSection
+						title={copy.subscribe}
+						titleId="smart-collection-subscribe"
+					>
+						<SubscribeControls
+							copy={copy}
+							onEntry={subscribeOnEntry}
+							onExit={subscribeOnExit}
+							onSubscribeEntry={onSubscribeEntry}
+							onSubscribeExit={onSubscribeExit}
+						/>
+					</FounderSection>
 					<FounderSection
 						title={copy.members}
 						titleId="smart-collection-members"

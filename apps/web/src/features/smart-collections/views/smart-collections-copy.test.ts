@@ -6,6 +6,11 @@ const FREE_QUERY_PATTERN = /advanced query|query language|JQL|Lucene|SQL/i;
 
 test("English UI uses Smart Collection presentation labels", () => {
 	expect(SMART_COLLECTIONS_COPY.smartCollection).toBe("Smart Collection");
+	expect(SMART_COLLECTIONS_COPY.subscribe).toBe("Subscribe");
+	expect(SMART_COLLECTIONS_COPY.notifyOnLeave).toBe("Notify on leave");
+	expect(SMART_COLLECTIONS_COPY.turnOnSubscribeFirst).toBe(
+		"Turn on Subscribe first."
+	);
 	expect(SMART_COLLECTIONS_COPY.addCondition).toBe("Add condition");
 	expect(SMART_COLLECTIONS_COPY.gallery).toBe("Gallery");
 	expect(SMART_COLLECTIONS_COPY.list).toBe("List");

@@ -103,6 +103,8 @@ describe("Smart Collections catalog", () => {
 		expect(SMART_COLLECTIONS_COPY.smartCollection).toBe("Smart Collection");
 		expect(JSON.stringify(catalog.copy)).not.toMatch(FREE_QUERY_PATTERN);
 		expect(catalog.copy).not.toHaveProperty("query");
+		expect(catalog.copy.subscribe).toBe("Subscribe");
+		expect(catalog.counterparts.emailDigest).toBe(false);
 	});
 });
 
