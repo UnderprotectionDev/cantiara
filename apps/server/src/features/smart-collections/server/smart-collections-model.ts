@@ -31,6 +31,7 @@ export const SMART_COLLECTIONS_COPY = {
 	namedView: "Named view",
 	newSmartCollection: "New Smart Collection",
 	newWork: "New work",
+	none: "None",
 	noneYet: "No Smart Collection yet.",
 	noPin: "Pinning is not allowed. Membership comes only from conditions.",
 	notMembers: "Not members",
@@ -107,7 +108,6 @@ export const DEFAULT_NAMED_VIEW = "Default";
 export function gallerySourceKinds(): readonly string[] {
 	return [
 		RECORD_DISCOVERY_COPY.document,
-		RECORD_DISCOVERY_COPY.wikiDocument,
 		RECORD_DISCOVERY_COPY.projectWall,
 		RECORD_DISCOVERY_COPY.userFlow,
 		RECORD_DISCOVERY_COPY.screen,
@@ -267,6 +267,7 @@ export interface PresentationDraft {
 	filterText: string;
 	groupField: string | null;
 	presentation: Presentation;
+	purpose: string | null;
 	sortDirection: "asc" | "desc" | null;
 	sortField: string | null;
 	visibleFields: readonly string[];
@@ -376,6 +377,7 @@ export function draftFromNamedView(
 		filterText: view.filterText,
 		groupField: view.groupField,
 		presentation: view.presentation,
+		purpose: view.purpose,
 		sortDirection: view.sortDirection,
 		sortField: view.sortField,
 		visibleFields: [...view.visibleFields],
@@ -390,6 +392,7 @@ export function isNamedViewDirty(
 		saved.filterText !== draft.filterText ||
 		saved.groupField !== draft.groupField ||
 		saved.presentation !== draft.presentation ||
+		saved.purpose !== draft.purpose ||
 		saved.sortDirection !== draft.sortDirection ||
 		saved.sortField !== draft.sortField ||
 		saved.visibleFields.join("\0") !== draft.visibleFields.join("\0")

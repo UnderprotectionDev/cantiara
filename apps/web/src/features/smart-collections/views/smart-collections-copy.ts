@@ -25,6 +25,7 @@ export const SMART_COLLECTIONS_COPY = {
 	namedView: "Named view",
 	newSmartCollection: "New Smart Collection",
 	newWork: "New work",
+	none: "None",
 	noneYet: "No Smart Collection yet.",
 	noPin: "Pinning is not allowed. Membership comes only from conditions.",
 	notMembers: "Not members",
@@ -68,7 +69,6 @@ export const SOURCE_KIND_OPTIONS = [
 
 export const GALLERY_SOURCE_KINDS = [
 	"Document",
-	"Wiki Document",
 	"Project Wall",
 	"User Flow",
 	"Screen",

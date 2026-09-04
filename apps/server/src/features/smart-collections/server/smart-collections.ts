@@ -455,6 +455,8 @@ export async function createNamedView(
 	if (presentation === "Gallery" && !galleryAllowedFor(collection.sourceKind)) {
 		return { reason: "gallery-not-allowed", status: "refused" };
 	}
+	const purposeRaw = input.purpose ?? input.draft?.purpose ?? null;
+	const purpose = purposeRaw?.trim() ? purposeRaw.trim() : null;
 	const base = defaultNamedViewData();
 	const view = await insertNamedView(prisma, {
 		...base,
@@ -464,7 +466,7 @@ export async function createNamedView(
 		isDefault: false,
 		name,
 		presentation,
-		purpose: input.purpose?.trim() ? input.purpose.trim() : null,
+		purpose,
 		sortDirection: input.draft?.sortDirection ?? null,
 		sortField: input.draft?.sortField ?? null,
 		visibleFields: input.draft
@@ -506,11 +508,8 @@ export async function saveNamedView(
 	if (!current) {
 		return { reason: "not-found", status: "refused" };
 	}
-	let { purpose } = current;
-	if (input.purpose !== undefined) {
-		const trimmed = input.purpose.trim();
-		purpose = trimmed.length > 0 ? trimmed : null;
-	}
+	const purposeRaw = input.purpose ?? input.draft.purpose;
+	const purpose = purposeRaw?.trim() ? purposeRaw.trim() : null;
 	if (hasNamedViewDelegate(prisma)) {
 		const row = await prisma.smartCollectionNamedView.update({
 			data: {

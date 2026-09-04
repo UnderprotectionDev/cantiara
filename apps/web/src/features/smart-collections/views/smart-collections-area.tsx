@@ -34,13 +34,15 @@ import {
 	SOURCE_KIND_OPTIONS,
 } from "./smart-collections-copy";
 import {
-	draftFromView,
 	MembershipBody,
 	NamedViewSection,
-	type NamedViewSummary,
 	NewWorkSection,
 	useSyncedNamedView,
 } from "./smart-collections-named-view";
+import {
+	draftFromView,
+	type NamedViewSummary,
+} from "./smart-collections-named-view-model";
 
 interface MembershipCondition {
 	field: BuilderField;
@@ -473,6 +475,7 @@ export default function SmartCollectionsArea() {
 			collectionId: selectedId,
 			draft: {
 				...draft,
+				purpose: draft.purpose,
 				visibleFields: [...draft.visibleFields],
 			},
 			viewId: selectedViewId,
@@ -558,6 +561,19 @@ export default function SmartCollectionsArea() {
 			setDraft({
 				...draft,
 				filterText: event.currentTarget.value,
+			});
+		},
+		[draft, setDraft]
+	);
+	const onPurpose = useCallback(
+		(event: ChangeEvent<HTMLInputElement>) => {
+			if (!draft) {
+				return;
+			}
+			const next = event.currentTarget.value;
+			setDraft({
+				...draft,
+				purpose: next.trim().length === 0 ? null : next,
 			});
 		},
 		[draft, setDraft]
@@ -655,6 +671,7 @@ export default function SmartCollectionsArea() {
 							onChangeNamedView={onChangeNamedView}
 							onChangePresentation={onChangePresentation}
 							onFilter={onFilter}
+							onPurpose={onPurpose}
 							onRevert={onRevertView}
 							onSave={onSaveView}
 							onSaveAs={onSaveAsView}
@@ -662,7 +679,6 @@ export default function SmartCollectionsArea() {
 							onSort={onSort}
 							presentations={presentations}
 							saveAsName={saveAsName}
-							savedView={savedView}
 							selectedViewId={selectedViewId}
 						/>
 					) : null}

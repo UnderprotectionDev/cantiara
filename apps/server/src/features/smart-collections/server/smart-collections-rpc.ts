@@ -42,6 +42,7 @@ const draftSchema = z.object({
 	filterText: z.string(),
 	groupField: z.string().min(1).nullable(),
 	presentation: z.enum(PRESENTATIONS),
+	purpose: z.string().nullable(),
 	sortDirection: z.enum(["asc", "desc"]).nullable(),
 	sortField: z.string().min(1).nullable(),
 	visibleFields: z.array(z.string().min(1)),

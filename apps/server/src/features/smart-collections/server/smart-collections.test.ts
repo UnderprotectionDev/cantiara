@@ -95,7 +95,8 @@ describe("Smart Collections catalog", () => {
 		expect(catalog.copy.noneYet).toBe("No Smart Collection yet.");
 		expect(catalog.copy.gallery).toBe("Gallery");
 		expect(catalog.copy.newWork).toBe("New work");
-		expect(catalog.copy.purpose).toBe("Purpose");
+		expect(catalog.copy.namedView).toBe("Named view");
+		expect(catalog.copy.none).toBe("None");
 		expect(catalog.writes).toEqual(PRESENTATION_WRITES);
 		expect(SMART_COLLECTIONS_COPY.smartCollection).toBe("Smart Collection");
 		expect(JSON.stringify(catalog.copy)).not.toMatch(FREE_QUERY_PATTERN);
@@ -605,6 +606,7 @@ describe("Smart Collections presentations and named views", () => {
 		});
 		expect(galleryAllowedFor(RECORD_DISCOVERY_COPY.work)).toBe(false);
 		expect(galleryAllowedFor(RECORD_DISCOVERY_COPY.document)).toBe(true);
+		expect(galleryAllowedFor(RECORD_DISCOVERY_COPY.wikiDocument)).toBe(false);
 		expect(
 			deriveGalleryPreview({
 				id: "screen-1",
@@ -670,6 +672,7 @@ describe("Smart Collections presentations and named views", () => {
 		const draft = {
 			...draftFromNamedView(saved),
 			filterText: "Ship",
+			purpose: "Daily triage",
 			sortDirection: "asc" as const,
 			sortField: "title",
 		};
@@ -687,6 +690,11 @@ describe("Smart Collections presentations and named views", () => {
 			"work-b",
 			"work-a",
 		]);
+		const purposeDraft = {
+			...draftFromNamedView(saved),
+			purpose: "Weekly review",
+		};
+		expect(presentNamedView(membership, saved, purposeDraft).dirty).toBe(true);
 	});
 
 	it("prefills New work from single-field equals only and warns on a miss", () => {
@@ -834,6 +842,7 @@ describe("Smart Collections stored named views", () => {
 				filterText: "",
 				groupField: null,
 				presentation: SMART_COLLECTIONS_COPY.table,
+				purpose: "Weekly review",
 				sortDirection: "asc",
 				sortField: "title",
 				visibleFields: ["title", "status"],
@@ -859,6 +868,7 @@ describe("Smart Collections stored named views", () => {
 				filterText: "Ship",
 				groupField: null,
 				presentation: SMART_COLLECTIONS_COPY.kanban,
+				purpose: null,
 				sortDirection: "desc",
 				sortField: "title",
 				visibleFields: ["title"],
@@ -876,6 +886,7 @@ describe("Smart Collections stored named views", () => {
 				filterText: "ADR",
 				groupField: null,
 				presentation: SMART_COLLECTIONS_COPY.list,
+				purpose: null,
 				sortDirection: null,
 				sortField: null,
 				visibleFields: ["title"],
@@ -896,6 +907,7 @@ describe("Smart Collections stored named views", () => {
 					filterText: "",
 					groupField: null,
 					presentation: SMART_COLLECTIONS_COPY.gallery,
+					purpose: null,
 					sortDirection: null,
 					sortField: null,
 					visibleFields: ["title"],

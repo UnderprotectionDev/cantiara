@@ -474,7 +474,7 @@ _Avoid_: Target date, Yeniden görünme tarihi, standalone reminder, Save for La
 _Avoid_: Statik liste, klasör, etiket
 
 **Koleksiyon görünümü**:
-Aynı Akıllı Koleksiyon üyeliği üzerinde saklanan sunum; `List`, `Table`, `Gallery`, Kanban veya Roadmap ayarıdır ve ikinci üyelik kümesi değildir. UI: `List`, `Table`, `Gallery`. İsteğe bağlı cümle: `Purpose`.
+Aynı Akıllı Koleksiyon üyeliği üzerinde saklanan sunum; `List`, `Table`, `Gallery`, Kanban veya Roadmap ayarıdır ve ikinci üyelik kümesi değildir. UI: `Named view`, `List`, `Table`, `Gallery`. İsteğe bağlı cümle: `Purpose`.
 _Avoid_: kapak kaydı, Moodboard, Dosya Eki kütüphanesi, Backlog sırası
 
 **Gallery**:

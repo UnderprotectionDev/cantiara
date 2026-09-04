@@ -5,8 +5,14 @@ import {
 	NativeSelect,
 	NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import type { ChangeEvent, FormEvent, MouseEvent } from "react";
-import { useEffect, useState } from "react";
+import {
+	type ChangeEvent,
+	type FormEvent,
+	type MouseEvent,
+	useCallback,
+	useEffect,
+	useState,
+} from "react";
 
 import { FounderSection } from "@/features/personal-shell/components/founder-surface";
 
@@ -16,57 +22,18 @@ import {
 	presentationLabel,
 	type SMART_COLLECTIONS_COPY,
 } from "./smart-collections-copy";
-
-export interface NamedViewSummary {
-	filterText: string;
-	groupField: string | null;
-	id: string;
-	isDefault: boolean;
-	name: string;
-	presentation: Presentation;
-	purpose: string | null;
-	sortDirection: "asc" | "desc" | null;
-	sortField: string | null;
-	visibleFields: readonly string[];
-}
-
-export interface PresentationDraft {
-	filterText: string;
-	groupField: string | null;
-	presentation: Presentation;
-	sortDirection: "asc" | "desc" | null;
-	sortField: string | null;
-	visibleFields: readonly string[];
-}
+import {
+	draftFromView,
+	isDraftDirty,
+	liveNewWorkMiss,
+	type NamedViewSummary,
+	type PresentationDraft,
+} from "./smart-collections-named-view-model";
 
 interface MemberRow {
 	because: readonly { label: string }[];
 	id: string;
 	title: string;
-}
-
-export function draftFromView(view: NamedViewSummary): PresentationDraft {
-	return {
-		filterText: view.filterText,
-		groupField: view.groupField,
-		presentation: view.presentation,
-		sortDirection: view.sortDirection,
-		sortField: view.sortField,
-		visibleFields: [...view.visibleFields],
-	};
-}
-
-export function isDraftDirty(
-	saved: NamedViewSummary,
-	draft: PresentationDraft
-): boolean {
-	return (
-		saved.filterText !== draft.filterText ||
-		saved.groupField !== draft.groupField ||
-		saved.presentation !== draft.presentation ||
-		saved.sortDirection !== draft.sortDirection ||
-		saved.sortField !== draft.sortField
-	);
 }
 
 export function useSyncedNamedView(namedViews: readonly NamedViewSummary[]) {
@@ -116,6 +83,7 @@ export function NamedViewSection({
 	onChangeNamedView,
 	onChangePresentation,
 	onFilter,
+	onPurpose,
 	onRevert,
 	onSave,
 	onSaveAs,
@@ -123,7 +91,6 @@ export function NamedViewSection({
 	onSort,
 	presentations,
 	saveAsName,
-	savedView,
 	selectedViewId,
 }: {
 	copy: typeof SMART_COLLECTIONS_COPY;
@@ -134,6 +101,7 @@ export function NamedViewSection({
 	onChangeNamedView: (event: ChangeEvent<HTMLSelectElement>) => void;
 	onChangePresentation: (event: MouseEvent<HTMLButtonElement>) => void;
 	onFilter: (event: ChangeEvent<HTMLInputElement>) => void;
+	onPurpose: (event: ChangeEvent<HTMLInputElement>) => void;
 	onRevert: () => void;
 	onSave: () => void;
 	onSaveAs: (event: FormEvent<HTMLFormElement>) => void;
@@ -141,7 +109,6 @@ export function NamedViewSection({
 	onSort: (event: ChangeEvent<HTMLSelectElement>) => void;
 	presentations: readonly Presentation[];
 	saveAsName: string;
-	savedView: NamedViewSummary | null;
 	selectedViewId: string | null;
 }) {
 	return (
@@ -197,16 +164,21 @@ export function NamedViewSection({
 						onChange={onSort}
 						value={draft.sortField ?? ""}
 					>
-						<NativeSelectOption value="">{copy.list}</NativeSelectOption>
+						<NativeSelectOption value="">{copy.none}</NativeSelectOption>
 						<NativeSelectOption value="title">{copy.title}</NativeSelectOption>
 					</NativeSelect>
 				</Field>
 			</div>
-			{savedView?.purpose ? (
-				<p className="mt-3 text-muted-foreground text-sm">
-					{copy.purpose}: {savedView.purpose}
-				</p>
-			) : null}
+			<Field className="mt-3 max-w-xl">
+				<FieldLabel htmlFor="smart-collection-purpose">
+					{copy.purpose}
+				</FieldLabel>
+				<Input
+					id="smart-collection-purpose"
+					onChange={onPurpose}
+					value={draft.purpose ?? ""}
+				/>
+			</Field>
 			{dirty ? (
 				<div className="mt-3 flex flex-wrap items-end gap-3">
 					<p className="basis-full text-sm">{copy.unsavedChanges}</p>
@@ -324,6 +296,29 @@ export function NewWorkSection({
 	prefill: { projectId?: string; status?: string; type?: string };
 	projects: readonly { id: string; name: string }[];
 }) {
+	const initialProject = prefill.projectId ?? collectionProjectId ?? "";
+	const [type, setType] = useState(prefill.type ?? "");
+	const [status, setStatus] = useState(prefill.status ?? "");
+	const [projectId, setProjectId] = useState(initialProject);
+	useEffect(() => {
+		setType(prefill.type ?? "");
+		setStatus(prefill.status ?? "");
+		setProjectId(prefill.projectId ?? collectionProjectId ?? "");
+	}, [collectionProjectId, prefill.projectId, prefill.status, prefill.type]);
+	const onType = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+		setType(event.currentTarget.value);
+	}, []);
+	const onStatus = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+		setStatus(event.currentTarget.value);
+	}, []);
+	const onProject = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+		setProjectId(event.currentTarget.value);
+	}, []);
+	const liveMiss = liveNewWorkMiss(prefill, {
+		projectId: projectId.length > 0 ? projectId : undefined,
+		status: status.length > 0 ? status : undefined,
+		type: type.length > 0 ? type : undefined,
+	});
 	return (
 		<FounderSection title={copy.newWork} titleId="smart-collection-new-work">
 			<form className="flex flex-wrap items-end gap-3" onSubmit={onSubmit}>
@@ -343,9 +338,10 @@ export function NewWorkSection({
 						{copy.type}
 					</FieldLabel>
 					<Input
-						defaultValue={prefill.type ?? ""}
 						id="smart-collection-new-work-type"
 						name="type"
+						onChange={onType}
+						value={type}
 					/>
 				</Field>
 				<Field>
@@ -353,9 +349,10 @@ export function NewWorkSection({
 						{copy.status}
 					</FieldLabel>
 					<Input
-						defaultValue={prefill.status ?? ""}
 						id="smart-collection-new-work-status"
 						name="status"
+						onChange={onStatus}
+						value={status}
 					/>
 				</Field>
 				<Field>
@@ -363,9 +360,10 @@ export function NewWorkSection({
 						{copy.project}
 					</FieldLabel>
 					<NativeSelect
-						defaultValue={prefill.projectId ?? collectionProjectId ?? ""}
 						id="smart-collection-new-work-project"
 						name="projectId"
+						onChange={onProject}
+						value={projectId}
 					>
 						<NativeSelectOption value="">{copy.allProjects}</NativeSelectOption>
 						{projects.map((project) => (
@@ -377,6 +375,9 @@ export function NewWorkSection({
 				</Field>
 				<Button type="submit">{copy.newWork}</Button>
 			</form>
+			{liveMiss ? (
+				<p className="mt-3 text-sm">{copy.mayMissCollection}</p>
+			) : null}
 			{message ? <p className="mt-3 text-sm">{message}</p> : null}
 		</FounderSection>
 	);
