@@ -40,9 +40,9 @@ export function EvidenceRoleFields({
 	targetKind?: string;
 }) {
 	const roleId = useId();
-	const noteId = useId();
+	const interpretationId = useId();
 	const [selectedRole, setSelectedRole] = useState<EvidenceRole>(role);
-	const [note, setNote] = useState(founderInterpretation);
+	const [interpretation, setInterpretation] = useState(founderInterpretation);
 	const invalidate = useCallback(async () => {
 		if (sourceId && sourceKind) {
 			await queryClient.invalidateQueries({
@@ -71,7 +71,7 @@ export function EvidenceRoleFields({
 			},
 		})
 	);
-	const setInterpretation = useMutation(
+	const writeInterpretation = useMutation(
 		orpc.evidence.setFounderInterpretation.mutationOptions({
 			onSuccess: async () => {
 				await invalidate();
@@ -88,22 +88,25 @@ export function EvidenceRoleFields({
 		},
 		[pinId, selectedRole, setRole]
 	);
-	const onSaveNote = useCallback(
+	const onSaveInterpretation = useCallback(
 		(event: FormEvent) => {
 			event.preventDefault();
-			setInterpretation.mutate({
+			writeInterpretation.mutate({
 				idempotencyKey: newIdempotencyKey(),
-				payload: { founderInterpretation: note, pinId },
+				payload: { founderInterpretation: interpretation, pinId },
 			});
 		},
-		[note, pinId, setInterpretation]
+		[interpretation, pinId, writeInterpretation]
 	);
 	const onRole = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
 		setSelectedRole(event.target.value as EvidenceRole);
 	}, []);
-	const onNote = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
-		setNote(event.target.value);
-	}, []);
+	const onInterpretation = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			setInterpretation(event.target.value);
+		},
+		[]
+	);
 	return (
 		<div className="flex flex-col gap-2">
 			<form className="flex flex-col gap-2" onSubmit={onSaveRole}>
@@ -119,12 +122,16 @@ export function EvidenceRoleFields({
 				</Field>
 				<Button type="submit">{EVIDENCE_COPY.evidenceRole}</Button>
 			</form>
-			<form className="flex flex-col gap-2" onSubmit={onSaveNote}>
+			<form className="flex flex-col gap-2" onSubmit={onSaveInterpretation}>
 				<Field>
-					<FieldLabel htmlFor={noteId}>
+					<FieldLabel htmlFor={interpretationId}>
 						{EVIDENCE_COPY.founderInterpretation}
 					</FieldLabel>
-					<Textarea id={noteId} onChange={onNote} value={note} />
+					<Textarea
+						id={interpretationId}
+						onChange={onInterpretation}
+						value={interpretation}
+					/>
 				</Field>
 				<Button type="submit">{EVIDENCE_COPY.founderInterpretation}</Button>
 			</form>

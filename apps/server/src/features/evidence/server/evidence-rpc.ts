@@ -231,7 +231,7 @@ export const evidence = {
 	share: protectedProcedure
 		.input(
 			z.object({
-				accessible: z.boolean(),
+				audience: z.enum(["inaccessible", "owner"]),
 				pinId: z.string().min(1),
 			})
 		)
@@ -245,7 +245,7 @@ export const evidence = {
 			if (!pin) {
 				throw new ORPCError("NOT_FOUND");
 			}
-			return presentEvidenceShare(pin, { accessible: input.accessible });
+			return presentEvidenceShare(pin, { audience: input.audience });
 		}),
 	surfaceOnTarget: protectedProcedure
 		.input(

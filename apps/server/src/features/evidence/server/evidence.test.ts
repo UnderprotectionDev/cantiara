@@ -1189,19 +1189,35 @@ describe("Evidence version-pinned text range", () => {
 		if (!loaded) {
 			throw new Error("expected pin");
 		}
-		const exported = presentEvidenceShare(loaded, { accessible: true });
+		const exported = presentEvidenceShare(loaded, { audience: "owner" });
 		expect(exported.role).toBe(EVIDENCE_COPY.supporting);
 		expect(exported.founderInterpretation).toBe("Founder note");
 		expect(exported.source).toEqual({ id: source.id, kind: "Source" });
 		expect(exported.target).toEqual({ id: work.id, kind: "Work" });
 		expect(exported.versionRange?.textRange).toEqual(loaded.textRange);
-		const withheld = presentEvidenceShare(loaded, { accessible: false });
+		const withheld = presentEvidenceShare(loaded, { audience: "inaccessible" });
 		expect(withheld.role).toBeNull();
 		expect(withheld.founderInterpretation).toBeNull();
 		expect(withheld.versionRange).toBeNull();
 		expect(withheld.historicalBindExists).toBe(true);
 		expect(JSON.stringify(withheld)).not.toContain(EVIDENCE_COPY.supporting);
 		expect(JSON.stringify(withheld)).not.toContain("Founder note");
+		await redactEvidenceContent(prisma, {
+			actorId,
+			idempotencyKey: "share-redact",
+			origin: "human",
+			payload: { pinId: pin.id },
+			workspaceId,
+		});
+		const redacted = await getEvidencePin(prisma, pin.id);
+		if (!redacted) {
+			throw new Error("expected redacted pin");
+		}
+		const ownerRedacted = presentEvidenceShare(redacted, { audience: "owner" });
+		expect(ownerRedacted.role).toBeNull();
+		expect(JSON.stringify(ownerRedacted)).not.toContain(
+			EVIDENCE_COPY.supporting
+		);
 	});
 
 	it("does not copy Geri Bildirim Kanıt niteliği into Kanıt Rolü", async () => {

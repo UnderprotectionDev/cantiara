@@ -850,7 +850,7 @@ Kesin bir Kaynak, Belge, Diyagram veya Dosya Eki sürümünün belirli bir hedef
 _Avoid_: İlgili ilişkisi, belirsiz referans, otomatik doğrulama
 
 **Kanıt Rolü**:
-Bir Kanıt bağının hedefe göre kapalı kullanım rolü; kaynak metin veya kullanıcı yorumu değildir ([Kanıt Rolü](docs/prd/08-search-relations-and-evidence.md#kanit-rolu-ve-iliski-ustverisi)). UI: `Evidence Role` (`Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified`).
+Bir Kanıt bağının hedefe göre kapalı kullanım rolü; kaynak metin veya kullanıcı yorumu değildir ([Kanıt Rolü](docs/prd/08-search-relations-and-evidence.md#kanit-rolu-ve-iliski-ustverisi)). UI: `Evidence Role`.
 _Avoid_: otomatik sınıflandırma, kanıt kalitesi skoru, Geri Bildirim niteliği
 
 **Kanıt yorumu**:

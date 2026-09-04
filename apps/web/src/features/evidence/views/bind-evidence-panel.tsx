@@ -310,7 +310,10 @@ export default function BindEvidencePanel({
 			{(pins.data ?? []).map((pin) => (
 				<div className="flex flex-col gap-1" key={pin.id}>
 					<p className="text-muted-foreground text-sm">
-						{pin.role} · {pin.rangeText} · {pin.openSourceRecord} ·{" "}
+						{EVIDENCE_COPY.evidenceRole}: {pin.role}
+					</p>
+					<p className="text-muted-foreground text-sm">
+						{pin.rangeText} · {pin.openSourceRecord} ·{" "}
 						{pin.backlinks.map((link) => link.targetTitle).join(", ")}
 						{pin.originLocation?.missing
 							? ` · ${EVIDENCE_COPY.originLocation} ${EVIDENCE_COPY.sourceElementNoLongerExists}`

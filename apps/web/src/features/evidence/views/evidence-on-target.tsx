@@ -34,12 +34,11 @@ export default function EvidenceOnTarget({
 	if (total === 0) {
 		return null;
 	}
-	const opened =
-		openedRole === null
-			? groups.flatMap((group) => group.pins)
-			: (groups.find((group) => group.role === openedRole)?.pins ?? []);
+	const visibleGroups = groups.filter((group) =>
+		openedRole === null ? group.count > 0 : group.role === openedRole
+	);
 	return (
-		<section className="flex flex-col gap-2">
+		<section className="flex flex-col gap-3">
 			<h3 className="font-medium text-sm">
 				{EVIDENCE_COPY.versionPinnedEvidence}
 			</h3>
@@ -54,40 +53,49 @@ export default function EvidenceOnTarget({
 					/>
 				))}
 			</div>
-			{opened.map((pin) => (
-				<div className="flex flex-col gap-2" key={pin.id}>
-					<p className="text-muted-foreground text-sm">
-						{pin.role}
-						{pin.contentAccess === "open" ? ` · ${pin.rangeText}` : ""}
-						{pin.sourceKind === "Source" ? (
-							<>
-								{" · "}
-								<a
-									href={`/projects/${projectId}?source=${encodeURIComponent(pin.sourceId)}#source`}
-								>
-									{pin.openSourceRecord}
-								</a>
-							</>
-						) : (
-							` · ${pin.openSourceRecord}`
-						)}
-						{pin.newerVersionExists
-							? ` · ${EVIDENCE_COPY.newerVersionExists}`
-							: ""}
-					</p>
-					{pin.founderInterpretation ? (
-						<p className="text-sm">
-							{EVIDENCE_COPY.founderInterpretation}: {pin.founderInterpretation}
-						</p>
-					) : null}
-					<EvidenceRoleFields
-						founderInterpretation={pin.founderInterpretation}
-						pinId={pin.id}
-						role={pin.role}
-						targetId={targetId}
-						targetKind={targetKind}
-					/>
-				</div>
+			{visibleGroups.map((group) => (
+				<section className="flex flex-col gap-2" key={group.role}>
+					<h4 className="font-medium text-sm">
+						{group.role} {group.count}
+					</h4>
+					{group.pins.map((pin) => (
+						<div className="flex flex-col gap-2" key={pin.id}>
+							<p className="text-muted-foreground text-sm">
+								{EVIDENCE_COPY.evidenceRole}: {pin.role}
+							</p>
+							{pin.contentAccess === "open" ? (
+								<p className="text-muted-foreground text-sm">{pin.rangeText}</p>
+							) : null}
+							<p className="text-muted-foreground text-sm">
+								{pin.sourceKind === "Source" ? (
+									<a
+										href={`/projects/${projectId}?source=${encodeURIComponent(pin.sourceId)}#source`}
+									>
+										{pin.openSourceRecord}
+									</a>
+								) : (
+									pin.openSourceRecord
+								)}
+								{pin.newerVersionExists
+									? ` · ${EVIDENCE_COPY.newerVersionExists}`
+									: ""}
+							</p>
+							{pin.founderInterpretation ? (
+								<p className="text-sm">
+									{EVIDENCE_COPY.founderInterpretation}:{" "}
+									{pin.founderInterpretation}
+								</p>
+							) : null}
+							<EvidenceRoleFields
+								founderInterpretation={pin.founderInterpretation}
+								pinId={pin.id}
+								role={pin.role}
+								targetId={targetId}
+								targetKind={targetKind}
+							/>
+						</div>
+					))}
+				</section>
 			))}
 		</section>
 	);

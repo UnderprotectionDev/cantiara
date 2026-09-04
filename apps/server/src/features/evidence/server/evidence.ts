@@ -727,9 +727,10 @@ export function openEvidenceRoleSet(
 
 export function presentEvidenceShare(
 	pin: EvidencePinView,
-	input: { accessible: boolean }
+	input: { audience: "inaccessible" | "owner" }
 ): EvidenceShareView {
-	const hidden = !input.accessible || pin.contentAccess === "redacted";
+	const hidden =
+		input.audience === "inaccessible" || pin.contentAccess === "redacted";
 	return {
 		founderInterpretation: hidden ? null : pin.founderInterpretation,
 		historicalBindExists: true,

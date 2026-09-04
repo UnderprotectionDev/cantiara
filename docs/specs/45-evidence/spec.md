@@ -49,11 +49,11 @@ Kurucu kesin kaynak veya Belge sürümünü bir iddiaya bağlamak ister. `İlgil
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe Evidence through bind, pin, role/comment, and Evidence Flow listing. They go red if `İlgili` appears in the flow, if a pin slides to a newer version, if role is inferred, or if Contradicting auto-opens a Decision. Expected roles are the closed catalog, not a classifier score.
+- **What a good test is.** Tests observe Evidence through bind, pin, role/comment, and Evidence Flow listing. They go red if `İlgili` appears in the flow, if a pin slides to a newer version, if role is inferred, or if Contradicting auto-opens a Decision. Expected roles are the closed catalog, not a classifier score. Ticket 02 locks the role matrix (`Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified`), separate `Founder interpretation` history, target grouping by accessible counts, and share withholding of inaccessible role.
 - **Seam (one).** Evidence — bind, pin, role/comment, flow listing, origin location. Source fetch and session notes are other seams called here.
 - **Modules under test.** Evidence only. Work Context Card, Goals, Sources, and Research Sessions are consumers/counterparts.
 - **Prior art.** First contract tests at this seam. Journey: [Kanıt akışı](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) — role matrix, origin ends, Origin Location tombstone, redaction/access counterparts. Hedefe katkı must not bind Decision/evidence/test directly.
-- **Required counterparts.** İlgili not in flow; pin stays on exact version; role not inferred; Contradicting does not auto-open Decision; flow does not invent rows; Origin Location does not retarget.
+- **Required counterparts.** İlgili not in flow; pin stays on exact version; role not inferred; Contradicting does not auto-open Decision; flow does not invent rows; Origin Location does not retarget. Ticket 02: role not on Source; interpretation not an Insight; Feedback niteliği not derived into role; inaccessible share does not leak role.
 
 ## Out of Scope
 
