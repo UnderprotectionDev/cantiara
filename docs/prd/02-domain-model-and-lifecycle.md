@@ -534,6 +534,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Mevcut İş | `Existing Work` | Köken konumunu var olan tam İşe bağlama |
 | Onayla | `Confirm` | Köken konumu önizlemesini uygulayan eylem |
 | Hedefe katkı | `Contributes to Goal` | İş, Kilometre Taşı veya Proje Sürümünün Proje Hedefine türlenmiş katkı ilişkisidir |
+| Hedef kapsamında | `In Goal` | Hedefe katkı ilişkisinin Proje Hedefi ucu |
 | Çalışma Alanı çıkış paketi | `Workspace Exit Package` | Kullanıcı parolasıyla şifrelenmiş tam Çalışma Alanı arşividir; ürün içi restore değildir |
 | Destek referansı | `Support reference` | Başarısız ana akışta secret veya özel içerik taşımayan sunucu takip kimliği |
 | Güncelleme gerekli | `Update required` | Süre dışı imzalı masaüstü API sözleşmesinde güvenli olmayan yazmadan önce duran hata |

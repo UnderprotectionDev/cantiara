@@ -9,12 +9,27 @@
  */
 
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { createDecision } from "../../decisions/server/decisions";
 import { createProject } from "../../project-shell/server/project-shell";
 import { STARTER_CONFIGURATIONS } from "../../project-shell/server/project-shell-model";
+import { createRelation } from "../../relations/server/relations";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
+import {
+	createMilestone,
+	getMilestone,
+} from "../../roadmap-horizon/server/roadmap-horizon";
+import { MILESTONE_COPY } from "../../roadmap-horizon/server/roadmap-horizon-model";
+import {
+	changeWorkStatus,
+	createWork,
+	getWork,
+	permanentlyDeleteWork,
+} from "../../work-lifecycle/server/work-lifecycle";
 import { createProjectGoals } from "./project-goals";
 import {
 	PROJECT_GOAL_COPY,
@@ -23,12 +38,13 @@ import {
 	projectGoalCatalog,
 } from "./project-goals-model";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
+const DATABASE_URL = localTestDatabaseUrl();
 
 const FORBIDDEN_SURFACE =
 	/Key Result|OKR|progress percent|health score|Milestone|Project Release|Open\/Closed/i;
+const FORBIDDEN_SUMMARY = /progress percent|health score|On Track|success/i;
+const FORBIDDEN_DETAIL =
+	/progress percent|health score|success|completion status/i;
 
 describe("Project Goal catalog", () => {
 	it("exposes English Project Goal fields and no Key Result or percent", () => {
@@ -44,6 +60,8 @@ describe("Project Goal catalog", () => {
 		expect(PROJECT_GOAL_COPY.observedOutcome).toBe(
 			"Observed outcome / learning"
 		);
+		expect(PROJECT_GOAL_COPY.contributesToGoal).toBe("Contributes to Goal");
+		expect(PROJECT_GOAL_COPY.inGoal).toBe("In Goal");
 		expect(PROJECT_GOAL_COPY.unavailable).toBe("Project Goal is unavailable.");
 		expect(PROJECT_GOAL_COUNTERPARTS).toEqual({
 			keyResult: false,
@@ -100,6 +118,7 @@ describe("Project Goal", () => {
 		await prisma.mutationReceipt.deleteMany({
 			where: { actorId },
 		});
+		await prisma.typedRelation.deleteMany();
 		await prisma.projectGoal.deleteMany({
 			where: { project: { workspaceId } },
 		});
@@ -162,7 +181,17 @@ describe("Project Goal", () => {
 		expect(created.goal).not.toHaveProperty("measurement");
 		const listed = await surface().list(project.id);
 		expect(listed).toEqual([created.goal]);
-		expect(await surface().get(created.goal.id)).toEqual(created.goal);
+		const detail = await surface().get(created.goal.id);
+		expect(detail).toMatchObject({
+			...created.goal,
+			contributions: [],
+			liveSummary: {
+				relatedOpen: [],
+				statusMix: [],
+			},
+		});
+		expect(detail).not.toHaveProperty("progressPercent");
+		expect(JSON.stringify(detail)).not.toMatch(FORBIDDEN_DETAIL);
 	});
 
 	it("keeps Intended outcome and Observed outcome / learning as user-typed optional fields", async () => {
@@ -259,6 +288,352 @@ describe("Project Goal", () => {
 		}).list(project.id);
 		expect(listed).toEqual([created.goal]);
 	});
+
+	it("accepts Contributes to Goal from Research, Feature, Milestone, and Project Release", async () => {
+		const project = await openProject("Atlas");
+		const goal = await committedGoal(project.id, "Reach İlk Proje");
+		const research = await committedWork(project.id, "Map founder jobs", {
+			type: "Research",
+		});
+		const feature = await committedWork(project.id, "Overview Goals", {
+			type: "Feature",
+		});
+		const milestone = await committedMilestone(project.id, "Private beta");
+		const releaseId = crypto.randomUUID();
+		const linkedResearch = await surface().contributeToGoal({
+			from: { id: research.id, kind: "Work" },
+			goalId: goal.id,
+			idempotencyKey: crypto.randomUUID(),
+		});
+		const linkedFeature = await surface().contributeToGoal({
+			from: { id: feature.id, kind: "Work" },
+			goalId: goal.id,
+			idempotencyKey: crypto.randomUUID(),
+		});
+		const linkedMilestone = await surface().contributeToGoal({
+			from: { id: milestone.id, kind: "Milestone" },
+			goalId: goal.id,
+			idempotencyKey: crypto.randomUUID(),
+		});
+		const linkedRelease = await surface().contributeToGoal({
+			from: { id: releaseId, kind: "Project Release" },
+			goalId: goal.id,
+			idempotencyKey: crypto.randomUUID(),
+		});
+		expect(linkedResearch.status).toBe("committed");
+		expect(linkedFeature.status).toBe("committed");
+		expect(linkedMilestone.status).toBe("committed");
+		expect(linkedRelease.status).toBe("committed");
+		const detail = await surface().get(goal.id);
+		expect(detail?.contributions.map((row) => row.from.kind).sort()).toEqual([
+			"Milestone",
+			"Project Release",
+			"Work",
+			"Work",
+		]);
+		expect(
+			detail?.contributions.every(
+				(row) => row.type === RELATIONS_COPY.contributesToGoal
+			)
+		).toBe(true);
+		expect(detail).not.toHaveProperty("progressPercent");
+	});
+
+	it("rejects Decision, evidence, Test, Experiment/Validation, and research session as Contributes to Goal", async () => {
+		const project = await openProject("Atlas");
+		const goal = await committedGoal(project.id, "Reach İlk Proje");
+		const decision = await createDecision(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				decision: "Goals stay light records.",
+				projectId: project.id,
+				rationale: "No Key Result.",
+				title: "No Key Result",
+			},
+		});
+		if (decision.status !== "committed") {
+			throw new Error("expected Decision");
+		}
+		const rejected = await Promise.all([
+			surface().contributeToGoal({
+				from: { id: decision.decision.id, kind: "Decision" },
+				goalId: goal.id,
+				idempotencyKey: crypto.randomUUID(),
+			}),
+			surface().contributeToGoal({
+				from: { id: crypto.randomUUID(), kind: "Document" },
+				goalId: goal.id,
+				idempotencyKey: crypto.randomUUID(),
+			}),
+			surface().contributeToGoal({
+				from: { id: crypto.randomUUID(), kind: "Test" },
+				goalId: goal.id,
+				idempotencyKey: crypto.randomUUID(),
+			}),
+			surface().contributeToGoal({
+				from: { id: crypto.randomUUID(), kind: "Experiment/Validation" },
+				goalId: goal.id,
+				idempotencyKey: crypto.randomUUID(),
+			}),
+			surface().contributeToGoal({
+				from: { id: crypto.randomUUID(), kind: "User Research Session" },
+				goalId: goal.id,
+				idempotencyKey: crypto.randomUUID(),
+			}),
+		]);
+		expect(
+			rejected.every(
+				(row) => row.status === "rejected" && row.reason === "ends-not-allowed"
+			)
+		).toBe(true);
+		expect((await surface().get(goal.id))?.contributions).toEqual([]);
+	});
+
+	it("does not count Related as Contributes to Goal", async () => {
+		const project = await openProject("Atlas");
+		const goal = await committedGoal(project.id, "Reach İlk Proje");
+		const feature = await committedWork(project.id, "Overview Goals", {
+			type: "Feature",
+		});
+		const related = await createRelation(prisma, {
+			actorId,
+			from: { id: feature.id, kind: "Work" },
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			previewAcknowledged: true,
+			to: { id: goal.id, kind: "Project Goal" },
+			type: RELATIONS_COPY.related,
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(related.status).toBe("committed");
+		const riskId = crypto.randomUUID();
+		const questionId = crypto.randomUUID();
+		await prisma.typedRelation.create({
+			data: {
+				fromId: riskId,
+				fromKind: "Risk",
+				id: crypto.randomUUID(),
+				revision: 1,
+				toId: goal.id,
+				toKind: "Project Goal",
+				type: RELATIONS_COPY.related,
+			},
+		});
+		await prisma.typedRelation.create({
+			data: {
+				fromId: questionId,
+				fromKind: "Question",
+				id: crypto.randomUUID(),
+				revision: 1,
+				toId: goal.id,
+				toKind: "Project Goal",
+				type: RELATIONS_COPY.related,
+			},
+		});
+		const detail = await surface().get(goal.id);
+		expect(detail?.contributions).toEqual([]);
+		expect(detail?.liveSummary.statusMix).toEqual([]);
+		expect(
+			detail?.liveSummary.relatedOpen.map((row) => row.kind).sort()
+		).toEqual(["Question", "Risk"]);
+		expect(
+			detail?.liveSummary.relatedOpen.every((row) => row.contributes === false)
+		).toBe(true);
+	});
+
+	it("does not write Work status, planning, Milestone life, or Goal life when membership changes", async () => {
+		const project = await openProject("Atlas");
+		const goal = await committedGoal(project.id, "Reach İlk Proje");
+		const research = await committedWork(project.id, "Map founder jobs", {
+			type: "Research",
+		});
+		const milestone = await committedMilestone(project.id, "Private beta");
+		await surface().contributeToGoal({
+			from: { id: research.id, kind: "Work" },
+			goalId: goal.id,
+			idempotencyKey: crypto.randomUUID(),
+		});
+		await surface().contributeToGoal({
+			from: { id: milestone.id, kind: "Milestone" },
+			goalId: goal.id,
+			idempotencyKey: crypto.randomUUID(),
+		});
+		const work = await getWork(prisma, research.id);
+		expect(work?.status).toBe("Not Started");
+		expect(work?.plannedStart).toBeNull();
+		expect(work?.targetDate).toBeNull();
+		expect(
+			(await prisma.work.findUnique({ where: { id: research.id } }))?.horizon
+		).toBeNull();
+		expect((await getMilestone(prisma, milestone.id))?.status).toBe(
+			MILESTONE_COPY.planned
+		);
+		const detail = await surface().get(goal.id);
+		expect(detail).not.toHaveProperty("status");
+		expect(detail).not.toHaveProperty("progressPercent");
+		expect(detail).not.toHaveProperty("health");
+		const relationId = detail?.contributions[0]?.id;
+		if (!relationId) {
+			throw new Error("expected contribution");
+		}
+		await surface().removeContribution({
+			idempotencyKey: crypto.randomUUID(),
+			relationId,
+		});
+		expect((await getWork(prisma, research.id))?.status).toBe("Not Started");
+		expect((await getMilestone(prisma, milestone.id))?.status).toBe(
+			MILESTONE_COPY.planned
+		);
+	});
+
+	it("summarizes contributing Research, Feature, and Milestone status without percent or health", async () => {
+		const project = await openProject("Atlas");
+		const goal = await committedGoal(project.id, "Reach İlk Proje");
+		const research = await committedWork(project.id, "Map founder jobs", {
+			type: "Research",
+		});
+		const feature = await committedWork(project.id, "Overview Goals", {
+			type: "Feature",
+		});
+		const task = await committedWork(project.id, "Fix seed copy", {
+			type: "Task",
+		});
+		const milestone = await committedMilestone(project.id, "Private beta");
+		await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: feature.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			status: "In Progress",
+			workId: feature.id,
+		});
+		await surface().contributeToGoal({
+			from: { id: research.id, kind: "Work" },
+			goalId: goal.id,
+			idempotencyKey: crypto.randomUUID(),
+		});
+		await surface().contributeToGoal({
+			from: { id: feature.id, kind: "Work" },
+			goalId: goal.id,
+			idempotencyKey: crypto.randomUUID(),
+		});
+		await surface().contributeToGoal({
+			from: { id: task.id, kind: "Work" },
+			goalId: goal.id,
+			idempotencyKey: crypto.randomUUID(),
+		});
+		await surface().contributeToGoal({
+			from: { id: milestone.id, kind: "Milestone" },
+			goalId: goal.id,
+			idempotencyKey: crypto.randomUUID(),
+		});
+		const detail = await surface().get(goal.id);
+		expect(detail?.liveSummary.statusMix).toEqual([
+			{
+				id: research.id,
+				kind: "Work",
+				openSourceRecord: true,
+				status: "Not Started",
+				title: "Map founder jobs",
+				workType: "Research",
+			},
+			{
+				id: feature.id,
+				kind: "Work",
+				openSourceRecord: true,
+				status: "In Progress",
+				title: "Overview Goals",
+				workType: "Feature",
+			},
+			{
+				id: milestone.id,
+				kind: "Milestone",
+				openSourceRecord: true,
+				status: MILESTONE_COPY.planned,
+				title: "Private beta",
+			},
+		]);
+		expect(detail?.contributions).toHaveLength(4);
+		expect(JSON.stringify(detail?.liveSummary)).not.toMatch(FORBIDDEN_SUMMARY);
+		expect(detail?.liveSummary.copy.openSourceRecord).toBe(
+			"Open source record"
+		);
+		expect(detail?.liveSummary.copy.contributesToGoal).toBe(
+			"Contributes to Goal"
+		);
+	});
+
+	it("keeps a historical Contributes to Goal bind after the member is deleted", async () => {
+		const project = await openProject("Atlas");
+		const goal = await committedGoal(project.id, "Reach İlk Proje");
+		const research = await committedWork(project.id, "Map founder jobs", {
+			type: "Research",
+		});
+		await surface().contributeToGoal({
+			from: { id: research.id, kind: "Work" },
+			goalId: goal.id,
+			idempotencyKey: crypto.randomUUID(),
+		});
+		await permanentlyDeleteWork(prisma, research.id);
+		const detail = await surface().get(goal.id);
+		expect(detail?.contributions).toHaveLength(1);
+		expect(detail?.contributions[0]).toMatchObject({
+			from: {
+				id: research.id,
+				kind: "Work",
+				status: "broken",
+			},
+			type: RELATIONS_COPY.contributesToGoal,
+		});
+		expect(detail?.contributions[0]?.from).not.toHaveProperty("title");
+		expect(detail?.liveSummary.statusMix).toEqual([]);
+	});
+
+	async function committedGoal(projectId: string, title: string) {
+		const created = await surface().create({
+			description: "Ship the first founder workspace.",
+			idempotencyKey: crypto.randomUUID(),
+			projectId,
+			title,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project Goal");
+		}
+		return created.goal;
+	}
+
+	async function committedWork(
+		projectId: string,
+		title: string,
+		payload: { type: "Feature" | "Research" | "Task" }
+	) {
+		const created = await createWork(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { projectId, title, type: payload.type },
+		});
+		if (created.status !== "committed" && created.status !== "replayed") {
+			throw new Error("expected committed Work");
+		}
+		return created.work;
+	}
+
+	async function committedMilestone(projectId: string, title: string) {
+		const created = await createMilestone(prisma, {
+			actorId,
+			description: "Intermediate outcome",
+			idempotencyKey: crypto.randomUUID(),
+			projectId,
+			title,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Milestone");
+		}
+		return created.milestone;
+	}
 });
 
 function withoutProjectGoalDelegate(db: PrismaClient): PrismaClient {

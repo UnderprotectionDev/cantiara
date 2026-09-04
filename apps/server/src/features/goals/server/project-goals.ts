@@ -7,8 +7,26 @@ import {
 } from "../../mutation-core/server/durable-mutation";
 import { MUTATION_COPY } from "../../mutation-core/server/mutation-shared";
 import {
+	createRelation,
+	deleteRelation,
+	listRelations,
+	type PresentedEnd,
+	type PresentedRelation,
+} from "../../relations/server/relations";
+import {
+	RELATIONS_COPY,
+	type RecordKind,
+} from "../../relations/server/relations-catalog";
+import {
+	emptyGoalLiveSummary,
+	type GoalContribution,
+	type GoalLiveSummary,
+	type GoalRelatedOpenItem,
+	type GoalStatusMixItem,
+	isStatusMixWorkType,
 	optionalOutcome,
 	PROJECT_GOAL_COPY,
+	type ProjectGoalDetailView,
 	type ProjectGoalView,
 	projectGoalCatalog,
 } from "./project-goals-model";
@@ -18,6 +36,14 @@ export type ProjectGoalOutcome =
 	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
 	| { reason: string; status: "invalid" }
 	| { status: "not-found" };
+
+export type GoalMembershipOutcome =
+	| { goal: ProjectGoalDetailView; status: "committed" }
+	| { reason: typeof MUTATION_COPY.conflict; status: "conflict" }
+	| {
+			reason: "ends-not-allowed" | "target-not-found";
+			status: "rejected";
+	  };
 
 interface CreateCommand {
 	description: string;
@@ -35,6 +61,17 @@ interface UpdateCommand {
 	intendedOutcome?: string;
 	observedOutcome?: string;
 	title: string;
+}
+
+interface ContributeCommand {
+	from: { id: string; kind: RecordKind };
+	goalId: string;
+	idempotencyKey: string;
+}
+
+interface RemoveContributionCommand {
+	idempotencyKey: string;
+	relationId: string;
 }
 
 type MutationDb = PrismaClient | Prisma.TransactionClient;
@@ -226,9 +263,13 @@ export function createProjectGoals(input: {
 }) {
 	return {
 		catalog: () => projectGoalCatalog(),
+		contributeToGoal: (command: ContributeCommand) =>
+			contributeToGoal(input, command),
 		create: (command: CreateCommand) => createGoal(input, command),
 		get: (goalId: string) => getGoal(input, goalId),
 		list: (projectId: string) => listGoals(input, projectId),
+		removeContribution: (command: RemoveContributionCommand) =>
+			removeContribution(input, command),
 		update: (command: UpdateCommand) => updateGoal(input, command),
 	};
 }
@@ -256,9 +297,12 @@ async function getGoal(
 		workspaceId: string;
 	},
 	goalId: string
-): Promise<ProjectGoalView | null> {
+): Promise<ProjectGoalDetailView | null> {
 	const row = await getGoalRow(input.prisma, input.workspaceId, goalId);
-	return row ? toView(row) : null;
+	if (!row) {
+		return null;
+	}
+	return await toDetailView(input.prisma, input.workspaceId, row);
 }
 
 async function createGoal(
@@ -428,4 +472,250 @@ function toView(row: {
 		revision: row.revision,
 		title: row.title,
 	};
+}
+
+async function contributeToGoal(
+	input: {
+		accountId: string;
+		prisma: PrismaClient;
+		workspaceId: string;
+	},
+	command: ContributeCommand
+): Promise<GoalMembershipOutcome> {
+	const row = await getGoalRow(input.prisma, input.workspaceId, command.goalId);
+	if (!row) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const memberOk = await memberInProject(
+		input.prisma,
+		command.from,
+		row.projectId
+	);
+	if (
+		!memberOk &&
+		(command.from.kind === "Work" || command.from.kind === "Milestone")
+	) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const existing = await input.prisma.typedRelation.findFirst({
+		where: {
+			fromId: command.from.id,
+			fromKind: command.from.kind,
+			toId: row.id,
+			toKind: "Project Goal",
+			type: RELATIONS_COPY.contributesToGoal,
+		},
+	});
+	if (existing) {
+		const goal = await toDetailView(input.prisma, input.workspaceId, row);
+		return { goal, status: "committed" };
+	}
+	const linked = await createRelation(input.prisma, {
+		actorId: input.accountId,
+		from: command.from,
+		idempotencyKey: command.idempotencyKey,
+		origin: "human",
+		previewAcknowledged: true,
+		to: { id: row.id, kind: "Project Goal" },
+		type: RELATIONS_COPY.contributesToGoal,
+		viewerWorkspaceId: input.workspaceId,
+	});
+	if (linked.status === "conflict") {
+		return { reason: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	if (linked.status === "rejected") {
+		return {
+			reason:
+				linked.reason === "ends-not-allowed"
+					? "ends-not-allowed"
+					: "target-not-found",
+			status: "rejected",
+		};
+	}
+	const goal = await toDetailView(input.prisma, input.workspaceId, row);
+	return { goal, status: "committed" };
+}
+
+async function removeContribution(
+	input: {
+		accountId: string;
+		prisma: PrismaClient;
+		workspaceId: string;
+	},
+	command: RemoveContributionCommand
+): Promise<GoalMembershipOutcome> {
+	const relation = await input.prisma.typedRelation.findUnique({
+		where: { id: command.relationId },
+	});
+	if (
+		!relation ||
+		relation.type !== RELATIONS_COPY.contributesToGoal ||
+		relation.toKind !== "Project Goal"
+	) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const row = await getGoalRow(input.prisma, input.workspaceId, relation.toId);
+	if (!row) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const removed = await deleteRelation(input.prisma, {
+		actorId: input.accountId,
+		idempotencyKey: command.idempotencyKey,
+		origin: "human",
+		relationId: command.relationId,
+		viewerWorkspaceId: input.workspaceId,
+	});
+	if (removed.status === "conflict") {
+		return { reason: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	if (removed.status === "rejected") {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const goal = await toDetailView(input.prisma, input.workspaceId, row);
+	return { goal, status: "committed" };
+}
+
+async function memberInProject(
+	db: MutationDb,
+	from: { id: string; kind: RecordKind },
+	projectId: string
+): Promise<boolean> {
+	if (from.kind === "Work") {
+		const work = await db.work.findUnique({ where: { id: from.id } });
+		return work?.projectId === projectId;
+	}
+	if (from.kind === "Milestone") {
+		if (
+			!("milestone" in db) ||
+			typeof db.milestone?.findUnique !== "function"
+		) {
+			return false;
+		}
+		const milestone = await db.milestone.findUnique({
+			where: { id: from.id },
+		});
+		return milestone?.projectId === projectId;
+	}
+	return from.kind === "Project Release";
+}
+
+async function toDetailView(
+	prisma: PrismaClient,
+	workspaceId: string,
+	row: ProjectGoalRow
+): Promise<ProjectGoalDetailView> {
+	const relations = await listRelations(prisma, {
+		record: { id: row.id, kind: "Project Goal" },
+		viewerWorkspaceId: workspaceId,
+	});
+	const contributions: GoalContribution[] = [];
+	const relatedOpen: GoalRelatedOpenItem[] = [];
+	const mixMembers: PresentedEnd[] = [];
+	for (const relation of relations) {
+		const member = otherEnd(relation, row.id);
+		if (relation.type === RELATIONS_COPY.contributesToGoal) {
+			contributions.push({
+				from: contributionFrom(member),
+				id: relation.id,
+				type: PROJECT_GOAL_COPY.contributesToGoal,
+			});
+			mixMembers.push(member);
+			continue;
+		}
+		if (relation.type !== RELATIONS_COPY.related) {
+			continue;
+		}
+		if (member.kind !== "Risk" && member.kind !== "Question") {
+			continue;
+		}
+		relatedOpen.push({
+			contributes: false,
+			id: member.id,
+			kind: member.kind,
+			openSourceRecord: member.status === "resolved",
+			title: member.status === "resolved" ? member.title : undefined,
+		});
+	}
+	const mixItems = await Promise.all(
+		mixMembers.map((member) => statusMixItem(prisma, member))
+	);
+	const statusMix = mixItems.filter(
+		(item): item is GoalStatusMixItem => item !== null
+	);
+	const liveSummary: GoalLiveSummary = {
+		...emptyGoalLiveSummary(),
+		relatedOpen,
+		statusMix,
+	};
+	return {
+		...toView(row),
+		contributions,
+		liveSummary,
+	};
+}
+
+function otherEnd(relation: PresentedRelation, goalId: string): PresentedEnd {
+	return relation.to.id === goalId ? relation.from : relation.to;
+}
+
+function contributionFrom(member: PresentedEnd): GoalContribution["from"] {
+	if (member.status === "broken") {
+		return {
+			id: member.id,
+			kind: member.kind,
+			reason: member.reason,
+			status: "broken",
+		};
+	}
+	return {
+		id: member.id,
+		kind: member.kind,
+		status: "resolved",
+		title: member.title,
+	};
+}
+
+async function statusMixItem(
+	prisma: PrismaClient,
+	member: PresentedEnd
+): Promise<GoalStatusMixItem | null> {
+	if (member.status !== "resolved") {
+		return null;
+	}
+	if (member.kind === "Work") {
+		const work = await prisma.work.findUnique({ where: { id: member.id } });
+		if (!(work && isStatusMixWorkType(work.type))) {
+			return null;
+		}
+		return {
+			id: work.id,
+			kind: "Work",
+			openSourceRecord: true,
+			status: work.status,
+			title: work.title,
+			workType: work.type,
+		};
+	}
+	if (member.kind === "Milestone") {
+		if (
+			!("milestone" in prisma) ||
+			typeof prisma.milestone?.findUnique !== "function"
+		) {
+			return null;
+		}
+		const milestone = await prisma.milestone.findUnique({
+			where: { id: member.id },
+		});
+		if (!milestone) {
+			return null;
+		}
+		return {
+			id: milestone.id,
+			kind: "Milestone",
+			openSourceRecord: true,
+			status: milestone.status,
+			title: milestone.title,
+		};
+	}
+	return null;
 }

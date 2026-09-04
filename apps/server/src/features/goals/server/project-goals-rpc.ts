@@ -39,6 +39,21 @@ const updateInput = z.object({
 
 export const projectGoals = {
 	catalog: protectedProcedure.handler(() => projectGoalCatalog()),
+	contributeToGoal: protectedWriteProcedure
+		.input(
+			z.object({
+				from: z.object({
+					id: z.string().min(1),
+					kind: z.enum(["Work", "Milestone", "Project Release"]),
+				}),
+				goalId: z.string().min(1),
+				idempotencyKey: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const surface = await goalsFor(context.session.user.id);
+			return surface.contributeToGoal(input);
+		}),
 	create: protectedWriteProcedure
 		.input(createInput)
 		.handler(async ({ context, input }) => {
@@ -56,6 +71,17 @@ export const projectGoals = {
 		.handler(async ({ context, input }) => {
 			const surface = await goalsFor(context.session.user.id);
 			return surface.list(input.projectId);
+		}),
+	removeContribution: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				relationId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const surface = await goalsFor(context.session.user.id);
+			return surface.removeContribution(input);
 		}),
 	update: protectedWriteProcedure
 		.input(updateInput)
