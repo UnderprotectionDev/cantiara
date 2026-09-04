@@ -1894,7 +1894,6 @@ async function buildUndoPreview(
 	);
 	return {
 		preview: {
-			completeRestore: unrestorable.length === 0,
 			copy: contactMergeUndoPreviewCopy(),
 			emailAliasesToSplit: bundle.aliases.map((alias) => ({
 				normalizedEmail: alias.normalizedEmail,

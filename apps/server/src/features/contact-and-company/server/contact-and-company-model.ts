@@ -309,7 +309,6 @@ export type ContactMergeUndoUnrestorable = z.infer<
 >;
 
 export const contactMergeUndoPreviewSchema = z.object({
-	completeRestore: z.boolean(),
 	copy: z.object({
 		emailAliases: z.literal(CONTACT_AND_COMPANY_COPY.emailAliases),
 		personaRelations: z.literal(CONTACT_AND_COMPANY_COPY.personaRelations),

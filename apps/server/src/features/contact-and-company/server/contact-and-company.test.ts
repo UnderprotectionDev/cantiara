@@ -1028,7 +1028,6 @@ describe("Contact and Company", () => {
 			workspaceId,
 		});
 		expect(preview).toMatchObject({
-			completeRestore: true,
 			copy: {
 				undo: "Undo",
 				undoPreview: "Undo Preview",
@@ -1308,7 +1307,6 @@ describe("Contact and Company", () => {
 			workspaceId,
 		});
 		expect(preview).toMatchObject({
-			completeRestore: false,
 			copy: { undoPreview: "Undo Preview" },
 			unrestorable: expect.arrayContaining([
 				expect.objectContaining({

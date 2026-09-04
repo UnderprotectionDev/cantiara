@@ -49,7 +49,15 @@ export default function UndoMergeContactsForm({
 					return;
 				}
 				if (outcome.status === "conflict") {
-					setError(MUTATION_COPY.conflict);
+					setError(
+						"currentValueLabel" in outcome
+							? `${MUTATION_COPY.conflict} ${MUTATION_COPY.currentValue}`
+							: MUTATION_COPY.conflict
+					);
+					return;
+				}
+				if (outcome.status === "stale") {
+					setError(MUTATION_COPY.currentValue);
 					return;
 				}
 				if (
