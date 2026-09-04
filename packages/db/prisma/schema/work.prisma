@@ -55,6 +55,7 @@ model Work {
   backlogManualOrderItems        ProjectBacklogManualOrderItem[]
   notNowTrails                   WorkNotNowTrail[]
   nextConcreteStepChanges        NextConcreteStepChange[]
+  feedbackEvidenceLinks          FeedbackEvidenceLink[]
 
   @@unique([projectId, number])
   @@unique([projectId, key])
