@@ -3,16 +3,28 @@ import { z } from "zod";
 export const FEEDBACK_COPY = {
 	archived: "Archived",
 	attachments: "Attachments",
+	audienceFit: "Audience fit",
+	bindAsEvidenceToExistingRecord: "Bind as evidence to existing record",
 	channel: "Channel",
 	company: "Company",
 	contact: "Contact",
+	contradicting: "Contradicting",
 	convertToWork: "Convert to Work",
 	createFeedback: "Create Feedback",
 	createFromSource: "Create from Source",
+	currentWorkaround: "Current workaround",
 	decision: "Decision",
 	description: "Description",
+	evidenceQuality: "Evidence quality",
+	evidenceRole: "Evidence Role",
 	feed: "Feed",
 	feedback: "Feedback",
+	followedUp: "Followed up",
+	followUp: "Follow up",
+	founderInterpretation: "Founder interpretation",
+	impactSeverity: "Impact severity",
+	inconclusive: "Inconclusive",
+	independence: "Independence",
 	link: "Link",
 	new: "New",
 	noFeed: "No Feed records yet.",
@@ -21,11 +33,19 @@ export const FEEDBACK_COPY = {
 	openSourceRecord: "Open Source Record",
 	origin: "Origin",
 	originalMessage: "Original message",
+	outcomeVerified: "Outcome verified",
 	project: "Project",
+	providesContext: "Provides context",
+	reportedProblem: "Reported problem",
 	reviewed: "Reviewed",
 	source: "Source",
 	status: "Status",
+	suggestedSolution: "Suggested solution",
+	supporting: "Supporting",
 	title: "Title",
+	unknown: "Unknown",
+	unspecified: "Unspecified",
+	usageFrequency: "Usage frequency",
 	work: "Work",
 } as const;
 
@@ -54,8 +74,13 @@ export const FEEDBACK_COUNTERPARTS = {
 	ai: false,
 	automaticPriority: false,
 	candidateSnapshot: false,
+	combinedScore: false,
 	comments: false,
 	contactMerge: false,
+	copiesQualityAcrossWork: false,
+	emailSync: false,
+	evidenceFlow: false,
+	extractsFromMessage: false,
 	featureRequest: false,
 	feedRecordType: false,
 	inboxProduct: false,
@@ -81,6 +106,25 @@ export const FEEDBACK_COUNTERPARTS = {
 	writesWorkStatus: false,
 } as const;
 
+export const FEEDBACK_EVIDENCE_ROLES = [
+	FEEDBACK_COPY.supporting,
+	FEEDBACK_COPY.contradicting,
+	FEEDBACK_COPY.providesContext,
+	FEEDBACK_COPY.inconclusive,
+	FEEDBACK_COPY.unspecified,
+] as const;
+
+export type FeedbackEvidenceRole = (typeof FEEDBACK_EVIDENCE_ROLES)[number];
+
+export const FEEDBACK_FOLLOW_UP_STATUSES = [
+	FEEDBACK_COPY.followUp,
+	FEEDBACK_COPY.followedUp,
+	FEEDBACK_COPY.outcomeVerified,
+] as const;
+
+export type FeedbackFollowUpStatus =
+	(typeof FEEDBACK_FOLLOW_UP_STATUSES)[number];
+
 export const FEEDBACK_FOREIGN_RECORD_KINDS = [
 	"Source",
 	"Work",
@@ -92,6 +136,8 @@ export function feedbackCatalog() {
 	return {
 		copy: FEEDBACK_COPY,
 		counterparts: FEEDBACK_COUNTERPARTS,
+		evidenceRoles: FEEDBACK_EVIDENCE_ROLES,
+		followUpStatuses: FEEDBACK_FOLLOW_UP_STATUSES,
 		foreignRecordKinds: FEEDBACK_FOREIGN_RECORD_KINDS,
 		kind: FEEDBACK_RECORD_KIND,
 		statuses: FEEDBACK_STATUSES,
@@ -414,3 +460,191 @@ export const listFeedQuerySchema = z.object({
 });
 
 export type ListFeedQuery = z.infer<typeof listFeedQuerySchema>;
+
+const optionalQualityText = z
+	.string()
+	.transform((value) => value.trim())
+	.optional();
+
+export const feedbackEvidenceViewSchema = z.object({
+	audienceFit: z.string(),
+	currentWorkaround: z.string(),
+	evidenceRole: z.enum(FEEDBACK_EVIDENCE_ROLES),
+	feedbackId: z.string().min(1),
+	followUp: z.enum(FEEDBACK_FOLLOW_UP_STATUSES).nullable(),
+	id: z.string().min(1),
+	impactSeverity: z.string(),
+	independence: z.string(),
+	interpretationActorId: z.string().min(1).nullable(),
+	interpretationSetAt: z.string().min(1).nullable(),
+	originalMessage: z.string().min(1),
+	relationId: z.string().min(1),
+	reportedProblem: z.string(),
+	suggestedSolution: z.string(),
+	usageFrequency: z.string(),
+	workId: z.string().min(1),
+});
+
+export type FeedbackEvidenceView = z.infer<typeof feedbackEvidenceViewSchema>;
+
+export const bindFeedbackEvidencePayloadSchema = z
+	.object({
+		feedbackId: z.string().min(1),
+		workId: z.string().min(1),
+	})
+	.strict();
+
+export const bindFeedbackEvidenceCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: bindFeedbackEvidencePayloadSchema,
+	viewerWorkspaceId: z.string().min(1),
+});
+
+export type BindFeedbackEvidenceCommand = z.infer<
+	typeof bindFeedbackEvidenceCommandSchema
+>;
+
+export const bindFeedbackEvidenceOutcomeSchema = z.discriminatedUnion(
+	"status",
+	[
+		z.object({
+			evidence: feedbackEvidenceViewSchema,
+			feedback: feedbackViewSchema,
+			status: z.literal("committed"),
+		}),
+		z.object({
+			evidence: feedbackEvidenceViewSchema,
+			feedback: feedbackViewSchema,
+			status: z.literal("replayed"),
+		}),
+		z.object({
+			conflict: z.literal("Conflict"),
+			status: z.literal("conflict"),
+		}),
+		z.object({
+			reason: z.enum([
+				"invalid-command",
+				"feedback-not-found",
+				"work-not-found",
+				"evidence-not-created",
+			]),
+			status: z.literal("rejected"),
+		}),
+	]
+);
+
+export type BindFeedbackEvidenceOutcome = z.infer<
+	typeof bindFeedbackEvidenceOutcomeSchema
+>;
+
+export const listFeedbackEvidenceInputSchema = z
+	.object({
+		feedbackId: z.string().min(1).optional(),
+		workId: z.string().min(1).optional(),
+	})
+	.refine((value) => Boolean(value.feedbackId || value.workId));
+
+export type ListFeedbackEvidenceInput = z.infer<
+	typeof listFeedbackEvidenceInputSchema
+>;
+
+export const setFeedbackEvidenceQualityPayloadSchema = z
+	.object({
+		audienceFit: optionalQualityText,
+		currentWorkaround: optionalQualityText,
+		feedbackId: z.string().min(1),
+		impactSeverity: optionalQualityText,
+		independence: optionalQualityText,
+		reportedProblem: optionalQualityText,
+		suggestedSolution: optionalQualityText,
+		usageFrequency: optionalQualityText,
+		workId: z.string().min(1),
+	})
+	.strict();
+
+export const setFeedbackEvidenceQualityCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: setFeedbackEvidenceQualityPayloadSchema,
+	viewerWorkspaceId: z.string().min(1),
+});
+
+export type SetFeedbackEvidenceQualityCommand = z.infer<
+	typeof setFeedbackEvidenceQualityCommandSchema
+>;
+
+export const setFeedbackEvidenceRolePayloadSchema = z
+	.object({
+		evidenceRole: z.enum(FEEDBACK_EVIDENCE_ROLES),
+		feedbackId: z.string().min(1),
+		workId: z.string().min(1),
+	})
+	.strict();
+
+export const setFeedbackEvidenceRoleCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: setFeedbackEvidenceRolePayloadSchema,
+	viewerWorkspaceId: z.string().min(1),
+});
+
+export type SetFeedbackEvidenceRoleCommand = z.infer<
+	typeof setFeedbackEvidenceRoleCommandSchema
+>;
+
+export const setFeedbackEvidenceFollowUpPayloadSchema = z
+	.object({
+		feedbackId: z.string().min(1),
+		followUp: z.enum(FEEDBACK_FOLLOW_UP_STATUSES).nullable(),
+		workId: z.string().min(1),
+	})
+	.strict();
+
+export const setFeedbackEvidenceFollowUpCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: setFeedbackEvidenceFollowUpPayloadSchema,
+	viewerWorkspaceId: z.string().min(1),
+});
+
+export type SetFeedbackEvidenceFollowUpCommand = z.infer<
+	typeof setFeedbackEvidenceFollowUpCommandSchema
+>;
+
+export const feedbackEvidenceWriteOutcomeSchema = z.discriminatedUnion(
+	"status",
+	[
+		z.object({
+			evidence: feedbackEvidenceViewSchema,
+			feedback: feedbackViewSchema,
+			status: z.literal("committed"),
+		}),
+		z.object({
+			evidence: feedbackEvidenceViewSchema,
+			feedback: feedbackViewSchema,
+			status: z.literal("replayed"),
+		}),
+		z.object({
+			conflict: z.literal("Conflict"),
+			status: z.literal("conflict"),
+		}),
+		z.object({
+			reason: z.enum([
+				"invalid-command",
+				"feedback-not-found",
+				"work-not-found",
+				"evidence-not-found",
+			]),
+			status: z.literal("rejected"),
+		}),
+	]
+);
+
+export type FeedbackEvidenceWriteOutcome = z.infer<
+	typeof feedbackEvidenceWriteOutcomeSchema
+>;

@@ -865,13 +865,17 @@ _Avoid_: benzerliği kimlik sayma, otomatik birleştirme
 Kesin bir Kaynak, Belge, Diyagram veya Dosya Eki sürümünün belirli bir hedef iddiayı desteklediğini açık rol ve atıfla gösteren ilişki; Kaynağın varlığı tek başına bu bağı veya doğruluk hükmünü oluşturmaz.
 _Avoid_: İlgili ilişkisi, belirsiz referans, otomatik doğrulama
 
+**Kanıt niteliği**:
+İş–Geri Bildirim kanıt bağındaki isteğe bağlı problem, çözüm, workaround, etki, sıklık, bağımsızlık ve hedef profil bağlamı; özgün mesaj, Kanıt Rolü veya birleşik puan değildir ([Geri Bildirim Kaydı](docs/prd/08-search-relations-and-evidence.md#geri-bildirim-kaydı)). UI: `Evidence quality`.
+_Avoid_: özgün mesaj, otomatik çıkarım, kanıt kalitesi skoru, Kanıt Rolü
+
 **Kanıt Rolü**:
 Bir Kanıt bağının hedefe göre kapalı kullanım rolü; kaynak metin veya kullanıcı yorumu değildir ([Kanıt Rolü](docs/prd/08-search-relations-and-evidence.md#kanit-rolu-ve-iliski-ustverisi)). UI: `Evidence Role`.
-_Avoid_: otomatik sınıflandırma, kanıt kalitesi skoru, Geri Bildirim niteliği
+_Avoid_: otomatik sınıflandırma, kanıt kalitesi skoru, Kanıt niteliği
 
 **Kanıt yorumu**:
 Kanıt bağında kaynak metinden ve Kanıt Rolünden ayrı kurucu yorumu; oturum notu veya Insight kaydı değildir. UI: `Founder interpretation`.
-_Avoid_: Insight, otomatik doldurma, Geri Bildirim niteliği, kaynak metin
+_Avoid_: Insight, otomatik doldurma, Kanıt niteliği, kaynak metin
 
 **Kanıt Akışı**:
 İş, Karar ve Varsayım detayında yalnız açık Kanıtı ilişkilerini zaman sırasıyla gösteren türetilmiş görünüm; yeni kanıt uydurmaz ([Kanıt Akışı](docs/prd/08-search-relations-and-evidence.md#kanıt-akışı)). UI: `Evidence Flow`.

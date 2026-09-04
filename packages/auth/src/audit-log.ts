@@ -20,18 +20,20 @@ export function createPrismaAuditLog(prisma: PrismaClient): AuditLog {
 		const rows = await prisma.auditEvent.findMany({
 			orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
 		});
-		return rows.map((row) => {
+		return rows.flatMap((row) => {
 			if (!isSessionAuditEventType(row.type)) {
-				throw new Error("Denetim kaydı has an unknown event type");
+				return [];
 			}
-			return {
-				accountAlias: row.accountAlias,
-				actorAlias: row.actorAlias,
-				id: row.id,
-				occurredAt: row.occurredAt.toISOString(),
-				sessionAlias: row.sessionAlias ?? "",
-				type: row.type,
-			};
+			return [
+				{
+					accountAlias: row.accountAlias,
+					actorAlias: row.actorAlias,
+					id: row.id,
+					occurredAt: row.occurredAt.toISOString(),
+					sessionAlias: row.sessionAlias ?? "",
+					type: row.type,
+				},
+			];
 		});
 	}
 

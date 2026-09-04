@@ -13,6 +13,7 @@ import {
 	FEEDBACK_COPY,
 	FEEDBACK_STATUSES,
 } from "@/features/feedback/forms/feedback-copy";
+import FeedbackEvidenceForm from "@/features/feedback/forms/feedback-evidence-form";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -154,6 +155,11 @@ export default function FeedbackDetail({
 				</section>
 			) : null}
 			<ConvertToWorkForm feedbackId={record.data.id} projectId={projectId} />
+			<FeedbackEvidenceForm
+				feedbackId={record.data.id}
+				originalMessage={record.data.originalMessage}
+				projectId={projectId}
+			/>
 			<Field>
 				<FieldLabel htmlFor="feedback-status">
 					{FEEDBACK_COPY.status}

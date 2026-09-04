@@ -13,8 +13,11 @@ import { presentNamedView } from "../../smart-collections/server/smart-collectio
 import { createWorkInTransaction } from "../../work-lifecycle/server/work-lifecycle";
 
 import {
+	type BindFeedbackEvidenceCommand,
+	type BindFeedbackEvidenceOutcome,
 	type BindFeedbackOriginCommand,
 	type BindFeedbackOriginOutcome,
+	bindFeedbackEvidenceCommandSchema,
 	bindFeedbackOriginCommandSchema,
 	type ConvertFeedbackOutcome,
 	type ConvertFeedbackPreview,
@@ -26,18 +29,28 @@ import {
 	createFeedbackFromSourceCommandSchema,
 	FEEDBACK_COPY,
 	FEEDBACK_EVENT_KIND,
+	FEEDBACK_EVIDENCE_ROLES,
 	FEEDBACK_RECORD_KIND,
 	FEEDBACK_STATUS,
+	type FeedbackEvidenceRole,
+	type FeedbackEvidenceView,
+	type FeedbackEvidenceWriteOutcome,
+	type FeedbackFollowUpStatus,
 	type FeedbackStatus,
 	type FeedbackView,
 	type FeedbackWriteOutcome,
 	type FeedRow,
 	type FeedView,
+	type ListFeedbackEvidenceInput,
 	type ListFeedQuery,
+	listFeedbackEvidenceInputSchema,
 	listFeedQuerySchema,
 	type PreviewConvertFeedbackOutcome,
 	previewConvertFeedbackToWorkInputSchema,
 	type SetFeedbackStatusCommand,
+	setFeedbackEvidenceFollowUpCommandSchema,
+	setFeedbackEvidenceQualityCommandSchema,
+	setFeedbackEvidenceRoleCommandSchema,
 	setFeedbackStatusCommandSchema,
 } from "./feedback-model";
 
@@ -234,6 +247,75 @@ export async function bindFeedbackOrigin(
 		}
 		throw error;
 	}
+}
+
+export async function bindFeedbackEvidence(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<BindFeedbackEvidenceOutcome> {
+	const parsed = bindFeedbackEvidenceCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	try {
+		return await prisma.$transaction((tx) =>
+			bindEvidenceInTransaction(tx, parsed.data, commandKey, fingerprint)
+		);
+	} catch (error) {
+		if (error instanceof EvidenceBindBarrierError) {
+			return error.outcome;
+		}
+		throw error;
+	}
+}
+
+export async function listFeedbackEvidence(
+	prisma: PrismaClient,
+	input: unknown
+): Promise<FeedbackEvidenceView[]> {
+	const parsed = listFeedbackEvidenceInputSchema.safeParse(input);
+	if (!parsed.success) {
+		return [];
+	}
+	return await loadEvidenceViews(prisma, parsed.data);
+}
+
+export async function setFeedbackEvidenceQuality(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<FeedbackEvidenceWriteOutcome> {
+	const parsed = setFeedbackEvidenceQualityCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	return await writeEvidenceFields(prisma, parsed.data, parsed.data.payload);
+}
+
+export async function setFeedbackEvidenceRole(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<FeedbackEvidenceWriteOutcome> {
+	const parsed = setFeedbackEvidenceRoleCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	return await writeEvidenceFields(prisma, parsed.data, parsed.data.payload);
+}
+
+export async function setFeedbackEvidenceFollowUp(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<FeedbackEvidenceWriteOutcome> {
+	const parsed = setFeedbackEvidenceFollowUpCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	return await writeEvidenceFields(prisma, parsed.data, parsed.data.payload);
 }
 
 export async function getFeedback(
@@ -901,6 +983,14 @@ class BindBarrierError extends Error {
 	}
 }
 
+class EvidenceBindBarrierError extends Error {
+	outcome: BindFeedbackEvidenceOutcome;
+	constructor(outcome: BindFeedbackEvidenceOutcome) {
+		super("evidence-bind-barrier");
+		this.outcome = outcome;
+	}
+}
+
 function identityWriteError(error: unknown): FeedbackWriteOutcome {
 	if (
 		error instanceof Error &&
@@ -1227,6 +1317,419 @@ async function replayConvert(
 				...(stored as {
 					feedback: FeedbackView;
 					records: Array<{ id: string; kind: "Work"; title: string }>;
+				}),
+				status: "replayed",
+			};
+		}
+	} catch {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+}
+
+async function bindEvidenceInTransaction(
+	tx: PrismaTransaction,
+	command: BindFeedbackEvidenceCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<BindFeedbackEvidenceOutcome> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (existing) {
+		return replayEvidenceWrite(existing, fingerprint);
+	}
+	const current = await tx.feedback.findUnique({
+		where: { id: command.payload.feedbackId },
+	});
+	if (!current) {
+		return { reason: "feedback-not-found", status: "rejected" };
+	}
+	const work = await tx.work.findUnique({
+		where: { id: command.payload.workId },
+	});
+	if (!work || work.retiredIntoId) {
+		return { reason: "work-not-found", status: "rejected" };
+	}
+	await lockProject(tx, current.projectId);
+	const relationId = await ensureEvidenceRelation(tx, {
+		actorId: command.actorId,
+		feedbackId: current.id,
+		idempotencyKey: command.idempotencyKey,
+		viewerWorkspaceId: command.viewerWorkspaceId,
+		workId: work.id,
+	});
+	if (!relationId) {
+		throw new EvidenceBindBarrierError({
+			reason: "evidence-not-created",
+			status: "rejected",
+		});
+	}
+	const existingLink = await tx.feedbackEvidenceLink.findUnique({
+		where: {
+			feedbackId_workId: {
+				feedbackId: current.id,
+				workId: work.id,
+			},
+		},
+	});
+	const link =
+		existingLink ??
+		(await tx.feedbackEvidenceLink.create({
+			data: {
+				evidenceRole: FEEDBACK_COPY.unspecified,
+				feedbackId: current.id,
+				id: crypto.randomUUID(),
+				relationId,
+				revision: 1,
+				workId: work.id,
+			},
+		}));
+	const [view] = await hydrateFeedbackViews(tx, [current]);
+	if (!view) {
+		return { reason: "feedback-not-found", status: "rejected" };
+	}
+	const evidence = toEvidenceView(link, view.originalMessage);
+	const result = { evidence, feedback: view };
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: command.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey,
+			committedRevision: link.revision,
+			id: crypto.randomUUID(),
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: fingerprint,
+			resultValue: JSON.stringify(result),
+			targetId: link.id,
+		},
+	});
+	return { ...result, status: "committed" };
+}
+
+async function writeEvidenceFields(
+	prisma: PrismaClient,
+	command: {
+		actorId: string;
+		idempotencyKey: string;
+		payload: { feedbackId: string; workId: string } & Record<string, unknown>;
+	},
+	patch: Record<string, unknown>
+): Promise<FeedbackEvidenceWriteOutcome> {
+	const fingerprint = payloadFingerprint(command.payload);
+	const commandKey = commandKeyFor(command.actorId, command.idempotencyKey);
+	return await prisma.$transaction((tx) =>
+		writeEvidenceInTransaction(tx, {
+			actorId: command.actorId,
+			commandKey,
+			feedbackId: command.payload.feedbackId,
+			fingerprint,
+			patch,
+			workId: command.payload.workId,
+		})
+	);
+}
+
+async function writeEvidenceInTransaction(
+	tx: PrismaTransaction,
+	input: {
+		actorId: string;
+		commandKey: string;
+		feedbackId: string;
+		fingerprint: string;
+		patch: Record<string, unknown>;
+		workId: string;
+	}
+): Promise<FeedbackEvidenceWriteOutcome> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey: input.commandKey },
+	});
+	if (existing) {
+		return replayEvidenceWrite(existing, input.fingerprint);
+	}
+	const current = await tx.feedback.findUnique({
+		where: { id: input.feedbackId },
+	});
+	if (!current) {
+		return { reason: "feedback-not-found", status: "rejected" };
+	}
+	const work = await tx.work.findUnique({
+		where: { id: input.workId },
+	});
+	if (!work || work.retiredIntoId) {
+		return { reason: "work-not-found", status: "rejected" };
+	}
+	const link = await tx.feedbackEvidenceLink.findUnique({
+		where: {
+			feedbackId_workId: {
+				feedbackId: input.feedbackId,
+				workId: input.workId,
+			},
+		},
+	});
+	if (!link) {
+		return { reason: "evidence-not-found", status: "rejected" };
+	}
+	await lockProject(tx, current.projectId);
+	const next = applyEvidencePatch(link, input.patch, input.actorId);
+	const updated = await tx.feedbackEvidenceLink.update({
+		data: next,
+		where: { id: link.id },
+	});
+	const [view] = await hydrateFeedbackViews(tx, [current]);
+	if (!view) {
+		return { reason: "feedback-not-found", status: "rejected" };
+	}
+	const evidence = toEvidenceView(updated, view.originalMessage);
+	const result = { evidence, feedback: view };
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: input.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey: input.commandKey,
+			committedRevision: updated.revision,
+			id: crypto.randomUUID(),
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: input.fingerprint,
+			resultValue: JSON.stringify(result),
+			targetId: updated.id,
+		},
+	});
+	return { ...result, status: "committed" };
+}
+
+function applyEvidencePatch(
+	link: {
+		audienceFit: string;
+		currentWorkaround: string;
+		evidenceRole: string;
+		followUp: string | null;
+		impactSeverity: string;
+		independence: string;
+		interpretationActorId: string | null;
+		interpretationSetAt: Date | null;
+		reportedProblem: string;
+		revision: number;
+		suggestedSolution: string;
+		usageFrequency: string;
+	},
+	patch: Record<string, unknown>,
+	actorId: string
+) {
+	const reportedProblem =
+		typeof patch.reportedProblem === "string"
+			? patch.reportedProblem
+			: link.reportedProblem;
+	const suggestedSolution =
+		typeof patch.suggestedSolution === "string"
+			? patch.suggestedSolution
+			: link.suggestedSolution;
+	const currentWorkaround =
+		typeof patch.currentWorkaround === "string"
+			? patch.currentWorkaround
+			: link.currentWorkaround;
+	const impactSeverity =
+		typeof patch.impactSeverity === "string"
+			? patch.impactSeverity
+			: link.impactSeverity;
+	const usageFrequency =
+		typeof patch.usageFrequency === "string"
+			? patch.usageFrequency
+			: link.usageFrequency;
+	const independence =
+		typeof patch.independence === "string"
+			? patch.independence
+			: link.independence;
+	const audienceFit =
+		typeof patch.audienceFit === "string"
+			? patch.audienceFit
+			: link.audienceFit;
+	const evidenceRole =
+		typeof patch.evidenceRole === "string"
+			? patch.evidenceRole
+			: link.evidenceRole;
+	const followUp =
+		"followUp" in patch
+			? ((patch.followUp as string | null) ?? null)
+			: link.followUp;
+	const judged =
+		impactSeverity.length > 0 ||
+		usageFrequency.length > 0 ||
+		independence.length > 0 ||
+		audienceFit.length > 0;
+	const judgedChanged =
+		typeof patch.impactSeverity === "string" ||
+		typeof patch.usageFrequency === "string" ||
+		typeof patch.independence === "string" ||
+		typeof patch.audienceFit === "string";
+	let { interpretationActorId, interpretationSetAt } = link;
+	if (!judged) {
+		interpretationActorId = null;
+		interpretationSetAt = null;
+	} else if (judgedChanged) {
+		interpretationActorId = actorId;
+		interpretationSetAt = new Date();
+	}
+	return {
+		audienceFit,
+		currentWorkaround,
+		evidenceRole,
+		followUp,
+		impactSeverity,
+		independence,
+		interpretationActorId,
+		interpretationSetAt,
+		reportedProblem,
+		revision: link.revision + 1,
+		suggestedSolution,
+		usageFrequency,
+	};
+}
+
+async function ensureEvidenceRelation(
+	tx: PrismaTransaction,
+	input: {
+		actorId: string;
+		feedbackId: string;
+		idempotencyKey: string;
+		viewerWorkspaceId: string;
+		workId: string;
+	}
+): Promise<string | null> {
+	const existing = await tx.typedRelation.findUnique({
+		where: {
+			type_fromKind_fromId_toKind_toId: {
+				fromId: input.feedbackId,
+				fromKind: FEEDBACK_RECORD_KIND,
+				toId: input.workId,
+				toKind: "Work",
+				type: RELATIONS_COPY.evidence,
+			},
+		},
+	});
+	if (existing) {
+		return existing.id;
+	}
+	const created = await createRelationInTransaction(tx, {
+		actorId: input.actorId,
+		from: { id: input.feedbackId, kind: FEEDBACK_RECORD_KIND },
+		idempotencyKey: `${input.idempotencyKey}:evidence`,
+		origin: HUMAN_ORIGIN,
+		previewAcknowledged: true,
+		to: { id: input.workId, kind: "Work" },
+		type: RELATIONS_COPY.evidence,
+		viewerWorkspaceId: input.viewerWorkspaceId,
+	});
+	if (created.status !== "committed" && created.status !== "replayed") {
+		return null;
+	}
+	return created.relation.id;
+}
+
+async function loadEvidenceViews(
+	db: PrismaClient | PrismaTransaction,
+	input: ListFeedbackEvidenceInput
+): Promise<FeedbackEvidenceView[]> {
+	const rows = await db.feedbackEvidenceLink.findMany({
+		include: { feedback: { select: { originalMessage: true } } },
+		orderBy: { createdAt: "asc" },
+		where: {
+			...(input.feedbackId ? { feedbackId: input.feedbackId } : {}),
+			...(input.workId ? { workId: input.workId } : {}),
+		},
+	});
+	return rows.map((row) => toEvidenceView(row, row.feedback.originalMessage));
+}
+
+function toEvidenceView(
+	row: {
+		audienceFit: string;
+		currentWorkaround: string;
+		evidenceRole: string;
+		feedbackId: string;
+		followUp: string | null;
+		id: string;
+		impactSeverity: string;
+		independence: string;
+		interpretationActorId: string | null;
+		interpretationSetAt: Date | null;
+		relationId: string;
+		reportedProblem: string;
+		suggestedSolution: string;
+		usageFrequency: string;
+		workId: string;
+	},
+	originalMessage: string
+): FeedbackEvidenceView {
+	return {
+		audienceFit: row.audienceFit,
+		currentWorkaround: row.currentWorkaround,
+		evidenceRole: parseEvidenceRole(row.evidenceRole),
+		feedbackId: row.feedbackId,
+		followUp: parseFollowUp(row.followUp),
+		id: row.id,
+		impactSeverity: row.impactSeverity,
+		independence: row.independence,
+		interpretationActorId: row.interpretationActorId,
+		interpretationSetAt: row.interpretationSetAt
+			? row.interpretationSetAt.toISOString()
+			: null,
+		originalMessage,
+		relationId: row.relationId,
+		reportedProblem: row.reportedProblem,
+		suggestedSolution: row.suggestedSolution,
+		usageFrequency: row.usageFrequency,
+		workId: row.workId,
+	};
+}
+
+function parseEvidenceRole(value: string): FeedbackEvidenceRole {
+	if ((FEEDBACK_EVIDENCE_ROLES as readonly string[]).includes(value)) {
+		return value as FeedbackEvidenceRole;
+	}
+	return FEEDBACK_COPY.unspecified;
+}
+
+function parseFollowUp(value: string | null): FeedbackFollowUpStatus | null {
+	if (
+		value &&
+		(value === FEEDBACK_COPY.followUp ||
+			value === FEEDBACK_COPY.followedUp ||
+			value === FEEDBACK_COPY.outcomeVerified)
+	) {
+		return value;
+	}
+	return null;
+}
+
+function replayEvidenceWrite(
+	existing: { payloadFingerprint: string; resultValue: string },
+	fingerprint: string
+):
+	| {
+			conflict: typeof MUTATION_COPY.conflict;
+			status: "conflict";
+	  }
+	| {
+			evidence: FeedbackEvidenceView;
+			feedback: FeedbackView;
+			status: "replayed";
+	  } {
+	if (existing.payloadFingerprint !== fingerprint) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	try {
+		const stored: unknown = JSON.parse(existing.resultValue);
+		if (
+			stored &&
+			typeof stored === "object" &&
+			"evidence" in stored &&
+			"feedback" in stored
+		) {
+			return {
+				...(stored as {
+					evidence: FeedbackEvidenceView;
+					feedback: FeedbackView;
 				}),
 				status: "replayed",
 			};

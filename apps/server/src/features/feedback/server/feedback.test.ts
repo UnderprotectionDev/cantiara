@@ -44,6 +44,7 @@ import {
 } from "../../work-lifecycle/server/work-lifecycle";
 import { WORK_STATUS } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
+	bindFeedbackEvidence,
 	bindFeedbackOrigin,
 	convertFeedbackToWork,
 	createFeedback,
@@ -51,7 +52,11 @@ import {
 	getFeedback,
 	listFeed,
 	listFeedback,
+	listFeedbackEvidence,
 	previewConvertFeedbackToWork,
+	setFeedbackEvidenceFollowUp,
+	setFeedbackEvidenceQuality,
+	setFeedbackEvidenceRole,
 	setFeedbackStatus,
 } from "./feedback";
 import {
@@ -70,6 +75,9 @@ const SOCIAL_OR_PUBLIC =
 	/public form|comment thread|upvote|like|vote|requester|two-way/i;
 const SOURCE_LIFE =
 	/approvedVersionNumber|candidate snapshot|source check|recheck source|Save as new Source version/i;
+const EVIDENCE_FLOW = /Evidence Flow/;
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T/;
+const FOLLOW_UP_SIDE_EFFECTS = /email sync|requester CRM|Evidence Flow/i;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -91,6 +99,7 @@ async function seedWorkspace(prisma: PrismaClient) {
 }
 
 async function resetSharedTables(prisma: PrismaClient) {
+	await prisma.feedbackEvidenceLink.deleteMany();
 	await prisma.typedRelation.deleteMany();
 	await prisma.decisionEvent.deleteMany();
 	await prisma.decision.deleteMany();
@@ -180,6 +189,38 @@ describe("Feedback catalog", () => {
 		expect(FEEDBACK_COUNTERPARTS.feedRecordType).toBe(false);
 		expect(FEEDBACK_COUNTERPARTS.writesSourceStatus).toBe(false);
 		expect(FEEDBACK_COUNTERPARTS.writesSourcePriority).toBe(false);
+		expect(catalog.copy.evidenceQuality).toBe("Evidence quality");
+		expect(catalog.copy.reportedProblem).toBe("Reported problem");
+		expect(catalog.copy.suggestedSolution).toBe("Suggested solution");
+		expect(catalog.copy.currentWorkaround).toBe("Current workaround");
+		expect(catalog.copy.impactSeverity).toBe("Impact severity");
+		expect(catalog.copy.usageFrequency).toBe("Usage frequency");
+		expect(catalog.copy.independence).toBe("Independence");
+		expect(catalog.copy.audienceFit).toBe("Audience fit");
+		expect(catalog.copy.unknown).toBe("Unknown");
+		expect(catalog.copy.founderInterpretation).toBe("Founder interpretation");
+		expect(catalog.copy.evidenceRole).toBe("Evidence Role");
+		expect(catalog.copy.followUp).toBe("Follow up");
+		expect(catalog.copy.followedUp).toBe("Followed up");
+		expect(catalog.copy.outcomeVerified).toBe("Outcome verified");
+		expect(catalog.evidenceRoles).toEqual([
+			"Supporting",
+			"Contradicting",
+			"Provides context",
+			"Inconclusive",
+			"Unspecified",
+		]);
+		expect(catalog.followUpStatuses).toEqual([
+			"Follow up",
+			"Followed up",
+			"Outcome verified",
+		]);
+		expect(FEEDBACK_COUNTERPARTS.combinedScore).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.extractsFromMessage).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.copiesQualityAcrossWork).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.emailSync).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.evidenceFlow).toBe(false);
+		expect(JSON.stringify(catalog.copy)).not.toMatch(EVIDENCE_FLOW);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(SOCIAL_OR_PUBLIC);
 		expect(JSON.stringify(FEEDBACK_COPY)).not.toMatch(SOURCE_LIFE);
 		expect(FEEDBACK_FOREIGN_RECORD_KINDS).toEqual([
@@ -976,5 +1017,344 @@ describe("Feedback", () => {
 				where: { workId: work.work.id },
 			})
 		).toBe(0);
+	});
+
+	it("keeps optional Kanıt niteliği fields separate from the original message", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const created = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "quality-message",
+			origin: "human",
+			payload: {
+				channel: "Email",
+				originalMessage: "Checkout fails on retry.",
+				projectId,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected feedback");
+		}
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "quality-work",
+			origin: "human",
+			payload: { projectId, title: "Retry checkout" },
+		});
+		expect(work.status).toBe("committed");
+		if (work.status !== "committed") {
+			throw new Error("expected work");
+		}
+		const bound = await bindFeedbackEvidence(prisma, {
+			actorId,
+			idempotencyKey: "bind-evidence",
+			origin: "human",
+			payload: {
+				feedbackId: created.feedback.id,
+				workId: work.work.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(bound.status).toBe("committed");
+		if (bound.status !== "committed") {
+			throw new Error("expected evidence");
+		}
+		expect(bound.evidence.originalMessage).toBe("Checkout fails on retry.");
+		expect(bound.evidence.reportedProblem).toBe("");
+		expect(bound.evidence.suggestedSolution).toBe("");
+		expect(bound.evidence.currentWorkaround).toBe("");
+		expect(bound.evidence.impactSeverity).toBe("");
+		expect(bound.evidence.usageFrequency).toBe("");
+		expect(bound.evidence.independence).toBe("");
+		expect(bound.evidence.audienceFit).toBe("");
+		expect(bound.evidence.evidenceRole).toBe(FEEDBACK_COPY.unspecified);
+		expect(bound.evidence.followUp).toBeNull();
+		expect(bound.feedback.originalMessage).toBe("Checkout fails on retry.");
+		const missingOk = await setFeedbackEvidenceQuality(prisma, {
+			actorId,
+			idempotencyKey: "set-unknown",
+			origin: "human",
+			payload: {
+				feedbackId: created.feedback.id,
+				impactSeverity: FEEDBACK_COPY.unknown,
+				reportedProblem: "Pay never returns",
+				workId: work.work.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(missingOk.status).toBe("committed");
+		if (missingOk.status !== "committed") {
+			throw new Error("expected quality");
+		}
+		expect(missingOk.evidence.reportedProblem).toBe("Pay never returns");
+		expect(missingOk.evidence.suggestedSolution).toBe("");
+		expect(missingOk.evidence.impactSeverity).toBe(FEEDBACK_COPY.unknown);
+		expect(missingOk.evidence.originalMessage).toBe("Checkout fails on retry.");
+		expect(missingOk.evidence.originalMessage).not.toBe(
+			missingOk.evidence.reportedProblem
+		);
+		expect(missingOk.feedback.originalMessage).toBe("Checkout fails on retry.");
+	});
+
+	it("labels founder-entered severity as interpretation and does not extract from the message", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const created = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "extract-message",
+			origin: "human",
+			payload: {
+				channel: "Chat",
+				originalMessage: "This is severe and happens daily for independents.",
+				projectId,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected feedback");
+		}
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "extract-work",
+			origin: "human",
+			payload: { projectId, title: "Message extraction" },
+		});
+		expect(work.status).toBe("committed");
+		if (work.status !== "committed") {
+			throw new Error("expected work");
+		}
+		const bound = await bindFeedbackEvidence(prisma, {
+			actorId,
+			idempotencyKey: "extract-bind",
+			origin: "human",
+			payload: {
+				feedbackId: created.feedback.id,
+				workId: work.work.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(bound.status).toBe("committed");
+		if (bound.status !== "committed") {
+			throw new Error("expected evidence");
+		}
+		expect(bound.evidence.impactSeverity).toBe("");
+		expect(bound.evidence.usageFrequency).toBe("");
+		expect(bound.evidence.independence).toBe("");
+		expect(bound.evidence.interpretationActorId).toBeNull();
+		expect(FEEDBACK_COUNTERPARTS.extractsFromMessage).toBe(false);
+		const judged = await setFeedbackEvidenceQuality(prisma, {
+			actorId,
+			idempotencyKey: "set-severity",
+			origin: "human",
+			payload: {
+				audienceFit: "Checkout buyers",
+				feedbackId: created.feedback.id,
+				impactSeverity: "Blocks payment",
+				independence: FEEDBACK_COPY.unknown,
+				usageFrequency: "Daily",
+				workId: work.work.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(judged.status).toBe("committed");
+		if (judged.status !== "committed") {
+			throw new Error("expected interpretation");
+		}
+		expect(judged.evidence.impactSeverity).toBe("Blocks payment");
+		expect(judged.evidence.interpretationActorId).toBe(actorId);
+		expect(judged.evidence.interpretationSetAt).toEqual(
+			expect.stringMatching(ISO_TIME)
+		);
+		expect(judged.evidence.originalMessage).toBe(
+			"This is severe and happens daily for independents."
+		);
+	});
+
+	it("does not derive Evidence Role from Kanıt niteliği or copy quality onto another Work", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const created = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "role-message",
+			origin: "human",
+			payload: {
+				channel: "Forum",
+				originalMessage: "Retry still loops.",
+				projectId,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected feedback");
+		}
+		const firstWork = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "role-work-a",
+			origin: "human",
+			payload: { projectId, title: "Work A" },
+		});
+		const secondWork = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "role-work-b",
+			origin: "human",
+			payload: { projectId, title: "Work B" },
+		});
+		expect(firstWork.status).toBe("committed");
+		expect(secondWork.status).toBe("committed");
+		if (firstWork.status !== "committed" || secondWork.status !== "committed") {
+			throw new Error("expected work");
+		}
+		const first = await bindFeedbackEvidence(prisma, {
+			actorId,
+			idempotencyKey: "role-bind-a",
+			origin: "human",
+			payload: {
+				feedbackId: created.feedback.id,
+				workId: firstWork.work.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		const second = await bindFeedbackEvidence(prisma, {
+			actorId,
+			idempotencyKey: "role-bind-b",
+			origin: "human",
+			payload: {
+				feedbackId: created.feedback.id,
+				workId: secondWork.work.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(first.status).toBe("committed");
+		expect(second.status).toBe("committed");
+		if (first.status !== "committed" || second.status !== "committed") {
+			throw new Error("expected evidence");
+		}
+		const quality = await setFeedbackEvidenceQuality(prisma, {
+			actorId,
+			idempotencyKey: "role-quality-a",
+			origin: "human",
+			payload: {
+				feedbackId: created.feedback.id,
+				impactSeverity: "High",
+				workId: firstWork.work.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(quality.status).toBe("committed");
+		if (quality.status !== "committed") {
+			throw new Error("expected quality");
+		}
+		expect(quality.evidence.evidenceRole).toBe(FEEDBACK_COPY.unspecified);
+		expect(quality.evidence).not.toHaveProperty("combinedScore");
+		expect(FEEDBACK_COUNTERPARTS.combinedScore).toBe(false);
+		const role = await setFeedbackEvidenceRole(prisma, {
+			actorId,
+			idempotencyKey: "role-set-a",
+			origin: "human",
+			payload: {
+				evidenceRole: FEEDBACK_COPY.contradicting,
+				feedbackId: created.feedback.id,
+				workId: firstWork.work.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(role.status).toBe("committed");
+		if (role.status !== "committed") {
+			throw new Error("expected role");
+		}
+		expect(role.evidence.evidenceRole).toBe(FEEDBACK_COPY.contradicting);
+		expect(role.evidence.impactSeverity).toBe("High");
+		const onB = await listFeedbackEvidence(prisma, {
+			feedbackId: created.feedback.id,
+			workId: secondWork.work.id,
+		});
+		expect(onB).toHaveLength(1);
+		expect(onB[0]?.impactSeverity).toBe("");
+		expect(onB[0]?.evidenceRole).toBe(FEEDBACK_COPY.unspecified);
+		expect(FEEDBACK_COUNTERPARTS.copiesQualityAcrossWork).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.evidenceFlow).toBe(false);
+	});
+
+	it("keeps Follow up on the evidence link without writing Feedback or Work life", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const created = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "follow-message",
+			origin: "human",
+			payload: {
+				channel: "Email",
+				originalMessage: "Need a reply later.",
+				projectId,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected feedback");
+		}
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "follow-work",
+			origin: "human",
+			payload: { projectId, title: "Follow later" },
+		});
+		expect(work.status).toBe("committed");
+		if (work.status !== "committed") {
+			throw new Error("expected work");
+		}
+		const bound = await bindFeedbackEvidence(prisma, {
+			actorId,
+			idempotencyKey: "follow-bind",
+			origin: "human",
+			payload: {
+				feedbackId: created.feedback.id,
+				workId: work.work.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(bound.status).toBe("committed");
+		const followed = await setFeedbackEvidenceFollowUp(prisma, {
+			actorId,
+			idempotencyKey: "follow-set",
+			origin: "human",
+			payload: {
+				feedbackId: created.feedback.id,
+				followUp: FEEDBACK_COPY.followUp,
+				workId: work.work.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(followed.status).toBe("committed");
+		if (followed.status !== "committed") {
+			throw new Error("expected follow-up");
+		}
+		expect(followed.evidence.followUp).toBe(FEEDBACK_COPY.followUp);
+		expect(followed.feedback.status).toBe(FEEDBACK_STATUS.new);
+		const liveWork = await getWork(prisma, work.work.id);
+		expect(liveWork?.status).toBe(WORK_STATUS.notStarted);
+		expect(FEEDBACK_COUNTERPARTS.writesWorkStatus).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.emailSync).toBe(false);
+		const verified = await setFeedbackEvidenceFollowUp(prisma, {
+			actorId,
+			idempotencyKey: "follow-verified",
+			origin: "human",
+			payload: {
+				feedbackId: created.feedback.id,
+				followUp: FEEDBACK_COPY.outcomeVerified,
+				workId: work.work.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(verified.status).toBe("committed");
+		if (verified.status !== "committed") {
+			throw new Error("expected verified");
+		}
+		expect(verified.evidence.followUp).toBe(FEEDBACK_COPY.outcomeVerified);
+		const stillFeedback = await getFeedback(prisma, created.feedback.id);
+		expect(stillFeedback?.status).toBe(FEEDBACK_STATUS.new);
+		expect(JSON.stringify(feedbackCatalog().copy)).not.toMatch(
+			FOLLOW_UP_SIDE_EFFECTS
+		);
 	});
 });

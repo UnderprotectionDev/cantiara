@@ -18,6 +18,17 @@ test("English Feedback labels stay Feedback, New, Reviewed, and Archived", () =>
 	expect(FEEDBACK_COPY.openSourceRecord).toBe("Open Source Record");
 	expect(FEEDBACK_COPY.contact).toBe("Contact");
 	expect(FEEDBACK_COPY.company).toBe("Company");
+	expect(FEEDBACK_COPY.evidenceQuality).toBe("Evidence quality");
+	expect(FEEDBACK_COPY.reportedProblem).toBe("Reported problem");
+	expect(FEEDBACK_COPY.unknown).toBe("Unknown");
+	expect(FEEDBACK_COPY.founderInterpretation).toBe("Founder interpretation");
+	expect(FEEDBACK_COPY.evidenceRole).toBe("Evidence Role");
+	expect(FEEDBACK_COPY.followUp).toBe("Follow up");
+	expect(FEEDBACK_COPY.followedUp).toBe("Followed up");
+	expect(FEEDBACK_COPY.outcomeVerified).toBe("Outcome verified");
+	expect(FEEDBACK_COPY.bindAsEvidenceToExistingRecord).toBe(
+		"Bind as evidence to existing record"
+	);
 	expect(FEEDBACK_COPY.new).toBe("New");
 	expect(FEEDBACK_COPY.reviewed).toBe("Reviewed");
 	expect(FEEDBACK_COPY.archived).toBe("Archived");

@@ -641,6 +641,20 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İşe dönüştür | `Convert to Work` | Geri Bildirimi önizleyerek tam olarak bir İşe dönüştürme; kayıt silinmez veya arşivlenmez |
 | Geri Bildirim Contact | `Contact` | Geri Bildirimdeki isteğe bağlı katılımcı; bilinmeyen gönderende zorunlu değildir |
 | Geri Bildirim Company | `Company` | Geri Bildirimdeki isteğe bağlı kuruluş bağlamı |
+| Kanıt niteliği | `Evidence quality` | İş–Geri Bildirim kanıt bağındaki isteğe bağlı bağlam; özgün mesajın yerine geçmez |
+| Bildirilen problem | `Reported problem` | Kanıt niteliği alanı |
+| Önerilen çözüm | `Suggested solution` | Kanıt niteliği alanı |
+| Mevcut workaround | `Current workaround` | Kanıt niteliği alanı |
+| Etki şiddeti | `Impact severity` | Kanıt niteliği alanı; kaynakta yoksa kurucu yorumudur |
+| Kullanım sıklığı | `Usage frequency` | Kanıt niteliği alanı; kaynakta yoksa kurucu yorumudur |
+| Bağımsızlık | `Independence` | Kanıt niteliği alanı; kaynakta yoksa kurucu yorumudur |
+| Hedef profil uyumu | `Audience fit` | Kanıt niteliği alanı; kaynakta yoksa kurucu yorumudur |
+| Bilinmiyor | `Unknown` | Kanıt niteliği alanında boş olmayan belirsiz değer; ilişkiyi engellemez |
+| Kurucu yorumu | `Founder interpretation` | Kaynakta söylenmeyen niteliğin yazar ve zaman etiketli yorumu |
+| Geri dönülecek | `Follow up` | Yalnız İş–Geri Bildirim kanıt bağındaki takip niyeti |
+| Geri dönüldü | `Followed up` | Yalnız o kanıt bağındaki takip niyeti |
+| Sonuç doğrulandı | `Outcome verified` | Yalnız o kanıt bağındaki takip niyeti |
+| Kanıt olarak bağla | `Bind as evidence to existing record` | Geri Bildirimi mevcut İşe kanıt olarak bağlama; Kanıt Akışı değildir |
 | İletişim (yakalama alanı) | `Contact` | Feedback Capture isteğe bağlı yönlendirici alanı; Contact ana kaydı oluşturmaz |
 | Geri bildirim (yakalama alanı) | `Feedback` | Feedback Capture yönlendirici alanı |
 | Kanal | `Channel` | Feedback Capture yönlendirici alanı |

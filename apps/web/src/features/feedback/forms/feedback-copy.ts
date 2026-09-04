@@ -1,16 +1,28 @@
 export const FEEDBACK_COPY = {
 	archived: "Archived",
 	attachments: "Attachments",
+	audienceFit: "Audience fit",
+	bindAsEvidenceToExistingRecord: "Bind as evidence to existing record",
 	channel: "Channel",
 	company: "Company",
 	contact: "Contact",
+	contradicting: "Contradicting",
 	convertToWork: "Convert to Work",
 	createFeedback: "Create Feedback",
 	createFromSource: "Create from Source",
+	currentWorkaround: "Current workaround",
 	decision: "Decision",
 	description: "Description",
+	evidenceQuality: "Evidence quality",
+	evidenceRole: "Evidence Role",
 	feed: "Feed",
 	feedback: "Feedback",
+	followedUp: "Followed up",
+	followUp: "Follow up",
+	founderInterpretation: "Founder interpretation",
+	impactSeverity: "Impact severity",
+	inconclusive: "Inconclusive",
+	independence: "Independence",
 	link: "Link",
 	new: "New",
 	noFeed: "No Feed records yet.",
@@ -19,11 +31,19 @@ export const FEEDBACK_COPY = {
 	openSourceRecord: "Open Source Record",
 	origin: "Origin",
 	originalMessage: "Original message",
+	outcomeVerified: "Outcome verified",
 	project: "Project",
+	providesContext: "Provides context",
+	reportedProblem: "Reported problem",
 	reviewed: "Reviewed",
 	source: "Source",
 	status: "Status",
+	suggestedSolution: "Suggested solution",
+	supporting: "Supporting",
 	title: "Title",
+	unknown: "Unknown",
+	unspecified: "Unspecified",
+	usageFrequency: "Usage frequency",
 	work: "Work",
 } as const;
 
@@ -31,4 +51,18 @@ export const FEEDBACK_STATUSES = [
 	FEEDBACK_COPY.new,
 	FEEDBACK_COPY.reviewed,
 	FEEDBACK_COPY.archived,
+] as const;
+
+export const FEEDBACK_EVIDENCE_ROLES = [
+	FEEDBACK_COPY.supporting,
+	FEEDBACK_COPY.contradicting,
+	FEEDBACK_COPY.providesContext,
+	FEEDBACK_COPY.inconclusive,
+	FEEDBACK_COPY.unspecified,
+] as const;
+
+export const FEEDBACK_FOLLOW_UP_STATUSES = [
+	FEEDBACK_COPY.followUp,
+	FEEDBACK_COPY.followedUp,
+	FEEDBACK_COPY.outcomeVerified,
 ] as const;

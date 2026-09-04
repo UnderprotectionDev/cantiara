@@ -1,15 +1,21 @@
 model Contact {
-  id            String                       @id
-  workspaceId   String
-  workspace     Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  displayName   String
-  revision      Int
-  createdAt     DateTime                     @default(now())
-  updatedAt     DateTime                     @updatedAt
-  emailAliases  ContactEmailAlias[]
-  affiliations  ContactCompanyAffiliation[]
+  id                    String                       @id
+  workspaceId           String
+  workspace             Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  displayName           String
+  retiredIntoId         String?
+  retiredInto           Contact?                     @relation("ContactRetiredIdentity", fields: [retiredIntoId], references: [id], onDelete: SetNull)
+  retiredIdentities     Contact[]                    @relation("ContactRetiredIdentity")
+  revision              Int
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  emailAliases          ContactEmailAlias[]
+  affiliations          ContactCompanyAffiliation[]
+  mergeEventsAsSurvivor ContactMergeEvent[]          @relation("ContactMergeSurvivor")
+  mergeEventsAsRetired  ContactMergeEvent[]          @relation("ContactMergeRetired")
 
   @@index([workspaceId])
+  @@index([retiredIntoId])
   @@map("contact")
 }
 
@@ -55,4 +61,21 @@ model ContactCompanyAffiliation {
   @@index([contactId, endedAt])
   @@index([companyId])
   @@map("contact_company_affiliation")
+}
+
+model ContactMergeEvent {
+  id                String   @id
+  survivorId        String
+  survivor          Contact  @relation("ContactMergeSurvivor", fields: [survivorId], references: [id], onDelete: Cascade)
+  retiredId         String
+  retired           Contact  @relation("ContactMergeRetired", fields: [retiredId], references: [id], onDelete: Cascade)
+  attributedFields  String
+  previousSurvivor  String
+  postMergeSurvivor String
+  retiredSnapshot   String
+  movedRelations    String
+  createdAt         DateTime @default(now())
+
+  @@index([survivorId])
+  @@map("contact_merge_event")
 }
