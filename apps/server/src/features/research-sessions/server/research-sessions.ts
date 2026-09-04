@@ -304,6 +304,7 @@ export function freezePublishedSnapshot(
 ): PublishedSnapshot {
 	return {
 		includedItemIds: items.map((item) => item.id),
+		includedItems: [...items],
 		includedRevision: session.revision,
 		sessionId: session.id,
 	};
@@ -311,11 +312,10 @@ export function freezePublishedSnapshot(
 
 export function resolvePublishedSnapshot(
 	snapshot: PublishedSnapshot,
-	liveItems: readonly ClosedWorldItem[]
+	_liveItems: readonly ClosedWorldItem[]
 ): ResolvePublishedSnapshotOutcome {
-	const allowed = new Set(snapshot.includedItemIds);
 	return {
-		items: liveItems.filter((item) => allowed.has(item.id)),
+		items: [...snapshot.includedItems],
 		redirected: false,
 		silentlyUpdated: false,
 	};

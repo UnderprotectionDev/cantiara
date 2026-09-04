@@ -381,6 +381,7 @@ export type ClosedWorldItem = z.infer<typeof closedWorldItemSchema>;
 
 export const publishedSnapshotSchema = z.object({
 	includedItemIds: z.array(z.string().min(1)),
+	includedItems: z.array(closedWorldItemSchema),
 	includedRevision: z.number().int().positive(),
 	sessionId: z.string().min(1),
 });
