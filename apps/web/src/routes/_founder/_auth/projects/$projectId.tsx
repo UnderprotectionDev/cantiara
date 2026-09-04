@@ -32,11 +32,12 @@ function ProjectProfileRoute() {
 					configurationMode: next.open ? true : undefined,
 					decision: search.decision,
 					goal: search.goal,
+					risk: search.risk,
 					work: search.work,
 				},
 			}).catch(() => undefined);
 		},
-		[hash, navigate, search.decision, search.goal, search.work]
+		[hash, navigate, search.decision, search.goal, search.risk, search.work]
 	);
 	const onWorkId = useCallback(
 		(workId: string | null) => {
@@ -47,6 +48,7 @@ function ProjectProfileRoute() {
 					configurationMode: search.configurationMode,
 					decision: search.decision,
 					goal: search.goal,
+					risk: search.risk,
 					work: workId ?? undefined,
 				},
 			}).catch(() => undefined);
@@ -58,6 +60,7 @@ function ProjectProfileRoute() {
 			search.configurationMode,
 			search.decision,
 			search.goal,
+			search.risk,
 		]
 	);
 	const onDecisionId = useCallback(
@@ -69,6 +72,7 @@ function ProjectProfileRoute() {
 					configurationMode: search.configurationMode,
 					decision: decisionId ?? undefined,
 					goal: search.goal,
+					risk: search.risk,
 					work: search.work,
 				},
 			}).catch(() => undefined);
@@ -77,6 +81,30 @@ function ProjectProfileRoute() {
 			navigate,
 			search.configurationEditor,
 			search.configurationMode,
+			search.goal,
+			search.risk,
+			search.work,
+		]
+	);
+	const onRiskId = useCallback(
+		(riskId: string | null) => {
+			navigate({
+				hash: "risks",
+				search: {
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					decision: search.decision,
+					goal: search.goal,
+					risk: riskId ?? undefined,
+					work: search.work,
+				},
+			}).catch(() => undefined);
+		},
+		[
+			navigate,
+			search.configurationEditor,
+			search.configurationMode,
+			search.decision,
 			search.goal,
 			search.work,
 		]
@@ -90,6 +118,7 @@ function ProjectProfileRoute() {
 					configurationMode: search.configurationMode,
 					decision: search.decision,
 					goal: goalId ?? undefined,
+					risk: search.risk,
 					work: search.work,
 				},
 			}).catch(() => undefined);
@@ -99,6 +128,7 @@ function ProjectProfileRoute() {
 			search.configurationEditor,
 			search.configurationMode,
 			search.decision,
+			search.risk,
 			search.work,
 		]
 	);
@@ -111,8 +141,10 @@ function ProjectProfileRoute() {
 			onDecisionId={onDecisionId}
 			onGoalId={onGoalId}
 			onPresentationChange={onPresentationChange}
+			onRiskId={onRiskId}
 			onWorkId={onWorkId}
 			projectId={projectId}
+			riskId={search.risk ?? null}
 			workId={search.work ?? null}
 		/>
 	);

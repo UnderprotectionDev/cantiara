@@ -116,6 +116,7 @@ export interface ProjectShellSearch {
 	configurationMode?: true;
 	decision?: string;
 	goal?: string;
+	risk?: string;
 	work?: string;
 }
 
@@ -150,6 +151,10 @@ export function projectShellSearch(
 		typeof search.goal === "string" && search.goal.length > 0
 			? search.goal
 			: undefined;
+	const risk =
+		typeof search.risk === "string" && search.risk.length > 0
+			? search.risk
+			: undefined;
 	return {
 		...(configurationMode ? { configurationMode: true as const } : {}),
 		...(configurationMode && configurationEditor
@@ -157,6 +162,7 @@ export function projectShellSearch(
 			: {}),
 		...(decision ? { decision } : {}),
 		...(goal ? { goal } : {}),
+		...(risk ? { risk } : {}),
 		...(work ? { work } : {}),
 	};
 }

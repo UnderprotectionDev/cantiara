@@ -43,6 +43,7 @@ import {
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
+import RiskArea from "@/features/risks/views/risk-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
 
@@ -85,8 +86,10 @@ export default function ProjectProfile({
 	onDecisionId,
 	onGoalId,
 	onPresentationChange,
+	onRiskId,
 	onWorkId,
 	projectId,
+	riskId,
 	workId,
 }: {
 	configurationEditor: ConfigurationModeEditor | null;
@@ -100,8 +103,10 @@ export default function ProjectProfile({
 		hash?: string;
 		open: boolean;
 	}) => void;
+	onRiskId?: (riskId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
+	riskId?: string | null;
 	workId?: string | null;
 }) {
 	const project = useQuery(
@@ -158,7 +163,7 @@ export default function ProjectProfile({
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const overviewCurrent =
-		(selectedAnchor === "" && !workId && !decisionId) ||
+		(selectedAnchor === "" && !workId && !decisionId && !riskId) ||
 		selectedAnchor === overviewAnchor;
 
 	const nav = (
@@ -218,8 +223,10 @@ export default function ProjectProfile({
 					onDecisionId={onDecisionId}
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
+					onRiskId={onRiskId}
 					onToggle={onToggle}
 					onWorkId={onWorkId}
+					riskId={riskId}
 					selectedAnchor={selectedAnchor}
 					workId={workId}
 				/>
@@ -426,14 +433,19 @@ function DocumentsProjectSection({
 function DecisionsProjectSection({
 	decisionId,
 	onDecisionId,
+	onRiskId,
 	projectId,
+	riskId,
 	sectionId,
 }: {
 	decisionId?: string | null;
 	onDecisionId?: (decisionId: string | null) => void;
+	onRiskId?: (riskId: string | null) => void;
 	projectId: string;
+	riskId?: string | null;
 	sectionId: string;
 }) {
+	const risksAnchor = projectShellAnchor("Risks");
 	return (
 		<section aria-label="Decisions" id={sectionId}>
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">
@@ -446,6 +458,12 @@ function DecisionsProjectSection({
 					projectId={projectId}
 				/>
 			</div>
+			<section aria-label="Risks" className="mt-10" id={risksAnchor}>
+				<h2 className="font-semibold text-lg tracking-tight">Risks</h2>
+				<div className="mt-6">
+					<RiskArea onRiskId={onRiskId} projectId={projectId} riskId={riskId} />
+				</div>
+			</section>
 		</section>
 	);
 }
@@ -456,8 +474,11 @@ function projectRecordArea({
 	documentsAnchor,
 	fileAttachmentAnchor,
 	onDecisionId,
+	onRiskId,
 	onWorkId,
 	projectId,
+	riskId,
+	risksAnchor,
 	selectedAnchor,
 	selectedArea,
 }: {
@@ -466,8 +487,11 @@ function projectRecordArea({
 	documentsAnchor: string;
 	fileAttachmentAnchor: string;
 	onDecisionId?: (decisionId: string | null) => void;
+	onRiskId?: (riskId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
+	riskId?: string | null;
+	risksAnchor: string;
 	selectedAnchor: string;
 	selectedArea: string | undefined;
 }) {
@@ -482,14 +506,18 @@ function projectRecordArea({
 	}
 	if (
 		selectedAnchor === decisionsAnchor ||
+		selectedAnchor === risksAnchor ||
 		selectedArea === "Decisions" ||
-		decisionId
+		decisionId ||
+		riskId
 	) {
 		return (
 			<DecisionsProjectSection
 				decisionId={decisionId}
 				onDecisionId={onDecisionId}
+				onRiskId={onRiskId}
 				projectId={projectId}
+				riskId={riskId}
 				sectionId={decisionsAnchor}
 			/>
 		);
@@ -521,8 +549,10 @@ function ProjectBody({
 	onDecisionId,
 	onGoalId,
 	onOpenEditor,
+	onRiskId,
 	onToggle,
 	onWorkId,
+	riskId,
 	selectedAnchor,
 	workId,
 }: {
@@ -534,8 +564,10 @@ function ProjectBody({
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
+	onRiskId?: (riskId: string | null) => void;
 	onToggle: () => void;
 	onWorkId?: (workId: string | null) => void;
+	riskId?: string | null;
 	selectedAnchor: string;
 	workId?: string | null;
 }) {
@@ -543,6 +575,7 @@ function ProjectBody({
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const documentsAnchor = projectShellAnchor("Documents");
 	const decisionsAnchor = projectShellAnchor("Decisions");
+	const risksAnchor = projectShellAnchor("Risks");
 	const fileAttachmentAnchor = projectShellAnchor("File Attachment");
 	const selectedArea = data.allToolsAreas
 		.map((area) => area.name)
@@ -558,8 +591,11 @@ function ProjectBody({
 		documentsAnchor,
 		fileAttachmentAnchor,
 		onDecisionId,
+		onRiskId,
 		onWorkId,
 		projectId: data.id,
+		riskId: showingWork ? null : riskId,
+		risksAnchor,
 		selectedAnchor,
 		selectedArea,
 	});

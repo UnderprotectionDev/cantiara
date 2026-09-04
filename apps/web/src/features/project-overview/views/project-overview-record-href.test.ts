@@ -13,4 +13,7 @@ test("Open source record stays on Overview or the matching Project area", () => 
 	expect(projectOverviewRecordHref("Goals", "goal_1")).toBe(
 		"?goal=goal_1#overview"
 	);
+	expect(projectOverviewRecordHref("Risks", "risk_1")).toBe(
+		"?risk=risk_1#risks"
+	);
 });
