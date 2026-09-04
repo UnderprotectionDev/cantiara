@@ -1290,8 +1290,25 @@ async function presentEnd(
 	if (input.kind === "Document") {
 		return await presentDocumentEnd(db, input);
 	}
+	return await presentRemainingEnd(db, input, override);
+}
+
+async function presentRemainingEnd(
+	db: PrismaClient | PrismaTransaction,
+	input: {
+		establishedAt: string;
+		id: string;
+		kind: RecordKind;
+		overrides: Record<string, EndLifecycleOverride>;
+		viewerWorkspaceId: string;
+	},
+	override: EndLifecycleOverride | undefined
+): Promise<PresentedEnd> {
 	if (input.kind === "Milestone") {
 		return await presentMilestoneEnd(db, input);
+	}
+	if (input.kind === "Project Goal") {
+		return await presentProjectGoalEnd(db, input);
 	}
 	if (input.kind === "File Attachment") {
 		return await presentFileAttachmentEnd(db, input);
@@ -1382,6 +1399,41 @@ async function presentFileAttachmentEnd(
 		openSourceRecord: true,
 		status: "resolved",
 		title: file.title,
+	};
+}
+
+async function presentProjectGoalEnd(
+	db: PrismaClient | PrismaTransaction,
+	input: {
+		establishedAt: string;
+		id: string;
+		kind: RecordKind;
+		overrides: Record<string, EndLifecycleOverride>;
+		viewerWorkspaceId: string;
+	}
+): Promise<PresentedEnd> {
+	if (
+		!("projectGoal" in db) ||
+		typeof db.projectGoal?.findUnique !== "function"
+	) {
+		return brokenEnd(input, { reason: RELATIONS_COPY.permanentlyDeleted });
+	}
+	const goal = await db.projectGoal.findUnique({
+		include: { project: true },
+		where: { id: input.id },
+	});
+	if (!goal) {
+		return brokenEnd(input, { reason: RELATIONS_COPY.permanentlyDeleted });
+	}
+	if (goal.project.workspaceId !== input.viewerWorkspaceId) {
+		return brokenEnd(input, { reason: RELATIONS_COPY.noAccess });
+	}
+	return {
+		id: goal.id,
+		kind: "Project Goal",
+		openSourceRecord: true,
+		status: "resolved",
+		title: goal.title,
 	};
 }
 

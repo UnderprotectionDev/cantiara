@@ -253,6 +253,7 @@ _Avoid_: otomatik gerçekleşen, ilerleme yüzdesi
 
 **Hedefe katkı**:
 İş, Kilometre Taşı veya Proje Sürümünün bir Proje Hedefine türlenmiş üyeliği; Karar, kanıt veya testi Hedefe doğrudan bağlayan genel ilişki değildir.
+UI: `Contributes to Goal`, `In Goal`.
 _Avoid_: İlgili, Hedef kanıtı, otomatik hedef ilerlemesi
 
 **Kilometre Taşı**:

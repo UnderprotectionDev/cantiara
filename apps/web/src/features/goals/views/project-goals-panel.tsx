@@ -1,6 +1,10 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
+import {
+	NativeSelect,
+	NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
@@ -246,13 +250,21 @@ export default function ProjectGoalsPanel({
 				</ul>
 			)}
 			{goal ? (
-				<ProjectGoalEditForm
-					copy={copy}
-					goal={goal}
-					key={`${goal.id}:${goal.revision}`}
-					onSave={onUpdate}
-					pending={update.isPending}
-				/>
+				<>
+					<ProjectGoalEditForm
+						copy={copy}
+						goal={goal}
+						key={`${goal.id}:${goal.revision}`}
+						onSave={onUpdate}
+						pending={update.isPending}
+					/>
+					<ProjectGoalMembership
+						copy={copy}
+						goal={goal}
+						onError={setWriteError}
+						projectId={projectId}
+					/>
+				</>
 			) : null}
 		</section>
 	);
@@ -372,5 +384,317 @@ function ProjectGoalEditForm({
 				{copy.save}
 			</Button>
 		</form>
+	);
+}
+
+interface GoalDetail {
+	contributions: Array<{
+		from: {
+			id: string;
+			kind: string;
+			reason?: string;
+			status: "resolved" | "broken";
+			title?: string;
+		};
+		id: string;
+		type: string;
+	}>;
+	id: string;
+	liveSummary: {
+		copy: {
+			contributesToGoal: string;
+			openQuestion: string;
+			openSourceRecord: string;
+			risk: string;
+		};
+		relatedOpen: Array<{
+			contributes: false;
+			id: string;
+			kind: "Risk" | "Question";
+			openSourceRecord: boolean;
+			title?: string;
+		}>;
+		statusMix: Array<{
+			id: string;
+			kind: "Work" | "Milestone";
+			openSourceRecord: true;
+			status: string;
+			title: string;
+			workType?: "Research" | "Feature";
+		}>;
+	};
+}
+
+function ProjectGoalMembership({
+	copy,
+	goal,
+	onError,
+	projectId,
+}: {
+	copy: typeof PROJECT_GOAL_COPY;
+	goal: GoalDetail;
+	onError: (message: string | null) => void;
+	projectId: string;
+}) {
+	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const works = useQuery(
+		orpc.workLifecycle.list.queryOptions({ input: { projectId } })
+	);
+	const milestones = useQuery(
+		orpc.roadmapHorizon.listMilestones.queryOptions({
+			input: { projectId },
+		})
+	);
+	const invalidate = useCallback(async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				predicate: (query) =>
+					JSON.stringify(query.queryKey).includes("projectGoals") ||
+					JSON.stringify(query.queryKey).includes("workLifecycle") ||
+					JSON.stringify(query.queryKey).includes("roadmapHorizon"),
+			}),
+		]);
+	}, []);
+	const contribute = useMutation(
+		orpc.projectGoals.contributeToGoal.mutationOptions({
+			onSuccess: invalidate,
+		})
+	);
+	const remove = useMutation(
+		orpc.projectGoals.removeContribution.mutationOptions({
+			onSuccess: invalidate,
+		})
+	);
+	const onContribute = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			const form = event.currentTarget;
+			const data = new FormData(form);
+			const selected = String(data.get("member") ?? "");
+			const parsed = parseMemberValue(selected);
+			if (!parsed) {
+				return;
+			}
+			onError(null);
+			markUnsaved();
+			const result = attemptOnlineWork("record-create", () =>
+				contribute.mutateAsync({
+					from: parsed,
+					goalId: goal.id,
+					idempotencyKey: newIdempotencyKey(),
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value
+				.then((outcome) => {
+					const notice = projectGoalWriteNotice(outcome);
+					if (notice) {
+						onError(notice);
+						return;
+					}
+					if (outcome.status === "committed") {
+						recordSave();
+						form.reset();
+					}
+				})
+				.catch(() => {
+					onError(copy.unavailable);
+				});
+		},
+		[
+			attemptOnlineWork,
+			contribute,
+			copy.unavailable,
+			goal.id,
+			markUnsaved,
+			onError,
+			recordSave,
+		]
+	);
+	const onRemove = useCallback(
+		(relationId: string) => {
+			onError(null);
+			markUnsaved();
+			const result = attemptOnlineWork("record-create", () =>
+				remove.mutateAsync({
+					idempotencyKey: newIdempotencyKey(),
+					relationId,
+				})
+			);
+			if (result.status === "refused") {
+				return;
+			}
+			result.value
+				.then((outcome) => {
+					const notice = projectGoalWriteNotice(outcome);
+					if (notice) {
+						onError(notice);
+						return;
+					}
+					if (outcome.status === "committed") {
+						recordSave();
+					}
+				})
+				.catch(() => {
+					onError(copy.unavailable);
+				});
+		},
+		[
+			attemptOnlineWork,
+			copy.unavailable,
+			markUnsaved,
+			onError,
+			recordSave,
+			remove,
+		]
+	);
+	const workRows = works.data ?? [];
+	const milestoneRows = milestones.data ?? [];
+	const summary = goal.liveSummary;
+	return (
+		<section
+			aria-label={copy.contributesToGoal}
+			className="mt-6 flex flex-col gap-3"
+		>
+			<h3 className="font-medium text-sm">{copy.contributesToGoal}</h3>
+			{goal.contributions.length === 0 ? (
+				<p className="text-muted-foreground text-sm">{copy.noContributions}</p>
+			) : (
+				<ul className="flex flex-col gap-2">
+					{goal.contributions.map((row) => (
+						<li
+							className="flex flex-wrap items-center justify-between gap-2 text-sm"
+							key={row.id}
+						>
+							<span>
+								{row.from.status === "resolved"
+									? (row.from.title ?? row.from.kind)
+									: (row.from.reason ?? row.from.kind)}
+							</span>
+							<span className="flex items-center gap-2">
+								{row.from.status === "resolved" && row.from.kind === "Work" ? (
+									<a
+										className="underline-offset-4 hover:underline"
+										href={`?work=${encodeURIComponent(row.from.id)}#work`}
+									>
+										{copy.openSourceRecord}
+									</a>
+								) : null}
+								<GoalContributionRemove
+									label={copy.remove}
+									onRemove={onRemove}
+									relationId={row.id}
+								/>
+							</span>
+						</li>
+					))}
+				</ul>
+			)}
+			<form className="flex flex-col gap-3" onSubmit={onContribute}>
+				<Field>
+					<FieldLabel htmlFor={`project-goal-member-${goal.id}`}>
+						{copy.contributesToGoal}
+					</FieldLabel>
+					<NativeSelect
+						defaultValue=""
+						id={`project-goal-member-${goal.id}`}
+						name="member"
+					>
+						<NativeSelectOption value="">
+							{copy.contributesToGoal}
+						</NativeSelectOption>
+						{workRows.map((work) => (
+							<NativeSelectOption key={work.id} value={`Work:${work.id}`}>
+								{work.key} {work.title}
+							</NativeSelectOption>
+						))}
+						{milestoneRows.map((milestone) => (
+							<NativeSelectOption
+								key={milestone.id}
+								value={`Milestone:${milestone.id}`}
+							>
+								{milestone.title} · {milestone.status}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</Field>
+				<Button
+					disabled={
+						contribute.isPending ||
+						(workRows.length === 0 && milestoneRows.length === 0)
+					}
+					size="sm"
+					type="submit"
+				>
+					{copy.contributesToGoal}
+				</Button>
+			</form>
+			<ul
+				aria-label={summary.copy.contributesToGoal}
+				className="flex flex-col gap-2 text-sm"
+			>
+				{summary.statusMix.map((item) => (
+					<li key={`${item.kind}:${item.id}`}>
+						{item.workType ? `${item.workType} · ` : null}
+						{item.title} · {item.status}{" "}
+						{item.openSourceRecord && item.kind === "Work" ? (
+							<a
+								className="underline-offset-4 hover:underline"
+								href={`?work=${encodeURIComponent(item.id)}#work`}
+							>
+								{summary.copy.openSourceRecord}
+							</a>
+						) : null}
+					</li>
+				))}
+				{summary.relatedOpen.map((item) => (
+					<li key={`${item.kind}:${item.id}`}>
+						{item.kind === "Risk"
+							? summary.copy.risk
+							: summary.copy.openQuestion}
+						{item.title ? ` ${item.title}` : ""}
+					</li>
+				))}
+			</ul>
+		</section>
+	);
+}
+
+function parseMemberValue(
+	value: string
+): { id: string; kind: "Work" | "Milestone" | "Project Release" } | null {
+	const separator = value.indexOf(":");
+	if (separator <= 0) {
+		return null;
+	}
+	const kind = value.slice(0, separator);
+	const id = value.slice(separator + 1);
+	if (id.length === 0) {
+		return null;
+	}
+	if (kind === "Work" || kind === "Milestone" || kind === "Project Release") {
+		return { id, kind };
+	}
+	return null;
+}
+
+function GoalContributionRemove({
+	label,
+	onRemove,
+	relationId,
+}: {
+	label: string;
+	onRemove: (relationId: string) => void;
+	relationId: string;
+}) {
+	const onClick = useCallback(() => {
+		onRemove(relationId);
+	}, [onRemove, relationId]);
+	return (
+		<Button onClick={onClick} size="sm" type="button" variant="ghost">
+			{label}
+		</Button>
 	);
 }
