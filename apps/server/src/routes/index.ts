@@ -12,6 +12,7 @@ import { customFields } from "../features/custom-fields/server/custom-fields-rpc
 import { dailyFocus } from "../features/daily-focus/server/daily-focus-rpc";
 import { decisions } from "../features/decisions/server/decisions-rpc";
 import { documents } from "../features/documents/server/documents-rpc";
+import { evidence } from "../features/evidence/server/evidence-rpc";
 import { externalHandoffs } from "../features/external-handoffs/server/external-handoffs-rpc";
 import { favorites } from "../features/favorites/server/favorites-rpc";
 import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
@@ -57,6 +58,7 @@ export const appRouter = {
 	dailyFocus,
 	decisions,
 	documents,
+	evidence,
 	externalHandoffs,
 	favorites,
 	fileAttachments,

@@ -1,0 +1,27 @@
+model EvidencePin {
+  id                     String   @id
+  relationId             String   @unique
+  sourceKind             String
+  sourceId               String
+  sourceVersionId        String
+  sourceVersionNumber    Int
+  rangeStart             Int
+  rangeEnd               Int
+  rangeText              String
+  surroundingText        String
+  targetKind             String
+  targetId               String
+  originOwnerKind        String?
+  originOwnerId          String?
+  originComponentId      String?
+  originSourceVersion    String?
+  originComponentMissing Boolean   @default(false)
+  contentRedacted        Boolean   @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([sourceKind, sourceId])
+  @@index([sourceVersionId])
+  @@index([targetKind, targetId])
+  @@map("evidence_pin")
+}
