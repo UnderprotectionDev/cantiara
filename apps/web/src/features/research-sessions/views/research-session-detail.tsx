@@ -33,7 +33,7 @@ export default function ResearchSessionDetail({
 	const [quote, setQuote] = useState("");
 	const [speaker, setSpeaker] = useState("");
 	const [observation, setObservation] = useState("");
-	const [interpretation, setInterpretation] = useState("");
+	const [founderInterpretation, setFounderInterpretation] = useState("");
 	const [fileAttachmentId, setFileAttachmentId] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const invalidate = useCallback(async () => {
@@ -93,7 +93,7 @@ export default function ResearchSessionDetail({
 			},
 		})
 	);
-	const writeInterpretation = useMutation(
+	const writeFounderInterpretation = useMutation(
 		orpc.researchSessions.writeFounderInterpretation.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "rejected") {
@@ -101,7 +101,7 @@ export default function ResearchSessionDetail({
 					return;
 				}
 				setError(null);
-				setInterpretation("");
+				setFounderInterpretation("");
 				await invalidate();
 			},
 		})
@@ -154,22 +154,22 @@ export default function ResearchSessionDetail({
 		},
 		[observation, session.data, sessionId, writeObservation]
 	);
-	const onInterpretationSubmit = useCallback(
+	const onFounderInterpretationSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
 			if (!session.data) {
 				return;
 			}
-			writeInterpretation.mutate({
+			writeFounderInterpretation.mutate({
 				baseRevision: session.data.revision,
 				idempotencyKey: newIdempotencyKey(),
 				payload: {
-					body: interpretation,
+					body: founderInterpretation,
 					sessionId,
 				},
 			});
 		},
-		[interpretation, session.data, sessionId, writeInterpretation]
+		[founderInterpretation, session.data, sessionId, writeFounderInterpretation]
 	);
 	const onAttachFileSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
@@ -249,9 +249,9 @@ export default function ResearchSessionDetail({
 		},
 		[]
 	);
-	const onInterpretationChange = useCallback(
+	const onFounderInterpretationChange = useCallback(
 		(event: ChangeEvent<HTMLTextAreaElement>) => {
-			setInterpretation(event.target.value);
+			setFounderInterpretation(event.target.value);
 		},
 		[]
 	);
@@ -406,17 +406,17 @@ export default function ResearchSessionDetail({
 			</form>
 			<form
 				className="flex flex-col gap-3 border-muted-foreground border-l-2 border-dashed pl-3"
-				onSubmit={onInterpretationSubmit}
+				onSubmit={onFounderInterpretationSubmit}
 			>
 				<Field>
-					<FieldLabel htmlFor="research-session-interpretation">
+					<FieldLabel htmlFor="research-session-founder-interpretation">
 						{RESEARCH_SESSIONS_COPY.founderInterpretation}
 					</FieldLabel>
 					<Textarea
 						disabled={!session.data.consentGatesOpen}
-						id="research-session-interpretation"
-						onChange={onInterpretationChange}
-						value={interpretation}
+						id="research-session-founder-interpretation"
+						onChange={onFounderInterpretationChange}
+						value={founderInterpretation}
 					/>
 				</Field>
 				<Button disabled={!session.data.consentGatesOpen} type="submit">
@@ -448,7 +448,8 @@ export default function ResearchSessionDetail({
 							key={note.id}
 						>
 							{note.kind}
-							{speakerSuffix(note.kind, note.speakerLabel)}: {note.body}
+							{speakerSuffix(note.kind, note.speakerLabel)}:{" "}
+							{noteDisplayBody(note.kind, note.body)}
 						</li>
 					))}
 				</ul>
@@ -482,4 +483,11 @@ function speakerSuffix(kind: string, speakerLabel: string | null): string {
 		return "";
 	}
 	return ` · ${speakerLabel}`;
+}
+
+function noteDisplayBody(kind: string, body: string): string {
+	if (kind === RESEARCH_SESSIONS_COPY.participantQuote) {
+		return `\u201c${body}\u201d`;
+	}
+	return body;
 }

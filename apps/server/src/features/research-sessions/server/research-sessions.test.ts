@@ -49,7 +49,7 @@ const DATABASE_URL = localTestDatabaseUrl();
 const CALENDAR_OR_CRM =
 	/invite|attendance|CRM stage|research score|calendar event/i;
 const LEGAL_JUDGMENT = /GDPR|lawful basis|certified compliant/i;
-const FEEDBACK_OR_TEST = /Feedback|Test Session/;
+const FEEDBACK_OR_TEST = /Feedback|Test Session|Validation Record/;
 const SPEAKER_OR_COUNT = /speaker|count|1 quote/i;
 const AUTO_THEME_OR_SENTIMENT =
 	/sentiment|auto-learnings|auto theme|theme cluster/i;
@@ -825,7 +825,7 @@ describe("Research Sessions", () => {
 			},
 		});
 		expect(observationWithSpeaker).toEqual({
-			reason: "untyped-note-refused",
+			reason: "invalid-command",
 			status: "rejected",
 		});
 	});

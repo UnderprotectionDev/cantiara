@@ -544,7 +544,7 @@ async function writeNote(
 			? (parsed.data.payload.speakerLabel ?? null)
 			: null;
 	if (kind !== NOTE_KIND.participantQuote && parsed.data.payload.speakerLabel) {
-		return { reason: "untyped-note-refused", status: "rejected" };
+		return { reason: "invalid-command", status: "rejected" };
 	}
 	const payload = {
 		...parsed.data.payload,
