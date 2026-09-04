@@ -43,6 +43,7 @@ import {
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
+import AssumptionArea from "@/features/uncertainty-records/views/assumption-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
 
@@ -78,10 +79,12 @@ interface ProjectShellRecord {
 }
 
 export default function ProjectProfile({
+	assumptionId,
 	configurationEditor,
 	configurationMode,
 	decisionId,
 	goalId,
+	onAssumptionId,
 	onDecisionId,
 	onGoalId,
 	onPresentationChange,
@@ -89,10 +92,12 @@ export default function ProjectProfile({
 	projectId,
 	workId,
 }: {
+	assumptionId?: string | null;
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
 	decisionId?: string | null;
 	goalId?: string | null;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onPresentationChange: (next: {
@@ -210,11 +215,13 @@ export default function ProjectProfile({
 					<p className="truncate font-medium text-sm">{data.name}</p>
 				</div>
 				<ProjectBody
+					assumptionId={assumptionId}
 					configurationEditor={configurationEditor}
 					configurationMode={configurationMode}
 					data={data}
 					decisionId={decisionId}
 					goalId={goalId}
+					onAssumptionId={onAssumptionId}
 					onDecisionId={onDecisionId}
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
@@ -424,12 +431,16 @@ function DocumentsProjectSection({
 }
 
 function DecisionsProjectSection({
+	assumptionId,
 	decisionId,
+	onAssumptionId,
 	onDecisionId,
 	projectId,
 	sectionId,
 }: {
+	assumptionId?: string | null;
 	decisionId?: string | null;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	projectId: string;
 	sectionId: string;
@@ -439,10 +450,15 @@ function DecisionsProjectSection({
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">
 				Decisions
 			</h1>
-			<div className="mt-6">
+			<div className="mt-6 flex flex-col gap-10">
 				<DecisionArea
 					decisionId={decisionId}
 					onDecisionId={onDecisionId}
+					projectId={projectId}
+				/>
+				<AssumptionArea
+					assumptionId={assumptionId}
+					onAssumptionId={onAssumptionId}
 					projectId={projectId}
 				/>
 			</div>
@@ -451,20 +467,24 @@ function DecisionsProjectSection({
 }
 
 function projectRecordArea({
+	assumptionId,
 	decisionId,
 	decisionsAnchor,
 	documentsAnchor,
 	fileAttachmentAnchor,
+	onAssumptionId,
 	onDecisionId,
 	onWorkId,
 	projectId,
 	selectedAnchor,
 	selectedArea,
 }: {
+	assumptionId?: string | null;
 	decisionId?: string | null;
 	decisionsAnchor: string;
 	documentsAnchor: string;
 	fileAttachmentAnchor: string;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
@@ -483,11 +503,14 @@ function projectRecordArea({
 	if (
 		selectedAnchor === decisionsAnchor ||
 		selectedArea === "Decisions" ||
-		decisionId
+		decisionId ||
+		assumptionId
 	) {
 		return (
 			<DecisionsProjectSection
+				assumptionId={assumptionId}
 				decisionId={decisionId}
+				onAssumptionId={onAssumptionId}
 				onDecisionId={onDecisionId}
 				projectId={projectId}
 				sectionId={decisionsAnchor}
@@ -513,11 +536,13 @@ function projectRecordArea({
 }
 
 function ProjectBody({
+	assumptionId,
 	configurationEditor,
 	configurationMode,
 	data,
 	decisionId,
 	goalId,
+	onAssumptionId,
 	onDecisionId,
 	onGoalId,
 	onOpenEditor,
@@ -526,11 +551,13 @@ function ProjectBody({
 	selectedAnchor,
 	workId,
 }: {
+	assumptionId?: string | null;
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
 	data: ProjectShellRecord;
 	decisionId?: string | null;
 	goalId?: string | null;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
@@ -553,10 +580,12 @@ function ProjectBody({
 		workViews: data.workViews,
 	});
 	const recordArea = projectRecordArea({
+		assumptionId: showingWork ? null : assumptionId,
 		decisionId: showingWork ? null : decisionId,
 		decisionsAnchor,
 		documentsAnchor,
 		fileAttachmentAnchor,
+		onAssumptionId,
 		onDecisionId,
 		onWorkId,
 		projectId: data.id,
