@@ -11,15 +11,32 @@ const LINE_SPLIT = /\r?\n/;
 
 export const EVIDENCE_COPY = {
 	bindAsEvidenceToExistingRecord: "Bind as evidence to existing record",
+	contradicting: "Contradicting",
 	convertToNewRecordAndBind: "Convert to new record and bind",
+	evidenceRole: "Evidence Role",
+	founderInterpretation: "Founder interpretation",
+	inconclusive: "Inconclusive",
 	newerVersionExists: "Newer version exists",
 	openSourceRecord: "Open source record",
 	originLocation: "Origin Location",
 	preview: "Preview",
+	providesContext: "Provides context",
 	sourceElementNoLongerExists: "Source element no longer exists",
 	sourceStaysInPlace: "The source text stays in place.",
+	supporting: "Supporting",
+	unspecified: "Unspecified",
 	versionPinnedEvidence: "Version-pinned evidence",
 } as const;
+
+export const EVIDENCE_ROLES = [
+	EVIDENCE_COPY.supporting,
+	EVIDENCE_COPY.contradicting,
+	EVIDENCE_COPY.providesContext,
+	EVIDENCE_COPY.inconclusive,
+	EVIDENCE_COPY.unspecified,
+] as const;
+
+export type EvidenceRole = (typeof EVIDENCE_ROLES)[number];
 
 export const CONVERT_RECORD_KINDS = [
 	"Work",
@@ -39,6 +56,7 @@ export const SURROUNDING_WINDOW = 80;
 const evidenceSourceKindSchema = z.enum(EVIDENCE_SOURCE_KINDS);
 const evidenceTargetKindSchema = z.enum(EVIDENCE_TARGET_KINDS);
 const convertRecordKindSchema = z.enum(CONVERT_RECORD_KINDS);
+const evidenceRoleSchema = z.enum(EVIDENCE_ROLES);
 
 export const textRangeSchema = z.object({
 	end: z.number().int().nonnegative(),
@@ -71,15 +89,21 @@ export type EvidenceBacklink = z.infer<typeof evidenceBacklinkSchema>;
 export const evidencePinViewSchema = z.object({
 	backlinks: z.array(evidenceBacklinkSchema),
 	contentAccess: z.enum(["open", "redacted"]),
+	founderInterpretation: z.string(),
 	highlight: textRangeSchema,
 	historicalBindExists: z.literal(true),
 	id: z.string().min(1),
+	interpretationActorId: z.string().min(1).nullable(),
+	interpretationSetAt: z.date().nullable(),
 	newerVersionExists: z.boolean(),
 	openSourceRecord: z.literal(EVIDENCE_COPY.openSourceRecord),
 	originLocation: evidenceOriginLocationViewSchema.nullable(),
 	pinnedBody: z.string(),
 	rangeText: z.string(),
 	relationId: z.string().min(1),
+	role: evidenceRoleSchema,
+	roleActorId: z.string().min(1).nullable(),
+	roleSetAt: z.date().nullable(),
 	sourceId: z.string().min(1),
 	sourceKind: evidenceSourceKindSchema,
 	sourceStayedInPlace: z.literal(true),
@@ -239,6 +263,67 @@ export const redactEvidenceCommandSchema = z.object({
 	}),
 	workspaceId: z.string().min(1),
 });
+
+export const setEvidenceRoleCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: z.object({
+		pinId: z.string().min(1),
+		role: evidenceRoleSchema,
+	}),
+	workspaceId: z.string().min(1),
+});
+
+export const setEvidenceFounderInterpretationCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: z.object({
+		founderInterpretation: z.string(),
+		pinId: z.string().min(1),
+	}),
+	workspaceId: z.string().min(1),
+});
+
+export const evidenceRoleGroupSchema = z.object({
+	count: z.number().int().nonnegative(),
+	pins: z.array(evidencePinViewSchema),
+	role: evidenceRoleSchema,
+});
+
+export const evidenceOnTargetSurfaceSchema = z.object({
+	groups: z.array(evidenceRoleGroupSchema),
+	majorityResult: z.null(),
+	suggestedDecision: z.literal(false),
+	totalScore: z.null(),
+});
+
+export type EvidenceOnTargetSurface = z.infer<
+	typeof evidenceOnTargetSurfaceSchema
+>;
+
+export const evidenceShareViewSchema = z.object({
+	founderInterpretation: z.string().nullable(),
+	historicalBindExists: z.literal(true),
+	role: evidenceRoleSchema.nullable(),
+	source: z.object({
+		id: z.string().min(1),
+		kind: evidenceSourceKindSchema,
+	}),
+	target: z.object({
+		id: z.string().min(1),
+		kind: evidenceTargetKindSchema,
+	}),
+	versionRange: z
+		.object({
+			sourceVersionId: z.string().min(1),
+			textRange: textRangeSchema,
+		})
+		.nullable(),
+});
+
+export type EvidenceShareView = z.infer<typeof evidenceShareViewSchema>;
 
 export const EVIDENCE_REJECTION_REASONS = [
 	"invalid-command",

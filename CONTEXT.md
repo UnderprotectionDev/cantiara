@@ -850,8 +850,12 @@ Kesin bir Kaynak, Belge, Diyagram veya Dosya Eki sürümünün belirli bir hedef
 _Avoid_: İlgili ilişkisi, belirsiz referans, otomatik doğrulama
 
 **Kanıt Rolü**:
-Bir Kanıt bağının hedefe göre kapalı kullanım rolü; kaynak metin veya kullanıcı yorumu değildir ([Kanıt Rolü](docs/prd/08-search-relations-and-evidence.md#kanit-rolu-ve-iliski-ustverisi)).
+Bir Kanıt bağının hedefe göre kapalı kullanım rolü; kaynak metin veya kullanıcı yorumu değildir ([Kanıt Rolü](docs/prd/08-search-relations-and-evidence.md#kanit-rolu-ve-iliski-ustverisi)). UI: `Evidence Role` (`Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified`).
 _Avoid_: otomatik sınıflandırma, kanıt kalitesi skoru, Geri Bildirim niteliği
+
+**Kanıt yorumu**:
+Kanıt bağında kaynak metinden ve Kanıt Rolünden ayrı kurucu yorumu; oturum notu veya Insight kaydı değildir. UI: `Founder interpretation`.
+_Avoid_: Insight, otomatik doldurma, Geri Bildirim niteliği, kaynak metin
 
 **Kanıt Akışı**:
 İş, Karar ve Varsayım detayında yalnız açık Kanıtı ilişkilerini zaman sırasıyla gösteren türetilmiş görünüm; yeni kanıt uydurmaz ([Kanıt Akışı](docs/prd/08-search-relations-and-evidence.md#kanıt-akışı)). UI: `Evidence Flow`.

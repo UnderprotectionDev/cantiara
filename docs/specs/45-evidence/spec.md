@@ -44,7 +44,7 @@ Kurucu kesin kaynak veya Belge sürümünü bir iddiaya bağlamak ister. `İlgil
 - **Glossary.** Use Kanıt bağı, Köken konumu, Kökeni, Hedefe katkı (not this relation), İlgili (not evidence). Avoid auto validation, social timeline, notification feed.
 - **Evidence module.** Bind-to-existing uses the full PRD 02 `Kanıtı` / `Kanıt sağlar` ends: exact Source/Document/Diagram version, Feedback, Research Session, Validation Record, Session Test, or File Attachment version → Work/Decision/Risk/Assumption/Question/Test/Project Release or Access/Outcome observation. Convert-to-new-record creates exactly one Work, Decision, Risk, Assumption, or Open Question (stories 1 and 6); it does not mint Test, Project Release, or an observation as the new record. Pin API used by 43/44 rebind. Role + interpretation on the relation helper entity.
 - **Flow.** Derived view on Work, Decision, Assumption. Closed inclusion: explicit Kanıtı only. Observation-targeted binds stay on that observation, not the parent Release’s general evidence.
-- **English UI labels.** As in stories plus `Origin Location` (already in term table). Ticket 01 also shows `Version-pinned evidence`, `Newer version exists`, `Open source record`, and `Source element no longer exists`. Add others when first shown.
+- **English UI labels.** As in stories plus `Origin Location` (already in term table). Ticket 01 also shows `Version-pinned evidence`, `Newer version exists`, `Open source record`, and `Source element no longer exists`. Ticket 02 shows `Evidence Role` and `Founder interpretation` on the relation. Add others when first shown.
 - **Consumers.** 16 Work Context displays. 37 must not use this as Contributes to Goal. 44 calls rebind. 43 calls pin+convert.
 
 ## Testing Decisions

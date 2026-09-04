@@ -10,22 +10,29 @@ import {
 	getEvidencePin,
 	listEvidenceOnSource,
 	listEvidenceOnTarget,
+	listEvidenceOnTargetSurface,
+	presentEvidenceShare,
 	previewBindEvidence,
 	previewConvertEvidence,
 	previewRebindEvidence,
 	rebindEvidence,
 	redactEvidenceContent,
+	setEvidenceFounderInterpretation,
+	setEvidenceRole,
 } from "./evidence";
 import {
 	bindEvidenceCommandSchema,
 	CONVERT_RECORD_KINDS,
 	convertEvidenceCommandSchema,
 	EVIDENCE_COPY,
+	EVIDENCE_ROLES,
 	previewBindEvidenceInputSchema,
 	previewConvertEvidenceInputSchema,
 	previewRebindEvidenceInputSchema,
 	rebindEvidenceCommandSchema,
 	redactEvidenceCommandSchema,
+	setEvidenceFounderInterpretationCommandSchema,
+	setEvidenceRoleCommandSchema,
 } from "./evidence-model";
 
 async function requireAccess(userId: string) {
@@ -59,6 +66,7 @@ export const evidence = {
 	catalog: protectedProcedure.handler(() => ({
 		convertRecordKinds: CONVERT_RECORD_KINDS,
 		copy: EVIDENCE_COPY,
+		roles: EVIDENCE_ROLES,
 	})),
 	convert: protectedWriteProcedure
 		.input(
@@ -185,5 +193,73 @@ export const evidence = {
 				payload: input.payload,
 				workspaceId: access.workspaceId,
 			});
+		}),
+	setFounderInterpretation: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				payload: setEvidenceFounderInterpretationCommandSchema.shape.payload,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await setEvidenceFounderInterpretation(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	setRole: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string().min(1),
+				payload: setEvidenceRoleCommandSchema.shape.payload,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await setEvidenceRole(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	share: protectedProcedure
+		.input(
+			z.object({
+				accessible: z.boolean(),
+				pinId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const pin = await getEvidencePin(
+				getPrismaClient(),
+				input.pinId,
+				access.workspaceId
+			);
+			if (!pin) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return presentEvidenceShare(pin, { accessible: input.accessible });
+		}),
+	surfaceOnTarget: protectedProcedure
+		.input(
+			z.object({
+				targetId: z.string().min(1),
+				targetKind: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await requireAccess(context.session.user.id);
+			return await listEvidenceOnTargetSurface(
+				getPrismaClient(),
+				input.targetKind,
+				input.targetId
+			);
 		}),
 };

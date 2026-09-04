@@ -14,6 +14,7 @@ import {
 	convertKindToEvidenceTargetKind,
 	EVIDENCE_COPY,
 } from "@/features/evidence/forms/evidence-copy";
+import { EvidenceRoleFields } from "@/features/evidence/views/evidence-role-fields";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -309,7 +310,7 @@ export default function BindEvidencePanel({
 			{(pins.data ?? []).map((pin) => (
 				<div className="flex flex-col gap-1" key={pin.id}>
 					<p className="text-muted-foreground text-sm">
-						{pin.rangeText} · {pin.openSourceRecord} ·{" "}
+						{pin.role} · {pin.rangeText} · {pin.openSourceRecord} ·{" "}
 						{pin.backlinks.map((link) => link.targetTitle).join(", ")}
 						{pin.originLocation?.missing
 							? ` · ${EVIDENCE_COPY.originLocation} ${EVIDENCE_COPY.sourceElementNoLongerExists}`
@@ -325,6 +326,15 @@ export default function BindEvidencePanel({
 							sourceKind={sourceKind}
 						/>
 					) : null}
+					<EvidenceRoleFields
+						founderInterpretation={pin.founderInterpretation}
+						pinId={pin.id}
+						role={pin.role}
+						sourceId={sourceId}
+						sourceKind={sourceKind}
+						targetId={pin.targetId}
+						targetKind={pin.targetKind}
+					/>
 				</div>
 			))}
 			<form className="flex flex-col gap-2" onSubmit={onBind}>

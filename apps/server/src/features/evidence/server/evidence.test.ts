@@ -1,8 +1,8 @@
 /**
  * Evidence seam — version-pinned text range bind, convert preview,
- * Origin Location tombstone, and redaction. Role and Evidence Flow
- * belong to later tickets.
- * docs/specs/45-evidence/spec.md and GitHub #327.
+ * Origin Location tombstone, redaction, Kanıt Rolü, and Founder
+ * interpretation. Evidence Flow listing belongs to a later ticket.
+ * docs/specs/45-evidence/spec.md and GitHub #328.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Kanıt akışı).
  */
@@ -14,6 +14,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createDecision } from "../../decisions/server/decisions";
 import { createDocument } from "../../documents/server/documents";
+import { createFeedback } from "../../feedback/server/feedback";
 import { createProject } from "../../project-shell/server/project-shell";
 import { listRelations } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
@@ -37,13 +38,18 @@ import {
 	getEvidencePin,
 	listEvidenceOnSource,
 	listEvidenceOnTarget,
+	listEvidenceOnTargetSurface,
+	openEvidenceRoleSet,
+	presentEvidenceShare,
 	previewBindEvidence,
 	previewConvertEvidence,
 	previewRebindEvidence,
 	rebindEvidence,
 	redactEvidenceContent,
+	setEvidenceFounderInterpretation,
+	setEvidenceRole,
 } from "./evidence";
-import { EVIDENCE_COPY } from "./evidence-model";
+import { EVIDENCE_COPY, EVIDENCE_ROLES } from "./evidence-model";
 
 const DATABASE_URL = localTestDatabaseUrl();
 const AI_OR_MULTI = /\bAI\b|multi-create|classifier/i;
@@ -68,6 +74,7 @@ async function seedWorkspace(prisma: PrismaClient) {
 }
 
 async function resetSharedTables(prisma: PrismaClient) {
+	await prisma.evidenceRelationHistory.deleteMany();
 	await prisma.evidencePin.deleteMany();
 	await prisma.source.deleteMany();
 	await prisma.document.deleteMany();
@@ -136,6 +143,53 @@ async function committedWork(
 		throw new Error("expected work");
 	}
 	return created.work;
+}
+
+async function bindQuotedEvidence(
+	prisma: PrismaClient,
+	input: {
+		actorId: string;
+		selectedText: string;
+		sourceId: string;
+		sourceKind: "Source" | "Document";
+		sourceVersionId: string;
+		targetId: string;
+		targetKind: "Work" | "Decision" | "Risk" | "Assumption" | "Question";
+		workspaceId: string;
+	}
+) {
+	const previewed = await previewBindEvidence(prisma, {
+		selectedText: input.selectedText,
+		sourceId: input.sourceId,
+		sourceKind: input.sourceKind,
+		sourceVersionId: input.sourceVersionId,
+		targetId: input.targetId,
+		targetKind: input.targetKind,
+		workspaceId: input.workspaceId,
+	});
+	if (previewed.status !== "ok") {
+		throw new Error("expected preview");
+	}
+	const bound = await bindEvidence(prisma, {
+		actorId: input.actorId,
+		idempotencyKey: crypto.randomUUID(),
+		origin: "human",
+		payload: {
+			previewFingerprint: previewed.preview.fingerprint,
+			selectedText: input.selectedText,
+			sourceId: input.sourceId,
+			sourceKind: input.sourceKind,
+			sourceVersionId: input.sourceVersionId,
+			targetId: input.targetId,
+			targetKind: input.targetKind,
+		},
+		previewAcknowledged: true,
+		workspaceId: input.workspaceId,
+	});
+	if (bound.status !== "committed") {
+		throw new Error("expected bind");
+	}
+	return bound.pin;
 }
 
 describe("Evidence version-pinned text range", () => {
@@ -706,5 +760,487 @@ describe("Evidence version-pinned text range", () => {
 		const onSource = await listEvidenceOnSource(prisma, "Source", source.id);
 		expect(onSource).toHaveLength(1);
 		expect(onSource[0]?.historicalBindExists).toBe(true);
+	});
+
+	it("stores Unspecified when the founder binds without a Kanıt Rolü", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const source = await committedSource(prisma, {
+			actorId,
+			capturedContent: "This quote contradicts the checkout claim.",
+			projectId,
+		});
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout claim",
+		});
+		const pin = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "This quote contradicts the checkout claim.",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		expect(pin.role).toBe(EVIDENCE_COPY.unspecified);
+		expect(pin.founderInterpretation).toBe("");
+		expect(pin).not.toHaveProperty("evidenceQuality");
+		expect(pin).not.toHaveProperty("kanitNiteligi");
+		expect(JSON.stringify(pin)).not.toMatch(AI_OR_MULTI);
+	});
+
+	it("keeps Kanıt Rolü on the relation, not the Source, with actor and time in history", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const source = await committedSource(prisma, {
+			actorId,
+			capturedContent: "Checkout Session creates a payment page.",
+			projectId,
+		});
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout claim",
+		});
+		const created = await createDecision(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				decision: "Skip Checkout Session.",
+				projectId,
+				rationale: "Different claim.",
+				title: "Skip checkout",
+			},
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected decision");
+		}
+		const supporting = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Checkout Session",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		const contradicting = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Checkout Session",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: created.decision.id,
+			targetKind: "Decision",
+			workspaceId,
+		});
+		const decisionsBefore = await prisma.decision.count({
+			where: { projectId },
+		});
+		const worksBefore = await prisma.work.count({
+			where: { projectId },
+		});
+		const setSupporting = await setEvidenceRole(prisma, {
+			actorId,
+			idempotencyKey: "role-supporting",
+			origin: "human",
+			payload: {
+				pinId: supporting.id,
+				role: EVIDENCE_COPY.supporting,
+			},
+			workspaceId,
+		});
+		expect(setSupporting.status).toBe("committed");
+		if (setSupporting.status !== "committed") {
+			throw new Error("expected role");
+		}
+		expect(setSupporting.pin.role).toBe(EVIDENCE_COPY.supporting);
+		expect(setSupporting.pin.roleActorId).toBe(actorId);
+		expect(setSupporting.pin.roleSetAt).toBeInstanceOf(Date);
+		const setContradicting = await setEvidenceRole(prisma, {
+			actorId,
+			idempotencyKey: "role-contradicting",
+			origin: "human",
+			payload: {
+				pinId: contradicting.id,
+				role: EVIDENCE_COPY.contradicting,
+			},
+			workspaceId,
+		});
+		if (setContradicting.status !== "committed") {
+			throw new Error("expected contradicting role");
+		}
+		expect(setContradicting.pin.role).toBe(EVIDENCE_COPY.contradicting);
+		const sourcePins = await listEvidenceOnSource(prisma, "Source", source.id);
+		expect(sourcePins.map((row) => row.role).sort()).toEqual([
+			EVIDENCE_COPY.contradicting,
+			EVIDENCE_COPY.supporting,
+		]);
+		const still = await getSource(prisma, source.id);
+		expect(still?.capturedContent).toBe(
+			"Checkout Session creates a payment page."
+		);
+		const history = await prisma.evidenceRelationHistory.findMany({
+			orderBy: { occurredAt: "asc" },
+			where: { pinId: supporting.id },
+		});
+		expect(history).toEqual([
+			expect.objectContaining({
+				actorId,
+				fieldKey: "role",
+				nextValue: EVIDENCE_COPY.supporting,
+				previousValue: EVIDENCE_COPY.unspecified,
+			}),
+		]);
+		expect(await prisma.decision.count({ where: { projectId } })).toBe(
+			decisionsBefore
+		);
+		expect(await prisma.work.count({ where: { projectId } })).toBe(worksBefore);
+	});
+
+	it("keeps Founder interpretation off the source text and previous values in relation history", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const body = "Checkout Session creates a payment page.";
+		const source = await committedSource(prisma, {
+			actorId,
+			capturedContent: body,
+			projectId,
+		});
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout claim",
+		});
+		const pin = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Checkout Session",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		const first = await setEvidenceFounderInterpretation(prisma, {
+			actorId,
+			idempotencyKey: "note-1",
+			origin: "human",
+			payload: {
+				founderInterpretation: "This supports the claim.",
+				pinId: pin.id,
+			},
+			workspaceId,
+		});
+		expect(first.status).toBe("committed");
+		if (first.status !== "committed") {
+			throw new Error("expected interpretation");
+		}
+		expect(first.pin.founderInterpretation).toBe("This supports the claim.");
+		expect(first.pin.interpretationActorId).toBe(actorId);
+		expect(first.pin.role).toBe(EVIDENCE_COPY.unspecified);
+		expect(JSON.stringify(first.pin)).not.toMatch(AI_OR_MULTI);
+		const second = await setEvidenceFounderInterpretation(prisma, {
+			actorId,
+			idempotencyKey: "note-2",
+			origin: "human",
+			payload: {
+				founderInterpretation: "Revised: still checkout.",
+				pinId: pin.id,
+			},
+			workspaceId,
+		});
+		if (second.status !== "committed") {
+			throw new Error("expected edit");
+		}
+		expect(second.pin.founderInterpretation).toBe("Revised: still checkout.");
+		const history = await prisma.evidenceRelationHistory.findMany({
+			orderBy: { occurredAt: "asc" },
+			where: { fieldKey: "founderInterpretation", pinId: pin.id },
+		});
+		expect(history.map((row) => row.previousValue)).toEqual([
+			"",
+			"This supports the claim.",
+		]);
+		expect(history.map((row) => row.nextValue)).toEqual([
+			"This supports the claim.",
+			"Revised: still checkout.",
+		]);
+		const still = await getSource(prisma, source.id);
+		expect(still?.capturedContent).toBe(body);
+		expect(await prisma.researchSessionNote.count()).toBe(0);
+	});
+
+	it("does not reinterpret Kanıt Rolü on a new Source version", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const source = await committedSource(prisma, {
+			actorId,
+			capturedContent: "Checkout Session creates a payment page.",
+			projectId,
+		});
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout claim",
+		});
+		const pin = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Checkout Session",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		await setEvidenceRole(prisma, {
+			actorId,
+			idempotencyKey: "role-keep",
+			origin: "human",
+			payload: { pinId: pin.id, role: EVIDENCE_COPY.providesContext },
+			workspaceId,
+		});
+		const saved = await saveSourceVersion(prisma, {
+			actorId,
+			baseRevision: source.revision,
+			idempotencyKey: "v2",
+			origin: "human",
+			payload: {
+				capturedContent: "Checkout Session now contradicts fees.",
+				sourceId: source.id,
+				title: "Stripe Checkout",
+				url: "https://docs.stripe.com/payments/checkout",
+			},
+		});
+		if (saved.status !== "committed") {
+			throw new Error("expected version");
+		}
+		const previewed = await previewRebindEvidence(prisma, {
+			pinId: pin.id,
+			workspaceId,
+		});
+		if (previewed.status !== "ok") {
+			throw new Error("expected rebind preview");
+		}
+		const rebound = await rebindEvidence(prisma, {
+			actorId,
+			idempotencyKey: "rebind-role",
+			origin: "human",
+			payload: {
+				pinId: pin.id,
+				previewFingerprint: previewed.preview.fingerprint,
+			},
+			previewAcknowledged: true,
+			workspaceId,
+		});
+		if (rebound.status !== "committed") {
+			throw new Error("expected rebind");
+		}
+		expect(rebound.pin.role).toBe(EVIDENCE_COPY.providesContext);
+		expect(rebound.pin.sourceVersionNumber).toBe(2);
+	});
+
+	it("groups the target surface by Kanıt Rolü without a score or suggested Decision", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const source = await committedSource(prisma, {
+			actorId,
+			capturedContent: "Checkout Session creates a payment page.",
+			projectId,
+		});
+		const fees = await committedSource(prisma, {
+			actorId,
+			capturedContent: "Fees remain unclear.",
+			projectId,
+		});
+		const secret = await committedSource(prisma, {
+			actorId,
+			capturedContent: "Secret quote about fees.",
+			projectId,
+		});
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout claim",
+		});
+		const supporting = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Checkout Session",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		const extra = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Fees remain unclear.",
+			sourceId: fees.id,
+			sourceKind: "Source",
+			sourceVersionId: fees.versions[0]?.id ?? "",
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		const hidden = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Secret quote about fees.",
+			sourceId: secret.id,
+			sourceKind: "Source",
+			sourceVersionId: secret.versions[0]?.id ?? "",
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		await setEvidenceRole(prisma, {
+			actorId,
+			idempotencyKey: "g-s",
+			origin: "human",
+			payload: { pinId: supporting.id, role: EVIDENCE_COPY.supporting },
+			workspaceId,
+		});
+		await setEvidenceRole(prisma, {
+			actorId,
+			idempotencyKey: "g-i",
+			origin: "human",
+			payload: { pinId: extra.id, role: EVIDENCE_COPY.inconclusive },
+			workspaceId,
+		});
+		await setEvidenceRole(prisma, {
+			actorId,
+			idempotencyKey: "g-c",
+			origin: "human",
+			payload: { pinId: hidden.id, role: EVIDENCE_COPY.contradicting },
+			workspaceId,
+		});
+		await redactEvidenceContent(prisma, {
+			actorId,
+			idempotencyKey: "g-redact",
+			origin: "human",
+			payload: { pinId: hidden.id },
+			workspaceId,
+		});
+		const surface = await listEvidenceOnTargetSurface(prisma, "Work", work.id);
+		expect(surface.majorityResult).toBeNull();
+		expect(surface.suggestedDecision).toBe(false);
+		expect(surface.totalScore).toBeNull();
+		expect(surface.groups.map((group) => group.role)).toEqual([
+			...EVIDENCE_ROLES,
+		]);
+		expect(
+			openEvidenceRoleSet(surface, EVIDENCE_COPY.supporting).map(
+				(row) => row.id
+			)
+		).toEqual([supporting.id]);
+		expect(
+			openEvidenceRoleSet(surface, EVIDENCE_COPY.inconclusive)
+		).toHaveLength(1);
+		expect(openEvidenceRoleSet(surface, EVIDENCE_COPY.contradicting)).toEqual(
+			[]
+		);
+		expect(
+			surface.groups.find((group) => group.role === EVIDENCE_COPY.supporting)
+				?.count
+		).toBe(1);
+	});
+
+	it("keeps share fields separate and withholds Kanıt Rolü when inaccessible", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const source = await committedSource(prisma, {
+			actorId,
+			capturedContent: "Checkout Session creates a payment page.",
+			projectId,
+		});
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout claim",
+		});
+		const pin = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Checkout Session",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		await setEvidenceRole(prisma, {
+			actorId,
+			idempotencyKey: "share-role",
+			origin: "human",
+			payload: { pinId: pin.id, role: EVIDENCE_COPY.supporting },
+			workspaceId,
+		});
+		await setEvidenceFounderInterpretation(prisma, {
+			actorId,
+			idempotencyKey: "share-note",
+			origin: "human",
+			payload: {
+				founderInterpretation: "Founder note",
+				pinId: pin.id,
+			},
+			workspaceId,
+		});
+		const loaded = await getEvidencePin(prisma, pin.id);
+		if (!loaded) {
+			throw new Error("expected pin");
+		}
+		const exported = presentEvidenceShare(loaded, { accessible: true });
+		expect(exported.role).toBe(EVIDENCE_COPY.supporting);
+		expect(exported.founderInterpretation).toBe("Founder note");
+		expect(exported.source).toEqual({ id: source.id, kind: "Source" });
+		expect(exported.target).toEqual({ id: work.id, kind: "Work" });
+		expect(exported.versionRange?.textRange).toEqual(loaded.textRange);
+		const withheld = presentEvidenceShare(loaded, { accessible: false });
+		expect(withheld.role).toBeNull();
+		expect(withheld.founderInterpretation).toBeNull();
+		expect(withheld.versionRange).toBeNull();
+		expect(withheld.historicalBindExists).toBe(true);
+		expect(JSON.stringify(withheld)).not.toContain(EVIDENCE_COPY.supporting);
+		expect(JSON.stringify(withheld)).not.toContain("Founder note");
+	});
+
+	it("does not copy Geri Bildirim Kanıt niteliği into Kanıt Rolü", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const source = await committedSource(prisma, {
+			actorId,
+			capturedContent: "Fees are too high.",
+			projectId,
+		});
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Pricing claim",
+		});
+		const pin = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Fees are too high.",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		const feedback = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "fb-1",
+			origin: "human",
+			payload: {
+				channel: "Intercom",
+				originalMessage: "Fees are too high.",
+				projectId,
+			},
+		});
+		expect(feedback.status).toBe("committed");
+		const after = await getEvidencePin(prisma, pin.id);
+		expect(after?.role).toBe(EVIDENCE_COPY.unspecified);
+		expect(after).not.toHaveProperty("reportedProblem");
+		expect(after).not.toHaveProperty("impactSeverity");
+		expect(after).not.toHaveProperty("evidenceQuality");
 	});
 });

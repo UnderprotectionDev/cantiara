@@ -16,4 +16,11 @@ test("English Evidence labels stay Bind as evidence and Convert to new record an
 	);
 	expect(EVIDENCE_COPY.newerVersionExists).toBe("Newer version exists");
 	expect(EVIDENCE_COPY.openSourceRecord).toBe("Open source record");
+	expect(EVIDENCE_COPY.supporting).toBe("Supporting");
+	expect(EVIDENCE_COPY.contradicting).toBe("Contradicting");
+	expect(EVIDENCE_COPY.providesContext).toBe("Provides context");
+	expect(EVIDENCE_COPY.inconclusive).toBe("Inconclusive");
+	expect(EVIDENCE_COPY.unspecified).toBe("Unspecified");
+	expect(EVIDENCE_COPY.founderInterpretation).toBe("Founder interpretation");
+	expect(EVIDENCE_COPY.evidenceRole).toBe("Evidence Role");
 });
