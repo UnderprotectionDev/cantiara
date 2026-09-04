@@ -316,16 +316,18 @@ function EvidenceLinkFields({
 						value={audienceFit}
 					/>
 				</FieldGroup>
+				{link.interpretationSetAt ? (
+					<p className="mt-2 text-muted-foreground text-sm">
+						{FEEDBACK_COPY.founderInterpretation} (
+						{FEEDBACK_COPY.impactSeverity}, {FEEDBACK_COPY.usageFrequency},{" "}
+						{FEEDBACK_COPY.independence}, {FEEDBACK_COPY.audienceFit}):{" "}
+						{link.interpretationActorId} {link.interpretationSetAt}
+					</p>
+				) : null}
 				<Button className="mt-2" type="submit">
 					{FEEDBACK_COPY.evidenceQuality}
 				</Button>
 			</form>
-			{link.interpretationSetAt ? (
-				<p className="text-muted-foreground text-sm">
-					{FEEDBACK_COPY.founderInterpretation}: {link.interpretationActorId}{" "}
-					{link.interpretationSetAt}
-				</p>
-			) : null}
 			<form aria-label={FEEDBACK_COPY.evidenceRole} onSubmit={onRole}>
 				<Field>
 					<FieldLabel htmlFor={`${link.id}-role`}>
