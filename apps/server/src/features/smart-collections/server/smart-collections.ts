@@ -647,6 +647,10 @@ async function loadPeriods(
 	}));
 }
 
+function membershipPeriodKey(period: MembershipPeriod): string {
+	return `${period.recordId}:${period.recordKind}:${period.open}`;
+}
+
 function sameMembershipPeriods(
 	left: readonly MembershipPeriod[],
 	right: readonly MembershipPeriod[]
@@ -654,14 +658,20 @@ function sameMembershipPeriods(
 	if (left.length !== right.length) {
 		return false;
 	}
-	const keys = new Set(
-		left.map(
-			(period) => `${period.recordId}:${period.recordKind}:${period.open}`
-		)
-	);
-	return right.every((period) =>
-		keys.has(`${period.recordId}:${period.recordKind}:${period.open}`)
-	);
+	const remaining = new Map<string, number>();
+	for (const period of left) {
+		const key = membershipPeriodKey(period);
+		remaining.set(key, (remaining.get(key) ?? 0) + 1);
+	}
+	for (const period of right) {
+		const key = membershipPeriodKey(period);
+		const count = remaining.get(key);
+		if (!count) {
+			return false;
+		}
+		remaining.set(key, count - 1);
+	}
+	return true;
 }
 
 async function replacePeriods(

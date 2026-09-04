@@ -142,6 +142,9 @@ function SubscribeControls({
 				htmlFor="smart-collection-notify-on-leave"
 			>
 				<Checkbox
+					aria-describedby={
+						onEntry ? undefined : "smart-collection-notify-on-leave-hint"
+					}
 					checked={onExit}
 					disabled={!onEntry}
 					id="smart-collection-notify-on-leave"
@@ -152,7 +155,10 @@ function SubscribeControls({
 						{copy.notifyOnLeave}
 					</span>
 					{onEntry ? null : (
-						<span className="mt-0.5 block text-muted-foreground text-xs">
+						<span
+							className="mt-0.5 block text-muted-foreground text-xs"
+							id="smart-collection-notify-on-leave-hint"
+						>
 							{copy.turnOnSubscribeFirst}
 						</span>
 					)}

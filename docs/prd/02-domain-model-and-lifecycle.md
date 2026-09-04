@@ -201,7 +201,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Akıllı Koleksiyon | `Smart Collection` | Koşullardan canlı üyelik türeten adlandırılmış görünüm; statik liste veya klasör değildir |
 | Abone ol | `Subscribe` | Kaydın Akıllı Koleksiyona ilk girişinde `smart-collection-entry` Dikkat sinyali açma |
 | Ayrılınca bildir | `Notify on leave` | Aboneliğe ek, kaydın koleksiyondan çıkışında aynı sinyal kimliğiyle ayrılma nedeni |
-| Önce Abone ol | `Turn on Subscribe first.` | `Notify on leave` kapalıyken neden tıklanamadığını söyleyen ipucu |
+| Önce Abone ol | `Turn on Subscribe first.` | `Subscribe` kapalıyken `Notify on leave` neden tıklanamadığını söyleyen ipucu |
 | Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
 | Tüm etiketler | `All tags` | Etiket süzgecinin süzmeyi kaldırma seçeneği |
 | Etiket uygula | `Apply tag` | Erişilebilir kayda mevcut Etiketi bağlama |
