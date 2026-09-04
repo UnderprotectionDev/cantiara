@@ -30,6 +30,7 @@ import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horiz
 import { smartCollections } from "../features/smart-collections/server/smart-collections-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { unifiedCalendar } from "../features/unified-calendar/server/unified-calendar-rpc";
+import { validationRecords } from "../features/validation-records/server/validation-records-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
 import { workChecklists } from "../features/work-checklists/server/work-checklists-rpc";
 import { workContext } from "../features/work-context/server/work-context-rpc";
@@ -74,6 +75,7 @@ export const appRouter = {
 	smartCollections,
 	tags,
 	unifiedCalendar,
+	validationRecords,
 	workChecklists,
 	workContext,
 	workDrafts,

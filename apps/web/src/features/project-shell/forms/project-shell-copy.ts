@@ -116,6 +116,7 @@ export interface ProjectShellSearch {
 	configurationMode?: true;
 	decision?: string;
 	goal?: string;
+	validation?: string;
 	work?: string;
 }
 
@@ -150,6 +151,10 @@ export function projectShellSearch(
 		typeof search.goal === "string" && search.goal.length > 0
 			? search.goal
 			: undefined;
+	const validation =
+		typeof search.validation === "string" && search.validation.length > 0
+			? search.validation
+			: undefined;
 	return {
 		...(configurationMode ? { configurationMode: true as const } : {}),
 		...(configurationMode && configurationEditor
@@ -157,6 +162,7 @@ export function projectShellSearch(
 			: {}),
 		...(decision ? { decision } : {}),
 		...(goal ? { goal } : {}),
+		...(validation ? { validation } : {}),
 		...(work ? { work } : {}),
 	};
 }

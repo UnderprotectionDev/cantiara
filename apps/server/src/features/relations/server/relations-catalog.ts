@@ -124,6 +124,7 @@ export const MAIN_RECORD_KINDS = [
 	"Contact",
 	"Company",
 	"GitHub PR",
+	"Experiment/Validation",
 ] as const satisfies readonly RecordKind[];
 
 export const OWNED_COMPONENT_KINDS = [

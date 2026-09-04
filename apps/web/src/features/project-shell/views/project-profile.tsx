@@ -12,7 +12,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
 import { type MouseEvent, useCallback } from "react";
-
 import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-record-values";
 import DecisionArea from "@/features/decisions/views/decision-area";
 import { DOCUMENTS_COPY } from "@/features/documents/forms/documents-copy";
@@ -43,6 +42,8 @@ import {
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
+import { VALIDATION_RECORDS_COPY } from "@/features/validation-records/forms/validation-records-copy";
+import ValidationRecordArea from "@/features/validation-records/views/validation-record-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
 
@@ -85,8 +86,10 @@ export default function ProjectProfile({
 	onDecisionId,
 	onGoalId,
 	onPresentationChange,
+	onValidationRecordId,
 	onWorkId,
 	projectId,
+	validationRecordId,
 	workId,
 }: {
 	configurationEditor: ConfigurationModeEditor | null;
@@ -100,8 +103,10 @@ export default function ProjectProfile({
 		hash?: string;
 		open: boolean;
 	}) => void;
+	onValidationRecordId?: (validationRecordId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
+	validationRecordId?: string | null;
 	workId?: string | null;
 }) {
 	const project = useQuery(
@@ -219,8 +224,10 @@ export default function ProjectProfile({
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
 					onToggle={onToggle}
+					onValidationRecordId={onValidationRecordId}
 					onWorkId={onWorkId}
 					selectedAnchor={selectedAnchor}
+					validationRecordId={validationRecordId}
 					workId={workId}
 				/>
 			</main>
@@ -483,7 +490,7 @@ function projectRecordArea({
 	if (
 		selectedAnchor === decisionsAnchor ||
 		selectedArea === "Decisions" ||
-		decisionId
+		(decisionId && selectedArea !== "Discovery")
 	) {
 		return (
 			<DecisionsProjectSection
@@ -522,8 +529,10 @@ function ProjectBody({
 	onGoalId,
 	onOpenEditor,
 	onToggle,
+	onValidationRecordId,
 	onWorkId,
 	selectedAnchor,
+	validationRecordId,
 	workId,
 }: {
 	configurationEditor: ConfigurationModeEditor | null;
@@ -535,8 +544,10 @@ function ProjectBody({
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
 	onToggle: () => void;
+	onValidationRecordId?: (validationRecordId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	selectedAnchor: string;
+	validationRecordId?: string | null;
 	workId?: string | null;
 }) {
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
@@ -683,15 +694,26 @@ function ProjectBody({
 		);
 	}
 
-	if (selectedArea === "Discovery") {
+	if (selectedArea === "Discovery" || validationRecordId) {
 		return (
-			<section aria-label={selectedArea} id={projectShellAnchor(selectedArea)}>
+			<section aria-label="Discovery" id={projectShellAnchor("Discovery")}>
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">
-					{selectedArea}
+					Discovery
 				</h1>
 				<p className="mt-2 text-muted-foreground text-sm">Feedback</p>
 				<div className="mt-6">
 					<BoundRecordValuesSurface projectId={data.id} recordType="Feedback" />
+				</div>
+				<h2 className="mt-8 font-medium text-base">
+					{VALIDATION_RECORDS_COPY.validationRecord}
+				</h2>
+				<div className="mt-4">
+					<ValidationRecordArea
+						onOpenDecision={onDecisionId}
+						onValidationRecordId={onValidationRecordId}
+						projectId={data.id}
+						validationRecordId={validationRecordId}
+					/>
 				</div>
 			</section>
 		);
