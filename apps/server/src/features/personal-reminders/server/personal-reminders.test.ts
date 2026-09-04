@@ -15,12 +15,21 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { listPreparedBacklog } from "../../backlog/server/backlog";
 import { createDailyFocus } from "../../daily-focus/server/daily-focus";
-import { createDocument } from "../../documents/server/documents";
+import {
+	createDecision,
+	withdrawDecision,
+} from "../../decisions/server/decisions";
+import {
+	createDocument,
+	updateDocument,
+} from "../../documents/server/documents";
+import { listHeadingSections } from "../../documents/server/documents-live";
 import { DOCUMENT_SCOPE_KIND } from "../../documents/server/documents-model";
 import { createFocusPeriod } from "../../focus-period/server/focus-period";
 import { createProject } from "../../project-shell/server/project-shell";
 import { createMilestone } from "../../roadmap-horizon/server/roadmap-horizon";
 import {
+	closeWork,
 	createWork,
 	getWork,
 	updateWorkPlanningDates,
@@ -28,6 +37,7 @@ import {
 import { createPersonalReminders } from "./personal-reminders";
 import {
 	PERSONAL_REMINDER_ACTION,
+	PERSONAL_REMINDER_CONDITION,
 	PERSONAL_REMINDER_LIFE,
 	PERSONAL_REMINDER_SOURCE_TYPE,
 	PERSONAL_REMINDER_SOURCE_TYPES,
@@ -52,6 +62,10 @@ describe("Personal Reminders catalog", () => {
 				PERSONAL_REMINDERS_COPY.remindMe,
 				PERSONAL_REMINDERS_COPY.reviewLater,
 			],
+			conditions: [
+				PERSONAL_REMINDERS_COPY.inAnyCase,
+				PERSONAL_REMINDERS_COPY.onlyIfStillOpen,
+			],
 			copy: PERSONAL_REMINDERS_COPY,
 			counterparts: PERSONAL_REMINDERS_COUNTERPARTS,
 			kind: "personal-reminders",
@@ -61,6 +75,7 @@ describe("Personal Reminders catalog", () => {
 			],
 			planningWrites: PERSONAL_REMINDERS_PLANNING_WRITES,
 			sourceTypes: PERSONAL_REMINDER_SOURCE_TYPES,
+			stillOpenSourceTypes: ["Work", "Decision", "Milestone"],
 		});
 		expect(PERSONAL_REMINDER_SOURCE_TYPES).toEqual([
 			"Project",
@@ -79,6 +94,11 @@ describe("Personal Reminders catalog", () => {
 		expect(PERSONAL_REMINDERS_COPY.reviewLater).toBe("Review Later");
 		expect(PERSONAL_REMINDERS_COPY.planned).toBe("Planned");
 		expect(PERSONAL_REMINDERS_COPY.cancelled).toBe("Cancelled");
+		expect(PERSONAL_REMINDERS_COPY.inAnyCase).toBe("In any case");
+		expect(PERSONAL_REMINDERS_COPY.onlyIfStillOpen).toBe("Only if still open");
+		expect(PERSONAL_REMINDERS_COPY.missingSection).toBe(
+			"This section is missing."
+		);
 		expect(PERSONAL_REMINDERS_COUNTERPARTS.standaloneReminder).toBe(false);
 		expect(PERSONAL_REMINDERS_COUNTERPARTS.datelessQueue).toBe(false);
 		expect(PERSONAL_REMINDERS_COUNTERPARTS.saveForLaterQueue).toBe(false);
@@ -229,10 +249,13 @@ describe("Personal Reminders", () => {
 		expect(created.reminder).toMatchObject({
 			accountId: actorId,
 			createdByAction: "Remind me",
+			documentSectionId: null,
 			fireAt: FIRE_AT,
 			life: "Planned",
+			openTarget: { kind: "record" },
 			sourceId: work.id,
 			sourceType: "Work",
+			stillOpenCondition: "In any case",
 		});
 		expect(created.reminder).not.toHaveProperty("projectId");
 		const listed = await surface().list();
@@ -529,5 +552,347 @@ describe("Personal Reminders", () => {
 		});
 		await prisma.workspace.deleteMany({ where: { ownerId: otherActor } });
 		await prisma.user.deleteMany({ where: { id: otherActor } });
+	});
+
+	it("binds Review Later on a Document to a stable heading id across rename and move", async () => {
+		const project = await openProject("Alpha");
+		const createdDoc = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: `doc-section-${actorId}`,
+			origin: "human",
+			payload: {
+				body: "# Risks\n\nWatch this.\n\n# Later\n\nOther.",
+				scope: {
+					kind: DOCUMENT_SCOPE_KIND.project,
+					projectId: project.id,
+				},
+				title: "Spec",
+			},
+			workspaceId,
+		});
+		if (createdDoc.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const [risks, later] = listHeadingSections(createdDoc.document.body);
+		if (!(risks && later)) {
+			throw new Error("expected two heading sections");
+		}
+		const risksId = risks.sectionId;
+		const laterId = later.sectionId;
+		const created = await surface().create({
+			createdByAction: PERSONAL_REMINDER_ACTION.reviewLater,
+			documentSectionId: risksId,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: createdDoc.document.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.document,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			return;
+		}
+		expect(created.reminder.createdByAction).toBe("Review Later");
+		expect(created.reminder.documentSectionId).toBe(risksId);
+		expect(created.reminder.openTarget).toEqual({
+			heading: "Risks",
+			kind: "document-section",
+			sectionId: risksId,
+		});
+		const renamed = await updateDocument(prisma, {
+			actorId,
+			baseRevision: createdDoc.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: `# Threats {#${risksId}}\n\nWatch this.\n\n# Later {#${laterId}}\n\nOther.`,
+				documentId: createdDoc.document.id,
+			},
+			workspaceId,
+		});
+		if (renamed.status !== "committed") {
+			throw new Error("expected renamed Document");
+		}
+		const afterRename = await surface().get(created.reminder.id);
+		expect(afterRename?.openTarget).toEqual({
+			heading: "Threats",
+			kind: "document-section",
+			sectionId: risksId,
+		});
+		const moved = await updateDocument(prisma, {
+			actorId,
+			baseRevision: renamed.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: `# Later {#${laterId}}\n\nOther.\n\n# Threats {#${risksId}}\n\nWatch this.`,
+				documentId: createdDoc.document.id,
+			},
+			workspaceId,
+		});
+		if (moved.status !== "committed") {
+			throw new Error("expected moved Document");
+		}
+		const afterMove = await surface().get(created.reminder.id);
+		expect(afterMove?.openTarget).toEqual({
+			heading: "Threats",
+			kind: "document-section",
+			sectionId: risksId,
+		});
+		expect(afterMove?.openTarget).not.toMatchObject({ sectionId: laterId });
+	});
+
+	it("opens the Document and explains a missing section instead of retargeting", async () => {
+		const project = await openProject("Alpha");
+		const createdDoc = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: `doc-missing-${actorId}`,
+			origin: "human",
+			payload: {
+				body: "# Risks\n\nWatch this.\n\n# Later\n\nOther.",
+				scope: {
+					kind: DOCUMENT_SCOPE_KIND.project,
+					projectId: project.id,
+				},
+				title: "Spec",
+			},
+			workspaceId,
+		});
+		if (createdDoc.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const [risks, later] = listHeadingSections(createdDoc.document.body);
+		if (!(risks && later)) {
+			throw new Error("expected two heading sections");
+		}
+		const risksId = risks.sectionId;
+		const laterId = later.sectionId;
+		const created = await surface().create({
+			createdByAction: PERSONAL_REMINDER_ACTION.reviewLater,
+			documentSectionId: risksId,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: createdDoc.document.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.document,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed reminder");
+		}
+		const deleted = await updateDocument(prisma, {
+			actorId,
+			baseRevision: createdDoc.document.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				body: `# Later {#${laterId}}\n\nOther.`,
+				documentId: createdDoc.document.id,
+			},
+			workspaceId,
+		});
+		if (deleted.status !== "committed") {
+			throw new Error("expected Document without Risks");
+		}
+		const listed = await surface().listForSource({
+			sourceId: createdDoc.document.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.document,
+		});
+		expect(listed[0]?.openTarget).toEqual({
+			explanation: PERSONAL_REMINDERS_COPY.missingSection,
+			kind: "missing-section",
+			sectionId: risksId,
+		});
+		expect(listed[0]?.openTarget).not.toMatchObject({
+			kind: "document-section",
+			sectionId: laterId,
+		});
+		const opened = await surface().openTarget(created.reminder.id);
+		expect(opened).toEqual({
+			documentId: createdDoc.document.id,
+			explanation: PERSONAL_REMINDERS_COPY.missingSection,
+			kind: "missing-section",
+			sectionId: risksId,
+		});
+	});
+
+	it("defaults In any case and reads Only if still open from the source life", async () => {
+		const project = await openProject("Alpha");
+		const work = await openWork(project.id, "Ship");
+		const reminders = surface();
+		const unconditional = await reminders.create({
+			createdByAction: PERSONAL_REMINDER_ACTION.reviewLater,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: work.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.work,
+		});
+		if (unconditional.status !== "committed") {
+			throw new Error("expected committed reminder");
+		}
+		expect(unconditional.reminder.stillOpenCondition).toBe("In any case");
+		const stillOpen = await reminders.create({
+			createdByAction: PERSONAL_REMINDER_ACTION.reviewLater,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: work.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.work,
+			stillOpenCondition: PERSONAL_REMINDER_CONDITION.onlyIfStillOpen,
+		});
+		if (stillOpen.status !== "committed") {
+			throw new Error("expected committed still-open reminder");
+		}
+		expect(
+			await reminders.evaluateCondition(unconditional.reminder.id)
+		).toEqual({
+			condition: "In any case",
+			holds: true,
+			reason: null,
+			sourceLife: "open",
+			status: "evaluated",
+		});
+		expect(await reminders.evaluateCondition(stillOpen.reminder.id)).toEqual({
+			condition: "Only if still open",
+			holds: true,
+			reason: null,
+			sourceLife: "open",
+			status: "evaluated",
+		});
+		const closed = await closeWork(prisma, {
+			actorId,
+			baseRevision: work.revision,
+			idempotencyKey: `close-${actorId}`,
+			origin: "human",
+			result: "Completed",
+			workId: work.id,
+		});
+		if (closed.status !== "committed") {
+			throw new Error("expected closed Work");
+		}
+		expect(
+			await reminders.evaluateCondition(unconditional.reminder.id)
+		).toEqual({
+			condition: "In any case",
+			holds: true,
+			reason: null,
+			sourceLife: "resolved",
+			status: "evaluated",
+		});
+		expect(await reminders.evaluateCondition(stillOpen.reminder.id)).toEqual({
+			condition: "Only if still open",
+			holds: false,
+			reason: PERSONAL_REMINDERS_COPY.sourceNoLongerOpen,
+			sourceLife: "resolved",
+			status: "evaluated",
+		});
+		const decision = await createDecision(prisma, {
+			actorId,
+			idempotencyKey: `decision-${actorId}`,
+			origin: "human",
+			payload: {
+				decision: "Ship now",
+				projectId: project.id,
+				rationale: "Window",
+				title: "Go",
+			},
+		});
+		if (decision.status !== "committed") {
+			throw new Error("expected committed Decision");
+		}
+		const onDecision = await reminders.create({
+			createdByAction: PERSONAL_REMINDER_ACTION.reviewLater,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: decision.decision.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.decision,
+			stillOpenCondition: PERSONAL_REMINDER_CONDITION.onlyIfStillOpen,
+		});
+		if (onDecision.status !== "committed") {
+			throw new Error("expected committed Decision reminder");
+		}
+		expect(
+			await reminders.evaluateCondition(onDecision.reminder.id)
+		).toMatchObject({
+			holds: true,
+			sourceLife: "open",
+			status: "evaluated",
+		});
+		const withdrawn = await withdrawDecision(prisma, {
+			actorId,
+			baseRevision: decision.decision.revision,
+			idempotencyKey: `withdraw-${actorId}`,
+			origin: "human",
+			payload: { decisionId: decision.decision.id },
+		});
+		if (withdrawn.status !== "committed") {
+			throw new Error("expected withdrawn Decision");
+		}
+		expect(await reminders.evaluateCondition(onDecision.reminder.id)).toEqual({
+			condition: "Only if still open",
+			holds: false,
+			reason: PERSONAL_REMINDERS_COPY.sourceNoLongerOpen,
+			sourceLife: "resolved",
+			status: "evaluated",
+		});
+		const document = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: `doc-condition-${actorId}`,
+			origin: "human",
+			payload: {
+				scope: {
+					kind: DOCUMENT_SCOPE_KIND.project,
+					projectId: project.id,
+				},
+				title: "Notes",
+			},
+			workspaceId,
+		});
+		if (document.status !== "committed") {
+			throw new Error("expected committed Document");
+		}
+		const onDocument = await reminders.create({
+			createdByAction: PERSONAL_REMINDER_ACTION.reviewLater,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: document.document.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.document,
+			stillOpenCondition: PERSONAL_REMINDER_CONDITION.onlyIfStillOpen,
+		});
+		expect(onDocument).toMatchObject({
+			reason: PERSONAL_REMINDERS_COPY.stillOpenNeedsDefinedLife,
+			status: "invalid",
+		});
+	});
+
+	it("lets Reassess impact create the same Review Later and creates nothing without a date", async () => {
+		const reminders = surface();
+		const skipped = await reminders.createFromReassessImpact({
+			fireAt: null,
+			idempotencyKey: crypto.randomUUID(),
+			projectReleaseId: crypto.randomUUID(),
+		});
+		expect(skipped).toEqual({ status: "skipped" });
+		expect(await reminders.list()).toEqual([]);
+		const missing = await reminders.createFromReassessImpact({
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			projectReleaseId: crypto.randomUUID(),
+		});
+		expect(missing.status).toBe("not-found");
+		expect(await reminders.list()).toEqual([]);
+		const project = await openProject("Alpha");
+		const work = await openWork(project.id, "Ship");
+		const dated = await reminders.create({
+			createdByAction: PERSONAL_REMINDER_ACTION.reviewLater,
+			fireAt: FIRE_AT,
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: work.id,
+			sourceType: PERSONAL_REMINDER_SOURCE_TYPE.work,
+		});
+		if (dated.status !== "committed") {
+			throw new Error("expected committed Review Later");
+		}
+		expect(dated.reminder.createdByAction).toBe("Review Later");
+		expect(personalRemindersCatalog().counterparts.dueDateSignal).toBe(false);
+		const after = await snapshotWorkPlanning(work.id, project.id);
+		expect(after.targetDate).toBeNull();
+		expect(after.reappearDate).toBeNull();
 	});
 });
