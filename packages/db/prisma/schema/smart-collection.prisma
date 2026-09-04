@@ -10,8 +10,31 @@ model SmartCollection {
   revision    Int
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  namedViews  SmartCollectionNamedView[]
 
   @@index([workspaceId])
   @@index([projectId])
   @@map("smart_collection")
+}
+
+model SmartCollectionNamedView {
+  id             String          @id
+  collectionId   String
+  collection     SmartCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  name           String
+  purpose        String?
+  presentation   String
+  groupField     String?
+  sortField      String?
+  sortDirection  String?
+  filterText     String          @default("")
+  visibleFields  Json
+  isDefault      Boolean
+  revision       Int
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([collectionId, name])
+  @@index([collectionId])
+  @@map("smart_collection_named_view")
 }

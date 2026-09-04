@@ -339,6 +339,14 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Alan sıralaması | `Field` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
 | Board | `Board` | Hazır İş görünümü; Kanban sunumu |
 | Liste görünümü | `List` | Kanban ile aynı İş taramasının yoğun satır düzeni; Tablo Görünümü değildir |
+| Gallery | `Gallery` | Akıllı Koleksiyon adlandırılmış görünüm sunumu; Dosya Eki kütüphanesi, Moodboard veya ayrı kapak kaydı değildir |
+| Varsayılan görünüm | `Default` | İş koleksiyonunda ilk adlandırılmış görünüm adı |
+| Adlandırılmış görünüm | `Named view` | Aynı Akıllı Koleksiyon üyeliği üzerindeki saklı sunum; ikinci üyelik kümesi değildir |
+| Yok | `None` | Adlandırılmış görünümde sıra alanı seçilmedi |
+| Yeni iş | `New work` | İş koleksiyonunda doğrudan tekil alan eşitliğini dolduran oluşturma; tarih aralığı veya olumsuz koşul uygulamaz |
+| Kaydedilmemiş değişiklikler | `Unsaved changes` | Adlandırılmış görünümde henüz kaydedilmemiş sunum; üyelik koşulunu yazmaz |
+| Yeni görünüm olarak kaydet | `Save as` | Kirli sunumu yeni adlandırılmış görünüme yazma |
+| Geri dön | `Revert` | Kirli sunumu kayıtlı adlandırılmış görünüme döndürme |
 | Soft WIP | `Soft WIP` | Durum bazlı isteğe bağlı sayı sınırı; aşıldığında nötr işaret, hareket kapısı değildir |
 | Odak eşiği | `Focus threshold` | Proje veya ilgili Akıllı Koleksiyon için isteğe bağlı kişisel devam eden İş sayısı eşiği |
 | Sınır aşıldı | `Over limit` | Soft WIP veya odak eşiği aşımının yalnız renge dayanmayan işareti |
