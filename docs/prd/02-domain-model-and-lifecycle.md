@@ -375,6 +375,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Hatırlatma yaşamı | `Planned`, `Cancelled` | Hatırlatmanın İngilizce yaşam etiketleri; kaynak İş akışı durumu değildir |
 | Hatırlatma zamanı | `When` | Hatırlatmanın kişisel zaman alanı; İş `Target date` değildir |
 | Hatırlatmayı iptal et | `Cancel` | `Planned` Hatırlatmayı `Cancelled` yapan açık eylem |
+| Her durumda | `In any case` | Hatırlatmanın varsayılan koşulsuz açık kalma koşulu |
+| Yalnız hâlâ açıksa | `Only if still open` | Zamanı gelince kaynağın açık/çözülmüş yaşamını okuyan kapalı koşul; genel sorgu değildir |
+| Bölüm | `Section` | Belge `Review Later` hedefinin kararlı Markdown başlık kimliği |
+| Bu bölüm yok | `This section is missing.` | Silinmiş veya çözülemeyen bölüm hedefinin açıklaması; sessiz başka başlık yoktur |
 | Yeniden bakı koru | `Keep Review later` | İz kapanınca bağlı hatırlatmayı bırakma |
 | Yeniden bakı kaldır | `Remove Review later` | İz kapanınca bağlı hatırlatmayı açıkça kaldırma |
 | Planlanmamış adaylar | `Unplanned candidates` | Görünüm filtresine uyan fakat tarih ve ufku olmayan canlı aday alanı |

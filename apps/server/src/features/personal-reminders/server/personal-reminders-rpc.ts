@@ -7,6 +7,7 @@ import { z } from "zod";
 import { createPersonalReminders } from "./personal-reminders";
 import {
 	PERSONAL_REMINDER_ACTIONS,
+	PERSONAL_REMINDER_CONDITIONS,
 	PERSONAL_REMINDER_SOURCE_TYPES,
 	personalRemindersCatalog,
 } from "./personal-reminders-model";
@@ -25,10 +26,12 @@ async function remindersFor(userId: string) {
 
 const createInput = z.object({
 	createdByAction: z.enum(PERSONAL_REMINDER_ACTIONS),
+	documentSectionId: z.string().min(1).nullable().optional(),
 	fireAt: z.string().min(1),
 	idempotencyKey: z.string().min(1),
 	sourceId: z.string(),
 	sourceType: z.enum(PERSONAL_REMINDER_SOURCE_TYPES),
+	stillOpenCondition: z.enum(PERSONAL_REMINDER_CONDITIONS).optional(),
 });
 
 const cancelInput = z.object({
@@ -55,6 +58,24 @@ export const personalReminders = {
 			const surface = await remindersFor(context.session.user.id);
 			return surface.create(input);
 		}),
+	createFromReassessImpact: protectedWriteProcedure
+		.input(
+			z.object({
+				fireAt: z.string().nullable(),
+				idempotencyKey: z.string().min(1),
+				projectReleaseId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const surface = await remindersFor(context.session.user.id);
+			return surface.createFromReassessImpact(input);
+		}),
+	evaluateCondition: protectedProcedure
+		.input(z.object({ reminderId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const surface = await remindersFor(context.session.user.id);
+			return surface.evaluateCondition(input.reminderId);
+		}),
 	get: protectedProcedure
 		.input(z.object({ reminderId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -70,5 +91,11 @@ export const personalReminders = {
 		.handler(async ({ context, input }) => {
 			const surface = await remindersFor(context.session.user.id);
 			return surface.listForSource(input);
+		}),
+	openTarget: protectedProcedure
+		.input(z.object({ reminderId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const surface = await remindersFor(context.session.user.id);
+			return surface.openTarget(input.reminderId);
 		}),
 };
