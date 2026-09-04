@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import SaveSourceVersionForm from "@/features/sources-and-freshness/forms/save-source-version-form";
 import { SOURCES_COPY } from "@/features/sources-and-freshness/forms/sources-copy";
+import SmartLinkPreviewCard from "@/features/sources-and-freshness/views/smart-link-preview-card";
 import { orpc } from "@/utils/orpc";
 
 export default function SourceDetail({
@@ -16,6 +17,12 @@ export default function SourceDetail({
 	const source = useQuery(
 		orpc.sources.get.queryOptions({ input: { sourceId } })
 	);
+	const livePreview = useQuery({
+		...orpc.sources.preview.queryOptions({
+			input: { url: source.data?.url ?? "" },
+		}),
+		enabled: Boolean(source.data?.url),
+	});
 
 	if (source.isPending) {
 		return (
@@ -37,22 +44,15 @@ export default function SourceDetail({
 					{`${SOURCES_COPY.approvedVersion} ${source.data.approvedVersionNumber}`}
 				</p>
 			</header>
+			{livePreview.data?.status === "preview" ? (
+				<SmartLinkPreviewCard preview={livePreview.data} />
+			) : null}
 			<section>
 				<h3 className="text-muted-foreground text-xs">
-					{SOURCES_COPY.address}
+					{SOURCES_COPY.historicalSnapshot}
 				</h3>
 				<p className="mt-1 break-all text-sm">{source.data.url}</p>
-			</section>
-			<section>
-				<h3 className="text-muted-foreground text-xs">
-					{SOURCES_COPY.accessedAt}
-				</h3>
-				<p className="mt-1 text-sm">{source.data.accessedAt}</p>
-			</section>
-			<section>
-				<h3 className="text-muted-foreground text-xs">
-					{SOURCES_COPY.capturedContent}
-				</h3>
+				<p className="mt-1 text-sm">{`${SOURCES_COPY.accessedAt} ${source.data.accessedAt}`}</p>
 				<p className="mt-1 whitespace-pre-wrap text-sm">
 					{source.data.capturedContent}
 				</p>

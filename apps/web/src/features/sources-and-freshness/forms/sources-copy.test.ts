@@ -15,6 +15,10 @@ test("English Source labels stay Source and Save as new Source version", () => {
 	expect(SOURCES_COPY.accessedAt).toBe("Accessed at");
 	expect(SOURCES_COPY.capturedContent).toBe("Captured content");
 	expect(SOURCES_COPY.noSources).toBe("No Sources yet.");
+	expect(SOURCES_COPY.saveAsSource).toBe("Save as Source");
+	expect(SOURCES_COPY.liveExternalSource).toBe("Live external source");
+	expect(SOURCES_COPY.livePreview).toBe("Live preview");
+	expect(SOURCES_COPY.historicalSnapshot).toBe("Historical snapshot");
 	expect(JSON.stringify(SOURCES_COPY)).not.toMatch(FEED_COPY);
 	expect(JSON.stringify(SOURCES_COPY)).not.toMatch(CREDENTIAL_COPY);
 });
