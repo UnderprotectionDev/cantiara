@@ -764,4 +764,58 @@ describe("Return to Work", () => {
 			)
 		).toBe(false);
 	});
+
+	it("uses current status age, not createdAt, so a recent status change is not Long in the same status", async () => {
+		const project = await openProject("Payments");
+		const work = await openWork(project.id, "Moved intake");
+		await prisma.work.update({
+			data: {
+				createdAt: new Date("2026-08-01T12:00:00.000Z"),
+				updatedAt: new Date("2026-08-01T12:00:00.000Z"),
+			},
+			where: { id: work.id },
+		});
+		const current = await getWork(prisma, work.id);
+		if (!current) {
+			throw new Error("expected Work");
+		}
+		const threshold = await surface().setStatusAgeThresholdDays({
+			projectId: project.id,
+			thresholdDays: 7,
+		});
+		expect(threshold.status).toBe("committed");
+		const moved = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: current.revision,
+			idempotencyKey: "move-progress",
+			origin: "human",
+			status: "In Progress",
+			workId: work.id,
+		});
+		expect(moved.status).toBe("committed");
+		const afterMove = await surface().summary({ projectId: project.id });
+		expect(
+			afterMove?.cards.find((card) => card.id === work.id)?.whyShown
+		).not.toBe(CARD_REASON.longInTheSameStatus);
+		expect(
+			afterMove?.preparedSmartCollection?.members.some(
+				(member) => member.id === work.id
+			)
+		).toBe(false);
+		await prisma.workLifecycleEvent.updateMany({
+			data: { createdAt: new Date("2026-08-01T12:00:00.000Z") },
+			where: { workId: work.id },
+		});
+		const afterAge = await surface().summary({ projectId: project.id });
+		expect(afterAge?.cards.find((card) => card.id === work.id)?.whyShown).toBe(
+			CARD_REASON.longInTheSameStatus
+		);
+		expect(afterAge?.preparedSmartCollection?.members).toEqual([
+			expect.objectContaining({
+				because: CARD_REASON.longInTheSameStatus,
+				id: work.id,
+			}),
+		]);
+		expect((await getWork(prisma, work.id))?.status).toBe("In Progress");
+	});
 });
