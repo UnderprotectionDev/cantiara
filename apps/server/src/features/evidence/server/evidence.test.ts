@@ -1,8 +1,8 @@
 /**
  * Evidence seam — version-pinned text range bind, convert preview,
  * Origin Location tombstone, redaction, Kanıt Rolü, and Founder
- * interpretation. Evidence Flow listing belongs to a later ticket.
- * docs/specs/45-evidence/spec.md and GitHub #328.
+ * interpretation, and Evidence Flow listing of explicit Kanıtı rows.
+ * docs/specs/45-evidence/spec.md and GitHub #329.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Kanıt akışı).
  */
@@ -13,16 +13,39 @@ import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createDecision } from "../../decisions/server/decisions";
-import { createDocument } from "../../documents/server/documents";
-import { createFeedback } from "../../feedback/server/feedback";
+import {
+	archiveDocument,
+	createDocument,
+} from "../../documents/server/documents";
+import {
+	createFeedback,
+	setFeedbackStatus,
+} from "../../feedback/server/feedback";
+import { FEEDBACK_STATUS } from "../../feedback/server/feedback-model";
+import {
+	permanentlyDeleteFileAttachment,
+	setFileLifecycle,
+} from "../../file-attachments/server/file-attachments";
+import { FILE_LIFECYCLE } from "../../file-attachments/server/file-attachments-model";
+import { createProjectGoals } from "../../goals/server/project-goals";
 import { createProject } from "../../project-shell/server/project-shell";
-import { listRelations } from "../../relations/server/relations";
+import {
+	createRelation,
+	listRelations,
+} from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
+import {
+	createResearchSession,
+	writeObservation,
+} from "../../research-sessions/server/research-sessions";
+import { CONSENT } from "../../research-sessions/server/research-sessions-model";
 import {
 	createSource,
 	getSource,
 	saveSourceVersion,
 } from "../../sources-and-freshness/server/sources";
+import { createAssumption } from "../../uncertainty-records/server/uncertainty-records";
+import { createValidationRecord } from "../../validation-records/server/validation-records";
 import {
 	addChecklistItem,
 	removeChecklistItem,
@@ -36,6 +59,7 @@ import {
 	bindEvidence,
 	convertToNewRecordAndBind,
 	getEvidencePin,
+	listEvidenceFlow,
 	listEvidenceOnSource,
 	listEvidenceOnTarget,
 	listEvidenceOnTargetSurface,
@@ -49,10 +73,15 @@ import {
 	setEvidenceFounderInterpretation,
 	setEvidenceRole,
 } from "./evidence";
-import { EVIDENCE_COPY, EVIDENCE_ROLES } from "./evidence-model";
+import {
+	EVIDENCE_COPY,
+	EVIDENCE_ROLES,
+	EVIDENCE_SOURCE_KIND,
+} from "./evidence-model";
 
 const DATABASE_URL = localTestDatabaseUrl();
 const AI_OR_MULTI = /\bAI\b|multi-create|classifier/i;
+const FLOW_INVENTION = /\bclassifier\b|timeline snapshot/i;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -78,6 +107,11 @@ async function resetSharedTables(prisma: PrismaClient) {
 	await prisma.evidencePin.deleteMany();
 	await prisma.source.deleteMany();
 	await prisma.document.deleteMany();
+	await prisma.fileAttachment.deleteMany();
+	await prisma.feedback.deleteMany();
+	await prisma.researchSession.deleteMany();
+	await prisma.validationRecord.deleteMany();
+	await prisma.projectGoal.deleteMany();
 	await prisma.typedRelation.deleteMany();
 	await prisma.mutationReceipt.deleteMany();
 	await prisma.workspaceShortCodeReservation.deleteMany();
@@ -151,10 +185,23 @@ async function bindQuotedEvidence(
 		actorId: string;
 		selectedText: string;
 		sourceId: string;
-		sourceKind: "Source" | "Document";
+		sourceKind:
+			| "Source"
+			| "Document"
+			| "Feedback"
+			| "User Research Session"
+			| "Experiment/Validation"
+			| "File Attachment";
 		sourceVersionId: string;
 		targetId: string;
-		targetKind: "Work" | "Decision" | "Risk" | "Assumption" | "Question";
+		targetKind:
+			| "Work"
+			| "Decision"
+			| "Risk"
+			| "Assumption"
+			| "Question"
+			| "Access observation"
+			| "Project Release";
 		workspaceId: string;
 	}
 ) {
@@ -1260,3 +1307,705 @@ describe("Evidence version-pinned text range", () => {
 		expect(after).not.toHaveProperty("evidenceQuality");
 	});
 });
+
+describe("Evidence Flow of explicit Kanıtı relations", () => {
+	let prisma: PrismaClient;
+	let pool: Pool;
+
+	beforeAll(() => {
+		pool = new Pool({ connectionString: DATABASE_URL });
+		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+	});
+
+	beforeEach(async () => {
+		await resetSharedTables(prisma);
+	});
+
+	afterEach(async () => {
+		await resetSharedTables(prisma);
+	});
+
+	it("lists only explicit Kanıtı rows in relation time with clocks kept apart", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout claim",
+		});
+		const source = await committedSource(prisma, {
+			actorId,
+			capturedContent: "Checkout Session creates a payment page.",
+			projectId,
+		});
+		const document = await committedFeesDocument(prisma, {
+			actorId,
+			projectId,
+			workspaceId,
+		});
+		const first = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Checkout Session",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		const second = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "The fee is 2%.",
+			sourceId: document.id,
+			sourceKind: "Document",
+			sourceVersionId: document.versionId,
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		await prisma.sourceVersion.update({
+			data: { accessedAt: new Date("2020-01-02T00:00:00.000Z") },
+			where: { id: source.versions[0]?.id ?? "" },
+		});
+		await setEvidenceRole(prisma, {
+			actorId,
+			idempotencyKey: "flow-role",
+			origin: "human",
+			payload: { pinId: first.id, role: EVIDENCE_COPY.supporting },
+			workspaceId,
+		});
+		await setEvidenceFounderInterpretation(prisma, {
+			actorId,
+			idempotencyKey: "flow-note",
+			origin: "human",
+			payload: {
+				founderInterpretation: "This quote backs the claim.",
+				pinId: first.id,
+			},
+			workspaceId,
+		});
+		await createRelation(prisma, {
+			actorId,
+			from: { id: source.id, kind: "Source" },
+			idempotencyKey: "related-not-evidence",
+			origin: "human",
+			previewAcknowledged: true,
+			to: { id: work.id, kind: "Work" },
+			type: RELATIONS_COPY.related,
+			viewerWorkspaceId: workspaceId,
+		});
+		const pinCount = await prisma.evidencePin.count();
+		const flow = await listEvidenceFlow(prisma, {
+			targetId: work.id,
+			targetKind: "Work",
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(flow.label).toBe(EVIDENCE_COPY.evidenceFlow);
+		expect(flow.storedSnapshot).toBe(false);
+		expect(flow).not.toHaveProperty("theme");
+		expect(flow).not.toHaveProperty("Insight");
+		expect(flow).not.toHaveProperty("summary");
+		expect(flow).not.toHaveProperty("strength");
+		expect(flow.sourceKinds).toEqual([...EVIDENCE_SOURCE_KIND]);
+		expect(flow.rows.map((row) => row.pinId)).toEqual([first.id, second.id]);
+		expect(flow.rows[0]?.sourceKind).toBe("Source");
+		expect(flow.rows[1]?.sourceKind).toBe("Document");
+		expect(flow.rows[0]?.eventTime.toISOString()).toBe(
+			"2020-01-02T00:00:00.000Z"
+		);
+		expect(flow.rows[0]?.relationTime.getTime()).toBeGreaterThan(
+			flow.rows[0]?.eventTime.getTime() ?? 0
+		);
+		expect(flow.rows[0]?.role).toBe(EVIDENCE_COPY.supporting);
+		expect(flow.rows[0]?.founderInterpretation).toBe(
+			"This quote backs the claim."
+		);
+		expect(flow.rows[0]?.eventTime.getTime()).not.toBe(
+			flow.rows[0]?.relationTime.getTime()
+		);
+		expect(JSON.stringify(flow.rows)).not.toMatch(FLOW_INVENTION);
+		const filtered = await listEvidenceFlow(prisma, {
+			sourceKind: "Source",
+			targetId: work.id,
+			targetKind: "Work",
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(filtered.rows.map((row) => row.pinId)).toEqual([first.id]);
+		expect(filtered.sourceKindFilter).toBe("Source");
+		expect(await prisma.evidencePin.count()).toBe(pinCount);
+		const stillWork = await getWork(prisma, work.id);
+		expect(stillWork?.title).toBe("Checkout claim");
+	});
+
+	it("keeps İlgili, Hedefe katkı, and observation binds out of a parent Release flow", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout claim",
+		});
+		const source = await committedSource(prisma, {
+			actorId,
+			capturedContent: "Checkout Session creates a payment page.",
+			projectId,
+		});
+		await createRelation(prisma, {
+			actorId,
+			from: { id: source.id, kind: "Source" },
+			idempotencyKey: "only-related",
+			origin: "human",
+			previewAcknowledged: true,
+			to: { id: work.id, kind: "Work" },
+			type: RELATIONS_COPY.related,
+			viewerWorkspaceId: workspaceId,
+		});
+		const emptyWork = await listEvidenceFlow(prisma, {
+			targetId: work.id,
+			targetKind: "Work",
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(emptyWork.rows).toEqual([]);
+		const goals = createProjectGoals({
+			accountId: actorId,
+			prisma,
+			workspaceId,
+		});
+		const goal = await goals.create({
+			description: "Ship checkout.",
+			idempotencyKey: "goal-1",
+			projectId,
+			title: "Reach checkout",
+		});
+		expect(goal.status).toBe("committed");
+		if (goal.status !== "committed") {
+			throw new Error("expected goal");
+		}
+		const contributed = await goals.contributeToGoal({
+			from: { id: work.id, kind: "Work" },
+			goalId: goal.goal.id,
+			idempotencyKey: "contrib-work",
+		});
+		expect(contributed.status).toBe("committed");
+		const evidenceAsGoal = await goals.contributeToGoal({
+			from: { id: source.id, kind: "Source" },
+			goalId: goal.goal.id,
+			idempotencyKey: "contrib-source",
+		});
+		expect(evidenceAsGoal).toMatchObject({
+			reason: "ends-not-allowed",
+			status: "rejected",
+		});
+		expect(
+			(
+				await listEvidenceFlow(prisma, {
+					targetId: work.id,
+					targetKind: "Work",
+					viewerWorkspaceId: workspaceId,
+				})
+			).rows
+		).toEqual([]);
+		const observationId = crypto.randomUUID();
+		const releaseId = crypto.randomUUID();
+		const onObservation = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Checkout Session",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: observationId,
+			targetKind: "Access observation",
+			workspaceId,
+		});
+		expect(onObservation.targetKind).toBe("Access observation");
+		expect(
+			(
+				await listEvidenceFlow(prisma, {
+					targetId: work.id,
+					targetKind: "Work",
+					viewerWorkspaceId: workspaceId,
+				})
+			).rows
+		).toEqual([]);
+		const releaseFlow = await listEvidenceFlow(prisma, {
+			targetId: releaseId,
+			targetKind: "Work",
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(releaseFlow.rows).toEqual([]);
+		const observationPins = await listEvidenceOnTarget(
+			prisma,
+			"Access observation",
+			observationId
+		);
+		expect(observationPins.map((pin) => pin.id)).toEqual([onObservation.id]);
+	});
+
+	it("shows archived sources and uses broken presentation for trash, redaction, and gone ends", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout claim",
+		});
+		const document = await committedFeesDocument(prisma, {
+			actorId,
+			projectId,
+			workspaceId,
+		});
+		const source = await committedSource(prisma, {
+			actorId,
+			capturedContent: "Secret quote about fees.",
+			projectId,
+		});
+		const file = await committedTextAttachment(prisma, {
+			body: "Invoice excerpt",
+			projectId,
+			workspaceId,
+		});
+		const archivedPin = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "The fee is 2%.",
+			sourceId: document.id,
+			sourceKind: "Document",
+			sourceVersionId: document.versionId,
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		const redactedPin = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Secret quote about fees.",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		const filePin = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Invoice excerpt",
+			sourceId: file.id,
+			sourceKind: "File Attachment",
+			sourceVersionId: file.versionId,
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		await archiveDocument(prisma, {
+			actorId,
+			baseRevision: document.revision,
+			idempotencyKey: "archive-doc",
+			origin: "human",
+			payload: { documentId: document.id },
+			workspaceId,
+		});
+		await redactEvidenceContent(prisma, {
+			actorId,
+			idempotencyKey: "redact-flow",
+			origin: "human",
+			payload: { pinId: redactedPin.id },
+			workspaceId,
+		});
+		await setFileLifecycle(prisma, {
+			fileAttachmentId: file.id,
+			lifecycle: FILE_LIFECYCLE.trash,
+		});
+		const flow = await listEvidenceFlow(prisma, {
+			targetId: work.id,
+			targetKind: "Work",
+			viewerWorkspaceId: workspaceId,
+		});
+		const archived = flow.rows.find((row) => row.pinId === archivedPin.id);
+		const redacted = flow.rows.find((row) => row.pinId === redactedPin.id);
+		const trashed = flow.rows.find((row) => row.pinId === filePin.id);
+		expect(archived).toMatchObject({
+			openSourceRecord: EVIDENCE_COPY.openSourceRecord,
+			presentation: "archived",
+			rangeText: "The fee is 2%.",
+			sourceStatusLabel: RELATIONS_COPY.archived,
+		});
+		expect(redacted).toMatchObject({
+			brokenReason: RELATIONS_COPY.redactedForSecurity,
+			openSourceRecord: null,
+			presentation: "broken",
+			rangeText: "",
+		});
+		expect(JSON.stringify(redacted)).not.toContain("Secret quote");
+		expect(trashed).toMatchObject({
+			brokenReason: RELATIONS_COPY.inTrash,
+			openSourceRecord: null,
+			presentation: "broken",
+			rangeText: "",
+		});
+		await permanentlyDeleteFileAttachment(prisma, file.id);
+		const gone = await listEvidenceFlow(prisma, {
+			targetId: work.id,
+			targetKind: "Work",
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(gone.rows.find((row) => row.pinId === filePin.id)).toMatchObject({
+			brokenReason: RELATIONS_COPY.permanentlyDeleted,
+			presentation: "broken",
+			rangeText: "",
+		});
+		const hidden = await listEvidenceFlow(prisma, {
+			targetId: work.id,
+			targetKind: "Work",
+			viewerWorkspaceId: crypto.randomUUID(),
+		});
+		expect(
+			hidden.rows.every(
+				(row) => row.presentation === "broken" && row.rangeText === ""
+			)
+		).toBe(true);
+		expect(
+			hidden.rows
+				.filter((row) => row.pinId !== filePin.id)
+				.every((row) => row.brokenReason === RELATIONS_COPY.noAccess)
+		).toBe(true);
+	});
+
+	it("includes Feedback, research, validation, Session Test, and Origin Location tombstone", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout claim",
+		});
+		const assumptionCreated = await createAssumption(prisma, {
+			actorId,
+			idempotencyKey: "assumption-1",
+			origin: "human",
+			payload: {
+				projectId,
+				rationale: "Merchants accept the fee.",
+				statement: "Fee is acceptable.",
+			},
+		});
+		if (assumptionCreated.status !== "committed") {
+			throw new Error("expected assumption");
+		}
+		const feedback = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "fb-flow",
+			origin: "human",
+			payload: {
+				channel: "Intercom",
+				occurredAt: "2019-06-01T12:00:00.000Z",
+				originalMessage: "Fees are too high.",
+				projectId,
+			},
+		});
+		if (feedback.status !== "committed") {
+			throw new Error("expected feedback");
+		}
+		const session = await createResearchSession(prisma, {
+			actorId,
+			idempotencyKey: "session-flow",
+			origin: "human",
+			payload: {
+				channel: "Interview",
+				consent: CONSENT.allowed,
+				facilitator: "Founder",
+				projectId,
+				purpose: "Fees",
+				questionGuide: "Why leave?",
+				scheduledAt: "2018-03-01T00:00:00.000Z",
+				scopeNote: "One merchant",
+				title: "Checkout interview",
+			},
+		});
+		if (session.status !== "committed") {
+			throw new Error("expected session");
+		}
+		const note = await writeObservation(prisma, {
+			actorId,
+			baseRevision: session.session.revision,
+			idempotencyKey: "note-flow",
+			origin: "human",
+			payload: {
+				body: "Paused on the pay button.",
+				sessionId: session.session.id,
+			},
+		});
+		if (note.status !== "committed") {
+			throw new Error("expected note");
+		}
+		const validation = await createValidationRecord(prisma, {
+			actorId,
+			idempotencyKey: "validation-flow",
+			origin: "human",
+			payload: {
+				method: "Interview",
+				projectId,
+				result: "Merchants stalled.",
+				title: "Fee interview",
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		if (validation.status !== "committed") {
+			throw new Error("expected validation");
+		}
+		const feedbackPin = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Fees are too high.",
+			sourceId: feedback.feedback.id,
+			sourceKind: "Feedback",
+			sourceVersionId: feedback.feedback.id,
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		const sessionPin = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Paused on the pay button.",
+			sourceId: session.session.id,
+			sourceKind: "User Research Session",
+			sourceVersionId: String(note.session.revision),
+			targetId: work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		const validationPin = await bindQuotedEvidence(prisma, {
+			actorId,
+			selectedText: "Merchants stalled.",
+			sourceId: validation.validationRecord.id,
+			sourceKind: "Experiment/Validation",
+			sourceVersionId: String(validation.validationRecord.revision),
+			targetId: assumptionCreated.assumption.id,
+			targetKind: "Assumption",
+			workspaceId,
+		});
+		await setFeedbackStatus(prisma, {
+			actorId,
+			baseRevision: feedback.feedback.revision,
+			idempotencyKey: "fb-archive",
+			origin: "human",
+			payload: {
+				feedbackId: feedback.feedback.id,
+				status: FEEDBACK_STATUS.archived,
+			},
+		});
+		const sessionTestId = crypto.randomUUID();
+		await insertCatalogPin(prisma, {
+			rangeText: "Session click path",
+			sourceId: sessionTestId,
+			sourceKind: "Session Test",
+			targetId: work.id,
+			targetKind: "Work",
+		});
+		const host = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checklist host",
+		});
+		const source = await committedSource(prisma, {
+			actorId,
+			capturedContent: "Fee is 2%.",
+			projectId,
+		});
+		const added = await addChecklistItem(prisma, {
+			actorId,
+			baseRevision: host.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			title: "Quote item",
+			workId: host.id,
+		});
+		if (added.status !== "committed") {
+			throw new Error("expected item");
+		}
+		const itemId = added.checklist.items[0]?.id ?? "";
+		const previewed = await previewBindEvidence(prisma, {
+			originLocation: {
+				componentId: itemId,
+				ownerId: host.id,
+				ownerKind: "Work",
+				sourceVersion: String(host.revision),
+			},
+			selectedText: "Fee is 2%.",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: host.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		const bound = await bindEvidence(prisma, {
+			actorId,
+			idempotencyKey: "origin-flow",
+			origin: "human",
+			payload: {
+				originLocation: {
+					componentId: itemId,
+					ownerId: host.id,
+					ownerKind: "Work",
+					sourceVersion: String(host.revision),
+				},
+				previewFingerprint: previewed.preview.fingerprint,
+				selectedText: "Fee is 2%.",
+				sourceId: source.id,
+				sourceKind: "Source",
+				sourceVersionId: source.versions[0]?.id ?? "",
+				targetId: host.id,
+				targetKind: "Work",
+			},
+			previewAcknowledged: true,
+			workspaceId,
+		});
+		if (bound.status !== "committed") {
+			throw new Error("expected bind");
+		}
+		await removeChecklistItem(prisma, {
+			actorId,
+			baseRevision: (await getWork(prisma, host.id))?.revision ?? 1,
+			idempotencyKey: crypto.randomUUID(),
+			itemId,
+			origin: "human",
+			workId: host.id,
+		});
+		const workFlow = await listEvidenceFlow(prisma, {
+			targetId: work.id,
+			targetKind: "Work",
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(workFlow.rows.map((row) => row.sourceKind).sort()).toEqual([
+			"Feedback",
+			"Session Test",
+			"User Research Session",
+		]);
+		expect(
+			workFlow.rows.find((row) => row.pinId === feedbackPin.id)
+		).toMatchObject({
+			eventTime: new Date("2019-06-01T12:00:00.000Z"),
+			presentation: "archived",
+			sourceKind: "Feedback",
+			sourceStatusLabel: RELATIONS_COPY.archived,
+		});
+		expect(
+			workFlow.rows
+				.find((row) => row.pinId === sessionPin.id)
+				?.eventTime.toISOString()
+		).toBe("2018-03-01T00:00:00.000Z");
+		const assumptionFlow = await listEvidenceFlow(prisma, {
+			targetId: assumptionCreated.assumption.id,
+			targetKind: "Assumption",
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(assumptionFlow.rows.map((row) => row.pinId)).toEqual([
+			validationPin.id,
+		]);
+		const tombstone = await listEvidenceFlow(prisma, {
+			targetId: host.id,
+			targetKind: "Work",
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(tombstone.rows[0]?.originLocation?.missingLabel).toBe(
+			EVIDENCE_COPY.sourceElementNoLongerExists
+		);
+	});
+});
+
+async function committedFeesDocument(
+	prisma: PrismaClient,
+	input: { actorId: string; projectId: string; workspaceId: string }
+) {
+	const document = await createDocument(prisma, {
+		actorId: input.actorId,
+		idempotencyKey: crypto.randomUUID(),
+		origin: "human",
+		payload: {
+			body: "The fee is 2%.",
+			scope: { kind: "project", projectId: input.projectId },
+			title: "Fees",
+			type: "Spec",
+		},
+		workspaceId: input.workspaceId,
+	});
+	if (document.status !== "committed") {
+		throw new Error("expected document");
+	}
+	const version = await prisma.documentVersion.findFirst({
+		where: { documentId: document.document.id },
+	});
+	return {
+		id: document.document.id,
+		revision: document.document.revision,
+		versionId: version?.id ?? "",
+	};
+}
+
+async function committedTextAttachment(
+	prisma: PrismaClient,
+	input: { body: string; projectId: string; workspaceId: string }
+) {
+	const id = crypto.randomUUID();
+	const versionId = crypto.randomUUID();
+	await prisma.fileAttachment.create({
+		data: {
+			id,
+			lifecycle: FILE_LIFECYCLE.active,
+			projectId: input.projectId,
+			revision: 1,
+			scopeKind: "project",
+			title: "Invoice",
+			versions: {
+				create: {
+					byteLength: input.body.length,
+					contentHash: `sha256:${id}`,
+					filename: input.body,
+					id: versionId,
+					kind: "text",
+					mimeType: "text/plain",
+					objectKey: `files/${id}`,
+					versionNumber: 1,
+				},
+			},
+			workspaceId: input.workspaceId,
+		},
+	});
+	return { id, versionId };
+}
+
+async function insertCatalogPin(
+	prisma: PrismaClient,
+	input: {
+		rangeText: string;
+		sourceId: string;
+		sourceKind: string;
+		targetId: string;
+		targetKind: string;
+	}
+) {
+	const relationId = crypto.randomUUID();
+	await prisma.typedRelation.create({
+		data: {
+			fromId: input.sourceId,
+			fromKind: input.sourceKind,
+			id: relationId,
+			revision: 1,
+			toId: input.targetId,
+			toKind: input.targetKind,
+			type: RELATIONS_COPY.evidence,
+		},
+	});
+	await prisma.evidencePin.create({
+		data: {
+			id: crypto.randomUUID(),
+			rangeEnd: input.rangeText.length,
+			rangeStart: 0,
+			rangeText: input.rangeText,
+			relationId,
+			sourceId: input.sourceId,
+			sourceKind: input.sourceKind,
+			sourceVersionId: input.sourceId,
+			sourceVersionNumber: 1,
+			surroundingText: input.rangeText,
+			targetId: input.targetId,
+			targetKind: input.targetKind,
+		},
+	});
+}

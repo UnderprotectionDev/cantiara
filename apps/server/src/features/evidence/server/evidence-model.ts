@@ -1,8 +1,10 @@
 import { z } from "zod";
 
 import {
+	BROKEN_REASONS,
 	EVIDENCE_SOURCE_KINDS,
 	EVIDENCE_TARGET_KINDS,
+	RELATIONS_COPY,
 	type RecordKind,
 } from "../../relations/server/relations-catalog";
 import { originLocationSchema } from "../../relations/server/relations-model";
@@ -13,6 +15,7 @@ export const EVIDENCE_COPY = {
 	bindAsEvidenceToExistingRecord: "Bind as evidence to existing record",
 	contradicting: "Contradicting",
 	convertToNewRecordAndBind: "Convert to new record and bind",
+	evidenceFlow: "Evidence Flow",
 	evidenceRole: "Evidence Role",
 	founderInterpretation: "Founder interpretation",
 	inconclusive: "Inconclusive",
@@ -324,6 +327,63 @@ export const evidenceShareViewSchema = z.object({
 });
 
 export type EvidenceShareView = z.infer<typeof evidenceShareViewSchema>;
+
+export const EVIDENCE_FLOW_PRESENTATIONS = [
+	"open",
+	"archived",
+	"broken",
+] as const;
+
+export type EvidenceFlowPresentation =
+	(typeof EVIDENCE_FLOW_PRESENTATIONS)[number];
+
+export const evidenceFlowRowSchema = z.object({
+	brokenReason: z.enum(BROKEN_REASONS).nullable(),
+	eventTime: z.coerce.date(),
+	founderInterpretation: z.string(),
+	historicalBindExists: z.literal(true),
+	openSourceRecord: z.literal(EVIDENCE_COPY.openSourceRecord).nullable(),
+	originLocation: evidenceOriginLocationViewSchema.nullable(),
+	pinId: z.string().min(1),
+	presentation: z.enum(EVIDENCE_FLOW_PRESENTATIONS),
+	rangeText: z.string(),
+	relationTime: z.coerce.date(),
+	role: evidenceRoleSchema,
+	sourceId: z.string().min(1),
+	sourceKind: evidenceSourceKindSchema,
+	sourceStatusLabel: z.literal(RELATIONS_COPY.archived).nullable(),
+	sourceVersionId: z.string().min(1),
+});
+
+export type EvidenceFlowRow = z.infer<typeof evidenceFlowRowSchema>;
+
+export const EVIDENCE_FLOW_TARGET_KINDS = [
+	"Work",
+	"Decision",
+	"Assumption",
+] as const;
+
+export type EvidenceFlowTargetKind =
+	(typeof EVIDENCE_FLOW_TARGET_KINDS)[number];
+
+export const evidenceFlowSchema = z.object({
+	label: z.literal(EVIDENCE_COPY.evidenceFlow),
+	rows: z.array(evidenceFlowRowSchema),
+	sourceKindFilter: evidenceSourceKindSchema.nullable(),
+	sourceKinds: z.array(evidenceSourceKindSchema),
+	storedSnapshot: z.literal(false),
+	targetId: z.string().min(1),
+	targetKind: z.enum(EVIDENCE_FLOW_TARGET_KINDS),
+});
+
+export type EvidenceFlow = z.infer<typeof evidenceFlowSchema>;
+
+export const listEvidenceFlowInputSchema = z.object({
+	sourceKind: evidenceSourceKindSchema.optional(),
+	targetId: z.string().min(1),
+	targetKind: z.enum(EVIDENCE_FLOW_TARGET_KINDS),
+	viewerWorkspaceId: z.string().min(1),
+});
 
 export const EVIDENCE_REJECTION_REASONS = [
 	"invalid-command",

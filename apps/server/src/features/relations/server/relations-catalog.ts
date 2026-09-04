@@ -380,6 +380,12 @@ function ownedComponentBlocked(
 	if (type === RELATIONS_COPY.evidence && from.kind === "Session Test") {
 		return false;
 	}
+	if (
+		type === RELATIONS_COPY.evidence &&
+		(to.kind === "Access observation" || to.kind === "Result observation")
+	) {
+		return false;
+	}
 	return !(type === RELATIONS_COPY.supersedes && from.kind === "Session Test");
 }
 

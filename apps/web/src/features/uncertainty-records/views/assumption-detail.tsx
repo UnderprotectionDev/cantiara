@@ -2,6 +2,7 @@ import { Spinner } from "@cantiara/ui/components/spinner";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
+import EvidenceFlow from "@/features/evidence/views/evidence-flow";
 import EvidenceOnTarget from "@/features/evidence/views/evidence-on-target";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import RecordAssumptionOutcomeForm from "@/features/uncertainty-records/forms/record-assumption-outcome-form";
@@ -75,6 +76,11 @@ export default function AssumptionDetail({
 					))}
 				</ul>
 			) : null}
+			<EvidenceFlow
+				projectId={projectId}
+				targetId={assumption.data.id}
+				targetKind="Assumption"
+			/>
 			<EvidenceOnTarget
 				projectId={projectId}
 				targetId={assumption.data.id}

@@ -7,6 +7,7 @@ import { DECISIONS_COPY } from "@/features/decisions/forms/decisions-copy";
 import RemoveSupersessionForm from "@/features/decisions/forms/remove-supersession-form";
 import SupersedeDecisionForm from "@/features/decisions/forms/supersede-decision-form";
 import WithdrawDecisionForm from "@/features/decisions/forms/withdraw-decision-form";
+import EvidenceFlow from "@/features/evidence/views/evidence-flow";
 import EvidenceOnTarget from "@/features/evidence/views/evidence-on-target";
 import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
@@ -67,6 +68,11 @@ export default function DecisionDetail({
 					))}
 				</ol>
 			) : null}
+			<EvidenceFlow
+				projectId={projectId}
+				targetId={decision.data.id}
+				targetKind="Decision"
+			/>
 			<EvidenceOnTarget
 				projectId={projectId}
 				targetId={decision.data.id}

@@ -62,6 +62,11 @@ export function EvidenceRoleFields({
 					input: { targetId, targetKind },
 				}),
 			});
+			await queryClient.invalidateQueries({
+				queryKey: orpc.evidence.listFlow.queryKey({
+					input: { targetId, targetKind },
+				}),
+			});
 		}
 	}, [sourceId, sourceKind, targetId, targetKind]);
 	const setRole = useMutation(
