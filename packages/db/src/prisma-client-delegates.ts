@@ -12,6 +12,8 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"PersonalReminder",
 	"ProjectGoal",
 	"ReturnToWorkVisibleOpen",
+	"RiskAttentionSignal",
+	"RiskRelatedRecord",
 	"SmartCollectionAttentionSignal",
 	"SmartCollectionMembershipPeriod",
 	"ValidationRecord",
