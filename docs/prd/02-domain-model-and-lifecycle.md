@@ -34,6 +34,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Onaylı snapshot revizyonu | `Approved Snapshot Revision` | Dış yüzeyin belirli onay anında göstermesine izin verilen değişmez kesin içerik manifesti; Dış yüzeyden bağımsız yaşayamaz |
 | Üstveri | `Metadata` | Teknik şema alanları dışında kullanıcıya gösterilen üstveri kavramı |
 | Persona | `Persona` | Hedef kullanıcı profilini taşıyan Belge türü; ayrı ana kayıt türü değildir ve Contact ya da Company'nin yerine geçmez |
+| Contact (kimlik defteri) | `Contact` | Geri bildirimi veren kişiyi geri bildirimler boyunca tanıyan Çalışma Alanı ana kaydı; Feedback Capture yönlendirici alanı değildir |
+| Company | `Company` | Contact ve Geri Bildirimi isteğe bağlı ortak kuruluş bağlamında gruplayan hafif ana kayıt |
+| Şirkete ait | `Belongs to Company` | Contact başına en fazla bir güncel Company bağı; geçmiş değişiklikte korunur |
+| Kaynak kaydı aç (kimlik defteri) | `Open Source Record` | Contact profilinde ilişkili Geri Bildirim, Company ve Persona belgesini kaynağında açma |
 | AI ajanı | `AI Agent` | `AI agent` ve `agent` varyantlarının ortak kavramı |
 | Repository | `Repository` | GitHub'ın dış sistem kavramıdır; genel “depo” eşanlamlı kayıt türü oluşturmaz |
 | Teknik Diyagram | `Technical Diagram` | Veri modeli, teknik mimari veya sistemler arası sıralı etkileşimi bağımsız kimlik ve türlenmiş yapısal modelle taşıyan Proje ana kaydı |

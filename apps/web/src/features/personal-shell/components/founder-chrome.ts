@@ -2,6 +2,7 @@ export const FOUNDER_CHROME_COPY = {
 	account: "Account",
 	calendar: "Calendar",
 	capture: "Capture",
+	contact: "Contact",
 	dailyFocus: "Daily Focus",
 	drafts: "Drafts",
 	favorites: "Favorites",
@@ -21,6 +22,7 @@ export const FOUNDER_MAIN_ID = "main-content";
 export const FOUNDER_CHROME_PATHS = {
 	calendar: "/calendar",
 	capture: "/capture",
+	contact: "/contacts",
 	dailyFocus: "/daily-focus",
 	drafts: "/drafts",
 	favorites: "/favorites",
@@ -80,6 +82,10 @@ export function founderChromeMoreNavGroups() {
 				to: FOUNDER_CHROME_PATHS.personalWiki,
 			},
 			{
+				label: FOUNDER_CHROME_COPY.contact,
+				to: FOUNDER_CHROME_PATHS.contact,
+			},
+			{
 				label: FOUNDER_CHROME_COPY.table,
 				to: FOUNDER_CHROME_PATHS.table,
 			},
@@ -124,6 +130,10 @@ export function founderChromeNav() {
 		{
 			label: FOUNDER_CHROME_COPY.personalWiki,
 			to: FOUNDER_CHROME_PATHS.personalWiki,
+		},
+		{
+			label: FOUNDER_CHROME_COPY.contact,
+			to: FOUNDER_CHROME_PATHS.contact,
 		},
 		{
 			label: FOUNDER_CHROME_COPY.smartCollection,

@@ -16,6 +16,8 @@ model Workspace {
   documentTemplates     DocumentTemplate[]
   documentConflictDrafts DocumentConflictDraft[]
   smartCollections       SmartCollection[]
+  contacts               Contact[]
+  companies              Company[]
 
   @@map("workspace")
 }
