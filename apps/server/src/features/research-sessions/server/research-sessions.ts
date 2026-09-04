@@ -22,6 +22,7 @@ import {
 	type IncludeInShareOutcome,
 	includeInShareCommandSchema,
 	NOTE_KIND,
+	type NoteKind,
 	type PublishedSnapshot,
 	RESEARCH_SESSION_EVENT_KIND,
 	RESEARCH_SESSION_STATUS,
@@ -162,11 +163,25 @@ export async function writeAttributedQuote(
 	return await writeNote(prisma, command, NOTE_KIND.participantQuote);
 }
 
-export async function writeIdentifyingPersonalNote(
+export async function writeObservation(
 	prisma: PrismaClient,
 	command: unknown
 ): Promise<ResearchSessionWriteOutcome> {
-	return await writeNote(prisma, command, NOTE_KIND.identifyingPersonalNote);
+	return await writeNote(prisma, command, NOTE_KIND.observation);
+}
+
+export async function writeFounderInterpretation(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ResearchSessionWriteOutcome> {
+	return await writeNote(prisma, command, NOTE_KIND.founderInterpretation);
+}
+
+export async function writeTypedNote(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ResearchSessionWriteOutcome> {
+	return await writeNote(prisma, command);
 }
 
 export async function attachFileToSession(
@@ -389,7 +404,7 @@ async function attachAttributedNotesToKisiselVeriFixture(
 		}
 	}
 	if (notApplicable) {
-		const note = await writeIdentifyingPersonalNote(prisma, {
+		const note = await writeObservation(prisma, {
 			actorId: input.actorId,
 			baseRevision: notApplicable.revision,
 			idempotencyKey: "kisisel-veri-na-note",
@@ -400,7 +415,7 @@ async function attachAttributedNotesToKisiselVeriFixture(
 			},
 		});
 		if (note.status !== "committed") {
-			throw new Error("expected Kişisel veri identifying note");
+			throw new Error("expected Kişisel veri observation");
 		}
 	}
 	const refreshed = await Promise.all(
@@ -514,13 +529,28 @@ async function setConsentInTransaction(
 async function writeNote(
 	prisma: PrismaClient,
 	command: unknown,
-	forcedKind: (typeof NOTE_KIND)[keyof typeof NOTE_KIND]
+	forcedKind?: NoteKind
 ): Promise<ResearchSessionWriteOutcome> {
 	const parsed = writeNoteCommandSchema.safeParse(command);
 	if (!parsed.success) {
 		return { reason: "invalid-command", status: "rejected" };
 	}
-	const payload = { ...parsed.data.payload, kind: forcedKind };
+	const kind = forcedKind ?? parsed.data.payload.kind;
+	if (!kind) {
+		return { reason: "untyped-note-refused", status: "rejected" };
+	}
+	const speakerLabel =
+		kind === NOTE_KIND.participantQuote
+			? (parsed.data.payload.speakerLabel ?? null)
+			: null;
+	if (kind !== NOTE_KIND.participantQuote && parsed.data.payload.speakerLabel) {
+		return { reason: "untyped-note-refused", status: "rejected" };
+	}
+	const payload = {
+		...parsed.data.payload,
+		kind,
+		speakerLabel,
+	};
 	const fingerprint = payloadFingerprint(payload);
 	const commandKey = commandKeyFor(
 		parsed.data.actorId,
@@ -556,9 +586,9 @@ async function writeNote(
 				body: payload.body,
 				capturedUnderConsent: consent,
 				id: crypto.randomUUID(),
-				kind: forcedKind,
+				kind,
 				sessionId: locked.id,
-				speakerLabel: payload.speakerLabel ?? null,
+				speakerLabel,
 			},
 		});
 		await tx.researchSessionEvent.create({
@@ -566,7 +596,7 @@ async function writeNote(
 				actorId: parsed.data.actorId,
 				id: crypto.randomUUID(),
 				kind: RESEARCH_SESSION_EVENT_KIND.writeNote,
-				next: forcedKind,
+				next: kind,
 				previous: null,
 				sessionId: locked.id,
 			},
@@ -751,11 +781,18 @@ function closedWorldItems(view: ResearchSessionView): ClosedWorldItem[] {
 				speakerLabel: note.speakerLabel,
 			});
 		}
-		if (note.kind === NOTE_KIND.identifyingPersonalNote) {
+		if (note.kind === NOTE_KIND.observation) {
 			items.push({
 				body: note.body,
 				id: note.id,
-				kind: CLOSED_WORLD_ITEM_KIND.identifyingPersonalNote,
+				kind: CLOSED_WORLD_ITEM_KIND.observation,
+			});
+		}
+		if (note.kind === NOTE_KIND.founderInterpretation) {
+			items.push({
+				body: note.body,
+				id: note.id,
+				kind: CLOSED_WORLD_ITEM_KIND.founderInterpretation,
 			});
 		}
 	}
@@ -783,6 +820,16 @@ function presentConsent(stored: string): ConsentValue {
 		return CONSENT.notApplicable;
 	}
 	return CONSENT.notAsked;
+}
+
+function presentNoteKind(stored: string): NoteKind {
+	if (stored === NOTE_KIND.participantQuote) {
+		return NOTE_KIND.participantQuote;
+	}
+	if (stored === NOTE_KIND.founderInterpretation) {
+		return NOTE_KIND.founderInterpretation;
+	}
+	return NOTE_KIND.observation;
 }
 
 function presentStatus(stored: string): ResearchSessionStatus {
@@ -822,11 +869,11 @@ function toView(
 			body: note.body,
 			capturedUnderConsent: presentConsent(note.capturedUnderConsent),
 			id: note.id,
-			kind:
-				note.kind === NOTE_KIND.identifyingPersonalNote
-					? NOTE_KIND.identifyingPersonalNote
-					: NOTE_KIND.participantQuote,
-			speakerLabel: note.speakerLabel,
+			kind: presentNoteKind(note.kind),
+			speakerLabel:
+				presentNoteKind(note.kind) === NOTE_KIND.participantQuote
+					? note.speakerLabel
+					: null,
 		})),
 		projectId: row.projectId,
 		purpose: row.purpose,

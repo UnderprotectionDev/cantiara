@@ -719,6 +719,22 @@ _Avoid_: Geri Bildirim, Test Oturumu, Deney/Doğrulama
 Kullanıcı Araştırması Oturumunda atıf, tanımlayıcı kişisel not, Dosya Eki ve paylaşım/yayın kapılarını bağlayan `Not asked`, `Allowed`, `Not allowed` veya `Not applicable` kaydı; hukuki uygunluk hükmü değildir. UI: `Consent`.
 _Avoid_: GDPR onayı, yasal uygunluk damgası, CRM izin durumu
 
+**Katılımcı ifadesi**:
+Kullanıcı Araştırması Oturumunda katılımcıya atfedilen özgün söz; gözlem veya kurucu yorumu değildir. UI: `Participant quote`.
+_Avoid_: karışık paragraf, Geri Bildirim özgün mesajı
+
+**Gözlem**:
+Kullanıcı Araştırması Oturumunda kaydedilen gözlenen davranış; katılımcı sözü veya kurucu yorumu değildir. UI: `Observation`.
+_Avoid_: otomatik tema, duygu çıkarımı
+
+**Kurucu yorumu**:
+Kullanıcı Araştırması Oturumunda kurucunun yorum veya öğrenimi; katılımcı sözü gibi sunulmaz. UI: `Founder interpretation`.
+_Avoid_: otomatik öğrenim, alıntı
+
+**Konuşmacı etiketi**:
+Katılımcı ifadesine isteğe bağlı etiket; Contact alanı değildir. UI: `Speaker label`.
+_Avoid_: Contact alanı sızıntısı
+
 ## Bilgi ve kanıt
 
 **Belge**:

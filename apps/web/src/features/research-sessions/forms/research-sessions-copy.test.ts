@@ -15,6 +15,11 @@ test("English Research Session labels stay Research Session and consent values",
 	expect(RESEARCH_SESSIONS_COPY.planned).toBe("Planned");
 	expect(RESEARCH_SESSIONS_COPY.completed).toBe("Completed");
 	expect(RESEARCH_SESSIONS_COPY.cancelled).toBe("Cancelled");
+	expect(RESEARCH_SESSIONS_COPY.participantQuote).toBe("Participant quote");
+	expect(RESEARCH_SESSIONS_COPY.observation).toBe("Observation");
+	expect(RESEARCH_SESSIONS_COPY.founderInterpretation).toBe(
+		"Founder interpretation"
+	);
 	expect(RESEARCH_SESSIONS_COPY.createResearchSession).toBe(
 		"Create Research Session"
 	);
