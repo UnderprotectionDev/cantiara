@@ -4,9 +4,10 @@
  * quotes, identifying personal notes, File Attachments, and share/publish.
  * Notes are typed Participant quote, Observation, and Founder interpretation.
  * Later Allowed or a wider snapshot does not reopen blocked bytes.
- * docs/specs/43-research-sessions/spec.md and GitHub #307 / #308.
+ * docs/specs/43-research-sessions/spec.md and GitHub #307 / #308 / #309.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Hesap ve kişisel veri / Kişisel veri fixture).
+ * (Hesap ve kişisel veri / Kişisel veri fixture). Convert/pin is counterpart
+ * evidence for Kanıt akışı; not tasarım bağlamı.
  */
 import { PrismaClient } from "@cantiara/db";
 import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
@@ -15,10 +16,12 @@ import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createProject } from "../../project-shell/server/project-shell";
+import { listRelations } from "../../relations/server/relations";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
+import { getWork, listWork } from "../../work-lifecycle/server/work-lifecycle";
 
 import {
 	attachFileToSession,
-	convertToNewRecord,
 	createResearchSession,
 	freezePublishedSnapshot,
 	getResearchSession,
@@ -30,14 +33,21 @@ import {
 	setConsent,
 	setParticipant,
 	setStatus,
+	updateNote,
 	writeAttributedQuote,
 	writeFounderInterpretation,
 	writeObservation,
 	writeTypedNote,
 } from "./research-sessions";
 import {
+	convertToNewRecord,
+	previewConvert,
+	resolveEvidencePin,
+} from "./research-sessions-convert";
+import {
 	CLOSED_WORLD_ITEM_KIND,
 	CONSENT,
+	CONVERT_TARGET_KINDS,
 	KISISEL_VERI_FIXTURE,
 	NOTE_KIND,
 	RESEARCH_SESSION_STATUS,
@@ -53,6 +63,7 @@ const FEEDBACK_OR_TEST = /Feedback|Test Session|Validation Record/;
 const SPEAKER_OR_COUNT = /speaker|count|1 quote/i;
 const AUTO_THEME_OR_SENTIMENT =
 	/sentiment|auto-learnings|auto theme|theme cluster/i;
+const FILE_NOT_TRANSCRIPT_OR_BIND = /transcript|evidence bind/i;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -828,5 +839,265 @@ describe("Research Sessions", () => {
 			reason: "invalid-command",
 			status: "rejected",
 		});
+	});
+
+	it("previews convert without creating a record until confirm", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const session = await committedSession(prisma, {
+			actorId,
+			consent: CONSENT.allowed,
+			idempotencyKey: "convert-preview-session",
+			projectId,
+		});
+		const quote = await writeAttributedQuote(prisma, {
+			actorId,
+			baseRevision: session.revision,
+			idempotencyKey: "convert-preview-quote",
+			origin: "human",
+			payload: {
+				body: "The pay button did nothing.",
+				sessionId: session.id,
+				speakerLabel: "Maya",
+			},
+		});
+		expect(quote.status).toBe("committed");
+		if (quote.status !== "committed") {
+			return;
+		}
+		const [note] = quote.session.notes;
+		expect(note).toBeDefined();
+		if (!note) {
+			return;
+		}
+		const previewed = await previewConvert(prisma, {
+			noteId: note.id,
+			projectId,
+			recordKind: "Work",
+			sessionId: session.id,
+		});
+		expect(previewed.status).toBe("ok");
+		if (previewed.status !== "ok") {
+			return;
+		}
+		expect(previewed.preview.label).toBe(
+			RESEARCH_SESSIONS_COPY.convertToNewRecordAndBind
+		);
+		expect(previewed.preview.recordKind).toBe("Work");
+		expect(previewed.preview.projectId).toBe(projectId);
+		expect(previewed.preview.title).toBe("The pay button did nothing.");
+		expect(previewed.preview.body).toBe("The pay button did nothing.");
+		expect(previewed.preview.origin).toBe(RELATIONS_COPY.origin);
+		expect(previewed.preview.versionPinnedEvidence).toBe(
+			RESEARCH_SESSIONS_COPY.versionPinnedEvidence
+		);
+		expect(previewed.preview.sessionRevision).toBe(quote.session.revision);
+		expect(previewed.preview.textRange).toEqual({
+			end: "The pay button did nothing.".length,
+			start: 0,
+		});
+		expect(CONVERT_TARGET_KINDS).toEqual([
+			"Feedback",
+			"Assumption",
+			"Open Question",
+			"Work",
+			"Feature",
+			"Decision",
+		]);
+		expect(previewed.preview).not.toHaveProperty("recordKindDefault");
+		const worksBefore = (await listWork(prisma, projectId)).length;
+		const skipped = await convertToNewRecord(prisma, {
+			actorId,
+			idempotencyKey: "convert-without-ack",
+			origin: "human",
+			payload: {
+				noteId: note.id,
+				previewFingerprint: previewed.preview.fingerprint,
+				projectId,
+				recordKind: "Work",
+				sessionId: session.id,
+			},
+		});
+		expect(skipped).toEqual({
+			reason: "preview-required",
+			status: "rejected",
+		});
+		expect((await listWork(prisma, projectId)).length).toBe(worksBefore);
+		const untyped = await convertToNewRecord(prisma, {
+			actorId,
+			idempotencyKey: "convert-auto-type",
+			origin: "human",
+			payload: {
+				noteId: note.id,
+				previewAcknowledged: true,
+				previewFingerprint: previewed.preview.fingerprint,
+				projectId,
+				sessionId: session.id,
+			},
+		});
+		expect(untyped).toEqual({
+			reason: "type-required",
+			status: "rejected",
+		});
+		expect((await listWork(prisma, projectId)).length).toBe(worksBefore);
+	});
+
+	it("converts one Work with origin and a pin that later note edits do not move", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const session = await committedSession(prisma, {
+			actorId,
+			consent: CONSENT.allowed,
+			idempotencyKey: "convert-commit-session",
+			projectId,
+		});
+		const quote = await writeAttributedQuote(prisma, {
+			actorId,
+			baseRevision: session.revision,
+			idempotencyKey: "convert-commit-quote",
+			origin: "human",
+			payload: {
+				body: "Checkout trust stalled me.",
+				sessionId: session.id,
+				speakerLabel: "Sam",
+			},
+		});
+		expect(quote.status).toBe("committed");
+		if (quote.status !== "committed") {
+			return;
+		}
+		const [note] = quote.session.notes;
+		expect(note).toBeDefined();
+		if (!note) {
+			return;
+		}
+		const pinnedRevision = quote.session.revision;
+		const previewed = await previewConvert(prisma, {
+			noteId: note.id,
+			projectId,
+			recordKind: "Work",
+			sessionId: session.id,
+		});
+		expect(previewed.status).toBe("ok");
+		if (previewed.status !== "ok") {
+			return;
+		}
+		const converted = await convertToNewRecord(prisma, {
+			actorId,
+			baseRevision: quote.session.revision,
+			idempotencyKey: "convert-commit",
+			origin: "human",
+			payload: {
+				noteId: note.id,
+				previewAcknowledged: true,
+				previewFingerprint: previewed.preview.fingerprint,
+				projectId,
+				recordKind: "Work",
+				sessionId: session.id,
+			},
+		});
+		expect(converted.status).toBe("committed");
+		if (converted.status !== "committed") {
+			return;
+		}
+		expect(converted.records).toHaveLength(1);
+		expect(converted.records[0]?.kind).toBe("Work");
+		expect(converted.session.notes).toHaveLength(1);
+		expect(converted.session.notes[0]?.body).toBe("Checkout trust stalled me.");
+		const work = await getWork(prisma, converted.records[0]?.id ?? "");
+		expect(work?.title).toBe("Checkout trust stalled me.");
+		const origin = await listRelations(prisma, {
+			record: { id: work?.id ?? "", kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		const originRow = origin.find((row) => row.type === RELATIONS_COPY.origin);
+		expect(originRow?.from.id).toBe(session.id);
+		expect(originRow?.from.kind).toBe("User Research Session");
+		expect(originRow?.originLocation?.componentId).toBe(note.id);
+		expect(originRow?.originLocation?.sourceVersion).toBe(
+			String(pinnedRevision)
+		);
+		expect(originRow?.originLocation?.ownerId).toBe(session.id);
+		const pin = await resolveEvidencePin(prisma, converted.pinId);
+		expect(pin?.excerpt).toBe("Checkout trust stalled me.");
+		expect(pin?.sessionRevision).toBe(pinnedRevision);
+		expect(pin?.textRange).toEqual({
+			end: "Checkout trust stalled me.".length,
+			start: 0,
+		});
+		expect(pin?.targetId).toBe(work?.id);
+		const edited = await updateNote(prisma, {
+			actorId,
+			baseRevision: converted.session.revision,
+			idempotencyKey: "edit-after-pin",
+			origin: "human",
+			payload: {
+				body: "I later rewrote this as a different complaint.",
+				noteId: note.id,
+				sessionId: session.id,
+			},
+		});
+		expect(edited.status).toBe("committed");
+		if (edited.status !== "committed") {
+			return;
+		}
+		expect(edited.session.notes[0]?.body).toBe(
+			"I later rewrote this as a different complaint."
+		);
+		expect(edited.session.revision).toBeGreaterThan(pinnedRevision);
+		const stillPinned = await resolveEvidencePin(prisma, converted.pinId);
+		expect(stillPinned?.excerpt).toBe("Checkout trust stalled me.");
+		expect(stillPinned?.sessionRevision).toBe(pinnedRevision);
+		expect(stillPinned?.textRange).toEqual({
+			end: "Checkout trust stalled me.".length,
+			start: 0,
+		});
+		expect(stillPinned?.noteId).toBe(note.id);
+		const live = await getResearchSession(prisma, session.id);
+		expect(live?.notes[0]?.body).not.toBe(stillPinned?.excerpt);
+		expect(JSON.stringify(converted)).not.toMatch(AUTO_THEME_OR_SENTIMENT);
+		expect(converted).not.toHaveProperty("audio");
+		expect(converted).not.toHaveProperty("transcript");
+		expect(converted).not.toHaveProperty("invite");
+	});
+
+	it("does not treat a File Attachment as a transcript or evidence bind", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const session = await committedSession(prisma, {
+			actorId,
+			consent: CONSENT.allowed,
+			idempotencyKey: "file-not-evidence-session",
+			projectId,
+		});
+		const attached = await attachFileToSession(prisma, {
+			actorId,
+			baseRevision: session.revision,
+			idempotencyKey: "file-not-evidence",
+			origin: "human",
+			payload: {
+				fileAttachmentId: "outside-recording.m4a",
+				sessionId: session.id,
+			},
+		});
+		expect(attached.status).toBe("committed");
+		if (attached.status !== "committed") {
+			return;
+		}
+		const fileId = attached.session.files[0]?.id;
+		expect(fileId).toBeDefined();
+		const previewed = await previewConvert(prisma, {
+			noteId: fileId,
+			projectId,
+			recordKind: "Work",
+			sessionId: session.id,
+		});
+		expect(previewed).toEqual({
+			reason: "note-not-found",
+			status: "rejected",
+		});
+		expect(attached.session.files[0]?.fileAttachmentId).toBe(
+			"outside-recording.m4a"
+		);
+		expect(JSON.stringify(attached.session.files)).not.toMatch(
+			FILE_NOT_TRANSCRIPT_OR_BIND
+		);
 	});
 });

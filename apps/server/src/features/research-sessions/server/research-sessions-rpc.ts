@@ -7,7 +7,6 @@ import { z } from "zod";
 import { getProject } from "../../project-shell/server/project-shell";
 import {
 	attachFileToSession,
-	convertToNewRecord,
 	createResearchSession,
 	getResearchSession,
 	includeInShare,
@@ -17,21 +16,28 @@ import {
 	setConsent,
 	setParticipant,
 	setStatus,
+	updateNote,
 	writeAttributedQuote,
 	writeFounderInterpretation,
 	writeObservation,
 } from "./research-sessions";
+import {
+	convertToNewRecord,
+	previewConvert,
+} from "./research-sessions-convert";
 import {
 	attachFilePayloadSchema,
 	CONSENT_VALUES,
 	convertPayloadSchema,
 	createResearchSessionPayloadSchema,
 	includeInSharePayloadSchema,
+	previewConvertInputSchema,
 	RESEARCH_SESSION_STATUSES,
 	RESEARCH_SESSIONS_COPY,
 	setConsentPayloadSchema,
 	setParticipantPayloadSchema,
 	setStatusPayloadSchema,
+	updateNotePayloadSchema,
 	writeNotePayloadSchema,
 } from "./research-sessions-model";
 
@@ -84,6 +90,7 @@ export const researchSessions = {
 	convert: protectedWriteProcedure
 		.input(
 			z.object({
+				baseRevision: z.number().int().nonnegative().optional(),
 				idempotencyKey: z.string(),
 				payload: convertPayloadSchema,
 			})
@@ -93,6 +100,7 @@ export const researchSessions = {
 			await requireSession(access.workspaceId, input.payload.sessionId);
 			return await convertToNewRecord(getPrismaClient(), {
 				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				payload: input.payload,
@@ -161,6 +169,13 @@ export const researchSessions = {
 			await requireSession(access.workspaceId, input.sessionId);
 			return await previewClosedWorld(getPrismaClient(), input.sessionId);
 		}),
+	previewConvert: protectedProcedure
+		.input(previewConvertInputSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireSession(access.workspaceId, input.sessionId);
+			return await previewConvert(getPrismaClient(), input);
+		}),
 	search: protectedProcedure
 		.input(
 			z.object({
@@ -226,6 +241,25 @@ export const researchSessions = {
 			const access = await requireAccess(context.session.user.id);
 			await requireSession(access.workspaceId, input.payload.sessionId);
 			return await setStatus(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	updateNote: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: updateNotePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireSession(access.workspaceId, input.payload.sessionId);
+			return await updateNote(getPrismaClient(), {
 				actorId: context.session.user.id,
 				baseRevision: input.baseRevision,
 				idempotencyKey: input.idempotencyKey,

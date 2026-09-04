@@ -8,6 +8,7 @@ export const RESEARCH_SESSIONS_COPY = {
 	consentIsNotLegalJudgment: "Consent is not a legal compliance judgment.",
 	consentNote: "Consent note",
 	contact: "Contact",
+	convertToNewRecordAndBind: "Convert to new record and bind",
 	createResearchSession: "Create Research Session",
 	duration: "Duration",
 	facilitator: "Facilitator",
@@ -28,7 +29,10 @@ export const RESEARCH_SESSIONS_COPY = {
 	scopeNote: "Scope note",
 	speakerLabel: "Speaker label",
 	status: "Status",
+	targetProject: "Project",
+	targetType: "Target type",
 	title: "Title",
+	versionPinnedEvidence: "Version-pinned evidence",
 	youRemainResponsible: "You remain responsible for your obligations.",
 } as const;
 
@@ -44,3 +48,14 @@ export const CONSENT_VALUES = [
 	RESEARCH_SESSIONS_COPY.notAllowed,
 	RESEARCH_SESSIONS_COPY.notApplicable,
 ] as const;
+
+export const CONVERT_TARGET_KINDS = [
+	"Feedback",
+	"Assumption",
+	"Open Question",
+	"Work",
+	"Feature",
+	"Decision",
+] as const;
+
+export type ConvertTargetKind = (typeof CONVERT_TARGET_KINDS)[number];

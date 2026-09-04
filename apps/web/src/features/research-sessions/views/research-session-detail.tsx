@@ -12,6 +12,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
+import ConvertResearchNoteForm from "@/features/research-sessions/forms/convert-research-note-form";
 import {
 	CONSENT_VALUES,
 	RESEARCH_SESSION_STATUSES,
@@ -450,6 +451,14 @@ export default function ResearchSessionDetail({
 							{note.kind}
 							{speakerSuffix(note.kind, note.speakerLabel)}:{" "}
 							{noteDisplayBody(note.kind, note.body)}
+							<ConvertResearchNoteForm
+								disabled={!session.data.consentGatesOpen}
+								noteId={note.id}
+								onConverted={onChanged}
+								projectId={session.data.projectId}
+								revision={session.data.revision}
+								sessionId={sessionId}
+							/>
 						</li>
 					))}
 				</ul>

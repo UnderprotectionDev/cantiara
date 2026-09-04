@@ -22,6 +22,7 @@ model ResearchSession {
   notes                    ResearchSessionNote[]
   files                    ResearchSessionFile[]
   events                   ResearchSessionEvent[]
+  evidencePins             ResearchSessionEvidencePin[]
 
   @@index([projectId])
   @@index([projectId, status])
@@ -39,6 +40,7 @@ model ResearchSessionNote {
   capturedUnderConsent   String
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
+  evidencePins           ResearchSessionEvidencePin[]
 
   @@index([sessionId])
   @@map("research_session_note")
@@ -69,4 +71,25 @@ model ResearchSessionEvent {
 
   @@index([sessionId, occurredAt])
   @@map("research_session_event")
+}
+
+model ResearchSessionEvidencePin {
+  id              String          @id
+  sessionId       String
+  session         ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  noteId          String
+  note            ResearchSessionNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  pinnedRevision  Int
+  rangeStart      Int
+  rangeEnd        Int
+  excerpt         String
+  targetKind      String
+  targetId        String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([sessionId])
+  @@index([noteId])
+  @@index([targetId, targetKind])
+  @@map("research_session_evidence_pin")
 }
