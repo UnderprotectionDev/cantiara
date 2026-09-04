@@ -7,6 +7,7 @@ import { useCallback } from "react";
 import { CONTACT_AND_COMPANY_COPY } from "@/features/contact-and-company/forms/contact-and-company-copy";
 import CreateCompanyForm from "@/features/contact-and-company/forms/create-company-form";
 import CreateContactForm from "@/features/contact-and-company/forms/create-contact-form";
+import SetContactCompanyForm from "@/features/contact-and-company/forms/set-contact-company-form";
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
 import { FounderSection } from "@/features/personal-shell/components/founder-surface";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
@@ -124,7 +125,11 @@ export default function ContactAndCompanyArea({
 					</ul>
 				)}
 				{contact.data ? (
-					<ContactProfile onOpenCompany={openCompany} profile={contact.data} />
+					<ContactProfile
+						companies={companies.data}
+						onOpenCompany={openCompany}
+						profile={contact.data}
+					/>
 				) : null}
 			</FounderSection>
 		</FounderPage>
@@ -151,24 +156,23 @@ function IdentityRow({
 }
 
 function ContactProfile({
+	companies,
 	onOpenCompany,
 	profile,
 }: {
+	companies: Array<{ id: string; name: string }>;
 	onOpenCompany: (companyId: string) => void;
 	profile: {
 		currentCompany: { id: string; name: string } | null;
 		displayName: string | null;
 		emailAliases: Array<{ originalEmail: string }>;
-		relatedFeedback: Array<{
-			id: string;
-			openSourceRecord: string;
-			title: string;
-		}>;
+		id: string;
 		relatedPersonaDocuments: Array<{
 			id: string;
 			openSourceRecord: string;
 			title: string;
 		}>;
+		revision: number;
 	};
 }) {
 	const { currentCompany, displayName, emailAliases } = profile;
@@ -182,10 +186,17 @@ function ContactProfile({
 					{alias.originalEmail}
 				</p>
 			))}
+			<SetContactCompanyForm
+				companies={companies}
+				contactId={profile.id}
+				currentCompanyId={currentCompany ? currentCompany.id : null}
+				key={`${profile.id}:${profile.revision}`}
+				revision={profile.revision}
+			/>
 			{currentCompany ? (
 				<section>
 					<h3 className="text-muted-foreground text-xs">
-						{CONTACT_AND_COMPANY_COPY.belongsToCompany}
+						{CONTACT_AND_COMPANY_COPY.company}
 					</h3>
 					<p className="mt-1 text-sm">{currentCompany.name}</p>
 					<OpenSourceRecordButton
@@ -195,13 +206,6 @@ function ContactProfile({
 				</section>
 			) : null}
 			{profile.relatedPersonaDocuments.map((item) => (
-				<RelatedSourceLink
-					key={item.id}
-					openSourceRecord={item.openSourceRecord}
-					title={item.title}
-				/>
-			))}
-			{profile.relatedFeedback.map((item) => (
 				<RelatedSourceLink
 					key={item.id}
 					openSourceRecord={item.openSourceRecord}
@@ -239,9 +243,9 @@ function RelatedSourceLink({
 	return (
 		<section>
 			<p className="text-sm">{title}</p>
-			<Button type="button" variant="ghost">
+			<a className="text-sm underline-offset-4 hover:underline" href="/wiki">
 				{openSourceRecord}
-			</Button>
+			</a>
 		</section>
 	);
 }

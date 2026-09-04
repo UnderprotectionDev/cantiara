@@ -38,6 +38,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Company | `Company` | Contact ve Geri Bildirimi isteğe bağlı ortak kuruluş bağlamında gruplayan hafif ana kayıt |
 | Şirkete ait | `Belongs to Company` | Contact başına en fazla bir güncel Company bağı; geçmiş değişiklikte korunur |
 | Kaynak kaydı aç (kimlik defteri) | `Open Source Record` | Contact profilinde ilişkili Geri Bildirim, Company ve Persona belgesini kaynağında açma |
+| Contact oluştur | `Create Contact` | Çalışma Alanında kimlik defteri Contact'ı açma |
+| Company oluştur | `Create Company` | İsteğe bağlı kuruluş bağlamı kaydı açma |
+| Görünen ad | `Display name` | Contact'ta isteğe bağlı görünen ad; kimlik değildir |
+| E-posta | `Email` | Contact'ta isteğe bağlı e-posta takma değeri |
+| Yok | `None` | Contact'ın güncel Company bağının olmaması |
+| Contact yok | `No Contacts yet.` | Henüz Contact açılmamış boş durum |
+| Company yok | `No Companies yet.` | Henüz Company açılmamış boş durum |
 | AI ajanı | `AI Agent` | `AI agent` ve `agent` varyantlarının ortak kavramı |
 | Repository | `Repository` | GitHub'ın dış sistem kavramıdır; genel “depo” eşanlamlı kayıt türü oluşturmaz |
 | Teknik Diyagram | `Technical Diagram` | Veri modeli, teknik mimari veya sistemler arası sıralı etkileşimi bağımsız kimlik ve türlenmiş yapısal modelle taşıyan Proje ana kaydı |
