@@ -400,6 +400,7 @@ export type ContactUndoMergeOutcome =
 			status: "committed";
 	  }
 	| { contact: ContactView; status: "replayed" }
+	| { conflict: "Conflict"; status: "conflict" }
 	| {
 			conflict: "Conflict";
 			current: ContactView;
