@@ -829,6 +829,12 @@ export async function createRelationInTransaction(
 	if (!type) {
 		return { reason: "unknown-relation-type", status: "rejected" };
 	}
+	if (
+		type === RELATIONS_COPY.supersedes &&
+		parsed.command.from.kind === "Decision"
+	) {
+		return { reason: "preview-required", status: "rejected" };
+	}
 	const typedCommand = { ...parsed.command, type };
 	const ends = validateRelationEnds(typedCommand);
 	if (ends.status === "rejected") {

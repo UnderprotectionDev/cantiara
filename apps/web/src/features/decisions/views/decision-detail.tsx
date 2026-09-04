@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
 import { DECISIONS_COPY } from "@/features/decisions/forms/decisions-copy";
+import RemoveSupersessionForm from "@/features/decisions/forms/remove-supersession-form";
+import SupersedeDecisionForm from "@/features/decisions/forms/supersede-decision-form";
 import WithdrawDecisionForm from "@/features/decisions/forms/withdraw-decision-form";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { orpc } from "@/utils/orpc";
@@ -17,7 +19,7 @@ export default function DecisionDetail({
 	const decision = useQuery(
 		orpc.decisions.get.queryOptions({ input: { decisionId } })
 	);
-	const onWithdrawn = useCallback(() => {
+	const onChanged = useCallback(() => {
 		decision.refetch().catch(() => undefined);
 	}, [decision]);
 
@@ -54,13 +56,37 @@ export default function DecisionDetail({
 				</p>
 			</section>
 			{decision.data.life === DECISIONS_COPY.valid ? (
-				<WithdrawDecisionForm
-					baseRevision={decision.data.revision}
-					decisionId={decision.data.id}
-					onWithdrawn={onWithdrawn}
-					projectId={projectId}
-				/>
+				<>
+					<SupersedeDecisionForm
+						baseRevision={decision.data.revision}
+						decisionId={decision.data.id}
+						onSuperseded={onChanged}
+						projectId={projectId}
+					/>
+					<WithdrawDecisionForm
+						baseRevision={decision.data.revision}
+						decisionId={decision.data.id}
+						onWithdrawn={onChanged}
+						projectId={projectId}
+					/>
+				</>
 			) : null}
+			{decision.data.supersedes.length > 0
+				? decision.data.supersedes.map((old) => (
+						<section key={old.id}>
+							<p className="text-muted-foreground text-sm">
+								{`${DECISIONS_COPY.supersedes} · ${old.title}`}
+							</p>
+							<RemoveSupersessionForm
+								baseRevision={decision.data.revision}
+								onRemoved={onChanged}
+								projectId={projectId}
+								successorId={decision.data.id}
+								supersededId={old.id}
+							/>
+						</section>
+					))
+				: null}
 			{decision.data.life === DECISIONS_COPY.withdrawn &&
 			decision.data.withdrawnAt ? (
 				<p className="text-muted-foreground text-sm">

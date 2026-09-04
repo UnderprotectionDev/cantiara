@@ -4,29 +4,44 @@
  * Superseded is not a free status pick. Withdrawn is an
  * explicit dated action. Work close does not withdraw.
  * Missing imported life reads Valid. No alternative set,
- * voting, or automatic winner.
- * docs/specs/38-decisions/spec.md and GitHub #275.
+ * voting, or automatic winner. Supersede another decision
+ * previews then commits an acyclic single-successor chain.
+ * docs/specs/38-decisions/spec.md and GitHub #275 #276.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Karar ve belirsizlik).
  */
 import { PrismaClient } from "@cantiara/db";
+import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createProject } from "../../project-shell/server/project-shell";
 import {
+	createRelation,
+	listRelations,
+} from "../../relations/server/relations";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
+import {
 	closeWork,
 	createWork,
+	getWork,
 } from "../../work-lifecycle/server/work-lifecycle";
-import { CLOSURE_RESULT } from "../../work-lifecycle/server/work-lifecycle-model";
+import {
+	CLOSURE_RESULT,
+	WORK_STATUS,
+} from "../../work-lifecycle/server/work-lifecycle-model";
 
 import {
 	createDecision,
 	getDecision,
 	ingestImportedDecision,
 	listDecisions,
+	previewRemoveSupersession,
+	previewSupersession,
+	removeSupersession,
 	setDecisionLife,
+	supersedeDecisions,
 	withdrawDecision,
 } from "./decisions";
 import {
@@ -36,9 +51,7 @@ import {
 	presentDecisionLife,
 } from "./decisions-model";
 
-const DATABASE_URL =
-	process.env.DATABASE_URL ??
-	"postgresql://cantiara:cantiara@127.0.0.1:5432/cantiara";
+const DATABASE_URL = localTestDatabaseUrl();
 
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T/;
 const VOTING_COPY = /vote|voting|score|winner|alternative set/i;
@@ -63,6 +76,7 @@ async function seedWorkspace(prisma: PrismaClient) {
 }
 
 async function resetSharedTables(prisma: PrismaClient) {
+	await prisma.typedRelation.deleteMany();
 	await prisma.decision.deleteMany();
 	await prisma.mutationReceipt.deleteMany();
 	await prisma.workspaceShortCodeReservation.deleteMany();
@@ -91,6 +105,34 @@ async function openPayments(prisma: PrismaClient) {
 		throw new Error("expected project");
 	}
 	return { actorId, projectId: created.project.id, workspaceId };
+}
+
+async function committedDecision(
+	prisma: PrismaClient,
+	input: {
+		actorId: string;
+		decision: string;
+		idempotencyKey: string;
+		projectId: string;
+		rationale: string;
+		title: string;
+	}
+) {
+	const created = await createDecision(prisma, {
+		actorId: input.actorId,
+		idempotencyKey: input.idempotencyKey,
+		origin: "human",
+		payload: {
+			decision: input.decision,
+			projectId: input.projectId,
+			rationale: input.rationale,
+			title: input.title,
+		},
+	});
+	if (created.status !== "committed") {
+		throw new Error("expected create");
+	}
+	return created.decision;
 }
 
 describe("Decisions", () => {
@@ -300,7 +342,455 @@ describe("Decisions", () => {
 		expect(DECISIONS_COPY.withdraw).toBe("Withdraw");
 		expect(DECISIONS_COPY.decisionText).toBe("Decision text");
 		expect(DECISIONS_COPY.rationale).toBe("Rationale");
+		expect(DECISIONS_COPY.supersedeAnotherDecision).toBe(
+			"Supersede another decision"
+		);
 		expect(JSON.stringify(DECISIONS_COPY)).not.toMatch(VOTING_COPY);
 		expect(DECISION_LIFE.superseded).toBe("Superseded");
+	});
+
+	it("previews then atomically supersedes without leaving two Valid Decisions", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const oldDecision = await committedDecision(prisma, {
+			actorId,
+			decision: "Use email login.",
+			idempotencyKey: "create-old-login",
+			projectId,
+			rationale: "Email is familiar.",
+			title: "Email login",
+		});
+		const successor = await committedDecision(prisma, {
+			actorId,
+			decision: "Use GitHub login.",
+			idempotencyKey: "create-new-login",
+			projectId,
+			rationale: "One identity for the founder.",
+			title: "GitHub login",
+		});
+		const preview = await previewSupersession(prisma, {
+			payload: {
+				successorId: successor.id,
+				supersededIds: [oldDecision.id],
+				transitionRationale: "GitHub covers the founder.",
+			},
+		});
+		expect(preview.status).toBe("ok");
+		if (preview.status !== "ok") {
+			return;
+		}
+		expect(preview.preview.successor.title).toBe("GitHub login");
+		expect(preview.preview.successor.rationale).toBe(
+			"One identity for the founder."
+		);
+		expect(preview.preview.successor.life).toBe(DECISION_LIFE.valid);
+		expect(preview.preview.successor.nextLife).toBe(DECISION_LIFE.valid);
+		expect(preview.preview.superseded).toEqual([
+			expect.objectContaining({
+				id: oldDecision.id,
+				life: DECISION_LIFE.valid,
+				nextLife: DECISION_LIFE.superseded,
+				rationale: "Email is familiar.",
+				title: "Email login",
+			}),
+		]);
+		expect(preview.preview.transitionRationale).toBe(
+			"GitHub covers the founder."
+		);
+		expect(preview.preview.livesChanging).toEqual([
+			{
+				from: DECISION_LIFE.valid,
+				id: oldDecision.id,
+				title: "Email login",
+				to: DECISION_LIFE.superseded,
+			},
+		]);
+		const committed = await supersedeDecisions(prisma, {
+			actorId,
+			baseRevision: successor.revision,
+			idempotencyKey: "supersede-login",
+			origin: "human",
+			payload: {
+				successorId: successor.id,
+				supersededIds: [oldDecision.id],
+				supersededRevisions: [
+					{ id: oldDecision.id, revision: oldDecision.revision },
+				],
+				transitionRationale: "GitHub covers the founder.",
+			},
+		});
+		expect(committed.status).toBe("committed");
+		if (committed.status !== "committed") {
+			return;
+		}
+		expect(committed.successor.life).toBe(DECISION_LIFE.valid);
+		expect(committed.superseded).toEqual([
+			expect.objectContaining({
+				id: oldDecision.id,
+				life: DECISION_LIFE.superseded,
+			}),
+		]);
+		expect(await getDecision(prisma, oldDecision.id)).toEqual(
+			expect.objectContaining({ life: DECISION_LIFE.superseded })
+		);
+		expect(await getDecision(prisma, successor.id)).toEqual(
+			expect.objectContaining({ life: DECISION_LIFE.valid })
+		);
+		const replayed = await supersedeDecisions(prisma, {
+			actorId,
+			baseRevision: successor.revision,
+			idempotencyKey: "supersede-login",
+			origin: "human",
+			payload: {
+				successorId: successor.id,
+				supersededIds: [oldDecision.id],
+				supersededRevisions: [
+					{ id: oldDecision.id, revision: oldDecision.revision },
+				],
+				transitionRationale: "GitHub covers the founder.",
+			},
+		});
+		expect(replayed.status).toBe("replayed");
+		if (replayed.status !== "replayed") {
+			return;
+		}
+		expect(replayed.successor.id).toBe(successor.id);
+		expect(replayed.superseded[0]?.life).toBe(DECISION_LIFE.superseded);
+	});
+
+	it("lets one Valid Decision fully replace several compatible old ones", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const first = await committedDecision(prisma, {
+			actorId,
+			decision: "Email.",
+			idempotencyKey: "old-a",
+			projectId,
+			rationale: "A.",
+			title: "A",
+		});
+		const second = await committedDecision(prisma, {
+			actorId,
+			decision: "Password.",
+			idempotencyKey: "old-b",
+			projectId,
+			rationale: "B.",
+			title: "B",
+		});
+		const successor = await committedDecision(prisma, {
+			actorId,
+			decision: "GitHub.",
+			idempotencyKey: "new-ab",
+			projectId,
+			rationale: "Both.",
+			title: "GitHub",
+		});
+		const committed = await supersedeDecisions(prisma, {
+			actorId,
+			baseRevision: successor.revision,
+			idempotencyKey: "replace-both",
+			origin: "human",
+			payload: {
+				successorId: successor.id,
+				supersededIds: [first.id, second.id],
+				supersededRevisions: [
+					{ id: first.id, revision: first.revision },
+					{ id: second.id, revision: second.revision },
+				],
+			},
+		});
+		expect(committed.status).toBe("committed");
+		if (committed.status !== "committed") {
+			return;
+		}
+		expect(committed.superseded.map((row) => row.life)).toEqual([
+			DECISION_LIFE.superseded,
+			DECISION_LIFE.superseded,
+		]);
+		expect((await getDecision(prisma, first.id))?.life).toBe(
+			DECISION_LIFE.superseded
+		);
+		expect((await getDecision(prisma, second.id))?.life).toBe(
+			DECISION_LIFE.superseded
+		);
+		expect((await getDecision(prisma, successor.id))?.life).toBe(
+			DECISION_LIFE.valid
+		);
+	});
+
+	it("rejects self-link, cycle, and conflicting fork before apply", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const first = await committedDecision(prisma, {
+			actorId,
+			decision: "First.",
+			idempotencyKey: "cycle-first",
+			projectId,
+			rationale: "One.",
+			title: "First",
+		});
+		const second = await committedDecision(prisma, {
+			actorId,
+			decision: "Second.",
+			idempotencyKey: "cycle-second",
+			projectId,
+			rationale: "Two.",
+			title: "Second",
+		});
+		const third = await committedDecision(prisma, {
+			actorId,
+			decision: "Third.",
+			idempotencyKey: "cycle-third",
+			projectId,
+			rationale: "Three.",
+			title: "Third",
+		});
+		expect(
+			await previewSupersession(prisma, {
+				payload: {
+					successorId: first.id,
+					supersededIds: [first.id],
+				},
+			})
+		).toEqual({ reason: "self-link", status: "rejected" });
+		await prisma.typedRelation.create({
+			data: {
+				fromId: first.id,
+				fromKind: "Decision",
+				id: crypto.randomUUID(),
+				revision: 1,
+				toId: second.id,
+				toKind: "Decision",
+				type: RELATIONS_COPY.supersedes,
+			},
+		});
+		expect(
+			await previewSupersession(prisma, {
+				payload: {
+					successorId: second.id,
+					supersededIds: [first.id],
+				},
+			})
+		).toEqual({ reason: "cycle", status: "rejected" });
+		expect(
+			await supersedeDecisions(prisma, {
+				actorId,
+				baseRevision: second.revision,
+				idempotencyKey: "cycle-apply",
+				origin: "human",
+				payload: {
+					successorId: second.id,
+					supersededIds: [first.id],
+					supersededRevisions: [{ id: first.id, revision: first.revision }],
+				},
+			})
+		).toEqual({ reason: "cycle", status: "rejected" });
+		await prisma.typedRelation.deleteMany({
+			where: { fromId: first.id, toId: second.id },
+		});
+		const firstReplace = await supersedeDecisions(prisma, {
+			actorId,
+			baseRevision: second.revision,
+			idempotencyKey: "first-replaces-second",
+			origin: "human",
+			payload: {
+				successorId: second.id,
+				supersededIds: [first.id],
+				supersededRevisions: [{ id: first.id, revision: first.revision }],
+			},
+		});
+		expect(firstReplace.status).toBe("committed");
+		expect(
+			await previewSupersession(prisma, {
+				payload: {
+					successorId: third.id,
+					supersededIds: [first.id],
+				},
+			})
+		).toEqual({ reason: "conflicting-fork", status: "rejected" });
+		expect((await getDecision(prisma, first.id))?.life).toBe(
+			DECISION_LIFE.superseded
+		);
+		expect((await getDecision(prisma, second.id))?.life).toBe(
+			DECISION_LIFE.valid
+		);
+	});
+
+	it("does not copy related Work or write Work status on supersession", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const oldDecision = await committedDecision(prisma, {
+			actorId,
+			decision: "Keep Postgres.",
+			idempotencyKey: "pg-old",
+			projectId,
+			rationale: "Hosted Neon.",
+			title: "Postgres",
+		});
+		const successor = await committedDecision(prisma, {
+			actorId,
+			decision: "Keep Postgres on Neon.",
+			idempotencyKey: "pg-new",
+			projectId,
+			rationale: "Same store.",
+			title: "Neon Postgres",
+		});
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "pg-work",
+			origin: "human",
+			payload: { projectId, title: "Ship Neon" },
+		});
+		if (work.status !== "committed" && work.status !== "replayed") {
+			throw new Error("expected work");
+		}
+		const related = await createRelation(prisma, {
+			actorId,
+			from: { id: work.work.id, kind: "Work" },
+			idempotencyKey: "relate-work-decision",
+			origin: "human",
+			previewAcknowledged: true,
+			to: { id: oldDecision.id, kind: "Decision" },
+			type: RELATIONS_COPY.related,
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(related.status).toBe("committed");
+		await prisma.typedRelation.create({
+			data: {
+				fromId: work.work.id,
+				fromKind: "Work",
+				id: crypto.randomUUID(),
+				revision: 1,
+				toId: oldDecision.id,
+				toKind: "Decision",
+				type: RELATIONS_COPY.evidence,
+			},
+		});
+		expect((await getDecision(prisma, oldDecision.id))?.life).toBe(
+			DECISION_LIFE.valid
+		);
+		const preview = await previewSupersession(prisma, {
+			payload: {
+				successorId: successor.id,
+				supersededIds: [oldDecision.id],
+			},
+		});
+		expect(preview.status).toBe("ok");
+		if (preview.status === "ok") {
+			expect(preview.preview.superseded[0]?.evidenceSummary).toEqual([
+				"Ship Neon",
+			]);
+		}
+		const committed = await supersedeDecisions(prisma, {
+			actorId,
+			baseRevision: successor.revision,
+			idempotencyKey: "supersede-pg",
+			origin: "human",
+			payload: {
+				successorId: successor.id,
+				supersededIds: [oldDecision.id],
+				supersededRevisions: [
+					{ id: oldDecision.id, revision: oldDecision.revision },
+				],
+			},
+		});
+		expect(committed.status).toBe("committed");
+		const liveWork = await getWork(prisma, work.work.id);
+		expect(liveWork?.status).toBe(WORK_STATUS.notStarted);
+		const oldRelations = await listRelations(prisma, {
+			record: { id: oldDecision.id, kind: "Decision" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(
+			oldRelations.filter((row) => row.type === RELATIONS_COPY.related)
+		).toHaveLength(1);
+		const newRelations = await listRelations(prisma, {
+			record: { id: successor.id, kind: "Decision" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(
+			newRelations.filter((row) => row.type === RELATIONS_COPY.related)
+		).toHaveLength(0);
+		expect(
+			newRelations.filter((row) => row.type === RELATIONS_COPY.supersedes)
+		).toHaveLength(1);
+	});
+
+	it("previews remove and restores Valid without deleting the successor", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const oldDecision = await committedDecision(prisma, {
+			actorId,
+			decision: "Weekly.",
+			idempotencyKey: "remove-old",
+			projectId,
+			rationale: "Cadence.",
+			title: "Weekly",
+		});
+		const successor = await committedDecision(prisma, {
+			actorId,
+			decision: "Board cadence.",
+			idempotencyKey: "remove-new",
+			projectId,
+			rationale: "Visible.",
+			title: "Board",
+		});
+		const committed = await supersedeDecisions(prisma, {
+			actorId,
+			baseRevision: successor.revision,
+			idempotencyKey: "supersede-then-remove",
+			origin: "human",
+			payload: {
+				successorId: successor.id,
+				supersededIds: [oldDecision.id],
+				supersededRevisions: [
+					{ id: oldDecision.id, revision: oldDecision.revision },
+				],
+			},
+		});
+		if (committed.status !== "committed") {
+			throw new Error("expected supersede");
+		}
+		expect(
+			await removeSupersession(prisma, {
+				actorId,
+				baseRevision: committed.successor.revision,
+				idempotencyKey: "remove-without-confirm",
+				origin: "human",
+				payload: {
+					successorId: successor.id,
+					supersededId: oldDecision.id,
+				},
+			})
+		).toEqual({ reason: "preview-required", status: "rejected" });
+		const preview = await previewRemoveSupersession(prisma, {
+			payload: {
+				successorId: successor.id,
+				supersededId: oldDecision.id,
+			},
+		});
+		expect(preview.status).toBe("ok");
+		if (preview.status !== "ok") {
+			return;
+		}
+		expect(preview.preview.wouldRestoreValid).toBe(true);
+		expect(preview.preview.superseded.nextLife).toBe(DECISION_LIFE.valid);
+		expect(preview.preview.successor.nextLife).toBe(DECISION_LIFE.valid);
+		const removed = await removeSupersession(prisma, {
+			actorId,
+			baseRevision: committed.successor.revision,
+			idempotencyKey: "remove-relation",
+			origin: "human",
+			payload: {
+				confirm: true,
+				successorId: successor.id,
+				supersededId: oldDecision.id,
+			},
+		});
+		expect(removed.status).toBe("committed");
+		if (removed.status !== "committed") {
+			return;
+		}
+		expect(removed.superseded.life).toBe(DECISION_LIFE.valid);
+		expect(removed.successor.life).toBe(DECISION_LIFE.valid);
+		expect(await getDecision(prisma, successor.id)).not.toBeNull();
+		expect((await getDecision(prisma, oldDecision.id))?.life).toBe(
+			DECISION_LIFE.valid
+		);
 	});
 });
