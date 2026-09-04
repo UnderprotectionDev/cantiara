@@ -329,7 +329,10 @@ function lineChangeClassName(part: {
 	if (part.removed) {
 		return "whitespace-pre-wrap text-muted-foreground line-through";
 	}
-	return "whitespace-pre-wrap";
+	if (part.added) {
+		return "whitespace-pre-wrap font-medium";
+	}
+	return "whitespace-pre-wrap text-muted-foreground";
 }
 
 function lineChangeKey(part: {
