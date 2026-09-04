@@ -5,6 +5,7 @@ import {
 	preparedIndexSearch,
 	preparedIndexTypeFilters,
 	preparedIndexUsesFolderFilters,
+	preparedIndexUsesStatusFilters,
 } from "./prepared-index-search";
 import { RECORD_DISCOVERY_COPY } from "./record-discovery-copy";
 
@@ -35,6 +36,8 @@ test("prepared indexes open from a type selector path, not per-type main nav", (
 	expect(preparedIndexUsesFolderFilters("All Documents")).toBe(true);
 	expect(preparedIndexUsesFolderFilters("All Files")).toBe(true);
 	expect(preparedIndexUsesFolderFilters("All Work")).toBe(false);
+	expect(preparedIndexUsesStatusFilters("All Decisions")).toBe(true);
+	expect(preparedIndexUsesStatusFilters("All Work")).toBe(false);
 	expect(preparedIndexTypeFilters("All Tests")).toEqual([
 		"Planned Test Case",
 		"Test Handoff",

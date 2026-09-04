@@ -521,6 +521,50 @@ describe("Record Discovery prepared type indexes", () => {
 		expect(JSON.stringify(RECORD_DISCOVERY_COPY)).not.toMatch(PALETTE);
 	});
 
+	it("puts Valid Decisions first on All Decisions and finds others by status", () => {
+		const index = [
+			record({
+				id: "decision-old",
+				kind: RECORD_DISCOVERY_COPY.decision,
+				lifecycle: "closed",
+				recordType: RECORD_DISCOVERY_COPY.decision,
+				status: "Superseded",
+				title: "Email login",
+			}),
+			record({
+				id: "decision-valid",
+				kind: RECORD_DISCOVERY_COPY.decision,
+				lifecycle: "active",
+				recordType: RECORD_DISCOVERY_COPY.decision,
+				status: "Valid",
+				title: "GitHub login",
+			}),
+			record({
+				id: "decision-withdrawn",
+				kind: RECORD_DISCOVERY_COPY.decision,
+				lifecycle: "closed",
+				recordType: RECORD_DISCOVERY_COPY.decision,
+				status: "Withdrawn",
+				title: "Weekly ship",
+			}),
+		];
+		expect(
+			browsePreparedIndex(index, {
+				index: RECORD_DISCOVERY_COPY.allDecisions,
+			}).rows.map((row) => row.id)
+		).toEqual(["decision-valid", "decision-old", "decision-withdrawn"]);
+		expect(
+			browsePreparedIndex(index, {
+				index: RECORD_DISCOVERY_COPY.allDecisions,
+				status: "Superseded",
+			}).rows.map((row) => row.id)
+		).toEqual(["decision-old"]);
+		expect(ids(index, { text: "login" })).toEqual([
+			"decision-valid",
+			"decision-old",
+		]);
+	});
+
 	it("collects existing Work without taking ownership out of Project or Wiki scope", () => {
 		const index = [
 			record({

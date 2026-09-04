@@ -1,4 +1,8 @@
 import {
+	DECISION_LIFE,
+	presentDecisionLife,
+} from "../../decisions/server/decisions-model";
+import {
 	FILE_LIFECYCLE,
 	FILE_SCOPE_KIND,
 } from "../../file-attachments/server/file-attachments-model";
@@ -14,6 +18,7 @@ export const SEARCH_RECORD_KINDS = [
 	RECORD_DISCOVERY_COPY.document,
 	RECORD_DISCOVERY_COPY.fileAttachment,
 	RECORD_DISCOVERY_COPY.technicalDiagram,
+	RECORD_DISCOVERY_COPY.decision,
 ] as const;
 
 export type SearchRecordKind = string;
@@ -161,6 +166,7 @@ export interface PreparedIndexQuery {
 	metadata?: string | null;
 	recordType?: string | null;
 	scope?: SearchScope | null;
+	status?: string | null;
 }
 
 export interface PreparedIndexRow {
@@ -254,6 +260,9 @@ export function browsePreparedIndex(
 		if (query.recordType && record.recordType !== query.recordType) {
 			return false;
 		}
+		if (query.status && record.status !== query.status) {
+			return false;
+		}
 		if (query.metadata && !containsQuery(record.metadata, query.metadata)) {
 			return false;
 		}
@@ -305,6 +314,15 @@ export function loadSearchIndexFromRows(input: {
 		trashedAt: Date | null;
 		updatedAt: Date;
 		userFacingNames: readonly string[];
+	}[];
+	decisions?: readonly {
+		decisionText: string;
+		id: string;
+		life: string;
+		projectId: string;
+		rationale: string;
+		title: string;
+		updatedAt: Date;
 	}[];
 	works: readonly {
 		archived: boolean;
@@ -393,7 +411,33 @@ export function loadSearchIndexFromRows(input: {
 			updatedAt: diagram.updatedAt.getTime(),
 		} satisfies SearchIndexRecord;
 	});
-	return [...works, ...files, ...diagrams].filter((record) =>
+	const decisions = (input.decisions ?? []).map((decision) => {
+		const life = presentDecisionLife(decision.life);
+		return {
+			archived: false,
+			authorized: true,
+			body: `${decision.decisionText}\n${decision.rationale}`,
+			closureResult: null,
+			diagramAuthorityMode: null,
+			folder: null,
+			id: decision.id,
+			key: null,
+			kind: RECORD_DISCOVERY_COPY.decision,
+			lifecycle:
+				life === DECISION_LIFE.valid
+					? ("active" as const)
+					: ("closed" as const),
+			metadata: "",
+			projectId: decision.projectId,
+			recordType: RECORD_DISCOVERY_COPY.decision,
+			scope: RECORD_DISCOVERY_COPY.project,
+			status: life,
+			title: decision.title,
+			trashed: false,
+			updatedAt: decision.updatedAt.getTime(),
+		} satisfies SearchIndexRecord;
+	});
+	return [...works, ...files, ...diagrams, ...decisions].filter((record) =>
 		isSearchIndexedKind(record.kind)
 	);
 }
@@ -432,6 +476,10 @@ function compareIndexRows(
 	left: SearchIndexRecord,
 	right: SearchIndexRecord
 ): number {
+	const ruling = rulingRank(left.status) - rulingRank(right.status);
+	if (ruling !== 0) {
+		return ruling;
+	}
 	const title = left.title.localeCompare(right.title);
 	if (title !== 0) {
 		return title;
@@ -519,6 +567,11 @@ function compareHits(
 	if (life !== 0) {
 		return life;
 	}
+	const ruling =
+		rulingRank(left.record.status) - rulingRank(right.record.status);
+	if (ruling !== 0) {
+		return ruling;
+	}
 	const closure =
 		closureRank(left.record.closureResult) -
 		closureRank(right.record.closureResult);
@@ -552,6 +605,16 @@ function projectRank(
 		return 0;
 	}
 	return 1;
+}
+
+function rulingRank(status: string): number {
+	if (status === "Valid") {
+		return 0;
+	}
+	if (status === "Superseded" || status === "Withdrawn") {
+		return 1;
+	}
+	return 0;
 }
 
 function lifecycleRank(lifecycle: SearchLifecycle): number {
@@ -628,6 +691,9 @@ function toHit(
 function sourceHref(record: SearchIndexRecord): string {
 	if (record.kind === RECORD_DISCOVERY_COPY.work && record.projectId) {
 		return `/projects/${record.projectId}?work=${encodeURIComponent(record.id)}#work`;
+	}
+	if (record.kind === RECORD_DISCOVERY_COPY.decision && record.projectId) {
+		return `/projects/${record.projectId}?decision=${encodeURIComponent(record.id)}#decisions`;
 	}
 	if (record.scope === RECORD_DISCOVERY_COPY.personalWiki) {
 		return "/wiki";

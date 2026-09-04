@@ -9,15 +9,18 @@ import {
 	createDecision,
 	getDecision,
 	listDecisions,
+	previewClosedWorld,
 	previewRemoveSupersession,
 	previewSupersession,
 	removeSupersession,
+	searchDecisions,
 	setDecisionLife,
 	supersedeDecisions,
 	withdrawDecision,
 } from "./decisions";
 import {
 	createDecisionPayloadSchema,
+	DECISION_LIVES,
 	DECISIONS_COPY,
 	previewRemoveSupersessionInputSchema,
 	previewSupersessionInputSchema,
@@ -74,11 +77,29 @@ export const decisions = {
 			return decision;
 		}),
 	list: protectedProcedure
-		.input(z.object({ projectId: z.string().min(1) }))
+		.input(
+			z.object({
+				life: z.enum(DECISION_LIVES).optional(),
+				projectId: z.string().min(1),
+			})
+		)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
-			return await listDecisions(getPrismaClient(), input.projectId);
+			return await listDecisions(getPrismaClient(), input.projectId, {
+				life: input.life,
+			});
+		}),
+	previewClosedWorld: protectedProcedure
+		.input(z.object({ decisionId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const decision = await getDecision(getPrismaClient(), input.decisionId);
+			if (!decision) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, decision.projectId);
+			return await previewClosedWorld(getPrismaClient(), input.decisionId);
 		}),
 	previewRemoveSupersession: protectedProcedure
 		.input(previewRemoveSupersessionInputSchema)
@@ -132,6 +153,23 @@ export const decisions = {
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				payload: input.payload,
+			});
+		}),
+	search: protectedProcedure
+		.input(
+			z.object({
+				life: z.enum(DECISION_LIVES).optional(),
+				projectId: z.string().min(1),
+				text: z.string(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await searchDecisions(getPrismaClient(), {
+				life: input.life,
+				projectId: input.projectId,
+				text: input.text,
 			});
 		}),
 	setLife: protectedWriteProcedure

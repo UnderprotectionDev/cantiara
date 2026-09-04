@@ -23,6 +23,7 @@ export interface PreparedIndexSearch {
 	metadata?: string;
 	recordType?: string;
 	scope?: "Project" | "Personal Wiki";
+	status?: string;
 }
 
 export function isPreparedIndexLabel(
@@ -48,6 +49,9 @@ export function preparedIndexHref(
 	}
 	if (filters.recordType) {
 		params.set("recordType", filters.recordType);
+	}
+	if (filters.status) {
+		params.set("status", filters.status);
 	}
 	if (filters.metadata) {
 		params.set("metadata", filters.metadata);
@@ -81,6 +85,10 @@ export function preparedIndexSearch(
 		typeof search.recordType === "string" && search.recordType.length > 0
 			? search.recordType
 			: undefined;
+	const status =
+		typeof search.status === "string" && search.status.length > 0
+			? search.status
+			: undefined;
 	const metadata =
 		typeof search.metadata === "string" && search.metadata.length > 0
 			? search.metadata
@@ -91,6 +99,7 @@ export function preparedIndexSearch(
 		...(scope ? { scope } : {}),
 		...(folder ? { folder } : {}),
 		...(recordType ? { recordType } : {}),
+		...(status ? { status } : {}),
 		...(metadata ? { metadata } : {}),
 	};
 }
@@ -125,6 +134,10 @@ export function preparedIndexTypeFilters(index: string): readonly string[] {
 		];
 	}
 	return [];
+}
+
+export function preparedIndexUsesStatusFilters(index: string): boolean {
+	return index === RECORD_DISCOVERY_COPY.allDecisions;
 }
 
 export function preparedIndexUsesFolderFilters(index: string): boolean {

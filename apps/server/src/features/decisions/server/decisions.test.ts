@@ -6,7 +6,7 @@
  * Missing imported life reads Valid. No alternative set,
  * voting, or automatic winner. Supersede another decision
  * previews then commits an acyclic single-successor chain.
- * docs/specs/38-decisions/spec.md and GitHub #275 #276.
+ * docs/specs/38-decisions/spec.md and GitHub #275 #276 #277.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Karar ve belirsizlik).
  */
@@ -34,17 +34,24 @@ import {
 
 import {
 	createDecision,
+	defaultPublicDecisionId,
+	freezePublishedSnapshot,
 	getDecision,
 	ingestImportedDecision,
 	listDecisions,
+	previewClosedWorld,
 	previewRemoveSupersession,
 	previewSupersession,
 	removeSupersession,
+	resolvePublishedSnapshot,
+	searchDecisions,
 	setDecisionLife,
+	specChangeReviewsOpenedBySupersession,
 	supersedeDecisions,
 	withdrawDecision,
 } from "./decisions";
 import {
+	CLOSED_WORLD_ITEM_KIND,
 	DECISION_LIFE,
 	DECISIONS_COPY,
 	importedDecisionLife,
@@ -792,5 +799,253 @@ describe("Decisions", () => {
 		expect((await getDecision(prisma, oldDecision.id))?.life).toBe(
 			DECISION_LIFE.valid
 		);
+	});
+
+	it("puts Valid Decisions first and finds old or Withdrawn through the life filter", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const current = await committedDecision(prisma, {
+			actorId,
+			decision: "Use GitHub login.",
+			idempotencyKey: "search-valid",
+			projectId,
+			rationale: "One identity.",
+			title: "GitHub login",
+		});
+		const oldDecision = await committedDecision(prisma, {
+			actorId,
+			decision: "Use email login.",
+			idempotencyKey: "search-old",
+			projectId,
+			rationale: "Email is familiar.",
+			title: "Email login",
+		});
+		const withdrawn = await committedDecision(prisma, {
+			actorId,
+			decision: "Ship weekly.",
+			idempotencyKey: "search-withdrawn",
+			projectId,
+			rationale: "Cadence.",
+			title: "Weekly ship",
+		});
+		const withdrawnOutcome = await withdrawDecision(prisma, {
+			actorId,
+			baseRevision: withdrawn.revision,
+			idempotencyKey: "withdraw-for-search",
+			origin: "human",
+			payload: { decisionId: withdrawn.id },
+		});
+		expect(withdrawnOutcome.status).toBe("committed");
+		const replaced = await supersedeDecisions(prisma, {
+			actorId,
+			baseRevision: current.revision,
+			idempotencyKey: "supersede-for-search",
+			origin: "human",
+			payload: {
+				successorId: current.id,
+				supersededIds: [oldDecision.id],
+				supersededRevisions: [
+					{ id: oldDecision.id, revision: oldDecision.revision },
+				],
+			},
+		});
+		expect(replaced.status).toBe("committed");
+		const listed = await listDecisions(prisma, projectId);
+		expect(listed.map((item) => item.life)).toEqual([
+			DECISION_LIFE.valid,
+			DECISION_LIFE.superseded,
+			DECISION_LIFE.withdrawn,
+		]);
+		expect(listed[0]?.title).toBe("GitHub login");
+		const onlyValid = await listDecisions(prisma, projectId, {
+			life: DECISION_LIFE.valid,
+		});
+		expect(onlyValid.map((item) => item.title)).toEqual(["GitHub login"]);
+		const onlyOld = await listDecisions(prisma, projectId, {
+			life: DECISION_LIFE.superseded,
+		});
+		expect(onlyOld.map((item) => item.title)).toEqual(["Email login"]);
+		const onlyWithdrawn = await listDecisions(prisma, projectId, {
+			life: DECISION_LIFE.withdrawn,
+		});
+		expect(onlyWithdrawn.map((item) => item.title)).toEqual(["Weekly ship"]);
+		const searched = await searchDecisions(prisma, {
+			projectId,
+			text: "login",
+		});
+		expect(searched.map((item) => item.title)).toEqual([
+			"GitHub login",
+			"Email login",
+		]);
+		const searchedOld = await searchDecisions(prisma, {
+			life: DECISION_LIFE.superseded,
+			projectId,
+			text: "login",
+		});
+		expect(searchedOld.map((item) => item.title)).toEqual(["Email login"]);
+	});
+
+	it("opens a Decision generation chain to the current Valid record, not event rows", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const oldest = await committedDecision(prisma, {
+			actorId,
+			decision: "Use email login.",
+			idempotencyKey: "chain-oldest",
+			projectId,
+			rationale: "Email is familiar.",
+			title: "Email login",
+		});
+		const middle = await committedDecision(prisma, {
+			actorId,
+			decision: "Use a password manager.",
+			idempotencyKey: "chain-middle",
+			projectId,
+			rationale: "Fewer resets.",
+			title: "Password manager",
+		});
+		const current = await committedDecision(prisma, {
+			actorId,
+			decision: "Use GitHub login.",
+			idempotencyKey: "chain-current",
+			projectId,
+			rationale: "One identity.",
+			title: "GitHub login",
+		});
+		const first = await supersedeDecisions(prisma, {
+			actorId,
+			baseRevision: middle.revision,
+			idempotencyKey: "chain-first-replace",
+			origin: "human",
+			payload: {
+				successorId: middle.id,
+				supersededIds: [oldest.id],
+				supersededRevisions: [{ id: oldest.id, revision: oldest.revision }],
+				transitionRationale: "Passwords were leaking.",
+			},
+		});
+		expect(first.status).toBe("committed");
+		const second = await supersedeDecisions(prisma, {
+			actorId,
+			baseRevision: current.revision,
+			idempotencyKey: "chain-second-replace",
+			origin: "human",
+			payload: {
+				successorId: current.id,
+				supersededIds: [middle.id],
+				supersededRevisions: [
+					{
+						id: middle.id,
+						revision:
+							first.status === "committed" ? first.successor.revision : 0,
+					},
+				],
+				transitionRationale: "GitHub covers the founder.",
+			},
+		});
+		expect(second.status).toBe("committed");
+		const events = await prisma.decisionEvent.findMany({
+			where: { decisionId: { in: [oldest.id, middle.id, current.id] } },
+		});
+		expect(events.length).toBeGreaterThan(3);
+		const loadedOld = await getDecision(prisma, oldest.id);
+		expect(loadedOld?.chain.map((item) => item.title)).toEqual([
+			"Email login",
+			"Password manager",
+			"GitHub login",
+		]);
+		expect(loadedOld?.chain.map((item) => item.id)).not.toEqual(
+			expect.arrayContaining(events.map((event) => event.id))
+		);
+		expect(loadedOld?.currentDecision).toEqual({
+			id: current.id,
+			title: "GitHub login",
+		});
+		expect(loadedOld?.openCurrentDecisionId).toBe(current.id);
+		expect(loadedOld?.contentReadOnly).toBe(true);
+		expect(loadedOld?.transitionRationale).toBe("Passwords were leaking.");
+		expect(loadedOld?.transitionOccurredAt).toMatch(ISO_INSTANT);
+		const loadedCurrent = await getDecision(prisma, current.id);
+		expect(loadedCurrent?.chain.map((item) => item.title)).toEqual([
+			"Email login",
+			"Password manager",
+			"GitHub login",
+		]);
+		expect(loadedCurrent?.openCurrentDecisionId).toBe(current.id);
+		expect(loadedCurrent?.contentReadOnly).toBe(false);
+		expect(DECISIONS_COPY.openCurrentDecision).toBe("Open current decision");
+		expect(DECISIONS_COPY.allDecisions).toBe("All Decisions");
+	});
+
+	it("previews old Decision, current Decision, and supersession as separate closed-world items and does not retarget an approved snapshot", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const oldDecision = await committedDecision(prisma, {
+			actorId,
+			decision: "Use email login.",
+			idempotencyKey: "world-old",
+			projectId,
+			rationale: "Email is familiar.",
+			title: "Email login",
+		});
+		const snapshot = freezePublishedSnapshot(oldDecision);
+		expect(snapshot.includedDecisionId).toBe(oldDecision.id);
+		const current = await committedDecision(prisma, {
+			actorId,
+			decision: "Use GitHub login.",
+			idempotencyKey: "world-current",
+			projectId,
+			rationale: "One identity.",
+			title: "GitHub login",
+		});
+		const replaced = await supersedeDecisions(prisma, {
+			actorId,
+			baseRevision: current.revision,
+			idempotencyKey: "world-replace",
+			origin: "human",
+			payload: {
+				successorId: current.id,
+				supersededIds: [oldDecision.id],
+				supersededRevisions: [
+					{ id: oldDecision.id, revision: oldDecision.revision },
+				],
+			},
+		});
+		expect(replaced.status).toBe("committed");
+		const preview = await previewClosedWorld(prisma, oldDecision.id);
+		expect(preview.map((item) => item.kind)).toEqual([
+			CLOSED_WORLD_ITEM_KIND.decision,
+			CLOSED_WORLD_ITEM_KIND.decision,
+			CLOSED_WORLD_ITEM_KIND.supersedes,
+		]);
+		expect(preview).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: oldDecision.id,
+					kind: CLOSED_WORLD_ITEM_KIND.decision,
+					title: "Email login",
+				}),
+				expect.objectContaining({
+					id: current.id,
+					kind: CLOSED_WORLD_ITEM_KIND.decision,
+					title: "GitHub login",
+				}),
+				expect.objectContaining({
+					fromId: current.id,
+					kind: CLOSED_WORLD_ITEM_KIND.supersedes,
+					toId: oldDecision.id,
+				}),
+			])
+		);
+		expect(new Set(preview.map((item) => item.id)).size).toBe(3);
+		const liveOld = await getDecision(prisma, oldDecision.id);
+		expect(liveOld).not.toBeNull();
+		if (!liveOld) {
+			return;
+		}
+		expect(resolvePublishedSnapshot(snapshot, liveOld)).toEqual({
+			decisionId: oldDecision.id,
+			redirected: false,
+			silentlyUpdated: false,
+		});
+		expect(defaultPublicDecisionId(liveOld)).toBe(current.id);
+		expect(specChangeReviewsOpenedBySupersession()).toEqual([]);
 	});
 });

@@ -1,10 +1,12 @@
 import { z } from "zod";
 
 export const DECISIONS_COPY = {
+	allDecisions: "All Decisions",
 	createDecision: "Create Decision",
 	decision: "Decision",
 	decisionText: "Decision text",
 	noDecisions: "No Decisions yet.",
+	openCurrentDecision: "Open current decision",
 	rationale: "Rationale",
 	supersedeAnotherDecision: "Supersede another decision",
 	superseded: "Superseded",
@@ -58,10 +60,25 @@ export function importedDecisionLife(
 	return DECISION_LIFE.valid;
 }
 
+export const decisionChainMemberSchema = z.object({
+	id: z.string().min(1),
+	life: z.enum(DECISION_LIVES),
+	title: z.string(),
+});
+
 export const decisionViewSchema = z.object({
+	chain: z.array(decisionChainMemberSchema),
+	contentReadOnly: z.boolean(),
+	currentDecision: z
+		.object({
+			id: z.string().min(1),
+			title: z.string(),
+		})
+		.nullable(),
 	decision: z.string(),
 	id: z.string().min(1),
 	life: z.enum(DECISION_LIVES),
+	openCurrentDecisionId: z.string().min(1).nullable(),
 	projectId: z.string().min(1),
 	rationale: z.string(),
 	recordKind: z.literal(DECISIONS_COPY.decision),
@@ -79,6 +96,8 @@ export const decisionViewSchema = z.object({
 		})
 	),
 	title: z.string(),
+	transitionOccurredAt: z.string().nullable(),
+	transitionRationale: z.string().nullable(),
 	withdrawnAt: z.string().nullable(),
 	withdrawnRationale: z.string().nullable(),
 });
@@ -398,3 +417,52 @@ export const removeSupersessionWriteOutcomeSchema = z.discriminatedUnion(
 export type RemoveSupersessionWriteOutcome = z.infer<
 	typeof removeSupersessionWriteOutcomeSchema
 >;
+
+export const CLOSED_WORLD_ITEM_KIND = {
+	decision: DECISIONS_COPY.decision,
+	supersedes: DECISIONS_COPY.supersedes,
+} as const;
+
+export const closedWorldItemSchema = z.discriminatedUnion("kind", [
+	z.object({
+		id: z.string().min(1),
+		kind: z.literal(CLOSED_WORLD_ITEM_KIND.decision),
+		title: z.string(),
+	}),
+	z.object({
+		fromId: z.string().min(1),
+		id: z.string().min(1),
+		kind: z.literal(CLOSED_WORLD_ITEM_KIND.supersedes),
+		toId: z.string().min(1),
+	}),
+]);
+
+export type ClosedWorldItem = z.infer<typeof closedWorldItemSchema>;
+
+export const publishedSnapshotSchema = z.object({
+	includedDecisionId: z.string().min(1),
+	includedRevision: z.number().int().positive(),
+});
+
+export type PublishedSnapshot = z.infer<typeof publishedSnapshotSchema>;
+
+export const resolvePublishedSnapshotOutcomeSchema = z.object({
+	decisionId: z.string().min(1),
+	redirected: z.literal(false),
+	silentlyUpdated: z.literal(false),
+});
+
+export type ResolvePublishedSnapshotOutcome = z.infer<
+	typeof resolvePublishedSnapshotOutcomeSchema
+>;
+
+export const listDecisionsQuerySchema = z.object({
+	life: z.enum(DECISION_LIVES).optional(),
+	projectId: z.string().min(1),
+});
+
+export const searchDecisionsQuerySchema = z.object({
+	life: z.enum(DECISION_LIVES).optional(),
+	projectId: z.string().min(1),
+	text: z.string(),
+});

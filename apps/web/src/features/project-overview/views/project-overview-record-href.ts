@@ -16,6 +16,9 @@ export function projectOverviewRecordHref(
 	if (heading === "Work") {
 		return `?work=${encodeURIComponent(recordId)}#work`;
 	}
+	if (heading === "Decisions") {
+		return `?decision=${encodeURIComponent(recordId)}#decisions`;
+	}
 	if (heading === "Goals") {
 		return `?goal=${encodeURIComponent(recordId)}#overview`;
 	}

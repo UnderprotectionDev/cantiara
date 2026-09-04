@@ -141,6 +141,9 @@ test("Configuration Mode is presentation search, not a Project write", () => {
 		})
 	).toEqual({});
 	expect(projectShellSearch({ work: "work_1" })).toEqual({ work: "work_1" });
+	expect(projectShellSearch({ decision: "decision_1" })).toEqual({
+		decision: "decision_1",
+	});
 	expect(projectShellSearch({ goal: "goal_1" })).toEqual({ goal: "goal_1" });
 });
 
