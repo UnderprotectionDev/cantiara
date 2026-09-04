@@ -161,6 +161,26 @@ export default function SourceRecheckPanel({
 							{latestCheck.candidate.capturedContent}
 						</p>
 					) : null}
+					{compare.data ? (
+						<div className="grid gap-2 md:grid-cols-2">
+							<section>
+								<h4 className="text-muted-foreground text-xs">
+									{SOURCES_COPY.approvedVersion}
+								</h4>
+								<p className="whitespace-pre-wrap">
+									{compare.data.approvedContent}
+								</p>
+							</section>
+							<section>
+								<h4 className="text-muted-foreground text-xs">
+									{SOURCES_COPY.sourceCheck}
+								</h4>
+								<p className="whitespace-pre-wrap">
+									{compare.data.candidateContent ?? latestCheck.failureReason}
+								</p>
+							</section>
+						</div>
+					) : null}
 					{compare.data
 						? compare.data.pinMatches.map((pin) => (
 								<p key={pin.pinId}>
