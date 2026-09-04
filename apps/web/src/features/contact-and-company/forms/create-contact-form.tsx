@@ -34,6 +34,9 @@ export default function CreateContactForm({
 					await queryClient.invalidateQueries({
 						queryKey: orpc.contactAndCompany.listContacts.queryKey(),
 					});
+					await queryClient.invalidateQueries({
+						queryKey: orpc.contactAndCompany.listDuplicateCandidates.queryKey(),
+					});
 					onCreated?.(outcome.contact.id);
 					recordSave();
 					setCompanyId("");

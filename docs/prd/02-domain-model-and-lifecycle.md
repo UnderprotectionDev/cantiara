@@ -45,6 +45,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yok | `None` | Contact'ın güncel Company bağının olmaması |
 | Contact yok | `No Contacts yet.` | Henüz Contact açılmamış boş durum |
 | Company yok | `No Companies yet.` | Henüz Company açılmamış boş durum |
+| Kopya adayları | `Duplicate candidates` | Aynı normalize e-posta veya ad/Company benzerliğiyle görünen Contact çiftleri; birleştirme yazması değildir |
+| Güçlü kopya adayı | `Strong copy candidate` | Aynı normalize e-posta taşıyan Contact çifti |
+| Zayıf öneri | `Weak suggestion` | Ad veya güncel Company benzerliği; kimlik hükmü değildir |
+| Kopya adayı yok | `No duplicate candidates.` | Kimlik defterinde güçlü veya zayıf aday çiftinin olmadığı boş durum |
 | AI ajanı | `AI Agent` | `AI agent` ve `agent` varyantlarının ortak kavramı |
 | Repository | `Repository` | GitHub'ın dış sistem kavramıdır; genel “depo” eşanlamlı kayıt türü oluşturmaz |
 | Teknik Diyagram | `Technical Diagram` | Veri modeli, teknik mimari veya sistemler arası sıralı etkileşimi bağımsız kimlik ve türlenmiş yapısal modelle taşıyan Proje ana kaydı |

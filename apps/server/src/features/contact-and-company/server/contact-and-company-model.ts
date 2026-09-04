@@ -7,12 +7,27 @@ export const CONTACT_AND_COMPANY_COPY = {
 	createCompany: "Create Company",
 	createContact: "Create Contact",
 	displayName: "Display name",
+	duplicateCandidates: "Duplicate candidates",
 	email: "Email",
 	name: "Name",
 	noCompanies: "No Companies yet.",
 	noContacts: "No Contacts yet.",
+	noDuplicateCandidates: "No duplicate candidates.",
 	openSourceRecord: "Open Source Record",
+	strongCopyCandidate: "Strong copy candidate",
+	weakSuggestion: "Weak suggestion",
 } as const;
+
+export const DUPLICATE_CANDIDATE_REASONS = [
+	"same-normalized-email",
+	"similar-name",
+	"similar-company",
+] as const;
+
+export type DuplicateCandidateReason =
+	(typeof DUPLICATE_CANDIDATE_REASONS)[number];
+
+export type DuplicateCandidateStrength = "strong" | "weak";
 
 export const CONTACT_KIND = "Contact" as const;
 export const COMPANY_KIND = "Company" as const;
@@ -155,6 +170,26 @@ export type RelateContactPersonaCommand = z.infer<
 	typeof relateContactPersonaCommandSchema
 >;
 
+export const duplicateCandidateContactSchema = z.object({
+	displayName: z.string().nullable(),
+	id: z.string().min(1),
+});
+
+export const duplicateCandidateSchema = z.object({
+	copy: z.object({
+		strongCopyCandidate: z.literal(
+			CONTACT_AND_COMPANY_COPY.strongCopyCandidate
+		),
+		weakSuggestion: z.literal(CONTACT_AND_COMPANY_COPY.weakSuggestion),
+	}),
+	left: duplicateCandidateContactSchema,
+	reasons: z.array(z.enum(DUPLICATE_CANDIDATE_REASONS)).min(1),
+	right: duplicateCandidateContactSchema,
+	strength: z.enum(["strong", "weak"]),
+});
+
+export type DuplicateCandidate = z.infer<typeof duplicateCandidateSchema>;
+
 export type ContactWriteOutcome =
 	| { contact: ContactView; status: "committed" }
 	| { contact: ContactView; status: "replayed" }
@@ -189,4 +224,9 @@ export function normalizeEmailAlias(value: string): string | null {
 
 export function optionalDisplayName(value: string | undefined): string {
 	return value?.trim() ?? "";
+}
+
+export function normalizeDisplayName(value: string | null): string | null {
+	const collapsed = value?.trim().replace(/\s+/g, " ").toLowerCase() ?? "";
+	return collapsed.length > 0 ? collapsed : null;
 }

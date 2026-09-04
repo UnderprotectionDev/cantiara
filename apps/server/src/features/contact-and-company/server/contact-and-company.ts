@@ -23,7 +23,10 @@ import {
 	createCompanyCommandSchema,
 	createContactCommandSchema,
 	DOCUMENT_KIND,
+	type DuplicateCandidate,
+	type DuplicateCandidateReason,
 	FEEDBACK_KIND,
+	normalizeDisplayName,
 	normalizeEmailAlias,
 	optionalDisplayName,
 	PERSONA_DOCUMENT_TYPE,
@@ -164,6 +167,71 @@ export async function listCompanies(
 		where: { workspaceId },
 	});
 	return rows.map(toCompanyView);
+}
+
+export async function listDuplicateCandidates(
+	prisma: PrismaClient,
+	workspaceId: string
+): Promise<DuplicateCandidate[]> {
+	const contacts = await listContacts(prisma, workspaceId);
+	const pairs: DuplicateCandidate[] = [];
+	for (let index = 0; index < contacts.length; index += 1) {
+		const first = contacts[index];
+		if (!first) {
+			continue;
+		}
+		for (let other = index + 1; other < contacts.length; other += 1) {
+			const second = contacts[other];
+			if (!second) {
+				continue;
+			}
+			const pair = duplicateCandidateFor(first, second);
+			if (pair) {
+				pairs.push(pair);
+			}
+		}
+	}
+	return pairs;
+}
+
+function duplicateCandidateFor(
+	first: ContactView,
+	second: ContactView
+): DuplicateCandidate | null {
+	const [left, right] =
+		first.id < second.id ? [first, second] : [second, first];
+	const emails = new Set(
+		left.emailAliases.map((alias) => alias.normalizedEmail)
+	);
+	const reasons: DuplicateCandidateReason[] = [];
+	if (right.emailAliases.some((alias) => emails.has(alias.normalizedEmail))) {
+		reasons.push("same-normalized-email");
+	}
+	const leftName = normalizeDisplayName(left.displayName);
+	const rightName = normalizeDisplayName(right.displayName);
+	if (leftName && rightName && leftName === rightName) {
+		reasons.push("similar-name");
+	}
+	if (
+		left.currentCompany &&
+		right.currentCompany &&
+		left.currentCompany.id === right.currentCompany.id
+	) {
+		reasons.push("similar-company");
+	}
+	if (reasons.length === 0) {
+		return null;
+	}
+	return {
+		copy: {
+			strongCopyCandidate: CONTACT_AND_COMPANY_COPY.strongCopyCandidate,
+			weakSuggestion: CONTACT_AND_COMPANY_COPY.weakSuggestion,
+		},
+		left: { displayName: left.displayName, id: left.id },
+		reasons,
+		right: { displayName: right.displayName, id: right.id },
+		strength: reasons.includes("same-normalized-email") ? "strong" : "weak",
+	};
 }
 
 async function createContactInTransaction(

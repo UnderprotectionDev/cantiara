@@ -11,6 +11,7 @@ import {
 	getContact,
 	listCompanies,
 	listContacts,
+	listDuplicateCandidates,
 	relateContactPersona,
 	setContactCompany,
 } from "./contact-and-company";
@@ -101,6 +102,10 @@ export const contactAndCompany = {
 	listContacts: protectedProcedure.handler(async ({ context }) => {
 		const access = await requireAccess(context.session.user.id);
 		return await listContacts(getPrismaClient(), access.workspaceId);
+	}),
+	listDuplicateCandidates: protectedProcedure.handler(async ({ context }) => {
+		const access = await requireAccess(context.session.user.id);
+		return await listDuplicateCandidates(getPrismaClient(), access.workspaceId);
 	}),
 	relatePersona: protectedWriteProcedure
 		.input(
