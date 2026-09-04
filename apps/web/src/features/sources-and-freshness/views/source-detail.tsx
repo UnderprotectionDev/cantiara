@@ -5,6 +5,7 @@ import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell
 import SaveSourceVersionForm from "@/features/sources-and-freshness/forms/save-source-version-form";
 import { SOURCES_COPY } from "@/features/sources-and-freshness/forms/sources-copy";
 import SmartLinkPreviewCard from "@/features/sources-and-freshness/views/smart-link-preview-card";
+import SourceRecheckPanel from "@/features/sources-and-freshness/views/source-recheck-panel";
 import { orpc } from "@/utils/orpc";
 
 export default function SourceDetail({
@@ -92,6 +93,7 @@ export default function SourceDetail({
 					))}
 				</ol>
 			</section>
+			<SourceRecheckPanel projectId={projectId} sourceId={source.data.id} />
 			<SaveSourceVersionForm
 				baseRevision={source.data.revision}
 				projectId={projectId}
