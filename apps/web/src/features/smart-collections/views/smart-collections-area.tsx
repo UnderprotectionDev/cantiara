@@ -146,6 +146,7 @@ function SubscribeControls({
 						onEntry ? undefined : "smart-collection-notify-on-leave-hint"
 					}
 					checked={onExit}
+					className="data-disabled:cursor-not-allowed data-disabled:opacity-50"
 					disabled={!onEntry}
 					id="smart-collection-notify-on-leave"
 					onCheckedChange={onSubscribeExit}
