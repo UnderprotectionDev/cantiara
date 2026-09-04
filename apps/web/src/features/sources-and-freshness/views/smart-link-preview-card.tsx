@@ -86,7 +86,10 @@ export default function SmartLinkPreviewCard({
 						width={640}
 					/>
 				) : null}
-				{showAddress ? (
+				{showAddress && preview.kind !== "youtube" ? (
+					<p className="break-all text-sm">{preview.originalUrl}</p>
+				) : null}
+				{preview.kind === "youtube" ? (
 					<p className="break-all text-sm">{preview.originalUrl}</p>
 				) : null}
 				{showDescription && preview.description ? (
@@ -96,6 +99,7 @@ export default function SmartLinkPreviewCard({
 					<YouTubePreview
 						frameSrc={frameSrc}
 						onLoadPlayer={onLoadPlayer}
+						originalUrl={preview.originalUrl}
 						player={preview.player}
 					/>
 				) : null}
@@ -110,16 +114,18 @@ export default function SmartLinkPreviewCard({
 							{SOURCES_COPY.showImage}
 						</FieldLabel>
 					</Field>
-					<Field className="flex flex-row items-center gap-2">
-						<Checkbox
-							checked={showAddress}
-							id="smart-link-show-address"
-							onCheckedChange={onToggleAddress}
-						/>
-						<FieldLabel htmlFor="smart-link-show-address">
-							{SOURCES_COPY.showAddress}
-						</FieldLabel>
-					</Field>
+					{preview.kind === "youtube" ? null : (
+						<Field className="flex flex-row items-center gap-2">
+							<Checkbox
+								checked={showAddress}
+								id="smart-link-show-address"
+								onCheckedChange={onToggleAddress}
+							/>
+							<FieldLabel htmlFor="smart-link-show-address">
+								{SOURCES_COPY.showAddress}
+							</FieldLabel>
+						</Field>
+					)}
 					<Field className="flex flex-row items-center gap-2">
 						<Checkbox
 							checked={showDescription}
@@ -146,10 +152,12 @@ export default function SmartLinkPreviewCard({
 function YouTubePreview({
 	frameSrc,
 	onLoadPlayer,
+	originalUrl,
 	player,
 }: {
 	frameSrc: string | null;
 	onLoadPlayer: () => void;
+	originalUrl: string;
 	player: SmartLinkPreviewView["player"];
 }) {
 	if (!player) {
@@ -159,26 +167,25 @@ function YouTubePreview({
 		return (
 			<div className="flex flex-col gap-1">
 				<p role="alert">{player.error ?? SOURCES_COPY.youtubeUnavailable}</p>
-				<p className="break-all text-sm">{SOURCES_COPY.address}</p>
+				<p className="break-all text-sm">{originalUrl}</p>
 			</div>
-		);
-	}
-	if (frameSrc) {
-		return (
-			<iframe
-				allow="encrypted-media; picture-in-picture"
-				className="aspect-video w-full"
-				src={frameSrc}
-				title={SOURCES_COPY.liveExternalSource}
-			/>
 		);
 	}
 	return (
 		<div className="flex flex-col gap-2">
 			<p className="text-sm">{SOURCES_COPY.thirdPartyWarning}</p>
-			<Button onClick={onLoadPlayer} type="button">
-				{SOURCES_COPY.loadPlayer}
-			</Button>
+			{frameSrc ? (
+				<iframe
+					allow="encrypted-media; picture-in-picture"
+					className="aspect-video w-full"
+					src={frameSrc}
+					title={SOURCES_COPY.liveExternalSource}
+				/>
+			) : (
+				<Button onClick={onLoadPlayer} type="button">
+					{SOURCES_COPY.loadPlayer}
+				</Button>
+			)}
 		</div>
 	);
 }

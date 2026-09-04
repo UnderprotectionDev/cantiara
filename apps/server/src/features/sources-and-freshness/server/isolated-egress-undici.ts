@@ -38,13 +38,9 @@ export const undiciHopTransport: IsolatedHopTransport = {
 				status: response.status,
 			};
 		}
-		const body = Buffer.from(await response.arrayBuffer());
-		const capped =
-			body.byteLength > PREVIEW_MAX_BYTES
-				? body.subarray(0, PREVIEW_MAX_BYTES + 1)
-				: body;
+		const body = await readCappedBody(response.body);
 		return {
-			body: capped,
+			body,
 			contentType: response.headers.get("content-type") ?? "",
 			headers: hopHeaders(response),
 			status: response.status,
@@ -73,4 +69,38 @@ function hopHeaders(response: {
 		headers["content-type"] = contentType;
 	}
 	return headers;
+}
+
+async function readCappedBody(
+	body: ReadableStream<Uint8Array> | null | undefined
+): Promise<Buffer> {
+	if (!body) {
+		return Buffer.alloc(0);
+	}
+	return await collectCappedChunks(body.getReader(), [], 0);
+}
+
+async function collectCappedChunks(
+	reader: ReadableStreamDefaultReader<Uint8Array>,
+	chunks: Uint8Array[],
+	total: number
+): Promise<Buffer> {
+	const { done, value } = await reader.read();
+	if (done) {
+		return Buffer.concat(chunks, total);
+	}
+	if (!value) {
+		return await collectCappedChunks(reader, chunks, total);
+	}
+	const nextTotal = total + value.byteLength;
+	if (nextTotal > PREVIEW_MAX_BYTES) {
+		await reader.cancel();
+		const allowed = PREVIEW_MAX_BYTES + 1 - total;
+		return Buffer.concat(
+			[...chunks, value.subarray(0, Math.max(0, allowed))],
+			PREVIEW_MAX_BYTES + 1
+		);
+	}
+	chunks.push(value);
+	return await collectCappedChunks(reader, chunks, nextTotal);
 }

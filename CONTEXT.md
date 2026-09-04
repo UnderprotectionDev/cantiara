@@ -1213,6 +1213,7 @@ _Avoid_: Canlı GitHub kaydı, GitHub senkron kopyası, bağlantının sahipli b
 
 **Akıllı bağlantı önizlemesi**:
 Kimlik doğrulaması istemeyen herkese açık bir HTTP(S) adresinden türetilen, ana kayıt veya tarihsel Kaynak snapshot'ı olmayan [geçici sunum](docs/prd/08-search-relations-and-evidence.md#akıllı-bağlantı-önizlemesi) (bu sözlükte daha önce `Dış URL önizlemesi` olarak geçiyordu).
+UI: `Save as Source`, `Live external source`, `Live preview`, `Historical snapshot`.
 _Avoid_: Kaynak Kaydı, oturumlu tarayıcı önizlemesi, iç ağ önizlemesi
 
 **Web Yakalama**:
