@@ -18,6 +18,7 @@ model Project {
   statusAgeThresholdDays          Int?
   nextConcreteStep                String?
   nextConcreteStepUpdatedAt      DateTime?
+  archivedAt                      DateTime?
   revision                        Int
   createdAt                       DateTime                     @default(now())
   updatedAt                       DateTime                     @updatedAt

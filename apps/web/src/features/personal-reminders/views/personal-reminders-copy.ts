@@ -4,17 +4,20 @@ export const PERSONAL_REMINDERS_COPY = {
 	cancel: "Cancel",
 	cancelled: "Cancelled",
 	couldNotWrite: "This reminder could not be written.",
+	dismiss: "Dismiss",
 	empty: "No reminder on this record.",
 	fireAt: "When",
 	inAnyCase: "In any case",
 	missingSection: "This section is missing.",
 	onlyIfStillOpen: "Only if still open",
+	permanentlyDeleted: "Permanently deleted",
 	planned: "Planned",
 	remindMe: "Remind me",
 	reviewLater: "Review Later",
 	section: "Section",
 	sourceRequired: "A reminder needs a supported source record.",
 	timeRequired: "A reminder needs a time.",
+	triggered: "Triggered",
 } as const;
 
 export type PersonalReminderWriteOutcome =
