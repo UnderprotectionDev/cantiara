@@ -29,11 +29,29 @@ export type ValidationContextKind = (typeof VALIDATION_CONTEXT_KINDS)[number];
 
 export const VALIDATION_RECORDS_COUNTERPARTS = {
 	continuousFeedbackLoop: false,
+	feedback: false,
+	plannedTestCase: false,
+	releaseGate: false,
+	sessionTest: false,
 	survey: false,
+	testGap: false,
+	testReportAcceptance: false,
+	testSession: false,
 	timedVoting: false,
+	userResearchSession: false,
 	writesAssumptionLife: false,
 	writesDecisionLife: false,
 } as const;
+
+export const VALIDATION_FOREIGN_RECORD_KINDS = [
+	"Planned Test Case",
+	"Test Session",
+	"Session Test",
+	"Test Gap",
+	"Research Session",
+	"User Research Session",
+	"Feedback",
+] as const;
 
 export const validationContextRefSchema = z.object({
 	id: z.string().min(1),
@@ -56,12 +74,14 @@ export const validationRecordViewSchema = z.object({
 
 export type ValidationRecordView = z.infer<typeof validationRecordViewSchema>;
 
-export const createValidationRecordPayloadSchema = z.object({
-	method: z.string(),
-	projectId: z.string().min(1),
-	result: z.string(),
-	title: z.string(),
-});
+export const createValidationRecordPayloadSchema = z
+	.object({
+		method: z.string(),
+		projectId: z.string().min(1),
+		result: z.string(),
+		title: z.string(),
+	})
+	.strict();
 
 export type CreateValidationRecordPayload = z.infer<
 	typeof createValidationRecordPayloadSchema
@@ -79,13 +99,15 @@ export type CreateValidationRecordCommand = z.infer<
 	typeof createValidationRecordCommandSchema
 >;
 
-export const relateValidationContextPayloadSchema = z.object({
-	related: z.object({
-		id: z.string().min(1),
-		kind: z.enum(VALIDATION_CONTEXT_KINDS),
-	}),
-	validationRecordId: z.string().min(1),
-});
+export const relateValidationContextPayloadSchema = z
+	.object({
+		related: z.object({
+			id: z.string().min(1),
+			kind: z.enum(VALIDATION_CONTEXT_KINDS),
+		}),
+		validationRecordId: z.string().min(1),
+	})
+	.strict();
 
 export const relateValidationContextCommandSchema = z.object({
 	actorId: z.string().min(1),
@@ -134,6 +156,7 @@ export function validationRecordsCatalog() {
 	return {
 		copy: VALIDATION_RECORDS_COPY,
 		counterparts: VALIDATION_RECORDS_COUNTERPARTS,
+		foreignRecordKinds: VALIDATION_FOREIGN_RECORD_KINDS,
 		kind: VALIDATION_RECORD_KIND,
 		relationKind: VALIDATION_RELATION_KIND,
 	};
