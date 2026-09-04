@@ -9,13 +9,21 @@ import {
 	createDecision,
 	getDecision,
 	listDecisions,
+	previewRemoveSupersession,
+	previewSupersession,
+	removeSupersession,
 	setDecisionLife,
+	supersedeDecisions,
 	withdrawDecision,
 } from "./decisions";
 import {
 	createDecisionPayloadSchema,
 	DECISIONS_COPY,
+	previewRemoveSupersessionInputSchema,
+	previewSupersessionInputSchema,
+	removeSupersessionPayloadSchema,
 	setDecisionLifePayloadSchema,
+	supersedePayloadSchema,
 	withdrawDecisionPayloadSchema,
 } from "./decisions-model";
 
@@ -72,6 +80,60 @@ export const decisions = {
 			await requireProject(access.workspaceId, input.projectId);
 			return await listDecisions(getPrismaClient(), input.projectId);
 		}),
+	previewRemoveSupersession: protectedProcedure
+		.input(previewRemoveSupersessionInputSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const successor = await getDecision(
+				getPrismaClient(),
+				input.payload.successorId
+			);
+			if (!successor) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, successor.projectId);
+			return await previewRemoveSupersession(getPrismaClient(), input);
+		}),
+	previewSupersession: protectedProcedure
+		.input(previewSupersessionInputSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const successor = await getDecision(
+				getPrismaClient(),
+				input.payload.successorId
+			);
+			if (!successor) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, successor.projectId);
+			return await previewSupersession(getPrismaClient(), input);
+		}),
+	removeSupersession: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: removeSupersessionPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const successor = await getDecision(
+				getPrismaClient(),
+				input.payload.successorId
+			);
+			if (!successor) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, successor.projectId);
+			return await removeSupersession(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	setLife: protectedWriteProcedure
 		.input(
 			z.object({
@@ -91,6 +153,32 @@ export const decisions = {
 			}
 			await requireProject(access.workspaceId, decision.projectId);
 			return await setDecisionLife(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	supersede: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: supersedePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const successor = await getDecision(
+				getPrismaClient(),
+				input.payload.successorId
+			);
+			if (!successor) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, successor.projectId);
+			return await supersedeDecisions(getPrismaClient(), {
 				actorId: context.session.user.id,
 				baseRevision: input.baseRevision,
 				idempotencyKey: input.idempotencyKey,

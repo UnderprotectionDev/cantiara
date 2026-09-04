@@ -594,6 +594,18 @@ _Avoid_: Closed, canceled Decision, İş kapanışı
 Kararı isteğe bağlı tarihli gerekçeyle `Withdrawn` yapan açık eylem. UI: `Withdraw`.
 _Avoid_: Close, Archive, silent withdraw
 
+**Yerine geçer**:
+Yeni `Valid` Kararı eski Kararın doğrudan ve tek halefi yapan yönlü, döngüsüz ilişki; bağlı kayıtları kopyalamaz veya taşımaz ([Karar kayıtları](docs/prd/09-discovery-decisions-and-design.md#karar-kayıtları)). UI: `Supersedes`.
+_Avoid_: Related, kısmi değişiklik, otomatik kazanan, silent historical
+
+**Başka kararın yerine geçir**:
+Önizlemeden sonra tek atomik işlemde `Yerine geçer` ilişkisini kuran ve eskileri `Superseded` yapan açık eylem. UI: `Supersede another decision`.
+_Avoid_: durum seçici, MFA onayı, spec-review-as-supersession, Contradicting’den otomatik geçiş
+
+**Geçiş gerekçesi**:
+Yerine-geçme onayında isteğe bağlı gerekçe; Karar gerekçesi alanı veya kapanış `Reason` değildir. UI: `Transition rationale`.
+_Avoid_: Reason, oy gerekçesi
+
 **Risk**:
 Etki, olasılık, yanıt ve durumla belirsiz zararı izleyen Proje ana kaydı; Bug, Test Açığı veya Üretim Olayı değildir ([Risk takibi](docs/prd/09-discovery-decisions-and-design.md#risk-takibi)). UI: `Risk`.
 _Avoid_: Bug, Test Açığı, Üretim Olayı, öncelik puanı, yayın kapısı
