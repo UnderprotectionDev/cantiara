@@ -437,6 +437,47 @@ describe("Smart Collections stored subscription production", () => {
 		);
 		expect(again?.signals).toHaveLength(1);
 
+		const left = await changeWorkStatus(prisma, {
+			actorId: user.id,
+			baseRevision: progressed.work.revision,
+			idempotencyKey: "to-not-started",
+			origin: "human",
+			status: "Not Started",
+			workId: login.work.id,
+		});
+		expect(left.status).toBe("committed");
+		if (left.status !== "committed") {
+			return;
+		}
+		const afterLeave = await viewSmartCollection(
+			prisma,
+			workspace.id,
+			stored.collection.id
+		);
+		expect(afterLeave?.signals).toHaveLength(1);
+
+		const reentered = await changeWorkStatus(prisma, {
+			actorId: user.id,
+			baseRevision: left.work.revision,
+			idempotencyKey: "to-in-progress-again",
+			origin: "human",
+			status: "In Progress",
+			workId: login.work.id,
+		});
+		expect(reentered.status).toBe("committed");
+		if (reentered.status !== "committed") {
+			return;
+		}
+		const afterReentry = await viewSmartCollection(
+			prisma,
+			workspace.id,
+			stored.collection.id
+		);
+		expect(afterReentry?.signals.map((signal) => signal.phase)).toEqual([
+			"enter",
+			"enter",
+		]);
+
 		const work = await prisma.work.findUniqueOrThrow({
 			where: { id: login.work.id },
 		});

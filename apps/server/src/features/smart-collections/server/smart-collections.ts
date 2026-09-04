@@ -21,6 +21,7 @@ import {
 	smartCollectionSourceAllowed,
 } from "./smart-collections-model";
 import {
+	asRegisteredCollectionSignal,
 	type MembershipPeriod,
 	MemorySignalSink,
 	produceSubscriptionSignals,
@@ -599,13 +600,22 @@ function hasSignalDelegate(db: MutationDb): boolean {
 	);
 }
 
-function asEntrySignal(row: StoredSignalRow): SmartCollectionEntrySignal {
+function asEntrySignal(
+	row: StoredSignalRow
+): SmartCollectionEntrySignal | null {
+	const registered = asRegisteredCollectionSignal(row.signalId);
+	if (registered.status !== "ok") {
+		return null;
+	}
+	if (row.section !== registered.section) {
+		return null;
+	}
 	return {
 		parenting: false,
 		phase: row.phase === "leave" ? "leave" : "enter",
 		reason: row.reason,
-		section: "Information flow",
-		signalId: "smart-collection-entry",
+		section: registered.section,
+		signalId: registered.signalId,
 		source: { id: row.recordId, kind: row.recordKind },
 		sourceFieldWrites: false,
 	};
@@ -699,7 +709,10 @@ async function loadSignals(
 			orderBy: { createdAt: "asc" },
 			where: { collectionId },
 		});
-		return rows.map(asEntrySignal);
+		return rows.flatMap((row) => {
+			const signal = asEntrySignal(row);
+			return signal ? [signal] : [];
+		});
 	}
 	const rows = await db.$queryRaw<StoredSignalRow[]>`
 		SELECT phase, reason, "recordId", "recordKind", section, "signalId"
@@ -707,7 +720,10 @@ async function loadSignals(
 		WHERE "collectionId" = ${collectionId}
 		ORDER BY "createdAt" ASC
 	`;
-	return rows.map(asEntrySignal);
+	return rows.flatMap((row) => {
+		const signal = asEntrySignal(row);
+		return signal ? [signal] : [];
+	});
 }
 
 async function appendSignals(
