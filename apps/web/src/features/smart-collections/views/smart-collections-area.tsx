@@ -663,6 +663,9 @@ export default function SmartCollectionsArea() {
 					</FounderSection>
 					{draft ? (
 						<NamedViewSection
+							allowSaveAs={
+								view.data.collection.sourceKind === RECORD_DISCOVERY_COPY.work
+							}
 							copy={copy}
 							dirty={dirty}
 							draft={draft}

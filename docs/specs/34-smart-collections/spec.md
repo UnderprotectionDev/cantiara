@@ -46,7 +46,7 @@ Akıllı Koleksiyon üyeliği yalnız kayıt koşullarından canlı türetilir; 
 - **New work.** Prefill only conditions that are direct single-field equalities. Warn if a changed value would miss. Date range, negation, and complex relations are not auto-applied.
 - **Subscriptions.** Opt-in first entry; optional exit. One signal per membership period (enter, and separately per leave period if opted). Uses registered `smart-collection-entry` with an explainable enter/leave reason. Does not create records or write source fields. 71 renders; this feature does not build the center. No email digest.
 - **Insights.** Work collections only. Count, status distribution, effort distribution, age, time-in-status from the current filter. Slice click filters to those records and recomputes. No score, coverage, quality, capacity, or release gate.
-- **English UI labels.** `Smart Collection`, `List`, `Table`, `Gallery`, `Named view`, `Insights`, `Subscribe`, `Purpose`, `New work`, `Unsaved changes`, `Save`, `Save as`, `Revert`, `None`. Missing labels join the PRD term table in the same change that first shows them. No Turkish UI.
+- **English UI labels.** `Smart Collection`, `List`, `Table`, `Gallery`, `Named view`, `Default`, `Insights`, `Subscribe`, `Purpose`, `New work`, `Unsaved changes`, `Save`, `Save as`, `Revert`, `None`. Missing labels join the PRD term table in the same change that first shows them. No Turkish UI.
 
 ## Testing Decisions
 

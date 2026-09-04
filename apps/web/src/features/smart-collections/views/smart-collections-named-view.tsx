@@ -75,6 +75,7 @@ export function useSyncedNamedView(namedViews: readonly NamedViewSummary[]) {
 }
 
 export function NamedViewSection({
+	allowSaveAs,
 	copy,
 	dirty,
 	draft,
@@ -93,6 +94,7 @@ export function NamedViewSection({
 	saveAsName,
 	selectedViewId,
 }: {
+	allowSaveAs: boolean;
 	copy: typeof SMART_COLLECTIONS_COPY;
 	dirty: boolean;
 	draft: PresentationDraft;
@@ -128,7 +130,7 @@ export function NamedViewSection({
 					>
 						{namedViews.map((item) => (
 							<NativeSelectOption key={item.id} value={item.id}>
-								{item.name}
+								{item.purpose ? `${item.name} — ${item.purpose}` : item.name}
 							</NativeSelectOption>
 						))}
 					</NativeSelect>
@@ -188,19 +190,24 @@ export function NamedViewSection({
 					<Button onClick={onRevert} type="button" variant="outline">
 						{copy.revert}
 					</Button>
-					<form className="flex flex-wrap items-end gap-3" onSubmit={onSaveAs}>
-						<Field>
-							<FieldLabel htmlFor="smart-collection-save-as">
-								{copy.saveAs}
-							</FieldLabel>
-							<Input
-								id="smart-collection-save-as"
-								onChange={onSaveAsName}
-								value={saveAsName}
-							/>
-						</Field>
-						<Button type="submit">{copy.saveAs}</Button>
-					</form>
+					{allowSaveAs ? (
+						<form
+							className="flex flex-wrap items-end gap-3"
+							onSubmit={onSaveAs}
+						>
+							<Field>
+								<FieldLabel htmlFor="smart-collection-save-as">
+									{copy.saveAs}
+								</FieldLabel>
+								<Input
+									id="smart-collection-save-as"
+									onChange={onSaveAsName}
+									value={saveAsName}
+								/>
+							</Field>
+							<Button type="submit">{copy.saveAs}</Button>
+						</form>
+					) : null}
 				</div>
 			) : null}
 			{draft.presentation === "Gallery" &&

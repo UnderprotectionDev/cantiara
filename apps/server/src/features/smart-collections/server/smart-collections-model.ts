@@ -13,6 +13,7 @@ export const SMART_COLLECTIONS_COPY = {
 	conditions: "Conditions",
 	couldNotCreate: "Could not create this Smart Collection.",
 	create: "Create Smart Collection",
+	defaultNamedView: "Default",
 	dragPreview:
 		"This would write fields so the record matches. It does not pin membership.",
 	dropHere: "Drop a record to preview a field write",
@@ -103,7 +104,7 @@ export const NEW_WORK_PREFILL_FIELDS = ["status", "type", "projectId"] as const;
 
 const NEW_WORK_PREFILL_FIELD_SET = new Set<string>(NEW_WORK_PREFILL_FIELDS);
 
-export const DEFAULT_NAMED_VIEW = "Default";
+export const DEFAULT_NAMED_VIEW = SMART_COLLECTIONS_COPY.defaultNamedView;
 
 export function gallerySourceKinds(): readonly string[] {
 	return [

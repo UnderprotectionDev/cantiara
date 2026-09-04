@@ -435,7 +435,7 @@ export async function createNamedView(
 ): Promise<
 	| { status: "ok"; view: NamedViewDefinition }
 	| {
-			reason: "gallery-not-allowed" | "invalid-name" | "not-found";
+			reason: "gallery-not-allowed" | "invalid-name" | "not-found" | "not-work";
 			status: "refused";
 	  }
 > {
@@ -446,6 +446,9 @@ export async function createNamedView(
 	);
 	if (!collection) {
 		return { reason: "not-found", status: "refused" };
+	}
+	if (collection.sourceKind !== RECORD_DISCOVERY_COPY.work) {
+		return { reason: "not-work", status: "refused" };
 	}
 	const name = input.name.trim();
 	if (name.length === 0) {
@@ -564,7 +567,7 @@ export async function saveAsNamedView(
 ): Promise<
 	| { status: "ok"; view: NamedViewDefinition }
 	| {
-			reason: "gallery-not-allowed" | "invalid-name" | "not-found";
+			reason: "gallery-not-allowed" | "invalid-name" | "not-found" | "not-work";
 			status: "refused";
 	  }
 > {

@@ -7,6 +7,7 @@ export const SMART_COLLECTIONS_COPY = {
 	conditions: "Conditions",
 	couldNotCreate: "Could not create this Smart Collection.",
 	create: "Create Smart Collection",
+	defaultNamedView: "Default",
 	dragPreview:
 		"This would write fields so the record matches. It does not pin membership.",
 	dropHere: "Drop a record to preview a field write",

@@ -96,6 +96,8 @@ describe("Smart Collections catalog", () => {
 		expect(catalog.copy.gallery).toBe("Gallery");
 		expect(catalog.copy.newWork).toBe("New work");
 		expect(catalog.copy.namedView).toBe("Named view");
+		expect(catalog.copy.defaultNamedView).toBe("Default");
+		expect(catalog.copy.purpose).toBe("Purpose");
 		expect(catalog.copy.none).toBe("None");
 		expect(catalog.writes).toEqual(PRESENTATION_WRITES);
 		expect(SMART_COLLECTIONS_COPY.smartCollection).toBe("Smart Collection");
@@ -917,6 +919,31 @@ describe("Smart Collections stored named views", () => {
 			})
 		).toEqual({
 			reason: "gallery-not-allowed",
+			status: "refused",
+		});
+	});
+
+	it("refuses extra named views on a Document collection", async () => {
+		const { project, workspace } = await seedProject();
+		const stored = await createSmartCollection(prisma, {
+			conditions: [],
+			name: "Notes",
+			projectId: project.id,
+			sourceKind: RECORD_DISCOVERY_COPY.document,
+			workspaceId: workspace.id,
+		});
+		expect(stored.status).toBe("ok");
+		if (stored.status !== "ok") {
+			return;
+		}
+		expect(
+			await createNamedView(prisma, {
+				collectionId: stored.collection.id,
+				name: "Reading list",
+				workspaceId: workspace.id,
+			})
+		).toEqual({
+			reason: "not-work",
 			status: "refused",
 		});
 	});

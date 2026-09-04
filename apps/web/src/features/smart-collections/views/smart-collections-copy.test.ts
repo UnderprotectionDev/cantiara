@@ -11,6 +11,8 @@ test("English UI uses Smart Collection presentation labels", () => {
 	expect(SMART_COLLECTIONS_COPY.list).toBe("List");
 	expect(SMART_COLLECTIONS_COPY.table).toBe("Table");
 	expect(SMART_COLLECTIONS_COPY.namedView).toBe("Named view");
+	expect(SMART_COLLECTIONS_COPY.defaultNamedView).toBe("Default");
+	expect(SMART_COLLECTIONS_COPY.newWork).toBe("New work");
 	expect(SMART_COLLECTIONS_COPY.none).toBe("None");
 	expect(SMART_COLLECTIONS_COPY.purpose).toBe("Purpose");
 	expect(SMART_COLLECTIONS_COPY.unsavedChanges).toBe("Unsaved changes");
