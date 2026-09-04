@@ -1,17 +1,76 @@
 model SmartCollection {
-  id          String    @id
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  projectId   String?
-  project     Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name        String
-  sourceKind  String
-  conditions  Json
-  revision    Int
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                 String    @id
+  workspaceId        String
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projectId          String?
+  project            Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name               String
+  sourceKind         String
+  conditions         Json
+  revision           Int
+  subscribeOnEntry   Boolean   @default(false)
+  subscribeOnExit    Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  namedViews         SmartCollectionNamedView[]
+  membershipPeriods  SmartCollectionMembershipPeriod[]
+  attentionSignals   SmartCollectionAttentionSignal[]
 
   @@index([workspaceId])
   @@index([projectId])
   @@map("smart_collection")
+}
+
+model SmartCollectionMembershipPeriod {
+  id           String          @id
+  collectionId String
+  collection   SmartCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  recordId     String
+  recordKind   String
+  open         Boolean
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([collectionId])
+  @@index([collectionId, recordId])
+  @@map("smart_collection_membership_period")
+}
+
+model SmartCollectionAttentionSignal {
+  id           String          @id
+  collectionId String
+  collection   SmartCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  recordId     String
+  recordKind   String
+  signalId     String
+  section      String
+  phase        String
+  reason       String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([collectionId])
+  @@map("smart_collection_attention_signal")
+}
+
+model SmartCollectionNamedView {
+  id             String          @id
+  collectionId   String
+  collection     SmartCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  name           String
+  purpose        String?
+  presentation   String
+  groupField     String?
+  sortField      String?
+  sortDirection  String?
+  filterText     String          @default("")
+  visibleFields  Json
+  isDefault      Boolean
+  revision       Int
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([collectionId, name])
+  @@index([collectionId])
+  @@map("smart_collection_named_view")
 }

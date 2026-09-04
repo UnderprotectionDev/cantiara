@@ -354,6 +354,24 @@ export function extractSection(
 	};
 }
 
+export function listHeadingSections(
+	body: string
+): { heading: string; sectionId: string }[] {
+	const sections: { heading: string; sectionId: string }[] = [];
+	for (const line of body.split("\n")) {
+		const match = HEADING_LINE.exec(line);
+		const sectionId = match?.[3];
+		if (!sectionId) {
+			continue;
+		}
+		sections.push({
+			heading: match?.[2]?.trim() ?? "",
+			sectionId,
+		});
+	}
+	return sections;
+}
+
 function reachesHost(
 	documents: ReadonlyMap<string, string>,
 	currentId: string,

@@ -3,12 +3,22 @@ import { z } from "zod";
 export const PERSONAL_REMINDERS_COPY = {
 	cancel: "Cancel",
 	cancelled: "Cancelled",
+	couldNotEvaluate: "The source life could not be evaluated.",
 	empty: "No reminder on this record.",
 	fireAt: "When",
+	inAnyCase: "In any case",
+	missingSection: "This section is missing.",
+	onlyIfStillOpen: "Only if still open",
 	planned: "Planned",
 	remindMe: "Remind me",
 	reviewLater: "Review Later",
+	section: "Section",
+	sectionNeedsDocument: "A section target belongs on a Document.",
+	sectionNotFound: "This section is not in the Document.",
+	sourceNoLongerOpen: "The source is no longer open.",
 	sourceRequired: "A reminder needs a supported source record.",
+	stillOpenNeedsDefinedLife:
+		"Only if still open needs a source with open or resolved life.",
 	timeRequired: "A reminder needs a time.",
 	unsupportedSource: "This record type cannot carry a reminder.",
 } as const;
@@ -36,6 +46,19 @@ export const PERSONAL_REMINDER_ACTIONS = [
 ] as const;
 
 export type PersonalReminderAction = (typeof PERSONAL_REMINDER_ACTIONS)[number];
+
+export const PERSONAL_REMINDER_CONDITION = {
+	inAnyCase: PERSONAL_REMINDERS_COPY.inAnyCase,
+	onlyIfStillOpen: PERSONAL_REMINDERS_COPY.onlyIfStillOpen,
+} as const;
+
+export const PERSONAL_REMINDER_CONDITIONS = [
+	PERSONAL_REMINDER_CONDITION.inAnyCase,
+	PERSONAL_REMINDER_CONDITION.onlyIfStillOpen,
+] as const;
+
+export type PersonalReminderCondition =
+	(typeof PERSONAL_REMINDER_CONDITIONS)[number];
 
 export const PERSONAL_REMINDER_SOURCE_TYPE = {
 	decision: "Decision",
@@ -68,6 +91,23 @@ export const PERSONAL_REMINDER_SOURCE_TYPES = [
 export type PersonalReminderSourceType =
 	(typeof PERSONAL_REMINDER_SOURCE_TYPES)[number];
 
+export const PERSONAL_REMINDER_STILL_OPEN_SOURCE_TYPES = [
+	PERSONAL_REMINDER_SOURCE_TYPE.work,
+	PERSONAL_REMINDER_SOURCE_TYPE.decision,
+	PERSONAL_REMINDER_SOURCE_TYPE.milestone,
+] as const;
+
+export type PersonalReminderStillOpenSourceType =
+	(typeof PERSONAL_REMINDER_STILL_OPEN_SOURCE_TYPES)[number];
+
+export function sourceTypeHasStillOpenLife(
+	sourceType: PersonalReminderSourceType
+): sourceType is PersonalReminderStillOpenSourceType {
+	return (
+		PERSONAL_REMINDER_STILL_OPEN_SOURCE_TYPES as readonly string[]
+	).includes(sourceType);
+}
+
 export const PERSONAL_REMINDERS_COUNTERPARTS = {
 	dailyFocus: false,
 	datelessQueue: false,
@@ -95,23 +135,53 @@ export const PERSONAL_REMINDERS_PLANNING_WRITES = {
 export function personalRemindersCatalog() {
 	return {
 		actions: PERSONAL_REMINDER_ACTIONS,
+		conditions: PERSONAL_REMINDER_CONDITIONS,
 		copy: PERSONAL_REMINDERS_COPY,
 		counterparts: PERSONAL_REMINDERS_COUNTERPARTS,
 		kind: "personal-reminders",
 		lives: PERSONAL_REMINDER_LIVES,
 		planningWrites: PERSONAL_REMINDERS_PLANNING_WRITES,
 		sourceTypes: PERSONAL_REMINDER_SOURCE_TYPES,
+		stillOpenSourceTypes: PERSONAL_REMINDER_STILL_OPEN_SOURCE_TYPES,
 	};
 }
+
+export const personalReminderOpenTargetSchema = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("record") }),
+	z.object({
+		heading: z.string(),
+		kind: z.literal("document-section"),
+		sectionId: z.string().min(1),
+	}),
+	z.object({
+		explanation: z.literal(PERSONAL_REMINDERS_COPY.missingSection),
+		kind: z.literal("missing-section"),
+		sectionId: z.string().min(1),
+	}),
+]);
 
 export const personalReminderViewSchema = z.object({
 	accountId: z.string().min(1),
 	createdByAction: z.enum(PERSONAL_REMINDER_ACTIONS),
+	documentSectionId: z.string().min(1).nullable(),
 	fireAt: z.string().datetime(),
 	id: z.string().min(1),
 	life: z.enum(PERSONAL_REMINDER_LIVES),
+	openTarget: personalReminderOpenTargetSchema,
 	sourceId: z.string().min(1),
 	sourceType: z.enum(PERSONAL_REMINDER_SOURCE_TYPES),
+	stillOpenCondition: z.enum(PERSONAL_REMINDER_CONDITIONS),
 });
+
+export const personalReminderConditionEvaluationSchema = z.object({
+	condition: z.enum(PERSONAL_REMINDER_CONDITIONS),
+	holds: z.boolean(),
+	reason: z.string().nullable(),
+	sourceLife: z.enum(["open", "resolved", "not-applicable", "unevaluable"]),
+});
+
+export type PersonalReminderConditionEvaluation = z.infer<
+	typeof personalReminderConditionEvaluationSchema
+>;
 
 export type PersonalReminderView = z.infer<typeof personalReminderViewSchema>;

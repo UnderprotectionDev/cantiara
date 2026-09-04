@@ -1,18 +1,25 @@
 import { z } from "zod";
 
 export const RETURN_TO_WORK_COPY = {
+	decisionGroup: "Decision",
+	documentGroup: "Document",
 	empty: "No Return to Work cards from current records.",
+	githubGroup: "GitHub",
 	lastUpdated: "Last updated",
 	longInTheSameStatus: "Long in the same status",
 	nextConcreteStep: "Next concrete step",
 	openRisk: "Open Risk",
 	openSourceRecord: "Open source record",
 	pendingGitHubDevelopmentSignal: "Pending GitHub development signal",
+	publishGroup: "Publish",
 	recentlyEdited: "Recently edited",
 	recentlyViewed: "Recently viewed",
 	returnToWork: "Return to Work",
+	riskGroup: "Risk",
 	save: "Save",
+	sinceYouLastLooked: "Since you last looked",
 	upcomingDate: "Upcoming date",
+	workGroup: "Work",
 } as const;
 
 export const CARD_REASON = {
@@ -80,6 +87,36 @@ export const LONG_IN_THE_SAME_STATUS_CONTRACT = {
 	writesStatus: false,
 } as const;
 
+export const SINCE_YOU_LAST_LOOKED_GROUP_IDS = [
+	"work",
+	"decision",
+	"risk",
+	"document",
+	"github",
+	"publish",
+] as const;
+
+export type SinceYouLastLookedGroupId =
+	(typeof SINCE_YOU_LAST_LOOKED_GROUP_IDS)[number];
+
+export const SINCE_YOU_LAST_LOOKED_GROUP_LABEL = {
+	decision: RETURN_TO_WORK_COPY.decisionGroup,
+	document: RETURN_TO_WORK_COPY.documentGroup,
+	github: RETURN_TO_WORK_COPY.githubGroup,
+	publish: RETURN_TO_WORK_COPY.publishGroup,
+	risk: RETURN_TO_WORK_COPY.riskGroup,
+	work: RETURN_TO_WORK_COPY.workGroup,
+} as const;
+
+export const SINCE_YOU_LAST_LOOKED_CONTRACT = {
+	analytics: { duration: false, visitStream: false },
+	audit: { writesDenetimKaydi: false },
+	externalSurface: { publishesLastVisitMark: false },
+	groups: SINCE_YOU_LAST_LOOKED_GROUP_IDS,
+	importanceRank: false,
+	storedSummaryRecord: false,
+} as const;
+
 export const CARD_LIMIT = 8;
 export const UPCOMING_CARD_LIMIT = 3;
 export const LONG_STATUS_CARD_LIMIT = 3;
@@ -131,6 +168,14 @@ export function projectSourceHref(projectId: string): string {
 	return `/projects/${projectId}`;
 }
 
+export function decisionSourceHref(projectId: string): string {
+	return `/projects/${projectId}#decisions`;
+}
+
+export function documentSourceHref(projectId: string): string {
+	return `/projects/${projectId}#documents`;
+}
+
 export function returnToWorkCatalog() {
 	return {
 		copy: RETURN_TO_WORK_COPY,
@@ -139,8 +184,76 @@ export function returnToWorkCatalog() {
 		nextConcreteStep: NEXT_CONCRETE_STEP_CONTRACT,
 		restores: RETURN_TO_WORK_RESTORES,
 		session: RETURN_TO_WORK_SESSION,
+		sinceYouLastLooked: SINCE_YOU_LAST_LOOKED_CONTRACT,
 		snapshot: RETURN_TO_WORK_SNAPSHOT,
 	};
+}
+
+export interface SinceYouLastLookedEvent {
+	group: SinceYouLastLookedGroupId;
+	href: string;
+	id: string;
+	occurredAt: string;
+	sourceKey: string;
+	sourceTitle: string;
+}
+
+export interface SinceYouLastLookedRow {
+	href: string;
+	id: string;
+	occurredAt: string;
+	occurredAtDisplay: string;
+	openSourceRecord: typeof RETURN_TO_WORK_COPY.openSourceRecord;
+	sourceKey: string;
+	sourceTitle: string;
+}
+
+export interface SinceYouLastLookedGroup {
+	id: SinceYouLastLookedGroupId;
+	items: SinceYouLastLookedRow[];
+	label: (typeof SINCE_YOU_LAST_LOOKED_GROUP_LABEL)[SinceYouLastLookedGroupId];
+}
+
+export function emptySinceYouLastLookedGroups(): SinceYouLastLookedGroup[] {
+	return SINCE_YOU_LAST_LOOKED_GROUP_IDS.map((id) => ({
+		id,
+		items: [],
+		label: SINCE_YOU_LAST_LOOKED_GROUP_LABEL[id],
+	}));
+}
+
+export function groupSinceYouLastLookedEvents(
+	events: readonly SinceYouLastLookedEvent[],
+	input: {
+		formatOccurredAt: (occurredAt: string) => string;
+		sinceAt: string | null;
+	}
+): SinceYouLastLookedGroup[] {
+	const groups = emptySinceYouLastLookedGroups();
+	const { formatOccurredAt, sinceAt } = input;
+	if (!sinceAt) {
+		return groups;
+	}
+	const byId = new Map(groups.map((group) => [group.id, group]));
+	const sorted = [...events]
+		.filter((event) => event.occurredAt > sinceAt)
+		.sort((left, right) => left.occurredAt.localeCompare(right.occurredAt));
+	for (const event of sorted) {
+		const group = byId.get(event.group);
+		if (!group) {
+			continue;
+		}
+		group.items.push({
+			href: event.href,
+			id: event.id,
+			occurredAt: event.occurredAt,
+			occurredAtDisplay: formatOccurredAt(event.occurredAt),
+			openSourceRecord: RETURN_TO_WORK_COPY.openSourceRecord,
+			sourceKey: event.sourceKey,
+			sourceTitle: event.sourceTitle,
+		});
+	}
+	return groups;
 }
 
 function isUpcoming(date: string | null, today: string): date is string {
@@ -351,7 +464,9 @@ export const returnToWorkSummarySchema = z.object({
 		openSourceRecord: z.literal(RETURN_TO_WORK_COPY.openSourceRecord),
 		returnToWork: z.literal(RETURN_TO_WORK_COPY.returnToWork),
 		save: z.literal(RETURN_TO_WORK_COPY.save),
+		sinceYouLastLooked: z.literal(RETURN_TO_WORK_COPY.sinceYouLastLooked),
 	}),
+	lastVisitAt: z.string().datetime().nullable(),
 	longInTheSameStatus: z.object({
 		defaultAttentionSignal: z.literal(false),
 		healthScore: z.literal(false),
@@ -386,6 +501,38 @@ export const returnToWorkSummarySchema = z.object({
 		directed: z.literal(false),
 		mandatoryAgenda: z.literal(false),
 		writesStatus: z.literal(false),
+	}),
+	sinceYouLastLooked: z.object({
+		analytics: z.object({
+			duration: z.literal(false),
+			visitStream: z.literal(false),
+		}),
+		audit: z.object({
+			writesDenetimKaydi: z.literal(false),
+		}),
+		externalSurface: z.object({
+			publishesLastVisitMark: z.literal(false),
+		}),
+		groups: z.array(
+			z.object({
+				id: z.enum(SINCE_YOU_LAST_LOOKED_GROUP_IDS),
+				items: z.array(
+					z.object({
+						href: z.string().min(1),
+						id: z.string().min(1),
+						occurredAt: z.string().datetime(),
+						occurredAtDisplay: z.string().min(1),
+						openSourceRecord: z.literal(RETURN_TO_WORK_COPY.openSourceRecord),
+						sourceKey: z.string().min(1),
+						sourceTitle: z.string().min(1),
+					})
+				),
+				label: z.string().min(1),
+			})
+		),
+		importanceRank: z.literal(false),
+		storedSummaryRecord: z.literal(false),
+		title: z.literal(RETURN_TO_WORK_COPY.sinceYouLastLooked),
 	}),
 	snapshot: z.object({
 		storedCardSnapshot: z.literal(false),

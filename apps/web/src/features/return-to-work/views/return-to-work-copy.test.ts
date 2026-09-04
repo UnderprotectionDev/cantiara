@@ -12,5 +12,6 @@ test("English Return to Work copy is Return to Work", () => {
 	expect(RETURN_TO_WORK_COPY.longInTheSameStatus).toBe(
 		"Long in the same status"
 	);
+	expect(RETURN_TO_WORK_COPY.sinceYouLastLooked).toBe("Since you last looked");
 	expect(JSON.stringify(RETURN_TO_WORK_COPY)).not.toMatch(FORBIDDEN_SURFACE);
 });
