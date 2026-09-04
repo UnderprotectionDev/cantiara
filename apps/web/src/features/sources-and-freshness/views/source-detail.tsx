@@ -1,6 +1,7 @@
 import { Spinner } from "@cantiara/ui/components/spinner";
 import { useQuery } from "@tanstack/react-query";
 
+import BindEvidencePanel from "@/features/evidence/views/bind-evidence-panel";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import SaveSourceVersionForm from "@/features/sources-and-freshness/forms/save-source-version-form";
 import { SOURCES_COPY } from "@/features/sources-and-freshness/forms/sources-copy";
@@ -93,6 +94,20 @@ export default function SourceDetail({
 					))}
 				</ol>
 			</section>
+			<BindEvidencePanel
+				projectId={projectId}
+				sourceId={source.data.id}
+				sourceKind="Source"
+				sourceText={source.data.capturedContent}
+				sourceVersionId={
+					source.data.versions.find(
+						(version) =>
+							version.versionNumber === source.data.approvedVersionNumber
+					)?.id ??
+					source.data.versions[0]?.id ??
+					""
+				}
+			/>
 			<SourceRecheckPanel projectId={projectId} sourceId={source.data.id} />
 			<SaveSourceVersionForm
 				baseRevision={source.data.revision}

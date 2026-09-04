@@ -2,6 +2,7 @@ import { Spinner } from "@cantiara/ui/components/spinner";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
+import EvidenceOnTarget from "@/features/evidence/views/evidence-on-target";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { RISKS_COPY } from "@/features/risks/forms/risks-copy";
 import SetRiskStatusForm from "@/features/risks/forms/set-risk-status-form";
@@ -68,6 +69,11 @@ export default function RiskDetail({ riskId }: { riskId: string }) {
 					</p>
 				</section>
 			) : null}
+			<EvidenceOnTarget
+				projectId={risk.data.projectId}
+				targetId={risk.data.id}
+				targetKind="Risk"
+			/>
 			<SetRiskStatusForm
 				baseRevision={risk.data.revision}
 				currentStatus={risk.data.status}

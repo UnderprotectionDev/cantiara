@@ -2,6 +2,7 @@ import { Spinner } from "@cantiara/ui/components/spinner";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
+import EvidenceOnTarget from "@/features/evidence/views/evidence-on-target";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import RecordOpenQuestionOutcomeForm from "@/features/uncertainty-records/forms/record-open-question-outcome-form";
 import { UNCERTAINTY_COPY } from "@/features/uncertainty-records/forms/uncertainty-records-copy";
@@ -97,6 +98,11 @@ export default function OpenQuestionDetail({
 					</ul>
 				</section>
 			) : null}
+			<EvidenceOnTarget
+				projectId={projectId}
+				targetId={openQuestion.data.id}
+				targetKind="Question"
+			/>
 			<RecordOpenQuestionOutcomeForm
 				baseRevision={openQuestion.data.revision}
 				life={openQuestion.data.life}

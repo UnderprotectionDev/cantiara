@@ -7,6 +7,7 @@ import { DECISIONS_COPY } from "@/features/decisions/forms/decisions-copy";
 import RemoveSupersessionForm from "@/features/decisions/forms/remove-supersession-form";
 import SupersedeDecisionForm from "@/features/decisions/forms/supersede-decision-form";
 import WithdrawDecisionForm from "@/features/decisions/forms/withdraw-decision-form";
+import EvidenceOnTarget from "@/features/evidence/views/evidence-on-target";
 import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { orpc } from "@/utils/orpc";
@@ -66,6 +67,11 @@ export default function DecisionDetail({
 					))}
 				</ol>
 			) : null}
+			<EvidenceOnTarget
+				projectId={projectId}
+				targetId={decision.data.id}
+				targetKind="Decision"
+			/>
 			<section>
 				<h3 className="text-muted-foreground text-xs">
 					{DECISIONS_COPY.decisionText}

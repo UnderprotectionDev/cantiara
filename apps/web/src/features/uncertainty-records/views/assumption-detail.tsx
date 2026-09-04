@@ -2,6 +2,7 @@ import { Spinner } from "@cantiara/ui/components/spinner";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
+import EvidenceOnTarget from "@/features/evidence/views/evidence-on-target";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import RecordAssumptionOutcomeForm from "@/features/uncertainty-records/forms/record-assumption-outcome-form";
 import { UNCERTAINTY_COPY } from "@/features/uncertainty-records/forms/uncertainty-records-copy";
@@ -74,6 +75,11 @@ export default function AssumptionDetail({
 					))}
 				</ul>
 			) : null}
+			<EvidenceOnTarget
+				projectId={projectId}
+				targetId={assumption.data.id}
+				targetKind="Assumption"
+			/>
 			<RecordAssumptionOutcomeForm
 				assumptionId={assumption.data.id}
 				baseRevision={assumption.data.revision}
