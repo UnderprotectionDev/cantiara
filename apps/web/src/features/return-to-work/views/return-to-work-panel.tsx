@@ -4,7 +4,7 @@ import { Input } from "@cantiara/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { FormEvent } from "react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { FounderSection } from "@/features/personal-shell/components/founder-surface";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
@@ -42,9 +42,18 @@ export default function ReturnToWorkPanel({
 	const { mutate: noteVisibleOpen } = useMutation(
 		orpc.returnToWork.noteVisibleOpen.mutationOptions()
 	);
+	const notedOpenKey = useRef<string | null>(null);
 	useEffect(() => {
+		if (!summary.data) {
+			return;
+		}
+		const openKey = workId ? `${projectId}:${workId}` : projectId;
+		if (notedOpenKey.current === openKey) {
+			return;
+		}
+		notedOpenKey.current = openKey;
 		noteVisibleOpen(workId ? { projectId, workId } : { projectId });
-	}, [noteVisibleOpen, projectId, workId]);
+	}, [noteVisibleOpen, projectId, summary.data, workId]);
 	const invalidate = useCallback(async () => {
 		await queryClient.invalidateQueries({
 			queryKey: orpc.returnToWork.summary.queryKey({
@@ -134,6 +143,43 @@ export default function ReturnToWorkPanel({
 					))}
 				</ul>
 			)}
+			<section
+				aria-labelledby="since-you-last-looked"
+				className="mt-8 flex flex-col gap-4"
+			>
+				<h3 className="font-medium text-sm" id="since-you-last-looked">
+					{view.sinceYouLastLooked.title}
+				</h3>
+				{view.sinceYouLastLooked.groups.map((group) => (
+					<div key={group.id}>
+						<h4 className="text-muted-foreground text-sm">{group.label}</h4>
+						{group.items.length === 0 ? null : (
+							<ul className="mt-2 flex flex-col gap-3">
+								{group.items.map((item) => (
+									<li
+										className="flex flex-col gap-1 border-b pb-3 last:border-b-0"
+										key={item.id}
+									>
+										<p className="font-medium text-sm">
+											<span className="font-mono text-muted-foreground">
+												{item.sourceKey}
+											</span>{" "}
+											{item.sourceTitle}
+										</p>
+										<p className="text-muted-foreground text-sm">
+											{item.occurredAtDisplay}
+										</p>
+										<SourceLink
+											href={item.href}
+											label={item.openSourceRecord}
+										/>
+									</li>
+								))}
+							</ul>
+						)}
+					</div>
+				))}
+			</section>
 		</FounderSection>
 	);
 }
@@ -174,9 +220,13 @@ function SourceLink({ href, label }: { href: string; label: string }) {
 	}
 	const projectMatch = href.match(PROJECT_SOURCE_HREF);
 	if (projectMatch) {
+		const hash = href.includes("#")
+			? (href.split("#")[1] ?? undefined)
+			: undefined;
 		return (
 			<Link
 				className="text-sm underline-offset-4 hover:underline"
+				hash={hash}
 				params={{ projectId: projectMatch[1] ?? "" }}
 				to="/projects/$projectId"
 			>

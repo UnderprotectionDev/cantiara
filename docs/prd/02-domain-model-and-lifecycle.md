@@ -135,6 +135,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Test Oturumu | `Test Session` | Overview Tests özetindeki kaynak türü |
 | Test Açığı | `Test Gap` | Overview Tests özetindeki kaynak türü |
 | Kaynak kaydı aç | `Open source record` | Ana kaydı kopyalamadan açan ortak eylem |
+| Çalışmaya Dön | `Return to Work` | Güncel kayıtlardan seçilen geri dönüş özeti; sekme veya son bağlam geri yükleme değildir |
+| Sıradaki somut adım | `Next concrete step` | Proje veya İş kaydındaki isteğe bağlı tek metin ipucu |
+| Son baktığından beri | `Since you last looked` | Son ziyaret işaretinden sonraki tanımlı olayların konu grupları; analytics veya yeni özet kaydı değildir |
 | Tüm İşler | `All Work` | Sıfır kurulum hazır tür dizini; İş ana kayıtlarını toplar, saklı sorgu veya yeni sahiplik değildir |
 | Tüm Belgeler | `All Documents` | Sıfır kurulum hazır tür dizini; Belgeleri kapsam, tür, klasör ve üstveriyle gezer |
 | Tüm Kararlar | `All Decisions` | Sıfır kurulum hazır tür dizini; Karar ana kayıtlarını toplar |
