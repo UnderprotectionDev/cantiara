@@ -10,5 +10,6 @@ export const RETURN_TO_WORK_COPY = {
 	save: "Save",
 	sinceYouLastLooked: "Since you last looked",
 	skip: "Skip",
+	tourShowsFirstVisualChanges: "Tour shows the first 12 visual changes.",
 	tourTheVisualChanges: "Tour the visual changes",
 } as const;

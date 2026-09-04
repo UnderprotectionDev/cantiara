@@ -178,6 +178,9 @@ describe("Return to Work catalog", () => {
 		expect(RETURN_TO_WORK_COPY.tourTheVisualChanges).toBe(
 			"Tour the visual changes"
 		);
+		expect(RETURN_TO_WORK_COPY.tourShowsFirstVisualChanges).toBe(
+			"Tour shows the first 12 visual changes."
+		);
 		expect(SINCE_YOU_LAST_LOOKED_CONTRACT.groups).toEqual([
 			"work",
 			"decision",

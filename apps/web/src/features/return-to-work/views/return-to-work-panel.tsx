@@ -4,7 +4,13 @@ import { Input } from "@cantiara/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	type CanvasViewportApi,
+	startVisualTour,
+	type VisualTourSession,
+	type VisualTourStepView,
+} from "server/return-to-work-visual-tour";
 
 import { FounderSection } from "@/features/personal-shell/components/founder-surface";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
@@ -33,7 +39,22 @@ export default function ReturnToWorkPanel({
 	workId?: string | null;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
-	const [tourIndex, setTourIndex] = useState<number | null>(null);
+	const tourSession = useRef<VisualTourSession | null>(null);
+	const [tourStep, setTourStep] = useState<VisualTourStepView | null>(null);
+	const panelCanvas = useMemo<CanvasViewportApi>(
+		() => ({
+			captureStartViewport: () => ({ id: "return-to-work" }),
+			fitVisibleContent: () => undefined,
+			highlightAndPanTo: () => undefined,
+			resolveTarget: (target) => ({
+				placementId: target.objectId,
+				status: "placed",
+			}),
+			restoreViewport: () => undefined,
+			startViewportStillMeaningful: () => true,
+		}),
+		[]
+	);
 	const summaryInput = workId ? { projectId, workId } : { projectId };
 	const catalog = useQuery(orpc.returnToWork.catalog.queryOptions());
 	const summary = useQuery(
@@ -130,21 +151,38 @@ export default function ReturnToWorkPanel({
 		},
 		[attemptOnlineWork, markUnsaved, projectId, saveThreshold]
 	);
-	const tourStepCount = summary.data?.visualTour.steps.length ?? 0;
 	const startTour = useCallback(() => {
-		setTourIndex(0);
-	}, []);
-	const skipTour = useCallback(() => {
-		setTourIndex((current) => {
-			if (current === null) {
-				return null;
-			}
-			const next = current + 1;
-			return next >= tourStepCount ? null : next;
+		const steps = summary.data?.visualTour.steps ?? [];
+		const session = startVisualTour({
+			canvas: panelCanvas,
+			events: steps.map((step) => ({
+				group: "work",
+				href: step.href,
+				id: step.eventId,
+				occurredAt: step.occurredAt,
+				sourceKey: step.sourceKey,
+				sourceTitle: step.sourceTitle,
+				visualTarget: step.target,
+			})),
+			formatOccurredAt: (occurredAt) =>
+				steps.find((step) => step.occurredAt === occurredAt)
+					?.occurredAtDisplay ?? occurredAt,
 		});
-	}, [tourStepCount]);
+		tourSession.current = session;
+		setTourStep(session.current);
+	}, [panelCanvas, summary.data?.visualTour.steps]);
+	const skipTour = useCallback(() => {
+		const session = tourSession.current;
+		if (!session) {
+			return;
+		}
+		session.skip();
+		setTourStep(session.current);
+	}, []);
 	const closeTour = useCallback(() => {
-		setTourIndex(null);
+		tourSession.current?.close();
+		tourSession.current = null;
+		setTourStep(null);
 	}, []);
 	const openRemainder = useCallback(() => {
 		document.getElementById("since-you-last-looked")?.focus();
@@ -160,9 +198,7 @@ export default function ReturnToWorkPanel({
 		return null;
 	}
 	const view = summary.data;
-	const tourOpen = tourIndex !== null;
-	const tourStep =
-		tourIndex === null ? null : (view.visualTour.steps[tourIndex] ?? null);
+	const tourOpen = tourStep !== null;
 	return (
 		<FounderSection title={view.copy.returnToWork} titleId="return-to-work">
 			<form className="mb-6 flex flex-col gap-3" onSubmit={onSubmit}>
@@ -295,6 +331,7 @@ function VisualTourControls({
 		closeTour: string;
 		openRemainderInTheList: string;
 		skip: string;
+		tourShowsFirstVisualChanges: string;
 		tourTheVisualChanges: string;
 	};
 	onClose: () => void;
@@ -303,13 +340,7 @@ function VisualTourControls({
 	onStart: () => void;
 	open: boolean;
 	remainderCount: number;
-	step: {
-		occurredAtDisplay: string;
-		sourceKey: string;
-		sourceTitle: string;
-		surfaceLabel: string;
-		whyShown: string;
-	} | null;
+	step: VisualTourStepView | null;
 }) {
 	return (
 		<div className="flex flex-col gap-3">
@@ -318,19 +349,28 @@ function VisualTourControls({
 					{copy.tourTheVisualChanges}
 				</Button>
 			)}
+			<p className="text-muted-foreground text-sm">
+				{copy.tourShowsFirstVisualChanges}
+			</p>
 			{step ? (
 				<div className="flex flex-col gap-2" role="status">
-					<p className="font-medium text-sm">{step.surfaceLabel}</p>
-					<p className="font-medium text-sm">
-						<span className="font-mono text-muted-foreground">
-							{step.sourceKey}
-						</span>{" "}
-						{step.sourceTitle}
-					</p>
-					<p className="text-muted-foreground text-sm">
-						{step.occurredAtDisplay}
-					</p>
-					<p className="text-muted-foreground text-sm">{step.whyShown}</p>
+					{step.kind === "shown" ? (
+						<>
+							<p className="font-medium text-sm">{step.surfaceLabel}</p>
+							<p className="font-medium text-sm">
+								<span className="font-mono text-muted-foreground">
+									{step.sourceKey}
+								</span>{" "}
+								{step.sourceTitle}
+							</p>
+							<p className="text-muted-foreground text-sm">
+								{step.occurredAtDisplay}
+							</p>
+							<p className="text-muted-foreground text-sm">{step.whyShown}</p>
+						</>
+					) : (
+						<p className="text-muted-foreground text-sm">{step.reasonLabel}</p>
+					)}
 					<div className="flex flex-wrap gap-2">
 						<Button onClick={onSkip} size="sm" type="button">
 							{copy.skip}

@@ -139,6 +139,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Sıradaki somut adım | `Next concrete step` | Proje veya İş kaydındaki isteğe bağlı tek metin ipucu |
 | Son baktığından beri | `Since you last looked` | Son ziyaret işaretinden sonraki tanımlı olayların konu grupları; analytics veya yeni özet kaydı değildir |
 | Değişiklikleri görsel olarak gez | `Tour the visual changes` | Aynı Son baktığından beri kümesindeki desteklenen görsel hedefleri gezen açık eylem; kayıp hedefe sessiz kayma veya canvas sahipliği değildir |
+| Turu kapat | `Close tour` | Görsel turu durdurur; başlangıç viewport’u hâlâ anlamlıysa geri yükler |
+| Atla | `Skip` | Turda bir sonraki görsel hedefe geçer |
+| Kalanı listede aç | `Open remainder in the list` | Üst sınırı aşan görsel değişiklikleri normal Son baktığından beri listesinde açar |
 | Uzun süredir aynı durumda | `Long in the same status` | İsteğe bağlı Proje durum yaşı eşiğini aşan aktif İş için nötr geri dönüş gerekçesi ve hazır Akıllı Koleksiyon üyeliği; varsayılan bildirim veya sağlık puanı değildir |
 | Tüm İşler | `All Work` | Sıfır kurulum hazır tür dizini; İş ana kayıtlarını toplar, saklı sorgu veya yeni sahiplik değildir |
 | Tüm Belgeler | `All Documents` | Sıfır kurulum hazır tür dizini; Belgeleri kapsam, tür, klasör ve üstveriyle gezer |

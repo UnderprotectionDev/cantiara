@@ -28,6 +28,7 @@ export const RETURN_TO_WORK_COPY = {
 	skippedDeleted: "Deleted",
 	skippedInaccessible: "Not accessible",
 	skippedUnplaceable: "Cannot be placed in the current view",
+	tourShowsFirstVisualChanges: "Tour shows the first 12 visual changes.",
 	tourTheVisualChanges: "Tour the visual changes",
 	upcomingDate: "Upcoming date",
 	userFlow: "User Flow",
@@ -687,6 +688,9 @@ export const returnToWorkSummarySchema = z.object({
 			skippedDeleted: z.literal(RETURN_TO_WORK_COPY.skippedDeleted),
 			skippedInaccessible: z.literal(RETURN_TO_WORK_COPY.skippedInaccessible),
 			skippedUnplaceable: z.literal(RETURN_TO_WORK_COPY.skippedUnplaceable),
+			tourShowsFirstVisualChanges: z.literal(
+				RETURN_TO_WORK_COPY.tourShowsFirstVisualChanges
+			),
 			tourTheVisualChanges: z.literal(RETURN_TO_WORK_COPY.tourTheVisualChanges),
 		}),
 		remainderCount: z.number().int().nonnegative(),
@@ -748,6 +752,8 @@ export function visualTourPanel(
 			skippedDeleted: RETURN_TO_WORK_COPY.skippedDeleted,
 			skippedInaccessible: RETURN_TO_WORK_COPY.skippedInaccessible,
 			skippedUnplaceable: RETURN_TO_WORK_COPY.skippedUnplaceable,
+			tourShowsFirstVisualChanges:
+				RETURN_TO_WORK_COPY.tourShowsFirstVisualChanges,
 			tourTheVisualChanges: RETURN_TO_WORK_COPY.tourTheVisualChanges,
 		},
 		remainderCount: plan.remainderCount,
