@@ -4,7 +4,6 @@ export const RESEARCH_SESSIONS_COPY = {
 	cancelled: "Cancelled",
 	channel: "Channel",
 	completed: "Completed",
-	confirmConvert: "Confirm",
 	consent: "Consent",
 	consentIsNotLegalJudgment: "Consent is not a legal compliance judgment.",
 	consentNote: "Consent note",

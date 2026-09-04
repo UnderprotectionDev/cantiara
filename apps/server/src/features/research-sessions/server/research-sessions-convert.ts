@@ -61,6 +61,9 @@ export async function previewConvert(
 		parsed.data.rangeStart,
 		parsed.data.rangeEnd
 	);
+	if (!range) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
 	const excerpt = note.body.slice(range.start, range.end);
 	const title = parsed.data.title?.trim() || firstLineTitle(excerpt);
 	return {
@@ -192,11 +195,11 @@ function pinRange(
 	body: string,
 	rangeStart: number | undefined,
 	rangeEnd: number | undefined
-): { end: number; start: number } {
+): { end: number; start: number } | null {
 	const start = rangeStart ?? 0;
 	const end = rangeEnd ?? body.length;
 	if (start < 0 || end < start || end > body.length) {
-		return { end: body.length, start: 0 };
+		return null;
 	}
 	return { end, start };
 }
