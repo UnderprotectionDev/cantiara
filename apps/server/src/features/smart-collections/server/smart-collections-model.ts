@@ -288,6 +288,7 @@ export interface LightInsights {
 }
 
 export interface InsightSliceOptions {
+	accountId?: string;
 	now?: Date;
 	slices?: readonly InsightSlice[];
 }

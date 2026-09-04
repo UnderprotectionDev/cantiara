@@ -185,6 +185,7 @@ export function prismaClientHasCurrentFileAttachmentVersionModel(
  * for Return to Work Save; a bun `--hot` client generated before that
  * field still has a Project delegate; update then throws
  * "Unknown argument `nextConcreteStep`" (CANT-BD652F27).
+ * Project.statusAgeThresholdDays is required for Long in the same status.
  */
 export function prismaClientHasCurrentProjectModel(
 	client: PrismaClient
@@ -199,7 +200,8 @@ export function prismaClientHasCurrentProjectModel(
 			projectFields.includes("focusThreshold") &&
 			projectFields.includes("reappearDateNotification") &&
 			projectFields.includes("nextConcreteStep") &&
-			projectFields.includes("nextConcreteStepUpdatedAt")
+			projectFields.includes("nextConcreteStepUpdatedAt") &&
+			projectFields.includes("statusAgeThresholdDays")
 		)
 	) {
 		return false;

@@ -446,8 +446,8 @@ Açık oturum boyunca üzerinde durulan İş ve Belgeleri kaynak bağlamını ka
 _Avoid_: Favori, Günlük Odak, bookmark kuyruğu, planlama üyeliği
 
 **Çalışmaya Dön**:
-Ara verilen Proje veya İşe güncel kayıtlardan seçilen geri dönüş kartlarıyla bağlamı yeniden kuran özet; seans, bildirim yığını veya sekme geri yükleme değildir ([Çalışmaya Dön](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)). UI: `Return to Work`, `Open source record`, `Since you last looked`.
-_Avoid_: Bildirim, hatırlatma, recent-tabs, ikinci çalışma listesi
+Ara verilen Proje veya İşe güncel kayıtlardan seçilen geri dönüş kartlarıyla bağlamı yeniden kuran özet; seans, bildirim yığını veya sekme geri yükleme değildir ([Çalışmaya Dön](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)). UI: `Return to Work`, `Open source record`, `Since you last looked`, `Long in the same status`.
+_Avoid_: Bildirim, hatırlatma, recent-tabs, ikinci çalışma listesi, stuck hükmü
 
 **Sıradaki somut adım**:
 Proje veya İş kaydındaki isteğe bağlı tek metin ipucu; ayrı kayıt, İş, kontrol listesi, Günlük Odak, hatırlatma veya ikinci liste değildir ([Çalışmaya Dön](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)). UI: `Next concrete step`.
@@ -456,6 +456,10 @@ _Avoid_: otomatik adım, ikinci çalışma listesi, kontrol listesi maddesi
 **Son ziyaret işareti**:
 Hesapta Proje ve desteklenen İş bağlamı başına son başarılı görünür açılış zamanı; görüntüleme geçmişi, süre, analytics veya denetim olayı değildir ([Çalışmaya Dön özeti](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)).
 _Avoid_: oturum süresi, Denetim kaydı, Dış yüzey yayını
+
+**Durum yaşı eşiği**:
+Proje bazında isteğe bağlı gün sayısı; yoksa üretilmez, varsa eşiği aşan aktif İşler `Long in the same status` gerekçeli nötr Çalışmaya Dön adayı ve hazır Akıllı Koleksiyon üyesidir ([Çalışmaya Dön](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)). UI: `Long in the same status`.
+_Avoid_: stuck, varsayılan Dikkat sinyali, sağlık puanı, performans puanı
 
 **Birleşik Bildirim Merkezi**:
 Kapalı registrydeki dikkat sinyallerini Eylem Gerekiyor ve Bilgi Akışı olarak toplayan merkez; bildirimi okumak kaynak sorunu çözmez ([Birleşik Bildirim Merkezi](docs/prd/04-workspace-and-projects.md#birleşik-bildirim-merkezi)).
