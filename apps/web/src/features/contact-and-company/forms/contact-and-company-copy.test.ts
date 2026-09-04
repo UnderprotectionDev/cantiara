@@ -17,6 +17,8 @@ test("English Contact and Company labels stay Contact, Company, Belongs to Compa
 	expect(CONTACT_AND_COMPANY_COPY.duplicateCandidates).toBe(
 		"Duplicate candidates"
 	);
+	expect(CONTACT_AND_COMPANY_COPY.mergeContacts).toBe("Merge Contacts");
+	expect(CONTACT_AND_COMPANY_COPY.mergePreview).toBe("Merge Preview");
 	expect(CONTACT_AND_COMPANY_COPY.strongCopyCandidate).toBe(
 		"Strong copy candidate"
 	);

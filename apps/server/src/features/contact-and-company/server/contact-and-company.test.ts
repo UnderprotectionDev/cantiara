@@ -4,8 +4,10 @@
  * via Belongs to Company with affiliation history, Persona as
  * Document relation only, no CRM fields, no personal-data erase,
  * profile hub via Open Source Record, duplicate candidates
- * without auto-merge.
- * docs/specs/46-contact-and-company/spec.md and GitHub #330 / #331.
+ * without auto-merge, merge preview, atomic consolidation,
+ * retired-id redirect that is not a search hit, and merge
+ * counterparts for Kanıt Rolü, Kanıt niteliği, and İş priority.
+ * docs/specs/46-contact-and-company/spec.md and GitHub #330 / #331 / #332.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Kanıt akışı identity context; Hesap ve kişisel veri identity book).
  */
@@ -16,20 +18,47 @@ import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createDocument } from "../../documents/server/documents";
+import {
+	bindEvidence,
+	getEvidencePin,
+	previewBindEvidence,
+	setEvidenceFounderInterpretation,
+	setEvidenceRole,
+} from "../../evidence/server/evidence";
+import { EVIDENCE_COPY } from "../../evidence/server/evidence-model";
+import { createFeedback } from "../../feedback/server/feedback";
+import {
+	createPriorityCriterion,
+	listWorkPriorityValues,
+	setPriorityCriterionValue,
+} from "../../priority/server/priority";
+import { createProject } from "../../project-shell/server/project-shell";
 import { listRelations } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
+import { createSource } from "../../sources-and-freshness/server/sources";
+import {
+	createWork,
+	getWork,
+} from "../../work-lifecycle/server/work-lifecycle";
 
 import {
 	createCompany,
 	createContact,
 	getContact,
 	listCompanies,
+	listContactMergeAudit,
 	listContacts,
 	listDuplicateCandidates,
+	mergeContacts,
+	previewContactMerge,
 	relateContactPersona,
+	searchContacts,
 	setContactCompany,
 } from "./contact-and-company";
-import { CONTACT_AND_COMPANY_COPY } from "./contact-and-company-model";
+import {
+	CONTACT_AND_COMPANY_COPY,
+	CONTACT_MERGE_EVENT_TYPE,
+} from "./contact-and-company-model";
 
 const DATABASE_URL = localTestDatabaseUrl();
 
@@ -41,6 +70,10 @@ const ERASE_COPY =
 	/Erase personal data|Export personal data|Confirm GitHub Identity/i;
 const FEED_COPY = /Evidence Flow|Feedback Capture|Feedback feed/i;
 const COMPANY_MERGE_COPY = /Merge Companies|mergeCompanies/;
+const LIVE_MERGED_STATUS = /\bMerged\b/;
+const RAW_MAYA_EMAIL = /maya/i;
+const RAW_MAYA_ALIAS = /maya\.chen@example\.com/i;
+const PRIORITY_ON_WORK = /priority-criterion|High/;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -62,6 +95,13 @@ async function seedWorkspace(prisma: PrismaClient) {
 }
 
 async function resetSharedTables(prisma: PrismaClient) {
+	await prisma.evidenceRelationHistory.deleteMany();
+	await prisma.evidencePin.deleteMany();
+	await prisma.contactMergeEvent.deleteMany();
+	await prisma.projectPriorityCriterionValue.deleteMany();
+	await prisma.projectPriorityCriterion.deleteMany();
+	await prisma.feedback.deleteMany();
+	await prisma.source.deleteMany();
 	await prisma.typedRelation.deleteMany();
 	await prisma.contactCompanyAffiliation.deleteMany();
 	await prisma.contactEmailAlias.deleteMany();
@@ -71,6 +111,7 @@ async function resetSharedTables(prisma: PrismaClient) {
 	await prisma.mutationReceipt.deleteMany();
 	await prisma.workspaceShortCodeReservation.deleteMany();
 	await prisma.project.deleteMany();
+	await prisma.auditEvent.deleteMany();
 	await prisma.accountPreference.deleteMany();
 	await prisma.workspace.deleteMany();
 	await prisma.session.deleteMany();
@@ -124,10 +165,12 @@ async function committedCompany(
 }
 
 describe("Contact and Company", () => {
-	const pool = new Pool({ connectionString: DATABASE_URL });
-	const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+	let prisma: PrismaClient;
+	let pool: Pool;
 
 	beforeAll(async () => {
+		pool = new Pool({ connectionString: DATABASE_URL });
+		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 		await prisma.$connect();
 	});
 
@@ -449,5 +492,452 @@ describe("Contact and Company", () => {
 		});
 		expect(await listDuplicateCandidates(prisma, workspaceId)).toEqual([]);
 		expect(await listContacts(prisma, workspaceId)).toEqual([]);
+	});
+
+	it("previews survivor, field conflicts, aliases, Feedback, Company, and Persona without writing", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const acme = await committedCompany(prisma, {
+			actorId,
+			name: "Acme",
+			workspaceId,
+		});
+		const globex = await committedCompany(prisma, {
+			actorId,
+			name: "Globex",
+			workspaceId,
+		});
+		const persona = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				scope: { kind: "personal-wiki" },
+				title: "Buyer persona",
+				type: "Persona",
+			},
+			workspaceId,
+		});
+		if (persona.status !== "committed") {
+			throw new Error("expected Persona Document");
+		}
+		const survivor = await committedContact(prisma, {
+			actorId,
+			companyId: acme.id,
+			displayName: "Maya Chen",
+			email: "maya@example.com",
+			workspaceId,
+		});
+		const duplicate = await committedContact(prisma, {
+			actorId,
+			companyId: globex.id,
+			displayName: "M. Chen",
+			email: "maya.chen@example.com",
+			workspaceId,
+		});
+		await relateContactPersona(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				contactId: duplicate.id,
+				documentId: persona.document.id,
+			},
+			workspaceId,
+		});
+		const project = await createProject(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { name: "Payments", starterConfiguration: "Blank Project" },
+			workspaceId,
+		});
+		if (project.status !== "committed" && project.status !== "replayed") {
+			throw new Error("expected project");
+		}
+		const feedback = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				channel: "Email",
+				contactId: duplicate.id,
+				originalMessage: "Checkout retries forever.",
+				projectId: project.project.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		if (feedback.status !== "committed") {
+			throw new Error("expected Feedback");
+		}
+		const beforeSurvivor = await getContact(prisma, survivor.id, workspaceId);
+		const beforeDuplicate = await getContact(prisma, duplicate.id, workspaceId);
+		const preview = await previewContactMerge(prisma, {
+			duplicateId: duplicate.id,
+			survivorId: survivor.id,
+			workspaceId,
+		});
+		expect(preview).toMatchObject({
+			copy: {
+				feedbackHistory: "Feedback history",
+				fieldConflicts: "Field conflicts",
+				mergeContacts: "Merge Contacts",
+				mergePreview: "Merge Preview",
+				survivingRecord: "Surviving record",
+			},
+			duplicate: { id: duplicate.id },
+			emailAliases: expect.arrayContaining([
+				expect.objectContaining({
+					normalizedEmail: "maya@example.com",
+				}),
+				expect.objectContaining({
+					normalizedEmail: "maya.chen@example.com",
+				}),
+			]),
+			relatedFeedback: [expect.objectContaining({ id: feedback.feedback.id })],
+			relatedPersonaDocuments: [
+				expect.objectContaining({ id: persona.document.id }),
+			],
+			survivor: { id: survivor.id },
+		});
+		if ("reason" in preview) {
+			throw new Error("expected preview");
+		}
+		expect(preview.fieldConflicts.map((row) => row.field).sort()).toEqual([
+			"currentCompany",
+			"displayName",
+		]);
+		expect(await getContact(prisma, survivor.id, workspaceId)).toEqual(
+			beforeSurvivor
+		);
+		expect(await getContact(prisma, duplicate.id, workspaceId)).toEqual(
+			beforeDuplicate
+		);
+		expect(JSON.stringify(preview)).not.toMatch(COMPANY_MERGE_COPY);
+	});
+
+	it("refuses Merge Contacts without a preview and leaves both Contacts live", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const survivor = await committedContact(prisma, {
+			actorId,
+			displayName: "Maya Chen",
+			email: "maya@example.com",
+			workspaceId,
+		});
+		const duplicate = await committedContact(prisma, {
+			actorId,
+			displayName: "M. Chen",
+			email: "maya@example.com",
+			workspaceId,
+		});
+		expect(
+			await mergeContacts(prisma, {
+				actorId,
+				duplicateBaseRevision: duplicate.revision,
+				duplicateId: duplicate.id,
+				idempotencyKey: "silent-merge",
+				origin: "human",
+				survivorBaseRevision: survivor.revision,
+				survivorId: survivor.id,
+				workspaceId,
+			})
+		).toEqual({
+			reason: "merge-preview-required",
+			status: "rejected",
+		});
+		expect(await listContacts(prisma, workspaceId)).toHaveLength(2);
+	});
+
+	it("consolidates onto one surviving Contact, redirects the retired id, and keeps Feedback", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const acme = await committedCompany(prisma, {
+			actorId,
+			name: "Acme",
+			workspaceId,
+		});
+		const globex = await committedCompany(prisma, {
+			actorId,
+			name: "Globex",
+			workspaceId,
+		});
+		const persona = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				scope: { kind: "personal-wiki" },
+				title: "Buyer persona",
+				type: "Persona",
+			},
+			workspaceId,
+		});
+		if (persona.status !== "committed") {
+			throw new Error("expected Persona Document");
+		}
+		const survivor = await committedContact(prisma, {
+			actorId,
+			companyId: acme.id,
+			displayName: "Maya Chen",
+			email: "maya@example.com",
+			workspaceId,
+		});
+		const duplicate = await committedContact(prisma, {
+			actorId,
+			companyId: globex.id,
+			displayName: "M. Chen",
+			email: "maya.chen@example.com",
+			workspaceId,
+		});
+		await relateContactPersona(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				contactId: duplicate.id,
+				documentId: persona.document.id,
+			},
+			workspaceId,
+		});
+		const project = await createProject(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { name: "Payments", starterConfiguration: "Blank Project" },
+			workspaceId,
+		});
+		if (project.status !== "committed" && project.status !== "replayed") {
+			throw new Error("expected project");
+		}
+		const feedback = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				channel: "Email",
+				contactId: duplicate.id,
+				originalMessage: "Checkout retries forever.",
+				projectId: project.project.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		if (feedback.status !== "committed") {
+			throw new Error("expected Feedback");
+		}
+		const merged = await mergeContacts(prisma, {
+			actorId,
+			duplicateBaseRevision: duplicate.revision,
+			duplicateId: duplicate.id,
+			fieldChoices: { currentCompany: "survivor", displayName: "survivor" },
+			idempotencyKey: "merge-maya",
+			origin: "human",
+			previewAcknowledged: true,
+			survivorBaseRevision: survivor.revision,
+			survivorId: survivor.id,
+			workspaceId,
+		});
+		expect(merged).toMatchObject({
+			contact: {
+				currentCompany: { id: acme.id, name: "Acme" },
+				displayName: "Maya Chen",
+				id: survivor.id,
+				retiredIdentities: [{ id: duplicate.id }],
+			},
+			status: "committed",
+		});
+		if (merged.status !== "committed") {
+			throw new Error("expected committed merge");
+		}
+		expect(
+			merged.contact.emailAliases.map((row) => row.normalizedEmail).sort()
+		).toEqual(["maya.chen@example.com", "maya@example.com"]);
+		expect(merged.contact.relatedFeedback.map((row) => row.id)).toEqual([
+			feedback.feedback.id,
+		]);
+		expect(merged.contact.relatedPersonaDocuments.map((row) => row.id)).toEqual(
+			[persona.document.id]
+		);
+		expect(JSON.stringify(merged)).not.toMatch(LIVE_MERGED_STATUS);
+		expect(JSON.stringify(merged.audit)).not.toMatch(RAW_MAYA_EMAIL);
+		expect(merged.audit.type).toBe(CONTACT_MERGE_EVENT_TYPE);
+		expect(merged.audit.actorAlias).not.toBe(actorId);
+		expect(merged.audit.retiredAlias).not.toBe(duplicate.id);
+		const listed = await listContacts(prisma, workspaceId);
+		expect(listed.map((row) => row.id)).toEqual([survivor.id]);
+		expect(JSON.stringify(listed)).not.toMatch(LIVE_MERGED_STATUS);
+		expect(await getContact(prisma, duplicate.id, workspaceId)).toMatchObject({
+			id: survivor.id,
+			origin: { id: duplicate.id },
+		});
+		expect(await searchContacts(prisma, workspaceId, duplicate.id)).toEqual([]);
+		expect(
+			(await searchContacts(prisma, workspaceId, "Maya Chen")).map(
+				(row) => row.id
+			)
+		).toEqual([survivor.id]);
+		const audits = await listContactMergeAudit(prisma);
+		expect(audits).toEqual([
+			expect.objectContaining({
+				actorAlias: merged.audit.actorAlias,
+				retiredAlias: merged.audit.retiredAlias,
+				type: CONTACT_MERGE_EVENT_TYPE,
+			}),
+		]);
+		expect(JSON.stringify(audits)).not.toMatch(RAW_MAYA_ALIAS);
+		expect(await listDuplicateCandidates(prisma, workspaceId)).toEqual([]);
+	});
+
+	it("does not rewrite Kanıt Rolü, Founder interpretation, Kanıt niteliği, or İş priority on merge", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const survivor = await committedContact(prisma, {
+			actorId,
+			displayName: "Maya Chen",
+			email: "maya@example.com",
+			workspaceId,
+		});
+		const duplicate = await committedContact(prisma, {
+			actorId,
+			displayName: "Maya Chen",
+			email: "maya@example.com",
+			workspaceId,
+		});
+		const project = await createProject(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { name: "Payments", starterConfiguration: "Blank Project" },
+			workspaceId,
+		});
+		if (project.status !== "committed" && project.status !== "replayed") {
+			throw new Error("expected project");
+		}
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { projectId: project.project.id, title: "Checkout" },
+		});
+		if (work.status !== "committed") {
+			throw new Error("expected Work");
+		}
+		const criterion = await createPriorityCriterion(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: { name: "Urgency", projectId: project.project.id },
+		});
+		if (criterion.status !== "committed") {
+			throw new Error("expected criterion");
+		}
+		const priority = await setPriorityCriterionValue(prisma, {
+			actorId,
+			baseRevision: 0,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				criterionId: criterion.definition.id,
+				rank: "High",
+				workId: work.work.id,
+			},
+		});
+		expect(priority.status).toBe("committed");
+		const source = await createSource(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				capturedContent: "Checkout Session creates a payment page.",
+				projectId: project.project.id,
+				title: "Stripe Checkout",
+				url: "https://docs.stripe.com/payments/checkout",
+			},
+		});
+		if (source.status !== "committed") {
+			throw new Error("expected Source");
+		}
+		const versionId = source.source.versions[0]?.id ?? "";
+		const previewed = await previewBindEvidence(prisma, {
+			selectedText: "Checkout Session",
+			sourceId: source.source.id,
+			sourceKind: "Source",
+			sourceVersionId: versionId,
+			targetId: work.work.id,
+			targetKind: "Work",
+			workspaceId,
+		});
+		if (previewed.status !== "ok") {
+			throw new Error("expected evidence preview");
+		}
+		const bound = await bindEvidence(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				previewFingerprint: previewed.preview.fingerprint,
+				selectedText: "Checkout Session",
+				sourceId: source.source.id,
+				sourceKind: "Source",
+				sourceVersionId: versionId,
+				targetId: work.work.id,
+				targetKind: "Work",
+			},
+			previewAcknowledged: true,
+			workspaceId,
+		});
+		if (bound.status !== "committed") {
+			throw new Error("expected bind");
+		}
+		const role = await setEvidenceRole(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				pinId: bound.pin.id,
+				role: EVIDENCE_COPY.supporting,
+			},
+			workspaceId,
+		});
+		expect(role.status).toBe("committed");
+		const interpretation = await setEvidenceFounderInterpretation(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				founderInterpretation: "This supports the claim.",
+				pinId: bound.pin.id,
+			},
+			workspaceId,
+		});
+		expect(interpretation.status).toBe("committed");
+		const merged = await mergeContacts(prisma, {
+			actorId,
+			duplicateBaseRevision: duplicate.revision,
+			duplicateId: duplicate.id,
+			idempotencyKey: "merge-without-meaning",
+			origin: "human",
+			previewAcknowledged: true,
+			survivorBaseRevision: survivor.revision,
+			survivorId: survivor.id,
+			workspaceId,
+		});
+		expect(merged.status).toBe("committed");
+		const pin = await getEvidencePin(prisma, bound.pin.id);
+		expect(pin?.role).toBe(EVIDENCE_COPY.supporting);
+		expect(pin?.founderInterpretation).toBe("This supports the claim.");
+		expect(pin).not.toHaveProperty("evidenceQuality");
+		expect(pin).not.toHaveProperty("reportedProblem");
+		expect(pin).not.toHaveProperty("impactSeverity");
+		const stillWork = await getWork(prisma, work.work.id);
+		expect(stillWork?.status).toBe("Not Started");
+		expect(JSON.stringify(stillWork)).not.toMatch(PRIORITY_ON_WORK);
+		const values = await listWorkPriorityValues(
+			prisma,
+			project.project.id,
+			work.work.id
+		);
+		expect(values).toEqual([
+			expect.objectContaining({
+				rank: "High",
+				workId: work.work.id,
+			}),
+		]);
 	});
 });

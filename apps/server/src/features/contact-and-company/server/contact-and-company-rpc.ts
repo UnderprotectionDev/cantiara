@@ -12,13 +12,18 @@ import {
 	listCompanies,
 	listContacts,
 	listDuplicateCandidates,
+	mergeContacts,
+	previewContactMerge,
 	relateContactPersona,
+	searchContacts,
 	setContactCompany,
 } from "./contact-and-company";
 import {
 	CONTACT_AND_COMPANY_COPY,
+	contactMergeFieldChoicesSchema,
 	createCompanyPayloadSchema,
 	createContactPayloadSchema,
+	previewContactMergeInputSchema,
 	relateContactPersonaPayloadSchema,
 	setContactCompanyPayloadSchema,
 } from "./contact-and-company-model";
@@ -107,6 +112,47 @@ export const contactAndCompany = {
 		const access = await requireAccess(context.session.user.id);
 		return await listDuplicateCandidates(getPrismaClient(), access.workspaceId);
 	}),
+	merge: protectedWriteProcedure
+		.input(
+			z.object({
+				duplicateBaseRevision: z.number().int().nonnegative(),
+				duplicateId: z.string().min(1),
+				fieldChoices: contactMergeFieldChoicesSchema.optional(),
+				idempotencyKey: z.string(),
+				previewAcknowledged: z.boolean().optional(),
+				survivorBaseRevision: z.number().int().nonnegative(),
+				survivorId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await mergeContacts(getPrismaClient(), {
+				actorId: context.session.user.id,
+				duplicateBaseRevision: input.duplicateBaseRevision,
+				duplicateId: input.duplicateId,
+				fieldChoices: input.fieldChoices,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				previewAcknowledged: input.previewAcknowledged,
+				survivorBaseRevision: input.survivorBaseRevision,
+				survivorId: input.survivorId,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	previewMerge: protectedProcedure
+		.input(previewContactMergeInputSchema.omit({ workspaceId: true }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const preview = await previewContactMerge(getPrismaClient(), {
+				duplicateId: input.duplicateId,
+				survivorId: input.survivorId,
+				workspaceId: access.workspaceId,
+			});
+			if ("reason" in preview) {
+				throw new ORPCError("BAD_REQUEST");
+			}
+			return preview;
+		}),
 	relatePersona: protectedWriteProcedure
 		.input(
 			z.object({
@@ -123,6 +169,16 @@ export const contactAndCompany = {
 				payload: input.payload,
 				workspaceId: access.workspaceId,
 			});
+		}),
+	searchContacts: protectedProcedure
+		.input(z.object({ text: z.string() }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await searchContacts(
+				getPrismaClient(),
+				access.workspaceId,
+				input.text
+			);
 		}),
 	setCompany: protectedWriteProcedure
 		.input(
