@@ -43,6 +43,7 @@ import {
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
+import SourceArea from "@/features/sources-and-freshness/views/source-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
 
@@ -85,8 +86,10 @@ export default function ProjectProfile({
 	onDecisionId,
 	onGoalId,
 	onPresentationChange,
+	onSourceId,
 	onWorkId,
 	projectId,
+	sourceId,
 	workId,
 }: {
 	configurationEditor: ConfigurationModeEditor | null;
@@ -100,8 +103,10 @@ export default function ProjectProfile({
 		hash?: string;
 		open: boolean;
 	}) => void;
+	onSourceId?: (sourceId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
+	sourceId?: string | null;
 	workId?: string | null;
 }) {
 	const project = useQuery(
@@ -158,7 +163,7 @@ export default function ProjectProfile({
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const overviewCurrent =
-		(selectedAnchor === "" && !workId && !decisionId) ||
+		(selectedAnchor === "" && !workId && !decisionId && !sourceId) ||
 		selectedAnchor === overviewAnchor;
 
 	const nav = (
@@ -218,9 +223,11 @@ export default function ProjectProfile({
 					onDecisionId={onDecisionId}
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
+					onSourceId={onSourceId}
 					onToggle={onToggle}
 					onWorkId={onWorkId}
 					selectedAnchor={selectedAnchor}
+					sourceId={sourceId}
 					workId={workId}
 				/>
 			</main>
@@ -456,20 +463,26 @@ function projectRecordArea({
 	documentsAnchor,
 	fileAttachmentAnchor,
 	onDecisionId,
+	onSourceId,
 	onWorkId,
 	projectId,
 	selectedAnchor,
 	selectedArea,
+	sourceAnchor,
+	sourceId,
 }: {
 	decisionId?: string | null;
 	decisionsAnchor: string;
 	documentsAnchor: string;
 	fileAttachmentAnchor: string;
 	onDecisionId?: (decisionId: string | null) => void;
+	onSourceId?: (sourceId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
 	selectedAnchor: string;
 	selectedArea: string | undefined;
+	sourceAnchor: string;
+	sourceId?: string | null;
 }) {
 	if (selectedAnchor === documentsAnchor || selectedArea === "Documents") {
 		return (
@@ -509,6 +522,24 @@ function projectRecordArea({
 			</section>
 		);
 	}
+	if (
+		selectedAnchor === sourceAnchor ||
+		selectedArea === "Source" ||
+		sourceId
+	) {
+		return (
+			<section aria-label="Source" id={sourceAnchor}>
+				<h1 className="font-semibold text-[1.375rem] tracking-tight">Source</h1>
+				<div className="mt-6">
+					<SourceArea
+						onSourceId={onSourceId}
+						projectId={projectId}
+						sourceId={sourceId}
+					/>
+				</div>
+			</section>
+		);
+	}
 	return null;
 }
 
@@ -521,9 +552,11 @@ function ProjectBody({
 	onDecisionId,
 	onGoalId,
 	onOpenEditor,
+	onSourceId,
 	onToggle,
 	onWorkId,
 	selectedAnchor,
+	sourceId,
 	workId,
 }: {
 	configurationEditor: ConfigurationModeEditor | null;
@@ -534,9 +567,11 @@ function ProjectBody({
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
+	onSourceId?: (sourceId: string | null) => void;
 	onToggle: () => void;
 	onWorkId?: (workId: string | null) => void;
 	selectedAnchor: string;
+	sourceId?: string | null;
 	workId?: string | null;
 }) {
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
@@ -544,6 +579,7 @@ function ProjectBody({
 	const documentsAnchor = projectShellAnchor("Documents");
 	const decisionsAnchor = projectShellAnchor("Decisions");
 	const fileAttachmentAnchor = projectShellAnchor("File Attachment");
+	const sourceAnchor = projectShellAnchor("Source");
 	const selectedArea = data.allToolsAreas
 		.map((area) => area.name)
 		.find((area) => projectShellAnchor(area) === selectedAnchor);
@@ -558,10 +594,13 @@ function ProjectBody({
 		documentsAnchor,
 		fileAttachmentAnchor,
 		onDecisionId,
+		onSourceId,
 		onWorkId,
 		projectId: data.id,
 		selectedAnchor,
 		selectedArea,
+		sourceAnchor,
+		sourceId: showingWork ? null : sourceId,
 	});
 
 	if (configurationMode) {

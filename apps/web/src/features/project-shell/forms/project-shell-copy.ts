@@ -80,14 +80,22 @@ export function pinnedNavigationAreas(
 	return pinnedAreas.filter((area) => enabledAreas.includes(area));
 }
 
-const REACHABLE_AREAS = ["Work", "Documents", "File Attachment"] as const;
+const REACHABLE_AREAS = [
+	"Work",
+	"Documents",
+	"File Attachment",
+	"Source",
+] as const;
 
 export function projectPersistentNav(
 	pinnedAreas: readonly string[],
 	enabledAreas: readonly string[]
 ): string[] {
 	const reachable = REACHABLE_AREAS.filter(
-		(area) => area === "File Attachment" || enabledAreas.includes(area)
+		(area) =>
+			area === "File Attachment" ||
+			area === "Source" ||
+			enabledAreas.includes(area)
 	);
 	const listed = new Set<string>(reachable);
 	const pinned = pinnedNavigationAreas(pinnedAreas, enabledAreas).filter(
@@ -116,6 +124,7 @@ export interface ProjectShellSearch {
 	configurationMode?: true;
 	decision?: string;
 	goal?: string;
+	source?: string;
 	work?: string;
 }
 
@@ -150,6 +159,10 @@ export function projectShellSearch(
 		typeof search.goal === "string" && search.goal.length > 0
 			? search.goal
 			: undefined;
+	const source =
+		typeof search.source === "string" && search.source.length > 0
+			? search.source
+			: undefined;
 	return {
 		...(configurationMode ? { configurationMode: true as const } : {}),
 		...(configurationMode && configurationEditor
@@ -157,6 +170,7 @@ export function projectShellSearch(
 			: {}),
 		...(decision ? { decision } : {}),
 		...(goal ? { goal } : {}),
+		...(source ? { source } : {}),
 		...(work ? { work } : {}),
 	};
 }
@@ -223,6 +237,7 @@ const ALWAYS_ON_ANCHORS = {
 	Documents: "documents",
 	"File Attachment": "file-attachment",
 	Overview: "overview",
+	Source: "source",
 	Work: "work",
 } as const;
 
@@ -290,6 +305,7 @@ const WORK_SELECT_RESET_ANCHORS = new Set([
 	ALWAYS_ON_ANCHORS["All Tools"],
 	ALWAYS_ON_ANCHORS.Documents,
 	ALWAYS_ON_ANCHORS["File Attachment"],
+	ALWAYS_ON_ANCHORS.Source,
 ]);
 
 export function projectShellHashAnchor(hash: string): string {

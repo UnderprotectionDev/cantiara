@@ -28,6 +28,7 @@ import { relations } from "../features/relations/server/relations-rpc";
 import { returnToWork } from "../features/return-to-work/server/return-to-work-rpc";
 import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
 import { smartCollections } from "../features/smart-collections/server/smart-collections-rpc";
+import { sources } from "../features/sources-and-freshness/server/sources-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { unifiedCalendar } from "../features/unified-calendar/server/unified-calendar-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
@@ -72,6 +73,7 @@ export const appRouter = {
 	returnToWork,
 	roadmapHorizon,
 	smartCollections,
+	sources,
 	tags,
 	unifiedCalendar,
 	workChecklists,

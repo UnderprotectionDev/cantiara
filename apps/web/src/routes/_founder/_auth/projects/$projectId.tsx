@@ -32,11 +32,12 @@ function ProjectProfileRoute() {
 					configurationMode: next.open ? true : undefined,
 					decision: search.decision,
 					goal: search.goal,
+					source: search.source,
 					work: search.work,
 				},
 			}).catch(() => undefined);
 		},
-		[hash, navigate, search.decision, search.goal, search.work]
+		[hash, navigate, search.decision, search.goal, search.source, search.work]
 	);
 	const onWorkId = useCallback(
 		(workId: string | null) => {
@@ -47,6 +48,7 @@ function ProjectProfileRoute() {
 					configurationMode: search.configurationMode,
 					decision: search.decision,
 					goal: search.goal,
+					source: search.source,
 					work: workId ?? undefined,
 				},
 			}).catch(() => undefined);
@@ -58,6 +60,7 @@ function ProjectProfileRoute() {
 			search.configurationMode,
 			search.decision,
 			search.goal,
+			search.source,
 		]
 	);
 	const onDecisionId = useCallback(
@@ -69,6 +72,7 @@ function ProjectProfileRoute() {
 					configurationMode: search.configurationMode,
 					decision: decisionId ?? undefined,
 					goal: search.goal,
+					source: search.source,
 					work: search.work,
 				},
 			}).catch(() => undefined);
@@ -78,6 +82,7 @@ function ProjectProfileRoute() {
 			search.configurationEditor,
 			search.configurationMode,
 			search.goal,
+			search.source,
 			search.work,
 		]
 	);
@@ -90,6 +95,7 @@ function ProjectProfileRoute() {
 					configurationMode: search.configurationMode,
 					decision: search.decision,
 					goal: goalId ?? undefined,
+					source: search.source,
 					work: search.work,
 				},
 			}).catch(() => undefined);
@@ -99,6 +105,30 @@ function ProjectProfileRoute() {
 			search.configurationEditor,
 			search.configurationMode,
 			search.decision,
+			search.source,
+			search.work,
+		]
+	);
+	const onSourceId = useCallback(
+		(sourceId: string | null) => {
+			navigate({
+				hash: "source",
+				search: {
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					decision: search.decision,
+					goal: search.goal,
+					source: sourceId ?? undefined,
+					work: search.work,
+				},
+			}).catch(() => undefined);
+		},
+		[
+			navigate,
+			search.configurationEditor,
+			search.configurationMode,
+			search.decision,
+			search.goal,
 			search.work,
 		]
 	);
@@ -111,8 +141,10 @@ function ProjectProfileRoute() {
 			onDecisionId={onDecisionId}
 			onGoalId={onGoalId}
 			onPresentationChange={onPresentationChange}
+			onSourceId={onSourceId}
 			onWorkId={onWorkId}
 			projectId={projectId}
+			sourceId={search.source ?? null}
 			workId={search.work ?? null}
 		/>
 	);

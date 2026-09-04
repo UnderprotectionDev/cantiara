@@ -67,12 +67,13 @@ test("English chrome uses Project Name and Short code", () => {
 	expect(JSON.stringify(PROJECT_SHELL_COPY)).not.toMatch(COPY_BRANDING_PATTERN);
 });
 
-test("Overview Work Documents File Attachment and All Tools are in-page destinations", () => {
+test("Overview Work Documents File Attachment Source and All Tools are in-page destinations", () => {
 	const destinations = [
 		projectShellAnchor("Overview"),
 		projectShellAnchor("Work"),
 		projectShellAnchor("Documents"),
 		projectShellAnchor("File Attachment"),
+		projectShellAnchor("Source"),
 		projectShellAnchor("All Tools"),
 	];
 	expect(destinations).toEqual([
@@ -80,6 +81,7 @@ test("Overview Work Documents File Attachment and All Tools are in-page destinat
 		"work",
 		"documents",
 		"file-attachment",
+		"source",
 		"all-tools",
 	]);
 	expect(new Set(destinations).size).toBe(destinations.length);
@@ -98,6 +100,7 @@ test("Overview Work Documents File Attachment and All Tools are in-page destinat
 		"Work",
 		"Documents",
 		"File Attachment",
+		"Source",
 	]);
 	expect(
 		projectPersistentNav(
@@ -108,6 +111,7 @@ test("Overview Work Documents File Attachment and All Tools are in-page destinat
 		"Work",
 		"Documents",
 		"File Attachment",
+		"Source",
 		"Decisions",
 		"Design",
 		"Tests",
@@ -219,6 +223,7 @@ test("Work daily actions and Saved views stay on the Work surface", () => {
 		"Work",
 		"Documents",
 		"File Attachment",
+		"Source",
 	]);
 	expect(projectNavPinnedAreas(persistent)).toEqual(["Decisions"]);
 	expect(isWorkShellAnchor("work", ["Backlog", "Board"])).toBe(true);
