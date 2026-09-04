@@ -8,6 +8,7 @@ import {
 	bindEvidence,
 	convertToNewRecordAndBind,
 	getEvidencePin,
+	listEvidenceFlow,
 	listEvidenceOnSource,
 	listEvidenceOnTarget,
 	listEvidenceOnTargetSurface,
@@ -26,6 +27,7 @@ import {
 	convertEvidenceCommandSchema,
 	EVIDENCE_COPY,
 	EVIDENCE_ROLES,
+	listEvidenceFlowInputSchema,
 	previewBindEvidenceInputSchema,
 	previewConvertEvidenceInputSchema,
 	previewRebindEvidenceInputSchema,
@@ -100,6 +102,15 @@ export const evidence = {
 				throw new ORPCError("NOT_FOUND");
 			}
 			return pin;
+		}),
+	listFlow: protectedProcedure
+		.input(listEvidenceFlowInputSchema.omit({ viewerWorkspaceId: true }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await listEvidenceFlow(getPrismaClient(), {
+				...input,
+				viewerWorkspaceId: access.workspaceId,
+			});
 		}),
 	listOnSource: protectedProcedure
 		.input(

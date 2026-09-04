@@ -2,6 +2,7 @@ export const EVIDENCE_COPY = {
 	bindAsEvidenceToExistingRecord: "Bind as evidence to existing record",
 	contradicting: "Contradicting",
 	convertToNewRecordAndBind: "Convert to new record and bind",
+	evidenceFlow: "Evidence Flow",
 	evidenceRole: "Evidence Role",
 	founderInterpretation: "Founder interpretation",
 	inconclusive: "Inconclusive",
@@ -37,12 +38,27 @@ export const CONVERT_RECORD_KINDS = [
 
 export type ConvertRecordKind = (typeof CONVERT_RECORD_KINDS)[number];
 
+export const EVIDENCE_SOURCE_KINDS = [
+	"Source",
+	"Document",
+	"Diagram Version",
+	"Feedback",
+	"User Research Session",
+	"Experiment/Validation",
+	"Session Test",
+	"File Attachment",
+] as const;
+
+export type EvidenceSourceKind = (typeof EVIDENCE_SOURCE_KINDS)[number];
+
 export type EvidenceTargetKind =
 	| "Work"
 	| "Decision"
 	| "Risk"
 	| "Assumption"
 	| "Question";
+
+export type EvidenceFlowTargetKind = "Work" | "Decision" | "Assumption";
 
 export function convertKindToEvidenceTargetKind(
 	kind: ConvertRecordKind

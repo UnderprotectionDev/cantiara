@@ -23,4 +23,5 @@ test("English Evidence labels stay Bind as evidence and Convert to new record an
 	expect(EVIDENCE_COPY.unspecified).toBe("Unspecified");
 	expect(EVIDENCE_COPY.founderInterpretation).toBe("Founder interpretation");
 	expect(EVIDENCE_COPY.evidenceRole).toBe("Evidence Role");
+	expect(EVIDENCE_COPY.evidenceFlow).toBe("Evidence Flow");
 });

@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import WorkBlockersPanel from "@/features/blockers/views/work-blockers-panel";
 import { CompletionEffectsLayer } from "@/features/completion-effects/components/completion-effects-layer";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
+import EvidenceFlow from "@/features/evidence/views/evidence-flow";
 import EvidenceOnTarget from "@/features/evidence/views/evidence-on-target";
 import WorkExternalHandoffsPanel from "@/features/external-handoffs/views/work-external-handoffs-panel";
 import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
@@ -268,6 +269,11 @@ export default function WorkDetail({
 						candidates={candidates}
 						projectId={projectId}
 						workId={work.id}
+					/>
+					<EvidenceFlow
+						projectId={projectId}
+						targetId={work.id}
+						targetKind="Work"
 					/>
 					<EvidenceOnTarget
 						projectId={projectId}

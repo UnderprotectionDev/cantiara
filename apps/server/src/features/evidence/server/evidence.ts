@@ -2,6 +2,8 @@ import type { Prisma, PrismaClient } from "@cantiara/db";
 import { z } from "zod";
 
 import { createDecision } from "../../decisions/server/decisions";
+import { FEEDBACK_STATUS } from "../../feedback/server/feedback-model";
+import { FILE_LIFECYCLE } from "../../file-attachments/server/file-attachments-model";
 import {
 	HUMAN_ORIGIN,
 	MUTATION_ACTOR,
@@ -10,6 +12,7 @@ import {
 } from "../../mutation-core/server/mutation-shared";
 import { createRelationInTransaction } from "../../relations/server/relations";
 import {
+	type BrokenReason,
 	EVIDENCE_SOURCE_KINDS,
 	EVIDENCE_TARGET_KINDS,
 	type OriginLocationInput,
@@ -33,6 +36,8 @@ import {
 	convertKindToRecordKind,
 	EVIDENCE_COPY,
 	EVIDENCE_ROLES,
+	type EvidenceFlow,
+	type EvidenceFlowRow,
 	type EvidenceOnTargetSurface,
 	type EvidenceOriginLocationView,
 	type EvidencePinView,
@@ -40,6 +45,7 @@ import {
 	type EvidenceShareView,
 	type EvidenceWriteOutcome,
 	firstLineTitle,
+	listEvidenceFlowInputSchema,
 	type PreviewBindOutcome,
 	type PreviewConvertOutcome,
 	type PreviewRebindOutcome,
@@ -57,6 +63,7 @@ type PrismaDb = PrismaClient | Prisma.TransactionClient;
 
 interface SourceSnapshot {
 	body: string;
+	eventTime: Date;
 	latestVersionNumber: number;
 	sourceId: string;
 	sourceKind: (typeof EVIDENCE_SOURCE_KINDS)[number];
@@ -718,6 +725,340 @@ export async function listEvidenceOnTargetSurface(
 	};
 }
 
+export async function listEvidenceFlow(
+	prisma: PrismaDb,
+	input: unknown
+): Promise<EvidenceFlow> {
+	const parsed = listEvidenceFlowInputSchema.safeParse(input);
+	if (!parsed.success) {
+		return emptyEvidenceFlow("", "Work", null);
+	}
+	const pins = await prisma.evidencePin.findMany({
+		orderBy: { createdAt: "asc" },
+		where: {
+			targetId: parsed.data.targetId,
+			targetKind: parsed.data.targetKind,
+			...(parsed.data.sourceKind ? { sourceKind: parsed.data.sourceKind } : {}),
+		},
+	});
+	const presented = await Promise.all(
+		pins.map((pin) =>
+			presentFlowRow(prisma, pin.id, parsed.data.viewerWorkspaceId)
+		)
+	);
+	const rows = presented.filter((row): row is EvidenceFlowRow => row !== null);
+	rows.sort(
+		(left, right) => left.relationTime.getTime() - right.relationTime.getTime()
+	);
+	return {
+		label: EVIDENCE_COPY.evidenceFlow,
+		rows,
+		sourceKindFilter: parsed.data.sourceKind ?? null,
+		sourceKinds: [...EVIDENCE_SOURCE_KINDS],
+		storedSnapshot: false,
+		targetId: parsed.data.targetId,
+		targetKind: parsed.data.targetKind,
+	};
+}
+
+function emptyEvidenceFlow(
+	targetId: string,
+	targetKind: EvidenceFlow["targetKind"],
+	sourceKindFilter: EvidenceFlow["sourceKindFilter"]
+): EvidenceFlow {
+	return {
+		label: EVIDENCE_COPY.evidenceFlow,
+		rows: [],
+		sourceKindFilter,
+		sourceKinds: [...EVIDENCE_SOURCE_KINDS],
+		storedSnapshot: false,
+		targetId,
+		targetKind,
+	};
+}
+
+async function presentFlowRow(
+	db: PrismaDb,
+	pinId: string,
+	viewerWorkspaceId: string
+): Promise<EvidenceFlowRow | null> {
+	const pin = await presentPin(db, pinId);
+	const row = await db.evidencePin.findUnique({ where: { id: pinId } });
+	if (!(pin && row)) {
+		return null;
+	}
+	const relation = await db.typedRelation.findUnique({
+		where: { id: row.relationId },
+	});
+	const relationTime = relation?.establishedAt ?? row.createdAt;
+	const snapshot = await loadSnapshot(
+		db,
+		row.sourceKind,
+		row.sourceId,
+		row.sourceVersionId
+	);
+	const life = await presentFlowSourceLife(db, {
+		rangeText: row.rangeText,
+		sourceId: row.sourceId,
+		sourceKind: row.sourceKind,
+		viewerWorkspaceId,
+	});
+	const hidden = row.contentRedacted || life.presentation === "broken";
+	return {
+		brokenReason:
+			row.contentRedacted &&
+			life.brokenReason !== RELATIONS_COPY.noAccess &&
+			life.brokenReason !== RELATIONS_COPY.permanentlyDeleted &&
+			life.brokenReason !== RELATIONS_COPY.inTrash
+				? RELATIONS_COPY.redactedForSecurity
+				: life.brokenReason,
+		eventTime: snapshot?.eventTime ?? row.createdAt,
+		founderInterpretation: hidden ? "" : pin.founderInterpretation,
+		historicalBindExists: true,
+		openSourceRecord: hidden ? null : life.openSourceRecord,
+		originLocation: pin.originLocation,
+		pinId: pin.id,
+		presentation:
+			hidden && life.presentation !== "broken" ? "broken" : life.presentation,
+		rangeText: hidden ? "" : life.rangeText,
+		relationTime,
+		role: hidden ? EVIDENCE_COPY.unspecified : pin.role,
+		sourceId: pin.sourceId,
+		sourceKind: pin.sourceKind,
+		sourceStatusLabel: hidden ? null : life.sourceStatusLabel,
+		sourceVersionId: pin.sourceVersionId,
+	};
+}
+
+async function presentFlowSourceLife(
+	db: PrismaDb,
+	input: {
+		rangeText: string;
+		sourceId: string;
+		sourceKind: string;
+		viewerWorkspaceId: string;
+	}
+): Promise<{
+	brokenReason: BrokenReason | null;
+	openSourceRecord: typeof EVIDENCE_COPY.openSourceRecord | null;
+	presentation: EvidenceFlowRow["presentation"];
+	rangeText: string;
+	sourceStatusLabel: typeof RELATIONS_COPY.archived | null;
+}> {
+	if (input.sourceKind === "Source") {
+		return await presentSourceFlowLife(db, input);
+	}
+	if (input.sourceKind === "Document") {
+		return await presentDocumentFlowLife(db, input);
+	}
+	if (input.sourceKind === "File Attachment") {
+		return await presentFileFlowLife(db, input);
+	}
+	if (input.sourceKind === "Feedback") {
+		return await presentFeedbackFlowLife(db, input);
+	}
+	if (input.sourceKind === "User Research Session") {
+		return await presentResearchFlowLife(db, input);
+	}
+	if (input.sourceKind === "Experiment/Validation") {
+		return await presentValidationFlowLife(db, input);
+	}
+	if (input.viewerWorkspaceId.length === 0) {
+		return brokenFlowSource(RELATIONS_COPY.noAccess);
+	}
+	return {
+		brokenReason: RELATIONS_COPY.permanentlyDeleted,
+		openSourceRecord: null,
+		presentation: "broken",
+		rangeText: "",
+		sourceStatusLabel: null,
+	};
+}
+
+function brokenFlowSource(reason: BrokenReason): {
+	brokenReason: BrokenReason;
+	openSourceRecord: null;
+	presentation: "broken";
+	rangeText: "";
+	sourceStatusLabel: null;
+} {
+	return {
+		brokenReason: reason,
+		openSourceRecord: null,
+		presentation: "broken",
+		rangeText: "",
+		sourceStatusLabel: null,
+	};
+}
+
+function openFlowSource(rangeText: string): {
+	brokenReason: null;
+	openSourceRecord: typeof EVIDENCE_COPY.openSourceRecord;
+	presentation: "open";
+	rangeText: string;
+	sourceStatusLabel: null;
+} {
+	return {
+		brokenReason: null,
+		openSourceRecord: EVIDENCE_COPY.openSourceRecord,
+		presentation: "open",
+		rangeText,
+		sourceStatusLabel: null,
+	};
+}
+
+function archivedFlowSource(rangeText: string): {
+	brokenReason: null;
+	openSourceRecord: typeof EVIDENCE_COPY.openSourceRecord;
+	presentation: "archived";
+	rangeText: string;
+	sourceStatusLabel: typeof RELATIONS_COPY.archived;
+} {
+	return {
+		brokenReason: null,
+		openSourceRecord: EVIDENCE_COPY.openSourceRecord,
+		presentation: "archived",
+		rangeText,
+		sourceStatusLabel: RELATIONS_COPY.archived,
+	};
+}
+
+async function presentSourceFlowLife(
+	db: PrismaDb,
+	input: {
+		rangeText: string;
+		sourceId: string;
+		viewerWorkspaceId: string;
+	}
+) {
+	const source = await db.source.findUnique({
+		include: { project: true },
+		where: { id: input.sourceId },
+	});
+	if (!source) {
+		return brokenFlowSource(RELATIONS_COPY.permanentlyDeleted);
+	}
+	if (source.project.workspaceId !== input.viewerWorkspaceId) {
+		return brokenFlowSource(RELATIONS_COPY.noAccess);
+	}
+	return openFlowSource(input.rangeText);
+}
+
+async function presentDocumentFlowLife(
+	db: PrismaDb,
+	input: {
+		rangeText: string;
+		sourceId: string;
+		viewerWorkspaceId: string;
+	}
+) {
+	const document = await db.document.findUnique({
+		where: { id: input.sourceId },
+	});
+	if (!document) {
+		return brokenFlowSource(RELATIONS_COPY.permanentlyDeleted);
+	}
+	if (document.workspaceId !== input.viewerWorkspaceId) {
+		return brokenFlowSource(RELATIONS_COPY.noAccess);
+	}
+	if (document.archivedAt) {
+		return archivedFlowSource(input.rangeText);
+	}
+	return openFlowSource(input.rangeText);
+}
+
+async function presentFileFlowLife(
+	db: PrismaDb,
+	input: {
+		rangeText: string;
+		sourceId: string;
+		viewerWorkspaceId: string;
+	}
+) {
+	const file = await db.fileAttachment.findUnique({
+		where: { id: input.sourceId },
+	});
+	if (!file) {
+		return brokenFlowSource(RELATIONS_COPY.permanentlyDeleted);
+	}
+	if (file.workspaceId !== input.viewerWorkspaceId) {
+		return brokenFlowSource(RELATIONS_COPY.noAccess);
+	}
+	if (file.lifecycle === FILE_LIFECYCLE.trash) {
+		return brokenFlowSource(RELATIONS_COPY.inTrash);
+	}
+	if (file.lifecycle === FILE_LIFECYCLE.archived) {
+		return archivedFlowSource(input.rangeText);
+	}
+	return openFlowSource(input.rangeText);
+}
+
+async function presentFeedbackFlowLife(
+	db: PrismaDb,
+	input: {
+		rangeText: string;
+		sourceId: string;
+		viewerWorkspaceId: string;
+	}
+) {
+	const feedback = await db.feedback.findUnique({
+		include: { project: true },
+		where: { id: input.sourceId },
+	});
+	if (!feedback) {
+		return brokenFlowSource(RELATIONS_COPY.permanentlyDeleted);
+	}
+	if (feedback.project.workspaceId !== input.viewerWorkspaceId) {
+		return brokenFlowSource(RELATIONS_COPY.noAccess);
+	}
+	if (feedback.status === FEEDBACK_STATUS.archived) {
+		return archivedFlowSource(input.rangeText);
+	}
+	return openFlowSource(input.rangeText);
+}
+
+async function presentResearchFlowLife(
+	db: PrismaDb,
+	input: {
+		rangeText: string;
+		sourceId: string;
+		viewerWorkspaceId: string;
+	}
+) {
+	const session = await db.researchSession.findUnique({
+		include: { project: true },
+		where: { id: input.sourceId },
+	});
+	if (!session) {
+		return brokenFlowSource(RELATIONS_COPY.permanentlyDeleted);
+	}
+	if (session.project.workspaceId !== input.viewerWorkspaceId) {
+		return brokenFlowSource(RELATIONS_COPY.noAccess);
+	}
+	return openFlowSource(input.rangeText);
+}
+
+async function presentValidationFlowLife(
+	db: PrismaDb,
+	input: {
+		rangeText: string;
+		sourceId: string;
+		viewerWorkspaceId: string;
+	}
+) {
+	const record = await db.validationRecord.findUnique({
+		include: { project: true },
+		where: { id: input.sourceId },
+	});
+	if (!record) {
+		return brokenFlowSource(RELATIONS_COPY.permanentlyDeleted);
+	}
+	if (record.project.workspaceId !== input.viewerWorkspaceId) {
+		return brokenFlowSource(RELATIONS_COPY.noAccess);
+	}
+	return openFlowSource(input.rangeText);
+}
+
 export function openEvidenceRoleSet(
 	surface: EvidenceOnTargetSurface,
 	role: EvidenceRole
@@ -979,6 +1320,7 @@ async function loadSnapshot(
 		}
 		return {
 			body: version.capturedContent,
+			eventTime: version.accessedAt,
 			latestVersionNumber: source.approvedVersionNumber,
 			sourceId: source.id,
 			sourceKind: "Source",
@@ -998,6 +1340,7 @@ async function loadSnapshot(
 		});
 		return {
 			body: version.body,
+			eventTime: version.createdAt,
 			latestVersionNumber: latest?.revision ?? version.revision,
 			sourceId: version.documentId,
 			sourceKind: "Document",
@@ -1017,6 +1360,7 @@ async function loadSnapshot(
 		});
 		return {
 			body: version.filename,
+			eventTime: version.createdAt,
 			latestVersionNumber: latest?.revision ?? version.versionNumber,
 			sourceId: version.fileAttachmentId,
 			sourceKind: "File Attachment",
@@ -1033,6 +1377,7 @@ async function loadSnapshot(
 		}
 		return {
 			body: `${record.title}\n${record.method}\n${record.result}`,
+			eventTime: record.createdAt,
 			latestVersionNumber: record.revision,
 			sourceId: record.id,
 			sourceKind: "Experiment/Validation",
@@ -1053,11 +1398,29 @@ async function loadSnapshot(
 		const body = notes.map((note) => note.body).join("\n");
 		return {
 			body,
+			eventTime: session.scheduledAt ?? session.createdAt,
 			latestVersionNumber: session.revision,
 			sourceId: session.id,
 			sourceKind: "User Research Session",
 			sourceVersionId: String(session.revision),
 			sourceVersionNumber: session.revision,
+		};
+	}
+	if (sourceKind === "Feedback") {
+		const record = await db.feedback.findUnique({
+			where: { id: sourceId },
+		});
+		if (!record) {
+			return null;
+		}
+		return {
+			body: record.originalMessage,
+			eventTime: record.occurredAt,
+			latestVersionNumber: record.revision,
+			sourceId: record.id,
+			sourceKind: "Feedback",
+			sourceVersionId: record.id,
+			sourceVersionNumber: record.revision,
 		};
 	}
 	return null;
@@ -1138,6 +1501,14 @@ async function loadTargetTitle(
 			where: { id: targetId },
 		});
 		return question?.title ?? null;
+	}
+	if (
+		targetKind === "Access observation" ||
+		targetKind === "Result observation" ||
+		targetKind === "Project Release" ||
+		targetKind === "Test"
+	) {
+		return "";
 	}
 	return null;
 }
