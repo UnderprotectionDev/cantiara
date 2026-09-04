@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@cantiara/db";
 
+import { createFeedback } from "../../feedback/server/feedback";
 import { promoteCaptureAttachment } from "../../file-attachments/server/file-attachments";
 import { createPrismaCaptureStagingSource } from "../../file-attachments/server/file-attachments-capture-staging";
 import { FILE_SCOPE_KIND } from "../../file-attachments/server/file-attachments-model";
@@ -10,10 +11,13 @@ import {
 	writeDurableReceipt,
 } from "../../mutation-core/server/durable-mutation";
 import {
+	HUMAN_ORIGIN,
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
 import { withPrismaWriteRetry } from "../../mutation-core/server/prisma-write-retry";
+import { createRelation } from "../../relations/server/relations";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import { convertCaptureToWork } from "../../work-lifecycle/server/work-lifecycle";
 import {
 	createBulkSenseMaking,
@@ -51,6 +55,7 @@ import {
 	type ConvertAdapter,
 	type ConvertOutcome,
 	type ConvertPreview,
+	type ConvertResult,
 	type ConvertTargetKind,
 	createRecordBinder,
 	createTriageExits,
@@ -705,6 +710,66 @@ function fileAttachmentPromoteAdapter(
 	};
 }
 
+async function convertCaptureToFeedback(
+	prisma: PrismaClient,
+	workspaceId: string,
+	command: Parameters<ConvertAdapter>[0]
+): Promise<ConvertResult> {
+	const projectId =
+		command.item.scope.kind === "project"
+			? await resolveCaptureProjectId(
+					prisma,
+					workspaceId,
+					command.item.scope.projectId
+				)
+			: null;
+	const originalMessage = (
+		command.item.fields.feedback ?? command.item.body
+	).trim();
+	const channel = command.item.fields.channel?.trim() ?? "";
+	if (!(projectId && originalMessage && channel)) {
+		return {
+			handedOff: false,
+			recordId: null,
+			targetKind: "feedback",
+		};
+	}
+	const outcome = await createFeedback(prisma, {
+		actorId: command.actorId,
+		idempotencyKey: command.idempotencyKey,
+		origin: "human",
+		payload: {
+			channel,
+			occurredAt: command.item.capturedAt.toISOString(),
+			originalMessage,
+			projectId,
+			url: command.item.link,
+		},
+	});
+	if (outcome.status !== "committed" && outcome.status !== "replayed") {
+		return {
+			handedOff: false,
+			recordId: null,
+			targetKind: "feedback",
+		};
+	}
+	await createRelation(prisma, {
+		actorId: command.actorId,
+		from: { id: command.item.id, kind: "Capture" },
+		idempotencyKey: `${command.idempotencyKey}:origin`,
+		origin: HUMAN_ORIGIN,
+		previewAcknowledged: true,
+		to: { id: outcome.feedback.id, kind: "Feedback" },
+		type: RELATIONS_COPY.origin,
+		viewerWorkspaceId: workspaceId,
+	});
+	return {
+		handedOff: true,
+		recordId: outcome.feedback.id,
+		targetKind: "feedback",
+	};
+}
+
 function captureMessageTitle(body: string): string | undefined {
 	const title = body.trim();
 	return title ? title : undefined;
@@ -715,6 +780,9 @@ export function captureConvertAdapter(
 	workspaceId: string
 ): ConvertAdapter {
 	return async (command) => {
+		if (command.targetKind === "feedback") {
+			return await convertCaptureToFeedback(prisma, workspaceId, command);
+		}
 		if (command.targetKind !== "work") {
 			return {
 				handedOff: true,

@@ -23,6 +23,7 @@ export const CONVERT_TARGET_KINDS = [
 	"work",
 	"document",
 	"file-attachment",
+	"feedback",
 ] as const;
 export type ConvertTargetKind = (typeof CONVERT_TARGET_KINDS)[number];
 
@@ -357,6 +358,9 @@ export function convertTargetLabel(kind: ConvertTargetKind): string {
 	}
 	if (kind === "document") {
 		return CAPTURE_INBOX_COPY.document;
+	}
+	if (kind === "feedback") {
+		return CAPTURE_INBOX_COPY.feedback;
 	}
 	return CAPTURE_INBOX_COPY.fileAttachment;
 }
