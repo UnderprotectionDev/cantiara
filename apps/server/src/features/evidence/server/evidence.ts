@@ -32,8 +32,12 @@ import {
 	convertEvidenceCommandSchema,
 	convertKindToRecordKind,
 	EVIDENCE_COPY,
+	EVIDENCE_ROLES,
+	type EvidenceOnTargetSurface,
 	type EvidenceOriginLocationView,
 	type EvidencePinView,
+	type EvidenceRole,
+	type EvidenceShareView,
 	type EvidenceWriteOutcome,
 	firstLineTitle,
 	type PreviewBindOutcome,
@@ -45,6 +49,8 @@ import {
 	rebindEvidenceCommandSchema,
 	redactEvidenceCommandSchema,
 	SURROUNDING_WINDOW,
+	setEvidenceFounderInterpretationCommandSchema,
+	setEvidenceRoleCommandSchema,
 } from "./evidence-model";
 
 type PrismaDb = PrismaClient | Prisma.TransactionClient;
@@ -60,7 +66,10 @@ interface SourceSnapshot {
 
 interface PinRow {
 	contentRedacted: boolean;
+	founderInterpretation: string;
 	id: string;
+	interpretationActorId: string | null;
+	interpretationSetAt: Date | null;
 	originComponentId: string | null;
 	originComponentMissing: boolean;
 	originOwnerId: string | null;
@@ -70,6 +79,9 @@ interface PinRow {
 	rangeStart: number;
 	rangeText: string;
 	relationId: string;
+	role: string;
+	roleActorId: string | null;
+	roleSetAt: Date | null;
 	sourceId: string;
 	sourceKind: string;
 	sourceVersionId: string;
@@ -507,6 +519,149 @@ export async function redactEvidenceContent(
 	});
 }
 
+export async function setEvidenceRole(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<EvidenceWriteOutcome> {
+	const parsed = setEvidenceRoleCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction(async (tx) => {
+		const existing = await tx.mutationReceipt.findUnique({
+			where: { commandKey },
+		});
+		if (existing) {
+			if (existing.payloadFingerprint !== fingerprint) {
+				return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+			}
+			const pin = await presentPin(tx, parsed.data.payload.pinId);
+			if (!pin) {
+				return { reason: "pin-not-found", status: "rejected" };
+			}
+			return { pin, status: "replayed" };
+		}
+		const row = await tx.evidencePin.findUnique({
+			where: { id: parsed.data.payload.pinId },
+		});
+		if (!pinRowExists(row)) {
+			return { reason: "pin-not-found", status: "rejected" };
+		}
+		const previous = parseEvidenceRole(row.role);
+		const next = parsed.data.payload.role;
+		const now = new Date();
+		if (previous !== next) {
+			await tx.evidenceRelationHistory.create({
+				data: {
+					actorId: parsed.data.actorId,
+					fieldKey: "role",
+					id: crypto.randomUUID(),
+					nextValue: next,
+					occurredAt: now,
+					pinId: row.id,
+					previousValue: previous,
+				},
+			});
+		}
+		await tx.evidencePin.update({
+			data: {
+				role: next,
+				roleActorId: parsed.data.actorId,
+				roleSetAt: now,
+			},
+			where: { id: row.id },
+		});
+		await writeReceipt(tx, {
+			actorId: parsed.data.actorId,
+			commandKey,
+			fingerprint,
+			targetId: row.id,
+		});
+		const pin = await presentPin(tx, row.id);
+		if (!pin) {
+			return { reason: "pin-not-found", status: "rejected" };
+		}
+		return { pin, status: "committed" };
+	});
+}
+
+export async function setEvidenceFounderInterpretation(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<EvidenceWriteOutcome> {
+	const parsed =
+		setEvidenceFounderInterpretationCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction(async (tx) => {
+		const existing = await tx.mutationReceipt.findUnique({
+			where: { commandKey },
+		});
+		if (existing) {
+			if (existing.payloadFingerprint !== fingerprint) {
+				return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+			}
+			const pin = await presentPin(tx, parsed.data.payload.pinId);
+			if (!pin) {
+				return { reason: "pin-not-found", status: "rejected" };
+			}
+			return { pin, status: "replayed" };
+		}
+		const row = await tx.evidencePin.findUnique({
+			where: { id: parsed.data.payload.pinId },
+		});
+		if (!pinRowExists(row)) {
+			return { reason: "pin-not-found", status: "rejected" };
+		}
+		const previous = row.founderInterpretation;
+		const next = parsed.data.payload.founderInterpretation;
+		const now = new Date();
+		if (previous !== next) {
+			await tx.evidenceRelationHistory.create({
+				data: {
+					actorId: parsed.data.actorId,
+					fieldKey: "founderInterpretation",
+					id: crypto.randomUUID(),
+					nextValue: next,
+					occurredAt: now,
+					pinId: row.id,
+					previousValue: previous,
+				},
+			});
+		}
+		await tx.evidencePin.update({
+			data: {
+				founderInterpretation: next,
+				interpretationActorId: parsed.data.actorId,
+				interpretationSetAt: now,
+			},
+			where: { id: row.id },
+		});
+		await writeReceipt(tx, {
+			actorId: parsed.data.actorId,
+			commandKey,
+			fingerprint,
+			targetId: row.id,
+		});
+		const pin = await presentPin(tx, row.id);
+		if (!pin) {
+			return { reason: "pin-not-found", status: "rejected" };
+		}
+		return { pin, status: "committed" };
+	});
+}
+
 export async function getEvidencePin(
 	prisma: PrismaDb,
 	pinId: string,
@@ -543,6 +698,52 @@ export async function listEvidenceOnTarget(
 		rows.map((row) => presentPin(prisma, row.id))
 	);
 	return presented.filter((pin): pin is EvidencePinView => pin !== null);
+}
+
+export async function listEvidenceOnTargetSurface(
+	prisma: PrismaDb,
+	targetKind: string,
+	targetId: string
+): Promise<EvidenceOnTargetSurface> {
+	const pins = await listEvidenceOnTarget(prisma, targetKind, targetId);
+	const accessible = pins.filter((pin) => pin.contentAccess === "open");
+	return {
+		groups: EVIDENCE_ROLES.map((role) => {
+			const rolePins = accessible.filter((pin) => pin.role === role);
+			return { count: rolePins.length, pins: rolePins, role };
+		}),
+		majorityResult: null,
+		suggestedDecision: false,
+		totalScore: null,
+	};
+}
+
+export function openEvidenceRoleSet(
+	surface: EvidenceOnTargetSurface,
+	role: EvidenceRole
+): EvidencePinView[] {
+	return surface.groups.find((group) => group.role === role)?.pins ?? [];
+}
+
+export function presentEvidenceShare(
+	pin: EvidencePinView,
+	input: { audience: "inaccessible" | "owner" }
+): EvidenceShareView {
+	const hidden =
+		input.audience === "inaccessible" || pin.contentAccess === "redacted";
+	return {
+		founderInterpretation: hidden ? null : pin.founderInterpretation,
+		historicalBindExists: true,
+		role: hidden ? null : pin.role,
+		source: { id: pin.sourceId, kind: pin.sourceKind },
+		target: { id: pin.targetId, kind: pin.targetKind },
+		versionRange: hidden
+			? null
+			: {
+					sourceVersionId: pin.sourceVersionId,
+					textRange: pin.textRange,
+				},
+	};
 }
 
 async function commitBind(
@@ -658,9 +859,12 @@ async function presentPin(
 	return {
 		backlinks,
 		contentAccess: redacted ? "redacted" : "open",
+		founderInterpretation: row.founderInterpretation,
 		highlight: { end: row.rangeEnd, start: row.rangeStart },
 		historicalBindExists: true,
 		id: row.id,
+		interpretationActorId: row.interpretationActorId,
+		interpretationSetAt: row.interpretationSetAt,
 		newerVersionExists: snapshot
 			? snapshot.latestVersionNumber > row.sourceVersionNumber
 			: false,
@@ -669,6 +873,9 @@ async function presentPin(
 		pinnedBody: redacted ? "" : (snapshot?.body ?? ""),
 		rangeText: redacted ? "" : row.rangeText,
 		relationId: row.relationId,
+		role: parseEvidenceRole(row.role),
+		roleActorId: row.roleActorId,
+		roleSetAt: row.roleSetAt,
 		sourceId: row.sourceId,
 		sourceKind: parseEvidenceSourceKind(row.sourceKind),
 		sourceStayedInPlace: true,
@@ -1148,4 +1355,11 @@ function parseEvidenceTargetKind(
 		return value as (typeof EVIDENCE_TARGET_KINDS)[number];
 	}
 	return "Work";
+}
+
+function parseEvidenceRole(value: string): EvidenceRole {
+	if ((EVIDENCE_ROLES as readonly string[]).includes(value)) {
+		return value as EvidenceRole;
+	}
+	return EVIDENCE_COPY.unspecified;
 }

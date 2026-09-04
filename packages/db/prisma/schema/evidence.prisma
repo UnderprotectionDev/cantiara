@@ -1,6 +1,6 @@
 model EvidencePin {
-  id                     String   @id
-  relationId             String   @unique
+  id                     String                     @id
+  relationId             String                     @unique
   sourceKind             String
   sourceId               String
   sourceVersionId        String
@@ -15,13 +15,36 @@ model EvidencePin {
   originOwnerId          String?
   originComponentId      String?
   originSourceVersion    String?
-  originComponentMissing Boolean   @default(false)
-  contentRedacted        Boolean   @default(false)
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  originComponentMissing Boolean                    @default(false)
+  contentRedacted        Boolean                    @default(false)
+  role                   String                     @default("Unspecified")
+  founderInterpretation  String                     @default("")
+  roleActorId            String?
+  roleSetAt              DateTime?
+  interpretationActorId  String?
+  interpretationSetAt    DateTime?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+  history                EvidenceRelationHistory[]
 
   @@index([sourceKind, sourceId])
   @@index([sourceVersionId])
   @@index([targetKind, targetId])
   @@map("evidence_pin")
+}
+
+model EvidenceRelationHistory {
+  id            String      @id
+  pinId         String
+  pin           EvidencePin @relation(fields: [pinId], references: [id], onDelete: Cascade)
+  fieldKey      String
+  actorId       String
+  previousValue String
+  nextValue     String
+  occurredAt    DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([pinId, occurredAt])
+  @@map("evidence_relation_history")
 }

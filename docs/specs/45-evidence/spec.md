@@ -44,16 +44,16 @@ Kurucu kesin kaynak veya Belge sürümünü bir iddiaya bağlamak ister. `İlgil
 - **Glossary.** Use Kanıt bağı, Köken konumu, Kökeni, Hedefe katkı (not this relation), İlgili (not evidence). Avoid auto validation, social timeline, notification feed.
 - **Evidence module.** Bind-to-existing uses the full PRD 02 `Kanıtı` / `Kanıt sağlar` ends: exact Source/Document/Diagram version, Feedback, Research Session, Validation Record, Session Test, or File Attachment version → Work/Decision/Risk/Assumption/Question/Test/Project Release or Access/Outcome observation. Convert-to-new-record creates exactly one Work, Decision, Risk, Assumption, or Open Question (stories 1 and 6); it does not mint Test, Project Release, or an observation as the new record. Pin API used by 43/44 rebind. Role + interpretation on the relation helper entity.
 - **Flow.** Derived view on Work, Decision, Assumption. Closed inclusion: explicit Kanıtı only. Observation-targeted binds stay on that observation, not the parent Release’s general evidence.
-- **English UI labels.** As in stories plus `Origin Location` (already in term table). Ticket 01 also shows `Version-pinned evidence`, `Newer version exists`, `Open source record`, and `Source element no longer exists`. Add others when first shown.
+- **English UI labels.** As in stories plus `Origin Location` (already in term table). Ticket 01 also shows `Version-pinned evidence`, `Newer version exists`, `Open source record`, and `Source element no longer exists`. Ticket 02 shows `Evidence Role` and `Founder interpretation` on the relation. Add others when first shown.
 - **Consumers.** 16 Work Context displays. 37 must not use this as Contributes to Goal. 44 calls rebind. 43 calls pin+convert.
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe Evidence through bind, pin, role/comment, and Evidence Flow listing. They go red if `İlgili` appears in the flow, if a pin slides to a newer version, if role is inferred, or if Contradicting auto-opens a Decision. Expected roles are the closed catalog, not a classifier score.
+- **What a good test is.** Tests observe Evidence through bind, pin, role/comment, and Evidence Flow listing. They go red if `İlgili` appears in the flow, if a pin slides to a newer version, if role is inferred, or if Contradicting auto-opens a Decision. Expected roles are the closed catalog, not a classifier score. Ticket 02 locks the role matrix (`Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified`), separate `Founder interpretation` history, target grouping by accessible counts, and share withholding of inaccessible role.
 - **Seam (one).** Evidence — bind, pin, role/comment, flow listing, origin location. Source fetch and session notes are other seams called here.
 - **Modules under test.** Evidence only. Work Context Card, Goals, Sources, and Research Sessions are consumers/counterparts.
 - **Prior art.** First contract tests at this seam. Journey: [Kanıt akışı](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) — role matrix, origin ends, Origin Location tombstone, redaction/access counterparts. Hedefe katkı must not bind Decision/evidence/test directly.
-- **Required counterparts.** İlgili not in flow; pin stays on exact version; role not inferred; Contradicting does not auto-open Decision; flow does not invent rows; Origin Location does not retarget.
+- **Required counterparts.** İlgili not in flow; pin stays on exact version; role not inferred; Contradicting does not auto-open Decision; flow does not invent rows; Origin Location does not retarget. Ticket 02: role not on Source; interpretation not an Insight; Feedback niteliği not derived into role; inaccessible share does not leak role.
 
 ## Out of Scope
 
