@@ -1,6 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -16,6 +16,7 @@ export default function SourceRecheckPanel({
 	sourceId: string;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const compareRef = useRef<HTMLDivElement>(null);
 	const freshness = useQuery(
 		orpc.sources.freshness.queryOptions({ input: { sourceId } })
 	);
@@ -131,6 +132,10 @@ export default function SourceRecheckPanel({
 		markUnsaved,
 		saveVersion,
 	]);
+	const openCompare = useCallback(() => {
+		compareRef.current?.scrollIntoView({ block: "nearest" });
+		compareRef.current?.focus();
+	}, []);
 
 	return (
 		<section className="flex flex-col gap-3">
@@ -156,40 +161,54 @@ export default function SourceRecheckPanel({
 					{latestCheck.failureReason ? (
 						<p role="status">{latestCheck.failureReason}</p>
 					) : null}
-					{latestCheck.candidate ? (
-						<p className="whitespace-pre-wrap">
-							{latestCheck.candidate.capturedContent}
-						</p>
-					) : null}
-					{compare.data ? (
-						<div className="grid gap-2 md:grid-cols-2">
-							<section>
-								<h4 className="text-muted-foreground text-xs">
-									{SOURCES_COPY.approvedVersion}
-								</h4>
-								<p className="whitespace-pre-wrap">
-									{compare.data.approvedContent}
-								</p>
-							</section>
-							<section>
-								<h4 className="text-muted-foreground text-xs">
-									{SOURCES_COPY.sourceCheck}
-								</h4>
-								<p className="whitespace-pre-wrap">
-									{compare.data.candidateContent ?? latestCheck.failureReason}
-								</p>
-							</section>
-						</div>
-					) : null}
-					{compare.data
-						? compare.data.pinMatches.map((pin) => (
+					{latestCheck.candidate && compare.data ? (
+						<div
+							className="flex flex-col gap-2"
+							id="source-check-compare"
+							ref={compareRef}
+							tabIndex={-1}
+						>
+							<div className="grid gap-2 md:grid-cols-2">
+								<section>
+									<h4 className="text-muted-foreground text-xs">
+										{SOURCES_COPY.approvedVersion}
+									</h4>
+									<p className="whitespace-pre-wrap">
+										{compare.data.approvedContent}
+									</p>
+								</section>
+								<section>
+									<h4 className="text-muted-foreground text-xs">
+										{SOURCES_COPY.sourceCheck}
+									</h4>
+									<p className="whitespace-pre-wrap">
+										{compare.data.candidateContent}
+									</p>
+								</section>
+							</div>
+							{compare.data.lineChanges.some(
+								(part) => part.added || part.removed
+							) ? (
+								<ol className="flex flex-col gap-1">
+									{compare.data.lineChanges.map((part) => (
+										<li
+											className={lineChangeClassName(part)}
+											key={lineChangeKey(part)}
+										>
+											{part.value}
+										</li>
+									))}
+								</ol>
+							) : null}
+							{compare.data.pinMatches.map((pin) => (
 								<p key={pin.pinId}>
 									{pin.match === "none"
 										? SOURCES_COPY.noMatchInCandidateVersion
 										: pin.rangeText}
 								</p>
-							))
-						: null}
+							))}
+						</div>
+					) : null}
 					{latestCheck.candidate && latestCheck.disposition === "open" ? (
 						<div className="flex flex-wrap gap-2">
 							<Button onClick={onKeepVersion} type="button">
@@ -208,6 +227,7 @@ export default function SourceRecheckPanel({
 					keepUse={keepUse.mutateAsync}
 					key={use.id}
 					markUnsaved={markUnsaved}
+					onOpenCompare={openCompare}
 					rebindUse={rebindUse.mutateAsync}
 					use={use}
 				/>
@@ -224,6 +244,7 @@ function SourceEvidenceUseRow({
 	attemptOnlineWork,
 	keepUse,
 	markUnsaved,
+	onOpenCompare,
 	rebindUse,
 	use,
 }: {
@@ -236,6 +257,7 @@ function SourceEvidenceUseRow({
 		payload: { pinId: string };
 	}) => Promise<unknown>;
 	markUnsaved: () => void;
+	onOpenCompare: () => void;
 	rebindUse: (input: {
 		idempotencyKey: string;
 		payload: { pinId: string };
@@ -243,6 +265,7 @@ function SourceEvidenceUseRow({
 	use: {
 		accessedAt: string;
 		id: string;
+		matchAgainstApproved: "exact" | "none";
 		newerSourceVersionExists: boolean;
 		rangeText: string;
 		reviewed: boolean;
@@ -274,7 +297,16 @@ function SourceEvidenceUseRow({
 			<p>{`${SOURCES_COPY.accessedAt} ${use.accessedAt}`}</p>
 			<p className="whitespace-pre-wrap">{use.rangeText}</p>
 			{use.newerSourceVersionExists ? (
-				<p>{SOURCES_COPY.newerSourceVersionExists}</p>
+				<Button onClick={onOpenCompare} type="button">
+					{SOURCES_COPY.newerSourceVersionExists}
+				</Button>
+			) : null}
+			{use.newerSourceVersionExists ? (
+				<p>
+					{use.matchAgainstApproved === "none"
+						? SOURCES_COPY.noMatchInCandidateVersion
+						: use.rangeText}
+				</p>
 			) : null}
 			{use.newerSourceVersionExists && !use.reviewed ? (
 				<div className="flex flex-wrap gap-2">
@@ -288,4 +320,28 @@ function SourceEvidenceUseRow({
 			) : null}
 		</div>
 	);
+}
+
+function lineChangeClassName(part: {
+	added: boolean;
+	removed: boolean;
+}): string {
+	if (part.removed) {
+		return "whitespace-pre-wrap text-muted-foreground line-through";
+	}
+	return "whitespace-pre-wrap";
+}
+
+function lineChangeKey(part: {
+	added: boolean;
+	removed: boolean;
+	value: string;
+}): string {
+	if (part.added) {
+		return `added:${part.value}`;
+	}
+	if (part.removed) {
+		return `removed:${part.value}`;
+	}
+	return `same:${part.value}`;
 }

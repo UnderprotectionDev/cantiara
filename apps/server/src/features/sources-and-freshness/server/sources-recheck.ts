@@ -221,11 +221,15 @@ export async function compareSourceCheck(
 		targetId: pin.targetId,
 		targetKind: pin.targetKind,
 	}));
-	const changed =
-		candidate !== null &&
-		diffLines(approved.capturedContent, candidate).some(
-			(part) => part.added === true || part.removed === true
-		);
+	const lineChanges =
+		candidate === null
+			? []
+			: diffLines(approved.capturedContent, candidate).map((part) => ({
+					added: part.added === true,
+					removed: part.removed === true,
+					value: part.value,
+				}));
+	const changed = lineChanges.some((part) => part.added || part.removed);
 	return {
 		approvedContent: approved.capturedContent,
 		candidateContent: candidate,
@@ -233,6 +237,7 @@ export async function compareSourceCheck(
 		copy: {
 			noMatchInCandidateVersion: SOURCES_COPY.noMatchInCandidateVersion,
 		},
+		lineChanges,
 		pinMatches,
 	};
 }

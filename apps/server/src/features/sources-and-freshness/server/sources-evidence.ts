@@ -308,6 +308,10 @@ async function listEvidenceUses(
 	sourceId: string,
 	approvedVersionNumber: number
 ): Promise<SourceEvidenceUseView[]> {
+	const approved = await prisma.sourceVersion.findFirst({
+		where: { sourceId, versionNumber: approvedVersionNumber },
+	});
+	const approvedContent = approved?.capturedContent ?? "";
 	const pins = await prisma.sourceEvidencePin.findMany({
 		include: { sourceVersion: true },
 		orderBy: { createdAt: "asc" },
@@ -319,6 +323,9 @@ async function listEvidenceUses(
 		return {
 			accessedAt: pin.sourceVersion.accessedAt.toISOString(),
 			id: pin.id,
+			matchAgainstApproved: approvedContent.includes(pin.rangeText)
+				? ("exact" as const)
+				: ("none" as const),
 			newerSourceVersionExists: newer,
 			rangeText: pin.rangeText,
 			reviewed,

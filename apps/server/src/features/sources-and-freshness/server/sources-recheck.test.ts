@@ -255,6 +255,8 @@ describe("Sources and Freshness recheck", () => {
 		expect(checked.source.approvedVersionNumber).toBe(1);
 		const compare = await compareSourceCheck(prisma, checked.check.id);
 		expect(compare?.candidateContent).toBeNull();
+		expect(compare?.lineChanges).toEqual([]);
+		expect(compare?.changed).toBe(false);
 		expect(await inspectSourceFreshness(prisma, source.id)).toMatchObject({
 			signal: null,
 		});
@@ -441,6 +443,17 @@ describe("Sources and Freshness recheck", () => {
 		);
 		expect(compare?.pinMatches).toHaveLength(3);
 		expect(compare?.pinMatches.every((pin) => pin.match === "none")).toBe(true);
+		expect(compare?.changed).toBe(true);
+		expect(
+			compare?.lineChanges.some(
+				(part) => part.removed && part.value.includes(PIN_RANGE)
+			)
+		).toBe(true);
+		expect(
+			compare?.lineChanges.some(
+				(part) => part.added && part.value.includes(CANDIDATE_BODY)
+			)
+		).toBe(true);
 		const saved = await saveCheckAsNewSourceVersion(prisma, {
 			actorId,
 			baseRevision: checked.source.revision,
@@ -464,7 +477,8 @@ describe("Sources and Freshness recheck", () => {
 					use.sourceVersionNumber === 1 &&
 					use.accessedAt === "2026-03-02T09:15:00.000Z" &&
 					use.rangeText === PIN_RANGE &&
-					use.newerSourceVersionExists
+					use.newerSourceVersionExists &&
+					use.matchAgainstApproved === "none"
 			)
 		).toBe(true);
 		expect(afterSave?.signal?.signalId).toBe(SOURCE_VERSION_IN_USE_SIGNAL_ID);

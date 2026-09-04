@@ -241,6 +241,13 @@ export const sourceCompareViewSchema = z.object({
 			SOURCES_COPY.noMatchInCandidateVersion
 		),
 	}),
+	lineChanges: z.array(
+		z.object({
+			added: z.boolean(),
+			removed: z.boolean(),
+			value: z.string(),
+		})
+	),
 	pinMatches: z.array(sourcePinMatchSchema),
 });
 
@@ -249,6 +256,7 @@ export type SourceCompareView = z.infer<typeof sourceCompareViewSchema>;
 export const sourceEvidenceUseViewSchema = z.object({
 	accessedAt: z.string(),
 	id: z.string().min(1),
+	matchAgainstApproved: z.enum(["exact", "none"]),
 	newerSourceVersionExists: z.boolean(),
 	rangeText: z.string(),
 	reviewed: z.boolean(),
