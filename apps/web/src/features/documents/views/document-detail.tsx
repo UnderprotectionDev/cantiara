@@ -483,6 +483,7 @@ export default function DocumentDetail({
 			<CardHeader className="border-b">
 				<CardTitle>{selected.data.title}</CardTitle>
 				<PersonalReminderPanel
+					documentBody={selected.data.body}
 					sourceId={selected.data.id}
 					sourceType="Document"
 				/>

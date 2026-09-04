@@ -135,6 +135,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Test Oturumu | `Test Session` | Overview Tests özetindeki kaynak türü |
 | Test Açığı | `Test Gap` | Overview Tests özetindeki kaynak türü |
 | Kaynak kaydı aç | `Open source record` | Ana kaydı kopyalamadan açan ortak eylem |
+| Çalışmaya Dön | `Return to Work` | Güncel kayıtlardan seçilen geri dönüş özeti; sekme veya son bağlam geri yükleme değildir |
+| Sıradaki somut adım | `Next concrete step` | Proje veya İş kaydındaki isteğe bağlı tek metin ipucu |
+| Son baktığından beri | `Since you last looked` | Son ziyaret işaretinden sonraki tanımlı olayların konu grupları; analytics veya yeni özet kaydı değildir |
 | Tüm İşler | `All Work` | Sıfır kurulum hazır tür dizini; İş ana kayıtlarını toplar, saklı sorgu veya yeni sahiplik değildir |
 | Tüm Belgeler | `All Documents` | Sıfır kurulum hazır tür dizini; Belgeleri kapsam, tür, klasör ve üstveriyle gezer |
 | Tüm Kararlar | `All Decisions` | Sıfır kurulum hazır tür dizini; Karar ana kayıtlarını toplar |
@@ -198,6 +201,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yeniden görünme tarihi | `Reappear date` | İşin en erken ne zaman yeniden değerlendirileceğini belirten isteğe bağlı tarih; hedef tarihi veya hatırlatma değildir |
 | Deferred | `Deferred` | Varsayılan Backlog görünümünde gelecek yeniden görünme tarihi taşıyan İşlerin bölümü; durum değildir |
 | Yeniden görünme bildirimi | `Notify on Reappear date` | Proje bazında varsayılan kapalı opt-in; tarih gelince `reappear-date` Dikkat sinyali üretir |
+| Akıllı Koleksiyon | `Smart Collection` | Koşullardan canlı üyelik türeten adlandırılmış görünüm; statik liste veya klasör değildir |
+| Abone ol | `Subscribe` | Kaydın Akıllı Koleksiyona ilk girişinde `smart-collection-entry` Dikkat sinyali açma |
+| Ayrılınca bildir | `Notify on leave` | Aboneliğe ek, kaydın koleksiyondan çıkışında aynı sinyal kimliğiyle ayrılma nedeni |
+| Önce Abone ol | `Turn on Subscribe first.` | `Subscribe` kapalıyken `Notify on leave` neden tıklanamadığını söyleyen ipucu |
 | Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
 | Hafif İçgörüler | `Insights` | İş koleksiyonunun mevcut filtre sonucundan sayı ve dağılım özeti; skor, coverage veya yayın kapısı değildir |
 | Kayıt yaşı | `Age` | İş kaydının oluşturulmasından bu yana geçen süre özeti; skor değildir |
@@ -344,6 +351,14 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Alan sıralaması | `Field` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
 | Board | `Board` | Hazır İş görünümü; Kanban sunumu |
 | Liste görünümü | `List` | Kanban ile aynı İş taramasının yoğun satır düzeni; Tablo Görünümü değildir |
+| Gallery | `Gallery` | Akıllı Koleksiyon adlandırılmış görünüm sunumu; Dosya Eki kütüphanesi, Moodboard veya ayrı kapak kaydı değildir |
+| Varsayılan görünüm | `Default` | İş koleksiyonunda ilk adlandırılmış görünüm adı |
+| Adlandırılmış görünüm | `Named view` | Aynı Akıllı Koleksiyon üyeliği üzerindeki saklı sunum; ikinci üyelik kümesi değildir |
+| Yok | `None` | Adlandırılmış görünümde sıra alanı seçilmedi |
+| Yeni iş | `New work` | İş koleksiyonunda doğrudan tekil alan eşitliğini dolduran oluşturma; tarih aralığı veya olumsuz koşul uygulamaz |
+| Kaydedilmemiş değişiklikler | `Unsaved changes` | Adlandırılmış görünümde henüz kaydedilmemiş sunum; üyelik koşulunu yazmaz |
+| Yeni görünüm olarak kaydet | `Save as` | Kirli sunumu yeni adlandırılmış görünüme yazma |
+| Geri dön | `Revert` | Kirli sunumu kayıtlı adlandırılmış görünüme döndürme |
 | Soft WIP | `Soft WIP` | Durum bazlı isteğe bağlı sayı sınırı; aşıldığında nötr işaret, hareket kapısı değildir |
 | Odak eşiği | `Focus threshold` | Proje veya ilgili Akıllı Koleksiyon için isteğe bağlı kişisel devam eden İş sayısı eşiği |
 | Sınır aşıldı | `Over limit` | Soft WIP veya odak eşiği aşımının yalnız renge dayanmayan işareti |
@@ -372,6 +387,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Hatırlatma yaşamı | `Planned`, `Cancelled` | Hatırlatmanın İngilizce yaşam etiketleri; kaynak İş akışı durumu değildir |
 | Hatırlatma zamanı | `When` | Hatırlatmanın kişisel zaman alanı; İş `Target date` değildir |
 | Hatırlatmayı iptal et | `Cancel` | `Planned` Hatırlatmayı `Cancelled` yapan açık eylem |
+| Her durumda | `In any case` | Hatırlatmanın varsayılan koşulsuz açık kalma koşulu |
+| Yalnız hâlâ açıksa | `Only if still open` | Zamanı gelince kaynağın açık/çözülmüş yaşamını okuyan kapalı koşul; genel sorgu değildir |
+| Bölüm | `Section` | Belge `Review Later` hedefinin kararlı Markdown başlık kimliği |
+| Bu bölüm yok | `This section is missing.` | Silinmiş veya çözülemeyen bölüm hedefinin açıklaması; sessiz başka başlık yoktur |
 | Yeniden bakı koru | `Keep Review later` | İz kapanınca bağlı hatırlatmayı bırakma |
 | Yeniden bakı kaldır | `Remove Review later` | İz kapanınca bağlı hatırlatmayı açıkça kaldırma |
 | Planlanmamış adaylar | `Unplanned candidates` | Görünüm filtresine uyan fakat tarih ve ufku olmayan canlı aday alanı |
