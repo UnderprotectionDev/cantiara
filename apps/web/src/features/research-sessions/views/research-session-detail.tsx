@@ -32,6 +32,7 @@ export default function ResearchSessionDetail({
 	);
 	const [quote, setQuote] = useState("");
 	const [speaker, setSpeaker] = useState("");
+	const [identifyingNote, setIdentifyingNote] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const invalidate = useCallback(async () => {
 		await queryClient.invalidateQueries({
@@ -77,6 +78,19 @@ export default function ResearchSessionDetail({
 			},
 		})
 	);
+	const writeIdentifyingNote = useMutation(
+		orpc.researchSessions.writeIdentifyingPersonalNote.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "rejected") {
+					setError(outcome.reason);
+					return;
+				}
+				setError(null);
+				setIdentifyingNote("");
+				await invalidate();
+			},
+		})
+	);
 	const onQuoteSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
@@ -94,6 +108,23 @@ export default function ResearchSessionDetail({
 			});
 		},
 		[quote, session.data, sessionId, speaker, writeQuote]
+	);
+	const onIdentifyingNoteSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			if (!session.data) {
+				return;
+			}
+			writeIdentifyingNote.mutate({
+				baseRevision: session.data.revision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: {
+					body: identifyingNote,
+					sessionId,
+				},
+			});
+		},
+		[identifyingNote, session.data, sessionId, writeIdentifyingNote]
 	);
 	const onStatusChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
@@ -150,6 +181,12 @@ export default function ResearchSessionDetail({
 		},
 		[]
 	);
+	const onIdentifyingNoteChange = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			setIdentifyingNote(event.target.value);
+		},
+		[]
+	);
 
 	if (session.isPending) {
 		return (
@@ -191,6 +228,20 @@ export default function ResearchSessionDetail({
 					{session.data.questionGuide}
 				</p>
 			</section>
+			{session.data.scheduledAt ? (
+				<p className="text-sm">
+					{RESEARCH_SESSIONS_COPY.scheduledAt}: {session.data.scheduledAt}
+				</p>
+			) : null}
+			{session.data.consentNote ? (
+				<p className="text-sm">
+					{RESEARCH_SESSIONS_COPY.consentNote}: {session.data.consentNote}
+				</p>
+			) : null}
+			<p className="text-sm">
+				{RESEARCH_SESSIONS_COPY.recordedBy}:{" "}
+				{session.data.consentRecordedByUserId}
+			</p>
 			<Field>
 				<FieldLabel htmlFor="research-session-detail-status">
 					{RESEARCH_SESSIONS_COPY.status}
@@ -255,6 +306,22 @@ export default function ResearchSessionDetail({
 				</FieldGroup>
 				<Button disabled={!session.data.consentGatesOpen} type="submit">
 					{RESEARCH_SESSIONS_COPY.participantQuote}
+				</Button>
+			</form>
+			<form className="flex flex-col gap-3" onSubmit={onIdentifyingNoteSubmit}>
+				<Field>
+					<FieldLabel htmlFor="research-session-identifying-note">
+						{RESEARCH_SESSIONS_COPY.identifyingPersonalNote}
+					</FieldLabel>
+					<Textarea
+						disabled={!session.data.consentGatesOpen}
+						id="research-session-identifying-note"
+						onChange={onIdentifyingNoteChange}
+						value={identifyingNote}
+					/>
+				</Field>
+				<Button disabled={!session.data.consentGatesOpen} type="submit">
+					{RESEARCH_SESSIONS_COPY.identifyingPersonalNote}
 				</Button>
 			</form>
 			{session.data.notes.length > 0 ? (

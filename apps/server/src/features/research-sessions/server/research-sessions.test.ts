@@ -211,6 +211,16 @@ async function expectClosedGates(
 		reason: "consent-gates-closed",
 		status: "rejected",
 	});
+	const shareSession = await includeInShare(prisma, {
+		actorId: input.actorId,
+		idempotencyKey: `share-session-${input.consent}`,
+		origin: "human",
+		payload: { itemId: session.id, sessionId: session.id },
+	});
+	expect(shareSession).toEqual({
+		reason: "consent-gates-closed",
+		status: "rejected",
+	});
 	const live = await getResearchSession(prisma, session.id);
 	expect(live?.notes).toEqual([]);
 	expect(live?.files).toEqual([]);
@@ -563,6 +573,17 @@ describe("Research Sessions", () => {
 			CONSENT.notAllowed,
 			CONSENT.notApplicable,
 		]);
+		const allowed = fixture.find((row) => row.consent === CONSENT.allowed);
+		expect(allowed?.notes[0]?.kind).toBe(NOTE_KIND.participantQuote);
+		expect(allowed?.notes[0]?.body).toBe("The pay button did nothing.");
+		const closed = fixture.find((row) => row.consent === CONSENT.notAsked);
+		expect(closed?.notes).toEqual([]);
+		const notApplicable = fixture.find(
+			(row) => row.consent === CONSENT.notApplicable
+		);
+		expect(notApplicable?.notes[0]?.kind).toBe(
+			NOTE_KIND.identifyingPersonalNote
+		);
 		expect(JSON.stringify(RESEARCH_SESSIONS_COPY)).not.toMatch(LEGAL_JUDGMENT);
 		expect(RESEARCH_SESSIONS_COPY.researchSession).toBe("Research Session");
 		expect(RESEARCH_SESSIONS_COPY.notAsked).toBe("Not asked");

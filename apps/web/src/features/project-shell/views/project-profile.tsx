@@ -13,6 +13,7 @@ import { useLocation } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
 import { type MouseEvent, useCallback } from "react";
 
+import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-record-values";
 import DecisionArea from "@/features/decisions/views/decision-area";
 import { DOCUMENTS_COPY } from "@/features/documents/forms/documents-copy";
 import DocumentArea from "@/features/documents/views/document-area";
@@ -41,6 +42,7 @@ import {
 	workSavedViewIsRoadmap,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
+import { RESEARCH_SESSIONS_COPY } from "@/features/research-sessions/forms/research-sessions-copy";
 import ResearchSessionArea from "@/features/research-sessions/views/research-session-area";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
@@ -699,6 +701,13 @@ function ProjectBody({
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">
 					Discovery
 				</h1>
+				<p className="mt-2 text-muted-foreground text-sm">Feedback</p>
+				<div className="mt-6">
+					<BoundRecordValuesSurface projectId={data.id} recordType="Feedback" />
+				</div>
+				<h2 className="mt-10 font-medium text-base">
+					{RESEARCH_SESSIONS_COPY.researchSession}
+				</h2>
 				<div className="mt-6">
 					<ResearchSessionArea
 						onSessionId={onResearchSessionId}

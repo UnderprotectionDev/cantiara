@@ -38,6 +38,8 @@ export default function CreateResearchSessionForm({
 	const [facilitator, setFacilitator] = useState("");
 	const [purpose, setPurpose] = useState("");
 	const [questionGuide, setQuestionGuide] = useState("");
+	const [consentNote, setConsentNote] = useState("");
+	const [scheduledAt, setScheduledAt] = useState("");
 	const [scopeNote, setScopeNote] = useState("");
 	const [status, setStatus] = useState<string>(RESEARCH_SESSIONS_COPY.planned);
 	const [title, setTitle] = useState("");
@@ -60,7 +62,9 @@ export default function CreateResearchSessionForm({
 					setFacilitator("");
 					setPurpose("");
 					setQuestionGuide("");
+					setConsentNote("");
 					setScopeNote("");
+					setScheduledAt("");
 					setStatus(RESEARCH_SESSIONS_COPY.planned);
 					setTitle("");
 					return;
@@ -89,6 +93,7 @@ export default function CreateResearchSessionForm({
 							consent === RESEARCH_SESSIONS_COPY.notAsked
 								? consent
 								: RESEARCH_SESSIONS_COPY.notAsked,
+						consentNote,
 						contactId: contactId.trim() === "" ? null : contactId.trim(),
 						durationMinutes:
 							Number.isFinite(durationMinutes) && durationMinutes > 0
@@ -98,6 +103,10 @@ export default function CreateResearchSessionForm({
 						projectId,
 						purpose,
 						questionGuide,
+						scheduledAt:
+							scheduledAt.trim() === ""
+								? null
+								: new Date(scheduledAt).toISOString(),
 						scopeNote,
 						status:
 							status === RESEARCH_SESSIONS_COPY.completed ||
@@ -114,6 +123,7 @@ export default function CreateResearchSessionForm({
 			attemptOnlineWork,
 			channel,
 			consent,
+			consentNote,
 			contactId,
 			create,
 			duration,
@@ -122,6 +132,7 @@ export default function CreateResearchSessionForm({
 			projectId,
 			purpose,
 			questionGuide,
+			scheduledAt,
 			scopeNote,
 			status,
 			title,
@@ -139,6 +150,18 @@ export default function CreateResearchSessionForm({
 	const onGuideChange = useCallback(
 		(event: ChangeEvent<HTMLTextAreaElement>) => {
 			setQuestionGuide(event.target.value);
+		},
+		[]
+	);
+	const onScheduledAtChange = useCallback(
+		(event: ChangeEvent<HTMLInputElement>) => {
+			setScheduledAt(event.target.value);
+		},
+		[]
+	);
+	const onConsentNoteChange = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			setConsentNote(event.target.value);
 		},
 		[]
 	);
@@ -219,6 +242,27 @@ export default function CreateResearchSessionForm({
 						onChange={onGuideChange}
 						required
 						value={questionGuide}
+					/>
+				</Field>
+				<Field>
+					<FieldLabel htmlFor="research-session-time">
+						{RESEARCH_SESSIONS_COPY.scheduledAt}
+					</FieldLabel>
+					<Input
+						id="research-session-time"
+						onChange={onScheduledAtChange}
+						type="datetime-local"
+						value={scheduledAt}
+					/>
+				</Field>
+				<Field>
+					<FieldLabel htmlFor="research-session-consent-note">
+						{RESEARCH_SESSIONS_COPY.consentNote}
+					</FieldLabel>
+					<Textarea
+						id="research-session-consent-note"
+						onChange={onConsentNoteChange}
+						value={consentNote}
 					/>
 				</Field>
 				<Field>

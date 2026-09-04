@@ -220,16 +220,12 @@ export async function includeInShare(
 	if (!view) {
 		return { reason: "session-not-found", status: "rejected" };
 	}
+	if (!view.consentGatesOpen) {
+		return { reason: "consent-gates-closed", status: "rejected" };
+	}
 	const items = closedWorldItems(view);
 	const match = items.find((item) => item.id === parsed.data.payload.itemId);
 	if (!match) {
-		return { reason: "consent-gates-closed", status: "rejected" };
-	}
-	if (
-		match.kind !== CLOSED_WORLD_ITEM_KIND.researchSession &&
-		match.kind !== CLOSED_WORLD_ITEM_KIND.consent &&
-		!view.consentGatesOpen
-	) {
 		return { reason: "consent-gates-closed", status: "rejected" };
 	}
 	return { included: true, status: "committed" };
@@ -354,11 +350,67 @@ export async function personalDataResearchConsentFixture(
 			})
 		)
 	);
-	return created.map((outcome) => {
+	const sessions = created.map((outcome) => {
 		if (outcome.status !== "committed") {
 			throw new Error("expected Kişisel veri fixture session");
 		}
 		return outcome.session;
+	});
+	return await attachAttributedNotesToKisiselVeriFixture(prisma, {
+		actorId: input.actorId,
+		sessions,
+	});
+}
+
+async function attachAttributedNotesToKisiselVeriFixture(
+	prisma: PrismaClient,
+	input: { actorId: string; sessions: ResearchSessionView[] }
+): Promise<ResearchSessionView[]> {
+	const allowed = input.sessions.find(
+		(session) => session.consent === CONSENT.allowed
+	);
+	const notApplicable = input.sessions.find(
+		(session) => session.consent === CONSENT.notApplicable
+	);
+	if (allowed) {
+		const quote = await writeAttributedQuote(prisma, {
+			actorId: input.actorId,
+			baseRevision: allowed.revision,
+			idempotencyKey: "kisisel-veri-allowed-quote",
+			origin: "human",
+			payload: {
+				body: "The pay button did nothing.",
+				sessionId: allowed.id,
+				speakerLabel: "Maya",
+			},
+		});
+		if (quote.status !== "committed") {
+			throw new Error("expected Kişisel veri attributed quote");
+		}
+	}
+	if (notApplicable) {
+		const note = await writeIdentifyingPersonalNote(prisma, {
+			actorId: input.actorId,
+			baseRevision: notApplicable.revision,
+			idempotencyKey: "kisisel-veri-na-note",
+			origin: "human",
+			payload: {
+				body: "Storefront on Oak Street.",
+				sessionId: notApplicable.id,
+			},
+		});
+		if (note.status !== "committed") {
+			throw new Error("expected Kişisel veri identifying note");
+		}
+	}
+	const refreshed = await Promise.all(
+		input.sessions.map((session) => getResearchSession(prisma, session.id))
+	);
+	return refreshed.map((session) => {
+		if (!session) {
+			throw new Error("expected Kişisel veri fixture session");
+		}
+		return session;
 	});
 }
 
@@ -673,7 +725,7 @@ function closedWorldItems(view: ResearchSessionView): ClosedWorldItem[] {
 		},
 		{
 			consent: view.consent,
-			id: `consent:${view.id}`,
+			id: `consent:${view.id}:${view.consent}`,
 			kind: CLOSED_WORLD_ITEM_KIND.consent,
 		},
 	];
@@ -688,6 +740,9 @@ function closedWorldItems(view: ResearchSessionView): ClosedWorldItem[] {
 		});
 	}
 	for (const note of view.notes) {
+		if (!consentGatesOpen(note.capturedUnderConsent)) {
+			continue;
+		}
 		if (note.kind === NOTE_KIND.participantQuote) {
 			items.push({
 				body: note.body,
@@ -705,6 +760,9 @@ function closedWorldItems(view: ResearchSessionView): ClosedWorldItem[] {
 		}
 	}
 	for (const file of view.files) {
+		if (!consentGatesOpen(file.capturedUnderConsent)) {
+			continue;
+		}
 		items.push({
 			fileAttachmentId: file.fileAttachmentId,
 			id: file.id,
