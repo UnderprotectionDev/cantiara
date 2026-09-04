@@ -106,11 +106,9 @@ export default function WorkDetail({
 						{WORK_LIFECYCLE_COPY.close}
 					</Button>
 				</header>
+				<FavoriteToggle sourceId={work.id} sourceType="Work" />
 				{readOnly ? null : (
-					<>
-						<FavoriteToggle sourceId={work.id} sourceType="Work" />
-						<PersonalReminderPanel sourceId={work.id} sourceType="Work" />
-					</>
+					<PersonalReminderPanel sourceId={work.id} sourceType="Work" />
 				)}
 				<ReturnToWorkPanel projectId={projectId} workId={work.id} />
 				{readOnly ? (
