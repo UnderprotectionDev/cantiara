@@ -32,7 +32,8 @@ export default function ResearchSessionDetail({
 	);
 	const [quote, setQuote] = useState("");
 	const [speaker, setSpeaker] = useState("");
-	const [identifyingNote, setIdentifyingNote] = useState("");
+	const [observation, setObservation] = useState("");
+	const [founderInterpretation, setFounderInterpretation] = useState("");
 	const [fileAttachmentId, setFileAttachmentId] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const invalidate = useCallback(async () => {
@@ -79,15 +80,28 @@ export default function ResearchSessionDetail({
 			},
 		})
 	);
-	const writeIdentifyingNote = useMutation(
-		orpc.researchSessions.writeIdentifyingPersonalNote.mutationOptions({
+	const writeObservation = useMutation(
+		orpc.researchSessions.writeObservation.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "rejected") {
 					setError(outcome.reason);
 					return;
 				}
 				setError(null);
-				setIdentifyingNote("");
+				setObservation("");
+				await invalidate();
+			},
+		})
+	);
+	const writeFounderInterpretation = useMutation(
+		orpc.researchSessions.writeFounderInterpretation.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "rejected") {
+					setError(outcome.reason);
+					return;
+				}
+				setError(null);
+				setFounderInterpretation("");
 				await invalidate();
 			},
 		})
@@ -123,22 +137,39 @@ export default function ResearchSessionDetail({
 		},
 		[quote, session.data, sessionId, speaker, writeQuote]
 	);
-	const onIdentifyingNoteSubmit = useCallback(
+	const onObservationSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
 			if (!session.data) {
 				return;
 			}
-			writeIdentifyingNote.mutate({
+			writeObservation.mutate({
 				baseRevision: session.data.revision,
 				idempotencyKey: newIdempotencyKey(),
 				payload: {
-					body: identifyingNote,
+					body: observation,
 					sessionId,
 				},
 			});
 		},
-		[identifyingNote, session.data, sessionId, writeIdentifyingNote]
+		[observation, session.data, sessionId, writeObservation]
+	);
+	const onFounderInterpretationSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			if (!session.data) {
+				return;
+			}
+			writeFounderInterpretation.mutate({
+				baseRevision: session.data.revision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: {
+					body: founderInterpretation,
+					sessionId,
+				},
+			});
+		},
+		[founderInterpretation, session.data, sessionId, writeFounderInterpretation]
 	);
 	const onAttachFileSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
@@ -212,9 +243,15 @@ export default function ResearchSessionDetail({
 		},
 		[]
 	);
-	const onIdentifyingNoteChange = useCallback(
+	const onObservationChange = useCallback(
 		(event: ChangeEvent<HTMLTextAreaElement>) => {
-			setIdentifyingNote(event.target.value);
+			setObservation(event.target.value);
+		},
+		[]
+	);
+	const onFounderInterpretationChange = useCallback(
+		(event: ChangeEvent<HTMLTextAreaElement>) => {
+			setFounderInterpretation(event.target.value);
 		},
 		[]
 	);
@@ -316,7 +353,10 @@ export default function ResearchSessionDetail({
 					{RESEARCH_SESSIONS_COPY.contact}: {session.data.contactId}
 				</p>
 			) : null}
-			<form className="flex flex-col gap-3" onSubmit={onQuoteSubmit}>
+			<form
+				className="flex flex-col gap-3 border-foreground/70 border-l-2 pl-3"
+				onSubmit={onQuoteSubmit}
+			>
 				<FieldGroup>
 					<Field>
 						<FieldLabel htmlFor="research-session-quote">
@@ -345,20 +385,42 @@ export default function ResearchSessionDetail({
 					{RESEARCH_SESSIONS_COPY.participantQuote}
 				</Button>
 			</form>
-			<form className="flex flex-col gap-3" onSubmit={onIdentifyingNoteSubmit}>
+			<form
+				className="flex flex-col gap-3 border-muted-foreground/50 border-l-2 pl-3"
+				onSubmit={onObservationSubmit}
+			>
 				<Field>
-					<FieldLabel htmlFor="research-session-identifying-note">
-						{RESEARCH_SESSIONS_COPY.identifyingPersonalNote}
+					<FieldLabel htmlFor="research-session-observation">
+						{RESEARCH_SESSIONS_COPY.observation}
 					</FieldLabel>
 					<Textarea
 						disabled={!session.data.consentGatesOpen}
-						id="research-session-identifying-note"
-						onChange={onIdentifyingNoteChange}
-						value={identifyingNote}
+						id="research-session-observation"
+						onChange={onObservationChange}
+						value={observation}
 					/>
 				</Field>
 				<Button disabled={!session.data.consentGatesOpen} type="submit">
-					{RESEARCH_SESSIONS_COPY.identifyingPersonalNote}
+					{RESEARCH_SESSIONS_COPY.observation}
+				</Button>
+			</form>
+			<form
+				className="flex flex-col gap-3 border-muted-foreground border-l-2 border-dashed pl-3"
+				onSubmit={onFounderInterpretationSubmit}
+			>
+				<Field>
+					<FieldLabel htmlFor="research-session-founder-interpretation">
+						{RESEARCH_SESSIONS_COPY.founderInterpretation}
+					</FieldLabel>
+					<Textarea
+						disabled={!session.data.consentGatesOpen}
+						id="research-session-founder-interpretation"
+						onChange={onFounderInterpretationChange}
+						value={founderInterpretation}
+					/>
+				</Field>
+				<Button disabled={!session.data.consentGatesOpen} type="submit">
+					{RESEARCH_SESSIONS_COPY.founderInterpretation}
 				</Button>
 			</form>
 			<form className="flex flex-col gap-3" onSubmit={onAttachFileSubmit}>
@@ -380,9 +442,14 @@ export default function ResearchSessionDetail({
 			{session.data.notes.length > 0 ? (
 				<ul className="flex flex-col gap-2">
 					{session.data.notes.map((note) => (
-						<li className="text-sm" key={note.id}>
+						<li
+							className={noteListClass(note.kind)}
+							data-note-kind={note.kind}
+							key={note.id}
+						>
 							{note.kind}
-							{note.speakerLabel ? ` · ${note.speakerLabel}` : ""}: {note.body}
+							{speakerSuffix(note.kind, note.speakerLabel)}:{" "}
+							{noteDisplayBody(note.kind, note.body)}
 						</li>
 					))}
 				</ul>
@@ -399,4 +466,28 @@ export default function ResearchSessionDetail({
 			{error ? <p role="alert">{error}</p> : null}
 		</article>
 	);
+}
+
+function noteListClass(kind: string): string {
+	if (kind === RESEARCH_SESSIONS_COPY.participantQuote) {
+		return "border-l-2 border-foreground/70 pl-3 text-sm";
+	}
+	if (kind === RESEARCH_SESSIONS_COPY.founderInterpretation) {
+		return "border-l-2 border-dashed border-muted-foreground pl-3 text-sm italic";
+	}
+	return "border-l-2 border-muted-foreground/50 pl-3 text-sm";
+}
+
+function speakerSuffix(kind: string, speakerLabel: string | null): string {
+	if (kind !== RESEARCH_SESSIONS_COPY.participantQuote || !speakerLabel) {
+		return "";
+	}
+	return ` · ${speakerLabel}`;
+}
+
+function noteDisplayBody(kind: string, body: string): string {
+	if (kind === RESEARCH_SESSIONS_COPY.participantQuote) {
+		return `\u201c${body}\u201d`;
+	}
+	return body;
 }

@@ -2,8 +2,9 @@
  * Research Sessions seam — Project ana kayıt with purpose, guide,
  * optional time, and consent. Not asked / Not allowed close attributed
  * quotes, identifying personal notes, File Attachments, and share/publish.
+ * Notes are typed Participant quote, Observation, and Founder interpretation.
  * Later Allowed or a wider snapshot does not reopen blocked bytes.
- * docs/specs/43-research-sessions/spec.md and GitHub #307.
+ * docs/specs/43-research-sessions/spec.md and GitHub #307 / #308.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Hesap ve kişisel veri / Kişisel veri fixture).
  */
@@ -30,7 +31,9 @@ import {
 	setParticipant,
 	setStatus,
 	writeAttributedQuote,
-	writeIdentifyingPersonalNote,
+	writeFounderInterpretation,
+	writeObservation,
+	writeTypedNote,
 } from "./research-sessions";
 import {
 	CLOSED_WORLD_ITEM_KIND,
@@ -46,8 +49,10 @@ const DATABASE_URL = localTestDatabaseUrl();
 const CALENDAR_OR_CRM =
 	/invite|attendance|CRM stage|research score|calendar event/i;
 const LEGAL_JUDGMENT = /GDPR|lawful basis|certified compliant/i;
-const FEEDBACK_OR_TEST = /Feedback|Test Session/;
+const FEEDBACK_OR_TEST = /Feedback|Test Session|Validation Record/;
 const SPEAKER_OR_COUNT = /speaker|count|1 quote/i;
+const AUTO_THEME_OR_SENTIMENT =
+	/sentiment|auto-learnings|auto theme|theme cluster/i;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -163,19 +168,33 @@ async function expectClosedGates(
 		reason: "consent-gates-closed",
 		status: "rejected",
 	});
-	const note = await writeIdentifyingPersonalNote(prisma, {
+	const observation = await writeObservation(prisma, {
 		actorId: input.actorId,
 		baseRevision: session.revision,
-		idempotencyKey: `note-${input.consent}`,
+		idempotencyKey: `observation-${input.consent}`,
 		origin: "human",
 		payload: {
-			body: "Lives on Oak Street.",
+			body: "Paused on the pay button.",
 			sessionId: session.id,
 		},
 	});
-	expect(note.status).toBe("rejected");
-	if (note.status === "rejected") {
-		expect(note.reason).toBe("consent-gates-closed");
+	expect(observation.status).toBe("rejected");
+	if (observation.status === "rejected") {
+		expect(observation.reason).toBe("consent-gates-closed");
+	}
+	const interpretation = await writeFounderInterpretation(prisma, {
+		actorId: input.actorId,
+		baseRevision: session.revision,
+		idempotencyKey: `interpretation-${input.consent}`,
+		origin: "human",
+		payload: {
+			body: "Checkout trust is the stall.",
+			sessionId: session.id,
+		},
+	});
+	expect(interpretation.status).toBe("rejected");
+	if (interpretation.status === "rejected") {
+		expect(interpretation.reason).toBe("consent-gates-closed");
 	}
 	const file = await attachFileToSession(prisma, {
 		actorId: input.actorId,
@@ -259,6 +278,41 @@ async function expectOpenGates(
 	}
 	expect(quote.session.notes[0]?.kind).toBe(NOTE_KIND.participantQuote);
 	expect(quote.session.notes[0]?.speakerLabel).toBe("Sam");
+	const observation = await writeObservation(prisma, {
+		actorId: input.actorId,
+		baseRevision: quote.session.revision,
+		idempotencyKey: `observation-ok-${input.consent}`,
+		origin: "human",
+		payload: {
+			body: "Hovered, then closed the tab.",
+			sessionId: session.id,
+		},
+	});
+	expect(observation.status).toBe("committed");
+	if (observation.status !== "committed") {
+		return;
+	}
+	expect(observation.session.notes[1]?.kind).toBe(NOTE_KIND.observation);
+	const interpretation = await writeFounderInterpretation(prisma, {
+		actorId: input.actorId,
+		baseRevision: observation.session.revision,
+		idempotencyKey: `interpretation-ok-${input.consent}`,
+		origin: "human",
+		payload: {
+			body: "The stall is a trust gap.",
+			sessionId: session.id,
+		},
+	});
+	expect(interpretation.status).toBe("committed");
+	if (interpretation.status !== "committed") {
+		return;
+	}
+	expect(interpretation.session.notes[2]?.kind).toBe(
+		NOTE_KIND.founderInterpretation
+	);
+	expect(interpretation.session.notes[2]?.kind).not.toBe(
+		NOTE_KIND.participantQuote
+	);
 	const convert = await convertToNewRecord(prisma, {
 		actorId: input.actorId,
 		idempotencyKey: `convert-open-${input.consent}`,
@@ -581,14 +635,198 @@ describe("Research Sessions", () => {
 		const notApplicable = fixture.find(
 			(row) => row.consent === CONSENT.notApplicable
 		);
-		expect(notApplicable?.notes[0]?.kind).toBe(
-			NOTE_KIND.identifyingPersonalNote
-		);
+		expect(notApplicable?.notes[0]?.kind).toBe(NOTE_KIND.observation);
 		expect(JSON.stringify(RESEARCH_SESSIONS_COPY)).not.toMatch(LEGAL_JUDGMENT);
 		expect(RESEARCH_SESSIONS_COPY.researchSession).toBe("Research Session");
 		expect(RESEARCH_SESSIONS_COPY.notAsked).toBe("Not asked");
 		expect(RESEARCH_SESSIONS_COPY.allowed).toBe("Allowed");
 		expect(RESEARCH_SESSIONS_COPY.notAllowed).toBe("Not allowed");
 		expect(RESEARCH_SESSIONS_COPY.notApplicable).toBe("Not applicable");
+		expect(RESEARCH_SESSIONS_COPY.participantQuote).toBe("Participant quote");
+		expect(RESEARCH_SESSIONS_COPY.observation).toBe("Observation");
+		expect(RESEARCH_SESSIONS_COPY.founderInterpretation).toBe(
+			"Founder interpretation"
+		);
+	});
+
+	it("refuses a mixed untyped note body and keeps the three kinds distinct", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const session = await committedSession(prisma, {
+			actorId,
+			consent: CONSENT.allowed,
+			idempotencyKey: "typed-notes-session",
+			projectId,
+		});
+		const mixed = await writeTypedNote(prisma, {
+			actorId,
+			baseRevision: session.revision,
+			idempotencyKey: "mixed-body",
+			origin: "human",
+			payload: {
+				body: "She said the button failed and I think trust is broken.",
+				sessionId: session.id,
+			},
+		});
+		expect(mixed).toEqual({
+			reason: "untyped-note-refused",
+			status: "rejected",
+		});
+		const quote = await writeAttributedQuote(prisma, {
+			actorId,
+			baseRevision: session.revision,
+			idempotencyKey: "typed-quote",
+			origin: "human",
+			payload: {
+				body: "The button failed.",
+				sessionId: session.id,
+				speakerLabel: "Maya",
+			},
+		});
+		expect(quote.status).toBe("committed");
+		if (quote.status !== "committed") {
+			return;
+		}
+		const observation = await writeObservation(prisma, {
+			actorId,
+			baseRevision: quote.session.revision,
+			idempotencyKey: "typed-observation",
+			origin: "human",
+			payload: { body: "Retried twice, then left.", sessionId: session.id },
+		});
+		expect(observation.status).toBe("committed");
+		if (observation.status !== "committed") {
+			return;
+		}
+		const interpretation = await writeFounderInterpretation(prisma, {
+			actorId,
+			baseRevision: observation.session.revision,
+			idempotencyKey: "typed-interpretation",
+			origin: "human",
+			payload: {
+				body: "Trust in the pay step is the stall.",
+				sessionId: session.id,
+			},
+		});
+		expect(interpretation.status).toBe("committed");
+		if (interpretation.status !== "committed") {
+			return;
+		}
+		const kinds = interpretation.session.notes.map((note) => note.kind);
+		expect(kinds).toEqual([
+			NOTE_KIND.participantQuote,
+			NOTE_KIND.observation,
+			NOTE_KIND.founderInterpretation,
+		]);
+		expect(new Set(kinds).size).toBe(3);
+		expect(JSON.stringify(interpretation.session.notes)).not.toMatch(
+			AUTO_THEME_OR_SENTIMENT
+		);
+		expect(JSON.stringify(interpretation.session)).not.toMatch(
+			FEEDBACK_OR_TEST
+		);
+		expect(interpretation.session).not.toHaveProperty("themes");
+		expect(interpretation.session).not.toHaveProperty("sentiment");
+		expect(interpretation.session).not.toHaveProperty("autoLearnings");
+	});
+
+	it("does not label founder interpretation as a participant quote", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const session = await committedSession(prisma, {
+			actorId,
+			consent: CONSENT.allowed,
+			idempotencyKey: "interpretation-not-quote",
+			projectId,
+		});
+		const interpretation = await writeFounderInterpretation(prisma, {
+			actorId,
+			baseRevision: session.revision,
+			idempotencyKey: "founder-line",
+			origin: "human",
+			payload: {
+				body: "I read this as a trust stall.",
+				sessionId: session.id,
+			},
+		});
+		expect(interpretation.status).toBe("committed");
+		if (interpretation.status !== "committed") {
+			return;
+		}
+		const [note] = interpretation.session.notes;
+		expect(note?.kind).toBe(NOTE_KIND.founderInterpretation);
+		expect(note?.kind).not.toBe(NOTE_KIND.participantQuote);
+		expect(note?.speakerLabel).toBeNull();
+		const preview = await previewClosedWorld(prisma, session.id);
+		const quoteItems = preview.filter(
+			(item) => item.kind === CLOSED_WORLD_ITEM_KIND.participantQuote
+		);
+		expect(quoteItems).toEqual([]);
+		const interpretationItem = preview.find(
+			(item) => item.kind === CLOSED_WORLD_ITEM_KIND.founderInterpretation
+		);
+		expect(interpretationItem?.kind).toBe(
+			CLOSED_WORLD_ITEM_KIND.founderInterpretation
+		);
+		expect(JSON.stringify(preview)).not.toMatch(AUTO_THEME_OR_SENTIMENT);
+	});
+
+	it("keeps a speaker label from leaking Contact fields", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const contactId = "contact-maya-hidden-email";
+		const session = await committedSession(prisma, {
+			actorId,
+			consent: CONSENT.allowed,
+			contactId,
+			idempotencyKey: "speaker-not-contact",
+			projectId,
+		});
+		expect(session.contactId).toBe(contactId);
+		expect(session.notes).toEqual([]);
+		const quote = await writeAttributedQuote(prisma, {
+			actorId,
+			baseRevision: session.revision,
+			idempotencyKey: "quote-with-label",
+			origin: "human",
+			payload: {
+				body: "I tapped twice.",
+				sessionId: session.id,
+				speakerLabel: "Maya",
+			},
+		});
+		expect(quote.status).toBe("committed");
+		if (quote.status !== "committed") {
+			return;
+		}
+		expect(quote.session.notes[0]?.speakerLabel).toBe("Maya");
+		expect(quote.session.notes[0]?.speakerLabel).not.toBe(contactId);
+		expect(JSON.stringify(quote.session.notes[0])).not.toContain(contactId);
+		const preview = await previewClosedWorld(prisma, session.id);
+		const quoteItem = preview.find(
+			(item) => item.kind === CLOSED_WORLD_ITEM_KIND.participantQuote
+		);
+		expect(quoteItem).toBeDefined();
+		if (quoteItem?.kind !== CLOSED_WORLD_ITEM_KIND.participantQuote) {
+			return;
+		}
+		expect(quoteItem.speakerLabel).toBe("Maya");
+		expect(JSON.stringify(quoteItem)).not.toContain(contactId);
+		const contactItem = preview.find(
+			(item) => item.kind === CLOSED_WORLD_ITEM_KIND.contact
+		);
+		expect(contactItem?.kind).toBe(CLOSED_WORLD_ITEM_KIND.contact);
+		const observationWithSpeaker = await writeObservation(prisma, {
+			actorId,
+			baseRevision: quote.session.revision,
+			idempotencyKey: "observation-speaker",
+			origin: "human",
+			payload: {
+				body: "Left the page.",
+				sessionId: session.id,
+				speakerLabel: "Maya Chen",
+			},
+		});
+		expect(observationWithSpeaker).toEqual({
+			reason: "invalid-command",
+			status: "rejected",
+		});
 	});
 });

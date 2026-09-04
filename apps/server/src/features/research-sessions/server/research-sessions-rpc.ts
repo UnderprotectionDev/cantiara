@@ -18,7 +18,8 @@ import {
 	setParticipant,
 	setStatus,
 	writeAttributedQuote,
-	writeIdentifyingPersonalNote,
+	writeFounderInterpretation,
+	writeObservation,
 } from "./research-sessions";
 import {
 	attachFilePayloadSchema,
@@ -232,7 +233,7 @@ export const researchSessions = {
 				payload: input.payload,
 			});
 		}),
-	writeIdentifyingPersonalNote: protectedWriteProcedure
+	writeFounderInterpretation: protectedWriteProcedure
 		.input(
 			z.object({
 				baseRevision: z.number().int().nonnegative(),
@@ -243,7 +244,26 @@ export const researchSessions = {
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireSession(access.workspaceId, input.payload.sessionId);
-			return await writeIdentifyingPersonalNote(getPrismaClient(), {
+			return await writeFounderInterpretation(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	writeObservation: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: writeNotePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireSession(access.workspaceId, input.payload.sessionId);
+			return await writeObservation(getPrismaClient(), {
 				actorId: context.session.user.id,
 				baseRevision: input.baseRevision,
 				idempotencyKey: input.idempotencyKey,

@@ -13,11 +13,12 @@ export const RESEARCH_SESSIONS_COPY = {
 	createResearchSession: "Create Research Session",
 	duration: "Duration",
 	facilitator: "Facilitator",
-	identifyingPersonalNote: "Identifying personal note",
+	founderInterpretation: "Founder interpretation",
 	noResearchSessions: "No Research Sessions yet.",
 	notAllowed: "Not allowed",
 	notApplicable: "Not applicable",
 	notAsked: "Not asked",
+	observation: "Observation",
 	optionalContact: "Contact (optional)",
 	participantQuote: "Participant quote",
 	planned: "Planned",
@@ -64,13 +65,15 @@ export const CONSENT_VALUES = [
 export type ConsentValue = (typeof CONSENT_VALUES)[number];
 
 export const NOTE_KIND = {
-	identifyingPersonalNote: RESEARCH_SESSIONS_COPY.identifyingPersonalNote,
+	founderInterpretation: RESEARCH_SESSIONS_COPY.founderInterpretation,
+	observation: RESEARCH_SESSIONS_COPY.observation,
 	participantQuote: RESEARCH_SESSIONS_COPY.participantQuote,
 } as const;
 
 export const NOTE_KINDS = [
 	NOTE_KIND.participantQuote,
-	NOTE_KIND.identifyingPersonalNote,
+	NOTE_KIND.observation,
+	NOTE_KIND.founderInterpretation,
 ] as const;
 
 export type NoteKind = (typeof NOTE_KINDS)[number];
@@ -88,7 +91,8 @@ export const CLOSED_WORLD_ITEM_KIND = {
 	consent: RESEARCH_SESSIONS_COPY.consent,
 	contact: RESEARCH_SESSIONS_COPY.contact,
 	fileAttachment: "File Attachment",
-	identifyingPersonalNote: NOTE_KIND.identifyingPersonalNote,
+	founderInterpretation: NOTE_KIND.founderInterpretation,
+	observation: NOTE_KIND.observation,
 	participantQuote: NOTE_KIND.participantQuote,
 	researchSession: RESEARCH_SESSIONS_COPY.researchSession,
 } as const;
@@ -287,6 +291,7 @@ const rejectReasons = [
 	"invalid-command",
 	"session-not-found",
 	"consent-gates-closed",
+	"untyped-note-refused",
 	"preview-required",
 ] as const;
 
@@ -368,7 +373,12 @@ export const closedWorldItemSchema = z.discriminatedUnion("kind", [
 	z.object({
 		body: z.string(),
 		id: z.string().min(1),
-		kind: z.literal(CLOSED_WORLD_ITEM_KIND.identifyingPersonalNote),
+		kind: z.literal(CLOSED_WORLD_ITEM_KIND.observation),
+	}),
+	z.object({
+		body: z.string(),
+		id: z.string().min(1),
+		kind: z.literal(CLOSED_WORLD_ITEM_KIND.founderInterpretation),
 	}),
 	z.object({
 		fileAttachmentId: z.string().min(1),
