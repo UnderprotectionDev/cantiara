@@ -33,6 +33,7 @@ export default function ResearchSessionDetail({
 	const [quote, setQuote] = useState("");
 	const [speaker, setSpeaker] = useState("");
 	const [identifyingNote, setIdentifyingNote] = useState("");
+	const [fileAttachmentId, setFileAttachmentId] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const invalidate = useCallback(async () => {
 		await queryClient.invalidateQueries({
@@ -91,6 +92,19 @@ export default function ResearchSessionDetail({
 			},
 		})
 	);
+	const attachFile = useMutation(
+		orpc.researchSessions.attachFile.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "rejected") {
+					setError(outcome.reason);
+					return;
+				}
+				setError(null);
+				setFileAttachmentId("");
+				await invalidate();
+			},
+		})
+	);
 	const onQuoteSubmit = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
@@ -125,6 +139,23 @@ export default function ResearchSessionDetail({
 			});
 		},
 		[identifyingNote, session.data, sessionId, writeIdentifyingNote]
+	);
+	const onAttachFileSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			if (!session.data) {
+				return;
+			}
+			attachFile.mutate({
+				baseRevision: session.data.revision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: {
+					fileAttachmentId: fileAttachmentId.trim(),
+					sessionId,
+				},
+			});
+		},
+		[attachFile, fileAttachmentId, session.data, sessionId]
 	);
 	const onStatusChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
@@ -184,6 +215,12 @@ export default function ResearchSessionDetail({
 	const onIdentifyingNoteChange = useCallback(
 		(event: ChangeEvent<HTMLTextAreaElement>) => {
 			setIdentifyingNote(event.target.value);
+		},
+		[]
+	);
+	const onFileAttachmentIdChange = useCallback(
+		(event: ChangeEvent<HTMLInputElement>) => {
+			setFileAttachmentId(event.target.value);
 		},
 		[]
 	);
@@ -324,12 +361,37 @@ export default function ResearchSessionDetail({
 					{RESEARCH_SESSIONS_COPY.identifyingPersonalNote}
 				</Button>
 			</form>
+			<form className="flex flex-col gap-3" onSubmit={onAttachFileSubmit}>
+				<Field>
+					<FieldLabel htmlFor="research-session-file-attachment">
+						{RESEARCH_SESSIONS_COPY.attachFile}
+					</FieldLabel>
+					<Input
+						disabled={!session.data.consentGatesOpen}
+						id="research-session-file-attachment"
+						onChange={onFileAttachmentIdChange}
+						value={fileAttachmentId}
+					/>
+				</Field>
+				<Button disabled={!session.data.consentGatesOpen} type="submit">
+					{RESEARCH_SESSIONS_COPY.attachFile}
+				</Button>
+			</form>
 			{session.data.notes.length > 0 ? (
 				<ul className="flex flex-col gap-2">
 					{session.data.notes.map((note) => (
 						<li className="text-sm" key={note.id}>
 							{note.kind}
 							{note.speakerLabel ? ` · ${note.speakerLabel}` : ""}: {note.body}
+						</li>
+					))}
+				</ul>
+			) : null}
+			{session.data.files.length > 0 ? (
+				<ul className="flex flex-col gap-2">
+					{session.data.files.map((file) => (
+						<li className="text-sm" key={file.id}>
+							{RESEARCH_SESSIONS_COPY.attachFile}: {file.fileAttachmentId}
 						</li>
 					))}
 				</ul>

@@ -676,7 +676,7 @@ Bir görüşme veya yönlendirilmiş araştırma temasının amaç, izin, türle
 _Avoid_: Geri Bildirim, Test Oturumu, Deney/Doğrulama
 
 **İzin bağlamı**:
-Kullanıcı Araştırması Oturumunda atıf, tanımlayıcı kişisel not, Dosya Eki ve paylaşım/yayın kapılarını bağlayan `Not asked`, `Allowed`, `Not allowed` veya `Not applicable` kaydı; hukuki uygunluk hükmü değildir.
+Kullanıcı Araştırması Oturumunda atıf, tanımlayıcı kişisel not, Dosya Eki ve paylaşım/yayın kapılarını bağlayan `Not asked`, `Allowed`, `Not allowed` veya `Not applicable` kaydı; hukuki uygunluk hükmü değildir. UI: `Consent`.
 _Avoid_: GDPR onayı, yasal uygunluk damgası, CRM izin durumu
 
 ## Bilgi ve kanıt
