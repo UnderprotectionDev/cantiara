@@ -845,6 +845,18 @@ _Avoid_: CRM hesabı, ticari Hesap, Invoice müşterisi
 Contact'ın Company ile türlenmiş güncel bağı; Contact başına en fazla bir güncel Company vardır ve geçmiş değişiklikte korunur ([standart ilişki türleri](docs/prd/02-domain-model-and-lifecycle.md#standart-ilişki-türleri)). UI: `Belongs to Company`.
 _Avoid_: CRM hesabı, zorunlu şirket, satış aşaması
 
+**Kopya adayları**:
+Aynı normalize e-posta veya ad/Company benzerliğiyle görünen Contact çiftleri; birleştirme yazması veya otomatik konsolidasyon değildir ([Contact ve Company kimliği](docs/prd/08-search-relations-and-evidence.md#contact-ve-company-kimliği)). UI: `Duplicate candidates`.
+_Avoid_: otomatik birleştirme, Company birleştirme, CRM kopya birleştirme
+
+**Güçlü kopya adayı**:
+Aynı normalize e-posta taşıyan Contact çifti; görünür kopyadır, onay olmadan birleştirilmez. UI: `Strong copy candidate`.
+_Avoid_: otomatik birleştirme, kimlik olarak e-posta
+
+**Zayıf öneri**:
+Ad veya güncel Company benzerliği; kimlik hükmü değildir ve güçlü aday gibi birleştirme çağrısı açmaz. UI: `Weak suggestion`.
+_Avoid_: benzerliği kimlik sayma, otomatik birleştirme
+
 **Kanıt bağı**:
 Kesin bir Kaynak, Belge, Diyagram veya Dosya Eki sürümünün belirli bir hedef iddiayı desteklediğini açık rol ve atıfla gösteren ilişki; Kaynağın varlığı tek başına bu bağı veya doğruluk hükmünü oluşturmaz.
 _Avoid_: İlgili ilişkisi, belirsiz referans, otomatik doğrulama
