@@ -17,6 +17,23 @@ function sourceQueryKey(sourceId: string, sourceType: FavoriteSourceType) {
 	});
 }
 
+async function invalidateFavoriteQueries(
+	sourceId: string,
+	sourceType: FavoriteSourceType
+) {
+	await Promise.all([
+		queryClient.invalidateQueries({
+			queryKey: sourceQueryKey(sourceId, sourceType),
+		}),
+		queryClient.invalidateQueries({
+			queryKey: orpc.favorites.openList.queryKey(),
+		}),
+		queryClient.invalidateQueries({
+			queryKey: orpc.favorites.list.queryKey(),
+		}),
+	]);
+}
+
 export default function FavoriteToggle({
 	sourceId,
 	sourceType,
@@ -33,18 +50,14 @@ export default function FavoriteToggle({
 	const add = useMutation(
 		orpc.favorites.add.mutationOptions({
 			onSuccess: async () => {
-				await queryClient.invalidateQueries({
-					queryKey: sourceQueryKey(sourceId, sourceType),
-				});
+				await invalidateFavoriteQueries(sourceId, sourceType);
 			},
 		})
 	);
 	const remove = useMutation(
 		orpc.favorites.remove.mutationOptions({
 			onSuccess: async () => {
-				await queryClient.invalidateQueries({
-					queryKey: sourceQueryKey(sourceId, sourceType),
-				});
+				await invalidateFavoriteQueries(sourceId, sourceType);
 			},
 		})
 	);

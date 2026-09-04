@@ -35,6 +35,7 @@ import {
 	FAVORITES_COPY,
 	FAVORITES_COUNTERPARTS,
 	FAVORITES_SOURCE_WRITES,
+	favoriteSourceHref,
 	favoritesCatalog,
 } from "./favorites-model";
 
@@ -42,6 +43,7 @@ const DATABASE_URL = localTestDatabaseUrl();
 
 const FORBIDDEN_SURFACE =
 	/bookmark queue|Active Working Set|Save for Later|planning membership/i;
+const HIDDEN_SOURCE_LEAK = /Hidden|Secret/;
 
 describe("Favorites catalog", () => {
 	it("exposes the closed source list, English copy, and no planning counterparts", () => {
@@ -74,6 +76,26 @@ describe("Favorites catalog", () => {
 		expect(FAVORITES_SOURCE_WRITES.backlogOrder).toBe(false);
 		expect(FAVORITES_SOURCE_WRITES.scope).toBe(false);
 		expect(JSON.stringify(favoritesCatalog())).not.toMatch(FORBIDDEN_SURFACE);
+		expect(FAVORITES_COPY.openSourceRecord).toBe("Open source record");
+		expect(FAVORITES_COPY.permanentlyDeleted).toBe("Permanently deleted");
+		expect(FAVORITES_COPY.noAccess).toBe("No access");
+		expect(FAVORITES_COPY.inTrash).toBe("In Trash");
+		expect(FAVORITES_COPY.archived).toBe("Archived");
+		expect(FAVORITES_COUNTERPARTS.shellMembershipStore).toBe(false);
+		expect(
+			favoriteSourceHref({
+				projectId: "proj_1",
+				sourceId: "work_1",
+				sourceType: FAVORITE_SOURCE_TYPE.work,
+			})
+		).toBe("/projects/proj_1?work=work_1#work");
+		expect(
+			favoriteSourceHref({
+				projectId: null,
+				sourceId: "proj_1",
+				sourceType: FAVORITE_SOURCE_TYPE.project,
+			})
+		).toBe("/projects/proj_1#overview");
 	});
 });
 
@@ -482,5 +504,188 @@ describe("Favorites", () => {
 				where: { id: project.id },
 			})
 		).toEqual(beforeProject);
+	});
+
+	it("opens the same source record from Favorites without a second copy", async () => {
+		const project = await openProject("Alpha");
+		const work = await openWork(project.id, "Ship");
+		const added = await surface().add({
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: work.id,
+			sourceType: FAVORITE_SOURCE_TYPE.work,
+		});
+		if (added.status !== "committed") {
+			throw new Error("expected committed Favorite");
+		}
+		const beforeCount = await prisma.work.count({
+			where: { projectId: project.id },
+		});
+		const opened = await surface().openList();
+		expect(opened.title).toBe("Favorites");
+		expect(opened.copy.openSourceRecord).toBe("Open source record");
+		expect(opened.membershipWrite).toBe(false);
+		expect(opened.secondCopy).toBe(false);
+		expect(opened.rows).toHaveLength(1);
+		expect(opened.rows[0]).toMatchObject({
+			id: added.membership.id,
+			openTarget: {
+				href: `/projects/${project.id}?work=${encodeURIComponent(work.id)}#work`,
+				kind: "record",
+				openSourceRecord: "Open source record",
+			},
+			sourceId: work.id,
+			sourceType: "Work",
+			title: "Ship",
+		});
+		expect(opened.rows[0]?.id).not.toBe(work.id);
+		expect(await surface().openSource(added.membership.id)).toEqual(
+			opened.rows[0]
+		);
+		expect(await prisma.work.count({ where: { projectId: project.id } })).toBe(
+			beforeCount
+		);
+		expect(await getWork(prisma, work.id)).toMatchObject({
+			id: work.id,
+			title: "Ship",
+		});
+	});
+
+	it("shows a broken reference for a deleted source and does not open another Work", async () => {
+		const project = await openProject("Alpha");
+		const gone = await openWork(project.id, "Gone");
+		const kept = await openWork(project.id, "Kept");
+		const addedGone = await surface().add({
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: gone.id,
+			sourceType: FAVORITE_SOURCE_TYPE.work,
+		});
+		const addedKept = await surface().add({
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: kept.id,
+			sourceType: FAVORITE_SOURCE_TYPE.work,
+		});
+		if (addedGone.status !== "committed" || addedKept.status !== "committed") {
+			throw new Error("expected committed Favorites");
+		}
+		await prisma.work.delete({ where: { id: gone.id } });
+		const opened = await surface().openList();
+		const goneRow = opened.rows.find((row) => row.sourceId === gone.id);
+		const keptRow = opened.rows.find((row) => row.sourceId === kept.id);
+		expect(goneRow?.title).toBeNull();
+		expect(goneRow?.openTarget).toEqual({
+			href: null,
+			kind: "broken-reference",
+			openSourceRecord: null,
+			reason: FAVORITES_COPY.permanentlyDeleted,
+		});
+		expect(keptRow?.openTarget).toMatchObject({
+			href: `/projects/${project.id}?work=${encodeURIComponent(kept.id)}#work`,
+			kind: "record",
+		});
+		expect(await surface().openSource(addedGone.membership.id)).toEqual(
+			goneRow
+		);
+		expect(opened.rows.map((row) => row.sourceId).sort()).toEqual(
+			[gone.id, kept.id].sort()
+		);
+	});
+
+	it("shows No access for an inaccessible source without leaking its title", async () => {
+		const otherUser = await prisma.user.create({
+			data: {
+				email: `${crypto.randomUUID()}@example.com`,
+				emailVerified: true,
+				id: crypto.randomUUID(),
+				name: "Other",
+			},
+		});
+		const otherWorkspace = await prisma.workspace.create({
+			data: {
+				id: crypto.randomUUID(),
+				name: "Other",
+				ownerId: otherUser.id,
+			},
+		});
+		const otherProject = await createProject(prisma, {
+			actorId: otherUser.id,
+			idempotencyKey: `other-${actorId}`,
+			origin: "human",
+			payload: {
+				name: "Secret",
+				starterConfiguration: "Blank Project",
+			},
+			workspaceId: otherWorkspace.id,
+		});
+		if (otherProject.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		const otherWork = await createWork(prisma, {
+			actorId: otherUser.id,
+			idempotencyKey: `other-work-${actorId}`,
+			origin: "human",
+			payload: { projectId: otherProject.project.id, title: "Hidden" },
+		});
+		if (otherWork.status !== "committed") {
+			throw new Error("expected committed Work");
+		}
+		const membershipId = crypto.randomUUID();
+		await prisma.favoriteMembership.create({
+			data: {
+				accountId: actorId,
+				id: membershipId,
+				sourceId: otherWork.work.id,
+				sourceType: FAVORITE_SOURCE_TYPE.work,
+			},
+		});
+		const opened = await surface().openList();
+		expect(opened.rows).toEqual([
+			expect.objectContaining({
+				id: membershipId,
+				openTarget: {
+					href: null,
+					kind: "broken-reference",
+					openSourceRecord: null,
+					reason: FAVORITES_COPY.noAccess,
+				},
+				sourceId: otherWork.work.id,
+				sourceType: "Work",
+				title: null,
+			}),
+		]);
+		expect(JSON.stringify(opened.rows)).not.toMatch(HIDDEN_SOURCE_LEAK);
+		await prisma.favoriteMembership.delete({ where: { id: membershipId } });
+		await prisma.workspace.deleteMany({ where: { ownerId: otherUser.id } });
+		await prisma.user.deleteMany({ where: { id: otherUser.id } });
+	});
+
+	it("keeps Open source record on a trashed source and does not write membership when the shell opens the list", async () => {
+		const project = await openProject("Alpha");
+		const work = await openWork(project.id, "Ship");
+		const added = await surface().add({
+			idempotencyKey: crypto.randomUUID(),
+			sourceId: work.id,
+			sourceType: FAVORITE_SOURCE_TYPE.work,
+		});
+		if (added.status !== "committed") {
+			throw new Error("expected committed Favorite");
+		}
+		await prisma.work.update({
+			data: { trashedAt: new Date("2026-09-04T12:00:00.000Z") },
+			where: { id: work.id },
+		});
+		const before = await surface().list();
+		const opened = await surface().openList();
+		expect(opened.membershipWrite).toBe(false);
+		expect(opened.rows[0]?.title).toBe("Ship");
+		expect(opened.rows[0]?.openTarget).toEqual({
+			href: `/projects/${project.id}?work=${encodeURIComponent(work.id)}#work`,
+			kind: "broken-reference",
+			openSourceRecord: "Open source record",
+			reason: FAVORITES_COPY.inTrash,
+		});
+		expect(await surface().list()).toEqual(before);
+		expect(await surface().openSource(added.membership.id)).toEqual(
+			opened.rows[0]
+		);
 	});
 });

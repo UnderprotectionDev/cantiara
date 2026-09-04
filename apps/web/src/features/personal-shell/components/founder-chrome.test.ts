@@ -25,6 +25,7 @@ test("founder chrome reaches Capture and Projects, not Home or Dashboard twins",
 		{ label: "Capture", to: "/capture" },
 		{ label: "Drafts", to: "/drafts" },
 		{ label: "Daily Focus", to: "/daily-focus" },
+		{ label: "Favorites", to: "/favorites" },
 		{ label: "Calendar", to: "/calendar" },
 		{ label: "Focus Period", to: "/focus-periods" },
 		{ label: "Projects", to: "/projects" },
@@ -54,6 +55,7 @@ test("primary chrome keeps Capture, Daily Focus, and Projects on the bar", () =>
 	expect(founderChromePrimaryNav()).toEqual([
 		{ label: "Capture", to: "/capture" },
 		{ label: "Daily Focus", to: "/daily-focus" },
+		{ label: "Favorites", to: "/favorites" },
 		{ label: "Projects", to: "/projects" },
 	]);
 });

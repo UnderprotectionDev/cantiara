@@ -48,6 +48,16 @@ export const favorites = {
 			const surface = await favoritesFor(context.session.user.id);
 			return surface.listForSource(input);
 		}),
+	openList: protectedProcedure.handler(async ({ context }) => {
+		const surface = await favoritesFor(context.session.user.id);
+		return surface.openList();
+	}),
+	openSource: protectedProcedure
+		.input(z.object({ membershipId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const surface = await favoritesFor(context.session.user.id);
+			return surface.openSource(input.membershipId);
+		}),
 	remove: protectedWriteProcedure
 		.input(membershipInput)
 		.handler(async ({ context, input }) => {
