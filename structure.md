@@ -358,6 +358,7 @@
 │       │   │   ├── smart-collections/
 │       │   │   │   └── views/
 │       │   │   ├── sources-and-freshness/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── spec-change-review/
 │       │   │   │   └── views/

@@ -10,6 +10,7 @@ import {
 	createMilestone,
 	placeHorizon,
 } from "../../../apps/server/src/features/roadmap-horizon/server/roadmap-horizon";
+import { createSource } from "../../../apps/server/src/features/sources-and-freshness/server/sources";
 import {
 	applyTag,
 	createTag,
@@ -390,4 +391,32 @@ export async function seedProjectDocument(
 		workspaceId: ctx.workspaceId,
 	});
 	assertCommitted(created, `createDocument(${input.title})`);
+}
+
+export async function seedProjectSource(
+	ctx: SeedContext,
+	input: {
+		capturedContent: string;
+		prefix: string;
+		projectId: string;
+		title: string;
+		url: string;
+	}
+): Promise<void> {
+	if (ctx.dryRun) {
+		return;
+	}
+
+	const created = await createSource(ctx.prisma, {
+		actorId: ctx.actorId,
+		idempotencyKey: idempotencyKey(input.prefix, "source"),
+		origin: "human",
+		payload: {
+			capturedContent: input.capturedContent,
+			projectId: input.projectId,
+			title: input.title,
+			url: input.url,
+		},
+	});
+	assertCommitted(created, `createSource(${input.title})`);
 }

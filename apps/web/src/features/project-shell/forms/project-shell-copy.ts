@@ -80,14 +80,22 @@ export function pinnedNavigationAreas(
 	return pinnedAreas.filter((area) => enabledAreas.includes(area));
 }
 
-const REACHABLE_AREAS = ["Work", "Documents", "File Attachment"] as const;
+const REACHABLE_AREAS = [
+	"Work",
+	"Documents",
+	"File Attachment",
+	"Source",
+] as const;
 
 export function projectPersistentNav(
 	pinnedAreas: readonly string[],
 	enabledAreas: readonly string[]
 ): string[] {
 	const reachable = REACHABLE_AREAS.filter(
-		(area) => area === "File Attachment" || enabledAreas.includes(area)
+		(area) =>
+			area === "File Attachment" ||
+			area === "Source" ||
+			enabledAreas.includes(area)
 	);
 	const listed = new Set<string>(reachable);
 	const pinned = pinnedNavigationAreas(pinnedAreas, enabledAreas).filter(
@@ -118,6 +126,7 @@ export interface ProjectShellSearch {
 	decision?: string;
 	goal?: string;
 	researchSession?: string;
+	source?: string;
 	work?: string;
 }
 
@@ -144,6 +153,7 @@ export function projectShellSearch(
 	const decision = nonemptySearchString(search.decision);
 	const goal = nonemptySearchString(search.goal);
 	const researchSession = nonemptySearchString(search.researchSession);
+	const source = nonemptySearchString(search.source);
 	const work = nonemptySearchString(search.work);
 	return {
 		...(configurationMode ? { configurationMode: true as const } : {}),
@@ -154,6 +164,7 @@ export function projectShellSearch(
 		...(decision ? { decision } : {}),
 		...(goal ? { goal } : {}),
 		...(researchSession ? { researchSession } : {}),
+		...(source ? { source } : {}),
 		...(work ? { work } : {}),
 	};
 }
@@ -226,6 +237,7 @@ const ALWAYS_ON_ANCHORS = {
 	Documents: "documents",
 	"File Attachment": "file-attachment",
 	Overview: "overview",
+	Source: "source",
 	Work: "work",
 } as const;
 
@@ -293,6 +305,7 @@ const WORK_SELECT_RESET_ANCHORS = new Set([
 	ALWAYS_ON_ANCHORS["All Tools"],
 	ALWAYS_ON_ANCHORS.Documents,
 	ALWAYS_ON_ANCHORS["File Attachment"],
+	ALWAYS_ON_ANCHORS.Source,
 ]);
 
 export function projectShellHashAnchor(hash: string): string {

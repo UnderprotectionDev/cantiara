@@ -39,7 +39,7 @@ async function requireAccess(userId: string) {
 
 async function loadWorkspaceIndex(workspaceId: string) {
 	const prisma = getPrismaClient();
-	const [works, fileAttachments, decisions, researchSessions] =
+	const [works, fileAttachments, decisions, researchSessions, sources] =
 		await Promise.all([
 			prisma.work.findMany({
 				select: {
@@ -97,11 +97,42 @@ async function loadWorkspaceIndex(workspaceId: string) {
 				},
 				where: { project: { workspaceId } },
 			}),
+			prisma.source.findMany({
+				select: {
+					approvedVersionNumber: true,
+					id: true,
+					projectId: true,
+					updatedAt: true,
+					versions: {
+						select: {
+							capturedContent: true,
+							title: true,
+							url: true,
+							versionNumber: true,
+						},
+					},
+				},
+				where: { project: { workspaceId } },
+			}),
 		]);
 	return loadSearchIndexFromRows({
 		decisions,
 		fileAttachments,
 		researchSessions,
+		sources: sources.map((source) => {
+			const current =
+				source.versions.find(
+					(version) => version.versionNumber === source.approvedVersionNumber
+				) ?? source.versions[0];
+			return {
+				capturedContent: current?.capturedContent ?? "",
+				id: source.id,
+				projectId: source.projectId,
+				title: current?.title ?? "",
+				updatedAt: source.updatedAt,
+				url: current?.url ?? "",
+			};
+		}),
 		works,
 	});
 }

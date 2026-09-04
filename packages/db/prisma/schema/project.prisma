@@ -38,6 +38,7 @@ model Project {
   decisions                       Decision[]
   assumptions                     Assumption[]
   researchSessions                ResearchSession[]
+  sources                         Source[]
   documentFolders                 DocumentFolder[]
   documentTemplates               DocumentTemplate[]
   workContextCardLayouts          ProjectWorkContextLayout[]

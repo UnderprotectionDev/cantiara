@@ -46,6 +46,7 @@ import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
 import { RESEARCH_SESSIONS_COPY } from "@/features/research-sessions/forms/research-sessions-copy";
 import ResearchSessionArea from "@/features/research-sessions/views/research-session-area";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
+import SourceArea from "@/features/sources-and-freshness/views/source-area";
 import AssumptionArea from "@/features/uncertainty-records/views/assumption-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
@@ -92,9 +93,11 @@ export default function ProjectProfile({
 	onGoalId,
 	onPresentationChange,
 	onResearchSessionId,
+	onSourceId,
 	onWorkId,
 	projectId,
 	researchSessionId,
+	sourceId,
 	workId,
 }: {
 	assumptionId?: string | null;
@@ -111,9 +114,11 @@ export default function ProjectProfile({
 		open: boolean;
 	}) => void;
 	onResearchSessionId?: (sessionId: string | null) => void;
+	onSourceId?: (sourceId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
 	researchSessionId?: string | null;
+	sourceId?: string | null;
 	workId?: string | null;
 }) {
 	const project = useQuery(
@@ -170,7 +175,11 @@ export default function ProjectProfile({
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const overviewCurrent =
-		(selectedAnchor === "" && !workId && !decisionId && !researchSessionId) ||
+		(selectedAnchor === "" &&
+			!workId &&
+			!decisionId &&
+			!researchSessionId &&
+			!sourceId) ||
 		selectedAnchor === overviewAnchor;
 
 	const nav = (
@@ -233,10 +242,12 @@ export default function ProjectProfile({
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
 					onResearchSessionId={onResearchSessionId}
+					onSourceId={onSourceId}
 					onToggle={onToggle}
 					onWorkId={onWorkId}
 					researchSessionId={researchSessionId}
 					selectedAnchor={selectedAnchor}
+					sourceId={sourceId}
 					workId={workId}
 				/>
 			</main>
@@ -483,10 +494,13 @@ function projectRecordArea({
 	fileAttachmentAnchor,
 	onAssumptionId,
 	onDecisionId,
+	onSourceId,
 	onWorkId,
 	projectId,
 	selectedAnchor,
 	selectedArea,
+	sourceAnchor,
+	sourceId,
 }: {
 	assumptionId?: string | null;
 	decisionId?: string | null;
@@ -495,10 +509,13 @@ function projectRecordArea({
 	fileAttachmentAnchor: string;
 	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
+	onSourceId?: (sourceId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
 	selectedAnchor: string;
 	selectedArea: string | undefined;
+	sourceAnchor: string;
+	sourceId?: string | null;
 }) {
 	if (selectedAnchor === documentsAnchor || selectedArea === "Documents") {
 		return (
@@ -541,6 +558,24 @@ function projectRecordArea({
 			</section>
 		);
 	}
+	if (
+		selectedAnchor === sourceAnchor ||
+		selectedArea === "Source" ||
+		sourceId
+	) {
+		return (
+			<section aria-label="Source" id={sourceAnchor}>
+				<h1 className="font-semibold text-[1.375rem] tracking-tight">Source</h1>
+				<div className="mt-6">
+					<SourceArea
+						onSourceId={onSourceId}
+						projectId={projectId}
+						sourceId={sourceId}
+					/>
+				</div>
+			</section>
+		);
+	}
 	return null;
 }
 
@@ -556,10 +591,12 @@ function ProjectBody({
 	onGoalId,
 	onOpenEditor,
 	onResearchSessionId,
+	onSourceId,
 	onToggle,
 	onWorkId,
 	researchSessionId,
 	selectedAnchor,
+	sourceId,
 	workId,
 }: {
 	assumptionId?: string | null;
@@ -573,10 +610,12 @@ function ProjectBody({
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
 	onResearchSessionId?: (sessionId: string | null) => void;
+	onSourceId?: (sourceId: string | null) => void;
 	onToggle: () => void;
 	onWorkId?: (workId: string | null) => void;
 	researchSessionId?: string | null;
 	selectedAnchor: string;
+	sourceId?: string | null;
 	workId?: string | null;
 }) {
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
@@ -584,6 +623,7 @@ function ProjectBody({
 	const documentsAnchor = projectShellAnchor("Documents");
 	const decisionsAnchor = projectShellAnchor("Decisions");
 	const fileAttachmentAnchor = projectShellAnchor("File Attachment");
+	const sourceAnchor = projectShellAnchor("Source");
 	const selectedArea = data.allToolsAreas
 		.map((area) => area.name)
 		.find((area) => projectShellAnchor(area) === selectedAnchor);
@@ -600,10 +640,13 @@ function ProjectBody({
 		fileAttachmentAnchor,
 		onAssumptionId,
 		onDecisionId,
+		onSourceId,
 		onWorkId,
 		projectId: data.id,
 		selectedAnchor,
 		selectedArea,
+		sourceAnchor,
+		sourceId: showingWork ? null : sourceId,
 	});
 
 	if (configurationMode) {
