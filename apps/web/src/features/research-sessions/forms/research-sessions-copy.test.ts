@@ -20,6 +20,12 @@ test("English Research Session labels stay Research Session and consent values",
 	expect(RESEARCH_SESSIONS_COPY.founderInterpretation).toBe(
 		"Founder interpretation"
 	);
+	expect(RESEARCH_SESSIONS_COPY.convertToNewRecordAndBind).toBe(
+		"Convert to new record and bind"
+	);
+	expect(RESEARCH_SESSIONS_COPY.versionPinnedEvidence).toBe(
+		"Version-pinned evidence"
+	);
 	expect(RESEARCH_SESSIONS_COPY.createResearchSession).toBe(
 		"Create Research Session"
 	);

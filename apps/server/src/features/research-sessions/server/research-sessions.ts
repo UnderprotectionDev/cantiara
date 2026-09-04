@@ -14,10 +14,8 @@ import {
 	type ClosedWorldItem,
 	CONSENT,
 	type ConsentValue,
-	type ConvertOutcome,
 	type CreateResearchSessionCommand,
 	consentGatesOpen,
-	convertCommandSchema,
 	createResearchSessionCommandSchema,
 	type IncludeInShareOutcome,
 	includeInShareCommandSchema,
@@ -34,6 +32,7 @@ import {
 	setConsentCommandSchema,
 	setParticipantCommandSchema,
 	setStatusCommandSchema,
+	updateNoteCommandSchema,
 	writeNoteCommandSchema,
 } from "./research-sessions-model";
 
@@ -202,25 +201,80 @@ export async function attachFileToSession(
 	);
 }
 
-export async function convertToNewRecord(
-	_prisma: PrismaClient,
+export async function updateNote(
+	prisma: PrismaClient,
 	command: unknown
-): Promise<ConvertOutcome> {
-	const parsed = convertCommandSchema.safeParse(command);
+): Promise<ResearchSessionWriteOutcome> {
+	const parsed = updateNoteCommandSchema.safeParse(command);
 	if (!parsed.success) {
 		return { reason: "invalid-command", status: "rejected" };
 	}
-	const session = await _prisma.researchSession.findUnique({
-		where: { id: parsed.data.payload.sessionId },
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction(async (tx) => {
+		const current = await tx.researchSession.findUnique({
+			where: { id: parsed.data.payload.sessionId },
+		});
+		if (!current) {
+			return { reason: "session-not-found", status: "rejected" };
+		}
+		await lockProject(tx, current.projectId);
+		const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+		if (replayed) {
+			return replayed;
+		}
+		const locked = await tx.researchSession.findUnique({
+			where: { id: current.id },
+		});
+		if (!locked) {
+			return { reason: "session-not-found", status: "rejected" };
+		}
+		if (locked.revision !== parsed.data.baseRevision) {
+			return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		}
+		const consent = presentConsent(locked.consent);
+		if (!consentGatesOpen(consent)) {
+			return { reason: "consent-gates-closed", status: "rejected" };
+		}
+		const note = await tx.researchSessionNote.findFirst({
+			where: {
+				id: parsed.data.payload.noteId,
+				sessionId: locked.id,
+			},
+		});
+		if (!note) {
+			return { reason: "note-not-found", status: "rejected" };
+		}
+		await tx.researchSessionNote.update({
+			data: { body: parsed.data.payload.body },
+			where: { id: note.id },
+		});
+		await tx.researchSessionEvent.create({
+			data: {
+				actorId: parsed.data.actorId,
+				id: crypto.randomUUID(),
+				kind: RESEARCH_SESSION_EVENT_KIND.updateNote,
+				next: parsed.data.payload.body,
+				previous: note.body,
+				sessionId: locked.id,
+			},
+		});
+		const updated = await tx.researchSession.update({
+			data: { revision: locked.revision + 1 },
+			where: { id: locked.id },
+		});
+		const view = await hydrateOne(tx, updated);
+		await writeReceipt(tx, {
+			actorId: parsed.data.actorId,
+			commandKey,
+			fingerprint,
+			view,
+		});
+		return { session: view, status: "committed" };
 	});
-	if (!session) {
-		return { reason: "preview-required", status: "rejected" };
-	}
-	const consent = presentConsent(session.consent);
-	if (!consentGatesOpen(consent)) {
-		return { reason: "consent-gates-closed", status: "rejected" };
-	}
-	return { reason: "preview-required", status: "rejected" };
 }
 
 export async function includeInShare(
@@ -247,7 +301,7 @@ export async function includeInShare(
 }
 
 export async function getResearchSession(
-	prisma: PrismaClient,
+	prisma: PrismaClient | PrismaTransaction,
 	sessionId: string
 ): Promise<ResearchSessionView | null> {
 	const row = await prisma.researchSession.findUnique({

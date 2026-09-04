@@ -1337,6 +1337,9 @@ async function presentRemainingEnd(
 			title: capture.body.length > 0 ? capture.body : capture.id,
 		};
 	}
+	if (input.kind === "User Research Session") {
+		return await presentResearchSessionEnd(db, input);
+	}
 	if (override?.title) {
 		return {
 			id: input.id,
@@ -1377,6 +1380,41 @@ async function presentDocumentEnd(
 		openSourceRecord: true,
 		status: "resolved",
 		title: document.title,
+	};
+}
+
+async function presentResearchSessionEnd(
+	db: PrismaClient | PrismaTransaction,
+	input: {
+		establishedAt: string;
+		id: string;
+		kind: RecordKind;
+		overrides: Record<string, EndLifecycleOverride>;
+		viewerWorkspaceId: string;
+	}
+): Promise<PresentedEnd> {
+	if (
+		!("researchSession" in db) ||
+		typeof db.researchSession?.findUnique !== "function"
+	) {
+		return brokenEnd(input, { reason: RELATIONS_COPY.permanentlyDeleted });
+	}
+	const session = await db.researchSession.findUnique({
+		include: { project: true },
+		where: { id: input.id },
+	});
+	if (!session) {
+		return brokenEnd(input, { reason: RELATIONS_COPY.permanentlyDeleted });
+	}
+	if (session.project.workspaceId !== input.viewerWorkspaceId) {
+		return brokenEnd(input, { reason: RELATIONS_COPY.noAccess });
+	}
+	return {
+		id: session.id,
+		kind: "User Research Session",
+		openSourceRecord: true,
+		status: "resolved",
+		title: session.title,
 	};
 }
 

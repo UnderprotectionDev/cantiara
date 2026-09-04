@@ -6,10 +6,12 @@ export const RESEARCH_SESSIONS_COPY = {
 	cancelled: "Cancelled",
 	channel: "Channel",
 	completed: "Completed",
+	confirmConvert: "Confirm",
 	consent: "Consent",
 	consentIsNotLegalJudgment: "Consent is not a legal compliance judgment.",
 	consentNote: "Consent note",
 	contact: "Contact",
+	convertToNewRecordAndBind: "Convert to new record and bind",
 	createResearchSession: "Create Research Session",
 	duration: "Duration",
 	facilitator: "Facilitator",
@@ -30,7 +32,10 @@ export const RESEARCH_SESSIONS_COPY = {
 	scopeNote: "Scope note",
 	speakerLabel: "Speaker label",
 	status: "Status",
+	targetProject: "Project",
+	targetType: "Target type",
 	title: "Title",
+	versionPinnedEvidence: "Version-pinned evidence",
 	youRemainResponsible: "You remain responsible for your obligations.",
 } as const;
 
@@ -78,12 +83,24 @@ export const NOTE_KINDS = [
 
 export type NoteKind = (typeof NOTE_KINDS)[number];
 
+export const CONVERT_TARGET_KINDS = [
+	"Feedback",
+	"Assumption",
+	"Open Question",
+	"Work",
+	"Feature",
+	"Decision",
+] as const;
+
+export type ConvertTargetKind = (typeof CONVERT_TARGET_KINDS)[number];
+
 export const RESEARCH_SESSION_EVENT_KIND = {
 	attachFile: "attach-file",
 	create: "create",
 	setConsent: "set-consent",
 	setParticipant: "set-participant",
 	setStatus: "set-status",
+	updateNote: "update-note",
 	writeNote: "write-note",
 } as const;
 
@@ -260,18 +277,109 @@ export const attachFileCommandSchema = z.object({
 export type AttachFileCommand = z.infer<typeof attachFileCommandSchema>;
 
 export const convertPayloadSchema = z.object({
+	noteId: z.string().min(1).optional(),
 	previewAcknowledged: z.boolean().optional(),
+	previewFingerprint: z.string().min(1).optional(),
+	projectId: z.string().min(1).optional(),
+	rangeEnd: z.number().int().nonnegative().optional(),
+	rangeStart: z.number().int().nonnegative().optional(),
+	recordKind: z.enum(CONVERT_TARGET_KINDS).optional(),
 	sessionId: z.string().min(1),
+	title: z.string().optional(),
 });
 
 export const convertCommandSchema = z.object({
 	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative().optional(),
 	idempotencyKey: z.string().min(1),
 	origin: z.literal("human"),
 	payload: convertPayloadSchema,
 });
 
 export type ConvertCommand = z.infer<typeof convertCommandSchema>;
+
+export const previewConvertInputSchema = z.object({
+	noteId: z.string().min(1),
+	projectId: z.string().min(1),
+	rangeEnd: z.number().int().nonnegative().optional(),
+	rangeStart: z.number().int().nonnegative().optional(),
+	recordKind: z.enum(CONVERT_TARGET_KINDS),
+	sessionId: z.string().min(1),
+	title: z.string().optional(),
+});
+
+export type PreviewConvertInput = z.infer<typeof previewConvertInputSchema>;
+
+export const convertPreviewSchema = z.object({
+	body: z.string(),
+	fingerprint: z.string().min(1),
+	label: z.literal(RESEARCH_SESSIONS_COPY.convertToNewRecordAndBind),
+	noteId: z.string().min(1),
+	origin: z.literal("Origin"),
+	projectId: z.string().min(1),
+	recordKind: z.enum(CONVERT_TARGET_KINDS),
+	sessionId: z.string().min(1),
+	sessionRevision: z.number().int().positive(),
+	textRange: z.object({
+		end: z.number().int().nonnegative(),
+		start: z.number().int().nonnegative(),
+	}),
+	title: z.string(),
+	versionPinnedEvidence: z.literal(
+		RESEARCH_SESSIONS_COPY.versionPinnedEvidence
+	),
+});
+
+export type ConvertPreview = z.infer<typeof convertPreviewSchema>;
+
+export const previewConvertOutcomeSchema = z.union([
+	z.object({
+		preview: convertPreviewSchema,
+		status: z.literal("ok"),
+	}),
+	z.object({
+		reason: z.enum([
+			"invalid-command",
+			"session-not-found",
+			"consent-gates-closed",
+			"note-not-found",
+		]),
+		status: z.literal("rejected"),
+	}),
+]);
+
+export type PreviewConvertOutcome = z.infer<typeof previewConvertOutcomeSchema>;
+
+export const updateNotePayloadSchema = z.object({
+	body: z.string().min(1),
+	noteId: z.string().min(1),
+	sessionId: z.string().min(1),
+});
+
+export const updateNoteCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: updateNotePayloadSchema,
+});
+
+export type UpdateNoteCommand = z.infer<typeof updateNoteCommandSchema>;
+
+export const evidencePinViewSchema = z.object({
+	excerpt: z.string(),
+	noteId: z.string().min(1),
+	sessionId: z.string().min(1),
+	sessionRevision: z.number().int().positive(),
+	targetId: z.string().min(1),
+	targetKind: z.enum(CONVERT_TARGET_KINDS),
+	textRange: z.object({
+		end: z.number().int().nonnegative(),
+		start: z.number().int().nonnegative(),
+	}),
+});
+
+export type EvidencePinView = z.infer<typeof evidencePinViewSchema>;
 
 export const includeInSharePayloadSchema = z.object({
 	itemId: z.string().min(1),
@@ -293,6 +401,10 @@ const rejectReasons = [
 	"consent-gates-closed",
 	"untyped-note-refused",
 	"preview-required",
+	"type-required",
+	"note-not-found",
+	"preview-mismatch",
+	"unsupported-record-type",
 ] as const;
 
 export const researchSessionWriteOutcomeSchema = z.union([
@@ -318,13 +430,31 @@ export type ResearchSessionWriteOutcome = z.infer<
 	typeof researchSessionWriteOutcomeSchema
 >;
 
+const convertCommittedSchema = z.object({
+	pinId: z.string().min(1),
+	records: z.array(
+		z.object({
+			id: z.string().min(1),
+			kind: z.enum(CONVERT_TARGET_KINDS),
+			title: z.string(),
+		})
+	),
+	session: researchSessionViewSchema,
+});
+
 export const convertOutcomeSchema = z.union([
-	z.object({
-		reason: z.enum(["consent-gates-closed", "preview-required"]),
-		status: z.literal("rejected"),
+	convertCommittedSchema.extend({
+		status: z.literal("committed"),
+	}),
+	convertCommittedSchema.extend({
+		status: z.literal("replayed"),
 	}),
 	z.object({
-		reason: z.literal("invalid-command"),
+		conflict: z.literal("Conflict"),
+		status: z.literal("conflict"),
+	}),
+	z.object({
+		reason: z.enum(rejectReasons),
 		status: z.literal("rejected"),
 	}),
 ]);
