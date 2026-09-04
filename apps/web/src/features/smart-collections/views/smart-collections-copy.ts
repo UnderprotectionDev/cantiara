@@ -31,6 +31,7 @@ export const SMART_COLLECTIONS_COPY = {
 	status: "Status",
 	subscribe: "Subscribe",
 	tags: "Tags",
+	turnOnSubscribeFirst: "Turn on Subscribe first.",
 	type: "Type",
 	value: "Value",
 } as const;

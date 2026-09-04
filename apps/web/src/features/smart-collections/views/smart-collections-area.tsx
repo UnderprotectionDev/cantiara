@@ -6,6 +6,7 @@ import {
 	NativeSelect,
 	NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { cn } from "@cantiara/ui/lib/utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	type ChangeEvent,
@@ -107,6 +108,60 @@ function CollectionList({
 	);
 }
 
+function SubscribeControls({
+	copy,
+	onEntry,
+	onExit,
+	onSubscribeEntry,
+	onSubscribeExit,
+}: {
+	copy: typeof SMART_COLLECTIONS_COPY;
+	onEntry: boolean;
+	onExit: boolean;
+	onSubscribeEntry: (checked: boolean | "indeterminate") => void;
+	onSubscribeExit: (checked: boolean | "indeterminate") => void;
+}) {
+	return (
+		<>
+			<label
+				className="flex items-center gap-2 text-sm"
+				htmlFor="smart-collection-subscribe"
+			>
+				<Checkbox
+					checked={onEntry}
+					id="smart-collection-subscribe"
+					onCheckedChange={onSubscribeEntry}
+				/>
+				{copy.subscribe}
+			</label>
+			<label
+				className={cn(
+					"mt-3 flex items-start gap-2 text-sm",
+					!onEntry && "cursor-not-allowed"
+				)}
+				htmlFor="smart-collection-notify-on-leave"
+			>
+				<Checkbox
+					checked={onExit}
+					disabled={!onEntry}
+					id="smart-collection-notify-on-leave"
+					onCheckedChange={onSubscribeExit}
+				/>
+				<span>
+					<span className={cn(!onEntry && "text-muted-foreground")}>
+						{copy.notifyOnLeave}
+					</span>
+					{onEntry ? null : (
+						<span className="mt-0.5 block text-muted-foreground text-xs">
+							{copy.turnOnSubscribeFirst}
+						</span>
+					)}
+				</span>
+			</label>
+		</>
+	);
+}
+
 export default function SmartCollectionsArea() {
 	const { attemptOnlineWork, markUnsaved } = useClientShell();
 	const catalog = useQuery(orpc.smartCollections.catalog.queryOptions());
@@ -187,14 +242,24 @@ export default function SmartCollectionsArea() {
 	);
 	const subscribe = useMutation(
 		orpc.smartCollections.subscribe.mutationOptions({
-			onSuccess: async () => {
-				await invalidate();
+			onSuccess: async (_result, variables) => {
+				await queryClient.invalidateQueries({
+					queryKey: orpc.smartCollections.view.queryKey({
+						input: { collectionId: variables.collectionId },
+					}),
+				});
 			},
 		})
 	);
 	const collections = list.data ?? [];
 	const members = view.data?.membership.members ?? [];
 	const dropCandidates = view.data?.dropCandidates ?? [];
+	const subscribeOnEntry = subscribe.isPending
+		? Boolean(subscribe.variables?.onEntry)
+		: Boolean(view.data?.collection.subscribeOnEntry);
+	const subscribeOnExit = subscribe.isPending
+		? Boolean(subscribe.variables?.onEntry && subscribe.variables?.onExit)
+		: Boolean(view.data?.collection.subscribeOnExit);
 
 	const onCreate = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
@@ -449,29 +514,13 @@ export default function SmartCollectionsArea() {
 						title={copy.subscribe}
 						titleId="smart-collection-subscribe"
 					>
-						<label
-							className="flex items-center gap-2 text-sm"
-							htmlFor="smart-collection-subscribe"
-						>
-							<Checkbox
-								checked={Boolean(view.data.collection.subscribeOnEntry)}
-								id="smart-collection-subscribe"
-								onCheckedChange={onSubscribeEntry}
-							/>
-							{copy.subscribe}
-						</label>
-						<label
-							className="mt-3 flex items-center gap-2 text-sm"
-							htmlFor="smart-collection-notify-on-leave"
-						>
-							<Checkbox
-								checked={Boolean(view.data.collection.subscribeOnExit)}
-								disabled={!view.data.collection.subscribeOnEntry}
-								id="smart-collection-notify-on-leave"
-								onCheckedChange={onSubscribeExit}
-							/>
-							{copy.notifyOnLeave}
-						</label>
+						<SubscribeControls
+							copy={copy}
+							onEntry={subscribeOnEntry}
+							onExit={subscribeOnExit}
+							onSubscribeEntry={onSubscribeEntry}
+							onSubscribeExit={onSubscribeExit}
+						/>
 					</FounderSection>
 					<FounderSection
 						title={copy.members}

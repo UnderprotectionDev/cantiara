@@ -647,6 +647,23 @@ async function loadPeriods(
 	}));
 }
 
+function sameMembershipPeriods(
+	left: readonly MembershipPeriod[],
+	right: readonly MembershipPeriod[]
+): boolean {
+	if (left.length !== right.length) {
+		return false;
+	}
+	const keys = new Set(
+		left.map(
+			(period) => `${period.recordId}:${period.recordKind}:${period.open}`
+		)
+	);
+	return right.every((period) =>
+		keys.has(`${period.recordId}:${period.recordKind}:${period.open}`)
+	);
+}
+
 async function replacePeriods(
 	db: MutationDb,
 	collectionId: string,
@@ -793,13 +810,17 @@ async function evaluateStoredSubscription(
 	membership: MembershipView,
 	seedOnly: boolean
 ): Promise<SmartCollectionEntrySignal[]> {
+	if (
+		!(collection.subscribeOnEntry || collection.subscribeOnExit || seedOnly)
+	) {
+		return await loadSignals(prisma, collection.id);
+	}
 	const periods = await loadPeriods(prisma, collection.id);
 	if (seedOnly) {
-		await replacePeriods(
-			prisma,
-			collection.id,
-			seedOpenMembershipPeriods(membership.members, periods)
-		);
+		const seeded = seedOpenMembershipPeriods(membership.members, periods);
+		if (!sameMembershipPeriods(periods, seeded)) {
+			await replacePeriods(prisma, collection.id, seeded);
+		}
 		return await loadSignals(prisma, collection.id);
 	}
 	const sink = new MemorySignalSink();
@@ -814,7 +835,9 @@ async function evaluateStoredSubscription(
 			onExit: collection.subscribeOnExit,
 		},
 	});
-	await replacePeriods(prisma, collection.id, produced.periods);
+	if (!sameMembershipPeriods(periods, produced.periods)) {
+		await replacePeriods(prisma, collection.id, produced.periods);
+	}
 	await appendSignals(prisma, collection.id, sink.emissions);
 	return await loadSignals(prisma, collection.id);
 }

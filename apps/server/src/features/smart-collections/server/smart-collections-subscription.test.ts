@@ -77,6 +77,7 @@ describe("Smart Collections subscription catalog", () => {
 		const catalog = smartCollectionsCatalog();
 		expect(catalog.copy.subscribe).toBe("Subscribe");
 		expect(catalog.copy.notifyOnLeave).toBe("Notify on leave");
+		expect(catalog.copy.turnOnSubscribeFirst).toBe("Turn on Subscribe first.");
 		expect(SMART_COLLECTIONS_COPY.subscribe).toBe("Subscribe");
 		expect(catalog.counterparts.emailDigest).toBe(false);
 		expect(catalog.counterparts.notificationCenterShell).toBe(false);
@@ -388,6 +389,17 @@ describe("Smart Collections stored subscription production", () => {
 		}
 		expect(stored.collection.subscribeOnEntry).toBe(false);
 		expect(stored.collection.subscribeOnExit).toBe(false);
+		const idleView = await viewSmartCollection(
+			prisma,
+			workspace.id,
+			stored.collection.id
+		);
+		expect(idleView?.signals).toEqual([]);
+		expect(
+			await prisma.smartCollectionMembershipPeriod.count({
+				where: { collectionId: stored.collection.id },
+			})
+		).toBe(0);
 		const subscribed = await subscribeSmartCollection(prisma, {
 			collectionId: stored.collection.id,
 			onEntry: true,
@@ -432,12 +444,24 @@ describe("Smart Collections stored subscription production", () => {
 				sourceFieldWrites: false,
 			},
 		]);
+		const periodIds = await prisma.smartCollectionMembershipPeriod.findMany({
+			orderBy: { id: "asc" },
+			select: { id: true },
+			where: { collectionId: stored.collection.id },
+		});
 		const again = await viewSmartCollection(
 			prisma,
 			workspace.id,
 			stored.collection.id
 		);
 		expect(again?.signals).toHaveLength(1);
+		expect(
+			await prisma.smartCollectionMembershipPeriod.findMany({
+				orderBy: { id: "asc" },
+				select: { id: true },
+				where: { collectionId: stored.collection.id },
+			})
+		).toEqual(periodIds);
 
 		const left = await changeWorkStatus(prisma, {
 			actorId: user.id,
