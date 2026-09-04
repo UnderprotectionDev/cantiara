@@ -1,7 +1,11 @@
 import type { PrismaClient } from "../prisma/generated/client";
 
 const OPTIONAL_RUNTIME_MODELS = new Set([
+	"Company",
 	"CompletionEffectPreference",
+	"Contact",
+	"ContactCompanyAffiliation",
+	"ContactEmailAlias",
 	"DailyFocusCandidateRejection",
 	"DailyFocusMembership",
 	"Decision",
@@ -99,6 +103,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	// getPrismaClient on it.
 	// Favorite membership is the same: a bun --hot client generated before
 	// FavoriteMembership must not block the rest of the API.
+	// Contact and Company are read via their own delegates after generate.
+	// Do not gate getPrismaClient on them: bun --hot can reload this check
+	// before prisma generate, and that must not block Work writes.
 	// Smart Collection subscription period and signal tables are written
 	// via table SQL when bun --hot still has a client generated before
 	// those models. Do not gate getPrismaClient on them: Create Smart

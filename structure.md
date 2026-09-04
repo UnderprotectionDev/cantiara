@@ -244,8 +244,9 @@
 │       │   │   │   ├── components/
 │       │   │   │   ├── forms/
 │       │   │   │   └── views/
-│       │   │   ├── contact-and-company/
-│       │   │   │   └── views/
+                   │       │   │   ├── contact-and-company/
+                   │       │   │   │   ├── forms/
+                   │       │   │   │   └── views/
 │       │   │   ├── custom-fields/
 │       │   │   │   ├── forms/
 │       │   │   │   └── views/
