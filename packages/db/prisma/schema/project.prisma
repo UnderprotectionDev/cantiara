@@ -36,6 +36,7 @@ model Project {
   fileAttachments                 FileAttachment[]
   documents                       Document[]
   decisions                       Decision[]
+  assumptions                     Assumption[]
   documentFolders                 DocumentFolder[]
   documentTemplates               DocumentTemplate[]
   workContextCardLayouts          ProjectWorkContextLayout[]
