@@ -32,6 +32,7 @@ import {
 	chosenCompanyId,
 	chosenDisplayName,
 	contactCopy,
+	contactMergeConflicts,
 	contactMergePreviewCopy,
 	createCompanyCommandSchema,
 	createContactCommandSchema,
@@ -759,14 +760,27 @@ async function hydrateContact(
 	const relatedPersonaDocuments = personaDocuments.map((document) =>
 		toSourceLink(document.id, DOCUMENT_KIND, document.title)
 	);
-	const relatedFeedback = related
+	const feedbackIds = related
 		.filter(
 			(edge) =>
 				edge.type === RELATIONS_COPY.participant &&
 				edge.fromKind === FEEDBACK_KIND &&
 				edge.toKind === CONTACT_KIND
 		)
-		.map((edge) => toSourceLink(edge.fromId, FEEDBACK_KIND, ""));
+		.map((edge) => edge.fromId);
+	const feedbackRows =
+		feedbackIds.length === 0
+			? []
+			: await db.feedback.findMany({
+					select: { id: true, originalMessage: true },
+					where: { id: { in: feedbackIds } },
+				});
+	const feedbackTitleById = new Map(
+		feedbackRows.map((item) => [item.id, item.originalMessage])
+	);
+	const relatedFeedback = feedbackIds.map((id) =>
+		toSourceLink(id, FEEDBACK_KIND, feedbackTitleById.get(id) ?? "")
+	);
 	return {
 		companyHistory: row.affiliations.map((item) => ({
 			companyId: item.companyId,
@@ -977,18 +991,7 @@ async function buildMergePreview(
 			survivor.emailAliases,
 			duplicate.emailAliases
 		),
-		fieldConflicts: [
-			{
-				duplicateValue: duplicate.displayName ?? "",
-				field: "displayName" as const,
-				survivorValue: survivor.displayName ?? "",
-			},
-			{
-				duplicateValue: duplicate.currentCompany?.id ?? "",
-				field: "currentCompany" as const,
-				survivorValue: survivor.currentCompany?.id ?? "",
-			},
-		].filter((row) => row.survivorValue !== row.duplicateValue),
+		fieldConflicts: contactMergeConflicts(survivor, duplicate),
 		relatedFeedback,
 		relatedPersonaDocuments,
 		relationsToRewrite: relations.flatMap((relation) => {

@@ -223,6 +223,10 @@ export default function MergeContactsForm({
 						{preview.data.survivor.currentCompany?.name ??
 							CONTACT_AND_COMPANY_COPY.none}
 					</p>
+					<p>
+						{preview.data.duplicate.currentCompany?.name ??
+							CONTACT_AND_COMPANY_COPY.none}
+					</p>
 					<h4 className="mt-2 font-medium text-foreground text-sm">
 						{CONTACT_AND_COMPANY_COPY.personaRelations}
 					</h4>
@@ -231,6 +235,18 @@ export default function MergeContactsForm({
 					) : (
 						preview.data.relatedPersonaDocuments.map((item) => (
 							<p key={item.id}>{item.title}</p>
+						))
+					)}
+					<h4 className="mt-2 font-medium text-foreground text-sm">
+						{CONTACT_AND_COMPANY_COPY.relationsToRewrite}
+					</h4>
+					{preview.data.relationsToRewrite.length === 0 ? (
+						<p>—</p>
+					) : (
+						preview.data.relationsToRewrite.map((relation) => (
+							<p key={`${relation.fromId}:${relation.toId}:${relation.type}`}>
+								{relation.type} {relation.fromId} → {relation.rewrittenFromId}
+							</p>
 						))
 					)}
 				</section>

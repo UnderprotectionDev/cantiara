@@ -593,7 +593,12 @@ describe("Contact and Company", () => {
 					normalizedEmail: "maya.chen@example.com",
 				}),
 			]),
-			relatedFeedback: [expect.objectContaining({ id: feedback.feedback.id })],
+			relatedFeedback: [
+				expect.objectContaining({
+					id: feedback.feedback.id,
+					title: "Checkout retries forever.",
+				}),
+			],
 			relatedPersonaDocuments: [
 				expect.objectContaining({ id: persona.document.id }),
 			],
@@ -606,6 +611,12 @@ describe("Contact and Company", () => {
 			"currentCompany",
 			"displayName",
 		]);
+		expect(preview.relationsToRewrite.length).toBeGreaterThan(0);
+		expect(
+			preview.relationsToRewrite.some(
+				(row) => row.toId === duplicate.id && row.rewrittenToId === survivor.id
+			)
+		).toBe(true);
 		expect(await getContact(prisma, survivor.id, workspaceId)).toEqual(
 			beforeSurvivor
 		);
