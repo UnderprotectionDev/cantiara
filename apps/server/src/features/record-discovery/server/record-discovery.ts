@@ -476,9 +476,10 @@ function compareIndexRows(
 	left: SearchIndexRecord,
 	right: SearchIndexRecord
 ): number {
-	const ruling = rulingRank(left.status) - rulingRank(right.status);
-	if (ruling !== 0) {
-		return ruling;
+	const validFirst =
+		validDecisionRank(left.status) - validDecisionRank(right.status);
+	if (validFirst !== 0) {
+		return validFirst;
 	}
 	const title = left.title.localeCompare(right.title);
 	if (title !== 0) {
@@ -567,10 +568,11 @@ function compareHits(
 	if (life !== 0) {
 		return life;
 	}
-	const ruling =
-		rulingRank(left.record.status) - rulingRank(right.record.status);
-	if (ruling !== 0) {
-		return ruling;
+	const validFirst =
+		validDecisionRank(left.record.status) -
+		validDecisionRank(right.record.status);
+	if (validFirst !== 0) {
+		return validFirst;
 	}
 	const closure =
 		closureRank(left.record.closureResult) -
@@ -607,7 +609,7 @@ function projectRank(
 	return 1;
 }
 
-function rulingRank(status: string): number {
+function validDecisionRank(status: string): number {
 	if (status === "Valid") {
 		return 0;
 	}

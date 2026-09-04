@@ -188,24 +188,9 @@ export async function previewClosedWorld(
 	if (!view) {
 		return [];
 	}
-	const currentId = view.openCurrentDecisionId ?? view.id;
-	const current =
-		currentId === view.id ? view : await getDecision(prisma, currentId);
-	if (!current) {
-		return [
-			{
-				id: view.id,
-				kind: CLOSED_WORLD_ITEM_KIND.decision,
-				title: view.title,
-			},
-		];
-	}
 	const items: ClosedWorldItem[] = [];
 	const seenDecisions = new Set<string>();
 	for (const member of view.chain) {
-		if (member.id !== view.id && member.id !== current.id) {
-			continue;
-		}
 		if (seenDecisions.has(member.id)) {
 			continue;
 		}
@@ -223,22 +208,13 @@ export async function previewClosedWorld(
 			title: view.title,
 		});
 	}
-	if (!seenDecisions.has(current.id) && current.id !== view.id) {
-		items.push({
-			id: current.id,
-			kind: CLOSED_WORLD_ITEM_KIND.decision,
-			title: current.title,
-		});
-	}
-	const pathIds = new Set(view.chain.map((member) => member.id));
-	pathIds.add(view.id);
-	pathIds.add(current.id);
+	const pathIds = [...seenDecisions];
 	const edges = await prisma.typedRelation.findMany({
 		orderBy: { establishedAt: "asc" },
 		where: {
-			fromId: { in: [...pathIds] },
+			fromId: { in: pathIds },
 			fromKind: "Decision",
-			toId: { in: [...pathIds] },
+			toId: { in: pathIds },
 			toKind: "Decision",
 			type: RELATIONS_COPY.supersedes,
 		},
@@ -276,10 +252,6 @@ export function resolvePublishedSnapshot(
 
 export function defaultPublicDecisionId(view: DecisionView): string {
 	return view.openCurrentDecisionId ?? view.id;
-}
-
-export function specChangeReviewsOpenedBySupersession(): [] {
-	return [];
 }
 
 export async function previewSupersession(

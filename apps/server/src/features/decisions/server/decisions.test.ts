@@ -46,7 +46,6 @@ import {
 	resolvePublishedSnapshot,
 	searchDecisions,
 	setDecisionLife,
-	specChangeReviewsOpenedBySupersession,
 	supersedeDecisions,
 	withdrawDecision,
 } from "./decisions";
@@ -1046,6 +1045,5 @@ describe("Decisions", () => {
 			silentlyUpdated: false,
 		});
 		expect(defaultPublicDecisionId(liveOld)).toBe(current.id);
-		expect(specChangeReviewsOpenedBySupersession()).toEqual([]);
 	});
 });

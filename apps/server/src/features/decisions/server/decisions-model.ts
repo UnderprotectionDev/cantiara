@@ -455,14 +455,3 @@ export const resolvePublishedSnapshotOutcomeSchema = z.object({
 export type ResolvePublishedSnapshotOutcome = z.infer<
 	typeof resolvePublishedSnapshotOutcomeSchema
 >;
-
-export const listDecisionsQuerySchema = z.object({
-	life: z.enum(DECISION_LIVES).optional(),
-	projectId: z.string().min(1),
-});
-
-export const searchDecisionsQuerySchema = z.object({
-	life: z.enum(DECISION_LIVES).optional(),
-	projectId: z.string().min(1),
-	text: z.string(),
-});
