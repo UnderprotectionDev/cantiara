@@ -308,6 +308,24 @@ describe("Uncertainty Records — Open Question", () => {
 		expect(closed.openQuestion.rationale).toBe("Cutover needs a fallback.");
 		expect(closed.openQuestion.evidence).toHaveLength(1);
 		expect(closed.openQuestion.evidenceMissing).toBe(false);
+		const again = await setOpenQuestionLife(prisma, {
+			actorId,
+			baseRevision: closed.openQuestion.revision,
+			idempotencyKey: "nla-ignores-new-evidence",
+			origin: "human",
+			payload: {
+				evidence: { sourceId: "doc-extra", sourceKind: "Document" },
+				life: OPEN_QUESTION_LIFE.noLongerApplicable,
+				openQuestionId: created.id,
+				rationale: "Should not overwrite.",
+			},
+		});
+		expect(again.status).toBe("committed");
+		if (again.status !== "committed") {
+			return;
+		}
+		expect(again.openQuestion.rationale).toBe("Cutover needs a fallback.");
+		expect(again.openQuestion.evidence).toHaveLength(1);
 	});
 
 	it("does not auto-create Decision, Risk, or Work, and does not write a related Decision life", async () => {
@@ -361,11 +379,6 @@ describe("Uncertainty Records — Open Question", () => {
 		if (answered.status !== "committed") {
 			return;
 		}
-		expect(answered.openQuestion.autoConverted).toEqual({
-			decision: false,
-			risk: false,
-			work: false,
-		});
 		expect(await listWork(prisma, projectId)).toEqual(workBefore);
 		const liveDecision = await getDecision(prisma, decision.decision.id);
 		expect(liveDecision?.life).toBe(DECISION_LIFE.valid);

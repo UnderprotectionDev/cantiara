@@ -182,7 +182,10 @@ async function setLifeInTransaction(
 	if (locked.revision !== command.baseRevision) {
 		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
 	}
-	if (command.payload.evidence) {
+	if (
+		command.payload.life === OPEN_QUESTION_LIFE.answered &&
+		command.payload.evidence
+	) {
 		await tx.typedRelation.create({
 			data: {
 				fromId: command.payload.evidence.sourceId,
@@ -196,13 +199,15 @@ async function setLifeInTransaction(
 		});
 	}
 	const nextAnswer =
-		command.payload.answer === undefined
-			? locked.answer
-			: command.payload.answer;
+		command.payload.life === OPEN_QUESTION_LIFE.answered &&
+		command.payload.answer !== undefined
+			? command.payload.answer
+			: locked.answer;
 	const nextRationale =
-		command.payload.rationale === undefined
-			? locked.rationale
-			: command.payload.rationale;
+		command.payload.life === OPEN_QUESTION_LIFE.answered &&
+		command.payload.rationale !== undefined
+			? command.payload.rationale
+			: locked.rationale;
 	const updated = await tx.openQuestion.update({
 		data: {
 			answer: nextAnswer,
@@ -268,11 +273,6 @@ async function hydrateOpenQuestionViews(
 		const life = presentOpenQuestionLife(row.life);
 		return {
 			answer: row.answer,
-			autoConverted: {
-				decision: false,
-				risk: false,
-				work: false,
-			},
 			context: row.context,
 			evidence,
 			evidenceMissing:

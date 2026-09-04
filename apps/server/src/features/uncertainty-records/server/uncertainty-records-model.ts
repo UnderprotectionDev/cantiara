@@ -62,11 +62,6 @@ export const evidenceRowSchema = z.object({
 
 export const openQuestionViewSchema = z.object({
 	answer: z.string(),
-	autoConverted: z.object({
-		decision: z.literal(false),
-		risk: z.literal(false),
-		work: z.literal(false),
-	}),
 	context: z.string(),
 	evidence: z.array(evidenceRowSchema),
 	evidenceMissing: z.boolean(),
@@ -90,8 +85,8 @@ export const exactEvidenceSchema = z.object({
 export const createOpenQuestionPayloadSchema = z.object({
 	context: z.string(),
 	projectId: z.string().min(1),
-	question: z.string(),
-	title: z.string(),
+	question: z.string().min(1),
+	title: z.string().min(1),
 });
 
 export const createOpenQuestionCommandSchema = z.object({
