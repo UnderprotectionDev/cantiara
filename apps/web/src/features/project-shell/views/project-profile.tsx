@@ -43,6 +43,8 @@ import {
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
+import { UNCERTAINTY_COPY } from "@/features/uncertainty-records/forms/uncertainty-records-copy";
+import OpenQuestionArea from "@/features/uncertainty-records/views/open-question-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
 
@@ -84,8 +86,10 @@ export default function ProjectProfile({
 	goalId,
 	onDecisionId,
 	onGoalId,
+	onOpenQuestionId,
 	onPresentationChange,
 	onWorkId,
+	openQuestionId,
 	projectId,
 	workId,
 }: {
@@ -95,12 +99,14 @@ export default function ProjectProfile({
 	goalId?: string | null;
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
+	onOpenQuestionId?: (openQuestionId: string | null) => void;
 	onPresentationChange: (next: {
 		editor: ConfigurationModeEditor | null;
 		hash?: string;
 		open: boolean;
 	}) => void;
 	onWorkId?: (workId: string | null) => void;
+	openQuestionId?: string | null;
 	projectId: string;
 	workId?: string | null;
 }) {
@@ -158,7 +164,7 @@ export default function ProjectProfile({
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const overviewCurrent =
-		(selectedAnchor === "" && !workId && !decisionId) ||
+		(selectedAnchor === "" && !workId && !decisionId && !openQuestionId) ||
 		selectedAnchor === overviewAnchor;
 
 	const nav = (
@@ -218,8 +224,10 @@ export default function ProjectProfile({
 					onDecisionId={onDecisionId}
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
+					onOpenQuestionId={onOpenQuestionId}
 					onToggle={onToggle}
 					onWorkId={onWorkId}
+					openQuestionId={openQuestionId}
 					selectedAnchor={selectedAnchor}
 					workId={workId}
 				/>
@@ -521,8 +529,10 @@ function ProjectBody({
 	onDecisionId,
 	onGoalId,
 	onOpenEditor,
+	onOpenQuestionId,
 	onToggle,
 	onWorkId,
+	openQuestionId,
 	selectedAnchor,
 	workId,
 }: {
@@ -534,8 +544,10 @@ function ProjectBody({
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
+	onOpenQuestionId?: (openQuestionId: string | null) => void;
 	onToggle: () => void;
 	onWorkId?: (workId: string | null) => void;
+	openQuestionId?: string | null;
 	selectedAnchor: string;
 	workId?: string | null;
 }) {
@@ -683,15 +695,25 @@ function ProjectBody({
 		);
 	}
 
-	if (selectedArea === "Discovery") {
+	if (selectedArea === "Discovery" || openQuestionId) {
 		return (
-			<section aria-label={selectedArea} id={projectShellAnchor(selectedArea)}>
+			<section aria-label="Discovery" id={projectShellAnchor("Discovery")}>
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">
-					{selectedArea}
+					Discovery
 				</h1>
 				<p className="mt-2 text-muted-foreground text-sm">Feedback</p>
 				<div className="mt-6">
 					<BoundRecordValuesSurface projectId={data.id} recordType="Feedback" />
+				</div>
+				<h2 className="mt-8 font-medium text-base">
+					{UNCERTAINTY_COPY.openQuestion}
+				</h2>
+				<div className="mt-6">
+					<OpenQuestionArea
+						onOpenQuestionId={onOpenQuestionId}
+						openQuestionId={openQuestionId}
+						projectId={data.id}
+					/>
 				</div>
 			</section>
 		);

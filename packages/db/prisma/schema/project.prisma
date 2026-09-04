@@ -36,6 +36,7 @@ model Project {
   fileAttachments                 FileAttachment[]
   documents                       Document[]
   decisions                       Decision[]
+  openQuestions                   OpenQuestion[]
   documentFolders                 DocumentFolder[]
   documentTemplates               DocumentTemplate[]
   workContextCardLayouts          ProjectWorkContextLayout[]

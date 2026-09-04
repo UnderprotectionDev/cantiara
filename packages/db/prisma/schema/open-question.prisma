@@ -1,0 +1,34 @@
+model OpenQuestion {
+  id         String              @id
+  projectId  String
+  project    Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title      String
+  question   String
+  context    String
+  answer     String
+  rationale  String
+  life       String
+  revision   Int
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  events     OpenQuestionEvent[]
+
+  @@index([projectId])
+  @@index([projectId, life])
+  @@map("open_question")
+}
+
+model OpenQuestionEvent {
+  id             String       @id
+  openQuestionId String
+  openQuestion   OpenQuestion @relation(fields: [openQuestionId], references: [id], onDelete: Cascade)
+  kind           String
+  actorId        String
+  rationale      String?
+  previousLife   String?
+  nextLife       String
+  occurredAt     DateTime     @default(now())
+
+  @@index([openQuestionId, occurredAt])
+  @@map("open_question_event")
+}
