@@ -1,15 +1,9 @@
 export const RETURN_TO_WORK_COPY = {
-	decisionGroup: "Decision",
-	documentGroup: "Document",
 	empty: "No Return to Work cards from current records.",
-	githubGroup: "GitHub",
 	lastUpdated: "Last updated",
 	nextConcreteStep: "Next concrete step",
 	openSourceRecord: "Open source record",
-	publishGroup: "Publish",
 	returnToWork: "Return to Work",
-	riskGroup: "Risk",
 	save: "Save",
 	sinceYouLastLooked: "Since you last looked",
-	workGroup: "Work",
 } as const;

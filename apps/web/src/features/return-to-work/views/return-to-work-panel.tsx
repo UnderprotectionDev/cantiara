@@ -4,7 +4,7 @@ import { Input } from "@cantiara/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { FormEvent } from "react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { FounderSection } from "@/features/personal-shell/components/founder-surface";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
@@ -42,10 +42,16 @@ export default function ReturnToWorkPanel({
 	const { mutate: noteVisibleOpen } = useMutation(
 		orpc.returnToWork.noteVisibleOpen.mutationOptions()
 	);
+	const notedOpenKey = useRef<string | null>(null);
 	useEffect(() => {
 		if (!summary.data) {
 			return;
 		}
+		const openKey = workId ? `${projectId}:${workId}` : projectId;
+		if (notedOpenKey.current === openKey) {
+			return;
+		}
+		notedOpenKey.current = openKey;
 		noteVisibleOpen(workId ? { projectId, workId } : { projectId });
 	}, [noteVisibleOpen, projectId, summary.data, workId]);
 	const invalidate = useCallback(async () => {

@@ -795,8 +795,6 @@ describe("Return to Work", () => {
 		const work = await openWork(project.id, "Doomed work");
 		await surface().noteVisibleOpen({ workId: work.id });
 		await prisma.work.delete({ where: { id: work.id } });
-		const noted = await surface().noteVisibleOpen({ workId: work.id });
-		expect(noted.status).toBe("not-found");
 		const view = await surface().summary({
 			projectId: project.id,
 			workId: work.id,
@@ -806,5 +804,58 @@ describe("Return to Work", () => {
 			where: { sourceId: work.id },
 		});
 		expect(marks).toEqual([]);
+	});
+
+	it("scopes Work context Since you last looked to that Work", async () => {
+		const project = await openProject("Payments");
+		const focus = await openWork(project.id, "Focus work");
+		await surface(new Date("2026-09-01T12:00:00.000Z")).noteVisibleOpen({
+			workId: focus.id,
+		});
+		const afterFocus = await prisma.work.findUniqueOrThrow({
+			where: { id: focus.id },
+		});
+		const status = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: afterFocus.revision,
+			idempotencyKey: "focus-status",
+			origin: "human",
+			status: "In Progress",
+			workId: focus.id,
+		});
+		expect(status.status).toBe("committed");
+		const sibling = await openWork(project.id, "Sibling work");
+		await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: sibling.revision,
+			idempotencyKey: "sibling-status",
+			origin: "human",
+			status: "In Progress",
+			workId: sibling.id,
+		});
+		const decision = await createDecision(prisma, {
+			actorId,
+			idempotencyKey: "project-decision",
+			origin: "human",
+			payload: {
+				decision: "Ship weekly.",
+				projectId: project.id,
+				rationale: "Cadence.",
+				title: "Weekly ship",
+			},
+		});
+		expect(decision.status).toBe("committed");
+		const view = await surface().summary({
+			projectId: project.id,
+			workId: focus.id,
+		});
+		const byId = Object.fromEntries(
+			(view?.sinceYouLastLooked.groups ?? []).map((group) => [group.id, group])
+		);
+		expect(byId.work?.items.map((item) => item.sourceTitle)).toEqual([
+			"Focus work",
+		]);
+		expect(byId.decision?.items).toEqual([]);
+		expect(byId.document?.items).toEqual([]);
 	});
 });

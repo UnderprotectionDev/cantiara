@@ -406,6 +406,7 @@ async function loadSummary(
 		where: { id: projectId, workspaceId },
 	});
 	if (!project) {
+		await purgeLastVisitMarks(db, "project", projectId);
 		return null;
 	}
 	const work = workId
@@ -419,6 +420,7 @@ async function loadSummary(
 			})
 		: null;
 	if (workId && !work) {
+		await purgeLastVisitMarks(db, "work", workId);
 		return null;
 	}
 	const preferences = await getAccountPreferences(
@@ -633,24 +635,26 @@ async function loadSinceYouLastLookedEvents(
 				},
 			})
 		: [];
-	const decisionEvents = hasDelegate(db, "decisionEvent")
-		? await db.decisionEvent.findMany({
-				include: { decision: true },
-				where: {
-					decision: { projectId },
-					occurredAt: { gt: sinceAt },
-				},
-			})
-		: [];
-	const documentEvents = hasDelegate(db, "documentVersion")
-		? await db.documentVersion.findMany({
-				include: { document: true },
-				where: {
-					createdAt: { gt: sinceAt },
-					document: { projectId },
-				},
-			})
-		: [];
+	const decisionEvents =
+		workId || !hasDelegate(db, "decisionEvent")
+			? []
+			: await db.decisionEvent.findMany({
+					include: { decision: true },
+					where: {
+						decision: { projectId },
+						occurredAt: { gt: sinceAt },
+					},
+				});
+	const documentEvents =
+		workId || !hasDelegate(db, "documentVersion")
+			? []
+			: await db.documentVersion.findMany({
+					include: { document: true },
+					where: {
+						createdAt: { gt: sinceAt },
+						document: { projectId },
+					},
+				});
 	return [
 		...workEvents.map((row) => ({
 			group: "work" as const,
