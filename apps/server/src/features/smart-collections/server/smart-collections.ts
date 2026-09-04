@@ -257,8 +257,6 @@ async function insertSmartCollection(
 				projectId: data.projectId,
 				revision: 1,
 				sourceKind: data.sourceKind,
-				subscribeOnEntry: false,
-				subscribeOnExit: false,
 				workspaceId: data.workspaceId,
 			},
 		});
@@ -266,7 +264,7 @@ async function insertSmartCollection(
 	const payload = JSON.stringify(data.conditions);
 	await db.$executeRaw`
 		INSERT INTO "smart_collection"
-			(id, "workspaceId", "projectId", name, "sourceKind", conditions, revision, "subscribeOnEntry", "subscribeOnExit", "createdAt", "updatedAt")
+			(id, "workspaceId", "projectId", name, "sourceKind", conditions, revision, "createdAt", "updatedAt")
 		VALUES (
 			${data.id},
 			${data.workspaceId},
@@ -275,8 +273,6 @@ async function insertSmartCollection(
 			${data.sourceKind},
 			CAST(${payload} AS JSONB),
 			1,
-			false,
-			false,
 			CURRENT_TIMESTAMP,
 			CURRENT_TIMESTAMP
 		)
@@ -780,16 +776,6 @@ async function persistSubscriptionFlags(
 	collectionId: string,
 	flags: { subscribeOnEntry: boolean; subscribeOnExit: boolean }
 ): Promise<void> {
-	if (hasSmartCollectionDelegate(db)) {
-		await (db as PrismaClient).smartCollection.update({
-			data: {
-				subscribeOnEntry: flags.subscribeOnEntry,
-				subscribeOnExit: flags.subscribeOnExit,
-			},
-			where: { id: collectionId },
-		});
-		return;
-	}
 	await db.$executeRaw`
 		UPDATE "smart_collection"
 		SET

@@ -386,6 +386,8 @@ describe("Smart Collections stored subscription production", () => {
 		if (stored.status !== "ok") {
 			return;
 		}
+		expect(stored.collection.subscribeOnEntry).toBe(false);
+		expect(stored.collection.subscribeOnExit).toBe(false);
 		const subscribed = await subscribeSmartCollection(prisma, {
 			collectionId: stored.collection.id,
 			onEntry: true,
