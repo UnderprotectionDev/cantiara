@@ -124,9 +124,10 @@ export default function FeedArea({
 									occurredAt={row.occurredAt}
 									onOpen={onOpen}
 									openSourceRecord={row.openSourceRecord}
+									projectName={row.projectName}
 									recordKind={row.recordKind}
-									relatedDecisions={row.relatedDecisionIds.length}
-									relatedWork={row.relatedWorkIds.length}
+									relatedDecisions={row.relatedDecisions}
+									relatedWork={row.relatedWork}
 									selected={selected?.id === row.id}
 								/>
 							</li>
@@ -149,6 +150,7 @@ function FeedRow({
 	occurredAt,
 	onOpen,
 	openSourceRecord,
+	projectName,
 	recordKind,
 	relatedDecisions,
 	relatedWork,
@@ -161,9 +163,10 @@ function FeedRow({
 	occurredAt: string;
 	onOpen: (id: string, recordKind: "Feedback" | "Source") => void;
 	openSourceRecord: string;
+	projectName: string;
 	recordKind: "Feedback" | "Source";
-	relatedDecisions: number;
-	relatedWork: number;
+	relatedDecisions: readonly { id: string; title: string }[];
+	relatedWork: readonly { id: string; title: string }[];
 	selected: boolean;
 }) {
 	const onClick = useCallback(() => {
@@ -178,11 +181,22 @@ function FeedRow({
 			<p className="text-muted-foreground text-xs">{occurredAt}</p>
 			<p className="line-clamp-4 whitespace-pre-wrap">{body}</p>
 			<p className="text-muted-foreground text-xs">
+				{FEEDBACK_COPY.project}: {projectName}
+			</p>
+			<p className="text-muted-foreground text-xs">
 				{FEEDBACK_COPY.attachments}: {attachments}
 			</p>
 			<p className="text-muted-foreground text-xs">
-				{FEEDBACK_COPY.work}: {relatedWork} · {FEEDBACK_COPY.decision}:{" "}
-				{relatedDecisions}
+				{FEEDBACK_COPY.work}:{" "}
+				{relatedWork.length === 0
+					? SMART_COLLECTIONS_COPY.none
+					: relatedWork.map((item) => item.title).join(", ")}
+			</p>
+			<p className="text-muted-foreground text-xs">
+				{FEEDBACK_COPY.decision}:{" "}
+				{relatedDecisions.length === 0
+					? SMART_COLLECTIONS_COPY.none
+					: relatedDecisions.map((item) => item.title).join(", ")}
 			</p>
 			<Button onClick={onClick} type="button" variant="ghost">
 				{openSourceRecord}

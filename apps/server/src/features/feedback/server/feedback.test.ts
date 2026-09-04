@@ -861,9 +861,10 @@ describe("Feedback", () => {
 			occurredAt: "2026-04-02T09:00:00.000Z",
 			openSourceRecord: FEEDBACK_COPY.openSourceRecord,
 			projectId,
+			projectName: "Payments",
 			recordKind: "Feedback",
-			relatedDecisionIds: [],
-			relatedWorkIds: [work.work.id],
+			relatedDecisions: [],
+			relatedWork: [{ id: work.work.id, title: "Fix pay retry" }],
 		});
 		expect(sourceRow).toMatchObject({
 			attachments: [],
@@ -872,9 +873,12 @@ describe("Feedback", () => {
 			occurredAt: "2026-04-01T08:00:00.000Z",
 			openSourceRecord: FEEDBACK_COPY.openSourceRecord,
 			projectId,
+			projectName: "Payments",
 			recordKind: "Source",
-			relatedDecisionIds: [decision.decision.id],
-			relatedWorkIds: [],
+			relatedDecisions: [
+				{ id: decision.decision.id, title: "Keep retry copy" },
+			],
+			relatedWork: [],
 		});
 		expect(feed.rows.some((row) => row.recordKind === "Feed")).toBe(false);
 		expect(feed.writes).toEqual({ priority: false, status: false });
@@ -963,6 +967,8 @@ describe("Feedback", () => {
 		expect(afterSource?.approvedVersionNumber).toBe(
 			beforeSource?.approvedVersionNumber
 		);
+		expect(afterSource?.capturedContent).toBe(beforeSource?.capturedContent);
+		expect(afterSource?.url).toBe(beforeSource?.url);
 		expect(afterWork?.status).toBe(beforeWork?.status);
 		expect(afterWork?.revision).toBe(beforeWork?.revision);
 		expect(

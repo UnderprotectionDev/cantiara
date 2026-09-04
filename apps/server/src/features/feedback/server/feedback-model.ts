@@ -373,6 +373,11 @@ export const FEED_SORT_FIELDS = ["title"] as const;
 
 export type FeedSortField = (typeof FEED_SORT_FIELDS)[number];
 
+export const feedRelatedRecordSchema = z.object({
+	id: z.string().min(1),
+	title: z.string().min(1),
+});
+
 export const feedRowSchema = z.object({
 	attachments: z.array(feedbackAttachmentViewSchema),
 	body: z.string(),
@@ -381,9 +386,10 @@ export const feedRowSchema = z.object({
 	occurredAt: z.string().min(1),
 	openSourceRecord: z.literal(FEEDBACK_COPY.openSourceRecord),
 	projectId: z.string().min(1),
+	projectName: z.string().min(1),
 	recordKind: z.enum([FEEDBACK_RECORD_KIND, "Source"]),
-	relatedDecisionIds: z.array(z.string().min(1)),
-	relatedWorkIds: z.array(z.string().min(1)),
+	relatedDecisions: z.array(feedRelatedRecordSchema),
+	relatedWork: z.array(feedRelatedRecordSchema),
 });
 
 export type FeedRow = z.infer<typeof feedRowSchema>;
