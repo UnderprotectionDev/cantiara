@@ -675,6 +675,10 @@ _Avoid_: Test Oturumu, Planlı Test Senaryosu, Kullanıcı Araştırması Oturum
 Bir görüşme veya yönlendirilmiş araştırma temasının amaç, izin, türlenmiş not ve sürüme sabit kanıt bütünlüğünü taşıyan Proje ana kaydı ([Kullanıcı Araştırması Oturumları](docs/prd/09-discovery-decisions-and-design.md#kullanıcı-araştırması-oturumları)). UI: `Research Session`.
 _Avoid_: Geri Bildirim, Test Oturumu, Deney/Doğrulama
 
+**İzin bağlamı**:
+Kullanıcı Araştırması Oturumunda atıf, tanımlayıcı kişisel not, Dosya Eki ve paylaşım/yayın kapılarını bağlayan `Not asked`, `Allowed`, `Not allowed` veya `Not applicable` kaydı; hukuki uygunluk hükmü değildir.
+_Avoid_: GDPR onayı, yasal uygunluk damgası, CRM izin durumu
+
 ## Bilgi ve kanıt
 
 **Belge**:

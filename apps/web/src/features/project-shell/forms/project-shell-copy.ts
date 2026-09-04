@@ -116,6 +116,7 @@ export interface ProjectShellSearch {
 	configurationMode?: true;
 	decision?: string;
 	goal?: string;
+	researchSession?: string;
 	work?: string;
 }
 
@@ -150,6 +151,11 @@ export function projectShellSearch(
 		typeof search.goal === "string" && search.goal.length > 0
 			? search.goal
 			: undefined;
+	const researchSession =
+		typeof search.researchSession === "string" &&
+		search.researchSession.length > 0
+			? search.researchSession
+			: undefined;
 	return {
 		...(configurationMode ? { configurationMode: true as const } : {}),
 		...(configurationMode && configurationEditor
@@ -157,6 +163,7 @@ export function projectShellSearch(
 			: {}),
 		...(decision ? { decision } : {}),
 		...(goal ? { goal } : {}),
+		...(researchSession ? { researchSession } : {}),
 		...(work ? { work } : {}),
 	};
 }

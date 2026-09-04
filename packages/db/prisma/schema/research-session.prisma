@@ -1,0 +1,72 @@
+model ResearchSession {
+  id                       String                   @id
+  projectId                String
+  project                  Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title                    String
+  purpose                  String
+  questionGuide            String
+  scheduledAt              DateTime?
+  durationMinutes          Int?
+  channel                  String
+  facilitator              String
+  scopeNote                String
+  status                   String
+  consent                  String
+  consentNote              String
+  consentRecordedByUserId  String
+  consentRecordedAt        DateTime
+  contactId                String?
+  revision                 Int
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  notes                    ResearchSessionNote[]
+  files                    ResearchSessionFile[]
+  events                   ResearchSessionEvent[]
+
+  @@index([projectId])
+  @@index([projectId, status])
+  @@index([projectId, consent])
+  @@map("research_session")
+}
+
+model ResearchSessionNote {
+  id                     String          @id
+  sessionId              String
+  session                ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  kind                   String
+  body                   String
+  speakerLabel           String?
+  capturedUnderConsent   String
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@index([sessionId])
+  @@map("research_session_note")
+}
+
+model ResearchSessionFile {
+  id                   String          @id
+  sessionId            String
+  session              ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  fileAttachmentId     String
+  capturedUnderConsent String
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  @@index([sessionId])
+  @@map("research_session_file")
+}
+
+model ResearchSessionEvent {
+  id         String          @id
+  sessionId  String
+  session    ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  kind       String
+  actorId    String
+  previous   String?
+  next       String
+  occurredAt DateTime        @default(now())
+
+  @@index([sessionId, occurredAt])
+  @@map("research_session_event")
+}

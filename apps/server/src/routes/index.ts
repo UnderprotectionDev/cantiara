@@ -25,6 +25,7 @@ import { projectShell } from "../features/project-shell/server/project-shell-rpc
 import { recordActions } from "../features/record-actions/server/record-actions-rpc";
 import { recordDiscovery } from "../features/record-discovery/server/record-discovery-rpc";
 import { relations } from "../features/relations/server/relations-rpc";
+import { researchSessions } from "../features/research-sessions/server/research-sessions-rpc";
 import { returnToWork } from "../features/return-to-work/server/return-to-work-rpc";
 import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
 import { smartCollections } from "../features/smart-collections/server/smart-collections-rpc";
@@ -69,6 +70,7 @@ export const appRouter = {
 	recordActions,
 	recordDiscovery,
 	relations,
+	researchSessions,
 	returnToWork,
 	roadmapHorizon,
 	smartCollections,

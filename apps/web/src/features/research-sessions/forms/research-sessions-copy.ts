@@ -1,0 +1,45 @@
+export const RESEARCH_SESSIONS_COPY = {
+	allowed: "Allowed",
+	attachFile: "Attach File Attachment",
+	cancelled: "Cancelled",
+	channel: "Channel",
+	completed: "Completed",
+	consent: "Consent",
+	consentIsNotLegalJudgment: "Consent is not a legal compliance judgment.",
+	consentNote: "Consent note",
+	contact: "Contact",
+	createResearchSession: "Create Research Session",
+	duration: "Duration",
+	facilitator: "Facilitator",
+	identifyingPersonalNote: "Identifying personal note",
+	noResearchSessions: "No Research Sessions yet.",
+	notAllowed: "Not allowed",
+	notApplicable: "Not applicable",
+	notAsked: "Not asked",
+	optionalContact: "Contact (optional)",
+	participantQuote: "Participant quote",
+	planned: "Planned",
+	purpose: "Purpose",
+	questionGuide: "Question guide",
+	recordedBy: "Recorded by",
+	researchSession: "Research Session",
+	scheduledAt: "Time",
+	scopeNote: "Scope note",
+	speakerLabel: "Speaker label",
+	status: "Status",
+	title: "Title",
+	youRemainResponsible: "You remain responsible for your obligations.",
+} as const;
+
+export const RESEARCH_SESSION_STATUSES = [
+	RESEARCH_SESSIONS_COPY.planned,
+	RESEARCH_SESSIONS_COPY.completed,
+	RESEARCH_SESSIONS_COPY.cancelled,
+] as const;
+
+export const CONSENT_VALUES = [
+	RESEARCH_SESSIONS_COPY.notAsked,
+	RESEARCH_SESSIONS_COPY.allowed,
+	RESEARCH_SESSIONS_COPY.notAllowed,
+	RESEARCH_SESSIONS_COPY.notApplicable,
+] as const;

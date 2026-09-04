@@ -13,7 +13,6 @@ import { useLocation } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
 import { type MouseEvent, useCallback } from "react";
 
-import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-record-values";
 import DecisionArea from "@/features/decisions/views/decision-area";
 import { DOCUMENTS_COPY } from "@/features/documents/forms/documents-copy";
 import DocumentArea from "@/features/documents/views/document-area";
@@ -42,6 +41,7 @@ import {
 	workSavedViewIsRoadmap,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
+import ResearchSessionArea from "@/features/research-sessions/views/research-session-area";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
@@ -85,8 +85,10 @@ export default function ProjectProfile({
 	onDecisionId,
 	onGoalId,
 	onPresentationChange,
+	onResearchSessionId,
 	onWorkId,
 	projectId,
+	researchSessionId,
 	workId,
 }: {
 	configurationEditor: ConfigurationModeEditor | null;
@@ -100,8 +102,10 @@ export default function ProjectProfile({
 		hash?: string;
 		open: boolean;
 	}) => void;
+	onResearchSessionId?: (sessionId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
+	researchSessionId?: string | null;
 	workId?: string | null;
 }) {
 	const project = useQuery(
@@ -158,7 +162,7 @@ export default function ProjectProfile({
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const overviewCurrent =
-		(selectedAnchor === "" && !workId && !decisionId) ||
+		(selectedAnchor === "" && !workId && !decisionId && !researchSessionId) ||
 		selectedAnchor === overviewAnchor;
 
 	const nav = (
@@ -218,8 +222,10 @@ export default function ProjectProfile({
 					onDecisionId={onDecisionId}
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
+					onResearchSessionId={onResearchSessionId}
 					onToggle={onToggle}
 					onWorkId={onWorkId}
+					researchSessionId={researchSessionId}
 					selectedAnchor={selectedAnchor}
 					workId={workId}
 				/>
@@ -521,8 +527,10 @@ function ProjectBody({
 	onDecisionId,
 	onGoalId,
 	onOpenEditor,
+	onResearchSessionId,
 	onToggle,
 	onWorkId,
+	researchSessionId,
 	selectedAnchor,
 	workId,
 }: {
@@ -534,8 +542,10 @@ function ProjectBody({
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
+	onResearchSessionId?: (sessionId: string | null) => void;
 	onToggle: () => void;
 	onWorkId?: (workId: string | null) => void;
+	researchSessionId?: string | null;
 	selectedAnchor: string;
 	workId?: string | null;
 }) {
@@ -683,15 +693,18 @@ function ProjectBody({
 		);
 	}
 
-	if (selectedArea === "Discovery") {
+	if (selectedArea === "Discovery" || researchSessionId) {
 		return (
-			<section aria-label={selectedArea} id={projectShellAnchor(selectedArea)}>
+			<section aria-label="Discovery" id={projectShellAnchor("Discovery")}>
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">
-					{selectedArea}
+					Discovery
 				</h1>
-				<p className="mt-2 text-muted-foreground text-sm">Feedback</p>
 				<div className="mt-6">
-					<BoundRecordValuesSurface projectId={data.id} recordType="Feedback" />
+					<ResearchSessionArea
+						onSessionId={onResearchSessionId}
+						projectId={data.id}
+						sessionId={researchSessionId}
+					/>
 				</div>
 			</section>
 		);

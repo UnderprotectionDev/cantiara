@@ -145,6 +145,9 @@ test("Configuration Mode is presentation search, not a Project write", () => {
 		decision: "decision_1",
 	});
 	expect(projectShellSearch({ goal: "goal_1" })).toEqual({ goal: "goal_1" });
+	expect(projectShellSearch({ researchSession: "session_1" })).toEqual({
+		researchSession: "session_1",
+	});
 });
 
 test("Copy project structure preview lists structure without records", () => {
