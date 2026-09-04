@@ -24,6 +24,7 @@ import {
 	createProject,
 	getProject,
 } from "../../project-shell/server/project-shell";
+import { placeHorizon } from "../../roadmap-horizon/server/roadmap-horizon";
 import {
 	listSmartCollections,
 	viewSmartCollection,
@@ -44,6 +45,7 @@ import {
 	groupSinceYouLastLookedEvents,
 	LONG_IN_THE_SAME_STATUS_CONTRACT,
 	NEXT_CONCRETE_STEP_CONTRACT,
+	planVisualTour,
 	RETURN_TO_WORK_COPY,
 	RETURN_TO_WORK_RESTORES,
 	RETURN_TO_WORK_SESSION,
@@ -51,7 +53,16 @@ import {
 	SINCE_YOU_LAST_LOOKED_CONTRACT,
 	SINCE_YOU_LAST_LOOKED_GROUP_IDS,
 	selectReturnCards,
+	VISUAL_TOUR_CAP,
+	VISUAL_TOUR_CONTRACT,
+	VISUAL_TOUR_WRITES,
 } from "./return-to-work-model";
+import {
+	type CanvasViewportApi,
+	type CanvasViewportSnapshot,
+	resolveExactObjectInCurrentView,
+	startVisualTour,
+} from "./return-to-work-visual-tour";
 
 /**
  * Phase 1 loop for CANT-56914D28: `noteVisibleOpen` must not throw
@@ -88,6 +99,60 @@ const FORBIDDEN_SURFACE =
 	/Active Working Set|sprint|recent-tabs|stuck verdict|mandatory agenda/;
 const FORBIDDEN_ANALYTICS = /analytics visit|session duration|Denetim kaydı/i;
 
+function workEvent(input: {
+	id: string;
+	occurredAt: string;
+	sourceTitle: string;
+	visualTarget: {
+		objectId: string;
+		objectKind: "milestone" | "work";
+		surface:
+			| "moodboard"
+			| "project-wall"
+			| "roadmap"
+			| "screen-wireframe"
+			| "user-flow";
+	} | null;
+}) {
+	return {
+		group: "work" as const,
+		href: `/projects/p?work=${input.id}#work`,
+		id: input.id,
+		occurredAt: input.occurredAt,
+		sourceKey: "PAY-1",
+		sourceTitle: input.sourceTitle,
+		visualTarget: input.visualTarget,
+	};
+}
+
+function recordingCanvas(input: {
+	meaningful?: boolean;
+	resolve: CanvasViewportApi["resolveTarget"];
+}): CanvasViewportApi & { log: string[] } {
+	const log: string[] = [];
+	const start: CanvasViewportSnapshot = { id: "start" };
+	return {
+		captureStartViewport() {
+			log.push("capture");
+			return start;
+		},
+		fitVisibleContent() {
+			log.push("fit");
+		},
+		highlightAndPanTo(placementId) {
+			log.push(`pan:${placementId}`);
+		},
+		log,
+		resolveTarget: input.resolve,
+		restoreViewport(snapshot) {
+			log.push(`restore:${snapshot.id}`);
+		},
+		startViewportStillMeaningful() {
+			return input.meaningful ?? true;
+		},
+	};
+}
+
 describe("Return to Work catalog", () => {
 	it("exposes English Return to Work and does not restore recent-context", () => {
 		expect(returnToWorkCatalog()).toEqual({
@@ -99,6 +164,7 @@ describe("Return to Work catalog", () => {
 			session: RETURN_TO_WORK_SESSION,
 			sinceYouLastLooked: SINCE_YOU_LAST_LOOKED_CONTRACT,
 			snapshot: { storedCardSnapshot: false },
+			visualTour: VISUAL_TOUR_CONTRACT,
 		});
 		expect(RETURN_TO_WORK_COPY.returnToWork).toBe("Return to Work");
 		expect(RETURN_TO_WORK_COPY.nextConcreteStep).toBe("Next concrete step");
@@ -108,6 +174,9 @@ describe("Return to Work catalog", () => {
 		);
 		expect(RETURN_TO_WORK_COPY.sinceYouLastLooked).toBe(
 			"Since you last looked"
+		);
+		expect(RETURN_TO_WORK_COPY.tourTheVisualChanges).toBe(
+			"Tour the visual changes"
 		);
 		expect(SINCE_YOU_LAST_LOOKED_CONTRACT.groups).toEqual([
 			"work",
@@ -146,6 +215,7 @@ describe("Return to Work catalog", () => {
 					occurredAt: "2026-09-03T11:00:00.000Z",
 					sourceKey: "PAY-1",
 					sourceTitle: "Intake",
+					visualTarget: null,
 				},
 				{
 					group: "decision",
@@ -154,6 +224,7 @@ describe("Return to Work catalog", () => {
 					occurredAt: "2026-09-03T11:30:00.000Z",
 					sourceKey: "Decision",
 					sourceTitle: "Use GitHub login",
+					visualTarget: null,
 				},
 				{
 					group: "work",
@@ -162,6 +233,7 @@ describe("Return to Work catalog", () => {
 					occurredAt: "2026-09-01T12:00:00.000Z",
 					sourceKey: "PAY-0",
 					sourceTitle: "Before the visit",
+					visualTarget: null,
 				},
 			],
 			{
@@ -188,6 +260,68 @@ describe("Return to Work catalog", () => {
 				expect.objectContaining({ sourceTitle: "Before the visit" }),
 			])
 		);
+	});
+
+	it("plans Tour the visual changes from the same event set with a stated cap", () => {
+		const events = [
+			workEvent({
+				id: "plain",
+				occurredAt: "2026-09-03T10:00:00.000Z",
+				sourceTitle: "No canvas",
+				visualTarget: null,
+			}),
+			workEvent({
+				id: "wall",
+				occurredAt: "2026-09-03T11:00:00.000Z",
+				sourceTitle: "Wall card",
+				visualTarget: {
+					objectId: "card-1",
+					objectKind: "work",
+					surface: "project-wall",
+				},
+			}),
+			workEvent({
+				id: "flow",
+				occurredAt: "2026-09-03T11:05:00.000Z",
+				sourceTitle: "Flow node",
+				visualTarget: {
+					objectId: "node-1",
+					objectKind: "work",
+					surface: "user-flow",
+				},
+			}),
+		];
+		const plan = planVisualTour(events, {
+			formatOccurredAt: () => "Sep 3, 2026, 11:00 AM",
+		});
+		expect(plan.available).toBe(true);
+		expect(plan.cap).toBe(VISUAL_TOUR_CAP);
+		expect(plan.remainderOpensInList).toBe(true);
+		expect(plan.steps.map((step) => step.sourceTitle)).toEqual([
+			"Wall card",
+			"Flow node",
+		]);
+		expect(plan.steps[0]?.whyShown).toBe("Since you last looked");
+		expect(plan.remainderCount).toBe(0);
+		const overflow = Array.from({ length: VISUAL_TOUR_CAP + 2 }, (_, index) =>
+			workEvent({
+				id: `cap-${index}`,
+				occurredAt: new Date(
+					Date.parse("2026-09-03T11:00:00.000Z") + index * 1000
+				).toISOString(),
+				sourceTitle: `Visual ${index}`,
+				visualTarget: {
+					objectId: `obj-${index}`,
+					objectKind: "work",
+					surface: "roadmap",
+				},
+			})
+		);
+		const capped = planVisualTour(overflow, {
+			formatOccurredAt: () => "Sep 3, 2026, 11:00 AM",
+		});
+		expect(capped.steps).toHaveLength(VISUAL_TOUR_CAP);
+		expect(capped.remainderCount).toBe(2);
 	});
 
 	it("selects current records with a closed why-shown list", () => {
@@ -307,6 +441,249 @@ describe("Return to Work catalog", () => {
 				whyShown: CARD_REASON.longInTheSameStatus,
 			}),
 		]);
+	});
+});
+
+describe("Return to Work visual tour", () => {
+	const formatOccurredAt = () => "Sep 3, 2026, 11:00 AM";
+
+	it("walks supported visual targets in event order through the canvas viewport API", () => {
+		const canvas = recordingCanvas({
+			resolve: (target) => ({
+				placementId: target.objectId,
+				status: "placed",
+			}),
+		});
+		const tour = startVisualTour({
+			canvas,
+			events: [
+				workEvent({
+					id: "later",
+					occurredAt: "2026-09-03T11:10:00.000Z",
+					sourceTitle: "Wireframe screen",
+					visualTarget: {
+						objectId: "screen-1",
+						objectKind: "work",
+						surface: "screen-wireframe",
+					},
+				}),
+				workEvent({
+					id: "first",
+					occurredAt: "2026-09-03T11:00:00.000Z",
+					sourceTitle: "Roadmap work",
+					visualTarget: {
+						objectId: "work-1",
+						objectKind: "work",
+						surface: "roadmap",
+					},
+				}),
+				workEvent({
+					id: "plain",
+					occurredAt: "2026-09-03T11:05:00.000Z",
+					sourceTitle: "No target",
+					visualTarget: null,
+				}),
+			],
+			formatOccurredAt,
+		});
+		expect(canvas.log).toEqual(["capture", "pan:work-1"]);
+		expect(tour.current).toEqual(
+			expect.objectContaining({
+				kind: "shown",
+				placementId: "work-1",
+				sourceTitle: "Roadmap work",
+				whyShown: "Since you last looked",
+			})
+		);
+		tour.skip();
+		expect(canvas.log).toEqual(["capture", "pan:work-1", "pan:screen-1"]);
+		expect(tour.current).toEqual(
+			expect.objectContaining({
+				kind: "shown",
+				placementId: "screen-1",
+				sourceTitle: "Wireframe screen",
+			})
+		);
+		expect(tour.writes).toEqual(VISUAL_TOUR_WRITES);
+		expect(tour.writes.roadmapHistory).toBe(false);
+		expect(tour.writes.sessionViewport).toBe(false);
+		expect(tour.remainderOpensInList).toBe(true);
+	});
+
+	it("skips a missing target with a reason and does not pan to another object", () => {
+		const current = {
+			placed: [{ id: "other-work", kind: "work" as const }],
+		};
+		expect(
+			resolveExactObjectInCurrentView(
+				{ objectId: "gone", objectKind: "work", surface: "roadmap" },
+				current
+			)
+		).toEqual({ reason: "unplaceable", status: "skipped" });
+		const canvas = recordingCanvas({
+			resolve: (target) => resolveExactObjectInCurrentView(target, current),
+		});
+		const tour = startVisualTour({
+			canvas,
+			events: [
+				workEvent({
+					id: "missing",
+					occurredAt: "2026-09-03T11:00:00.000Z",
+					sourceTitle: "Gone from view",
+					visualTarget: {
+						objectId: "gone",
+						objectKind: "work",
+						surface: "roadmap",
+					},
+				}),
+				workEvent({
+					id: "other",
+					occurredAt: "2026-09-03T11:01:00.000Z",
+					sourceTitle: "Other work",
+					visualTarget: {
+						objectId: "other-work",
+						objectKind: "work",
+						surface: "roadmap",
+					},
+				}),
+			],
+			formatOccurredAt,
+		});
+		expect(tour.current).toEqual(
+			expect.objectContaining({
+				kind: "skipped",
+				reason: "unplaceable",
+				reasonLabel: "Cannot be placed in the current view",
+			})
+		);
+		expect(canvas.log).toEqual(["capture"]);
+		tour.skip();
+		expect(tour.current).toEqual(
+			expect.objectContaining({
+				kind: "shown",
+				placementId: "other-work",
+			})
+		);
+		expect(canvas.log).toEqual(["capture", "pan:other-work"]);
+	});
+
+	it("names deleted and inaccessible skips without retargeting", () => {
+		expect(
+			resolveExactObjectInCurrentView(
+				{ objectId: "gone", objectKind: "milestone", surface: "roadmap" },
+				{
+					deletedIds: new Set(["gone"]),
+					placed: [{ id: "alive", kind: "milestone" }],
+				}
+			)
+		).toEqual({ reason: "deleted", status: "skipped" });
+		expect(
+			resolveExactObjectInCurrentView(
+				{ objectId: "secret", objectKind: "work", surface: "user-flow" },
+				{
+					inaccessibleIds: new Set(["secret"]),
+					placed: [{ id: "visible", kind: "work" }],
+				}
+			)
+		).toEqual({ reason: "inaccessible", status: "skipped" });
+	});
+
+	it("restores the start viewport when it still resolves and otherwise fits visible content", () => {
+		const restoreCanvas = recordingCanvas({
+			meaningful: true,
+			resolve: (target) => ({
+				placementId: target.objectId,
+				status: "placed",
+			}),
+		});
+		const restoreTour = startVisualTour({
+			canvas: restoreCanvas,
+			events: [
+				workEvent({
+					id: "mood",
+					occurredAt: "2026-09-03T11:00:00.000Z",
+					sourceTitle: "Moodboard",
+					visualTarget: {
+						objectId: "board-1",
+						objectKind: "work",
+						surface: "moodboard",
+					},
+				}),
+			],
+			formatOccurredAt,
+		});
+		restoreTour.close();
+		expect(restoreCanvas.log).toEqual([
+			"capture",
+			"pan:board-1",
+			"restore:start",
+		]);
+		const fitCanvas = recordingCanvas({
+			meaningful: false,
+			resolve: (target) => ({
+				placementId: target.objectId,
+				status: "placed",
+			}),
+		});
+		const fitTour = startVisualTour({
+			canvas: fitCanvas,
+			events: [
+				workEvent({
+					id: "mood",
+					occurredAt: "2026-09-03T11:00:00.000Z",
+					sourceTitle: "Moodboard",
+					visualTarget: {
+						objectId: "board-1",
+						objectKind: "work",
+						surface: "moodboard",
+					},
+				}),
+			],
+			formatOccurredAt,
+		});
+		fitTour.close();
+		expect(fitCanvas.log).toEqual(["capture", "pan:board-1", "fit"]);
+	});
+
+	it("caps huge sets and leaves the remainder in the normal list", () => {
+		const events = Array.from({ length: VISUAL_TOUR_CAP + 3 }, (_, index) =>
+			workEvent({
+				id: `evt-${index}`,
+				occurredAt: new Date(
+					Date.parse("2026-09-03T11:00:00.000Z") + index * 1000
+				).toISOString(),
+				sourceTitle: `Visual ${index}`,
+				visualTarget: {
+					objectId: `obj-${index}`,
+					objectKind: "work",
+					surface: "project-wall",
+				},
+			})
+		);
+		const canvas = recordingCanvas({
+			resolve: (target) => ({
+				placementId: target.objectId,
+				status: "placed",
+			}),
+		});
+		const tour = startVisualTour({
+			canvas,
+			events,
+			formatOccurredAt,
+		});
+		expect(tour.remainderCount).toBe(3);
+		expect(tour.remainderOpensInList).toBe(true);
+		expect(tour.writes.records).toBe(false);
+		expect(tour.writes.routes).toBe(false);
+		expect(tour.writes.remainderAsSecondList).toBe(false);
+		let shown = tour.current?.kind === "shown" ? 1 : 0;
+		while (tour.current) {
+			tour.skip();
+			if (tour.current?.kind === "shown") {
+				shown += 1;
+			}
+		}
+		expect(shown).toBe(VISUAL_TOUR_CAP);
 	});
 });
 
@@ -1096,5 +1473,71 @@ describe("Return to Work", () => {
 		]);
 		expect(byId.decision?.items).toEqual([]);
 		expect(byId.document?.items).toEqual([]);
+	});
+
+	it("tours Roadmap Work from the same Since you last looked set without writing roadmap history", async () => {
+		const project = await openProject("Payments");
+		const placed = await openWork(project.id, "On the roadmap");
+		const unplaced = await openWork(project.id, "Off the roadmap");
+		const horizon = await placeHorizon(prisma, {
+			horizon: "Now",
+			workId: placed.id,
+		});
+		expect(horizon.status).toBe("committed");
+		await surface(new Date("2026-09-01T12:00:00.000Z")).noteVisibleOpen({
+			projectId: project.id,
+		});
+		const placedNow = await getWork(prisma, placed.id);
+		const unplacedNow = await getWork(prisma, unplaced.id);
+		if (!(placedNow && unplacedNow)) {
+			throw new Error("expected Work");
+		}
+		await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: placedNow.revision,
+			idempotencyKey: "placed-status",
+			origin: "human",
+			status: "In Progress",
+			workId: placed.id,
+		});
+		await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: unplacedNow.revision,
+			idempotencyKey: "unplaced-status",
+			origin: "human",
+			status: "In Progress",
+			workId: unplaced.id,
+		});
+		const beforeAudits = await prisma.auditEvent.count();
+		const view = await surface().summary({ projectId: project.id });
+		expect(view?.visualTour.copy.tourTheVisualChanges).toBe(
+			"Tour the visual changes"
+		);
+		expect(view?.visualTour.available).toBe(true);
+		expect(view?.visualTour.cap).toBe(VISUAL_TOUR_CAP);
+		expect(view?.visualTour.remainderOpensInList).toBe(true);
+		expect(view?.visualTour.writes).toEqual(VISUAL_TOUR_WRITES);
+		expect(view?.visualTour.restores).toEqual({
+			filter: false,
+			scroll: false,
+		});
+		expect(view?.visualTour.steps.map((step) => step.sourceTitle)).toEqual([
+			"On the roadmap",
+		]);
+		expect(view?.visualTour.steps[0]).toEqual(
+			expect.objectContaining({
+				surface: "roadmap",
+				surfaceLabel: "Roadmap",
+				target: {
+					objectId: placed.id,
+					objectKind: "work",
+					surface: "roadmap",
+				},
+				whyShown: "Since you last looked",
+			})
+		);
+		expect(view?.restores.filter).toBe(false);
+		expect(view?.restores.scroll).toBe(false);
+		expect(await prisma.auditEvent.count()).toBe(beforeAudits);
 	});
 });

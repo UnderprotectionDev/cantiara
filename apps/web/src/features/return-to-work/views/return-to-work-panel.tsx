@@ -4,7 +4,7 @@ import { Input } from "@cantiara/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { FounderSection } from "@/features/personal-shell/components/founder-surface";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
@@ -33,6 +33,7 @@ export default function ReturnToWorkPanel({
 	workId?: string | null;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const [tourIndex, setTourIndex] = useState<number | null>(null);
 	const summaryInput = workId ? { projectId, workId } : { projectId };
 	const catalog = useQuery(orpc.returnToWork.catalog.queryOptions());
 	const summary = useQuery(
@@ -129,6 +130,25 @@ export default function ReturnToWorkPanel({
 		},
 		[attemptOnlineWork, markUnsaved, projectId, saveThreshold]
 	);
+	const tourStepCount = summary.data?.visualTour.steps.length ?? 0;
+	const startTour = useCallback(() => {
+		setTourIndex(0);
+	}, []);
+	const skipTour = useCallback(() => {
+		setTourIndex((current) => {
+			if (current === null) {
+				return null;
+			}
+			const next = current + 1;
+			return next >= tourStepCount ? null : next;
+		});
+	}, [tourStepCount]);
+	const closeTour = useCallback(() => {
+		setTourIndex(null);
+	}, []);
+	const openRemainder = useCallback(() => {
+		document.getElementById("since-you-last-looked")?.focus();
+	}, []);
 	if (summary.isPending) {
 		return (
 			<FounderSection title={copy.returnToWork} titleId="return-to-work">
@@ -140,6 +160,9 @@ export default function ReturnToWorkPanel({
 		return null;
 	}
 	const view = summary.data;
+	const tourOpen = tourIndex !== null;
+	const tourStep =
+		tourIndex === null ? null : (view.visualTour.steps[tourIndex] ?? null);
 	return (
 		<FounderSection title={view.copy.returnToWork} titleId="return-to-work">
 			<form className="mb-6 flex flex-col gap-3" onSubmit={onSubmit}>
@@ -205,9 +228,25 @@ export default function ReturnToWorkPanel({
 				aria-labelledby="since-you-last-looked"
 				className="mt-8 flex flex-col gap-4"
 			>
-				<h3 className="font-medium text-sm" id="since-you-last-looked">
+				<h3
+					className="font-medium text-sm"
+					id="since-you-last-looked"
+					tabIndex={-1}
+				>
 					{view.sinceYouLastLooked.title}
 				</h3>
+				{view.visualTour.available ? (
+					<VisualTourControls
+						copy={view.visualTour.copy}
+						onClose={closeTour}
+						onOpenRemainder={openRemainder}
+						onSkip={skipTour}
+						onStart={startTour}
+						open={tourOpen}
+						remainderCount={view.visualTour.remainderCount}
+						step={tourStep}
+					/>
+				) : null}
 				{view.sinceYouLastLooked.groups.map((group) => (
 					<div key={group.id}>
 						<h4 className="text-muted-foreground text-sm">{group.label}</h4>
@@ -239,6 +278,80 @@ export default function ReturnToWorkPanel({
 				))}
 			</section>
 		</FounderSection>
+	);
+}
+
+function VisualTourControls({
+	copy,
+	onClose,
+	onOpenRemainder,
+	onSkip,
+	onStart,
+	open,
+	remainderCount,
+	step,
+}: {
+	copy: {
+		closeTour: string;
+		openRemainderInTheList: string;
+		skip: string;
+		tourTheVisualChanges: string;
+	};
+	onClose: () => void;
+	onOpenRemainder: () => void;
+	onSkip: () => void;
+	onStart: () => void;
+	open: boolean;
+	remainderCount: number;
+	step: {
+		occurredAtDisplay: string;
+		sourceKey: string;
+		sourceTitle: string;
+		surfaceLabel: string;
+		whyShown: string;
+	} | null;
+}) {
+	return (
+		<div className="flex flex-col gap-3">
+			{open ? null : (
+				<Button onClick={onStart} size="sm" type="button">
+					{copy.tourTheVisualChanges}
+				</Button>
+			)}
+			{step ? (
+				<div className="flex flex-col gap-2" role="status">
+					<p className="font-medium text-sm">{step.surfaceLabel}</p>
+					<p className="font-medium text-sm">
+						<span className="font-mono text-muted-foreground">
+							{step.sourceKey}
+						</span>{" "}
+						{step.sourceTitle}
+					</p>
+					<p className="text-muted-foreground text-sm">
+						{step.occurredAtDisplay}
+					</p>
+					<p className="text-muted-foreground text-sm">{step.whyShown}</p>
+					<div className="flex flex-wrap gap-2">
+						<Button onClick={onSkip} size="sm" type="button">
+							{copy.skip}
+						</Button>
+						<Button onClick={onClose} size="sm" type="button">
+							{copy.closeTour}
+						</Button>
+						{remainderCount > 0 ? (
+							<Button
+								onClick={onOpenRemainder}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								{copy.openRemainderInTheList}
+							</Button>
+						) : null}
+					</div>
+				</div>
+			) : null}
+		</div>
 	);
 }
 

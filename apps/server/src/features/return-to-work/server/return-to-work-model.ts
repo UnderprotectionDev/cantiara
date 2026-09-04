@@ -1,24 +1,36 @@
 import { z } from "zod";
 
 export const RETURN_TO_WORK_COPY = {
+	closeTour: "Close tour",
 	decisionGroup: "Decision",
 	documentGroup: "Document",
 	empty: "No Return to Work cards from current records.",
 	githubGroup: "GitHub",
 	lastUpdated: "Last updated",
 	longInTheSameStatus: "Long in the same status",
+	moodboard: "Moodboard",
 	nextConcreteStep: "Next concrete step",
+	openRemainderInTheList: "Open remainder in the list",
 	openRisk: "Open Risk",
 	openSourceRecord: "Open source record",
 	pendingGitHubDevelopmentSignal: "Pending GitHub development signal",
+	projectWall: "Project Wall",
 	publishGroup: "Publish",
 	recentlyEdited: "Recently edited",
 	recentlyViewed: "Recently viewed",
 	returnToWork: "Return to Work",
 	riskGroup: "Risk",
+	roadmap: "Roadmap",
 	save: "Save",
+	screenWireframe: "Screen Wireframe",
 	sinceYouLastLooked: "Since you last looked",
+	skip: "Skip",
+	skippedDeleted: "Deleted",
+	skippedInaccessible: "Not accessible",
+	skippedUnplaceable: "Cannot be placed in the current view",
+	tourTheVisualChanges: "Tour the visual changes",
 	upcomingDate: "Upcoming date",
+	userFlow: "User Flow",
 	workGroup: "Work",
 } as const;
 
@@ -117,6 +129,74 @@ export const SINCE_YOU_LAST_LOOKED_CONTRACT = {
 	storedSummaryRecord: false,
 } as const;
 
+export const VISUAL_TOUR_SURFACES = [
+	"project-wall",
+	"user-flow",
+	"screen-wireframe",
+	"moodboard",
+	"roadmap",
+] as const;
+
+export type VisualTourSurface = (typeof VISUAL_TOUR_SURFACES)[number];
+
+export const VISUAL_TOUR_SURFACE_LABEL = {
+	moodboard: RETURN_TO_WORK_COPY.moodboard,
+	"project-wall": RETURN_TO_WORK_COPY.projectWall,
+	roadmap: RETURN_TO_WORK_COPY.roadmap,
+	"screen-wireframe": RETURN_TO_WORK_COPY.screenWireframe,
+	"user-flow": RETURN_TO_WORK_COPY.userFlow,
+} as const;
+
+export const VISUAL_TOUR_OBJECT_KINDS = ["milestone", "work"] as const;
+
+export type VisualTourObjectKind = (typeof VISUAL_TOUR_OBJECT_KINDS)[number];
+
+export const VISUAL_TOUR_SKIP_REASONS = [
+	"deleted",
+	"inaccessible",
+	"unplaceable",
+] as const;
+
+export type VisualTourSkipReason = (typeof VISUAL_TOUR_SKIP_REASONS)[number];
+
+export const VISUAL_TOUR_SKIP_LABEL = {
+	deleted: RETURN_TO_WORK_COPY.skippedDeleted,
+	inaccessible: RETURN_TO_WORK_COPY.skippedInaccessible,
+	unplaceable: RETURN_TO_WORK_COPY.skippedUnplaceable,
+} as const;
+
+export const VISUAL_TOUR_CAP = 12;
+
+export const VISUAL_TOUR_WRITES = {
+	audit: false,
+	importanceScore: false,
+	records: false,
+	remainderAsSecondList: false,
+	roadmapHistory: false,
+	routes: false,
+	sessionViewport: false,
+	snapshot: false,
+} as const;
+
+export const VISUAL_TOUR_RESTORES = {
+	filter: false,
+	scroll: false,
+} as const;
+
+export const VISUAL_TOUR_CONTRACT = {
+	cap: VISUAL_TOUR_CAP,
+	remainderOpensInList: true,
+	restores: VISUAL_TOUR_RESTORES,
+	surfaces: VISUAL_TOUR_SURFACES,
+	writes: VISUAL_TOUR_WRITES,
+} as const;
+
+export interface VisualTourTarget {
+	objectId: string;
+	objectKind: VisualTourObjectKind;
+	surface: VisualTourSurface;
+}
+
 export const CARD_LIMIT = 8;
 export const UPCOMING_CARD_LIMIT = 3;
 export const LONG_STATUS_CARD_LIMIT = 3;
@@ -186,6 +266,7 @@ export function returnToWorkCatalog() {
 		session: RETURN_TO_WORK_SESSION,
 		sinceYouLastLooked: SINCE_YOU_LAST_LOOKED_CONTRACT,
 		snapshot: RETURN_TO_WORK_SNAPSHOT,
+		visualTour: VISUAL_TOUR_CONTRACT,
 	};
 }
 
@@ -196,6 +277,7 @@ export interface SinceYouLastLookedEvent {
 	occurredAt: string;
 	sourceKey: string;
 	sourceTitle: string;
+	visualTarget: VisualTourTarget | null;
 }
 
 export interface SinceYouLastLookedRow {
@@ -254,6 +336,61 @@ export function groupSinceYouLastLookedEvents(
 		});
 	}
 	return groups;
+}
+
+export interface VisualTourPlanStep {
+	eventId: string;
+	href: string;
+	occurredAt: string;
+	occurredAtDisplay: string;
+	sourceKey: string;
+	sourceTitle: string;
+	surface: VisualTourSurface;
+	surfaceLabel: (typeof VISUAL_TOUR_SURFACE_LABEL)[VisualTourSurface];
+	target: VisualTourTarget;
+	whyShown: typeof RETURN_TO_WORK_COPY.sinceYouLastLooked;
+}
+
+export interface VisualTourPlan {
+	available: boolean;
+	cap: typeof VISUAL_TOUR_CAP;
+	remainderCount: number;
+	remainderOpensInList: true;
+	steps: VisualTourPlanStep[];
+}
+
+export function planVisualTour(
+	events: readonly SinceYouLastLookedEvent[],
+	input: { formatOccurredAt: (occurredAt: string) => string }
+): VisualTourPlan {
+	const eligible = [...events]
+		.filter(
+			(
+				event
+			): event is SinceYouLastLookedEvent & {
+				visualTarget: VisualTourTarget;
+			} => event.visualTarget !== null
+		)
+		.sort((left, right) => left.occurredAt.localeCompare(right.occurredAt));
+	const steps = eligible.slice(0, VISUAL_TOUR_CAP).map((event) => ({
+		eventId: event.id,
+		href: event.href,
+		occurredAt: event.occurredAt,
+		occurredAtDisplay: input.formatOccurredAt(event.occurredAt),
+		sourceKey: event.sourceKey,
+		sourceTitle: event.sourceTitle,
+		surface: event.visualTarget.surface,
+		surfaceLabel: VISUAL_TOUR_SURFACE_LABEL[event.visualTarget.surface],
+		target: event.visualTarget,
+		whyShown: RETURN_TO_WORK_COPY.sinceYouLastLooked,
+	}));
+	return {
+		available: eligible.length > 0,
+		cap: VISUAL_TOUR_CAP,
+		remainderCount: Math.max(0, eligible.length - VISUAL_TOUR_CAP),
+		remainderOpensInList: true,
+		steps,
+	};
 }
 
 function isUpcoming(date: string | null, today: string): date is string {
@@ -538,6 +675,92 @@ export const returnToWorkSummarySchema = z.object({
 		storedCardSnapshot: z.literal(false),
 	}),
 	statusAgeThresholdDays: z.number().int().positive().nullable(),
+	visualTour: z.object({
+		available: z.boolean(),
+		cap: z.literal(VISUAL_TOUR_CAP),
+		copy: z.object({
+			closeTour: z.literal(RETURN_TO_WORK_COPY.closeTour),
+			openRemainderInTheList: z.literal(
+				RETURN_TO_WORK_COPY.openRemainderInTheList
+			),
+			skip: z.literal(RETURN_TO_WORK_COPY.skip),
+			skippedDeleted: z.literal(RETURN_TO_WORK_COPY.skippedDeleted),
+			skippedInaccessible: z.literal(RETURN_TO_WORK_COPY.skippedInaccessible),
+			skippedUnplaceable: z.literal(RETURN_TO_WORK_COPY.skippedUnplaceable),
+			tourTheVisualChanges: z.literal(RETURN_TO_WORK_COPY.tourTheVisualChanges),
+		}),
+		remainderCount: z.number().int().nonnegative(),
+		remainderOpensInList: z.literal(true),
+		restores: z.object({
+			filter: z.literal(false),
+			scroll: z.literal(false),
+		}),
+		steps: z.array(
+			z.object({
+				eventId: z.string().min(1),
+				href: z.string().min(1),
+				occurredAt: z.string().datetime(),
+				occurredAtDisplay: z.string().min(1),
+				sourceKey: z.string().min(1),
+				sourceTitle: z.string().min(1),
+				surface: z.enum(VISUAL_TOUR_SURFACES),
+				surfaceLabel: z.string().min(1),
+				target: z.object({
+					objectId: z.string().min(1),
+					objectKind: z.enum(VISUAL_TOUR_OBJECT_KINDS),
+					surface: z.enum(VISUAL_TOUR_SURFACES),
+				}),
+				whyShown: z.literal(RETURN_TO_WORK_COPY.sinceYouLastLooked),
+			})
+		),
+		surfaces: z.tuple([
+			z.literal("project-wall"),
+			z.literal("user-flow"),
+			z.literal("screen-wireframe"),
+			z.literal("moodboard"),
+			z.literal("roadmap"),
+		]),
+		writes: z.object({
+			audit: z.literal(false),
+			importanceScore: z.literal(false),
+			records: z.literal(false),
+			remainderAsSecondList: z.literal(false),
+			roadmapHistory: z.literal(false),
+			routes: z.literal(false),
+			sessionViewport: z.literal(false),
+			snapshot: z.literal(false),
+		}),
+	}),
 });
 
 export type ReturnToWorkSummary = z.infer<typeof returnToWorkSummarySchema>;
+
+export function visualTourPanel(
+	plan: VisualTourPlan
+): ReturnToWorkSummary["visualTour"] {
+	return {
+		available: plan.available,
+		cap: VISUAL_TOUR_CAP,
+		copy: {
+			closeTour: RETURN_TO_WORK_COPY.closeTour,
+			openRemainderInTheList: RETURN_TO_WORK_COPY.openRemainderInTheList,
+			skip: RETURN_TO_WORK_COPY.skip,
+			skippedDeleted: RETURN_TO_WORK_COPY.skippedDeleted,
+			skippedInaccessible: RETURN_TO_WORK_COPY.skippedInaccessible,
+			skippedUnplaceable: RETURN_TO_WORK_COPY.skippedUnplaceable,
+			tourTheVisualChanges: RETURN_TO_WORK_COPY.tourTheVisualChanges,
+		},
+		remainderCount: plan.remainderCount,
+		remainderOpensInList: true,
+		restores: { filter: false, scroll: false },
+		steps: plan.steps,
+		surfaces: [
+			"project-wall",
+			"user-flow",
+			"screen-wireframe",
+			"moodboard",
+			"roadmap",
+		],
+		writes: VISUAL_TOUR_WRITES,
+	};
+}
