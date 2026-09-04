@@ -34,6 +34,7 @@ function ProjectProfileRoute() {
 					decision: search.decision,
 					goal: search.goal,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: search.source,
 					work: search.work,
 				},
@@ -46,6 +47,7 @@ function ProjectProfileRoute() {
 			search.decision,
 			search.goal,
 			search.researchSession,
+			search.risk,
 			search.source,
 			search.work,
 		]
@@ -61,6 +63,7 @@ function ProjectProfileRoute() {
 					decision: search.decision,
 					goal: search.goal,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: search.source,
 					work: workId ?? undefined,
 				},
@@ -75,6 +78,7 @@ function ProjectProfileRoute() {
 			search.decision,
 			search.goal,
 			search.researchSession,
+			search.risk,
 			search.source,
 		]
 	);
@@ -89,6 +93,7 @@ function ProjectProfileRoute() {
 					decision: decisionId ?? undefined,
 					goal: search.goal,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: search.source,
 					work: search.work,
 				},
@@ -101,6 +106,7 @@ function ProjectProfileRoute() {
 			search.configurationMode,
 			search.goal,
 			search.researchSession,
+			search.risk,
 			search.source,
 			search.work,
 		]
@@ -116,6 +122,7 @@ function ProjectProfileRoute() {
 					decision: search.decision,
 					goal: search.goal,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: search.source,
 					work: search.work,
 				},
@@ -123,6 +130,36 @@ function ProjectProfileRoute() {
 		},
 		[
 			navigate,
+			search.configurationEditor,
+			search.configurationMode,
+			search.decision,
+			search.goal,
+			search.researchSession,
+			search.risk,
+			search.source,
+			search.work,
+		]
+	);
+	const onRiskId = useCallback(
+		(riskId: string | null) => {
+			navigate({
+				hash: "risks",
+				search: {
+					assumption: search.assumption,
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					decision: search.decision,
+					goal: search.goal,
+					researchSession: search.researchSession,
+					risk: riskId ?? undefined,
+					source: search.source,
+					work: search.work,
+				},
+			}).catch(() => undefined);
+		},
+		[
+			navigate,
+			search.assumption,
 			search.configurationEditor,
 			search.configurationMode,
 			search.decision,
@@ -143,6 +180,7 @@ function ProjectProfileRoute() {
 					decision: search.decision,
 					goal: goalId ?? undefined,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: search.source,
 					work: search.work,
 				},
@@ -155,6 +193,7 @@ function ProjectProfileRoute() {
 			search.configurationMode,
 			search.decision,
 			search.researchSession,
+			search.risk,
 			search.source,
 			search.work,
 		]
@@ -170,6 +209,7 @@ function ProjectProfileRoute() {
 					decision: search.decision,
 					goal: search.goal,
 					researchSession: sessionId ?? undefined,
+					risk: search.risk,
 					source: search.source,
 					work: search.work,
 				},
@@ -182,6 +222,7 @@ function ProjectProfileRoute() {
 			search.configurationMode,
 			search.decision,
 			search.goal,
+			search.risk,
 			search.source,
 			search.work,
 		]
@@ -197,6 +238,7 @@ function ProjectProfileRoute() {
 					decision: search.decision,
 					goal: search.goal,
 					researchSession: search.researchSession,
+					risk: search.risk,
 					source: sourceId ?? undefined,
 					work: search.work,
 				},
@@ -210,6 +252,7 @@ function ProjectProfileRoute() {
 			search.decision,
 			search.goal,
 			search.researchSession,
+			search.risk,
 			search.work,
 		]
 	);
@@ -225,10 +268,12 @@ function ProjectProfileRoute() {
 			onGoalId={onGoalId}
 			onPresentationChange={onPresentationChange}
 			onResearchSessionId={onResearchSessionId}
+			onRiskId={onRiskId}
 			onSourceId={onSourceId}
 			onWorkId={onWorkId}
 			projectId={projectId}
 			researchSessionId={search.researchSession ?? null}
+			riskId={search.risk ?? null}
 			sourceId={search.source ?? null}
 			workId={search.work ?? null}
 		/>

@@ -28,6 +28,7 @@ import { recordDiscovery } from "../features/record-discovery/server/record-disc
 import { relations } from "../features/relations/server/relations-rpc";
 import { researchSessions } from "../features/research-sessions/server/research-sessions-rpc";
 import { returnToWork } from "../features/return-to-work/server/return-to-work-rpc";
+import { risks } from "../features/risks/server/risks-rpc";
 import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
 import { smartCollections } from "../features/smart-collections/server/smart-collections-rpc";
 import { sources } from "../features/sources-and-freshness/server/sources-rpc";
@@ -76,6 +77,7 @@ export const appRouter = {
 	relations,
 	researchSessions,
 	returnToWork,
+	risks,
 	roadmapHorizon,
 	smartCollections,
 	sources,

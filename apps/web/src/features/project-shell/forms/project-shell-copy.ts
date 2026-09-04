@@ -126,6 +126,7 @@ export interface ProjectShellSearch {
 	decision?: string;
 	goal?: string;
 	researchSession?: string;
+	risk?: string;
 	source?: string;
 	work?: string;
 }
@@ -153,6 +154,7 @@ export function projectShellSearch(
 	const decision = nonemptySearchString(search.decision);
 	const goal = nonemptySearchString(search.goal);
 	const researchSession = nonemptySearchString(search.researchSession);
+	const risk = nonemptySearchString(search.risk);
 	const source = nonemptySearchString(search.source);
 	const work = nonemptySearchString(search.work);
 	return {
@@ -164,6 +166,7 @@ export function projectShellSearch(
 		...(decision ? { decision } : {}),
 		...(goal ? { goal } : {}),
 		...(researchSession ? { researchSession } : {}),
+		...(risk ? { risk } : {}),
 		...(source ? { source } : {}),
 		...(work ? { work } : {}),
 	};

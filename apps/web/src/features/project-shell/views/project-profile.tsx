@@ -46,6 +46,7 @@ import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
 import { RESEARCH_SESSIONS_COPY } from "@/features/research-sessions/forms/research-sessions-copy";
 import ResearchSessionArea from "@/features/research-sessions/views/research-session-area";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
+import RiskArea from "@/features/risks/views/risk-area";
 import SourceArea from "@/features/sources-and-freshness/views/source-area";
 import AssumptionArea from "@/features/uncertainty-records/views/assumption-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
@@ -93,10 +94,12 @@ export default function ProjectProfile({
 	onGoalId,
 	onPresentationChange,
 	onResearchSessionId,
+	onRiskId,
 	onSourceId,
 	onWorkId,
 	projectId,
 	researchSessionId,
+	riskId,
 	sourceId,
 	workId,
 }: {
@@ -114,10 +117,12 @@ export default function ProjectProfile({
 		open: boolean;
 	}) => void;
 	onResearchSessionId?: (sessionId: string | null) => void;
+	onRiskId?: (riskId: string | null) => void;
 	onSourceId?: (sourceId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
 	researchSessionId?: string | null;
+	riskId?: string | null;
 	sourceId?: string | null;
 	workId?: string | null;
 }) {
@@ -178,6 +183,7 @@ export default function ProjectProfile({
 		(selectedAnchor === "" &&
 			!workId &&
 			!decisionId &&
+			!riskId &&
 			!researchSessionId &&
 			!sourceId) ||
 		selectedAnchor === overviewAnchor;
@@ -242,10 +248,12 @@ export default function ProjectProfile({
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
 					onResearchSessionId={onResearchSessionId}
+					onRiskId={onRiskId}
 					onSourceId={onSourceId}
 					onToggle={onToggle}
 					onWorkId={onWorkId}
 					researchSessionId={researchSessionId}
+					riskId={riskId}
 					selectedAnchor={selectedAnchor}
 					sourceId={sourceId}
 					workId={workId}
@@ -455,16 +463,21 @@ function DecisionsProjectSection({
 	decisionId,
 	onAssumptionId,
 	onDecisionId,
+	onRiskId,
 	projectId,
+	riskId,
 	sectionId,
 }: {
 	assumptionId?: string | null;
 	decisionId?: string | null;
 	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
+	onRiskId?: (riskId: string | null) => void;
 	projectId: string;
+	riskId?: string | null;
 	sectionId: string;
 }) {
+	const risksAnchor = projectShellAnchor("Risks");
 	return (
 		<section aria-label="Decisions" id={sectionId}>
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">
@@ -482,6 +495,12 @@ function DecisionsProjectSection({
 					projectId={projectId}
 				/>
 			</div>
+			<section aria-label="Risks" className="mt-10" id={risksAnchor}>
+				<h2 className="font-semibold text-lg tracking-tight">Risks</h2>
+				<div className="mt-6">
+					<RiskArea onRiskId={onRiskId} projectId={projectId} riskId={riskId} />
+				</div>
+			</section>
 		</section>
 	);
 }
@@ -494,9 +513,14 @@ function projectRecordArea({
 	fileAttachmentAnchor,
 	onAssumptionId,
 	onDecisionId,
+	onResearchSessionId,
+	onRiskId,
 	onSourceId,
 	onWorkId,
 	projectId,
+	researchSessionId,
+	riskId,
+	risksAnchor,
 	selectedAnchor,
 	selectedArea,
 	sourceAnchor,
@@ -509,9 +533,14 @@ function projectRecordArea({
 	fileAttachmentAnchor: string;
 	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
+	onResearchSessionId?: (sessionId: string | null) => void;
+	onRiskId?: (riskId: string | null) => void;
 	onSourceId?: (sourceId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
+	researchSessionId?: string | null;
+	riskId?: string | null;
+	risksAnchor: string;
 	selectedAnchor: string;
 	selectedArea: string | undefined;
 	sourceAnchor: string;
@@ -528,8 +557,10 @@ function projectRecordArea({
 	}
 	if (
 		selectedAnchor === decisionsAnchor ||
+		selectedAnchor === risksAnchor ||
 		selectedArea === "Decisions" ||
 		decisionId ||
+		riskId ||
 		assumptionId
 	) {
 		return (
@@ -538,7 +569,9 @@ function projectRecordArea({
 				decisionId={decisionId}
 				onAssumptionId={onAssumptionId}
 				onDecisionId={onDecisionId}
+				onRiskId={onRiskId}
 				projectId={projectId}
+				riskId={riskId}
 				sectionId={decisionsAnchor}
 			/>
 		);
@@ -576,7 +609,48 @@ function projectRecordArea({
 			</section>
 		);
 	}
+	if (selectedArea === "Discovery" || researchSessionId) {
+		return (
+			<DiscoveryProjectSection
+				onResearchSessionId={onResearchSessionId}
+				projectId={projectId}
+				researchSessionId={researchSessionId}
+			/>
+		);
+	}
 	return null;
+}
+
+function DiscoveryProjectSection({
+	onResearchSessionId,
+	projectId,
+	researchSessionId,
+}: {
+	onResearchSessionId?: (sessionId: string | null) => void;
+	projectId: string;
+	researchSessionId?: string | null;
+}) {
+	return (
+		<section aria-label="Discovery" id={projectShellAnchor("Discovery")}>
+			<h1 className="font-semibold text-[1.375rem] tracking-tight">
+				Discovery
+			</h1>
+			<p className="mt-2 text-muted-foreground text-sm">Feedback</p>
+			<div className="mt-6">
+				<BoundRecordValuesSurface projectId={projectId} recordType="Feedback" />
+			</div>
+			<h2 className="mt-10 font-medium text-base">
+				{RESEARCH_SESSIONS_COPY.researchSession}
+			</h2>
+			<div className="mt-6">
+				<ResearchSessionArea
+					onSessionId={onResearchSessionId}
+					projectId={projectId}
+					sessionId={researchSessionId}
+				/>
+			</div>
+		</section>
+	);
 }
 
 function ProjectBody({
@@ -591,10 +665,12 @@ function ProjectBody({
 	onGoalId,
 	onOpenEditor,
 	onResearchSessionId,
+	onRiskId,
 	onSourceId,
 	onToggle,
 	onWorkId,
 	researchSessionId,
+	riskId,
 	selectedAnchor,
 	sourceId,
 	workId,
@@ -610,10 +686,12 @@ function ProjectBody({
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
 	onResearchSessionId?: (sessionId: string | null) => void;
+	onRiskId?: (riskId: string | null) => void;
 	onSourceId?: (sourceId: string | null) => void;
 	onToggle: () => void;
 	onWorkId?: (workId: string | null) => void;
 	researchSessionId?: string | null;
+	riskId?: string | null;
 	selectedAnchor: string;
 	sourceId?: string | null;
 	workId?: string | null;
@@ -622,6 +700,7 @@ function ProjectBody({
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const documentsAnchor = projectShellAnchor("Documents");
 	const decisionsAnchor = projectShellAnchor("Decisions");
+	const risksAnchor = projectShellAnchor("Risks");
 	const fileAttachmentAnchor = projectShellAnchor("File Attachment");
 	const sourceAnchor = projectShellAnchor("Source");
 	const selectedArea = data.allToolsAreas
@@ -640,9 +719,14 @@ function ProjectBody({
 		fileAttachmentAnchor,
 		onAssumptionId,
 		onDecisionId,
+		onResearchSessionId,
+		onRiskId,
 		onSourceId,
 		onWorkId,
 		projectId: data.id,
+		researchSessionId: showingWork ? null : researchSessionId,
+		riskId: showingWork ? null : riskId,
+		risksAnchor,
 		selectedAnchor,
 		selectedArea,
 		sourceAnchor,
@@ -762,30 +846,6 @@ function ProjectBody({
 								? activeView
 								: null
 						}
-					/>
-				</div>
-			</section>
-		);
-	}
-
-	if (selectedArea === "Discovery" || researchSessionId) {
-		return (
-			<section aria-label="Discovery" id={projectShellAnchor("Discovery")}>
-				<h1 className="font-semibold text-[1.375rem] tracking-tight">
-					Discovery
-				</h1>
-				<p className="mt-2 text-muted-foreground text-sm">Feedback</p>
-				<div className="mt-6">
-					<BoundRecordValuesSurface projectId={data.id} recordType="Feedback" />
-				</div>
-				<h2 className="mt-10 font-medium text-base">
-					{RESEARCH_SESSIONS_COPY.researchSession}
-				</h2>
-				<div className="mt-6">
-					<ResearchSessionArea
-						onSessionId={onResearchSessionId}
-						projectId={data.id}
-						sessionId={researchSessionId}
 					/>
 				</div>
 			</section>
