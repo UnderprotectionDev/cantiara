@@ -7,6 +7,8 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"Decision",
 	"FavoriteMembership",
 	"NextConcreteStepChange",
+	"OpenQuestion",
+	"OpenQuestionEvent",
 	"PersonalReminder",
 	"ProjectGoal",
 	"ReturnToWorkVisibleOpen",

@@ -16,3 +16,14 @@ test("English Assumption labels stay Assumption and the four lives", () => {
 	expect(UNCERTAINTY_COPY.createAssumption).toBe("Create Assumption");
 	expect(JSON.stringify(UNCERTAINTY_COPY)).not.toMatch(FUTURE_COPY);
 });
+
+test("Open Question English UI matches the uncertainty spec", () => {
+	expect(UNCERTAINTY_COPY.openQuestion).toBe("Open Question");
+	expect(UNCERTAINTY_COPY.open).toBe("Open");
+	expect(UNCERTAINTY_COPY.answered).toBe("Answered");
+	expect(UNCERTAINTY_COPY.noLongerApplicable).toBe("No longer applicable");
+	expect(UNCERTAINTY_COPY.assumption).toBe("Assumption");
+	expect(UNCERTAINTY_COPY.createOpenQuestion).toBe("Create Open Question");
+	expect(UNCERTAINTY_COPY.evidenceMissing).toBe("Evidence missing");
+	expect(JSON.stringify(UNCERTAINTY_COPY)).not.toMatch(FUTURE_COPY);
+});

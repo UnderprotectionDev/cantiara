@@ -152,6 +152,9 @@ test("Configuration Mode is presentation search, not a Project write", () => {
 		assumption: "assumption_1",
 	});
 	expect(projectShellSearch({ goal: "goal_1" })).toEqual({ goal: "goal_1" });
+	expect(projectShellSearch({ openQuestion: "question_1" })).toEqual({
+		openQuestion: "question_1",
+	});
 	expect(projectShellSearch({ risk: "risk_1" })).toEqual({ risk: "risk_1" });
 	expect(projectShellSearch({ researchSession: "session_1" })).toEqual({
 		researchSession: "session_1",

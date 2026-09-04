@@ -48,7 +48,9 @@ import ResearchSessionArea from "@/features/research-sessions/views/research-ses
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
 import RiskArea from "@/features/risks/views/risk-area";
 import SourceArea from "@/features/sources-and-freshness/views/source-area";
+import { UNCERTAINTY_COPY } from "@/features/uncertainty-records/forms/uncertainty-records-copy";
 import AssumptionArea from "@/features/uncertainty-records/views/assumption-area";
+import OpenQuestionArea from "@/features/uncertainty-records/views/open-question-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
 
@@ -92,11 +94,13 @@ export default function ProjectProfile({
 	onAssumptionId,
 	onDecisionId,
 	onGoalId,
+	onOpenQuestionId,
 	onPresentationChange,
 	onResearchSessionId,
 	onRiskId,
 	onSourceId,
 	onWorkId,
+	openQuestionId,
 	projectId,
 	researchSessionId,
 	riskId,
@@ -111,6 +115,7 @@ export default function ProjectProfile({
 	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
+	onOpenQuestionId?: (openQuestionId: string | null) => void;
 	onPresentationChange: (next: {
 		editor: ConfigurationModeEditor | null;
 		hash?: string;
@@ -120,6 +125,7 @@ export default function ProjectProfile({
 	onRiskId?: (riskId: string | null) => void;
 	onSourceId?: (sourceId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
+	openQuestionId?: string | null;
 	projectId: string;
 	researchSessionId?: string | null;
 	riskId?: string | null;
@@ -185,7 +191,8 @@ export default function ProjectProfile({
 			!decisionId &&
 			!riskId &&
 			!researchSessionId &&
-			!sourceId) ||
+			!sourceId &&
+			!openQuestionId) ||
 		selectedAnchor === overviewAnchor;
 
 	const nav = (
@@ -247,11 +254,13 @@ export default function ProjectProfile({
 					onDecisionId={onDecisionId}
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
+					onOpenQuestionId={onOpenQuestionId}
 					onResearchSessionId={onResearchSessionId}
 					onRiskId={onRiskId}
 					onSourceId={onSourceId}
 					onToggle={onToggle}
 					onWorkId={onWorkId}
+					openQuestionId={openQuestionId}
 					researchSessionId={researchSessionId}
 					riskId={riskId}
 					selectedAnchor={selectedAnchor}
@@ -513,10 +522,12 @@ function projectRecordArea({
 	fileAttachmentAnchor,
 	onAssumptionId,
 	onDecisionId,
+	onOpenQuestionId,
 	onResearchSessionId,
 	onRiskId,
 	onSourceId,
 	onWorkId,
+	openQuestionId,
 	projectId,
 	researchSessionId,
 	riskId,
@@ -533,10 +544,12 @@ function projectRecordArea({
 	fileAttachmentAnchor: string;
 	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
+	onOpenQuestionId?: (openQuestionId: string | null) => void;
 	onResearchSessionId?: (sessionId: string | null) => void;
 	onRiskId?: (riskId: string | null) => void;
 	onSourceId?: (sourceId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
+	openQuestionId?: string | null;
 	projectId: string;
 	researchSessionId?: string | null;
 	riskId?: string | null;
@@ -609,10 +622,12 @@ function projectRecordArea({
 			</section>
 		);
 	}
-	if (selectedArea === "Discovery" || researchSessionId) {
+	if (selectedArea === "Discovery" || researchSessionId || openQuestionId) {
 		return (
 			<DiscoveryProjectSection
+				onOpenQuestionId={onOpenQuestionId}
 				onResearchSessionId={onResearchSessionId}
+				openQuestionId={openQuestionId}
 				projectId={projectId}
 				researchSessionId={researchSessionId}
 			/>
@@ -622,11 +637,15 @@ function projectRecordArea({
 }
 
 function DiscoveryProjectSection({
+	onOpenQuestionId,
 	onResearchSessionId,
+	openQuestionId,
 	projectId,
 	researchSessionId,
 }: {
+	onOpenQuestionId?: (openQuestionId: string | null) => void;
 	onResearchSessionId?: (sessionId: string | null) => void;
+	openQuestionId?: string | null;
 	projectId: string;
 	researchSessionId?: string | null;
 }) {
@@ -639,6 +658,16 @@ function DiscoveryProjectSection({
 			<div className="mt-6">
 				<BoundRecordValuesSurface projectId={projectId} recordType="Feedback" />
 			</div>
+			<h2 className="mt-8 font-medium text-base">
+				{UNCERTAINTY_COPY.openQuestion}
+			</h2>
+			<div className="mt-6">
+				<OpenQuestionArea
+					onOpenQuestionId={onOpenQuestionId}
+					openQuestionId={openQuestionId}
+					projectId={projectId}
+				/>
+			</div>
 			<h2 className="mt-10 font-medium text-base">
 				{RESEARCH_SESSIONS_COPY.researchSession}
 			</h2>
@@ -647,6 +676,84 @@ function DiscoveryProjectSection({
 					onSessionId={onResearchSessionId}
 					projectId={projectId}
 					sessionId={researchSessionId}
+				/>
+			</div>
+		</section>
+	);
+}
+
+function WorkProjectSection({
+	configurationMode,
+	onWorkId,
+	projectId,
+	selectedAnchor,
+	workId,
+	workViews,
+}: {
+	configurationMode: boolean;
+	onWorkId?: (workId: string | null) => void;
+	projectId: string;
+	selectedAnchor: string;
+	workId?: string | null;
+	workViews: readonly string[];
+}) {
+	const activeView = workViews.find(
+		(view) => projectShellAnchor(view) === selectedAnchor
+	);
+	return (
+		<section aria-label="Work" id={projectShellAnchor("Work")}>
+			<h1 className="font-semibold text-[1.375rem] tracking-tight">Work</h1>
+			<nav
+				aria-label={PROJECT_SHELL_COPY.savedViews}
+				className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs"
+			>
+				{WORK_DAILY_ACTIONS.map((action) => (
+					<a
+						className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+						href={`#${projectShellAnchor(action)}`}
+						key={action}
+					>
+						{action}
+					</a>
+				))}
+				{workViews.map((view) => {
+					const current =
+						projectShellAnchor(view) === selectedAnchor ||
+						(view === "Backlog" &&
+							(selectedAnchor === "work" || selectedAnchor === "create"));
+					return (
+						<a
+							aria-current={current ? "page" : undefined}
+							className={cn(
+								"underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring",
+								current
+									? "font-medium text-foreground"
+									: "text-muted-foreground hover:text-foreground hover:underline"
+							)}
+							href={`#${projectShellAnchor(view)}`}
+							id={projectShellAnchor(view)}
+							key={view}
+						>
+							{view}
+						</a>
+					);
+				})}
+			</nav>
+			<div className="mt-6">
+				<WorkArea
+					configurationMode={configurationMode}
+					onSelectedWorkId={onWorkId}
+					projectId={projectId}
+					savedView={activeView ?? "Backlog"}
+					selectedWorkId={workId ?? null}
+					unavailableView={
+						activeView &&
+						!workSavedViewIsList(activeView) &&
+						!workSavedViewIsBoard(activeView) &&
+						!workSavedViewIsRoadmap(activeView)
+							? activeView
+							: null
+					}
 				/>
 			</div>
 		</section>
@@ -664,11 +771,13 @@ function ProjectBody({
 	onDecisionId,
 	onGoalId,
 	onOpenEditor,
+	onOpenQuestionId,
 	onResearchSessionId,
 	onRiskId,
 	onSourceId,
 	onToggle,
 	onWorkId,
+	openQuestionId,
 	researchSessionId,
 	riskId,
 	selectedAnchor,
@@ -685,11 +794,13 @@ function ProjectBody({
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
+	onOpenQuestionId?: (openQuestionId: string | null) => void;
 	onResearchSessionId?: (sessionId: string | null) => void;
 	onRiskId?: (riskId: string | null) => void;
 	onSourceId?: (sourceId: string | null) => void;
 	onToggle: () => void;
 	onWorkId?: (workId: string | null) => void;
+	openQuestionId?: string | null;
 	researchSessionId?: string | null;
 	riskId?: string | null;
 	selectedAnchor: string;
@@ -719,10 +830,12 @@ function ProjectBody({
 		fileAttachmentAnchor,
 		onAssumptionId,
 		onDecisionId,
+		onOpenQuestionId,
 		onResearchSessionId,
 		onRiskId,
 		onSourceId,
 		onWorkId,
+		openQuestionId: showingWork ? null : openQuestionId,
 		projectId: data.id,
 		researchSessionId: showingWork ? null : researchSessionId,
 		riskId: showingWork ? null : riskId,
@@ -789,66 +902,15 @@ function ProjectBody({
 	}
 
 	if (showingWork) {
-		const activeView = data.workViews.find(
-			(view) => projectShellAnchor(view) === selectedAnchor
-		);
 		return (
-			<section aria-label="Work" id={projectShellAnchor("Work")}>
-				<h1 className="font-semibold text-[1.375rem] tracking-tight">Work</h1>
-				<nav
-					aria-label={PROJECT_SHELL_COPY.savedViews}
-					className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs"
-				>
-					{WORK_DAILY_ACTIONS.map((action) => (
-						<a
-							className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-							href={`#${projectShellAnchor(action)}`}
-							key={action}
-						>
-							{action}
-						</a>
-					))}
-					{data.workViews.map((view) => {
-						const current =
-							projectShellAnchor(view) === selectedAnchor ||
-							(view === "Backlog" &&
-								(selectedAnchor === "work" || selectedAnchor === "create"));
-						return (
-							<a
-								aria-current={current ? "page" : undefined}
-								className={cn(
-									"underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring",
-									current
-										? "font-medium text-foreground"
-										: "text-muted-foreground hover:text-foreground hover:underline"
-								)}
-								href={`#${projectShellAnchor(view)}`}
-								id={projectShellAnchor(view)}
-								key={view}
-							>
-								{view}
-							</a>
-						);
-					})}
-				</nav>
-				<div className="mt-6">
-					<WorkArea
-						configurationMode={configurationMode}
-						onSelectedWorkId={onWorkId}
-						projectId={data.id}
-						savedView={activeView ?? "Backlog"}
-						selectedWorkId={workId ?? null}
-						unavailableView={
-							activeView &&
-							!workSavedViewIsList(activeView) &&
-							!workSavedViewIsBoard(activeView) &&
-							!workSavedViewIsRoadmap(activeView)
-								? activeView
-								: null
-						}
-					/>
-				</div>
-			</section>
+			<WorkProjectSection
+				configurationMode={configurationMode}
+				onWorkId={onWorkId}
+				projectId={data.id}
+				selectedAnchor={selectedAnchor}
+				workId={workId}
+				workViews={data.workViews}
+			/>
 		);
 	}
 
