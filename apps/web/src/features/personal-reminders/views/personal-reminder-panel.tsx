@@ -14,17 +14,30 @@ import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
 import {
+	listDocumentHeadingSections,
 	PERSONAL_REMINDER_ACTIONS,
+	PERSONAL_REMINDER_CONDITIONS,
 	PERSONAL_REMINDERS_COPY,
 	type PersonalReminderAction,
+	type PersonalReminderCondition,
 	presentPersonalReminderWriteError,
 } from "./personal-reminders-copy";
 
 interface ReminderRow {
 	createdByAction: PersonalReminderAction;
+	documentSectionId: string | null;
 	fireAt: string;
 	id: string;
 	life: string;
+	openTarget:
+		| { kind: "record" }
+		| { heading: string; kind: "document-section"; sectionId: string }
+		| {
+				explanation: string;
+				kind: "missing-section";
+				sectionId: string;
+		  };
+	stillOpenCondition: PersonalReminderCondition;
 }
 
 function sourceQueryKey(sourceId: string, sourceType: "Document" | "Work") {
@@ -62,9 +75,11 @@ function fireAtLocalValue(iso: string): string {
 }
 
 export default function PersonalReminderPanel({
+	documentBody = "",
 	sourceId,
 	sourceType,
 }: {
+	documentBody?: string;
 	sourceId: string;
 	sourceType: "Document" | "Work";
 }) {
@@ -115,16 +130,29 @@ export default function PersonalReminderPanel({
 			const form = new FormData(event.currentTarget);
 			const local = String(form.get("fireAt") ?? "");
 			const createdByAction = String(
-				form.get("createdByAction") ?? PERSONAL_REMINDERS_COPY.remindMe
+				form.get("createdByAction") ??
+					(sourceType === "Document"
+						? PERSONAL_REMINDERS_COPY.reviewLater
+						: PERSONAL_REMINDERS_COPY.remindMe)
 			) as PersonalReminderAction;
+			const stillOpenCondition = String(
+				form.get("stillOpenCondition") ?? PERSONAL_REMINDERS_COPY.inAnyCase
+			) as PersonalReminderCondition;
+			const documentSectionId = String(form.get("documentSectionId") ?? "");
 			const fireAt = local === "" ? "" : new Date(local).toISOString();
 			const result = attemptOnlineWork("record-create", () =>
 				create.mutateAsync({
 					createdByAction,
+					documentSectionId:
+						sourceType === "Document" && documentSectionId.length > 0
+							? documentSectionId
+							: null,
 					fireAt,
 					idempotencyKey: newIdempotencyKey(),
 					sourceId,
 					sourceType,
+					stillOpenCondition:
+						sourceType === "Work" ? stillOpenCondition : undefined,
 				})
 			);
 			if (result.status === "refused") {
@@ -155,10 +183,13 @@ export default function PersonalReminderPanel({
 		[attemptOnlineWork, cancel, markUnsaved]
 	);
 	const reminders = (listed.data ?? []) as ReminderRow[];
+	const sections = listDocumentHeadingSections(documentBody);
 	return (
 		<section className="flex flex-col gap-3">
 			<h3 className="font-medium text-sm">
-				{PERSONAL_REMINDERS_COPY.remindMe}
+				{sourceType === "Document"
+					? PERSONAL_REMINDERS_COPY.reviewLater
+					: PERSONAL_REMINDERS_COPY.remindMe}
 			</h3>
 			<form className="flex flex-col gap-3" onSubmit={onSubmit}>
 				<Field>
@@ -166,7 +197,11 @@ export default function PersonalReminderPanel({
 						{PERSONAL_REMINDERS_COPY.remindMe}
 					</FieldLabel>
 					<NativeSelect
-						defaultValue={PERSONAL_REMINDERS_COPY.remindMe}
+						defaultValue={
+							sourceType === "Document"
+								? PERSONAL_REMINDERS_COPY.reviewLater
+								: PERSONAL_REMINDERS_COPY.remindMe
+						}
 						id={`${sourceId}-reminder-action`}
 						name="createdByAction"
 					>
@@ -177,6 +212,48 @@ export default function PersonalReminderPanel({
 						))}
 					</NativeSelect>
 				</Field>
+				{sourceType === "Work" ? (
+					<Field>
+						<FieldLabel htmlFor={`${sourceId}-reminder-condition`}>
+							{PERSONAL_REMINDERS_COPY.inAnyCase}
+						</FieldLabel>
+						<NativeSelect
+							defaultValue={PERSONAL_REMINDERS_COPY.inAnyCase}
+							id={`${sourceId}-reminder-condition`}
+							name="stillOpenCondition"
+						>
+							{PERSONAL_REMINDER_CONDITIONS.map((condition) => (
+								<NativeSelectOption key={condition} value={condition}>
+									{condition}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+					</Field>
+				) : null}
+				{sourceType === "Document" ? (
+					<Field>
+						<FieldLabel htmlFor={`${sourceId}-reminder-section`}>
+							{PERSONAL_REMINDERS_COPY.section}
+						</FieldLabel>
+						<NativeSelect
+							defaultValue=""
+							id={`${sourceId}-reminder-section`}
+							name="documentSectionId"
+						>
+							<NativeSelectOption value="">
+								{PERSONAL_REMINDERS_COPY.reviewLater}
+							</NativeSelectOption>
+							{sections.map((section) => (
+								<NativeSelectOption
+									key={section.sectionId}
+									value={section.sectionId}
+								>
+									{section.heading}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+					</Field>
+				) : null}
 				<Field>
 					<FieldLabel htmlFor={`${sourceId}-reminder-when`}>
 						{PERSONAL_REMINDERS_COPY.fireAt}
@@ -189,7 +266,9 @@ export default function PersonalReminderPanel({
 					/>
 				</Field>
 				<Button size="sm" type="submit">
-					{PERSONAL_REMINDERS_COPY.remindMe}
+					{sourceType === "Document"
+						? PERSONAL_REMINDERS_COPY.reviewLater
+						: PERSONAL_REMINDERS_COPY.remindMe}
 				</Button>
 			</form>
 			{error ? <p role="alert">{error}</p> : null}
@@ -210,6 +289,13 @@ export default function PersonalReminderPanel({
 						>
 							<span>{reminder.life}</span>
 							<span>{reminder.createdByAction}</span>
+							<span>{reminder.stillOpenCondition}</span>
+							{reminder.openTarget.kind === "document-section" ? (
+								<span>{reminder.openTarget.heading}</span>
+							) : null}
+							{reminder.openTarget.kind === "missing-section" ? (
+								<span>{reminder.openTarget.explanation}</span>
+							) : null}
 							<time dateTime={reminder.fireAt}>
 								{fireAtLocalValue(reminder.fireAt)}
 							</time>

@@ -466,8 +466,16 @@ Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim
 _Avoid_: Bookmark kuyruğu, Aktif Çalışma Seti, planlama üyeliği
 
 **Hatırlatma**:
-Desteklenen kayda Hesap kapsamında kişisel zaman bağlayan ana kayıt; kaynak sahiplik değil köken referansıdır ve kaynak yaşamı veya planlama üyeliği yazmaz ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Remind me`, `Review Later`, `Planned`, `Cancelled`, `When`, `Cancel`.
+Desteklenen kayda Hesap kapsamında kişisel zaman bağlayan ana kayıt; kaynak sahiplik değil köken referansıdır ve kaynak yaşamı veya planlama üyeliği yazmaz ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Remind me`, `Review Later`, `Planned`, `Cancelled`, `When`, `Cancel`, `In any case`, `Only if still open`, `Section`.
 _Avoid_: Target date, Yeniden görünme tarihi, standalone reminder, Save for Later kuyruğu
+
+**Açık kalma koşulu**:
+`Review Later` kurulurken kaynağın ürün tanımlı açık/çözülmüş yaşamına bakılıp bakılmayacağı; zamanı gelince yalnız o kaynağı okur, genel sorgu oluşturucu değildir ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `In any case`, `Only if still open`.
+_Avoid_: genel koşul oluşturucu, Target date kuralı, Yeniden görünme tarihi
+
+**Belge bölüm hedefi**:
+`Review Later`'ın isteğe bağlı kararlı Markdown başlık kimliği; yeniden adlandırma ve taşıma aynı kimliği izler, silinmiş başlığa sessiz yönelme yoktur ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Section`, `This section is missing.`
+_Avoid_: paragraf aralığı, kayan metin aralığı, sessiz başka başlık
 
 **Akıllı Koleksiyon**:
 Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm; manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
@@ -476,6 +484,14 @@ _Avoid_: Statik liste, klasör, etiket
 **Akıllı Koleksiyon aboneliği**:
 Kayda koleksiyon koşuluna ilk girişte (ve seçilirse çıkışta) üyelik dönemi başına tek `smart-collection-entry` Dikkat sinyali üreten opt-in; kaydı koleksiyonun çocuğu yapmaz ve kaynak alan yazmaz ([Akıllı Koleksiyon abonelikleri](docs/prd/08-search-relations-and-evidence.md#akıllı-koleksiyon-abonelikleri)). UI: `Subscribe`, `Notify on leave`, `Turn on Subscribe first.`.
 _Avoid_: e-posta özeti, kayıtsız sinyal türü, Bildirim Merkezi kabuğu
+
+**Koleksiyon görünümü**:
+Aynı Akıllı Koleksiyon üyeliği üzerinde saklanan sunum; `List`, `Table`, `Gallery`, Kanban veya Roadmap ayarıdır ve ikinci üyelik kümesi değildir. UI: `Named view`, `List`, `Table`, `Gallery`. İsteğe bağlı cümle: `Purpose`.
+_Avoid_: kapak kaydı, Moodboard, Dosya Eki kütüphanesi, Backlog sırası
+
+**Gallery**:
+Akıllı Koleksiyonun sözleşmeli türlerdeki görsel sunumu; ayrı kapak kaydı, Dosya Eki kütüphanesi veya Moodboard değildir. UI: `Gallery`.
+_Avoid_: File library, Moodboard, ayrı küçük görsel kaydı
 
 **Etiket**:
 Çalışma Alanı genelinde yaşayan düz sınıflandırma kimliği; kayıt içeriği, klasör üyeliği veya süzme görünümü değildir ([Etiketler](docs/prd/08-search-relations-and-evidence.md#etiketler)). UI: `Tags`.
