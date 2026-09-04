@@ -3,7 +3,10 @@
  * and Related Assumption / Open Question / Decision context.
  * Relating does not write Assumption or Decision life and does not
  * mint a Decision. No survey, timed voting, or continuous feedback
- * loop. docs/specs/42-validation-records/spec.md and GitHub #305.
+ * loop. Not a Test Session, Planned Test Case, Session Test, Test Gap,
+ * Research Session, or Feedback, and not a release or Test Report
+ * acceptance gate. docs/specs/42-validation-records/spec.md and
+ * GitHub #305 / #306.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Karar ve belirsizlik).
  */
@@ -30,6 +33,7 @@ import {
 	relateValidationContext,
 } from "./validation-records";
 import {
+	VALIDATION_FOREIGN_RECORD_KINDS,
 	VALIDATION_RECORD_KIND,
 	VALIDATION_RECORDS_COPY,
 	VALIDATION_RECORDS_COUNTERPARTS,
@@ -41,6 +45,10 @@ const DATABASE_URL = localTestDatabaseUrl();
 
 const FORBIDDEN_SURFACE =
 	/survey|timed vot|continuous feedback|vote|voting|poll/i;
+const TEST_RESEARCH_OR_FEEDBACK_SURFACE =
+	/Test Session|Planned Test Case|Session Test|Test Gap|Research Session|Feedback|Unreviewed|Test Report|release gate/i;
+const TEST_OR_RESEARCH_LIFE =
+	/Unreviewed|Follow-up needed|Met by result|Not needed|Facilitator|Question guide|Consent/;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -107,14 +115,41 @@ describe("Validation Records catalog", () => {
 		expect(catalog.copy.related).toBe("Related");
 		expect(catalog.relationKind).toBe("Experiment/Validation");
 		expect(catalog.counterparts).toEqual(VALIDATION_RECORDS_COUNTERPARTS);
+		expect(catalog.foreignRecordKinds).toEqual(VALIDATION_FOREIGN_RECORD_KINDS);
 		expect(VALIDATION_RECORDS_COUNTERPARTS.survey).toBe(false);
 		expect(VALIDATION_RECORDS_COUNTERPARTS.timedVoting).toBe(false);
 		expect(VALIDATION_RECORDS_COUNTERPARTS.continuousFeedbackLoop).toBe(false);
 		expect(VALIDATION_RECORDS_COUNTERPARTS.writesAssumptionLife).toBe(false);
 		expect(VALIDATION_RECORDS_COUNTERPARTS.writesDecisionLife).toBe(false);
+		expect(VALIDATION_RECORDS_COUNTERPARTS.plannedTestCase).toBe(false);
+		expect(VALIDATION_RECORDS_COUNTERPARTS.testSession).toBe(false);
+		expect(VALIDATION_RECORDS_COUNTERPARTS.sessionTest).toBe(false);
+		expect(VALIDATION_RECORDS_COUNTERPARTS.testGap).toBe(false);
+		expect(VALIDATION_RECORDS_COUNTERPARTS.researchSession).toBe(false);
+		expect(VALIDATION_RECORDS_COUNTERPARTS.feedback).toBe(false);
+		expect(VALIDATION_RECORDS_COUNTERPARTS.releaseGate).toBe(false);
+		expect(VALIDATION_RECORDS_COUNTERPARTS.testReportAcceptance).toBe(false);
+		expect(VALIDATION_FOREIGN_RECORD_KINDS).toEqual([
+			"Planned Test Case",
+			"Test Session",
+			"Session Test",
+			"Test Gap",
+			"Research Session",
+			"User Research Session",
+			"Feedback",
+		]);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(FORBIDDEN_SURFACE);
+		expect(JSON.stringify(catalog.copy)).not.toMatch(
+			TEST_RESEARCH_OR_FEEDBACK_SURFACE
+		);
 		expect(JSON.stringify(VALIDATION_RECORDS_COPY)).not.toMatch(
 			FORBIDDEN_SURFACE
+		);
+		expect(JSON.stringify(VALIDATION_RECORDS_COPY)).not.toMatch(
+			TEST_RESEARCH_OR_FEEDBACK_SURFACE
+		);
+		expect(JSON.stringify(VALIDATION_RECORDS_COPY)).not.toMatch(
+			TEST_OR_RESEARCH_LIFE
 		);
 	});
 });
@@ -155,9 +190,24 @@ describe("Validation Records", () => {
 			throw new Error("expected create");
 		}
 		expect(created.validationRecord.recordKind).toBe(VALIDATION_RECORD_KIND);
-		expect(created.validationRecord.recordKind).not.toBe("Test Session");
-		expect(created.validationRecord.recordKind).not.toBe(
-			"User Research Session"
+		expect(VALIDATION_FOREIGN_RECORD_KINDS).not.toContain(
+			created.validationRecord.recordKind
+		);
+		expect(Object.keys(created.validationRecord).sort()).toEqual([
+			"id",
+			"method",
+			"projectId",
+			"recordKind",
+			"relatedContext",
+			"result",
+			"revision",
+			"title",
+		]);
+		expect(JSON.stringify(created.validationRecord)).not.toMatch(
+			TEST_RESEARCH_OR_FEEDBACK_SURFACE
+		);
+		expect(JSON.stringify(created.validationRecord)).not.toMatch(
+			TEST_OR_RESEARCH_LIFE
 		);
 		expect(created.validationRecord.method).toBe(
 			"Five customer calls about checkout drop-off."
@@ -176,6 +226,134 @@ describe("Validation Records", () => {
 		);
 		expect(loaded?.method).toBe(created.validationRecord.method);
 		expect(await listDecisions(prisma, projectId)).toHaveLength(0);
+	});
+
+	it("rejects create as a test, research, or Feedback record and does not mimic their life", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const outcomes = await Promise.all(
+			VALIDATION_FOREIGN_RECORD_KINDS.map((kind) =>
+				createValidationRecord(prisma, {
+					actorId,
+					idempotencyKey: `create-as-${kind}`,
+					origin: "human",
+					payload: {
+						kind,
+						method: "Outside check.",
+						projectId,
+						result: "Noted.",
+						status: "Unreviewed",
+						title: kind,
+					},
+					viewerWorkspaceId: workspaceId,
+				})
+			)
+		);
+		expect(outcomes.every((row) => row.status === "rejected")).toBe(true);
+		expect(
+			await listValidationRecords(prisma, projectId, workspaceId)
+		).toHaveLength(0);
+		const created = await createValidationRecord(prisma, {
+			actorId,
+			idempotencyKey: "create-plain-validation",
+			origin: "human",
+			payload: {
+				method: "Outside check.",
+				projectId,
+				result: "Noted.",
+				title: "Plain check",
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			throw new Error("expected create");
+		}
+		expect(created.validationRecord.recordKind).toBe(VALIDATION_RECORD_KIND);
+		expect(VALIDATION_FOREIGN_RECORD_KINDS).not.toContain(
+			created.validationRecord.recordKind
+		);
+		const loaded = await getValidationRecord(
+			prisma,
+			created.validationRecord.id,
+			workspaceId
+		);
+		expect(loaded?.recordKind).toBe(VALIDATION_RECORD_KIND);
+		expect(loaded).not.toHaveProperty("status");
+		expect(loaded).not.toHaveProperty("life");
+		expect(loaded).not.toHaveProperty("reviewStatus");
+		expect(loaded).not.toHaveProperty("releaseGate");
+		expect(loaded).not.toHaveProperty("acceptance");
+	});
+
+	it("does not convert or relate into Research Session, Feedback, or test types", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const record = await createValidationRecord(prisma, {
+			actorId,
+			idempotencyKey: "create-for-foreign-relate",
+			origin: "human",
+			payload: {
+				method: "Street intercept.",
+				projectId,
+				result: "Price felt high.",
+				title: "Price intercept",
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		if (record.status !== "committed") {
+			throw new Error("expected validation");
+		}
+		const outcomes = await Promise.all(
+			VALIDATION_FOREIGN_RECORD_KINDS.map((kind) =>
+				relateValidationContext(prisma, {
+					actorId,
+					idempotencyKey: `relate-${kind}`,
+					origin: "human",
+					payload: {
+						related: { id: crypto.randomUUID(), kind },
+						validationRecordId: record.validationRecord.id,
+					},
+					viewerWorkspaceId: workspaceId,
+				})
+			)
+		);
+		expect(
+			outcomes.every(
+				(row) => row.status === "rejected" && row.reason === "invalid-command"
+			)
+		).toBe(true);
+		const loaded = await getValidationRecord(
+			prisma,
+			record.validationRecord.id,
+			workspaceId
+		);
+		expect(loaded?.recordKind).toBe(VALIDATION_RECORD_KIND);
+		expect(loaded?.relatedContext).toEqual([]);
+	});
+
+	it("is not a release or Test Report acceptance gate", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const created = await createValidationRecord(prisma, {
+			actorId,
+			idempotencyKey: "create-not-a-gate",
+			origin: "human",
+			payload: {
+				method: "Five calls.",
+				projectId,
+				releaseGate: true,
+				result: "Guests still bounce.",
+				testReportAcceptance: "Acceptable",
+				title: "Guest bounce",
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(created).toEqual({
+			reason: "invalid-command",
+			status: "rejected",
+		});
+		expect(validationRecordsCatalog().counterparts.releaseGate).toBe(false);
+		expect(validationRecordsCatalog().counterparts.testReportAcceptance).toBe(
+			false
+		);
 	});
 
 	it("replays the same create command without a second record", async () => {

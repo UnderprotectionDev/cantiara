@@ -4,6 +4,8 @@ import { VALIDATION_RECORDS_COPY } from "./validation-records-copy";
 
 const FORBIDDEN_SURFACE =
 	/survey|timed vot|continuous feedback|vote|voting|poll/i;
+const TEST_RESEARCH_OR_FEEDBACK_SURFACE =
+	/Test Session|Planned Test Case|Session Test|Test Gap|Research Session|Feedback|Unreviewed|Test Report|release gate/i;
 
 test("English Validation Record labels stay Validation Record, Method, and Result", () => {
 	expect(VALIDATION_RECORDS_COPY.validationRecord).toBe("Validation Record");
@@ -18,5 +20,8 @@ test("English Validation Record labels stay Validation Record, Method, and Resul
 	expect(VALIDATION_RECORDS_COPY.related).toBe("Related");
 	expect(JSON.stringify(VALIDATION_RECORDS_COPY)).not.toMatch(
 		FORBIDDEN_SURFACE
+	);
+	expect(JSON.stringify(VALIDATION_RECORDS_COPY)).not.toMatch(
+		TEST_RESEARCH_OR_FEEDBACK_SURFACE
 	);
 });
