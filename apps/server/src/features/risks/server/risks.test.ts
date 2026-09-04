@@ -6,8 +6,8 @@
  * rationale. Not a Bug, Test Gap, or Production Incident.
  * Impact and probability are not a priority score.
  * docs/specs/40-risks/spec.md and GitHub #301.
- * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Karar ve belirsizlik).
+ * counterparts: related Work still open, Release not failed,
+ * `open-risk` only on the two events.
  */
 import { PrismaClient } from "@cantiara/db";
 import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
@@ -15,14 +15,51 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { createProject } from "../../project-shell/server/project-shell";
+import { createFocusPeriod } from "../../focus-period/server/focus-period";
+import { FOCUS_PERIOD_STATUS } from "../../focus-period/server/focus-period-model";
+import {
+	createProject,
+	getProject,
+} from "../../project-shell/server/project-shell";
+import { PROJECT_LIFECYCLE } from "../../project-shell/server/project-shell-model";
+import { createRelation } from "../../relations/server/relations";
+import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
+import {
+	createWork,
+	getWork,
+	listWork,
+} from "../../work-lifecycle/server/work-lifecycle";
+import { WORK_STATUS } from "../../work-lifecycle/server/work-lifecycle-model";
+import { ACTION_REQUIRED_SIGNAL_IDS } from "../../workspace-overview/server/workspace-overview";
 
-import { createRisk, getRisk, listRisks, setRiskStatus } from "./risks";
-import { FOREIGN_RECORD_KINDS, RISK_STATUS, RISKS_COPY } from "./risks-model";
+import {
+	createRisk,
+	getRisk,
+	listOpenRiskSignals,
+	listRiskRelatedRecords,
+	listRisks,
+	relateRisk,
+	risksCounterparts,
+	setRiskStatus,
+} from "./risks";
+import {
+	FOREIGN_RECORD_KINDS,
+	OPEN_RISK_SIGNAL_ID,
+	OPEN_RISK_SIGNAL_SECTION,
+	OPEN_RISK_SOURCE_EVENT,
+	RISK_RELATED_KIND,
+	RISK_STATUS,
+	RISKS_COPY,
+	RISKS_COUNTERPARTS,
+} from "./risks-model";
 
 const DATABASE_URL = localTestDatabaseUrl();
 
 const SCORE_COPY = /priority score|wsjf|risk score|health verdict/i;
+const HEALTH_VERDICT = /health verdict|project health|risk score/i;
+const FAILED_RELEASE = "Failed";
+const START_INSTANT = new Date("2026-09-07T21:00:00.000Z");
+const BEFORE_START = new Date("2026-09-01T12:00:00.000Z");
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -44,7 +81,10 @@ async function seedWorkspace(prisma: PrismaClient) {
 }
 
 async function resetSharedTables(prisma: PrismaClient) {
+	await prisma.typedRelation.deleteMany();
 	await prisma.risk.deleteMany();
+	await prisma.focusPeriodMembership.deleteMany();
+	await prisma.focusPeriod.deleteMany();
 	await prisma.mutationReceipt.deleteMany();
 	await prisma.workspaceShortCodeReservation.deleteMany();
 	await prisma.project.deleteMany();
@@ -100,6 +140,53 @@ async function committedRisk(
 		throw new Error("expected create");
 	}
 	return created.risk;
+}
+
+async function committedWork(
+	prisma: PrismaClient,
+	input: { actorId: string; projectId: string; title: string }
+) {
+	const created = await createWork(prisma, {
+		actorId: input.actorId,
+		idempotencyKey: `create-work-${input.title}-${crypto.randomUUID()}`,
+		origin: "human",
+		payload: { projectId: input.projectId, title: input.title },
+	});
+	if (created.status !== "committed" && created.status !== "replayed") {
+		throw new Error("expected work");
+	}
+	return created.work;
+}
+
+async function openFocusPeriod(
+	prisma: PrismaClient,
+	input: {
+		actorId: string;
+		now: Date;
+		purpose: string;
+		workspaceId: string;
+	}
+) {
+	const surface = createFocusPeriod({
+		accountId: input.actorId,
+		clock: { now: () => input.now },
+		prisma,
+		workspaceId: input.workspaceId,
+	});
+	const created = await surface.create({
+		endDate: "2026-09-21",
+		idempotencyKey: `focus-${input.purpose}-${crypto.randomUUID()}`,
+		purpose: input.purpose,
+		startDate: "2026-09-08",
+	});
+	if (created.status !== "committed") {
+		throw new Error("expected focus period");
+	}
+	const viewed = await surface.get(created.period.id);
+	if (!viewed) {
+		throw new Error("expected focus period view");
+	}
+	return viewed;
 }
 
 describe("Risks", () => {
@@ -373,5 +460,384 @@ describe("Risks", () => {
 		expect(RISKS_COPY.impact).toBe("Impact");
 		expect(RISKS_COPY.probability).toBe("Probability");
 		expect(RISKS_COPY.responseMitigation).toBe("Response/mitigation");
+	});
+
+	it("does not write related Work, Project Release, or Project life on Accepted, Occurred, or Resolved", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const created = await committedRisk(prisma, {
+			actorId,
+			idempotencyKey: "create-isolated",
+			projectId,
+			title: "GitHub outage",
+		});
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Backup login",
+		});
+		const relatedWork = await createRelation(prisma, {
+			actorId,
+			from: { id: work.id, kind: "Work" },
+			idempotencyKey: "relate-work-risk",
+			origin: "human",
+			previewAcknowledged: true,
+			to: { id: created.id, kind: "Risk" },
+			type: RELATIONS_COPY.related,
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(relatedWork.status).toBe("committed");
+		const linkedRelease = await relateRisk(prisma, {
+			actorId,
+			idempotencyKey: "relate-release",
+			origin: "human",
+			payload: {
+				inPublishPrep: true,
+				kind: RISK_RELATED_KIND.projectRelease,
+				releaseStatus: "In publish prep",
+				riskId: created.id,
+				targetId: "release-payments",
+			},
+		});
+		expect(linkedRelease.status).toBe("committed");
+		const workCount = (await listWork(prisma, projectId)).length;
+		const occurred = await setRiskStatus(prisma, {
+			actorId,
+			baseRevision: created.revision,
+			idempotencyKey: "occur-isolated",
+			origin: "human",
+			payload: {
+				riskId: created.id,
+				status: RISK_STATUS.occurred,
+			},
+		});
+		expect(occurred.status).toBe("committed");
+		if (occurred.status !== "committed") {
+			return;
+		}
+		expect((await getWork(prisma, work.id))?.status).toBe(
+			WORK_STATUS.notStarted
+		);
+		expect((await getProject(prisma, projectId))?.lifecycleStatus).toBe(
+			PROJECT_LIFECYCLE.active
+		);
+		expect(
+			(await listRiskRelatedRecords(prisma, created.id))[0]?.releaseStatus
+		).toBe("In publish prep");
+		const resolved = await setRiskStatus(prisma, {
+			actorId,
+			baseRevision: occurred.risk.revision,
+			idempotencyKey: "resolve-isolated",
+			origin: "human",
+			payload: {
+				riskId: created.id,
+				status: RISK_STATUS.resolved,
+			},
+		});
+		expect(resolved.status).toBe("committed");
+		if (resolved.status !== "committed") {
+			return;
+		}
+		const accepted = await setRiskStatus(prisma, {
+			actorId,
+			baseRevision: resolved.risk.revision,
+			idempotencyKey: "accept-isolated",
+			origin: "human",
+			payload: {
+				rationale: "Ship with a known outage.",
+				riskId: created.id,
+				status: RISK_STATUS.accepted,
+			},
+		});
+		expect(accepted.status).toBe("committed");
+		if (accepted.status !== "committed") {
+			return;
+		}
+		expect((await getWork(prisma, work.id))?.status).toBe(
+			WORK_STATUS.notStarted
+		);
+		expect((await getWork(prisma, work.id))?.closureResult).toBeNull();
+		expect((await listWork(prisma, projectId)).length).toBe(workCount);
+		expect((await getProject(prisma, projectId))?.lifecycleStatus).toBe(
+			PROJECT_LIFECYCLE.active
+		);
+		const related = await listRiskRelatedRecords(prisma, created.id);
+		expect(related).toHaveLength(1);
+		expect(related[0]?.releaseStatus).toBe("In publish prep");
+		expect(related[0]?.releaseStatus).not.toBe(FAILED_RELEASE);
+		expect(risksCounterparts()).toEqual(RISKS_COUNTERPARTS);
+		expect(RISKS_COUNTERPARTS.acceptIsPublishGate).toBe(false);
+		expect(RISKS_COUNTERPARTS.autoWorkClose).toBe(false);
+	});
+
+	it("produces open-risk when a Risk enters Open, with source event, impact, and probability", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const created = await createRisk(prisma, {
+			actorId,
+			idempotencyKey: "create-open-signal",
+			origin: "human",
+			payload: {
+				description: "Login depends on GitHub.",
+				impact: "Founder cannot sign in.",
+				probability: "Likely during an outage.",
+				projectId,
+				response: "Keep a backup identity path.",
+				title: "GitHub outage during login",
+			},
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			return;
+		}
+		expect(created.emissions).toHaveLength(1);
+		expect(created.emissions[0]).toMatchObject({
+			followUpWork: false,
+			healthVerdict: false,
+			impact: "Founder cannot sign in.",
+			probability: "Likely during an outage.",
+			riskId: created.risk.id,
+			section: OPEN_RISK_SIGNAL_SECTION,
+			signalId: OPEN_RISK_SIGNAL_ID,
+			sourceEventKind: OPEN_RISK_SOURCE_EVENT.enteredOpen,
+		});
+		expect(created.emissions[0]?.sourceEventId).toEqual(expect.any(String));
+		expect(ACTION_REQUIRED_SIGNAL_IDS).toContain(OPEN_RISK_SIGNAL_ID);
+		expect(await listOpenRiskSignals(prisma, created.risk.id)).toEqual(
+			created.emissions
+		);
+		const replayed = await createRisk(prisma, {
+			actorId,
+			idempotencyKey: "create-open-signal",
+			origin: "human",
+			payload: {
+				description: "Login depends on GitHub.",
+				impact: "Founder cannot sign in.",
+				probability: "Likely during an outage.",
+				projectId,
+				response: "Keep a backup identity path.",
+				title: "GitHub outage during login",
+			},
+		});
+		expect(replayed.status).toBe("replayed");
+		if (replayed.status !== "replayed") {
+			return;
+		}
+		expect(replayed.emissions).toEqual(created.emissions);
+		expect(await listOpenRiskSignals(prisma, created.risk.id)).toHaveLength(1);
+		const accepted = await setRiskStatus(prisma, {
+			actorId,
+			baseRevision: created.risk.revision,
+			idempotencyKey: "accept-then-reopen",
+			origin: "human",
+			payload: {
+				rationale: "Known outage.",
+				riskId: created.risk.id,
+				status: RISK_STATUS.accepted,
+			},
+		});
+		expect(accepted.status).toBe("committed");
+		if (accepted.status !== "committed") {
+			return;
+		}
+		expect(accepted.emissions).toEqual([]);
+		const reopened = await setRiskStatus(prisma, {
+			actorId,
+			baseRevision: accepted.risk.revision,
+			idempotencyKey: "reopen-open-signal",
+			origin: "human",
+			payload: {
+				riskId: created.risk.id,
+				status: RISK_STATUS.open,
+			},
+		});
+		expect(reopened.status).toBe("committed");
+		if (reopened.status !== "committed") {
+			return;
+		}
+		expect(reopened.emissions).toHaveLength(1);
+		expect(reopened.emissions[0]?.sourceEventKind).toBe(
+			OPEN_RISK_SOURCE_EVENT.enteredOpen
+		);
+		expect(reopened.emissions[0]?.sourceEventId).not.toBe(
+			created.emissions[0]?.sourceEventId
+		);
+		expect(await listOpenRiskSignals(prisma, created.risk.id)).toHaveLength(2);
+		expect(JSON.stringify(reopened.emissions)).not.toMatch(HEALTH_VERDICT);
+		expect((await listWork(prisma, projectId)).length).toBe(0);
+	});
+
+	it("produces open-risk when an Open Risk is related to a publish-prep Project Release or an active Focus Period", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const created = await committedRisk(prisma, {
+			actorId,
+			idempotencyKey: "create-for-relate-signal",
+			projectId,
+			title: "GitHub outage",
+		});
+		expect(await listOpenRiskSignals(prisma, created.id)).toHaveLength(1);
+		const release = await relateRisk(prisma, {
+			actorId,
+			idempotencyKey: "relate-publish-prep",
+			origin: "human",
+			payload: {
+				inPublishPrep: true,
+				kind: RISK_RELATED_KIND.projectRelease,
+				releaseStatus: "In publish prep",
+				riskId: created.id,
+				targetId: "release-v1",
+			},
+		});
+		expect(release.status).toBe("committed");
+		if (release.status !== "committed") {
+			return;
+		}
+		expect(release.emissions).toHaveLength(1);
+		expect(release.emissions[0]).toMatchObject({
+			impact: created.impact,
+			probability: created.probability,
+			riskId: created.id,
+			signalId: OPEN_RISK_SIGNAL_ID,
+			sourceEventId: release.related.id,
+			sourceEventKind: OPEN_RISK_SOURCE_EVENT.relatedToPublishPrepRelease,
+		});
+		const active = await openFocusPeriod(prisma, {
+			actorId,
+			now: START_INSTANT,
+			purpose: "Ship login",
+			workspaceId,
+		});
+		expect(active.status).toBe(FOCUS_PERIOD_STATUS.active);
+		const focus = await relateRisk(prisma, {
+			actorId,
+			idempotencyKey: "relate-active-focus",
+			origin: "human",
+			payload: {
+				kind: RISK_RELATED_KIND.focusPeriod,
+				riskId: created.id,
+				targetId: active.id,
+			},
+		});
+		expect(focus.status).toBe("committed");
+		if (focus.status !== "committed") {
+			return;
+		}
+		expect(focus.emissions).toHaveLength(1);
+		expect(focus.emissions[0]?.sourceEventKind).toBe(
+			OPEN_RISK_SOURCE_EVENT.relatedToActiveFocusPeriod
+		);
+		expect(await listOpenRiskSignals(prisma, created.id)).toHaveLength(3);
+	});
+
+	it("does not produce open-risk from time, Mitigating, high impact or probability, or Project-only presence", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const created = await createRisk(prisma, {
+			actorId,
+			idempotencyKey: "create-high-for-negatives",
+			origin: "human",
+			payload: {
+				description: "Outage.",
+				impact: "Very high",
+				probability: "Very high",
+				projectId,
+				response: "Watch.",
+				title: "Outage",
+			},
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			return;
+		}
+		expect(await listOpenRiskSignals(prisma, created.risk.id)).toHaveLength(1);
+		const listedAgain = await listOpenRiskSignals(prisma, created.risk.id);
+		expect(listedAgain).toHaveLength(1);
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Watch the outage",
+		});
+		const relatedWork = await createRelation(prisma, {
+			actorId,
+			from: { id: work.id, kind: "Work" },
+			idempotencyKey: "relate-work-only",
+			origin: "human",
+			previewAcknowledged: true,
+			to: { id: created.risk.id, kind: "Risk" },
+			type: RELATIONS_COPY.related,
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(relatedWork.status).toBe("committed");
+		expect(await listOpenRiskSignals(prisma, created.risk.id)).toHaveLength(1);
+		const mitigating = await setRiskStatus(prisma, {
+			actorId,
+			baseRevision: created.risk.revision,
+			idempotencyKey: "set-mitigating-no-signal",
+			origin: "human",
+			payload: {
+				riskId: created.risk.id,
+				status: RISK_STATUS.mitigating,
+			},
+		});
+		expect(mitigating.status).toBe("committed");
+		if (mitigating.status !== "committed") {
+			return;
+		}
+		expect(mitigating.emissions).toEqual([]);
+		expect(await listOpenRiskSignals(prisma, created.risk.id)).toHaveLength(1);
+		const prepWhileMitigating = await relateRisk(prisma, {
+			actorId,
+			idempotencyKey: "relate-prep-while-mitigating",
+			origin: "human",
+			payload: {
+				inPublishPrep: true,
+				kind: RISK_RELATED_KIND.projectRelease,
+				riskId: created.risk.id,
+				targetId: "release-not-open",
+			},
+		});
+		expect(prepWhileMitigating.status).toBe("committed");
+		if (prepWhileMitigating.status !== "committed") {
+			return;
+		}
+		expect(prepWhileMitigating.emissions).toEqual([]);
+		const notPrep = await relateRisk(prisma, {
+			actorId,
+			idempotencyKey: "relate-not-prep",
+			origin: "human",
+			payload: {
+				inPublishPrep: false,
+				kind: RISK_RELATED_KIND.projectRelease,
+				riskId: created.risk.id,
+				targetId: "release-shipped",
+			},
+		});
+		expect(notPrep.status).toBe("committed");
+		if (notPrep.status !== "committed") {
+			return;
+		}
+		expect(notPrep.emissions).toEqual([]);
+		const planned = await openFocusPeriod(prisma, {
+			actorId,
+			now: BEFORE_START,
+			purpose: "Later window",
+			workspaceId,
+		});
+		expect(planned.status).toBe(FOCUS_PERIOD_STATUS.planned);
+		const plannedLink = await relateRisk(prisma, {
+			actorId,
+			idempotencyKey: "relate-planned-focus",
+			origin: "human",
+			payload: {
+				kind: RISK_RELATED_KIND.focusPeriod,
+				riskId: created.risk.id,
+				targetId: planned.id,
+			},
+		});
+		expect(plannedLink.status).toBe("committed");
+		if (plannedLink.status !== "committed") {
+			return;
+		}
+		expect(plannedLink.emissions).toEqual([]);
+		expect(await listOpenRiskSignals(prisma, created.risk.id)).toHaveLength(1);
+		expect(RISKS_COUNTERPARTS.followUpWork).toBe(false);
+		expect(RISKS_COUNTERPARTS.healthVerdict).toBe(false);
 	});
 });

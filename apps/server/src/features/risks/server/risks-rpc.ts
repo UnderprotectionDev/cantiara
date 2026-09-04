@@ -5,11 +5,19 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
-import { createRisk, getRisk, listRisks, setRiskStatus } from "./risks";
+import {
+	createRisk,
+	getRisk,
+	listOpenRiskSignals,
+	listRisks,
+	relateRisk,
+	setRiskStatus,
+} from "./risks";
 import {
 	createRiskPayloadSchema,
 	RISK_STATUSES,
 	RISKS_COPY,
+	relateRiskPayloadSchema,
 	setRiskStatusPayloadSchema,
 } from "./risks-model";
 
@@ -71,6 +79,38 @@ export const risks = {
 			await requireProject(access.workspaceId, input.projectId);
 			return await listRisks(getPrismaClient(), input.projectId, {
 				status: input.status,
+			});
+		}),
+	listSignals: protectedProcedure
+		.input(z.object({ riskId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const risk = await getRisk(getPrismaClient(), input.riskId);
+			if (!risk) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, risk.projectId);
+			return await listOpenRiskSignals(getPrismaClient(), input.riskId);
+		}),
+	relate: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: relateRiskPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const risk = await getRisk(getPrismaClient(), input.payload.riskId);
+			if (!risk) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, risk.projectId);
+			return await relateRisk(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
 			});
 		}),
 	setStatus: protectedWriteProcedure
