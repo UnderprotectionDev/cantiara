@@ -19,7 +19,7 @@ export default function DecisionDetail({
 	const decision = useQuery(
 		orpc.decisions.get.queryOptions({ input: { decisionId } })
 	);
-	const onWithdrawn = useCallback(() => {
+	const onChanged = useCallback(() => {
 		decision.refetch().catch(() => undefined);
 	}, [decision]);
 
@@ -60,13 +60,13 @@ export default function DecisionDetail({
 					<SupersedeDecisionForm
 						baseRevision={decision.data.revision}
 						decisionId={decision.data.id}
-						onSuperseded={onWithdrawn}
+						onSuperseded={onChanged}
 						projectId={projectId}
 					/>
 					<WithdrawDecisionForm
 						baseRevision={decision.data.revision}
 						decisionId={decision.data.id}
-						onWithdrawn={onWithdrawn}
+						onWithdrawn={onChanged}
 						projectId={projectId}
 					/>
 				</>
@@ -79,7 +79,7 @@ export default function DecisionDetail({
 							</p>
 							<RemoveSupersessionForm
 								baseRevision={decision.data.revision}
-								onRemoved={onWithdrawn}
+								onRemoved={onChanged}
 								projectId={projectId}
 								successorId={decision.data.id}
 								supersededId={old.id}

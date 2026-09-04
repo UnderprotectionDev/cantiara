@@ -183,13 +183,22 @@ export default function SupersedeDecisionForm({
 					<p className="text-sm">
 						{previewOk.successor.title}
 						{" · "}
+						{previewOk.successor.decision}
+						{" · "}
 						{previewOk.successor.rationale}
 					</p>
+					{previewOk.successor.evidenceSummary.length > 0 ? (
+						<p className="text-muted-foreground text-xs">
+							{`${DECISIONS_COPY.evidence}: ${previewOk.successor.evidenceSummary.join(", ")}`}
+						</p>
+					) : null}
 					<ul className="mt-2 flex flex-col gap-2">
 						{previewOk.superseded.map((item) => (
 							<li key={item.id}>
 								<p className="text-sm">
 									{item.title}
+									{" · "}
+									{item.decision}
 									{" · "}
 									{item.rationale}
 								</p>

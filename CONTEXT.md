@@ -599,8 +599,12 @@ Yeni `Valid` Kararı eski Kararın doğrudan ve tek halefi yapan yönlü, döng�
 _Avoid_: Related, kısmi değişiklik, otomatik kazanan, silent historical
 
 **Başka kararın yerine geçir**:
-Önizlemeden sonra tek atomik işlemde `Yerine geçer` ilişkisini kuran ve eskileri `Superseded` yapan açık eylem. UI: `Supersede another decision`.
+Önizlemeden sonra tek atomik işlemde `Yerine geçer` ilişkisini kuran ve eskileri `Superseded` yapan açık eylem. Onay etiketi `Confirm supersession`. UI: `Supersede another decision`.
 _Avoid_: durum seçici, MFA onayı, spec-review-as-supersession, Contradicting’den otomatik geçiş
+
+**Yerine geçmeyi kaldır**:
+`Yerine geçer` ilişkisini önizleyip açık onayla kaldıran eylem; yeni Kararı silmez. UI: `Remove supersession`.
+_Avoid_: Undo, silent restore, delete successor
 
 **Geçiş gerekçesi**:
 Yerine-geçme onayında isteğe bağlı gerekçe; Karar gerekçesi alanı veya kapanış `Reason` değildir. UI: `Transition rationale`.
