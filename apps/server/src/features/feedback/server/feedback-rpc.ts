@@ -12,6 +12,7 @@ import {
 	createFeedback,
 	createFeedbackFromSource,
 	getFeedback,
+	listFeed,
 	listFeedback,
 	previewConvertFeedbackToWork,
 	setFeedbackStatus,
@@ -23,6 +24,7 @@ import {
 	createFeedbackPayloadSchema,
 	FEEDBACK_STATUSES,
 	feedbackCatalog,
+	listFeedQuerySchema,
 	previewConvertFeedbackToWorkInputSchema,
 	setFeedbackStatusPayloadSchema,
 } from "./feedback-model";
@@ -162,6 +164,13 @@ export const feedback = {
 			return await listFeedback(getPrismaClient(), input.projectId, {
 				status: input.status,
 			});
+		}),
+	listFeed: protectedProcedure
+		.input(listFeedQuerySchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await listFeed(getPrismaClient(), input);
 		}),
 	previewConvertToWork: protectedProcedure
 		.input(previewConvertFeedbackToWorkInputSchema)

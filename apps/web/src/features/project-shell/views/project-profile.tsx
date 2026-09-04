@@ -17,6 +17,7 @@ import DecisionArea from "@/features/decisions/views/decision-area";
 import { DOCUMENTS_COPY } from "@/features/documents/forms/documents-copy";
 import DocumentArea from "@/features/documents/views/document-area";
 import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
+import FeedArea from "@/features/feedback/views/feed-area";
 import FeedbackArea from "@/features/feedback/views/feedback-area";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
 import ProjectGoalsPanel from "@/features/goals/views/project-goals-panel";
@@ -646,6 +647,7 @@ function projectRecordArea({
 				onDecisionId={onDecisionId}
 				onOpenQuestionId={onOpenQuestionId}
 				onResearchSessionId={onResearchSessionId}
+				onSourceId={onSourceId}
 				onValidationRecordId={onValidationRecordId}
 				openQuestionId={openQuestionId}
 				projectId={projectId}
@@ -661,6 +663,7 @@ function DiscoveryProjectSection({
 	onDecisionId,
 	onOpenQuestionId,
 	onResearchSessionId,
+	onSourceId,
 	onValidationRecordId,
 	openQuestionId,
 	projectId,
@@ -670,6 +673,7 @@ function DiscoveryProjectSection({
 	onDecisionId?: (decisionId: string | null) => void;
 	onOpenQuestionId?: (openQuestionId: string | null) => void;
 	onResearchSessionId?: (sessionId: string | null) => void;
+	onSourceId?: (sourceId: string | null) => void;
 	onValidationRecordId?: (validationRecordId: string | null) => void;
 	openQuestionId?: string | null;
 	projectId: string;
@@ -683,6 +687,9 @@ function DiscoveryProjectSection({
 			</h1>
 			<div className="mt-6">
 				<FeedbackArea projectId={projectId} />
+			</div>
+			<div className="mt-6">
+				<FeedArea onSourceId={onSourceId} projectId={projectId} />
 			</div>
 			<div className="mt-6">
 				<BoundRecordValuesSurface projectId={projectId} recordType="Feedback" />

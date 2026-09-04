@@ -14,6 +14,8 @@ test("English Feedback labels stay Feedback, New, Reviewed, and Archived", () =>
 	expect(FEEDBACK_COPY.occurredAt).toBe("Occurred at");
 	expect(FEEDBACK_COPY.createFeedback).toBe("Create Feedback");
 	expect(FEEDBACK_COPY.convertToWork).toBe("Convert to Work");
+	expect(FEEDBACK_COPY.feed).toBe("Feed");
+	expect(FEEDBACK_COPY.openSourceRecord).toBe("Open Source Record");
 	expect(FEEDBACK_COPY.contact).toBe("Contact");
 	expect(FEEDBACK_COPY.company).toBe("Company");
 	expect(FEEDBACK_COPY.new).toBe("New");

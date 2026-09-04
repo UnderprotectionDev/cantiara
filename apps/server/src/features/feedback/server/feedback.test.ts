@@ -7,7 +7,10 @@
  * write related Work status, priority, or planning membership.
  * First-product intake is in-app create and existing Sources.
  * No public form, comments, votes, or requester thread.
- * docs/specs/47-feedback/spec.md and GitHub #334.
+ * Feed lists the same Feedback and long-body Source ids; sort
+ * does not write status or priority. Open Source Record opens
+ * the same master. No social actions or notification signals.
+ * docs/specs/47-feedback/spec.md and GitHub #334 #337.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Kanıt akışı).
  */
@@ -23,6 +26,7 @@ import {
 	getContact,
 	listContacts,
 } from "../../contact-and-company/server/contact-and-company";
+import { createDecision } from "../../decisions/server/decisions";
 import { createProject } from "../../project-shell/server/project-shell";
 import {
 	createRelation,
@@ -39,13 +43,13 @@ import {
 	listWork,
 } from "../../work-lifecycle/server/work-lifecycle";
 import { WORK_STATUS } from "../../work-lifecycle/server/work-lifecycle-model";
-
 import {
 	bindFeedbackOrigin,
 	convertFeedbackToWork,
 	createFeedback,
 	createFeedbackFromSource,
 	getFeedback,
+	listFeed,
 	listFeedback,
 	previewConvertFeedbackToWork,
 	setFeedbackStatus,
@@ -88,6 +92,8 @@ async function seedWorkspace(prisma: PrismaClient) {
 
 async function resetSharedTables(prisma: PrismaClient) {
 	await prisma.typedRelation.deleteMany();
+	await prisma.decisionEvent.deleteMany();
+	await prisma.decision.deleteMany();
 	await prisma.feedbackAttachment.deleteMany();
 	await prisma.feedbackEvent.deleteMany();
 	await prisma.feedback.deleteMany();
@@ -162,8 +168,18 @@ describe("Feedback catalog", () => {
 		expect(FEEDBACK_COUNTERPARTS.ai).toBe(false);
 		expect(FEEDBACK_COUNTERPARTS.multiRecordSpawn).toBe(false);
 		expect(catalog.copy.convertToWork).toBe("Convert to Work");
+		expect(catalog.copy.feed).toBe("Feed");
+		expect(catalog.copy.openSourceRecord).toBe("Open Source Record");
 		expect(catalog.copy.contact).toBe("Contact");
 		expect(catalog.copy.company).toBe("Company");
+		expect(FEEDBACK_COUNTERPARTS.unifiedNotificationCenter).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.universalSearch).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.inboxProduct).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.supportTool).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.sourceRecheckApi).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.feedRecordType).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.writesSourceStatus).toBe(false);
+		expect(FEEDBACK_COUNTERPARTS.writesSourcePriority).toBe(false);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(SOCIAL_OR_PUBLIC);
 		expect(JSON.stringify(FEEDBACK_COPY)).not.toMatch(SOURCE_LIFE);
 		expect(FEEDBACK_FOREIGN_RECORD_KINDS).toEqual([
@@ -716,5 +732,243 @@ describe("Feedback", () => {
 		expect(origins.map((row) => row.type)).toContain(RELATIONS_COPY.origin);
 		expect(FEEDBACK_COUNTERPARTS.ai).toBe(false);
 		expect(FEEDBACK_COUNTERPARTS.multiRecordSpawn).toBe(false);
+	});
+
+	it("lists Feed rows as the same Feedback and long-body Source ids", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const feedback = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "feed-feedback",
+			origin: "human",
+			payload: {
+				attachmentIds: ["file-feed-1"],
+				channel: "Email",
+				occurredAt: "2026-04-02T09:00:00.000Z",
+				originalMessage: "Retry still fails at pay.",
+				projectId,
+			},
+		});
+		expect(feedback.status).toBe("committed");
+		if (feedback.status !== "committed") {
+			throw new Error("expected feedback");
+		}
+		const longSource = await createSource(prisma, {
+			actorId,
+			idempotencyKey: "feed-long-source",
+			origin: "human",
+			payload: {
+				accessedAt: "2026-04-01T08:00:00.000Z",
+				capturedContent: "Long forum write-up about guest checkout retry.",
+				projectId,
+				title: "Forum thread",
+				url: "https://example.com/forum/22",
+			},
+		});
+		expect(longSource.status).toBe("committed");
+		if (longSource.status !== "committed") {
+			throw new Error("expected long source");
+		}
+		const shortSource = await createSource(prisma, {
+			actorId,
+			idempotencyKey: "feed-short-source",
+			origin: "human",
+			payload: {
+				accessedAt: "2026-04-03T08:00:00.000Z",
+				capturedContent: "",
+				projectId,
+				title: "Bookmark only",
+				url: "https://example.com/bookmark",
+			},
+		});
+		expect(shortSource.status).toBe("committed");
+		if (shortSource.status !== "committed") {
+			throw new Error("expected short source");
+		}
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "feed-work",
+			origin: "human",
+			payload: {
+				projectId,
+				title: "Fix pay retry",
+				type: "Bug",
+			},
+		});
+		expect(work.status).toBe("committed");
+		if (work.status !== "committed") {
+			throw new Error("expected work");
+		}
+		const decision = await createDecision(prisma, {
+			actorId,
+			idempotencyKey: "feed-decision",
+			origin: "human",
+			payload: {
+				decision: "Keep retry copy.",
+				projectId,
+				rationale: "Support still sees the same error.",
+				title: "Keep retry copy",
+			},
+		});
+		expect(decision.status).toBe("committed");
+		if (decision.status !== "committed") {
+			throw new Error("expected decision");
+		}
+		expect(
+			(
+				await createRelation(prisma, {
+					actorId,
+					from: { id: feedback.feedback.id, kind: "Feedback" },
+					idempotencyKey: "feed-related-work",
+					origin: "human",
+					previewAcknowledged: true,
+					to: { id: work.work.id, kind: "Work" },
+					type: RELATIONS_COPY.related,
+					viewerWorkspaceId: workspaceId,
+				})
+			).status
+		).toBe("committed");
+		expect(
+			(
+				await createRelation(prisma, {
+					actorId,
+					from: { id: longSource.source.id, kind: "Source" },
+					idempotencyKey: "feed-related-decision",
+					origin: "human",
+					previewAcknowledged: true,
+					to: { id: decision.decision.id, kind: "Decision" },
+					type: RELATIONS_COPY.related,
+					viewerWorkspaceId: workspaceId,
+				})
+			).status
+		).toBe("committed");
+		const listedFeedback = await listFeedback(prisma, projectId);
+		const feed = await listFeed(prisma, { projectId });
+		expect(feed.rows.map((row) => row.id).sort()).toEqual(
+			[feedback.feedback.id, longSource.source.id].sort()
+		);
+		expect(feed.rows.map((row) => row.id)).not.toContain(shortSource.source.id);
+		expect(listedFeedback.map((row) => row.id)).toEqual([feedback.feedback.id]);
+		const feedbackRow = feed.rows.find(
+			(row) => row.id === feedback.feedback.id
+		);
+		const sourceRow = feed.rows.find((row) => row.id === longSource.source.id);
+		expect(feedbackRow).toMatchObject({
+			attachments: [
+				{ fileAttachmentId: "file-feed-1", id: expect.any(String) },
+			],
+			body: "Retry still fails at pay.",
+			identityOrChannel: "Email",
+			occurredAt: "2026-04-02T09:00:00.000Z",
+			openSourceRecord: FEEDBACK_COPY.openSourceRecord,
+			projectId,
+			recordKind: "Feedback",
+			relatedDecisionIds: [],
+			relatedWorkIds: [work.work.id],
+		});
+		expect(sourceRow).toMatchObject({
+			attachments: [],
+			body: "Long forum write-up about guest checkout retry.",
+			identityOrChannel: "Forum thread",
+			occurredAt: "2026-04-01T08:00:00.000Z",
+			openSourceRecord: FEEDBACK_COPY.openSourceRecord,
+			projectId,
+			recordKind: "Source",
+			relatedDecisionIds: [decision.decision.id],
+			relatedWorkIds: [],
+		});
+		expect(feed.rows.some((row) => row.recordKind === "Feed")).toBe(false);
+		expect(feed.writes).toEqual({ priority: false, status: false });
+		expect(feed.socialActions).toEqual([]);
+		expect(feed.notificationSignals).toEqual([]);
+		expect(JSON.stringify(feed)).not.toMatch(SOURCE_LIFE);
+		expect(feed).not.toHaveProperty("recheckSource");
+	});
+
+	it("does not write Source or Feedback status or Work priority when Feed is sorted or filtered", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const feedback = await createFeedback(prisma, {
+			actorId,
+			idempotencyKey: "sort-feedback",
+			origin: "human",
+			payload: {
+				channel: "Chat",
+				occurredAt: "2026-05-02T09:00:00.000Z",
+				originalMessage: "Chat about retry.",
+				projectId,
+			},
+		});
+		expect(feedback.status).toBe("committed");
+		if (feedback.status !== "committed") {
+			throw new Error("expected feedback");
+		}
+		const source = await createSource(prisma, {
+			actorId,
+			idempotencyKey: "sort-source",
+			origin: "human",
+			payload: {
+				accessedAt: "2026-05-01T08:00:00.000Z",
+				capturedContent: "Captured retry notes for the feed.",
+				projectId,
+				title: "Retry notes",
+				url: "https://example.com/notes",
+			},
+		});
+		expect(source.status).toBe("committed");
+		if (source.status !== "committed") {
+			throw new Error("expected source");
+		}
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "sort-work",
+			origin: "human",
+			payload: {
+				projectId,
+				title: "Retry work",
+				type: "Bug",
+			},
+		});
+		expect(work.status).toBe("committed");
+		if (work.status !== "committed") {
+			throw new Error("expected work");
+		}
+		const beforeFeedback = await getFeedback(prisma, feedback.feedback.id);
+		const beforeSource = await getSource(prisma, source.source.id);
+		const beforeWork = await getWork(prisma, work.work.id);
+		const newest = await listFeed(prisma, { projectId });
+		expect(newest.rows.map((row) => row.id)).toEqual([
+			feedback.feedback.id,
+			source.source.id,
+		]);
+		const titled = await listFeed(prisma, {
+			projectId,
+			sortDirection: "asc",
+			sortField: "title",
+		});
+		expect(titled.rows.map((row) => row.identityOrChannel)).toEqual([
+			"Chat",
+			"Retry notes",
+		]);
+		const filtered = await listFeed(prisma, {
+			filterText: "Retry notes",
+			projectId,
+		});
+		expect(filtered.rows.map((row) => row.id)).toEqual([source.source.id]);
+		expect(filtered.writes).toEqual({ priority: false, status: false });
+		const afterFeedback = await getFeedback(prisma, feedback.feedback.id);
+		const afterSource = await getSource(prisma, source.source.id);
+		const afterWork = await getWork(prisma, work.work.id);
+		expect(afterFeedback?.status).toBe(beforeFeedback?.status);
+		expect(afterFeedback?.revision).toBe(beforeFeedback?.revision);
+		expect(afterSource?.revision).toBe(beforeSource?.revision);
+		expect(afterSource?.approvedVersionNumber).toBe(
+			beforeSource?.approvedVersionNumber
+		);
+		expect(afterWork?.status).toBe(beforeWork?.status);
+		expect(afterWork?.revision).toBe(beforeWork?.revision);
+		expect(
+			await prisma.projectPriorityCriterionValue.count({
+				where: { workId: work.work.id },
+			})
+		).toBe(0);
 	});
 });

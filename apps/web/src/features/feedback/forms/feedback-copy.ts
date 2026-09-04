@@ -7,12 +7,16 @@ export const FEEDBACK_COPY = {
 	convertToWork: "Convert to Work",
 	createFeedback: "Create Feedback",
 	createFromSource: "Create from Source",
+	decision: "Decision",
 	description: "Description",
+	feed: "Feed",
 	feedback: "Feedback",
 	link: "Link",
 	new: "New",
+	noFeed: "No Feed records yet.",
 	noFeedback: "No Feedback yet.",
 	occurredAt: "Occurred at",
+	openSourceRecord: "Open Source Record",
 	origin: "Origin",
 	originalMessage: "Original message",
 	project: "Project",
@@ -20,6 +24,7 @@ export const FEEDBACK_COPY = {
 	source: "Source",
 	status: "Status",
 	title: "Title",
+	work: "Work",
 } as const;
 
 export const FEEDBACK_STATUSES = [

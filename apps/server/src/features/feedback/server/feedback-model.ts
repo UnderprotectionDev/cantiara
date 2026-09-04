@@ -9,12 +9,16 @@ export const FEEDBACK_COPY = {
 	convertToWork: "Convert to Work",
 	createFeedback: "Create Feedback",
 	createFromSource: "Create from Source",
+	decision: "Decision",
 	description: "Description",
+	feed: "Feed",
 	feedback: "Feedback",
 	link: "Link",
 	new: "New",
+	noFeed: "No Feed records yet.",
 	noFeedback: "No Feedback yet.",
 	occurredAt: "Occurred at",
+	openSourceRecord: "Open Source Record",
 	origin: "Origin",
 	originalMessage: "Original message",
 	project: "Project",
@@ -22,6 +26,7 @@ export const FEEDBACK_COPY = {
 	source: "Source",
 	status: "Status",
 	title: "Title",
+	work: "Work",
 } as const;
 
 export const FEEDBACK_STATUS = {
@@ -52,17 +57,25 @@ export const FEEDBACK_COUNTERPARTS = {
 	comments: false,
 	contactMerge: false,
 	featureRequest: false,
+	feedRecordType: false,
+	inboxProduct: false,
 	multiRecordSpawn: false,
 	personalDataErase: false,
 	publicForm: false,
 	requesterThread: false,
 	socialPost: false,
+	sourceRecheckApi: false,
 	sourceSubtype: false,
 	sourceVersionLife: false,
+	supportTool: false,
+	unifiedNotificationCenter: false,
+	universalSearch: false,
 	urlRecheck: false,
 	voteScoring: false,
 	votes: false,
 	workRecord: false,
+	writesSourcePriority: false,
+	writesSourceStatus: false,
 	writesWorkPlanning: false,
 	writesWorkPriority: false,
 	writesWorkStatus: false,
@@ -355,3 +368,43 @@ export const bindFeedbackOriginOutcomeSchema = z.discriminatedUnion("status", [
 export type BindFeedbackOriginOutcome = z.infer<
 	typeof bindFeedbackOriginOutcomeSchema
 >;
+
+export const FEED_SORT_FIELDS = ["title"] as const;
+
+export type FeedSortField = (typeof FEED_SORT_FIELDS)[number];
+
+export const feedRowSchema = z.object({
+	attachments: z.array(feedbackAttachmentViewSchema),
+	body: z.string(),
+	id: z.string().min(1),
+	identityOrChannel: z.string().min(1),
+	occurredAt: z.string().min(1),
+	openSourceRecord: z.literal(FEEDBACK_COPY.openSourceRecord),
+	projectId: z.string().min(1),
+	recordKind: z.enum([FEEDBACK_RECORD_KIND, "Source"]),
+	relatedDecisionIds: z.array(z.string().min(1)),
+	relatedWorkIds: z.array(z.string().min(1)),
+});
+
+export type FeedRow = z.infer<typeof feedRowSchema>;
+
+export const feedViewSchema = z.object({
+	notificationSignals: z.tuple([]),
+	rows: z.array(feedRowSchema),
+	socialActions: z.tuple([]),
+	writes: z.object({
+		priority: z.literal(false),
+		status: z.literal(false),
+	}),
+});
+
+export type FeedView = z.infer<typeof feedViewSchema>;
+
+export const listFeedQuerySchema = z.object({
+	filterText: z.string().optional(),
+	projectId: z.string().min(1),
+	sortDirection: z.enum(["asc", "desc"]).optional(),
+	sortField: z.enum(FEED_SORT_FIELDS).optional(),
+});
+
+export type ListFeedQuery = z.infer<typeof listFeedQuerySchema>;

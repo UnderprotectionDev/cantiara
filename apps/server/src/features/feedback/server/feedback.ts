@@ -9,6 +9,7 @@ import {
 } from "../../mutation-core/server/mutation-shared";
 import { createRelationInTransaction } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
+import { presentNamedView } from "../../smart-collections/server/smart-collections-model";
 import { createWorkInTransaction } from "../../work-lifecycle/server/work-lifecycle";
 
 import {
@@ -30,6 +31,10 @@ import {
 	type FeedbackStatus,
 	type FeedbackView,
 	type FeedbackWriteOutcome,
+	type FeedRow,
+	type FeedView,
+	type ListFeedQuery,
+	listFeedQuerySchema,
 	type PreviewConvertFeedbackOutcome,
 	previewConvertFeedbackToWorkInputSchema,
 	type SetFeedbackStatusCommand,
@@ -258,6 +263,198 @@ export async function listFeedback(
 		},
 	});
 	return await hydrateFeedbackViews(prisma, rows);
+}
+
+const FEED_WRITES = { priority: false, status: false } as const;
+
+export async function listFeed(
+	prisma: PrismaClient,
+	query: unknown
+): Promise<FeedView> {
+	const parsed = listFeedQuerySchema.safeParse(query);
+	if (!parsed.success) {
+		return emptyFeed();
+	}
+	const rows = await collectFeedRows(prisma, parsed.data);
+	const ordered = orderFeedRows(rows, parsed.data);
+	return {
+		notificationSignals: [],
+		rows: ordered,
+		socialActions: [],
+		writes: FEED_WRITES,
+	};
+}
+
+function emptyFeed(): FeedView {
+	return {
+		notificationSignals: [],
+		rows: [],
+		socialActions: [],
+		writes: FEED_WRITES,
+	};
+}
+
+async function collectFeedRows(
+	prisma: PrismaClient,
+	query: ListFeedQuery
+): Promise<FeedRow[]> {
+	const [feedbackRows, sources] = await Promise.all([
+		listFeedback(prisma, query.projectId),
+		prisma.source.findMany({
+			include: { versions: { orderBy: { versionNumber: "asc" } } },
+			where: { projectId: query.projectId },
+		}),
+	]);
+	const identities = await loadContactNames(
+		prisma,
+		feedbackRows.flatMap((row) => (row.contactId ? [row.contactId] : []))
+	);
+	const feedbackFeed = feedbackRows.map((row) => ({
+		attachments: row.attachments,
+		body: row.originalMessage,
+		id: row.id,
+		identityOrChannel:
+			(row.contactId ? identities.get(row.contactId) : undefined) ??
+			row.channel,
+		occurredAt: row.occurredAt,
+		openSourceRecord: FEEDBACK_COPY.openSourceRecord,
+		projectId: row.projectId,
+		recordKind: FEEDBACK_RECORD_KIND,
+		relatedDecisionIds: [] as string[],
+		relatedWorkIds: [] as string[],
+	}));
+	const sourceFeed: FeedRow[] = [];
+	for (const source of sources) {
+		const approved = source.versions.find(
+			(version) => version.versionNumber === source.approvedVersionNumber
+		);
+		if (!approved || approved.capturedContent.trim().length === 0) {
+			continue;
+		}
+		sourceFeed.push({
+			attachments: [],
+			body: approved.capturedContent,
+			id: source.id,
+			identityOrChannel: approved.title,
+			occurredAt: approved.accessedAt.toISOString(),
+			openSourceRecord: FEEDBACK_COPY.openSourceRecord,
+			projectId: source.projectId,
+			recordKind: "Source",
+			relatedDecisionIds: [],
+			relatedWorkIds: [],
+		});
+	}
+	const rows = [...feedbackFeed, ...sourceFeed];
+	await attachRelatedRecords(prisma, rows);
+	return rows;
+}
+
+async function loadContactNames(
+	prisma: PrismaClient,
+	contactIds: readonly string[]
+): Promise<Map<string, string>> {
+	const names = new Map<string, string>();
+	if (contactIds.length === 0) {
+		return names;
+	}
+	const contacts = await prisma.contact.findMany({
+		where: { id: { in: [...contactIds] } },
+	});
+	for (const contact of contacts) {
+		if (contact.displayName) {
+			names.set(contact.id, contact.displayName);
+		}
+	}
+	return names;
+}
+
+async function attachRelatedRecords(
+	prisma: PrismaClient,
+	rows: FeedRow[]
+): Promise<void> {
+	if (rows.length === 0) {
+		return;
+	}
+	const ids = rows.map((row) => row.id);
+	const edges = await prisma.typedRelation.findMany({
+		where: {
+			OR: [{ fromId: { in: ids } }, { toId: { in: ids } }],
+		},
+	});
+	const byId = new Map(rows.map((row) => [row.id, row]));
+	for (const edge of edges) {
+		const relatedKind = relatedWorkOrDecision(edge);
+		if (!relatedKind) {
+			continue;
+		}
+		const owner = byId.get(edge.fromId) ?? byId.get(edge.toId);
+		if (!owner) {
+			continue;
+		}
+		if (
+			relatedKind.kind === "Work" &&
+			!owner.relatedWorkIds.includes(relatedKind.id)
+		) {
+			owner.relatedWorkIds.push(relatedKind.id);
+		}
+		if (
+			relatedKind.kind === "Decision" &&
+			!owner.relatedDecisionIds.includes(relatedKind.id)
+		) {
+			owner.relatedDecisionIds.push(relatedKind.id);
+		}
+	}
+}
+
+function relatedWorkOrDecision(edge: {
+	fromId: string;
+	fromKind: string;
+	toId: string;
+	toKind: string;
+}): { id: string; kind: "Work" | "Decision" } | null {
+	if (edge.toKind === "Work" || edge.toKind === "Decision") {
+		return { id: edge.toId, kind: edge.toKind };
+	}
+	if (edge.fromKind === "Work" || edge.fromKind === "Decision") {
+		return { id: edge.fromId, kind: edge.fromKind };
+	}
+	return null;
+}
+
+function orderFeedRows(rows: FeedRow[], query: ListFeedQuery): FeedRow[] {
+	const byTime = [...rows].sort((left, right) =>
+		right.occurredAt.localeCompare(left.occurredAt)
+	);
+	const presented = presentNamedView(
+		{
+			members: byTime.map((row) => ({
+				because: [],
+				id: row.id,
+				kind: row.recordKind,
+				projectId: row.projectId,
+				title: row.identityOrChannel,
+			})),
+			summary: FEEDBACK_COPY.feed,
+		},
+		{
+			filterText: query.filterText ?? "",
+			groupField: null,
+			id: "feed",
+			isDefault: true,
+			name: FEEDBACK_COPY.feed,
+			presentation: "List",
+			purpose: null,
+			sortDirection:
+				query.sortField === "title" ? (query.sortDirection ?? "asc") : null,
+			sortField: query.sortField === "title" ? "title" : null,
+			visibleFields: [],
+		}
+	);
+	const byId = new Map(byTime.map((row) => [row.id, row]));
+	return presented.presented.flatMap((member) => {
+		const row = byId.get(member.id);
+		return row ? [row] : [];
+	});
 }
 
 async function createInTransaction(
