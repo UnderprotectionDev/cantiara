@@ -14,6 +14,7 @@ import { decisions } from "../features/decisions/server/decisions-rpc";
 import { documents } from "../features/documents/server/documents-rpc";
 import { externalHandoffs } from "../features/external-handoffs/server/external-handoffs-rpc";
 import { favorites } from "../features/favorites/server/favorites-rpc";
+import { feedback } from "../features/feedback/server/feedback-rpc";
 import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
 import { focusPeriod } from "../features/focus-period/server/focus-period-rpc";
 import { projectGoals } from "../features/goals/server/project-goals-rpc";
@@ -59,6 +60,7 @@ export const appRouter = {
 	documents,
 	externalHandoffs,
 	favorites,
+	feedback,
 	fileAttachments,
 	focusPeriod,
 	healthCheck: publicProcedure.handler(() => "OK"),

@@ -1,0 +1,44 @@
+model Feedback {
+  id              String               @id
+  projectId       String
+  project         Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  originalMessage String
+  channel         String
+  occurredAt      DateTime
+  url             String?
+  status          String
+  revision        Int
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  events          FeedbackEvent[]
+  attachments     FeedbackAttachment[]
+
+  @@index([projectId])
+  @@index([projectId, status])
+  @@map("feedback")
+}
+
+model FeedbackEvent {
+  id             String    @id
+  feedbackId     String
+  feedback       Feedback  @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  kind           String
+  actorId        String
+  previousStatus String?
+  nextStatus     String
+  occurredAt     DateTime  @default(now())
+
+  @@index([feedbackId, occurredAt])
+  @@map("feedback_event")
+}
+
+model FeedbackAttachment {
+  id               String   @id
+  feedbackId       String
+  feedback         Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  fileAttachmentId String
+  createdAt        DateTime @default(now())
+
+  @@index([feedbackId])
+  @@map("feedback_attachment")
+}
