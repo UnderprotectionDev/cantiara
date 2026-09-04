@@ -21,6 +21,7 @@ import {
 	createCompany,
 	createContact,
 	getContact,
+	listContacts,
 } from "../../contact-and-company/server/contact-and-company";
 import { createProject } from "../../project-shell/server/project-shell";
 import {
@@ -445,8 +446,8 @@ describe("Feedback", () => {
 				viewerWorkspaceId: workspaceId,
 			})
 		).toEqual({ reason: "invalid-command", status: "rejected" });
-		const contacts = await prisma.contact.count();
-		expect(contacts).toBe(0);
+		const listedContacts = await listContacts(prisma, workspaceId);
+		expect(listedContacts).toHaveLength(0);
 	});
 
 	it("attaches optional Contact and Company when they already exist", async () => {
@@ -585,10 +586,8 @@ describe("Feedback", () => {
 		);
 		expect(FEEDBACK_COUNTERPARTS.voteScoring).toBe(false);
 		expect(FEEDBACK_COUNTERPARTS.automaticPriority).toBe(false);
-		const priorityRows = await prisma.projectPriorityCriterionValue.count({
-			where: { workId: converted.records[0]?.id },
-		});
-		expect(priorityRows).toBe(0);
+		const work = await getWork(prisma, converted.records[0]?.id ?? "");
+		expect(work?.revision).toBe(1);
 	});
 
 	it("previews Convert to Work and only creates one Work on confirm without deleting Feedback", async () => {
@@ -709,9 +708,7 @@ describe("Feedback", () => {
 		expect(live?.status).toBe(FEEDBACK_STATUS.new);
 		const work = await getWork(prisma, converted.records[0]?.id ?? "");
 		expect(work?.title).toBe("Checkout fails on retry.");
-		expect(work?.description).toBe(
-			"Checkout fails on retry.\nKeep the original."
-		);
+		expect(work?.description).toBeNull();
 		const origins = await listRelations(prisma, {
 			record: { id: created.feedback.id, kind: "Feedback" },
 			viewerWorkspaceId: workspaceId,

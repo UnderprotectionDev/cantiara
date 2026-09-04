@@ -783,10 +783,6 @@ async function convertInTransaction(
 			status: "rejected",
 		});
 	}
-	await tx.work.update({
-		data: { description: preview.body },
-		where: { id: created.work.id },
-	});
 	const origin = await createRelationInTransaction(tx, {
 		actorId: command.actorId,
 		from: { id: current.id, kind: FEEDBACK_RECORD_KIND },
