@@ -19,6 +19,8 @@ test("English Contact and Company labels stay Contact, Company, Belongs to Compa
 	);
 	expect(CONTACT_AND_COMPANY_COPY.mergeContacts).toBe("Merge Contacts");
 	expect(CONTACT_AND_COMPANY_COPY.mergePreview).toBe("Merge Preview");
+	expect(CONTACT_AND_COMPANY_COPY.undo).toBe("Undo");
+	expect(CONTACT_AND_COMPANY_COPY.undoPreview).toBe("Undo Preview");
 	expect(CONTACT_AND_COMPANY_COPY.emailAliases).toBe("Email aliases");
 	expect(CONTACT_AND_COMPANY_COPY.feedbackHistory).toBe("Feedback history");
 	expect(CONTACT_AND_COMPANY_COPY.fieldConflicts).toBe("Field conflicts");

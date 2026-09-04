@@ -14,9 +14,11 @@ import {
 	listDuplicateCandidates,
 	mergeContacts,
 	previewContactMerge,
+	previewContactMergeUndo,
 	relateContactPersona,
 	searchContacts,
 	setContactCompany,
+	undoMergeContacts,
 } from "./contact-and-company";
 import {
 	CONTACT_AND_COMPANY_COPY,
@@ -24,6 +26,7 @@ import {
 	createCompanyPayloadSchema,
 	createContactPayloadSchema,
 	previewContactMergeInputSchema,
+	previewContactMergeUndoInputSchema,
 	relateContactPersonaPayloadSchema,
 	setContactCompanyPayloadSchema,
 } from "./contact-and-company-model";
@@ -153,6 +156,20 @@ export const contactAndCompany = {
 			}
 			return preview;
 		}),
+	previewUndoMerge: protectedProcedure
+		.input(previewContactMergeUndoInputSchema.omit({ workspaceId: true }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const preview = await previewContactMergeUndo(getPrismaClient(), {
+				mergeEventId: input.mergeEventId,
+				survivorId: input.survivorId,
+				workspaceId: access.workspaceId,
+			});
+			if ("reason" in preview) {
+				throw new ORPCError("BAD_REQUEST");
+			}
+			return preview;
+		}),
 	relatePersona: protectedWriteProcedure
 		.input(
 			z.object({
@@ -196,6 +213,29 @@ export const contactAndCompany = {
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	undoMerge: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				mergeEventId: z.string().min(1),
+				previewAcknowledged: z.boolean().optional(),
+				survivorBaseRevision: z.number().int().nonnegative(),
+				survivorId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await undoMergeContacts(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				mergeEventId: input.mergeEventId,
+				origin: "human",
+				previewAcknowledged: input.previewAcknowledged,
+				survivorBaseRevision: input.survivorBaseRevision,
+				survivorId: input.survivorId,
 				workspaceId: access.workspaceId,
 			});
 		}),
