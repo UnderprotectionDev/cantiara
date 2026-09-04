@@ -17,6 +17,7 @@ test("founder chrome reaches Capture and Projects, not Home or Dashboard twins",
 	expect(FOUNDER_CHROME_COPY.capture).toBe("Capture");
 	expect(FOUNDER_CHROME_COPY.drafts).toBe("Drafts");
 	expect(FOUNDER_CHROME_COPY.dailyFocus).toBe("Daily Focus");
+	expect(FOUNDER_CHROME_COPY.favorites).toBe("Favorites");
 	expect(FOUNDER_CHROME_COPY.calendar).toBe("Calendar");
 	expect(FOUNDER_CHROME_COPY.focusPeriod).toBe("Focus Period");
 	expect(FOUNDER_CHROME_COPY.projects).toBe("Projects");

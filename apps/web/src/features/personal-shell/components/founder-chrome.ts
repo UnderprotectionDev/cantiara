@@ -1,11 +1,10 @@
-import { FAVORITES_COPY } from "@/features/favorites/views/favorites-copy";
-
 export const FOUNDER_CHROME_COPY = {
 	account: "Account",
 	calendar: "Calendar",
 	capture: "Capture",
 	dailyFocus: "Daily Focus",
 	drafts: "Drafts",
+	favorites: "Favorites",
 	focusPeriod: "Focus Period",
 	menu: "Menu",
 	more: "More",
@@ -47,7 +46,7 @@ export function founderChromePrimaryNav() {
 			to: FOUNDER_CHROME_PATHS.dailyFocus,
 		},
 		{
-			label: FAVORITES_COPY.favorites,
+			label: FOUNDER_CHROME_COPY.favorites,
 			to: FOUNDER_CHROME_PATHS.favorites,
 		},
 		{
@@ -107,7 +106,7 @@ export function founderChromeNav() {
 			to: FOUNDER_CHROME_PATHS.dailyFocus,
 		},
 		{
-			label: FAVORITES_COPY.favorites,
+			label: FOUNDER_CHROME_COPY.favorites,
 			to: FOUNDER_CHROME_PATHS.favorites,
 		},
 		{

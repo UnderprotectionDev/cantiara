@@ -72,7 +72,7 @@ function FavoriteRow({
 				{row.openTarget.kind === "broken-reference" ? (
 					<p className="text-muted-foreground text-sm">
 						<span>{row.openTarget.reason}</span>
-						<time className="sr-only" dateTime={row.createdAt}>
+						<time className="ml-2" dateTime={row.createdAt}>
 							{row.createdAt}
 						</time>
 					</p>
