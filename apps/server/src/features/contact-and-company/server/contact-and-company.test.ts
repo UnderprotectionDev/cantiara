@@ -3,8 +3,9 @@
  * optional display name and email aliases, optional Company
  * via Belongs to Company with affiliation history, Persona as
  * Document relation only, no CRM fields, no personal-data erase,
- * profile hub via Open Source Record.
- * docs/specs/46-contact-and-company/spec.md and GitHub #330.
+ * profile hub via Open Source Record, duplicate candidates
+ * without auto-merge.
+ * docs/specs/46-contact-and-company/spec.md and GitHub #330 / #331.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Kanıt akışı identity context; Hesap ve kişisel veri identity book).
  */
@@ -22,6 +23,9 @@ import {
 	createCompany,
 	createContact,
 	getContact,
+	listCompanies,
+	listContacts,
+	listDuplicateCandidates,
 	relateContactPersona,
 	setContactCompany,
 } from "./contact-and-company";
@@ -36,6 +40,7 @@ const CRM_COPY =
 const ERASE_COPY =
 	/Erase personal data|Export personal data|Confirm GitHub Identity/i;
 const FEED_COPY = /Evidence Flow|Feedback Capture|Feedback feed/i;
+const COMPANY_MERGE_COPY = /Merge Companies|mergeCompanies/;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -288,5 +293,161 @@ describe("Contact and Company", () => {
 		expect(contact).not.toHaveProperty("plan");
 		expect(contact).not.toHaveProperty("arr");
 		expect(contact).not.toHaveProperty("salesStage");
+	});
+
+	it("lists the same normalized email as a strong copy candidate without merging Contacts", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const first = await committedContact(prisma, {
+			actorId,
+			displayName: "Maya Chen",
+			email: " Maya.Chen@Example.com ",
+			workspaceId,
+		});
+		const second = await committedContact(prisma, {
+			actorId,
+			displayName: "M. Chen",
+			email: "maya.chen@example.com",
+			workspaceId,
+		});
+		const candidates = await listDuplicateCandidates(prisma, workspaceId);
+		expect(candidates).toHaveLength(1);
+		expect(candidates[0]?.strength).toBe("strong");
+		expect(candidates[0]?.copy.strongCopyCandidate).toBe(
+			"Strong copy candidate"
+		);
+		expect(candidates[0]?.reasons).toEqual(["same-normalized-email"]);
+		expect(new Set([candidates[0]?.left.id, candidates[0]?.right.id])).toEqual(
+			new Set([first.id, second.id])
+		);
+		expect(await getContact(prisma, first.id, workspaceId)).toMatchObject({
+			displayName: "Maya Chen",
+			id: first.id,
+		});
+		expect(await getContact(prisma, second.id, workspaceId)).toMatchObject({
+			displayName: "M. Chen",
+			id: second.id,
+		});
+		expect(await listContacts(prisma, workspaceId)).toHaveLength(2);
+	});
+
+	it("treats matching display name or current Company as a weak suggestion, not a strong candidate", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const acme = await committedCompany(prisma, {
+			actorId,
+			name: "Acme",
+			workspaceId,
+		});
+		const namedA = await committedContact(prisma, {
+			actorId,
+			displayName: "Maya Chen",
+			email: "maya.a@example.com",
+			workspaceId,
+		});
+		const namedB = await committedContact(prisma, {
+			actorId,
+			displayName: "  maya   chen ",
+			email: "maya.b@example.com",
+			workspaceId,
+		});
+		const companyA = await committedContact(prisma, {
+			actorId,
+			companyId: acme.id,
+			displayName: "Alex Rivera",
+			email: "alex.a@example.com",
+			workspaceId,
+		});
+		const companyB = await committedContact(prisma, {
+			actorId,
+			companyId: acme.id,
+			displayName: "Sam Lee",
+			email: "sam.b@example.com",
+			workspaceId,
+		});
+		const candidates = await listDuplicateCandidates(prisma, workspaceId);
+		expect(candidates.every((row) => row.strength === "weak")).toBe(true);
+		expect(
+			candidates.every((row) => row.copy.weakSuggestion === "Weak suggestion")
+		).toBe(true);
+		expect(
+			candidates.some((row) => row.reasons.includes("same-normalized-email"))
+		).toBe(false);
+		const namePair = candidates.find(
+			(row) =>
+				new Set([row.left.id, row.right.id]).has(namedA.id) &&
+				new Set([row.left.id, row.right.id]).has(namedB.id)
+		);
+		expect(namePair?.reasons).toEqual(["similar-name"]);
+		const companyPair = candidates.find(
+			(row) =>
+				new Set([row.left.id, row.right.id]).has(companyA.id) &&
+				new Set([row.left.id, row.right.id]).has(companyB.id)
+		);
+		expect(companyPair?.reasons).toEqual(["similar-company"]);
+		expect(await listContacts(prisma, workspaceId)).toHaveLength(4);
+	});
+
+	it("does not rewrite relation endpoints when listing candidates and has no auto-merge or Company merge", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const acme = await committedCompany(prisma, {
+			actorId,
+			name: "Acme",
+			workspaceId,
+		});
+		const globex = await committedCompany(prisma, {
+			actorId,
+			name: "Acme",
+			workspaceId,
+		});
+		const first = await committedContact(prisma, {
+			actorId,
+			companyId: acme.id,
+			displayName: "Maya Chen",
+			email: "maya@example.com",
+			workspaceId,
+		});
+		const second = await committedContact(prisma, {
+			actorId,
+			companyId: globex.id,
+			displayName: "Maya Chen",
+			email: "maya@example.com",
+			workspaceId,
+		});
+		const beforeRelations = await listRelations(prisma, {
+			record: { id: first.id, kind: "Contact" },
+			viewerWorkspaceId: workspaceId,
+		});
+		const beforeRevision = first.revision;
+		await listDuplicateCandidates(prisma, workspaceId);
+		const after = await getContact(prisma, first.id, workspaceId);
+		expect(after?.id).toBe(first.id);
+		expect(after?.revision).toBe(beforeRevision);
+		expect(after?.currentCompany).toEqual({ id: acme.id, name: "Acme" });
+		const afterRelations = await listRelations(prisma, {
+			record: { id: first.id, kind: "Contact" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(afterRelations).toEqual(beforeRelations);
+		expect(await getContact(prisma, second.id, workspaceId)).toMatchObject({
+			currentCompany: { id: globex.id, name: "Acme" },
+			id: second.id,
+		});
+		expect(await listCompanies(prisma, workspaceId)).toHaveLength(2);
+		expect(
+			JSON.stringify({
+				candidates: await listDuplicateCandidates(prisma, workspaceId),
+				copy: CONTACT_AND_COMPANY_COPY,
+			})
+		).not.toMatch(COMPANY_MERGE_COPY);
+	});
+
+	it("does not create a Contact when the identity book is listed with no people", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		await committedCompany(prisma, {
+			actorId,
+			name: "Acme",
+			workspaceId,
+		});
+		expect(await listDuplicateCandidates(prisma, workspaceId)).toEqual([]);
+		expect(await listContacts(prisma, workspaceId)).toEqual([]);
 	});
 });

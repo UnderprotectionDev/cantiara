@@ -14,6 +14,13 @@ test("English Contact and Company labels stay Contact, Company, Belongs to Compa
 	expect(CONTACT_AND_COMPANY_COPY.openSourceRecord).toBe("Open Source Record");
 	expect(CONTACT_AND_COMPANY_COPY.createContact).toBe("Create Contact");
 	expect(CONTACT_AND_COMPANY_COPY.createCompany).toBe("Create Company");
+	expect(CONTACT_AND_COMPANY_COPY.duplicateCandidates).toBe(
+		"Duplicate candidates"
+	);
+	expect(CONTACT_AND_COMPANY_COPY.strongCopyCandidate).toBe(
+		"Strong copy candidate"
+	);
+	expect(CONTACT_AND_COMPANY_COPY.weakSuggestion).toBe("Weak suggestion");
 	expect(JSON.stringify(CONTACT_AND_COMPANY_COPY)).not.toMatch(CRM_COPY);
 	expect(JSON.stringify(CONTACT_AND_COMPANY_COPY)).not.toMatch(ERASE_COPY);
 });

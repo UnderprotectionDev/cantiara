@@ -40,6 +40,9 @@ export default function SetContactCompanyForm({
 					await queryClient.invalidateQueries({
 						queryKey: orpc.contactAndCompany.listContacts.queryKey(),
 					});
+					await queryClient.invalidateQueries({
+						queryKey: orpc.contactAndCompany.listDuplicateCandidates.queryKey(),
+					});
 					recordSave();
 					setError(null);
 					return;

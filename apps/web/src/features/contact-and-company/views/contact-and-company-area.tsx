@@ -25,6 +25,9 @@ export default function ContactAndCompanyArea({
 	const companies = useQuery(
 		orpc.contactAndCompany.listCompanies.queryOptions()
 	);
+	const candidates = useQuery(
+		orpc.contactAndCompany.listDuplicateCandidates.queryOptions()
+	);
 	const contact = useQuery({
 		...orpc.contactAndCompany.getContact.queryOptions({
 			input: { contactId: contactId ?? "" },
@@ -56,7 +59,7 @@ export default function ContactAndCompanyArea({
 		[navigate]
 	);
 
-	if (contacts.isPending || companies.isPending) {
+	if (contacts.isPending || companies.isPending || candidates.isPending) {
 		return (
 			<FounderPage title={CONTACT_AND_COMPANY_COPY.contact}>
 				<p className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -66,7 +69,7 @@ export default function ContactAndCompanyArea({
 			</FounderPage>
 		);
 	}
-	if (contacts.isError || companies.isError) {
+	if (contacts.isError || companies.isError || candidates.isError) {
 		return (
 			<FounderPage title={CONTACT_AND_COMPANY_COPY.contact}>
 				<p role="alert">{PROJECT_SHELL_COPY.unavailable}</p>
@@ -102,6 +105,41 @@ export default function ContactAndCompanyArea({
 						<h2 className="font-medium text-sm">{company.data.name}</h2>
 					</article>
 				) : null}
+			</FounderSection>
+			<FounderSection title={CONTACT_AND_COMPANY_COPY.duplicateCandidates}>
+				{candidates.data.length === 0 ? (
+					<Empty>
+						<EmptyHeader>
+							<EmptyTitle>
+								{CONTACT_AND_COMPANY_COPY.noDuplicateCandidates}
+							</EmptyTitle>
+						</EmptyHeader>
+					</Empty>
+				) : (
+					<ul className="mt-4 flex flex-col gap-3">
+						{candidates.data.map((item) => (
+							<li key={`${item.left.id}:${item.right.id}`}>
+								<p className="text-muted-foreground text-xs">
+									{item.strength === "strong"
+										? item.copy.strongCopyCandidate
+										: item.copy.weakSuggestion}
+								</p>
+								<div className="mt-1 flex flex-wrap gap-1">
+									<IdentityRow
+										label={item.left.displayName ?? item.left.id}
+										onSelect={openContact}
+										recordId={item.left.id}
+									/>
+									<IdentityRow
+										label={item.right.displayName ?? item.right.id}
+										onSelect={openContact}
+										recordId={item.right.id}
+									/>
+								</div>
+							</li>
+						))}
+					</ul>
+				)}
 			</FounderSection>
 			<FounderSection title={CONTACT_AND_COMPANY_COPY.contact}>
 				<CreateContactForm companies={companies.data} onCreated={openContact} />
