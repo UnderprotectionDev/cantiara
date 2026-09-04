@@ -63,7 +63,12 @@ export default function EvidenceFlow({
 			<ol className="flex flex-col gap-3">
 				{rows.map((row) => (
 					<li className="flex flex-col gap-1" key={row.pinId}>
-						<p className="text-muted-foreground text-sm">{row.sourceKind}</p>
+						<p className="text-muted-foreground text-sm">
+							{row.sourceKind}{" "}
+							<time dateTime={toStamp(row.eventTime)}>
+								{toStamp(row.eventTime)}
+							</time>
+						</p>
 						{row.presentation === "broken" ? (
 							<p className="text-muted-foreground text-sm">
 								{row.brokenReason}
@@ -87,13 +92,8 @@ export default function EvidenceFlow({
 							</>
 						)}
 						<p className="text-muted-foreground text-sm">
-							<time dateTime={row.eventTime.toString()}>
-								{formatStamp(row.eventTime)}
-							</time>
-						</p>
-						<p className="text-muted-foreground text-sm">
-							<time dateTime={row.relationTime.toString()}>
-								{formatStamp(row.relationTime)}
+							<time dateTime={toStamp(row.relationTime)}>
+								{toStamp(row.relationTime)}
 							</time>
 						</p>
 						<p className="text-muted-foreground text-sm">
@@ -146,7 +146,7 @@ function OpenSourceRecordLink({
 	);
 }
 
-function formatStamp(value: Date | string) {
+function toStamp(value: Date | string) {
 	const date = value instanceof Date ? value : new Date(value);
 	if (Number.isNaN(date.getTime())) {
 		return String(value);

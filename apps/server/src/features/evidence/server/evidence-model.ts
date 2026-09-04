@@ -357,18 +357,6 @@ export const evidenceFlowRowSchema = z.object({
 
 export type EvidenceFlowRow = z.infer<typeof evidenceFlowRowSchema>;
 
-export const evidenceFlowSchema = z.object({
-	label: z.literal(EVIDENCE_COPY.evidenceFlow),
-	rows: z.array(evidenceFlowRowSchema),
-	sourceKindFilter: evidenceSourceKindSchema.nullable(),
-	sourceKinds: z.array(evidenceSourceKindSchema),
-	storedSnapshot: z.literal(false),
-	targetId: z.string().min(1),
-	targetKind: z.enum(["Work", "Decision", "Assumption"]),
-});
-
-export type EvidenceFlow = z.infer<typeof evidenceFlowSchema>;
-
 export const EVIDENCE_FLOW_TARGET_KINDS = [
 	"Work",
 	"Decision",
@@ -377,6 +365,18 @@ export const EVIDENCE_FLOW_TARGET_KINDS = [
 
 export type EvidenceFlowTargetKind =
 	(typeof EVIDENCE_FLOW_TARGET_KINDS)[number];
+
+export const evidenceFlowSchema = z.object({
+	label: z.literal(EVIDENCE_COPY.evidenceFlow),
+	rows: z.array(evidenceFlowRowSchema),
+	sourceKindFilter: evidenceSourceKindSchema.nullable(),
+	sourceKinds: z.array(evidenceSourceKindSchema),
+	storedSnapshot: z.literal(false),
+	targetId: z.string().min(1),
+	targetKind: z.enum(EVIDENCE_FLOW_TARGET_KINDS),
+});
+
+export type EvidenceFlow = z.infer<typeof evidenceFlowSchema>;
 
 export const listEvidenceFlowInputSchema = z.object({
 	sourceKind: evidenceSourceKindSchema.optional(),
