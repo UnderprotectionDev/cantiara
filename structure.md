@@ -390,6 +390,7 @@
 │       │   │   │   ├── components/
 │       │   │   │   └── views/
 │       │   │   ├── validation-records/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── value-chain/
 │       │   │   │   └── views/

@@ -14,6 +14,7 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"ReturnToWorkVisibleOpen",
 	"SmartCollectionAttentionSignal",
 	"SmartCollectionMembershipPeriod",
+	"ValidationRecord",
 	"WorkNotNowTrail",
 ]);
 
@@ -100,6 +101,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	// via table SQL when bun --hot still has a client generated before
 	// those models. Do not gate getPrismaClient on them: Create Smart
 	// Collection must not throw "Restart the API after prisma generate".
+	// Validation Record is read via its own delegate after generate. Do not
+	// gate getPrismaClient on it: bun --hot can reload this check before
+	// prisma generate, and that must not block Work writes.
 	if (!knownDelegates) {
 		return false;
 	}

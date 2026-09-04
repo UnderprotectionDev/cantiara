@@ -35,6 +35,7 @@ import { sources } from "../features/sources-and-freshness/server/sources-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { uncertaintyRecords } from "../features/uncertainty-records/server/uncertainty-records-rpc";
 import { unifiedCalendar } from "../features/unified-calendar/server/unified-calendar-rpc";
+import { validationRecords } from "../features/validation-records/server/validation-records-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
 import { workChecklists } from "../features/work-checklists/server/work-checklists-rpc";
 import { workContext } from "../features/work-context/server/work-context-rpc";
@@ -84,6 +85,7 @@ export const appRouter = {
 	tags,
 	uncertaintyRecords,
 	unifiedCalendar,
+	validationRecords,
 	workChecklists,
 	workContext,
 	workDrafts,

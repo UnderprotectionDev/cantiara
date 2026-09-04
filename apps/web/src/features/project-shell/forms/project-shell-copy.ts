@@ -129,6 +129,7 @@ export interface ProjectShellSearch {
 	researchSession?: string;
 	risk?: string;
 	source?: string;
+	validation?: string;
 	work?: string;
 }
 
@@ -158,6 +159,7 @@ export function projectShellSearch(
 	const researchSession = nonemptySearchString(search.researchSession);
 	const risk = nonemptySearchString(search.risk);
 	const source = nonemptySearchString(search.source);
+	const validation = nonemptySearchString(search.validation);
 	const work = nonemptySearchString(search.work);
 	return {
 		...(configurationMode ? { configurationMode: true as const } : {}),
@@ -171,6 +173,7 @@ export function projectShellSearch(
 		...(researchSession ? { researchSession } : {}),
 		...(risk ? { risk } : {}),
 		...(source ? { source } : {}),
+		...(validation ? { validation } : {}),
 		...(work ? { work } : {}),
 	};
 }

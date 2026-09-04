@@ -41,6 +41,7 @@ model Project {
   researchSessions                ResearchSession[]
   risks                           Risk[]
   sources                         Source[]
+  validationRecords               ValidationRecord[]
   documentFolders                 DocumentFolder[]
   documentTemplates               DocumentTemplate[]
   workContextCardLayouts          ProjectWorkContextLayout[]
