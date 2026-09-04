@@ -467,7 +467,7 @@ Kapalı registrydeki dikkat sinyallerini Eylem Gerekiyor ve Bilgi Akışı olara
 _Avoid_: E-posta ürünü, Geri Bildirim feed'i, serbest bildirim
 
 **Favori**:
-Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim listesine alınan işaret ([Favoriler](docs/prd/04-workspace-and-projects.md#favoriler)). UI: `Favorites`, `Add to Favorites`, `Remove from Favorites`.
+Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim listesine alınan işaret ([Favoriler](docs/prd/04-workspace-and-projects.md#favoriler)). UI: `Favorites`, `Add to Favorites`, `Remove from Favorites`, `Open source record`.
 _Avoid_: Bookmark kuyruğu, Aktif Çalışma Seti, planlama üyeliği
 
 **Hatırlatma**:

@@ -15,6 +15,9 @@ test("English Favorites copy uses Add to Favorites and Remove from Favorites", (
 	expect(FAVORITES_COPY.favorites).toBe("Favorites");
 	expect(FAVORITES_COPY.addToFavorites).toBe("Add to Favorites");
 	expect(FAVORITES_COPY.removeFromFavorites).toBe("Remove from Favorites");
+	expect(FAVORITES_COPY.openSourceRecord).toBe("Open source record");
+	expect(FAVORITES_COPY.permanentlyDeleted).toBe("Permanently deleted");
+	expect(FAVORITES_COPY.noAccess).toBe("No access");
 	expect(FAVORITE_SOURCE_TYPES).toEqual([
 		"Project",
 		"Document",

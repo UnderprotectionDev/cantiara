@@ -2,7 +2,13 @@ import { MUTATION_COPY } from "../../../lib/mutation";
 
 export const FAVORITES_COPY = {
 	addToFavorites: "Add to Favorites",
+	archived: "Archived",
 	favorites: "Favorites",
+	inTrash: "In Trash",
+	noAccess: "No access",
+	openSourceRecord: "Open source record",
+	permanentlyDeleted: "Permanently deleted",
+	redactedForSecurity: "Redacted for security",
 	removeFromFavorites: "Remove from Favorites",
 	sourceRequired: "A Favorite needs a supported source record.",
 	unsupportedSource: "This record type cannot be a Favorite.",

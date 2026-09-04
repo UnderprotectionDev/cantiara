@@ -4,6 +4,7 @@ export const FOUNDER_CHROME_COPY = {
 	capture: "Capture",
 	dailyFocus: "Daily Focus",
 	drafts: "Drafts",
+	favorites: "Favorites",
 	focusPeriod: "Focus Period",
 	menu: "Menu",
 	more: "More",
@@ -22,6 +23,7 @@ export const FOUNDER_CHROME_PATHS = {
 	capture: "/capture",
 	dailyFocus: "/daily-focus",
 	drafts: "/drafts",
+	favorites: "/favorites",
 	focusPeriod: "/focus-periods",
 	personalWiki: "/wiki",
 	projects: "/projects",
@@ -42,6 +44,10 @@ export function founderChromePrimaryNav() {
 		{
 			label: FOUNDER_CHROME_COPY.dailyFocus,
 			to: FOUNDER_CHROME_PATHS.dailyFocus,
+		},
+		{
+			label: FOUNDER_CHROME_COPY.favorites,
+			to: FOUNDER_CHROME_PATHS.favorites,
 		},
 		{
 			label: FOUNDER_CHROME_COPY.projects,
@@ -98,6 +104,10 @@ export function founderChromeNav() {
 		{
 			label: FOUNDER_CHROME_COPY.dailyFocus,
 			to: FOUNDER_CHROME_PATHS.dailyFocus,
+		},
+		{
+			label: FOUNDER_CHROME_COPY.favorites,
+			to: FOUNDER_CHROME_PATHS.favorites,
 		},
 		{
 			label: FOUNDER_CHROME_COPY.calendar,
