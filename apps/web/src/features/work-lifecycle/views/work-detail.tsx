@@ -5,6 +5,7 @@ import WorkBlockersPanel from "@/features/blockers/views/work-blockers-panel";
 import { CompletionEffectsLayer } from "@/features/completion-effects/components/completion-effects-layer";
 import CustomFieldValuesEditor from "@/features/custom-fields/forms/custom-field-values-editor";
 import WorkExternalHandoffsPanel from "@/features/external-handoffs/views/work-external-handoffs-panel";
+import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
 import WorkGoalForm from "@/features/goals/forms/work-goal-form";
 import PersonalReminderPanel from "@/features/personal-reminders/views/personal-reminder-panel";
 import WorkPriorityValues from "@/features/priority/forms/work-priority-values";
@@ -105,6 +106,7 @@ export default function WorkDetail({
 						{WORK_LIFECYCLE_COPY.close}
 					</Button>
 				</header>
+				<FavoriteToggle sourceId={work.id} sourceType="Work" />
 				{readOnly ? null : (
 					<PersonalReminderPanel sourceId={work.id} sourceType="Work" />
 				)}

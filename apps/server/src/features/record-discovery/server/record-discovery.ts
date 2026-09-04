@@ -19,6 +19,8 @@ export const SEARCH_RECORD_KINDS = [
 	RECORD_DISCOVERY_COPY.fileAttachment,
 	RECORD_DISCOVERY_COPY.technicalDiagram,
 	RECORD_DISCOVERY_COPY.decision,
+	RECORD_DISCOVERY_COPY.researchSession,
+	RECORD_DISCOVERY_COPY.source,
 ] as const;
 
 export type SearchRecordKind = string;
@@ -324,6 +326,22 @@ export function loadSearchIndexFromRows(input: {
 		title: string;
 		updatedAt: Date;
 	}[];
+	researchSessions?: readonly {
+		id: string;
+		projectId: string;
+		purpose: string;
+		status: string;
+		title: string;
+		updatedAt: Date;
+	}[];
+	sources?: readonly {
+		capturedContent: string;
+		id: string;
+		projectId: string;
+		title: string;
+		updatedAt: Date;
+		url: string;
+	}[];
 	works: readonly {
 		archived: boolean;
 		closureResult: string | null;
@@ -437,9 +455,61 @@ export function loadSearchIndexFromRows(input: {
 			updatedAt: decision.updatedAt.getTime(),
 		} satisfies SearchIndexRecord;
 	});
-	return [...works, ...files, ...diagrams, ...decisions].filter((record) =>
-		isSearchIndexedKind(record.kind)
+	const researchSessions = (input.researchSessions ?? []).map((session) => {
+		const closed =
+			session.status === "Completed" || session.status === "Cancelled";
+		return {
+			archived: false,
+			authorized: true,
+			body: session.purpose,
+			closureResult: null,
+			diagramAuthorityMode: null,
+			folder: null,
+			id: session.id,
+			key: null,
+			kind: RECORD_DISCOVERY_COPY.researchSession,
+			lifecycle: closed ? ("closed" as const) : ("active" as const),
+			metadata: "",
+			projectId: session.projectId,
+			recordType: RECORD_DISCOVERY_COPY.researchSession,
+			scope: RECORD_DISCOVERY_COPY.project,
+			status: session.status,
+			title: session.title,
+			trashed: false,
+			updatedAt: session.updatedAt.getTime(),
+		} satisfies SearchIndexRecord;
+	});
+	const sources = (input.sources ?? []).map(
+		(source) =>
+			({
+				archived: false,
+				authorized: true,
+				body: source.capturedContent,
+				closureResult: null,
+				diagramAuthorityMode: null,
+				folder: null,
+				id: source.id,
+				key: null,
+				kind: RECORD_DISCOVERY_COPY.source,
+				lifecycle: "active" as const,
+				metadata: source.url,
+				projectId: source.projectId,
+				recordType: RECORD_DISCOVERY_COPY.source,
+				scope: RECORD_DISCOVERY_COPY.project,
+				status: "Active",
+				title: source.title,
+				trashed: false,
+				updatedAt: source.updatedAt.getTime(),
+			}) satisfies SearchIndexRecord
 	);
+	return [
+		...works,
+		...files,
+		...diagrams,
+		...decisions,
+		...researchSessions,
+		...sources,
+	].filter((record) => isSearchIndexedKind(record.kind));
 }
 
 function isIndexMember(
@@ -696,6 +766,15 @@ function sourceHref(record: SearchIndexRecord): string {
 	}
 	if (record.kind === RECORD_DISCOVERY_COPY.decision && record.projectId) {
 		return `/projects/${record.projectId}?decision=${encodeURIComponent(record.id)}#decisions`;
+	}
+	if (
+		record.kind === RECORD_DISCOVERY_COPY.researchSession &&
+		record.projectId
+	) {
+		return `/projects/${record.projectId}?researchSession=${encodeURIComponent(record.id)}#discovery`;
+	}
+	if (record.kind === RECORD_DISCOVERY_COPY.source && record.projectId) {
+		return `/projects/${record.projectId}?source=${encodeURIComponent(record.id)}#source`;
 	}
 	if (record.scope === RECORD_DISCOVERY_COPY.personalWiki) {
 		return "/wiki";

@@ -338,6 +338,7 @@
 │       │   │   ├── release-planning/
 │       │   │   │   └── views/
 │       │   │   ├── research-sessions/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── return-to-work/
 │       │   │   │   └── views/
@@ -358,6 +359,7 @@
 │       │   │   ├── smart-collections/
 │       │   │   │   └── views/
 │       │   │   ├── sources-and-freshness/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── spec-change-review/
 │       │   │   │   └── views/

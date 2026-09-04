@@ -4,6 +4,7 @@ const AREA_HEADINGS = [
 	"Work",
 	"Documents",
 	"Decisions",
+	"Discovery",
 	"Tests",
 	"Production",
 	"Risks",
@@ -21,6 +22,9 @@ export function projectOverviewRecordHref(
 	}
 	if (heading === "Risks") {
 		return `?risk=${encodeURIComponent(recordId)}#risks`;
+	}
+	if (heading === "Discovery") {
+		return `?researchSession=${encodeURIComponent(recordId)}#discovery`;
 	}
 	if (heading === "Goals") {
 		return `?goal=${encodeURIComponent(recordId)}#overview`;

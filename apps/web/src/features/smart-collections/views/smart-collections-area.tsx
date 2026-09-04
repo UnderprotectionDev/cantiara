@@ -18,6 +18,7 @@ import {
 	useState,
 } from "react";
 
+import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
 import {
 	FounderSection,
@@ -1075,6 +1076,12 @@ export default function SmartCollectionsArea() {
 			</FounderSection>
 			{view.data ? (
 				<>
+					<div className="px-0">
+						<FavoriteToggle
+							sourceId={view.data.collection.id}
+							sourceType="Smart Collection"
+						/>
+					</div>
 					<FounderSection
 						title={copy.readableSummary}
 						titleId="smart-collection-summary"

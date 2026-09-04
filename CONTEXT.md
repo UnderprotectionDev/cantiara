@@ -467,7 +467,7 @@ Kapalı registrydeki dikkat sinyallerini Eylem Gerekiyor ve Bilgi Akışı olara
 _Avoid_: E-posta ürünü, Geri Bildirim feed'i, serbest bildirim
 
 **Favori**:
-Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim listesine alınan işaret ([Favoriler](docs/prd/04-workspace-and-projects.md#favoriler)).
+Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim listesine alınan işaret ([Favoriler](docs/prd/04-workspace-and-projects.md#favoriler)). UI: `Favorites`, `Add to Favorites`, `Remove from Favorites`.
 _Avoid_: Bookmark kuyruğu, Aktif Çalışma Seti, planlama üyeliği
 
 **Hatırlatma**:
@@ -714,6 +714,10 @@ _Avoid_: Test Oturumu, Planlı Test Senaryosu, Kullanıcı Araştırması Oturum
 **Kullanıcı Araştırması Oturumu**:
 Bir görüşme veya yönlendirilmiş araştırma temasının amaç, izin, türlenmiş not ve sürüme sabit kanıt bütünlüğünü taşıyan Proje ana kaydı ([Kullanıcı Araştırması Oturumları](docs/prd/09-discovery-decisions-and-design.md#kullanıcı-araştırması-oturumları)). UI: `Research Session`.
 _Avoid_: Geri Bildirim, Test Oturumu, Deney/Doğrulama
+
+**İzin bağlamı**:
+Kullanıcı Araştırması Oturumunda atıf, tanımlayıcı kişisel not, Dosya Eki ve paylaşım/yayın kapılarını bağlayan `Not asked`, `Allowed`, `Not allowed` veya `Not applicable` kaydı; hukuki uygunluk hükmü değildir. UI: `Consent`.
+_Avoid_: GDPR onayı, yasal uygunluk damgası, CRM izin durumu
 
 ## Bilgi ve kanıt
 

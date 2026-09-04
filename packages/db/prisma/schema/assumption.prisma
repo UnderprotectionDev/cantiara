@@ -1,0 +1,32 @@
+model Assumption {
+  id                String            @id
+  projectId         String
+  project           Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  statement         String
+  rationale         String
+  life              String
+  outcomeRationale  String?
+  revision          Int
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  events            AssumptionEvent[]
+
+  @@index([projectId])
+  @@index([projectId, life])
+  @@map("assumption")
+}
+
+model AssumptionEvent {
+  id           String     @id
+  assumptionId String
+  assumption   Assumption @relation(fields: [assumptionId], references: [id], onDelete: Cascade)
+  kind         String
+  actorId      String
+  rationale    String?
+  previousLife String?
+  nextLife     String
+  occurredAt   DateTime   @default(now())
+
+  @@index([assumptionId, occurredAt])
+  @@map("assumption_event")
+}

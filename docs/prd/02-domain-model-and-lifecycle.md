@@ -153,6 +153,19 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tüm Teknik Diyagramlar | `All Technical Diagrams` | Sıfır kurulum hazır tür dizini; Teknik Mimari, Veri Modeli, Teknik Sıra ve Diyagram otorite kipini ayırır |
 | Tüm Proje Sürümleri | `All Project Releases` | Sıfır kurulum hazır tür dizini; Proje Sürümü ana kayıtlarını toplar |
 | Tüm Kaynaklar | `All Sources` | Sıfır kurulum hazır tür dizini; Kaynak ana kayıtlarını toplar |
+| Kaynak | `Source` | Dış bilgiyi URL, erişim zamanı ve yakalanan içerikle tarihsel sürümler hâlinde koruyan Proje ana kaydı |
+| Kaynak oluştur | `Create Source` | Adres, başlık ve yakalanan içerikle Kaynak açma |
+| Adres | `Address` | Kaynağın dış URL’si |
+| Erişim zamanı | `Accessed at` | Yakalamanın tarihli erişim anı |
+| Yakalanan içerik | `Captured content` | Erişim anında saklanan içerik; canlı sayfa değildir |
+| Alıntı | `Excerpt` | Kaynak üzerindeki isteğe bağlı kısa alıntı |
+| Sağlayıcı | `Provider` | Yalnız URL biçimi veya açık girişle yazılan isteğe bağlı dış sağlayıcı |
+| Dış kayıt türü | `External record type` | İsteğe bağlı dış kayıt türü |
+| Dış kayıt kimliği | `External id` | İsteğe bağlı dış kayıt kimliği |
+| Yeni Kaynak sürümü olarak kaydet | `Save as new Source version` | Yeni yakalamayı tarihli sürüm olarak ekleme; eski sürümü silmez |
+| Onaylı sürüm | `Approved version` | Kaynağın güncel onaylı tarihli sürümü |
+| Sürümler | `Versions` | Kaynağın tarihsel yakalama listesi |
+| Kaynak yok | `No Sources yet.` | Henüz Kaynak açılmamış boş durum |
 | Tüm Dosyalar | `All Files` | Sıfır kurulum hazır tür dizini; her Dosya Ekini bir kez gösterir |
 | Planlı Test Senaryosu | `Planned Test Case` | Test dizini alt türü; bağımsız senaryo ana kaydı |
 | Oturum Testi | `Session Test` | Test Oturumunun sahipli deneme öğesi; `All Tests` içinde ayırt edilir |
@@ -176,6 +189,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kayıt Eylemi | `Record Action` | Kapalı alan ve üyelik adımlarından adlandırılan, tek hedef kayıt üzerinde çalışan birleşik yazma; otomasyon kuralı, Toplu Düzenleme veya betik değildir |
 | Start Work | `Start Work` | Durumu `In Progress` yapan ve İşi Günlük Odak’a ekleyen ilk Kayıt Eylemi örneği |
 | Günlük Odak | `Daily Focus` | Farklı Projelerden seçili profil gününde ele alınacak İşleri toplayan kişisel görünüm; Odak Dönemi, sprint, Aktif Çalışma Seti veya Takvim olayı değildir |
+| Favoriler | `Favorites` | Desteklenen kayda Hesap/Çalışma Alanı kişisel sık erişim işareti; kaydın Projesini, türünü veya durumunu değiştirmez |
+| Favorilere ekle | `Add to Favorites` | Proje, Belge, İş, Karar veya Akıllı Koleksiyonu Favorilere alma; kaynak yazmaz |
+| Favorilerden çıkar | `Remove from Favorites` | Favori üyeliğini kaldırma; kaynağı silmez veya arşivlemez |
 | Birleşik Takvim | `Calendar` | Desteklenen tarihli kayıtları türleri karışmadan gün, hafta, ay ve Agenda’da gösteren yüzey; durum tahtası, sprint veya Event kaydı değildir |
 | Gün | `Day` | Birleşik Takvimde yalnız seçili gündeki tarih konumlarını gösteren görünüm |
 | Ay | `Month` | Birleşik Takvimde ay penceresindeki konumlar ve başlangıç–hedef aralığı |
