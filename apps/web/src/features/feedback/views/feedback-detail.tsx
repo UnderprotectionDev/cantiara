@@ -8,6 +8,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent } from "react";
 import { useCallback } from "react";
 
+import ConvertToWorkForm from "@/features/feedback/forms/convert-to-work-form";
 import {
 	FEEDBACK_COPY,
 	FEEDBACK_STATUSES,
@@ -122,6 +123,22 @@ export default function FeedbackDetail({
 					<p className="mt-1 text-sm">{record.data.url}</p>
 				</section>
 			) : null}
+			{record.data.contactId ? (
+				<section>
+					<h3 className="text-muted-foreground text-xs">
+						{FEEDBACK_COPY.contact}
+					</h3>
+					<p className="mt-1 text-sm">{record.data.contactId}</p>
+				</section>
+			) : null}
+			{record.data.companyId ? (
+				<section>
+					<h3 className="text-muted-foreground text-xs">
+						{FEEDBACK_COPY.company}
+					</h3>
+					<p className="mt-1 text-sm">{record.data.companyId}</p>
+				</section>
+			) : null}
 			{record.data.attachments.length > 0 ? (
 				<section>
 					<h3 className="text-muted-foreground text-xs">
@@ -136,6 +153,7 @@ export default function FeedbackDetail({
 					</ul>
 				</section>
 			) : null}
+			<ConvertToWorkForm feedbackId={record.data.id} projectId={projectId} />
 			<Field>
 				<FieldLabel htmlFor="feedback-status">
 					{FEEDBACK_COPY.status}

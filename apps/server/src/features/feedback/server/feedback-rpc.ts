@@ -7,17 +7,23 @@ import { z } from "zod";
 import { getProject } from "../../project-shell/server/project-shell";
 import { getSource } from "../../sources-and-freshness/server/sources";
 import {
+	bindFeedbackOrigin,
+	convertFeedbackToWork,
 	createFeedback,
 	createFeedbackFromSource,
 	getFeedback,
 	listFeedback,
+	previewConvertFeedbackToWork,
 	setFeedbackStatus,
 } from "./feedback";
 import {
+	bindFeedbackOriginPayloadSchema,
+	convertFeedbackToWorkPayloadSchema,
 	createFeedbackFromSourcePayloadSchema,
 	createFeedbackPayloadSchema,
 	FEEDBACK_STATUSES,
 	feedbackCatalog,
+	previewConvertFeedbackToWorkInputSchema,
 	setFeedbackStatusPayloadSchema,
 } from "./feedback-model";
 
@@ -38,7 +44,60 @@ async function requireProject(workspaceId: string, projectId: string) {
 }
 
 export const feedback = {
+	bindOrigin: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: bindFeedbackOriginPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const record = await getFeedback(
+				getPrismaClient(),
+				input.payload.feedbackId
+			);
+			if (!record) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, record.projectId);
+			return await bindFeedbackOrigin(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				viewerWorkspaceId: access.workspaceId,
+			});
+		}),
 	catalog: protectedProcedure.handler(() => feedbackCatalog()),
+	convertToWork: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: convertFeedbackToWorkPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const record = await getFeedback(
+				getPrismaClient(),
+				input.payload.feedbackId
+			);
+			if (!record) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, record.projectId);
+			if (input.payload.projectId) {
+				await requireProject(access.workspaceId, input.payload.projectId);
+			}
+			return await convertFeedbackToWork(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				viewerWorkspaceId: access.workspaceId,
+			});
+		}),
 	create: protectedWriteProcedure
 		.input(
 			z.object({
@@ -54,6 +113,7 @@ export const feedback = {
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				payload: input.payload,
+				viewerWorkspaceId: access.workspaceId,
 			});
 		}),
 	createFromSource: protectedWriteProcedure
@@ -102,6 +162,20 @@ export const feedback = {
 			return await listFeedback(getPrismaClient(), input.projectId, {
 				status: input.status,
 			});
+		}),
+	previewConvertToWork: protectedProcedure
+		.input(previewConvertFeedbackToWorkInputSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const record = await getFeedback(getPrismaClient(), input.feedbackId);
+			if (!record) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, record.projectId);
+			if (input.projectId) {
+				await requireProject(access.workspaceId, input.projectId);
+			}
+			return await previewConvertFeedbackToWork(getPrismaClient(), input);
 		}),
 	setStatus: protectedWriteProcedure
 		.input(

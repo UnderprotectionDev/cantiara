@@ -25,6 +25,8 @@ export default function CreateFeedbackForm({
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [channel, setChannel] = useState("");
+	const [companyId, setCompanyId] = useState("");
+	const [contactId, setContactId] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [link, setLink] = useState("");
 	const [occurredAt, setOccurredAt] = useState("");
@@ -34,6 +36,10 @@ export default function CreateFeedbackForm({
 		orpc.sources.list.queryOptions({
 			input: { projectId },
 		})
+	);
+	const contacts = useQuery(orpc.contactAndCompany.listContacts.queryOptions());
+	const companies = useQuery(
+		orpc.contactAndCompany.listCompanies.queryOptions()
 	);
 	const create = useMutation(
 		orpc.feedback.create.mutationOptions({
@@ -79,6 +85,8 @@ export default function CreateFeedbackForm({
 	const resetForm = useCallback(() => {
 		setError(null);
 		setChannel("");
+		setCompanyId("");
+		setContactId("");
 		setLink("");
 		setOccurredAt("");
 		setOriginalMessage("");
@@ -107,6 +115,8 @@ export default function CreateFeedbackForm({
 					idempotencyKey: newIdempotencyKey(),
 					payload: {
 						channel,
+						companyId: companyId || undefined,
+						contactId: contactId || undefined,
 						occurredAt: occurredAt || undefined,
 						originalMessage,
 						projectId,
@@ -118,6 +128,8 @@ export default function CreateFeedbackForm({
 		[
 			attemptOnlineWork,
 			channel,
+			companyId,
+			contactId,
 			create,
 			createFromSource,
 			link,
@@ -153,6 +165,18 @@ export default function CreateFeedbackForm({
 	const onSourceChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
 			setSourceId(event.target.value);
+		},
+		[]
+	);
+	const onContactChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			setContactId(event.target.value);
+		},
+		[]
+	);
+	const onCompanyChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			setCompanyId(event.target.value);
 		},
 		[]
 	);
@@ -196,6 +220,44 @@ export default function CreateFeedbackForm({
 				<Field>
 					<FieldLabel htmlFor="feedback-link">{FEEDBACK_COPY.link}</FieldLabel>
 					<Input id="feedback-link" onChange={onLinkChange} value={link} />
+				</Field>
+				<Field>
+					<FieldLabel htmlFor="feedback-contact">
+						{FEEDBACK_COPY.contact}
+					</FieldLabel>
+					<NativeSelect
+						id="feedback-contact"
+						onChange={onContactChange}
+						value={contactId}
+					>
+						<NativeSelectOption value="">
+							{FEEDBACK_COPY.contact}
+						</NativeSelectOption>
+						{(contacts.data ?? []).map((contact) => (
+							<NativeSelectOption key={contact.id} value={contact.id}>
+								{contact.displayName ?? contact.id}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</Field>
+				<Field>
+					<FieldLabel htmlFor="feedback-company">
+						{FEEDBACK_COPY.company}
+					</FieldLabel>
+					<NativeSelect
+						id="feedback-company"
+						onChange={onCompanyChange}
+						value={companyId}
+					>
+						<NativeSelectOption value="">
+							{FEEDBACK_COPY.company}
+						</NativeSelectOption>
+						{(companies.data ?? []).map((company) => (
+							<NativeSelectOption key={company.id} value={company.id}>
+								{company.name}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
 				</Field>
 				<Field>
 					<FieldLabel htmlFor="feedback-source">

@@ -830,7 +830,7 @@ Dış bilgiyi URL, erişim zamanı ve yakalanan içerikle tarihsel sürümler h�
 _Avoid_: Akıllı bağlantı önizlemesi, bookmark, canlı web aynası
 
 **Geri Bildirim**:
-Özgün mesajı, kanalı ve zamanı koruyan uzman ana kayıt; Kaynak alt türü, özellik isteği veya destek ticket'ı değildir ([Geri Bildirim Kaydı](docs/prd/08-search-relations-and-evidence.md#geri-bildirim-kaydı)).
+Özgün mesajı, kanalı ve zamanı koruyan uzman ana kayıt; Kaynak alt türü, özellik isteği veya destek ticket'ı değildir ([Geri Bildirim Kaydı](docs/prd/08-search-relations-and-evidence.md#geri-bildirim-kaydı)). UI: `Feedback`, `Convert to Work`.
 _Avoid_: Kaynak Kaydı, sosyal gönderi, CRM fırsatı
 
 **Contact**:
