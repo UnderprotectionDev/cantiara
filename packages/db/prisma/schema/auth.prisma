@@ -12,6 +12,7 @@ model User {
   preference                  AccountPreference?
   completionEffectPreference  CompletionEffectPreference?
   personalReminders           PersonalReminder[]
+  favoriteMemberships         FavoriteMembership[]
 
   @@unique([email])
   @@map("user")

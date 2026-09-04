@@ -565,6 +565,27 @@ describe("Record Discovery prepared type indexes", () => {
 		]);
 	});
 
+	it("lists Research Sessions on All Research Sessions", () => {
+		const index = [
+			record({
+				id: "session-1",
+				kind: RECORD_DISCOVERY_COPY.researchSession,
+				recordType: RECORD_DISCOVERY_COPY.researchSession,
+				status: "Planned",
+				title: "Checkout interview",
+			}),
+			record({
+				id: "work-other",
+				title: "Checkout interview work",
+			}),
+		];
+		expect(
+			browsePreparedIndex(index, {
+				index: RECORD_DISCOVERY_COPY.allResearchSessions,
+			}).rows.map((row) => row.id)
+		).toEqual(["session-1"]);
+	});
+
 	it("collects existing Work without taking ownership out of Project or Wiki scope", () => {
 		const index = [
 			record({

@@ -36,6 +36,8 @@ model Project {
   fileAttachments                 FileAttachment[]
   documents                       Document[]
   decisions                       Decision[]
+  assumptions                     Assumption[]
+  researchSessions                ResearchSession[]
   sources                         Source[]
   documentFolders                 DocumentFolder[]
   documentTemplates               DocumentTemplate[]

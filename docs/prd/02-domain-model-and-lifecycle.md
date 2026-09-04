@@ -189,6 +189,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kayıt Eylemi | `Record Action` | Kapalı alan ve üyelik adımlarından adlandırılan, tek hedef kayıt üzerinde çalışan birleşik yazma; otomasyon kuralı, Toplu Düzenleme veya betik değildir |
 | Start Work | `Start Work` | Durumu `In Progress` yapan ve İşi Günlük Odak’a ekleyen ilk Kayıt Eylemi örneği |
 | Günlük Odak | `Daily Focus` | Farklı Projelerden seçili profil gününde ele alınacak İşleri toplayan kişisel görünüm; Odak Dönemi, sprint, Aktif Çalışma Seti veya Takvim olayı değildir |
+| Favoriler | `Favorites` | Desteklenen kayda Hesap/Çalışma Alanı kişisel sık erişim işareti; kaydın Projesini, türünü veya durumunu değiştirmez |
+| Favorilere ekle | `Add to Favorites` | Proje, Belge, İş, Karar veya Akıllı Koleksiyonu Favorilere alma; kaynak yazmaz |
+| Favorilerden çıkar | `Remove from Favorites` | Favori üyeliğini kaldırma; kaynağı silmez veya arşivlemez |
 | Birleşik Takvim | `Calendar` | Desteklenen tarihli kayıtları türleri karışmadan gün, hafta, ay ve Agenda’da gösteren yüzey; durum tahtası, sprint veya Event kaydı değildir |
 | Gün | `Day` | Birleşik Takvimde yalnız seçili gündeki tarih konumlarını gösteren görünüm |
 | Ay | `Month` | Birleşik Takvimde ay penceresindeki konumlar ve başlangıç–hedef aralığı |
