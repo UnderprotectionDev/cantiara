@@ -7,6 +7,7 @@ import { useCallback } from "react";
 import { CONTACT_AND_COMPANY_COPY } from "@/features/contact-and-company/forms/contact-and-company-copy";
 import CreateCompanyForm from "@/features/contact-and-company/forms/create-company-form";
 import CreateContactForm from "@/features/contact-and-company/forms/create-contact-form";
+import MergeContactsForm from "@/features/contact-and-company/forms/merge-contacts-form";
 import SetContactCompanyForm from "@/features/contact-and-company/forms/set-contact-company-form";
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
 import { FounderSection } from "@/features/personal-shell/components/founder-surface";
@@ -165,7 +166,12 @@ export default function ContactAndCompanyArea({
 				{contact.data ? (
 					<ContactProfile
 						companies={companies.data}
+						mergeCandidates={strongMergeCandidates(
+							candidates.data,
+							contact.data.id
+						)}
 						onOpenCompany={openCompany}
+						onOpenContact={openContact}
 						profile={contact.data}
 					/>
 				) : null}
@@ -193,23 +199,56 @@ function IdentityRow({
 	);
 }
 
+function strongMergeCandidates(
+	candidates: Array<{
+		left: { displayName: string | null; id: string };
+		right: { displayName: string | null; id: string };
+		strength: "strong" | "weak";
+	}>,
+	contactId: string
+) {
+	return candidates.flatMap((item) => {
+		if (item.strength !== "strong") {
+			return [];
+		}
+		if (item.left.id === contactId) {
+			return [item.right];
+		}
+		if (item.right.id === contactId) {
+			return [item.left];
+		}
+		return [];
+	});
+}
+
 function ContactProfile({
 	companies,
+	mergeCandidates,
 	onOpenCompany,
+	onOpenContact,
 	profile,
 }: {
 	companies: Array<{ id: string; name: string }>;
+	mergeCandidates: Array<{ displayName: string | null; id: string }>;
 	onOpenCompany: (companyId: string) => void;
+	onOpenContact: (contactId: string) => void;
 	profile: {
 		currentCompany: { id: string; name: string } | null;
 		displayName: string | null;
 		emailAliases: Array<{ originalEmail: string }>;
 		id: string;
+		origin: { displayName: string | null; id: string } | null;
+		relatedFeedback: Array<{
+			id: string;
+			openSourceRecord: string;
+			title: string;
+		}>;
 		relatedPersonaDocuments: Array<{
 			id: string;
 			openSourceRecord: string;
 			title: string;
 		}>;
+		retiredIdentities: Array<{ displayName: string | null; id: string }>;
 		revision: number;
 	};
 }) {
@@ -219,6 +258,12 @@ function ContactProfile({
 			<h2 className="font-medium text-sm">
 				{displayName ?? CONTACT_AND_COMPANY_COPY.contact}
 			</h2>
+			{profile.origin ? (
+				<p className="text-muted-foreground text-xs">
+					{CONTACT_AND_COMPANY_COPY.origin}{" "}
+					{profile.origin.displayName ?? profile.origin.id}
+				</p>
+			) : null}
 			{emailAliases.map((alias) => (
 				<p className="text-muted-foreground text-sm" key={alias.originalEmail}>
 					{alias.originalEmail}
@@ -230,6 +275,12 @@ function ContactProfile({
 				currentCompanyId={currentCompany ? currentCompany.id : null}
 				key={`${profile.id}:${profile.revision}`}
 				revision={profile.revision}
+			/>
+			<MergeContactsForm
+				candidates={mergeCandidates}
+				onMerged={onOpenContact}
+				revision={profile.revision}
+				survivorId={profile.id}
 			/>
 			{currentCompany ? (
 				<section>
@@ -243,6 +294,13 @@ function ContactProfile({
 					/>
 				</section>
 			) : null}
+			{profile.relatedFeedback.map((item) => (
+				<RelatedSourceLink
+					key={item.id}
+					openSourceRecord={item.openSourceRecord}
+					title={item.title.length > 0 ? item.title : item.id}
+				/>
+			))}
 			{profile.relatedPersonaDocuments.map((item) => (
 				<RelatedSourceLink
 					key={item.id}
