@@ -20,6 +20,7 @@ export default function CreateSourceForm({
 	projectId: string;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
+	const [accessedAt, setAccessedAt] = useState("");
 	const [capturedContent, setCapturedContent] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [excerpt, setExcerpt] = useState("");
@@ -42,6 +43,7 @@ export default function CreateSourceForm({
 					setCapturedContent("");
 					setError(null);
 					setExcerpt("");
+					setAccessedAt("");
 					setExternalId("");
 					setExternalRecordType("");
 					setProvider("");
@@ -68,6 +70,9 @@ export default function CreateSourceForm({
 						projectId,
 						title,
 						url,
+						...(accessedAt.trim()
+							? { accessedAt: new Date(accessedAt).toISOString() }
+							: {}),
 						...(excerpt.trim() ? { excerpt: excerpt.trim() } : {}),
 						...(externalId.trim() ? { externalId: externalId.trim() } : {}),
 						...(externalRecordType.trim()
@@ -79,6 +84,7 @@ export default function CreateSourceForm({
 			);
 		},
 		[
+			accessedAt,
 			attemptOnlineWork,
 			capturedContent,
 			create,
@@ -98,6 +104,12 @@ export default function CreateSourceForm({
 	const onUrlChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
 		setUrl(event.target.value);
 	}, []);
+	const onAccessedAtChange = useCallback(
+		(event: ChangeEvent<HTMLInputElement>) => {
+			setAccessedAt(event.target.value);
+		},
+		[]
+	);
 	const onCapturedChange = useCallback(
 		(event: ChangeEvent<HTMLTextAreaElement>) => {
 			setCapturedContent(event.target.value);
@@ -151,6 +163,17 @@ export default function CreateSourceForm({
 						required
 						type="url"
 						value={url}
+					/>
+				</Field>
+				<Field>
+					<FieldLabel htmlFor="source-accessed-at">
+						{SOURCES_COPY.accessedAt}
+					</FieldLabel>
+					<Input
+						id="source-accessed-at"
+						onChange={onAccessedAtChange}
+						type="datetime-local"
+						value={accessedAt}
 					/>
 				</Field>
 				<Field>
