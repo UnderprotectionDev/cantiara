@@ -17,6 +17,7 @@ import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-recor
 import DecisionArea from "@/features/decisions/views/decision-area";
 import { DOCUMENTS_COPY } from "@/features/documents/forms/documents-copy";
 import DocumentArea from "@/features/documents/views/document-area";
+import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
 import ProjectGoalsPanel from "@/features/goals/views/project-goals-panel";
 import { FOUNDER_MAIN_ID } from "@/features/personal-shell/components/founder-chrome";
@@ -715,6 +716,9 @@ function ProjectBody({
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">
 				{data.name}
 			</h1>
+			<div className="mt-3">
+				<FavoriteToggle sourceId={data.id} sourceType="Project" />
+			</div>
 			<p className="text-muted-foreground text-sm">
 				{PROJECT_SHELL_COPY.active} · {data.starterConfiguration}
 			</p>
