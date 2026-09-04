@@ -125,7 +125,7 @@ describe("Validation Records catalog", () => {
 		expect(VALIDATION_RECORDS_COUNTERPARTS.testSession).toBe(false);
 		expect(VALIDATION_RECORDS_COUNTERPARTS.sessionTest).toBe(false);
 		expect(VALIDATION_RECORDS_COUNTERPARTS.testGap).toBe(false);
-		expect(VALIDATION_RECORDS_COUNTERPARTS.userResearchSession).toBe(false);
+		expect(VALIDATION_RECORDS_COUNTERPARTS.researchSession).toBe(false);
 		expect(VALIDATION_RECORDS_COUNTERPARTS.feedback).toBe(false);
 		expect(VALIDATION_RECORDS_COUNTERPARTS.releaseGate).toBe(false);
 		expect(VALIDATION_RECORDS_COUNTERPARTS.testReportAcceptance).toBe(false);
@@ -303,14 +303,7 @@ describe("Validation Records", () => {
 			throw new Error("expected validation");
 		}
 		const outcomes = await Promise.all(
-			[
-				"Feedback",
-				"User Research Session",
-				"Test Session",
-				"Planned Test Case",
-				"Session Test",
-				"Test Gap",
-			].map((kind) =>
+			VALIDATION_FOREIGN_RECORD_KINDS.map((kind) =>
 				relateValidationContext(prisma, {
 					actorId,
 					idempotencyKey: `relate-${kind}`,
@@ -323,14 +316,11 @@ describe("Validation Records", () => {
 				})
 			)
 		);
-		expect(outcomes).toEqual([
-			{ reason: "invalid-command", status: "rejected" },
-			{ reason: "invalid-command", status: "rejected" },
-			{ reason: "invalid-command", status: "rejected" },
-			{ reason: "invalid-command", status: "rejected" },
-			{ reason: "invalid-command", status: "rejected" },
-			{ reason: "invalid-command", status: "rejected" },
-		]);
+		expect(
+			outcomes.every(
+				(row) => row.status === "rejected" && row.reason === "invalid-command"
+			)
+		).toBe(true);
 		const loaded = await getValidationRecord(
 			prisma,
 			record.validationRecord.id,
