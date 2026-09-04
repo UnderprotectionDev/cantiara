@@ -17,6 +17,7 @@ import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-recor
 import DecisionArea from "@/features/decisions/views/decision-area";
 import { DOCUMENTS_COPY } from "@/features/documents/forms/documents-copy";
 import DocumentArea from "@/features/documents/views/document-area";
+import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
 import ProjectGoalsPanel from "@/features/goals/views/project-goals-panel";
 import { FOUNDER_MAIN_ID } from "@/features/personal-shell/components/founder-chrome";
@@ -45,6 +46,7 @@ import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
 import { RESEARCH_SESSIONS_COPY } from "@/features/research-sessions/forms/research-sessions-copy";
 import ResearchSessionArea from "@/features/research-sessions/views/research-session-area";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
+import AssumptionArea from "@/features/uncertainty-records/views/assumption-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
 
@@ -80,10 +82,12 @@ interface ProjectShellRecord {
 }
 
 export default function ProjectProfile({
+	assumptionId,
 	configurationEditor,
 	configurationMode,
 	decisionId,
 	goalId,
+	onAssumptionId,
 	onDecisionId,
 	onGoalId,
 	onPresentationChange,
@@ -93,10 +97,12 @@ export default function ProjectProfile({
 	researchSessionId,
 	workId,
 }: {
+	assumptionId?: string | null;
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
 	decisionId?: string | null;
 	goalId?: string | null;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onPresentationChange: (next: {
@@ -216,11 +222,13 @@ export default function ProjectProfile({
 					<p className="truncate font-medium text-sm">{data.name}</p>
 				</div>
 				<ProjectBody
+					assumptionId={assumptionId}
 					configurationEditor={configurationEditor}
 					configurationMode={configurationMode}
 					data={data}
 					decisionId={decisionId}
 					goalId={goalId}
+					onAssumptionId={onAssumptionId}
 					onDecisionId={onDecisionId}
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
@@ -432,12 +440,16 @@ function DocumentsProjectSection({
 }
 
 function DecisionsProjectSection({
+	assumptionId,
 	decisionId,
+	onAssumptionId,
 	onDecisionId,
 	projectId,
 	sectionId,
 }: {
+	assumptionId?: string | null;
 	decisionId?: string | null;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	projectId: string;
 	sectionId: string;
@@ -447,10 +459,15 @@ function DecisionsProjectSection({
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">
 				Decisions
 			</h1>
-			<div className="mt-6">
+			<div className="mt-6 flex flex-col gap-10">
 				<DecisionArea
 					decisionId={decisionId}
 					onDecisionId={onDecisionId}
+					projectId={projectId}
+				/>
+				<AssumptionArea
+					assumptionId={assumptionId}
+					onAssumptionId={onAssumptionId}
 					projectId={projectId}
 				/>
 			</div>
@@ -459,20 +476,24 @@ function DecisionsProjectSection({
 }
 
 function projectRecordArea({
+	assumptionId,
 	decisionId,
 	decisionsAnchor,
 	documentsAnchor,
 	fileAttachmentAnchor,
+	onAssumptionId,
 	onDecisionId,
 	onWorkId,
 	projectId,
 	selectedAnchor,
 	selectedArea,
 }: {
+	assumptionId?: string | null;
 	decisionId?: string | null;
 	decisionsAnchor: string;
 	documentsAnchor: string;
 	fileAttachmentAnchor: string;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
@@ -491,11 +512,14 @@ function projectRecordArea({
 	if (
 		selectedAnchor === decisionsAnchor ||
 		selectedArea === "Decisions" ||
-		decisionId
+		decisionId ||
+		assumptionId
 	) {
 		return (
 			<DecisionsProjectSection
+				assumptionId={assumptionId}
 				decisionId={decisionId}
+				onAssumptionId={onAssumptionId}
 				onDecisionId={onDecisionId}
 				projectId={projectId}
 				sectionId={decisionsAnchor}
@@ -521,11 +545,13 @@ function projectRecordArea({
 }
 
 function ProjectBody({
+	assumptionId,
 	configurationEditor,
 	configurationMode,
 	data,
 	decisionId,
 	goalId,
+	onAssumptionId,
 	onDecisionId,
 	onGoalId,
 	onOpenEditor,
@@ -536,11 +562,13 @@ function ProjectBody({
 	selectedAnchor,
 	workId,
 }: {
+	assumptionId?: string | null;
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
 	data: ProjectShellRecord;
 	decisionId?: string | null;
 	goalId?: string | null;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
@@ -565,10 +593,12 @@ function ProjectBody({
 		workViews: data.workViews,
 	});
 	const recordArea = projectRecordArea({
+		assumptionId: showingWork ? null : assumptionId,
 		decisionId: showingWork ? null : decisionId,
 		decisionsAnchor,
 		documentsAnchor,
 		fileAttachmentAnchor,
+		onAssumptionId,
 		onDecisionId,
 		onWorkId,
 		projectId: data.id,
@@ -737,6 +767,9 @@ function ProjectBody({
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">
 				{data.name}
 			</h1>
+			<div className="mt-3">
+				<FavoriteToggle sourceId={data.id} sourceType="Project" />
+			</div>
 			<p className="text-muted-foreground text-sm">
 				{PROJECT_SHELL_COPY.active} · {data.starterConfiguration}
 			</p>

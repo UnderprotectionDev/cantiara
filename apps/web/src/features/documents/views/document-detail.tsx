@@ -15,6 +15,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
 import PersonalReminderPanel from "@/features/personal-reminders/views/personal-reminder-panel";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -482,6 +483,7 @@ export default function DocumentDetail({
 		<Card className="min-w-0">
 			<CardHeader className="border-b">
 				<CardTitle>{selected.data.title}</CardTitle>
+				<FavoriteToggle sourceId={selected.data.id} sourceType="Document" />
 				<PersonalReminderPanel
 					documentBody={selected.data.body}
 					sourceId={selected.data.id}
