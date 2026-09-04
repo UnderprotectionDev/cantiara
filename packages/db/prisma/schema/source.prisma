@@ -1,21 +1,24 @@
 model Source {
-  id                     String          @id
+  id                     String                   @id
   projectId              String
-  project                Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project                Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   approvedVersionNumber  Int
   revision               Int
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
   versions               SourceVersion[]
+  checks                 SourceCheck[]
+  evidencePins           SourceEvidencePin[]
+  versionInUseSignal     SourceVersionInUseSignal?
 
   @@index([projectId])
   @@map("source")
 }
 
 model SourceVersion {
-  id                 String   @id
+  id                 String              @id
   sourceId           String
-  source             Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  source             Source              @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   versionNumber      Int
   url                String
   title              String
@@ -25,9 +28,70 @@ model SourceVersion {
   provider           String?
   externalRecordType String?
   externalId         String?
-  createdAt          DateTime @default(now())
+  createdAt          DateTime            @default(now())
+  evidencePins       SourceEvidencePin[]
 
   @@unique([sourceId, versionNumber])
   @@index([sourceId])
   @@map("source_version")
+}
+
+model SourceCheck {
+  id                              String    @id
+  sourceId                        String
+  source                          Source    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  actorId                         String
+  startedAt                       DateTime
+  startUrl                        String
+  finalUrl                        String?
+  httpResult                      String
+  contentType                     String?
+  fingerprint                     String?
+  failureReason                   String?
+  candidateTitle                  String?
+  candidateContent                String?
+  candidateUrl                    String?
+  candidateAccessedAt             DateTime?
+  comparedApprovedVersionNumber   Int
+  disposition                     String
+  createdAt                       DateTime  @default(now())
+  updatedAt                       DateTime  @updatedAt
+
+  @@index([sourceId])
+  @@map("source_check")
+}
+
+model SourceEvidencePin {
+  id                           String        @id
+  sourceId                     String
+  source                       Source        @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  sourceVersionId              String
+  sourceVersion                SourceVersion @relation(fields: [sourceVersionId], references: [id], onDelete: Cascade)
+  relationId                   String        @unique
+  targetKind                   String
+  targetId                     String
+  rangeText                    String
+  reviewedAgainstVersionNumber Int?
+  reviewedAt                   DateTime?
+  reviewedById                 String?
+  reviewKind                   String?
+  createdAt                    DateTime      @default(now())
+  updatedAt                    DateTime      @updatedAt
+
+  @@index([sourceId])
+  @@index([sourceVersionId])
+  @@index([targetKind, targetId])
+  @@map("source_evidence_pin")
+}
+
+model SourceVersionInUseSignal {
+  id        String   @id
+  sourceId  String   @unique
+  source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  signalId  String
+  section   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("source_version_in_use_signal")
 }

@@ -336,5 +336,17 @@ describe("Sources and Freshness", () => {
 		expect(JSON.stringify(SOURCES_COPY)).not.toMatch(CREDENTIAL_COPY);
 		expect(SOURCES_COPY.saveAsSource).toBe("Save as Source");
 		expect(SOURCES_COPY.liveExternalSource).toBe("Live external source");
+		expect(SOURCES_COPY.recheckSource).toBe("Recheck source");
+		expect(SOURCES_COPY.keepCurrentVersion).toBe("Keep current version");
+		expect(SOURCES_COPY.newerSourceVersionExists).toBe(
+			"Newer Source version exists"
+		);
+		expect(SOURCES_COPY.reviewedKeepCurrentVersion).toBe(
+			"Reviewed; keep current version"
+		);
+		expect(SOURCES_COPY.rebindToNewVersion).toBe("Rebind to new version");
+		expect(SOURCES_COPY.noMatchInCandidateVersion).toBe(
+			"No match in candidate version"
+		);
 	});
 });
