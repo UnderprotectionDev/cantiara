@@ -13,5 +13,11 @@ test("English Return to Work copy is Return to Work", () => {
 		"Long in the same status"
 	);
 	expect(RETURN_TO_WORK_COPY.sinceYouLastLooked).toBe("Since you last looked");
+	expect(RETURN_TO_WORK_COPY.tourTheVisualChanges).toBe(
+		"Tour the visual changes"
+	);
+	expect(RETURN_TO_WORK_COPY.tourShowsFirstVisualChanges).toBe(
+		"Tour shows the first 12 visual changes."
+	);
 	expect(JSON.stringify(RETURN_TO_WORK_COPY)).not.toMatch(FORBIDDEN_SURFACE);
 });

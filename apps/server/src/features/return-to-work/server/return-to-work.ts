@@ -20,6 +20,7 @@ import {
 	groupSinceYouLastLookedEvents,
 	LONG_IN_THE_SAME_STATUS_CONTRACT,
 	parsePreparedLongInTheSameStatusProjectId,
+	planVisualTour,
 	positiveThresholdDays,
 	preparedLongInTheSameStatusCollectionId,
 	preparedLongInTheSameStatusMembership,
@@ -31,7 +32,9 @@ import {
 	type ReturnSourceRecord,
 	type ReturnToWorkSummary,
 	SINCE_YOU_LAST_LOOKED_CONTRACT,
+	type SinceYouLastLookedEvent,
 	selectReturnCards,
+	visualTourPanel,
 	workSourceHref,
 } from "./return-to-work-model";
 
@@ -591,6 +594,12 @@ async function loadSummary(
 		sinceYouLastLooked: sinceYouLastLooked.panel,
 		snapshot: RETURN_TO_WORK_SNAPSHOT,
 		statusAgeThresholdDays: thresholdDays,
+		visualTour: visualTourPanel(
+			planVisualTour(sinceYouLastLooked.events, {
+				formatOccurredAt: (occurredAt) =>
+					formatDateTime(new Date(occurredAt), preferences),
+			})
+		),
 	};
 }
 
@@ -826,6 +835,7 @@ async function loadSinceYouLastLookedSummary(
 	workId: string | undefined,
 	preferences: Awaited<ReturnType<typeof getAccountPreferences>>
 ): Promise<{
+	events: SinceYouLastLookedEvent[];
 	lastVisitAt: string | null;
 	panel: ReturnToWorkSummary["sinceYouLastLooked"];
 }> {
@@ -842,6 +852,7 @@ async function loadSinceYouLastLookedSummary(
 		lastVisitAt
 	);
 	return {
+		events: sinceEvents,
 		lastVisitAt: lastVisitAt?.toISOString() ?? null,
 		panel: {
 			...SINCE_YOU_LAST_LOOKED_CONTRACT,
@@ -881,16 +892,7 @@ async function loadSinceYouLastLookedEvents(
 	projectId: string,
 	workId: string | undefined,
 	sinceAt: Date | null
-): Promise<
-	Array<{
-		group: "decision" | "document" | "work";
-		href: string;
-		id: string;
-		occurredAt: string;
-		sourceKey: string;
-		sourceTitle: string;
-	}>
-> {
+): Promise<SinceYouLastLookedEvent[]> {
 	if (!sinceAt) {
 		return [];
 	}
@@ -936,6 +938,13 @@ async function loadSinceYouLastLookedEvents(
 			occurredAt: row.createdAt.toISOString(),
 			sourceKey: row.work.key,
 			sourceTitle: row.work.title,
+			visualTarget: row.work.horizon
+				? {
+						objectId: row.work.id,
+						objectKind: "work" as const,
+						surface: "roadmap" as const,
+					}
+				: null,
 		})),
 		...decisionEvents.map((row) => ({
 			group: "decision" as const,
@@ -944,6 +953,7 @@ async function loadSinceYouLastLookedEvents(
 			occurredAt: row.occurredAt.toISOString(),
 			sourceKey: RETURN_TO_WORK_COPY.decisionGroup,
 			sourceTitle: row.decision.title,
+			visualTarget: null,
 		})),
 		...documentEvents.map((row) => ({
 			group: "document" as const,
@@ -952,6 +962,7 @@ async function loadSinceYouLastLookedEvents(
 			occurredAt: row.createdAt.toISOString(),
 			sourceKey: RETURN_TO_WORK_COPY.documentGroup,
 			sourceTitle: row.document.title,
+			visualTarget: null,
 		})),
 	];
 }

@@ -12,7 +12,10 @@
     "paths": {
       "@/*": ["./src/*"],
       "@cantiara/ui/*": ["../../packages/ui/src/*"],
-      "server/routes": ["../server/src/routes/index.ts"]
+      "server/routes": ["../server/src/routes/index.ts"],
+      "server/return-to-work-visual-tour": [
+        "../server/src/features/return-to-work/server/return-to-work-visual-tour.ts"
+      ]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
