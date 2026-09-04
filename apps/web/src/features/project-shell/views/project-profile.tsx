@@ -80,7 +80,9 @@ interface ProjectShellRecord {
 export default function ProjectProfile({
 	configurationEditor,
 	configurationMode,
+	decisionId,
 	goalId,
+	onDecisionId,
 	onGoalId,
 	onPresentationChange,
 	onWorkId,
@@ -89,7 +91,9 @@ export default function ProjectProfile({
 }: {
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
+	decisionId?: string | null;
 	goalId?: string | null;
+	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onPresentationChange: (next: {
 		editor: ConfigurationModeEditor | null;
@@ -154,7 +158,8 @@ export default function ProjectProfile({
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const overviewCurrent =
-		(selectedAnchor === "" && !workId) || selectedAnchor === overviewAnchor;
+		(selectedAnchor === "" && !workId && !decisionId) ||
+		selectedAnchor === overviewAnchor;
 
 	const nav = (
 		<ProjectNav
@@ -208,7 +213,9 @@ export default function ProjectProfile({
 					configurationEditor={configurationEditor}
 					configurationMode={configurationMode}
 					data={data}
+					decisionId={decisionId}
 					goalId={goalId}
+					onDecisionId={onDecisionId}
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
 					onToggle={onToggle}
@@ -417,9 +424,13 @@ function DocumentsProjectSection({
 }
 
 function DecisionsProjectSection({
+	decisionId,
+	onDecisionId,
 	projectId,
 	sectionId,
 }: {
+	decisionId?: string | null;
+	onDecisionId?: (decisionId: string | null) => void;
 	projectId: string;
 	sectionId: string;
 }) {
@@ -429,24 +440,32 @@ function DecisionsProjectSection({
 				Decisions
 			</h1>
 			<div className="mt-6">
-				<DecisionArea projectId={projectId} />
+				<DecisionArea
+					decisionId={decisionId}
+					onDecisionId={onDecisionId}
+					projectId={projectId}
+				/>
 			</div>
 		</section>
 	);
 }
 
 function projectRecordArea({
+	decisionId,
 	decisionsAnchor,
 	documentsAnchor,
 	fileAttachmentAnchor,
+	onDecisionId,
 	onWorkId,
 	projectId,
 	selectedAnchor,
 	selectedArea,
 }: {
+	decisionId?: string | null;
 	decisionsAnchor: string;
 	documentsAnchor: string;
 	fileAttachmentAnchor: string;
+	onDecisionId?: (decisionId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
 	selectedAnchor: string;
@@ -461,9 +480,15 @@ function projectRecordArea({
 			/>
 		);
 	}
-	if (selectedAnchor === decisionsAnchor || selectedArea === "Decisions") {
+	if (
+		selectedAnchor === decisionsAnchor ||
+		selectedArea === "Decisions" ||
+		decisionId
+	) {
 		return (
 			<DecisionsProjectSection
+				decisionId={decisionId}
+				onDecisionId={onDecisionId}
 				projectId={projectId}
 				sectionId={decisionsAnchor}
 			/>
@@ -491,7 +516,9 @@ function ProjectBody({
 	configurationEditor,
 	configurationMode,
 	data,
+	decisionId,
 	goalId,
+	onDecisionId,
 	onGoalId,
 	onOpenEditor,
 	onToggle,
@@ -502,7 +529,9 @@ function ProjectBody({
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
 	data: ProjectShellRecord;
+	decisionId?: string | null;
 	goalId?: string | null;
+	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
 	onToggle: () => void;
@@ -524,9 +553,11 @@ function ProjectBody({
 		workViews: data.workViews,
 	});
 	const recordArea = projectRecordArea({
+		decisionId: showingWork ? null : decisionId,
 		decisionsAnchor,
 		documentsAnchor,
 		fileAttachmentAnchor,
+		onDecisionId,
 		onWorkId,
 		projectId: data.id,
 		selectedAnchor,

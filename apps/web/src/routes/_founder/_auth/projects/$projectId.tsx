@@ -20,18 +20,23 @@ function ProjectProfileRoute() {
 	const hash = useLocation({ select: (location) => location.hash });
 	const navigate = Route.useNavigate();
 	const onPresentationChange = useCallback(
-		(next: { editor: ConfigurationModeEditor | null; open: boolean }) => {
+		(next: {
+			editor: ConfigurationModeEditor | null;
+			hash?: string;
+			open: boolean;
+		}) => {
 			navigate({
 				hash: next.hash ?? projectShellHashAnchor(hash),
 				search: {
 					configurationEditor: next.editor ?? undefined,
 					configurationMode: next.open ? true : undefined,
+					decision: search.decision,
 					goal: search.goal,
 					work: search.work,
 				},
 			}).catch(() => undefined);
 		},
-		[hash, navigate, search.goal, search.work]
+		[hash, navigate, search.decision, search.goal, search.work]
 	);
 	const onWorkId = useCallback(
 		(workId: string | null) => {
@@ -40,6 +45,7 @@ function ProjectProfileRoute() {
 				search: {
 					configurationEditor: search.configurationEditor,
 					configurationMode: search.configurationMode,
+					decision: search.decision,
 					goal: search.goal,
 					work: workId ?? undefined,
 				},
@@ -50,7 +56,29 @@ function ProjectProfileRoute() {
 			navigate,
 			search.configurationEditor,
 			search.configurationMode,
+			search.decision,
 			search.goal,
+		]
+	);
+	const onDecisionId = useCallback(
+		(decisionId: string | null) => {
+			navigate({
+				hash: "decisions",
+				search: {
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					decision: decisionId ?? undefined,
+					goal: search.goal,
+					work: search.work,
+				},
+			}).catch(() => undefined);
+		},
+		[
+			navigate,
+			search.configurationEditor,
+			search.configurationMode,
+			search.goal,
+			search.work,
 		]
 	);
 	const onGoalId = useCallback(
@@ -60,6 +88,7 @@ function ProjectProfileRoute() {
 				search: {
 					configurationEditor: search.configurationEditor,
 					configurationMode: search.configurationMode,
+					decision: search.decision,
 					goal: goalId ?? undefined,
 					work: search.work,
 				},
@@ -69,6 +98,7 @@ function ProjectProfileRoute() {
 			navigate,
 			search.configurationEditor,
 			search.configurationMode,
+			search.decision,
 			search.work,
 		]
 	);
@@ -76,7 +106,9 @@ function ProjectProfileRoute() {
 		<ProjectProfile
 			configurationEditor={search.configurationEditor ?? null}
 			configurationMode={search.configurationMode === true}
+			decisionId={search.decision ?? null}
 			goalId={search.goal ?? null}
+			onDecisionId={onDecisionId}
 			onGoalId={onGoalId}
 			onPresentationChange={onPresentationChange}
 			onWorkId={onWorkId}

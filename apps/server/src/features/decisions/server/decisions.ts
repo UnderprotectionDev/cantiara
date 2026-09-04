@@ -10,6 +10,8 @@ import {
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 
 import {
+	CLOSED_WORLD_ITEM_KIND,
+	type ClosedWorldItem,
 	type CreateDecisionCommand,
 	createDecisionCommandSchema,
 	DECISION_EVENT_KIND,
@@ -21,11 +23,13 @@ import {
 	ingestImportedDecisionCommandSchema,
 	type PreviewRemoveSupersessionOutcome,
 	type PreviewSupersessionOutcome,
+	type PublishedSnapshot,
 	presentDecisionLife,
 	previewRemoveSupersessionInputSchema,
 	previewSupersessionInputSchema,
 	type RemoveSupersessionCommand,
 	type RemoveSupersessionWriteOutcome,
+	type ResolvePublishedSnapshotOutcome,
 	removeSupersessionCommandSchema,
 	type SupersedeDecisionsCommand,
 	type SupersedeWriteOutcome,
@@ -38,6 +42,7 @@ import {
 type PrismaTransaction = Prisma.TransactionClient;
 
 interface DecisionRow {
+	createdAt: Date;
 	decisionText: string;
 	id: string;
 	life: string;
@@ -133,20 +138,120 @@ export async function getDecision(
 	const row = await prisma.decision.findUnique({
 		where: { id: decisionId },
 	});
-	return row ? await withSupersessionLinks(prisma, toView(row)) : null;
+	if (!row) {
+		return null;
+	}
+	const [view] = await hydrateDecisionViews(prisma, [row]);
+	return view ?? null;
 }
 
 export async function listDecisions(
 	prisma: PrismaClient,
-	projectId: string
+	projectId: string,
+	query: { life?: DecisionLife } = {}
 ): Promise<DecisionView[]> {
 	const rows = await prisma.decision.findMany({
 		orderBy: { createdAt: "asc" },
-		where: { projectId },
+		where: {
+			projectId,
+			...(query.life ? { life: query.life } : {}),
+		},
 	});
-	return await Promise.all(
-		rows.map((row) => withSupersessionLinks(prisma, toView(row)))
+	const views = await hydrateDecisionViews(prisma, rows);
+	return rankDecisions(views);
+}
+
+export async function searchDecisions(
+	prisma: PrismaClient,
+	query: { life?: DecisionLife; projectId: string; text: string }
+): Promise<DecisionView[]> {
+	const listed = await listDecisions(prisma, query.projectId, {
+		life: query.life,
+	});
+	const needle = query.text.trim().toLowerCase();
+	if (needle.length === 0) {
+		return listed;
+	}
+	return listed.filter(
+		(view) =>
+			view.title.toLowerCase().includes(needle) ||
+			view.decision.toLowerCase().includes(needle) ||
+			view.rationale.toLowerCase().includes(needle)
 	);
+}
+
+export async function previewClosedWorld(
+	prisma: PrismaClient,
+	decisionId: string
+): Promise<ClosedWorldItem[]> {
+	const view = await getDecision(prisma, decisionId);
+	if (!view) {
+		return [];
+	}
+	const items: ClosedWorldItem[] = [];
+	const seenDecisions = new Set<string>();
+	for (const member of view.chain) {
+		if (seenDecisions.has(member.id)) {
+			continue;
+		}
+		seenDecisions.add(member.id);
+		items.push({
+			id: member.id,
+			kind: CLOSED_WORLD_ITEM_KIND.decision,
+			title: member.title,
+		});
+	}
+	if (!seenDecisions.has(view.id)) {
+		items.unshift({
+			id: view.id,
+			kind: CLOSED_WORLD_ITEM_KIND.decision,
+			title: view.title,
+		});
+	}
+	const pathIds = [...seenDecisions];
+	const edges = await prisma.typedRelation.findMany({
+		orderBy: { establishedAt: "asc" },
+		where: {
+			fromId: { in: pathIds },
+			fromKind: "Decision",
+			toId: { in: pathIds },
+			toKind: "Decision",
+			type: RELATIONS_COPY.supersedes,
+		},
+	});
+	for (const edge of edges) {
+		items.push({
+			fromId: edge.fromId,
+			id: edge.id,
+			kind: CLOSED_WORLD_ITEM_KIND.supersedes,
+			toId: edge.toId,
+		});
+	}
+	return items;
+}
+
+export function freezePublishedSnapshot(
+	decision: Pick<DecisionView, "id" | "revision">
+): PublishedSnapshot {
+	return {
+		includedDecisionId: decision.id,
+		includedRevision: decision.revision,
+	};
+}
+
+export function resolvePublishedSnapshot(
+	snapshot: PublishedSnapshot,
+	_live: DecisionView
+): ResolvePublishedSnapshotOutcome {
+	return {
+		decisionId: snapshot.includedDecisionId,
+		redirected: false,
+		silentlyUpdated: false,
+	};
+}
+
+export function defaultPublicDecisionId(view: DecisionView): string {
+	return view.openCurrentDecisionId ?? view.id;
 }
 
 export async function previewSupersession(
@@ -271,7 +376,10 @@ async function createInTransaction(
 			rationale: command.payload.rationale,
 		},
 	});
-	const view = toView(created);
+	const [view] = await hydrateDecisionViews(tx, [created]);
+	if (!view) {
+		return { reason: "decision-not-found", status: "rejected" };
+	}
 	await writeReceipt(tx, {
 		actorId: command.actorId,
 		commandKey,
@@ -984,10 +1092,16 @@ function commandKeyFor(actorId: string, idempotencyKey: string): string {
 }
 
 function toView(row: DecisionRow): DecisionView {
+	const life = presentDecisionLife(row.life);
 	return {
+		chain: [{ id: row.id, life, title: row.title }],
+		contentReadOnly: life === DECISION_LIFE.superseded,
+		currentDecision:
+			life === DECISION_LIFE.valid ? { id: row.id, title: row.title } : null,
 		decision: row.decisionText,
 		id: row.id,
-		life: presentDecisionLife(row.life),
+		life,
+		openCurrentDecisionId: life === DECISION_LIFE.valid ? row.id : null,
 		projectId: row.projectId,
 		rationale: row.rationale,
 		recordKind: "Decision",
@@ -995,49 +1109,219 @@ function toView(row: DecisionRow): DecisionView {
 		supersededBy: null,
 		supersedes: [],
 		title: row.title,
+		transitionOccurredAt: null,
+		transitionRationale: null,
 		withdrawnAt: row.withdrawnAt?.toISOString() ?? null,
 		withdrawnRationale: row.withdrawnRationale,
 	};
 }
 
-async function withSupersessionLinks(
+async function hydrateDecisionViews(
 	db: PrismaClient | PrismaTransaction,
-	view: DecisionView
-): Promise<DecisionView> {
-	const outgoing = await db.typedRelation.findMany({
+	rows: DecisionRow[]
+): Promise<DecisionView[]> {
+	if (rows.length === 0) {
+		return [];
+	}
+	const projectIds = [...new Set(rows.map((row) => row.projectId))];
+	const projectRows = await db.decision.findMany({
+		where: { projectId: { in: projectIds } },
+	});
+	const byId = new Map(projectRows.map((row) => [row.id, row]));
+	const projectDecisionIds = projectRows.map((row) => row.id);
+	const edges = await db.typedRelation.findMany({
 		orderBy: { establishedAt: "asc" },
 		where: {
-			fromId: view.id,
+			fromId: { in: projectDecisionIds },
 			fromKind: "Decision",
 			toKind: "Decision",
 			type: RELATIONS_COPY.supersedes,
 		},
 	});
-	const incoming = await db.typedRelation.findFirst({
+	const events = await db.decisionEvent.findMany({
+		orderBy: { occurredAt: "asc" },
 		where: {
-			toId: view.id,
-			toKind: "Decision",
-			type: RELATIONS_COPY.supersedes,
+			decisionId: { in: projectDecisionIds },
+			kind: DECISION_EVENT_KIND.supersede,
 		},
 	});
-	const olds = await db.decision.findMany({
-		where: { id: { in: outgoing.map((edge) => edge.toId) } },
-	});
-	const oldById = new Map(olds.map((old) => [old.id, old]));
-	const supersedes: Array<{ id: string; title: string }> = outgoing.flatMap(
-		(edge) => {
-			const old = oldById.get(edge.toId);
-			return old ? [{ id: old.id, title: old.title }] : [];
-		}
-	);
-	let supersededBy: DecisionView["supersededBy"] = null;
-	if (incoming) {
-		const successor = await db.decision.findUnique({
-			where: { id: incoming.fromId },
-		});
-		if (successor) {
-			supersededBy = { id: successor.id, title: successor.title };
+	const olderOf = new Map<string, string[]>();
+	const successorOf = new Map<string, string>();
+	for (const edge of edges) {
+		const olds = olderOf.get(edge.fromId) ?? [];
+		olds.push(edge.toId);
+		olderOf.set(edge.fromId, olds);
+		successorOf.set(edge.toId, edge.fromId);
+	}
+	const firstSupersede = new Map<string, (typeof events)[number]>();
+	for (const event of events) {
+		if (
+			event.nextLife === DECISION_LIFE.superseded &&
+			!firstSupersede.has(event.decisionId)
+		) {
+			firstSupersede.set(event.decisionId, event);
 		}
 	}
-	return { ...view, supersededBy, supersedes };
+	return rows.map((row) => {
+		const base = toView(row);
+		const outgoing = edges.filter((edge) => edge.fromId === row.id);
+		const incoming = edges.find((edge) => edge.toId === row.id);
+		const supersedes = outgoing.flatMap((edge) => {
+			const old = byId.get(edge.toId);
+			return old ? [{ id: old.id, title: old.title }] : [];
+		});
+		let supersededBy: DecisionView["supersededBy"] = null;
+		if (incoming) {
+			const successor = byId.get(incoming.fromId);
+			if (successor) {
+				supersededBy = { id: successor.id, title: successor.title };
+			}
+		}
+		const chainIds = lineageIds(row.id, olderOf, successorOf);
+		const tipId = walkToTip(row.id, successorOf);
+		const tip = byId.get(tipId);
+		const currentDecision = currentValidDecision(tip, base);
+		const chain = chainIds.flatMap((id) => {
+			const member = byId.get(id);
+			return member
+				? [
+						{
+							id: member.id,
+							life: presentDecisionLife(member.life),
+							title: member.title,
+						},
+					]
+				: [];
+		});
+		const transition = firstSupersede.get(row.id);
+		return {
+			...base,
+			chain: chain.length > 0 ? chain : base.chain,
+			contentReadOnly: base.life === DECISION_LIFE.superseded,
+			currentDecision,
+			openCurrentDecisionId: currentDecision ? currentDecision.id : null,
+			supersededBy,
+			supersedes,
+			transitionOccurredAt: transition?.occurredAt.toISOString() ?? null,
+			transitionRationale: transition?.rationale ?? null,
+		};
+	});
+}
+
+function currentValidDecision(
+	tip: DecisionRow | undefined,
+	base: DecisionView
+): { id: string; title: string } | null {
+	if (tip && presentDecisionLife(tip.life) === DECISION_LIFE.valid) {
+		return { id: tip.id, title: tip.title };
+	}
+	if (base.life === DECISION_LIFE.valid) {
+		return { id: base.id, title: base.title };
+	}
+	return null;
+}
+
+function lineageIds(
+	startId: string,
+	olderOf: Map<string, string[]>,
+	successorOf: Map<string, string>
+): string[] {
+	const distance = distancesFromTip(walkToTip(startId, successorOf), olderOf);
+	const included = collectLineage(startId, olderOf, successorOf);
+	return [...included].sort((left, right) => {
+		const leftDistance = distance.get(left) ?? 0;
+		const rightDistance = distance.get(right) ?? 0;
+		if (leftDistance !== rightDistance) {
+			return rightDistance - leftDistance;
+		}
+		return left.localeCompare(right);
+	});
+}
+
+function distancesFromTip(
+	tipId: string,
+	olderOf: Map<string, string[]>
+): Map<string, number> {
+	const distance = new Map<string, number>();
+	const queue = [tipId];
+	distance.set(tipId, 0);
+	while (queue.length > 0) {
+		const id = queue.shift();
+		if (!id) {
+			continue;
+		}
+		const nextDistance = (distance.get(id) ?? 0) + 1;
+		for (const oldId of olderOf.get(id) ?? []) {
+			if (!distance.has(oldId)) {
+				distance.set(oldId, nextDistance);
+				queue.push(oldId);
+			}
+		}
+	}
+	return distance;
+}
+
+function collectLineage(
+	startId: string,
+	olderOf: Map<string, string[]>,
+	successorOf: Map<string, string>
+): Set<string> {
+	const included = new Set<string>([startId]);
+	let cursor = startId;
+	while (successorOf.has(cursor)) {
+		const next = successorOf.get(cursor);
+		if (!next) {
+			break;
+		}
+		included.add(next);
+		cursor = next;
+	}
+	const olderFrontier = [startId];
+	while (olderFrontier.length > 0) {
+		const id = olderFrontier.pop();
+		if (!id) {
+			continue;
+		}
+		for (const oldId of olderOf.get(id) ?? []) {
+			if (!included.has(oldId)) {
+				included.add(oldId);
+				olderFrontier.push(oldId);
+			}
+		}
+	}
+	return included;
+}
+
+function walkToTip(startId: string, successorOf: Map<string, string>): string {
+	const seen = new Set<string>();
+	let cursor = startId;
+	while (successorOf.has(cursor) && !seen.has(cursor)) {
+		seen.add(cursor);
+		const next = successorOf.get(cursor);
+		if (!next) {
+			break;
+		}
+		cursor = next;
+	}
+	return cursor;
+}
+
+function rankDecisions(views: DecisionView[]): DecisionView[] {
+	return [...views].sort((left, right) => {
+		const life = lifeRank(left.life) - lifeRank(right.life);
+		if (life !== 0) {
+			return life;
+		}
+		return left.id.localeCompare(right.id);
+	});
+}
+
+function lifeRank(life: DecisionLife): number {
+	if (life === DECISION_LIFE.valid) {
+		return 0;
+	}
+	if (life === DECISION_LIFE.superseded) {
+		return 1;
+	}
+	return 2;
 }

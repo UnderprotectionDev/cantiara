@@ -20,6 +20,7 @@ import { useNavigate } from "@tanstack/react-router";
 import type { ChangeEvent } from "react";
 import { useCallback, useId } from "react";
 
+import { DECISIONS_COPY } from "@/features/decisions/forms/decisions-copy";
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
 import { FounderToolbar } from "@/features/personal-shell/components/founder-surface";
 import { orpc } from "@/utils/orpc";
@@ -30,6 +31,7 @@ import {
 	preparedIndexSearch,
 	preparedIndexTypeFilters,
 	preparedIndexUsesFolderFilters,
+	preparedIndexUsesStatusFilters,
 } from "./prepared-index-search";
 import { RECORD_DISCOVERY_COPY } from "./record-discovery-copy";
 
@@ -67,6 +69,7 @@ export default function PreparedIndexArea({
 				metadata: search.metadata ?? null,
 				recordType: search.recordType ?? null,
 				scope: search.scope ?? null,
+				status: search.status ?? null,
 			},
 		}),
 	});
@@ -74,6 +77,7 @@ export default function PreparedIndexArea({
 	const folders = browse.data?.folders ?? [];
 	const typeFilters = preparedIndexTypeFilters(search.index);
 	const folderFilters = preparedIndexUsesFolderFilters(search.index);
+	const statusFilters = preparedIndexUsesStatusFilters(search.index);
 	const showAuthority =
 		search.index === RECORD_DISCOVERY_COPY.allTechnicalDiagrams;
 	const go = useCallback(
@@ -104,6 +108,7 @@ export default function PreparedIndexArea({
 					scope === copy.project || scope === copy.personalWiki
 						? scope
 						: undefined,
+				status: search.status,
 			});
 		},
 		[copy.personalWiki, copy.project, go, search]
@@ -117,6 +122,7 @@ export default function PreparedIndexArea({
 				metadata: search.metadata,
 				recordType: event.target.value || undefined,
 				scope: search.scope,
+				status: search.status,
 			});
 		},
 		[go, search]
@@ -130,6 +136,7 @@ export default function PreparedIndexArea({
 				metadata: search.metadata,
 				recordType: search.recordType,
 				scope: search.scope,
+				status: search.status,
 			});
 		},
 		[go, search]
@@ -143,6 +150,21 @@ export default function PreparedIndexArea({
 				metadata: event.target.value || undefined,
 				recordType: search.recordType,
 				scope: search.scope,
+				status: search.status,
+			});
+		},
+		[go, search]
+	);
+	const onStatusChange = useCallback(
+		(event: ChangeEvent<HTMLSelectElement>) => {
+			go({
+				folder: search.folder,
+				includeArchived: search.includeArchived,
+				index: search.index,
+				metadata: search.metadata,
+				recordType: search.recordType,
+				scope: search.scope,
+				status: event.target.value || undefined,
 			});
 		},
 		[go, search]
@@ -156,6 +178,7 @@ export default function PreparedIndexArea({
 				metadata: search.metadata,
 				recordType: search.recordType,
 				scope: search.scope,
+				status: search.status,
 			});
 		},
 		[go, search]
@@ -239,6 +262,29 @@ export default function PreparedIndexArea({
 							id="prepared-index-metadata"
 							onBlur={onMetadataChange}
 						/>
+					</Field>
+				) : null}
+				{statusFilters ? (
+					<Field>
+						<FieldLabel htmlFor="prepared-index-status">
+							{copy.filter}
+						</FieldLabel>
+						<NativeSelect
+							id="prepared-index-status"
+							onChange={onStatusChange}
+							value={search.status ?? ""}
+						>
+							<NativeSelectOption value="">{copy.anyScope}</NativeSelectOption>
+							<NativeSelectOption value={DECISIONS_COPY.valid}>
+								{DECISIONS_COPY.valid}
+							</NativeSelectOption>
+							<NativeSelectOption value={DECISIONS_COPY.superseded}>
+								{DECISIONS_COPY.superseded}
+							</NativeSelectOption>
+							<NativeSelectOption value={DECISIONS_COPY.withdrawn}>
+								{DECISIONS_COPY.withdrawn}
+							</NativeSelectOption>
+						</NativeSelect>
 					</Field>
 				) : null}
 				<Field orientation="horizontal">

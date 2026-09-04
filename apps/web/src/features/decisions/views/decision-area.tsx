@@ -1,25 +1,68 @@
 import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
+import { Field, FieldLabel } from "@cantiara/ui/components/field";
+import {
+	NativeSelect,
+	NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
 import { Spinner } from "@cantiara/ui/components/spinner";
 import { useQuery } from "@tanstack/react-query";
+import type { ChangeEvent } from "react";
 import { useCallback, useState } from "react";
 
 import CreateDecisionForm from "@/features/decisions/forms/create-decision-form";
 import { DECISIONS_COPY } from "@/features/decisions/forms/decisions-copy";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
+import { RECORD_DISCOVERY_COPY } from "@/features/record-discovery/views/record-discovery-copy";
 import { orpc } from "@/utils/orpc";
 
 import DecisionDetail from "./decision-detail";
 
-export default function DecisionArea({ projectId }: { projectId: string }) {
-	const [selectedId, setSelectedId] = useState<string | null>(null);
+const LIFE_FILTERS = [
+	DECISIONS_COPY.valid,
+	DECISIONS_COPY.superseded,
+	DECISIONS_COPY.withdrawn,
+] as const;
+
+export default function DecisionArea({
+	decisionId,
+	onDecisionId,
+	projectId,
+}: {
+	decisionId?: string | null;
+	onDecisionId?: (decisionId: string | null) => void;
+	projectId: string;
+}) {
+	const [life, setLife] = useState<string>("");
+	const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
+	const selectedId = decisionId ?? localSelectedId;
 	const decisions = useQuery(
-		orpc.decisions.list.queryOptions({ input: { projectId } })
+		orpc.decisions.list.queryOptions({
+			input: {
+				projectId,
+				...(life === DECISIONS_COPY.valid ||
+				life === DECISIONS_COPY.superseded ||
+				life === DECISIONS_COPY.withdrawn
+					? { life }
+					: {}),
+			},
+		})
 	);
-	const onCreated = useCallback((decisionId: string) => {
-		setSelectedId(decisionId);
-	}, []);
-	const onSelect = useCallback((decisionId: string) => {
-		setSelectedId(decisionId);
+	const onCreated = useCallback(
+		(createdId: string) => {
+			setLocalSelectedId(createdId);
+			onDecisionId?.(createdId);
+		},
+		[onDecisionId]
+	);
+	const onSelect = useCallback(
+		(id: string) => {
+			setLocalSelectedId(id);
+			onDecisionId?.(id);
+		},
+		[onDecisionId]
+	);
+	const onLifeChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+		setLife(event.target.value);
 	}, []);
 
 	if (decisions.isPending) {
@@ -37,6 +80,25 @@ export default function DecisionArea({ projectId }: { projectId: string }) {
 	return (
 		<div className="flex flex-col gap-6">
 			<CreateDecisionForm onCreated={onCreated} projectId={projectId} />
+			<Field>
+				<FieldLabel htmlFor="decision-life-filter">
+					{PROJECT_SHELL_COPY.status}
+				</FieldLabel>
+				<NativeSelect
+					id="decision-life-filter"
+					onChange={onLifeChange}
+					value={life}
+				>
+					<NativeSelectOption value="">
+						{RECORD_DISCOVERY_COPY.anyScope}
+					</NativeSelectOption>
+					{LIFE_FILTERS.map((item) => (
+						<NativeSelectOption key={item} value={item}>
+							{item}
+						</NativeSelectOption>
+					))}
+				</NativeSelect>
+			</Field>
 			<div className="grid gap-6 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
 				{decisions.data.length === 0 ? (
 					<Empty>
@@ -60,7 +122,11 @@ export default function DecisionArea({ projectId }: { projectId: string }) {
 					</ul>
 				)}
 				{selectedId ? (
-					<DecisionDetail decisionId={selectedId} projectId={projectId} />
+					<DecisionDetail
+						decisionId={selectedId}
+						onOpenCurrent={onSelect}
+						projectId={projectId}
+					/>
 				) : (
 					<Empty>
 						<EmptyHeader>

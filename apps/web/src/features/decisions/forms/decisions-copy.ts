@@ -1,4 +1,5 @@
 export const DECISIONS_COPY = {
+	allDecisions: "All Decisions",
 	confirm: "Confirm",
 	confirmSupersession: "Confirm supersession",
 	createDecision: "Create Decision",
@@ -7,6 +8,7 @@ export const DECISIONS_COPY = {
 	evidence: "Evidence",
 	livesChanging: "Lives that will change",
 	noDecisions: "No Decisions yet.",
+	openCurrentDecision: "Open current decision",
 	preview: "Preview",
 	rationale: "Rationale",
 	removeSupersession: "Remove supersession",

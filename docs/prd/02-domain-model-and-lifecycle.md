@@ -145,7 +145,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Uzun süredir aynı durumda | `Long in the same status` | İsteğe bağlı Proje durum yaşı eşiğini aşan aktif İş için nötr geri dönüş gerekçesi ve hazır Akıllı Koleksiyon üyeliği; varsayılan bildirim veya sağlık puanı değildir |
 | Tüm İşler | `All Work` | Sıfır kurulum hazır tür dizini; İş ana kayıtlarını toplar, saklı sorgu veya yeni sahiplik değildir |
 | Tüm Belgeler | `All Documents` | Sıfır kurulum hazır tür dizini; Belgeleri kapsam, tür, klasör ve üstveriyle gezer |
-| Tüm Kararlar | `All Decisions` | Sıfır kurulum hazır tür dizini; Karar ana kayıtlarını toplar |
+| Tüm Kararlar | `All Decisions` | Sıfır kurulum hazır tür dizini; Karar ana kayıtlarını toplar ve varsayılan `Valid` öne çıkarır |
 | Tüm Riskler | `All Risks` | Sıfır kurulum hazır tür dizini; Risk ana kayıtlarını toplar |
 | Tüm Araştırma Oturumları | `All Research Sessions` | Sıfır kurulum hazır tür dizini; Kullanıcı Araştırması Oturumlarını toplar |
 | Tüm Testler | `All Tests` | Sıfır kurulum hazır tür dizini; Planlı Test Senaryosu, Test Handoff'u, Test Oturumu, Oturum Testi, Test Açığı ve Test değerlendirmesini ayırır |
@@ -343,6 +343,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yerine geçildi | `Superseded` | Yalnız açık yerine-geçme ilişkisiyle oluşan Karar yaşamı |
 | Geri çekildi | `Withdrawn` | Halef gerektirmeyen açık geri çekme yaşamı |
 | Geri çek | `Withdraw` | Kararı `Withdrawn` yapan açık eylem |
+| Güncel kararı aç | `Open current decision` | Yerine geçilmiş Karardan nihai `Valid` kaydı açma |
 | Karar yok | `No Decisions yet.` | Projede henüz Karar olmadığını söyleyen boş durum |
 | Design | `Design` | Duvar, Ekran ve akış kayıtlarını toplayan Proje alanı veya hazır aşama adı |
 | Tests | `Tests` | Test kayıtlarını toplayan Proje alanı; ayrı test ürünü değildir |

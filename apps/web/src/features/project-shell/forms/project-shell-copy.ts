@@ -114,6 +114,7 @@ export type ConfigurationModeEditor =
 export interface ProjectShellSearch {
 	configurationEditor?: ConfigurationModeEditor;
 	configurationMode?: true;
+	decision?: string;
 	goal?: string;
 	work?: string;
 }
@@ -141,6 +142,10 @@ export function projectShellSearch(
 		typeof search.work === "string" && search.work.length > 0
 			? search.work
 			: undefined;
+	const decision =
+		typeof search.decision === "string" && search.decision.length > 0
+			? search.decision
+			: undefined;
 	const goal =
 		typeof search.goal === "string" && search.goal.length > 0
 			? search.goal
@@ -150,6 +155,7 @@ export function projectShellSearch(
 		...(configurationMode && configurationEditor
 			? { configurationEditor }
 			: {}),
+		...(decision ? { decision } : {}),
 		...(goal ? { goal } : {}),
 		...(work ? { work } : {}),
 	};

@@ -39,7 +39,7 @@ async function requireAccess(userId: string) {
 
 async function loadWorkspaceIndex(workspaceId: string) {
 	const prisma = getPrismaClient();
-	const [works, fileAttachments] = await Promise.all([
+	const [works, fileAttachments, decisions] = await Promise.all([
 		prisma.work.findMany({
 			select: {
 				archived: true,
@@ -73,8 +73,20 @@ async function loadWorkspaceIndex(workspaceId: string) {
 				workspaceId,
 			},
 		}),
+		prisma.decision.findMany({
+			select: {
+				decisionText: true,
+				id: true,
+				life: true,
+				projectId: true,
+				rationale: true,
+				title: true,
+				updatedAt: true,
+			},
+			where: { project: { workspaceId } },
+		}),
 	]);
-	return loadSearchIndexFromRows({ fileAttachments, works });
+	return loadSearchIndexFromRows({ decisions, fileAttachments, works });
 }
 
 const searchInput = z.object({
@@ -90,6 +102,7 @@ const browseIndexInput = z.object({
 	metadata: z.string().nullable().optional(),
 	recordType: z.string().nullable().optional(),
 	scope: z.enum(SEARCH_SCOPES).nullable().optional(),
+	status: z.string().nullable().optional(),
 });
 
 const tableQueryInput = z.object({
@@ -139,6 +152,7 @@ export const recordDiscovery = {
 				metadata: input.metadata ?? null,
 				recordType: input.recordType ?? null,
 				scope: input.scope ?? null,
+				status: input.status ?? null,
 			});
 		}),
 	catalog: protectedProcedure.handler(() => ({

@@ -643,6 +643,18 @@ _Avoid_: Undo, silent restore, delete successor
 Yerine-geçme onayında isteğe bağlı gerekçe; Karar gerekçesi alanı veya kapanış `Reason` değildir. UI: `Transition rationale`.
 _Avoid_: Reason, oy gerekçesi
 
+**Karar zinciri**:
+En eski Karar kaydından güncel `Valid` Karara giden nesil sırası; değişiklik geçmişi satırları değildir ([Karar kayıtları](docs/prd/09-discovery-decisions-and-design.md#karar-kayıtları)).
+_Avoid_: changelog, event log, version history rows
+
+**Güncel kararı aç**:
+`Superseded` Karardan zincirdeki nihai `Valid` kaydı açan eylem. UI: `Open current decision`.
+_Avoid_: Open latest, redirect snapshot
+
+**Tüm Kararlar**:
+Karar ana kayıtlarını toplayan sıfır kurulum hazır tür dizini; varsayılan `Valid` öne çıkarır ([Karar kayıtları](docs/prd/09-discovery-decisions-and-design.md#karar-kayıtları)). UI: `All Decisions`.
+_Avoid_: Decision log, current-only index
+
 **Risk**:
 Etki, olasılık, yanıt ve durumla belirsiz zararı izleyen Proje ana kaydı; Bug, Test Açığı veya Üretim Olayı değildir ([Risk takibi](docs/prd/09-discovery-decisions-and-design.md#risk-takibi)). UI: `Risk`.
 _Avoid_: Bug, Test Açığı, Üretim Olayı, öncelik puanı, yayın kapısı

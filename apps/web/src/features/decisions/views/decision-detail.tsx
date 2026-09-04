@@ -1,3 +1,4 @@
+import { Button } from "@cantiara/ui/components/button";
 import { Spinner } from "@cantiara/ui/components/spinner";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
@@ -11,9 +12,11 @@ import { orpc } from "@/utils/orpc";
 
 export default function DecisionDetail({
 	decisionId,
+	onOpenCurrent,
 	projectId,
 }: {
 	decisionId: string;
+	onOpenCurrent?: (decisionId: string) => void;
 	projectId: string;
 }) {
 	const decision = useQuery(
@@ -22,6 +25,12 @@ export default function DecisionDetail({
 	const onChanged = useCallback(() => {
 		decision.refetch().catch(() => undefined);
 	}, [decision]);
+	const onOpen = useCallback(() => {
+		const currentId = decision.data?.openCurrentDecisionId;
+		if (currentId) {
+			onOpenCurrent?.(currentId);
+		}
+	}, [decision.data?.openCurrentDecisionId, onOpenCurrent]);
 
 	if (decision.isPending) {
 		return (
@@ -37,8 +46,24 @@ export default function DecisionDetail({
 
 	return (
 		<article className="flex flex-col gap-4">
-			<h2 className="font-medium text-base">{decision.data.title}</h2>
-			<p className="text-muted-foreground text-sm">{decision.data.life}</p>
+			<DecisionHeader
+				currentDecision={decision.data.currentDecision}
+				life={decision.data.life}
+				onOpen={onOpen}
+				openCurrentDecisionId={decision.data.openCurrentDecisionId}
+				title={decision.data.title}
+				transitionOccurredAt={decision.data.transitionOccurredAt}
+				transitionRationale={decision.data.transitionRationale}
+			/>
+			{decision.data.chain.length > 0 ? (
+				<ol className="flex flex-col gap-1">
+					{decision.data.chain.map((item) => (
+						<li className="text-sm" key={item.id}>
+							{`${item.title} · ${item.life}`}
+						</li>
+					))}
+				</ol>
+			) : null}
 			<section>
 				<h3 className="text-muted-foreground text-xs">
 					{DECISIONS_COPY.decisionText}
@@ -55,7 +80,8 @@ export default function DecisionDetail({
 					{decision.data.rationale}
 				</p>
 			</section>
-			{decision.data.life === DECISIONS_COPY.valid ? (
+			{decision.data.life === DECISIONS_COPY.valid &&
+			!decision.data.contentReadOnly ? (
 				<>
 					<SupersedeDecisionForm
 						baseRevision={decision.data.revision}
@@ -77,13 +103,15 @@ export default function DecisionDetail({
 							<p className="text-muted-foreground text-sm">
 								{`${DECISIONS_COPY.supersedes} · ${old.title}`}
 							</p>
-							<RemoveSupersessionForm
-								baseRevision={decision.data.revision}
-								onRemoved={onChanged}
-								projectId={projectId}
-								successorId={decision.data.id}
-								supersededId={old.id}
-							/>
+							{decision.data.life === DECISIONS_COPY.valid ? (
+								<RemoveSupersessionForm
+									baseRevision={decision.data.revision}
+									onRemoved={onChanged}
+									projectId={projectId}
+									successorId={decision.data.id}
+									supersededId={old.id}
+								/>
+							) : null}
 						</section>
 					))
 				: null}
@@ -97,5 +125,50 @@ export default function DecisionDetail({
 				</p>
 			) : null}
 		</article>
+	);
+}
+
+function DecisionHeader({
+	currentDecision,
+	life,
+	onOpen,
+	openCurrentDecisionId,
+	title,
+	transitionOccurredAt,
+	transitionRationale,
+}: {
+	currentDecision: { id: string; title: string } | null;
+	life: string;
+	onOpen: () => void;
+	openCurrentDecisionId: string | null;
+	title: string;
+	transitionOccurredAt: string | null;
+	transitionRationale: string | null;
+}) {
+	return (
+		<header className="flex flex-col gap-2">
+			<h2 className="font-medium text-base">{title}</h2>
+			<p className="text-muted-foreground text-sm">{life}</p>
+			{life === DECISIONS_COPY.superseded ? (
+				<div className="flex flex-col gap-2">
+					{currentDecision ? (
+						<p className="text-sm">
+							{`${DECISIONS_COPY.decision} · ${currentDecision.title}`}
+						</p>
+					) : null}
+					{transitionOccurredAt ? (
+						<p className="text-muted-foreground text-sm">
+							{transitionOccurredAt}
+							{transitionRationale ? ` · ${transitionRationale}` : ""}
+						</p>
+					) : null}
+					{openCurrentDecisionId ? (
+						<Button onClick={onOpen} type="button" variant="outline">
+							{DECISIONS_COPY.openCurrentDecision}
+						</Button>
+					) : null}
+				</div>
+			) : null}
+		</header>
 	);
 }
