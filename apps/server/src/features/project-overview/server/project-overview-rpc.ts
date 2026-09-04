@@ -7,6 +7,7 @@ import { z } from "zod";
 import { listDecisions } from "../../decisions/server/decisions";
 import { createProjectGoals } from "../../goals/server/project-goals";
 import { getProject } from "../../project-shell/server/project-shell";
+import { listRisks } from "../../risks/server/risks";
 import {
 	overviewSourcesFromProject,
 	projectOverview,
@@ -30,6 +31,7 @@ export const projectOverviewRouter = {
 				throw new ORPCError("NOT_FOUND");
 			}
 			const decisions = await listDecisions(getPrismaClient(), project.id);
+			const listedRisks = await listRisks(getPrismaClient(), project.id);
 			const surface = createProjectGoals({
 				accountId: access.accountId,
 				prisma: getPrismaClient(),
@@ -45,6 +47,10 @@ export const projectOverviewRouter = {
 					goals: goals.map((goal) => ({
 						id: goal.id,
 						title: goal.title,
+					})),
+					risks: listedRisks.map((risk) => ({
+						id: risk.id,
+						title: risk.title,
 					})),
 				})
 			);

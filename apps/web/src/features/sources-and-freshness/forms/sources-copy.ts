@@ -1,0 +1,16 @@
+export const SOURCES_COPY = {
+	accessedAt: "Accessed at",
+	address: "Address",
+	approvedVersion: "Approved version",
+	capturedContent: "Captured content",
+	createSource: "Create Source",
+	excerpt: "Excerpt",
+	externalId: "External id",
+	externalRecordType: "External record type",
+	noSources: "No Sources yet.",
+	provider: "Provider",
+	saveAsNewSourceVersion: "Save as new Source version",
+	source: "Source",
+	title: "Title",
+	versions: "Versions",
+} as const;

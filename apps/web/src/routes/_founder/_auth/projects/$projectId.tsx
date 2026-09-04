@@ -28,10 +28,15 @@ function ProjectProfileRoute() {
 			navigate({
 				hash: next.hash ?? projectShellHashAnchor(hash),
 				search: {
+					assumption: search.assumption,
 					configurationEditor: next.editor ?? undefined,
 					configurationMode: next.open ? true : undefined,
 					decision: search.decision,
 					goal: search.goal,
+					openQuestion: search.openQuestion,
+					researchSession: search.researchSession,
+					risk: search.risk,
+					source: search.source,
 					validation: search.validation,
 					work: search.work,
 				},
@@ -40,8 +45,13 @@ function ProjectProfileRoute() {
 		[
 			hash,
 			navigate,
+			search.assumption,
 			search.decision,
 			search.goal,
+			search.openQuestion,
+			search.researchSession,
+			search.risk,
+			search.source,
 			search.validation,
 			search.work,
 		]
@@ -51,10 +61,15 @@ function ProjectProfileRoute() {
 			navigate({
 				hash: projectShellHashForWorkSelect(hash),
 				search: {
+					assumption: search.assumption,
 					configurationEditor: search.configurationEditor,
 					configurationMode: search.configurationMode,
 					decision: search.decision,
 					goal: search.goal,
+					openQuestion: search.openQuestion,
+					researchSession: search.researchSession,
+					risk: search.risk,
+					source: search.source,
 					validation: search.validation,
 					work: workId ?? undefined,
 				},
@@ -63,10 +78,15 @@ function ProjectProfileRoute() {
 		[
 			hash,
 			navigate,
+			search.assumption,
 			search.configurationEditor,
 			search.configurationMode,
 			search.decision,
 			search.goal,
+			search.openQuestion,
+			search.researchSession,
+			search.risk,
+			search.source,
 			search.validation,
 		]
 	);
@@ -75,10 +95,48 @@ function ProjectProfileRoute() {
 			navigate({
 				hash: "decisions",
 				search: {
+					assumption: search.assumption,
 					configurationEditor: search.configurationEditor,
 					configurationMode: search.configurationMode,
 					decision: decisionId ?? undefined,
 					goal: search.goal,
+					openQuestion: search.openQuestion,
+					researchSession: search.researchSession,
+					risk: search.risk,
+					source: search.source,
+					validation: search.validation,
+					work: search.work,
+				},
+			}).catch(() => undefined);
+		},
+		[
+			navigate,
+			search.assumption,
+			search.configurationEditor,
+			search.configurationMode,
+			search.goal,
+			search.openQuestion,
+			search.researchSession,
+			search.risk,
+			search.source,
+			search.validation,
+			search.work,
+		]
+	);
+	const onAssumptionId = useCallback(
+		(assumptionId: string | null) => {
+			navigate({
+				hash: "decisions",
+				search: {
+					assumption: assumptionId ?? undefined,
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					decision: search.decision,
+					goal: search.goal,
+					openQuestion: search.openQuestion,
+					researchSession: search.researchSession,
+					risk: search.risk,
+					source: search.source,
 					validation: search.validation,
 					work: search.work,
 				},
@@ -88,7 +146,45 @@ function ProjectProfileRoute() {
 			navigate,
 			search.configurationEditor,
 			search.configurationMode,
+			search.decision,
 			search.goal,
+			search.openQuestion,
+			search.researchSession,
+			search.risk,
+			search.source,
+			search.validation,
+			search.work,
+		]
+	);
+	const onRiskId = useCallback(
+		(riskId: string | null) => {
+			navigate({
+				hash: "risks",
+				search: {
+					assumption: search.assumption,
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					decision: search.decision,
+					goal: search.goal,
+					openQuestion: search.openQuestion,
+					researchSession: search.researchSession,
+					risk: riskId ?? undefined,
+					source: search.source,
+					validation: search.validation,
+					work: search.work,
+				},
+			}).catch(() => undefined);
+		},
+		[
+			navigate,
+			search.assumption,
+			search.configurationEditor,
+			search.configurationMode,
+			search.decision,
+			search.goal,
+			search.openQuestion,
+			search.researchSession,
+			search.source,
 			search.validation,
 			search.work,
 		]
@@ -98,10 +194,15 @@ function ProjectProfileRoute() {
 			navigate({
 				hash: "overview",
 				search: {
+					assumption: search.assumption,
 					configurationEditor: search.configurationEditor,
 					configurationMode: search.configurationMode,
 					decision: search.decision,
 					goal: goalId ?? undefined,
+					openQuestion: search.openQuestion,
+					researchSession: search.researchSession,
+					risk: search.risk,
+					source: search.source,
 					validation: search.validation,
 					work: search.work,
 				},
@@ -109,9 +210,113 @@ function ProjectProfileRoute() {
 		},
 		[
 			navigate,
+			search.assumption,
 			search.configurationEditor,
 			search.configurationMode,
 			search.decision,
+			search.openQuestion,
+			search.researchSession,
+			search.risk,
+			search.source,
+			search.validation,
+			search.work,
+		]
+	);
+	const onOpenQuestionId = useCallback(
+		(openQuestionId: string | null) => {
+			navigate({
+				hash: "discovery",
+				search: {
+					assumption: search.assumption,
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					decision: search.decision,
+					goal: search.goal,
+					openQuestion: openQuestionId ?? undefined,
+					researchSession: search.researchSession,
+					risk: search.risk,
+					source: search.source,
+					validation: search.validation,
+					work: search.work,
+				},
+			}).catch(() => undefined);
+		},
+		[
+			navigate,
+			search.assumption,
+			search.configurationEditor,
+			search.configurationMode,
+			search.decision,
+			search.goal,
+			search.researchSession,
+			search.risk,
+			search.source,
+			search.validation,
+			search.work,
+		]
+	);
+	const onResearchSessionId = useCallback(
+		(sessionId: string | null) => {
+			navigate({
+				hash: "discovery",
+				search: {
+					assumption: search.assumption,
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					decision: search.decision,
+					goal: search.goal,
+					openQuestion: search.openQuestion,
+					researchSession: sessionId ?? undefined,
+					risk: search.risk,
+					source: search.source,
+					validation: search.validation,
+					work: search.work,
+				},
+			}).catch(() => undefined);
+		},
+		[
+			navigate,
+			search.assumption,
+			search.configurationEditor,
+			search.configurationMode,
+			search.decision,
+			search.goal,
+			search.openQuestion,
+			search.risk,
+			search.source,
+			search.validation,
+			search.work,
+		]
+	);
+	const onSourceId = useCallback(
+		(sourceId: string | null) => {
+			navigate({
+				hash: "source",
+				search: {
+					assumption: search.assumption,
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					decision: search.decision,
+					goal: search.goal,
+					openQuestion: search.openQuestion,
+					researchSession: search.researchSession,
+					risk: search.risk,
+					source: sourceId ?? undefined,
+					validation: search.validation,
+					work: search.work,
+				},
+			}).catch(() => undefined);
+		},
+		[
+			navigate,
+			search.assumption,
+			search.configurationEditor,
+			search.configurationMode,
+			search.decision,
+			search.goal,
+			search.openQuestion,
+			search.researchSession,
+			search.risk,
 			search.validation,
 			search.work,
 		]
@@ -121,10 +326,15 @@ function ProjectProfileRoute() {
 			navigate({
 				hash: "discovery",
 				search: {
+					assumption: search.assumption,
 					configurationEditor: search.configurationEditor,
 					configurationMode: search.configurationMode,
 					decision: search.decision,
 					goal: search.goal,
+					openQuestion: search.openQuestion,
+					researchSession: search.researchSession,
+					risk: search.risk,
+					source: search.source,
 					validation: validationRecordId ?? undefined,
 					work: search.work,
 				},
@@ -132,25 +342,40 @@ function ProjectProfileRoute() {
 		},
 		[
 			navigate,
+			search.assumption,
 			search.configurationEditor,
 			search.configurationMode,
 			search.decision,
 			search.goal,
+			search.openQuestion,
+			search.researchSession,
+			search.risk,
+			search.source,
 			search.work,
 		]
 	);
 	return (
 		<ProjectProfile
+			assumptionId={search.assumption ?? null}
 			configurationEditor={search.configurationEditor ?? null}
 			configurationMode={search.configurationMode === true}
 			decisionId={search.decision ?? null}
 			goalId={search.goal ?? null}
+			onAssumptionId={onAssumptionId}
 			onDecisionId={onDecisionId}
 			onGoalId={onGoalId}
+			onOpenQuestionId={onOpenQuestionId}
 			onPresentationChange={onPresentationChange}
+			onResearchSessionId={onResearchSessionId}
+			onRiskId={onRiskId}
+			onSourceId={onSourceId}
 			onValidationRecordId={onValidationRecordId}
 			onWorkId={onWorkId}
+			openQuestionId={search.openQuestion ?? null}
 			projectId={projectId}
+			researchSessionId={search.researchSession ?? null}
+			riskId={search.risk ?? null}
+			sourceId={search.source ?? null}
 			validationRecordId={search.validation ?? null}
 			workId={search.work ?? null}
 		/>

@@ -67,12 +67,13 @@ test("English chrome uses Project Name and Short code", () => {
 	expect(JSON.stringify(PROJECT_SHELL_COPY)).not.toMatch(COPY_BRANDING_PATTERN);
 });
 
-test("Overview Work Documents File Attachment and All Tools are in-page destinations", () => {
+test("Overview Work Documents File Attachment Source and All Tools are in-page destinations", () => {
 	const destinations = [
 		projectShellAnchor("Overview"),
 		projectShellAnchor("Work"),
 		projectShellAnchor("Documents"),
 		projectShellAnchor("File Attachment"),
+		projectShellAnchor("Source"),
 		projectShellAnchor("All Tools"),
 	];
 	expect(destinations).toEqual([
@@ -80,6 +81,7 @@ test("Overview Work Documents File Attachment and All Tools are in-page destinat
 		"work",
 		"documents",
 		"file-attachment",
+		"source",
 		"all-tools",
 	]);
 	expect(new Set(destinations).size).toBe(destinations.length);
@@ -98,6 +100,7 @@ test("Overview Work Documents File Attachment and All Tools are in-page destinat
 		"Work",
 		"Documents",
 		"File Attachment",
+		"Source",
 	]);
 	expect(
 		projectPersistentNav(
@@ -108,6 +111,7 @@ test("Overview Work Documents File Attachment and All Tools are in-page destinat
 		"Work",
 		"Documents",
 		"File Attachment",
+		"Source",
 		"Decisions",
 		"Design",
 		"Tests",
@@ -144,7 +148,20 @@ test("Configuration Mode is presentation search, not a Project write", () => {
 	expect(projectShellSearch({ decision: "decision_1" })).toEqual({
 		decision: "decision_1",
 	});
+	expect(projectShellSearch({ assumption: "assumption_1" })).toEqual({
+		assumption: "assumption_1",
+	});
 	expect(projectShellSearch({ goal: "goal_1" })).toEqual({ goal: "goal_1" });
+	expect(projectShellSearch({ openQuestion: "question_1" })).toEqual({
+		openQuestion: "question_1",
+	});
+	expect(projectShellSearch({ risk: "risk_1" })).toEqual({ risk: "risk_1" });
+	expect(projectShellSearch({ researchSession: "session_1" })).toEqual({
+		researchSession: "session_1",
+	});
+	expect(projectShellSearch({ source: "source_1" })).toEqual({
+		source: "source_1",
+	});
 	expect(projectShellSearch({ validation: "validation_1" })).toEqual({
 		validation: "validation_1",
 	});
@@ -222,6 +239,7 @@ test("Work daily actions and Saved views stay on the Work surface", () => {
 		"Work",
 		"Documents",
 		"File Attachment",
+		"Source",
 	]);
 	expect(projectNavPinnedAreas(persistent)).toEqual(["Decisions"]);
 	expect(isWorkShellAnchor("work", ["Backlog", "Board"])).toBe(true);

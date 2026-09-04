@@ -16,6 +16,7 @@ import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-recor
 import DecisionArea from "@/features/decisions/views/decision-area";
 import { DOCUMENTS_COPY } from "@/features/documents/forms/documents-copy";
 import DocumentArea from "@/features/documents/views/document-area";
+import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
 import ProjectGoalsPanel from "@/features/goals/views/project-goals-panel";
 import { FOUNDER_MAIN_ID } from "@/features/personal-shell/components/founder-chrome";
@@ -41,7 +42,14 @@ import {
 	workSavedViewIsRoadmap,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
+import { RESEARCH_SESSIONS_COPY } from "@/features/research-sessions/forms/research-sessions-copy";
+import ResearchSessionArea from "@/features/research-sessions/views/research-session-area";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
+import RiskArea from "@/features/risks/views/risk-area";
+import SourceArea from "@/features/sources-and-freshness/views/source-area";
+import { UNCERTAINTY_COPY } from "@/features/uncertainty-records/forms/uncertainty-records-copy";
+import AssumptionArea from "@/features/uncertainty-records/views/assumption-area";
+import OpenQuestionArea from "@/features/uncertainty-records/views/open-question-area";
 import { VALIDATION_RECORDS_COPY } from "@/features/validation-records/forms/validation-records-copy";
 import ValidationRecordArea from "@/features/validation-records/views/validation-record-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
@@ -79,33 +87,53 @@ interface ProjectShellRecord {
 }
 
 export default function ProjectProfile({
+	assumptionId,
 	configurationEditor,
 	configurationMode,
 	decisionId,
 	goalId,
+	onAssumptionId,
 	onDecisionId,
 	onGoalId,
+	onOpenQuestionId,
 	onPresentationChange,
+	onResearchSessionId,
+	onRiskId,
+	onSourceId,
 	onValidationRecordId,
 	onWorkId,
+	openQuestionId,
 	projectId,
+	researchSessionId,
+	riskId,
+	sourceId,
 	validationRecordId,
 	workId,
 }: {
+	assumptionId?: string | null;
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
 	decisionId?: string | null;
 	goalId?: string | null;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
+	onOpenQuestionId?: (openQuestionId: string | null) => void;
 	onPresentationChange: (next: {
 		editor: ConfigurationModeEditor | null;
 		hash?: string;
 		open: boolean;
 	}) => void;
+	onResearchSessionId?: (sessionId: string | null) => void;
+	onRiskId?: (riskId: string | null) => void;
+	onSourceId?: (sourceId: string | null) => void;
 	onValidationRecordId?: (validationRecordId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
+	openQuestionId?: string | null;
 	projectId: string;
+	researchSessionId?: string | null;
+	riskId?: string | null;
+	sourceId?: string | null;
 	validationRecordId?: string | null;
 	workId?: string | null;
 }) {
@@ -163,7 +191,14 @@ export default function ProjectProfile({
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const overviewCurrent =
-		(selectedAnchor === "" && !workId && !decisionId) ||
+		(selectedAnchor === "" &&
+			!workId &&
+			!decisionId &&
+			!riskId &&
+			!researchSessionId &&
+			!sourceId &&
+			!openQuestionId &&
+			!validationRecordId) ||
 		selectedAnchor === overviewAnchor;
 
 	const nav = (
@@ -215,18 +250,28 @@ export default function ProjectProfile({
 					<p className="truncate font-medium text-sm">{data.name}</p>
 				</div>
 				<ProjectBody
+					assumptionId={assumptionId}
 					configurationEditor={configurationEditor}
 					configurationMode={configurationMode}
 					data={data}
 					decisionId={decisionId}
 					goalId={goalId}
+					onAssumptionId={onAssumptionId}
 					onDecisionId={onDecisionId}
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
+					onOpenQuestionId={onOpenQuestionId}
+					onResearchSessionId={onResearchSessionId}
+					onRiskId={onRiskId}
+					onSourceId={onSourceId}
 					onToggle={onToggle}
 					onValidationRecordId={onValidationRecordId}
 					onWorkId={onWorkId}
+					openQuestionId={openQuestionId}
+					researchSessionId={researchSessionId}
+					riskId={riskId}
 					selectedAnchor={selectedAnchor}
+					sourceId={sourceId}
 					validationRecordId={validationRecordId}
 					workId={workId}
 				/>
@@ -431,52 +476,100 @@ function DocumentsProjectSection({
 }
 
 function DecisionsProjectSection({
+	assumptionId,
 	decisionId,
+	onAssumptionId,
 	onDecisionId,
+	onRiskId,
 	projectId,
+	riskId,
 	sectionId,
 }: {
+	assumptionId?: string | null;
 	decisionId?: string | null;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
+	onRiskId?: (riskId: string | null) => void;
 	projectId: string;
+	riskId?: string | null;
 	sectionId: string;
 }) {
+	const risksAnchor = projectShellAnchor("Risks");
 	return (
 		<section aria-label="Decisions" id={sectionId}>
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">
 				Decisions
 			</h1>
-			<div className="mt-6">
+			<div className="mt-6 flex flex-col gap-10">
 				<DecisionArea
 					decisionId={decisionId}
 					onDecisionId={onDecisionId}
 					projectId={projectId}
 				/>
+				<AssumptionArea
+					assumptionId={assumptionId}
+					onAssumptionId={onAssumptionId}
+					projectId={projectId}
+				/>
 			</div>
+			<section aria-label="Risks" className="mt-10" id={risksAnchor}>
+				<h2 className="font-semibold text-lg tracking-tight">Risks</h2>
+				<div className="mt-6">
+					<RiskArea onRiskId={onRiskId} projectId={projectId} riskId={riskId} />
+				</div>
+			</section>
 		</section>
 	);
 }
 
 function projectRecordArea({
+	assumptionId,
 	decisionId,
 	decisionsAnchor,
 	documentsAnchor,
 	fileAttachmentAnchor,
+	onAssumptionId,
 	onDecisionId,
+	onOpenQuestionId,
+	onResearchSessionId,
+	onRiskId,
+	onSourceId,
+	onValidationRecordId,
 	onWorkId,
+	openQuestionId,
 	projectId,
+	researchSessionId,
+	riskId,
+	risksAnchor,
 	selectedAnchor,
 	selectedArea,
+	sourceAnchor,
+	sourceId,
+	validationRecordId,
 }: {
+	assumptionId?: string | null;
 	decisionId?: string | null;
 	decisionsAnchor: string;
 	documentsAnchor: string;
 	fileAttachmentAnchor: string;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
+	onOpenQuestionId?: (openQuestionId: string | null) => void;
+	onResearchSessionId?: (sessionId: string | null) => void;
+	onRiskId?: (riskId: string | null) => void;
+	onSourceId?: (sourceId: string | null) => void;
+	onValidationRecordId?: (validationRecordId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
+	openQuestionId?: string | null;
 	projectId: string;
+	researchSessionId?: string | null;
+	riskId?: string | null;
+	risksAnchor: string;
 	selectedAnchor: string;
 	selectedArea: string | undefined;
+	sourceAnchor: string;
+	sourceId?: string | null;
+	validationRecordId?: string | null;
 }) {
 	if (selectedAnchor === documentsAnchor || selectedArea === "Documents") {
 		return (
@@ -489,14 +582,21 @@ function projectRecordArea({
 	}
 	if (
 		selectedAnchor === decisionsAnchor ||
+		selectedAnchor === risksAnchor ||
 		selectedArea === "Decisions" ||
-		(decisionId && selectedArea !== "Discovery")
+		((decisionId || riskId || assumptionId) &&
+			selectedArea !== "Discovery" &&
+			!validationRecordId)
 	) {
 		return (
 			<DecisionsProjectSection
+				assumptionId={assumptionId}
 				decisionId={decisionId}
+				onAssumptionId={onAssumptionId}
 				onDecisionId={onDecisionId}
+				onRiskId={onRiskId}
 				projectId={projectId}
+				riskId={riskId}
 				sectionId={decisionsAnchor}
 			/>
 		);
@@ -516,37 +616,235 @@ function projectRecordArea({
 			</section>
 		);
 	}
+	if (
+		selectedAnchor === sourceAnchor ||
+		selectedArea === "Source" ||
+		sourceId
+	) {
+		return (
+			<section aria-label="Source" id={sourceAnchor}>
+				<h1 className="font-semibold text-[1.375rem] tracking-tight">Source</h1>
+				<div className="mt-6">
+					<SourceArea
+						onSourceId={onSourceId}
+						projectId={projectId}
+						sourceId={sourceId}
+					/>
+				</div>
+			</section>
+		);
+	}
+	if (
+		selectedArea === "Discovery" ||
+		researchSessionId ||
+		openQuestionId ||
+		validationRecordId
+	) {
+		return (
+			<DiscoveryProjectSection
+				onDecisionId={onDecisionId}
+				onOpenQuestionId={onOpenQuestionId}
+				onResearchSessionId={onResearchSessionId}
+				onValidationRecordId={onValidationRecordId}
+				openQuestionId={openQuestionId}
+				projectId={projectId}
+				researchSessionId={researchSessionId}
+				validationRecordId={validationRecordId}
+			/>
+		);
+	}
 	return null;
 }
 
+function DiscoveryProjectSection({
+	onDecisionId,
+	onOpenQuestionId,
+	onResearchSessionId,
+	onValidationRecordId,
+	openQuestionId,
+	projectId,
+	researchSessionId,
+	validationRecordId,
+}: {
+	onDecisionId?: (decisionId: string | null) => void;
+	onOpenQuestionId?: (openQuestionId: string | null) => void;
+	onResearchSessionId?: (sessionId: string | null) => void;
+	onValidationRecordId?: (validationRecordId: string | null) => void;
+	openQuestionId?: string | null;
+	projectId: string;
+	researchSessionId?: string | null;
+	validationRecordId?: string | null;
+}) {
+	return (
+		<section aria-label="Discovery" id={projectShellAnchor("Discovery")}>
+			<h1 className="font-semibold text-[1.375rem] tracking-tight">
+				Discovery
+			</h1>
+			<p className="mt-2 text-muted-foreground text-sm">Feedback</p>
+			<div className="mt-6">
+				<BoundRecordValuesSurface projectId={projectId} recordType="Feedback" />
+			</div>
+			<h2 className="mt-8 font-medium text-base">
+				{UNCERTAINTY_COPY.openQuestion}
+			</h2>
+			<div className="mt-6">
+				<OpenQuestionArea
+					onOpenQuestionId={onOpenQuestionId}
+					openQuestionId={openQuestionId}
+					projectId={projectId}
+				/>
+			</div>
+			<h2 className="mt-10 font-medium text-base">
+				{RESEARCH_SESSIONS_COPY.researchSession}
+			</h2>
+			<div className="mt-6">
+				<ResearchSessionArea
+					onSessionId={onResearchSessionId}
+					projectId={projectId}
+					sessionId={researchSessionId}
+				/>
+			</div>
+			<h2 className="mt-8 font-medium text-base">
+				{VALIDATION_RECORDS_COPY.validationRecord}
+			</h2>
+			<div className="mt-4">
+				<ValidationRecordArea
+					onOpenDecision={onDecisionId}
+					onValidationRecordId={onValidationRecordId}
+					projectId={projectId}
+					validationRecordId={validationRecordId}
+				/>
+			</div>
+		</section>
+	);
+}
+
+function WorkProjectSection({
+	configurationMode,
+	onWorkId,
+	projectId,
+	selectedAnchor,
+	workId,
+	workViews,
+}: {
+	configurationMode: boolean;
+	onWorkId?: (workId: string | null) => void;
+	projectId: string;
+	selectedAnchor: string;
+	workId?: string | null;
+	workViews: readonly string[];
+}) {
+	const activeView = workViews.find(
+		(view) => projectShellAnchor(view) === selectedAnchor
+	);
+	return (
+		<section aria-label="Work" id={projectShellAnchor("Work")}>
+			<h1 className="font-semibold text-[1.375rem] tracking-tight">Work</h1>
+			<nav
+				aria-label={PROJECT_SHELL_COPY.savedViews}
+				className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs"
+			>
+				{WORK_DAILY_ACTIONS.map((action) => (
+					<a
+						className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+						href={`#${projectShellAnchor(action)}`}
+						key={action}
+					>
+						{action}
+					</a>
+				))}
+				{workViews.map((view) => {
+					const current =
+						projectShellAnchor(view) === selectedAnchor ||
+						(view === "Backlog" &&
+							(selectedAnchor === "work" || selectedAnchor === "create"));
+					return (
+						<a
+							aria-current={current ? "page" : undefined}
+							className={cn(
+								"underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring",
+								current
+									? "font-medium text-foreground"
+									: "text-muted-foreground hover:text-foreground hover:underline"
+							)}
+							href={`#${projectShellAnchor(view)}`}
+							id={projectShellAnchor(view)}
+							key={view}
+						>
+							{view}
+						</a>
+					);
+				})}
+			</nav>
+			<div className="mt-6">
+				<WorkArea
+					configurationMode={configurationMode}
+					onSelectedWorkId={onWorkId}
+					projectId={projectId}
+					savedView={activeView ?? "Backlog"}
+					selectedWorkId={workId ?? null}
+					unavailableView={
+						activeView &&
+						!workSavedViewIsList(activeView) &&
+						!workSavedViewIsBoard(activeView) &&
+						!workSavedViewIsRoadmap(activeView)
+							? activeView
+							: null
+					}
+				/>
+			</div>
+		</section>
+	);
+}
+
 function ProjectBody({
+	assumptionId,
 	configurationEditor,
 	configurationMode,
 	data,
 	decisionId,
 	goalId,
+	onAssumptionId,
 	onDecisionId,
 	onGoalId,
 	onOpenEditor,
+	onOpenQuestionId,
+	onResearchSessionId,
+	onRiskId,
+	onSourceId,
 	onToggle,
 	onValidationRecordId,
 	onWorkId,
+	openQuestionId,
+	researchSessionId,
+	riskId,
 	selectedAnchor,
+	sourceId,
 	validationRecordId,
 	workId,
 }: {
+	assumptionId?: string | null;
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
 	data: ProjectShellRecord;
 	decisionId?: string | null;
 	goalId?: string | null;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
+	onOpenQuestionId?: (openQuestionId: string | null) => void;
+	onResearchSessionId?: (sessionId: string | null) => void;
+	onRiskId?: (riskId: string | null) => void;
+	onSourceId?: (sourceId: string | null) => void;
 	onToggle: () => void;
 	onValidationRecordId?: (validationRecordId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
+	openQuestionId?: string | null;
+	researchSessionId?: string | null;
+	riskId?: string | null;
 	selectedAnchor: string;
+	sourceId?: string | null;
 	validationRecordId?: string | null;
 	workId?: string | null;
 }) {
@@ -554,7 +852,9 @@ function ProjectBody({
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const documentsAnchor = projectShellAnchor("Documents");
 	const decisionsAnchor = projectShellAnchor("Decisions");
+	const risksAnchor = projectShellAnchor("Risks");
 	const fileAttachmentAnchor = projectShellAnchor("File Attachment");
+	const sourceAnchor = projectShellAnchor("Source");
 	const selectedArea = data.allToolsAreas
 		.map((area) => area.name)
 		.find((area) => projectShellAnchor(area) === selectedAnchor);
@@ -564,15 +864,29 @@ function ProjectBody({
 		workViews: data.workViews,
 	});
 	const recordArea = projectRecordArea({
+		assumptionId: showingWork ? null : assumptionId,
 		decisionId: showingWork ? null : decisionId,
 		decisionsAnchor,
 		documentsAnchor,
 		fileAttachmentAnchor,
+		onAssumptionId,
 		onDecisionId,
+		onOpenQuestionId,
+		onResearchSessionId,
+		onRiskId,
+		onSourceId,
+		onValidationRecordId,
 		onWorkId,
+		openQuestionId: showingWork ? null : openQuestionId,
 		projectId: data.id,
+		researchSessionId: showingWork ? null : researchSessionId,
+		riskId: showingWork ? null : riskId,
+		risksAnchor,
 		selectedAnchor,
 		selectedArea,
+		sourceAnchor,
+		sourceId: showingWork ? null : sourceId,
+		validationRecordId: showingWork ? null : validationRecordId,
 	});
 
 	if (configurationMode) {
@@ -631,91 +945,15 @@ function ProjectBody({
 	}
 
 	if (showingWork) {
-		const activeView = data.workViews.find(
-			(view) => projectShellAnchor(view) === selectedAnchor
-		);
 		return (
-			<section aria-label="Work" id={projectShellAnchor("Work")}>
-				<h1 className="font-semibold text-[1.375rem] tracking-tight">Work</h1>
-				<nav
-					aria-label={PROJECT_SHELL_COPY.savedViews}
-					className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs"
-				>
-					{WORK_DAILY_ACTIONS.map((action) => (
-						<a
-							className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-							href={`#${projectShellAnchor(action)}`}
-							key={action}
-						>
-							{action}
-						</a>
-					))}
-					{data.workViews.map((view) => {
-						const current =
-							projectShellAnchor(view) === selectedAnchor ||
-							(view === "Backlog" &&
-								(selectedAnchor === "work" || selectedAnchor === "create"));
-						return (
-							<a
-								aria-current={current ? "page" : undefined}
-								className={cn(
-									"underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring",
-									current
-										? "font-medium text-foreground"
-										: "text-muted-foreground hover:text-foreground hover:underline"
-								)}
-								href={`#${projectShellAnchor(view)}`}
-								id={projectShellAnchor(view)}
-								key={view}
-							>
-								{view}
-							</a>
-						);
-					})}
-				</nav>
-				<div className="mt-6">
-					<WorkArea
-						configurationMode={configurationMode}
-						onSelectedWorkId={onWorkId}
-						projectId={data.id}
-						savedView={activeView ?? "Backlog"}
-						selectedWorkId={workId ?? null}
-						unavailableView={
-							activeView &&
-							!workSavedViewIsList(activeView) &&
-							!workSavedViewIsBoard(activeView) &&
-							!workSavedViewIsRoadmap(activeView)
-								? activeView
-								: null
-						}
-					/>
-				</div>
-			</section>
-		);
-	}
-
-	if (selectedArea === "Discovery" || validationRecordId) {
-		return (
-			<section aria-label="Discovery" id={projectShellAnchor("Discovery")}>
-				<h1 className="font-semibold text-[1.375rem] tracking-tight">
-					Discovery
-				</h1>
-				<p className="mt-2 text-muted-foreground text-sm">Feedback</p>
-				<div className="mt-6">
-					<BoundRecordValuesSurface projectId={data.id} recordType="Feedback" />
-				</div>
-				<h2 className="mt-8 font-medium text-base">
-					{VALIDATION_RECORDS_COPY.validationRecord}
-				</h2>
-				<div className="mt-4">
-					<ValidationRecordArea
-						onOpenDecision={onDecisionId}
-						onValidationRecordId={onValidationRecordId}
-						projectId={data.id}
-						validationRecordId={validationRecordId}
-					/>
-				</div>
-			</section>
+			<WorkProjectSection
+				configurationMode={configurationMode}
+				onWorkId={onWorkId}
+				projectId={data.id}
+				selectedAnchor={selectedAnchor}
+				workId={workId}
+				workViews={data.workViews}
+			/>
 		);
 	}
 
@@ -737,6 +975,9 @@ function ProjectBody({
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">
 				{data.name}
 			</h1>
+			<div className="mt-3">
+				<FavoriteToggle sourceId={data.id} sourceType="Project" />
+			</div>
 			<p className="text-muted-foreground text-sm">
 				{PROJECT_SHELL_COPY.active} · {data.starterConfiguration}
 			</p>

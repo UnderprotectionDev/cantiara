@@ -467,7 +467,7 @@ Kapalı registrydeki dikkat sinyallerini Eylem Gerekiyor ve Bilgi Akışı olara
 _Avoid_: E-posta ürünü, Geri Bildirim feed'i, serbest bildirim
 
 **Favori**:
-Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim listesine alınan işaret ([Favoriler](docs/prd/04-workspace-and-projects.md#favoriler)).
+Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim listesine alınan işaret ([Favoriler](docs/prd/04-workspace-and-projects.md#favoriler)). UI: `Favorites`, `Add to Favorites`, `Remove from Favorites`.
 _Avoid_: Bookmark kuyruğu, Aktif Çalışma Seti, planlama üyeliği
 
 **Hatırlatma**:
@@ -659,6 +659,46 @@ _Avoid_: Decision log, current-only index
 Etki, olasılık, yanıt ve durumla belirsiz zararı izleyen Proje ana kaydı; Bug, Test Açığı veya Üretim Olayı değildir ([Risk takibi](docs/prd/09-discovery-decisions-and-design.md#risk-takibi)). UI: `Risk`.
 _Avoid_: Bug, Test Açığı, Üretim Olayı, öncelik puanı, yayın kapısı
 
+**Risk etkisi**:
+Belirsiz zararın büyüklüğünü kurucunun yazdığı metin; öncelik puanı veya kapalı kademe değildir. UI: `Impact`.
+_Avoid_: öncelik puanı, WSJF, Feature health
+
+**Risk olasılığı**:
+Belirsiz zararın gerçekleşme beklentisini kurucunun yazdığı metin; öncelik puanı veya otomatik skor değildir. UI: `Probability`.
+_Avoid_: öncelik puanı, risk skoru, otomatik sıra
+
+**Yanıt/azaltma**:
+Riske karşı planlanan yanıt veya azaltma; İş kapanışı veya yayın kapısı değildir. UI: `Response/mitigation`.
+_Avoid_: otomatik takip İşi, yayın kapısı
+
+**Açık (Risk)**:
+Riskin açık kullanıcı eylemiyle seçilen yaşamı; zaman veya yüksek etki/olasılık bunu yazmaz. UI: `Open`.
+_Avoid_: örtük Açık, sinyal-as-status, Bug
+
+**Azaltılıyor**:
+Riskin azaltma çalışması sürerken seçilen yaşamı; sinyal veya otomatik skor değildir. UI: `Mitigating`.
+_Avoid_: open-risk, öncelik puanı
+
+**Gerçekleşti**:
+Riskin gerçekleştiğini belirten açık yaşam; ilişkili İş, Proje Sürümü veya Projeyi yazmaz. UI: `Occurred`.
+_Avoid_: Üretim Olayı, otomatik İş kapanışı, sürüm başarısızlığı
+
+**Çözüldü (Risk)**:
+Riskin çözüldüğünü belirten açık yaşam; ilişkili kaydı kapatmaz. UI: `Resolved`.
+_Avoid_: Blocker Resolved, otomatik kapanış
+
+**Kabul edildi**:
+Bilinen Riskin gerekçeyle bilinçli kabulü; ortadan kalkma, yayın kapısı veya İş kapanışı değildir. UI: `Accepted`.
+_Avoid_: vanished, publish gate, silent close
+
+**Kabul gerekçesi**:
+`Accepted` geçişinde Riskin neden tutulduğunu taşıyan metin; kapanış `Reason` değildir. UI: `Rationale`.
+_Avoid_: Reason, ortadan kalkma
+
+**Tüm Riskler**:
+Risk ana kayıtlarını toplayan sıfır kurulum hazır tür dizini. UI: `All Risks`.
+_Avoid_: risk skoru, öncelik haritası
+
 **Varsayım**:
 Doğrulanmamış önermeyi kanıt bağlamıyla taşıyan Proje ana kaydı; Açık Soru veya Deney/Doğrulama değildir ([Varsayım ve açık soru takibi](docs/prd/09-discovery-decisions-and-design.md#varsayım-ve-açık-soru-takibi)). UI: `Assumption`.
 _Avoid_: Açık Soru, Deney kaydı, otomatik Karar
@@ -674,6 +714,10 @@ _Avoid_: Test Oturumu, Planlı Test Senaryosu, Kullanıcı Araştırması Oturum
 **Kullanıcı Araştırması Oturumu**:
 Bir görüşme veya yönlendirilmiş araştırma temasının amaç, izin, türlenmiş not ve sürüme sabit kanıt bütünlüğünü taşıyan Proje ana kaydı ([Kullanıcı Araştırması Oturumları](docs/prd/09-discovery-decisions-and-design.md#kullanıcı-araştırması-oturumları)). UI: `Research Session`.
 _Avoid_: Geri Bildirim, Test Oturumu, Deney/Doğrulama
+
+**İzin bağlamı**:
+Kullanıcı Araştırması Oturumunda atıf, tanımlayıcı kişisel not, Dosya Eki ve paylaşım/yayın kapılarını bağlayan `Not asked`, `Allowed`, `Not allowed` veya `Not applicable` kaydı; hukuki uygunluk hükmü değildir. UI: `Consent`.
+_Avoid_: GDPR onayı, yasal uygunluk damgası, CRM izin durumu
 
 ## Bilgi ve kanıt
 

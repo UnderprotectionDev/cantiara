@@ -5,7 +5,10 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"DailyFocusCandidateRejection",
 	"DailyFocusMembership",
 	"Decision",
+	"FavoriteMembership",
 	"NextConcreteStepChange",
+	"OpenQuestion",
+	"OpenQuestionEvent",
 	"PersonalReminder",
 	"ProjectGoal",
 	"ReturnToWorkVisibleOpen",
@@ -92,6 +95,8 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	// Personal Reminder is read via table SQL so a bun --hot client
 	// generated before that model can still serve the API. Do not gate
 	// getPrismaClient on it.
+	// Favorite membership is the same: a bun --hot client generated before
+	// FavoriteMembership must not block the rest of the API.
 	// Smart Collection subscription period and signal tables are written
 	// via table SQL when bun --hot still has a client generated before
 	// those models. Do not gate getPrismaClient on them: Create Smart

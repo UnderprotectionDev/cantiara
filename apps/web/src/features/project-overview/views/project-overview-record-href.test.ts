@@ -7,10 +7,16 @@ test("Open source record stays on Overview or the matching Project area", () => 
 	expect(projectOverviewRecordHref("Decisions", "decision_1")).toBe(
 		"?decision=decision_1#decisions"
 	);
+	expect(projectOverviewRecordHref("Discovery", "session_1")).toBe(
+		"?researchSession=session_1#discovery"
+	);
 	expect(projectOverviewRecordHref("Documents", "doc_1")).toBe("#documents");
 	expect(projectOverviewRecordHref("Purpose", "proj_1")).toBe("#overview");
 	expect(projectOverviewRecordHref("Lifecycle", "proj_1")).toBe("#overview");
 	expect(projectOverviewRecordHref("Goals", "goal_1")).toBe(
 		"?goal=goal_1#overview"
+	);
+	expect(projectOverviewRecordHref("Risks", "risk_1")).toBe(
+		"?risk=risk_1#risks"
 	);
 });

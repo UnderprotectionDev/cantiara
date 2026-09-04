@@ -654,6 +654,37 @@ describe("Prisma client current delegates", () => {
 		).toBe(true);
 	});
 
+	it("accepts a bun --hot client generated before Favorite membership", () => {
+		expect(
+			prismaClientHasCurrentDelegates({
+				...workDelegates(),
+				...currentLifecycleDelegates(),
+				_runtimeDataModel: {
+					models: {
+						FavoriteMembership: { fields: [{ name: "id" }] },
+					},
+				},
+				externalExecutionGoingPackage: { create: () => undefined, findMany },
+				externalExecutionHandoff: { create: () => undefined, findMany },
+				externalExecutionHandoffEvent: { create: () => undefined, findMany },
+				fileAttachment: { findMany },
+				fileAttachmentOriginLocation: { findMany },
+				fileAttachmentReceipt: { findMany },
+				fileAttachmentRelation: { findMany },
+				fileAttachmentStaging: { findMany },
+				fileAttachmentVersion: { findMany },
+				fileAttachmentVersionPin: { findMany },
+				fileImageDerivative: { findMany },
+				fileObjectBlob: { findMany },
+				tag: { findMany },
+				tagInlineUse: { findMany },
+				usageHostEmbed: { findMany },
+				usageLink: { findMany },
+				workTag: { findMany },
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
 	it("refuses a bun --hot client generated before Priority Map presentation", () => {
 		const { projectPriorityMapPresentation: _dropped, ...beforeMap } = {
 			...workDelegates(),
