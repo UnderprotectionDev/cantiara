@@ -7,6 +7,7 @@ import { DECISIONS_COPY } from "@/features/decisions/forms/decisions-copy";
 import RemoveSupersessionForm from "@/features/decisions/forms/remove-supersession-form";
 import SupersedeDecisionForm from "@/features/decisions/forms/supersede-decision-form";
 import WithdrawDecisionForm from "@/features/decisions/forms/withdraw-decision-form";
+import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { orpc } from "@/utils/orpc";
 
@@ -46,6 +47,7 @@ export default function DecisionDetail({
 
 	return (
 		<article className="flex flex-col gap-4">
+			<FavoriteToggle sourceId={decision.data.id} sourceType="Decision" />
 			<DecisionHeader
 				currentDecision={decision.data.currentDecision}
 				life={decision.data.life}

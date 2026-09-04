@@ -80,14 +80,22 @@ export function pinnedNavigationAreas(
 	return pinnedAreas.filter((area) => enabledAreas.includes(area));
 }
 
-const REACHABLE_AREAS = ["Work", "Documents", "File Attachment"] as const;
+const REACHABLE_AREAS = [
+	"Work",
+	"Documents",
+	"File Attachment",
+	"Source",
+] as const;
 
 export function projectPersistentNav(
 	pinnedAreas: readonly string[],
 	enabledAreas: readonly string[]
 ): string[] {
 	const reachable = REACHABLE_AREAS.filter(
-		(area) => area === "File Attachment" || enabledAreas.includes(area)
+		(area) =>
+			area === "File Attachment" ||
+			area === "Source" ||
+			enabledAreas.includes(area)
 	);
 	const listed = new Set<string>(reachable);
 	const pinned = pinnedNavigationAreas(pinnedAreas, enabledAreas).filter(
@@ -112,11 +120,14 @@ export type ConfigurationModeEditor =
 	(typeof CONFIGURATION_MODE_EDITORS)[keyof typeof CONFIGURATION_MODE_EDITORS];
 
 export interface ProjectShellSearch {
+	assumption?: string;
 	configurationEditor?: ConfigurationModeEditor;
 	configurationMode?: true;
 	decision?: string;
 	goal?: string;
 	openQuestion?: string;
+	researchSession?: string;
+	source?: string;
 	work?: string;
 }
 
@@ -139,32 +150,32 @@ export function projectShellSearch(
 		search.configurationEditor === CONFIGURATION_MODE_EDITORS.workTemplate
 			? search.configurationEditor
 			: undefined;
-	const work =
-		typeof search.work === "string" && search.work.length > 0
-			? search.work
-			: undefined;
-	const decision =
-		typeof search.decision === "string" && search.decision.length > 0
-			? search.decision
-			: undefined;
-	const goal =
-		typeof search.goal === "string" && search.goal.length > 0
-			? search.goal
-			: undefined;
-	const openQuestion =
-		typeof search.openQuestion === "string" && search.openQuestion.length > 0
-			? search.openQuestion
-			: undefined;
+	const assumption = nonemptySearchString(search.assumption);
+	const decision = nonemptySearchString(search.decision);
+	const goal = nonemptySearchString(search.goal);
+	const openQuestion = nonemptySearchString(search.openQuestion);
+	const researchSession = nonemptySearchString(search.researchSession);
+	const source = nonemptySearchString(search.source);
+	const work = nonemptySearchString(search.work);
 	return {
 		...(configurationMode ? { configurationMode: true as const } : {}),
 		...(configurationMode && configurationEditor
 			? { configurationEditor }
 			: {}),
+		...(assumption ? { assumption } : {}),
 		...(decision ? { decision } : {}),
 		...(goal ? { goal } : {}),
 		...(openQuestion ? { openQuestion } : {}),
+		...(researchSession ? { researchSession } : {}),
+		...(source ? { source } : {}),
 		...(work ? { work } : {}),
 	};
+}
+
+function nonemptySearchString(value: unknown): string | undefined {
+	if (typeof value === "string" && value.length > 0) {
+		return value;
+	}
 }
 
 export function structureCopyPreviewItems(preview: {
@@ -229,6 +240,7 @@ const ALWAYS_ON_ANCHORS = {
 	Documents: "documents",
 	"File Attachment": "file-attachment",
 	Overview: "overview",
+	Source: "source",
 	Work: "work",
 } as const;
 
@@ -296,6 +308,7 @@ const WORK_SELECT_RESET_ANCHORS = new Set([
 	ALWAYS_ON_ANCHORS["All Tools"],
 	ALWAYS_ON_ANCHORS.Documents,
 	ALWAYS_ON_ANCHORS["File Attachment"],
+	ALWAYS_ON_ANCHORS.Source,
 ]);
 
 export function projectShellHashAnchor(hash: string): string {

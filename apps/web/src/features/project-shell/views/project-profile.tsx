@@ -17,6 +17,7 @@ import BoundRecordValuesSurface from "@/features/custom-fields/views/bound-recor
 import DecisionArea from "@/features/decisions/views/decision-area";
 import { DOCUMENTS_COPY } from "@/features/documents/forms/documents-copy";
 import DocumentArea from "@/features/documents/views/document-area";
+import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
 import ProjectGoalsPanel from "@/features/goals/views/project-goals-panel";
 import { FOUNDER_MAIN_ID } from "@/features/personal-shell/components/founder-chrome";
@@ -42,8 +43,12 @@ import {
 	workSavedViewIsRoadmap,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
+import { RESEARCH_SESSIONS_COPY } from "@/features/research-sessions/forms/research-sessions-copy";
+import ResearchSessionArea from "@/features/research-sessions/views/research-session-area";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
+import SourceArea from "@/features/sources-and-freshness/views/source-area";
 import { UNCERTAINTY_COPY } from "@/features/uncertainty-records/forms/uncertainty-records-copy";
+import AssumptionArea from "@/features/uncertainty-records/views/assumption-area";
 import OpenQuestionArea from "@/features/uncertainty-records/views/open-question-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
 import { orpc } from "@/utils/orpc";
@@ -80,23 +85,31 @@ interface ProjectShellRecord {
 }
 
 export default function ProjectProfile({
+	assumptionId,
 	configurationEditor,
 	configurationMode,
 	decisionId,
 	goalId,
+	onAssumptionId,
 	onDecisionId,
 	onGoalId,
 	onOpenQuestionId,
 	onPresentationChange,
+	onResearchSessionId,
+	onSourceId,
 	onWorkId,
 	openQuestionId,
 	projectId,
+	researchSessionId,
+	sourceId,
 	workId,
 }: {
+	assumptionId?: string | null;
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
 	decisionId?: string | null;
 	goalId?: string | null;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onOpenQuestionId?: (openQuestionId: string | null) => void;
@@ -105,9 +118,13 @@ export default function ProjectProfile({
 		hash?: string;
 		open: boolean;
 	}) => void;
+	onResearchSessionId?: (sessionId: string | null) => void;
+	onSourceId?: (sourceId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	openQuestionId?: string | null;
 	projectId: string;
+	researchSessionId?: string | null;
+	sourceId?: string | null;
 	workId?: string | null;
 }) {
 	const project = useQuery(
@@ -164,7 +181,12 @@ export default function ProjectProfile({
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
 	const allToolsAnchor = projectShellAnchor(PROJECT_SHELL_COPY.allTools);
 	const overviewCurrent =
-		(selectedAnchor === "" && !workId && !decisionId && !openQuestionId) ||
+		(selectedAnchor === "" &&
+			!workId &&
+			!decisionId &&
+			!researchSessionId &&
+			!sourceId &&
+			!openQuestionId) ||
 		selectedAnchor === overviewAnchor;
 
 	const nav = (
@@ -216,19 +238,25 @@ export default function ProjectProfile({
 					<p className="truncate font-medium text-sm">{data.name}</p>
 				</div>
 				<ProjectBody
+					assumptionId={assumptionId}
 					configurationEditor={configurationEditor}
 					configurationMode={configurationMode}
 					data={data}
 					decisionId={decisionId}
 					goalId={goalId}
+					onAssumptionId={onAssumptionId}
 					onDecisionId={onDecisionId}
 					onGoalId={onGoalId}
 					onOpenEditor={onOpenEditor}
 					onOpenQuestionId={onOpenQuestionId}
+					onResearchSessionId={onResearchSessionId}
+					onSourceId={onSourceId}
 					onToggle={onToggle}
 					onWorkId={onWorkId}
 					openQuestionId={openQuestionId}
+					researchSessionId={researchSessionId}
 					selectedAnchor={selectedAnchor}
+					sourceId={sourceId}
 					workId={workId}
 				/>
 			</main>
@@ -432,12 +460,16 @@ function DocumentsProjectSection({
 }
 
 function DecisionsProjectSection({
+	assumptionId,
 	decisionId,
+	onAssumptionId,
 	onDecisionId,
 	projectId,
 	sectionId,
 }: {
+	assumptionId?: string | null;
 	decisionId?: string | null;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	projectId: string;
 	sectionId: string;
@@ -447,10 +479,15 @@ function DecisionsProjectSection({
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">
 				Decisions
 			</h1>
-			<div className="mt-6">
+			<div className="mt-6 flex flex-col gap-10">
 				<DecisionArea
 					decisionId={decisionId}
 					onDecisionId={onDecisionId}
+					projectId={projectId}
+				/>
+				<AssumptionArea
+					assumptionId={assumptionId}
+					onAssumptionId={onAssumptionId}
 					projectId={projectId}
 				/>
 			</div>
@@ -459,25 +496,35 @@ function DecisionsProjectSection({
 }
 
 function projectRecordArea({
+	assumptionId,
 	decisionId,
 	decisionsAnchor,
 	documentsAnchor,
 	fileAttachmentAnchor,
+	onAssumptionId,
 	onDecisionId,
+	onSourceId,
 	onWorkId,
 	projectId,
 	selectedAnchor,
 	selectedArea,
+	sourceAnchor,
+	sourceId,
 }: {
+	assumptionId?: string | null;
 	decisionId?: string | null;
 	decisionsAnchor: string;
 	documentsAnchor: string;
 	fileAttachmentAnchor: string;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
+	onSourceId?: (sourceId: string | null) => void;
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
 	selectedAnchor: string;
 	selectedArea: string | undefined;
+	sourceAnchor: string;
+	sourceId?: string | null;
 }) {
 	if (selectedAnchor === documentsAnchor || selectedArea === "Documents") {
 		return (
@@ -491,11 +538,14 @@ function projectRecordArea({
 	if (
 		selectedAnchor === decisionsAnchor ||
 		selectedArea === "Decisions" ||
-		decisionId
+		decisionId ||
+		assumptionId
 	) {
 		return (
 			<DecisionsProjectSection
+				assumptionId={assumptionId}
 				decisionId={decisionId}
+				onAssumptionId={onAssumptionId}
 				onDecisionId={onDecisionId}
 				projectId={projectId}
 				sectionId={decisionsAnchor}
@@ -517,38 +567,68 @@ function projectRecordArea({
 			</section>
 		);
 	}
+	if (
+		selectedAnchor === sourceAnchor ||
+		selectedArea === "Source" ||
+		sourceId
+	) {
+		return (
+			<section aria-label="Source" id={sourceAnchor}>
+				<h1 className="font-semibold text-[1.375rem] tracking-tight">Source</h1>
+				<div className="mt-6">
+					<SourceArea
+						onSourceId={onSourceId}
+						projectId={projectId}
+						sourceId={sourceId}
+					/>
+				</div>
+			</section>
+		);
+	}
 	return null;
 }
 
 function ProjectBody({
+	assumptionId,
 	configurationEditor,
 	configurationMode,
 	data,
 	decisionId,
 	goalId,
+	onAssumptionId,
 	onDecisionId,
 	onGoalId,
 	onOpenEditor,
 	onOpenQuestionId,
+	onResearchSessionId,
+	onSourceId,
 	onToggle,
 	onWorkId,
 	openQuestionId,
+	researchSessionId,
 	selectedAnchor,
+	sourceId,
 	workId,
 }: {
+	assumptionId?: string | null;
 	configurationEditor: ConfigurationModeEditor | null;
 	configurationMode: boolean;
 	data: ProjectShellRecord;
 	decisionId?: string | null;
 	goalId?: string | null;
+	onAssumptionId?: (assumptionId: string | null) => void;
 	onDecisionId?: (decisionId: string | null) => void;
 	onGoalId?: (goalId: string | null) => void;
 	onOpenEditor: (editor: ConfigurationModeEditor) => void;
 	onOpenQuestionId?: (openQuestionId: string | null) => void;
+	onResearchSessionId?: (sessionId: string | null) => void;
+	onSourceId?: (sourceId: string | null) => void;
 	onToggle: () => void;
 	onWorkId?: (workId: string | null) => void;
 	openQuestionId?: string | null;
+	researchSessionId?: string | null;
 	selectedAnchor: string;
+	sourceId?: string | null;
 	workId?: string | null;
 }) {
 	const overviewAnchor = projectShellAnchor(PROJECT_SHELL_COPY.overview);
@@ -556,6 +636,7 @@ function ProjectBody({
 	const documentsAnchor = projectShellAnchor("Documents");
 	const decisionsAnchor = projectShellAnchor("Decisions");
 	const fileAttachmentAnchor = projectShellAnchor("File Attachment");
+	const sourceAnchor = projectShellAnchor("Source");
 	const selectedArea = data.allToolsAreas
 		.map((area) => area.name)
 		.find((area) => projectShellAnchor(area) === selectedAnchor);
@@ -565,15 +646,20 @@ function ProjectBody({
 		workViews: data.workViews,
 	});
 	const recordArea = projectRecordArea({
+		assumptionId: showingWork ? null : assumptionId,
 		decisionId: showingWork ? null : decisionId,
 		decisionsAnchor,
 		documentsAnchor,
 		fileAttachmentAnchor,
+		onAssumptionId,
 		onDecisionId,
+		onSourceId,
 		onWorkId,
 		projectId: data.id,
 		selectedAnchor,
 		selectedArea,
+		sourceAnchor,
+		sourceId: showingWork ? null : sourceId,
 	});
 
 	if (configurationMode) {
@@ -695,7 +781,7 @@ function ProjectBody({
 		);
 	}
 
-	if (selectedArea === "Discovery" || openQuestionId) {
+	if (selectedArea === "Discovery" || researchSessionId || openQuestionId) {
 		return (
 			<section aria-label="Discovery" id={projectShellAnchor("Discovery")}>
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">
@@ -713,6 +799,16 @@ function ProjectBody({
 						onOpenQuestionId={onOpenQuestionId}
 						openQuestionId={openQuestionId}
 						projectId={data.id}
+					/>
+				</div>
+				<h2 className="mt-10 font-medium text-base">
+					{RESEARCH_SESSIONS_COPY.researchSession}
+				</h2>
+				<div className="mt-6">
+					<ResearchSessionArea
+						onSessionId={onResearchSessionId}
+						projectId={data.id}
+						sessionId={researchSessionId}
 					/>
 				</div>
 			</section>
@@ -737,6 +833,9 @@ function ProjectBody({
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">
 				{data.name}
 			</h1>
+			<div className="mt-3">
+				<FavoriteToggle sourceId={data.id} sourceType="Project" />
+			</div>
 			<p className="text-muted-foreground text-sm">
 				{PROJECT_SHELL_COPY.active} · {data.starterConfiguration}
 			</p>

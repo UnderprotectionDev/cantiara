@@ -8,6 +8,7 @@ import {
 	seedMilestone,
 	seedProject,
 	seedProjectDocument,
+	seedProjectSource,
 	seedWork,
 	seedWorkClose,
 	seedWorkPlanningDates,
@@ -196,6 +197,13 @@ export async function seedCantiaraProject(
 		prefix: "cantiara-research-notes",
 		projectId: project.id,
 		title: "Chargeback research notes",
+	});
+	await seedProjectSource(ctx, {
+		capturedContent: "Checkout Session creates a hosted payment page.",
+		prefix: "cantiara-stripe-checkout-source",
+		projectId: project.id,
+		title: "Stripe Checkout",
+		url: "https://docs.stripe.com/payments/checkout",
 	});
 
 	return project;

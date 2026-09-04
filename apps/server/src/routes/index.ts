@@ -13,6 +13,7 @@ import { dailyFocus } from "../features/daily-focus/server/daily-focus-rpc";
 import { decisions } from "../features/decisions/server/decisions-rpc";
 import { documents } from "../features/documents/server/documents-rpc";
 import { externalHandoffs } from "../features/external-handoffs/server/external-handoffs-rpc";
+import { favorites } from "../features/favorites/server/favorites-rpc";
 import { fileAttachments } from "../features/file-attachments/server/file-attachments-rpc";
 import { focusPeriod } from "../features/focus-period/server/focus-period-rpc";
 import { projectGoals } from "../features/goals/server/project-goals-rpc";
@@ -25,9 +26,11 @@ import { projectShell } from "../features/project-shell/server/project-shell-rpc
 import { recordActions } from "../features/record-actions/server/record-actions-rpc";
 import { recordDiscovery } from "../features/record-discovery/server/record-discovery-rpc";
 import { relations } from "../features/relations/server/relations-rpc";
+import { researchSessions } from "../features/research-sessions/server/research-sessions-rpc";
 import { returnToWork } from "../features/return-to-work/server/return-to-work-rpc";
 import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
 import { smartCollections } from "../features/smart-collections/server/smart-collections-rpc";
+import { sources } from "../features/sources-and-freshness/server/sources-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { uncertaintyRecords } from "../features/uncertainty-records/server/uncertainty-records-rpc";
 import { unifiedCalendar } from "../features/unified-calendar/server/unified-calendar-rpc";
@@ -53,6 +56,7 @@ export const appRouter = {
 	decisions,
 	documents,
 	externalHandoffs,
+	favorites,
 	fileAttachments,
 	focusPeriod,
 	healthCheck: publicProcedure.handler(() => "OK"),
@@ -70,9 +74,11 @@ export const appRouter = {
 	recordActions,
 	recordDiscovery,
 	relations,
+	researchSessions,
 	returnToWork,
 	roadmapHorizon,
 	smartCollections,
+	sources,
 	tags,
 	uncertaintyRecords,
 	unifiedCalendar,
