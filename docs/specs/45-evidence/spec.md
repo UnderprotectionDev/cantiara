@@ -33,7 +33,7 @@ Kurucu kesin kaynak veya Belge sürümünü bir iddiaya bağlamak ister. `İlgil
 19. As a founder, I want archived sources visible as archived; Trash, permanently deleted, redacted, or inaccessible sources to use safe broken-reference presentation without leaking content.
 20. As a founder, I want owned-component origin (checklist item, Wireframe node, Session Test, research note component) to store `Origin Location` (owner id, component id, exact version) that does not silently retarget when the component is gone (`Source element no longer exists`).
 21. As a founder, I want `Contributes to Goal` not to treat Decision, evidence, or test as Goal membership (37).
-22. As a founder, I want English UI `Evidence Flow`, `Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified`, `Bind as evidence to existing record`, `Convert to new record and bind`, `Origin Location`.
+22. As a founder, I want English UI `Evidence Flow`, `Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified`, `Bind as evidence to existing record`, `Convert to new record and bind`, `Origin Location`, `Version-pinned evidence`, `Newer version exists`, `Open source record`, `Source element no longer exists`.
 23. As a founder using only a keyboard or a screen reader, I want to bind, set role, and walk Evidence Flow (PRD 15: flow is not visual-only).
 24. As a founder, I do not want this feature to own Source recheck (44), Research Session convert UI beyond calling this pin (43), or Feedback feed (47).
 25. As a consuming Work Context Card (16), I want to display these relations live without copying bodies.
@@ -44,7 +44,7 @@ Kurucu kesin kaynak veya Belge sürümünü bir iddiaya bağlamak ister. `İlgil
 - **Glossary.** Use Kanıt bağı, Köken konumu, Kökeni, Hedefe katkı (not this relation), İlgili (not evidence). Avoid auto validation, social timeline, notification feed.
 - **Evidence module.** Bind-to-existing uses the full PRD 02 `Kanıtı` / `Kanıt sağlar` ends: exact Source/Document/Diagram version, Feedback, Research Session, Validation Record, Session Test, or File Attachment version → Work/Decision/Risk/Assumption/Question/Test/Project Release or Access/Outcome observation. Convert-to-new-record creates exactly one Work, Decision, Risk, Assumption, or Open Question (stories 1 and 6); it does not mint Test, Project Release, or an observation as the new record. Pin API used by 43/44 rebind. Role + interpretation on the relation helper entity.
 - **Flow.** Derived view on Work, Decision, Assumption. Closed inclusion: explicit Kanıtı only. Observation-targeted binds stay on that observation, not the parent Release’s general evidence.
-- **English UI labels.** As in stories plus `Origin Location` (already in term table). Add others when first shown.
+- **English UI labels.** As in stories plus `Origin Location` (already in term table). Ticket 01 also shows `Version-pinned evidence`, `Newer version exists`, `Open source record`, and `Source element no longer exists`. Add others when first shown.
 - **Consumers.** 16 Work Context displays. 37 must not use this as Contributes to Goal. 44 calls rebind. 43 calls pin+convert.
 
 ## Testing Decisions

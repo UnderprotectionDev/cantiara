@@ -7,7 +7,6 @@ export const EVIDENCE_COPY = {
 	preview: "Preview",
 	sourceElementNoLongerExists: "Source element no longer exists",
 	sourceStaysInPlace: "The source text stays in place.",
-	target: "Target",
 	versionPinnedEvidence: "Version-pinned evidence",
 } as const;
 
@@ -20,3 +19,19 @@ export const CONVERT_RECORD_KINDS = [
 ] as const;
 
 export type ConvertRecordKind = (typeof CONVERT_RECORD_KINDS)[number];
+
+export type EvidenceTargetKind =
+	| "Work"
+	| "Decision"
+	| "Risk"
+	| "Assumption"
+	| "Question";
+
+export function convertKindToEvidenceTargetKind(
+	kind: ConvertRecordKind
+): EvidenceTargetKind {
+	if (kind === "Open Question") {
+		return "Question";
+	}
+	return kind;
+}

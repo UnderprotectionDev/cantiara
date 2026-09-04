@@ -12,6 +12,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { createDecision } from "../../decisions/server/decisions";
 import { createDocument } from "../../documents/server/documents";
 import { createProject } from "../../project-shell/server/project-shell";
 import { listRelations } from "../../relations/server/relations";
@@ -234,6 +235,7 @@ describe("Evidence version-pinned text range", () => {
 		expect(bound.pin.textRange).toEqual({ end: 16, start: 0 });
 		expect(bound.pin.highlight).toEqual({ end: 16, start: 0 });
 		expect(bound.pin.rangeText).toBe("Checkout Session");
+		expect(bound.pin.pinnedBody).toBe(body);
 		expect(bound.pin.surroundingText).toBe(body);
 		expect(bound.pin.openSourceRecord).toBe(EVIDENCE_COPY.openSourceRecord);
 		expect(bound.pin.backlinks).toEqual([
@@ -257,6 +259,70 @@ describe("Evidence version-pinned text range", () => {
 		expect(relations.some((row) => row.type === RELATIONS_COPY.related)).toBe(
 			false
 		);
+	});
+
+	it("binds selected text to an existing Decision after preview", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const body = "Checkout Session creates a payment page.";
+		const source = await committedSource(prisma, {
+			actorId,
+			capturedContent: body,
+			projectId,
+		});
+		const created = await createDecision(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				decision: "Use Checkout Session.",
+				projectId,
+				rationale: "Docs quote.",
+				title: "Checkout decision",
+			},
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected decision");
+		}
+		const previewed = await previewBindEvidence(prisma, {
+			selectedText: "Checkout Session",
+			sourceId: source.id,
+			sourceKind: "Source",
+			sourceVersionId: source.versions[0]?.id ?? "",
+			targetId: created.decision.id,
+			targetKind: "Decision",
+			workspaceId,
+		});
+		expect(previewed.status).toBe("ok");
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		const bound = await bindEvidence(prisma, {
+			actorId,
+			idempotencyKey: "bind-decision",
+			origin: "human",
+			payload: {
+				previewFingerprint: previewed.preview.fingerprint,
+				selectedText: "Checkout Session",
+				sourceId: source.id,
+				sourceKind: "Source",
+				sourceVersionId: source.versions[0]?.id ?? "",
+				targetId: created.decision.id,
+				targetKind: "Decision",
+			},
+			previewAcknowledged: true,
+			workspaceId,
+		});
+		expect(bound.status).toBe("committed");
+		if (bound.status !== "committed") {
+			throw new Error("expected bind");
+		}
+		const onTarget = await listEvidenceOnTarget(
+			prisma,
+			"Decision",
+			created.decision.id
+		);
+		expect(onTarget[0]?.rangeText).toBe("Checkout Session");
+		expect(onTarget[0]?.openSourceRecord).toBe(EVIDENCE_COPY.openSourceRecord);
 	});
 
 	it("rejects bind ends outside the Kanıtı catalog and allows a Document version", async () => {
@@ -438,6 +504,8 @@ describe("Evidence version-pinned text range", () => {
 		expect(after?.sourceVersionId).toBe(pinnedVersionId);
 		expect(after?.sourceVersionNumber).toBe(1);
 		expect(after?.rangeText).toBe("Checkout Session");
+		expect(after?.pinnedBody).toBe("Checkout Session creates a payment page.");
+		expect(after?.pinnedBody.includes("still")).toBe(false);
 		expect(after?.newerVersionExists).toBe(true);
 		const silent = await rebindEvidence(prisma, {
 			actorId,
@@ -633,6 +701,7 @@ describe("Evidence version-pinned text range", () => {
 		expect(redacted.pin.contentAccess).toBe("redacted");
 		expect(redacted.pin.rangeText).toBe("");
 		expect(redacted.pin.surroundingText).toBe("");
+		expect(redacted.pin.pinnedBody).toBe("");
 		expect(redacted.pin.historicalBindExists).toBe(true);
 		const onSource = await listEvidenceOnSource(prisma, "Source", source.id);
 		expect(onSource).toHaveLength(1);

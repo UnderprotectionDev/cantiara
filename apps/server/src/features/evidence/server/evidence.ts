@@ -322,28 +322,6 @@ export async function convertToNewRecordAndBind(
 	if (bound.status === "rejected" || bound.status === "conflict") {
 		return bound;
 	}
-	const { originLocation } = parsed.data.payload;
-	if (originLocation && originLocation.ownerId === previewed.preview.sourceId) {
-		await prisma.$transaction((tx) =>
-			createRelationInTransaction(tx, {
-				actorId: parsed.data.actorId,
-				from: {
-					id: previewed.preview.sourceId,
-					kind: parsed.data.payload.sourceKind,
-				},
-				idempotencyKey: `${parsed.data.idempotencyKey}:origin`,
-				origin: HUMAN_ORIGIN,
-				originLocation,
-				previewAcknowledged: true,
-				to: {
-					id: created.id,
-					kind: targetKind,
-				},
-				type: RELATIONS_COPY.origin,
-				viewerWorkspaceId: parsed.data.workspaceId,
-			})
-		);
-	}
 	const pin = await getEvidencePin(
 		prisma,
 		bound.pin.id,
@@ -688,6 +666,7 @@ async function presentPin(
 			: false,
 		openSourceRecord: EVIDENCE_COPY.openSourceRecord,
 		originLocation,
+		pinnedBody: redacted ? "" : (snapshot?.body ?? ""),
 		rangeText: redacted ? "" : row.rangeText,
 		relationId: row.relationId,
 		sourceId: row.sourceId,

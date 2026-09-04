@@ -15,4 +15,5 @@ test("English Evidence labels stay Bind as evidence and Convert to new record an
 		"Source element no longer exists"
 	);
 	expect(EVIDENCE_COPY.newerVersionExists).toBe("Newer version exists");
+	expect(EVIDENCE_COPY.openSourceRecord).toBe("Open source record");
 });

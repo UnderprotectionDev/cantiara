@@ -77,6 +77,7 @@ export const evidencePinViewSchema = z.object({
 	newerVersionExists: z.boolean(),
 	openSourceRecord: z.literal(EVIDENCE_COPY.openSourceRecord),
 	originLocation: evidenceOriginLocationViewSchema.nullable(),
+	pinnedBody: z.string(),
 	rangeText: z.string(),
 	relationId: z.string().min(1),
 	sourceId: z.string().min(1),
