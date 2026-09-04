@@ -117,6 +117,7 @@ export interface ProjectShellSearch {
 	configurationMode?: true;
 	decision?: string;
 	goal?: string;
+	researchSession?: string;
 	work?: string;
 }
 
@@ -139,22 +140,11 @@ export function projectShellSearch(
 		search.configurationEditor === CONFIGURATION_MODE_EDITORS.workTemplate
 			? search.configurationEditor
 			: undefined;
-	const work =
-		typeof search.work === "string" && search.work.length > 0
-			? search.work
-			: undefined;
-	const assumption =
-		typeof search.assumption === "string" && search.assumption.length > 0
-			? search.assumption
-			: undefined;
-	const decision =
-		typeof search.decision === "string" && search.decision.length > 0
-			? search.decision
-			: undefined;
-	const goal =
-		typeof search.goal === "string" && search.goal.length > 0
-			? search.goal
-			: undefined;
+	const assumption = nonemptySearchString(search.assumption);
+	const decision = nonemptySearchString(search.decision);
+	const goal = nonemptySearchString(search.goal);
+	const researchSession = nonemptySearchString(search.researchSession);
+	const work = nonemptySearchString(search.work);
 	return {
 		...(configurationMode ? { configurationMode: true as const } : {}),
 		...(configurationMode && configurationEditor
@@ -163,8 +153,15 @@ export function projectShellSearch(
 		...(assumption ? { assumption } : {}),
 		...(decision ? { decision } : {}),
 		...(goal ? { goal } : {}),
+		...(researchSession ? { researchSession } : {}),
 		...(work ? { work } : {}),
 	};
+}
+
+function nonemptySearchString(value: unknown): string | undefined {
+	if (typeof value === "string" && value.length > 0) {
+		return value;
+	}
 }
 
 export function structureCopyPreviewItems(preview: {

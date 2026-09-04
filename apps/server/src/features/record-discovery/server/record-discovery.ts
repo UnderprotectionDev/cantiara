@@ -19,6 +19,7 @@ export const SEARCH_RECORD_KINDS = [
 	RECORD_DISCOVERY_COPY.fileAttachment,
 	RECORD_DISCOVERY_COPY.technicalDiagram,
 	RECORD_DISCOVERY_COPY.decision,
+	RECORD_DISCOVERY_COPY.researchSession,
 ] as const;
 
 export type SearchRecordKind = string;
@@ -324,6 +325,14 @@ export function loadSearchIndexFromRows(input: {
 		title: string;
 		updatedAt: Date;
 	}[];
+	researchSessions?: readonly {
+		id: string;
+		projectId: string;
+		purpose: string;
+		status: string;
+		title: string;
+		updatedAt: Date;
+	}[];
 	works: readonly {
 		archived: boolean;
 		closureResult: string | null;
@@ -437,9 +446,37 @@ export function loadSearchIndexFromRows(input: {
 			updatedAt: decision.updatedAt.getTime(),
 		} satisfies SearchIndexRecord;
 	});
-	return [...works, ...files, ...diagrams, ...decisions].filter((record) =>
-		isSearchIndexedKind(record.kind)
-	);
+	const researchSessions = (input.researchSessions ?? []).map((session) => {
+		const closed =
+			session.status === "Completed" || session.status === "Cancelled";
+		return {
+			archived: false,
+			authorized: true,
+			body: session.purpose,
+			closureResult: null,
+			diagramAuthorityMode: null,
+			folder: null,
+			id: session.id,
+			key: null,
+			kind: RECORD_DISCOVERY_COPY.researchSession,
+			lifecycle: closed ? ("closed" as const) : ("active" as const),
+			metadata: "",
+			projectId: session.projectId,
+			recordType: RECORD_DISCOVERY_COPY.researchSession,
+			scope: RECORD_DISCOVERY_COPY.project,
+			status: session.status,
+			title: session.title,
+			trashed: false,
+			updatedAt: session.updatedAt.getTime(),
+		} satisfies SearchIndexRecord;
+	});
+	return [
+		...works,
+		...files,
+		...diagrams,
+		...decisions,
+		...researchSessions,
+	].filter((record) => isSearchIndexedKind(record.kind));
 }
 
 function isIndexMember(
@@ -696,6 +733,12 @@ function sourceHref(record: SearchIndexRecord): string {
 	}
 	if (record.kind === RECORD_DISCOVERY_COPY.decision && record.projectId) {
 		return `/projects/${record.projectId}?decision=${encodeURIComponent(record.id)}#decisions`;
+	}
+	if (
+		record.kind === RECORD_DISCOVERY_COPY.researchSession &&
+		record.projectId
+	) {
+		return `/projects/${record.projectId}?researchSession=${encodeURIComponent(record.id)}#discovery`;
 	}
 	if (record.scope === RECORD_DISCOVERY_COPY.personalWiki) {
 		return "/wiki";

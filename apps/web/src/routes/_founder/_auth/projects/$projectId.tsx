@@ -33,6 +33,7 @@ function ProjectProfileRoute() {
 					configurationMode: next.open ? true : undefined,
 					decision: search.decision,
 					goal: search.goal,
+					researchSession: search.researchSession,
 					work: search.work,
 				},
 			}).catch(() => undefined);
@@ -43,6 +44,7 @@ function ProjectProfileRoute() {
 			search.assumption,
 			search.decision,
 			search.goal,
+			search.researchSession,
 			search.work,
 		]
 	);
@@ -56,6 +58,7 @@ function ProjectProfileRoute() {
 					configurationMode: search.configurationMode,
 					decision: search.decision,
 					goal: search.goal,
+					researchSession: search.researchSession,
 					work: workId ?? undefined,
 				},
 			}).catch(() => undefined);
@@ -68,6 +71,7 @@ function ProjectProfileRoute() {
 			search.configurationMode,
 			search.decision,
 			search.goal,
+			search.researchSession,
 		]
 	);
 	const onDecisionId = useCallback(
@@ -80,6 +84,7 @@ function ProjectProfileRoute() {
 					configurationMode: search.configurationMode,
 					decision: decisionId ?? undefined,
 					goal: search.goal,
+					researchSession: search.researchSession,
 					work: search.work,
 				},
 			}).catch(() => undefined);
@@ -90,6 +95,7 @@ function ProjectProfileRoute() {
 			search.configurationEditor,
 			search.configurationMode,
 			search.goal,
+			search.researchSession,
 			search.work,
 		]
 	);
@@ -103,6 +109,7 @@ function ProjectProfileRoute() {
 					configurationMode: search.configurationMode,
 					decision: search.decision,
 					goal: search.goal,
+					researchSession: search.researchSession,
 					work: search.work,
 				},
 			}).catch(() => undefined);
@@ -113,6 +120,7 @@ function ProjectProfileRoute() {
 			search.configurationMode,
 			search.decision,
 			search.goal,
+			search.researchSession,
 			search.work,
 		]
 	);
@@ -126,6 +134,7 @@ function ProjectProfileRoute() {
 					configurationMode: search.configurationMode,
 					decision: search.decision,
 					goal: goalId ?? undefined,
+					researchSession: search.researchSession,
 					work: search.work,
 				},
 			}).catch(() => undefined);
@@ -136,6 +145,32 @@ function ProjectProfileRoute() {
 			search.configurationEditor,
 			search.configurationMode,
 			search.decision,
+			search.researchSession,
+			search.work,
+		]
+	);
+	const onResearchSessionId = useCallback(
+		(sessionId: string | null) => {
+			navigate({
+				hash: "discovery",
+				search: {
+					assumption: search.assumption,
+					configurationEditor: search.configurationEditor,
+					configurationMode: search.configurationMode,
+					decision: search.decision,
+					goal: search.goal,
+					researchSession: sessionId ?? undefined,
+					work: search.work,
+				},
+			}).catch(() => undefined);
+		},
+		[
+			navigate,
+			search.assumption,
+			search.configurationEditor,
+			search.configurationMode,
+			search.decision,
+			search.goal,
 			search.work,
 		]
 	);
@@ -150,8 +185,10 @@ function ProjectProfileRoute() {
 			onDecisionId={onDecisionId}
 			onGoalId={onGoalId}
 			onPresentationChange={onPresentationChange}
+			onResearchSessionId={onResearchSessionId}
 			onWorkId={onWorkId}
 			projectId={projectId}
+			researchSessionId={search.researchSession ?? null}
 			workId={search.work ?? null}
 		/>
 	);
