@@ -24,10 +24,13 @@ export const CONTACT_AND_COMPANY_COPY = {
 	relationsToRewrite: "Relations",
 	strongCopyCandidate: "Strong copy candidate",
 	survivingRecord: "Surviving record",
+	undo: "Undo",
+	undoPreview: "Undo Preview",
 	weakSuggestion: "Weak suggestion",
 } as const;
 
 export const CONTACT_MERGE_EVENT_TYPE = "contact.merge" as const;
+export const CONTACT_MERGE_UNDO_EVENT_TYPE = "contact.merge.undo" as const;
 
 export const DUPLICATE_CANDIDATE_REASONS = [
 	"same-normalized-email",
@@ -102,6 +105,7 @@ export const contactViewSchema = z.object({
 	displayName: z.string().nullable(),
 	emailAliases: z.array(emailAliasViewSchema),
 	id: z.string().min(1),
+	latestMergeEventId: z.string().min(1).nullable(),
 	origin: contactOriginSchema.nullable(),
 	relatedFeedback: z.array(sourceLinkSchema),
 	relatedPersonaDocuments: z.array(sourceLinkSchema),
@@ -253,6 +257,31 @@ export const mergeContactsCommandSchema = z.object({
 
 export type MergeContactsCommand = z.infer<typeof mergeContactsCommandSchema>;
 
+export const previewContactMergeUndoInputSchema = z.object({
+	mergeEventId: z.string().min(1),
+	survivorId: z.string().min(1),
+	workspaceId: z.string().min(1),
+});
+
+export type PreviewContactMergeUndoInput = z.infer<
+	typeof previewContactMergeUndoInputSchema
+>;
+
+export const undoMergeContactsCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	mergeEventId: z.string().min(1),
+	origin: z.literal("human"),
+	previewAcknowledged: z.boolean().optional(),
+	survivorBaseRevision: z.number().int().nonnegative(),
+	survivorId: z.string().min(1),
+	workspaceId: z.string().min(1),
+});
+
+export type UndoMergeContactsCommand = z.infer<
+	typeof undoMergeContactsCommandSchema
+>;
+
 export const contactMergeConflictSchema = z.object({
 	duplicateValue: z.string(),
 	field: z.enum(CONTACT_MERGE_FIELDS),
@@ -268,6 +297,34 @@ export const contactRelationRewriteSchema = z.object({
 	toKind: z.string().min(1),
 	type: z.string().min(1),
 });
+
+export const contactMergeUndoUnrestorableSchema = z.object({
+	id: z.string().min(1),
+	kind: z.string().min(1),
+	reason: z.enum(["Permanently deleted", "Redacted for security"]),
+});
+
+export type ContactMergeUndoUnrestorable = z.infer<
+	typeof contactMergeUndoUnrestorableSchema
+>;
+
+export const contactMergeUndoPreviewSchema = z.object({
+	copy: z.object({
+		emailAliases: z.literal(CONTACT_AND_COMPANY_COPY.emailAliases),
+		personaRelations: z.literal(CONTACT_AND_COMPANY_COPY.personaRelations),
+		relationsToRewrite: z.literal(CONTACT_AND_COMPANY_COPY.relationsToRewrite),
+		undo: z.literal(CONTACT_AND_COMPANY_COPY.undo),
+		undoPreview: z.literal(CONTACT_AND_COMPANY_COPY.undoPreview),
+	}),
+	emailAliasesToSplit: z.array(emailAliasViewSchema),
+	relationsToSplit: z.array(contactRelationRewriteSchema),
+	retiredContact: contactOriginSchema,
+	unrestorable: z.array(contactMergeUndoUnrestorableSchema),
+});
+
+export type ContactMergeUndoPreview = z.infer<
+	typeof contactMergeUndoPreviewSchema
+>;
 
 export const contactMergePreviewSchema = z.object({
 	copy: z.object({
@@ -303,6 +360,16 @@ export const contactMergeAuditSchema = z.object({
 
 export type ContactMergeAudit = z.infer<typeof contactMergeAuditSchema>;
 
+export const contactMergeUndoAuditSchema = z.object({
+	actorAlias: z.string().min(1),
+	occurredAt: z.string().min(1),
+	retiredAlias: z.string().min(1),
+	survivorAlias: z.string().min(1),
+	type: z.literal(CONTACT_MERGE_UNDO_EVENT_TYPE),
+});
+
+export type ContactMergeUndoAudit = z.infer<typeof contactMergeUndoAuditSchema>;
+
 export type ContactMergeOutcome =
 	| {
 			audit: ContactMergeAudit;
@@ -320,6 +387,31 @@ export type ContactMergeOutcome =
 				| "merge-same-contact"
 				| "merge-preview-required"
 				| "merge-conflicts-unresolved"
+				| "retired-identity";
+			status: "rejected";
+	  };
+
+export type ContactUndoMergeOutcome =
+	| {
+			audit: ContactMergeUndoAudit;
+			contact: ContactView;
+			restoredContactId: string;
+			status: "committed";
+	  }
+	| { contact: ContactView; status: "replayed" }
+	| { conflict: "Conflict"; status: "conflict" }
+	| {
+			conflict: "Conflict";
+			current: ContactView;
+			currentValueLabel: "Current value";
+			status: "conflict";
+	  }
+	| { currentValueLabel: "Current value"; status: "stale" }
+	| {
+			reason:
+				| "invalid-command"
+				| "target-not-found"
+				| "merge-preview-required"
 				| "retired-identity";
 			status: "rejected";
 	  };
@@ -390,6 +482,16 @@ export function contactMergePreviewCopy() {
 		personaRelations: CONTACT_AND_COMPANY_COPY.personaRelations,
 		relationsToRewrite: CONTACT_AND_COMPANY_COPY.relationsToRewrite,
 		survivingRecord: CONTACT_AND_COMPANY_COPY.survivingRecord,
+	} as const;
+}
+
+export function contactMergeUndoPreviewCopy() {
+	return {
+		emailAliases: CONTACT_AND_COMPANY_COPY.emailAliases,
+		personaRelations: CONTACT_AND_COMPANY_COPY.personaRelations,
+		relationsToRewrite: CONTACT_AND_COMPANY_COPY.relationsToRewrite,
+		undo: CONTACT_AND_COMPANY_COPY.undo,
+		undoPreview: CONTACT_AND_COMPANY_COPY.undoPreview,
 	} as const;
 }
 

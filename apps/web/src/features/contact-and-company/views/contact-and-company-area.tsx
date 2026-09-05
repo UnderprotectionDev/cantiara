@@ -9,6 +9,7 @@ import CreateCompanyForm from "@/features/contact-and-company/forms/create-compa
 import CreateContactForm from "@/features/contact-and-company/forms/create-contact-form";
 import MergeContactsForm from "@/features/contact-and-company/forms/merge-contacts-form";
 import SetContactCompanyForm from "@/features/contact-and-company/forms/set-contact-company-form";
+import UndoMergeContactsForm from "@/features/contact-and-company/forms/undo-merge-contacts-form";
 import { FounderPage } from "@/features/personal-shell/components/founder-page";
 import { FounderSection } from "@/features/personal-shell/components/founder-surface";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
@@ -237,6 +238,7 @@ function ContactProfile({
 		displayName: string | null;
 		emailAliases: Array<{ originalEmail: string }>;
 		id: string;
+		latestMergeEventId: string | null;
 		origin: { displayName: string | null; id: string } | null;
 		relatedFeedback: Array<{
 			id: string;
@@ -282,6 +284,15 @@ function ContactProfile({
 				revision={profile.revision}
 				survivorId={profile.id}
 			/>
+			{profile.latestMergeEventId ? (
+				<UndoMergeContactsForm
+					key={`${profile.id}:undo:${profile.revision}`}
+					mergeEventId={profile.latestMergeEventId}
+					onUndone={onOpenContact}
+					revision={profile.revision}
+					survivorId={profile.id}
+				/>
+			) : null}
 			{currentCompany ? (
 				<section>
 					<h3 className="text-muted-foreground text-xs">

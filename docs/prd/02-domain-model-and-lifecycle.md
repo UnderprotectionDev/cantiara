@@ -451,6 +451,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İş oluştur | `Create Work` | Projede yalnız başlıkla İş oluşturma eylemi |
 | Kopya olarak birleştir | `Merge as duplicate` | Gerçek kopya iki İşi tek hayatta kalan ana kayıtta birleştirme; kaybedenin anahtarı emekli kimlik yönlendirmesidir |
 | Birleştirme önizlemesi | `Merge Preview` | Hayatta kalan kayıt, alan çatışmaları ve yeniden yazılacak ilişkilerin onay öncesi görünümü |
+| Birleştirmeyi geri alma önizlemesi | `Undo Preview` | Birleştirmeyi geri almada ayrılacak değerler ve restor edilemeyen içeriğin onay öncesi görünümü |
 | Toplu düzenleme | `Bulk Edit` | Açıkça seçilmiş İşlerde mevcut alanların onay öncesi fark önizlemesi; örtük seçim, şema göçü veya içe aktarma değildir |
 | Uygula | `Apply` | Toplu düzenlemede seçilen İşlere alan yazmasını başlatma |
 | İlerleme | `Progress` | Toplu uygulamanın donmayan ilerleme göstergesi |

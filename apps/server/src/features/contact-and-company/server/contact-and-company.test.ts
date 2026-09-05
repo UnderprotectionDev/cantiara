@@ -5,9 +5,10 @@
  * Document relation only, no CRM fields, no personal-data erase,
  * profile hub via Open Source Record, duplicate candidates
  * without auto-merge, merge preview, atomic consolidation,
- * retired-id redirect that is not a search hit, and merge
- * counterparts for Kanıt Rolü, Kanıt niteliği, and İş priority.
- * docs/specs/46-contact-and-company/spec.md and GitHub #330 / #331 / #332.
+ * retired-id redirect that is not a search hit, merge undo,
+ * later unrelated edits not rewound, unrestorable undo preview,
+ * and merge counterparts for Kanıt Rolü, Kanıt niteliği, and İş priority.
+ * docs/specs/46-contact-and-company/spec.md and GitHub #330 / #331 / #332 / #333.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Kanıt akışı identity context; Hesap ve kişisel veri identity book).
  */
@@ -51,13 +52,16 @@ import {
 	listDuplicateCandidates,
 	mergeContacts,
 	previewContactMerge,
+	previewContactMergeUndo,
 	relateContactPersona,
 	searchContacts,
 	setContactCompany,
+	undoMergeContacts,
 } from "./contact-and-company";
 import {
 	CONTACT_AND_COMPANY_COPY,
 	CONTACT_MERGE_EVENT_TYPE,
+	CONTACT_MERGE_UNDO_EVENT_TYPE,
 } from "./contact-and-company-model";
 
 const DATABASE_URL = localTestDatabaseUrl();
@@ -70,6 +74,7 @@ const ERASE_COPY =
 	/Erase personal data|Export personal data|Confirm GitHub Identity/i;
 const FEED_COPY = /Evidence Flow|Feedback Capture|Feedback feed/i;
 const COMPANY_MERGE_COPY = /Merge Companies|mergeCompanies/;
+const FULL_RESTORE_COPY = /fully (un)?did|full restore|Undo complete/i;
 const LIVE_MERGED_STATUS = /\bMerged\b/;
 const RAW_MAYA_EMAIL = /maya/i;
 const RAW_MAYA_ALIAS = /maya\.chen@example\.com/i;
@@ -950,5 +955,391 @@ describe("Contact and Company", () => {
 				workId: work.work.id,
 			}),
 		]);
+	});
+
+	it("undoes merge by restoring the retired Contact and splitting only merge-attributed aliases and relations", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const acme = await committedCompany(prisma, {
+			actorId,
+			name: "Acme",
+			workspaceId,
+		});
+		const globex = await committedCompany(prisma, {
+			actorId,
+			name: "Globex",
+			workspaceId,
+		});
+		const persona = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				scope: { kind: "personal-wiki" },
+				title: "Buyer persona",
+				type: "Persona",
+			},
+			workspaceId,
+		});
+		if (persona.status !== "committed") {
+			throw new Error("expected Persona Document");
+		}
+		const survivor = await committedContact(prisma, {
+			actorId,
+			companyId: acme.id,
+			displayName: "Maya Chen",
+			email: "maya@example.com",
+			workspaceId,
+		});
+		const duplicate = await committedContact(prisma, {
+			actorId,
+			companyId: globex.id,
+			displayName: "M. Chen",
+			email: "maya.chen@example.com",
+			workspaceId,
+		});
+		await relateContactPersona(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				contactId: duplicate.id,
+				documentId: persona.document.id,
+			},
+			workspaceId,
+		});
+		const merged = await mergeContacts(prisma, {
+			actorId,
+			duplicateBaseRevision: duplicate.revision,
+			duplicateId: duplicate.id,
+			fieldChoices: { currentCompany: "survivor", displayName: "survivor" },
+			idempotencyKey: "merge-for-undo",
+			origin: "human",
+			previewAcknowledged: true,
+			survivorBaseRevision: survivor.revision,
+			survivorId: survivor.id,
+			workspaceId,
+		});
+		if (merged.status !== "committed") {
+			throw new Error("expected committed merge");
+		}
+		const preview = await previewContactMergeUndo(prisma, {
+			mergeEventId: merged.mergeEventId,
+			survivorId: survivor.id,
+			workspaceId,
+		});
+		expect(preview).toMatchObject({
+			copy: {
+				undo: "Undo",
+				undoPreview: "Undo Preview",
+			},
+			retiredContact: { id: duplicate.id },
+			unrestorable: [],
+		});
+		if ("reason" in preview) {
+			throw new Error("expected undo preview");
+		}
+		expect(JSON.stringify(preview)).not.toMatch(FULL_RESTORE_COPY);
+		expect(JSON.stringify(preview)).not.toMatch(ERASE_COPY);
+		const undone = await undoMergeContacts(prisma, {
+			actorId,
+			idempotencyKey: "undo-merge",
+			mergeEventId: merged.mergeEventId,
+			origin: "human",
+			previewAcknowledged: true,
+			survivorBaseRevision: merged.contact.revision,
+			survivorId: survivor.id,
+			workspaceId,
+		});
+		expect(undone).toMatchObject({
+			restoredContactId: duplicate.id,
+			status: "committed",
+		});
+		if (undone.status !== "committed") {
+			throw new Error("expected committed undo");
+		}
+		expect(undone.audit.type).toBe(CONTACT_MERGE_UNDO_EVENT_TYPE);
+		expect(JSON.stringify(undone.audit)).not.toMatch(RAW_MAYA_ALIAS);
+		expect(await listContacts(prisma, workspaceId)).toHaveLength(2);
+		expect(await getContact(prisma, duplicate.id, workspaceId)).toMatchObject({
+			currentCompany: { id: globex.id },
+			displayName: "M. Chen",
+			id: duplicate.id,
+			origin: null,
+			relatedPersonaDocuments: [{ id: persona.document.id }],
+		});
+		const restored = await getContact(prisma, duplicate.id, workspaceId);
+		expect(restored?.emailAliases.map((row) => row.normalizedEmail)).toEqual([
+			"maya.chen@example.com",
+		]);
+		expect(await getContact(prisma, survivor.id, workspaceId)).toMatchObject({
+			currentCompany: { id: acme.id },
+			displayName: "Maya Chen",
+			id: survivor.id,
+			latestMergeEventId: null,
+			retiredIdentities: [],
+		});
+		expect(
+			(await getContact(prisma, survivor.id, workspaceId))?.emailAliases.map(
+				(row) => row.normalizedEmail
+			)
+		).toEqual(["maya@example.com"]);
+	});
+
+	it("does not rewind a later unrelated Company write when undoing merge", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const acme = await committedCompany(prisma, {
+			actorId,
+			name: "Acme",
+			workspaceId,
+		});
+		const globex = await committedCompany(prisma, {
+			actorId,
+			name: "Globex",
+			workspaceId,
+		});
+		const initech = await committedCompany(prisma, {
+			actorId,
+			name: "Initech",
+			workspaceId,
+		});
+		const survivor = await committedContact(prisma, {
+			actorId,
+			companyId: acme.id,
+			displayName: "Maya Chen",
+			email: "maya@example.com",
+			workspaceId,
+		});
+		const duplicate = await committedContact(prisma, {
+			actorId,
+			companyId: globex.id,
+			displayName: "M. Chen",
+			email: "maya.chen@example.com",
+			workspaceId,
+		});
+		const merged = await mergeContacts(prisma, {
+			actorId,
+			duplicateBaseRevision: duplicate.revision,
+			duplicateId: duplicate.id,
+			fieldChoices: { currentCompany: "survivor", displayName: "survivor" },
+			idempotencyKey: "merge-then-company",
+			origin: "human",
+			previewAcknowledged: true,
+			survivorBaseRevision: survivor.revision,
+			survivorId: survivor.id,
+			workspaceId,
+		});
+		if (merged.status !== "committed") {
+			throw new Error("expected committed merge");
+		}
+		const later = await setContactCompany(prisma, {
+			actorId,
+			baseRevision: merged.contact.revision,
+			idempotencyKey: "later-company",
+			origin: "human",
+			payload: { companyId: initech.id, contactId: survivor.id },
+			workspaceId,
+		});
+		if (later.status !== "committed") {
+			throw new Error("expected later Company");
+		}
+		const undone = await undoMergeContacts(prisma, {
+			actorId,
+			idempotencyKey: "undo-keep-later",
+			mergeEventId: merged.mergeEventId,
+			origin: "human",
+			previewAcknowledged: true,
+			survivorBaseRevision: later.contact.revision,
+			survivorId: survivor.id,
+			workspaceId,
+		});
+		expect(undone.status).toBe("committed");
+		expect(await getContact(prisma, survivor.id, workspaceId)).toMatchObject({
+			currentCompany: { id: initech.id, name: "Initech" },
+			displayName: "Maya Chen",
+			id: survivor.id,
+		});
+		expect(await getContact(prisma, duplicate.id, workspaceId)).toMatchObject({
+			currentCompany: { id: globex.id },
+			id: duplicate.id,
+			origin: null,
+		});
+	});
+
+	it("stops undo for a user decision when a later write touched a merge-attributed field", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const acme = await committedCompany(prisma, {
+			actorId,
+			name: "Acme",
+			workspaceId,
+		});
+		const globex = await committedCompany(prisma, {
+			actorId,
+			name: "Globex",
+			workspaceId,
+		});
+		const initech = await committedCompany(prisma, {
+			actorId,
+			name: "Initech",
+			workspaceId,
+		});
+		const survivor = await committedContact(prisma, {
+			actorId,
+			companyId: acme.id,
+			displayName: "Maya Chen",
+			workspaceId,
+		});
+		const duplicate = await committedContact(prisma, {
+			actorId,
+			companyId: globex.id,
+			displayName: "M. Chen",
+			workspaceId,
+		});
+		const merged = await mergeContacts(prisma, {
+			actorId,
+			duplicateBaseRevision: duplicate.revision,
+			duplicateId: duplicate.id,
+			fieldChoices: { currentCompany: "duplicate", displayName: "survivor" },
+			idempotencyKey: "merge-attributed-company",
+			origin: "human",
+			previewAcknowledged: true,
+			survivorBaseRevision: survivor.revision,
+			survivorId: survivor.id,
+			workspaceId,
+		});
+		if (merged.status !== "committed") {
+			throw new Error("expected committed merge");
+		}
+		const later = await setContactCompany(prisma, {
+			actorId,
+			baseRevision: merged.contact.revision,
+			idempotencyKey: "later-attributed-company",
+			origin: "human",
+			payload: { companyId: initech.id, contactId: survivor.id },
+			workspaceId,
+		});
+		if (later.status !== "committed") {
+			throw new Error("expected later attributed Company");
+		}
+		expect(
+			await undoMergeContacts(prisma, {
+				actorId,
+				idempotencyKey: "undo-attributed",
+				mergeEventId: merged.mergeEventId,
+				origin: "human",
+				previewAcknowledged: true,
+				survivorBaseRevision: later.contact.revision,
+				survivorId: survivor.id,
+				workspaceId,
+			})
+		).toMatchObject({
+			conflict: "Conflict",
+			current: { currentCompany: { id: initech.id } },
+			currentValueLabel: "Current value",
+			status: "conflict",
+		});
+		expect(await getContact(prisma, duplicate.id, workspaceId)).toMatchObject({
+			id: survivor.id,
+			origin: { id: duplicate.id },
+		});
+	});
+
+	it("shows unrestorable redacted or permanently deleted content in Undo Preview", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const persona = await createDocument(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				scope: { kind: "personal-wiki" },
+				title: "Buyer persona",
+				type: "Persona",
+			},
+			workspaceId,
+		});
+		if (persona.status !== "committed") {
+			throw new Error("expected Persona Document");
+		}
+		const survivor = await committedContact(prisma, {
+			actorId,
+			displayName: "Maya Chen",
+			email: "maya@example.com",
+			workspaceId,
+		});
+		const duplicate = await committedContact(prisma, {
+			actorId,
+			displayName: "M. Chen",
+			email: "maya.chen@example.com",
+			workspaceId,
+		});
+		await relateContactPersona(prisma, {
+			actorId,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				contactId: duplicate.id,
+				documentId: persona.document.id,
+			},
+			workspaceId,
+		});
+		const merged = await mergeContacts(prisma, {
+			actorId,
+			duplicateBaseRevision: duplicate.revision,
+			duplicateId: duplicate.id,
+			fieldChoices: { displayName: "survivor" },
+			idempotencyKey: "merge-for-unrestorable",
+			origin: "human",
+			previewAcknowledged: true,
+			survivorBaseRevision: survivor.revision,
+			survivorId: survivor.id,
+			workspaceId,
+		});
+		if (merged.status !== "committed") {
+			throw new Error("expected committed merge");
+		}
+		await prisma.document.delete({ where: { id: persona.document.id } });
+		await prisma.contactEmailAlias.updateMany({
+			data: { originalEmail: "" },
+			where: { normalizedEmail: "maya.chen@example.com" },
+		});
+		const preview = await previewContactMergeUndo(prisma, {
+			mergeEventId: merged.mergeEventId,
+			survivorId: survivor.id,
+			workspaceId,
+		});
+		expect(preview).toMatchObject({
+			copy: { undoPreview: "Undo Preview" },
+			unrestorable: expect.arrayContaining([
+				expect.objectContaining({
+					id: persona.document.id,
+					reason: RELATIONS_COPY.permanentlyDeleted,
+				}),
+				expect.objectContaining({
+					id: "maya.chen@example.com",
+					reason: RELATIONS_COPY.redactedForSecurity,
+				}),
+			]),
+		});
+		if ("reason" in preview) {
+			throw new Error("expected undo preview");
+		}
+		expect(JSON.stringify(preview)).not.toMatch(FULL_RESTORE_COPY);
+		const undone = await undoMergeContacts(prisma, {
+			actorId,
+			idempotencyKey: "undo-partial",
+			mergeEventId: merged.mergeEventId,
+			origin: "human",
+			previewAcknowledged: true,
+			survivorBaseRevision: merged.contact.revision,
+			survivorId: survivor.id,
+			workspaceId,
+		});
+		expect(undone.status).toBe("committed");
+		expect(await getContact(prisma, duplicate.id, workspaceId)).toMatchObject({
+			id: duplicate.id,
+			origin: null,
+			relatedPersonaDocuments: [],
+		});
+		expect(JSON.stringify(undone)).not.toMatch(FULL_RESTORE_COPY);
+		expect(JSON.stringify(CONTACT_AND_COMPANY_COPY)).not.toMatch(ERASE_COPY);
 	});
 });

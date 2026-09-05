@@ -23,5 +23,7 @@ export const CONTACT_AND_COMPANY_COPY = {
 	relationsToRewrite: "Relations",
 	strongCopyCandidate: "Strong copy candidate",
 	survivingRecord: "Surviving record",
+	undo: "Undo",
+	undoPreview: "Undo Preview",
 	weakSuggestion: "Weak suggestion",
 } as const;

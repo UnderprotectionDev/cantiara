@@ -17,13 +17,17 @@ import {
 	CONTACT_AND_COMPANY_COPY,
 	CONTACT_KIND,
 	CONTACT_MERGE_EVENT_TYPE,
+	CONTACT_MERGE_UNDO_EVENT_TYPE,
 	type CompanyView,
 	type CompanyWriteOutcome,
 	type ContactMergeAudit,
 	type ContactMergeField,
 	type ContactMergeOutcome,
 	type ContactMergePreview,
+	type ContactMergeUndoAudit,
+	type ContactMergeUndoPreview,
 	type ContactOrigin,
+	type ContactUndoMergeOutcome,
 	type ContactView,
 	type ContactWriteOutcome,
 	type CreateCompanyCommand,
@@ -34,6 +38,7 @@ import {
 	contactCopy,
 	contactMergeConflicts,
 	contactMergePreviewCopy,
+	contactMergeUndoPreviewCopy,
 	createCompanyCommandSchema,
 	createContactCommandSchema,
 	DOCUMENT_KIND,
@@ -47,11 +52,14 @@ import {
 	optionalDisplayName,
 	PERSONA_DOCUMENT_TYPE,
 	previewContactMergeInputSchema,
+	previewContactMergeUndoInputSchema,
 	type RelateContactPersonaCommand,
 	relateContactPersonaCommandSchema,
 	type SetContactCompanyCommand,
 	type SourceLink,
 	setContactCompanyCommandSchema,
+	type UndoMergeContactsCommand,
+	undoMergeContactsCommandSchema,
 	unionEmailAliases,
 } from "./contact-and-company-model";
 
@@ -294,6 +302,50 @@ export async function mergeContacts(
 	);
 	return await prisma.$transaction((tx) =>
 		mergeInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function previewContactMergeUndo(
+	prisma: PrismaClient,
+	input: unknown
+): Promise<
+	ContactMergeUndoPreview | { reason: "target-not-found" | "retired-identity" }
+> {
+	const parsed = previewContactMergeUndoInputSchema.safeParse(input);
+	if (!parsed.success) {
+		return { reason: "target-not-found" };
+	}
+	const built = await buildUndoPreview(
+		prisma,
+		parsed.data.mergeEventId,
+		parsed.data.survivorId,
+		parsed.data.workspaceId
+	);
+	if (built.status !== "ok") {
+		return { reason: built.reason };
+	}
+	return built.preview;
+}
+
+export async function undoMergeContacts(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ContactUndoMergeOutcome> {
+	const parsed = undoMergeContactsCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({
+		mergeEventId: parsed.data.mergeEventId,
+		previewAcknowledged: parsed.data.previewAcknowledged ?? false,
+		undo: true,
+	});
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		undoMergeInTransaction(tx, parsed.data, commandKey, fingerprint)
 	);
 }
 
@@ -796,6 +848,7 @@ async function hydrateContact(
 			originalEmail: alias.originalEmail,
 		})),
 		id: row.id,
+		latestMergeEventId: await loadLatestMergeEventId(db, row.id),
 		origin: null,
 		relatedFeedback,
 		relatedPersonaDocuments,
@@ -962,6 +1015,18 @@ async function loadRetiredIdentities(
 	}));
 }
 
+async function loadLatestMergeEventId(
+	db: PrismaClient | PrismaTransaction,
+	survivorId: string
+): Promise<string | null> {
+	const event = await db.contactMergeEvent.findFirst({
+		orderBy: { createdAt: "desc" },
+		select: { id: true },
+		where: { survivorId },
+	});
+	return event?.id ?? null;
+}
+
 async function buildMergePreview(
 	db: PrismaClient | PrismaTransaction,
 	survivor: ContactView,
@@ -1046,12 +1111,29 @@ function rewriteRelation(
 }
 
 interface RewrittenContactRelation {
+	fromKind: string;
 	id: string;
 	originalFromId: string;
 	originalToId: string;
 	rewrittenFromId: string;
 	rewrittenToId: string;
+	toKind: string;
 	type: string;
+}
+
+interface StoredMergeAlias {
+	normalizedEmail: string;
+	originalEmail: string;
+	shared: boolean;
+}
+
+interface ContactFieldSnapshot {
+	currentCompanyId: string | null;
+	displayName: string | null;
+}
+
+interface RetiredContactSnapshot extends ContactFieldSnapshot {
+	id: string;
 }
 
 async function mergeInTransaction(
@@ -1168,6 +1250,29 @@ async function commitContactMerge(
 		workspaceId: string;
 	}
 ): Promise<ContactMergeOutcome> {
+	const duplicateAliases = await tx.contactEmailAlias.findMany({
+		where: { contactId: input.duplicate.id },
+	});
+	const survivorAliasKeys = new Set(
+		(
+			await tx.contactEmailAlias.findMany({
+				where: { contactId: input.survivor.id },
+			})
+		).map((alias) => alias.normalizedEmail)
+	);
+	const movedEmailAliases: StoredMergeAlias[] = duplicateAliases.map(
+		(alias) => ({
+			normalizedEmail: alias.normalizedEmail,
+			originalEmail: alias.originalEmail,
+			shared: survivorAliasKeys.has(alias.normalizedEmail),
+		})
+	);
+	const movedAffiliationIds = (
+		await tx.contactCompanyAffiliation.findMany({
+			select: { id: true },
+			where: { contactId: input.duplicate.id },
+		})
+	).map((row) => row.id);
 	const moved = await rewriteDuplicateRelations(
 		tx,
 		input.survivor.id,
@@ -1200,7 +1305,11 @@ async function commitContactMerge(
 		data: {
 			attributedFields: JSON.stringify(input.attributed),
 			id: mergeEventId,
-			movedRelations: JSON.stringify(moved),
+			movedRelations: JSON.stringify({
+				affiliations: movedAffiliationIds,
+				aliases: movedEmailAliases,
+				relations: moved,
+			}),
 			postMergeSurvivor: JSON.stringify({
 				currentCompanyId: contact.currentCompany?.id ?? null,
 				displayName: contact.displayName,
@@ -1306,11 +1415,13 @@ async function rewriteDuplicateRelations(
 			continue;
 		}
 		moved.push({
+			fromKind: relation.fromKind,
 			id: relation.id,
 			originalFromId: relation.fromId,
 			originalToId: relation.toId,
 			rewrittenFromId: rewrite.fromId,
 			rewrittenToId: rewrite.toId,
+			toKind: relation.toKind,
 			type: relation.type,
 		});
 		if (rewrite.drop) {
@@ -1452,4 +1563,685 @@ function denetimAlias(kind: string, id: string): string {
 	return createHmac("sha256", "cantiara-denetim-kaydi")
 		.update(`${kind}:${id}`)
 		.digest("hex");
+}
+
+function contactMergeUndoAudit(input: {
+	actorId: string;
+	occurredAt: Date;
+	retiredId: string;
+	survivorId: string;
+}): ContactMergeUndoAudit {
+	return {
+		actorAlias: denetimAlias("actor", input.actorId),
+		occurredAt: input.occurredAt.toISOString(),
+		retiredAlias: denetimAlias("contact", input.retiredId),
+		survivorAlias: denetimAlias("contact", input.survivorId),
+		type: CONTACT_MERGE_UNDO_EVENT_TYPE,
+	};
+}
+
+function parseAttributedFields(
+	text: string
+): Partial<Record<ContactMergeField, string>> {
+	try {
+		const parsed: unknown = JSON.parse(text);
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			return {};
+		}
+		const record = parsed as Record<string, unknown>;
+		const attributed: Partial<Record<ContactMergeField, string>> = {};
+		if (typeof record.displayName === "string") {
+			attributed.displayName = record.displayName;
+		}
+		if (typeof record.currentCompany === "string") {
+			attributed.currentCompany = record.currentCompany;
+		}
+		return attributed;
+	} catch {
+		return {};
+	}
+}
+
+function parseFieldSnapshot(text: string): ContactFieldSnapshot {
+	try {
+		const parsed: unknown = JSON.parse(text);
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			return { currentCompanyId: null, displayName: null };
+		}
+		const record = parsed as Record<string, unknown>;
+		return {
+			currentCompanyId:
+				typeof record.currentCompanyId === "string"
+					? record.currentCompanyId
+					: null,
+			displayName:
+				typeof record.displayName === "string" ? record.displayName : null,
+		};
+	} catch {
+		return { currentCompanyId: null, displayName: null };
+	}
+}
+
+function parseRetiredSnapshot(text: string): RetiredContactSnapshot | null {
+	const fields = parseFieldSnapshot(text);
+	try {
+		const parsed: unknown = JSON.parse(text);
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			return null;
+		}
+		const record = parsed as Record<string, unknown>;
+		if (typeof record.id !== "string") {
+			return null;
+		}
+		return { ...fields, id: record.id };
+	} catch {
+		return null;
+	}
+}
+
+function parseMovedBundle(text: string): {
+	affiliations: string[];
+	aliases: StoredMergeAlias[];
+	relations: RewrittenContactRelation[];
+} {
+	try {
+		const parsed: unknown = JSON.parse(text);
+		if (Array.isArray(parsed)) {
+			return {
+				affiliations: [],
+				aliases: [],
+				relations: parsed.flatMap(toRewrittenRelation),
+			};
+		}
+		if (!parsed || typeof parsed !== "object") {
+			return { affiliations: [], aliases: [], relations: [] };
+		}
+		const record = parsed as Record<string, unknown>;
+		return {
+			affiliations: Array.isArray(record.affiliations)
+				? record.affiliations.filter(
+						(id): id is string => typeof id === "string"
+					)
+				: [],
+			aliases: Array.isArray(record.aliases)
+				? record.aliases.filter(isStoredAlias)
+				: [],
+			relations: Array.isArray(record.relations)
+				? record.relations.flatMap(toRewrittenRelation)
+				: [],
+		};
+	} catch {
+		return { affiliations: [], aliases: [], relations: [] };
+	}
+}
+
+function toRewrittenRelation(value: unknown): RewrittenContactRelation[] {
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	const record = value as Record<string, unknown>;
+	if (
+		typeof record.id !== "string" ||
+		typeof record.originalFromId !== "string" ||
+		typeof record.originalToId !== "string" ||
+		typeof record.rewrittenFromId !== "string" ||
+		typeof record.rewrittenToId !== "string" ||
+		typeof record.type !== "string"
+	) {
+		return [];
+	}
+	return [
+		{
+			fromKind:
+				typeof record.fromKind === "string" ? record.fromKind : CONTACT_KIND,
+			id: record.id,
+			originalFromId: record.originalFromId,
+			originalToId: record.originalToId,
+			rewrittenFromId: record.rewrittenFromId,
+			rewrittenToId: record.rewrittenToId,
+			toKind: typeof record.toKind === "string" ? record.toKind : DOCUMENT_KIND,
+			type: record.type,
+		},
+	];
+}
+
+function isStoredAlias(value: unknown): value is StoredMergeAlias {
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+	const record = value as Record<string, unknown>;
+	return (
+		typeof record.normalizedEmail === "string" &&
+		typeof record.originalEmail === "string" &&
+		typeof record.shared === "boolean"
+	);
+}
+
+function otherRelationEnd(
+	relation: RewrittenContactRelation,
+	survivorId: string,
+	retiredId: string
+): { id: string; kind: string } {
+	if (relation.originalFromId === retiredId) {
+		return {
+			id: relation.originalToId,
+			kind: relation.toKind,
+		};
+	}
+	if (relation.originalToId === retiredId) {
+		return {
+			id: relation.originalFromId,
+			kind: relation.fromKind,
+		};
+	}
+	if (relation.rewrittenFromId === survivorId) {
+		return {
+			id: relation.rewrittenToId,
+			kind: relation.toKind,
+		};
+	}
+	return {
+		id: relation.rewrittenFromId,
+		kind: relation.fromKind,
+	};
+}
+
+async function recordStillExists(
+	db: PrismaClient | PrismaTransaction,
+	kind: string,
+	id: string
+): Promise<boolean> {
+	if (kind === DOCUMENT_KIND) {
+		const row = await db.document.findFirst({
+			select: { id: true },
+			where: { id },
+		});
+		return Boolean(row);
+	}
+	if (kind === FEEDBACK_KIND) {
+		const row = await db.feedback.findFirst({
+			select: { id: true },
+			where: { id },
+		});
+		return Boolean(row);
+	}
+	if (kind === COMPANY_KIND) {
+		const row = await db.company.findFirst({
+			select: { id: true },
+			where: { id },
+		});
+		return Boolean(row);
+	}
+	if (kind === CONTACT_KIND) {
+		const row = await db.contact.findFirst({
+			select: { id: true },
+			where: { id },
+		});
+		return Boolean(row);
+	}
+	return true;
+}
+
+async function collectUnrestorable(
+	db: PrismaClient | PrismaTransaction,
+	survivorId: string,
+	bundle: {
+		aliases: StoredMergeAlias[];
+		relations: RewrittenContactRelation[];
+	},
+	retiredId: string
+): Promise<ContactMergeUndoPreview["unrestorable"]> {
+	const unrestorable: ContactMergeUndoPreview["unrestorable"] = [];
+	const survivorAliases = await db.contactEmailAlias.findMany({
+		where: { contactId: survivorId },
+	});
+	const aliasByNormalized = new Map(
+		survivorAliases.map((alias) => [alias.normalizedEmail, alias])
+	);
+	for (const alias of bundle.aliases) {
+		const live = aliasByNormalized.get(alias.normalizedEmail);
+		if (!live) {
+			unrestorable.push({
+				id: alias.normalizedEmail,
+				kind: CONTACT_AND_COMPANY_COPY.emailAliases,
+				reason: RELATIONS_COPY.permanentlyDeleted,
+			});
+			continue;
+		}
+		if (live.originalEmail.length === 0) {
+			unrestorable.push({
+				id: alias.normalizedEmail,
+				kind: CONTACT_AND_COMPANY_COPY.emailAliases,
+				reason: RELATIONS_COPY.redactedForSecurity,
+			});
+		}
+	}
+	const missingEnds = await Promise.all(
+		bundle.relations.map(async (relation) => {
+			const other = otherRelationEnd(relation, survivorId, retiredId);
+			if (await recordStillExists(db, other.kind, other.id)) {
+				return null;
+			}
+			return {
+				id: other.id,
+				kind: other.kind,
+				reason: RELATIONS_COPY.permanentlyDeleted,
+			} as const;
+		})
+	);
+	for (const item of missingEnds) {
+		if (item) {
+			unrestorable.push(item);
+		}
+	}
+	return unrestorable;
+}
+
+function hasLaterAttributedWrite(
+	survivor: ContactView,
+	attributed: Partial<Record<ContactMergeField, string>>,
+	postMerge: ContactFieldSnapshot
+): boolean {
+	if (
+		attributed.displayName !== undefined &&
+		(survivor.displayName ?? "") !== (postMerge.displayName ?? "")
+	) {
+		return true;
+	}
+	if (
+		attributed.currentCompany !== undefined &&
+		(survivor.currentCompany?.id ?? "") !== (postMerge.currentCompanyId ?? "")
+	) {
+		return true;
+	}
+	return false;
+}
+
+async function buildUndoPreview(
+	db: PrismaClient | PrismaTransaction,
+	mergeEventId: string,
+	survivorId: string,
+	workspaceId: string
+): Promise<
+	| { preview: ContactMergeUndoPreview; status: "ok" }
+	| { reason: "target-not-found" | "retired-identity"; status: "rejected" }
+> {
+	const survivorRow = await db.contact.findFirst({
+		where: { id: survivorId, workspaceId },
+	});
+	if (!survivorRow) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (survivorRow.retiredIntoId) {
+		return { reason: "retired-identity", status: "rejected" };
+	}
+	const event = await db.contactMergeEvent.findUnique({
+		where: { id: mergeEventId },
+	});
+	if (!event || event.survivorId !== survivorId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const retired = parseRetiredSnapshot(event.retiredSnapshot);
+	if (!retired) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const bundle = parseMovedBundle(event.movedRelations);
+	const unrestorable = await collectUnrestorable(
+		db,
+		survivorId,
+		bundle,
+		event.retiredId
+	);
+	return {
+		preview: {
+			copy: contactMergeUndoPreviewCopy(),
+			emailAliasesToSplit: bundle.aliases.map((alias) => ({
+				normalizedEmail: alias.normalizedEmail,
+				originalEmail: alias.originalEmail,
+			})),
+			relationsToSplit: bundle.relations.map((relation) => ({
+				fromId: relation.originalFromId,
+				fromKind: relation.fromKind,
+				rewrittenFromId: relation.rewrittenFromId,
+				rewrittenToId: relation.rewrittenToId,
+				toId: relation.originalToId,
+				toKind: relation.toKind,
+				type: relation.type,
+			})),
+			retiredContact: {
+				displayName: retired.displayName,
+				id: retired.id,
+			},
+			unrestorable,
+		},
+		status: "ok",
+	};
+}
+
+async function replayUndoOrConflict(
+	tx: PrismaTransaction,
+	commandKey: string,
+	fingerprint: string
+): Promise<ContactUndoMergeOutcome | null> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (!existing) {
+		return null;
+	}
+	if (existing.payloadFingerprint !== fingerprint) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const stored = storedContact(existing.resultValue);
+	if (!stored) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	return { contact: stored, status: "replayed" };
+}
+
+async function undoMergeInTransaction(
+	tx: PrismaTransaction,
+	command: UndoMergeContactsCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<ContactUndoMergeOutcome> {
+	const survivorRow = await tx.contact.findFirst({
+		where: { id: command.survivorId, workspaceId: command.workspaceId },
+	});
+	if (!survivorRow) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	if (survivorRow.retiredIntoId) {
+		return { reason: "retired-identity", status: "rejected" };
+	}
+	await lockWorkspace(tx, command.workspaceId);
+	const replayed = await replayUndoOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	if (survivorRow.revision !== command.survivorBaseRevision) {
+		return {
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "stale",
+		};
+	}
+	if (command.previewAcknowledged !== true) {
+		return { reason: "merge-preview-required", status: "rejected" };
+	}
+	const event = await tx.contactMergeEvent.findUnique({
+		where: { id: command.mergeEventId },
+	});
+	if (!event || event.survivorId !== survivorRow.id) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const survivor = await getContact(tx, survivorRow.id, command.workspaceId);
+	if (!survivor) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const attributed = parseAttributedFields(event.attributedFields);
+	const postMerge = parseFieldSnapshot(event.postMergeSurvivor);
+	if (hasLaterAttributedWrite(survivor, attributed, postMerge)) {
+		return {
+			conflict: MUTATION_COPY.conflict,
+			current: survivor,
+			currentValueLabel: MUTATION_COPY.currentValue,
+			status: "conflict",
+		};
+	}
+	const retired = parseRetiredSnapshot(event.retiredSnapshot);
+	if (!retired) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const previous = parseFieldSnapshot(event.previousSurvivor);
+	const bundle = parseMovedBundle(event.movedRelations);
+	await restoreMovedRelations(
+		tx,
+		bundle.relations,
+		survivor.id,
+		event.retiredId
+	);
+	await restoreMovedAliases(tx, survivor.id, event.retiredId, bundle.aliases);
+	await restoreMovedAffiliations(tx, event.retiredId, bundle.affiliations);
+	const survivorCompanyId =
+		attributed.currentCompany === undefined
+			? (survivor.currentCompany?.id ?? null)
+			: previous.currentCompanyId;
+	const survivorDisplayName =
+		attributed.displayName === undefined
+			? (survivor.displayName ?? "")
+			: (previous.displayName ?? "");
+	await applyCurrentCompany(tx, survivor.id, survivorCompanyId);
+	await applyCurrentCompany(tx, event.retiredId, retired.currentCompanyId);
+	await tx.contact.update({
+		data: {
+			displayName: survivorDisplayName,
+			revision: survivor.revision + 1,
+		},
+		where: { id: survivor.id },
+	});
+	await tx.contact.update({
+		data: {
+			displayName: retired.displayName ?? "",
+			retiredIntoId: null,
+			revision: { increment: 1 },
+		},
+		where: { id: event.retiredId },
+	});
+	await tx.contactMergeEvent.delete({ where: { id: event.id } });
+	const contact = await getContact(tx, survivor.id, command.workspaceId);
+	if (!contact) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const occurredAt = new Date();
+	const audit = contactMergeUndoAudit({
+		actorId: command.actorId,
+		occurredAt,
+		retiredId: event.retiredId,
+		survivorId: survivor.id,
+	});
+	await tx.auditEvent.create({
+		data: {
+			accountAlias: audit.survivorAlias,
+			actorAlias: audit.actorAlias,
+			id: crypto.randomUUID(),
+			occurredAt,
+			sessionAlias: audit.retiredAlias,
+			type: CONTACT_MERGE_UNDO_EVENT_TYPE,
+		},
+	});
+	await writeContactReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		contact,
+		fingerprint,
+	});
+	return {
+		audit,
+		contact,
+		restoredContactId: event.retiredId,
+		status: "committed",
+	};
+}
+
+async function restoreMovedRelations(
+	tx: PrismaTransaction,
+	moved: RewrittenContactRelation[],
+	survivorId: string,
+	retiredId: string
+): Promise<void> {
+	if (moved.length === 0) {
+		return;
+	}
+	const existing = await tx.typedRelation.findMany({
+		where: { id: { in: moved.map((relation) => relation.id) } },
+	});
+	const existingIds = new Set(existing.map((row) => row.id));
+	await Promise.all(
+		moved.map(async (relation) => {
+			if (relation.type === RELATIONS_COPY.belongsToCompany) {
+				return;
+			}
+			const other = otherRelationEnd(relation, survivorId, retiredId);
+			if (!(await recordStillExists(tx, other.kind, other.id))) {
+				if (existingIds.has(relation.id)) {
+					await tx.typedRelation.delete({ where: { id: relation.id } });
+				}
+				return;
+			}
+			if (existingIds.has(relation.id)) {
+				await tx.typedRelation.update({
+					data: {
+						fromId: relation.originalFromId,
+						toId: relation.originalToId,
+					},
+					where: { id: relation.id },
+				});
+				return;
+			}
+			if (relation.fromKind && relation.toKind) {
+				await tx.typedRelation.create({
+					data: {
+						fromId: relation.originalFromId,
+						fromKind: relation.fromKind,
+						id: relation.id,
+						revision: 1,
+						toId: relation.originalToId,
+						toKind: relation.toKind,
+						type: relation.type,
+					},
+				});
+			}
+		})
+	);
+}
+
+async function restoreMovedAliases(
+	tx: PrismaTransaction,
+	survivorId: string,
+	retiredId: string,
+	aliases: StoredMergeAlias[]
+): Promise<void> {
+	const liveAliases = await tx.contactEmailAlias.findMany({
+		where: { contactId: survivorId },
+	});
+	const liveByNormalized = new Map(
+		liveAliases.map((alias) => [alias.normalizedEmail, alias])
+	);
+	const toCreate: StoredMergeAlias[] = [];
+	const toDelete: string[] = [];
+	for (const alias of aliases) {
+		const live = liveByNormalized.get(alias.normalizedEmail);
+		if (!live || live.originalEmail.length === 0) {
+			continue;
+		}
+		toCreate.push({
+			normalizedEmail: alias.normalizedEmail,
+			originalEmail: live.originalEmail,
+			shared: alias.shared,
+		});
+		if (!alias.shared) {
+			toDelete.push(live.id);
+		}
+	}
+	if (toCreate.length > 0) {
+		await tx.contactEmailAlias.createMany({
+			data: toCreate.map((alias) => ({
+				contactId: retiredId,
+				id: crypto.randomUUID(),
+				normalizedEmail: alias.normalizedEmail,
+				originalEmail: alias.originalEmail,
+			})),
+		});
+	}
+	if (toDelete.length > 0) {
+		await tx.contactEmailAlias.deleteMany({
+			where: { id: { in: toDelete } },
+		});
+	}
+}
+
+async function restoreMovedAffiliations(
+	tx: PrismaTransaction,
+	retiredId: string,
+	affiliationIds: string[]
+): Promise<void> {
+	if (affiliationIds.length === 0) {
+		return;
+	}
+	await tx.contactCompanyAffiliation.updateMany({
+		data: { contactId: retiredId },
+		where: { id: { in: affiliationIds } },
+	});
+}
+
+async function applyCurrentCompany(
+	tx: PrismaTransaction,
+	contactId: string,
+	companyId: string | null
+): Promise<void> {
+	const currents = await tx.contactCompanyAffiliation.findMany({
+		where: { contactId, endedAt: null },
+	});
+	const now = new Date();
+	let kept = false;
+	const endIds: string[] = [];
+	for (const row of currents) {
+		if (companyId && row.companyId === companyId && !kept) {
+			kept = true;
+			continue;
+		}
+		endIds.push(row.id);
+	}
+	if (endIds.length > 0) {
+		await tx.contactCompanyAffiliation.updateMany({
+			data: { endedAt: now },
+			where: { id: { in: endIds } },
+		});
+	}
+	await tx.typedRelation.deleteMany({
+		where: {
+			fromId: contactId,
+			fromKind: CONTACT_KIND,
+			type: RELATIONS_COPY.belongsToCompany,
+		},
+	});
+	if (companyId && kept) {
+		await tx.typedRelation.create({
+			data: {
+				fromId: contactId,
+				fromKind: CONTACT_KIND,
+				id: crypto.randomUUID(),
+				revision: 1,
+				toId: companyId,
+				toKind: COMPANY_KIND,
+				type: RELATIONS_COPY.belongsToCompany,
+			},
+		});
+		return;
+	}
+	if (companyId && !kept) {
+		const company = await tx.company.findFirst({ where: { id: companyId } });
+		if (!company) {
+			return;
+		}
+		await tx.contactCompanyAffiliation.create({
+			data: {
+				companyId,
+				contactId,
+				id: crypto.randomUUID(),
+				startedAt: now,
+			},
+		});
+		await tx.typedRelation.create({
+			data: {
+				fromId: contactId,
+				fromKind: CONTACT_KIND,
+				id: crypto.randomUUID(),
+				revision: 1,
+				toId: companyId,
+				toKind: COMPANY_KIND,
+				type: RELATIONS_COPY.belongsToCompany,
+			},
+		});
+	}
 }
