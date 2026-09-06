@@ -552,6 +552,14 @@ describe("Moodboards", () => {
 			workspaceId,
 		});
 		expect(original?.bytes).toEqual(shot.bytes);
+		const versions = await prisma.fileAttachmentVersion.findMany({
+			where: { fileAttachmentId: shot.fileId },
+		});
+		expect(versions).toHaveLength(1);
+		expect(versions[0]?.id).toBe(shot.versionId);
+		expect(versions[0]?.contentHash).toBe(
+			createHash("sha256").update(shot.bytes).digest("hex")
+		);
 		const other = await getMoodboard(prisma, secondBoard.moodboard.id);
 		expect(other?.visuals[0]?.presentation).toEqual(
 			filePresentation(shot.versionId)

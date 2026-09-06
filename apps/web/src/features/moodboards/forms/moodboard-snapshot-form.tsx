@@ -134,7 +134,10 @@ export default function MoodboardSnapshotForm({
 					<ul>
 						{preview.applied.map((item) => (
 							<li key={item.visualId}>
-								{item.visualId} · {item.rotation}
+								{MOODBOARDS_COPY.crop} · {item.rotation} ·{" "}
+								{item.crop
+									? `${item.crop.left}, ${item.crop.top}, ${item.crop.width}, ${item.crop.height}`
+									: MOODBOARDS_COPY.preview}
 							</li>
 						))}
 					</ul>
