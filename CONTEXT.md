@@ -1005,6 +1005,11 @@ _Avoid_: Wireframe kaydı, Ekran bileşeni, flow node'u
 Kullanıcının arayüz hedefi ve karar yolunu canlı Ekran referanslarıyla taşıyan tasarım ana kaydı; Ekran kopyası, teknik sıra veya durum makinesi değildir.
 _Avoid_: Wireframe belgesi, Teknik Sıra, flowchart
 
+**Akış öğesi**:
+Kullanıcı Akışındaki kapalı semantik küme üyesi; ürün anlamı yalnız `Screen`, `Action`, `Decision`, `State/Outcome` veya `Section` taşır, şekil ya da renk taşımaz.
+UI: `Screen`, `Action`, `Decision`, `State/Outcome`, `Section`
+_Avoid_: flowchart şekli, Teknik Sıra lifeline, durum makinesi durumu, Moodboard görseli, Proje Duvarı kartı
+
 **Proje Duvarı**:
 Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`.
 _Avoid_: iç içe duvar, çalışma alanı duvarı, Sketch card, duvara özgü not, kopya kayıt

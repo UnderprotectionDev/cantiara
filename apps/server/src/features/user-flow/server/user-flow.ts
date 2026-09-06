@@ -11,15 +11,29 @@ import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import { USAGE_KIND } from "../../relations/server/relations-model";
 import { getScreenRow, parseWireframeVersions } from "./screen-double";
 import {
+	alignNodes,
+	defaultLayout,
+	duplicateNodes,
+	isFlowNodeKind,
+	moveNodes,
+	orderZ,
+	snapToGrid,
+} from "./user-flow-editor";
+import {
+	type ApplyEditorOpCommand,
+	applyEditorOpCommandSchema,
 	type CreateUserFlowCommand,
 	createUserFlowCommandSchema,
 	emptyFlowDocument,
 	emptyPathText,
 	type FlowDocument,
 	type FlowNodeDocument,
-	type PlaceScreenNodeCommand,
-	type PresentedScreenNode,
+	type FlowNodeKind,
+	isScreenFlowNode,
+	type PlaceFlowNodeCommand,
+	type PresentedFlowNode,
 	parseFlowDocument,
+	placeFlowNodeCommandSchema,
 	placeScreenNodeCommandSchema,
 	SCREEN_NODE_KIND,
 	screenOpenHref,
@@ -27,6 +41,7 @@ import {
 	type UpdateNodePathTextCommand,
 	USER_FLOW_COPY,
 	USER_FLOW_RECORD_KIND,
+	USER_FLOW_REJECTION,
 	type UserFlowView,
 	type UserFlowWriteOutcome,
 	updateNodePathTextCommandSchema,
@@ -50,7 +65,7 @@ export async function createUserFlow(
 ): Promise<UserFlowWriteOutcome> {
 	const parsed = createUserFlowCommandSchema.safeParse(command);
 	if (!parsed.success) {
-		return { reason: "invalid-command", status: "rejected" };
+		return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
 	}
 	return await writeCreate(prisma, parsed.data);
 }
@@ -61,9 +76,47 @@ export async function placeScreenNode(
 ): Promise<UserFlowWriteOutcome> {
 	const parsed = placeScreenNodeCommandSchema.safeParse(command);
 	if (!parsed.success) {
-		return { reason: "invalid-command", status: "rejected" };
+		return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
 	}
-	const fingerprint = payloadFingerprint(parsed.data.payload);
+	return await placeFlowNode(prisma, {
+		...parsed.data,
+		payload: {
+			...parsed.data.payload,
+			kind: SCREEN_NODE_KIND,
+		},
+	});
+}
+
+export async function placeFlowNode(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<UserFlowWriteOutcome> {
+	const parsed = placeFlowNodeCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
+	}
+	if (!isFlowNodeKind(parsed.data.payload.kind)) {
+		return {
+			reason: USER_FLOW_REJECTION.closedSemanticSet,
+			status: "rejected",
+		};
+	}
+	if (
+		parsed.data.payload.kind === SCREEN_NODE_KIND &&
+		!parsed.data.payload.screenId
+	) {
+		return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({
+		chosenWireframeVersionId: parsed.data.payload.chosenWireframeVersionId,
+		kind: parsed.data.payload.kind,
+		label: parsed.data.payload.label,
+		layout: parsed.data.payload.layout,
+		pathText: parsed.data.payload.pathText,
+		screenId: parsed.data.payload.screenId,
+		userFlowId: parsed.data.payload.userFlowId,
+		visualStyle: parsed.data.payload.visualStyle,
+	});
 	const commandKey = commandKeyFor(
 		parsed.data.actorId,
 		parsed.data.idempotencyKey
@@ -73,13 +126,31 @@ export async function placeScreenNode(
 	);
 }
 
+export async function applyEditorOp(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<UserFlowWriteOutcome> {
+	const parsed = applyEditorOpCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		applyEditorOpInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
 export async function updateNodePathText(
 	prisma: PrismaClient,
 	command: unknown
 ): Promise<UserFlowWriteOutcome> {
 	const parsed = updateNodePathTextCommandSchema.safeParse(command);
 	if (!parsed.success) {
-		return { reason: "invalid-command", status: "rejected" };
+		return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
 	}
 	const fingerprint = payloadFingerprint(parsed.data.payload);
 	const commandKey = commandKeyFor(
@@ -186,7 +257,7 @@ async function createInTransaction(
 
 async function placeNodeInTransaction(
 	tx: PrismaTransaction,
-	command: PlaceScreenNodeCommand,
+	command: PlaceFlowNodeCommand,
 	commandKey: string,
 	fingerprint: string
 ): Promise<UserFlowWriteOutcome> {
@@ -197,43 +268,214 @@ async function placeNodeInTransaction(
 	}
 	const row = await loadFlow(tx, command.payload.userFlowId);
 	if (!row) {
-		return { reason: "target-not-found", status: "rejected" };
+		return { reason: USER_FLOW_REJECTION.targetNotFound, status: "rejected" };
 	}
 	if (row.revision !== command.baseRevision) {
 		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
 	}
 	await lockProject(tx, row.projectId);
 	const document = parseFlowDocument(row.document);
-	const node: FlowNodeDocument = {
-		chosenWireframeVersionId: command.payload.chosenWireframeVersionId ?? null,
-		id: crypto.randomUUID(),
-		kind: SCREEN_NODE_KIND,
-		pathText: command.payload.pathText ?? emptyPathText(),
-		screenId: command.payload.screenId,
-	};
+	const node = buildPlacedNode(command, document.nodes.length);
 	const next: FlowDocument = { nodes: [...document.nodes, node] };
-	const serialized = serializeFlowDocument(next);
+	return await persistFlowDocument(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		next,
+		row,
+	});
+}
+
+function buildPlacedNode(
+	command: PlaceFlowNodeCommand,
+	index: number
+): FlowNodeDocument {
+	const layout = command.payload.layout ?? defaultLayout(index);
+	const visualStyle = command.payload.visualStyle ?? { emphasis: "default" };
+	const pathText = command.payload.pathText ?? emptyPathText();
+	if (command.payload.kind === SCREEN_NODE_KIND) {
+		return {
+			chosenWireframeVersionId:
+				command.payload.chosenWireframeVersionId ?? null,
+			id: crypto.randomUUID(),
+			kind: SCREEN_NODE_KIND,
+			layout,
+			pathText,
+			screenId: command.payload.screenId ?? "",
+			visualStyle,
+		};
+	}
+	return {
+		id: crypto.randomUUID(),
+		kind: command.payload.kind as Exclude<
+			FlowNodeKind,
+			typeof SCREEN_NODE_KIND
+		>,
+		label: command.payload.label ?? command.payload.kind,
+		layout,
+		pathText,
+		visualStyle,
+	};
+}
+
+async function applyEditorOpInTransaction(
+	tx: PrismaTransaction,
+	command: ApplyEditorOpCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<UserFlowWriteOutcome> {
+	requireUserFlowWriteDelegate(tx);
+	const replayed = await replayFlow(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const row = await loadFlow(tx, command.payload.userFlowId);
+	if (!row) {
+		return { reason: USER_FLOW_REJECTION.targetNotFound, status: "rejected" };
+	}
+	if (row.revision !== command.baseRevision) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	await lockProject(tx, row.projectId);
+	if (command.payload.op === "undo") {
+		return await undoFlowDocument(tx, {
+			actorId: command.actorId,
+			commandKey,
+			fingerprint,
+			row,
+		});
+	}
+	const next = nextDocumentFromOp(
+		parseFlowDocument(row.document),
+		command.payload
+	);
+	if (next.status === "rejected") {
+		return next;
+	}
+	return await persistFlowDocument(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		next: next.document,
+		row,
+	});
+}
+
+async function undoFlowDocument(
+	tx: PrismaTransaction,
+	input: {
+		actorId: string;
+		commandKey: string;
+		fingerprint: string;
+		row: UserFlowRow;
+	}
+): Promise<UserFlowWriteOutcome> {
+	if (
+		!("userFlowVersion" in tx) ||
+		typeof tx.userFlowVersion?.findUnique !== "function"
+	) {
+		return { reason: USER_FLOW_REJECTION.nothingToUndo, status: "rejected" };
+	}
+	if (input.row.revision < 2) {
+		return { reason: USER_FLOW_REJECTION.nothingToUndo, status: "rejected" };
+	}
+	const previous = await tx.userFlowVersion.findUnique({
+		where: {
+			userFlowId_revision: {
+				revision: input.row.revision - 1,
+				userFlowId: input.row.id,
+			},
+		},
+	});
+	if (!previous) {
+		return { reason: USER_FLOW_REJECTION.nothingToUndo, status: "rejected" };
+	}
+	return await persistFlowDocument(tx, {
+		actorId: input.actorId,
+		commandKey: input.commandKey,
+		fingerprint: input.fingerprint,
+		next: parseFlowDocument(previous.document),
+		row: input.row,
+	});
+}
+
+function nextDocumentFromOp(
+	document: FlowDocument,
+	payload: ApplyEditorOpCommand["payload"]
+):
+	| { document: FlowDocument; status: "ok" }
+	| {
+			reason: (typeof USER_FLOW_REJECTION)["invalidCommand"];
+			status: "rejected";
+	  } {
+	const nodeIds = payload.nodeIds ?? [];
+	if (payload.op === "align") {
+		if (!payload.axis) {
+			return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
+		}
+		return {
+			document: alignNodes(document, nodeIds, payload.axis),
+			status: "ok",
+		};
+	}
+	if (payload.op === "z-order") {
+		if (!payload.direction) {
+			return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
+		}
+		return {
+			document: orderZ(document, nodeIds, payload.direction),
+			status: "ok",
+		};
+	}
+	if (payload.op === "grid") {
+		return { document: snapToGrid(document, nodeIds), status: "ok" };
+	}
+	if (payload.op === "move") {
+		return {
+			document: moveNodes(
+				document,
+				nodeIds,
+				payload.deltaX ?? 0,
+				payload.deltaY ?? 0
+			),
+			status: "ok",
+		};
+	}
+	return { document: duplicateNodes(document, nodeIds), status: "ok" };
+}
+
+async function persistFlowDocument(
+	tx: PrismaTransaction,
+	input: {
+		actorId: string;
+		commandKey: string;
+		fingerprint: string;
+		next: FlowDocument;
+		row: UserFlowRow;
+	}
+): Promise<UserFlowWriteOutcome> {
+	const serialized = serializeFlowDocument(input.next);
 	const updated = await tx.userFlow.update({
 		data: {
 			document: serialized,
-			revision: row.revision + 1,
+			revision: input.row.revision + 1,
 			versions: {
 				create: {
 					document: serialized,
 					id: crypto.randomUUID(),
-					revision: row.revision + 1,
+					revision: input.row.revision + 1,
 				},
 			},
 		},
-		where: { id: row.id },
+		where: { id: input.row.id },
 	});
 	await syncScreenUsageLinks(tx, updated);
-	const workspaceId = await workspaceIdForProject(tx, row.projectId);
+	const workspaceId = await workspaceIdForProject(tx, input.row.projectId);
 	const view = await presentUserFlow(tx, updated, workspaceId);
 	await writeReceipt(tx, {
-		actorId: command.actorId,
-		commandKey,
-		fingerprint,
+		actorId: input.actorId,
+		commandKey: input.commandKey,
+		fingerprint: input.fingerprint,
 		view,
 	});
 	return { flow: view, status: "committed" };
@@ -252,7 +494,7 @@ async function updatePathInTransaction(
 	}
 	const row = await loadFlow(tx, command.payload.userFlowId);
 	if (!row) {
-		return { reason: "target-not-found", status: "rejected" };
+		return { reason: USER_FLOW_REJECTION.targetNotFound, status: "rejected" };
 	}
 	if (row.revision !== command.baseRevision) {
 		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
@@ -265,32 +507,15 @@ async function updatePathInTransaction(
 			: node
 	);
 	if (!nodes.some((node) => node.id === command.payload.nodeId)) {
-		return { reason: "target-not-found", status: "rejected" };
+		return { reason: USER_FLOW_REJECTION.targetNotFound, status: "rejected" };
 	}
-	const serialized = serializeFlowDocument({ nodes });
-	const updated = await tx.userFlow.update({
-		data: {
-			document: serialized,
-			revision: row.revision + 1,
-			versions: {
-				create: {
-					document: serialized,
-					id: crypto.randomUUID(),
-					revision: row.revision + 1,
-				},
-			},
-		},
-		where: { id: row.id },
-	});
-	const workspaceId = await workspaceIdForProject(tx, row.projectId);
-	const view = await presentUserFlow(tx, updated, workspaceId);
-	await writeReceipt(tx, {
+	return await persistFlowDocument(tx, {
 		actorId: command.actorId,
 		commandKey,
 		fingerprint,
-		view,
+		next: { nodes },
+		row,
 	});
-	return { flow: view, status: "committed" };
 }
 
 async function syncScreenUsageLinks(
@@ -312,7 +537,9 @@ async function syncScreenUsageLinks(
 		where: { hostRecordId: flow.id },
 	});
 	const desired = new Set(
-		document.nodes.map((node) => usageEmbedIdForNode(node.id))
+		document.nodes
+			.filter(isScreenFlowNode)
+			.map((node) => usageEmbedIdForNode(node.id))
 	);
 	for (const row of existing) {
 		if (desired.has(row.embedId)) {
@@ -323,7 +550,7 @@ async function syncScreenUsageLinks(
 		await tx.usageHostEmbed.deleteMany({ where: { id: row.embedId } });
 	}
 	const present = new Set(existing.map((row) => row.embedId));
-	for (const node of document.nodes) {
+	for (const node of document.nodes.filter(isScreenFlowNode)) {
 		const embedId = usageEmbedIdForNode(node.id);
 		if (present.has(embedId)) {
 			continue;
@@ -372,8 +599,16 @@ async function presentUserFlow(
 	);
 	return {
 		copy: {
+			action: USER_FLOW_COPY.action,
+			align: USER_FLOW_COPY.align,
 			archived: USER_FLOW_COPY.archived,
+			decision: USER_FLOW_COPY.decision,
+			fitView: USER_FLOW_COPY.fitView,
 			openSourceRecord: USER_FLOW_COPY.openSourceRecord,
+			screen: USER_FLOW_COPY.screen,
+			section: USER_FLOW_COPY.section,
+			stateOutcome: USER_FLOW_COPY.stateOutcome,
+			undo: USER_FLOW_COPY.undo,
 			userFlow: USER_FLOW_COPY.userFlow,
 		},
 		id: row.id,
@@ -399,16 +634,39 @@ async function presentNode(
 		usageCreatedAt?: Date;
 		workspaceId: string;
 	}
-): Promise<PresentedScreenNode> {
+): Promise<PresentedFlowNode> {
+	if (!isScreenFlowNode(input.node)) {
+		return {
+			boundAt: null,
+			chosenWireframeVersionId: null,
+			id: input.node.id,
+			kind: input.node.kind,
+			label: input.node.label,
+			layout: input.node.layout,
+			openHref: null,
+			openSourceRecord: null,
+			pathText: input.node.pathText,
+			preview: null,
+			reason: null,
+			resolution: "ok",
+			screenId: null,
+			screenTitle: null,
+			usageKind: null,
+			visualStyle: input.node.visualStyle,
+		};
+	}
 	const boundAt = input.usageCreatedAt?.toISOString() ?? null;
 	const base = {
 		boundAt,
 		chosenWireframeVersionId: input.node.chosenWireframeVersionId,
 		id: input.node.id,
 		kind: SCREEN_NODE_KIND,
+		label: "",
+		layout: input.node.layout,
 		pathText: input.node.pathText,
 		screenId: input.node.screenId,
 		usageKind: USAGE_KIND.flowNodeScreenReference,
+		visualStyle: input.node.visualStyle,
 	};
 	const screen = await getScreenRow(prisma, input.node.screenId);
 	if (!screen) {
