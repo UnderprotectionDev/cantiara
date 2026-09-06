@@ -1,5 +1,4 @@
 export const SPEC_CHANGE_REVIEW_COPY = {
-	candidateSource: "Candidate source",
 	confirm: "Confirm",
 	createFollowUpWork: "Create Follow-up Work",
 	documentLevelCandidate: "Document-level candidate",

@@ -321,32 +321,32 @@ function FollowUpWorkAction({
 				{SPEC_CHANGE_REVIEW_COPY.createFollowUpWork}
 			</Button>
 			{preview ? (
-				<div className="mt-2 space-y-1 text-sm">
+				<section
+					aria-label={SPEC_CHANGE_REVIEW_COPY.preview}
+					className="mt-2 space-y-1 text-sm"
+				>
 					<p>
-						{SPEC_CHANGE_REVIEW_COPY.preview}: {preview.followUpWork.title}
+						{SPEC_CHANGE_REVIEW_COPY.followUpWork}: {preview.followUpWork.title}
 					</p>
 					<p>
 						{SPEC_CHANGE_REVIEW_COPY.project} {preview.project.name}
 					</p>
-					<p>
-						{SPEC_CHANGE_REVIEW_COPY.startingStatus}{" "}
-						{preview.followUpWork.startingStatus}
-					</p>
+					<p>{preview.followUpWork.startingStatus}</p>
 					<p>
 						{SPEC_CHANGE_REVIEW_COPY.version}{" "}
 						{preview.specVersions.previous.revision} →{" "}
 						{preview.specVersions.new.revision}
 					</p>
 					<p>
-						{SPEC_CHANGE_REVIEW_COPY.candidateSource}{" "}
 						{preview.candidateSourceRelation.origin}
 						{", "}
+						{SPEC_CHANGE_REVIEW_COPY.why}{" "}
 						{preview.candidateSourceRelation.why.join(", ")}
 					</p>
 					<Button onClick={onConfirm} type="button">
 						{SPEC_CHANGE_REVIEW_COPY.confirm}
 					</Button>
-				</div>
+				</section>
 			) : null}
 		</div>
 	);
