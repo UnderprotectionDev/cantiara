@@ -24,20 +24,32 @@ import {
 	createMoodboard,
 	exportMoodboardSnapshot,
 	getMoodboard,
+	getPersonalViewport,
+	groupOutline,
 	listMoodboards,
 	listProjectWallCardsSpawnedFrom,
 	presentMoodboard,
 	previewMoodboardSnapshot,
+	reorderOutline,
+	savePersonalViewport,
 	setMoodboardCaption,
 	setMoodboardFocusOrder,
 	setMoodboardViewTransform,
 } from "./moodboards";
 import {
+	CANVAS_HARD_SCENE,
+	CANVAS_STRESS_SCENE,
+	evaluateMoodboardCanvasScene,
+	fileAttachmentOpenHref,
+	fitViewportToContent,
 	MOODBOARD_COUNTERPARTS,
 	MOODBOARD_FOREIGN_IDENTITIES,
 	MOODBOARD_KIND,
 	MOODBOARDS_COPY,
+	moodboardExportInput,
+	moodboardShareSnapshot,
 	moodboardsCatalog,
+	restorePersonalViewport,
 	VISUAL_ORIGIN_KIND,
 } from "./moodboards-model";
 
@@ -47,6 +59,7 @@ const SOCIAL_OR_SECOND_SOURCE =
 	/comment thread|reaction|mention|task|file description/i;
 const FOREIGN_SURFACE =
 	/User Flow|Wireframe|design system|Screen|production asset/i;
+const VIEWPORT_FIELDS = /centerX|zoom/;
 const OUT_OF_SCOPE_SHARE = /Build in Public|share link/i;
 const DATED_PDF = /moodboard-snapshot-\d{4}-\d{2}-\d{2}\.pdf/;
 
@@ -71,6 +84,8 @@ async function seedWorkspace(prisma: PrismaClient) {
 
 async function resetSharedTables(prisma: PrismaClient) {
 	await prisma.moodboardVisual.deleteMany();
+	await prisma.moodboardPersonalViewport.deleteMany();
+	await prisma.moodboardGroup.deleteMany();
 	await prisma.moodboard.deleteMany();
 	await prisma.fileObjectBlob.deleteMany();
 	await prisma.fileAttachment.deleteMany();
@@ -194,6 +209,10 @@ describe("Moodboards catalog", () => {
 		expect(catalog.copy.fileAttachment).toBe("File Attachment");
 		expect(catalog.copy.externalLink).toBe("External link");
 		expect(catalog.copy.addVisual).toBe("Add visual");
+		expect(catalog.copy.fitView).toBe("Fit View");
+		expect(catalog.copy.openSourceRecord).toBe("Open Source Record");
+		expect(catalog.copy.outline).toBe("Outline");
+		expect(catalog.copy.group).toBe("Group");
 		expect(catalog.copy.presentationMode).toBe("Presentation Mode");
 		expect(catalog.copy.snapshot).toBe("Snapshot");
 		expect(catalog.copy.png).toBe("PNG");
@@ -210,6 +229,8 @@ describe("Moodboards catalog", () => {
 		expect(catalog.counterparts.smashEntireBoard).toBe(false);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(OUT_OF_SCOPE_SHARE);
 		expect(catalog.foreignIdentities).toEqual(MOODBOARD_FOREIGN_IDENTITIES);
+		expect(MOODBOARD_COUNTERPARTS.personalViewportIsShareSnapshot).toBe(false);
+		expect(MOODBOARD_COUNTERPARTS.personalViewportIsContent).toBe(false);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(SOCIAL_OR_SECOND_SOURCE);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(FOREIGN_SURFACE);
 	});
@@ -273,7 +294,10 @@ describe("Moodboards", () => {
 		expect(placed.moodboard.visuals).toEqual([
 			{
 				caption: "Why this checkout density.",
+				groupId: null,
 				id: placed.moodboard.visuals[0]?.id,
+				openHref: fileAttachmentOpenHref(projectId, shot.fileId),
+				openSourceRecord: MOODBOARDS_COPY.openSourceRecord,
 				origin: {
 					fileAttachmentId: shot.fileId,
 					fileAttachmentVersionId: shot.versionId,
@@ -345,7 +369,10 @@ describe("Moodboards", () => {
 		}
 		expect(captioned.moodboard.visuals[0]).toEqual({
 			caption: "Warm metal.",
+			groupId: null,
 			id: placed.moodboard.visuals[0]?.id,
+			openHref: "https://example.com/ref.png",
+			openSourceRecord: MOODBOARDS_COPY.openSourceRecord,
 			origin: {
 				kind: VISUAL_ORIGIN_KIND.externalLink,
 				url: "https://example.com/ref.png",
@@ -810,5 +837,287 @@ describe("Moodboards", () => {
 		expect(await listMoodboards(prisma, projectId)).toHaveLength(1);
 		expect(JSON.stringify(presented)).not.toMatch(OUT_OF_SCOPE_SHARE);
 		expect(moodboardsCatalog().copy.presentationMode).toBe("Presentation Mode");
+	});
+});
+
+describe("Moodboards personal viewport and outline", () => {
+	let prisma: PrismaClient;
+	let pool: Pool;
+
+	beforeAll(() => {
+		pool = new Pool({ connectionString: DATABASE_URL });
+		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+	});
+
+	beforeEach(async () => {
+		await resetSharedTables(prisma);
+	});
+
+	afterEach(async () => {
+		await resetSharedTables(prisma);
+	});
+
+	it("restores this canvas viewport and does not write relation or share snapshot", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const created = await createMoodboard(prisma, {
+			actorId,
+			idempotencyKey: "create-viewport-board",
+			origin: "human",
+			payload: { projectId, title: "Viewport board" },
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected moodboard");
+		}
+		const first = await addMoodboardVisual(prisma, {
+			actorId,
+			idempotencyKey: "visual-a",
+			origin: "human",
+			payload: {
+				moodboardId: created.moodboard.id,
+				origin: {
+					kind: VISUAL_ORIGIN_KIND.externalLink,
+					url: "https://example.com/a.png",
+				},
+			},
+		});
+		if (first.status !== "committed") {
+			throw new Error("expected visual");
+		}
+		const saved = await savePersonalViewport(prisma, {
+			actorId,
+			payload: {
+				moodboardId: created.moodboard.id,
+				viewport: {
+					centerX: 120,
+					centerY: 40,
+					collapsedGroupIds: ["gone-group"],
+					zoom: 1.5,
+				},
+			},
+		});
+		expect(saved.status).toBe("committed");
+		const restored = await getPersonalViewport(prisma, {
+			actorId,
+			moodboardId: created.moodboard.id,
+		});
+		expect(restored).toEqual({
+			fitted: false,
+			inspectorOpen: false,
+			selectedId: null,
+			unsaved: false,
+			viewport: {
+				centerX: 120,
+				centerY: 40,
+				collapsedGroupIds: [],
+				zoom: 1.5,
+			},
+		});
+		const other = await prisma.user.create({
+			data: {
+				email: `other-${crypto.randomUUID()}@example.com`,
+				emailVerified: true,
+				id: crypto.randomUUID(),
+				name: "Other",
+			},
+		});
+		const otherView = await getPersonalViewport(prisma, {
+			actorId: other.id,
+			moodboardId: created.moodboard.id,
+		});
+		expect(otherView?.fitted).toBe(true);
+		expect(otherView?.viewport.centerX).not.toBe(120);
+		const content = await getMoodboard(prisma, created.moodboard.id);
+		expect(content).not.toHaveProperty("viewport");
+		expect(JSON.stringify(content)).not.toMatch(VIEWPORT_FIELDS);
+		expect(
+			moodboardShareSnapshot(content ?? created.moodboard)
+		).not.toHaveProperty("viewport");
+		expect(
+			JSON.stringify(moodboardShareSnapshot(content ?? created.moodboard))
+		).not.toMatch(VIEWPORT_FIELDS);
+		expect(
+			JSON.stringify(moodboardExportInput(content ?? created.moodboard))
+		).not.toMatch(VIEWPORT_FIELDS);
+		expect(
+			await prisma.typedRelation.count({
+				where: { fromId: created.moodboard.id },
+			})
+		).toBe(0);
+		const afterSave = await getMoodboard(prisma, created.moodboard.id);
+		expect(afterSave?.revision).toBe(first.moodboard.revision);
+	});
+
+	it("fits visible content from a meaningless saved position and does not restore selection", () => {
+		const content = {
+			groups: [] as { id: string }[],
+			visuals: [
+				{ groupId: null, id: "v1" },
+				{ groupId: null, id: "v2" },
+			],
+		};
+		const fitted = fitViewportToContent(content);
+		expect(restorePersonalViewport({ content, saved: null })).toEqual({
+			fitted: true,
+			inspectorOpen: false,
+			selectedId: null,
+			unsaved: false,
+			viewport: fitted,
+		});
+		const fromFitView = restorePersonalViewport({
+			content,
+			saved: {
+				centerX: fitted.centerX,
+				centerY: fitted.centerY,
+				collapsedGroupIds: [],
+				zoom: fitted.zoom,
+			},
+			session: {
+				inspectorOpen: true,
+				selectedId: "v1",
+				unsaved: true,
+			},
+		});
+		expect(fromFitView.selectedId).toBeNull();
+		expect(fromFitView.inspectorOpen).toBe(false);
+		expect(fromFitView.unsaved).toBe(false);
+		expect(fromFitView.viewport.centerX).toBe(fitted.centerX);
+		const meaningless = restorePersonalViewport({
+			content,
+			saved: {
+				centerX: 50_000,
+				centerY: -40_000,
+				collapsedGroupIds: [],
+				zoom: 0,
+			},
+		});
+		expect(meaningless.fitted).toBe(true);
+		expect(meaningless.viewport.centerX).toBe(fitted.centerX);
+		expect(meaningless.viewport.centerY).toBe(fitted.centerY);
+	});
+
+	it("adds, selects, reorders, groups, inspects, and opens source from the outline", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const shot = await insertImageVersion(prisma, {
+			projectId,
+			title: "Checkout shot",
+			workspaceId,
+		});
+		const created = await createMoodboard(prisma, {
+			actorId,
+			idempotencyKey: "create-outline-board",
+			origin: "human",
+			payload: { projectId, title: "Outline board" },
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected moodboard");
+		}
+		const first = await addMoodboardVisual(prisma, {
+			actorId,
+			idempotencyKey: "outline-a",
+			origin: "human",
+			payload: {
+				caption: "First ref",
+				moodboardId: created.moodboard.id,
+				origin: {
+					fileAttachmentVersionId: shot.versionId,
+					kind: VISUAL_ORIGIN_KIND.fileAttachment,
+				},
+			},
+		});
+		const second = await addMoodboardVisual(prisma, {
+			actorId,
+			idempotencyKey: "outline-b",
+			origin: "human",
+			payload: {
+				moodboardId: created.moodboard.id,
+				origin: {
+					kind: VISUAL_ORIGIN_KIND.externalLink,
+					url: "https://example.com/b.png",
+				},
+			},
+		});
+		if (first.status !== "committed" || second.status !== "committed") {
+			throw new Error("expected visuals");
+		}
+		const firstId = first.moodboard.visuals[0]?.id ?? "";
+		const secondId = second.moodboard.visuals[1]?.id ?? "";
+		const reordered = await reorderOutline(prisma, {
+			actorId,
+			idempotencyKey: "reorder-outline",
+			origin: "human",
+			payload: {
+				moodboardId: created.moodboard.id,
+				visualIds: [secondId, firstId],
+			},
+		});
+		expect(reordered.status).toBe("committed");
+		if (reordered.status !== "committed") {
+			throw new Error("expected reorder");
+		}
+		expect(reordered.moodboard.visuals.map((visual) => visual.id)).toEqual([
+			secondId,
+			firstId,
+		]);
+		const grouped = await groupOutline(prisma, {
+			actorId,
+			idempotencyKey: "group-outline",
+			origin: "human",
+			payload: {
+				moodboardId: created.moodboard.id,
+				title: MOODBOARDS_COPY.group,
+				visualIds: [secondId, firstId],
+			},
+		});
+		expect(grouped.status).toBe("committed");
+		if (grouped.status !== "committed") {
+			throw new Error("expected group");
+		}
+		expect(grouped.moodboard.groups).toHaveLength(1);
+		expect(grouped.moodboard.groups[0]?.title).toBe(MOODBOARDS_COPY.group);
+		expect(grouped.moodboard.visuals.every((visual) => visual.groupId)).toBe(
+			true
+		);
+		const inspected = grouped.moodboard.visuals.find(
+			(visual) => visual.id === firstId
+		);
+		expect(inspected?.caption).toBe("First ref");
+		expect(inspected?.origin.kind).toBe(VISUAL_ORIGIN_KIND.fileAttachment);
+		expect(inspected?.openSourceRecord).toBe(MOODBOARDS_COPY.openSourceRecord);
+		expect(inspected?.openHref).toBe(
+			fileAttachmentOpenHref(projectId, shot.fileId)
+		);
+		const collapse = await savePersonalViewport(prisma, {
+			actorId,
+			payload: {
+				moodboardId: created.moodboard.id,
+				viewport: {
+					centerX: 80,
+					centerY: 0,
+					collapsedGroupIds: [grouped.moodboard.groups[0]?.id ?? ""],
+					zoom: 1,
+				},
+			},
+		});
+		expect(collapse.status).toBe("committed");
+		const restored = await getPersonalViewport(prisma, {
+			actorId,
+			moodboardId: created.moodboard.id,
+		});
+		expect(restored?.viewport.collapsedGroupIds).toEqual([
+			grouped.moodboard.groups[0]?.id,
+		]);
+	});
+
+	it("does not crash or corrupt the 500/750 hard scene or 2000/3000 stress", () => {
+		expect(evaluateMoodboardCanvasScene(CANVAS_HARD_SCENE)).toEqual({
+			corrupted: false,
+			crashed: false,
+			detail: "full",
+		});
+		expect(evaluateMoodboardCanvasScene(CANVAS_STRESS_SCENE)).toEqual({
+			corrupted: false,
+			crashed: false,
+			detail: "reduced",
+		});
 	});
 });

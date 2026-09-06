@@ -11,9 +11,13 @@ import {
 	exportMoodboardSnapshot,
 	getMoodboard,
 	getMoodboardByVisualId,
+	getPersonalViewport,
+	groupOutline,
 	listMoodboards,
 	presentMoodboard,
 	previewMoodboardSnapshot,
+	reorderOutline,
+	savePersonalViewport,
 	setMoodboardCaption,
 	setMoodboardFocusOrder,
 	setMoodboardViewTransform,
@@ -21,8 +25,11 @@ import {
 import {
 	addMoodboardVisualPayloadSchema,
 	createMoodboardPayloadSchema,
+	groupOutlinePayloadSchema,
 	moodboardSnapshotScopeSchema,
 	moodboardsCatalog,
+	reorderOutlinePayloadSchema,
+	savePersonalViewportPayloadSchema,
 	setMoodboardCaptionPayloadSchema,
 	setMoodboardFocusOrderPayloadSchema,
 	setMoodboardViewTransformPayloadSchema,
@@ -129,6 +136,47 @@ export const moodboards = {
 			);
 			return moodboard;
 		}),
+	getViewport: protectedProcedure
+		.input(z.object({ moodboardId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const moodboard = await getMoodboard(
+				getPrismaClient(),
+				input.moodboardId
+			);
+			if (!moodboard) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, moodboard.projectId);
+			return await getPersonalViewport(getPrismaClient(), {
+				actorId: context.session.user.id,
+				moodboardId: input.moodboardId,
+			});
+		}),
+	groupOutline: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: groupOutlinePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const moodboard = await getMoodboard(
+				getPrismaClient(),
+				input.payload.moodboardId
+			);
+			if (!moodboard) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, moodboard.projectId);
+			return await groupOutline(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	list: protectedProcedure
 		.input(z.object({ projectId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -158,6 +206,47 @@ export const moodboards = {
 			const access = await requireAccess(context.session.user.id);
 			await requireMoodboard(access.workspaceId, input.moodboardId);
 			return await previewMoodboardSnapshot(getPrismaClient(), input);
+		}),
+	reorderOutline: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: reorderOutlinePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const moodboard = await getMoodboard(
+				getPrismaClient(),
+				input.payload.moodboardId
+			);
+			if (!moodboard) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, moodboard.projectId);
+			return await reorderOutline(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	saveViewport: protectedWriteProcedure
+		.input(z.object({ payload: savePersonalViewportPayloadSchema }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const moodboard = await getMoodboard(
+				getPrismaClient(),
+				input.payload.moodboardId
+			);
+			if (!moodboard) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, moodboard.projectId);
+			return await savePersonalViewport(getPrismaClient(), {
+				actorId: context.session.user.id,
+				payload: input.payload,
+			});
 		}),
 	setCaption: protectedWriteProcedure
 		.input(

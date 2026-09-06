@@ -15,6 +15,10 @@ test("English Moodboard labels stay Moodboard, Caption, Presentation Mode, and o
 	expect(MOODBOARDS_COPY.fileAttachment).toBe("File Attachment");
 	expect(MOODBOARDS_COPY.externalLink).toBe("External link");
 	expect(MOODBOARDS_COPY.addVisual).toBe("Add visual");
+	expect(MOODBOARDS_COPY.fitView).toBe("Fit View");
+	expect(MOODBOARDS_COPY.openSourceRecord).toBe("Open Source Record");
+	expect(MOODBOARDS_COPY.outline).toBe("Outline");
+	expect(MOODBOARDS_COPY.group).toBe("Group");
 	expect(MOODBOARDS_COPY.presentationMode).toBe("Presentation Mode");
 	expect(MOODBOARDS_COPY.exitPresentationMode).toBe("Exit Presentation Mode");
 	expect(MOODBOARDS_COPY.snapshot).toBe("Snapshot");

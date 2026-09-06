@@ -1036,6 +1036,16 @@ Moodboard görselindeki isteğe bağlı kısa neden metni; yorum dizisi, reaksiy
 UI: `Caption`
 _Avoid_: yorum dizisi, reaksiyon, görev, mention, dosya açıklaması
 
+**Kişisel viewport**:
+Bu tuvale özgü son merkez, zoom ve görünüm-yerel daraltma; içerik, paylaşım snapshot'ı, export veya başka kullanıcının görünümü değildir.
+UI: `Fit View`
+_Avoid_: recent-context, paylaşım görünümü, export viewport
+
+**Yapılandırılmış outline**:
+İşaretçi olmadan ekleme, seçme, sıralama, gruplama, inceleme ve kaynak açmayı sunan canvas listesi; salt okunur yedek değildir.
+UI: `Outline`, `Open Source Record`
+_Avoid_: salt okunur katman listesi
+
 **Görünüm kırpması**:
 Moodboard görselinin yalnız bu görünüme ait, kesin Dosya Eki sürümüne bağlı geri alınabilir kırpma ve 90° döndürme üstverisi; özgün baytları, sürüm zincirini veya diğer görünümleri değiştirmez ([Moodboard ve görsel yön](docs/prd/09-discovery-decisions-and-design.md#moodboard-ve-görsel-yön)). UI: `Crop`, `Rotate 90°`.
 _Avoid_: özgün dosya düzenleme, üretim varlığı, işaretleme katmanı
