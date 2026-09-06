@@ -11,6 +11,7 @@ model Design {
   cards       ProjectWallCard[]
   groups      ProjectWallGroup[]
   visualLinks ProjectWallVisualLink[]
+  personalViewports ProjectWallPersonalViewport[]
 
   @@index([projectId, type])
   @@map("design")
@@ -28,6 +29,7 @@ model ProjectWallCard {
   authority    String?
   pinVersionId String?
   locked       Boolean                 @default(false)
+  sortOrder    Int                     @default(0)
   groupId      String?
   group        ProjectWallGroup?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
   outgoing     ProjectWallVisualLink[] @relation("VisualLinkFrom")
@@ -37,6 +39,7 @@ model ProjectWallCard {
 
   @@unique([designId, sourceId])
   @@index([designId])
+  @@index([designId, sortOrder])
   @@index([sourceId])
   @@index([groupId])
   @@map("project_wall_card")
@@ -71,4 +74,22 @@ model ProjectWallVisualLink {
   @@unique([designId, fromCardId, toCardId])
   @@index([designId])
   @@map("project_wall_visual_link")
+}
+
+model ProjectWallPersonalViewport {
+  id                String   @id
+  designId          String
+  design            Design   @relation(fields: [designId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  centerX           Float
+  centerY           Float
+  zoom              Float
+  collapsedGroupIds Json
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([designId, userId])
+  @@index([userId])
+  @@map("project_wall_personal_viewport")
 }

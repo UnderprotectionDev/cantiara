@@ -33,6 +33,7 @@ import {
 	type LiveCardFieldMap,
 	type MaterializeStarterSkeletonWallsCommand,
 	materializeStarterSkeletonWallsCommandSchema,
+	type PersonalViewport,
 	type PlaceLiveCardCommand,
 	PROJECT_WALL_COPY,
 	PROJECT_WALL_DENSITIES,
@@ -55,13 +56,20 @@ import {
 	type RegionSnapshotPreviewOutcome,
 	type RegionSnapshotView,
 	type RegionSnapshotWriteOutcome,
+	type RemoveVisualLineCommand,
+	type ReorderOutlineCommand,
 	regionSnapshotPayloadSchema,
+	removeVisualLineCommandSchema,
+	reorderOutlineCommandSchema,
+	restorePersonalViewport,
 	type SaveFocusOrderCommand,
 	type SetLockPositionCommand,
 	type StarterSkeletonWallsOutcome,
 	saveFocusOrderCommandSchema,
+	savePersonalViewportCommandSchema,
 	setLockPositionCommandSchema,
 	snapshotNotice,
+	sourceOpenHref,
 	type UpdateCardDensityCommand,
 	type UpdateCardLayoutCommand,
 	updateCardDensityCommandSchema,
@@ -90,6 +98,7 @@ interface CardRow {
 	pinVersionId: string | null;
 	positionX: number;
 	positionY: number;
+	sortOrder: number;
 	sourceId: string;
 	sourceKind: string;
 }
@@ -341,6 +350,120 @@ export async function createGroup(
 	);
 }
 
+export async function reorderOutline(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ProjectWallWriteOutcome> {
+	const parsed = reorderOutlineCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected",
+		};
+	}
+	return await prisma.$transaction((tx) =>
+		reorderOutlineInTransaction(tx, parsed.data)
+	);
+}
+
+export async function removeVisualLine(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ProjectWallWriteOutcome> {
+	const parsed = removeVisualLineCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected",
+		};
+	}
+	return await prisma.$transaction((tx) =>
+		removeVisualLineInTransaction(tx, parsed.data)
+	);
+}
+
+export async function savePersonalViewport(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<
+	| { status: "committed"; viewport: PersonalViewport }
+	| { reason: ProjectWallRejectionReason; status: "rejected" }
+> {
+	const parsed = savePersonalViewportCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected",
+		};
+	}
+	const wall = await prisma.design.findUnique({
+		where: { id: parsed.data.payload.wallId },
+	});
+	if (!wall || wall.type !== DESIGN_TYPE_PROJECT_WALL) {
+		return { reason: PROJECT_WALL_REJECTION.wallNotFound, status: "rejected" };
+	}
+	const { viewport } = parsed.data.payload;
+	await prisma.projectWallPersonalViewport.upsert({
+		create: {
+			centerX: viewport.centerX,
+			centerY: viewport.centerY,
+			collapsedGroupIds: viewport.collapsedGroupIds,
+			designId: wall.id,
+			id: crypto.randomUUID(),
+			userId: parsed.data.actorId,
+			zoom: viewport.zoom,
+		},
+		update: {
+			centerX: viewport.centerX,
+			centerY: viewport.centerY,
+			collapsedGroupIds: viewport.collapsedGroupIds,
+			zoom: viewport.zoom,
+		},
+		where: {
+			designId_userId: {
+				designId: wall.id,
+				userId: parsed.data.actorId,
+			},
+		},
+	});
+	return {
+		status: "committed",
+		viewport,
+	};
+}
+
+export async function getPersonalViewport(
+	prisma: PrismaClient,
+	input: { actorId: string; wallId: string }
+): Promise<ReturnType<typeof restorePersonalViewport> | null> {
+	const wall = await getProjectWall(prisma, input.wallId);
+	if (!wall) {
+		return null;
+	}
+	const row = await prisma.projectWallPersonalViewport.findUnique({
+		where: {
+			designId_userId: {
+				designId: wall.id,
+				userId: input.actorId,
+			},
+		},
+	});
+	return restorePersonalViewport({
+		content: {
+			cards: wall.cards,
+			groups: wall.groups,
+		},
+		saved: row
+			? {
+					centerX: row.centerX,
+					centerY: row.centerY,
+					collapsedGroupIds: collapsedIdsFromJson(row.collapsedGroupIds),
+					zoom: row.zoom,
+				}
+			: null,
+	});
+}
+
 export async function setLockPosition(
 	prisma: PrismaClient,
 	command: unknown
@@ -535,6 +658,9 @@ async function placeCardInTransaction(
 		};
 	}
 	const density = command.payload.density ?? PROJECT_WALL_COPY.preview;
+	const sortOrder = await tx.projectWallCard.count({
+		where: { designId: wall.id },
+	});
 	await tx.projectWallCard.create({
 		data: {
 			authority: resolved.authority,
@@ -544,6 +670,7 @@ async function placeCardInTransaction(
 			pinVersionId: payload.pinVersionId ?? null,
 			positionX: command.payload.positionX ?? 0,
 			positionY: command.payload.positionY ?? 0,
+			sortOrder,
 			sourceId,
 			sourceKind,
 		},
@@ -670,7 +797,7 @@ async function hydrateWall(
 ): Promise<ProjectWallView> {
 	const [cards, groups, visualLinks] = await Promise.all([
 		prisma.projectWallCard.findMany({
-			orderBy: { createdAt: "asc" },
+			orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
 			where: { designId: row.id },
 		}),
 		prisma.projectWallGroup.findMany({
@@ -806,6 +933,7 @@ async function presentCard(
 			id: card.id,
 			locked: card.locked,
 			nodeEditing: false,
+			openHref: sourceOpenHref(projectId),
 			openSourceRecord: PROJECT_WALL_COPY.openSourceRecord,
 			positionX: card.positionX,
 			positionY: card.positionY,
@@ -858,6 +986,7 @@ async function presentCard(
 			locked: card.locked,
 			members,
 			openAllInSource: PROJECT_WALL_COPY.openAllInSource,
+			openHref: sourceOpenHref(projectId),
 			openSourceRecord: PROJECT_WALL_COPY.openSourceRecord,
 			ownQuery: false,
 			positionX: card.positionX,
@@ -884,6 +1013,7 @@ async function presentCard(
 		groupId: card.groupId,
 		id: card.id,
 		locked: card.locked,
+		openHref: sourceOpenHref(projectId),
 		openSourceRecord: PROJECT_WALL_COPY.openSourceRecord,
 		positionX: card.positionX,
 		positionY: card.positionY,
@@ -1061,6 +1191,108 @@ async function createGroupInTransaction(
 	await tx.projectWallCard.updateMany({
 		data: { groupId },
 		where: { id: { in: command.payload.cardIds } },
+	});
+	const updated = await tx.design.update({
+		data: { revision: wall.revision + 1 },
+		where: { id: wall.id },
+	});
+	const view = await hydrateWall(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		wall: view,
+	});
+	return { status: "committed", wall: view };
+}
+
+async function reorderOutlineInTransaction(
+	tx: PrismaTransaction,
+	command: ReorderOutlineCommand
+): Promise<ProjectWallWriteOutcome> {
+	const wall = await tx.design.findUnique({
+		where: { id: command.payload.wallId },
+	});
+	if (!wall || wall.type !== DESIGN_TYPE_PROJECT_WALL) {
+		return { reason: PROJECT_WALL_REJECTION.wallNotFound, status: "rejected" };
+	}
+	const existing = await tx.projectWallCard.findMany({
+		where: { designId: wall.id },
+	});
+	const existingIds = new Set(existing.map((card) => card.id));
+	const uniqueIds = [...new Set(command.payload.cardIds)];
+	if (
+		uniqueIds.length !== existing.length ||
+		uniqueIds.some((id) => !existingIds.has(id))
+	) {
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected",
+		};
+	}
+	await lockProject(tx, wall.projectId);
+	const fingerprint = payloadFingerprint({
+		cardIds: uniqueIds,
+		wallId: wall.id,
+	});
+	const commandKey = commandKeyFor(command.actorId, command.idempotencyKey);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	await Promise.all(
+		uniqueIds.map((cardId, index) =>
+			tx.projectWallCard.update({
+				data: { sortOrder: index },
+				where: { id: cardId },
+			})
+		)
+	);
+	const updated = await tx.design.update({
+		data: { revision: wall.revision + 1 },
+		where: { id: wall.id },
+	});
+	const view = await hydrateWall(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		wall: view,
+	});
+	return { status: "committed", wall: view };
+}
+
+async function removeVisualLineInTransaction(
+	tx: PrismaTransaction,
+	command: RemoveVisualLineCommand
+): Promise<ProjectWallWriteOutcome> {
+	const wall = await tx.design.findUnique({
+		where: { id: command.payload.wallId },
+	});
+	if (!wall || wall.type !== DESIGN_TYPE_PROJECT_WALL) {
+		return { reason: PROJECT_WALL_REJECTION.wallNotFound, status: "rejected" };
+	}
+	const link = await tx.projectWallVisualLink.findUnique({
+		where: { id: command.payload.visualLinkId },
+	});
+	if (!link || link.designId !== wall.id) {
+		return {
+			reason: PROJECT_WALL_REJECTION.visualLinkNotFound,
+			status: "rejected",
+		};
+	}
+	await lockProject(tx, wall.projectId);
+	const fingerprint = payloadFingerprint({
+		visualLinkId: command.payload.visualLinkId,
+		wallId: wall.id,
+	});
+	const commandKey = commandKeyFor(command.actorId, command.idempotencyKey);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	await tx.projectWallVisualLink.delete({
+		where: { id: link.id },
 	});
 	const updated = await tx.design.update({
 		data: { revision: wall.revision + 1 },
@@ -1386,4 +1618,11 @@ async function lockProject(
 
 function commandKeyFor(actorId: string, idempotencyKey: string): string {
 	return `human:${actorId}:${idempotencyKey}`;
+}
+
+function collapsedIdsFromJson(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.filter((item): item is string => typeof item === "string");
 }

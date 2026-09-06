@@ -12,13 +12,17 @@ import {
 	createProjectWall,
 	createRegionSnapshot,
 	drawVisualLine,
+	getPersonalViewport,
 	getProjectWall,
 	listProjectWalls,
 	materializeStarterSkeletonWalls,
 	placeLiveCard,
 	previewPersistentRelation,
 	previewRegionSnapshot,
+	removeVisualLine,
+	reorderOutline,
 	saveFocusOrder,
+	savePersonalViewport,
 	setLockPosition,
 	updateCardDensity,
 	updateCardLayout,
@@ -35,7 +39,10 @@ import {
 	previewPersistentRelationInputSchema,
 	projectWallCatalog,
 	regionSnapshotPayloadSchema,
+	removeVisualLinePayloadSchema,
+	reorderOutlinePayloadSchema,
 	saveFocusOrderPayloadSchema,
+	savePersonalViewportPayloadSchema,
 	setLockPositionPayloadSchema,
 	updateCardDensityPayloadSchema,
 	updateCardLayoutPayloadSchema,
@@ -162,6 +169,16 @@ export const projectWall = {
 			const access = await requireAccess(context.session.user.id);
 			return await requireWall(access.workspaceId, input.wallId);
 		}),
+	getViewport: protectedProcedure
+		.input(z.object({ wallId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.wallId);
+			return await getPersonalViewport(getPrismaClient(), {
+				actorId: context.session.user.id,
+				wallId: input.wallId,
+			});
+		}),
 	list: protectedProcedure
 		.input(z.object({ projectId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -243,6 +260,40 @@ export const projectWall = {
 			const { status, ...snapshot } = preview;
 			return { ...presentSnapshot(snapshot), status };
 		}),
+	removeVisualLine: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: removeVisualLinePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await removeVisualLine(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	reorderOutline: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: reorderOutlinePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await reorderOutline(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	saveFocusOrder: protectedWriteProcedure
 		.input(
 			z.object({
@@ -257,6 +308,16 @@ export const projectWall = {
 				actorId: context.session.user.id,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	saveViewport: protectedWriteProcedure
+		.input(z.object({ payload: savePersonalViewportPayloadSchema }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await savePersonalViewport(getPrismaClient(), {
+				actorId: context.session.user.id,
 				payload: input.payload,
 			});
 		}),
