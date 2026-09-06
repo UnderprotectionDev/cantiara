@@ -30,6 +30,8 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"WireframeVersion",
 	"WireframeLinkedBlock",
 	"WorkNotNowTrail",
+	"UserFlowTemplate",
+	"UserFlowPersonalViewport",
 ]);
 
 export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {

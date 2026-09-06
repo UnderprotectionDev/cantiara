@@ -421,6 +421,27 @@ export async function createOpenQuestion(
 	);
 }
 
+export async function createOpenQuestionFromCommand(
+	tx: PrismaTransaction,
+	command: unknown
+): Promise<OpenQuestionWriteOutcome> {
+	const parsed = createOpenQuestionCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await createOpenQuestionInTransaction(
+		tx,
+		parsed.data,
+		commandKey,
+		fingerprint
+	);
+}
+
 export async function setOpenQuestionLife(
 	prisma: PrismaClient,
 	command: unknown

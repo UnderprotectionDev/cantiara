@@ -345,6 +345,25 @@ export async function latestWireframeVersionNumber(
 	return latest?.versionNumber ?? 0;
 }
 
+export async function updateWireframeVersionDocument(
+	db: ScreenDb,
+	input: { document: unknown; id: string }
+): Promise<void> {
+	if (hasScreenDelegate(db)) {
+		await db.wireframeVersion.update({
+			data: { document: input.document as Prisma.InputJsonValue },
+			where: { id: input.id },
+		});
+		return;
+	}
+	const document = JSON.stringify(input.document);
+	await db.$executeRaw`
+		UPDATE "wireframe_version"
+		SET "document" = CAST(${document} AS JSONB)
+		WHERE "id" = ${input.id}
+	`;
+}
+
 export async function insertWireframeVersion(
 	db: ScreenDb,
 	row: {

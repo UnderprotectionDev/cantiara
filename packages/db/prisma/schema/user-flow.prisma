@@ -1,13 +1,14 @@
 model UserFlow {
-  id        String            @id
-  projectId String
-  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title     String
-  document  String
-  revision  Int
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  versions  UserFlowVersion[]
+  id                String                     @id
+  projectId         String
+  project           Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title             String
+  document          String
+  revision          Int
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  versions          UserFlowVersion[]
+  personalViewports UserFlowPersonalViewport[]
 
   @@index([projectId])
   @@index([projectId, updatedAt])
@@ -25,4 +26,36 @@ model UserFlowVersion {
   @@unique([userFlowId, revision])
   @@index([userFlowId])
   @@map("user_flow_version")
+}
+
+model UserFlowPersonalViewport {
+  id                String   @id
+  userFlowId        String
+  userFlow          UserFlow @relation(fields: [userFlowId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  centerX           Float
+  centerY           Float
+  zoom              Float
+  collapsedGroupIds Json
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userFlowId, userId])
+  @@index([userId])
+  @@map("user_flow_personal_viewport")
+}
+
+model UserFlowTemplate {
+  id          String    @id
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  structure   String
+  revision    Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId])
+  @@map("user_flow_template")
 }

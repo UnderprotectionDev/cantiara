@@ -12,30 +12,44 @@ import { USAGE_KIND } from "../../relations/server/relations-model";
 import { getScreenRow, parseWireframeVersions } from "./screen-double";
 import {
 	alignNodes,
+	bindScreenOnNode,
 	defaultLayout,
 	duplicateNodes,
+	groupFlowNodes,
 	isFlowNodeKind,
 	moveNodes,
 	orderZ,
+	reorderFlowNodes,
 	snapToGrid,
+	unbindScreenOnNode,
 } from "./user-flow-editor";
 import {
 	type ApplyEditorOpCommand,
 	applyEditorOpCommandSchema,
+	bindOutlineScreenCommandSchema,
 	type CreateUserFlowCommand,
+	convertRecordKindFromRelationKind,
 	createUserFlowCommandSchema,
 	emptyFlowDocument,
 	emptyPathText,
 	type FlowDocument,
+	type FlowLiveCardDocument,
 	type FlowNodeDocument,
 	type FlowNodeKind,
+	groupOutlineCommandSchema,
 	isScreenFlowNode,
+	type PersonalViewport,
 	type PlaceFlowNodeCommand,
 	type PresentedFlowNode,
+	type PresentedLiveCard,
+	type PresentedOriginRelation,
 	parseFlowDocument,
 	placeFlowNodeCommandSchema,
 	placeScreenNodeCommandSchema,
+	reorderOutlineCommandSchema,
+	restorePersonalViewport,
 	SCREEN_NODE_KIND,
+	savePersonalViewportCommandSchema,
 	screenOpenHref,
 	serializeFlowDocument,
 	type UpdateNodePathTextCommand,
@@ -44,6 +58,7 @@ import {
 	USER_FLOW_REJECTION,
 	type UserFlowView,
 	type UserFlowWriteOutcome,
+	unbindOutlineScreenCommandSchema,
 	updateNodePathTextCommandSchema,
 	usageEmbedIdForNode,
 } from "./user-flow-model";
@@ -51,7 +66,7 @@ import {
 type PrismaLike = PrismaClient | Prisma.TransactionClient;
 type PrismaTransaction = Prisma.TransactionClient;
 
-interface UserFlowRow {
+export interface UserFlowRow {
 	document: string;
 	id: string;
 	projectId: string;
@@ -162,6 +177,199 @@ export async function updateNodePathText(
 	);
 }
 
+export async function reorderOutline(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<UserFlowWriteOutcome> {
+	const parsed = reorderOutlineCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		mutateDocumentInTransaction(tx, {
+			commandKey,
+			fingerprint,
+			input: parsed.data,
+			nextDocument: (document) =>
+				reorderFlowNodes(document, parsed.data.payload.nodeIds),
+		})
+	);
+}
+
+export async function groupOutline(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<UserFlowWriteOutcome> {
+	const parsed = groupOutlineCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		mutateDocumentInTransaction(tx, {
+			commandKey,
+			fingerprint,
+			input: parsed.data,
+			nextDocument: (document) =>
+				groupFlowNodes(
+					document,
+					parsed.data.payload.nodeIds,
+					parsed.data.payload.title ?? USER_FLOW_COPY.group
+				),
+		})
+	);
+}
+
+export async function bindOutlineScreen(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<UserFlowWriteOutcome> {
+	const parsed = bindOutlineScreenCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		mutateDocumentInTransaction(tx, {
+			commandKey,
+			fingerprint,
+			input: parsed.data,
+			nextDocument: (document) =>
+				bindScreenOnNode(
+					document,
+					parsed.data.payload.nodeId,
+					parsed.data.payload.screenId
+				),
+		})
+	);
+}
+
+export async function unbindOutlineScreen(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<UserFlowWriteOutcome> {
+	const parsed = unbindOutlineScreenCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		mutateDocumentInTransaction(tx, {
+			commandKey,
+			fingerprint,
+			input: parsed.data,
+			nextDocument: (document) =>
+				unbindScreenOnNode(document, parsed.data.payload.nodeId),
+		})
+	);
+}
+
+export async function savePersonalViewport(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<
+	| { status: "committed"; viewport: PersonalViewport }
+	| { reason: "invalid-command" | "target-not-found"; status: "rejected" }
+> {
+	const parsed = savePersonalViewportCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
+	}
+	const current = await loadFlow(prisma, parsed.data.payload.userFlowId);
+	if (!current) {
+		return { reason: USER_FLOW_REJECTION.targetNotFound, status: "rejected" };
+	}
+	if (!hasPersonalViewportDelegate(prisma)) {
+		return { reason: USER_FLOW_REJECTION.targetNotFound, status: "rejected" };
+	}
+	const { viewport } = parsed.data.payload;
+	const viewportClient = prisma as PrismaClient;
+	await viewportClient.userFlowPersonalViewport.upsert({
+		create: {
+			centerX: viewport.centerX,
+			centerY: viewport.centerY,
+			collapsedGroupIds: viewport.collapsedGroupIds,
+			id: crypto.randomUUID(),
+			userFlowId: current.id,
+			userId: parsed.data.actorId,
+			zoom: viewport.zoom,
+		},
+		update: {
+			centerX: viewport.centerX,
+			centerY: viewport.centerY,
+			collapsedGroupIds: viewport.collapsedGroupIds,
+			zoom: viewport.zoom,
+		},
+		where: {
+			userFlowId_userId: {
+				userFlowId: current.id,
+				userId: parsed.data.actorId,
+			},
+		},
+	});
+	return { status: "committed", viewport };
+}
+
+export async function getPersonalViewport(
+	prisma: PrismaClient,
+	input: { actorId: string; userFlowId: string; workspaceId: string }
+): Promise<ReturnType<typeof restorePersonalViewport> | null> {
+	const row = await loadFlow(prisma, input.userFlowId);
+	if (!row) {
+		return null;
+	}
+	const project = await loadProject(prisma, row.projectId);
+	if (!project || project.workspaceId !== input.workspaceId) {
+		return null;
+	}
+	const document = parseFlowDocument(row.document);
+	const savedRow = hasPersonalViewportDelegate(prisma)
+		? await (prisma as PrismaClient).userFlowPersonalViewport.findUnique({
+				where: {
+					userFlowId_userId: {
+						userFlowId: row.id,
+						userId: input.actorId,
+					},
+				},
+			})
+		: null;
+	return restorePersonalViewport({
+		content: {
+			groups: document.groups,
+			nodes: document.nodes.map((node) => ({
+				groupId: node.groupId,
+				id: node.id,
+				layout: node.layout,
+			})),
+		},
+		saved: savedRow
+			? {
+					centerX: savedRow.centerX,
+					centerY: savedRow.centerY,
+					collapsedGroupIds: collapsedIdsFromJson(savedRow.collapsedGroupIds),
+					zoom: savedRow.zoom,
+				}
+			: null,
+	});
+}
+
 export async function getUserFlow(
 	prisma: PrismaClient,
 	input: { userFlowId: string; workspaceId: string }
@@ -210,7 +418,7 @@ function hasUserFlowWriteDelegate(tx: PrismaTransaction): boolean {
 	return typeof tx.userFlow?.create === "function";
 }
 
-function requireUserFlowWriteDelegate(tx: PrismaTransaction): void {
+export function requireUserFlowWriteDelegate(tx: PrismaTransaction): void {
 	if (!hasUserFlowWriteDelegate(tx)) {
 		throw new Error(STALE_GENERATED_CLIENT);
 	}
@@ -276,7 +484,10 @@ async function placeNodeInTransaction(
 	await lockProject(tx, row.projectId);
 	const document = parseFlowDocument(row.document);
 	const node = buildPlacedNode(command, document.nodes.length);
-	const next: FlowDocument = { nodes: [...document.nodes, node] };
+	const next: FlowDocument = {
+		...document,
+		nodes: [...document.nodes, node],
+	};
 	return await persistFlowDocument(tx, {
 		actorId: command.actorId,
 		commandKey,
@@ -297,6 +508,7 @@ function buildPlacedNode(
 		return {
 			chosenWireframeVersionId:
 				command.payload.chosenWireframeVersionId ?? null,
+			groupId: null,
 			id: crypto.randomUUID(),
 			kind: SCREEN_NODE_KIND,
 			layout,
@@ -306,6 +518,7 @@ function buildPlacedNode(
 		};
 	}
 	return {
+		groupId: null,
 		id: crypto.randomUUID(),
 		kind: command.payload.kind as Exclude<
 			FlowNodeKind,
@@ -447,7 +660,46 @@ function nextDocumentFromOp(
 	return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
 }
 
-async function persistFlowDocument(
+async function mutateDocumentInTransaction(
+	tx: PrismaTransaction,
+	input: {
+		commandKey: string;
+		fingerprint: string;
+		input: {
+			actorId: string;
+			baseRevision: number;
+			payload: { userFlowId: string };
+		};
+		nextDocument: (document: FlowDocument) => FlowDocument | null;
+	}
+): Promise<UserFlowWriteOutcome> {
+	requireUserFlowWriteDelegate(tx);
+	const replayed = await replayFlow(tx, input.commandKey, input.fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const row = await loadFlow(tx, input.input.payload.userFlowId);
+	if (!row) {
+		return { reason: USER_FLOW_REJECTION.targetNotFound, status: "rejected" };
+	}
+	if (row.revision !== input.input.baseRevision) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	await lockProject(tx, row.projectId);
+	const next = input.nextDocument(parseFlowDocument(row.document));
+	if (!next) {
+		return { reason: USER_FLOW_REJECTION.targetNotFound, status: "rejected" };
+	}
+	return await persistFlowDocument(tx, {
+		actorId: input.input.actorId,
+		commandKey: input.commandKey,
+		fingerprint: input.fingerprint,
+		next,
+		row,
+	});
+}
+
+export async function persistFlowDocument(
 	tx: PrismaTransaction,
 	input: {
 		actorId: string;
@@ -516,7 +768,7 @@ async function updatePathInTransaction(
 		actorId: command.actorId,
 		commandKey,
 		fingerprint,
-		next: { nodes },
+		next: { ...document, nodes },
 		row,
 	});
 }
@@ -580,7 +832,7 @@ async function syncScreenUsageLinks(
 	}
 }
 
-async function presentUserFlow(
+export async function presentUserFlow(
 	prisma: PrismaLike,
 	row: UserFlowRow,
 	workspaceId: string
@@ -605,16 +857,25 @@ async function presentUserFlow(
 			action: USER_FLOW_COPY.action,
 			align: USER_FLOW_COPY.align,
 			archived: USER_FLOW_COPY.archived,
+			convertAndBind: USER_FLOW_COPY.convertAndBind,
 			decision: USER_FLOW_COPY.decision,
 			fitView: USER_FLOW_COPY.fitView,
+			group: USER_FLOW_COPY.group,
+			inspect: USER_FLOW_COPY.inspect,
 			openSourceRecord: USER_FLOW_COPY.openSourceRecord,
+			originLocation: USER_FLOW_COPY.originLocation,
+			outline: USER_FLOW_COPY.outline,
+			promoteToScreen: USER_FLOW_COPY.promoteToScreen,
 			screen: USER_FLOW_COPY.screen,
 			section: USER_FLOW_COPY.section,
 			stateOutcome: USER_FLOW_COPY.stateOutcome,
+			unbind: USER_FLOW_COPY.unbind,
 			undo: USER_FLOW_COPY.undo,
 			userFlow: USER_FLOW_COPY.userFlow,
 		},
+		groups: document.groups,
 		id: row.id,
+		liveCards: await presentLiveCards(prisma, document.liveCards ?? []),
 		nodes,
 		originRelations,
 		projectId: row.projectId,
@@ -627,6 +888,55 @@ async function presentUserFlow(
 			sourceRecordId: link.sourceRecordId,
 		})),
 	};
+}
+
+async function presentLiveCards(
+	prisma: PrismaLike,
+	cards: readonly FlowLiveCardDocument[]
+): Promise<PresentedLiveCard[]> {
+	return await Promise.all(
+		cards.map(async (card) => {
+			const source = await loadLiveCardSource(prisma, card);
+			return {
+				id: card.id,
+				layout: card.layout,
+				openSourceRecord: USER_FLOW_COPY.openSourceRecord,
+				recordId: card.recordId,
+				recordKind: card.recordKind,
+				status: source.status,
+				title: source.title,
+			};
+		})
+	);
+}
+
+async function loadLiveCardSource(
+	prisma: PrismaLike,
+	card: FlowLiveCardDocument
+): Promise<{ status: string | null; title: string }> {
+	if (card.recordKind === USER_FLOW_COPY.work && "work" in prisma) {
+		const work = await prisma.work.findUnique({
+			where: { id: card.recordId },
+		});
+		if (work) {
+			return { status: work.status, title: work.title };
+		}
+	}
+	if (card.recordKind === USER_FLOW_COPY.decision && "decision" in prisma) {
+		const decision = await prisma.decision.findUnique({
+			where: { id: card.recordId },
+		});
+		if (decision) {
+			return { status: decision.life, title: decision.title };
+		}
+	}
+	if (card.recordKind === USER_FLOW_COPY.risk && "risk" in prisma) {
+		const risk = await prisma.risk.findUnique({ where: { id: card.recordId } });
+		if (risk) {
+			return { status: risk.status, title: risk.title };
+		}
+	}
+	return { status: null, title: card.recordKind };
 }
 
 async function presentNode(
@@ -642,6 +952,7 @@ async function presentNode(
 		return {
 			boundAt: null,
 			chosenWireframeVersionId: null,
+			groupId: input.node.groupId,
 			id: input.node.id,
 			kind: input.node.kind,
 			label: input.node.label,
@@ -662,6 +973,7 @@ async function presentNode(
 	const base = {
 		boundAt,
 		chosenWireframeVersionId: input.node.chosenWireframeVersionId,
+		groupId: input.node.groupId,
 		id: input.node.id,
 		kind: SCREEN_NODE_KIND,
 		label: "",
@@ -748,7 +1060,7 @@ async function presentNode(
 	};
 }
 
-async function loadFlow(
+export async function loadFlow(
 	prisma: PrismaLike,
 	userFlowId: string
 ): Promise<UserFlowRow | null> {
@@ -777,7 +1089,7 @@ async function loadProject(
 	});
 }
 
-async function workspaceIdForProject(
+export async function workspaceIdForProject(
 	prisma: PrismaLike,
 	projectId: string
 ): Promise<string> {
@@ -811,7 +1123,7 @@ async function loadUsageLinks(
 async function loadOriginRelations(
 	prisma: PrismaLike,
 	recordId: string
-): Promise<{ id: string; type: string }[]> {
+): Promise<PresentedOriginRelation[]> {
 	if (
 		!("typedRelation" in prisma) ||
 		typeof prisma.typedRelation?.findMany !== "function"
@@ -824,10 +1136,27 @@ async function loadOriginRelations(
 			type: RELATIONS_COPY.origin,
 		},
 	});
-	return rows.map((row) => ({ id: row.id, type: row.type }));
+	const presented: PresentedOriginRelation[] = [];
+	for (const row of rows) {
+		const sourceIsFlow = row.fromId === recordId;
+		const targetKind = sourceIsFlow ? row.toKind : row.fromKind;
+		const recordKind = convertRecordKindFromRelationKind(targetKind);
+		if (!recordKind) {
+			continue;
+		}
+		presented.push({
+			id: row.id,
+			nodeId: row.originComponentId,
+			recordId: sourceIsFlow ? row.toId : row.fromId,
+			recordKind,
+			sourceVersion: row.originSourceVersion,
+			type: row.type,
+		});
+	}
+	return presented;
 }
 
-async function replayFlow(
+export async function replayFlow(
 	tx: PrismaTransaction,
 	commandKey: string,
 	fingerprint: string
@@ -852,7 +1181,7 @@ async function replayFlow(
 	};
 }
 
-async function writeReceipt(
+export async function writeReceipt(
 	tx: PrismaTransaction,
 	input: {
 		actorId: string;
@@ -876,7 +1205,7 @@ async function writeReceipt(
 	});
 }
 
-async function lockProject(
+export async function lockProject(
 	tx: PrismaTransaction,
 	projectId: string
 ): Promise<void> {
@@ -884,6 +1213,25 @@ async function lockProject(
 	await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockA}, ${lockB})`;
 }
 
-function commandKeyFor(actorId: string, idempotencyKey: string): string {
+export function commandKeyFor(actorId: string, idempotencyKey: string): string {
 	return `human:${actorId}:${idempotencyKey}`;
+}
+
+function hasPersonalViewportDelegate(prisma: PrismaLike): boolean {
+	const delegate = (
+		prisma as {
+			userFlowPersonalViewport?: { findUnique?: unknown; upsert?: unknown };
+		}
+	).userFlowPersonalViewport;
+	return (
+		typeof delegate?.findUnique === "function" &&
+		typeof delegate?.upsert === "function"
+	);
+}
+
+function collapsedIdsFromJson(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.filter((item): item is string => typeof item === "string");
 }
