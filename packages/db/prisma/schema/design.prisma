@@ -1,23 +1,25 @@
 model Design {
-  id         String            @id
-  projectId  String
-  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type       String
-  name       String
-  revision   Int
-  focusOrder Json              @default("[]")
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  cards      ProjectWallCard[]
+  id          String                  @id
+  projectId   String
+  project     Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type        String
+  name        String
+  revision    Int
+  focusOrder  Json                    @default("[]")
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  cards       ProjectWallCard[]
+  groups      ProjectWallGroup[]
+  visualLinks ProjectWallVisualLink[]
 
   @@index([projectId, type])
   @@map("design")
 }
 
 model ProjectWallCard {
-  id           String   @id
+  id           String                  @id
   designId     String
-  design       Design   @relation(fields: [designId], references: [id], onDelete: Cascade)
+  design       Design                  @relation(fields: [designId], references: [id], onDelete: Cascade)
   sourceId     String
   sourceKind   String
   positionX    Float
@@ -25,11 +27,47 @@ model ProjectWallCard {
   density      String
   authority    String?
   pinVersionId String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  locked       Boolean                 @default(false)
+  groupId      String?
+  group        ProjectWallGroup?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  outgoing     ProjectWallVisualLink[] @relation("VisualLinkFrom")
+  incoming     ProjectWallVisualLink[] @relation("VisualLinkTo")
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
 
   @@unique([designId, sourceId])
   @@index([designId])
   @@index([sourceId])
+  @@index([groupId])
   @@map("project_wall_card")
+}
+
+model ProjectWallGroup {
+  id        String            @id
+  designId  String
+  design    Design            @relation(fields: [designId], references: [id], onDelete: Cascade)
+  name      String
+  cards     ProjectWallCard[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([designId])
+  @@map("project_wall_group")
+}
+
+model ProjectWallVisualLink {
+  id         String          @id
+  designId   String
+  design     Design          @relation(fields: [designId], references: [id], onDelete: Cascade)
+  fromCardId String
+  fromCard   ProjectWallCard @relation("VisualLinkFrom", fields: [fromCardId], references: [id], onDelete: Cascade)
+  toCardId   String
+  toCard     ProjectWallCard @relation("VisualLinkTo", fields: [toCardId], references: [id], onDelete: Cascade)
+  label      String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([designId, fromCardId, toCardId])
+  @@index([designId])
+  @@map("project_wall_visual_link")
 }

@@ -7,14 +7,26 @@ import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
+import {
+	createRelation,
+	previewRelation,
+} from "../../relations/server/relations";
 import { viewSmartCollection } from "../../smart-collections/server/smart-collections";
 
 import {
+	type ApplyAutoLayoutCommand,
+	AUTO_LAYOUT_STEP,
+	applyAutoLayoutCommandSchema,
 	COLLECTION_SUMMARY_LIMIT,
+	type CreateGroupCommand,
 	type CreateProjectWallCommand,
+	createGroupCommandSchema,
+	createPersistentRelationCommandSchema,
 	createProjectWallCommandSchema,
 	createRegionSnapshotCommandSchema,
 	DESIGN_TYPE_PROJECT_WALL,
+	type DrawVisualLineCommand,
+	drawVisualLineCommandSchema,
 	fieldsForDensity,
 	type LiveCardFieldMap,
 	type PlaceLiveCardCommand,
@@ -25,19 +37,24 @@ import {
 	PROJECT_WALL_SOURCE_KIND,
 	type ProjectWallCardView,
 	type ProjectWallDensity,
+	type ProjectWallGroupView,
 	type ProjectWallMemberPreview,
 	type ProjectWallRejectionReason,
 	type ProjectWallSourceKind,
 	type ProjectWallView,
+	type ProjectWallVisualLinkView,
 	type ProjectWallWriteOutcome,
 	parseFocusOrder,
 	placeLiveCardCommandSchema,
+	previewPersistentRelationInputSchema,
 	type RegionSnapshotPreviewOutcome,
 	type RegionSnapshotView,
 	type RegionSnapshotWriteOutcome,
 	regionSnapshotPayloadSchema,
 	type SaveFocusOrderCommand,
+	type SetLockPositionCommand,
 	saveFocusOrderCommandSchema,
+	setLockPositionCommandSchema,
 	snapshotNotice,
 	type UpdateCardDensityCommand,
 	type UpdateCardLayoutCommand,
@@ -61,7 +78,9 @@ interface DesignRow {
 interface CardRow {
 	authority: string | null;
 	density: string;
+	groupId: string | null;
 	id: string;
+	locked: boolean;
 	pinVersionId: string | null;
 	positionX: number;
 	positionY: number;
@@ -200,6 +219,152 @@ export function updateDiagramNode(
 		reason: PROJECT_WALL_REJECTION.diagramReadOnly,
 		status: "rejected",
 	};
+}
+
+export async function drawVisualLine(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ProjectWallWriteOutcome> {
+	const parsed = drawVisualLineCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected",
+		};
+	}
+	return await prisma.$transaction((tx) =>
+		drawVisualLineInTransaction(tx, parsed.data)
+	);
+}
+
+export async function previewPersistentRelation(
+	prisma: PrismaClient,
+	input: unknown
+) {
+	const parsed = previewPersistentRelationInputSchema.safeParse(input);
+	if (!parsed.success) {
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected" as const,
+		};
+	}
+	const ends = await visualLinkEnds(prisma, parsed.data);
+	if (ends.status === "rejected") {
+		return ends;
+	}
+	return await previewRelation(prisma, {
+		from: { id: ends.from.sourceId, kind: PROJECT_WALL_SOURCE_KIND.work },
+		to: { id: ends.to.sourceId, kind: PROJECT_WALL_SOURCE_KIND.work },
+		type: parsed.data.type,
+		viewerWorkspaceId: parsed.data.viewerWorkspaceId,
+	});
+}
+
+export async function createPersistentRelation(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ProjectWallWriteOutcome> {
+	const parsed = createPersistentRelationCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected",
+		};
+	}
+	if (parsed.data.payload.previewAcknowledged !== true) {
+		return {
+			reason: PROJECT_WALL_REJECTION.previewRequired,
+			status: "rejected",
+		};
+	}
+	const ends = await visualLinkEnds(prisma, parsed.data.payload);
+	if (ends.status === "rejected") {
+		return ends;
+	}
+	const related = await createRelation(prisma, {
+		actorId: parsed.data.actorId,
+		from: { id: ends.from.sourceId, kind: PROJECT_WALL_SOURCE_KIND.work },
+		idempotencyKey: parsed.data.idempotencyKey,
+		origin: "human",
+		previewAcknowledged: true,
+		to: { id: ends.to.sourceId, kind: PROJECT_WALL_SOURCE_KIND.work },
+		type: parsed.data.payload.type,
+		viewerWorkspaceId: parsed.data.viewerWorkspaceId,
+	});
+	if (related.status !== "committed" && related.status !== "replayed") {
+		if (
+			related.status === "rejected" &&
+			related.reason === "preview-required"
+		) {
+			return {
+				reason: PROJECT_WALL_REJECTION.previewRequired,
+				status: "rejected",
+			};
+		}
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected",
+		};
+	}
+	const wall = await getProjectWall(prisma, parsed.data.payload.wallId);
+	if (!wall) {
+		return { reason: PROJECT_WALL_REJECTION.wallNotFound, status: "rejected" };
+	}
+	return { status: related.status, wall };
+}
+
+export async function createGroup(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ProjectWallWriteOutcome> {
+	const parsed = createGroupCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected",
+		};
+	}
+	if (parsed.data.payload.parentId) {
+		return {
+			reason: PROJECT_WALL_REJECTION.nestedGroup,
+			status: "rejected",
+		};
+	}
+	return await prisma.$transaction((tx) =>
+		createGroupInTransaction(tx, parsed.data)
+	);
+}
+
+export async function setLockPosition(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ProjectWallWriteOutcome> {
+	const parsed = setLockPositionCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected",
+		};
+	}
+	return await prisma.$transaction((tx) =>
+		setLockPositionInTransaction(tx, parsed.data)
+	);
+}
+
+export async function applyAutoLayout(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ProjectWallWriteOutcome> {
+	const parsed = applyAutoLayoutCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected",
+		};
+	}
+	return await prisma.$transaction((tx) =>
+		applyAutoLayoutInTransaction(tx, parsed.data)
+	);
 }
 
 export async function getProjectWall(
@@ -360,6 +525,9 @@ async function updateLayoutInTransaction(
 			wallId: command.payload.wallId,
 		}),
 		write: async (card) => {
+			if (card.locked) {
+				return PROJECT_WALL_REJECTION.positionLocked;
+			}
 			await tx.projectWallCard.update({
 				data: {
 					positionX: command.payload.positionX,
@@ -367,6 +535,7 @@ async function updateLayoutInTransaction(
 				},
 				where: { id: card.id },
 			});
+			return null;
 		},
 	});
 }
@@ -394,16 +563,20 @@ async function updateDensityInTransaction(
 				data: { density },
 				where: { id: card.id },
 			});
+			return null;
 		},
 	});
 }
 
 async function updateCardInTransaction(
 	tx: PrismaTransaction,
-	command: UpdateCardLayoutCommand | UpdateCardDensityCommand,
+	command:
+		| UpdateCardLayoutCommand
+		| UpdateCardDensityCommand
+		| SetLockPositionCommand,
 	step: {
 		fingerprint: string;
-		write: (card: CardRow) => Promise<void>;
+		write: (card: CardRow) => Promise<ProjectWallRejectionReason | null>;
 	}
 ): Promise<ProjectWallWriteOutcome> {
 	const wall = await tx.design.findUnique({
@@ -424,7 +597,10 @@ async function updateCardInTransaction(
 	if (replayed) {
 		return replayed;
 	}
-	await step.write(card);
+	const lockedReason = await step.write(card);
+	if (lockedReason) {
+		return { reason: lockedReason, status: "rejected" };
+	}
 	const updated = await tx.design.update({
 		data: { revision: wall.revision + 1 },
 		where: { id: wall.id },
@@ -447,17 +623,28 @@ async function hydrateWall(
 		orderBy: { createdAt: "asc" },
 		where: { designId: row.id },
 	});
+	const groups = await prisma.projectWallGroup.findMany({
+		orderBy: { createdAt: "asc" },
+		where: { designId: row.id },
+	});
+	const visualLinks = await prisma.projectWallVisualLink.findMany({
+		orderBy: { createdAt: "asc" },
+		where: { designId: row.id },
+	});
+	const presentedCards = await Promise.all(
+		cards.map((card) => presentCard(prisma, card, row.projectId, cards))
+	);
 	return {
-		cards: await Promise.all(
-			cards.map((card) => presentCard(prisma, card, row.projectId, cards))
-		),
+		cards: presentedCards,
 		focusOrder: parseFocusOrder(row.focusOrder),
+		groups: presentGroups(groups, presentedCards),
 		id: row.id,
 		name: row.name,
 		projectId: row.projectId,
 		recordKind: DESIGN_TYPE_PROJECT_WALL,
 		revision: row.revision,
 		type: DESIGN_TYPE_PROJECT_WALL,
+		visualLinks: visualLinks.map(presentVisualLink),
 	};
 }
 
@@ -485,7 +672,9 @@ async function presentCard(
 				[PROJECT_WALL_FIELD.title]: diagram?.name ?? "",
 				[PROJECT_WALL_FIELD.type]: PROJECT_WALL_SOURCE_KIND.technicalDiagram,
 			},
+			groupId: card.groupId,
 			id: card.id,
+			locked: card.locked,
 			nodeEditing: false,
 			openSourceRecord: PROJECT_WALL_COPY.openSourceRecord,
 			positionX: card.positionX,
@@ -534,7 +723,9 @@ async function presentCard(
 					)?.name ?? "",
 				[PROJECT_WALL_FIELD.type]: PROJECT_WALL_SOURCE_KIND.smartCollection,
 			},
+			groupId: card.groupId,
 			id: card.id,
+			locked: card.locked,
 			members,
 			openAllInSource: PROJECT_WALL_COPY.openAllInSource,
 			openSourceRecord: PROJECT_WALL_COPY.openSourceRecord,
@@ -560,13 +751,270 @@ async function presentCard(
 	return {
 		density,
 		fields: fieldsForDensity(density, sourceFields),
+		groupId: card.groupId,
 		id: card.id,
+		locked: card.locked,
 		openSourceRecord: PROJECT_WALL_COPY.openSourceRecord,
 		positionX: card.positionX,
 		positionY: card.positionY,
 		sourceId: card.sourceId,
 		sourceKind: PROJECT_WALL_SOURCE_KIND.work,
 	};
+}
+
+function presentGroups(
+	groups: { id: string; name: string }[],
+	cards: { groupId: string | null; id: string }[]
+): ProjectWallGroupView[] {
+	return groups.map((group) => ({
+		cardIds: cards
+			.filter((card) => card.groupId === group.id)
+			.map((card) => card.id),
+		id: group.id,
+		name: group.name,
+	}));
+}
+
+function presentVisualLink(link: {
+	fromCardId: string;
+	id: string;
+	label: string;
+	toCardId: string;
+}): ProjectWallVisualLinkView {
+	return {
+		fromCardId: link.fromCardId,
+		id: link.id,
+		label: link.label,
+		toCardId: link.toCardId,
+	};
+}
+
+async function visualLinkEnds(
+	prisma: PrismaClient | PrismaTransaction,
+	input: { visualLinkId: string; wallId: string }
+): Promise<
+	| { from: CardRow; status: "ok"; to: CardRow }
+	| { reason: ProjectWallRejectionReason; status: "rejected" }
+> {
+	const wall = await prisma.design.findUnique({
+		where: { id: input.wallId },
+	});
+	if (!wall || wall.type !== DESIGN_TYPE_PROJECT_WALL) {
+		return { reason: PROJECT_WALL_REJECTION.wallNotFound, status: "rejected" };
+	}
+	const link = await prisma.projectWallVisualLink.findUnique({
+		where: { id: input.visualLinkId },
+	});
+	if (!link || link.designId !== wall.id) {
+		return {
+			reason: PROJECT_WALL_REJECTION.visualLinkNotFound,
+			status: "rejected",
+		};
+	}
+	const from = await prisma.projectWallCard.findUnique({
+		where: { id: link.fromCardId },
+	});
+	const to = await prisma.projectWallCard.findUnique({
+		where: { id: link.toCardId },
+	});
+	if (!(from && to)) {
+		return {
+			reason: PROJECT_WALL_REJECTION.visualLinkNotFound,
+			status: "rejected",
+		};
+	}
+	return { from, status: "ok", to };
+}
+
+async function drawVisualLineInTransaction(
+	tx: PrismaTransaction,
+	command: DrawVisualLineCommand
+): Promise<ProjectWallWriteOutcome> {
+	const { payload } = command;
+	if (payload.fromCardId === payload.toCardId) {
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected",
+		};
+	}
+	const wall = await tx.design.findUnique({ where: { id: payload.wallId } });
+	if (!wall || wall.type !== DESIGN_TYPE_PROJECT_WALL) {
+		return { reason: PROJECT_WALL_REJECTION.wallNotFound, status: "rejected" };
+	}
+	const from = await tx.projectWallCard.findUnique({
+		where: { id: payload.fromCardId },
+	});
+	const to = await tx.projectWallCard.findUnique({
+		where: { id: payload.toCardId },
+	});
+	if (!(from && to) || from.designId !== wall.id || to.designId !== wall.id) {
+		return { reason: PROJECT_WALL_REJECTION.wallNotFound, status: "rejected" };
+	}
+	await lockProject(tx, wall.projectId);
+	const fingerprint = payloadFingerprint({
+		fromCardId: payload.fromCardId,
+		label: payload.label,
+		toCardId: payload.toCardId,
+		wallId: wall.id,
+	});
+	const commandKey = commandKeyFor(command.actorId, command.idempotencyKey);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	await tx.projectWallVisualLink.create({
+		data: {
+			designId: wall.id,
+			fromCardId: payload.fromCardId,
+			id: crypto.randomUUID(),
+			label: payload.label,
+			toCardId: payload.toCardId,
+		},
+	});
+	const updated = await tx.design.update({
+		data: { revision: wall.revision + 1 },
+		where: { id: wall.id },
+	});
+	const view = await hydrateWall(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		wall: view,
+	});
+	return { status: "committed", wall: view };
+}
+
+async function createGroupInTransaction(
+	tx: PrismaTransaction,
+	command: CreateGroupCommand
+): Promise<ProjectWallWriteOutcome> {
+	const wall = await tx.design.findUnique({
+		where: { id: command.payload.wallId },
+	});
+	if (!wall || wall.type !== DESIGN_TYPE_PROJECT_WALL) {
+		return { reason: PROJECT_WALL_REJECTION.wallNotFound, status: "rejected" };
+	}
+	const cards = await tx.projectWallCard.findMany({
+		where: {
+			designId: wall.id,
+			id: { in: command.payload.cardIds },
+		},
+	});
+	if (cards.length !== command.payload.cardIds.length) {
+		return { reason: PROJECT_WALL_REJECTION.wallNotFound, status: "rejected" };
+	}
+	await lockProject(tx, wall.projectId);
+	const fingerprint = payloadFingerprint({
+		cardIds: command.payload.cardIds,
+		name: command.payload.name,
+		wallId: wall.id,
+	});
+	const commandKey = commandKeyFor(command.actorId, command.idempotencyKey);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const groupId = crypto.randomUUID();
+	await tx.projectWallGroup.create({
+		data: {
+			designId: wall.id,
+			id: groupId,
+			name: command.payload.name,
+		},
+	});
+	await tx.projectWallCard.updateMany({
+		data: { groupId },
+		where: { id: { in: command.payload.cardIds } },
+	});
+	const updated = await tx.design.update({
+		data: { revision: wall.revision + 1 },
+		where: { id: wall.id },
+	});
+	const view = await hydrateWall(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		wall: view,
+	});
+	return { status: "committed", wall: view };
+}
+
+async function setLockPositionInTransaction(
+	tx: PrismaTransaction,
+	command: SetLockPositionCommand
+): Promise<ProjectWallWriteOutcome> {
+	return await updateCardInTransaction(tx, command, {
+		fingerprint: payloadFingerprint({
+			cardId: command.payload.cardId,
+			locked: command.payload.locked,
+			wallId: command.payload.wallId,
+		}),
+		write: async (card) => {
+			await tx.projectWallCard.update({
+				data: { locked: command.payload.locked },
+				where: { id: card.id },
+			});
+			return null;
+		},
+	});
+}
+
+async function applyAutoLayoutInTransaction(
+	tx: PrismaTransaction,
+	command: ApplyAutoLayoutCommand
+): Promise<ProjectWallWriteOutcome> {
+	const wall = await tx.design.findUnique({
+		where: { id: command.payload.wallId },
+	});
+	if (!wall || wall.type !== DESIGN_TYPE_PROJECT_WALL) {
+		return { reason: PROJECT_WALL_REJECTION.wallNotFound, status: "rejected" };
+	}
+	await lockProject(tx, wall.projectId);
+	const fingerprint = payloadFingerprint({
+		autoLayout: true,
+		wallId: wall.id,
+	});
+	const commandKey = commandKeyFor(command.actorId, command.idempotencyKey);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const cards = await tx.projectWallCard.findMany({
+		orderBy: { createdAt: "asc" },
+		where: { designId: wall.id },
+	});
+	const moves: Promise<unknown>[] = [];
+	let unlockedIndex = 0;
+	for (const card of cards) {
+		if (card.locked) {
+			continue;
+		}
+		moves.push(
+			tx.projectWallCard.update({
+				data: {
+					positionX: unlockedIndex * AUTO_LAYOUT_STEP,
+					positionY: 0,
+				},
+				where: { id: card.id },
+			})
+		);
+		unlockedIndex += 1;
+	}
+	await Promise.all(moves);
+	const updated = await tx.design.update({
+		data: { revision: wall.revision + 1 },
+		where: { id: wall.id },
+	});
+	const view = await hydrateWall(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		wall: view,
+	});
+	return { status: "committed", wall: view };
 }
 
 async function resolveSource(

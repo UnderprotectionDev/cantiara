@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const PROJECT_WALL_COPY = {
 	compact: "Compact",
+	createPersistentRelation: "Create Persistent Relation",
 	createProjectWall: "Create Project Wall",
 	detailed: "Detailed",
 	exact: "Exact",
@@ -9,6 +10,7 @@ export const PROJECT_WALL_COPY = {
 	focusOrder: "Focus order",
 	frozenCopy: "Frozen copy",
 	live: "Live",
+	lockPosition: "Lock Position",
 	name: "Name",
 	noProjectWall: "No Project Wall yet.",
 	noShareGrant: "This output does not grant share access.",
@@ -21,6 +23,7 @@ export const PROJECT_WALL_COPY = {
 	preview: "Preview",
 	projectWall: "Project Wall",
 	sharedSource: "Shared source",
+	visualLink: "Visual link",
 } as const;
 
 export const DESIGN_TYPE_PROJECT_WALL = "Project Wall" as const;
@@ -74,9 +77,13 @@ export const PROJECT_WALL_REJECTION = {
 	duplicateSource: "duplicate-source",
 	emptySelection: "empty-selection",
 	invalidCommand: "invalid-command",
+	nestedGroup: "nested-group",
 	nestedWall: "nested-wall",
+	positionLocked: "position-locked",
+	previewRequired: "preview-required",
 	sourceNotFound: "source-not-found",
 	unknownDensity: "unknown-density",
+	visualLinkNotFound: "visual-link-not-found",
 	wallNotFound: "wall-not-found",
 	wallOnlyItem: "wall-only-item",
 	workspaceWall: "workspace-wall",
@@ -209,6 +216,102 @@ export const updateDiagramNodeCommandSchema = z.object({
 	}),
 });
 
+export const drawVisualLinePayloadSchema = z.object({
+	fromCardId: z.string().min(1),
+	label: z.string().min(1),
+	toCardId: z.string().min(1),
+	wallId: z.string().min(1),
+});
+
+export const drawVisualLineCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: drawVisualLinePayloadSchema,
+});
+
+export type DrawVisualLineCommand = z.infer<typeof drawVisualLineCommandSchema>;
+
+export const createPersistentRelationPayloadSchema = z.object({
+	previewAcknowledged: z.boolean().optional(),
+	type: z.string().min(1),
+	visualLinkId: z.string().min(1),
+	wallId: z.string().min(1),
+});
+
+export const createPersistentRelationCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: createPersistentRelationPayloadSchema,
+	viewerWorkspaceId: z.string().min(1),
+});
+
+export type CreatePersistentRelationCommand = z.infer<
+	typeof createPersistentRelationCommandSchema
+>;
+
+export const previewPersistentRelationInputSchema = z.object({
+	type: z.string().min(1),
+	viewerWorkspaceId: z.string().min(1),
+	visualLinkId: z.string().min(1),
+	wallId: z.string().min(1),
+});
+
+export type PreviewPersistentRelationInput = z.infer<
+	typeof previewPersistentRelationInputSchema
+>;
+
+export const createGroupPayloadSchema = z.object({
+	cardIds: z.array(z.string().min(1)).min(1),
+	name: z.string().min(1),
+	parentId: z.string().min(1).optional(),
+	wallId: z.string().min(1),
+});
+
+export const createGroupCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: createGroupPayloadSchema,
+});
+
+export type CreateGroupCommand = z.infer<typeof createGroupCommandSchema>;
+
+export const setLockPositionPayloadSchema = z.object({
+	cardId: z.string().min(1),
+	locked: z.boolean(),
+	wallId: z.string().min(1),
+});
+
+export const setLockPositionCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: setLockPositionPayloadSchema,
+});
+
+export type SetLockPositionCommand = z.infer<
+	typeof setLockPositionCommandSchema
+>;
+
+export const applyAutoLayoutPayloadSchema = z.object({
+	wallId: z.string().min(1),
+});
+
+export const applyAutoLayoutCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: applyAutoLayoutPayloadSchema,
+});
+
+export type ApplyAutoLayoutCommand = z.infer<
+	typeof applyAutoLayoutCommandSchema
+>;
+
+export const AUTO_LAYOUT_STEP = 240;
+
 export type LiveCardFieldMap = Partial<
 	Record<(typeof PROJECT_WALL_FIELD)[keyof typeof PROJECT_WALL_FIELD], string>
 >;
@@ -223,7 +326,9 @@ export interface ProjectWallCardView {
 	authority?: typeof PROJECT_WALL_COPY.live | typeof PROJECT_WALL_COPY.exact;
 	density: ProjectWallDensity;
 	fields: LiveCardFieldMap;
+	groupId: string | null;
 	id: string;
+	locked: boolean;
 	members?: ProjectWallMemberPreview[];
 	nodeEditing?: boolean;
 	openAllInSource?: typeof PROJECT_WALL_COPY.openAllInSource;
@@ -235,15 +340,30 @@ export interface ProjectWallCardView {
 	sourceKind: ProjectWallSourceKind;
 }
 
+export interface ProjectWallGroupView {
+	cardIds: string[];
+	id: string;
+	name: string;
+}
+
+export interface ProjectWallVisualLinkView {
+	fromCardId: string;
+	id: string;
+	label: string;
+	toCardId: string;
+}
+
 export interface ProjectWallView {
 	cards: ProjectWallCardView[];
 	focusOrder: string[];
+	groups: ProjectWallGroupView[];
 	id: string;
 	name: string;
 	projectId: string;
 	recordKind: typeof DESIGN_TYPE_PROJECT_WALL;
 	revision: number;
 	type: typeof DESIGN_TYPE_PROJECT_WALL;
+	visualLinks: ProjectWallVisualLinkView[];
 }
 
 export interface ProjectWallPresentationView {
@@ -291,10 +411,16 @@ export function projectWallCatalog() {
 			contentCopy: false,
 			diagramNodeEditing: false,
 			externalSurface: false,
+			freehand: false,
+			groupMembershipAsRelation: false,
 			moodboard: false,
+			nestedGroup: false,
 			nestedWall: false,
 			perCardCss: false,
+			proximityAsRelation: false,
 			shareGrant: false,
+			sketchCard: false,
+			visualLineAsRelation: false,
 			wallOnlyFile: false,
 			wallOnlyNote: false,
 			wallOnlyTask: false,

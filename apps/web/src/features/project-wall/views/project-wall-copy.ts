@@ -1,5 +1,6 @@
 export const PROJECT_WALL_COPY = {
 	compact: "Compact",
+	createPersistentRelation: "Create Persistent Relation",
 	createProjectWall: "Create Project Wall",
 	detailed: "Detailed",
 	exact: "Exact",
@@ -7,6 +8,7 @@ export const PROJECT_WALL_COPY = {
 	focusOrder: "Focus order",
 	frozenCopy: "Frozen copy",
 	live: "Live",
+	lockPosition: "Lock Position",
 	name: "Name",
 	noProjectWall: "No Project Wall yet.",
 	noShareGrant: "This output does not grant share access.",
@@ -19,6 +21,7 @@ export const PROJECT_WALL_COPY = {
 	preview: "Preview",
 	projectWall: "Project Wall",
 	sharedSource: "Shared source",
+	visualLink: "Visual link",
 } as const;
 
 export const PROJECT_WALL_DENSITIES = [
