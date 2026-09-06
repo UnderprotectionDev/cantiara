@@ -33,6 +33,12 @@ function workDelegates() {
 		},
 		dailyFocusMembership: { findMany, findUnique: findMany },
 		decision: { create: () => undefined, findMany },
+		design: {
+			create: () => undefined,
+			findMany,
+			findUnique: findMany,
+			update: () => undefined,
+		},
 		document: { findMany },
 		documentConflictDraft: {
 			create: () => undefined,
@@ -434,6 +440,62 @@ describe("Prisma client current delegates", () => {
 						WireframeVersion: { fields: [{ name: "id" }] },
 					},
 				},
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
+	it("refuses a bun --hot client generated before Project Wall Design", () => {
+		const { design: _dropped, ...beforeDesign } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(beforeDesign as unknown as PrismaClient)
+		).toBe(false);
+		expect(
+			prismaClientHasCurrentDelegates({
+				...workDelegates(),
+				...currentLifecycleDelegates(),
+				_runtimeDataModel: {
+					models: {
+						Design: { fields: [{ name: "id" }, { name: "name" }] },
+						ProjectWallCard: { fields: [{ name: "id" }] },
+						ProjectWallGroup: { fields: [{ name: "id" }] },
+						ProjectWallPersonalViewport: { fields: [{ name: "id" }] },
+						ProjectWallVisualLink: { fields: [{ name: "id" }] },
+						ScreenPersonalViewport: { fields: [{ name: "id" }] },
+					},
+				},
+				externalExecutionHandoff: { create: () => undefined, findMany },
+				fileAttachment: { findMany },
+				fileAttachmentOriginLocation: { findMany },
+				fileAttachmentReceipt: { findMany },
+				fileAttachmentRelation: { findMany },
+				fileAttachmentStaging: { findMany },
+				fileAttachmentVersion: { findMany },
+				fileAttachmentVersionPin: { findMany },
+				fileImageDerivative: { findMany },
+				fileObjectBlob: { findMany },
+				tag: { findMany },
+				tagInlineUse: { findMany },
+				usageHostEmbed: { findMany },
+				usageLink: { findMany },
+				workTag: { findMany },
 			} as unknown as PrismaClient)
 		).toBe(true);
 	});

@@ -202,6 +202,33 @@ async function placedCard(
 	return { card, wall: placed.wall };
 }
 
+const STALE_WALL_CLIENT = {
+	$transaction: async (fn: (tx: Record<string, unknown>) => Promise<unknown>) =>
+		fn({
+			$executeRaw: async () => 0,
+			design: undefined,
+			mutationReceipt: {
+				create: async () => ({}),
+				findUnique: async () => null,
+			},
+		}),
+} as unknown as PrismaClient;
+
+describe("Project Wall — missing Prisma delegate", () => {
+	it("does not throw evaluating tx.design.create", async () => {
+		await expect(
+			createProjectWall(STALE_WALL_CLIENT, {
+				actorId: "actor_stale_client",
+				idempotencyKey: "idem-stale-project-wall",
+				origin: "human",
+				payload: { name: "Checkout narrative", projectId: "proj_stale" },
+			})
+		).rejects.toThrow(
+			"Prisma client is missing current models; restart the API after prisma generate"
+		);
+	});
+});
+
 describe("Project Wall catalog", () => {
 	it("uses English Project Wall densities and Open Source Record", () => {
 		const catalog = projectWallCatalog();
@@ -1556,6 +1583,43 @@ describe("Project Wall starter skeletons", () => {
 		expect(replayed.walls.map((wall) => wall.id)).toEqual(
 			materialized.walls.map((wall) => wall.id)
 		);
+	});
+
+	it("does not create a second Sitemap when Design opens again", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(prisma, {
+			actorId,
+			idempotencyKey: `saas-again-${crypto.randomUUID()}`,
+			origin: "human",
+			payload: {
+				name: "Billing",
+				starterConfiguration: "Solo SaaS",
+			},
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		await materializeStarterSkeletonWalls(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-walls:${created.project.id}`,
+			origin: "human",
+			payload: { projectId: created.project.id },
+			workspaceId,
+		});
+		const second = await materializeStarterSkeletonWalls(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-walls-reopen:${created.project.id}`,
+			origin: "human",
+			payload: { projectId: created.project.id },
+			workspaceId,
+		});
+		expect(second.status).toBe("committed");
+		expect(
+			(await listProjectWalls(prisma, created.project.id)).map(
+				(wall) => wall.name
+			)
+		).toEqual([PROJECT_WALL_COPY.sitemap, PROJECT_WALL_COPY.customerJourney]);
 	});
 });
 

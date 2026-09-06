@@ -69,7 +69,7 @@ SEED_CONFIRM=hosted SEED_USER_EMAIL=you@example.com bun run seed
 | Mobile Beta | Mobile Application | MOB |
 | Scratch | Blank Project | SCR |
 
-The **Cantiara** project is the rich fixture: mixed Work types and statuses, Feature inclusion, horizon placement, a Milestone, a blocker relation, tags, planning dates, checklist items, two Documents, and a Source.
+The **Cantiara** project is the rich fixture: mixed Work types and statuses, Feature inclusion, horizon placement, a Milestone, a blocker relation, tags, planning dates, checklist items, two Documents, a Source, a `Checkout` Screen, a `Guest checkout` User Flow, a `Checkout narrative` Project Wall, and the Solo SaaS `Sitemap` / `Customer Journey` starter walls.
 
 ## Reset behavior
 

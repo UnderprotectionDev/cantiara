@@ -1,6 +1,10 @@
 import { expect, test } from "vitest";
 
-import { PROJECT_WALL_COPY, PROJECT_WALL_DENSITIES } from "./project-wall-copy";
+import {
+	hasStarterSkeletonWalls,
+	PROJECT_WALL_COPY,
+	PROJECT_WALL_DENSITIES,
+} from "./project-wall-copy";
 
 const FOREIGN_SURFACE =
 	/Wireframe|Moodboard|Wiki|CSS|Link sharing|Build in Public/i;
@@ -29,4 +33,17 @@ test("English UI uses Project Wall, Sitemap, Customer Journey, Presentation Mode
 	expect(PROJECT_WALL_DENSITIES).toEqual(["Compact", "Preview", "Detailed"]);
 	expect(JSON.stringify(PROJECT_WALL_COPY)).not.toMatch(FOREIGN_SURFACE);
 	expect(JSON.stringify(PROJECT_WALL_COPY)).not.toMatch(SKETCH_COPY);
+});
+
+test("starter skeletons are present only when both Sitemap and Customer Journey exist", () => {
+	expect(hasStarterSkeletonWalls([])).toBe(false);
+	expect(hasStarterSkeletonWalls([{ name: PROJECT_WALL_COPY.sitemap }])).toBe(
+		false
+	);
+	expect(
+		hasStarterSkeletonWalls([
+			{ name: PROJECT_WALL_COPY.sitemap },
+			{ name: PROJECT_WALL_COPY.customerJourney },
+		])
+	).toBe(true);
 });

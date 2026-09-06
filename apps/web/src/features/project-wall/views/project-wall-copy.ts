@@ -46,6 +46,15 @@ export const PROJECT_WALL_DENSITIES = [
 
 export type ProjectWallDensity = (typeof PROJECT_WALL_DENSITIES)[number];
 
+export function hasStarterSkeletonWalls(
+	walls: readonly { name: string }[]
+): boolean {
+	return (
+		walls.some((wall) => wall.name === PROJECT_WALL_COPY.sitemap) &&
+		walls.some((wall) => wall.name === PROJECT_WALL_COPY.customerJourney)
+	);
+}
+
 export const PROJECT_WALL_SOURCE_KIND = {
 	smartCollection: "Smart Collection",
 	technicalDiagram: "Technical Diagram",

@@ -22,6 +22,7 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"SmartCollectionMembershipPeriod",
 	"Screen",
 	"ScreenEvent",
+	"ScreenPersonalViewport",
 	"ValidationRecord",
 	"Moodboard",
 	"MoodboardColorSwatch",
@@ -32,6 +33,11 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"WorkNotNowTrail",
 	"UserFlowTemplate",
 	"UserFlowPersonalViewport",
+	"Design",
+	"ProjectWallCard",
+	"ProjectWallGroup",
+	"ProjectWallVisualLink",
+	"ProjectWallPersonalViewport",
 ]);
 
 export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
@@ -82,6 +88,8 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.userFlow?.findMany === "function" &&
 		typeof client.userFlow?.create === "function" &&
 		typeof client.userFlowVersion?.create === "function" &&
+		typeof client.design?.findMany === "function" &&
+		typeof client.design?.create === "function" &&
 		// Daily Focus membership and candidate rejection are read via table SQL
 		// so a bun --hot client generated before those models can still serve
 		// Daily Focus. Do not gate getPrismaClient on them.
@@ -132,6 +140,11 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	// client generated before that model. Gating getPrismaClient on Screen
 	// turned Create Screen (CANT-FC81F725) into every RPC throwing
 	// "Restart the API after prisma generate" (CANT-4DB9B62F).
+	// Design / Project Wall stay in OPTIONAL_RUNTIME_MODELS so a DMMF that
+	// lists Design before every delegate method exists does not fail the
+	// runtime-model sweep. design.create is still required in
+	// knownDelegates: otherwise Design area materialize-on-open toasts
+	// "Restart the API after prisma generate" while Work looks healthy.
 	// User Flow writes call userFlow.create. A bun --hot client generated
 	// before that model must not be reused: Create User Flow then throws
 	// TypeError (or the restart-after-generate toast) while Work still
