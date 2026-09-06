@@ -39,86 +39,106 @@ async function requireAccess(userId: string) {
 
 async function loadWorkspaceIndex(workspaceId: string) {
 	const prisma = getPrismaClient();
-	const [works, fileAttachments, decisions, researchSessions, sources] =
-		await Promise.all([
-			prisma.work.findMany({
-				select: {
-					archived: true,
-					closureResult: true,
-					description: true,
-					id: true,
-					key: true,
-					projectId: true,
-					status: true,
-					title: true,
-					trashedAt: true,
-					updatedAt: true,
+	const [
+		works,
+		fileAttachments,
+		decisions,
+		researchSessions,
+		sources,
+		screens,
+	] = await Promise.all([
+		prisma.work.findMany({
+			select: {
+				archived: true,
+				closureResult: true,
+				description: true,
+				id: true,
+				key: true,
+				projectId: true,
+				status: true,
+				title: true,
+				trashedAt: true,
+				updatedAt: true,
+			},
+			where: { project: { workspaceId } },
+		}),
+		prisma.fileAttachment.findMany({
+			select: {
+				id: true,
+				lifecycle: true,
+				projectId: true,
+				scopeKind: true,
+				title: true,
+				updatedAt: true,
+				versions: {
+					orderBy: { versionNumber: "asc" },
+					select: { filename: true },
 				},
-				where: { project: { workspaceId } },
-			}),
-			prisma.fileAttachment.findMany({
-				select: {
-					id: true,
-					lifecycle: true,
-					projectId: true,
-					scopeKind: true,
-					title: true,
-					updatedAt: true,
-					versions: {
-						orderBy: { versionNumber: "asc" },
-						select: { filename: true },
+			},
+			where: {
+				lifecycle: { not: FILE_LIFECYCLE.trash },
+				workspaceId,
+			},
+		}),
+		prisma.decision.findMany({
+			select: {
+				decisionText: true,
+				id: true,
+				life: true,
+				projectId: true,
+				rationale: true,
+				title: true,
+				updatedAt: true,
+			},
+			where: { project: { workspaceId } },
+		}),
+		prisma.researchSession.findMany({
+			select: {
+				id: true,
+				projectId: true,
+				purpose: true,
+				status: true,
+				title: true,
+				updatedAt: true,
+			},
+			where: { project: { workspaceId } },
+		}),
+		prisma.source.findMany({
+			select: {
+				approvedVersionNumber: true,
+				id: true,
+				projectId: true,
+				updatedAt: true,
+				versions: {
+					select: {
+						capturedContent: true,
+						title: true,
+						url: true,
+						versionNumber: true,
 					},
 				},
-				where: {
-					lifecycle: { not: FILE_LIFECYCLE.trash },
-					workspaceId,
-				},
-			}),
-			prisma.decision.findMany({
-				select: {
-					decisionText: true,
-					id: true,
-					life: true,
-					projectId: true,
-					rationale: true,
-					title: true,
-					updatedAt: true,
-				},
-				where: { project: { workspaceId } },
-			}),
-			prisma.researchSession.findMany({
-				select: {
-					id: true,
-					projectId: true,
-					purpose: true,
-					status: true,
-					title: true,
-					updatedAt: true,
-				},
-				where: { project: { workspaceId } },
-			}),
-			prisma.source.findMany({
-				select: {
-					approvedVersionNumber: true,
-					id: true,
-					projectId: true,
-					updatedAt: true,
-					versions: {
-						select: {
-							capturedContent: true,
-							title: true,
-							url: true,
-							versionNumber: true,
-						},
+			},
+			where: { project: { workspaceId } },
+		}),
+		typeof prisma.screen?.findMany === "function"
+			? prisma.screen.findMany({
+					select: {
+						archivedAt: true,
+						id: true,
+						projectId: true,
+						title: true,
+						trashedAt: true,
+						updatedAt: true,
 					},
-				},
-				where: { project: { workspaceId } },
-			}),
-		]);
+					where: { project: { workspaceId } },
+				})
+			: Promise.resolve([]),
+	]);
 	return loadSearchIndexFromRows({
 		decisions,
 		fileAttachments,
 		researchSessions,
+		screens,
 		sources: sources.map((source) => {
 			const current =
 				source.versions.find(
