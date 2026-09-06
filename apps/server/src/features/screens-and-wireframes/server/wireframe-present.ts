@@ -4,6 +4,7 @@ import { extractSection } from "../../documents/server/documents-live";
 
 import { listLinkedBlockRows } from "./linked-block-store";
 import type { ScreenDb } from "./screen-store";
+import { documentOpenHref, SCREENS_COPY } from "./screens-and-wireframes-model";
 import {
 	overlayLinkedInstance,
 	presentWireframeText,
@@ -56,7 +57,7 @@ export async function presentWireframeDocument(
 								: null
 						)
 					: node;
-			return presentNode(db, overlaid, input.mode);
+			return presentNode(db, overlaid, input.mode, input.projectId);
 		})
 	);
 	return {
@@ -72,11 +73,14 @@ export interface PresentedNode {
 		x: number;
 		y: number;
 	};
+	groupId?: string;
 	id: string;
 	kind: string;
 	label?: string;
 	linkedBlockId?: string;
 	liveRecord?: { id: string; kind: "Work" | "Decision" | "Risk" };
+	openHref: string | null;
+	openSourceRecord: string;
 	text?: {
 		liveSourcePath: { documentId: string; sectionId: string } | null;
 		status: "broken" | "ok";
@@ -87,19 +91,24 @@ export interface PresentedNode {
 async function presentNode(
 	db: Db,
 	node: WireframeNode,
-	mode: "current" | "historical"
+	mode: "current" | "historical",
+	projectId: string
 ): Promise<{ node: WireframeNode; presented: PresentedNode }> {
+	const base = {
+		geometry: node.geometry,
+		groupId: node.groupId,
+		id: node.id,
+		kind: node.kind,
+		label: node.label,
+		linkedBlockId: node.linkedBlockId,
+		liveRecord: node.liveRecord,
+		openHref: null as string | null,
+		openSourceRecord: SCREENS_COPY.openSourceRecord,
+	};
 	if (!node.text) {
 		return {
 			node,
-			presented: {
-				geometry: node.geometry,
-				id: node.id,
-				kind: node.kind,
-				label: node.label,
-				linkedBlockId: node.linkedBlockId,
-				liveRecord: node.liveRecord,
-			},
+			presented: base,
 		};
 	}
 	const live = await loadLiveSection(db, node.text);
@@ -111,12 +120,8 @@ async function presentNode(
 	return {
 		node,
 		presented: {
-			geometry: node.geometry,
-			id: node.id,
-			kind: node.kind,
-			label: node.label,
-			linkedBlockId: node.linkedBlockId,
-			liveRecord: node.liveRecord,
+			...base,
+			openHref: text.liveSourcePath ? documentOpenHref(projectId) : null,
 			text,
 		},
 	};

@@ -14,6 +14,7 @@ model Screen {
   updatedAt                 DateTime           @updatedAt
   versions                  WireframeVersion[]
   events                    ScreenEvent[]
+  personalViewports         ScreenPersonalViewport[]
 
   @@index([projectId])
   @@index([projectId, archivedAt])
@@ -59,4 +60,22 @@ model WireframeLinkedBlock {
 
   @@index([projectId])
   @@map("wireframe_linked_block")
+}
+
+model ScreenPersonalViewport {
+  id                String   @id
+  screenId          String
+  screen            Screen   @relation(fields: [screenId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  centerX           Float
+  centerY           Float
+  zoom              Float
+  collapsedGroupIds Json
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([screenId, userId])
+  @@index([userId])
+  @@map("screen_personal_viewport")
 }

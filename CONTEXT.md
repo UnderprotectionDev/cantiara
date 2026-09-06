@@ -782,7 +782,7 @@ _Avoid_: Git commit, harici editör senkronu, CRDT
 _Avoid_: Git review, ikinci spec kaydı, impact-analysis engine
 
 **Spec Change Review**:
-Özelliğin `Primary spec` Belgesinde yeni sürüm kaydedildiğinde açılan, önceki ve yeni Belge sürüm çiftinin inceleme kuyruğu; spec gövdesinin yerine geçmez, Git diff veya Çürütülen Varsayım İnceleme Kuyruğu değildir ([Spec değişikliği inceleme kuyruğu](docs/prd/07-documents-and-knowledge.md#spec-değişikliği-inceleme-kuyruğu)). UI: `Spec Change Review`.
+Özelliğin `Primary spec` Belgesinde yeni sürüm kaydedildiğinde açılan, önceki ve yeni Belge sürüm çiftinin inceleme kuyruğu; spec gövdesinin yerine geçmez, Git diff veya Çürütülen Varsayım İnceleme Kuyruğu değildir ([Spec değişikliği inceleme kuyruğu](docs/prd/07-documents-and-knowledge.md#spec-değişikliği-inceleme-kuyruğu)). UI: `Spec Change Review`, `Waiting`, `Reviewed`, `Not affected`, `Create Follow-up Work`.
 _Avoid_: Git review, approval gate, impact-analysis engine, Çürütülen Varsayım İnceleme Kuyruğu
 
 **Spec Change Review adayı**:
@@ -1035,7 +1035,7 @@ Seçili Proje Duvarı grubu veya bölgesinin tarihli PNG/PDF iç snapshot'ı; ca
 _Avoid_: Dış yüzey, Build in Public, onaylı snapshot revizyonu, canlı bağlantı
 
 **Wireframe yüzeyi**:
-Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir.
+Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Wireframe`, `Presentation Mode`, `Exit Presentation Mode`, `Unresolved`, `Export`, `PNG`, `SVG`, `PDF`, `HTML`.
 _Avoid_: Wireframe ana kaydı, Ekrandan bağımsız Wireframe
 
 **Kayda dönüştür ve bağla**:
