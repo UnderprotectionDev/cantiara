@@ -14,6 +14,10 @@ test("English Moodboard labels stay Moodboard, Caption, and origin kinds", () =>
 	expect(MOODBOARDS_COPY.fileAttachment).toBe("File Attachment");
 	expect(MOODBOARDS_COPY.externalLink).toBe("External link");
 	expect(MOODBOARDS_COPY.addVisual).toBe("Add visual");
+	expect(MOODBOARDS_COPY.fitView).toBe("Fit View");
+	expect(MOODBOARDS_COPY.openSourceRecord).toBe("Open Source Record");
+	expect(MOODBOARDS_COPY.outline).toBe("Outline");
+	expect(MOODBOARDS_COPY.group).toBe("Group");
 	expect(JSON.stringify(MOODBOARDS_COPY)).not.toMatch(SOCIAL_OR_SECOND_SOURCE);
 	expect(JSON.stringify(MOODBOARDS_COPY)).not.toMatch(FOREIGN_SURFACE);
 });

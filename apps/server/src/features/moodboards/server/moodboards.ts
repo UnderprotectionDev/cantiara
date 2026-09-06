@@ -13,11 +13,20 @@ import {
 	addMoodboardVisualCommandSchema,
 	type CreateMoodboardCommand,
 	createMoodboardCommandSchema,
+	fileAttachmentOpenHref,
+	type GroupOutlineCommand,
+	groupOutlineCommandSchema,
 	MOODBOARD_KIND,
+	MOODBOARDS_COPY,
 	type MoodboardView,
 	type MoodboardVisualView,
 	type MoodboardWriteOutcome,
+	type PersonalViewport,
+	type ReorderOutlineCommand,
+	reorderOutlineCommandSchema,
+	restorePersonalViewport,
 	type SetMoodboardCaptionCommand,
+	savePersonalViewportCommandSchema,
 	setMoodboardCaptionCommandSchema,
 	VISUAL_ORIGIN_KIND,
 } from "./moodboards-model";
@@ -83,6 +92,124 @@ export async function setMoodboardCaption(
 	return await prisma.$transaction((tx) =>
 		setCaptionInTransaction(tx, parsed.data, commandKey, fingerprint)
 	);
+}
+
+export async function groupOutline(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<MoodboardWriteOutcome> {
+	const parsed = groupOutlineCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		groupOutlineInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function reorderOutline(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<MoodboardWriteOutcome> {
+	const parsed = reorderOutlineCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		reorderOutlineInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function savePersonalViewport(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<
+	| { status: "committed"; viewport: PersonalViewport }
+	| { reason: "invalid-command" | "moodboard-not-found"; status: "rejected" }
+> {
+	const parsed = savePersonalViewportCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const current = await prisma.moodboard.findUnique({
+		where: { id: parsed.data.payload.moodboardId },
+	});
+	if (!current) {
+		return { reason: "moodboard-not-found", status: "rejected" };
+	}
+	const { viewport } = parsed.data.payload;
+	await prisma.moodboardPersonalViewport.upsert({
+		create: {
+			centerX: viewport.centerX,
+			centerY: viewport.centerY,
+			collapsedGroupIds: viewport.collapsedGroupIds,
+			id: crypto.randomUUID(),
+			moodboardId: current.id,
+			userId: parsed.data.actorId,
+			zoom: viewport.zoom,
+		},
+		update: {
+			centerX: viewport.centerX,
+			centerY: viewport.centerY,
+			collapsedGroupIds: viewport.collapsedGroupIds,
+			zoom: viewport.zoom,
+		},
+		where: {
+			moodboardId_userId: {
+				moodboardId: current.id,
+				userId: parsed.data.actorId,
+			},
+		},
+	});
+	return {
+		status: "committed",
+		viewport,
+	};
+}
+
+export async function getPersonalViewport(
+	prisma: PrismaClient,
+	input: { actorId: string; moodboardId: string }
+): Promise<ReturnType<typeof restorePersonalViewport> | null> {
+	const current = await prisma.moodboard.findUnique({
+		where: { id: input.moodboardId },
+	});
+	if (!current) {
+		return null;
+	}
+	const view = await toView(prisma, current);
+	const row = await prisma.moodboardPersonalViewport.findUnique({
+		where: {
+			moodboardId_userId: {
+				moodboardId: current.id,
+				userId: input.actorId,
+			},
+		},
+	});
+	return restorePersonalViewport({
+		content: {
+			groups: view.groups,
+			visuals: view.visuals,
+		},
+		saved: row
+			? {
+					centerX: row.centerX,
+					centerY: row.centerY,
+					collapsedGroupIds: collapsedIdsFromJson(row.collapsedGroupIds),
+					zoom: row.zoom,
+				}
+			: null,
+	});
 }
 
 export async function getMoodboard(
@@ -262,6 +389,110 @@ async function setCaptionInTransaction(
 	return { moodboard: view, status: "committed" };
 }
 
+async function groupOutlineInTransaction(
+	tx: PrismaTransaction,
+	command: GroupOutlineCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<MoodboardWriteOutcome> {
+	const current = await tx.moodboard.findUnique({
+		where: { id: command.payload.moodboardId },
+	});
+	if (!current) {
+		return { reason: "moodboard-not-found", status: "rejected" };
+	}
+	await lockProject(tx, current.projectId);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const uniqueIds = [...new Set(command.payload.visualIds)];
+	const visuals = await tx.moodboardVisual.findMany({
+		where: { id: { in: uniqueIds }, moodboardId: current.id },
+	});
+	if (visuals.length !== uniqueIds.length) {
+		return { reason: "visuals-not-found", status: "rejected" };
+	}
+	const lastGroup = await tx.moodboardGroup.findFirst({
+		orderBy: { sortOrder: "desc" },
+		where: { moodboardId: current.id },
+	});
+	const group = await tx.moodboardGroup.create({
+		data: {
+			id: crypto.randomUUID(),
+			moodboardId: current.id,
+			sortOrder: (lastGroup?.sortOrder ?? 0) + 1,
+			title: command.payload.title ?? MOODBOARDS_COPY.group,
+		},
+	});
+	await tx.moodboardVisual.updateMany({
+		data: { groupId: group.id },
+		where: { id: { in: uniqueIds } },
+	});
+	const updated = await tx.moodboard.update({
+		data: { revision: current.revision + 1 },
+		where: { id: current.id },
+	});
+	const view = await toView(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { moodboard: view, status: "committed" };
+}
+
+async function reorderOutlineInTransaction(
+	tx: PrismaTransaction,
+	command: ReorderOutlineCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<MoodboardWriteOutcome> {
+	const current = await tx.moodboard.findUnique({
+		where: { id: command.payload.moodboardId },
+	});
+	if (!current) {
+		return { reason: "moodboard-not-found", status: "rejected" };
+	}
+	await lockProject(tx, current.projectId);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const existing = await tx.moodboardVisual.findMany({
+		where: { moodboardId: current.id },
+	});
+	const existingIds = new Set(existing.map((visual) => visual.id));
+	const uniqueIds = [...new Set(command.payload.visualIds)];
+	if (
+		uniqueIds.length !== existing.length ||
+		uniqueIds.some((id) => !existingIds.has(id))
+	) {
+		return { reason: "visuals-not-found", status: "rejected" };
+	}
+	await Promise.all(
+		uniqueIds.map((visualId, index) =>
+			tx.moodboardVisual.update({
+				data: { sortOrder: index + 1 },
+				where: { id: visualId },
+			})
+		)
+	);
+	const updated = await tx.moodboard.update({
+		data: { revision: current.revision + 1 },
+		where: { id: current.id },
+	});
+	const view = await toView(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { moodboard: view, status: "committed" };
+}
+
 async function originFieldsFor(
 	tx: PrismaTransaction,
 	projectId: string,
@@ -368,6 +599,10 @@ async function toView(
 	db: PrismaClient | PrismaTransaction,
 	row: MoodboardRow
 ): Promise<MoodboardView> {
+	const groups = await db.moodboardGroup.findMany({
+		orderBy: { sortOrder: "asc" },
+		where: { moodboardId: row.id },
+	});
 	const visuals = await db.moodboardVisual.findMany({
 		include: {
 			fileAttachmentVersion: { include: { fileAttachment: true } },
@@ -376,32 +611,50 @@ async function toView(
 		where: { moodboardId: row.id },
 	});
 	return {
+		groups: groups.map((group) => ({
+			id: group.id,
+			sortOrder: group.sortOrder,
+			title: group.title,
+			visualIds: visuals
+				.filter((visual) => visual.groupId === group.id)
+				.map((visual) => visual.id),
+		})),
 		id: row.id,
 		projectId: row.projectId,
 		recordKind: MOODBOARD_KIND,
 		revision: row.revision,
 		title: row.title,
-		visuals: visuals.map(presentVisual),
+		visuals: visuals.map((visual) => presentVisual(row.projectId, visual)),
 	};
 }
 
-function presentVisual(row: {
-	caption: string;
-	externalUrl: string | null;
-	fileAttachmentVersion: {
-		fileAttachment: { id: string; title: string };
+function presentVisual(
+	projectId: string,
+	row: {
+		caption: string;
+		externalUrl: string | null;
+		fileAttachmentVersion: {
+			fileAttachment: { id: string; title: string };
+			id: string;
+		} | null;
+		groupId: string | null;
 		id: string;
-	} | null;
-	id: string;
-	originKind: string;
-}): MoodboardVisualView {
+		originKind: string;
+	}
+): MoodboardVisualView {
 	if (
 		row.originKind === VISUAL_ORIGIN_KIND.fileAttachment &&
 		row.fileAttachmentVersion
 	) {
 		return {
 			caption: row.caption,
+			groupId: row.groupId,
 			id: row.id,
+			openHref: fileAttachmentOpenHref(
+				projectId,
+				row.fileAttachmentVersion.fileAttachment.id
+			),
+			openSourceRecord: MOODBOARDS_COPY.openSourceRecord,
 			origin: {
 				fileAttachmentId: row.fileAttachmentVersion.fileAttachment.id,
 				fileAttachmentVersionId: row.fileAttachmentVersion.id,
@@ -412,10 +665,20 @@ function presentVisual(row: {
 	}
 	return {
 		caption: row.caption,
+		groupId: row.groupId,
 		id: row.id,
+		openHref: row.externalUrl,
+		openSourceRecord: MOODBOARDS_COPY.openSourceRecord,
 		origin: {
 			kind: VISUAL_ORIGIN_KIND.externalLink,
 			url: row.externalUrl ?? "",
 		},
 	};
+}
+
+function collapsedIdsFromJson(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.filter((item): item is string => typeof item === "string");
 }
