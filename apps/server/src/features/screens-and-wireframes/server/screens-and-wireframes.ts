@@ -9,8 +9,16 @@ import {
 } from "../../mutation-core/server/mutation-shared";
 
 import {
+	findLinkedBlockRow,
+	insertLinkedBlockRow,
+	listLinkedBlockRows,
+	updateLinkedBlockRow,
+} from "./linked-block-store";
+import {
 	deleteScreenRow,
+	findLatestWireframeVersionRow,
 	findScreenRow,
+	findWireframeVersionRow,
 	insertScreenEvent,
 	insertScreenRow,
 	insertWireframeVersion,
@@ -23,11 +31,17 @@ import {
 	updateScreenRow,
 } from "./screen-store";
 import {
+	type AffectedScreenPreview,
 	type ArchiveScreenCommand,
+	applyLinkedBlockChangeCommandSchema,
 	archiveScreenCommandSchema,
 	type CreateScreenCommand,
+	createLinkedBlockCommandSchema,
 	createScreenCommandSchema,
-	emptyWireframeDocumentSchema,
+	detachLinkedBlockCommandSchema,
+	type LinkedBlockPreviewOutcome,
+	type LinkedBlockView,
+	type LinkedBlockWriteOutcome,
 	type PermanentDeleteOutcome,
 	permanentlyDeleteScreenCommandSchema,
 	presentScreenLife,
@@ -40,9 +54,21 @@ import {
 	saveWireframeVersionCommandSchema,
 	trashScreenCommandSchema,
 	unarchiveScreenCommandSchema,
-	WIREFRAME_DOCUMENT_SCHEMA,
+	type WireframeVersionDocumentView,
 	type WireframeVersionView,
 } from "./screens-and-wireframes-model";
+import {
+	detachNodeFromLinkedBlock,
+	parseWireframeDocument,
+	WIREFRAME_DOCUMENT_SCHEMA,
+	type WireframeDocument,
+	wireframeLinkedBlockDefinitionSchema,
+} from "./wireframe-document";
+import {
+	loadDefinitions,
+	presentWireframeDocument,
+	snapshotWireframeDocument,
+} from "./wireframe-present";
 
 type PrismaTransaction = ScreenDb;
 
@@ -84,17 +110,12 @@ export async function saveExactWireframeVersion(
 	if (!parsed.success) {
 		return { reason: "invalid-command", status: "rejected" };
 	}
-	if (isKonvaStageJson(parsed.data.payload.document)) {
-		return { reason: "konva-json-not-durable", status: "rejected" };
-	}
-	const document = emptyWireframeDocumentSchema.safeParse(
-		parsed.data.payload.document
-	);
-	if (!document.success) {
-		return { reason: "invalid-wireframe-document", status: "rejected" };
+	const document = parseWireframeDocument(parsed.data.payload.document);
+	if (document.status !== "ok") {
+		return { reason: document.reason, status: "rejected" };
 	}
 	const fingerprint = payloadFingerprint({
-		document: document.data,
+		document: document.document,
 		screenId: parsed.data.payload.screenId,
 	});
 	const commandKey = commandKeyFor(
@@ -251,8 +272,20 @@ async function saveVersionInTransaction(
 	if (locked.archivedAt || locked.trashedAt) {
 		return { reason: "screen-not-writable", status: "rejected" };
 	}
+	const parsedDocument = parseWireframeDocument(command.payload.document);
+	if (parsedDocument.status !== "ok") {
+		return { reason: parsedDocument.reason, status: "rejected" };
+	}
+	const linked = await assertLinkedBlocksInProject(
+		tx,
+		locked.projectId,
+		parsedDocument.document
+	);
+	if (linked.status === "rejected") {
+		return linked;
+	}
+	const document = await snapshotWireframeDocument(tx, parsedDocument.document);
 	const versionNumber = (await latestWireframeVersionNumber(tx, locked.id)) + 1;
-	const document = emptyWireframeDocumentSchema.parse(command.payload.document);
 	await insertWireframeVersion(tx, {
 		document,
 		id: crypto.randomUUID(),
@@ -571,13 +604,369 @@ function toVersionView(row: {
 	};
 }
 
-function isKonvaStageJson(value: unknown): boolean {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"className" in value &&
-		(value as { className: unknown }).className === "Stage"
+export async function listLinkedBlocks(
+	prisma: PrismaClient,
+	projectId: string
+): Promise<LinkedBlockView[]> {
+	const rows = await listLinkedBlockRows(prisma, projectId);
+	return rows.map(toLinkedBlockView);
+}
+
+export async function getExactWireframeVersion(
+	prisma: PrismaClient,
+	input: { overlayCurrent?: boolean; screenId: string; versionNumber: number }
+): Promise<WireframeVersionDocumentView | null> {
+	const screen = await findScreenRow(prisma, input.screenId);
+	if (!screen) {
+		return null;
+	}
+	const row = await findWireframeVersionRow(prisma, {
+		screenId: input.screenId,
+		versionNumber: input.versionNumber,
+	});
+	if (!row) {
+		return null;
+	}
+	const parsed = parseWireframeDocument(row.document);
+	if (parsed.status !== "ok") {
+		return null;
+	}
+	const presented = await presentWireframeDocument(prisma, {
+		document: parsed.document,
+		mode: input.overlayCurrent ? "current" : "historical",
+		projectId: screen.projectId,
+	});
+	return {
+		...toVersionView(row),
+		document: presented.document,
+		presentedNodes: presented.presentedNodes,
+	};
+}
+
+export async function createLinkedBlock(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<LinkedBlockWriteOutcome> {
+	const parsed = createLinkedBlockCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
 	);
+	return await prisma.$transaction(async (tx) => {
+		await lockProject(tx, parsed.data.payload.projectId);
+		const replayed = await replayLinkedBlock(tx, commandKey, fingerprint);
+		if (replayed) {
+			return replayed;
+		}
+		const created = await insertLinkedBlockRow(tx, {
+			definition: parsed.data.payload.definition,
+			id: crypto.randomUUID(),
+			name: parsed.data.payload.name,
+			projectId: parsed.data.payload.projectId,
+			revision: 1,
+		});
+		const view = toLinkedBlockView(created);
+		await writeLinkedReceipt(tx, {
+			actorId: parsed.data.actorId,
+			commandKey,
+			fingerprint,
+			view,
+		});
+		return { linkedBlock: view, status: "committed" };
+	});
+}
+
+export async function previewLinkedBlockChange(
+	prisma: PrismaClient,
+	input: unknown
+): Promise<LinkedBlockPreviewOutcome> {
+	const parsed =
+		applyLinkedBlockChangeCommandSchema.shape.payload.safeParse(input);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const current = await findLinkedBlockRow(prisma, parsed.data.linkedBlockId);
+	if (!current || current.projectId !== parsed.data.projectId) {
+		return { reason: "linked-block-not-found", status: "rejected" };
+	}
+	const affectedScreens = await listAffectedScreens(
+		prisma,
+		parsed.data.projectId,
+		parsed.data.linkedBlockId
+	);
+	return {
+		affectedScreens,
+		previewFingerprint: payloadFingerprint({
+			affectedScreenIds: affectedScreens.map((screen) => screen.id),
+			linkedBlockId: parsed.data.linkedBlockId,
+			nextDefinition: parsed.data.nextDefinition,
+		}),
+		status: "ok",
+	};
+}
+
+export async function applyLinkedBlockChange(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<LinkedBlockWriteOutcome> {
+	const parsed = applyLinkedBlockChangeCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	if (parsed.data.previewAcknowledged !== true) {
+		return { reason: "preview-required", status: "rejected" };
+	}
+	const previewed = await previewLinkedBlockChange(prisma, parsed.data.payload);
+	if (previewed.status !== "ok") {
+		return previewed;
+	}
+	if (previewed.previewFingerprint !== parsed.data.previewFingerprint) {
+		return { reason: "preview-mismatch", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction(async (tx) => {
+		const current = await findLinkedBlockRow(
+			tx,
+			parsed.data.payload.linkedBlockId
+		);
+		if (!current || current.projectId !== parsed.data.payload.projectId) {
+			return { reason: "linked-block-not-found", status: "rejected" };
+		}
+		await lockProject(tx, current.projectId);
+		const replayed = await replayLinkedBlock(tx, commandKey, fingerprint);
+		if (replayed) {
+			return replayed;
+		}
+		const updated = await updateLinkedBlockRow(tx, {
+			...current,
+			definition: parsed.data.payload.nextDefinition,
+			revision: current.revision + 1,
+		});
+		const view = toLinkedBlockView(updated);
+		await writeLinkedReceipt(tx, {
+			actorId: parsed.data.actorId,
+			commandKey,
+			fingerprint,
+			view,
+		});
+		return { linkedBlock: view, status: "committed" };
+	});
+}
+
+export async function detachLinkedBlock(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ScreenWriteOutcome> {
+	const parsed = detachLinkedBlockCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction(async (tx) => {
+		const current = await findScreenRow(tx, parsed.data.payload.screenId);
+		if (!current) {
+			return { reason: "screen-not-found", status: "rejected" };
+		}
+		await lockProject(tx, current.projectId);
+		const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+		if (replayed) {
+			return replayed;
+		}
+		const locked = await findScreenRow(tx, current.id);
+		if (!locked) {
+			return { reason: "screen-not-found", status: "rejected" };
+		}
+		if (locked.revision !== parsed.data.baseRevision) {
+			return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		}
+		if (locked.archivedAt || locked.trashedAt) {
+			return { reason: "screen-not-writable", status: "rejected" };
+		}
+		const latest = await findLatestWireframeVersionRow(tx, locked.id);
+		if (!latest) {
+			return { reason: "wireframe-version-not-found", status: "rejected" };
+		}
+		const parsedDocument = parseWireframeDocument(latest.document);
+		if (parsedDocument.status !== "ok") {
+			return { reason: parsedDocument.reason, status: "rejected" };
+		}
+		const node = parsedDocument.document.nodes.find(
+			(item) => item.id === parsed.data.payload.nodeId
+		);
+		if (!node?.linkedBlockId) {
+			return { reason: "not-linked", status: "rejected" };
+		}
+		const definitions = await loadDefinitions(tx, locked.projectId);
+		const definition = definitions.get(node.linkedBlockId);
+		if (!definition) {
+			return { reason: "linked-block-not-found", status: "rejected" };
+		}
+		const detached: WireframeDocument = {
+			...parsedDocument.document,
+			nodes: parsedDocument.document.nodes.map((item) =>
+				item.id === node.id ? detachNodeFromLinkedBlock(item, definition) : item
+			),
+		};
+		const document = await snapshotWireframeDocument(tx, detached);
+		const versionNumber =
+			(await latestWireframeVersionNumber(tx, locked.id)) + 1;
+		await insertWireframeVersion(tx, {
+			document,
+			id: crypto.randomUUID(),
+			screenId: locked.id,
+			versionNumber,
+		});
+		const updated = await updateScreenRow(tx, {
+			...locked,
+			revision: locked.revision + 1,
+		});
+		await insertScreenEvent(tx, {
+			actorId: parsed.data.actorId,
+			id: crypto.randomUUID(),
+			kind: SCREEN_EVENT_KIND.saveVersion,
+			screenId: updated.id,
+		});
+		const view = await toView(tx, updated);
+		await writeReceipt(tx, {
+			actorId: parsed.data.actorId,
+			commandKey,
+			fingerprint,
+			view,
+		});
+		return { screen: view, status: "committed" };
+	});
+}
+
+async function assertLinkedBlocksInProject(
+	tx: ScreenDb,
+	projectId: string,
+	document: WireframeDocument
+): Promise<{ status: "ok" } | { reason: string; status: "rejected" }> {
+	const ids = [
+		...new Set(
+			document.nodes.flatMap((node) =>
+				node.linkedBlockId ? [node.linkedBlockId] : []
+			)
+		),
+	];
+	const rows = await Promise.all(ids.map((id) => findLinkedBlockRow(tx, id)));
+	for (const row of rows) {
+		if (!row) {
+			return { reason: "linked-block-not-found", status: "rejected" };
+		}
+		if (row.projectId !== projectId) {
+			return { reason: "cross-project-live-library", status: "rejected" };
+		}
+	}
+	return { status: "ok" };
+}
+
+async function listAffectedScreens(
+	prisma: PrismaClient,
+	projectId: string,
+	linkedBlockId: string
+): Promise<AffectedScreenPreview[]> {
+	const screens = await listScreenRows(prisma, { projectId });
+	const latestRows = await Promise.all(
+		screens.map(async (screen) => ({
+			latest: await findLatestWireframeVersionRow(prisma, screen.id),
+			screen,
+		}))
+	);
+	const affected: AffectedScreenPreview[] = [];
+	for (const { latest, screen } of latestRows) {
+		if (!latest) {
+			continue;
+		}
+		const parsed = parseWireframeDocument(latest.document);
+		if (parsed.status !== "ok") {
+			continue;
+		}
+		if (
+			parsed.document.nodes.some((node) => node.linkedBlockId === linkedBlockId)
+		) {
+			affected.push({ id: screen.id, title: screen.title });
+		}
+	}
+	return affected;
+}
+
+function toLinkedBlockView(row: {
+	definition: unknown;
+	id: string;
+	name: string;
+	projectId: string;
+	revision: number;
+}): LinkedBlockView {
+	return {
+		definition: wireframeLinkedBlockDefinitionSchema.parse(row.definition),
+		id: row.id,
+		name: row.name,
+		projectId: row.projectId,
+		revision: row.revision,
+	};
+}
+
+async function replayLinkedBlock(
+	tx: ScreenDb,
+	commandKey: string,
+	fingerprint: string
+): Promise<LinkedBlockWriteOutcome | null> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (!existing) {
+		return null;
+	}
+	if (existing.payloadFingerprint !== fingerprint) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	try {
+		const stored = JSON.parse(existing.resultValue) as LinkedBlockView;
+		if (!(stored.id && stored.projectId)) {
+			return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		}
+		return { linkedBlock: stored, status: "replayed" };
+	} catch {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+}
+
+async function writeLinkedReceipt(
+	tx: ScreenDb,
+	input: {
+		actorId: string;
+		commandKey: string;
+		fingerprint: string;
+		view: LinkedBlockView;
+	}
+): Promise<void> {
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: input.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey: input.commandKey,
+			committedRevision: input.view.revision,
+			id: crypto.randomUUID(),
+			kind: "commit",
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: input.fingerprint,
+			resultValue: JSON.stringify(input.view),
+			targetId: input.view.id,
+		},
+	});
 }
 
 async function lockProject(

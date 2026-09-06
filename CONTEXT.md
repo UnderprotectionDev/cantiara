@@ -1013,6 +1013,10 @@ _Avoid_: iç içe duvar, çalışma alanı duvarı, Sketch card, duvara özgü n
 Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir.
 _Avoid_: Wireframe ana kaydı, Ekrandan bağımsız Wireframe
 
+**Bağlı Wireframe bloğu**:
+Aynı Projede birden fazla Ekranın Wireframe yüzeyinde paylaştığı düşük sadakatli kaynak tanımı; production component, tasarım token'ı veya projeler arasında canlı kütüphane değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Detach Link`.
+_Avoid_: production component, tasarım token'ı, çapraz proje canlı kütüphane
+
 **Moodboard**:
 Proje veya Özellik için görsel referansları ve seçilen tasarım yönünü toplayan Tasarım ana kaydı; Kullanıcı Akışı, Wireframe yüzeyi, tasarım sistemi veya üretim varlığı değildir.
 UI: `Moodboard`

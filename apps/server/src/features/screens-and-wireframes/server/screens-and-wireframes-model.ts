@@ -1,17 +1,37 @@
 import { z } from "zod";
 
+import {
+	EMPTY_WIREFRAME_DOCUMENT as emptyWireframeDocument,
+	WIREFRAME_DOCUMENT_SCHEMA,
+	wireframeDocumentSchema,
+	wireframeLinkedBlockDefinitionSchema,
+} from "./wireframe-document";
+
+export const EMPTY_WIREFRAME_DOCUMENT = emptyWireframeDocument;
+
 export const SCREENS_COPY = {
 	active: "Active",
+	affectedScreens: "Affected Screens",
 	archive: "Archive",
 	archived: "Archived",
+	broken: "Broken",
+	button: "Button",
+	card: "Card",
+	chart: "Chart",
 	createScreen: "Create Screen",
 	deletePermanently: "Permanently Delete",
+	detachLink: "Detach Link",
 	includeArchived: "Include archived",
+	input: "Input",
 	inTrash: "In Trash",
+	liveSource: "Live source",
 	moveToTrash: "Move to Trash",
+	navigation: "Navigation",
 	noScreens: "No Screens yet.",
 	restore: "Restore",
 	screen: "Screen",
+	table: "Table",
+	text: "Text",
 	title: "Title",
 	titleRequired: "Title is required.",
 	unarchive: "Unarchive",
@@ -36,23 +56,7 @@ export const SCREEN_EVENT_KIND = {
 	unarchive: "unarchive",
 } as const;
 
-export const WIREFRAME_DOCUMENT_SCHEMA = "WireframeDocument" as const;
-
-export const emptyWireframeDocumentSchema = z.object({
-	nodes: z.array(z.unknown()),
-	schema: z.literal(WIREFRAME_DOCUMENT_SCHEMA),
-	schemaVersion: z.literal(1),
-});
-
-export type EmptyWireframeDocument = z.infer<
-	typeof emptyWireframeDocumentSchema
->;
-
-export const EMPTY_WIREFRAME_DOCUMENT: EmptyWireframeDocument = {
-	nodes: [],
-	schema: WIREFRAME_DOCUMENT_SCHEMA,
-	schemaVersion: 1,
-};
+export const emptyWireframeDocumentSchema = wireframeDocumentSchema;
 
 export function presentScreenLife(input: {
 	archivedAt: Date | string | null;
@@ -160,3 +164,100 @@ export type PermanentDeleteOutcome =
 	| { screenId: string; status: "replayed" }
 	| { conflict: string; status: "conflict" }
 	| { reason: string; status: "rejected" };
+
+export const createLinkedBlockPayloadSchema = z.object({
+	definition: wireframeLinkedBlockDefinitionSchema,
+	name: z.string().min(1),
+	projectId: z.string().min(1),
+});
+
+export const createLinkedBlockCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: createLinkedBlockPayloadSchema,
+});
+
+export type CreateLinkedBlockCommand = z.infer<
+	typeof createLinkedBlockCommandSchema
+>;
+
+export const previewLinkedBlockChangePayloadSchema = z.object({
+	linkedBlockId: z.string().min(1),
+	nextDefinition: wireframeLinkedBlockDefinitionSchema,
+	projectId: z.string().min(1),
+});
+
+export const applyLinkedBlockChangeCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: previewLinkedBlockChangePayloadSchema,
+	previewAcknowledged: z.boolean().optional(),
+	previewFingerprint: z.string().min(1).optional(),
+});
+
+export type ApplyLinkedBlockChangeCommand = z.infer<
+	typeof applyLinkedBlockChangeCommandSchema
+>;
+
+export const detachLinkedBlockCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().positive(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: z.object({
+		nodeId: z.string().min(1),
+		screenId: z.string().min(1),
+	}),
+});
+
+export type DetachLinkedBlockCommand = z.infer<
+	typeof detachLinkedBlockCommandSchema
+>;
+
+export const linkedBlockViewSchema = z.object({
+	definition: wireframeLinkedBlockDefinitionSchema,
+	id: z.string().min(1),
+	name: z.string(),
+	projectId: z.string().min(1),
+	revision: z.number().int().positive(),
+});
+
+export type LinkedBlockView = z.infer<typeof linkedBlockViewSchema>;
+
+export const affectedScreenPreviewSchema = z.object({
+	id: z.string().min(1),
+	title: z.string(),
+});
+
+export type AffectedScreenPreview = z.infer<typeof affectedScreenPreviewSchema>;
+
+export type LinkedBlockWriteOutcome =
+	| { linkedBlock: LinkedBlockView; status: "committed" }
+	| { linkedBlock: LinkedBlockView; status: "replayed" }
+	| { conflict: string; status: "conflict" }
+	| { reason: string; status: "rejected" };
+
+export type LinkedBlockPreviewOutcome =
+	| {
+			affectedScreens: AffectedScreenPreview[];
+			previewFingerprint: string;
+			status: "ok";
+	  }
+	| { reason: string; status: "rejected" };
+
+export type WireframeVersionDocumentView = WireframeVersionView & {
+	document: z.infer<typeof wireframeDocumentSchema>;
+	presentedNodes: {
+		id: string;
+		kind: string;
+		label?: string;
+		linkedBlockId?: string;
+		text?: {
+			liveSourcePath: { documentId: string; sectionId: string } | null;
+			status: "broken" | "ok";
+			value: string;
+		};
+	}[];
+};
