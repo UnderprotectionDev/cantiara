@@ -99,6 +99,7 @@ interface AppRouterShape {
 	screensAndWireframes: typeof screensAndWireframes;
 	smartCollections: typeof smartCollections;
 	sources: typeof sources;
+	specChangeReview: typeof specChangeReview;
 	tags: typeof tags;
 	uncertaintyRecords: typeof uncertaintyRecords;
 	unifiedCalendar: typeof unifiedCalendar;

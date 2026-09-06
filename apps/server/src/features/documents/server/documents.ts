@@ -1059,14 +1059,14 @@ async function updateInTransaction(
 		where: { id: current.id },
 	});
 	await recordVersion(tx, updated);
-	await openSpecChangeReviewForSavedVersion(tx, {
-		documentId: updated.id,
-		previousRevision: current.revision,
-		workspaceId: command.workspaceId,
-	});
 	await syncDocumentUsageLinks(tx, {
 		hostRecordId: updated.id,
 		targets: usageTargetsFromBody(updated.body),
+		workspaceId: command.workspaceId,
+	});
+	await openSpecChangeReviewForSavedVersion(tx, {
+		documentId: updated.id,
+		previousRevision: current.revision,
 		workspaceId: command.workspaceId,
 	});
 	await syncInDocTags(tx, updated);
@@ -1223,14 +1223,14 @@ async function restoreInTransaction(
 		where: { id: current.id },
 	});
 	await recordVersion(tx, restored);
-	await openSpecChangeReviewForSavedVersion(tx, {
-		documentId: restored.id,
-		previousRevision: current.revision,
-		workspaceId: command.workspaceId,
-	});
 	await syncDocumentUsageLinks(tx, {
 		hostRecordId: restored.id,
 		targets: usageTargetsFromBody(restored.body),
+		workspaceId: command.workspaceId,
+	});
+	await openSpecChangeReviewForSavedVersion(tx, {
+		documentId: restored.id,
+		previousRevision: current.revision,
 		workspaceId: command.workspaceId,
 	});
 	await syncInDocTags(tx, restored);
@@ -1397,14 +1397,14 @@ async function applyConflictDraftInTransaction(
 		where: { id: current.id },
 	});
 	await recordVersion(tx, updated);
-	await openSpecChangeReviewForSavedVersion(tx, {
-		documentId: updated.id,
-		previousRevision: current.revision,
-		workspaceId: command.workspaceId,
-	});
 	await syncDocumentUsageLinks(tx, {
 		hostRecordId: updated.id,
 		targets: usageTargetsFromBody(updated.body),
+		workspaceId: command.workspaceId,
+	});
+	await openSpecChangeReviewForSavedVersion(tx, {
+		documentId: updated.id,
+		previousRevision: current.revision,
 		workspaceId: command.workspaceId,
 	});
 	await syncInDocTags(tx, updated);

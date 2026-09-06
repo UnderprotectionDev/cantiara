@@ -6,15 +6,76 @@ import {
 } from "../../documents/server/documents-live";
 
 export const SPEC_CHANGE_REVIEW_COPY = {
+	documentLevelCandidate: "Document-level candidate",
+	notAffected: "Not affected",
+	note: "Note",
 	primarySpec: "Primary spec",
+	reviewed: "Reviewed",
 	specChangeReview: "Spec Change Review",
 	version: "Version",
+	waiting: "Waiting",
+	why: "Why",
+} as const;
+
+export const SPEC_CHANGE_REVIEW_STATUSES = [
+	SPEC_CHANGE_REVIEW_COPY.waiting,
+	SPEC_CHANGE_REVIEW_COPY.reviewed,
+	SPEC_CHANGE_REVIEW_COPY.notAffected,
+] as const;
+
+export type SpecChangeReviewStatus =
+	(typeof SPEC_CHANGE_REVIEW_STATUSES)[number];
+
+export const SPEC_CHANGE_REVIEW_COUNTERPARTS = {
+	ai: false,
+	bulkAllAffected: false,
+	feedbackReviewed: false,
+	refutedAssumptionReview: false,
+	semanticPrediction: false,
+	titleSimilarity: false,
+	workWorkflowStatus: false,
+	writesCandidateWork: false,
 } as const;
 
 export function specChangeReviewCatalog(): {
 	copy: typeof SPEC_CHANGE_REVIEW_COPY;
+	counterparts: typeof SPEC_CHANGE_REVIEW_COUNTERPARTS;
+	statuses: typeof SPEC_CHANGE_REVIEW_STATUSES;
 } {
-	return { copy: SPEC_CHANGE_REVIEW_COPY };
+	return {
+		copy: SPEC_CHANGE_REVIEW_COPY,
+		counterparts: SPEC_CHANGE_REVIEW_COUNTERPARTS,
+		statuses: SPEC_CHANGE_REVIEW_STATUSES,
+	};
+}
+
+export function isSpecChangeReviewStatus(
+	value: string
+): value is SpecChangeReviewStatus {
+	return (SPEC_CHANGE_REVIEW_STATUSES as readonly string[]).includes(value);
+}
+
+export function headingForSectionId(
+	body: string,
+	sectionId: string
+): string | null {
+	return (
+		parseSections(body).find((section) => section.sectionId === sectionId)
+			?.heading ?? null
+	);
+}
+
+export function headingContainingText(
+	body: string,
+	needle: string
+): string | null {
+	if (needle.length === 0) {
+		return null;
+	}
+	return (
+		parseSections(body).find((section) => section.body.includes(needle))
+			?.heading ?? null
+	);
 }
 
 export interface SpecChangeReviewSection {
@@ -30,7 +91,24 @@ export interface SpecChangeReviewVersion {
 	title: string;
 }
 
+export interface SpecChangeReviewCandidateView {
+	brokenReason: string | null;
+	changedSection: string | null;
+	documentLevel: boolean;
+	id: string;
+	note: string;
+	openTarget:
+		| { kind: "broken-reference"; reason: string }
+		| { kind: "record"; title: string };
+	recordId: string;
+	recordKind: string;
+	reviewStatus: SpecChangeReviewStatus;
+	title: string | null;
+	why: readonly string[];
+}
+
 export interface SpecChangeReviewView {
+	candidates: SpecChangeReviewCandidateView[];
 	changedSections: SpecChangeReviewSection[];
 	featureId: string;
 	id: string;

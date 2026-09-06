@@ -728,6 +728,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belge | `Document` | Markdown Belgesi dönüşüm hedefi |
 | Belge sürümü | `Version` | Belgenin veritabanındaki uygulama değişikliği; Git commit değildir |
 | Spec değişikliği inceleme kuyruğu | `Spec Change Review` | Özelliğin Birincil spec Belge sürüm çiftinin inceleme kuyruğu; spec gövdesi, Git diff veya dış review aracı değildir |
+| Belge düzeyinde aday | `Document-level candidate` | Kesin bölüm bağı olmayan Spec Change Review adayı; belirli bir metin değişikliğine yorulmaz |
+| Bekliyor (Spec Change Review) | `Waiting` | Spec Change Review adayının bu sürüm çiftindeki inceleme üstverisi; İş akışı durumu veya Geri Bildirim `İncelendi` değildir |
+| Gözden geçirildi (Spec Change Review) | `Reviewed` | Spec Change Review adayının bu sürüm çiftindeki inceleme üstverisi; Geri Bildirim `İncelendi` veya İş durumu değildir |
+| Etkilenmedi (Spec Change Review) | `Not affected` | Spec Change Review adayının bu sürüm çiftindeki inceleme üstverisi; hedef kaydı yazmaz |
 | Karşılaştır | `Compare` | İki Belge sürümünün gövde farkını gösterme |
 | Geri yükle | `Restore` | Seçilen Belge sürümünü yeni uç olarak yazma; geçmişi silmez |
 | Canlı İş bloğu | `Live Work block` | Belgeye gömülen, kaynak İş kimliğini kopyasız izleyen eyleme açık kart |
