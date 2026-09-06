@@ -59,6 +59,7 @@ model Project {
   moodboards                      Moodboard[]
   screens                         Screen[]
   userFlows                       UserFlow[]
+  wireframeLinkedBlocks           WireframeLinkedBlock[]
 
   @@index([workspaceId])
   @@map("project")

@@ -6,19 +6,37 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	applyAutoLayout,
+	createGroup,
+	createPersistentRelation,
 	createProjectWall,
+	createRegionSnapshot,
+	drawVisualLine,
 	getProjectWall,
 	listProjectWalls,
 	materializeStarterSkeletonWalls,
 	placeLiveCard,
+	previewPersistentRelation,
+	previewRegionSnapshot,
+	saveFocusOrder,
+	setLockPosition,
 	updateCardDensity,
 	updateCardLayout,
 } from "./project-wall";
 import {
+	applyAutoLayoutPayloadSchema,
+	createGroupPayloadSchema,
+	createPersistentRelationPayloadSchema,
 	createProjectWallPayloadSchema,
+	drawVisualLinePayloadSchema,
 	materializeStarterSkeletonWallsPayloadSchema,
+	PROJECT_WALL_SOURCE_KIND,
 	placeLiveCardPayloadSchema,
+	previewPersistentRelationInputSchema,
 	projectWallCatalog,
+	regionSnapshotPayloadSchema,
+	saveFocusOrderPayloadSchema,
+	setLockPositionPayloadSchema,
 	updateCardDensityPayloadSchema,
 	updateCardLayoutPayloadSchema,
 } from "./project-wall-model";
@@ -49,6 +67,23 @@ async function requireWall(workspaceId: string, wallId: string) {
 }
 
 export const projectWall = {
+	applyAutoLayout: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: applyAutoLayoutPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await applyAutoLayout(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	catalog: protectedProcedure.handler(() => projectWallCatalog()),
 	create: protectedWriteProcedure
 		.input(
@@ -69,6 +104,58 @@ export const projectWall = {
 				payload: input.payload,
 			});
 		}),
+	createGroup: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: createGroupPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await createGroup(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	createPersistentRelation: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: createPersistentRelationPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await createPersistentRelation(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				viewerWorkspaceId: access.workspaceId,
+			});
+		}),
+	drawVisualLine: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: drawVisualLinePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await drawVisualLine(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	get: protectedProcedure
 		.input(z.object({ wallId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -81,6 +168,19 @@ export const projectWall = {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
 			return await listProjectWalls(getPrismaClient(), input.projectId);
+		}),
+	listTechnicalDiagrams: protectedProcedure
+		.input(z.object({ projectId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.projectId);
+			return await getPrismaClient().design.findMany({
+				orderBy: { createdAt: "asc" },
+				where: {
+					projectId: input.projectId,
+					type: PROJECT_WALL_SOURCE_KIND.technicalDiagram,
+				},
+			});
 		}),
 	materializeStarterSkeletons: protectedWriteProcedure
 		.input(
@@ -117,6 +217,90 @@ export const projectWall = {
 				payload: input.payload,
 			});
 		}),
+	previewPersistentRelation: protectedProcedure
+		.input(
+			previewPersistentRelationInputSchema.omit({
+				viewerWorkspaceId: true,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.wallId);
+			return await previewPersistentRelation(getPrismaClient(), {
+				...input,
+				viewerWorkspaceId: access.workspaceId,
+			});
+		}),
+	previewSnapshot: protectedProcedure
+		.input(regionSnapshotPayloadSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.wallId);
+			const preview = await previewRegionSnapshot(getPrismaClient(), input);
+			if (preview.status !== "ok") {
+				return preview;
+			}
+			const { status, ...snapshot } = preview;
+			return { ...presentSnapshot(snapshot), status };
+		}),
+	saveFocusOrder: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: saveFocusOrderPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await saveFocusOrder(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	setLockPosition: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: setLockPositionPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await setLockPosition(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	snapshot: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: regionSnapshotPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			const created = await createRegionSnapshot(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+			if (created.status !== "committed") {
+				return created;
+			}
+			return {
+				snapshot: presentSnapshot(created.snapshot),
+				status: created.status,
+			};
+		}),
 	updateDensity: protectedWriteProcedure
 		.input(
 			z.object({
@@ -152,3 +336,39 @@ export const projectWall = {
 			});
 		}),
 };
+
+function encodeBytes(bytes: Uint8Array): string {
+	return Buffer.from(bytes).toString("base64");
+}
+
+function presentSnapshot(snapshot: {
+	bytes?: Uint8Array;
+	capturedAt: string;
+	images?: { bytes: Uint8Array }[];
+	kind: string;
+	liveSourceLink: false;
+	notice: string;
+	opensBuildInPublic: false;
+	opensLinkSharing: false;
+	pages?: { title: string }[];
+	shareGrant: false;
+	titles: string[];
+	wallLocked: false;
+}) {
+	return {
+		capturedAt: snapshot.capturedAt,
+		images: snapshot.images?.map((image) => ({
+			bytes: encodeBytes(image.bytes),
+		})),
+		kind: snapshot.kind,
+		liveSourceLink: snapshot.liveSourceLink,
+		notice: snapshot.notice,
+		opensBuildInPublic: snapshot.opensBuildInPublic,
+		opensLinkSharing: snapshot.opensLinkSharing,
+		pages: snapshot.pages,
+		pdf: snapshot.bytes ? encodeBytes(snapshot.bytes) : undefined,
+		shareGrant: snapshot.shareGrant,
+		titles: snapshot.titles,
+		wallLocked: snapshot.wallLocked,
+	};
+}

@@ -60,7 +60,11 @@ export default function MoodboardArea({ projectId }: { projectId: string }) {
 					</ul>
 				)}
 				{selectedId ? (
-					<MoodboardDetail moodboardId={selectedId} projectId={projectId} />
+					<MoodboardDetail
+						key={selectedId}
+						moodboardId={selectedId}
+						projectId={projectId}
+					/>
 				) : (
 					<Empty>
 						<EmptyHeader>

@@ -13,6 +13,7 @@ model User {
   completionEffectPreference  CompletionEffectPreference?
   personalReminders           PersonalReminder[]
   favoriteMemberships         FavoriteMembership[]
+  moodboardPersonalViewports MoodboardPersonalViewport[]
 
   @@unique([email])
   @@map("user")

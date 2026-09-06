@@ -35,12 +35,25 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Proje Duvarı oluştur | `Create Project Wall` | Adlandırılmış düz Proje Duvarı açma |
 | Proje Duvarı yok | `No Project Wall yet.` | Henüz duvar açılmamış boş durum |
 | Canlı kart yerleştir | `Place live card` | Mevcut ana kaydı kopyasız canlı kart olarak duvara referanslama |
+| Görsel bağlantı | `Visual link` | Kartlar arasında yönlü etiketli anlatı çizgisi; kayıt ilişkisi değildir |
+| Kalıcı ilişki oluştur | `Create Persistent Relation` | Görsel çizgiden önizlemeli katalog ilişkisi yazma |
+| Konumu kilitle | `Lock Position` | Görünüm-yerel konum sabiti; kaynak kaydın düzenlenmesini veya yaşamını kısıtlamaz |
 | Moodboard | `Moodboard` | Proje veya özellik için görsel referans ve seçilen tasarım yönünü toplayan tasarım türü; Kullanıcı Akışı, Wireframe veya tasarım sistemi değildir |
 | Moodboard oluştur | `Create Moodboard` | Başlıkla Moodboard açma |
 | Moodboard yok | `No Moodboards yet.` | Henüz Moodboard açılmamış boş durum |
 | Altyazı | `Caption` | Moodboard görselindeki isteğe bağlı kısa neden; yorum dizisi, reaksiyon, görev, mention veya Dosya Eki açıklaması değildir |
 | Dış bağlantı | `External link` | Moodboard görselinin Dosya Eki sürümü olmayan kökeni |
 | Görsel ekle | `Add visual` | Moodboard'a Dosya Eki veya dış bağlantı kökenli görsel yerleştirme |
+| Renk Örneği | `Color Swatch` | Moodboard birinci sınıf renk öğesi; palet görsel yön bağlamıdır, tema veya token değildir |
+| Palet grubu | `Palette group` | Moodboard üzerindeki Renk Örneği grubu |
+| Renk Örneği ekle | `Add Color Swatch` | Seçici, kesin görselden Eyedrop, HEX, RGB veya HSL ile Renk Örneği ekleme |
+| Palet grubu ekle | `Add palette group` | Moodboard'a palet grubu açma |
+| Renk notu | `Note` | Renk Örneğindeki isteğe bağlı kısa açıklama |
+| Seçici | `Picker` | Renk Örneği rengi için görsel seçici |
+| Eyedrop | `Eyedrop` | Kesin bir Moodboard görselinden renk alma |
+| HEX | `HEX` | Renk Örneğinin onaltılık gösterimi |
+| RGB | `RGB` | Renk Örneğinin kırmızı-yeşil-mavi gösterimi |
+| HSL | `HSL` | Renk Örneğinin ton-doygunluk-parlaklık gösterimi |
 | Herkese açık | `Public` | Dışarıdan anonim erişilebilen kullanıcı görünürlüğü; `Build in Public` ürün adı, teknik alan ve wire değerleri özgün adını korur |
 | Özel | `Private` | Dış erişime kapalı kullanıcı görünürlüğü |
 | Dış yüzey | `External Surface` | Ziyaretçi URL'si, erişim anahtarı, parola, süre ve etkinlik durumunu taşıyan paylaşım/yayın ana kaydı |
@@ -67,6 +80,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Çöpte Ekran yok | `No Screens in Trash.` | Çöp Kutusu listesinde Ekran olmaması |
 | Ekran yaşamı | `Active`, `Archived`, `In Trash` | Ekranın ortak ana kayıt görünürlüğü; Wireframe bağımsız yaşam değildir |
 | Wireframe | `Wireframe` | Ekrana ait düşük sadakatli sürümlü yüzey; bağımsız ana kayıt değildir |
+| Bağlı Wireframe bloğu | `Detach Link` | Proje kapsamlı düşük detaylı kaynak tanımını bir Ekran örneğinden ayırıp o andaki içeriği bağımsız block olarak dondurma |
+| Kırık canlı metin | `Broken` | Wireframe canlı Markdown bölüm referansı çözülemediğinde boşaltmadan gösterilen durum |
 | Company yok | `No Companies yet.` | Henüz Company açılmamış boş durum |
 | Kopya adayları | `Duplicate candidates` | Aynı normalize e-posta veya ad/Company benzerliğiyle görünen Contact çiftleri; birleştirme yazması değildir |
 | Güçlü kopya adayı | `Strong copy candidate` | Aynı normalize e-posta taşıyan Contact çifti |

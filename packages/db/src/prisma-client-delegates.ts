@@ -24,8 +24,11 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"ScreenEvent",
 	"ValidationRecord",
 	"Moodboard",
+	"MoodboardColorSwatch",
+	"MoodboardPaletteGroup",
 	"MoodboardVisual",
 	"WireframeVersion",
+	"WireframeLinkedBlock",
 	"WorkNotNowTrail",
 ]);
 
