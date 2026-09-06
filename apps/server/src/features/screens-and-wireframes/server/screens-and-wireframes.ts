@@ -414,7 +414,7 @@ function nextLifecycle(
 	}
 	if (kind === "trash") {
 		return {
-			archivedAt: null,
+			archivedAt: current.archivedAt,
 			status: "ok",
 			trashedAt: current.trashedAt ?? now,
 		};
@@ -422,7 +422,11 @@ function nextLifecycle(
 	if (!current.trashedAt) {
 		return { reason: "screen-not-in-trash", status: "rejected" };
 	}
-	return { archivedAt: null, status: "ok", trashedAt: null };
+	return {
+		archivedAt: current.archivedAt,
+		status: "ok",
+		trashedAt: null,
+	};
 }
 
 function eventKind(kind: LifecycleKind): string {

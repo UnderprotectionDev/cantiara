@@ -8,6 +8,7 @@ describe("Screens copy", () => {
 	it("uses Screen English UI and keeps User Flow editor out", () => {
 		expect(SCREENS_COPY.screen).toBe("Screen");
 		expect(SCREENS_COPY.createScreen).toBe("Create Screen");
+		expect(SCREENS_COPY.titleRequired).toBe("Title is required.");
 		expect(JSON.stringify(SCREENS_COPY)).not.toMatch(OUT_OF_SCOPE_COPY);
 	});
 });

@@ -524,13 +524,12 @@ export function loadSearchIndexFromRows(input: {
 			id: screen.id,
 			key: null,
 			kind: RECORD_DISCOVERY_COPY.screen,
-			lifecycle:
-				archived || trashed ? ("archived" as const) : ("active" as const),
+			lifecycle: archived ? ("archived" as const) : ("active" as const),
 			metadata: "",
 			projectId: screen.projectId,
 			recordType: RECORD_DISCOVERY_COPY.screen,
 			scope: RECORD_DISCOVERY_COPY.project,
-			status: archived || trashed ? RECORD_DISCOVERY_COPY.archived : "Active",
+			status: screenStatus(archived, trashed),
 			title: screen.title,
 			trashed,
 			updatedAt: screen.updatedAt.getTime(),
@@ -742,6 +741,16 @@ function closureRank(result: string | null): number {
 		return 2;
 	}
 	return 1;
+}
+
+function screenStatus(archived: boolean, trashed: boolean): string {
+	if (trashed) {
+		return RECORD_DISCOVERY_COPY.inTrash;
+	}
+	if (archived) {
+		return RECORD_DISCOVERY_COPY.archived;
+	}
+	return "Active";
 }
 
 function workLifecycle(archived: boolean, closed: boolean): SearchLifecycle {

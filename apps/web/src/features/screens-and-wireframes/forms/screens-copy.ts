@@ -11,6 +11,7 @@ export const SCREENS_COPY = {
 	restore: "Restore",
 	screen: "Screen",
 	title: "Title",
+	titleRequired: "Title is required.",
 	unarchive: "Unarchive",
 	wireframe: "Wireframe",
 } as const;

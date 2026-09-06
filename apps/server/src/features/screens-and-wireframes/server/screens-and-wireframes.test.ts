@@ -179,6 +179,7 @@ describe("Screens and Wireframes", () => {
 		expect(JSON.stringify(SCREENS_COPY)).not.toMatch(USER_FLOW_EDITOR);
 		expect(SCREENS_COPY.screen).toBe("Screen");
 		expect(SCREENS_COPY.createScreen).toBe("Create Screen");
+		expect(SCREENS_COPY.titleRequired).toBe("Title is required.");
 		const listed = await listScreens(prisma, { projectId });
 		expect(listed).toHaveLength(1);
 		expect(listed[0]?.title).toBe("Checkout");
@@ -327,6 +328,39 @@ describe("Screens and Wireframes", () => {
 		}
 		expect(restored.screen.life).toBe(SCREEN_LIFE.active);
 		expect(restored.screen.versions[0]?.screenId).toBe(screen.id);
+		const archived = await archiveScreen(prisma, {
+			actorId,
+			baseRevision: restored.screen.revision,
+			idempotencyKey: "archive-settings",
+			origin: "human",
+			payload: { screenId: screen.id },
+		});
+		if (archived.status !== "committed") {
+			throw new Error("expected archive");
+		}
+		const archivedTrash = await trashScreen(prisma, {
+			actorId,
+			baseRevision: archived.screen.revision,
+			idempotencyKey: "trash-archived-settings",
+			origin: "human",
+			payload: { screenId: screen.id },
+		});
+		if (archivedTrash.status !== "committed") {
+			throw new Error("expected trash of Archived Screen");
+		}
+		expect(archivedTrash.screen.life).toBe(SCREEN_LIFE.inTrash);
+		const restoredArchive = await restoreScreen(prisma, {
+			actorId,
+			baseRevision: archivedTrash.screen.revision,
+			idempotencyKey: "restore-archived-settings",
+			origin: "human",
+			payload: { screenId: screen.id },
+		});
+		if (restoredArchive.status !== "committed") {
+			throw new Error("expected restore to Archived");
+		}
+		expect(restoredArchive.screen.life).toBe(SCREEN_LIFE.archived);
+		expect(restoredArchive.screen.versions[0]?.screenId).toBe(screen.id);
 	});
 
 	it("leaves a deleted Screen as a broken target without silent retarget", async () => {

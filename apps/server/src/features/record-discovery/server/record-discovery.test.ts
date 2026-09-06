@@ -858,4 +858,47 @@ describe("Record Discovery prepared type indexes", () => {
 		expect(result.rows.map((row) => row.id)).toEqual(["work-ok"]);
 		expect(JSON.stringify(result)).not.toMatch(INDEX_LEAK);
 	});
+
+	it("does not treat a trashed Screen as Archived in the search index", () => {
+		const index = loadSearchIndexFromRows({
+			fileAttachments: [],
+			screens: [
+				{
+					archivedAt: new Date(1000),
+					id: "screen-archived-trash",
+					projectId: OPEN,
+					title: "Pay trash",
+					trashedAt: new Date(2000),
+					updatedAt: new Date(2000),
+				},
+				{
+					archivedAt: new Date(1000),
+					id: "screen-archived",
+					projectId: OPEN,
+					title: "Pay archived",
+					trashedAt: null,
+					updatedAt: new Date(1000),
+				},
+			],
+			works: [],
+		});
+		const trash = index.find((row) => row.id === "screen-archived-trash");
+		const archived = index.find((row) => row.id === "screen-archived");
+		expect(trash).toMatchObject({
+			archived: true,
+			lifecycle: "archived",
+			status: RECORD_DISCOVERY_COPY.inTrash,
+			trashed: true,
+		});
+		expect(archived).toMatchObject({
+			archived: true,
+			lifecycle: "archived",
+			status: RECORD_DISCOVERY_COPY.archived,
+			trashed: false,
+		});
+		expect(ids(index, { text: "Pay" })).toEqual([]);
+		expect(ids(index, { includeArchived: true, text: "Pay" })).toEqual([
+			"screen-archived",
+		]);
+	});
 });

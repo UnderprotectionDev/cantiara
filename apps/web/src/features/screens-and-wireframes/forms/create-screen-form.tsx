@@ -37,7 +37,11 @@ export default function CreateScreenForm({
 					return;
 				}
 				if (outcome.status === "rejected") {
-					setError(outcome.reason);
+					setError(
+						outcome.reason === "title-required"
+							? SCREENS_COPY.titleRequired
+							: outcome.reason
+					);
 				}
 			},
 		})

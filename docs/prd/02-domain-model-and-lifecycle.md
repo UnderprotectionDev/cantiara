@@ -47,6 +47,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ekran | `Screen` | Proje kapsamında bağımsız kimlik, geçmiş, ilişki ve yaşam döngüsü taşıyan ana kayıt; görsel tasarım olmadan yalnız başlıkla var olabilir |
 | Ekran oluştur | `Create Screen` | Yalnız başlıkla Proje kapsamında Ekran açma |
 | Ekran yok | `No Screens yet.` | Henüz Ekran açılmamış boş durum |
+| Ekran başlığı gerekli | `Title is required.` | Boş başlıkla Ekran açılamaz |
 | Ekran yaşamı | `Active`, `Archived`, `In Trash` | Ekranın ortak ana kayıt görünürlüğü; Wireframe bağımsız yaşam değildir |
 | Wireframe | `Wireframe` | Ekrana ait düşük sadakatli sürümlü yüzey; bağımsız ana kayıt değildir |
 | Company yok | `No Companies yet.` | Henüz Company açılmamış boş durum |
