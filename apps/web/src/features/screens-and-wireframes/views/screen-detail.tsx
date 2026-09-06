@@ -8,6 +8,8 @@ import { SCREENS_COPY } from "@/features/screens-and-wireframes/forms/screens-co
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
+import WireframeSurface from "./wireframe-surface";
+
 export default function ScreenDetail({
 	onCleared,
 	projectId,
@@ -126,6 +128,9 @@ export default function ScreenDetail({
 	const onDelete = useCallback(() => {
 		run("delete");
 	}, [run]);
+	const onWireframeChanged = useCallback(() => {
+		invalidate().catch(() => undefined);
+	}, [invalidate]);
 
 	if (screen.isPending) {
 		return (
@@ -144,14 +149,14 @@ export default function ScreenDetail({
 		<div className="flex flex-col gap-4">
 			<h2 className="font-semibold text-lg tracking-tight">{record.title}</h2>
 			<p className="text-muted-foreground text-sm">{record.life}</p>
-			{record.versions.length > 0 ? (
-				<ul className="flex flex-col gap-1 text-sm">
-					{record.versions.map((version) => (
-						<li key={version.id}>
-							{SCREENS_COPY.wireframe} {version.versionNumber}
-						</li>
-					))}
-				</ul>
+			{record.life === SCREENS_COPY.active ? (
+				<WireframeSurface
+					onChanged={onWireframeChanged}
+					projectId={projectId}
+					revision={record.revision}
+					screenId={screenId}
+					versionNumber={record.versions.at(-1)?.versionNumber ?? null}
+				/>
 			) : null}
 			<div className="flex flex-wrap gap-2">
 				{record.life === SCREENS_COPY.active ? (

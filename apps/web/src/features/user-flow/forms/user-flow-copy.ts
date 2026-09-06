@@ -1,4 +1,6 @@
 export const USER_FLOW_COPY = {
+	action: "Action",
+	align: "Align",
 	archived: "Archived",
 	bindScreen: "Bind Screen",
 	condition: "Condition",
@@ -6,10 +8,23 @@ export const USER_FLOW_COPY = {
 	createUserFlow: "Create User Flow",
 	decision: "Decision",
 	description: "Description",
+	fitView: "Fit View",
 	noUserFlows: "No User Flows yet.",
 	openSourceRecord: "Open Source Record",
+	placeNode: "Place node",
 	screen: "Screen",
+	section: "Section",
+	stateOutcome: "State/Outcome",
 	title: "Title",
 	transition: "Transition",
+	undo: "Undo",
 	userFlow: "User Flow",
 } as const;
+
+export const FLOW_NODE_KINDS = [
+	USER_FLOW_COPY.screen,
+	USER_FLOW_COPY.action,
+	USER_FLOW_COPY.decision,
+	USER_FLOW_COPY.stateOutcome,
+	USER_FLOW_COPY.section,
+] as const;
