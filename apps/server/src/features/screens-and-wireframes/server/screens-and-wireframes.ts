@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@cantiara/db";
+import type { PrismaClient } from "@cantiara/db";
 
 import {
 	advisoryKeys,
@@ -8,6 +8,20 @@ import {
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
 
+import {
+	deleteScreenRow,
+	findScreenRow,
+	insertScreenEvent,
+	insertScreenRow,
+	insertWireframeVersion,
+	latestWireframeVersionNumber,
+	listScreenEvents,
+	listScreenRows,
+	listWireframeVersions,
+	type ScreenDb,
+	type ScreenRow,
+	updateScreenRow,
+} from "./screen-store";
 import {
 	type ArchiveScreenCommand,
 	archiveScreenCommandSchema,
@@ -30,16 +44,7 @@ import {
 	type WireframeVersionView,
 } from "./screens-and-wireframes-model";
 
-type PrismaTransaction = Prisma.TransactionClient;
-
-interface ScreenRow {
-	archivedAt: Date | null;
-	id: string;
-	projectId: string;
-	revision: number;
-	title: string;
-	trashedAt: Date | null;
-}
+type PrismaTransaction = ScreenDb;
 
 export async function createScreen(
 	prisma: PrismaClient,
@@ -169,12 +174,7 @@ export async function getScreen(
 	prisma: PrismaClient,
 	screenId: string
 ): Promise<ScreenView | null> {
-	if (!hasScreenDelegate(prisma)) {
-		return null;
-	}
-	const row = await prisma.screen.findUnique({
-		where: { id: screenId },
-	});
+	const row = await findScreenRow(prisma, screenId);
 	if (!row) {
 		return null;
 	}
@@ -189,19 +189,7 @@ export async function listScreens(
 		trash?: boolean;
 	}
 ): Promise<ScreenView[]> {
-	if (!hasScreenDelegate(prisma)) {
-		return [];
-	}
-	const rows = await prisma.screen.findMany({
-		orderBy: { createdAt: "asc" },
-		where: input.trash
-			? { projectId: input.projectId, trashedAt: { not: null } }
-			: {
-					archivedAt: input.includeArchived ? undefined : null,
-					projectId: input.projectId,
-					trashedAt: null,
-				},
-	});
+	const rows = await listScreenRows(prisma, input);
 	return await Promise.all(rows.map((row) => toView(prisma, row)));
 }
 
@@ -211,29 +199,22 @@ async function createInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<ScreenWriteOutcome> {
-	if (!hasScreenDelegate(tx)) {
-		return { reason: "screen-unavailable", status: "rejected" };
-	}
 	await lockProject(tx, command.payload.projectId);
 	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
 	if (replayed) {
 		return replayed;
 	}
-	const created = await tx.screen.create({
-		data: {
-			id: crypto.randomUUID(),
-			projectId: command.payload.projectId,
-			revision: 1,
-			title: command.payload.title,
-		},
+	const created = await insertScreenRow(tx, {
+		id: crypto.randomUUID(),
+		projectId: command.payload.projectId,
+		revision: 1,
+		title: command.payload.title,
 	});
-	await tx.screenEvent.create({
-		data: {
-			actorId: command.actorId,
-			id: crypto.randomUUID(),
-			kind: SCREEN_EVENT_KIND.create,
-			screenId: created.id,
-		},
+	await insertScreenEvent(tx, {
+		actorId: command.actorId,
+		id: crypto.randomUUID(),
+		kind: SCREEN_EVENT_KIND.create,
+		screenId: created.id,
 	});
 	const view = await toView(tx, created);
 	await writeReceipt(tx, {
@@ -251,12 +232,7 @@ async function saveVersionInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<ScreenWriteOutcome> {
-	if (!hasScreenDelegate(tx)) {
-		return { reason: "screen-unavailable", status: "rejected" };
-	}
-	const current = await tx.screen.findUnique({
-		where: { id: command.payload.screenId },
-	});
+	const current = await findScreenRow(tx, command.payload.screenId);
 	if (!current) {
 		return { reason: "screen-not-found", status: "rejected" };
 	}
@@ -265,9 +241,7 @@ async function saveVersionInTransaction(
 	if (replayed) {
 		return replayed;
 	}
-	const locked = await tx.screen.findUnique({
-		where: { id: current.id },
-	});
+	const locked = await findScreenRow(tx, current.id);
 	if (!locked) {
 		return { reason: "screen-not-found", status: "rejected" };
 	}
@@ -277,31 +251,23 @@ async function saveVersionInTransaction(
 	if (locked.archivedAt || locked.trashedAt) {
 		return { reason: "screen-not-writable", status: "rejected" };
 	}
-	const latest = await tx.wireframeVersion.findFirst({
-		orderBy: { versionNumber: "desc" },
-		where: { screenId: locked.id },
-	});
-	const versionNumber = (latest?.versionNumber ?? 0) + 1;
+	const versionNumber = (await latestWireframeVersionNumber(tx, locked.id)) + 1;
 	const document = emptyWireframeDocumentSchema.parse(command.payload.document);
-	await tx.wireframeVersion.create({
-		data: {
-			document: document as Prisma.InputJsonValue,
-			id: crypto.randomUUID(),
-			screenId: locked.id,
-			versionNumber,
-		},
+	await insertWireframeVersion(tx, {
+		document,
+		id: crypto.randomUUID(),
+		screenId: locked.id,
+		versionNumber,
 	});
-	const updated = await tx.screen.update({
-		data: { revision: locked.revision + 1 },
-		where: { id: locked.id },
+	const updated = await updateScreenRow(tx, {
+		...locked,
+		revision: locked.revision + 1,
 	});
-	await tx.screenEvent.create({
-		data: {
-			actorId: command.actorId,
-			id: crypto.randomUUID(),
-			kind: SCREEN_EVENT_KIND.saveVersion,
-			screenId: updated.id,
-		},
+	await insertScreenEvent(tx, {
+		actorId: command.actorId,
+		id: crypto.randomUUID(),
+		kind: SCREEN_EVENT_KIND.saveVersion,
+		screenId: updated.id,
 	});
 	const view = await toView(tx, updated);
 	await writeReceipt(tx, {
@@ -345,12 +311,7 @@ async function lifecycleInTransaction(
 	fingerprint: string,
 	kind: LifecycleKind
 ): Promise<ScreenWriteOutcome> {
-	if (!hasScreenDelegate(tx)) {
-		return { reason: "screen-unavailable", status: "rejected" };
-	}
-	const current = await tx.screen.findUnique({
-		where: { id: command.payload.screenId },
-	});
+	const current = await findScreenRow(tx, command.payload.screenId);
 	if (!current) {
 		return { reason: "screen-not-found", status: "rejected" };
 	}
@@ -359,9 +320,7 @@ async function lifecycleInTransaction(
 	if (replayed) {
 		return replayed;
 	}
-	const locked = await tx.screen.findUnique({
-		where: { id: current.id },
-	});
+	const locked = await findScreenRow(tx, current.id);
 	if (!locked) {
 		return { reason: "screen-not-found", status: "rejected" };
 	}
@@ -372,21 +331,17 @@ async function lifecycleInTransaction(
 	if (next.status === "rejected") {
 		return next;
 	}
-	const updated = await tx.screen.update({
-		data: {
-			archivedAt: next.archivedAt,
-			revision: locked.revision + 1,
-			trashedAt: next.trashedAt,
-		},
-		where: { id: locked.id },
+	const updated = await updateScreenRow(tx, {
+		...locked,
+		archivedAt: next.archivedAt,
+		revision: locked.revision + 1,
+		trashedAt: next.trashedAt,
 	});
-	await tx.screenEvent.create({
-		data: {
-			actorId: command.actorId,
-			id: crypto.randomUUID(),
-			kind: eventKind(kind),
-			screenId: updated.id,
-		},
+	await insertScreenEvent(tx, {
+		actorId: command.actorId,
+		id: crypto.randomUUID(),
+		kind: eventKind(kind),
+		screenId: updated.id,
 	});
 	const view = await toView(tx, updated);
 	await writeReceipt(tx, {
@@ -457,12 +412,7 @@ async function deleteInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<PermanentDeleteOutcome> {
-	if (!hasScreenDelegate(tx)) {
-		return { reason: "screen-unavailable", status: "rejected" };
-	}
-	const current = await tx.screen.findUnique({
-		where: { id: command.payload.screenId },
-	});
+	const current = await findScreenRow(tx, command.payload.screenId);
 	if (!current) {
 		const existing = await tx.mutationReceipt.findUnique({
 			where: { commandKey },
@@ -477,9 +427,7 @@ async function deleteInTransaction(
 	if (replayed) {
 		return replayed;
 	}
-	const locked = await tx.screen.findUnique({
-		where: { id: current.id },
-	});
+	const locked = await findScreenRow(tx, current.id);
 	if (!locked) {
 		return { reason: "screen-not-found", status: "rejected" };
 	}
@@ -489,7 +437,7 @@ async function deleteInTransaction(
 	if (!locked.trashedAt) {
 		return { reason: "screen-not-in-trash", status: "rejected" };
 	}
-	await tx.screen.delete({ where: { id: locked.id } });
+	await deleteScreenRow(tx, locked.id);
 	await tx.mutationReceipt.create({
 		data: {
 			actorId: command.actorId,
@@ -589,14 +537,8 @@ async function toView(
 	db: PrismaClient | PrismaTransaction,
 	row: ScreenRow
 ): Promise<ScreenView> {
-	const versions = await db.wireframeVersion.findMany({
-		orderBy: { versionNumber: "asc" },
-		where: { screenId: row.id },
-	});
-	const events = await db.screenEvent.findMany({
-		orderBy: { occurredAt: "asc" },
-		where: { screenId: row.id },
-	});
+	const versions = await listWireframeVersions(db, row.id);
+	const events = await listScreenEvents(db, row.id);
 	return {
 		archivedAt: row.archivedAt?.toISOString() ?? null,
 		history: events.map((event) => ({
@@ -616,7 +558,6 @@ async function toView(
 
 function toVersionView(row: {
 	createdAt: Date;
-	document: Prisma.JsonValue;
 	id: string;
 	screenId: string;
 	versionNumber: number;
@@ -636,16 +577,6 @@ function isKonvaStageJson(value: unknown): boolean {
 		value !== null &&
 		"className" in value &&
 		(value as { className: unknown }).className === "Stage"
-	);
-}
-
-function hasScreenDelegate(
-	db: PrismaClient | PrismaTransaction
-): db is PrismaClient | PrismaTransaction {
-	return (
-		"screen" in db &&
-		typeof db.screen?.create === "function" &&
-		typeof db.screen?.findMany === "function"
 	);
 }
 

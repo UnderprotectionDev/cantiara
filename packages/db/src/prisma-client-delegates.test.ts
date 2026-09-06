@@ -93,7 +93,6 @@ function workDelegates() {
 			findMany,
 			upsert: () => undefined,
 		},
-		screen: { create: () => undefined, findMany },
 		work: { create: () => undefined, findMany },
 		workLifecycleEvent: { findMany },
 		workTemplate: {
@@ -357,7 +356,7 @@ describe("Prisma client current delegates", () => {
 		).toBe(true);
 	});
 
-	it("refuses a bun --hot client generated before Screen", () => {
+	it("accepts a bun --hot client generated before Screen", () => {
 		const { screen: _dropped, ...beforeScreen } = {
 			...workDelegates(),
 			...currentLifecycleDelegates(),
@@ -379,7 +378,19 @@ describe("Prisma client current delegates", () => {
 		};
 		expect(
 			prismaClientHasCurrentDelegates(beforeScreen as unknown as PrismaClient)
-		).toBe(false);
+		).toBe(true);
+		expect(
+			prismaClientHasCurrentDelegates({
+				...beforeScreen,
+				_runtimeDataModel: {
+					models: {
+						Screen: { fields: [{ name: "id" }, { name: "title" }] },
+						ScreenEvent: { fields: [{ name: "id" }] },
+						WireframeVersion: { fields: [{ name: "id" }] },
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(true);
 	});
 
 	it("accepts a bun --hot client generated before Completion effect preference", () => {

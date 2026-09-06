@@ -54,44 +54,39 @@ const KONVA_STAGE = {
 };
 
 /**
- * Phase 1 loop for Create Screen toast:
- * `undefined is not an object (evaluating 'tx.screen.create')`.
- * Fresh-client DB tests below cannot catch this — they construct Prisma
- * after generate. A bun --hot client generated before Screen still
- * serves get/list (empty) and then throws on write.
+ * bun --hot can serve a Prisma client generated before Screen.
+ * Writes must still persist through table SQL — gating getPrismaClient
+ * on Screen made every RPC ask to restart the API (CANT-4DB9B62F).
  */
-describe("Screens and Wireframes — missing Prisma delegate", () => {
-	it("does not throw evaluating tx.screen.create", async () => {
-		const prisma = {
-			$transaction: async <T>(
-				fn: (tx: {
-					$executeRaw: () => Promise<undefined>;
-					mutationReceipt: { findUnique: () => Promise<null> };
-					screen: undefined;
-				}) => Promise<T>
-			) =>
-				await fn({
-					$executeRaw: async () => undefined,
-					mutationReceipt: { findUnique: async () => null },
-					screen: undefined,
-				}),
-		} as unknown as PrismaClient;
-		await expect(
-			createScreen(prisma, {
-				actorId: "actor-stale-client",
-				idempotencyKey: "create-stale",
-				origin: "human",
-				payload: {
-					projectId: "proj-stale-client",
-					title: "Checkout",
-				},
-			})
-		).resolves.toEqual({
-			reason: "screen-unavailable",
-			status: "rejected",
-		});
-	});
-});
+function withoutScreenDelegates(prisma: PrismaClient): PrismaClient {
+	const hide = (target: object): PrismaClient =>
+		new Proxy(target, {
+			get(object, prop, receiver) {
+				if (
+					prop === "screen" ||
+					prop === "screenEvent" ||
+					prop === "wireframeVersion"
+				) {
+					return;
+				}
+				const value = Reflect.get(object, prop, receiver) as unknown;
+				if (prop === "$transaction" && typeof value === "function") {
+					return (fn: (tx: object) => unknown, options?: unknown) =>
+						(
+							value as (
+								callback: (tx: object) => unknown,
+								opts?: unknown
+							) => unknown
+						).call(object, (tx: object) => fn(hide(tx)), options);
+				}
+				if (typeof value === "function") {
+					return value.bind(object);
+				}
+				return value;
+			},
+		}) as PrismaClient;
+	return hide(prisma);
+}
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -187,6 +182,28 @@ describe("Screens and Wireframes", () => {
 
 	afterEach(async () => {
 		await resetSharedTables(prisma);
+	});
+
+	it("creates a Screen when bun --hot still lacks the Screen delegate", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const stale = withoutScreenDelegates(prisma);
+		const created = await createScreen(stale, {
+			actorId,
+			idempotencyKey: "create-stale-checkout",
+			origin: "human",
+			payload: {
+				projectId,
+				title: "Checkout",
+			},
+		});
+		expect(created).toMatchObject({ status: "committed" });
+		if (created.status !== "committed") {
+			throw new Error("expected SQL Screen create");
+		}
+		expect(created.screen.title).toBe("Checkout");
+		const listed = await listScreens(stale, { projectId });
+		expect(listed).toHaveLength(1);
+		expect(listed[0]?.id).toBe(created.screen.id);
 	});
 
 	it("creates a Screen from a title with no visual design", async () => {
