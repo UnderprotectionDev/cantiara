@@ -194,7 +194,9 @@ describe("User Flow Convert and Bind", () => {
 			ownerKind: "User Flow",
 			sourceVersion: String(withNode.revision),
 		});
-		expect(await prisma.work.count()).toBe(0);
+		expect(await prisma.work.count({ where: { projectId: project.id } })).toBe(
+			0
+		);
 
 		expect(
 			await convertAndBind(prisma, {
@@ -213,7 +215,9 @@ describe("User Flow Convert and Bind", () => {
 			reason: USER_FLOW_REJECTION.previewRequired,
 			status: "rejected",
 		});
-		expect(await prisma.work.count()).toBe(0);
+		expect(await prisma.work.count({ where: { projectId: project.id } })).toBe(
+			0
+		);
 	});
 
 	it("confirms exactly one Work with immutable Origin Location and leaves the node", async () => {
@@ -266,7 +270,9 @@ describe("User Flow Convert and Bind", () => {
 			ownerKind: "User Flow",
 			sourceVersion: String(withNode.revision),
 		});
-		expect(await prisma.screen.count()).toBe(0);
+		expect(
+			await prisma.screen.count({ where: { projectId: project.id } })
+		).toBe(0);
 	});
 
 	it("refuses Convert and Bind when the target is a Screen", async () => {
@@ -293,7 +299,9 @@ describe("User Flow Convert and Bind", () => {
 			reason: USER_FLOW_REJECTION.convertDoesNotMintScreen,
 			status: "rejected",
 		});
-		const screensBefore = await prisma.screen.count();
+		const screensBefore = await prisma.screen.count({
+			where: { projectId: project.id },
+		});
 		expect(
 			await convertAndBind(prisma, {
 				actorId,
@@ -311,8 +319,12 @@ describe("User Flow Convert and Bind", () => {
 			reason: USER_FLOW_REJECTION.convertDoesNotMintScreen,
 			status: "rejected",
 		});
-		expect(await prisma.screen.count()).toBe(screensBefore);
-		expect(await prisma.work.count()).toBe(0);
+		expect(
+			await prisma.screen.count({ where: { projectId: project.id } })
+		).toBe(screensBefore);
+		expect(await prisma.work.count({ where: { projectId: project.id } })).toBe(
+			0
+		);
 	});
 
 	it("promotes a low-detail step to a live Screen reference instead of a copy", async () => {
@@ -356,7 +368,9 @@ describe("User Flow Convert and Bind", () => {
 		expect(promotedNode?.screenId).toBeTruthy();
 		expect(promotedNode?.screenId).not.toBe(existing.screen.id);
 		expect(promotedNode?.usageKind).toBe("flow-node-screen-reference");
-		expect(await prisma.screen.count()).toBe(2);
+		expect(
+			await prisma.screen.count({ where: { projectId: project.id } })
+		).toBe(2);
 
 		const linked = await promoteStepToScreen(prisma, {
 			actorId,
@@ -376,7 +390,9 @@ describe("User Flow Convert and Bind", () => {
 		expect(
 			linked.flow.nodes.find((item) => item.id === node.id)?.screenId
 		).toBe(existing.screen.id);
-		expect(await prisma.screen.count()).toBe(2);
+		expect(
+			await prisma.screen.count({ where: { projectId: project.id } })
+		).toBe(2);
 	});
 
 	it("keeps Origin Location on the exact flow version and requires rebind preview", async () => {

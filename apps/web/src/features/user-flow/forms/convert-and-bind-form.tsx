@@ -15,6 +15,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent } from "react";
 import { useCallback, useState } from "react";
 
+import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc } from "@/utils/orpc";
 
@@ -109,6 +110,12 @@ export default function ConvertAndBindForm({
 							</div>
 							<div className="flex gap-2">
 								<dt className="text-muted-foreground">
+									{USER_FLOW_COPY.description}
+								</dt>
+								<dd>{previewOk.body}</dd>
+							</div>
+							<div className="flex gap-2">
+								<dt className="text-muted-foreground">
 									{USER_FLOW_COPY.originLocation}
 								</dt>
 								<dd>
@@ -116,6 +123,12 @@ export default function ConvertAndBindForm({
 									{previewOk.originLocation.componentId} ·{" "}
 									{previewOk.originLocation.sourceVersion}
 								</dd>
+							</div>
+							<div className="flex gap-2">
+								<dt className="text-muted-foreground">
+									{PROJECT_SHELL_COPY.project}
+								</dt>
+								<dd>{previewOk.projectName}</dd>
 							</div>
 							<div className="flex gap-2">
 								<dt className="text-muted-foreground">

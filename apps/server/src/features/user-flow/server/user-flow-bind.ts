@@ -148,14 +148,18 @@ export async function convertAndBind(
 	if (parsed.data.previewAcknowledged !== true) {
 		return { reason: USER_FLOW_REJECTION.previewRequired, status: "rejected" };
 	}
+	const flowRow = await loadFlow(prisma, parsed.data.payload.userFlowId);
+	if (!flowRow) {
+		return { reason: USER_FLOW_REJECTION.targetNotFound, status: "rejected" };
+	}
+	if (flowRow.revision !== parsed.data.baseRevision) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
 	const previewed = await previewConvertAndBind(prisma, {
 		nodeId: parsed.data.payload.nodeId,
 		recordKind: parsed.data.payload.recordKind,
 		userFlowId: parsed.data.payload.userFlowId,
-		workspaceId: await workspaceIdForProject(
-			prisma,
-			(await loadFlow(prisma, parsed.data.payload.userFlowId))?.projectId ?? ""
-		),
+		workspaceId: await workspaceIdForProject(prisma, flowRow.projectId),
 	});
 	if (previewed.status !== "ok") {
 		return previewed;
