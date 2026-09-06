@@ -5,6 +5,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import AddMoodboardVisualForm from "@/features/moodboards/forms/add-moodboard-visual-form";
 import MoodboardCaptionForm from "@/features/moodboards/forms/moodboard-caption-form";
+import MoodboardFocusOrderForm from "@/features/moodboards/forms/moodboard-focus-order-form";
+import MoodboardSnapshotForm from "@/features/moodboards/forms/moodboard-snapshot-form";
+import MoodboardTransformForm from "@/features/moodboards/forms/moodboard-transform-form";
 import { MOODBOARDS_COPY } from "@/features/moodboards/forms/moodboards-copy";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -21,6 +24,15 @@ interface MoodboardVisual {
 		title?: string;
 		url?: string;
 	};
+	presentation: {
+		crop: {
+			height: number;
+			left: number;
+			top: number;
+			width: number;
+		} | null;
+		rotation: 0 | 90 | 180 | 270;
+	};
 }
 
 export default function MoodboardDetail({
@@ -30,6 +42,7 @@ export default function MoodboardDetail({
 	moodboardId: string;
 	projectId: string;
 }) {
+	const [presenting, setPresenting] = useState(false);
 	const moodboard = useQuery(
 		orpc.moodboards.get.queryOptions({
 			input: { moodboardId },
@@ -79,6 +92,12 @@ export default function MoodboardDetail({
 			},
 		})
 	);
+	const onEnterPresentation = useCallback(() => {
+		setPresenting(true);
+	}, []);
+	const onExitPresentation = useCallback(() => {
+		setPresenting(false);
+	}, []);
 
 	const visuals = moodboard.data?.visuals ?? [];
 	const groups = moodboard.data?.groups ?? [];
@@ -188,103 +207,185 @@ export default function MoodboardDetail({
 	const scale = restored?.zoom ?? 1;
 	const translateX = -(restored?.centerX ?? 0);
 	const translateY = -(restored?.centerY ?? 0);
+	const orderedIds =
+		moodboard.data.focusOrder.length === moodboard.data.visuals.length
+			? moodboard.data.focusOrder
+			: moodboard.data.visuals.map((visual) => visual.id);
+	const byId = new Map(
+		moodboard.data.visuals.map((visual) => [visual.id, visual])
+	);
+	const orderedVisuals = orderedIds
+		.map((id) => byId.get(id))
+		.filter((visual): visual is NonNullable<typeof visual> => Boolean(visual));
+	const snapshotVisuals = moodboard.data.visuals.map((visual) => ({
+		id: visual.id,
+		label: visualOriginLine(visual.origin),
+	}));
+	const presentationList =
+		orderedVisuals.length === 0 ? (
+			<Empty>
+				<EmptyHeader>
+					<EmptyTitle>{MOODBOARDS_COPY.addVisual}</EmptyTitle>
+				</EmptyHeader>
+			</Empty>
+		) : (
+			<ul className="flex flex-col gap-3">
+				{orderedVisuals.map((visual) => (
+					<li
+						className="rounded-none border border-input px-2.5 py-2 text-sm"
+						key={visual.id}
+					>
+						<p>{visualOriginLine(visual.origin)}</p>
+						<p>{visual.caption}</p>
+					</li>
+				))}
+			</ul>
+		);
 
 	return (
-		<div className="flex flex-col gap-4">
-			<h2 className="font-semibold text-lg">{moodboard.data.title}</h2>
-			<p className="text-muted-foreground text-sm">
-				{MOODBOARDS_COPY.moodboard}
-			</p>
-			<div className="flex flex-wrap gap-2">
-				<Button onClick={onFitView} type="button" variant="outline">
-					{MOODBOARDS_COPY.fitView}
-				</Button>
-				<Button
-					disabled={selectedIds.length === 0}
-					onClick={onGroup}
-					type="button"
-					variant="outline"
-				>
-					{MOODBOARDS_COPY.group}
-				</Button>
-			</div>
-			<AddMoodboardVisualForm moodboardId={moodboardId} projectId={projectId} />
-			<div className="grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
-				<nav aria-label={MOODBOARDS_COPY.outline}>
-					<h3 className="font-medium text-sm">{MOODBOARDS_COPY.outline}</h3>
-					{visuals.length === 0 ? (
-						<Empty>
-							<EmptyHeader>
-								<EmptyTitle>{MOODBOARDS_COPY.addVisual}</EmptyTitle>
-							</EmptyHeader>
-						</Empty>
-					) : (
-						<ul className="mt-2 flex flex-col gap-2">
-							{groups.map((boardGroup) => (
-								<OutlineGroup
-									collapsed={collapsed.has(boardGroup.id)}
-									id={boardGroup.id}
-									key={boardGroup.id}
-									onMove={onMove}
-									onToggleCollapse={onToggleCollapse}
-									onToggleSelect={onToggleSelect}
-									selectedIds={selectedIds}
-									title={boardGroup.title}
-									visuals={visuals.filter(
-										(visual) => visual.groupId === boardGroup.id
-									)}
-								/>
-							))}
-							{visuals
-								.filter((visual) => visual.groupId === null)
-								.map((visual) => (
-									<OutlineVisual
-										key={visual.id}
-										onMove={onMove}
-										onToggleSelect={onToggleSelect}
-										selected={selectedIds.includes(visual.id)}
-										visual={visual}
-									/>
-								))}
-						</ul>
-					)}
-				</nav>
+		<div
+			className={
+				presenting
+					? "fixed inset-0 z-50 overflow-auto bg-background p-6"
+					: "flex flex-col gap-4"
+			}
+		>
+			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<div
-						aria-hidden
-						className="relative min-h-[18rem] overflow-hidden rounded-none border border-input"
-						style={{
-							transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
-							transformOrigin: "center center",
-						}}
-					>
-						{visuals.map((visual, index) => (
-							<article
-								className="absolute w-40 rounded-none border border-input bg-background p-2 text-xs"
-								key={visual.id}
-								style={{ left: index * 200, top: 24 }}
-							>
-								{visualOriginLine(visual.origin)}
-							</article>
-						))}
-					</div>
-					{selectedVisual ? (
-						<section aria-label={MOODBOARDS_COPY.inspect} className="mt-4">
-							<h3 className="font-medium text-sm">{MOODBOARDS_COPY.inspect}</h3>
-							<p className="mt-2 text-sm">
-								{visualOriginLine(selectedVisual.origin)}
-							</p>
-							<MoodboardCaptionForm
-								caption={selectedVisual.caption}
-								moodboardId={moodboardId}
-								projectId={projectId}
-								revision={moodboard.data.revision}
-								visualId={selectedVisual.id}
-							/>
-						</section>
-					) : null}
+					<h2 className="font-semibold text-lg">{moodboard.data.title}</h2>
+					<p className="text-muted-foreground text-sm">
+						{MOODBOARDS_COPY.moodboard}
+					</p>
 				</div>
+				{presenting ? (
+					<Button onClick={onExitPresentation} type="button">
+						{MOODBOARDS_COPY.exitPresentationMode}
+					</Button>
+				) : (
+					<div className="flex flex-wrap gap-2">
+						<Button onClick={onFitView} type="button" variant="outline">
+							{MOODBOARDS_COPY.fitView}
+						</Button>
+						<Button
+							disabled={selectedIds.length === 0}
+							onClick={onGroup}
+							type="button"
+							variant="outline"
+						>
+							{MOODBOARDS_COPY.group}
+						</Button>
+						<Button onClick={onEnterPresentation} type="button">
+							{MOODBOARDS_COPY.presentationMode}
+						</Button>
+					</div>
+				)}
 			</div>
+			{presenting ? (
+				presentationList
+			) : (
+				<>
+					<AddMoodboardVisualForm
+						moodboardId={moodboardId}
+						projectId={projectId}
+					/>
+					<MoodboardFocusOrderForm
+						moodboardId={moodboardId}
+						projectId={projectId}
+						revision={moodboard.data.revision}
+						visuals={snapshotVisuals}
+					/>
+					<MoodboardSnapshotForm
+						moodboardId={moodboardId}
+						visuals={snapshotVisuals}
+					/>
+					<div className="grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
+						<nav aria-label={MOODBOARDS_COPY.outline}>
+							<h3 className="font-medium text-sm">{MOODBOARDS_COPY.outline}</h3>
+							{visuals.length === 0 ? (
+								<Empty>
+									<EmptyHeader>
+										<EmptyTitle>{MOODBOARDS_COPY.addVisual}</EmptyTitle>
+									</EmptyHeader>
+								</Empty>
+							) : (
+								<ul className="mt-2 flex flex-col gap-2">
+									{groups.map((boardGroup) => (
+										<OutlineGroup
+											collapsed={collapsed.has(boardGroup.id)}
+											id={boardGroup.id}
+											key={boardGroup.id}
+											onMove={onMove}
+											onToggleCollapse={onToggleCollapse}
+											onToggleSelect={onToggleSelect}
+											selectedIds={selectedIds}
+											title={boardGroup.title}
+											visuals={visuals.filter(
+												(visual) => visual.groupId === boardGroup.id
+											)}
+										/>
+									))}
+									{visuals
+										.filter((visual) => visual.groupId === null)
+										.map((visual) => (
+											<OutlineVisual
+												key={visual.id}
+												onMove={onMove}
+												onToggleSelect={onToggleSelect}
+												selected={selectedIds.includes(visual.id)}
+												visual={visual}
+											/>
+										))}
+								</ul>
+							)}
+						</nav>
+						<div>
+							<div
+								aria-hidden
+								className="relative min-h-[18rem] overflow-hidden rounded-none border border-input"
+								style={{
+									transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
+									transformOrigin: "center center",
+								}}
+							>
+								{visuals.map((visual, index) => (
+									<article
+										className="absolute w-40 rounded-none border border-input bg-background p-2 text-xs"
+										key={visual.id}
+										style={{ left: index * 200, top: 24 }}
+									>
+										{visualOriginLine(visual.origin)}
+									</article>
+								))}
+							</div>
+							{selectedVisual ? (
+								<section aria-label={MOODBOARDS_COPY.inspect} className="mt-4">
+									<h3 className="font-medium text-sm">
+										{MOODBOARDS_COPY.inspect}
+									</h3>
+									<p className="mt-2 text-sm">
+										{visualOriginLine(selectedVisual.origin)}
+									</p>
+									<MoodboardCaptionForm
+										caption={selectedVisual.caption}
+										moodboardId={moodboardId}
+										projectId={projectId}
+										revision={moodboard.data.revision}
+										visualId={selectedVisual.id}
+									/>
+									<MoodboardTransformForm
+										crop={selectedVisual.presentation.crop}
+										moodboardId={moodboardId}
+										projectId={projectId}
+										revision={moodboard.data.revision}
+										rotation={selectedVisual.presentation.rotation}
+										visualId={selectedVisual.id}
+									/>
+								</section>
+							) : null}
+						</div>
+					</div>
+				</>
+			)}
 		</div>
 	);
 }

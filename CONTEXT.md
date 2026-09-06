@@ -283,7 +283,7 @@ Roadmap görünümünün filtrelerine uyan fakat planlanan başlangıç, hedef t
 _Avoid_: Parked, ikinci Roadmap üyeliği, bağımsız manuel sıra
 
 **Sunum Kipi**:
-Mevcut adlandırılmış Roadmap görünümünü düzenleme ve yapılandırma gizleyerek salt okunur tam ekranda açan kip; çıkışta aynı görünüm ve konuma döner, slayt, sunum kaydı veya içerik kopyası üretmez ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap)). UI: `Presentation Mode`.
+Düzenleme ve yapılandırma araçlarını gizleyen salt okunur tam ekran kip; çıkışta aynı görünüme döner, slayt, sunum kaydı veya içerik kopyası üretmez ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap), [Moodboard ve görsel yön](docs/prd/09-discovery-decisions-and-design.md#moodboard-ve-görsel-yön)). UI: `Presentation Mode`, `Exit Presentation Mode`.
 _Avoid_: slayt, sunum kaydı, içerik kopyası, herkese açık snapshot
 
 **Kanban**:
@@ -1005,6 +1005,11 @@ _Avoid_: Wireframe kaydı, Ekran bileşeni, flow node'u
 Kullanıcının arayüz hedefi ve karar yolunu canlı Ekran referanslarıyla taşıyan tasarım ana kaydı; Ekran kopyası, teknik sıra veya durum makinesi değildir.
 _Avoid_: Wireframe belgesi, Teknik Sıra, flowchart
 
+**Akış öğesi**:
+Kullanıcı Akışındaki kapalı semantik küme üyesi; ürün anlamı yalnız `Screen`, `Action`, `Decision`, `State/Outcome` veya `Section` taşır, şekil ya da renk taşımaz.
+UI: `Screen`, `Action`, `Decision`, `State/Outcome`, `Section`
+_Avoid_: flowchart şekli, Teknik Sıra lifeline, durum makinesi durumu, Moodboard görseli, Proje Duvarı kartı
+
 **Proje Duvarı**:
 Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`.
 _Avoid_: iç içe duvar, çalışma alanı duvarı, Sketch card, duvara özgü not, kopya kayıt
@@ -1012,6 +1017,10 @@ _Avoid_: iç içe duvar, çalışma alanı duvarı, Sketch card, duvara özgü n
 **Wireframe yüzeyi**:
 Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir.
 _Avoid_: Wireframe ana kaydı, Ekrandan bağımsız Wireframe
+
+**Bağlı Wireframe bloğu**:
+Aynı Projede birden fazla Ekranın Wireframe yüzeyinde paylaştığı düşük sadakatli kaynak tanımı; production component, tasarım token'ı veya projeler arasında canlı kütüphane değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Detach Link`.
+_Avoid_: production component, tasarım token'ı, çapraz proje canlı kütüphane
 
 **Moodboard**:
 Proje veya Özellik için görsel referansları ve seçilen tasarım yönünü toplayan Tasarım ana kaydı; Kullanıcı Akışı, Wireframe yüzeyi, tasarım sistemi veya üretim varlığı değildir.
@@ -1036,6 +1045,18 @@ _Avoid_: recent-context, paylaşım görünümü, export viewport
 İşaretçi olmadan ekleme, seçme, sıralama, gruplama, inceleme ve kaynak açmayı sunan canvas listesi; salt okunur yedek değildir.
 UI: `Outline`, `Open Source Record`
 _Avoid_: salt okunur katman listesi
+
+**Görünüm kırpması**:
+Moodboard görselinin yalnız bu görünüme ait, kesin Dosya Eki sürümüne bağlı geri alınabilir kırpma ve 90° döndürme üstverisi; özgün baytları, sürüm zincirini veya diğer görünümleri değiştirmez ([Moodboard ve görsel yön](docs/prd/09-discovery-decisions-and-design.md#moodboard-ve-görsel-yön)). UI: `Crop`, `Rotate 90°`.
+_Avoid_: özgün dosya düzenleme, üretim varlığı, işaretleme katmanı
+
+**Odak sırası**:
+Moodboard Sunum Kipinde anlatı için kullanılan görünüm-yerel sıra; ayrı sunum belgesi veya içerik kopyası değildir. UI: `Focus order`.
+_Avoid_: slayt destesi, ikinci belge, içerik kopyası
+
+**Görsel bölge snapshot'ı**:
+Moodboard veya Proje Duvarında seçilen grup veya bölgenin tarihli PNG/PDF çıktısı; canlı kaynak bağlantısı taşımaz, kaynak görselleri değiştirmez, herkese açık yayın veya onaylı Dış yüzey değildir ([görsel bölge snapshot](docs/prd/13-data-security-and-portability.md#standart-biçimlerde-seçili-kayıt-dışa-aktarma)). UI: `Snapshot`, `PNG`, `PDF`, `Preview`.
+_Avoid_: canlı bağ, onaylı snapshot revizyonu, Build in Public, paylaşım bağlantısı
 
 **Yüzey metni**:
 Kullanıcının geliştirdiği üründe bir Ekranda görünen boş durum, hata veya denetim cümlesinin Ekrana ya da kesin Wireframe sürümüne bağlı sahipli öğesi; çeviri belgesi veya düzen metninin ikinci kopyası değildir.

@@ -1,11 +1,12 @@
 model Moodboard {
-  id                 String                       @id
+  id                 String                      @id
   projectId          String
-  project            Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project            Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   title              String
   revision           Int
-  createdAt          DateTime                     @default(now())
-  updatedAt          DateTime                     @updatedAt
+  focusOrder         Json                        @default("[]")
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
   visuals            MoodboardVisual[]
   groups             MoodboardGroup[]
   personalViewports  MoodboardPersonalViewport[]
@@ -23,11 +24,13 @@ model MoodboardVisual {
   fileAttachmentVersion   FileAttachmentVersion? @relation(fields: [fileAttachmentVersionId], references: [id], onDelete: Restrict)
   externalUrl             String?
   caption                 String                 @default("")
+  crop                    Json?
+  rotation                Int                    @default(0)
   sortOrder               Int
   groupId                 String?
   group                   MoodboardGroup?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
   createdAt               DateTime               @default(now())
-  updatedAt               DateTime             @updatedAt
+  updatedAt               DateTime               @updatedAt
 
   @@index([moodboardId, sortOrder])
   @@index([fileAttachmentVersionId])
@@ -42,7 +45,7 @@ model MoodboardGroup {
   title       String
   sortOrder   Int
   createdAt   DateTime          @default(now())
-  updatedAt   DateTime           @updatedAt
+  updatedAt   DateTime          @updatedAt
   visuals     MoodboardVisual[]
 
   @@index([moodboardId, sortOrder])
@@ -50,17 +53,17 @@ model MoodboardGroup {
 }
 
 model MoodboardPersonalViewport {
-  id                 String    @id
-  moodboardId        String
-  moodboard          Moodboard @relation(fields: [moodboardId], references: [id], onDelete: Cascade)
-  userId             String
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  centerX            Float
-  centerY            Float
-  zoom               Float
-  collapsedGroupIds  Json
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                String    @id
+  moodboardId       String
+  moodboard         Moodboard  @relation(fields: [moodboardId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  centerX           Float
+  centerY           Float
+  zoom              Float
+  collapsedGroupIds Json
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@unique([moodboardId, userId])
   @@index([userId])
