@@ -1001,6 +1001,20 @@ _Avoid_: Wireframe belgesi, Teknik Sıra, flowchart
 Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir.
 _Avoid_: Wireframe ana kaydı, Ekrandan bağımsız Wireframe
 
+**Moodboard**:
+Proje veya Özellik için görsel referansları ve seçilen tasarım yönünü toplayan Tasarım ana kaydı; Kullanıcı Akışı, Wireframe yüzeyi, tasarım sistemi veya üretim varlığı değildir.
+UI: `Moodboard`
+_Avoid_: whiteboard, tasarım sistemi, Ekran, Kullanıcı Akışı
+
+**Görsel referans**:
+Moodboard üzerindeki, kesin Dosya Eki sürümü veya dış bağlantı kökenini koruyan görsel; Ekran veya üretim varlığı kimliği taşımaz.
+_Avoid_: Ekran, üretim varlığı, kapak kaydı
+
+**Altyazı**:
+Moodboard görselindeki isteğe bağlı kısa neden metni; yorum dizisi, reaksiyon, görev, mention veya Dosya Eki açıklamasının ikinci kaynağı değildir.
+UI: `Caption`
+_Avoid_: yorum dizisi, reaksiyon, görev, mention, dosya açıklaması
+
 **Yüzey metni**:
 Kullanıcının geliştirdiği üründe bir Ekranda görünen boş durum, hata veya denetim cümlesinin Ekrana ya da kesin Wireframe sürümüne bağlı sahipli öğesi; çeviri belgesi veya düzen metninin ikinci kopyası değildir.
 _Avoid_: i18n TMS, copy deck, Wireframe bloğu kopyası

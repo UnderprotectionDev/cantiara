@@ -21,6 +21,8 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"SmartCollectionAttentionSignal",
 	"SmartCollectionMembershipPeriod",
 	"ValidationRecord",
+	"Moodboard",
+	"MoodboardVisual",
 	"WorkNotNowTrail",
 ]);
 
@@ -113,6 +115,8 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	// Validation Record is read via its own delegate after generate. Do not
 	// gate getPrismaClient on it: bun --hot can reload this check before
 	// prisma generate, and that must not block Work writes.
+	// Moodboard is the same: a bun --hot client generated before Moodboard
+	// must not block the rest of the API.
 	if (!knownDelegates) {
 		return false;
 	}

@@ -55,6 +55,7 @@ model Project {
   projectGoals                    ProjectGoal[]
   nextConcreteStepChanges         NextConcreteStepChange[]
   smartCollections                SmartCollection[]
+  moodboards                      Moodboard[]
 
   @@index([workspaceId])
   @@map("project")
