@@ -1011,7 +1011,7 @@ _Avoid_: Wireframe kaydı, Ekran bileşeni, flow node'u
 
 **Kullanıcı Akışı**:
 Kullanıcının arayüz hedefi ve karar yolunu canlı Ekran referanslarıyla taşıyan tasarım ana kaydı; Ekran kopyası, teknik sıra veya durum makinesi değildir.
-UI: `User Flow`, `Convert and Bind`, `Fit View`, `Open Source Record`, `Archived`, `Promote to Screen`
+UI: `User Flow`, `Convert and Bind`, `Fit View`, `Open Source Record`, `Archived`, `Promote to Screen`, `Save as template`, `Create from template`, `Place live card`, `Rebind`
 _Avoid_: Wireframe belgesi, Teknik Sıra, flowchart
 
 **Kayda dönüştür ve bağla**:
@@ -1026,7 +1026,7 @@ _Avoid_: live-bound template, kaynak akış kopyası
 
 **Canlı kart**:
 Kullanıcı Akışı tuvaline konan salt okunur İş, Karar veya Risk görünümü; taşımak veya kaldırmak kaynak kaydı yazmaz.
-UI: `Open Source Record`
+UI: `Place live card`, `Open Source Record`
 _Avoid_: kopya İş, smart-zone
 
 **Akış öğesi**:

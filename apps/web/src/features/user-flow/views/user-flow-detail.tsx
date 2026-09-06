@@ -17,6 +17,8 @@ import { orpc, queryClient } from "@/utils/orpc";
 import UserFlowCanvas from "../components/user-flow-canvas";
 import ConvertAndBindForm from "../forms/convert-and-bind-form";
 import CreateScreenForm from "../forms/create-screen-form";
+import PlaceLiveCardForm from "../forms/place-live-card-form";
+import RebindOriginForm from "../forms/rebind-origin-form";
 import SaveUserFlowTemplateForm from "../forms/save-user-flow-template-form";
 import { FLOW_NODE_KINDS, USER_FLOW_COPY } from "../forms/user-flow-copy";
 
@@ -51,6 +53,15 @@ interface PresentedLiveCard {
 	title: string;
 }
 
+interface PresentedOriginRelation {
+	id: string;
+	nodeId: string | null;
+	recordId: string;
+	recordKind: string;
+	sourceVersion: string | null;
+	type: string;
+}
+
 interface UserFlowDetailView {
 	copy: {
 		archived: string;
@@ -63,6 +74,7 @@ interface UserFlowDetailView {
 	id: string;
 	liveCards: PresentedLiveCard[];
 	nodes: PresentedNode[];
+	originRelations: PresentedOriginRelation[];
 	revision: number;
 	title: string;
 }
@@ -119,6 +131,11 @@ export default function UserFlowDetail({
 	);
 	const editorOp = useMutation(
 		orpc.userFlow.applyEditorOp.mutationOptions({
+			onSuccess: onOutcome,
+		})
+	);
+	const moveLive = useMutation(
+		orpc.userFlow.moveLiveCard.mutationOptions({
 			onSuccess: onOutcome,
 		})
 	);
@@ -227,6 +244,19 @@ export default function UserFlowDetail({
 		},
 		[flow.data, flowId, promote]
 	);
+	const onMoveLiveCard = useCallback(
+		(cardId: string, deltaX: number, deltaY: number) => {
+			if (!flow.data) {
+				return;
+			}
+			moveLive.mutate({
+				baseRevision: flow.data.revision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: { cardId, deltaX, deltaY, userFlowId: flowId },
+			});
+		},
+		[flow.data, flowId, moveLive]
+	);
 
 	const onKindChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
 		setKind(event.target.value as (typeof FLOW_NODE_KINDS)[number]);
@@ -270,6 +300,14 @@ export default function UserFlowDetail({
 			</div>
 			<div className="mt-4">
 				<SaveUserFlowTemplateForm userFlowId={flowId} />
+			</div>
+			<div className="mt-4">
+				<PlaceLiveCardForm
+					baseRevision={view.revision}
+					onPlaced={invalidate}
+					projectId={projectId}
+					userFlowId={flowId}
+				/>
 			</div>
 			<form className="mt-4 flex flex-col gap-3" onSubmit={onPlace}>
 				<FieldGroup>
@@ -335,11 +373,13 @@ export default function UserFlowDetail({
 			</form>
 			<div className="mt-6">
 				<UserFlowCanvas
+					liveCards={view.liveCards}
 					nodes={view.nodes}
 					onAlign={onAlign}
 					onDuplicate={onDuplicate}
 					onGrid={onGrid}
 					onMove={onMove}
+					onMoveLiveCard={onMoveLiveCard}
 					onUndo={onUndo}
 					onZOrder={onZOrder}
 				/>
@@ -380,6 +420,19 @@ export default function UserFlowDetail({
 							{node.kind === USER_FLOW_COPY.screen ? null : (
 								<PromoteNodeButton nodeId={node.id} onPromote={onPromote} />
 							)}
+							{view.originRelations
+								.filter((relation) => relation.nodeId === node.id)
+								.map((relation) => (
+									<RebindOriginForm
+										key={relation.id}
+										nodeId={node.id}
+										onRebound={invalidate}
+										recordId={relation.recordId}
+										recordKind={relation.recordKind}
+										sourceVersion={relation.sourceVersion}
+										userFlowId={flowId}
+									/>
+								))}
 						</div>
 					</li>
 				))}

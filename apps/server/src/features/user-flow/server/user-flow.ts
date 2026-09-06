@@ -23,6 +23,7 @@ import {
 	type ApplyEditorOpCommand,
 	applyEditorOpCommandSchema,
 	type CreateUserFlowCommand,
+	convertRecordKindFromRelationKind,
 	createUserFlowCommandSchema,
 	emptyFlowDocument,
 	emptyPathText,
@@ -34,6 +35,7 @@ import {
 	type PlaceFlowNodeCommand,
 	type PresentedFlowNode,
 	type PresentedLiveCard,
+	type PresentedOriginRelation,
 	parseFlowDocument,
 	placeFlowNodeCommandSchema,
 	placeScreenNodeCommandSchema,
@@ -869,7 +871,7 @@ async function loadUsageLinks(
 async function loadOriginRelations(
 	prisma: PrismaLike,
 	recordId: string
-): Promise<{ id: string; type: string }[]> {
+): Promise<PresentedOriginRelation[]> {
 	if (
 		!("typedRelation" in prisma) ||
 		typeof prisma.typedRelation?.findMany !== "function"
@@ -882,7 +884,24 @@ async function loadOriginRelations(
 			type: RELATIONS_COPY.origin,
 		},
 	});
-	return rows.map((row) => ({ id: row.id, type: row.type }));
+	const presented: PresentedOriginRelation[] = [];
+	for (const row of rows) {
+		const sourceIsFlow = row.fromId === recordId;
+		const targetKind = sourceIsFlow ? row.toKind : row.fromKind;
+		const recordKind = convertRecordKindFromRelationKind(targetKind);
+		if (!recordKind) {
+			continue;
+		}
+		presented.push({
+			id: row.id,
+			nodeId: row.originComponentId,
+			recordId: sourceIsFlow ? row.toId : row.fromId,
+			recordKind,
+			sourceVersion: row.originSourceVersion,
+			type: row.type,
+		});
+	}
+	return presented;
 }
 
 export async function replayFlow(

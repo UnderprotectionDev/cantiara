@@ -510,6 +510,15 @@ export interface PresentedLiveCard {
 	title: string;
 }
 
+export interface PresentedOriginRelation {
+	id: string;
+	nodeId: string | null;
+	recordId: string;
+	recordKind: ConvertRecordKind;
+	sourceVersion: string | null;
+	type: string;
+}
+
 export interface ConvertOriginLocation {
 	componentId: string;
 	ownerId: string;
@@ -598,7 +607,7 @@ export interface UserFlowView {
 	id: string;
 	liveCards: PresentedLiveCard[];
 	nodes: PresentedFlowNode[];
-	originRelations: readonly { id: string; type: string }[];
+	originRelations: readonly PresentedOriginRelation[];
 	projectId: string;
 	recordKind: typeof USER_FLOW_RECORD_KIND;
 	revision: number;
@@ -780,6 +789,24 @@ export function relationKindForConvert(
 		return "Risk";
 	}
 	return "Work";
+}
+
+export function convertRecordKindFromRelationKind(
+	kind: string
+): ConvertRecordKind | null {
+	if (kind === "Question") {
+		return USER_FLOW_COPY.openQuestion;
+	}
+	if (kind === "Decision") {
+		return USER_FLOW_COPY.decision;
+	}
+	if (kind === "Risk") {
+		return USER_FLOW_COPY.risk;
+	}
+	if (kind === "Work") {
+		return USER_FLOW_COPY.work;
+	}
+	return null;
 }
 
 export function convertTitleFromNode(

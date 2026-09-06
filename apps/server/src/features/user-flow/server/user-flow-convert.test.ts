@@ -482,6 +482,13 @@ describe("User Flow Convert and Bind", () => {
 			String(moved.flow.revision)
 		);
 		expect(afterRebind[0]?.originLocation?.componentId).toBe(node.id);
+		expect(converted.flow.originRelations).toEqual([
+			expect.objectContaining({
+				nodeId: node.id,
+				recordId: converted.record.id,
+				recordKind: USER_FLOW_COPY.work,
+			}),
+		]);
 	});
 
 	it("saves a template stamp and instantiates a new flow with no live source bind", async () => {
