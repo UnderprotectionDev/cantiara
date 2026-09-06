@@ -1,12 +1,14 @@
 model Moodboard {
-  id        String            @id
-  projectId String
-  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title     String
-  revision  Int
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  visuals   MoodboardVisual[]
+  id            String                  @id
+  projectId     String
+  project       Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title         String
+  revision      Int
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  visuals       MoodboardVisual[]
+  paletteGroups MoodboardPaletteGroup[]
+  colorSwatches MoodboardColorSwatch[]
 
   @@index([projectId])
   @@map("moodboard")
@@ -24,8 +26,44 @@ model MoodboardVisual {
   sortOrder               Int
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt
+  eyedropSwatches         MoodboardColorSwatch[] @relation("MoodboardEyedropVisual")
 
   @@index([moodboardId, sortOrder])
   @@index([fileAttachmentVersionId])
   @@map("moodboard_visual")
+}
+
+model MoodboardPaletteGroup {
+  id            String                 @id
+  moodboardId   String
+  moodboard     Moodboard              @relation(fields: [moodboardId], references: [id], onDelete: Cascade)
+  title         String
+  sortOrder     Int
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  colorSwatches MoodboardColorSwatch[]
+
+  @@index([moodboardId, sortOrder])
+  @@map("moodboard_palette_group")
+}
+
+model MoodboardColorSwatch {
+  id             String                 @id
+  moodboardId    String
+  moodboard      Moodboard              @relation(fields: [moodboardId], references: [id], onDelete: Cascade)
+  paletteGroupId String?
+  paletteGroup   MoodboardPaletteGroup? @relation(fields: [paletteGroupId], references: [id], onDelete: SetNull)
+  hex            String
+  note           String                 @default("")
+  sourceKind     String
+  sourceVisualId String?
+  sourceVisual   MoodboardVisual?       @relation("MoodboardEyedropVisual", fields: [sourceVisualId], references: [id], onDelete: SetNull)
+  sortOrder      Int
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([moodboardId, sortOrder])
+  @@index([paletteGroupId, sortOrder])
+  @@index([sourceVisualId])
+  @@map("moodboard_color_swatch")
 }

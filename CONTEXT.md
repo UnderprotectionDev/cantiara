@@ -1027,6 +1027,21 @@ Moodboard görselindeki isteğe bağlı kısa neden metni; yorum dizisi, reaksiy
 UI: `Caption`
 _Avoid_: yorum dizisi, reaksiyon, görev, mention, dosya açıklaması
 
+**Renk Örneği**:
+Moodboard üzerindeki birinci sınıf renk öğesi; görsel yön bağlamıdır, Hesap Appearance, Bitiriş efekti, production token, özel CSS, kalıcı özel alan veya Proje Duvarı kart vurgusu değildir.
+UI: `Color Swatch`
+_Avoid_: tasarım tokenı, tema sistemi, Bitiriş paleti, CSS değişkeni
+
+**Palet grubu**:
+Moodboard üzerindeki Renk Örneği grubu; görsel yön anlatır, ürün UI teması veya token seti değildir.
+UI: `Palette group`
+_Avoid_: tema sistemi, production token, Hesap Appearance, Bitiriş paleti
+
+**Renk notu**:
+Renk Örneğindeki isteğe bağlı kısa açıklama; Altyazı, token açıklaması veya yorum dizisi değildir.
+UI: `Note`
+_Avoid_: Caption, token description, yorum dizisi
+
 **Yüzey metni**:
 Kullanıcının geliştirdiği üründe bir Ekranda görünen boş durum, hata veya denetim cümlesinin Ekrana ya da kesin Wireframe sürümüne bağlı sahipli öğesi; çeviri belgesi veya düzen metninin ikinci kopyası değildir.
 _Avoid_: i18n TMS, copy deck, Wireframe bloğu kopyası

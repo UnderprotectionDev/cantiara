@@ -9,14 +9,24 @@ import {
 } from "../../mutation-core/server/mutation-shared";
 
 import {
+	type AddColorSwatchCommand,
 	type AddMoodboardVisualCommand,
+	type AddPaletteGroupCommand,
+	addColorSwatchCommandSchema,
 	addMoodboardVisualCommandSchema,
+	addPaletteGroupCommandSchema,
+	COLOR_SOURCE_KIND,
+	type ColorInput,
+	type ColorSwatchView,
 	type CreateMoodboardCommand,
 	createMoodboardCommandSchema,
 	MOODBOARD_KIND,
 	type MoodboardView,
 	type MoodboardVisualView,
 	type MoodboardWriteOutcome,
+	type PaletteGroupView,
+	presentedColorFromHex,
+	presentedColorFromInput,
 	type SetMoodboardCaptionCommand,
 	setMoodboardCaptionCommandSchema,
 	VISUAL_ORIGIN_KIND,
@@ -82,6 +92,42 @@ export async function setMoodboardCaption(
 	);
 	return await prisma.$transaction((tx) =>
 		setCaptionInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function addPaletteGroup(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<MoodboardWriteOutcome> {
+	const parsed = addPaletteGroupCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		addPaletteGroupInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function addColorSwatch(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<MoodboardWriteOutcome> {
+	const parsed = addColorSwatchCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		addColorSwatchInTransaction(tx, parsed.data, commandKey, fingerprint)
 	);
 }
 
@@ -262,6 +308,143 @@ async function setCaptionInTransaction(
 	return { moodboard: view, status: "committed" };
 }
 
+async function addPaletteGroupInTransaction(
+	tx: PrismaTransaction,
+	command: AddPaletteGroupCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<MoodboardWriteOutcome> {
+	const current = await tx.moodboard.findUnique({
+		where: { id: command.payload.moodboardId },
+	});
+	if (!current) {
+		return { reason: "moodboard-not-found", status: "rejected" };
+	}
+	await lockProject(tx, current.projectId);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const last = await tx.moodboardPaletteGroup.findFirst({
+		orderBy: { sortOrder: "desc" },
+		where: { moodboardId: current.id },
+	});
+	await tx.moodboardPaletteGroup.create({
+		data: {
+			id: crypto.randomUUID(),
+			moodboardId: current.id,
+			sortOrder: (last?.sortOrder ?? 0) + 1,
+			title: command.payload.title,
+		},
+	});
+	const updated = await tx.moodboard.update({
+		data: { revision: current.revision + 1 },
+		where: { id: current.id },
+	});
+	const view = await toView(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { moodboard: view, status: "committed" };
+}
+
+async function addColorSwatchInTransaction(
+	tx: PrismaTransaction,
+	command: AddColorSwatchCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<MoodboardWriteOutcome> {
+	const current = await tx.moodboard.findUnique({
+		where: { id: command.payload.moodboardId },
+	});
+	if (!current) {
+		return { reason: "moodboard-not-found", status: "rejected" };
+	}
+	await lockProject(tx, current.projectId);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const source = await sourceFieldsFor(tx, current.id, command.payload.color);
+	if (source.status === "rejected") {
+		return source;
+	}
+	let paletteGroupId: string | null = null;
+	if (command.payload.paletteGroupId) {
+		const group = await tx.moodboardPaletteGroup.findUnique({
+			where: { id: command.payload.paletteGroupId },
+		});
+		if (!group || group.moodboardId !== current.id) {
+			return { reason: "palette-group-not-found", status: "rejected" };
+		}
+		paletteGroupId = group.id;
+	}
+	const last = await tx.moodboardColorSwatch.findFirst({
+		orderBy: { sortOrder: "desc" },
+		where: { moodboardId: current.id },
+	});
+	const presented = presentedColorFromInput(command.payload.color);
+	await tx.moodboardColorSwatch.create({
+		data: {
+			hex: presented.hex,
+			id: crypto.randomUUID(),
+			moodboardId: current.id,
+			note: command.payload.note ?? "",
+			paletteGroupId,
+			sortOrder: (last?.sortOrder ?? 0) + 1,
+			sourceKind: source.sourceKind,
+			sourceVisualId: source.sourceVisualId,
+		},
+	});
+	const updated = await tx.moodboard.update({
+		data: { revision: current.revision + 1 },
+		where: { id: current.id },
+	});
+	const view = await toView(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { moodboard: view, status: "committed" };
+}
+
+async function sourceFieldsFor(
+	tx: PrismaTransaction,
+	moodboardId: string,
+	color: ColorInput
+): Promise<
+	| {
+			sourceKind: string;
+			sourceVisualId: string | null;
+			status: "ok";
+	  }
+	| { reason: "visual-not-found"; status: "rejected" }
+> {
+	if (color.kind !== COLOR_SOURCE_KIND.eyedrop) {
+		return {
+			sourceKind: color.kind,
+			sourceVisualId: null,
+			status: "ok",
+		};
+	}
+	const visual = await tx.moodboardVisual.findUnique({
+		where: { id: color.visualId },
+	});
+	if (!visual || visual.moodboardId !== moodboardId) {
+		return { reason: "visual-not-found", status: "rejected" };
+	}
+	return {
+		sourceKind: COLOR_SOURCE_KIND.eyedrop,
+		sourceVisualId: visual.id,
+		status: "ok",
+	};
+}
+
 async function originFieldsFor(
 	tx: PrismaTransaction,
 	projectId: string,
@@ -375,14 +558,80 @@ async function toView(
 		orderBy: { sortOrder: "asc" },
 		where: { moodboardId: row.id },
 	});
+	const paletteGroups = await db.moodboardPaletteGroup.findMany({
+		include: {
+			colorSwatches: { orderBy: { sortOrder: "asc" } },
+		},
+		orderBy: { sortOrder: "asc" },
+		where: { moodboardId: row.id },
+	});
+	const ungrouped = await db.moodboardColorSwatch.findMany({
+		orderBy: { sortOrder: "asc" },
+		where: { moodboardId: row.id, paletteGroupId: null },
+	});
 	return {
+		colorSwatches: ungrouped.map(presentColorSwatch),
 		id: row.id,
+		paletteGroups: paletteGroups.map(presentPaletteGroup),
 		projectId: row.projectId,
 		recordKind: MOODBOARD_KIND,
 		revision: row.revision,
 		title: row.title,
 		visuals: visuals.map(presentVisual),
 	};
+}
+
+function presentPaletteGroup(row: {
+	colorSwatches: ColorSwatchRow[];
+	id: string;
+	title: string;
+}): PaletteGroupView {
+	return {
+		colorSwatches: row.colorSwatches.map(presentColorSwatch),
+		id: row.id,
+		title: row.title,
+	};
+}
+
+interface ColorSwatchRow {
+	hex: string;
+	id: string;
+	note: string;
+	paletteGroupId: string | null;
+	sourceKind: string;
+	sourceVisualId: string | null;
+}
+
+function presentColorSwatch(row: ColorSwatchRow): ColorSwatchView {
+	const color = presentedColorFromHex(row.hex);
+	return {
+		hex: color.hex,
+		hsl: color.hsl,
+		id: row.id,
+		note: row.note,
+		paletteGroupId: row.paletteGroupId,
+		rgb: color.rgb,
+		source: presentColorSource(row),
+	};
+}
+
+function presentColorSource(row: ColorSwatchRow): ColorSwatchView["source"] {
+	if (row.sourceKind === COLOR_SOURCE_KIND.eyedrop && row.sourceVisualId) {
+		return {
+			kind: COLOR_SOURCE_KIND.eyedrop,
+			visualId: row.sourceVisualId,
+		};
+	}
+	if (row.sourceKind === COLOR_SOURCE_KIND.picker) {
+		return { kind: COLOR_SOURCE_KIND.picker };
+	}
+	if (row.sourceKind === COLOR_SOURCE_KIND.rgb) {
+		return { kind: COLOR_SOURCE_KIND.rgb };
+	}
+	if (row.sourceKind === COLOR_SOURCE_KIND.hsl) {
+		return { kind: COLOR_SOURCE_KIND.hsl };
+	}
+	return { kind: COLOR_SOURCE_KIND.hex };
 }
 
 function presentVisual(row: {
