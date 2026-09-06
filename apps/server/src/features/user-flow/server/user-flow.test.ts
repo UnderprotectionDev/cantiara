@@ -144,9 +144,10 @@ const STALE_CREATE_COMMAND = {
 };
 
 /**
- * bun --hot can serve a Prisma client generated before UserFlow
- * (OPTIONAL_RUNTIME_MODELS). Fresh-client DB tests below cannot catch
- * this — they construct Prisma after generate.
+ * bun --hot can serve a Prisma client generated before UserFlow until
+ * getPrismaClient refuses that client and regenerates. Fresh-client DB
+ * tests below cannot catch the TypeError — they construct Prisma after
+ * generate. This stub still must not evaluate tx.userFlow.create.
  */
 describe("User Flow — missing Prisma delegate", () => {
 	it("does not throw evaluating tx.userFlow.create", async () => {
