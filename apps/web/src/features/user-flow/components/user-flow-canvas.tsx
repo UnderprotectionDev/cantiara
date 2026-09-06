@@ -25,12 +25,21 @@ interface CanvasNode {
 	visualStyle: { emphasis: string } | null;
 }
 
+interface CanvasLiveCard {
+	id: string;
+	layout: { x: number; y: number; z: number };
+	recordKind: string;
+	title: string;
+}
+
 export interface UserFlowCanvasProps {
+	liveCards?: CanvasLiveCard[];
 	nodes: CanvasNode[];
 	onAlign: (nodeIds: string[]) => void;
 	onDuplicate: (nodeIds: string[]) => void;
 	onGrid: (nodeIds: string[]) => void;
 	onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
+	onMoveLiveCard?: (cardId: string, deltaX: number, deltaY: number) => void;
 	onPersistViewport: (viewport: {
 		centerX: number;
 		centerY: number;
@@ -46,6 +55,19 @@ export interface UserFlowCanvasProps {
 	selectedIds: string[];
 }
 
+const LIVE_CARD_PREFIX = "live:";
+
+function liveCardCanvasId(cardId: string): string {
+	return `${LIVE_CARD_PREFIX}${cardId}`;
+}
+
+function liveCardIdFromCanvas(id: string): string | null {
+	if (!id.startsWith(LIVE_CARD_PREFIX)) {
+		return null;
+	}
+	return id.slice(LIVE_CARD_PREFIX.length);
+}
+
 function nodeLabel(node: CanvasNode): string {
 	if (node.kind === USER_FLOW_COPY.screen) {
 		return node.screenTitle ?? USER_FLOW_COPY.screen;
@@ -53,9 +75,13 @@ function nodeLabel(node: CanvasNode): string {
 	return node.label || node.kind;
 }
 
-function toFlowNodes(nodes: CanvasNode[], selectedIds: string[]): Node[] {
+function toFlowNodes(
+	nodes: CanvasNode[],
+	liveCards: CanvasLiveCard[],
+	selectedIds: string[]
+): Node[] {
 	const selected = new Set(selectedIds);
-	return nodes.map((node) => ({
+	const flowNodes = nodes.map((node) => ({
 		data: { kind: node.kind, label: nodeLabel(node) },
 		id: node.id,
 		position: { x: node.layout.x, y: node.layout.y },
@@ -66,6 +92,57 @@ function toFlowNodes(nodes: CanvasNode[], selectedIds: string[]): Node[] {
 		},
 		zIndex: node.layout.z,
 	}));
+	const cards = liveCards.map((card) => {
+		const id = liveCardCanvasId(card.id);
+		return {
+			data: {
+				kind: card.recordKind,
+				label: `${card.recordKind} · ${card.title}`,
+			},
+			id,
+			position: { x: card.layout.x, y: card.layout.y },
+			selected: selected.has(id),
+			style: { zIndex: card.layout.z },
+			zIndex: card.layout.z,
+		};
+	});
+	return [...flowNodes, ...cards];
+}
+
+function partitionSelection(ids: string[]): {
+	liveCardIds: string[];
+	nodeIds: string[];
+} {
+	const liveCardIds: string[] = [];
+	const nodeIds: string[] = [];
+	for (const id of ids) {
+		const cardId = liveCardIdFromCanvas(id);
+		if (cardId) {
+			liveCardIds.push(cardId);
+			continue;
+		}
+		nodeIds.push(id);
+	}
+	return { liveCardIds, nodeIds };
+}
+
+function applyArrowMove(
+	delta: [number, number],
+	input: {
+		liveCardIds: string[];
+		nodeIds: string[];
+		onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
+		onMoveLiveCard?: (cardId: string, deltaX: number, deltaY: number) => void;
+	}
+): void {
+	if (input.nodeIds.length > 0) {
+		input.onMove(input.nodeIds, delta[0], delta[1]);
+		return;
+	}
+	const [cardId] = input.liveCardIds;
+	if (cardId) {
+		input.onMoveLiveCard?.(cardId, delta[0], delta[1]);
+	}
 }
 
 function canvasKeyboardCommand(
@@ -101,6 +178,31 @@ function canvasKeyboardCommand(
 	return { deltaX: delta[0], deltaY: delta[1], type: "pan" };
 }
 
+function handleModifierCanvasKey(
+	event: KeyboardEvent<HTMLDivElement>,
+	input: {
+		nodeIds: string[];
+		onDuplicate: (nodeIds: string[]) => void;
+		onSelectAll: () => void;
+		onUndo: () => void;
+	}
+): void {
+	if (event.key === "z") {
+		event.preventDefault();
+		input.onUndo();
+	}
+	if (event.key === "d" || event.key === "c" || event.key === "v") {
+		event.preventDefault();
+		if (input.nodeIds.length > 0) {
+			input.onDuplicate(input.nodeIds);
+		}
+	}
+	if (event.key === "a") {
+		event.preventDefault();
+		input.onSelectAll();
+	}
+}
+
 function handleCanvasKey(
 	event: KeyboardEvent<HTMLDivElement>,
 	input: {
@@ -108,6 +210,7 @@ function handleCanvasKey(
 		onDuplicate: (nodeIds: string[]) => void;
 		onGrid: (nodeIds: string[]) => void;
 		onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
+		onMoveLiveCard?: (cardId: string, deltaX: number, deltaY: number) => void;
 		onPan: (deltaX: number, deltaY: number) => void;
 		onSelectAll: () => void;
 		onUndo: () => void;
@@ -116,25 +219,25 @@ function handleCanvasKey(
 		selectedIds: string[];
 	}
 ): void {
+	const { liveCardIds, nodeIds } = partitionSelection(input.selectedIds);
 	if (event.metaKey || event.ctrlKey) {
-		if (event.key === "z") {
-			event.preventDefault();
-			input.onUndo();
-		}
-		if (event.key === "d" || event.key === "c" || event.key === "v") {
-			event.preventDefault();
-			input.onDuplicate(input.selectedIds);
-		}
-		if (event.key === "a") {
-			event.preventDefault();
-			input.onSelectAll();
-		}
+		handleModifierCanvasKey(event, {
+			nodeIds,
+			onDuplicate: input.onDuplicate,
+			onSelectAll: input.onSelectAll,
+			onUndo: input.onUndo,
+		});
 		return;
 	}
 	const command = canvasKeyboardCommand(event.key, input.selectedIds);
 	if (command?.type === "move") {
 		event.preventDefault();
-		input.onMove(input.selectedIds, command.deltaX, command.deltaY);
+		applyArrowMove([command.deltaX, command.deltaY], {
+			liveCardIds,
+			nodeIds,
+			onMove: input.onMove,
+			onMoveLiveCard: input.onMoveLiveCard,
+		});
 		return;
 	}
 	if (command?.type === "pan") {
@@ -152,22 +255,24 @@ function handleCanvasKey(
 		input.onSelectAll();
 		return;
 	}
-	if (event.key === "g") {
+	if (event.key === "g" && nodeIds.length > 0) {
 		event.preventDefault();
-		input.onGrid(input.selectedIds);
+		input.onGrid(nodeIds);
 	}
-	if (event.key === "]") {
+	if (event.key === "]" && nodeIds.length > 0) {
 		event.preventDefault();
-		input.onZOrder(input.selectedIds);
+		input.onZOrder(nodeIds);
 	}
 }
 
 function CanvasInner({
+	liveCards = [],
 	nodes,
 	onAlign,
 	onDuplicate,
 	onGrid,
 	onMove,
+	onMoveLiveCard,
 	onPersistViewport,
 	onSelectedIdsChange,
 	onUndo,
@@ -178,8 +283,8 @@ function CanvasInner({
 	const { fitView, getViewport, setViewport, zoomIn, zoomOut } = useReactFlow();
 	const skipPersist = useRef(true);
 	const flowNodes = useMemo(
-		() => toFlowNodes(nodes, selectedIds),
-		[nodes, selectedIds]
+		() => toFlowNodes(nodes, liveCards, selectedIds),
+		[liveCards, nodes, selectedIds]
 	);
 
 	useEffect(() => {
@@ -217,9 +322,22 @@ function CanvasInner({
 	const onNodeDragStop = useCallback(
 		(_event: unknown, node: Node, dragged: Node[]) => {
 			const moved = dragged.length > 0 ? dragged : [node];
-			const ids = moved.map((item) => item.id);
+			const cardId = liveCardIdFromCanvas(node.id);
+			if (cardId) {
+				const origin = liveCards.find((item) => item.id === cardId);
+				if (!origin) {
+					return;
+				}
+				onMoveLiveCard?.(
+					cardId,
+					node.position.x - origin.layout.x,
+					node.position.y - origin.layout.y
+				);
+				return;
+			}
+			const ids = partitionSelection(moved.map((item) => item.id)).nodeIds;
 			const origin = nodes.find((item) => item.id === node.id);
-			if (!origin) {
+			if (!origin || ids.length === 0) {
 				return;
 			}
 			onMove(
@@ -228,7 +346,7 @@ function CanvasInner({
 				node.position.y - origin.layout.y
 			);
 		},
-		[nodes, onMove]
+		[liveCards, nodes, onMove, onMoveLiveCard]
 	);
 
 	const onFitView = useCallback(() => {
@@ -250,7 +368,7 @@ function CanvasInner({
 	}, [fitView, getViewport, onPersistViewport, selectedIds]);
 
 	const onAlignClick = useCallback(() => {
-		onAlign(selectedIds);
+		onAlign(partitionSelection(selectedIds).nodeIds);
 	}, [onAlign, selectedIds]);
 
 	const onPan = useCallback(
@@ -301,6 +419,7 @@ function CanvasInner({
 				onDuplicate,
 				onGrid,
 				onMove,
+				onMoveLiveCard,
 				onPan,
 				onSelectAll,
 				onUndo,
@@ -314,6 +433,7 @@ function CanvasInner({
 			onDuplicate,
 			onGrid,
 			onMove,
+			onMoveLiveCard,
 			onPan,
 			onSelectAll,
 			onUndo,

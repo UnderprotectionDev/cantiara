@@ -782,7 +782,7 @@ _Avoid_: Git commit, harici editör senkronu, CRDT
 _Avoid_: Git review, ikinci spec kaydı, impact-analysis engine
 
 **Spec Change Review**:
-Özelliğin `Primary spec` Belgesinde yeni sürüm kaydedildiğinde açılan, önceki ve yeni Belge sürüm çiftinin inceleme kuyruğu; spec gövdesinin yerine geçmez, Git diff veya Çürütülen Varsayım İnceleme Kuyruğu değildir ([Spec değişikliği inceleme kuyruğu](docs/prd/07-documents-and-knowledge.md#spec-değişikliği-inceleme-kuyruğu)). UI: `Spec Change Review`.
+Özelliğin `Primary spec` Belgesinde yeni sürüm kaydedildiğinde açılan, önceki ve yeni Belge sürüm çiftinin inceleme kuyruğu; spec gövdesinin yerine geçmez, Git diff veya Çürütülen Varsayım İnceleme Kuyruğu değildir ([Spec değişikliği inceleme kuyruğu](docs/prd/07-documents-and-knowledge.md#spec-değişikliği-inceleme-kuyruğu)). UI: `Spec Change Review`, `Waiting`, `Reviewed`, `Not affected`, `Create Follow-up Work`.
 _Avoid_: Git review, approval gate, impact-analysis engine, Çürütülen Varsayım İnceleme Kuyruğu
 
 **Spec Change Review adayı**:
@@ -1011,7 +1011,23 @@ _Avoid_: Wireframe kaydı, Ekran bileşeni, flow node'u
 
 **Kullanıcı Akışı**:
 Kullanıcının arayüz hedefi ve karar yolunu canlı Ekran referanslarıyla taşıyan tasarım ana kaydı; Ekran kopyası, teknik sıra veya durum makinesi değildir.
+UI: `User Flow`, `Convert and Bind`, `Fit View`, `Open Source Record`, `Archived`, `Promote to Screen`, `Save as template`, `Create from template`, `Place live card`, `Rebind`
 _Avoid_: Wireframe belgesi, Teknik Sıra, flowchart
+
+**Kayda dönüştür ve bağla**:
+Kullanıcı Akışı düğümünden önizleme ve onayla tam olarak bir İş, Karar, Risk veya Açık Soru açan eylem; Ekran üretmez ve düğümü silmez.
+UI: `Convert and Bind`, `Origin Location`, `Origin`, `Confirm`
+_Avoid_: Convert to Screen, sessiz kayıt üretimi
+
+**Akış şablonu**:
+Kullanıcı Akışı yapısı ve yer tutucuları taşıyan damga; kaynak Projenin İş, Karar, ilişki, yayın veya geçmişini ve canlı bağını taşımaz.
+UI: `Save as template`, `Create from template`
+_Avoid_: live-bound template, kaynak akış kopyası
+
+**Canlı kart**:
+Kullanıcı Akışı tuvaline konan salt okunur İş, Karar veya Risk görünümü; taşımak veya kaldırmak kaynak kaydı yazmaz.
+UI: `Place live card`, `Open Source Record`
+_Avoid_: kopya İş, smart-zone
 
 **Akış öğesi**:
 Kullanıcı Akışındaki kapalı semantik küme üyesi; ürün anlamı yalnız `Screen`, `Action`, `Decision`, `State/Outcome` veya `Section` taşır, şekil ya da renk taşımaz.
@@ -1035,8 +1051,23 @@ Seçili Proje Duvarı grubu veya bölgesinin tarihli PNG/PDF iç snapshot'ı; ca
 _Avoid_: Dış yüzey, Build in Public, onaylı snapshot revizyonu, canlı bağlantı
 
 **Wireframe yüzeyi**:
-Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir.
+Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Wireframe`, `Presentation Mode`, `Exit Presentation Mode`, `Unresolved`, `Export`, `PNG`, `SVG`, `PDF`, `HTML`.
 _Avoid_: Wireframe ana kaydı, Ekrandan bağımsız Wireframe
+
+**Kayda dönüştür ve bağla**:
+Kesin Wireframe sürümündeki bir blocktan önizlemeli olarak tam bir İş, Karar, Risk veya Açık Soru açma; Ekran üretmez ve yeni kullanım bağı türü değildir.
+UI: `Convert and Bind`, `Confirm`, `Origin`, `Origin Location`
+_Avoid_: Wireframe'den Ekran üretme, otomatik dönüşüm, Related
+
+**Wireframe şablonu**:
+Kesin Wireframe sürümünün yapı ve bağlı-blok damgası; kaynak Projenin İş/Karar geçmişini veya canlı bağını taşımaz.
+UI: `Save as template`, `Create Screen from template`
+_Avoid_: İş şablonu, Belge şablonu, live-bound kopya
+
+**Canlı Wireframe kartı**:
+Wireframe yüzeyine konmuş salt okunur İş, Karar veya Risk referansı; taşımak kaynak kaydı yazmaz.
+UI: `Open Source Record`
+_Avoid_: planlama tahtası, Kullanım bağı, Proje Duvarı kartı
 
 **Bağlı Wireframe bloğu**:
 Aynı Projede birden fazla Ekranın Wireframe yüzeyinde paylaştığı düşük sadakatli kaynak tanımı; production component, tasarım token'ı veya projeler arasında canlı kütüphane değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Detach Link`.

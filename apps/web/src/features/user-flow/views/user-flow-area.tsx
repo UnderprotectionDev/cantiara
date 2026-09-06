@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
+import CreateFromUserFlowTemplateForm from "@/features/user-flow/forms/create-from-user-flow-template-form";
 import CreateUserFlowForm from "@/features/user-flow/forms/create-user-flow-form";
 import { USER_FLOW_COPY } from "@/features/user-flow/forms/user-flow-copy";
 import { orpc } from "@/utils/orpc";
@@ -39,6 +40,10 @@ export default function UserFlowArea({ projectId }: { projectId: string }) {
 	return (
 		<div className="flex flex-col gap-8">
 			<CreateUserFlowForm onCreated={onCreated} projectId={projectId} />
+			<CreateFromUserFlowTemplateForm
+				onCreated={onCreated}
+				projectId={projectId}
+			/>
 			{rows.length === 0 ? (
 				<Empty>
 					<EmptyHeader>

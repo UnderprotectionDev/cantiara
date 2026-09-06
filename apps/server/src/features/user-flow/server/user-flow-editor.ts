@@ -278,7 +278,7 @@ export function duplicateNodes(
 			},
 		});
 	}
-	return { groups: document.groups, nodes: [...document.nodes, ...copies] };
+	return { ...document, nodes: [...document.nodes, ...copies] };
 }
 
 export function fitViewFrame(

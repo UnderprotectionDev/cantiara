@@ -6,12 +6,18 @@ import {
 } from "../../documents/server/documents-live";
 
 export const SPEC_CHANGE_REVIEW_COPY = {
+	confirm: "Confirm",
+	createFollowUpWork: "Create Follow-up Work",
 	documentLevelCandidate: "Document-level candidate",
+	followUpWork: "Follow-up Work",
 	notAffected: "Not affected",
 	note: "Note",
+	preview: "Preview",
 	primarySpec: "Primary spec",
+	project: "Project",
 	reviewed: "Reviewed",
 	specChangeReview: "Spec Change Review",
+	startingStatus: "Not Started",
 	version: "Version",
 	waiting: "Waiting",
 	why: "Why",
@@ -28,10 +34,15 @@ export type SpecChangeReviewStatus =
 
 export const SPEC_CHANGE_REVIEW_COUNTERPARTS = {
 	ai: false,
+	automaticFieldUpdate: false,
+	automationRule: false,
 	bulkAllAffected: false,
+	bulkFollowUp: false,
 	feedbackReviewed: false,
 	refutedAssumptionReview: false,
+	requiredApprovalGate: false,
 	semanticPrediction: false,
+	testGap: false,
 	titleSimilarity: false,
 	workWorkflowStatus: false,
 	writesCandidateWork: false,
@@ -115,6 +126,24 @@ export interface SpecChangeReviewView {
 	newVersion: SpecChangeReviewVersion;
 	previousVersion: SpecChangeReviewVersion;
 	primarySpec: { id: string; title: string };
+}
+
+export interface SpecChangeReviewFollowUpPreview {
+	candidateSourceRelation: {
+		origin: "Origin";
+		recordKind: string;
+		why: readonly string[];
+	};
+	followUpWork: {
+		startingStatus: typeof SPEC_CHANGE_REVIEW_COPY.startingStatus;
+		title: string;
+		type: string;
+	};
+	project: { id: string; name: string };
+	specVersions: {
+		new: SpecChangeReviewVersion;
+		previous: SpecChangeReviewVersion;
+	};
 }
 
 interface ParsedSection {

@@ -70,14 +70,31 @@ export const wireframeTextSchema = z.discriminatedUnion("mode", [
 
 export type WireframeText = z.infer<typeof wireframeTextSchema>;
 
+export const wireframeLiveRecordSchema = z.object({
+	id: z.string().min(1),
+	kind: z.enum(["Work", "Decision", "Risk"]),
+});
+
+export type WireframeLiveRecord = z.infer<typeof wireframeLiveRecordSchema>;
+
+export const wireframeGroupSchema = z.object({
+	id: z.string().min(1),
+	title: z.string().min(1),
+});
+
+export type WireframeGroup = z.infer<typeof wireframeGroupSchema>;
+
 export const wireframeNodeSchema = z
 	.object({
 		geometry: wireframeGeometrySchema,
+		groupId: z.string().min(1).optional(),
 		id: z.string().min(1),
 		kind: semanticKindSchema,
 		label: z.string().optional(),
 		linkedBlockId: z.string().min(1).optional(),
+		liveRecord: wireframeLiveRecordSchema.optional(),
 		seed: z.number().int(),
+		targetScreenId: z.string().min(1).optional(),
 		text: wireframeTextSchema.optional(),
 	})
 	.superRefine((node, context) => {
@@ -132,6 +149,7 @@ export const wireframeDocumentSchema = z.object({
 	canvasTypeface: z
 		.literal(WIREFRAME_CANVAS_TYPEFACE)
 		.default(WIREFRAME_CANVAS_TYPEFACE),
+	groups: z.array(wireframeGroupSchema).default([]),
 	nodes: z.array(wireframeNodeSchema),
 	schema: z.literal(WIREFRAME_DOCUMENT_SCHEMA),
 	schemaVersion: z.literal(1),
@@ -142,6 +160,7 @@ export type WireframeDocument = z.infer<typeof wireframeDocumentSchema>;
 export const EMPTY_WIREFRAME_DOCUMENT: WireframeDocument = {
 	animations: [],
 	canvasTypeface: WIREFRAME_CANVAS_TYPEFACE,
+	groups: [],
 	nodes: [],
 	schema: WIREFRAME_DOCUMENT_SCHEMA,
 	schemaVersion: 1,
@@ -346,6 +365,130 @@ export function overlayLinkedInstance(
 		kind: definition.kind,
 		label: definition.label,
 		text: definition.text,
+	};
+}
+
+export function reorderWireframeNodes(
+	document: WireframeDocument,
+	nodeIds: readonly string[]
+): WireframeDocument {
+	const byId = new Map(document.nodes.map((node) => [node.id, node]));
+	const next: WireframeNode[] = [];
+	const seen = new Set<string>();
+	for (const id of nodeIds) {
+		const node = byId.get(id);
+		if (node && !seen.has(id)) {
+			next.push(node);
+			seen.add(id);
+		}
+	}
+	for (const node of document.nodes) {
+		if (!seen.has(node.id)) {
+			next.push(node);
+		}
+	}
+	return { ...document, nodes: next };
+}
+
+export function groupWireframeNodes(
+	document: WireframeDocument,
+	input: { nodeIds: readonly string[]; title: string }
+): WireframeDocument {
+	const groupId = crypto.randomUUID();
+	const wanted = new Set(input.nodeIds);
+	return {
+		...document,
+		groups: [...document.groups, { id: groupId, title: input.title }],
+		nodes: document.nodes.map((node) =>
+			wanted.has(node.id) ? { ...node, groupId } : node
+		),
+	};
+}
+
+export function bindWireframeNode(
+	document: WireframeDocument,
+	input: { linkedBlockId: string; nodeId: string }
+): WireframeDocument {
+	return {
+		...document,
+		nodes: document.nodes.map((node) =>
+			node.id === input.nodeId
+				? { ...node, linkedBlockId: input.linkedBlockId }
+				: node
+		),
+	};
+}
+
+export function moveWireframeNodes(
+	document: WireframeDocument,
+	input: { deltaX: number; deltaY: number; nodeIds: readonly string[] }
+): WireframeDocument {
+	const wanted = new Set(input.nodeIds);
+	return {
+		...document,
+		nodes: document.nodes.map((node) =>
+			wanted.has(node.id)
+				? {
+						...node,
+						geometry: {
+							...node.geometry,
+							x: node.geometry.x + input.deltaX,
+							y: node.geometry.y + input.deltaY,
+						},
+					}
+				: node
+		),
+	};
+}
+
+export type WireframeAlignAxis =
+	| "bottom"
+	| "center"
+	| "left"
+	| "middle"
+	| "right"
+	| "top";
+
+export function alignWireframeNodes(
+	document: WireframeDocument,
+	input: { axis: WireframeAlignAxis; nodeIds: readonly string[] }
+): WireframeDocument {
+	const selected = document.nodes.filter((node) =>
+		input.nodeIds.includes(node.id)
+	);
+	if (selected.length === 0) {
+		return document;
+	}
+	const xs = selected.map((node) => node.geometry.x);
+	const ys = selected.map((node) => node.geometry.y);
+	const left = Math.min(...xs);
+	const right = Math.max(...xs);
+	const top = Math.min(...ys);
+	const bottom = Math.max(...ys);
+	const centerX = (left + right) / 2;
+	const middleY = (top + bottom) / 2;
+	return {
+		...document,
+		nodes: document.nodes.map((node) => {
+			if (!input.nodeIds.includes(node.id)) {
+				return node;
+			}
+			let { x, y } = node.geometry;
+			if (input.axis === "left") {
+				x = left;
+			} else if (input.axis === "right") {
+				x = right;
+			} else if (input.axis === "center") {
+				x = centerX;
+			} else if (input.axis === "top") {
+				y = top;
+			} else if (input.axis === "bottom") {
+				y = bottom;
+			} else {
+				y = middleY;
+			}
+			return { ...node, geometry: { ...node.geometry, x, y } };
+		}),
 	};
 }
 

@@ -14,11 +14,13 @@ model Workspace {
   documents             Document[]
   documentFolders       DocumentFolder[]
   documentTemplates     DocumentTemplate[]
+  userFlowTemplates      UserFlowTemplate[]
   documentConflictDrafts DocumentConflictDraft[]
   specChangeReviews      SpecChangeReview[]
   smartCollections       SmartCollection[]
   contacts               Contact[]
   companies              Company[]
+  wireframeTemplates     WireframeTemplate[]
 
   @@map("workspace")
 }

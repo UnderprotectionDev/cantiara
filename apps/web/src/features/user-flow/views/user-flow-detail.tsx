@@ -16,7 +16,11 @@ import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
 import UserFlowCanvas from "../components/user-flow-canvas";
+import ConvertAndBindForm from "../forms/convert-and-bind-form";
 import CreateScreenForm from "../forms/create-screen-form";
+import PlaceLiveCardForm from "../forms/place-live-card-form";
+import RebindOriginForm from "../forms/rebind-origin-form";
+import SaveUserFlowTemplateForm from "../forms/save-user-flow-template-form";
 import { FLOW_NODE_KINDS, USER_FLOW_COPY } from "../forms/user-flow-copy";
 
 interface PresentedNode {
@@ -47,20 +51,42 @@ interface FlowGroup {
 	title: string;
 }
 
+interface PresentedLiveCard {
+	id: string;
+	layout: { x: number; y: number; z: number };
+	recordId: string;
+	recordKind: string;
+	status: string | null;
+	title: string;
+}
+
+interface PresentedOriginRelation {
+	id: string;
+	nodeId: string | null;
+	recordId: string;
+	recordKind: string;
+	sourceVersion: string | null;
+	type: string;
+}
+
 interface UserFlowDetailView {
 	copy: {
 		archived: string;
+		convertAndBind: string;
 		fitView: string;
 		group: string;
 		inspect: string;
 		openSourceRecord: string;
 		outline: string;
+		promoteToScreen: string;
 		unbind: string;
 		userFlow: string;
 	};
 	groups: FlowGroup[];
 	id: string;
+	liveCards: PresentedLiveCard[];
 	nodes: PresentedNode[];
+	originRelations: PresentedOriginRelation[];
 	revision: number;
 	title: string;
 }
@@ -165,6 +191,16 @@ export default function UserFlowDetail({
 			},
 		})
 	);
+	const moveLive = useMutation(
+		orpc.userFlow.moveLiveCard.mutationOptions({
+			onSuccess: onOutcome,
+		})
+	);
+	const promote = useMutation(
+		orpc.userFlow.promoteStepToScreen.mutationOptions({
+			onSuccess: onOutcome,
+		})
+	);
 
 	const onPlace = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
@@ -252,6 +288,32 @@ export default function UserFlowDetail({
 		},
 		[runOp]
 	);
+	const onPromote = useCallback(
+		(nodeId: string) => {
+			if (!flow.data) {
+				return;
+			}
+			promote.mutate({
+				baseRevision: flow.data.revision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: { nodeId, userFlowId: flowId },
+			});
+		},
+		[flow.data, flowId, promote]
+	);
+	const onMoveLiveCard = useCallback(
+		(cardId: string, deltaX: number, deltaY: number) => {
+			if (!flow.data) {
+				return;
+			}
+			moveLive.mutate({
+				baseRevision: flow.data.revision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: { cardId, deltaX, deltaY, userFlowId: flowId },
+			});
+		},
+		[flow.data, flowId, moveLive]
+	);
 
 	const collapsedIds = viewport.data?.viewport.collapsedGroupIds ?? [];
 
@@ -325,14 +387,18 @@ export default function UserFlowDetail({
 	);
 
 	const onGroup = useCallback(() => {
-		if (!flow.data || selectedIds.length === 0) {
+		if (!flow.data) {
+			return;
+		}
+		const nodeIds = selectedIds.filter((id) => !id.startsWith("live:"));
+		if (nodeIds.length === 0) {
 			return;
 		}
 		group.mutate({
 			baseRevision: flow.data.revision,
 			idempotencyKey: newIdempotencyKey(),
 			payload: {
-				nodeIds: selectedIds,
+				nodeIds,
 				title: USER_FLOW_COPY.group,
 				userFlowId: flowId,
 			},
@@ -340,8 +406,9 @@ export default function UserFlowDetail({
 	}, [flow.data, flowId, group, selectedIds]);
 
 	const onBind = useCallback(() => {
-		const [nodeId] = selectedIds;
-		if (!(flow.data && screenId && nodeId) || selectedIds.length !== 1) {
+		const nodeIds = selectedIds.filter((id) => !id.startsWith("live:"));
+		const [nodeId] = nodeIds;
+		if (!(flow.data && screenId && nodeId) || nodeIds.length !== 1) {
 			return;
 		}
 		bindScreen.mutate({
@@ -352,8 +419,9 @@ export default function UserFlowDetail({
 	}, [bindScreen, flow.data, flowId, screenId, selectedIds]);
 
 	const onUnbind = useCallback(() => {
-		const [nodeId] = selectedIds;
-		if (!(flow.data && nodeId) || selectedIds.length !== 1) {
+		const nodeIds = selectedIds.filter((id) => !id.startsWith("live:"));
+		const [nodeId] = nodeIds;
+		if (!(flow.data && nodeId) || nodeIds.length !== 1) {
 			return;
 		}
 		unbindScreen.mutate({
@@ -402,6 +470,17 @@ export default function UserFlowDetail({
 			<p className="text-muted-foreground text-sm">{view.copy.userFlow}</p>
 			<div className="mt-4">
 				<CreateScreenForm projectId={projectId} />
+			</div>
+			<div className="mt-4">
+				<SaveUserFlowTemplateForm userFlowId={flowId} />
+			</div>
+			<div className="mt-4">
+				<PlaceLiveCardForm
+					baseRevision={view.revision}
+					onPlaced={invalidate}
+					projectId={projectId}
+					userFlowId={flowId}
+				/>
 			</div>
 			<form className="mt-4 flex flex-col gap-3" onSubmit={onPlace}>
 				<FieldGroup>
@@ -468,14 +547,18 @@ export default function UserFlowDetail({
 			<UserFlowSurface
 				canBind={Boolean(screenId)}
 				collapsedIds={collapsedIds}
+				flowId={flowId}
 				onAlign={onAlign}
 				onBind={onBind}
 				onDuplicate={onDuplicate}
 				onGrid={onGrid}
 				onGroup={onGroup}
+				onInvalidate={invalidate}
 				onMove={onMove}
+				onMoveLiveCard={onMoveLiveCard}
 				onOutlineMove={onOutlineMove}
 				onPersistViewport={onPersistViewport}
+				onPromote={onPromote}
 				onSelectedIdsChange={setSelectedIds}
 				onToggleCollapse={onToggleCollapse}
 				onToggleSelect={onToggleSelect}
@@ -493,14 +576,18 @@ export default function UserFlowDetail({
 function UserFlowSurface({
 	canBind,
 	collapsedIds,
+	flowId,
 	onAlign,
 	onBind,
 	onDuplicate,
 	onGrid,
 	onGroup,
+	onInvalidate,
 	onMove,
+	onMoveLiveCard,
 	onOutlineMove,
 	onPersistViewport,
+	onPromote,
 	onSelectedIdsChange,
 	onToggleCollapse,
 	onToggleSelect,
@@ -513,18 +600,22 @@ function UserFlowSurface({
 }: {
 	canBind: boolean;
 	collapsedIds: string[];
+	flowId: string;
 	onAlign: (nodeIds: string[]) => void;
 	onBind: () => void;
 	onDuplicate: (nodeIds: string[]) => void;
 	onGrid: (nodeIds: string[]) => void;
 	onGroup: () => void;
+	onInvalidate: () => Promise<void>;
 	onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
+	onMoveLiveCard: (cardId: string, deltaX: number, deltaY: number) => void;
 	onOutlineMove: (nodeId: string, direction: -1 | 1) => void;
 	onPersistViewport: (viewport: {
 		centerX: number;
 		centerY: number;
 		zoom: number;
 	}) => void;
+	onPromote: (nodeId: string) => void;
 	onSelectedIdsChange: (nodeIds: string[]) => void;
 	onToggleCollapse: (groupId: string) => void;
 	onToggleSelect: (nodeId: string) => void;
@@ -538,16 +629,17 @@ function UserFlowSurface({
 	selectedIds: string[];
 	view: UserFlowDetailView;
 }) {
-	const [selectedId] = selectedIds;
+	const flowSelectedIds = selectedIds.filter((id) => !id.startsWith("live:"));
+	const [selectedId] = flowSelectedIds;
 	const selectedNode =
-		selectedIds.length === 1
+		flowSelectedIds.length === 1
 			? (view.nodes.find((node) => node.id === selectedId) ?? null)
 			: null;
 	return (
 		<>
 			<div className="mt-4 flex flex-wrap gap-2">
 				<Button
-					disabled={selectedIds.length === 0}
+					disabled={flowSelectedIds.length === 0}
 					onClick={onGroup}
 					type="button"
 					variant="outline"
@@ -555,7 +647,7 @@ function UserFlowSurface({
 					{USER_FLOW_COPY.group}
 				</Button>
 				<Button
-					disabled={selectedIds.length !== 1 || !canBind}
+					disabled={flowSelectedIds.length !== 1 || !canBind}
 					onClick={onBind}
 					type="button"
 					variant="outline"
@@ -563,7 +655,7 @@ function UserFlowSurface({
 					{USER_FLOW_COPY.bindScreen}
 				</Button>
 				<Button
-					disabled={selectedIds.length !== 1}
+					disabled={flowSelectedIds.length !== 1}
 					onClick={onUnbind}
 					type="button"
 					variant="outline"
@@ -593,7 +685,7 @@ function UserFlowSurface({
 									onMove={onOutlineMove}
 									onToggleCollapse={onToggleCollapse}
 									onToggleSelect={onToggleSelect}
-									selectedIds={selectedIds}
+									selectedIds={flowSelectedIds}
 									title={flowGroup.title}
 								/>
 							))}
@@ -605,7 +697,7 @@ function UserFlowSurface({
 										node={node}
 										onMove={onOutlineMove}
 										onToggleSelect={onToggleSelect}
-										selected={selectedIds.includes(node.id)}
+										selected={flowSelectedIds.includes(node.id)}
 									/>
 								))}
 						</ul>
@@ -613,11 +705,13 @@ function UserFlowSurface({
 				</nav>
 				<div>
 					<UserFlowCanvas
+						liveCards={view.liveCards}
 						nodes={view.nodes}
 						onAlign={onAlign}
 						onDuplicate={onDuplicate}
 						onGrid={onGrid}
 						onMove={onMove}
+						onMoveLiveCard={onMoveLiveCard}
 						onPersistViewport={onPersistViewport}
 						onSelectedIdsChange={onSelectedIdsChange}
 						onUndo={onUndo}
@@ -625,35 +719,110 @@ function UserFlowSurface({
 						restored={restored}
 						selectedIds={selectedIds}
 					/>
-					{selectedNode ? (
-						<section aria-label={USER_FLOW_COPY.inspect} className="mt-4">
-							<h3 className="font-medium text-sm">{USER_FLOW_COPY.inspect}</h3>
-							<p className="mt-2 text-sm">
-								{selectedNode.kind}
-								{selectedNode.kind === USER_FLOW_COPY.screen
-									? ` · ${selectedNode.screenTitle ?? selectedNode.reason}`
-									: ` · ${selectedNode.label}`}
-							</p>
-							{selectedNode.pathText.description ? (
-								<p className="text-muted-foreground text-sm">
-									{selectedNode.pathText.description}
-								</p>
-							) : null}
-							{selectedNode.preview ? (
-								<p className="text-muted-foreground text-sm">
-									{selectedNode.preview}
-								</p>
-							) : null}
-							{selectedNode.openSourceRecord && selectedNode.openHref ? (
-								<a className="text-sm underline" href={selectedNode.openHref}>
-									{selectedNode.openSourceRecord}
-								</a>
-							) : null}
-						</section>
-					) : null}
+					<InspectedFlowNode
+						flowId={flowId}
+						onInvalidate={onInvalidate}
+						onPromote={onPromote}
+						originRelations={view.originRelations}
+						revision={view.revision}
+						selectedNode={selectedNode}
+					/>
+					<LiveCardList cards={view.liveCards} />
 				</div>
 			</div>
 		</>
+	);
+}
+
+function InspectedFlowNode({
+	flowId,
+	onInvalidate,
+	onPromote,
+	originRelations,
+	revision,
+	selectedNode,
+}: {
+	flowId: string;
+	onInvalidate: () => Promise<void>;
+	onPromote: (nodeId: string) => void;
+	originRelations: PresentedOriginRelation[];
+	revision: number;
+	selectedNode: PresentedNode | null;
+}) {
+	if (!selectedNode) {
+		return null;
+	}
+	return (
+		<section aria-label={USER_FLOW_COPY.inspect} className="mt-4">
+			<h3 className="font-medium text-sm">{USER_FLOW_COPY.inspect}</h3>
+			<p className="mt-2 text-sm">
+				{selectedNode.kind}
+				{selectedNode.kind === USER_FLOW_COPY.screen
+					? ` · ${selectedNode.screenTitle ?? selectedNode.reason}`
+					: ` · ${selectedNode.label}`}
+			</p>
+			{selectedNode.boundAt && selectedNode.resolution === "broken" ? (
+				<p className="text-muted-foreground text-sm">{selectedNode.boundAt}</p>
+			) : null}
+			{selectedNode.pathText.description ? (
+				<p className="text-muted-foreground text-sm">
+					{selectedNode.pathText.description}
+				</p>
+			) : null}
+			{selectedNode.preview ? (
+				<p className="text-muted-foreground text-sm">{selectedNode.preview}</p>
+			) : null}
+			{selectedNode.openSourceRecord && selectedNode.openHref ? (
+				<a className="text-sm underline" href={selectedNode.openHref}>
+					{selectedNode.openSourceRecord}
+				</a>
+			) : null}
+			<div className="mt-2 flex flex-wrap gap-2">
+				<ConvertAndBindForm
+					baseRevision={revision}
+					nodeId={selectedNode.id}
+					onConverted={onInvalidate}
+					userFlowId={flowId}
+				/>
+				{selectedNode.kind === USER_FLOW_COPY.screen ? null : (
+					<PromoteNodeButton nodeId={selectedNode.id} onPromote={onPromote} />
+				)}
+				{originRelations
+					.filter((relation) => relation.nodeId === selectedNode.id)
+					.map((relation) => (
+						<RebindOriginForm
+							key={relation.id}
+							nodeId={selectedNode.id}
+							onRebound={onInvalidate}
+							recordId={relation.recordId}
+							recordKind={relation.recordKind}
+							sourceVersion={relation.sourceVersion}
+							userFlowId={flowId}
+						/>
+					))}
+			</div>
+		</section>
+	);
+}
+
+function LiveCardList({ cards }: { cards: PresentedLiveCard[] }) {
+	if (cards.length === 0) {
+		return null;
+	}
+	return (
+		<ul className="mt-6 flex flex-col gap-2">
+			{cards.map((card) => (
+				<li className="rounded-md border p-3" key={card.id}>
+					<p>
+						{card.recordKind} · {card.title}
+						{card.status ? ` · ${card.status}` : null}
+					</p>
+					<p className="text-muted-foreground text-sm">
+						{USER_FLOW_COPY.openSourceRecord}
+					</p>
+				</li>
+			))}
+		</ul>
 	);
 }
 
@@ -756,5 +925,22 @@ function OutlineNode({
 				) : null}
 			</div>
 		</li>
+	);
+}
+
+function PromoteNodeButton({
+	nodeId,
+	onPromote,
+}: {
+	nodeId: string;
+	onPromote: (nodeId: string) => void;
+}) {
+	const onClick = useCallback(() => {
+		onPromote(nodeId);
+	}, [nodeId, onPromote]);
+	return (
+		<Button onClick={onClick} type="button" variant="outline">
+			{USER_FLOW_COPY.promoteToScreen}
+		</Button>
 	);
 }
