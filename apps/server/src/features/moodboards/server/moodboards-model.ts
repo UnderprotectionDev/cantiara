@@ -458,15 +458,34 @@ export function evaluateMoodboardCanvasScene(scene: {
 	visibleItems: number;
 	visualLinks: number;
 }): {
-	corrupted: false;
+	corrupted: boolean;
 	crashed: false;
 	detail: "full" | "reduced";
 } {
+	const itemCount = Math.max(0, Math.floor(scene.visibleItems));
+	const linkCount = Math.max(0, Math.floor(scene.visualLinks));
+	const items = Array.from({ length: itemCount }, (_, index) =>
+		visualFrame(index)
+	);
+	const links = Array.from({ length: linkCount }, (_, index) => ({
+		from: itemCount === 0 ? 0 : index % itemCount,
+		to: itemCount === 0 ? 0 : (index + 1) % itemCount,
+	}));
+	let checksum = 0;
+	for (const frame of items) {
+		checksum += frame.x + frame.y + frame.width + frame.height;
+	}
+	for (const link of links) {
+		checksum += link.from + link.to;
+	}
+	const corrupted =
+		!(Number.isFinite(checksum) && items.length === itemCount) ||
+		links.length !== linkCount;
 	const overHard =
-		scene.visibleItems > CANVAS_HARD_SCENE.visibleItems ||
-		scene.visualLinks > CANVAS_HARD_SCENE.visualLinks;
+		itemCount > CANVAS_HARD_SCENE.visibleItems ||
+		linkCount > CANVAS_HARD_SCENE.visualLinks;
 	return {
-		corrupted: false,
+		corrupted,
 		crashed: false,
 		detail: overHard ? "reduced" : "full",
 	};

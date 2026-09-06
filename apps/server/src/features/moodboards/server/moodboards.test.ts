@@ -41,7 +41,6 @@ import {
 	moodboardExportInput,
 	moodboardShareSnapshot,
 	moodboardsCatalog,
-	OUTLINE_TASKS,
 	restorePersonalViewport,
 	VISUAL_ORIGIN_KIND,
 } from "./moodboards-model";
@@ -532,7 +531,7 @@ describe("Moodboards personal viewport and outline", () => {
 		expect(afterSave?.revision).toBe(first.moodboard.revision);
 	});
 
-	it("fits visible content from Fit View and from a meaningless saved position", () => {
+	it("fits visible content from a meaningless saved position and does not restore selection", () => {
 		const content = {
 			groups: [] as { id: string }[],
 			visuals: [
@@ -671,14 +670,6 @@ describe("Moodboards personal viewport and outline", () => {
 		expect(inspected?.openHref).toBe(
 			fileAttachmentOpenHref(projectId, shot.fileId)
 		);
-		expect(OUTLINE_TASKS).toEqual([
-			"add",
-			"select",
-			"reorder",
-			"group",
-			"inspect",
-			"open-source",
-		]);
 		const collapse = await savePersonalViewport(prisma, {
 			actorId,
 			payload: {

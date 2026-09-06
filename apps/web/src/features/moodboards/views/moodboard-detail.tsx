@@ -89,27 +89,18 @@ export default function MoodboardDetail({
 	);
 
 	const onFitView = useCallback(() => {
-		const count = moodboard.data?.visuals.length ?? 0;
-		const fitted =
-			count === 0
-				? { centerX: 0, centerY: 0, zoom: 1 }
-				: {
-						centerX: ((count - 1) * 200 + 160) / 2,
-						centerY: 80,
-						zoom: 1,
-					};
 		saveViewport.mutate({
 			payload: {
 				moodboardId,
 				viewport: {
-					centerX: fitted.centerX,
-					centerY: fitted.centerY,
+					centerX: 0,
+					centerY: 0,
 					collapsedGroupIds: [],
-					zoom: fitted.zoom,
+					zoom: 1,
 				},
 			},
 		});
-	}, [moodboard.data, moodboardId, saveViewport]);
+	}, [moodboardId, saveViewport]);
 
 	const onToggleSelect = useCallback((visualId: string) => {
 		setSelectedIds((current) =>
