@@ -23,9 +23,12 @@ export const SCREENS_COPY = {
 	createScreen: "Create Screen",
 	deletePermanently: "Permanently Delete",
 	detachLink: "Detach Link",
+	exitPresentationMode: "Exit Presentation Mode",
 	expandGroup: "Expand",
+	export: "Export",
 	fitView: "Fit View",
 	group: "Group",
+	html: "HTML",
 	includeArchived: "Include archived",
 	input: "Input",
 	inspect: "Inspect",
@@ -38,13 +41,18 @@ export const SCREENS_COPY = {
 	noScreens: "No Screens yet.",
 	openSourceRecord: "Open Source Record",
 	outline: "Outline",
+	pdf: "PDF",
+	png: "PNG",
+	presentationMode: "Presentation Mode",
 	restore: "Restore",
 	screen: "Screen",
+	svg: "SVG",
 	table: "Table",
 	text: "Text",
 	title: "Title",
 	titleRequired: "Title is required.",
 	unarchive: "Unarchive",
+	unresolved: "Unresolved",
 	wireframe: "Wireframe",
 } as const;
 
@@ -280,6 +288,87 @@ export type WireframeVersionDocumentView = WireframeVersionView & {
 		};
 	}[];
 };
+
+export const WIREFRAME_EXPORT_FORMAT = {
+	html: SCREENS_COPY.html,
+	pdf: SCREENS_COPY.pdf,
+	png: SCREENS_COPY.png,
+	svg: SCREENS_COPY.svg,
+} as const;
+
+export type WireframeExportFormat =
+	(typeof WIREFRAME_EXPORT_FORMAT)[keyof typeof WIREFRAME_EXPORT_FORMAT];
+
+export const wireframePinSchema = z.object({
+	screenId: z.string().min(1),
+	versionNumber: z.number().int().positive(),
+});
+
+export type WireframePin = z.infer<typeof wireframePinSchema>;
+
+export const openPresentationPayloadSchema = z.object({
+	pins: z.array(wireframePinSchema).min(1),
+	startScreenId: z.string().min(1),
+});
+
+export const exportWireframePayloadSchema = z.object({
+	format: z.enum([
+		WIREFRAME_EXPORT_FORMAT.html,
+		WIREFRAME_EXPORT_FORMAT.pdf,
+		WIREFRAME_EXPORT_FORMAT.png,
+		WIREFRAME_EXPORT_FORMAT.svg,
+	]),
+	pins: z.array(wireframePinSchema).min(1),
+	selectionNodeIds: z.array(z.string().min(1)).optional(),
+	startScreenId: z.string().min(1),
+});
+
+export type ExportWireframePayload = z.infer<
+	typeof exportWireframePayloadSchema
+>;
+
+export interface PresentationLinkView {
+	nodeId: string;
+	status: "ok" | "unresolved";
+	targetScreenId: string;
+}
+
+export interface PresentationScreenView {
+	document: z.infer<typeof wireframeDocumentSchema>;
+	id: string;
+	title: string;
+	versionNumber: number;
+}
+
+export interface PresentationView {
+	currentScreenId: string;
+	currentVersionNumber: number;
+	editing: false;
+	links: PresentationLinkView[];
+	mode: typeof SCREENS_COPY.presentationMode;
+	screens: PresentationScreenView[];
+	startScreenId: string;
+	toolsHidden: true;
+	unresolvedLabel: typeof SCREENS_COPY.unresolved;
+	unresolvedTarget: boolean;
+	writes: false;
+}
+
+export type PresentationOutcome =
+	| ({ status: "ok" } & PresentationView)
+	| { reason: string; status: "rejected" };
+
+export type WireframeExportOutcome =
+	| {
+			bytes: Uint8Array;
+			filename: string;
+			format: WireframeExportFormat;
+			html?: string;
+			liveDocumentWritten: false;
+			manifest: string;
+			status: "ok";
+	  }
+	| { reason: string; status: "rejected" };
 
 export const SCREEN_COUNTERPARTS = {
 	personalViewportIsContent: false,

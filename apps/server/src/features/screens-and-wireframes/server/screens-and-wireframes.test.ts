@@ -2,9 +2,9 @@
  * Screens and Wireframes seam — Project-scoped Screen master
  * with title-only create. Wireframe is a versioned surface on
  * the Screen, not a second master or archive/trash life.
- * docs/specs/48-screens-and-wireframes/spec.md and GitHub #349 / #350.
+ * docs/specs/48-screens-and-wireframes/spec.md and GitHub #349 / #350 / #351.
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Tasarım bağlamı: Screen life).
+ * (Tasarım bağlamı: Screen life, Presentation Mode, exact-version export).
  */
 
 import { readFile } from "node:fs/promises";
@@ -37,11 +37,14 @@ import {
 	createOutlineNode,
 	createScreen,
 	detachLinkedBlock,
+	exportWireframe,
+	followPresentationLink,
 	getExactWireframeVersion,
 	getPersonalViewport,
 	getScreen,
 	groupOutline,
 	listScreens,
+	openPresentationMode,
 	permanentlyDeleteScreen,
 	previewLinkedBlockChange,
 	reorderOutline,
@@ -92,6 +95,9 @@ const WIREFRAME_MASTER = /createWireframe|archiveWireframe|wireframeId/;
 const SHANTELL_SANS = /Shantell Sans/;
 const FORBIDDEN_ENGINE_IMPORT =
 	/from ["']@excalidraw|from ["']tldraw|from ["']@tiptap|from ["']prosemirror/;
+const HTML_NETWORK =
+	/https?:\/\/(?!www\.w3\.org)|fetch\s*\(|XMLHttpRequest|sendBeacon|analytics|gtag\(/i;
+const HTML_PRODUCT_URL = /cantiara\./i;
 const KONVA_STAGE = {
 	attrs: { width: 800 },
 	children: [],
@@ -989,6 +995,349 @@ describe("Screens and Wireframes", () => {
 		});
 		expect(live?.presentedNodes[0]?.text?.value).not.toBe("");
 		expect(SCREENS_COPY.broken).toBe("Broken");
+	});
+
+	it("opens Presentation Mode as a read-only prototype and keeps a broken target unresolved", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const checkout = await committedScreen(prisma, {
+			actorId,
+			idempotencyKey: "create-checkout-present",
+			projectId,
+			title: "Checkout",
+		});
+		const confirm = await committedScreen(prisma, {
+			actorId,
+			idempotencyKey: "create-confirm-present",
+			projectId,
+			title: "Confirm",
+		});
+		const decoy = await committedScreen(prisma, {
+			actorId,
+			idempotencyKey: "create-decoy-present",
+			projectId,
+			title: "Settings",
+		});
+		const savedCheckout = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: checkout.revision,
+			idempotencyKey: "checkout-link-v1",
+			origin: "human",
+			payload: {
+				document: {
+					animations: [
+						{
+							duration: WIREFRAME_DURATION.short,
+							id: "to-confirm",
+							kind: WIREFRAME_ANIMATION_KIND.screenTransition,
+							nodeId: "pay",
+							targetScreenId: confirm.id,
+						},
+					],
+					canvasTypeface: WIREFRAME_CANVAS_TYPEFACE,
+					nodes: [
+						{
+							geometry: { height: 40, width: 120, x: 16, y: 16 },
+							id: "pay",
+							kind: WIREFRAME_SEMANTIC_KIND.button,
+							label: "Pay",
+							seed: 3,
+							targetScreenId: confirm.id,
+						},
+					],
+					schema: "WireframeDocument",
+					schemaVersion: 1,
+				},
+				screenId: checkout.id,
+			},
+		});
+		expect(savedCheckout.status).toBe("committed");
+		const savedConfirm = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: confirm.revision,
+			idempotencyKey: "confirm-v1",
+			origin: "human",
+			payload: {
+				document: {
+					canvasTypeface: WIREFRAME_CANVAS_TYPEFACE,
+					nodes: [
+						{
+							geometry: { height: 40, width: 160, x: 8, y: 8 },
+							id: "done",
+							kind: WIREFRAME_SEMANTIC_KIND.card,
+							label: "Done",
+							seed: 4,
+						},
+					],
+					schema: "WireframeDocument",
+					schemaVersion: 1,
+				},
+				screenId: confirm.id,
+			},
+		});
+		expect(savedConfirm.status).toBe("committed");
+		if (savedConfirm.status !== "committed") {
+			throw new Error("expected confirm version");
+		}
+		const presenting = await openPresentationMode(prisma, {
+			pins: [
+				{ screenId: checkout.id, versionNumber: 1 },
+				{ screenId: confirm.id, versionNumber: 1 },
+			],
+			startScreenId: checkout.id,
+		});
+		expect(presenting.status).toBe("ok");
+		if (presenting.status !== "ok") {
+			throw new Error("expected presentation");
+		}
+		expect(presenting.mode).toBe(SCREENS_COPY.presentationMode);
+		expect(presenting.editing).toBe(false);
+		expect(presenting.toolsHidden).toBe(true);
+		expect(presenting.writes).toBe(false);
+		expect(presenting.currentScreenId).toBe(checkout.id);
+		const followed = followPresentationLink(presenting, "pay");
+		expect(followed.currentScreenId).toBe(confirm.id);
+		expect(followed.editing).toBe(false);
+		const deleted = await trashScreen(prisma, {
+			actorId,
+			baseRevision: savedConfirm.screen.revision,
+			idempotencyKey: "trash-confirm",
+			origin: "human",
+			payload: { screenId: confirm.id },
+		});
+		expect(deleted.status).toBe("committed");
+		if (deleted.status !== "committed") {
+			throw new Error("expected trash");
+		}
+		const gone = await permanentlyDeleteScreen(prisma, {
+			actorId,
+			baseRevision: deleted.screen.revision,
+			idempotencyKey: "delete-confirm",
+			origin: "human",
+			payload: { screenId: confirm.id },
+		});
+		expect(gone.status).toBe("committed");
+		const afterDelete = await openPresentationMode(prisma, {
+			pins: [
+				{ screenId: checkout.id, versionNumber: 1 },
+				{ screenId: confirm.id, versionNumber: 1 },
+			],
+			startScreenId: checkout.id,
+		});
+		expect(afterDelete.status).toBe("ok");
+		if (afterDelete.status !== "ok") {
+			throw new Error("expected presentation after delete");
+		}
+		const broken = followPresentationLink(afterDelete, "pay");
+		expect(broken.currentScreenId).toBe(checkout.id);
+		expect(broken.currentScreenId).not.toBe(decoy.id);
+		expect(broken.unresolvedTarget).toBe(true);
+		expect(broken.unresolvedLabel).toBe(SCREENS_COPY.unresolved);
+		expect(SCREENS_COPY.presentationMode).toBe("Presentation Mode");
+		expect(SCREENS_COPY.exitPresentationMode).toBe("Exit Presentation Mode");
+	});
+
+	it("exports PNG, SVG, PDF, and HTML from exact versions without writing the live document", async () => {
+		const { actorId, projectId } = await openPayments(prisma);
+		const checkout = await committedScreen(prisma, {
+			actorId,
+			idempotencyKey: "create-checkout-export",
+			projectId,
+			title: "Checkout",
+		});
+		const confirm = await committedScreen(prisma, {
+			actorId,
+			idempotencyKey: "create-confirm-export",
+			projectId,
+			title: "Confirm",
+		});
+		const v1 = {
+			animations: [
+				{
+					duration: WIREFRAME_DURATION.short,
+					id: "to-confirm",
+					kind: WIREFRAME_ANIMATION_KIND.screenTransition,
+					nodeId: "pay",
+					targetScreenId: confirm.id,
+				},
+			],
+			canvasTypeface: WIREFRAME_CANVAS_TYPEFACE,
+			nodes: [
+				{
+					geometry: { height: 40, width: 120, x: 16, y: 16 },
+					id: "pay",
+					kind: WIREFRAME_SEMANTIC_KIND.button,
+					label: "Pay",
+					seed: 3,
+					targetScreenId: confirm.id,
+				},
+				{
+					geometry: { height: 40, width: 80, x: 200, y: 16 },
+					id: "cancel",
+					kind: WIREFRAME_SEMANTIC_KIND.button,
+					label: "Cancel",
+					seed: 5,
+				},
+			],
+			schema: "WireframeDocument" as const,
+			schemaVersion: 1 as const,
+		};
+		const saved = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: checkout.revision,
+			idempotencyKey: "checkout-export-v1",
+			origin: "human",
+			payload: { document: v1, screenId: checkout.id },
+		});
+		expect(saved.status).toBe("committed");
+		if (saved.status !== "committed") {
+			throw new Error("expected v1");
+		}
+		const confirmSaved = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: confirm.revision,
+			idempotencyKey: "confirm-export-v1",
+			origin: "human",
+			payload: {
+				document: {
+					canvasTypeface: WIREFRAME_CANVAS_TYPEFACE,
+					nodes: [
+						{
+							geometry: { height: 24, width: 80, x: 8, y: 8 },
+							id: "done",
+							kind: WIREFRAME_SEMANTIC_KIND.card,
+							label: "Done",
+							seed: 1,
+						},
+					],
+					schema: "WireframeDocument",
+					schemaVersion: 1,
+				},
+				screenId: confirm.id,
+			},
+		});
+		expect(confirmSaved.status).toBe("committed");
+		const pins = [
+			{ screenId: checkout.id, versionNumber: 1 },
+			{ screenId: confirm.id, versionNumber: 1 },
+		];
+		const svg = await exportWireframe(prisma, {
+			format: SCREENS_COPY.svg,
+			pins,
+			selectionNodeIds: ["pay"],
+			startScreenId: checkout.id,
+		});
+		expect(svg.status).toBe("ok");
+		if (svg.status !== "ok") {
+			throw new Error("expected svg");
+		}
+		const svgText = new TextDecoder().decode(svg.bytes);
+		expect(svgText).toContain("Pay");
+		expect(svgText).not.toContain("Cancel");
+		expect(svgText).toContain("Shantell Sans");
+		expect(svgText).not.toContain("className");
+		expect(svg.liveDocumentWritten).toBe(false);
+		const png = await exportWireframe(prisma, {
+			format: SCREENS_COPY.png,
+			pins,
+			startScreenId: checkout.id,
+		});
+		expect(png.status).toBe("ok");
+		if (png.status !== "ok") {
+			throw new Error("expected png");
+		}
+		expect(png.bytes[0]).toBe(0x89);
+		expect(png.bytes[1]).toBe(0x50);
+		const pdf = await exportWireframe(prisma, {
+			format: SCREENS_COPY.pdf,
+			pins,
+			startScreenId: checkout.id,
+		});
+		expect(pdf.status).toBe("ok");
+		if (pdf.status !== "ok") {
+			throw new Error("expected pdf");
+		}
+		expect(new TextDecoder().decode(pdf.bytes).startsWith("%PDF")).toBe(true);
+		expect(pdf.manifest).toContain(checkout.id);
+		expect(pdf.manifest).toContain("Wireframe 1");
+		const html = await exportWireframe(prisma, {
+			format: SCREENS_COPY.html,
+			pins,
+			startScreenId: checkout.id,
+		});
+		expect(html.status).toBe("ok");
+		if (html.status !== "ok") {
+			throw new Error("expected html");
+		}
+		expect(html.html).toBeDefined();
+		expect(html.html).not.toMatch(HTML_NETWORK);
+		expect(html.html).not.toMatch(HTML_PRODUCT_URL);
+		expect(html.html).toContain(SCREENS_COPY.unresolved);
+		expect(html.manifest).toContain(checkout.title);
+		expect(html.manifest).toContain(confirm.title);
+		const again = await exportWireframe(prisma, {
+			format: SCREENS_COPY.html,
+			pins,
+			startScreenId: checkout.id,
+		});
+		expect(again.status).toBe("ok");
+		if (again.status !== "ok") {
+			throw new Error("expected html again");
+		}
+		expect(again.html).toBe(html.html);
+		const missingTarget = await exportWireframe(prisma, {
+			format: SCREENS_COPY.html,
+			pins: [{ screenId: checkout.id, versionNumber: 1 }],
+			startScreenId: checkout.id,
+		});
+		expect(missingTarget.status).toBe("ok");
+		if (missingTarget.status !== "ok") {
+			throw new Error("expected isolated html");
+		}
+		expect(missingTarget.html).toContain('data-link-status="unresolved"');
+		expect(missingTarget.html).not.toContain(`data-screen-id="${confirm.id}"`);
+		const liveBefore = await getExactWireframeVersion(prisma, {
+			screenId: checkout.id,
+			versionNumber: 1,
+		});
+		expect(liveBefore?.document.nodes).toHaveLength(2);
+		const v2 = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: saved.screen.revision,
+			idempotencyKey: "checkout-export-v2",
+			origin: "human",
+			payload: {
+				document: {
+					...v1,
+					nodes: [v1.nodes[0]],
+				},
+				screenId: checkout.id,
+			},
+		});
+		expect(v2.status).toBe("committed");
+		const pinnedExport = await exportWireframe(prisma, {
+			format: SCREENS_COPY.svg,
+			pins: [{ screenId: checkout.id, versionNumber: 1 }],
+			startScreenId: checkout.id,
+		});
+		expect(pinnedExport.status).toBe("ok");
+		if (pinnedExport.status !== "ok") {
+			throw new Error("expected pinned svg");
+		}
+		const pinnedSvg = new TextDecoder().decode(pinnedExport.bytes);
+		expect(pinnedSvg).toContain("Cancel");
+		const stillV1 = await getExactWireframeVersion(prisma, {
+			screenId: checkout.id,
+			versionNumber: 1,
+		});
+		expect(stillV1?.document.nodes).toHaveLength(2);
+		expect(stillV1?.document).toEqual(liveBefore?.document);
+		expect(
+			parseWireframeDocument({
+				attrs: {},
+				children: [],
+				className: "Stage",
+			})
+		).toEqual({ reason: "konva-json-not-durable", status: "rejected" });
 	});
 });
 

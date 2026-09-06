@@ -1035,7 +1035,7 @@ Seçili Proje Duvarı grubu veya bölgesinin tarihli PNG/PDF iç snapshot'ı; ca
 _Avoid_: Dış yüzey, Build in Public, onaylı snapshot revizyonu, canlı bağlantı
 
 **Wireframe yüzeyi**:
-Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir.
+Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Wireframe`, `Presentation Mode`, `Exit Presentation Mode`, `Unresolved`, `Export`, `PNG`, `SVG`, `PDF`, `HTML`.
 _Avoid_: Wireframe ana kaydı, Ekrandan bağımsız Wireframe
 
 **Bağlı Wireframe bloğu**:

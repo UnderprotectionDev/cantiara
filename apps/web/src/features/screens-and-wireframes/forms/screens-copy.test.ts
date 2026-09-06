@@ -12,6 +12,9 @@ describe("Screens copy", () => {
 		expect(SCREENS_COPY.detachLink).toBe("Detach Link");
 		expect(SCREENS_COPY.broken).toBe("Broken");
 		expect(SCREENS_COPY.button).toBe("Button");
+		expect(SCREENS_COPY.presentationMode).toBe("Presentation Mode");
+		expect(SCREENS_COPY.exitPresentationMode).toBe("Exit Presentation Mode");
+		expect(SCREENS_COPY.unresolved).toBe("Unresolved");
 		expect(SCREENS_COPY.fitView).toBe("Fit View");
 		expect(SCREENS_COPY.outline).toBe("Outline");
 		expect(SCREENS_COPY.openSourceRecord).toBe("Open Source Record");

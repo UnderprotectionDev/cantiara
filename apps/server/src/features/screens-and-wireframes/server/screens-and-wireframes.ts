@@ -40,11 +40,17 @@ import {
 	createOutlineNodeCommandSchema,
 	createScreenCommandSchema,
 	detachLinkedBlockCommandSchema,
+	type ExportWireframePayload,
+	exportWireframePayloadSchema,
 	groupOutlineCommandSchema,
 	type LinkedBlockPreviewOutcome,
 	type LinkedBlockView,
 	type LinkedBlockWriteOutcome,
+	openPresentationPayloadSchema,
 	type PermanentDeleteOutcome,
+	type PresentationOutcome,
+	type PresentationScreenView,
+	type PresentationView,
 	permanentlyDeleteScreenCommandSchema,
 	presentScreenLife,
 	reorderOutlineCommandSchema,
@@ -60,6 +66,7 @@ import {
 	saveWireframeVersionCommandSchema,
 	trashScreenCommandSchema,
 	unarchiveScreenCommandSchema,
+	type WireframeExportOutcome,
 	type WireframeVersionDocumentView,
 	type WireframeVersionView,
 } from "./screens-and-wireframes-model";
@@ -84,6 +91,11 @@ import {
 	presentWireframeDocument,
 	snapshotWireframeDocument,
 } from "./wireframe-present";
+import {
+	buildPresentationView,
+	exportFromExactScreens,
+	followPresentationLink as followLoadedPresentationLink,
+} from "./wireframe-prototype";
 
 type PrismaTransaction = ScreenDb;
 
@@ -882,6 +894,84 @@ export async function getExactWireframeVersion(
 		document: parsed.document,
 		presentedNodes: presented.presentedNodes,
 	};
+}
+
+export async function openPresentationMode(
+	prisma: PrismaClient,
+	input: unknown
+): Promise<PresentationOutcome> {
+	const parsed = openPresentationPayloadSchema.safeParse(input);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const screens = await loadPinnedScreens(prisma, parsed.data.pins);
+	const view = buildPresentationView({
+		currentScreenId: parsed.data.startScreenId,
+		screens,
+		startScreenId: parsed.data.startScreenId,
+	});
+	if ("status" in view) {
+		return view;
+	}
+	return { ...view, status: "ok" };
+}
+
+export function followPresentationLink(
+	view: PresentationView,
+	nodeId: string
+): PresentationView {
+	return followLoadedPresentationLink(view, nodeId);
+}
+
+export async function exportWireframe(
+	prisma: PrismaClient,
+	input: unknown
+): Promise<WireframeExportOutcome> {
+	const parsed = exportWireframePayloadSchema.safeParse(input);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	return await exportPinnedWireframe(prisma, parsed.data);
+}
+
+async function exportPinnedWireframe(
+	prisma: PrismaClient,
+	input: ExportWireframePayload
+): Promise<WireframeExportOutcome> {
+	const screens = await loadPinnedScreens(prisma, input.pins);
+	return await exportFromExactScreens({
+		format: input.format,
+		screens,
+		selectionNodeIds: input.selectionNodeIds,
+		startScreenId: input.startScreenId,
+	});
+}
+
+async function loadPinnedScreens(
+	prisma: PrismaClient,
+	pins: readonly { screenId: string; versionNumber: number }[]
+): Promise<PresentationScreenView[]> {
+	const loaded = await Promise.all(
+		[...pins]
+			.sort((left, right) => left.screenId.localeCompare(right.screenId))
+			.map(async (pin) => {
+				const version = await getExactWireframeVersion(prisma, pin);
+				if (!version) {
+					return null;
+				}
+				const screen = await findScreenRow(prisma, pin.screenId);
+				if (!screen) {
+					return null;
+				}
+				return {
+					document: version.document,
+					id: version.screenId,
+					title: screen.title,
+					versionNumber: version.versionNumber,
+				};
+			})
+	);
+	return loaded.filter((row) => row !== null);
 }
 
 export async function createLinkedBlock(

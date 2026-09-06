@@ -27,15 +27,21 @@ interface OutlineGroup {
 
 export default function WireframeSurface({
 	onChanged,
+	onSelectNode,
 	projectId,
 	revision,
 	screenId,
+	selectedNodeId,
+	toolsHidden,
 	versionNumber,
 }: {
 	onChanged: () => void;
+	onSelectNode?: (nodeId: string) => void;
 	projectId: string;
 	revision: number;
 	screenId: string;
+	selectedNodeId?: string | null;
+	toolsHidden?: boolean;
 	versionNumber: number | null;
 }) {
 	const version = useQuery({
@@ -177,13 +183,17 @@ export default function WireframeSurface({
 		[detach, revision, screenId]
 	);
 
-	const onToggleSelect = useCallback((nodeId: string) => {
-		setSelectedIds((current) =>
-			current.includes(nodeId)
-				? current.filter((id) => id !== nodeId)
-				: [...current, nodeId]
-		);
-	}, []);
+	const onToggleSelect = useCallback(
+		(nodeId: string) => {
+			setSelectedIds((current) =>
+				current.includes(nodeId)
+					? current.filter((id) => id !== nodeId)
+					: [...current, nodeId]
+			);
+			onSelectNode?.(nodeId);
+		},
+		[onSelectNode]
+	);
 
 	const onMove = useCallback(
 		(nodeId: string, direction: -1 | 1) => {
@@ -308,10 +318,16 @@ export default function WireframeSurface({
 			}
 			event.preventDefault();
 			if (applied.kind === "nudge") {
+				if (toolsHidden) {
+					return;
+				}
 				persistGeometry(applied.deltaX, applied.deltaY, null);
 				return;
 			}
 			if (applied.kind === "align") {
+				if (toolsHidden) {
+					return;
+				}
 				persistGeometry(0, 0, "left");
 				return;
 			}
@@ -335,10 +351,20 @@ export default function WireframeSurface({
 				zoom: applied.viewport.zoom,
 			});
 		},
-		[collapsed, nodes, persistGeometry, persistViewport, restored, selectedIds]
+		[
+			collapsed,
+			nodes,
+			persistGeometry,
+			persistViewport,
+			restored,
+			selectedIds,
+			toolsHidden,
+		]
 	);
 
-	const selectedNode = nodes.find((node) => node.id === selectedIds[0]);
+	const selectedNode = nodes.find(
+		(node) => node.id === (selectedIds[0] ?? selectedNodeId)
+	);
 	const scale = restored?.zoom ?? 1;
 	const translateX = -(restored?.centerX ?? 0);
 	const translateY = -(restored?.centerY ?? 0);
@@ -356,33 +382,37 @@ export default function WireframeSurface({
 		>
 			<div className="flex flex-wrap items-center justify-between gap-2">
 				<h3 className="font-medium text-sm">{SCREENS_COPY.wireframe}</h3>
+				{toolsHidden ? null : (
+					<div className="flex flex-wrap gap-2">
+						<Button onClick={onFitView} type="button" variant="outline">
+							{SCREENS_COPY.fitView}
+						</Button>
+						<Button
+							disabled={selectedIds.length === 0}
+							onClick={onGroup}
+							type="button"
+							variant="outline"
+						>
+							{SCREENS_COPY.group}
+						</Button>
+						<Button
+							disabled={selectedIds.length === 0 || !linkedBlocks.data?.[0]}
+							onClick={onBind}
+							type="button"
+							variant="outline"
+						>
+							{linkedBlocks.data?.[0]?.name ?? SCREENS_COPY.detachLink}
+						</Button>
+					</div>
+				)}
+			</div>
+			{toolsHidden ? null : (
 				<div className="flex flex-wrap gap-2">
-					<Button onClick={onFitView} type="button" variant="outline">
-						{SCREENS_COPY.fitView}
-					</Button>
-					<Button
-						disabled={selectedIds.length === 0}
-						onClick={onGroup}
-						type="button"
-						variant="outline"
-					>
-						{SCREENS_COPY.group}
-					</Button>
-					<Button
-						disabled={selectedIds.length === 0 || !linkedBlocks.data?.[0]}
-						onClick={onBind}
-						type="button"
-						variant="outline"
-					>
-						{linkedBlocks.data?.[0]?.name ?? SCREENS_COPY.detachLink}
+					<Button onClick={onAddButton} type="button" variant="outline">
+						{SCREENS_COPY.button}
 					</Button>
 				</div>
-			</div>
-			<div className="flex flex-wrap gap-2">
-				<Button onClick={onAddButton} type="button" variant="outline">
-					{SCREENS_COPY.button}
-				</Button>
-			</div>
+			)}
 			<div className="grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
 				<nav aria-label={SCREENS_COPY.outline}>
 					<h3 className="font-medium text-sm">{SCREENS_COPY.outline}</h3>
@@ -405,7 +435,9 @@ export default function WireframeSurface({
 									onToggleCollapse={onToggleCollapse}
 									onToggleSelect={onToggleSelect}
 									selectedIds={selectedIds}
+									selectedNodeId={selectedNodeId}
 									title={boardGroup.title}
+									toolsHidden={toolsHidden === true}
 								/>
 							))}
 							{nodes
@@ -417,7 +449,11 @@ export default function WireframeSurface({
 										onDetach={onDetach}
 										onMove={onMove}
 										onToggleSelect={onToggleSelect}
-										selected={selectedIds.includes(node.id)}
+										selected={
+											selectedIds.includes(node.id) ||
+											selectedNodeId === node.id
+										}
+										toolsHidden={toolsHidden === true}
 									/>
 								))}
 						</ul>
@@ -572,7 +608,9 @@ function OutlineGroupRow({
 	onToggleCollapse,
 	onToggleSelect,
 	selectedIds,
+	selectedNodeId,
 	title,
+	toolsHidden,
 }: {
 	collapsed: boolean;
 	id: string;
@@ -582,7 +620,9 @@ function OutlineGroupRow({
 	onToggleCollapse: (groupId: string) => void;
 	onToggleSelect: (nodeId: string) => void;
 	selectedIds: string[];
+	selectedNodeId?: string | null;
 	title: string;
+	toolsHidden: boolean;
 }) {
 	const onCollapse = useCallback(() => {
 		onToggleCollapse(id);
@@ -604,7 +644,10 @@ function OutlineGroupRow({
 							onDetach={onDetach}
 							onMove={onMove}
 							onToggleSelect={onToggleSelect}
-							selected={selectedIds.includes(node.id)}
+							selected={
+								selectedIds.includes(node.id) || selectedNodeId === node.id
+							}
+							toolsHidden={toolsHidden}
 						/>
 					))}
 				</ul>
@@ -619,12 +662,14 @@ function OutlineNodeRow({
 	onMove,
 	onToggleSelect,
 	selected,
+	toolsHidden,
 }: {
 	node: OutlineNode;
 	onDetach: (nodeId: string) => void;
 	onMove: (nodeId: string, direction: -1 | 1) => void;
 	onToggleSelect: (nodeId: string) => void;
 	selected: boolean;
+	toolsHidden: boolean;
 }) {
 	const onSelect = useCallback(() => {
 		onToggleSelect(node.id);
@@ -651,17 +696,26 @@ function OutlineNodeRow({
 				>
 					{node.label ?? node.kind}
 				</Button>
-				<Button onClick={onUp} size="sm" type="button" variant="ghost">
-					{SCREENS_COPY.moveUp}
-				</Button>
-				<Button onClick={onDown} size="sm" type="button" variant="ghost">
-					{SCREENS_COPY.moveDown}
-				</Button>
-				{node.linkedBlockId ? (
-					<Button onClick={onUnbind} size="sm" type="button" variant="outline">
-						{SCREENS_COPY.detachLink}
-					</Button>
-				) : null}
+				{toolsHidden ? null : (
+					<>
+						<Button onClick={onUp} size="sm" type="button" variant="ghost">
+							{SCREENS_COPY.moveUp}
+						</Button>
+						<Button onClick={onDown} size="sm" type="button" variant="ghost">
+							{SCREENS_COPY.moveDown}
+						</Button>
+						{node.linkedBlockId ? (
+							<Button
+								onClick={onUnbind}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								{SCREENS_COPY.detachLink}
+							</Button>
+						) : null}
+					</>
+				)}
 				{node.openHref ? (
 					<a className="text-sm underline" href={node.openHref}>
 						{node.openSourceRecord}
