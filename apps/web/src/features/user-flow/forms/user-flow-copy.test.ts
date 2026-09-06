@@ -13,6 +13,11 @@ test("English User Flow labels stay the closed semantic set and Fit View", () =>
 	expect(USER_FLOW_COPY.section).toBe("Section");
 	expect(USER_FLOW_COPY.fitView).toBe("Fit View");
 	expect(USER_FLOW_COPY.undo).toBe("Undo");
+	expect(USER_FLOW_COPY.convertAndBind).toBe("Convert and Bind");
+	expect(USER_FLOW_COPY.originLocation).toBe("Origin Location");
+	expect(USER_FLOW_COPY.promoteToScreen).toBe("Promote to Screen");
+	expect(USER_FLOW_COPY.saveAsTemplate).toBe("Save as template");
+	expect(USER_FLOW_COPY.createFromTemplate).toBe("Create from template");
 	expect(FLOW_NODE_KINDS).toEqual([
 		"Screen",
 		"Action",

@@ -113,6 +113,7 @@ export function alignNodes(
 	const nextX = xForAlign(axis, { centerX, left, right });
 	const nextY = yForAlign(axis, { bottom, middleY, top });
 	return {
+		...document,
 		nodes: document.nodes.map((node) => {
 			if (!nodeIds.includes(node.id)) {
 				return node;
@@ -188,6 +189,7 @@ export function orderZ(
 		}
 	}
 	return {
+		...document,
 		nodes: document.nodes.map((node) => {
 			const z = nextZ.get(node.id);
 			if (z === undefined) {
@@ -208,6 +210,7 @@ export function snapToGrid(
 ): FlowDocument {
 	const selected = new Set(nodeIds);
 	return {
+		...document,
 		nodes: document.nodes.map((node) => {
 			if (!selected.has(node.id)) {
 				return node;
@@ -232,6 +235,7 @@ export function moveNodes(
 ): FlowDocument {
 	const selected = new Set(nodeIds);
 	return {
+		...document,
 		nodes: document.nodes.map((node) => {
 			if (!selected.has(node.id)) {
 				return node;
@@ -269,7 +273,7 @@ export function duplicateNodes(
 			},
 		});
 	}
-	return { nodes: [...document.nodes, ...copies] };
+	return { ...document, nodes: [...document.nodes, ...copies] };
 }
 
 export function fitViewFrame(

@@ -15,13 +15,36 @@ import {
 	placeScreenNode,
 	updateNodePathText,
 } from "./user-flow";
+import {
+	convertAndBind,
+	instantiateUserFlowTemplate,
+	listUserFlowTemplates,
+	moveLiveCard,
+	placeLiveCard,
+	previewConvertAndBind,
+	previewRebindOrigin,
+	promoteStepToScreen,
+	rebindOrigin,
+	removeLiveCard,
+	saveUserFlowTemplate,
+} from "./user-flow-bind";
 import { userFlowCatalog } from "./user-flow-editor";
 import {
 	applyEditorOpPayloadSchema,
+	convertAndBindPayloadSchema,
 	createScreenPayloadSchema,
 	createUserFlowPayloadSchema,
+	instantiateUserFlowTemplatePayloadSchema,
+	moveLiveCardPayloadSchema,
 	placeFlowNodePayloadSchema,
+	placeLiveCardPayloadSchema,
 	placeScreenNodePayloadSchema,
+	previewConvertAndBindInputSchema,
+	previewRebindOriginInputSchema,
+	promoteStepToScreenPayloadSchema,
+	rebindOriginPayloadSchema,
+	removeLiveCardPayloadSchema,
+	saveUserFlowTemplatePayloadSchema,
 	updateNodePathTextPayloadSchema,
 } from "./user-flow-model";
 
@@ -69,6 +92,34 @@ export const userFlow = {
 			});
 		}),
 	catalog: protectedProcedure.handler(() => userFlowCatalog()),
+	convertAndBind: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: convertAndBindPayloadSchema,
+				previewAcknowledged: z.boolean(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const flow = await getUserFlow(getPrismaClient(), {
+				userFlowId: input.payload.userFlowId,
+				workspaceId: access.workspaceId,
+			});
+			if (!flow) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, flow.projectId);
+			return await convertAndBind(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				previewAcknowledged: input.previewAcknowledged,
+			});
+		}),
 	create: protectedWriteProcedure
 		.input(
 			z.object({
@@ -117,6 +168,23 @@ export const userFlow = {
 			await requireProject(access.workspaceId, flow.projectId);
 			return flow;
 		}),
+	instantiateTemplate: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: instantiateUserFlowTemplatePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.payload.projectId);
+			return await instantiateUserFlowTemplate(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	list: protectedProcedure
 		.input(z.object({ projectId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -133,6 +201,36 @@ export const userFlow = {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
 			return await listScreensForProject(getPrismaClient(), input.projectId);
+		}),
+	listTemplates: protectedProcedure.handler(async ({ context }) => {
+		const access = await requireAccess(context.session.user.id);
+		return await listUserFlowTemplates(getPrismaClient(), access.workspaceId);
+	}),
+	moveLiveCard: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: moveLiveCardPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const flow = await getUserFlow(getPrismaClient(), {
+				userFlowId: input.payload.userFlowId,
+				workspaceId: access.workspaceId,
+			});
+			if (!flow) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, flow.projectId);
+			return await moveLiveCard(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
 		}),
 	placeFlowNode: protectedWriteProcedure
 		.input(
@@ -153,6 +251,32 @@ export const userFlow = {
 			}
 			await requireProject(access.workspaceId, flow.projectId);
 			return await placeFlowNode(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	placeLiveCard: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: placeLiveCardPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const flow = await getUserFlow(getPrismaClient(), {
+				userFlowId: input.payload.userFlowId,
+				workspaceId: access.workspaceId,
+			});
+			if (!flow) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, flow.projectId);
+			return await placeLiveCard(getPrismaClient(), {
 				actorId: context.session.user.id,
 				baseRevision: input.baseRevision,
 				idempotencyKey: input.idempotencyKey,
@@ -181,6 +305,118 @@ export const userFlow = {
 			return await placeScreenNode(getPrismaClient(), {
 				actorId: context.session.user.id,
 				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	previewConvertAndBind: protectedProcedure
+		.input(previewConvertAndBindInputSchema.omit({ workspaceId: true }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await previewConvertAndBind(getPrismaClient(), {
+				...input,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	previewRebindOrigin: protectedProcedure
+		.input(previewRebindOriginInputSchema.omit({ workspaceId: true }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await previewRebindOrigin(getPrismaClient(), {
+				...input,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	promoteStepToScreen: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: promoteStepToScreenPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const flow = await getUserFlow(getPrismaClient(), {
+				userFlowId: input.payload.userFlowId,
+				workspaceId: access.workspaceId,
+			});
+			if (!flow) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, flow.projectId);
+			return await promoteStepToScreen(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	rebindOrigin: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: rebindOriginPayloadSchema,
+				previewAcknowledged: z.boolean(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await requireAccess(context.session.user.id);
+			return await rebindOrigin(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				previewAcknowledged: input.previewAcknowledged,
+			});
+		}),
+	removeLiveCard: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: removeLiveCardPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const flow = await getUserFlow(getPrismaClient(), {
+				userFlowId: input.payload.userFlowId,
+				workspaceId: access.workspaceId,
+			});
+			if (!flow) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, flow.projectId);
+			return await removeLiveCard(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	saveTemplate: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: saveUserFlowTemplatePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const flow = await getUserFlow(getPrismaClient(), {
+				userFlowId: input.payload.userFlowId,
+				workspaceId: access.workspaceId,
+			});
+			if (!flow) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, flow.projectId);
+			return await saveUserFlowTemplate(getPrismaClient(), {
+				actorId: context.session.user.id,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				payload: input.payload,

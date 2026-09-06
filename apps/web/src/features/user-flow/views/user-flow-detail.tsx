@@ -15,7 +15,9 @@ import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
 import UserFlowCanvas from "../components/user-flow-canvas";
+import ConvertAndBindForm from "../forms/convert-and-bind-form";
 import CreateScreenForm from "../forms/create-screen-form";
+import SaveUserFlowTemplateForm from "../forms/save-user-flow-template-form";
 import { FLOW_NODE_KINDS, USER_FLOW_COPY } from "../forms/user-flow-copy";
 
 interface PresentedNode {
@@ -40,14 +42,26 @@ interface PresentedNode {
 	visualStyle: { emphasis: string } | null;
 }
 
+interface PresentedLiveCard {
+	id: string;
+	layout: { x: number; y: number; z: number };
+	recordId: string;
+	recordKind: string;
+	status: string | null;
+	title: string;
+}
+
 interface UserFlowDetailView {
 	copy: {
 		archived: string;
+		convertAndBind: string;
 		fitView: string;
 		openSourceRecord: string;
+		promoteToScreen: string;
 		userFlow: string;
 	};
 	id: string;
+	liveCards: PresentedLiveCard[];
 	nodes: PresentedNode[];
 	revision: number;
 	title: string;
@@ -105,6 +119,11 @@ export default function UserFlowDetail({
 	);
 	const editorOp = useMutation(
 		orpc.userFlow.applyEditorOp.mutationOptions({
+			onSuccess: onOutcome,
+		})
+	);
+	const promote = useMutation(
+		orpc.userFlow.promoteStepToScreen.mutationOptions({
 			onSuccess: onOutcome,
 		})
 	);
@@ -195,6 +214,19 @@ export default function UserFlowDetail({
 		},
 		[runOp]
 	);
+	const onPromote = useCallback(
+		(nodeId: string) => {
+			if (!flow.data) {
+				return;
+			}
+			promote.mutate({
+				baseRevision: flow.data.revision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: { nodeId, userFlowId: flowId },
+			});
+		},
+		[flow.data, flowId, promote]
+	);
 
 	const onKindChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
 		setKind(event.target.value as (typeof FLOW_NODE_KINDS)[number]);
@@ -235,6 +267,9 @@ export default function UserFlowDetail({
 			<p className="text-muted-foreground text-sm">{view.copy.userFlow}</p>
 			<div className="mt-4">
 				<CreateScreenForm projectId={projectId} />
+			</div>
+			<div className="mt-4">
+				<SaveUserFlowTemplateForm userFlowId={flowId} />
 			</div>
 			<form className="mt-4 flex flex-col gap-3" onSubmit={onPlace}>
 				<FieldGroup>
@@ -335,9 +370,52 @@ export default function UserFlowDetail({
 								{node.openSourceRecord}
 							</a>
 						) : null}
+						<div className="mt-2 flex flex-wrap gap-2">
+							<ConvertAndBindForm
+								baseRevision={view.revision}
+								nodeId={node.id}
+								onConverted={invalidate}
+								userFlowId={flowId}
+							/>
+							{node.kind === USER_FLOW_COPY.screen ? null : (
+								<PromoteNodeButton nodeId={node.id} onPromote={onPromote} />
+							)}
+						</div>
 					</li>
 				))}
 			</ul>
+			{view.liveCards.length > 0 ? (
+				<ul className="mt-6 flex flex-col gap-2">
+					{view.liveCards.map((card) => (
+						<li className="rounded-md border p-3" key={card.id}>
+							<p>
+								{card.recordKind} · {card.title}
+								{card.status ? ` · ${card.status}` : null}
+							</p>
+							<p className="text-muted-foreground text-sm">
+								{USER_FLOW_COPY.openSourceRecord}
+							</p>
+						</li>
+					))}
+				</ul>
+			) : null}
 		</article>
+	);
+}
+
+function PromoteNodeButton({
+	nodeId,
+	onPromote,
+}: {
+	nodeId: string;
+	onPromote: (nodeId: string) => void;
+}) {
+	const onClick = useCallback(() => {
+		onPromote(nodeId);
+	}, [nodeId, onPromote]);
+	return (
+		<Button onClick={onClick} type="button" variant="outline">
+			{USER_FLOW_COPY.promoteToScreen}
+		</Button>
 	);
 }

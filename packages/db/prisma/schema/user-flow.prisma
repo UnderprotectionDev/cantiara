@@ -26,3 +26,17 @@ model UserFlowVersion {
   @@index([userFlowId])
   @@map("user_flow_version")
 }
+
+model UserFlowTemplate {
+  id          String    @id
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  structure   String
+  revision    Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId])
+  @@map("user_flow_template")
+}

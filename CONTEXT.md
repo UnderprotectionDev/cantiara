@@ -1011,7 +1011,23 @@ _Avoid_: Wireframe kaydı, Ekran bileşeni, flow node'u
 
 **Kullanıcı Akışı**:
 Kullanıcının arayüz hedefi ve karar yolunu canlı Ekran referanslarıyla taşıyan tasarım ana kaydı; Ekran kopyası, teknik sıra veya durum makinesi değildir.
+UI: `User Flow`, `Convert and Bind`, `Fit View`, `Open Source Record`, `Archived`, `Promote to Screen`
 _Avoid_: Wireframe belgesi, Teknik Sıra, flowchart
+
+**Kayda dönüştür ve bağla**:
+Kullanıcı Akışı düğümünden önizleme ve onayla tam olarak bir İş, Karar, Risk veya Açık Soru açan eylem; Ekran üretmez ve düğümü silmez.
+UI: `Convert and Bind`, `Origin Location`, `Origin`, `Confirm`
+_Avoid_: Convert to Screen, sessiz kayıt üretimi
+
+**Akış şablonu**:
+Kullanıcı Akışı yapısı ve yer tutucuları taşıyan damga; kaynak Projenin İş, Karar, ilişki, yayın veya geçmişini ve canlı bağını taşımaz.
+UI: `Save as template`, `Create from template`
+_Avoid_: live-bound template, kaynak akış kopyası
+
+**Canlı kart**:
+Kullanıcı Akışı tuvaline konan salt okunur İş, Karar veya Risk görünümü; taşımak veya kaldırmak kaynak kaydı yazmaz.
+UI: `Open Source Record`
+_Avoid_: kopya İş, smart-zone
 
 **Akış öğesi**:
 Kullanıcı Akışındaki kapalı semantik küme üyesi; ürün anlamı yalnız `Screen`, `Action`, `Decision`, `State/Outcome` veya `Section` taşır, şekil ya da renk taşımaz.
