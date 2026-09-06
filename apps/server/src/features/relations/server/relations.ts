@@ -1217,27 +1217,55 @@ async function presentRelation(
 	const ownerKind = row.originOwnerKind
 		? parseRecordKind(row.originOwnerKind)
 		: null;
+	const originLocation = await presentOriginLocation(db, {
+		componentId: row.originComponentId,
+		missing: row.originComponentMissing,
+		ownerId: row.originOwnerId,
+		ownerKind,
+		sourceVersion: row.originSourceVersion,
+	});
 	return {
 		establishedAt,
 		from,
 		id: row.id,
-		originLocation:
-			row.originComponentId &&
-			row.originOwnerId &&
-			ownerKind &&
-			row.originSourceVersion
-				? {
-						componentId: row.originComponentId,
-						missing: row.originComponentMissing,
-						ownerId: row.originOwnerId,
-						ownerKind,
-						sourceVersion: row.originSourceVersion,
-					}
-				: null,
+		originLocation,
 		to,
 		type,
 		typeLabelFrom: inverseTypeLabel(type, "from"),
 		typeLabelTo: inverseTypeLabel(type, "to"),
+	};
+}
+
+async function presentOriginLocation(
+	db: PrismaClient | PrismaTransaction,
+	row: {
+		componentId: string | null;
+		missing: boolean;
+		ownerId: string | null;
+		ownerKind: RecordKind | null;
+		sourceVersion: string | null;
+	}
+): Promise<OriginLocationView | null> {
+	if (!(row.componentId && row.ownerId && row.ownerKind && row.sourceVersion)) {
+		return null;
+	}
+	let { missing } = row;
+	if (row.ownerKind === "Screen" && !missing) {
+		const { wireframeOriginComponentExists } = await import(
+			"../../screens-and-wireframes/server/wireframe-origin"
+		);
+		missing = !(await wireframeOriginComponentExists(db, {
+			componentId: row.componentId,
+			ownerId: row.ownerId,
+			sourceVersion: row.sourceVersion,
+		}));
+	}
+	return {
+		componentId: row.componentId,
+		missing,
+		ownerId: row.ownerId,
+		ownerKind: row.ownerKind,
+		sourceVersion: row.sourceVersion,
 	};
 }
 

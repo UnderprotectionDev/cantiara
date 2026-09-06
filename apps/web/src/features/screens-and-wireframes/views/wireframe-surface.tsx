@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { Layer, Rect, Stage, Text } from "react-konva";
 
+import ConvertAndBindForm from "@/features/screens-and-wireframes/forms/convert-and-bind-form";
 import { SCREENS_COPY } from "@/features/screens-and-wireframes/forms/screens-copy";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -33,7 +34,7 @@ export default function WireframeSurface({
 	const saveVersion = useMutation(
 		orpc.screensAndWireframes.saveVersion.mutationOptions({
 			onSuccess: () => {
-				invalidate(projectId, screenId).catch(() => undefined);
+				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
 				onChanged();
 			},
 		})
@@ -41,7 +42,7 @@ export default function WireframeSurface({
 	const detach = useMutation(
 		orpc.screensAndWireframes.detachLinkedBlock.mutationOptions({
 			onSuccess: () => {
-				invalidate(projectId, screenId).catch(() => undefined);
+				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
 				onChanged();
 			},
 		})
@@ -140,6 +141,18 @@ export default function WireframeSurface({
 						{node.linkedBlockId ? (
 							<DetachButton nodeId={node.id} onDetach={onDetach} />
 						) : null}
+						{versionNumber !== null && !node.liveRecord ? (
+							<ConvertAndBindForm
+								nodeId={node.id}
+								onConverted={onChanged}
+								projectId={projectId}
+								screenId={screenId}
+								versionNumber={versionNumber}
+							/>
+						) : null}
+						{node.liveRecord ? (
+							<span>{SCREENS_COPY.openSourceRecord}</span>
+						) : null}
 					</li>
 				))}
 			</ul>
@@ -164,7 +177,11 @@ function DetachButton({
 	);
 }
 
-async function invalidate(projectId: string, screenId: string): Promise<void> {
+async function invalidate(
+	projectId: string,
+	screenId: string,
+	versionNumber: number | null
+): Promise<void> {
 	await queryClient.invalidateQueries({
 		queryKey: orpc.screensAndWireframes.list.queryKey({
 			input: { projectId },
@@ -175,9 +192,12 @@ async function invalidate(projectId: string, screenId: string): Promise<void> {
 			input: { screenId },
 		}),
 	});
+	if (versionNumber === null) {
+		return;
+	}
 	await queryClient.invalidateQueries({
 		queryKey: orpc.screensAndWireframes.getVersion.queryKey({
-			input: { overlayCurrent: true, screenId },
+			input: { overlayCurrent: true, screenId, versionNumber },
 		}),
 	});
 }

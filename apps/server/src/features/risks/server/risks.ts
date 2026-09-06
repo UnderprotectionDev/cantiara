@@ -84,6 +84,22 @@ export async function createRisk(
 	);
 }
 
+export async function createRiskInTransaction(
+	tx: PrismaTransaction,
+	command: unknown
+): Promise<RiskWriteOutcome> {
+	const parsed = createRiskCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await createInTransaction(tx, parsed.data, commandKey, fingerprint);
+}
+
 export async function setRiskStatus(
 	prisma: PrismaClient,
 	command: unknown

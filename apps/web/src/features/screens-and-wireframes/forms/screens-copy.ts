@@ -2,10 +2,14 @@ export const SCREENS_COPY = {
 	active: "Active",
 	archive: "Archive",
 	archived: "Archived",
+	body: "Body",
 	broken: "Broken",
 	button: "Button",
 	card: "Card",
 	chart: "Chart",
+	confirm: "Confirm",
+	convertAndBind: "Convert and Bind",
+	createFromTemplate: "Create from template",
 	createScreen: "Create Screen",
 	deletePermanently: "Permanently Delete",
 	detachLink: "Detach Link",
@@ -17,8 +21,13 @@ export const SCREENS_COPY = {
 	navigation: "Navigation",
 	noScreens: "No Screens yet.",
 	noScreensInTrash: "No Screens in Trash.",
+	openSourceRecord: "Open Source Record",
+	origin: "Origin",
+	originLocation: "Origin Location",
 	restore: "Restore",
+	saveAsTemplate: "Save as template",
 	screen: "Screen",
+	sourceItemIsGone: "Source item is gone",
 	table: "Table",
 	text: "Text",
 	title: "Title",
@@ -27,3 +36,12 @@ export const SCREENS_COPY = {
 	unavailable: "Screen could not be created.",
 	wireframe: "Wireframe",
 } as const;
+
+export const CONVERT_RECORD_KINDS = [
+	"Work",
+	"Decision",
+	"Risk",
+	"Open Question",
+] as const;
+
+export type ConvertRecordKind = (typeof CONVERT_RECORD_KINDS)[number];

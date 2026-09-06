@@ -76,6 +76,7 @@ export interface PresentedNode {
 	kind: string;
 	label?: string;
 	linkedBlockId?: string;
+	liveRecord?: { id: string; kind: "Work" | "Decision" | "Risk" };
 	text?: {
 		liveSourcePath: { documentId: string; sectionId: string } | null;
 		status: "broken" | "ok";
@@ -97,6 +98,7 @@ async function presentNode(
 				kind: node.kind,
 				label: node.label,
 				linkedBlockId: node.linkedBlockId,
+				liveRecord: node.liveRecord,
 			},
 		};
 	}
@@ -114,6 +116,7 @@ async function presentNode(
 			kind: node.kind,
 			label: node.label,
 			linkedBlockId: node.linkedBlockId,
+			liveRecord: node.liveRecord,
 			text,
 		},
 	};

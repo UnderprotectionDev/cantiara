@@ -70,6 +70,13 @@ export const wireframeTextSchema = z.discriminatedUnion("mode", [
 
 export type WireframeText = z.infer<typeof wireframeTextSchema>;
 
+export const wireframeLiveRecordSchema = z.object({
+	id: z.string().min(1),
+	kind: z.enum(["Work", "Decision", "Risk"]),
+});
+
+export type WireframeLiveRecord = z.infer<typeof wireframeLiveRecordSchema>;
+
 export const wireframeNodeSchema = z
 	.object({
 		geometry: wireframeGeometrySchema,
@@ -77,6 +84,7 @@ export const wireframeNodeSchema = z
 		kind: semanticKindSchema,
 		label: z.string().optional(),
 		linkedBlockId: z.string().min(1).optional(),
+		liveRecord: wireframeLiveRecordSchema.optional(),
 		seed: z.number().int(),
 		text: wireframeTextSchema.optional(),
 	})

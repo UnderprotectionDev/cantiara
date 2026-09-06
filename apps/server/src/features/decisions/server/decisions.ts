@@ -338,6 +338,31 @@ async function writeCreate(
 	);
 }
 
+export async function createDecisionInTransaction(
+	tx: PrismaTransaction,
+	command: unknown
+): Promise<DecisionWriteOutcome> {
+	const parsed = createDecisionCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint({
+		...parsed.data.payload,
+		life: DECISION_LIFE.valid,
+	});
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await createInTransaction(
+		tx,
+		parsed.data,
+		commandKey,
+		fingerprint,
+		DECISION_LIFE.valid
+	);
+}
+
 async function createInTransaction(
 	tx: PrismaTransaction,
 	command: CreateDecisionCommand,

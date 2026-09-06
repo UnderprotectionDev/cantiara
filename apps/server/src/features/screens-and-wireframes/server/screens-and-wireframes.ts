@@ -30,6 +30,7 @@ import {
 	type ScreenRow,
 	updateScreenRow,
 } from "./screen-store";
+import { stampedTemplateDocument } from "./screens-and-wireframes-convert";
 import {
 	type AffectedScreenPreview,
 	type ArchiveScreenCommand,
@@ -38,10 +39,12 @@ import {
 	type CreateScreenCommand,
 	createLinkedBlockCommandSchema,
 	createScreenCommandSchema,
+	createScreenFromWireframeTemplateCommandSchema,
 	detachLinkedBlockCommandSchema,
 	type LinkedBlockPreviewOutcome,
 	type LinkedBlockView,
 	type LinkedBlockWriteOutcome,
+	moveLiveCardCommandSchema,
 	type PermanentDeleteOutcome,
 	permanentlyDeleteScreenCommandSchema,
 	presentScreenLife,
@@ -602,6 +605,92 @@ function toVersionView(row: {
 		screenId: row.screenId,
 		versionNumber: row.versionNumber,
 	};
+}
+
+export async function moveLiveCard(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ScreenWriteOutcome> {
+	const parsed = moveLiveCardCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const screen = await getScreen(prisma, parsed.data.payload.screenId);
+	if (!screen) {
+		return { reason: "screen-not-found", status: "rejected" };
+	}
+	const latest = screen.versions.at(-1);
+	if (!latest) {
+		return { reason: "version-not-found", status: "rejected" };
+	}
+	const version = await getExactWireframeVersion(prisma, {
+		screenId: screen.id,
+		versionNumber: latest.versionNumber,
+	});
+	if (!version) {
+		return { reason: "version-not-found", status: "rejected" };
+	}
+	const node = version.document.nodes.find(
+		(item) => item.id === parsed.data.payload.nodeId
+	);
+	if (!node?.liveRecord) {
+		return { reason: "live-card-not-found", status: "rejected" };
+	}
+	const nextNodes = version.document.nodes.map((item) =>
+		item.id === node.id
+			? { ...item, geometry: parsed.data.payload.geometry }
+			: item
+	);
+	return await saveExactWireframeVersion(prisma, {
+		actorId: parsed.data.actorId,
+		baseRevision: parsed.data.baseRevision,
+		idempotencyKey: parsed.data.idempotencyKey,
+		origin: HUMAN_ORIGIN,
+		payload: {
+			document: { ...version.document, nodes: nextNodes },
+			screenId: screen.id,
+		},
+	});
+}
+
+export async function createScreenFromWireframeTemplate(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ScreenWriteOutcome> {
+	const parsed =
+		createScreenFromWireframeTemplateCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const stamped = await stampedTemplateDocument(
+		prisma,
+		parsed.data.payload.templateId
+	);
+	if (stamped.status !== "ok") {
+		return stamped;
+	}
+	const created = await createScreen(prisma, {
+		actorId: parsed.data.actorId,
+		idempotencyKey: `${parsed.data.idempotencyKey}:screen`,
+		origin: HUMAN_ORIGIN,
+		payload: {
+			projectId: parsed.data.payload.projectId,
+			title: parsed.data.payload.title,
+		},
+	});
+	if (created.status !== "committed" && created.status !== "replayed") {
+		return created;
+	}
+	return await saveExactWireframeVersion(prisma, {
+		actorId: parsed.data.actorId,
+		baseRevision: created.screen.revision,
+		idempotencyKey: `${parsed.data.idempotencyKey}:version`,
+		origin: HUMAN_ORIGIN,
+		payload: {
+			document: stamped.document,
+			screenId: created.screen.id,
+		},
+	});
 }
 
 export async function listLinkedBlocks(
