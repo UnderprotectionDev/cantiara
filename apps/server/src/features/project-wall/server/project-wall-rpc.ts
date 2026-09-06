@@ -9,12 +9,14 @@ import {
 	createProjectWall,
 	getProjectWall,
 	listProjectWalls,
+	materializeStarterSkeletonWalls,
 	placeLiveCard,
 	updateCardDensity,
 	updateCardLayout,
 } from "./project-wall";
 import {
 	createProjectWallPayloadSchema,
+	materializeStarterSkeletonWallsPayloadSchema,
 	placeLiveCardPayloadSchema,
 	projectWallCatalog,
 	updateCardDensityPayloadSchema,
@@ -79,6 +81,24 @@ export const projectWall = {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
 			return await listProjectWalls(getPrismaClient(), input.projectId);
+		}),
+	materializeStarterSkeletons: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: materializeStarterSkeletonWallsPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.payload.projectId);
+			return await materializeStarterSkeletonWalls(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
+			});
 		}),
 	placeLiveCard: protectedWriteProcedure
 		.input(

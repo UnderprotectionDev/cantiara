@@ -1,6 +1,7 @@
 export const PROJECT_WALL_COPY = {
 	compact: "Compact",
 	createProjectWall: "Create Project Wall",
+	customerJourney: "Customer Journey",
 	detailed: "Detailed",
 	name: "Name",
 	noProjectWall: "No Project Wall yet.",
@@ -8,6 +9,7 @@ export const PROJECT_WALL_COPY = {
 	placeLiveCard: "Place live card",
 	preview: "Preview",
 	projectWall: "Project Wall",
+	sitemap: "Sitemap",
 } as const;
 
 export const PROJECT_WALL_DENSITIES = [

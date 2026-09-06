@@ -1,10 +1,11 @@
 import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
 import { Spinner } from "@cantiara/ui/components/spinner";
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useState } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
-import { orpc } from "@/utils/orpc";
+import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
+import { orpc, queryClient } from "@/utils/orpc";
 
 import CreateProjectWallForm from "./create-project-wall-form";
 import ProjectWallCanvas from "./project-wall-canvas";
@@ -17,7 +18,31 @@ export default function ProjectWallArea({
 	onOpenSourceRecord?: (sourceId: string) => void;
 	projectId: string;
 }) {
+	const { attemptOnlineWork } = useClientShell();
 	const [selectedId, setSelectedId] = useState<string | null>(null);
+	const materialize = useMutation(
+		orpc.projectWall.materializeStarterSkeletons.mutationOptions({
+			onSuccess: async () => {
+				await queryClient.invalidateQueries({
+					queryKey: orpc.projectWall.list.queryKey({
+						input: { projectId },
+					}),
+				});
+			},
+		})
+	);
+	useEffect(() => {
+		const result = attemptOnlineWork("record-create", () =>
+			materialize.mutateAsync({
+				idempotencyKey: `starter-skeleton-walls:${projectId}`,
+				payload: { projectId },
+			})
+		);
+		if (result.status === "refused") {
+			return;
+		}
+		result.value.catch(() => undefined);
+	}, [attemptOnlineWork, materialize.mutateAsync, projectId]);
 	const walls = useQuery(
 		orpc.projectWall.list.queryOptions({ input: { projectId } })
 	);
