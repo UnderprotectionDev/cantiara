@@ -476,12 +476,13 @@ export default function UserFlowDetail({
 				onMove={onMove}
 				onOutlineMove={onOutlineMove}
 				onPersistViewport={onPersistViewport}
+				onSelectedIdsChange={setSelectedIds}
 				onToggleCollapse={onToggleCollapse}
 				onToggleSelect={onToggleSelect}
 				onUnbind={onUnbind}
 				onUndo={onUndo}
 				onZOrder={onZOrder}
-				restoredViewport={viewport.data?.viewport ?? null}
+				restored={viewport.data ?? null}
 				selectedIds={selectedIds}
 				view={view}
 			/>
@@ -500,12 +501,13 @@ function UserFlowSurface({
 	onMove,
 	onOutlineMove,
 	onPersistViewport,
+	onSelectedIdsChange,
 	onToggleCollapse,
 	onToggleSelect,
 	onUnbind,
 	onUndo,
 	onZOrder,
-	restoredViewport,
+	restored,
 	selectedIds,
 	view,
 }: {
@@ -523,12 +525,16 @@ function UserFlowSurface({
 		centerY: number;
 		zoom: number;
 	}) => void;
+	onSelectedIdsChange: (nodeIds: string[]) => void;
 	onToggleCollapse: (groupId: string) => void;
 	onToggleSelect: (nodeId: string) => void;
 	onUnbind: () => void;
 	onUndo: () => void;
 	onZOrder: (nodeIds: string[]) => void;
-	restoredViewport: { centerX: number; centerY: number; zoom: number } | null;
+	restored: {
+		fitted: boolean;
+		viewport: { centerX: number; centerY: number; zoom: number };
+	} | null;
 	selectedIds: string[];
 	view: UserFlowDetailView;
 }) {
@@ -613,9 +619,11 @@ function UserFlowSurface({
 						onGrid={onGrid}
 						onMove={onMove}
 						onPersistViewport={onPersistViewport}
+						onSelectedIdsChange={onSelectedIdsChange}
 						onUndo={onUndo}
 						onZOrder={onZOrder}
-						restoredViewport={restoredViewport}
+						restored={restored}
+						selectedIds={selectedIds}
 					/>
 					{selectedNode ? (
 						<section aria-label={USER_FLOW_COPY.inspect} className="mt-4">

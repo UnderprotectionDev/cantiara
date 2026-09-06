@@ -10,7 +10,7 @@ import {
 	useReactFlow,
 } from "@xyflow/react";
 import type { KeyboardEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { USER_FLOW_COPY } from "../forms/user-flow-copy";
 
@@ -36,9 +36,14 @@ export interface UserFlowCanvasProps {
 		centerY: number;
 		zoom: number;
 	}) => void;
+	onSelectedIdsChange: (nodeIds: string[]) => void;
 	onUndo: () => void;
 	onZOrder: (nodeIds: string[]) => void;
-	restoredViewport: { centerX: number; centerY: number; zoom: number } | null;
+	restored: {
+		fitted: boolean;
+		viewport: { centerX: number; centerY: number; zoom: number };
+	} | null;
+	selectedIds: string[];
 }
 
 function nodeLabel(node: CanvasNode): string {
@@ -164,12 +169,13 @@ function CanvasInner({
 	onGrid,
 	onMove,
 	onPersistViewport,
+	onSelectedIdsChange,
 	onUndo,
 	onZOrder,
-	restoredViewport,
+	restored,
+	selectedIds,
 }: UserFlowCanvasProps) {
 	const { fitView, getViewport, setViewport, zoomIn, zoomOut } = useReactFlow();
-	const [selectedIds, setSelectedIds] = useState<string[]>([]);
 	const skipPersist = useRef(true);
 	const flowNodes = useMemo(
 		() => toFlowNodes(nodes, selectedIds),
@@ -177,16 +183,20 @@ function CanvasInner({
 	);
 
 	useEffect(() => {
-		if (!restoredViewport) {
+		if (!restored) {
 			return;
 		}
 		skipPersist.current = true;
+		if (restored.fitted) {
+			fitView({ padding: 0.2 }).catch(() => undefined);
+			return;
+		}
 		setViewport({
-			x: restoredViewport.centerX,
-			y: restoredViewport.centerY,
-			zoom: restoredViewport.zoom,
+			x: restored.viewport.centerX,
+			y: restored.viewport.centerY,
+			zoom: restored.viewport.zoom,
 		});
-	}, [restoredViewport, setViewport]);
+	}, [fitView, restored, setViewport]);
 
 	const persistNow = useCallback(() => {
 		const viewport = getViewport();
@@ -197,9 +207,12 @@ function CanvasInner({
 		});
 	}, [getViewport, onPersistViewport]);
 
-	const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
-		setSelectedIds(params.nodes.map((node) => node.id));
-	}, []);
+	const onSelectionChange = useCallback(
+		(params: OnSelectionChangeParams) => {
+			onSelectedIdsChange(params.nodes.map((node) => node.id));
+		},
+		[onSelectedIdsChange]
+	);
 
 	const onNodeDragStop = useCallback(
 		(_event: unknown, node: Node, dragged: Node[]) => {
@@ -224,9 +237,17 @@ function CanvasInner({
 			nodes:
 				selectedIds.length > 0 ? selectedIds.map((id) => ({ id })) : undefined,
 			padding: 0.2,
-		}).catch(() => undefined);
-		onPersistViewport({ centerX: 0, centerY: 0, zoom: 1 });
-	}, [fitView, onPersistViewport, selectedIds]);
+		})
+			.then(() => {
+				const viewport = getViewport();
+				onPersistViewport({
+					centerX: viewport.x,
+					centerY: viewport.y,
+					zoom: viewport.zoom,
+				});
+			})
+			.catch(() => undefined);
+	}, [fitView, getViewport, onPersistViewport, selectedIds]);
 
 	const onAlignClick = useCallback(() => {
 		onAlign(selectedIds);
@@ -262,8 +283,8 @@ function CanvasInner({
 	);
 
 	const onSelectAll = useCallback(() => {
-		setSelectedIds(nodes.map((node) => node.id));
-	}, [nodes]);
+		onSelectedIdsChange(nodes.map((node) => node.id));
+	}, [nodes, onSelectedIdsChange]);
 
 	const onMoveEnd = useCallback(() => {
 		if (skipPersist.current) {
