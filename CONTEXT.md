@@ -283,7 +283,7 @@ Roadmap görünümünün filtrelerine uyan fakat planlanan başlangıç, hedef t
 _Avoid_: Parked, ikinci Roadmap üyeliği, bağımsız manuel sıra
 
 **Sunum Kipi**:
-Düzenleme ve yapılandırma araçlarını gizleyen salt okunur tam ekran kip; çıkışta aynı görünüme döner, slayt, sunum kaydı veya içerik kopyası üretmez ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap), [Moodboard ve görsel yön](docs/prd/09-discovery-decisions-and-design.md#moodboard-ve-görsel-yön)). UI: `Presentation Mode`, `Exit Presentation Mode`.
+Düzenleme ve yapılandırma araçlarını gizleyen yüzey-yerel kip; isteğe bağlı odak sırası görünüm üstverisidir, çıkışta aynı görünüme döner, slayt, sunum kaydı veya içerik kopyası üretmez ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap), [Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı), [Moodboard ve görsel yön](docs/prd/09-discovery-decisions-and-design.md#moodboard-ve-görsel-yön)). UI: `Presentation Mode`, `Exit Presentation Mode`.
 _Avoid_: slayt, sunum kaydı, içerik kopyası, herkese açık snapshot
 
 **Kanban**:
@@ -1011,8 +1011,12 @@ UI: `Screen`, `Action`, `Decision`, `State/Outcome`, `Section`
 _Avoid_: flowchart şekli, Teknik Sıra lifeline, durum makinesi durumu, Moodboard görseli, Proje Duvarı kartı
 
 **Proje Duvarı**:
-Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`.
+Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`, `Presentation Mode`, `Open all in source`, `Focus order`, `Live`, `Exact`, `Shared source`.
 _Avoid_: iç içe duvar, çalışma alanı duvarı, Sketch card, duvara özgü not, kopya kayıt
+
+**Donmuş kopya**:
+Seçili Proje Duvarı grubu veya bölgesinin tarihli PNG/PDF iç snapshot'ı; canlı kartların yerine geçmez, duvarı kilitlemez ve paylaşım kapsamını genişletmez ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Frozen copy`.
+_Avoid_: Dış yüzey, Build in Public, onaylı snapshot revizyonu, canlı bağlantı
 
 **Wireframe yüzeyi**:
 Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir.
@@ -1051,8 +1055,8 @@ Moodboard görselinin yalnız bu görünüme ait, kesin Dosya Eki sürümüne ba
 _Avoid_: özgün dosya düzenleme, üretim varlığı, işaretleme katmanı
 
 **Odak sırası**:
-Moodboard Sunum Kipinde anlatı için kullanılan görünüm-yerel sıra; ayrı sunum belgesi veya içerik kopyası değildir. UI: `Focus order`.
-_Avoid_: slayt destesi, ikinci belge, içerik kopyası
+Sunum Kipi'nde isteğe bağlı, yalnız o canvas görünümüne ait sıra üstverisi; ikinci dosya veya içerik kopyası değildir ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı), [Moodboard ve görsel yön](docs/prd/09-discovery-decisions-and-design.md#moodboard-ve-görsel-yön)). UI: `Focus order`.
+_Avoid_: slayt destesi, ikinci belge, içerik kopyası, sunum dosyası
 
 **Görsel bölge snapshot'ı**:
 Moodboard veya Proje Duvarında seçilen grup veya bölgenin tarihli PNG/PDF çıktısı; canlı kaynak bağlantısı taşımaz, kaynak görselleri değiştirmez, herkese açık yayın veya onaylı Dış yüzey değildir ([görsel bölge snapshot](docs/prd/13-data-security-and-portability.md#standart-biçimlerde-seçili-kayıt-dışa-aktarma)). UI: `Snapshot`, `PNG`, `PDF`, `Preview`.
