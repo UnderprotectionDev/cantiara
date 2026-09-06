@@ -250,6 +250,12 @@ export type LinkedBlockPreviewOutcome =
 export type WireframeVersionDocumentView = WireframeVersionView & {
 	document: z.infer<typeof wireframeDocumentSchema>;
 	presentedNodes: {
+		geometry: {
+			height: number;
+			width: number;
+			x: number;
+			y: number;
+		};
 		id: string;
 		kind: string;
 		label?: string;

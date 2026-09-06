@@ -822,6 +822,7 @@ describe("Screens and Wireframes", () => {
 			screenId: checkout.id,
 			versionNumber: 1,
 		});
+		expect(live?.document.nodes[0]?.label).toBe("Header");
 		expect(live?.presentedNodes[0]?.label).toBe("Header v2");
 		const detached = await detachLinkedBlock(prisma, {
 			actorId,

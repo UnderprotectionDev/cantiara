@@ -638,7 +638,7 @@ export async function getExactWireframeVersion(
 	});
 	return {
 		...toVersionView(row),
-		document: presented.document,
+		document: parsed.document,
 		presentedNodes: presented.presentedNodes,
 	};
 }

@@ -290,7 +290,7 @@ export function presentWireframeText(
 			value: WIREFRAME_BROKEN_LIVE_TEXT,
 		};
 	}
-	if (liveSection && liveSection.text.length > 0) {
+	if (liveSection) {
 		return { liveSourcePath, status: "ok", value: liveSection.text };
 	}
 	return {

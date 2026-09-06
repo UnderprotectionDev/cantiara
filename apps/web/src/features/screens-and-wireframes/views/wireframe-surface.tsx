@@ -99,7 +99,7 @@ export default function WireframeSurface({
 			{versionNumber !== null && version.data ? (
 				<Stage height={240} listening={false} width={480}>
 					<Layer>
-						{version.data.document.nodes.map((node) => (
+						{nodes.map((node) => (
 							<Rect
 								fill="transparent"
 								height={node.geometry.height}
@@ -111,12 +111,16 @@ export default function WireframeSurface({
 								y={node.geometry.y}
 							/>
 						))}
-						{version.data.document.nodes.map((node) => (
+						{nodes.map((node) => (
 							<Text
 								fontFamily="Shantell Sans, sans-serif"
 								fontSize={14}
 								key={`${node.id}-label`}
-								text={node.label ?? node.kind}
+								text={
+									node.text?.status === "broken"
+										? SCREENS_COPY.broken
+										: (node.text?.value ?? node.label ?? node.kind)
+								}
 								x={node.geometry.x + 8}
 								y={node.geometry.y + 12}
 							/>
@@ -169,6 +173,11 @@ async function invalidate(projectId: string, screenId: string): Promise<void> {
 	await queryClient.invalidateQueries({
 		queryKey: orpc.screensAndWireframes.get.queryKey({
 			input: { screenId },
+		}),
+	});
+	await queryClient.invalidateQueries({
+		queryKey: orpc.screensAndWireframes.getVersion.queryKey({
+			input: { overlayCurrent: true, screenId },
 		}),
 	});
 }

@@ -60,15 +60,18 @@ export async function presentWireframeDocument(
 		})
 	);
 	return {
-		document: {
-			...input.document,
-			nodes: nodes.map((row) => row.node),
-		},
+		document: input.document,
 		presentedNodes: nodes.map((row) => row.presented),
 	};
 }
 
 export interface PresentedNode {
+	geometry: {
+		height: number;
+		width: number;
+		x: number;
+		y: number;
+	};
 	id: string;
 	kind: string;
 	label?: string;
@@ -89,6 +92,7 @@ async function presentNode(
 		return {
 			node,
 			presented: {
+				geometry: node.geometry,
 				id: node.id,
 				kind: node.kind,
 				label: node.label,
@@ -105,6 +109,7 @@ async function presentNode(
 	return {
 		node,
 		presented: {
+			geometry: node.geometry,
 			id: node.id,
 			kind: node.kind,
 			label: node.label,
