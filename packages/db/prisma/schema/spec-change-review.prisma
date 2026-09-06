@@ -14,9 +14,29 @@ model SpecChangeReview {
   newRevision        Int
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+  candidates         SpecChangeReviewCandidate[]
 
   @@unique([featureId, previousVersionId, newVersionId])
   @@index([workspaceId, documentId])
   @@index([featureId])
   @@map("spec_change_review")
+}
+
+model SpecChangeReviewCandidate {
+  id              String           @id
+  reviewId        String
+  review          SpecChangeReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  recordId        String
+  recordKind      String
+  why             Json
+  documentLevel   Boolean
+  changedSection  String?
+  reviewStatus    String
+  note            String           @default("")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([reviewId, recordKind, recordId])
+  @@index([reviewId])
+  @@map("spec_change_review_candidate")
 }

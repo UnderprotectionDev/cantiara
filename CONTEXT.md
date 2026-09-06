@@ -785,6 +785,14 @@ _Avoid_: Git review, ikinci spec kaydı, impact-analysis engine
 Özelliğin `Primary spec` Belgesinde yeni sürüm kaydedildiğinde açılan, önceki ve yeni Belge sürüm çiftinin inceleme kuyruğu; spec gövdesinin yerine geçmez, Git diff veya Çürütülen Varsayım İnceleme Kuyruğu değildir ([Spec değişikliği inceleme kuyruğu](docs/prd/07-documents-and-knowledge.md#spec-değişikliği-inceleme-kuyruğu)). UI: `Spec Change Review`.
 _Avoid_: Git review, approval gate, impact-analysis engine, Çürütülen Varsayım İnceleme Kuyruğu
 
+**Spec Change Review adayı**:
+Yalnız kayıtlı bağ kapanışından (Birincil spec, kararlı bölüm referansı, satır içi referans, canlı içerik kullanımı, sürüme sabit kanıt, diğer açık ilişkiler) türetilen ana kayıt; AI, anlamsal tahmin veya başlık benzerliği adayı değildir.
+_Avoid_: impact-analysis engine, semantic match, title similarity
+
+**Belge düzeyinde aday**:
+Kesin bölüm bağı olmadan Spec Change Review'de görünen kayıt; belirli bir metin değişikliğine yorulmaz ([Spec değişikliği inceleme kuyruğu](docs/prd/07-documents-and-knowledge.md#spec-değişikliği-inceleme-kuyruğu)). UI: `Document-level candidate`.
+_Avoid_: span impact, semantic hit
+
 **Canlı İş bloğu**:
 Belgeye gömülen, kaynak İşin kimliğini kopyasız izleyen eyleme açık canlı kart; belgeye özgü görev kopyası veya ikinci yaşam döngüsü değildir ([uygulama içi Markdown belge yönetimi](docs/prd/07-documents-and-knowledge.md#uygulama-içi-markdown-belge-yönetimi)). UI: `Live Work block`, `Change status`, `Close`, `Open source record`.
 _Avoid_: checkbox görevi, gömülü İş kopyası, Belgeye özel kapanış

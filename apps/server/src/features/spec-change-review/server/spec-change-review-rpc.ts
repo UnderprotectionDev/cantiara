@@ -1,11 +1,17 @@
-import { protectedProcedure } from "@cantiara/api";
+import { protectedProcedure, protectedWriteProcedure } from "@cantiara/api";
 import { getAccountAccessForUser } from "@cantiara/auth";
 import { getPrismaClient } from "@cantiara/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { listSpecChangeReviews } from "./spec-change-review";
-import { specChangeReviewCatalog } from "./spec-change-review-model";
+import {
+	listSpecChangeReviews,
+	markSpecChangeReviewCandidate,
+} from "./spec-change-review";
+import {
+	SPEC_CHANGE_REVIEW_STATUSES,
+	specChangeReviewCatalog,
+} from "./spec-change-review-model";
 
 async function requireAccess(userId: string) {
 	const access = await getAccountAccessForUser(getPrismaClient(), userId);
@@ -23,6 +29,32 @@ export const specChangeReview = {
 			const access = await requireAccess(context.session.user.id);
 			return await listSpecChangeReviews(getPrismaClient(), {
 				documentId: input.documentId,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	markCandidate: protectedWriteProcedure
+		.input(
+			z.object({
+				candidateId: z.string().min(1),
+				note: z.string(),
+				reviewId: z.string().min(1),
+				status: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			if (
+				!(SPEC_CHANGE_REVIEW_STATUSES as readonly string[]).includes(
+					input.status
+				)
+			) {
+				return { reason: "unknown-review-status", status: "rejected" as const };
+			}
+			return await markSpecChangeReviewCandidate(getPrismaClient(), {
+				candidateId: input.candidateId,
+				note: input.note,
+				reviewId: input.reviewId,
+				status: input.status,
 				workspaceId: access.workspaceId,
 			});
 		}),
