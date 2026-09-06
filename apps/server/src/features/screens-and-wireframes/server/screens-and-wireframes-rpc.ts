@@ -11,10 +11,12 @@ import {
 	createLinkedBlock,
 	createScreen,
 	detachLinkedBlock,
+	exportWireframe,
 	getExactWireframeVersion,
 	getScreen,
 	listLinkedBlocks,
 	listScreens,
+	openPresentationMode,
 	permanentlyDeleteScreen,
 	previewLinkedBlockChange,
 	restoreScreen,
@@ -25,6 +27,8 @@ import {
 import {
 	createScreenPayloadSchema,
 	emptyWireframeDocumentSchema,
+	exportWireframePayloadSchema,
+	openPresentationPayloadSchema,
 	previewLinkedBlockChangePayloadSchema,
 	SCREENS_COPY,
 } from "./screens-and-wireframes-model";
@@ -158,6 +162,13 @@ export const screensAndWireframes = {
 				},
 			});
 		}),
+	export: protectedProcedure
+		.input(exportWireframePayloadSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireScreen(access.workspaceId, input.startScreenId);
+			return await exportWireframe(getPrismaClient(), input);
+		}),
 	get: protectedProcedure
 		.input(z.object({ screenId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -209,6 +220,13 @@ export const screensAndWireframes = {
 				origin: "human",
 				payload: { screenId: input.screenId },
 			});
+		}),
+	presentation: protectedProcedure
+		.input(openPresentationPayloadSchema)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireScreen(access.workspaceId, input.startScreenId);
+			return await openPresentationMode(getPrismaClient(), input);
 		}),
 	previewLinkedBlock: protectedProcedure
 		.input(previewLinkedBlockChangePayloadSchema)

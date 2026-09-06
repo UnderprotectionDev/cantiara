@@ -78,6 +78,7 @@ export const wireframeNodeSchema = z
 		label: z.string().optional(),
 		linkedBlockId: z.string().min(1).optional(),
 		seed: z.number().int(),
+		targetScreenId: z.string().min(1).optional(),
 		text: wireframeTextSchema.optional(),
 	})
 	.superRefine((node, context) => {

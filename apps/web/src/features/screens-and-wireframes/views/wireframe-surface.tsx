@@ -9,15 +9,21 @@ import { orpc, queryClient } from "@/utils/orpc";
 
 export default function WireframeSurface({
 	onChanged,
+	onSelectNode,
 	projectId,
 	revision,
 	screenId,
+	selectedNodeId,
+	toolsHidden,
 	versionNumber,
 }: {
 	onChanged: () => void;
+	onSelectNode?: (nodeId: string) => void;
 	projectId: string;
 	revision: number;
 	screenId: string;
+	selectedNodeId?: string | null;
+	toolsHidden?: boolean;
 	versionNumber: number | null;
 }) {
 	const version = useQuery({
@@ -33,7 +39,7 @@ export default function WireframeSurface({
 	const saveVersion = useMutation(
 		orpc.screensAndWireframes.saveVersion.mutationOptions({
 			onSuccess: () => {
-				invalidate(projectId, screenId).catch(() => undefined);
+				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
 				onChanged();
 			},
 		})
@@ -41,7 +47,7 @@ export default function WireframeSurface({
 	const detach = useMutation(
 		orpc.screensAndWireframes.detachLinkedBlock.mutationOptions({
 			onSuccess: () => {
-				invalidate(projectId, screenId).catch(() => undefined);
+				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
 				onChanged();
 			},
 		})
@@ -91,11 +97,13 @@ export default function WireframeSurface({
 	return (
 		<section className="flex flex-col gap-3">
 			<h3 className="font-medium text-sm">{SCREENS_COPY.wireframe}</h3>
-			<div className="flex flex-wrap gap-2">
-				<Button onClick={onAddButton} type="button" variant="outline">
-					{SCREENS_COPY.button}
-				</Button>
-			</div>
+			{toolsHidden ? null : (
+				<div className="flex flex-wrap gap-2">
+					<Button onClick={onAddButton} type="button" variant="outline">
+						{SCREENS_COPY.button}
+					</Button>
+				</div>
+			)}
 			{versionNumber !== null && version.data ? (
 				<Stage height={240} listening={false} width={480}>
 					<Layer>
@@ -130,20 +138,61 @@ export default function WireframeSurface({
 			) : null}
 			<ul className="flex flex-col gap-2 text-sm">
 				{nodes.map((node) => (
-					<li className="flex flex-wrap items-center gap-2" key={node.id}>
-						<span>{node.kind}</span>
-						{node.label ? <span>{node.label}</span> : null}
-						{node.text?.status === "broken" ? (
-							<span>{SCREENS_COPY.broken}</span>
-						) : null}
-						{node.text?.status === "ok" ? <span>{node.text.value}</span> : null}
-						{node.linkedBlockId ? (
-							<DetachButton nodeId={node.id} onDetach={onDetach} />
-						) : null}
-					</li>
+					<WireframeNodeRow
+						key={node.id}
+						node={node}
+						onDetach={onDetach}
+						onSelectNode={onSelectNode}
+						selected={selectedNodeId === node.id}
+						toolsHidden={toolsHidden === true}
+					/>
 				))}
 			</ul>
 		</section>
+	);
+}
+
+function WireframeNodeRow({
+	node,
+	onDetach,
+	onSelectNode,
+	selected,
+	toolsHidden,
+}: {
+	node: {
+		id: string;
+		kind: string;
+		label?: string;
+		linkedBlockId?: string;
+		text?: { status: "broken" | "ok"; value: string };
+	};
+	onDetach: (nodeId: string) => void;
+	onSelectNode?: (nodeId: string) => void;
+	selected: boolean;
+	toolsHidden: boolean;
+}) {
+	const onClick = useCallback(() => {
+		onSelectNode?.(node.id);
+	}, [node.id, onSelectNode]);
+	return (
+		<li className="flex flex-wrap items-center gap-2">
+			<button
+				aria-current={selected ? "true" : undefined}
+				className="rounded-none border border-input px-2 py-1 text-left text-sm"
+				onClick={onClick}
+				type="button"
+			>
+				<span>{node.kind}</span>
+				{node.label ? <span> {node.label}</span> : null}
+			</button>
+			{node.text?.status === "broken" ? (
+				<span>{SCREENS_COPY.broken}</span>
+			) : null}
+			{node.text?.status === "ok" ? <span>{node.text.value}</span> : null}
+			{toolsHidden || !node.linkedBlockId ? null : (
+				<DetachButton nodeId={node.id} onDetach={onDetach} />
+			)}
+		</li>
 	);
 }
 
@@ -164,7 +213,11 @@ function DetachButton({
 	);
 }
 
-async function invalidate(projectId: string, screenId: string): Promise<void> {
+async function invalidate(
+	projectId: string,
+	screenId: string,
+	versionNumber: number | null
+): Promise<void> {
 	await queryClient.invalidateQueries({
 		queryKey: orpc.screensAndWireframes.list.queryKey({
 			input: { projectId },
@@ -175,9 +228,15 @@ async function invalidate(projectId: string, screenId: string): Promise<void> {
 			input: { screenId },
 		}),
 	});
-	await queryClient.invalidateQueries({
-		queryKey: orpc.screensAndWireframes.getVersion.queryKey({
-			input: { overlayCurrent: true, screenId },
-		}),
-	});
+	if (versionNumber !== null) {
+		await queryClient.invalidateQueries({
+			queryKey: orpc.screensAndWireframes.getVersion.queryKey({
+				input: {
+					overlayCurrent: true,
+					screenId,
+					versionNumber,
+				},
+			}),
+		});
+	}
 }

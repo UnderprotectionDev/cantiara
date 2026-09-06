@@ -12,6 +12,9 @@ describe("Screens copy", () => {
 		expect(SCREENS_COPY.detachLink).toBe("Detach Link");
 		expect(SCREENS_COPY.broken).toBe("Broken");
 		expect(SCREENS_COPY.button).toBe("Button");
+		expect(SCREENS_COPY.presentationMode).toBe("Presentation Mode");
+		expect(SCREENS_COPY.exitPresentationMode).toBe("Exit Presentation Mode");
+		expect(SCREENS_COPY.unresolved).toBe("Unresolved");
 		expect(SCREENS_COPY.moveToTrash).toBe("Move to Trash");
 		expect(JSON.stringify(SCREENS_COPY)).not.toMatch(OUT_OF_SCOPE_COPY);
 	});
