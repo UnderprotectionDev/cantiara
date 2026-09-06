@@ -283,7 +283,7 @@ Roadmap görünümünün filtrelerine uyan fakat planlanan başlangıç, hedef t
 _Avoid_: Parked, ikinci Roadmap üyeliği, bağımsız manuel sıra
 
 **Sunum Kipi**:
-Mevcut adlandırılmış Roadmap görünümünü düzenleme ve yapılandırma gizleyerek salt okunur tam ekranda açan kip; çıkışta aynı görünüm ve konuma döner, slayt, sunum kaydı veya içerik kopyası üretmez ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap)). UI: `Presentation Mode`.
+Düzenleme ve yapılandırma araçlarını gizleyen salt okunur tam ekran kip; çıkışta aynı görünüme döner, slayt, sunum kaydı veya içerik kopyası üretmez ([Roadmap](docs/prd/06-work-management-and-planning.md#roadmap), [Moodboard ve görsel yön](docs/prd/09-discovery-decisions-and-design.md#moodboard-ve-görsel-yön)). UI: `Presentation Mode`, `Exit Presentation Mode`.
 _Avoid_: slayt, sunum kaydı, içerik kopyası, herkese açık snapshot
 
 **Kanban**:
@@ -1026,6 +1026,18 @@ _Avoid_: Ekran, üretim varlığı, kapak kaydı
 Moodboard görselindeki isteğe bağlı kısa neden metni; yorum dizisi, reaksiyon, görev, mention veya Dosya Eki açıklamasının ikinci kaynağı değildir.
 UI: `Caption`
 _Avoid_: yorum dizisi, reaksiyon, görev, mention, dosya açıklaması
+
+**Görünüm kırpması**:
+Moodboard görselinin yalnız bu görünüme ait, kesin Dosya Eki sürümüne bağlı geri alınabilir kırpma ve 90° döndürme üstverisi; özgün baytları, sürüm zincirini veya diğer görünümleri değiştirmez ([Moodboard ve görsel yön](docs/prd/09-discovery-decisions-and-design.md#moodboard-ve-görsel-yön)). UI: `Crop`, `Rotate 90°`.
+_Avoid_: özgün dosya düzenleme, üretim varlığı, işaretleme katmanı
+
+**Odak sırası**:
+Moodboard Sunum Kipinde anlatı için kullanılan görünüm-yerel sıra; ayrı sunum belgesi veya içerik kopyası değildir. UI: `Focus order`.
+_Avoid_: slayt destesi, ikinci belge, içerik kopyası
+
+**Görsel bölge snapshot'ı**:
+Moodboard veya Proje Duvarında seçilen grup veya bölgenin tarihli PNG/PDF çıktısı; canlı kaynak bağlantısı taşımaz, kaynak görselleri değiştirmez, herkese açık yayın veya onaylı Dış yüzey değildir ([görsel bölge snapshot](docs/prd/13-data-security-and-portability.md#standart-biçimlerde-seçili-kayıt-dışa-aktarma)). UI: `Snapshot`, `PNG`, `PDF`, `Preview`.
+_Avoid_: canlı bağ, onaylı snapshot revizyonu, Build in Public, paylaşım bağlantısı
 
 **Yüzey metni**:
 Kullanıcının geliştirdiği üründe bir Ekranda görünen boş durum, hata veya denetim cümlesinin Ekrana ya da kesin Wireframe sürümüne bağlı sahipli öğesi; çeviri belgesi veya düzen metninin ikinci kopyası değildir.

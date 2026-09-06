@@ -1,12 +1,13 @@
 model Moodboard {
-  id        String            @id
-  projectId String
-  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title     String
-  revision  Int
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  visuals   MoodboardVisual[]
+  id         String            @id
+  projectId  String
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title      String
+  revision   Int
+  focusOrder Json             @default("[]")
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  visuals    MoodboardVisual[]
 
   @@index([projectId])
   @@map("moodboard")
@@ -21,6 +22,8 @@ model MoodboardVisual {
   fileAttachmentVersion   FileAttachmentVersion? @relation(fields: [fileAttachmentVersionId], references: [id], onDelete: Restrict)
   externalUrl             String?
   caption                 String                 @default("")
+  crop                    Json?
+  rotation                Int                    @default(0)
   sortOrder               Int
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt

@@ -1,5 +1,6 @@
-import type { Prisma, PrismaClient } from "@cantiara/db";
+import { Prisma, type PrismaClient } from "@cantiara/db";
 
+import { readAccessibleFileBytes } from "../../file-attachments/server/file-attachments";
 import {
 	advisoryKeys,
 	HUMAN_ORIGIN,
@@ -13,18 +14,38 @@ import {
 	addMoodboardVisualCommandSchema,
 	type CreateMoodboardCommand,
 	createMoodboardCommandSchema,
+	cropBoxSchema,
 	MOODBOARD_KIND,
+	MOODBOARD_SNAPSHOT_FORMAT,
+	MOODBOARDS_COPY,
+	type MoodboardSnapshotOutcome,
+	type MoodboardSnapshotView,
 	type MoodboardView,
 	type MoodboardVisualView,
 	type MoodboardWriteOutcome,
+	moodboardSnapshotScopeSchema,
+	presentationModeView,
 	type SetMoodboardCaptionCommand,
+	type SetMoodboardFocusOrderCommand,
+	type SetMoodboardViewTransformCommand,
 	setMoodboardCaptionCommandSchema,
+	setMoodboardFocusOrderCommandSchema,
+	setMoodboardViewTransformCommandSchema,
 	VISUAL_ORIGIN_KIND,
+	type VisualPresentationView,
 } from "./moodboards-model";
+import {
+	buildDatedPdf,
+	placeholderPresentedPng,
+	renderPresentedPng,
+	snapshotFilename,
+	snapshotPreviewFor,
+} from "./moodboards-snapshot";
 
 type PrismaTransaction = Prisma.TransactionClient;
 
 interface MoodboardRow {
+	focusOrder: Prisma.JsonValue;
 	id: string;
 	projectId: string;
 	revision: number;
@@ -85,6 +106,42 @@ export async function setMoodboardCaption(
 	);
 }
 
+export async function setMoodboardViewTransform(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<MoodboardWriteOutcome> {
+	const parsed = setMoodboardViewTransformCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		setTransformInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
+export async function setMoodboardFocusOrder(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<MoodboardWriteOutcome> {
+	const parsed = setMoodboardFocusOrderCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		setFocusOrderInTransaction(tx, parsed.data, commandKey, fingerprint)
+	);
+}
+
 export async function getMoodboard(
 	prisma: PrismaClient,
 	moodboardId: string
@@ -96,6 +153,25 @@ export async function getMoodboard(
 		return null;
 	}
 	return await toView(prisma, row);
+}
+
+export async function presentMoodboard(
+	prisma: PrismaClient,
+	input: { moodboardId: string; presentationMode: boolean }
+) {
+	const moodboard = await getMoodboard(prisma, input.moodboardId);
+	if (!moodboard) {
+		return null;
+	}
+	return {
+		moodboard,
+		presentationMode: input.presentationMode
+			? presentationModeView({
+					focusOrder: moodboard.focusOrder,
+					moodboardId: moodboard.id,
+				})
+			: null,
+	};
 }
 
 export async function listMoodboards(
@@ -120,6 +196,53 @@ export async function getMoodboardByVisualId(
 		return null;
 	}
 	return await getMoodboard(prisma, visual.moodboardId);
+}
+
+export async function previewMoodboardSnapshot(
+	prisma: PrismaClient,
+	scope: unknown
+): Promise<MoodboardSnapshotOutcome> {
+	const prepared = await prepareSnapshot(prisma, scope);
+	if (prepared.status !== "prepared") {
+		return prepared;
+	}
+	return {
+		snapshot: {
+			approvedSnapshotRevision: false,
+			brandGuide: false,
+			externalSurface: false,
+			files: [],
+			liveSourceLinks: false,
+			preview: prepared.preview,
+			shareLink: false,
+			sourceMutation: false,
+		},
+		status: "ok",
+	};
+}
+
+export async function exportMoodboardSnapshot(
+	prisma: PrismaClient,
+	scope: unknown
+): Promise<MoodboardSnapshotOutcome> {
+	const prepared = await prepareSnapshot(prisma, scope);
+	if (prepared.status !== "prepared") {
+		return prepared;
+	}
+	const files = await filesForSnapshot(prisma, prepared);
+	return {
+		snapshot: {
+			approvedSnapshotRevision: false,
+			brandGuide: false,
+			externalSurface: false,
+			files,
+			liveSourceLinks: false,
+			preview: prepared.preview,
+			shareLink: false,
+			sourceMutation: false,
+		},
+		status: "ok",
+	};
 }
 
 export async function listProjectWallCardsSpawnedFrom(
@@ -152,6 +275,7 @@ async function createInTransaction(
 	}
 	const created = await tx.moodboard.create({
 		data: {
+			focusOrder: [],
 			id: crypto.randomUUID(),
 			projectId: command.payload.projectId,
 			revision: 1,
@@ -196,11 +320,13 @@ async function addVisualInTransaction(
 	await tx.moodboardVisual.create({
 		data: {
 			caption: command.payload.caption ?? "",
+			crop: undefined,
 			externalUrl: originFields.externalUrl,
 			fileAttachmentVersionId: originFields.fileAttachmentVersionId,
 			id: crypto.randomUUID(),
 			moodboardId: current.id,
 			originKind: originFields.originKind,
+			rotation: 0,
 			sortOrder: (last?.sortOrder ?? 0) + 1,
 		},
 	});
@@ -250,6 +376,102 @@ async function setCaptionInTransaction(
 	});
 	const updated = await tx.moodboard.update({
 		data: { revision: current.revision + 1 },
+		where: { id: current.id },
+	});
+	const view = await toView(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { moodboard: view, status: "committed" };
+}
+
+async function setTransformInTransaction(
+	tx: PrismaTransaction,
+	command: SetMoodboardViewTransformCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<MoodboardWriteOutcome> {
+	const visual = await tx.moodboardVisual.findUnique({
+		where: { id: command.payload.visualId },
+	});
+	if (!visual) {
+		return { reason: "visual-not-found", status: "rejected" };
+	}
+	const current = await tx.moodboard.findUnique({
+		where: { id: visual.moodboardId },
+	});
+	if (!current) {
+		return { reason: "moodboard-not-found", status: "rejected" };
+	}
+	await lockProject(tx, current.projectId);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	if (current.revision !== command.baseRevision) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	await tx.moodboardVisual.update({
+		data: {
+			crop:
+				command.payload.crop === null ? Prisma.DbNull : command.payload.crop,
+			rotation: command.payload.rotation,
+		},
+		where: { id: visual.id },
+	});
+	const updated = await tx.moodboard.update({
+		data: { revision: current.revision + 1 },
+		where: { id: current.id },
+	});
+	const view = await toView(tx, updated);
+	await writeReceipt(tx, {
+		actorId: command.actorId,
+		commandKey,
+		fingerprint,
+		view,
+	});
+	return { moodboard: view, status: "committed" };
+}
+
+async function setFocusOrderInTransaction(
+	tx: PrismaTransaction,
+	command: SetMoodboardFocusOrderCommand,
+	commandKey: string,
+	fingerprint: string
+): Promise<MoodboardWriteOutcome> {
+	const current = await tx.moodboard.findUnique({
+		where: { id: command.payload.moodboardId },
+	});
+	if (!current) {
+		return { reason: "moodboard-not-found", status: "rejected" };
+	}
+	await lockProject(tx, current.projectId);
+	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	if (current.revision !== command.baseRevision) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const visuals = await tx.moodboardVisual.findMany({
+		select: { id: true },
+		where: { moodboardId: current.id },
+	});
+	const known = new Set(visuals.map((row) => row.id));
+	if (
+		command.payload.visualIds.length !== known.size ||
+		command.payload.visualIds.some((id) => !known.has(id))
+	) {
+		return { reason: "focus-order-mismatch", status: "rejected" };
+	}
+	const updated = await tx.moodboard.update({
+		data: {
+			focusOrder: command.payload.visualIds,
+			revision: current.revision + 1,
+		},
 		where: { id: current.id },
 	});
 	const view = await toView(tx, updated);
@@ -376,6 +598,7 @@ async function toView(
 		where: { moodboardId: row.id },
 	});
 	return {
+		focusOrder: parseFocusOrder(row.focusOrder),
 		id: row.id,
 		projectId: row.projectId,
 		recordKind: MOODBOARD_KIND,
@@ -387,6 +610,7 @@ async function toView(
 
 function presentVisual(row: {
 	caption: string;
+	crop: Prisma.JsonValue;
 	externalUrl: string | null;
 	fileAttachmentVersion: {
 		fileAttachment: { id: string; title: string };
@@ -394,7 +618,9 @@ function presentVisual(row: {
 	} | null;
 	id: string;
 	originKind: string;
+	rotation: number;
 }): MoodboardVisualView {
+	const presentation = presentTransform(row);
 	if (
 		row.originKind === VISUAL_ORIGIN_KIND.fileAttachment &&
 		row.fileAttachmentVersion
@@ -408,6 +634,7 @@ function presentVisual(row: {
 				kind: VISUAL_ORIGIN_KIND.fileAttachment,
 				title: row.fileAttachmentVersion.fileAttachment.title,
 			},
+			presentation,
 		};
 	}
 	return {
@@ -417,5 +644,160 @@ function presentVisual(row: {
 			kind: VISUAL_ORIGIN_KIND.externalLink,
 			url: row.externalUrl ?? "",
 		},
+		presentation,
 	};
+}
+
+function presentTransform(row: {
+	crop: Prisma.JsonValue;
+	fileAttachmentVersion: { id: string } | null;
+	originKind: string;
+	rotation: number;
+}): VisualPresentationView {
+	const cropParsed = cropBoxSchema.safeParse(row.crop);
+	const rotation =
+		row.rotation === 90 || row.rotation === 180 || row.rotation === 270
+			? row.rotation
+			: 0;
+	const bound = row.fileAttachmentVersion;
+	const fileAttachmentVersionId =
+		row.originKind === VISUAL_ORIGIN_KIND.fileAttachment && bound
+			? bound.id
+			: null;
+	return {
+		crop: cropParsed.success ? cropParsed.data : null,
+		fileAttachmentVersionId,
+		originalDownloadable: fileAttachmentVersionId !== null,
+		rotation,
+	};
+}
+
+function parseFocusOrder(value: Prisma.JsonValue): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+async function prepareSnapshot(
+	prisma: PrismaClient,
+	scope: unknown
+): Promise<
+	| MoodboardSnapshotOutcome
+	| {
+			moodboard: MoodboardView;
+			preview: MoodboardSnapshotView["preview"];
+			selected: MoodboardVisualView[];
+			status: "prepared";
+			workspaceId: string;
+	  }
+> {
+	const parsed = moodboardSnapshotScopeSchema.safeParse(scope);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	if (parsed.data.fitEntireBoardOnOnePage) {
+		return { reason: "smash-entire-board", status: "rejected" };
+	}
+	const moodboard = await getMoodboard(prisma, parsed.data.moodboardId);
+	if (!moodboard) {
+		return { reason: "moodboard-not-found", status: "rejected" };
+	}
+	const byId = new Map(moodboard.visuals.map((visual) => [visual.id, visual]));
+	const selected: MoodboardVisualView[] = [];
+	for (const visualId of parsed.data.visualIds) {
+		const visual = byId.get(visualId);
+		if (!visual) {
+			return { reason: "visual-not-found", status: "rejected" };
+		}
+		selected.push(visual);
+	}
+	const project = await prisma.project.findUnique({
+		select: { workspaceId: true },
+		where: { id: moodboard.projectId },
+	});
+	if (!project) {
+		return { reason: "moodboard-not-found", status: "rejected" };
+	}
+	const viewMoment = new Date().toISOString();
+	return {
+		moodboard,
+		preview: snapshotPreviewFor(selected, parsed.data.format, viewMoment),
+		selected,
+		status: "prepared",
+		workspaceId: project.workspaceId,
+	};
+}
+
+async function filesForSnapshot(
+	prisma: PrismaClient,
+	prepared: {
+		preview: MoodboardSnapshotView["preview"];
+		selected: MoodboardVisualView[];
+		workspaceId: string;
+	}
+): Promise<MoodboardSnapshotView["files"]> {
+	const presented = await Promise.all(
+		prepared.selected.map(async (visual) => {
+			const png = await presentedBytesFor(prisma, visual, prepared.workspaceId);
+			return { png, visual };
+		})
+	);
+	const producedAt = prepared.preview.viewMoment;
+	if (prepared.preview.format === MOODBOARD_SNAPSHOT_FORMAT.png) {
+		return presented.map(({ png, visual }) => ({
+			bytes: new Uint8Array(png),
+			filename: snapshotFilename({
+				format: MOODBOARD_SNAPSHOT_FORMAT.png,
+				producedAt,
+				visualId: visual.id,
+			}),
+			mimeType: "image/png",
+			pageCount: 1,
+			visualId: visual.id,
+		}));
+	}
+	const pdf = await buildDatedPdf({
+		pages: presented.map(({ png, visual }) => ({
+			jpeg: png,
+			visualId: visual.id,
+		})),
+		producedAt,
+		title: MOODBOARDS_COPY.snapshot,
+	});
+	return [
+		{
+			bytes: new Uint8Array(pdf),
+			filename: snapshotFilename({
+				format: MOODBOARD_SNAPSHOT_FORMAT.pdf,
+				producedAt,
+				visualId: null,
+			}),
+			mimeType: "application/pdf",
+			pageCount: presented.length,
+			visualId: null,
+		},
+	];
+}
+
+async function presentedBytesFor(
+	prisma: PrismaClient,
+	visual: MoodboardVisualView,
+	workspaceId: string
+): Promise<Uint8Array> {
+	if (visual.origin.kind !== VISUAL_ORIGIN_KIND.fileAttachment) {
+		return await placeholderPresentedPng();
+	}
+	const original = await readAccessibleFileBytes(prisma, {
+		fileAttachmentId: visual.origin.fileAttachmentId,
+		versionId: visual.origin.fileAttachmentVersionId,
+		workspaceId,
+	});
+	if (!original) {
+		return await placeholderPresentedPng();
+	}
+	return await renderPresentedPng({
+		original: original.bytes,
+		presentation: visual.presentation,
+	});
 }
