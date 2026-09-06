@@ -49,6 +49,7 @@
     "@tiptap/react": "^3.31.0",
     "@tiptap/starter-kit": "^3.31.0",
     "@vidstack/react": "1.12.13",
+    "@xyflow/react": "^12.11.6",
     "better-auth": "catalog:",
     "dotenv": "catalog:",
     "katex": "^0.18.5",

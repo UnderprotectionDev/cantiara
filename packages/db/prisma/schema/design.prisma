@@ -5,6 +5,7 @@ model Design {
   type        String
   name        String
   revision    Int
+  focusOrder  Json                    @default("[]")
   createdAt   DateTime                @default(now())
   updatedAt   DateTime                @updatedAt
   cards       ProjectWallCard[]
@@ -16,21 +17,23 @@ model Design {
 }
 
 model ProjectWallCard {
-  id         String                  @id
-  designId   String
-  design     Design                  @relation(fields: [designId], references: [id], onDelete: Cascade)
-  sourceId   String
-  sourceKind String
-  positionX  Float
-  positionY  Float
-  density    String
-  locked     Boolean                 @default(false)
-  groupId    String?
-  group      ProjectWallGroup?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  outgoing   ProjectWallVisualLink[] @relation("VisualLinkFrom")
-  incoming   ProjectWallVisualLink[] @relation("VisualLinkTo")
-  createdAt  DateTime                @default(now())
-  updatedAt  DateTime                @updatedAt
+  id           String                  @id
+  designId     String
+  design       Design                  @relation(fields: [designId], references: [id], onDelete: Cascade)
+  sourceId     String
+  sourceKind   String
+  positionX    Float
+  positionY    Float
+  density      String
+  authority    String?
+  pinVersionId String?
+  locked       Boolean                 @default(false)
+  groupId      String?
+  group        ProjectWallGroup?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  outgoing     ProjectWallVisualLink[] @relation("VisualLinkFrom")
+  incoming     ProjectWallVisualLink[] @relation("VisualLinkTo")
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
 
   @@unique([designId, sourceId])
   @@index([designId])

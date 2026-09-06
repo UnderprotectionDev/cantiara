@@ -56,7 +56,7 @@ Kurucu birden fazla düz, adlandırılmış Proje Duvarı tutar. Kalıcı öğel
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe Project Wall through the public interface: live card identity equals source id, move does not write source, visual line does not create a relation, explicit relation preview does, skeletons are empty English headings, snapshot is frozen and not a share grant, viewport restore, outline tasks, 500/750. Not xyflow internals.
+- **What a good test is.** Tests observe Project Wall through the public interface: live card identity equals source id, move does not write source, visual line does not create a relation, explicit relation preview does, skeletons are empty English headings, Presentation Mode is view metadata not a content copy, snapshot is a dated frozen PNG/PDF and not a share grant, viewport restore, outline tasks, 500/750. Not xyflow internals.
 - **Seam (one).** Project Wall — the product-facing wall, card, line, skeleton, and internal snapshot interface.
 - **Modules under test.** Project Wall only. Wireframe sketch, Moodboard, Wiki, link-sharing, Build in Public, Project shell catalog selection are counterparts.
 - **Prior art.** Bind to [Proje Duvarı](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) and **canvas yapılandırılmış outline**; skeleton golden headings also support [Başlangıç iskeletleri](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) wall half.

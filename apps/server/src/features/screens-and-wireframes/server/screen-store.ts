@@ -18,6 +18,7 @@ export interface ScreenEventRow {
 
 export interface WireframeVersionRow {
 	createdAt: Date;
+	document?: unknown;
 	id: string;
 	screenId: string;
 	versionNumber: number;
@@ -269,11 +270,57 @@ export async function listWireframeVersions(
 		});
 	}
 	return await db.$queryRaw<WireframeVersionRow[]>`
-		SELECT "createdAt", "id", "screenId", "versionNumber"
+		SELECT "createdAt", "document", "id", "screenId", "versionNumber"
 		FROM "wireframe_version"
 		WHERE "screenId" = ${screenId}
 		ORDER BY "versionNumber" ASC
 	`;
+}
+
+export async function findWireframeVersionRow(
+	db: ScreenDb,
+	input: { screenId: string; versionNumber: number }
+): Promise<WireframeVersionRow | null> {
+	if (hasScreenDelegate(db)) {
+		return await db.wireframeVersion.findUnique({
+			where: {
+				screenId_versionNumber: {
+					screenId: input.screenId,
+					versionNumber: input.versionNumber,
+				},
+			},
+		});
+	}
+	const rows = await db.$queryRaw<WireframeVersionRow[]>`
+		SELECT "createdAt", "document", "id", "screenId", "versionNumber"
+		FROM "wireframe_version"
+		WHERE "screenId" = ${input.screenId}
+			AND "versionNumber" = ${input.versionNumber}
+		LIMIT 1
+	`;
+	const [found] = rows;
+	return found ?? null;
+}
+
+export async function findLatestWireframeVersionRow(
+	db: ScreenDb,
+	screenId: string
+): Promise<WireframeVersionRow | null> {
+	if (hasScreenDelegate(db)) {
+		return await db.wireframeVersion.findFirst({
+			orderBy: { versionNumber: "desc" },
+			where: { screenId },
+		});
+	}
+	const rows = await db.$queryRaw<WireframeVersionRow[]>`
+		SELECT "createdAt", "document", "id", "screenId", "versionNumber"
+		FROM "wireframe_version"
+		WHERE "screenId" = ${screenId}
+		ORDER BY "versionNumber" DESC
+		LIMIT 1
+	`;
+	const [latest] = rows;
+	return latest ?? null;
 }
 
 export async function latestWireframeVersionNumber(

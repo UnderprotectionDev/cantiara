@@ -2,10 +2,12 @@ import { expect, test } from "vitest";
 
 import { PROJECT_WALL_COPY, PROJECT_WALL_DENSITIES } from "./project-wall-copy";
 
-const FOREIGN_SURFACE = /Wireframe|Moodboard|Wiki|CSS/i;
-const SKETCH_COPY = /Sketch/i;
+const FOREIGN_SURFACE =
+	/Wireframe|Moodboard|Wiki|CSS|Link sharing|Build in Public/i;
 
-test("English UI uses Project Wall densities, Open Source Record, Create Persistent Relation, and Lock Position", () => {
+const SKETCH_COPY = /Sketch|freehand|Freehand/i;
+
+test("English UI uses Project Wall, Presentation Mode, Frozen copy, and Open all in source", () => {
 	expect(PROJECT_WALL_COPY.projectWall).toBe("Project Wall");
 	expect(PROJECT_WALL_COPY.compact).toBe("Compact");
 	expect(PROJECT_WALL_COPY.preview).toBe("Preview");
@@ -16,6 +18,9 @@ test("English UI uses Project Wall densities, Open Source Record, Create Persist
 	);
 	expect(PROJECT_WALL_COPY.lockPosition).toBe("Lock Position");
 	expect(PROJECT_WALL_COPY.visualLink).toBe("Visual link");
+	expect(PROJECT_WALL_COPY.presentationMode).toBe("Presentation Mode");
+	expect(PROJECT_WALL_COPY.frozenCopy).toBe("Frozen copy");
+	expect(PROJECT_WALL_COPY.openAllInSource).toBe("Open all in source");
 	expect(PROJECT_WALL_DENSITIES).toEqual(["Compact", "Preview", "Detailed"]);
 	expect(JSON.stringify(PROJECT_WALL_COPY)).not.toMatch(FOREIGN_SURFACE);
 	expect(JSON.stringify(PROJECT_WALL_COPY)).not.toMatch(SKETCH_COPY);

@@ -70,6 +70,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Çöpte Ekran yok | `No Screens in Trash.` | Çöp Kutusu listesinde Ekran olmaması |
 | Ekran yaşamı | `Active`, `Archived`, `In Trash` | Ekranın ortak ana kayıt görünürlüğü; Wireframe bağımsız yaşam değildir |
 | Wireframe | `Wireframe` | Ekrana ait düşük sadakatli sürümlü yüzey; bağımsız ana kayıt değildir |
+| Bağlı Wireframe bloğu | `Detach Link` | Proje kapsamlı düşük detaylı kaynak tanımını bir Ekran örneğinden ayırıp o andaki içeriği bağımsız block olarak dondurma |
+| Kırık canlı metin | `Broken` | Wireframe canlı Markdown bölüm referansı çözülemediğinde boşaltmadan gösterilen durum |
 | Company yok | `No Companies yet.` | Henüz Company açılmamış boş durum |
 | Kopya adayları | `Duplicate candidates` | Aynı normalize e-posta veya ad/Company benzerliğiyle görünen Contact çiftleri; birleştirme yazması değildir |
 | Güçlü kopya adayı | `Strong copy candidate` | Aynı normalize e-posta taşıyan Contact çifti |

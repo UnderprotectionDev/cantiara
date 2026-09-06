@@ -7,17 +7,21 @@ import { z } from "zod";
 import { getProject } from "../../project-shell/server/project-shell";
 import { createScreen, listScreensForProject } from "./screen-double";
 import {
+	applyEditorOp,
 	createUserFlow,
 	getUserFlow,
 	listUserFlows,
+	placeFlowNode,
 	placeScreenNode,
 	updateNodePathText,
 } from "./user-flow";
+import { userFlowCatalog } from "./user-flow-editor";
 import {
+	applyEditorOpPayloadSchema,
 	createScreenPayloadSchema,
 	createUserFlowPayloadSchema,
+	placeFlowNodePayloadSchema,
 	placeScreenNodePayloadSchema,
-	USER_FLOW_COPY,
 	updateNodePathTextPayloadSchema,
 } from "./user-flow-model";
 
@@ -38,7 +42,33 @@ async function requireProject(workspaceId: string, projectId: string) {
 }
 
 export const userFlow = {
-	catalog: protectedProcedure.handler(() => USER_FLOW_COPY),
+	applyEditorOp: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: applyEditorOpPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const flow = await getUserFlow(getPrismaClient(), {
+				userFlowId: input.payload.userFlowId,
+				workspaceId: access.workspaceId,
+			});
+			if (!flow) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, flow.projectId);
+			return await applyEditorOp(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	catalog: protectedProcedure.handler(() => userFlowCatalog()),
 	create: protectedWriteProcedure
 		.input(
 			z.object({
@@ -103,6 +133,32 @@ export const userFlow = {
 			const access = await requireAccess(context.session.user.id);
 			await requireProject(access.workspaceId, input.projectId);
 			return await listScreensForProject(getPrismaClient(), input.projectId);
+		}),
+	placeFlowNode: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().nonnegative(),
+				idempotencyKey: z.string(),
+				payload: placeFlowNodePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const flow = await getUserFlow(getPrismaClient(), {
+				userFlowId: input.payload.userFlowId,
+				workspaceId: access.workspaceId,
+			});
+			if (!flow) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, flow.projectId);
+			return await placeFlowNode(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
 		}),
 	placeScreenNode: protectedWriteProcedure
 		.input(
