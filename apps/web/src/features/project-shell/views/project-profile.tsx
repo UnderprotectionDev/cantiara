@@ -21,6 +21,7 @@ import FeedArea from "@/features/feedback/views/feed-area";
 import FeedbackArea from "@/features/feedback/views/feedback-area";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
 import ProjectGoalsPanel from "@/features/goals/views/project-goals-panel";
+import MoodboardArea from "@/features/moodboards/views/moodboard-area";
 import { FOUNDER_MAIN_ID } from "@/features/personal-shell/components/founder-chrome";
 import ProjectOverview from "@/features/project-overview/views/project-overview";
 import ConfigurationMode from "@/features/project-shell/forms/configuration-mode";
@@ -648,6 +649,7 @@ function projectRecordArea({
 				<div className="mt-6 flex flex-col gap-10">
 					<ScreenArea projectId={projectId} />
 					<UserFlowArea projectId={projectId} />
+					<MoodboardArea projectId={projectId} />
 				</div>
 			</section>
 		);
@@ -993,6 +995,7 @@ function ProjectBody({
 					<div className="mt-6 flex flex-col gap-10">
 						<ScreenArea projectId={data.id} />
 						<UserFlowArea projectId={data.id} />
+						<MoodboardArea projectId={data.id} />
 					</div>
 				</section>
 			);

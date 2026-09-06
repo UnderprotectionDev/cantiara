@@ -1,0 +1,31 @@
+model Moodboard {
+  id        String            @id
+  projectId String
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String
+  revision  Int
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  visuals   MoodboardVisual[]
+
+  @@index([projectId])
+  @@map("moodboard")
+}
+
+model MoodboardVisual {
+  id                      String                 @id
+  moodboardId             String
+  moodboard               Moodboard              @relation(fields: [moodboardId], references: [id], onDelete: Cascade)
+  originKind              String
+  fileAttachmentVersionId String?
+  fileAttachmentVersion   FileAttachmentVersion? @relation(fields: [fileAttachmentVersionId], references: [id], onDelete: Restrict)
+  externalUrl             String?
+  caption                 String                 @default("")
+  sortOrder               Int
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  @@index([moodboardId, sortOrder])
+  @@index([fileAttachmentVersionId])
+  @@map("moodboard_visual")
+}

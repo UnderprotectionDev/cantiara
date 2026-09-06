@@ -21,6 +21,7 @@ import { fileAttachments } from "../features/file-attachments/server/file-attach
 import { focusPeriod } from "../features/focus-period/server/focus-period-rpc";
 import { projectGoals } from "../features/goals/server/project-goals-rpc";
 import { kanban } from "../features/kanban/server/kanban-rpc";
+import { moodboards } from "../features/moodboards/server/moodboards-rpc";
 import { personalReminders } from "../features/personal-reminders/server/personal-reminders-rpc";
 import { personalWiki } from "../features/personal-wiki/server/personal-wiki-rpc";
 import { priority } from "../features/priority/server/priority-rpc";
@@ -71,6 +72,7 @@ export const appRouter: {
 	focusPeriod: typeof focusPeriod;
 	healthCheck: ReturnType<typeof publicProcedure.handler>;
 	kanban: typeof kanban;
+	moodboards: typeof moodboards;
 	personalReminders: typeof personalReminders;
 	personalWiki: typeof personalWiki;
 	priority: typeof priority;
@@ -85,6 +87,7 @@ export const appRouter: {
 	returnToWork: typeof returnToWork;
 	risks: typeof risks;
 	roadmapHorizon: typeof roadmapHorizon;
+	screensAndWireframes: typeof screensAndWireframes;
 	smartCollections: typeof smartCollections;
 	sources: typeof sources;
 	tags: typeof tags;
@@ -120,6 +123,7 @@ export const appRouter: {
 	focusPeriod,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	kanban,
+	moodboards,
 	personalReminders,
 	personalWiki,
 	priority,

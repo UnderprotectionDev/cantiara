@@ -291,7 +291,7 @@
 │       │   │   ├── link-sharing/
 │       │   │   │   └── views/
 │       │   │   ├── moodboards/
-│       │   │   │   ├── components/
+│       │   │   │   ├── forms/
 │       │   │   │   └── views/
 │       │   │   ├── personal-data/
 │       │   │   │   └── views/

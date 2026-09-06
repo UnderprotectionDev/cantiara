@@ -23,6 +23,8 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"Screen",
 	"ScreenEvent",
 	"ValidationRecord",
+	"Moodboard",
+	"MoodboardVisual",
 	"WireframeVersion",
 	"WorkNotNowTrail",
 ]);
@@ -119,6 +121,8 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	// Validation Record is read via its own delegate after generate. Do not
 	// gate getPrismaClient on it: bun --hot can reload this check before
 	// prisma generate, and that must not block Work writes.
+	// Moodboard is the same: a bun --hot client generated before Moodboard
+	// must not block the rest of the API.
 	// Screen is read and written via table SQL when bun --hot still has a
 	// client generated before that model. Gating getPrismaClient on Screen
 	// turned Create Screen (CANT-FC81F725) into every RPC throwing
