@@ -33,29 +33,48 @@ import {
 	createProjectWall,
 	createRegionSnapshot,
 	drawVisualLine,
+	getPersonalViewport,
 	getProjectWall,
 	listProjectWalls,
 	materializeStarterSkeletonWalls,
 	placeLiveCard,
 	previewPersistentRelation,
 	previewRegionSnapshot,
+	removeVisualLine,
+	reorderOutline,
 	saveFocusOrder,
+	savePersonalViewport,
 	setLockPosition,
 	updateCardDensity,
 	updateCardLayout,
 	updateDiagramNode,
 } from "./project-wall";
 import {
+	alignCards,
+	CANVAS_FRAME_BUDGET_MS,
+	CANVAS_HARD_SCENE,
+	CANVAS_STRESS_SCENE,
 	CUSTOMER_JOURNEY_HEADINGS,
 	DENSITY_FIELDS,
+	evaluateProjectWallCanvasScene,
+	fitViewportToContent,
+	moveCards,
+	NEUTRAL_VIEWPORT,
 	PROJECT_WALL_COPY,
 	PROJECT_WALL_DENSITIES,
 	PROJECT_WALL_FIELD,
 	PROJECT_WALL_REJECTION,
 	PROJECT_WALL_SOURCE_KIND,
+	panCamera,
 	projectWallCatalog,
+	restorePersonalViewport,
 	SITEMAP_HEADINGS,
+	selectCards,
+	sourceOpenHref,
+	wallExportInput,
 	wallPresentation,
+	wallShareSnapshot,
+	zoomCamera,
 } from "./project-wall-model";
 
 const DATABASE_URL = localTestDatabaseUrl();
@@ -65,6 +84,7 @@ const SKETCH_COPY = /Sketch|freehand|Freehand/i;
 const CAPTURED_DAY = /^\d{4}-\d{2}-\d{2}/;
 const SAMPLE_SKELETON_CONTENT =
 	/Alex|Jordan|example finding|sample task|we decided|lorem|TODO: fill/i;
+const VIEWPORT_FIELDS = /"centerX"|"centerY"|"zoom"|"collapsedGroupIds"/;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -231,10 +251,14 @@ describe("Project Wall catalog", () => {
 			externalSurface: false,
 			freehand: false,
 			groupMembershipAsRelation: false,
+			hardSceneIsCreateCap: false,
 			moodboard: false,
 			nestedGroup: false,
 			nestedWall: false,
 			perCardCss: false,
+			personalViewportIsContent: false,
+			personalViewportIsExport: false,
+			personalViewportIsShareSnapshot: false,
 			proximityAsRelation: false,
 			shareGrant: false,
 			sketchCard: false,
@@ -249,6 +273,10 @@ describe("Project Wall catalog", () => {
 		expect(catalog.copy.presentationMode).toBe("Presentation Mode");
 		expect(catalog.copy.frozenCopy).toBe("Frozen copy");
 		expect(catalog.copy.openAllInSource).toBe("Open all in source");
+		expect(catalog.copy.fitView).toBe("Fit View");
+		expect(catalog.copy.outline).toBe("Outline");
+		expect(catalog.copy.inspect).toBe("Inspect");
+		expect(catalog.counterparts.hardSceneIsCreateCap).toBe(false);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(SURFACE_COPY);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(SHARE_UI);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(SKETCH_COPY);
@@ -1528,5 +1556,319 @@ describe("Project Wall starter skeletons", () => {
 		expect(replayed.walls.map((wall) => wall.id)).toEqual(
 			materialized.walls.map((wall) => wall.id)
 		);
+	});
+});
+
+describe("Project Wall personal viewport and outline", () => {
+	let prisma: PrismaClient;
+	let pool: Pool;
+
+	beforeAll(() => {
+		pool = new Pool({ connectionString: DATABASE_URL });
+		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+	});
+
+	beforeEach(async () => {
+		await resetSharedTables(prisma);
+	});
+
+	afterEach(async () => {
+		await resetSharedTables(prisma);
+	});
+
+	it("restores this canvas viewport and does not write relation or share snapshot", async () => {
+		const { actorId, projectId } = await openProject(prisma);
+		const wall = await committedWall(prisma, {
+			actorId,
+			name: "Viewport wall",
+			projectId,
+		});
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout flow",
+		});
+		const placed = await placedCard(prisma, {
+			actorId,
+			positionX: 40,
+			positionY: 20,
+			sourceId: work.id,
+			wallId: wall.id,
+		});
+		const saved = await savePersonalViewport(prisma, {
+			actorId,
+			payload: {
+				viewport: {
+					centerX: 80,
+					centerY: 40,
+					collapsedGroupIds: ["gone-group"],
+					zoom: 1.5,
+				},
+				wallId: wall.id,
+			},
+		});
+		expect(saved.status).toBe("committed");
+		const restored = await getPersonalViewport(prisma, {
+			actorId,
+			wallId: wall.id,
+		});
+		expect(restored).toEqual({
+			fitted: false,
+			inspectorOpen: false,
+			selectedId: null,
+			unsaved: false,
+			viewport: {
+				centerX: 80,
+				centerY: 40,
+				collapsedGroupIds: [],
+				zoom: 1.5,
+			},
+		});
+		const other = await prisma.user.create({
+			data: {
+				email: `other-${crypto.randomUUID()}@example.com`,
+				emailVerified: true,
+				id: crypto.randomUUID(),
+				name: "Other",
+			},
+		});
+		const otherView = await getPersonalViewport(prisma, {
+			actorId: other.id,
+			wallId: wall.id,
+		});
+		expect(otherView?.fitted).toBe(true);
+		expect(otherView?.viewport.centerX).not.toBe(80);
+		const content = await getProjectWall(prisma, wall.id);
+		expect(content).not.toHaveProperty("viewport");
+		expect(JSON.stringify(content)).not.toMatch(VIEWPORT_FIELDS);
+		expect(wallShareSnapshot(content ?? placed.wall)).not.toHaveProperty(
+			"viewport"
+		);
+		expect(
+			JSON.stringify(wallShareSnapshot(content ?? placed.wall))
+		).not.toMatch(VIEWPORT_FIELDS);
+		expect(JSON.stringify(wallExportInput(content ?? placed.wall))).not.toMatch(
+			VIEWPORT_FIELDS
+		);
+		expect(
+			await prisma.typedRelation.count({
+				where: { fromId: wall.id },
+			})
+		).toBe(0);
+		const afterSave = await getProjectWall(prisma, wall.id);
+		expect(afterSave?.revision).toBe(placed.wall.revision);
+	});
+
+	it("fits visible content from a meaningless saved position and does not restore selection", () => {
+		const content = {
+			cards: [
+				{ groupId: null, id: "c1", positionX: 0, positionY: 0 },
+				{ groupId: null, id: "c2", positionX: 200, positionY: 0 },
+			],
+			groups: [] as { id: string }[],
+		};
+		const fitted = fitViewportToContent(content);
+		expect(restorePersonalViewport({ content, saved: null })).toEqual({
+			fitted: true,
+			inspectorOpen: false,
+			selectedId: null,
+			unsaved: false,
+			viewport: fitted,
+		});
+		const fromFitView = restorePersonalViewport({
+			content,
+			saved: {
+				centerX: NEUTRAL_VIEWPORT.centerX,
+				centerY: NEUTRAL_VIEWPORT.centerY,
+				collapsedGroupIds: [],
+				zoom: NEUTRAL_VIEWPORT.zoom,
+			},
+			session: {
+				inspectorOpen: true,
+				selectedId: "c1",
+				unsaved: true,
+			},
+		});
+		expect(fromFitView.selectedId).toBeNull();
+		expect(fromFitView.inspectorOpen).toBe(false);
+		expect(fromFitView.unsaved).toBe(false);
+		expect(fromFitView.viewport.centerX).toBe(NEUTRAL_VIEWPORT.centerX);
+		const meaningless = restorePersonalViewport({
+			content,
+			saved: {
+				centerX: 50_000,
+				centerY: -40_000,
+				collapsedGroupIds: [],
+				zoom: 0,
+			},
+		});
+		expect(meaningless.fitted).toBe(true);
+		expect(meaningless.viewport.centerX).toBe(fitted.centerX);
+		expect(meaningless.viewport.centerY).toBe(fitted.centerY);
+	});
+
+	it("creates, selects, reorders, groups, binds, unbinds, inspects, and opens source from the outline", async () => {
+		const { actorId, projectId } = await openProject(prisma);
+		const wall = await committedWall(prisma, {
+			actorId,
+			name: "Outline wall",
+			projectId,
+		});
+		const firstWork = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "First card",
+		});
+		const secondWork = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Second card",
+		});
+		const first = await placedCard(prisma, {
+			actorId,
+			sourceId: firstWork.id,
+			wallId: wall.id,
+		});
+		const second = await placedCard(prisma, {
+			actorId,
+			sourceId: secondWork.id,
+			wallId: wall.id,
+		});
+		const selected = selectCards(
+			[first.card.id, second.card.id],
+			first.card.id
+		);
+		expect(selected).toEqual([first.card.id]);
+		const reordered = await reorderOutline(prisma, {
+			actorId,
+			idempotencyKey: "reorder-outline",
+			origin: "human",
+			payload: {
+				cardIds: [second.card.id, first.card.id],
+				wallId: wall.id,
+			},
+		});
+		expect(reordered.status).toBe("committed");
+		if (reordered.status !== "committed") {
+			throw new Error("expected reorder");
+		}
+		expect(reordered.wall.cards.map((card) => card.id)).toEqual([
+			second.card.id,
+			first.card.id,
+		]);
+		const grouped = await createGroup(prisma, {
+			actorId,
+			idempotencyKey: "group-outline",
+			origin: "human",
+			payload: {
+				cardIds: [second.card.id, first.card.id],
+				name: PROJECT_WALL_COPY.group,
+				wallId: wall.id,
+			},
+		});
+		expect(grouped.status).toBe("committed");
+		if (grouped.status !== "committed") {
+			throw new Error("expected group");
+		}
+		expect(grouped.wall.groups).toHaveLength(1);
+		expect(grouped.wall.groups[0]?.name).toBe(PROJECT_WALL_COPY.group);
+		expect(grouped.wall.cards.every((card) => card.groupId)).toBe(true);
+		const bound = await drawVisualLine(prisma, {
+			actorId,
+			idempotencyKey: "bind-outline",
+			origin: "human",
+			payload: {
+				fromCardId: second.card.id,
+				label: PROJECT_WALL_COPY.visualLink,
+				toCardId: first.card.id,
+				wallId: wall.id,
+			},
+		});
+		expect(bound.status).toBe("committed");
+		if (bound.status !== "committed") {
+			throw new Error("expected bind");
+		}
+		expect(bound.wall.visualLinks).toHaveLength(1);
+		expect(
+			await prisma.typedRelation.count({ where: { fromId: wall.id } })
+		).toBe(0);
+		const unbound = await removeVisualLine(prisma, {
+			actorId,
+			idempotencyKey: "unbind-outline",
+			origin: "human",
+			payload: {
+				visualLinkId: bound.wall.visualLinks[0]?.id ?? "",
+				wallId: wall.id,
+			},
+		});
+		expect(unbound.status).toBe("committed");
+		if (unbound.status !== "committed") {
+			throw new Error("expected unbind");
+		}
+		expect(unbound.wall.visualLinks).toHaveLength(0);
+		const inspected = unbound.wall.cards.find(
+			(card) => card.id === first.card.id
+		);
+		expect(inspected?.fields.Title).toBe("First card");
+		expect(inspected?.openSourceRecord).toBe(
+			PROJECT_WALL_COPY.openSourceRecord
+		);
+		expect(inspected?.openHref).toBe(sourceOpenHref(projectId));
+		const collapse = await savePersonalViewport(prisma, {
+			actorId,
+			payload: {
+				viewport: {
+					centerX: 80,
+					centerY: 0,
+					collapsedGroupIds: [grouped.wall.groups[0]?.id ?? ""],
+					zoom: 1,
+				},
+				wallId: wall.id,
+			},
+		});
+		expect(collapse.status).toBe("committed");
+		const restored = await getPersonalViewport(prisma, {
+			actorId,
+			wallId: wall.id,
+		});
+		expect(restored?.viewport.collapsedGroupIds).toEqual([
+			grouped.wall.groups[0]?.id,
+		]);
+	});
+
+	it("pans, zooms, selects, moves, and aligns from the keyboard", () => {
+		const camera = panCamera({ x: 10, y: 20, zoom: 1 }, 15, -5);
+		expect(camera).toEqual({ x: 25, y: 15, zoom: 1 });
+		expect(zoomCamera(camera, 2).zoom).toBe(2);
+		const cards = [
+			{ id: "a", positionX: 10, positionY: 40 },
+			{ id: "b", positionX: 90, positionY: 10 },
+		];
+		expect(selectCards(["a", "b"], "b")).toEqual(["b"]);
+		expect(moveCards(cards, ["a"], 8, -4)).toEqual([
+			{ id: "a", positionX: 18, positionY: 36 },
+			{ id: "b", positionX: 90, positionY: 10 },
+		]);
+		expect(
+			alignCards(cards, ["a", "b"], "left").map((card) => card.positionX)
+		).toEqual([10, 10]);
+	});
+
+	it("meets the 500/750 hard scene frame budget and does not crash 2000/3000", () => {
+		const hard = evaluateProjectWallCanvasScene(CANVAS_HARD_SCENE);
+		expect(hard).toMatchObject({
+			corrupted: false,
+			crashed: false,
+			detail: "full",
+		});
+		expect(hard.p95FrameMs).toBeLessThanOrEqual(CANVAS_FRAME_BUDGET_MS.p95);
+		expect(hard.maxFrameMs).toBeLessThanOrEqual(CANVAS_FRAME_BUDGET_MS.max);
+		expect(evaluateProjectWallCanvasScene(CANVAS_STRESS_SCENE)).toEqual({
+			corrupted: false,
+			crashed: false,
+			detail: "reduced",
+			maxFrameMs: expect.any(Number),
+			p95FrameMs: expect.any(Number),
+		});
 	});
 });

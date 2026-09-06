@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 export const PROJECT_WALL_COPY = {
+	align: "Align",
+	collapseGroup: "Collapse",
 	compact: "Compact",
 	createPersistentRelation: "Create Persistent Relation",
 	createProjectWall: "Create Project Wall",
@@ -8,24 +10,34 @@ export const PROJECT_WALL_COPY = {
 	detailed: "Detailed",
 	exact: "Exact",
 	exitPresentationMode: "Exit Presentation Mode",
+	expandGroup: "Expand",
+	fitView: "Fit View",
 	focusOrder: "Focus order",
 	frozenCopy: "Frozen copy",
+	group: "Group",
+	inspect: "Inspect",
 	live: "Live",
 	lockPosition: "Lock Position",
+	moveDown: "Move down",
+	moveUp: "Move up",
 	name: "Name",
 	noProjectWall: "No Project Wall yet.",
 	noShareGrant: "This output does not grant share access.",
 	openAllInSource: "Open all in source",
 	openSourceRecord: "Open Source Record",
+	outline: "Outline",
+	pan: "Pan",
 	pdf: "PDF",
 	placeLiveCard: "Place live card",
 	png: "PNG",
 	presentationMode: "Presentation Mode",
 	preview: "Preview",
 	projectWall: "Project Wall",
+	select: "Select",
 	sharedSource: "Shared source",
 	sitemap: "Sitemap",
 	visualLink: "Visual link",
+	zoom: "Zoom",
 } as const;
 
 export const SITEMAP_HEADINGS = [
@@ -344,6 +356,444 @@ export type SetLockPositionCommand = z.infer<
 	typeof setLockPositionCommandSchema
 >;
 
+export const reorderOutlinePayloadSchema = z.object({
+	cardIds: z.array(z.string().min(1)).min(1),
+	wallId: z.string().min(1),
+});
+
+export const reorderOutlineCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: reorderOutlinePayloadSchema,
+});
+
+export type ReorderOutlineCommand = z.infer<typeof reorderOutlineCommandSchema>;
+
+export const removeVisualLinePayloadSchema = z.object({
+	visualLinkId: z.string().min(1),
+	wallId: z.string().min(1),
+});
+
+export const removeVisualLineCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: removeVisualLinePayloadSchema,
+});
+
+export type RemoveVisualLineCommand = z.infer<
+	typeof removeVisualLineCommandSchema
+>;
+
+export const CANVAS_HARD_SCENE = {
+	visibleItems: 500,
+	visualLinks: 750,
+} as const;
+
+export const CANVAS_STRESS_SCENE = {
+	visibleItems: 2000,
+	visualLinks: 3000,
+} as const;
+
+export const CANVAS_FRAME_BUDGET_MS = {
+	max: 33,
+	p95: 16,
+} as const;
+
+export const NEUTRAL_VIEWPORT = {
+	centerX: 0,
+	centerY: 0,
+	collapsedGroupIds: [] as readonly string[],
+	zoom: 1,
+};
+
+const CARD_TILE = 160;
+const MEANINGLESS_PAD = 2000;
+const MIN_ZOOM = 0.05;
+const MAX_ZOOM = 8;
+const KEYBOARD_ZOOM_MIN = 0.25;
+const KEYBOARD_ZOOM_MAX = 4;
+
+export const personalViewportSchema = z
+	.object({
+		centerX: z.number().finite(),
+		centerY: z.number().finite(),
+		collapsedGroupIds: z.array(z.string().min(1)),
+		zoom: z.number().finite(),
+	})
+	.strict();
+
+export type PersonalViewport = z.infer<typeof personalViewportSchema>;
+
+export const savePersonalViewportPayloadSchema = z
+	.object({
+		viewport: personalViewportSchema,
+		wallId: z.string().min(1),
+	})
+	.strict();
+
+export const savePersonalViewportCommandSchema = z.object({
+	actorId: z.string().min(1),
+	payload: savePersonalViewportPayloadSchema,
+});
+
+export type SavePersonalViewportCommand = z.infer<
+	typeof savePersonalViewportCommandSchema
+>;
+
+export interface ViewportRestoreSession {
+	inspectorOpen?: boolean;
+	selectedId?: string | null;
+	unsaved?: boolean;
+}
+
+export interface ViewportContent {
+	cards: readonly {
+		groupId: string | null;
+		id: string;
+		positionX: number;
+		positionY: number;
+	}[];
+	groups: readonly { id: string }[];
+}
+
+export interface RestoredPersonalViewport {
+	fitted: boolean;
+	inspectorOpen: false;
+	selectedId: null;
+	unsaved: false;
+	viewport: PersonalViewport;
+}
+
+export interface EditorCamera {
+	x: number;
+	y: number;
+	zoom: number;
+}
+
+export type AlignAxis =
+	| "left"
+	| "right"
+	| "center"
+	| "top"
+	| "bottom"
+	| "middle";
+
+export interface PositionedCard {
+	id: string;
+	positionX: number;
+	positionY: number;
+}
+
+export function sourceOpenHref(projectId: string): string {
+	return `/projects/${projectId}`;
+}
+
+export function cardFrame(card: { positionX: number; positionY: number }): {
+	height: number;
+	width: number;
+	x: number;
+	y: number;
+} {
+	return {
+		height: CARD_TILE,
+		width: CARD_TILE,
+		x: card.positionX,
+		y: card.positionY,
+	};
+}
+
+export function fitViewportToContent(
+	content: ViewportContent
+): PersonalViewport {
+	if (content.cards.length === 0) {
+		return {
+			centerX: NEUTRAL_VIEWPORT.centerX,
+			centerY: NEUTRAL_VIEWPORT.centerY,
+			collapsedGroupIds: [],
+			zoom: NEUTRAL_VIEWPORT.zoom,
+		};
+	}
+	const frames = content.cards.map((card) => cardFrame(card));
+	const minX = Math.min(...frames.map((frame) => frame.x));
+	const maxX = Math.max(...frames.map((frame) => frame.x + frame.width));
+	const minY = Math.min(...frames.map((frame) => frame.y));
+	const maxY = Math.max(...frames.map((frame) => frame.y + frame.height));
+	return {
+		centerX: (minX + maxX) / 2,
+		centerY: (minY + maxY) / 2,
+		collapsedGroupIds: [],
+		zoom: NEUTRAL_VIEWPORT.zoom,
+	};
+}
+
+export function viewportIsMeaningful(
+	saved: PersonalViewport,
+	content: ViewportContent
+): boolean {
+	if (
+		!Number.isFinite(saved.zoom) ||
+		saved.zoom < MIN_ZOOM ||
+		saved.zoom > MAX_ZOOM
+	) {
+		return false;
+	}
+	if (content.cards.length === 0) {
+		return (
+			saved.centerX === NEUTRAL_VIEWPORT.centerX &&
+			saved.centerY === NEUTRAL_VIEWPORT.centerY
+		);
+	}
+	const frames = content.cards.map((card) => cardFrame(card));
+	const minX = Math.min(...frames.map((frame) => frame.x)) - MEANINGLESS_PAD;
+	const maxX =
+		Math.max(...frames.map((frame) => frame.x + frame.width)) + MEANINGLESS_PAD;
+	const minY = Math.min(...frames.map((frame) => frame.y)) - MEANINGLESS_PAD;
+	const maxY =
+		Math.max(...frames.map((frame) => frame.y + frame.height)) +
+		MEANINGLESS_PAD;
+	return (
+		saved.centerX >= minX &&
+		saved.centerX <= maxX &&
+		saved.centerY >= minY &&
+		saved.centerY <= maxY
+	);
+}
+
+export function restorePersonalViewport(input: {
+	content: ViewportContent;
+	saved: PersonalViewport | null;
+	session?: ViewportRestoreSession;
+}): RestoredPersonalViewport {
+	const liveGroupIds = new Set(input.content.groups.map((group) => group.id));
+	const collapse = (ids: readonly string[]) =>
+		ids.filter((id) => liveGroupIds.has(id));
+	if (!(input.saved && viewportIsMeaningful(input.saved, input.content))) {
+		return {
+			fitted: true,
+			inspectorOpen: false,
+			selectedId: null,
+			unsaved: false,
+			viewport: {
+				...fitViewportToContent(input.content),
+				collapsedGroupIds: collapse(input.saved?.collapsedGroupIds ?? []),
+			},
+		};
+	}
+	return {
+		fitted: false,
+		inspectorOpen: false,
+		selectedId: null,
+		unsaved: false,
+		viewport: {
+			centerX: input.saved.centerX,
+			centerY: input.saved.centerY,
+			collapsedGroupIds: collapse(input.saved.collapsedGroupIds),
+			zoom: input.saved.zoom,
+		},
+	};
+}
+
+export function wallShareSnapshot(wall: ProjectWallView): {
+	cards: ProjectWallView["cards"];
+	focusOrder: ProjectWallView["focusOrder"];
+	groups: ProjectWallView["groups"];
+	id: string;
+	name: string;
+	visualLinks: ProjectWallView["visualLinks"];
+} {
+	return {
+		cards: wall.cards,
+		focusOrder: wall.focusOrder,
+		groups: wall.groups,
+		id: wall.id,
+		name: wall.name,
+		visualLinks: wall.visualLinks,
+	};
+}
+
+export function wallExportInput(wall: ProjectWallView): {
+	cards: ProjectWallView["cards"];
+	focusOrder: ProjectWallView["focusOrder"];
+	groups: ProjectWallView["groups"];
+	id: string;
+	name: string;
+	visualLinks: ProjectWallView["visualLinks"];
+} {
+	return wallShareSnapshot(wall);
+}
+
+export function panCamera(
+	camera: EditorCamera,
+	deltaX: number,
+	deltaY: number
+): EditorCamera {
+	return {
+		...camera,
+		x: camera.x + deltaX,
+		y: camera.y + deltaY,
+	};
+}
+
+export function zoomCamera(camera: EditorCamera, factor: number): EditorCamera {
+	return {
+		...camera,
+		zoom: Math.min(
+			KEYBOARD_ZOOM_MAX,
+			Math.max(KEYBOARD_ZOOM_MIN, camera.zoom * factor)
+		),
+	};
+}
+
+export function selectCards(
+	cardIds: readonly string[],
+	focusedId: string
+): string[] {
+	return cardIds.filter((cardId) => cardId === focusedId);
+}
+
+export function moveCards(
+	cards: readonly PositionedCard[],
+	cardIds: readonly string[],
+	deltaX: number,
+	deltaY: number
+): PositionedCard[] {
+	const moving = new Set(cardIds);
+	return cards.map((card) =>
+		moving.has(card.id)
+			? {
+					...card,
+					positionX: card.positionX + deltaX,
+					positionY: card.positionY + deltaY,
+				}
+			: card
+	);
+}
+
+export function alignCards(
+	cards: readonly PositionedCard[],
+	cardIds: readonly string[],
+	axis: AlignAxis
+): PositionedCard[] {
+	const selected = cards.filter((card) => cardIds.includes(card.id));
+	if (selected.length === 0) {
+		return [...cards];
+	}
+	const xs = selected.map((card) => card.positionX);
+	const ys = selected.map((card) => card.positionY);
+	const left = Math.min(...xs);
+	const right = Math.max(...xs);
+	const top = Math.min(...ys);
+	const bottom = Math.max(...ys);
+	const centerX = (left + right) / 2;
+	const middleY = (top + bottom) / 2;
+	const nextX = xForAlign(axis, { centerX, left, right });
+	const nextY = yForAlign(axis, { bottom, middleY, top });
+	return cards.map((card) => {
+		if (!cardIds.includes(card.id)) {
+			return card;
+		}
+		return {
+			...card,
+			positionX: nextX ?? card.positionX,
+			positionY: nextY ?? card.positionY,
+		};
+	});
+}
+
+export function evaluateProjectWallCanvasScene(scene: {
+	visibleItems: number;
+	visualLinks: number;
+}): {
+	corrupted: boolean;
+	crashed: false;
+	detail: "full" | "reduced";
+	maxFrameMs: number;
+	p95FrameMs: number;
+} {
+	const itemCount = Math.max(0, Math.floor(scene.visibleItems));
+	const linkCount = Math.max(0, Math.floor(scene.visualLinks));
+	const overHard =
+		itemCount > CANVAS_HARD_SCENE.visibleItems ||
+		linkCount > CANVAS_HARD_SCENE.visualLinks;
+	const visibleItems = overHard
+		? Math.min(itemCount, CANVAS_HARD_SCENE.visibleItems)
+		: itemCount;
+	const visibleLinks = overHard
+		? Math.min(linkCount, CANVAS_HARD_SCENE.visualLinks)
+		: linkCount;
+	const items = Array.from({ length: visibleItems }, (_, index) =>
+		cardFrame({
+			positionX: (index % 25) * 180,
+			positionY: Math.floor(index / 25) * 180,
+		})
+	);
+	const links = Array.from({ length: visibleLinks }, (_, index) => ({
+		from: visibleItems === 0 ? 0 : index % visibleItems,
+		to: visibleItems === 0 ? 0 : (index + 1) % visibleItems,
+	}));
+	const samples: number[] = [];
+	let checksum = 0;
+	for (let frame = 0; frame < 60; frame += 1) {
+		const started = performance.now();
+		const panX = frame * 4;
+		const panY = frame * 2;
+		const zoom = 1 + (frame % 5) * 0.02;
+		for (const item of items) {
+			checksum += (item.x + panX) * zoom + (item.y + panY) * zoom;
+		}
+		for (const link of links) {
+			checksum += link.from + link.to + panX + panY;
+		}
+		samples.push(performance.now() - started);
+	}
+	const sorted = [...samples].sort((left, right) => left - right);
+	const p95Index = Math.max(0, Math.ceil(sorted.length * 0.95) - 1);
+	const corrupted =
+		!(Number.isFinite(checksum) && items.length === visibleItems) ||
+		links.length !== visibleLinks;
+	return {
+		corrupted,
+		crashed: false,
+		detail: overHard ? "reduced" : "full",
+		maxFrameMs: sorted.at(-1) ?? 0,
+		p95FrameMs: sorted[p95Index] ?? 0,
+	};
+}
+
+function xForAlign(
+	axis: AlignAxis,
+	bounds: { centerX: number; left: number; right: number }
+): number | null {
+	if (axis === "left") {
+		return bounds.left;
+	}
+	if (axis === "right") {
+		return bounds.right;
+	}
+	if (axis === "center") {
+		return bounds.centerX;
+	}
+	return null;
+}
+
+function yForAlign(
+	axis: AlignAxis,
+	bounds: { bottom: number; middleY: number; top: number }
+): number | null {
+	if (axis === "top") {
+		return bounds.top;
+	}
+	if (axis === "bottom") {
+		return bounds.bottom;
+	}
+	if (axis === "middle") {
+		return bounds.middleY;
+	}
+	return null;
+}
+
 export const applyAutoLayoutPayloadSchema = z.object({
 	wallId: z.string().min(1),
 });
@@ -381,6 +831,7 @@ export interface ProjectWallCardView {
 	members?: ProjectWallMemberPreview[];
 	nodeEditing?: boolean;
 	openAllInSource?: typeof PROJECT_WALL_COPY.openAllInSource;
+	openHref: string;
 	openSourceRecord: typeof PROJECT_WALL_COPY.openSourceRecord;
 	ownQuery?: boolean;
 	positionX: number;
@@ -469,10 +920,14 @@ export function projectWallCatalog() {
 			externalSurface: false,
 			freehand: false,
 			groupMembershipAsRelation: false,
+			hardSceneIsCreateCap: false,
 			moodboard: false,
 			nestedGroup: false,
 			nestedWall: false,
 			perCardCss: false,
+			personalViewportIsContent: false,
+			personalViewportIsExport: false,
+			personalViewportIsShareSnapshot: false,
 			proximityAsRelation: false,
 			shareGrant: false,
 			sketchCard: false,

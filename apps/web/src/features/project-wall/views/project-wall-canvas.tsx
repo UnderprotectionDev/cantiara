@@ -15,8 +15,8 @@ import {
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useState } from "react";
+import type { ChangeEvent, FormEvent, KeyboardEvent } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { RELATIONS_COPY } from "@/features/relations/forms/relations-copy";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { WORK_LIFECYCLE_COPY } from "@/features/work-lifecycle/forms/work-lifecycle-copy";
@@ -28,6 +28,11 @@ import {
 	PROJECT_WALL_DENSITIES,
 	PROJECT_WALL_SOURCE_KIND,
 } from "./project-wall-copy";
+import {
+	canvasKeyIntent,
+	KEYBOARD_MOVE,
+	KEYBOARD_PAN,
+} from "./project-wall-keyboard";
 
 interface WallMember {
 	id: string;
@@ -39,11 +44,13 @@ interface WallCard {
 	authority?: string;
 	density: string;
 	fields: Partial<Record<string, string>>;
+	groupId: string | null;
 	id: string;
 	locked: boolean;
 	members?: WallMember[];
 	nodeEditing?: boolean;
 	openAllInSource?: string;
+	openHref: string;
 	openSourceRecord: string;
 	ownQuery?: boolean;
 	positionX: number;
@@ -57,6 +64,12 @@ interface VisualLink {
 	id: string;
 	label: string;
 	toCardId: string;
+}
+
+interface WallGroup {
+	cardIds: string[];
+	id: string;
+	name: string;
 }
 
 export default function ProjectWallCanvas({
@@ -179,6 +192,57 @@ export default function ProjectWallCanvas({
 				}
 			},
 		})
+	);
+	const viewport = useQuery(
+		orpc.projectWall.getViewport.queryOptions({ input: { wallId } })
+	);
+	const saveViewport = useMutation(
+		orpc.projectWall.saveViewport.mutationOptions({
+			onSuccess: async () => {
+				await queryClient.invalidateQueries({
+					queryKey: orpc.projectWall.getViewport.queryKey({
+						input: { wallId },
+					}),
+				});
+			},
+		})
+	);
+	const reorder = useMutation(
+		orpc.projectWall.reorderOutline.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidate();
+					recordSave();
+				}
+			},
+		})
+	);
+	const group = useMutation(
+		orpc.projectWall.createGroup.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidate();
+					recordSave();
+					setSelectedIds([]);
+				}
+			},
+		})
+	);
+	const unbind = useMutation(
+		orpc.projectWall.removeVisualLine.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidate();
+					recordSave();
+					setVisualLinkId("");
+				}
+			},
+		})
+	);
+	const restored = viewport.data?.viewport;
+	const collapsed = useMemo(
+		() => new Set(restored?.collapsedGroupIds ?? []),
+		[restored?.collapsedGroupIds]
 	);
 	const placeSource = useCallback(
 		(nextSourceId: string, sourceKind: string) => {
@@ -426,11 +490,222 @@ export default function ProjectWallCanvas({
 		]
 	);
 
+	const persistViewport = useCallback(
+		(next: {
+			centerX: number;
+			centerY: number;
+			collapsedGroupIds: string[];
+			zoom: number;
+		}) => {
+			saveViewport.mutate({
+				payload: {
+					viewport: next,
+					wallId,
+				},
+			});
+		},
+		[saveViewport, wallId]
+	);
+
+	const onFitView = useCallback(() => {
+		persistViewport({
+			centerX: 0,
+			centerY: 0,
+			collapsedGroupIds: [],
+			zoom: 1,
+		});
+	}, [persistViewport]);
+
+	const onGroup = useCallback(() => {
+		if (selectedIds.length === 0) {
+			return;
+		}
+		markUnsaved();
+		attemptOnlineWork("record-create", () =>
+			group.mutateAsync({
+				idempotencyKey: newIdempotencyKey(),
+				payload: {
+					cardIds: selectedIds,
+					name: PROJECT_WALL_COPY.group,
+					wallId,
+				},
+			})
+		);
+	}, [attemptOnlineWork, group, markUnsaved, selectedIds, wallId]);
+
+	const onMoveOutline = useCallback(
+		(cardId: string, direction: -1 | 1) => {
+			if (!wall.data) {
+				return;
+			}
+			const ids = wall.data.cards.map((card) => card.id);
+			const index = ids.indexOf(cardId);
+			const next = index + direction;
+			if (index < 0 || next < 0 || next >= ids.length) {
+				return;
+			}
+			const nextIds = [...ids];
+			const [moved] = nextIds.splice(index, 1);
+			if (!moved) {
+				return;
+			}
+			nextIds.splice(next, 0, moved);
+			markUnsaved();
+			attemptOnlineWork("record-create", () =>
+				reorder.mutateAsync({
+					idempotencyKey: newIdempotencyKey(),
+					payload: { cardIds: nextIds, wallId },
+				})
+			);
+		},
+		[attemptOnlineWork, markUnsaved, reorder, wall.data, wallId]
+	);
+
+	const onToggleCollapse = useCallback(
+		(groupId: string) => {
+			const next = new Set(collapsed);
+			if (next.has(groupId)) {
+				next.delete(groupId);
+			} else {
+				next.add(groupId);
+			}
+			persistViewport({
+				centerX: restored?.centerX ?? 0,
+				centerY: restored?.centerY ?? 0,
+				collapsedGroupIds: [...next],
+				zoom: restored?.zoom ?? 1,
+			});
+		},
+		[collapsed, persistViewport, restored]
+	);
+
+	const onBindOutline = useCallback(() => {
+		if (selectedIds.length !== 2) {
+			return;
+		}
+		const [from, to] = selectedIds;
+		if (!(from && to)) {
+			return;
+		}
+		markUnsaved();
+		attemptOnlineWork("record-create", () =>
+			drawLine.mutateAsync({
+				idempotencyKey: newIdempotencyKey(),
+				payload: {
+					fromCardId: from,
+					label: PROJECT_WALL_COPY.visualLink,
+					toCardId: to,
+					wallId,
+				},
+			})
+		);
+	}, [attemptOnlineWork, drawLine, markUnsaved, selectedIds, wallId]);
+
+	const onUnbindOutline = useCallback(() => {
+		if (!visualLinkId) {
+			return;
+		}
+		markUnsaved();
+		attemptOnlineWork("record-create", () =>
+			unbind.mutateAsync({
+				idempotencyKey: newIdempotencyKey(),
+				payload: { visualLinkId, wallId },
+			})
+		);
+	}, [attemptOnlineWork, markUnsaved, unbind, visualLinkId, wallId]);
+
+	const onAlign = useCallback(() => {
+		if (!wall.data || selectedIds.length === 0) {
+			return;
+		}
+		const selected = wall.data.cards.filter((card) =>
+			selectedIds.includes(card.id)
+		);
+		const left = Math.min(...selected.map((card) => card.positionX));
+		for (const card of selected) {
+			if (card.locked || card.positionX === left) {
+				continue;
+			}
+			markUnsaved();
+			attemptOnlineWork("record-create", () =>
+				layout.mutateAsync({
+					idempotencyKey: newIdempotencyKey(),
+					payload: {
+						cardId: card.id,
+						positionX: left,
+						positionY: card.positionY,
+						wallId,
+					},
+				})
+			);
+		}
+	}, [attemptOnlineWork, layout, markUnsaved, selectedIds, wall.data, wallId]);
+
+	const onCanvasKeyDown = useCallback(
+		(event: KeyboardEvent<HTMLElement>) => {
+			if (presenting) {
+				return;
+			}
+			const intent = canvasKeyIntent(event);
+			if (!intent) {
+				return;
+			}
+			event.preventDefault();
+			if (intent.type === "zoom") {
+				persistViewport({
+					centerX: restored?.centerX ?? 0,
+					centerY: restored?.centerY ?? 0,
+					collapsedGroupIds: [...collapsed],
+					zoom: Math.min(
+						4,
+						Math.max(0.25, (restored?.zoom ?? 1) * intent.factor)
+					),
+				});
+				return;
+			}
+			if (intent.type === "move" && wall.data) {
+				moveSelectedCards(
+					wall.data.cards,
+					selectedIds,
+					intent.dx * KEYBOARD_MOVE,
+					intent.dy * KEYBOARD_MOVE,
+					wallId,
+					attemptOnlineWork,
+					markUnsaved,
+					layout.mutateAsync
+				);
+				return;
+			}
+			if (intent.type === "pan") {
+				persistViewport({
+					centerX: (restored?.centerX ?? 0) + intent.dx * KEYBOARD_PAN,
+					centerY: (restored?.centerY ?? 0) + intent.dy * KEYBOARD_PAN,
+					collapsedGroupIds: [...collapsed],
+					zoom: restored?.zoom ?? 1,
+				});
+			}
+		},
+		[
+			attemptOnlineWork,
+			collapsed,
+			layout.mutateAsync,
+			markUnsaved,
+			persistViewport,
+			presenting,
+			restored,
+			selectedIds,
+			wall.data,
+			wallId,
+		]
+	);
+
 	if (!wall.data) {
 		return null;
 	}
 
 	const toolsVisible = !presenting;
+	const selectedCard =
+		wall.data.cards.find((card) => selectedIds.includes(card.id)) ?? null;
 	const projectCollections = (collections.data ?? []).filter(
 		(item) => item.projectId === wall.data.projectId || item.projectId === null
 	);
@@ -442,6 +717,14 @@ export default function ProjectWallCanvas({
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex flex-wrap items-center gap-2">
+				<Button
+					onClick={onFitView}
+					onKeyDown={onCanvasKeyDown}
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.fitView}
+				</Button>
 				<Button onClick={onTogglePresentation} type="button" variant="outline">
 					{presenting
 						? PROJECT_WALL_COPY.exitPresentationMode
@@ -607,6 +890,38 @@ export default function ProjectWallCanvas({
 						<Button onClick={onSaveFocusOrder} type="button" variant="outline">
 							{PROJECT_WALL_COPY.focusOrder}
 						</Button>
+						<Button
+							disabled={selectedIds.length === 0}
+							onClick={onGroup}
+							type="button"
+							variant="outline"
+						>
+							{PROJECT_WALL_COPY.group}
+						</Button>
+						<Button
+							disabled={selectedIds.length < 2}
+							onClick={onAlign}
+							type="button"
+							variant="outline"
+						>
+							{PROJECT_WALL_COPY.align}
+						</Button>
+						<Button
+							disabled={selectedIds.length !== 2}
+							onClick={onBindOutline}
+							type="button"
+							variant="outline"
+						>
+							{PROJECT_WALL_COPY.visualLink}
+						</Button>
+						<Button
+							disabled={!visualLinkId}
+							onClick={onUnbindOutline}
+							type="button"
+							variant="outline"
+						>
+							{PROJECT_WALL_COPY.outline} {PROJECT_WALL_COPY.visualLink}
+						</Button>
 						<Button onClick={onSnapshotPng} type="button" variant="outline">
 							{PROJECT_WALL_COPY.frozenCopy} {PROJECT_WALL_COPY.png}
 						</Button>
@@ -618,54 +933,344 @@ export default function ProjectWallCanvas({
 				</>
 			) : null}
 			<DndContext onDragEnd={onDragEnd} sensors={sensors}>
-				<div className="relative min-h-[28rem] overflow-hidden rounded-md border bg-muted/30">
-					{wall.data.groups.length > 0 ? (
-						<ol className="absolute inset-x-3 top-3 z-0 flex flex-col gap-2">
-							{wall.data.groups.map((group) => (
-								<li
-									className="rounded-md border border-dashed bg-background/80 px-3 py-2 text-sm"
-									key={group.id}
-								>
-									{group.name}
-								</li>
-							))}
-						</ol>
-					) : null}
-					<svg
-						aria-hidden="true"
-						className="pointer-events-none absolute inset-0 h-full w-full"
-					>
-						<defs>
-							<marker
-								id="wall-arrow"
-								markerHeight="6"
-								markerWidth="6"
-								orient="auto"
-								refX="6"
-								refY="3"
-							>
-								<path d="M0,0 L6,3 L0,6 z" fill="currentColor" />
-							</marker>
-						</defs>
-						{wall.data.visualLinks.map((link: VisualLink) => (
-							<VisualLine cards={wall.data.cards} key={link.id} link={link} />
-						))}
-					</svg>
-					{wall.data.cards.map((card) => (
-						<LiveCard
-							card={card}
-							key={card.id}
+				<div className="grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
+					{toolsVisible ? (
+						<ProjectWallOutline
+							canUnbind={Boolean(visualLinkId)}
+							cards={wall.data.cards}
+							collapsed={collapsed}
+							groups={wall.data.groups}
+							onAlign={onAlign}
+							onBind={onBindOutline}
+							onGroup={onGroup}
+							onMove={onMoveOutline}
 							onOpenSourceRecord={onOpenSourceRecord}
+							onToggleCollapse={onToggleCollapse}
 							onToggleSelect={onToggleSelect}
-							onWallChanged={invalidate}
-							presenting={presenting}
-							selected={selectedIds.includes(card.id)}
-							wallId={wallId}
+							onUnbind={onUnbindOutline}
+							selectedCard={selectedCard}
+							selectedIds={selectedIds}
 						/>
-					))}
+					) : (
+						<div />
+					)}
+					<div className="relative min-h-[28rem] overflow-hidden rounded-md border bg-muted/30">
+						<div
+							className="absolute inset-0"
+							style={{
+								transform: `translate(${-(restored?.centerX ?? 0)}px, ${-(restored?.centerY ?? 0)}px) scale(${restored?.zoom ?? 1})`,
+								transformOrigin: "center center",
+							}}
+						>
+							{wall.data.groups.length > 0 ? (
+								<ol className="absolute inset-x-3 top-3 z-0 flex flex-col gap-2">
+									{wall.data.groups.map((boardGroup) => (
+										<li
+											className="rounded-md border border-dashed bg-background/80 px-3 py-2 text-sm"
+											key={boardGroup.id}
+										>
+											{boardGroup.name}
+										</li>
+									))}
+								</ol>
+							) : null}
+							<svg
+								aria-hidden="true"
+								className="pointer-events-none absolute inset-0 h-full w-full"
+							>
+								<defs>
+									<marker
+										id="wall-arrow"
+										markerHeight="6"
+										markerWidth="6"
+										orient="auto"
+										refX="6"
+										refY="3"
+									>
+										<path d="M0,0 L6,3 L0,6 z" fill="currentColor" />
+									</marker>
+								</defs>
+								{wall.data.visualLinks.map((link: VisualLink) => (
+									<VisualLine
+										cards={wall.data.cards}
+										key={link.id}
+										link={link}
+									/>
+								))}
+							</svg>
+							{wall.data.cards.map((card) => (
+								<LiveCard
+									card={card}
+									key={card.id}
+									onOpenSourceRecord={onOpenSourceRecord}
+									onToggleSelect={onToggleSelect}
+									onWallChanged={invalidate}
+									presenting={presenting}
+									selected={selectedIds.includes(card.id)}
+									wallId={wallId}
+								/>
+							))}
+						</div>
+					</div>
 				</div>
 			</DndContext>
 		</div>
+	);
+}
+
+function moveSelectedCards(
+	cards: WallCard[],
+	selectedIds: string[],
+	deltaX: number,
+	deltaY: number,
+	wallId: string,
+	attemptOnlineWork: ReturnType<typeof useClientShell>["attemptOnlineWork"],
+	markUnsaved: ReturnType<typeof useClientShell>["markUnsaved"],
+	mutateLayout: (input: {
+		idempotencyKey: string;
+		payload: {
+			cardId: string;
+			positionX: number;
+			positionY: number;
+			wallId: string;
+		};
+	}) => Promise<unknown>
+) {
+	for (const card of cards) {
+		if (!selectedIds.includes(card.id) || card.locked) {
+			continue;
+		}
+		markUnsaved();
+		attemptOnlineWork("record-create", () =>
+			mutateLayout({
+				idempotencyKey: newIdempotencyKey(),
+				payload: {
+					cardId: card.id,
+					positionX: card.positionX + deltaX,
+					positionY: card.positionY + deltaY,
+					wallId,
+				},
+			})
+		);
+	}
+}
+
+function ProjectWallOutline({
+	canUnbind,
+	cards,
+	collapsed,
+	groups,
+	onAlign,
+	onBind,
+	onGroup,
+	onMove,
+	onOpenSourceRecord,
+	onToggleCollapse,
+	onToggleSelect,
+	onUnbind,
+	selectedCard,
+	selectedIds,
+}: {
+	canUnbind: boolean;
+	cards: WallCard[];
+	collapsed: Set<string>;
+	groups: WallGroup[];
+	onAlign: () => void;
+	onBind: () => void;
+	onGroup: () => void;
+	onMove: (cardId: string, direction: -1 | 1) => void;
+	onOpenSourceRecord?: (sourceId: string) => void;
+	onToggleCollapse: (groupId: string) => void;
+	onToggleSelect: (cardId: string) => void;
+	onUnbind: () => void;
+	selectedCard: WallCard | null;
+	selectedIds: string[];
+}) {
+	return (
+		<nav aria-label={PROJECT_WALL_COPY.outline}>
+			<h3 className="font-medium text-sm">{PROJECT_WALL_COPY.outline}</h3>
+			<div className="mt-2 flex flex-wrap gap-2">
+				<Button
+					disabled={selectedIds.length === 0}
+					onClick={onGroup}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.group}
+				</Button>
+				<Button
+					disabled={selectedIds.length < 2}
+					onClick={onAlign}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.align}
+				</Button>
+				<Button
+					disabled={selectedIds.length !== 2}
+					onClick={onBind}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.visualLink}
+				</Button>
+				<Button
+					disabled={!canUnbind}
+					onClick={onUnbind}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.visualLink}
+				</Button>
+			</div>
+			<ul className="mt-2 flex flex-col gap-2">
+				{groups.map((boardGroup) => (
+					<OutlineGroup
+						cards={cards.filter((card) => card.groupId === boardGroup.id)}
+						collapsed={collapsed.has(boardGroup.id)}
+						id={boardGroup.id}
+						key={boardGroup.id}
+						name={boardGroup.name}
+						onMove={onMove}
+						onOpenSourceRecord={onOpenSourceRecord}
+						onToggleCollapse={onToggleCollapse}
+						onToggleSelect={onToggleSelect}
+						selectedIds={selectedIds}
+					/>
+				))}
+				{cards
+					.filter((card) => card.groupId === null)
+					.map((card) => (
+						<OutlineCard
+							card={card}
+							key={card.id}
+							onMove={onMove}
+							onOpenSourceRecord={onOpenSourceRecord}
+							onToggleSelect={onToggleSelect}
+							selected={selectedIds.includes(card.id)}
+						/>
+					))}
+			</ul>
+			{selectedCard ? (
+				<section aria-label={PROJECT_WALL_COPY.inspect} className="mt-4">
+					<h3 className="font-medium text-sm">{PROJECT_WALL_COPY.inspect}</h3>
+					<p className="mt-2 text-sm">{selectedCard.fields.Title}</p>
+				</section>
+			) : null}
+		</nav>
+	);
+}
+
+function OutlineGroup({
+	cards,
+	collapsed,
+	id,
+	name,
+	onMove,
+	onOpenSourceRecord,
+	onToggleCollapse,
+	onToggleSelect,
+	selectedIds,
+}: {
+	cards: WallCard[];
+	collapsed: boolean;
+	id: string;
+	name: string;
+	onMove: (cardId: string, direction: -1 | 1) => void;
+	onOpenSourceRecord?: (sourceId: string) => void;
+	onToggleCollapse: (groupId: string) => void;
+	onToggleSelect: (cardId: string) => void;
+	selectedIds: string[];
+}) {
+	const onCollapse = useCallback(() => {
+		onToggleCollapse(id);
+	}, [id, onToggleCollapse]);
+	return (
+		<li>
+			<div className="flex items-center gap-2">
+				<span className="font-medium text-sm">{name}</span>
+				<Button onClick={onCollapse} size="sm" type="button" variant="ghost">
+					{collapsed
+						? PROJECT_WALL_COPY.expandGroup
+						: PROJECT_WALL_COPY.collapseGroup}
+				</Button>
+			</div>
+			{collapsed ? null : (
+				<ul className="mt-2 flex flex-col gap-2 pl-3">
+					{cards.map((card) => (
+						<OutlineCard
+							card={card}
+							key={card.id}
+							onMove={onMove}
+							onOpenSourceRecord={onOpenSourceRecord}
+							onToggleSelect={onToggleSelect}
+							selected={selectedIds.includes(card.id)}
+						/>
+					))}
+				</ul>
+			)}
+		</li>
+	);
+}
+
+function OutlineCard({
+	card,
+	onMove,
+	onOpenSourceRecord,
+	onToggleSelect,
+	selected,
+}: {
+	card: WallCard;
+	onMove: (cardId: string, direction: -1 | 1) => void;
+	onOpenSourceRecord?: (sourceId: string) => void;
+	onToggleSelect: (cardId: string) => void;
+	selected: boolean;
+}) {
+	const onSelect = useCallback(() => {
+		onToggleSelect(card.id);
+	}, [card.id, onToggleSelect]);
+	const onUp = useCallback(() => {
+		onMove(card.id, -1);
+	}, [card.id, onMove]);
+	const onDown = useCallback(() => {
+		onMove(card.id, 1);
+	}, [card.id, onMove]);
+	const onOpen = useCallback(() => {
+		onOpenSourceRecord?.(card.sourceId);
+	}, [card.sourceId, onOpenSourceRecord]);
+	return (
+		<li className="rounded-none border border-input px-2.5 py-2 text-sm">
+			<div className="flex flex-wrap items-center gap-2">
+				<Button
+					aria-pressed={selected}
+					onClick={onSelect}
+					size="sm"
+					type="button"
+					variant={selected ? "secondary" : "outline"}
+				>
+					{card.fields.Title ?? card.sourceKind}
+				</Button>
+				<Button onClick={onUp} size="sm" type="button" variant="ghost">
+					{PROJECT_WALL_COPY.moveUp}
+				</Button>
+				<Button onClick={onDown} size="sm" type="button" variant="ghost">
+					{PROJECT_WALL_COPY.moveDown}
+				</Button>
+				{onOpenSourceRecord ? (
+					<Button onClick={onOpen} size="sm" type="button" variant="ghost">
+						{card.openSourceRecord}
+					</Button>
+				) : (
+					<a className="text-sm underline" href={card.openHref}>
+						{card.openSourceRecord}
+					</a>
+				)}
+			</div>
+		</li>
 	);
 }
 
@@ -747,13 +1352,19 @@ function LiveCard({
 	);
 	const onDensityChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
+			const nextDensity = PROJECT_WALL_DENSITIES.find(
+				(item) => item === event.target.value
+			);
+			if (!nextDensity) {
+				return;
+			}
 			markUnsaved();
 			attemptOnlineWork("record-create", () =>
 				density.mutateAsync({
 					idempotencyKey: newIdempotencyKey(),
 					payload: {
 						cardId: card.id,
-						density: event.target.value,
+						density: nextDensity,
 						wallId,
 					},
 				})
@@ -798,13 +1409,13 @@ function LiveCard({
 			}}
 		>
 			<button
-				aria-pressed={selected}
 				className="mb-2 block w-full cursor-grab text-left font-medium text-sm"
 				disabled={card.locked}
 				onClick={onSelect}
 				type="button"
 				{...listeners}
 				{...attributes}
+				aria-pressed={selected}
 			>
 				{card.fields.Title}
 			</button>
