@@ -36,6 +36,7 @@ import {
 } from "./screens-and-wireframes";
 import {
 	EMPTY_WIREFRAME_DOCUMENT,
+	SCREEN_EVENT_KIND,
 	SCREEN_KIND,
 	SCREEN_LIFE,
 	SCREENS_COPY,
@@ -171,6 +172,7 @@ describe("Screens and Wireframes", () => {
 			versions: [],
 		});
 		expect(created.screen.recordKind).toBe("Screen");
+		expect(created.screen.history[0]?.kind).toBe(SCREEN_EVENT_KIND.create);
 		expect(created.screen.recordKind).not.toBe("Document");
 		expect(created.screen.recordKind).not.toBe("Moodboard");
 		expect(created.screen.recordKind).not.toBe("User Flow");

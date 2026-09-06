@@ -5,7 +5,7 @@ export const SCREENS_COPY = {
 	archive: "Archive",
 	archived: "Archived",
 	createScreen: "Create Screen",
-	deletePermanently: "Delete permanently",
+	deletePermanently: "Permanently Delete",
 	includeArchived: "Include archived",
 	inTrash: "In Trash",
 	moveToTrash: "Move to Trash",

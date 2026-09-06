@@ -40,7 +40,7 @@ export default function CreateScreenForm({
 					setError(
 						outcome.reason === "title-required"
 							? SCREENS_COPY.titleRequired
-							: outcome.reason
+							: SCREENS_COPY.unavailable
 					);
 				}
 			},

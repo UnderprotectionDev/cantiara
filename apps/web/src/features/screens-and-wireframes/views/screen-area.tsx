@@ -87,7 +87,9 @@ export default function ScreenArea({ projectId }: { projectId: string }) {
 				{screens.data.length === 0 ? (
 					<Empty>
 						<EmptyHeader>
-							<EmptyTitle>{SCREENS_COPY.noScreens}</EmptyTitle>
+							<EmptyTitle>
+								{trash ? SCREENS_COPY.noScreensInTrash : SCREENS_COPY.noScreens}
+							</EmptyTitle>
 						</EmptyHeader>
 					</Empty>
 				) : (

@@ -9,6 +9,8 @@ describe("Screens copy", () => {
 		expect(SCREENS_COPY.screen).toBe("Screen");
 		expect(SCREENS_COPY.createScreen).toBe("Create Screen");
 		expect(SCREENS_COPY.titleRequired).toBe("Title is required.");
+		expect(SCREENS_COPY.deletePermanently).toBe("Permanently Delete");
+		expect(SCREENS_COPY.moveToTrash).toBe("Move to Trash");
 		expect(JSON.stringify(SCREENS_COPY)).not.toMatch(OUT_OF_SCOPE_COPY);
 	});
 });
