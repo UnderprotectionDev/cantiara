@@ -14,6 +14,7 @@ model User {
   personalReminders           PersonalReminder[]
   favoriteMemberships         FavoriteMembership[]
   moodboardPersonalViewports MoodboardPersonalViewport[]
+  screenPersonalViewports    ScreenPersonalViewport[]
 
   @@unique([email])
   @@map("user")
