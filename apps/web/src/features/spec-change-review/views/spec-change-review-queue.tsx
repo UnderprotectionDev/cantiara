@@ -58,9 +58,16 @@ export default function SpecChangeReviewQueue({
 				? selected.changedSections.map((section) => (
 						<article className="mt-3" key={section.heading}>
 							<h4 className="font-medium text-sm">{section.heading}</h4>
+							<p className="mt-1 text-muted-foreground text-xs">
+								{SPEC_CHANGE_REVIEW_COPY.version}{" "}
+								{selected.previousVersion.revision}
+							</p>
 							<pre className="mt-1 whitespace-pre-wrap text-muted-foreground text-xs">
 								{section.previousBody}
 							</pre>
+							<p className="mt-1 text-muted-foreground text-xs">
+								{SPEC_CHANGE_REVIEW_COPY.version} {selected.newVersion.revision}
+							</p>
 							<pre className="mt-1 whitespace-pre-wrap text-xs">
 								{section.newBody}
 							</pre>
