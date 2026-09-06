@@ -323,6 +323,8 @@ describe("User Flow live Screen refs", () => {
 		expect(view?.nodes[0]?.openHref).toContain(screen.id);
 		expect(view?.nodes[0]?.screenId).toBe(screen.id);
 		expect(view?.copy.archived).toBe("Archived");
+		expect(collectionMembershipFrom(view?.nodes ?? [])).toEqual([screen.id]);
+		expect(computedCountsFrom(view?.nodes ?? [])).toEqual({ liveScreens: 1 });
 	});
 
 	it("keeps a trash target broken without leaking body or retargeting", async () => {
@@ -378,7 +380,6 @@ describe("User Flow live Screen refs", () => {
 		);
 		expect(collectionMembershipFrom(view?.nodes ?? [])).toEqual([]);
 		expect(computedCountsFrom(view?.nodes ?? [])).toEqual({
-			brokenTargets: 0,
 			liveScreens: 0,
 		});
 		expect(exportContentFrom(view ?? { nodes: [], title: "" })).not.toContain(

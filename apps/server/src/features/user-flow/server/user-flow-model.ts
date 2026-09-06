@@ -240,17 +240,17 @@ export function collectionMembershipFrom(
 	nodes: readonly PresentedScreenNode[]
 ): readonly string[] {
 	return nodes
-		.filter((node) => node.resolution === "ok")
+		.filter(
+			(node) => node.resolution === "ok" || node.resolution === "archived"
+		)
 		.map((node) => node.screenId);
 }
 
 export function computedCountsFrom(nodes: readonly PresentedScreenNode[]): {
-	brokenTargets: number;
 	liveScreens: number;
 } {
 	return {
-		brokenTargets: 0,
-		liveScreens: nodes.filter((node) => node.resolution === "ok").length,
+		liveScreens: collectionMembershipFrom(nodes).length,
 	};
 }
 

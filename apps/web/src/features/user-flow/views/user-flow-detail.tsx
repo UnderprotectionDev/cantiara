@@ -18,6 +18,7 @@ import CreateScreenForm from "../forms/create-screen-form";
 import { USER_FLOW_COPY } from "../forms/user-flow-copy";
 
 interface PresentedNode {
+	boundAt: string | null;
 	id: string;
 	openHref: string | null;
 	openSourceRecord: string | null;
@@ -182,6 +183,9 @@ export default function UserFlowDetail({
 							{node.screenTitle ?? node.reason}
 							{node.reason ? ` · ${node.reason}` : null}
 						</p>
+						{node.boundAt && node.resolution === "broken" ? (
+							<p className="text-muted-foreground text-sm">{node.boundAt}</p>
+						) : null}
 						{node.pathText.description ? (
 							<p className="text-muted-foreground text-sm">
 								{node.pathText.description}
