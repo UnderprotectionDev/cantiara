@@ -6,15 +6,21 @@ import {
 } from "../../../apps/server/src/features/project-shell/server/project-shell";
 import type { StarterConfiguration } from "../../../apps/server/src/features/project-shell/server/project-shell-model";
 import {
+	createProjectWall,
+	materializeStarterSkeletonWalls,
+} from "../../../apps/server/src/features/project-wall/server/project-wall";
+import {
 	contributeToMilestone,
 	createMilestone,
 	placeHorizon,
 } from "../../../apps/server/src/features/roadmap-horizon/server/roadmap-horizon";
+import { createScreen } from "../../../apps/server/src/features/screens-and-wireframes/server/screens-and-wireframes";
 import { createSource } from "../../../apps/server/src/features/sources-and-freshness/server/sources";
 import {
 	applyTag,
 	createTag,
 } from "../../../apps/server/src/features/tags/server/tags";
+import { createUserFlow } from "../../../apps/server/src/features/user-flow/server/user-flow";
 import { addChecklistItem } from "../../../apps/server/src/features/work-checklists/server/work-checklists";
 import {
 	changeWorkStatus,
@@ -419,4 +425,97 @@ export async function seedProjectSource(
 		},
 	});
 	assertCommitted(created, `createSource(${input.title})`);
+}
+
+export async function seedProjectScreen(
+	ctx: SeedContext,
+	input: {
+		prefix: string;
+		projectId: string;
+		title: string;
+	}
+): Promise<void> {
+	if (ctx.dryRun) {
+		return;
+	}
+
+	const created = await createScreen(ctx.prisma, {
+		actorId: ctx.actorId,
+		idempotencyKey: idempotencyKey(input.prefix, "screen"),
+		origin: "human",
+		payload: {
+			projectId: input.projectId,
+			title: input.title,
+		},
+	});
+	assertCommitted(created, `createScreen(${input.title})`);
+}
+
+export async function seedProjectUserFlow(
+	ctx: SeedContext,
+	input: {
+		prefix: string;
+		projectId: string;
+		title: string;
+	}
+): Promise<void> {
+	if (ctx.dryRun) {
+		return;
+	}
+
+	const created = await createUserFlow(ctx.prisma, {
+		actorId: ctx.actorId,
+		idempotencyKey: idempotencyKey(input.prefix, "user-flow"),
+		origin: "human",
+		payload: {
+			projectId: input.projectId,
+			title: input.title,
+		},
+	});
+	assertCommitted(created, `createUserFlow(${input.title})`);
+}
+
+export async function seedProjectWall(
+	ctx: SeedContext,
+	input: {
+		name: string;
+		prefix: string;
+		projectId: string;
+	}
+): Promise<void> {
+	if (ctx.dryRun) {
+		return;
+	}
+
+	const created = await createProjectWall(ctx.prisma, {
+		actorId: ctx.actorId,
+		idempotencyKey: idempotencyKey(input.prefix, "project-wall"),
+		origin: "human",
+		payload: {
+			name: input.name,
+			projectId: input.projectId,
+		},
+	});
+	assertCommitted(created, `createProjectWall(${input.name})`);
+}
+
+export async function seedStarterSkeletonWalls(
+	ctx: SeedContext,
+	input: {
+		prefix: string;
+		projectId: string;
+	}
+): Promise<void> {
+	if (ctx.dryRun) {
+		return;
+	}
+
+	const created = await materializeStarterSkeletonWalls(ctx.prisma, {
+		actorId: ctx.actorId,
+		idempotencyKey: idempotencyKey(input.prefix, "starter-skeleton-walls"),
+		origin: "human",
+		payload: { projectId: input.projectId },
+		workspaceId: ctx.workspaceId,
+	});
+	assertCommitted(created, `materializeStarterSkeletonWalls(${input.prefix})`);
 }

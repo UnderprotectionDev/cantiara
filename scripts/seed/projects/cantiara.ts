@@ -8,7 +8,11 @@ import {
 	seedMilestone,
 	seedProject,
 	seedProjectDocument,
+	seedProjectScreen,
 	seedProjectSource,
+	seedProjectUserFlow,
+	seedProjectWall,
+	seedStarterSkeletonWalls,
 	seedWork,
 	seedWorkClose,
 	seedWorkPlanningDates,
@@ -204,6 +208,26 @@ export async function seedCantiaraProject(
 		projectId: project.id,
 		title: "Stripe Checkout",
 		url: "https://docs.stripe.com/payments/checkout",
+	});
+
+	await seedStarterSkeletonWalls(ctx, {
+		prefix: "cantiara-starter-walls",
+		projectId: project.id,
+	});
+	await seedProjectWall(ctx, {
+		name: "Checkout narrative",
+		prefix: "cantiara-checkout-wall",
+		projectId: project.id,
+	});
+	await seedProjectScreen(ctx, {
+		prefix: "cantiara-checkout-screen",
+		projectId: project.id,
+		title: "Checkout",
+	});
+	await seedProjectUserFlow(ctx, {
+		prefix: "cantiara-guest-checkout-flow",
+		projectId: project.id,
+		title: "Guest checkout",
 	});
 
 	return project;
