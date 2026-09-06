@@ -21,7 +21,6 @@ import FeedArea from "@/features/feedback/views/feed-area";
 import FeedbackArea from "@/features/feedback/views/feedback-area";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
 import ProjectGoalsPanel from "@/features/goals/views/project-goals-panel";
-import { MOODBOARDS_COPY } from "@/features/moodboards/forms/moodboards-copy";
 import MoodboardArea from "@/features/moodboards/views/moodboard-area";
 import { FOUNDER_MAIN_ID } from "@/features/personal-shell/components/founder-chrome";
 import ProjectOverview from "@/features/project-overview/views/project-overview";
@@ -641,9 +640,7 @@ function projectRecordArea({
 	if (selectedArea === "Design") {
 		return (
 			<section aria-label="Design" id={projectShellAnchor("Design")}>
-				<h1 className="font-semibold text-[1.375rem] tracking-tight">
-					{MOODBOARDS_COPY.moodboard}
-				</h1>
+				<h1 className="font-semibold text-[1.375rem] tracking-tight">Design</h1>
 				<div className="mt-6">
 					<MoodboardArea projectId={projectId} />
 				</div>

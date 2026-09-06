@@ -122,11 +122,21 @@ export async function getMoodboardByVisualId(
 	return await getMoodboard(prisma, visual.moodboardId);
 }
 
-export function listProjectWallCardsSpawnedFrom(
-	_prisma: PrismaClient,
-	_moodboardId: string
-): readonly never[] {
-	return [];
+export async function listProjectWallCardsSpawnedFrom(
+	prisma: PrismaClient,
+	moodboardId: string
+): Promise<readonly { id: string }[]> {
+	const found = await prisma.$queryRaw<Array<{ name: string | null }>>`
+		SELECT to_regclass('public.project_wall_card')::text AS name
+	`;
+	if (!found[0]?.name) {
+		return [];
+	}
+	return await prisma.$queryRaw<Array<{ id: string }>>`
+		SELECT id
+		FROM project_wall_card
+		WHERE "moodboardId" = ${moodboardId}
+	`;
 }
 
 async function createInTransaction(

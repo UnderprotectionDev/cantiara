@@ -214,6 +214,10 @@ describe("Moodboards", () => {
 			kind: VISUAL_ORIGIN_KIND.fileAttachment,
 			title: "Checkout shot",
 		});
+		const file = await prisma.fileAttachment.findUnique({
+			where: { id: shot.fileId },
+		});
+		expect(file?.title).toBe("Checkout shot");
 		expect(loaded?.visuals[0]?.caption).toBe("Why this checkout density.");
 		expect(JSON.stringify(loaded)).not.toMatch(SOCIAL_OR_SECOND_SOURCE);
 	});
@@ -367,7 +371,7 @@ describe("Moodboards", () => {
 		});
 		expect(placed.status).toBe("committed");
 		expect(
-			listProjectWallCardsSpawnedFrom(prisma, created.moodboard.id)
+			await listProjectWallCardsSpawnedFrom(prisma, created.moodboard.id)
 		).toEqual([]);
 		expect(MOODBOARD_COUNTERPARTS.autoCreateProjectWallCard).toBe(false);
 	});

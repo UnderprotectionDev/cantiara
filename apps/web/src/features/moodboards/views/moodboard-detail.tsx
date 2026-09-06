@@ -2,6 +2,7 @@ import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
 import { Spinner } from "@cantiara/ui/components/spinner";
 import { useQuery } from "@tanstack/react-query";
 import AddMoodboardVisualForm from "@/features/moodboards/forms/add-moodboard-visual-form";
+import MoodboardCaptionForm from "@/features/moodboards/forms/moodboard-caption-form";
 import { MOODBOARDS_COPY } from "@/features/moodboards/forms/moodboards-copy";
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { orpc } from "@/utils/orpc";
@@ -55,11 +56,13 @@ export default function MoodboardDetail({
 							key={visual.id}
 						>
 							<p>{visualOriginLine(visual.origin)}</p>
-							{visual.caption ? (
-								<p className="text-muted-foreground">
-									{MOODBOARDS_COPY.caption} {visual.caption}
-								</p>
-							) : null}
+							<MoodboardCaptionForm
+								caption={visual.caption}
+								moodboardId={moodboardId}
+								projectId={projectId}
+								revision={moodboard.data.revision}
+								visualId={visual.id}
+							/>
 						</li>
 					))}
 				</ul>
