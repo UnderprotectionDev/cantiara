@@ -53,6 +53,46 @@ const KONVA_STAGE = {
 	className: "Stage",
 };
 
+/**
+ * Phase 1 loop for Create Screen toast:
+ * `undefined is not an object (evaluating 'tx.screen.create')`.
+ * Fresh-client DB tests below cannot catch this — they construct Prisma
+ * after generate. A bun --hot client generated before Screen still
+ * serves get/list (empty) and then throws on write.
+ */
+describe("Screens and Wireframes — missing Prisma delegate", () => {
+	it("does not throw evaluating tx.screen.create", async () => {
+		const prisma = {
+			$transaction: async <T>(
+				fn: (tx: {
+					$executeRaw: () => Promise<undefined>;
+					mutationReceipt: { findUnique: () => Promise<null> };
+					screen: undefined;
+				}) => Promise<T>
+			) =>
+				await fn({
+					$executeRaw: async () => undefined,
+					mutationReceipt: { findUnique: async () => null },
+					screen: undefined,
+				}),
+		} as unknown as PrismaClient;
+		await expect(
+			createScreen(prisma, {
+				actorId: "actor-stale-client",
+				idempotencyKey: "create-stale",
+				origin: "human",
+				payload: {
+					projectId: "proj-stale-client",
+					title: "Checkout",
+				},
+			})
+		).resolves.toEqual({
+			reason: "screen-unavailable",
+			status: "rejected",
+		});
+	});
+});
+
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
 		data: {

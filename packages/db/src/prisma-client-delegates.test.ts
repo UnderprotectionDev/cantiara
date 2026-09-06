@@ -93,6 +93,7 @@ function workDelegates() {
 			findMany,
 			upsert: () => undefined,
 		},
+		screen: { create: () => undefined, findMany },
 		work: { create: () => undefined, findMany },
 		workLifecycleEvent: { findMany },
 		workTemplate: {
@@ -354,6 +355,31 @@ describe("Prisma client current delegates", () => {
 				},
 			} as unknown as PrismaClient)
 		).toBe(true);
+	});
+
+	it("refuses a bun --hot client generated before Screen", () => {
+		const { screen: _dropped, ...beforeScreen } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(beforeScreen as unknown as PrismaClient)
+		).toBe(false);
 	});
 
 	it("accepts a bun --hot client generated before Completion effect preference", () => {

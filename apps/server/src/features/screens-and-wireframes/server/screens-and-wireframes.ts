@@ -211,6 +211,9 @@ async function createInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<ScreenWriteOutcome> {
+	if (!hasScreenDelegate(tx)) {
+		return { reason: "screen-unavailable", status: "rejected" };
+	}
 	await lockProject(tx, command.payload.projectId);
 	const replayed = await replayOrConflict(tx, commandKey, fingerprint);
 	if (replayed) {
@@ -248,6 +251,9 @@ async function saveVersionInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<ScreenWriteOutcome> {
+	if (!hasScreenDelegate(tx)) {
+		return { reason: "screen-unavailable", status: "rejected" };
+	}
 	const current = await tx.screen.findUnique({
 		where: { id: command.payload.screenId },
 	});
@@ -339,6 +345,9 @@ async function lifecycleInTransaction(
 	fingerprint: string,
 	kind: LifecycleKind
 ): Promise<ScreenWriteOutcome> {
+	if (!hasScreenDelegate(tx)) {
+		return { reason: "screen-unavailable", status: "rejected" };
+	}
 	const current = await tx.screen.findUnique({
 		where: { id: command.payload.screenId },
 	});
@@ -448,6 +457,9 @@ async function deleteInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<PermanentDeleteOutcome> {
+	if (!hasScreenDelegate(tx)) {
+		return { reason: "screen-unavailable", status: "rejected" };
+	}
 	const current = await tx.screen.findUnique({
 		where: { id: command.payload.screenId },
 	});
@@ -630,7 +642,11 @@ function isKonvaStageJson(value: unknown): boolean {
 function hasScreenDelegate(
 	db: PrismaClient | PrismaTransaction
 ): db is PrismaClient | PrismaTransaction {
-	return "screen" in db && typeof db.screen?.findMany === "function";
+	return (
+		"screen" in db &&
+		typeof db.screen?.create === "function" &&
+		typeof db.screen?.findMany === "function"
+	);
 }
 
 async function lockProject(

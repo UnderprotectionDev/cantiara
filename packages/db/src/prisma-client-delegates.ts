@@ -20,10 +20,7 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"RiskRelatedRecord",
 	"SmartCollectionAttentionSignal",
 	"SmartCollectionMembershipPeriod",
-	"Screen",
-	"ScreenEvent",
 	"ValidationRecord",
-	"WireframeVersion",
 	"WorkNotNowTrail",
 ]);
 
@@ -70,6 +67,8 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.documentTemplate?.create === "function" &&
 		typeof client.recordAction?.findMany === "function" &&
 		typeof client.recordAction?.create === "function" &&
+		typeof client.screen?.findMany === "function" &&
+		typeof client.screen?.create === "function" &&
 		typeof client.workDraft?.findMany === "function" &&
 		typeof client.workDraft?.create === "function" &&
 		// Daily Focus membership and candidate rejection are read via table SQL
@@ -116,6 +115,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	// Validation Record is read via its own delegate after generate. Do not
 	// gate getPrismaClient on it: bun --hot can reload this check before
 	// prisma generate, and that must not block Work writes.
+	// Screen is required: listing empty while Create Screen throws
+	// `tx.screen.create` (CANT-FC81F725) when bun --hot still holds a
+	// client generated before the model. Gating regenerates the client.
 	if (!knownDelegates) {
 		return false;
 	}
