@@ -20,7 +20,10 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"RiskRelatedRecord",
 	"SmartCollectionAttentionSignal",
 	"SmartCollectionMembershipPeriod",
+	"Screen",
+	"ScreenEvent",
 	"ValidationRecord",
+	"WireframeVersion",
 	"WorkNotNowTrail",
 ]);
 

@@ -20,6 +20,7 @@ export const SEARCH_RECORD_KINDS = [
 	RECORD_DISCOVERY_COPY.technicalDiagram,
 	RECORD_DISCOVERY_COPY.decision,
 	RECORD_DISCOVERY_COPY.researchSession,
+	RECORD_DISCOVERY_COPY.screen,
 	RECORD_DISCOVERY_COPY.source,
 ] as const;
 
@@ -342,6 +343,14 @@ export function loadSearchIndexFromRows(input: {
 		updatedAt: Date;
 		url: string;
 	}[];
+	screens?: readonly {
+		archivedAt: Date | null;
+		id: string;
+		projectId: string;
+		title: string;
+		trashedAt: Date | null;
+		updatedAt: Date;
+	}[];
 	works: readonly {
 		archived: boolean;
 		closureResult: string | null;
@@ -502,6 +511,31 @@ export function loadSearchIndexFromRows(input: {
 				updatedAt: source.updatedAt.getTime(),
 			}) satisfies SearchIndexRecord
 	);
+	const screens = (input.screens ?? []).map((screen) => {
+		const archived = screen.archivedAt !== null;
+		const trashed = screen.trashedAt !== null;
+		return {
+			archived,
+			authorized: true,
+			body: "",
+			closureResult: null,
+			diagramAuthorityMode: null,
+			folder: null,
+			id: screen.id,
+			key: null,
+			kind: RECORD_DISCOVERY_COPY.screen,
+			lifecycle:
+				archived || trashed ? ("archived" as const) : ("active" as const),
+			metadata: "",
+			projectId: screen.projectId,
+			recordType: RECORD_DISCOVERY_COPY.screen,
+			scope: RECORD_DISCOVERY_COPY.project,
+			status: archived || trashed ? RECORD_DISCOVERY_COPY.archived : "Active",
+			title: screen.title,
+			trashed,
+			updatedAt: screen.updatedAt.getTime(),
+		} satisfies SearchIndexRecord;
+	});
 	return [
 		...works,
 		...files,
@@ -509,6 +543,7 @@ export function loadSearchIndexFromRows(input: {
 		...decisions,
 		...researchSessions,
 		...sources,
+		...screens,
 	].filter((record) => isSearchIndexedKind(record.kind));
 }
 

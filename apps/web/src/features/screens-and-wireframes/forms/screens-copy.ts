@@ -1,0 +1,16 @@
+export const SCREENS_COPY = {
+	active: "Active",
+	archive: "Archive",
+	archived: "Archived",
+	createScreen: "Create Screen",
+	deletePermanently: "Delete permanently",
+	includeArchived: "Include archived",
+	inTrash: "In Trash",
+	moveToTrash: "Move to Trash",
+	noScreens: "No Screens yet.",
+	restore: "Restore",
+	screen: "Screen",
+	title: "Title",
+	unarchive: "Unarchive",
+	wireframe: "Wireframe",
+} as const;

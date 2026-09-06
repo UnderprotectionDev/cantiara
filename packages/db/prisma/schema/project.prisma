@@ -55,6 +55,7 @@ model Project {
   projectGoals                    ProjectGoal[]
   nextConcreteStepChanges         NextConcreteStepChange[]
   smartCollections                SmartCollection[]
+  screens                         Screen[]
 
   @@index([workspaceId])
   @@map("project")
