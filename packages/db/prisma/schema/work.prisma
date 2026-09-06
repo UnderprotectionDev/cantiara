@@ -56,6 +56,7 @@ model Work {
   notNowTrails                   WorkNotNowTrail[]
   nextConcreteStepChanges        NextConcreteStepChange[]
   feedbackEvidenceLinks          FeedbackEvidenceLink[]
+  specChangeReviews              SpecChangeReview[]
 
   @@unique([projectId, number])
   @@unique([projectId, key])

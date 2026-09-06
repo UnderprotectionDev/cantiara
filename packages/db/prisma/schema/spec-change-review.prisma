@@ -1,0 +1,22 @@
+model SpecChangeReview {
+  id                 String          @id
+  workspaceId        String
+  workspace          Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  featureId          String
+  feature            Work            @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  documentId         String
+  document           Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  previousVersionId  String
+  previousVersion    DocumentVersion @relation("SpecChangeReviewPreviousVersion", fields: [previousVersionId], references: [id], onDelete: Cascade)
+  newVersionId       String
+  newVersion         DocumentVersion @relation("SpecChangeReviewNewVersion", fields: [newVersionId], references: [id], onDelete: Cascade)
+  previousRevision   Int
+  newRevision        Int
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@unique([featureId, previousVersionId, newVersionId])
+  @@index([workspaceId, documentId])
+  @@index([featureId])
+  @@map("spec_change_review")
+}

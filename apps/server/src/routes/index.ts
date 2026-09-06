@@ -38,6 +38,7 @@ import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horiz
 import { screensAndWireframes } from "../features/screens-and-wireframes/server/screens-and-wireframes-rpc";
 import { smartCollections } from "../features/smart-collections/server/smart-collections-rpc";
 import { sources } from "../features/sources-and-freshness/server/sources-rpc";
+import { specChangeReview } from "../features/spec-change-review/server/spec-change-review-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { uncertaintyRecords } from "../features/uncertainty-records/server/uncertainty-records-rpc";
 import { unifiedCalendar } from "../features/unified-calendar/server/unified-calendar-rpc";
@@ -152,6 +153,7 @@ export const appRouter: AppRouterShape = {
 	screensAndWireframes,
 	smartCollections,
 	sources,
+	specChangeReview,
 	tags,
 	uncertaintyRecords,
 	unifiedCalendar,

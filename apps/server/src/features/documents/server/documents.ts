@@ -11,6 +11,7 @@ import {
 import { getProject } from "../../project-shell/server/project-shell";
 import { createRelationInTransaction } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
+import { openSpecChangeReviewForSavedVersion } from "../../spec-change-review/server/spec-change-review";
 import {
 	documentsWouldCycle,
 	ensureSectionIds,
@@ -1058,6 +1059,11 @@ async function updateInTransaction(
 		where: { id: current.id },
 	});
 	await recordVersion(tx, updated);
+	await openSpecChangeReviewForSavedVersion(tx, {
+		documentId: updated.id,
+		previousRevision: current.revision,
+		workspaceId: command.workspaceId,
+	});
 	await syncDocumentUsageLinks(tx, {
 		hostRecordId: updated.id,
 		targets: usageTargetsFromBody(updated.body),
@@ -1217,6 +1223,11 @@ async function restoreInTransaction(
 		where: { id: current.id },
 	});
 	await recordVersion(tx, restored);
+	await openSpecChangeReviewForSavedVersion(tx, {
+		documentId: restored.id,
+		previousRevision: current.revision,
+		workspaceId: command.workspaceId,
+	});
 	await syncDocumentUsageLinks(tx, {
 		hostRecordId: restored.id,
 		targets: usageTargetsFromBody(restored.body),
@@ -1386,6 +1397,11 @@ async function applyConflictDraftInTransaction(
 		where: { id: current.id },
 	});
 	await recordVersion(tx, updated);
+	await openSpecChangeReviewForSavedVersion(tx, {
+		documentId: updated.id,
+		previousRevision: current.revision,
+		workspaceId: command.workspaceId,
+	});
 	await syncDocumentUsageLinks(tx, {
 		hostRecordId: updated.id,
 		targets: usageTargetsFromBody(updated.body),

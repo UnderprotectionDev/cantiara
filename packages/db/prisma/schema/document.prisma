@@ -17,8 +17,9 @@ model Document {
   folder      DocumentFolder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
-  versions      DocumentVersion[]
-  conflictDraft DocumentConflictDraft?
+  versions           DocumentVersion[]
+  conflictDraft      DocumentConflictDraft?
+  specChangeReviews  SpecChangeReview[]
 
   @@index([workspaceId, scopeKind, projectId])
   @@index([workspaceId, updatedAt])
@@ -54,6 +55,9 @@ model DocumentVersion {
   body       String
   type       String
   createdAt  DateTime @default(now())
+
+  specChangeReviewsAsPrevious SpecChangeReview[] @relation("SpecChangeReviewPreviousVersion")
+  specChangeReviewsAsNew      SpecChangeReview[] @relation("SpecChangeReviewNewVersion")
 
   @@unique([documentId, revision])
   @@index([documentId])
