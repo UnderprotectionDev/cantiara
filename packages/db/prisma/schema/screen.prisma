@@ -1,0 +1,20 @@
+model Screen {
+  id                         String    @id
+  projectId                  String
+  project                    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title                      String
+  body                       String    @default("")
+  archivedAt                 DateTime?
+  trashedAt                  DateTime?
+  redactedAt                 DateTime?
+  currentWireframeVersionId  String?
+  wireframeVersionsJson      String    @default("[]")
+  revision                   Int
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([projectId, archivedAt])
+  @@index([projectId, trashedAt])
+  @@map("screen")
+}
