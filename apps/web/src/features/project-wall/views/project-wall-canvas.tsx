@@ -125,15 +125,15 @@ export default function ProjectWallCanvas({
 			},
 		})
 	);
+	const preview = useMutation(
+		orpc.projectWall.previewSnapshot.mutationOptions()
+	);
 	const snapshot = useMutation(
 		orpc.projectWall.snapshot.mutationOptions({
 			onSuccess: (outcome) => {
 				if (outcome.status !== "committed") {
 					return;
 				}
-				setSnapshotNotice(
-					`${outcome.snapshot.kind}. ${outcome.snapshot.notice}`
-				);
 				downloadSnapshot(outcome.snapshot);
 			},
 		})
@@ -261,12 +261,27 @@ export default function ProjectWallCanvas({
 			if (selectedIds.length === 0) {
 				return;
 			}
-			snapshot.mutate({
-				idempotencyKey: newIdempotencyKey(),
-				payload: { cardIds: selectedIds, format, wallId },
-			});
+			preview.mutate(
+				{
+					cardIds: selectedIds,
+					format,
+					wallId,
+				},
+				{
+					onSuccess: (shown) => {
+						if (!("kind" in shown)) {
+							return;
+						}
+						setSnapshotNotice(`${shown.kind}. ${shown.notice}`);
+						snapshot.mutate({
+							idempotencyKey: newIdempotencyKey(),
+							payload: { cardIds: selectedIds, format, wallId },
+						});
+					},
+				}
+			);
 		},
-		[selectedIds, snapshot, wallId]
+		[preview, selectedIds, snapshot, wallId]
 	);
 	const onSnapshotPng = useCallback(() => {
 		onSnapshot(PROJECT_WALL_COPY.png);
@@ -376,10 +391,10 @@ export default function ProjectWallCanvas({
 							{PROJECT_WALL_COPY.focusOrder}
 						</Button>
 						<Button onClick={onSnapshotPng} type="button" variant="outline">
-							{PROJECT_WALL_COPY.snapshot} {PROJECT_WALL_COPY.png}
+							{PROJECT_WALL_COPY.frozenCopy} {PROJECT_WALL_COPY.png}
 						</Button>
 						<Button onClick={onSnapshotPdf} type="button" variant="outline">
-							{PROJECT_WALL_COPY.snapshot} {PROJECT_WALL_COPY.pdf}
+							{PROJECT_WALL_COPY.frozenCopy} {PROJECT_WALL_COPY.pdf}
 						</Button>
 					</div>
 					{snapshotNotice ? <p>{snapshotNotice}</p> : null}
@@ -528,7 +543,9 @@ function LiveCard({
 						</NativeSelect>
 					)}
 					{isCollection ? (
-						<p className="mt-3 text-sm">{card.openAllInSource}</p>
+						<Button className="mt-3" type="button" variant="outline">
+							{card.openAllInSource}
+						</Button>
 					) : (
 						<Button
 							className="mt-3"
@@ -546,11 +563,13 @@ function LiveCard({
 }
 
 function downloadSnapshot(snapshot: {
+	capturedAt?: string;
 	images?: { bytes: string }[];
 	kind: string;
 	pdf?: string;
 }) {
-	const stamp = snapshot.kind.replaceAll(" ", "-").toLowerCase();
+	const day = snapshot.capturedAt?.slice(0, 10) ?? "frozen-copy";
+	const stamp = `${PROJECT_WALL_COPY.frozenCopy.replaceAll(" ", "-").toLowerCase()}-${day}`;
 	if (snapshot.pdf) {
 		downloadBase64(snapshot.pdf, "application/pdf", `${stamp}.pdf`);
 		return;

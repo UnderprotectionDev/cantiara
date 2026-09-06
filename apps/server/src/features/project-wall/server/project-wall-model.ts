@@ -21,7 +21,6 @@ export const PROJECT_WALL_COPY = {
 	preview: "Preview",
 	projectWall: "Project Wall",
 	sharedSource: "Shared source",
-	snapshot: "Snapshot",
 } as const;
 
 export const DESIGN_TYPE_PROJECT_WALL = "Project Wall" as const;

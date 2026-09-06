@@ -19,7 +19,6 @@ export const PROJECT_WALL_COPY = {
 	preview: "Preview",
 	projectWall: "Project Wall",
 	sharedSource: "Shared source",
-	snapshot: "Snapshot",
 } as const;
 
 export const PROJECT_WALL_DENSITIES = [

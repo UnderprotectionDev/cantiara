@@ -1006,7 +1006,7 @@ Kullanıcının arayüz hedefi ve karar yolunu canlı Ekran referanslarıyla ta�
 _Avoid_: Wireframe belgesi, Teknik Sıra, flowchart
 
 **Proje Duvarı**:
-Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`, `Presentation Mode`, `Open all in source`.
+Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`, `Presentation Mode`, `Open all in source`, `Focus order`, `Live`, `Exact`, `Shared source`.
 _Avoid_: iç içe duvar, çalışma alanı duvarı, Sketch card, duvara özgü not, kopya kayıt
 
 **Donmuş kopya**:
@@ -1014,7 +1014,7 @@ Seçili Proje Duvarı grubu veya bölgesinin tarihli PNG/PDF iç snapshot'ı; ca
 _Avoid_: Dış yüzey, Build in Public, onaylı snapshot revizyonu, canlı bağlantı
 
 **Odak sırası**:
-Sunum Kipi'nde isteğe bağlı, yalnız o Proje Duvarı görünümüne ait üstveri; ikinci dosya veya içerik kopyası değildir.
+Sunum Kipi'nde isteğe bağlı, yalnız o Proje Duvarı görünümüne ait üstveri; ikinci dosya veya içerik kopyası değildir. UI: `Focus order`.
 _Avoid_: sunum dosyası, slayt destesi, içerik kopyası
 
 **Wireframe yüzeyi**:
