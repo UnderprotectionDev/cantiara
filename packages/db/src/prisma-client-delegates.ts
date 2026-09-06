@@ -22,6 +22,7 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"SmartCollectionMembershipPeriod",
 	"Screen",
 	"ScreenEvent",
+	"ScreenPersonalViewport",
 	"ValidationRecord",
 	"Moodboard",
 	"MoodboardColorSwatch",
@@ -32,6 +33,11 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"WorkNotNowTrail",
 	"UserFlowTemplate",
 	"UserFlowPersonalViewport",
+	"Design",
+	"ProjectWallCard",
+	"ProjectWallGroup",
+	"ProjectWallVisualLink",
+	"ProjectWallPersonalViewport",
 ]);
 
 export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
@@ -132,6 +138,10 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	// client generated before that model. Gating getPrismaClient on Screen
 	// turned Create Screen (CANT-FC81F725) into every RPC throwing
 	// "Restart the API after prisma generate" (CANT-4DB9B62F).
+	// Design / Project Wall tables are the same: bun --hot can reload this
+	// check with Design in the runtime model before design.create exists.
+	// Gating getPrismaClient on Design turns Create Project Wall into every
+	// RPC throwing the restart-after-generate toast.
 	// User Flow writes call userFlow.create. A bun --hot client generated
 	// before that model must not be reused: Create User Flow then throws
 	// TypeError (or the restart-after-generate toast) while Work still

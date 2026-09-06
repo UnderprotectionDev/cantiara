@@ -438,6 +438,46 @@ describe("Prisma client current delegates", () => {
 		).toBe(true);
 	});
 
+	it("accepts a bun --hot client generated before Project Wall Design", () => {
+		const beforeDesign = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(beforeDesign as unknown as PrismaClient)
+		).toBe(true);
+		expect(
+			prismaClientHasCurrentDelegates({
+				...beforeDesign,
+				_runtimeDataModel: {
+					models: {
+						Design: { fields: [{ name: "id" }, { name: "name" }] },
+						ProjectWallCard: { fields: [{ name: "id" }] },
+						ProjectWallGroup: { fields: [{ name: "id" }] },
+						ProjectWallPersonalViewport: { fields: [{ name: "id" }] },
+						ProjectWallVisualLink: { fields: [{ name: "id" }] },
+						ScreenPersonalViewport: { fields: [{ name: "id" }] },
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
 	it("accepts a bun --hot client generated before Completion effect preference", () => {
 		const { completionEffectPreference: _dropped, ...beforePreference } = {
 			...workDelegates(),

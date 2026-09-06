@@ -202,6 +202,33 @@ async function placedCard(
 	return { card, wall: placed.wall };
 }
 
+const STALE_WALL_CLIENT = {
+	$transaction: async (fn: (tx: Record<string, unknown>) => Promise<unknown>) =>
+		fn({
+			$executeRaw: async () => 0,
+			design: undefined,
+			mutationReceipt: {
+				create: async () => ({}),
+				findUnique: async () => null,
+			},
+		}),
+} as unknown as PrismaClient;
+
+describe("Project Wall — missing Prisma delegate", () => {
+	it("does not throw evaluating tx.design.create", async () => {
+		await expect(
+			createProjectWall(STALE_WALL_CLIENT, {
+				actorId: "actor_stale_client",
+				idempotencyKey: "idem-stale-project-wall",
+				origin: "human",
+				payload: { name: "Checkout narrative", projectId: "proj_stale" },
+			})
+		).rejects.toThrow(
+			"Prisma client is missing current models; restart the API after prisma generate"
+		);
+	});
+});
+
 describe("Project Wall catalog", () => {
 	it("uses English Project Wall densities and Open Source Record", () => {
 		const catalog = projectWallCatalog();

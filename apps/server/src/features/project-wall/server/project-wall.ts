@@ -500,6 +500,9 @@ export async function getProjectWall(
 	prisma: PrismaClient | PrismaTransaction,
 	wallId: string
 ): Promise<ProjectWallView | null> {
+	if (typeof prisma.design?.findUnique !== "function") {
+		return null;
+	}
 	const row = await prisma.design.findUnique({ where: { id: wallId } });
 	if (!row || row.type !== DESIGN_TYPE_PROJECT_WALL) {
 		return null;
@@ -511,6 +514,9 @@ export async function listProjectWalls(
 	prisma: PrismaClient,
 	projectId: string
 ): Promise<ProjectWallView[]> {
+	if (!hasDesignReadDelegate(prisma)) {
+		return [];
+	}
 	const rows = await prisma.design.findMany({
 		orderBy: { createdAt: "asc" },
 		where: { projectId, type: DESIGN_TYPE_PROJECT_WALL },
@@ -561,6 +567,25 @@ export async function materializeStarterSkeletonWalls(
 	);
 }
 
+const STALE_GENERATED_CLIENT =
+	"Prisma client is missing current models; restart the API after prisma generate";
+
+function hasDesignWriteDelegate(tx: PrismaTransaction): boolean {
+	return typeof tx.design?.create === "function";
+}
+
+function hasDesignReadDelegate(
+	prisma: PrismaClient | PrismaTransaction
+): boolean {
+	return typeof prisma.design?.findMany === "function";
+}
+
+export function requireDesignWriteDelegate(tx: PrismaTransaction): void {
+	if (!hasDesignWriteDelegate(tx)) {
+		throw new Error(STALE_GENERATED_CLIENT);
+	}
+}
+
 function rejectCreate(
 	command: CreateProjectWallCommand
 ): ProjectWallWriteOutcome | null {
@@ -583,6 +608,7 @@ async function createWallInTransaction(
 	tx: PrismaTransaction,
 	command: CreateProjectWallCommand
 ): Promise<ProjectWallWriteOutcome> {
+	requireDesignWriteDelegate(tx);
 	const { payload } = command;
 	const { projectId } = payload;
 	if (!projectId) {
@@ -833,6 +859,7 @@ async function materializeSkeletonsInTransaction(
 	fingerprint: string,
 	skeletons: readonly (typeof PROJECT_WALL_STARTER_SKELETONS)[number][]
 ): Promise<StarterSkeletonWallsOutcome> {
+	requireDesignWriteDelegate(tx);
 	await lockProject(tx, command.payload.projectId);
 	const replayed = await replaySkeletonsOrConflict(tx, commandKey, fingerprint);
 	if (replayed) {
