@@ -5,8 +5,10 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import {
+	confirmSpecChangeReviewFollowUp,
 	listSpecChangeReviews,
 	markSpecChangeReviewCandidate,
+	previewSpecChangeReviewFollowUp,
 } from "./spec-change-review";
 import {
 	SPEC_CHANGE_REVIEW_STATUSES,
@@ -23,6 +25,26 @@ async function requireAccess(userId: string) {
 
 export const specChangeReview = {
 	catalog: protectedProcedure.handler(() => specChangeReviewCatalog()),
+	confirmFollowUp: protectedWriteProcedure
+		.input(
+			z.object({
+				candidateId: z.string().min(1),
+				idempotencyKey: z.string().min(1),
+				previewAcknowledged: z.literal(true),
+				reviewId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await confirmSpecChangeReviewFollowUp(getPrismaClient(), {
+				actorId: context.session.user.id,
+				candidateId: input.candidateId,
+				idempotencyKey: input.idempotencyKey,
+				previewAcknowledged: input.previewAcknowledged,
+				reviewId: input.reviewId,
+				workspaceId: access.workspaceId,
+			});
+		}),
 	list: protectedProcedure
 		.input(z.object({ documentId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
@@ -48,6 +70,21 @@ export const specChangeReview = {
 				note: input.note,
 				reviewId: input.reviewId,
 				status: input.status,
+				workspaceId: access.workspaceId,
+			});
+		}),
+	previewFollowUp: protectedProcedure
+		.input(
+			z.object({
+				candidateId: z.string().min(1),
+				reviewId: z.string().min(1),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			return await previewSpecChangeReviewFollowUp(getPrismaClient(), {
+				candidateId: input.candidateId,
+				reviewId: input.reviewId,
 				workspaceId: access.workspaceId,
 			});
 		}),

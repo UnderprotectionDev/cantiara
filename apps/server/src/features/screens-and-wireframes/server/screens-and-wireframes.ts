@@ -7,7 +7,6 @@ import {
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
-
 import {
 	findLinkedBlockRow,
 	insertLinkedBlockRow,
@@ -35,12 +34,15 @@ import {
 	type ArchiveScreenCommand,
 	applyLinkedBlockChangeCommandSchema,
 	archiveScreenCommandSchema,
+	bindOutlineCommandSchema,
 	type CreateScreenCommand,
 	createLinkedBlockCommandSchema,
+	createOutlineNodeCommandSchema,
 	createScreenCommandSchema,
 	detachLinkedBlockCommandSchema,
 	type ExportWireframePayload,
 	exportWireframePayloadSchema,
+	groupOutlineCommandSchema,
 	type LinkedBlockPreviewOutcome,
 	type LinkedBlockView,
 	type LinkedBlockWriteOutcome,
@@ -51,12 +53,16 @@ import {
 	type PresentationView,
 	permanentlyDeleteScreenCommandSchema,
 	presentScreenLife,
+	reorderOutlineCommandSchema,
+	restorePersonalViewport,
 	restoreScreenCommandSchema,
 	type SaveWireframeVersionCommand,
 	SCREEN_EVENT_KIND,
 	SCREEN_KIND,
+	SCREENS_COPY,
 	type ScreenView,
 	type ScreenWriteOutcome,
+	savePersonalViewportCommandSchema,
 	saveWireframeVersionCommandSchema,
 	trashScreenCommandSchema,
 	unarchiveScreenCommandSchema,
@@ -65,9 +71,18 @@ import {
 	type WireframeVersionView,
 } from "./screens-and-wireframes-model";
 import {
+	findPersonalViewportRow,
+	upsertPersonalViewportRow,
+} from "./viewport-store";
+import {
+	bindWireframeNode,
 	detachNodeFromLinkedBlock,
+	EMPTY_WIREFRAME_DOCUMENT,
+	groupWireframeNodes,
 	parseWireframeDocument,
+	reorderWireframeNodes,
 	WIREFRAME_DOCUMENT_SCHEMA,
+	WIREFRAME_SEMANTIC_KIND,
 	type WireframeDocument,
 	wireframeLinkedBlockDefinitionSchema,
 } from "./wireframe-document";
@@ -137,6 +152,232 @@ export async function saveExactWireframeVersion(
 	return await prisma.$transaction((tx) =>
 		saveVersionInTransaction(tx, parsed.data, commandKey, fingerprint)
 	);
+}
+
+export async function createOutlineNode(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ScreenWriteOutcome> {
+	const parsed = createOutlineNodeCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const current = await latestDocument(prisma, parsed.data.payload.screenId);
+	if (current.status === "rejected") {
+		return current;
+	}
+	const node = outlineNode(
+		parsed.data.payload.kind,
+		current.document.nodes.length
+	);
+	return await saveExactWireframeVersion(prisma, {
+		...parsed.data,
+		payload: {
+			document: {
+				...current.document,
+				nodes: [...current.document.nodes, node],
+			},
+			screenId: parsed.data.payload.screenId,
+		},
+	});
+}
+
+export async function reorderOutline(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ScreenWriteOutcome> {
+	const parsed = reorderOutlineCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const current = await latestDocument(prisma, parsed.data.payload.screenId);
+	if (current.status === "rejected") {
+		return current;
+	}
+	return await saveExactWireframeVersion(prisma, {
+		...parsed.data,
+		payload: {
+			document: reorderWireframeNodes(
+				current.document,
+				parsed.data.payload.nodeIds
+			),
+			screenId: parsed.data.payload.screenId,
+		},
+	});
+}
+
+export async function groupOutline(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ScreenWriteOutcome> {
+	const parsed = groupOutlineCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const current = await latestDocument(prisma, parsed.data.payload.screenId);
+	if (current.status === "rejected") {
+		return current;
+	}
+	return await saveExactWireframeVersion(prisma, {
+		...parsed.data,
+		payload: {
+			document: groupWireframeNodes(current.document, {
+				nodeIds: parsed.data.payload.nodeIds,
+				title: parsed.data.payload.title ?? SCREENS_COPY.group,
+			}),
+			screenId: parsed.data.payload.screenId,
+		},
+	});
+}
+
+export async function bindOutline(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<ScreenWriteOutcome> {
+	const parsed = bindOutlineCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const current = await latestDocument(prisma, parsed.data.payload.screenId);
+	if (current.status === "rejected") {
+		return current;
+	}
+	return await saveExactWireframeVersion(prisma, {
+		...parsed.data,
+		payload: {
+			document: bindWireframeNode(current.document, {
+				linkedBlockId: parsed.data.payload.linkedBlockId,
+				nodeId: parsed.data.payload.nodeId,
+			}),
+			screenId: parsed.data.payload.screenId,
+		},
+	});
+}
+
+export async function savePersonalViewport(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<
+	| { status: "committed"; viewport: PersonalViewportView }
+	| { reason: "invalid-command" | "screen-not-found"; status: "rejected" }
+> {
+	const parsed = savePersonalViewportCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return { reason: "invalid-command", status: "rejected" };
+	}
+	const current = await findScreenRow(prisma, parsed.data.payload.screenId);
+	if (!current) {
+		return { reason: "screen-not-found", status: "rejected" };
+	}
+	await upsertPersonalViewportRow(prisma, {
+		id: crypto.randomUUID(),
+		screenId: current.id,
+		userId: parsed.data.actorId,
+		viewport: parsed.data.payload.viewport,
+	});
+	return {
+		status: "committed",
+		viewport: parsed.data.payload.viewport,
+	};
+}
+
+export async function getPersonalViewport(
+	prisma: PrismaClient,
+	input: { actorId: string; screenId: string }
+): Promise<ReturnType<typeof restorePersonalViewport> | null> {
+	const current = await findScreenRow(prisma, input.screenId);
+	if (!current) {
+		return null;
+	}
+	const latest = await findLatestWireframeVersionRow(prisma, current.id);
+	const parsed = latest
+		? parseWireframeDocument(latest.document)
+		: { document: EMPTY_WIREFRAME_DOCUMENT, status: "ok" as const };
+	const document =
+		parsed.status === "ok" ? parsed.document : EMPTY_WIREFRAME_DOCUMENT;
+	const row = await findPersonalViewportRow(prisma, {
+		screenId: current.id,
+		userId: input.actorId,
+	});
+	return restorePersonalViewport({
+		content: {
+			groups: document.groups,
+			nodes: document.nodes,
+		},
+		saved: row
+			? {
+					centerX: row.centerX,
+					centerY: row.centerY,
+					collapsedGroupIds: collapsedIdsFromJson(row.collapsedGroupIds),
+					zoom: row.zoom,
+				}
+			: null,
+	});
+}
+
+interface PersonalViewportView {
+	centerX: number;
+	centerY: number;
+	collapsedGroupIds: string[];
+	zoom: number;
+}
+
+async function latestDocument(
+	prisma: PrismaClient,
+	screenId: string
+): Promise<
+	| { document: WireframeDocument; status: "ok" }
+	| { reason: string; status: "rejected" }
+> {
+	const screen = await findScreenRow(prisma, screenId);
+	if (!screen) {
+		return { reason: "screen-not-found", status: "rejected" };
+	}
+	const latest = await findLatestWireframeVersionRow(prisma, screenId);
+	if (!latest) {
+		return { document: EMPTY_WIREFRAME_DOCUMENT, status: "ok" };
+	}
+	const parsed = parseWireframeDocument(latest.document);
+	if (parsed.status !== "ok") {
+		return { reason: parsed.reason, status: "rejected" };
+	}
+	return parsed;
+}
+
+function outlineNode(
+	kind: (typeof WIREFRAME_SEMANTIC_KIND)[keyof typeof WIREFRAME_SEMANTIC_KIND],
+	index: number
+) {
+	const geometry = {
+		height: 40,
+		width: 120,
+		x: 16,
+		y: 16 + index * 52,
+	};
+	if (kind === WIREFRAME_SEMANTIC_KIND.text) {
+		return {
+			geometry,
+			id: crypto.randomUUID(),
+			kind,
+			label: SCREENS_COPY.text,
+			seed: index + 1,
+			text: { mode: "placeholder" as const, value: SCREENS_COPY.text },
+		};
+	}
+	return {
+		geometry,
+		id: crypto.randomUUID(),
+		kind,
+		label: kind,
+		seed: index + 1,
+	};
+}
+
+function collapsedIdsFromJson(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.filter((item): item is string => typeof item === "string");
 }
 
 export async function archiveScreen(

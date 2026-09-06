@@ -15,6 +15,9 @@ describe("Screens copy", () => {
 		expect(SCREENS_COPY.presentationMode).toBe("Presentation Mode");
 		expect(SCREENS_COPY.exitPresentationMode).toBe("Exit Presentation Mode");
 		expect(SCREENS_COPY.unresolved).toBe("Unresolved");
+		expect(SCREENS_COPY.fitView).toBe("Fit View");
+		expect(SCREENS_COPY.outline).toBe("Outline");
+		expect(SCREENS_COPY.openSourceRecord).toBe("Open Source Record");
 		expect(SCREENS_COPY.moveToTrash).toBe("Move to Trash");
 		expect(JSON.stringify(SCREENS_COPY)).not.toMatch(OUT_OF_SCOPE_COPY);
 	});

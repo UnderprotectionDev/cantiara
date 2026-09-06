@@ -8,29 +8,40 @@ import { getProject } from "../../project-shell/server/project-shell";
 import {
 	applyLinkedBlockChange,
 	archiveScreen,
+	bindOutline,
 	createLinkedBlock,
+	createOutlineNode,
 	createScreen,
 	detachLinkedBlock,
 	exportWireframe,
 	getExactWireframeVersion,
+	getPersonalViewport,
 	getScreen,
+	groupOutline,
 	listLinkedBlocks,
 	listScreens,
 	openPresentationMode,
 	permanentlyDeleteScreen,
 	previewLinkedBlockChange,
+	reorderOutline,
 	restoreScreen,
 	saveExactWireframeVersion,
+	savePersonalViewport,
 	trashScreen,
 	unarchiveScreen,
 } from "./screens-and-wireframes";
 import {
+	bindOutlinePayloadSchema,
+	createOutlineNodePayloadSchema,
 	createScreenPayloadSchema,
 	emptyWireframeDocumentSchema,
 	exportWireframePayloadSchema,
+	groupOutlinePayloadSchema,
 	openPresentationPayloadSchema,
 	previewLinkedBlockChangePayloadSchema,
+	reorderOutlinePayloadSchema,
 	SCREENS_COPY,
+	savePersonalViewportPayloadSchema,
 } from "./screens-and-wireframes-model";
 import { wireframeLinkedBlockDefinitionSchema } from "./wireframe-document";
 
@@ -100,6 +111,25 @@ export const screensAndWireframes = {
 				payload: { screenId: input.screenId },
 			});
 		}),
+	bindOutline: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().positive(),
+				idempotencyKey: z.string(),
+				payload: bindOutlinePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireScreen(access.workspaceId, input.payload.screenId);
+			return await bindOutline(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	catalog: protectedProcedure.handler(() => SCREENS_COPY),
 	create: protectedWriteProcedure
 		.input(
@@ -134,6 +164,25 @@ export const screensAndWireframes = {
 			await requireProject(access.workspaceId, input.payload.projectId);
 			return await createLinkedBlock(getPrismaClient(), {
 				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	createOutlineNode: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().positive(),
+				idempotencyKey: z.string(),
+				payload: createOutlineNodePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireScreen(access.workspaceId, input.payload.screenId);
+			return await createOutlineNode(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
 				payload: input.payload,
@@ -188,6 +237,35 @@ export const screensAndWireframes = {
 			await requireScreen(access.workspaceId, input.screenId);
 			return await getExactWireframeVersion(getPrismaClient(), input);
 		}),
+	getViewport: protectedProcedure
+		.input(z.object({ screenId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireScreen(access.workspaceId, input.screenId);
+			return await getPersonalViewport(getPrismaClient(), {
+				actorId: context.session.user.id,
+				screenId: input.screenId,
+			});
+		}),
+	groupOutline: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().positive(),
+				idempotencyKey: z.string(),
+				payload: groupOutlinePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireScreen(access.workspaceId, input.payload.screenId);
+			return await groupOutline(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	list: protectedProcedure
 		.input(
 			z.object({
@@ -235,6 +313,25 @@ export const screensAndWireframes = {
 			await requireProject(access.workspaceId, input.projectId);
 			return await previewLinkedBlockChange(getPrismaClient(), input);
 		}),
+	reorderOutline: protectedWriteProcedure
+		.input(
+			z.object({
+				baseRevision: z.number().int().positive(),
+				idempotencyKey: z.string(),
+				payload: reorderOutlinePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireScreen(access.workspaceId, input.payload.screenId);
+			return await reorderOutline(getPrismaClient(), {
+				actorId: context.session.user.id,
+				baseRevision: input.baseRevision,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	restore: protectedWriteProcedure
 		.input(screenCommandInput)
 		.handler(async ({ context, input }) => {
@@ -269,6 +366,16 @@ export const screensAndWireframes = {
 					document: input.document,
 					screenId: input.screenId,
 				},
+			});
+		}),
+	saveViewport: protectedWriteProcedure
+		.input(z.object({ payload: savePersonalViewportPayloadSchema }))
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireScreen(access.workspaceId, input.payload.screenId);
+			return await savePersonalViewport(getPrismaClient(), {
+				actorId: context.session.user.id,
+				payload: input.payload,
 			});
 		}),
 	trash: protectedWriteProcedure

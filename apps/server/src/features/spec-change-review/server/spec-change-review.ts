@@ -2,12 +2,16 @@ import type { Prisma, PrismaClient } from "@cantiara/db";
 
 import { usageTargetsFromBody } from "../../documents/server/documents-live";
 import { EVIDENCE_COPY } from "../../evidence/server/evidence-model";
+import { HUMAN_ORIGIN } from "../../mutation-core/server/mutation-shared";
+import { createRelationInTransaction } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
 	isUsageKind,
 	USAGE_KIND,
 	USAGE_KIND_LABEL,
 } from "../../relations/server/relations-model";
+import { createWorkInTransaction } from "../../work-lifecycle/server/work-lifecycle";
+import { DEFAULT_WORK_TYPE } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
 	headingContainingText,
 	headingForSectionId,
@@ -15,6 +19,7 @@ import {
 	presentChangedSections,
 	SPEC_CHANGE_REVIEW_COPY,
 	type SpecChangeReviewCandidateView,
+	type SpecChangeReviewFollowUpPreview,
 	type SpecChangeReviewView,
 } from "./spec-change-review-model";
 
@@ -204,6 +209,202 @@ export async function markSpecChangeReviewCandidate(
 	return {
 		candidate: await presentCandidate(prisma, updated, input.workspaceId),
 		status: "committed",
+	};
+}
+
+export type PreviewSpecChangeReviewFollowUpOutcome =
+	| { preview: SpecChangeReviewFollowUpPreview; status: "committed" }
+	| { reason: string; status: "rejected" };
+
+export type ConfirmSpecChangeReviewFollowUpOutcome =
+	| {
+			status: "committed";
+			work: {
+				id: string;
+				projectId: string;
+				status: string;
+				title: string;
+				type: string;
+			};
+	  }
+	| { reason: string; status: "rejected" };
+
+class FollowUpBarrierError extends Error {
+	readonly outcome: ConfirmSpecChangeReviewFollowUpOutcome;
+
+	constructor(outcome: ConfirmSpecChangeReviewFollowUpOutcome) {
+		super("spec-change-review-follow-up");
+		this.outcome = outcome;
+	}
+}
+
+export async function previewSpecChangeReviewFollowUp(
+	prisma: PrismaLike,
+	input: { candidateId: string; reviewId: string; workspaceId: string }
+): Promise<PreviewSpecChangeReviewFollowUpOutcome> {
+	const loaded = await loadFollowUpContext(prisma, input);
+	if (loaded.status !== "ok") {
+		return loaded;
+	}
+	return { preview: loaded.preview, status: "committed" };
+}
+
+export async function confirmSpecChangeReviewFollowUp(
+	prisma: PrismaLike,
+	input: {
+		actorId: string;
+		candidateId: string;
+		idempotencyKey: string;
+		previewAcknowledged: boolean;
+		reviewId: string;
+		workspaceId: string;
+	}
+): Promise<ConfirmSpecChangeReviewFollowUpOutcome> {
+	if (input.previewAcknowledged !== true) {
+		return { reason: "preview-required", status: "rejected" };
+	}
+	if (!("work" in prisma) || typeof prisma.work?.create !== "function") {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const loaded = await loadFollowUpContext(prisma, input);
+	if (loaded.status !== "ok") {
+		return loaded;
+	}
+	try {
+		return await prisma.$transaction(async (tx) => {
+			const created = await createWorkInTransaction(tx, {
+				actorId: input.actorId,
+				idempotencyKey: `${input.idempotencyKey}:work`,
+				origin: HUMAN_ORIGIN,
+				payload: {
+					projectId: loaded.preview.project.id,
+					title: loaded.preview.followUpWork.title,
+					type: loaded.preview.followUpWork.type,
+				},
+			});
+			if (created.status !== "committed" && created.status !== "replayed") {
+				throw new FollowUpBarrierError({
+					reason: "target-not-found",
+					status: "rejected",
+				});
+			}
+			const origin = await createRelationInTransaction(tx, {
+				actorId: input.actorId,
+				from: { id: loaded.documentId, kind: "Document" },
+				idempotencyKey: `${input.idempotencyKey}:origin`,
+				origin: HUMAN_ORIGIN,
+				originLocation: {
+					componentId: loaded.candidateRecordId,
+					ownerId: loaded.documentId,
+					ownerKind: "Document",
+					sourceVersion: `${loaded.preview.specVersions.previous.id}:${loaded.preview.specVersions.new.id}`,
+				},
+				previewAcknowledged: true,
+				to: { id: created.work.id, kind: "Work" },
+				type: RELATIONS_COPY.origin,
+				viewerWorkspaceId: input.workspaceId,
+			});
+			if (origin.status !== "committed" && origin.status !== "replayed") {
+				throw new FollowUpBarrierError({
+					reason: "target-not-found",
+					status: "rejected",
+				});
+			}
+			return {
+				status: "committed" as const,
+				work: {
+					id: created.work.id,
+					projectId: created.work.projectId,
+					status: created.work.status,
+					title: created.work.title,
+					type: created.work.type,
+				},
+			};
+		});
+	} catch (error) {
+		if (error instanceof FollowUpBarrierError) {
+			return error.outcome;
+		}
+		throw error;
+	}
+}
+
+async function loadFollowUpContext(
+	prisma: PrismaLike,
+	input: { candidateId: string; reviewId: string; workspaceId: string }
+): Promise<
+	| {
+			candidateRecordId: string;
+			documentId: string;
+			preview: SpecChangeReviewFollowUpPreview;
+			status: "ok";
+	  }
+	| { reason: string; status: "rejected" }
+> {
+	if (
+		!("specChangeReviewCandidate" in prisma) ||
+		typeof prisma.specChangeReviewCandidate?.findFirst !== "function"
+	) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const row = await prisma.specChangeReviewCandidate.findFirst({
+		include: {
+			review: {
+				include: {
+					feature: { include: { project: true } },
+					newVersion: true,
+					previousVersion: true,
+				},
+			},
+		},
+		where: {
+			id: input.candidateId,
+			review: { workspaceId: input.workspaceId },
+			reviewId: input.reviewId,
+		},
+	});
+	if (!row) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const presented = await presentCandidate(prisma, row, input.workspaceId);
+	if (presented.brokenReason || presented.title === null) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	const { project } = row.review.feature;
+	if (project.workspaceId !== input.workspaceId) {
+		return { reason: "target-not-found", status: "rejected" };
+	}
+	return {
+		candidateRecordId: row.recordId,
+		documentId: row.review.documentId,
+		preview: {
+			candidateSourceRelation: {
+				origin: RELATIONS_COPY.origin,
+				recordKind: row.recordKind,
+				why: presented.why,
+			},
+			followUpWork: {
+				startingStatus: SPEC_CHANGE_REVIEW_COPY.startingStatus,
+				title: presented.title,
+				type: DEFAULT_WORK_TYPE,
+			},
+			project: { id: project.id, name: project.name },
+			specVersions: {
+				new: {
+					body: row.review.newVersion.body,
+					id: row.review.newVersion.id,
+					revision: row.review.newVersion.revision,
+					title: row.review.newVersion.title,
+				},
+				previous: {
+					body: row.review.previousVersion.body,
+					id: row.review.previousVersion.id,
+					revision: row.review.previousVersion.revision,
+					title: row.review.previousVersion.title,
+				},
+			},
+		},
+		status: "ok",
 	};
 }
 
