@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import FavoriteToggle from "@/features/favorites/views/favorite-toggle";
 import PersonalReminderPanel from "@/features/personal-reminders/views/personal-reminder-panel";
+import SpecChangeReviewQueue from "@/features/spec-change-review/views/spec-change-review-queue";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -172,6 +173,11 @@ export default function DocumentDetail({
 		});
 		await queryClient.invalidateQueries({
 			queryKey: orpc.documents.versions.queryKey({
+				input: { documentId },
+			}),
+		});
+		await queryClient.invalidateQueries({
+			queryKey: orpc.specChangeReview.list.queryKey({
 				input: { documentId },
 			}),
 		});
@@ -679,6 +685,7 @@ export default function DocumentDetail({
 						revision={selected.data.revision}
 					/>
 				) : null}
+				<SpecChangeReviewQueue documentId={documentId} />
 				<DocumentVersionHistory
 					baseRevision={selected.data.revision}
 					documentId={documentId}

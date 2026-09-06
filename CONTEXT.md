@@ -777,6 +777,14 @@ _Avoid_: meeting type, zorunlu review kaydı, Retrospective toplantısı
 Belgenin veritabanında tutulan kesin uygulama değişikliği kaydı; Git commit, dış dosya revizyonu veya ortak düzenleme oturumu değildir ([Belge sürüm geçmişi](docs/prd/07-documents-and-knowledge.md#belge-sürüm-geçmişi)). UI: `Version`.
 _Avoid_: Git commit, harici editör senkronu, CRDT
 
+**Birincil spec**:
+Özelliğe bağlı ana tanım Belgesi; rastgele Belge veya Git deposu değildir ([İş öğeleri](docs/prd/06-work-management-and-planning.md#iş-öğeleri)). UI: `Primary spec`.
+_Avoid_: Git review, ikinci spec kaydı, impact-analysis engine
+
+**Spec Change Review**:
+Özelliğin `Primary spec` Belgesinde yeni sürüm kaydedildiğinde açılan, önceki ve yeni Belge sürüm çiftinin inceleme kuyruğu; spec gövdesinin yerine geçmez, Git diff veya Çürütülen Varsayım İnceleme Kuyruğu değildir ([Spec değişikliği inceleme kuyruğu](docs/prd/07-documents-and-knowledge.md#spec-değişikliği-inceleme-kuyruğu)). UI: `Spec Change Review`.
+_Avoid_: Git review, approval gate, impact-analysis engine, Çürütülen Varsayım İnceleme Kuyruğu
+
 **Canlı İş bloğu**:
 Belgeye gömülen, kaynak İşin kimliğini kopyasız izleyen eyleme açık canlı kart; belgeye özgü görev kopyası veya ikinci yaşam döngüsü değildir ([uygulama içi Markdown belge yönetimi](docs/prd/07-documents-and-knowledge.md#uygulama-içi-markdown-belge-yönetimi)). UI: `Live Work block`, `Change status`, `Close`, `Open source record`.
 _Avoid_: checkbox görevi, gömülü İş kopyası, Belgeye özel kapanış

@@ -15,6 +15,7 @@ model Workspace {
   documentFolders       DocumentFolder[]
   documentTemplates     DocumentTemplate[]
   documentConflictDrafts DocumentConflictDraft[]
+  specChangeReviews      SpecChangeReview[]
   smartCollections       SmartCollection[]
   contacts               Contact[]
   companies              Company[]

@@ -689,6 +689,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Uzantı bağlantısını iptal et | `Revoke` | Tek bir uzantı bağlantısını iptal etme eylemi |
 | Belge | `Document` | Markdown Belgesi dönüşüm hedefi |
 | Belge sürümü | `Version` | Belgenin veritabanındaki uygulama değişikliği; Git commit değildir |
+| Spec değişikliği inceleme kuyruğu | `Spec Change Review` | Özelliğin Birincil spec Belge sürüm çiftinin inceleme kuyruğu; spec gövdesi, Git diff veya dış review aracı değildir |
 | Karşılaştır | `Compare` | İki Belge sürümünün gövde farkını gösterme |
 | Geri yükle | `Restore` | Seçilen Belge sürümünü yeni uç olarak yazma; geçmişi silmez |
 | Canlı İş bloğu | `Live Work block` | Belgeye gömülen, kaynak İş kimliğini kopyasız izleyen eyleme açık kart |
