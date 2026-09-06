@@ -22,14 +22,17 @@ interface CanvasNode {
 	label: string;
 	layout: { x: number; y: number; z: number };
 	screenTitle: string | null;
+	visualStyle: { emphasis: string } | null;
 }
 
 export interface UserFlowCanvasProps {
 	nodes: CanvasNode[];
 	onAlign: (nodeIds: string[]) => void;
 	onDuplicate: (nodeIds: string[]) => void;
+	onGrid: (nodeIds: string[]) => void;
 	onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
 	onUndo: () => void;
+	onZOrder: (nodeIds: string[]) => void;
 }
 
 function nodeLabel(node: CanvasNode): string {
@@ -44,17 +47,66 @@ function toFlowNodes(nodes: CanvasNode[]): Node[] {
 		data: { kind: node.kind, label: nodeLabel(node) },
 		id: node.id,
 		position: { x: node.layout.x, y: node.layout.y },
-		style: { zIndex: node.layout.z },
+		style: {
+			opacity: node.visualStyle?.emphasis === "muted" ? 0.65 : 1,
+			zIndex: node.layout.z,
+		},
 		zIndex: node.layout.z,
 	}));
+}
+
+function handleCanvasKey(
+	event: KeyboardEvent<HTMLDivElement>,
+	input: {
+		onDuplicate: (nodeIds: string[]) => void;
+		onGrid: (nodeIds: string[]) => void;
+		onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
+		onUndo: () => void;
+		onZOrder: (nodeIds: string[]) => void;
+		selectedIds: string[];
+	}
+): void {
+	const arrows: Record<string, [number, number]> = {
+		ArrowDown: [0, 16],
+		ArrowLeft: [-16, 0],
+		ArrowRight: [16, 0],
+		ArrowUp: [0, -16],
+	};
+	const delta = arrows[event.key];
+	if (delta) {
+		event.preventDefault();
+		input.onMove(input.selectedIds, delta[0], delta[1]);
+		return;
+	}
+	if (event.metaKey || event.ctrlKey) {
+		if (event.key === "z") {
+			event.preventDefault();
+			input.onUndo();
+		}
+		if (event.key === "d" || event.key === "c" || event.key === "v") {
+			event.preventDefault();
+			input.onDuplicate(input.selectedIds);
+		}
+		return;
+	}
+	if (event.key === "g") {
+		event.preventDefault();
+		input.onGrid(input.selectedIds);
+	}
+	if (event.key === "]") {
+		event.preventDefault();
+		input.onZOrder(input.selectedIds);
+	}
 }
 
 function CanvasInner({
 	nodes,
 	onAlign,
 	onDuplicate,
+	onGrid,
 	onMove,
 	onUndo,
+	onZOrder,
 }: UserFlowCanvasProps) {
 	const { fitView } = useReactFlow();
 	const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -82,8 +134,12 @@ function CanvasInner({
 	);
 
 	const onFitView = useCallback(() => {
-		fitView({ padding: 0.2 }).catch(() => undefined);
-	}, [fitView]);
+		fitView({
+			nodes:
+				selectedIds.length > 0 ? selectedIds.map((id) => ({ id })) : undefined,
+			padding: 0.2,
+		}).catch(() => undefined);
+	}, [fitView, selectedIds]);
 
 	const onAlignClick = useCallback(() => {
 		onAlign(selectedIds);
@@ -91,32 +147,16 @@ function CanvasInner({
 
 	const onKeyDown = useCallback(
 		(event: KeyboardEvent<HTMLDivElement>) => {
-			if (event.key === "ArrowLeft") {
-				event.preventDefault();
-				onMove(selectedIds, -16, 0);
-			}
-			if (event.key === "ArrowRight") {
-				event.preventDefault();
-				onMove(selectedIds, 16, 0);
-			}
-			if (event.key === "ArrowUp") {
-				event.preventDefault();
-				onMove(selectedIds, 0, -16);
-			}
-			if (event.key === "ArrowDown") {
-				event.preventDefault();
-				onMove(selectedIds, 0, 16);
-			}
-			if ((event.metaKey || event.ctrlKey) && event.key === "z") {
-				event.preventDefault();
-				onUndo();
-			}
-			if ((event.metaKey || event.ctrlKey) && event.key === "d") {
-				event.preventDefault();
-				onDuplicate(selectedIds);
-			}
+			handleCanvasKey(event, {
+				onDuplicate,
+				onGrid,
+				onMove,
+				onUndo,
+				onZOrder,
+				selectedIds,
+			});
 		},
-		[onDuplicate, onMove, onUndo, selectedIds]
+		[onDuplicate, onGrid, onMove, onUndo, onZOrder, selectedIds]
 	);
 
 	return (

@@ -441,7 +441,10 @@ function nextDocumentFromOp(
 			status: "ok",
 		};
 	}
-	return { document: duplicateNodes(document, nodeIds), status: "ok" };
+	if (payload.op === "duplicate") {
+		return { document: duplicateNodes(document, nodeIds), status: "ok" };
+	}
+	return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
 }
 
 async function persistFlowDocument(

@@ -37,6 +37,7 @@ interface PresentedNode {
 	resolution: string;
 	screenId: string | null;
 	screenTitle: string | null;
+	visualStyle: { emphasis: string } | null;
 }
 
 interface UserFlowDetailView {
@@ -143,7 +144,8 @@ export default function UserFlowDetail({
 			deltaX?: number;
 			deltaY?: number;
 			nodeIds?: string[];
-			op: "align" | "move" | "duplicate" | "undo";
+			op: "align" | "move" | "duplicate" | "undo" | "grid" | "z-order";
+			direction?: "front";
 		}) => {
 			if (!flow.data) {
 				return;
@@ -181,6 +183,18 @@ export default function UserFlowDetail({
 	const onUndo = useCallback(() => {
 		runOp({ op: "undo" });
 	}, [runOp]);
+	const onGrid = useCallback(
+		(nodeIds: string[]) => {
+			runOp({ nodeIds, op: "grid" });
+		},
+		[runOp]
+	);
+	const onZOrder = useCallback(
+		(nodeIds: string[]) => {
+			runOp({ direction: "front", nodeIds, op: "z-order" });
+		},
+		[runOp]
+	);
 
 	const onKindChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
 		setKind(event.target.value as (typeof FLOW_NODE_KINDS)[number]);
@@ -289,8 +303,10 @@ export default function UserFlowDetail({
 					nodes={view.nodes}
 					onAlign={onAlign}
 					onDuplicate={onDuplicate}
+					onGrid={onGrid}
 					onMove={onMove}
 					onUndo={onUndo}
+					onZOrder={onZOrder}
 				/>
 			</div>
 			<ul className="mt-6 flex flex-col gap-4">

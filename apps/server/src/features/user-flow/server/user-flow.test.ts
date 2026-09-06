@@ -626,7 +626,6 @@ describe("User Flow closed semantic set and editor commons", () => {
 		});
 		expect(catalog.editorCommons).toContain("Fit View");
 		expect(catalog.editorCommons).toContain("undo");
-		expect(catalog.technicalSequenceKinds).toEqual(TECHNICAL_SEQUENCE_KINDS);
 	});
 
 	it("places Action, Decision, State/Outcome, and Section without minting a Screen", async () => {

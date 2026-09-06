@@ -82,7 +82,6 @@ export function userFlowCatalog() {
 		editorCommons: EDITOR_COMMONS,
 		recordKind: USER_FLOW_RECORD_KIND,
 		semanticSet: FLOW_SEMANTIC_SET,
-		technicalSequenceKinds: TECHNICAL_SEQUENCE_KINDS,
 	};
 }
 
@@ -259,24 +258,15 @@ export function duplicateNodes(
 		if (!nodeIds.includes(node.id)) {
 			continue;
 		}
-		const layout = {
-			...node.layout,
-			x: node.layout.x + FLOW_GRID_SIZE * 2,
-			y: node.layout.y + FLOW_GRID_SIZE * 2,
-			z: node.layout.z + 1,
-		};
-		if (node.kind === "Screen") {
-			copies.push({
-				...node,
-				id: newId(),
-				layout,
-			});
-			continue;
-		}
 		copies.push({
 			...node,
 			id: newId(),
-			layout,
+			layout: {
+				...node.layout,
+				x: node.layout.x + FLOW_GRID_SIZE * 2,
+				y: node.layout.y + FLOW_GRID_SIZE * 2,
+				z: node.layout.z + 1,
+			},
 		});
 	}
 	return { nodes: [...document.nodes, ...copies] };

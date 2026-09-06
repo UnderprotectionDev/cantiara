@@ -152,14 +152,11 @@ export const placeScreenNodePayloadSchema = z.object({
 
 export const placeFlowNodePayloadSchema = z.object({
 	chosenWireframeVersionId: z.string().min(1).nullable().optional(),
-	color: z.string().optional(),
-	fill: z.string().optional(),
 	kind: z.string().min(1),
 	label: z.string().optional(),
 	layout: nodeLayoutSchema.optional(),
 	pathText: nodePathTextSchema.optional(),
 	screenId: z.string().min(1).optional(),
-	shape: z.string().optional(),
 	userFlowId: z.string().min(1),
 	visualStyle: nodeVisualStyleSchema.optional(),
 });
