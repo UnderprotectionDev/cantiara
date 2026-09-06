@@ -44,7 +44,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Contact (kimlik defteri) | `Contact` | Geri bildirimi veren kişiyi geri bildirimler boyunca tanıyan Çalışma Alanı ana kaydı; Feedback Capture yönlendirici alanı değildir |
 | Company | `Company` | Contact ve Geri Bildirimi isteğe bağlı ortak kuruluş bağlamında gruplayan hafif ana kayıt |
 | Şirkete ait | `Belongs to Company` | Contact başına en fazla bir güncel Company bağı; geçmiş değişiklikte korunur |
-| Kaynak kaydı aç (kimlik defteri) | `Open Source Record` | Contact profilinde ilişkili Geri Bildirim, Company ve Persona belgesini kaynağında açma |
+| Kaynak kaydı aç | `Open Source Record` | Contact profilinde ilişkili Geri Bildirim, Company ve Persona belgesini kaynağında açma; Proje Duvarı canlı kartında ana kaydı açma |
 | Contact oluştur | `Create Contact` | Çalışma Alanında kimlik defteri Contact'ı açma |
 | Company oluştur | `Create Company` | İsteğe bağlı kuruluş bağlamı kaydı açma |
 | Görünen ad | `Display name` | Contact'ta isteğe bağlı görünen ad; kimlik değildir |

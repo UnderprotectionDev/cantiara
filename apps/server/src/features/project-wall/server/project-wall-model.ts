@@ -125,7 +125,7 @@ export type UpdateCardLayoutCommand = z.infer<
 
 export const updateCardDensityPayloadSchema = z.object({
 	cardId: z.string().min(1),
-	density: z.string().min(1),
+	density: densitySchema,
 	wallId: z.string().min(1),
 });
 

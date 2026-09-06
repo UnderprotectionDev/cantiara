@@ -453,6 +453,36 @@ function ProjectNavLink({
 	);
 }
 
+function DesignProjectSection({
+	onWorkId,
+	projectId,
+	sectionId,
+}: {
+	onWorkId?: (workId: string | null) => void;
+	projectId: string;
+	sectionId: string;
+}) {
+	const onOpenSourceRecord = useCallback(
+		(sourceId: string) => {
+			onWorkId?.(sourceId);
+		},
+		[onWorkId]
+	);
+	return (
+		<section aria-label={PROJECT_WALL_COPY.projectWall} id={sectionId}>
+			<h1 className="font-semibold text-[1.375rem] tracking-tight">
+				{PROJECT_WALL_COPY.projectWall}
+			</h1>
+			<div className="mt-6">
+				<ProjectWallArea
+					onOpenSourceRecord={onOpenSourceRecord}
+					projectId={projectId}
+				/>
+			</div>
+		</section>
+	);
+}
+
 function DocumentsProjectSection({
 	onWorkId,
 	projectId,
@@ -642,19 +672,11 @@ function projectRecordArea({
 	}
 	if (selectedAnchor === designAnchor || selectedArea === "Design") {
 		return (
-			<section aria-label={PROJECT_WALL_COPY.projectWall} id={designAnchor}>
-				<h1 className="font-semibold text-[1.375rem] tracking-tight">
-					{PROJECT_WALL_COPY.projectWall}
-				</h1>
-				<div className="mt-6">
-					<ProjectWallArea
-						onOpenSourceRecord={
-							onWorkId ? (id: string) => onWorkId(id) : undefined
-						}
-						projectId={projectId}
-					/>
-				</div>
-			</section>
+			<DesignProjectSection
+				onWorkId={onWorkId}
+				projectId={projectId}
+				sectionId={designAnchor}
+			/>
 		);
 	}
 	if (

@@ -4,9 +4,18 @@ import {
 	NativeSelect,
 	NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import {
+	DndContext,
+	type DragEndEvent,
+	PointerSensor,
+	useDraggable,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { ChangeEvent, FormEvent, PointerEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import { useCallback, useState } from "react";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { WORK_LIFECYCLE_COPY } from "@/features/work-lifecycle/forms/work-lifecycle-copy";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -33,6 +42,9 @@ export default function ProjectWallCanvas({
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [sourceId, setSourceId] = useState("");
+	const sensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+	);
 	const wall = useQuery(
 		orpc.projectWall.get.queryOptions({ input: { wallId } })
 	);
@@ -63,6 +75,16 @@ export default function ProjectWallCanvas({
 			},
 		})
 	);
+	const layout = useMutation(
+		orpc.projectWall.updateLayout.mutationOptions({
+			onSuccess: async (outcome) => {
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					await invalidate();
+					recordSave();
+				}
+			},
+		})
+	);
 	const onPlace = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
@@ -88,6 +110,27 @@ export default function ProjectWallCanvas({
 			setSourceId(event.target.value);
 		},
 		[]
+	);
+	const onDragEnd = useCallback(
+		(event: DragEndEvent) => {
+			const card = wall.data?.cards.find((item) => item.id === event.active.id);
+			if (!card || (event.delta.x === 0 && event.delta.y === 0)) {
+				return;
+			}
+			markUnsaved();
+			attemptOnlineWork("record-create", () =>
+				layout.mutateAsync({
+					idempotencyKey: newIdempotencyKey(),
+					payload: {
+						cardId: card.id,
+						positionX: card.positionX + event.delta.x,
+						positionY: card.positionY + event.delta.y,
+						wallId,
+					},
+				})
+			);
+		},
+		[attemptOnlineWork, layout, markUnsaved, wall.data?.cards, wallId]
 	);
 
 	if (!wall.data) {
@@ -118,116 +161,49 @@ export default function ProjectWallCanvas({
 				</Field>
 				<Button type="submit">{PROJECT_WALL_COPY.placeLiveCard}</Button>
 			</form>
-			<div className="relative min-h-[28rem] overflow-hidden rounded-md border bg-muted/30">
-				{wall.data.cards.map((card) => (
-					<LiveCard
-						card={card}
-						key={card.id}
-						onMoved={invalidate}
-						onOpenSourceRecord={onOpenSourceRecord}
-						wallId={wallId}
-					/>
-				))}
-			</div>
+			<DndContext onDragEnd={onDragEnd} sensors={sensors}>
+				<div className="relative min-h-[28rem] overflow-hidden rounded-md border bg-muted/30">
+					{wall.data.cards.map((card) => (
+						<LiveCard
+							card={card}
+							key={card.id}
+							onOpenSourceRecord={onOpenSourceRecord}
+							onWallChanged={invalidate}
+							wallId={wallId}
+						/>
+					))}
+				</div>
+			</DndContext>
 		</div>
 	);
 }
 
 function LiveCard({
 	card,
-	onMoved,
 	onOpenSourceRecord,
+	onWallChanged,
 	wallId,
 }: {
 	card: WallCard;
-	onMoved: () => Promise<void>;
 	onOpenSourceRecord?: (sourceId: string) => void;
+	onWallChanged: () => Promise<void>;
 	wallId: string;
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
-	const drag = useRef<{
-		originX: number;
-		originY: number;
-		startX: number;
-		startY: number;
-	} | null>(null);
-	const [offset, setOffset] = useState({
-		x: card.positionX,
-		y: card.positionY,
-	});
-	useEffect(() => {
-		setOffset({ x: card.positionX, y: card.positionY });
-	}, [card.positionX, card.positionY]);
-	const layout = useMutation(
-		orpc.projectWall.updateLayout.mutationOptions({
-			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await onMoved();
-					recordSave();
-				}
-			},
-		})
-	);
+	const { attributes, listeners, setNodeRef, transform, isDragging } =
+		useDraggable({
+			id: card.id,
+		});
 	const density = useMutation(
 		orpc.projectWall.updateDensity.mutationOptions({
 			onSuccess: async (outcome) => {
 				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await onMoved();
+					await onWallChanged();
 					recordSave();
 				}
 			},
 		})
 	);
-	const onPointerDown = useCallback(
-		(event: PointerEvent<HTMLButtonElement>) => {
-			event.currentTarget.setPointerCapture(event.pointerId);
-			drag.current = {
-				originX: event.clientX,
-				originY: event.clientY,
-				startX: offset.x,
-				startY: offset.y,
-			};
-		},
-		[offset.x, offset.y]
-	);
-	const onPointerMove = useCallback(
-		(event: PointerEvent<HTMLButtonElement>) => {
-			if (!drag.current) {
-				return;
-			}
-			setOffset({
-				x: drag.current.startX + (event.clientX - drag.current.originX),
-				y: drag.current.startY + (event.clientY - drag.current.originY),
-			});
-		},
-		[]
-	);
-	const onPointerUp = useCallback(() => {
-		if (!drag.current) {
-			return;
-		}
-		drag.current = null;
-		markUnsaved();
-		attemptOnlineWork("record-create", () =>
-			layout.mutateAsync({
-				idempotencyKey: newIdempotencyKey(),
-				payload: {
-					cardId: card.id,
-					positionX: offset.x,
-					positionY: offset.y,
-					wallId,
-				},
-			})
-		);
-	}, [
-		attemptOnlineWork,
-		card.id,
-		layout,
-		markUnsaved,
-		offset.x,
-		offset.y,
-		wallId,
-	]);
 	const onDensityChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
 			markUnsaved();
@@ -251,14 +227,19 @@ function LiveCard({
 	return (
 		<article
 			className="absolute w-56 rounded-md border bg-background p-3 shadow-sm"
-			style={{ left: offset.x, top: offset.y }}
+			ref={setNodeRef}
+			style={{
+				left: card.positionX,
+				opacity: isDragging ? 0.6 : undefined,
+				top: card.positionY,
+				transform: CSS.Translate.toString(transform),
+			}}
 		>
 			<button
 				className="mb-2 block w-full cursor-grab text-left font-medium text-sm"
-				onPointerDown={onPointerDown}
-				onPointerMove={onPointerMove}
-				onPointerUp={onPointerUp}
 				type="button"
+				{...listeners}
+				{...attributes}
 			>
 				{card.fields.Title}
 			</button>
