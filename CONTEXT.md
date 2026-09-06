@@ -782,7 +782,7 @@ _Avoid_: Git commit, harici editör senkronu, CRDT
 _Avoid_: Git review, ikinci spec kaydı, impact-analysis engine
 
 **Spec Change Review**:
-Özelliğin `Primary spec` Belgesinde yeni sürüm kaydedildiğinde açılan, önceki ve yeni Belge sürüm çiftinin inceleme kuyruğu; spec gövdesinin yerine geçmez, Git diff veya Çürütülen Varsayım İnceleme Kuyruğu değildir ([Spec değişikliği inceleme kuyruğu](docs/prd/07-documents-and-knowledge.md#spec-değişikliği-inceleme-kuyruğu)). UI: `Spec Change Review`.
+Özelliğin `Primary spec` Belgesinde yeni sürüm kaydedildiğinde açılan, önceki ve yeni Belge sürüm çiftinin inceleme kuyruğu; spec gövdesinin yerine geçmez, Git diff veya Çürütülen Varsayım İnceleme Kuyruğu değildir ([Spec değişikliği inceleme kuyruğu](docs/prd/07-documents-and-knowledge.md#spec-değişikliği-inceleme-kuyruğu)). UI: `Spec Change Review`, `Waiting`, `Reviewed`, `Not affected`, `Create Follow-up Work`.
 _Avoid_: Git review, approval gate, impact-analysis engine, Çürütülen Varsayım İnceleme Kuyruğu
 
 **Spec Change Review adayı**:

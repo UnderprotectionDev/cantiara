@@ -26,17 +26,26 @@ import {
 } from "../../documents/server/documents-live";
 import { EVIDENCE_COPY } from "../../evidence/server/evidence-model";
 import { createProject } from "../../project-shell/server/project-shell";
-import { createRelation } from "../../relations/server/relations";
+import {
+	createRelation,
+	listRelations,
+} from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
 	bindPrimarySpec,
 	createWork,
 	getWork,
+	listWork,
 } from "../../work-lifecycle/server/work-lifecycle";
-import { WORK_STATUS } from "../../work-lifecycle/server/work-lifecycle-model";
 import {
+	DEFAULT_WORK_TYPE,
+	WORK_STATUS,
+} from "../../work-lifecycle/server/work-lifecycle-model";
+import {
+	confirmSpecChangeReviewFollowUp,
 	listSpecChangeReviews,
 	markSpecChangeReviewCandidate,
+	previewSpecChangeReviewFollowUp,
 } from "./spec-change-review";
 import {
 	SPEC_CHANGE_REVIEW_COPY,
@@ -238,6 +247,15 @@ describe("Spec Change Review catalog", () => {
 		expect(SPEC_CHANGE_REVIEW_COPY.documentLevelCandidate).toBe(
 			"Document-level candidate"
 		);
+		expect(SPEC_CHANGE_REVIEW_COPY.createFollowUpWork).toBe(
+			"Create Follow-up Work"
+		);
+		expect(SPEC_CHANGE_REVIEW_COPY.followUpWork).toBe("Follow-up Work");
+		expect(SPEC_CHANGE_REVIEW_COPY.preview).toBe("Preview");
+		expect(SPEC_CHANGE_REVIEW_COPY.confirm).toBe("Confirm");
+		expect(SPEC_CHANGE_REVIEW_COPY.waiting).toBe("Waiting");
+		expect(SPEC_CHANGE_REVIEW_COPY.reviewed).toBe("Reviewed");
+		expect(SPEC_CHANGE_REVIEW_COPY.notAffected).toBe("Not affected");
 		expect([...SPEC_CHANGE_REVIEW_STATUSES]).toEqual([
 			"Waiting",
 			"Reviewed",
@@ -250,6 +268,12 @@ describe("Spec Change Review catalog", () => {
 		expect(SPEC_CHANGE_REVIEW_COUNTERPARTS.writesCandidateWork).toBe(false);
 		expect(SPEC_CHANGE_REVIEW_COUNTERPARTS.feedbackReviewed).toBe(false);
 		expect(SPEC_CHANGE_REVIEW_COUNTERPARTS.workWorkflowStatus).toBe(false);
+		expect(SPEC_CHANGE_REVIEW_COUNTERPARTS.requiredApprovalGate).toBe(false);
+		expect(SPEC_CHANGE_REVIEW_COUNTERPARTS.automaticFieldUpdate).toBe(false);
+		expect(SPEC_CHANGE_REVIEW_COUNTERPARTS.bulkFollowUp).toBe(false);
+		expect(SPEC_CHANGE_REVIEW_COUNTERPARTS.automationRule).toBe(false);
+		expect(SPEC_CHANGE_REVIEW_COUNTERPARTS.testGap).toBe(false);
+		expect(SPEC_CHANGE_REVIEW_COUNTERPARTS.refutedAssumptionReview).toBe(false);
 		expect(JSON.stringify(specChangeReviewCatalog())).not.toMatch(
 			GIT_SOURCE_PATTERN
 		);
@@ -892,5 +916,135 @@ describe("Spec Change Review", () => {
 			title: null,
 		});
 		expect(JSON.stringify(queue)).not.toContain("Secret other-workspace title");
+	});
+
+	it("previews Create Follow-up Work without creating Work", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const feature = await committedFeature(prisma, actorId, project.id);
+		const { queue } = await bindAndSaveSpec(prisma, {
+			actorId,
+			body: PREVIOUS_CHECKOUT,
+			featureId: feature.id,
+			featureRevision: feature.revision,
+			nextBody: NEXT_CHECKOUT,
+			projectId: project.id,
+			workspaceId,
+		});
+		const candidate = queue[0]?.candidates.find(
+			(row) => row.recordId === feature.id
+		);
+		const before = await listWork(prisma, project.id);
+		const previewed = await previewSpecChangeReviewFollowUp(prisma, {
+			candidateId: candidate?.id ?? "",
+			reviewId: queue[0]?.id ?? "",
+			workspaceId,
+		});
+		expect(previewed.status).toBe("committed");
+		if (previewed.status !== "committed") {
+			throw new Error("expected preview");
+		}
+		expect(previewed.preview.followUpWork).toEqual({
+			startingStatus: WORK_STATUS.notStarted,
+			title: "Checkout",
+			type: DEFAULT_WORK_TYPE,
+		});
+		expect(previewed.preview.project).toEqual({
+			id: project.id,
+			name: "Atlas",
+		});
+		expect(previewed.preview.specVersions.previous.id).toBe(
+			queue[0]?.previousVersion.id
+		);
+		expect(previewed.preview.specVersions.new.id).toBe(queue[0]?.newVersion.id);
+		expect(previewed.preview.specVersions.previous.revision).toBe(1);
+		expect(previewed.preview.specVersions.new.revision).toBe(2);
+		expect(previewed.preview.candidateSourceRelation).toEqual({
+			origin: RELATIONS_COPY.origin,
+			recordKind: "Work",
+			why: expect.arrayContaining([SPEC_CHANGE_REVIEW_COPY.primarySpec]),
+		});
+		expect(await listWork(prisma, project.id)).toHaveLength(before.length);
+	});
+
+	it("confirms exactly one Follow-up Work bound to the spec versions and does not close the review", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const feature = await committedFeature(prisma, actorId, project.id);
+		const { queue, spec } = await bindAndSaveSpec(prisma, {
+			actorId,
+			body: PREVIOUS_CHECKOUT,
+			featureId: feature.id,
+			featureRevision: feature.revision,
+			nextBody: NEXT_CHECKOUT,
+			projectId: project.id,
+			workspaceId,
+		});
+		const [review] = queue;
+		const candidate = review?.candidates.find(
+			(row) => row.recordId === feature.id
+		);
+		const before = await listWork(prisma, project.id);
+		const skipped = await confirmSpecChangeReviewFollowUp(prisma, {
+			actorId,
+			candidateId: candidate?.id ?? "",
+			idempotencyKey: crypto.randomUUID(),
+			previewAcknowledged: false,
+			reviewId: review?.id ?? "",
+			workspaceId,
+		});
+		expect(skipped).toEqual({
+			reason: "preview-required",
+			status: "rejected",
+		});
+		expect(await listWork(prisma, project.id)).toHaveLength(before.length);
+		const confirmed = await confirmSpecChangeReviewFollowUp(prisma, {
+			actorId,
+			candidateId: candidate?.id ?? "",
+			idempotencyKey: crypto.randomUUID(),
+			previewAcknowledged: true,
+			reviewId: review?.id ?? "",
+			workspaceId,
+		});
+		expect(confirmed.status).toBe("committed");
+		if (confirmed.status !== "committed") {
+			throw new Error("expected Follow-up Work");
+		}
+		expect(confirmed.work.id).not.toBe(review?.id);
+		expect(confirmed.work.id).not.toBe(candidate?.id);
+		expect(confirmed.work.title).toBe("Checkout");
+		expect(confirmed.work.projectId).toBe(project.id);
+		expect(confirmed.work.status).toBe(WORK_STATUS.notStarted);
+		expect(confirmed.work.type).toBe(DEFAULT_WORK_TYPE);
+		const after = await listWork(prisma, project.id);
+		expect(after).toHaveLength(before.length + 1);
+		expect(after.map((work) => work.id)).toContain(confirmed.work.id);
+		const relations = await listRelations(prisma, {
+			record: { id: confirmed.work.id, kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		const origin = relations.find(
+			(relation) => relation.type === RELATIONS_COPY.origin
+		);
+		expect(origin?.from.id).toBe(spec.id);
+		expect(origin?.from.kind).toBe("Document");
+		expect(origin?.originLocation).toEqual({
+			componentId: feature.id,
+			missing: false,
+			ownerId: spec.id,
+			ownerKind: "Document",
+			sourceVersion: `${review?.previousVersion.id}:${review?.newVersion.id}`,
+		});
+		expect(relations.some((relation) => relation.type === "Test Gap")).toBe(
+			false
+		);
+		const listed = await listSpecChangeReviews(prisma, {
+			documentId: spec.id,
+			workspaceId,
+		});
+		expect(
+			listed[0]?.candidates.find((row) => row.recordId === feature.id)
+		).toMatchObject({
+			note: "",
+			reviewStatus: SPEC_CHANGE_REVIEW_COPY.waiting,
+		});
 	});
 });
