@@ -10,6 +10,12 @@ describe("Screens copy", () => {
 		expect(SCREENS_COPY.createScreen).toBe("Create Screen");
 		expect(SCREENS_COPY.titleRequired).toBe("Title is required.");
 		expect(SCREENS_COPY.detachLink).toBe("Detach Link");
+		expect(SCREENS_COPY.convertAndBind).toBe("Convert and Bind");
+		expect(SCREENS_COPY.originLocation).toBe("Origin Location");
+		expect(SCREENS_COPY.project).toBe("Project");
+		expect(SCREENS_COPY.createFromTemplate).toBe("Create Screen from template");
+		expect(SCREENS_COPY.openSourceRecord).toBe("Open Source Record");
+		expect(SCREENS_COPY.sourceItemIsGone).toBe("Source item is gone");
 		expect(SCREENS_COPY.broken).toBe("Broken");
 		expect(SCREENS_COPY.button).toBe("Button");
 		expect(SCREENS_COPY.presentationMode).toBe("Presentation Mode");

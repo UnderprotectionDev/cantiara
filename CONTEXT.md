@@ -1038,6 +1038,21 @@ _Avoid_: Dış yüzey, Build in Public, onaylı snapshot revizyonu, canlı bağl
 Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Wireframe`, `Presentation Mode`, `Exit Presentation Mode`, `Unresolved`, `Export`, `PNG`, `SVG`, `PDF`, `HTML`.
 _Avoid_: Wireframe ana kaydı, Ekrandan bağımsız Wireframe
 
+**Kayda dönüştür ve bağla**:
+Kesin Wireframe sürümündeki bir blocktan önizlemeli olarak tam bir İş, Karar, Risk veya Açık Soru açma; Ekran üretmez ve yeni kullanım bağı türü değildir.
+UI: `Convert and Bind`, `Confirm`, `Origin`, `Origin Location`
+_Avoid_: Wireframe'den Ekran üretme, otomatik dönüşüm, Related
+
+**Wireframe şablonu**:
+Kesin Wireframe sürümünün yapı ve bağlı-blok damgası; kaynak Projenin İş/Karar geçmişini veya canlı bağını taşımaz.
+UI: `Save as template`, `Create Screen from template`
+_Avoid_: İş şablonu, Belge şablonu, live-bound kopya
+
+**Canlı Wireframe kartı**:
+Wireframe yüzeyine konmuş salt okunur İş, Karar veya Risk referansı; taşımak kaynak kaydı yazmaz.
+UI: `Open Source Record`
+_Avoid_: planlama tahtası, Kullanım bağı, Proje Duvarı kartı
+
 **Bağlı Wireframe bloğu**:
 Aynı Projede birden fazla Ekranın Wireframe yüzeyinde paylaştığı düşük sadakatli kaynak tanımı; production component, tasarım token'ı veya projeler arasında canlı kütüphane değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Detach Link`.
 _Avoid_: production component, tasarım token'ı, çapraz proje canlı kütüphane

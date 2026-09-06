@@ -78,6 +78,7 @@ export interface PresentedNode {
 	kind: string;
 	label?: string;
 	linkedBlockId?: string;
+	liveRecord?: { id: string; kind: "Work" | "Decision" | "Risk" };
 	openHref: string | null;
 	openSourceRecord: string;
 	text?: {
@@ -100,6 +101,7 @@ async function presentNode(
 		kind: node.kind,
 		label: node.label,
 		linkedBlockId: node.linkedBlockId,
+		liveRecord: node.liveRecord,
 		openHref: null as string | null,
 		openSourceRecord: SCREENS_COPY.openSourceRecord,
 	};

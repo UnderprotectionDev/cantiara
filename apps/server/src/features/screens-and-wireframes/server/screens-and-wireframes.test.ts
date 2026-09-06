@@ -13,7 +13,7 @@ import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-
+import { getDecision } from "../../decisions/server/decisions";
 import {
 	createDocument,
 	updateDocument,
@@ -27,7 +27,10 @@ import {
 } from "../../relations/server/relations";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import { USAGE_KIND } from "../../relations/server/relations-model";
-import { createWork } from "../../work-lifecycle/server/work-lifecycle";
+import {
+	createWork,
+	getWork,
+} from "../../work-lifecycle/server/work-lifecycle";
 
 import {
 	applyLinkedBlockChange,
@@ -36,6 +39,7 @@ import {
 	createLinkedBlock,
 	createOutlineNode,
 	createScreen,
+	createScreenFromWireframeTemplate,
 	detachLinkedBlock,
 	exportWireframe,
 	followPresentationLink,
@@ -44,6 +48,7 @@ import {
 	getScreen,
 	groupOutline,
 	listScreens,
+	moveLiveCard,
 	openPresentationMode,
 	permanentlyDeleteScreen,
 	previewLinkedBlockChange,
@@ -55,12 +60,22 @@ import {
 	unarchiveScreen,
 } from "./screens-and-wireframes";
 import {
+	convertAndBind,
+	previewConvertAndBind,
+	previewRebindOrigin,
+	rebindOrigin,
+	redactWireframeBlock,
+	saveWireframeTemplate,
+} from "./screens-and-wireframes-convert";
+import {
 	CANVAS_HARD_SCENE,
 	CANVAS_STRESS_SCENE,
+	CONVERT_RECORD_KINDS,
 	documentOpenHref,
 	EMPTY_WIREFRAME_DOCUMENT,
 	evaluateWireframeCanvasScene,
 	fitViewportToContent,
+	originLocationRead,
 	panPersonalViewport,
 	restorePersonalViewport,
 	SCREEN_COUNTERPARTS,
@@ -225,6 +240,22 @@ async function committedScreen(
 		throw new Error("expected create");
 	}
 	return created.screen;
+}
+
+function buttonDocument(id: string, label: string) {
+	return {
+		nodes: [
+			{
+				geometry: { height: 40, width: 120, x: 16, y: 16 },
+				id,
+				kind: WIREFRAME_SEMANTIC_KIND.button,
+				label,
+				seed: 1,
+			},
+		],
+		schema: "WireframeDocument" as const,
+		schemaVersion: 1 as const,
+	};
 }
 
 describe("Screens and Wireframes", () => {
@@ -1757,6 +1788,510 @@ describe("Screens and Wireframes personal viewport and outline", () => {
 					Math.min(...document.nodes.map((item) => item.geometry.x))
 			)
 		).toBe(true);
+	});
+
+	it("previews Convert and Bind without minting a record and binds Origin Location on confirm", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const screen = await committedScreen(prisma, {
+			actorId,
+			idempotencyKey: "create-pay-convert",
+			projectId,
+			title: "Pay",
+		});
+		const saved = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: screen.revision,
+			idempotencyKey: "pay-cta",
+			origin: "human",
+			payload: {
+				document: buttonDocument("cta", "Pay now"),
+				screenId: screen.id,
+			},
+		});
+		expect(saved.status).toBe("committed");
+		if (saved.status !== "committed") {
+			throw new Error("expected version");
+		}
+		expect(CONVERT_RECORD_KINDS).toEqual([
+			"Work",
+			"Decision",
+			"Risk",
+			"Open Question",
+		]);
+		expect(CONVERT_RECORD_KINDS).not.toContain("Screen");
+		const previewed = await previewConvertAndBind(prisma, {
+			nodeId: "cta",
+			projectId,
+			recordKind: "Work",
+			screenId: screen.id,
+			versionNumber: 1,
+		});
+		expect(previewed.status).toBe("ok");
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		expect(previewed.preview.label).toBe(SCREENS_COPY.convertAndBind);
+		expect(previewed.preview.recordKind).toBe("Work");
+		expect(previewed.preview.projectId).toBe(projectId);
+		expect(previewed.preview.title).toBe("Pay now");
+		expect(previewed.preview.body).toBe("Pay now");
+		expect(previewed.preview.origin).toBe(RELATIONS_COPY.origin);
+		expect(previewed.preview.projectId).toBe(projectId);
+		expect(previewed.preview.originLocation).toMatchObject({
+			componentId: "cta",
+			missing: false,
+			ownerId: screen.id,
+			ownerKind: SCREEN_KIND,
+			sourceVersion: "1",
+		});
+		expect(previewed.preview.recordKinds).not.toContain("Screen");
+		const worksBefore = await prisma.work.count({ where: { projectId } });
+		const skipped = await convertAndBind(prisma, {
+			actorId,
+			idempotencyKey: "no-preview",
+			origin: "human",
+			payload: {
+				nodeId: "cta",
+				projectId,
+				recordKind: "Work",
+				screenId: screen.id,
+				versionNumber: 1,
+			},
+		});
+		expect(skipped).toEqual({
+			reason: "preview-required",
+			status: "rejected",
+		});
+		expect(await prisma.work.count({ where: { projectId } })).toBe(worksBefore);
+		const screenAsTarget = await previewConvertAndBind(prisma, {
+			nodeId: "cta",
+			projectId,
+			recordKind: "Screen",
+			screenId: screen.id,
+			versionNumber: 1,
+		});
+		expect(screenAsTarget).toEqual({
+			reason: "screen-not-a-convert-target",
+			status: "rejected",
+		});
+		const converted = await convertAndBind(prisma, {
+			actorId,
+			idempotencyKey: "convert-pay",
+			origin: "human",
+			payload: {
+				nodeId: "cta",
+				previewFingerprint: previewed.preview.fingerprint,
+				projectId,
+				recordKind: "Work",
+				screenId: screen.id,
+				versionNumber: 1,
+			},
+			previewAcknowledged: true,
+		});
+		expect(converted.status).toBe("committed");
+		if (converted.status !== "committed") {
+			throw new Error("expected convert");
+		}
+		expect(converted.record.kind).toBe("Work");
+		expect(converted.record.title).toBe("Pay now");
+		expect(converted.screen.id).toBe(screen.id);
+		expect(converted.originLocation).toMatchObject({
+			componentId: "cta",
+			missing: false,
+			ownerId: screen.id,
+			ownerKind: SCREEN_KIND,
+			sourceVersion: "1",
+		});
+		const after = await getExactWireframeVersion(prisma, {
+			screenId: screen.id,
+			versionNumber: 1,
+		});
+		expect(after?.document.nodes).toEqual(
+			buttonDocument("cta", "Pay now").nodes
+		);
+		expect(after?.presentedNodes[0]).toMatchObject({
+			id: "cta",
+			kind: WIREFRAME_SEMANTIC_KIND.button,
+			label: "Pay now",
+		});
+		const relations = await listRelations(prisma, {
+			record: { id: converted.record.id, kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(relations).toHaveLength(1);
+		expect(relations[0]?.type).toBe(RELATIONS_COPY.origin);
+		expect(relations[0]?.from.id).toBe(screen.id);
+		expect(relations[0]?.from.kind).toBe(SCREEN_KIND);
+		expect(relations[0]?.originLocation).toMatchObject({
+			componentId: "cta",
+			missing: false,
+			ownerId: screen.id,
+			sourceVersion: "1",
+		});
+		const usage = await prisma.usageLink.findMany();
+		expect(usage).toEqual([]);
+		const work = await getWork(prisma, converted.record.id);
+		expect(work?.title).toBe("Pay now");
+		const screens = await listScreens(prisma, { projectId });
+		expect(screens.map((row) => row.id)).toEqual([screen.id]);
+	});
+
+	it("keeps the created record when the source block is gone and does not silently retarget", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const screen = await committedScreen(prisma, {
+			actorId,
+			idempotencyKey: "create-gone",
+			projectId,
+			title: "Pay",
+		});
+		const saved = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: screen.revision,
+			idempotencyKey: "gone-v1",
+			origin: "human",
+			payload: {
+				document: buttonDocument("cta", "Pay now"),
+				screenId: screen.id,
+			},
+		});
+		if (saved.status !== "committed") {
+			throw new Error("expected version");
+		}
+		const previewed = await previewConvertAndBind(prisma, {
+			nodeId: "cta",
+			projectId,
+			recordKind: "Decision",
+			screenId: screen.id,
+			versionNumber: 1,
+		});
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		const converted = await convertAndBind(prisma, {
+			actorId,
+			idempotencyKey: "convert-decision",
+			origin: "human",
+			payload: {
+				nodeId: "cta",
+				previewFingerprint: previewed.preview.fingerprint,
+				projectId,
+				recordKind: "Decision",
+				screenId: screen.id,
+				versionNumber: 1,
+			},
+			previewAcknowledged: true,
+		});
+		if (converted.status !== "committed") {
+			throw new Error("expected convert");
+		}
+		const next = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: saved.screen.revision,
+			idempotencyKey: "gone-v2",
+			origin: "human",
+			payload: {
+				document: buttonDocument("other", "Later"),
+				screenId: screen.id,
+			},
+		});
+		expect(next.status).toBe("committed");
+		const stillPinned = await listRelations(prisma, {
+			record: { id: converted.record.id, kind: "Decision" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(stillPinned[0]?.originLocation).toMatchObject({
+			componentId: "cta",
+			missing: false,
+			sourceVersion: "1",
+		});
+		const decision = await getDecision(prisma, converted.record.id);
+		expect(decision?.title).toBe("Pay now");
+		const silent = await rebindOrigin(prisma, {
+			actorId,
+			idempotencyKey: "silent-rebind",
+			origin: "human",
+			payload: {
+				nodeId: "other",
+				recordId: converted.record.id,
+				recordKind: "Decision",
+				screenId: screen.id,
+				versionNumber: 2,
+			},
+		});
+		expect(silent).toEqual({
+			reason: "preview-required",
+			status: "rejected",
+		});
+		const reboundPreview = await previewRebindOrigin(prisma, {
+			nodeId: "other",
+			recordId: converted.record.id,
+			recordKind: "Decision",
+			screenId: screen.id,
+			versionNumber: 2,
+		});
+		expect(reboundPreview.status).toBe("ok");
+		const redacted = await redactWireframeBlock(prisma, {
+			actorId,
+			idempotencyKey: "redact-cta",
+			origin: "human",
+			payload: {
+				nodeId: "cta",
+				screenId: screen.id,
+				versionNumber: 1,
+			},
+		});
+		expect(redacted.status).toBe("committed");
+		const afterGone = await listRelations(prisma, {
+			record: { id: converted.record.id, kind: "Decision" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(afterGone[0]?.type).toBe(RELATIONS_COPY.origin);
+		expect(afterGone[0]?.from.id).toBe(screen.id);
+		expect(afterGone[0]?.originLocation).toMatchObject({
+			componentId: "cta",
+			missing: true,
+			sourceVersion: "1",
+		});
+		expect(originLocationRead(afterGone[0]?.originLocation ?? undefined)).toBe(
+			SCREENS_COPY.sourceItemIsGone
+		);
+		const stillThere = await getDecision(prisma, converted.record.id);
+		expect(stillThere?.title).toBe("Pay now");
+		const v1 = await getExactWireframeVersion(prisma, {
+			screenId: screen.id,
+			versionNumber: 1,
+		});
+		expect(v1?.document.nodes.some((node) => node.id === "cta")).toBe(false);
+	});
+
+	it("rebinds Origin Location only after preview", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const screen = await committedScreen(prisma, {
+			actorId,
+			idempotencyKey: "create-rebind",
+			projectId,
+			title: "Pay",
+		});
+		const saved = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: screen.revision,
+			idempotencyKey: "rebind-v1",
+			origin: "human",
+			payload: {
+				document: buttonDocument("cta", "Pay now"),
+				screenId: screen.id,
+			},
+		});
+		if (saved.status !== "committed") {
+			throw new Error("expected version");
+		}
+		const previewed = await previewConvertAndBind(prisma, {
+			nodeId: "cta",
+			projectId,
+			recordKind: "Risk",
+			screenId: screen.id,
+			versionNumber: 1,
+		});
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		const converted = await convertAndBind(prisma, {
+			actorId,
+			idempotencyKey: "convert-risk",
+			origin: "human",
+			payload: {
+				nodeId: "cta",
+				previewFingerprint: previewed.preview.fingerprint,
+				projectId,
+				recordKind: "Risk",
+				screenId: screen.id,
+				versionNumber: 1,
+			},
+			previewAcknowledged: true,
+		});
+		if (converted.status !== "committed") {
+			throw new Error("expected convert");
+		}
+		const next = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: saved.screen.revision,
+			idempotencyKey: "rebind-v2",
+			origin: "human",
+			payload: {
+				document: buttonDocument("other", "Later"),
+				screenId: screen.id,
+			},
+		});
+		expect(next.status).toBe("committed");
+		const reboundPreview = await previewRebindOrigin(prisma, {
+			nodeId: "other",
+			recordId: converted.record.id,
+			recordKind: "Risk",
+			screenId: screen.id,
+			versionNumber: 2,
+		});
+		if (reboundPreview.status !== "ok") {
+			throw new Error("expected rebind preview");
+		}
+		expect(reboundPreview.preview.projectId).toBe(projectId);
+		const rebound = await rebindOrigin(prisma, {
+			actorId,
+			idempotencyKey: "previewed-rebind",
+			origin: "human",
+			payload: {
+				nodeId: "other",
+				previewFingerprint: reboundPreview.preview.fingerprint,
+				recordId: converted.record.id,
+				recordKind: "Risk",
+				screenId: screen.id,
+				versionNumber: 2,
+			},
+			previewAcknowledged: true,
+		});
+		expect(rebound.status).toBe("committed");
+		const afterRebind = await listRelations(prisma, {
+			record: { id: converted.record.id, kind: "Risk" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(afterRebind[0]?.originLocation).toMatchObject({
+			componentId: "other",
+			missing: false,
+			sourceVersion: "2",
+		});
+	});
+
+	it("moves a live card without writing the source record and stamps a template without live source binds", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const work = await createWork(prisma, {
+			actorId,
+			idempotencyKey: "live-work",
+			origin: "human",
+			payload: { projectId, title: "Checkout flow" },
+		});
+		if (work.status !== "committed") {
+			throw new Error("expected work");
+		}
+		const screen = await committedScreen(prisma, {
+			actorId,
+			idempotencyKey: "live-screen",
+			projectId,
+			title: "Pay",
+		});
+		const placed = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: screen.revision,
+			idempotencyKey: "place-card",
+			origin: "human",
+			payload: {
+				document: {
+					nodes: [
+						{
+							geometry: { height: 48, width: 160, x: 8, y: 8 },
+							id: "card-1",
+							kind: WIREFRAME_SEMANTIC_KIND.card,
+							label: work.work.title,
+							liveRecord: { id: work.work.id, kind: "Work" as const },
+							seed: 2,
+						},
+					],
+					schema: "WireframeDocument",
+					schemaVersion: 1,
+				},
+				screenId: screen.id,
+			},
+		});
+		if (placed.status !== "committed") {
+			throw new Error("expected place");
+		}
+		const moved = await moveLiveCard(prisma, {
+			actorId,
+			baseRevision: placed.screen.revision,
+			idempotencyKey: "move-card",
+			origin: "human",
+			payload: {
+				geometry: { height: 48, width: 160, x: 120, y: 80 },
+				nodeId: "card-1",
+				screenId: screen.id,
+			},
+		});
+		expect(moved.status).toBe("committed");
+		const source = await getWork(prisma, work.work.id);
+		expect(source?.title).toBe("Checkout flow");
+		expect(source?.status).toBe(work.work.status);
+		expect(source?.revision).toBe(work.work.revision);
+		const afterMove = await getExactWireframeVersion(prisma, {
+			overlayCurrent: true,
+			screenId: screen.id,
+			versionNumber: 2,
+		});
+		expect(afterMove?.document.nodes[0]?.geometry).toEqual({
+			height: 48,
+			width: 160,
+			x: 120,
+			y: 80,
+		});
+		expect(afterMove?.document.nodes[0]?.liveRecord).toEqual({
+			id: work.work.id,
+			kind: "Work",
+		});
+		const template = await saveWireframeTemplate(prisma, {
+			actorId,
+			idempotencyKey: "stamp",
+			origin: "human",
+			payload: {
+				name: "Pay stamp",
+				screenId: screen.id,
+				versionNumber: 2,
+			},
+		});
+		expect(template.status).toBe("committed");
+		if (template.status !== "committed") {
+			throw new Error("expected template");
+		}
+		expect(template.template.document.nodes[0]?.liveRecord).toBeUndefined();
+		const other = await createProject(prisma, {
+			actorId,
+			idempotencyKey: "other-project",
+			origin: "human",
+			payload: {
+				name: "Wallet",
+				starterConfiguration: "Blank Project",
+			},
+			workspaceId,
+		});
+		if (other.status !== "committed") {
+			throw new Error("expected other project");
+		}
+		const stamped = await createScreenFromWireframeTemplate(prisma, {
+			actorId,
+			idempotencyKey: "from-template",
+			origin: "human",
+			payload: {
+				projectId: other.project.id,
+				templateId: template.template.id,
+				title: "Pay copy",
+			},
+		});
+		expect(stamped.status).toBe("committed");
+		if (stamped.status !== "committed") {
+			throw new Error("expected stamp");
+		}
+		expect(stamped.screen.projectId).toBe(other.project.id);
+		expect(stamped.screen.title).toBe("Pay copy");
+		const stampedVersion = await getExactWireframeVersion(prisma, {
+			screenId: stamped.screen.id,
+			versionNumber: 1,
+		});
+		expect(stampedVersion?.document.nodes[0]?.liveRecord).toBeUndefined();
+		const cross = await listRelations(prisma, {
+			record: { id: work.work.id, kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(cross).toEqual([]);
+		expect(SCREENS_COPY.convertAndBind).toBe("Convert and Bind");
+		expect(SCREENS_COPY.originLocation).toBe("Origin Location");
+		expect(SCREENS_COPY.openSourceRecord).toBe("Open Source Record");
+		expect(SCREENS_COPY.sourceItemIsGone).toBe("Source item is gone");
 	});
 
 	it("does not crash or corrupt the 500/750 hard scene or 2000/3000 stress", () => {

@@ -19,6 +19,7 @@ model Workspace {
   smartCollections       SmartCollection[]
   contacts               Contact[]
   companies              Company[]
+  wireframeTemplates     WireframeTemplate[]
 
   @@map("workspace")
 }

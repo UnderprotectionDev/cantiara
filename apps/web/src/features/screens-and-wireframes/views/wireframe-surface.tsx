@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { type KeyboardEvent, useCallback, useMemo, useState } from "react";
 import { Layer, Rect, Stage, Text } from "react-konva";
 
+import ConvertAndBindForm from "@/features/screens-and-wireframes/forms/convert-and-bind-form";
 import { SCREENS_COPY } from "@/features/screens-and-wireframes/forms/screens-copy";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -15,6 +16,7 @@ interface OutlineNode {
 	kind: string;
 	label?: string;
 	linkedBlockId?: string;
+	liveRecord?: { id: string; kind: "Work" | "Decision" | "Risk" };
 	openHref: string | null;
 	openSourceRecord: string;
 	text?: { status: "broken" | "ok"; value: string };
@@ -430,14 +432,18 @@ export default function WireframeSurface({
 									id={boardGroup.id}
 									key={boardGroup.id}
 									nodes={nodes.filter((node) => node.groupId === boardGroup.id)}
+									onConverted={onChanged}
 									onDetach={onDetach}
 									onMove={onMove}
 									onToggleCollapse={onToggleCollapse}
 									onToggleSelect={onToggleSelect}
+									projectId={projectId}
+									screenId={screenId}
 									selectedIds={selectedIds}
 									selectedNodeId={selectedNodeId}
 									title={boardGroup.title}
 									toolsHidden={toolsHidden === true}
+									versionNumber={versionNumber}
 								/>
 							))}
 							{nodes
@@ -446,14 +452,18 @@ export default function WireframeSurface({
 									<OutlineNodeRow
 										key={node.id}
 										node={node}
+										onConverted={onChanged}
 										onDetach={onDetach}
 										onMove={onMove}
 										onToggleSelect={onToggleSelect}
+										projectId={projectId}
+										screenId={screenId}
 										selected={
 											selectedIds.includes(node.id) ||
 											selectedNodeId === node.id
 										}
 										toolsHidden={toolsHidden === true}
+										versionNumber={versionNumber}
 									/>
 								))}
 						</ul>
@@ -603,26 +613,34 @@ function OutlineGroupRow({
 	collapsed,
 	id,
 	nodes,
+	onConverted,
 	onDetach,
 	onMove,
 	onToggleCollapse,
 	onToggleSelect,
+	projectId,
+	screenId,
 	selectedIds,
 	selectedNodeId,
 	title,
 	toolsHidden,
+	versionNumber,
 }: {
 	collapsed: boolean;
 	id: string;
 	nodes: OutlineNode[];
+	onConverted: () => void;
 	onDetach: (nodeId: string) => void;
 	onMove: (nodeId: string, direction: -1 | 1) => void;
 	onToggleCollapse: (groupId: string) => void;
 	onToggleSelect: (nodeId: string) => void;
+	projectId: string;
+	screenId: string;
 	selectedIds: string[];
 	selectedNodeId?: string | null;
 	title: string;
 	toolsHidden: boolean;
+	versionNumber: number | null;
 }) {
 	const onCollapse = useCallback(() => {
 		onToggleCollapse(id);
@@ -641,13 +659,17 @@ function OutlineGroupRow({
 						<OutlineNodeRow
 							key={node.id}
 							node={node}
+							onConverted={onConverted}
 							onDetach={onDetach}
 							onMove={onMove}
 							onToggleSelect={onToggleSelect}
+							projectId={projectId}
+							screenId={screenId}
 							selected={
 								selectedIds.includes(node.id) || selectedNodeId === node.id
 							}
 							toolsHidden={toolsHidden}
+							versionNumber={versionNumber}
 						/>
 					))}
 				</ul>
@@ -658,18 +680,26 @@ function OutlineGroupRow({
 
 function OutlineNodeRow({
 	node,
+	onConverted,
 	onDetach,
 	onMove,
 	onToggleSelect,
+	projectId,
+	screenId,
 	selected,
 	toolsHidden,
+	versionNumber,
 }: {
 	node: OutlineNode;
+	onConverted: () => void;
 	onDetach: (nodeId: string) => void;
 	onMove: (nodeId: string, direction: -1 | 1) => void;
 	onToggleSelect: (nodeId: string) => void;
+	projectId: string;
+	screenId: string;
 	selected: boolean;
 	toolsHidden: boolean;
+	versionNumber: number | null;
 }) {
 	const onSelect = useCallback(() => {
 		onToggleSelect(node.id);
@@ -721,6 +751,16 @@ function OutlineNodeRow({
 						{node.openSourceRecord}
 					</a>
 				) : null}
+				{versionNumber !== null && !node.liveRecord && !toolsHidden ? (
+					<ConvertAndBindForm
+						nodeId={node.id}
+						onConverted={onConverted}
+						projectId={projectId}
+						screenId={screenId}
+						versionNumber={versionNumber}
+					/>
+				) : null}
+				{node.liveRecord ? <span>{SCREENS_COPY.openSourceRecord}</span> : null}
 			</div>
 		</li>
 	);

@@ -8,6 +8,9 @@ export const SCREENS_COPY = {
 	card: "Card",
 	chart: "Chart",
 	collapseGroup: "Collapse",
+	confirm: "Confirm",
+	convertAndBind: "Convert and Bind",
+	createFromTemplate: "Create Screen from template",
 	createScreen: "Create Screen",
 	deletePermanently: "Permanently Delete",
 	detachLink: "Detach Link",
@@ -29,12 +32,17 @@ export const SCREENS_COPY = {
 	noScreens: "No Screens yet.",
 	noScreensInTrash: "No Screens in Trash.",
 	openSourceRecord: "Open Source Record",
+	origin: "Origin",
+	originLocation: "Origin Location",
 	outline: "Outline",
 	pdf: "PDF",
 	png: "PNG",
 	presentationMode: "Presentation Mode",
+	project: "Project",
 	restore: "Restore",
+	saveAsTemplate: "Save as template",
 	screen: "Screen",
+	sourceItemIsGone: "Source item is gone",
 	svg: "SVG",
 	table: "Table",
 	text: "Text",
@@ -45,3 +53,12 @@ export const SCREENS_COPY = {
 	unresolved: "Unresolved",
 	wireframe: "Wireframe",
 } as const;
+
+export const CONVERT_RECORD_KINDS = [
+	"Work",
+	"Decision",
+	"Risk",
+	"Open Question",
+] as const;
+
+export type ConvertRecordKind = (typeof CONVERT_RECORD_KINDS)[number];
