@@ -26,6 +26,7 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"Moodboard",
 	"MoodboardVisual",
 	"WireframeVersion",
+	"WireframeLinkedBlock",
 	"WorkNotNowTrail",
 ]);
 

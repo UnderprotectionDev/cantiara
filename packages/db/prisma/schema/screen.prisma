@@ -46,3 +46,17 @@ model ScreenEvent {
   @@index([screenId, occurredAt])
   @@map("screen_event")
 }
+
+model WireframeLinkedBlock {
+  id         String   @id
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name       String
+  definition Json
+  revision   Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([projectId])
+  @@map("wireframe_linked_block")
+}
