@@ -124,6 +124,40 @@ async function addFlow(
 	return created.flow;
 }
 
+const STALE_USER_FLOW_CLIENT = {
+	$transaction: async (fn: (tx: Record<string, unknown>) => Promise<unknown>) =>
+		fn({
+			$executeRaw: async () => 0,
+			mutationReceipt: {
+				create: async () => ({}),
+				findUnique: async () => null,
+			},
+			userFlow: undefined,
+		}),
+} as unknown as PrismaClient;
+
+const STALE_CREATE_COMMAND = {
+	actorId: "actor_stale_client",
+	idempotencyKey: "idem-stale-user-flow",
+	origin: "human" as const,
+	payload: { projectId: "proj_stale_client", title: "Design User Flow" },
+};
+
+/**
+ * bun --hot can serve a Prisma client generated before UserFlow
+ * (OPTIONAL_RUNTIME_MODELS). Fresh-client DB tests below cannot catch
+ * this — they construct Prisma after generate.
+ */
+describe("User Flow — missing Prisma delegate", () => {
+	it("does not throw evaluating tx.userFlow.create", async () => {
+		await expect(
+			createUserFlow(STALE_USER_FLOW_CLIENT, STALE_CREATE_COMMAND)
+		).rejects.toThrow(
+			"Prisma client is missing current models; restart the API after prisma generate"
+		);
+	});
+});
+
 describe("User Flow live Screen refs", () => {
 	let prisma: PrismaClient;
 	let pool: Pool;

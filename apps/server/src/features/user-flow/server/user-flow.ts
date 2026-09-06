@@ -132,12 +132,26 @@ async function writeCreate(
 	);
 }
 
+const STALE_GENERATED_CLIENT =
+	"Prisma client is missing current models; restart the API after prisma generate";
+
+function hasUserFlowWriteDelegate(tx: PrismaTransaction): boolean {
+	return typeof tx.userFlow?.create === "function";
+}
+
+function requireUserFlowWriteDelegate(tx: PrismaTransaction): void {
+	if (!hasUserFlowWriteDelegate(tx)) {
+		throw new Error(STALE_GENERATED_CLIENT);
+	}
+}
+
 async function createInTransaction(
 	tx: PrismaTransaction,
 	command: CreateUserFlowCommand,
 	commandKey: string,
 	fingerprint: string
 ): Promise<UserFlowWriteOutcome> {
+	requireUserFlowWriteDelegate(tx);
 	await lockProject(tx, command.payload.projectId);
 	const replayed = await replayFlow(tx, commandKey, fingerprint);
 	if (replayed) {
@@ -176,6 +190,7 @@ async function placeNodeInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<UserFlowWriteOutcome> {
+	requireUserFlowWriteDelegate(tx);
 	const replayed = await replayFlow(tx, commandKey, fingerprint);
 	if (replayed) {
 		return replayed;
@@ -230,6 +245,7 @@ async function updatePathInTransaction(
 	commandKey: string,
 	fingerprint: string
 ): Promise<UserFlowWriteOutcome> {
+	requireUserFlowWriteDelegate(tx);
 	const replayed = await replayFlow(tx, commandKey, fingerprint);
 	if (replayed) {
 		return replayed;
