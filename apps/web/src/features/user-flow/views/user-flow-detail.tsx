@@ -14,12 +14,16 @@ import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
+import UserFlowCanvas from "../components/user-flow-canvas";
 import CreateScreenForm from "../forms/create-screen-form";
-import { USER_FLOW_COPY } from "../forms/user-flow-copy";
+import { FLOW_NODE_KINDS, USER_FLOW_COPY } from "../forms/user-flow-copy";
 
 interface PresentedNode {
 	boundAt: string | null;
 	id: string;
+	kind: string;
+	label: string;
+	layout: { x: number; y: number; z: number };
 	openHref: string | null;
 	openSourceRecord: string | null;
 	pathText: {
@@ -31,13 +35,15 @@ interface PresentedNode {
 	preview: string | null;
 	reason: string | null;
 	resolution: string;
-	screenId: string;
+	screenId: string | null;
 	screenTitle: string | null;
+	visualStyle: { emphasis: string } | null;
 }
 
 interface UserFlowDetailView {
 	copy: {
 		archived: string;
+		fitView: string;
 		openSourceRecord: string;
 		userFlow: string;
 	};
@@ -61,52 +67,138 @@ export default function UserFlowDetail({
 		orpc.userFlow.listScreens.queryOptions({ input: { projectId } })
 	);
 	const [description, setDescription] = useState("");
+	const [kind, setKind] = useState<(typeof FLOW_NODE_KINDS)[number]>(
+		USER_FLOW_COPY.screen
+	);
+	const [label, setLabel] = useState("");
 	const [screenId, setScreenId] = useState("");
 	const [error, setError] = useState<string | null>(null);
+
+	const invalidate = useCallback(async () => {
+		await queryClient.invalidateQueries({
+			queryKey: orpc.userFlow.get.queryKey({
+				input: { userFlowId: flowId },
+			}),
+		});
+	}, [flowId]);
+
+	const onOutcome = useCallback(
+		async (outcome: { status: string; reason?: string }) => {
+			if (outcome.status === "committed" || outcome.status === "replayed") {
+				await invalidate();
+				setDescription("");
+				setLabel("");
+				setError(null);
+				return;
+			}
+			if (outcome.status === "rejected" && outcome.reason) {
+				setError(outcome.reason);
+			}
+		},
+		[invalidate]
+	);
+
 	const place = useMutation(
-		orpc.userFlow.placeScreenNode.mutationOptions({
-			onSuccess: async (outcome) => {
-				if (outcome.status === "committed" || outcome.status === "replayed") {
-					await queryClient.invalidateQueries({
-						queryKey: orpc.userFlow.get.queryKey({
-							input: { userFlowId: flowId },
-						}),
-					});
-					setDescription("");
-					setError(null);
-					return;
-				}
-				if (outcome.status === "rejected") {
-					setError(outcome.reason);
-				}
-			},
+		orpc.userFlow.placeFlowNode.mutationOptions({
+			onSuccess: onOutcome,
+		})
+	);
+	const editorOp = useMutation(
+		orpc.userFlow.applyEditorOp.mutationOptions({
+			onSuccess: onOutcome,
 		})
 	);
 
-	const onBind = useCallback(
+	const onPlace = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
-			if (!(flow.data && screenId)) {
+			if (!flow.data) {
+				return;
+			}
+			if (kind === USER_FLOW_COPY.screen && !screenId) {
 				return;
 			}
 			place.mutate({
 				baseRevision: flow.data.revision,
 				idempotencyKey: newIdempotencyKey(),
 				payload: {
+					kind,
+					label,
 					pathText: {
 						condition: "",
 						decision: "",
 						description,
 						transition: "",
 					},
-					screenId,
+					screenId: kind === USER_FLOW_COPY.screen ? screenId : undefined,
 					userFlowId: flowId,
 				},
 			});
 		},
-		[description, flow.data, flowId, place, screenId]
+		[description, flow.data, flowId, kind, label, place, screenId]
 	);
 
+	const runOp = useCallback(
+		(payload: {
+			axis?: "left";
+			deltaX?: number;
+			deltaY?: number;
+			nodeIds?: string[];
+			op: "align" | "move" | "duplicate" | "undo" | "grid" | "z-order";
+			direction?: "front";
+		}) => {
+			if (!flow.data) {
+				return;
+			}
+			editorOp.mutate({
+				baseRevision: flow.data.revision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: {
+					...payload,
+					userFlowId: flowId,
+				},
+			});
+		},
+		[editorOp, flow.data, flowId]
+	);
+
+	const onAlign = useCallback(
+		(nodeIds: string[]) => {
+			runOp({ axis: "left", nodeIds, op: "align" });
+		},
+		[runOp]
+	);
+	const onDuplicate = useCallback(
+		(nodeIds: string[]) => {
+			runOp({ nodeIds, op: "duplicate" });
+		},
+		[runOp]
+	);
+	const onMove = useCallback(
+		(nodeIds: string[], deltaX: number, deltaY: number) => {
+			runOp({ deltaX, deltaY, nodeIds, op: "move" });
+		},
+		[runOp]
+	);
+	const onUndo = useCallback(() => {
+		runOp({ op: "undo" });
+	}, [runOp]);
+	const onGrid = useCallback(
+		(nodeIds: string[]) => {
+			runOp({ nodeIds, op: "grid" });
+		},
+		[runOp]
+	);
+	const onZOrder = useCallback(
+		(nodeIds: string[]) => {
+			runOp({ direction: "front", nodeIds, op: "z-order" });
+		},
+		[runOp]
+	);
+
+	const onKindChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+		setKind(event.target.value as (typeof FLOW_NODE_KINDS)[number]);
+	}, []);
 	const onScreenChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
 			setScreenId(event.target.value);
@@ -119,6 +211,9 @@ export default function UserFlowDetail({
 		},
 		[]
 	);
+	const onLabelChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+		setLabel(event.target.value);
+	}, []);
 
 	if (flow.isPending) {
 		return (
@@ -141,27 +236,50 @@ export default function UserFlowDetail({
 			<div className="mt-4">
 				<CreateScreenForm projectId={projectId} />
 			</div>
-			<form className="mt-4 flex flex-col gap-3" onSubmit={onBind}>
+			<form className="mt-4 flex flex-col gap-3" onSubmit={onPlace}>
 				<FieldGroup>
 					<Field>
-						<FieldLabel htmlFor="bind-screen">
-							{USER_FLOW_COPY.screen}
+						<FieldLabel htmlFor="flow-node-kind">
+							{USER_FLOW_COPY.placeNode}
 						</FieldLabel>
 						<NativeSelect
-							id="bind-screen"
-							onChange={onScreenChange}
-							value={screenId}
+							id="flow-node-kind"
+							onChange={onKindChange}
+							value={kind}
 						>
-							<NativeSelectOption value="">
-								{USER_FLOW_COPY.screen}
-							</NativeSelectOption>
-							{(screens.data ?? []).map((screen) => (
-								<NativeSelectOption key={screen.id} value={screen.id}>
-									{screen.title}
+							{FLOW_NODE_KINDS.map((item) => (
+								<NativeSelectOption key={item} value={item}>
+									{item}
 								</NativeSelectOption>
 							))}
 						</NativeSelect>
 					</Field>
+					{kind === USER_FLOW_COPY.screen ? (
+						<Field>
+							<FieldLabel htmlFor="bind-screen">
+								{USER_FLOW_COPY.screen}
+							</FieldLabel>
+							<NativeSelect
+								id="bind-screen"
+								onChange={onScreenChange}
+								value={screenId}
+							>
+								<NativeSelectOption value="">
+									{USER_FLOW_COPY.screen}
+								</NativeSelectOption>
+								{(screens.data ?? []).map((screen) => (
+									<NativeSelectOption key={screen.id} value={screen.id}>
+										{screen.title}
+									</NativeSelectOption>
+								))}
+							</NativeSelect>
+						</Field>
+					) : (
+						<Field>
+							<FieldLabel htmlFor="node-label">{kind}</FieldLabel>
+							<Input id="node-label" onChange={onLabelChange} value={label} />
+						</Field>
+					)}
 					<Field>
 						<FieldLabel htmlFor="node-description">
 							{USER_FLOW_COPY.description}
@@ -174,13 +292,31 @@ export default function UserFlowDetail({
 					</Field>
 				</FieldGroup>
 				{error ? <p role="alert">{error}</p> : null}
-				<Button type="submit">{USER_FLOW_COPY.bindScreen}</Button>
+				<Button type="submit">
+					{kind === USER_FLOW_COPY.screen
+						? USER_FLOW_COPY.bindScreen
+						: USER_FLOW_COPY.placeNode}
+				</Button>
 			</form>
+			<div className="mt-6">
+				<UserFlowCanvas
+					nodes={view.nodes}
+					onAlign={onAlign}
+					onDuplicate={onDuplicate}
+					onGrid={onGrid}
+					onMove={onMove}
+					onUndo={onUndo}
+					onZOrder={onZOrder}
+				/>
+			</div>
 			<ul className="mt-6 flex flex-col gap-4">
 				{view.nodes.map((node) => (
 					<li className="rounded-md border p-3" key={node.id}>
 						<p>
-							{node.screenTitle ?? node.reason}
+							{node.kind}
+							{node.kind === USER_FLOW_COPY.screen
+								? ` · ${node.screenTitle ?? node.reason}`
+								: ` · ${node.label}`}
 							{node.reason ? ` · ${node.reason}` : null}
 						</p>
 						{node.boundAt && node.resolution === "broken" ? (

@@ -1,13 +1,27 @@
 export const PROJECT_WALL_COPY = {
 	compact: "Compact",
+	createPersistentRelation: "Create Persistent Relation",
 	createProjectWall: "Create Project Wall",
 	detailed: "Detailed",
+	exact: "Exact",
+	exitPresentationMode: "Exit Presentation Mode",
+	focusOrder: "Focus order",
+	frozenCopy: "Frozen copy",
+	live: "Live",
+	lockPosition: "Lock Position",
 	name: "Name",
 	noProjectWall: "No Project Wall yet.",
+	noShareGrant: "This output does not grant share access.",
+	openAllInSource: "Open all in source",
 	openSourceRecord: "Open Source Record",
+	pdf: "PDF",
 	placeLiveCard: "Place live card",
+	png: "PNG",
+	presentationMode: "Presentation Mode",
 	preview: "Preview",
 	projectWall: "Project Wall",
+	sharedSource: "Shared source",
+	visualLink: "Visual link",
 } as const;
 
 export const PROJECT_WALL_DENSITIES = [
@@ -17,3 +31,9 @@ export const PROJECT_WALL_DENSITIES = [
 ] as const;
 
 export type ProjectWallDensity = (typeof PROJECT_WALL_DENSITIES)[number];
+
+export const PROJECT_WALL_SOURCE_KIND = {
+	smartCollection: "Smart Collection",
+	technicalDiagram: "Technical Diagram",
+	work: "Work",
+} as const;
