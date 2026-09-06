@@ -8,6 +8,9 @@ export const USER_FLOW_COPY = {
 	archived: "Archived",
 	bindScreen: "Bind Screen",
 	condition: "Condition",
+	confirm: "Confirm",
+	convertAndBind: "Convert and Bind",
+	createFromTemplate: "Create from template",
 	createScreen: "Create Screen",
 	createUserFlow: "Create User Flow",
 	decision: "Decision",
@@ -16,10 +19,18 @@ export const USER_FLOW_COPY = {
 	inTrash: RELATIONS_COPY.inTrash,
 	noAccess: RELATIONS_COPY.noAccess,
 	noUserFlows: "No User Flows yet.",
+	openQuestion: "Open Question",
 	openSourceRecord: "Open Source Record",
+	origin: RELATIONS_COPY.origin,
+	originLocation: "Origin Location",
 	permanentlyDeleted: RELATIONS_COPY.permanentlyDeleted,
+	placeLiveCard: "Place live card",
 	placeNode: "Place node",
+	promoteToScreen: "Promote to Screen",
+	rebind: "Rebind",
 	redactedForSecurity: RELATIONS_COPY.redactedForSecurity,
+	risk: "Risk",
+	saveAsTemplate: "Save as template",
 	screen: "Screen",
 	section: "Section",
 	stateOutcome: "State/Outcome",
@@ -28,6 +39,7 @@ export const USER_FLOW_COPY = {
 	undo: "Undo",
 	userFlow: "User Flow",
 	wireframePreview: "Wireframe preview",
+	work: "Work",
 } as const;
 
 export const USER_FLOW_RECORD_KIND = "User Flow" as const;
@@ -49,8 +61,10 @@ export type FlowNodeKind = (typeof FLOW_NODE_KINDS)[number];
 
 export const USER_FLOW_REJECTION = {
 	closedSemanticSet: "closed-semantic-set",
+	convertDoesNotMintScreen: "convert-does-not-mint-screen",
 	invalidCommand: "invalid-command",
 	nothingToUndo: "nothing-to-undo",
+	previewRequired: "preview-required",
 	targetNotFound: "target-not-found",
 } as const;
 
@@ -121,13 +135,43 @@ export const flowNodeDocumentSchema = z.discriminatedUnion("kind", [
 
 export type FlowNodeDocument = z.infer<typeof flowNodeDocumentSchema>;
 
+export const CONVERT_RECORD_KINDS = [
+	USER_FLOW_COPY.work,
+	USER_FLOW_COPY.decision,
+	USER_FLOW_COPY.risk,
+	USER_FLOW_COPY.openQuestion,
+] as const;
+
+export type ConvertRecordKind = (typeof CONVERT_RECORD_KINDS)[number];
+
+export const liveCardKindSchema = z.enum([
+	USER_FLOW_COPY.work,
+	USER_FLOW_COPY.decision,
+	USER_FLOW_COPY.risk,
+]);
+
+export type LiveCardKind = z.infer<typeof liveCardKindSchema>;
+
+export const flowLiveCardDocumentSchema = z.object({
+	id: z.string().min(1),
+	layout: layoutWithDefault,
+	recordId: z.string().min(1),
+	recordKind: liveCardKindSchema,
+});
+
+export type FlowLiveCardDocument = z.infer<typeof flowLiveCardDocumentSchema>;
+
 export const flowDocumentSchema = z.object({
+	liveCards: z.array(flowLiveCardDocumentSchema).optional(),
 	nodes: z.array(flowNodeDocumentSchema),
 });
 
 export type FlowDocument = z.infer<typeof flowDocumentSchema>;
 
-export const emptyFlowDocument = (): FlowDocument => ({ nodes: [] });
+export const emptyFlowDocument = (): FlowDocument => ({
+	liveCards: [],
+	nodes: [],
+});
 
 export const createUserFlowPayloadSchema = z.object({
 	projectId: z.string().min(1),
@@ -262,6 +306,159 @@ export type ScreenLifecycleCommand = z.infer<
 	typeof screenLifecycleCommandSchema
 >;
 
+export const convertRecordKindSchema = z.enum(CONVERT_RECORD_KINDS);
+
+export const previewConvertAndBindInputSchema = z.object({
+	nodeId: z.string().min(1),
+	recordKind: z.string().min(1),
+	userFlowId: z.string().min(1),
+	workspaceId: z.string().min(1),
+});
+
+export const convertAndBindPayloadSchema = z.object({
+	body: z.string().optional(),
+	nodeId: z.string().min(1),
+	recordKind: z.string().min(1),
+	title: z.string().optional(),
+	userFlowId: z.string().min(1),
+});
+
+export const convertAndBindCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: convertAndBindPayloadSchema,
+	previewAcknowledged: z.boolean(),
+});
+
+export type ConvertAndBindCommand = z.infer<typeof convertAndBindCommandSchema>;
+
+export const promoteStepToScreenPayloadSchema = z.object({
+	nodeId: z.string().min(1),
+	screenId: z.string().min(1).optional(),
+	userFlowId: z.string().min(1),
+});
+
+export const promoteStepToScreenCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: promoteStepToScreenPayloadSchema,
+});
+
+export type PromoteStepToScreenCommand = z.infer<
+	typeof promoteStepToScreenCommandSchema
+>;
+
+export const previewRebindOriginInputSchema = z.object({
+	nodeId: z.string().min(1),
+	recordId: z.string().min(1),
+	recordKind: z.string().min(1),
+	userFlowId: z.string().min(1),
+	workspaceId: z.string().min(1),
+});
+
+export const rebindOriginPayloadSchema = z.object({
+	nodeId: z.string().min(1),
+	recordId: z.string().min(1),
+	recordKind: z.string().min(1),
+	userFlowId: z.string().min(1),
+});
+
+export const rebindOriginCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: rebindOriginPayloadSchema,
+	previewAcknowledged: z.boolean(),
+});
+
+export type RebindOriginCommand = z.infer<typeof rebindOriginCommandSchema>;
+
+export const saveUserFlowTemplatePayloadSchema = z.object({
+	name: z.string().min(1),
+	userFlowId: z.string().min(1),
+});
+
+export const saveUserFlowTemplateCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: saveUserFlowTemplatePayloadSchema,
+});
+
+export type SaveUserFlowTemplateCommand = z.infer<
+	typeof saveUserFlowTemplateCommandSchema
+>;
+
+export const instantiateUserFlowTemplatePayloadSchema = z.object({
+	projectId: z.string().min(1),
+	templateId: z.string().min(1),
+	title: z.string().min(1),
+});
+
+export const instantiateUserFlowTemplateCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: instantiateUserFlowTemplatePayloadSchema,
+});
+
+export type InstantiateUserFlowTemplateCommand = z.infer<
+	typeof instantiateUserFlowTemplateCommandSchema
+>;
+
+export const placeLiveCardPayloadSchema = z.object({
+	layout: nodeLayoutSchema.optional(),
+	recordId: z.string().min(1),
+	recordKind: liveCardKindSchema,
+	userFlowId: z.string().min(1),
+});
+
+export const placeLiveCardCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: placeLiveCardPayloadSchema,
+});
+
+export type PlaceLiveCardCommand = z.infer<typeof placeLiveCardCommandSchema>;
+
+export const moveLiveCardPayloadSchema = z.object({
+	cardId: z.string().min(1),
+	deltaX: z.number(),
+	deltaY: z.number(),
+	userFlowId: z.string().min(1),
+});
+
+export const moveLiveCardCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: moveLiveCardPayloadSchema,
+});
+
+export type MoveLiveCardCommand = z.infer<typeof moveLiveCardCommandSchema>;
+
+export const removeLiveCardPayloadSchema = z.object({
+	cardId: z.string().min(1),
+	userFlowId: z.string().min(1),
+});
+
+export const removeLiveCardCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: removeLiveCardPayloadSchema,
+});
+
+export type RemoveLiveCardCommand = z.infer<typeof removeLiveCardCommandSchema>;
+
 export type UserFlowWriteOutcome =
 	| { flow: UserFlowView; status: "committed" }
 	| { flow: UserFlowView; status: "replayed" }
@@ -303,16 +500,104 @@ export interface PresentedFlowNode {
 	visualStyle: NodeVisualStyle;
 }
 
-export type PresentedScreenNode = PresentedFlowNode;
+export interface PresentedLiveCard {
+	id: string;
+	layout: NodeLayout;
+	openSourceRecord: typeof USER_FLOW_COPY.openSourceRecord;
+	recordId: string;
+	recordKind: LiveCardKind;
+	status: string | null;
+	title: string;
+}
+
+export interface PresentedOriginRelation {
+	id: string;
+	nodeId: string | null;
+	recordId: string;
+	recordKind: ConvertRecordKind;
+	sourceVersion: string | null;
+	type: string;
+}
+
+export interface ConvertOriginLocation {
+	componentId: string;
+	ownerId: string;
+	ownerKind: typeof USER_FLOW_RECORD_KIND;
+	sourceVersion: string;
+}
+
+export interface ConvertAndBindPreview {
+	body: string;
+	copy: {
+		confirm: typeof USER_FLOW_COPY.confirm;
+		convertAndBind: typeof USER_FLOW_COPY.convertAndBind;
+		origin: typeof USER_FLOW_COPY.origin;
+		originLocation: typeof USER_FLOW_COPY.originLocation;
+	};
+	origin: typeof USER_FLOW_COPY.origin;
+	originLocation: ConvertOriginLocation;
+	projectId: string;
+	projectName: string;
+	recordKind: ConvertRecordKind;
+	title: string;
+}
+
+export type ConvertAndBindPreviewOutcome =
+	| { preview: ConvertAndBindPreview; status: "ok" }
+	| { reason: UserFlowRejectionReason | string; status: "rejected" };
+
+export type ConvertAndBindOutcome =
+	| {
+			flow: UserFlowView;
+			record: { id: string; kind: ConvertRecordKind; title: string };
+			status: "committed";
+	  }
+	| {
+			flow: UserFlowView;
+			record: { id: string; kind: ConvertRecordKind; title: string };
+			status: "replayed";
+	  }
+	| { conflict: "Conflict"; status: "conflict" }
+	| { reason: UserFlowRejectionReason | string; status: "rejected" };
+
+export type RebindOriginPreviewOutcome =
+	| {
+			preview: { fromVersion: string; toVersion: string };
+			status: "ok";
+	  }
+	| { reason: UserFlowRejectionReason | string; status: "rejected" };
+
+export type RebindOriginOutcome =
+	| { status: "committed" }
+	| { status: "replayed" }
+	| { conflict: "Conflict"; status: "conflict" }
+	| { reason: UserFlowRejectionReason | string; status: "rejected" };
+
+export interface UserFlowTemplateView {
+	id: string;
+	name: string;
+	revision: number;
+	sourceProjectId?: undefined;
+	structure: string;
+}
+
+export type UserFlowTemplateWriteOutcome =
+	| { status: "committed"; template: UserFlowTemplateView }
+	| { status: "replayed"; template: UserFlowTemplateView }
+	| { conflict: "Conflict"; status: "conflict" }
+	| { reason: UserFlowRejectionReason | string; status: "rejected" };
 
 export interface UserFlowView {
 	copy: {
 		action: typeof USER_FLOW_COPY.action;
 		align: typeof USER_FLOW_COPY.align;
 		archived: typeof USER_FLOW_COPY.archived;
+		convertAndBind: typeof USER_FLOW_COPY.convertAndBind;
 		decision: typeof USER_FLOW_COPY.decision;
 		fitView: typeof USER_FLOW_COPY.fitView;
 		openSourceRecord: typeof USER_FLOW_COPY.openSourceRecord;
+		originLocation: typeof USER_FLOW_COPY.originLocation;
+		promoteToScreen: typeof USER_FLOW_COPY.promoteToScreen;
 		screen: typeof USER_FLOW_COPY.screen;
 		section: typeof USER_FLOW_COPY.section;
 		stateOutcome: typeof USER_FLOW_COPY.stateOutcome;
@@ -320,8 +605,9 @@ export interface UserFlowView {
 		userFlow: typeof USER_FLOW_COPY.userFlow;
 	};
 	id: string;
+	liveCards: PresentedLiveCard[];
 	nodes: PresentedFlowNode[];
-	originRelations: readonly { id: string; type: string }[];
+	originRelations: readonly PresentedOriginRelation[];
 	projectId: string;
 	recordKind: typeof USER_FLOW_RECORD_KIND;
 	revision: number;
@@ -345,9 +631,8 @@ export function emptyPathText(): NodePathText {
 export function parseFlowDocument(raw: string): FlowDocument {
 	try {
 		const parsed: unknown = JSON.parse(raw);
-		const nodes = Array.isArray((parsed as { nodes?: unknown }).nodes)
-			? (parsed as { nodes: unknown[] }).nodes
-			: [];
+		const bag = parsed as { liveCards?: unknown; nodes?: unknown };
+		const nodes = Array.isArray(bag.nodes) ? bag.nodes : [];
 		const accepted: FlowNodeDocument[] = [];
 		for (const node of nodes) {
 			const result = flowNodeDocumentSchema.safeParse(node);
@@ -355,7 +640,16 @@ export function parseFlowDocument(raw: string): FlowDocument {
 				accepted.push(result.data);
 			}
 		}
-		return { nodes: accepted };
+		const liveCards: FlowLiveCardDocument[] = [];
+		if (Array.isArray(bag.liveCards)) {
+			for (const card of bag.liveCards) {
+				const result = flowLiveCardDocumentSchema.safeParse(card);
+				if (result.success) {
+					liveCards.push(result.data);
+				}
+			}
+		}
+		return { liveCards, nodes: accepted };
 	} catch {
 		return emptyFlowDocument();
 	}
@@ -363,6 +657,12 @@ export function parseFlowDocument(raw: string): FlowDocument {
 
 export function serializeFlowDocument(document: FlowDocument): string {
 	return JSON.stringify({
+		liveCards: (document.liveCards ?? []).map((card) => ({
+			id: card.id,
+			layout: card.layout,
+			recordId: card.recordId,
+			recordKind: card.recordKind,
+		})),
 		nodes: document.nodes.map((node) => {
 			if (node.kind === SCREEN_NODE_KIND) {
 				return {
@@ -470,4 +770,83 @@ export function exportContentFrom(flow: {
 		}
 	}
 	return lines.filter((line) => line.length > 0).join("\n");
+}
+
+export function isConvertRecordKind(value: string): value is ConvertRecordKind {
+	return (CONVERT_RECORD_KINDS as readonly string[]).includes(value);
+}
+
+export function relationKindForConvert(
+	kind: ConvertRecordKind
+): "Work" | "Decision" | "Risk" | "Question" {
+	if (kind === USER_FLOW_COPY.openQuestion) {
+		return "Question";
+	}
+	if (kind === USER_FLOW_COPY.decision) {
+		return "Decision";
+	}
+	if (kind === USER_FLOW_COPY.risk) {
+		return "Risk";
+	}
+	return "Work";
+}
+
+export function convertRecordKindFromRelationKind(
+	kind: string
+): ConvertRecordKind | null {
+	if (kind === "Question") {
+		return USER_FLOW_COPY.openQuestion;
+	}
+	if (kind === "Decision") {
+		return USER_FLOW_COPY.decision;
+	}
+	if (kind === "Risk") {
+		return USER_FLOW_COPY.risk;
+	}
+	if (kind === "Work") {
+		return USER_FLOW_COPY.work;
+	}
+	return null;
+}
+
+export function convertTitleFromNode(
+	node: FlowNodeDocument,
+	screenTitle: string | null
+): string {
+	if (isScreenFlowNode(node)) {
+		return screenTitle?.trim() || USER_FLOW_COPY.screen;
+	}
+	const labeled = node.label.trim();
+	if (labeled.length > 0) {
+		return labeled;
+	}
+	return node.pathText.description.trim() || node.kind;
+}
+
+export function convertBodyFromNode(node: FlowNodeDocument): string {
+	return node.pathText.description;
+}
+
+export function stampTemplateStructure(document: FlowDocument): string {
+	const nodes = document.nodes.map((node) => {
+		if (isScreenFlowNode(node)) {
+			return {
+				id: "placeholder",
+				kind: USER_FLOW_COPY.action,
+				label: USER_FLOW_COPY.screen,
+				layout: node.layout,
+				pathText: node.pathText,
+				visualStyle: node.visualStyle,
+			};
+		}
+		return {
+			id: "placeholder",
+			kind: node.kind,
+			label: node.label,
+			layout: node.layout,
+			pathText: node.pathText,
+			visualStyle: node.visualStyle,
+		};
+	});
+	return JSON.stringify({ liveCards: [], nodes });
 }

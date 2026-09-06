@@ -150,6 +150,7 @@ export const ORIGIN_SOURCE_KINDS = [
 	"User Research Session",
 	"Test Gap",
 	"File Attachment",
+	"User Flow",
 	"Screen",
 ] as const satisfies readonly RecordKind[];
 

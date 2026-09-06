@@ -23,15 +23,19 @@ import {
 	type ApplyEditorOpCommand,
 	applyEditorOpCommandSchema,
 	type CreateUserFlowCommand,
+	convertRecordKindFromRelationKind,
 	createUserFlowCommandSchema,
 	emptyFlowDocument,
 	emptyPathText,
 	type FlowDocument,
+	type FlowLiveCardDocument,
 	type FlowNodeDocument,
 	type FlowNodeKind,
 	isScreenFlowNode,
 	type PlaceFlowNodeCommand,
 	type PresentedFlowNode,
+	type PresentedLiveCard,
+	type PresentedOriginRelation,
 	parseFlowDocument,
 	placeFlowNodeCommandSchema,
 	placeScreenNodeCommandSchema,
@@ -51,7 +55,7 @@ import {
 type PrismaLike = PrismaClient | Prisma.TransactionClient;
 type PrismaTransaction = Prisma.TransactionClient;
 
-interface UserFlowRow {
+export interface UserFlowRow {
 	document: string;
 	id: string;
 	projectId: string;
@@ -210,7 +214,7 @@ function hasUserFlowWriteDelegate(tx: PrismaTransaction): boolean {
 	return typeof tx.userFlow?.create === "function";
 }
 
-function requireUserFlowWriteDelegate(tx: PrismaTransaction): void {
+export function requireUserFlowWriteDelegate(tx: PrismaTransaction): void {
 	if (!hasUserFlowWriteDelegate(tx)) {
 		throw new Error(STALE_GENERATED_CLIENT);
 	}
@@ -276,7 +280,10 @@ async function placeNodeInTransaction(
 	await lockProject(tx, row.projectId);
 	const document = parseFlowDocument(row.document);
 	const node = buildPlacedNode(command, document.nodes.length);
-	const next: FlowDocument = { nodes: [...document.nodes, node] };
+	const next: FlowDocument = {
+		liveCards: document.liveCards ?? [],
+		nodes: [...document.nodes, node],
+	};
 	return await persistFlowDocument(tx, {
 		actorId: command.actorId,
 		commandKey,
@@ -447,7 +454,7 @@ function nextDocumentFromOp(
 	return { reason: USER_FLOW_REJECTION.invalidCommand, status: "rejected" };
 }
 
-async function persistFlowDocument(
+export async function persistFlowDocument(
 	tx: PrismaTransaction,
 	input: {
 		actorId: string;
@@ -516,7 +523,7 @@ async function updatePathInTransaction(
 		actorId: command.actorId,
 		commandKey,
 		fingerprint,
-		next: { nodes },
+		next: { liveCards: document.liveCards ?? [], nodes },
 		row,
 	});
 }
@@ -580,7 +587,7 @@ async function syncScreenUsageLinks(
 	}
 }
 
-async function presentUserFlow(
+export async function presentUserFlow(
 	prisma: PrismaLike,
 	row: UserFlowRow,
 	workspaceId: string
@@ -605,9 +612,12 @@ async function presentUserFlow(
 			action: USER_FLOW_COPY.action,
 			align: USER_FLOW_COPY.align,
 			archived: USER_FLOW_COPY.archived,
+			convertAndBind: USER_FLOW_COPY.convertAndBind,
 			decision: USER_FLOW_COPY.decision,
 			fitView: USER_FLOW_COPY.fitView,
 			openSourceRecord: USER_FLOW_COPY.openSourceRecord,
+			originLocation: USER_FLOW_COPY.originLocation,
+			promoteToScreen: USER_FLOW_COPY.promoteToScreen,
 			screen: USER_FLOW_COPY.screen,
 			section: USER_FLOW_COPY.section,
 			stateOutcome: USER_FLOW_COPY.stateOutcome,
@@ -615,6 +625,7 @@ async function presentUserFlow(
 			userFlow: USER_FLOW_COPY.userFlow,
 		},
 		id: row.id,
+		liveCards: await presentLiveCards(prisma, document.liveCards ?? []),
 		nodes,
 		originRelations,
 		projectId: row.projectId,
@@ -627,6 +638,55 @@ async function presentUserFlow(
 			sourceRecordId: link.sourceRecordId,
 		})),
 	};
+}
+
+async function presentLiveCards(
+	prisma: PrismaLike,
+	cards: readonly FlowLiveCardDocument[]
+): Promise<PresentedLiveCard[]> {
+	return await Promise.all(
+		cards.map(async (card) => {
+			const source = await loadLiveCardSource(prisma, card);
+			return {
+				id: card.id,
+				layout: card.layout,
+				openSourceRecord: USER_FLOW_COPY.openSourceRecord,
+				recordId: card.recordId,
+				recordKind: card.recordKind,
+				status: source.status,
+				title: source.title,
+			};
+		})
+	);
+}
+
+async function loadLiveCardSource(
+	prisma: PrismaLike,
+	card: FlowLiveCardDocument
+): Promise<{ status: string | null; title: string }> {
+	if (card.recordKind === USER_FLOW_COPY.work && "work" in prisma) {
+		const work = await prisma.work.findUnique({
+			where: { id: card.recordId },
+		});
+		if (work) {
+			return { status: work.status, title: work.title };
+		}
+	}
+	if (card.recordKind === USER_FLOW_COPY.decision && "decision" in prisma) {
+		const decision = await prisma.decision.findUnique({
+			where: { id: card.recordId },
+		});
+		if (decision) {
+			return { status: decision.life, title: decision.title };
+		}
+	}
+	if (card.recordKind === USER_FLOW_COPY.risk && "risk" in prisma) {
+		const risk = await prisma.risk.findUnique({ where: { id: card.recordId } });
+		if (risk) {
+			return { status: risk.status, title: risk.title };
+		}
+	}
+	return { status: null, title: card.recordKind };
 }
 
 async function presentNode(
@@ -748,7 +808,7 @@ async function presentNode(
 	};
 }
 
-async function loadFlow(
+export async function loadFlow(
 	prisma: PrismaLike,
 	userFlowId: string
 ): Promise<UserFlowRow | null> {
@@ -777,7 +837,7 @@ async function loadProject(
 	});
 }
 
-async function workspaceIdForProject(
+export async function workspaceIdForProject(
 	prisma: PrismaLike,
 	projectId: string
 ): Promise<string> {
@@ -811,7 +871,7 @@ async function loadUsageLinks(
 async function loadOriginRelations(
 	prisma: PrismaLike,
 	recordId: string
-): Promise<{ id: string; type: string }[]> {
+): Promise<PresentedOriginRelation[]> {
 	if (
 		!("typedRelation" in prisma) ||
 		typeof prisma.typedRelation?.findMany !== "function"
@@ -824,10 +884,27 @@ async function loadOriginRelations(
 			type: RELATIONS_COPY.origin,
 		},
 	});
-	return rows.map((row) => ({ id: row.id, type: row.type }));
+	const presented: PresentedOriginRelation[] = [];
+	for (const row of rows) {
+		const sourceIsFlow = row.fromId === recordId;
+		const targetKind = sourceIsFlow ? row.toKind : row.fromKind;
+		const recordKind = convertRecordKindFromRelationKind(targetKind);
+		if (!recordKind) {
+			continue;
+		}
+		presented.push({
+			id: row.id,
+			nodeId: row.originComponentId,
+			recordId: sourceIsFlow ? row.toId : row.fromId,
+			recordKind,
+			sourceVersion: row.originSourceVersion,
+			type: row.type,
+		});
+	}
+	return presented;
 }
 
-async function replayFlow(
+export async function replayFlow(
 	tx: PrismaTransaction,
 	commandKey: string,
 	fingerprint: string
@@ -852,7 +929,7 @@ async function replayFlow(
 	};
 }
 
-async function writeReceipt(
+export async function writeReceipt(
 	tx: PrismaTransaction,
 	input: {
 		actorId: string;
@@ -876,7 +953,7 @@ async function writeReceipt(
 	});
 }
 
-async function lockProject(
+export async function lockProject(
 	tx: PrismaTransaction,
 	projectId: string
 ): Promise<void> {
@@ -884,6 +961,6 @@ async function lockProject(
 	await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockA}, ${lockB})`;
 }
 
-function commandKeyFor(actorId: string, idempotencyKey: string): string {
+export function commandKeyFor(actorId: string, idempotencyKey: string): string {
 	return `human:${actorId}:${idempotencyKey}`;
 }

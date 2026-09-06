@@ -25,14 +25,36 @@ interface CanvasNode {
 	visualStyle: { emphasis: string } | null;
 }
 
+interface CanvasLiveCard {
+	id: string;
+	layout: { x: number; y: number; z: number };
+	recordKind: string;
+	title: string;
+}
+
 export interface UserFlowCanvasProps {
+	liveCards?: CanvasLiveCard[];
 	nodes: CanvasNode[];
 	onAlign: (nodeIds: string[]) => void;
 	onDuplicate: (nodeIds: string[]) => void;
 	onGrid: (nodeIds: string[]) => void;
 	onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
+	onMoveLiveCard?: (cardId: string, deltaX: number, deltaY: number) => void;
 	onUndo: () => void;
 	onZOrder: (nodeIds: string[]) => void;
+}
+
+const LIVE_CARD_PREFIX = "live:";
+
+function liveCardCanvasId(cardId: string): string {
+	return `${LIVE_CARD_PREFIX}${cardId}`;
+}
+
+function liveCardIdFromCanvas(id: string): string | null {
+	if (!id.startsWith(LIVE_CARD_PREFIX)) {
+		return null;
+	}
+	return id.slice(LIVE_CARD_PREFIX.length);
 }
 
 function nodeLabel(node: CanvasNode): string {
@@ -42,8 +64,8 @@ function nodeLabel(node: CanvasNode): string {
 	return node.label || node.kind;
 }
 
-function toFlowNodes(nodes: CanvasNode[]): Node[] {
-	return nodes.map((node) => ({
+function toFlowNodes(nodes: CanvasNode[], liveCards: CanvasLiveCard[]): Node[] {
+	const flowNodes = nodes.map((node) => ({
 		data: { kind: node.kind, label: nodeLabel(node) },
 		id: node.id,
 		position: { x: node.layout.x, y: node.layout.y },
@@ -53,6 +75,53 @@ function toFlowNodes(nodes: CanvasNode[]): Node[] {
 		},
 		zIndex: node.layout.z,
 	}));
+	const cards = liveCards.map((card) => ({
+		data: {
+			kind: card.recordKind,
+			label: `${card.recordKind} · ${card.title}`,
+		},
+		id: liveCardCanvasId(card.id),
+		position: { x: card.layout.x, y: card.layout.y },
+		style: { zIndex: card.layout.z },
+		zIndex: card.layout.z,
+	}));
+	return [...flowNodes, ...cards];
+}
+
+function partitionSelection(ids: string[]): {
+	liveCardIds: string[];
+	nodeIds: string[];
+} {
+	const liveCardIds: string[] = [];
+	const nodeIds: string[] = [];
+	for (const id of ids) {
+		const cardId = liveCardIdFromCanvas(id);
+		if (cardId) {
+			liveCardIds.push(cardId);
+			continue;
+		}
+		nodeIds.push(id);
+	}
+	return { liveCardIds, nodeIds };
+}
+
+function applyArrowMove(
+	delta: [number, number],
+	input: {
+		liveCardIds: string[];
+		nodeIds: string[];
+		onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
+		onMoveLiveCard?: (cardId: string, deltaX: number, deltaY: number) => void;
+	}
+): void {
+	if (input.nodeIds.length > 0) {
+		input.onMove(input.nodeIds, delta[0], delta[1]);
+		return;
+	}
+	const [cardId] = input.liveCardIds;
+	if (cardId) {
+		input.onMoveLiveCard?.(cardId, delta[0], delta[1]);
+	}
 }
 
 function handleCanvasKey(
@@ -61,11 +130,13 @@ function handleCanvasKey(
 		onDuplicate: (nodeIds: string[]) => void;
 		onGrid: (nodeIds: string[]) => void;
 		onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
+		onMoveLiveCard?: (cardId: string, deltaX: number, deltaY: number) => void;
 		onUndo: () => void;
 		onZOrder: (nodeIds: string[]) => void;
 		selectedIds: string[];
 	}
 ): void {
+	const { liveCardIds, nodeIds } = partitionSelection(input.selectedIds);
 	const arrows: Record<string, [number, number]> = {
 		ArrowDown: [0, 16],
 		ArrowLeft: [-16, 0],
@@ -75,7 +146,12 @@ function handleCanvasKey(
 	const delta = arrows[event.key];
 	if (delta) {
 		event.preventDefault();
-		input.onMove(input.selectedIds, delta[0], delta[1]);
+		applyArrowMove(delta, {
+			liveCardIds,
+			nodeIds,
+			onMove: input.onMove,
+			onMoveLiveCard: input.onMoveLiveCard,
+		});
 		return;
 	}
 	if (event.metaKey || event.ctrlKey) {
@@ -85,32 +161,43 @@ function handleCanvasKey(
 		}
 		if (event.key === "d" || event.key === "c" || event.key === "v") {
 			event.preventDefault();
-			input.onDuplicate(input.selectedIds);
+			if (nodeIds.length > 0) {
+				input.onDuplicate(nodeIds);
+			}
 		}
 		return;
 	}
 	if (event.key === "g") {
 		event.preventDefault();
-		input.onGrid(input.selectedIds);
+		if (nodeIds.length > 0) {
+			input.onGrid(nodeIds);
+		}
 	}
 	if (event.key === "]") {
 		event.preventDefault();
-		input.onZOrder(input.selectedIds);
+		if (nodeIds.length > 0) {
+			input.onZOrder(nodeIds);
+		}
 	}
 }
 
 function CanvasInner({
+	liveCards = [],
 	nodes,
 	onAlign,
 	onDuplicate,
 	onGrid,
 	onMove,
+	onMoveLiveCard,
 	onUndo,
 	onZOrder,
 }: UserFlowCanvasProps) {
 	const { fitView } = useReactFlow();
 	const [selectedIds, setSelectedIds] = useState<string[]>([]);
-	const flowNodes = useMemo(() => toFlowNodes(nodes), [nodes]);
+	const flowNodes = useMemo(
+		() => toFlowNodes(nodes, liveCards),
+		[liveCards, nodes]
+	);
 
 	const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
 		setSelectedIds(params.nodes.map((node) => node.id));
@@ -119,9 +206,22 @@ function CanvasInner({
 	const onNodeDragStop = useCallback(
 		(_event: unknown, node: Node, dragged: Node[]) => {
 			const moved = dragged.length > 0 ? dragged : [node];
-			const ids = moved.map((item) => item.id);
+			const cardId = liveCardIdFromCanvas(node.id);
+			if (cardId) {
+				const origin = liveCards.find((item) => item.id === cardId);
+				if (!origin) {
+					return;
+				}
+				onMoveLiveCard?.(
+					cardId,
+					node.position.x - origin.layout.x,
+					node.position.y - origin.layout.y
+				);
+				return;
+			}
+			const ids = partitionSelection(moved.map((item) => item.id)).nodeIds;
 			const origin = nodes.find((item) => item.id === node.id);
-			if (!origin) {
+			if (!origin || ids.length === 0) {
 				return;
 			}
 			onMove(
@@ -130,7 +230,7 @@ function CanvasInner({
 				node.position.y - origin.layout.y
 			);
 		},
-		[nodes, onMove]
+		[liveCards, nodes, onMove, onMoveLiveCard]
 	);
 
 	const onFitView = useCallback(() => {
@@ -142,7 +242,7 @@ function CanvasInner({
 	}, [fitView, selectedIds]);
 
 	const onAlignClick = useCallback(() => {
-		onAlign(selectedIds);
+		onAlign(partitionSelection(selectedIds).nodeIds);
 	}, [onAlign, selectedIds]);
 
 	const onKeyDown = useCallback(
@@ -151,12 +251,13 @@ function CanvasInner({
 				onDuplicate,
 				onGrid,
 				onMove,
+				onMoveLiveCard,
 				onUndo,
 				onZOrder,
 				selectedIds,
 			});
 		},
-		[onDuplicate, onGrid, onMove, onUndo, onZOrder, selectedIds]
+		[onDuplicate, onGrid, onMove, onMoveLiveCard, onUndo, onZOrder, selectedIds]
 	);
 
 	return (
