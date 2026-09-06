@@ -15,6 +15,7 @@ model User {
   favoriteMemberships         FavoriteMembership[]
   moodboardPersonalViewports MoodboardPersonalViewport[]
   screenPersonalViewports    ScreenPersonalViewport[]
+  userFlowPersonalViewports  UserFlowPersonalViewport[]
 
   @@unique([email])
   @@map("user")

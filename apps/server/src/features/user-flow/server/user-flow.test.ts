@@ -1,10 +1,11 @@
 /**
  * User Flow seam — Project design master; Screen nodes live-ref Screen id
  * (kullanım bağı, not Kökeni). Closed semantic set, editor commons,
- * archive / broken / trash matrix.
- * docs/specs/49-user-flow/spec.md and GitHub #355 / UND-210 (also #354).
+ * archive / broken / trash matrix, personal viewport, structured outline,
+ * 500/750 canvas scene.
+ * docs/specs/49-user-flow/spec.md and GitHub #357 / UND-212 (also #354, #355).
  * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Kullanıcı Akışı: live refs, closed set, editor commons).
+ * (Kullanıcı Akışı: live refs, outline, canvas performance).
  */
 import { PrismaClient } from "@cantiara/db";
 import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
@@ -25,13 +26,20 @@ import {
 } from "./screen-double";
 import {
 	applyEditorOp,
+	bindOutlineScreen,
 	createUserFlow,
+	getPersonalViewport,
 	getUserFlow,
+	groupOutline,
 	placeFlowNode,
 	placeScreenNode,
+	reorderOutline,
+	savePersonalViewport,
+	unbindOutlineScreen,
 	updateNodePathText,
 } from "./user-flow";
 import {
+	canvasKeyboardCommand,
 	FLOW_GRID_SIZE,
 	FOREIGN_SURFACE_KINDS,
 	fitViewFrame,
@@ -42,20 +50,28 @@ import {
 	zoomCamera,
 } from "./user-flow-editor";
 import {
+	CANVAS_HARD_SCENE,
+	CANVAS_STRESS_SCENE,
 	collectionMembershipFrom,
 	computedCountsFrom,
+	evaluateUserFlowCanvasScene,
 	exportContentFrom,
+	fitViewportToContent,
 	parseFlowDocument,
+	restorePersonalViewport,
 	searchHitsFrom,
 	serializeFlowDocument,
 	USER_FLOW_COPY,
 	USER_FLOW_RECORD_KIND,
 	USER_FLOW_REJECTION,
+	userFlowExportInput,
+	userFlowShareSnapshot,
 } from "./user-flow-model";
 
 const DATABASE_URL = localTestDatabaseUrl();
 const SECRET_BODY = "SECRET-SCREEN-BODY-MUST-NOT-LEAK";
 const OTHER_SCREEN_TITLE = "Checkout confirmation";
+const VIEWPORT_FIELDS = /centerX|zoom/;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -618,12 +634,18 @@ describe("User Flow closed semantic set and editor commons", () => {
 		expect(catalog.counterparts).toEqual({
 			colorAsType: false,
 			moodboard: false,
+			personalViewportIsContent: false,
+			personalViewportIsExport: false,
+			personalViewportIsShareSnapshot: false,
 			projectWall: false,
 			shapeAsType: false,
 			stateMachine: false,
 			technicalSequence: false,
 			xyflowPublicContract: false,
 		});
+		expect(catalog.copy.outline).toBe("Outline");
+		expect(catalog.copy.inspect).toBe("Inspect");
+		expect(catalog.copy.unbind).toBe("Unbind");
 		expect(catalog.editorCommons).toContain("Fit View");
 		expect(catalog.editorCommons).toContain("undo");
 	});
@@ -1004,5 +1026,345 @@ describe("User Flow closed semantic set and editor commons", () => {
 		const stored = await prisma.userFlow.findUnique({ where: { id: flow.id } });
 		expect(stored?.document).not.toContain('"viewport"');
 		expect(await prisma.screen.count()).toBe(screenCountBefore);
+	});
+});
+
+describe("User Flow personal viewport and outline", () => {
+	let prisma: PrismaClient;
+	let pool: Pool;
+
+	beforeAll(() => {
+		process.env.NODE_ENV = "test";
+	});
+
+	beforeEach(() => {
+		pool = new Pool({ connectionString: DATABASE_URL });
+		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+	});
+
+	afterEach(async () => {
+		await prisma.usageLink.deleteMany();
+		await prisma.usageHostEmbed.deleteMany();
+		await prisma.typedRelation.deleteMany();
+		await prisma.mutationReceipt.deleteMany();
+		await prisma.workspace.deleteMany();
+		await prisma.user.deleteMany();
+		await prisma.$disconnect();
+		await pool.end();
+	});
+
+	it("restores this canvas viewport and does not write relation or share snapshot", async () => {
+		const { actorId, project } = await openProject(prisma);
+		const flow = await addFlow(prisma, {
+			actorId,
+			projectId: project.id,
+			title: "Viewport path",
+		});
+		const placed = await placeFlowNode(prisma, {
+			actorId,
+			baseRevision: flow.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				kind: "Action",
+				label: "Tap",
+				layout: { x: 40, y: 10, z: 0 },
+				userFlowId: flow.id,
+			},
+		});
+		if (placed.status !== "committed") {
+			throw new Error("expected node");
+		}
+		const saved = await savePersonalViewport(prisma, {
+			actorId,
+			payload: {
+				userFlowId: flow.id,
+				viewport: {
+					centerX: 120,
+					centerY: 40,
+					collapsedGroupIds: ["gone-group"],
+					zoom: 1.5,
+				},
+			},
+		});
+		expect(saved.status).toBe("committed");
+		const restored = await getPersonalViewport(prisma, {
+			actorId,
+			userFlowId: flow.id,
+			workspaceId: project.workspaceId,
+		});
+		expect(restored).toEqual({
+			fitted: false,
+			inspectorOpen: false,
+			selectedId: null,
+			unsaved: false,
+			viewport: {
+				centerX: 120,
+				centerY: 40,
+				collapsedGroupIds: [],
+				zoom: 1.5,
+			},
+		});
+		const other = await prisma.user.create({
+			data: {
+				email: `other-${crypto.randomUUID()}@example.com`,
+				emailVerified: true,
+				id: crypto.randomUUID(),
+				name: "Other",
+			},
+		});
+		const otherView = await getPersonalViewport(prisma, {
+			actorId: other.id,
+			userFlowId: flow.id,
+			workspaceId: project.workspaceId,
+		});
+		expect(otherView?.fitted).toBe(true);
+		expect(otherView?.viewport.centerX).not.toBe(120);
+		const content = await getUserFlow(prisma, {
+			userFlowId: flow.id,
+			workspaceId: project.workspaceId,
+		});
+		expect(content).not.toHaveProperty("viewport");
+		expect(JSON.stringify(content)).not.toMatch(VIEWPORT_FIELDS);
+		expect(userFlowShareSnapshot(content ?? flow)).not.toHaveProperty(
+			"viewport"
+		);
+		expect(JSON.stringify(userFlowShareSnapshot(content ?? flow))).not.toMatch(
+			VIEWPORT_FIELDS
+		);
+		expect(JSON.stringify(userFlowExportInput(content ?? flow))).not.toMatch(
+			VIEWPORT_FIELDS
+		);
+		expect(
+			await prisma.typedRelation.count({
+				where: { fromId: flow.id },
+			})
+		).toBe(0);
+		const afterSave = await getUserFlow(prisma, {
+			userFlowId: flow.id,
+			workspaceId: project.workspaceId,
+		});
+		expect(afterSave?.revision).toBe(placed.flow.revision);
+	});
+
+	it("fits visible content from a meaningless saved position and does not restore selection", () => {
+		const content = {
+			groups: [] as { id: string }[],
+			nodes: [
+				{ groupId: null, id: "n1", layout: { x: 0, y: 0, z: 0 } },
+				{ groupId: null, id: "n2", layout: { x: 240, y: 0, z: 1 } },
+			],
+		};
+		const fitted = fitViewportToContent(content);
+		expect(restorePersonalViewport({ content, saved: null })).toEqual({
+			fitted: true,
+			inspectorOpen: false,
+			selectedId: null,
+			unsaved: false,
+			viewport: fitted,
+		});
+		const fromFitView = restorePersonalViewport({
+			content,
+			saved: {
+				centerX: fitted.centerX,
+				centerY: fitted.centerY,
+				collapsedGroupIds: [],
+				zoom: fitted.zoom,
+			},
+			session: {
+				inspectorOpen: true,
+				selectedId: "n1",
+				unsaved: true,
+			},
+		});
+		expect(fromFitView.selectedId).toBeNull();
+		expect(fromFitView.inspectorOpen).toBe(false);
+		expect(fromFitView.unsaved).toBe(false);
+		expect(fromFitView.viewport.centerX).toBe(fitted.centerX);
+		const meaningless = restorePersonalViewport({
+			content,
+			saved: {
+				centerX: 50_000,
+				centerY: -40_000,
+				collapsedGroupIds: [],
+				zoom: 0,
+			},
+		});
+		expect(meaningless.fitted).toBe(true);
+		expect(meaningless.viewport.centerX).toBe(fitted.centerX);
+		expect(meaningless.viewport.centerY).toBe(fitted.centerY);
+	});
+
+	it("creates, selects, reorders, groups, binds, unbinds, inspects, and opens source from the outline", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const screen = await addScreen(prisma, {
+			actorId,
+			projectId: project.id,
+			title: "Checkout",
+		});
+		const flow = await addFlow(prisma, {
+			actorId,
+			projectId: project.id,
+			title: "Outline path",
+		});
+		const first = await placeFlowNode(prisma, {
+			actorId,
+			baseRevision: flow.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				kind: "Action",
+				label: "Tap pay",
+				userFlowId: flow.id,
+			},
+		});
+		if (first.status !== "committed") {
+			throw new Error("expected first node");
+		}
+		const second = await placeFlowNode(prisma, {
+			actorId,
+			baseRevision: first.flow.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				kind: "Decision",
+				label: "Card on file?",
+				userFlowId: flow.id,
+			},
+		});
+		if (second.status !== "committed") {
+			throw new Error("expected second node");
+		}
+		const firstId = first.flow.nodes[0]?.id ?? "";
+		const secondId = second.flow.nodes[1]?.id ?? "";
+		const reordered = await reorderOutline(prisma, {
+			actorId,
+			baseRevision: second.flow.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				nodeIds: [secondId, firstId],
+				userFlowId: flow.id,
+			},
+		});
+		expect(reordered.status).toBe("committed");
+		if (reordered.status !== "committed") {
+			throw new Error("expected reorder");
+		}
+		expect(reordered.flow.nodes.map((node) => node.id)).toEqual([
+			secondId,
+			firstId,
+		]);
+		const grouped = await groupOutline(prisma, {
+			actorId,
+			baseRevision: reordered.flow.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				nodeIds: [secondId, firstId],
+				title: USER_FLOW_COPY.group,
+				userFlowId: flow.id,
+			},
+		});
+		expect(grouped.status).toBe("committed");
+		if (grouped.status !== "committed") {
+			throw new Error("expected group");
+		}
+		expect(grouped.flow.groups).toHaveLength(1);
+		expect(grouped.flow.groups[0]?.title).toBe(USER_FLOW_COPY.group);
+		expect(grouped.flow.nodes.every((node) => node.groupId)).toBe(true);
+		const bound = await bindOutlineScreen(prisma, {
+			actorId,
+			baseRevision: grouped.flow.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				nodeId: firstId,
+				screenId: screen.id,
+				userFlowId: flow.id,
+			},
+		});
+		expect(bound.status).toBe("committed");
+		if (bound.status !== "committed") {
+			throw new Error("expected bind");
+		}
+		const boundNode = bound.flow.nodes.find((node) => node.id === firstId);
+		expect(boundNode?.kind).toBe("Screen");
+		expect(boundNode?.screenId).toBe(screen.id);
+		expect(boundNode?.screenTitle).toBe("Checkout");
+		expect(boundNode?.openSourceRecord).toBe(USER_FLOW_COPY.openSourceRecord);
+		expect(boundNode?.openHref).toBe(
+			`/projects/${project.id}?screen=${screen.id}`
+		);
+		const unbound = await unbindOutlineScreen(prisma, {
+			actorId,
+			baseRevision: bound.flow.revision,
+			idempotencyKey: crypto.randomUUID(),
+			origin: "human",
+			payload: {
+				nodeId: firstId,
+				userFlowId: flow.id,
+			},
+		});
+		expect(unbound.status).toBe("committed");
+		if (unbound.status !== "committed") {
+			throw new Error("expected unbind");
+		}
+		const unboundNode = unbound.flow.nodes.find((node) => node.id === firstId);
+		expect(unboundNode?.kind).toBe("Action");
+		expect(unboundNode?.screenId).toBeNull();
+		expect(unbound.flow.usageLinks).toHaveLength(0);
+		const collapse = await savePersonalViewport(prisma, {
+			actorId,
+			payload: {
+				userFlowId: flow.id,
+				viewport: {
+					centerX: 80,
+					centerY: 0,
+					collapsedGroupIds: [grouped.flow.groups[0]?.id ?? ""],
+					zoom: 1,
+				},
+			},
+		});
+		expect(collapse.status).toBe("committed");
+		const restored = await getPersonalViewport(prisma, {
+			actorId,
+			userFlowId: flow.id,
+			workspaceId,
+		});
+		expect(restored?.viewport.collapsedGroupIds).toEqual([
+			grouped.flow.groups[0]?.id,
+		]);
+	});
+
+	it("pans, zooms, selects, and moves from the keyboard", () => {
+		expect(canvasKeyboardCommand("ArrowRight", [])).toEqual({
+			deltaX: 16,
+			deltaY: 0,
+			type: "pan",
+		});
+		expect(canvasKeyboardCommand("ArrowUp", ["n1"])).toEqual({
+			deltaX: 0,
+			deltaY: -16,
+			type: "move",
+		});
+		expect(canvasKeyboardCommand("=", [])).toEqual({
+			factor: 2,
+			type: "zoom",
+		});
+		expect(canvasKeyboardCommand("a", [])).toEqual({ type: "select-all" });
+	});
+
+	it("does not crash or corrupt the 500/750 hard scene or 2000/3000 stress", () => {
+		expect(evaluateUserFlowCanvasScene(CANVAS_HARD_SCENE)).toEqual({
+			corrupted: false,
+			crashed: false,
+			detail: "full",
+		});
+		expect(evaluateUserFlowCanvasScene(CANVAS_STRESS_SCENE)).toEqual({
+			corrupted: false,
+			crashed: false,
+			detail: "reduced",
+		});
 	});
 });

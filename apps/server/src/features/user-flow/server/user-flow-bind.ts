@@ -339,6 +339,7 @@ export async function instantiateUserFlowTemplate(
 	}
 	const stamped = parseFlowDocument(template.structure);
 	const next: FlowDocument = {
+		groups: stamped.groups,
 		liveCards: [],
 		nodes: stamped.nodes.map((node) => ({
 			...node,
@@ -642,6 +643,7 @@ async function promoteInTransaction(
 		chosenWireframeVersionId: isScreenFlowNode(node)
 			? node.chosenWireframeVersionId
 			: null,
+		groupId: node.groupId,
 		id: node.id,
 		kind: SCREEN_NODE_KIND,
 		layout: node.layout,
@@ -654,6 +656,7 @@ async function promoteInTransaction(
 		commandKey,
 		fingerprint,
 		next: {
+			...document,
 			liveCards: document.liveCards ?? [],
 			nodes: document.nodes.map((item) =>
 				item.id === node.id ? promoted : item
@@ -868,7 +871,7 @@ async function placeLiveCardInTransaction(
 		actorId: command.actorId,
 		commandKey,
 		fingerprint,
-		next: { liveCards, nodes: document.nodes },
+		next: { ...document, liveCards, nodes: document.nodes },
 		row,
 	});
 }
@@ -916,7 +919,7 @@ async function moveLiveCardInTransaction(
 		actorId: command.actorId,
 		commandKey,
 		fingerprint,
-		next: { liveCards, nodes: document.nodes },
+		next: { ...document, liveCards, nodes: document.nodes },
 		row,
 	});
 }
@@ -946,6 +949,7 @@ async function removeLiveCardInTransaction(
 		commandKey,
 		fingerprint,
 		next: {
+			...document,
 			liveCards: (document.liveCards ?? []).filter(
 				(card) => card.id !== command.payload.cardId
 			),
