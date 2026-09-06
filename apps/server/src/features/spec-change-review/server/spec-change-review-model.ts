@@ -97,6 +97,9 @@ export interface SpecChangeReviewCandidateView {
 	documentLevel: boolean;
 	id: string;
 	note: string;
+	openTarget:
+		| { kind: "broken-reference"; reason: string }
+		| { kind: "record"; title: string };
 	recordId: string;
 	recordKind: string;
 	reviewStatus: SpecChangeReviewStatus;

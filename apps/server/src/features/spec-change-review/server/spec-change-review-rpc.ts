@@ -38,18 +38,11 @@ export const specChangeReview = {
 				candidateId: z.string().min(1),
 				note: z.string(),
 				reviewId: z.string().min(1),
-				status: z.string().min(1),
+				status: z.enum(SPEC_CHANGE_REVIEW_STATUSES),
 			})
 		)
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
-			if (
-				!(SPEC_CHANGE_REVIEW_STATUSES as readonly string[]).includes(
-					input.status
-				)
-			) {
-				return { reason: "unknown-review-status", status: "rejected" as const };
-			}
 			return await markSpecChangeReviewCandidate(getPrismaClient(), {
 				candidateId: input.candidateId,
 				note: input.note,

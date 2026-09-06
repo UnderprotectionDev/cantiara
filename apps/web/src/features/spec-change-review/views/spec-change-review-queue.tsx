@@ -139,6 +139,9 @@ function CandidateRow({
 		documentLevel: boolean;
 		id: string;
 		note: string;
+		openTarget:
+			| { kind: "broken-reference"; reason: string }
+			| { kind: "record"; title: string };
 		reviewStatus: string;
 		title: string | null;
 		why: readonly string[];
@@ -182,34 +185,32 @@ function CandidateRow({
 	return (
 		<article className="rounded-none border border-input p-2">
 			<p className="text-sm">
-				{candidate.brokenReason ?? candidate.title ?? candidate.id}
+				{candidate.openTarget.kind === "broken-reference"
+					? candidate.openTarget.reason
+					: candidate.openTarget.title}
 			</p>
 			<CandidateAttribution candidate={candidate} />
 			<p className="mt-1 text-muted-foreground text-xs">
 				{SPEC_CHANGE_REVIEW_COPY.why} {candidate.why.join(", ")}
 			</p>
-			{candidate.brokenReason ? null : (
-				<>
-					<NativeSelect
-						aria-label={SPEC_CHANGE_REVIEW_STATUSES.join(", ")}
-						className="mt-2"
-						onChange={onStatus}
-						value={candidate.reviewStatus}
-					>
-						{SPEC_CHANGE_REVIEW_STATUSES.map((status) => (
-							<NativeSelectOption key={status} value={status}>
-								{status}
-							</NativeSelectOption>
-						))}
-					</NativeSelect>
-					<Textarea
-						aria-label={SPEC_CHANGE_REVIEW_COPY.note}
-						className="mt-2"
-						defaultValue={candidate.note}
-						onBlur={onNote}
-					/>
-				</>
-			)}
+			<NativeSelect
+				aria-label={SPEC_CHANGE_REVIEW_STATUSES.join(", ")}
+				className="mt-2"
+				onChange={onStatus}
+				value={candidate.reviewStatus}
+			>
+				{SPEC_CHANGE_REVIEW_STATUSES.map((status) => (
+					<NativeSelectOption key={status} value={status}>
+						{status}
+					</NativeSelectOption>
+				))}
+			</NativeSelect>
+			<Textarea
+				aria-label={SPEC_CHANGE_REVIEW_COPY.note}
+				className="mt-2"
+				defaultValue={candidate.note}
+				onBlur={onNote}
+			/>
 		</article>
 	);
 }

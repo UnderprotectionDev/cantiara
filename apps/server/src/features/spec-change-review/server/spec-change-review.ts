@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
 
+import { usageTargetsFromBody } from "../../documents/server/documents-live";
 import { EVIDENCE_COPY } from "../../evidence/server/evidence-model";
 import { RELATIONS_COPY } from "../../relations/server/relations-catalog";
 import {
@@ -315,28 +316,37 @@ async function addUsageLinkCandidates(
 			],
 		},
 	});
+	const previousOnSpec = usageTargetsFromBody(input.previousBody).map(
+		(target) => ({
+			embedId: target.embedId,
+			hostRecordId: input.documentId,
+			kind: target.kind,
+			sourceRecordId: target.sourceRecordId,
+		})
+	);
+	const recorded = [...links, ...previousOnSpec];
 	const kinds = await kindMap(
 		tx,
-		links.flatMap((link) => [link.hostRecordId, link.sourceRecordId])
+		recorded.flatMap((link) => [link.hostRecordId, link.sourceRecordId])
 	);
-	for (const link of links) {
+	for (const link of recorded) {
 		const why = isUsageKind(link.kind)
 			? USAGE_KIND_LABEL[link.kind]
 			: link.kind;
 		const kind = isUsageKind(link.kind) ? link.kind : null;
 		if (link.hostRecordId === input.documentId) {
-			const section = headingContainingText(
-				input.newBody,
-				embedNeedle(link.embedId, link.sourceRecordId)
-			);
 			const sectionBound =
 				kind === USAGE_KIND.liveContentBlock ||
 				kind === USAGE_KIND.inlineRecordReference;
+			const section = sectionBound
+				? (headingContainingText(input.newBody, link.sourceRecordId) ??
+					headingContainingText(input.previousBody, link.sourceRecordId))
+				: null;
 			add(
 				link.sourceRecordId,
 				kinds.get(link.sourceRecordId) ?? "Work",
 				why,
-				sectionBound ? section : null
+				section
 			);
 			continue;
 		}
@@ -400,16 +410,6 @@ function whyForTypedRelation(relation: {
 		return SPEC_CHANGE_REVIEW_COPY.primarySpec;
 	}
 	return relation.type;
-}
-
-function embedNeedle(embedId: string, sourceRecordId: string): string {
-	if (embedId.startsWith("live-work:")) {
-		return sourceRecordId;
-	}
-	if (embedId.startsWith("inline:")) {
-		return sourceRecordId;
-	}
-	return sourceRecordId;
 }
 
 function sectionIdFromEmbed(embedId: string): string | null {
@@ -533,6 +533,9 @@ async function presentCandidate(
 		documentLevel: row.documentLevel,
 		id: row.id,
 		note: row.note,
+		openTarget: access.brokenReason
+			? { kind: "broken-reference" as const, reason: access.brokenReason }
+			: { kind: "record" as const, title: access.title ?? "" },
 		recordId: row.recordId,
 		recordKind: row.recordKind,
 		reviewStatus,

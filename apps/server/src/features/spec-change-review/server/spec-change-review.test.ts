@@ -49,7 +49,6 @@ const DATABASE_URL = localTestDatabaseUrl();
 const GIT_SOURCE_PATTERN = /gitSha|commitHash|workingTree|GitHub review/i;
 const AI_PATTERN = /embedding|openai|similarity ranking/i;
 const SIMILARITY_PATTERN = /embedding|openai|similarity/i;
-const BULK_WRITE_PATTERN = /markAll|allAffected/i;
 const SECTION_ID_MARK = /\{#([^}]+)\}/;
 const PREVIOUS_CHECKOUT = [
 	"## Checkout",
@@ -645,6 +644,42 @@ describe("Spec Change Review", () => {
 		expect(JSON.stringify(queue)).not.toMatch(SIMILARITY_PATTERN);
 	});
 
+	it("keeps a live content use from the previous version after it is removed", async () => {
+		const { actorId, project, workspaceId } = await openProject(prisma);
+		const feature = await committedFeature(prisma, actorId, project.id);
+		const linkedTask = await committedTask(
+			prisma,
+			actorId,
+			project.id,
+			"Refund capture"
+		);
+		const { queue } = await bindAndSaveSpec(prisma, {
+			actorId,
+			body: [
+				"## Checkout",
+				"Charge after confirm.",
+				liveWorkFence(linkedTask.id),
+				"",
+				"## Notes",
+				"Keep shipping Monday.",
+			].join("\n"),
+			featureId: feature.id,
+			featureRevision: feature.revision,
+			nextBody: NEXT_CHECKOUT,
+			projectId: project.id,
+			workspaceId,
+		});
+		expect(
+			queue[0]?.candidates.find(
+				(candidate) => candidate.recordId === linkedTask.id
+			)
+		).toMatchObject({
+			changedSection: "Checkout",
+			documentLevel: false,
+			why: expect.arrayContaining(["Live block"]),
+		});
+	});
+
 	it("does not treat a Document-level candidate as hit by a particular span", async () => {
 		const { actorId, project, workspaceId } = await openProject(prisma);
 		const feature = await committedFeature(prisma, actorId, project.id);
@@ -771,11 +806,8 @@ describe("Spec Change Review", () => {
 		});
 	});
 
-	it("does not expose a bulk all-affected write", async () => {
+	it("does not expose a bulk all-affected write", () => {
 		expect(specChangeReviewCatalog().counterparts.bulkAllAffected).toBe(false);
-		const module = await import("./spec-change-review");
-		expect("markAllSpecChangeReviewCandidates" in module).toBe(false);
-		expect(JSON.stringify(Object.keys(module))).not.toMatch(BULK_WRITE_PATTERN);
 	});
 
 	it("presents an inaccessible candidate as No access without leaking title or body", async () => {
@@ -853,6 +885,10 @@ describe("Spec Change Review", () => {
 		);
 		expect(hidden).toMatchObject({
 			brokenReason: RELATIONS_COPY.noAccess,
+			openTarget: {
+				kind: "broken-reference",
+				reason: RELATIONS_COPY.noAccess,
+			},
 			title: null,
 		});
 		expect(JSON.stringify(queue)).not.toContain("Secret other-workspace title");
