@@ -490,20 +490,3 @@ export function evaluateMoodboardCanvasScene(scene: {
 		detail: overHard ? "reduced" : "full",
 	};
 }
-
-export type OutlineTask =
-	| "add"
-	| "select"
-	| "reorder"
-	| "group"
-	| "inspect"
-	| "open-source";
-
-export const OUTLINE_TASKS: readonly OutlineTask[] = [
-	"add",
-	"select",
-	"reorder",
-	"group",
-	"inspect",
-	"open-source",
-];
