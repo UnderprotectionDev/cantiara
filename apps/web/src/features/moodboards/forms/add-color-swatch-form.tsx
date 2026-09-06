@@ -2,14 +2,14 @@ import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { useMutation } from "@tanstack/react-query";
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, FormEvent, MouseEvent } from "react";
 import { useCallback, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
-import { eyedropScreenColor } from "./moodboard-eyedrop";
+import { hexFromImageData, visualEyedropSrc } from "./moodboard-eyedrop";
 import { MOODBOARDS_COPY } from "./moodboards-copy";
 
 const COLOR_KINDS = [
@@ -31,7 +31,16 @@ export default function AddColorSwatchForm({
 	moodboardId: string;
 	paletteGroups: readonly { id: string; title: string }[];
 	projectId: string;
-	visuals: readonly { caption: string; id: string; origin: { kind: string } }[];
+	visuals: readonly {
+		caption: string;
+		id: string;
+		origin: {
+			fileAttachmentId?: string;
+			fileAttachmentVersionId?: string;
+			kind: string;
+			url?: string;
+		};
+	}[];
 }) {
 	const { attemptOnlineWork, markUnsaved, recordSave } = useClientShell();
 	const [b, setB] = useState("0");
@@ -159,8 +168,36 @@ export default function AddColorSwatchForm({
 		},
 		[]
 	);
-	const onEyedrop = useCallback(async () => {
-		const sampled = await eyedropScreenColor();
+	const selectedVisual = visuals.find((visual) => visual.id === visualId);
+	const eyedropSrc = selectedVisual
+		? visualEyedropSrc(selectedVisual.origin)
+		: null;
+	const onVisualClick = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+		const image = event.currentTarget.querySelector("img");
+		if (!(image instanceof HTMLImageElement)) {
+			return;
+		}
+		const canvas = document.createElement("canvas");
+		canvas.width = image.naturalWidth;
+		canvas.height = image.naturalHeight;
+		const context = canvas.getContext("2d");
+		if (!context || image.naturalWidth < 1) {
+			return;
+		}
+		context.drawImage(image, 0, 0);
+		const box = image.getBoundingClientRect();
+		const x = Math.floor(
+			((event.clientX - box.left) / box.width) * image.naturalWidth
+		);
+		const y = Math.floor(
+			((event.clientY - box.top) / box.height) * image.naturalHeight
+		);
+		const sampled = hexFromImageData(
+			context.getImageData(0, 0, image.naturalWidth, image.naturalHeight).data,
+			image.naturalWidth,
+			x,
+			y
+		);
 		if (sampled) {
 			setHex(sampled);
 		}
@@ -206,6 +243,22 @@ export default function AddColorSwatchForm({
 							))}
 						</select>
 					</Field>
+				) : null}
+				{kind === MOODBOARDS_COPY.eyedrop && eyedropSrc ? (
+					<button
+						className="w-fit cursor-crosshair border border-input p-0"
+						onClick={onVisualClick}
+						type="button"
+					>
+						<img
+							alt={MOODBOARDS_COPY.eyedrop}
+							className="max-h-48 max-w-full"
+							crossOrigin="anonymous"
+							height={192}
+							src={eyedropSrc}
+							width={192}
+						/>
+					</button>
 				) : null}
 				{kind === MOODBOARDS_COPY.rgb ? (
 					<>
@@ -274,11 +327,6 @@ export default function AddColorSwatchForm({
 							value={hex}
 						/>
 					</Field>
-				) : null}
-				{kind === MOODBOARDS_COPY.eyedrop ? (
-					<Button onClick={onEyedrop} type="button">
-						{MOODBOARDS_COPY.eyedrop}
-					</Button>
 				) : null}
 				<Field>
 					<FieldLabel htmlFor="moodboard-swatch-palette">
