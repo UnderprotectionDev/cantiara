@@ -4,7 +4,9 @@ import {
 	type FlowDocument,
 	type FlowNodeDocument,
 	type FlowNodeKind,
+	isScreenFlowNode,
 	type NodeLayout,
+	SCREEN_NODE_KIND,
 	USER_FLOW_COPY,
 	USER_FLOW_RECORD_KIND,
 } from "./user-flow-model";
@@ -12,6 +14,9 @@ import {
 export const USER_FLOW_COUNTERPARTS = {
 	colorAsType: false,
 	moodboard: false,
+	personalViewportIsContent: false,
+	personalViewportIsExport: false,
+	personalViewportIsShareSnapshot: false,
 	projectWall: false,
 	shapeAsType: false,
 	stateMachine: false,
@@ -113,6 +118,7 @@ export function alignNodes(
 	const nextX = xForAlign(axis, { centerX, left, right });
 	const nextY = yForAlign(axis, { bottom, middleY, top });
 	return {
+		...document,
 		nodes: document.nodes.map((node) => {
 			if (!nodeIds.includes(node.id)) {
 				return node;
@@ -188,6 +194,7 @@ export function orderZ(
 		}
 	}
 	return {
+		...document,
 		nodes: document.nodes.map((node) => {
 			const z = nextZ.get(node.id);
 			if (z === undefined) {
@@ -208,6 +215,7 @@ export function snapToGrid(
 ): FlowDocument {
 	const selected = new Set(nodeIds);
 	return {
+		...document,
 		nodes: document.nodes.map((node) => {
 			if (!selected.has(node.id)) {
 				return node;
@@ -232,6 +240,7 @@ export function moveNodes(
 ): FlowDocument {
 	const selected = new Set(nodeIds);
 	return {
+		...document,
 		nodes: document.nodes.map((node) => {
 			if (!selected.has(node.id)) {
 				return node;
@@ -269,11 +278,11 @@ export function duplicateNodes(
 			},
 		});
 	}
-	return { nodes: [...document.nodes, ...copies] };
+	return { groups: document.groups, nodes: [...document.nodes, ...copies] };
 }
 
 export function fitViewFrame(
-	document: FlowDocument,
+	document: Pick<FlowDocument, "nodes">,
 	nodeIds?: readonly string[]
 ): EditorCamera {
 	const targets =
@@ -308,5 +317,134 @@ export function zoomCamera(camera: EditorCamera, factor: number): EditorCamera {
 	return {
 		...camera,
 		zoom: Math.min(4, Math.max(0.25, camera.zoom * factor)),
+	};
+}
+
+export type CanvasKeyboardCommand =
+	| { deltaX: number; deltaY: number; type: "move" | "pan" }
+	| { factor: number; type: "zoom" }
+	| { type: "select-all" };
+
+export function canvasKeyboardCommand(
+	key: string,
+	selectedIds: readonly string[]
+): CanvasKeyboardCommand | null {
+	if (key === "=" || key === "+") {
+		return { factor: 2, type: "zoom" };
+	}
+	if (key === "-" || key === "_") {
+		return { factor: 0.5, type: "zoom" };
+	}
+	if (key === "a" || key === "A") {
+		return { type: "select-all" };
+	}
+	const arrows: Record<string, [number, number]> = {
+		ArrowDown: [0, 16],
+		ArrowLeft: [-16, 0],
+		ArrowRight: [16, 0],
+		ArrowUp: [0, -16],
+	};
+	const delta = arrows[key];
+	if (!delta) {
+		return null;
+	}
+	if (selectedIds.length > 0) {
+		return { deltaX: delta[0], deltaY: delta[1], type: "move" };
+	}
+	return { deltaX: delta[0], deltaY: delta[1], type: "pan" };
+}
+
+export function reorderFlowNodes(
+	document: FlowDocument,
+	nodeIds: readonly string[]
+): FlowDocument | null {
+	if (nodeIds.length !== document.nodes.length) {
+		return null;
+	}
+	const byId = new Map(document.nodes.map((node) => [node.id, node]));
+	const next: FlowNodeDocument[] = [];
+	for (const id of nodeIds) {
+		const node = byId.get(id);
+		if (!node) {
+			return null;
+		}
+		next.push(node);
+	}
+	return { ...document, nodes: next };
+}
+
+export function groupFlowNodes(
+	document: FlowDocument,
+	nodeIds: readonly string[],
+	title: string,
+	newId: () => string = () => crypto.randomUUID()
+): FlowDocument | null {
+	const unique = [...new Set(nodeIds)];
+	if (unique.length === 0) {
+		return null;
+	}
+	if (unique.some((id) => !document.nodes.some((node) => node.id === id))) {
+		return null;
+	}
+	const group = { id: newId(), title };
+	return {
+		...document,
+		groups: [...document.groups, group],
+		nodes: document.nodes.map((node) =>
+			unique.includes(node.id) ? { ...node, groupId: group.id } : node
+		),
+	};
+}
+
+export function bindScreenOnNode(
+	document: FlowDocument,
+	nodeId: string,
+	screenId: string
+): FlowDocument | null {
+	const node = document.nodes.find((item) => item.id === nodeId);
+	if (!node) {
+		return null;
+	}
+	const next: FlowNodeDocument = {
+		chosenWireframeVersionId: isScreenFlowNode(node)
+			? node.chosenWireframeVersionId
+			: null,
+		groupId: node.groupId,
+		id: node.id,
+		kind: SCREEN_NODE_KIND,
+		layout: node.layout,
+		pathText: node.pathText,
+		screenId,
+		visualStyle: node.visualStyle,
+	};
+	return {
+		...document,
+		nodes: document.nodes.map((item) => (item.id === nodeId ? next : item)),
+	};
+}
+
+export function unbindScreenOnNode(
+	document: FlowDocument,
+	nodeId: string
+): FlowDocument | null {
+	const node = document.nodes.find((item) => item.id === nodeId);
+	if (!node) {
+		return null;
+	}
+	if (!isScreenFlowNode(node)) {
+		return document;
+	}
+	const next: FlowNodeDocument = {
+		groupId: node.groupId,
+		id: node.id,
+		kind: USER_FLOW_COPY.action,
+		label: USER_FLOW_COPY.action,
+		layout: node.layout,
+		pathText: node.pathText,
+		visualStyle: node.visualStyle,
+	};
+	return {
+		...document,
+		nodes: document.nodes.map((item) => (item.id === nodeId ? next : item)),
 	};
 }

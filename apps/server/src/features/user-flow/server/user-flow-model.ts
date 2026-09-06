@@ -7,16 +7,23 @@ export const USER_FLOW_COPY = {
 	align: "Align",
 	archived: "Archived",
 	bindScreen: "Bind Screen",
+	collapseGroup: "Collapse",
 	condition: "Condition",
 	createScreen: "Create Screen",
 	createUserFlow: "Create User Flow",
 	decision: "Decision",
 	description: "Description",
+	expandGroup: "Expand",
 	fitView: "Fit View",
+	group: "Group",
+	inspect: "Inspect",
 	inTrash: RELATIONS_COPY.inTrash,
+	moveDown: "Move down",
+	moveUp: "Move up",
 	noAccess: RELATIONS_COPY.noAccess,
 	noUserFlows: "No User Flows yet.",
 	openSourceRecord: "Open Source Record",
+	outline: "Outline",
 	permanentlyDeleted: RELATIONS_COPY.permanentlyDeleted,
 	placeNode: "Place node",
 	redactedForSecurity: RELATIONS_COPY.redactedForSecurity,
@@ -25,6 +32,7 @@ export const USER_FLOW_COPY = {
 	stateOutcome: "State/Outcome",
 	title: "Title",
 	transition: "Transition",
+	unbind: "Unbind",
 	undo: "Undo",
 	userFlow: "User Flow",
 	wireframePreview: "Wireframe preview",
@@ -66,6 +74,13 @@ export const nodePathTextSchema = z.object({
 
 export type NodePathText = z.infer<typeof nodePathTextSchema>;
 
+const groupIdSchema = z
+	.string()
+	.min(1)
+	.nullable()
+	.optional()
+	.transform((groupId): string | null => groupId ?? null);
+
 export const nodeLayoutSchema = z.object({
 	x: z.number(),
 	y: z.number(),
@@ -90,6 +105,7 @@ const visualStyleWithDefault = nodeVisualStyleSchema
 
 export const screenFlowNodeDocumentSchema = z.object({
 	chosenWireframeVersionId: z.string().min(1).nullable(),
+	groupId: groupIdSchema,
 	id: z.string().min(1),
 	kind: z.literal(SCREEN_NODE_KIND),
 	layout: layoutWithDefault,
@@ -99,6 +115,7 @@ export const screenFlowNodeDocumentSchema = z.object({
 });
 
 export const pathFlowNodeDocumentSchema = z.object({
+	groupId: groupIdSchema,
 	id: z.string().min(1),
 	kind: z.enum([
 		USER_FLOW_COPY.action,
@@ -121,13 +138,27 @@ export const flowNodeDocumentSchema = z.discriminatedUnion("kind", [
 
 export type FlowNodeDocument = z.infer<typeof flowNodeDocumentSchema>;
 
+export const flowGroupSchema = z.object({
+	id: z.string().min(1),
+	title: z.string().min(1),
+});
+
+export type FlowGroup = z.infer<typeof flowGroupSchema>;
+
 export const flowDocumentSchema = z.object({
+	groups: z
+		.array(flowGroupSchema)
+		.optional()
+		.transform((groups): FlowGroup[] => groups ?? []),
 	nodes: z.array(flowNodeDocumentSchema),
 });
 
 export type FlowDocument = z.infer<typeof flowDocumentSchema>;
 
-export const emptyFlowDocument = (): FlowDocument => ({ nodes: [] });
+export const emptyFlowDocument = (): FlowDocument => ({
+	groups: [],
+	nodes: [],
+});
 
 export const createUserFlowPayloadSchema = z.object({
 	projectId: z.string().min(1),
@@ -223,6 +254,153 @@ export type UpdateNodePathTextCommand = z.infer<
 	typeof updateNodePathTextCommandSchema
 >;
 
+export const personalViewportSchema = z
+	.object({
+		centerX: z.number().finite(),
+		centerY: z.number().finite(),
+		collapsedGroupIds: z.array(z.string().min(1)),
+		zoom: z.number().finite(),
+	})
+	.strict();
+
+export type PersonalViewport = z.infer<typeof personalViewportSchema>;
+
+export const savePersonalViewportPayloadSchema = z
+	.object({
+		userFlowId: z.string().min(1),
+		viewport: personalViewportSchema,
+	})
+	.strict();
+
+export const savePersonalViewportCommandSchema = z.object({
+	actorId: z.string().min(1),
+	payload: savePersonalViewportPayloadSchema,
+});
+
+export type SavePersonalViewportCommand = z.infer<
+	typeof savePersonalViewportCommandSchema
+>;
+
+export const groupOutlinePayloadSchema = z
+	.object({
+		nodeIds: z.array(z.string().min(1)).min(1),
+		title: z.string().min(1).optional(),
+		userFlowId: z.string().min(1),
+	})
+	.strict();
+
+export const groupOutlineCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: groupOutlinePayloadSchema,
+});
+
+export type GroupOutlineCommand = z.infer<typeof groupOutlineCommandSchema>;
+
+export const reorderOutlinePayloadSchema = z
+	.object({
+		nodeIds: z.array(z.string().min(1)).min(1),
+		userFlowId: z.string().min(1),
+	})
+	.strict();
+
+export const reorderOutlineCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: reorderOutlinePayloadSchema,
+});
+
+export type ReorderOutlineCommand = z.infer<typeof reorderOutlineCommandSchema>;
+
+export const bindOutlineScreenPayloadSchema = z
+	.object({
+		nodeId: z.string().min(1),
+		screenId: z.string().min(1),
+		userFlowId: z.string().min(1),
+	})
+	.strict();
+
+export const bindOutlineScreenCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: bindOutlineScreenPayloadSchema,
+});
+
+export type BindOutlineScreenCommand = z.infer<
+	typeof bindOutlineScreenCommandSchema
+>;
+
+export const unbindOutlineScreenPayloadSchema = z
+	.object({
+		nodeId: z.string().min(1),
+		userFlowId: z.string().min(1),
+	})
+	.strict();
+
+export const unbindOutlineScreenCommandSchema = z.object({
+	actorId: z.string().min(1),
+	baseRevision: z.number().int().nonnegative(),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: unbindOutlineScreenPayloadSchema,
+});
+
+export type UnbindOutlineScreenCommand = z.infer<
+	typeof unbindOutlineScreenCommandSchema
+>;
+
+export const CANVAS_HARD_SCENE = {
+	visibleItems: 500,
+	visualLinks: 750,
+} as const;
+
+export const CANVAS_STRESS_SCENE = {
+	visibleItems: 2000,
+	visualLinks: 3000,
+} as const;
+
+export const NEUTRAL_VIEWPORT = {
+	centerX: 0,
+	centerY: 0,
+	collapsedGroupIds: [] as readonly string[],
+	zoom: 1,
+};
+
+const NODE_WIDTH = 200;
+const NODE_HEIGHT = 80;
+const MEANINGLESS_PAD = 2000;
+const MIN_ZOOM = 0.05;
+const MAX_ZOOM = 8;
+
+export interface ViewportRestoreSession {
+	inspectorOpen?: boolean;
+	selectedId?: string | null;
+	unsaved?: boolean;
+}
+
+export interface ViewportContent {
+	groups: readonly { id: string }[];
+	nodes: readonly {
+		groupId: string | null;
+		id: string;
+		layout: NodeLayout;
+	}[];
+}
+
+export interface RestoredPersonalViewport {
+	fitted: boolean;
+	inspectorOpen: false;
+	selectedId: null;
+	unsaved: false;
+	viewport: PersonalViewport;
+}
+
 export const createScreenPayloadSchema = z.object({
 	body: z.string().optional(),
 	currentWireframeVersionId: z.string().min(1).nullable().optional(),
@@ -287,6 +465,7 @@ export type ScreenTargetResolution = "ok" | "archived" | "broken";
 export interface PresentedFlowNode {
 	boundAt: string | null;
 	chosenWireframeVersionId: string | null;
+	groupId: string | null;
 	id: string;
 	kind: FlowNodeKind;
 	label: string;
@@ -312,13 +491,18 @@ export interface UserFlowView {
 		archived: typeof USER_FLOW_COPY.archived;
 		decision: typeof USER_FLOW_COPY.decision;
 		fitView: typeof USER_FLOW_COPY.fitView;
+		group: typeof USER_FLOW_COPY.group;
+		inspect: typeof USER_FLOW_COPY.inspect;
 		openSourceRecord: typeof USER_FLOW_COPY.openSourceRecord;
+		outline: typeof USER_FLOW_COPY.outline;
 		screen: typeof USER_FLOW_COPY.screen;
 		section: typeof USER_FLOW_COPY.section;
 		stateOutcome: typeof USER_FLOW_COPY.stateOutcome;
+		unbind: typeof USER_FLOW_COPY.unbind;
 		undo: typeof USER_FLOW_COPY.undo;
 		userFlow: typeof USER_FLOW_COPY.userFlow;
 	};
+	groups: readonly FlowGroup[];
 	id: string;
 	nodes: PresentedFlowNode[];
 	originRelations: readonly { id: string; type: string }[];
@@ -345,9 +529,8 @@ export function emptyPathText(): NodePathText {
 export function parseFlowDocument(raw: string): FlowDocument {
 	try {
 		const parsed: unknown = JSON.parse(raw);
-		const nodes = Array.isArray((parsed as { nodes?: unknown }).nodes)
-			? (parsed as { nodes: unknown[] }).nodes
-			: [];
+		const record = parsed as { groups?: unknown; nodes?: unknown };
+		const nodes = Array.isArray(record.nodes) ? record.nodes : [];
 		const accepted: FlowNodeDocument[] = [];
 		for (const node of nodes) {
 			const result = flowNodeDocumentSchema.safeParse(node);
@@ -355,7 +538,16 @@ export function parseFlowDocument(raw: string): FlowDocument {
 				accepted.push(result.data);
 			}
 		}
-		return { nodes: accepted };
+		const groups: FlowGroup[] = [];
+		if (Array.isArray(record.groups)) {
+			for (const group of record.groups) {
+				const result = flowGroupSchema.safeParse(group);
+				if (result.success) {
+					groups.push(result.data);
+				}
+			}
+		}
+		return { groups, nodes: accepted };
 	} catch {
 		return emptyFlowDocument();
 	}
@@ -363,10 +555,12 @@ export function parseFlowDocument(raw: string): FlowDocument {
 
 export function serializeFlowDocument(document: FlowDocument): string {
 	return JSON.stringify({
+		groups: document.groups,
 		nodes: document.nodes.map((node) => {
 			if (node.kind === SCREEN_NODE_KIND) {
 				return {
 					chosenWireframeVersionId: node.chosenWireframeVersionId,
+					groupId: node.groupId,
 					id: node.id,
 					kind: node.kind,
 					layout: node.layout,
@@ -376,6 +570,7 @@ export function serializeFlowDocument(document: FlowDocument): string {
 				};
 			}
 			return {
+				groupId: node.groupId,
 				id: node.id,
 				kind: node.kind,
 				label: node.label,
@@ -470,4 +665,169 @@ export function exportContentFrom(flow: {
 		}
 	}
 	return lines.filter((line) => line.length > 0).join("\n");
+}
+
+export function nodeFrame(layout: NodeLayout): {
+	height: number;
+	width: number;
+	x: number;
+	y: number;
+} {
+	return {
+		height: NODE_HEIGHT,
+		width: NODE_WIDTH,
+		x: layout.x,
+		y: layout.y,
+	};
+}
+
+export function fitViewportToContent(
+	content: ViewportContent
+): PersonalViewport {
+	if (content.nodes.length === 0) {
+		return {
+			centerX: NEUTRAL_VIEWPORT.centerX,
+			centerY: NEUTRAL_VIEWPORT.centerY,
+			collapsedGroupIds: [],
+			zoom: NEUTRAL_VIEWPORT.zoom,
+		};
+	}
+	const frames = content.nodes.map((node) => nodeFrame(node.layout));
+	const minX = Math.min(...frames.map((frame) => frame.x));
+	const maxX = Math.max(...frames.map((frame) => frame.x + frame.width));
+	const minY = Math.min(...frames.map((frame) => frame.y));
+	const maxY = Math.max(...frames.map((frame) => frame.y + frame.height));
+	return {
+		centerX: (minX + maxX) / 2,
+		centerY: (minY + maxY) / 2,
+		collapsedGroupIds: [],
+		zoom: NEUTRAL_VIEWPORT.zoom,
+	};
+}
+
+export function viewportIsMeaningful(
+	saved: PersonalViewport,
+	content: ViewportContent
+): boolean {
+	if (
+		!Number.isFinite(saved.zoom) ||
+		saved.zoom < MIN_ZOOM ||
+		saved.zoom > MAX_ZOOM
+	) {
+		return false;
+	}
+	if (content.nodes.length === 0) {
+		return (
+			saved.centerX === NEUTRAL_VIEWPORT.centerX &&
+			saved.centerY === NEUTRAL_VIEWPORT.centerY
+		);
+	}
+	const frames = content.nodes.map((node) => nodeFrame(node.layout));
+	const minX = Math.min(...frames.map((frame) => frame.x)) - MEANINGLESS_PAD;
+	const maxX =
+		Math.max(...frames.map((frame) => frame.x + frame.width)) + MEANINGLESS_PAD;
+	const minY = Math.min(...frames.map((frame) => frame.y)) - MEANINGLESS_PAD;
+	const maxY =
+		Math.max(...frames.map((frame) => frame.y + frame.height)) +
+		MEANINGLESS_PAD;
+	return (
+		saved.centerX >= minX &&
+		saved.centerX <= maxX &&
+		saved.centerY >= minY &&
+		saved.centerY <= maxY
+	);
+}
+
+export function restorePersonalViewport(input: {
+	content: ViewportContent;
+	saved: PersonalViewport | null;
+	session?: ViewportRestoreSession;
+}): RestoredPersonalViewport {
+	const liveGroupIds = new Set(input.content.groups.map((group) => group.id));
+	const collapse = (ids: readonly string[]) =>
+		ids.filter((id) => liveGroupIds.has(id));
+	if (!(input.saved && viewportIsMeaningful(input.saved, input.content))) {
+		return {
+			fitted: true,
+			inspectorOpen: false,
+			selectedId: null,
+			unsaved: false,
+			viewport: {
+				...fitViewportToContent(input.content),
+				collapsedGroupIds: collapse(input.saved?.collapsedGroupIds ?? []),
+			},
+		};
+	}
+	return {
+		fitted: false,
+		inspectorOpen: false,
+		selectedId: null,
+		unsaved: false,
+		viewport: {
+			centerX: input.saved.centerX,
+			centerY: input.saved.centerY,
+			collapsedGroupIds: collapse(input.saved.collapsedGroupIds),
+			zoom: input.saved.zoom,
+		},
+	};
+}
+
+export function userFlowShareSnapshot(flow: UserFlowView): {
+	groups: UserFlowView["groups"];
+	id: string;
+	nodes: UserFlowView["nodes"];
+	title: string;
+} {
+	return {
+		groups: flow.groups,
+		id: flow.id,
+		nodes: flow.nodes,
+		title: flow.title,
+	};
+}
+
+export function userFlowExportInput(flow: UserFlowView): {
+	groups: UserFlowView["groups"];
+	id: string;
+	nodes: UserFlowView["nodes"];
+	title: string;
+} {
+	return userFlowShareSnapshot(flow);
+}
+
+export function evaluateUserFlowCanvasScene(scene: {
+	visibleItems: number;
+	visualLinks: number;
+}): {
+	corrupted: boolean;
+	crashed: false;
+	detail: "full" | "reduced";
+} {
+	const itemCount = Math.max(0, Math.floor(scene.visibleItems));
+	const linkCount = Math.max(0, Math.floor(scene.visualLinks));
+	const items = Array.from({ length: itemCount }, (_, index) =>
+		nodeFrame({ x: index * 240, y: 0, z: index })
+	);
+	const links = Array.from({ length: linkCount }, (_, index) => ({
+		from: itemCount === 0 ? 0 : index % itemCount,
+		to: itemCount === 0 ? 0 : (index + 1) % itemCount,
+	}));
+	let checksum = 0;
+	for (const frame of items) {
+		checksum += frame.x + frame.y + frame.width + frame.height;
+	}
+	for (const link of links) {
+		checksum += link.from + link.to;
+	}
+	const corrupted =
+		!(Number.isFinite(checksum) && items.length === itemCount) ||
+		links.length !== linkCount;
+	const overHard =
+		itemCount > CANVAS_HARD_SCENE.visibleItems ||
+		linkCount > CANVAS_HARD_SCENE.visualLinks;
+	return {
+		corrupted,
+		crashed: false,
+		detail: overHard ? "reduced" : "full",
+	};
 }

@@ -10,7 +10,7 @@ import {
 	useReactFlow,
 } from "@xyflow/react";
 import type { KeyboardEvent } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { USER_FLOW_COPY } from "../forms/user-flow-copy";
 
@@ -31,8 +31,14 @@ export interface UserFlowCanvasProps {
 	onDuplicate: (nodeIds: string[]) => void;
 	onGrid: (nodeIds: string[]) => void;
 	onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
+	onPersistViewport: (viewport: {
+		centerX: number;
+		centerY: number;
+		zoom: number;
+	}) => void;
 	onUndo: () => void;
 	onZOrder: (nodeIds: string[]) => void;
+	restoredViewport: { centerX: number; centerY: number; zoom: number } | null;
 }
 
 function nodeLabel(node: CanvasNode): string {
@@ -42,11 +48,13 @@ function nodeLabel(node: CanvasNode): string {
 	return node.label || node.kind;
 }
 
-function toFlowNodes(nodes: CanvasNode[]): Node[] {
+function toFlowNodes(nodes: CanvasNode[], selectedIds: string[]): Node[] {
+	const selected = new Set(selectedIds);
 	return nodes.map((node) => ({
 		data: { kind: node.kind, label: nodeLabel(node) },
 		id: node.id,
 		position: { x: node.layout.x, y: node.layout.y },
+		selected: selected.has(node.id),
 		style: {
 			opacity: node.visualStyle?.emphasis === "muted" ? 0.65 : 1,
 			zIndex: node.layout.z,
@@ -55,29 +63,54 @@ function toFlowNodes(nodes: CanvasNode[]): Node[] {
 	}));
 }
 
-function handleCanvasKey(
-	event: KeyboardEvent<HTMLDivElement>,
-	input: {
-		onDuplicate: (nodeIds: string[]) => void;
-		onGrid: (nodeIds: string[]) => void;
-		onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
-		onUndo: () => void;
-		onZOrder: (nodeIds: string[]) => void;
-		selectedIds: string[];
+function canvasKeyboardCommand(
+	key: string,
+	selectedIds: readonly string[]
+):
+	| { deltaX: number; deltaY: number; type: "move" | "pan" }
+	| { factor: number; type: "zoom" }
+	| { type: "select-all" }
+	| null {
+	if (key === "=" || key === "+") {
+		return { factor: 2, type: "zoom" };
 	}
-): void {
+	if (key === "-" || key === "_") {
+		return { factor: 0.5, type: "zoom" };
+	}
+	if (key === "a" || key === "A") {
+		return { type: "select-all" };
+	}
 	const arrows: Record<string, [number, number]> = {
 		ArrowDown: [0, 16],
 		ArrowLeft: [-16, 0],
 		ArrowRight: [16, 0],
 		ArrowUp: [0, -16],
 	};
-	const delta = arrows[event.key];
-	if (delta) {
-		event.preventDefault();
-		input.onMove(input.selectedIds, delta[0], delta[1]);
-		return;
+	const delta = arrows[key];
+	if (!delta) {
+		return null;
 	}
+	if (selectedIds.length > 0) {
+		return { deltaX: delta[0], deltaY: delta[1], type: "move" };
+	}
+	return { deltaX: delta[0], deltaY: delta[1], type: "pan" };
+}
+
+function handleCanvasKey(
+	event: KeyboardEvent<HTMLDivElement>,
+	input: {
+		nodeIds: string[];
+		onDuplicate: (nodeIds: string[]) => void;
+		onGrid: (nodeIds: string[]) => void;
+		onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
+		onPan: (deltaX: number, deltaY: number) => void;
+		onSelectAll: () => void;
+		onUndo: () => void;
+		onZoom: (factor: number) => void;
+		onZOrder: (nodeIds: string[]) => void;
+		selectedIds: string[];
+	}
+): void {
 	if (event.metaKey || event.ctrlKey) {
 		if (event.key === "z") {
 			event.preventDefault();
@@ -87,6 +120,31 @@ function handleCanvasKey(
 			event.preventDefault();
 			input.onDuplicate(input.selectedIds);
 		}
+		if (event.key === "a") {
+			event.preventDefault();
+			input.onSelectAll();
+		}
+		return;
+	}
+	const command = canvasKeyboardCommand(event.key, input.selectedIds);
+	if (command?.type === "move") {
+		event.preventDefault();
+		input.onMove(input.selectedIds, command.deltaX, command.deltaY);
+		return;
+	}
+	if (command?.type === "pan") {
+		event.preventDefault();
+		input.onPan(command.deltaX, command.deltaY);
+		return;
+	}
+	if (command?.type === "zoom") {
+		event.preventDefault();
+		input.onZoom(command.factor);
+		return;
+	}
+	if (command?.type === "select-all") {
+		event.preventDefault();
+		input.onSelectAll();
 		return;
 	}
 	if (event.key === "g") {
@@ -105,12 +163,39 @@ function CanvasInner({
 	onDuplicate,
 	onGrid,
 	onMove,
+	onPersistViewport,
 	onUndo,
 	onZOrder,
+	restoredViewport,
 }: UserFlowCanvasProps) {
-	const { fitView } = useReactFlow();
+	const { fitView, getViewport, setViewport, zoomIn, zoomOut } = useReactFlow();
 	const [selectedIds, setSelectedIds] = useState<string[]>([]);
-	const flowNodes = useMemo(() => toFlowNodes(nodes), [nodes]);
+	const skipPersist = useRef(true);
+	const flowNodes = useMemo(
+		() => toFlowNodes(nodes, selectedIds),
+		[nodes, selectedIds]
+	);
+
+	useEffect(() => {
+		if (!restoredViewport) {
+			return;
+		}
+		skipPersist.current = true;
+		setViewport({
+			x: restoredViewport.centerX,
+			y: restoredViewport.centerY,
+			zoom: restoredViewport.zoom,
+		});
+	}, [restoredViewport, setViewport]);
+
+	const persistNow = useCallback(() => {
+		const viewport = getViewport();
+		onPersistViewport({
+			centerX: viewport.x,
+			centerY: viewport.y,
+			zoom: viewport.zoom,
+		});
+	}, [getViewport, onPersistViewport]);
 
 	const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
 		setSelectedIds(params.nodes.map((node) => node.id));
@@ -134,41 +219,100 @@ function CanvasInner({
 	);
 
 	const onFitView = useCallback(() => {
+		skipPersist.current = true;
 		fitView({
 			nodes:
 				selectedIds.length > 0 ? selectedIds.map((id) => ({ id })) : undefined,
 			padding: 0.2,
 		}).catch(() => undefined);
-	}, [fitView, selectedIds]);
+		onPersistViewport({ centerX: 0, centerY: 0, zoom: 1 });
+	}, [fitView, onPersistViewport, selectedIds]);
 
 	const onAlignClick = useCallback(() => {
 		onAlign(selectedIds);
 	}, [onAlign, selectedIds]);
 
+	const onPan = useCallback(
+		(deltaX: number, deltaY: number) => {
+			const viewport = getViewport();
+			setViewport({
+				x: viewport.x + deltaX,
+				y: viewport.y + deltaY,
+				zoom: viewport.zoom,
+			});
+			onPersistViewport({
+				centerX: viewport.x + deltaX,
+				centerY: viewport.y + deltaY,
+				zoom: viewport.zoom,
+			});
+		},
+		[getViewport, onPersistViewport, setViewport]
+	);
+
+	const onZoom = useCallback(
+		(factor: number) => {
+			if (factor > 1) {
+				zoomIn().catch(() => undefined);
+			} else {
+				zoomOut().catch(() => undefined);
+			}
+			persistNow();
+		},
+		[persistNow, zoomIn, zoomOut]
+	);
+
+	const onSelectAll = useCallback(() => {
+		setSelectedIds(nodes.map((node) => node.id));
+	}, [nodes]);
+
+	const onMoveEnd = useCallback(() => {
+		if (skipPersist.current) {
+			skipPersist.current = false;
+			return;
+		}
+		persistNow();
+	}, [persistNow]);
+
 	const onKeyDown = useCallback(
 		(event: KeyboardEvent<HTMLDivElement>) => {
 			handleCanvasKey(event, {
+				nodeIds: nodes.map((node) => node.id),
 				onDuplicate,
 				onGrid,
 				onMove,
+				onPan,
+				onSelectAll,
 				onUndo,
 				onZOrder,
+				onZoom,
 				selectedIds,
 			});
 		},
-		[onDuplicate, onGrid, onMove, onUndo, onZOrder, selectedIds]
+		[
+			nodes,
+			onDuplicate,
+			onGrid,
+			onMove,
+			onPan,
+			onSelectAll,
+			onUndo,
+			onZoom,
+			onZOrder,
+			selectedIds,
+		]
 	);
 
 	return (
 		<div className="h-[28rem] rounded-md border">
 			<ReactFlow
 				aria-label={USER_FLOW_COPY.userFlow}
-				fitView
 				multiSelectionKeyCode="Shift"
 				nodes={flowNodes}
 				onKeyDown={onKeyDown}
+				onMoveEnd={onMoveEnd}
 				onNodeDragStop={onNodeDragStop}
 				onSelectionChange={onSelectionChange}
+				panOnScroll
 				proOptions={{ hideAttribution: true }}
 			>
 				<Background gap={16} />

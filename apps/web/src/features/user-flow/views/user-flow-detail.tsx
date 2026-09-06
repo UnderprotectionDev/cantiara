@@ -1,4 +1,5 @@
 import { Button } from "@cantiara/ui/components/button";
+import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
 import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
@@ -20,6 +21,7 @@ import { FLOW_NODE_KINDS, USER_FLOW_COPY } from "../forms/user-flow-copy";
 
 interface PresentedNode {
 	boundAt: string | null;
+	groupId: string | null;
 	id: string;
 	kind: string;
 	label: string;
@@ -40,13 +42,23 @@ interface PresentedNode {
 	visualStyle: { emphasis: string } | null;
 }
 
+interface FlowGroup {
+	id: string;
+	title: string;
+}
+
 interface UserFlowDetailView {
 	copy: {
 		archived: string;
 		fitView: string;
+		group: string;
+		inspect: string;
 		openSourceRecord: string;
+		outline: string;
+		unbind: string;
 		userFlow: string;
 	};
+	groups: FlowGroup[];
 	id: string;
 	nodes: PresentedNode[];
 	revision: number;
@@ -63,6 +75,9 @@ export default function UserFlowDetail({
 	const flow = useQuery(
 		orpc.userFlow.get.queryOptions({ input: { userFlowId: flowId } })
 	);
+	const viewport = useQuery(
+		orpc.userFlow.getViewport.queryOptions({ input: { userFlowId: flowId } })
+	);
 	const screens = useQuery(
 		orpc.userFlow.listScreens.queryOptions({ input: { projectId } })
 	);
@@ -73,10 +88,16 @@ export default function UserFlowDetail({
 	const [label, setLabel] = useState("");
 	const [screenId, setScreenId] = useState("");
 	const [error, setError] = useState<string | null>(null);
+	const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
 	const invalidate = useCallback(async () => {
 		await queryClient.invalidateQueries({
 			queryKey: orpc.userFlow.get.queryKey({
+				input: { userFlowId: flowId },
+			}),
+		});
+		await queryClient.invalidateQueries({
+			queryKey: orpc.userFlow.getViewport.queryKey({
 				input: { userFlowId: flowId },
 			}),
 		});
@@ -106,6 +127,42 @@ export default function UserFlowDetail({
 	const editorOp = useMutation(
 		orpc.userFlow.applyEditorOp.mutationOptions({
 			onSuccess: onOutcome,
+		})
+	);
+	const reorder = useMutation(
+		orpc.userFlow.reorderOutline.mutationOptions({
+			onSuccess: onOutcome,
+		})
+	);
+	const group = useMutation(
+		orpc.userFlow.groupOutline.mutationOptions({
+			onSuccess: async (outcome) => {
+				await onOutcome(outcome);
+				if (outcome.status === "committed" || outcome.status === "replayed") {
+					setSelectedIds([]);
+				}
+			},
+		})
+	);
+	const bindScreen = useMutation(
+		orpc.userFlow.bindOutlineScreen.mutationOptions({
+			onSuccess: onOutcome,
+		})
+	);
+	const unbindScreen = useMutation(
+		orpc.userFlow.unbindOutlineScreen.mutationOptions({
+			onSuccess: onOutcome,
+		})
+	);
+	const saveViewport = useMutation(
+		orpc.userFlow.saveViewport.mutationOptions({
+			onSuccess: async () => {
+				await queryClient.invalidateQueries({
+					queryKey: orpc.userFlow.getViewport.queryKey({
+						input: { userFlowId: flowId },
+					}),
+				});
+			},
 		})
 	);
 
@@ -195,6 +252,116 @@ export default function UserFlowDetail({
 		},
 		[runOp]
 	);
+
+	const collapsedIds = viewport.data?.viewport.collapsedGroupIds ?? [];
+
+	const onPersistViewport = useCallback(
+		(next: { centerX: number; centerY: number; zoom: number }) => {
+			saveViewport.mutate({
+				payload: {
+					userFlowId: flowId,
+					viewport: {
+						...next,
+						collapsedGroupIds: collapsedIds,
+					},
+				},
+			});
+		},
+		[collapsedIds, flowId, saveViewport]
+	);
+
+	const onToggleCollapse = useCallback(
+		(groupId: string) => {
+			const next = collapsedIds.includes(groupId)
+				? collapsedIds.filter((id) => id !== groupId)
+				: [...collapsedIds, groupId];
+			saveViewport.mutate({
+				payload: {
+					userFlowId: flowId,
+					viewport: {
+						centerX: viewport.data?.viewport.centerX ?? 0,
+						centerY: viewport.data?.viewport.centerY ?? 0,
+						collapsedGroupIds: next,
+						zoom: viewport.data?.viewport.zoom ?? 1,
+					},
+				},
+			});
+		},
+		[collapsedIds, flowId, saveViewport, viewport.data]
+	);
+
+	const onToggleSelect = useCallback((nodeId: string) => {
+		setSelectedIds((current) =>
+			current.includes(nodeId)
+				? current.filter((id) => id !== nodeId)
+				: [...current, nodeId]
+		);
+	}, []);
+
+	const onOutlineMove = useCallback(
+		(nodeId: string, direction: -1 | 1) => {
+			if (!flow.data) {
+				return;
+			}
+			const ids = flow.data.nodes.map((node) => node.id);
+			const index = ids.indexOf(nodeId);
+			const next = index + direction;
+			if (index < 0 || next < 0 || next >= ids.length) {
+				return;
+			}
+			const nextIds = [...ids];
+			const [moved] = nextIds.splice(index, 1);
+			if (!moved) {
+				return;
+			}
+			nextIds.splice(next, 0, moved);
+			reorder.mutate({
+				baseRevision: flow.data.revision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: { nodeIds: nextIds, userFlowId: flowId },
+			});
+		},
+		[flow.data, flowId, reorder]
+	);
+
+	const onGroup = useCallback(() => {
+		if (!flow.data || selectedIds.length === 0) {
+			return;
+		}
+		group.mutate({
+			baseRevision: flow.data.revision,
+			idempotencyKey: newIdempotencyKey(),
+			payload: {
+				nodeIds: selectedIds,
+				title: USER_FLOW_COPY.group,
+				userFlowId: flowId,
+			},
+		});
+	}, [flow.data, flowId, group, selectedIds]);
+
+	const onBind = useCallback(() => {
+		const [nodeId] = selectedIds;
+		if (!(flow.data && screenId && nodeId) || selectedIds.length !== 1) {
+			return;
+		}
+		bindScreen.mutate({
+			baseRevision: flow.data.revision,
+			idempotencyKey: newIdempotencyKey(),
+			payload: { nodeId, screenId, userFlowId: flowId },
+		});
+	}, [bindScreen, flow.data, flowId, screenId, selectedIds]);
+
+	const onUnbind = useCallback(() => {
+		const [nodeId] = selectedIds;
+		if (!(flow.data && nodeId) || selectedIds.length !== 1) {
+			return;
+		}
+		unbindScreen.mutate({
+			baseRevision: flow.data.revision,
+			idempotencyKey: newIdempotencyKey(),
+			payload: { nodeId, userFlowId: flowId },
+		});
+	}, [flow.data, flowId, selectedIds, unbindScreen]);
 
 	const onKindChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
 		setKind(event.target.value as (typeof FLOW_NODE_KINDS)[number]);
@@ -298,46 +465,288 @@ export default function UserFlowDetail({
 						: USER_FLOW_COPY.placeNode}
 				</Button>
 			</form>
-			<div className="mt-6">
-				<UserFlowCanvas
-					nodes={view.nodes}
-					onAlign={onAlign}
-					onDuplicate={onDuplicate}
-					onGrid={onGrid}
-					onMove={onMove}
-					onUndo={onUndo}
-					onZOrder={onZOrder}
-				/>
-			</div>
-			<ul className="mt-6 flex flex-col gap-4">
-				{view.nodes.map((node) => (
-					<li className="rounded-md border p-3" key={node.id}>
-						<p>
-							{node.kind}
-							{node.kind === USER_FLOW_COPY.screen
-								? ` · ${node.screenTitle ?? node.reason}`
-								: ` · ${node.label}`}
-							{node.reason ? ` · ${node.reason}` : null}
-						</p>
-						{node.boundAt && node.resolution === "broken" ? (
-							<p className="text-muted-foreground text-sm">{node.boundAt}</p>
-						) : null}
-						{node.pathText.description ? (
-							<p className="text-muted-foreground text-sm">
-								{node.pathText.description}
-							</p>
-						) : null}
-						{node.preview ? (
-							<p className="text-muted-foreground text-sm">{node.preview}</p>
-						) : null}
-						{node.openSourceRecord && node.openHref ? (
-							<a className="text-sm underline" href={node.openHref}>
-								{node.openSourceRecord}
-							</a>
-						) : null}
-					</li>
-				))}
-			</ul>
+			<UserFlowSurface
+				canBind={Boolean(screenId)}
+				collapsedIds={collapsedIds}
+				onAlign={onAlign}
+				onBind={onBind}
+				onDuplicate={onDuplicate}
+				onGrid={onGrid}
+				onGroup={onGroup}
+				onMove={onMove}
+				onOutlineMove={onOutlineMove}
+				onPersistViewport={onPersistViewport}
+				onToggleCollapse={onToggleCollapse}
+				onToggleSelect={onToggleSelect}
+				onUnbind={onUnbind}
+				onUndo={onUndo}
+				onZOrder={onZOrder}
+				restoredViewport={viewport.data?.viewport ?? null}
+				selectedIds={selectedIds}
+				view={view}
+			/>
 		</article>
+	);
+}
+
+function UserFlowSurface({
+	canBind,
+	collapsedIds,
+	onAlign,
+	onBind,
+	onDuplicate,
+	onGrid,
+	onGroup,
+	onMove,
+	onOutlineMove,
+	onPersistViewport,
+	onToggleCollapse,
+	onToggleSelect,
+	onUnbind,
+	onUndo,
+	onZOrder,
+	restoredViewport,
+	selectedIds,
+	view,
+}: {
+	canBind: boolean;
+	collapsedIds: string[];
+	onAlign: (nodeIds: string[]) => void;
+	onBind: () => void;
+	onDuplicate: (nodeIds: string[]) => void;
+	onGrid: (nodeIds: string[]) => void;
+	onGroup: () => void;
+	onMove: (nodeIds: string[], deltaX: number, deltaY: number) => void;
+	onOutlineMove: (nodeId: string, direction: -1 | 1) => void;
+	onPersistViewport: (viewport: {
+		centerX: number;
+		centerY: number;
+		zoom: number;
+	}) => void;
+	onToggleCollapse: (groupId: string) => void;
+	onToggleSelect: (nodeId: string) => void;
+	onUnbind: () => void;
+	onUndo: () => void;
+	onZOrder: (nodeIds: string[]) => void;
+	restoredViewport: { centerX: number; centerY: number; zoom: number } | null;
+	selectedIds: string[];
+	view: UserFlowDetailView;
+}) {
+	const [selectedId] = selectedIds;
+	const selectedNode =
+		selectedIds.length === 1
+			? (view.nodes.find((node) => node.id === selectedId) ?? null)
+			: null;
+	return (
+		<>
+			<div className="mt-4 flex flex-wrap gap-2">
+				<Button
+					disabled={selectedIds.length === 0}
+					onClick={onGroup}
+					type="button"
+					variant="outline"
+				>
+					{USER_FLOW_COPY.group}
+				</Button>
+				<Button
+					disabled={selectedIds.length !== 1 || !canBind}
+					onClick={onBind}
+					type="button"
+					variant="outline"
+				>
+					{USER_FLOW_COPY.bindScreen}
+				</Button>
+				<Button
+					disabled={selectedIds.length !== 1}
+					onClick={onUnbind}
+					type="button"
+					variant="outline"
+				>
+					{USER_FLOW_COPY.unbind}
+				</Button>
+			</div>
+			<div className="mt-6 grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
+				<nav aria-label={USER_FLOW_COPY.outline}>
+					<h3 className="font-medium text-sm">{USER_FLOW_COPY.outline}</h3>
+					{view.nodes.length === 0 ? (
+						<Empty>
+							<EmptyHeader>
+								<EmptyTitle>{USER_FLOW_COPY.placeNode}</EmptyTitle>
+							</EmptyHeader>
+						</Empty>
+					) : (
+						<ul className="mt-2 flex flex-col gap-2">
+							{view.groups.map((flowGroup) => (
+								<OutlineGroup
+									collapsed={collapsedIds.includes(flowGroup.id)}
+									id={flowGroup.id}
+									key={flowGroup.id}
+									nodes={view.nodes.filter(
+										(node) => node.groupId === flowGroup.id
+									)}
+									onMove={onOutlineMove}
+									onToggleCollapse={onToggleCollapse}
+									onToggleSelect={onToggleSelect}
+									selectedIds={selectedIds}
+									title={flowGroup.title}
+								/>
+							))}
+							{view.nodes
+								.filter((node) => node.groupId === null)
+								.map((node) => (
+									<OutlineNode
+										key={node.id}
+										node={node}
+										onMove={onOutlineMove}
+										onToggleSelect={onToggleSelect}
+										selected={selectedIds.includes(node.id)}
+									/>
+								))}
+						</ul>
+					)}
+				</nav>
+				<div>
+					<UserFlowCanvas
+						nodes={view.nodes}
+						onAlign={onAlign}
+						onDuplicate={onDuplicate}
+						onGrid={onGrid}
+						onMove={onMove}
+						onPersistViewport={onPersistViewport}
+						onUndo={onUndo}
+						onZOrder={onZOrder}
+						restoredViewport={restoredViewport}
+					/>
+					{selectedNode ? (
+						<section aria-label={USER_FLOW_COPY.inspect} className="mt-4">
+							<h3 className="font-medium text-sm">{USER_FLOW_COPY.inspect}</h3>
+							<p className="mt-2 text-sm">
+								{selectedNode.kind}
+								{selectedNode.kind === USER_FLOW_COPY.screen
+									? ` · ${selectedNode.screenTitle ?? selectedNode.reason}`
+									: ` · ${selectedNode.label}`}
+							</p>
+							{selectedNode.pathText.description ? (
+								<p className="text-muted-foreground text-sm">
+									{selectedNode.pathText.description}
+								</p>
+							) : null}
+							{selectedNode.preview ? (
+								<p className="text-muted-foreground text-sm">
+									{selectedNode.preview}
+								</p>
+							) : null}
+							{selectedNode.openSourceRecord && selectedNode.openHref ? (
+								<a className="text-sm underline" href={selectedNode.openHref}>
+									{selectedNode.openSourceRecord}
+								</a>
+							) : null}
+						</section>
+					) : null}
+				</div>
+			</div>
+		</>
+	);
+}
+
+function OutlineGroup({
+	collapsed,
+	id,
+	nodes,
+	onMove,
+	onToggleCollapse,
+	onToggleSelect,
+	selectedIds,
+	title,
+}: {
+	collapsed: boolean;
+	id: string;
+	nodes: PresentedNode[];
+	onMove: (nodeId: string, direction: -1 | 1) => void;
+	onToggleCollapse: (groupId: string) => void;
+	onToggleSelect: (nodeId: string) => void;
+	selectedIds: string[];
+	title: string;
+}) {
+	const onCollapse = useCallback(() => {
+		onToggleCollapse(id);
+	}, [id, onToggleCollapse]);
+	return (
+		<li>
+			<div className="flex items-center gap-2">
+				<span className="font-medium text-sm">{title}</span>
+				<Button onClick={onCollapse} size="sm" type="button" variant="ghost">
+					{collapsed
+						? USER_FLOW_COPY.expandGroup
+						: USER_FLOW_COPY.collapseGroup}
+				</Button>
+			</div>
+			{collapsed ? null : (
+				<ul className="mt-2 flex flex-col gap-2 pl-3">
+					{nodes.map((node) => (
+						<OutlineNode
+							key={node.id}
+							node={node}
+							onMove={onMove}
+							onToggleSelect={onToggleSelect}
+							selected={selectedIds.includes(node.id)}
+						/>
+					))}
+				</ul>
+			)}
+		</li>
+	);
+}
+
+function OutlineNode({
+	node,
+	onMove,
+	onToggleSelect,
+	selected,
+}: {
+	node: PresentedNode;
+	onMove: (nodeId: string, direction: -1 | 1) => void;
+	onToggleSelect: (nodeId: string) => void;
+	selected: boolean;
+}) {
+	const onSelect = useCallback(() => {
+		onToggleSelect(node.id);
+	}, [node.id, onToggleSelect]);
+	const onUp = useCallback(() => {
+		onMove(node.id, -1);
+	}, [node.id, onMove]);
+	const onDown = useCallback(() => {
+		onMove(node.id, 1);
+	}, [node.id, onMove]);
+	const label =
+		node.kind === USER_FLOW_COPY.screen
+			? (node.screenTitle ?? node.reason ?? node.kind)
+			: node.label || node.kind;
+
+	return (
+		<li className="rounded-md border px-2.5 py-2 text-sm">
+			<div className="flex flex-wrap items-center gap-2">
+				<Button
+					aria-pressed={selected}
+					onClick={onSelect}
+					size="sm"
+					type="button"
+					variant={selected ? "secondary" : "outline"}
+				>
+					{label}
+				</Button>
+				<Button onClick={onUp} size="sm" type="button" variant="ghost">
+					{USER_FLOW_COPY.moveUp}
+				</Button>
+				<Button onClick={onDown} size="sm" type="button" variant="ghost">
+					{USER_FLOW_COPY.moveDown}
+				</Button>
+				{node.openHref ? (
+					<a className="text-sm underline" href={node.openHref}>
+						{node.openSourceRecord}
+					</a>
+				) : null}
+			</div>
+		</li>
 	);
 }
