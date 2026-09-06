@@ -48,6 +48,7 @@ import { RESEARCH_SESSIONS_COPY } from "@/features/research-sessions/forms/resea
 import ResearchSessionArea from "@/features/research-sessions/views/research-session-area";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
 import RiskArea from "@/features/risks/views/risk-area";
+import ScreenArea from "@/features/screens-and-wireframes/views/screen-area";
 import SourceArea from "@/features/sources-and-freshness/views/source-area";
 import { UNCERTAINTY_COPY } from "@/features/uncertainty-records/forms/uncertainty-records-copy";
 import AssumptionArea from "@/features/uncertainty-records/views/assumption-area";
@@ -632,6 +633,19 @@ function projectRecordArea({
 						projectId={projectId}
 						sourceId={sourceId}
 					/>
+				</div>
+			</section>
+		);
+	}
+	if (
+		selectedArea === "Design" ||
+		selectedAnchor === projectShellAnchor("Design")
+	) {
+		return (
+			<section aria-label="Design" id={projectShellAnchor("Design")}>
+				<h1 className="font-semibold text-[1.375rem] tracking-tight">Design</h1>
+				<div className="mt-6">
+					<ScreenArea projectId={projectId} />
 				</div>
 			</section>
 		);

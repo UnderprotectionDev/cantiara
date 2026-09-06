@@ -20,7 +20,10 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"RiskRelatedRecord",
 	"SmartCollectionAttentionSignal",
 	"SmartCollectionMembershipPeriod",
+	"Screen",
+	"ScreenEvent",
 	"ValidationRecord",
+	"WireframeVersion",
 	"WorkNotNowTrail",
 ]);
 
@@ -113,6 +116,10 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	// Validation Record is read via its own delegate after generate. Do not
 	// gate getPrismaClient on it: bun --hot can reload this check before
 	// prisma generate, and that must not block Work writes.
+	// Screen is read and written via table SQL when bun --hot still has a
+	// client generated before that model. Gating getPrismaClient on Screen
+	// turned Create Screen (CANT-FC81F725) into every RPC throwing
+	// "Restart the API after prisma generate" (CANT-4DB9B62F).
 	if (!knownDelegates) {
 		return false;
 	}
