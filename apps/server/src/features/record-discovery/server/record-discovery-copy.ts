@@ -34,6 +34,7 @@ export const RECORD_DISCOVERY_COPY = {
 	githubExternalRecord: "GitHub external record",
 	importedIndependentCopy: "Imported Independent Copy",
 	includeArchived: "Include archived",
+	inTrash: "In Trash",
 	linkPassword: "Link password",
 	matches: "matches",
 	metadata: "Metadata",

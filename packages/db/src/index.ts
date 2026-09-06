@@ -25,7 +25,10 @@ import {
 } from "./prisma-client-delegates";
 
 export { Prisma, PrismaClient } from "../prisma/generated/client";
-export { ensureGeneratedPrismaClient } from "./ensure-generated-prisma-client";
+export {
+	ensureGeneratedPrismaClient,
+	forceRegeneratePrismaClient,
+} from "./ensure-generated-prisma-client";
 export { readGeneratedClientStamp } from "./generated-prisma-client";
 export {
 	prismaClientHasCurrentDelegates,

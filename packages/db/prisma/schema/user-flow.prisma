@@ -1,0 +1,28 @@
+model UserFlow {
+  id        String            @id
+  projectId String
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String
+  document  String
+  revision  Int
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  versions  UserFlowVersion[]
+
+  @@index([projectId])
+  @@index([projectId, updatedAt])
+  @@map("user_flow")
+}
+
+model UserFlowVersion {
+  id         String   @id
+  userFlowId String
+  userFlow   UserFlow @relation(fields: [userFlowId], references: [id], onDelete: Cascade)
+  revision   Int
+  document   String
+  createdAt  DateTime @default(now())
+
+  @@unique([userFlowId, revision])
+  @@index([userFlowId])
+  @@map("user_flow_version")
+}

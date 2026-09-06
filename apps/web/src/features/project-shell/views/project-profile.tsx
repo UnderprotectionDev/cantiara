@@ -21,6 +21,7 @@ import FeedArea from "@/features/feedback/views/feed-area";
 import FeedbackArea from "@/features/feedback/views/feedback-area";
 import FileAttachmentArea from "@/features/file-attachments/views/file-attachment-area";
 import ProjectGoalsPanel from "@/features/goals/views/project-goals-panel";
+import MoodboardArea from "@/features/moodboards/views/moodboard-area";
 import { FOUNDER_MAIN_ID } from "@/features/personal-shell/components/founder-chrome";
 import ProjectOverview from "@/features/project-overview/views/project-overview";
 import ConfigurationMode from "@/features/project-shell/forms/configuration-mode";
@@ -45,15 +46,16 @@ import {
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
 import ProjectWallArea from "@/features/project-wall/views/project-wall-area";
-import { PROJECT_WALL_COPY } from "@/features/project-wall/views/project-wall-copy";
 import { RESEARCH_SESSIONS_COPY } from "@/features/research-sessions/forms/research-sessions-copy";
 import ResearchSessionArea from "@/features/research-sessions/views/research-session-area";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
 import RiskArea from "@/features/risks/views/risk-area";
+import ScreenArea from "@/features/screens-and-wireframes/views/screen-area";
 import SourceArea from "@/features/sources-and-freshness/views/source-area";
 import { UNCERTAINTY_COPY } from "@/features/uncertainty-records/forms/uncertainty-records-copy";
 import AssumptionArea from "@/features/uncertainty-records/views/assumption-area";
 import OpenQuestionArea from "@/features/uncertainty-records/views/open-question-area";
+import UserFlowArea from "@/features/user-flow/views/user-flow-area";
 import { VALIDATION_RECORDS_COPY } from "@/features/validation-records/forms/validation-records-copy";
 import ValidationRecordArea from "@/features/validation-records/views/validation-record-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
@@ -469,15 +471,16 @@ function DesignProjectSection({
 		[onWorkId]
 	);
 	return (
-		<section aria-label={PROJECT_WALL_COPY.projectWall} id={sectionId}>
-			<h1 className="font-semibold text-[1.375rem] tracking-tight">
-				{PROJECT_WALL_COPY.projectWall}
-			</h1>
-			<div className="mt-6">
+		<section aria-label="Design" id={sectionId}>
+			<h1 className="font-semibold text-[1.375rem] tracking-tight">Design</h1>
+			<div className="mt-6 flex flex-col gap-10">
 				<ProjectWallArea
 					onOpenSourceRecord={onOpenSourceRecord}
 					projectId={projectId}
 				/>
+				<ScreenArea projectId={projectId} />
+				<UserFlowArea projectId={projectId} />
+				<MoodboardArea projectId={projectId} />
 			</div>
 		</section>
 	);
@@ -1013,6 +1016,15 @@ function ProjectBody({
 	}
 
 	if (selectedArea) {
+		if (selectedArea === "Design") {
+			return (
+				<DesignProjectSection
+					onWorkId={onWorkId}
+					projectId={data.id}
+					sectionId={projectShellAnchor("Design")}
+				/>
+			);
+		}
 		return (
 			<section aria-label={selectedArea} id={projectShellAnchor(selectedArea)}>
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">

@@ -20,7 +20,12 @@ const OPTIONAL_RUNTIME_MODELS = new Set([
 	"RiskRelatedRecord",
 	"SmartCollectionAttentionSignal",
 	"SmartCollectionMembershipPeriod",
+	"Screen",
+	"ScreenEvent",
 	"ValidationRecord",
+	"Moodboard",
+	"MoodboardVisual",
+	"WireframeVersion",
 	"WorkNotNowTrail",
 ]);
 
@@ -69,6 +74,9 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 		typeof client.recordAction?.create === "function" &&
 		typeof client.workDraft?.findMany === "function" &&
 		typeof client.workDraft?.create === "function" &&
+		typeof client.userFlow?.findMany === "function" &&
+		typeof client.userFlow?.create === "function" &&
+		typeof client.userFlowVersion?.create === "function" &&
 		// Daily Focus membership and candidate rejection are read via table SQL
 		// so a bun --hot client generated before those models can still serve
 		// Daily Focus. Do not gate getPrismaClient on them.
@@ -113,6 +121,16 @@ export function prismaClientHasCurrentDelegates(client: PrismaClient): boolean {
 	// Validation Record is read via its own delegate after generate. Do not
 	// gate getPrismaClient on it: bun --hot can reload this check before
 	// prisma generate, and that must not block Work writes.
+	// Moodboard is the same: a bun --hot client generated before Moodboard
+	// must not block the rest of the API.
+	// Screen is read and written via table SQL when bun --hot still has a
+	// client generated before that model. Gating getPrismaClient on Screen
+	// turned Create Screen (CANT-FC81F725) into every RPC throwing
+	// "Restart the API after prisma generate" (CANT-4DB9B62F).
+	// User Flow writes call userFlow.create. A bun --hot client generated
+	// before that model must not be reused: Create User Flow then throws
+	// TypeError (or the restart-after-generate toast) while Work still
+	// looks healthy. Gate getPrismaClient so development regenerates.
 	if (!knownDelegates) {
 		return false;
 	}

@@ -93,6 +93,21 @@ function workDelegates() {
 			findMany,
 			upsert: () => undefined,
 		},
+		screen: {
+			create: () => undefined,
+			findMany,
+			findUnique: findMany,
+		},
+		userFlow: {
+			create: () => undefined,
+			findMany,
+			findUnique: findMany,
+			update: () => undefined,
+		},
+		userFlowVersion: {
+			create: () => undefined,
+			findMany,
+		},
 		work: { create: () => undefined, findMany },
 		workLifecycleEvent: { findMany },
 		workTemplate: {
@@ -119,6 +134,36 @@ describe("Prisma client current delegates", () => {
 			prismaClientHasCurrentDelegates(
 				workDelegates() as unknown as PrismaClient
 			)
+		).toBe(false);
+	});
+
+	it("refuses a bun --hot client generated before User Flow", () => {
+		const {
+			screen: _screen,
+			userFlow: _userFlow,
+			userFlowVersion: _userFlowVersion,
+			...beforeUserFlow
+		} = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(beforeUserFlow as unknown as PrismaClient)
 		).toBe(false);
 	});
 
@@ -350,6 +395,43 @@ describe("Prisma client current delegates", () => {
 						Decision: {
 							fields: [{ name: "id" }, { name: "title" }],
 						},
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
+	it("accepts a bun --hot client generated before Screen", () => {
+		const { screen: _dropped, ...beforeScreen } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(beforeScreen as unknown as PrismaClient)
+		).toBe(true);
+		expect(
+			prismaClientHasCurrentDelegates({
+				...beforeScreen,
+				_runtimeDataModel: {
+					models: {
+						Screen: { fields: [{ name: "id" }, { name: "title" }] },
+						ScreenEvent: { fields: [{ name: "id" }] },
+						WireframeVersion: { fields: [{ name: "id" }] },
 					},
 				},
 			} as unknown as PrismaClient)

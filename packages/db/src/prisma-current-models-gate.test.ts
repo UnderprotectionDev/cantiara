@@ -19,6 +19,9 @@ describe("Prisma current models gate", () => {
 			);
 			expect(typeof client.dailyFocusMembership.findMany).toBe("function");
 			expect(typeof client.recordAction.create).toBe("function");
+			expect(typeof client.userFlow.create).toBe("function");
+			expect(typeof client.userFlowVersion.create).toBe("function");
+			expect(typeof client.screen.create).toBe("function");
 			expect(typeof client.personalReminder.findMany).toBe("function");
 			expect(typeof client.personalReminder.create).toBe("function");
 			expect(typeof client.workNotNowTrail.findMany).toBe("function");

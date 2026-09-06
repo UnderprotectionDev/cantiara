@@ -21,6 +21,7 @@ import { fileAttachments } from "../features/file-attachments/server/file-attach
 import { focusPeriod } from "../features/focus-period/server/focus-period-rpc";
 import { projectGoals } from "../features/goals/server/project-goals-rpc";
 import { kanban } from "../features/kanban/server/kanban-rpc";
+import { moodboards } from "../features/moodboards/server/moodboards-rpc";
 import { personalReminders } from "../features/personal-reminders/server/personal-reminders-rpc";
 import { personalWiki } from "../features/personal-wiki/server/personal-wiki-rpc";
 import { priority } from "../features/priority/server/priority-rpc";
@@ -34,11 +35,13 @@ import { researchSessions } from "../features/research-sessions/server/research-
 import { returnToWork } from "../features/return-to-work/server/return-to-work-rpc";
 import { risks } from "../features/risks/server/risks-rpc";
 import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
+import { screensAndWireframes } from "../features/screens-and-wireframes/server/screens-and-wireframes-rpc";
 import { smartCollections } from "../features/smart-collections/server/smart-collections-rpc";
 import { sources } from "../features/sources-and-freshness/server/sources-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { uncertaintyRecords } from "../features/uncertainty-records/server/uncertainty-records-rpc";
 import { unifiedCalendar } from "../features/unified-calendar/server/unified-calendar-rpc";
+import { userFlow } from "../features/user-flow/server/user-flow-rpc";
 import { validationRecords } from "../features/validation-records/server/validation-records-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
 import { workChecklists } from "../features/work-checklists/server/work-checklists-rpc";
@@ -76,6 +79,7 @@ interface AppRouterShape {
 	focusPeriod: typeof focusPeriod;
 	healthCheck: typeof healthCheck;
 	kanban: typeof kanban;
+	moodboards: typeof moodboards;
 	personalReminders: typeof personalReminders;
 	personalWiki: typeof personalWiki;
 	priority: typeof priority;
@@ -91,11 +95,13 @@ interface AppRouterShape {
 	returnToWork: typeof returnToWork;
 	risks: typeof risks;
 	roadmapHorizon: typeof roadmapHorizon;
+	screensAndWireframes: typeof screensAndWireframes;
 	smartCollections: typeof smartCollections;
 	sources: typeof sources;
 	tags: typeof tags;
 	uncertaintyRecords: typeof uncertaintyRecords;
 	unifiedCalendar: typeof unifiedCalendar;
+	userFlow: typeof userFlow;
 	validationRecords: typeof validationRecords;
 	workChecklists: typeof workChecklists;
 	workContext: typeof workContext;
@@ -127,6 +133,7 @@ export const appRouter: AppRouterShape = {
 	focusPeriod,
 	healthCheck,
 	kanban,
+	moodboards,
 	personalReminders,
 	personalWiki,
 	priority,
@@ -142,11 +149,13 @@ export const appRouter: AppRouterShape = {
 	returnToWork,
 	risks,
 	roadmapHorizon,
+	screensAndWireframes,
 	smartCollections,
 	sources,
 	tags,
 	uncertaintyRecords,
 	unifiedCalendar,
+	userFlow,
 	validationRecords,
 	workChecklists,
 	workContext,

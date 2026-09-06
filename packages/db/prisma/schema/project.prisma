@@ -56,6 +56,9 @@ model Project {
   nextConcreteStepChanges         NextConcreteStepChange[]
   smartCollections                SmartCollection[]
   designs                         Design[]
+  moodboards                      Moodboard[]
+  screens                         Screen[]
+  userFlows                       UserFlow[]
 
   @@index([workspaceId])
   @@map("project")
