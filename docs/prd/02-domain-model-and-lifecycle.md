@@ -28,6 +28,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belge içi etiket | `#tag` | Belge düz yazısındaki tokenın aynı Çalışma Alanı Etiket kimliğine bağlanması; ikinci sözlük değildir |
 | Özellik | `Feature` | İş türü |
 | Kullanıcı Akışı | `User Flow` | Kullanıcının arayüz hedefi ve karar yolunu taşıyan tasarım türü |
+| Proje Duvarı | `Project Wall` | Mevcut ana kayıtların canlı kartlarıyla proje anlatısını taşıyan Tasarım türü; Wireframe, Moodboard veya Wiki sayfası değildir |
+| Kompakt | `Compact` | Proje Duvarı kart yoğunluğu; ürünün seçtiği alanlar |
+| Önizleme yoğunluğu | `Preview` | Proje Duvarı kart yoğunluğu |
+| Ayrıntılı | `Detailed` | Proje Duvarı kart yoğunluğu |
+| Proje Duvarı oluştur | `Create Project Wall` | Adlandırılmış düz Proje Duvarı açma |
+| Proje Duvarı yok | `No Project Wall yet.` | Henüz duvar açılmamış boş durum |
+| Canlı kart yerleştir | `Place live card` | Mevcut ana kaydı kopyasız canlı kart olarak duvara referanslama |
 | Moodboard | `Moodboard` | Proje veya özellik için görsel referans ve seçilen tasarım yönünü toplayan tasarım türü; Kullanıcı Akışı, Wireframe veya tasarım sistemi değildir |
 | Moodboard oluştur | `Create Moodboard` | Başlıkla Moodboard açma |
 | Moodboard yok | `No Moodboards yet.` | Henüz Moodboard açılmamış boş durum |
@@ -43,7 +50,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Contact (kimlik defteri) | `Contact` | Geri bildirimi veren kişiyi geri bildirimler boyunca tanıyan Çalışma Alanı ana kaydı; Feedback Capture yönlendirici alanı değildir |
 | Company | `Company` | Contact ve Geri Bildirimi isteğe bağlı ortak kuruluş bağlamında gruplayan hafif ana kayıt |
 | Şirkete ait | `Belongs to Company` | Contact başına en fazla bir güncel Company bağı; geçmiş değişiklikte korunur |
-| Kaynak kaydı aç (kimlik defteri) | `Open Source Record` | Contact profilinde ilişkili Geri Bildirim, Company ve Persona belgesini kaynağında açma |
+| Kaynak kaydı aç | `Open Source Record` | Contact profilinde ilişkili Geri Bildirim, Company ve Persona belgesini kaynağında açma; Proje Duvarı canlı kartında ana kaydı açma |
 | Contact oluştur | `Create Contact` | Çalışma Alanında kimlik defteri Contact'ı açma |
 | Company oluştur | `Create Company` | İsteğe bağlı kuruluş bağlamı kaydı açma |
 | Görünen ad | `Display name` | Contact'ta isteğe bağlı görünen ad; kimlik değildir |

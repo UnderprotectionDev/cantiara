@@ -55,6 +55,7 @@ model Project {
   projectGoals                    ProjectGoal[]
   nextConcreteStepChanges         NextConcreteStepChange[]
   smartCollections                SmartCollection[]
+  designs                         Design[]
   moodboards                      Moodboard[]
   screens                         Screen[]
   userFlows                       UserFlow[]

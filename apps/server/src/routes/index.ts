@@ -27,6 +27,7 @@ import { personalWiki } from "../features/personal-wiki/server/personal-wiki-rpc
 import { priority } from "../features/priority/server/priority-rpc";
 import { projectOverviewRouter } from "../features/project-overview/server/project-overview-rpc";
 import { projectShell } from "../features/project-shell/server/project-shell-rpc";
+import { projectWall } from "../features/project-wall/server/project-wall-rpc";
 import { recordActions } from "../features/record-actions/server/record-actions-rpc";
 import { recordDiscovery } from "../features/record-discovery/server/record-discovery-rpc";
 import { relations } from "../features/relations/server/relations-rpc";
@@ -50,7 +51,13 @@ import { workLifecycle } from "../features/work-lifecycle/server/work-lifecycle-
 import { workTemplates } from "../features/work-templates/server/work-templates-rpc";
 import { workspaceOverviewRouter } from "../features/workspace-overview/server/workspace-overview-rpc";
 
-export const appRouter: {
+const healthCheck = publicProcedure.handler(() => "OK");
+const privateData = protectedProcedure.handler(({ context }) => ({
+	message: "This is private",
+	user: context.session?.user,
+}));
+
+interface AppRouterShape {
 	accountAccess: typeof accountAccess;
 	accountPreferences: typeof accountPreferences;
 	backlog: typeof backlog;
@@ -70,16 +77,17 @@ export const appRouter: {
 	feedback: typeof feedback;
 	fileAttachments: typeof fileAttachments;
 	focusPeriod: typeof focusPeriod;
-	healthCheck: ReturnType<typeof publicProcedure.handler>;
+	healthCheck: typeof healthCheck;
 	kanban: typeof kanban;
 	moodboards: typeof moodboards;
 	personalReminders: typeof personalReminders;
 	personalWiki: typeof personalWiki;
 	priority: typeof priority;
-	privateData: ReturnType<typeof protectedProcedure.handler>;
+	privateData: typeof privateData;
 	projectGoals: typeof projectGoals;
 	projectOverview: typeof projectOverviewRouter;
 	projectShell: typeof projectShell;
+	projectWall: typeof projectWall;
 	recordActions: typeof recordActions;
 	recordDiscovery: typeof recordDiscovery;
 	relations: typeof relations;
@@ -101,7 +109,9 @@ export const appRouter: {
 	workLifecycle: typeof workLifecycle;
 	workspaceOverview: typeof workspaceOverviewRouter;
 	workTemplates: typeof workTemplates;
-} = {
+}
+
+export const appRouter: AppRouterShape = {
 	accountAccess,
 	accountPreferences,
 	backlog,
@@ -121,19 +131,17 @@ export const appRouter: {
 	feedback,
 	fileAttachments,
 	focusPeriod,
-	healthCheck: publicProcedure.handler(() => "OK"),
+	healthCheck,
 	kanban,
 	moodboards,
 	personalReminders,
 	personalWiki,
 	priority,
-	privateData: protectedProcedure.handler(({ context }) => ({
-		message: "This is private",
-		user: context.session?.user,
-	})),
+	privateData,
 	projectGoals,
 	projectOverview: projectOverviewRouter,
 	projectShell,
+	projectWall,
 	recordActions,
 	recordDiscovery,
 	relations,
@@ -157,5 +165,5 @@ export const appRouter: {
 	workTemplates,
 };
 
-export type AppRouter = typeof appRouter;
-export type AppRouterClient = RouterClient<typeof appRouter>;
+export type AppRouter = AppRouterShape;
+export type AppRouterClient = RouterClient<AppRouterShape>;

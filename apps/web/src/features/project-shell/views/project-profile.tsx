@@ -45,6 +45,7 @@ import {
 	workSavedViewIsRoadmap,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
+import ProjectWallArea from "@/features/project-wall/views/project-wall-area";
 import { RESEARCH_SESSIONS_COPY } from "@/features/research-sessions/forms/research-sessions-copy";
 import ResearchSessionArea from "@/features/research-sessions/views/research-session-area";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
@@ -454,6 +455,37 @@ function ProjectNavLink({
 	);
 }
 
+function DesignProjectSection({
+	onWorkId,
+	projectId,
+	sectionId,
+}: {
+	onWorkId?: (workId: string | null) => void;
+	projectId: string;
+	sectionId: string;
+}) {
+	const onOpenSourceRecord = useCallback(
+		(sourceId: string) => {
+			onWorkId?.(sourceId);
+		},
+		[onWorkId]
+	);
+	return (
+		<section aria-label="Design" id={sectionId}>
+			<h1 className="font-semibold text-[1.375rem] tracking-tight">Design</h1>
+			<div className="mt-6 flex flex-col gap-10">
+				<ProjectWallArea
+					onOpenSourceRecord={onOpenSourceRecord}
+					projectId={projectId}
+				/>
+				<ScreenArea projectId={projectId} />
+				<UserFlowArea projectId={projectId} />
+				<MoodboardArea projectId={projectId} />
+			</div>
+		</section>
+	);
+}
+
 function DocumentsProjectSection({
 	onWorkId,
 	projectId,
@@ -531,6 +563,7 @@ function projectRecordArea({
 	assumptionId,
 	decisionId,
 	decisionsAnchor,
+	designAnchor,
 	documentsAnchor,
 	fileAttachmentAnchor,
 	onAssumptionId,
@@ -555,6 +588,7 @@ function projectRecordArea({
 	assumptionId?: string | null;
 	decisionId?: string | null;
 	decisionsAnchor: string;
+	designAnchor: string;
 	documentsAnchor: string;
 	fileAttachmentAnchor: string;
 	onAssumptionId?: (assumptionId: string | null) => void;
@@ -639,19 +673,13 @@ function projectRecordArea({
 			</section>
 		);
 	}
-	if (
-		selectedArea === "Design" ||
-		selectedAnchor === projectShellAnchor("Design")
-	) {
+	if (selectedAnchor === designAnchor || selectedArea === "Design") {
 		return (
-			<section aria-label="Design" id={projectShellAnchor("Design")}>
-				<h1 className="font-semibold text-[1.375rem] tracking-tight">Design</h1>
-				<div className="mt-6 flex flex-col gap-10">
-					<ScreenArea projectId={projectId} />
-					<UserFlowArea projectId={projectId} />
-					<MoodboardArea projectId={projectId} />
-				</div>
-			</section>
+			<DesignProjectSection
+				onWorkId={onWorkId}
+				projectId={projectId}
+				sectionId={designAnchor}
+			/>
 		);
 	}
 	if (
@@ -883,6 +911,7 @@ function ProjectBody({
 	const risksAnchor = projectShellAnchor("Risks");
 	const fileAttachmentAnchor = projectShellAnchor("File Attachment");
 	const sourceAnchor = projectShellAnchor("Source");
+	const designAnchor = projectShellAnchor("Design");
 	const selectedArea = data.allToolsAreas
 		.map((area) => area.name)
 		.find((area) => projectShellAnchor(area) === selectedAnchor);
@@ -895,6 +924,7 @@ function ProjectBody({
 		assumptionId: showingWork ? null : assumptionId,
 		decisionId: showingWork ? null : decisionId,
 		decisionsAnchor,
+		designAnchor,
 		documentsAnchor,
 		fileAttachmentAnchor,
 		onAssumptionId,
@@ -988,16 +1018,11 @@ function ProjectBody({
 	if (selectedArea) {
 		if (selectedArea === "Design") {
 			return (
-				<section aria-label="Design" id={projectShellAnchor("Design")}>
-					<h1 className="font-semibold text-[1.375rem] tracking-tight">
-						Design
-					</h1>
-					<div className="mt-6 flex flex-col gap-10">
-						<ScreenArea projectId={data.id} />
-						<UserFlowArea projectId={data.id} />
-						<MoodboardArea projectId={data.id} />
-					</div>
-				</section>
+				<DesignProjectSection
+					onWorkId={onWorkId}
+					projectId={data.id}
+					sectionId={projectShellAnchor("Design")}
+				/>
 			);
 		}
 		return (

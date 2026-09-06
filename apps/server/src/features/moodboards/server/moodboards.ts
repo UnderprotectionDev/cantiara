@@ -135,7 +135,7 @@ export async function listProjectWallCardsSpawnedFrom(
 	return await prisma.$queryRaw<Array<{ id: string }>>`
 		SELECT id
 		FROM project_wall_card
-		WHERE "moodboardId" = ${moodboardId}
+		WHERE "sourceId" = ${moodboardId}
 	`;
 }
 
