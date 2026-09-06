@@ -1,8 +1,10 @@
 /**
  * Project Wall seam — live cards of existing masters,
  * layout and density do not write the source record.
- * Evidence: docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
- * (Proje Duvarı canlı kart).
+ * Visual line, proximity, and group membership are not relations;
+ * Lock Position is view-local. Evidence:
+ * docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
+ * (Proje Duvarı ilişki kurma karşıtı).
  */
 import { PrismaClient } from "@cantiara/db";
 import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
@@ -20,10 +22,16 @@ import {
 import { WORK_STATUS } from "../../work-lifecycle/server/work-lifecycle-model";
 
 import {
+	applyAutoLayout,
+	createGroup,
+	createPersistentRelation,
 	createProjectWall,
+	drawVisualLine,
 	getProjectWall,
 	listProjectWalls,
 	placeLiveCard,
+	previewPersistentRelation,
+	setLockPosition,
 	updateCardDensity,
 	updateCardLayout,
 } from "./project-wall";
@@ -39,6 +47,7 @@ import {
 
 const DATABASE_URL = localTestDatabaseUrl();
 const SURFACE_COPY = /Wireframe|Moodboard|Wiki page|nested wall|CSS/i;
+const SKETCH_COPY = /Sketch|freehand|Freehand/i;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -122,6 +131,40 @@ async function committedWall(
 	return created.wall;
 }
 
+async function placedCard(
+	prisma: PrismaClient,
+	input: {
+		actorId: string;
+		positionX?: number;
+		positionY?: number;
+		sourceId: string;
+		wallId: string;
+	}
+) {
+	const placed = await placeLiveCard(prisma, {
+		actorId: input.actorId,
+		idempotencyKey: `place-${crypto.randomUUID()}`,
+		origin: "human",
+		payload: {
+			positionX: input.positionX,
+			positionY: input.positionY,
+			sourceId: input.sourceId,
+			sourceKind: PROJECT_WALL_SOURCE_KIND.work,
+			wallId: input.wallId,
+		},
+	});
+	if (placed.status !== "committed") {
+		throw new Error("expected card");
+	}
+	const card = placed.wall.cards.find(
+		(item) => item.sourceId === input.sourceId
+	);
+	if (!card) {
+		throw new Error("expected placed card");
+	}
+	return { card, wall: placed.wall };
+}
+
 describe("Project Wall catalog", () => {
 	it("uses English Project Wall densities and Open Source Record", () => {
 		const catalog = projectWallCatalog();
@@ -130,6 +173,10 @@ describe("Project Wall catalog", () => {
 		expect(catalog.copy.preview).toBe("Preview");
 		expect(catalog.copy.detailed).toBe("Detailed");
 		expect(catalog.copy.openSourceRecord).toBe("Open Source Record");
+		expect(catalog.copy.createPersistentRelation).toBe(
+			"Create Persistent Relation"
+		);
+		expect(catalog.copy.lockPosition).toBe("Lock Position");
 		expect(catalog.densities).toEqual(PROJECT_WALL_DENSITIES);
 		expect(catalog.densityFields.Compact).toEqual([
 			PROJECT_WALL_FIELD.title,
@@ -147,9 +194,15 @@ describe("Project Wall catalog", () => {
 			PROJECT_WALL_FIELD.key,
 		]);
 		expect(catalog.counterparts).toEqual({
+			freehand: false,
+			groupMembershipAsRelation: false,
 			moodboard: false,
+			nestedGroup: false,
 			nestedWall: false,
 			perCardCss: false,
+			proximityAsRelation: false,
+			sketchCard: false,
+			visualLineAsRelation: false,
 			wallOnlyFile: false,
 			wallOnlyNote: false,
 			wallOnlyTask: false,
@@ -441,5 +494,410 @@ describe("Project Wall live cards", () => {
 		const live = await getProjectWall(prisma, wall.id);
 		expect(live?.cards[0]?.fields.Status).toBe(WORK_STATUS.inProgress);
 		expect(live?.cards[0]?.sourceId).toBe(work.id);
+	});
+});
+
+describe("Project Wall visual line and lock", () => {
+	let prisma: PrismaClient;
+	let pool: Pool;
+
+	beforeAll(() => {
+		pool = new Pool({ connectionString: DATABASE_URL });
+		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+	});
+
+	beforeEach(async () => {
+		await resetSharedTables(prisma);
+	});
+
+	afterEach(async () => {
+		await resetSharedTables(prisma);
+	});
+
+	it("stores a directed labeled visual line without writing a record relation", async () => {
+		const { actorId, projectId, workspaceId } = await openProject(prisma);
+		const checkout = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout flow",
+		});
+		const wallet = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Wallet",
+		});
+		const wall = await committedWall(prisma, {
+			actorId,
+			name: "Launch narrative",
+			projectId,
+		});
+		const from = await placedCard(prisma, {
+			actorId,
+			sourceId: checkout.id,
+			wallId: wall.id,
+		});
+		const to = await placedCard(prisma, {
+			actorId,
+			sourceId: wallet.id,
+			wallId: wall.id,
+		});
+		const drawn = await drawVisualLine(prisma, {
+			actorId,
+			idempotencyKey: "draw-checkout-wallet",
+			origin: "human",
+			payload: {
+				fromCardId: from.card.id,
+				label: "feeds",
+				toCardId: to.card.id,
+				wallId: wall.id,
+			},
+		});
+		expect(drawn.status).toBe("committed");
+		if (drawn.status !== "committed") {
+			return;
+		}
+		expect(drawn.wall.visualLinks).toEqual([
+			{
+				fromCardId: from.card.id,
+				id: expect.any(String),
+				label: "feeds",
+				toCardId: to.card.id,
+			},
+		]);
+		expect(
+			await listRelations(prisma, {
+				record: { id: checkout.id, kind: "Work" },
+				viewerWorkspaceId: workspaceId,
+			})
+		).toEqual([]);
+		expect(
+			await listRelations(prisma, {
+				record: { id: wallet.id, kind: "Work" },
+				viewerWorkspaceId: workspaceId,
+			})
+		).toEqual([]);
+	});
+
+	it("does not write a relation from Create Persistent Relation without preview", async () => {
+		const { actorId, projectId, workspaceId } = await openProject(prisma);
+		const checkout = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout flow",
+		});
+		const wallet = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Wallet",
+		});
+		const wall = await committedWall(prisma, {
+			actorId,
+			name: "Launch narrative",
+			projectId,
+		});
+		const from = await placedCard(prisma, {
+			actorId,
+			sourceId: checkout.id,
+			wallId: wall.id,
+		});
+		const to = await placedCard(prisma, {
+			actorId,
+			sourceId: wallet.id,
+			wallId: wall.id,
+		});
+		const drawn = await drawVisualLine(prisma, {
+			actorId,
+			idempotencyKey: "draw-line",
+			origin: "human",
+			payload: {
+				fromCardId: from.card.id,
+				label: "feeds",
+				toCardId: to.card.id,
+				wallId: wall.id,
+			},
+		});
+		expect(drawn.status).toBe("committed");
+		if (drawn.status !== "committed") {
+			return;
+		}
+		const visualLinkId = drawn.wall.visualLinks[0]?.id;
+		expect(visualLinkId).toBeTruthy();
+		if (!visualLinkId) {
+			return;
+		}
+		const skipped = await createPersistentRelation(prisma, {
+			actorId,
+			idempotencyKey: "relate-no-preview",
+			origin: "human",
+			payload: {
+				type: "Related",
+				visualLinkId,
+				wallId: wall.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(skipped).toEqual({
+			reason: PROJECT_WALL_REJECTION.previewRequired,
+			status: "rejected",
+		});
+		expect(
+			await listRelations(prisma, {
+				record: { id: checkout.id, kind: "Work" },
+				viewerWorkspaceId: workspaceId,
+			})
+		).toEqual([]);
+		const preview = await previewPersistentRelation(prisma, {
+			type: "Related",
+			viewerWorkspaceId: workspaceId,
+			visualLinkId,
+			wallId: wall.id,
+		});
+		expect(preview).toMatchObject({
+			preview: {
+				from: { title: "Checkout flow" },
+				to: { title: "Wallet" },
+				type: "Related",
+			},
+			status: "ok",
+		});
+		const created = await createPersistentRelation(prisma, {
+			actorId,
+			idempotencyKey: "relate-checkout-wallet",
+			origin: "human",
+			payload: {
+				previewAcknowledged: true,
+				type: "Related",
+				visualLinkId,
+				wallId: wall.id,
+			},
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(created.status).toBe("committed");
+		if (created.status !== "committed") {
+			return;
+		}
+		expect(created.wall.visualLinks).toHaveLength(1);
+		const related = await listRelations(prisma, {
+			record: { id: checkout.id, kind: "Work" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(related).toHaveLength(1);
+		expect(related[0]?.type).toBe("Related");
+		expect(related[0]?.from.id).toBe(checkout.id);
+		expect(related[0]?.to.id).toBe(wallet.id);
+	});
+
+	it("does not treat proximity or group membership as a relation", async () => {
+		const { actorId, projectId, workspaceId } = await openProject(prisma);
+		const checkout = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout flow",
+		});
+		const wallet = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Wallet",
+		});
+		const wall = await committedWall(prisma, {
+			actorId,
+			name: "Launch narrative",
+			projectId,
+		});
+		const from = await placedCard(prisma, {
+			actorId,
+			positionX: 0,
+			positionY: 0,
+			sourceId: checkout.id,
+			wallId: wall.id,
+		});
+		const to = await placedCard(prisma, {
+			actorId,
+			positionX: 8,
+			positionY: 8,
+			sourceId: wallet.id,
+			wallId: wall.id,
+		});
+		expect(
+			await listRelations(prisma, {
+				record: { id: checkout.id, kind: "Work" },
+				viewerWorkspaceId: workspaceId,
+			})
+		).toEqual([]);
+		const grouped = await createGroup(prisma, {
+			actorId,
+			idempotencyKey: "launch-group",
+			origin: "human",
+			payload: {
+				cardIds: [from.card.id, to.card.id],
+				name: "Launch cluster",
+				wallId: wall.id,
+			},
+		});
+		expect(grouped.status).toBe("committed");
+		if (grouped.status !== "committed") {
+			return;
+		}
+		expect(grouped.wall.groups).toEqual([
+			{
+				cardIds: [from.card.id, to.card.id],
+				id: expect.any(String),
+				name: "Launch cluster",
+			},
+		]);
+		expect(grouped.wall.cards.every((card) => card.groupId)).toBe(true);
+		const checkoutSource = await getWork(prisma, checkout.id);
+		expect(checkoutSource?.title).toBe("Checkout flow");
+		expect(checkoutSource).not.toHaveProperty("classification");
+		expect(
+			await listRelations(prisma, {
+				record: { id: checkout.id, kind: "Work" },
+				viewerWorkspaceId: workspaceId,
+			})
+		).toEqual([]);
+		const nested = await createGroup(prisma, {
+			actorId,
+			idempotencyKey: "nested-group",
+			origin: "human",
+			payload: {
+				cardIds: [from.card.id],
+				name: "Inner",
+				parentId: grouped.wall.groups[0]?.id,
+				wallId: wall.id,
+			},
+		});
+		expect(nested).toEqual({
+			reason: PROJECT_WALL_REJECTION.nestedGroup,
+			status: "rejected",
+		});
+	});
+
+	it("keeps Lock Position view-local and does not freeze the source record", async () => {
+		const { actorId, projectId } = await openProject(prisma);
+		const checkout = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Checkout flow",
+		});
+		const wallet = await committedWork(prisma, {
+			actorId,
+			projectId,
+			title: "Wallet",
+		});
+		const wall = await committedWall(prisma, {
+			actorId,
+			name: "Launch narrative",
+			projectId,
+		});
+		const locked = await placedCard(prisma, {
+			actorId,
+			positionX: 40,
+			positionY: 60,
+			sourceId: checkout.id,
+			wallId: wall.id,
+		});
+		await placedCard(prisma, {
+			actorId,
+			positionX: 80,
+			positionY: 90,
+			sourceId: wallet.id,
+			wallId: wall.id,
+		});
+		const pin = await setLockPosition(prisma, {
+			actorId,
+			idempotencyKey: "lock-checkout",
+			origin: "human",
+			payload: {
+				cardId: locked.card.id,
+				locked: true,
+				wallId: wall.id,
+			},
+		});
+		expect(pin.status).toBe("committed");
+		if (pin.status !== "committed") {
+			return;
+		}
+		expect(pin.wall.cards[0]?.locked).toBe(true);
+		expect(pin.wall.cards[0]?.openSourceRecord).toBe(
+			PROJECT_WALL_COPY.openSourceRecord
+		);
+		const moved = await updateCardLayout(prisma, {
+			actorId,
+			idempotencyKey: "move-locked",
+			origin: "human",
+			payload: {
+				cardId: locked.card.id,
+				positionX: 400,
+				positionY: 400,
+				wallId: wall.id,
+			},
+		});
+		expect(moved).toEqual({
+			reason: PROJECT_WALL_REJECTION.positionLocked,
+			status: "rejected",
+		});
+		const laidOut = await applyAutoLayout(prisma, {
+			actorId,
+			idempotencyKey: "auto-layout",
+			origin: "human",
+			payload: { wallId: wall.id },
+		});
+		expect(laidOut.status).toBe("committed");
+		if (laidOut.status !== "committed") {
+			return;
+		}
+		const lockedCard = laidOut.wall.cards.find(
+			(card) => card.id === locked.card.id
+		);
+		const other = laidOut.wall.cards.find((card) => card.id !== locked.card.id);
+		expect(lockedCard?.positionX).toBe(40);
+		expect(lockedCard?.positionY).toBe(60);
+		expect(other?.positionX).not.toBe(80);
+		const source = await getWork(prisma, checkout.id);
+		expect(source?.status).toBe(WORK_STATUS.notStarted);
+		expect(source?.revision).toBe(checkout.revision);
+		const statusWrite = await changeWorkStatus(prisma, {
+			actorId,
+			baseRevision: checkout.revision,
+			idempotencyKey: "status-while-locked",
+			origin: "human",
+			status: WORK_STATUS.inProgress,
+			workId: checkout.id,
+		});
+		expect(statusWrite.status).toBe("committed");
+		const live = await getProjectWall(prisma, wall.id);
+		expect(
+			live?.cards.find((card) => card.id === locked.card.id)?.fields.Status
+		).toBe(WORK_STATUS.inProgress);
+	});
+
+	it("refuses a Sketch card or freehand drawing on the wall", async () => {
+		const { actorId, projectId } = await openProject(prisma);
+		const wall = await committedWall(prisma, {
+			actorId,
+			name: "Launch narrative",
+			projectId,
+		});
+		const sketch = await placeLiveCard(prisma, {
+			actorId,
+			idempotencyKey: "sketch-card",
+			origin: "human",
+			payload: { sourceKind: "Sketch", wallId: wall.id },
+		});
+		expect(sketch).toEqual({
+			reason: PROJECT_WALL_REJECTION.wallOnlyItem,
+			status: "rejected",
+		});
+		const freehand = await placeLiveCard(prisma, {
+			actorId,
+			idempotencyKey: "freehand",
+			origin: "human",
+			payload: { sourceKind: "Freehand", wallId: wall.id },
+		});
+		expect(freehand).toEqual({
+			reason: PROJECT_WALL_REJECTION.wallOnlyItem,
+			status: "rejected",
+		});
+		expect(JSON.stringify(projectWallCatalog().copy)).not.toMatch(SKETCH_COPY);
 	});
 });

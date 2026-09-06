@@ -6,17 +6,29 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	applyAutoLayout,
+	createGroup,
+	createPersistentRelation,
 	createProjectWall,
+	drawVisualLine,
 	getProjectWall,
 	listProjectWalls,
 	placeLiveCard,
+	previewPersistentRelation,
+	setLockPosition,
 	updateCardDensity,
 	updateCardLayout,
 } from "./project-wall";
 import {
+	applyAutoLayoutPayloadSchema,
+	createGroupPayloadSchema,
+	createPersistentRelationPayloadSchema,
 	createProjectWallPayloadSchema,
+	drawVisualLinePayloadSchema,
 	placeLiveCardPayloadSchema,
+	previewPersistentRelationInputSchema,
 	projectWallCatalog,
+	setLockPositionPayloadSchema,
 	updateCardDensityPayloadSchema,
 	updateCardLayoutPayloadSchema,
 } from "./project-wall-model";
@@ -47,6 +59,23 @@ async function requireWall(workspaceId: string, wallId: string) {
 }
 
 export const projectWall = {
+	applyAutoLayout: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: applyAutoLayoutPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await applyAutoLayout(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	catalog: protectedProcedure.handler(() => projectWallCatalog()),
 	create: protectedWriteProcedure
 		.input(
@@ -61,6 +90,58 @@ export const projectWall = {
 				await requireProject(access.workspaceId, input.payload.projectId);
 			}
 			return await createProjectWall(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	createGroup: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: createGroupPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await createGroup(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	createPersistentRelation: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: createPersistentRelationPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await createPersistentRelation(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				viewerWorkspaceId: access.workspaceId,
+			});
+		}),
+	drawVisualLine: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: drawVisualLinePayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await drawVisualLine(getPrismaClient(), {
 				actorId: context.session.user.id,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",
@@ -91,6 +172,37 @@ export const projectWall = {
 			const access = await requireAccess(context.session.user.id);
 			await requireWall(access.workspaceId, input.payload.wallId);
 			return await placeLiveCard(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	previewPersistentRelation: protectedProcedure
+		.input(
+			previewPersistentRelationInputSchema.omit({
+				viewerWorkspaceId: true,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.wallId);
+			return await previewPersistentRelation(getPrismaClient(), {
+				...input,
+				viewerWorkspaceId: access.workspaceId,
+			});
+		}),
+	setLockPosition: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: setLockPositionPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireWall(access.workspaceId, input.payload.wallId);
+			return await setLockPosition(getPrismaClient(), {
 				actorId: context.session.user.id,
 				idempotencyKey: input.idempotencyKey,
 				origin: "human",

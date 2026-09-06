@@ -35,6 +35,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Proje Duvarı oluştur | `Create Project Wall` | Adlandırılmış düz Proje Duvarı açma |
 | Proje Duvarı yok | `No Project Wall yet.` | Henüz duvar açılmamış boş durum |
 | Canlı kart yerleştir | `Place live card` | Mevcut ana kaydı kopyasız canlı kart olarak duvara referanslama |
+| Görsel bağlantı | `Visual link` | Kartlar arasında yönlü etiketli anlatı çizgisi; kayıt ilişkisi değildir |
+| Kalıcı ilişki oluştur | `Create Persistent Relation` | Görsel çizgiden önizlemeli katalog ilişkisi yazma |
+| Konumu kilitle | `Lock Position` | Görünüm-yerel konum sabiti; kaynak kaydın düzenlenmesini veya yaşamını kısıtlamaz |
 | Moodboard | `Moodboard` | Proje veya özellik için görsel referans ve seçilen tasarım yönünü toplayan tasarım türü; Kullanıcı Akışı, Wireframe veya tasarım sistemi değildir |
 | Moodboard oluştur | `Create Moodboard` | Başlıkla Moodboard açma |
 | Moodboard yok | `No Moodboards yet.` | Henüz Moodboard açılmamış boş durum |

@@ -1006,8 +1006,16 @@ Kullanıcının arayüz hedefi ve karar yolunu canlı Ekran referanslarıyla ta�
 _Avoid_: Wireframe belgesi, Teknik Sıra, flowchart
 
 **Proje Duvarı**:
-Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`.
-_Avoid_: iç içe duvar, çalışma alanı duvarı, Sketch card, duvara özgü not, kopya kayıt
+Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`, `Visual link`, `Create Persistent Relation`, `Lock Position`.
+_Avoid_: iç içe duvar, çalışma alanı duvarı, Sketch card, duvara özgü not, kopya kayıt, görsel-çizgi-ilişki
+
+**Görsel bağlantı**:
+Kartlar arasında yönlü ve etiketli anlatı çizgisi; kayıt ilişkisi, `Related` veya kullanım bağı değildir ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Visual link`.
+_Avoid_: kalıcı ilişki, otomatik grafik, Sketch card
+
+**Konumu kilitle**:
+Görünüm-yerel konum sabiti; kaynak kaydın düzenlenmesini veya yaşamını kısıtlamaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Lock Position`.
+_Avoid_: kaynak dondurma, kayıt kilidi
 
 **Wireframe yüzeyi**:
 Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir.
