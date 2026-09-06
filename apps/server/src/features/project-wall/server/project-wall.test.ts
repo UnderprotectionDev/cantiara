@@ -1584,6 +1584,43 @@ describe("Project Wall starter skeletons", () => {
 			materialized.walls.map((wall) => wall.id)
 		);
 	});
+
+	it("does not create a second Sitemap when Design opens again", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(prisma, {
+			actorId,
+			idempotencyKey: `saas-again-${crypto.randomUUID()}`,
+			origin: "human",
+			payload: {
+				name: "Billing",
+				starterConfiguration: "Solo SaaS",
+			},
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		await materializeStarterSkeletonWalls(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-walls:${created.project.id}`,
+			origin: "human",
+			payload: { projectId: created.project.id },
+			workspaceId,
+		});
+		const second = await materializeStarterSkeletonWalls(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-walls-reopen:${created.project.id}`,
+			origin: "human",
+			payload: { projectId: created.project.id },
+			workspaceId,
+		});
+		expect(second.status).toBe("committed");
+		expect(
+			(await listProjectWalls(prisma, created.project.id)).map(
+				(wall) => wall.name
+			)
+		).toEqual([PROJECT_WALL_COPY.sitemap, PROJECT_WALL_COPY.customerJourney]);
+	});
 });
 
 describe("Project Wall personal viewport and outline", () => {

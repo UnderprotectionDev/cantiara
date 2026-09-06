@@ -859,15 +859,53 @@ async function materializeSkeletonsInTransaction(
 	fingerprint: string,
 	skeletons: readonly (typeof PROJECT_WALL_STARTER_SKELETONS)[number][]
 ): Promise<StarterSkeletonWallsOutcome> {
-	requireDesignWriteDelegate(tx);
 	await lockProject(tx, command.payload.projectId);
 	const replayed = await replaySkeletonsOrConflict(tx, commandKey, fingerprint);
 	if (replayed) {
 		return replayed;
 	}
+	const existing =
+		typeof tx.design?.findMany === "function"
+			? await tx.design.findMany({
+					orderBy: { createdAt: "asc" },
+					where: {
+						projectId: command.payload.projectId,
+						type: DESIGN_TYPE_PROJECT_WALL,
+					},
+				})
+			: [];
+	const existingNames = new Set(existing.map((row) => row.name));
+	const pending = skeletons.filter(
+		(skeleton) => !existingNames.has(skeleton.name)
+	);
+	if (pending.length === 0) {
+		const walls = await Promise.all(
+			existing
+				.filter((row) => existingNames.has(row.name))
+				.filter((row) =>
+					skeletons.some((skeleton) => skeleton.name === row.name)
+				)
+				.map((row) => hydrateWall(tx, row))
+		);
+		await tx.mutationReceipt.create({
+			data: {
+				actorId: command.actorId,
+				actorType: MUTATION_ACTOR.user,
+				commandKey,
+				committedRevision: walls[0]?.revision ?? 0,
+				id: crypto.randomUUID(),
+				origin: HUMAN_ORIGIN,
+				payloadFingerprint: fingerprint,
+				resultValue: JSON.stringify(walls),
+				targetId: walls[0]?.id ?? command.payload.projectId,
+			},
+		});
+		return { status: "committed", walls };
+	}
+	requireDesignWriteDelegate(tx);
 	const startedAt = Date.now();
 	const created = await Promise.all(
-		skeletons.map((skeleton, index) =>
+		pending.map((skeleton, index) =>
 			tx.design.create({
 				data: {
 					createdAt: new Date(startedAt + index),

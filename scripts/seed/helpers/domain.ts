@@ -512,7 +512,7 @@ export async function seedStarterSkeletonWalls(
 
 	const created = await materializeStarterSkeletonWalls(ctx.prisma, {
 		actorId: ctx.actorId,
-		idempotencyKey: idempotencyKey(input.prefix, "starter-skeleton-walls"),
+		idempotencyKey: `starter-skeleton-walls:${input.projectId}`,
 		origin: "human",
 		payload: { projectId: input.projectId },
 		workspaceId: ctx.workspaceId,

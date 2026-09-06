@@ -1,7 +1,7 @@
 import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
 import { Spinner } from "@cantiara/ui/components/spinner";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
@@ -9,7 +9,10 @@ import { orpc, queryClient } from "@/utils/orpc";
 
 import CreateProjectWallForm from "./create-project-wall-form";
 import ProjectWallCanvas from "./project-wall-canvas";
-import { PROJECT_WALL_COPY } from "./project-wall-copy";
+import {
+	hasStarterSkeletonWalls,
+	PROJECT_WALL_COPY,
+} from "./project-wall-copy";
 
 export default function ProjectWallArea({
 	onOpenSourceRecord,
@@ -20,6 +23,7 @@ export default function ProjectWallArea({
 }) {
 	const { attemptOnlineWork } = useClientShell();
 	const [selectedId, setSelectedId] = useState<string | null>(null);
+	const materializeStartedFor = useRef<string | null>(null);
 	const materialize = useMutation(
 		orpc.projectWall.materializeStarterSkeletons.mutationOptions({
 			onSuccess: async () => {
@@ -31,7 +35,19 @@ export default function ProjectWallArea({
 			},
 		})
 	);
+	const walls = useQuery(
+		orpc.projectWall.list.queryOptions({ input: { projectId } })
+	);
+	const needsStarterSkeletons =
+		walls.isSuccess && !hasStarterSkeletonWalls(walls.data);
 	useEffect(() => {
+		if (!needsStarterSkeletons) {
+			return;
+		}
+		if (materializeStartedFor.current === projectId) {
+			return;
+		}
+		materializeStartedFor.current = projectId;
 		const result = attemptOnlineWork("record-create", () =>
 			materialize.mutateAsync({
 				idempotencyKey: `starter-skeleton-walls:${projectId}`,
@@ -39,13 +55,16 @@ export default function ProjectWallArea({
 			})
 		);
 		if (result.status === "refused") {
+			materializeStartedFor.current = null;
 			return;
 		}
 		result.value.catch(() => undefined);
-	}, [attemptOnlineWork, materialize.mutateAsync, projectId]);
-	const walls = useQuery(
-		orpc.projectWall.list.queryOptions({ input: { projectId } })
-	);
+	}, [
+		attemptOnlineWork,
+		materialize.mutateAsync,
+		needsStarterSkeletons,
+		projectId,
+	]);
 	const onCreated = useCallback((wallId: string) => {
 		setSelectedId(wallId);
 	}, []);

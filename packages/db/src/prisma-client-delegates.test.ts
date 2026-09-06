@@ -33,6 +33,12 @@ function workDelegates() {
 		},
 		dailyFocusMembership: { findMany, findUnique: findMany },
 		decision: { create: () => undefined, findMany },
+		design: {
+			create: () => undefined,
+			findMany,
+			findUnique: findMany,
+			update: () => undefined,
+		},
 		document: { findMany },
 		documentConflictDraft: {
 			create: () => undefined,
@@ -438,8 +444,8 @@ describe("Prisma client current delegates", () => {
 		).toBe(true);
 	});
 
-	it("accepts a bun --hot client generated before Project Wall Design", () => {
-		const beforeDesign = {
+	it("refuses a bun --hot client generated before Project Wall Design", () => {
+		const { design: _dropped, ...beforeDesign } = {
 			...workDelegates(),
 			...currentLifecycleDelegates(),
 			externalExecutionHandoff: { create: () => undefined, findMany },
@@ -460,10 +466,11 @@ describe("Prisma client current delegates", () => {
 		};
 		expect(
 			prismaClientHasCurrentDelegates(beforeDesign as unknown as PrismaClient)
-		).toBe(true);
+		).toBe(false);
 		expect(
 			prismaClientHasCurrentDelegates({
-				...beforeDesign,
+				...workDelegates(),
+				...currentLifecycleDelegates(),
 				_runtimeDataModel: {
 					models: {
 						Design: { fields: [{ name: "id" }, { name: "name" }] },
@@ -474,6 +481,21 @@ describe("Prisma client current delegates", () => {
 						ScreenPersonalViewport: { fields: [{ name: "id" }] },
 					},
 				},
+				externalExecutionHandoff: { create: () => undefined, findMany },
+				fileAttachment: { findMany },
+				fileAttachmentOriginLocation: { findMany },
+				fileAttachmentReceipt: { findMany },
+				fileAttachmentRelation: { findMany },
+				fileAttachmentStaging: { findMany },
+				fileAttachmentVersion: { findMany },
+				fileAttachmentVersionPin: { findMany },
+				fileImageDerivative: { findMany },
+				fileObjectBlob: { findMany },
+				tag: { findMany },
+				tagInlineUse: { findMany },
+				usageHostEmbed: { findMany },
+				usageLink: { findMany },
+				workTag: { findMany },
 			} as unknown as PrismaClient)
 		).toBe(true);
 	});
