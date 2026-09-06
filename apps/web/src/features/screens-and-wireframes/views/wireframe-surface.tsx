@@ -315,6 +315,19 @@ export default function WireframeSurface({
 				persistGeometry(0, 0, "left");
 				return;
 			}
+			if (applied.kind === "select") {
+				if (nodes.length === 0) {
+					return;
+				}
+				setSelectedIds((current) => {
+					const ids = nodes.map((node) => node.id);
+					const index = ids.indexOf(current[0] ?? "");
+					const next = (index + applied.direction + ids.length) % ids.length;
+					const id = ids[next];
+					return id ? [id] : [];
+				});
+				return;
+			}
 			persistViewport({
 				centerX: applied.viewport.centerX,
 				centerY: applied.viewport.centerY,
@@ -322,7 +335,7 @@ export default function WireframeSurface({
 				zoom: applied.viewport.zoom,
 			});
 		},
-		[collapsed, persistGeometry, persistViewport, restored, selectedIds]
+		[collapsed, nodes, persistGeometry, persistViewport, restored, selectedIds]
 	);
 
 	const selectedNode = nodes.find((node) => node.id === selectedIds[0]);
@@ -361,7 +374,7 @@ export default function WireframeSurface({
 						type="button"
 						variant="outline"
 					>
-						{SCREENS_COPY.navigation}
+						{linkedBlocks.data?.[0]?.name ?? SCREENS_COPY.detachLink}
 					</Button>
 				</div>
 			</div>
@@ -484,6 +497,7 @@ function applyWireframeKey(
 ):
 	| { deltaX: number; deltaY: number; kind: "nudge" }
 	| { kind: "align" }
+	| { direction: -1 | 1; kind: "select" }
 	| {
 			kind: "viewport";
 			viewport: { centerX: number; centerY: number; zoom: number };
@@ -523,6 +537,12 @@ function applyWireframeKey(
 	}
 	if (event.key.toLowerCase() === "a" && input.multiSelect) {
 		return { kind: "align" };
+	}
+	if (event.key === "]" || event.key === "[") {
+		return {
+			direction: event.key === "]" ? 1 : -1,
+			kind: "select",
+		};
 	}
 	return null;
 }
