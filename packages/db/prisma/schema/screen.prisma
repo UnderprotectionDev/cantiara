@@ -1,17 +1,23 @@
 model Screen {
-  id         String             @id
-  projectId  String
-  project    Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title      String
-  archivedAt DateTime?
-  trashedAt  DateTime?
-  revision   Int
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-  versions   WireframeVersion[]
-  events     ScreenEvent[]
+  id                        String             @id
+  projectId                 String
+  project                   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title                     String
+  body                      String             @default("")
+  archivedAt                DateTime?
+  trashedAt                 DateTime?
+  redactedAt                DateTime?
+  currentWireframeVersionId String?
+  wireframeVersionsJson     String             @default("[]")
+  revision                  Int
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+  versions                  WireframeVersion[]
+  events                    ScreenEvent[]
 
   @@index([projectId])
+  @@index([projectId, archivedAt])
+  @@index([projectId, trashedAt])
   @@index([projectId, trashedAt, archivedAt])
   @@map("screen")
 }
@@ -30,11 +36,11 @@ model WireframeVersion {
 }
 
 model ScreenEvent {
-  id        String   @id
-  screenId  String
-  screen    Screen   @relation(fields: [screenId], references: [id], onDelete: Cascade)
-  kind      String
-  actorId   String
+  id         String   @id
+  screenId   String
+  screen     Screen   @relation(fields: [screenId], references: [id], onDelete: Cascade)
+  kind       String
+  actorId    String
   occurredAt DateTime @default(now())
 
   @@index([screenId, occurredAt])

@@ -53,6 +53,7 @@ import SourceArea from "@/features/sources-and-freshness/views/source-area";
 import { UNCERTAINTY_COPY } from "@/features/uncertainty-records/forms/uncertainty-records-copy";
 import AssumptionArea from "@/features/uncertainty-records/views/assumption-area";
 import OpenQuestionArea from "@/features/uncertainty-records/views/open-question-area";
+import UserFlowArea from "@/features/user-flow/views/user-flow-area";
 import { VALIDATION_RECORDS_COPY } from "@/features/validation-records/forms/validation-records-copy";
 import ValidationRecordArea from "@/features/validation-records/views/validation-record-area";
 import WorkArea from "@/features/work-lifecycle/views/work-area";
@@ -644,8 +645,9 @@ function projectRecordArea({
 		return (
 			<section aria-label="Design" id={projectShellAnchor("Design")}>
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">Design</h1>
-				<div className="mt-6">
+				<div className="mt-6 flex flex-col gap-10">
 					<ScreenArea projectId={projectId} />
+					<UserFlowArea projectId={projectId} />
 				</div>
 			</section>
 		);
@@ -982,6 +984,19 @@ function ProjectBody({
 	}
 
 	if (selectedArea) {
+		if (selectedArea === "Design") {
+			return (
+				<section aria-label="Design" id={projectShellAnchor("Design")}>
+					<h1 className="font-semibold text-[1.375rem] tracking-tight">
+						Design
+					</h1>
+					<div className="mt-6 flex flex-col gap-10">
+						<ScreenArea projectId={data.id} />
+						<UserFlowArea projectId={data.id} />
+					</div>
+				</section>
+			);
+		}
 		return (
 			<section aria-label={selectedArea} id={projectShellAnchor(selectedArea)}>
 				<h1 className="font-semibold text-[1.375rem] tracking-tight">

@@ -39,6 +39,7 @@ import { sources } from "../features/sources-and-freshness/server/sources-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
 import { uncertaintyRecords } from "../features/uncertainty-records/server/uncertainty-records-rpc";
 import { unifiedCalendar } from "../features/unified-calendar/server/unified-calendar-rpc";
+import { userFlow } from "../features/user-flow/server/user-flow-rpc";
 import { validationRecords } from "../features/validation-records/server/validation-records-rpc";
 import { clientShell } from "../features/web-macos-client/server/desktop-api-window";
 import { workChecklists } from "../features/work-checklists/server/work-checklists-rpc";
@@ -48,7 +49,56 @@ import { workLifecycle } from "../features/work-lifecycle/server/work-lifecycle-
 import { workTemplates } from "../features/work-templates/server/work-templates-rpc";
 import { workspaceOverviewRouter } from "../features/workspace-overview/server/workspace-overview-rpc";
 
-export const appRouter = {
+export const appRouter: {
+	accountAccess: typeof accountAccess;
+	accountPreferences: typeof accountPreferences;
+	backlog: typeof backlog;
+	blockers: typeof blockers;
+	bulkEditing: typeof bulkEditing;
+	captureInbox: typeof captureInbox;
+	clientShell: typeof clientShell;
+	completionEffects: typeof completionEffects;
+	contactAndCompany: typeof contactAndCompany;
+	customFields: typeof customFields;
+	dailyFocus: typeof dailyFocus;
+	decisions: typeof decisions;
+	documents: typeof documents;
+	evidence: typeof evidence;
+	externalHandoffs: typeof externalHandoffs;
+	favorites: typeof favorites;
+	feedback: typeof feedback;
+	fileAttachments: typeof fileAttachments;
+	focusPeriod: typeof focusPeriod;
+	healthCheck: ReturnType<typeof publicProcedure.handler>;
+	kanban: typeof kanban;
+	personalReminders: typeof personalReminders;
+	personalWiki: typeof personalWiki;
+	priority: typeof priority;
+	privateData: ReturnType<typeof protectedProcedure.handler>;
+	projectGoals: typeof projectGoals;
+	projectOverview: typeof projectOverviewRouter;
+	projectShell: typeof projectShell;
+	recordActions: typeof recordActions;
+	recordDiscovery: typeof recordDiscovery;
+	relations: typeof relations;
+	researchSessions: typeof researchSessions;
+	returnToWork: typeof returnToWork;
+	risks: typeof risks;
+	roadmapHorizon: typeof roadmapHorizon;
+	smartCollections: typeof smartCollections;
+	sources: typeof sources;
+	tags: typeof tags;
+	uncertaintyRecords: typeof uncertaintyRecords;
+	unifiedCalendar: typeof unifiedCalendar;
+	userFlow: typeof userFlow;
+	validationRecords: typeof validationRecords;
+	workChecklists: typeof workChecklists;
+	workContext: typeof workContext;
+	workDrafts: typeof workDrafts;
+	workLifecycle: typeof workLifecycle;
+	workspaceOverview: typeof workspaceOverviewRouter;
+	workTemplates: typeof workTemplates;
+} = {
 	accountAccess,
 	accountPreferences,
 	backlog,
@@ -93,6 +143,7 @@ export const appRouter = {
 	tags,
 	uncertaintyRecords,
 	unifiedCalendar,
+	userFlow,
 	validationRecords,
 	workChecklists,
 	workContext,

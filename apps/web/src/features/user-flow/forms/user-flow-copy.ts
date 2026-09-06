@@ -1,0 +1,15 @@
+export const USER_FLOW_COPY = {
+	archived: "Archived",
+	bindScreen: "Bind Screen",
+	condition: "Condition",
+	createScreen: "Create Screen",
+	createUserFlow: "Create User Flow",
+	decision: "Decision",
+	description: "Description",
+	noUserFlows: "No User Flows yet.",
+	openSourceRecord: "Open Source Record",
+	screen: "Screen",
+	title: "Title",
+	transition: "Transition",
+	userFlow: "User Flow",
+} as const;

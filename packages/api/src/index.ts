@@ -1,5 +1,6 @@
 import {
 	ensureGeneratedPrismaClient,
+	forceRegeneratePrismaClient,
 	forgetPrismaClientCache,
 } from "@cantiara/db";
 import { ORPCError, os } from "@orpc/server";
@@ -20,6 +21,7 @@ export const o = os.$context<Context>();
 
 const runWithGeneratedClientReload = createGeneratedClientReload(() => {
 	forgetPrismaClientCache();
+	forceRegeneratePrismaClient();
 	ensureGeneratedPrismaClient();
 });
 
