@@ -28,6 +28,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belge içi etiket | `#tag` | Belge düz yazısındaki tokenın aynı Çalışma Alanı Etiket kimliğine bağlanması; ikinci sözlük değildir |
 | Özellik | `Feature` | İş türü |
 | Kullanıcı Akışı | `User Flow` | Kullanıcının arayüz hedefi ve karar yolunu taşıyan tasarım türü |
+| Proje Duvarı | `Project Wall` | Mevcut ana kayıtların canlı kartlarıyla proje anlatısını taşıyan Tasarım türü; Wireframe, Moodboard veya Wiki sayfası değildir |
+| Kompakt | `Compact` | Proje Duvarı kart yoğunluğu; ürünün seçtiği alanlar |
+| Önizleme yoğunluğu | `Preview` | Proje Duvarı kart yoğunluğu |
+| Ayrıntılı | `Detailed` | Proje Duvarı kart yoğunluğu |
+| Proje Duvarı oluştur | `Create Project Wall` | Adlandırılmış düz Proje Duvarı açma |
+| Proje Duvarı yok | `No Project Wall yet.` | Henüz duvar açılmamış boş durum |
+| Canlı kart yerleştir | `Place live card` | Mevcut ana kaydı kopyasız canlı kart olarak duvara referanslama |
 | Herkese açık | `Public` | Dışarıdan anonim erişilebilen kullanıcı görünürlüğü; `Build in Public` ürün adı, teknik alan ve wire değerleri özgün adını korur |
 | Özel | `Private` | Dış erişime kapalı kullanıcı görünürlüğü |
 | Dış yüzey | `External Surface` | Ziyaretçi URL'si, erişim anahtarı, parola, süre ve etkinlik durumunu taşıyan paylaşım/yayın ana kaydı |

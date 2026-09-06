@@ -44,6 +44,8 @@ import {
 	workSavedViewIsRoadmap,
 } from "@/features/project-shell/forms/project-shell-copy";
 import ShortCodeForm from "@/features/project-shell/forms/short-code-form";
+import ProjectWallArea from "@/features/project-wall/views/project-wall-area";
+import { PROJECT_WALL_COPY } from "@/features/project-wall/views/project-wall-copy";
 import { RESEARCH_SESSIONS_COPY } from "@/features/research-sessions/forms/research-sessions-copy";
 import ResearchSessionArea from "@/features/research-sessions/views/research-session-area";
 import ReturnToWorkPanel from "@/features/return-to-work/views/return-to-work-panel";
@@ -528,6 +530,7 @@ function projectRecordArea({
 	assumptionId,
 	decisionId,
 	decisionsAnchor,
+	designAnchor,
 	documentsAnchor,
 	fileAttachmentAnchor,
 	onAssumptionId,
@@ -552,6 +555,7 @@ function projectRecordArea({
 	assumptionId?: string | null;
 	decisionId?: string | null;
 	decisionsAnchor: string;
+	designAnchor: string;
 	documentsAnchor: string;
 	fileAttachmentAnchor: string;
 	onAssumptionId?: (assumptionId: string | null) => void;
@@ -631,6 +635,23 @@ function projectRecordArea({
 						onSourceId={onSourceId}
 						projectId={projectId}
 						sourceId={sourceId}
+					/>
+				</div>
+			</section>
+		);
+	}
+	if (selectedAnchor === designAnchor || selectedArea === "Design") {
+		return (
+			<section aria-label={PROJECT_WALL_COPY.projectWall} id={designAnchor}>
+				<h1 className="font-semibold text-[1.375rem] tracking-tight">
+					{PROJECT_WALL_COPY.projectWall}
+				</h1>
+				<div className="mt-6">
+					<ProjectWallArea
+						onOpenSourceRecord={
+							onWorkId ? (id: string) => onWorkId(id) : undefined
+						}
+						projectId={projectId}
 					/>
 				</div>
 			</section>
@@ -865,6 +886,7 @@ function ProjectBody({
 	const risksAnchor = projectShellAnchor("Risks");
 	const fileAttachmentAnchor = projectShellAnchor("File Attachment");
 	const sourceAnchor = projectShellAnchor("Source");
+	const designAnchor = projectShellAnchor("Design");
 	const selectedArea = data.allToolsAreas
 		.map((area) => area.name)
 		.find((area) => projectShellAnchor(area) === selectedAnchor);
@@ -877,6 +899,7 @@ function ProjectBody({
 		assumptionId: showingWork ? null : assumptionId,
 		decisionId: showingWork ? null : decisionId,
 		decisionsAnchor,
+		designAnchor,
 		documentsAnchor,
 		fileAttachmentAnchor,
 		onAssumptionId,
