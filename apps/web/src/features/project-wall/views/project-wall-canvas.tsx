@@ -619,6 +619,18 @@ export default function ProjectWallCanvas({
 			) : null}
 			<DndContext onDragEnd={onDragEnd} sensors={sensors}>
 				<div className="relative min-h-[28rem] overflow-hidden rounded-md border bg-muted/30">
+					{wall.data.groups.length > 0 ? (
+						<ol className="absolute inset-x-3 top-3 z-0 flex flex-col gap-2">
+							{wall.data.groups.map((group) => (
+								<li
+									className="rounded-md border border-dashed bg-background/80 px-3 py-2 text-sm"
+									key={group.id}
+								>
+									{group.name}
+								</li>
+							))}
+						</ol>
+					) : null}
 					<svg
 						aria-hidden="true"
 						className="pointer-events-none absolute inset-0 h-full w-full"

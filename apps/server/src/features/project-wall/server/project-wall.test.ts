@@ -35,6 +35,7 @@ import {
 	drawVisualLine,
 	getProjectWall,
 	listProjectWalls,
+	materializeStarterSkeletonWalls,
 	placeLiveCard,
 	previewPersistentRelation,
 	previewRegionSnapshot,
@@ -45,6 +46,7 @@ import {
 	updateDiagramNode,
 } from "./project-wall";
 import {
+	CUSTOMER_JOURNEY_HEADINGS,
 	DENSITY_FIELDS,
 	PROJECT_WALL_COPY,
 	PROJECT_WALL_DENSITIES,
@@ -52,6 +54,7 @@ import {
 	PROJECT_WALL_REJECTION,
 	PROJECT_WALL_SOURCE_KIND,
 	projectWallCatalog,
+	SITEMAP_HEADINGS,
 	wallPresentation,
 } from "./project-wall-model";
 
@@ -60,6 +63,8 @@ const SURFACE_COPY = /Wireframe|Moodboard|Wiki page|nested wall|CSS/i;
 const SHARE_UI = /Link sharing|Build in Public|External Surface/i;
 const SKETCH_COPY = /Sketch|freehand|Freehand/i;
 const CAPTURED_DAY = /^\d{4}-\d{2}-\d{2}/;
+const SAMPLE_SKELETON_CONTENT =
+	/Alex|Jordan|example finding|sample task|we decided|lorem|TODO: fill/i;
 
 async function seedWorkspace(prisma: PrismaClient) {
 	const user = await prisma.user.create({
@@ -181,6 +186,8 @@ describe("Project Wall catalog", () => {
 	it("uses English Project Wall densities and Open Source Record", () => {
 		const catalog = projectWallCatalog();
 		expect(catalog.copy.projectWall).toBe("Project Wall");
+		expect(catalog.copy.sitemap).toBe("Sitemap");
+		expect(catalog.copy.customerJourney).toBe("Customer Journey");
 		expect(catalog.copy.compact).toBe("Compact");
 		expect(catalog.copy.preview).toBe("Preview");
 		expect(catalog.copy.detailed).toBe("Detailed");
@@ -190,6 +197,16 @@ describe("Project Wall catalog", () => {
 		);
 		expect(catalog.copy.lockPosition).toBe("Lock Position");
 		expect(catalog.copy.visualLink).toBe("Visual link");
+		expect(catalog.skeletons).toEqual([
+			{
+				emptyHeadings: [...SITEMAP_HEADINGS],
+				name: PROJECT_WALL_COPY.sitemap,
+			},
+			{
+				emptyHeadings: [...CUSTOMER_JOURNEY_HEADINGS],
+				name: PROJECT_WALL_COPY.customerJourney,
+			},
+		]);
 		expect(catalog.densities).toEqual(PROJECT_WALL_DENSITIES);
 		expect(catalog.densityFields.Compact).toEqual([
 			PROJECT_WALL_FIELD.title,
@@ -1194,6 +1211,7 @@ describe("Project Wall visual line and lock", () => {
 				cardIds: [from.card.id, to.card.id],
 				id: expect.any(String),
 				name: "Launch cluster",
+				sortOrder: 0,
 			},
 		]);
 		expect(grouped.wall.cards.every((card) => card.groupId)).toBe(true);
@@ -1350,5 +1368,165 @@ describe("Project Wall visual line and lock", () => {
 			status: "rejected",
 		});
 		expect(JSON.stringify(projectWallCatalog().copy)).not.toMatch(SKETCH_COPY);
+	});
+});
+
+describe("Project Wall starter skeletons", () => {
+	let prisma: PrismaClient;
+	let pool: Pool;
+
+	beforeAll(() => {
+		pool = new Pool({ connectionString: DATABASE_URL });
+		prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+	});
+
+	beforeEach(async () => {
+		await resetSharedTables(prisma);
+	});
+
+	afterEach(async () => {
+		await resetSharedTables(prisma);
+	});
+
+	it("does not create living skeleton walls when the project shell has no catalog selection", async () => {
+		const { actorId, projectId, workspaceId } = await openProject(prisma);
+		expect(await listProjectWalls(prisma, projectId)).toEqual([]);
+		const materialized = await materializeStarterSkeletonWalls(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-walls:${projectId}`,
+			origin: "human",
+			payload: { projectId },
+			workspaceId,
+		});
+		expect(materialized).toEqual({ status: "committed", walls: [] });
+		expect(await listProjectWalls(prisma, projectId)).toEqual([]);
+	});
+
+	it("materializes Sitemap and Customer Journey as empty-heading Project Walls after catalog selection", async () => {
+		const { actorId, workspaceId } = await seedWorkspace(prisma);
+		const created = await createProject(prisma, {
+			actorId,
+			idempotencyKey: `saas-${crypto.randomUUID()}`,
+			origin: "human",
+			payload: {
+				name: "Billing",
+				starterConfiguration: "Solo SaaS",
+			},
+			workspaceId,
+		});
+		if (created.status !== "committed") {
+			throw new Error("expected committed Project");
+		}
+		expect(created.project).not.toHaveProperty("walls");
+		expect(await listProjectWalls(prisma, created.project.id)).toEqual([]);
+		expect(
+			await prisma.work.count({ where: { projectId: created.project.id } })
+		).toBe(0);
+		expect(
+			await prisma.document.count({ where: { projectId: created.project.id } })
+		).toBe(0);
+		const materialized = await materializeStarterSkeletonWalls(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-walls:${created.project.id}`,
+			origin: "human",
+			payload: { projectId: created.project.id },
+			workspaceId,
+		});
+		expect(materialized.status).toBe("committed");
+		if (materialized.status !== "committed") {
+			throw new Error("expected committed skeletons");
+		}
+		expect(
+			materialized.walls.map((wall) => ({
+				groups: wall.groups.map((group) => group.name),
+				name: wall.name,
+				type: wall.type,
+			}))
+		).toEqual([
+			{
+				groups: [...SITEMAP_HEADINGS],
+				name: PROJECT_WALL_COPY.sitemap,
+				type: PROJECT_WALL_COPY.projectWall,
+			},
+			{
+				groups: [...CUSTOMER_JOURNEY_HEADINGS],
+				name: PROJECT_WALL_COPY.customerJourney,
+				type: PROJECT_WALL_COPY.projectWall,
+			},
+		]);
+		for (const wall of materialized.walls) {
+			expect(wall.cards).toEqual([]);
+			expect(wall.visualLinks).toEqual([]);
+			expect(wall.recordKind).toBe(PROJECT_WALL_COPY.projectWall);
+			expect(JSON.stringify(wall)).not.toMatch(SAMPLE_SKELETON_CONTENT);
+			expect(wall.groups.every((group) => group.name.length > 0)).toBe(true);
+			expect(wall.groups.every((group) => group.cardIds.length === 0)).toBe(
+				true
+			);
+		}
+		expect(
+			await Promise.all(
+				materialized.walls.map((wall) => getProjectWall(prisma, wall.id))
+			)
+		).toEqual(materialized.walls);
+		expect(
+			(await listProjectWalls(prisma, created.project.id)).map(
+				(wall) => wall.name
+			)
+		).toEqual([PROJECT_WALL_COPY.sitemap, PROJECT_WALL_COPY.customerJourney]);
+		expect(
+			await prisma.work.count({ where: { projectId: created.project.id } })
+		).toBe(0);
+		expect(
+			await prisma.document.count({ where: { projectId: created.project.id } })
+		).toBe(0);
+		expect(
+			materialized.walls.some((wall) =>
+				["Persona", "Retrospective", "Launch Plan"].includes(wall.name)
+			)
+		).toBe(false);
+		const work = await committedWork(prisma, {
+			actorId,
+			projectId: created.project.id,
+			title: "Checkout flow",
+		});
+		const [sitemap] = materialized.walls;
+		expect(sitemap).toBeTruthy();
+		if (!sitemap) {
+			return;
+		}
+		const placed = await placeLiveCard(prisma, {
+			actorId,
+			idempotencyKey: "place-on-sitemap",
+			origin: "human",
+			payload: {
+				sourceId: work.id,
+				sourceKind: PROJECT_WALL_SOURCE_KIND.work,
+				wallId: sitemap.id,
+			},
+		});
+		expect(placed.status).toBe("committed");
+		if (placed.status !== "committed") {
+			return;
+		}
+		expect(placed.wall.name).toBe(PROJECT_WALL_COPY.sitemap);
+		expect(placed.wall.groups.map((group) => group.name)).toEqual([
+			...SITEMAP_HEADINGS,
+		]);
+		expect(placed.wall.cards[0]?.sourceId).toBe(work.id);
+		const replayed = await materializeStarterSkeletonWalls(prisma, {
+			actorId,
+			idempotencyKey: `starter-skeleton-walls:${created.project.id}`,
+			origin: "human",
+			payload: { projectId: created.project.id },
+			workspaceId,
+		});
+		expect(replayed.status).toBe("replayed");
+		if (replayed.status !== "replayed") {
+			throw new Error("expected replayed skeletons");
+		}
+		expect(replayed.walls.map((wall) => wall.id)).toEqual(
+			materialized.walls.map((wall) => wall.id)
+		);
 	});
 });

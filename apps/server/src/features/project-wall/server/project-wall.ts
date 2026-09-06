@@ -3,10 +3,12 @@ import type { Prisma, PrismaClient } from "@cantiara/db";
 import {
 	advisoryKeys,
 	HUMAN_ORIGIN,
+	isRecord,
 	MUTATION_ACTOR,
 	MUTATION_COPY,
 	payloadFingerprint,
 } from "../../mutation-core/server/mutation-shared";
+import { getProject } from "../../project-shell/server/project-shell";
 import {
 	createRelation,
 	previewRelation,
@@ -29,12 +31,15 @@ import {
 	drawVisualLineCommandSchema,
 	fieldsForDensity,
 	type LiveCardFieldMap,
+	type MaterializeStarterSkeletonWallsCommand,
+	materializeStarterSkeletonWallsCommandSchema,
 	type PlaceLiveCardCommand,
 	PROJECT_WALL_COPY,
 	PROJECT_WALL_DENSITIES,
 	PROJECT_WALL_FIELD,
 	PROJECT_WALL_REJECTION,
 	PROJECT_WALL_SOURCE_KIND,
+	PROJECT_WALL_STARTER_SKELETONS,
 	type ProjectWallCardView,
 	type ProjectWallDensity,
 	type ProjectWallGroupView,
@@ -53,6 +58,7 @@ import {
 	regionSnapshotPayloadSchema,
 	type SaveFocusOrderCommand,
 	type SetLockPositionCommand,
+	type StarterSkeletonWallsOutcome,
 	saveFocusOrderCommandSchema,
 	setLockPositionCommandSchema,
 	snapshotNotice,
@@ -389,6 +395,49 @@ export async function listProjectWalls(
 	return await Promise.all(rows.map((row) => hydrateWall(prisma, row)));
 }
 
+export async function materializeStarterSkeletonWalls(
+	prisma: PrismaClient,
+	command: unknown
+): Promise<StarterSkeletonWallsOutcome> {
+	const parsed =
+		materializeStarterSkeletonWallsCommandSchema.safeParse(command);
+	if (!parsed.success) {
+		return {
+			reason: PROJECT_WALL_REJECTION.invalidCommand,
+			status: "rejected",
+		};
+	}
+	const project = await getProject(prisma, parsed.data.payload.projectId);
+	if (!project || project.workspaceId !== parsed.data.workspaceId) {
+		return {
+			reason: PROJECT_WALL_REJECTION.projectNotFound,
+			status: "rejected",
+		};
+	}
+	const selectedNames = new Set(
+		project.selectedSkeletons
+			.filter((skeleton) => skeleton.surface === DESIGN_TYPE_PROJECT_WALL)
+			.map((skeleton) => skeleton.name)
+	);
+	const skeletons = PROJECT_WALL_STARTER_SKELETONS.filter((skeleton) =>
+		selectedNames.has(skeleton.name)
+	);
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = commandKeyFor(
+		parsed.data.actorId,
+		parsed.data.idempotencyKey
+	);
+	return await prisma.$transaction((tx) =>
+		materializeSkeletonsInTransaction(
+			tx,
+			parsed.data,
+			commandKey,
+			fingerprint,
+			skeletons
+		)
+	);
+}
+
 function rejectCreate(
 	command: CreateProjectWallCommand
 ): ProjectWallWriteOutcome | null {
@@ -619,18 +668,20 @@ async function hydrateWall(
 	prisma: PrismaClient | PrismaTransaction,
 	row: DesignRow
 ): Promise<ProjectWallView> {
-	const cards = await prisma.projectWallCard.findMany({
-		orderBy: { createdAt: "asc" },
-		where: { designId: row.id },
-	});
-	const groups = await prisma.projectWallGroup.findMany({
-		orderBy: { createdAt: "asc" },
-		where: { designId: row.id },
-	});
-	const visualLinks = await prisma.projectWallVisualLink.findMany({
-		orderBy: { createdAt: "asc" },
-		where: { designId: row.id },
-	});
+	const [cards, groups, visualLinks] = await Promise.all([
+		prisma.projectWallCard.findMany({
+			orderBy: { createdAt: "asc" },
+			where: { designId: row.id },
+		}),
+		prisma.projectWallGroup.findMany({
+			orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+			where: { designId: row.id },
+		}),
+		prisma.projectWallVisualLink.findMany({
+			orderBy: { createdAt: "asc" },
+			where: { designId: row.id },
+		}),
+	]);
 	const presentedCards = await Promise.all(
 		cards.map((card) => presentCard(prisma, card, row.projectId, cards))
 	);
@@ -645,6 +696,85 @@ async function hydrateWall(
 		revision: row.revision,
 		type: DESIGN_TYPE_PROJECT_WALL,
 		visualLinks: visualLinks.map(presentVisualLink),
+	};
+}
+
+async function materializeSkeletonsInTransaction(
+	tx: PrismaTransaction,
+	command: MaterializeStarterSkeletonWallsCommand,
+	commandKey: string,
+	fingerprint: string,
+	skeletons: readonly (typeof PROJECT_WALL_STARTER_SKELETONS)[number][]
+): Promise<StarterSkeletonWallsOutcome> {
+	await lockProject(tx, command.payload.projectId);
+	const replayed = await replaySkeletonsOrConflict(tx, commandKey, fingerprint);
+	if (replayed) {
+		return replayed;
+	}
+	const startedAt = Date.now();
+	const created = await Promise.all(
+		skeletons.map((skeleton, index) =>
+			tx.design.create({
+				data: {
+					createdAt: new Date(startedAt + index),
+					groups: {
+						create: skeleton.emptyHeadings.map((name, sortOrder) => ({
+							id: crypto.randomUUID(),
+							name,
+							sortOrder,
+						})),
+					},
+					id: crypto.randomUUID(),
+					name: skeleton.name,
+					projectId: command.payload.projectId,
+					revision: 1,
+					type: DESIGN_TYPE_PROJECT_WALL,
+				},
+			})
+		)
+	);
+	const walls = await Promise.all(created.map((row) => hydrateWall(tx, row)));
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: command.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey,
+			committedRevision: walls[0]?.revision ?? 0,
+			id: crypto.randomUUID(),
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: fingerprint,
+			resultValue: JSON.stringify(walls),
+			targetId: walls[0]?.id ?? command.payload.projectId,
+		},
+	});
+	return { status: "committed", walls };
+}
+
+async function replaySkeletonsOrConflict(
+	tx: PrismaTransaction,
+	commandKey: string,
+	fingerprint: string
+): Promise<StarterSkeletonWallsOutcome | null> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
+	});
+	if (!existing) {
+		return null;
+	}
+	if (existing.payloadFingerprint !== fingerprint) {
+		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	}
+	const stored = JSON.parse(existing.resultValue) as unknown;
+	if (!Array.isArray(stored)) {
+		return { status: "replayed", walls: [] };
+	}
+	const ids = stored.flatMap((entry) =>
+		isRecord(entry) && typeof entry.id === "string" ? [entry.id] : []
+	);
+	const walls = await Promise.all(ids.map((id) => getProjectWall(tx, id)));
+	return {
+		status: "replayed",
+		walls: walls.flatMap((wall) => (wall ? [wall] : [])),
 	};
 }
 
@@ -763,7 +893,7 @@ async function presentCard(
 }
 
 function presentGroups(
-	groups: { id: string; name: string }[],
+	groups: { id: string; name: string; sortOrder: number }[],
 	cards: { groupId: string | null; id: string }[]
 ): ProjectWallGroupView[] {
 	return groups.map((group) => ({
@@ -772,6 +902,7 @@ function presentGroups(
 			.map((card) => card.id),
 		id: group.id,
 		name: group.name,
+		sortOrder: group.sortOrder,
 	}));
 }
 
@@ -915,12 +1046,16 @@ async function createGroupInTransaction(
 	if (replayed) {
 		return replayed;
 	}
+	const groupCount = await tx.projectWallGroup.count({
+		where: { designId: wall.id },
+	});
 	const groupId = crypto.randomUUID();
 	await tx.projectWallGroup.create({
 		data: {
 			designId: wall.id,
 			id: groupId,
 			name: command.payload.name,
+			sortOrder: groupCount,
 		},
 	});
 	await tx.projectWallCard.updateMany({

@@ -2,6 +2,7 @@ export const PROJECT_WALL_COPY = {
 	compact: "Compact",
 	createPersistentRelation: "Create Persistent Relation",
 	createProjectWall: "Create Project Wall",
+	customerJourney: "Customer Journey",
 	detailed: "Detailed",
 	exact: "Exact",
 	exitPresentationMode: "Exit Presentation Mode",
@@ -21,6 +22,7 @@ export const PROJECT_WALL_COPY = {
 	preview: "Preview",
 	projectWall: "Project Wall",
 	sharedSource: "Shared source",
+	sitemap: "Sitemap",
 	visualLink: "Visual link",
 } as const;
 

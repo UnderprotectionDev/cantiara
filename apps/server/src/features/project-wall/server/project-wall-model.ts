@@ -4,6 +4,7 @@ export const PROJECT_WALL_COPY = {
 	compact: "Compact",
 	createPersistentRelation: "Create Persistent Relation",
 	createProjectWall: "Create Project Wall",
+	customerJourney: "Customer Journey",
 	detailed: "Detailed",
 	exact: "Exact",
 	exitPresentationMode: "Exit Presentation Mode",
@@ -23,8 +24,35 @@ export const PROJECT_WALL_COPY = {
 	preview: "Preview",
 	projectWall: "Project Wall",
 	sharedSource: "Shared source",
+	sitemap: "Sitemap",
 	visualLink: "Visual link",
 } as const;
+
+export const SITEMAP_HEADINGS = [
+	"Primary Navigation",
+	"Secondary Navigation",
+	"Utility",
+	"External",
+] as const;
+
+export const CUSTOMER_JOURNEY_HEADINGS = [
+	"Awareness",
+	"Consideration",
+	"Onboarding",
+	"Core Use",
+	"Retention",
+] as const;
+
+export const PROJECT_WALL_STARTER_SKELETONS = [
+	{
+		emptyHeadings: SITEMAP_HEADINGS,
+		name: PROJECT_WALL_COPY.sitemap,
+	},
+	{
+		emptyHeadings: CUSTOMER_JOURNEY_HEADINGS,
+		name: PROJECT_WALL_COPY.customerJourney,
+	},
+] as const;
 
 export const DESIGN_TYPE_PROJECT_WALL = "Project Wall" as const;
 
@@ -81,6 +109,7 @@ export const PROJECT_WALL_REJECTION = {
 	nestedWall: "nested-wall",
 	positionLocked: "position-locked",
 	previewRequired: "preview-required",
+	projectNotFound: "project-not-found",
 	sourceNotFound: "source-not-found",
 	unknownDensity: "unknown-density",
 	visualLinkNotFound: "visual-link-not-found",
@@ -116,6 +145,26 @@ export const createProjectWallCommandSchema = z.object({
 
 export type CreateProjectWallCommand = z.infer<
 	typeof createProjectWallCommandSchema
+>;
+
+export const materializeStarterSkeletonWallsPayloadSchema = z.object({
+	projectId: z.string().min(1),
+});
+
+export type MaterializeStarterSkeletonWallsPayload = z.infer<
+	typeof materializeStarterSkeletonWallsPayloadSchema
+>;
+
+export const materializeStarterSkeletonWallsCommandSchema = z.object({
+	actorId: z.string().min(1),
+	idempotencyKey: z.string().min(1),
+	origin: z.literal("human"),
+	payload: materializeStarterSkeletonWallsPayloadSchema,
+	workspaceId: z.string().min(1),
+});
+
+export type MaterializeStarterSkeletonWallsCommand = z.infer<
+	typeof materializeStarterSkeletonWallsCommandSchema
 >;
 
 export const placeLiveCardPayloadSchema = z.object({
@@ -344,6 +393,7 @@ export interface ProjectWallGroupView {
 	cardIds: string[];
 	id: string;
 	name: string;
+	sortOrder: number;
 }
 
 export interface ProjectWallVisualLinkView {
@@ -394,6 +444,12 @@ export type ProjectWallWriteOutcome =
 	| { conflict: "Conflict"; status: "conflict" }
 	| { reason: ProjectWallRejectionReason; status: "rejected" };
 
+export type StarterSkeletonWallsOutcome =
+	| { status: "committed"; walls: ProjectWallView[] }
+	| { status: "replayed"; walls: ProjectWallView[] }
+	| { conflict: "Conflict"; status: "conflict" }
+	| { reason: ProjectWallRejectionReason; status: "rejected" };
+
 export type RegionSnapshotPreviewOutcome =
 	| ({ status: "ok" } & RegionSnapshotView)
 	| { reason: ProjectWallRejectionReason; status: "rejected" };
@@ -430,6 +486,10 @@ export function projectWallCatalog() {
 		},
 		densities: PROJECT_WALL_DENSITIES,
 		densityFields: DENSITY_FIELDS,
+		skeletons: PROJECT_WALL_STARTER_SKELETONS.map((skeleton) => ({
+			emptyHeadings: [...skeleton.emptyHeadings],
+			name: skeleton.name,
+		})),
 		sourceKinds: [
 			PROJECT_WALL_SOURCE_KIND.work,
 			PROJECT_WALL_SOURCE_KIND.technicalDiagram,

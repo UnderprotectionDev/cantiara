@@ -14,6 +14,7 @@ import {
 	drawVisualLine,
 	getProjectWall,
 	listProjectWalls,
+	materializeStarterSkeletonWalls,
 	placeLiveCard,
 	previewPersistentRelation,
 	previewRegionSnapshot,
@@ -28,6 +29,7 @@ import {
 	createPersistentRelationPayloadSchema,
 	createProjectWallPayloadSchema,
 	drawVisualLinePayloadSchema,
+	materializeStarterSkeletonWallsPayloadSchema,
 	PROJECT_WALL_SOURCE_KIND,
 	placeLiveCardPayloadSchema,
 	previewPersistentRelationInputSchema,
@@ -178,6 +180,24 @@ export const projectWall = {
 					projectId: input.projectId,
 					type: PROJECT_WALL_SOURCE_KIND.technicalDiagram,
 				},
+			});
+		}),
+	materializeStarterSkeletons: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: materializeStarterSkeletonWallsPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			await requireProject(access.workspaceId, input.payload.projectId);
+			return await materializeStarterSkeletonWalls(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+				workspaceId: access.workspaceId,
 			});
 		}),
 	placeLiveCard: protectedWriteProcedure
