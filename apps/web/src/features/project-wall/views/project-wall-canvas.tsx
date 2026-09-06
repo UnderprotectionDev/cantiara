@@ -936,13 +936,18 @@ export default function ProjectWallCanvas({
 				<div className="grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
 					{toolsVisible ? (
 						<ProjectWallOutline
+							canUnbind={Boolean(visualLinkId)}
 							cards={wall.data.cards}
 							collapsed={collapsed}
 							groups={wall.data.groups}
+							onAlign={onAlign}
+							onBind={onBindOutline}
+							onGroup={onGroup}
 							onMove={onMoveOutline}
 							onOpenSourceRecord={onOpenSourceRecord}
 							onToggleCollapse={onToggleCollapse}
 							onToggleSelect={onToggleSelect}
+							onUnbind={onUnbindOutline}
 							selectedCard={selectedCard}
 							selectedIds={selectedIds}
 						/>
@@ -1051,29 +1056,77 @@ function moveSelectedCards(
 }
 
 function ProjectWallOutline({
+	canUnbind,
 	cards,
 	collapsed,
 	groups,
+	onAlign,
+	onBind,
+	onGroup,
 	onMove,
 	onOpenSourceRecord,
 	onToggleCollapse,
 	onToggleSelect,
+	onUnbind,
 	selectedCard,
 	selectedIds,
 }: {
+	canUnbind: boolean;
 	cards: WallCard[];
 	collapsed: Set<string>;
 	groups: WallGroup[];
+	onAlign: () => void;
+	onBind: () => void;
+	onGroup: () => void;
 	onMove: (cardId: string, direction: -1 | 1) => void;
 	onOpenSourceRecord?: (sourceId: string) => void;
 	onToggleCollapse: (groupId: string) => void;
 	onToggleSelect: (cardId: string) => void;
+	onUnbind: () => void;
 	selectedCard: WallCard | null;
 	selectedIds: string[];
 }) {
 	return (
 		<nav aria-label={PROJECT_WALL_COPY.outline}>
 			<h3 className="font-medium text-sm">{PROJECT_WALL_COPY.outline}</h3>
+			<div className="mt-2 flex flex-wrap gap-2">
+				<Button
+					disabled={selectedIds.length === 0}
+					onClick={onGroup}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.group}
+				</Button>
+				<Button
+					disabled={selectedIds.length < 2}
+					onClick={onAlign}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.align}
+				</Button>
+				<Button
+					disabled={selectedIds.length !== 2}
+					onClick={onBind}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.visualLink}
+				</Button>
+				<Button
+					disabled={!canUnbind}
+					onClick={onUnbind}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.visualLink}
+				</Button>
+			</div>
 			<ul className="mt-2 flex flex-col gap-2">
 				{groups.map((boardGroup) => (
 					<OutlineGroup

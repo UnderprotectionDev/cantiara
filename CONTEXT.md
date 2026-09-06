@@ -1019,7 +1019,7 @@ UI: `Screen`, `Action`, `Decision`, `State/Outcome`, `Section`
 _Avoid_: flowchart şekli, Teknik Sıra lifeline, durum makinesi durumu, Moodboard görseli, Proje Duvarı kartı
 
 **Proje Duvarı**:
-Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`, `Visual link`, `Create Persistent Relation`, `Lock Position`, `Presentation Mode`, `Open all in source`, `Focus order`, `Live`, `Exact`, `Shared source`.
+Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`, `Visual link`, `Create Persistent Relation`, `Lock Position`, `Presentation Mode`, `Open all in source`, `Focus order`, `Live`, `Exact`, `Shared source`, `Fit View`, `Outline`, `Inspect`, `Group`, `Align`.
 _Avoid_: iç içe duvar, çalışma alanı duvarı, Sketch card, duvara özgü not, kopya kayıt, görsel-çizgi-ilişki
 
 **Görsel bağlantı**:
@@ -1078,7 +1078,7 @@ _Avoid_: recent-context, paylaşım görünümü, export viewport
 
 **Yapılandırılmış outline**:
 İşaretçi olmadan ekleme, seçme, sıralama, gruplama, inceleme ve kaynak açmayı sunan canvas listesi; salt okunur yedek değildir.
-UI: `Outline`, `Open Source Record`
+UI: `Outline`, `Open Source Record`, `Inspect`, `Group`, `Move up`, `Move down`, `Collapse`, `Expand`
 _Avoid_: salt okunur katman listesi
 
 **Görünüm kırpması**:

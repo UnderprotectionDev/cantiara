@@ -251,6 +251,7 @@ describe("Project Wall catalog", () => {
 			externalSurface: false,
 			freehand: false,
 			groupMembershipAsRelation: false,
+			hardSceneIsCreateCap: false,
 			moodboard: false,
 			nestedGroup: false,
 			nestedWall: false,
@@ -275,6 +276,7 @@ describe("Project Wall catalog", () => {
 		expect(catalog.copy.fitView).toBe("Fit View");
 		expect(catalog.copy.outline).toBe("Outline");
 		expect(catalog.copy.inspect).toBe("Inspect");
+		expect(catalog.counterparts.hardSceneIsCreateCap).toBe(false);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(SURFACE_COPY);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(SHARE_UI);
 		expect(JSON.stringify(catalog.copy)).not.toMatch(SKETCH_COPY);

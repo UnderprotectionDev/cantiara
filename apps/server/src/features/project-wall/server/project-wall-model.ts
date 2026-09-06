@@ -920,6 +920,7 @@ export function projectWallCatalog() {
 			externalSurface: false,
 			freehand: false,
 			groupMembershipAsRelation: false,
+			hardSceneIsCreateCap: false,
 			moodboard: false,
 			nestedGroup: false,
 			nestedWall: false,
