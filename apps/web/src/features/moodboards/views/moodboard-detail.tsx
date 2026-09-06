@@ -3,7 +3,9 @@ import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
 import { Spinner } from "@cantiara/ui/components/spinner";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
+import AddColorSwatchForm from "@/features/moodboards/forms/add-color-swatch-form";
 import AddMoodboardVisualForm from "@/features/moodboards/forms/add-moodboard-visual-form";
+import AddPaletteGroupForm from "@/features/moodboards/forms/add-palette-group-form";
 import MoodboardCaptionForm from "@/features/moodboards/forms/moodboard-caption-form";
 import MoodboardFocusOrderForm from "@/features/moodboards/forms/moodboard-focus-order-form";
 import MoodboardSnapshotForm from "@/features/moodboards/forms/moodboard-snapshot-form";
@@ -20,6 +22,8 @@ interface MoodboardVisual {
 	openHref: string | null;
 	openSourceRecord: string;
 	origin: {
+		fileAttachmentId?: string;
+		fileAttachmentVersionId?: string;
 		kind: string;
 		title?: string;
 		url?: string;
@@ -298,6 +302,40 @@ export default function MoodboardDetail({
 						moodboardId={moodboardId}
 						visuals={snapshotVisuals}
 					/>
+					<p className="font-medium text-sm">{MOODBOARDS_COPY.colorSwatch}</p>
+					<AddPaletteGroupForm
+						moodboardId={moodboardId}
+						projectId={projectId}
+					/>
+					<AddColorSwatchForm
+						moodboardId={moodboardId}
+						paletteGroups={moodboard.data.paletteGroups}
+						projectId={projectId}
+						visuals={moodboard.data.visuals}
+					/>
+					{moodboard.data.paletteGroups.length === 0 &&
+					moodboard.data.colorSwatches.length === 0 ? (
+						<Empty>
+							<EmptyHeader>
+								<EmptyTitle>{MOODBOARDS_COPY.addColorSwatch}</EmptyTitle>
+							</EmptyHeader>
+						</Empty>
+					) : (
+						<div className="flex flex-col gap-3">
+							{moodboard.data.paletteGroups.map((paletteGroup) => (
+								<section
+									className="flex flex-col gap-2 rounded-none border border-input px-2.5 py-2"
+									key={paletteGroup.id}
+								>
+									<h3 className="font-medium text-sm">
+										{MOODBOARDS_COPY.paletteGroup} · {paletteGroup.title}
+									</h3>
+									<SwatchList swatches={paletteGroup.colorSwatches} />
+								</section>
+							))}
+							<SwatchList swatches={moodboard.data.colorSwatches} />
+						</div>
+					)}
 					<div className="grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
 						<nav aria-label={MOODBOARDS_COPY.outline}>
 							<h3 className="font-medium text-sm">{MOODBOARDS_COPY.outline}</h3>
@@ -500,4 +538,43 @@ function visualOriginLine(origin: {
 		return `${origin.kind} · ${origin.url}`;
 	}
 	return origin.kind;
+}
+
+function SwatchList({
+	swatches,
+}: {
+	swatches: readonly {
+		hex: string;
+		hsl: { h: number; l: number; s: number };
+		id: string;
+		note: string;
+		rgb: { b: number; g: number; r: number };
+	}[];
+}) {
+	if (swatches.length === 0) {
+		return null;
+	}
+	return (
+		<ul className="flex flex-col gap-2">
+			{swatches.map((swatch) => (
+				<li className="flex items-center gap-3 text-sm" key={swatch.id}>
+					<span
+						aria-hidden="true"
+						className="size-8 shrink-0 border border-input"
+						style={{ backgroundColor: swatch.hex }}
+					/>
+					<div>
+						<p>{MOODBOARDS_COPY.colorSwatch}</p>
+						<p>
+							{MOODBOARDS_COPY.hex} {swatch.hex} · {MOODBOARDS_COPY.rgb}{" "}
+							{swatch.rgb.r},{swatch.rgb.g},{swatch.rgb.b} ·{" "}
+							{MOODBOARDS_COPY.hsl} {swatch.hsl.h},{swatch.hsl.s}%,
+							{swatch.hsl.l}%
+						</p>
+						{swatch.note.length > 0 ? <p>{swatch.note}</p> : null}
+					</div>
+				</li>
+			))}
+		</ul>
+	);
 }

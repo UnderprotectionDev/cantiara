@@ -1,15 +1,17 @@
 model Moodboard {
-  id                 String                      @id
-  projectId          String
-  project            Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title              String
-  revision           Int
-  focusOrder         Json                        @default("[]")
-  createdAt          DateTime                    @default(now())
-  updatedAt          DateTime                    @updatedAt
-  visuals            MoodboardVisual[]
-  groups             MoodboardGroup[]
-  personalViewports  MoodboardPersonalViewport[]
+  id                String                      @id
+  projectId         String
+  project           Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title             String
+  revision          Int
+  focusOrder        Json                        @default("[]")
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  visuals           MoodboardVisual[]
+  groups            MoodboardGroup[]
+  personalViewports MoodboardPersonalViewport[]
+  paletteGroups     MoodboardPaletteGroup[]
+  colorSwatches     MoodboardColorSwatch[]
 
   @@index([projectId])
   @@map("moodboard")
@@ -18,7 +20,7 @@ model Moodboard {
 model MoodboardVisual {
   id                      String                 @id
   moodboardId             String
-  moodboard               Moodboard             @relation(fields: [moodboardId], references: [id], onDelete: Cascade)
+  moodboard               Moodboard              @relation(fields: [moodboardId], references: [id], onDelete: Cascade)
   originKind              String
   fileAttachmentVersionId String?
   fileAttachmentVersion   FileAttachmentVersion? @relation(fields: [fileAttachmentVersionId], references: [id], onDelete: Restrict)
@@ -28,14 +30,50 @@ model MoodboardVisual {
   rotation                Int                    @default(0)
   sortOrder               Int
   groupId                 String?
-  group                   MoodboardGroup?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  group                   MoodboardGroup?        @relation(fields: [groupId], references: [id], onDelete: SetNull)
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt
+  eyedropSwatches         MoodboardColorSwatch[] @relation("MoodboardEyedropVisual")
 
   @@index([moodboardId, sortOrder])
   @@index([fileAttachmentVersionId])
   @@index([groupId])
   @@map("moodboard_visual")
+}
+
+model MoodboardPaletteGroup {
+  id            String                 @id
+  moodboardId   String
+  moodboard     Moodboard              @relation(fields: [moodboardId], references: [id], onDelete: Cascade)
+  title         String
+  sortOrder     Int
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  colorSwatches MoodboardColorSwatch[]
+
+  @@index([moodboardId, sortOrder])
+  @@map("moodboard_palette_group")
+}
+
+model MoodboardColorSwatch {
+  id             String                 @id
+  moodboardId    String
+  moodboard      Moodboard              @relation(fields: [moodboardId], references: [id], onDelete: Cascade)
+  paletteGroupId String?
+  paletteGroup   MoodboardPaletteGroup? @relation(fields: [paletteGroupId], references: [id], onDelete: SetNull)
+  hex            String
+  note           String                 @default("")
+  sourceKind     String
+  sourceVisualId String?
+  sourceVisual   MoodboardVisual?       @relation("MoodboardEyedropVisual", fields: [sourceVisualId], references: [id], onDelete: SetNull)
+  sortOrder      Int
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([moodboardId, sortOrder])
+  @@index([paletteGroupId, sortOrder])
+  @@index([sourceVisualId])
+  @@map("moodboard_color_swatch")
 }
 
 model MoodboardGroup {
@@ -55,9 +93,9 @@ model MoodboardGroup {
 model MoodboardPersonalViewport {
   id                String    @id
   moodboardId       String
-  moodboard         Moodboard  @relation(fields: [moodboardId], references: [id], onDelete: Cascade)
+  moodboard         Moodboard @relation(fields: [moodboardId], references: [id], onDelete: Cascade)
   userId            String
-  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   centerX           Float
   centerY           Float
   zoom              Float

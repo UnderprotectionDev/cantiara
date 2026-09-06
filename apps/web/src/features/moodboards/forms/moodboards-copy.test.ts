@@ -6,6 +6,8 @@ const SOCIAL_OR_SECOND_SOURCE =
 	/comment thread|reaction|mention|task|file description/i;
 const FOREIGN_SURFACE =
 	/User Flow|Wireframe|design system|Screen|production asset/i;
+const STOCK_OR_AUTO_SUGGEST =
+	/stock image|unsplash|auto(?:matic)? color suggest|color suggestion/i;
 const OUT_OF_SCOPE_SHARE = /Build in Public|share link/i;
 
 test("English Moodboard labels stay Moodboard, Caption, Presentation Mode, and origin kinds", () => {
@@ -32,4 +34,18 @@ test("English Moodboard labels stay Moodboard, Caption, Presentation Mode, and o
 	expect(JSON.stringify(MOODBOARDS_COPY)).not.toMatch(SOCIAL_OR_SECOND_SOURCE);
 	expect(JSON.stringify(MOODBOARDS_COPY)).not.toMatch(FOREIGN_SURFACE);
 	expect(JSON.stringify(MOODBOARDS_COPY)).not.toMatch(OUT_OF_SCOPE_SHARE);
+});
+
+test("English Color Swatch labels stay Color Swatch and color input kinds", () => {
+	expect(MOODBOARDS_COPY.colorSwatch).toBe("Color Swatch");
+	expect(MOODBOARDS_COPY.addColorSwatch).toBe("Add Color Swatch");
+	expect(MOODBOARDS_COPY.paletteGroup).toBe("Palette group");
+	expect(MOODBOARDS_COPY.addPaletteGroup).toBe("Add palette group");
+	expect(MOODBOARDS_COPY.note).toBe("Note");
+	expect(MOODBOARDS_COPY.picker).toBe("Picker");
+	expect(MOODBOARDS_COPY.eyedrop).toBe("Eyedrop");
+	expect(MOODBOARDS_COPY.hex).toBe("HEX");
+	expect(MOODBOARDS_COPY.rgb).toBe("RGB");
+	expect(MOODBOARDS_COPY.hsl).toBe("HSL");
+	expect(JSON.stringify(MOODBOARDS_COPY)).not.toMatch(STOCK_OR_AUTO_SUGGEST);
 });

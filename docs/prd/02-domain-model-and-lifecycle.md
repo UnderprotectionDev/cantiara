@@ -44,6 +44,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Altyazı | `Caption` | Moodboard görselindeki isteğe bağlı kısa neden; yorum dizisi, reaksiyon, görev, mention veya Dosya Eki açıklaması değildir |
 | Dış bağlantı | `External link` | Moodboard görselinin Dosya Eki sürümü olmayan kökeni |
 | Görsel ekle | `Add visual` | Moodboard'a Dosya Eki veya dış bağlantı kökenli görsel yerleştirme |
+| Renk Örneği | `Color Swatch` | Moodboard birinci sınıf renk öğesi; palet görsel yön bağlamıdır, tema veya token değildir |
+| Palet grubu | `Palette group` | Moodboard üzerindeki Renk Örneği grubu |
+| Renk Örneği ekle | `Add Color Swatch` | Seçici, kesin görselden Eyedrop, HEX, RGB veya HSL ile Renk Örneği ekleme |
+| Palet grubu ekle | `Add palette group` | Moodboard'a palet grubu açma |
+| Renk notu | `Note` | Renk Örneğindeki isteğe bağlı kısa açıklama |
+| Seçici | `Picker` | Renk Örneği rengi için görsel seçici |
+| Eyedrop | `Eyedrop` | Kesin bir Moodboard görselinden renk alma |
+| HEX | `HEX` | Renk Örneğinin onaltılık gösterimi |
+| RGB | `RGB` | Renk Örneğinin kırmızı-yeşil-mavi gösterimi |
+| HSL | `HSL` | Renk Örneğinin ton-doygunluk-parlaklık gösterimi |
 | Herkese açık | `Public` | Dışarıdan anonim erişilebilen kullanıcı görünürlüğü; `Build in Public` ürün adı, teknik alan ve wire değerleri özgün adını korur |
 | Özel | `Private` | Dış erişime kapalı kullanıcı görünürlüğü |
 | Dış yüzey | `External Surface` | Ziyaretçi URL'si, erişim anahtarı, parola, süre ve etkinlik durumunu taşıyan paylaşım/yayın ana kaydı |

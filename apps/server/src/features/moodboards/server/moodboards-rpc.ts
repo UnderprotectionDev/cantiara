@@ -6,7 +6,9 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	addColorSwatch,
 	addMoodboardVisual,
+	addPaletteGroup,
 	createMoodboard,
 	exportMoodboardSnapshot,
 	getMoodboard,
@@ -23,7 +25,9 @@ import {
 	setMoodboardViewTransform,
 } from "./moodboards";
 import {
+	addColorSwatchPayloadSchema,
 	addMoodboardVisualPayloadSchema,
+	addPaletteGroupPayloadSchema,
 	createMoodboardPayloadSchema,
 	groupOutlinePayloadSchema,
 	moodboardSnapshotScopeSchema,
@@ -82,6 +86,54 @@ function snapshotWire(
 }
 
 export const moodboards = {
+	addColorSwatch: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: addColorSwatchPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const moodboard = await getMoodboard(
+				getPrismaClient(),
+				input.payload.moodboardId
+			);
+			if (!moodboard) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, moodboard.projectId);
+			return await addColorSwatch(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
+	addPaletteGroup: protectedWriteProcedure
+		.input(
+			z.object({
+				idempotencyKey: z.string(),
+				payload: addPaletteGroupPayloadSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const access = await requireAccess(context.session.user.id);
+			const moodboard = await getMoodboard(
+				getPrismaClient(),
+				input.payload.moodboardId
+			);
+			if (!moodboard) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			await requireProject(access.workspaceId, moodboard.projectId);
+			return await addPaletteGroup(getPrismaClient(), {
+				actorId: context.session.user.id,
+				idempotencyKey: input.idempotencyKey,
+				origin: "human",
+				payload: input.payload,
+			});
+		}),
 	addVisual: protectedWriteProcedure
 		.input(
 			z.object({
