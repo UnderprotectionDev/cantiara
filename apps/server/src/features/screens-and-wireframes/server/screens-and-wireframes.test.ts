@@ -62,6 +62,7 @@ import {
 import {
 	CONVERT_RECORD_KINDS,
 	EMPTY_WIREFRAME_DOCUMENT,
+	originLocationRead,
 	SCREEN_EVENT_KIND,
 	SCREEN_KIND,
 	SCREEN_LIFE,
@@ -1050,6 +1051,7 @@ describe("Screens and Wireframes", () => {
 		expect(previewed.preview.title).toBe("Pay now");
 		expect(previewed.preview.body).toBe("Pay now");
 		expect(previewed.preview.origin).toBe(RELATIONS_COPY.origin);
+		expect(previewed.preview.projectId).toBe(projectId);
 		expect(previewed.preview.originLocation).toMatchObject({
 			componentId: "cta",
 			missing: false,
@@ -1265,6 +1267,9 @@ describe("Screens and Wireframes", () => {
 			missing: true,
 			sourceVersion: "1",
 		});
+		expect(originLocationRead(afterGone[0]?.originLocation ?? undefined)).toBe(
+			SCREENS_COPY.sourceItemIsGone
+		);
 		const stillThere = await getDecision(prisma, converted.record.id);
 		expect(stillThere?.title).toBe("Pay now");
 		const v1 = await getExactWireframeVersion(prisma, {
@@ -1272,6 +1277,102 @@ describe("Screens and Wireframes", () => {
 			versionNumber: 1,
 		});
 		expect(v1?.document.nodes.some((node) => node.id === "cta")).toBe(false);
+	});
+
+	it("rebinds Origin Location only after preview", async () => {
+		const { actorId, projectId, workspaceId } = await openPayments(prisma);
+		const screen = await committedScreen(prisma, {
+			actorId,
+			idempotencyKey: "create-rebind",
+			projectId,
+			title: "Pay",
+		});
+		const saved = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: screen.revision,
+			idempotencyKey: "rebind-v1",
+			origin: "human",
+			payload: {
+				document: buttonDocument("cta", "Pay now"),
+				screenId: screen.id,
+			},
+		});
+		if (saved.status !== "committed") {
+			throw new Error("expected version");
+		}
+		const previewed = await previewConvertAndBind(prisma, {
+			nodeId: "cta",
+			projectId,
+			recordKind: "Risk",
+			screenId: screen.id,
+			versionNumber: 1,
+		});
+		if (previewed.status !== "ok") {
+			throw new Error("expected preview");
+		}
+		const converted = await convertAndBind(prisma, {
+			actorId,
+			idempotencyKey: "convert-risk",
+			origin: "human",
+			payload: {
+				nodeId: "cta",
+				previewFingerprint: previewed.preview.fingerprint,
+				projectId,
+				recordKind: "Risk",
+				screenId: screen.id,
+				versionNumber: 1,
+			},
+			previewAcknowledged: true,
+		});
+		if (converted.status !== "committed") {
+			throw new Error("expected convert");
+		}
+		const next = await saveExactWireframeVersion(prisma, {
+			actorId,
+			baseRevision: saved.screen.revision,
+			idempotencyKey: "rebind-v2",
+			origin: "human",
+			payload: {
+				document: buttonDocument("other", "Later"),
+				screenId: screen.id,
+			},
+		});
+		expect(next.status).toBe("committed");
+		const reboundPreview = await previewRebindOrigin(prisma, {
+			nodeId: "other",
+			recordId: converted.record.id,
+			recordKind: "Risk",
+			screenId: screen.id,
+			versionNumber: 2,
+		});
+		if (reboundPreview.status !== "ok") {
+			throw new Error("expected rebind preview");
+		}
+		expect(reboundPreview.preview.projectId).toBe(projectId);
+		const rebound = await rebindOrigin(prisma, {
+			actorId,
+			idempotencyKey: "previewed-rebind",
+			origin: "human",
+			payload: {
+				nodeId: "other",
+				previewFingerprint: reboundPreview.preview.fingerprint,
+				recordId: converted.record.id,
+				recordKind: "Risk",
+				screenId: screen.id,
+				versionNumber: 2,
+			},
+			previewAcknowledged: true,
+		});
+		expect(rebound.status).toBe("committed");
+		const afterRebind = await listRelations(prisma, {
+			record: { id: converted.record.id, kind: "Risk" },
+			viewerWorkspaceId: workspaceId,
+		});
+		expect(afterRebind[0]?.originLocation).toMatchObject({
+			componentId: "other",
+			missing: false,
+			sourceVersion: "2",
+		});
 	});
 
 	it("moves a live card without writing the source record and stamps a template without live source binds", async () => {

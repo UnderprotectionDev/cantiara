@@ -228,44 +228,111 @@ export async function rebindOrigin(
 	) {
 		return { reason: "preview-mismatch", status: "rejected" };
 	}
-	const screen = await loadScreenView(prisma, parsed.data.payload.screenId);
-	if (!screen) {
-		return { reason: "screen-not-found", status: "rejected" };
+	const fingerprint = payloadFingerprint(parsed.data.payload);
+	const commandKey = `human:${parsed.data.actorId}:${parsed.data.idempotencyKey}`;
+	try {
+		return await prisma.$transaction((tx) =>
+			rebindOriginInTransaction(
+				tx,
+				{
+					actorId: parsed.data.actorId,
+					payload: parsed.data.payload,
+					preview: previewed.preview,
+				},
+				commandKey,
+				fingerprint
+			)
+		);
+	} catch (error) {
+		if (error instanceof ConvertBarrierError) {
+			return error.outcome;
+		}
+		throw error;
 	}
-	const project = await getProject(prisma, screen.projectId);
-	if (!project) {
-		return { reason: "screen-not-found", status: "rejected" };
-	}
-	const origin = await createRelationInTransaction(prisma, {
-		actorId: parsed.data.actorId,
-		from: { id: screen.id, kind: SCREEN_KIND },
-		idempotencyKey: `${parsed.data.idempotencyKey}:origin`,
-		origin: HUMAN_ORIGIN,
-		originLocation: previewed.preview.originLocation,
-		previewAcknowledged: true,
-		to: {
-			id: parsed.data.payload.recordId,
-			kind: relationKind(parsed.data.payload.recordKind),
-		},
-		type: RELATIONS_COPY.origin,
-		viewerWorkspaceId: project.workspaceId,
+}
+
+async function rebindOriginInTransaction(
+	tx: PrismaTransaction,
+	input: {
+		actorId: string;
+		payload: {
+			recordId: string;
+			recordKind: ConvertRecordKind;
+			screenId: string;
+		};
+		preview: ConvertPreview;
+	},
+	commandKey: string,
+	fingerprint: string
+): Promise<ConvertWriteOutcome> {
+	const existing = await tx.mutationReceipt.findUnique({
+		where: { commandKey },
 	});
-	if (origin.status === "conflict") {
-		return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+	if (existing) {
+		if (existing.payloadFingerprint !== fingerprint) {
+			return { conflict: MUTATION_COPY.conflict, status: "conflict" };
+		}
+		const stored = JSON.parse(existing.resultValue) as ConvertWriteCommitted;
+		return { ...stored, status: "replayed" };
 	}
-	if (origin.status !== "committed" && origin.status !== "replayed") {
-		return { reason: origin.reason, status: "rejected" };
+	const screen = await loadScreenView(tx, input.payload.screenId);
+	if (!screen) {
+		throw new ConvertBarrierError({
+			reason: "screen-not-found",
+			status: "rejected",
+		});
 	}
-	return {
-		originLocation: previewed.preview.originLocation,
+	const origin = await tx.typedRelation.findUnique({
+		where: {
+			type_fromKind_fromId_toKind_toId: {
+				fromId: screen.id,
+				fromKind: SCREEN_KIND,
+				toId: input.payload.recordId,
+				toKind: relationKind(input.payload.recordKind),
+				type: RELATIONS_COPY.origin,
+			},
+		},
+	});
+	if (!origin) {
+		throw new ConvertBarrierError({
+			reason: "origin-not-found",
+			status: "rejected",
+		});
+	}
+	await tx.typedRelation.update({
+		data: {
+			originComponentId: input.preview.originLocation.componentId,
+			originComponentMissing: false,
+			originOwnerId: input.preview.originLocation.ownerId,
+			originOwnerKind: input.preview.originLocation.ownerKind,
+			originSourceVersion: input.preview.originLocation.sourceVersion,
+		},
+		where: { id: origin.id },
+	});
+	const committed: ConvertWriteCommitted = {
+		originLocation: input.preview.originLocation,
 		record: {
-			id: parsed.data.payload.recordId,
-			kind: parsed.data.payload.recordKind,
-			title: previewed.preview.title,
+			id: input.payload.recordId,
+			kind: input.payload.recordKind,
+			title: input.preview.title,
 		},
 		screen,
-		status: origin.status,
 	};
+	await tx.mutationReceipt.create({
+		data: {
+			actorId: input.actorId,
+			actorType: MUTATION_ACTOR.user,
+			commandKey,
+			committedRevision: origin.revision,
+			id: crypto.randomUUID(),
+			kind: "commit",
+			origin: HUMAN_ORIGIN,
+			payloadFingerprint: fingerprint,
+			resultValue: JSON.stringify(committed),
+			targetId: input.payload.recordId,
+		},
+	});
+	return { ...committed, status: "committed" };
 }
 
 export async function redactWireframeBlock(

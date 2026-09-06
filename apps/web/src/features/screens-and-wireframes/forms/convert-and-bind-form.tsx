@@ -143,6 +143,9 @@ export default function ConvertAndBindForm({
 			{mapping ? (
 				<div className="flex flex-col gap-1 text-sm">
 					<p>
+						{SCREENS_COPY.project}: {mapping.projectId}
+					</p>
+					<p>
 						{SCREENS_COPY.title}: {mapping.title}
 					</p>
 					<p>
@@ -152,9 +155,10 @@ export default function ConvertAndBindForm({
 						{SCREENS_COPY.origin}: {mapping.origin}
 					</p>
 					<p>
-						{SCREENS_COPY.originLocation}: {mapping.originLocation.ownerId} ·{" "}
-						{mapping.originLocation.componentId} ·{" "}
-						{mapping.originLocation.sourceVersion}
+						{SCREENS_COPY.originLocation}:{" "}
+						{mapping.originLocation.missing
+							? SCREENS_COPY.sourceItemIsGone
+							: `${mapping.originLocation.ownerId} · ${mapping.originLocation.componentId} · ${mapping.originLocation.sourceVersion}`}
 					</p>
 				</div>
 			) : null}

@@ -20,7 +20,7 @@ export const SCREENS_COPY = {
 	chart: "Chart",
 	confirm: "Confirm",
 	convertAndBind: "Convert and Bind",
-	createFromTemplate: "Create from template",
+	createFromTemplate: "Create Screen from template",
 	createScreen: "Create Screen",
 	deletePermanently: "Permanently Delete",
 	detachLink: "Detach Link",
@@ -34,6 +34,7 @@ export const SCREENS_COPY = {
 	openSourceRecord: "Open Source Record",
 	origin: "Origin",
 	originLocation: "Origin Location",
+	project: "Project",
 	restore: "Restore",
 	saveAsTemplate: "Save as template",
 	screen: "Screen",
@@ -297,6 +298,18 @@ export const originLocationViewSchema = z.object({
 });
 
 export type OriginLocationView = z.infer<typeof originLocationViewSchema>;
+
+export function originLocationRead(
+	location: { missing: boolean } | null | undefined
+): string | null {
+	if (!location) {
+		return null;
+	}
+	if (location.missing) {
+		return SCREENS_COPY.sourceItemIsGone;
+	}
+	return null;
+}
 
 export const previewConvertAndBindInputSchema = z.object({
 	body: z.string().optional(),
