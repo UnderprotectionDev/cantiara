@@ -281,6 +281,7 @@ function ActiveWireframeWorkspace({
 			{presenting && presentation.data?.status === "ok" ? (
 				<PresentationStage
 					nodes={current?.document.nodes ?? []}
+					onExit={onTogglePresentation}
 					onFollow={onFollow}
 					title={
 						listed.find((item) => item.id === currentScreenId)?.title ??
@@ -345,18 +346,25 @@ function prototypeLinksOn(
 
 function PresentationStage({
 	nodes,
+	onExit,
 	onFollow,
 	title,
 	unresolved,
 }: {
 	nodes: readonly { id: string; kind: string; label?: string }[];
+	onExit: () => void;
 	onFollow: (nodeId: string) => void;
 	title: string;
 	unresolved: boolean;
 }) {
 	return (
-		<section className="flex min-h-[16rem] flex-col gap-3 border border-input p-4">
-			<p className="font-medium text-sm">{title}</p>
+		<section className="fixed inset-0 z-50 flex flex-col gap-3 bg-background p-6">
+			<div className="flex flex-wrap items-center gap-2">
+				<Button onClick={onExit} type="button" variant="outline">
+					{SCREENS_COPY.exitPresentationMode}
+				</Button>
+				<p className="font-medium text-sm">{title}</p>
+			</div>
 			{unresolved ? <p role="status">{SCREENS_COPY.unresolved}</p> : null}
 			<ul className="flex flex-col gap-2">
 				{nodes.map((node) => (
