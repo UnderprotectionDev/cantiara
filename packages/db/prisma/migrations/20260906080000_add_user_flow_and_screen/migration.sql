@@ -49,6 +49,14 @@ CREATE INDEX IF NOT EXISTS "screen_projectId_archivedAt_idx" ON "screen"("projec
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "screen_projectId_trashedAt_idx" ON "screen"("projectId", "trashedAt");
 
+-- Fresh DBs apply this migration before 20260906120000_add_screen.
+-- Hosted DBs that already have main's screen table still need User Flow
+-- preview/redact columns used by live Screen refs.
+ALTER TABLE "screen" ADD COLUMN IF NOT EXISTS "body" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "screen" ADD COLUMN IF NOT EXISTS "redactedAt" TIMESTAMP(3);
+ALTER TABLE "screen" ADD COLUMN IF NOT EXISTS "currentWireframeVersionId" TEXT;
+ALTER TABLE "screen" ADD COLUMN IF NOT EXISTS "wireframeVersionsJson" TEXT NOT NULL DEFAULT '[]';
+
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "user_flow_projectId_idx" ON "user_flow"("projectId");
 

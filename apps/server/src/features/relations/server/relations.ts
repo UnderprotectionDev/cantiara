@@ -1319,6 +1319,9 @@ async function presentRemainingEnd(
 	if (input.kind === "File Attachment") {
 		return await presentFileAttachmentEnd(db, input);
 	}
+	if (input.kind === "Screen") {
+		return await presentScreenEnd(db, input);
+	}
 	if (input.kind === "Capture") {
 		const capture = await db.captureInboxItem.findUnique({
 			where: { id: input.id },
@@ -1450,6 +1453,60 @@ async function presentFeedbackEnd(
 		openSourceRecord: true,
 		status: "resolved",
 		title: record.originalMessage,
+	};
+}
+
+async function presentScreenEnd(
+	db: PrismaClient | PrismaTransaction,
+	input: {
+		establishedAt: string;
+		id: string;
+		kind: RecordKind;
+		overrides: Record<string, EndLifecycleOverride>;
+		viewerWorkspaceId: string;
+	}
+): Promise<PresentedEnd> {
+	if (!("screen" in db) || typeof db.screen?.findUnique !== "function") {
+		return brokenEnd(input, { reason: RELATIONS_COPY.permanentlyDeleted });
+	}
+	const screen = await db.screen.findUnique({
+		include: { project: true },
+		where: { id: input.id },
+	});
+	if (!screen) {
+		return brokenEnd(input, { reason: RELATIONS_COPY.permanentlyDeleted });
+	}
+	if (screen.project.workspaceId !== input.viewerWorkspaceId) {
+		return brokenEnd(input, { reason: RELATIONS_COPY.noAccess });
+	}
+	if (screen.trashedAt) {
+		return {
+			establishedAt: input.establishedAt,
+			id: screen.id,
+			kind: "Screen",
+			openSourceRecord: true,
+			reason: RELATIONS_COPY.inTrash,
+			status: "broken",
+			title: screen.title,
+		};
+	}
+	if (screen.archivedAt) {
+		return {
+			establishedAt: input.establishedAt,
+			id: screen.id,
+			kind: "Screen",
+			openSourceRecord: true,
+			reason: RELATIONS_COPY.archived,
+			status: "broken",
+			title: screen.title,
+		};
+	}
+	return {
+		id: screen.id,
+		kind: "Screen",
+		openSourceRecord: true,
+		status: "resolved",
+		title: screen.title,
 	};
 }
 

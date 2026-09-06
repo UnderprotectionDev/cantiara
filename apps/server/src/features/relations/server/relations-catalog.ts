@@ -97,6 +97,7 @@ export const RECORD_KINDS = [
 	"Diagram Version",
 	"Migration Artifact",
 	"Experiment/Validation",
+	"Screen",
 	"Session Test",
 	"Access observation",
 	"Result observation",
@@ -129,6 +130,7 @@ export const MAIN_RECORD_KINDS = [
 	"Company",
 	"GitHub PR",
 	"Experiment/Validation",
+	"Screen",
 ] as const satisfies readonly RecordKind[];
 
 export const OWNED_COMPONENT_KINDS = [

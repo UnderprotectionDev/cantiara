@@ -33,6 +33,7 @@ import { researchSessions } from "../features/research-sessions/server/research-
 import { returnToWork } from "../features/return-to-work/server/return-to-work-rpc";
 import { risks } from "../features/risks/server/risks-rpc";
 import { roadmapHorizon } from "../features/roadmap-horizon/server/roadmap-horizon-rpc";
+import { screensAndWireframes } from "../features/screens-and-wireframes/server/screens-and-wireframes-rpc";
 import { smartCollections } from "../features/smart-collections/server/smart-collections-rpc";
 import { sources } from "../features/sources-and-freshness/server/sources-rpc";
 import { tags } from "../features/tags/server/tags-rpc";
@@ -136,6 +137,7 @@ export const appRouter: {
 	returnToWork,
 	risks,
 	roadmapHorizon,
+	screensAndWireframes,
 	smartCollections,
 	sources,
 	tags,

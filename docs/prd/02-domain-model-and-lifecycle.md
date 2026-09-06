@@ -44,6 +44,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | E-posta | `Email` | Contact'ta isteğe bağlı e-posta takma değeri |
 | Yok | `None` | Contact'ın güncel Company bağının olmaması |
 | Contact yok | `No Contacts yet.` | Henüz Contact açılmamış boş durum |
+| Ekran | `Screen` | Proje kapsamında bağımsız kimlik, geçmiş, ilişki ve yaşam döngüsü taşıyan ana kayıt; görsel tasarım olmadan yalnız başlıkla var olabilir |
+| Ekran oluştur | `Create Screen` | Yalnız başlıkla Proje kapsamında Ekran açma |
+| Ekran yok | `No Screens yet.` | Henüz Ekran açılmamış boş durum |
+| Ekran başlığı gerekli | `Title is required.` | Boş başlıkla Ekran açılamaz |
+| Ekran oluşturulamadı | `Screen could not be created.` | Başlık dışındaki oluşturma reddi |
+| Çöpe taşı | `Move to Trash` | Ekranı Çöp Kutusuna alma |
+| Kalıcı sil | `Permanently Delete` | Çöp Kutusundaki Ekranı geri döndürülemez kaldırma |
+| Çöpte Ekran yok | `No Screens in Trash.` | Çöp Kutusu listesinde Ekran olmaması |
+| Ekran yaşamı | `Active`, `Archived`, `In Trash` | Ekranın ortak ana kayıt görünürlüğü; Wireframe bağımsız yaşam değildir |
+| Wireframe | `Wireframe` | Ekrana ait düşük sadakatli sürümlü yüzey; bağımsız ana kayıt değildir |
 | Company yok | `No Companies yet.` | Henüz Company açılmamış boş durum |
 | Kopya adayları | `Duplicate candidates` | Aynı normalize e-posta veya ad/Company benzerliğiyle görünen Contact çiftleri; birleştirme yazması değildir |
 | Güçlü kopya adayı | `Strong copy candidate` | Aynı normalize e-posta taşıyan Contact çifti |

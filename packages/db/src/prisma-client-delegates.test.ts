@@ -401,6 +401,43 @@ describe("Prisma client current delegates", () => {
 		).toBe(true);
 	});
 
+	it("accepts a bun --hot client generated before Screen", () => {
+		const { screen: _dropped, ...beforeScreen } = {
+			...workDelegates(),
+			...currentLifecycleDelegates(),
+			externalExecutionHandoff: { create: () => undefined, findMany },
+			fileAttachment: { findMany },
+			fileAttachmentOriginLocation: { findMany },
+			fileAttachmentReceipt: { findMany },
+			fileAttachmentRelation: { findMany },
+			fileAttachmentStaging: { findMany },
+			fileAttachmentVersion: { findMany },
+			fileAttachmentVersionPin: { findMany },
+			fileImageDerivative: { findMany },
+			fileObjectBlob: { findMany },
+			tag: { findMany },
+			tagInlineUse: { findMany },
+			usageHostEmbed: { findMany },
+			usageLink: { findMany },
+			workTag: { findMany },
+		};
+		expect(
+			prismaClientHasCurrentDelegates(beforeScreen as unknown as PrismaClient)
+		).toBe(true);
+		expect(
+			prismaClientHasCurrentDelegates({
+				...beforeScreen,
+				_runtimeDataModel: {
+					models: {
+						Screen: { fields: [{ name: "id" }, { name: "title" }] },
+						ScreenEvent: { fields: [{ name: "id" }] },
+						WireframeVersion: { fields: [{ name: "id" }] },
+					},
+				},
+			} as unknown as PrismaClient)
+		).toBe(true);
+	});
+
 	it("accepts a bun --hot client generated before Completion effect preference", () => {
 		const { completionEffectPreference: _dropped, ...beforePreference } = {
 			...workDelegates(),
