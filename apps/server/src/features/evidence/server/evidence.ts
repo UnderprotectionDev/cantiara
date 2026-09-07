@@ -672,22 +672,23 @@ export async function setEvidenceFounderInterpretation(
 export async function getEvidencePin(
 	prisma: PrismaDb,
 	pinId: string,
-	_workspaceId?: string
+	workspaceId?: string
 ): Promise<EvidencePinView | null> {
-	return await presentPin(prisma, pinId);
+	return await presentPin(prisma, pinId, workspaceId);
 }
 
 export async function listEvidenceOnSource(
 	prisma: PrismaDb,
 	sourceKind: string,
-	sourceId: string
+	sourceId: string,
+	workspaceId?: string
 ): Promise<EvidencePinView[]> {
 	const rows = await prisma.evidencePin.findMany({
 		orderBy: { createdAt: "asc" },
 		where: { sourceId, sourceKind },
 	});
 	const presented = await Promise.all(
-		rows.map((row) => presentPin(prisma, row.id))
+		rows.map((row) => presentPin(prisma, row.id, workspaceId))
 	);
 	return presented.filter((pin): pin is EvidencePinView => pin !== null);
 }
@@ -695,14 +696,15 @@ export async function listEvidenceOnSource(
 export async function listEvidenceOnTarget(
 	prisma: PrismaDb,
 	targetKind: string,
-	targetId: string
+	targetId: string,
+	workspaceId?: string
 ): Promise<EvidencePinView[]> {
 	const rows = await prisma.evidencePin.findMany({
 		orderBy: { createdAt: "asc" },
 		where: { targetId, targetKind },
 	});
 	const presented = await Promise.all(
-		rows.map((row) => presentPin(prisma, row.id))
+		rows.map((row) => presentPin(prisma, row.id, workspaceId))
 	);
 	return presented.filter((pin): pin is EvidencePinView => pin !== null);
 }
@@ -710,9 +712,15 @@ export async function listEvidenceOnTarget(
 export async function listEvidenceOnTargetSurface(
 	prisma: PrismaDb,
 	targetKind: string,
-	targetId: string
+	targetId: string,
+	workspaceId?: string
 ): Promise<EvidenceOnTargetSurface> {
-	const pins = await listEvidenceOnTarget(prisma, targetKind, targetId);
+	const pins = await listEvidenceOnTarget(
+		prisma,
+		targetKind,
+		targetId,
+		workspaceId
+	);
 	const accessible = pins.filter((pin) => pin.contentAccess === "open");
 	return {
 		groups: EVIDENCE_ROLES.map((role) => {
@@ -1167,12 +1175,24 @@ async function commitBind(
 
 async function presentPin(
 	db: PrismaDb,
-	pinId: string
+	pinId: string,
+	workspaceId?: string
 ): Promise<EvidencePinView | null> {
 	const row = await db.evidencePin.findUnique({
 		where: { id: pinId },
 	});
 	if (!pinRowExists(row)) {
+		return null;
+	}
+	if (
+		workspaceId &&
+		!(
+			(await evidenceRecordWorkspaceId(db, row.sourceKind, row.sourceId)) ===
+				workspaceId &&
+			(await evidenceRecordWorkspaceId(db, row.targetKind, row.targetId)) ===
+				workspaceId
+		)
+	) {
 		return null;
 	}
 	const snapshot = await loadSnapshot(
@@ -1229,6 +1249,119 @@ async function presentPin(
 		textRange: { end: row.rangeEnd, start: row.rangeStart },
 		versionPinnedEvidence: EVIDENCE_COPY.versionPinnedEvidence,
 	};
+}
+
+async function evidenceRecordWorkspaceId(
+	db: PrismaDb,
+	kind: string,
+	id: string
+): Promise<string | null> {
+	const directWorkspaceId = await directEvidenceRecordWorkspaceId(db, kind, id);
+	if (directWorkspaceId !== undefined) {
+		return directWorkspaceId;
+	}
+	const projectWorkspaceId = await projectEvidenceRecordWorkspaceId(
+		db,
+		kind,
+		id
+	);
+	if (projectWorkspaceId !== undefined) {
+		return projectWorkspaceId;
+	}
+	return null;
+}
+
+async function directEvidenceRecordWorkspaceId(
+	db: PrismaDb,
+	kind: string,
+	id: string
+): Promise<string | null | undefined> {
+	if (kind === "Document") {
+		const record = await db.document.findUnique({
+			select: { workspaceId: true },
+			where: { id },
+		});
+		return record?.workspaceId ?? null;
+	}
+	if (kind === "File Attachment") {
+		const record = await db.fileAttachment.findUnique({
+			select: { workspaceId: true },
+			where: { id },
+		});
+		return record?.workspaceId ?? null;
+	}
+	return undefined;
+}
+
+async function projectEvidenceRecordWorkspaceId(
+	db: PrismaDb,
+	kind: string,
+	id: string
+): Promise<string | null | undefined> {
+	if (kind === "Source") {
+		const record = await db.source.findUnique({
+			select: { project: { select: { workspaceId: true } } },
+			where: { id },
+		});
+		return record?.project.workspaceId ?? null;
+	}
+	if (kind === "Feedback") {
+		const record = await db.feedback.findUnique({
+			select: { project: { select: { workspaceId: true } } },
+			where: { id },
+		});
+		return record?.project.workspaceId ?? null;
+	}
+	if (kind === "User Research Session") {
+		const record = await db.researchSession.findUnique({
+			select: { project: { select: { workspaceId: true } } },
+			where: { id },
+		});
+		return record?.project.workspaceId ?? null;
+	}
+	if (kind === "Experiment/Validation") {
+		const record = await db.validationRecord.findUnique({
+			select: { project: { select: { workspaceId: true } } },
+			where: { id },
+		});
+		return record?.project.workspaceId ?? null;
+	}
+	if (kind === "Work") {
+		const record = await db.work.findUnique({
+			select: { project: { select: { workspaceId: true } } },
+			where: { id },
+		});
+		return record?.project.workspaceId ?? null;
+	}
+	if (kind === "Decision") {
+		const record = await db.decision.findUnique({
+			select: { project: { select: { workspaceId: true } } },
+			where: { id },
+		});
+		return record?.project.workspaceId ?? null;
+	}
+	if (kind === "Risk") {
+		const record = await db.risk.findUnique({
+			select: { project: { select: { workspaceId: true } } },
+			where: { id },
+		});
+		return record?.project.workspaceId ?? null;
+	}
+	if (kind === "Assumption") {
+		const record = await db.assumption.findUnique({
+			select: { project: { select: { workspaceId: true } } },
+			where: { id },
+		});
+		return record?.project.workspaceId ?? null;
+	}
+	if (kind === "Question") {
+		const record = await db.openQuestion.findUnique({
+			select: { project: { select: { workspaceId: true } } },
+			where: { id },
+		});
+		return record?.project.workspaceId ?? null;
+	}
+	return undefined;
 }
 
 async function presentOriginLocation(

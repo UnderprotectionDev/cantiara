@@ -120,11 +120,12 @@ export const evidence = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await requireAccess(context.session.user.id);
+			const access = await requireAccess(context.session.user.id);
 			return await listEvidenceOnSource(
 				getPrismaClient(),
 				input.sourceKind,
-				input.sourceId
+				input.sourceId,
+				access.workspaceId
 			);
 		}),
 	listOnTarget: protectedProcedure
@@ -135,11 +136,12 @@ export const evidence = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await requireAccess(context.session.user.id);
+			const access = await requireAccess(context.session.user.id);
 			return await listEvidenceOnTarget(
 				getPrismaClient(),
 				input.targetKind,
-				input.targetId
+				input.targetId,
+				access.workspaceId
 			);
 		}),
 	previewBind: protectedProcedure
@@ -266,11 +268,12 @@ export const evidence = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await requireAccess(context.session.user.id);
+			const access = await requireAccess(context.session.user.id);
 			return await listEvidenceOnTargetSurface(
 				getPrismaClient(),
 				input.targetKind,
-				input.targetId
+				input.targetId,
+				access.workspaceId
 			);
 		}),
 };
