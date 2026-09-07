@@ -41,6 +41,12 @@ export const USER_FLOW_COPY = {
 	work: "Work",
 } as const;
 
+export function flowCanvasColorMode(
+	theme: string | undefined
+): "dark" | "light" {
+	return theme === "light" ? "light" : "dark";
+}
+
 export const FLOW_NODE_KINDS = [
 	USER_FLOW_COPY.screen,
 	USER_FLOW_COPY.action,

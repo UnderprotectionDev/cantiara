@@ -36,6 +36,7 @@ export default function UserFlowArea({ projectId }: { projectId: string }) {
 	}
 
 	const rows = flows.data ?? [];
+	const selected = selectedId ?? rows[0]?.id ?? null;
 
 	return (
 		<div className="flex min-w-0 flex-col gap-8">
@@ -51,20 +52,21 @@ export default function UserFlowArea({ projectId }: { projectId: string }) {
 					</EmptyHeader>
 				</Empty>
 			) : (
-				<ul className="flex flex-col gap-1">
+				<ul className="flex min-w-0 flex-col gap-1">
 					{rows.map((flow) => (
-						<li key={flow.id}>
+						<li className="min-w-0" key={flow.id}>
 							<FlowRowButton
 								id={flow.id}
 								onSelect={onSelect}
+								selected={flow.id === selected}
 								title={flow.title}
 							/>
 						</li>
 					))}
 				</ul>
 			)}
-			{selectedId ? (
-				<UserFlowDetail flowId={selectedId} projectId={projectId} />
+			{selected ? (
+				<UserFlowDetail flowId={selected} projectId={projectId} />
 			) : null}
 		</div>
 	);
@@ -73,10 +75,12 @@ export default function UserFlowArea({ projectId }: { projectId: string }) {
 function FlowRowButton({
 	id,
 	onSelect,
+	selected,
 	title,
 }: {
 	id: string;
 	onSelect: (id: string) => void;
+	selected: boolean;
 	title: string;
 }) {
 	const onClick = useCallback(() => {
@@ -84,7 +88,12 @@ function FlowRowButton({
 	}, [id, onSelect]);
 	return (
 		<button
-			className="text-left text-sm underline-offset-4 hover:underline"
+			aria-current={selected ? "true" : undefined}
+			className={
+				selected
+					? "w-full min-w-0 truncate rounded-sm bg-muted px-2 py-1.5 text-left font-medium text-foreground text-sm"
+					: "w-full min-w-0 truncate rounded-sm px-2 py-1.5 text-left text-foreground text-sm hover:bg-muted/60"
+			}
 			onClick={onClick}
 			type="button"
 		>

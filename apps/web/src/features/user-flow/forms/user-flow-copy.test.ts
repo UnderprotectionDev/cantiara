@@ -1,6 +1,10 @@
 import { expect, test } from "vitest";
 
-import { FLOW_NODE_KINDS, USER_FLOW_COPY } from "./user-flow-copy";
+import {
+	FLOW_NODE_KINDS,
+	flowCanvasColorMode,
+	USER_FLOW_COPY,
+} from "./user-flow-copy";
 
 const FOREIGN_SURFACE = /Moodboard|Project Wall|Lifeline|state machine|xyflow/i;
 
@@ -31,4 +35,10 @@ test("English User Flow labels stay the closed semantic set and Fit View", () =>
 		"Section",
 	]);
 	expect(JSON.stringify(USER_FLOW_COPY)).not.toMatch(FOREIGN_SURFACE);
+});
+
+test("User Flow canvas follows Dark appearance unless Light is resolved", () => {
+	expect(flowCanvasColorMode("dark")).toBe("dark");
+	expect(flowCanvasColorMode(undefined)).toBe("dark");
+	expect(flowCanvasColorMode("light")).toBe("light");
 });

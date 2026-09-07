@@ -1,6 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
-import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
+import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
 	NativeSelect,
@@ -474,7 +474,7 @@ export default function UserFlowDetail({
 	const view = flow.data as UserFlowDetailView;
 
 	return (
-		<article>
+		<article className="min-w-0">
 			<h2 className="font-semibold text-lg tracking-tight">{view.title}</h2>
 			<p className="text-muted-foreground text-sm">{view.copy.userFlow}</p>
 			<div className="mt-4">
@@ -491,61 +491,62 @@ export default function UserFlowDetail({
 					userFlowId={flowId}
 				/>
 			</div>
-			<form className="mt-4 flex flex-col gap-3" onSubmit={onPlace}>
-				<FieldGroup>
-					<Field>
-						<FieldLabel htmlFor="flow-node-kind">
-							{USER_FLOW_COPY.placeNode}
+			<form
+				className="mt-4 flex max-w-xl flex-wrap items-end gap-3"
+				onSubmit={onPlace}
+			>
+				<Field className="w-auto min-w-[10rem] max-w-xs">
+					<FieldLabel htmlFor="flow-node-kind">
+						{USER_FLOW_COPY.placeNode}
+					</FieldLabel>
+					<NativeSelect
+						id="flow-node-kind"
+						onChange={onKindChange}
+						value={kind}
+					>
+						{FLOW_NODE_KINDS.map((item) => (
+							<NativeSelectOption key={item} value={item}>
+								{item}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</Field>
+				{kind === USER_FLOW_COPY.screen ? (
+					<Field className="w-auto min-w-[10rem] max-w-xs">
+						<FieldLabel htmlFor="bind-screen">
+							{USER_FLOW_COPY.screen}
 						</FieldLabel>
 						<NativeSelect
-							id="flow-node-kind"
-							onChange={onKindChange}
-							value={kind}
+							id="bind-screen"
+							onChange={onScreenChange}
+							value={screenId}
 						>
-							{FLOW_NODE_KINDS.map((item) => (
-								<NativeSelectOption key={item} value={item}>
-									{item}
+							<NativeSelectOption value="">
+								{USER_FLOW_COPY.screen}
+							</NativeSelectOption>
+							{(screens.data ?? []).map((screen) => (
+								<NativeSelectOption key={screen.id} value={screen.id}>
+									{screen.title}
 								</NativeSelectOption>
 							))}
 						</NativeSelect>
 					</Field>
-					{kind === USER_FLOW_COPY.screen ? (
-						<Field>
-							<FieldLabel htmlFor="bind-screen">
-								{USER_FLOW_COPY.screen}
-							</FieldLabel>
-							<NativeSelect
-								id="bind-screen"
-								onChange={onScreenChange}
-								value={screenId}
-							>
-								<NativeSelectOption value="">
-									{USER_FLOW_COPY.screen}
-								</NativeSelectOption>
-								{(screens.data ?? []).map((screen) => (
-									<NativeSelectOption key={screen.id} value={screen.id}>
-										{screen.title}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-						</Field>
-					) : (
-						<Field>
-							<FieldLabel htmlFor="node-label">{kind}</FieldLabel>
-							<Input id="node-label" onChange={onLabelChange} value={label} />
-						</Field>
-					)}
-					<Field>
-						<FieldLabel htmlFor="node-description">
-							{USER_FLOW_COPY.description}
-						</FieldLabel>
-						<Input
-							id="node-description"
-							onChange={onDescriptionChange}
-							value={description}
-						/>
+				) : (
+					<Field className="w-auto min-w-[10rem] max-w-xs">
+						<FieldLabel htmlFor="node-label">{kind}</FieldLabel>
+						<Input id="node-label" onChange={onLabelChange} value={label} />
 					</Field>
-				</FieldGroup>
+				)}
+				<Field className="w-auto min-w-[10rem] max-w-xs">
+					<FieldLabel htmlFor="node-description">
+						{USER_FLOW_COPY.description}
+					</FieldLabel>
+					<Input
+						id="node-description"
+						onChange={onDescriptionChange}
+						value={description}
+					/>
+				</Field>
 				{error ? <p role="alert">{error}</p> : null}
 				<Button type="submit">
 					{kind === USER_FLOW_COPY.screen
@@ -672,8 +673,11 @@ function UserFlowSurface({
 					{USER_FLOW_COPY.unbind}
 				</Button>
 			</div>
-			<div className="mt-6 grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
-				<nav aria-label={USER_FLOW_COPY.outline}>
+			<div className="mt-6 grid min-w-0 gap-4 lg:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
+				<nav
+					aria-label={USER_FLOW_COPY.outline}
+					className="min-w-0 overflow-hidden"
+				>
 					<h3 className="font-medium text-sm">{USER_FLOW_COPY.outline}</h3>
 					{view.nodes.length === 0 ? (
 						<Empty>
@@ -712,7 +716,7 @@ function UserFlowSurface({
 						</ul>
 					)}
 				</nav>
-				<div>
+				<div className="min-w-0">
 					<UserFlowCanvas
 						liveCards={view.liveCards}
 						nodes={view.nodes}
