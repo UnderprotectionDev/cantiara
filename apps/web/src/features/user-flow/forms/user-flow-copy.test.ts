@@ -18,6 +18,7 @@ test("English User Flow labels stay the closed semantic set and Fit View", () =>
 	expect(USER_FLOW_COPY.decision).toBe("Decision");
 	expect(USER_FLOW_COPY.stateOutcome).toBe("State/Outcome");
 	expect(USER_FLOW_COPY.section).toBe("Section");
+	expect(USER_FLOW_COPY.placeNode).toBe("Place node");
 	expect(USER_FLOW_COPY.fitView).toBe("Fit View");
 	expect(USER_FLOW_COPY.outline).toBe("Outline");
 	expect(USER_FLOW_COPY.inspect).toBe("Inspect");
