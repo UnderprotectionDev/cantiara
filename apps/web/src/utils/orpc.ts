@@ -18,7 +18,7 @@ const retriedMutations = new WeakSet<object>();
 const retriedQueries = new WeakSet<object>();
 
 export function createQueryClient() {
-	return new QueryClient({
+	const queryClient = new QueryClient({
 		defaultOptions: {
 			mutations: { retry: 0 },
 			queries: { retry: 0 },
@@ -27,9 +27,11 @@ export function createQueryClient() {
 			onError: (error, variables, _onMutateResult, mutation) => {
 				showMainFlowFailure(
 					error,
-					retryOnceFor(mutation, retriedMutations, () => {
-						mutation.execute(variables);
-					})
+					mutation.options.meta?.disableAutomaticRetry === true
+						? undefined
+						: retryOnceFor(mutation, retriedMutations, () => {
+								mutation.execute(variables);
+							})
 				);
 			},
 			onSuccess: (_data, _variables, _onMutateResult, mutation) => {
@@ -41,7 +43,13 @@ export function createQueryClient() {
 				showQueryMainFlowFailure(
 					error,
 					retryOnceFor(query, retriedQueries, () => {
-						query.invalidate();
+						queryClient
+							.refetchQueries({
+								exact: true,
+								queryKey: query.queryKey,
+								type: "active",
+							})
+							.catch(() => undefined);
 					})
 				);
 			},
