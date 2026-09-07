@@ -12,6 +12,7 @@
       "!.agents",
       "!**/.next",
       "!**/dist",
+      "!**/prisma/generated",
       "!**/.turbo",
       "!**/.nx",
       "!**/dev-dist",
