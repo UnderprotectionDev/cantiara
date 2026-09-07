@@ -9,7 +9,6 @@
     "ignoreUnknown": false,
     "includes": [
       "!.agents",
-      "!.agents",
       "!**/.next",
       "!**/dist",
       "!**/prisma/generated",
@@ -46,7 +45,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "correctness": {
         "useExhaustiveDependencies": "info"
       },

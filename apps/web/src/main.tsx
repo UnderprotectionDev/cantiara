@@ -47,4 +47,10 @@ async function start() {
 	}
 }
 
-start().catch(() => undefined);
+start().catch((error: unknown) => {
+	console.error("Application startup failed:", error);
+	const errorMessage = document.createElement("div");
+	errorMessage.setAttribute("role", "alert");
+	errorMessage.textContent = "Application failed to start. Please refresh.";
+	appRoot.append(errorMessage);
+});
