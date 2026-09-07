@@ -745,7 +745,7 @@ function InspectedFlowNode({
 	flowId: string;
 	onInvalidate: () => Promise<void>;
 	onPromote: (nodeId: string) => void;
-	originRelations: PresentedOriginRelation[];
+	originRelations: readonly PresentedOriginRelation[];
 	revision: number;
 	selectedNode: PresentedNode | null;
 }) {
