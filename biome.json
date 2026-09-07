@@ -161,7 +161,11 @@
       }
     },
     {
-      "includes": ["apps/server/src/**"],
+      "includes": [
+        "apps/server/src/**",
+        "packages/auth/src/**",
+        "packages/db/src/**"
+      ],
       "linter": {
         "rules": {
           "suspicious": "off"
