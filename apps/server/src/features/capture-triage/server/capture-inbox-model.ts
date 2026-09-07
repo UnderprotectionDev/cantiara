@@ -13,6 +13,8 @@ export const CAPTURE_INBOX_COPY = {
 	createBug: "Create Bug",
 	createBugDoesNotStayInInbox:
 		"Create Bug does not stay in the Capture Inbox. A Work record is not stored yet.",
+	createBugNeedsCaptureSaved:
+		"Save the capture before Create Bug so the attachment is preserved.",
 	createBugNeedsProjectAndBugCapture:
 		"Create Bug is available when Project is set and type is Bug Capture.",
 	delete: "Delete",

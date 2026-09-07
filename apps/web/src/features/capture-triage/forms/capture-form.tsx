@@ -51,6 +51,24 @@ type CaptureInboxListCopy = TriageCopy & {
 	sequentialTriage: string;
 };
 
+function createBugHint(
+	copy: {
+		createBugDoesNotStayInInbox: string;
+		createBugNeedsCaptureSaved: string;
+		createBugNeedsProjectAndBugCapture: string;
+	},
+	hasAttachment: boolean,
+	canCreateBug: boolean
+): string {
+	if (hasAttachment) {
+		return copy.createBugNeedsCaptureSaved;
+	}
+	if (canCreateBug) {
+		return copy.createBugDoesNotStayInInbox;
+	}
+	return copy.createBugNeedsProjectAndBugCapture;
+}
+
 export default function CaptureForm() {
 	const { attemptOnlineWork, clearUnsaved, markUnsaved, recordSave, shell } =
 		useClientShell();
@@ -120,7 +138,7 @@ export default function CaptureForm() {
 	);
 	const isDirty =
 		captureFormHasUnsavedCapture(values) || attachmentFile !== null;
-	const canCreateBug = createBugIsAvailable(values);
+	const canCreateBug = attachmentFile === null && createBugIsAvailable(values);
 	const groups = captureInboxGroups(
 		list.data ?? [],
 		copy ?? {
@@ -190,7 +208,7 @@ export default function CaptureForm() {
 		[form]
 	);
 	const onCreateBug = useCallback(() => {
-		if (!createBugIsAvailable(values)) {
+		if (!canCreateBug) {
 			return;
 		}
 		const projectId = values.projectId.trim();
@@ -207,7 +225,7 @@ export default function CaptureForm() {
 			return;
 		}
 		result.value.catch(() => undefined);
-	}, [attemptOnlineWork, createBug, values]);
+	}, [attemptOnlineWork, canCreateBug, createBug, values]);
 	const onProjectChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
 			form.setFieldValue("projectId", event.target.value);
@@ -347,9 +365,7 @@ export default function CaptureForm() {
 					</Button>
 				</div>
 				<p className="text-muted-foreground text-xs">
-					{canCreateBug
-						? copy.createBugDoesNotStayInInbox
-						: copy.createBugNeedsProjectAndBugCapture}
+					{createBugHint(copy, attachmentFile !== null, canCreateBug)}
 				</p>
 				{shell.lastSuccessfulSaveAt && preferences.data ? (
 					<p className="text-muted-foreground text-xs">
