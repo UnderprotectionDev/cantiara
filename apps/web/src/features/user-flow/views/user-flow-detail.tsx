@@ -82,11 +82,11 @@ interface UserFlowDetailView {
 		unbind: string;
 		userFlow: string;
 	};
-	groups: FlowGroup[];
+	groups: readonly FlowGroup[];
 	id: string;
 	liveCards: PresentedLiveCard[];
 	nodes: PresentedNode[];
-	originRelations: PresentedOriginRelation[];
+	originRelations: readonly PresentedOriginRelation[];
 	revision: number;
 	title: string;
 }
@@ -127,15 +127,24 @@ export default function UserFlowDetail({
 				input: { userFlowId: flowId },
 			}),
 		});
-	}, [flowId]);
+		await queryClient.invalidateQueries({
+			queryKey: orpc.userFlow.listScreens.queryKey({
+				input: { projectId },
+			}),
+		});
+	}, [flowId, projectId]);
 
 	const onOutcome = useCallback(
-		async (outcome: { status: string; reason?: string }) => {
+		async (outcome: { conflict?: string; reason?: string; status: string }) => {
 			if (outcome.status === "committed" || outcome.status === "replayed") {
 				await invalidate();
 				setDescription("");
 				setLabel("");
 				setError(null);
+				return;
+			}
+			if (outcome.status === "conflict" && outcome.conflict) {
+				setError(outcome.conflict);
 				return;
 			}
 			if (outcome.status === "rejected" && outcome.reason) {
@@ -745,7 +754,7 @@ function InspectedFlowNode({
 	flowId: string;
 	onInvalidate: () => Promise<void>;
 	onPromote: (nodeId: string) => void;
-	originRelations: PresentedOriginRelation[];
+	originRelations: readonly PresentedOriginRelation[];
 	revision: number;
 	selectedNode: PresentedNode | null;
 }) {

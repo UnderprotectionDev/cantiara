@@ -58,7 +58,9 @@ const privateData = protectedProcedure.handler(({ context }) => ({
 	user: context.session?.user,
 }));
 
-interface AppRouterShape {
+// oRPC 1.15 requires a type alias here; interfaces without index signatures do not satisfy its router constraint.
+// biome-ignore lint/style/useConsistentTypeDefinitions: the router must remain assignable to oRPC's mapped router type
+type AppRouterShape = {
 	accountAccess: typeof accountAccess;
 	accountPreferences: typeof accountPreferences;
 	backlog: typeof backlog;
@@ -111,7 +113,7 @@ interface AppRouterShape {
 	workLifecycle: typeof workLifecycle;
 	workspaceOverview: typeof workspaceOverviewRouter;
 	workTemplates: typeof workTemplates;
-}
+};
 
 export const appRouter: AppRouterShape = {
 	accountAccess,
@@ -169,4 +171,4 @@ export const appRouter: AppRouterShape = {
 };
 
 export type AppRouter = AppRouterShape;
-export type AppRouterClient = RouterClient<AppRouterShape>;
+export type AppRouterClient = RouterClient<AppRouter>;

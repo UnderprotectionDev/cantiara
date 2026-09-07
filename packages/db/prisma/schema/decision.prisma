@@ -1,17 +1,17 @@
 model Decision {
-  id                  String           @id
-  projectId           String
-  project             Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title               String
-  decisionText        String
-  rationale           String
-  life                String
-  withdrawnAt         DateTime?
-  withdrawnRationale  String?
-  revision            Int
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  events              DecisionEvent[]
+  id                 String          @id
+  projectId          String
+  project            Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title              String
+  decisionText       String
+  rationale          String
+  life               String
+  withdrawnAt        DateTime?
+  withdrawnRationale String?
+  revision           Int
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  events             DecisionEvent[]
 
   @@index([projectId])
   @@index([projectId, life])

@@ -1,17 +1,17 @@
 model WorkNotNowTrail {
-  id                    String   @id
+  id                    String    @id
   workId                String
-  work                  Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  work                  Work      @relation(fields: [workId], references: [id], onDelete: Cascade)
   reason                String
   reevaluationCondition String?
-  grounds               Json     @default("[]")
+  grounds               Json      @default("[]")
   state                 String
   closeAction           String?
   actorId               String
-  recordedAt            DateTime @default(now())
+  recordedAt            DateTime  @default(now())
   closedAt              DateTime?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@index([workId, state])
   @@index([workId, recordedAt])

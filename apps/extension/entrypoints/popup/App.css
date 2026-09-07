@@ -1,13 +1,13 @@
 :root {
-	color: #111;
 	font-family: ui-sans-serif, system-ui, sans-serif;
 	line-height: 1.4;
+	color: #111;
 }
 
 body {
-	margin: 0;
 	min-width: 320px;
 	padding: 0;
+	margin: 0;
 }
 
 main {
@@ -30,8 +30,8 @@ select {
 }
 
 h1 {
-	font-size: 1.1rem;
 	margin: 0;
+	font-size: 1.1rem;
 }
 
 p {

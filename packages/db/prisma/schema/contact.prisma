@@ -1,18 +1,18 @@
 model Contact {
-  id                    String                       @id
+  id                    String                      @id
   workspaceId           String
-  workspace             Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace             Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   displayName           String
   retiredIntoId         String?
-  retiredInto           Contact?                     @relation("ContactRetiredIdentity", fields: [retiredIntoId], references: [id], onDelete: SetNull)
-  retiredIdentities     Contact[]                    @relation("ContactRetiredIdentity")
+  retiredInto           Contact?                    @relation("ContactRetiredIdentity", fields: [retiredIntoId], references: [id], onDelete: SetNull)
+  retiredIdentities     Contact[]                   @relation("ContactRetiredIdentity")
   revision              Int
-  createdAt             DateTime                     @default(now())
-  updatedAt             DateTime                     @updatedAt
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
   emailAliases          ContactEmailAlias[]
   affiliations          ContactCompanyAffiliation[]
-  mergeEventsAsSurvivor ContactMergeEvent[]          @relation("ContactMergeSurvivor")
-  mergeEventsAsRetired  ContactMergeEvent[]          @relation("ContactMergeRetired")
+  mergeEventsAsSurvivor ContactMergeEvent[]         @relation("ContactMergeSurvivor")
+  mergeEventsAsRetired  ContactMergeEvent[]         @relation("ContactMergeRetired")
 
   @@index([workspaceId])
   @@index([retiredIntoId])
@@ -20,13 +20,13 @@ model Contact {
 }
 
 model ContactEmailAlias {
-  id               String   @id
-  contactId        String
-  contact          Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  originalEmail    String
-  normalizedEmail  String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id
+  contactId       String
+  contact         Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  originalEmail   String
+  normalizedEmail String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@unique([contactId, normalizedEmail])
   @@index([normalizedEmail])
@@ -34,29 +34,29 @@ model ContactEmailAlias {
 }
 
 model Company {
-  id            String                       @id
-  workspaceId   String
-  workspace     Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  name          String
-  revision      Int
-  createdAt     DateTime                     @default(now())
-  updatedAt     DateTime                     @updatedAt
-  affiliations  ContactCompanyAffiliation[]
+  id           String                      @id
+  workspaceId  String
+  workspace    Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name         String
+  revision     Int
+  createdAt    DateTime                    @default(now())
+  updatedAt    DateTime                    @updatedAt
+  affiliations ContactCompanyAffiliation[]
 
   @@index([workspaceId])
   @@map("company")
 }
 
 model ContactCompanyAffiliation {
-  id         String    @id
-  contactId  String
-  contact    Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  companyId  String
-  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  startedAt  DateTime
-  endedAt    DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id        String    @id
+  contactId String
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  startedAt DateTime
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([contactId, endedAt])
   @@index([companyId])

@@ -165,7 +165,6 @@ export interface WorkContextCardView {
 			label: string;
 			value: number;
 		}>;
-		empty: boolean;
 		items: Array<{
 			archiveVisible: boolean;
 			kind: string;
@@ -300,7 +299,6 @@ export function presentWorkContextCard(input: {
 			},
 			countSets: {},
 			counts: [],
-			empty: true,
 			items: [],
 			label: WORK_CONTEXT_COPY.priorityFoundations,
 			openedCountId: null,

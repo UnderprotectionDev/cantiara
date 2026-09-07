@@ -107,6 +107,9 @@ describe("Capture Inbox catalog", () => {
 		expect(CAPTURE_INBOX_COPY.createBugDoesNotStayInInbox).toBe(
 			"Create Bug does not stay in the Capture Inbox. A Work record is not stored yet."
 		);
+		expect(CAPTURE_INBOX_COPY.createBugNeedsCaptureSaved).toBe(
+			"Save the capture before Create Bug so the attachment is preserved."
+		);
 		expect(CAPTURE_INBOX_COPY.leaveEmptyForWorkspaceCaptureInbox).toBe(
 			"Leave empty to save to the Workspace Capture Inbox."
 		);

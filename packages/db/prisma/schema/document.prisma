@@ -1,25 +1,25 @@
 model Document {
-  id          String             @id
-  workspaceId String
-  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  scopeKind   String
-  projectId   String?
-  project     Project?           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title       String
-  body        String
-  type        String
-  revision    Int
-  archivedAt  DateTime?
-  parentId    String?
-  parent      Document?          @relation("DocumentHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
-  children    Document[]         @relation("DocumentHierarchy")
-  folderId    String?
-  folder      DocumentFolder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  versions           DocumentVersion[]
-  conflictDraft      DocumentConflictDraft?
-  specChangeReviews  SpecChangeReview[]
+  id                String                 @id
+  workspaceId       String
+  workspace         Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  scopeKind         String
+  projectId         String?
+  project           Project?               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title             String
+  body              String
+  type              String
+  revision          Int
+  archivedAt        DateTime?
+  parentId          String?
+  parent            Document?              @relation("DocumentHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children          Document[]             @relation("DocumentHierarchy")
+  folderId          String?
+  folder            DocumentFolder?        @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  versions          DocumentVersion[]
+  conflictDraft     DocumentConflictDraft?
+  specChangeReviews SpecChangeReview[]
 
   @@index([workspaceId, scopeKind, projectId])
   @@index([workspaceId, updatedAt])
@@ -65,18 +65,18 @@ model DocumentVersion {
 }
 
 model DocumentConflictDraft {
-  id                    String   @id
-  documentId            String   @unique
-  document              Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  workspaceId           String
-  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  title                 String
-  body                  String
-  type                  String
-  rejectedBaseRevision  Int
-  documentRevision      Int
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                   String    @id
+  documentId           String    @unique
+  document             Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  workspaceId          String
+  workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  title                String
+  body                 String
+  type                 String
+  rejectedBaseRevision Int
+  documentRevision     Int
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@index([workspaceId])
   @@map("document_conflict_draft")

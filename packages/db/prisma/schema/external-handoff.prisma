@@ -1,7 +1,7 @@
 model ExternalExecutionHandoff {
-  id                      String   @id
+  id                      String                          @id
   workId                  String
-  work                    Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  work                    Work                            @relation(fields: [workId], references: [id], onDelete: Cascade)
   status                  String
   purpose                 String
   expectedOutput          String
@@ -15,8 +15,8 @@ model ExternalExecutionHandoff {
   returnRecord            Json?
   reconcileDecision       Json?
   revision                Int
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime                        @default(now())
+  updatedAt               DateTime                        @updatedAt
   goingPackages           ExternalExecutionGoingPackage[]
   events                  ExternalExecutionHandoffEvent[]
 
@@ -25,16 +25,16 @@ model ExternalExecutionHandoff {
 }
 
 model ExternalExecutionGoingPackage {
-  id                       String                   @id
-  handoffId                String
-  handoff                  ExternalExecutionHandoff @relation(fields: [handoffId], references: [id], onDelete: Cascade)
-  version                  Int
-  markdown                 String
-  producedAt               DateTime
-  selectedVersionManifest  Json
-  permittedGithubContext   Json
-  createdAt                DateTime                 @default(now())
-  updatedAt                DateTime                 @updatedAt
+  id                      String                   @id
+  handoffId               String
+  handoff                 ExternalExecutionHandoff @relation(fields: [handoffId], references: [id], onDelete: Cascade)
+  version                 Int
+  markdown                String
+  producedAt              DateTime
+  selectedVersionManifest Json
+  permittedGithubContext  Json
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
 
   @@unique([handoffId, version])
   @@index([handoffId, createdAt])

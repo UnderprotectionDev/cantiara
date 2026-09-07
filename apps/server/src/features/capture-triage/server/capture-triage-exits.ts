@@ -692,6 +692,7 @@ export function createTriageExits(ctx: TriageExitsContext) {
 	}
 
 	return {
+		// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: attach coordinates preview, durable idempotency, concurrent consumption, and rollback.
 		async attach(input: {
 			idempotencyKey: string;
 			itemId: string;
@@ -723,6 +724,19 @@ export function createTriageExits(ctx: TriageExitsContext) {
 			}
 			const row = await loadOpenItem(input.itemId);
 			if (!row) {
+				const replay = await readHumanReceipt(
+					ctx.prisma,
+					input.idempotencyKey,
+					payload
+				);
+				if (replay?.kind === "conflict") {
+					return { reason: MUTATION_COPY.conflict, status: "conflict" };
+				}
+				if (replay?.kind === "replay") {
+					return reviveAttachOutcome(
+						JSON.parse(replay.resultValue) as AttachOutcome
+					);
+				}
 				return { status: "not-found" };
 			}
 			const item = ctx.toItemView(row);

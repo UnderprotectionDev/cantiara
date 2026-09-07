@@ -1397,10 +1397,11 @@ describe("Return to Work", () => {
 			status: "In Progress",
 			workId: early.id,
 		});
-		await surface(new Date("2026-09-04T12:00:00.000Z")).noteVisibleOpen({
+		const visitAt = new Date();
+		await surface(visitAt).noteVisibleOpen({
 			projectId: project.id,
 		});
-		const view = await surface().summary({ projectId: project.id });
+		const view = await surface(visitAt).summary({ projectId: project.id });
 		const workItems =
 			view?.sinceYouLastLooked.groups.find((group) => group.id === "work")
 				?.items ?? [];

@@ -1,14 +1,14 @@
 model PrioritizationSession {
-  id         String                       @id
+  id         String                      @id
   projectId  String
-  project    Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project    Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name       String
   closedAt   DateTime?
   archivedAt DateTime?
   trashedAt  DateTime?
   revision   Int
-  createdAt  DateTime                     @default(now())
-  updatedAt  DateTime                     @updatedAt
+  createdAt  DateTime                    @default(now())
+  updatedAt  DateTime                    @updatedAt
   items      PrioritizationSessionItem[]
 
   @@index([projectId])
@@ -17,14 +17,14 @@ model PrioritizationSession {
 }
 
 model PrioritizationSessionItem {
-  id        String                 @id
+  id        String                @id
   sessionId String
-  session   PrioritizationSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session   PrioritizationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   workId    String
-  work      Work                   @relation(fields: [workId], references: [id], onDelete: Cascade)
+  work      Work                  @relation(fields: [workId], references: [id], onDelete: Cascade)
   sortOrder Int
-  createdAt DateTime               @default(now())
-  updatedAt DateTime               @updatedAt
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
 
   @@unique([sessionId, workId])
   @@index([sessionId])
@@ -33,20 +33,20 @@ model PrioritizationSessionItem {
 }
 
 model ProjectPriorityCriterion {
-  id                String                           @id
-  projectId         String
-  project           Project                          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name              String
-  description       String                           @default("")
-  rankExplanations  Json
-  enabled           Boolean
-  preparedKind      String?
-  trashedAt         DateTime?
-  sortOrder         Int
-  revision          Int
-  createdAt         DateTime                         @default(now())
-  updatedAt         DateTime                         @updatedAt
-  values            ProjectPriorityCriterionValue[]
+  id               String                          @id
+  projectId        String
+  project          Project                         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name             String
+  description      String                          @default("")
+  rankExplanations Json
+  enabled          Boolean
+  preparedKind     String?
+  trashedAt        DateTime?
+  sortOrder        Int
+  revision         Int
+  createdAt        DateTime                        @default(now())
+  updatedAt        DateTime                        @updatedAt
+  values           ProjectPriorityCriterionValue[]
 
   @@index([projectId])
   @@index([projectId, trashedAt])
@@ -54,15 +54,15 @@ model ProjectPriorityCriterion {
 }
 
 model ProjectPriorityCriterionValue {
-  id           String                    @id
-  criterionId  String
-  criterion    ProjectPriorityCriterion  @relation(fields: [criterionId], references: [id], onDelete: Cascade)
-  workId       String
-  work         Work                      @relation(fields: [workId], references: [id], onDelete: Cascade)
-  rank         String?
-  revision     Int
-  createdAt    DateTime                  @default(now())
-  updatedAt    DateTime                  @updatedAt
+  id          String                   @id
+  criterionId String
+  criterion   ProjectPriorityCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  workId      String
+  work        Work                     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  rank        String?
+  revision    Int
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
 
   @@unique([criterionId, workId])
   @@index([workId])
@@ -71,14 +71,14 @@ model ProjectPriorityCriterionValue {
 }
 
 model ProjectPriorityMapPresentation {
-  id                      String   @id
-  projectId               String   @unique
-  project                 Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  horizontalCriterionId   String
-  verticalCriterionId     String
-  revision                Int
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  id                    String   @id
+  projectId             String   @unique
+  project               Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  horizontalCriterionId String
+  verticalCriterionId   String
+  revision              Int
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   @@map("project_priority_map_presentation")
 }

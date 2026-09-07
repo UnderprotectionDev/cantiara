@@ -233,6 +233,7 @@ function useProductObjectUrl(href: string | null) {
 		load();
 		return () => {
 			cancelled = true;
+			// biome-ignore lint/suspicious/noUnnecessaryConditions: an object URL exists only after the async fetch completes.
 			if (createdRef.current) {
 				URL.revokeObjectURL(createdRef.current);
 				createdRef.current = null;

@@ -173,6 +173,7 @@ export default function ReturnToWorkPanel({
 	}, [panelCanvas, summary.data?.visualTour.steps]);
 	const skipTour = useCallback(() => {
 		const session = tourSession.current;
+		// biome-ignore lint/suspicious/noUnnecessaryConditions: the ref is empty until a visual tour starts.
 		if (!session) {
 			return;
 		}

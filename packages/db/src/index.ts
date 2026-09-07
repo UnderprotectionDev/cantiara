@@ -78,9 +78,9 @@ interface CachedPrisma {
 	stamp: string;
 }
 
-const globalForPrisma = globalThis as unknown as {
-	cantiaraPrisma?: CachedPrisma;
-};
+function prismaGlobal(): { cantiaraPrisma?: CachedPrisma } {
+	return globalThis as unknown as { cantiaraPrisma?: CachedPrisma };
+}
 
 function workModelFieldNames(client: PrismaClient): string[] {
 	const runtime = client as { _runtimeDataModel?: unknown };
@@ -130,7 +130,7 @@ function clientHasCurrentWorkModel(client: PrismaClient): boolean {
 }
 
 function cachedClient(diskStamp: string): PrismaClient | undefined {
-	const cached = globalForPrisma.cantiaraPrisma;
+	const cached = prismaGlobal().cantiaraPrisma;
 	if (!(cached && clientStampIsCurrent(cached.stamp, diskStamp))) {
 		return;
 	}
@@ -159,8 +159,8 @@ function cachedClient(diskStamp: string): PrismaClient | undefined {
 }
 
 function takeCachedPrisma(): PrismaClient | undefined {
-	const cached = globalForPrisma.cantiaraPrisma;
-	globalForPrisma.cantiaraPrisma = undefined;
+	const cached = prismaGlobal().cantiaraPrisma;
+	prismaGlobal().cantiaraPrisma = undefined;
 	return cached?.client;
 }
 
@@ -205,7 +205,7 @@ export function getPrismaClient() {
 	// after calling end on the pool". Tests call resetPrismaClientCache().
 	takeCachedPrisma();
 	const client = loadCurrentPrismaClient();
-	globalForPrisma.cantiaraPrisma = {
+	prismaGlobal().cantiaraPrisma = {
 		client,
 		stamp: readGeneratedClientStamp(),
 	};

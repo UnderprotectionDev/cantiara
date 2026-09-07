@@ -75,6 +75,7 @@ export default function WorkDraftForm({
 		} satisfies WorkDraftFormValues,
 	});
 	const values = useStore(form.store, (state) => state.values);
+	const autosaveQueueRef = useRef(Promise.resolve());
 	const projectId = lockProjectId ?? (values.projectId.trim() || null);
 	const fields = useQuery({
 		...orpc.workDrafts.workCustomFields.queryOptions({
@@ -100,25 +101,33 @@ export default function WorkDraftForm({
 	);
 	const persistAutosave = useCallback(
 		async (next: WorkDraftFormValues) => {
-			if (!shouldAutosaveWorkDraft(next)) {
+			const save = async () => {
+				if (!shouldAutosaveWorkDraft(next)) {
+					return draftIdRef.current;
+				}
+				markUnsaved();
+				const result = attemptOnlineWork("record-create", () =>
+					autosave.mutateAsync({
+						draftId: draftIdRef.current ?? undefined,
+						form: workDraftFormForAutosave(next),
+						idempotencyKey: newIdempotencyKey(),
+					})
+				);
+				if (result.status === "refused") {
+					return draftIdRef.current;
+				}
+				const outcome = await result.value;
+				if (outcome.status === "saved") {
+					return outcome.draft.id;
+				}
 				return draftIdRef.current;
-			}
-			markUnsaved();
-			const result = attemptOnlineWork("record-create", () =>
-				autosave.mutateAsync({
-					draftId: draftIdRef.current ?? undefined,
-					form: workDraftFormForAutosave(next),
-					idempotencyKey: newIdempotencyKey(),
-				})
+			};
+			const queued = autosaveQueueRef.current.then(save, save);
+			autosaveQueueRef.current = queued.then(
+				() => undefined,
+				() => undefined
 			);
-			if (result.status === "refused") {
-				return draftIdRef.current;
-			}
-			const outcome = await result.value;
-			if (outcome.status === "saved") {
-				return outcome.draft.id;
-			}
-			return draftIdRef.current;
+			return await queued;
 		},
 		[attemptOnlineWork, autosave, markUnsaved]
 	);

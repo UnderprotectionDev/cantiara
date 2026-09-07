@@ -16,7 +16,7 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CLIENT_SHELL_COPY } from "@/features/web-macos-client/views/client-shell";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -34,13 +34,40 @@ import {
 	fileToCaptureAttachment,
 } from "./capture-form-state";
 import { convertTargetScopeLine } from "./capture-triage-exits-state";
-import { CaptureMergeUndo, CaptureTriageActions } from "./capture-triage-panel";
+import {
+	CaptureMergeUndo,
+	CaptureTriageActions,
+	type TriageCopy,
+} from "./capture-triage-panel";
 import {
 	goBackSequentialFocus,
 	nextSequentialFocus,
 	sequentialTriageView,
 	startSequentialFocus,
 } from "./sequential-triage-state";
+
+type CaptureInboxListCopy = TriageCopy & {
+	back: string;
+	sequentialTriage: string;
+};
+
+function createBugHint(
+	copy: {
+		createBugDoesNotStayInInbox: string;
+		createBugNeedsCaptureSaved: string;
+		createBugNeedsProjectAndBugCapture: string;
+	},
+	hasAttachment: boolean,
+	canCreateBug: boolean
+): string {
+	if (!canCreateBug) {
+		return copy.createBugNeedsProjectAndBugCapture;
+	}
+	if (hasAttachment) {
+		return copy.createBugNeedsCaptureSaved;
+	}
+	return copy.createBugDoesNotStayInInbox;
+}
 
 export default function CaptureForm() {
 	const { attemptOnlineWork, clearUnsaved, markUnsaved, recordSave, shell } =
@@ -49,15 +76,14 @@ export default function CaptureForm() {
 	const preferences = useQuery(orpc.accountPreferences.get.queryOptions());
 	const projects = useQuery(orpc.projectShell.list.queryOptions());
 	const copy = catalog.data?.copy;
-	const attachmentFileRef = useRef<File | null>(null);
 	const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
 	const [mergeId, setMergeId] = useState<string | null>(null);
 	const form = useForm({
 		defaultValues: EMPTY_CAPTURE_FORM,
 		onSubmit: async ({ value }) => {
 			const projectId = value.projectId.trim() || undefined;
-			const attachment = attachmentFileRef.current
-				? await fileToCaptureAttachment(attachmentFileRef.current)
+			const attachment = attachmentFile
+				? await fileToCaptureAttachment(attachmentFile)
 				: undefined;
 			const result = attemptOnlineWork("record-create", () =>
 				save.mutateAsync({
@@ -87,7 +113,6 @@ export default function CaptureForm() {
 					queryKey: orpc.captureInbox.bulkSenseMaking.queryKey(),
 				});
 				recordSave();
-				attachmentFileRef.current = null;
 				setAttachmentFile(null);
 				form.reset(captureFormAfterSave(values));
 			},
@@ -113,7 +138,8 @@ export default function CaptureForm() {
 	);
 	const isDirty =
 		captureFormHasUnsavedCapture(values) || attachmentFile !== null;
-	const canCreateBug = createBugIsAvailable(values);
+	const canCreateBugWithoutAttachment = createBugIsAvailable(values);
+	const canCreateBug = attachmentFile === null && canCreateBugWithoutAttachment;
 	const groups = captureInboxGroups(
 		list.data ?? [],
 		copy ?? {
@@ -183,7 +209,7 @@ export default function CaptureForm() {
 		[form]
 	);
 	const onCreateBug = useCallback(() => {
-		if (!createBugIsAvailable(values)) {
+		if (!canCreateBug) {
 			return;
 		}
 		const projectId = values.projectId.trim();
@@ -200,7 +226,7 @@ export default function CaptureForm() {
 			return;
 		}
 		result.value.catch(() => undefined);
-	}, [attemptOnlineWork, createBug, values]);
+	}, [attemptOnlineWork, canCreateBug, createBug, values]);
 	const onProjectChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
 			form.setFieldValue("projectId", event.target.value);
@@ -232,7 +258,6 @@ export default function CaptureForm() {
 	const onAttachmentChange = useCallback(
 		(event: ChangeEvent<HTMLInputElement>) => {
 			const file = event.target.files?.[0] ?? null;
-			attachmentFileRef.current = file;
 			setAttachmentFile(file);
 		},
 		[]
@@ -341,9 +366,11 @@ export default function CaptureForm() {
 					</Button>
 				</div>
 				<p className="text-muted-foreground text-xs">
-					{canCreateBug
-						? copy.createBugDoesNotStayInInbox
-						: copy.createBugNeedsProjectAndBugCapture}
+					{createBugHint(
+						copy,
+						attachmentFile !== null,
+						canCreateBugWithoutAttachment
+					)}
 				</p>
 				{shell.lastSuccessfulSaveAt && preferences.data ? (
 					<p className="text-muted-foreground text-xs">
@@ -421,19 +448,7 @@ function CaptureInboxList({
 	sequential,
 	templates,
 }: {
-	copy: {
-		attachToExisting: string;
-		back: string;
-		convert: string;
-		delete: string;
-		document: string;
-		evidence: string;
-		fileAttachment: string;
-		origin: string;
-		otherProjects: string;
-		sequentialTriage: string;
-		work: string;
-	};
+	copy: CaptureInboxListCopy;
 	emptyCopy: string;
 	groups: Array<{
 		heading: string;
@@ -582,17 +597,7 @@ function CaptureInboxItemCard({
 	onMergeConsumed,
 	templates,
 }: {
-	copy: {
-		attachToExisting: string;
-		convert: string;
-		delete: string;
-		document: string;
-		evidence: string;
-		fileAttachment: string;
-		origin: string;
-		otherProjects: string;
-		work: string;
-	};
+	copy: TriageCopy;
 	item: {
 		attachment?: { filename: string };
 		body: string;

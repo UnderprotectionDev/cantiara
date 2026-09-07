@@ -12,28 +12,53 @@ import {
 } from "@/features/web-macos-client/show-main-flow-failure";
 import { withDesktopApiHeaders } from "@/features/web-macos-client/views/client-shell";
 import { productServerUrl } from "@/lib/product-server-url";
+import { retryOnceFor } from "@/lib/retry-once";
+
+const retriedMutations = new WeakSet<object>();
+const retriedQueries = new WeakSet<object>();
 
 export function createQueryClient() {
-	return new QueryClient({
+	const queryClient = new QueryClient({
 		defaultOptions: {
 			mutations: { retry: 0 },
 			queries: { retry: 0 },
 		},
 		mutationCache: new MutationCache({
 			onError: (error, variables, _onMutateResult, mutation) => {
-				showMainFlowFailure(error, () => {
-					mutation.execute(variables);
-				});
+				showMainFlowFailure(
+					error,
+					mutation.options.meta?.disableAutomaticRetry === true
+						? undefined
+						: retryOnceFor(mutation, retriedMutations, () => {
+								mutation.execute(variables);
+							})
+				);
+			},
+			onSuccess: (_data, _variables, _onMutateResult, mutation) => {
+				retriedMutations.delete(mutation);
 			},
 		}),
 		queryCache: new QueryCache({
 			onError: (error, query) => {
-				showQueryMainFlowFailure(error, () => {
-					query.invalidate();
-				});
+				showQueryMainFlowFailure(
+					error,
+					retryOnceFor(query, retriedQueries, () => {
+						queryClient
+							.refetchQueries({
+								exact: true,
+								queryKey: query.queryKey,
+								type: "all",
+							})
+							.catch(() => undefined);
+					})
+				);
+			},
+			onSuccess: (_data, query) => {
+				retriedQueries.delete(query);
 			},
 		}),
 	});
+	return queryClient;
 }
 
 export const queryClient = createQueryClient();

@@ -41,6 +41,7 @@ export interface TriageCopy {
 	delete: string;
 	document: string;
 	evidence: string;
+	feedback: string;
 	fileAttachment: string;
 	origin: string;
 	otherProjects: string;

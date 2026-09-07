@@ -22,7 +22,7 @@ export default function Login({ redirect }: { redirect?: string }) {
 				{FOUNDER_CHROME_COPY.product}
 			</p>
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">Sign In</h1>
-			<p className="mt-2 mb-8 text-muted-foreground text-sm text-pretty">
+			<p className="mt-2 mb-8 text-pretty text-muted-foreground text-sm">
 				{returningToSessions
 					? "Sign in to open Sessions."
 					: "GitHub identity bound to your Account."}

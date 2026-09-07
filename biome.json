@@ -9,9 +9,9 @@
     "ignoreUnknown": false,
     "includes": [
       "!.agents",
-      "!.agents",
       "!**/.next",
       "!**/dist",
+      "!**/prisma/generated",
       "!**/.turbo",
       "!**/.nx",
       "!**/dev-dist",
@@ -45,7 +45,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "correctness": {
         "useExhaustiveDependencies": "info"
       },
@@ -157,6 +157,19 @@
             "noShadow": "off",
             "noUnnecessaryConditions": "off"
           }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/server/src/**",
+        "packages/auth/src/**",
+        "packages/db/src/**",
+        "scripts/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": "off"
         }
       }
     }

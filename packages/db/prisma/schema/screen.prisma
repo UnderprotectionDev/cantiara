@@ -1,17 +1,17 @@
 model Screen {
-  id                        String             @id
+  id                        String                   @id
   projectId                 String
-  project                   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project                   Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   title                     String
-  body                      String             @default("")
+  body                      String                   @default("")
   archivedAt                DateTime?
   trashedAt                 DateTime?
   redactedAt                DateTime?
   currentWireframeVersionId String?
-  wireframeVersionsJson     String             @default("[]")
+  wireframeVersionsJson     String                   @default("[]")
   revision                  Int
-  createdAt                 DateTime           @default(now())
-  updatedAt                 DateTime           @updatedAt
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
   versions                  WireframeVersion[]
   events                    ScreenEvent[]
   personalViewports         ScreenPersonalViewport[]

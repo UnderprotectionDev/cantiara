@@ -61,9 +61,7 @@ export default function ArchiveWorkForm({
 	return (
 		<form className="flex flex-col gap-3" onSubmit={onSubmit}>
 			<Button disabled={mutation.isPending} type="submit">
-				{archived
-					? WORK_LIFECYCLE_COPY.unarchive
-					: WORK_LIFECYCLE_COPY.archive}
+				{archived ? WORK_LIFECYCLE_COPY.unarchive : WORK_LIFECYCLE_COPY.archive}
 			</Button>
 			{error ? <p role="alert">{error}</p> : null}
 		</form>

@@ -17,7 +17,10 @@ import {
 import {
 	EVIDENCE_COPY,
 	EVIDENCE_ROLES,
+	type EvidenceFlowTargetKind,
 	type EvidenceRole,
+	type EvidenceSourceKind,
+	type EvidenceTargetKind,
 } from "@/features/evidence/forms/evidence-copy";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -35,9 +38,9 @@ export function EvidenceRoleFields({
 	pinId: string;
 	role: EvidenceRole;
 	sourceId?: string;
-	sourceKind?: string;
+	sourceKind?: EvidenceSourceKind;
 	targetId?: string;
-	targetKind?: string;
+	targetKind?: EvidenceTargetKind;
 }) {
 	const roleId = useId();
 	const interpretationId = useId();
@@ -62,11 +65,13 @@ export function EvidenceRoleFields({
 					input: { targetId, targetKind },
 				}),
 			});
-			await queryClient.invalidateQueries({
-				queryKey: orpc.evidence.listFlow.queryKey({
-					input: { targetId, targetKind },
-				}),
-			});
+			if (isEvidenceFlowTargetKind(targetKind)) {
+				await queryClient.invalidateQueries({
+					queryKey: orpc.evidence.listFlow.queryKey({
+						input: { targetId, targetKind },
+					}),
+				});
+			}
 		}
 	}, [sourceId, sourceKind, targetId, targetKind]);
 	const setRole = useMutation(
@@ -141,5 +146,15 @@ export function EvidenceRoleFields({
 				<Button type="submit">{EVIDENCE_COPY.founderInterpretation}</Button>
 			</form>
 		</div>
+	);
+}
+
+function isEvidenceFlowTargetKind(
+	targetKind: EvidenceTargetKind
+): targetKind is EvidenceFlowTargetKind {
+	return (
+		targetKind === "Work" ||
+		targetKind === "Decision" ||
+		targetKind === "Assumption"
 	);
 }

@@ -106,6 +106,7 @@ export default function FileMarkingOverlay({
 	}, [versionId]);
 	const append = useMutation(
 		orpc.fileAttachments.appendMark.mutationOptions({
+			meta: { disableAutomaticRetry: true },
 			onSuccess: async () => {
 				await invalidateLayer();
 			},
@@ -146,6 +147,7 @@ export default function FileMarkingOverlay({
 			: [];
 	useLayoutEffect(() => {
 		const node = frameRef.current;
+		// biome-ignore lint/suspicious/noUnnecessaryConditions: the ref is null until the overlay mounts.
 		if (!node) {
 			return;
 		}

@@ -1,19 +1,19 @@
 model Workspace {
-  id                    String                          @id
-  name                  String
-  ownerId               String                          @unique
-  owner                 User                            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  overviewLayout        Json                            @default("{}")
-  createdAt             DateTime                        @default(now())
-  updatedAt             DateTime                        @updatedAt
-  projects              Project[]
-  shortCodeReservations WorkspaceShortCodeReservation[]
-  tags                  Tag[]
-  fileAttachments       FileAttachment[]
-  focusPeriods          FocusPeriod[]
-  documents             Document[]
-  documentFolders       DocumentFolder[]
-  documentTemplates     DocumentTemplate[]
+  id                     String                          @id
+  name                   String
+  ownerId                String                          @unique
+  owner                  User                            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  overviewLayout         Json                            @default("{}")
+  createdAt              DateTime                        @default(now())
+  updatedAt              DateTime                        @updatedAt
+  projects               Project[]
+  shortCodeReservations  WorkspaceShortCodeReservation[]
+  tags                   Tag[]
+  fileAttachments        FileAttachment[]
+  focusPeriods           FocusPeriod[]
+  documents              Document[]
+  documentFolders        DocumentFolder[]
+  documentTemplates      DocumentTemplate[]
   userFlowTemplates      UserFlowTemplate[]
   documentConflictDrafts DocumentConflictDraft[]
   specChangeReviews      SpecChangeReview[]

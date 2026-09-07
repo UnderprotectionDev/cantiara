@@ -17,7 +17,7 @@
     "db:migrate:deploy": "bunx --bun prisma migrate deploy",
     "postinstall": "bunx --bun prisma generate",
     "db:studio": "prisma studio",
-    "test": "bun test src"
+    "test": "SKIP_ENV_VALIDATION=1 NODE_ENV=test bun test src"
   },
   "dependencies": {
     "@cantiara/env": "workspace:*",

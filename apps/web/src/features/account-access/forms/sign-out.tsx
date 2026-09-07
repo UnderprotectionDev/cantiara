@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 import { authClient } from "@/lib/auth-client";
+import { queryClient } from "@/utils/orpc";
 
 export default function SignOut() {
 	const navigate = useNavigate();
@@ -11,6 +12,7 @@ export default function SignOut() {
 			.signOut({
 				fetchOptions: {
 					onSuccess: async () => {
+						queryClient.clear();
 						const { clearDesktopSessionToken } = await import(
 							"@/features/account-access/forms/tauri-session-token"
 						);

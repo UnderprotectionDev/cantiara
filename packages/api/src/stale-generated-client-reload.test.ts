@@ -52,6 +52,12 @@ describe("generated Prisma client reload", () => {
 		expect(reloads).toBe(0);
 	});
 
+	it("accepts synchronous middleware results", async () => {
+		const run = createGeneratedClientReload(() => undefined);
+
+		await expect(run(() => "saved")).resolves.toBe("saved");
+	});
+
 	it("does not retry stale generated-client errors outside development", async () => {
 		const previous = process.env.NODE_ENV;
 		process.env.NODE_ENV = "test";
