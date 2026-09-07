@@ -3,8 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
 import { RELATIONS_COPY } from "../forms/relations-copy";
-import { readUsedIn } from "./read-used-in";
-import { usedInQueryKey } from "./used-in-query-key";
+import { readUsedInQueryOptions } from "./read-used-in";
 
 interface UsedInRow {
 	groupLabel: string;
@@ -28,10 +27,7 @@ export default function UsedInPanel({
 	onOpenSourceRecord?: (id: string) => void;
 	workId: string;
 }) {
-	const inspect = useQuery({
-		queryFn: () => readUsedIn(workId),
-		queryKey: usedInQueryKey(workId),
-	});
+	const inspect = useQuery(readUsedInQueryOptions(workId));
 	const usedIn = inspect.data?.usedIn;
 	return (
 		<section className="flex flex-col gap-3">

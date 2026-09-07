@@ -127,15 +127,24 @@ export default function UserFlowDetail({
 				input: { userFlowId: flowId },
 			}),
 		});
-	}, [flowId]);
+		await queryClient.invalidateQueries({
+			queryKey: orpc.userFlow.listScreens.queryKey({
+				input: { projectId },
+			}),
+		});
+	}, [flowId, projectId]);
 
 	const onOutcome = useCallback(
-		async (outcome: { status: string; reason?: string }) => {
+		async (outcome: { conflict?: string; reason?: string; status: string }) => {
 			if (outcome.status === "committed" || outcome.status === "replayed") {
 				await invalidate();
 				setDescription("");
 				setLabel("");
 				setError(null);
+				return;
+			}
+			if (outcome.status === "conflict" && outcome.conflict) {
+				setError(outcome.conflict);
 				return;
 			}
 			if (outcome.status === "rejected" && outcome.reason) {

@@ -53,6 +53,10 @@ export default function ConvertAndBindForm({
 					setError(outcome.reason);
 					return;
 				}
+				if (outcome.status === "conflict") {
+					setError(outcome.conflict);
+					return;
+				}
 				setError(null);
 				await queryClient.invalidateQueries({
 					queryKey: orpc.screensAndWireframes.get.queryKey({
