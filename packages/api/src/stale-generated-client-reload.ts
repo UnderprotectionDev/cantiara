@@ -2,8 +2,8 @@ import { isStaleGeneratedClientError } from "./client-shell-failure";
 
 export function createGeneratedClientReload(reload: () => void) {
 	return async function runWithGeneratedClientReload<T>(
-		run: () => Promise<T>
-	): Promise<T> {
+		run: () => T | PromiseLike<T>
+	): Promise<Awaited<T>> {
 		try {
 			return await run();
 		} catch (error) {
