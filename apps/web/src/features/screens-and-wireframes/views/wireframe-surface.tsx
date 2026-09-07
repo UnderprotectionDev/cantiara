@@ -1,11 +1,26 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
+import { Spinner } from "@cantiara/ui/components/spinner";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type KeyboardEvent, useCallback, useMemo, useState } from "react";
+import { useTheme } from "next-themes";
+import {
+	type KeyboardEvent,
+	type RefObject,
+	useCallback,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { Layer, Rect, Stage, Text } from "react-konva";
 
+import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import ConvertAndBindForm from "@/features/screens-and-wireframes/forms/convert-and-bind-form";
-import { SCREENS_COPY } from "@/features/screens-and-wireframes/forms/screens-copy";
+import {
+	SCREENS_COPY,
+	WIREFRAME_NODE_KINDS,
+	wireframeCanvasInk,
+} from "@/features/screens-and-wireframes/forms/screens-copy";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -162,16 +177,19 @@ export default function WireframeSurface({
 		});
 	}, [persistViewport]);
 
-	const onAddButton = useCallback(() => {
-		createNode.mutate({
-			baseRevision: revision,
-			idempotencyKey: newIdempotencyKey(),
-			payload: {
-				kind: "Button",
-				screenId,
-			},
-		});
-	}, [createNode, revision, screenId]);
+	const onAddKind = useCallback(
+		(kind: (typeof WIREFRAME_NODE_KINDS)[number]) => {
+			createNode.mutate({
+				baseRevision: revision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: {
+					kind,
+					screenId,
+				},
+			});
+		},
+		[createNode, revision, screenId]
+	);
 
 	const onDetach = useCallback(
 		(nodeId: string) => {
@@ -370,6 +388,8 @@ export default function WireframeSurface({
 	const scale = restored?.zoom ?? 1;
 	const translateX = -(restored?.centerX ?? 0);
 	const translateY = -(restored?.centerY ?? 0);
+	const { resolvedTheme } = useTheme();
+	const ink = wireframeCanvasInk(resolvedTheme);
 
 	return (
 		// Canvas keyboard pan/zoom/select lives on the surface, not a button.
@@ -410,13 +430,16 @@ export default function WireframeSurface({
 			</div>
 			{toolsHidden ? null : (
 				<div className="flex flex-wrap gap-2">
-					<Button onClick={onAddButton} type="button" variant="outline">
-						{SCREENS_COPY.button}
-					</Button>
+					{WIREFRAME_NODE_KINDS.map((kind) => (
+						<AddKindButton key={kind} kind={kind} onAdd={onAddKind} />
+					))}
 				</div>
 			)}
-			<div className="grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
-				<nav aria-label={SCREENS_COPY.outline}>
+			<div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
+				<nav
+					aria-label={SCREENS_COPY.outline}
+					className="order-2 min-w-0 overflow-hidden lg:order-1"
+				>
 					<h3 className="font-medium text-sm">{SCREENS_COPY.outline}</h3>
 					{nodes.length === 0 ? (
 						<Empty>
@@ -469,48 +492,19 @@ export default function WireframeSurface({
 						</ul>
 					)}
 				</nav>
-				<div>
-					{versionNumber !== null && version.data ? (
-						<div
-							aria-hidden
-							className="overflow-hidden rounded-none border border-input"
-							style={{
-								transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
-								transformOrigin: "center center",
-							}}
-						>
-							<Stage height={240} listening={false} width={480}>
-								<Layer>
-									{nodes.map((node) => (
-										<Rect
-											fill="transparent"
-											height={node.geometry.height}
-											key={node.id}
-											stroke="#171717"
-											strokeWidth={1}
-											width={node.geometry.width}
-											x={node.geometry.x}
-											y={node.geometry.y}
-										/>
-									))}
-									{nodes.map((node) => (
-										<Text
-											fontFamily="Shantell Sans, sans-serif"
-											fontSize={14}
-											key={`${node.id}-label`}
-											text={
-												node.text?.status === "broken"
-													? SCREENS_COPY.broken
-													: (node.text?.value ?? node.label ?? node.kind)
-											}
-											x={node.geometry.x + 8}
-											y={node.geometry.y + 12}
-										/>
-									))}
-								</Layer>
-							</Stage>
-						</div>
-					) : null}
+				<div className="order-1 min-w-0 lg:order-2">
+					<WireframePane
+						ink={ink}
+						loading={version.isPending && versionNumber !== null}
+						nodes={nodes}
+						onToggleSelect={onToggleSelect}
+						scale={scale}
+						selectedIds={selectedIds}
+						selectedNodeId={selectedNodeId}
+						toolsHidden={toolsHidden === true}
+						translateX={translateX}
+						translateY={translateY}
+					/>
 					{selectedNode ? (
 						<section aria-label={SCREENS_COPY.inspect} className="mt-4">
 							<h3 className="font-medium text-sm">{SCREENS_COPY.inspect}</h3>
@@ -530,6 +524,166 @@ export default function WireframeSurface({
 				</div>
 			</div>
 		</div>
+	);
+}
+
+function AddKindButton({
+	kind,
+	onAdd,
+}: {
+	kind: (typeof WIREFRAME_NODE_KINDS)[number];
+	onAdd: (kind: (typeof WIREFRAME_NODE_KINDS)[number]) => void;
+}) {
+	const onClick = useCallback(() => {
+		onAdd(kind);
+	}, [kind, onAdd]);
+	return (
+		<Button onClick={onClick} type="button" variant="outline">
+			{kind}
+		</Button>
+	);
+}
+
+function usePaneSize(): {
+	ref: RefObject<HTMLDivElement | null>;
+	size: { height: number; width: number };
+} {
+	const ref = useRef<HTMLDivElement>(null);
+	const [size, setSize] = useState({ height: 448, width: 640 });
+	useLayoutEffect(() => {
+		const el = ref.current;
+		if (!el) {
+			return;
+		}
+		const ro = new ResizeObserver((entries) => {
+			const box = entries[0]?.contentRect;
+			if (!box) {
+				return;
+			}
+			setSize({
+				height: Math.max(1, Math.floor(box.height)),
+				width: Math.max(1, Math.floor(box.width)),
+			});
+		});
+		ro.observe(el);
+		return () => {
+			ro.disconnect();
+		};
+	}, []);
+	return { ref, size };
+}
+
+function WireframePane({
+	ink,
+	loading,
+	nodes,
+	onToggleSelect,
+	scale,
+	selectedIds,
+	selectedNodeId,
+	toolsHidden,
+	translateX,
+	translateY,
+}: {
+	ink: { fill: string; stroke: string };
+	loading: boolean;
+	nodes: OutlineNode[];
+	onToggleSelect: (nodeId: string) => void;
+	scale: number;
+	selectedIds: string[];
+	selectedNodeId?: string | null;
+	toolsHidden: boolean;
+	translateX: number;
+	translateY: number;
+}) {
+	const { ref, size } = usePaneSize();
+	return (
+		<div
+			className="relative h-[min(70vh,40rem)] min-h-[28rem] min-w-0 overflow-hidden rounded-md border bg-[radial-gradient(circle,var(--border)_1px,transparent_1px)] bg-[size:16px_16px] bg-muted/20"
+			ref={ref}
+		>
+			<Stage height={size.height} listening={!toolsHidden} width={size.width}>
+				<Layer scaleX={scale} scaleY={scale} x={translateX} y={translateY}>
+					{nodes.map((node) => {
+						const selected =
+							selectedIds.includes(node.id) || selectedNodeId === node.id;
+						return (
+							<WireframeNodeShape
+								ink={ink}
+								key={node.id}
+								node={node}
+								onToggleSelect={onToggleSelect}
+								selected={selected}
+								toolsHidden={toolsHidden}
+							/>
+						);
+					})}
+				</Layer>
+			</Stage>
+			{loading ? (
+				<p className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-background/40 text-muted-foreground text-sm">
+					<Spinner />
+					{PROJECT_SHELL_COPY.loading}
+				</p>
+			) : null}
+			{loading || nodes.length > 0 ? null : (
+				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4">
+					<p className="rounded-md border border-border bg-background/95 px-3 py-2 text-center text-muted-foreground text-sm">
+						{SCREENS_COPY.wireframe}
+					</p>
+				</div>
+			)}
+		</div>
+	);
+}
+
+function WireframeNodeShape({
+	ink,
+	node,
+	onToggleSelect,
+	selected,
+	toolsHidden,
+}: {
+	ink: { fill: string; stroke: string };
+	node: OutlineNode;
+	onToggleSelect: (nodeId: string) => void;
+	selected: boolean;
+	toolsHidden: boolean;
+}) {
+	const onClick = useCallback(() => {
+		if (toolsHidden) {
+			return;
+		}
+		onToggleSelect(node.id);
+	}, [node.id, onToggleSelect, toolsHidden]);
+	let label = node.label ?? node.kind;
+	if (node.text?.status === "broken") {
+		label = SCREENS_COPY.broken;
+	} else if (node.text?.value) {
+		label = node.text.value;
+	}
+	return (
+		<>
+			<Rect
+				fill={selected ? "rgba(250,250,250,0.08)" : "transparent"}
+				height={node.geometry.height}
+				onClick={onClick}
+				stroke={ink.stroke}
+				strokeWidth={selected ? 2 : 1}
+				width={node.geometry.width}
+				x={node.geometry.x}
+				y={node.geometry.y}
+			/>
+			<Text
+				fill={ink.fill}
+				fontFamily="Shantell Sans, sans-serif"
+				fontSize={14}
+				listening={false}
+				text={label}
+				x={node.geometry.x + 8}
+				y={node.geometry.y + 12}
+			/>
+		</>
 	);
 }
 

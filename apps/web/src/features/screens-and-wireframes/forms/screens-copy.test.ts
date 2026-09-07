@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { SCREENS_COPY } from "./screens-copy";
+import {
+	SCREENS_COPY,
+	WIREFRAME_NODE_KINDS,
+	wireframeCanvasInk,
+} from "./screens-copy";
 
 const OUT_OF_SCOPE_COPY = /User Flow editor|Moodboard|Document/;
 
@@ -25,6 +29,22 @@ describe("Screens copy", () => {
 		expect(SCREENS_COPY.outline).toBe("Outline");
 		expect(SCREENS_COPY.openSourceRecord).toBe("Open Source Record");
 		expect(SCREENS_COPY.moveToTrash).toBe("Move to Trash");
+		expect(SCREENS_COPY.wireframe).toBe("Wireframe");
+		expect(WIREFRAME_NODE_KINDS).toEqual([
+			"Button",
+			"Input",
+			"Card",
+			"Table",
+			"Navigation",
+			"Chart",
+			"Text",
+		]);
 		expect(JSON.stringify(SCREENS_COPY)).not.toMatch(OUT_OF_SCOPE_COPY);
+	});
+
+	it("draws Wireframe ink that stays visible on Dark appearance", () => {
+		expect(wireframeCanvasInk("dark").stroke).toBe("#e5e5e5");
+		expect(wireframeCanvasInk(undefined).stroke).toBe("#e5e5e5");
+		expect(wireframeCanvasInk("light").stroke).toBe("#171717");
 	});
 });

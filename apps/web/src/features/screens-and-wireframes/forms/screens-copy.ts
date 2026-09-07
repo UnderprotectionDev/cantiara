@@ -54,6 +54,26 @@ export const SCREENS_COPY = {
 	wireframe: "Wireframe",
 } as const;
 
+export const WIREFRAME_NODE_KINDS = [
+	SCREENS_COPY.button,
+	SCREENS_COPY.input,
+	SCREENS_COPY.card,
+	SCREENS_COPY.table,
+	SCREENS_COPY.navigation,
+	SCREENS_COPY.chart,
+	SCREENS_COPY.text,
+] as const;
+
+export function wireframeCanvasInk(theme: string | undefined): {
+	fill: string;
+	stroke: string;
+} {
+	if (theme === "light") {
+		return { fill: "#171717", stroke: "#171717" };
+	}
+	return { fill: "#fafafa", stroke: "#e5e5e5" };
+}
+
 export const CONVERT_RECORD_KINDS = [
 	"Work",
 	"Decision",
