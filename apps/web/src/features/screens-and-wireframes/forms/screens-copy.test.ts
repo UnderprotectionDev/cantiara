@@ -4,7 +4,9 @@ import {
 	SCREENS_COPY,
 	WIREFRAME_NODE_KINDS,
 	WIREFRAME_PANE_CLASS,
+	WIREFRAME_STAGE_TYPEFACE,
 	wireframeCanvasInk,
+	wireframeKindMarks,
 } from "./screens-copy";
 
 const OUT_OF_SCOPE_COPY = /User Flow editor|Moodboard|Document/;
@@ -46,8 +48,17 @@ describe("Screens copy", () => {
 	});
 
 	it("draws Wireframe ink that stays visible on Dark appearance", () => {
+		expect(wireframeCanvasInk("dark").box).toBe("#262626");
 		expect(wireframeCanvasInk("dark").stroke).toBe("#e5e5e5");
 		expect(wireframeCanvasInk(undefined).stroke).toBe("#e5e5e5");
 		expect(wireframeCanvasInk("light").stroke).toBe("#171717");
+		expect(WIREFRAME_STAGE_TYPEFACE).toBe("sans-serif");
+		expect(wireframeKindMarks(SCREENS_COPY.button, 120, 40)).toEqual([]);
+		expect(wireframeKindMarks(SCREENS_COPY.input, 120, 40)[0]).toMatchObject({
+			id: "input-baseline",
+			points: [8, 32, 112, 32],
+			type: "line",
+		});
+		expect(wireframeKindMarks(SCREENS_COPY.table, 90, 90)).toHaveLength(3);
 	});
 });

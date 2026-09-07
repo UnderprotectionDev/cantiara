@@ -65,13 +65,96 @@ export const WIREFRAME_NODE_KINDS = [
 ] as const;
 
 export function wireframeCanvasInk(theme: string | undefined): {
+	box: string;
 	fill: string;
 	stroke: string;
 } {
 	if (theme === "light") {
-		return { fill: "#171717", stroke: "#171717" };
+		return { box: "#fafafa", fill: "#171717", stroke: "#171717" };
 	}
-	return { fill: "#fafafa", stroke: "#e5e5e5" };
+	return { box: "#262626", fill: "#fafafa", stroke: "#e5e5e5" };
+}
+
+export const WIREFRAME_STAGE_TYPEFACE = "sans-serif";
+
+export type WireframeKindMark =
+	| { id: string; points: number[]; type: "line" }
+	| {
+			height: number;
+			id: string;
+			type: "rect";
+			width: number;
+			x: number;
+			y: number;
+	  };
+
+export function wireframeKindMarks(
+	kind: string,
+	width: number,
+	height: number
+): WireframeKindMark[] {
+	if (kind === SCREENS_COPY.input) {
+		return [
+			{
+				id: "input-baseline",
+				points: [8, height - 8, width - 8, height - 8],
+				type: "line",
+			},
+		];
+	}
+	if (kind === SCREENS_COPY.card) {
+		return [{ id: "card-header", points: [0, 28, width, 28], type: "line" }];
+	}
+	if (kind === SCREENS_COPY.table) {
+		return [
+			{
+				id: "table-row-1",
+				points: [0, height / 3, width, height / 3],
+				type: "line",
+			},
+			{
+				id: "table-row-2",
+				points: [0, (2 * height) / 3, width, (2 * height) / 3],
+				type: "line",
+			},
+			{
+				id: "table-col",
+				points: [width / 3, 0, width / 3, height],
+				type: "line",
+			},
+		];
+	}
+	if (kind === SCREENS_COPY.navigation) {
+		return [
+			{ height: 14, id: "nav-1", type: "rect", width: 40, x: 10, y: 13 },
+			{ height: 14, id: "nav-2", type: "rect", width: 40, x: 58, y: 13 },
+			{ height: 14, id: "nav-3", type: "rect", width: 40, x: 106, y: 13 },
+		];
+	}
+	if (kind === SCREENS_COPY.chart) {
+		return [
+			{
+				id: "chart-axes",
+				points: [12, 12, 12, height - 12, width - 12, height - 12],
+				type: "line",
+			},
+			{
+				id: "chart-series",
+				points: [
+					16,
+					height - 20,
+					width * 0.35,
+					height * 0.45,
+					width * 0.65,
+					height * 0.58,
+					width - 16,
+					20,
+				],
+				type: "line",
+			},
+		];
+	}
+	return [];
 }
 
 export const WIREFRAME_PANE_CLASS =

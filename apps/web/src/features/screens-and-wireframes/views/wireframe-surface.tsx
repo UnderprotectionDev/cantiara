@@ -11,7 +11,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Group, Layer, Rect, Stage, Text } from "react-konva";
+import { Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import ConvertAndBindForm from "@/features/screens-and-wireframes/forms/convert-and-bind-form";
@@ -19,7 +19,9 @@ import {
 	SCREENS_COPY,
 	WIREFRAME_NODE_KINDS,
 	WIREFRAME_PANE_CLASS,
+	WIREFRAME_STAGE_TYPEFACE,
 	wireframeCanvasInk,
+	wireframeKindMarks,
 } from "@/features/screens-and-wireframes/forms/screens-copy";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -592,22 +594,25 @@ function usePaneSize(): {
 			return;
 		}
 		const apply = (width: number, height: number) => {
-			setSize({
-				height: Math.max(320, Math.floor(height)),
-				width: Math.max(320, Math.floor(width)),
-			});
-		};
-		const box = el.getBoundingClientRect();
-		apply(box.width, box.height);
-		const ro = new ResizeObserver((entries) => {
-			const next = entries[0]?.contentRect;
-			if (!next) {
+			if (width < 2 || height < 2) {
 				return;
 			}
-			apply(next.width, next.height);
+			setSize({
+				height: Math.floor(height),
+				width: Math.floor(width),
+			});
+		};
+		const measure = () => {
+			apply(el.clientWidth, el.clientHeight);
+		};
+		measure();
+		const frame = requestAnimationFrame(measure);
+		const ro = new ResizeObserver(() => {
+			measure();
 		});
 		ro.observe(el);
 		return () => {
+			cancelAnimationFrame(frame);
 			ro.disconnect();
 		};
 	}, []);
@@ -627,7 +632,7 @@ function WireframePane({
 	translateX,
 	translateY,
 }: {
-	ink: { fill: string; stroke: string };
+	ink: { box: string; fill: string; stroke: string };
 	loading: boolean;
 	nodes: OutlineNode[];
 	onMoveNode: (nodeId: string, x: number, y: number) => void;
@@ -642,7 +647,12 @@ function WireframePane({
 	const { ref, size } = usePaneSize();
 	return (
 		<div className={WIREFRAME_PANE_CLASS} ref={ref}>
-			<Stage height={size.height} listening={!toolsHidden} width={size.width}>
+			<Stage
+				height={size.height}
+				listening={!toolsHidden}
+				style={{ height: "100%", width: "100%" }}
+				width={size.width}
+			>
 				<Layer scaleX={scale} scaleY={scale} x={translateX} y={translateY}>
 					{nodes.map((node) => {
 						const selected =
@@ -679,7 +689,7 @@ function WireframeNodeShape({
 	selected,
 	toolsHidden,
 }: {
-	ink: { fill: string; stroke: string };
+	ink: { box: string; fill: string; stroke: string };
 	node: OutlineNode;
 	onMoveNode: (nodeId: string, x: number, y: number) => void;
 	onToggleSelect: (nodeId: string) => void;
@@ -707,6 +717,11 @@ function WireframeNodeShape({
 	} else if (node.text?.value) {
 		label = node.text.value;
 	}
+	const marks = wireframeKindMarks(
+		node.kind,
+		node.geometry.width,
+		node.geometry.height
+	);
 	return (
 		<Group
 			draggable={!toolsHidden}
@@ -716,20 +731,44 @@ function WireframeNodeShape({
 			y={node.geometry.y}
 		>
 			<Rect
-				fill={selected ? "rgba(250,250,250,0.08)" : "transparent"}
+				cornerRadius={node.kind === SCREENS_COPY.button ? 6 : 2}
+				fill={ink.box}
 				height={node.geometry.height}
 				stroke={ink.stroke}
-				strokeWidth={selected ? 2 : 1}
+				strokeWidth={selected ? 2 : 1.5}
 				width={node.geometry.width}
 			/>
+			{marks.map((mark) =>
+				mark.type === "line" ? (
+					<Line
+						key={`${node.id}-${mark.id}`}
+						listening={false}
+						points={mark.points}
+						stroke={ink.stroke}
+						strokeWidth={1.5}
+					/>
+				) : (
+					<Rect
+						height={mark.height}
+						key={`${node.id}-${mark.id}`}
+						listening={false}
+						stroke={ink.stroke}
+						strokeWidth={1}
+						width={mark.width}
+						x={mark.x}
+						y={mark.y}
+					/>
+				)
+			)}
 			<Text
 				fill={ink.fill}
-				fontFamily="Shantell Sans, sans-serif"
+				fontFamily={WIREFRAME_STAGE_TYPEFACE}
 				fontSize={14}
 				listening={false}
 				text={label}
+				width={Math.max(8, node.geometry.width - 16)}
 				x={8}
-				y={12}
+				y={node.kind === SCREENS_COPY.card ? 8 : 12}
 			/>
 		</Group>
 	);
