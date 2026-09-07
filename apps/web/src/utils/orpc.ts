@@ -12,7 +12,10 @@ import {
 } from "@/features/web-macos-client/show-main-flow-failure";
 import { withDesktopApiHeaders } from "@/features/web-macos-client/views/client-shell";
 import { productServerUrl } from "@/lib/product-server-url";
-import { retryOnce } from "@/lib/retry-once";
+import { retryOnceFor } from "@/lib/retry-once";
+
+const retriedMutations = new WeakSet<object>();
+const retriedQueries = new WeakSet<object>();
 
 export function createQueryClient() {
 	return new QueryClient({
@@ -24,20 +27,26 @@ export function createQueryClient() {
 			onError: (error, variables, _onMutateResult, mutation) => {
 				showMainFlowFailure(
 					error,
-					retryOnce(() => {
+					retryOnceFor(mutation, retriedMutations, () => {
 						mutation.execute(variables);
 					})
 				);
+			},
+			onSuccess: (_data, _variables, _onMutateResult, mutation) => {
+				retriedMutations.delete(mutation);
 			},
 		}),
 		queryCache: new QueryCache({
 			onError: (error, query) => {
 				showQueryMainFlowFailure(
 					error,
-					retryOnce(() => {
+					retryOnceFor(query, retriedQueries, () => {
 						query.invalidate();
 					})
 				);
+			},
+			onSuccess: (_data, query) => {
+				retriedQueries.delete(query);
 			},
 		}),
 	});
