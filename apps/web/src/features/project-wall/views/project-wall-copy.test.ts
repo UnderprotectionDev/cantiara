@@ -24,6 +24,9 @@ test("English UI uses Project Wall, Sitemap, Customer Journey, Presentation Mode
 	);
 	expect(PROJECT_WALL_COPY.lockPosition).toBe("Lock Position");
 	expect(PROJECT_WALL_COPY.visualLink).toBe("Visual link");
+	expect(PROJECT_WALL_COPY.from).toBe("From");
+	expect(PROJECT_WALL_COPY.to).toBe("To");
+	expect(PROJECT_WALL_COPY.unbind).toBe("Unbind");
 	expect(PROJECT_WALL_COPY.presentationMode).toBe("Presentation Mode");
 	expect(PROJECT_WALL_COPY.frozenCopy).toBe("Frozen copy");
 	expect(PROJECT_WALL_COPY.openAllInSource).toBe("Open all in source");

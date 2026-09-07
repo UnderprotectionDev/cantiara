@@ -38,7 +38,7 @@ export default function UserFlowArea({ projectId }: { projectId: string }) {
 	const rows = flows.data ?? [];
 
 	return (
-		<div className="flex flex-col gap-8">
+		<div className="flex min-w-0 flex-col gap-8">
 			<CreateUserFlowForm onCreated={onCreated} projectId={projectId} />
 			<CreateFromUserFlowTemplateForm
 				onCreated={onCreated}

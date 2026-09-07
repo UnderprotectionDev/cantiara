@@ -37,7 +37,7 @@ Kurucu birden fazla düz, adlandırılmış Proje Duvarı tutar. Kalıcı öğel
 23. As a founder, I want `Fit View` to neutral; a meaningless saved position fits visible content; selection/inspector/unsaved ops are not restored.
 24. As a founder, I want a structured outline that can create, select, reorder, group, bind, unbind, inspect, and open source records without a pointer.
 25. As a founder, I want the hard scene of 500 visible items and 750 visual links to meet frame budget; 2,000 / 3,000 must not crash or corrupt.
-26. As a founder, I want English UI `Project Wall`, `Compact`, `Preview`, `Detailed`, `Create Persistent Relation`, `Lock Position`, `Presentation Mode`, `Fit View`, `Open Source Record`, `Sitemap`, `Customer Journey`.
+26. As a founder, I want English UI `Project Wall`, `Compact`, `Preview`, `Detailed`, `Create Persistent Relation`, `Lock Position`, `Presentation Mode`, `Fit View`, `Open Source Record`, `Sitemap`, `Customer Journey`, `Visual link`, `From`, `To`, `Unbind`.
 27. As a founder using only a keyboard or a screen reader, I want to complete **canvas yapılandırılmış outline** on this surface.
 28. As a founder, I do not want wall position to be relation, status, or priority.
 29. As a founder, I do not want the wall to be a Wireframe, Moodboard, or Wiki page.

@@ -2,6 +2,9 @@ import { expect, test } from "vitest";
 
 import {
 	CONFIGURATION_MODE_EDITORS,
+	DESIGN_SURFACES,
+	designSurfaceForAnchor,
+	isDesignShellAnchor,
 	isWorkShellAnchor,
 	PROJECT_SHELL_COPY,
 	pinnedNavigationAreas,
@@ -246,6 +249,20 @@ test("Work daily actions and Saved views stay on the Work surface", () => {
 	expect(isWorkShellAnchor("create", ["Backlog", "Board"])).toBe(true);
 	expect(isWorkShellAnchor("board", ["Backlog", "Board"])).toBe(true);
 	expect(isWorkShellAnchor("documents", ["Backlog", "Board"])).toBe(false);
+	expect(DESIGN_SURFACES).toEqual([
+		"Project Wall",
+		"Screen",
+		"User Flow",
+		"Moodboard",
+	]);
+	expect(isDesignShellAnchor("design")).toBe(true);
+	expect(isDesignShellAnchor("project-wall")).toBe(true);
+	expect(isDesignShellAnchor("screen")).toBe(true);
+	expect(isDesignShellAnchor("user-flow")).toBe(true);
+	expect(isDesignShellAnchor("moodboard")).toBe(true);
+	expect(isDesignShellAnchor("documents")).toBe(false);
+	expect(designSurfaceForAnchor("design")).toBe("Project Wall");
+	expect(designSurfaceForAnchor("user-flow")).toBe("User Flow");
 	expect(workSavedViewIsList("Backlog")).toBe(true);
 	expect(workSavedViewIsList("Board")).toBe(false);
 	expect(workSavedViewIsBoard("Board")).toBe(true);

@@ -83,7 +83,7 @@ export default function ScreenArea({ projectId }: { projectId: string }) {
 					</FieldLabel>
 				</Field>
 			</div>
-			<div className="grid gap-6 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
+			<div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
 				{screens.data.length === 0 ? (
 					<Empty>
 						<EmptyHeader>

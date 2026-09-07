@@ -72,6 +72,8 @@ interface WallGroup {
 	name: string;
 }
 
+const TOOL_FIELD_CLASS = "w-auto min-w-[9rem] max-w-[14rem]";
+
 export default function ProjectWallCanvas({
 	onOpenSourceRecord,
 	wallId,
@@ -83,6 +85,9 @@ export default function ProjectWallCanvas({
 	const [sourceId, setSourceId] = useState("");
 	const [collectionId, setCollectionId] = useState("");
 	const [diagramId, setDiagramId] = useState("");
+	const [placeKind, setPlaceKind] = useState<string>(
+		PROJECT_WALL_SOURCE_KIND.work
+	);
 	const [presenting, setPresenting] = useState(false);
 	const [selectedIds, setSelectedIds] = useState<string[]>([]);
 	const [snapshotNotice, setSnapshotNotice] = useState<string | null>(null);
@@ -266,41 +271,36 @@ export default function ProjectWallCanvas({
 	const onPlace = useCallback(
 		(event: FormEvent<HTMLFormElement>) => {
 			event.preventDefault();
-			placeSource(sourceId, PROJECT_WALL_SOURCE_KIND.work);
+			const nextSourceId = placedSourceId(
+				placeKind,
+				sourceId,
+				collectionId,
+				diagramId
+			);
+			placeSource(nextSourceId, placeKind);
 		},
-		[placeSource, sourceId]
+		[collectionId, diagramId, placeKind, placeSource, sourceId]
 	);
-	const onPlaceCollection = useCallback(
-		(event: FormEvent<HTMLFormElement>) => {
-			event.preventDefault();
-			placeSource(collectionId, PROJECT_WALL_SOURCE_KIND.smartCollection);
-		},
-		[collectionId, placeSource]
-	);
-	const onPlaceDiagram = useCallback(
-		(event: FormEvent<HTMLFormElement>) => {
-			event.preventDefault();
-			placeSource(diagramId, PROJECT_WALL_SOURCE_KIND.technicalDiagram);
-		},
-		[diagramId, placeSource]
-	);
-	const onSourceChange = useCallback(
+	const onPlaceKindChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
-			setSourceId(event.target.value);
+			setPlaceKind(event.target.value);
 		},
 		[]
 	);
-	const onCollectionChange = useCallback(
+	const onPlaceValueChange = useCallback(
 		(event: ChangeEvent<HTMLSelectElement>) => {
-			setCollectionId(event.target.value);
+			const next = event.target.value;
+			if (placeKind === PROJECT_WALL_SOURCE_KIND.smartCollection) {
+				setCollectionId(next);
+				return;
+			}
+			if (placeKind === PROJECT_WALL_SOURCE_KIND.technicalDiagram) {
+				setDiagramId(next);
+				return;
+			}
+			setSourceId(next);
 		},
-		[]
-	);
-	const onDiagramChange = useCallback(
-		(event: ChangeEvent<HTMLSelectElement>) => {
-			setDiagramId(event.target.value);
-		},
-		[]
+		[placeKind]
 	);
 	const onDragEnd = useCallback(
 		(event: DragEndEvent) => {
@@ -713,10 +713,26 @@ export default function ProjectWallCanvas({
 		previewRelation.data && previewRelation.data.status === "ok"
 			? previewRelation.data.preview
 			: null;
+	const placeValue = placedSourceId(
+		placeKind,
+		sourceId,
+		collectionId,
+		diagramId
+	);
+	const placeEmptyLabel =
+		placeKind === PROJECT_WALL_SOURCE_KIND.work
+			? WORK_LIFECYCLE_COPY.noWork
+			: placeKind;
+	const placeOptions = placeLiveCardOptions(
+		placeKind,
+		projectCollections,
+		diagrams.data ?? [],
+		works.data ?? []
+	);
 
 	return (
-		<div className="flex flex-col gap-4">
-			<div className="flex flex-wrap items-center gap-2">
+		<div className="flex min-w-0 flex-col gap-3">
+			<div className="flex min-w-0 flex-wrap items-center gap-2">
 				<Button
 					onClick={onFitView}
 					onKeyDown={onCanvasKeyDown}
@@ -731,209 +747,41 @@ export default function ProjectWallCanvas({
 						: PROJECT_WALL_COPY.presentationMode}
 				</Button>
 			</div>
-			{toolsVisible ? (
-				<>
-					<form className="flex flex-wrap items-end gap-3" onSubmit={onPlace}>
-						<Field>
-							<FieldLabel htmlFor={`place-work-${wallId}`}>
-								{WORK_LIFECYCLE_COPY.work}
-							</FieldLabel>
-							<NativeSelect
-								id={`place-work-${wallId}`}
-								onChange={onSourceChange}
-								value={sourceId}
-							>
-								<NativeSelectOption value="">
-									{WORK_LIFECYCLE_COPY.noWork}
-								</NativeSelectOption>
-								{(works.data ?? []).map((item) => (
-									<NativeSelectOption key={item.id} value={item.id}>
-										{item.key} {item.title}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-						</Field>
-						<Button type="submit">{PROJECT_WALL_COPY.placeLiveCard}</Button>
-					</form>
-					<form
-						className="flex flex-wrap items-end gap-3"
-						onSubmit={onPlaceCollection}
-					>
-						<Field>
-							<FieldLabel htmlFor={`place-collection-${wallId}`}>
-								{PROJECT_WALL_SOURCE_KIND.smartCollection}
-							</FieldLabel>
-							<NativeSelect
-								id={`place-collection-${wallId}`}
-								onChange={onCollectionChange}
-								value={collectionId}
-							>
-								<NativeSelectOption value="">
-									{PROJECT_WALL_SOURCE_KIND.smartCollection}
-								</NativeSelectOption>
-								{projectCollections.map((item) => (
-									<NativeSelectOption key={item.id} value={item.id}>
-										{item.name}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-						</Field>
-						<Button type="submit">{PROJECT_WALL_COPY.placeLiveCard}</Button>
-					</form>
-					<form
-						className="flex flex-wrap items-end gap-3"
-						onSubmit={onPlaceDiagram}
-					>
-						<Field>
-							<FieldLabel htmlFor={`place-diagram-${wallId}`}>
-								{PROJECT_WALL_SOURCE_KIND.technicalDiagram}
-							</FieldLabel>
-							<NativeSelect
-								id={`place-diagram-${wallId}`}
-								onChange={onDiagramChange}
-								value={diagramId}
-							>
-								<NativeSelectOption value="">
-									{PROJECT_WALL_SOURCE_KIND.technicalDiagram}
-								</NativeSelectOption>
-								{(diagrams.data ?? []).map((item) => (
-									<NativeSelectOption key={item.id} value={item.id}>
-										{item.name}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-						</Field>
-						<Button type="submit">{PROJECT_WALL_COPY.placeLiveCard}</Button>
-					</form>
-					<form
-						className="flex flex-wrap items-end gap-3"
-						onSubmit={onDrawLine}
-					>
-						<Field>
-							<FieldLabel htmlFor={`visual-from-${wallId}`}>
-								{PROJECT_WALL_COPY.visualLink}
-							</FieldLabel>
-							<NativeSelect
-								id={`visual-from-${wallId}`}
-								onChange={onFromChange}
-								value={fromCardId}
-							>
-								<NativeSelectOption value="" />
-								{wall.data.cards.map((card) => (
-									<NativeSelectOption key={card.id} value={card.id}>
-										{card.fields.Title}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-						</Field>
-						<Field>
-							<FieldLabel htmlFor={`visual-to-${wallId}`}>
-								{PROJECT_WALL_COPY.visualLink}
-							</FieldLabel>
-							<NativeSelect
-								id={`visual-to-${wallId}`}
-								onChange={onToChange}
-								value={toCardId}
-							>
-								<NativeSelectOption value="" />
-								{wall.data.cards.map((card) => (
-									<NativeSelectOption key={card.id} value={card.id}>
-										{card.fields.Title}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-						</Field>
-						<Field>
-							<FieldLabel htmlFor={`visual-label-${wallId}`}>
-								{PROJECT_WALL_COPY.visualLink}
-							</FieldLabel>
-							<Input
-								id={`visual-label-${wallId}`}
-								onChange={onLabelChange}
-								value={linkLabel}
-							/>
-						</Field>
-						<Button type="submit">{PROJECT_WALL_COPY.visualLink}</Button>
-					</form>
-					<form
-						className="flex flex-wrap items-end gap-3"
-						onSubmit={onPersistentRelation}
-					>
-						<Field>
-							<FieldLabel htmlFor={`persist-${wallId}`}>
-								{PROJECT_WALL_COPY.createPersistentRelation}
-							</FieldLabel>
-							<NativeSelect
-								id={`persist-${wallId}`}
-								onChange={onLinkChange}
-								value={visualLinkId}
-							>
-								<NativeSelectOption value="" />
-								{wall.data.visualLinks.map((link: VisualLink) => (
-									<NativeSelectOption key={link.id} value={link.id}>
-										{link.label}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-						</Field>
-						<Button type="submit">
-							{PROJECT_WALL_COPY.createPersistentRelation}
-						</Button>
-					</form>
-					{relationPreview ? (
-						<p className="text-sm">
-							{relationPreview.from.title} {relationPreview.type}{" "}
-							{relationPreview.to.title}
-						</p>
-					) : null}
-					<div className="flex flex-wrap gap-2">
-						<Button onClick={onSaveFocusOrder} type="button" variant="outline">
-							{PROJECT_WALL_COPY.focusOrder}
-						</Button>
-						<Button
-							disabled={selectedIds.length === 0}
-							onClick={onGroup}
-							type="button"
-							variant="outline"
-						>
-							{PROJECT_WALL_COPY.group}
-						</Button>
-						<Button
-							disabled={selectedIds.length < 2}
-							onClick={onAlign}
-							type="button"
-							variant="outline"
-						>
-							{PROJECT_WALL_COPY.align}
-						</Button>
-						<Button
-							disabled={selectedIds.length !== 2}
-							onClick={onBindOutline}
-							type="button"
-							variant="outline"
-						>
-							{PROJECT_WALL_COPY.visualLink}
-						</Button>
-						<Button
-							disabled={!visualLinkId}
-							onClick={onUnbindOutline}
-							type="button"
-							variant="outline"
-						>
-							{PROJECT_WALL_COPY.outline} {PROJECT_WALL_COPY.visualLink}
-						</Button>
-						<Button onClick={onSnapshotPng} type="button" variant="outline">
-							{PROJECT_WALL_COPY.frozenCopy} {PROJECT_WALL_COPY.png}
-						</Button>
-						<Button onClick={onSnapshotPdf} type="button" variant="outline">
-							{PROJECT_WALL_COPY.frozenCopy} {PROJECT_WALL_COPY.pdf}
-						</Button>
-					</div>
-					{snapshotNotice ? <p>{snapshotNotice}</p> : null}
-				</>
-			) : null}
+			<ProjectWallToolForms
+				cards={wall.data.cards}
+				fromCardId={fromCardId}
+				linkLabel={linkLabel}
+				onAlign={onAlign}
+				onBindOutline={onBindOutline}
+				onDrawLine={onDrawLine}
+				onFromChange={onFromChange}
+				onGroup={onGroup}
+				onLabelChange={onLabelChange}
+				onLinkChange={onLinkChange}
+				onPersistentRelation={onPersistentRelation}
+				onPlace={onPlace}
+				onPlaceKindChange={onPlaceKindChange}
+				onPlaceValueChange={onPlaceValueChange}
+				onSaveFocusOrder={onSaveFocusOrder}
+				onSnapshotPdf={onSnapshotPdf}
+				onSnapshotPng={onSnapshotPng}
+				onToChange={onToChange}
+				onUnbindOutline={onUnbindOutline}
+				placeEmptyLabel={placeEmptyLabel}
+				placeKind={placeKind}
+				placeOptions={placeOptions}
+				placeValue={placeValue}
+				relationPreview={relationPreview}
+				selectedIds={selectedIds}
+				snapshotNotice={snapshotNotice}
+				toCardId={toCardId}
+				visible={toolsVisible}
+				visualLinkId={visualLinkId}
+				visualLinks={wall.data.visualLinks}
+				wallId={wallId}
+			/>
 			<DndContext onDragEnd={onDragEnd} sensors={sensors}>
-				<div className="grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
+				<div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
 					{toolsVisible ? (
 						<ProjectWallOutline
 							canUnbind={Boolean(visualLinkId)}
@@ -954,7 +802,7 @@ export default function ProjectWallCanvas({
 					) : (
 						<div />
 					)}
-					<div className="relative min-h-[28rem] overflow-hidden rounded-md border bg-muted/30">
+					<div className="relative min-h-[28rem] min-w-0 overflow-hidden rounded-md border bg-muted/30">
 						<div
 							className="absolute inset-0"
 							style={{
@@ -1016,6 +864,291 @@ export default function ProjectWallCanvas({
 			</DndContext>
 		</div>
 	);
+}
+
+function ProjectWallToolForms({
+	cards,
+	fromCardId,
+	linkLabel,
+	onAlign,
+	onBindOutline,
+	onDrawLine,
+	onFromChange,
+	onGroup,
+	onLabelChange,
+	onLinkChange,
+	onPersistentRelation,
+	onPlace,
+	onPlaceKindChange,
+	onPlaceValueChange,
+	onSaveFocusOrder,
+	onSnapshotPdf,
+	onSnapshotPng,
+	onToChange,
+	onUnbindOutline,
+	placeEmptyLabel,
+	placeKind,
+	placeOptions,
+	placeValue,
+	relationPreview,
+	selectedIds,
+	snapshotNotice,
+	toCardId,
+	visible,
+	visualLinkId,
+	visualLinks,
+	wallId,
+}: {
+	cards: WallCard[];
+	fromCardId: string;
+	linkLabel: string;
+	onAlign: () => void;
+	onBindOutline: () => void;
+	onDrawLine: (event: FormEvent<HTMLFormElement>) => void;
+	onFromChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+	onGroup: () => void;
+	onLabelChange: (event: ChangeEvent<HTMLInputElement>) => void;
+	onLinkChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+	onPersistentRelation: (event: FormEvent<HTMLFormElement>) => void;
+	onPlace: (event: FormEvent<HTMLFormElement>) => void;
+	onPlaceKindChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+	onPlaceValueChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+	onSaveFocusOrder: () => void;
+	onSnapshotPdf: () => void;
+	onSnapshotPng: () => void;
+	onToChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+	onUnbindOutline: () => void;
+	placeEmptyLabel: string;
+	placeKind: string;
+	placeOptions: { id: string; label: string }[];
+	placeValue: string;
+	relationPreview: {
+		from: { title: string };
+		to: { title: string };
+		type: string;
+	} | null;
+	selectedIds: string[];
+	snapshotNotice: string | null;
+	toCardId: string;
+	visible: boolean;
+	visualLinkId: string;
+	visualLinks: VisualLink[];
+	wallId: string;
+}) {
+	if (!visible) {
+		return null;
+	}
+	return (
+		<div className="flex min-w-0 flex-col gap-3">
+			<form
+				className="flex min-w-0 flex-wrap items-end gap-2"
+				onSubmit={onPlace}
+			>
+				<Field className={TOOL_FIELD_CLASS}>
+					<FieldLabel htmlFor={`place-kind-${wallId}`}>
+						{PROJECT_WALL_COPY.placeLiveCard}
+					</FieldLabel>
+					<NativeSelect
+						id={`place-kind-${wallId}`}
+						onChange={onPlaceKindChange}
+						value={placeKind}
+					>
+						<NativeSelectOption value={PROJECT_WALL_SOURCE_KIND.work}>
+							{WORK_LIFECYCLE_COPY.work}
+						</NativeSelectOption>
+						<NativeSelectOption
+							value={PROJECT_WALL_SOURCE_KIND.smartCollection}
+						>
+							{PROJECT_WALL_SOURCE_KIND.smartCollection}
+						</NativeSelectOption>
+						<NativeSelectOption
+							value={PROJECT_WALL_SOURCE_KIND.technicalDiagram}
+						>
+							{PROJECT_WALL_SOURCE_KIND.technicalDiagram}
+						</NativeSelectOption>
+					</NativeSelect>
+				</Field>
+				<Field className={TOOL_FIELD_CLASS}>
+					<FieldLabel htmlFor={`place-source-${wallId}`}>
+						{placeKind}
+					</FieldLabel>
+					<NativeSelect
+						id={`place-source-${wallId}`}
+						onChange={onPlaceValueChange}
+						value={placeValue}
+					>
+						<NativeSelectOption value="">{placeEmptyLabel}</NativeSelectOption>
+						{placeOptions.map((item) => (
+							<NativeSelectOption key={item.id} value={item.id}>
+								{item.label}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</Field>
+				<Button type="submit">{PROJECT_WALL_COPY.placeLiveCard}</Button>
+			</form>
+			<form
+				className="flex min-w-0 flex-wrap items-end gap-2"
+				onSubmit={onDrawLine}
+			>
+				<Field className={TOOL_FIELD_CLASS}>
+					<FieldLabel htmlFor={`visual-from-${wallId}`}>
+						{PROJECT_WALL_COPY.from}
+					</FieldLabel>
+					<NativeSelect
+						id={`visual-from-${wallId}`}
+						onChange={onFromChange}
+						value={fromCardId}
+					>
+						<NativeSelectOption value="" />
+						{cards.map((card) => (
+							<NativeSelectOption key={card.id} value={card.id}>
+								{card.fields.Title}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</Field>
+				<Field className={TOOL_FIELD_CLASS}>
+					<FieldLabel htmlFor={`visual-to-${wallId}`}>
+						{PROJECT_WALL_COPY.to}
+					</FieldLabel>
+					<NativeSelect
+						id={`visual-to-${wallId}`}
+						onChange={onToChange}
+						value={toCardId}
+					>
+						<NativeSelectOption value="" />
+						{cards.map((card) => (
+							<NativeSelectOption key={card.id} value={card.id}>
+								{card.fields.Title}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</Field>
+				<Field className={TOOL_FIELD_CLASS}>
+					<FieldLabel htmlFor={`visual-label-${wallId}`}>
+						{PROJECT_WALL_COPY.visualLink}
+					</FieldLabel>
+					<Input
+						id={`visual-label-${wallId}`}
+						onChange={onLabelChange}
+						value={linkLabel}
+					/>
+				</Field>
+				<Button type="submit">{PROJECT_WALL_COPY.visualLink}</Button>
+			</form>
+			<form
+				className="flex min-w-0 flex-wrap items-end gap-2"
+				onSubmit={onPersistentRelation}
+			>
+				<Field className={TOOL_FIELD_CLASS}>
+					<FieldLabel htmlFor={`persist-${wallId}`}>
+						{PROJECT_WALL_COPY.createPersistentRelation}
+					</FieldLabel>
+					<NativeSelect
+						id={`persist-${wallId}`}
+						onChange={onLinkChange}
+						value={visualLinkId}
+					>
+						<NativeSelectOption value="" />
+						{visualLinks.map((link) => (
+							<NativeSelectOption key={link.id} value={link.id}>
+								{link.label}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</Field>
+				<Button type="submit">
+					{PROJECT_WALL_COPY.createPersistentRelation}
+				</Button>
+			</form>
+			{relationPreview ? (
+				<p className="min-w-0 text-pretty text-sm">
+					{relationPreview.from.title} {relationPreview.type}{" "}
+					{relationPreview.to.title}
+				</p>
+			) : null}
+			<div className="flex min-w-0 flex-wrap gap-2">
+				<Button onClick={onSaveFocusOrder} type="button" variant="outline">
+					{PROJECT_WALL_COPY.focusOrder}
+				</Button>
+				<Button
+					disabled={selectedIds.length === 0}
+					onClick={onGroup}
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.group}
+				</Button>
+				<Button
+					disabled={selectedIds.length < 2}
+					onClick={onAlign}
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.align}
+				</Button>
+				<Button
+					disabled={selectedIds.length !== 2}
+					onClick={onBindOutline}
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.visualLink}
+				</Button>
+				<Button
+					disabled={!visualLinkId}
+					onClick={onUnbindOutline}
+					type="button"
+					variant="outline"
+				>
+					{PROJECT_WALL_COPY.unbind}
+				</Button>
+				<Button onClick={onSnapshotPng} type="button" variant="outline">
+					{PROJECT_WALL_COPY.frozenCopy} {PROJECT_WALL_COPY.png}
+				</Button>
+				<Button onClick={onSnapshotPdf} type="button" variant="outline">
+					{PROJECT_WALL_COPY.frozenCopy} {PROJECT_WALL_COPY.pdf}
+				</Button>
+			</div>
+			{snapshotNotice ? (
+				<p className="text-pretty text-sm">{snapshotNotice}</p>
+			) : null}
+		</div>
+	);
+}
+
+function placedSourceId(
+	placeKind: string,
+	sourceId: string,
+	collectionId: string,
+	diagramId: string
+): string {
+	if (placeKind === PROJECT_WALL_SOURCE_KIND.smartCollection) {
+		return collectionId;
+	}
+	if (placeKind === PROJECT_WALL_SOURCE_KIND.technicalDiagram) {
+		return diagramId;
+	}
+	return sourceId;
+}
+
+function placeLiveCardOptions(
+	placeKind: string,
+	collections: readonly { id: string; name: string }[],
+	diagrams: readonly { id: string; name: string }[],
+	works: readonly { id: string; key: string; title: string }[]
+): { id: string; label: string }[] {
+	if (placeKind === PROJECT_WALL_SOURCE_KIND.smartCollection) {
+		return collections.map((item) => ({ id: item.id, label: item.name }));
+	}
+	if (placeKind === PROJECT_WALL_SOURCE_KIND.technicalDiagram) {
+		return diagrams.map((item) => ({ id: item.id, label: item.name }));
+	}
+	return works.map((item) => ({
+		id: item.id,
+		label: `${item.key} ${item.title}`,
+	}));
 }
 
 function moveSelectedCards(
@@ -1087,13 +1220,18 @@ function ProjectWallOutline({
 	selectedIds: string[];
 }) {
 	return (
-		<nav aria-label={PROJECT_WALL_COPY.outline}>
-			<h3 className="font-medium text-sm">{PROJECT_WALL_COPY.outline}</h3>
-			<div className="mt-2 flex flex-wrap gap-2">
+		<nav
+			aria-label={PROJECT_WALL_COPY.outline}
+			className="min-w-0 overflow-hidden"
+		>
+			<h3 className="font-medium text-foreground text-sm">
+				{PROJECT_WALL_COPY.outline}
+			</h3>
+			<div className="mt-2 flex min-w-0 flex-wrap gap-1">
 				<Button
 					disabled={selectedIds.length === 0}
 					onClick={onGroup}
-					size="sm"
+					size="xs"
 					type="button"
 					variant="outline"
 				>
@@ -1102,7 +1240,7 @@ function ProjectWallOutline({
 				<Button
 					disabled={selectedIds.length < 2}
 					onClick={onAlign}
-					size="sm"
+					size="xs"
 					type="button"
 					variant="outline"
 				>
@@ -1111,7 +1249,7 @@ function ProjectWallOutline({
 				<Button
 					disabled={selectedIds.length !== 2}
 					onClick={onBind}
-					size="sm"
+					size="xs"
 					type="button"
 					variant="outline"
 				>
@@ -1120,14 +1258,14 @@ function ProjectWallOutline({
 				<Button
 					disabled={!canUnbind}
 					onClick={onUnbind}
-					size="sm"
+					size="xs"
 					type="button"
 					variant="outline"
 				>
-					{PROJECT_WALL_COPY.visualLink}
+					{PROJECT_WALL_COPY.unbind}
 				</Button>
 			</div>
-			<ul className="mt-2 flex flex-col gap-2">
+			<ul className="mt-2 flex min-w-0 flex-col gap-2">
 				{groups.map((boardGroup) => (
 					<OutlineGroup
 						cards={cards.filter((card) => card.groupId === boardGroup.id)}
@@ -1157,8 +1295,12 @@ function ProjectWallOutline({
 			</ul>
 			{selectedCard ? (
 				<section aria-label={PROJECT_WALL_COPY.inspect} className="mt-4">
-					<h3 className="font-medium text-sm">{PROJECT_WALL_COPY.inspect}</h3>
-					<p className="mt-2 text-sm">{selectedCard.fields.Title}</p>
+					<h3 className="font-medium text-foreground text-sm">
+						{PROJECT_WALL_COPY.inspect}
+					</h3>
+					<p className="mt-2 break-words text-sm">
+						{selectedCard.fields.Title}
+					</p>
 				</section>
 			) : null}
 		</nav>
@@ -1190,10 +1332,18 @@ function OutlineGroup({
 		onToggleCollapse(id);
 	}, [id, onToggleCollapse]);
 	return (
-		<li>
-			<div className="flex items-center gap-2">
-				<span className="font-medium text-sm">{name}</span>
-				<Button onClick={onCollapse} size="sm" type="button" variant="ghost">
+		<li className="min-w-0">
+			<div className="flex min-w-0 items-center gap-2">
+				<span className="min-w-0 truncate font-medium text-foreground text-sm">
+					{name}
+				</span>
+				<Button
+					className="shrink-0"
+					onClick={onCollapse}
+					size="xs"
+					type="button"
+					variant="ghost"
+				>
 					{collapsed
 						? PROJECT_WALL_COPY.expandGroup
 						: PROJECT_WALL_COPY.collapseGroup}
@@ -1243,29 +1393,32 @@ function OutlineCard({
 		onOpenSourceRecord?.(card.sourceId);
 	}, [card.sourceId, onOpenSourceRecord]);
 	return (
-		<li className="rounded-none border border-input px-2.5 py-2 text-sm">
-			<div className="flex flex-wrap items-center gap-2">
+		<li className="min-w-0 overflow-hidden rounded-none border border-input px-2 py-2 text-sm">
+			<p className="truncate font-medium text-foreground">
+				{card.fields.Title ?? card.sourceKind}
+			</p>
+			<div className="mt-2 flex min-w-0 flex-wrap items-center gap-1">
 				<Button
 					aria-pressed={selected}
 					onClick={onSelect}
-					size="sm"
+					size="xs"
 					type="button"
 					variant={selected ? "secondary" : "outline"}
 				>
-					{card.fields.Title ?? card.sourceKind}
+					{PROJECT_WALL_COPY.select}
 				</Button>
-				<Button onClick={onUp} size="sm" type="button" variant="ghost">
+				<Button onClick={onUp} size="xs" type="button" variant="ghost">
 					{PROJECT_WALL_COPY.moveUp}
 				</Button>
-				<Button onClick={onDown} size="sm" type="button" variant="ghost">
+				<Button onClick={onDown} size="xs" type="button" variant="ghost">
 					{PROJECT_WALL_COPY.moveDown}
 				</Button>
 				{onOpenSourceRecord ? (
-					<Button onClick={onOpen} size="sm" type="button" variant="ghost">
+					<Button onClick={onOpen} size="xs" type="button" variant="ghost">
 						{card.openSourceRecord}
 					</Button>
 				) : (
-					<a className="text-sm underline" href={card.openHref}>
+					<a className="text-xs underline" href={card.openHref}>
 						{card.openSourceRecord}
 					</a>
 				)}
@@ -1296,7 +1449,7 @@ function VisualLine({ cards, link }: { cards: WallCard[]; link: VisualLink }) {
 				y2={y2}
 			/>
 			<text
-				className="fill-current text-[10px]"
+				className="fill-foreground text-[10px]"
 				textAnchor="middle"
 				x={(x1 + x2) / 2}
 				y={(y1 + y2) / 2 - 6}
@@ -1398,7 +1551,7 @@ function LiveCard({
 
 	return (
 		<article
-			className="absolute w-56 rounded-md border bg-background p-3 shadow-sm"
+			className="absolute w-56 max-w-[calc(100%-1rem)] overflow-hidden rounded-md border bg-background p-3 text-foreground shadow-sm"
 			ref={setNodeRef}
 			style={{
 				left: card.positionX,
@@ -1424,11 +1577,11 @@ function LiveCard({
 					{card.authority ?? PROJECT_WALL_COPY.live}
 				</p>
 			) : null}
-			<dl className="flex flex-col gap-1 text-sm">
+			<dl className="flex flex-col gap-1 overflow-hidden text-sm">
 				{Object.entries(card.fields).map(([label, value]) => (
-					<div key={label}>
+					<div className="min-w-0" key={label}>
 						<dt className="text-muted-foreground text-xs">{label}</dt>
-						<dd>{value}</dd>
+						<dd className="break-words">{value}</dd>
 					</div>
 				))}
 			</dl>

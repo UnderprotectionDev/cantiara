@@ -87,9 +87,9 @@ export default function ProjectWallArea({
 	const selected = selectedId ?? walls.data[0]?.id ?? null;
 
 	return (
-		<div className="flex flex-col gap-6">
+		<div className="flex min-w-0 flex-col gap-4">
 			<CreateProjectWallForm onCreated={onCreated} projectId={projectId} />
-			<div className="grid gap-6 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
+			<div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(11rem,14rem)_minmax(0,1fr)]">
 				{walls.data.length === 0 ? (
 					<Empty>
 						<EmptyHeader>
@@ -97,18 +97,23 @@ export default function ProjectWallArea({
 						</EmptyHeader>
 					</Empty>
 				) : (
-					<ul className="flex flex-col gap-2">
-						{walls.data.map((item) => (
-							<li key={item.id}>
-								<WallRow
-									name={item.name}
-									onSelect={onSelect}
-									selected={item.id === selected}
-									wallId={item.id}
-								/>
-							</li>
-						))}
-					</ul>
+					<nav
+						aria-label={PROJECT_WALL_COPY.projectWall}
+						className="min-w-0 overflow-hidden"
+					>
+						<ul className="flex flex-col gap-1">
+							{walls.data.map((item) => (
+								<li className="min-w-0" key={item.id}>
+									<WallRow
+										name={item.name}
+										onSelect={onSelect}
+										selected={item.id === selected}
+										wallId={item.id}
+									/>
+								</li>
+							))}
+						</ul>
+					</nav>
 				)}
 				{selected ? (
 					<ProjectWallCanvas
@@ -138,7 +143,11 @@ function WallRow({
 	return (
 		<button
 			aria-current={selected ? "true" : undefined}
-			className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+			className={
+				selected
+					? "w-full min-w-0 truncate rounded-sm bg-muted px-2 py-1.5 text-left font-medium text-foreground text-sm"
+					: "w-full min-w-0 truncate rounded-sm px-2 py-1.5 text-left text-foreground text-sm hover:bg-muted/60"
+			}
 			onClick={onClick}
 			type="button"
 		>
