@@ -24,7 +24,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
-    "@orpc/tanstack-query": "^1.14.12",
+    "@orpc/tanstack-query": "catalog:",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/highlight": "^0.0.10",
     "@tanstack/markdown": "^0.0.13",
