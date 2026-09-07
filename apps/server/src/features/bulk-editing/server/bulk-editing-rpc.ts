@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { getProject } from "../../project-shell/server/project-shell";
 import {
+	canAccessBulkEditJob,
 	cancelBulkEdit,
 	previewBulkEdit,
 	processBulkEdit,
@@ -84,14 +85,34 @@ export const bulkEditing = {
 	cancel: protectedWriteProcedure
 		.input(z.object({ jobId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
-			await requireAccess(context.session.user.id);
-			return await cancelBulkEdit(getPrismaClient(), input.jobId);
+			const access = await requireAccess(context.session.user.id);
+			const prisma = getPrismaClient();
+			if (
+				!(await canAccessBulkEditJob(prisma, {
+					actorId: access.accountId,
+					jobId: input.jobId,
+					workspaceId: access.workspaceId,
+				}))
+			) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return await cancelBulkEdit(prisma, input.jobId);
 		}),
 	get: protectedProcedure
 		.input(z.object({ jobId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
-			await requireAccess(context.session.user.id);
-			return await readBulkEdit(getPrismaClient(), input.jobId);
+			const access = await requireAccess(context.session.user.id);
+			const prisma = getPrismaClient();
+			if (
+				!(await canAccessBulkEditJob(prisma, {
+					actorId: access.accountId,
+					jobId: input.jobId,
+					workspaceId: access.workspaceId,
+				}))
+			) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return await readBulkEdit(prisma, input.jobId);
 		}),
 	preview: protectedProcedure
 		.input(
@@ -119,7 +140,17 @@ export const bulkEditing = {
 		.handler(async ({ context, input }) => {
 			const access = await requireAccess(context.session.user.id);
 			await requireSelectedWorks(access.workspaceId, [input.workId]);
-			return await undoBulkEdit(getPrismaClient(), {
+			const prisma = getPrismaClient();
+			if (
+				!(await canAccessBulkEditJob(prisma, {
+					actorId: access.accountId,
+					jobId: input.jobId,
+					workspaceId: access.workspaceId,
+				}))
+			) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			return await undoBulkEdit(prisma, {
 				actorId: access.accountId,
 				...input,
 			});

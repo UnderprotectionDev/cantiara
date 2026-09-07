@@ -386,6 +386,38 @@ export async function readBulkEdit(
 	return { job: viewFor(row), status: "ok" };
 }
 
+export async function canAccessBulkEditJob(
+	prisma: PrismaClient,
+	input: {
+		actorId: string;
+		jobId: string;
+		workspaceId: string;
+	}
+): Promise<boolean> {
+	const row = await prisma.mutationStagingOperation.findUnique({
+		select: { actorId: true, payloadJson: true, targetScope: true },
+		where: { id: input.jobId },
+	});
+	if (!row || row.actorId !== input.actorId || row.targetScope !== JOB_KIND) {
+		return false;
+	}
+	const job = parseStored(row.payloadJson);
+	if (!job || job.actorId !== input.actorId) {
+		return false;
+	}
+	const workIds = [...new Set(job.records.map((record) => record.workId))];
+	if (workIds.length === 0) {
+		return false;
+	}
+	const accessibleCount = await prisma.work.count({
+		where: {
+			id: { in: workIds },
+			project: { workspaceId: input.workspaceId },
+		},
+	});
+	return accessibleCount === workIds.length;
+}
+
 export async function processBulkEdit(
 	prisma: PrismaClient,
 	jobId: string
