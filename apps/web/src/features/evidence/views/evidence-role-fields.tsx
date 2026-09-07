@@ -17,6 +17,7 @@ import {
 import {
 	EVIDENCE_COPY,
 	EVIDENCE_ROLES,
+	type EvidenceFlowTargetKind,
 	type EvidenceRole,
 	type EvidenceSourceKind,
 	type EvidenceTargetKind,
@@ -64,11 +65,13 @@ export function EvidenceRoleFields({
 					input: { targetId, targetKind },
 				}),
 			});
-			await queryClient.invalidateQueries({
-				queryKey: orpc.evidence.listFlow.queryKey({
-					input: { targetId, targetKind },
-				}),
-			});
+			if (isEvidenceFlowTargetKind(targetKind)) {
+				await queryClient.invalidateQueries({
+					queryKey: orpc.evidence.listFlow.queryKey({
+						input: { targetId, targetKind },
+					}),
+				});
+			}
 		}
 	}, [sourceId, sourceKind, targetId, targetKind]);
 	const setRole = useMutation(
@@ -143,5 +146,15 @@ export function EvidenceRoleFields({
 				<Button type="submit">{EVIDENCE_COPY.founderInterpretation}</Button>
 			</form>
 		</div>
+	);
+}
+
+function isEvidenceFlowTargetKind(
+	targetKind: EvidenceTargetKind
+): targetKind is EvidenceFlowTargetKind {
+	return (
+		targetKind === "Work" ||
+		targetKind === "Decision" ||
+		targetKind === "Assumption"
 	);
 }

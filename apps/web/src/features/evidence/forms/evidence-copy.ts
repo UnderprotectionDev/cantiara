@@ -56,7 +56,11 @@ export type EvidenceTargetKind =
 	| "Decision"
 	| "Risk"
 	| "Assumption"
-	| "Question";
+	| "Question"
+	| "Test"
+	| "Project Release"
+	| "Access observation"
+	| "Result observation";
 
 export type EvidenceFlowTargetKind = "Work" | "Decision" | "Assumption";
 

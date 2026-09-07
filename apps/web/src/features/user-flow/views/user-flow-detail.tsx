@@ -86,7 +86,7 @@ interface UserFlowDetailView {
 	id: string;
 	liveCards: PresentedLiveCard[];
 	nodes: PresentedNode[];
-	originRelations: PresentedOriginRelation[];
+	originRelations: readonly PresentedOriginRelation[];
 	revision: number;
 	title: string;
 }
