@@ -1,6 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
-import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
+import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
 	NativeSelect,
@@ -8,7 +8,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Spinner } from "@cantiara/ui/components/spinner";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useCallback, useState } from "react";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
@@ -21,7 +21,12 @@ import CreateScreenForm from "../forms/create-screen-form";
 import PlaceLiveCardForm from "../forms/place-live-card-form";
 import RebindOriginForm from "../forms/rebind-origin-form";
 import SaveUserFlowTemplateForm from "../forms/save-user-flow-template-form";
-import { FLOW_NODE_KINDS, USER_FLOW_COPY } from "../forms/user-flow-copy";
+import {
+	DEFAULT_FLOW_NODE_KIND,
+	FLOW_NODE_KINDS,
+	placeNodeNeedsScreen,
+	USER_FLOW_COPY,
+} from "../forms/user-flow-copy";
 
 interface PresentedNode {
 	boundAt: string | null;
@@ -109,7 +114,7 @@ export default function UserFlowDetail({
 	);
 	const [description, setDescription] = useState("");
 	const [kind, setKind] = useState<(typeof FLOW_NODE_KINDS)[number]>(
-		USER_FLOW_COPY.screen
+		DEFAULT_FLOW_NODE_KIND
 	);
 	const [label, setLabel] = useState("");
 	const [screenId, setScreenId] = useState("");
@@ -217,7 +222,8 @@ export default function UserFlowDetail({
 			if (!flow.data) {
 				return;
 			}
-			if (kind === USER_FLOW_COPY.screen && !screenId) {
+			if (placeNodeNeedsScreen(kind, screenId)) {
+				setError(USER_FLOW_COPY.screen);
 				return;
 			}
 			place.mutate({
@@ -474,87 +480,103 @@ export default function UserFlowDetail({
 	const view = flow.data as UserFlowDetailView;
 
 	return (
-		<article>
+		<article className="min-w-0">
 			<h2 className="font-semibold text-lg tracking-tight">{view.title}</h2>
 			<p className="text-muted-foreground text-sm">{view.copy.userFlow}</p>
-			<div className="mt-4">
-				<CreateScreenForm projectId={projectId} />
-			</div>
-			<div className="mt-4">
-				<SaveUserFlowTemplateForm userFlowId={flowId} />
-			</div>
-			<div className="mt-4">
-				<PlaceLiveCardForm
-					baseRevision={view.revision}
-					onPlaced={invalidate}
-					projectId={projectId}
-					userFlowId={flowId}
-				/>
-			</div>
-			<form className="mt-4 flex flex-col gap-3" onSubmit={onPlace}>
-				<FieldGroup>
-					<Field>
-						<FieldLabel htmlFor="flow-node-kind">
-							{USER_FLOW_COPY.placeNode}
-						</FieldLabel>
-						<NativeSelect
-							id="flow-node-kind"
-							onChange={onKindChange}
-							value={kind}
-						>
-							{FLOW_NODE_KINDS.map((item) => (
-								<NativeSelectOption key={item} value={item}>
-									{item}
-								</NativeSelectOption>
-							))}
-						</NativeSelect>
-					</Field>
-					{kind === USER_FLOW_COPY.screen ? (
-						<Field>
-							<FieldLabel htmlFor="bind-screen">
-								{USER_FLOW_COPY.screen}
-							</FieldLabel>
-							<NativeSelect
-								id="bind-screen"
-								onChange={onScreenChange}
-								value={screenId}
-							>
-								<NativeSelectOption value="">
-									{USER_FLOW_COPY.screen}
-								</NativeSelectOption>
-								{(screens.data ?? []).map((screen) => (
-									<NativeSelectOption key={screen.id} value={screen.id}>
-										{screen.title}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-						</Field>
-					) : (
-						<Field>
-							<FieldLabel htmlFor="node-label">{kind}</FieldLabel>
-							<Input id="node-label" onChange={onLabelChange} value={label} />
-						</Field>
-					)}
-					<Field>
-						<FieldLabel htmlFor="node-description">
-							{USER_FLOW_COPY.description}
-						</FieldLabel>
-						<Input
-							id="node-description"
-							onChange={onDescriptionChange}
-							value={description}
-						/>
-					</Field>
-				</FieldGroup>
-				{error ? <p role="alert">{error}</p> : null}
-				<Button type="submit">
-					{kind === USER_FLOW_COPY.screen
-						? USER_FLOW_COPY.bindScreen
-						: USER_FLOW_COPY.placeNode}
-				</Button>
-			</form>
 			<UserFlowSurface
 				canBind={Boolean(screenId)}
+				canvasExtras={
+					<>
+						<div className="mt-4 max-w-xl">
+							<SaveUserFlowTemplateForm userFlowId={flowId} />
+						</div>
+						<div className="mt-4 max-w-xl">
+							<PlaceLiveCardForm
+								baseRevision={view.revision}
+								onPlaced={invalidate}
+								projectId={projectId}
+								userFlowId={flowId}
+							/>
+						</div>
+					</>
+				}
+				canvasTools={
+					<>
+						<div className="max-w-xl">
+							<CreateScreenForm projectId={projectId} />
+						</div>
+						<form
+							className="flex max-w-xl flex-wrap items-end gap-3"
+							onSubmit={onPlace}
+						>
+							<Field className="w-auto min-w-[10rem] max-w-xs">
+								<FieldLabel htmlFor="flow-node-kind">
+									{USER_FLOW_COPY.placeNode}
+								</FieldLabel>
+								<NativeSelect
+									id="flow-node-kind"
+									onChange={onKindChange}
+									value={kind}
+								>
+									{FLOW_NODE_KINDS.map((item) => (
+										<NativeSelectOption key={item} value={item}>
+											{item}
+										</NativeSelectOption>
+									))}
+								</NativeSelect>
+							</Field>
+							{kind === USER_FLOW_COPY.screen ? (
+								<Field className="w-auto min-w-[10rem] max-w-xs">
+									<FieldLabel htmlFor="bind-screen">
+										{USER_FLOW_COPY.screen}
+									</FieldLabel>
+									<NativeSelect
+										id="bind-screen"
+										onChange={onScreenChange}
+										value={screenId}
+									>
+										<NativeSelectOption value="">
+											{USER_FLOW_COPY.screen}
+										</NativeSelectOption>
+										{(screens.data ?? []).map((screen) => (
+											<NativeSelectOption key={screen.id} value={screen.id}>
+												{screen.title}
+											</NativeSelectOption>
+										))}
+									</NativeSelect>
+								</Field>
+							) : (
+								<Field className="w-auto min-w-[10rem] max-w-xs">
+									<FieldLabel htmlFor="node-label">{kind}</FieldLabel>
+									<Input
+										id="node-label"
+										onChange={onLabelChange}
+										value={label}
+									/>
+								</Field>
+							)}
+							<Field className="w-auto min-w-[10rem] max-w-xs">
+								<FieldLabel htmlFor="node-description">
+									{USER_FLOW_COPY.description}
+								</FieldLabel>
+								<Input
+									id="node-description"
+									onChange={onDescriptionChange}
+									value={description}
+								/>
+							</Field>
+							{error ? <p role="alert">{error}</p> : null}
+							<Button
+								disabled={placeNodeNeedsScreen(kind, screenId)}
+								type="submit"
+							>
+								{kind === USER_FLOW_COPY.screen
+									? USER_FLOW_COPY.bindScreen
+									: USER_FLOW_COPY.placeNode}
+							</Button>
+						</form>
+					</>
+				}
 				collapsedIds={collapsedIds}
 				flowId={flowId}
 				onAlign={onAlign}
@@ -584,6 +606,8 @@ export default function UserFlowDetail({
 
 function UserFlowSurface({
 	canBind,
+	canvasExtras,
+	canvasTools,
 	collapsedIds,
 	flowId,
 	onAlign,
@@ -608,6 +632,8 @@ function UserFlowSurface({
 	view,
 }: {
 	canBind: boolean;
+	canvasExtras: ReactNode;
+	canvasTools: ReactNode;
 	collapsedIds: string[];
 	flowId: string;
 	onAlign: (nodeIds: string[]) => void;
@@ -672,8 +698,11 @@ function UserFlowSurface({
 					{USER_FLOW_COPY.unbind}
 				</Button>
 			</div>
-			<div className="mt-6 grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
-				<nav aria-label={USER_FLOW_COPY.outline}>
+			<div className="mt-6 grid min-w-0 gap-4 lg:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
+				<nav
+					aria-label={USER_FLOW_COPY.outline}
+					className="min-w-0 overflow-hidden"
+				>
 					<h3 className="font-medium text-sm">{USER_FLOW_COPY.outline}</h3>
 					{view.nodes.length === 0 ? (
 						<Empty>
@@ -712,7 +741,8 @@ function UserFlowSurface({
 						</ul>
 					)}
 				</nav>
-				<div>
+				<div className="flex min-w-0 flex-col gap-4">
+					{canvasTools}
 					<UserFlowCanvas
 						liveCards={view.liveCards}
 						nodes={view.nodes}
@@ -737,6 +767,7 @@ function UserFlowSurface({
 						selectedNode={selectedNode}
 					/>
 					<LiveCardList cards={view.liveCards} />
+					{canvasExtras}
 				</div>
 			</div>
 		</>

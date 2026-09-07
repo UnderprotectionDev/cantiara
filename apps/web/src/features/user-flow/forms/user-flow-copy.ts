@@ -41,6 +41,12 @@ export const USER_FLOW_COPY = {
 	work: "Work",
 } as const;
 
+export function flowCanvasColorMode(
+	theme: string | undefined
+): "dark" | "light" {
+	return theme === "light" ? "light" : "dark";
+}
+
 export const FLOW_NODE_KINDS = [
 	USER_FLOW_COPY.screen,
 	USER_FLOW_COPY.action,
@@ -48,6 +54,19 @@ export const FLOW_NODE_KINDS = [
 	USER_FLOW_COPY.stateOutcome,
 	USER_FLOW_COPY.section,
 ] as const;
+
+export const DEFAULT_FLOW_NODE_KIND = USER_FLOW_COPY.action;
+
+export function placeNodeNeedsScreen(kind: string, screenId: string): boolean {
+	return kind === USER_FLOW_COPY.screen && screenId.length === 0;
+}
+
+export function shouldFitViewAfterPlace(
+	previousCount: number,
+	nextCount: number
+): boolean {
+	return previousCount === 0 && nextCount > 0;
+}
 
 export const CONVERT_RECORD_KINDS = [
 	USER_FLOW_COPY.work,

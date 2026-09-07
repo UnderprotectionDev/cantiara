@@ -3,16 +3,22 @@ import {
 	Background,
 	Controls,
 	type Node,
+	type NodeProps,
 	type OnSelectionChangeParams,
 	Panel,
 	ReactFlow,
 	ReactFlowProvider,
 	useReactFlow,
 } from "@xyflow/react";
+import { useTheme } from "next-themes";
 import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { USER_FLOW_COPY } from "../forms/user-flow-copy";
+import {
+	flowCanvasColorMode,
+	shouldFitViewAfterPlace,
+	USER_FLOW_COPY,
+} from "../forms/user-flow-copy";
 
 import "@xyflow/react/dist/style.css";
 
@@ -88,8 +94,8 @@ function toFlowNodes(
 		selected: selected.has(node.id),
 		style: {
 			opacity: node.visualStyle?.emphasis === "muted" ? 0.65 : 1,
-			zIndex: node.layout.z,
 		},
+		type: "flowStep",
 		zIndex: node.layout.z,
 	}));
 	const cards = liveCards.map((card) => {
@@ -102,7 +108,7 @@ function toFlowNodes(
 			id,
 			position: { x: card.layout.x, y: card.layout.y },
 			selected: selected.has(id),
-			style: { zIndex: card.layout.z },
+			type: "flowStep",
 			zIndex: card.layout.z,
 		};
 	});
@@ -265,6 +271,27 @@ function handleCanvasKey(
 	}
 }
 
+function FlowStepNode({ data, selected }: NodeProps) {
+	const kind = typeof data.kind === "string" ? data.kind : "";
+	const label = typeof data.label === "string" ? data.label : "";
+	return (
+		<div
+			className={
+				selected
+					? "min-w-32 max-w-56 rounded-md border border-ring bg-card px-3 py-2 text-card-foreground shadow-sm"
+					: "min-w-32 max-w-56 rounded-md border border-border bg-card px-3 py-2 text-card-foreground shadow-sm"
+			}
+		>
+			<p className="text-[10px] text-muted-foreground">{kind}</p>
+			<p className="truncate font-medium text-sm">{label}</p>
+		</div>
+	);
+}
+
+const FLOW_NODE_TYPES = {
+	flowStep: FlowStepNode,
+};
+
 function CanvasInner({
 	liveCards = [],
 	nodes,
@@ -280,8 +307,10 @@ function CanvasInner({
 	restored,
 	selectedIds,
 }: UserFlowCanvasProps) {
+	const { resolvedTheme } = useTheme();
 	const { fitView, getViewport, setViewport, zoomIn, zoomOut } = useReactFlow();
 	const skipPersist = useRef(true);
+	const previousContentCount = useRef(0);
 	const flowNodes = useMemo(
 		() => toFlowNodes(nodes, liveCards, selectedIds),
 		[liveCards, nodes, selectedIds]
@@ -293,6 +322,9 @@ function CanvasInner({
 		}
 		skipPersist.current = true;
 		if (restored.fitted) {
+			if (nodes.length === 0 && liveCards.length === 0) {
+				return;
+			}
 			fitView({ padding: 0.2 }).catch(() => undefined);
 			return;
 		}
@@ -301,7 +333,16 @@ function CanvasInner({
 			y: restored.viewport.centerY,
 			zoom: restored.viewport.zoom,
 		});
-	}, [fitView, restored, setViewport]);
+	}, [fitView, liveCards.length, nodes.length, restored, setViewport]);
+
+	useEffect(() => {
+		const nextCount = flowNodes.length;
+		if (shouldFitViewAfterPlace(previousContentCount.current, nextCount)) {
+			skipPersist.current = true;
+			fitView({ padding: 0.2 }).catch(() => undefined);
+		}
+		previousContentCount.current = nextCount;
+	}, [fitView, flowNodes.length]);
 
 	const persistNow = useCallback(() => {
 		const viewport = getViewport();
@@ -350,6 +391,9 @@ function CanvasInner({
 	);
 
 	const onFitView = useCallback(() => {
+		if (flowNodes.length === 0) {
+			return;
+		}
 		skipPersist.current = true;
 		fitView({
 			nodes:
@@ -365,7 +409,7 @@ function CanvasInner({
 				});
 			})
 			.catch(() => undefined);
-	}, [fitView, getViewport, onPersistViewport, selectedIds]);
+	}, [fitView, flowNodes.length, getViewport, onPersistViewport, selectedIds]);
 
 	const onAlignClick = useCallback(() => {
 		onAlign(partitionSelection(selectedIds).nodeIds);
@@ -405,7 +449,6 @@ function CanvasInner({
 	}, [nodes, onSelectedIdsChange]);
 
 	const onMoveEnd = useCallback(() => {
-		// biome-ignore lint/suspicious/noUnnecessaryConditions: programmatic moves set this ref before the move completes.
 		if (skipPersist.current) {
 			skipPersist.current = false;
 			return;
@@ -444,27 +487,52 @@ function CanvasInner({
 		]
 	);
 
+	const flowSelectedIds = partitionSelection(selectedIds).nodeIds;
+
 	return (
-		<div className="h-[28rem] rounded-md border">
+		<div className="relative h-[min(70vh,40rem)] min-h-[28rem] min-w-0 overflow-hidden rounded-md border bg-muted/20">
 			<ReactFlow
 				aria-label={USER_FLOW_COPY.userFlow}
+				className="h-full min-h-[28rem] w-full"
+				colorMode={flowCanvasColorMode(resolvedTheme)}
+				elementsSelectable
+				fitView={false}
+				maxZoom={2}
+				minZoom={0.25}
 				multiSelectionKeyCode="Shift"
 				nodes={flowNodes}
+				nodesConnectable={false}
+				nodeTypes={FLOW_NODE_TYPES}
 				onKeyDown={onKeyDown}
 				onMoveEnd={onMoveEnd}
 				onNodeDragStop={onNodeDragStop}
 				onSelectionChange={onSelectionChange}
 				panOnScroll
 				proOptions={{ hideAttribution: true }}
+				style={{ height: "100%", width: "100%" }}
 			>
 				<Background gap={16} />
-				<Controls showFitView={false} />
-				<Panel position="top-left">
+				<Controls
+					className="!border-border !bg-card !shadow-none [&>button]:!border-border [&>button]:!bg-card [&>button]:!fill-foreground"
+					showFitView={false}
+					showInteractive={false}
+				/>
+				<Panel position="top-right">
 					<div className="flex flex-wrap gap-2">
-						<Button onClick={onFitView} type="button" variant="outline">
+						<Button
+							disabled={flowNodes.length === 0}
+							onClick={onFitView}
+							type="button"
+							variant="outline"
+						>
 							{USER_FLOW_COPY.fitView}
 						</Button>
-						<Button onClick={onAlignClick} type="button" variant="outline">
+						<Button
+							disabled={flowSelectedIds.length === 0}
+							onClick={onAlignClick}
+							type="button"
+							variant="outline"
+						>
 							{USER_FLOW_COPY.align}
 						</Button>
 						<Button onClick={onUndo} type="button" variant="outline">
@@ -473,6 +541,13 @@ function CanvasInner({
 					</div>
 				</Panel>
 			</ReactFlow>
+			{flowNodes.length === 0 ? (
+				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4">
+					<p className="rounded-md border border-border bg-background/95 px-3 py-2 text-center text-muted-foreground text-sm">
+						{USER_FLOW_COPY.placeNode}
+					</p>
+				</div>
+			) : null}
 		</div>
 	);
 }

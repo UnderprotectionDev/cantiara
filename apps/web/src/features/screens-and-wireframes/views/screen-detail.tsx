@@ -157,7 +157,7 @@ export default function ScreenDetail({
 
 	const record = screen.data;
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex min-w-0 flex-col gap-4">
 			<h2 className="font-semibold text-lg tracking-tight">{record.title}</h2>
 			<p className="text-muted-foreground text-sm">{record.life}</p>
 			{record.life === SCREENS_COPY.active ? (

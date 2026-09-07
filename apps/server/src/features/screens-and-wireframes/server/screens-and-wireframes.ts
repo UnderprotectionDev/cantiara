@@ -347,15 +347,38 @@ async function latestDocument(
 	return parsed;
 }
 
+function outlineBox(
+	kind: (typeof WIREFRAME_SEMANTIC_KIND)[keyof typeof WIREFRAME_SEMANTIC_KIND]
+): { height: number; width: number } {
+	if (
+		kind === WIREFRAME_SEMANTIC_KIND.card ||
+		kind === WIREFRAME_SEMANTIC_KIND.chart ||
+		kind === WIREFRAME_SEMANTIC_KIND.table
+	) {
+		return { height: 160, width: 240 };
+	}
+	if (kind === WIREFRAME_SEMANTIC_KIND.navigation) {
+		return { height: 48, width: 320 };
+	}
+	if (kind === WIREFRAME_SEMANTIC_KIND.input) {
+		return { height: 48, width: 240 };
+	}
+	if (kind === WIREFRAME_SEMANTIC_KIND.text) {
+		return { height: 36, width: 200 };
+	}
+	return { height: 48, width: 168 };
+}
+
 function outlineNode(
 	kind: (typeof WIREFRAME_SEMANTIC_KIND)[keyof typeof WIREFRAME_SEMANTIC_KIND],
 	index: number
 ) {
+	const box = outlineBox(kind);
 	const geometry = {
-		height: 40,
-		width: 120,
-		x: 16,
-		y: 16 + index * 52,
+		height: box.height,
+		width: box.width,
+		x: 40,
+		y: 40 + index * (box.height + 16),
 	};
 	if (kind === WIREFRAME_SEMANTIC_KIND.text) {
 		return {

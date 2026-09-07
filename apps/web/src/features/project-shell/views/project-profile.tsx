@@ -30,6 +30,9 @@ import FirstOpenExplanation from "@/features/project-shell/forms/first-open-expl
 import ProjectAreasForm from "@/features/project-shell/forms/project-areas-form";
 import {
 	type ConfigurationModeEditor,
+	DESIGN_SURFACES,
+	designSurfaceForAnchor,
+	isDesignShellAnchor,
 	isWorkShellAnchor,
 	PROJECT_SHELL_COPY,
 	projectNavPinnedAreas,
@@ -380,7 +383,10 @@ function ProjectNav({
 								<li key={`pin-${area}`}>
 									<ProjectNavLink
 										configurationMode={configurationMode}
-										current={selectedAnchor === projectShellAnchor(area)}
+										current={
+											selectedAnchor === projectShellAnchor(area) ||
+											(area === "Design" && isDesignShellAnchor(selectedAnchor))
+										}
 										href={`#${projectShellAnchor(area)}`}
 										label={area}
 										onLeaveConfiguration={onLeaveConfiguration}
@@ -459,10 +465,12 @@ function DesignProjectSection({
 	onWorkId,
 	projectId,
 	sectionId,
+	selectedAnchor,
 }: {
 	onWorkId?: (workId: string | null) => void;
 	projectId: string;
 	sectionId: string;
+	selectedAnchor: string;
 }) {
 	const onOpenSourceRecord = useCallback(
 		(sourceId: string) => {
@@ -470,17 +478,52 @@ function DesignProjectSection({
 		},
 		[onWorkId]
 	);
+	const surface = designSurfaceForAnchor(selectedAnchor);
 	return (
-		<section aria-label="Design" id={sectionId}>
+		<section
+			aria-label="Design"
+			className="flex min-w-0 flex-col"
+			id={sectionId}
+		>
 			<h1 className="font-semibold text-[1.375rem] tracking-tight">Design</h1>
-			<div className="mt-6 flex flex-col gap-10">
-				<ProjectWallArea
-					onOpenSourceRecord={onOpenSourceRecord}
-					projectId={projectId}
-				/>
-				<ScreenArea projectId={projectId} />
-				<UserFlowArea projectId={projectId} />
-				<MoodboardArea projectId={projectId} />
+			<nav
+				aria-label="Design"
+				className="mt-3 flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-xs"
+			>
+				{DESIGN_SURFACES.map((item) => {
+					const current = surface === item;
+					return (
+						<a
+							aria-current={current ? "page" : undefined}
+							className={cn(
+								"underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring",
+								current
+									? "font-medium text-foreground"
+									: "text-muted-foreground hover:text-foreground hover:underline"
+							)}
+							href={`#${projectShellAnchor(item)}`}
+							id={projectShellAnchor(item)}
+							key={item}
+						>
+							{item}
+						</a>
+					);
+				})}
+			</nav>
+			<div className="mt-6 min-w-0">
+				{surface === "Project Wall" ? (
+					<ProjectWallArea
+						onOpenSourceRecord={onOpenSourceRecord}
+						projectId={projectId}
+					/>
+				) : null}
+				{surface === "Screen" ? <ScreenArea projectId={projectId} /> : null}
+				{surface === "User Flow" ? (
+					<UserFlowArea projectId={projectId} />
+				) : null}
+				{surface === "Moodboard" ? (
+					<MoodboardArea projectId={projectId} />
+				) : null}
 			</div>
 		</section>
 	);
@@ -673,12 +716,13 @@ function projectRecordArea({
 			</section>
 		);
 	}
-	if (selectedAnchor === designAnchor || selectedArea === "Design") {
+	if (isDesignShellAnchor(selectedAnchor) || selectedArea === "Design") {
 		return (
 			<DesignProjectSection
 				onWorkId={onWorkId}
 				projectId={projectId}
 				sectionId={designAnchor}
+				selectedAnchor={selectedAnchor}
 			/>
 		);
 	}
@@ -1022,6 +1066,7 @@ function ProjectBody({
 					onWorkId={onWorkId}
 					projectId={data.id}
 					sectionId={projectShellAnchor("Design")}
+					selectedAnchor={selectedAnchor}
 				/>
 			);
 		}

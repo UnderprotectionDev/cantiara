@@ -36,9 +36,9 @@ export default function MoodboardArea({ projectId }: { projectId: string }) {
 	}
 
 	return (
-		<div className="flex flex-col gap-6">
+		<div className="flex min-w-0 flex-col gap-6">
 			<CreateMoodboardForm onCreated={onCreated} projectId={projectId} />
-			<div className="grid gap-6 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
+			<div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
 				{boards.data.length === 0 ? (
 					<Empty>
 						<EmptyHeader>

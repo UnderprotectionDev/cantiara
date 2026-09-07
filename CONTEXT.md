@@ -59,7 +59,7 @@ Proje adından önerilen ve ilk İş oluşturulduktan sonra değişmeyen, kullan
 _Avoid_: Proje kimliği, değiştirilebilir slug, yeniden kullanılabilir kod
 
 **Proje alanı**:
-İlişkili kayıt türlerini tek keşif ve çalışma girişinde toplayan, etkinliği içerik yaşamından ayrı Proje yüzeyi ([Proje alanları](docs/prd/04-workspace-and-projects.md#proje-alanlarını-etkinleştirme)).
+İlişkili kayıt türlerini tek keşif ve çalışma girişinde toplayan, etkinliği içerik yaşamından ayrı Proje yüzeyi ([Proje alanları](docs/prd/04-workspace-and-projects.md#proje-alanlarını-etkinleştirme)). UI: `Work`, `Documents`, `Discovery`, `Decisions`, `Design`, `Technical Diagrams`, `Tests`, `Releases`, `Production`, `GitHub`. `Design` sayfa içi: `Project Wall`, `Screen`, `User Flow`, `Moodboard`.
 _Avoid_: Kayıt türü, ayrı sahiplik kapsamı, ana menü başına tek tablo
 
 **Proje aşaması**:
@@ -1011,7 +1011,7 @@ _Avoid_: Wireframe kaydı, Ekran bileşeni, flow node'u
 
 **Kullanıcı Akışı**:
 Kullanıcının arayüz hedefi ve karar yolunu canlı Ekran referanslarıyla taşıyan tasarım ana kaydı; Ekran kopyası, teknik sıra veya durum makinesi değildir.
-UI: `User Flow`, `Convert and Bind`, `Fit View`, `Open Source Record`, `Archived`, `Promote to Screen`, `Save as template`, `Create from template`, `Place live card`, `Rebind`
+UI: `User Flow`, `Convert and Bind`, `Fit View`, `Open Source Record`, `Archived`, `Promote to Screen`, `Save as template`, `Create from template`, `Place live card`, `Place node`, `Rebind`
 _Avoid_: Wireframe belgesi, Teknik Sıra, flowchart
 
 **Kayda dönüştür ve bağla**:
@@ -1035,11 +1035,11 @@ UI: `Screen`, `Action`, `Decision`, `State/Outcome`, `Section`
 _Avoid_: flowchart şekli, Teknik Sıra lifeline, durum makinesi durumu, Moodboard görseli, Proje Duvarı kartı
 
 **Proje Duvarı**:
-Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`, `Visual link`, `Create Persistent Relation`, `Lock Position`, `Presentation Mode`, `Open all in source`, `Focus order`, `Live`, `Exact`, `Shared source`, `Fit View`, `Outline`, `Inspect`, `Group`, `Align`.
+Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`, `Visual link`, `From`, `To`, `Unbind`, `Create Persistent Relation`, `Lock Position`, `Presentation Mode`, `Open all in source`, `Focus order`, `Live`, `Exact`, `Shared source`, `Fit View`, `Outline`, `Inspect`, `Group`, `Align`.
 _Avoid_: iç içe duvar, çalışma alanı duvarı, Sketch card, duvara özgü not, kopya kayıt, görsel-çizgi-ilişki
 
 **Görsel bağlantı**:
-Kartlar arasında yönlü ve etiketli anlatı çizgisi; kayıt ilişkisi, `Related` veya kullanım bağı değildir ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Visual link`.
+Kartlar arasında yönlü ve etiketli anlatı çizgisi; kayıt ilişkisi, `Related` veya kullanım bağı değildir ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Visual link`, `From`, `To`, `Unbind`.
 _Avoid_: kalıcı ilişki, otomatik grafik, Sketch card
 
 **Konumu kilitle**:

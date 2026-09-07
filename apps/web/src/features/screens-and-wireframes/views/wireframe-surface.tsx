@@ -1,11 +1,32 @@
 import { Button } from "@cantiara/ui/components/button";
-import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { type KeyboardEvent, useCallback, useMemo, useState } from "react";
-import { Layer, Rect, Stage, Text } from "react-konva";
+import { Spinner } from "@cantiara/ui/components/spinner";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { useTheme } from "next-themes";
+import {
+	type KeyboardEvent,
+	type RefObject,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 
+import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import ConvertAndBindForm from "@/features/screens-and-wireframes/forms/convert-and-bind-form";
-import { SCREENS_COPY } from "@/features/screens-and-wireframes/forms/screens-copy";
+import {
+	outlineShowsConvertAndBind,
+	SCREENS_COPY,
+	WIREFRAME_NODE_KINDS,
+	WIREFRAME_PANE_CLASS,
+	WIREFRAME_STAGE_TYPEFACE,
+	type WireframeWriteScope,
+	wireframeCanvasInk,
+	wireframeKindMarks,
+	wireframeWriteRefetch,
+} from "@/features/screens-and-wireframes/forms/screens-copy";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -46,87 +67,167 @@ export default function WireframeSurface({
 	toolsHidden?: boolean;
 	versionNumber: number | null;
 }) {
+	const [baseRevision, setBaseRevision] = useState(revision);
+	useEffect(() => {
+		setBaseRevision(revision);
+	}, [revision]);
+	const resolvedVersion = versionNumber ?? 1;
 	const version = useQuery({
 		...orpc.screensAndWireframes.getVersion.queryOptions({
 			input: {
 				overlayCurrent: true,
 				screenId,
-				versionNumber: versionNumber ?? 1,
+				versionNumber: resolvedVersion,
 			},
 		}),
-		enabled: versionNumber !== null,
+		placeholderData: keepPreviousData,
 	});
 	const viewport = useQuery(
 		orpc.screensAndWireframes.getViewport.queryOptions({
 			input: { screenId },
 		})
 	);
-	const linkedBlocks = useQuery(
-		orpc.screensAndWireframes.listLinkedBlocks.queryOptions({
+	const linkedBlocks = useQuery({
+		...orpc.screensAndWireframes.listLinkedBlocks.queryOptions({
 			input: { projectId },
-		})
-	);
+		}),
+		enabled: toolsHidden !== true,
+	});
 	const [selectedIds, setSelectedIds] = useState<string[]>([]);
+	const applyWrite = useCallback(
+		(outcome: unknown, scope: WireframeWriteScope) => {
+			const screen = committedScreen(outcome);
+			if (!screen) {
+				return;
+			}
+			setBaseRevision(screen.revision);
+			queryClient.setQueryData(
+				orpc.screensAndWireframes.get.queryKey({
+					input: { screenId },
+				}),
+				screen
+			);
+			const refresh = wireframeWriteRefetch(scope);
+			const nextVersion =
+				screen.versions.at(-1)?.versionNumber ?? resolvedVersion;
+			if (refresh.getVersion) {
+				queryClient
+					.invalidateQueries({
+						queryKey: orpc.screensAndWireframes.getVersion.queryKey({
+							input: {
+								overlayCurrent: true,
+								screenId,
+								versionNumber: nextVersion,
+							},
+						}),
+					})
+					.catch(() => undefined);
+			}
+			if (refresh.get) {
+				queryClient
+					.invalidateQueries({
+						queryKey: orpc.screensAndWireframes.get.queryKey({
+							input: { screenId },
+						}),
+					})
+					.catch(() => undefined);
+			}
+		},
+		[resolvedVersion, screenId]
+	);
 	const saveVersion = useMutation(
 		orpc.screensAndWireframes.saveVersion.mutationOptions({
-			onSuccess: () => {
-				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
-				onChanged();
+			onSuccess: (outcome) => {
+				applyWrite(outcome, "geometry");
 			},
 		})
 	);
 	const createNode = useMutation(
 		orpc.screensAndWireframes.createOutlineNode.mutationOptions({
-			onSuccess: () => {
-				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
-				onChanged();
+			onSuccess: (outcome) => {
+				applyWrite(outcome, "outline");
 			},
 		})
 	);
 	const reorder = useMutation(
 		orpc.screensAndWireframes.reorderOutline.mutationOptions({
-			onSuccess: () => {
-				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
-				onChanged();
+			onSuccess: (outcome) => {
+				applyWrite(outcome, "outline");
 			},
 		})
 	);
 	const group = useMutation(
 		orpc.screensAndWireframes.groupOutline.mutationOptions({
-			onSuccess: () => {
-				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
-				onChanged();
+			onSuccess: (outcome) => {
+				applyWrite(outcome, "outline");
 				setSelectedIds([]);
 			},
 		})
 	);
 	const bind = useMutation(
 		orpc.screensAndWireframes.bindOutline.mutationOptions({
-			onSuccess: () => {
-				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
-				onChanged();
+			onSuccess: (outcome) => {
+				applyWrite(outcome, "outline");
 			},
 		})
 	);
 	const detach = useMutation(
 		orpc.screensAndWireframes.detachLinkedBlock.mutationOptions({
-			onSuccess: () => {
-				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
-				onChanged();
+			onSuccess: (outcome) => {
+				applyWrite(outcome, "outline");
 			},
 		})
 	);
 	const saveViewport = useMutation(
-		orpc.screensAndWireframes.saveViewport.mutationOptions({
-			onSuccess: async () => {
-				await queryClient.invalidateQueries({
-					queryKey: orpc.screensAndWireframes.getViewport.queryKey({
-						input: { screenId },
-					}),
-				});
-			},
-		})
+		orpc.screensAndWireframes.saveViewport.mutationOptions()
 	);
+	const viewportSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const pendingViewport = useRef<{
+		centerX: number;
+		centerY: number;
+		collapsedGroupIds: string[];
+		zoom: number;
+	} | null>(null);
+	const saveViewportMutate = useRef(saveViewport.mutate);
+	saveViewportMutate.current = saveViewport.mutate;
+	const flushViewport = useCallback(() => {
+		const next = pendingViewport.current;
+		if (!next) {
+			return;
+		}
+		pendingViewport.current = null;
+		saveViewportMutate.current({
+			payload: {
+				screenId,
+				viewport: next,
+			},
+		});
+	}, [screenId]);
+	const flushViewportRef = useRef(flushViewport);
+	flushViewportRef.current = flushViewport;
+	useEffect(
+		() => () => {
+			if (viewportSaveTimer.current) {
+				clearTimeout(viewportSaveTimer.current);
+			}
+			flushViewportRef.current();
+		},
+		[]
+	);
+	const refreshAfterConvert = useCallback(() => {
+		queryClient
+			.invalidateQueries({
+				queryKey: orpc.screensAndWireframes.getVersion.queryKey({
+					input: {
+						overlayCurrent: true,
+						screenId,
+						versionNumber: resolvedVersion,
+					},
+				}),
+			})
+			.catch(() => undefined);
+		onChanged();
+	}, [onChanged, resolvedVersion, screenId]);
 
 	const restored = viewport.data?.viewport;
 	const collapsed = useMemo(
@@ -143,14 +244,27 @@ export default function WireframeSurface({
 			collapsedGroupIds: string[];
 			zoom: number;
 		}) => {
-			saveViewport.mutate({
-				payload: {
-					screenId,
+			queryClient.setQueryData(
+				orpc.screensAndWireframes.getViewport.queryKey({
+					input: { screenId },
+				}),
+				(current) => ({
+					fitted: current?.fitted ?? false,
+					inspectorOpen: false,
+					selectedId: null,
+					unsaved: false,
 					viewport: next,
-				},
-			});
+				})
+			);
+			if (viewportSaveTimer.current) {
+				clearTimeout(viewportSaveTimer.current);
+			}
+			pendingViewport.current = next;
+			viewportSaveTimer.current = setTimeout(() => {
+				flushViewport();
+			}, 200);
 		},
-		[saveViewport, screenId]
+		[flushViewport, screenId]
 	);
 
 	const onFitView = useCallback(() => {
@@ -162,27 +276,30 @@ export default function WireframeSurface({
 		});
 	}, [persistViewport]);
 
-	const onAddButton = useCallback(() => {
-		createNode.mutate({
-			baseRevision: revision,
-			idempotencyKey: newIdempotencyKey(),
-			payload: {
-				kind: "Button",
-				screenId,
-			},
-		});
-	}, [createNode, revision, screenId]);
+	const onAddKind = useCallback(
+		(kind: (typeof WIREFRAME_NODE_KINDS)[number]) => {
+			createNode.mutate({
+				baseRevision,
+				idempotencyKey: newIdempotencyKey(),
+				payload: {
+					kind,
+					screenId,
+				},
+			});
+		},
+		[baseRevision, createNode, screenId]
+	);
 
 	const onDetach = useCallback(
 		(nodeId: string) => {
 			detach.mutate({
-				baseRevision: revision,
+				baseRevision,
 				idempotencyKey: newIdempotencyKey(),
 				nodeId,
 				screenId,
 			});
 		},
-		[detach, revision, screenId]
+		[baseRevision, detach, screenId]
 	);
 
 	const onToggleSelect = useCallback(
@@ -212,12 +329,12 @@ export default function WireframeSurface({
 			}
 			nextIds.splice(next, 0, moved);
 			reorder.mutate({
-				baseRevision: revision,
+				baseRevision,
 				idempotencyKey: newIdempotencyKey(),
 				payload: { nodeIds: nextIds, screenId },
 			});
 		},
-		[nodes, reorder, revision, screenId]
+		[baseRevision, nodes, reorder, screenId]
 	);
 
 	const onGroup = useCallback(() => {
@@ -225,7 +342,7 @@ export default function WireframeSurface({
 			return;
 		}
 		group.mutate({
-			baseRevision: revision,
+			baseRevision,
 			idempotencyKey: newIdempotencyKey(),
 			payload: {
 				nodeIds: selectedIds,
@@ -233,7 +350,7 @@ export default function WireframeSurface({
 				title: SCREENS_COPY.group,
 			},
 		});
-	}, [group, revision, screenId, selectedIds]);
+	}, [baseRevision, group, screenId, selectedIds]);
 
 	const onBind = useCallback(() => {
 		const linkedBlockId = linkedBlocks.data?.[0]?.id;
@@ -242,11 +359,11 @@ export default function WireframeSurface({
 			return;
 		}
 		bind.mutate({
-			baseRevision: revision,
+			baseRevision,
 			idempotencyKey: newIdempotencyKey(),
 			payload: { linkedBlockId, nodeId, screenId },
 		});
-	}, [bind, linkedBlocks.data, revision, screenId, selectedIds]);
+	}, [baseRevision, bind, linkedBlocks.data, screenId, selectedIds]);
 
 	const onToggleCollapse = useCallback(
 		(groupId: string) => {
@@ -280,7 +397,7 @@ export default function WireframeSurface({
 					? Math.min(...selected.map((node) => node.geometry.x))
 					: null;
 			saveVersion.mutate({
-				baseRevision: revision,
+				baseRevision,
 				document: {
 					...document,
 					nodes: document.nodes.map((node) => {
@@ -301,7 +418,38 @@ export default function WireframeSurface({
 				screenId,
 			});
 		},
-		[revision, saveVersion, screenId, selectedIds, version.data?.document]
+		[baseRevision, saveVersion, screenId, selectedIds, version.data?.document]
+	);
+
+	const persistNodeLayout = useCallback(
+		(nodeId: string, x: number, y: number) => {
+			const document = version.data?.document;
+			if (!document) {
+				return;
+			}
+			saveVersion.mutate({
+				baseRevision,
+				document: {
+					...document,
+					nodes: document.nodes.map((node) => {
+						if (node.id !== nodeId) {
+							return node;
+						}
+						return {
+							...node,
+							geometry: {
+								...node.geometry,
+								x,
+								y,
+							},
+						};
+					}),
+				},
+				idempotencyKey: newIdempotencyKey(),
+				screenId,
+			});
+		},
+		[baseRevision, saveVersion, screenId, version.data?.document]
 	);
 
 	const onKeyDown = useCallback(
@@ -370,6 +518,8 @@ export default function WireframeSurface({
 	const scale = restored?.zoom ?? 1;
 	const translateX = -(restored?.centerX ?? 0);
 	const translateY = -(restored?.centerY ?? 0);
+	const { resolvedTheme } = useTheme();
+	const ink = wireframeCanvasInk(resolvedTheme);
 
 	return (
 		// Canvas keyboard pan/zoom/select lives on the surface, not a button.
@@ -410,21 +560,31 @@ export default function WireframeSurface({
 			</div>
 			{toolsHidden ? null : (
 				<div className="flex flex-wrap gap-2">
-					<Button onClick={onAddButton} type="button" variant="outline">
-						{SCREENS_COPY.button}
-					</Button>
+					{WIREFRAME_NODE_KINDS.map((kind) => (
+						<AddKindButton key={kind} kind={kind} onAdd={onAddKind} />
+					))}
 				</div>
 			)}
-			<div className="grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
-				<nav aria-label={SCREENS_COPY.outline}>
+			<div className="flex min-w-0 flex-col gap-3">
+				<WireframePane
+					ink={ink}
+					loading={version.isPending && versionNumber !== null}
+					nodes={nodes}
+					onMoveNode={persistNodeLayout}
+					onToggleSelect={onToggleSelect}
+					scale={scale}
+					selectedIds={selectedIds}
+					selectedNodeId={selectedNodeId}
+					toolsHidden={toolsHidden === true}
+					translateX={translateX}
+					translateY={translateY}
+				/>
+				<nav
+					aria-label={SCREENS_COPY.outline}
+					className="min-w-0 overflow-auto"
+				>
 					<h3 className="font-medium text-sm">{SCREENS_COPY.outline}</h3>
-					{nodes.length === 0 ? (
-						<Empty>
-							<EmptyHeader>
-								<EmptyTitle>{SCREENS_COPY.button}</EmptyTitle>
-							</EmptyHeader>
-						</Empty>
-					) : (
+					{nodes.length === 0 ? null : (
 						<ul className="mt-2 flex flex-col gap-2">
 							{groups.map((boardGroup) => (
 								<OutlineGroupRow
@@ -432,7 +592,7 @@ export default function WireframeSurface({
 									id={boardGroup.id}
 									key={boardGroup.id}
 									nodes={nodes.filter((node) => node.groupId === boardGroup.id)}
-									onConverted={onChanged}
+									onConverted={refreshAfterConvert}
 									onDetach={onDetach}
 									onMove={onMove}
 									onToggleCollapse={onToggleCollapse}
@@ -452,7 +612,7 @@ export default function WireframeSurface({
 									<OutlineNodeRow
 										key={node.id}
 										node={node}
-										onConverted={onChanged}
+										onConverted={refreshAfterConvert}
 										onDetach={onDetach}
 										onMove={onMove}
 										onToggleSelect={onToggleSelect}
@@ -469,67 +629,239 @@ export default function WireframeSurface({
 						</ul>
 					)}
 				</nav>
-				<div>
-					{versionNumber !== null && version.data ? (
-						<div
-							aria-hidden
-							className="overflow-hidden rounded-none border border-input"
-							style={{
-								transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
-								transformOrigin: "center center",
-							}}
-						>
-							<Stage height={240} listening={false} width={480}>
-								<Layer>
-									{nodes.map((node) => (
-										<Rect
-											fill="transparent"
-											height={node.geometry.height}
-											key={node.id}
-											stroke="#171717"
-											strokeWidth={1}
-											width={node.geometry.width}
-											x={node.geometry.x}
-											y={node.geometry.y}
-										/>
-									))}
-									{nodes.map((node) => (
-										<Text
-											fontFamily="Shantell Sans, sans-serif"
-											fontSize={14}
-											key={`${node.id}-label`}
-											text={
-												node.text?.status === "broken"
-													? SCREENS_COPY.broken
-													: (node.text?.value ?? node.label ?? node.kind)
-											}
-											x={node.geometry.x + 8}
-											y={node.geometry.y + 12}
-										/>
-									))}
-								</Layer>
-							</Stage>
-						</div>
-					) : null}
-					{selectedNode ? (
-						<section aria-label={SCREENS_COPY.inspect} className="mt-4">
-							<h3 className="font-medium text-sm">{SCREENS_COPY.inspect}</h3>
-							<p className="mt-2 text-sm">
-								{selectedNode.label ?? selectedNode.kind}
-							</p>
-							{selectedNode.text?.status === "broken" ? (
-								<p>{SCREENS_COPY.broken}</p>
-							) : null}
-							{selectedNode.openHref ? (
-								<a className="text-sm underline" href={selectedNode.openHref}>
-									{selectedNode.openSourceRecord}
-								</a>
-							) : null}
-						</section>
-					) : null}
-				</div>
+				{selectedNode ? (
+					<section aria-label={SCREENS_COPY.inspect}>
+						<h3 className="font-medium text-sm">{SCREENS_COPY.inspect}</h3>
+						<p className="mt-2 text-sm">
+							{selectedNode.label ?? selectedNode.kind}
+						</p>
+						{selectedNode.text?.status === "broken" ? (
+							<p>{SCREENS_COPY.broken}</p>
+						) : null}
+						{selectedNode.openHref ? (
+							<a className="text-sm underline" href={selectedNode.openHref}>
+								{selectedNode.openSourceRecord}
+							</a>
+						) : null}
+					</section>
+				) : null}
 			</div>
 		</div>
+	);
+}
+
+function AddKindButton({
+	kind,
+	onAdd,
+}: {
+	kind: (typeof WIREFRAME_NODE_KINDS)[number];
+	onAdd: (kind: (typeof WIREFRAME_NODE_KINDS)[number]) => void;
+}) {
+	const onClick = useCallback(() => {
+		onAdd(kind);
+	}, [kind, onAdd]);
+	return (
+		<Button onClick={onClick} type="button" variant="outline">
+			{kind}
+		</Button>
+	);
+}
+
+function usePaneSize(): {
+	ref: RefObject<HTMLDivElement | null>;
+	size: { height: number; width: number };
+} {
+	const ref = useRef<HTMLDivElement>(null);
+	const [size, setSize] = useState({ height: 448, width: 640 });
+	useLayoutEffect(() => {
+		const el = ref.current;
+		if (!el) {
+			return;
+		}
+		const apply = (width: number, height: number) => {
+			if (width < 2 || height < 2) {
+				return;
+			}
+			const next = {
+				height: Math.floor(height),
+				width: Math.floor(width),
+			};
+			setSize((current) => {
+				if (current.height === next.height && current.width === next.width) {
+					return current;
+				}
+				return next;
+			});
+		};
+		const measure = () => {
+			apply(el.clientWidth, el.clientHeight);
+		};
+		measure();
+		const frame = requestAnimationFrame(measure);
+		const ro = new ResizeObserver(() => {
+			measure();
+		});
+		ro.observe(el);
+		return () => {
+			cancelAnimationFrame(frame);
+			ro.disconnect();
+		};
+	}, []);
+	return { ref, size };
+}
+
+function WireframePane({
+	ink,
+	loading,
+	nodes,
+	onMoveNode,
+	onToggleSelect,
+	scale,
+	selectedIds,
+	selectedNodeId,
+	toolsHidden,
+	translateX,
+	translateY,
+}: {
+	ink: { box: string; fill: string; stroke: string };
+	loading: boolean;
+	nodes: OutlineNode[];
+	onMoveNode: (nodeId: string, x: number, y: number) => void;
+	onToggleSelect: (nodeId: string) => void;
+	scale: number;
+	selectedIds: string[];
+	selectedNodeId?: string | null;
+	toolsHidden: boolean;
+	translateX: number;
+	translateY: number;
+}) {
+	const { ref, size } = usePaneSize();
+	return (
+		<div className={WIREFRAME_PANE_CLASS} ref={ref}>
+			<Stage
+				height={size.height}
+				listening={!toolsHidden}
+				style={{ height: "100%", width: "100%" }}
+				width={size.width}
+			>
+				<Layer scaleX={scale} scaleY={scale} x={translateX} y={translateY}>
+					{nodes.map((node) => {
+						const selected =
+							selectedIds.includes(node.id) || selectedNodeId === node.id;
+						return (
+							<WireframeNodeShape
+								ink={ink}
+								key={node.id}
+								node={node}
+								onMoveNode={onMoveNode}
+								onToggleSelect={onToggleSelect}
+								selected={selected}
+								toolsHidden={toolsHidden}
+							/>
+						);
+					})}
+				</Layer>
+			</Stage>
+			{loading ? (
+				<p className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-background/40 text-muted-foreground text-sm">
+					<Spinner />
+					{PROJECT_SHELL_COPY.loading}
+				</p>
+			) : null}
+		</div>
+	);
+}
+
+function WireframeNodeShape({
+	ink,
+	node,
+	onMoveNode,
+	onToggleSelect,
+	selected,
+	toolsHidden,
+}: {
+	ink: { box: string; fill: string; stroke: string };
+	node: OutlineNode;
+	onMoveNode: (nodeId: string, x: number, y: number) => void;
+	onToggleSelect: (nodeId: string) => void;
+	selected: boolean;
+	toolsHidden: boolean;
+}) {
+	const onClick = useCallback(() => {
+		if (toolsHidden) {
+			return;
+		}
+		onToggleSelect(node.id);
+	}, [node.id, onToggleSelect, toolsHidden]);
+	const onDragEnd = useCallback(
+		(event: { target: { x: () => number; y: () => number } }) => {
+			if (toolsHidden) {
+				return;
+			}
+			onMoveNode(node.id, event.target.x(), event.target.y());
+		},
+		[node.id, onMoveNode, toolsHidden]
+	);
+	let label = node.label ?? node.kind;
+	if (node.text?.status === "broken") {
+		label = SCREENS_COPY.broken;
+	} else if (node.text?.value) {
+		label = node.text.value;
+	}
+	const marks = wireframeKindMarks(
+		node.kind,
+		node.geometry.width,
+		node.geometry.height
+	);
+	return (
+		<Group
+			draggable={!toolsHidden}
+			onClick={onClick}
+			onDragEnd={onDragEnd}
+			x={node.geometry.x}
+			y={node.geometry.y}
+		>
+			<Rect
+				cornerRadius={node.kind === SCREENS_COPY.button ? 6 : 2}
+				fill={ink.box}
+				height={node.geometry.height}
+				stroke={ink.stroke}
+				strokeWidth={selected ? 2 : 1.5}
+				width={node.geometry.width}
+			/>
+			{marks.map((mark) =>
+				mark.type === "line" ? (
+					<Line
+						key={`${node.id}-${mark.id}`}
+						listening={false}
+						points={mark.points}
+						stroke={ink.stroke}
+						strokeWidth={1.5}
+					/>
+				) : (
+					<Rect
+						height={mark.height}
+						key={`${node.id}-${mark.id}`}
+						listening={false}
+						stroke={ink.stroke}
+						strokeWidth={1}
+						width={mark.width}
+						x={mark.x}
+						y={mark.y}
+					/>
+				)
+			)}
+			<Text
+				fill={ink.fill}
+				fontFamily={WIREFRAME_STAGE_TYPEFACE}
+				fontSize={14}
+				listening={false}
+				text={label}
+				width={Math.max(8, node.geometry.width - 16)}
+				x={8}
+				y={node.kind === SCREENS_COPY.card ? 8 : 12}
+			/>
+		</Group>
 	);
 }
 
@@ -751,13 +1083,18 @@ function OutlineNodeRow({
 						{node.openSourceRecord}
 					</a>
 				) : null}
-				{versionNumber !== null && !node.liveRecord && !toolsHidden ? (
+				{outlineShowsConvertAndBind({
+					hasLiveRecord: Boolean(node.liveRecord),
+					selected,
+					toolsHidden,
+					versionNumber,
+				}) ? (
 					<ConvertAndBindForm
 						nodeId={node.id}
 						onConverted={onConverted}
 						projectId={projectId}
 						screenId={screenId}
-						versionNumber={versionNumber}
+						versionNumber={versionNumber ?? 1}
 					/>
 				) : null}
 				{node.liveRecord ? <span>{SCREENS_COPY.openSourceRecord}</span> : null}
@@ -766,31 +1103,31 @@ function OutlineNodeRow({
 	);
 }
 
-async function invalidate(
-	projectId: string,
-	screenId: string,
-	versionNumber: number | null
-): Promise<void> {
-	await queryClient.invalidateQueries({
-		queryKey: orpc.screensAndWireframes.list.queryKey({
-			input: { projectId },
-		}),
-	});
-	await queryClient.invalidateQueries({
-		queryKey: orpc.screensAndWireframes.get.queryKey({
-			input: { screenId },
-		}),
-	});
-	if (versionNumber !== null) {
-		await queryClient.invalidateQueries({
-			queryKey: orpc.screensAndWireframes.getVersion.queryKey({
-				input: { overlayCurrent: true, screenId, versionNumber },
-			}),
-		});
+function committedScreen(outcome: unknown): {
+	revision: number;
+	versions: { versionNumber: number }[];
+} | null {
+	if (typeof outcome !== "object" || outcome === null) {
+		return null;
 	}
-	await queryClient.invalidateQueries({
-		queryKey: orpc.screensAndWireframes.getViewport.queryKey({
-			input: { screenId },
-		}),
-	});
+	if (!("status" in outcome && "screen" in outcome)) {
+		return null;
+	}
+	if (outcome.status !== "committed" && outcome.status !== "replayed") {
+		return null;
+	}
+	const { screen } = outcome;
+	if (typeof screen !== "object" || screen === null) {
+		return null;
+	}
+	if (!("revision" in screen && "versions" in screen)) {
+		return null;
+	}
+	if (typeof screen.revision !== "number" || !Array.isArray(screen.versions)) {
+		return null;
+	}
+	return screen as {
+		revision: number;
+		versions: { versionNumber: number }[];
+	};
 }

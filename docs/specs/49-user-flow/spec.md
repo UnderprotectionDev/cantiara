@@ -35,7 +35,7 @@ Kurucu Kullanıcı Akışını Proje kapsamlı tasarım ana kaydı olarak yönet
 21. As a founder, I want a structured outline that can create, select, reorder, group, bind, unbind, inspect, and open source records without a pointer.
 22. As a founder, I want the 500 visible / 750 link hard performance scene, so that a real path stays interactive.
 23. As a founder, I want broken targets excluded from search hits, Smart Collection membership, computed counts, and export content, so that a missing Screen cannot leak.
-24. As a founder, I want English UI `User Flow`, `Screen`, `Action`, `Decision`, `State/Outcome`, `Section`, `Convert and Bind`, `Fit View`, `Open Source Record`, `Archived`.
+24. As a founder, I want English UI `User Flow`, `Screen`, `Action`, `Decision`, `State/Outcome`, `Section`, `Convert and Bind`, `Fit View`, `Open Source Record`, `Archived`, `Place node`.
 25. As a founder using only a keyboard or a screen reader, I want to complete the closed journey **canvas yapılandırılmış outline** on this surface.
 26. As a founder, I do not want this feature to be a Technical Sequence, state machine, Wireframe document, Moodboard, or Project Wall.
 27. As a founder, I do not want sharing links or External Surfaces built here (73/75).
@@ -56,7 +56,7 @@ Kurucu Kullanıcı Akışını Proje kapsamlı tasarım ana kaydı olarak yönet
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe User Flow through the public interface: node live-refs Screen id, archive/broken/trash counterparts, closed semantic set rejection, convert preview + Origin Location, template has no live source-Project bind, viewport restore, outline tasks, 500/750 scene. Not xyflow internals.
+- **What a good test is.** Tests observe User Flow through the public interface: node live-refs Screen id, archive/broken/trash counterparts, closed semantic set rejection, convert preview + Origin Location, template has no live source-Project bind, viewport restore, outline tasks, 500/750 scene. Empty canvas shows `Place node`; `Place node` defaults to `Action` so a node can land without a Screen id; `Screen` still requires a Screen. Not xyflow internals.
 - **Seam (one).** User Flow — the product-facing flow record and node-to-Screen interface. React Flow is an adapter.
 - **Modules under test.** User Flow only. Screen/Wireframe editor, Technical Sequence, Moodboard, Project Wall, sharing are counterparts.
 - **Prior art.** Bind to [Kullanıcı Akışı](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) and **canvas yapılandırılmış outline**.

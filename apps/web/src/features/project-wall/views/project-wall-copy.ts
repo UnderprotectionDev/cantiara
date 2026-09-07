@@ -11,6 +11,7 @@ export const PROJECT_WALL_COPY = {
 	expandGroup: "Expand",
 	fitView: "Fit View",
 	focusOrder: "Focus order",
+	from: "From",
 	frozenCopy: "Frozen copy",
 	group: "Group",
 	inspect: "Inspect",
@@ -34,6 +35,8 @@ export const PROJECT_WALL_COPY = {
 	select: "Select",
 	sharedSource: "Shared source",
 	sitemap: "Sitemap",
+	to: "To",
+	unbind: "Unbind",
 	visualLink: "Visual link",
 	zoom: "Zoom",
 } as const;

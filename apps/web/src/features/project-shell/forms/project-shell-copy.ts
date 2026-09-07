@@ -279,6 +279,31 @@ export function projectNavPinnedAreas(persistent: readonly string[]): string[] {
 	);
 }
 
+export const DESIGN_SURFACES = [
+	"Project Wall",
+	"Screen",
+	"User Flow",
+	"Moodboard",
+] as const;
+
+export type DesignSurface = (typeof DESIGN_SURFACES)[number];
+
+export function isDesignShellAnchor(anchor: string): boolean {
+	if (anchor === projectShellAnchor("Design")) {
+		return true;
+	}
+	return DESIGN_SURFACES.some(
+		(surface) => projectShellAnchor(surface) === anchor
+	);
+}
+
+export function designSurfaceForAnchor(anchor: string): DesignSurface {
+	return (
+		DESIGN_SURFACES.find((surface) => projectShellAnchor(surface) === anchor) ??
+		"Project Wall"
+	);
+}
+
 export function isWorkShellAnchor(
 	anchor: string,
 	workViews: readonly string[]
