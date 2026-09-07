@@ -624,7 +624,7 @@ function toOneTimeCodeRedirect(input: {
 	code: string;
 	location: (code: string) => string;
 	response: Response;
-}): Promise<Response> {
+}): Response {
 	const headers = new Headers();
 	for (const [key, value] of input.response.headers.entries()) {
 		const name = key.toLowerCase();

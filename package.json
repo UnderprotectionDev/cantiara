@@ -54,7 +54,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.3",
+    "@biomejs/biome": "2.5.12",
     "@cantiara/config": "workspace:*",
     "@types/bun": "catalog:",
     "lefthook": "latest",
