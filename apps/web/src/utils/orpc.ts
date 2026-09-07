@@ -12,6 +12,7 @@ import {
 } from "@/features/web-macos-client/show-main-flow-failure";
 import { withDesktopApiHeaders } from "@/features/web-macos-client/views/client-shell";
 import { productServerUrl } from "@/lib/product-server-url";
+import { retryOnce } from "@/lib/retry-once";
 
 export function createQueryClient() {
 	return new QueryClient({
@@ -21,16 +22,22 @@ export function createQueryClient() {
 		},
 		mutationCache: new MutationCache({
 			onError: (error, variables, _onMutateResult, mutation) => {
-				showMainFlowFailure(error, () => {
-					mutation.execute(variables);
-				});
+				showMainFlowFailure(
+					error,
+					retryOnce(() => {
+						mutation.execute(variables);
+					})
+				);
 			},
 		}),
 		queryCache: new QueryCache({
 			onError: (error, query) => {
-				showQueryMainFlowFailure(error, () => {
-					query.invalidate();
-				});
+				showQueryMainFlowFailure(
+					error,
+					retryOnce(() => {
+						query.invalidate();
+					})
+				);
 			},
 		}),
 	});
