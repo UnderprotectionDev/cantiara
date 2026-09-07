@@ -40,6 +40,29 @@ async function requireAccess(userId: string) {
 	return access;
 }
 
+async function requireAttachmentAccess(
+	attachmentId: string,
+	workspaceId: string
+) {
+	const file = await getPrismaClient().fileAttachment.findUnique({
+		select: { workspaceId: true },
+		where: { id: attachmentId },
+	});
+	if (!file || file.workspaceId !== workspaceId) {
+		throw new ORPCError("NOT_FOUND");
+	}
+}
+
+async function requireVersionAccess(versionId: string, workspaceId: string) {
+	const version = await getPrismaClient().fileAttachmentVersion.findUnique({
+		select: { fileAttachment: { select: { workspaceId: true } } },
+		where: { id: versionId },
+	});
+	if (!version || version.fileAttachment.workspaceId !== workspaceId) {
+		throw new ORPCError("NOT_FOUND");
+	}
+}
+
 const scopeInput = z.object({
 	scope: fileScopeSchema,
 });
@@ -55,7 +78,8 @@ export const fileAttachments = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await requireAccess(context.session.user.id);
+			const access = await requireAccess(context.session.user.id);
+			await requireVersionAccess(input.versionId, access.workspaceId);
 			return await appendMark(getPrismaClient(), input);
 		}),
 	approveSharePublishItem: protectedWriteProcedure
@@ -66,7 +90,8 @@ export const fileAttachments = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await requireAccess(context.session.user.id);
+			const access = await requireAccess(context.session.user.id);
+			await requireVersionAccess(input.versionId, access.workspaceId);
 			return await approveSharePublishItem(getPrismaClient(), input);
 		}),
 	bindLocation: protectedWriteProcedure
@@ -137,7 +162,8 @@ export const fileAttachments = {
 	getMarkingLayer: protectedProcedure
 		.input(z.object({ versionId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
-			await requireAccess(context.session.user.id);
+			const access = await requireAccess(context.session.user.id);
+			await requireVersionAccess(input.versionId, access.workspaceId);
 			return await getMarkingLayer(getPrismaClient(), input.versionId);
 		}),
 	list: protectedProcedure
@@ -152,7 +178,8 @@ export const fileAttachments = {
 	listSharePublishItems: protectedProcedure
 		.input(z.object({ versionId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
-			await requireAccess(context.session.user.id);
+			const access = await requireAccess(context.session.user.id);
+			await requireVersionAccess(input.versionId, access.workspaceId);
 			return await listSharePublishItems(getPrismaClient(), input.versionId);
 		}),
 	previewLocationBind: protectedProcedure
@@ -174,7 +201,8 @@ export const fileAttachments = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await requireAccess(context.session.user.id);
+			const access = await requireAccess(context.session.user.id);
+			await requireVersionAccess(input.versionId, access.workspaceId);
 			return previewLocationWorkBind(input);
 		}),
 	previewNewVersion: protectedProcedure
@@ -186,7 +214,8 @@ export const fileAttachments = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await requireAccess(context.session.user.id);
+			const access = await requireAccess(context.session.user.id);
+			await requireAttachmentAccess(input.fileAttachmentId, access.workspaceId);
 			return await previewUploadNewVersion(getPrismaClient(), input);
 		}),
 	putBytes: protectedWriteProcedure
@@ -229,7 +258,8 @@ export const fileAttachments = {
 	undoMark: protectedWriteProcedure
 		.input(z.object({ versionId: z.string().min(1) }))
 		.handler(async ({ context, input }) => {
-			await requireAccess(context.session.user.id);
+			const access = await requireAccess(context.session.user.id);
+			await requireVersionAccess(input.versionId, access.workspaceId);
 			return await undoMark(getPrismaClient(), input.versionId);
 		}),
 	zipExternalSurfaceAllowed: protectedProcedure

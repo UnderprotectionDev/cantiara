@@ -58,7 +58,7 @@ app.use(
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
-app.use("/rpc/*", async (c, next) => {
+app.use(["/rpc/*", "/api-reference/*"], async (c, next) => {
 	const { method } = c.req;
 	if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
 		await next();
