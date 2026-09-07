@@ -1,15 +1,3 @@
-export function retryOnce(retry: () => void): () => void {
-	let retried = false;
-
-	return () => {
-		if (retried) {
-			return;
-		}
-		retried = true;
-		retry();
-	};
-}
-
 export function retryOnceFor<T extends object>(
 	target: T,
 	retriedTargets: WeakSet<T>,

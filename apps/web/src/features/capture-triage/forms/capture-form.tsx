@@ -34,13 +34,22 @@ import {
 	fileToCaptureAttachment,
 } from "./capture-form-state";
 import { convertTargetScopeLine } from "./capture-triage-exits-state";
-import { CaptureMergeUndo, CaptureTriageActions } from "./capture-triage-panel";
+import {
+	CaptureMergeUndo,
+	CaptureTriageActions,
+	type TriageCopy,
+} from "./capture-triage-panel";
 import {
 	goBackSequentialFocus,
 	nextSequentialFocus,
 	sequentialTriageView,
 	startSequentialFocus,
 } from "./sequential-triage-state";
+
+type CaptureInboxListCopy = TriageCopy & {
+	back: string;
+	sequentialTriage: string;
+};
 
 export default function CaptureForm() {
 	const { attemptOnlineWork, clearUnsaved, markUnsaved, recordSave, shell } =
@@ -418,20 +427,7 @@ function CaptureInboxList({
 	sequential,
 	templates,
 }: {
-	copy: {
-		attachToExisting: string;
-		back: string;
-		convert: string;
-		delete: string;
-		document: string;
-		evidence: string;
-		feedback: string;
-		fileAttachment: string;
-		origin: string;
-		otherProjects: string;
-		sequentialTriage: string;
-		work: string;
-	};
+	copy: CaptureInboxListCopy;
 	emptyCopy: string;
 	groups: Array<{
 		heading: string;
@@ -580,18 +576,7 @@ function CaptureInboxItemCard({
 	onMergeConsumed,
 	templates,
 }: {
-	copy: {
-		attachToExisting: string;
-		convert: string;
-		delete: string;
-		document: string;
-		evidence: string;
-		feedback: string;
-		fileAttachment: string;
-		origin: string;
-		otherProjects: string;
-		work: string;
-	};
+	copy: TriageCopy;
 	item: {
 		attachment?: { filename: string };
 		body: string;
