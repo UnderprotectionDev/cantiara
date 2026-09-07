@@ -1,5 +1,4 @@
 import { Button } from "@cantiara/ui/components/button";
-import { Empty, EmptyHeader, EmptyTitle } from "@cantiara/ui/components/empty";
 import { Spinner } from "@cantiara/ui/components/spinner";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
@@ -12,13 +11,14 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Layer, Rect, Stage, Text } from "react-konva";
+import { Group, Layer, Rect, Stage, Text } from "react-konva";
 
 import { PROJECT_SHELL_COPY } from "@/features/project-shell/forms/project-shell-copy";
 import ConvertAndBindForm from "@/features/screens-and-wireframes/forms/convert-and-bind-form";
 import {
 	SCREENS_COPY,
 	WIREFRAME_NODE_KINDS,
+	WIREFRAME_PANE_CLASS,
 	wireframeCanvasInk,
 } from "@/features/screens-and-wireframes/forms/screens-copy";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -69,7 +69,7 @@ export default function WireframeSurface({
 				versionNumber: versionNumber ?? 1,
 			},
 		}),
-		enabled: versionNumber !== null,
+		enabled: true,
 	});
 	const viewport = useQuery(
 		orpc.screensAndWireframes.getViewport.queryOptions({
@@ -85,7 +85,9 @@ export default function WireframeSurface({
 	const saveVersion = useMutation(
 		orpc.screensAndWireframes.saveVersion.mutationOptions({
 			onSuccess: () => {
-				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
+				invalidate(projectId, screenId, versionNumber ?? 1).catch(
+					() => undefined
+				);
 				onChanged();
 			},
 		})
@@ -93,7 +95,9 @@ export default function WireframeSurface({
 	const createNode = useMutation(
 		orpc.screensAndWireframes.createOutlineNode.mutationOptions({
 			onSuccess: () => {
-				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
+				invalidate(projectId, screenId, versionNumber ?? 1).catch(
+					() => undefined
+				);
 				onChanged();
 			},
 		})
@@ -101,7 +105,9 @@ export default function WireframeSurface({
 	const reorder = useMutation(
 		orpc.screensAndWireframes.reorderOutline.mutationOptions({
 			onSuccess: () => {
-				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
+				invalidate(projectId, screenId, versionNumber ?? 1).catch(
+					() => undefined
+				);
 				onChanged();
 			},
 		})
@@ -109,7 +115,9 @@ export default function WireframeSurface({
 	const group = useMutation(
 		orpc.screensAndWireframes.groupOutline.mutationOptions({
 			onSuccess: () => {
-				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
+				invalidate(projectId, screenId, versionNumber ?? 1).catch(
+					() => undefined
+				);
 				onChanged();
 				setSelectedIds([]);
 			},
@@ -118,7 +126,9 @@ export default function WireframeSurface({
 	const bind = useMutation(
 		orpc.screensAndWireframes.bindOutline.mutationOptions({
 			onSuccess: () => {
-				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
+				invalidate(projectId, screenId, versionNumber ?? 1).catch(
+					() => undefined
+				);
 				onChanged();
 			},
 		})
@@ -126,7 +136,9 @@ export default function WireframeSurface({
 	const detach = useMutation(
 		orpc.screensAndWireframes.detachLinkedBlock.mutationOptions({
 			onSuccess: () => {
-				invalidate(projectId, screenId, versionNumber).catch(() => undefined);
+				invalidate(projectId, screenId, versionNumber ?? 1).catch(
+					() => undefined
+				);
 				onChanged();
 			},
 		})
@@ -322,6 +334,37 @@ export default function WireframeSurface({
 		[revision, saveVersion, screenId, selectedIds, version.data?.document]
 	);
 
+	const persistNodeLayout = useCallback(
+		(nodeId: string, x: number, y: number) => {
+			const document = version.data?.document;
+			if (!document) {
+				return;
+			}
+			saveVersion.mutate({
+				baseRevision: revision,
+				document: {
+					...document,
+					nodes: document.nodes.map((node) => {
+						if (node.id !== nodeId) {
+							return node;
+						}
+						return {
+							...node,
+							geometry: {
+								...node.geometry,
+								x,
+								y,
+							},
+						};
+					}),
+				},
+				idempotencyKey: newIdempotencyKey(),
+				screenId,
+			});
+		},
+		[revision, saveVersion, screenId, version.data?.document]
+	);
+
 	const onKeyDown = useCallback(
 		(event: KeyboardEvent<HTMLElement>) => {
 			const applied = applyWireframeKey(event, {
@@ -435,19 +478,26 @@ export default function WireframeSurface({
 					))}
 				</div>
 			)}
-			<div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
+			<div className="flex min-w-0 flex-col gap-3">
+				<WireframePane
+					ink={ink}
+					loading={version.isPending && versionNumber !== null}
+					nodes={nodes}
+					onMoveNode={persistNodeLayout}
+					onToggleSelect={onToggleSelect}
+					scale={scale}
+					selectedIds={selectedIds}
+					selectedNodeId={selectedNodeId}
+					toolsHidden={toolsHidden === true}
+					translateX={translateX}
+					translateY={translateY}
+				/>
 				<nav
 					aria-label={SCREENS_COPY.outline}
-					className="order-2 min-w-0 overflow-hidden lg:order-1"
+					className="min-w-0 overflow-auto"
 				>
 					<h3 className="font-medium text-sm">{SCREENS_COPY.outline}</h3>
-					{nodes.length === 0 ? (
-						<Empty>
-							<EmptyHeader>
-								<EmptyTitle>{SCREENS_COPY.button}</EmptyTitle>
-							</EmptyHeader>
-						</Empty>
-					) : (
+					{nodes.length === 0 ? null : (
 						<ul className="mt-2 flex flex-col gap-2">
 							{groups.map((boardGroup) => (
 								<OutlineGroupRow
@@ -492,36 +542,22 @@ export default function WireframeSurface({
 						</ul>
 					)}
 				</nav>
-				<div className="order-1 min-w-0 lg:order-2">
-					<WireframePane
-						ink={ink}
-						loading={version.isPending && versionNumber !== null}
-						nodes={nodes}
-						onToggleSelect={onToggleSelect}
-						scale={scale}
-						selectedIds={selectedIds}
-						selectedNodeId={selectedNodeId}
-						toolsHidden={toolsHidden === true}
-						translateX={translateX}
-						translateY={translateY}
-					/>
-					{selectedNode ? (
-						<section aria-label={SCREENS_COPY.inspect} className="mt-4">
-							<h3 className="font-medium text-sm">{SCREENS_COPY.inspect}</h3>
-							<p className="mt-2 text-sm">
-								{selectedNode.label ?? selectedNode.kind}
-							</p>
-							{selectedNode.text?.status === "broken" ? (
-								<p>{SCREENS_COPY.broken}</p>
-							) : null}
-							{selectedNode.openHref ? (
-								<a className="text-sm underline" href={selectedNode.openHref}>
-									{selectedNode.openSourceRecord}
-								</a>
-							) : null}
-						</section>
-					) : null}
-				</div>
+				{selectedNode ? (
+					<section aria-label={SCREENS_COPY.inspect}>
+						<h3 className="font-medium text-sm">{SCREENS_COPY.inspect}</h3>
+						<p className="mt-2 text-sm">
+							{selectedNode.label ?? selectedNode.kind}
+						</p>
+						{selectedNode.text?.status === "broken" ? (
+							<p>{SCREENS_COPY.broken}</p>
+						) : null}
+						{selectedNode.openHref ? (
+							<a className="text-sm underline" href={selectedNode.openHref}>
+								{selectedNode.openSourceRecord}
+							</a>
+						) : null}
+					</section>
+				) : null}
 			</div>
 		</div>
 	);
@@ -555,15 +591,20 @@ function usePaneSize(): {
 		if (!el) {
 			return;
 		}
+		const apply = (width: number, height: number) => {
+			setSize({
+				height: Math.max(320, Math.floor(height)),
+				width: Math.max(320, Math.floor(width)),
+			});
+		};
+		const box = el.getBoundingClientRect();
+		apply(box.width, box.height);
 		const ro = new ResizeObserver((entries) => {
-			const box = entries[0]?.contentRect;
-			if (!box) {
+			const next = entries[0]?.contentRect;
+			if (!next) {
 				return;
 			}
-			setSize({
-				height: Math.max(1, Math.floor(box.height)),
-				width: Math.max(1, Math.floor(box.width)),
-			});
+			apply(next.width, next.height);
 		});
 		ro.observe(el);
 		return () => {
@@ -577,6 +618,7 @@ function WireframePane({
 	ink,
 	loading,
 	nodes,
+	onMoveNode,
 	onToggleSelect,
 	scale,
 	selectedIds,
@@ -588,6 +630,7 @@ function WireframePane({
 	ink: { fill: string; stroke: string };
 	loading: boolean;
 	nodes: OutlineNode[];
+	onMoveNode: (nodeId: string, x: number, y: number) => void;
 	onToggleSelect: (nodeId: string) => void;
 	scale: number;
 	selectedIds: string[];
@@ -598,10 +641,7 @@ function WireframePane({
 }) {
 	const { ref, size } = usePaneSize();
 	return (
-		<div
-			className="relative h-[min(70vh,40rem)] min-h-[28rem] min-w-0 overflow-hidden rounded-md border bg-[radial-gradient(circle,var(--border)_1px,transparent_1px)] bg-[size:16px_16px] bg-muted/20"
-			ref={ref}
-		>
+		<div className={WIREFRAME_PANE_CLASS} ref={ref}>
 			<Stage height={size.height} listening={!toolsHidden} width={size.width}>
 				<Layer scaleX={scale} scaleY={scale} x={translateX} y={translateY}>
 					{nodes.map((node) => {
@@ -612,6 +652,7 @@ function WireframePane({
 								ink={ink}
 								key={node.id}
 								node={node}
+								onMoveNode={onMoveNode}
 								onToggleSelect={onToggleSelect}
 								selected={selected}
 								toolsHidden={toolsHidden}
@@ -626,13 +667,6 @@ function WireframePane({
 					{PROJECT_SHELL_COPY.loading}
 				</p>
 			) : null}
-			{loading || nodes.length > 0 ? null : (
-				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4">
-					<p className="rounded-md border border-border bg-background/95 px-3 py-2 text-center text-muted-foreground text-sm">
-						{SCREENS_COPY.wireframe}
-					</p>
-				</div>
-			)}
 		</div>
 	);
 }
@@ -640,12 +674,14 @@ function WireframePane({
 function WireframeNodeShape({
 	ink,
 	node,
+	onMoveNode,
 	onToggleSelect,
 	selected,
 	toolsHidden,
 }: {
 	ink: { fill: string; stroke: string };
 	node: OutlineNode;
+	onMoveNode: (nodeId: string, x: number, y: number) => void;
 	onToggleSelect: (nodeId: string) => void;
 	selected: boolean;
 	toolsHidden: boolean;
@@ -656,6 +692,15 @@ function WireframeNodeShape({
 		}
 		onToggleSelect(node.id);
 	}, [node.id, onToggleSelect, toolsHidden]);
+	const onDragEnd = useCallback(
+		(event: { target: { x: () => number; y: () => number } }) => {
+			if (toolsHidden) {
+				return;
+			}
+			onMoveNode(node.id, event.target.x(), event.target.y());
+		},
+		[node.id, onMoveNode, toolsHidden]
+	);
 	let label = node.label ?? node.kind;
 	if (node.text?.status === "broken") {
 		label = SCREENS_COPY.broken;
@@ -663,16 +708,19 @@ function WireframeNodeShape({
 		label = node.text.value;
 	}
 	return (
-		<>
+		<Group
+			draggable={!toolsHidden}
+			onClick={onClick}
+			onDragEnd={onDragEnd}
+			x={node.geometry.x}
+			y={node.geometry.y}
+		>
 			<Rect
 				fill={selected ? "rgba(250,250,250,0.08)" : "transparent"}
 				height={node.geometry.height}
-				onClick={onClick}
 				stroke={ink.stroke}
 				strokeWidth={selected ? 2 : 1}
 				width={node.geometry.width}
-				x={node.geometry.x}
-				y={node.geometry.y}
 			/>
 			<Text
 				fill={ink.fill}
@@ -680,10 +728,10 @@ function WireframeNodeShape({
 				fontSize={14}
 				listening={false}
 				text={label}
-				x={node.geometry.x + 8}
-				y={node.geometry.y + 12}
+				x={8}
+				y={12}
 			/>
-		</>
+		</Group>
 	);
 }
 

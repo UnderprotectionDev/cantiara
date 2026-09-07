@@ -58,8 +58,11 @@ export default function ScreenArea({ projectId }: { projectId: string }) {
 		return <p role="alert">{PROJECT_SHELL_COPY.unavailable}</p>;
 	}
 
+	const rows = screens.data ?? [];
+	const selected = selectedId ?? rows[0]?.id ?? null;
+
 	return (
-		<div className="flex flex-col gap-6">
+		<div className="flex min-w-0 flex-col gap-6">
 			<CreateScreenForm onCreated={onCreated} projectId={projectId} />
 			<div className="flex flex-wrap gap-4">
 				<Field className="flex flex-row items-center gap-2">
@@ -83,44 +86,36 @@ export default function ScreenArea({ projectId }: { projectId: string }) {
 					</FieldLabel>
 				</Field>
 			</div>
-			<div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
-				{screens.data.length === 0 ? (
-					<Empty>
-						<EmptyHeader>
-							<EmptyTitle>
-								{trash ? SCREENS_COPY.noScreensInTrash : SCREENS_COPY.noScreens}
-							</EmptyTitle>
-						</EmptyHeader>
-					</Empty>
-				) : (
-					<ul className="flex flex-col gap-2">
-						{screens.data.map((item) => (
-							<li key={item.id}>
-								<ScreenRow
-									id={item.id}
-									life={item.life}
-									onSelect={onSelect}
-									selected={item.id === selectedId}
-									title={item.title}
-								/>
-							</li>
-						))}
-					</ul>
-				)}
-				{selectedId ? (
-					<ScreenDetail
-						onCleared={onCleared}
-						projectId={projectId}
-						screenId={selectedId}
-					/>
-				) : (
-					<Empty>
-						<EmptyHeader>
-							<EmptyTitle>{SCREENS_COPY.screen}</EmptyTitle>
-						</EmptyHeader>
-					</Empty>
-				)}
-			</div>
+			{rows.length === 0 ? (
+				<Empty>
+					<EmptyHeader>
+						<EmptyTitle>
+							{trash ? SCREENS_COPY.noScreensInTrash : SCREENS_COPY.noScreens}
+						</EmptyTitle>
+					</EmptyHeader>
+				</Empty>
+			) : (
+				<ul className="flex min-w-0 flex-wrap gap-1">
+					{rows.map((item) => (
+						<li className="min-w-0" key={item.id}>
+							<ScreenRow
+								id={item.id}
+								life={item.life}
+								onSelect={onSelect}
+								selected={item.id === selected}
+								title={item.title}
+							/>
+						</li>
+					))}
+				</ul>
+			)}
+			{selected ? (
+				<ScreenDetail
+					onCleared={onCleared}
+					projectId={projectId}
+					screenId={selected}
+				/>
+			) : null}
 		</div>
 	);
 }
@@ -144,12 +139,16 @@ function ScreenRow({
 	return (
 		<button
 			aria-current={selected ? "true" : undefined}
-			className="w-full rounded-none border border-input px-2.5 py-2 text-left text-sm hover:bg-muted/40"
+			className={
+				selected
+					? "min-w-0 truncate rounded-sm bg-muted px-2 py-1.5 text-left font-medium text-foreground text-sm"
+					: "min-w-0 truncate rounded-sm px-2 py-1.5 text-left text-foreground text-sm hover:bg-muted/60"
+			}
 			onClick={onClick}
 			type="button"
 		>
-			<span className="font-medium">{title}</span>
-			<span className="mt-0.5 block text-muted-foreground text-xs">{life}</span>
+			{title}
+			<span className="ml-2 text-muted-foreground text-xs">{life}</span>
 		</button>
 	);
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	SCREENS_COPY,
 	WIREFRAME_NODE_KINDS,
+	WIREFRAME_PANE_CLASS,
 	wireframeCanvasInk,
 } from "./screens-copy";
 
@@ -39,6 +40,8 @@ describe("Screens copy", () => {
 			"Chart",
 			"Text",
 		]);
+		expect(WIREFRAME_PANE_CLASS).toContain("w-full");
+		expect(WIREFRAME_PANE_CLASS).toContain("min-h-[32rem]");
 		expect(JSON.stringify(SCREENS_COPY)).not.toMatch(OUT_OF_SCOPE_COPY);
 	});
 

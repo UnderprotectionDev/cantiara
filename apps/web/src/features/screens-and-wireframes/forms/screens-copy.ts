@@ -74,6 +74,9 @@ export function wireframeCanvasInk(theme: string | undefined): {
 	return { fill: "#fafafa", stroke: "#e5e5e5" };
 }
 
+export const WIREFRAME_PANE_CLASS =
+	"relative h-[min(75vh,48rem)] min-h-[32rem] w-full min-w-0 overflow-hidden rounded-md border bg-[radial-gradient(circle,var(--border)_1px,transparent_1px)] bg-[size:16px_16px] bg-muted/20";
+
 export const CONVERT_RECORD_KINDS = [
 	"Work",
 	"Decision",
