@@ -1,10 +1,10 @@
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 import {
 	ACCOUNT_PATH,
 	COMPLETION_EFFECTS_PATH,
-	SESSIONS_PATH,
 	postSignInPath,
+	SESSIONS_PATH,
 } from "@/features/account-access/forms/post-sign-in-path";
 import { ClientShellWorkspace } from "@/features/web-macos-client/views/client-shell-host";
 import { authClient } from "@/lib/auth-client";

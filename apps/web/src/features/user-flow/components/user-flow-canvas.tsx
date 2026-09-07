@@ -405,6 +405,7 @@ function CanvasInner({
 	}, [nodes, onSelectedIdsChange]);
 
 	const onMoveEnd = useCallback(() => {
+		// biome-ignore lint/suspicious/noUnnecessaryConditions: programmatic moves set this ref before the move completes.
 		if (skipPersist.current) {
 			skipPersist.current = false;
 			return;

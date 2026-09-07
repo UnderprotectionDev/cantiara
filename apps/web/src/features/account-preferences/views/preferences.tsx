@@ -16,23 +16,33 @@ export default function Preferences() {
 	const preferences = useQuery(orpc.accountPreferences.get.queryOptions());
 	const suggestion = browserSuggestion();
 
-	return (
-		<FounderPage title={ACCOUNT_PREFERENCES_COPY.heading}>
-			{preferences.isPending ? (
+	if (preferences.isPending) {
+		return (
+			<FounderPage title={ACCOUNT_PREFERENCES_COPY.heading}>
 				<p className="text-muted-foreground text-sm">
 					{ACCOUNT_PREFERENCES_COPY.loading}
 				</p>
-			) : preferences.isError || !preferences.data ? (
+			</FounderPage>
+		);
+	}
+
+	if (preferences.isError || !preferences.data) {
+		return (
+			<FounderPage title={ACCOUNT_PREFERENCES_COPY.heading}>
 				<p className="text-sm" role="alert">
 					{ACCOUNT_PREFERENCES_COPY.unavailable}
 				</p>
-			) : (
-				<PreferencesForm
-					key={`${preferences.data.saved}:${preferences.data.locale}:${preferences.data.timeZone}:${preferences.data.appearance}`}
-					preferences={preferences.data}
-					suggestion={suggestion}
-				/>
-			)}
+			</FounderPage>
+		);
+	}
+
+	return (
+		<FounderPage title={ACCOUNT_PREFERENCES_COPY.heading}>
+			<PreferencesForm
+				key={`${preferences.data.saved}:${preferences.data.locale}:${preferences.data.timeZone}:${preferences.data.appearance}`}
+				preferences={preferences.data}
+				suggestion={suggestion}
+			/>
 		</FounderPage>
 	);
 }

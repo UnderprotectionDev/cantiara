@@ -8,22 +8,32 @@ import { orpc } from "@/utils/orpc";
 export default function CompletionEffects() {
 	const preference = useQuery(orpc.completionEffects.get.queryOptions());
 
-	return (
-		<FounderPage title={COMPLETION_EFFECTS_COPY.heading}>
-			{preference.isPending ? (
+	if (preference.isPending) {
+		return (
+			<FounderPage title={COMPLETION_EFFECTS_COPY.heading}>
 				<p className="text-muted-foreground text-sm">
 					{COMPLETION_EFFECTS_COPY.loading}
 				</p>
-			) : preference.isError || !preference.data ? (
+			</FounderPage>
+		);
+	}
+
+	if (preference.isError || !preference.data) {
+		return (
+			<FounderPage title={COMPLETION_EFFECTS_COPY.heading}>
 				<p className="text-sm" role="alert">
 					{COMPLETION_EFFECTS_COPY.unavailable}
 				</p>
-			) : (
-				<CompletionEffectsForm
-					key={`${preference.data.enabled}:${preference.data.theme}:${preference.data.palette}`}
-					preference={preference.data}
-				/>
-			)}
+			</FounderPage>
+		);
+	}
+
+	return (
+		<FounderPage title={COMPLETION_EFFECTS_COPY.heading}>
+			<CompletionEffectsForm
+				key={`${preference.data.enabled}:${preference.data.theme}:${preference.data.palette}`}
+				preference={preference.data}
+			/>
 		</FounderPage>
 	);
 }

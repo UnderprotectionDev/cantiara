@@ -51,13 +51,7 @@ export default function FirstOpenExplanation({
 			return;
 		}
 		result.value.catch(() => undefined);
-	}, [
-		attemptOnlineWork,
-		dismiss,
-		markUnsaved,
-		projectId,
-		revision,
-	]);
+	}, [attemptOnlineWork, dismiss, markUnsaved, projectId, revision]);
 
 	return (
 		<aside>

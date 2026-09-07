@@ -146,6 +146,7 @@ export default function FileMarkingOverlay({
 			: [];
 	useLayoutEffect(() => {
 		const node = frameRef.current;
+		// biome-ignore lint/suspicious/noUnnecessaryConditions: the ref is null until the overlay mounts.
 		if (!node) {
 			return;
 		}

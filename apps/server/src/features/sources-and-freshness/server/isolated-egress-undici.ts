@@ -71,17 +71,17 @@ function hopHeaders(response: {
 	return headers;
 }
 
-type CappedBodyReader = {
+interface CappedBodyReader {
 	cancel: () => Promise<unknown>;
 	read: () => Promise<{
 		done: boolean;
 		value?: Uint8Array<ArrayBufferLike>;
 	}>;
-};
+}
 
-type CappedBody = {
+interface CappedBody {
 	getReader: () => CappedBodyReader;
-};
+}
 
 async function readCappedBody(
 	body: CappedBody | null | undefined

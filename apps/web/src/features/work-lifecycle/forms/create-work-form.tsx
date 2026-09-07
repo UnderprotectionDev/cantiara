@@ -38,6 +38,7 @@ export default function CreateWorkForm({
 		};
 	}
 	const seed = seedCapture.current;
+	// biome-ignore lint/suspicious/noUnnecessaryConditions: the ref starts empty while the draft query is pending.
 	if (!seed || seed.projectId !== projectId) {
 		return <div className="flex flex-col gap-3" />;
 	}
