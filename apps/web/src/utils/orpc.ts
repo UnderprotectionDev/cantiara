@@ -58,6 +58,7 @@ export function createQueryClient() {
 			},
 		}),
 	});
+	return queryClient;
 }
 
 export const queryClient = createQueryClient();
