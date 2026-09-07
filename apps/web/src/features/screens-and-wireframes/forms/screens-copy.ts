@@ -168,3 +168,53 @@ export const CONVERT_RECORD_KINDS = [
 ] as const;
 
 export type ConvertRecordKind = (typeof CONVERT_RECORD_KINDS)[number];
+
+export function outlineShowsConvertAndBind(input: {
+	hasLiveRecord: boolean;
+	selected: boolean;
+	toolsHidden: boolean;
+	versionNumber: number | null;
+}): boolean {
+	return (
+		input.selected &&
+		!input.toolsHidden &&
+		!input.hasLiveRecord &&
+		input.versionNumber !== null
+	);
+}
+
+export type WireframeWriteScope = "geometry" | "outline" | "viewport";
+
+export function wireframeWriteRefetch(scope: WireframeWriteScope): {
+	get: boolean;
+	getVersion: boolean;
+	getViewport: boolean;
+	list: boolean;
+	parentScreen: boolean;
+} {
+	if (scope === "viewport") {
+		return {
+			get: false,
+			getVersion: false,
+			getViewport: false,
+			list: false,
+			parentScreen: false,
+		};
+	}
+	if (scope === "geometry") {
+		return {
+			get: false,
+			getVersion: true,
+			getViewport: false,
+			list: false,
+			parentScreen: false,
+		};
+	}
+	return {
+		get: false,
+		getVersion: true,
+		getViewport: false,
+		list: false,
+		parentScreen: false,
+	};
+}

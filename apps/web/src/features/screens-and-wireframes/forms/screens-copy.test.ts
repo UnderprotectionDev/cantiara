@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	outlineShowsConvertAndBind,
 	SCREENS_COPY,
 	WIREFRAME_NODE_KINDS,
 	WIREFRAME_PANE_CLASS,
 	WIREFRAME_STAGE_TYPEFACE,
 	wireframeCanvasInk,
 	wireframeKindMarks,
+	wireframeWriteRefetch,
 } from "./screens-copy";
 
 const OUT_OF_SCOPE_COPY = /User Flow editor|Moodboard|Document/;
@@ -60,5 +62,50 @@ describe("Screens copy", () => {
 			type: "line",
 		});
 		expect(wireframeKindMarks(SCREENS_COPY.table, 90, 90)).toHaveLength(3);
+	});
+
+	it("keeps Convert and Bind on the selected Outline block only", () => {
+		expect(
+			outlineShowsConvertAndBind({
+				hasLiveRecord: false,
+				selected: false,
+				toolsHidden: false,
+				versionNumber: 1,
+			})
+		).toBe(false);
+		expect(
+			outlineShowsConvertAndBind({
+				hasLiveRecord: false,
+				selected: true,
+				toolsHidden: false,
+				versionNumber: 1,
+			})
+		).toBe(true);
+		expect(
+			outlineShowsConvertAndBind({
+				hasLiveRecord: true,
+				selected: true,
+				toolsHidden: false,
+				versionNumber: 1,
+			})
+		).toBe(false);
+	});
+
+	it("does not refetch Screen list or viewport after Wireframe geometry writes", () => {
+		expect(wireframeWriteRefetch("geometry")).toEqual({
+			get: false,
+			getVersion: true,
+			getViewport: false,
+			list: false,
+			parentScreen: false,
+		});
+		expect(wireframeWriteRefetch("viewport").getViewport).toBe(false);
+		expect(wireframeWriteRefetch("outline")).toEqual({
+			get: false,
+			getVersion: true,
+			getViewport: false,
+			list: false,
+			parentScreen: false,
+		});
 	});
 });
