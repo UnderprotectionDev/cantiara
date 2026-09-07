@@ -920,7 +920,11 @@ export function createCaptureInbox(input: {
 	async function listAllItems(): Promise<CaptureInboxItemView[]> {
 		const rows = await input.prisma.captureInboxItem.findMany({
 			include: STAGING_INCLUDE,
-			orderBy: [{ capturedAt: "asc" }, { id: "asc" }],
+			orderBy: [
+				{ capturedAt: "asc" },
+				{ createdAt: "asc" },
+				{ id: "asc" },
+			],
 			where: openItemWhere(input.workspaceId),
 		});
 		return rows.map(toItemView);
@@ -1121,7 +1125,11 @@ export function createCaptureInbox(input: {
 		async list(scope) {
 			const rows = await input.prisma.captureInboxItem.findMany({
 				include: STAGING_INCLUDE,
-				orderBy: [{ capturedAt: "asc" }, { id: "asc" }],
+				orderBy: [
+					{ capturedAt: "asc" },
+					{ createdAt: "asc" },
+					{ id: "asc" },
+				],
 				where: {
 					...openItemWhere(input.workspaceId),
 					projectId:
