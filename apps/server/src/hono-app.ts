@@ -18,7 +18,7 @@ import {
 } from "evlog/better-auth";
 import { createFsDrain } from "evlog/fs";
 import { type EvlogVariables, evlog } from "evlog/hono";
-import { Hono } from "hono";
+import { type Context, Hono, type Next } from "hono";
 import { cors } from "hono/cors";
 
 import { handleFileAttachmentContent } from "./features/file-attachments/server/file-attachments-http";
@@ -58,11 +58,13 @@ app.use(
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
-app.use(["/rpc/*", "/api-reference/*"], async (c, next) => {
+async function protectWriteRoute(
+	c: Context<EvlogVariables>,
+	next: Next
+): Promise<Response | void> {
 	const { method } = c.req;
 	if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
-		await next();
-		return;
+		return next();
 	}
 	try {
 		assertCookieCsrf(c.req.raw, productCorsOrigins(env.CORS_ORIGIN));
@@ -92,8 +94,11 @@ app.use(["/rpc/*", "/api-reference/*"], async (c, next) => {
 		}
 		throw error;
 	}
-	await next();
-});
+	return next();
+}
+
+app.use("/rpc/*", protectWriteRoute);
+app.use("/api-reference/*", protectWriteRoute);
 
 app.get(
 	"/api/file-attachments/:fileAttachmentId/versions/:versionId",
