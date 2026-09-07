@@ -59,7 +59,7 @@ Proje adından önerilen ve ilk İş oluşturulduktan sonra değişmeyen, kullan
 _Avoid_: Proje kimliği, değiştirilebilir slug, yeniden kullanılabilir kod
 
 **Proje alanı**:
-İlişkili kayıt türlerini tek keşif ve çalışma girişinde toplayan, etkinliği içerik yaşamından ayrı Proje yüzeyi ([Proje alanları](docs/prd/04-workspace-and-projects.md#proje-alanlarını-etkinleştirme)).
+İlişkili kayıt türlerini tek keşif ve çalışma girişinde toplayan, etkinliği içerik yaşamından ayrı Proje yüzeyi ([Proje alanları](docs/prd/04-workspace-and-projects.md#proje-alanlarını-etkinleştirme)). UI: `Work`, `Documents`, `Discovery`, `Decisions`, `Design`, `Technical Diagrams`, `Tests`, `Releases`, `Production`, `GitHub`. `Design` sayfa içi: `Project Wall`, `Screen`, `User Flow`, `Moodboard`.
 _Avoid_: Kayıt türü, ayrı sahiplik kapsamı, ana menü başına tek tablo
 
 **Proje aşaması**:

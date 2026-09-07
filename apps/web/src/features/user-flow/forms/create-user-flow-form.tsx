@@ -4,10 +4,6 @@ import { Input } from "@cantiara/ui/components/input";
 import { useMutation } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useState } from "react";
-import {
-	COMPACT_CREATE_FIELD_CLASS,
-	COMPACT_CREATE_FORM_CLASS,
-} from "@/features/project-shell/views/compact-create-form";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -60,8 +56,11 @@ export default function CreateUserFlowForm({
 	}, []);
 
 	return (
-		<form className={COMPACT_CREATE_FORM_CLASS} onSubmit={onSubmit}>
-			<Field className={COMPACT_CREATE_FIELD_CLASS}>
+		<form
+			className="flex max-w-xl flex-wrap items-end gap-3"
+			onSubmit={onSubmit}
+		>
+			<Field className="w-auto min-w-[12rem] max-w-sm flex-1">
 				<FieldLabel htmlFor="user-flow-title">
 					{USER_FLOW_COPY.title}
 				</FieldLabel>
