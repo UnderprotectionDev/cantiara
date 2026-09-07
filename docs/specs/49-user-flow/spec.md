@@ -56,7 +56,7 @@ Kurucu Kullanıcı Akışını Proje kapsamlı tasarım ana kaydı olarak yönet
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe User Flow through the public interface: node live-refs Screen id, archive/broken/trash counterparts, closed semantic set rejection, convert preview + Origin Location, template has no live source-Project bind, viewport restore, outline tasks, 500/750 scene. Not xyflow internals.
+- **What a good test is.** Tests observe User Flow through the public interface: node live-refs Screen id, archive/broken/trash counterparts, closed semantic set rejection, convert preview + Origin Location, template has no live source-Project bind, viewport restore, outline tasks, 500/750 scene. Empty canvas shows `Place node`; `Place node` defaults to `Action` so a node can land without a Screen id; `Screen` still requires a Screen. Not xyflow internals.
 - **Seam (one).** User Flow — the product-facing flow record and node-to-Screen interface. React Flow is an adapter.
 - **Modules under test.** User Flow only. Screen/Wireframe editor, Technical Sequence, Moodboard, Project Wall, sharing are counterparts.
 - **Prior art.** Bind to [Kullanıcı Akışı](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) and **canvas yapılandırılmış outline**.

@@ -55,6 +55,19 @@ export const FLOW_NODE_KINDS = [
 	USER_FLOW_COPY.section,
 ] as const;
 
+export const DEFAULT_FLOW_NODE_KIND = USER_FLOW_COPY.action;
+
+export function placeNodeNeedsScreen(kind: string, screenId: string): boolean {
+	return kind === USER_FLOW_COPY.screen && screenId.length === 0;
+}
+
+export function shouldFitViewAfterPlace(
+	previousCount: number,
+	nextCount: number
+): boolean {
+	return previousCount === 0 && nextCount > 0;
+}
+
 export const CONVERT_RECORD_KINDS = [
 	USER_FLOW_COPY.work,
 	USER_FLOW_COPY.decision,

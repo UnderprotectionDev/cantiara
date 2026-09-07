@@ -14,7 +14,11 @@ import { useTheme } from "next-themes";
 import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { flowCanvasColorMode, USER_FLOW_COPY } from "../forms/user-flow-copy";
+import {
+	flowCanvasColorMode,
+	shouldFitViewAfterPlace,
+	USER_FLOW_COPY,
+} from "../forms/user-flow-copy";
 
 import "@xyflow/react/dist/style.css";
 
@@ -306,6 +310,7 @@ function CanvasInner({
 	const { resolvedTheme } = useTheme();
 	const { fitView, getViewport, setViewport, zoomIn, zoomOut } = useReactFlow();
 	const skipPersist = useRef(true);
+	const previousContentCount = useRef(0);
 	const flowNodes = useMemo(
 		() => toFlowNodes(nodes, liveCards, selectedIds),
 		[liveCards, nodes, selectedIds]
@@ -329,6 +334,15 @@ function CanvasInner({
 			zoom: restored.viewport.zoom,
 		});
 	}, [fitView, liveCards.length, nodes.length, restored, setViewport]);
+
+	useEffect(() => {
+		const nextCount = flowNodes.length;
+		if (shouldFitViewAfterPlace(previousContentCount.current, nextCount)) {
+			skipPersist.current = true;
+			fitView({ padding: 0.2 }).catch(() => undefined);
+		}
+		previousContentCount.current = nextCount;
+	}, [fitView, flowNodes.length]);
 
 	const persistNow = useCallback(() => {
 		const viewport = getViewport();
@@ -473,11 +487,13 @@ function CanvasInner({
 		]
 	);
 
+	const flowSelectedIds = partitionSelection(selectedIds).nodeIds;
+
 	return (
 		<div className="relative h-[min(70vh,40rem)] min-h-[28rem] min-w-0 overflow-hidden rounded-md border bg-muted/20">
 			<ReactFlow
 				aria-label={USER_FLOW_COPY.userFlow}
-				className="h-full w-full"
+				className="h-full min-h-[28rem] w-full"
 				colorMode={flowCanvasColorMode(resolvedTheme)}
 				elementsSelectable
 				fitView={false}
@@ -493,19 +509,30 @@ function CanvasInner({
 				onSelectionChange={onSelectionChange}
 				panOnScroll
 				proOptions={{ hideAttribution: true }}
+				style={{ height: "100%", width: "100%" }}
 			>
 				<Background gap={16} />
 				<Controls
-					className="border-border bg-card text-foreground shadow-none [&>button]:border-border [&>button]:bg-card [&>button]:fill-foreground"
+					className="!border-border !bg-card !shadow-none [&>button]:!border-border [&>button]:!bg-card [&>button]:!fill-foreground"
 					showFitView={false}
 					showInteractive={false}
 				/>
-				<Panel position="top-left">
+				<Panel position="top-right">
 					<div className="flex flex-wrap gap-2">
-						<Button onClick={onFitView} type="button" variant="outline">
+						<Button
+							disabled={flowNodes.length === 0}
+							onClick={onFitView}
+							type="button"
+							variant="outline"
+						>
 							{USER_FLOW_COPY.fitView}
 						</Button>
-						<Button onClick={onAlignClick} type="button" variant="outline">
+						<Button
+							disabled={flowSelectedIds.length === 0}
+							onClick={onAlignClick}
+							type="button"
+							variant="outline"
+						>
 							{USER_FLOW_COPY.align}
 						</Button>
 						<Button onClick={onUndo} type="button" variant="outline">
@@ -513,14 +540,14 @@ function CanvasInner({
 						</Button>
 					</div>
 				</Panel>
-				{flowNodes.length === 0 ? (
-					<Panel className="pointer-events-none" position="top-center">
-						<p className="rounded-md border border-border bg-background/90 px-3 py-2 text-muted-foreground text-sm">
-							{USER_FLOW_COPY.placeNode}
-						</p>
-					</Panel>
-				) : null}
 			</ReactFlow>
+			{flowNodes.length === 0 ? (
+				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4">
+					<p className="rounded-md border border-border bg-background/95 px-3 py-2 text-center text-muted-foreground text-sm">
+						{USER_FLOW_COPY.placeNode}
+					</p>
+				</div>
+			) : null}
 		</div>
 	);
 }

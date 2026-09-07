@@ -1,8 +1,11 @@
 import { expect, test } from "vitest";
 
 import {
+	DEFAULT_FLOW_NODE_KIND,
 	FLOW_NODE_KINDS,
 	flowCanvasColorMode,
+	placeNodeNeedsScreen,
+	shouldFitViewAfterPlace,
 	USER_FLOW_COPY,
 } from "./user-flow-copy";
 
@@ -41,4 +44,13 @@ test("User Flow canvas follows Dark appearance unless Light is resolved", () => 
 	expect(flowCanvasColorMode("dark")).toBe("dark");
 	expect(flowCanvasColorMode(undefined)).toBe("dark");
 	expect(flowCanvasColorMode("light")).toBe("light");
+});
+
+test("Place node starts as Action so the canvas can receive a node without a Screen", () => {
+	expect(DEFAULT_FLOW_NODE_KIND).toBe(USER_FLOW_COPY.action);
+	expect(placeNodeNeedsScreen(USER_FLOW_COPY.screen, "")).toBe(true);
+	expect(placeNodeNeedsScreen(USER_FLOW_COPY.screen, "screen-1")).toBe(false);
+	expect(placeNodeNeedsScreen(USER_FLOW_COPY.action, "")).toBe(false);
+	expect(shouldFitViewAfterPlace(0, 1)).toBe(true);
+	expect(shouldFitViewAfterPlace(1, 2)).toBe(false);
 });
