@@ -4,6 +4,7 @@ import {
 	getAccountPreferences,
 } from "@cantiara/auth";
 import type { Prisma, PrismaClient } from "@cantiara/db";
+import { appendFileSync } from "node:fs";
 
 import {
 	lockMutation,
@@ -520,6 +521,27 @@ async function loadSummary(
 		timeZone: preferences.timeZone,
 		today,
 	});
+	// #region agent log
+	appendFileSync(
+		"/opt/cursor/logs/debug.log",
+		`${JSON.stringify({
+			hypothesisId: "D",
+			location: "return-to-work.ts:523",
+			message: "return summary calendar boundary inputs",
+			data: {
+				at: at.toISOString(),
+				longStatusCount: records.filter(
+					(record) => record.longInTheSameStatus === true,
+				).length,
+				recordCount: records.length,
+				thresholdDays,
+				timeZone: preferences.timeZone,
+				today,
+			},
+			timestamp: Date.now(),
+		})}\n`,
+	);
+	// #endregion
 	const contextId = work?.id ?? project.id;
 	const cards = selectReturnCards(records, { contextId, today });
 	const longStatusMembers = preparedLongInTheSameStatusMembership(records);

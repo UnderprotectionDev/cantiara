@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@cantiara/db";
+import { appendFileSync } from "node:fs";
 
 import { createFeedback } from "../../feedback/server/feedback";
 import { promoteCaptureAttachment } from "../../file-attachments/server/file-attachments";
@@ -893,7 +894,7 @@ export function createCaptureInbox(input: {
 				where: { id: inboxItemId, workspaceId: input.workspaceId },
 			});
 		} catch (error) {
-			await input.prisma.captureInboxItem.updateMany({
+			const cleanupUpdate = await input.prisma.captureInboxItem.updateMany({
 				data: {
 					stagingCleanupAt: clock.now(),
 					stagingCleanupError:
@@ -901,6 +902,23 @@ export function createCaptureInbox(input: {
 				},
 				where: { id: inboxItemId, workspaceId: input.workspaceId },
 			});
+			// #region agent log
+			appendFileSync(
+				"/opt/cursor/logs/debug.log",
+				`${JSON.stringify({
+					hypothesisId: "A",
+					location: "capture-inbox.ts:896",
+					message: "staging cleanup failure update result",
+					data: {
+						error:
+							error instanceof Error ? error.message : "non-error-cleanup-failure",
+						inboxItemIdPresent: cleanupUpdate.count === 1,
+						updatedCount: cleanupUpdate.count,
+					},
+					timestamp: Date.now(),
+				})}\n`,
+			);
+			// #endregion
 			throw error;
 		}
 	}
