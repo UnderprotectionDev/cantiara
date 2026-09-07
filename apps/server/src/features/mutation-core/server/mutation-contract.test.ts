@@ -287,133 +287,124 @@ describe("Mutation Contract", () => {
 		});
 	});
 
-	it.each(
-		NON_HUMAN_CASES
-	)("commits a $origin command with verified source fields and records $actor", async ({
-		actor,
-		origin,
-		source,
-	}) => {
-		const target = await createMutationTarget(prisma, "initial");
-		const outcome = await applyMutation(
-			prisma,
-			nonHumanCommand({
+	it.each(NON_HUMAN_CASES)(
+		"commits a $origin command with verified source fields and records $actor",
+		async ({ actor, origin, source }) => {
+			const target = await createMutationTarget(prisma, "initial");
+			const outcome = await applyMutation(
+				prisma,
+				nonHumanCommand({
+					deliveryId: "delivery-1",
+					origin,
+					payload: { value: "from-source" },
+					revisionCondition: 1,
+					source,
+					targetId: target.targetId,
+				})
+			);
+			expect(outcome).toEqual({
+				receipt: {
+					revision: 2,
+					targetId: target.targetId,
+					value: "from-source",
+				},
+				status: "committed",
+			});
+			const history = await readRecordHistory(prisma, target.targetId);
+			expect(history[0]?.actor).toBe(actor);
+			expect(history[0]?.origin).toBe(origin);
+			expect(history[0]?.previousValue).toBe("initial");
+			expect(history[0]?.nextValue).toBe("from-source");
+		}
+	);
+
+	it.each(NON_HUMAN_CASES)(
+		"rejects a $origin command that forges a human base revision",
+		async ({ origin, source }) => {
+			const target = await createMutationTarget(prisma, "initial");
+			const outcome = await applyMutation(
+				prisma,
+				nonHumanCommand({
+					deliveryId: "delivery-1",
+					origin,
+					revisionCondition: 1,
+					source,
+					targetId: target.targetId,
+					withHumanBase: true,
+				})
+			);
+			expect(outcome).toEqual({
+				reason: "fake-human-base",
+				status: "rejected",
+			});
+			expect(await readMutationTarget(prisma, target.targetId)).toEqual(target);
+		}
+	);
+
+	it.each(NON_HUMAN_CASES)(
+		"returns the previous receipt when $origin redelivers the same source and payload",
+		async ({ origin, source }) => {
+			const target = await createMutationTarget(prisma, "initial");
+			const command = nonHumanCommand({
 				deliveryId: "delivery-1",
 				origin,
 				payload: { value: "from-source" },
 				revisionCondition: 1,
 				source,
 				targetId: target.targetId,
-			})
-		);
-		expect(outcome).toEqual({
-			receipt: {
+			});
+			const first = await applyMutation(prisma, command);
+			const retry = await applyMutation(prisma, command);
+			expect(first.status).toBe("committed");
+			expect(retry).toEqual({
+				receipt: {
+					revision: 2,
+					targetId: target.targetId,
+					value: "from-source",
+				},
+				status: "replayed",
+			});
+			expect(await readRecordHistory(prisma, target.targetId)).toHaveLength(1);
+		}
+	);
+
+	it.each(NON_HUMAN_CASES)(
+		"returns Conflict when $origin reuses a delivery id with a different payload",
+		async ({ origin, source }) => {
+			const target = await createMutationTarget(prisma, "initial");
+			await applyMutation(
+				prisma,
+				nonHumanCommand({
+					deliveryId: "delivery-1",
+					origin,
+					payload: { value: "from-source" },
+					revisionCondition: 1,
+					source,
+					targetId: target.targetId,
+				})
+			);
+			const outcome = await applyMutation(
+				prisma,
+				nonHumanCommand({
+					deliveryId: "delivery-1",
+					origin,
+					payload: { value: "swapped" },
+					revisionCondition: 1,
+					source,
+					targetId: target.targetId,
+				})
+			);
+			expect(outcome).toEqual({
+				conflict: MUTATION_COPY.conflict,
+				status: "conflict",
+			});
+			expect(await readMutationTarget(prisma, target.targetId)).toEqual({
 				revision: 2,
 				targetId: target.targetId,
 				value: "from-source",
-			},
-			status: "committed",
-		});
-		const history = await readRecordHistory(prisma, target.targetId);
-		expect(history[0]?.actor).toBe(actor);
-		expect(history[0]?.origin).toBe(origin);
-		expect(history[0]?.previousValue).toBe("initial");
-		expect(history[0]?.nextValue).toBe("from-source");
-	});
-
-	it.each(
-		NON_HUMAN_CASES
-	)("rejects a $origin command that forges a human base revision", async ({
-		origin,
-		source,
-	}) => {
-		const target = await createMutationTarget(prisma, "initial");
-		const outcome = await applyMutation(
-			prisma,
-			nonHumanCommand({
-				deliveryId: "delivery-1",
-				origin,
-				revisionCondition: 1,
-				source,
-				targetId: target.targetId,
-				withHumanBase: true,
-			})
-		);
-		expect(outcome).toEqual({
-			reason: "fake-human-base",
-			status: "rejected",
-		});
-		expect(await readMutationTarget(prisma, target.targetId)).toEqual(target);
-	});
-
-	it.each(
-		NON_HUMAN_CASES
-	)("returns the previous receipt when $origin redelivers the same source and payload", async ({
-		origin,
-		source,
-	}) => {
-		const target = await createMutationTarget(prisma, "initial");
-		const command = nonHumanCommand({
-			deliveryId: "delivery-1",
-			origin,
-			payload: { value: "from-source" },
-			revisionCondition: 1,
-			source,
-			targetId: target.targetId,
-		});
-		const first = await applyMutation(prisma, command);
-		const retry = await applyMutation(prisma, command);
-		expect(first.status).toBe("committed");
-		expect(retry).toEqual({
-			receipt: {
-				revision: 2,
-				targetId: target.targetId,
-				value: "from-source",
-			},
-			status: "replayed",
-		});
-		expect(await readRecordHistory(prisma, target.targetId)).toHaveLength(1);
-	});
-
-	it.each(
-		NON_HUMAN_CASES
-	)("returns Conflict when $origin reuses a delivery id with a different payload", async ({
-		origin,
-		source,
-	}) => {
-		const target = await createMutationTarget(prisma, "initial");
-		await applyMutation(
-			prisma,
-			nonHumanCommand({
-				deliveryId: "delivery-1",
-				origin,
-				payload: { value: "from-source" },
-				revisionCondition: 1,
-				source,
-				targetId: target.targetId,
-			})
-		);
-		const outcome = await applyMutation(
-			prisma,
-			nonHumanCommand({
-				deliveryId: "delivery-1",
-				origin,
-				payload: { value: "swapped" },
-				revisionCondition: 1,
-				source,
-				targetId: target.targetId,
-			})
-		);
-		expect(outcome).toEqual({
-			conflict: MUTATION_COPY.conflict,
-			status: "conflict",
-		});
-		expect(await readMutationTarget(prisma, target.targetId)).toEqual({
-			revision: 2,
-			targetId: target.targetId,
-			value: "from-source",
-		});
-	});
+			});
+		}
+	);
 
 	it("does not apply a non-human command missing verified source id, delivery id, fingerprint, or revision condition", async () => {
 		const target = await createMutationTarget(prisma, "initial");
@@ -462,79 +453,81 @@ describe("Mutation Contract", () => {
 	it.each([
 		{ kind: "human" as const },
 		...NON_HUMAN_CASES.map((entry) => ({ kind: entry.origin })),
-	])("does not overwrite a later write when a $kind delivery is reordered", async ({
-		kind,
-	}) => {
-		const target = await createMutationTarget(prisma, "initial");
-		const first = commandFor(kind, {
-			expectedRevision: 1,
-			key: "first",
-			targetId: target.targetId,
-			value: "one",
-		});
-		const second = commandFor(kind, {
-			expectedRevision: 2,
-			key: "second",
-			targetId: target.targetId,
-			value: "two",
-		});
-		expect((await applyMutation(prisma, first)).status).toBe("committed");
-		expect((await applyMutation(prisma, second)).status).toBe("committed");
-		const replayed = await applyMutation(prisma, first);
-		expect(replayed).toEqual({
-			receipt: {
-				revision: 2,
+	])(
+		"does not overwrite a later write when a $kind delivery is reordered",
+		async ({ kind }) => {
+			const target = await createMutationTarget(prisma, "initial");
+			const first = commandFor(kind, {
+				expectedRevision: 1,
+				key: "first",
 				targetId: target.targetId,
 				value: "one",
-			},
-			status: "replayed",
-		});
-		expect(await readMutationTarget(prisma, target.targetId)).toEqual({
-			revision: 3,
-			targetId: target.targetId,
-			value: "two",
-		});
-		expect(await readRecordHistory(prisma, target.targetId)).toHaveLength(2);
-	});
+			});
+			const second = commandFor(kind, {
+				expectedRevision: 2,
+				key: "second",
+				targetId: target.targetId,
+				value: "two",
+			});
+			expect((await applyMutation(prisma, first)).status).toBe("committed");
+			expect((await applyMutation(prisma, second)).status).toBe("committed");
+			const replayed = await applyMutation(prisma, first);
+			expect(replayed).toEqual({
+				receipt: {
+					revision: 2,
+					targetId: target.targetId,
+					value: "one",
+				},
+				status: "replayed",
+			});
+			expect(await readMutationTarget(prisma, target.targetId)).toEqual({
+				revision: 3,
+				targetId: target.targetId,
+				value: "two",
+			});
+			expect(await readRecordHistory(prisma, target.targetId)).toHaveLength(2);
+		}
+	);
 
 	it.each([
 		{ kind: "human" as const },
 		...NON_HUMAN_CASES.map((entry) => ({ kind: entry.origin })),
-	])("lets only one of two concurrent $kind writes commit and shows Current value to the other", async ({
-		kind,
-	}) => {
-		const target = await createMutationTarget(prisma, "initial");
-		const left = commandFor(kind, {
-			expectedRevision: 1,
-			key: "left",
-			targetId: target.targetId,
-			value: "left",
-		});
-		const right = commandFor(kind, {
-			expectedRevision: 1,
-			key: "right",
-			targetId: target.targetId,
-			value: "right",
-		});
-		const [first, second] = await Promise.all([
-			applyMutation(prisma, left),
-			applyMutation(prisma, right),
-		]);
-		const outcomes = [first, second];
-		const committed = outcomes.filter(
-			(outcome) => outcome.status === "committed"
-		);
-		const stale = outcomes.filter((outcome) => outcome.status === "stale");
-		expect(committed).toHaveLength(1);
-		expect(stale).toHaveLength(1);
-		expect(stale[0]?.currentValueLabel).toBe(MUTATION_COPY.currentValue);
-		const current = await readMutationTarget(prisma, target.targetId);
-		expect(current?.revision).toBe(2);
-		expect(["left", "right"]).toContain(current?.value);
-		expect(stale[0]?.current).toEqual(current);
-		expect(committed[0]?.receipt).toEqual(current);
-		expect(await readRecordHistory(prisma, target.targetId)).toHaveLength(1);
-	});
+	])(
+		"lets only one of two concurrent $kind writes commit and shows Current value to the other",
+		async ({ kind }) => {
+			const target = await createMutationTarget(prisma, "initial");
+			const left = commandFor(kind, {
+				expectedRevision: 1,
+				key: "left",
+				targetId: target.targetId,
+				value: "left",
+			});
+			const right = commandFor(kind, {
+				expectedRevision: 1,
+				key: "right",
+				targetId: target.targetId,
+				value: "right",
+			});
+			const [first, second] = await Promise.all([
+				applyMutation(prisma, left),
+				applyMutation(prisma, right),
+			]);
+			const outcomes = [first, second];
+			const committed = outcomes.filter(
+				(outcome) => outcome.status === "committed"
+			);
+			const stale = outcomes.filter((outcome) => outcome.status === "stale");
+			expect(committed).toHaveLength(1);
+			expect(stale).toHaveLength(1);
+			expect(stale[0]?.currentValueLabel).toBe(MUTATION_COPY.currentValue);
+			const current = await readMutationTarget(prisma, target.targetId);
+			expect(current?.revision).toBe(2);
+			expect(["left", "right"]).toContain(current?.value);
+			expect(stale[0]?.current).toEqual(current);
+			expect(committed[0]?.receipt).toEqual(current);
+			expect(await readRecordHistory(prisma, target.targetId)).toHaveLength(1);
+		}
+	);
 
 	it("applies Undo on a deterministic field change", async () => {
 		const target = await createMutationTarget(prisma, "initial");
@@ -715,36 +708,39 @@ describe("Mutation Contract", () => {
 		CHANGE_KIND.securityRedaction,
 		CHANGE_KIND.externalSystem,
 		CHANGE_KIND.publishedExport,
-	])("does not apply Undo to %s and does not offer the Undo action", async (kind) => {
-		const target = await createMutationTarget(prisma, "initial");
-		const committed = await applyMutation(
-			prisma,
-			humanCommand({
-				baseRevision: 1,
-				idempotencyKey: `unsafe-${kind}`,
-				payload: { kind, value: "irreversible" },
-				targetId: target.targetId,
-			})
-		);
-		expect(committed.status).toBe("committed");
-		const history = await readRecordHistory(prisma, target.targetId);
-		expect(history[0]?.undo).toBeNull();
-		const before = await readMutationTarget(prisma, target.targetId);
-		const outcome = await applyUndo(
-			prisma,
-			undoCommand({
-				baseRevision: 2,
-				historyEntryId: history[0]?.id ?? "",
-				idempotencyKey: `undo-${kind}`,
-				targetId: target.targetId,
-			})
-		);
-		expect(outcome).toEqual({
-			reason: "undo-not-safe",
-			status: "rejected",
-		});
-		expect(await readMutationTarget(prisma, target.targetId)).toEqual(before);
-	});
+	])(
+		"does not apply Undo to %s and does not offer the Undo action",
+		async (kind) => {
+			const target = await createMutationTarget(prisma, "initial");
+			const committed = await applyMutation(
+				prisma,
+				humanCommand({
+					baseRevision: 1,
+					idempotencyKey: `unsafe-${kind}`,
+					payload: { kind, value: "irreversible" },
+					targetId: target.targetId,
+				})
+			);
+			expect(committed.status).toBe("committed");
+			const history = await readRecordHistory(prisma, target.targetId);
+			expect(history[0]?.undo).toBeNull();
+			const before = await readMutationTarget(prisma, target.targetId);
+			const outcome = await applyUndo(
+				prisma,
+				undoCommand({
+					baseRevision: 2,
+					historyEntryId: history[0]?.id ?? "",
+					idempotencyKey: `undo-${kind}`,
+					targetId: target.targetId,
+				})
+			);
+			expect(outcome).toEqual({
+				reason: "undo-not-safe",
+				status: "rejected",
+			});
+			expect(await readMutationTarget(prisma, target.targetId)).toEqual(before);
+		}
+	);
 
 	it("offers Undo on field, relation, view metadata, and atomic transform, not a general undo stack", async () => {
 		const target = await createMutationTarget(prisma, "initial");

@@ -692,6 +692,7 @@ export function createTriageExits(ctx: TriageExitsContext) {
 	}
 
 	return {
+		// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: attach coordinates preview, durable idempotency, concurrent consumption, and rollback.
 		async attach(input: {
 			idempotencyKey: string;
 			itemId: string;

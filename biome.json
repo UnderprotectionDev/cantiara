@@ -164,9 +164,7 @@
       "includes": ["apps/server/src/**"],
       "linter": {
         "rules": {
-          "suspicious": {
-            "noUnnecessaryConditions": "off"
-          }
+          "suspicious": "off"
         }
       }
     }

@@ -313,91 +313,92 @@ describe("Capture Inbox Web Capture", () => {
 		);
 	});
 
-	it.each(
-		CLIPPER_FAMILIES
-	)("sends URL, selected text, selected image, and screenshot from %s to the Inbox, not a main record", async (family) => {
-		const capture = inbox();
-		const { paired } = await pairClipper(capture, family);
-		const target = {
-			kind: "workspace" as const,
-			label: CAPTURE_INBOX_COPY.workspaceCaptureInbox,
-		};
-		const url = await capture.sendWebCapture({
-			clip: URL_CLIP,
-			idempotencyKey: crypto.randomUUID(),
-			target,
-			token: paired.token,
-		});
-		const text = await capture.sendWebCapture({
-			clip: {
-				kind: "selected-text",
-				originUrl: "https://example.com/bug",
-				selectedText: "Crash on save",
-			},
-			idempotencyKey: crypto.randomUUID(),
-			target,
-			token: paired.token,
-		});
-		const image = await capture.sendWebCapture({
-			clip: {
-				kind: "selected-image",
-				originUrl: "https://example.com/bug",
-				selectedImage: "staging-image",
-			},
-			idempotencyKey: crypto.randomUUID(),
-			target,
-			token: paired.token,
-		});
-		const shot = await capture.sendWebCapture({
-			clip: {
-				kind: "screenshot",
-				originUrl: "https://example.com/bug",
-				screenshot: "staging-shot",
-			},
-			idempotencyKey: crypto.randomUUID(),
-			target,
-			token: paired.token,
-		});
-		expect(url).toMatchObject({
-			item: {
-				body: "https://example.com/bug",
-				kind: "capture-inbox-item",
-				link: "https://example.com/bug",
-				origin: "https://example.com/bug",
-				scope: { kind: "workspace" },
-			},
-			mainRecord: null,
-			status: "saved",
-		});
-		expect(text).toMatchObject({
-			item: { body: "Crash on save", kind: "capture-inbox-item" },
-			mainRecord: null,
-			status: "saved",
-		});
-		expect(image).toMatchObject({
-			item: {
-				attachmentRef: "staging-image",
-				kind: "capture-inbox-item",
-			},
-			mainRecord: null,
-			status: "saved",
-		});
-		expect(shot).toMatchObject({
-			item: {
-				attachmentRef: "staging-shot",
-				kind: "capture-inbox-item",
-			},
-			mainRecord: null,
-			status: "saved",
-		});
-		expect(await capture.list({ kind: "workspace" })).toHaveLength(4);
-		expect(capture.kaynakRecords()).toEqual([]);
-		expect(capture.livePageCopies()).toEqual([]);
-		expect(capture.clipArchive()).toEqual([]);
-		expect(capture.backgroundScan()).toBe(false);
-		expect(capture.historyCollection()).toBe(false);
-		expect(capture.claimsSafariClipper()).toBe(false);
-	});
+	it.each(CLIPPER_FAMILIES)(
+		"sends URL, selected text, selected image, and screenshot from %s to the Inbox, not a main record",
+		async (family) => {
+			const capture = inbox();
+			const { paired } = await pairClipper(capture, family);
+			const target = {
+				kind: "workspace" as const,
+				label: CAPTURE_INBOX_COPY.workspaceCaptureInbox,
+			};
+			const url = await capture.sendWebCapture({
+				clip: URL_CLIP,
+				idempotencyKey: crypto.randomUUID(),
+				target,
+				token: paired.token,
+			});
+			const text = await capture.sendWebCapture({
+				clip: {
+					kind: "selected-text",
+					originUrl: "https://example.com/bug",
+					selectedText: "Crash on save",
+				},
+				idempotencyKey: crypto.randomUUID(),
+				target,
+				token: paired.token,
+			});
+			const image = await capture.sendWebCapture({
+				clip: {
+					kind: "selected-image",
+					originUrl: "https://example.com/bug",
+					selectedImage: "staging-image",
+				},
+				idempotencyKey: crypto.randomUUID(),
+				target,
+				token: paired.token,
+			});
+			const shot = await capture.sendWebCapture({
+				clip: {
+					kind: "screenshot",
+					originUrl: "https://example.com/bug",
+					screenshot: "staging-shot",
+				},
+				idempotencyKey: crypto.randomUUID(),
+				target,
+				token: paired.token,
+			});
+			expect(url).toMatchObject({
+				item: {
+					body: "https://example.com/bug",
+					kind: "capture-inbox-item",
+					link: "https://example.com/bug",
+					origin: "https://example.com/bug",
+					scope: { kind: "workspace" },
+				},
+				mainRecord: null,
+				status: "saved",
+			});
+			expect(text).toMatchObject({
+				item: { body: "Crash on save", kind: "capture-inbox-item" },
+				mainRecord: null,
+				status: "saved",
+			});
+			expect(image).toMatchObject({
+				item: {
+					attachmentRef: "staging-image",
+					kind: "capture-inbox-item",
+				},
+				mainRecord: null,
+				status: "saved",
+			});
+			expect(shot).toMatchObject({
+				item: {
+					attachmentRef: "staging-shot",
+					kind: "capture-inbox-item",
+				},
+				mainRecord: null,
+				status: "saved",
+			});
+			expect(await capture.list({ kind: "workspace" })).toHaveLength(4);
+			expect(capture.kaynakRecords()).toEqual([]);
+			expect(capture.livePageCopies()).toEqual([]);
+			expect(capture.clipArchive()).toEqual([]);
+			expect(capture.backgroundScan()).toBe(false);
+			expect(capture.historyCollection()).toBe(false);
+			expect(capture.claimsSafariClipper()).toBe(false);
+		}
+	);
 
 	it("returns the previous result for the same key and fingerprint and conflicts when content changes", async () => {
 		const capture = inbox();
