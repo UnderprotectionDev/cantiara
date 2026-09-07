@@ -1,15 +1,15 @@
 model Source {
-  id                     String                   @id
-  projectId              String
-  project                Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  approvedVersionNumber  Int
-  revision               Int
-  createdAt              DateTime                 @default(now())
-  updatedAt              DateTime                 @updatedAt
-  versions               SourceVersion[]
-  checks                 SourceCheck[]
-  evidencePins           SourceEvidencePin[]
-  versionInUseSignal     SourceVersionInUseSignal?
+  id                    String                    @id
+  projectId             String
+  project               Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  approvedVersionNumber Int
+  revision              Int
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  versions              SourceVersion[]
+  checks                SourceCheck[]
+  evidencePins          SourceEvidencePin[]
+  versionInUseSignal    SourceVersionInUseSignal?
 
   @@index([projectId])
   @@map("source")
@@ -37,25 +37,25 @@ model SourceVersion {
 }
 
 model SourceCheck {
-  id                              String    @id
-  sourceId                        String
-  source                          Source    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  actorId                         String
-  startedAt                       DateTime
-  startUrl                        String
-  finalUrl                        String?
-  httpResult                      String
-  contentType                     String?
-  fingerprint                     String?
-  failureReason                   String?
-  candidateTitle                  String?
-  candidateContent                String?
-  candidateUrl                    String?
-  candidateAccessedAt             DateTime?
-  comparedApprovedVersionNumber   Int
-  disposition                     String
-  createdAt                       DateTime  @default(now())
-  updatedAt                       DateTime  @updatedAt
+  id                            String    @id
+  sourceId                      String
+  source                        Source    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  actorId                       String
+  startedAt                     DateTime
+  startUrl                      String
+  finalUrl                      String?
+  httpResult                    String
+  contentType                   String?
+  fingerprint                   String?
+  failureReason                 String?
+  candidateTitle                String?
+  candidateContent              String?
+  candidateUrl                  String?
+  candidateAccessedAt           DateTime?
+  comparedApprovedVersionNumber Int
+  disposition                   String
+  createdAt                     DateTime  @default(now())
+  updatedAt                     DateTime  @updatedAt
 
   @@index([sourceId])
   @@map("source_check")

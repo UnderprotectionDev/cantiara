@@ -1,20 +1,20 @@
 model SpecChangeReview {
-  id                 String          @id
-  workspaceId        String
-  workspace          Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  featureId          String
-  feature            Work            @relation(fields: [featureId], references: [id], onDelete: Cascade)
-  documentId         String
-  document           Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  previousVersionId  String
-  previousVersion    DocumentVersion @relation("SpecChangeReviewPreviousVersion", fields: [previousVersionId], references: [id], onDelete: Cascade)
-  newVersionId       String
-  newVersion         DocumentVersion @relation("SpecChangeReviewNewVersion", fields: [newVersionId], references: [id], onDelete: Cascade)
-  previousRevision   Int
-  newRevision        Int
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-  candidates         SpecChangeReviewCandidate[]
+  id                String                      @id
+  workspaceId       String
+  workspace         Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  featureId         String
+  feature           Work                        @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  documentId        String
+  document          Document                    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  previousVersionId String
+  previousVersion   DocumentVersion             @relation("SpecChangeReviewPreviousVersion", fields: [previousVersionId], references: [id], onDelete: Cascade)
+  newVersionId      String
+  newVersion        DocumentVersion             @relation("SpecChangeReviewNewVersion", fields: [newVersionId], references: [id], onDelete: Cascade)
+  previousRevision  Int
+  newRevision       Int
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  candidates        SpecChangeReviewCandidate[]
 
   @@unique([featureId, previousVersionId, newVersionId])
   @@index([workspaceId, documentId])
@@ -23,18 +23,18 @@ model SpecChangeReview {
 }
 
 model SpecChangeReviewCandidate {
-  id              String           @id
-  reviewId        String
-  review          SpecChangeReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  recordId        String
-  recordKind      String
-  why             Json
-  documentLevel   Boolean
-  changedSection  String?
-  reviewStatus    String
-  note            String           @default("")
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id             String           @id
+  reviewId       String
+  review         SpecChangeReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  recordId       String
+  recordKind     String
+  why            Json
+  documentLevel  Boolean
+  changedSection String?
+  reviewStatus   String
+  note           String           @default("")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   @@unique([reviewId, recordKind, recordId])
   @@index([reviewId])

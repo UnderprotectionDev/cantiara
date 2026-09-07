@@ -1,15 +1,15 @@
 model RecordAction {
-  id         String           @id
+  id         String            @id
   projectId  String
-  project    Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name       String
   steps      Json
-  inputs     Json             @default("[]")
+  inputs     Json              @default("[]")
   targetKind String
   trashedAt  DateTime?
   revision   Int
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
   runs       RecordActionRun[]
 
   @@index([projectId])

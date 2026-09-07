@@ -1,28 +1,28 @@
 model ResearchSession {
-  id                       String                   @id
-  projectId                String
-  project                  Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title                    String
-  purpose                  String
-  questionGuide            String
-  scheduledAt              DateTime?
-  durationMinutes          Int?
-  channel                  String
-  facilitator              String
-  scopeNote                String
-  status                   String
-  consent                  String
-  consentNote              String
-  consentRecordedByUserId  String
-  consentRecordedAt        DateTime
-  contactId                String?
-  revision                 Int
-  createdAt                DateTime                 @default(now())
-  updatedAt                DateTime                 @updatedAt
-  notes                    ResearchSessionNote[]
-  files                    ResearchSessionFile[]
-  events                   ResearchSessionEvent[]
-  evidencePins             ResearchSessionEvidencePin[]
+  id                      String                       @id
+  projectId               String
+  project                 Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title                   String
+  purpose                 String
+  questionGuide           String
+  scheduledAt             DateTime?
+  durationMinutes         Int?
+  channel                 String
+  facilitator             String
+  scopeNote               String
+  status                  String
+  consent                 String
+  consentNote             String
+  consentRecordedByUserId String
+  consentRecordedAt       DateTime
+  contactId               String?
+  revision                Int
+  createdAt               DateTime                     @default(now())
+  updatedAt               DateTime                     @updatedAt
+  notes                   ResearchSessionNote[]
+  files                   ResearchSessionFile[]
+  events                  ResearchSessionEvent[]
+  evidencePins            ResearchSessionEvidencePin[]
 
   @@index([projectId])
   @@index([projectId, status])
@@ -31,16 +31,16 @@ model ResearchSession {
 }
 
 model ResearchSessionNote {
-  id                     String          @id
-  sessionId              String
-  session                ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  kind                   String
-  body                   String
-  speakerLabel           String?
-  capturedUnderConsent   String
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
-  evidencePins           ResearchSessionEvidencePin[]
+  id                   String                       @id
+  sessionId            String
+  session              ResearchSession              @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  kind                 String
+  body                 String
+  speakerLabel         String?
+  capturedUnderConsent String
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+  evidencePins         ResearchSessionEvidencePin[]
 
   @@index([sessionId])
   @@map("research_session_note")
@@ -74,19 +74,19 @@ model ResearchSessionEvent {
 }
 
 model ResearchSessionEvidencePin {
-  id              String          @id
-  sessionId       String
-  session         ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  noteId          String
-  note            ResearchSessionNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
-  pinnedRevision  Int
-  rangeStart      Int
-  rangeEnd        Int
-  excerpt         String
-  targetKind      String
-  targetId        String
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id             String              @id
+  sessionId      String
+  session        ResearchSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  noteId         String
+  note           ResearchSessionNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  pinnedRevision Int
+  rangeStart     Int
+  rangeEnd       Int
+  excerpt        String
+  targetKind     String
+  targetId       String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
   @@index([sessionId])
   @@index([noteId])

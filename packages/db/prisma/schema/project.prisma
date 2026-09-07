@@ -1,65 +1,65 @@
 model Project {
-  id                              String                       @id
-  workspaceId                     String
-  workspace                       Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  name                            String
-  shortCode                       String
-  lifecycleStatus                 String
-  starterConfiguration            String
-  purpose                         String?
-  problem                         String?
-  scope                           String?
-  targetDate                      String?
-  logoFileName                    String?
-  hasWork                         Boolean                      @default(false)
-  firstOpenExplanationDismissed   Boolean                      @default(false)
-  focusThreshold                  Int?
-  reappearDateNotification        Boolean                      @default(false)
-  statusAgeThresholdDays          Int?
-  nextConcreteStep                String?
-  nextConcreteStepUpdatedAt      DateTime?
-  archivedAt                      DateTime?
-  revision                        Int
-  createdAt                       DateTime                     @default(now())
-  updatedAt                       DateTime                     @updatedAt
-  stages                          ProjectStage[]
-  areaSettings                    ProjectAreaSetting[]
-  skeletonSelections              ProjectSkeletonSelection[]
-  workViews                       ProjectWorkView[]
-  workStatuses                    ProjectWorkStatus[]
-  works                           Work[]
-  workKeyCounter                  ProjectWorkKeyCounter?
-  customFieldDefinitions          ProjectCustomFieldDefinition[]
-  priorityCriterionDefinitions    ProjectPriorityCriterion[]
-  priorityMapPresentation         ProjectPriorityMapPresentation?
-  prioritizationSessions          PrioritizationSession[]
-  fileAttachments                 FileAttachment[]
-  documents                       Document[]
-  decisions                       Decision[]
-  openQuestions                   OpenQuestion[]
-  assumptions                     Assumption[]
-  researchSessions                ResearchSession[]
-  risks                           Risk[]
-  sources                         Source[]
-  feedbackRecords                 Feedback[]
-  validationRecords               ValidationRecord[]
-  documentFolders                 DocumentFolder[]
-  documentTemplates               DocumentTemplate[]
-  workContextCardLayouts          ProjectWorkContextLayout[]
-  workTemplates                   WorkTemplate[]
-  recordActions                   RecordAction[]
-  backlogManualOrderItems         ProjectBacklogManualOrderItem[]
-  backlogPresentation             ProjectBacklogPresentation?
-  roadmapNamedViews               ProjectRoadmapNamedView[]
-  milestones                      Milestone[]
-  projectGoals                    ProjectGoal[]
-  nextConcreteStepChanges         NextConcreteStepChange[]
-  smartCollections                SmartCollection[]
-  designs                         Design[]
-  moodboards                      Moodboard[]
-  screens                         Screen[]
-  userFlows                       UserFlow[]
-  wireframeLinkedBlocks           WireframeLinkedBlock[]
+  id                            String                          @id
+  workspaceId                   String
+  workspace                     Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name                          String
+  shortCode                     String
+  lifecycleStatus               String
+  starterConfiguration          String
+  purpose                       String?
+  problem                       String?
+  scope                         String?
+  targetDate                    String?
+  logoFileName                  String?
+  hasWork                       Boolean                         @default(false)
+  firstOpenExplanationDismissed Boolean                         @default(false)
+  focusThreshold                Int?
+  reappearDateNotification      Boolean                         @default(false)
+  statusAgeThresholdDays        Int?
+  nextConcreteStep              String?
+  nextConcreteStepUpdatedAt     DateTime?
+  archivedAt                    DateTime?
+  revision                      Int
+  createdAt                     DateTime                        @default(now())
+  updatedAt                     DateTime                        @updatedAt
+  stages                        ProjectStage[]
+  areaSettings                  ProjectAreaSetting[]
+  skeletonSelections            ProjectSkeletonSelection[]
+  workViews                     ProjectWorkView[]
+  workStatuses                  ProjectWorkStatus[]
+  works                         Work[]
+  workKeyCounter                ProjectWorkKeyCounter?
+  customFieldDefinitions        ProjectCustomFieldDefinition[]
+  priorityCriterionDefinitions  ProjectPriorityCriterion[]
+  priorityMapPresentation       ProjectPriorityMapPresentation?
+  prioritizationSessions        PrioritizationSession[]
+  fileAttachments               FileAttachment[]
+  documents                     Document[]
+  decisions                     Decision[]
+  openQuestions                 OpenQuestion[]
+  assumptions                   Assumption[]
+  researchSessions              ResearchSession[]
+  risks                         Risk[]
+  sources                       Source[]
+  feedbackRecords               Feedback[]
+  validationRecords             ValidationRecord[]
+  documentFolders               DocumentFolder[]
+  documentTemplates             DocumentTemplate[]
+  workContextCardLayouts        ProjectWorkContextLayout[]
+  workTemplates                 WorkTemplate[]
+  recordActions                 RecordAction[]
+  backlogManualOrderItems       ProjectBacklogManualOrderItem[]
+  backlogPresentation           ProjectBacklogPresentation?
+  roadmapNamedViews             ProjectRoadmapNamedView[]
+  milestones                    Milestone[]
+  projectGoals                  ProjectGoal[]
+  nextConcreteStepChanges       NextConcreteStepChange[]
+  smartCollections              SmartCollection[]
+  designs                       Design[]
+  moodboards                    Moodboard[]
+  screens                       Screen[]
+  userFlows                     UserFlow[]
+  wireframeLinkedBlocks         WireframeLinkedBlock[]
 
   @@index([workspaceId])
   @@map("project")

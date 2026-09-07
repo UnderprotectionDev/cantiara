@@ -1,17 +1,17 @@
 model OpenQuestion {
-  id         String              @id
-  projectId  String
-  project    Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title      String
-  question   String
-  context    String
-  answer     String
-  rationale  String
-  life       String
-  revision   Int
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
-  events     OpenQuestionEvent[]
+  id        String              @id
+  projectId String
+  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String
+  question  String
+  context   String
+  answer    String
+  rationale String
+  life      String
+  revision  Int
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  events    OpenQuestionEvent[]
 
   @@index([projectId])
   @@index([projectId, life])

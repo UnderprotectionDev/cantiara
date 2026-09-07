@@ -1,28 +1,28 @@
 model FocusPeriod {
-  id                      String                   @id
+  id                      String                  @id
   workspaceId             String
-  workspace               Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace               Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   purpose                 String
   startDate               String
   endDate                 String
   status                  String
-  startScopeWorkIds       Json                     @default("[]")
-  startScopeLocked        Boolean                  @default(false)
-  closeScopeWorkIds       Json                     @default("[]")
-  closeScopeLocked        Boolean                  @default(false)
-  closeStillOpenWorkIds   Json                     @default("[]")
-  closeCompletedWorkIds   Json                     @default("[]")
-  stillOpenDecisionOpened Boolean                  @default(false)
-  startScopeTargetDates   Json                     @default("[]")
-  leftoverDecisions       Json                     @default("[]")
+  startScopeWorkIds       Json                    @default("[]")
+  startScopeLocked        Boolean                 @default(false)
+  closeScopeWorkIds       Json                    @default("[]")
+  closeScopeLocked        Boolean                 @default(false)
+  closeStillOpenWorkIds   Json                    @default("[]")
+  closeCompletedWorkIds   Json                    @default("[]")
+  stillOpenDecisionOpened Boolean                 @default(false)
+  startScopeTargetDates   Json                    @default("[]")
+  leftoverDecisions       Json                    @default("[]")
   closedAt                DateTime?
-  evaluationKeep          String                   @default("")
-  evaluationChange        String                   @default("")
-  evaluationTryNext       String                   @default("")
-  evaluationSkipped       Boolean                  @default(false)
-  followUpWorkIds         Json                     @default("[]")
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  evaluationKeep          String                  @default("")
+  evaluationChange        String                  @default("")
+  evaluationTryNext       String                  @default("")
+  evaluationSkipped       Boolean                 @default(false)
+  followUpWorkIds         Json                    @default("[]")
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
   memberships             FocusPeriodMembership[]
 
   @@index([workspaceId])

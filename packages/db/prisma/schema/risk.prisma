@@ -1,20 +1,20 @@
 model Risk {
-  id                    String      @id
-  projectId             String
-  project               Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title                 String
-  description           String
-  impact                String
-  probability           String
-  response              String
-  status                String
-  acceptanceRationale   String?
-  revision              Int
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
-  events                RiskEvent[]
-  attentionSignals      RiskAttentionSignal[]
-  relatedRecords        RiskRelatedRecord[]
+  id                  String                @id
+  projectId           String
+  project             Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title               String
+  description         String
+  impact              String
+  probability         String
+  response            String
+  status              String
+  acceptanceRationale String?
+  revision            Int
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  events              RiskEvent[]
+  attentionSignals    RiskAttentionSignal[]
+  relatedRecords      RiskRelatedRecord[]
 
   @@index([projectId])
   @@index([projectId, status])
@@ -37,17 +37,17 @@ model RiskEvent {
 }
 
 model RiskAttentionSignal {
-  id               String   @id
-  riskId           String
-  risk             Risk     @relation(fields: [riskId], references: [id], onDelete: Cascade)
-  signalId         String
-  section          String
-  sourceEventId    String
-  sourceEventKind  String
-  impact           String
-  probability      String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id
+  riskId          String
+  risk            Risk     @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  signalId        String
+  section         String
+  sourceEventId   String
+  sourceEventKind String
+  impact          String
+  probability     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@unique([signalId, sourceEventId])
   @@index([riskId])
@@ -55,15 +55,15 @@ model RiskAttentionSignal {
 }
 
 model RiskRelatedRecord {
-  id             String   @id
-  riskId         String
-  risk           Risk     @relation(fields: [riskId], references: [id], onDelete: Cascade)
-  targetKind     String
-  targetId       String
-  inPublishPrep  Boolean?
-  releaseStatus  String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String   @id
+  riskId        String
+  risk          Risk     @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  targetKind    String
+  targetId      String
+  inPublishPrep Boolean?
+  releaseStatus String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([riskId, targetKind, targetId])
   @@index([riskId])

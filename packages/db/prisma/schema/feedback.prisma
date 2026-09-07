@@ -1,15 +1,15 @@
 model Feedback {
-  id              String               @id
+  id              String                 @id
   projectId       String
-  project         Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   originalMessage String
   channel         String
   occurredAt      DateTime
   url             String?
   status          String
   revision        Int
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
   events          FeedbackEvent[]
   attachments     FeedbackAttachment[]
   evidenceLinks   FeedbackEvidenceLink[]
@@ -20,14 +20,14 @@ model Feedback {
 }
 
 model FeedbackEvent {
-  id             String    @id
+  id             String   @id
   feedbackId     String
-  feedback       Feedback  @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  feedback       Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
   kind           String
   actorId        String
   previousStatus String?
   nextStatus     String
-  occurredAt     DateTime  @default(now())
+  occurredAt     DateTime @default(now())
 
   @@index([feedbackId, occurredAt])
   @@map("feedback_event")
@@ -45,26 +45,26 @@ model FeedbackAttachment {
 }
 
 model FeedbackEvidenceLink {
-  id                      String    @id
-  relationId              String    @unique
-  feedbackId              String
-  feedback                Feedback  @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
-  workId                  String
-  work                    Work      @relation(fields: [workId], references: [id], onDelete: Cascade)
-  reportedProblem         String    @default("")
-  suggestedSolution       String    @default("")
-  currentWorkaround       String    @default("")
-  impactSeverity          String    @default("")
-  usageFrequency          String    @default("")
-  independence            String    @default("")
-  audienceFit             String    @default("")
-  evidenceRole            String    @default("Unspecified")
-  followUp                String?
-  interpretationActorId   String?
-  interpretationSetAt     DateTime?
-  revision                Int
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  id                    String    @id
+  relationId            String    @unique
+  feedbackId            String
+  feedback              Feedback  @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  workId                String
+  work                  Work      @relation(fields: [workId], references: [id], onDelete: Cascade)
+  reportedProblem       String    @default("")
+  suggestedSolution     String    @default("")
+  currentWorkaround     String    @default("")
+  impactSeverity        String    @default("")
+  usageFrequency        String    @default("")
+  independence          String    @default("")
+  audienceFit           String    @default("")
+  evidenceRole          String    @default("Unspecified")
+  followUp              String?
+  interpretationActorId String?
+  interpretationSetAt   DateTime?
+  revision              Int
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@unique([feedbackId, workId])
   @@index([feedbackId])

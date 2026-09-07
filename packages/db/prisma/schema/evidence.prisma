@@ -1,6 +1,6 @@
 model EvidencePin {
-  id                     String                     @id
-  relationId             String                     @unique
+  id                     String                    @id
+  relationId             String                    @unique
   sourceKind             String
   sourceId               String
   sourceVersionId        String
@@ -15,16 +15,16 @@ model EvidencePin {
   originOwnerId          String?
   originComponentId      String?
   originSourceVersion    String?
-  originComponentMissing Boolean                    @default(false)
-  contentRedacted        Boolean                    @default(false)
-  role                   String                     @default("Unspecified")
-  founderInterpretation  String                     @default("")
+  originComponentMissing Boolean                   @default(false)
+  contentRedacted        Boolean                   @default(false)
+  role                   String                    @default("Unspecified")
+  founderInterpretation  String                    @default("")
   roleActorId            String?
   roleSetAt              DateTime?
   interpretationActorId  String?
   interpretationSetAt    DateTime?
-  createdAt              DateTime                   @default(now())
-  updatedAt              DateTime                   @updatedAt
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
   history                EvidenceRelationHistory[]
 
   @@index([sourceKind, sourceId])

@@ -1,14 +1,14 @@
 model Milestone {
-  id          String                  @id
+  id          String                 @id
   projectId   String
-  project     Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   title       String
   description String?
   targetDate  String?
   status      String
   revision    Int
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
   events      MilestoneStatusEvent[]
 
   @@index([projectId])
