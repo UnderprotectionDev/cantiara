@@ -20,6 +20,7 @@ export type DesktopApiStatus = "unknown" | "accepted" | "update-required";
 export type OnlineWorkKind =
 	| "document-read"
 	| "record-create"
+	| "record-edit"
 	| "planning-change";
 
 export interface ClientShell {

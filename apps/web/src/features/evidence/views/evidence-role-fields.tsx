@@ -18,6 +18,8 @@ import {
 	EVIDENCE_COPY,
 	EVIDENCE_ROLES,
 	type EvidenceRole,
+	type EvidenceSourceKind,
+	type EvidenceTargetKind,
 } from "@/features/evidence/forms/evidence-copy";
 import { newIdempotencyKey } from "@/lib/mutation";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -35,9 +37,9 @@ export function EvidenceRoleFields({
 	pinId: string;
 	role: EvidenceRole;
 	sourceId?: string;
-	sourceKind?: string;
+	sourceKind?: EvidenceSourceKind;
 	targetId?: string;
-	targetKind?: string;
+	targetKind?: EvidenceTargetKind;
 }) {
 	const roleId = useId();
 	const interpretationId = useId();

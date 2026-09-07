@@ -82,7 +82,7 @@ interface UserFlowDetailView {
 		unbind: string;
 		userFlow: string;
 	};
-	groups: FlowGroup[];
+	groups: readonly FlowGroup[];
 	id: string;
 	liveCards: PresentedLiveCard[];
 	nodes: PresentedNode[];

@@ -149,7 +149,7 @@ export default function ConvertAndBindForm({
 						{SCREENS_COPY.title}: {mapping.title}
 					</p>
 					<p>
-						{SCREENS_COPY.body}: {mapping.body}
+						{SCREENS_COPY.text}: {mapping.body}
 					</p>
 					<p>
 						{SCREENS_COPY.origin}: {mapping.origin}

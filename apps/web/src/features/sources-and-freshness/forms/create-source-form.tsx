@@ -109,7 +109,8 @@ export default function CreateSourceForm({
 		]
 	);
 	const onSaveAsSource = useCallback(() => {
-		if (preview.data?.status !== "preview") {
+		const previewData = preview.data;
+		if (previewData?.status !== "preview") {
 			return;
 		}
 		setError(null);
@@ -118,10 +119,10 @@ export default function CreateSourceForm({
 			create.mutateAsync({
 				idempotencyKey: newIdempotencyKey(),
 				payload: {
-					capturedContent: preview.data.capturedContent,
+					capturedContent: previewData.capturedContent,
 					projectId,
-					title: preview.data.title,
-					url: preview.data.originalUrl,
+					title: previewData.title,
+					url: previewData.originalUrl,
 				},
 			})
 		);

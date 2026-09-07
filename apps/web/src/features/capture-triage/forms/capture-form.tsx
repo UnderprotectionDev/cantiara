@@ -16,7 +16,7 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CLIENT_SHELL_COPY } from "@/features/web-macos-client/views/client-shell";
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
@@ -49,15 +49,14 @@ export default function CaptureForm() {
 	const preferences = useQuery(orpc.accountPreferences.get.queryOptions());
 	const projects = useQuery(orpc.projectShell.list.queryOptions());
 	const copy = catalog.data?.copy;
-	const attachmentFileRef = useRef<File | null>(null);
 	const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
 	const [mergeId, setMergeId] = useState<string | null>(null);
 	const form = useForm({
 		defaultValues: EMPTY_CAPTURE_FORM,
 		onSubmit: async ({ value }) => {
 			const projectId = value.projectId.trim() || undefined;
-			const attachment = attachmentFileRef.current
-				? await fileToCaptureAttachment(attachmentFileRef.current)
+			const attachment = attachmentFile
+				? await fileToCaptureAttachment(attachmentFile)
 				: undefined;
 			const result = attemptOnlineWork("record-create", () =>
 				save.mutateAsync({
@@ -87,7 +86,6 @@ export default function CaptureForm() {
 					queryKey: orpc.captureInbox.bulkSenseMaking.queryKey(),
 				});
 				recordSave();
-				attachmentFileRef.current = null;
 				setAttachmentFile(null);
 				form.reset(captureFormAfterSave(values));
 			},
@@ -232,7 +230,6 @@ export default function CaptureForm() {
 	const onAttachmentChange = useCallback(
 		(event: ChangeEvent<HTMLInputElement>) => {
 			const file = event.target.files?.[0] ?? null;
-			attachmentFileRef.current = file;
 			setAttachmentFile(file);
 		},
 		[]
@@ -428,6 +425,7 @@ function CaptureInboxList({
 		delete: string;
 		document: string;
 		evidence: string;
+		feedback: string;
 		fileAttachment: string;
 		origin: string;
 		otherProjects: string;
@@ -588,6 +586,7 @@ function CaptureInboxItemCard({
 		delete: string;
 		document: string;
 		evidence: string;
+		feedback: string;
 		fileAttachment: string;
 		origin: string;
 		otherProjects: string;

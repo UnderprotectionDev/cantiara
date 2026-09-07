@@ -56,6 +56,11 @@ describe("Client Shell", () => {
 			reason: "offline",
 			status: "refused",
 		});
+		expect(attemptOnlineWork(shell, "record-edit", work)).toEqual({
+			kind: "record-edit",
+			reason: "offline",
+			status: "refused",
+		});
 		expect(attemptOnlineWork(shell, "planning-change", work)).toEqual({
 			kind: "planning-change",
 			reason: "offline",

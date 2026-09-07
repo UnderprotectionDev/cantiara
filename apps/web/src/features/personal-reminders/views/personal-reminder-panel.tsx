@@ -11,7 +11,7 @@ import { useCallback, useState } from "react";
 
 import { useClientShell } from "@/features/web-macos-client/views/client-shell-host";
 import { newIdempotencyKey } from "@/lib/mutation";
-import { orpc, queryClient } from "@/utils/orpc";
+import { type client, orpc, queryClient } from "@/utils/orpc";
 
 import {
 	listDocumentHeadingSections,
@@ -23,23 +23,9 @@ import {
 	presentPersonalReminderWriteError,
 } from "./personal-reminders-copy";
 
-interface ReminderRow {
-	createdByAction: PersonalReminderAction;
-	documentSectionId: string | null;
-	fireAt: string;
-	id: string;
-	life: string;
-	openTarget:
-		| { kind: "record" }
-		| { heading: string; kind: "document-section"; sectionId: string }
-		| {
-				explanation: string;
-				kind: "missing-section";
-				sectionId: string;
-		  }
-		| { kind: "broken-reference"; reason: string };
-	stillOpenCondition: PersonalReminderCondition;
-}
+type ReminderRow = Awaited<
+	ReturnType<typeof client.personalReminders.listForSource>
+>[number];
 
 function sourceQueryKey(sourceId: string, sourceType: "Document" | "Work") {
 	return orpc.personalReminders.listForSource.queryKey({
