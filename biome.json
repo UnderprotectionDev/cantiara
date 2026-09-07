@@ -164,7 +164,8 @@
       "includes": [
         "apps/server/src/**",
         "packages/auth/src/**",
-        "packages/db/src/**"
+        "packages/db/src/**",
+        "scripts/**"
       ],
       "linter": {
         "rules": {
