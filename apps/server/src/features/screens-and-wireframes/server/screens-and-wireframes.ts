@@ -318,7 +318,7 @@ export async function getPersonalViewport(
 	});
 }
 
-interface PersonalViewportView {
+export interface PersonalViewportView {
 	centerX: number;
 	centerY: number;
 	collapsedGroupIds: string[];

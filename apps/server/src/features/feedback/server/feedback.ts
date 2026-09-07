@@ -473,7 +473,7 @@ async function attachRelatedRecords(
 	await paintRelatedTitles(prisma, index);
 }
 
-const FEED_RELATION_TYPES = new Set([
+const FEED_RELATION_TYPES: ReadonlySet<string> = new Set([
 	RELATIONS_COPY.related,
 	RELATIONS_COPY.origin,
 	RELATIONS_COPY.evidence,

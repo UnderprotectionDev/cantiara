@@ -71,8 +71,20 @@ function hopHeaders(response: {
 	return headers;
 }
 
+type CappedBodyReader = {
+	cancel: () => Promise<unknown>;
+	read: () => Promise<{
+		done: boolean;
+		value?: Uint8Array<ArrayBufferLike>;
+	}>;
+};
+
+type CappedBody = {
+	getReader: () => CappedBodyReader;
+};
+
 async function readCappedBody(
-	body: ReadableStream<Uint8Array> | null | undefined
+	body: CappedBody | null | undefined
 ): Promise<Buffer> {
 	if (!body) {
 		return Buffer.alloc(0);
@@ -81,8 +93,8 @@ async function readCappedBody(
 }
 
 async function collectCappedChunks(
-	reader: ReadableStreamDefaultReader<Uint8Array>,
-	chunks: Uint8Array[],
+	reader: CappedBodyReader,
+	chunks: Uint8Array<ArrayBufferLike>[],
 	total: number
 ): Promise<Buffer> {
 	const { done, value } = await reader.read();
