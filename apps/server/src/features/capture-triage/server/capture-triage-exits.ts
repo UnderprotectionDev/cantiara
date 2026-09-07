@@ -1,5 +1,4 @@
 import type { Prisma, PrismaClient } from "@cantiara/db";
-import { appendFileSync } from "node:fs";
 import { z } from "zod";
 import {
 	lockMutation,
@@ -960,22 +959,6 @@ export function createTriageExits(ctx: TriageExitsContext) {
 				inboxItem: null,
 				status: "consumed",
 			};
-			// #region agent log
-			appendFileSync(
-				"/opt/cursor/logs/debug.log",
-				`${JSON.stringify({
-					hypothesisId: "A",
-					location: "capture-triage-exits.ts:963",
-					message: "delete transaction before capture update",
-					data: {
-						itemIdMatchesLoadedRow: input.itemId === row.id,
-						loadedConsumed: row.consumedAt !== null,
-						loadedCleanupStatus: row.stagingCleanupStatus,
-					},
-					timestamp: Date.now(),
-				})}\n`,
-			);
-			// #endregion
 			await ctx.prisma.$transaction(async (tx) => {
 				await lockMutation(tx, `capture-item:${row.id}`);
 				await tx.captureInboxItem.update({

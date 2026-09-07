@@ -6,8 +6,6 @@
  * fixture for docs/prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari
  * (Yakalama) schema, counterparts, and time-advance.
  */
-
-import { appendFileSync } from "node:fs";
 import { PrismaClient } from "@cantiara/db";
 import { localTestDatabaseUrl } from "@cantiara/db/local-test-database-url";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -1996,58 +1994,10 @@ describe("Capture Inbox", () => {
 				itemId: saved.item.id,
 			})
 		).rejects.toThrow("cleanup-unavailable");
-		// #region agent log
-		appendFileSync(
-			"/opt/cursor/logs/debug.log",
-			`${JSON.stringify({
-				data: {
-					ownerCount: await prisma.captureInboxItem.count({
-						where: { ownerId: actorId },
-					}),
-					rows: (
-						await prisma.captureInboxItem.findMany({
-							select: {
-								consumedAt: true,
-								id: true,
-								ownerId: true,
-								stagingCleanupStatus: true,
-								workspaceId: true,
-							},
-						})
-					).map((row) => ({
-						consumed: row.consumedAt !== null,
-						idMatches: row.id === saved.item.id,
-						ownerMatches: row.ownerId === actorId,
-						stagingCleanupStatus: row.stagingCleanupStatus,
-						workspaceMatches: row.workspaceId === workspaceId,
-					})),
-				},
-				hypothesisId: "B",
-				location: "capture-inbox.test.ts:1997",
-				message: "capture cleanup rejection row snapshot",
-				timestamp: Date.now(),
-			})}\n`
-		);
-		// #endregion
 		expect(await prisma.captureInboxItem.count()).toBe(1);
 		expect(
 			await retryCaptureStagingCleanup(prisma, stagingStore, workspaceId)
 		).toBe(1);
-		// #region agent log
-		appendFileSync(
-			"/opt/cursor/logs/debug.log",
-			`${JSON.stringify({
-				data: {
-					remainingCount: await prisma.captureInboxItem.count(),
-					remainingStagingCount: await prisma.captureStagingObject.count(),
-				},
-				hypothesisId: "B",
-				location: "capture-inbox.test.ts:2004",
-				message: "capture cleanup retry row count",
-				timestamp: Date.now(),
-			})}\n`
-		);
-		// #endregion
 		expect(await prisma.captureInboxItem.count()).toBe(0);
 		expect(await prisma.captureStagingObject.count()).toBe(0);
 	});

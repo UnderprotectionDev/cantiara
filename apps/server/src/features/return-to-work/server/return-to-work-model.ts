@@ -1,4 +1,3 @@
-import { appendFileSync } from "node:fs";
 import { z } from "zod";
 
 export const RETURN_TO_WORK_COPY = {
@@ -521,30 +520,10 @@ export function exceedsStatusAgeThreshold(input: {
 	if (input.thresholdDays === null || input.statusEnteredOn === null) {
 		return false;
 	}
-	const dayDifference = calendarDayDifference(
-		input.statusEnteredOn,
-		input.today
+	return (
+		calendarDayDifference(input.statusEnteredOn, input.today) >=
+		input.thresholdDays
 	);
-	const result = dayDifference >= input.thresholdDays;
-	// #region agent log
-	appendFileSync(
-		"/opt/cursor/logs/debug.log",
-		`${JSON.stringify({
-			data: {
-				dayDifference,
-				result,
-				statusEnteredOn: input.statusEnteredOn,
-				thresholdDays: input.thresholdDays,
-				today: input.today,
-			},
-			hypothesisId: "D",
-			location: "return-to-work-model.ts:525",
-			message: "status age threshold decision",
-			timestamp: Date.now(),
-		})}\n`
-	);
-	// #endregion
-	return result;
 }
 
 export function preparedLongInTheSameStatusCollectionId(
