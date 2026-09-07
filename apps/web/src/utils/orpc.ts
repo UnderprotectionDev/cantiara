@@ -47,7 +47,7 @@ export function createQueryClient() {
 							.refetchQueries({
 								exact: true,
 								queryKey: query.queryKey,
-								type: "active",
+								type: "all",
 							})
 							.catch(() => undefined);
 					})
