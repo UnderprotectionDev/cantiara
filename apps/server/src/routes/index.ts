@@ -58,7 +58,64 @@ const privateData = protectedProcedure.handler(({ context }) => ({
 	user: context.session?.user,
 }));
 
-export const appRouter = {
+// oRPC 1.15 requires a type alias here; interfaces without index signatures do not satisfy its router constraint.
+// biome-ignore lint/style/useConsistentTypeDefinitions: the router must remain assignable to oRPC's mapped router type
+type AppRouterShape = {
+	accountAccess: typeof accountAccess;
+	accountPreferences: typeof accountPreferences;
+	backlog: typeof backlog;
+	blockers: typeof blockers;
+	bulkEditing: typeof bulkEditing;
+	captureInbox: typeof captureInbox;
+	clientShell: typeof clientShell;
+	completionEffects: typeof completionEffects;
+	contactAndCompany: typeof contactAndCompany;
+	customFields: typeof customFields;
+	dailyFocus: typeof dailyFocus;
+	decisions: typeof decisions;
+	documents: typeof documents;
+	evidence: typeof evidence;
+	externalHandoffs: typeof externalHandoffs;
+	favorites: typeof favorites;
+	feedback: typeof feedback;
+	fileAttachments: typeof fileAttachments;
+	focusPeriod: typeof focusPeriod;
+	healthCheck: typeof healthCheck;
+	kanban: typeof kanban;
+	moodboards: typeof moodboards;
+	personalReminders: typeof personalReminders;
+	personalWiki: typeof personalWiki;
+	priority: typeof priority;
+	privateData: typeof privateData;
+	projectGoals: typeof projectGoals;
+	projectOverview: typeof projectOverviewRouter;
+	projectShell: typeof projectShell;
+	projectWall: typeof projectWall;
+	recordActions: typeof recordActions;
+	recordDiscovery: typeof recordDiscovery;
+	relations: typeof relations;
+	researchSessions: typeof researchSessions;
+	returnToWork: typeof returnToWork;
+	risks: typeof risks;
+	roadmapHorizon: typeof roadmapHorizon;
+	screensAndWireframes: typeof screensAndWireframes;
+	smartCollections: typeof smartCollections;
+	sources: typeof sources;
+	specChangeReview: typeof specChangeReview;
+	tags: typeof tags;
+	uncertaintyRecords: typeof uncertaintyRecords;
+	unifiedCalendar: typeof unifiedCalendar;
+	userFlow: typeof userFlow;
+	validationRecords: typeof validationRecords;
+	workChecklists: typeof workChecklists;
+	workContext: typeof workContext;
+	workDrafts: typeof workDrafts;
+	workLifecycle: typeof workLifecycle;
+	workspaceOverview: typeof workspaceOverviewRouter;
+	workTemplates: typeof workTemplates;
+};
+
+export const appRouter: AppRouterShape = {
 	accountAccess,
 	accountPreferences,
 	backlog,
@@ -113,5 +170,5 @@ export const appRouter = {
 	workTemplates,
 };
 
-export type AppRouter = typeof appRouter;
-export type AppRouterClient = RouterClient<typeof appRouter>;
+export type AppRouter = AppRouterShape;
+export type AppRouterClient = RouterClient<AppRouter>;
