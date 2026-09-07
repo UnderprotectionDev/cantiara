@@ -182,11 +182,35 @@ export default function WireframeSurface({
 		orpc.screensAndWireframes.saveViewport.mutationOptions()
 	);
 	const viewportSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const pendingViewport = useRef<{
+		centerX: number;
+		centerY: number;
+		collapsedGroupIds: string[];
+		zoom: number;
+	} | null>(null);
+	const saveViewportMutate = useRef(saveViewport.mutate);
+	saveViewportMutate.current = saveViewport.mutate;
+	const flushViewport = useCallback(() => {
+		const next = pendingViewport.current;
+		if (!next) {
+			return;
+		}
+		pendingViewport.current = null;
+		saveViewportMutate.current({
+			payload: {
+				screenId,
+				viewport: next,
+			},
+		});
+	}, [screenId]);
+	const flushViewportRef = useRef(flushViewport);
+	flushViewportRef.current = flushViewport;
 	useEffect(
 		() => () => {
 			if (viewportSaveTimer.current) {
 				clearTimeout(viewportSaveTimer.current);
 			}
+			flushViewportRef.current();
 		},
 		[]
 	);
@@ -235,16 +259,12 @@ export default function WireframeSurface({
 			if (viewportSaveTimer.current) {
 				clearTimeout(viewportSaveTimer.current);
 			}
+			pendingViewport.current = next;
 			viewportSaveTimer.current = setTimeout(() => {
-				saveViewport.mutate({
-					payload: {
-						screenId,
-						viewport: next,
-					},
-				});
+				flushViewport();
 			}, 200);
 		},
-		[saveViewport, screenId]
+		[flushViewport, screenId]
 	);
 
 	const onFitView = useCallback(() => {
