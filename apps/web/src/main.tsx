@@ -68,6 +68,7 @@ function renderStartupFailure(error: unknown, retryAvailable = true) {
 		retry.textContent = presented.retry;
 		retry.addEventListener("click", () => {
 			retry.disabled = true;
+			appRoot.replaceChildren();
 			start().catch((retryError: unknown) =>
 				renderStartupFailure(retryError, false)
 			);
