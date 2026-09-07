@@ -60,13 +60,13 @@ function createBugHint(
 	hasAttachment: boolean,
 	canCreateBug: boolean
 ): string {
+	if (!canCreateBug) {
+		return copy.createBugNeedsProjectAndBugCapture;
+	}
 	if (hasAttachment) {
 		return copy.createBugNeedsCaptureSaved;
 	}
-	if (canCreateBug) {
-		return copy.createBugDoesNotStayInInbox;
-	}
-	return copy.createBugNeedsProjectAndBugCapture;
+	return copy.createBugDoesNotStayInInbox;
 }
 
 export default function CaptureForm() {
@@ -138,7 +138,8 @@ export default function CaptureForm() {
 	);
 	const isDirty =
 		captureFormHasUnsavedCapture(values) || attachmentFile !== null;
-	const canCreateBug = attachmentFile === null && createBugIsAvailable(values);
+	const canCreateBugWithoutAttachment = createBugIsAvailable(values);
+	const canCreateBug = attachmentFile === null && canCreateBugWithoutAttachment;
 	const groups = captureInboxGroups(
 		list.data ?? [],
 		copy ?? {
@@ -365,7 +366,11 @@ export default function CaptureForm() {
 					</Button>
 				</div>
 				<p className="text-muted-foreground text-xs">
-					{createBugHint(copy, attachmentFile !== null, canCreateBug)}
+					{createBugHint(
+						copy,
+						attachmentFile !== null,
+						canCreateBugWithoutAttachment
+					)}
 				</p>
 				{shell.lastSuccessfulSaveAt && preferences.data ? (
 					<p className="text-muted-foreground text-xs">

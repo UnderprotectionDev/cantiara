@@ -91,10 +91,7 @@ export function captureInboxItemPreview(
 }
 
 export function createBugIsAvailable(values: CaptureFormValues): boolean {
-	return (
-		values.projectId.trim() !== "" &&
-		(values.template === "" || values.template === "bug-capture")
-	);
+	return values.projectId.trim() !== "" && values.template === "bug-capture";
 }
 
 export async function fileToCaptureAttachment(file: File): Promise<{

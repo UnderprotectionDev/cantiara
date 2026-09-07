@@ -184,7 +184,7 @@ test("an Inbox item shows its body, or the template label when the body is empty
 	).toBe("Feedback Capture");
 });
 
-test("Create Bug is available only when Project is set and type is Bug Capture or unspecified", () => {
+test("Create Bug is available only when Project is set and type is Bug Capture", () => {
 	expect(
 		createBugIsAvailable({
 			fields: {},
@@ -216,7 +216,7 @@ test("Create Bug is available only when Project is set and type is Bug Capture o
 			template: "",
 			text: "A thought",
 		})
-	).toBe(true);
+	).toBe(false);
 });
 
 test("Bulk sense-making places a capture by choosing Ungrouped or a named cluster", () => {

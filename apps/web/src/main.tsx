@@ -1,4 +1,5 @@
 import {
+	CLIENT_SHELL_COPY,
 	presentFailedMainFlow,
 	toMainFlowFailureError,
 } from "@cantiara/api/client-shell-failure";
@@ -54,13 +55,19 @@ async function start() {
 function renderStartupFailure(error: unknown, retryAvailable = true) {
 	console.error("Application startup failed:", error);
 	const presented = presentFailedMainFlow(toMainFlowFailureError(error));
+	const retryBound = retryAvailable
+		? presented.retryBound
+		: CLIENT_SHELL_COPY.doNotRetry;
 	const errorMessage = document.createElement("div");
 	errorMessage.setAttribute("role", "alert");
 	errorMessage.setAttribute("aria-live", "assertive");
 	const heading = document.createElement("h1");
 	heading.textContent = presented.reason;
 	const description = document.createElement("p");
-	description.textContent = presented.description;
+	description.textContent = presented.description.replace(
+		presented.retryBound,
+		retryBound
+	);
 	errorMessage.append(heading, description);
 	if (retryAvailable && presented.retry) {
 		const retry = document.createElement("button");
