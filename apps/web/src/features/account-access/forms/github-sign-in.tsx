@@ -3,13 +3,15 @@ import { toast } from "sonner";
 
 import { authClient } from "@/lib/auth-client";
 
+import { createGitHubSignInCallbackUrl } from "./github-sign-in-url";
+
 const SIGN_IN_FAILURE_MESSAGE =
   "Sign-in could not be completed. Please try again.";
 
 export default function GitHubSignIn() {
   async function signIn() {
     const result = await authClient.signIn.social({
-      callbackURL: "/dashboard",
+      callbackURL: createGitHubSignInCallbackUrl(window.location.origin),
       provider: "github",
     });
 
