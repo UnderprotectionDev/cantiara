@@ -33,7 +33,7 @@ bun install
 This project uses PostgreSQL with Drizzle ORM.
 
 1. Make sure you have a PostgreSQL database set up.
-2. Create `apps/server/.env.local` from the keys documented in `apps/server/.env.schema`, then add your PostgreSQL connection details.
+2. Copy `apps/server/.env.example` to `apps/server/.env.local`, replace `BETTER_AUTH_SECRET` with at least 32 random characters, then add your PostgreSQL connection details.
 
 3. Generate a versioned migration from the Drizzle schema:
 
@@ -86,15 +86,15 @@ If you want to add app-specific blocks instead of shared primitives, run the sha
 
 ## Environment Configuration
 
-Each app owns its environment schema in `.env.schema`. Varlock generates `src/env.ts` during installation; run `bun run env:generate` after changing a schema. Commit schemas, and keep secrets in ignored env files or your deployment platform.
+Each app owns a committed T3 Env schema in `src/env.ts`. Keep secrets in ignored `.env.local` files or the deployment platform, and access validated values through the exported `env` object.
 
-Import the generated `ENV` accessor in application code. Shared database and auth packages receive configuration or initialized clients from the application. See [Varlock's monorepo guide](https://varlock.dev/guides/monorepos/).
+The web schema exposes only `VITE_` variables from `import.meta.env`. The server schema validates `process.env`; shared database and auth packages continue to receive configuration or initialized clients from their owning application.
 
-Bun's automatic env loading is disabled in `bunfig.toml`; the framework integration or server bootstrap loads Varlock.
+## Formatting
 
-## Git Hooks and Formatting
-
-- Run checks: `bun run check`
+- Run repository checks: `bun run check`
+- Run staged-file checks: `bun run check:ultracite -- <staged_files>`
+- Pre-commit checks: Lefthook runs the staged-file command with the Ultracite preset and stages safe fixes.
 
 ## Project Structure
 

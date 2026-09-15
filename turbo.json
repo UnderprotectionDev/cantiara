@@ -42,8 +42,7 @@
     "CORS_ORIGIN",
     "DATABASE_URL",
     "NODE_ENV",
-    "VITE_SERVER_URL",
-    "_VARLOCK_ENV_KEY"
+    "VITE_SERVER_URL"
   ],
   "globalDependencies": [".env*", "apps/*/.env*", "packages/*/.env*"]
 }

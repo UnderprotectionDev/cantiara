@@ -1,0 +1,67 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": [
+    "./biome.json",
+    "ultracite/biome/core",
+    "ultracite/biome/react",
+    "ultracite/biome/tanstack",
+    "ultracite/biome/vitest"
+  ],
+  "javascript": {
+    "formatter": {
+      "trailingCommas": "all"
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["apps/fumadocs/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noBeforeInteractiveScriptOutsideDocument": "error",
+            "noNextAsyncClientComponent": "error",
+            "useInlineScriptId": "error"
+          },
+          "performance": {
+            "noImgElement": "error"
+          },
+          "style": {
+            "noHeadElement": "error"
+          },
+          "suspicious": {
+            "noDocumentImportInPage": "error",
+            "noHeadImportInDocument": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/extension/**"],
+      "javascript": {
+        "globals": ["browser", "defineBackground", "defineContentScript"]
+      },
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useImageSize": "off"
+          },
+          "performance": {
+            "noJsxPropsBind": "off"
+          },
+          "style": {
+            "useFilenamingConvention": "off"
+          },
+          "suspicious": {
+            "noShadow": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["scripts/**"],
+      "javascript": {
+        "globals": ["Bun"]
+      }
+    }
+  ]
+}

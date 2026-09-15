@@ -4,15 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
     "build": "tsc -b ../../packages/api && vite build",
+    "check-types": "tsc -b ../../packages/api && vite build && tsc --noEmit",
+    "desktop:build": "tauri build",
+    "desktop:dev": "tauri dev",
+    "dev": "vite dev",
     "serve": "vite preview",
     "start": "vite",
-    "check-types": "tsc -b ../../packages/api && vite build && tsc --noEmit",
-    "tauri": "tauri",
-    "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build",
-    "env:generate": "varlock codegen"
+    "tauri": "tauri"
   },
   "dependencies": {
     "@cantiara/api": "workspace:*",
@@ -20,18 +19,17 @@
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/tanstack-query": "^1.15.0",
+    "@t3-oss/env-core": "catalog:",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-query": "^5.102.8",
     "@tanstack/react-router": "^1.170.32",
-    "@varlock/vite-integration": "1.5.1",
     "better-auth": "catalog:",
     "lucide-react": "catalog:",
     "next-themes": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "sonner": "catalog:",
-    "varlock": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
