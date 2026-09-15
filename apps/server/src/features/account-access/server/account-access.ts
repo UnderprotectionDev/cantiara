@@ -1,5 +1,4 @@
-export const ACCOUNT_ACCESS_FAILURE_MESSAGE =
-  "Sign-in could not be completed. Please try again.";
+export const ACCOUNT_ACCESS_FAILURE_CODE = "ACCOUNT_ACCESS_FAILURE";
 
 export const GITHUB_LOGIN_SCOPES = ["read:user", "user:email"] as const;
 
@@ -17,11 +16,16 @@ export interface GitHubIdentityStore {
 }
 
 export interface AccountWorkspaceStore {
-  findOrCreate: (accountId: string) => Promise<AccountWorkspaceAdmission>;
+  findByAccountId: (
+    accountId: string,
+  ) => Promise<AccountWorkspaceAdmission | null>;
 }
 
 export interface AccountIdentityRateLimit {
-  consume: (githubIdentityId: string) => Promise<boolean>;
+  consume: (
+    githubIdentityId: string,
+    stage: "start" | "callback",
+  ) => Promise<boolean>;
 }
 
 export interface AccountAdmission {
@@ -29,7 +33,7 @@ export interface AccountAdmission {
 }
 
 function createAccountAccessError() {
-  return new Error(ACCOUNT_ACCESS_FAILURE_MESSAGE);
+  return new Error(ACCOUNT_ACCESS_FAILURE_CODE);
 }
 
 export function createAccountAdmission({
@@ -46,10 +50,28 @@ export function createAccountAdmission({
       try {
         const githubIdentity =
           await githubIdentities.findByAccountId(accountId);
-        if (!(githubIdentity && (await rateLimit.consume(githubIdentity.id)))) {
-          throw new Error(ACCOUNT_ACCESS_FAILURE_MESSAGE);
+        if (!githubIdentity) {
+          throw createAccountAccessError();
         }
-        return await workspaces.findOrCreate(accountId);
+
+        // A trusted identity is only available after GitHub returns. Attribute the
+        // state-verified start and the callback to separate identity budgets here.
+        const startAllowed = await rateLimit.consume(
+          githubIdentity.id,
+          "start",
+        );
+        const callbackAllowed = await rateLimit.consume(
+          githubIdentity.id,
+          "callback",
+        );
+        if (!(startAllowed && callbackAllowed)) {
+          throw createAccountAccessError();
+        }
+        const workspace = await workspaces.findByAccountId(accountId);
+        if (!workspace) {
+          throw createAccountAccessError();
+        }
+        return workspace;
       } catch {
         // biome-ignore lint/style/useErrorCause: Account Access errors must not retain existence-sensitive details.
         throw createAccountAccessError();

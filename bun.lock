@@ -70,6 +70,7 @@
         "@orpc/zod": "catalog:",
         "@t3-oss/env-core": "catalog:",
         "better-auth": "catalog:",
+        "drizzle-orm": "^0.45.2",
         "evlog": "^2.28.1",
         "hono": "^4.13.7",
         "zod": "catalog:",
@@ -140,7 +141,6 @@
       "dependencies": {
         "@cantiara/db": "workspace:*",
         "better-auth": "catalog:",
-        "drizzle-orm": "^0.45.2",
         "zod": "catalog:",
       },
       "devDependencies": {

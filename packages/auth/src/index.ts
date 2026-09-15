@@ -3,8 +3,10 @@ import type { Database } from "@cantiara/db";
 import * as schema from "@cantiara/db/schema/auth";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import type { AccountAdmission } from "./account-access";
-import { createDatabaseAccountAdmission } from "./account-admission";
+
+export interface AccountAdmission {
+  admitAccount: (accountId: string) => Promise<unknown>;
+}
 
 export interface AuthConfig {
   BETTER_AUTH_SECRET: string;
@@ -24,6 +26,7 @@ export function createAuthOptions(
     database: drizzleAdapter(database, {
       provider: "pg",
       schema,
+      transaction: true,
     }),
     trustedOrigins: [env.CORS_ORIGIN, ...desktopOrigins],
     emailAndPassword: { enabled: false },
@@ -77,14 +80,10 @@ export function createAuthOptions(
 export function createAuth(
   env: AuthConfig,
   database: Database,
+  accountAdmission: AccountAdmission,
   desktopOrigins: readonly string[] = [],
 ) {
   return betterAuth(
-    createAuthOptions(
-      env,
-      database,
-      createDatabaseAccountAdmission(database),
-      desktopOrigins,
-    ),
+    createAuthOptions(env, database, accountAdmission, desktopOrigins),
   );
 }

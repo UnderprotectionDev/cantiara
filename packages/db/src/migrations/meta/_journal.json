@@ -8,6 +8,13 @@
       "when": 1789506637678,
       "tag": "0000_big_shadowcat",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789507371487,
+      "tag": "0001_github-account-workspace",
+      "breakpoints": true
     }
   ]
 }

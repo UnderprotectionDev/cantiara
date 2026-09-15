@@ -30,14 +30,14 @@ export function createDatabaseAccountAdmission(
   };
 
   const accountIdentityRateLimit: AccountIdentityRateLimit = {
-    async consume(githubIdentityId) {
+    async consume(githubIdentityId, stage) {
       const requestedAt = now();
       const windowStart = requestedAt - ACCOUNT_RATE_LIMIT_WINDOW_MS;
       const [limit] = await database
         .insert(rateLimit)
         .values({
           id: crypto.randomUUID(),
-          key: `account:${githubIdentityId}`,
+          key: `account:${stage}:${githubIdentityId}`,
           count: 1,
           lastRequest: requestedAt,
         })
@@ -54,27 +54,12 @@ export function createDatabaseAccountAdmission(
   };
 
   const workspaces: AccountWorkspaceStore = {
-    async findOrCreate(accountId) {
-      const [created] = await database
-        .insert(workspace)
-        .values({
-          id: crypto.randomUUID(),
-          ownerAccountId: accountId,
-        })
-        .onConflictDoNothing({ target: workspace.ownerAccountId })
-        .returning({ workspaceId: workspace.id });
-      if (created) {
-        return { accountId, workspaceId: created.workspaceId };
-      }
-
+    async findByAccountId(accountId) {
       const existing = await database.query.workspace.findFirst({
         columns: { id: true },
         where: eq(workspace.ownerAccountId, accountId),
       });
-      if (!existing) {
-        throw new Error("Workspace admission failed");
-      }
-      return { accountId, workspaceId: existing.id };
+      return existing ? { accountId, workspaceId: existing.id } : null;
     },
   };
 
