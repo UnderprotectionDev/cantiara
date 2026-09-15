@@ -28,6 +28,10 @@ Bir sorumluluğun sahibi bu belgede yoksa, birden fazla yoruma açıksa veya se�
 | --- | --- |
 | shadcn/ui | Uygulama bileşenleri |
 | Base UI | Erişilebilir bileşen temeli |
+| cmdk | shadcn/ui Command bileşeninin komut arama ve klavye gezinme primitive'i |
+| Embla Carousel | shadcn/ui Carousel bileşeninin kaydırma ve gezinme motoru |
+| input-otp | shadcn/ui Input OTP bileşeninin tek kullanımlık kod giriş primitive'i |
+| React Resizable Panels | shadcn/ui Resizable bileşeninin panel boyutlandırma primitive'i |
 | Tailwind CSS | Arayüz stilleri |
 | Lucide React | Uygulama ikonları ve Wireframe semantic component ikon kaynağı |
 | TanStack Query | Sunucu verisi ve önbellek |
