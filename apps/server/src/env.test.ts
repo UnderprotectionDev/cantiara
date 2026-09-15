@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 
 const validEnvironment = {
   NODE_ENV: "test",
@@ -6,6 +6,8 @@ const validEnvironment = {
   BETTER_AUTH_URL: "http://localhost:3000",
   CORS_ORIGIN: "http://localhost:3001",
   DATABASE_URL: "postgresql://user:password@localhost:5432/cantiara",
+  GITHUB_CLIENT_ID: "github-client-id",
+  GITHUB_CLIENT_SECRET: "github-client-secret",
 } as const;
 
 Object.assign(process.env, validEnvironment);
@@ -35,6 +37,15 @@ describe("server environment", () => {
     ).toThrow();
   });
 
+  test("requires GitHub OAuth credentials", () => {
+    expect(() =>
+      createServerEnv({ ...validEnvironment, GITHUB_CLIENT_ID: "" }),
+    ).toThrow();
+    expect(() =>
+      createServerEnv({ ...validEnvironment, GITHUB_CLIENT_SECRET: "" }),
+    ).toThrow();
+  });
+
   test("redacts configured secrets from errors and objects", () => {
     const originalError = new Error(
       `Database failed for ${validEnvironment.DATABASE_URL}`,
@@ -52,5 +63,13 @@ describe("server environment", () => {
       auth: { secret: "[REDACTED]" },
     });
     expect(originalError.message).toContain(validEnvironment.DATABASE_URL);
+  });
+
+  test("redacts the GitHub client secret", () => {
+    expect(
+      redactSecrets(
+        `GitHub failed for ${validEnvironment.GITHUB_CLIENT_SECRET}`,
+      ),
+    ).toBe("GitHub failed for [REDACTED]");
   });
 });

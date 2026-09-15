@@ -1,7 +1,11 @@
 import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
 
-const sensitiveEnvKeys = ["BETTER_AUTH_SECRET", "DATABASE_URL"] as const;
+const sensitiveEnvKeys = [
+  "BETTER_AUTH_SECRET",
+  "DATABASE_URL",
+  "GITHUB_CLIENT_SECRET",
+] as const;
 const redactedValue = "[REDACTED]";
 
 export function createServerEnv(
@@ -16,6 +20,8 @@ export function createServerEnv(
       BETTER_AUTH_URL: z.url(),
       CORS_ORIGIN: z.url(),
       DATABASE_URL: z.string().min(1),
+      GITHUB_CLIENT_ID: z.string().min(1),
+      GITHUB_CLIENT_SECRET: z.string().min(1),
     },
     runtimeEnv,
     emptyStringAsUndefined: true,

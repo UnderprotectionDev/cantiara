@@ -41,6 +41,8 @@
     "CI",
     "CORS_ORIGIN",
     "DATABASE_URL",
+    "GITHUB_CLIENT_ID",
+    "GITHUB_CLIENT_SECRET",
     "NODE_ENV",
     "VITE_SERVER_URL"
   ],
