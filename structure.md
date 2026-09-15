@@ -1,5 +1,7 @@
 # structure.md
 
+This is Cantiara's target ownership map, not an inventory of paths that already exist. Create a listed path only when its owning feature needs it; do not pre-create empty feature trees.
+
 ```text
 .
 ├── apps/

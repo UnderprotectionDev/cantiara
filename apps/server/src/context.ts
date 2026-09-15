@@ -1,14 +1,14 @@
 import type { Context as ApiContext } from "@cantiara/api/context";
 import type { Context as HonoContext } from "hono";
-
-import { getDb } from "./services";
-import { auth } from "./services";
+import { auth, getDb } from "./services";
 
 export type CreateContextOptions = {
   context: HonoContext;
 };
 
-export async function createContext({ context }: CreateContextOptions): Promise<ApiContext> {
+export async function createContext({
+  context,
+}: CreateContextOptions): Promise<ApiContext> {
   const db = await getDb();
   const session = await auth.api.getSession({
     headers: context.req.raw.headers,

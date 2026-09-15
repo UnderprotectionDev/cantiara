@@ -30,6 +30,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "check": "bunx --bun biome check .",
     "check-types": "turbo run check-types",
     "postinstall": "tsc -b packages/api && varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "dev:types": "tsc -b packages/api --watch",
@@ -45,6 +46,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.12",
     "@cantiara/config": "workspace:*",
     "@types/bun": "catalog:",
     "turbo": "^2.10.12",

@@ -8,6 +8,7 @@
         "zod": "catalog:",
       },
       "devDependencies": {
+        "@biomejs/biome": "^2.5.12",
         "@cantiara/config": "workspace:*",
         "@types/bun": "catalog:",
         "turbo": "^2.10.12",
