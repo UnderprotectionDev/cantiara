@@ -6,8 +6,9 @@ Personal project operating system for a solo product builder. This file is the a
 
 1. **Orient.** Name the owning glossary term, the owning spec, and every ADR that already decided a boundary this change touches. Done when each is a path or an explicit "none" — not when the area feels familiar.
 2. **Name.** Every domain name in the change is a [`CONTEXT.md`](CONTEXT.md) term, or the glossary gains that term in the same change. The `_Avoid_` list is binding.
-3. **Change.** Product behavior comes from the owning spec. Tools and runtimes come from [`docs/tech-stack.md`](docs/tech-stack.md). File ownership comes from [`structure.md`](structure.md). Architecture that would surprise a later reader is an ADR, written only when [`docs/adr/README.md`](docs/adr/README.md) would accept one.
-4. **Close.** Done when every Orient path still holds, every Name is a glossary term, and every in-file rule holds. A new or changed section of the owning spec is bound to Testing Decisions in the same file.
+3. **Stack.** Before changing implementation, map every technical responsibility to its selected entry in [`docs/tech-stack.md`](docs/tech-stack.md) and inspect the nearest repository example when one exists. Done when each responsibility names the selected entry and an example path or explicit "none", or a missing, ambiguous, or inadequate choice has been brought to the user before code or dependency changes.
+4. **Change.** Product behavior comes from the owning spec. File ownership comes from [`structure.md`](structure.md). Architecture that would surprise a later reader is an ADR, written only when [`docs/adr/README.md`](docs/adr/README.md) would accept one.
+5. **Close.** Done when every Orient path still holds, every Name is a glossary term, every Stack mapping still matches the implementation, and every in-file rule holds. A new or changed section of the owning spec is bound to Testing Decisions in the same file.
 
 ## Glossary
 
@@ -25,7 +26,7 @@ A term in the glossary is not delivery scope. Scope lives in the spec.
 
 ## Stack
 
-**Stack** — [`docs/tech-stack.md`](docs/tech-stack.md). Read before adding a dependency, changing a runtime, introducing a framework to `apps/web` or `apps/server`, or editing Wireframe code.
+**Stack** — [`docs/tech-stack.md`](docs/tech-stack.md). Read before choosing any implementation primitive, adding a dependency, changing a runtime, or editing product, test, development-tooling, or Wireframe code. Its responsibility boundaries are binding.
 
 ## Layout
 
@@ -57,7 +58,7 @@ Installed skills live in `.agents/skills`.
 
 ### Issue tracker
 
-Issues are created on GitHub; Cursor sessions may fetch the synced copy via Linear MCP. See `docs/agents/issue-tracker.md`.
+Issues are created on GitHub. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -72,13 +73,3 @@ Single-context: root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
 Schema changes go through `bun run db:migrate`. `bun run db:push` is local throwaway. TanStack Router regenerates `apps/web/src/routeTree.gen.ts`. Drizzle Kit generates versioned SQL migrations in `packages/db/src/migrations/` from the schema in `packages/db/src/schema/`.
 
 **Local Postgres** — [`docs/tech-stack.md`](docs/tech-stack.md) (yerel geliştirme sınırı) and `scripts/neon-local-proxy.ts` when `NEON_LOCAL=true`.
-
-**Dev seed** — [`docs/agents/dev-database-seed.md`](docs/agents/dev-database-seed.md). Reset **local** demo data with `bun run seed`. Hosted Neon requires `SEED_CONFIRM=hosted bun run seed` because seed clears workspace content. Cloud Agent tests must not use injected `DATABASE_URL`. `bun run db:push` refuses hosted Neon.
-
-**Cloud Agent secrets** — [`docs/agents/cloud-agent-secrets.md`](docs/agents/cloud-agent-secrets.md). Read before starting the API, setting `DATABASE_URL`, or exporting `NEON_LOCAL`. Do not put `$(seq)` or any newline-emitting `$(...)` in `.cursor/environment.json` terminal commands.
-
-## Cursor Cloud specific instructions
-
-Source is [`.cursor/environment.json`](.cursor/environment.json) (then personal, then team). A Personal SETUP_FLOW snapshot is a leftover override — edit the committed file and `scripts/cloud-agent/`.
-
-Build uses `install`; each boot uses `start` then `terminals` (`dev`, `neon-proxy`). Dashboard, stale Builds, and Personal vs repo file: [`docs/agents/cloud-agent-environment.md`](docs/agents/cloud-agent-environment.md). Secrets and Neon: [`docs/agents/cloud-agent-secrets.md`](docs/agents/cloud-agent-secrets.md).
