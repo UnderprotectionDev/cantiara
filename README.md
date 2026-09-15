@@ -1,6 +1,8 @@
-# cantiara
+# Cantiara
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, Hono, ORPC, and more.
+Cantiara is a personal project operating system for a solo product builder. Product behavior is defined in [`docs/specs/`](docs/specs/), domain language in [`CONTEXT.md`](CONTEXT.md), technical responsibility ownership in [`docs/tech-stack.md`](docs/tech-stack.md), and target file ownership in [`structure.md`](structure.md).
+
+The repository was scaffolded with Better-T-Stack. [`bts.jsonc`](bts.jsonc) retains the generator version and reproducible command as provenance; it is not the product definition.
 
 ## Features
 
@@ -31,13 +33,21 @@ bun install
 This project uses PostgreSQL with Drizzle ORM.
 
 1. Make sure you have a PostgreSQL database set up.
-2. Update your `apps/server/.env` file with your PostgreSQL connection details.
+2. Create `apps/server/.env.local` from the keys documented in `apps/server/.env.schema`, then add your PostgreSQL connection details.
 
-3. Apply the schema to your database:
+3. Generate a versioned migration from the Drizzle schema:
 
 ```bash
-bun run db:push
+bun run db:generate
 ```
+
+4. Review the generated SQL in `packages/db/src/migrations/`, then apply it:
+
+```bash
+bun run db:migrate
+```
+
+`bun run db:push` is only for a disposable local database. Product schema changes use reviewed, versioned migrations.
 
 Then, run the development server:
 
@@ -61,7 +71,7 @@ React web apps in this stack share shadcn/ui primitives through `packages/ui`.
 Run this from the project root to add more primitives to the shared UI package:
 
 ```bash
-npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
+bunx --bun shadcn@latest add accordion dialog popover sheet table -c packages/ui
 ```
 
 Import shared components like this:
@@ -80,7 +90,7 @@ Each app owns its environment schema in `.env.schema`. Varlock generates `src/en
 
 Import the generated `ENV` accessor in application code. Shared database and auth packages receive configuration or initialized clients from the application. See [Varlock's monorepo guide](https://varlock.dev/guides/monorepos/).
 
-Bun's automatic env loading is disabled in `bunfig.toml`; the framework integration or server bootstrap loads Varlock. Node deployments must include Varlock and its dependencies alongside the app schema.
+Bun's automatic env loading is disabled in `bunfig.toml`; the framework integration or server bootstrap loads Varlock.
 
 ## Git Hooks and Formatting
 
@@ -92,7 +102,9 @@ Bun's automatic env loading is disabled in `bunfig.toml`; the framework integrat
 cantiara/
 ├── apps/
 │   ├── web/         # Frontend application (React + TanStack Router)
-│   └── server/      # Backend API (Hono, ORPC)
+│   ├── server/      # Backend API (Hono, ORPC)
+│   ├── extension/   # Browser extension scaffold (WXT)
+│   └── fumadocs/    # Documentation application (Next.js + Fumadocs)
 ├── packages/
 │   ├── ui/          # Shared shadcn/ui components and styles
 │   ├── api/         # API layer / business logic
@@ -108,9 +120,9 @@ cantiara/
 - `bun run dev:server`: Start only the server
 - `bun run check-types`: Check TypeScript types across all apps
 - `bun run dev:types`: Watch API and dependency declarations when running an app individually. The root `dev` command already starts this watcher; installation and builds generate declarations automatically.
-- `bun run db:push`: Push schema changes to database
-- `bun run db:generate`: Generate database client/types
-- `bun run db:migrate`: Run database migrations
+- `bun run db:generate`: Generate a versioned SQL migration from the Drizzle schema
+- `bun run db:migrate`: Apply reviewed versioned migrations
+- `bun run db:push`: Push schema changes only to a disposable local database
 - `bun run db:studio`: Open database studio UI
 - `bun run check`: Run Biome formatting and linting
 - `cd apps/web && bun run desktop:dev`: Start Tauri desktop app in development

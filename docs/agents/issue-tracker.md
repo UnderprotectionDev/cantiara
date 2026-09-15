@@ -2,7 +2,7 @@
 
 Canonical **write** is GitHub Issues in `underprotectiondev/cantiara`. Use the `gh` CLI for create, comment, label, assign, close, and blocking edges.
 
-Canonical **read in a Cursor session** may be the Linear copy of that GitHub issue, fetched with Linear MCP after GitHub → Linear sync. Linear is a mirror, not a second tracker. If Linear MCP is missing or the issue has not synced yet, fetch with `gh`.
+Canonical **read in an agent session** may be the Linear copy of that GitHub issue, fetched with Linear MCP after GitHub → Linear sync. Linear is a mirror, not a second tracker. If Linear MCP is missing or the issue has not synced yet, fetch with `gh`.
 
 Do not create tickets with Linear `save_issue`. Do not close, relabel, or comment only in Linear. Do not write new implementation issues under `docs/specs/` or `.scratch/`.
 
