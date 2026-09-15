@@ -31,7 +31,7 @@ Spec yoksa Spec altında belirt. Review atlandıysa nedenini yaz — uydurma.
 
 Konumlu tarayıcı adımları — komut, terminal veya otomatik test çıktısı yok.
 
-**Önkoşul** (bir kez, üstte): giriş durumu; seed kaydı gerekiyorsa ekranda görünen ad ([dev seed](dev-database-seed.md)).
+**Önkoşul** (bir kez, üstte): giriş durumu; seed kaydı gerekiyorsa ekranda görünen ad.
 
 **Her numaralı adım dört parçayı taşır** (eksik parça = adım bitmemiş):
 

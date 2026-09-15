@@ -1,10 +1,16 @@
 # Teknoloji Yığını
 
+## Bağlayıcı seçim sözleşmesi
+
+Bu belge bir teknoloji envanteri değil, teknik sorumluluk sahipliği kararıdır. Her teknoloji burada yazan amacın sahibidir. Implementasyon aynı sorumluluk için seçilmiş teknolojiyi ve repository'deki en yakın mevcut örüntüyü kullanır; aynı yetenek daha düşük seviyeli bir primitive veya alternatif kütüphaneyle yeniden kurulmaz.
+
+Bir sorumluluğun sahibi bu belgede yoksa, birden fazla yoruma açıksa veya seçilmiş teknoloji ihtiyacı karşılamıyorsa kod yazmadan ve dependency eklemeden önce kullanıcıya sorulur. Kullanıcının onayladığı yeni seçim, onu kullanan değişiklikle birlikte bu belgeye eklenir. Bu sözleşme aşağıdaki frontend, backend, veri, platform ve test tablolarının tamamına uygulanır.
+
 ## Temel uygulama yığını
 
 | Teknoloji | Amaç |
 | --- | --- |
-| React | Web arayüzü |
+| React | Web arayüzü ve yalnız tek bir component'a ait geçici UI durumu |
 | Vite | Web geliştirme ve derleme |
 | TanStack Router | Yönlendirme ve URL durumu |
 | Hono | API backend'i ve herkese açık HTML/SEO yanıtları |
@@ -25,8 +31,8 @@
 | Tailwind CSS | Arayüz stilleri |
 | Lucide React | Uygulama ikonları ve Wireframe semantic component ikon kaynağı |
 | TanStack Query | Sunucu verisi ve önbellek |
-| TanStack Store | İstemci, inspector, toolbar ve Wireframe editör oturumu durumu |
-| TanStack Form | Form yönetimi |
+| TanStack Store | Bileşenler arasında paylaşılan istemci, inspector, toolbar ve Wireframe editör oturumu durumu |
+| TanStack Form | Form state'i ve submission yaşam döngüsü |
 | Zod | Şema/form doğrulama ile sürümlü `WireframeDocument` doğrulaması ve migration sınırları |
 | TanStack Pacer | Yoğun etkileşim kontrolü |
 | TanStack Table | Veri tabloları |
