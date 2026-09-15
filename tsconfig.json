@@ -1,0 +1,3 @@
+{
+  "extends": "@cantiara/config/tsconfig.base.json"
+}
