@@ -1,4 +1,4 @@
-import { createAuthOptions } from "@cantiara/auth";
+import { type AccountAdmission, createAuthOptions } from "@cantiara/auth";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { afterEach, describe, expect, test } from "vitest";
@@ -49,6 +49,14 @@ const acceptingRateLimit = {
   consume: async () => true,
 };
 
+const authConfig = {
+  BETTER_AUTH_URL: "https://api.cantiara.example",
+  BETTER_AUTH_SECRET: "test-secret-that-is-long-enough-123456",
+  CORS_ORIGIN: "https://cantiara.example",
+  GITHUB_CLIENT_ID: "github-client-id",
+  GITHUB_CLIENT_SECRET: "github-client-secret",
+} as const;
+
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
@@ -63,6 +71,93 @@ function requestUrl(input: string | URL | Request) {
     return input.href;
   }
   return input;
+}
+
+function installGitHubOAuthTestDouble() {
+  function githubFetch(input: string | URL | Request, _init?: RequestInit) {
+    const url = requestUrl(input);
+    if (url === "https://github.com/login/oauth/access_token") {
+      return Promise.resolve(
+        Response.json({
+          access_token: "github-test-token",
+          scope: "read:user,user:email",
+          token_type: "bearer",
+        }),
+      );
+    }
+    if (url === "https://api.github.com/user") {
+      return Promise.resolve(
+        Response.json({
+          avatar_url: null,
+          email: "founder@example.invalid",
+          id: 42,
+          login: "founder",
+          name: "Founder",
+        }),
+      );
+    }
+    if (url === "https://api.github.com/user/emails") {
+      return Promise.resolve(
+        Response.json([
+          {
+            email: "founder@example.invalid",
+            primary: true,
+            verified: true,
+            visibility: "private",
+          },
+        ]),
+      );
+    }
+    return Promise.reject(new Error(`Unexpected GitHub request: ${url}`));
+  }
+  githubFetch.preconnect = originalFetch.preconnect;
+  globalThis.fetch = githubFetch;
+}
+
+function createGitHubCallbackTestDriver(accountAdmission: AccountAdmission) {
+  const database = {
+    account: [],
+    rateLimit: [],
+    session: [],
+    user: [],
+    verification: [],
+  };
+  const options = createAuthOptions(authConfig, {} as never, accountAdmission);
+  const auth = betterAuth({
+    ...options,
+    database: memoryAdapter(database),
+  });
+
+  return {
+    database,
+    async completeSignIn() {
+      const start = await auth.handler(
+        new Request("https://api.cantiara.example/api/auth/sign-in/social", {
+          body: JSON.stringify({
+            callbackURL: "https://cantiara.example/dashboard",
+            provider: "github",
+          }),
+          headers: {
+            "content-type": "application/json",
+            origin: "https://cantiara.example",
+          },
+          method: "POST",
+        }),
+      );
+      const startBody = (await start.json()) as { url: string };
+      const state = new URL(startBody.url).searchParams.get("state");
+      const stateCookie = start.headers.get("set-cookie")?.split(";", 1)[0];
+      if (!(state && stateCookie)) {
+        throw new Error("OAuth state was not created");
+      }
+      return auth.handler(
+        new Request(
+          `https://api.cantiara.example/api/auth/callback/github?code=test-code&state=${state}`,
+          { headers: { cookie: stateCookie } },
+        ),
+      );
+    },
+  };
 }
 
 describe("Account Access", () => {
@@ -183,22 +278,12 @@ describe("Account Access", () => {
   });
 
   test("Better Auth exposes only GitHub sign-in with secure web cookies", () => {
-    const options = createAuthOptions(
-      {
-        BETTER_AUTH_URL: "https://api.cantiara.example",
-        BETTER_AUTH_SECRET: "test-secret-that-is-long-enough-123456",
-        CORS_ORIGIN: "https://cantiara.example",
-        GITHUB_CLIENT_ID: "github-client-id",
-        GITHUB_CLIENT_SECRET: "github-client-secret",
-      },
-      {} as never,
-      {
-        admitAccount: async (accountId) => ({
-          accountId,
-          workspaceId: "workspace-42",
-        }),
-      },
-    );
+    const options = createAuthOptions(authConfig, {} as never, {
+      admitAccount: async (accountId) => ({
+        accountId,
+        workspaceId: "workspace-42",
+      }),
+    });
 
     expect(options.emailAndPassword).toEqual({ enabled: false });
     expect(Object.keys(options.socialProviders ?? {})).toEqual(["github"]);
@@ -225,22 +310,12 @@ describe("Account Access", () => {
   });
 
   test("HTTP entry point rejects email and password sign-in", async () => {
-    const options = createAuthOptions(
-      {
-        BETTER_AUTH_URL: "https://api.cantiara.example",
-        BETTER_AUTH_SECRET: "test-secret-that-is-long-enough-123456",
-        CORS_ORIGIN: "https://cantiara.example",
-        GITHUB_CLIENT_ID: "github-client-id",
-        GITHUB_CLIENT_SECRET: "github-client-secret",
-      },
-      {} as never,
-      {
-        admitAccount: async (accountId) => ({
-          accountId,
-          workspaceId: "workspace-42",
-        }),
-      },
-    );
+    const options = createAuthOptions(authConfig, {} as never, {
+      admitAccount: async (accountId) => ({
+        accountId,
+        workspaceId: "workspace-42",
+      }),
+    });
     const auth = betterAuth({
       ...options,
       database: memoryAdapter({
@@ -286,13 +361,6 @@ describe("Account Access", () => {
   });
 
   test("GitHub callback creates and then reuses one Account and Workspace", async () => {
-    const database = {
-      account: [],
-      rateLimit: [],
-      session: [],
-      user: [],
-      verification: [],
-    };
     const workspaces = new Map<string, string>();
     const accountAdmission = {
       admitAccount(accountId: string) {
@@ -302,113 +370,24 @@ describe("Account Access", () => {
         return Promise.resolve({ accountId, workspaceId });
       },
     };
-    const options = createAuthOptions(
-      {
-        BETTER_AUTH_URL: "https://api.cantiara.example",
-        BETTER_AUTH_SECRET: "test-secret-that-is-long-enough-123456",
-        CORS_ORIGIN: "https://cantiara.example",
-        GITHUB_CLIENT_ID: "github-client-id",
-        GITHUB_CLIENT_SECRET: "github-client-secret",
-      },
-      {} as never,
-      accountAdmission,
-    );
-    const auth = betterAuth({
-      ...options,
-      database: memoryAdapter(database),
-    });
-    function githubFetch(input: string | URL | Request, _init?: RequestInit) {
-      const url = requestUrl(input);
-      if (url === "https://github.com/login/oauth/access_token") {
-        return Promise.resolve(
-          Response.json({
-            access_token: "github-test-token",
-            scope: "read:user,user:email",
-            token_type: "bearer",
-          }),
-        );
-      }
-      if (url === "https://api.github.com/user") {
-        return Promise.resolve(
-          Response.json({
-            avatar_url: null,
-            email: "founder@example.invalid",
-            id: 42,
-            login: "founder",
-            name: "Founder",
-          }),
-        );
-      }
-      if (url === "https://api.github.com/user/emails") {
-        return Promise.resolve(
-          Response.json([
-            {
-              email: "founder@example.invalid",
-              primary: true,
-              verified: true,
-              visibility: "private",
-            },
-          ]),
-        );
-      }
-      return Promise.reject(new Error(`Unexpected GitHub request: ${url}`));
-    }
-    githubFetch.preconnect = originalFetch.preconnect;
-    globalThis.fetch = githubFetch;
+    const driver = createGitHubCallbackTestDriver(accountAdmission);
+    installGitHubOAuthTestDouble();
 
-    async function completeSignIn() {
-      const start = await auth.handler(
-        new Request("https://api.cantiara.example/api/auth/sign-in/social", {
-          body: JSON.stringify({
-            callbackURL: "https://cantiara.example/dashboard",
-            provider: "github",
-          }),
-          headers: {
-            "content-type": "application/json",
-            origin: "https://cantiara.example",
-          },
-          method: "POST",
-        }),
-      );
-      const startBody = (await start.json()) as { url: string };
-      const state = new URL(startBody.url).searchParams.get("state");
-      const stateCookie = start.headers.get("set-cookie")?.split(";", 1)[0];
-      if (!(state && stateCookie)) {
-        throw new Error("OAuth state was not created");
-      }
-      return auth.handler(
-        new Request(
-          `https://api.cantiara.example/api/auth/callback/github?code=test-code&state=${state}`,
-          { headers: { cookie: stateCookie } },
-        ),
-      );
-    }
-
-    expect((await completeSignIn()).status).toBe(302);
-    expect((await completeSignIn()).status).toBe(302);
-    expect(database.user).toHaveLength(1);
-    expect(database.account).toHaveLength(1);
+    expect((await driver.completeSignIn()).status).toBe(302);
+    expect((await driver.completeSignIn()).status).toBe(302);
+    expect(driver.database.user).toHaveLength(1);
+    expect(driver.database.account).toHaveLength(1);
     expect(workspaces).toHaveLength(1);
   });
 
   test("session admission fails closed without exposing its reason", async () => {
     const attempts: string[] = [];
-    const options = createAuthOptions(
-      {
-        BETTER_AUTH_URL: "https://api.cantiara.example",
-        BETTER_AUTH_SECRET: "test-secret-that-is-long-enough-123456",
-        CORS_ORIGIN: "https://cantiara.example",
-        GITHUB_CLIENT_ID: "github-client-id",
-        GITHUB_CLIENT_SECRET: "github-client-secret",
+    const options = createAuthOptions(authConfig, {} as never, {
+      admitAccount(accountId) {
+        attempts.push(accountId);
+        return Promise.reject(new Error("workspace exists"));
       },
-      {} as never,
-      {
-        admitAccount(accountId) {
-          attempts.push(accountId);
-          return Promise.reject(new Error("workspace exists"));
-        },
-      },
-    );
+    });
 
     const result = await options.databaseHooks?.session?.create?.before?.(
       { userId: "account-42" } as never,

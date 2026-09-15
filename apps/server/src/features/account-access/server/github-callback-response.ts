@@ -10,11 +10,13 @@ export function sanitizeGitHubCallbackResponse(
   }
 
   const location = response.headers.get("location");
-  if (!(location && new URL(location).searchParams.has("error"))) {
+  if (!(location && new URL(location, request.url).searchParams.has("error"))) {
     return response;
   }
 
   const loginUrl = new URL("/login", webOrigin);
   loginUrl.searchParams.set("error", GENERIC_SIGN_IN_ERROR);
-  return Response.redirect(loginUrl.href, 302);
+  const headers = new Headers(response.headers);
+  headers.set("location", loginUrl.href);
+  return new Response(null, { headers, status: response.status });
 }

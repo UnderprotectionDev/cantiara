@@ -13,8 +13,7 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "check-types": "tsc -b",
-    "test": "vitest run"
+    "check-types": "tsc -b"
   },
   "dependencies": {
     "@cantiara/db": "workspace:*",
