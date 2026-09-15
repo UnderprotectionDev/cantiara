@@ -212,6 +212,7 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │   │   │   │       └── server/
 │   │   │   ├── jobs/
 │   │   │   ├── routes/
+│   │   │   ├── env.ts
 │   │   │   └── index.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json
@@ -483,6 +484,7 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │       │   │   └── login.tsx
 │       │   ├── utils/
 │       │   │   └── orpc.ts
+│       │   ├── env.ts
 │       │   ├── index.css
 │       │   ├── main.tsx
 │       │   └── routeTree.gen.ts
@@ -534,8 +536,10 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │       └── package.json
 ├── scripts/
 │   ├── check-dev-ports.sh
+│   ├── install-hooks.ts
 │   └── neon-local-proxy.ts
 ├── biome.json
+├── biome.ultracite.json
 ├── bun.lock
 ├── lefthook.yml
 ├── package.json

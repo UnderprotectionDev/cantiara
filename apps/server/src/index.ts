@@ -15,7 +15,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import { createContext } from "./context";
-import { desktopOrigins, env } from "./env.server";
+import { desktopOrigins, env, redactSecrets } from "./env";
 import { auth } from "./services";
 
 initLogger({
@@ -59,7 +59,7 @@ export const apiHandler = new OpenAPIHandler(appRouter, {
   ],
   interceptors: [
     onError((error) => {
-      console.error(error);
+      console.error(redactSecrets(error));
     }),
   ],
 });
@@ -67,7 +67,7 @@ export const apiHandler = new OpenAPIHandler(appRouter, {
 export const rpcHandler = new RPCHandler(appRouter, {
   interceptors: [
     onError((error) => {
-      console.error(error);
+      console.error(redactSecrets(error));
     }),
   ],
 });
@@ -77,7 +77,7 @@ app.use("/*", async (c, next) => {
 
   const rpcResult = await rpcHandler.handle(c.req.raw, {
     prefix: "/rpc",
-    context: context,
+    context,
   });
 
   if (rpcResult.matched) {
@@ -86,7 +86,7 @@ app.use("/*", async (c, next) => {
 
   const apiResult = await apiHandler.handle(c.req.raw, {
     prefix: "/api-reference",
-    context: context,
+    context,
   });
 
   if (apiResult.matched) {
@@ -96,8 +96,6 @@ app.use("/*", async (c, next) => {
   await next();
 });
 
-app.get("/", (c) => {
-  return c.text("OK");
-});
+app.get("/", (c) => c.text("OK"));
 
 export default app;

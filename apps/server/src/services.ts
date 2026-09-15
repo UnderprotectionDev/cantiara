@@ -1,7 +1,7 @@
 import { createAuth } from "@cantiara/auth";
 import { createDb, type Database } from "@cantiara/db";
 
-import { desktopOrigins, env } from "./env.server";
+import { desktopOrigins, env } from "./env";
 
 const db = createDb(env);
 

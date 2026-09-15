@@ -1,75 +1,25 @@
 # Cantiara
 
-Personal project operating system for a solo product builder. This file is the always-loaded agent contract: the _process_ every run.
+Personal project operating system for a solo product builder. This file is the always-loaded agent process.
 
 ## Process
 
-1. **Orient.** Name the owning glossary term, the owning spec, and every ADR that already decided a boundary this change touches. Done when each is a path or an explicit "none" — not when the area feels familiar.
-2. **Name.** Every domain name in the change is a [`CONTEXT.md`](CONTEXT.md) term, or the glossary gains that term in the same change. The `_Avoid_` list is binding.
-3. **Stack.** Before changing implementation, map every technical responsibility to its selected entry in [`docs/tech-stack.md`](docs/tech-stack.md) and inspect the nearest repository example when one exists. Done when each responsibility names the selected entry and an example path or explicit "none", or a missing, ambiguous, or inadequate choice has been brought to the user before code or dependency changes.
-4. **Change.** Product behavior comes from the owning spec. File ownership comes from [`structure.md`](structure.md). Architecture that would surprise a later reader is an ADR, written only when [`docs/adr/README.md`](docs/adr/README.md) would accept one.
-5. **Close.** Done when every Orient path still holds, every Name is a glossary term, every Stack mapping still matches the implementation, and every in-file rule holds. A new or changed section of the owning spec is bound to Testing Decisions in the same file.
+1. **Orient.** Before changing behavior, name the owning [`CONTEXT.md`](CONTEXT.md) term, owning [`docs/specs/`](docs/specs/) `spec.md`, and every [`docs/adr/`](docs/adr/) decision whose boundary the change touches. Each must resolve to a path or explicit `none`.
+2. **Name.** Use glossary terms for domain names and the owning spec's exact English UI labels in code, tests, and product copy. The glossary `_Avoid_` lists are binding; add a genuinely new term in the same change.
+3. **Stack.** Before implementation, map every technical responsibility to [`docs/tech-stack.md`](docs/tech-stack.md) and inspect the nearest repository example. Name the selected entry and example path or `none`; bring missing, ambiguous, or inadequate choices to the user before changing code or dependencies.
+4. **Change.** Take product behavior and test seams from the owning spec, and file ownership from [`structure.md`](structure.md). Implement behavior test-first at the spec's Testing Decisions seam. Record only surprising, costly architectural boundaries that [`docs/adr/README.md`](docs/adr/README.md) accepts.
+5. **Close.** Recheck every Orient path, glossary name, Stack mapping, test seam, generated-file rule, and in-file instruction. Bind every new or changed spec section to Testing Decisions in that spec.
 
-## Glossary
+## Conditional references
 
-**Glossary** — [`CONTEXT.md`](CONTEXT.md). Read before naming a domain concept, writing a test, or editing product copy.
+- **Domain documents:** Before editing the glossary or an ADR, read [`docs/agents/domain.md`](docs/agents/domain.md). Write `CONTEXT.md` and ADRs in Turkish.
+- **Authentication:** Treat GitHub login, sessions, and cookies as security-sensitive. Verify the installed Better Auth version's current API and security guidance, then test required failure paths at the Account Access seam.
+- **Issues:** Before reading or writing tracker state, read [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md). GitHub Issues is canonical; role labels follow [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
+- **Implement close-out:** After implementation, tests, and review, follow [`docs/agents/implement-close-out.md`](docs/agents/implement-close-out.md).
 
-A term in the glossary is not delivery scope. Scope lives in the spec.
+## Repository guardrails
 
-## Spec
-
-**Spec** — [`docs/specs/`](docs/specs/). Read the owning `spec.md` before changing product behavior, writing UI copy or a source identifier, or deciding delivery scope. That spec's English UI is the name in code and in the interface.
-
-## Decisions
-
-**Decisions** — [`docs/adr/README.md`](docs/adr/README.md). Read before writing or changing an ADR, and before changing a boundary an ADR already decided.
-
-## Stack
-
-**Stack** — [`docs/tech-stack.md`](docs/tech-stack.md). Read before choosing any implementation primitive, adding a dependency, changing a runtime, or editing product, test, development-tooling, or Wireframe code. Its responsibility boundaries are binding.
-
-## Layout
-
-**Layout** — [`structure.md`](structure.md). Read before placing a feature, route, package, app, or provider file. Match ownership boundaries such as `features/`, `views/`, and `routes/`; name folders and files for this product.
-
-## Domain documents
-
-Write [`CONTEXT.md`](CONTEXT.md) and [`docs/adr/`](docs/adr/) in Turkish.
-
-## Git branches
-
-Name git branches in English.
-
-## Skills
-
-Installed skills live in `.agents/skills`.
-
-**Flow** — `/ask-matt`. Read before choosing an engineering skill.
-
-**Terms** — `/domain-modeling`. Use when a glossary term is fuzzy, overloaded, or new, or when an ADR is in play.
-
-**Seams** — `/tdd`. Use when implementing behavior. Tests live at confirmed seams.
-
-**Better Auth** — `/better-auth-best-practices` and `/better-auth-security-best-practices`. Read before changing GitHub login, sessions, or cookies.
-
-**Implement close-out** — [`docs/agents/implement-close-out.md`](docs/agents/implement-close-out.md). After `/implement`, the final user message is Turkish: Ne eklendi, İnceleme, Nasıl test edilir (konumlu tarayıcı adımları).
-
-## Agent skills
-
-### Issue tracker
-
-Issues are created on GitHub. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Canonical role names match GitHub labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
-
-## Workspace
-
-Schema changes go through `bun run db:migrate`. `bun run db:push` is local throwaway. TanStack Router regenerates `apps/web/src/routeTree.gen.ts`. Drizzle Kit generates versioned SQL migrations in `packages/db/src/migrations/` from the schema in `packages/db/src/schema/`.
-
-**Local Postgres** — [`docs/tech-stack.md`](docs/tech-stack.md) (yerel geliştirme sınırı) and `scripts/neon-local-proxy.ts` when `NEON_LOCAL=true`.
+- Write Git branch names in English.
+- Apply schema changes with `bun run db:migrate`; reserve `bun run db:push` for disposable local databases. Drizzle Kit generates versioned SQL in `packages/db/src/migrations/` from `packages/db/src/schema/`.
+- Treat `apps/web/src/routeTree.gen.ts` as TanStack Router generated output.
+- When `NEON_LOCAL=true`, use the local PostgreSQL boundary in [`docs/tech-stack.md`](docs/tech-stack.md) and `scripts/neon-local-proxy.ts`.

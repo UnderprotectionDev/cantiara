@@ -5,10 +5,9 @@
   "scripts": {
     "build": "tsc -b ../../packages/api && tsdown",
     "check-types": "tsc -b ../../packages/api && tsc --noEmit",
-    "compile": "bun build --compile --no-compile-autoload-dotenv --minify --sourcemap --bytecode ./src/index.ts --outfile server",
+    "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "bun run --hot src/index.ts",
-    "start": "bun run dist/index.mjs",
-    "env:generate": "varlock codegen"
+    "start": "bun run dist/index.mjs"
   },
   "dependencies": {
     "@cantiara/api": "workspace:*",
@@ -17,10 +16,10 @@
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
+    "@t3-oss/env-core": "catalog:",
     "better-auth": "catalog:",
     "evlog": "^2.28.1",
     "hono": "^4.13.7",
-    "varlock": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
