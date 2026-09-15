@@ -1,0 +1,3 @@
+# Dış yürütme devrini İşe ait bileşen olarak tut
+
+AI ajanında veya harici araçta yürütülen kodlama ve diğer test-dışı çalışmalar için ayrı bir Handoff ana kaydı oluşturulmaz. Her kesin gidiş ile onun açık, sonucu dönmüş, uzlaştırılmış veya iptal edilmiş durumu; İşe ait, bağımsız yaşayamayan tarihsel bir Dış yürütme devrinde tutulur. Böylece aynı İşin yinelenen dış çalışmaları ezilmeden korunurken yürütme bağlamı İş yaşamından kopmaz; dış insana görev verme gelecek yönünde, planlı veya formel testler ise kesin senaryo sürümü ve Test Oturumu sözleşmesi nedeniyle mevcut Test Handoff'u modelinde kalır.

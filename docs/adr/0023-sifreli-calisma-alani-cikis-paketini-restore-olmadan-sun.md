@@ -1,0 +1,3 @@
+# Şifreli Çalışma Alanı çıkış paketini restore olmadan sun
+
+Tek doğruluk kaynağını kabul eden kullanıcıya çıkış yolu, hesap ölmeden ve uygulamaya kilitlenmeden verilmelidir. İlk ürün bu yüzden seçili Markdown/JSON/CSV yanında, kullanıcı parolasıyla zorunlu şifrelenmiş tam Çalışma Alanı çıkış paketini üretir; paket yaşayan Hesaptan isteğe bağlı, kapanışta ise zorunludur. Parola sunucuda saklanmaz; unutulursa paket okunamaz. Oturum, secret, dış erişim anahtarı, operasyon logu, türetilmiş cache ve Yakalama staging eki pakete girmez. Ürün içine atomik restore/import ve zamanlanmış yedek ayrı, kanıt bekleyen gelecek yönüdür; çıkış paketini yedek ürününe çevirmemek için bu dilimde bilinçli olarak dışarıda bırakılır.
