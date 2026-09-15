@@ -1,7 +1,5 @@
 # structure.md
 
-This is Cantiara's target ownership map, not an inventory of paths that already exist. Create a listed path only when its owning feature needs it; do not pre-create empty feature trees.
-
 ```text
 .
 ├── apps/
@@ -9,16 +7,18 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │   │   ├── entrypoints/
 │   │   │   ├── popup/
 │   │   │   │   ├── App.tsx
+│   │   │   │   ├── index.html
 │   │   │   │   └── main.tsx
 │   │   │   ├── background.ts
 │   │   │   └── content.ts
 │   │   ├── src/
 │   │   │   └── features/
-│   │   │       └── web-capture/
+│   │   │       └── capture-triage/
 │   │   │           ├── components/
 │   │   │           └── views/
 │   │   ├── package.json
 │   │   ├── tsconfig.json
+│   │   ├── web-ext.config.ts
 │   │   └── wxt.config.ts
 │   ├── fumadocs/
 │   │   ├── content/
@@ -102,9 +102,9 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │   │   │   │   │   └── server/
 │   │   │   │   ├── moodboards/
 │   │   │   │   │   └── server/
-│   │   │   │   ├── mutation-core/
+│   │   │   │   ├── mutation-and-undo/
 │   │   │   │   │   └── server/
-│   │   │   │   ├── operator-backup/
+│   │   │   │   ├── operator-backup-and-alarms/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── personal-data/
 │   │   │   │   │   └── server/
@@ -210,12 +210,14 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │   │   │   │   │   └── server/
 │   │   │   │   └── workspace-overview/
 │   │   │   │       └── server/
-│   │   │   ├── jobs/
-│   │   │   ├── routes/
+│   │   │   ├── context.ts
+│   │   │   ├── env.test.ts
 │   │   │   ├── env.ts
-│   │   │   └── index.ts
+│   │   │   ├── index.ts
+│   │   │   └── services.ts
 │   │   ├── package.json
-│   │   └── tsconfig.json
+│   │   ├── tsconfig.json
+│   │   └── tsdown.config.ts
 │   └── web/
 │       ├── src/
 │       │   ├── features/
@@ -247,9 +249,9 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │       │   │   │   ├── components/
 │       │   │   │   ├── forms/
 │       │   │   │   └── views/
-                   │       │   │   ├── contact-and-company/
-                   │       │   │   │   ├── forms/
-                   │       │   │   │   └── views/
+│       │   │   ├── contact-and-company/
+│       │   │   │   ├── forms/
+│       │   │   │   └── views/
 │       │   │   ├── custom-fields/
 │       │   │   │   ├── forms/
 │       │   │   │   └── views/
@@ -295,6 +297,10 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │       │   │   │   └── views/
 │       │   │   ├── moodboards/
 │       │   │   │   ├── forms/
+│       │   │   │   └── views/
+│       │   │   ├── mutation-and-undo/
+│       │   │   │   ├── components/
+│       │   │   │   ├── lib/
 │       │   │   │   └── views/
 │       │   │   ├── personal-data/
 │       │   │   │   └── views/
@@ -425,8 +431,7 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │       │   │   └── workspace-overview/
 │       │   │       └── views/
 │       │   ├── lib/
-│       │   │   ├── auth-client.ts
-│       │   │   └── mutation.ts
+│       │   │   └── auth-client.ts
 │       │   ├── routes/
 │       │   │   ├── _auth/
 │       │   │   │   ├── account/
@@ -435,11 +440,11 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── daily-focus/
 │       │   │   │   │   └── index.tsx
-│       │   │   │   ├── focus-periods/
-│       │   │   │   │   └── index.tsx
 │       │   │   │   ├── drafts/
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── favorites/
+│       │   │   │   │   └── index.tsx
+│       │   │   │   ├── focus-periods/
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── notifications/
 │       │   │   │   │   └── index.tsx
@@ -469,8 +474,8 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │       │   │   │   │   │   │   └── index.tsx
 │       │   │   │   │   │   ├── index.tsx
 │       │   │   │   │   │   └── route.tsx
-│       │   │   │   │   ├── new.tsx
-│       │   │   │   │   └── index.tsx
+│       │   │   │   │   ├── index.tsx
+│       │   │   │   │   └── new.tsx
 │       │   │   │   ├── search/
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── trash/
@@ -479,8 +484,8 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── index.tsx
 │       │   │   │   └── route.tsx
-│       │   │   ├── _founder.tsx
 │       │   │   ├── __root.tsx
+│       │   │   ├── _founder.tsx
 │       │   │   └── login.tsx
 │       │   ├── utils/
 │       │   │   └── orpc.ts
@@ -490,7 +495,11 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │       │   └── routeTree.gen.ts
 │       ├── src-tauri/
 │       │   ├── capabilities/
+│       │   │   └── default.json
 │       │   ├── src/
+│       │   │   ├── lib.rs
+│       │   │   └── main.rs
+│       │   ├── build.rs
 │       │   ├── Cargo.toml
 │       │   └── tauri.conf.json
 │       ├── components.json
@@ -501,13 +510,17 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 ├── packages/
 │   ├── api/
 │   │   ├── src/
+│   │   │   ├── routers/
+│   │   │   │   └── index.ts
 │   │   │   ├── context.ts
 │   │   │   └── index.ts
-│   │   └── package.json
+│   │   ├── package.json
+│   │   └── tsconfig.json
 │   ├── auth/
 │   │   ├── src/
 │   │   │   └── index.ts
-│   │   └── package.json
+│   │   ├── package.json
+│   │   └── tsconfig.json
 │   ├── config/
 │   │   ├── package.json
 │   │   └── tsconfig.base.json
@@ -520,20 +533,20 @@ This is Cantiara's target ownership map, not an inventory of paths that already 
 │   │   │   ├── config.ts
 │   │   │   ├── env.ts
 │   │   │   └── index.ts
+│   │   ├── drizzle.config.ts
 │   │   ├── package.json
-│   │   └── drizzle.config.ts
-│   ├── env/
-│   │   ├── src/
-│   │   │   ├── server.ts
-│   │   │   └── web.ts
-│   │   └── package.json
+│   │   └── tsconfig.json
 │   └── ui/
 │       ├── src/
 │       │   ├── components/
 │       │   ├── hooks/
+│       │   ├── lib/
 │       │   └── styles/
 │       │       └── globals.css
-│       └── package.json
+│       ├── components.json
+│       ├── package.json
+│       ├── postcss.config.mjs
+│       └── tsconfig.json
 ├── scripts/
 │   ├── check-dev-ports.sh
 │   ├── install-hooks.ts
