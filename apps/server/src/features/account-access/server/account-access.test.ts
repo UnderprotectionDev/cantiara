@@ -1,4 +1,8 @@
-import { type AccountAdmission, createAuthOptions } from "@cantiara/auth";
+import {
+  type AccountAdmission,
+  createAuthOptions,
+  type GitHubAvailabilityObserver,
+} from "@cantiara/auth";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -95,11 +99,7 @@ function installGitHubUnavailableDouble() {
 
 function createGitHubCallbackTestDriver(
   accountAdmission: AccountAdmission,
-  githubAvailability?: {
-    markAvailable: () => void | Promise<void>;
-    markLoginConsentSatisfied?: () => void | Promise<void>;
-    markUnavailable: () => void | Promise<void>;
-  },
+  githubAvailability?: GitHubAvailabilityObserver,
 ) {
   const database = {
     account: [],
