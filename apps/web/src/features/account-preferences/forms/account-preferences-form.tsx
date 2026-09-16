@@ -466,12 +466,9 @@ export default function AccountPreferencesForm({
                   <legend className="text-muted-foreground text-xs">
                     Week
                   </legend>
-                  <div className="mt-3 grid grid-cols-7 border-y text-center text-xs">
+                  <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs">
                     {getWeekDayLabels(preview).map((day) => (
-                      <span
-                        className="border-r px-1 py-2 last:border-r-0 sm:px-2"
-                        key={day}
-                      >
+                      <span className="min-w-0 bg-muted/35 px-1 py-2" key={day}>
                         {day}
                       </span>
                     ))}
