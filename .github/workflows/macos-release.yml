@@ -343,7 +343,7 @@ jobs:
           retention-days: 90
 
   clean-install:
-    name: Clean install macOS ${{ matrix.major }}
+    name: Clean install macOS ${{ matrix.major }} ${{ matrix.target }}
     needs: build
     permissions:
       actions: read
@@ -355,22 +355,35 @@ jobs:
         include:
           - major: 26
             runner: macos-26
+            target: aarch64-apple-darwin
+          - major: 26
+            runner: macos-26
+            target: x86_64-apple-darwin
           - major: 15
             runner: macos-15
+            target: aarch64-apple-darwin
+          - major: 15
+            runner: macos-15
+            target: x86_64-apple-darwin
           - major: 14
             runner: macos-14
+            target: aarch64-apple-darwin
+          - major: 14
+            runner: macos-14
+            target: x86_64-apple-darwin
 
     steps:
-      - name: Download Apple Silicon package
+      - name: Download target package
         uses: actions/download-artifact@v4
         with:
-          name: macos-package-aarch64-apple-darwin
+          name: macos-package-${{ matrix.target }}
           path: ${{ runner.temp }}/cantiara-package
 
       - name: Install and verify package
         shell: bash
         env:
           EXPECTED_MAJOR: ${{ matrix.major }}
+          TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
           evidence_directory="$RUNNER_TEMP/macos-clean-install-evidence"
@@ -390,8 +403,11 @@ jobs:
           actual_major="${actual_macos_version%%.*}"
           runner_architecture="$(uname -m)"
           test "$actual_major" = "$EXPECTED_MAJOR"
-          test "$package_target" = "aarch64-apple-darwin"
-          test "$runner_architecture" = "arm64"
+          test "$package_target" = "$TARGET"
+          case "$TARGET:$runner_architecture" in
+            aarch64-apple-darwin:arm64|x86_64-apple-darwin:arm64|x86_64-apple-darwin:x86_64) ;;
+            *) echo "The target package is not installable on this runner architecture" >&2; exit 1 ;;
+          esac
 
           mount_point="$RUNNER_TEMP/cantiara-dmg"
           install_directory="$RUNNER_TEMP/cantiara-install"
@@ -415,7 +431,7 @@ jobs:
             --arg workflowRunAttempt "$workflow_run_attempt" \
             --arg workflowRunId "$workflow_run_id" \
             --arg workflowSha "$workflow_sha" \
-            --arg evidenceId "client-shell.macos-clean-install-$EXPECTED_MAJOR.v1" \
+            --arg evidenceId "client-shell.macos-clean-install-$EXPECTED_MAJOR-$TARGET.v1" \
             --arg expectedMajor "$EXPECTED_MAJOR" \
             --arg packageTarget "$package_target" \
             --arg macOSVersion "$actual_macos_version" \
@@ -468,7 +484,7 @@ jobs:
         id: clean_install_evidence_upload
         uses: actions/upload-artifact@v4
         with:
-          name: macos-clean-install-${{ matrix.major }}
+          name: macos-clean-install-${{ matrix.major }}-${{ matrix.target }}
           path: ${{ runner.temp }}/macos-clean-install-evidence
           if-no-files-found: error
           retention-days: 90
@@ -479,11 +495,11 @@ jobs:
         env:
           ARTIFACT_DIGEST: ${{ steps.clean_install_evidence_upload.outputs.artifact-digest }}
           ARTIFACT_ID: ${{ steps.clean_install_evidence_upload.outputs.artifact-id }}
-          ARTIFACT_NAME: macos-clean-install-${{ matrix.major }}
+          ARTIFACT_NAME: macos-clean-install-${{ matrix.major }}-${{ matrix.target }}
           ARTIFACT_URL: ${{ steps.clean_install_evidence_upload.outputs.artifact-url }}
           EVIDENCE_DIRECTORY: ${{ runner.temp }}/macos-clean-install-evidence
           REFERENCE_DIRECTORY: ${{ runner.temp }}/macos-clean-install-reference
-          EVIDENCE_KEY: ${{ matrix.major }}
+          EVIDENCE_KEY: ${{ matrix.major }}:${{ matrix.target }}
         run: |
           set -euo pipefail
           test -n "$ARTIFACT_DIGEST"
@@ -512,7 +528,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: macos-clean-install-reference-${{ matrix.major }}
+          name: macos-clean-install-reference-${{ matrix.major }}-${{ matrix.target }}
           path: ${{ runner.temp }}/macos-clean-install-reference/artifact-reference.json
           if-no-files-found: error
           retention-days: 90
@@ -575,9 +591,9 @@ jobs:
           package_reference_count="$(find "$RUNNER_TEMP/cantiara-package-references" -type f -name 'artifact-reference.json' -print | wc -l | tr -d ' ')"
           clean_reference_count="$(find "$RUNNER_TEMP/cantiara-clean-install-references" -type f -name 'artifact-reference.json' -print | wc -l | tr -d ' ')"
           test "$build_manifest_count" -eq 2
-          test "$clean_manifest_count" -eq 3
+          test "$clean_manifest_count" -eq 6
           test "$package_reference_count" -eq 2
-          test "$clean_reference_count" -eq 3
+          test "$clean_reference_count" -eq 6
 
           find "$RUNNER_TEMP/cantiara-build-evidence" -type f -name 'acceptance-manifest.json' -print0 | xargs -0 jq -s . > "$ACCEPTANCE_DIRECTORY/package-evidence.json"
           find "$RUNNER_TEMP/cantiara-clean-install-evidence" -type f -name 'clean-install-manifest.json' -print0 | xargs -0 jq -s . > "$ACCEPTANCE_DIRECTORY/clean-install-evidence.json"
@@ -590,14 +606,34 @@ jobs:
           workflow_run_attempt="$(jq -r '.[0].workflow.runAttempt' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
           workflow_run_id="$(jq -r '.[0].workflow.runId' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
           workflow_sha="$(jq -r '.[0].workflow.sha' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
-          package_evidence="$(jq -c . "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
-          clean_install_evidence="$(jq -c . "$ACCEPTANCE_DIRECTORY/clean-install-evidence.json")"
           package_artifact_references="$(jq -c . "$ACCEPTANCE_DIRECTORY/package-artifact-references.json")"
           clean_install_artifact_references="$(jq -c . "$ACCEPTANCE_DIRECTORY/clean-install-artifact-references.json")"
+          package_evidence="$(jq -c --argjson artifactReferences "$package_artifact_references" \
+            'map(. as $evidence | . + {artifactReference: ($artifactReferences[] | select(.evidenceKey == $evidence.target))})' \
+            "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
+          clean_install_evidence="$(jq -c --argjson artifactReferences "$clean_install_artifact_references" \
+            'map(. as $evidence | . + {artifactReference: ($artifactReferences[] | select(.evidenceKey == ("\($evidence.expectedMajor):\($evidence.packageTarget)")))})' \
+            "$ACCEPTANCE_DIRECTORY/clean-install-evidence.json")"
           acceptance_evidence_ids="$(jq -n \
             --argjson packageEvidence "$package_evidence" \
             --argjson cleanInstallEvidence "$clean_install_evidence" \
             '($packageEvidence + $cleanInstallEvidence) | map(.acceptance.evidenceId)')"
+
+          archive_root="$ACCEPTANCE_DIRECTORY/raw-evidence"
+          mkdir -p "$archive_root"
+          mkdir -p "$archive_root/package-evidence"
+          cp -R "$RUNNER_TEMP/cantiara-build-evidence/." "$archive_root/package-evidence/"
+          mkdir -p "$archive_root/package-references"
+          cp -R "$RUNNER_TEMP/cantiara-package-references/." "$archive_root/package-references/"
+          mkdir -p "$archive_root/clean-install-evidence"
+          cp -R "$RUNNER_TEMP/cantiara-clean-install-evidence/." "$archive_root/clean-install-evidence/"
+          mkdir -p "$archive_root/clean-install-references"
+          cp -R "$RUNNER_TEMP/cantiara-clean-install-references/." "$archive_root/clean-install-references/"
+          raw_evidence_size_bytes="$(du -sk "$archive_root" | awk '{print $1 * 1024}')"
+          test "$raw_evidence_size_bytes" -le 262144000
+          tar -czf "$ACCEPTANCE_DIRECTORY/macos-acceptance-evidence.tar.gz" \
+            -C "$archive_root" .
+          release_evidence_asset_sha256="$(shasum -a 256 "$ACCEPTANCE_DIRECTORY/macos-acceptance-evidence.tar.gz" | awk '{print $1}')"
 
           jq -n \
             --arg sourceCommit "$source_commit" \
@@ -607,6 +643,8 @@ jobs:
             --arg workflowSha "$workflow_sha" \
             --arg releaseTag "$RELEASE_TAG" \
             --arg releaseAssetUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/acceptance-candidate.json" \
+            --arg releaseEvidenceAssetUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/macos-acceptance-evidence.tar.gz" \
+            --arg releaseEvidenceAssetSha256 "$release_evidence_asset_sha256" \
             --argjson packageEvidence "$package_evidence" \
             --argjson cleanInstallEvidence "$clean_install_evidence" \
             --argjson packageArtifactReferences "$package_artifact_references" \
@@ -626,6 +664,11 @@ jobs:
               releaseAsset: {
                 name: "acceptance-candidate.json",
                 url: $releaseAssetUrl
+              },
+              releaseEvidenceAsset: {
+                name: "macos-acceptance-evidence.tar.gz",
+                sha256: $releaseEvidenceAssetSha256,
+                url: $releaseEvidenceAssetUrl
               },
               acceptanceCoverage: [{
                 acceptanceJourney: "macOS paket kabulü",
@@ -669,4 +712,4 @@ jobs:
           gh release upload "$RELEASE_TAG" \
             "$ACCEPTANCE_DIRECTORY/acceptance-candidate.json" \
             "$ACCEPTANCE_DIRECTORY/acceptance-candidate.json.sha256" \
-            --clobber
+            "$ACCEPTANCE_DIRECTORY/macos-acceptance-evidence.tar.gz"

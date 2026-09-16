@@ -12,6 +12,8 @@ const artifactUrlPattern =
   /^https:\/\/github\.com\/.+\/actions\/runs\/[1-9]\d*\/artifacts\/[1-9]\d*$/;
 const releaseAssetUrlPattern =
   /^https:\/\/github\.com\/.+\/releases\/download\/cantiara-v.+\/acceptance-candidate\.json$/;
+const releaseEvidenceAssetUrlPattern =
+  /^https:\/\/github\.com\/.+\/releases\/download\/cantiara-v.+\/macos-acceptance-evidence\.tar\.gz$/;
 
 export const supportedMacOSMajors = [26, 15, 14] as const;
 
@@ -64,6 +66,7 @@ interface MacOSAcceptanceTrace {
 export interface MacOSPackageEvidence {
   acceptance: MacOSAcceptanceTrace;
   artifact: MacOSPackageArtifact;
+  artifactReference?: MacOSArtifactReference;
   backend: MacOSPackageBackendContract;
   checks: MacOSPackageChecks;
   environment: MacOSPackageEnvironment;
@@ -89,11 +92,18 @@ interface MacOSReleaseAssetReference {
   url: string;
 }
 
+interface MacOSReleaseEvidenceAssetReference {
+  name: "macos-acceptance-evidence.tar.gz";
+  sha256: string;
+  url: string;
+}
+
 type MacOSCleanInstallChecks = MacOSPackageChecks;
 
 export interface MacOSCleanInstallEvidence {
   acceptance: MacOSAcceptanceTrace;
   artifact: MacOSPackageArtifact;
+  artifactReference?: MacOSArtifactReference;
   backend: MacOSPackageBackendContract;
   checks: MacOSCleanInstallChecks;
   environment: MacOSPackageEnvironment;
@@ -122,6 +132,7 @@ export interface MacOSPackageAcceptanceCandidate {
   packageArtifactReferences: MacOSArtifactReference[];
   packageEvidence: MacOSPackageEvidence[];
   releaseAsset: MacOSReleaseAssetReference;
+  releaseEvidenceAsset: MacOSReleaseEvidenceAssetReference;
   releaseTag: string;
   result: "passed";
   schemaVersion: "cantiara.macos-package-acceptance/v1";
@@ -132,6 +143,13 @@ export interface MacOSPackageAcceptanceCandidate {
 
 const supportedMacOSMajorSet = new Set<number>(supportedMacOSMajors);
 const macOSPackageTargetSet = new Set<string>(macOSPackageTargets);
+
+function cleanInstallEvidenceKey(
+  major: (typeof supportedMacOSMajors)[number],
+  target: MacOSPackageTarget,
+) {
+  return `${major}:${target}`;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -227,6 +245,7 @@ function isArtifactReference(value: unknown): value is MacOSArtifactReference {
     isNonEmptyString(value.artifactName) &&
     isNonEmptyString(value.artifactUrl) &&
     artifactUrlPattern.test(value.artifactUrl) &&
+    value.artifactUrl.endsWith(`/${value.artifactId}`) &&
     isNonEmptyString(value.evidenceKey) &&
     isNonEmptyString(value.manifestSha256) &&
     artifactDigestPattern.test(value.manifestSha256) &&
@@ -288,6 +307,22 @@ function isReleaseAssetReference(
   );
 }
 
+function isReleaseEvidenceAssetReference(
+  value: unknown,
+): value is MacOSReleaseEvidenceAssetReference {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    value.name === "macos-acceptance-evidence.tar.gz" &&
+    typeof value.sha256 === "string" &&
+    artifactDigestPattern.test(value.sha256) &&
+    typeof value.url === "string" &&
+    releaseEvidenceAssetUrlPattern.test(value.url)
+  );
+}
+
 function isPackageEnvironment(
   value: unknown,
 ): value is MacOSPackageEnvironment {
@@ -322,6 +357,43 @@ function isCleanInstallChecks(
   );
 }
 
+function isReferencedMacOSPackageEvidence(
+  value: unknown,
+): value is MacOSPackageEvidence & {
+  artifactReference: MacOSArtifactReference;
+} {
+  return (
+    isMacOSPackageEvidence(value) &&
+    isArtifactReference(value.artifactReference)
+  );
+}
+
+function isReferencedMacOSCleanInstallEvidence(
+  value: unknown,
+): value is MacOSCleanInstallEvidence & {
+  artifactReference: MacOSArtifactReference;
+} {
+  return (
+    isMacOSCleanInstallEvidence(value) &&
+    isArtifactReference(value.artifactReference)
+  );
+}
+
+function isSameArtifactReference(
+  left: MacOSArtifactReference,
+  right: MacOSArtifactReference,
+) {
+  return (
+    left.artifactDigest === right.artifactDigest &&
+    left.artifactId === right.artifactId &&
+    left.artifactName === right.artifactName &&
+    left.artifactUrl === right.artifactUrl &&
+    left.evidenceKey === right.evidenceKey &&
+    left.manifestSha256 === right.manifestSha256 &&
+    left.retentionDays === right.retentionDays
+  );
+}
+
 function isWorkflowForSource(
   value: MacOSWorkflowMetadata,
   candidate: MacOSPackageAcceptanceCandidate,
@@ -348,6 +420,8 @@ export function isMacOSPackageEvidence(
     isWorkflowMetadata(value.workflow) &&
     isAcceptanceTrace(value.acceptance) &&
     isMacOSPackageTarget(value.target) &&
+    value.acceptance.evidenceId ===
+      `client-shell.macos-package-${value.target}.v1` &&
     isBackendContract(value.backend) &&
     isPackageEnvironment(value.environment) &&
     isArtifact(value.artifact) &&
@@ -371,6 +445,8 @@ export function isMacOSCleanInstallEvidence(
     isAcceptanceTrace(value.acceptance) &&
     isSupportedMacOSMajor(value.expectedMajor) &&
     isMacOSPackageTarget(value.packageTarget) &&
+    value.acceptance.evidenceId ===
+      `client-shell.macos-clean-install-${value.expectedMajor}-${value.packageTarget}.v1` &&
     isBackendContract(value.backend) &&
     isPackageEnvironment(value.environment) &&
     macOSMajor(value.environment.macOSVersion) === value.expectedMajor &&
@@ -394,6 +470,7 @@ export function isMacOSPackageAcceptanceCandidate(
     !isGitCommit(candidate.sourceCommit) ||
     !releaseTagPattern.test(candidate.releaseTag) ||
     !isReleaseAssetReference(candidate.releaseAsset) ||
+    !isReleaseEvidenceAssetReference(candidate.releaseEvidenceAsset) ||
     !Array.isArray(candidate.acceptanceCoverage) ||
     candidate.acceptanceCoverage.length !== 1 ||
     !candidate.acceptanceCoverage.every(isAcceptanceCoverage) ||
@@ -404,16 +481,19 @@ export function isMacOSPackageAcceptanceCandidate(
     ) ||
     !Array.isArray(candidate.packageEvidence) ||
     candidate.packageEvidence.length !== macOSPackageTargets.length ||
-    !candidate.packageEvidence.every(isMacOSPackageEvidence) ||
+    !candidate.packageEvidence.every(isReferencedMacOSPackageEvidence) ||
     !Array.isArray(candidate.packageArtifactReferences) ||
     candidate.packageArtifactReferences.length !== macOSPackageTargets.length ||
     !candidate.packageArtifactReferences.every(isArtifactReference) ||
     !Array.isArray(candidate.cleanInstallEvidence) ||
-    candidate.cleanInstallEvidence.length !== supportedMacOSMajors.length ||
-    !candidate.cleanInstallEvidence.every(isMacOSCleanInstallEvidence) ||
+    candidate.cleanInstallEvidence.length !==
+      supportedMacOSMajors.length * macOSPackageTargets.length ||
+    !candidate.cleanInstallEvidence.every(
+      isReferencedMacOSCleanInstallEvidence,
+    ) ||
     !Array.isArray(candidate.cleanInstallArtifactReferences) ||
     candidate.cleanInstallArtifactReferences.length !==
-      supportedMacOSMajors.length ||
+      supportedMacOSMajors.length * macOSPackageTargets.length ||
     !candidate.cleanInstallArtifactReferences.every(isArtifactReference)
   ) {
     return false;
@@ -425,6 +505,11 @@ export function isMacOSPackageAcceptanceCandidate(
   const cleanInstallMajors = new Set(
     candidate.cleanInstallEvidence.map((evidence) => evidence.expectedMajor),
   );
+  const cleanInstallPairs = new Set(
+    candidate.cleanInstallEvidence.map((evidence) =>
+      cleanInstallEvidenceKey(evidence.expectedMajor, evidence.packageTarget),
+    ),
+  );
   const packageReferenceKeys = new Set(
     candidate.packageArtifactReferences.map(
       (reference) => reference.evidenceKey,
@@ -434,6 +519,18 @@ export function isMacOSPackageAcceptanceCandidate(
     candidate.cleanInstallArtifactReferences.map(
       (reference) => reference.evidenceKey,
     ),
+  );
+  const packageArtifactReferencesByKey = new Map(
+    candidate.packageArtifactReferences.map((reference) => [
+      reference.evidenceKey,
+      reference,
+    ]),
+  );
+  const cleanInstallArtifactReferencesByKey = new Map(
+    candidate.cleanInstallArtifactReferences.map((reference) => [
+      reference.evidenceKey,
+      reference,
+    ]),
   );
   const packageArtifactDigests = new Map(
     candidate.packageEvidence.map((evidence) => [
@@ -449,6 +546,13 @@ export function isMacOSPackageAcceptanceCandidate(
   const cleanInstallReferenceNames = new Set(
     candidate.cleanInstallArtifactReferences.map(
       (reference) => reference.artifactName,
+    ),
+  );
+  const expectedCleanInstallPairs = new Set(
+    supportedMacOSMajors.flatMap((major) =>
+      macOSPackageTargets.map((target) =>
+        cleanInstallEvidenceKey(major, target),
+      ),
     ),
   );
   const artifactReferenceIds = new Set([
@@ -484,23 +588,72 @@ export function isMacOSPackageAcceptanceCandidate(
     macOSPackageTargets.every((target) => packageTargets.has(target)) &&
     cleanInstallMajors.size === supportedMacOSMajors.length &&
     supportedMacOSMajors.every((major) => cleanInstallMajors.has(major)) &&
+    cleanInstallPairs.size === expectedCleanInstallPairs.size &&
+    [...expectedCleanInstallPairs].every((pair) =>
+      cleanInstallPairs.has(pair),
+    ) &&
     packageReferenceKeys.size === macOSPackageTargets.length &&
     macOSPackageTargets.every((target) => packageReferenceKeys.has(target)) &&
-    cleanInstallReferenceKeys.size === supportedMacOSMajors.length &&
-    supportedMacOSMajors.every((major) =>
-      cleanInstallReferenceKeys.has(String(major)),
+    cleanInstallReferenceKeys.size === expectedCleanInstallPairs.size &&
+    [...expectedCleanInstallPairs].every((pair) =>
+      cleanInstallReferenceKeys.has(pair),
     ) &&
     packageReferenceNames.size === macOSPackageTargets.length &&
-    cleanInstallReferenceNames.size === supportedMacOSMajors.length &&
+    macOSPackageTargets.every((target) =>
+      candidate.packageArtifactReferences.some(
+        (reference) =>
+          reference.evidenceKey === target &&
+          reference.artifactName === `macos-package-${target}`,
+      ),
+    ) &&
+    candidate.packageArtifactReferences.every((reference) =>
+      candidate.packageEvidence.some(
+        (evidence) => evidence.target === reference.evidenceKey,
+      ),
+    ) &&
+    candidate.packageEvidence.every((evidence) => {
+      const reference = packageArtifactReferencesByKey.get(evidence.target);
+      return (
+        reference !== undefined &&
+        isSameArtifactReference(evidence.artifactReference, reference)
+      );
+    }) &&
+    cleanInstallReferenceNames.size === expectedCleanInstallPairs.size &&
+    candidate.cleanInstallArtifactReferences.every((reference) => {
+      const [major, target] = reference.evidenceKey.split(":");
+      return (
+        reference.artifactName === `macos-clean-install-${major}-${target}` &&
+        expectedCleanInstallPairs.has(reference.evidenceKey) &&
+        candidate.cleanInstallEvidence.some(
+          (evidence) =>
+            cleanInstallEvidenceKey(
+              evidence.expectedMajor,
+              evidence.packageTarget,
+            ) === reference.evidenceKey,
+        )
+      );
+    }) &&
+    candidate.cleanInstallEvidence.every((evidence) => {
+      const reference = cleanInstallArtifactReferencesByKey.get(
+        cleanInstallEvidenceKey(evidence.expectedMajor, evidence.packageTarget),
+      );
+      return (
+        reference !== undefined &&
+        isSameArtifactReference(evidence.artifactReference, reference)
+      );
+    }) &&
     artifactReferenceIds.size ===
-      macOSPackageTargets.length + supportedMacOSMajors.length &&
+      macOSPackageTargets.length + expectedCleanInstallPairs.size &&
     artifactReferenceUrls.size ===
-      macOSPackageTargets.length + supportedMacOSMajors.length &&
+      macOSPackageTargets.length + expectedCleanInstallPairs.size &&
     candidate.releaseAsset.url.includes(
       `/releases/download/${candidate.releaseTag}/`,
     ) &&
+    candidate.releaseEvidenceAsset.url.includes(
+      `/releases/download/${candidate.releaseTag}/`,
+    ) &&
     evidenceIds.size ===
-      macOSPackageTargets.length + supportedMacOSMajors.length &&
+      macOSPackageTargets.length + expectedCleanInstallPairs.size &&
     coveredEvidenceIds.size === evidenceIds.size &&
     candidate.acceptanceCoverage[0].evidenceIds.length === evidenceIds.size &&
     [...evidenceIds].every((evidenceId) =>

@@ -24,31 +24,43 @@ const backend = {
   localDataLayer: false,
   sourceOfTruth: "neon-postgresql",
 } as const;
-const digest = "b".repeat(64);
+const packageDigests: Record<MacOSPackageEvidence["target"], string> = {
+  [macOSPackageTargets[0]]: "b".repeat(64),
+  [macOSPackageTargets[1]]: "d".repeat(64),
+};
+const manifestDigest = "e".repeat(64);
 
 function createArtifactReference(evidenceKey: string) {
   const artifactIds: Record<string, string> = {
-    "14": "987654324",
-    "15": "987654325",
-    "26": "987654326",
     "aarch64-apple-darwin": "987654321",
     "x86_64-apple-darwin": "987654322",
+    "26:aarch64-apple-darwin": "987654323",
+    "26:x86_64-apple-darwin": "987654324",
+    "15:aarch64-apple-darwin": "987654325",
+    "15:x86_64-apple-darwin": "987654326",
+    "14:aarch64-apple-darwin": "987654327",
+    "14:x86_64-apple-darwin": "987654328",
   };
   const artifactId = artifactIds[evidenceKey];
   if (!artifactId) {
     throw new Error(`Unknown evidence key: ${evidenceKey}`);
   }
 
-  const artifactPrefix = evidenceKey.includes("darwin")
+  const isPackageReference =
+    evidenceKey.includes("darwin") && !evidenceKey.includes(":");
+  const artifactPrefix = isPackageReference
     ? "macos-package"
     : "macos-clean-install";
+  const artifactName = isPackageReference
+    ? `${artifactPrefix}-${evidenceKey}`
+    : `${artifactPrefix}-${evidenceKey.replace(":", "-")}`;
   return {
     artifactDigest: `sha256:${"c".repeat(64)}`,
     artifactId,
-    artifactName: `${artifactPrefix}-${evidenceKey}`,
+    artifactName,
     artifactUrl: `https://github.com/UnderprotectionDev/cantiara/actions/runs/123456789/artifacts/${artifactId}`,
     evidenceKey,
-    manifestSha256: digest,
+    manifestSha256: manifestDigest,
     retentionDays: 90,
   } satisfies MacOSArtifactReference;
 }
@@ -68,7 +80,7 @@ function createPackageEvidence(
     artifact: {
       kind: "dmg",
       name: `cantiara_0.1.0_${target}.dmg`,
-      sha256: digest,
+      sha256: packageDigests[target],
     },
     backend,
     checks: {
@@ -91,19 +103,20 @@ function createPackageEvidence(
 
 function createCleanInstallEvidence(
   expectedMajor: MacOSCleanInstallEvidence["expectedMajor"],
+  packageTarget: MacOSCleanInstallEvidence["packageTarget"],
 ) {
   return {
     acceptance: {
       acceptanceJourney: "macOS paket kabulü",
-      evidenceId: `client-shell.macos-clean-install-${expectedMajor}.v1`,
+      evidenceId: `client-shell.macos-clean-install-${expectedMajor}-${packageTarget}.v1`,
       fixture: "Sentetik fixture",
       seam: "Client Shell",
       testType: "exact-build platform matrix",
     },
     artifact: {
       kind: "dmg",
-      name: `cantiara_0.1.0_${macOSPackageTargets[0]}.dmg`,
-      sha256: digest,
+      name: `cantiara_0.1.0_${packageTarget}.dmg`,
+      sha256: packageDigests[packageTarget],
     },
     backend,
     checks: {
@@ -114,11 +127,12 @@ function createCleanInstallEvidence(
     },
     environment: {
       macOSVersion: `${expectedMajor}.7.8`,
-      runnerArchitecture: "arm64",
+      runnerArchitecture:
+        packageTarget === macOSPackageTargets[0] ? "arm64" : "x86_64",
     },
     evidenceType: "clean-install",
     expectedMajor,
-    packageTarget: macOSPackageTargets[0],
+    packageTarget,
     schemaVersion: "cantiara.macos-package-evidence/v1",
     sourceCommit,
     workflow,
@@ -126,6 +140,39 @@ function createCleanInstallEvidence(
 }
 
 function createCandidate() {
+  const cleanInstallEvidence = supportedMacOSMajors.flatMap((major) =>
+    macOSPackageTargets.map((target) =>
+      createCleanInstallEvidence(major, target),
+    ),
+  );
+  const cleanInstallArtifactReferences = supportedMacOSMajors.flatMap((major) =>
+    macOSPackageTargets.map((target) =>
+      createArtifactReference(`${major}:${target}`),
+    ),
+  );
+  const packageArtifactReferences = macOSPackageTargets.map(
+    createArtifactReference,
+  );
+  const packageEvidence = [
+    createPackageEvidence(macOSPackageTargets[0], "arm64"),
+    createPackageEvidence(macOSPackageTargets[1], "arm64"),
+  ].map((evidence) => ({
+    ...evidence,
+    artifactReference: packageArtifactReferences.find(
+      (reference) => reference.evidenceKey === evidence.target,
+    ),
+  }));
+  const referencedCleanInstallEvidence = cleanInstallEvidence.map(
+    (evidence) => ({
+      ...evidence,
+      artifactReference: cleanInstallArtifactReferences.find(
+        (reference) =>
+          reference.evidenceKey ===
+          `${evidence.expectedMajor}:${evidence.packageTarget}`,
+      ),
+    }),
+  );
+
   return {
     acceptanceCoverage: [
       {
@@ -134,8 +181,8 @@ function createCandidate() {
           ...macOSPackageTargets.map(
             (target) => `client-shell.macos-package-${target}.v1`,
           ),
-          ...supportedMacOSMajors.map(
-            (major) => `client-shell.macos-clean-install-${major}.v1`,
+          ...cleanInstallEvidence.map(
+            (evidence) => evidence.acceptance.evidenceId,
           ),
         ],
         fixture: "Sentetik fixture",
@@ -144,20 +191,20 @@ function createCandidate() {
         testType: "exact-build platform matrix",
       },
     ],
-    cleanInstallEvidence: supportedMacOSMajors.map(createCleanInstallEvidence),
-    cleanInstallArtifactReferences: supportedMacOSMajors.map((major) =>
-      createArtifactReference(String(major)),
-    ),
+    cleanInstallEvidence: referencedCleanInstallEvidence,
+    cleanInstallArtifactReferences,
     evidenceType: "acceptance-candidate",
-    packageEvidence: [
-      createPackageEvidence(macOSPackageTargets[0], "arm64"),
-      createPackageEvidence(macOSPackageTargets[1], "arm64"),
-    ],
-    packageArtifactReferences: macOSPackageTargets.map(createArtifactReference),
+    packageEvidence,
+    packageArtifactReferences,
     releaseTag: "cantiara-v0.1.0",
     releaseAsset: {
       name: "acceptance-candidate.json",
       url: "https://github.com/UnderprotectionDev/cantiara/releases/download/cantiara-v0.1.0/acceptance-candidate.json",
+    },
+    releaseEvidenceAsset: {
+      name: "macos-acceptance-evidence.tar.gz",
+      sha256: "f".repeat(64),
+      url: "https://github.com/UnderprotectionDev/cantiara/releases/download/cantiara-v0.1.0/macos-acceptance-evidence.tar.gz",
     },
     result: "passed",
     schemaVersion: "cantiara.macos-package-acceptance/v1",
@@ -209,7 +256,11 @@ describe("Client Shell macOS package contract", () => {
     const incompleteCandidate = {
       ...candidate,
       cleanInstallEvidence: candidate.cleanInstallEvidence.filter(
-        (evidence) => evidence.expectedMajor !== 14,
+        (evidence) =>
+          !(
+            evidence.expectedMajor === 14 &&
+            evidence.packageTarget === macOSPackageTargets[0]
+          ),
       ),
     };
 
@@ -222,7 +273,8 @@ describe("Client Shell macOS package contract", () => {
     const mismatchedCandidate = {
       ...candidate,
       cleanInstallEvidence: candidate.cleanInstallEvidence.map((evidence) =>
-        evidence.expectedMajor === 14
+        evidence.expectedMajor === 14 &&
+        evidence.packageTarget === macOSPackageTargets[0]
           ? {
               ...evidence,
               artifact: { ...evidence.artifact, sha256: "c".repeat(64) },
@@ -234,8 +286,65 @@ describe("Client Shell macOS package contract", () => {
     expect(isMacOSPackageAcceptanceCandidate(mismatchedCandidate)).toBe(false);
   });
 
+  test("rejects an artifact reference with a different artifact URL", () => {
+    const candidate = createCandidate();
+    const mismatchedReference = {
+      ...candidate,
+      packageArtifactReferences: candidate.packageArtifactReferences.map(
+        (reference, index) =>
+          index === 0
+            ? {
+                ...reference,
+                artifactUrl: `${reference.artifactUrl.slice(0, -1)}2`,
+              }
+            : reference,
+      ),
+    };
+
+    expect(isMacOSPackageAcceptanceCandidate(mismatchedReference)).toBe(false);
+  });
+
+  test("requires each evidence record to carry its matching artifact reference", () => {
+    const candidate = createCandidate();
+    const [firstReference, secondReference] =
+      candidate.packageArtifactReferences;
+    const [firstPackageEvidence] = candidate.packageEvidence;
+    const mismatchedReference = {
+      ...candidate,
+      packageArtifactReferences: candidate.packageArtifactReferences.map(
+        (reference, index) =>
+          index === 0
+            ? {
+                ...reference,
+                artifactDigest: secondReference.artifactDigest,
+                artifactId: secondReference.artifactId,
+                artifactUrl: secondReference.artifactUrl,
+                manifestSha256: secondReference.manifestSha256,
+              }
+            : reference,
+      ),
+    };
+
+    expect(firstReference.evidenceKey).toBe(
+      firstPackageEvidence.artifactReference?.evidenceKey,
+    );
+    expect(isMacOSPackageAcceptanceCandidate(mismatchedReference)).toBe(false);
+  });
+
+  test("requires durable release evidence", () => {
+    const candidate = createCandidate();
+    const missingReleaseEvidence = {
+      ...candidate,
+      releaseEvidenceAsset: undefined,
+    };
+
+    expect(isMacOSPackageAcceptanceCandidate(missingReleaseEvidence)).toBe(
+      false,
+    );
+  });
+
   test("requires the clean-install evidence to match its expected major", () => {
-    const evidence = createCleanInstallEvidence(15);
+    const evidence = createCleanInstallEvidence(15, macOSPackageTargets[0]);
     const wrongVersion = {
       ...evidence,
       environment: { ...evidence.environment, macOSVersion: "14.7.8" },
