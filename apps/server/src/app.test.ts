@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import type { AppDependencies } from "./app";
 import { createApp } from "./app";
+import { createGitHubAvailability } from "./features/account-access/server/github-availability";
 
 const staleSession = {
   session: { id: "stale-session" },
@@ -16,10 +17,12 @@ const availableGitHub = {
 function createTestApp({
   authorized = false,
   githubAvailability,
+  onGitHubLoginOAuthRevoked = () => undefined,
   onRevokeSession = () => undefined,
 }: {
   authorized?: boolean;
   githubAvailability?: AppDependencies["githubAvailability"];
+  onGitHubLoginOAuthRevoked?: () => void;
   onRevokeSession?: (sessionId: string) => void;
 } = {}) {
   let handlerCalls = 0;
@@ -29,7 +32,10 @@ function createTestApp({
     accountSessionAccess: {
       authorizeWrite: async () => authorized,
       listSessions: async () => [],
-      revokeGitHubLoginOAuth: async () => undefined,
+      revokeGitHubLoginOAuth: () => {
+        onGitHubLoginOAuthRevoked();
+        return Promise.resolve();
+      },
       replaySessionRevocations: () => {
         replayCalls += 1;
         return Promise.resolve();
@@ -67,6 +73,8 @@ function createTestApp({
     getHandlerCalls: () => handlerCalls,
     getHandlerBody: () => handlerBody,
     getReplayCalls: () => replayCalls,
+    notifyGitHubLoginOAuthRevoked: () =>
+      dependencies.accountSessionAccess.revokeGitHubLoginOAuth("account-1"),
   };
 }
 
@@ -124,6 +132,37 @@ describe("server app Account Access boundary", () => {
       },
     });
 
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/api/auth/sign-in/social", {
+        body: JSON.stringify({
+          callbackURL: "https://cantiara.example/dashboard",
+          provider: "github",
+        }),
+        headers: {
+          "content-type": "application/json",
+          origin: "https://cantiara.example",
+        },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(getHandlerBody()).toEqual({
+      additionalParams: { prompt: "consent" },
+      callbackURL: "https://cantiara.example/dashboard",
+      provider: "github",
+    });
+  });
+
+  test("carries the Account Access revocation signal into the next GitHub sign-in", async () => {
+    const githubAvailability = createGitHubAvailability();
+    const { app, getHandlerBody, notifyGitHubLoginOAuthRevoked } =
+      createTestApp({
+        githubAvailability,
+        onGitHubLoginOAuthRevoked: githubAvailability.requireFreshConsent,
+      });
+
+    await notifyGitHubLoginOAuthRevoked();
     const response = await app.fetch(
       new Request("https://api.cantiara.example/api/auth/sign-in/social", {
         body: JSON.stringify({

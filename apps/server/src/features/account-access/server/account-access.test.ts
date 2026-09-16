@@ -97,6 +97,49 @@ function installGitHubUnavailableDouble() {
   globalThis.fetch = githubFetch;
 }
 
+function installGitHubTokenEndpointUnavailableDouble() {
+  function githubFetch(input: string | URL | Request, _init?: RequestInit) {
+    const url = requestUrl(input);
+    if (url === "https://github.com/login/oauth/access_token") {
+      return Promise.resolve(
+        new Response(null, {
+          status: 503,
+          statusText: "Service Unavailable",
+        }),
+      );
+    }
+    return Promise.reject(new Error(`Unexpected GitHub request: ${url}`));
+  }
+  githubFetch.preconnect = originalFetch.preconnect;
+  globalThis.fetch = githubFetch;
+}
+
+function installGitHubUnauthorizedIdentityDouble() {
+  function githubFetch(input: string | URL | Request, _init?: RequestInit) {
+    const url = requestUrl(input);
+    if (url === "https://github.com/login/oauth/access_token") {
+      return Promise.resolve(
+        Response.json({
+          access_token: "github-test-token",
+          scope: "read:user,user:email",
+          token_type: "bearer",
+        }),
+      );
+    }
+    if (url === "https://api.github.com/user") {
+      return Promise.resolve(
+        Response.json(
+          { message: "Bad credentials" },
+          { status: 401, statusText: "Unauthorized" },
+        ),
+      );
+    }
+    return Promise.reject(new Error(`Unexpected GitHub request: ${url}`));
+  }
+  githubFetch.preconnect = originalFetch.preconnect;
+  globalThis.fetch = githubFetch;
+}
+
 function createGitHubCallbackTestDriver(
   accountAdmission: AccountAdmission,
   githubAvailability?: GitHubAvailabilityObserver,
@@ -227,6 +270,40 @@ describe("Account Access", () => {
     );
     expect(markUnavailable).toHaveBeenCalledOnce();
     expect(markAvailable).not.toHaveBeenCalled();
+  });
+
+  test("marks GitHub as waiting when the OAuth token exchange is unavailable", async () => {
+    const markUnavailable = vi.fn();
+    const markAvailable = vi.fn();
+    const driver = createGitHubCallbackTestDriver(acceptingAccountAdmission(), {
+      markAvailable,
+      markUnavailable,
+    });
+    installGitHubTokenEndpointUnavailableDouble();
+
+    const response = await driver.completeSignIn();
+
+    expect(response.headers.get("location")).toBe(
+      "https://cantiara.example/login?error=sign_in_failed",
+    );
+    expect(markUnavailable).toHaveBeenCalledOnce();
+    expect(markAvailable).not.toHaveBeenCalled();
+  });
+
+  test("does not mark GitHub as waiting for an unauthorized identity token", async () => {
+    const markUnavailable = vi.fn();
+    const driver = createGitHubCallbackTestDriver(acceptingAccountAdmission(), {
+      markAvailable: vi.fn(),
+      markUnavailable,
+    });
+    installGitHubUnauthorizedIdentityDouble();
+
+    const response = await driver.completeSignIn();
+
+    expect(response.headers.get("location")).toBe(
+      "https://cantiara.example/login?error=sign_in_failed",
+    );
+    expect(markUnavailable).not.toHaveBeenCalled();
   });
 
   test("marks login OAuth consent satisfied after an admitted callback", async () => {
