@@ -10,6 +10,7 @@ export const SUPPORT_FAILURE_REASON_CODES = [
   "offline",
   "restart-api",
   "schema-drift",
+  "update-required",
   "unexpected",
 ] as const;
 
@@ -42,6 +43,7 @@ export const SUPPORT_FAILURE_MESSAGES: Record<
   offline: "You’re offline",
   "restart-api": "Please restart the API and try again.",
   "schema-drift": "Please restart after applying the latest migration.",
+  "update-required": "Update required",
   unexpected: "This action could not be completed.",
 };
 

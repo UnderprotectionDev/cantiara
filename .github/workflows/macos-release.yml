@@ -123,6 +123,9 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY }}
         run: |
           set -euo pipefail
           case "$CANTIARA_API_URL" in
@@ -135,6 +138,26 @@ jobs:
           test -n "$APPLE_API_ISSUER"
           test -n "$APPLE_API_PRIVATE_KEY"
           test -n "$APPLE_SIGNING_IDENTITY"
+          test -n "$TAURI_SIGNING_PRIVATE_KEY"
+          test -n "$TAURI_UPDATER_PUBLIC_KEY"
+
+      - name: Prepare Tauri release metadata
+        shell: bash
+        env:
+          TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          release_version="${RELEASE_TAG#cantiara-v}"
+          if [[ ! "$release_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "RELEASE_TAG must contain a SemVer version after cantiara-v" >&2
+            exit 1
+          fi
+          jq \
+            --arg version "$release_version" \
+            --arg pubkey "$TAURI_UPDATER_PUBLIC_KEY" \
+            '.version = $version | .plugins.updater.pubkey = $pubkey' \
+            apps/web/src-tauri/tauri.conf.json > "$RUNNER_TEMP/tauri.conf.json"
+          mv "$RUNNER_TEMP/tauri.conf.json" apps/web/src-tauri/tauri.conf.json
 
       - name: Import Developer ID certificate
         uses: apple-actions/import-codesign-certs@v7
@@ -174,6 +197,9 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY }}
         with:
           projectPath: apps/web
           tauriScript: bun run tauri
@@ -182,9 +208,9 @@ jobs:
           releaseName: Cantiara ${{ env.RELEASE_TAG }}
           releaseBody: Signed and notarized macOS packages for the Cantiara Client Shell.
           releaseDraft: true
-          prerelease: true
-          uploadUpdaterJson: false
-          uploadUpdaterSignatures: false
+          prerelease: false
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
 
       - name: Verify signed and notarized app
         shell: bash
@@ -195,8 +221,12 @@ jobs:
           bundle_root="apps/web/src-tauri/target/$TARGET/release/bundle"
           app_path="$(find "$bundle_root/macos" -maxdepth 1 -type d -name '*.app' -print -quit)"
           dmg_path="$(find "$bundle_root/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          updater_path="$(find "$bundle_root/macos" -maxdepth 1 -type f -name '*.tar.gz' -print -quit)"
+          updater_signature_path="$(find "$bundle_root/macos" -maxdepth 1 -type f -name '*.tar.gz.sig' -print -quit)"
           test -n "$app_path"
           test -n "$dmg_path"
+          test -n "$updater_path"
+          test -n "$updater_signature_path"
 
           evidence_directory="$RUNNER_TEMP/macos-package-evidence"
           mkdir -p "$evidence_directory"
@@ -206,6 +236,11 @@ jobs:
           workflow_sha="${GITHUB_WORKFLOW_SHA:-$source_commit}"
           dmg_name="$(basename "$dmg_path")"
           dmg_sha256="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
+          updater_sha256="$(shasum -a 256 "$updater_path" | awk '{print $1}')"
+          updater_signature="$(tr -d '\n' < "$updater_signature_path")"
+          test -n "$updater_signature"
+          # Native Tauri verifies this signature during download and install;
+          # the manifest records the generated signed artifact and signature.
           migration_directory_hash="$(
             git ls-files packages/db/src/migrations |
               sort |
@@ -257,6 +292,9 @@ jobs:
             --arg runnerArchitecture "$runner_architecture" \
             --arg dmgName "$dmg_name" \
             --arg dmgSha256 "$dmg_sha256" \
+            --arg updaterName "$(basename "$updater_path")" \
+            --arg updaterSha256 "$updater_sha256" \
+            --arg updaterSignature "$updater_signature" \
             --arg schemaVersion "$schema_version" \
             '{
               manifestFormatVersion: "cantiara.macos-package-evidence/v1",
@@ -290,6 +328,11 @@ jobs:
                 name: $dmgName,
                 sha256: $dmgSha256
               },
+              updater: {
+                artifactName: $updaterName,
+                artifactSha256: $updaterSha256,
+                signature: $updaterSignature
+              },
               result: "passed",
               schemaVersion: $schemaVersion,
               checks: {
@@ -315,6 +358,8 @@ jobs:
           name: macos-package-${{ matrix.target }}
           path: |
             apps/web/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            apps/web/src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.tar.gz
+            apps/web/src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.tar.gz.sig
             ${{ runner.temp }}/macos-package-evidence
           if-no-files-found: error
           retention-days: 90
@@ -560,12 +605,122 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  manual-recovery:
+    name: Manual recovery from previous signed installer
+    needs: build
+    permissions:
+      contents: read
+    runs-on: macos-14
+    steps:
+      - name: Locate the previous published release
+        id: previous_release
+        shell: bash
+        env:
+          CURRENT_RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          evidence_directory="$RUNNER_TEMP/cantiara-manual-recovery"
+          mkdir -p "$evidence_directory"
+          releases_json="$(gh release list \
+            --repo "$GITHUB_REPOSITORY" \
+            --exclude-drafts \
+            --exclude-pre-releases \
+            --limit 20 \
+            --json tagName,publishedAt)"
+          previous_release_tag="$(jq -r \
+            --arg current "$CURRENT_RELEASE_TAG" \
+            '[.[] | select(.tagName != $current)] | sort_by(.publishedAt) | reverse | .[0].tagName // empty' \
+            <<< "$releases_json")"
+          if [ -z "$previous_release_tag" ]; then
+            jq -n \
+              --arg currentReleaseTag "$CURRENT_RELEASE_TAG" \
+              '{result: "failed-no-previous-release", currentReleaseTag: $currentReleaseTag}' \
+              > "$evidence_directory/manual-recovery-manifest.json"
+            echo "No previous published signed release is available for manual recovery" >&2
+            exit 1
+          fi
+          echo "tag=$previous_release_tag" >> "$GITHUB_OUTPUT"
+          echo "$previous_release_tag" > "$evidence_directory/previous-release-tag.txt"
+
+      - name: Download the previous signed installer
+        if: steps.previous_release.outputs.tag != ''
+        shell: bash
+        env:
+          PREVIOUS_RELEASE_TAG: ${{ steps.previous_release.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          download_directory="$RUNNER_TEMP/cantiara-previous-release"
+          mkdir -p "$download_directory"
+          gh release download "$PREVIOUS_RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.dmg' \
+            --dir "$download_directory"
+
+      - name: Smoke test manual recovery installer
+        if: steps.previous_release.outputs.tag != ''
+        shell: bash
+        env:
+          PREVIOUS_RELEASE_TAG: ${{ steps.previous_release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          evidence_directory="$RUNNER_TEMP/cantiara-manual-recovery"
+          dmg_path="$(find "$RUNNER_TEMP/cantiara-previous-release" -type f -name '*.dmg' -print -quit)"
+          test -n "$dmg_path"
+          mount_point="$RUNNER_TEMP/cantiara-manual-recovery-mount"
+          install_directory="$RUNNER_TEMP/cantiara-manual-recovery-install"
+          mkdir -p "$mount_point" "$install_directory"
+          hdiutil attach "$dmg_path" -nobrowse -readonly -mountpoint "$mount_point"
+          trap 'hdiutil detach "$mount_point" -force || true' EXIT
+          app_path="$(find "$mount_point" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app_path"
+          installed_app="$install_directory/$(basename "$app_path")"
+          ditto "$app_path" "$installed_app"
+          test -d "$installed_app"
+          codesign --verify --deep --strict --verbose=2 "$installed_app"
+          spctl --assess --type execute --verbose=4 "$installed_app"
+          xcrun stapler validate "$installed_app"
+          dmg_sha256="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
+          jq -n \
+            --arg previousReleaseTag "$PREVIOUS_RELEASE_TAG" \
+            --arg artifactName "$(basename "$dmg_path")" \
+            --arg artifactSha256 "$dmg_sha256" \
+            --arg macOSVersion "$(sw_vers -productVersion)" \
+            --arg runnerArchitecture "$(uname -m)" \
+            '{
+              result: "passed",
+              previousReleaseTag: $previousReleaseTag,
+              artifactName: $artifactName,
+              artifactSha256: $artifactSha256,
+              environment: {
+                macOSVersion: $macOSVersion,
+                runnerArchitecture: $runnerArchitecture
+              },
+              checks: {
+                install: "passed",
+                codesign: "passed",
+                gatekeeper: "passed",
+                notarization: "passed"
+              }
+            }' > "$evidence_directory/manual-recovery-manifest.json"
+
+      - name: Upload manual recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-manual-recovery
+          path: ${{ runner.temp }}/cantiara-manual-recovery
+          if-no-files-found: error
+          retention-days: 90
+
   acceptance-evidence:
     name: Publish macOS acceptance evidence
-    if: ${{ needs.build.result == 'success' && needs.clean-install.result == 'success' }}
+    if: ${{ needs.build.result == 'success' && needs.clean-install.result == 'success' && needs.manual-recovery.result == 'success' }}
     needs:
       - build
       - clean-install
+      - manual-recovery
     permissions:
       actions: read
       contents: write
@@ -605,6 +760,12 @@ jobs:
         with:
           pattern: macos-clean-install-reference-*
           path: ${{ runner.temp }}/cantiara-clean-install-references
+
+      - name: Download manual recovery evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-manual-recovery
+          path: ${{ runner.temp }}/cantiara-manual-recovery
 
       - name: Build and validate acceptance manifest
         shell: bash
@@ -659,6 +820,8 @@ jobs:
           cp -R "$RUNNER_TEMP/cantiara-clean-install-evidence/." "$archive_root/clean-install-evidence/"
           mkdir -p "$archive_root/clean-install-references"
           cp -R "$RUNNER_TEMP/cantiara-clean-install-references/." "$archive_root/clean-install-references/"
+          mkdir -p "$archive_root/manual-recovery"
+          cp -R "$RUNNER_TEMP/cantiara-manual-recovery/." "$archive_root/manual-recovery/"
           raw_evidence_size_bytes="$(du -sk "$archive_root" | awk '{print $1 * 1024}')"
           test "$raw_evidence_size_bytes" -le 262144000
           tar -czf "$ACCEPTANCE_DIRECTORY/macos-acceptance-evidence.tar.gz" \

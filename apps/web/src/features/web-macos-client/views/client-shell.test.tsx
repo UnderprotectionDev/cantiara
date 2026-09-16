@@ -1,6 +1,10 @@
+import {
+  DESKTOP_API_CONTRACT_HEADER,
+  DESKTOP_API_CURRENT_CONTRACT,
+  DESKTOP_API_UPDATE_REQUIRED_HEADER,
+} from "@cantiara/api/desktop-api-window";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
-
 import {
   ClientShellContent,
   ClientShellProvider,
@@ -172,6 +176,30 @@ describe("Client Shell", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  test("adds the signed desktop API contract to a Tauri request", async () => {
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+
+    try {
+      const shell = createClientShell({ initialConnection: "online" });
+      const fetcher = vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(new Response(null, { status: 204 }));
+
+      await shell.request(
+        "https://api.cantiara.example/rpc/records",
+        undefined,
+        fetcher,
+      );
+
+      const requestInit = fetcher.mock.calls[0]?.[1];
+      expect(
+        new Headers(requestInit?.headers).get(DESKTOP_API_CONTRACT_HEADER),
+      ).toBe(DESKTOP_API_CURRENT_CONTRACT);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   test("marks the connection offline after a failure while the browser is offline", async () => {
     vi.stubGlobal("navigator", { onLine: false });
 
@@ -225,5 +253,108 @@ describe("Client Shell", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  test("stops a write after the server marks the desktop API as expired", async () => {
+    const shell = createClientShell({ initialConnection: "online" });
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        {
+          code: "UPDATE_REQUIRED",
+          data: { reasonCode: "update-required", writeOutcome: "not-written" },
+          message: "Update required",
+        },
+        {
+          headers: { [DESKTOP_API_UPDATE_REQUIRED_HEADER]: "true" },
+          status: 426,
+        },
+      ),
+    );
+    const write = vi.fn().mockResolvedValue("saved");
+
+    await expect(
+      shell.request(
+        "https://api.cantiara.example/rpc/save",
+        undefined,
+        fetcher,
+      ),
+    ).resolves.toMatchObject({ status: 426 });
+    expect(shell.getState().updateRequired).toBe(true);
+
+    await expect(shell.runWrite(write)).rejects.toMatchObject({
+      name: "ClientShellUpdateRequiredError",
+    });
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  test("does not record a successful save when a write response requires an update", async () => {
+    const lastSavedAt = new Date("2026-09-16T09:00:00.000Z");
+    const shell = createClientShell({
+      initialConnection: "online",
+      initialLastSavedAt: lastSavedAt,
+      initialUnsavedChanges: true,
+    });
+    const response = Response.json(
+      { code: "UPDATE_REQUIRED" },
+      {
+        headers: { [DESKTOP_API_UPDATE_REQUIRED_HEADER]: "true" },
+        status: 426,
+      },
+    );
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response);
+    const write = vi.fn(() =>
+      shell.request(
+        "https://api.cantiara.example/rpc/save",
+        undefined,
+        fetcher,
+      ),
+    );
+
+    await expect(shell.runWrite(write)).rejects.toMatchObject({
+      name: "ClientShellUpdateRequiredError",
+    });
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(shell.getState().hasUnsavedChanges).toBe(true);
+    expect(shell.getState().lastSavedAt?.toISOString()).toBe(
+      lastSavedAt.toISOString(),
+    );
+  });
+
+  test("stops an online-only operation without marking a content save", async () => {
+    const lastSavedAt = new Date("2026-09-16T09:00:00.000Z");
+    const shell = createClientShell({
+      initialLastSavedAt: lastSavedAt,
+      initialUnsavedChanges: true,
+      initialUpdateRequired: true,
+    });
+    const operation = vi.fn().mockResolvedValue("revoked");
+
+    await expect(shell.runOnlineOnly(operation)).rejects.toMatchObject({
+      name: "ClientShellUpdateRequiredError",
+    });
+    expect(operation).not.toHaveBeenCalled();
+    expect(shell.getState().hasUnsavedChanges).toBe(true);
+    expect(shell.getState().lastSavedAt?.toISOString()).toBe(
+      lastSavedAt.toISOString(),
+    );
+  });
+
+  test("keeps authenticated content out of the expired desktop API shell", () => {
+    const shell = createClientShell({
+      initialConnection: "online",
+      initialUpdateRequired: true,
+    });
+
+    const html = renderToStaticMarkup(
+      <ClientShellProvider shell={shell}>
+        <ClientShellContent>
+          <h1>Dashboard</h1>
+        </ClientShellContent>
+      </ClientShellProvider>,
+    );
+
+    expect(html).toContain("Update required");
+    expect(html).not.toContain("Dashboard");
   });
 });

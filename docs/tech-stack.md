@@ -111,6 +111,7 @@ Bir sorumluluğun sahibi bu belgede yoksa, birden fazla yoruma açıksa veya se�
 | Tauri Deep Link eklentisi | Masaüstü callback bağlantıları |
 | Tauri Single Instance eklentisi | Tek uygulama örneği |
 | Tauri Stronghold eklentisi | Masaüstü secret saklama |
+| Tauri Process eklentisi | İmzalı updater kurulumu sonrası uygulamayı yeniden başlatma |
 | Tauri Updater eklentisi | Masaüstü güncellemeleri |
 | WXT | React tarayıcı uzantısı |
 | Next.js | Yalnız Fumadocs dokümantasyon uygulamasının server/RSC framework'ü; ana ürün web uygulamasını veya API backend'ini taşımaz |

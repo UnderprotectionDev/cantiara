@@ -83,6 +83,11 @@ function createPackageEvidence(
       name: `cantiara_0.1.0_${target}.dmg`,
       sha256: packageDigests[target],
     },
+    updater: {
+      artifactName: `cantiara_0.1.0_${target}.app.tar.gz`,
+      artifactSha256: "f".repeat(64),
+      signature: "verified-signature-fixture",
+    },
     backend,
     checks: {
       codesign: "passed",
@@ -255,6 +260,21 @@ describe("Client Shell macOS package contract", () => {
     expect(isMacOSPackageEvidence(missingNotarization)).toBe(false);
     expect(isMacOSPackageEvidence(localDataSource)).toBe(false);
     expect(isMacOSPackageEvidence(anotherPlatform)).toBe(false);
+  });
+
+  test("rejects updater evidence without a signature", () => {
+    const packageEvidence = createPackageEvidence(
+      macOSPackageTargets[0],
+      "arm64",
+    );
+    const missingSignature = {
+      ...packageEvidence,
+      updater: { ...packageEvidence.updater, signature: "" },
+    };
+    const missingUpdater = { ...packageEvidence, updater: undefined };
+
+    expect(isMacOSPackageEvidence(missingSignature)).toBe(false);
+    expect(isMacOSPackageEvidence(missingUpdater)).toBe(false);
   });
 
   test("accepts the frozen macOS support matrix and rejects incomplete evidence", () => {

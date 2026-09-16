@@ -21,6 +21,11 @@ await replaySessionRevocations();
 export default createApp({
   accountSessionAccess,
   auth,
+  desktopApiWindow: {
+    currentContract: env.CANTIARA_DESKTOP_API_CURRENT_CONTRACT,
+    previousContract: env.CANTIARA_DESKTOP_API_PREVIOUS_CONTRACT,
+    publishedAt: env.CANTIARA_DESKTOP_API_PUBLISHED_AT,
+  },
   corsOrigin: env.CORS_ORIGIN,
   database: getDb(),
   desktopOrigins,

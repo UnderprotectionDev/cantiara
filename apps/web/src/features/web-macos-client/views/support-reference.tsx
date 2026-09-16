@@ -15,6 +15,8 @@ const OFFLINE_ERROR_PATTERN =
 const SCHEMA_DRIFT_ERROR_PATTERN =
   /\b(?:42p01|42703)\b|(?:relation|column)\b[\s\S]{0,160}\bdoes not exist\b|\bcurrent[_ ]schema\b/i;
 const UNMATCHED_RPC_ERROR_PATTERN = /\b(?:404\s+not\s+found|not found)\b/i;
+const UPDATE_REQUIRED_ERROR_PATTERN =
+  /\b(?:update_required|update required)\b/i;
 
 export type SupportReferenceFailureKind = "mutation" | "query";
 
@@ -91,6 +93,13 @@ function readReasonCode(
   ) {
     return "restart-api";
   }
+  if (
+    (isRecord(error) &&
+      (error.code === "UPDATE_REQUIRED" || error.status === 426)) ||
+    UPDATE_REQUIRED_ERROR_PATTERN.test(signals)
+  ) {
+    return "update-required";
+  }
   return "unexpected";
 }
 
@@ -141,7 +150,10 @@ export function buildSupportReferenceFailure(
     ? data.retryPolicy
     : undefined;
   const retryPolicy =
-    dataRetryPolicy ?? (writeOutcome === "not-written" ? "once" : "never");
+    reasonCode === "update-required"
+      ? "never"
+      : (dataRetryPolicy ??
+        (writeOutcome === "not-written" ? "once" : "never"));
   const canRetry =
     kind === "mutation" &&
     retryCount === 0 &&

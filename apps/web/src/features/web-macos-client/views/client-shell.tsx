@@ -1,8 +1,15 @@
+import {
+  DESKTOP_API_CONTRACT_HEADER,
+  DESKTOP_API_CURRENT_CONTRACT,
+  isDesktopApiUpdateRequiredResponse,
+} from "@cantiara/api/desktop-api-window";
 import { Button } from "@cantiara/ui/components/button";
 import { createStore, useSelector } from "@tanstack/react-store";
 import { WifiOff } from "lucide-react";
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect } from "react";
+import { isTauriRuntime } from "../../account-access/tauri-session";
+import { applyTauriUpdate } from "../updater";
 
 export type ClientConnectionState = "online" | "offline";
 
@@ -20,6 +27,7 @@ export interface ClientShellState {
   connection: ClientConnectionState;
   hasUnsavedChanges: boolean;
   lastSavedAt: Date | null;
+  updateRequired: boolean;
 }
 
 export interface ClientShell {
@@ -37,6 +45,7 @@ export interface ClientShell {
   runOnlineOnly: <T>(operation: () => Promise<T>) => Promise<T>;
   runWrite: <T>(write: () => Promise<T>) => Promise<T>;
   setConnectionState: (connection: ClientConnectionState) => void;
+  setUpdateRequired: (updateRequired: boolean) => void;
   subscribe: (listener: (state: ClientShellState) => void) => {
     unsubscribe: () => void;
   };
@@ -49,10 +58,18 @@ export class ClientShellOfflineError extends Error {
   }
 }
 
+export class ClientShellUpdateRequiredError extends Error {
+  constructor() {
+    super("Update required");
+    this.name = "ClientShellUpdateRequiredError";
+  }
+}
+
 interface CreateClientShellOptions {
   initialConnection?: ClientConnectionState;
   initialLastSavedAt?: Date | null;
   initialUnsavedChanges?: boolean;
+  initialUpdateRequired?: boolean;
   now?: () => Date;
 }
 
@@ -82,6 +99,7 @@ export function createClientShell(
     connection: options.initialConnection ?? browserConnectionState(),
     hasUnsavedChanges: options.initialUnsavedChanges ?? false,
     lastSavedAt: copyDate(options.initialLastSavedAt ?? null),
+    updateRequired: options.initialUpdateRequired ?? false,
   });
   const now = options.now ?? (() => new Date());
 
@@ -91,7 +109,8 @@ export function createClientShell(
       if (
         updatedState.connection === state.connection &&
         updatedState.hasUnsavedChanges === state.hasUnsavedChanges &&
-        updatedState.lastSavedAt?.getTime() === state.lastSavedAt?.getTime()
+        updatedState.lastSavedAt?.getTime() === state.lastSavedAt?.getTime() &&
+        updatedState.updateRequired === state.updateRequired
       ) {
         return state;
       }
@@ -106,8 +125,18 @@ export function createClientShell(
     }
   }
 
+  function assertUpdateAllowed() {
+    if (store.state.updateRequired) {
+      throw new ClientShellUpdateRequiredError();
+    }
+  }
+
   function setConnectionState(connection: ClientConnectionState) {
     update({ connection });
+  }
+
+  function setUpdateRequired(updateRequired: boolean) {
+    update({ updateRequired });
   }
 
   function retryConnection() {
@@ -143,8 +172,19 @@ export function createClientShell(
     fetcher: typeof globalThis.fetch = globalThis.fetch,
   ) {
     assertOnline();
+    const requestInit = { ...init };
+    if (isTauriRuntime()) {
+      const headers = new Headers(init?.headers);
+      if (!headers.has(DESKTOP_API_CONTRACT_HEADER)) {
+        headers.set(DESKTOP_API_CONTRACT_HEADER, DESKTOP_API_CURRENT_CONTRACT);
+      }
+      requestInit.headers = headers;
+    }
     try {
-      const response = await fetcher(input, init);
+      const response = await fetcher(input, requestInit);
+      if (isDesktopApiUpdateRequiredResponse(response)) {
+        setUpdateRequired(true);
+      }
       setConnectionState("online");
       return response;
     } catch (error) {
@@ -155,6 +195,7 @@ export function createClientShell(
 
   async function runOnlineOnly<T>(operation: () => Promise<T>) {
     assertOnline();
+    assertUpdateAllowed();
     try {
       return await operation();
     } catch (error) {
@@ -165,6 +206,13 @@ export function createClientShell(
 
   async function runWrite<T>(write: () => Promise<T>) {
     const result = await runOnlineOnly(write);
+    if (
+      typeof Response !== "undefined" &&
+      result instanceof Response &&
+      isDesktopApiUpdateRequiredResponse(result)
+    ) {
+      throw new ClientShellUpdateRequiredError();
+    }
     recordSuccessfulSave();
     return result;
   }
@@ -179,6 +227,7 @@ export function createClientShell(
     retryConnection,
     runOnlineOnly,
     runWrite,
+    setUpdateRequired,
     setConnectionState,
     subscribe: (listener) => store.subscribe(listener),
   };
@@ -227,6 +276,10 @@ export function ClientShellProvider({
   children: ReactNode;
   shell?: ClientShell;
 }) {
+  useEffect(() => {
+    applyTauriUpdate().catch(() => undefined);
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -357,6 +410,41 @@ function ClientShellOfflineState({
   );
 }
 
+function ClientShellUpdateRequiredState({
+  layout = "empty",
+}: {
+  layout?: "empty" | "status";
+}) {
+  const status = (
+    <section
+      aria-labelledby="client-shell-update-required-title"
+      aria-live="assertive"
+      className="w-full max-w-2xl border-destructive border-l-2 py-2 pl-6 sm:pl-8"
+      role="status"
+    >
+      <h1
+        className="font-semibold text-3xl text-foreground tracking-tight"
+        id="client-shell-update-required-title"
+      >
+        Update required
+      </h1>
+      <p className="mt-3 max-w-prose text-base/7 text-foreground/75">
+        This desktop version must be updated before you can save changes.
+      </p>
+    </section>
+  );
+
+  if (layout === "status") {
+    return status;
+  }
+
+  return (
+    <main className="flex h-full min-h-0 flex-1 items-center justify-center overflow-auto bg-background px-5 py-10 sm:px-8">
+      {status}
+    </main>
+  );
+}
+
 export function ClientShellStatus({
   accountFormattingPreferences,
   onRetry,
@@ -367,6 +455,10 @@ export function ClientShellStatus({
   const state = useClientShellState();
   const contextPreferences = useContext(AccountFormattingPreferencesContext);
   const preferences = accountFormattingPreferences ?? contextPreferences;
+
+  if (state.updateRequired) {
+    return <ClientShellUpdateRequiredState layout="status" />;
+  }
 
   if (state.connection === "online") {
     return null;
@@ -391,6 +483,10 @@ export function ClientShellContent({
 }) {
   const state = useClientShellState();
   const preferences = useContext(AccountFormattingPreferencesContext);
+
+  if (state.updateRequired) {
+    return <ClientShellUpdateRequiredState />;
+  }
 
   if (state.connection === "offline") {
     return (

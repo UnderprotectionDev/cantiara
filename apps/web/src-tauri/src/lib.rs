@@ -56,10 +56,28 @@ pub fn run() {
     |_app, _argv, _cwd| {},
   ));
 
+  #[cfg(desktop)]
+  let builder = builder.plugin(tauri_plugin_process::init());
+
   builder
     .plugin(tauri_plugin_deep_link::init())
     .plugin(tauri_plugin_opener::init())
     .setup(|app| {
+      #[cfg(desktop)]
+      {
+        if let Some(updater_public_key) =
+          option_env!("TAURI_UPDATER_PUBLIC_KEY").filter(|value| !value.is_empty())
+        {
+          app.handle().plugin(
+            tauri_plugin_updater::Builder::new()
+              .pubkey(updater_public_key)
+              .build(),
+          )?;
+        } else if !cfg!(debug_assertions) {
+          return Err("TAURI_UPDATER_PUBLIC_KEY is required for release builds".into());
+        }
+      }
+
       let salt_path = app
         .path()
         .app_local_data_dir()
