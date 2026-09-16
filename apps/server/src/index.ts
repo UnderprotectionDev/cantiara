@@ -3,6 +3,7 @@ import { initLogger } from "evlog";
 import { createApp } from "./app";
 import { desktopOrigins, env, redactSecrets } from "./env";
 import {
+  accountPreferences,
   accountSessionAccess,
   auth,
   getDb,
@@ -20,6 +21,7 @@ await replaySessionRevocations();
 
 export default createApp({
   accountSessionAccess,
+  accountPreferences,
   auth,
   desktopApiWindow: {
     currentContract: env.CANTIARA_DESKTOP_API_CURRENT_CONTRACT,

@@ -5,7 +5,9 @@ test("revokes a session through the keyboard-accessible Account journey", async 
   page,
   request,
 }) => {
-  const setupResponse = await request.get("http://127.0.0.1:3100/__e2e/setup");
+  const setupResponse = await request.get(
+    "http://127.0.0.1:3100/__e2e/setup?fixture=account-sessions",
+  );
   const setup = (await setupResponse.json()) as {
     cookie: {
       domain: string;

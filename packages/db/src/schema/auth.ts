@@ -1,7 +1,8 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  check,
   index,
   integer,
   pgTable,
@@ -101,6 +102,31 @@ export const workspace = pgTable("workspace", {
     .notNull(),
 });
 
+export const accountPreferences = pgTable(
+  "account_preferences",
+  {
+    accountId: text("account_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    locale: text("locale").default("en-GB").notNull(),
+    timeZone: text("time_zone").default("Europe/Istanbul").notNull(),
+    dateFormat: text("date_format").default("locale").notNull(),
+    firstDayOfWeek: text("first_day_of_week").default("Monday").notNull(),
+    appearance: text("appearance").default("Dark").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "account_preferences_appearance_check",
+      sql`${table.appearance} in ('Light', 'Dark')`,
+    ),
+  ],
+);
+
 export const rateLimit = pgTable("rate_limit", {
   id: text("id").primaryKey(),
   key: text("key").notNull().unique(),
@@ -120,10 +146,21 @@ export const auditRecord = pgTable(
   (table) => [index("audit_record_occurredAt_idx").on(table.occurredAt)],
 );
 
-export const userRelations = relations(user, ({ many }) => ({
+export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
   accounts: many(account),
+  accountPreferences: one(accountPreferences),
 }));
+
+export const accountPreferencesRelations = relations(
+  accountPreferences,
+  ({ one }) => ({
+    account: one(user, {
+      fields: [accountPreferences.accountId],
+      references: [user.id],
+    }),
+  }),
+);
 
 export const workspaceRelations = relations(workspace, ({ one }) => ({
   ownerAccount: one(user, {

@@ -1,3 +1,7 @@
+import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
 import type { Context } from "@cantiara/api/context";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
@@ -25,6 +29,27 @@ describe("Account Access RPC", () => {
           revoked.push(sessionId);
           return Promise.resolve();
         },
+      },
+      accountPreferences: {
+        get: async () => ({
+          ...DEFAULT_ACCOUNT_PREFERENCES,
+          isSaved: false,
+          savedAt: null,
+        }),
+        save: async (_accountId: string, preferences: AccountPreferences) => ({
+          ...preferences,
+          isSaved: true,
+          savedAt: "2026-09-16T09:00:00.000Z",
+        }),
+        saveAppearance: async (
+          _accountId: string,
+          appearance: AccountPreferences["appearance"],
+        ) => ({
+          ...DEFAULT_ACCOUNT_PREFERENCES,
+          appearance,
+          isSaved: true,
+          savedAt: "2026-09-16T09:00:00.000Z",
+        }),
       },
       auth: null,
       db: {} as Context["db"],
@@ -58,6 +83,27 @@ describe("Account Access RPC", () => {
         listSessions: async () => [],
         revokeOtherSessions: async () => undefined,
         revokeSession: async () => undefined,
+      },
+      accountPreferences: {
+        get: async () => ({
+          ...DEFAULT_ACCOUNT_PREFERENCES,
+          isSaved: false,
+          savedAt: null,
+        }),
+        save: async (_accountId: string, preferences: AccountPreferences) => ({
+          ...preferences,
+          isSaved: true,
+          savedAt: "2026-09-16T09:00:00.000Z",
+        }),
+        saveAppearance: async (
+          _accountId: string,
+          appearance: AccountPreferences["appearance"],
+        ) => ({
+          ...DEFAULT_ACCOUNT_PREFERENCES,
+          appearance,
+          isSaved: true,
+          savedAt: "2026-09-16T09:00:00.000Z",
+        }),
       },
       auth: null,
       clientKey: "198.51.100.10",

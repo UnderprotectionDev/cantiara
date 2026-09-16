@@ -1,4 +1,8 @@
 import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
+import {
   DESKTOP_API_UPDATE_REQUIRED_HEADER,
   type DesktopApiCompatibilityWindow,
 } from "@cantiara/api/desktop-api-window";
@@ -72,6 +76,27 @@ function createTestApp(
           return Promise.resolve();
         },
       } satisfies AppDependencies["accountSessionAccess"]),
+    accountPreferences: {
+      get: async () => ({
+        ...DEFAULT_ACCOUNT_PREFERENCES,
+        isSaved: false,
+        savedAt: null,
+      }),
+      save: async (_accountId: string, preferences: AccountPreferences) => ({
+        ...preferences,
+        isSaved: true,
+        savedAt: "2026-09-16T09:00:00.000Z",
+      }),
+      saveAppearance: async (
+        _accountId: string,
+        appearance: AccountPreferences["appearance"],
+      ) => ({
+        ...DEFAULT_ACCOUNT_PREFERENCES,
+        appearance,
+        isSaved: true,
+        savedAt: "2026-09-16T09:00:00.000Z",
+      }),
+    },
     auth:
       options.auth ??
       ({

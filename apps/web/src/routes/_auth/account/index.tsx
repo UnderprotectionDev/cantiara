@@ -7,9 +7,11 @@ export const Route = createFileRoute("/_auth/account/")({
 });
 
 function AccountRouteComponent() {
+  const { session } = Route.useRouteContext();
+
   return (
     <ClientShellContent>
-      <SessionsView />
+      <SessionsView accountId={session.data?.user.id ?? ""} />
     </ClientShellContent>
   );
 }

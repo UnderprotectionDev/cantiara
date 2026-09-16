@@ -5,7 +5,9 @@ test("shows the online-only empty state after the connection is lost", async ({
   page,
   request,
 }) => {
-  const setupResponse = await request.get("http://127.0.0.1:3100/__e2e/setup");
+  const setupResponse = await request.get(
+    "http://127.0.0.1:3100/__e2e/setup?fixture=client-shell",
+  );
   const setup = (await setupResponse.json()) as {
     cookie: {
       domain: string;
