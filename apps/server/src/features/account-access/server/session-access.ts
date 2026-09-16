@@ -161,6 +161,38 @@ export function createAccountSessionAccess({
 }): AccountSessionAccessRuntime {
   const currentTime = now ?? (() => new Date());
 
+  async function revokeSessions(
+    accountId: string,
+    actorAlias: string,
+    targetSessions: readonly ProductSession[],
+  ) {
+    if (targetSessions.length === 0) {
+      return;
+    }
+
+    const occurredAt = currentTime().toISOString();
+    const events = targetSessions.map((targetSession) =>
+      createRevocationEvent(actorAlias, targetSession.id, occurredAt),
+    );
+    await securityEvents.appendMany(events);
+    await Promise.all(
+      events.map((event) =>
+        auditRecords.append({
+          actorAlias: event.actorAlias,
+          id: event.id,
+          occurredAt: event.occurredAt,
+          targetSessionAlias: event.targetSessionAlias,
+          type: event.type,
+        }),
+      ),
+    );
+    await Promise.all(
+      targetSessions.map((targetSession) =>
+        sessions.revoke(accountId, targetSession.id),
+      ),
+    );
+  }
+
   async function authorizeWrite(principal: SessionPrincipal) {
     try {
       const at = currentTime();
@@ -196,22 +228,7 @@ export function createAccountSessionAccess({
       return;
     }
 
-    const occurredAt = currentTime().toISOString();
-    const event = createRevocationEvent(
-      principal.sessionId,
-      targetSessionAlias,
-      occurredAt,
-    );
-
-    await securityEvents.appendMany([event]);
-    await auditRecords.append({
-      actorAlias: event.actorAlias,
-      id: event.id,
-      occurredAt,
-      targetSessionAlias,
-      type: event.type,
-    });
-    await sessions.revoke(principal.accountId, targetSessionAlias);
+    await revokeSessions(principal.accountId, principal.sessionId, [target]);
   }
 
   return {
@@ -222,30 +239,10 @@ export function createAccountSessionAccess({
         return;
       }
 
-      const occurredAt = currentTime().toISOString();
-      const events = accountSessions.map((accountSession) =>
-        createRevocationEvent(
-          GITHUB_LOGIN_OAUTH_ACTOR_ALIAS,
-          accountSession.id,
-          occurredAt,
-        ),
-      );
-      await securityEvents.appendMany(events);
-      await Promise.all(
-        events.map((event) =>
-          auditRecords.append({
-            actorAlias: event.actorAlias,
-            id: event.id,
-            occurredAt: event.occurredAt,
-            targetSessionAlias: event.targetSessionAlias,
-            type: event.type,
-          }),
-        ),
-      );
-      await Promise.all(
-        accountSessions.map((accountSession) =>
-          sessions.revoke(accountId, accountSession.id),
-        ),
+      await revokeSessions(
+        accountId,
+        GITHUB_LOGIN_OAUTH_ACTOR_ALIAS,
+        accountSessions,
       );
     },
     async listSessions(principal: SessionPrincipal) {
@@ -314,26 +311,10 @@ export function createAccountSessionAccess({
         return;
       }
 
-      const occurredAt = currentTime().toISOString();
-      const events = otherSessions.map((otherSession) =>
-        createRevocationEvent(principal.sessionId, otherSession.id, occurredAt),
-      );
-      await securityEvents.appendMany(events);
-      await Promise.all(
-        events.map((event) =>
-          auditRecords.append({
-            actorAlias: event.actorAlias,
-            id: event.id,
-            occurredAt: event.occurredAt,
-            targetSessionAlias: event.targetSessionAlias,
-            type: event.type,
-          }),
-        ),
-      );
-      await Promise.all(
-        otherSessions.map((otherSession) =>
-          sessions.revoke(principal.accountId, otherSession.id),
-        ),
+      await revokeSessions(
+        principal.accountId,
+        principal.sessionId,
+        otherSessions,
       );
     },
   };

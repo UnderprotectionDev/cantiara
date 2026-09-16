@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import type { AppDependencies } from "./app";
 import { createApp } from "./app";
@@ -8,12 +8,18 @@ const staleSession = {
   user: { id: "account-1" },
 };
 
-function createTestApp() {
+function createTestApp({
+  authorized = false,
+  onRevokeSession = () => undefined,
+}: {
+  authorized?: boolean;
+  onRevokeSession?: (sessionId: string) => void;
+} = {}) {
   let handlerCalls = 0;
   let replayCalls = 0;
   const dependencies: AppDependencies = {
     accountSessionAccess: {
-      authorizeWrite: async () => false,
+      authorizeWrite: async () => authorized,
       listSessions: async () => [],
       revokeGitHubLoginOAuth: async () => undefined,
       replaySessionRevocations: () => {
@@ -21,7 +27,10 @@ function createTestApp() {
         return Promise.resolve();
       },
       revokeOtherSessions: async () => undefined,
-      revokeSession: async () => undefined,
+      revokeSession: (_principal, sessionId) => {
+        onRevokeSession(sessionId);
+        return Promise.resolve();
+      },
     },
     auth: {
       api: {
@@ -113,5 +122,95 @@ describe("server app Account Access boundary", () => {
     );
 
     expect(response.status).toBe(401);
+  });
+
+  test("continues an authorized product request when GitHub is unavailable", async () => {
+    const githubDown = vi.fn(() =>
+      Promise.reject(new Error("GitHub is unavailable")),
+    );
+    vi.stubGlobal("fetch", githubDown);
+    const { app } = createTestApp({ authorized: true });
+
+    try {
+      const response = await app.fetch(
+        new Request("https://api.cantiara.example/rpc/privateData", {
+          body: JSON.stringify({}),
+          headers: {
+            cookie: "__Secure-better-auth.session_token=valid-token",
+            "content-type": "application/json",
+            origin: "https://cantiara.example",
+          },
+          method: "POST",
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(githubDown).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("keeps session revoke available when GitHub is unavailable", async () => {
+    const githubDown = vi.fn(() =>
+      Promise.reject(new Error("GitHub is unavailable")),
+    );
+    const revoked: string[] = [];
+    vi.stubGlobal("fetch", githubDown);
+    const { app } = createTestApp({
+      authorized: true,
+      onRevokeSession: (sessionId) => {
+        revoked.push(sessionId);
+      },
+    });
+
+    try {
+      const response = await app.fetch(
+        new Request("https://api.cantiara.example/rpc/revokeSession", {
+          body: JSON.stringify({
+            json: { sessionId: "other-session" },
+          }),
+          headers: {
+            cookie: "__Secure-better-auth.session_token=valid-token",
+            "content-type": "application/json",
+            origin: "https://cantiara.example",
+          },
+          method: "POST",
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(revoked).toEqual(["other-session"]);
+      expect(githubDown).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("keeps an authorized product request independent from App installation", async () => {
+    const appUninstalled = vi.fn(() =>
+      Promise.resolve(Response.json({ installed: false })),
+    );
+    vi.stubGlobal("fetch", appUninstalled);
+    const { app } = createTestApp({ authorized: true });
+
+    try {
+      const response = await app.fetch(
+        new Request("https://api.cantiara.example/rpc/privateData", {
+          body: JSON.stringify({}),
+          headers: {
+            cookie: "__Secure-better-auth.session_token=valid-token",
+            "content-type": "application/json",
+            origin: "https://cantiara.example",
+          },
+          method: "POST",
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(appUninstalled).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

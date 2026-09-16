@@ -29,6 +29,12 @@ export function replaySessionRevocations() {
   return securityReplay;
 }
 
+// The GitHub login OAuth adapter calls this signal when its authorization is revoked.
+// GitHub App installation signals must not call it.
+export function notifyGitHubLoginOAuthRevoked(accountId: string) {
+  return accountSessionAccess.revokeGitHubLoginOAuth(accountId);
+}
+
 export function getDb(): Database {
   return db;
 }

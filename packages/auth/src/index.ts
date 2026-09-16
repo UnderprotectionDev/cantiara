@@ -58,6 +58,7 @@ export function createAuthOptions(
       github: {
         clientId: env.GITHUB_CLIENT_ID,
         clientSecret: env.GITHUB_CLIENT_SECRET,
+        prompt: "consent",
         getUserInfo: async (token) => {
           try {
             // This runs after GitHub identity verification and before Better Auth

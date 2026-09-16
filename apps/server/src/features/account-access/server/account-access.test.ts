@@ -246,6 +246,7 @@ describe("Account Access", () => {
     expect(emailResponse.status).toBe(400);
     expect(githubResponse.status).toBe(200);
     expect(authorizationUrl.hostname).toBe("github.com");
+    expect(authorizationUrl.searchParams.get("prompt")).toBe("consent");
     expect(authorizationUrl.searchParams.get("scope")?.split(" ")).toEqual(
       GITHUB_LOGIN_SCOPES,
     );

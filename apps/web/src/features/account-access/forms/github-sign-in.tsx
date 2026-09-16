@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { authClient } from "@/lib/auth-client";
 
+import GitHubWaitingStatus from "../components/github-waiting-status";
 import { createGitHubSignInCallbackUrl } from "./github-sign-in-url";
 
 const SIGN_IN_FAILURE_MESSAGE =
@@ -45,15 +46,7 @@ export default function GitHubSignIn() {
       >
         Continue with GitHub
       </Button>
-      {isWaitingForGitHub ? (
-        <p
-          aria-live="polite"
-          className="mt-3 text-center text-sm"
-          role="status"
-        >
-          Waiting for GitHub
-        </p>
-      ) : null}
+      <GitHubWaitingStatus visible={isWaitingForGitHub} />
     </main>
   );
 }
