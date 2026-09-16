@@ -6,6 +6,7 @@ const sensitiveEnvKeys = [
   "BETTER_AUTH_SECRET",
   "DATABASE_URL",
   "GITHUB_CLIENT_SECRET",
+  "SECURITY_EVENT_DATABASE_URL",
 ] as const;
 const redactedValue = "[REDACTED]";
 
@@ -48,6 +49,7 @@ export function createServerEnv(
       DATABASE_URL: z.string().min(1),
       GITHUB_CLIENT_ID: z.string().min(1),
       GITHUB_CLIENT_SECRET: z.string().min(1),
+      SECURITY_EVENT_DATABASE_URL: z.string().min(1),
       TRUSTED_PROXY_IPS: trustedProxyIpsSchema,
     },
     runtimeEnv,
@@ -61,6 +63,28 @@ export function createServerEnv(
     throw new Error(
       "TRUSTED_PROXY_IPS must contain the deployed reverse proxy addresses in production",
     );
+  }
+
+  if (serverEnv.SECURITY_EVENT_DATABASE_URL === serverEnv.DATABASE_URL) {
+    throw new Error(
+      "SECURITY_EVENT_DATABASE_URL must identify a database outside the primary restore unit",
+    );
+  }
+
+  if (serverEnv.NODE_ENV === "production") {
+    const primaryDatabase = new URL(serverEnv.DATABASE_URL);
+    const securityEventDatabase = new URL(
+      serverEnv.SECURITY_EVENT_DATABASE_URL,
+    );
+    if (
+      primaryDatabase.hostname === securityEventDatabase.hostname ||
+      primaryDatabase.username === securityEventDatabase.username ||
+      primaryDatabase.password === securityEventDatabase.password
+    ) {
+      throw new Error(
+        "SECURITY_EVENT_DATABASE_URL must use a separate managed project and credentials",
+      );
+    }
   }
 
   return serverEnv;

@@ -1,0 +1,1 @@
+CREATE INDEX "security_event_targetSessionAlias_type_idx" ON "security_event" USING btree ("target_session_alias","type");

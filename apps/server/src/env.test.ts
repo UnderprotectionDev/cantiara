@@ -8,7 +8,16 @@ const validEnvironment = {
   DATABASE_URL: "postgresql://user:password@localhost:5432/cantiara",
   GITHUB_CLIENT_ID: "github-client-id",
   GITHUB_CLIENT_SECRET: "github-client-secret",
+  SECURITY_EVENT_DATABASE_URL:
+    "postgresql://security:password@localhost:5432/cantiara_security",
   TRUSTED_PROXY_IPS: "203.0.113.10",
+} as const;
+
+const productionEnvironment = {
+  ...validEnvironment,
+  NODE_ENV: "production",
+  SECURITY_EVENT_DATABASE_URL:
+    "postgresql://security:security-password@security-events.example:5432/cantiara_security",
 } as const;
 
 Object.assign(process.env, validEnvironment);
@@ -62,11 +71,40 @@ describe("server environment", () => {
   test("requires trusted reverse proxies in production", () => {
     expect(() =>
       createServerEnv({
-        ...validEnvironment,
-        NODE_ENV: "production",
+        ...productionEnvironment,
         TRUSTED_PROXY_IPS: "",
       }),
     ).toThrow("TRUSTED_PROXY_IPS");
+  });
+
+  test("requires a separate security-event database in production", () => {
+    expect(() =>
+      createServerEnv({
+        ...validEnvironment,
+        NODE_ENV: "production",
+        SECURITY_EVENT_DATABASE_URL: validEnvironment.DATABASE_URL,
+      }),
+    ).toThrow("SECURITY_EVENT_DATABASE_URL");
+  });
+
+  test("requires separate security-event credentials in production", () => {
+    expect(() =>
+      createServerEnv({
+        ...productionEnvironment,
+        SECURITY_EVENT_DATABASE_URL:
+          "postgresql://user:other-password@security-events.example:5432/cantiara_security",
+      }),
+    ).toThrow("SECURITY_EVENT_DATABASE_URL");
+  });
+
+  test("rejects a shared security-event password in production", () => {
+    expect(() =>
+      createServerEnv({
+        ...productionEnvironment,
+        SECURITY_EVENT_DATABASE_URL:
+          "postgresql://security:password@security-events.example:5432/cantiara_security",
+      }),
+    ).toThrow("SECURITY_EVENT_DATABASE_URL");
   });
 
   test("rejects invalid trusted reverse proxy addresses", () => {
@@ -103,5 +141,13 @@ describe("server environment", () => {
         `GitHub failed for ${validEnvironment.GITHUB_CLIENT_SECRET}`,
       ),
     ).toBe("GitHub failed for [REDACTED]");
+  });
+
+  test("redacts the separate security-event database URL", () => {
+    expect(
+      redactSecrets(
+        `Security event database failed for ${validEnvironment.SECURITY_EVENT_DATABASE_URL}`,
+      ),
+    ).toBe("Security event database failed for [REDACTED]");
   });
 });

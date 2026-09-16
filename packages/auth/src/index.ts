@@ -11,6 +11,9 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { github } from "better-auth/social-providers";
 
 const schema = { account, rateLimit, session, user, verification };
+export const SESSION_ABSOLUTE_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+export const SESSION_IDLE_LIFETIME_MS = 12 * 60 * 60 * 1000;
+const SESSION_ABSOLUTE_LIFETIME_SECONDS = SESSION_ABSOLUTE_LIFETIME_MS / 1000;
 
 export interface AccountAdmission {
   admitAccount: (accountId: string) => Promise<unknown>;
@@ -43,6 +46,12 @@ export function createAuthOptions(
       schema,
       transaction: true,
     }),
+    disabledPaths: [
+      "/list-sessions",
+      "/revoke-session",
+      "/revoke-sessions",
+      "/revoke-other-sessions",
+    ],
     trustedOrigins: [env.CORS_ORIGIN, ...desktopOrigins],
     emailAndPassword: { enabled: false },
     socialProviders: {
@@ -74,6 +83,10 @@ export function createAuthOptions(
     account: {
       accountLinking: { enabled: false },
       encryptOAuthTokens: true,
+    },
+    session: {
+      disableSessionRefresh: true,
+      expiresIn: SESSION_ABSOLUTE_LIFETIME_SECONDS,
     },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,

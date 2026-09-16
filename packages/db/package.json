@@ -15,9 +15,12 @@
     "build": "tsc -b",
     "check-types": "tsc -b",
     "db:generate": "bun --env-file=../../apps/server/.env.local ./node_modules/.bin/drizzle-kit generate",
-    "db:migrate": "bun --env-file=../../apps/server/.env.local ./node_modules/.bin/drizzle-kit migrate",
-    "db:migrate:deploy": "drizzle-kit migrate",
+    "db:migrate": "bun --env-file=../../apps/server/.env.local ./scripts/migrate.ts",
+    "db:migrate:deploy": "bun ./scripts/migrate.ts",
     "db:push": "bun --env-file=../../apps/server/.env.local ./node_modules/.bin/drizzle-kit push",
+    "db:security:generate": "bun --env-file=../../apps/server/.env.local ./node_modules/.bin/drizzle-kit generate --config drizzle.security.config.ts",
+    "db:security:migrate": "bun --env-file=../../apps/server/.env.local ./scripts/migrate.ts --security-events",
+    "db:security:migrate:deploy": "bun ./scripts/migrate.ts --security-events",
     "db:studio": "bun --env-file=../../apps/server/.env.local ./node_modules/.bin/drizzle-kit studio"
   },
   "dependencies": {

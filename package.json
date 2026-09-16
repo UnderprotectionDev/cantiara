@@ -35,12 +35,15 @@
     "db:generate": "turbo run db:generate -F @cantiara/db --",
     "db:migrate": "turbo run db:migrate -F @cantiara/db --",
     "db:push": "turbo run db:push -F @cantiara/db --",
+    "db:security:generate": "turbo run db:security:generate -F @cantiara/db --",
+    "db:security:migrate": "turbo run db:security:migrate -F @cantiara/db --",
     "db:studio": "turbo run db:studio -F @cantiara/db --",
     "dev": "turbo run dev",
     "dev:server": "turbo run dev -F server --",
     "dev:types": "tsc -b packages/api --watch",
     "dev:web": "turbo run dev -F web --",
-    "postinstall": "tsc -b packages/api && bun scripts/install-hooks.ts"
+    "postinstall": "tsc -b packages/api && bun scripts/install-hooks.ts",
+    "test:e2e": "bun run --cwd apps/web test:e2e"
   },
   "dependencies": {
     "zod": "catalog:"
