@@ -18,6 +18,10 @@ describe("GitHub availability", () => {
     availability.markAvailable();
 
     expect(availability.getStatus()).toBe("available");
+    expect(availability.requiresFreshConsent()).toBe(true);
+
+    availability.markLoginConsentSatisfied();
+
     expect(availability.requiresFreshConsent()).toBe(false);
   });
 });

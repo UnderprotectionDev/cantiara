@@ -97,6 +97,7 @@ function createGitHubCallbackTestDriver(
   accountAdmission: AccountAdmission,
   githubAvailability?: {
     markAvailable: () => void | Promise<void>;
+    markLoginConsentSatisfied?: () => void | Promise<void>;
     markUnavailable: () => void | Promise<void>;
   },
 ) {
@@ -226,6 +227,24 @@ describe("Account Access", () => {
     );
     expect(markUnavailable).toHaveBeenCalledOnce();
     expect(markAvailable).not.toHaveBeenCalled();
+  });
+
+  test("marks login OAuth consent satisfied after an admitted callback", async () => {
+    installGitHubOAuthTestDouble();
+    const markAvailable = vi.fn();
+    const markLoginConsentSatisfied = vi.fn();
+    const driver = createGitHubCallbackTestDriver(acceptingAccountAdmission(), {
+      markAvailable,
+      markLoginConsentSatisfied,
+      markUnavailable: vi.fn(),
+    });
+
+    const response = await driver.completeSignIn();
+
+    expect(response.headers.get("location")).toBe(
+      "https://cantiara.example/dashboard",
+    );
+    expect(markLoginConsentSatisfied).toHaveBeenCalledOnce();
   });
 
   test("callback is rate-limited by the immutable GitHub identity before admission", async () => {

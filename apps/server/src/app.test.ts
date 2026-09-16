@@ -8,6 +8,11 @@ const staleSession = {
   user: { id: "account-1" },
 };
 
+const availableGitHub = {
+  getStatus: () => "available" as const,
+  requiresFreshConsent: () => false,
+};
+
 function createTestApp({
   authorized = false,
   githubAvailability,
@@ -52,7 +57,7 @@ function createTestApp({
     corsOrigin: "https://cantiara.example",
     database: {} as AppDependencies["database"],
     desktopOrigins: [],
-    githubAvailability,
+    githubAvailability: githubAvailability ?? availableGitHub,
     nodeEnv: "test",
     redactSecrets: (value) => value,
   };

@@ -27,7 +27,7 @@ export interface AppDependencies {
   corsOrigin: string;
   database: Database;
   desktopOrigins: readonly string[];
-  githubAvailability?: Pick<
+  githubAvailability: Pick<
     GitHubAvailability,
     "getStatus" | "requiresFreshConsent"
   >;
@@ -49,7 +49,7 @@ async function addFreshGitHubConsent(
   if (
     request.method !== "POST" ||
     new URL(request.url).pathname !== "/api/auth/sign-in/social" ||
-    !githubAvailability?.requiresFreshConsent()
+    !githubAvailability.requiresFreshConsent()
   ) {
     return request;
   }
@@ -197,8 +197,8 @@ export function createApp(dependencies: AppDependencies) {
   app.get("/api/account-access/github/availability", (c) =>
     c.json({
       requiresFreshConsent:
-        dependencies.githubAvailability?.requiresFreshConsent() ?? false,
-      status: dependencies.githubAvailability?.getStatus() ?? "available",
+        dependencies.githubAvailability.requiresFreshConsent(),
+      status: dependencies.githubAvailability.getStatus(),
     }),
   );
   app.get("/", (c) => c.text("OK"));

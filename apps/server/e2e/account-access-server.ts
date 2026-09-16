@@ -10,6 +10,7 @@ import { initLogger } from "evlog";
 
 import { createApp } from "../src/app";
 import { createDatabaseAccountAdmission } from "../src/features/account-access/server/account-admission";
+import { createGitHubAvailability } from "../src/features/account-access/server/github-availability";
 import { createDatabaseAccountSessionAccess } from "../src/features/account-access/server/session-access-database";
 
 const webOrigin = "http://127.0.0.1:4173";
@@ -29,6 +30,7 @@ const securityEventDatabase = createSecurityEventDb({
   DATABASE_URL: securityEventDatabaseUrl,
 });
 const accountAdmission = createDatabaseAccountAdmission(database);
+const githubAvailability = createGitHubAvailability();
 const auth = betterAuth({
   ...createAuthOptions(
     {
@@ -41,12 +43,15 @@ const auth = betterAuth({
     },
     database,
     accountAdmission,
+    [],
+    githubAvailability,
   ),
   plugins: [testUtils()],
 });
 const accountSessionAccess = createDatabaseAccountSessionAccess(
   database,
   securityEventDatabase,
+  { onGitHubLoginOAuthRevoked: githubAvailability.requireFreshConsent },
 );
 await accountSessionAccess.replaySessionRevocations();
 
@@ -58,6 +63,7 @@ const app = createApp({
   corsOrigin: webOrigin,
   database,
   desktopOrigins: [],
+  githubAvailability,
   nodeEnv: "test",
   redactSecrets: () => new Error("Redacted E2E server error"),
 });

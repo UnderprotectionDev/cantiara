@@ -22,6 +22,7 @@ export interface AccountAdmission {
 
 export interface GitHubAvailabilityObserver {
   markAvailable: () => void | Promise<void>;
+  markLoginConsentSatisfied?: () => void | Promise<void>;
   markUnavailable: () => void | Promise<void>;
 }
 
@@ -91,6 +92,7 @@ export function createAuthOptions(
             ) {
               return null;
             }
+            await githubAvailability?.markLoginConsentSatisfied?.();
             return userInfo;
           } catch {
             return null;

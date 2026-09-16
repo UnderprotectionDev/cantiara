@@ -3,6 +3,7 @@ export type GitHubAvailabilityStatus = "available" | "waiting";
 export interface GitHubAvailability {
   getStatus: () => GitHubAvailabilityStatus;
   markAvailable: () => void;
+  markLoginConsentSatisfied: () => void;
   markUnavailable: () => void;
   requireFreshConsent: () => void;
   requiresFreshConsent: () => boolean;
@@ -16,6 +17,8 @@ export function createGitHubAvailability(): GitHubAvailability {
     getStatus: () => status,
     markAvailable: () => {
       status = "available";
+    },
+    markLoginConsentSatisfied: () => {
       freshConsentRequired = false;
     },
     markUnavailable: () => {
