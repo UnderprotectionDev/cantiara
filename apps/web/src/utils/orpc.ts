@@ -7,9 +7,20 @@ import { toast } from "sonner";
 
 import { env } from "../env";
 import { createTauriBearerHeaders } from "../features/account-access/tauri-session";
+import { defaultClientShell } from "../features/web-macos-client/views/client-shell";
 
 export function createQueryClient() {
   return new QueryClient({
+    defaultOptions: {
+      mutations: {
+        networkMode: "always",
+        retry: false,
+      },
+      queries: {
+        networkMode: "always",
+        retry: false,
+      },
+    },
     queryCache: new QueryCache({
       onError: (error, query) => {
         toast.error(`Error: ${error.message}`, {
@@ -31,11 +42,15 @@ export const link = new RPCLink({
   url: `${env.VITE_SERVER_URL.replace(/\/$/, "")}/rpc`,
   async fetch(request, init) {
     const headers = await createTauriBearerHeaders(request.headers);
-    return globalThis.fetch(request, {
-      ...init,
-      credentials: "include",
-      headers,
-    });
+    return defaultClientShell.request(
+      request,
+      {
+        ...init,
+        credentials: "include",
+        headers,
+      },
+      globalThis.fetch,
+    );
   },
 });
 
