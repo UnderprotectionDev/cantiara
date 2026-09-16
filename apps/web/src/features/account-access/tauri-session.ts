@@ -5,14 +5,18 @@ import { env } from "@/env";
 export const TAURI_AUTH_CALLBACK_URL = "cantiara://auth/callback";
 
 const STRONGHOLD_CLIENT = "account-access";
-const STRONGHOLD_VAULT_PASSWORD = "cantiara-account-access-v1";
 const STRONGHOLD_TOKEN_KEY = "bearer-session";
+const STRONGHOLD_CODE_VERIFIER_KEY = "code-verifier";
 const STRONGHOLD_VAULT_FILE = "account-access.hold";
+const BASE64_URL_PADDING_PATTERN = /[=]+$/;
 const TRAILING_SLASH_PATTERN = /\/$/;
 
 export interface TauriBearerTokenStore {
+  clearCodeVerifier: () => Promise<void>;
   read: () => Promise<string | null>;
+  readCodeVerifier: () => Promise<string | null>;
   write: (token: string) => Promise<void>;
+  writeCodeVerifier: (codeVerifier: string) => Promise<void>;
 }
 
 export interface TauriAuthCallbackCode {
@@ -27,6 +31,35 @@ interface TauriAuthExchangeDependencies {
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   serverURL: string;
   tokenStore: TauriBearerTokenStore;
+}
+
+function createRandomBase64UrlValue() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(BASE64_URL_PADDING_PATTERN, "");
+}
+
+export async function createTauriAuthCodeChallenge(codeVerifier: string) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(codeVerifier),
+  );
+  const bytes = new Uint8Array(digest);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(BASE64_URL_PADDING_PATTERN, "");
 }
 
 function expectedCallbackURL() {
@@ -76,15 +109,17 @@ export function parseTauriAuthCallback(
 }
 
 async function createStrongholdTokenStore(): Promise<TauriBearerTokenStore> {
-  const [{ appDataDir }, { Stronghold }] = await Promise.all([
+  const [{ invoke }, { appDataDir }, { Stronghold }] = await Promise.all([
+    import("@tauri-apps/api/core"),
     import("@tauri-apps/api/path"),
     import("@tauri-apps/plugin-stronghold"),
   ]);
   const vaultPath = `${(await appDataDir()).replace(TRAILING_SLASH_PATTERN, "")}/${STRONGHOLD_VAULT_FILE}`;
-  const stronghold = await Stronghold.load(
-    vaultPath,
-    STRONGHOLD_VAULT_PASSWORD,
+  const vaultPassword = await invoke<string>(
+    "get_or_create_stronghold_password",
+    { candidate: createRandomBase64UrlValue() },
   );
+  const stronghold = await Stronghold.load(vaultPath, vaultPassword);
 
   let client: Client;
   try {
@@ -94,17 +129,32 @@ async function createStrongholdTokenStore(): Promise<TauriBearerTokenStore> {
   }
   const store = client.getStore();
 
+  async function readValue(key: string) {
+    const value = await store.get(key);
+    return value ? new TextDecoder().decode(value) : null;
+  }
+
+  async function writeValue(key: string, value: string) {
+    await store.insert(key, Array.from(new TextEncoder().encode(value)));
+    await stronghold.save();
+  }
+
   return {
-    async read() {
-      const value = await store.get(STRONGHOLD_TOKEN_KEY);
-      return value ? new TextDecoder().decode(value) : null;
+    async clearCodeVerifier() {
+      await store.remove(STRONGHOLD_CODE_VERIFIER_KEY);
+      await stronghold.save();
+    },
+    read() {
+      return readValue(STRONGHOLD_TOKEN_KEY);
+    },
+    readCodeVerifier() {
+      return readValue(STRONGHOLD_CODE_VERIFIER_KEY);
     },
     async write(token) {
-      await store.insert(
-        STRONGHOLD_TOKEN_KEY,
-        Array.from(new TextEncoder().encode(token)),
-      );
-      await stronghold.save();
+      await writeValue(STRONGHOLD_TOKEN_KEY, token);
+    },
+    async writeCodeVerifier(codeVerifier) {
+      await writeValue(STRONGHOLD_CODE_VERIFIER_KEY, codeVerifier);
     },
   };
 }
@@ -140,20 +190,43 @@ export async function exchangeTauriAuthCode(
     fetch: globalThis.fetch,
     serverURL: env.VITE_SERVER_URL,
     tokenStore: {
+      clearCodeVerifier: async () => {
+        if (!isTauriRuntime()) {
+          return;
+        }
+        await (await getTokenStore()).clearCodeVerifier();
+      },
       read: () => getTauriBearerToken(),
+      readCodeVerifier: async () => {
+        if (!isTauriRuntime()) {
+          return null;
+        }
+        return (await getTokenStore()).readCodeVerifier();
+      },
       write: async (token) => {
         if (!isTauriRuntime()) {
           return;
         }
         await (await getTokenStore()).write(token);
       },
+      writeCodeVerifier: async (codeVerifier) => {
+        if (!isTauriRuntime()) {
+          return;
+        }
+        await (await getTokenStore()).writeCodeVerifier(codeVerifier);
+      },
     },
   },
 ) {
+  const codeVerifier = await dependencies.tokenStore.readCodeVerifier();
+  if (!codeVerifier) {
+    throw new Error("Tauri auth code verifier is missing");
+  }
+
   const response = await dependencies.fetch(
     `${dependencies.serverURL.replace(TRAILING_SLASH_PATTERN, "")}/api/auth/tauri/exchange`,
     {
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, codeVerifier }),
       headers: { "content-type": "application/json" },
       method: "POST",
     },
@@ -174,12 +247,24 @@ export async function exchangeTauriAuthCode(
   }
 
   await dependencies.tokenStore.write(body.token);
+  await dependencies.tokenStore.clearCodeVerifier();
 }
 
 export async function openTauriGitHubSignIn() {
-  const { openUrl } = await import("@tauri-apps/plugin-opener");
-  const startURL = new URL("/api/auth/tauri/start", env.VITE_SERVER_URL).href;
-  await openUrl(startURL);
+  const codeVerifier = createRandomBase64UrlValue();
+  const codeChallenge = await createTauriAuthCodeChallenge(codeVerifier);
+  const tokenStore = await getTokenStore();
+  await tokenStore.writeCodeVerifier(codeVerifier);
+
+  try {
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    const startURL = new URL("/api/auth/tauri/start", env.VITE_SERVER_URL);
+    startURL.searchParams.set("code_challenge", codeChallenge);
+    await openUrl(startURL.href);
+  } catch (error) {
+    await tokenStore.clearCodeVerifier().catch(() => undefined);
+    throw error;
+  }
 }
 
 async function handleTauriAuthCallback(value: string) {

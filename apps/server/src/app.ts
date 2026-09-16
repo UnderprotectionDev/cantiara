@@ -21,7 +21,11 @@ import { sanitizeGitHubCallbackResponse } from "./features/account-access/server
 import type { AccountSessionAccessRuntime } from "./features/account-access/server/session-access";
 import { sanitizeProductSessionResponse } from "./features/account-access/server/session-response";
 import { sanitizeTauriCallbackResponse } from "./features/account-access/server/tauri-callback-response";
-import type { TauriSessionAccess } from "./features/account-access/server/tauri-session";
+import {
+  isTauriAuthCodeChallenge,
+  isTauriAuthCodeVerifier,
+  type TauriSessionAccess,
+} from "./features/account-access/server/tauri-session";
 
 export interface AppDependencies {
   accountSessionAccess: AccountSessionAccessRuntime;
@@ -43,8 +47,27 @@ function isRecoverableAuthPath(path: string) {
 
 async function createTauriSignInStartResponse(
   request: Request,
-  auth: AccountAccessAuth,
+  dependencies: {
+    auth: AccountAccessAuth;
+    tauriSessionAccess: TauriSessionAccess | undefined;
+  },
 ) {
+  const codeChallenge = new URL(request.url).searchParams.get("code_challenge");
+  if (
+    !(
+      dependencies.tauriSessionAccess &&
+      codeChallenge &&
+      isTauriAuthCodeChallenge(codeChallenge)
+    )
+  ) {
+    const errorURL = new URL(TAURI_AUTH_CALLBACK_URL);
+    errorURL.searchParams.set("error", "sign_in_failed");
+    return Response.redirect(errorURL.href, 302);
+  }
+
+  const callbackURL = new URL(TAURI_AUTH_CALLBACK_URL);
+  callbackURL.searchParams.set("challenge", codeChallenge);
+
   const authRequestHeaders = new Headers();
   for (const header of ["user-agent", "x-forwarded-for"]) {
     const value = request.headers.get(header);
@@ -54,10 +77,10 @@ async function createTauriSignInStartResponse(
   }
   authRequestHeaders.set("content-type", "application/json");
 
-  const response = await auth.handler(
+  const response = await dependencies.auth.handler(
     new Request(new URL("/api/auth/sign-in/social", request.url).href, {
       body: JSON.stringify({
-        callbackURL: TAURI_AUTH_CALLBACK_URL,
+        callbackURL: callbackURL.href,
         errorCallbackURL: TAURI_AUTH_CALLBACK_URL,
         provider: "github",
       }),
@@ -99,7 +122,18 @@ async function exchangeTauriCode(
     return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
   }
 
-  const session = await tauriSessionAccess?.exchangeCode(code);
+  const codeVerifier =
+    typeof body === "object" && body !== null && "codeVerifier" in body
+      ? body.codeVerifier
+      : undefined;
+  if (
+    typeof codeVerifier !== "string" ||
+    !isTauriAuthCodeVerifier(codeVerifier)
+  ) {
+    return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
+  }
+
+  const session = await tauriSessionAccess?.exchangeCode(code, codeVerifier);
   if (!session) {
     return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
   }
@@ -146,7 +180,10 @@ export function createApp(dependencies: AppDependencies) {
   app.use("*", createCsrfProtectionMiddleware(allowedOrigins));
 
   app.get("/api/auth/tauri/start", (c) =>
-    createTauriSignInStartResponse(c.req.raw, dependencies.auth),
+    createTauriSignInStartResponse(c.req.raw, {
+      auth: dependencies.auth,
+      tauriSessionAccess: dependencies.tauriSessionAccess,
+    }),
   );
   app.post("/api/auth/tauri/exchange", (c) =>
     exchangeTauriCode(c.req.raw, dependencies.tauriSessionAccess),

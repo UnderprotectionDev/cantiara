@@ -1,7 +1,10 @@
 import { TAURI_AUTH_CALLBACK_URL } from "@cantiara/auth";
 import type { AccountAccessAuth } from "../../../context";
 
-import type { TauriSessionAccess } from "./tauri-session";
+import {
+  isTauriAuthCodeChallenge,
+  type TauriSessionAccess,
+} from "./tauri-session";
 
 const GENERIC_TAURI_SIGN_IN_ERROR = "sign_in_failed";
 
@@ -65,6 +68,17 @@ export async function sanitizeTauriCallbackResponse(
     return createTauriFailureResponse(response);
   }
 
+  const callbackParameters = [...locationURL.searchParams.keys()];
+  const codeChallenge = locationURL.searchParams.get("challenge");
+  if (
+    callbackParameters.length !== 1 ||
+    callbackParameters[0] !== "challenge" ||
+    !codeChallenge ||
+    !isTauriAuthCodeChallenge(codeChallenge)
+  ) {
+    return createTauriFailureResponse(response);
+  }
+
   const bearerToken = response.headers.get("set-auth-token");
   if (!bearerToken) {
     return createTauriFailureResponse(response);
@@ -81,6 +95,7 @@ export async function sanitizeTauriCallbackResponse(
 
     const code = await dependencies.tauriSessionAccess.issueCode(
       session.session.id,
+      codeChallenge,
     );
     const callbackURL = new URL(TAURI_AUTH_CALLBACK_URL);
     callbackURL.searchParams.set("code", code);

@@ -20,6 +20,8 @@ const staleSession = {
   session: { id: "stale-session" },
   user: { id: "account-1" },
 };
+const CODE_VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+const CODE_CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
 
 function createTestApp(
   options: {
@@ -142,10 +144,15 @@ describe("server app Account Access boundary", () => {
     const { app } = createTestApp({
       auth: {
         api: { getSession: async () => null },
-        handler: (request) => {
+        handler: async (request) => {
           expect(new URL(request.url).pathname).toBe(
             "/api/auth/sign-in/social",
           );
+          await expect(request.json()).resolves.toEqual({
+            callbackURL: `cantiara://auth/callback?challenge=${CODE_CHALLENGE}`,
+            errorCallbackURL: "cantiara://auth/callback",
+            provider: "github",
+          });
           return Promise.resolve(
             new Response(null, {
               headers: {
@@ -165,7 +172,9 @@ describe("server app Account Access boundary", () => {
     });
 
     const response = await app.fetch(
-      new Request("https://api.cantiara.example/api/auth/tauri/start"),
+      new Request(
+        `https://api.cantiara.example/api/auth/tauri/start?code_challenge=${CODE_CHALLENGE}`,
+      ),
     );
 
     expect(response.status).toBe(302);
@@ -197,7 +206,9 @@ describe("server app Account Access boundary", () => {
     });
 
     const response = await app.fetch(
-      new Request("https://api.cantiara.example/api/auth/tauri/start"),
+      new Request(
+        `https://api.cantiara.example/api/auth/tauri/start?code_challenge=${CODE_CHALLENGE}`,
+      ),
     );
 
     expect(response.status).toBe(302);
@@ -290,7 +301,8 @@ describe("server app Account Access boundary", () => {
         },
         auth: auth as unknown as AppDependencies["auth"],
         tauriSessionAccess: {
-          exchangeCode: (code) => {
+          exchangeCode: (code, codeVerifier) => {
+            expect(codeVerifier).toBe(CODE_VERIFIER);
             if (code !== "one-time-code") {
               return Promise.resolve(null);
             }
@@ -303,7 +315,8 @@ describe("server app Account Access boundary", () => {
               token: sessionToken,
             });
           },
-          issueCode: (sessionId) => {
+          issueCode: (sessionId, codeChallenge) => {
+            expect(codeChallenge).toBe(CODE_CHALLENGE);
             issuedSessionId = sessionId;
             return Promise.resolve("one-time-code");
           },
@@ -311,7 +324,9 @@ describe("server app Account Access boundary", () => {
       });
 
       const start = await app.fetch(
-        new Request("https://api.cantiara.example/api/auth/tauri/start"),
+        new Request(
+          `https://api.cantiara.example/api/auth/tauri/start?code_challenge=${CODE_CHALLENGE}`,
+        ),
       );
       const authorizationURL = new URL(
         start.headers.get("location") ?? "https://github.com",
@@ -341,7 +356,10 @@ describe("server app Account Access boundary", () => {
 
       const exchange = await app.fetch(
         new Request("https://api.cantiara.example/api/auth/tauri/exchange", {
-          body: JSON.stringify({ code: "one-time-code" }),
+          body: JSON.stringify({
+            code: "one-time-code",
+            codeVerifier: CODE_VERIFIER,
+          }),
           headers: { "content-type": "application/json" },
           method: "POST",
         }),
@@ -373,8 +391,9 @@ describe("server app Account Access boundary", () => {
     let exchangedCode: string | undefined;
     const { app } = createTestApp({
       tauriSessionAccess: {
-        exchangeCode: (code) => {
+        exchangeCode: (code, codeVerifier) => {
           exchangedCode = code;
+          expect(codeVerifier).toBe(CODE_VERIFIER);
           return Promise.resolve(
             code === "one-time-code"
               ? {
@@ -391,7 +410,10 @@ describe("server app Account Access boundary", () => {
 
     const response = await app.fetch(
       new Request("https://api.cantiara.example/api/auth/tauri/exchange", {
-        body: JSON.stringify({ code: "one-time-code" }),
+        body: JSON.stringify({
+          code: "one-time-code",
+          codeVerifier: CODE_VERIFIER,
+        }),
         headers: {
           "content-type": "application/json",
           origin: "http://tauri.localhost",

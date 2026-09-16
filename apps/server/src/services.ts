@@ -19,6 +19,7 @@ export const accountSessionAccess = createDatabaseAccountSessionAccess(
 export const tauriSessionAccess = createDatabaseTauriSessionAccess(
   db,
   accountSessionAccess,
+  securityEventDb,
 );
 let securityReplay: Promise<void> | undefined;
 

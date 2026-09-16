@@ -1,11 +1,33 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
+
+const tauriMocks = vi.hoisted(() => ({
+  appDataDir: vi.fn(),
+  invoke: vi.fn(),
+  openUrl: vi.fn(),
+  strongholdLoad: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/api/core", () => ({ invoke: tauriMocks.invoke }));
+vi.mock("@tauri-apps/api/path", () => ({
+  appDataDir: tauriMocks.appDataDir,
+}));
+vi.mock("@tauri-apps/plugin-opener", () => ({
+  openUrl: tauriMocks.openUrl,
+}));
+vi.mock("@tauri-apps/plugin-stronghold", () => ({
+  Stronghold: { load: tauriMocks.strongholdLoad },
+}));
 
 import {
+  createTauriAuthCodeChallenge,
   createTauriBearerHeaders,
   exchangeTauriAuthCode,
+  openTauriGitHubSignIn,
   parseTauriAuthCallback,
   TAURI_AUTH_CALLBACK_URL,
 } from "./tauri-session";
+
+const CODE_VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
 
 describe("Account Access Tauri session", () => {
   test("accepts only the expected one-time code deep link", () => {
@@ -28,6 +50,7 @@ describe("Account Access Tauri session", () => {
   test("exchanges the code and stores the returned bearer in the protected token store", async () => {
     const requests: Request[] = [];
     let storedToken: string | undefined;
+    let clearedCodeVerifier = false;
     await exchangeTauriAuthCode("one-time-code", {
       fetch: (input, init) => {
         requests.push(new Request(input, init));
@@ -40,11 +63,17 @@ describe("Account Access Tauri session", () => {
       },
       serverURL: "https://api.cantiara.example",
       tokenStore: {
+        clearCodeVerifier: () => {
+          clearedCodeVerifier = true;
+          return Promise.resolve();
+        },
         read: () => Promise.resolve(storedToken ?? null),
+        readCodeVerifier: () => Promise.resolve(CODE_VERIFIER),
         write: (token) => {
           storedToken = token;
           return Promise.resolve();
         },
+        writeCodeVerifier: () => Promise.resolve(),
       },
     });
 
@@ -54,8 +83,45 @@ describe("Account Access Tauri session", () => {
     );
     await expect(requests[0]?.json()).resolves.toEqual({
       code: "one-time-code",
+      codeVerifier: CODE_VERIFIER,
     });
     expect(storedToken).toBe("bearer-session-token");
+    expect(clearedCodeVerifier).toBe(true);
+  });
+
+  test("stores an app verifier before opening the system browser", async () => {
+    const insertedValues: Array<{ key: string; value: number[] }> = [];
+    const store = {
+      get: vi.fn(async () => null),
+      insert: vi.fn((key: string, value: number[]) => {
+        insertedValues.push({ key, value });
+        return Promise.resolve();
+      }),
+      remove: vi.fn(async () => null),
+    };
+    tauriMocks.appDataDir.mockResolvedValue("/tmp/cantiara/");
+    tauriMocks.invoke.mockResolvedValue("vault-password");
+    tauriMocks.strongholdLoad.mockResolvedValue({
+      createClient: vi.fn(async () => ({ getStore: () => store })),
+      loadClient: vi.fn(async () => ({ getStore: () => store })),
+      save: vi.fn(async () => undefined),
+    });
+    tauriMocks.openUrl.mockResolvedValue(undefined);
+
+    await openTauriGitHubSignIn();
+
+    const verifierBytes = insertedValues.find(
+      ({ key }) => key === "code-verifier",
+    )?.value;
+    if (!verifierBytes) {
+      throw new Error("Tauri code verifier was not stored");
+    }
+    const verifier = new TextDecoder().decode(new Uint8Array(verifierBytes));
+    const openedURL = new URL(tauriMocks.openUrl.mock.calls[0]?.[0]);
+    expect(openedURL.pathname).toBe("/api/auth/tauri/start");
+    await expect(createTauriAuthCodeChallenge(verifier)).resolves.toBe(
+      openedURL.searchParams.get("code_challenge"),
+    );
   });
 
   test("adds a bearer header for Tauri requests without replacing an explicit header", async () => {
