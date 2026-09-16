@@ -1510,7 +1510,7 @@ Hizmetin çalışmasını teşhis etmek için üretilen, özel içerik veya secr
 _Avoid_: Kayıt geçmişi, Denetim kaydı
 
 **Destek referansı**:
-Başarısız ana akışta kullanıcıya gösterilen, sunucu hata takip kimliğinden türetilen ve secret veya Çalışma Alanı gövdesi taşımayan referans ([gözlemlenebilirlik](docs/prd/15-product-quality.md#gozlemlenebilirlik)). UI: `Support reference`.
+Başarısız ana akışta kullanıcıya gösterilen, sunucu hata takip kimliğinden türetilen ve secret veya Çalışma Alanı gövdesi taşımayan referans ([gözlemlenebilirlik](docs/prd/15-product-quality.md#gozlemlenebilirlik)). İstek sunucuya ulaşmadığında istemci sahte referans üretmez; UI: `Support reference unavailable.`. UI: `Support reference`.
 _Avoid_: pager, S1 alarm, müşteri kuyruğu, Denetim kaydı
 
 **Yeniden dene**:
