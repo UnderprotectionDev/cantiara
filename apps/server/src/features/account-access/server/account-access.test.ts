@@ -139,6 +139,19 @@ describe("Account Access", () => {
     expect(GITHUB_LOGIN_SCOPES).not.toContain("write:org");
   });
 
+  test("Better Auth cannot refresh past the Account Access lifetime policy", () => {
+    const options = createAuthOptions(
+      authConfig,
+      {} as never,
+      acceptingAccountAdmission(),
+    );
+
+    expect(options.session).toMatchObject({
+      disableSessionRefresh: true,
+      expiresIn: 30 * 24 * 60 * 60,
+    });
+  });
+
   test("callback failures do not reveal Account or Workspace existence", async () => {
     installGitHubOAuthTestDouble();
     const failingAdmissions = createGitHubCallbackTestDriver({
@@ -239,6 +252,47 @@ describe("Account Access", () => {
     expect(githubResponse.headers.get("set-cookie")).toContain("HttpOnly");
     expect(githubResponse.headers.get("set-cookie")).toContain("Secure");
     expect(githubResponse.headers.get("set-cookie")).toContain("SameSite=Lax");
+  });
+
+  test("raw session endpoints cannot expose tokens or bypass revoke events", async () => {
+    const options = createAuthOptions(
+      authConfig,
+      {} as never,
+      acceptingAccountAdmission(),
+    );
+    const auth = betterAuth({
+      ...options,
+      database: memoryAdapter({
+        account: [],
+        rateLimit: [],
+        session: [],
+        user: [],
+        verification: [],
+      }),
+    });
+
+    const responses = await Promise.all(
+      [
+        "/list-sessions",
+        "/revoke-session",
+        "/revoke-sessions",
+        "/revoke-other-sessions",
+      ].map((path) =>
+        auth.handler(
+          new Request(`https://api.cantiara.example/api/auth${path}`, {
+            headers: {
+              "content-type": "application/json",
+              origin: "https://cantiara.example",
+            },
+            method: path === "/list-sessions" ? "GET" : "POST",
+          }),
+        ),
+      ),
+    );
+
+    expect(responses.map((response) => response.status)).toEqual([
+      404, 404, 404, 404,
+    ]);
   });
 
   test("first and repeated GitHub callbacks create and reuse one Account and Workspace", async () => {

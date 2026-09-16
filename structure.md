@@ -2,6 +2,9 @@
 
 ```text
 .
+├── .github/
+│   └── workflows/
+│       └── account-access-integration.yml
 ├── apps/
 │   ├── extension/
 │   │   ├── entrypoints/
@@ -42,6 +45,8 @@
 │   │   ├── proxy.ts
 │   │   └── tsconfig.json
 │   ├── server/
+│   │   ├── e2e/
+│   │   │   └── account-access-server.ts
 │   │   ├── src/
 │   │   │   ├── features/
 │   │   │   │   ├── account-access/
@@ -210,6 +215,7 @@
 │   │   │   │   │   └── server/
 │   │   │   │   └── workspace-overview/
 │   │   │   │       └── server/
+│   │   │   ├── app.ts
 │   │   │   ├── context.ts
 │   │   │   ├── env.test.ts
 │   │   │   ├── env.ts
@@ -219,6 +225,8 @@
 │   │   ├── tsconfig.json
 │   │   └── tsdown.config.ts
 │   └── web/
+│       ├── e2e/
+│       │   └── account-sessions.e2e.ts
 │       ├── src/
 │       │   ├── features/
 │       │   │   ├── account-access/
@@ -505,6 +513,7 @@
 │       ├── components.json
 │       ├── index.html
 │       ├── package.json
+│       ├── playwright.config.ts
 │       ├── tsconfig.json
 │       └── vite.config.ts
 ├── packages/
@@ -525,14 +534,21 @@
 │   │   ├── package.json
 │   │   └── tsconfig.base.json
 │   ├── db/
+│   │   ├── scripts/
+│   │   │   └── migrate.ts
 │   │   ├── src/
 │   │   │   ├── migrations/
+│   │   │   │   └── security-events/
 │   │   │   ├── schema/
 │   │   │   │   ├── auth.ts
+│   │   │   │   ├── security-event.ts
 │   │   │   │   └── index.ts
 │   │   │   ├── config.ts
 │   │   │   ├── env.ts
-│   │   │   └── index.ts
+│   │   │   ├── index.ts
+│   │   │   ├── local-postgres.ts
+│   │   │   └── security-events.ts
+│   │   ├── drizzle.security.config.ts
 │   │   ├── drizzle.config.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json

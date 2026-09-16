@@ -108,6 +108,18 @@ export const rateLimit = pgTable("rate_limit", {
   lastRequest: bigint("last_request", { mode: "number" }).notNull(),
 });
 
+export const auditRecord = pgTable(
+  "audit_record",
+  {
+    id: text("id").primaryKey(),
+    type: text("type").notNull(),
+    occurredAt: timestamp("occurred_at").notNull(),
+    actorAlias: text("actor_alias").notNull(),
+    targetSessionAlias: text("target_session_alias").notNull(),
+  },
+  (table) => [index("audit_record_occurredAt_idx").on(table.occurredAt)],
+);
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),

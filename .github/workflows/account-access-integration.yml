@@ -1,0 +1,56 @@
+name: Account Access integration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# The local Neon transport shim makes this an integration signal, not canonical
+# product acceptance evidence under docs/tech-stack.md.
+jobs:
+  account-access-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: cantiara
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cantiara"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      ACCOUNT_ACCESS_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara
+      BETTER_AUTH_SECRET: account-access-integration-secret-123456789
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara
+      NEON_LOCAL: "true"
+      SECURITY_EVENT_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara_security
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - run: bun install --frozen-lockfile
+      - name: Prepare PostgreSQL boundaries
+        run: psql "$DATABASE_URL" -c 'CREATE DATABASE cantiara_security'
+      - name: Install integration browser
+        run: bunx playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: Run integration suite
+        run: |
+          bun scripts/neon-local-proxy.ts &
+          proxy_pid=$!
+          trap 'kill "$proxy_pid"' EXIT
+          bun run --cwd packages/db db:migrate:deploy
+          bun run --cwd packages/db db:security:migrate:deploy
+          bun run check
+          bun run check-types
+          bun run --cwd apps/server test
+          bun run --cwd apps/web test
+          bun run test:e2e

@@ -32,19 +32,21 @@ bun install
 
 This project uses PostgreSQL with Drizzle ORM.
 
-1. Make sure you have a PostgreSQL database set up.
-2. Copy `apps/server/.env.example` to `apps/server/.env.local`, replace `BETTER_AUTH_SECRET` with at least 32 random characters, then add your PostgreSQL connection details.
+1. Set up a primary PostgreSQL database and a separate PostgreSQL project for the append-only security-event log. The two connection strings must not share a restore unit or credentials.
+2. Copy `apps/server/.env.example` to `apps/server/.env.local`, replace `BETTER_AUTH_SECRET` with at least 32 random characters, then add both PostgreSQL connection strings.
 
 3. Generate a versioned migration from the Drizzle schema:
 
 ```bash
 bun run db:generate
+bun run db:security:generate
 ```
 
-4. Review the generated SQL in `packages/db/src/migrations/`, then apply it:
+4. Review the generated SQL in `packages/db/src/migrations/` and `packages/db/src/migrations/security-events/`, then apply each migration to its owning database:
 
 ```bash
 bun run db:migrate
+bun run db:security:migrate
 ```
 
 `bun run db:push` is only for a disposable local database. Product schema changes use reviewed, versioned migrations.
@@ -121,9 +123,12 @@ cantiara/
 - `bun run check-types`: Check TypeScript types across all apps
 - `bun run dev:types`: Watch API and dependency declarations when running an app individually. The root `dev` command already starts this watcher; installation and builds generate declarations automatically.
 - `bun run db:generate`: Generate a versioned SQL migration from the Drizzle schema
+- `bun run db:security:generate`: Generate a versioned SQL migration for the separate security-event database
 - `bun run db:migrate`: Apply reviewed versioned migrations
+- `bun run db:security:migrate`: Apply reviewed security-event migrations outside the primary restore unit
 - `bun run db:push`: Push schema changes only to a disposable local database
 - `bun run db:studio`: Open database studio UI
 - `bun run check`: Run Biome formatting and linting
+- `bun run test:e2e`: Run the Account Access Playwright journey against the configured temporary PostgreSQL boundaries
 - `cd apps/web && bun run desktop:dev`: Start Tauri desktop app in development
 - `cd apps/web && bun run desktop:build`: Build Tauri desktop app

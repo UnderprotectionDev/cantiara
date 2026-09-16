@@ -1,10 +1,13 @@
 import { Pool } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 
+import "./local-postgres";
+
 import type { DatabaseConfig } from "./config";
 import {
   account,
   accountRelations,
+  auditRecord,
   rateLimit,
   session,
   sessionRelations,
@@ -18,6 +21,7 @@ import {
 const schema = {
   account,
   accountRelations,
+  auditRecord,
   rateLimit,
   session,
   sessionRelations,

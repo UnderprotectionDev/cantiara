@@ -15,6 +15,13 @@
       "when": 1789507371487,
       "tag": "0001_github-account-workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789542361463,
+      "tag": "0002_medical_gorilla_man",
+      "breakpoints": true
     }
   ]
 }

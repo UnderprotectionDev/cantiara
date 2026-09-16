@@ -30,6 +30,14 @@
       "cache": false,
       "interactive": true
     },
+    "db:security:generate": {
+      "cache": false,
+      "interactive": true
+    },
+    "db:security:migrate": {
+      "cache": false,
+      "interactive": true
+    },
     "db:studio": {
       "cache": false,
       "persistent": true
@@ -43,7 +51,14 @@
     "DATABASE_URL",
     "GITHUB_CLIENT_ID",
     "GITHUB_CLIENT_SECRET",
+    "NEON_LOCAL",
+    "NEON_LOCAL_POSTGRES_HOST",
+    "NEON_LOCAL_POSTGRES_PORT",
+    "NEON_LOCAL_PROXY",
+    "NEON_LOCAL_PROXY_HOST",
+    "NEON_LOCAL_PROXY_PORT",
     "NODE_ENV",
+    "SECURITY_EVENT_DATABASE_URL",
     "VITE_SERVER_URL"
   ],
   "globalDependencies": [".env*", "apps/*/.env*", "packages/*/.env*"]
