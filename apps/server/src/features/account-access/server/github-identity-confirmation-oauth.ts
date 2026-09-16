@@ -1,3 +1,4 @@
+import type { GitHubAvailabilityStatus } from "@cantiara/api/context";
 import { fetch as undiciFetch } from "undici";
 
 const GITHUB_AUTHORIZATION_ENDPOINT =
@@ -8,24 +9,25 @@ const GITHUB_IDENTITY_ID_PATTERN = /^\d+$/;
 
 export const CONFIRM_GITHUB_IDENTITY_SCOPE = "read:user";
 
-interface GitHubOAuthFetchInit {
+export interface GitHubOAuthFetchInit {
   body?: URLSearchParams;
   headers?: Record<string, string>;
   method?: string;
 }
 
-interface GitHubOAuthFetchResponse {
+export interface GitHubOAuthFetchResponse {
   json: () => Promise<unknown>;
   ok: boolean;
   status: number;
 }
 
 export interface GitHubIdentityConfirmationOAuthAvailability {
+  getStatus?: () => GitHubAvailabilityStatus;
   markAvailable: () => void | Promise<void>;
   markUnavailable: () => void | Promise<void>;
 }
 
-interface GitHubIdentityConfirmationOAuthOptions {
+export interface GitHubIdentityConfirmationOAuthOptions {
   callbackURL: string;
   clientId: string;
   clientSecret: string;

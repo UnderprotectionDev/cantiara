@@ -12,6 +12,7 @@ import {
   type GitHubIdentityConfirmation,
   type GitHubIdentityConfirmationAuditRecord,
   type GitHubIdentityConfirmationGrant,
+  type GitHubIdentityConfirmationHandoff,
   type GitHubIdentityConfirmationRateLimit,
   type GitHubIdentityConfirmationState,
   type GitHubIdentityConfirmationStore,
@@ -20,6 +21,8 @@ import {
 import {
   createGitHubIdentityConfirmationOAuth,
   type GitHubIdentityConfirmationOAuthAvailability,
+  type GitHubOAuthFetchInit,
+  type GitHubOAuthFetchResponse,
 } from "./github-identity-confirmation-oauth";
 
 const CONFIRMATION_RATE_LIMIT_MAX = 5;
@@ -42,7 +45,10 @@ function parseState(value: string): GitHubIdentityConfirmationState | null {
       typeof parsed.operationId !== "string" ||
       !isConfirmGitHubIdentityOperationId(parsed.operationId) ||
       typeof parsed.sessionId !== "string" ||
-      parsed.sessionId.length === 0
+      parsed.sessionId.length === 0 ||
+      (parsed.clientPlatform !== undefined &&
+        parsed.clientPlatform !== "web" &&
+        parsed.clientPlatform !== "tauri")
     ) {
       return null;
     }
@@ -50,6 +56,38 @@ function parseState(value: string): GitHubIdentityConfirmationState | null {
     return {
       accountId: parsed.accountId,
       codeVerifier: parsed.codeVerifier,
+      clientPlatform: parsed.clientPlatform === "tauri" ? "tauri" : "web",
+      operationId: parsed.operationId,
+      sessionId: parsed.sessionId,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseHandoff(value: string): GitHubIdentityConfirmationHandoff | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (
+      !isRecord(parsed) ||
+      typeof parsed.accountId !== "string" ||
+      parsed.accountId.length === 0 ||
+      typeof parsed.grant !== "string" ||
+      !BASE64_URL_VALUE_PATTERN.test(parsed.grant) ||
+      typeof parsed.grantIdentifier !== "string" ||
+      parsed.grantIdentifier.length === 0 ||
+      typeof parsed.operationId !== "string" ||
+      !isConfirmGitHubIdentityOperationId(parsed.operationId) ||
+      typeof parsed.sessionId !== "string" ||
+      parsed.sessionId.length === 0
+    ) {
+      return null;
+    }
+
+    return {
+      accountId: parsed.accountId,
+      grant: parsed.grant,
+      grantIdentifier: parsed.grantIdentifier,
       operationId: parsed.operationId,
       sessionId: parsed.sessionId,
     };
@@ -74,6 +112,10 @@ export function createDatabaseGitHubIdentityConfirmation(
     callbackURL: string;
     clientId: string;
     clientSecret: string;
+    fetch?: (
+      input: string | URL,
+      init?: GitHubOAuthFetchInit,
+    ) => Promise<GitHubOAuthFetchResponse>;
     githubAvailability?: GitHubIdentityConfirmationOAuthAvailability;
     now?: () => Date;
   },
@@ -94,6 +136,41 @@ export function createDatabaseGitHubIdentityConfirmation(
         .returning({ id: verification.id });
       return Boolean(record);
     },
+    consumeHandoff(identifier, principal, now) {
+      return database.transaction(async (transaction) => {
+        const [record] = await transaction
+          .select({ id: verification.id, value: verification.value })
+          .from(verification)
+          .where(
+            and(
+              eq(verification.identifier, identifier),
+              gt(verification.expiresAt, now),
+            ),
+          )
+          .limit(1);
+        const handoff = record ? parseHandoff(record.value) : null;
+        if (
+          !(
+            record &&
+            handoff &&
+            handoff.accountId === principal.accountId &&
+            handoff.sessionId === principal.sessionId
+          )
+        ) {
+          return null;
+        }
+
+        const [deletedHandoff] = await transaction
+          .delete(verification)
+          .where(eq(verification.id, record.id))
+          .returning({ id: verification.id });
+        if (!deletedHandoff) {
+          return null;
+        }
+
+        return handoff;
+      });
+    },
     async consumeState(identifier, now) {
       const [record] = await database
         .delete(verification)
@@ -106,12 +183,33 @@ export function createDatabaseGitHubIdentityConfirmation(
         .returning({ value: verification.value });
       return record ? parseState(record.value) : null;
     },
+    async findState(identifier, now) {
+      const [record] = await database
+        .select({ value: verification.value })
+        .from(verification)
+        .where(
+          and(
+            eq(verification.identifier, identifier),
+            gt(verification.expiresAt, now),
+          ),
+        )
+        .limit(1);
+      return record ? parseState(record.value) : null;
+    },
     async createGrant(identifier, grant, expiresAt) {
       await database.insert(verification).values({
         expiresAt,
         id: crypto.randomUUID(),
         identifier,
         value: grantValue(grant),
+      });
+    },
+    async createHandoff(identifier, handoff, expiresAt) {
+      await database.insert(verification).values({
+        expiresAt,
+        id: crypto.randomUUID(),
+        identifier,
+        value: JSON.stringify(handoff),
       });
     },
     async createState(identifier, state, expiresAt) {
@@ -186,10 +284,15 @@ export function createDatabaseGitHubIdentityConfirmation(
       },
     },
     authorizeSession: options.authorizeSession,
+    githubAvailability: options.githubAvailability?.getStatus
+      ? { getStatus: options.githubAvailability.getStatus }
+      : undefined,
     issueGrant: async ({
       auditRecord: record,
       expiresAt,
       grant,
+      handoff,
+      handoffIdentifier,
       identifier,
     }) => {
       await database.transaction(async (transaction) => {
@@ -198,6 +301,12 @@ export function createDatabaseGitHubIdentityConfirmation(
           id: crypto.randomUUID(),
           identifier,
           value: grantValue(grant),
+        });
+        await transaction.insert(verification).values({
+          expiresAt,
+          id: crypto.randomUUID(),
+          identifier: handoffIdentifier,
+          value: JSON.stringify(handoff),
         });
         await transaction
           .insert(auditRecord)
@@ -215,6 +324,7 @@ export function createDatabaseGitHubIdentityConfirmation(
       callbackURL: options.callbackURL,
       clientId: options.clientId,
       clientSecret: options.clientSecret,
+      fetch: options.fetch,
       githubAvailability: options.githubAvailability,
     }),
     now: currentTime,

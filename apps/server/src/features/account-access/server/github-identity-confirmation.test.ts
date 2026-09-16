@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   createGitHubIdentityConfirmation,
   type GitHubIdentityConfirmationGrant,
+  type GitHubIdentityConfirmationHandoff,
   type GitHubIdentityConfirmationState,
   type GitHubIdentityConfirmationStore,
 } from "./github-identity-confirmation";
@@ -21,6 +22,10 @@ function createStore() {
   const grants = new Map<
     string,
     { expiresAt: Date; grant: GitHubIdentityConfirmationGrant }
+  >();
+  const handoffs = new Map<
+    string,
+    { expiresAt: Date; handoff: GitHubIdentityConfirmationHandoff }
   >();
 
   return {
@@ -41,6 +46,38 @@ function createStore() {
       grants.delete(identifier);
       return Promise.resolve(true);
     },
+    consumeHandoff: (
+      identifier: string,
+      principal: { accountId: string; sessionId: string },
+      now: Date,
+    ) => {
+      const stored = handoffs.get(identifier);
+      if (
+        !stored ||
+        stored.expiresAt <= now ||
+        stored.handoff.accountId !== principal.accountId ||
+        stored.handoff.sessionId !== principal.sessionId
+      ) {
+        return Promise.resolve(null);
+      }
+      const grant = grants.get(stored.handoff.grantIdentifier);
+      if (
+        !grant ||
+        grant.expiresAt <= now ||
+        grant.grant.accountId !== stored.handoff.accountId ||
+        grant.grant.operationId !== stored.handoff.operationId
+      ) {
+        return Promise.resolve(null);
+      }
+      handoffs.delete(identifier);
+      return Promise.resolve(stored.handoff);
+    },
+    findState: (identifier: string, now: Date) => {
+      const stored = states.get(identifier);
+      return Promise.resolve(
+        stored && stored.expiresAt > now ? stored.state : null,
+      );
+    },
     consumeState: (identifier: string, now: Date) => {
       const stored = states.get(identifier);
       if (!stored || stored.expiresAt <= now) {
@@ -55,6 +92,14 @@ function createStore() {
       expiresAt: Date,
     ) => {
       grants.set(identifier, { expiresAt, grant });
+      return Promise.resolve();
+    },
+    createHandoff: (
+      identifier: string,
+      handoff: GitHubIdentityConfirmationHandoff,
+      expiresAt: Date,
+    ) => {
+      handoffs.set(identifier, { expiresAt, handoff });
       return Promise.resolve();
     },
     createState: (
@@ -155,7 +200,10 @@ describe("Account Access Confirm GitHub Identity", () => {
     expect(result).toEqual({
       authorizationUrl: expect.stringContaining("prompt=select_account"),
     });
-    const authorizationUrl = new URL(result?.authorizationUrl ?? "");
+    if (!(result && "authorizationUrl" in result)) {
+      throw new Error("Authorization URL was not created");
+    }
+    const authorizationUrl = new URL(result.authorizationUrl);
     expect(authorizationUrl.searchParams.get("code_challenge_method")).toBe(
       "S256",
     );
@@ -167,8 +215,97 @@ describe("Account Access Confirm GitHub Identity", () => {
     );
   });
 
+  test("returns Waiting for GitHub without creating an OAuth tour during an outage", async () => {
+    let authorizationURLCalls = 0;
+    const confirmation = createGitHubIdentityConfirmation({
+      accountIdentities: {
+        findGitHubIdentityId: async () => "42",
+      },
+      githubAvailability: { getStatus: () => "waiting" },
+      githubOAuth: {
+        createAuthorizationUrl: ({ state }) => {
+          authorizationURLCalls += 1;
+          return state;
+        },
+        exchangeAuthorizationCode: async () => "42",
+      },
+      store: createStore(),
+    });
+
+    await expect(
+      confirmation.start(PRINCIPAL, "account-closure-start"),
+    ).resolves.toEqual({ status: "waiting" });
+    expect(authorizationURLCalls).toBe(0);
+  });
+
+  test("completes from the state-bound session and exchanges a one-time handoff", async () => {
+    const randomValues = [
+      "A".repeat(43),
+      "B".repeat(43),
+      "C".repeat(43),
+      "D".repeat(43),
+    ];
+    const confirmation = createGitHubIdentityConfirmation({
+      accountIdentities: {
+        findGitHubIdentityId: async () => "42",
+      },
+      authorizeSession: (principal) =>
+        Promise.resolve(
+          principal.accountId === PRINCIPAL.accountId &&
+            principal.sessionId === PRINCIPAL.sessionId,
+        ),
+      githubOAuth: {
+        createAuthorizationUrl: ({ state }) => state,
+        exchangeAuthorizationCode: ({ code, codeVerifier }) => {
+          expect(code).toBe("github-code");
+          expect(codeVerifier).toBe("B".repeat(43));
+          return Promise.resolve("42");
+        },
+      },
+      randomValue: () => {
+        const value = randomValues.shift();
+        if (!value) {
+          throw new Error("No deterministic random value remains");
+        }
+        return value;
+      },
+      store: createStore(),
+    });
+
+    await confirmation.start(
+      PRINCIPAL,
+      "account-closure-start",
+      "unknown",
+      "tauri",
+    );
+    const completion = await confirmation.complete(null, {
+      code: "github-code",
+      state: "A".repeat(43),
+    });
+
+    expect(completion).toEqual({
+      callbackCode: "D".repeat(43),
+      clientPlatform: "tauri",
+      grant: "C".repeat(43),
+    });
+    await expect(
+      confirmation.exchange(PRINCIPAL, "D".repeat(43)),
+    ).resolves.toBe("C".repeat(43));
+    await expect(
+      confirmation.consume(PRINCIPAL, "account-closure-start", "C".repeat(43)),
+    ).resolves.toBe(true);
+    await expect(
+      confirmation.exchange(PRINCIPAL, "D".repeat(43)),
+    ).resolves.toBeNull();
+  });
+
   test("mints an operation-bound grant that can be consumed only once", async () => {
-    const randomValues = ["A".repeat(43), "B".repeat(43), "C".repeat(43)];
+    const randomValues = [
+      "A".repeat(43),
+      "B".repeat(43),
+      "C".repeat(43),
+      "D".repeat(43),
+    ];
     const confirmation = createGitHubIdentityConfirmation({
       accountIdentities: {
         findGitHubIdentityId: async () => "42",
@@ -194,10 +331,11 @@ describe("Account Access Confirm GitHub Identity", () => {
     });
 
     await confirmation.start(PRINCIPAL, "account-closure-start");
-    const grant = await confirmation.complete(PRINCIPAL, {
+    const completion = await confirmation.complete(PRINCIPAL, {
       code: "github-code",
       state: "A".repeat(43),
     });
+    const grant = completion?.grant;
 
     expect(grant).toBe("C".repeat(43));
     await expect(
@@ -217,6 +355,7 @@ describe("Account Access Confirm GitHub Identity", () => {
       "E".repeat(43),
       "F".repeat(43),
       "G".repeat(43),
+      "H".repeat(43),
     ];
     let returnedIdentityId = "42";
     const confirmation = createGitHubIdentityConfirmation({
@@ -269,7 +408,7 @@ describe("Account Access Confirm GitHub Identity", () => {
         code: "github-code",
         state: "A".repeat(43),
       }),
-    ).resolves.toBe("G".repeat(43));
+    ).resolves.toMatchObject({ grant: "G".repeat(43) });
   });
 
   test("fails closed for an invalid state, provider PKCE failure, and an expired tour", async () => {
@@ -327,7 +466,12 @@ describe("Account Access Confirm GitHub Identity", () => {
   });
 
   test("keeps a grant bound to its own operation identifier", async () => {
-    const randomValues = ["A".repeat(43), "B".repeat(43), "C".repeat(43)];
+    const randomValues = [
+      "A".repeat(43),
+      "B".repeat(43),
+      "C".repeat(43),
+      "D".repeat(43),
+    ];
     const confirmation = createGitHubIdentityConfirmation({
       accountIdentities: {
         findGitHubIdentityId: async () => "42",
@@ -347,10 +491,12 @@ describe("Account Access Confirm GitHub Identity", () => {
     });
 
     await confirmation.start(PRINCIPAL, "account-closure-start");
-    const grant = await confirmation.complete(PRINCIPAL, {
-      code: "valid-code",
-      state: "A".repeat(43),
-    });
+    const grant = (
+      await confirmation.complete(PRINCIPAL, {
+        code: "valid-code",
+        state: "A".repeat(43),
+      })
+    )?.grant;
 
     await expect(
       confirmation.consume(PRINCIPAL, "account-closure-cancel", grant ?? ""),
@@ -361,7 +507,12 @@ describe("Account Access Confirm GitHub Identity", () => {
   });
 
   test("expires the OAuth tour and minted grant after at most ten minutes", async () => {
-    const randomValues = ["A".repeat(43), "B".repeat(43), "C".repeat(43)];
+    const randomValues = [
+      "A".repeat(43),
+      "B".repeat(43),
+      "C".repeat(43),
+      "D".repeat(43),
+    ];
     const baseStore = createStore();
     let stateExpiresAt: Date | undefined;
     let grantExpiresAt: Date | undefined;
@@ -407,7 +558,12 @@ describe("Account Access Confirm GitHub Identity", () => {
   });
 
   test("records confirmation outcomes without raw Account, state, grant, or provider secrets", async () => {
-    const randomValues = ["A".repeat(43), "B".repeat(43), "C".repeat(43)];
+    const randomValues = [
+      "A".repeat(43),
+      "B".repeat(43),
+      "C".repeat(43),
+      "D".repeat(43),
+    ];
     const auditRecords: unknown[] = [];
     const confirmation = createGitHubIdentityConfirmation({
       accountIdentities: {
@@ -434,10 +590,12 @@ describe("Account Access Confirm GitHub Identity", () => {
     });
 
     await confirmation.start(PRINCIPAL, "account-closure-start");
-    const grant = await confirmation.complete(PRINCIPAL, {
-      code: "provider-secret-code",
-      state: "A".repeat(43),
-    });
+    const grant = (
+      await confirmation.complete(PRINCIPAL, {
+        code: "provider-secret-code",
+        state: "A".repeat(43),
+      })
+    )?.grant;
     await confirmation.consume(PRINCIPAL, "account-closure-start", grant ?? "");
     await confirmation.consume(PRINCIPAL, "account-closure-start", grant ?? "");
 

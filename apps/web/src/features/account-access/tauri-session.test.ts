@@ -1,3 +1,4 @@
+import { TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL } from "@cantiara/api/context";
 import { describe, expect, test, vi } from "vitest";
 
 const tauriMocks = vi.hoisted(() => ({
@@ -22,8 +23,10 @@ import {
   createTauriAuthCodeChallenge,
   createTauriBearerHeaders,
   exchangeTauriAuthCode,
+  exchangeTauriGitHubIdentityHandoff,
   openTauriGitHubSignIn,
   parseTauriAuthCallback,
+  parseTauriGitHubIdentityConfirmationCallback,
   TAURI_AUTH_CALLBACK_URL,
 } from "./tauri-session";
 
@@ -87,6 +90,47 @@ describe("Account Access Tauri session", () => {
     });
     expect(storedToken).toBe("bearer-session-token");
     expect(clearedCodeVerifier).toBe(true);
+  });
+
+  test("accepts only the confirmation code deep link and exchanges it with the stored bearer", async () => {
+    expect(
+      parseTauriGitHubIdentityConfirmationCallback(
+        `${TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL}?code=${"H".repeat(43)}`,
+      ),
+    ).toEqual({ code: "H".repeat(43) });
+    expect(
+      parseTauriGitHubIdentityConfirmationCallback(
+        `${TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL}?code=${"H".repeat(43)}&grant=secret`,
+      ),
+    ).toBeNull();
+    expect(
+      parseTauriGitHubIdentityConfirmationCallback(
+        `${TAURI_AUTH_CALLBACK_URL}?code=${"H".repeat(43)}`,
+      ),
+    ).toBeNull();
+
+    const requests: Request[] = [];
+    await expect(
+      exchangeTauriGitHubIdentityHandoff("H".repeat(43), {
+        fetch: (input, init) => {
+          requests.push(new Request(input, init));
+          return Promise.resolve(Response.json({ grant: "G".repeat(43) }));
+        },
+        readToken: () => Promise.resolve("bearer-session-token"),
+        serverURL: "https://api.cantiara.example",
+      }),
+    ).resolves.toBe("G".repeat(43));
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe(
+      "https://api.cantiara.example/api/auth/confirm-github-identity/exchange",
+    );
+    expect(requests[0]?.headers.get("authorization")).toBe(
+      "Bearer bearer-session-token",
+    );
+    await expect(requests[0]?.json()).resolves.toEqual({
+      code: "H".repeat(43),
+    });
   });
 
   test("stores an app verifier before opening the system browser", async () => {

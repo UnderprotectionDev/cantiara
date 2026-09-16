@@ -66,6 +66,10 @@ describe("Account Access RPC", () => {
         getStatus: () => "available" as const,
       },
       githubIdentityConfirmation: {
+        exchange: (principal, handoffCode, clientKey) => {
+          calls.push({ clientKey, handoffCode, principal });
+          return Promise.resolve("G".repeat(43));
+        },
         start: (principal, operationId, clientKey) => {
           calls.push({ clientKey, operationId, principal });
           return Promise.resolve({
@@ -97,6 +101,9 @@ describe("Account Access RPC", () => {
         operationId: "account-closure-start",
       }),
     ).resolves.toEqual({ consumed: true });
+    await expect(
+      client.exchangeGitHubIdentityHandoff({ code: "H".repeat(43) }),
+    ).resolves.toEqual({ grant: "G".repeat(43) });
 
     expect(calls).toEqual([
       {
@@ -108,6 +115,11 @@ describe("Account Access RPC", () => {
         clientKey: "198.51.100.10",
         grant: "G".repeat(43),
         operationId: "account-closure-start",
+        principal: { accountId: "account-1", sessionId: "current-session" },
+      },
+      {
+        clientKey: "198.51.100.10",
+        handoffCode: "H".repeat(43),
         principal: { accountId: "account-1", sessionId: "current-session" },
       },
     ]);

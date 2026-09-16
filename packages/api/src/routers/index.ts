@@ -57,11 +57,28 @@ export const appRouter = {
         sessionPrincipal(context.session),
         input.operationId,
         context.clientKey,
+        context.clientPlatform,
       );
       if (!result) {
         throw new ORPCError("BAD_REQUEST");
       }
       return result;
+    }),
+  exchangeGitHubIdentityHandoff: protectedProcedure
+    .input(z.object({ code: z.string().min(1).max(512) }))
+    .handler(async ({ context, input }) => {
+      const confirmation = context.githubIdentityConfirmation;
+      if (!confirmation) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+
+      return {
+        grant: await confirmation.exchange(
+          sessionPrincipal(context.session),
+          input.code,
+          context.clientKey,
+        ),
+      };
     }),
   consumeGitHubIdentityGrant: protectedProcedure
     .input(

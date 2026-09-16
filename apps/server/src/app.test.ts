@@ -230,6 +230,7 @@ describe("server app Account Access boundary", () => {
       githubIdentityConfirmation: {
         complete: () => Promise.resolve(null),
         consume: () => Promise.resolve(false),
+        exchange: () => Promise.resolve(null),
         recordFailure: () => Promise.resolve(),
         start: (principal, operationId, clientKey) => {
           requestedPrincipal = principal;
@@ -271,12 +272,45 @@ describe("server app Account Access boundary", () => {
     expect(requestedClientKey).toBe("198.51.100.10");
   });
 
+  test("returns Waiting for GitHub from the start endpoint during an outage", async () => {
+    const { app } = createTestApp({
+      authorized: true,
+      githubIdentityConfirmation: {
+        complete: () => Promise.resolve(null),
+        consume: () => Promise.resolve(false),
+        exchange: () => Promise.resolve(null),
+        recordFailure: () => Promise.resolve(),
+        start: () => Promise.resolve({ status: "waiting" }),
+      },
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/auth/confirm-github-identity/start",
+        {
+          body: JSON.stringify({ operationId: "account-closure-start" }),
+          headers: {
+            cookie: "__Secure-better-auth.session_token=session-token",
+            "content-type": "application/json",
+            origin: "https://cantiara.example",
+          },
+          method: "POST",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ status: "waiting" });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
   test("rejects Confirm GitHub Identity when the current session is not authorized", async () => {
     let startCalls = 0;
     const { app } = createTestApp({
       githubIdentityConfirmation: {
         complete: () => Promise.resolve(null),
         consume: () => Promise.resolve(false),
+        exchange: () => Promise.resolve(null),
         recordFailure: () => Promise.resolve(),
         start: () => {
           startCalls += 1;
@@ -309,7 +343,7 @@ describe("server app Account Access boundary", () => {
     expect(startCalls).toBe(0);
   });
 
-  test("returns a successful confirmation grant in a no-store body, never in a URL", async () => {
+  test("hands a successful web confirmation back through a no-store postMessage handoff", async () => {
     let completedInput: unknown;
     const trustedProxy = {
       requestIP: () => ({
@@ -323,9 +357,14 @@ describe("server app Account Access boundary", () => {
       githubIdentityConfirmation: {
         complete: (principal, input, clientKey) => {
           completedInput = { clientKey, input, principal };
-          return Promise.resolve("G".repeat(43));
+          return Promise.resolve({
+            callbackCode: "H".repeat(43),
+            clientPlatform: "web" as const,
+            grant: "G".repeat(43),
+          });
         },
         consume: () => Promise.resolve(false),
+        exchange: () => Promise.resolve(null),
         recordFailure: () => Promise.resolve(),
         start: () => Promise.resolve(null),
       },
@@ -347,9 +386,10 @@ describe("server app Account Access boundary", () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      grant: "G".repeat(43),
-    });
+    const responseBody = await response.text();
+    expect(responseBody).toContain('"code":"H'.concat("H".repeat(42), '"'));
+    expect(responseBody).toContain("postMessage");
+    expect(responseBody).not.toContain("G".repeat(43));
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("location")).toBeNull();
     expect(response.headers.get("set-cookie")).toBeNull();
@@ -359,6 +399,87 @@ describe("server app Account Access boundary", () => {
         code: "authorization-code",
         state: "S".repeat(43),
       },
+      principal: null,
+    });
+  });
+
+  test("hands a successful Tauri confirmation back through a code-only deep link", async () => {
+    let completedPrincipal: unknown;
+    const { app } = createTestApp({
+      githubIdentityConfirmation: {
+        complete: (principal) => {
+          completedPrincipal = principal;
+          return Promise.resolve({
+            callbackCode: "H".repeat(43),
+            clientPlatform: "tauri" as const,
+            grant: "G".repeat(43),
+          });
+        },
+        consume: () => Promise.resolve(false),
+        exchange: () => Promise.resolve(null),
+        recordFailure: () => Promise.resolve(),
+        start: () => Promise.resolve(null),
+      },
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/auth/confirm-github-identity/callback?code=authorization-code&state=".concat(
+          "S".repeat(43),
+        ),
+        { headers: { origin: "http://tauri.localhost" } },
+      ),
+    );
+
+    const location = response.headers.get("location");
+    expect(response.status).toBe(302);
+    expect(location).toBe(
+      "cantiara://auth/confirm-github-identity?code=".concat("H".repeat(43)),
+    );
+    expect(location).not.toContain("grant");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(completedPrincipal).toBeNull();
+  });
+
+  test("exchanges a confirmation handoff only through the authorized no-store endpoint", async () => {
+    let exchanged: unknown;
+    const { app } = createTestApp({
+      authorized: true,
+      githubIdentityConfirmation: {
+        complete: () => Promise.resolve(null),
+        consume: () => Promise.resolve(false),
+        exchange: (principal, code, clientKey) => {
+          exchanged = { clientKey, code, principal };
+          return Promise.resolve("G".repeat(43));
+        },
+        recordFailure: () => Promise.resolve(),
+        start: () => Promise.resolve(null),
+      },
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/auth/confirm-github-identity/exchange",
+        {
+          body: JSON.stringify({ code: "H".repeat(43) }),
+          headers: {
+            cookie: "__Secure-better-auth.session_token=session-token",
+            "content-type": "application/json",
+            origin: "https://cantiara.example",
+          },
+          method: "POST",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      grant: "G".repeat(43),
+    });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(exchanged).toEqual({
+      clientKey: "unknown",
+      code: "H".repeat(43),
       principal: { accountId: "account-1", sessionId: "stale-session" },
     });
   });
@@ -377,6 +498,7 @@ describe("server app Account Access boundary", () => {
       githubIdentityConfirmation: {
         complete: () => Promise.resolve(null),
         consume: () => Promise.resolve(false),
+        exchange: () => Promise.resolve(null),
         recordFailure: (principal, callbackState, clientKey) => {
           failure = { clientKey, principal, state: callbackState };
           return Promise.resolve();

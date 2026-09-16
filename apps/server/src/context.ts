@@ -1,4 +1,5 @@
 import type {
+  AccountAccessClient,
   Context as ApiContext,
   GitHubAvailability,
 } from "@cantiara/api/context";
@@ -22,6 +23,13 @@ export interface CreateContextOptions {
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   trustedProxyIps: readonly string[];
+}
+
+export function requestClientPlatform(request: Request): AccountAccessClient {
+  return request.headers.get("origin") === "http://tauri.localhost" ||
+    request.headers.get("origin") === "tauri://localhost"
+    ? "tauri"
+    : "web";
 }
 
 export async function createContext({
@@ -50,6 +58,7 @@ export async function createContext({
   return {
     accountAccess: accountSessionAccess,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
+    clientPlatform: requestClientPlatform(context.req.raw),
     db: database,
     githubAvailability,
     githubIdentityConfirmation,

@@ -1,16 +1,22 @@
 import {
+  type AccountAccessClient,
   type AccountSessionPrincipal,
   CONFIRM_GITHUB_IDENTITY_OPERATION_IDS,
   type ConfirmGitHubIdentityOperationId,
+  type GitHubIdentityConfirmationStartResult,
 } from "@cantiara/api/context";
 
 export const CONFIRM_GITHUB_IDENTITY_GRANT_LIFETIME_MS = 10 * 60 * 1000;
 export const CONFIRM_GITHUB_IDENTITY_STATE_LIFETIME_MS =
   CONFIRM_GITHUB_IDENTITY_GRANT_LIFETIME_MS;
+export const CONFIRM_GITHUB_IDENTITY_HANDOFF_LIFETIME_MS =
+  CONFIRM_GITHUB_IDENTITY_GRANT_LIFETIME_MS;
 export const CONFIRM_GITHUB_IDENTITY_STATE_IDENTIFIER_PREFIX =
   "confirm-github-state:";
 export const CONFIRM_GITHUB_IDENTITY_GRANT_IDENTIFIER_PREFIX =
   "confirm-github-grant:";
+export const CONFIRM_GITHUB_IDENTITY_HANDOFF_IDENTIFIER_PREFIX =
+  "confirm-github-handoff:";
 export const CONFIRM_GITHUB_IDENTITY_FAILURE_CODE =
   "CONFIRM_GITHUB_IDENTITY_FAILURE";
 export const CONFIRM_GITHUB_IDENTITY_START_PATH =
@@ -20,6 +26,7 @@ export const CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH =
 
 export interface GitHubIdentityConfirmationState {
   accountId: string;
+  clientPlatform: AccountAccessClient;
   codeVerifier: string;
   operationId: ConfirmGitHubIdentityOperationId;
   sessionId: string;
@@ -30,12 +37,31 @@ export interface GitHubIdentityConfirmationGrant {
   operationId: ConfirmGitHubIdentityOperationId;
 }
 
+export interface GitHubIdentityConfirmationHandoff {
+  accountId: string;
+  grant: string;
+  grantIdentifier: string;
+  operationId: ConfirmGitHubIdentityOperationId;
+  sessionId: string;
+}
+
+export interface GitHubIdentityConfirmationCompletion {
+  callbackCode: string;
+  clientPlatform: AccountAccessClient;
+  grant: string;
+}
+
 export interface GitHubIdentityConfirmationStore {
   consumeGrant: (
     identifier: string,
     grant: GitHubIdentityConfirmationGrant,
     now: Date,
   ) => Promise<boolean>;
+  consumeHandoff: (
+    identifier: string,
+    principal: AccountSessionPrincipal,
+    now: Date,
+  ) => Promise<GitHubIdentityConfirmationHandoff | null>;
   consumeState: (
     identifier: string,
     now: Date,
@@ -45,11 +71,20 @@ export interface GitHubIdentityConfirmationStore {
     grant: GitHubIdentityConfirmationGrant,
     expiresAt: Date,
   ) => Promise<void>;
+  createHandoff: (
+    identifier: string,
+    handoff: GitHubIdentityConfirmationHandoff,
+    expiresAt: Date,
+  ) => Promise<void>;
   createState: (
     identifier: string,
     state: GitHubIdentityConfirmationState,
     expiresAt: Date,
   ) => Promise<void>;
+  findState: (
+    identifier: string,
+    now: Date,
+  ) => Promise<GitHubIdentityConfirmationState | null>;
 }
 
 export interface GitHubIdentityConfirmationAccountStore {
@@ -94,18 +129,23 @@ export interface GitHubIdentityConfirmationRateLimit {
 
 export interface GitHubIdentityConfirmation {
   complete: (
-    principal: AccountSessionPrincipal,
+    principal: AccountSessionPrincipal | null,
     input: { code: string; state: string },
     clientKey?: string,
-  ) => Promise<string | null>;
+  ) => Promise<GitHubIdentityConfirmationCompletion | null>;
   consume: (
     principal: AccountSessionPrincipal,
     operationId: ConfirmGitHubIdentityOperationId,
     grant: string,
     clientKey?: string,
   ) => Promise<boolean>;
-  recordFailure: (
+  exchange: (
     principal: AccountSessionPrincipal,
+    handoffCode: string,
+    clientKey?: string,
+  ) => Promise<string | null>;
+  recordFailure: (
+    principal: AccountSessionPrincipal | null,
     state?: string,
     clientKey?: string,
   ) => Promise<void>;
@@ -113,18 +153,24 @@ export interface GitHubIdentityConfirmation {
     principal: AccountSessionPrincipal,
     operationId: ConfirmGitHubIdentityOperationId,
     clientKey?: string,
-  ) => Promise<{ authorizationUrl: string } | null>;
+    clientPlatform?: AccountAccessClient,
+  ) => Promise<GitHubIdentityConfirmationStartResult | null>;
 }
 
 interface GitHubIdentityConfirmationOptions {
   accountIdentities: GitHubIdentityConfirmationAccountStore;
   auditRecords?: GitHubIdentityConfirmationAuditStore;
   authorizeSession?: (principal: AccountSessionPrincipal) => Promise<boolean>;
+  githubAvailability?: {
+    getStatus: () => "available" | "waiting";
+  };
   githubOAuth: GitHubIdentityConfirmationOAuth;
   issueGrant?: (input: {
     auditRecord: GitHubIdentityConfirmationAuditRecord;
     expiresAt: Date;
     grant: GitHubIdentityConfirmationGrant;
+    handoff: GitHubIdentityConfirmationHandoff;
+    handoffIdentifier: string;
     identifier: string;
   }) => Promise<void>;
   now?: () => Date;
@@ -190,6 +236,15 @@ function isUsableState(
   );
 }
 
+function isSamePrincipal(
+  left: AccountSessionPrincipal,
+  right: AccountSessionPrincipal,
+) {
+  return (
+    left.accountId === right.accountId && left.sessionId === right.sessionId
+  );
+}
+
 function createRandomValue() {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -240,17 +295,12 @@ async function grantIdentifier(
   return `${CONFIRM_GITHUB_IDENTITY_GRANT_IDENTIFIER_PREFIX}${grantAlias}:${accountAlias}:${operationId}`;
 }
 
-async function stateIdentifier(
-  state: string,
-  accountId: string,
-  sessionId: string,
-) {
-  const [stateAlias, accountAlias, sessionAlias] = await Promise.all([
-    identifierFor("", state),
-    identifierFor("", accountId),
-    identifierFor("", sessionId),
-  ]);
-  return `${CONFIRM_GITHUB_IDENTITY_STATE_IDENTIFIER_PREFIX}${stateAlias}:${accountAlias}:${sessionAlias}`;
+async function stateIdentifier(state: string) {
+  return `${CONFIRM_GITHUB_IDENTITY_STATE_IDENTIFIER_PREFIX}${await identifierFor("", state)}`;
+}
+
+async function handoffIdentifier(code: string) {
+  return `${CONFIRM_GITHUB_IDENTITY_HANDOFF_IDENTIFIER_PREFIX}${await identifierFor("", code)}`;
 }
 
 function actorAlias(accountId: string) {
@@ -261,6 +311,7 @@ export function createGitHubIdentityConfirmation({
   accountIdentities,
   authorizeSession,
   auditRecords,
+  githubAvailability,
   githubOAuth,
   issueGrant,
   now = () => new Date(),
@@ -368,9 +419,16 @@ export function createGitHubIdentityConfirmation({
     operationId: ConfirmGitHubIdentityOperationId,
     stateIdentifierValue: string,
     currentTime: Date,
+    clientPlatform: AccountAccessClient,
   ) {
     const grant = randomValue();
     if (!BASE64_URL_VALUE_PATTERN.test(grant)) {
+      await appendFailureAudit(principal, stateIdentifierValue, currentTime);
+      return null;
+    }
+
+    const callbackCode = randomValue();
+    if (!BASE64_URL_VALUE_PATTERN.test(callbackCode)) {
       await appendFailureAudit(principal, stateIdentifierValue, currentTime);
       return null;
     }
@@ -384,6 +442,14 @@ export function createGitHubIdentityConfirmation({
       grantRecord.accountId,
       grantRecord.operationId,
     );
+    const handoffIdentifierValue = await handoffIdentifier(callbackCode);
+    const handoff = {
+      accountId: principal.accountId,
+      grant,
+      grantIdentifier: grantIdentifierValue,
+      operationId,
+      sessionId: principal.sessionId,
+    } satisfies GitHubIdentityConfirmationHandoff;
     const expiresAt = new Date(
       currentTime.getTime() + CONFIRM_GITHUB_IDENTITY_GRANT_LIFETIME_MS,
     );
@@ -398,17 +464,31 @@ export function createGitHubIdentityConfirmation({
         auditRecord: succeededAuditRecord,
         expiresAt,
         grant: grantRecord,
+        handoff,
+        handoffIdentifier: handoffIdentifierValue,
         identifier: grantIdentifierValue,
       });
-      return grant;
+      return { callbackCode, clientPlatform, grant };
     }
 
     await store.createGrant(grantIdentifierValue, grantRecord, expiresAt);
+    await store.createHandoff(
+      handoffIdentifierValue,
+      handoff,
+      new Date(
+        currentTime.getTime() + CONFIRM_GITHUB_IDENTITY_HANDOFF_LIFETIME_MS,
+      ),
+    );
     if (await appendAuditRecord(succeededAuditRecord)) {
-      return grant;
+      return { callbackCode, clientPlatform, grant };
     }
 
     try {
+      await store.consumeHandoff(
+        handoffIdentifierValue,
+        principal,
+        currentTime,
+      );
       await store.consumeGrant(grantIdentifierValue, grantRecord, currentTime);
     } catch {
       // An unreachable, unreturned grant remains unusable without its random value.
@@ -416,22 +496,154 @@ export function createGitHubIdentityConfirmation({
     return null;
   }
 
+  function currentTimeOrNull() {
+    try {
+      return now();
+    } catch {
+      return null;
+    }
+  }
+
+  async function resolveFailureState(
+    state: string | undefined,
+    currentTime: Date,
+  ) {
+    if (!(state && BASE64_URL_VALUE_PATTERN.test(state))) {
+      return {
+        pendingState: null,
+        targetSessionAlias: CONFIRM_GITHUB_IDENTITY_STATE_IDENTIFIER_PREFIX,
+      };
+    }
+
+    try {
+      const targetSessionAlias = await stateIdentifier(state);
+      return {
+        pendingState: await store.findState(targetSessionAlias, currentTime),
+        targetSessionAlias,
+      };
+    } catch {
+      return {
+        pendingState: null,
+        targetSessionAlias: CONFIRM_GITHUB_IDENTITY_STATE_IDENTIFIER_PREFIX,
+      };
+    }
+  }
+
+  function principalFromState(
+    state: GitHubIdentityConfirmationState | null,
+  ): AccountSessionPrincipal | null {
+    return state
+      ? { accountId: state.accountId, sessionId: state.sessionId }
+      : null;
+  }
+
+  function shouldConsumeFailureState(
+    principal: unknown,
+    pendingState: GitHubIdentityConfirmationState | null,
+    failurePrincipal: AccountSessionPrincipal,
+  ) {
+    return Boolean(
+      pendingState &&
+        (!hasPrincipalValues(principal) ||
+          (pendingState.accountId === failurePrincipal.accountId &&
+            pendingState.sessionId === failurePrincipal.sessionId)),
+    );
+  }
+
+  async function consumeFailureState(
+    targetSessionAlias: string,
+    currentTime: Date,
+  ) {
+    try {
+      await store.consumeState(targetSessionAlias, currentTime);
+    } catch {
+      // A malformed or unavailable state store cannot turn this failure into a grant.
+    }
+  }
+
+  async function consumeConfirmationState(
+    principal: AccountSessionPrincipal | null,
+    input: { code: string; state: string },
+    currentTime: Date,
+    clientKey: string,
+  ) {
+    const stateIdentifierValue = await stateIdentifier(input.state);
+    const pendingState = await store.findState(
+      stateIdentifierValue,
+      currentTime,
+    );
+    if (!pendingState) {
+      await appendFailureAuditSafely(
+        principal,
+        stateIdentifierValue,
+        currentTime,
+      );
+      return null;
+    }
+
+    const statePrincipal = principalFromState(pendingState);
+    if (!statePrincipal) {
+      return null;
+    }
+    if (principal && !isSamePrincipal(principal, statePrincipal)) {
+      await appendFailureAudit(principal, stateIdentifierValue, currentTime);
+      return null;
+    }
+
+    const confirmedPrincipal = principal ?? statePrincipal;
+    if (authorizeSession && !(await authorizeSession(confirmedPrincipal))) {
+      await appendFailureAudit(
+        confirmedPrincipal,
+        stateIdentifierValue,
+        currentTime,
+      );
+      return null;
+    }
+    if (
+      !(await isRateLimitAllowed({
+        accountId: confirmedPrincipal.accountId,
+        clientKey,
+        stage: "callback",
+      }))
+    ) {
+      return null;
+    }
+
+    const state = await store.consumeState(stateIdentifierValue, currentTime);
+    if (!isUsableState(state, confirmedPrincipal)) {
+      await appendFailureAudit(
+        confirmedPrincipal,
+        stateIdentifierValue,
+        currentTime,
+      );
+      return null;
+    }
+
+    return { principal: confirmedPrincipal, state, stateIdentifierValue };
+  }
+
   return {
     async recordFailure(principal, state, clientKey = "unknown") {
-      if (!hasPrincipalValues(principal)) {
+      const currentTime = currentTimeOrNull();
+      if (!currentTime) {
         return;
       }
 
-      let currentTime: Date;
-      try {
-        currentTime = now();
-      } catch {
+      const { pendingState, targetSessionAlias } = await resolveFailureState(
+        state,
+        currentTime,
+      );
+      const failurePrincipal =
+        (hasPrincipalValues(principal) && principal) ||
+        principalFromState(pendingState);
+
+      if (!failurePrincipal) {
         return;
       }
 
       if (
         !(await isRateLimitAllowed({
-          accountId: principal.accountId,
+          accountId: failurePrincipal.accountId,
           clientKey,
           stage: "callback",
         }))
@@ -439,22 +651,14 @@ export function createGitHubIdentityConfirmation({
         return;
       }
 
-      let targetSessionAlias = CONFIRM_GITHUB_IDENTITY_STATE_IDENTIFIER_PREFIX;
-      if (typeof state === "string" && BASE64_URL_VALUE_PATTERN.test(state)) {
-        try {
-          targetSessionAlias = await stateIdentifier(
-            state,
-            principal.accountId,
-            principal.sessionId,
-          );
-          await store.consumeState(targetSessionAlias, currentTime);
-        } catch {
-          // A malformed or unavailable state store cannot turn this failure into a grant.
-        }
+      if (
+        shouldConsumeFailureState(principal, pendingState, failurePrincipal)
+      ) {
+        await consumeFailureState(targetSessionAlias, currentTime);
       }
 
       await appendFailureAuditSafely(
-        principal,
+        failurePrincipal,
         targetSessionAlias,
         currentTime,
       );
@@ -531,8 +735,13 @@ export function createGitHubIdentityConfirmation({
         return false;
       }
     },
-    async complete(principal, input, clientKey = "unknown") {
-      if (!(hasPrincipalValues(principal) && isValidConfirmationInput(input))) {
+    async exchange(principal, callbackCode, clientKey = "unknown") {
+      if (
+        !(
+          hasPrincipalValues(principal) &&
+          BASE64_URL_VALUE_PATTERN.test(callbackCode)
+        )
+      ) {
         return null;
       }
 
@@ -541,7 +750,7 @@ export function createGitHubIdentityConfirmation({
         if (authorizeSession && !(await authorizeSession(principal))) {
           await appendFailureAudit(
             principal,
-            CONFIRM_GITHUB_IDENTITY_STATE_IDENTIFIER_PREFIX,
+            CONFIRM_GITHUB_IDENTITY_HANDOFF_IDENTIFIER_PREFIX,
             currentTime,
           );
           return null;
@@ -551,37 +760,79 @@ export function createGitHubIdentityConfirmation({
           !(await isRateLimitAllowed({
             accountId: principal.accountId,
             clientKey,
-            stage: "callback",
+            stage: "consume",
           }))
         ) {
           return null;
         }
 
-        const stateIdentifierValue = await stateIdentifier(
-          input.state,
-          principal.accountId,
-          principal.sessionId,
-        );
-        const state = await store.consumeState(
-          stateIdentifierValue,
+        const handoffIdentifierValue = await handoffIdentifier(callbackCode);
+        const handoff = await store.consumeHandoff(
+          handoffIdentifierValue,
+          principal,
           currentTime,
         );
-        if (!isUsableState(state, principal)) {
+        if (!handoff) {
           await appendFailureAudit(
             principal,
-            stateIdentifierValue,
+            handoffIdentifierValue,
             currentTime,
           );
           return null;
         }
 
+        if (
+          !(await appendAudit(
+            "github.identity-confirmation.succeeded",
+            principal,
+            handoff.grantIdentifier,
+            currentTime,
+          ))
+        ) {
+          return null;
+        }
+        return handoff.grant;
+      } catch {
+        await appendFailureAuditSafely(
+          principal,
+          CONFIRM_GITHUB_IDENTITY_HANDOFF_IDENTIFIER_PREFIX,
+        );
+        return null;
+      }
+    },
+    async complete(principal, input, clientKey = "unknown") {
+      if (
+        !(
+          (principal === null || hasPrincipalValues(principal)) &&
+          isValidConfirmationInput(input)
+        )
+      ) {
+        return null;
+      }
+
+      try {
+        const currentTime = currentTimeOrNull();
+        if (!currentTime) {
+          return null;
+        }
+
+        const confirmationState = await consumeConfirmationState(
+          principal,
+          input,
+          currentTime,
+          clientKey,
+        );
+        if (!confirmationState) {
+          return null;
+        }
+
         const githubIdentityId = await accountIdentities.findGitHubIdentityId(
-          principal.accountId,
+          confirmationState.principal.accountId,
         );
         if (!githubIdentityId) {
           await appendFailureAudit(
-            principal,
-            stateIdentifierValue,
+            confirmationState.principal,
+            confirmationState.stateIdentifierValue,
             currentTime,
           );
           return null;
@@ -589,22 +840,23 @@ export function createGitHubIdentityConfirmation({
 
         const returnedIdentityId = await githubOAuth.exchangeAuthorizationCode({
           code: input.code,
-          codeVerifier: state.codeVerifier,
+          codeVerifier: confirmationState.state.codeVerifier,
         });
         if (!returnedIdentityId || returnedIdentityId !== githubIdentityId) {
           await appendFailureAudit(
-            principal,
-            stateIdentifierValue,
+            confirmationState.principal,
+            confirmationState.stateIdentifierValue,
             currentTime,
           );
           return null;
         }
 
         return issueConfirmationGrant(
-          principal,
-          state.operationId,
-          stateIdentifierValue,
+          confirmationState.principal,
+          confirmationState.state.operationId,
+          confirmationState.stateIdentifierValue,
           currentTime,
+          confirmationState.state.clientPlatform,
         );
       } catch {
         await appendFailureAuditSafely(
@@ -614,7 +866,12 @@ export function createGitHubIdentityConfirmation({
         return null;
       }
     },
-    async start(principal, operationId, clientKey = "unknown") {
+    async start(
+      principal,
+      operationId,
+      clientKey = "unknown",
+      clientPlatform: AccountAccessClient = "web",
+    ) {
       if (
         !(
           hasPrincipalValues(principal) &&
@@ -656,6 +913,10 @@ export function createGitHubIdentityConfirmation({
           return null;
         }
 
+        if (githubAvailability?.getStatus() === "waiting") {
+          return { status: "waiting" };
+        }
+
         const state = randomValue();
         const codeVerifier = randomValue();
         if (
@@ -672,16 +933,13 @@ export function createGitHubIdentityConfirmation({
           return null;
         }
 
-        const stateIdentifierValue = await stateIdentifier(
-          state,
-          principal.accountId,
-          principal.sessionId,
-        );
+        const stateIdentifierValue = await stateIdentifier(state);
         await store.createState(
           stateIdentifierValue,
           {
             accountId: principal.accountId,
             codeVerifier,
+            clientPlatform,
             operationId,
             sessionId: principal.sessionId,
           },
