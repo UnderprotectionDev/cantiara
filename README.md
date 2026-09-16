@@ -132,3 +132,16 @@ cantiara/
 - `bun run test:e2e`: Run the Account Access Playwright journey against the configured temporary PostgreSQL boundaries
 - `cd apps/web && bun run desktop:dev`: Start Tauri desktop app in development
 - `cd apps/web && bun run desktop:build`: Build Tauri desktop app
+
+### macOS package release
+
+The `.github/workflows/macos-release.yml` workflow builds only signed and notarized macOS `app` and `dmg` artifacts. It runs for `cantiara-v*` tags and keeps the GitHub Release as a draft until the macOS 26, macOS 15, and macOS 14 clean-install matrix is accepted.
+
+Configure the `CANTIARA_API_URL` GitHub repository variable and these GitHub Actions secrets before creating a release tag:
+
+- `APPLE_CERTIFICATE`: Base64-encoded Developer ID Application `.p12`
+- `APPLE_CERTIFICATE_PASSWORD`: Password for the `.p12`
+- `APPLE_SIGNING_IDENTITY`: Exact `Developer ID Application: ...` keychain identity
+- `APPLE_API_KEY`: App Store Connect API key ID
+- `APPLE_API_ISSUER`: App Store Connect issuer ID
+- `APPLE_API_PRIVATE_KEY`: Contents of the matching `.p8` private key
