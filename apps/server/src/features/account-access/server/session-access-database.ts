@@ -37,6 +37,9 @@ function toProductSession(record: ProductSessionRecord): ProductSession {
 export function createDatabaseAccountSessionAccess(
   database: Database,
   securityEventDatabase: SecurityEventDatabase,
+  options: {
+    onGitHubLoginOAuthRevoked?: () => void;
+  } = {},
 ) {
   return createAccountSessionAccess({
     auditRecords: {
@@ -55,6 +58,7 @@ export function createDatabaseAccountSessionAccess(
           .where(lt(auditRecord.occurredAt, cutoff));
       },
     },
+    onGitHubLoginOAuthRevoked: options.onGitHubLoginOAuthRevoked,
     securityEvents: {
       async appendMany(events: SessionRevokedSecurityEvent[]) {
         if (events.length === 0) {

@@ -16,6 +16,7 @@ import { cors } from "hono/cors";
 
 import { type AccountAccessAuth, createContext } from "./context";
 import { createCsrfProtectionMiddleware } from "./features/account-access/server/csrf-protection";
+import type { GitHubAvailability } from "./features/account-access/server/github-availability";
 import { sanitizeGitHubCallbackResponse } from "./features/account-access/server/github-callback-response";
 import type { AccountSessionAccessRuntime } from "./features/account-access/server/session-access";
 import { sanitizeProductSessionResponse } from "./features/account-access/server/session-response";
@@ -26,6 +27,10 @@ export interface AppDependencies {
   corsOrigin: string;
   database: Database;
   desktopOrigins: readonly string[];
+  githubAvailability: Pick<
+    GitHubAvailability,
+    "getStatus" | "requiresFreshConsent"
+  >;
   nodeEnv: string;
   redactSecrets: (value: unknown) => unknown;
 }
@@ -35,6 +40,45 @@ function isRecoverableAuthPath(path: string) {
     ? path.slice("/api/auth".length)
     : path;
   return authPath === "/sign-out" || authPath.startsWith("/sign-in/");
+}
+
+async function addFreshGitHubConsent(
+  request: Request,
+  githubAvailability: AppDependencies["githubAvailability"],
+) {
+  if (
+    request.method !== "POST" ||
+    new URL(request.url).pathname !== "/api/auth/sign-in/social" ||
+    !githubAvailability.requiresFreshConsent()
+  ) {
+    return request;
+  }
+
+  try {
+    const body = (await request.clone().json()) as {
+      additionalParams?: Record<string, string>;
+      provider?: unknown;
+      [key: string]: unknown;
+    };
+    if (body.provider !== "github") {
+      return request;
+    }
+
+    const headers = new Headers(request.headers);
+    headers.delete("content-length");
+    return new Request(request, {
+      body: JSON.stringify({
+        ...body,
+        additionalParams: {
+          ...body.additionalParams,
+          prompt: "consent",
+        },
+      }),
+      headers,
+    });
+  } catch {
+    return request;
+  }
 }
 
 export function createApp(dependencies: AppDependencies) {
@@ -90,7 +134,11 @@ export function createApp(dependencies: AppDependencies) {
       }
       return c.json({ code: "UNAUTHORIZED" }, 401);
     }
-    const response = await dependencies.auth.handler(c.req.raw);
+    const authRequest = await addFreshGitHubConsent(
+      c.req.raw,
+      dependencies.githubAvailability,
+    );
+    const response = await dependencies.auth.handler(authRequest);
     const sessionResponse = await sanitizeProductSessionResponse(
       c.req.raw,
       response,
@@ -128,6 +176,7 @@ export function createApp(dependencies: AppDependencies) {
       auth: dependencies.auth,
       context: c,
       database: dependencies.database,
+      githubAvailability: dependencies.githubAvailability,
     });
     const rpcResult = await rpcHandler.handle(c.req.raw, {
       prefix: "/rpc",

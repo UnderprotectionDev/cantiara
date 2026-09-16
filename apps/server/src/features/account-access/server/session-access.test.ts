@@ -314,6 +314,65 @@ describe("Account Access sessions", () => {
     await expect(access.authorizeWrite(principal)).resolves.toBe(true);
   });
 
+  test("ends every product session when GitHub login OAuth is revoked", async () => {
+    const storedSessions = [
+      session({ id: "current-session" }),
+      session({ id: "other-session" }),
+    ];
+    const auditRecords: SessionRevocationAuditRecord[] = [];
+    const securityEvents: SessionRevokedSecurityEvent[] = [];
+    let revocationSignalCalls = 0;
+    const access = createAccountSessionAccess({
+      auditRecords: {
+        append: (record) => {
+          auditRecords.push(record);
+          return Promise.resolve();
+        },
+        pruneBefore: async () => undefined,
+      },
+      now: () => NOW,
+      onGitHubLoginOAuthRevoked: () => {
+        revocationSignalCalls += 1;
+      },
+      securityEvents: securityEventLog(securityEvents),
+      sessions: {
+        find: async (id) =>
+          storedSessions.find((item) => item.id === id) ?? null,
+        list: async () => storedSessions,
+        revoke: (accountId, id) => {
+          const index = storedSessions.findIndex(
+            (item) => item.accountId === accountId && item.id === id,
+          );
+          if (index >= 0) {
+            storedSessions.splice(index, 1);
+          }
+          return Promise.resolve();
+        },
+        touch: async () => undefined,
+      },
+    });
+
+    await access.revokeGitHubLoginOAuth("account-1");
+
+    expect(revocationSignalCalls).toBe(1);
+    expect(storedSessions).toEqual([]);
+    expect(securityEvents).toHaveLength(2);
+    expect(securityEvents.map((event) => event.targetSessionAlias)).toEqual([
+      "current-session",
+      "other-session",
+    ]);
+    expect(auditRecords.map((record) => record.targetSessionAlias)).toEqual([
+      "current-session",
+      "other-session",
+    ]);
+    await expect(
+      access.authorizeWrite({
+        accountId: "account-1",
+        sessionId: "current-session",
+      }),
+    ).resolves.toBe(false);
+  });
+
   test("does not partially revoke other sessions when one security event append fails", async () => {
     const storedSessions = [
       session({ id: "current-session" }),
