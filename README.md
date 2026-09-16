@@ -135,7 +135,7 @@ cantiara/
 
 ### macOS package release
 
-The `.github/workflows/macos-release.yml` workflow builds only signed and notarized macOS `app` and `dmg` artifacts. It runs for `cantiara-v*` tags and keeps the GitHub Release as a draft until the macOS 26, macOS 15, and macOS 14 clean-install matrix is accepted. Successful runs upload immutable evidence manifests containing the exact source/workflow identity, macOS version, device architecture, package digest, signing checks, and the combined acceptance-candidate result.
+The `.github/workflows/macos-release.yml` workflow builds only signed and notarized macOS `app` and `dmg` artifacts. It runs for `cantiara-v*` tags and keeps the GitHub Release as a draft until the macOS 26, macOS 15, and macOS 14 clean-install matrix is accepted. Successful runs upload immutable evidence manifests containing the exact source/workflow identity, macOS version, device architecture, package digest, signing checks, and the combined acceptance-candidate result; the candidate manifest is also attached to the draft release. Each evidence artifact records its authenticated GitHub artifact URL/ID/digest and uses the 90-day Actions retention limit; the signed release assets remain on the GitHub draft release.
 
 Configure the `CANTIARA_API_URL` GitHub repository variable and these GitHub Actions secrets before creating a release tag:
 

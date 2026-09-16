@@ -4,6 +4,7 @@ import {
   isMacOSCleanInstallEvidence,
   isMacOSPackageAcceptanceCandidate,
   isMacOSPackageEvidence,
+  type MacOSArtifactReference,
   type MacOSCleanInstallEvidence,
   type MacOSPackageAcceptanceCandidate,
   type MacOSPackageEvidence,
@@ -25,11 +26,45 @@ const backend = {
 } as const;
 const digest = "b".repeat(64);
 
+function createArtifactReference(evidenceKey: string) {
+  const artifactIds: Record<string, string> = {
+    "14": "987654324",
+    "15": "987654325",
+    "26": "987654326",
+    "aarch64-apple-darwin": "987654321",
+    "x86_64-apple-darwin": "987654322",
+  };
+  const artifactId = artifactIds[evidenceKey];
+  if (!artifactId) {
+    throw new Error(`Unknown evidence key: ${evidenceKey}`);
+  }
+
+  const artifactPrefix = evidenceKey.includes("darwin")
+    ? "macos-package"
+    : "macos-clean-install";
+  return {
+    artifactDigest: `sha256:${"c".repeat(64)}`,
+    artifactId,
+    artifactName: `${artifactPrefix}-${evidenceKey}`,
+    artifactUrl: `https://github.com/UnderprotectionDev/cantiara/actions/runs/123456789/artifacts/${artifactId}`,
+    evidenceKey,
+    manifestSha256: digest,
+    retentionDays: 90,
+  } satisfies MacOSArtifactReference;
+}
+
 function createPackageEvidence(
   target: MacOSPackageEvidence["target"],
   runnerArchitecture: string,
 ) {
   return {
+    acceptance: {
+      acceptanceJourney: "macOS paket kabulü",
+      evidenceId: `client-shell.macos-package-${target}.v1`,
+      fixture: "Sentetik fixture",
+      seam: "Client Shell",
+      testType: "exact-build platform matrix",
+    },
     artifact: {
       kind: "dmg",
       name: `cantiara_0.1.0_${target}.dmg`,
@@ -39,6 +74,7 @@ function createPackageEvidence(
     checks: {
       codesign: "passed",
       gatekeeper: "passed",
+      install: "passed",
       notarization: "passed",
     },
     environment: {
@@ -57,6 +93,13 @@ function createCleanInstallEvidence(
   expectedMajor: MacOSCleanInstallEvidence["expectedMajor"],
 ) {
   return {
+    acceptance: {
+      acceptanceJourney: "macOS paket kabulü",
+      evidenceId: `client-shell.macos-clean-install-${expectedMajor}.v1`,
+      fixture: "Sentetik fixture",
+      seam: "Client Shell",
+      testType: "exact-build platform matrix",
+    },
     artifact: {
       kind: "dmg",
       name: `cantiara_0.1.0_${macOSPackageTargets[0]}.dmg`,
@@ -84,13 +127,38 @@ function createCleanInstallEvidence(
 
 function createCandidate() {
   return {
+    acceptanceCoverage: [
+      {
+        acceptanceJourney: "macOS paket kabulü",
+        evidenceIds: [
+          ...macOSPackageTargets.map(
+            (target) => `client-shell.macos-package-${target}.v1`,
+          ),
+          ...supportedMacOSMajors.map(
+            (major) => `client-shell.macos-clean-install-${major}.v1`,
+          ),
+        ],
+        fixture: "Sentetik fixture",
+        result: "passed",
+        seam: "Client Shell",
+        testType: "exact-build platform matrix",
+      },
+    ],
     cleanInstallEvidence: supportedMacOSMajors.map(createCleanInstallEvidence),
+    cleanInstallArtifactReferences: supportedMacOSMajors.map((major) =>
+      createArtifactReference(String(major)),
+    ),
     evidenceType: "acceptance-candidate",
     packageEvidence: [
       createPackageEvidence(macOSPackageTargets[0], "arm64"),
       createPackageEvidence(macOSPackageTargets[1], "arm64"),
     ],
+    packageArtifactReferences: macOSPackageTargets.map(createArtifactReference),
     releaseTag: "cantiara-v0.1.0",
+    releaseAsset: {
+      name: "acceptance-candidate.json",
+      url: "https://github.com/UnderprotectionDev/cantiara/releases/download/cantiara-v0.1.0/acceptance-candidate.json",
+    },
     result: "passed",
     schemaVersion: "cantiara.macos-package-acceptance/v1",
     sourceCommit,
@@ -147,6 +215,23 @@ describe("Client Shell macOS package contract", () => {
 
     expect(isMacOSPackageAcceptanceCandidate(candidate)).toBe(true);
     expect(isMacOSPackageAcceptanceCandidate(incompleteCandidate)).toBe(false);
+  });
+
+  test("rejects clean-install evidence for a different package digest", () => {
+    const candidate = createCandidate();
+    const mismatchedCandidate = {
+      ...candidate,
+      cleanInstallEvidence: candidate.cleanInstallEvidence.map((evidence) =>
+        evidence.expectedMajor === 14
+          ? {
+              ...evidence,
+              artifact: { ...evidence.artifact, sha256: "c".repeat(64) },
+            }
+          : evidence,
+      ),
+    };
+
+    expect(isMacOSPackageAcceptanceCandidate(mismatchedCandidate)).toBe(false);
   });
 
   test("requires the clean-install evidence to match its expected major", () => {
