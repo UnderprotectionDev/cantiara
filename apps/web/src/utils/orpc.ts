@@ -2,30 +2,12 @@ import type { AppRouterClient } from "@cantiara/api/routers/index";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { QueryCache, QueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-
 import { env } from "../env";
 import { createTauriBearerHeaders } from "../features/account-access/tauri-session";
+import { createClientShellQueryClient } from "../features/web-macos-client/client-shell";
 
-export function createQueryClient() {
-  return new QueryClient({
-    queryCache: new QueryCache({
-      onError: (error, query) => {
-        toast.error(`Error: ${error.message}`, {
-          action: {
-            label: "retry",
-            onClick: () => {
-              query.invalidate();
-            },
-          },
-        });
-      },
-    }),
-  });
-}
-
-export const queryClient = createQueryClient();
+export const createQueryClient = createClientShellQueryClient;
+export const queryClient = createClientShellQueryClient();
 
 export const link = new RPCLink({
   url: `${env.VITE_SERVER_URL.replace(/\/$/, "")}/rpc`,

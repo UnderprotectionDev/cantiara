@@ -29,9 +29,6 @@ export default function SessionsView() {
   const sessions = useQuery(orpc.sessions.queryOptions());
   const revokeSession = useMutation({
     mutationFn: (sessionId: string) => client.revokeSession({ sessionId }),
-    onError: () => {
-      toast.error("Session could not be revoked.");
-    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orpc.sessions.key() });
       toast.success("Session revoked.");
@@ -39,9 +36,6 @@ export default function SessionsView() {
   });
   const revokeOtherSessions = useMutation({
     mutationFn: (_targetSessionAlias: string) => client.revokeOtherSessions(),
-    onError: () => {
-      toast.error("Other sessions could not be revoked.");
-    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orpc.sessions.key() });
       toast.success("Other sessions revoked.");

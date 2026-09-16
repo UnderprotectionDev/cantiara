@@ -638,6 +638,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Hedef kapsamında | `In Goal` | Hedefe katkı ilişkisinin Proje Hedefi ucu |
 | Çalışma Alanı çıkış paketi | `Workspace Exit Package` | Kullanıcı parolasıyla şifrelenmiş tam Çalışma Alanı arşividir; ürün içi restore değildir |
 | Destek referansı | `Support reference` | Başarısız ana akışta secret veya özel içerik taşımayan sunucu takip kimliği |
+| Destek referansı kullanılamıyor | `Support reference unavailable.` | Sunucuya ulaşılamayan başarısız ana akışta destek referansının üretilemediğini bildirir |
 | Güncelleme gerekli | `Update required` | Süre dışı imzalı masaüstü API sözleşmesinde güvenli olmayan yazmadan önce duran hata |
 | Yeniden dene | `Retry` | Başarısız ana akışta güvenli yeniden deneme eylemi |
 | Çatışma | `Conflict` | Aynı idempotency veya teslim kimliğinin farklı payload taşıması |
@@ -650,6 +651,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yetkili entegrasyon | `Authorized integration` | Kayıt geçmişine yazılan entegrasyon aktör türü |
 | Veri yazıldı | `Data was written.` | Başarısız ana akışta yazmanın tamamlandığını bildirir |
 | Veri yazılmadı | `Data was not written.` | Başarısız ana akışta yazmanın yapılmadığını bildirir |
+| Yazma sonucu bilinmiyor | `Data write outcome is unknown.` | Başarısız ana akışta yazmanın sonucunun güvenle belirlenemediğini bildirir |
 | Bir kez yeniden deneyebilirsin | `You can retry once.` | Yazılmamış başarısız akışın güvenli yeniden deneme sınırı |
 | Yeniden deneme | `Do not retry.` | Yazılmış başarısız akışta yeniden denemenin güvensiz olduğunu bildirir |
 | Bu eylem tamamlanamadı | `This action could not be completed.` | Secret taşıyan veya beklenmeyen hatanın kullanıcıya gösterilen nedeni |
