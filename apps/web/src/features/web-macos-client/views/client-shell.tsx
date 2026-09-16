@@ -266,32 +266,32 @@ function ClientShellOfflineState({
       <section
         aria-labelledby="client-shell-offline-title"
         aria-live="polite"
-        className="w-full max-w-xl border-border border-y py-8 sm:py-10"
+        className="w-full max-w-2xl border-destructive border-l-2 py-2 pl-6 sm:pl-8"
         role="status"
       >
         <div className="flex items-start gap-4">
-          <div className="flex size-12 shrink-0 items-center justify-center border border-destructive/30 bg-destructive/10 text-destructive">
-            <WifiOff aria-hidden="true" className="size-6" strokeWidth={1.75} />
+          <div className="flex size-12 shrink-0 items-center justify-center border border-destructive/50 bg-destructive/15 text-destructive">
+            <WifiOff aria-hidden="true" className="size-6" strokeWidth={2} />
           </div>
           <div className="min-w-0 pt-0.5">
             <h1
-              className="font-semibold text-2xl tracking-tight sm:text-3xl"
+              className="font-semibold text-3xl text-foreground tracking-tight"
               id="client-shell-offline-title"
             >
               You’re offline
             </h1>
-            <p className="mt-2 max-w-prose text-muted-foreground text-sm/6">
+            <p className="mt-3 max-w-prose text-base/7 text-foreground/75">
               Cantiara needs an active internet connection to read and save
               changes.
             </p>
           </div>
         </div>
 
-        <dl className="mt-8 grid gap-1 border-border border-t pt-4 sm:grid-cols-[9rem_1fr] sm:gap-4">
-          <dt className="font-medium text-muted-foreground text-sm">
+        <dl className="mt-8 grid max-w-xl grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-2 border-foreground/20 border-t pt-5 sm:grid-cols-[9rem_1fr] sm:gap-x-8">
+          <dt className="font-medium text-base text-foreground/70">
             Last saved
           </dt>
-          <dd className="text-foreground text-sm">
+          <dd className="font-semibold text-base text-foreground">
             {state.lastSavedAt ? (
               <time dateTime={state.lastSavedAt.toISOString()}>
                 {formatLastSaved(
@@ -306,7 +306,7 @@ function ClientShellOfflineState({
         </dl>
 
         {state.hasUnsavedChanges ? (
-          <p className="mt-6 border-destructive border-l-2 px-3 py-2 font-medium text-destructive text-sm">
+          <p className="mt-6 border border-destructive/40 bg-destructive/10 px-4 py-3 font-medium text-destructive text-sm">
             Unsaved changes may be lost
           </p>
         ) : null}
