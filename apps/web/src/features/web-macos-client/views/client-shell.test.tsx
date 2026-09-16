@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 
 import {
+  ClientShellContent,
   ClientShellProvider,
   ClientShellStatus,
   createClientShell,
@@ -47,6 +48,21 @@ describe("Client Shell", () => {
     );
 
     expect(html).not.toContain("Unsaved changes may be lost");
+  });
+
+  test("keeps authenticated content out of the offline shell", () => {
+    const shell = createClientShell({ initialConnection: "offline" });
+
+    const html = renderToStaticMarkup(
+      <ClientShellProvider shell={shell}>
+        <ClientShellContent>
+          <h1>Dashboard</h1>
+        </ClientShellContent>
+      </ClientShellProvider>,
+    );
+
+    expect(html).toContain("You’re offline");
+    expect(html).not.toContain("Dashboard");
   });
 
   test("uses the Account locale and time zone for the last saved value", () => {

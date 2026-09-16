@@ -254,6 +254,67 @@ function useClientShellState() {
   return useSyncExternalStore(shell.subscribe, shell.getState, shell.getState);
 }
 
+function ClientShellOfflineState({
+  accountFormattingPreferences,
+  state,
+}: {
+  accountFormattingPreferences: AccountFormattingPreferences;
+  state: ClientShellState;
+}) {
+  return (
+    <main className="flex h-full min-h-0 flex-1 items-center justify-center overflow-auto bg-background px-5 py-10 sm:px-8">
+      <section
+        aria-labelledby="client-shell-offline-title"
+        aria-live="polite"
+        className="w-full max-w-xl border-border border-y py-8 sm:py-10"
+        role="status"
+      >
+        <div className="flex items-start gap-4">
+          <div className="flex size-12 shrink-0 items-center justify-center border border-destructive/30 bg-destructive/10 text-destructive">
+            <WifiOff aria-hidden="true" className="size-6" strokeWidth={1.75} />
+          </div>
+          <div className="min-w-0 pt-0.5">
+            <h1
+              className="font-semibold text-2xl tracking-tight sm:text-3xl"
+              id="client-shell-offline-title"
+            >
+              You’re offline
+            </h1>
+            <p className="mt-2 max-w-prose text-muted-foreground text-sm/6">
+              Cantiara needs an active internet connection to read and save
+              changes.
+            </p>
+          </div>
+        </div>
+
+        <dl className="mt-8 grid gap-1 border-border border-t pt-4 sm:grid-cols-[9rem_1fr] sm:gap-4">
+          <dt className="font-medium text-muted-foreground text-sm">
+            Last saved
+          </dt>
+          <dd className="text-foreground text-sm">
+            {state.lastSavedAt ? (
+              <time dateTime={state.lastSavedAt.toISOString()}>
+                {formatLastSaved(
+                  state.lastSavedAt,
+                  accountFormattingPreferences,
+                )}
+              </time>
+            ) : (
+              "Not yet"
+            )}
+          </dd>
+        </dl>
+
+        {state.hasUnsavedChanges ? (
+          <p className="mt-6 border-destructive border-l-2 px-3 py-2 font-medium text-destructive text-sm">
+            Unsaved changes may be lost
+          </p>
+        ) : null}
+      </section>
+    </main>
+  );
+}
+
 export function ClientShellStatus({
   accountFormattingPreferences,
 }: {
@@ -268,43 +329,27 @@ export function ClientShellStatus({
   }
 
   return (
-    <section
-      aria-labelledby="client-shell-offline-title"
-      aria-live="polite"
-      className="border-destructive/20 border-b bg-destructive/5 px-5 py-4 sm:px-8"
-      role="status"
-    >
-      <div className="mx-auto flex w-full max-w-3xl items-start gap-3">
-        <div className="flex size-8 shrink-0 items-center justify-center border border-destructive/20 bg-background text-destructive">
-          <WifiOff aria-hidden="true" className="size-4" />
-        </div>
-        <div className="min-w-0 space-y-2">
-          <h2 className="font-medium text-sm" id="client-shell-offline-title">
-            You’re offline
-          </h2>
-          <p className="text-muted-foreground text-xs/relaxed">
-            Cantiara needs an active internet connection to read and save
-            changes.
-          </p>
-          <p className="text-muted-foreground text-xs/relaxed">
-            <span className="font-medium text-foreground">Last saved</span>{" "}
-            {state.lastSavedAt ? (
-              <time dateTime={state.lastSavedAt.toISOString()}>
-                {formatLastSaved(state.lastSavedAt, preferences)}
-              </time>
-            ) : (
-              "Not yet"
-            )}
-          </p>
-          {state.hasUnsavedChanges ? (
-            <p className="font-medium text-destructive text-xs/relaxed">
-              Unsaved changes may be lost
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </section>
+    <ClientShellOfflineState
+      accountFormattingPreferences={preferences}
+      state={state}
+    />
   );
+}
+
+export function ClientShellContent({ children }: { children: ReactNode }) {
+  const state = useClientShellState();
+  const preferences = useContext(AccountFormattingPreferencesContext);
+
+  if (state.connection === "offline") {
+    return (
+      <ClientShellOfflineState
+        accountFormattingPreferences={preferences}
+        state={state}
+      />
+    );
+  }
+
+  return children;
 }
 
 export function runOnlineOnlyWrite<T>(write: () => Promise<T>) {
