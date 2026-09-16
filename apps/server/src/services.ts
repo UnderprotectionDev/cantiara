@@ -9,12 +9,14 @@ import { CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH } from "./features/account-access
 import { createDatabaseGitHubIdentityConfirmation } from "./features/account-access/server/github-identity-confirmation-database";
 import { createDatabaseAccountSessionAccess } from "./features/account-access/server/session-access-database";
 import { createDatabaseTauriSessionAccess } from "./features/account-access/server/tauri-session-database";
+import { createDatabaseAccountPreferences } from "./features/account-preferences/server/account-preferences-database";
 
 const db = createDb(env);
 const securityEventDb = createSecurityEventDb({
   DATABASE_URL: env.SECURITY_EVENT_DATABASE_URL,
 });
 const accountAdmission = createDatabaseAccountAdmission(db);
+export const accountPreferences = createDatabaseAccountPreferences(db);
 export const githubAvailability = createGitHubAvailability();
 export const accountSessionAccess = createDatabaseAccountSessionAccess(
   db,

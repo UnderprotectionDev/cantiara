@@ -577,16 +577,26 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Light | `Light` | Appearance değeri |
 | Dark | `Dark` | Appearance değeri |
 | Kaydet | `Save` | Hesap tercihini açıkça yazan eylem |
+| Kaydediliyor | `Saving…` | Hesap tercihi yazılırken Save eyleminin geçici durum etiketi |
 | Önerilen locale ve saat dilimini kullan | `Use suggested locale and time zone` | İlk girişte tarayıcı önerisini forma alan, kaydetmeden uygulamayan eylem |
+| Tarayıcı önerisi | `Browser suggestion` | İlk girişte tarayıcının locale ve saat dilimi değerlerini kaydetmeden öneren yüzey |
 | Önizleme | `Preview` | Locale, tarih biçimi ve haftanın ilk gününün gösterim sonucunu kaydetmeden gösteren yüzey |
+| Kaydetmeden önce | `Before saving` | Önizlemenin Hesap tercihlerini yazmadan önceki sonucu gösterdiğini belirten yardımcı etiket |
 | Tarih | `Date` | Önizlemede biçimlenmiş tarih |
-| Sayı | `Number` | Önizlemede biçimlenmiş sayı |
+| Örnek sayı | `Example number` | Locale’in sayı gösterimini anlatan önizleme örneği; bir Hesap tercihi değildir |
 | Hafta | `Week` | Önizlemede haftanın ilk gününe göre kaymış gün başlıkları |
 | Tarihsel olay | `Historical event` | Saklanmış anın Hesap saat dilimindeki gösterimi |
 | İş başlığı | `Work title` | Locale’in çevirmediği kullanıcı içeriği örneği |
 | Tercihler kaydedildi | `Preferences saved.` | Hesap tercihinin açık Save ile yazıldığını bildiren sistem mesajı |
 | Tercihler yükleniyor | `Loading preferences…` | Hesap tercihinin okunmakta olduğunu bildiren durum |
 | Tercihler kullanılamıyor | `Preferences are unavailable.` | Hesap tercihinin okunamadığını bildiren durum |
+| Tercihler kaydedilemedi | `Preferences could not be saved.` | Hesap tercihi yazılamadığında gösterilen hata durumu |
+| Bağlantı kesildi | `Disconnected` | Online-only çalışmada tercih yazısının geçici olarak kullanılamadığını bildiren durum |
+| Yeniden bağlanarak kaydet | `Reconnect to save.` | Bağlantı geri gelmeden tercih kaydının yapılamayacağını bildiren metin |
+| Son başarılı kaydetme | `Last successful save` | Hesap tercihinin en son başarılı yazıldığı zamanı gösteren durum |
+| Kaydedilmemiş risk | `Unsaved risk` | Bağlantı yokken sayfadan ayrılmanın değişiklikleri kaybettirebileceğini bildiren durum |
+| Hiçbir zaman | `Never` | Hesap tercihinin henüz başarılı biçimde kaydedilmediğini bildiren değer |
+| Tekrar kaydetmeyi dene | `Try Save again.` | Başarısız tercih yazısından sonra yeniden denemeyi öneren metin |
 | Cihaz | `Device` | Ürün oturumunun tanındığı istemci türü |
 | Son etkinlik | `Last activity` | Ürün oturumunun en son kullanıldığı zaman |
 | Geçerli oturum | `Current` | Listelenen satırın bu tarayıcıdaki ürün oturumu olduğunu gösteren durum |

@@ -1,6 +1,8 @@
 import type { createAuth } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
 
+import type { AccountPreferencesAccess } from "./account-preferences";
+
 export interface AccountSessionPrincipal {
   accountId: string;
   sessionId: string;
@@ -74,6 +76,7 @@ export interface AccountSessionAccess {
 
 export interface Context {
   accountAccess: AccountSessionAccess;
+  accountPreferences: AccountPreferencesAccess;
   auth: null;
   clientKey?: string;
   clientPlatform?: AccountAccessClient;

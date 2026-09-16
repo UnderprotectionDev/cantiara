@@ -14,6 +14,7 @@ import { createGitHubAvailability } from "../src/features/account-access/server/
 import { CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH } from "../src/features/account-access/server/github-identity-confirmation";
 import { createDatabaseGitHubIdentityConfirmation } from "../src/features/account-access/server/github-identity-confirmation-database";
 import { createDatabaseAccountSessionAccess } from "../src/features/account-access/server/session-access-database";
+import { createDatabaseAccountPreferences } from "../src/features/account-preferences/server/account-preferences-database";
 
 const webOrigin = "http://127.0.0.1:4173";
 const serverOrigin = "http://127.0.0.1:3100";
@@ -32,6 +33,7 @@ const securityEventDatabase = createSecurityEventDb({
   DATABASE_URL: securityEventDatabaseUrl,
 });
 const accountAdmission = createDatabaseAccountAdmission(database);
+const accountPreferences = createDatabaseAccountPreferences(database);
 const githubAvailability = createGitHubAvailability();
 const auth = betterAuth({
   ...createAuthOptions(
@@ -73,6 +75,7 @@ initLogger({ env: { service: "cantiara-e2e-server" } });
 
 const app = createApp({
   accountSessionAccess,
+  accountPreferences,
   auth,
   corsOrigin: webOrigin,
   database,

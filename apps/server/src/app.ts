@@ -1,3 +1,4 @@
+import type { AccountPreferencesAccess } from "@cantiara/api/account-preferences";
 import {
   CONFIRM_GITHUB_IDENTITY_HANDOFF_EXCHANGE_PATH,
   TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL,
@@ -53,6 +54,7 @@ import {
 } from "./features/web-macos-client/server/support-reference";
 
 export interface AppDependencies {
+  accountPreferences: AccountPreferencesAccess;
   accountSessionAccess: AccountSessionAccessRuntime;
   auth: AccountAccessAuth;
   corsOrigin: string;
@@ -677,6 +679,7 @@ export function createApp(dependencies: AppDependencies) {
   app.use("/*", async (c, next) => {
     const context = await createContext({
       accountSessionAccess: dependencies.accountSessionAccess,
+      accountPreferences: dependencies.accountPreferences,
       auth: dependencies.auth,
       context: c,
       database: dependencies.database,

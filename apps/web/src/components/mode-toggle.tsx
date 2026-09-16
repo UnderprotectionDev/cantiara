@@ -1,3 +1,7 @@
+import {
+  APPEARANCE_OPTIONS,
+  type Appearance,
+} from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import {
   DropdownMenu,
@@ -5,30 +9,105 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@cantiara/ui/components/dropdown-menu";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Moon, Sun } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 
-import { useTheme } from "@/components/theme-provider";
+import { type Theme, useTheme } from "@/components/theme-provider";
+import { authClient } from "@/lib/auth-client";
+import {
+  accountPreferencesQueryOptions,
+  accountPreferencesQueryPrefix,
+  client,
+} from "@/utils/orpc";
+
+function themeForAppearance(appearance: Appearance): Theme {
+  return appearance === "Light" ? "light" : "dark";
+}
 
 export function ModeToggle() {
-  const { setTheme } = useTheme();
+  const { setTheme, theme } = useTheme();
+  const queryClient = useQueryClient();
+  const session = authClient.useSession();
+  const accountId = session.data?.user.id;
+  const previousAccountId = useRef(accountId);
+  const preferences = useQuery(accountPreferencesQueryOptions(accountId));
+  const saveAppearance = useMutation({
+    mutationFn: (appearance: Appearance) => {
+      if (!preferences.data) {
+        throw new Error("Preferences are unavailable.");
+      }
+      return client.saveAccountAppearance({ appearance });
+    },
+    onError: () => {
+      toast.error("Preferences could not be saved.");
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData(
+        accountPreferencesQueryOptions(accountId).queryKey,
+        saved,
+      );
+      setTheme(themeForAppearance(saved.appearance));
+      toast.success("Preferences saved.");
+    },
+  });
+  const saveLightAppearance = () => saveAppearance.mutate("Light");
+  const saveDarkAppearance = () => saveAppearance.mutate("Dark");
+  const appearanceActions: Record<Appearance, () => void> = {
+    Dark: saveDarkAppearance,
+    Light: saveLightAppearance,
+  };
+
+  useEffect(() => {
+    if (previousAccountId.current !== accountId) {
+      previousAccountId.current = accountId;
+      setTheme("dark");
+    }
+    if (!accountId) {
+      queryClient.removeQueries({ queryKey: accountPreferencesQueryPrefix });
+    }
+  }, [accountId, queryClient, setTheme]);
+
+  useEffect(() => {
+    if (preferences.data) {
+      setTheme(themeForAppearance(preferences.data.appearance));
+    }
+  }, [preferences.data, setTheme]);
+
+  if (!session.data) {
+    return null;
+  }
+
+  const currentAppearance = theme === "light" ? "Light" : "Dark";
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" size="icon" />}>
-        <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-        <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-        <span className="sr-only">Toggle theme</span>
+      <DropdownMenuTrigger
+        aria-label="Appearance"
+        render={<Button size="icon" variant="outline" />}
+      >
+        {currentAppearance === "Light" ? (
+          <Sun aria-hidden="true" className="size-4" />
+        ) : (
+          <Moon aria-hidden="true" className="size-4" />
+        )}
+        <span className="sr-only">Appearance</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")}>
-          Light
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>
-          Dark
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>
-          System
-        </DropdownMenuItem>
+        {APPEARANCE_OPTIONS.map((appearance) => (
+          <DropdownMenuItem
+            disabled={
+              preferences.isPending ||
+              saveAppearance.isPending ||
+              appearance === currentAppearance
+            }
+            key={appearance}
+            onClick={appearanceActions[appearance]}
+          >
+            {appearance}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

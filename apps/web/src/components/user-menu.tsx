@@ -54,6 +54,9 @@ export default function UserMenu() {
           <DropdownMenuItem render={<Link to="/account" />}>
             Sessions
           </DropdownMenuItem>
+          <DropdownMenuItem render={<Link to="/account/preferences" />}>
+            Preferences
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={signOut} variant="destructive">
             Sign Out
           </DropdownMenuItem>

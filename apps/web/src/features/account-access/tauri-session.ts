@@ -414,7 +414,7 @@ export async function initializeTauriAuth(
       return;
     }
     if (await handleTauriAuthCallback(url)) {
-      window.location.reload();
+      window.location.assign("/dashboard");
       return;
     }
     if (

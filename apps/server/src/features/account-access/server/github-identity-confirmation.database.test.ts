@@ -1,3 +1,4 @@
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { createDb } from "@cantiara/db";
 import {
   account,
@@ -105,6 +106,24 @@ describeDatabase("Confirm GitHub Identity PostgreSQL boundary", () => {
     });
     const app = createApp({
       accountSessionAccess,
+      accountPreferences: {
+        get: async () => ({
+          ...DEFAULT_ACCOUNT_PREFERENCES,
+          isSaved: false,
+          savedAt: null,
+        }),
+        save: async (_accountId, preferences) => ({
+          ...preferences,
+          isSaved: true,
+          savedAt: "2026-09-16T09:00:00.000Z",
+        }),
+        saveAppearance: async (_accountId, appearance) => ({
+          ...DEFAULT_ACCOUNT_PREFERENCES,
+          appearance,
+          isSaved: true,
+          savedAt: "2026-09-16T09:00:00.000Z",
+        }),
+      },
       auth,
       corsOrigin: WEB_ORIGIN,
       database,

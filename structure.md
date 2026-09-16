@@ -227,6 +227,7 @@
 │   │   └── tsdown.config.ts
 │   └── web/
 │       ├── e2e/
+│       │   ├── account-preferences.e2e.ts
 │       │   └── account-sessions.e2e.ts
 │       ├── src/
 │       │   ├── features/
@@ -444,7 +445,8 @@
 │       │   ├── routes/
 │       │   │   ├── _auth/
 │       │   │   │   ├── account/
-│       │   │   │   │   └── index.tsx
+│       │   │   │   │   ├── index.tsx
+│       │   │   │   │   └── preferences.tsx
 │       │   │   │   ├── capture/
 │       │   │   │   │   └── index.tsx
 │       │   │   │   ├── daily-focus/
@@ -521,6 +523,7 @@
 ├── packages/
 │   ├── api/
 │   │   ├── src/
+│   │   │   ├── account-preferences.ts
 │   │   │   ├── routers/
 │   │   │   │   └── index.ts
 │   │   │   ├── context.ts
