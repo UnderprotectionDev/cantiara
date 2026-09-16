@@ -14,7 +14,6 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@cantiara/ui/components/field";
-import { Input } from "@cantiara/ui/components/input";
 import {
   NativeSelect,
   NativeSelectOption,
@@ -36,6 +35,15 @@ import { getBrowserPreferenceSuggestion } from "./browser-preference-suggestion"
 const PREVIEW_TIMESTAMP = "2026-09-16T09:00:00.000Z";
 const PREVIEW_NUMBER = 1_234_567.89;
 const PREVIEW_WORK_TITLE = "Ship the launch";
+const LOCALE_OPTIONS = ["en-GB", "en-US", "tr-TR", "de-DE", "fr-FR"];
+const TIME_ZONE_OPTIONS = Intl.supportedValuesOf("timeZone");
+
+function optionsWithCurrentValue(
+  options: readonly string[],
+  currentValue: string,
+) {
+  return options.includes(currentValue) ? options : [currentValue, ...options];
+}
 
 function formValues(snapshot: AccountPreferencesSnapshot): AccountPreferences {
   const { isSaved: _isSaved, savedAt: _savedAt, ...values } = snapshot;
@@ -243,7 +251,7 @@ export default function AccountPreferencesForm({
           <form.Field name="locale">
             {(field) => {
               function handleLocaleChange(
-                event: ChangeEvent<HTMLInputElement>,
+                event: ChangeEvent<HTMLSelectElement>,
               ) {
                 field.handleChange(event.target.value);
               }
@@ -253,21 +261,22 @@ export default function AccountPreferencesForm({
                   <FieldLabel htmlFor="account-preferences-locale">
                     Locale
                   </FieldLabel>
-                  <Input
-                    autoComplete="off"
+                  <NativeSelect
+                    className="w-full"
                     id="account-preferences-locale"
-                    list="account-preferences-locale-options"
                     name={field.name}
                     onChange={handleLocaleChange}
                     value={field.state.value}
-                  />
-                  <datalist id="account-preferences-locale-options">
-                    <option value="en-GB" />
-                    <option value="en-US" />
-                    <option value="tr-TR" />
-                    <option value="de-DE" />
-                    <option value="fr-FR" />
-                  </datalist>
+                  >
+                    {optionsWithCurrentValue(
+                      LOCALE_OPTIONS,
+                      field.state.value,
+                    ).map((locale) => (
+                      <NativeSelectOption key={locale} value={locale}>
+                        {locale}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
                   <FieldDescription>
                     Locale changes date, time, and number formatting. Product
                     copy and your content stay as written.
@@ -280,7 +289,7 @@ export default function AccountPreferencesForm({
           <form.Field name="timeZone">
             {(field) => {
               function handleTimeZoneChange(
-                event: ChangeEvent<HTMLInputElement>,
+                event: ChangeEvent<HTMLSelectElement>,
               ) {
                 field.handleChange(event.target.value);
               }
@@ -290,13 +299,22 @@ export default function AccountPreferencesForm({
                   <FieldLabel htmlFor="account-preferences-time-zone">
                     Time zone
                   </FieldLabel>
-                  <Input
-                    autoComplete="off"
+                  <NativeSelect
+                    className="w-full"
                     id="account-preferences-time-zone"
                     name={field.name}
                     onChange={handleTimeZoneChange}
                     value={field.state.value}
-                  />
+                  >
+                    {optionsWithCurrentValue(
+                      TIME_ZONE_OPTIONS,
+                      field.state.value,
+                    ).map((timeZone) => (
+                      <NativeSelectOption key={timeZone} value={timeZone}>
+                        {timeZone}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
                   <FieldDescription>
                     Changes future date entry, day boundaries, and historical
                     display without rewriting stored timestamps.
@@ -448,7 +466,9 @@ export default function AccountPreferencesForm({
                     </dd>
                   </div>
                   <div className="border-b pb-3">
-                    <dt className="text-muted-foreground text-xs">Number</dt>
+                    <dt className="text-muted-foreground text-xs">
+                      Example number
+                    </dt>
                     <dd className="mt-1 font-medium text-base tracking-tight">
                       {formatAccountNumber(PREVIEW_NUMBER, preview)}
                     </dd>

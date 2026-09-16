@@ -583,7 +583,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Önizleme | `Preview` | Locale, tarih biçimi ve haftanın ilk gününün gösterim sonucunu kaydetmeden gösteren yüzey |
 | Kaydetmeden önce | `Before saving` | Önizlemenin Hesap tercihlerini yazmadan önceki sonucu gösterdiğini belirten yardımcı etiket |
 | Tarih | `Date` | Önizlemede biçimlenmiş tarih |
-| Sayı | `Number` | Önizlemede biçimlenmiş sayı |
+| Örnek sayı | `Example number` | Locale’in sayı gösterimini anlatan önizleme örneği; bir Hesap tercihi değildir |
 | Hafta | `Week` | Önizlemede haftanın ilk gününe göre kaymış gün başlıkları |
 | Tarihsel olay | `Historical event` | Saklanmış anın Hesap saat dilimindeki gösterimi |
 | İş başlığı | `Work title` | Locale’in çevirmediği kullanıcı içeriği örneği |
