@@ -206,6 +206,24 @@ jobs:
           workflow_sha="${GITHUB_WORKFLOW_SHA:-$source_commit}"
           dmg_name="$(basename "$dmg_path")"
           dmg_sha256="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
+          migration_directory_hash="$(
+            git ls-files packages/db/src/migrations |
+              sort |
+              while IFS= read -r migration_file; do
+                shasum -a 256 "$migration_file"
+              done |
+              shasum -a 256 |
+              awk '{print $1}'
+          )"
+          last_migration_name="$(
+            find packages/db/src/migrations -maxdepth 1 -type f -name '*.sql' -print |
+              sed 's#^.*/##; s#\.sql$##' |
+              sort |
+              tail -n 1
+          )"
+          test -n "$migration_directory_hash"
+          test -n "$last_migration_name"
+          schema_version="$last_migration_name:$migration_directory_hash"
 
           codesign --verify --deep --strict --verbose=2 "$app_path" 2>&1 | tee "$evidence_directory/codesign-verify.txt"
           codesign --display --verbose=4 "$app_path" 2> "$evidence_directory/codesign-display.txt"
@@ -239,8 +257,9 @@ jobs:
             --arg runnerArchitecture "$runner_architecture" \
             --arg dmgName "$dmg_name" \
             --arg dmgSha256 "$dmg_sha256" \
+            --arg schemaVersion "$schema_version" \
             '{
-              schemaVersion: "cantiara.macos-package-evidence/v1",
+              manifestFormatVersion: "cantiara.macos-package-evidence/v1",
               evidenceType: "signed-notarized-package",
               acceptance: {
                 evidenceId: $evidenceId,
@@ -271,6 +290,8 @@ jobs:
                 name: $dmgName,
                 sha256: $dmgSha256
               },
+              result: "passed",
+              schemaVersion: $schemaVersion,
               checks: {
                 install: "passed",
                 codesign: "passed",
@@ -315,9 +336,10 @@ jobs:
           test -n "$ARTIFACT_ID"
           test -n "$ARTIFACT_URL"
           mkdir -p "$REFERENCE_DIRECTORY"
+          artifact_digest="sha256:$ARTIFACT_DIGEST"
           manifest_sha256="$(shasum -a 256 "$EVIDENCE_DIRECTORY/acceptance-manifest.json" | awk '{print $1}')"
           jq -n \
-            --arg artifactDigest "$ARTIFACT_DIGEST" \
+            --arg artifactDigest "$artifact_digest" \
             --arg artifactId "$ARTIFACT_ID" \
             --arg artifactName "$ARTIFACT_NAME" \
             --arg artifactUrl "$ARTIFACT_URL" \
@@ -357,19 +379,19 @@ jobs:
             runner: macos-26
             target: aarch64-apple-darwin
           - major: 26
-            runner: macos-26
+            runner: macos-26-intel
             target: x86_64-apple-darwin
           - major: 15
             runner: macos-15
             target: aarch64-apple-darwin
           - major: 15
-            runner: macos-15
+            runner: macos-15-intel
             target: x86_64-apple-darwin
           - major: 14
             runner: macos-14
             target: aarch64-apple-darwin
           - major: 14
-            runner: macos-14
+            runner: macos-14-large
             target: x86_64-apple-darwin
 
     steps:
@@ -399,13 +421,14 @@ jobs:
           workflow_run_id="$(jq -r '.workflow.runId' "$package_manifest")"
           workflow_sha="$(jq -r '.workflow.sha' "$package_manifest")"
           package_target="$(jq -r '.target' "$package_manifest")"
+          schema_version="$(jq -r '.schemaVersion' "$package_manifest")"
           actual_macos_version="$(sw_vers -productVersion)"
           actual_major="${actual_macos_version%%.*}"
           runner_architecture="$(uname -m)"
           test "$actual_major" = "$EXPECTED_MAJOR"
           test "$package_target" = "$TARGET"
           case "$TARGET:$runner_architecture" in
-            aarch64-apple-darwin:arm64|x86_64-apple-darwin:arm64|x86_64-apple-darwin:x86_64) ;;
+            aarch64-apple-darwin:arm64|x86_64-apple-darwin:x86_64) ;;
             *) echo "The target package is not installable on this runner architecture" >&2; exit 1 ;;
           esac
 
@@ -438,8 +461,9 @@ jobs:
             --arg runnerArchitecture "$runner_architecture" \
             --arg dmgName "$dmg_name" \
             --arg dmgSha256 "$dmg_sha256" \
+            --arg schemaVersion "$schema_version" \
             '{
-              schemaVersion: "cantiara.macos-package-evidence/v1",
+              manifestFormatVersion: "cantiara.macos-package-evidence/v1",
               evidenceType: "clean-install",
               acceptance: {
                 evidenceId: $evidenceId,
@@ -471,6 +495,8 @@ jobs:
                 name: $dmgName,
                 sha256: $dmgSha256
               },
+              result: "passed",
+              schemaVersion: $schemaVersion,
               checks: {
                 install: "passed",
                 codesign: "passed",
@@ -506,9 +532,10 @@ jobs:
           test -n "$ARTIFACT_ID"
           test -n "$ARTIFACT_URL"
           mkdir -p "$REFERENCE_DIRECTORY"
+          artifact_digest="sha256:$ARTIFACT_DIGEST"
           manifest_sha256="$(shasum -a 256 "$EVIDENCE_DIRECTORY/clean-install-manifest.json" | awk '{print $1}')"
           jq -n \
-            --arg artifactDigest "$ARTIFACT_DIGEST" \
+            --arg artifactDigest "$artifact_digest" \
             --arg artifactId "$ARTIFACT_ID" \
             --arg artifactName "$ARTIFACT_NAME" \
             --arg artifactUrl "$ARTIFACT_URL" \
@@ -602,6 +629,9 @@ jobs:
 
           source_commit="$(jq -r '.[0].sourceCommit' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
           test "$source_commit" = "$(git rev-parse HEAD)"
+          schema_version="$(jq -r '.[0].schemaVersion' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
+          test -n "$schema_version"
+          test "$schema_version" != "null"
           workflow_ref="$(jq -r '.[0].workflow.ref' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
           workflow_run_attempt="$(jq -r '.[0].workflow.runAttempt' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
           workflow_run_id="$(jq -r '.[0].workflow.runId' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
@@ -641,6 +671,7 @@ jobs:
             --arg workflowRunAttempt "$workflow_run_attempt" \
             --arg workflowRunId "$workflow_run_id" \
             --arg workflowSha "$workflow_sha" \
+            --arg schemaVersion "$schema_version" \
             --arg releaseTag "$RELEASE_TAG" \
             --arg releaseAssetUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/acceptance-candidate.json" \
             --arg releaseEvidenceAssetUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/macos-acceptance-evidence.tar.gz" \
@@ -651,9 +682,10 @@ jobs:
             --argjson cleanInstallArtifactReferences "$clean_install_artifact_references" \
             --argjson acceptanceEvidenceIds "$acceptance_evidence_ids" \
             '{
-              schemaVersion: "cantiara.macos-package-acceptance/v1",
+              manifestFormatVersion: "cantiara.macos-package-acceptance/v1",
               evidenceType: "acceptance-candidate",
               sourceCommit: $sourceCommit,
+              schemaVersion: $schemaVersion,
               workflow: {
                 ref: $workflowRef,
                 runAttempt: $workflowRunAttempt,

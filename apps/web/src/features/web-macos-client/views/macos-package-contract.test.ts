@@ -13,8 +13,9 @@ import {
 } from "./macos-package-contract";
 
 const sourceCommit = "a".repeat(40);
+const schemaVersion = `0002_medical_gorilla_man:${"e".repeat(64)}`;
 const workflow = {
-  ref: "cantiara/.github/workflows/macos-release.yml@refs/tags/cantiara-v0.1.0",
+  ref: "UnderprotectionDev/cantiara/.github/workflows/macos-release.yml@refs/tags/cantiara-v0.1.0",
   runAttempt: "1",
   runId: "123456789",
   sha: sourceCommit,
@@ -67,7 +68,7 @@ function createArtifactReference(evidenceKey: string) {
 
 function createPackageEvidence(
   target: MacOSPackageEvidence["target"],
-  runnerArchitecture: string,
+  runnerArchitecture: MacOSPackageEvidence["environment"]["runnerArchitecture"],
 ) {
   return {
     acceptance: {
@@ -94,7 +95,9 @@ function createPackageEvidence(
       runnerArchitecture,
     },
     evidenceType: "signed-notarized-package",
-    schemaVersion: "cantiara.macos-package-evidence/v1",
+    manifestFormatVersion: "cantiara.macos-package-evidence/v1",
+    result: "passed",
+    schemaVersion,
     sourceCommit,
     target,
     workflow,
@@ -132,8 +135,10 @@ function createCleanInstallEvidence(
     },
     evidenceType: "clean-install",
     expectedMajor,
+    manifestFormatVersion: "cantiara.macos-package-evidence/v1",
     packageTarget,
-    schemaVersion: "cantiara.macos-package-evidence/v1",
+    result: "passed",
+    schemaVersion,
     sourceCommit,
     workflow,
   } satisfies MacOSCleanInstallEvidence;
@@ -207,7 +212,8 @@ function createCandidate() {
       url: "https://github.com/UnderprotectionDev/cantiara/releases/download/cantiara-v0.1.0/macos-acceptance-evidence.tar.gz",
     },
     result: "passed",
-    schemaVersion: "cantiara.macos-package-acceptance/v1",
+    manifestFormatVersion: "cantiara.macos-package-acceptance/v1",
+    schemaVersion,
     sourceCommit,
     supportedMacOSMajors,
     workflow,
@@ -268,6 +274,57 @@ describe("Client Shell macOS package contract", () => {
     expect(isMacOSPackageAcceptanceCandidate(incompleteCandidate)).toBe(false);
   });
 
+  test("accepts a workflow-dispatch ref from the selected branch", () => {
+    const candidate = createCandidate();
+    const manualDispatchWorkflow = {
+      ...workflow,
+      ref: "UnderprotectionDev/cantiara/.github/workflows/macos-release.yml@refs/heads/main",
+    };
+    const manualDispatchCandidate = {
+      ...candidate,
+      packageEvidence: candidate.packageEvidence.map((evidence) => ({
+        ...evidence,
+        workflow: manualDispatchWorkflow,
+      })),
+      cleanInstallEvidence: candidate.cleanInstallEvidence.map((evidence) => ({
+        ...evidence,
+        workflow: manualDispatchWorkflow,
+      })),
+      workflow: manualDispatchWorkflow,
+    };
+
+    expect(isMacOSPackageAcceptanceCandidate(manualDispatchCandidate)).toBe(
+      true,
+    );
+  });
+
+  test("requires a migration-backed schema version", () => {
+    const candidate = createCandidate();
+    const legacySchemaCandidate = {
+      ...candidate,
+      schemaVersion: "cantiara.macos-package-acceptance/v1",
+    };
+
+    expect(isMacOSPackageAcceptanceCandidate(legacySchemaCandidate)).toBe(
+      false,
+    );
+  });
+
+  test("requires an explicit result on every evidence record", () => {
+    const candidate = createCandidate();
+    const { result: _result, ...packageEvidenceWithoutResult } =
+      candidate.packageEvidence[0];
+    const missingResult = {
+      ...candidate,
+      packageEvidence: [
+        packageEvidenceWithoutResult,
+        ...candidate.packageEvidence.slice(1),
+      ],
+    };
+
+    expect(isMacOSPackageAcceptanceCandidate(missingResult)).toBe(false);
+  });
+
   test("rejects clean-install evidence for a different package digest", () => {
     const candidate = createCandidate();
     const mismatchedCandidate = {
@@ -302,6 +359,77 @@ describe("Client Shell macOS package contract", () => {
     };
 
     expect(isMacOSPackageAcceptanceCandidate(mismatchedReference)).toBe(false);
+  });
+
+  test("rejects a bare upload artifact digest", () => {
+    const candidate = createCandidate();
+    const packageArtifactReferences = candidate.packageArtifactReferences.map(
+      (reference) => ({
+        ...reference,
+        artifactDigest: "c".repeat(64),
+      }),
+    );
+    const bareDigestCandidate = {
+      ...candidate,
+      packageArtifactReferences,
+      packageEvidence: candidate.packageEvidence.map((evidence) => ({
+        ...evidence,
+        artifactReference: packageArtifactReferences.find(
+          (reference) => reference.evidenceKey === evidence.target,
+        ),
+      })),
+    };
+
+    expect(isMacOSPackageAcceptanceCandidate(bareDigestCandidate)).toBe(false);
+  });
+
+  test("rejects an artifact reference from another workflow run", () => {
+    const candidate = createCandidate();
+    const externalReference = {
+      ...candidate.packageArtifactReferences[0],
+      artifactUrl: `https://github.com/another-owner/another-repo/actions/runs/987654321/artifacts/${candidate.packageArtifactReferences[0].artifactId}`,
+    };
+    const externalArtifactCandidate = {
+      ...candidate,
+      packageArtifactReferences: [
+        externalReference,
+        ...candidate.packageArtifactReferences.slice(1),
+      ],
+      packageEvidence: [
+        {
+          ...candidate.packageEvidence[0],
+          artifactReference: externalReference,
+        },
+        ...candidate.packageEvidence.slice(1),
+      ],
+    };
+
+    expect(isMacOSPackageAcceptanceCandidate(externalArtifactCandidate)).toBe(
+      false,
+    );
+  });
+
+  test("rejects release assets from another repository or release tag", () => {
+    const candidate = createCandidate();
+    const externalReleaseAsset = {
+      ...candidate,
+      releaseAsset: {
+        ...candidate.releaseAsset,
+        url: "https://github.com/another-owner/another-repo/releases/download/cantiara-v0.1.0/acceptance-candidate.json",
+      },
+    };
+    const mismatchedReleaseEvidenceAsset = {
+      ...candidate,
+      releaseEvidenceAsset: {
+        ...candidate.releaseEvidenceAsset,
+        url: "https://github.com/UnderprotectionDev/cantiara/releases/download/cantiara-v0.2.0/macos-acceptance-evidence.tar.gz",
+      },
+    };
+
+    expect(isMacOSPackageAcceptanceCandidate(externalReleaseAsset)).toBe(false);
+    expect(
+      isMacOSPackageAcceptanceCandidate(mismatchedReleaseEvidenceAsset),
+    ).toBe(false);
   });
 
   test("requires each evidence record to carry its matching artifact reference", () => {

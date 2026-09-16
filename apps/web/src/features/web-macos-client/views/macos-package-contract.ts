@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 const gitCommitPattern = /^[a-f0-9]{40}$/;
 const artifactDigestPattern = /^[a-f0-9]{64}$/;
 const artifactReferenceDigestPattern = /^sha256:[a-f0-9]{64}$/;
@@ -5,9 +7,11 @@ const artifactIdPattern = /^[1-9]\d*$/;
 const workflowRunIdPattern = /^[1-9]\d*$/;
 const releaseTagPattern = /^cantiara-v.+$/;
 const macOSVersionPattern = /^(14|15|26)(?:\.\d+)+$/;
-const macOSArchitecturePattern = /^(?:arm64|x86_64)$/;
+const schemaVersionPattern = /^\d{4}_[A-Za-z0-9_-]+:[a-f0-9]{64}$/;
 const evidenceIdPattern =
   /^client-shell\.macos-(?:package|clean-install)-[a-z0-9_-]+\.v1$/;
+const workflowRefPattern =
+  /^([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/\.github\/workflows\/macos-release\.yml@.+$/;
 const artifactUrlPattern =
   /^https:\/\/github\.com\/.+\/actions\/runs\/[1-9]\d*\/artifacts\/[1-9]\d*$/;
 const releaseAssetUrlPattern =
@@ -22,127 +26,158 @@ export const macOSPackageTargets = [
   "x86_64-apple-darwin",
 ] as const;
 
-export type MacOSPackageTarget = (typeof macOSPackageTargets)[number];
+const macOSPackageTargetSchema = z.enum(macOSPackageTargets);
+const supportedMacOSMajorSchema = z.union([
+  z.literal(26),
+  z.literal(15),
+  z.literal(14),
+]);
+const macOSArchitectureSchema = z.enum(["arm64", "x86_64"]);
+const gitCommitSchema = z.string().regex(gitCommitPattern);
+const schemaVersionSchema = z.string().regex(schemaVersionPattern);
+const macOSPackageEvidenceFormatVersion =
+  "cantiara.macos-package-evidence/v1" as const;
+const macOSPackageAcceptanceFormatVersion =
+  "cantiara.macos-package-acceptance/v1" as const;
+export type MacOSPackageTarget = z.infer<typeof macOSPackageTargetSchema>;
 
-interface MacOSWorkflowMetadata {
-  ref: string;
-  runAttempt: string;
-  runId: string;
-  sha: string;
-}
+const workflowMetadataSchema = z.object({
+  ref: z.string().min(1).regex(workflowRefPattern),
+  runAttempt: z.string().regex(workflowRunIdPattern),
+  runId: z.string().regex(workflowRunIdPattern),
+  sha: gitCommitSchema,
+});
+type MacOSWorkflowMetadata = z.infer<typeof workflowMetadataSchema>;
 
-interface MacOSPackageBackendContract {
-  api: "hono-bun";
-  localDataLayer: false;
-  sourceOfTruth: "neon-postgresql";
-}
+const backendContractSchema = z.object({
+  api: z.literal("hono-bun"),
+  localDataLayer: z.literal(false),
+  sourceOfTruth: z.literal("neon-postgresql"),
+});
 
-interface MacOSPackageArtifact {
-  kind: "dmg";
-  name: string;
-  sha256: string;
-}
+const packageArtifactSchema = z.object({
+  kind: z.literal("dmg"),
+  name: z.string().regex(/\.dmg$/),
+  sha256: z.string().regex(artifactDigestPattern),
+});
 
-interface MacOSPackageEnvironment {
-  macOSVersion: string;
-  runnerArchitecture: string;
-}
+const packageEnvironmentSchema = z.object({
+  macOSVersion: z.string().regex(macOSVersionPattern),
+  runnerArchitecture: macOSArchitectureSchema,
+});
 
-interface MacOSPackageChecks {
-  codesign: "passed";
-  gatekeeper: "passed";
-  install: "passed";
-  notarization: "passed";
-}
+const packageChecksSchema = z.object({
+  codesign: z.literal("passed"),
+  gatekeeper: z.literal("passed"),
+  install: z.literal("passed"),
+  notarization: z.literal("passed"),
+});
 
-interface MacOSAcceptanceTrace {
-  acceptanceJourney: "macOS paket kabulü";
-  evidenceId: string;
-  fixture: "Sentetik fixture";
-  seam: "Client Shell";
-  testType: "exact-build platform matrix";
-}
+const acceptanceTraceSchema = z.object({
+  acceptanceJourney: z.literal("macOS paket kabulü"),
+  evidenceId: z.string().regex(evidenceIdPattern),
+  fixture: z.literal("Sentetik fixture"),
+  seam: z.literal("Client Shell"),
+  testType: z.literal("exact-build platform matrix"),
+});
 
-export interface MacOSPackageEvidence {
-  acceptance: MacOSAcceptanceTrace;
-  artifact: MacOSPackageArtifact;
-  artifactReference?: MacOSArtifactReference;
-  backend: MacOSPackageBackendContract;
-  checks: MacOSPackageChecks;
-  environment: MacOSPackageEnvironment;
-  evidenceType: "signed-notarized-package";
-  schemaVersion: "cantiara.macos-package-evidence/v1";
-  sourceCommit: string;
-  target: MacOSPackageTarget;
-  workflow: MacOSWorkflowMetadata;
-}
+const artifactReferenceSchema = z
+  .object({
+    artifactDigest: z.string().regex(artifactReferenceDigestPattern),
+    artifactId: z.string().regex(artifactIdPattern),
+    artifactName: z.string().min(1),
+    artifactUrl: z.string().regex(artifactUrlPattern),
+    evidenceKey: z.string().min(1),
+    manifestSha256: z.string().regex(artifactDigestPattern),
+    retentionDays: z.number().int().positive().max(90),
+  })
+  .refine(
+    (value) => value.artifactUrl.endsWith(`/${value.artifactId}`),
+    "artifactUrl must end with artifactId",
+  );
+export type MacOSArtifactReference = z.infer<typeof artifactReferenceSchema>;
 
-export interface MacOSArtifactReference {
-  artifactDigest: string;
-  artifactId: string;
-  artifactName: string;
-  artifactUrl: string;
-  evidenceKey: string;
-  manifestSha256: string;
-  retentionDays: number;
-}
+const releaseAssetReferenceSchema = z.object({
+  name: z.literal("acceptance-candidate.json"),
+  url: z.string().regex(releaseAssetUrlPattern),
+});
+type MacOSReleaseAssetReference = z.infer<typeof releaseAssetReferenceSchema>;
 
-interface MacOSReleaseAssetReference {
-  name: "acceptance-candidate.json";
-  url: string;
-}
+const releaseEvidenceAssetReferenceSchema = z.object({
+  name: z.literal("macos-acceptance-evidence.tar.gz"),
+  sha256: z.string().regex(artifactDigestPattern),
+  url: z.string().regex(releaseEvidenceAssetUrlPattern),
+});
+type MacOSReleaseEvidenceAssetReference = z.infer<
+  typeof releaseEvidenceAssetReferenceSchema
+>;
 
-interface MacOSReleaseEvidenceAssetReference {
-  name: "macos-acceptance-evidence.tar.gz";
-  sha256: string;
-  url: string;
-}
+const packageEvidenceSchema = z.object({
+  acceptance: acceptanceTraceSchema,
+  artifact: packageArtifactSchema,
+  artifactReference: artifactReferenceSchema.optional(),
+  backend: backendContractSchema,
+  checks: packageChecksSchema,
+  environment: packageEnvironmentSchema,
+  evidenceType: z.literal("signed-notarized-package"),
+  manifestFormatVersion: z.literal(macOSPackageEvidenceFormatVersion),
+  result: z.literal("passed"),
+  schemaVersion: schemaVersionSchema,
+  sourceCommit: gitCommitSchema,
+  target: macOSPackageTargetSchema,
+  workflow: workflowMetadataSchema,
+});
+export type MacOSPackageEvidence = z.infer<typeof packageEvidenceSchema>;
 
-type MacOSCleanInstallChecks = MacOSPackageChecks;
+const cleanInstallEvidenceSchema = z.object({
+  acceptance: acceptanceTraceSchema,
+  artifact: packageArtifactSchema,
+  artifactReference: artifactReferenceSchema.optional(),
+  backend: backendContractSchema,
+  checks: packageChecksSchema,
+  environment: packageEnvironmentSchema,
+  evidenceType: z.literal("clean-install"),
+  expectedMajor: supportedMacOSMajorSchema,
+  manifestFormatVersion: z.literal(macOSPackageEvidenceFormatVersion),
+  packageTarget: macOSPackageTargetSchema,
+  result: z.literal("passed"),
+  schemaVersion: schemaVersionSchema,
+  sourceCommit: gitCommitSchema,
+  workflow: workflowMetadataSchema,
+});
+export type MacOSCleanInstallEvidence = z.infer<
+  typeof cleanInstallEvidenceSchema
+>;
 
-export interface MacOSCleanInstallEvidence {
-  acceptance: MacOSAcceptanceTrace;
-  artifact: MacOSPackageArtifact;
-  artifactReference?: MacOSArtifactReference;
-  backend: MacOSPackageBackendContract;
-  checks: MacOSCleanInstallChecks;
-  environment: MacOSPackageEnvironment;
-  evidenceType: "clean-install";
-  expectedMajor: (typeof supportedMacOSMajors)[number];
-  packageTarget: MacOSPackageTarget;
-  schemaVersion: "cantiara.macos-package-evidence/v1";
-  sourceCommit: string;
-  workflow: MacOSWorkflowMetadata;
-}
+const acceptanceCoverageSchema = z.object({
+  acceptanceJourney: z.literal("macOS paket kabulü"),
+  evidenceIds: z.array(z.string().regex(evidenceIdPattern)).min(1),
+  fixture: z.literal("Sentetik fixture"),
+  result: z.literal("passed"),
+  seam: z.literal("Client Shell"),
+  testType: z.literal("exact-build platform matrix"),
+});
 
-interface MacOSAcceptanceCoverage {
-  acceptanceJourney: "macOS paket kabulü";
-  evidenceIds: string[];
-  fixture: "Sentetik fixture";
-  result: "passed";
-  seam: "Client Shell";
-  testType: "exact-build platform matrix";
-}
-
-export interface MacOSPackageAcceptanceCandidate {
-  acceptanceCoverage: MacOSAcceptanceCoverage[];
-  cleanInstallArtifactReferences: MacOSArtifactReference[];
-  cleanInstallEvidence: MacOSCleanInstallEvidence[];
-  evidenceType: "acceptance-candidate";
-  packageArtifactReferences: MacOSArtifactReference[];
-  packageEvidence: MacOSPackageEvidence[];
-  releaseAsset: MacOSReleaseAssetReference;
-  releaseEvidenceAsset: MacOSReleaseEvidenceAssetReference;
-  releaseTag: string;
-  result: "passed";
-  schemaVersion: "cantiara.macos-package-acceptance/v1";
-  sourceCommit: string;
-  supportedMacOSMajors: readonly number[];
-  workflow: MacOSWorkflowMetadata;
-}
-
-const supportedMacOSMajorSet = new Set<number>(supportedMacOSMajors);
-const macOSPackageTargetSet = new Set<string>(macOSPackageTargets);
+const acceptanceCandidateSchema = z.object({
+  acceptanceCoverage: z.array(acceptanceCoverageSchema),
+  cleanInstallArtifactReferences: z.array(artifactReferenceSchema),
+  cleanInstallEvidence: z.array(cleanInstallEvidenceSchema),
+  evidenceType: z.literal("acceptance-candidate"),
+  manifestFormatVersion: z.literal(macOSPackageAcceptanceFormatVersion),
+  packageArtifactReferences: z.array(artifactReferenceSchema),
+  packageEvidence: z.array(packageEvidenceSchema),
+  releaseAsset: releaseAssetReferenceSchema,
+  releaseEvidenceAsset: releaseEvidenceAssetReferenceSchema,
+  releaseTag: z.string().regex(releaseTagPattern),
+  result: z.literal("passed"),
+  schemaVersion: schemaVersionSchema,
+  sourceCommit: gitCommitSchema,
+  supportedMacOSMajors: z.array(supportedMacOSMajorSchema).readonly(),
+  workflow: workflowMetadataSchema,
+});
+export type MacOSPackageAcceptanceCandidate = z.infer<
+  typeof acceptanceCandidateSchema
+>;
 
 function cleanInstallEvidenceKey(
   major: (typeof supportedMacOSMajors)[number],
@@ -151,210 +186,12 @@ function cleanInstallEvidenceKey(
   return `${major}:${target}`;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-function isGitCommit(value: unknown): value is string {
-  return typeof value === "string" && gitCommitPattern.test(value);
-}
-
-function isMacOSVersion(value: unknown): value is string {
-  return typeof value === "string" && macOSVersionPattern.test(value);
-}
-
 function macOSMajor(value: string) {
   return Number.parseInt(value, 10);
 }
 
-function isMacOSArchitecture(value: unknown): value is string {
-  return typeof value === "string" && macOSArchitecturePattern.test(value);
-}
-
-function isMacOSPackageTarget(value: unknown): value is MacOSPackageTarget {
-  return typeof value === "string" && macOSPackageTargetSet.has(value);
-}
-
-function isSupportedMacOSMajor(
-  value: unknown,
-): value is (typeof supportedMacOSMajors)[number] {
-  return (
-    typeof value === "number" &&
-    Number.isInteger(value) &&
-    supportedMacOSMajorSet.has(value)
-  );
-}
-
-function isWorkflowMetadata(value: unknown): value is MacOSWorkflowMetadata {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    isNonEmptyString(value.ref) &&
-    isNonEmptyString(value.runAttempt) &&
-    workflowRunIdPattern.test(value.runAttempt) &&
-    isNonEmptyString(value.runId) &&
-    workflowRunIdPattern.test(value.runId) &&
-    isGitCommit(value.sha)
-  );
-}
-
-function isBackendContract(
-  value: unknown,
-): value is MacOSPackageBackendContract {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    value.api === "hono-bun" &&
-    value.localDataLayer === false &&
-    value.sourceOfTruth === "neon-postgresql"
-  );
-}
-
-function isArtifact(value: unknown): value is MacOSPackageArtifact {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    value.kind === "dmg" &&
-    typeof value.name === "string" &&
-    value.name.endsWith(".dmg") &&
-    typeof value.sha256 === "string" &&
-    artifactDigestPattern.test(value.sha256)
-  );
-}
-
 function isArtifactReference(value: unknown): value is MacOSArtifactReference {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    isNonEmptyString(value.artifactDigest) &&
-    artifactReferenceDigestPattern.test(value.artifactDigest) &&
-    isNonEmptyString(value.artifactId) &&
-    artifactIdPattern.test(value.artifactId) &&
-    isNonEmptyString(value.artifactName) &&
-    isNonEmptyString(value.artifactUrl) &&
-    artifactUrlPattern.test(value.artifactUrl) &&
-    value.artifactUrl.endsWith(`/${value.artifactId}`) &&
-    isNonEmptyString(value.evidenceKey) &&
-    isNonEmptyString(value.manifestSha256) &&
-    artifactDigestPattern.test(value.manifestSha256) &&
-    typeof value.retentionDays === "number" &&
-    Number.isInteger(value.retentionDays) &&
-    value.retentionDays > 0 &&
-    value.retentionDays <= 90
-  );
-}
-
-function isAcceptanceTrace(value: unknown): value is MacOSAcceptanceTrace {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    typeof value.acceptanceJourney === "string" &&
-    value.acceptanceJourney === "macOS paket kabulü" &&
-    typeof value.evidenceId === "string" &&
-    evidenceIdPattern.test(value.evidenceId) &&
-    value.fixture === "Sentetik fixture" &&
-    value.seam === "Client Shell" &&
-    value.testType === "exact-build platform matrix"
-  );
-}
-
-function isAcceptanceCoverage(
-  value: unknown,
-): value is MacOSAcceptanceCoverage {
-  if (!(isRecord(value) && Array.isArray(value.evidenceIds))) {
-    return false;
-  }
-
-  return (
-    value.acceptanceJourney === "macOS paket kabulü" &&
-    value.evidenceIds.length > 0 &&
-    value.evidenceIds.every(
-      (evidenceId) =>
-        typeof evidenceId === "string" && evidenceIdPattern.test(evidenceId),
-    ) &&
-    value.fixture === "Sentetik fixture" &&
-    value.result === "passed" &&
-    value.seam === "Client Shell" &&
-    value.testType === "exact-build platform matrix"
-  );
-}
-
-function isReleaseAssetReference(
-  value: unknown,
-): value is MacOSReleaseAssetReference {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    value.name === "acceptance-candidate.json" &&
-    typeof value.url === "string" &&
-    releaseAssetUrlPattern.test(value.url)
-  );
-}
-
-function isReleaseEvidenceAssetReference(
-  value: unknown,
-): value is MacOSReleaseEvidenceAssetReference {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    value.name === "macos-acceptance-evidence.tar.gz" &&
-    typeof value.sha256 === "string" &&
-    artifactDigestPattern.test(value.sha256) &&
-    typeof value.url === "string" &&
-    releaseEvidenceAssetUrlPattern.test(value.url)
-  );
-}
-
-function isPackageEnvironment(
-  value: unknown,
-): value is MacOSPackageEnvironment {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    isMacOSVersion(value.macOSVersion) &&
-    isMacOSArchitecture(value.runnerArchitecture)
-  );
-}
-
-function isPackageChecks(value: unknown): value is MacOSPackageChecks {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    value.codesign === "passed" &&
-    value.gatekeeper === "passed" &&
-    value.install === "passed" &&
-    value.notarization === "passed"
-  );
-}
-
-function isCleanInstallChecks(
-  value: unknown,
-): value is MacOSCleanInstallChecks {
-  return (
-    isPackageChecks(value) && isRecord(value) && value.install === "passed"
-  );
+  return artifactReferenceSchema.safeParse(value).success;
 }
 
 function isReferencedMacOSPackageEvidence(
@@ -406,94 +243,96 @@ function isWorkflowForSource(
   );
 }
 
+function workflowRepository(workflowRef: string) {
+  return workflowRefPattern.exec(workflowRef)?.[1];
+}
+
+function isArtifactReferenceForWorkflow(
+  reference: MacOSArtifactReference,
+  workflow: MacOSWorkflowMetadata,
+) {
+  const repository = workflowRepository(workflow.ref);
+  return (
+    repository !== undefined &&
+    reference.artifactUrl ===
+      `https://github.com/${repository}/actions/runs/${workflow.runId}/artifacts/${reference.artifactId}`
+  );
+}
+
+function isReleaseAssetForWorkflow(
+  reference: MacOSReleaseAssetReference,
+  candidate: MacOSPackageAcceptanceCandidate,
+) {
+  const repository = workflowRepository(candidate.workflow.ref);
+  return (
+    repository !== undefined &&
+    reference.url ===
+      `https://github.com/${repository}/releases/download/${candidate.releaseTag}/acceptance-candidate.json`
+  );
+}
+
+function isReleaseEvidenceAssetForWorkflow(
+  reference: MacOSReleaseEvidenceAssetReference,
+  candidate: MacOSPackageAcceptanceCandidate,
+) {
+  const repository = workflowRepository(candidate.workflow.ref);
+  return (
+    repository !== undefined &&
+    reference.url ===
+      `https://github.com/${repository}/releases/download/${candidate.releaseTag}/macos-acceptance-evidence.tar.gz`
+  );
+}
+
 export function isMacOSPackageEvidence(
   value: unknown,
 ): value is MacOSPackageEvidence {
-  if (!isRecord(value)) {
-    return false;
-  }
-
+  const parsed = packageEvidenceSchema.safeParse(value);
   return (
-    value.evidenceType === "signed-notarized-package" &&
-    value.schemaVersion === "cantiara.macos-package-evidence/v1" &&
-    isGitCommit(value.sourceCommit) &&
-    isWorkflowMetadata(value.workflow) &&
-    isAcceptanceTrace(value.acceptance) &&
-    isMacOSPackageTarget(value.target) &&
-    value.acceptance.evidenceId ===
-      `client-shell.macos-package-${value.target}.v1` &&
-    isBackendContract(value.backend) &&
-    isPackageEnvironment(value.environment) &&
-    isArtifact(value.artifact) &&
-    isPackageChecks(value.checks)
+    parsed.success &&
+    parsed.data.acceptance.evidenceId ===
+      `client-shell.macos-package-${parsed.data.target}.v1`
   );
 }
 
 export function isMacOSCleanInstallEvidence(
   value: unknown,
 ): value is MacOSCleanInstallEvidence {
-  if (!(isRecord(value) && isCleanInstallChecks(value.checks))) {
-    return false;
-  }
-
-  const { checks } = value;
+  const parsed = cleanInstallEvidenceSchema.safeParse(value);
   return (
-    value.evidenceType === "clean-install" &&
-    value.schemaVersion === "cantiara.macos-package-evidence/v1" &&
-    isGitCommit(value.sourceCommit) &&
-    isWorkflowMetadata(value.workflow) &&
-    isAcceptanceTrace(value.acceptance) &&
-    isSupportedMacOSMajor(value.expectedMajor) &&
-    isMacOSPackageTarget(value.packageTarget) &&
-    value.acceptance.evidenceId ===
-      `client-shell.macos-clean-install-${value.expectedMajor}-${value.packageTarget}.v1` &&
-    isBackendContract(value.backend) &&
-    isPackageEnvironment(value.environment) &&
-    macOSMajor(value.environment.macOSVersion) === value.expectedMajor &&
-    isArtifact(value.artifact) &&
-    checks.install === "passed"
+    parsed.success &&
+    parsed.data.acceptance.evidenceId ===
+      `client-shell.macos-clean-install-${parsed.data.expectedMajor}-${parsed.data.packageTarget}.v1` &&
+    macOSMajor(parsed.data.environment.macOSVersion) ===
+      parsed.data.expectedMajor
   );
 }
 
 export function isMacOSPackageAcceptanceCandidate(
   value: unknown,
 ): value is MacOSPackageAcceptanceCandidate {
-  if (!(isRecord(value) && isWorkflowMetadata(value.workflow))) {
+  const parsed = acceptanceCandidateSchema.safeParse(value);
+  if (!parsed.success) {
     return false;
   }
 
-  const candidate = value as unknown as MacOSPackageAcceptanceCandidate;
+  const candidate = parsed.data;
   if (
-    candidate.evidenceType !== "acceptance-candidate" ||
-    candidate.schemaVersion !== "cantiara.macos-package-acceptance/v1" ||
-    candidate.result !== "passed" ||
-    !isGitCommit(candidate.sourceCommit) ||
-    !releaseTagPattern.test(candidate.releaseTag) ||
-    !isReleaseAssetReference(candidate.releaseAsset) ||
-    !isReleaseEvidenceAssetReference(candidate.releaseEvidenceAsset) ||
-    !Array.isArray(candidate.acceptanceCoverage) ||
     candidate.acceptanceCoverage.length !== 1 ||
-    !candidate.acceptanceCoverage.every(isAcceptanceCoverage) ||
-    !Array.isArray(candidate.supportedMacOSMajors) ||
     candidate.supportedMacOSMajors.length !== supportedMacOSMajors.length ||
     !candidate.supportedMacOSMajors.every(
       (major, index) => major === supportedMacOSMajors[index],
     ) ||
-    !Array.isArray(candidate.packageEvidence) ||
     candidate.packageEvidence.length !== macOSPackageTargets.length ||
     !candidate.packageEvidence.every(isReferencedMacOSPackageEvidence) ||
-    !Array.isArray(candidate.packageArtifactReferences) ||
     candidate.packageArtifactReferences.length !== macOSPackageTargets.length ||
-    !candidate.packageArtifactReferences.every(isArtifactReference) ||
-    !Array.isArray(candidate.cleanInstallEvidence) ||
     candidate.cleanInstallEvidence.length !==
       supportedMacOSMajors.length * macOSPackageTargets.length ||
     !candidate.cleanInstallEvidence.every(
       isReferencedMacOSCleanInstallEvidence,
     ) ||
-    !Array.isArray(candidate.cleanInstallArtifactReferences) ||
     candidate.cleanInstallArtifactReferences.length !==
       supportedMacOSMajors.length * macOSPackageTargets.length ||
+    !candidate.packageArtifactReferences.every(isArtifactReference) ||
     !candidate.cleanInstallArtifactReferences.every(isArtifactReference)
   ) {
     return false;
@@ -646,11 +485,10 @@ export function isMacOSPackageAcceptanceCandidate(
       macOSPackageTargets.length + expectedCleanInstallPairs.size &&
     artifactReferenceUrls.size ===
       macOSPackageTargets.length + expectedCleanInstallPairs.size &&
-    candidate.releaseAsset.url.includes(
-      `/releases/download/${candidate.releaseTag}/`,
-    ) &&
-    candidate.releaseEvidenceAsset.url.includes(
-      `/releases/download/${candidate.releaseTag}/`,
+    isReleaseAssetForWorkflow(candidate.releaseAsset, candidate) &&
+    isReleaseEvidenceAssetForWorkflow(
+      candidate.releaseEvidenceAsset,
+      candidate,
     ) &&
     evidenceIds.size ===
       macOSPackageTargets.length + expectedCleanInstallPairs.size &&
@@ -670,6 +508,18 @@ export function isMacOSPackageAcceptanceCandidate(
     ) &&
     candidate.cleanInstallEvidence.every(
       (evidence) => evidence.sourceCommit === candidate.sourceCommit,
+    ) &&
+    candidate.packageEvidence.every(
+      (evidence) => evidence.schemaVersion === candidate.schemaVersion,
+    ) &&
+    candidate.cleanInstallEvidence.every(
+      (evidence) => evidence.schemaVersion === candidate.schemaVersion,
+    ) &&
+    candidate.packageArtifactReferences.every((reference) =>
+      isArtifactReferenceForWorkflow(reference, candidate.workflow),
+    ) &&
+    candidate.cleanInstallArtifactReferences.every((reference) =>
+      isArtifactReferenceForWorkflow(reference, candidate.workflow),
     ) &&
     candidate.cleanInstallEvidence.every(
       (evidence) =>
