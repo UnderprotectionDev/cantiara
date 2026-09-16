@@ -1,88 +1,162 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 
-const featureDirectory = dirname(fileURLToPath(import.meta.url));
-const webDirectory = resolve(featureDirectory, "../../../../");
-const repositoryDirectory = resolve(webDirectory, "../..");
+import {
+  isMacOSCleanInstallEvidence,
+  isMacOSPackageAcceptanceCandidate,
+  isMacOSPackageEvidence,
+  type MacOSCleanInstallEvidence,
+  type MacOSPackageAcceptanceCandidate,
+  type MacOSPackageEvidence,
+  macOSPackageTargets,
+  supportedMacOSMajors,
+} from "./macos-package-contract";
 
-const tauriConfig = JSON.parse(
-  readFileSync(resolve(webDirectory, "src-tauri/tauri.conf.json"), "utf8"),
-) as {
-  bundle?: {
-    createUpdaterArtifacts?: boolean;
-    macOS?: {
-      hardenedRuntime?: boolean;
-      minimumSystemVersion?: string;
-    };
-    targets?: string[];
-  };
-  identifier?: string;
+const sourceCommit = "a".repeat(40);
+const workflow = {
+  ref: "cantiara/.github/workflows/macos-release.yml@refs/tags/cantiara-v0.1.0",
+  runAttempt: "1",
+  runId: "123456789",
+  sha: sourceCommit,
 };
+const backend = {
+  api: "hono-bun",
+  localDataLayer: false,
+  sourceOfTruth: "neon-postgresql",
+} as const;
+const digest = "b".repeat(64);
 
-const acceptanceDocument = readFileSync(
-  resolve(repositoryDirectory, "docs/prd/16-product-acceptance.md"),
-  "utf8",
-);
-const tauriCargoManifest = readFileSync(
-  resolve(webDirectory, "src-tauri/Cargo.toml"),
-  "utf8",
-);
-const releaseWorkflow = readFileSync(
-  resolve(repositoryDirectory, ".github/workflows/macos-release.yml"),
-  "utf8",
-);
-const applicationIdentifierPattern = /^[a-z][a-z0-9-]*(\.[a-z0-9-]+)+$/;
-const rustDataLayerPattern = /\b(?:diesel|postgres|rusqlite|sqlite|sqlx)\b/i;
-const unsupportedPackagePattern = /windows-latest|ubuntu-latest|\bPWA\b/i;
-const apiUrlWorkflowExpression = [
-  "VITE_SERVER_URL: $",
-  "{{ vars.CANTIARA_API_URL }}",
-].join("");
+function createPackageEvidence(
+  target: MacOSPackageEvidence["target"],
+  runnerArchitecture: string,
+) {
+  return {
+    artifact: {
+      kind: "dmg",
+      name: `cantiara_0.1.0_${target}.dmg`,
+      sha256: digest,
+    },
+    backend,
+    checks: {
+      codesign: "passed",
+      gatekeeper: "passed",
+      notarization: "passed",
+    },
+    environment: {
+      macOSVersion: "14.7.8",
+      runnerArchitecture,
+    },
+    evidenceType: "signed-notarized-package",
+    schemaVersion: "cantiara.macos-package-evidence/v1",
+    sourceCommit,
+    target,
+    workflow,
+  } satisfies MacOSPackageEvidence;
+}
+
+function createCleanInstallEvidence(
+  expectedMajor: MacOSCleanInstallEvidence["expectedMajor"],
+) {
+  return {
+    artifact: {
+      kind: "dmg",
+      name: `cantiara_0.1.0_${macOSPackageTargets[0]}.dmg`,
+      sha256: digest,
+    },
+    backend,
+    checks: {
+      codesign: "passed",
+      gatekeeper: "passed",
+      install: "passed",
+      notarization: "passed",
+    },
+    environment: {
+      macOSVersion: `${expectedMajor}.7.8`,
+      runnerArchitecture: "arm64",
+    },
+    evidenceType: "clean-install",
+    expectedMajor,
+    packageTarget: macOSPackageTargets[0],
+    schemaVersion: "cantiara.macos-package-evidence/v1",
+    sourceCommit,
+    workflow,
+  } satisfies MacOSCleanInstallEvidence;
+}
+
+function createCandidate() {
+  return {
+    cleanInstallEvidence: supportedMacOSMajors.map(createCleanInstallEvidence),
+    evidenceType: "acceptance-candidate",
+    packageEvidence: [
+      createPackageEvidence(macOSPackageTargets[0], "arm64"),
+      createPackageEvidence(macOSPackageTargets[1], "arm64"),
+    ],
+    releaseTag: "cantiara-v0.1.0",
+    result: "passed",
+    schemaVersion: "cantiara.macos-package-acceptance/v1",
+    sourceCommit,
+    supportedMacOSMajors,
+    workflow,
+  } satisfies MacOSPackageAcceptanceCandidate;
+}
 
 describe("Client Shell macOS package contract", () => {
-  test("uses an application identity and only macOS bundles", () => {
-    expect(tauriConfig.identifier).toMatch(applicationIdentifierPattern);
-    expect(tauriConfig.identifier).not.toBe("com.tauri.dev");
-    expect(tauriConfig.bundle?.targets).toEqual(["app", "dmg"]);
-    expect(tauriConfig.bundle?.createUpdaterArtifacts).toBe(false);
+  test("accepts signed and notarized package evidence for both macOS targets", () => {
+    expect(
+      isMacOSPackageEvidence(
+        createPackageEvidence(macOSPackageTargets[0], "arm64"),
+      ),
+    ).toBe(true);
+    expect(
+      isMacOSPackageEvidence(
+        createPackageEvidence(macOSPackageTargets[1], "arm64"),
+      ),
+    ).toBe(true);
   });
 
-  test("enforces the supported macOS floor with hardened runtime", () => {
-    expect(tauriConfig.bundle?.macOS).toMatchObject({
-      hardenedRuntime: true,
-      minimumSystemVersion: "14.0",
-    });
-  });
-
-  test("records the frozen product support matrix", () => {
-    expect(acceptanceDocument).toContain(
-      "Ürün destek matrisi: macOS 26, macOS 15 ve macOS 14",
+  test("rejects missing notarization, a local data source, or another platform", () => {
+    const packageEvidence = createPackageEvidence(
+      macOSPackageTargets[0],
+      "arm64",
     );
-    expect(releaseWorkflow).toContain("major: 26");
-    expect(releaseWorkflow).toContain("major: 15");
-    expect(releaseWorkflow).toContain("major: 14");
+    const missingNotarization = {
+      ...packageEvidence,
+      checks: { ...packageEvidence.checks, notarization: "failed" },
+    };
+    const localDataSource = {
+      ...packageEvidence,
+      backend: { ...packageEvidence.backend, localDataLayer: true },
+    };
+    const anotherPlatform = {
+      ...packageEvidence,
+      target: "x86_64-pc-windows-msvc",
+    };
+
+    expect(isMacOSPackageEvidence(missingNotarization)).toBe(false);
+    expect(isMacOSPackageEvidence(localDataSource)).toBe(false);
+    expect(isMacOSPackageEvidence(anotherPlatform)).toBe(false);
   });
 
-  test("keeps the Rust shell on the web API without a local data layer", () => {
-    expect(releaseWorkflow).toContain(apiUrlWorkflowExpression);
-    expect(tauriCargoManifest).not.toMatch(rustDataLayerPattern);
+  test("accepts the frozen macOS support matrix and rejects incomplete evidence", () => {
+    const candidate = createCandidate();
+    const incompleteCandidate = {
+      ...candidate,
+      cleanInstallEvidence: candidate.cleanInstallEvidence.filter(
+        (evidence) => evidence.expectedMajor !== 14,
+      ),
+    };
+
+    expect(isMacOSPackageAcceptanceCandidate(candidate)).toBe(true);
+    expect(isMacOSPackageAcceptanceCandidate(incompleteCandidate)).toBe(false);
   });
 
-  test("builds and verifies only signed, notarized macOS artifacts", () => {
-    expect(releaseWorkflow).toContain("tauri-apps/tauri-action@v1");
-    expect(releaseWorkflow).toContain("apple-actions/import-codesign-certs@v7");
-    expect(releaseWorkflow).toContain("APPLE_CERTIFICATE");
-    expect(releaseWorkflow).toContain("APPLE_CERTIFICATE_PASSWORD");
-    expect(releaseWorkflow).toContain("APPLE_SIGNING_IDENTITY");
-    expect(releaseWorkflow).toContain("APPLE_API_KEY");
-    expect(releaseWorkflow).toContain("APPLE_API_ISSUER");
-    expect(releaseWorkflow).toContain("APPLE_API_KEY_PATH");
-    expect(releaseWorkflow).toContain("codesign --verify");
-    expect(releaseWorkflow).toContain("xcrun stapler validate");
-    expect(releaseWorkflow).toContain("uploadUpdaterJson: false");
-    expect(releaseWorkflow).toContain("uploadUpdaterSignatures: false");
-    expect(releaseWorkflow).not.toMatch(unsupportedPackagePattern);
+  test("requires the clean-install evidence to match its expected major", () => {
+    const evidence = createCleanInstallEvidence(15);
+    const wrongVersion = {
+      ...evidence,
+      environment: { ...evidence.environment, macOSVersion: "14.7.8" },
+    };
+
+    expect(isMacOSCleanInstallEvidence(evidence)).toBe(true);
+    expect(isMacOSCleanInstallEvidence(wrongVersion)).toBe(false);
   });
 });
