@@ -5,19 +5,38 @@ import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { env } from "../env";
 import { createTauriBearerHeaders } from "../features/account-access/tauri-session";
 import { createClientShellQueryClient } from "../features/web-macos-client/client-shell";
+import { defaultClientShell } from "../features/web-macos-client/views/client-shell";
 
-export const createQueryClient = createClientShellQueryClient;
-export const queryClient = createClientShellQueryClient();
+export function createQueryClient() {
+  const queryClient = createClientShellQueryClient();
+  queryClient.setDefaultOptions({
+    mutations: {
+      networkMode: "always",
+      retry: false,
+    },
+    queries: {
+      networkMode: "always",
+      retry: false,
+    },
+  });
+  return queryClient;
+}
+
+export const queryClient = createQueryClient();
 
 export const link = new RPCLink({
   url: `${env.VITE_SERVER_URL.replace(/\/$/, "")}/rpc`,
   async fetch(request, init) {
     const headers = await createTauriBearerHeaders(request.headers);
-    return globalThis.fetch(request, {
-      ...init,
-      credentials: "include",
-      headers,
-    });
+    return defaultClientShell.request(
+      request,
+      {
+        ...init,
+        credentials: "include",
+        headers,
+      },
+      globalThis.fetch,
+    );
   },
 });
 

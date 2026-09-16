@@ -10,6 +10,7 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import Header from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ClientShellProvider } from "@/features/web-macos-client/views/client-shell";
 import type { orpc } from "@/utils/orpc";
 
 import "../index.css";
@@ -44,20 +45,22 @@ function RootComponent() {
   return (
     <>
       <HeadContent />
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="dark"
-        disableTransitionOnChange
-        storageKey="vite-ui-theme"
-      >
-        <div className="grid h-svh grid-rows-[auto_1fr]">
-          <Header />
-          <Outlet />
-        </div>
-        <Toaster richColors />
-      </ThemeProvider>
+      <ClientShellProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          disableTransitionOnChange
+          storageKey="vite-ui-theme"
+        >
+          <div className="grid h-svh grid-rows-[auto_1fr]">
+            <Header />
+            <Outlet />
+          </div>
+          <Toaster richColors />
+        </ThemeProvider>
+      </ClientShellProvider>
       <TanStackRouterDevtools position="bottom-left" />
-      <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+      <ReactQueryDevtools buttonPosition="bottom-right" position="bottom" />
     </>
   );
 }

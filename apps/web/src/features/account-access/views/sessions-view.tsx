@@ -16,6 +16,7 @@ import { Monitor, ShieldCheck } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 
+import { runOnlineOnlyWrite } from "@/features/web-macos-client/views/client-shell";
 import { client, orpc } from "@/utils/orpc";
 
 const lastActivityFormatter = new Intl.DateTimeFormat("en-GB", {
@@ -28,14 +29,16 @@ export default function SessionsView() {
   const queryClient = useQueryClient();
   const sessions = useQuery(orpc.sessions.queryOptions());
   const revokeSession = useMutation({
-    mutationFn: (sessionId: string) => client.revokeSession({ sessionId }),
+    mutationFn: (sessionId: string) =>
+      runOnlineOnlyWrite(() => client.revokeSession({ sessionId })),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orpc.sessions.key() });
       toast.success("Session revoked.");
     },
   });
   const revokeOtherSessions = useMutation({
-    mutationFn: (_targetSessionAlias: string) => client.revokeOtherSessions(),
+    mutationFn: (_targetSessionAlias: string) =>
+      runOnlineOnlyWrite(() => client.revokeOtherSessions()),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orpc.sessions.key() });
       toast.success("Other sessions revoked.");
