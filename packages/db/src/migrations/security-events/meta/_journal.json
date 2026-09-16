@@ -15,6 +15,13 @@
       "when": 1789543063212,
       "tag": "0001_enforce-security-event-append-only",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789552581173,
+      "tag": "0002_swift_zodiak",
+      "breakpoints": true
     }
   ]
 }

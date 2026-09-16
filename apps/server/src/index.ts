@@ -13,6 +13,8 @@ initLogger({
   env: { service: "cantiara-server" },
 });
 
+await replaySessionRevocations();
+
 export default createApp({
   accountSessionAccess,
   auth,
@@ -21,5 +23,4 @@ export default createApp({
   desktopOrigins,
   nodeEnv: env.NODE_ENV,
   redactSecrets,
-  replaySessionRevocations,
 });

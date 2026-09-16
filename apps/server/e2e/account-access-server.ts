@@ -48,6 +48,7 @@ const accountSessionAccess = createDatabaseAccountSessionAccess(
   database,
   securityEventDatabase,
 );
+await accountSessionAccess.replaySessionRevocations();
 
 initLogger({ env: { service: "cantiara-e2e-server" } });
 
@@ -59,8 +60,6 @@ const app = createApp({
   desktopOrigins: [],
   nodeEnv: "test",
   redactSecrets: () => new Error("Redacted E2E server error"),
-  replaySessionRevocations: () =>
-    accountSessionAccess.replaySessionRevocations(),
 });
 
 const authContext = await auth.$context;
@@ -82,11 +81,17 @@ const currentLogin = await authContext.test.login({ userId: founder.id });
 const otherLogin = await authContext.test.login({ userId: founder.id });
 await database
   .update(session)
-  .set({ userAgent: "Current browser" })
+  .set({
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:155.0) Gecko/20100101 Firefox/155.0",
+  })
   .where(eq(session.id, currentLogin.session.id));
 await database
   .update(session)
-  .set({ userAgent: "Firefox on Linux" })
+  .set({
+    userAgent:
+      "Mozilla/5.0 (X11; Linux x86_64; rv:142.0) Gecko/20100101 Firefox/142.0",
+  })
   .where(eq(session.id, otherLogin.session.id));
 
 const [currentCookie] = currentLogin.cookies;

@@ -56,11 +56,31 @@ export function createDatabaseAccountSessionAccess(
       },
     },
     securityEvents: {
-      async append(event: SessionRevokedSecurityEvent) {
-        await securityEventDatabase.insert(securityEvent).values({
-          ...event,
-          occurredAt: new Date(event.occurredAt),
+      async appendMany(events: SessionRevokedSecurityEvent[]) {
+        if (events.length === 0) {
+          return;
+        }
+        await securityEventDatabase.transaction(async (transaction) => {
+          await transaction.insert(securityEvent).values(
+            events.map((event) => ({
+              ...event,
+              occurredAt: new Date(event.occurredAt),
+            })),
+          );
         });
+      },
+      async isSessionRevoked(targetSessionAlias: string) {
+        const [event] = await securityEventDatabase
+          .select({ id: securityEvent.id })
+          .from(securityEvent)
+          .where(
+            and(
+              eq(securityEvent.targetSessionAlias, targetSessionAlias),
+              eq(securityEvent.type, "session.revoked"),
+            ),
+          )
+          .limit(1);
+        return Boolean(event);
       },
       async listSessionRevocations() {
         const events = await securityEventDatabase

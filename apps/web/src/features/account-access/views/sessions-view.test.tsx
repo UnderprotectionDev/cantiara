@@ -36,6 +36,7 @@ describe("Sessions view", () => {
     expect(html).toContain("Revoke Session");
     expect(html).toContain("Revoke Other Sessions");
     expect(html).toContain("<time");
+    expect(html).toContain("16 Sept 2026, 12:00");
     expect(html).not.toContain("session-secret");
   });
 });

@@ -28,7 +28,13 @@ export interface AppDependencies {
   desktopOrigins: readonly string[];
   nodeEnv: string;
   redactSecrets: (value: unknown) => unknown;
-  replaySessionRevocations: () => Promise<void>;
+}
+
+function isRecoverableAuthPath(path: string) {
+  const authPath = path.startsWith("/api/auth/")
+    ? path.slice("/api/auth".length)
+    : path;
+  return authPath === "/sign-out" || authPath.startsWith("/sign-in/");
 }
 
 export function createApp(dependencies: AppDependencies) {
@@ -65,10 +71,6 @@ export function createApp(dependencies: AppDependencies) {
     }),
   );
   app.use("*", createCsrfProtectionMiddleware(allowedOrigins));
-  app.use("*", async (_c, next) => {
-    await dependencies.replaySessionRevocations();
-    await next();
-  });
 
   app.on(["POST", "GET"], "/api/auth/*", async (c) => {
     const candidateSession = await dependencies.auth.api.getSession({
@@ -77,6 +79,7 @@ export function createApp(dependencies: AppDependencies) {
     });
     if (
       candidateSession &&
+      !isRecoverableAuthPath(c.req.path) &&
       !(await dependencies.accountSessionAccess.authorizeWrite({
         accountId: candidateSession.user.id,
         sessionId: candidateSession.session.id,

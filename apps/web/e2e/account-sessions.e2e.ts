@@ -59,5 +59,6 @@ test("revokes a session through the keyboard-accessible Account journey", async 
 
   await expect(otherSession).toHaveCount(0);
   await expect(page.getByRole("listitem")).toHaveCount(1);
-  await expect(page.getByText("Current browser")).toBeVisible();
+  await expect(page.getByText("Firefox on macOS")).toBeVisible();
+  await expect(page.getByText("Mozilla/5.0", { exact: false })).toHaveCount(0);
 });

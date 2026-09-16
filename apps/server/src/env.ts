@@ -78,7 +78,8 @@ export function createServerEnv(
     );
     if (
       primaryDatabase.hostname === securityEventDatabase.hostname ||
-      primaryDatabase.username === securityEventDatabase.username
+      primaryDatabase.username === securityEventDatabase.username ||
+      primaryDatabase.password === securityEventDatabase.password
     ) {
       throw new Error(
         "SECURITY_EVENT_DATABASE_URL must use a separate managed project and credentials",

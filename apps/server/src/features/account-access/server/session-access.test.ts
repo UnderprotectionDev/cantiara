@@ -18,9 +18,25 @@ function session(
     expiresAt: new Date("2026-10-15T09:00:00.000Z"),
     lastActivityAt: new Date("2026-09-16T08:45:00.000Z"),
     userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.6 Safari/605.1.15",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:155.0) Gecko/20100101 Firefox/155.0",
     ...overrides,
     id: overrides.id,
+  };
+}
+
+function securityEventLog(events: SessionRevokedSecurityEvent[] = []) {
+  return {
+    appendMany: (newEvents: SessionRevokedSecurityEvent[]) => {
+      events.push(...newEvents);
+      return Promise.resolve();
+    },
+    isSessionRevoked: async (targetSessionAlias: string) =>
+      events.some(
+        (event) =>
+          event.targetSessionAlias === targetSessionAlias &&
+          event.type === "session.revoked",
+      ),
+    listSessionRevocations: async () => events,
   };
 }
 
@@ -39,10 +55,7 @@ describe("Account Access sessions", () => {
         pruneBefore: async () => undefined,
       },
       now: () => NOW,
-      securityEvents: {
-        append: async () => undefined,
-        listSessionRevocations: async () => [],
-      },
+      securityEvents: securityEventLog(),
       sessions: {
         find: async (id) => sessions.find((item) => item.id === id) ?? null,
         list: async () => sessions,
@@ -59,18 +72,76 @@ describe("Account Access sessions", () => {
     expect(result).toEqual([
       {
         current: true,
-        device: currentSession.userAgent,
+        device: "Firefox on macOS",
         id: "current-session",
         lastActivityAt: "2026-09-16T08:45:00.000Z",
       },
       {
         current: false,
-        device: otherSession.userAgent,
+        device: "Safari on iPhone",
         id: "other-session",
         lastActivityAt: "2026-09-16T08:45:00.000Z",
       },
     ]);
+    expect(JSON.stringify(result)).not.toContain("Mozilla/5.0");
     expect(JSON.stringify(result)).not.toContain("token");
+  });
+
+  test("does not expose an unrecognized raw user agent as device copy", async () => {
+    const storedSession = session({
+      id: "current-session",
+      userAgent:
+        "custom-client/1.0 (diagnostic detail that is not product copy)",
+    });
+    const access = createAccountSessionAccess({
+      auditRecords: {
+        append: async () => undefined,
+        pruneBefore: async () => undefined,
+      },
+      now: () => NOW,
+      securityEvents: securityEventLog(),
+      sessions: {
+        find: async () => storedSession,
+        list: async () => [storedSession],
+        revoke: async () => undefined,
+        touch: async () => undefined,
+      },
+    });
+
+    await expect(
+      access.listSessions({
+        accountId: "account-1",
+        sessionId: "current-session",
+      }),
+    ).resolves.toEqual([expect.objectContaining({ device: "Unknown device" })]);
+  });
+
+  test("does not echo a short unrecognized user agent as device copy", async () => {
+    const storedSession = session({
+      id: "current-session",
+      userAgent: "token",
+    });
+    const access = createAccountSessionAccess({
+      auditRecords: {
+        append: async () => undefined,
+        pruneBefore: async () => undefined,
+      },
+      now: () => NOW,
+      securityEvents: securityEventLog(),
+      sessions: {
+        find: async () => storedSession,
+        list: async () => [storedSession],
+        revoke: async () => undefined,
+        touch: async () => undefined,
+      },
+    });
+
+    await expect(
+      access.listSessions({
+        accountId: "account-1",
+        sessionId: "current-session",
+      }),
+    ).resolves.toEqual([expect.objectContaining({ device: "Unknown device" })]);
   });
 
   test("revokes one session fail-closed while the current session can still write", async () => {
@@ -89,13 +160,7 @@ describe("Account Access sessions", () => {
         pruneBefore: async () => undefined,
       },
       now: () => NOW,
-      securityEvents: {
-        append: (event) => {
-          securityEvents.push(event);
-          return Promise.resolve();
-        },
-        listSessionRevocations: async () => securityEvents,
-      },
+      securityEvents: securityEventLog(securityEvents),
       sessions: {
         find: async (id) =>
           storedSessions.find((item) => item.id === id) ?? null,
@@ -147,6 +212,61 @@ describe("Account Access sessions", () => {
     await expect(access.authorizeWrite(principal)).resolves.toBe(true);
   });
 
+  test("does not mutate after the actor is revoked after context authorization", async () => {
+    const storedSessions = [
+      session({ id: "current-session" }),
+      session({ id: "other-session" }),
+    ];
+    const securityEvents: SessionRevokedSecurityEvent[] = [];
+    const access = createAccountSessionAccess({
+      auditRecords: {
+        append: async () => undefined,
+        pruneBefore: async () => undefined,
+      },
+      now: () => NOW,
+      securityEvents: securityEventLog(securityEvents),
+      sessions: {
+        find: async (id) =>
+          storedSessions.find((item) => item.id === id) ?? null,
+        list: async () => storedSessions,
+        revoke: (accountId, id) => {
+          const index = storedSessions.findIndex(
+            (item) => item.accountId === accountId && item.id === id,
+          );
+          if (index >= 0) {
+            storedSessions.splice(index, 1);
+          }
+          return Promise.resolve();
+        },
+        touch: async () => undefined,
+      },
+    });
+    const principal = {
+      accountId: "account-1",
+      sessionId: "current-session",
+    };
+
+    await expect(access.authorizeWrite(principal)).resolves.toBe(true);
+    securityEvents.push({
+      actorAlias: "other-session",
+      id: "revoked-current",
+      occurredAt: NOW.toISOString(),
+      targetSessionAlias: "current-session",
+      type: "session.revoked",
+      version: 1,
+    });
+
+    await access.revokeSession(principal, "other-session");
+
+    expect(securityEvents.map((event) => event.targetSessionAlias)).toEqual([
+      "current-session",
+    ]);
+    expect(storedSessions.map((item) => item.id)).toEqual([
+      "current-session",
+      "other-session",
+    ]);
+  });
+
   test("revokes every other session and keeps the current session", async () => {
     const storedSessions = [
       session({ id: "current-session" }),
@@ -160,13 +280,7 @@ describe("Account Access sessions", () => {
         pruneBefore: async () => undefined,
       },
       now: () => NOW,
-      securityEvents: {
-        append: (event) => {
-          securityEvents.push(event);
-          return Promise.resolve();
-        },
-        listSessionRevocations: async () => securityEvents,
-      },
+      securityEvents: securityEventLog(securityEvents),
       sessions: {
         find: async (id) =>
           storedSessions.find((item) => item.id === id) ?? null,
@@ -200,6 +314,68 @@ describe("Account Access sessions", () => {
     await expect(access.authorizeWrite(principal)).resolves.toBe(true);
   });
 
+  test("does not partially revoke other sessions when one security event append fails", async () => {
+    const storedSessions = [
+      session({ id: "current-session" }),
+      session({ id: "phone-session" }),
+      session({ id: "desktop-session" }),
+    ];
+    const securityEvents: SessionRevokedSecurityEvent[] = [];
+    let appendCount = 0;
+    const access = createAccountSessionAccess({
+      auditRecords: {
+        append: async () => undefined,
+        pruneBefore: async () => undefined,
+      },
+      now: () => NOW,
+      securityEvents: {
+        appendMany: () => {
+          appendCount += 1;
+          if (appendCount === 1) {
+            return Promise.reject(
+              new Error("security event database unavailable"),
+            );
+          }
+          return Promise.resolve();
+        },
+        isSessionRevoked: async (targetSessionAlias) =>
+          securityEvents.some(
+            (event) => event.targetSessionAlias === targetSessionAlias,
+          ),
+        listSessionRevocations: async () => securityEvents,
+      },
+      sessions: {
+        find: async (id) =>
+          storedSessions.find((item) => item.id === id) ?? null,
+        list: async () => storedSessions,
+        revoke: (accountId, id) => {
+          const index = storedSessions.findIndex(
+            (item) => item.accountId === accountId && item.id === id,
+          );
+          if (index >= 0) {
+            storedSessions.splice(index, 1);
+          }
+          return Promise.resolve();
+        },
+        touch: async () => undefined,
+      },
+    });
+
+    await expect(
+      access.revokeOtherSessions({
+        accountId: "account-1",
+        sessionId: "current-session",
+      }),
+    ).rejects.toThrow("security event database unavailable");
+
+    expect(securityEvents).toEqual([]);
+    expect(storedSessions.map((item) => item.id)).toEqual([
+      "current-session",
+      "phone-session",
+      "desktop-session",
+    ]);
+  });
+
   test("denies a revoked session when primary-row deletion fails", async () => {
     const storedSession = session({ id: "other-session" });
     const securityEvents: SessionRevokedSecurityEvent[] = [];
@@ -209,13 +385,7 @@ describe("Account Access sessions", () => {
         pruneBefore: async () => undefined,
       },
       now: () => NOW,
-      securityEvents: {
-        append: (event) => {
-          securityEvents.push(event);
-          return Promise.resolve();
-        },
-        listSessionRevocations: async () => securityEvents,
-      },
+      securityEvents: securityEventLog(securityEvents),
       sessions: {
         find: async () => storedSession,
         list: async () => [storedSession],
@@ -239,7 +409,10 @@ describe("Account Access sessions", () => {
   });
 
   test("replay restores a missing audit record before revoking the restored row", async () => {
-    const storedSessions = [session({ id: "other-session" })];
+    const storedSessions = [
+      session({ id: "current-session" }),
+      session({ id: "other-session" }),
+    ];
     const securityEvents: SessionRevokedSecurityEvent[] = [];
     const auditRecords: SessionRevocationAuditRecord[] = [];
     const unavailableAuditStores = new Set(["primary"]);
@@ -257,13 +430,7 @@ describe("Account Access sessions", () => {
         pruneBefore: async () => undefined,
       },
       now: () => NOW,
-      securityEvents: {
-        append: (event) => {
-          securityEvents.push(event);
-          return Promise.resolve();
-        },
-        listSessionRevocations: async () => securityEvents,
-      },
+      securityEvents: securityEventLog(securityEvents),
       sessions: {
         find: async (id) =>
           storedSessions.find((item) => item.id === id) ?? null,
@@ -285,7 +452,7 @@ describe("Account Access sessions", () => {
         "other-session",
       ),
     ).rejects.toThrow("audit database unavailable");
-    expect(storedSessions).toHaveLength(1);
+    expect(storedSessions).toHaveLength(2);
 
     unavailableAuditStores.clear();
     await access.replaySessionRevocations();
@@ -297,7 +464,7 @@ describe("Account Access sessions", () => {
         type: "session.revoked",
       }),
     ]);
-    expect(storedSessions).toEqual([]);
+    expect(storedSessions.map((item) => item.id)).toEqual(["current-session"]);
   });
 
   test("replays revoke after a restore resurrects a still-live session row", async () => {
@@ -318,13 +485,7 @@ describe("Account Access sessions", () => {
         pruneBefore: async () => undefined,
       },
       now: () => NOW,
-      securityEvents: {
-        append: (event) => {
-          securityEvents.push(event);
-          return Promise.resolve();
-        },
-        listSessionRevocations: async () => securityEvents,
-      },
+      securityEvents: securityEventLog(securityEvents),
       sessions: {
         find: async (id) =>
           restoredSessions.find((item) => item.id === id) ?? null,
@@ -400,10 +561,7 @@ describe("Account Access sessions", () => {
         },
       },
       now: () => NOW,
-      securityEvents: {
-        append: async () => undefined,
-        listSessionRevocations: async () => securityEvents,
-      },
+      securityEvents: securityEventLog(securityEvents),
       sessions: {
         find: async (id) =>
           restoredSessions.find((item) => item.id === id) ?? null,
@@ -449,10 +607,7 @@ describe("Account Access sessions", () => {
         pruneBefore: async () => undefined,
       },
       now: () => NOW,
-      securityEvents: {
-        append: async () => undefined,
-        listSessionRevocations: async () => [],
-      },
+      securityEvents: securityEventLog(),
       sessions: {
         find: async (id) =>
           storedSessions.find((item) => item.id === id) ?? null,

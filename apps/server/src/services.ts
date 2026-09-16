@@ -18,10 +18,15 @@ export const accountSessionAccess = createDatabaseAccountSessionAccess(
 let securityReplay: Promise<void> | undefined;
 
 export function replaySessionRevocations() {
-  securityReplay ??= accountSessionAccess.replaySessionRevocations();
-  return securityReplay.finally(() => {
-    securityReplay = undefined;
-  });
+  if (!securityReplay) {
+    securityReplay = accountSessionAccess
+      .replaySessionRevocations()
+      .catch((error) => {
+        securityReplay = undefined;
+        throw error;
+      });
+  }
+  return securityReplay;
 }
 
 export function getDb(): Database {

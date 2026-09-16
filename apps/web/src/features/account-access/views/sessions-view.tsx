@@ -18,9 +18,10 @@ import { toast } from "sonner";
 
 import { client, orpc } from "@/utils/orpc";
 
-const lastActivityFormatter = new Intl.DateTimeFormat(undefined, {
+const lastActivityFormatter = new Intl.DateTimeFormat("en-GB", {
   dateStyle: "medium",
   timeStyle: "short",
+  timeZone: "Europe/Istanbul",
 });
 
 export default function SessionsView() {

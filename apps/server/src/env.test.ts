@@ -17,7 +17,7 @@ const productionEnvironment = {
   ...validEnvironment,
   NODE_ENV: "production",
   SECURITY_EVENT_DATABASE_URL:
-    "postgresql://security:password@security-events.example:5432/cantiara_security",
+    "postgresql://security:security-password@security-events.example:5432/cantiara_security",
 } as const;
 
 Object.assign(process.env, validEnvironment);
@@ -93,6 +93,16 @@ describe("server environment", () => {
         ...productionEnvironment,
         SECURITY_EVENT_DATABASE_URL:
           "postgresql://user:other-password@security-events.example:5432/cantiara_security",
+      }),
+    ).toThrow("SECURITY_EVENT_DATABASE_URL");
+  });
+
+  test("rejects a shared security-event password in production", () => {
+    expect(() =>
+      createServerEnv({
+        ...productionEnvironment,
+        SECURITY_EVENT_DATABASE_URL:
+          "postgresql://security:password@security-events.example:5432/cantiara_security",
       }),
     ).toThrow("SECURITY_EVENT_DATABASE_URL");
   });
