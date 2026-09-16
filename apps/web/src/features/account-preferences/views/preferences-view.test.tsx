@@ -6,25 +6,32 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 
-import { orpc } from "@/utils/orpc";
+import { accountPreferencesQueryOptions } from "@/utils/orpc";
 
 import PreferencesView from "./preferences-view";
 
 function renderPreferences(data: AccountPreferencesSnapshot) {
   const queryClient = new QueryClient();
+  const accountId = "account-1";
   queryClient.setQueryData(
-    orpc.accountPreferences.queryOptions().queryKey,
+    accountPreferencesQueryOptions(accountId).queryKey,
     data,
   );
 
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
-      <PreferencesView />
+      <PreferencesView accountId={accountId} />
     </QueryClientProvider>,
   );
 }
 
 describe("Preferences view", () => {
+  test("uses a separate query cache entry for each Account", () => {
+    expect(accountPreferencesQueryOptions("account-1").queryKey).not.toEqual(
+      accountPreferencesQueryOptions("account-2").queryKey,
+    );
+  });
+
   test("shows default values and the unsaved browser suggestion in English", () => {
     const html = renderPreferences({
       ...DEFAULT_ACCOUNT_PREFERENCES,

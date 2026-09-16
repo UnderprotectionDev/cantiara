@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 const DARK_CLASS_PATTERN = /dark/;
+const DASHBOARD_URL_PATTERN = /\/dashboard$/;
+const ROOT_URL_PATTERN = /\/$/;
 
 test("keeps browser suggestions unsaved and persists Account Preferences on Save", async ({
   context,
@@ -21,6 +23,12 @@ test("keeps browser suggestions unsaved and persists Account Preferences on Save
     };
   };
   await context.addCookies([setup.cookie]);
+
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(DASHBOARD_URL_PATTERN);
+  await expect(
+    page.getByRole("heading", { name: "Dashboard", level: 1 }),
+  ).toBeVisible();
 
   await page.goto("/account/preferences");
   await expect(
@@ -101,10 +109,28 @@ test("keeps browser suggestions unsaved and persists Account Preferences on Save
     "2026-09-16T09:00:00.000Z",
   );
 
+  await page.getByLabel("Locale").selectOption("de-DE");
+  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Dark", exact: true }).click();
+  await expect(page.getByLabel("Locale")).toHaveValue("de-DE");
+  await expect(page.getByRole("combobox", { name: "Appearance" })).toHaveValue(
+    "Dark",
+  );
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByRole("main").getByText("Preferences saved.", { exact: true }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByLabel("Locale")).toHaveValue("de-DE");
+  await expect(page.getByRole("combobox", { name: "Appearance" })).toHaveValue(
+    "Dark",
+  );
+
   await context.setOffline(true);
   await expect(page.getByRole("status")).toContainText("Disconnected");
   await expect(page.getByRole("status")).toContainText("Last successful save");
-  await page.getByLabel("Locale").selectOption("de-DE");
+  await page.getByLabel("Locale").selectOption("fr-FR");
   await expect(page.getByRole("status")).toContainText("Unsaved risk");
   await expect(
     page.getByRole("button", { name: "Save", exact: true }),
@@ -115,4 +141,12 @@ test("keeps browser suggestions unsaved and persists Account Preferences on Save
   await expect(
     page.getByRole("button", { name: "Save", exact: true }),
   ).toBeEnabled();
+
+  await page.getByRole("button", { name: "Founder", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Sign Out", exact: true }).click();
+  await expect(page).toHaveURL(ROOT_URL_PATTERN);
+  await expect(page.locator("html")).toHaveClass(DARK_CLASS_PATTERN);
+  await expect(
+    page.getByRole("button", { name: "Appearance", exact: true }),
+  ).toHaveCount(0);
 });

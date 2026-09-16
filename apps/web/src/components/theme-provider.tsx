@@ -1,5 +1,6 @@
+import { createStore, useStore } from "@tanstack/react-store";
 import type * as React from "react";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo } from "react";
 
 export type Theme = "light" | "dark";
 
@@ -9,6 +10,11 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
+const themeStore = createStore<Theme>("dark");
+
+function setTheme(theme: Theme) {
+  themeStore.setState(() => theme);
+}
 
 export function ThemeProvider({
   children,
@@ -17,7 +23,11 @@ export function ThemeProvider({
   children: React.ReactNode;
   defaultTheme?: Theme;
 }) {
-  const [theme, setTheme] = useState<Theme>(defaultTheme);
+  const theme = useStore(themeStore);
+
+  useEffect(() => {
+    themeStore.setState(() => defaultTheme);
+  }, [defaultTheme]);
 
   useEffect(() => {
     const root = document.documentElement;

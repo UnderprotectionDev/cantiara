@@ -117,6 +117,12 @@ describeDatabase("Confirm GitHub Identity PostgreSQL boundary", () => {
           isSaved: true,
           savedAt: "2026-09-16T09:00:00.000Z",
         }),
+        saveAppearance: async (_accountId, appearance) => ({
+          ...DEFAULT_ACCOUNT_PREFERENCES,
+          appearance,
+          isSaved: true,
+          savedAt: "2026-09-16T09:00:00.000Z",
+        }),
       },
       auth,
       corsOrigin: WEB_ORIGIN,

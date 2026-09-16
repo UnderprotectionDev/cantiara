@@ -20,11 +20,13 @@ import {
   formatAccountDateTime,
   formatAccountNumber,
 } from "@/features/account-preferences/forms/account-preferences-format";
-import { client, orpc } from "@/utils/orpc";
+import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 
-export default function SessionsView() {
+export default function SessionsView({ accountId }: { accountId: string }) {
   const queryClient = useQueryClient();
-  const accountPreferences = useQuery(orpc.accountPreferences.queryOptions());
+  const accountPreferences = useQuery(
+    accountPreferencesQueryOptions(accountId),
+  );
   const sessions = useQuery(orpc.sessions.queryOptions());
   const revokeSession = useMutation({
     mutationFn: (sessionId: string) => client.revokeSession({ sessionId }),

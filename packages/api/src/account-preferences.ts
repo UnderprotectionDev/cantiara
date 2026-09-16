@@ -22,6 +22,8 @@ export type DateFormat = (typeof DATE_FORMAT_OPTIONS)[number]["value"];
 export type FirstDayOfWeek = (typeof FIRST_DAY_OF_WEEK_OPTIONS)[number];
 export type Appearance = (typeof APPEARANCE_OPTIONS)[number];
 
+export const appearanceSchema = z.enum(APPEARANCE_OPTIONS);
+
 export function isSupportedLocale(locale: string) {
   try {
     const [canonicalLocale] = Intl.getCanonicalLocales(locale);
@@ -45,7 +47,7 @@ export function isSupportedTimeZone(timeZone: string) {
 }
 
 export const accountPreferencesSchema = z.object({
-  appearance: z.enum(APPEARANCE_OPTIONS),
+  appearance: appearanceSchema,
   dateFormat: z.enum(
     DATE_FORMAT_OPTIONS.map(({ value }) => value) as [
       DateFormat,
@@ -82,5 +84,9 @@ export interface AccountPreferencesAccess {
   save: (
     accountId: string,
     preferences: AccountPreferences,
+  ) => Promise<AccountPreferencesSnapshot>;
+  saveAppearance: (
+    accountId: string,
+    appearance: Appearance,
   ) => Promise<AccountPreferencesSnapshot>;
 }

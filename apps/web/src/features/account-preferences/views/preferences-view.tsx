@@ -4,12 +4,12 @@ import {
 } from "@cantiara/api/account-preferences";
 import { useQuery } from "@tanstack/react-query";
 
-import { orpc } from "@/utils/orpc";
+import { accountPreferencesQueryOptions } from "@/utils/orpc";
 
 import AccountPreferencesForm from "../forms/account-preferences-form";
 
-export default function PreferencesView() {
-  const preferences = useQuery(orpc.accountPreferences.queryOptions());
+export default function PreferencesView({ accountId }: { accountId: string }) {
+  const preferences = useQuery(accountPreferencesQueryOptions(accountId));
 
   if (preferences.isPending) {
     return (
@@ -57,7 +57,11 @@ export default function PreferencesView() {
         </p>
       </header>
       <div className="pt-8">
-        <AccountPreferencesForm snapshot={snapshot} />
+        <AccountPreferencesForm
+          accountId={accountId}
+          key={accountId}
+          snapshot={snapshot}
+        />
       </div>
     </main>
   );

@@ -42,3 +42,19 @@ export const link = new RPCLink({
 export const client: AppRouterClient = createORPCClient(link);
 
 export const orpc = createTanstackQueryUtils(client);
+
+const accountPreferencesQueryPrefix =
+  orpc.accountPreferences.queryOptions().queryKey;
+
+export function accountPreferencesQueryOptions(accountId?: string) {
+  return {
+    ...orpc.accountPreferences.queryOptions(),
+    enabled: Boolean(accountId),
+    queryKey: [
+      ...accountPreferencesQueryPrefix,
+      accountId ?? "anonymous",
+    ] as const,
+  };
+}
+
+export { accountPreferencesQueryPrefix };

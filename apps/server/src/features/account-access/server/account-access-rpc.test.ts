@@ -41,6 +41,15 @@ describe("Account Access RPC", () => {
           isSaved: true,
           savedAt: "2026-09-16T09:00:00.000Z",
         }),
+        saveAppearance: async (
+          _accountId: string,
+          appearance: AccountPreferences["appearance"],
+        ) => ({
+          ...DEFAULT_ACCOUNT_PREFERENCES,
+          appearance,
+          isSaved: true,
+          savedAt: "2026-09-16T09:00:00.000Z",
+        }),
       },
       auth: null,
       db: {} as Context["db"],
@@ -83,6 +92,15 @@ describe("Account Access RPC", () => {
         }),
         save: async (_accountId: string, preferences: AccountPreferences) => ({
           ...preferences,
+          isSaved: true,
+          savedAt: "2026-09-16T09:00:00.000Z",
+        }),
+        saveAppearance: async (
+          _accountId: string,
+          appearance: AccountPreferences["appearance"],
+        ) => ({
+          ...DEFAULT_ACCOUNT_PREFERENCES,
+          appearance,
           isSaved: true,
           savedAt: "2026-09-16T09:00:00.000Z",
         }),

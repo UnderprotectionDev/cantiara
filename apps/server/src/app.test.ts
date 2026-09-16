@@ -80,6 +80,15 @@ function createTestApp(
         isSaved: true,
         savedAt: "2026-09-16T09:00:00.000Z",
       }),
+      saveAppearance: async (
+        _accountId: string,
+        appearance: AccountPreferences["appearance"],
+      ) => ({
+        ...DEFAULT_ACCOUNT_PREFERENCES,
+        appearance,
+        isSaved: true,
+        savedAt: "2026-09-16T09:00:00.000Z",
+      }),
     },
     auth:
       options.auth ??

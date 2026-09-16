@@ -21,10 +21,16 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, CircleAlert, Globe2, WifiOff } from "lucide-react";
-import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
-import { client, orpc } from "@/utils/orpc";
+import { accountPreferencesQueryOptions, client } from "@/utils/orpc";
 import {
   formatAccountDateTime,
   formatAccountNumber,
@@ -150,12 +156,15 @@ function AccountPreferencesSaveStatus({
 }
 
 export default function AccountPreferencesForm({
+  accountId,
   snapshot,
 }: {
+  accountId: string;
   snapshot: AccountPreferencesSnapshot;
 }) {
   const queryClient = useQueryClient();
   const isOnline = useOnlineState();
+  const latestSavedAt = useRef<string | null>(null);
   const [saveError, setSaveError] = useState(false);
   const [suggestion, setSuggestion] = useState(() =>
     getBrowserPreferenceSuggestion({
@@ -172,8 +181,9 @@ export default function AccountPreferencesForm({
     },
     onSuccess: (saved) => {
       setSaveError(false);
+      latestSavedAt.current = saved.savedAt;
       queryClient.setQueryData(
-        orpc.accountPreferences.queryOptions().queryKey,
+        accountPreferencesQueryOptions(accountId).queryKey,
         saved,
       );
       toast.success("Preferences saved.");
@@ -191,7 +201,18 @@ export default function AccountPreferencesForm({
   }, []);
 
   useEffect(() => {
-    form.reset(formValues(snapshot));
+    const values = formValues(snapshot);
+    if (
+      latestSavedAt.current !== null &&
+      latestSavedAt.current === snapshot.savedAt
+    ) {
+      latestSavedAt.current = null;
+      form.reset(values);
+    } else if (!form.state.isDirty) {
+      form.reset(values);
+    } else if (form.state.values.appearance !== values.appearance) {
+      form.setFieldValue("appearance", values.appearance);
+    }
   }, [form, snapshot]);
 
   function applySuggestion() {

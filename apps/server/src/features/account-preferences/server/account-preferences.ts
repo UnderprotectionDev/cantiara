@@ -1,7 +1,9 @@
 import {
   type AccountPreferences,
   type AccountPreferencesAccess,
+  type Appearance,
   accountPreferencesSchema,
+  appearanceSchema,
   DEFAULT_ACCOUNT_PREFERENCES,
 } from "@cantiara/api/account-preferences";
 
@@ -10,6 +12,10 @@ export interface AccountPreferencesStore {
   save: (
     accountId: string,
     preferences: AccountPreferences,
+  ) => Promise<AccountPreferencesRecord>;
+  saveAppearance: (
+    accountId: string,
+    appearance: Appearance,
   ) => Promise<AccountPreferencesRecord>;
 }
 
@@ -33,6 +39,19 @@ export function createAccountPreferences({
           savedAt: null,
         };
       }
+
+      return {
+        ...accountPreferencesSchema.parse(stored.preferences),
+        isSaved: true,
+        savedAt: stored.savedAt,
+      };
+    },
+
+    async saveAppearance(accountId, appearance) {
+      const stored = await store.saveAppearance(
+        accountId,
+        appearanceSchema.parse(appearance),
+      );
 
       return {
         ...accountPreferencesSchema.parse(stored.preferences),

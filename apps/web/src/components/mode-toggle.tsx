@@ -11,12 +11,16 @@ import {
 } from "@cantiara/ui/components/dropdown-menu";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Moon, Sun } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { type Theme, useTheme } from "@/components/theme-provider";
 import { authClient } from "@/lib/auth-client";
-import { client, orpc } from "@/utils/orpc";
+import {
+  accountPreferencesQueryOptions,
+  accountPreferencesQueryPrefix,
+  client,
+} from "@/utils/orpc";
 
 function themeForAppearance(appearance: Appearance): Theme {
   return appearance === "Light" ? "light" : "dark";
@@ -26,28 +30,22 @@ export function ModeToggle() {
   const { setTheme, theme } = useTheme();
   const queryClient = useQueryClient();
   const session = authClient.useSession();
-  const preferences = useQuery({
-    ...orpc.accountPreferences.queryOptions(),
-    enabled: Boolean(session.data),
-  });
+  const accountId = session.data?.user.id;
+  const previousAccountId = useRef(accountId);
+  const preferences = useQuery(accountPreferencesQueryOptions(accountId));
   const saveAppearance = useMutation({
     mutationFn: (appearance: Appearance) => {
       if (!preferences.data) {
         throw new Error("Preferences are unavailable.");
       }
-      const {
-        isSaved: _isSaved,
-        savedAt: _savedAt,
-        ...values
-      } = preferences.data;
-      return client.saveAccountPreferences({ ...values, appearance });
+      return client.saveAccountAppearance({ appearance });
     },
     onError: () => {
       toast.error("Preferences could not be saved.");
     },
     onSuccess: (saved) => {
       queryClient.setQueryData(
-        orpc.accountPreferences.queryOptions().queryKey,
+        accountPreferencesQueryOptions(accountId).queryKey,
         saved,
       );
       setTheme(themeForAppearance(saved.appearance));
@@ -60,6 +58,16 @@ export function ModeToggle() {
     Dark: saveDarkAppearance,
     Light: saveLightAppearance,
   };
+
+  useEffect(() => {
+    if (previousAccountId.current !== accountId) {
+      previousAccountId.current = accountId;
+      setTheme("dark");
+    }
+    if (!accountId) {
+      queryClient.removeQueries({ queryKey: accountPreferencesQueryPrefix });
+    }
+  }, [accountId, queryClient, setTheme]);
 
   useEffect(() => {
     if (preferences.data) {

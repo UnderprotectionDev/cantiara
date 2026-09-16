@@ -16,6 +16,23 @@ function createMemoryStore(initial?: {
 
   return {
     find: () => Promise.resolve(value ?? null),
+    saveAppearance: (_accountId: string, appearance: "Light" | "Dark") => {
+      if (value) {
+        value = {
+          ...value,
+          preferences: { ...value.preferences, appearance },
+        };
+      } else {
+        value = {
+          preferences: {
+            ...DEFAULT_ACCOUNT_PREFERENCES,
+            appearance,
+          },
+          savedAt: SAVED_AT,
+        };
+      }
+      return Promise.resolve(value);
+    },
     save: (_accountId: string, preferences: AccountPreferences) => {
       value = { preferences, savedAt: SAVED_AT };
       return Promise.resolve(value);
@@ -74,6 +91,37 @@ describe("Account Preferences seam", () => {
       ...DEFAULT_ACCOUNT_PREFERENCES,
       isSaved: false,
       savedAt: null,
+    });
+  });
+
+  test("changes appearance without rewriting the other saved preferences", async () => {
+    const initial: AccountPreferences = {
+      appearance: "Dark",
+      dateFormat: "yyyy-MM-dd",
+      firstDayOfWeek: "Sunday",
+      locale: "tr-TR",
+      timeZone: "Europe/London",
+    };
+    const preferences = createAccountPreferences({
+      store: createMemoryStore({
+        preferences: initial,
+        savedAt: SAVED_AT,
+      }),
+    });
+
+    await expect(
+      preferences.saveAppearance("account-1", "Light"),
+    ).resolves.toEqual({
+      ...initial,
+      appearance: "Light",
+      isSaved: true,
+      savedAt: SAVED_AT,
+    });
+    await expect(preferences.get("account-1")).resolves.toEqual({
+      ...initial,
+      appearance: "Light",
+      isSaved: true,
+      savedAt: SAVED_AT,
     });
   });
 });

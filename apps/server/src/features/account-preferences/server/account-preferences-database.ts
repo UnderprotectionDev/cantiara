@@ -1,5 +1,6 @@
 import {
   type AccountPreferencesAccess,
+  type Appearance,
   accountPreferencesSchema,
 } from "@cantiara/api/account-preferences";
 import type { Database } from "@cantiara/db";
@@ -14,6 +15,20 @@ import {
 export function createDatabaseAccountPreferences(
   database: Database,
 ): AccountPreferencesAccess {
+  function savedRecord(preferences: {
+    appearance: string;
+    dateFormat: string;
+    firstDayOfWeek: string;
+    locale: string;
+    timeZone: string;
+    updatedAt: Date;
+  }) {
+    return {
+      preferences: accountPreferencesSchema.parse(preferences),
+      savedAt: preferences.updatedAt.toISOString(),
+    };
+  }
+
   const store: AccountPreferencesStore = {
     async find(accountId) {
       const preferences = await database.query.accountPreferences.findFirst({
@@ -28,12 +43,34 @@ export function createDatabaseAccountPreferences(
         where: eq(accountPreferences.accountId, accountId),
       });
 
-      return preferences
-        ? {
-            preferences: accountPreferencesSchema.parse(preferences),
-            savedAt: preferences.updatedAt.toISOString(),
-          }
-        : null;
+      return preferences ? savedRecord(preferences) : null;
+    },
+
+    async saveAppearance(accountId, appearance: Appearance) {
+      const [saved] = await database
+        .insert(accountPreferences)
+        .values({ accountId, appearance })
+        .onConflictDoUpdate({
+          target: accountPreferences.accountId,
+          set: {
+            appearance,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({
+          appearance: accountPreferences.appearance,
+          dateFormat: accountPreferences.dateFormat,
+          firstDayOfWeek: accountPreferences.firstDayOfWeek,
+          locale: accountPreferences.locale,
+          timeZone: accountPreferences.timeZone,
+          updatedAt: accountPreferences.updatedAt,
+        });
+
+      if (!saved) {
+        throw new Error("Account appearance could not be saved.");
+      }
+
+      return savedRecord(saved);
     },
 
     async save(accountId, preferences) {
