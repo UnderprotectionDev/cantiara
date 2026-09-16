@@ -1,4 +1,8 @@
-import { type AccountAdmission, createAuthOptions } from "@cantiara/auth";
+import {
+  type AccountAdmission,
+  createAuthOptions,
+  TAURI_AUTH_CALLBACK_URL,
+} from "@cantiara/auth";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { afterEach, describe, expect, test } from "vitest";
@@ -150,6 +154,19 @@ describe("Account Access", () => {
       disableSessionRefresh: true,
       expiresIn: 30 * 24 * 60 * 60,
     });
+  });
+
+  test("Better Auth accepts the Tauri bearer plugin only with the registered deep-link callback", () => {
+    const options = createAuthOptions(
+      authConfig,
+      {} as never,
+      acceptingAccountAdmission(),
+    );
+
+    expect(options.plugins).toEqual([
+      expect.objectContaining({ id: "bearer" }),
+    ]);
+    expect(options.trustedOrigins).toContain(TAURI_AUTH_CALLBACK_URL);
   });
 
   test("callback failures do not reveal Account or Workspace existence", async () => {

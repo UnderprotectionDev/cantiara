@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { authClient } from "@/lib/auth-client";
 
+import { isTauriRuntime, openTauriGitHubSignIn } from "../tauri-session";
 import { createGitHubSignInCallbackUrl } from "./github-sign-in-url";
 
 const SIGN_IN_FAILURE_MESSAGE =
@@ -10,6 +11,15 @@ const SIGN_IN_FAILURE_MESSAGE =
 
 export default function GitHubSignIn() {
   async function signIn() {
+    if (isTauriRuntime()) {
+      try {
+        await openTauriGitHubSignIn();
+      } catch {
+        toast.error(SIGN_IN_FAILURE_MESSAGE);
+      }
+      return;
+    }
+
     const result = await authClient.signIn.social({
       callbackURL: createGitHubSignInCallbackUrl(window.location.origin),
       provider: "github",

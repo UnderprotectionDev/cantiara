@@ -7,6 +7,7 @@ import {
   auth,
   getDb,
   replaySessionRevocations,
+  tauriSessionAccess,
 } from "./services";
 
 initLogger({
@@ -23,4 +24,5 @@ export default createApp({
   desktopOrigins,
   nodeEnv: env.NODE_ENV,
   redactSecrets,
+  tauriSessionAccess,
 });

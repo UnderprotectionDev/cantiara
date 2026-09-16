@@ -5,6 +5,7 @@ import { createSecurityEventDb } from "@cantiara/db/security-events";
 import { desktopOrigins, env } from "./env";
 import { createDatabaseAccountAdmission } from "./features/account-access/server/account-admission";
 import { createDatabaseAccountSessionAccess } from "./features/account-access/server/session-access-database";
+import { createDatabaseTauriSessionAccess } from "./features/account-access/server/tauri-session-database";
 
 const db = createDb(env);
 const securityEventDb = createSecurityEventDb({
@@ -14,6 +15,10 @@ const accountAdmission = createDatabaseAccountAdmission(db);
 export const accountSessionAccess = createDatabaseAccountSessionAccess(
   db,
   securityEventDb,
+);
+export const tauriSessionAccess = createDatabaseTauriSessionAccess(
+  db,
+  accountSessionAccess,
 );
 let securityReplay: Promise<void> | undefined;
 
