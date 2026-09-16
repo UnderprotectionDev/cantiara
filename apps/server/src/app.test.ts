@@ -6,6 +6,7 @@ import { describe, expect, test, vi } from "vitest";
 import type { AppDependencies } from "./app";
 import { createApp } from "./app";
 import { createGitHubAvailability } from "./features/account-access/server/github-availability";
+import type { GitHubIdentityConfirmation } from "./features/account-access/server/github-identity-confirmation";
 import type { TauriSessionAccess } from "./features/account-access/server/tauri-session";
 
 const authConfig = {
@@ -35,6 +36,7 @@ function createTestApp(
     auth?: AppDependencies["auth"];
     authorized?: boolean;
     githubAvailability?: AppDependencies["githubAvailability"];
+    githubIdentityConfirmation?: GitHubIdentityConfirmation;
     onGitHubLoginOAuthRevoked?: () => void;
     onRevokeSession?: (sessionId: string) => void;
     tauriSessionAccess?: TauriSessionAccess;
@@ -83,9 +85,11 @@ function createTestApp(
     database: {} as AppDependencies["database"],
     desktopOrigins: [],
     githubAvailability: options.githubAvailability ?? availableGitHub,
+    githubIdentityConfirmation: options.githubIdentityConfirmation,
     nodeEnv: "test",
     redactSecrets: (value) => value,
     tauriSessionAccess: options.tauriSessionAccess,
+    trustedProxyIps: ["203.0.113.10"],
   };
 
   return {
@@ -208,6 +212,324 @@ describe("server app Account Access boundary", () => {
     expect(response.headers.get("location")).toContain("github.com");
     expect(response.headers.get("location")).not.toContain("token");
     expect(response.headers.get("set-cookie")).toContain("state-cookie");
+  });
+
+  test("starts Confirm GitHub Identity only for the authorized current session", async () => {
+    let requestedOperation: unknown;
+    let requestedPrincipal: unknown;
+    let requestedClientKey: unknown;
+    const trustedProxy = {
+      requestIP: () => ({
+        address: "203.0.113.10",
+        family: "IPv4" as const,
+        port: 443,
+      }),
+    };
+    const { app } = createTestApp({
+      authorized: true,
+      githubIdentityConfirmation: {
+        complete: () => Promise.resolve(null),
+        consume: () => Promise.resolve(false),
+        exchange: () => Promise.resolve(null),
+        recordFailure: () => Promise.resolve(),
+        start: (principal, operationId, clientKey) => {
+          requestedPrincipal = principal;
+          requestedOperation = operationId;
+          requestedClientKey = clientKey;
+          return Promise.resolve({
+            authorizationUrl: "https://github.com/confirm",
+          });
+        },
+      },
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/auth/confirm-github-identity/start",
+        {
+          body: JSON.stringify({ operationId: "account-closure-start" }),
+          headers: {
+            cookie: "__Secure-better-auth.session_token=session-token",
+            "content-type": "application/json",
+            origin: "https://cantiara.example",
+            "x-forwarded-for": "198.51.100.10, 203.0.113.10",
+          },
+          method: "POST",
+        },
+      ),
+      trustedProxy,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      authorizationUrl: "https://github.com/confirm",
+    });
+    expect(requestedPrincipal).toEqual({
+      accountId: "account-1",
+      sessionId: "stale-session",
+    });
+    expect(requestedOperation).toBe("account-closure-start");
+    expect(requestedClientKey).toBe("198.51.100.10");
+  });
+
+  test("returns Waiting for GitHub from the start endpoint during an outage", async () => {
+    const { app } = createTestApp({
+      authorized: true,
+      githubIdentityConfirmation: {
+        complete: () => Promise.resolve(null),
+        consume: () => Promise.resolve(false),
+        exchange: () => Promise.resolve(null),
+        recordFailure: () => Promise.resolve(),
+        start: () => Promise.resolve({ status: "waiting" }),
+      },
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/auth/confirm-github-identity/start",
+        {
+          body: JSON.stringify({ operationId: "account-closure-start" }),
+          headers: {
+            cookie: "__Secure-better-auth.session_token=session-token",
+            "content-type": "application/json",
+            origin: "https://cantiara.example",
+          },
+          method: "POST",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ status: "waiting" });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  test("rejects Confirm GitHub Identity when the current session is not authorized", async () => {
+    let startCalls = 0;
+    const { app } = createTestApp({
+      githubIdentityConfirmation: {
+        complete: () => Promise.resolve(null),
+        consume: () => Promise.resolve(false),
+        exchange: () => Promise.resolve(null),
+        recordFailure: () => Promise.resolve(),
+        start: () => {
+          startCalls += 1;
+          return Promise.resolve({
+            authorizationUrl: "https://github.com/confirm",
+          });
+        },
+      },
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/auth/confirm-github-identity/start",
+        {
+          body: JSON.stringify({ operationId: "account-closure-start" }),
+          headers: {
+            cookie: "__Secure-better-auth.session_token=session-token",
+            "content-type": "application/json",
+            origin: "https://cantiara.example",
+          },
+          method: "POST",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      code: "CONFIRM_GITHUB_IDENTITY_FAILURE",
+    });
+    expect(startCalls).toBe(0);
+  });
+
+  test("hands a successful web confirmation back through a no-store postMessage handoff", async () => {
+    let completedInput: unknown;
+    const trustedProxy = {
+      requestIP: () => ({
+        address: "203.0.113.10",
+        family: "IPv4" as const,
+        port: 443,
+      }),
+    };
+    const { app } = createTestApp({
+      authorized: true,
+      githubIdentityConfirmation: {
+        complete: (principal, input, clientKey) => {
+          completedInput = { clientKey, input, principal };
+          return Promise.resolve({
+            callbackCode: "H".repeat(43),
+            clientPlatform: "web" as const,
+            grant: "G".repeat(43),
+          });
+        },
+        consume: () => Promise.resolve(false),
+        exchange: () => Promise.resolve(null),
+        recordFailure: () => Promise.resolve(),
+        start: () => Promise.resolve(null),
+      },
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/auth/confirm-github-identity/callback?code=authorization-code&state=S".concat(
+          "S".repeat(42),
+        ),
+        {
+          headers: {
+            cookie: "__Secure-better-auth.session_token=session-token",
+            "x-forwarded-for": "198.51.100.10, 203.0.113.10",
+          },
+        },
+      ),
+      trustedProxy,
+    );
+
+    expect(response.status).toBe(200);
+    const responseBody = await response.text();
+    expect(responseBody).toContain('"code":"H'.concat("H".repeat(42), '"'));
+    expect(responseBody).toContain("postMessage");
+    expect(responseBody).not.toContain("G".repeat(43));
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(completedInput).toEqual({
+      clientKey: "198.51.100.10",
+      input: {
+        code: "authorization-code",
+        state: "S".repeat(43),
+      },
+      principal: null,
+    });
+  });
+
+  test("hands a successful Tauri confirmation back through a code-only deep link", async () => {
+    let completedPrincipal: unknown;
+    const { app } = createTestApp({
+      githubIdentityConfirmation: {
+        complete: (principal) => {
+          completedPrincipal = principal;
+          return Promise.resolve({
+            callbackCode: "H".repeat(43),
+            clientPlatform: "tauri" as const,
+            grant: "G".repeat(43),
+          });
+        },
+        consume: () => Promise.resolve(false),
+        exchange: () => Promise.resolve(null),
+        recordFailure: () => Promise.resolve(),
+        start: () => Promise.resolve(null),
+      },
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/auth/confirm-github-identity/callback?code=authorization-code&state=".concat(
+          "S".repeat(43),
+        ),
+        { headers: { origin: "http://tauri.localhost" } },
+      ),
+    );
+
+    const location = response.headers.get("location");
+    expect(response.status).toBe(302);
+    expect(location).toBe(
+      "cantiara://auth/confirm-github-identity?code=".concat("H".repeat(43)),
+    );
+    expect(location).not.toContain("grant");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(completedPrincipal).toBeNull();
+  });
+
+  test("exchanges a confirmation handoff only through the authorized no-store endpoint", async () => {
+    let exchanged: unknown;
+    const { app } = createTestApp({
+      authorized: true,
+      githubIdentityConfirmation: {
+        complete: () => Promise.resolve(null),
+        consume: () => Promise.resolve(false),
+        exchange: (principal, code, clientKey) => {
+          exchanged = { clientKey, code, principal };
+          return Promise.resolve("G".repeat(43));
+        },
+        recordFailure: () => Promise.resolve(),
+        start: () => Promise.resolve(null),
+      },
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/auth/confirm-github-identity/exchange",
+        {
+          body: JSON.stringify({ code: "H".repeat(43) }),
+          headers: {
+            cookie: "__Secure-better-auth.session_token=session-token",
+            "content-type": "application/json",
+            origin: "https://cantiara.example",
+          },
+          method: "POST",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      grant: "G".repeat(43),
+    });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(exchanged).toEqual({
+      clientKey: "unknown",
+      code: "H".repeat(43),
+      principal: { accountId: "account-1", sessionId: "stale-session" },
+    });
+  });
+
+  test("records a generic failure when GitHub returns an OAuth error", async () => {
+    let failure: unknown;
+    const trustedProxy = {
+      requestIP: () => ({
+        address: "203.0.113.10",
+        family: "IPv4" as const,
+        port: 443,
+      }),
+    };
+    const { app } = createTestApp({
+      authorized: true,
+      githubIdentityConfirmation: {
+        complete: () => Promise.resolve(null),
+        consume: () => Promise.resolve(false),
+        exchange: () => Promise.resolve(null),
+        recordFailure: (principal, callbackState, clientKey) => {
+          failure = { clientKey, principal, state: callbackState };
+          return Promise.resolve();
+        },
+        start: () => Promise.resolve(null),
+      },
+    });
+
+    const state = "S".repeat(43);
+    const response = await app.fetch(
+      new Request(
+        `https://api.cantiara.example/api/auth/confirm-github-identity/callback?error=access_denied&state=${state}`,
+        {
+          headers: {
+            cookie: "__Secure-better-auth.session_token=session-token",
+            "x-forwarded-for": "198.51.100.10, 203.0.113.10",
+          },
+        },
+      ),
+      trustedProxy,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "CONFIRM_GITHUB_IDENTITY_FAILURE",
+    });
+    expect(failure).toEqual({
+      clientKey: "198.51.100.10",
+      principal: { accountId: "account-1", sessionId: "stale-session" },
+      state,
+    });
   });
 
   test("real Better Auth start creates a state cookie before opening GitHub", async () => {

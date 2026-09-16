@@ -7,6 +7,7 @@ import {
   auth,
   getDb,
   githubAvailability,
+  githubIdentityConfirmation,
   replaySessionRevocations,
   tauriSessionAccess,
 } from "./services";
@@ -24,7 +25,9 @@ export default createApp({
   database: getDb(),
   desktopOrigins,
   githubAvailability,
+  githubIdentityConfirmation,
   nodeEnv: env.NODE_ENV,
   redactSecrets,
   tauriSessionAccess,
+  trustedProxyIps: env.TRUSTED_PROXY_IPS,
 });
