@@ -72,7 +72,7 @@ function createTestApp({
 
 describe("server app Account Access boundary", () => {
   test("allows public GitHub sign-in to recover from a stale revoked cookie", async () => {
-    const { app, getHandlerCalls } = createTestApp();
+    const { app, getHandlerBody, getHandlerCalls } = createTestApp();
 
     const response = await app.fetch(
       new Request("https://api.cantiara.example/api/auth/sign-in/social", {
@@ -91,6 +91,10 @@ describe("server app Account Access boundary", () => {
 
     expect(response.status).toBe(200);
     expect(getHandlerCalls()).toBe(1);
+    expect(getHandlerBody()).toEqual({
+      callbackURL: "https://cantiara.example/dashboard",
+      provider: "github",
+    });
   });
 
   test("allows sign-out to clear a stale revoked cookie", async () => {
