@@ -18,6 +18,7 @@ import { createDatabaseAccountPreferences } from "../src/features/account-prefer
 
 const webOrigin = "http://127.0.0.1:4173";
 const serverOrigin = "http://127.0.0.1:3100";
+const E2E_FIXTURE_KEY_PATTERN = /^[a-z-]+$/;
 const databaseUrl = process.env.DATABASE_URL;
 const securityEventDatabaseUrl = process.env.SECURITY_EVENT_DATABASE_URL;
 const secret = process.env.BETTER_AUTH_SECRET;
@@ -88,48 +89,62 @@ const app = createApp({
 });
 
 const authContext = await auth.$context;
-const fixtureEmail = "account-access-e2e@example.invalid";
-await database.delete(user).where(eq(user.email, fixtureEmail));
-const founder = authContext.test.createUser({
-  email: fixtureEmail,
-  emailVerified: true,
-  name: "Founder",
-});
-await authContext.test.saveUser(founder);
-await database.insert(account).values({
-  accountId: `e2e-github-${crypto.randomUUID()}`,
-  id: crypto.randomUUID(),
-  providerId: "github",
-  userId: founder.id,
-});
-const currentLogin = await authContext.test.login({ userId: founder.id });
-const otherLogin = await authContext.test.login({ userId: founder.id });
-await database
-  .update(session)
-  .set({
-    userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:155.0) Gecko/20100101 Firefox/155.0",
-  })
-  .where(eq(session.id, currentLogin.session.id));
-await database
-  .update(session)
-  .set({
-    userAgent:
-      "Mozilla/5.0 (X11; Linux x86_64; rv:142.0) Gecko/20100101 Firefox/142.0",
-  })
-  .where(eq(session.id, otherLogin.session.id));
+async function createE2EFixture(fixtureKey: string) {
+  const fixtureEmail = `account-access-e2e-${fixtureKey}@example.invalid`;
+  await database.delete(user).where(eq(user.email, fixtureEmail));
+  const founder = authContext.test.createUser({
+    email: fixtureEmail,
+    emailVerified: true,
+    name: "Founder",
+  });
+  await authContext.test.saveUser(founder);
+  await database.insert(account).values({
+    accountId: `e2e-github-${crypto.randomUUID()}`,
+    id: crypto.randomUUID(),
+    providerId: "github",
+    userId: founder.id,
+  });
+  const currentLogin = await authContext.test.login({ userId: founder.id });
+  const otherLogin = await authContext.test.login({ userId: founder.id });
+  await database
+    .update(session)
+    .set({
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:155.0) Gecko/20100101 Firefox/155.0",
+    })
+    .where(eq(session.id, currentLogin.session.id));
+  await database
+    .update(session)
+    .set({
+      userAgent:
+        "Mozilla/5.0 (X11; Linux x86_64; rv:142.0) Gecko/20100101 Firefox/142.0",
+    })
+    .where(eq(session.id, otherLogin.session.id));
 
-const [currentCookie] = currentLogin.cookies;
-if (!currentCookie) {
-  throw new Error("Better Auth did not create an E2E session cookie");
+  const [currentCookie] = currentLogin.cookies;
+  if (!currentCookie) {
+    throw new Error("Better Auth did not create an E2E session cookie");
+  }
+
+  return currentCookie;
 }
 
 serve({
   hostname: "127.0.0.1",
   port: 3100,
-  fetch(request, server) {
-    if (new URL(request.url).pathname === "/__e2e/setup") {
-      return Response.json({ cookie: currentCookie });
+  async fetch(request, server) {
+    const url = new URL(request.url);
+    if (url.pathname === "/__e2e/setup") {
+      const fixtureKey = url.searchParams.get("fixture");
+      if (!(fixtureKey && E2E_FIXTURE_KEY_PATTERN.test(fixtureKey))) {
+        return Response.json(
+          { error: "A lowercase fixture key is required" },
+          { status: 400 },
+        );
+      }
+
+      const cookie = await createE2EFixture(fixtureKey);
+      return Response.json({ cookie });
     }
     return app.fetch(request, server);
   },

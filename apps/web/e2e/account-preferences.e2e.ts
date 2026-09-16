@@ -9,7 +9,9 @@ test("keeps browser suggestions unsaved and persists Account Preferences on Save
   page,
   request,
 }) => {
-  const setupResponse = await request.get("http://127.0.0.1:3100/__e2e/setup");
+  const setupResponse = await request.get(
+    "http://127.0.0.1:3100/__e2e/setup?fixture=account-preferences",
+  );
   const setup = (await setupResponse.json()) as {
     cookie: {
       domain: string;

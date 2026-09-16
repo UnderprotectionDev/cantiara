@@ -94,6 +94,24 @@ describe("Account Preferences seam", () => {
     });
   });
 
+  test("rejects System as an Account Appearance without writing it", async () => {
+    const preferences = createAccountPreferences({
+      store: createMemoryStore(),
+    });
+
+    await expect(
+      preferences.saveAppearance(
+        "account-1",
+        "System" as unknown as AccountPreferences["appearance"],
+      ),
+    ).rejects.toThrow();
+    await expect(preferences.get("account-1")).resolves.toEqual({
+      ...DEFAULT_ACCOUNT_PREFERENCES,
+      isSaved: false,
+      savedAt: null,
+    });
+  });
+
   test("changes appearance without rewriting the other saved preferences", async () => {
     const initial: AccountPreferences = {
       appearance: "Dark",
