@@ -272,15 +272,19 @@ describe("server app Account Access boundary", () => {
     });
 
     const response = await app.fetch(
-      new Request(
-        "https://api.cantiara.example/api/account-access/github/availability",
-      ),
+      new Request("https://api.cantiara.example/rpc/githubAvailability", {
+        body: JSON.stringify({}),
+        headers: {
+          "content-type": "application/json",
+          origin: "https://cantiara.example",
+        },
+        method: "POST",
+      }),
     );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
-      requiresFreshConsent: true,
-      status: "waiting",
+      json: { status: "waiting" },
     });
   });
 });

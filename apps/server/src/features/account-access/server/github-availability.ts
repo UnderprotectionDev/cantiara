@@ -1,7 +1,11 @@
-export type GitHubAvailabilityStatus = "available" | "waiting";
+import type {
+  GitHubAvailability as GitHubAvailabilityReader,
+  GitHubAvailabilityStatus,
+} from "@cantiara/api/context";
 
-export interface GitHubAvailability {
-  getStatus: () => GitHubAvailabilityStatus;
+export type { GitHubAvailabilityStatus } from "@cantiara/api/context";
+
+export interface GitHubAvailability extends GitHubAvailabilityReader {
   markAvailable: () => void;
   markLoginConsentSatisfied: () => void;
   markUnavailable: () => void;

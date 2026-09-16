@@ -1,54 +1,24 @@
 import { Button } from "@cantiara/ui/components/button";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
 
-import { env } from "@/env";
 import { authClient } from "@/lib/auth-client";
+import { orpc } from "@/utils/orpc";
 
 import { createGitHubSignInCallbackUrl } from "./github-sign-in-url";
 import GitHubWaitingStatus from "./github-waiting-status";
 
 const SIGN_IN_FAILURE_MESSAGE =
   "Sign-in could not be completed. Please try again.";
-const GITHUB_AVAILABILITY_PATH = "/api/account-access/github/availability";
-const TRAILING_SLASH_PATTERN = /\/$/;
-
-function useGitHubAvailabilityWaiting() {
-  const [isGitHubUnavailable, setIsGitHubUnavailable] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const url = `${env.VITE_SERVER_URL.replace(TRAILING_SLASH_PATTERN, "")}${GITHUB_AVAILABILITY_PATH}`;
-
-    async function readAvailability() {
-      try {
-        const response = await fetch(url, {
-          credentials: "include",
-          signal: controller.signal,
-        });
-        if (!response.ok) {
-          return;
-        }
-        const body = (await response.json()) as { status?: unknown };
-        if (!controller.signal.aborted) {
-          setIsGitHubUnavailable(body.status === "waiting");
-        }
-      } catch {
-        // Availability is best-effort; the sign-in action reports its own errors.
-      }
-    }
-
-    readAvailability().catch(() => undefined);
-
-    return () => controller.abort();
-  }, []);
-
-  return isGitHubUnavailable;
-}
 
 export default function GitHubSignIn() {
   const [isWaitingForGitHub, setIsWaitingForGitHub] = useState(false);
-  const isGitHubUnavailable = useGitHubAvailabilityWaiting();
+  const githubAvailability = useQuery({
+    ...orpc.githubAvailability.queryOptions(),
+    retry: false,
+  });
+  const isGitHubUnavailable = githubAvailability.data?.status === "waiting";
 
   async function signIn() {
     setIsWaitingForGitHub(true);

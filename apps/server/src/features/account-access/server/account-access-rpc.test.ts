@@ -28,6 +28,9 @@ describe("Account Access RPC", () => {
       },
       auth: null,
       db: {} as Context["db"],
+      githubAvailability: {
+        getStatus: () => "waiting",
+      },
       session: {
         session: { id: "current-session" },
         user: { id: "account-1" },
@@ -35,6 +38,9 @@ describe("Account Access RPC", () => {
     } satisfies Context;
     const client = createRouterClient(appRouter, { context });
 
+    await expect(client.githubAvailability()).resolves.toEqual({
+      status: "waiting",
+    });
     await expect(client.sessions()).resolves.toEqual([
       expect.objectContaining({ current: true, id: "current-session" }),
     ]);

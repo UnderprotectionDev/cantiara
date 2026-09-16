@@ -176,6 +176,7 @@ export function createApp(dependencies: AppDependencies) {
       auth: dependencies.auth,
       context: c,
       database: dependencies.database,
+      githubAvailability: dependencies.githubAvailability,
     });
     const rpcResult = await rpcHandler.handle(c.req.raw, {
       prefix: "/rpc",
@@ -194,13 +195,6 @@ export function createApp(dependencies: AppDependencies) {
     await next();
   });
 
-  app.get("/api/account-access/github/availability", (c) =>
-    c.json({
-      requiresFreshConsent:
-        dependencies.githubAvailability.requiresFreshConsent(),
-      status: dependencies.githubAvailability.getStatus(),
-    }),
-  );
   app.get("/", (c) => c.text("OK"));
   return app;
 }
