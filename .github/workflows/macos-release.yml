@@ -78,6 +78,8 @@ jobs:
     runs-on: macos-14
     strategy:
       fail-fast: false
+      # tauri-action rewrites the shared latest.json release asset.
+      max-parallel: 1
       matrix:
         target:
           - aarch64-apple-darwin
@@ -626,19 +628,20 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --exclude-drafts \
             --exclude-pre-releases \
-            --limit 20 \
+            --limit 1000 \
             --json tagName,publishedAt)"
           previous_release_tag="$(jq -r \
             --arg current "$CURRENT_RELEASE_TAG" \
-            '[.[] | select(.tagName != $current)] | sort_by(.publishedAt) | reverse | .[0].tagName // empty' \
+            '[.[] | select(.tagName != $current) | select(.tagName | startswith("cantiara-v"))] | sort_by(.publishedAt) | reverse | .[0].tagName // empty' \
             <<< "$releases_json")"
           if [ -z "$previous_release_tag" ]; then
             jq -n \
               --arg currentReleaseTag "$CURRENT_RELEASE_TAG" \
-              '{result: "failed-no-previous-release", currentReleaseTag: $currentReleaseTag}' \
+              '{result: "skipped-no-previous-release", currentReleaseTag: $currentReleaseTag}' \
               > "$evidence_directory/manual-recovery-manifest.json"
-            echo "No previous published signed release is available for manual recovery" >&2
-            exit 1
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "No previous published Cantiara release is available; manual recovery is skipped for the bootstrap release"
+            exit 0
           fi
           echo "tag=$previous_release_tag" >> "$GITHUB_OUTPUT"
           echo "$previous_release_tag" > "$evidence_directory/previous-release-tag.txt"
