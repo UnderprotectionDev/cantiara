@@ -5,7 +5,8 @@ import type {
 import type { createAuth } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
 import type { Context as HonoContext } from "hono";
-
+import { requestClientIp } from "./features/account-access/server/client-ip";
+import type { GitHubIdentityConfirmation } from "./features/account-access/server/github-identity-confirmation";
 import type { AccountSessionAccessRuntime } from "./features/account-access/server/session-access";
 
 export type AccountAccessAuth = Pick<
@@ -19,6 +20,8 @@ export interface CreateContextOptions {
   context: HonoContext;
   database: Database;
   githubAvailability: GitHubAvailability;
+  githubIdentityConfirmation?: GitHubIdentityConfirmation;
+  trustedProxyIps: readonly string[];
 }
 
 export async function createContext({
@@ -27,6 +30,8 @@ export async function createContext({
   context,
   database,
   githubAvailability,
+  githubIdentityConfirmation,
+  trustedProxyIps,
 }: CreateContextOptions): Promise<ApiContext> {
   const candidateSession = await auth.api.getSession({
     headers: context.req.raw.headers,
@@ -44,8 +49,10 @@ export async function createContext({
   const session = authorized ? candidateSession : null;
   return {
     accountAccess: accountSessionAccess,
+    clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
     db: database,
     githubAvailability,
+    githubIdentityConfirmation,
     auth: null,
     session,
   };

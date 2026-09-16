@@ -6,6 +6,31 @@ export interface AccountSessionPrincipal {
   sessionId: string;
 }
 
+export const CONFIRM_GITHUB_IDENTITY_OPERATION_IDS = [
+  "account-closure-start",
+  "account-closure-cancel",
+  "security-redaction",
+  "early-permanent-delete",
+  "personal-data-erase",
+] as const;
+
+export type ConfirmGitHubIdentityOperationId =
+  (typeof CONFIRM_GITHUB_IDENTITY_OPERATION_IDS)[number];
+
+export interface GitHubIdentityConfirmationAccess {
+  consume: (
+    principal: AccountSessionPrincipal,
+    operationId: ConfirmGitHubIdentityOperationId,
+    grant: string,
+    clientKey?: string,
+  ) => Promise<boolean>;
+  start: (
+    principal: AccountSessionPrincipal,
+    operationId: ConfirmGitHubIdentityOperationId,
+    clientKey?: string,
+  ) => Promise<{ authorizationUrl: string } | null>;
+}
+
 export type GitHubAvailabilityStatus = "available" | "waiting";
 
 export interface GitHubAvailability {
@@ -33,8 +58,10 @@ export interface AccountSessionAccess {
 export interface Context {
   accountAccess: AccountSessionAccess;
   auth: null;
+  clientKey?: string;
   db: Database;
   githubAvailability: GitHubAvailability;
+  githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;

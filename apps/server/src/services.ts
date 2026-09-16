@@ -5,6 +5,8 @@ import { createSecurityEventDb } from "@cantiara/db/security-events";
 import { desktopOrigins, env } from "./env";
 import { createDatabaseAccountAdmission } from "./features/account-access/server/account-admission";
 import { createGitHubAvailability } from "./features/account-access/server/github-availability";
+import { CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH } from "./features/account-access/server/github-identity-confirmation";
+import { createDatabaseGitHubIdentityConfirmation } from "./features/account-access/server/github-identity-confirmation-database";
 import { createDatabaseAccountSessionAccess } from "./features/account-access/server/session-access-database";
 import { createDatabaseTauriSessionAccess } from "./features/account-access/server/tauri-session-database";
 
@@ -19,6 +21,18 @@ export const accountSessionAccess = createDatabaseAccountSessionAccess(
   securityEventDb,
   { onGitHubLoginOAuthRevoked: githubAvailability.requireFreshConsent },
 );
+export const githubIdentityConfirmation =
+  createDatabaseGitHubIdentityConfirmation(db, {
+    authorizeSession: (principal) =>
+      accountSessionAccess.authorizeWrite(principal),
+    callbackURL: new URL(
+      CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH,
+      env.BETTER_AUTH_URL,
+    ).href,
+    clientId: env.GITHUB_CLIENT_ID,
+    clientSecret: env.GITHUB_CLIENT_SECRET,
+    githubAvailability,
+  });
 export const tauriSessionAccess = createDatabaseTauriSessionAccess(
   db,
   accountSessionAccess,

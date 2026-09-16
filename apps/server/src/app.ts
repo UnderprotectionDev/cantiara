@@ -16,9 +16,17 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import { type AccountAccessAuth, createContext } from "./context";
+import { requestClientIp } from "./features/account-access/server/client-ip";
 import { createCsrfProtectionMiddleware } from "./features/account-access/server/csrf-protection";
 import type { GitHubAvailability } from "./features/account-access/server/github-availability";
 import { sanitizeGitHubCallbackResponse } from "./features/account-access/server/github-callback-response";
+import {
+  CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH,
+  CONFIRM_GITHUB_IDENTITY_FAILURE_CODE,
+  CONFIRM_GITHUB_IDENTITY_START_PATH,
+  type GitHubIdentityConfirmation,
+  isConfirmGitHubIdentityOperationId,
+} from "./features/account-access/server/github-identity-confirmation";
 import type { AccountSessionAccessRuntime } from "./features/account-access/server/session-access";
 import { sanitizeProductSessionResponse } from "./features/account-access/server/session-response";
 import { sanitizeTauriCallbackResponse } from "./features/account-access/server/tauri-callback-response";
@@ -38,9 +46,11 @@ export interface AppDependencies {
     GitHubAvailability,
     "getStatus" | "requiresFreshConsent"
   >;
+  githubIdentityConfirmation?: GitHubIdentityConfirmation;
   nodeEnv: string;
   redactSecrets: (value: unknown) => unknown;
   tauriSessionAccess?: TauriSessionAccess;
+  trustedProxyIps: readonly string[];
 }
 
 function isRecoverableAuthPath(path: string) {
@@ -149,6 +159,185 @@ async function exchangeTauriCode(
   });
 }
 
+function noStoreHeaders() {
+  return {
+    "cache-control": "no-store",
+    pragma: "no-cache",
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff",
+  };
+}
+
+function confirmGitHubIdentityFailure(status = 400) {
+  return Response.json(
+    { code: CONFIRM_GITHUB_IDENTITY_FAILURE_CODE },
+    { headers: noStoreHeaders(), status },
+  );
+}
+
+async function authorizedPrincipal(
+  request: Request,
+  dependencies: Pick<AppDependencies, "accountSessionAccess" | "auth">,
+) {
+  const session = await dependencies.auth.api.getSession({
+    headers: request.headers,
+    query: { disableRefresh: true },
+  });
+  if (!session) {
+    return null;
+  }
+
+  const principal = {
+    accountId: session.user.id,
+    sessionId: session.session.id,
+  };
+  return (await dependencies.accountSessionAccess.authorizeWrite(principal))
+    ? principal
+    : null;
+}
+
+async function recordConfirmGitHubIdentityFailure(
+  request: Request,
+  context: Parameters<typeof requestClientIp>[1],
+  dependencies: Pick<
+    AppDependencies,
+    | "accountSessionAccess"
+    | "auth"
+    | "githubIdentityConfirmation"
+    | "trustedProxyIps"
+  >,
+  state: string | null,
+) {
+  const confirmation = dependencies.githubIdentityConfirmation;
+  if (!confirmation) {
+    return;
+  }
+
+  try {
+    const principal = await authorizedPrincipal(request, dependencies);
+    if (principal) {
+      await confirmation.recordFailure(
+        principal,
+        state ?? undefined,
+        requestClientIp(request, context, dependencies.trustedProxyIps),
+      );
+    }
+  } catch {
+    // Callback failures stay generic even when session or audit storage is unavailable.
+  }
+}
+
+async function startConfirmGitHubIdentity(
+  request: Request,
+  context: Parameters<typeof requestClientIp>[1],
+  dependencies: Pick<
+    AppDependencies,
+    | "accountSessionAccess"
+    | "auth"
+    | "githubIdentityConfirmation"
+    | "trustedProxyIps"
+  >,
+) {
+  if (!dependencies.githubIdentityConfirmation) {
+    return confirmGitHubIdentityFailure(404);
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return confirmGitHubIdentityFailure();
+  }
+
+  const operationId =
+    typeof body === "object" && body !== null && "operationId" in body
+      ? body.operationId
+      : undefined;
+  if (!isConfirmGitHubIdentityOperationId(operationId)) {
+    return confirmGitHubIdentityFailure();
+  }
+
+  let principal: Awaited<ReturnType<typeof authorizedPrincipal>>;
+  try {
+    principal = await authorizedPrincipal(request, dependencies);
+  } catch {
+    return confirmGitHubIdentityFailure(401);
+  }
+  if (!principal) {
+    return confirmGitHubIdentityFailure(401);
+  }
+
+  try {
+    const result = await dependencies.githubIdentityConfirmation.start(
+      principal,
+      operationId,
+      requestClientIp(request, context, dependencies.trustedProxyIps),
+    );
+    return result
+      ? Response.json(result, { headers: noStoreHeaders() })
+      : confirmGitHubIdentityFailure();
+  } catch {
+    return confirmGitHubIdentityFailure();
+  }
+}
+
+async function completeConfirmGitHubIdentity(
+  request: Request,
+  context: Parameters<typeof requestClientIp>[1],
+  dependencies: Pick<
+    AppDependencies,
+    | "accountSessionAccess"
+    | "auth"
+    | "githubIdentityConfirmation"
+    | "trustedProxyIps"
+  >,
+) {
+  if (!dependencies.githubIdentityConfirmation) {
+    return confirmGitHubIdentityFailure(404);
+  }
+
+  const callbackURL = new URL(request.url);
+  const code = callbackURL.searchParams.get("code");
+  const state = callbackURL.searchParams.get("state");
+  if (
+    callbackURL.searchParams.has("error") ||
+    !code ||
+    !state ||
+    code.length > 512
+  ) {
+    await recordConfirmGitHubIdentityFailure(
+      request,
+      context,
+      dependencies,
+      state,
+    );
+    return confirmGitHubIdentityFailure();
+  }
+
+  let principal: Awaited<ReturnType<typeof authorizedPrincipal>>;
+  try {
+    principal = await authorizedPrincipal(request, dependencies);
+  } catch {
+    return confirmGitHubIdentityFailure(401);
+  }
+  if (!principal) {
+    return confirmGitHubIdentityFailure(401);
+  }
+
+  try {
+    const grant = await dependencies.githubIdentityConfirmation.complete(
+      principal,
+      { code, state },
+      requestClientIp(request, context, dependencies.trustedProxyIps),
+    );
+    return grant
+      ? Response.json({ grant }, { headers: noStoreHeaders() })
+      : confirmGitHubIdentityFailure();
+  } catch {
+    return confirmGitHubIdentityFailure();
+  }
+}
+
 async function addFreshGitHubConsent(
   request: Request,
   githubAvailability: AppDependencies["githubAvailability"],
@@ -232,6 +421,12 @@ export function createApp(dependencies: AppDependencies) {
   app.post("/api/auth/tauri/exchange", (c) =>
     exchangeTauriCode(c.req.raw, dependencies.tauriSessionAccess),
   );
+  app.post(CONFIRM_GITHUB_IDENTITY_START_PATH, (c) =>
+    startConfirmGitHubIdentity(c.req.raw, c, dependencies),
+  );
+  app.get(CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH, (c) =>
+    completeConfirmGitHubIdentity(c.req.raw, c, dependencies),
+  );
 
   app.on(["POST", "GET"], "/api/auth/*", async (c) => {
     const candidateSession = await dependencies.auth.api.getSession({
@@ -302,6 +497,8 @@ export function createApp(dependencies: AppDependencies) {
       context: c,
       database: dependencies.database,
       githubAvailability: dependencies.githubAvailability,
+      githubIdentityConfirmation: dependencies.githubIdentityConfirmation,
+      trustedProxyIps: dependencies.trustedProxyIps,
     });
     const rpcResult = await rpcHandler.handle(c.req.raw, {
       prefix: "/rpc",

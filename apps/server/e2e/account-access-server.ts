@@ -11,6 +11,8 @@ import { initLogger } from "evlog";
 import { createApp } from "../src/app";
 import { createDatabaseAccountAdmission } from "../src/features/account-access/server/account-admission";
 import { createGitHubAvailability } from "../src/features/account-access/server/github-availability";
+import { CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH } from "../src/features/account-access/server/github-identity-confirmation";
+import { createDatabaseGitHubIdentityConfirmation } from "../src/features/account-access/server/github-identity-confirmation-database";
 import { createDatabaseAccountSessionAccess } from "../src/features/account-access/server/session-access-database";
 
 const webOrigin = "http://127.0.0.1:4173";
@@ -53,6 +55,18 @@ const accountSessionAccess = createDatabaseAccountSessionAccess(
   securityEventDatabase,
   { onGitHubLoginOAuthRevoked: githubAvailability.requireFreshConsent },
 );
+const githubIdentityConfirmation = createDatabaseGitHubIdentityConfirmation(
+  database,
+  {
+    authorizeSession: (principal) =>
+      accountSessionAccess.authorizeWrite(principal),
+    callbackURL: new URL(CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH, serverOrigin)
+      .href,
+    clientId: "e2e-github-client",
+    clientSecret: "e2e-github-secret",
+    githubAvailability,
+  },
+);
 await accountSessionAccess.replaySessionRevocations();
 
 initLogger({ env: { service: "cantiara-e2e-server" } });
@@ -64,8 +78,10 @@ const app = createApp({
   database,
   desktopOrigins: [],
   githubAvailability,
+  githubIdentityConfirmation,
   nodeEnv: "test",
   redactSecrets: () => new Error("Redacted E2E server error"),
+  trustedProxyIps: [],
 });
 
 const authContext = await auth.$context;
@@ -108,10 +124,10 @@ if (!currentCookie) {
 serve({
   hostname: "127.0.0.1",
   port: 3100,
-  fetch(request) {
+  fetch(request, server) {
     if (new URL(request.url).pathname === "/__e2e/setup") {
       return Response.json({ cookie: currentCookie });
     }
-    return app.fetch(request);
+    return app.fetch(request, server);
   },
 });
