@@ -2,6 +2,10 @@ import {
   type AccountPreferences,
   DEFAULT_ACCOUNT_PREFERENCES,
 } from "@cantiara/api/account-preferences";
+import {
+  DESKTOP_API_UPDATE_REQUIRED_HEADER,
+  type DesktopApiCompatibilityWindow,
+} from "@cantiara/api/desktop-api-window";
 import { SUPPORT_REFERENCE_PATTERN } from "@cantiara/api/support-reference";
 import { createAuthOptions } from "@cantiara/auth";
 import { betterAuth } from "better-auth";
@@ -39,6 +43,9 @@ function createTestApp(
     accountSessionAccess?: AppDependencies["accountSessionAccess"];
     auth?: AppDependencies["auth"];
     authorized?: boolean;
+    desktopApiNow?: () => Date;
+    desktopApiWindow?: DesktopApiCompatibilityWindow;
+    desktopOrigins?: readonly string[];
     githubAvailability?: AppDependencies["githubAvailability"];
     githubIdentityConfirmation?: GitHubIdentityConfirmation;
     onGitHubLoginOAuthRevoked?: () => void;
@@ -108,7 +115,9 @@ function createTestApp(
       } as unknown as AppDependencies["auth"]),
     corsOrigin: "https://cantiara.example",
     database: {} as AppDependencies["database"],
-    desktopOrigins: [],
+    desktopApiNow: options.desktopApiNow,
+    desktopApiWindow: options.desktopApiWindow,
+    desktopOrigins: options.desktopOrigins ?? [],
     githubAvailability: options.githubAvailability ?? availableGitHub,
     githubIdentityConfirmation: options.githubIdentityConfirmation,
     nodeEnv: "test",
@@ -1076,6 +1085,103 @@ describe("server app Account Access boundary", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  test("allows current and previous Tauri contracts to write within the window", async () => {
+    const revoked: string[] = [];
+    const desktopApiWindow = {
+      currentContract: "cantiara-desktop-api/v2",
+      previousContract: "cantiara-desktop-api/v1",
+      publishedAt: "2026-08-01T00:00:00.000Z",
+    } satisfies DesktopApiCompatibilityWindow;
+    const { app } = createTestApp({
+      authorized: true,
+      desktopApiNow: () => new Date("2026-08-31T00:00:00.000Z"),
+      desktopApiWindow,
+      onRevokeSession: (sessionId) => {
+        revoked.push(sessionId);
+      },
+    });
+
+    const responses = await Promise.all(
+      [desktopApiWindow.currentContract, desktopApiWindow.previousContract].map(
+        (contract) =>
+          app.fetch(
+            new Request("https://api.cantiara.example/rpc/revokeSession", {
+              body: JSON.stringify({ json: { sessionId: contract } }),
+              headers: {
+                "content-type": "application/json",
+                origin: "http://tauri.localhost",
+                "x-cantiara-desktop-api-contract": contract,
+              },
+              method: "POST",
+            }),
+          ),
+      ),
+    );
+
+    for (const response of responses) {
+      expect(response.status).toBe(200);
+    }
+
+    expect(revoked).toHaveLength(2);
+    expect(new Set(revoked)).toEqual(
+      new Set([
+        desktopApiWindow.currentContract,
+        desktopApiWindow.previousContract,
+      ]),
+    );
+  });
+
+  test("stops an expired Tauri contract before the write handler runs", async () => {
+    const revoked: string[] = [];
+    const { app } = createTestApp({
+      authorized: true,
+      desktopApiNow: () => new Date("2026-09-01T00:00:00.001Z"),
+      desktopApiWindow: {
+        currentContract: "cantiara-desktop-api/v2",
+        previousContract: "cantiara-desktop-api/v1",
+        publishedAt: "2026-08-01T00:00:00.000Z",
+      },
+      desktopOrigins: ["http://tauri.localhost"],
+      onRevokeSession: (sessionId) => {
+        revoked.push(sessionId);
+      },
+    });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/rpc/revokeSession", {
+        body: JSON.stringify({ json: { sessionId: "must-not-write" } }),
+        headers: {
+          "content-type": "application/json",
+          origin: "http://tauri.localhost",
+          "x-cantiara-desktop-api-contract": "cantiara-desktop-api/v2",
+        },
+        method: "POST",
+      }),
+    );
+    const body = (await response.json()) as {
+      code: string;
+      data: { reasonCode: string; writeOutcome: string };
+      message: string;
+    };
+
+    expect(response.status).toBe(426);
+    expect(body.code).toBe("UPDATE_REQUIRED");
+    expect(body.data.reasonCode).toBe("update-required");
+    expect(body.data.writeOutcome).toBe("not-written");
+    expect(body.message).toBe("Update required");
+    expect(
+      response.headers
+        .get("access-control-expose-headers")
+        ?.toLowerCase()
+        .split(",")
+        .map((header) => header.trim()),
+    ).toContain(DESKTOP_API_UPDATE_REQUIRED_HEADER);
+    expect(response.headers.get(DESKTOP_API_UPDATE_REQUIRED_HEADER)).toBe(
+      "true",
+    );
+    expect(revoked).toEqual([]);
   });
 
   test("publishes GitHub waiting status without requiring a product session", async () => {

@@ -61,6 +61,12 @@ const packageArtifactSchema = z.object({
   sha256: z.string().regex(artifactDigestPattern),
 });
 
+const updaterArtifactSchema = z.object({
+  artifactName: z.string().regex(/\.app\.tar\.gz$/),
+  artifactSha256: z.string().regex(artifactDigestPattern),
+  signature: z.string().min(1),
+});
+
 const packageEnvironmentSchema = z.object({
   macOSVersion: z.string().regex(macOSVersionPattern),
   runnerArchitecture: macOSArchitectureSchema,
@@ -125,6 +131,7 @@ const packageEvidenceSchema = z.object({
   schemaVersion: schemaVersionSchema,
   sourceCommit: gitCommitSchema,
   target: macOSPackageTargetSchema,
+  updater: updaterArtifactSchema,
   workflow: workflowMetadataSchema,
 });
 export type MacOSPackageEvidence = z.infer<typeof packageEvidenceSchema>;

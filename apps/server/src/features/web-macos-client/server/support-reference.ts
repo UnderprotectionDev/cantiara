@@ -1,4 +1,8 @@
 import {
+  DESKTOP_API_UPDATE_REQUIRED_CODE,
+  DESKTOP_API_UPDATE_REQUIRED_HEADER,
+} from "@cantiara/api/desktop-api-window";
+import {
   createSupportReference,
   isSupportFailureReasonCode,
   isSupportReference,
@@ -15,6 +19,7 @@ import {
 const SCHEMA_DRIFT_PATTERN =
   /\b(?:42p01|42703)\b|(?:relation|column)\b[\s\S]{0,160}\bdoes not exist\b|\bcurrent[_ ]schema\b/i;
 const UNMATCHED_RPC_PATTERN = /\b(?:404\s+not\s+found|not found)\b/i;
+const UPDATE_REQUIRED_PATTERN = /\b(?:update_required|update required)\b/i;
 const OFFLINE_PATTERN =
   /\b(?:failed to fetch|network request failed|networkerror|offline)\b/i;
 
@@ -118,6 +123,13 @@ export function classifySupportReason(
   ) {
     return "restart-api";
   }
+  if (
+    (isRecord(error) &&
+      (error.code === "UPDATE_REQUIRED" || error.status === 426)) ||
+    UPDATE_REQUIRED_PATTERN.test(signals)
+  ) {
+    return "update-required";
+  }
   return "unexpected";
 }
 
@@ -139,10 +151,13 @@ export function createSupportReferenceFailure({
   const requestedRetryPolicy = isSupportRetryPolicy(retryPolicy)
     ? retryPolicy
     : inheritedSupportData?.retryPolicy;
-  const resolvedRetryPolicy =
+  let resolvedRetryPolicy: SupportRetryPolicy = "never";
+  if (
+    resolvedReasonCode !== "update-required" &&
     resolvedWriteOutcome === "not-written"
-      ? (requestedRetryPolicy ?? "once")
-      : "never";
+  ) {
+    resolvedRetryPolicy = requestedRetryPolicy ?? "once";
+  }
 
   return {
     message: supportFailureMessage(resolvedReasonCode),
@@ -158,6 +173,7 @@ export function createSupportReferenceFailure({
 
 export function createSupportFailureResponse(
   options: CreateSupportReferenceFailureOptions & {
+    code?: string;
     status?: number;
   } = {},
 ) {
@@ -165,7 +181,7 @@ export function createSupportFailureResponse(
   const status = options.status ?? 500;
   return Response.json(
     {
-      code: "INTERNAL_SERVER_ERROR",
+      code: options.code ?? "INTERNAL_SERVER_ERROR",
       data: {
         reasonCode: failure.reasonCode,
         retryPolicy: failure.retryPolicy,
@@ -185,6 +201,26 @@ export function createSupportFailureResponse(
       status,
     },
   );
+}
+
+export function createDesktopApiUpdateRequiredResponse(requestId?: string) {
+  const failure = createSupportReferenceFailure({
+    reasonCode: "update-required",
+    requestId,
+    writeOutcome: "not-written",
+  });
+  const response = createSupportFailureResponse({
+    code: DESKTOP_API_UPDATE_REQUIRED_CODE,
+    error: failure,
+    reasonCode: failure.reasonCode,
+    requestId,
+    retryPolicy: failure.retryPolicy,
+    supportReference: failure.supportReference,
+    status: 426,
+    writeOutcome: failure.writeOutcome,
+  });
+  response.headers.set(DESKTOP_API_UPDATE_REQUIRED_HEADER, "true");
+  return response;
 }
 
 export async function decorateSupportFailureResponse(

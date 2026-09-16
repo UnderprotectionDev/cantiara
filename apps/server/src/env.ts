@@ -1,3 +1,8 @@
+import {
+  DESKTOP_API_CURRENT_CONTRACT,
+  DESKTOP_API_PREVIOUS_CONTRACT,
+  DESKTOP_API_PUBLISHED_AT,
+} from "@cantiara/api/desktop-api-window";
 import { createEnv } from "@t3-oss/env-core";
 import ipaddr from "ipaddr.js";
 import { z } from "zod";
@@ -46,6 +51,20 @@ export function createServerEnv(
       BETTER_AUTH_SECRET: z.string().min(32),
       BETTER_AUTH_URL: z.url(),
       CORS_ORIGIN: z.url(),
+      CANTIARA_DESKTOP_API_CURRENT_CONTRACT: z
+        .string()
+        .min(1)
+        .max(128)
+        .default(DESKTOP_API_CURRENT_CONTRACT),
+      CANTIARA_DESKTOP_API_PREVIOUS_CONTRACT: z
+        .string()
+        .min(1)
+        .max(128)
+        .default(DESKTOP_API_PREVIOUS_CONTRACT),
+      CANTIARA_DESKTOP_API_PUBLISHED_AT: z
+        .string()
+        .refine((value) => Number.isFinite(Date.parse(value)))
+        .default(DESKTOP_API_PUBLISHED_AT),
       DATABASE_URL: z.string().min(1),
       GITHUB_CLIENT_ID: z.string().min(1),
       GITHUB_CLIENT_SECRET: z.string().min(1),

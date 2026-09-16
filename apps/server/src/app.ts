@@ -3,6 +3,13 @@ import {
   CONFIRM_GITHUB_IDENTITY_HANDOFF_EXCHANGE_PATH,
   TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL,
 } from "@cantiara/api/context";
+import {
+  DEFAULT_DESKTOP_API_COMPATIBILITY_WINDOW,
+  DESKTOP_API_CONTRACT_HEADER,
+  DESKTOP_API_UPDATE_REQUIRED_HEADER,
+  type DesktopApiCompatibilityWindow,
+  evaluateDesktopApiCompatibility,
+} from "@cantiara/api/desktop-api-window";
 import { appRouter } from "@cantiara/api/routers/index";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import { TAURI_AUTH_CALLBACK_URL } from "@cantiara/auth";
@@ -47,6 +54,7 @@ import {
   type TauriSessionAccess,
 } from "./features/account-access/server/tauri-session";
 import {
+  createDesktopApiUpdateRequiredResponse,
   createSupportFailureResponse,
   createSupportReferenceFailure,
   decorateSupportFailureResponse,
@@ -59,6 +67,8 @@ export interface AppDependencies {
   auth: AccountAccessAuth;
   corsOrigin: string;
   database: Database;
+  desktopApiNow?: () => Date;
+  desktopApiWindow?: DesktopApiCompatibilityWindow;
   desktopOrigins: readonly string[];
   githubAvailability: Pick<
     GitHubAvailability,
@@ -595,8 +605,16 @@ export function createApp(dependencies: AppDependencies) {
     cors({
       origin: allowedOrigins,
       allowMethods: ["GET", "POST", "OPTIONS"],
-      allowHeaders: ["Content-Type", "Authorization"],
+      allowHeaders: [
+        "Content-Type",
+        "Authorization",
+        DESKTOP_API_CONTRACT_HEADER,
+      ],
       credentials: true,
+      exposeHeaders: [
+        DESKTOP_API_UPDATE_REQUIRED_HEADER,
+        SUPPORT_REFERENCE_HEADER,
+      ],
     }),
   );
   app.use("*", createCsrfProtectionMiddleware(allowedOrigins));
@@ -675,8 +693,37 @@ export function createApp(dependencies: AppDependencies) {
     plugins: [new experimental_RethrowHandlerPlugin({ filter: () => true })],
     interceptors: [onError(() => undefined)],
   });
+  const desktopApiWindow =
+    dependencies.desktopApiWindow ?? DEFAULT_DESKTOP_API_COMPATIBILITY_WINDOW;
+  const desktopApiNow = dependencies.desktopApiNow ?? (() => new Date());
 
   app.use("/*", async (c, next) => {
+    if (
+      isClientShellPath(c.req.path) &&
+      c.req.method === "POST" &&
+      requestClientPlatform(c.req.raw) === "tauri"
+    ) {
+      const compatibility = evaluateDesktopApiCompatibility(
+        c.req.raw.headers.get(DESKTOP_API_CONTRACT_HEADER),
+        desktopApiWindow,
+        desktopApiNow(),
+      );
+      if (!compatibility.accepted) {
+        const requestId = requestSupportReferenceId(c);
+        const response = createDesktopApiUpdateRequiredResponse(requestId);
+        const failure = createSupportReferenceFailure({
+          error: { data: { reasonCode: "update-required" } },
+          reasonCode: "update-required",
+          requestId,
+          supportReference:
+            response.headers.get(SUPPORT_REFERENCE_HEADER) ?? undefined,
+          writeOutcome: "not-written",
+        });
+        recordSupportFailure(c.get("log"), failure);
+        return c.newResponse(response.body, response);
+      }
+    }
+
     const context = await createContext({
       accountSessionAccess: dependencies.accountSessionAccess,
       accountPreferences: dependencies.accountPreferences,

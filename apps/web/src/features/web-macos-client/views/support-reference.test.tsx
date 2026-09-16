@@ -93,6 +93,17 @@ describe("Client Shell Support reference notice", () => {
     expect(failure.reason).not.toContain("Not Found");
   });
 
+  test("shows the explicit Update required copy without offering a retry", () => {
+    const failure = buildSupportReferenceFailure(
+      { data: { ...supportError.data, reasonCode: "update-required" } },
+      { kind: "mutation" },
+    );
+
+    expect(failure.reason).toBe("Update required");
+    expect(failure.canRetry).toBe(false);
+    expect(failure.retryBound).toBe("Do not retry.");
+  });
+
   test("does not fabricate a Support reference for an offline failure", () => {
     const failure = buildSupportReferenceFailure(new Error("Failed to fetch"), {
       kind: "query",

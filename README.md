@@ -135,7 +135,7 @@ cantiara/
 
 ### macOS package release
 
-The `.github/workflows/macos-release.yml` workflow builds only signed and notarized macOS `app` and `dmg` artifacts. It runs for `cantiara-v*` tags and keeps the GitHub Release as a draft until the macOS 26, macOS 15, and macOS 14 clean-install matrix is accepted for both package targets. Successful runs upload immutable evidence manifests containing the exact source/workflow identity, macOS version, device architecture, package digest, signing checks, and the combined acceptance-candidate result; the candidate manifest, its checksum, and a raw signing/install evidence archive are also attached to the draft release. Each temporary Actions evidence reference records its authenticated GitHub artifact URL/ID/digest and uses the 90-day Actions retention limit; the signed release assets and acceptance evidence archive remain on the GitHub draft release. Release assets are immutable, so rerunning a tag requires a new release tag rather than overwriting evidence.
+The `.github/workflows/macos-release.yml` workflow builds only signed and notarized macOS `app`, `dmg`, and Tauri updater artifacts. It runs for `cantiara-v*` tags and keeps the GitHub Release as a draft until the macOS 26, macOS 15, and macOS 14 clean-install matrix is accepted for both package targets. Successful runs upload immutable evidence manifests containing the exact source/workflow identity, macOS version, device architecture, package digest, updater artifact/signature, signing checks, and the combined acceptance-candidate result; the candidate manifest, its checksum, and a raw signing/install evidence archive are also attached to the draft release. Each temporary Actions evidence reference records its authenticated GitHub artifact URL/ID/digest and uses the 90-day Actions retention limit; the signed release assets and acceptance evidence archive remain on the GitHub draft release. Release assets are immutable, so rerunning a tag requires a new release tag rather than overwriting evidence. Published releases retain previous signed installers for manual recovery; the updater has no automatic rollback policy.
 
 Configure the `CANTIARA_API_URL` GitHub repository variable and these GitHub Actions secrets before creating a release tag:
 
@@ -145,3 +145,7 @@ Configure the `CANTIARA_API_URL` GitHub repository variable and these GitHub Act
 - `APPLE_API_KEY`: App Store Connect API key ID
 - `APPLE_API_ISSUER`: App Store Connect issuer ID
 - `APPLE_API_PRIVATE_KEY`: Contents of the matching `.p8` private key
+- `TAURI_SIGNING_PRIVATE_KEY`: Tauri updater signing private key content or path
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: Password for the Tauri updater signing key (may be empty)
+
+Configure `TAURI_UPDATER_PUBLIC_KEY` as a GitHub repository variable with the matching public key. The public key is bundled into release builds; the private key and its password are never committed.
