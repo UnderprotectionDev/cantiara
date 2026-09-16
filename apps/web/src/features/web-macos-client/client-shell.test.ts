@@ -1,4 +1,4 @@
-import { MutationObserver } from "@tanstack/react-query";
+import { MutationObserver, onlineManager } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -28,6 +28,7 @@ interface SupportToastOptions {
 
 describe("Client Shell query error boundary", () => {
   beforeEach(() => {
+    onlineManager.setOnline(true);
     vi.mocked(toast.error).mockClear();
   });
 
@@ -56,6 +57,36 @@ describe("Client Shell query error boundary", () => {
     expect(supportOptions?.description).toBeDefined();
   });
 
+  test("fails an offline mutation immediately instead of pausing for reconnect", async () => {
+    const queryClient = createClientShellQueryClient();
+    queryClient.mount();
+    onlineManager.setOnline(false);
+    let attempts = 0;
+
+    try {
+      const mutation = new MutationObserver(queryClient, {
+        mutationFn: () => {
+          attempts += 1;
+          throw new Error("Failed to fetch");
+        },
+      });
+
+      await expect(mutation.mutate(undefined)).rejects.toThrow(
+        "You’re offline",
+      );
+      expect(attempts).toBe(0);
+      expect(mutation.getCurrentResult().isPaused).toBe(false);
+
+      onlineManager.setOnline(true);
+      await vi.waitFor(() => {
+        expect(attempts).toBe(0);
+      });
+    } finally {
+      onlineManager.setOnline(true);
+      queryClient.unmount();
+    }
+  });
+
   test("keeps one Retry action for an unwritten mutation", async () => {
     const queryClient = createClientShellQueryClient();
     let attempts = 0;
@@ -76,7 +107,9 @@ describe("Client Shell query error boundary", () => {
     expect(supportFirstOptions?.action?.label).toBe("Retry");
 
     await supportFirstOptions?.action?.onClick?.({});
-    expect(attempts).toBe(2);
+    await vi.waitFor(() => {
+      expect(attempts).toBe(2);
+    });
     await vi.waitFor(() => {
       expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(2);
     });

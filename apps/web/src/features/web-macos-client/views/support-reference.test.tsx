@@ -101,7 +101,7 @@ describe("Client Shell Support reference notice", () => {
       <SupportReferenceNotice failure={failure} />,
     );
 
-    expect(failure.reason).toBe("You’re offline.");
+    expect(failure.reason).toBe("You’re offline");
     expect(failure.supportReference).toBeNull();
     expect(html).toContain("Support reference unavailable.");
   });

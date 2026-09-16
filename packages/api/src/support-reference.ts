@@ -39,7 +39,7 @@ export const SUPPORT_FAILURE_MESSAGES: Record<
   SupportFailureReasonCode,
   string
 > = {
-  offline: "You’re offline.",
+  offline: "You’re offline",
   "restart-api": "Please restart the API and try again.",
   "schema-drift": "Please restart after applying the latest migration.",
   unexpected: "This action could not be completed.",
