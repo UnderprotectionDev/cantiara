@@ -15,6 +15,7 @@ function createTestApp() {
     accountSessionAccess: {
       authorizeWrite: async () => false,
       listSessions: async () => [],
+      revokeGitHubLoginOAuth: async () => undefined,
       replaySessionRevocations: () => {
         replayCalls += 1;
         return Promise.resolve();

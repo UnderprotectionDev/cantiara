@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import {
   createAccountSessionAccess,
@@ -312,6 +312,129 @@ describe("Account Access sessions", () => {
       expect.objectContaining({ current: true, id: "current-session" }),
     ]);
     await expect(access.authorizeWrite(principal)).resolves.toBe(true);
+  });
+
+  test("keeps a valid product session local when GitHub is unavailable", async () => {
+    const storedSession = session({ id: "current-session" });
+    const githubDown = vi.fn(() =>
+      Promise.reject(new Error("GitHub is unavailable")),
+    );
+    vi.stubGlobal("fetch", githubDown);
+    const access = createAccountSessionAccess({
+      auditRecords: {
+        append: async () => undefined,
+        pruneBefore: async () => undefined,
+      },
+      now: () => NOW,
+      securityEvents: securityEventLog(),
+      sessions: {
+        find: async () => storedSession,
+        list: async () => [storedSession],
+        revoke: async () => undefined,
+        touch: async () => undefined,
+      },
+    });
+
+    try {
+      await expect(
+        access.authorizeWrite({
+          accountId: "account-1",
+          sessionId: "current-session",
+        }),
+      ).resolves.toBe(true);
+      expect(githubDown).not.toHaveBeenCalled();
+      expect(storedSession.expiresAt).toEqual(
+        new Date("2026-10-15T09:00:00.000Z"),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("does not use GitHub App installation to authorize a product session", async () => {
+    const storedSession = session({ id: "current-session" });
+    const appUninstalled = vi.fn(async () => false);
+    vi.stubGlobal("fetch", appUninstalled);
+    const access = createAccountSessionAccess({
+      auditRecords: {
+        append: async () => undefined,
+        pruneBefore: async () => undefined,
+      },
+      now: () => NOW,
+      securityEvents: securityEventLog(),
+      sessions: {
+        find: async () => storedSession,
+        list: async () => [storedSession],
+        revoke: async () => undefined,
+        touch: async () => undefined,
+      },
+    });
+
+    try {
+      await expect(
+        access.authorizeWrite({
+          accountId: "account-1",
+          sessionId: "current-session",
+        }),
+      ).resolves.toBe(true);
+      expect(appUninstalled).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("ends every product session when GitHub login OAuth is revoked", async () => {
+    const storedSessions = [
+      session({ id: "current-session" }),
+      session({ id: "other-session" }),
+    ];
+    const auditRecords: SessionRevocationAuditRecord[] = [];
+    const securityEvents: SessionRevokedSecurityEvent[] = [];
+    const access = createAccountSessionAccess({
+      auditRecords: {
+        append: (record) => {
+          auditRecords.push(record);
+          return Promise.resolve();
+        },
+        pruneBefore: async () => undefined,
+      },
+      now: () => NOW,
+      securityEvents: securityEventLog(securityEvents),
+      sessions: {
+        find: async (id) =>
+          storedSessions.find((item) => item.id === id) ?? null,
+        list: async () => storedSessions,
+        revoke: (accountId, id) => {
+          const index = storedSessions.findIndex(
+            (item) => item.accountId === accountId && item.id === id,
+          );
+          if (index >= 0) {
+            storedSessions.splice(index, 1);
+          }
+          return Promise.resolve();
+        },
+        touch: async () => undefined,
+      },
+    });
+
+    await access.revokeGitHubLoginOAuth("account-1");
+
+    expect(storedSessions).toEqual([]);
+    expect(securityEvents).toHaveLength(2);
+    expect(securityEvents.map((event) => event.targetSessionAlias)).toEqual([
+      "current-session",
+      "other-session",
+    ]);
+    expect(auditRecords.map((record) => record.targetSessionAlias)).toEqual([
+      "current-session",
+      "other-session",
+    ]);
+    await expect(
+      access.authorizeWrite({
+        accountId: "account-1",
+        sessionId: "current-session",
+      }),
+    ).resolves.toBe(false);
   });
 
   test("does not partially revoke other sessions when one security event append fails", async () => {
