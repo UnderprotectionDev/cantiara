@@ -36,7 +36,7 @@ const PREVIEW_TIMESTAMP = "2026-09-16T09:00:00.000Z";
 const PREVIEW_NUMBER = 1_234_567.89;
 const PREVIEW_WORK_TITLE = "Ship the launch";
 const LOCALE_OPTIONS = ["en-GB", "en-US", "tr-TR", "de-DE", "fr-FR"];
-const TIME_ZONE_OPTIONS = Intl.supportedValuesOf("timeZone");
+const TIME_ZONE_OPTIONS = ["UTC", ...Intl.supportedValuesOf("timeZone")];
 
 function optionsWithCurrentValue(
   options: readonly string[],

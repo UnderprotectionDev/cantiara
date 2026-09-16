@@ -45,6 +45,7 @@ describe("Preferences view", () => {
     expect(html).toContain('id="account-preferences-time-zone"');
     expect(html).toContain('value="en-GB"');
     expect(html).toContain('value="Europe/Istanbul"');
+    expect(html).toContain('value="UTC"');
     expect(html).toContain("16 Sept 2026, 12:00");
     expect(html).toContain("1,234,567.89");
     expect(html).toContain("Mon");
