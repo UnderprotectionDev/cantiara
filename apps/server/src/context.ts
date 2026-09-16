@@ -1,3 +1,4 @@
+import type { AccountPreferencesAccess } from "@cantiara/api/account-preferences";
 import type {
   AccountAccessClient,
   Context as ApiContext,
@@ -16,6 +17,7 @@ export type AccountAccessAuth = Pick<
 >;
 
 export interface CreateContextOptions {
+  accountPreferences: AccountPreferencesAccess;
   accountSessionAccess: AccountSessionAccessRuntime;
   auth: AccountAccessAuth;
   context: HonoContext;
@@ -34,6 +36,7 @@ export function requestClientPlatform(request: Request): AccountAccessClient {
 
 export async function createContext({
   accountSessionAccess,
+  accountPreferences,
   auth,
   context,
   database,
@@ -57,6 +60,7 @@ export async function createContext({
   const session = authorized ? candidateSession : null;
   return {
     accountAccess: accountSessionAccess,
+    accountPreferences,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
     clientPlatform: requestClientPlatform(context.req.raw),
     db: database,

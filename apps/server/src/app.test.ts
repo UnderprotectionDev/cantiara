@@ -1,3 +1,7 @@
+import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
 import { createAuthOptions } from "@cantiara/auth";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
@@ -65,6 +69,18 @@ function createTestApp(
           return Promise.resolve();
         },
       } satisfies AppDependencies["accountSessionAccess"]),
+    accountPreferences: {
+      get: async () => ({
+        ...DEFAULT_ACCOUNT_PREFERENCES,
+        isSaved: false,
+        savedAt: null,
+      }),
+      save: async (_accountId: string, preferences: AccountPreferences) => ({
+        ...preferences,
+        isSaved: true,
+        savedAt: "2026-09-16T09:00:00.000Z",
+      }),
+    },
     auth:
       options.auth ??
       ({

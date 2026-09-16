@@ -1,3 +1,4 @@
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -15,17 +16,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Monitor, ShieldCheck } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
-
+import {
+  formatAccountDateTime,
+  formatAccountNumber,
+} from "@/features/account-preferences/forms/account-preferences-format";
 import { client, orpc } from "@/utils/orpc";
-
-const lastActivityFormatter = new Intl.DateTimeFormat("en-GB", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "Europe/Istanbul",
-});
 
 export default function SessionsView() {
   const queryClient = useQueryClient();
+  const accountPreferences = useQuery(orpc.accountPreferences.queryOptions());
   const sessions = useQuery(orpc.sessions.queryOptions());
   const revokeSession = useMutation({
     mutationFn: (sessionId: string) => client.revokeSession({ sessionId }),
@@ -50,6 +49,8 @@ export default function SessionsView() {
   const otherSessionCount =
     sessions.data?.filter((productSession) => !productSession.current).length ??
     0;
+  const formattingPreferences =
+    accountPreferences.data ?? DEFAULT_ACCOUNT_PREFERENCES;
 
   return (
     <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8 sm:py-14">
@@ -81,7 +82,8 @@ export default function SessionsView() {
           </h2>
           {sessions.data ? (
             <span className="text-muted-foreground text-xs">
-              {sessions.data.length} active
+              {formatAccountNumber(sessions.data.length, formattingPreferences)}{" "}
+              active
             </span>
           ) : null}
         </div>
@@ -118,8 +120,9 @@ export default function SessionsView() {
                     <p className="mt-1 text-muted-foreground text-xs">
                       Last activity{" "}
                       <time dateTime={productSession.lastActivityAt}>
-                        {lastActivityFormatter.format(
-                          new Date(productSession.lastActivityAt),
+                        {formatAccountDateTime(
+                          productSession.lastActivityAt,
+                          formattingPreferences,
                         )}
                       </time>
                     </p>

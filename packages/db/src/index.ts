@@ -6,6 +6,8 @@ import "./local-postgres";
 import type { DatabaseConfig } from "./config";
 import {
   account,
+  accountPreferences,
+  accountPreferencesRelations,
   accountRelations,
   auditRecord,
   rateLimit,
@@ -20,6 +22,8 @@ import {
 
 const schema = {
   account,
+  accountPreferences,
+  accountPreferencesRelations,
   accountRelations,
   auditRecord,
   rateLimit,

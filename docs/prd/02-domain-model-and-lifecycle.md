@@ -587,6 +587,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tercihler kaydedildi | `Preferences saved.` | Hesap tercihinin açık Save ile yazıldığını bildiren sistem mesajı |
 | Tercihler yükleniyor | `Loading preferences…` | Hesap tercihinin okunmakta olduğunu bildiren durum |
 | Tercihler kullanılamıyor | `Preferences are unavailable.` | Hesap tercihinin okunamadığını bildiren durum |
+| Tercihler kaydedilemedi | `Preferences could not be saved.` | Hesap tercihi yazılamadığında gösterilen hata durumu |
+| Bağlantı kesildi | `Disconnected` | Online-only çalışmada tercih yazısının geçici olarak kullanılamadığını bildiren durum |
+| Yeniden bağlanarak kaydet | `Reconnect to save.` | Bağlantı geri gelmeden tercih kaydının yapılamayacağını bildiren metin |
+| Son başarılı kaydetme | `Last successful save` | Hesap tercihinin en son başarılı yazıldığı zamanı gösteren durum |
+| Kaydedilmemiş risk | `Unsaved risk` | Bağlantı yokken sayfadan ayrılmanın değişiklikleri kaybettirebileceğini bildiren durum |
+| Hiçbir zaman | `Never` | Hesap tercihinin henüz başarılı biçimde kaydedilmediğini bildiren değer |
+| Tekrar kaydetmeyi dene | `Try Save again.` | Başarısız tercih yazısından sonra yeniden denemeyi öneren metin |
 | Cihaz | `Device` | Ürün oturumunun tanındığı istemci türü |
 | Son etkinlik | `Last activity` | Ürün oturumunun en son kullanıldığı zaman |
 | Geçerli oturum | `Current` | Listelenen satırın bu tarayıcıdaki ürün oturumu olduğunu gösteren durum |

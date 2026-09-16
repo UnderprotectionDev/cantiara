@@ -1,11 +1,39 @@
-import { ThemeProvider as NextThemesProvider } from "next-themes";
 import type * as React from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+
+export type Theme = "light" | "dark";
+
+interface ThemeContextValue {
+  setTheme: (theme: Theme) => void;
+  theme: Theme;
+}
+
+const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({
   children,
-  ...props
-}: React.ComponentProps<typeof NextThemesProvider>) {
-  return <NextThemesProvider {...props}>{children}</NextThemesProvider>;
+  defaultTheme = "dark",
+}: {
+  children: React.ReactNode;
+  defaultTheme?: Theme;
+}) {
+  const [theme, setTheme] = useState<Theme>(defaultTheme);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  const value = useMemo(() => ({ setTheme, theme }), [theme]);
+  return (
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+  );
 }
 
-export { useTheme } from "next-themes";
+export function useTheme() {
+  const value = useContext(ThemeContext);
+  if (!value) {
+    throw new Error("useTheme must be used inside ThemeProvider.");
+  }
+  return value;
+}

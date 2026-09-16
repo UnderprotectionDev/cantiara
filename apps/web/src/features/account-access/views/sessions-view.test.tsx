@@ -1,3 +1,4 @@
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
@@ -23,6 +24,13 @@ describe("Sessions view", () => {
         lastActivityAt: "2026-09-16T08:00:00.000Z",
       },
     ]);
+    queryClient.setQueryData(orpc.accountPreferences.queryOptions().queryKey, {
+      ...DEFAULT_ACCOUNT_PREFERENCES,
+      isSaved: true,
+      savedAt: "2026-09-16T09:00:00.000Z",
+      locale: "tr-TR",
+      timeZone: "Europe/London",
+    });
 
     const html = renderToStaticMarkup(
       <QueryClientProvider client={queryClient}>
@@ -36,7 +44,8 @@ describe("Sessions view", () => {
     expect(html).toContain("Revoke Session");
     expect(html).toContain("Revoke Other Sessions");
     expect(html).toContain("<time");
-    expect(html).toContain("16 Sept 2026, 12:00");
+    expect(html).toContain('dateTime="2026-09-16T09:00:00.000Z"');
+    expect(html).toContain("16 Eyl 2026 10:00");
     expect(html).not.toContain("session-secret");
   });
 });

@@ -1,6 +1,7 @@
 import { ORPCError, type RouterClient } from "@orpc/server";
 import { z } from "zod";
 
+import { accountPreferencesSchema } from "../account-preferences";
 import {
   CONFIRM_GITHUB_IDENTITY_OPERATION_IDS,
   type Context,
@@ -26,6 +27,14 @@ export const appRouter = {
   sessions: protectedProcedure.handler(({ context }) =>
     context.accountAccess.listSessions(sessionPrincipal(context.session)),
   ),
+  accountPreferences: protectedProcedure.handler(({ context }) =>
+    context.accountPreferences.get(context.session.user.id),
+  ),
+  saveAccountPreferences: protectedProcedure
+    .input(accountPreferencesSchema)
+    .handler(({ context, input }) =>
+      context.accountPreferences.save(context.session.user.id, input),
+    ),
   revokeSession: protectedProcedure
     .input(z.object({ sessionId: z.string().min(1) }))
     .handler(async ({ context, input }) => {
