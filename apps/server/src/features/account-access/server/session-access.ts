@@ -151,11 +151,13 @@ function createRevocationEvent(
 export function createAccountSessionAccess({
   auditRecords,
   now,
+  onGitHubLoginOAuthRevoked,
   securityEvents,
   sessions,
 }: {
   auditRecords: AuditRecordStore;
   now?: () => Date;
+  onGitHubLoginOAuthRevoked?: () => void;
   securityEvents: SecurityEventLog;
   sessions: SessionStore;
 }): AccountSessionAccessRuntime {
@@ -234,6 +236,7 @@ export function createAccountSessionAccess({
   return {
     authorizeWrite,
     async revokeGitHubLoginOAuth(accountId: string) {
+      onGitHubLoginOAuthRevoked?.();
       const accountSessions = [...(await sessions.list(accountId))];
       if (accountSessions.length === 0) {
         return;

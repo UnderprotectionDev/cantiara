@@ -10,12 +10,15 @@ const staleSession = {
 
 function createTestApp({
   authorized = false,
+  githubAvailability,
   onRevokeSession = () => undefined,
 }: {
   authorized?: boolean;
+  githubAvailability?: AppDependencies["githubAvailability"];
   onRevokeSession?: (sessionId: string) => void;
 } = {}) {
   let handlerCalls = 0;
+  let handlerBody: unknown;
   let replayCalls = 0;
   const dependencies: AppDependencies = {
     accountSessionAccess: {
@@ -36,14 +39,20 @@ function createTestApp({
       api: {
         getSession: async () => staleSession,
       },
-      handler: () => {
+      handler: async (request: Request) => {
         handlerCalls += 1;
+        try {
+          handlerBody = await request.clone().json();
+        } catch {
+          handlerBody = undefined;
+        }
         return Promise.resolve(Response.json({ status: true }));
       },
     } as unknown as AppDependencies["auth"],
     corsOrigin: "https://cantiara.example",
     database: {} as AppDependencies["database"],
     desktopOrigins: [],
+    githubAvailability,
     nodeEnv: "test",
     redactSecrets: (value) => value,
   };
@@ -51,6 +60,7 @@ function createTestApp({
   return {
     app: createApp(dependencies),
     getHandlerCalls: () => handlerCalls,
+    getHandlerBody: () => handlerBody,
     getReplayCalls: () => replayCalls,
   };
 }
@@ -95,6 +105,36 @@ describe("server app Account Access boundary", () => {
 
     expect(response.status).toBe(200);
     expect(getHandlerCalls()).toBe(1);
+  });
+
+  test("requests fresh GitHub consent after login OAuth revocation", async () => {
+    const { app, getHandlerBody } = createTestApp({
+      githubAvailability: {
+        getStatus: () => "available",
+        requiresFreshConsent: () => true,
+      },
+    });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/api/auth/sign-in/social", {
+        body: JSON.stringify({
+          callbackURL: "https://cantiara.example/dashboard",
+          provider: "github",
+        }),
+        headers: {
+          "content-type": "application/json",
+          origin: "https://cantiara.example",
+        },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(getHandlerBody()).toEqual({
+      additionalParams: { prompt: "consent" },
+      callbackURL: "https://cantiara.example/dashboard",
+      provider: "github",
+    });
   });
 
   test("does not replay security events on each request", async () => {
@@ -212,5 +252,26 @@ describe("server app Account Access boundary", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  test("publishes GitHub waiting status without requiring a product session", async () => {
+    const { app } = createTestApp({
+      githubAvailability: {
+        getStatus: () => "waiting",
+        requiresFreshConsent: () => true,
+      },
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/account-access/github/availability",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      requiresFreshConsent: true,
+      status: "waiting",
+    });
   });
 });

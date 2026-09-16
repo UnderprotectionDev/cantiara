@@ -20,6 +20,11 @@ export interface AccountAdmission {
   admitGitHubCallback: (githubIdentityId: string) => Promise<boolean>;
 }
 
+export interface GitHubAvailabilityObserver {
+  markAvailable: () => void | Promise<void>;
+  markUnavailable: () => void | Promise<void>;
+}
+
 export interface AuthConfig {
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
@@ -34,6 +39,7 @@ export function createAuthOptions(
   database: Database,
   accountAdmission: AccountAdmission,
   desktopOrigins: readonly string[] = [],
+  githubAvailability?: GitHubAvailabilityObserver,
 ): BetterAuthOptions {
   const defaultGitHubProvider = github({
     clientId: env.GITHUB_CLIENT_ID,
@@ -58,19 +64,30 @@ export function createAuthOptions(
       github: {
         clientId: env.GITHUB_CLIENT_ID,
         clientSecret: env.GITHUB_CLIENT_SECRET,
-        prompt: "consent",
         getUserInfo: async (token) => {
+          let userInfo: Awaited<
+            ReturnType<typeof defaultGitHubProvider.getUserInfo>
+          > = null;
           try {
             // This runs after GitHub identity verification and before Better Auth
             // links/provisions an Account or creates a session.
-            const userInfo = await defaultGitHubProvider.getUserInfo(token);
+            userInfo = await defaultGitHubProvider.getUserInfo(token);
+          } catch {
+            await githubAvailability?.markUnavailable();
+            return null;
+          }
+
+          if (!userInfo) {
+            await githubAvailability?.markUnavailable();
+            return null;
+          }
+          await githubAvailability?.markAvailable();
+
+          try {
             if (
-              !(
-                userInfo &&
-                (await accountAdmission.admitGitHubCallback(
-                  String(userInfo.data.id),
-                ))
-              )
+              !(await accountAdmission.admitGitHubCallback(
+                String(userInfo.data.id),
+              ))
             ) {
               return null;
             }
@@ -135,8 +152,15 @@ export function createAuth(
   database: Database,
   accountAdmission: AccountAdmission,
   desktopOrigins: readonly string[] = [],
+  githubAvailability?: GitHubAvailabilityObserver,
 ) {
   return betterAuth(
-    createAuthOptions(env, database, accountAdmission, desktopOrigins),
+    createAuthOptions(
+      env,
+      database,
+      accountAdmission,
+      desktopOrigins,
+      githubAvailability,
+    ),
   );
 }

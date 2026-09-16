@@ -1,7 +1,7 @@
 import { type AccountAdmission, createAuthOptions } from "@cantiara/auth";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { GITHUB_LOGIN_SCOPES } from "./account-access";
 import { sanitizeGitHubCallbackResponse } from "./github-callback-response";
@@ -72,7 +72,34 @@ function installGitHubOAuthTestDouble() {
   globalThis.fetch = githubFetch;
 }
 
-function createGitHubCallbackTestDriver(accountAdmission: AccountAdmission) {
+function installGitHubUnavailableDouble() {
+  function githubFetch(input: string | URL | Request, _init?: RequestInit) {
+    const url = requestUrl(input);
+    if (url === "https://github.com/login/oauth/access_token") {
+      return Promise.resolve(
+        Response.json({
+          access_token: "github-test-token",
+          scope: "read:user,user:email",
+          token_type: "bearer",
+        }),
+      );
+    }
+    if (url === "https://api.github.com/user") {
+      return Promise.reject(new Error("GitHub is unavailable"));
+    }
+    return Promise.reject(new Error(`Unexpected GitHub request: ${url}`));
+  }
+  githubFetch.preconnect = originalFetch.preconnect;
+  globalThis.fetch = githubFetch;
+}
+
+function createGitHubCallbackTestDriver(
+  accountAdmission: AccountAdmission,
+  githubAvailability?: {
+    markAvailable: () => void | Promise<void>;
+    markUnavailable: () => void | Promise<void>;
+  },
+) {
   const database = {
     account: [],
     rateLimit: [],
@@ -80,7 +107,13 @@ function createGitHubCallbackTestDriver(accountAdmission: AccountAdmission) {
     user: [],
     verification: [],
   };
-  const options = createAuthOptions(authConfig, {} as never, accountAdmission);
+  const options = createAuthOptions(
+    authConfig,
+    {} as never,
+    accountAdmission,
+    [],
+    githubAvailability,
+  );
   const auth = betterAuth({
     ...options,
     database: memoryAdapter(database),
@@ -177,6 +210,24 @@ describe("Account Access", () => {
     );
   });
 
+  test("marks GitHub as waiting when the provider cannot return identity", async () => {
+    const markUnavailable = vi.fn();
+    const markAvailable = vi.fn();
+    const driver = createGitHubCallbackTestDriver(acceptingAccountAdmission(), {
+      markAvailable,
+      markUnavailable,
+    });
+    installGitHubUnavailableDouble();
+
+    const response = await driver.completeSignIn();
+
+    expect(response.headers.get("location")).toBe(
+      "https://cantiara.example/login?error=sign_in_failed",
+    );
+    expect(markUnavailable).toHaveBeenCalledOnce();
+    expect(markAvailable).not.toHaveBeenCalled();
+  });
+
   test("callback is rate-limited by the immutable GitHub identity before admission", async () => {
     const callbackIdentities: string[] = [];
     let accountAdmissionCalls = 0;
@@ -246,7 +297,6 @@ describe("Account Access", () => {
     expect(emailResponse.status).toBe(400);
     expect(githubResponse.status).toBe(200);
     expect(authorizationUrl.hostname).toBe("github.com");
-    expect(authorizationUrl.searchParams.get("prompt")).toBe("consent");
     expect(authorizationUrl.searchParams.get("scope")?.split(" ")).toEqual(
       GITHUB_LOGIN_SCOPES,
     );

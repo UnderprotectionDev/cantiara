@@ -321,6 +321,7 @@ describe("Account Access sessions", () => {
     ];
     const auditRecords: SessionRevocationAuditRecord[] = [];
     const securityEvents: SessionRevokedSecurityEvent[] = [];
+    let revocationSignalCalls = 0;
     const access = createAccountSessionAccess({
       auditRecords: {
         append: (record) => {
@@ -330,6 +331,9 @@ describe("Account Access sessions", () => {
         pruneBefore: async () => undefined,
       },
       now: () => NOW,
+      onGitHubLoginOAuthRevoked: () => {
+        revocationSignalCalls += 1;
+      },
       securityEvents: securityEventLog(securityEvents),
       sessions: {
         find: async (id) =>
@@ -350,6 +354,7 @@ describe("Account Access sessions", () => {
 
     await access.revokeGitHubLoginOAuth("account-1");
 
+    expect(revocationSignalCalls).toBe(1);
     expect(storedSessions).toEqual([]);
     expect(securityEvents).toHaveLength(2);
     expect(securityEvents.map((event) => event.targetSessionAlias)).toEqual([
