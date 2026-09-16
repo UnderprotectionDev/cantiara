@@ -39,6 +39,7 @@ describe("Preferences view", () => {
     expect(html).toContain("First day of week");
     expect(html).toContain("Appearance");
     expect(html).toContain("Use suggested locale and time zone");
+    expect(html).toContain("Before saving");
     expect(html).toContain('value="en-GB"');
     expect(html).toContain('value="Europe/Istanbul"');
     expect(html).toContain("16 Sept 2026, 12:00");

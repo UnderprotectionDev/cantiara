@@ -579,6 +579,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kaydet | `Save` | Hesap tercihini açıkça yazan eylem |
 | Önerilen locale ve saat dilimini kullan | `Use suggested locale and time zone` | İlk girişte tarayıcı önerisini forma alan, kaydetmeden uygulamayan eylem |
 | Önizleme | `Preview` | Locale, tarih biçimi ve haftanın ilk gününün gösterim sonucunu kaydetmeden gösteren yüzey |
+| Kaydetmeden önce | `Before saving` | Önizlemenin Hesap tercihlerini yazmadan önceki sonucu gösterdiğini belirten yardımcı etiket |
 | Tarih | `Date` | Önizlemede biçimlenmiş tarih |
 | Sayı | `Number` | Önizlemede biçimlenmiş sayı |
 | Hafta | `Week` | Önizlemede haftanın ilk gününe göre kaymış gün başlıkları |

@@ -21,6 +21,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Check, CircleAlert, Globe2, WifiOff } from "lucide-react";
 import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -92,42 +93,50 @@ function AccountPreferencesSaveStatus({
     return null;
   }
 
+  const StatusIcon = isOnline ? CircleAlert : WifiOff;
+
   return (
     <aside
       aria-live="polite"
-      className="border border-dashed bg-muted/30 p-4"
+      className="flex gap-3 border border-destructive/25 bg-destructive/5 p-4"
       role="status"
     >
-      <p className="font-medium text-sm">
-        {isOnline ? "Preferences could not be saved." : "Disconnected"}
-      </p>
-      <p className="mt-1 text-muted-foreground text-xs/relaxed">
-        {isOnline ? "Try Save again." : "Reconnect to save."}
-      </p>
-      <dl className="mt-3 space-y-1 text-xs/relaxed">
-        <div className="flex flex-wrap gap-x-2">
-          <dt className="font-medium">Last successful save</dt>
-          <dd>
-            {snapshot.savedAt ? (
-              <time dateTime={snapshot.savedAt}>
-                {formatAccountDateTime(snapshot.savedAt, snapshot)}
-              </time>
-            ) : (
-              "Never"
-            )}
-          </dd>
-        </div>
-        {isDirty ? (
+      <StatusIcon
+        aria-hidden="true"
+        className="mt-0.5 size-4 shrink-0 text-destructive"
+      />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-sm">
+          {isOnline ? "Preferences could not be saved." : "Disconnected"}
+        </p>
+        <p className="mt-1 text-muted-foreground text-xs/relaxed">
+          {isOnline ? "Try Save again." : "Reconnect to save."}
+        </p>
+        <dl className="mt-3 space-y-1 text-xs/relaxed">
           <div className="flex flex-wrap gap-x-2">
-            <dt className="font-medium">Unsaved risk</dt>
+            <dt className="font-medium">Last successful save</dt>
             <dd>
-              {isOnline
-                ? "These changes are still unsaved."
-                : "These changes will be lost if you leave this page before reconnecting."}
+              {snapshot.savedAt ? (
+                <time dateTime={snapshot.savedAt}>
+                  {formatAccountDateTime(snapshot.savedAt, snapshot)}
+                </time>
+              ) : (
+                "Never"
+              )}
             </dd>
           </div>
-        ) : null}
-      </dl>
+          {isDirty ? (
+            <div className="flex flex-wrap gap-x-2">
+              <dt className="font-medium">Unsaved risk</dt>
+              <dd>
+                {isOnline
+                  ? "These changes are still unsaved."
+                  : "These changes will be lost if you leave this page before reconnecting."}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+      </div>
     </aside>
   );
 }
@@ -189,23 +198,32 @@ export default function AccountPreferencesForm({
   }
 
   return (
-    <form className="space-y-8" noValidate onSubmit={handleSubmit}>
+    <form className="space-y-6" noValidate onSubmit={handleSubmit}>
       {snapshot.isSaved ? null : (
-        <aside className="border bg-muted/30 p-4" role="status">
-          <p className="font-medium text-sm">Browser suggestion</p>
-          <p className="mt-1 text-muted-foreground text-xs/relaxed">
-            Suggested locale: <code>{suggestion.locale}</code>. Suggested time
-            zone: <code>{suggestion.timeZone}</code>. These values are not
-            applied until you save.
-          </p>
-          <Button
-            className="mt-3"
-            onClick={applySuggestion}
-            type="button"
-            variant="outline"
-          >
-            Use suggested locale and time zone
-          </Button>
+        <aside
+          className="flex gap-3 border border-border bg-muted/35 p-4"
+          role="status"
+        >
+          <Globe2
+            aria-hidden="true"
+            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-sm">Browser suggestion</p>
+            <p className="mt-1 text-muted-foreground text-xs/relaxed">
+              Suggested locale: <code>{suggestion.locale}</code>. Suggested time
+              zone: <code>{suggestion.timeZone}</code>. These values are not
+              applied until you save.
+            </p>
+            <Button
+              className="mt-4"
+              onClick={applySuggestion}
+              type="button"
+              variant="outline"
+            >
+              Use suggested locale and time zone
+            </Button>
+          </div>
         </aside>
       )}
 
@@ -220,241 +238,269 @@ export default function AccountPreferencesForm({
         )}
       </form.Subscribe>
 
-      <FieldGroup>
-        <form.Field name="locale">
-          {(field) => {
-            function handleLocaleChange(event: ChangeEvent<HTMLInputElement>) {
-              field.handleChange(event.target.value);
-            }
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+        <FieldGroup className="grid gap-x-6 gap-y-7 sm:grid-cols-2">
+          <form.Field name="locale">
+            {(field) => {
+              function handleLocaleChange(
+                event: ChangeEvent<HTMLInputElement>,
+              ) {
+                field.handleChange(event.target.value);
+              }
 
-            return (
-              <Field>
-                <FieldLabel htmlFor="account-preferences-locale">
-                  Locale
-                </FieldLabel>
-                <Input
-                  autoComplete="off"
-                  id="account-preferences-locale"
-                  list="account-preferences-locale-options"
-                  name={field.name}
-                  onChange={handleLocaleChange}
-                  value={field.state.value}
-                />
-                <datalist id="account-preferences-locale-options">
-                  <option value="en-GB" />
-                  <option value="en-US" />
-                  <option value="tr-TR" />
-                  <option value="de-DE" />
-                  <option value="fr-FR" />
-                </datalist>
-                <FieldDescription>
-                  Locale changes date, time, and number formatting. Product copy
-                  and your content stay as written.
-                </FieldDescription>
-              </Field>
-            );
-          }}
-        </form.Field>
-
-        <form.Field name="timeZone">
-          {(field) => {
-            function handleTimeZoneChange(
-              event: ChangeEvent<HTMLInputElement>,
-            ) {
-              field.handleChange(event.target.value);
-            }
-
-            return (
-              <Field>
-                <FieldLabel htmlFor="account-preferences-time-zone">
-                  Time zone
-                </FieldLabel>
-                <Input
-                  autoComplete="off"
-                  id="account-preferences-time-zone"
-                  name={field.name}
-                  onChange={handleTimeZoneChange}
-                  value={field.state.value}
-                />
-                <FieldDescription>
-                  Changes future date entry, day boundaries, and historical
-                  display without rewriting stored timestamps.
-                </FieldDescription>
-              </Field>
-            );
-          }}
-        </form.Field>
-
-        <form.Field name="dateFormat">
-          {(field) => {
-            function handleDateFormatChange(
-              event: ChangeEvent<HTMLSelectElement>,
-            ) {
-              field.handleChange(
-                event.target.value as AccountPreferences["dateFormat"],
+              return (
+                <Field>
+                  <FieldLabel htmlFor="account-preferences-locale">
+                    Locale
+                  </FieldLabel>
+                  <Input
+                    autoComplete="off"
+                    id="account-preferences-locale"
+                    list="account-preferences-locale-options"
+                    name={field.name}
+                    onChange={handleLocaleChange}
+                    value={field.state.value}
+                  />
+                  <datalist id="account-preferences-locale-options">
+                    <option value="en-GB" />
+                    <option value="en-US" />
+                    <option value="tr-TR" />
+                    <option value="de-DE" />
+                    <option value="fr-FR" />
+                  </datalist>
+                  <FieldDescription>
+                    Locale changes date, time, and number formatting. Product
+                    copy and your content stay as written.
+                  </FieldDescription>
+                </Field>
               );
-            }
+            }}
+          </form.Field>
 
-            return (
-              <Field>
-                <FieldLabel htmlFor="account-preferences-date-format">
-                  Date format
-                </FieldLabel>
-                <NativeSelect
-                  id="account-preferences-date-format"
-                  name={field.name}
-                  onChange={handleDateFormatChange}
-                  value={field.state.value}
-                >
-                  {DATE_FORMAT_OPTIONS.map((option) => (
-                    <NativeSelectOption key={option.value} value={option.value}>
-                      {option.label}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-                <FieldDescription>
-                  Choose a saved date shape or follow the Locale default.
-                </FieldDescription>
-              </Field>
-            );
-          }}
-        </form.Field>
+          <form.Field name="timeZone">
+            {(field) => {
+              function handleTimeZoneChange(
+                event: ChangeEvent<HTMLInputElement>,
+              ) {
+                field.handleChange(event.target.value);
+              }
 
-        <form.Field name="firstDayOfWeek">
-          {(field) => {
-            function handleFirstDayChange(
-              event: ChangeEvent<HTMLSelectElement>,
-            ) {
-              field.handleChange(
-                event.target.value as AccountPreferences["firstDayOfWeek"],
+              return (
+                <Field>
+                  <FieldLabel htmlFor="account-preferences-time-zone">
+                    Time zone
+                  </FieldLabel>
+                  <Input
+                    autoComplete="off"
+                    id="account-preferences-time-zone"
+                    name={field.name}
+                    onChange={handleTimeZoneChange}
+                    value={field.state.value}
+                  />
+                  <FieldDescription>
+                    Changes future date entry, day boundaries, and historical
+                    display without rewriting stored timestamps.
+                  </FieldDescription>
+                </Field>
               );
-            }
+            }}
+          </form.Field>
 
-            return (
-              <Field>
-                <FieldLabel htmlFor="account-preferences-first-day">
-                  First day of week
-                </FieldLabel>
-                <NativeSelect
-                  id="account-preferences-first-day"
-                  name={field.name}
-                  onChange={handleFirstDayChange}
-                  value={field.state.value}
-                >
-                  {FIRST_DAY_OF_WEEK_OPTIONS.map((day) => (
-                    <NativeSelectOption key={day} value={day}>
-                      {day}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-                <FieldDescription>
-                  Week grids and week boundaries start on this day.
-                </FieldDescription>
-              </Field>
-            );
-          }}
-        </form.Field>
+          <form.Field name="dateFormat">
+            {(field) => {
+              function handleDateFormatChange(
+                event: ChangeEvent<HTMLSelectElement>,
+              ) {
+                field.handleChange(
+                  event.target.value as AccountPreferences["dateFormat"],
+                );
+              }
 
-        <form.Field name="appearance">
-          {(field) => {
-            function handleAppearanceChange(
-              event: ChangeEvent<HTMLSelectElement>,
-            ) {
-              field.handleChange(
-                event.target.value as AccountPreferences["appearance"],
+              return (
+                <Field>
+                  <FieldLabel htmlFor="account-preferences-date-format">
+                    Date format
+                  </FieldLabel>
+                  <NativeSelect
+                    className="w-full"
+                    id="account-preferences-date-format"
+                    name={field.name}
+                    onChange={handleDateFormatChange}
+                    value={field.state.value}
+                  >
+                    {DATE_FORMAT_OPTIONS.map((option) => (
+                      <NativeSelectOption
+                        key={option.value}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                  <FieldDescription>
+                    Choose a saved date shape or follow the Locale default.
+                  </FieldDescription>
+                </Field>
               );
-            }
+            }}
+          </form.Field>
+
+          <form.Field name="firstDayOfWeek">
+            {(field) => {
+              function handleFirstDayChange(
+                event: ChangeEvent<HTMLSelectElement>,
+              ) {
+                field.handleChange(
+                  event.target.value as AccountPreferences["firstDayOfWeek"],
+                );
+              }
+
+              return (
+                <Field>
+                  <FieldLabel htmlFor="account-preferences-first-day">
+                    First day of week
+                  </FieldLabel>
+                  <NativeSelect
+                    className="w-full"
+                    id="account-preferences-first-day"
+                    name={field.name}
+                    onChange={handleFirstDayChange}
+                    value={field.state.value}
+                  >
+                    {FIRST_DAY_OF_WEEK_OPTIONS.map((day) => (
+                      <NativeSelectOption key={day} value={day}>
+                        {day}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                  <FieldDescription>
+                    Week grids and week boundaries start on this day.
+                  </FieldDescription>
+                </Field>
+              );
+            }}
+          </form.Field>
+
+          <form.Field name="appearance">
+            {(field) => {
+              function handleAppearanceChange(
+                event: ChangeEvent<HTMLSelectElement>,
+              ) {
+                field.handleChange(
+                  event.target.value as AccountPreferences["appearance"],
+                );
+              }
+
+              return (
+                <Field>
+                  <FieldLabel htmlFor="account-preferences-appearance">
+                    Appearance
+                  </FieldLabel>
+                  <NativeSelect
+                    className="w-full"
+                    id="account-preferences-appearance"
+                    name={field.name}
+                    onChange={handleAppearanceChange}
+                    value={field.state.value}
+                  >
+                    {APPEARANCE_OPTIONS.map((appearance) => (
+                      <NativeSelectOption key={appearance} value={appearance}>
+                        {appearance}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                  <FieldDescription>
+                    Light or Dark is shared by the web and macOS product shells.
+                  </FieldDescription>
+                </Field>
+              );
+            }}
+          </form.Field>
+        </FieldGroup>
+
+        <form.Subscribe selector={selectFormValues}>
+          {(values) => {
+            const preview = previewValues(values);
 
             return (
-              <Field>
-                <FieldLabel htmlFor="account-preferences-appearance">
-                  Appearance
-                </FieldLabel>
-                <NativeSelect
-                  id="account-preferences-appearance"
-                  name={field.name}
-                  onChange={handleAppearanceChange}
-                  value={field.state.value}
-                >
-                  {APPEARANCE_OPTIONS.map((appearance) => (
-                    <NativeSelectOption key={appearance} value={appearance}>
-                      {appearance}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-                <FieldDescription>
-                  Light or Dark is shared by the web and macOS product shells.
-                </FieldDescription>
-              </Field>
-            );
-          }}
-        </form.Field>
-      </FieldGroup>
-
-      <form.Subscribe selector={selectFormValues}>
-        {(values) => {
-          const preview = previewValues(values);
-
-          return (
-            <section
-              aria-labelledby="account-preferences-preview"
-              className="border-t pt-6"
-            >
-              <h2
-                className="font-medium text-sm"
-                id="account-preferences-preview"
+              <section
+                aria-labelledby="account-preferences-preview"
+                className="border bg-muted/20 p-5 lg:sticky lg:top-4 lg:row-span-2"
               >
-                Preview
-              </h2>
-              <dl className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div>
-                  <dt className="text-muted-foreground text-xs">Date</dt>
-                  <dd className="mt-1 font-medium text-sm">
-                    <time dateTime={PREVIEW_TIMESTAMP}>
-                      {formatAccountDateTime(PREVIEW_TIMESTAMP, preview)}
-                    </time>
-                  </dd>
+                <div className="flex items-baseline justify-between gap-4">
+                  <h2
+                    className="font-medium text-sm"
+                    id="account-preferences-preview"
+                  >
+                    Preview
+                  </h2>
+                  <span className="text-muted-foreground text-xs">
+                    Before saving
+                  </span>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground text-xs">Number</dt>
-                  <dd className="mt-1 font-medium text-sm">
-                    {formatAccountNumber(PREVIEW_NUMBER, preview)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground text-xs">Work title</dt>
-                  <dd className="mt-1 font-medium text-sm">
-                    {PREVIEW_WORK_TITLE}
-                  </dd>
-                </div>
-              </dl>
-              <fieldset className="mt-5">
-                <legend className="text-muted-foreground text-xs">Week</legend>
-                <div className="mt-2 grid grid-cols-7 border-y text-center text-xs">
-                  {getWeekDayLabels(preview).map((day) => (
-                    <span
-                      className="border-r px-2 py-2 last:border-r-0"
-                      key={day}
-                    >
-                      {day}
-                    </span>
-                  ))}
-                </div>
-              </fieldset>
-            </section>
-          );
-        }}
-      </form.Subscribe>
+                <dl className="mt-6 space-y-4">
+                  <div className="border-b pb-3">
+                    <dt className="text-muted-foreground text-xs">Date</dt>
+                    <dd className="mt-1 font-medium text-base tracking-tight">
+                      <time dateTime={PREVIEW_TIMESTAMP}>
+                        {formatAccountDateTime(PREVIEW_TIMESTAMP, preview)}
+                      </time>
+                    </dd>
+                  </div>
+                  <div className="border-b pb-3">
+                    <dt className="text-muted-foreground text-xs">Number</dt>
+                    <dd className="mt-1 font-medium text-base tracking-tight">
+                      {formatAccountNumber(PREVIEW_NUMBER, preview)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs">
+                      Work title
+                    </dt>
+                    <dd className="mt-1 font-medium text-base tracking-tight">
+                      {PREVIEW_WORK_TITLE}
+                    </dd>
+                  </div>
+                </dl>
+                <fieldset className="mt-6 border-t pt-4">
+                  <legend className="text-muted-foreground text-xs">
+                    Week
+                  </legend>
+                  <div className="mt-3 grid grid-cols-7 border-y text-center text-xs">
+                    {getWeekDayLabels(preview).map((day) => (
+                      <span
+                        className="border-r px-1 py-2 last:border-r-0 sm:px-2"
+                        key={day}
+                      >
+                        {day}
+                      </span>
+                    ))}
+                  </div>
+                </fieldset>
+              </section>
+            );
+          }}
+        </form.Subscribe>
 
-      <div className="flex items-center gap-3 border-t pt-6">
-        <Button disabled={savePreferences.isPending || !isOnline} type="submit">
-          {savePreferences.isPending ? "Saving…" : "Save"}
-        </Button>
-        {savePreferences.isSuccess ? (
-          <p aria-live="polite" className="text-muted-foreground text-xs">
-            Preferences saved.
-          </p>
-        ) : null}
+        <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between lg:col-start-1">
+          <div className="min-h-5">
+            {savePreferences.isSuccess ? (
+              <p
+                aria-live="polite"
+                className="flex items-center gap-1.5 text-muted-foreground text-xs"
+              >
+                <Check aria-hidden="true" className="size-3.5 text-primary" />
+                Preferences saved.
+              </p>
+            ) : null}
+          </div>
+          <Button
+            disabled={savePreferences.isPending || !isOnline}
+            type="submit"
+          >
+            {savePreferences.isPending ? "Saving…" : "Save"}
+          </Button>
+        </div>
       </div>
     </form>
   );

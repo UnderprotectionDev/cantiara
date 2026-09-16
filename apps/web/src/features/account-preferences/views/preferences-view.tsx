@@ -13,8 +13,8 @@ export default function PreferencesView() {
 
   if (preferences.isPending) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8 sm:py-14">
-        <h1 className="font-semibold text-2xl tracking-tight">Preferences</h1>
+      <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 sm:py-14">
+        <h1 className="font-semibold text-3xl tracking-tight">Preferences</h1>
         <p className="mt-3 text-muted-foreground text-sm">
           Loading preferences…
         </p>
@@ -24,9 +24,12 @@ export default function PreferencesView() {
 
   if (preferences.isError) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8 sm:py-14">
-        <h1 className="font-semibold text-2xl tracking-tight">Preferences</h1>
-        <div className="mt-6 border-y py-8 text-sm" role="alert">
+      <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 sm:py-14">
+        <h1 className="font-semibold text-3xl tracking-tight">Preferences</h1>
+        <div
+          className="mt-8 border-y bg-destructive/5 px-4 py-6 text-sm"
+          role="alert"
+        >
           <p className="font-medium">Preferences are unavailable.</p>
           <p className="mt-1 text-muted-foreground">
             Try loading this page again.
@@ -43,15 +46,17 @@ export default function PreferencesView() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8 sm:py-14">
-      <header className="border-b pb-7">
-        <h1 className="font-semibold text-2xl tracking-tight">Preferences</h1>
-        <p className="mt-2 max-w-xl text-muted-foreground text-sm/6">
+    <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 sm:py-14">
+      <header className="max-w-2xl border-b pb-8">
+        <h1 className="text-balance font-semibold text-3xl tracking-tight">
+          Preferences
+        </h1>
+        <p className="mt-3 max-w-xl text-muted-foreground text-sm/6">
           Choose how Cantiara formats dates, times, numbers, weeks, and the
           product appearance across every Project.
         </p>
       </header>
-      <div className="pt-7">
+      <div className="pt-8">
         <AccountPreferencesForm snapshot={snapshot} />
       </div>
     </main>
