@@ -30,6 +30,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara
       NEON_LOCAL: "true"
       SECURITY_EVENT_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara_security
+      VITE_SERVER_URL: http://127.0.0.1:3100
 
     steps:
       - uses: actions/checkout@v4
