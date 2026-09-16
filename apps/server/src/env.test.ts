@@ -8,6 +8,7 @@ const validEnvironment = {
   DATABASE_URL: "postgresql://user:password@localhost:5432/cantiara",
   GITHUB_CLIENT_ID: "github-client-id",
   GITHUB_CLIENT_SECRET: "github-client-secret",
+  TRUSTED_PROXY_IPS: "203.0.113.10",
 } as const;
 
 Object.assign(process.env, validEnvironment);
@@ -16,7 +17,10 @@ const { createServerEnv, redactSecrets } = await import("./env");
 
 describe("server environment", () => {
   test("accepts a valid environment", () => {
-    expect(createServerEnv(validEnvironment)).toMatchObject(validEnvironment);
+    expect(createServerEnv(validEnvironment)).toMatchObject({
+      ...validEnvironment,
+      TRUSTED_PROXY_IPS: ["203.0.113.10"],
+    });
   });
 
   test("rejects a short Better Auth secret", () => {
@@ -43,6 +47,34 @@ describe("server environment", () => {
     ).toThrow();
     expect(() =>
       createServerEnv({ ...validEnvironment, GITHUB_CLIENT_SECRET: "" }),
+    ).toThrow();
+  });
+
+  test("parses trusted reverse proxy addresses", () => {
+    expect(
+      createServerEnv({
+        ...validEnvironment,
+        TRUSTED_PROXY_IPS: " 203.0.113.10, 198.51.100.0/24 ",
+      }).TRUSTED_PROXY_IPS,
+    ).toEqual(["203.0.113.10", "198.51.100.0/24"]);
+  });
+
+  test("requires trusted reverse proxies in production", () => {
+    expect(() =>
+      createServerEnv({
+        ...validEnvironment,
+        NODE_ENV: "production",
+        TRUSTED_PROXY_IPS: "",
+      }),
+    ).toThrow("TRUSTED_PROXY_IPS");
+  });
+
+  test("rejects invalid trusted reverse proxy addresses", () => {
+    expect(() =>
+      createServerEnv({
+        ...validEnvironment,
+        TRUSTED_PROXY_IPS: "not-an-ip",
+      }),
     ).toThrow();
   });
 

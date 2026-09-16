@@ -1,11 +1,20 @@
 import type { Database } from "@cantiara/db";
-// biome-ignore lint/performance/noNamespaceImport: The Drizzle adapter requires the complete schema object.
-import * as schema from "@cantiara/db/schema/auth";
+import {
+  account,
+  rateLimit,
+  session,
+  user,
+  verification,
+} from "@cantiara/db/schema/auth";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { github } from "better-auth/social-providers";
+
+const schema = { account, rateLimit, session, user, verification };
 
 export interface AccountAdmission {
   admitAccount: (accountId: string) => Promise<unknown>;
+  admitGitHubCallback: (githubIdentityId: string) => Promise<boolean>;
 }
 
 export interface AuthConfig {
@@ -14,6 +23,7 @@ export interface AuthConfig {
   CORS_ORIGIN: string;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
+  TRUSTED_PROXY_IPS: readonly string[];
 }
 
 export function createAuthOptions(
@@ -22,6 +32,11 @@ export function createAuthOptions(
   accountAdmission: AccountAdmission,
   desktopOrigins: readonly string[] = [],
 ): BetterAuthOptions {
+  const defaultGitHubProvider = github({
+    clientId: env.GITHUB_CLIENT_ID,
+    clientSecret: env.GITHUB_CLIENT_SECRET,
+  });
+
   return {
     database: drizzleAdapter(database, {
       provider: "pg",
@@ -34,6 +49,26 @@ export function createAuthOptions(
       github: {
         clientId: env.GITHUB_CLIENT_ID,
         clientSecret: env.GITHUB_CLIENT_SECRET,
+        getUserInfo: async (token) => {
+          try {
+            // This runs after GitHub identity verification and before Better Auth
+            // links/provisions an Account or creates a session.
+            const userInfo = await defaultGitHubProvider.getUserInfo(token);
+            if (
+              !(
+                userInfo &&
+                (await accountAdmission.admitGitHubCallback(
+                  String(userInfo.data.id),
+                ))
+              )
+            ) {
+              return null;
+            }
+            return userInfo;
+          } catch {
+            return null;
+          }
+        },
       },
     },
     account: {
@@ -53,9 +88,9 @@ export function createAuthOptions(
     databaseHooks: {
       session: {
         create: {
-          before: async (session) => {
+          before: async (sessionRecord) => {
             try {
-              await accountAdmission.admitAccount(session.userId);
+              await accountAdmission.admitAccount(sessionRecord.userId);
             } catch {
               return false;
             }
@@ -66,6 +101,10 @@ export function createAuthOptions(
     advanced: {
       disableCSRFCheck: false,
       disableOriginCheck: false,
+      ipAddress: {
+        ipAddressHeaders: ["x-forwarded-for"],
+        trustedProxies: [...env.TRUSTED_PROXY_IPS],
+      },
       useSecureCookies: true,
       defaultCookieAttributes: {
         sameSite: "lax",

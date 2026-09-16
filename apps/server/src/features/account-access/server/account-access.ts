@@ -30,10 +30,17 @@ export interface AccountIdentityRateLimit {
 
 export interface AccountAdmission {
   admitAccount: (accountId: string) => Promise<AccountWorkspaceAdmission>;
+  admitGitHubCallback: (githubIdentityId: string) => Promise<boolean>;
 }
 
-function createAccountAccessError() {
-  return new Error(ACCOUNT_ACCESS_FAILURE_CODE);
+function createAccountAccessError(cause?: unknown) {
+  if (cause === undefined) {
+    return new Error(ACCOUNT_ACCESS_FAILURE_CODE);
+  }
+
+  return new Error(ACCOUNT_ACCESS_FAILURE_CODE, {
+    cause: new Error(ACCOUNT_ACCESS_FAILURE_CODE),
+  });
 }
 
 export function createAccountAdmission({
@@ -46,6 +53,13 @@ export function createAccountAdmission({
   workspaces: AccountWorkspaceStore;
 }): AccountAdmission {
   return {
+    async admitGitHubCallback(githubIdentityId) {
+      try {
+        return await rateLimit.consume(githubIdentityId, "callback");
+      } catch {
+        return false;
+      }
+    },
     async admitAccount(accountId: string) {
       try {
         const githubIdentity =
@@ -54,17 +68,11 @@ export function createAccountAdmission({
           throw createAccountAccessError();
         }
 
-        // A trusted identity is only available after GitHub returns. Attribute the
-        // state-verified start and the callback to separate identity budgets here.
         const startAllowed = await rateLimit.consume(
           githubIdentity.id,
           "start",
         );
-        const callbackAllowed = await rateLimit.consume(
-          githubIdentity.id,
-          "callback",
-        );
-        if (!(startAllowed && callbackAllowed)) {
+        if (!startAllowed) {
           throw createAccountAccessError();
         }
         const workspace = await workspaces.findByAccountId(accountId);
@@ -72,9 +80,9 @@ export function createAccountAdmission({
           throw createAccountAccessError();
         }
         return workspace;
-      } catch {
-        // biome-ignore lint/style/useErrorCause: Account Access errors must not retain existence-sensitive details.
-        throw createAccountAccessError();
+      } catch (error) {
+        // Do not expose provider, database, or existence-sensitive details.
+        throw createAccountAccessError(error);
       }
     },
   };
