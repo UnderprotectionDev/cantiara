@@ -6,6 +6,7 @@ import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { env } from "../env";
+import { createTauriBearerHeaders } from "../features/account-access/tauri-session";
 
 export function createQueryClient() {
   return new QueryClient({
@@ -28,10 +29,12 @@ export const queryClient = createQueryClient();
 
 export const link = new RPCLink({
   url: `${env.VITE_SERVER_URL.replace(/\/$/, "")}/rpc`,
-  fetch(url, options) {
-    return globalThis.fetch(url, {
-      ...options,
+  async fetch(request, init) {
+    const headers = await createTauriBearerHeaders(request.headers);
+    return globalThis.fetch(request, {
+      ...init,
       credentials: "include",
+      headers,
     });
   },
 });

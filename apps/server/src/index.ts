@@ -8,6 +8,7 @@ import {
   getDb,
   githubAvailability,
   replaySessionRevocations,
+  tauriSessionAccess,
 } from "./services";
 
 initLogger({
@@ -25,4 +26,5 @@ export default createApp({
   githubAvailability,
   nodeEnv: env.NODE_ENV,
   redactSecrets,
+  tauriSessionAccess,
 });

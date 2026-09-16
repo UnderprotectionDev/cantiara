@@ -6,6 +6,7 @@ import { desktopOrigins, env } from "./env";
 import { createDatabaseAccountAdmission } from "./features/account-access/server/account-admission";
 import { createGitHubAvailability } from "./features/account-access/server/github-availability";
 import { createDatabaseAccountSessionAccess } from "./features/account-access/server/session-access-database";
+import { createDatabaseTauriSessionAccess } from "./features/account-access/server/tauri-session-database";
 
 const db = createDb(env);
 const securityEventDb = createSecurityEventDb({
@@ -17,6 +18,11 @@ export const accountSessionAccess = createDatabaseAccountSessionAccess(
   db,
   securityEventDb,
   { onGitHubLoginOAuthRevoked: githubAvailability.requireFreshConsent },
+);
+export const tauriSessionAccess = createDatabaseTauriSessionAccess(
+  db,
+  accountSessionAccess,
+  securityEventDb,
 );
 let securityReplay: Promise<void> | undefined;
 

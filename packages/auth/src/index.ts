@@ -18,11 +18,13 @@ import {
   type OAuth2Tokens,
   type OAuthProvider,
 } from "better-auth/oauth2";
+import { bearer } from "better-auth/plugins";
 import { github } from "better-auth/social-providers";
 
 const schema = { account, rateLimit, session, user, verification };
 export const SESSION_ABSOLUTE_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 export const SESSION_IDLE_LIFETIME_MS = 12 * 60 * 60 * 1000;
+export const TAURI_AUTH_CALLBACK_URL = "cantiara://auth/callback";
 const SESSION_ABSOLUTE_LIFETIME_SECONDS = SESSION_ABSOLUTE_LIFETIME_MS / 1000;
 
 export interface AccountAdmission {
@@ -199,7 +201,11 @@ export function createAuthOptions(
       "/revoke-sessions",
       "/revoke-other-sessions",
     ],
-    trustedOrigins: [env.CORS_ORIGIN, ...desktopOrigins],
+    trustedOrigins: [
+      env.CORS_ORIGIN,
+      ...desktopOrigins,
+      TAURI_AUTH_CALLBACK_URL,
+    ],
     emailAndPassword: { enabled: false },
     socialProviders: {
       github: {
@@ -295,9 +301,12 @@ export function createAuthOptions(
         httpOnly: true,
       },
     },
-    plugins: githubAvailability
-      ? [createGitHubAvailabilityPlugin(githubAvailability)]
-      : [],
+    plugins: [
+      bearer(),
+      ...(githubAvailability
+        ? [createGitHubAvailabilityPlugin(githubAvailability)]
+        : []),
+    ],
   };
 }
 

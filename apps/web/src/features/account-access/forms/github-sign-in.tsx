@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
 
+import { isTauriRuntime, openTauriGitHubSignIn } from "../tauri-session";
 import { createGitHubSignInCallbackUrl } from "./github-sign-in-url";
 import GitHubWaitingStatus from "./github-waiting-status";
 
@@ -21,6 +22,15 @@ export default function GitHubSignIn() {
   const isGitHubUnavailable = githubAvailability.data?.status === "waiting";
 
   async function signIn() {
+    if (isTauriRuntime()) {
+      try {
+        await openTauriGitHubSignIn();
+      } catch {
+        toast.error(SIGN_IN_FAILURE_MESSAGE);
+      }
+      return;
+    }
+
     setIsWaitingForGitHub(true);
 
     try {
