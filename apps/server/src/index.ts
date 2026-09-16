@@ -16,6 +16,7 @@ import { cors } from "hono/cors";
 
 import { createContext } from "./context";
 import { desktopOrigins, env, redactSecrets } from "./env";
+import { sanitizeGitHubCallbackResponse } from "./features/account-access/server/github-callback-response";
 import { auth } from "./services";
 
 initLogger({
@@ -49,7 +50,10 @@ app.use(
   }),
 );
 
-app.on(["POST", "GET"], "/api/auth/*", async (c) => auth.handler(c.req.raw));
+app.on(["POST", "GET"], "/api/auth/*", async (c) => {
+  const response = await auth.handler(c.req.raw);
+  return sanitizeGitHubCallbackResponse(c.req.raw, response, env.CORS_ORIGIN);
+});
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
   plugins: [

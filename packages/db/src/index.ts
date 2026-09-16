@@ -1,12 +1,36 @@
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import { Pool } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-serverless";
 
 import type { DatabaseConfig } from "./config";
-import * as schema from "./schema";
+import {
+  account,
+  accountRelations,
+  rateLimit,
+  session,
+  sessionRelations,
+  user,
+  userRelations,
+  verification,
+  workspace,
+  workspaceRelations,
+} from "./schema";
+
+const schema = {
+  account,
+  accountRelations,
+  rateLimit,
+  session,
+  sessionRelations,
+  user,
+  userRelations,
+  verification,
+  workspace,
+  workspaceRelations,
+};
 
 export function createDb(env: DatabaseConfig) {
-  const sql = neon(env.DATABASE_URL);
-  return drizzle(sql, { schema });
+  const pool = new Pool({ connectionString: env.DATABASE_URL });
+  return drizzle({ client: pool, schema });
 }
 
 export type Database = ReturnType<typeof createDb>;

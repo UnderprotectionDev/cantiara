@@ -11,7 +11,8 @@
     "dev": "vite dev",
     "serve": "vite preview",
     "start": "vite",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "vitest run"
   },
   "dependencies": {
     "@cantiara/api": "workspace:*",

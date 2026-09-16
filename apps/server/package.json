@@ -7,7 +7,8 @@
     "check-types": "tsc -b ../../packages/api && tsc --noEmit",
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "bun run --hot src/index.ts",
-    "start": "bun run dist/index.mjs"
+    "start": "bun run dist/index.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@cantiara/api": "workspace:*",
@@ -18,8 +19,10 @@
     "@orpc/zod": "catalog:",
     "@t3-oss/env-core": "catalog:",
     "better-auth": "catalog:",
+    "drizzle-orm": "^0.45.2",
     "evlog": "^2.28.1",
     "hono": "^4.13.7",
+    "ipaddr.js": "^1.9.1",
     "zod": "catalog:"
   },
   "devDependencies": {

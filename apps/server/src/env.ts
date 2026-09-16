@@ -1,13 +1,43 @@
 import { createEnv } from "@t3-oss/env-core";
+import ipaddr from "ipaddr.js";
 import { z } from "zod";
 
-const sensitiveEnvKeys = ["BETTER_AUTH_SECRET", "DATABASE_URL"] as const;
+const sensitiveEnvKeys = [
+  "BETTER_AUTH_SECRET",
+  "DATABASE_URL",
+  "GITHUB_CLIENT_SECRET",
+] as const;
 const redactedValue = "[REDACTED]";
+
+function parseTrustedProxyIps(value: string) {
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function isValidTrustedProxyIp(entry: string) {
+  if (ipaddr.isValid(entry)) {
+    return true;
+  }
+  try {
+    ipaddr.parseCIDR(entry);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const trustedProxyIpsSchema = z
+  .string()
+  .default("")
+  .transform(parseTrustedProxyIps)
+  .refine((entries) => entries.every(isValidTrustedProxyIp));
 
 export function createServerEnv(
   runtimeEnv: Record<string, string | undefined> = process.env,
 ) {
-  return createEnv({
+  const serverEnv = createEnv({
     server: {
       NODE_ENV: z
         .enum(["development", "production", "test"])
@@ -16,10 +46,24 @@ export function createServerEnv(
       BETTER_AUTH_URL: z.url(),
       CORS_ORIGIN: z.url(),
       DATABASE_URL: z.string().min(1),
+      GITHUB_CLIENT_ID: z.string().min(1),
+      GITHUB_CLIENT_SECRET: z.string().min(1),
+      TRUSTED_PROXY_IPS: trustedProxyIpsSchema,
     },
     runtimeEnv,
     emptyStringAsUndefined: true,
   });
+
+  if (
+    serverEnv.NODE_ENV === "production" &&
+    serverEnv.TRUSTED_PROXY_IPS.length === 0
+  ) {
+    throw new Error(
+      "TRUSTED_PROXY_IPS must contain the deployed reverse proxy addresses in production",
+    );
+  }
+
+  return serverEnv;
 }
 
 export const env = createServerEnv();
