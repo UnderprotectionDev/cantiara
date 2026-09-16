@@ -2,11 +2,11 @@ import {
   type AccountPreferences,
   DEFAULT_ACCOUNT_PREFERENCES,
 } from "@cantiara/api/account-preferences";
+import { SUPPORT_REFERENCE_PATTERN } from "@cantiara/api/support-reference";
 import { createAuthOptions } from "@cantiara/auth";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { describe, expect, test, vi } from "vitest";
-
 import type { AppDependencies } from "./app";
 import { createApp } from "./app";
 import { createGitHubAvailability } from "./features/account-access/server/github-availability";
@@ -194,6 +194,108 @@ describe("server app Account Access boundary", () => {
     );
 
     expect(response.status).toBe(401);
+  });
+
+  test("gives an unmatched RPC a restart-the-API Support reference", async () => {
+    const { app } = createTestApp();
+    const clientRequestId = "123e4567-e89b-12d3-a456-426614174000";
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/rpc/missing-procedure", {
+        headers: { "x-request-id": clientRequestId },
+      }),
+    );
+    const body = (await response.json()) as {
+      data: {
+        reasonCode: string;
+        supportReference: string;
+        writeOutcome: string;
+      };
+      message: string;
+    };
+    const serialized = JSON.stringify(body);
+
+    expect(response.status).toBe(404);
+    expect(body.message).toBe("Please restart the API and try again.");
+    expect(body.data.reasonCode).toBe("restart-api");
+    expect(body.data.supportReference).toMatch(SUPPORT_REFERENCE_PATTERN);
+    expect(body.data.writeOutcome).toBe("not-written");
+    expect(body.data.supportReference).not.toBe(
+      `SUP-${clientRequestId.toUpperCase()}`,
+    );
+    expect(serialized).not.toContain(clientRequestId);
+    expect(serialized).not.toContain("404 Not Found");
+    expect(serialized).not.toContain("Not Found");
+  });
+
+  test("does not wrap Account Access errors in the Client Shell envelope", async () => {
+    const { app } = createTestApp({
+      auth: {
+        api: { getSession: async () => null },
+        handler: () => {
+          throw new Error("private Workspace body token=secret-token");
+        },
+      } as unknown as AppDependencies["auth"],
+    });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/api/auth/sign-in/social", {
+        headers: {
+          "content-type": "application/json",
+          origin: "https://cantiara.example",
+        },
+        method: "POST",
+      }),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(body).toBe("Internal Server Error");
+    expect(response.headers.get("x-cantiara-support-reference")).toBeNull();
+    expect(body).not.toContain("private Workspace body");
+  });
+
+  test("sanitizes a failed RPC before it reaches the response or log sink", async () => {
+    const { app } = createTestApp({
+      accountSessionAccess: {
+        authorizeWrite: async () => true,
+        listSessions: () => {
+          throw new Error(
+            '42P01 relation "private_workspace" does not exist token=secret-token private Workspace body',
+          );
+        },
+        replaySessionRevocations: () => Promise.resolve(),
+        revokeGitHubLoginOAuth: () => Promise.resolve(),
+        revokeOtherSessions: async () => undefined,
+        revokeSession: async () => undefined,
+      },
+      authorized: true,
+    });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/rpc/sessions", {
+        body: JSON.stringify({}),
+        headers: {
+          "content-type": "application/json",
+          origin: "https://cantiara.example",
+        },
+        method: "POST",
+      }),
+    );
+    const body = (await response.json()) as {
+      data: { reasonCode: string; writeOutcome: string };
+      message: string;
+    };
+    const serialized = JSON.stringify(body);
+
+    expect(response.status).toBe(500);
+    expect(body.message).toBe(
+      "Please restart after applying the latest migration.",
+    );
+    expect(body.data.reasonCode).toBe("schema-drift");
+    expect(body.data.writeOutcome).toBe("unknown");
+    expect(serialized).not.toContain("secret-token");
+    expect(serialized).not.toContain("private Workspace body");
   });
 
   test("starts Tauri sign-in in the system browser with a browser-owned state cookie", async () => {

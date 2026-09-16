@@ -20,6 +20,7 @@ import {
   formatAccountDateTime,
   formatAccountNumber,
 } from "@/features/account-preferences/forms/account-preferences-format";
+import { runOnlineOnlyWrite } from "@/features/web-macos-client/views/client-shell";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 
 export default function SessionsView({ accountId }: { accountId: string }) {
@@ -29,20 +30,16 @@ export default function SessionsView({ accountId }: { accountId: string }) {
   );
   const sessions = useQuery(orpc.sessions.queryOptions());
   const revokeSession = useMutation({
-    mutationFn: (sessionId: string) => client.revokeSession({ sessionId }),
-    onError: () => {
-      toast.error("Session could not be revoked.");
-    },
+    mutationFn: (sessionId: string) =>
+      runOnlineOnlyWrite(() => client.revokeSession({ sessionId })),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orpc.sessions.key() });
       toast.success("Session revoked.");
     },
   });
   const revokeOtherSessions = useMutation({
-    mutationFn: (_targetSessionAlias: string) => client.revokeOtherSessions(),
-    onError: () => {
-      toast.error("Other sessions could not be revoked.");
-    },
+    mutationFn: (_targetSessionAlias: string) =>
+      runOnlineOnlyWrite(() => client.revokeOtherSessions()),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orpc.sessions.key() });
       toast.success("Other sessions revoked.");

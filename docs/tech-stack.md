@@ -103,7 +103,7 @@ Bir sorumluluğun sahibi bu belgede yoksa, birden fazla yoruma açıksa veya se�
 | --- | --- |
 | Railway | Deployment, worker, operasyonel cron ve sürümlü üst şifreleme anahtarı gibi sealed runtime secret yönetimi; dinamik kullanıcı entegrasyon token kasası değildir |
 | pg-boss | PostgreSQL tabanlı durable job, zamanlama, retry ve dead-letter yönetimi |
-| Cloudflare R2 | Nesne, arşiv ve sürüm kabul kanıtı artifact depolama; ham public object URL'si dış yüzey asset sözleşmesi değildir ve bu satır operasyonel yedek mimarisi veya sağlayıcısı seçmez. Ürün sonucu: [operasyonel yedek ve kurtarma](prd/03-account-platform-operations.md#operasyonel-yedek-ve-kurtarma) |
+| Cloudflare R2 | Nesne, arşiv ve ürün/operasyon kabul kanıtı artifact depolama; macOS package acceptance candidate'ın dağıtılabilir kanıtı için GitHub Releases kalıcı release sınırıdır. Ham public object URL'si dış yüzey asset sözleşmesi değildir ve bu satır operasyonel yedek mimarisi veya sağlayıcısı seçmez. Ürün sonucu: [operasyonel yedek ve kurtarma](prd/03-account-platform-operations.md#operasyonel-yedek-ve-kurtarma) |
 | Cloudflare CDN | Dış yüzey etkinliği edge/origin tarafından her HTML ve asset isteğinde doğrulandıktan sonra payload dağıtımı ve purge hijyeni; stale/offline erişim veya güvenlik bariyeri değildir |
 | Cloudflare WAF / Rate Limiting | IP tabanlı edge kötüye kullanım koruması |
 | Tauri | İlk sürümde macOS masaüstü uygulaması |
@@ -115,7 +115,7 @@ Bir sorumluluğun sahibi bu belgede yoksa, birden fazla yoruma açıksa veya se�
 | WXT | React tarayıcı uzantısı |
 | Next.js | Yalnız Fumadocs dokümantasyon uygulamasının server/RSC framework'ü; ana ürün web uygulamasını veya API backend'ini taşımaz |
 | Fumadocs + Fumadocs MDX | `Next.js: Fumadocs MDX` şablonunu kullanan dokümantasyon sitesi ve repository içi MDX içerik kaynağı |
-| GitHub Releases | Masaüstü sürüm dağıtımı |
+| GitHub Releases | Masaüstü sürüm dağıtımı ve imzalı macOS package acceptance candidate ile ham kanıt arşivi için kalıcı release sınırı |
 | Better Stack | Log, metrik, trace, uptime, heartbeat, hata izleme ve alarm |
 | Evlog | Yapılandırılmış loglama |
 

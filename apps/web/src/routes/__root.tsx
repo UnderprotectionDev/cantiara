@@ -10,6 +10,7 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import Header from "@/components/header";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
+import { ClientShellProvider } from "@/features/web-macos-client/views/client-shell";
 import type { orpc } from "@/utils/orpc";
 
 import "../index.css";
@@ -44,9 +45,11 @@ function RootComponent() {
   return (
     <>
       <HeadContent />
-      <ThemeProvider defaultTheme="dark">
-        <AppShell />
-      </ThemeProvider>
+      <ClientShellProvider>
+        <ThemeProvider defaultTheme="dark">
+          <AppShell />
+        </ThemeProvider>
+      </ClientShellProvider>
       <TanStackRouterDevtools position="bottom-left" />
       <ReactQueryDevtools buttonPosition="bottom-right" position="bottom" />
     </>

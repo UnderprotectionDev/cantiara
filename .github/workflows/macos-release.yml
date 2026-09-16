@@ -1,0 +1,747 @@
+name: macOS package
+
+on:
+  push:
+    tags:
+      - cantiara-v*
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing cantiara-v* tag to build and release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: 1.3.13
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+
+jobs:
+  preflight:
+    name: Validate release candidate
+    runs-on: macos-14
+    env:
+      VITE_SERVER_URL: ${{ vars.CANTIARA_API_URL }}
+
+    steps:
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RELEASE_TAG" in
+            cantiara-v?*) ;;
+            *) echo "RELEASE_TAG must start with cantiara-v" >&2; exit 1 ;;
+          esac
+
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Verify release tag
+        shell: bash
+        run: git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"
+
+      - name: Validate API URL
+        shell: bash
+        env:
+          CANTIARA_API_URL: ${{ vars.CANTIARA_API_URL }}
+        run: |
+          set -euo pipefail
+          case "$CANTIARA_API_URL" in
+            https://*) ;;
+            *) echo "CANTIARA_API_URL must be an HTTPS URL" >&2; exit 1 ;;
+          esac
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run release candidate checks
+        run: |
+          bun run check
+          bun run check-types
+          bun run --cwd apps/web test
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: preflight
+    permissions:
+      contents: write
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+    env:
+      VITE_SERVER_URL: ${{ vars.CANTIARA_API_URL }}
+
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Verify release tag
+        shell: bash
+        run: git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          toolchain: 1.98.1
+
+      - name: Verify Rust lockfile
+        run: cargo metadata --manifest-path apps/web/src-tauri/Cargo.toml --locked --no-deps --format-version 1 > /dev/null
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate signing inputs
+        shell: bash
+        env:
+          CANTIARA_API_URL: ${{ vars.CANTIARA_API_URL }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          case "$CANTIARA_API_URL" in
+            https://*) ;;
+            *) echo "CANTIARA_API_URL must be an HTTPS URL" >&2; exit 1 ;;
+          esac
+          test -n "$APPLE_CERTIFICATE"
+          test -n "$APPLE_CERTIFICATE_PASSWORD"
+          test -n "$APPLE_API_KEY"
+          test -n "$APPLE_API_ISSUER"
+          test -n "$APPLE_API_PRIVATE_KEY"
+          test -n "$APPLE_SIGNING_IDENTITY"
+
+      - name: Import Developer ID certificate
+        uses: apple-actions/import-codesign-certs@v7
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Verify Developer ID identity
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          security find-identity -v -p codesigning | grep -F 'Developer ID Application'
+          security find-identity -v -p codesigning | grep -F "\"$APPLE_SIGNING_IDENTITY\""
+
+      - name: Prepare App Store Connect API key
+        shell: bash
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
+          printf '%s' "$APPLE_API_PRIVATE_KEY" > "$key_path"
+          test -s "$key_path"
+          echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - name: Build and publish signed package
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_SERVER_URL: ${{ env.VITE_SERVER_URL }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        with:
+          projectPath: apps/web
+          tauriScript: bun run tauri
+          args: --target ${{ matrix.target }}
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: Cantiara ${{ env.RELEASE_TAG }}
+          releaseBody: Signed and notarized macOS packages for the Cantiara Client Shell.
+          releaseDraft: true
+          prerelease: true
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false
+
+      - name: Verify signed and notarized app
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          bundle_root="apps/web/src-tauri/target/$TARGET/release/bundle"
+          app_path="$(find "$bundle_root/macos" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          dmg_path="$(find "$bundle_root/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          test -n "$app_path"
+          test -n "$dmg_path"
+
+          evidence_directory="$RUNNER_TEMP/macos-package-evidence"
+          mkdir -p "$evidence_directory"
+          macos_version="$(sw_vers -productVersion)"
+          runner_architecture="$(uname -m)"
+          source_commit="$(git rev-parse HEAD)"
+          workflow_sha="${GITHUB_WORKFLOW_SHA:-$source_commit}"
+          dmg_name="$(basename "$dmg_path")"
+          dmg_sha256="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
+          migration_directory_hash="$(
+            git ls-files packages/db/src/migrations |
+              sort |
+              while IFS= read -r migration_file; do
+                shasum -a 256 "$migration_file"
+              done |
+              shasum -a 256 |
+              awk '{print $1}'
+          )"
+          last_migration_name="$(
+            find packages/db/src/migrations -maxdepth 1 -type f -name '*.sql' -print |
+              sed 's#^.*/##; s#\.sql$##' |
+              sort |
+              tail -n 1
+          )"
+          test -n "$migration_directory_hash"
+          test -n "$last_migration_name"
+          schema_version="$last_migration_name:$migration_directory_hash"
+
+          codesign --verify --deep --strict --verbose=2 "$app_path" 2>&1 | tee "$evidence_directory/codesign-verify.txt"
+          codesign --display --verbose=4 "$app_path" 2> "$evidence_directory/codesign-display.txt"
+          spctl --assess --type execute --verbose=4 "$app_path" 2>&1 | tee "$evidence_directory/gatekeeper.txt"
+          xcrun stapler validate "$app_path" 2>&1 | tee "$evidence_directory/notarization.txt"
+          hdiutil imageinfo "$dmg_path" > "$evidence_directory/dmg-info.txt"
+
+          install_mount="$RUNNER_TEMP/cantiara-package-mount-$TARGET"
+          install_directory="$RUNNER_TEMP/cantiara-package-install-$TARGET"
+          mkdir -p "$install_mount" "$install_directory"
+          hdiutil attach "$dmg_path" -nobrowse -readonly -mountpoint "$install_mount"
+          trap 'hdiutil detach "$install_mount" -force || true' EXIT
+          installed_source="$(find "$install_mount" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$installed_source"
+          installed_app="$install_directory/$(basename "$installed_source")"
+          ditto "$installed_source" "$installed_app"
+          test -d "$installed_app"
+          codesign --verify --deep --strict --verbose=2 "$installed_app"
+          spctl --assess --type execute --verbose=4 "$installed_app"
+          xcrun stapler validate "$installed_app"
+
+          jq -n \
+            --arg sourceCommit "$source_commit" \
+            --arg workflowRef "$GITHUB_WORKFLOW_REF" \
+            --arg workflowRunAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg workflowRunId "$GITHUB_RUN_ID" \
+            --arg workflowSha "$workflow_sha" \
+            --arg evidenceId "client-shell.macos-package-$TARGET.v1" \
+            --arg target "$TARGET" \
+            --arg macOSVersion "$macos_version" \
+            --arg runnerArchitecture "$runner_architecture" \
+            --arg dmgName "$dmg_name" \
+            --arg dmgSha256 "$dmg_sha256" \
+            --arg schemaVersion "$schema_version" \
+            '{
+              manifestFormatVersion: "cantiara.macos-package-evidence/v1",
+              evidenceType: "signed-notarized-package",
+              acceptance: {
+                evidenceId: $evidenceId,
+                acceptanceJourney: "macOS paket kabulü",
+                testType: "exact-build platform matrix",
+                fixture: "Sentetik fixture",
+                seam: "Client Shell"
+              },
+              sourceCommit: $sourceCommit,
+              workflow: {
+                ref: $workflowRef,
+                runAttempt: $workflowRunAttempt,
+                runId: $workflowRunId,
+                sha: $workflowSha
+              },
+              target: $target,
+              environment: {
+                macOSVersion: $macOSVersion,
+                runnerArchitecture: $runnerArchitecture
+              },
+              backend: {
+                api: "hono-bun",
+                sourceOfTruth: "neon-postgresql",
+                localDataLayer: false
+              },
+              artifact: {
+                kind: "dmg",
+                name: $dmgName,
+                sha256: $dmgSha256
+              },
+              result: "passed",
+              schemaVersion: $schemaVersion,
+              checks: {
+                install: "passed",
+                codesign: "passed",
+                gatekeeper: "passed",
+                notarization: "passed"
+              }
+            }' > "$evidence_directory/acceptance-manifest.json"
+
+      - name: Validate package evidence contract
+        working-directory: apps/web
+        env:
+          EVIDENCE_MANIFEST_PATH: ${{ runner.temp }}/macos-package-evidence/acceptance-manifest.json
+        run: |
+          bun -e 'const path = process.env.EVIDENCE_MANIFEST_PATH; if (!path) throw new Error("EVIDENCE_MANIFEST_PATH is required"); const manifest = JSON.parse(await Bun.file(path).text()); const { isMacOSPackageEvidence } = await import("./src/features/web-macos-client/views/macos-package-contract.ts"); if (!isMacOSPackageEvidence(manifest)) throw new Error("macOS package evidence does not satisfy the Client Shell contract");'
+
+      - name: Upload package and acceptance evidence
+        if: always()
+        id: package_evidence_upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-package-${{ matrix.target }}
+          path: |
+            apps/web/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            ${{ runner.temp }}/macos-package-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Write package artifact reference
+        if: success()
+        shell: bash
+        env:
+          ARTIFACT_DIGEST: ${{ steps.package_evidence_upload.outputs.artifact-digest }}
+          ARTIFACT_ID: ${{ steps.package_evidence_upload.outputs.artifact-id }}
+          ARTIFACT_NAME: macos-package-${{ matrix.target }}
+          ARTIFACT_URL: ${{ steps.package_evidence_upload.outputs.artifact-url }}
+          EVIDENCE_DIRECTORY: ${{ runner.temp }}/macos-package-evidence
+          REFERENCE_DIRECTORY: ${{ runner.temp }}/macos-package-reference
+          EVIDENCE_KEY: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          test -n "$ARTIFACT_DIGEST"
+          test -n "$ARTIFACT_ID"
+          test -n "$ARTIFACT_URL"
+          mkdir -p "$REFERENCE_DIRECTORY"
+          artifact_digest="sha256:$ARTIFACT_DIGEST"
+          manifest_sha256="$(shasum -a 256 "$EVIDENCE_DIRECTORY/acceptance-manifest.json" | awk '{print $1}')"
+          jq -n \
+            --arg artifactDigest "$artifact_digest" \
+            --arg artifactId "$ARTIFACT_ID" \
+            --arg artifactName "$ARTIFACT_NAME" \
+            --arg artifactUrl "$ARTIFACT_URL" \
+            --arg evidenceKey "$EVIDENCE_KEY" \
+            --arg manifestSha256 "$manifest_sha256" \
+            '{
+              artifactDigest: $artifactDigest,
+              artifactId: $artifactId,
+              artifactName: $artifactName,
+              artifactUrl: $artifactUrl,
+              evidenceKey: $evidenceKey,
+              manifestSha256: $manifestSha256,
+              retentionDays: 90
+            }' > "$REFERENCE_DIRECTORY/artifact-reference.json"
+
+      - name: Upload package artifact reference
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-package-reference-${{ matrix.target }}
+          path: ${{ runner.temp }}/macos-package-reference/artifact-reference.json
+          if-no-files-found: error
+          retention-days: 90
+
+  clean-install:
+    name: Clean install macOS ${{ matrix.major }} ${{ matrix.target }}
+    needs: build
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - major: 26
+            runner: macos-26
+            target: aarch64-apple-darwin
+          - major: 26
+            runner: macos-26-intel
+            target: x86_64-apple-darwin
+          - major: 15
+            runner: macos-15
+            target: aarch64-apple-darwin
+          - major: 15
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+          - major: 14
+            runner: macos-14
+            target: aarch64-apple-darwin
+          - major: 14
+            runner: macos-14-large
+            target: x86_64-apple-darwin
+
+    steps:
+      - name: Download target package
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-package-${{ matrix.target }}
+          path: ${{ runner.temp }}/cantiara-package
+
+      - name: Install and verify package
+        shell: bash
+        env:
+          EXPECTED_MAJOR: ${{ matrix.major }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          evidence_directory="$RUNNER_TEMP/macos-clean-install-evidence"
+          mkdir -p "$evidence_directory"
+          dmg_path="$(find "$RUNNER_TEMP/cantiara-package" -type f -name '*.dmg' -print -quit)"
+          package_manifest="$(find "$RUNNER_TEMP/cantiara-package" -type f -name 'acceptance-manifest.json' -print -quit)"
+          test -n "$dmg_path"
+          test -n "$package_manifest"
+
+          source_commit="$(jq -r '.sourceCommit' "$package_manifest")"
+          workflow_ref="$(jq -r '.workflow.ref' "$package_manifest")"
+          workflow_run_attempt="$(jq -r '.workflow.runAttempt' "$package_manifest")"
+          workflow_run_id="$(jq -r '.workflow.runId' "$package_manifest")"
+          workflow_sha="$(jq -r '.workflow.sha' "$package_manifest")"
+          package_target="$(jq -r '.target' "$package_manifest")"
+          schema_version="$(jq -r '.schemaVersion' "$package_manifest")"
+          actual_macos_version="$(sw_vers -productVersion)"
+          actual_major="${actual_macos_version%%.*}"
+          runner_architecture="$(uname -m)"
+          test "$actual_major" = "$EXPECTED_MAJOR"
+          test "$package_target" = "$TARGET"
+          case "$TARGET:$runner_architecture" in
+            aarch64-apple-darwin:arm64|x86_64-apple-darwin:x86_64) ;;
+            *) echo "The target package is not installable on this runner architecture" >&2; exit 1 ;;
+          esac
+
+          mount_point="$RUNNER_TEMP/cantiara-dmg"
+          install_directory="$RUNNER_TEMP/cantiara-install"
+          mkdir -p "$mount_point" "$install_directory"
+          hdiutil attach "$dmg_path" -nobrowse -readonly -mountpoint "$mount_point"
+          trap 'hdiutil detach "$mount_point" -force || true' EXIT
+          app_path="$(find "$mount_point" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app_path"
+          installed_app="$install_directory/$(basename "$app_path")"
+          ditto "$app_path" "$installed_app"
+          test -d "$installed_app"
+          codesign --verify --deep --strict --verbose=2 "$installed_app"
+          spctl --assess --type execute --verbose=4 "$installed_app"
+          xcrun stapler validate "$installed_app"
+
+          dmg_name="$(basename "$dmg_path")"
+          dmg_sha256="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
+          jq -n \
+            --arg sourceCommit "$source_commit" \
+            --arg workflowRef "$workflow_ref" \
+            --arg workflowRunAttempt "$workflow_run_attempt" \
+            --arg workflowRunId "$workflow_run_id" \
+            --arg workflowSha "$workflow_sha" \
+            --arg evidenceId "client-shell.macos-clean-install-$EXPECTED_MAJOR-$TARGET.v1" \
+            --arg expectedMajor "$EXPECTED_MAJOR" \
+            --arg packageTarget "$package_target" \
+            --arg macOSVersion "$actual_macos_version" \
+            --arg runnerArchitecture "$runner_architecture" \
+            --arg dmgName "$dmg_name" \
+            --arg dmgSha256 "$dmg_sha256" \
+            --arg schemaVersion "$schema_version" \
+            '{
+              manifestFormatVersion: "cantiara.macos-package-evidence/v1",
+              evidenceType: "clean-install",
+              acceptance: {
+                evidenceId: $evidenceId,
+                acceptanceJourney: "macOS paket kabulü",
+                testType: "exact-build platform matrix",
+                fixture: "Sentetik fixture",
+                seam: "Client Shell"
+              },
+              sourceCommit: $sourceCommit,
+              workflow: {
+                ref: $workflowRef,
+                runAttempt: $workflowRunAttempt,
+                runId: $workflowRunId,
+                sha: $workflowSha
+              },
+              expectedMajor: ($expectedMajor | tonumber),
+              packageTarget: $packageTarget,
+              environment: {
+                macOSVersion: $macOSVersion,
+                runnerArchitecture: $runnerArchitecture
+              },
+              backend: {
+                api: "hono-bun",
+                sourceOfTruth: "neon-postgresql",
+                localDataLayer: false
+              },
+              artifact: {
+                kind: "dmg",
+                name: $dmgName,
+                sha256: $dmgSha256
+              },
+              result: "passed",
+              schemaVersion: $schemaVersion,
+              checks: {
+                install: "passed",
+                codesign: "passed",
+                gatekeeper: "passed",
+                notarization: "passed"
+              }
+            }' > "$evidence_directory/clean-install-manifest.json"
+
+      - name: Upload clean-install acceptance evidence
+        if: always()
+        id: clean_install_evidence_upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-clean-install-${{ matrix.major }}-${{ matrix.target }}
+          path: ${{ runner.temp }}/macos-clean-install-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Write clean-install artifact reference
+        if: success()
+        shell: bash
+        env:
+          ARTIFACT_DIGEST: ${{ steps.clean_install_evidence_upload.outputs.artifact-digest }}
+          ARTIFACT_ID: ${{ steps.clean_install_evidence_upload.outputs.artifact-id }}
+          ARTIFACT_NAME: macos-clean-install-${{ matrix.major }}-${{ matrix.target }}
+          ARTIFACT_URL: ${{ steps.clean_install_evidence_upload.outputs.artifact-url }}
+          EVIDENCE_DIRECTORY: ${{ runner.temp }}/macos-clean-install-evidence
+          REFERENCE_DIRECTORY: ${{ runner.temp }}/macos-clean-install-reference
+          EVIDENCE_KEY: ${{ matrix.major }}:${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          test -n "$ARTIFACT_DIGEST"
+          test -n "$ARTIFACT_ID"
+          test -n "$ARTIFACT_URL"
+          mkdir -p "$REFERENCE_DIRECTORY"
+          artifact_digest="sha256:$ARTIFACT_DIGEST"
+          manifest_sha256="$(shasum -a 256 "$EVIDENCE_DIRECTORY/clean-install-manifest.json" | awk '{print $1}')"
+          jq -n \
+            --arg artifactDigest "$artifact_digest" \
+            --arg artifactId "$ARTIFACT_ID" \
+            --arg artifactName "$ARTIFACT_NAME" \
+            --arg artifactUrl "$ARTIFACT_URL" \
+            --arg evidenceKey "$EVIDENCE_KEY" \
+            --arg manifestSha256 "$manifest_sha256" \
+            '{
+              artifactDigest: $artifactDigest,
+              artifactId: $artifactId,
+              artifactName: $artifactName,
+              artifactUrl: $artifactUrl,
+              evidenceKey: $evidenceKey,
+              manifestSha256: $manifestSha256,
+              retentionDays: 90
+            }' > "$REFERENCE_DIRECTORY/artifact-reference.json"
+
+      - name: Upload clean-install artifact reference
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-clean-install-reference-${{ matrix.major }}-${{ matrix.target }}
+          path: ${{ runner.temp }}/macos-clean-install-reference/artifact-reference.json
+          if-no-files-found: error
+          retention-days: 90
+
+  acceptance-evidence:
+    name: Publish macOS acceptance evidence
+    if: ${{ needs.build.result == 'success' && needs.clean-install.result == 'success' }}
+    needs:
+      - build
+      - clean-install
+    permissions:
+      actions: read
+      contents: write
+    runs-on: macos-14
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Download package evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: macos-package-*
+          path: ${{ runner.temp }}/cantiara-build-evidence
+
+      - name: Download package artifact references
+        uses: actions/download-artifact@v4
+        with:
+          pattern: macos-package-reference-*
+          path: ${{ runner.temp }}/cantiara-package-references
+
+      - name: Download clean-install evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: macos-clean-install-*
+          path: ${{ runner.temp }}/cantiara-clean-install-evidence
+
+      - name: Download clean-install artifact references
+        uses: actions/download-artifact@v4
+        with:
+          pattern: macos-clean-install-reference-*
+          path: ${{ runner.temp }}/cantiara-clean-install-references
+
+      - name: Build and validate acceptance manifest
+        shell: bash
+        env:
+          ACCEPTANCE_DIRECTORY: ${{ runner.temp }}/cantiara-acceptance-evidence
+        run: |
+          set -euo pipefail
+          mkdir -p "$ACCEPTANCE_DIRECTORY"
+          build_manifest_count="$(find "$RUNNER_TEMP/cantiara-build-evidence" -type f -name 'acceptance-manifest.json' -print | wc -l | tr -d ' ')"
+          clean_manifest_count="$(find "$RUNNER_TEMP/cantiara-clean-install-evidence" -type f -name 'clean-install-manifest.json' -print | wc -l | tr -d ' ')"
+          package_reference_count="$(find "$RUNNER_TEMP/cantiara-package-references" -type f -name 'artifact-reference.json' -print | wc -l | tr -d ' ')"
+          clean_reference_count="$(find "$RUNNER_TEMP/cantiara-clean-install-references" -type f -name 'artifact-reference.json' -print | wc -l | tr -d ' ')"
+          test "$build_manifest_count" -eq 2
+          test "$clean_manifest_count" -eq 6
+          test "$package_reference_count" -eq 2
+          test "$clean_reference_count" -eq 6
+
+          find "$RUNNER_TEMP/cantiara-build-evidence" -type f -name 'acceptance-manifest.json' -print0 | xargs -0 jq -s . > "$ACCEPTANCE_DIRECTORY/package-evidence.json"
+          find "$RUNNER_TEMP/cantiara-clean-install-evidence" -type f -name 'clean-install-manifest.json' -print0 | xargs -0 jq -s . > "$ACCEPTANCE_DIRECTORY/clean-install-evidence.json"
+          find "$RUNNER_TEMP/cantiara-package-references" -type f -name 'artifact-reference.json' -print0 | xargs -0 jq -s . > "$ACCEPTANCE_DIRECTORY/package-artifact-references.json"
+          find "$RUNNER_TEMP/cantiara-clean-install-references" -type f -name 'artifact-reference.json' -print0 | xargs -0 jq -s . > "$ACCEPTANCE_DIRECTORY/clean-install-artifact-references.json"
+
+          source_commit="$(jq -r '.[0].sourceCommit' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
+          test "$source_commit" = "$(git rev-parse HEAD)"
+          schema_version="$(jq -r '.[0].schemaVersion' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
+          test -n "$schema_version"
+          test "$schema_version" != "null"
+          workflow_ref="$(jq -r '.[0].workflow.ref' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
+          workflow_run_attempt="$(jq -r '.[0].workflow.runAttempt' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
+          workflow_run_id="$(jq -r '.[0].workflow.runId' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
+          workflow_sha="$(jq -r '.[0].workflow.sha' "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
+          package_artifact_references="$(jq -c . "$ACCEPTANCE_DIRECTORY/package-artifact-references.json")"
+          clean_install_artifact_references="$(jq -c . "$ACCEPTANCE_DIRECTORY/clean-install-artifact-references.json")"
+          package_evidence="$(jq -c --argjson artifactReferences "$package_artifact_references" \
+            'map(. as $evidence | . + {artifactReference: ($artifactReferences[] | select(.evidenceKey == $evidence.target))})' \
+            "$ACCEPTANCE_DIRECTORY/package-evidence.json")"
+          clean_install_evidence="$(jq -c --argjson artifactReferences "$clean_install_artifact_references" \
+            'map(. as $evidence | . + {artifactReference: ($artifactReferences[] | select(.evidenceKey == ("\($evidence.expectedMajor):\($evidence.packageTarget)")))})' \
+            "$ACCEPTANCE_DIRECTORY/clean-install-evidence.json")"
+          acceptance_evidence_ids="$(jq -n \
+            --argjson packageEvidence "$package_evidence" \
+            --argjson cleanInstallEvidence "$clean_install_evidence" \
+            '($packageEvidence + $cleanInstallEvidence) | map(.acceptance.evidenceId)')"
+
+          archive_root="$ACCEPTANCE_DIRECTORY/raw-evidence"
+          mkdir -p "$archive_root"
+          mkdir -p "$archive_root/package-evidence"
+          cp -R "$RUNNER_TEMP/cantiara-build-evidence/." "$archive_root/package-evidence/"
+          mkdir -p "$archive_root/package-references"
+          cp -R "$RUNNER_TEMP/cantiara-package-references/." "$archive_root/package-references/"
+          mkdir -p "$archive_root/clean-install-evidence"
+          cp -R "$RUNNER_TEMP/cantiara-clean-install-evidence/." "$archive_root/clean-install-evidence/"
+          mkdir -p "$archive_root/clean-install-references"
+          cp -R "$RUNNER_TEMP/cantiara-clean-install-references/." "$archive_root/clean-install-references/"
+          raw_evidence_size_bytes="$(du -sk "$archive_root" | awk '{print $1 * 1024}')"
+          test "$raw_evidence_size_bytes" -le 262144000
+          tar -czf "$ACCEPTANCE_DIRECTORY/macos-acceptance-evidence.tar.gz" \
+            -C "$archive_root" .
+          release_evidence_asset_sha256="$(shasum -a 256 "$ACCEPTANCE_DIRECTORY/macos-acceptance-evidence.tar.gz" | awk '{print $1}')"
+
+          jq -n \
+            --arg sourceCommit "$source_commit" \
+            --arg workflowRef "$workflow_ref" \
+            --arg workflowRunAttempt "$workflow_run_attempt" \
+            --arg workflowRunId "$workflow_run_id" \
+            --arg workflowSha "$workflow_sha" \
+            --arg schemaVersion "$schema_version" \
+            --arg releaseTag "$RELEASE_TAG" \
+            --arg releaseAssetUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/acceptance-candidate.json" \
+            --arg releaseEvidenceAssetUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/macos-acceptance-evidence.tar.gz" \
+            --arg releaseEvidenceAssetSha256 "$release_evidence_asset_sha256" \
+            --argjson packageEvidence "$package_evidence" \
+            --argjson cleanInstallEvidence "$clean_install_evidence" \
+            --argjson packageArtifactReferences "$package_artifact_references" \
+            --argjson cleanInstallArtifactReferences "$clean_install_artifact_references" \
+            --argjson acceptanceEvidenceIds "$acceptance_evidence_ids" \
+            '{
+              manifestFormatVersion: "cantiara.macos-package-acceptance/v1",
+              evidenceType: "acceptance-candidate",
+              sourceCommit: $sourceCommit,
+              schemaVersion: $schemaVersion,
+              workflow: {
+                ref: $workflowRef,
+                runAttempt: $workflowRunAttempt,
+                runId: $workflowRunId,
+                sha: $workflowSha
+              },
+              releaseTag: $releaseTag,
+              releaseAsset: {
+                name: "acceptance-candidate.json",
+                url: $releaseAssetUrl
+              },
+              releaseEvidenceAsset: {
+                name: "macos-acceptance-evidence.tar.gz",
+                sha256: $releaseEvidenceAssetSha256,
+                url: $releaseEvidenceAssetUrl
+              },
+              acceptanceCoverage: [{
+                acceptanceJourney: "macOS paket kabulü",
+                evidenceIds: $acceptanceEvidenceIds,
+                fixture: "Sentetik fixture",
+                result: "passed",
+                seam: "Client Shell",
+                testType: "exact-build platform matrix"
+              }],
+              supportedMacOSMajors: [26, 15, 14],
+              packageEvidence: $packageEvidence,
+              cleanInstallEvidence: $cleanInstallEvidence,
+              packageArtifactReferences: $packageArtifactReferences,
+              cleanInstallArtifactReferences: $cleanInstallArtifactReferences,
+              result: "passed"
+            }' > "$ACCEPTANCE_DIRECTORY/acceptance-candidate.json"
+
+          (cd "$ACCEPTANCE_DIRECTORY" && shasum -a 256 acceptance-candidate.json) > "$ACCEPTANCE_DIRECTORY/acceptance-candidate.json.sha256"
+
+      - name: Validate acceptance candidate contract
+        working-directory: apps/web
+        env:
+          EVIDENCE_MANIFEST_PATH: ${{ runner.temp }}/cantiara-acceptance-evidence/acceptance-candidate.json
+        run: |
+          bun -e 'const path = process.env.EVIDENCE_MANIFEST_PATH; if (!path) throw new Error("EVIDENCE_MANIFEST_PATH is required"); const manifest = JSON.parse(await Bun.file(path).text()); const { isMacOSPackageAcceptanceCandidate } = await import("./src/features/web-macos-client/views/macos-package-contract.ts"); if (!isMacOSPackageAcceptanceCandidate(manifest)) throw new Error("macOS acceptance candidate does not satisfy the Client Shell contract");'
+
+      - name: Upload acceptance candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-acceptance-candidate
+          path: ${{ runner.temp }}/cantiara-acceptance-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Attach acceptance candidate to draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACCEPTANCE_DIRECTORY: ${{ runner.temp }}/cantiara-acceptance-evidence
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          gh release upload "$RELEASE_TAG" \
+            "$ACCEPTANCE_DIRECTORY/acceptance-candidate.json" \
+            "$ACCEPTANCE_DIRECTORY/acceptance-candidate.json.sha256" \
+            "$ACCEPTANCE_DIRECTORY/macos-acceptance-evidence.tar.gz"

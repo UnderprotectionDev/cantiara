@@ -4,12 +4,14 @@ import {
   TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL,
 } from "@cantiara/api/context";
 import { appRouter } from "@cantiara/api/routers/index";
+import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import { TAURI_AUTH_CALLBACK_URL } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
+import { experimental_RethrowHandlerPlugin } from "@orpc/server/plugins";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import {
   type BetterAuthInstance,
@@ -17,9 +19,9 @@ import {
 } from "evlog/better-auth";
 import { createFsDrain } from "evlog/fs";
 import { type EvlogVariables, evlog } from "evlog/hono";
+import type { Context as HonoContext } from "hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-
 import {
   type AccountAccessAuth,
   createContext,
@@ -44,6 +46,12 @@ import {
   isTauriAuthCodeVerifier,
   type TauriSessionAccess,
 } from "./features/account-access/server/tauri-session";
+import {
+  createSupportFailureResponse,
+  createSupportReferenceFailure,
+  decorateSupportFailureResponse,
+  recordSupportFailure,
+} from "./features/web-macos-client/server/support-reference";
 
 export interface AppDependencies {
   accountPreferences: AccountPreferencesAccess;
@@ -499,6 +507,61 @@ async function addFreshGitHubConsent(
   }
 }
 
+function requestSupportReferenceId(
+  context: HonoContext<EvlogVariables>,
+): string | undefined {
+  const { requestId } = context.get("log").getContext();
+  return typeof requestId === "string" ? requestId : undefined;
+}
+
+async function decorateAndRecordSupportFailure(
+  context: HonoContext<EvlogVariables>,
+  response: Response,
+  error?: unknown,
+) {
+  const requestId = requestSupportReferenceId(context);
+  const decorated = await decorateSupportFailureResponse(response, {
+    error,
+    requestId,
+  });
+
+  if (decorated.status >= 400) {
+    let payload: unknown;
+    try {
+      payload = await decorated.clone().json();
+    } catch {
+      payload = undefined;
+    }
+    const failure = createSupportReferenceFailure({
+      error: payload,
+      requestId,
+      supportReference:
+        decorated.headers.get(SUPPORT_REFERENCE_HEADER) ?? undefined,
+    });
+    recordSupportFailure(context.get("log"), failure);
+  }
+
+  return decorated;
+}
+
+function errorStatus(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof error.status === "number" &&
+    error.status >= 400 &&
+    error.status <= 599
+  ) {
+    return error.status;
+  }
+  return 500;
+}
+
+function isClientShellPath(path: string) {
+  return path === "/rpc" || path.startsWith("/rpc/");
+}
+
 export function createApp(dependencies: AppDependencies) {
   const identifyUser = createAuthMiddleware(
     dependencies.auth as unknown as BetterAuthInstance,
@@ -513,6 +576,10 @@ export function createApp(dependencies: AppDependencies) {
   ];
   const app = new Hono<EvlogVariables>();
 
+  app.use("*", async (c, next) => {
+    c.req.raw.headers.delete("x-request-id");
+    await next();
+  });
   app.use(
     evlog({
       drain:
@@ -600,19 +667,13 @@ export function createApp(dependencies: AppDependencies) {
       new OpenAPIReferencePlugin({
         schemaConverters: [new ZodToJsonSchemaConverter()],
       }),
+      new experimental_RethrowHandlerPlugin({ filter: () => true }),
     ],
-    interceptors: [
-      onError((error) => {
-        console.error(dependencies.redactSecrets(error));
-      }),
-    ],
+    interceptors: [onError(() => undefined)],
   });
   const rpcHandler = new RPCHandler(appRouter, {
-    interceptors: [
-      onError((error) => {
-        console.error(dependencies.redactSecrets(error));
-      }),
-    ],
+    plugins: [new experimental_RethrowHandlerPlugin({ filter: () => true })],
+    interceptors: [onError(() => undefined)],
   });
 
   app.use("/*", async (c, next) => {
@@ -631,7 +692,11 @@ export function createApp(dependencies: AppDependencies) {
       context,
     });
     if (rpcResult.matched) {
-      return c.newResponse(rpcResult.response.body, rpcResult.response);
+      const response = await decorateAndRecordSupportFailure(
+        c,
+        rpcResult.response,
+      );
+      return c.newResponse(response.body, response);
     }
     const apiResult = await apiHandler.handle(c.req.raw, {
       prefix: "/api-reference",
@@ -644,5 +709,49 @@ export function createApp(dependencies: AppDependencies) {
   });
 
   app.get("/", (c) => c.text("OK"));
+  app.notFound((c) => {
+    if (c.req.path !== "/rpc" && !c.req.path.startsWith("/rpc/")) {
+      return c.text("404 Not Found", 404);
+    }
+
+    const requestId = requestSupportReferenceId(c);
+    const failure = createSupportReferenceFailure({
+      error: { code: "NOT_FOUND", message: "Not Found", status: 404 },
+      requestId,
+      writeOutcome: "not-written",
+    });
+    recordSupportFailure(c.get("log"), failure);
+    return createSupportFailureResponse({
+      error: failure,
+      reasonCode: failure.reasonCode,
+      requestId,
+      retryPolicy: failure.retryPolicy,
+      supportReference: failure.supportReference,
+      status: 404,
+      writeOutcome: failure.writeOutcome,
+    });
+  });
+  app.onError((error, c) => {
+    if (!isClientShellPath(c.req.path)) {
+      c.error = undefined;
+      return new Response("Internal Server Error", {
+        status: errorStatus(error),
+      });
+    }
+
+    const requestId = requestSupportReferenceId(c);
+    const failure = createSupportReferenceFailure({ error, requestId });
+    recordSupportFailure(c.get("log"), failure);
+    c.error = undefined;
+    return createSupportFailureResponse({
+      error: failure,
+      reasonCode: failure.reasonCode,
+      requestId,
+      retryPolicy: failure.retryPolicy,
+      supportReference: failure.supportReference,
+      writeOutcome: failure.writeOutcome,
+      status: errorStatus(error),
+    });
+  });
   return app;
 }
