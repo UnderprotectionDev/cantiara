@@ -132,3 +132,16 @@ cantiara/
 - `bun run test:e2e`: Run the Account Access Playwright journey against the configured temporary PostgreSQL boundaries
 - `cd apps/web && bun run desktop:dev`: Start Tauri desktop app in development
 - `cd apps/web && bun run desktop:build`: Build Tauri desktop app
+
+### macOS package release
+
+The `.github/workflows/macos-release.yml` workflow builds only signed and notarized macOS `app` and `dmg` artifacts. It runs for `cantiara-v*` tags and keeps the GitHub Release as a draft until the macOS 26, macOS 15, and macOS 14 clean-install matrix is accepted for both package targets. Successful runs upload immutable evidence manifests containing the exact source/workflow identity, macOS version, device architecture, package digest, signing checks, and the combined acceptance-candidate result; the candidate manifest, its checksum, and a raw signing/install evidence archive are also attached to the draft release. Each temporary Actions evidence reference records its authenticated GitHub artifact URL/ID/digest and uses the 90-day Actions retention limit; the signed release assets and acceptance evidence archive remain on the GitHub draft release. Release assets are immutable, so rerunning a tag requires a new release tag rather than overwriting evidence.
+
+Configure the `CANTIARA_API_URL` GitHub repository variable and these GitHub Actions secrets before creating a release tag:
+
+- `APPLE_CERTIFICATE`: Base64-encoded Developer ID Application `.p12`
+- `APPLE_CERTIFICATE_PASSWORD`: Password for the `.p12`
+- `APPLE_SIGNING_IDENTITY`: Exact `Developer ID Application: ...` keychain identity
+- `APPLE_API_KEY`: App Store Connect API key ID
+- `APPLE_API_ISSUER`: App Store Connect issuer ID
+- `APPLE_API_PRIVATE_KEY`: Contents of the matching `.p8` private key
