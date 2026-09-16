@@ -1,7 +1,8 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  check,
   index,
   integer,
   pgTable,
@@ -101,21 +102,30 @@ export const workspace = pgTable("workspace", {
     .notNull(),
 });
 
-export const accountPreferences = pgTable("account_preferences", {
-  accountId: text("account_id")
-    .primaryKey()
-    .references(() => user.id, { onDelete: "cascade" }),
-  locale: text("locale").default("en-GB").notNull(),
-  timeZone: text("time_zone").default("Europe/Istanbul").notNull(),
-  dateFormat: text("date_format").default("locale").notNull(),
-  firstDayOfWeek: text("first_day_of_week").default("Monday").notNull(),
-  appearance: text("appearance").default("Dark").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-});
+export const accountPreferences = pgTable(
+  "account_preferences",
+  {
+    accountId: text("account_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    locale: text("locale").default("en-GB").notNull(),
+    timeZone: text("time_zone").default("Europe/Istanbul").notNull(),
+    dateFormat: text("date_format").default("locale").notNull(),
+    firstDayOfWeek: text("first_day_of_week").default("Monday").notNull(),
+    appearance: text("appearance").default("Dark").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "account_preferences_appearance_check",
+      sql`${table.appearance} in ('Light', 'Dark')`,
+    ),
+  ],
+);
 
 export const rateLimit = pgTable("rate_limit", {
   id: text("id").primaryKey(),

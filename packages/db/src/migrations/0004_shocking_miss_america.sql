@@ -1,0 +1,1 @@
+ALTER TABLE "account_preferences" ADD CONSTRAINT "account_preferences_appearance_check" CHECK ("account_preferences"."appearance" in ('Light', 'Dark'));

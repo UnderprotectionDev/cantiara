@@ -14,17 +14,13 @@ import { Moon, Sun } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-import { type Theme, useTheme } from "@/components/theme-provider";
+import { themeForAppearance, useTheme } from "@/components/theme-provider";
 import { authClient } from "@/lib/auth-client";
 import {
   accountPreferencesQueryOptions,
   accountPreferencesQueryPrefix,
   client,
 } from "@/utils/orpc";
-
-function themeForAppearance(appearance: Appearance): Theme {
-  return appearance === "Light" ? "light" : "dark";
-}
 
 export function ModeToggle() {
   const { setTheme, theme } = useTheme();

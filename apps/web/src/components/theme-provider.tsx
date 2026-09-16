@@ -1,3 +1,4 @@
+import type { Appearance } from "@cantiara/api/account-preferences";
 import { createStore, useStore } from "@tanstack/react-store";
 import type * as React from "react";
 import { createContext, useContext, useEffect, useMemo } from "react";
@@ -11,6 +12,17 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 const themeStore = createStore<Theme>("dark");
+
+export function themeForAppearance(appearance: Appearance): Theme {
+  switch (appearance) {
+    case "Light":
+      return "light";
+    case "Dark":
+      return "dark";
+    default:
+      throw new RangeError("Unsupported Account Appearance.");
+  }
+}
 
 function setTheme(theme: Theme) {
   themeStore.setState(() => theme);
