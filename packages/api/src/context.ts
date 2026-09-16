@@ -6,6 +6,12 @@ export interface AccountSessionPrincipal {
   sessionId: string;
 }
 
+export type GitHubAvailabilityStatus = "available" | "waiting";
+
+export interface GitHubAvailability {
+  getStatus: () => GitHubAvailabilityStatus;
+}
+
 export interface AccountSessionSummary {
   current: boolean;
   device: string;
@@ -28,6 +34,7 @@ export interface Context {
   accountAccess: AccountSessionAccess;
   auth: null;
   db: Database;
+  githubAvailability: GitHubAvailability;
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;

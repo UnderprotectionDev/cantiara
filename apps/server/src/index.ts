@@ -6,6 +6,7 @@ import {
   accountSessionAccess,
   auth,
   getDb,
+  githubAvailability,
   replaySessionRevocations,
   tauriSessionAccess,
 } from "./services";
@@ -22,6 +23,7 @@ export default createApp({
   corsOrigin: env.CORS_ORIGIN,
   database: getDb(),
   desktopOrigins,
+  githubAvailability,
   nodeEnv: env.NODE_ENV,
   redactSecrets,
   tauriSessionAccess,

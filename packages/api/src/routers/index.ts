@@ -13,6 +13,9 @@ function sessionPrincipal(session: NonNullable<Context["session"]>) {
 
 export const appRouter = {
   healthCheck: publicProcedure.handler(() => "OK"),
+  githubAvailability: publicProcedure.handler(({ context }) => ({
+    status: context.githubAvailability.getStatus(),
+  })),
   privateData: protectedProcedure.handler(({ context }) => ({
     message: "This is private",
     user: context.session?.user,

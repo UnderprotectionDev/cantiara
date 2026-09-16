@@ -1,4 +1,7 @@
-import type { Context as ApiContext } from "@cantiara/api/context";
+import type {
+  Context as ApiContext,
+  GitHubAvailability,
+} from "@cantiara/api/context";
 import type { createAuth } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
 import type { Context as HonoContext } from "hono";
@@ -15,6 +18,7 @@ export interface CreateContextOptions {
   auth: AccountAccessAuth;
   context: HonoContext;
   database: Database;
+  githubAvailability: GitHubAvailability;
 }
 
 export async function createContext({
@@ -22,6 +26,7 @@ export async function createContext({
   auth,
   context,
   database,
+  githubAvailability,
 }: CreateContextOptions): Promise<ApiContext> {
   const candidateSession = await auth.api.getSession({
     headers: context.req.raw.headers,
@@ -40,6 +45,7 @@ export async function createContext({
   return {
     accountAccess: accountSessionAccess,
     db: database,
+    githubAvailability,
     auth: null,
     session,
   };
