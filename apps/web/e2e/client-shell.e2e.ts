@@ -34,7 +34,7 @@ test("shows the online-only empty state after the connection is lost", async ({
   await expect(
     page.getByRole("heading", { name: "Dashboard", level: 1 }),
   ).toHaveCount(0);
-  await expect(page.getByText("Welcome Underprotection")).toHaveCount(0);
+  await expect(page.getByText("Welcome Founder")).toHaveCount(0);
 
   await context.setOffline(false);
   await expect(offlineState).toHaveCount(0);
