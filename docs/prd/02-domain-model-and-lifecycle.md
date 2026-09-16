@@ -577,7 +577,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Light | `Light` | Appearance değeri |
 | Dark | `Dark` | Appearance değeri |
 | Kaydet | `Save` | Hesap tercihini açıkça yazan eylem |
+| Kaydediliyor | `Saving…` | Hesap tercihi yazılırken Save eyleminin geçici durum etiketi |
 | Önerilen locale ve saat dilimini kullan | `Use suggested locale and time zone` | İlk girişte tarayıcı önerisini forma alan, kaydetmeden uygulamayan eylem |
+| Tarayıcı önerisi | `Browser suggestion` | İlk girişte tarayıcının locale ve saat dilimi değerlerini kaydetmeden öneren yüzey |
 | Önizleme | `Preview` | Locale, tarih biçimi ve haftanın ilk gününün gösterim sonucunu kaydetmeden gösteren yüzey |
 | Kaydetmeden önce | `Before saving` | Önizlemenin Hesap tercihlerini yazmadan önceki sonucu gösterdiğini belirten yardımcı etiket |
 | Tarih | `Date` | Önizlemede biçimlenmiş tarih |
