@@ -1,6 +1,5 @@
 import {
   type AccountPreferences,
-  type AccountPreferencesAccess,
   type Appearance,
   accountPreferencesSchema,
   DEFAULT_ACCOUNT_PREFERENCES,
@@ -13,6 +12,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { MutationDatabaseTargetAdapter } from "../../mutation-and-undo/server/mutation-contract-database";
 import {
   type AccountPreferencesStore,
+  type AccountPreferencesWritableAccess,
   createAccountPreferences,
 } from "./account-preferences";
 
@@ -107,7 +107,7 @@ export const accountPreferencesMutationTarget: MutationDatabaseTargetAdapter<Acc
 
 export function createDatabaseAccountPreferences(
   database: Database,
-): AccountPreferencesAccess {
+): AccountPreferencesWritableAccess {
   function savedRecord(
     preferences: Pick<
       AccountPreferencesDatabaseRecord,

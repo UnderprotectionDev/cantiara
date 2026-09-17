@@ -40,6 +40,7 @@ function createTestApp(
     accountSessionAccess?: AppDependencies["accountSessionAccess"];
     auth?: AppDependencies["auth"];
     authorized?: boolean;
+    accountPreferencesCompatibility?: AppDependencies["accountPreferencesCompatibility"];
     accountPreferencesMutationContract?: AppDependencies["accountPreferencesMutationContract"];
     desktopApiNow?: () => Date;
     desktopApiWindow?: DesktopApiCompatibilityWindow;
@@ -82,6 +83,7 @@ function createTestApp(
         savedAt: null,
       }),
     },
+    accountPreferencesCompatibility: options.accountPreferencesCompatibility,
     accountPreferencesMutationContract:
       options.accountPreferencesMutationContract,
     auth:
@@ -1262,6 +1264,70 @@ describe("server app Account Access boundary", () => {
         desktopApiWindow.previousContract,
       ]),
     );
+  });
+
+  test("keeps legacy Tauri preference writes working within the API window", async () => {
+    const savedPreferences = vi.fn(async () => ({
+      ...DEFAULT_ACCOUNT_PREFERENCES,
+      isSaved: true,
+      revision: 1,
+      savedAt: "2026-08-31T00:00:00.000Z",
+    }));
+    const savedAppearances = vi.fn(async () => ({
+      ...DEFAULT_ACCOUNT_PREFERENCES,
+      appearance: "Light" as const,
+      isSaved: true,
+      revision: 2,
+      savedAt: "2026-08-31T00:00:00.000Z",
+    }));
+    const desktopApiWindow = {
+      currentContract: "cantiara-desktop-api/v2",
+      previousContract: "cantiara-desktop-api/v1",
+      publishedAt: "2026-08-01T00:00:00.000Z",
+    } satisfies DesktopApiCompatibilityWindow;
+    const { app } = createTestApp({
+      accountPreferencesCompatibility: {
+        save: savedPreferences,
+        saveAppearance: savedAppearances,
+      },
+      authorized: true,
+      desktopApiNow: () => new Date("2026-08-31T00:00:00.000Z"),
+      desktopApiWindow,
+    });
+
+    const [preferencesResponse, appearanceResponse] = await Promise.all([
+      app.fetch(
+        new Request("https://api.cantiara.example/rpc/saveAccountPreferences", {
+          body: JSON.stringify({ json: DEFAULT_ACCOUNT_PREFERENCES }),
+          headers: {
+            "content-type": "application/json",
+            origin: "http://tauri.localhost",
+            "x-cantiara-desktop-api-contract": desktopApiWindow.currentContract,
+          },
+          method: "POST",
+        }),
+      ),
+      app.fetch(
+        new Request("https://api.cantiara.example/rpc/saveAccountAppearance", {
+          body: JSON.stringify({ json: { appearance: "Light" } }),
+          headers: {
+            "content-type": "application/json",
+            origin: "http://tauri.localhost",
+            "x-cantiara-desktop-api-contract":
+              desktopApiWindow.previousContract,
+          },
+          method: "POST",
+        }),
+      ),
+    ]);
+
+    expect(preferencesResponse.status).toBe(200);
+    expect(appearanceResponse.status).toBe(200);
+    expect(savedPreferences).toHaveBeenCalledWith(
+      "account-1",
+      DEFAULT_ACCOUNT_PREFERENCES,
+    );
+    expect(savedAppearances).toHaveBeenCalledWith("account-1", "Light");
   });
 
   test("stops an expired Tauri contract before the write handler runs", async () => {

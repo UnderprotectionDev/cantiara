@@ -4,9 +4,11 @@ import type {
 } from "@cantiara/api/account-preferences";
 import type {
   AccountAccessClient,
+  AccountPreferencesCompatibilityAccess,
   Context as ApiContext,
   GitHubAvailability,
 } from "@cantiara/api/context";
+import { DESKTOP_API_CONTRACT_HEADER } from "@cantiara/api/desktop-api-window";
 import type {
   MutationContract,
   MutationPayload,
@@ -25,6 +27,7 @@ export type AccountAccessAuth = Pick<
 
 export interface CreateContextOptions {
   accountPreferences: AccountPreferencesAccess;
+  accountPreferencesCompatibility?: AccountPreferencesCompatibilityAccess;
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
   auth: AccountAccessAuth;
@@ -46,6 +49,7 @@ export function requestClientPlatform(request: Request): AccountAccessClient {
 export async function createContext({
   accountSessionAccess,
   accountPreferences,
+  accountPreferencesCompatibility,
   accountPreferencesMutationContract,
   auth,
   context,
@@ -72,9 +76,12 @@ export async function createContext({
   return {
     accountAccess: accountSessionAccess,
     accountPreferences,
+    accountPreferencesCompatibility,
     accountPreferencesMutationContract,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
     clientPlatform: requestClientPlatform(context.req.raw),
+    desktopApiContract:
+      context.req.raw.headers.get(DESKTOP_API_CONTRACT_HEADER) ?? undefined,
     db: database,
     githubAvailability,
     githubIdentityConfirmation,

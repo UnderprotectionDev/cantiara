@@ -85,6 +85,7 @@ initLogger({ env: { service: "cantiara-e2e-server" } });
 const app = createApp({
   accountSessionAccess,
   accountPreferences,
+  accountPreferencesCompatibility: accountPreferences,
   accountPreferencesMutationContract,
   auth,
   corsOrigin: webOrigin,

@@ -22,7 +22,9 @@ const securityEventDb = createSecurityEventDb({
   DATABASE_URL: env.SECURITY_EVENT_DATABASE_URL,
 });
 const accountAdmission = createDatabaseAccountAdmission(db);
-export const accountPreferences = createDatabaseAccountPreferences(db);
+const databaseAccountPreferences = createDatabaseAccountPreferences(db);
+export const accountPreferences = databaseAccountPreferences;
+export const accountPreferencesCompatibility = databaseAccountPreferences;
 export const accountPreferencesMutationContract =
   createDatabaseMutationContract<AccountPreferences>(db, {
     target: accountPreferencesMutationTarget,

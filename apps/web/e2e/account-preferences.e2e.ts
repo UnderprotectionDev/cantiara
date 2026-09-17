@@ -247,3 +247,65 @@ test("shows the current value when another session advances Account Preferences"
     await otherContext.close();
   }
 });
+
+test("does not submit dirty values against a newer Account Preferences revision", async ({
+  browser,
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    "http://127.0.0.1:3100/__e2e/setup?fixture=account-preferences-revision-race",
+  );
+  const setup = (await setupResponse.json()) as {
+    cookie: E2ESessionCookie;
+    otherCookie: E2ESessionCookie;
+  };
+  const otherContext = await browser.newContext();
+  const otherPage = await otherContext.newPage();
+
+  try {
+    await context.addCookies([setup.cookie]);
+    await otherContext.addCookies([setup.otherCookie]);
+    await page.goto("/account/preferences");
+    await otherPage.goto("/account/preferences");
+
+    await page.getByLabel("Locale").selectOption("tr-TR");
+    await otherPage.getByLabel("Time zone").selectOption("America/Los_Angeles");
+    await otherPage.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(
+      otherPage.getByRole("main").getByText("Preferences saved.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    const refreshResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/rpc/accountPreferences"),
+    );
+    await page.evaluate(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await refreshResponsePromise;
+
+    const staleResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/rpc/saveAccountPreferences"),
+    );
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    const staleResponse = await staleResponsePromise;
+
+    expect(staleResponse.status()).toBe(412);
+    await expect(
+      page.getByRole("status").filter({ hasText: "Current value" }),
+    ).toBeVisible();
+    await otherPage.reload();
+    await expect(otherPage.getByLabel("Time zone")).toHaveValue(
+      "America/Los_Angeles",
+    );
+  } finally {
+    await otherContext.close();
+  }
+});

@@ -1493,6 +1493,10 @@ _Avoid_: Yalnız hata düzeldi notu, dış araç ekran görüntüsü, bekleme s�
 Bir ana kaydın içerik sürümleri ile ona yapılan domain değişikliklerinin, ana kayıt yaşadığı sürece korunan kalıcı bağlamı.
 _Avoid_: Denetim kaydı, operasyon günlüğü
 
+**Revizyon**:
+Bir hedef kaydın Kayıt geçmişinde ilerleyen ve Mutation Contract'ın yazma güncelliğini karşılaştırdığı sıra değeri. UI: `Revision`.
+_Avoid_: genel belge sürümü, restore-point, sessiz son yazan kazanır
+
 **Proje Etkinliği**:
 Mevcut Kayıt geçmişinden türetilen, kaynak ve önceki–sonraki değerle incelenen atomik değişiklik görünümü; ürün hikâyesi veya Bildirim Merkezi değildir ([Proje Etkinliği](docs/prd/06-work-management-and-planning.md#proje-etkinliği)).
 _Avoid_: GitHub Activity, e-posta günlüğü, zaman çizelgesi hikâyesi, ikinci olay deposu

@@ -31,16 +31,39 @@ function sessionPrincipal(session: NonNullable<Context["session"]>) {
 const saveAccountPreferencesInputSchema = humanMutationEnvelopeSchema.extend({
   preferences: accountPreferencesSchema,
 });
+const legacySaveAccountPreferencesInputSchema = accountPreferencesSchema;
+const saveAccountPreferencesProcedureInputSchema = z.union([
+  saveAccountPreferencesInputSchema,
+  legacySaveAccountPreferencesInputSchema,
+]);
 
 const saveAccountAppearanceInputSchema = humanMutationEnvelopeSchema.extend({
   appearance: appearanceSchema,
 });
+const legacySaveAccountAppearanceInputSchema = z
+  .object({ appearance: appearanceSchema })
+  .strict();
+const saveAccountAppearanceProcedureInputSchema = z.union([
+  saveAccountAppearanceInputSchema,
+  legacySaveAccountAppearanceInputSchema,
+]);
 
 function requireAccountPreferencesMutationContract(context: Context) {
   if (!context.accountPreferencesMutationContract) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.accountPreferencesMutationContract;
+}
+
+function requireAccountPreferencesCompatibility(context: Context) {
+  if (
+    context.clientPlatform !== "tauri" ||
+    !context.desktopApiContract ||
+    !context.accountPreferencesCompatibility
+  ) {
+    throw new ORPCError("BAD_REQUEST");
+  }
+  return context.accountPreferencesCompatibility;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -135,8 +158,15 @@ export const appRouter = {
     context.accountPreferences.get(context.session.user.id),
   ),
   saveAccountAppearance: protectedProcedure
-    .input(saveAccountAppearanceInputSchema)
+    .input(saveAccountAppearanceProcedureInputSchema)
     .handler(async ({ context, input }) => {
+      if (!("baseRevision" in input)) {
+        return requireAccountPreferencesCompatibility(context).saveAppearance(
+          context.session.user.id,
+          input.appearance,
+        );
+      }
+
       const receipt = await mutateAccountPreferences(
         context,
         {
@@ -155,8 +185,15 @@ export const appRouter = {
       return preferencesSnapshotFromReceipt(receipt);
     }),
   saveAccountPreferences: protectedProcedure
-    .input(saveAccountPreferencesInputSchema)
+    .input(saveAccountPreferencesProcedureInputSchema)
     .handler(async ({ context, input }) => {
+      if (!("baseRevision" in input)) {
+        return requireAccountPreferencesCompatibility(context).save(
+          context.session.user.id,
+          input,
+        );
+      }
+
       const receipt = await mutateAccountPreferences(
         context,
         {

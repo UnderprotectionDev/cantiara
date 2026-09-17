@@ -3,6 +3,7 @@ import type {
   AccountPreferencesAccess,
 } from "@cantiara/api/account-preferences";
 import {
+  type AccountPreferencesCompatibilityAccess,
   CONFIRM_GITHUB_IDENTITY_HANDOFF_EXCHANGE_PATH,
   TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL,
 } from "@cantiara/api/context";
@@ -72,6 +73,7 @@ import {
 
 export interface AppDependencies {
   accountPreferences: AccountPreferencesAccess;
+  accountPreferencesCompatibility?: AccountPreferencesCompatibilityAccess;
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
   auth: AccountAccessAuth;
@@ -744,6 +746,8 @@ export function createApp(dependencies: AppDependencies) {
     const context = await createContext({
       accountSessionAccess: dependencies.accountSessionAccess,
       accountPreferences: dependencies.accountPreferences,
+      accountPreferencesCompatibility:
+        dependencies.accountPreferencesCompatibility,
       accountPreferencesMutationContract:
         dependencies.accountPreferencesMutationContract,
       auth: dependencies.auth,

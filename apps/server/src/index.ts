@@ -4,6 +4,7 @@ import { createApp } from "./app";
 import { desktopOrigins, env, redactSecrets } from "./env";
 import {
   accountPreferences,
+  accountPreferencesCompatibility,
   accountPreferencesMutationContract,
   accountSessionAccess,
   auth,
@@ -24,6 +25,7 @@ await replaySessionRevocations();
 export default createApp({
   accountSessionAccess,
   accountPreferences,
+  accountPreferencesCompatibility,
   accountPreferencesMutationContract,
   auth,
   desktopApiWindow: {

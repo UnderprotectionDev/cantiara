@@ -246,6 +246,7 @@ export default function AccountPreferencesForm({
 }) {
   const queryClient = useQueryClient();
   const isOnline = useOnlineState();
+  const formBaseRevision = useRef(snapshot.revision);
   const latestSavedAt = useRef<string | null>(null);
   const pendingSave = useRef<{
     baseRevision: number;
@@ -273,6 +274,7 @@ export default function AccountPreferencesForm({
     },
     onSuccess: (saved) => {
       setSaveError(null);
+      formBaseRevision.current = saved.revision;
       pendingSave.current = null;
       latestSavedAt.current = saved.savedAt;
       queryClient.setQueryData(
@@ -287,19 +289,23 @@ export default function AccountPreferencesForm({
     onSubmit: async ({ value }) => {
       const preferences = accountPreferencesSchema.parse(value);
       const serialized = JSON.stringify(preferences);
+      const snapshotSerialized = JSON.stringify(formValues(snapshot));
+      const baseRevision =
+        serialized === snapshotSerialized
+          ? snapshot.revision
+          : formBaseRevision.current;
       const attempt = pendingSave.current;
       const clientIdempotencyKey =
-        attempt?.baseRevision === snapshot.revision &&
-        attempt.values === serialized
+        attempt?.baseRevision === baseRevision && attempt.values === serialized
           ? attempt.clientIdempotencyKey
           : crypto.randomUUID();
       pendingSave.current = {
-        baseRevision: snapshot.revision,
+        baseRevision,
         clientIdempotencyKey,
         values: serialized,
       };
       await savePreferences.mutateAsync({
-        baseRevision: snapshot.revision,
+        baseRevision,
         clientIdempotencyKey,
         preferences,
       });
@@ -317,8 +323,10 @@ export default function AccountPreferencesForm({
       latestSavedAt.current === snapshot.savedAt
     ) {
       latestSavedAt.current = null;
+      formBaseRevision.current = snapshot.revision;
       form.reset(values);
     } else if (!form.state.isDirty) {
+      formBaseRevision.current = snapshot.revision;
       form.reset(values);
     } else if (form.state.values.appearance !== values.appearance) {
       form.setFieldValue("appearance", values.appearance);

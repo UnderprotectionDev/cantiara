@@ -4,6 +4,8 @@ import type { Database } from "@cantiara/db";
 import type {
   AccountPreferences,
   AccountPreferencesAccess,
+  AccountPreferencesSnapshot,
+  Appearance,
 } from "./account-preferences";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
 
@@ -67,6 +69,17 @@ export interface AccountSessionSummary {
   lastActivityAt: string;
 }
 
+export interface AccountPreferencesCompatibilityAccess {
+  save: (
+    accountId: string,
+    preferences: AccountPreferences,
+  ) => Promise<AccountPreferencesSnapshot>;
+  saveAppearance: (
+    accountId: string,
+    appearance: Appearance,
+  ) => Promise<AccountPreferencesSnapshot>;
+}
+
 export interface AccountSessionAccess {
   listSessions: (
     principal: AccountSessionPrincipal,
@@ -81,11 +94,13 @@ export interface AccountSessionAccess {
 export interface Context {
   accountAccess: AccountSessionAccess;
   accountPreferences: AccountPreferencesAccess;
+  accountPreferencesCompatibility?: AccountPreferencesCompatibilityAccess;
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   auth: null;
   clientKey?: string;
   clientPlatform?: AccountAccessClient;
   db: Database;
+  desktopApiContract?: string;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
   mutationContract?: MutationContract<MutationPayload>;
