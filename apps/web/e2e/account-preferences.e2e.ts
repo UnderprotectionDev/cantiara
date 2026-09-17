@@ -210,7 +210,21 @@ test("shows the current value when another session advances Account Preferences"
       .getByRole("status")
       .filter({ hasText: "Current value" });
     await expect(status).toContainText("Current value");
-    await expect(status).toContainText("Revision 1");
+    await expect(status).toContainText("Data was not written.");
+    await expect(status).toContainText(
+      "This page is out of date. Refresh to load the current value.",
+    );
+    await expect(status.getByText("Revision", { exact: true })).toBeVisible();
+    await expect(status.getByText("1", { exact: true })).toBeVisible();
+    await expect(status.getByText("Appearance", { exact: true })).toBeVisible();
+    await expect(status.getByText("Locale", { exact: true })).toBeVisible();
+    await expect(status.getByText("Time zone", { exact: true })).toBeVisible();
+    await expect(
+      status.getByText("Date format", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      status.getByText("First day of week", { exact: true }),
+    ).toBeVisible();
     await expect(status).toContainText("tr-TR");
     const supportNotice = otherPage
       .getByRole("alert")
@@ -218,6 +232,10 @@ test("shows the current value when another session advances Account Preferences"
     await otherPage.waitForTimeout(6500);
     await expect(supportNotice).toBeVisible();
     await expect(supportNotice).toContainText("Data was not written.");
+    const supportToast = otherPage
+      .getByRole("status")
+      .filter({ hasText: "Data was not written." });
+    await expect(supportToast).toContainText("This page is out of date.");
     await expect(supportNotice).toContainText("Do not retry.");
     await expect(supportNotice).toContainText(
       `Support reference ${supportReference}`,

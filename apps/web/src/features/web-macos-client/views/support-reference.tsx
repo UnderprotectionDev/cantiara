@@ -116,6 +116,18 @@ function writeOutcomeLabel(writeOutcome: SupportWriteOutcome) {
   }
 }
 
+function failureMessage(
+  error: unknown,
+  reasonCode: SupportFailureReasonCode,
+  kind: SupportReferenceFailureKind,
+) {
+  const data = errorData(error);
+  if (kind === "mutation" && data?.code === "STALE_BASE_REVISION") {
+    return "This page is out of date.";
+  }
+  return supportFailureMessage(reasonCode);
+}
+
 function resolveWriteOutcome(
   requestedWriteOutcome: SupportWriteOutcome | undefined,
   data: Record<string, unknown> | undefined,
@@ -165,7 +177,7 @@ export function buildSupportReferenceFailure(
   return {
     canRetry,
     duration: staysUntilDismissed ? Number.POSITIVE_INFINITY : 6000,
-    reason: supportFailureMessage(reasonCode),
+    reason: failureMessage(error, reasonCode, kind),
     reasonCode,
     retryBound: canRetry ? "You can retry once." : "Do not retry.",
     retryPolicy,

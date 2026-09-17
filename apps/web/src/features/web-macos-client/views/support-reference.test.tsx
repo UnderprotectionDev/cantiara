@@ -84,6 +84,22 @@ describe("Client Shell Support reference notice", () => {
     expect(failure.retryBound).toBe("Do not retry.");
   });
 
+  test("explains a stale mutation in plain language", () => {
+    const failure = buildSupportReferenceFailure(
+      {
+        ...supportError,
+        data: {
+          ...supportError.data,
+          code: "STALE_BASE_REVISION",
+          retryPolicy: "never",
+        },
+      },
+      { kind: "mutation" },
+    );
+
+    expect(failure.reason).toBe("This page is out of date.");
+  });
+
   test("auto-dismisses a query failure and keeps the Support reference safe", () => {
     const failure = buildSupportReferenceFailure(supportError, {
       kind: "query",

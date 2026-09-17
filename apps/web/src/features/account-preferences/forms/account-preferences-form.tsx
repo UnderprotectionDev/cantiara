@@ -81,10 +81,26 @@ function saveStatusMessage(
   if (!isOnline) {
     return "Disconnected";
   }
+  if (saveError?.code === "STALE_BASE_REVISION") {
+    return "Data was not written.";
+  }
   if (!saveError) {
     return "Preferences could not be saved.";
   }
   return accountPreferencesMutationErrorMessage(saveError);
+}
+
+function saveStatusDescription(
+  isOnline: boolean,
+  saveError: AccountPreferencesMutationError | null,
+) {
+  if (!isOnline) {
+    return "Reconnect to save.";
+  }
+  if (saveError?.code === "STALE_BASE_REVISION") {
+    return "This page is out of date. Refresh to load the current value.";
+  }
+  return "Try Save again.";
 }
 
 function previewValues(values: AccountPreferences): AccountPreferences {
@@ -147,7 +163,7 @@ function AccountPreferencesSaveStatus({
           {saveStatusMessage(isOnline, saveError)}
         </p>
         <p className="mt-1 text-muted-foreground text-xs/relaxed">
-          {isOnline ? "Try Save again." : "Reconnect to save."}
+          {saveStatusDescription(isOnline, saveError)}
         </p>
         <dl className="mt-3 space-y-1 text-xs/relaxed">
           <div className="flex flex-wrap gap-x-2">
@@ -172,20 +188,50 @@ function AccountPreferencesSaveStatus({
               </dd>
             </div>
           ) : null}
-          {saveError?.code === "STALE_BASE_REVISION" ? (
-            <div className="flex flex-wrap gap-x-2">
-              <dt className="font-medium">Current value</dt>
-              <dd>
-                Revision {saveError.currentRevision}:{" "}
-                {saveError.currentValue.appearance};{" "}
-                {saveError.currentValue.locale};{" "}
-                {saveError.currentValue.timeZone};{" "}
-                {saveError.currentValue.dateFormat};{" "}
-                {saveError.currentValue.firstDayOfWeek}
-              </dd>
-            </div>
-          ) : null}
         </dl>
+        {saveError?.code === "STALE_BASE_REVISION" ? (
+          <div className="mt-4 border-destructive/20 border-t pt-3">
+            <p className="font-medium text-sm">Current value</p>
+            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm/relaxed sm:grid-cols-3">
+              <div>
+                <dt className="text-muted-foreground">Revision</dt>
+                <dd className="mt-0.5 font-medium">
+                  {saveError.currentRevision}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Appearance</dt>
+                <dd className="mt-0.5 break-words font-medium">
+                  {saveError.currentValue.appearance}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Locale</dt>
+                <dd className="mt-0.5 break-words font-medium">
+                  {saveError.currentValue.locale}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Time zone</dt>
+                <dd className="mt-0.5 break-words font-medium">
+                  {saveError.currentValue.timeZone}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Date format</dt>
+                <dd className="mt-0.5 break-words font-medium">
+                  {saveError.currentValue.dateFormat}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">First day of week</dt>
+                <dd className="mt-0.5 break-words font-medium">
+                  {saveError.currentValue.firstDayOfWeek}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        ) : null}
       </div>
     </aside>
   );
