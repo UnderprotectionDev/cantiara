@@ -201,14 +201,17 @@ export function SupportReferenceNotice({
 }) {
   return (
     <div aria-live="polite" className="space-y-1 text-sm" role="alert">
-      <p>{failure.reason}</p>
       <p>{failure.writeOutcomeLabel}</p>
       <p>{failure.retryBound}</p>
       <p>
-        <span>Support reference</span>{" "}
-        <code>
-          {failure.supportReference ?? "Support reference unavailable."}
-        </code>
+        {failure.supportReference ? (
+          <>
+            <span>Support reference</span>{" "}
+            <code>{failure.supportReference}</code>
+          </>
+        ) : (
+          "Support reference unavailable."
+        )}
       </p>
     </div>
   );

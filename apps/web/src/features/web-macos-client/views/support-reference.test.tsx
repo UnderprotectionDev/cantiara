@@ -29,6 +29,7 @@ describe("Client Shell Support reference notice", () => {
     expect(failure.reason).toBe("This action could not be completed.");
     expect(failure.canRetry).toBe(true);
     expect(failure.retryBound).toBe("You can retry once.");
+    expect(html).not.toContain(`<p>${failure.reason}</p>`);
     expect(html).toContain("Data was not written.");
     expect(html).toContain("You can retry once.");
     expect(html).toContain("Support reference");
@@ -114,6 +115,9 @@ describe("Client Shell Support reference notice", () => {
 
     expect(failure.reason).toBe("You’re offline");
     expect(failure.supportReference).toBeNull();
-    expect(html).toContain("Support reference unavailable.");
+    expect(html).toContain("<p>Support reference unavailable.</p>");
+    expect(html).not.toContain(
+      "<span>Support reference</span> <code>Support reference unavailable.</code>",
+    );
   });
 });
