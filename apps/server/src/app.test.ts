@@ -146,6 +146,24 @@ describe("server app Account Access boundary", () => {
     expect(getHandlerCalls()).toBe(1);
   });
 
+  test("allows the GitHub callback to recover from a stale revoked cookie", async () => {
+    const { app, getHandlerCalls } = createTestApp();
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/auth/callback/github?code=oauth-code&state=oauth-state",
+        {
+          headers: {
+            cookie: "__Secure-better-auth.session_token=stale-token",
+          },
+        },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(getHandlerCalls()).toBe(1);
+  });
+
   test("allows sign-out to clear a stale revoked cookie", async () => {
     const { app, getHandlerCalls } = createTestApp();
 
