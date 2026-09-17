@@ -6,6 +6,7 @@ import type {
 } from "@cantiara/api/project-shell";
 import {
   projectLifecycleStatusSchema,
+  resolveProjectShellConfiguration,
   starterConfigurationSchema,
 } from "@cantiara/api/project-shell";
 import type { Database } from "@cantiara/db";
@@ -27,7 +28,14 @@ import {
 type ProjectDatabaseRecord = typeof project.$inferSelect;
 
 function toProfile(record: ProjectDatabaseRecord): ProjectProfile {
+  const starterConfiguration = starterConfigurationSchema.parse(
+    record.starterConfiguration,
+  );
   return {
+    configuration: resolveProjectShellConfiguration(
+      record.configuration,
+      starterConfiguration,
+    ),
     createdAt: record.createdAt.toISOString(),
     id: record.id,
     logo: record.logo,
@@ -38,9 +46,7 @@ function toProfile(record: ProjectDatabaseRecord): ProjectProfile {
     scope: record.scope,
     shortCode: record.shortCode,
     shortCodeLocked: record.workCount > 0,
-    starterConfiguration: starterConfigurationSchema.parse(
-      record.starterConfiguration,
-    ),
+    starterConfiguration,
     status: projectLifecycleStatusSchema.parse(record.status),
     targetDate: record.targetDate,
     updatedAt: record.updatedAt.toISOString(),
@@ -189,6 +195,7 @@ function createProjectShellMutationTarget(
         const [created] = await executor
           .insert(project)
           .values({
+            configuration: nextProject.configuration,
             createdAt: committedAt,
             id: nextProject.id,
             logo: nextProject.logo,

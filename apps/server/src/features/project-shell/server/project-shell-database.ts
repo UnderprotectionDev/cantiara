@@ -1,5 +1,6 @@
 import {
   projectLifecycleStatusSchema,
+  resolveProjectShellConfiguration,
   starterConfigurationSchema,
 } from "@cantiara/api/project-shell";
 import type { Database } from "@cantiara/db";
@@ -18,7 +19,14 @@ import {
 type ProjectDatabaseRecord = typeof project.$inferSelect;
 
 function toRecord(record: ProjectDatabaseRecord) {
+  const starterConfiguration = starterConfigurationSchema.parse(
+    record.starterConfiguration,
+  );
   return {
+    configuration: resolveProjectShellConfiguration(
+      record.configuration,
+      starterConfiguration,
+    ),
     createdAt: record.createdAt.toISOString(),
     id: record.id,
     logo: record.logo,
@@ -28,9 +36,7 @@ function toRecord(record: ProjectDatabaseRecord) {
     revision: record.revision,
     scope: record.scope,
     shortCode: record.shortCode,
-    starterConfiguration: starterConfigurationSchema.parse(
-      record.starterConfiguration,
-    ),
+    starterConfiguration,
     status: projectLifecycleStatusSchema.parse(record.status),
     targetDate: record.targetDate,
     updatedAt: record.updatedAt.toISOString(),
@@ -86,6 +92,7 @@ export function createDatabaseProjectShell(database: Database) {
         const [created] = await transaction
           .insert(project)
           .values({
+            configuration: input.configuration,
             id,
             logo: input.logo,
             name: input.name,

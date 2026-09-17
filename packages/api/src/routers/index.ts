@@ -24,6 +24,7 @@ import {
 import {
   createProjectInputSchema,
   createProjectMutationInputSchema,
+  getProjectShellConfiguration,
   type ProjectShellMutationValue,
   shortCodeSchema,
   suggestProjectShortCode,
@@ -403,6 +404,9 @@ export const appRouter = {
               return {
                 project: {
                   createdAt: timestamp,
+                  configuration: getProjectShellConfiguration(
+                    parsed.starterConfiguration,
+                  ),
                   id: crypto.randomUUID(),
                   logo: nullableProjectValue(parsed.logo),
                   name: parsed.name,

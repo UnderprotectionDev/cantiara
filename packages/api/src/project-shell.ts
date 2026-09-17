@@ -14,6 +14,164 @@ export type StarterConfiguration =
 
 export const starterConfigurationSchema = z.enum(STARTER_CONFIGURATION_OPTIONS);
 
+export const PROJECT_AREA_OPTIONS = [
+  "Work",
+  "Documents",
+  "Discovery",
+  "Decisions",
+  "Design",
+  "Technical Diagrams",
+  "Tests",
+  "Releases",
+  "Production",
+  "GitHub",
+] as const;
+
+export type ProjectArea = (typeof PROJECT_AREA_OPTIONS)[number];
+
+export const PROJECT_WORK_VIEW_OPTIONS = [
+  "Backlog",
+  "Board",
+  "Roadmap",
+] as const;
+
+export type ProjectWorkView = (typeof PROJECT_WORK_VIEW_OPTIONS)[number];
+
+export const PROTECTED_WORK_STATUS_OPTIONS = [
+  "Not Started",
+  "In Progress",
+  "Blocked",
+  "Closed",
+] as const;
+
+export type ProtectedWorkStatus =
+  (typeof PROTECTED_WORK_STATUS_OPTIONS)[number];
+
+const projectAreaSchema = z.enum(PROJECT_AREA_OPTIONS);
+const projectWorkViewSchema = z.enum(PROJECT_WORK_VIEW_OPTIONS);
+const protectedWorkStatusSchema = z.enum(PROTECTED_WORK_STATUS_OPTIONS);
+const protectedWorkStatusesSchema = z
+  .array(protectedWorkStatusSchema)
+  .length(PROTECTED_WORK_STATUS_OPTIONS.length)
+  .refine(
+    (statuses) =>
+      statuses.every(
+        (status, index) => status === PROTECTED_WORK_STATUS_OPTIONS[index],
+      ),
+    "Work statuses must use the protected status catalog.",
+  );
+
+export interface StarterConfigurationDefinition {
+  enabledAreas: readonly ProjectArea[];
+  extraPinnedAreas: readonly ProjectArea[];
+  preparedStages: readonly string[];
+  preparedWorkViews: readonly ProjectWorkView[];
+}
+
+const STARTER_CONFIGURATION_DEFINITIONS = {
+  "Blank Project": {
+    enabledAreas: ["Work", "Documents"],
+    extraPinnedAreas: [],
+    preparedStages: [],
+    preparedWorkViews: ["Backlog", "Board"],
+  },
+  "Solo SaaS": {
+    enabledAreas: PROJECT_AREA_OPTIONS,
+    extraPinnedAreas: ["Discovery", "Decisions", "Design", "Tests", "Releases"],
+    preparedStages: [
+      "Discovery",
+      "Design",
+      "Build",
+      "Validate",
+      "Release",
+      "Operate",
+    ],
+    preparedWorkViews: PROJECT_WORK_VIEW_OPTIONS,
+  },
+  "Open Source Library": {
+    enabledAreas: [
+      "Work",
+      "Documents",
+      "Decisions",
+      "Technical Diagrams",
+      "Tests",
+      "Releases",
+      "GitHub",
+    ],
+    extraPinnedAreas: ["GitHub", "Tests", "Releases"],
+    preparedStages: ["Scope", "Build", "Validate", "Release", "Maintain"],
+    preparedWorkViews: PROJECT_WORK_VIEW_OPTIONS,
+  },
+  "Mobile Application": {
+    enabledAreas: PROJECT_AREA_OPTIONS,
+    extraPinnedAreas: [
+      "Discovery",
+      "Design",
+      "Tests",
+      "Releases",
+      "Production",
+    ],
+    preparedStages: [
+      "Discovery",
+      "Design",
+      "Build",
+      "Validate",
+      "Release",
+      "Operate",
+    ],
+    preparedWorkViews: PROJECT_WORK_VIEW_OPTIONS,
+  },
+} as const satisfies Record<
+  StarterConfiguration,
+  StarterConfigurationDefinition
+>;
+
+export function getStarterConfigurationDefinition(
+  configuration: StarterConfiguration,
+): StarterConfigurationDefinition {
+  const definition = STARTER_CONFIGURATION_DEFINITIONS[configuration];
+  return {
+    enabledAreas: [...definition.enabledAreas],
+    extraPinnedAreas: [...definition.extraPinnedAreas],
+    preparedStages: [...definition.preparedStages],
+    preparedWorkViews: [...definition.preparedWorkViews],
+  };
+}
+
+export interface ProjectShellConfiguration
+  extends StarterConfigurationDefinition {
+  workStatuses: readonly ProtectedWorkStatus[];
+}
+
+export const projectShellConfigurationSchema = z
+  .object({
+    enabledAreas: z.array(projectAreaSchema),
+    extraPinnedAreas: z.array(projectAreaSchema),
+    preparedStages: z.array(z.string().trim().min(1)),
+    preparedWorkViews: z.array(projectWorkViewSchema),
+    workStatuses: protectedWorkStatusesSchema,
+  })
+  .strict();
+
+export function getProjectShellConfiguration(
+  configuration: StarterConfiguration,
+): ProjectShellConfiguration {
+  return {
+    ...getStarterConfigurationDefinition(configuration),
+    workStatuses: [...PROTECTED_WORK_STATUS_OPTIONS],
+  };
+}
+
+export function resolveProjectShellConfiguration(
+  value: unknown,
+  starterConfiguration: StarterConfiguration,
+): ProjectShellConfiguration {
+  const parsed = projectShellConfigurationSchema.safeParse(value);
+  return parsed.success
+    ? parsed.data
+    : getProjectShellConfiguration(starterConfiguration);
+}
+
 export const PROJECT_LIFECYCLE_STATUS_OPTIONS = [
   "Active",
   "Pending",
@@ -194,6 +352,7 @@ export type ParsedCreateProjectInput = z.output<
 >;
 
 export interface ProjectProfile {
+  configuration: ProjectShellConfiguration;
   createdAt: string;
   id: string;
   logo: string | null;

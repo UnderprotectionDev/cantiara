@@ -11,6 +11,7 @@ import type {
   ProjectShellMutationContracts,
   ProjectShellMutationValue,
 } from "@cantiara/api/project-shell";
+import { getProjectShellConfiguration } from "@cantiara/api/project-shell";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test } from "vitest";
@@ -20,6 +21,7 @@ import {
 } from "./project-shell";
 
 const project: ProjectProfile = {
+  configuration: getProjectShellConfiguration("Blank Project"),
   createdAt: "2026-09-17T09:00:00.000Z",
   id: "project-1",
   logo: null,
