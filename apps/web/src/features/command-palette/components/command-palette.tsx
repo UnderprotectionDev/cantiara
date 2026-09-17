@@ -7,7 +7,6 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
   CommandShortcut,
 } from "@cantiara/ui/components/command";
 import { Kbd } from "@cantiara/ui/components/kbd";
@@ -39,11 +38,15 @@ import {
 
 import {
   buildCommandPaletteCommands,
+  buildCommandPaletteRecordCommands,
   COMMAND_PALETTE_COMMAND_SHORTCUT,
+  COMMAND_PALETTE_MAX_VISIBLE_ITEMS,
   type CommandPaletteCommand,
   type CommandPaletteCommandSource,
   type CommandPaletteMutationContract,
+  type CommandPaletteRecord,
   executeCommand,
+  filterAndLimitCommandPaletteCommands,
 } from "./command-palette-commands";
 
 const MAC_PLATFORM_PATTERN = /Mac|iPhone|iPad/;
@@ -66,10 +69,12 @@ const CommandPaletteContext = createContext<CommandPaletteContextValue | null>(
 );
 
 export interface CommandPaletteProps {
+  authorizedRecords?: readonly CommandPaletteRecord[];
   commands: readonly CommandPaletteCommand[];
   initialQuery?: string;
   mutationContract?: CommandPaletteMutationContract;
   onOpenChange: (open: boolean) => void;
+  onOpenRecord?: CommandPaletteCommandSource["onOpenRecord"];
   open: boolean;
 }
 
@@ -81,10 +86,12 @@ function commandFailureReason(error: unknown) {
 }
 
 export default function CommandPalette({
+  authorizedRecords,
   commands,
   initialQuery = "",
   mutationContract,
   onOpenChange,
+  onOpenRecord,
   open,
 }: CommandPaletteProps) {
   const [commandStack, setCommandStack] = useState<
@@ -95,12 +102,54 @@ export default function CommandPalette({
   const [query, setQuery] = useState(initialQuery);
 
   const activeCommands = commandStack.at(-1) ?? commands;
-  const commonCommands = activeCommands.filter(
-    (command) => command.kind !== "open-record",
+  const commandGroups = useMemo(() => {
+    const common: CommandPaletteCommand[] = [];
+    const records: CommandPaletteCommand[] = [];
+
+    for (const command of activeCommands) {
+      if (command.kind === "open-record") {
+        records.push(command);
+      } else {
+        common.push(command);
+      }
+    }
+
+    return { common, records };
+  }, [activeCommands]);
+  const commonCommands = useMemo(
+    () =>
+      filterAndLimitCommandPaletteCommands(
+        commandGroups.common,
+        query,
+        COMMAND_PALETTE_MAX_VISIBLE_ITEMS,
+      ),
+    [commandGroups.common, query],
   );
-  const recordCommands = activeCommands.filter(
-    (command) => command.kind === "open-record",
+  const sourceRecordCommands = useMemo(
+    () =>
+      open && commandStack.length === 0
+        ? buildCommandPaletteRecordCommands(
+            authorizedRecords,
+            onOpenRecord,
+            query,
+            COMMAND_PALETTE_MAX_VISIBLE_ITEMS,
+          )
+        : [],
+    [authorizedRecords, commandStack.length, onOpenRecord, open, query],
   );
+  const recordCommandsFromCommandList = useMemo(
+    () =>
+      filterAndLimitCommandPaletteCommands(
+        commandGroups.records,
+        query,
+        COMMAND_PALETTE_MAX_VISIBLE_ITEMS - sourceRecordCommands.length,
+      ),
+    [commandGroups.records, query, sourceRecordCommands.length],
+  );
+  const recordCommands = [
+    ...sourceRecordCommands,
+    ...recordCommandsFromCommandList,
+  ];
 
   useEffect(() => {
     if (open) {
@@ -229,8 +278,8 @@ export default function CommandPalette({
             </div>
           ) : null}
           <CommandList
-            aria-label="Command Palette commands"
             className="max-h-[min(32rem,calc(100svh-8rem))] p-2"
+            label="Command Palette commands"
           >
             <CommandEmpty className="py-10">
               <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -251,11 +300,15 @@ export default function CommandPalette({
                 ))}
               </CommandGroup>
             ) : null}
-            {commonCommands.length > 0 && recordCommands.length > 0 ? (
-              <CommandSeparator className="mx-2 my-3" />
-            ) : null}
             {recordCommands.length > 0 ? (
-              <CommandGroup heading="Authorized records">
+              <CommandGroup
+                className={
+                  commonCommands.length > 0
+                    ? "mt-3 border-border border-t pt-2"
+                    : undefined
+                }
+                heading="Authorized records"
+              >
                 {recordCommands.map((command) => (
                   <PaletteCommandItem
                     command={command}
@@ -451,20 +504,26 @@ export function CommandPaletteQuickActions() {
   );
 }
 
-export function CommandPaletteProvider({
-  authorizedProjects,
-  authorizedRecords,
-  children,
-  commands,
-  createOptions,
-  mutationContract,
-  onCreate,
-  onOpenRecord,
-  onSwitchProject,
-}: CommandPaletteCommandSource & {
+interface CommandPaletteProviderProps {
   children: ReactNode;
   mutationContract?: CommandPaletteMutationContract;
-}) {
+  source: CommandPaletteCommandSource;
+}
+
+export function CommandPaletteProvider({
+  children,
+  mutationContract,
+  source,
+}: CommandPaletteProviderProps) {
+  const {
+    authorizedProjects,
+    authorizedRecords,
+    commands,
+    createOptions,
+    onCreate,
+    onOpenRecord,
+    onSwitchProject,
+  } = source;
   const navigate = useNavigate();
   const [paletteStore] = useState(() =>
     createStore<CommandPaletteProviderState>({
@@ -536,7 +595,6 @@ export function CommandPaletteProvider({
     () =>
       buildCommandPaletteCommands({
         authorizedProjects,
-        authorizedRecords,
         commands: [...navigationCommands, ...(commands ?? [])],
         createOptions,
         onCreate,
@@ -545,7 +603,6 @@ export function CommandPaletteProvider({
       }),
     [
       authorizedProjects,
-      authorizedRecords,
       commands,
       createOptions,
       navigationCommands,
@@ -631,10 +688,12 @@ export function CommandPaletteProvider({
     <CommandPaletteContext.Provider value={contextValue}>
       {children}
       <CommandPalette
+        authorizedRecords={authorizedRecords}
         commands={paletteCommands}
         initialQuery={initialQuery}
         mutationContract={mutationContract}
         onOpenChange={handleOpenChange}
+        onOpenRecord={onOpenRecord}
         open={open}
       />
     </CommandPaletteContext.Provider>

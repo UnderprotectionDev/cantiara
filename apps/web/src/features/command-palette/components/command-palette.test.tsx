@@ -6,6 +6,7 @@ import {
   buildCommandPaletteCommands,
   COMMAND_PALETTE_COMMAND_SHORTCUT,
   executeCommand,
+  filterAndLimitCommandPaletteCommands,
 } from "./command-palette-commands";
 
 const visibleRecord = {
@@ -120,7 +121,10 @@ describe("Command Palette command interface", () => {
       authorizedRecords: [visibleRecord, hiddenRecord],
     });
 
-    expect(commands[2]?.children).toBeUndefined();
+    const privateCommand = commands.find(
+      (command) => command.id === "private-command",
+    );
+    expect(privateCommand?.children).toBeUndefined();
     expect(
       commands.some((command) => command.id === "open-record-work-visible"),
     ).toBe(true);
@@ -233,5 +237,30 @@ describe("Command Palette command interface", () => {
 
     expect(html).toContain("Command Palette");
     expect(html).not.toContain(">Search</");
+  });
+
+  test("filters before rendering and caps the mounted command list", () => {
+    const records = Array.from({ length: 15_000 }, (_, index) => ({
+      authorized: true,
+      id: `record-${index}`,
+      scope: "Project: Cantiara",
+      title: `Reference Work ${String(index).padStart(5, "0")}`,
+      type: "Work",
+      visibleCounterpart: "Work menu",
+    }));
+
+    const commands = filterAndLimitCommandPaletteCommands(
+      buildCommandPaletteCommands({ authorizedRecords: records }),
+      "Reference Work 14999",
+    );
+
+    expect(commands).toHaveLength(1);
+    expect(commands[0]?.label).toBe("Reference Work 14999");
+
+    const emptyQueryCommands = filterAndLimitCommandPaletteCommands(
+      buildCommandPaletteCommands({ authorizedRecords: records }),
+      "",
+    );
+    expect(emptyQueryCommands).toHaveLength(50);
   });
 });

@@ -1,16 +1,24 @@
+import AxeBuilder from "@axe-core/playwright";
 import {
   type APIRequestContext,
   type BrowserContext,
   expect,
-  type Locator,
   type Page,
   test,
 } from "@playwright/test";
 
-import { COMMAND_PALETTE_VISIBLE_BUDGET_MS } from "../src/features/command-palette/components/command-palette-commands";
-
 const DASHBOARD_URL_PATTERN = /\/dashboard$/;
 const PREFERENCES_URL_PATTERN = /\/account\/preferences$/;
+const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
+const COMMAND_PALETTE_VISIBLE_BUDGET_MS = {
+  p95: 150,
+  p99: 300,
+} as const;
+const HOT_CACHE_SAMPLES = 500;
+const COLD_CACHE_SAMPLES = 100;
+const COLD_CACHE_BATCH_SIZE = 5;
+const COMMAND_PALETTE_TRIGGER_SELECTOR =
+  'header button[aria-keyshortcuts="Control+K Meta+K"]';
 
 async function establishFounderSession(
   page: Page,
@@ -18,7 +26,7 @@ async function establishFounderSession(
   request: APIRequestContext,
 ) {
   const setupResponse = await request.get(
-    "http://127.0.0.1:3100/__e2e/setup?fixture=command-palette",
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=command-palette`,
   );
   const setup = (await setupResponse.json()) as {
     cookie: {
@@ -37,29 +45,107 @@ async function establishFounderSession(
   await expect(page).toHaveURL(DASHBOARD_URL_PATTERN);
 }
 
-async function measureVisibilitySamples(
+function measureVisibilitySamples(
   page: Page,
-  trigger: Locator,
-  palette: Locator,
-  remaining: number,
-  samples: number[] = [],
+  sampleCount: number,
 ): Promise<number[]> {
-  if (remaining === 0) {
-    return samples;
-  }
+  return page.evaluate(
+    ({ count: requestedCount, triggerSelector }) => {
+      const nextFrame = () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const waitFor = (condition: () => boolean) => {
+        const deadline = performance.now() + 5000;
+        const poll = async (): Promise<void> => {
+          if (condition()) {
+            return;
+          }
+          if (performance.now() >= deadline) {
+            throw new Error(
+              "Command Palette did not reach the expected state.",
+            );
+          }
+          await nextFrame();
+          return poll();
+        };
+        return poll();
+      };
 
-  await trigger.focus();
-  const start = await page.evaluate(() => performance.now());
-  await page.keyboard.press("Control+k");
-  await expect(palette).toBeVisible();
-  const visibleAt = await page.evaluate(() => performance.now());
-  await page.keyboard.press("Escape");
-  await expect(palette).toHaveCount(0);
+      const collectSamples = async (remaining: number): Promise<number[]> => {
+        if (remaining === 0) {
+          return [];
+        }
 
-  return measureVisibilitySamples(page, trigger, palette, remaining - 1, [
-    ...samples,
-    visibleAt - start,
-  ]);
+        const trigger =
+          document.querySelector<HTMLButtonElement>(triggerSelector);
+        if (!trigger) {
+          throw new Error("Command Palette trigger was not found.");
+        }
+
+        const start = performance.now();
+        trigger.click();
+        await waitFor(() => Boolean(document.querySelector('[role="dialog"]')));
+        const sample = performance.now() - start;
+
+        const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+        dialog?.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            bubbles: true,
+            key: "Escape",
+          }),
+        );
+        await waitFor(() => !document.querySelector('[role="dialog"]'));
+
+        return [sample, ...(await collectSamples(remaining - 1))];
+      };
+
+      return collectSamples(requestedCount);
+    },
+    { count: sampleCount, triggerSelector: COMMAND_PALETTE_TRIGGER_SELECTOR },
+  );
+}
+
+async function measureColdCacheSamples(context: BrowserContext, count: number) {
+  // A fresh page resets the application command/query state without multiplying
+  // the reference workspace startup cost across isolated browser contexts.
+  const samples: number[] = [];
+
+  const measureBatch = async (offset: number): Promise<void> => {
+    if (offset >= count) {
+      return;
+    }
+
+    const batchSize = Math.min(COLD_CACHE_BATCH_SIZE, count - offset);
+    const pages = await Promise.all(
+      Array.from({ length: batchSize }, async () => {
+        const page = await context.newPage();
+        await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+        await page.waitForSelector(COMMAND_PALETTE_TRIGGER_SELECTOR);
+        return page;
+      }),
+    );
+
+    const batchSamples = await Promise.all(
+      pages.map(async (page) => {
+        const [sample] = await measureVisibilitySamples(page, 1);
+        return sample ?? Number.POSITIVE_INFINITY;
+      }),
+    );
+    samples.push(...batchSamples);
+    await Promise.all(pages.map((page) => page.close()));
+    return measureBatch(offset + batchSize);
+  };
+
+  await measureBatch(0);
+
+  return samples;
+}
+
+function percentile(samples: readonly number[], rank: number) {
+  const sortedSamples = [...samples].sort((left, right) => left - right);
+  return (
+    sortedSamples[Math.ceil(sortedSamples.length * rank) - 1] ??
+    Number.POSITIVE_INFINITY
+  );
 }
 
 test("opens the founder Command Palette across contexts and keeps it off public pages", async ({
@@ -79,9 +165,7 @@ test("opens the founder Command Palette across contexts and keeps it off public 
   await expect(
     page.getByRole("heading", { name: "Dashboard", level: 1 }),
   ).toBeVisible();
-  const trigger = page.locator(
-    'header button[aria-keyshortcuts="Control+K Meta+K"]',
-  );
+  const trigger = page.locator(COMMAND_PALETTE_TRIGGER_SELECTOR);
   await expect(
     page.getByRole("button", { name: "Switch Project", exact: true }),
   ).toBeVisible();
@@ -90,27 +174,6 @@ test("opens the founder Command Palette across contexts and keeps it off public 
   ).toBeVisible();
   await expect(trigger).toBeVisible();
   const palette = page.getByRole("dialog", { name: "Command Palette" });
-  const visibilitySamples = await measureVisibilitySamples(
-    page,
-    trigger,
-    palette,
-    20,
-  );
-
-  const sortedVisibilitySamples = [...visibilitySamples].sort(
-    (left, right) => left - right,
-  );
-  const percentile = (rank: number) =>
-    sortedVisibilitySamples[
-      Math.ceil(sortedVisibilitySamples.length * rank) - 1
-    ];
-
-  expect(percentile(0.95)).toBeLessThanOrEqual(
-    COMMAND_PALETTE_VISIBLE_BUDGET_MS.p95,
-  );
-  expect(percentile(0.99)).toBeLessThanOrEqual(
-    COMMAND_PALETTE_VISIBLE_BUDGET_MS.p99,
-  );
 
   await trigger.focus();
   await page.keyboard.press("Control+k");
@@ -141,14 +204,137 @@ test("opens the founder Command Palette across contexts and keeps it off public 
   await trigger.focus();
   await page.keyboard.press("Control+k");
   await expect(palette).toBeVisible();
+  await commandInput.fill("Reference Work 09999");
+  await expect(
+    palette.getByText("Reference Work 09999", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    palette.getByText("Reference Work 00000", { exact: true }),
+  ).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expect(palette).toHaveCount(0);
+
+  await trigger.focus();
+  await page.keyboard.press("Control+k");
+  await expect(palette).toBeVisible();
+  await commandInput.fill("Switch Project");
+  await page.keyboard.press("Enter");
+  await expect(
+    palette.getByText("Reference Project 01", { exact: true }),
+  ).toBeVisible();
+  await commandInput.fill("Reference Project 01");
+  await page.keyboard.press("Enter");
+  await expect(palette).toHaveCount(0);
+
+  await trigger.focus();
+  await page.keyboard.press("Control+k");
+  await expect(palette).toBeVisible();
   await commandInput.fill("Create");
+  await page.keyboard.press("Enter");
+  await expect(palette.getByText("Create Work", { exact: true })).toBeVisible();
+  await commandInput.fill("Work");
+  await page.keyboard.press("Enter");
+  await expect(palette).toHaveCount(0);
+
+  await trigger.focus();
+  await page.keyboard.press("Control+k");
+  await expect(palette).toBeVisible();
+  await commandInput.fill("Unsupported reference command");
   await page.keyboard.press("Enter");
   await expect(palette.getByRole("alert")).toContainText("Can’t run this here");
   await expect(palette.getByRole("alert")).toContainText(
-    "Create is unavailable in this context.",
+    "Unsupported reference command is unavailable in this context.",
   );
 
   await page.keyboard.press("Escape");
+  await expect(palette).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test("measures Command Palette visibility at the reference workspace scale", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(180_000);
+  await establishFounderSession(page, context, request);
+  await page.goto("/dashboard");
+
+  const trigger = page.locator(COMMAND_PALETTE_TRIGGER_SELECTOR);
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await expect(trigger).toBeVisible();
+
+  await trigger.focus();
+  await page.keyboard.press("Control+k");
+  await expect(palette).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(palette).toHaveCount(0);
+
+  const hotCacheSamples = await measureVisibilitySamples(
+    page,
+    HOT_CACHE_SAMPLES,
+  );
+  const coldCacheSamples = await measureColdCacheSamples(
+    context,
+    COLD_CACHE_SAMPLES,
+  );
+
+  expect(hotCacheSamples).toHaveLength(HOT_CACHE_SAMPLES);
+  expect(coldCacheSamples).toHaveLength(COLD_CACHE_SAMPLES);
+
+  expect(
+    percentile(hotCacheSamples, 0.95),
+    "Hot-cache Command Palette p95 visibility budget",
+  ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p95);
+  expect(
+    percentile(hotCacheSamples, 0.99),
+    "Hot-cache Command Palette p99 visibility budget",
+  ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p99);
+  expect(
+    percentile(coldCacheSamples, 0.95),
+    "Cold-cache Command Palette p95 visibility budget",
+  ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p95);
+  expect(
+    percentile(coldCacheSamples, 0.99),
+    "Cold-cache Command Palette p99 visibility budget",
+  ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p99);
+});
+
+test("keeps the Command Palette accessible to keyboard and assistive technology", async ({
+  context,
+  page,
+  request,
+}) => {
+  await establishFounderSession(page, context, request);
+  await page.goto("/dashboard");
+
+  const trigger = page.locator(COMMAND_PALETTE_TRIGGER_SELECTOR);
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await trigger.focus();
+  await page.keyboard.press("Control+k");
+  await expect(palette).toBeVisible();
+
+  const accessibilityScan = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .analyze();
+  expect(accessibilityScan.violations).toEqual([]);
+  await expect(palette).toHaveAccessibleDescription(
+    "Run an authorized product command.",
+  );
+  await expect(
+    palette.getByRole("combobox", {
+      name: "Filter Command Palette commands",
+    }),
+  ).toHaveAttribute("aria-autocomplete", "list");
+  await expect(
+    palette.getByRole("listbox", { name: "Command Palette commands" }),
+  ).toBeVisible();
+
+  const commandInput = palette.getByRole("combobox", {
+    name: "Filter Command Palette commands",
+  });
+  await commandInput.fill("Open Dashboard");
+  await page.keyboard.press("Enter");
   await expect(palette).toHaveCount(0);
   await expect(trigger).toBeFocused();
 });

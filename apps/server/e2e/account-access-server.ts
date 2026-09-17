@@ -16,8 +16,9 @@ import { createDatabaseGitHubIdentityConfirmation } from "../src/features/accoun
 import { createDatabaseAccountSessionAccess } from "../src/features/account-access/server/session-access-database";
 import { createDatabaseAccountPreferences } from "../src/features/account-preferences/server/account-preferences-database";
 
-const webOrigin = "http://127.0.0.1:4173";
-const serverOrigin = "http://127.0.0.1:3100";
+const serverPort = Number(process.env.E2E_SERVER_PORT ?? "3100");
+const serverOrigin = `http://127.0.0.1:${serverPort}`;
+const webOrigin = process.env.E2E_WEB_ORIGIN ?? "http://127.0.0.1:4173";
 const E2E_FIXTURE_KEY_PATTERN = /^[a-z-]+$/;
 const databaseUrl = process.env.DATABASE_URL;
 const securityEventDatabaseUrl = process.env.SECURITY_EVENT_DATABASE_URL;
@@ -131,7 +132,7 @@ async function createE2EFixture(fixtureKey: string) {
 
 serve({
   hostname: "127.0.0.1",
-  port: 3100,
+  port: serverPort,
   async fetch(request, server) {
     const url = new URL(request.url);
     if (url.pathname === "/__e2e/setup") {

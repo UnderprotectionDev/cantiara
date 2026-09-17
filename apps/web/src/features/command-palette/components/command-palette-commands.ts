@@ -1,9 +1,6 @@
 export const COMMAND_PALETTE_COMMAND_SHORTCUT = "Enter" as const;
-
-export const COMMAND_PALETTE_VISIBLE_BUDGET_MS = {
-  p95: 150,
-  p99: 300,
-} as const;
+export const COMMAND_PALETTE_MAX_VISIBLE_ITEMS = 50;
+const COMMAND_QUERY_TOKEN_PATTERN = /\s+/;
 
 export type CommandPaletteAction = () => void | Promise<void>;
 
@@ -63,6 +60,71 @@ export interface CommandPaletteCommandSource {
   onCreate?: (option: CommandPaletteCreateOption) => void | Promise<void>;
   onOpenRecord?: (record: CommandPaletteRecord) => void | Promise<void>;
   onSwitchProject?: (project: CommandPaletteProject) => void | Promise<void>;
+}
+
+function commandSearchValues(command: CommandPaletteCommand) {
+  return [
+    command.id,
+    command.label,
+    command.scope,
+    command.target,
+    command.visibleCounterpart,
+    ...(command.keywords ?? []),
+  ];
+}
+
+function commandMatchesQuery(
+  command: CommandPaletteCommand,
+  queryTokens: readonly string[],
+) {
+  const searchableText = commandSearchValues(command).join(" ").toLowerCase();
+  return queryTokens.every((token) => searchableText.includes(token));
+}
+
+export function filterCommandPaletteCommands(
+  commands: readonly CommandPaletteCommand[],
+  query: string,
+) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return [...commands];
+  }
+
+  const queryTokens = normalizedQuery.split(COMMAND_QUERY_TOKEN_PATTERN);
+
+  return commands.filter((command) =>
+    commandMatchesQuery(command, queryTokens),
+  );
+}
+
+export function filterAndLimitCommandPaletteCommands(
+  commands: readonly CommandPaletteCommand[],
+  query: string,
+  limit = COMMAND_PALETTE_MAX_VISIBLE_ITEMS,
+) {
+  if (limit <= 0) {
+    return [];
+  }
+
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return commands.slice(0, limit);
+  }
+
+  const queryTokens = normalizedQuery.split(COMMAND_QUERY_TOKEN_PATTERN);
+  const matchingCommands: CommandPaletteCommand[] = [];
+  for (const command of commands) {
+    if (!commandMatchesQuery(command, queryTokens)) {
+      continue;
+    }
+
+    matchingCommands.push(command);
+    if (matchingCommands.length === limit) {
+      break;
+    }
+  }
+
+  return matchingCommands;
 }
 
 export class CommandPaletteUnavailableError extends Error {
@@ -158,6 +220,57 @@ function recordCommand(
     target: record.title,
     visibleCounterpart: record.visibleCounterpart,
   };
+}
+
+function recordMatchesQuery(
+  record: CommandPaletteRecord,
+  queryTokens: readonly string[],
+) {
+  const searchableText = [
+    record.id,
+    record.title,
+    record.type,
+    record.scope,
+    record.visibleCounterpart,
+    "open",
+  ]
+    .join(" ")
+    .toLowerCase();
+  return queryTokens.every((token) => searchableText.includes(token));
+}
+
+export function buildCommandPaletteRecordCommands(
+  records: readonly CommandPaletteRecord[] | undefined,
+  onOpenRecord: CommandPaletteCommandSource["onOpenRecord"],
+  query: string,
+  limit = COMMAND_PALETTE_MAX_VISIBLE_ITEMS,
+) {
+  if (limit <= 0) {
+    return [];
+  }
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const queryTokens = normalizedQuery
+    ? normalizedQuery.split(COMMAND_QUERY_TOKEN_PATTERN)
+    : [];
+  const recordCommands: CommandPaletteCommand[] = [];
+
+  for (const record of records ?? []) {
+    if (record.authorized === false) {
+      continue;
+    }
+
+    if (queryTokens.length > 0 && !recordMatchesQuery(record, queryTokens)) {
+      continue;
+    }
+
+    recordCommands.push(recordCommand(record, onOpenRecord));
+    if (recordCommands.length === limit) {
+      break;
+    }
+  }
+
+  return recordCommands;
 }
 
 function createSwitchProjectCommand(

@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
 
+const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
+
 test("revokes a session through the keyboard-accessible Account journey", async ({
   context,
   page,
   request,
 }) => {
   const setupResponse = await request.get(
-    "http://127.0.0.1:3100/__e2e/setup?fixture=account-sessions",
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=account-sessions`,
   );
   const setup = (await setupResponse.json()) as {
     cookie: {

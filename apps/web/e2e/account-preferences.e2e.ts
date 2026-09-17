@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 const DARK_CLASS_PATTERN = /dark/;
 const DASHBOARD_URL_PATTERN = /\/dashboard$/;
 const ROOT_URL_PATTERN = /\/$/;
+const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 
 test("keeps browser suggestions unsaved and persists Account Preferences on Save", async ({
   context,
@@ -10,7 +11,7 @@ test("keeps browser suggestions unsaved and persists Account Preferences on Save
   request,
 }) => {
   const setupResponse = await request.get(
-    "http://127.0.0.1:3100/__e2e/setup?fixture=account-preferences",
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=account-preferences`,
   );
   const setup = (await setupResponse.json()) as {
     cookie: {
