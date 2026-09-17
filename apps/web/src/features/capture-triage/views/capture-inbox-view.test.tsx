@@ -129,6 +129,10 @@ describe("Capture Inbox view", () => {
     expect(html).toContain('aria-label="Project Capture Inbox"');
     expect(html).toContain("Workspace thought");
     expect(html).toContain("Project bug");
+    expect(html).toContain(">Convert</button>");
+    expect(html).toContain(">Attach to existing</button>");
+    expect(html).toContain(">Delete</button>");
+    expect(html).toContain(">Show suggestions</button>");
     expect(html).not.toContain("Search");
     expect(html).not.toContain("Backlog");
   });

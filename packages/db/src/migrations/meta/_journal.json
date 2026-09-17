@@ -78,6 +78,13 @@
       "when": 1789675450743,
       "tag": "0010_striped_stark_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789683099400,
+      "tag": "0011_lumpy_iron_patriot",
+      "breakpoints": true
     }
   ]
 }

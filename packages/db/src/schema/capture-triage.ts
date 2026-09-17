@@ -17,11 +17,14 @@ export const captureInboxItem = pgTable(
     accountId: text("account_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    attachment: jsonb("attachment").$type<unknown>(),
     clientIdempotencyKey: text("client_idempotency_key"),
     content: text("content").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     fields: jsonb("fields").$type<Record<string, string>>().notNull(),
     id: text("id").primaryKey(),
+    link: text("link"),
+    origin: jsonb("origin").$type<unknown>(),
     payloadFingerprint: text("payload_fingerprint"),
     projectId: text("project_id"),
     template: text("template"),

@@ -1,5 +1,6 @@
 import {
   type CaptureInboxItem,
+  type CaptureInboxTriageAdapter,
   captureInboxItemSchema,
   type NormalizedCaptureInput,
 } from "@cantiara/api/capture-triage";
@@ -43,10 +44,13 @@ function toCaptureInboxItem(
   record: CaptureInboxDatabaseRecord,
 ): CaptureInboxItem {
   return captureInboxItemSchema.parse({
+    attachment: record.attachment,
     content: record.content,
     createdAt: record.createdAt.toISOString(),
     fields: record.fields,
     id: record.id,
+    link: record.link,
+    origin: record.origin,
     projectId: record.projectId,
     template: record.template,
   });
@@ -54,8 +58,11 @@ function toCaptureInboxItem(
 
 function capturePayload(input: NormalizedCaptureInput) {
   return {
+    ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
     content: input.content,
     fields: input.fields,
+    ...(input.link === undefined ? {} : { link: input.link }),
+    ...(input.origin === undefined ? {} : { origin: input.origin }),
     projectId: input.projectId,
     template: input.template,
   };
@@ -98,11 +105,14 @@ async function insertCaptureMutationValue(
     .insert(captureInboxItem)
     .values({
       accountId: value.accountId,
+      attachment: value.item.attachment,
       clientIdempotencyKey: value.clientIdempotencyKey,
       content: value.item.content,
       createdAt: new Date(value.item.createdAt),
       fields: value.item.fields,
       id: value.item.id,
+      link: value.item.link,
+      origin: value.item.origin,
       payloadFingerprint: value.payloadFingerprint,
       projectId: value.item.projectId,
       template: value.item.template,
@@ -196,6 +206,7 @@ export function createDatabaseCaptureInbox(
   database: Database,
   workCreate: CaptureInboxWorkCreate,
   mutationContract: MutationContract<MutationPayload>,
+  triageAdapter?: CaptureInboxTriageAdapter,
 ) {
   const store: CaptureInboxStore = {
     async insert(accountId, input) {
@@ -217,10 +228,15 @@ export function createDatabaseCaptureInbox(
       const clientIdempotencyKey =
         input.clientIdempotencyKey ?? crypto.randomUUID();
       const item = captureInboxItemSchema.parse({
+        ...(input.attachment === undefined
+          ? {}
+          : { attachment: input.attachment }),
         content: input.content,
         createdAt: new Date().toISOString(),
         fields: input.fields,
         id: crypto.randomUUID(),
+        ...(input.link === undefined ? {} : { link: input.link }),
+        ...(input.origin === undefined ? {} : { origin: input.origin }),
         projectId: input.projectId,
         template: input.template,
       });
@@ -244,6 +260,29 @@ export function createDatabaseCaptureInbox(
       return captureMutationValueSchema.parse(receipt.nextValue).item;
     },
 
+    async consume(accountId, itemId) {
+      const [deleted] = await database
+        .delete(captureInboxItem)
+        .where(
+          and(
+            eq(captureInboxItem.accountId, accountId),
+            eq(captureInboxItem.id, itemId),
+          ),
+        )
+        .returning();
+      return deleted ? toCaptureInboxItem(deleted) : null;
+    },
+
+    async find(accountId, itemId) {
+      const record = await database.query.captureInboxItem.findFirst({
+        where: and(
+          eq(captureInboxItem.accountId, accountId),
+          eq(captureInboxItem.id, itemId),
+        ),
+      });
+      return record ? toCaptureInboxItem(record) : null;
+    },
+
     async list(accountId) {
       const records = await database.query.captureInboxItem.findMany({
         orderBy: [desc(captureInboxItem.createdAt)],
@@ -251,7 +290,33 @@ export function createDatabaseCaptureInbox(
       });
       return records.map(toCaptureInboxItem);
     },
+
+    async restore(accountId, item) {
+      const [restored] = await database
+        .insert(captureInboxItem)
+        .values({
+          accountId,
+          attachment: item.attachment,
+          content: item.content,
+          createdAt: new Date(item.createdAt),
+          fields: item.fields,
+          id: item.id,
+          link: item.link,
+          origin: item.origin,
+          projectId: item.projectId,
+          template: item.template,
+        })
+        .onConflictDoNothing({ target: captureInboxItem.id })
+        .returning();
+      if (!restored) {
+        throw new CaptureInboxError(
+          "CAPTURE_PREVIEW_CONFLICT",
+          "The Capture Inbox item could not be restored.",
+        );
+      }
+      return toCaptureInboxItem(restored);
+    },
   };
 
-  return createCaptureInbox({ store, workCreate });
+  return createCaptureInbox({ store, triageAdapter, workCreate });
 }

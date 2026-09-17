@@ -1,6 +1,8 @@
 import {
   CAPTURE_TEMPLATE_FIELD_LABELS,
+  CAPTURE_TRIAGE_EXITS,
   type CaptureInboxItem,
+  type CaptureInboxTriageAdapter,
 } from "@cantiara/api/capture-triage";
 import { describe, expect, test, vi } from "vitest";
 
@@ -18,10 +20,15 @@ function createMemoryStore(initial: CaptureInboxItem[] = []) {
       const id = `capture-${nextId}`;
       nextId += 1;
       const item: CaptureInboxItem = {
+        ...(input.attachment === undefined
+          ? {}
+          : { attachment: input.attachment }),
         content: input.content,
         createdAt: "2026-09-16T09:00:00.000Z",
         fields: input.fields,
         id,
+        ...(input.link === undefined ? {} : { link: input.link }),
+        ...(input.origin === undefined ? {} : { origin: input.origin }),
         projectId: input.projectId,
         template: input.template,
       };
@@ -31,6 +38,83 @@ function createMemoryStore(initial: CaptureInboxItem[] = []) {
   };
 
   return { items: itemsByAccount.get("account-1") ?? [], store };
+}
+
+function createTriageMemoryStore(initial: CaptureInboxItem[]) {
+  const items = [...initial];
+  const store: CaptureInboxStore = {
+    consume: (_accountId, itemId) => {
+      const index = items.findIndex((item) => item.id === itemId);
+      if (index < 0) {
+        return Promise.resolve(null);
+      }
+      return Promise.resolve(items.splice(index, 1)[0] ?? null);
+    },
+    insert: (_accountId, input) => {
+      const item: CaptureInboxItem = {
+        content: input.content,
+        createdAt: "2026-09-16T09:00:00.000Z",
+        fields: input.fields,
+        id: `capture-${items.length + 1}`,
+        projectId: input.projectId,
+        template: input.template,
+      };
+      items.push(item);
+      return Promise.resolve(item);
+    },
+    list: () => Promise.resolve([...items]),
+    restore: (_accountId, item) => {
+      items.push(item);
+      return Promise.resolve(item);
+    },
+  };
+  return { items, store };
+}
+
+function createTriageAdapter(
+  overrides: Partial<CaptureInboxTriageAdapter> = {},
+) {
+  const adapter: CaptureInboxTriageAdapter = {
+    attachToExisting: vi.fn().mockResolvedValue({
+      attributedRelationIds: ["relation-1"],
+      attributedValueKeys: ["description"],
+      mergeId: "merge-1",
+    }),
+    createRecord: vi.fn().mockResolvedValue({
+      id: "record-1",
+      recordType: "Work",
+    }),
+    findRecord: vi.fn().mockResolvedValue({
+      fields: { description: "Existing description" },
+      id: "record-1",
+      projectId: "project-1",
+      projectName: "Cantiara",
+      recordType: "Work",
+      revision: 1,
+      title: "Existing record",
+    }),
+    findSimilar: vi.fn().mockResolvedValue([
+      {
+        basis: ["title", "content"],
+        id: "record-1",
+        projectId: "project-1",
+        projectName: "Cantiara",
+        recordType: "Work",
+        title: "Existing record",
+      },
+      {
+        basis: ["related context"],
+        id: "record-2",
+        projectId: "other-project",
+        projectName: "Other Project",
+        recordType: "Document",
+        title: "Other record",
+      },
+    ]),
+    undoMerge: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+  return adapter;
 }
 
 describe("Capture Inbox seam", () => {
@@ -60,6 +144,27 @@ describe("Capture Inbox seam", () => {
       }),
     ]);
     expect(saved).not.toHaveProperty("expiresAt");
+  });
+
+  test("preserves capture provenance in the Inbox item", async () => {
+    const { store } = createMemoryStore();
+    const captureInbox = createCaptureInbox({
+      store,
+      workCreate: { createBug: vi.fn() },
+    });
+
+    const saved = await captureInbox.create("account-1", {
+      attachment: { id: "staging-1", name: "screenshot.png" },
+      content: "Remember the original source",
+      link: "https://example.com/source",
+      origin: { kind: "Web Capture", url: "https://example.com/source" },
+    });
+
+    expect(saved).toMatchObject({
+      attachment: { id: "staging-1", name: "screenshot.png" },
+      link: "https://example.com/source",
+      origin: { kind: "Web Capture", url: "https://example.com/source" },
+    });
   });
 
   test("keeps every mini-template field optional and closed to its catalog", async () => {
@@ -265,5 +370,335 @@ describe("Capture Inbox seam", () => {
 
     expect(createBug).not.toHaveBeenCalled();
     expect(items).toEqual([]);
+  });
+
+  test("exposes exactly three explicit exits and consumes a capture on each exit", async () => {
+    expect(CAPTURE_TRIAGE_EXITS).toEqual(["convert", "attach", "delete"]);
+
+    const convertedCapture: CaptureInboxItem = {
+      attachment: { id: "staging-1", name: "screenshot.png" },
+      content: "The preview is blank",
+      createdAt: "2026-09-16T09:00:00.000Z",
+      fields: { "Observed Behavior": "Blank" },
+      id: "capture-convert",
+      link: "https://example.com/issue",
+      origin: { kind: "Web Capture", url: "https://example.com/issue" },
+      projectId: "project-1",
+      template: "Bug Capture",
+    };
+    const convertedStore = createTriageMemoryStore([convertedCapture]);
+    const convertedAdapter = createTriageAdapter();
+    const convertedInbox = createCaptureInbox({
+      store: convertedStore.store,
+      triageAdapter: convertedAdapter,
+      workCreate: { createBug: vi.fn() },
+    });
+    const conversionPreview = await convertedInbox.previewConvert("account-1", {
+      itemId: convertedCapture.id,
+      recordType: "Work",
+    });
+
+    expect(convertedAdapter.createRecord).not.toHaveBeenCalled();
+    expect(conversionPreview.source).toMatchObject({
+      attachment: convertedCapture.attachment,
+      content: convertedCapture.content,
+      link: convertedCapture.link,
+      origin: convertedCapture.origin,
+    });
+    expect(conversionPreview.fieldMappings).toEqual([
+      {
+        sourceField: "Observed Behavior",
+        targetField: "Observed Behavior",
+        value: "Blank",
+      },
+    ]);
+
+    await expect(
+      convertedInbox.convert("account-1", {
+        clientIdempotencyKey: "convert-1",
+        itemId: convertedCapture.id,
+      }),
+    ).rejects.toMatchObject({ code: "CAPTURE_PREVIEW_REQUIRED" });
+
+    await expect(
+      convertedInbox.convert("account-1", {
+        clientIdempotencyKey: "convert-1",
+        itemId: convertedCapture.id,
+        previewId: conversionPreview.previewId,
+      }),
+    ).resolves.toMatchObject({
+      consumed: true,
+      exit: "convert",
+      itemId: convertedCapture.id,
+      recordId: "record-1",
+    });
+    expect(await convertedInbox.list("account-1")).toMatchObject({
+      groups: [],
+      items: [],
+    });
+
+    const attachedCapture: CaptureInboxItem = {
+      content: "Attach this evidence",
+      createdAt: "2026-09-16T09:01:00.000Z",
+      fields: {},
+      id: "capture-attach",
+      projectId: "project-1",
+      template: null,
+    };
+    const attachedStore = createTriageMemoryStore([attachedCapture]);
+    const attachedAdapter = createTriageAdapter();
+    const attachedInbox = createCaptureInbox({
+      store: attachedStore.store,
+      triageAdapter: attachedAdapter,
+      workCreate: { createBug: vi.fn() },
+    });
+    const attachPreview = await attachedInbox.previewAttachToExisting(
+      "account-1",
+      {
+        itemId: attachedCapture.id,
+        relation: "Evidence",
+        targetId: "record-1",
+      },
+    );
+
+    expect(attachPreview.relationPreview).toMatchObject({
+      relation: "Evidence",
+      targetId: "record-1",
+    });
+    await expect(
+      attachedInbox.attachToExisting("account-1", {
+        clientIdempotencyKey: "attach-1",
+        itemId: attachedCapture.id,
+        relation: "Evidence",
+        targetId: "record-1",
+      }),
+    ).rejects.toMatchObject({ code: "CAPTURE_PREVIEW_REQUIRED" });
+    await expect(
+      attachedInbox.attachToExisting("account-1", {
+        clientIdempotencyKey: "attach-1",
+        itemId: attachedCapture.id,
+        previewId: attachPreview.previewId,
+        relation: "Evidence",
+        targetId: "record-1",
+      }),
+    ).resolves.toMatchObject({
+      consumed: true,
+      exit: "attach",
+      itemId: attachedCapture.id,
+      relation: "Evidence",
+      targetId: "record-1",
+    });
+
+    const deletedCapture: CaptureInboxItem = {
+      content: "Discard this",
+      createdAt: "2026-09-16T09:02:00.000Z",
+      fields: {},
+      id: "capture-delete",
+      projectId: null,
+      template: null,
+    };
+    const deletedStore = createTriageMemoryStore([deletedCapture]);
+    const deletedInbox = createCaptureInbox({
+      store: deletedStore.store,
+      triageAdapter: createTriageAdapter(),
+      workCreate: { createBug: vi.fn() },
+    });
+
+    await expect(
+      deletedInbox.delete("account-1", {
+        clientIdempotencyKey: "delete-1",
+        itemId: deletedCapture.id,
+      }),
+    ).resolves.toEqual({
+      consumed: true,
+      exit: "delete",
+      itemId: deletedCapture.id,
+    });
+    expect(await deletedInbox.list("account-1")).toMatchObject({
+      groups: [],
+      items: [],
+    });
+  });
+
+  test("shows suggestion basis and separates other Projects without auto-binding", async () => {
+    const capture: CaptureInboxItem = {
+      content: "Possible duplicate",
+      createdAt: "2026-09-16T09:00:00.000Z",
+      fields: {},
+      id: "capture-suggest",
+      projectId: "project-1",
+      template: null,
+    };
+    const adapter = createTriageAdapter();
+    const { store } = createTriageMemoryStore([capture]);
+    const captureInbox = createCaptureInbox({
+      store,
+      triageAdapter: adapter,
+      workCreate: { createBug: vi.fn() },
+    });
+
+    const suggestions = await captureInbox.suggestions("account-1", capture.id);
+
+    expect(suggestions.sameProject.items).toMatchObject([
+      { basis: ["title", "content"], id: "record-1" },
+    ]);
+    expect(suggestions.otherProjects).toMatchObject([
+      {
+        items: [{ id: "record-2", projectName: "Other Project" }],
+        label: "Other Projects",
+      },
+    ]);
+    expect(adapter.attachToExisting).not.toHaveBeenCalled();
+  });
+
+  test("requires a relation preview before a cross-Project bind", async () => {
+    const capture: CaptureInboxItem = {
+      content: "Cross-Project evidence",
+      createdAt: "2026-09-16T09:00:00.000Z",
+      fields: {},
+      id: "capture-cross-project",
+      projectId: "project-1",
+      template: null,
+    };
+    const adapter = createTriageAdapter({
+      findRecord: vi.fn().mockResolvedValue({
+        fields: {},
+        id: "record-other",
+        projectId: "project-2",
+        projectName: "Other Project",
+        recordType: "Work",
+        revision: 3,
+        title: "Other project record",
+      }),
+    });
+    const { store } = createTriageMemoryStore([capture]);
+    const captureInbox = createCaptureInbox({
+      store,
+      triageAdapter: adapter,
+      workCreate: { createBug: vi.fn() },
+    });
+
+    await expect(
+      captureInbox.attachToExisting("account-1", {
+        clientIdempotencyKey: "cross-project-attach",
+        itemId: capture.id,
+        relation: "Origin",
+        targetId: "record-other",
+      }),
+    ).rejects.toMatchObject({ code: "CAPTURE_PREVIEW_REQUIRED" });
+
+    const preview = await captureInbox.previewAttachToExisting("account-1", {
+      itemId: capture.id,
+      relation: "Origin",
+      targetId: "record-other",
+    });
+    expect(preview).toMatchObject({
+      crossProject: true,
+      targetProject: { id: "project-2", name: "Other Project" },
+    });
+  });
+
+  test("restores a capture when conversion cannot finalize", async () => {
+    const capture: CaptureInboxItem = {
+      content: "Retry this conversion",
+      createdAt: "2026-09-16T09:00:00.000Z",
+      fields: {},
+      id: "capture-retry",
+      projectId: "project-1",
+      template: null,
+    };
+    const { store } = createTriageMemoryStore([capture]);
+    const adapter = createTriageAdapter({
+      createRecord: vi
+        .fn()
+        .mockRejectedValue(new Error("target feature unavailable")),
+    });
+    const captureInbox = createCaptureInbox({
+      store,
+      triageAdapter: adapter,
+      workCreate: { createBug: vi.fn() },
+    });
+    const preview = await captureInbox.previewConvert("account-1", {
+      itemId: capture.id,
+      recordType: "Work",
+    });
+
+    await expect(
+      captureInbox.convert("account-1", {
+        itemId: capture.id,
+        previewId: preview.previewId,
+      }),
+    ).rejects.toThrow("target feature unavailable");
+    await expect(captureInbox.list("account-1")).resolves.toMatchObject({
+      items: [capture],
+    });
+  });
+
+  test("restores the original Inbox item on merge Undo and delegates only attributed changes", async () => {
+    const original: CaptureInboxItem = {
+      attachment: { id: "staging-merge", name: "screen.png" },
+      content: "Original capture text",
+      createdAt: "2026-09-16T09:00:00.000Z",
+      fields: { Note: "Original field" },
+      id: "capture-merge",
+      link: "https://example.com/original",
+      origin: { kind: "Web Capture", url: "https://example.com/original" },
+      projectId: "project-1",
+      template: "Feedback Capture",
+    };
+    const adapter = createTriageAdapter();
+    const { store } = createTriageMemoryStore([original]);
+    const captureInbox = createCaptureInbox({
+      store,
+      triageAdapter: adapter,
+      workCreate: { createBug: vi.fn() },
+    });
+    const attachPreview = await captureInbox.previewAttachToExisting(
+      "account-1",
+      {
+        itemId: original.id,
+        relation: "Origin",
+        targetId: "record-1",
+      },
+    );
+    const attached = await captureInbox.attachToExisting("account-1", {
+      clientIdempotencyKey: "merge-attach",
+      itemId: original.id,
+      previewId: attachPreview.previewId,
+      relation: "Origin",
+      targetId: "record-1",
+    });
+
+    const undoPreview = await captureInbox.previewUndoMerge("account-1", {
+      mergeId: attached.mergeId,
+    });
+    expect(undoPreview.restore).toMatchObject({
+      attachment: original.attachment,
+      content: original.content,
+      createdAt: original.createdAt,
+      fields: original.fields,
+      link: original.link,
+      origin: original.origin,
+    });
+    expect(undoPreview.removeFromTarget).toMatchObject({
+      attributedRelationIds: ["relation-1"],
+      attributedValueKeys: ["description"],
+    });
+
+    await captureInbox.undoMerge("account-1", {
+      mergeId: attached.mergeId,
+      previewId: undoPreview.previewId,
+    });
+
+    expect(adapter.undoMerge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributedRelationIds: ["relation-1"],
+        attributedValueKeys: ["description"],
+        mergeId: "merge-1",
+      }),
+    );
+    await expect(captureInbox.list("account-1")).resolves.toMatchObject({
+      items: [original],
+    });
   });
 });

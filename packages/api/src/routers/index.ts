@@ -7,7 +7,19 @@ import {
   accountPreferencesSchema,
   appearanceSchema,
 } from "../account-preferences";
-import { type CaptureInboxAccess, captureInputSchema } from "../capture-triage";
+import {
+  type CaptureInboxAccess,
+  type CaptureInboxTriageAccess,
+  captureAttachInputSchema,
+  captureAttachPreviewInputSchema,
+  captureConvertInputSchema,
+  captureConvertPreviewInputSchema,
+  captureDeleteInputSchema,
+  captureInputSchema,
+  captureSuggestionsInputSchema,
+  captureUndoMergeInputSchema,
+  captureUndoMergePreviewInputSchema,
+} from "../capture-triage";
 import {
   CONFIRM_GITHUB_IDENTITY_OPERATION_IDS,
   type Context,
@@ -74,17 +86,60 @@ function requireCaptureInbox(context: Context): CaptureInboxAccess {
   return context.captureInbox;
 }
 
+function requireCaptureInboxTriage(context: Context): CaptureInboxTriageAccess {
+  const captureInbox = requireCaptureInbox(context);
+  if (!isCaptureInboxTriage(captureInbox)) {
+    throw new ORPCError("NOT_IMPLEMENTED", {
+      data: { code: "CAPTURE_TRIAGE_UNAVAILABLE" },
+      defined: true,
+      message: "Capture triage is not available yet.",
+    });
+  }
+  return captureInbox;
+}
+
+function isCaptureInboxTriage(
+  captureInbox: CaptureInboxAccess,
+): captureInbox is CaptureInboxTriageAccess {
+  return (
+    "attachToExisting" in captureInbox &&
+    typeof captureInbox.attachToExisting === "function" &&
+    "convert" in captureInbox &&
+    typeof captureInbox.convert === "function" &&
+    "delete" in captureInbox &&
+    typeof captureInbox.delete === "function" &&
+    "previewAttachToExisting" in captureInbox &&
+    typeof captureInbox.previewAttachToExisting === "function" &&
+    "previewConvert" in captureInbox &&
+    typeof captureInbox.previewConvert === "function" &&
+    "previewUndoMerge" in captureInbox &&
+    typeof captureInbox.previewUndoMerge === "function" &&
+    "suggestions" in captureInbox &&
+    typeof captureInbox.suggestions === "function" &&
+    "undoMerge" in captureInbox &&
+    typeof captureInbox.undoMerge === "function"
+  );
+}
+
 function rethrowUnavailableCaptureWorkCreate(
   error: Record<string, unknown>,
 ): void {
-  if (error.code === "CAPTURE_WORK_CREATE_UNAVAILABLE") {
+  if (
+    error.code === "CAPTURE_WORK_CREATE_UNAVAILABLE" ||
+    error.code === "CAPTURE_TRIAGE_UNAVAILABLE"
+  ) {
+    let message = "Work creation is not available yet.";
+    if (error.code === "CAPTURE_TRIAGE_UNAVAILABLE") {
+      message = "Capture triage is not available yet.";
+    }
+    const { message: errorMessage } = error;
+    if (typeof errorMessage === "string") {
+      message = errorMessage;
+    }
     throw new ORPCError("NOT_IMPLEMENTED", {
       data: { code: error.code },
       defined: true,
-      message:
-        "message" in error && typeof error.message === "string"
-          ? error.message
-          : "Work creation is not available yet.",
+      message,
     });
   }
 }
@@ -250,6 +305,102 @@ export const appRouter = {
     .handler(async ({ context, input }) => {
       try {
         return await requireCaptureInbox(context).createBug(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowCaptureInboxError(error);
+      }
+    }),
+  captureSuggestions: protectedProcedure
+    .input(captureSuggestionsInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireCaptureInboxTriage(context).suggestions(
+          context.session.user.id,
+          input.itemId,
+        );
+      } catch (error) {
+        rethrowCaptureInboxError(error);
+      }
+    }),
+  previewCaptureConversion: protectedProcedure
+    .input(captureConvertPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireCaptureInboxTriage(context).previewConvert(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowCaptureInboxError(error);
+      }
+    }),
+  convertCapture: protectedProcedure
+    .input(captureConvertInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireCaptureInboxTriage(context).convert(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowCaptureInboxError(error);
+      }
+    }),
+  previewCaptureAttachment: protectedProcedure
+    .input(captureAttachPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireCaptureInboxTriage(context).previewAttachToExisting(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowCaptureInboxError(error);
+      }
+    }),
+  attachCapture: protectedProcedure
+    .input(captureAttachInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireCaptureInboxTriage(context).attachToExisting(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowCaptureInboxError(error);
+      }
+    }),
+  deleteCapture: protectedProcedure
+    .input(captureDeleteInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireCaptureInboxTriage(context).delete(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowCaptureInboxError(error);
+      }
+    }),
+  previewCaptureMergeUndo: protectedProcedure
+    .input(captureUndoMergePreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireCaptureInboxTriage(context).previewUndoMerge(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowCaptureInboxError(error);
+      }
+    }),
+  undoCaptureMerge: protectedProcedure
+    .input(captureUndoMergeInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireCaptureInboxTriage(context).undoMerge(
           context.session.user.id,
           input,
         );
