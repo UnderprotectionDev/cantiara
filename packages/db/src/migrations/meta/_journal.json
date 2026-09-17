@@ -71,6 +71,20 @@
       "when": 1789667004162,
       "tag": "0009_messy_gertrude_yorkes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789675572224,
+      "tag": "0010_blushing_nemesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789680608078,
+      "tag": "0011_worthless_strong_guy",
+      "breakpoints": true
     }
   ]
 }

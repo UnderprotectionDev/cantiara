@@ -18,6 +18,10 @@ import type {
   MutationContract,
   MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
+import type {
+  ProjectShellAccess,
+  ProjectShellMutationContracts,
+} from "@cantiara/api/project-shell";
 import { appRouter } from "@cantiara/api/routers/index";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import { TAURI_AUTH_CALLBACK_URL } from "@cantiara/auth";
@@ -89,6 +93,8 @@ export interface AppDependencies {
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   mutationContract?: MutationContract<MutationPayload>;
   nodeEnv: string;
+  projectShell?: ProjectShellAccess;
+  projectShellMutationContracts?: ProjectShellMutationContracts;
   redactSecrets: (value: unknown) => unknown;
   tauriSessionAccess?: TauriSessionAccess;
   trustedProxyIps: readonly string[];
@@ -757,6 +763,8 @@ export function createApp(dependencies: AppDependencies) {
       githubAvailability: dependencies.githubAvailability,
       githubIdentityConfirmation: dependencies.githubIdentityConfirmation,
       mutationContract: dependencies.mutationContract,
+      projectShell: dependencies.projectShell,
+      projectShellMutationContracts: dependencies.projectShellMutationContracts,
       trustedProxyIps: dependencies.trustedProxyIps,
     });
     const rpcResult = await rpcHandler.handle(c.req.raw, {
