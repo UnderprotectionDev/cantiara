@@ -5,7 +5,7 @@ import {
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useLinkProps, useLocation } from "@tanstack/react-router";
 import { ArrowLeft, Check, CircleHelp } from "lucide-react";
 import { useState } from "react";
 
@@ -19,6 +19,11 @@ const ALWAYS_REACHABLE_SURFACES = [
 ] as const;
 
 const ALL_PROJECT_AREAS = PROJECT_AREA_OPTIONS;
+type NavigationSurface =
+  | (typeof ALWAYS_REACHABLE_SURFACES)[number]
+  | ProjectArea;
+const NAVIGATION_LINK_BASE =
+  "relative -mb-px px-0.5 py-3 text-sm transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
 export default function ProjectShellView({ projectId }: { projectId: string }) {
   const projectQuery = useQuery({
@@ -58,28 +63,47 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
-      <header className="border-b pb-6">
+      <header className="border-b pb-8">
         <Link
-          className={`${buttonVariants({ variant: "ghost", size: "sm" })} mb-5 -ml-3`}
+          className={`${buttonVariants({ variant: "ghost", size: "sm" })} mb-6 -ml-3`}
           to="/projects"
         >
           <ArrowLeft aria-hidden="true" />
           Projects
         </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-balance font-semibold text-3xl tracking-tight">
-            {name}
-          </h1>
-          <Badge variant="secondary">{status}</Badge>
+        <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_15rem] sm:items-end sm:gap-8">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-balance font-semibold text-3xl tracking-tight">
+                {name}
+              </h1>
+              <Badge variant="secondary">{status}</Badge>
+            </div>
+            <p className="mt-3 max-w-xl text-muted-foreground text-sm/relaxed">
+              A durable home for this Project’s work and context.
+            </p>
+          </div>
+          <dl className="grid grid-cols-2 gap-5 border-t pt-4 sm:grid-cols-1 sm:gap-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5">
+            <div>
+              <dt className="text-muted-foreground text-xs">Short code</dt>
+              <dd className="mt-1 font-medium text-sm">{shortCode}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground text-xs">
+                Starter Configuration
+              </dt>
+              <dd className="mt-1 font-medium text-sm">
+                {starterConfiguration}
+              </dd>
+            </div>
+          </dl>
         </div>
-        <p className="mt-2 text-muted-foreground text-sm">{shortCode}</p>
-        <p className="mt-2 font-medium text-sm">{starterConfiguration}</p>
       </header>
 
       {showExplanation ? (
         <aside
           aria-label="Starter Configuration explanation"
-          className="mt-6 flex items-start gap-3 border bg-muted/20 p-4"
+          className="mt-5 flex items-start gap-3 border bg-muted/20 p-4"
         >
           <CircleHelp
             aria-hidden="true"
@@ -100,19 +124,19 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
 
       <ProjectNavigation extraPinnedAreas={configuration.extraPinnedAreas} />
 
-      <section className="mt-8 space-y-8" id="overview">
-        <div>
-          <p className="text-muted-foreground text-xs uppercase tracking-[0.18em]">
+      <section className="mt-10 space-y-10" id="overview">
+        <div className="max-w-2xl">
+          <p className="font-medium text-muted-foreground text-sm">
             Project Shell
           </p>
           <h2 className="mt-2 font-semibold text-2xl">Overview</h2>
-          <p className="mt-2 max-w-2xl text-muted-foreground text-sm/relaxed">
+          <p className="mt-3 text-muted-foreground text-sm/relaxed">
             This Project is ready for your work. Starter defaults are structure
             only and do not add records, history, or workflow gates.
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid items-start gap-x-12 gap-y-10 lg:grid-cols-2">
           <ConfigurationList
             emptyMessage="No stages prepared."
             items={configuration.preparedStages}
@@ -129,21 +153,34 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
           <EnabledAreasList areas={configuration.enabledAreas} />
         </div>
 
-        <section className="border bg-muted/10 p-5" id="work">
-          <h2 className="font-medium text-lg">Work</h2>
-          <p className="mt-2 text-muted-foreground text-sm/relaxed">
-            No sample content was created.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2 text-sm">
-            {configuration.preparedWorkViews.map((view) => (
-              <span className="border bg-background px-3 py-1.5" key={view}>
-                {view}
-              </span>
-            ))}
+        <section
+          className="grid gap-6 border-y py-6 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-8"
+          id="work"
+        >
+          <div>
+            <h2 className="font-medium text-lg">Work</h2>
+            <p className="mt-2 text-muted-foreground text-sm/relaxed">
+              No sample content was created.
+            </p>
+          </div>
+          <div className="lg:border-l lg:pl-6">
+            <p className="font-medium text-muted-foreground text-xs">
+              Saved views
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {configuration.preparedWorkViews.map((view) => (
+                <span
+                  className="border bg-background px-3 py-1.5 text-sm"
+                  key={view}
+                >
+                  {view}
+                </span>
+              ))}
+            </div>
           </div>
         </section>
 
-        <section className="border bg-muted/10 p-5" id="documents">
+        <section className="border-b pb-6" id="documents">
           <h2 className="font-medium text-lg">Documents</h2>
           <p className="mt-2 text-muted-foreground text-sm/relaxed">
             No sample content was created.
@@ -161,37 +198,115 @@ function ProjectNavigation({
 }: {
   extraPinnedAreas: readonly ProjectArea[];
 }) {
+  const activeHash = useLocation({ select: ({ hash }) => hash });
+  const activeSurface = navigationSurfaceFromHash(activeHash, extraPinnedAreas);
+
   return (
     <nav
       aria-label="Project navigation"
-      className="mt-6 flex flex-wrap items-center gap-2 border-y py-3"
+      className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1 border-b"
     >
       {ALWAYS_REACHABLE_SURFACES.map((surface) => (
-        <a
-          className="border px-3 py-1.5 font-medium text-sm hover:bg-muted"
-          href={
-            surface === "All Tools" ? "#all-tools" : `#${surface.toLowerCase()}`
-          }
+        <ProjectNavigationLink
+          activeSurface={activeSurface}
+          hash={navigationHash(surface)}
           key={surface}
-        >
-          {surface}
-        </a>
+          surface={surface}
+        />
       ))}
+      {extraPinnedAreas.length > 0 ? (
+        <span
+          aria-hidden="true"
+          className="mx-1 hidden h-4 w-px bg-border sm:block"
+        />
+      ) : null}
       {extraPinnedAreas.map((area) => (
-        <a
-          className="border border-dashed px-3 py-1.5 text-sm hover:bg-muted"
-          href={projectAreaAnchor(area)}
+        <ProjectNavigationLink
+          activeSurface={activeSurface}
+          hash={projectAreaHash(area)}
           key={area}
-        >
-          {area}
-        </a>
+          pinned
+          surface={area}
+        />
       ))}
     </nav>
   );
 }
 
+function ProjectNavigationLink({
+  activeSurface,
+  hash,
+  pinned = false,
+  surface,
+}: {
+  activeSurface: NavigationSurface;
+  hash: string;
+  pinned?: boolean;
+  surface: NavigationSurface;
+}) {
+  const isActive = activeSurface === surface;
+  const linkProps = useLinkProps({
+    activeOptions: { exact: true, includeHash: true },
+    hash,
+    to: ".",
+  });
+
+  return (
+    <a
+      {...linkProps}
+      aria-current={isActive ? "location" : undefined}
+      className={`${NAVIGATION_LINK_BASE} ${pinned ? "border-b border-dashed" : "border-b-2 font-medium"} ${navigationLinkStateClass(isActive)}`}
+    >
+      {surface}
+    </a>
+  );
+}
+
+function navigationLinkStateClass(isActive: boolean) {
+  return isActive
+    ? "border-foreground text-foreground"
+    : "border-transparent text-muted-foreground hover:border-border hover:text-foreground";
+}
+
+function navigationSurfaceFromHash(
+  hash: string,
+  extraPinnedAreas: readonly ProjectArea[],
+): NavigationSurface {
+  if (!hash) {
+    return "Overview";
+  }
+  if (hash === "all-tools") {
+    return "All Tools";
+  }
+  if (hash === "work") {
+    return "Work";
+  }
+  if (hash === "documents") {
+    return "Documents";
+  }
+  const pinnedArea = extraPinnedAreas.find(
+    (area) => projectAreaHash(area) === hash,
+  );
+  return pinnedArea ?? "Overview";
+}
+
+function navigationHash(surface: NavigationSurface) {
+  if (surface === "All Tools") {
+    return "all-tools";
+  }
+  return navigationSlug(surface);
+}
+
+function projectAreaHash(area: ProjectArea) {
+  return projectAreaAnchor(area).slice(1);
+}
+
 function projectAreaAnchor(area: ProjectArea) {
-  return `#project-area-${area.toLowerCase().replaceAll(" ", "-")}`;
+  return `#project-area-${navigationSlug(area)}`;
+}
+
+function navigationSlug(surface: string) {
+  return surface.toLowerCase().replaceAll(" ", "-");
 }
 
 function ConfigurationList({
@@ -206,23 +321,23 @@ function ConfigurationList({
   return (
     <section
       aria-labelledby={`${label.toLowerCase().replaceAll(" ", "-")}-heading`}
-      className="border p-5"
+      className="border-t pt-5"
     >
       <h2
-        className="font-medium text-lg"
+        className="font-medium text-base"
         id={`${label.toLowerCase().replaceAll(" ", "-")}-heading`}
       >
         {label}
       </h2>
-      <ul aria-label={label} className="mt-4 divide-y border-y">
+      <ul aria-label={label} className="mt-3 divide-y border-y">
         {items.map((item) => (
-          <li className="px-3 py-2 text-sm" key={item}>
+          <li className="px-3 py-2.5 text-sm" key={item}>
             {item}
           </li>
         ))}
       </ul>
       {items.length === 0 ? (
-        <p className="mt-4 text-muted-foreground text-sm">{emptyMessage}</p>
+        <p className="mt-3 text-muted-foreground text-sm">{emptyMessage}</p>
       ) : null}
     </section>
   );
@@ -232,14 +347,14 @@ function EnabledAreasList({ areas }: { areas: readonly ProjectArea[] }) {
   return (
     <section
       aria-labelledby="enabled-project-areas-heading"
-      className="border p-5"
+      className="border-t pt-5"
     >
-      <h2 className="font-medium text-lg" id="enabled-project-areas-heading">
+      <h2 className="font-medium text-base" id="enabled-project-areas-heading">
         Project areas
       </h2>
-      <ul aria-label="Enabled Project areas" className="mt-4 divide-y border-y">
+      <ul aria-label="Enabled Project areas" className="mt-3 divide-y border-y">
         {areas.map((area) => (
-          <li className="px-3 py-2 text-sm" key={area}>
+          <li className="px-3 py-2.5 text-sm" key={area}>
             {area}
           </li>
         ))}
@@ -254,19 +369,24 @@ function AllToolsSection({
   enabledAreas: readonly ProjectArea[];
 }) {
   return (
-    <section className="border p-5" id="all-tools">
-      <h2 className="font-medium text-lg">All Tools</h2>
-      <p className="mt-2 text-muted-foreground text-sm/relaxed">
-        Every ready Project area stays discoverable here. Enabling an area does
-        not create records or change another Project.
-      </p>
-      <ul aria-label="All Project areas" className="mt-4 divide-y border-y">
+    <section className="border-y py-6" id="all-tools">
+      <div className="max-w-2xl">
+        <h2 className="font-medium text-lg">All Tools</h2>
+        <p className="mt-2 text-muted-foreground text-sm/relaxed">
+          Every ready Project area stays discoverable here. Enabling an area
+          does not create records or change another Project.
+        </p>
+      </div>
+      <ul
+        aria-label="All Project areas"
+        className="mt-5 grid gap-x-8 border-y lg:grid-cols-2"
+      >
         {ALL_PROJECT_AREAS.map((area) => {
           const enabled = enabledAreas.includes(area);
           return (
             <li
               aria-label={`${area} ${enabled ? "Enabled" : "Available"}`}
-              className="flex items-center justify-between px-3 py-2 text-sm"
+              className="flex items-center justify-between border-b px-3 py-2.5 text-sm last:border-b-0 lg:[&:nth-last-child(-n+2)]:border-b-0"
               id={projectAreaAnchor(area).slice(1)}
               key={area}
             >

@@ -3,6 +3,8 @@ import { expect, type Page, test } from "@playwright/test";
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const PROJECTS_URL_PATTERN = /\/projects$/;
 const PROJECT_DETAIL_URL_PATTERN = /\/projects\/[^/]+$/;
+const WORK_HASH_PATTERN = /#work$/;
+const DOCUMENTS_HASH_PATTERN = /#documents$/;
 
 async function expectNoSampleContent(page: Page) {
   await expect(
@@ -199,6 +201,9 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
     await expect(
       page.getByText(starter.configuration, { exact: true }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Overview", exact: true }),
+    ).toHaveAttribute("aria-current", "location");
 
     await Promise.all(
       ["Overview", "Work", "Documents", "All Tools"].map((surface) =>
@@ -240,6 +245,9 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
 
     await page.getByRole("link", { name: "All Tools", exact: true }).click();
     await expect(
+      page.getByRole("link", { name: "All Tools", exact: true }),
+    ).toHaveAttribute("aria-current", "location");
+    await expect(
       page.getByRole("heading", { name: "All Tools", level: 2 }),
     ).toBeVisible();
     await expect(
@@ -258,5 +266,30 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
       "Production",
       "GitHub",
     ]);
+
+    await page.getByRole("link", { name: "Work", exact: true }).click();
+    await expect(page).toHaveURL(WORK_HASH_PATTERN);
+    await expect(page.locator("#work")).toBeInViewport();
+    await expect(
+      page.getByRole("link", { name: "Work", exact: true }),
+    ).toHaveAttribute("aria-current", "location");
+
+    await page.getByRole("link", { name: "Documents", exact: true }).click();
+    await expect(page).toHaveURL(DOCUMENTS_HASH_PATTERN);
+    await expect(page.locator("#documents")).toBeInViewport();
+    await expect(
+      page.getByRole("link", { name: "Documents", exact: true }),
+    ).toHaveAttribute("aria-current", "location");
+
+    const [pinnedArea] = starter.extraPinnedAreas;
+    if (pinnedArea) {
+      await page.getByRole("link", { name: pinnedArea, exact: true }).click();
+      const pinnedAreaAnchor = `#project-area-${pinnedArea.toLowerCase().replaceAll(" ", "-")}`;
+      await expect(page).toHaveURL(new RegExp(`${pinnedAreaAnchor}$`));
+      await expect(page.locator(pinnedAreaAnchor)).toBeInViewport();
+      await expect(
+        page.getByRole("link", { name: pinnedArea, exact: true }),
+      ).toHaveAttribute("aria-current", "location");
+    }
   });
 }
