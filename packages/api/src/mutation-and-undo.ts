@@ -61,7 +61,9 @@ const mutationMergeUndoMetadataSchema = z
 export const mutationUndoMetadataSchema = z
   .object({
     after: mutationPayloadSchema,
+    afterPresent: z.boolean().default(true),
     before: mutationPayloadSchema,
+    beforePresent: z.boolean().default(true),
     kind: mutationUndoKindSchema,
     merge: mutationMergeUndoMetadataSchema.optional(),
     scope: identifierSchema,
@@ -70,7 +72,9 @@ export const mutationUndoMetadataSchema = z
 
 export interface MutationUndoMetadata {
   after: MutationPayload;
+  afterPresent: boolean;
   before: MutationPayload;
+  beforePresent: boolean;
   kind: MutationUndoKind;
   merge?: MutationMergeUndoMetadata;
   scope: string;

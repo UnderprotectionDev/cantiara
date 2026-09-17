@@ -13,6 +13,7 @@ import {
 import { describe, expect, test, vi } from "vitest";
 import {
   createMutationContract,
+  MutationApplyFailedError,
   type MutationAtomicContractStore,
   type MutationBarrierChecks,
   type MutationBarrierContext,
@@ -215,6 +216,13 @@ function createMemoryStore(initial: MutationTarget<FixtureValue>) {
     findReceipt(key) {
       return Promise.resolve(receipts.get(receiptKey(key)) ?? null);
     },
+    findReceiptById(receiptId) {
+      return Promise.resolve(
+        [...receipts.values()].find(
+          (candidate) => candidate.id === receiptId,
+        ) ?? null,
+      );
+    },
     getTarget() {
       return Promise.resolve(target);
     },
@@ -373,6 +381,14 @@ function createMemoryStore(initial: MutationTarget<FixtureValue>) {
           payload: input.payload,
         });
         const undoPlan = input.undo ?? stagedUndoPlans.get(record.id);
+        let undo: MutationReceipt<FixtureValue>["undo"];
+        try {
+          undo = undoPlan
+            ? materializeMutationUndoMetadata(undoPlan, target.value, nextValue)
+            : undefined;
+        } catch (cause) {
+          throw new MutationApplyFailedError(cause, { cause });
+        }
         const receipt: MutationReceipt<FixtureValue> = {
           actor: input.actor,
           committedAt: input.committedAt,
@@ -383,15 +399,7 @@ function createMemoryStore(initial: MutationTarget<FixtureValue>) {
           previousValue: target.value,
           revision: target.revision + 1,
           targetId: target.id,
-          ...(undoPlan
-            ? {
-                undo: materializeMutationUndoMetadata(
-                  undoPlan,
-                  target.value,
-                  nextValue,
-                ),
-              }
-            : {}),
+          ...(undo ? { undo } : {}),
           ...(undoOf ? { undoOf } : {}),
         };
         target = {
@@ -620,6 +628,45 @@ describe("Mutation Contract seam", () => {
       revision: 3,
       value: { status: "Closed", title: "Original" },
     });
+  });
+
+  test("removes a field that did not exist before the mutation", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { status: "Open" },
+    });
+    const contract = createMutationContract({ store: memory.store });
+    const edit = await contract.mutate(
+      {
+        actor: { actorId: "account-1", type: "User" },
+        baseRevision: 0,
+        clientIdempotencyKey: "new-title-edit",
+        kind: "human",
+        payload: { title: "Added" },
+        targetId: "work-1",
+      },
+      ({ currentValue, payload }) => ({ ...currentValue, ...payload }),
+      { undo: { kind: "field", scope: "title" } },
+    );
+
+    expect(edit.undo).toMatchObject({
+      after: "Added",
+      afterPresent: true,
+      before: null,
+      beforePresent: false,
+    });
+
+    await contract.undo(edit, {
+      actor: { actorId: "account-1", type: "User" },
+      baseRevision: 1,
+      clientIdempotencyKey: "new-title-undo",
+      kind: "human",
+      payload: { undoOf: edit.id },
+      targetId: "work-1",
+    });
+
+    expect(memory.getTarget().value).toEqual({ status: "Open" });
   });
 
   test.each([
@@ -939,6 +986,50 @@ describe("Mutation Contract seam", () => {
     expect(memory.getTarget().value).toEqual({ title: "Changed" });
   });
 
+  test("uses the durable receipt instead of supplied Undo metadata", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const contract = createMutationContract({ store: memory.store });
+    const edit = await contract.mutate(
+      {
+        actor: { actorId: "account-1", type: "User" },
+        baseRevision: 0,
+        clientIdempotencyKey: "durable-receipt-edit",
+        kind: "human",
+        payload: { title: "Changed" },
+        targetId: "work-1",
+      },
+      ({ currentValue, payload }) => ({ ...currentValue, ...payload }),
+      { undo: { kind: "field", scope: "title" } },
+    );
+
+    if (!edit.undo) {
+      throw new Error("Expected deterministic Undo metadata.");
+    }
+    const forgedReceipt = {
+      ...edit,
+      undo: {
+        ...edit.undo,
+        before: "Attacker-controlled value",
+        beforePresent: true,
+      },
+    };
+
+    await contract.undo(forgedReceipt, {
+      actor: { actorId: "account-1", type: "User" },
+      baseRevision: 1,
+      clientIdempotencyKey: "durable-receipt-undo",
+      kind: "human",
+      payload: { undoOf: edit.id },
+      targetId: "work-1",
+    });
+
+    expect(memory.getTarget().value).toEqual({ title: "Original" });
+  });
+
   test("requires attribution metadata for merge Undo", async () => {
     const memory = createMemoryStore({
       id: "work-1",
@@ -1143,6 +1234,49 @@ describe("Mutation Contract seam", () => {
       label: "Conflict",
       targetId: "work-1",
     });
+  });
+
+  test("rolls back staged work when Undo metadata cannot be materialized", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const contract = createMutationContract<FixtureValue>({
+      barrierChecks: ALLOW_BARRIER_CHECKS,
+      store: memory.store,
+    });
+    const staged = await contract.stage(
+      {
+        actor: { actorId: "account-1", type: "User" },
+        baseRevision: 0,
+        clientIdempotencyKey: "invalid-materialized-undo",
+        kind: "human",
+        payload: { title: "Changed" },
+        targetId: "work-1",
+      },
+      { undo: { kind: "field", scope: "title" } },
+    );
+
+    const invalidTitle = (() => "not-json") as unknown as string;
+    const rollback = await contract.finalize(staged.id, () => ({
+      title: invalidTitle,
+    }));
+
+    expect(rollback).toMatchObject({
+      receipt: {
+        operationId: staged.id,
+        reason: "apply-failed",
+        status: "rolled-back",
+      },
+      status: "rolled-back",
+    });
+    expect(memory.getTarget()).toEqual({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    expect(memory.getHistory()).toHaveLength(0);
   });
 
   test("finalizes a staged multi-step write with one commit receipt", async () => {

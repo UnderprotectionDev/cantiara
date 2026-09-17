@@ -655,6 +655,11 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
       return record ? toReceipt<TValue>(record) : null;
     },
 
+    async findReceiptById(receiptId) {
+      const record = await findReceiptById(database, receiptId);
+      return record ? toReceipt<TValue>(record) : null;
+    },
+
     getTarget(targetId) {
       return targetAdapter.find(database, targetId, false);
     },
@@ -928,13 +933,18 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
         const undoPlan = (input.undo ?? undoPlanFromStagingRecord(record)) as
           | MutationUndoPlan
           | undefined;
-        const undo = undoPlan
-          ? materializeMutationUndoMetadata(
-              undoPlan,
-              target.value as TValue,
-              nextValue,
-            )
-          : undefined;
+        let undo: MutationReceipt<TValue>["undo"];
+        try {
+          undo = undoPlan
+            ? materializeMutationUndoMetadata(
+                undoPlan,
+                target.value as TValue,
+                nextValue,
+              )
+            : undefined;
+        } catch (cause) {
+          throw new MutationApplyFailedError(cause, { cause });
+        }
         const revision = target.revision + 1;
         let targetUpdate: MutationTarget<TValue> | null;
         try {

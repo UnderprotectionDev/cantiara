@@ -12,4 +12,4 @@
 - [x] Kalıcı silme, redaksiyon, dış sistem ve yayınlanmış export undo komutuyla uygulanmaz.
 - [x] Birleştirme geri alması emekli kimliği ana kayıt yapar ve yalnız birleştirmeye atfedilen değer/ilişkiyi ayırır.
 - [x] İngilizce `Undo` PRD terim sözlüğüne aynı değişiklikle eklenir.
-- [x] Kabul kanıtı Mutation Contract seam'inde sarmama, aynı-alan çatışması, yasak sınıfların reddi, birleştirme geri alması. Kapalı erişilebilirlik yolculuğu **kayıt oluşturma, düzenleme, çatışma, geri alma** bu yüzeyden yürür.
+- [ ] Kabul kanıtı Mutation Contract seam'inde sarmama, aynı-alan çatışması, yasak sınıfların reddi, birleştirme geri alması. Kapalı erişilebilirlik yolculuğu **kayıt oluşturma, düzenleme, çatışma, geri alma** bu yüzeyden yürür.

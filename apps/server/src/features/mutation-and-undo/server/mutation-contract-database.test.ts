@@ -10,7 +10,7 @@ import {
   mutationReceipt,
   mutationStaging,
 } from "@cantiara/db/schema/mutation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
 
 import { accountPreferencesMutationTarget } from "../../account-preferences/server/account-preferences-database";
@@ -347,7 +347,12 @@ describeDatabase("Mutation Contract PostgreSQL boundary", () => {
       const [historyRow] = await database
         .select()
         .from(mutationHistory)
-        .where(eq(mutationHistory.id, edited.id));
+        .where(
+          and(
+            eq(mutationHistory.targetId, accountId),
+            eq(mutationHistory.revision, edited.revision),
+          ),
+        );
       expect(receiptRow?.undo).toEqual(edited.undo);
       expect(historyRow?.undo).toEqual(edited.undo);
 
