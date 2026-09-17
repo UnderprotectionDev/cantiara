@@ -3,6 +3,8 @@ import { expect, test } from "@playwright/test";
 const DARK_CLASS_PATTERN = /dark/;
 const DASHBOARD_URL_PATTERN = /\/dashboard$/;
 const ROOT_URL_PATTERN = /\/$/;
+const SUPPORT_REFERENCE_PATTERN =
+  /Support reference SUP-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/;
 
 interface E2ESessionCookie {
   domain: string;
@@ -205,7 +207,7 @@ test("shows the current value when another session advances Account Preferences"
       .filter({ hasText: "Data was not written." });
     await expect(supportNotice).toContainText("Data was not written.");
     await expect(supportNotice).toContainText("Do not retry.");
-    await expect(supportNotice).toContainText("Support reference");
+    await expect(supportNotice).toContainText(SUPPORT_REFERENCE_PATTERN);
     await expect(supportNotice).not.toContainText(
       "Support reference unavailable.",
     );
