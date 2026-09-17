@@ -1,8 +1,21 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const PROJECTS_URL_PATTERN = /\/projects$/;
 const PROJECT_DETAIL_URL_PATTERN = /\/projects\/[^/]+$/;
+
+async function expectNoSampleContent(page: Page) {
+  await expect(
+    page.locator("#work").getByText("No sample content was created.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.locator("#documents").getByText("No sample content was created.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+}
 
 const STARTER_CONFIGURATION_CASES = [
   {
@@ -201,7 +214,9 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
         ).toBeVisible(),
       ),
     );
-    await expect(page.getByLabel("Starter Configuration")).toHaveCount(0);
+    await expect(
+      page.getByLabel("Starter Configuration", { exact: true }),
+    ).toHaveCount(0);
     await expect(
       page
         .getByRole("list", { name: "Enabled Project areas" })
@@ -216,15 +231,11 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
     await expect(
       page.getByRole("list", { name: "Work statuses" }).getByRole("listitem"),
     ).toHaveText(["Not Started", "In Progress", "Blocked", "Closed"]);
-    await expect(
-      page.getByText("No sample content was created.", { exact: true }),
-    ).toBeVisible();
+    await expectNoSampleContent(page);
     await expect(page.getByRole("button", { name: "Dismiss" })).toBeVisible();
 
     await page.getByRole("button", { name: "Dismiss" }).click();
-    await expect(
-      page.getByText("No sample content was created.", { exact: true }),
-    ).toBeVisible();
+    await expectNoSampleContent(page);
     await expect(page.getByRole("button", { name: "Dismiss" })).toHaveCount(0);
 
     await page.getByRole("link", { name: "All Tools", exact: true }).click();
