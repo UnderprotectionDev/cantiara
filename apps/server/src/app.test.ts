@@ -1,7 +1,4 @@
-import {
-  type AccountPreferences,
-  DEFAULT_ACCOUNT_PREFERENCES,
-} from "@cantiara/api/account-preferences";
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import {
   DESKTOP_API_UPDATE_REQUIRED_HEADER,
   type DesktopApiCompatibilityWindow,
@@ -43,6 +40,8 @@ function createTestApp(
     accountSessionAccess?: AppDependencies["accountSessionAccess"];
     auth?: AppDependencies["auth"];
     authorized?: boolean;
+    accountPreferencesCompatibility?: AppDependencies["accountPreferencesCompatibility"];
+    accountPreferencesMutationContract?: AppDependencies["accountPreferencesMutationContract"];
     desktopApiNow?: () => Date;
     desktopApiWindow?: DesktopApiCompatibilityWindow;
     desktopOrigins?: readonly string[];
@@ -80,23 +79,13 @@ function createTestApp(
       get: async () => ({
         ...DEFAULT_ACCOUNT_PREFERENCES,
         isSaved: false,
+        revision: 0,
         savedAt: null,
       }),
-      save: async (_accountId: string, preferences: AccountPreferences) => ({
-        ...preferences,
-        isSaved: true,
-        savedAt: "2026-09-16T09:00:00.000Z",
-      }),
-      saveAppearance: async (
-        _accountId: string,
-        appearance: AccountPreferences["appearance"],
-      ) => ({
-        ...DEFAULT_ACCOUNT_PREFERENCES,
-        appearance,
-        isSaved: true,
-        savedAt: "2026-09-16T09:00:00.000Z",
-      }),
     },
+    accountPreferencesCompatibility: options.accountPreferencesCompatibility,
+    accountPreferencesMutationContract:
+      options.accountPreferencesMutationContract,
     auth:
       options.auth ??
       ({
@@ -159,6 +148,24 @@ describe("server app Account Access boundary", () => {
     expect(getHandlerCalls()).toBe(1);
   });
 
+  test("allows the GitHub callback to recover from a stale revoked cookie", async () => {
+    const { app, getHandlerCalls } = createTestApp();
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/auth/callback/github?code=oauth-code&state=oauth-state",
+        {
+          headers: {
+            cookie: "__Secure-better-auth.session_token=stale-token",
+          },
+        },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(getHandlerCalls()).toBe(1);
+  });
+
   test("allows sign-out to clear a stale revoked cookie", async () => {
     const { app, getHandlerCalls } = createTestApp();
 
@@ -215,21 +222,24 @@ describe("server app Account Access boundary", () => {
       }),
     );
     const body = (await response.json()) as {
-      data: {
-        reasonCode: string;
-        supportReference: string;
-        writeOutcome: string;
+      json: {
+        data: {
+          reasonCode: string;
+          supportReference: string;
+          writeOutcome: string;
+        };
+        message: string;
       };
-      message: string;
     };
-    const serialized = JSON.stringify(body);
+    const error = body.json;
+    const serialized = JSON.stringify(error);
 
     expect(response.status).toBe(404);
-    expect(body.message).toBe("Please restart the API and try again.");
-    expect(body.data.reasonCode).toBe("restart-api");
-    expect(body.data.supportReference).toMatch(SUPPORT_REFERENCE_PATTERN);
-    expect(body.data.writeOutcome).toBe("not-written");
-    expect(body.data.supportReference).not.toBe(
+    expect(error.message).toBe("Please restart the API and try again.");
+    expect(error.data.reasonCode).toBe("restart-api");
+    expect(error.data.supportReference).toMatch(SUPPORT_REFERENCE_PATTERN);
+    expect(error.data.writeOutcome).toBe("not-written");
+    expect(error.data.supportReference).not.toBe(
       `SUP-${clientRequestId.toUpperCase()}`,
     );
     expect(serialized).not.toContain(clientRequestId);
@@ -292,19 +302,142 @@ describe("server app Account Access boundary", () => {
       }),
     );
     const body = (await response.json()) as {
-      data: { reasonCode: string; writeOutcome: string };
-      message: string;
+      json: {
+        data: { reasonCode: string; writeOutcome: string };
+        message: string;
+      };
     };
-    const serialized = JSON.stringify(body);
+    const error = body.json;
+    const serialized = JSON.stringify(error);
 
     expect(response.status).toBe(500);
-    expect(body.message).toBe(
+    expect(error.message).toBe(
       "Please restart after applying the latest migration.",
     );
-    expect(body.data.reasonCode).toBe("schema-drift");
-    expect(body.data.writeOutcome).toBe("unknown");
+    expect(error.data.reasonCode).toBe("schema-drift");
+    expect(error.data.writeOutcome).toBe("unknown");
     expect(serialized).not.toContain("secret-token");
     expect(serialized).not.toContain("private Workspace body");
+  });
+
+  test("keeps mutation conflict details through the RPC Support envelope", async () => {
+    const { app } = createTestApp({
+      accountPreferencesMutationContract: {
+        mutate: () => {
+          throw Object.assign(new Error("Conflict"), {
+            code: "CONFLICT",
+          });
+        },
+      } as NonNullable<AppDependencies["accountPreferencesMutationContract"]>,
+      authorized: true,
+    });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/rpc/saveAccountPreferences", {
+        body: JSON.stringify({
+          json: {
+            baseRevision: 0,
+            clientIdempotencyKey: "conflict-key",
+            preferences: DEFAULT_ACCOUNT_PREFERENCES,
+          },
+        }),
+        headers: {
+          cookie: "__Secure-better-auth.session_token=valid-token",
+          "content-type": "application/json",
+          origin: "https://cantiara.example",
+        },
+        method: "POST",
+      }),
+    );
+    const body = (await response.json()) as {
+      json: {
+        code: string;
+        data: Record<string, unknown>;
+        defined: boolean;
+        message: string;
+        status: number;
+      };
+    };
+
+    expect(response.status).toBe(409);
+    expect(body.json).toMatchObject({
+      code: "CONFLICT",
+      data: {
+        code: "CONFLICT",
+        label: "Conflict",
+        retryPolicy: "never",
+        targetId: "account-1",
+        writeOutcome: "not-written",
+      },
+      defined: true,
+      message: "Conflict",
+      status: 409,
+    });
+    expect(response.headers.get("x-cantiara-support-reference")).toMatch(
+      SUPPORT_REFERENCE_PATTERN,
+    );
+  });
+
+  test("keeps the current value through the stale mutation Support envelope", async () => {
+    const { app } = createTestApp({
+      accountPreferencesMutationContract: {
+        mutate: () => {
+          throw Object.assign(new Error("Current value"), {
+            code: "STALE_BASE_REVISION",
+            currentRevision: 1,
+            currentValue: {
+              ...DEFAULT_ACCOUNT_PREFERENCES,
+              appearance: "Light",
+            },
+          });
+        },
+      } as NonNullable<AppDependencies["accountPreferencesMutationContract"]>,
+      authorized: true,
+    });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/rpc/saveAccountPreferences", {
+        body: JSON.stringify({
+          json: {
+            baseRevision: 0,
+            clientIdempotencyKey: "stale-key",
+            preferences: DEFAULT_ACCOUNT_PREFERENCES,
+          },
+        }),
+        headers: {
+          cookie: "__Secure-better-auth.session_token=valid-token",
+          "content-type": "application/json",
+          origin: "https://cantiara.example",
+        },
+        method: "POST",
+      }),
+    );
+    const body = (await response.json()) as {
+      json: {
+        code: string;
+        data: Record<string, unknown>;
+        defined: boolean;
+        message: string;
+        status: number;
+      };
+    };
+
+    expect(response.status).toBe(412);
+    expect(body.json).toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: {
+        code: "STALE_BASE_REVISION",
+        currentRevision: 1,
+        currentValue: { appearance: "Light" },
+        label: "Current value",
+        retryPolicy: "never",
+        targetId: "account-1",
+        writeOutcome: "not-written",
+      },
+      defined: true,
+      message: "Current value",
+      status: 412,
+    });
   });
 
   test("starts Tauri sign-in in the system browser with a browser-owned state cookie", async () => {
@@ -1133,6 +1266,70 @@ describe("server app Account Access boundary", () => {
     );
   });
 
+  test("keeps legacy Tauri preference writes working within the API window", async () => {
+    const savedPreferences = vi.fn(async () => ({
+      ...DEFAULT_ACCOUNT_PREFERENCES,
+      isSaved: true,
+      revision: 1,
+      savedAt: "2026-08-31T00:00:00.000Z",
+    }));
+    const savedAppearances = vi.fn(async () => ({
+      ...DEFAULT_ACCOUNT_PREFERENCES,
+      appearance: "Light" as const,
+      isSaved: true,
+      revision: 2,
+      savedAt: "2026-08-31T00:00:00.000Z",
+    }));
+    const desktopApiWindow = {
+      currentContract: "cantiara-desktop-api/v2",
+      previousContract: "cantiara-desktop-api/v1",
+      publishedAt: "2026-08-01T00:00:00.000Z",
+    } satisfies DesktopApiCompatibilityWindow;
+    const { app } = createTestApp({
+      accountPreferencesCompatibility: {
+        save: savedPreferences,
+        saveAppearance: savedAppearances,
+      },
+      authorized: true,
+      desktopApiNow: () => new Date("2026-08-31T00:00:00.000Z"),
+      desktopApiWindow,
+    });
+
+    const [preferencesResponse, appearanceResponse] = await Promise.all([
+      app.fetch(
+        new Request("https://api.cantiara.example/rpc/saveAccountPreferences", {
+          body: JSON.stringify({ json: DEFAULT_ACCOUNT_PREFERENCES }),
+          headers: {
+            "content-type": "application/json",
+            origin: "http://tauri.localhost",
+            "x-cantiara-desktop-api-contract": desktopApiWindow.currentContract,
+          },
+          method: "POST",
+        }),
+      ),
+      app.fetch(
+        new Request("https://api.cantiara.example/rpc/saveAccountAppearance", {
+          body: JSON.stringify({ json: { appearance: "Light" } }),
+          headers: {
+            "content-type": "application/json",
+            origin: "http://tauri.localhost",
+            "x-cantiara-desktop-api-contract":
+              desktopApiWindow.previousContract,
+          },
+          method: "POST",
+        }),
+      ),
+    ]);
+
+    expect(preferencesResponse.status).toBe(200);
+    expect(appearanceResponse.status).toBe(200);
+    expect(savedPreferences).toHaveBeenCalledWith(
+      "account-1",
+      DEFAULT_ACCOUNT_PREFERENCES,
+    );
+    expect(savedAppearances).toHaveBeenCalledWith("account-1", "Light");
+  });
+
   test("stops an expired Tauri contract before the write handler runs", async () => {
     const revoked: string[] = [];
     const { app } = createTestApp({
@@ -1161,16 +1358,18 @@ describe("server app Account Access boundary", () => {
       }),
     );
     const body = (await response.json()) as {
-      code: string;
-      data: { reasonCode: string; writeOutcome: string };
-      message: string;
+      json: {
+        code: string;
+        data: { reasonCode: string; writeOutcome: string };
+        message: string;
+      };
     };
 
     expect(response.status).toBe(426);
-    expect(body.code).toBe("UPDATE_REQUIRED");
-    expect(body.data.reasonCode).toBe("update-required");
-    expect(body.data.writeOutcome).toBe("not-written");
-    expect(body.message).toBe("Update required");
+    expect(body.json.code).toBe("UPDATE_REQUIRED");
+    expect(body.json.data.reasonCode).toBe("update-required");
+    expect(body.json.data.writeOutcome).toBe("not-written");
+    expect(body.json.message).toBe("Update required");
     expect(
       response.headers
         .get("access-control-expose-headers")

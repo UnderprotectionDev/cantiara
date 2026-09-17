@@ -76,17 +76,10 @@ export type AccountPreferences = z.infer<typeof accountPreferencesSchema>;
 
 export interface AccountPreferencesSnapshot extends AccountPreferences {
   isSaved: boolean;
+  revision: number;
   savedAt: string | null;
 }
 
 export interface AccountPreferencesAccess {
   get: (accountId: string) => Promise<AccountPreferencesSnapshot>;
-  save: (
-    accountId: string,
-    preferences: AccountPreferences,
-  ) => Promise<AccountPreferencesSnapshot>;
-  saveAppearance: (
-    accountId: string,
-    appearance: Appearance,
-  ) => Promise<AccountPreferencesSnapshot>;
 }

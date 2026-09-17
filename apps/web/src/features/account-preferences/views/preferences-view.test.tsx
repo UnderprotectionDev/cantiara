@@ -36,6 +36,7 @@ describe("Preferences view", () => {
     const html = renderPreferences({
       ...DEFAULT_ACCOUNT_PREFERENCES,
       isSaved: false,
+      revision: 0,
       savedAt: null,
     });
 
@@ -66,6 +67,7 @@ describe("Preferences view", () => {
     const html = renderPreferences({
       ...DEFAULT_ACCOUNT_PREFERENCES,
       isSaved: true,
+      revision: 1,
       savedAt: "2026-09-16T09:00:00.000Z",
       locale: "tr-TR",
     });

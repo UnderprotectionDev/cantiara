@@ -1,6 +1,7 @@
 import {
   type AccountPreferences,
   type AccountPreferencesAccess,
+  type AccountPreferencesSnapshot,
   type Appearance,
   accountPreferencesSchema,
   appearanceSchema,
@@ -19,8 +20,21 @@ export interface AccountPreferencesStore {
   ) => Promise<AccountPreferencesRecord>;
 }
 
+export interface AccountPreferencesWritableAccess
+  extends AccountPreferencesAccess {
+  save: (
+    accountId: string,
+    preferences: AccountPreferences,
+  ) => Promise<AccountPreferencesSnapshot>;
+  saveAppearance: (
+    accountId: string,
+    appearance: Appearance,
+  ) => Promise<AccountPreferencesSnapshot>;
+}
+
 export interface AccountPreferencesRecord {
   preferences: AccountPreferences;
+  revision: number;
   savedAt: string;
 }
 
@@ -28,7 +42,7 @@ export function createAccountPreferences({
   store,
 }: {
   store: AccountPreferencesStore;
-}): AccountPreferencesAccess {
+}): AccountPreferencesWritableAccess {
   return {
     async get(accountId) {
       const stored = await store.find(accountId);
@@ -36,6 +50,7 @@ export function createAccountPreferences({
         return {
           ...DEFAULT_ACCOUNT_PREFERENCES,
           isSaved: false,
+          revision: 0,
           savedAt: null,
         };
       }
@@ -43,6 +58,7 @@ export function createAccountPreferences({
       return {
         ...accountPreferencesSchema.parse(stored.preferences),
         isSaved: true,
+        revision: stored.revision,
         savedAt: stored.savedAt,
       };
     },
@@ -56,6 +72,7 @@ export function createAccountPreferences({
       return {
         ...accountPreferencesSchema.parse(stored.preferences),
         isSaved: true,
+        revision: stored.revision,
         savedAt: stored.savedAt,
       };
     },
@@ -67,6 +84,7 @@ export function createAccountPreferences({
       return {
         ...accountPreferencesSchema.parse(stored.preferences),
         isSaved: true,
+        revision: stored.revision,
         savedAt: stored.savedAt,
       };
     },

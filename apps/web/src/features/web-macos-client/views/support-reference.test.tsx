@@ -29,6 +29,7 @@ describe("Client Shell Support reference notice", () => {
     expect(failure.reason).toBe("This action could not be completed.");
     expect(failure.canRetry).toBe(true);
     expect(failure.retryBound).toBe("You can retry once.");
+    expect(html).not.toContain(`<p>${failure.reason}</p>`);
     expect(html).toContain("Data was not written.");
     expect(html).toContain("You can retry once.");
     expect(html).toContain("Support reference");
@@ -67,6 +68,36 @@ describe("Client Shell Support reference notice", () => {
     expect(failure.writeOutcomeLabel).toBe("Data write outcome is unknown.");
     expect(failure.canRetry).toBe(false);
     expect(failure.retryBound).toBe("Do not retry.");
+  });
+
+  test("keeps a stale unwritten mutation failure reachable", () => {
+    const failure = buildSupportReferenceFailure(
+      {
+        ...supportError,
+        data: { ...supportError.data, retryPolicy: "never" },
+      },
+      { kind: "mutation" },
+    );
+
+    expect(failure.canRetry).toBe(false);
+    expect(failure.duration).toBe(Number.POSITIVE_INFINITY);
+    expect(failure.retryBound).toBe("Do not retry.");
+  });
+
+  test("explains a stale mutation in plain language", () => {
+    const failure = buildSupportReferenceFailure(
+      {
+        ...supportError,
+        data: {
+          ...supportError.data,
+          code: "STALE_BASE_REVISION",
+          retryPolicy: "never",
+        },
+      },
+      { kind: "mutation" },
+    );
+
+    expect(failure.reason).toBe("This page is out of date.");
   });
 
   test("auto-dismisses a query failure and keeps the Support reference safe", () => {
@@ -114,6 +145,9 @@ describe("Client Shell Support reference notice", () => {
 
     expect(failure.reason).toBe("You’re offline");
     expect(failure.supportReference).toBeNull();
-    expect(html).toContain("Support reference unavailable.");
+    expect(html).toContain("<p>Support reference unavailable.</p>");
+    expect(html).not.toContain(
+      "<span>Support reference</span> <code>Support reference unavailable.</code>",
+    );
   });
 });

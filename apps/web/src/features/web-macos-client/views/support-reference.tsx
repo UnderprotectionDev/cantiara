@@ -116,6 +116,18 @@ function writeOutcomeLabel(writeOutcome: SupportWriteOutcome) {
   }
 }
 
+function failureMessage(
+  error: unknown,
+  reasonCode: SupportFailureReasonCode,
+  kind: SupportReferenceFailureKind,
+) {
+  const data = errorData(error);
+  if (kind === "mutation" && data?.code === "STALE_BASE_REVISION") {
+    return "This page is out of date.";
+  }
+  return supportFailureMessage(reasonCode);
+}
+
 function resolveWriteOutcome(
   requestedWriteOutcome: SupportWriteOutcome | undefined,
   data: Record<string, unknown> | undefined,
@@ -159,11 +171,13 @@ export function buildSupportReferenceFailure(
     retryCount === 0 &&
     writeOutcome === "not-written" &&
     retryPolicy === "once";
+  const staysUntilDismissed =
+    kind === "mutation" && writeOutcome === "not-written";
 
   return {
     canRetry,
-    duration: canRetry ? Number.POSITIVE_INFINITY : 6000,
-    reason: supportFailureMessage(reasonCode),
+    duration: staysUntilDismissed ? Number.POSITIVE_INFINITY : 6000,
+    reason: failureMessage(error, reasonCode, kind),
     reasonCode,
     retryBound: canRetry ? "You can retry once." : "Do not retry.",
     retryPolicy,
@@ -201,14 +215,17 @@ export function SupportReferenceNotice({
 }) {
   return (
     <div aria-live="polite" className="space-y-1 text-sm" role="alert">
-      <p>{failure.reason}</p>
       <p>{failure.writeOutcomeLabel}</p>
       <p>{failure.retryBound}</p>
       <p>
-        <span>Support reference</span>{" "}
-        <code>
-          {failure.supportReference ?? "Support reference unavailable."}
-        </code>
+        {failure.supportReference ? (
+          <>
+            <span>Support reference</span>{" "}
+            <code>{failure.supportReference}</code>
+          </>
+        ) : (
+          "Support reference unavailable."
+        )}
       </p>
     </div>
   );

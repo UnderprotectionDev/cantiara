@@ -10,6 +10,7 @@ const SAVED_AT = "2026-09-16T09:00:00.000Z";
 
 function createMemoryStore(initial?: {
   preferences: AccountPreferences;
+  revision: number;
   savedAt: string;
 }) {
   let value = initial;
@@ -21,6 +22,7 @@ function createMemoryStore(initial?: {
         value = {
           ...value,
           preferences: { ...value.preferences, appearance },
+          revision: value.revision + 1,
         };
       } else {
         value = {
@@ -28,13 +30,18 @@ function createMemoryStore(initial?: {
             ...DEFAULT_ACCOUNT_PREFERENCES,
             appearance,
           },
+          revision: 1,
           savedAt: SAVED_AT,
         };
       }
       return Promise.resolve(value);
     },
     save: (_accountId: string, preferences: AccountPreferences) => {
-      value = { preferences, savedAt: SAVED_AT };
+      value = {
+        preferences,
+        revision: (value?.revision ?? 0) + 1,
+        savedAt: SAVED_AT,
+      };
       return Promise.resolve(value);
     },
   };
@@ -49,6 +56,7 @@ describe("Account Preferences seam", () => {
     await expect(preferences.get("account-1")).resolves.toEqual({
       ...DEFAULT_ACCOUNT_PREFERENCES,
       isSaved: false,
+      revision: 0,
       savedAt: null,
     });
   });
@@ -68,11 +76,13 @@ describe("Account Preferences seam", () => {
     await expect(preferences.save("account-1", saved)).resolves.toEqual({
       ...saved,
       isSaved: true,
+      revision: 1,
       savedAt: SAVED_AT,
     });
     await expect(preferences.get("account-1")).resolves.toEqual({
       ...saved,
       isSaved: true,
+      revision: 1,
       savedAt: SAVED_AT,
     });
   });
@@ -90,6 +100,7 @@ describe("Account Preferences seam", () => {
     await expect(preferences.get("account-1")).resolves.toEqual({
       ...DEFAULT_ACCOUNT_PREFERENCES,
       isSaved: false,
+      revision: 0,
       savedAt: null,
     });
   });
@@ -108,6 +119,7 @@ describe("Account Preferences seam", () => {
     await expect(preferences.get("account-1")).resolves.toEqual({
       ...DEFAULT_ACCOUNT_PREFERENCES,
       isSaved: false,
+      revision: 0,
       savedAt: null,
     });
   });
@@ -123,6 +135,7 @@ describe("Account Preferences seam", () => {
     const preferences = createAccountPreferences({
       store: createMemoryStore({
         preferences: initial,
+        revision: 1,
         savedAt: SAVED_AT,
       }),
     });
@@ -133,12 +146,14 @@ describe("Account Preferences seam", () => {
       ...initial,
       appearance: "Light",
       isSaved: true,
+      revision: 2,
       savedAt: SAVED_AT,
     });
     await expect(preferences.get("account-1")).resolves.toEqual({
       ...initial,
       appearance: "Light",
       isSaved: true,
+      revision: 2,
       savedAt: SAVED_AT,
     });
   });

@@ -15,6 +15,10 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { themeForAppearance, useTheme } from "@/components/theme-provider";
+import {
+  accountPreferencesMutationErrorMessage,
+  parseAccountPreferencesMutationError,
+} from "@/features/account-preferences/account-preferences-mutation-error";
 import { authClient } from "@/lib/auth-client";
 import {
   accountPreferencesQueryOptions,
@@ -28,28 +32,62 @@ export function ModeToggle() {
   const session = authClient.useSession();
   const accountId = session.data?.user.id;
   const previousAccountId = useRef(accountId);
+  const pendingAppearanceSave = useRef<{
+    appearance: Appearance;
+    baseRevision: number;
+    clientIdempotencyKey: string;
+  } | null>(null);
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
   const saveAppearance = useMutation({
-    mutationFn: (appearance: Appearance) => {
-      if (!preferences.data) {
-        throw new Error("Preferences are unavailable.");
-      }
-      return client.saveAccountAppearance({ appearance });
-    },
-    onError: () => {
-      toast.error("Preferences could not be saved.");
+    mutationFn: (input: {
+      appearance: Appearance;
+      baseRevision: number;
+      clientIdempotencyKey: string;
+    }) => client.saveAccountAppearance(input),
+    onError: (error) => {
+      const parsedError = parseAccountPreferencesMutationError(error);
+      const message = accountPreferencesMutationErrorMessage(parsedError);
+      toast.error(
+        parsedError.code === "STALE_BASE_REVISION"
+          ? `${message}: ${parsedError.currentValue.appearance} (Revision ${parsedError.currentRevision})`
+          : message,
+      );
     },
     onSuccess: (saved) => {
       queryClient.setQueryData(
         accountPreferencesQueryOptions(accountId).queryKey,
         saved,
       );
+      pendingAppearanceSave.current = null;
       setTheme(themeForAppearance(saved.appearance));
       toast.success("Preferences saved.");
     },
   });
-  const saveLightAppearance = () => saveAppearance.mutate("Light");
-  const saveDarkAppearance = () => saveAppearance.mutate("Dark");
+  const saveCurrentAppearance = (appearance: Appearance) => {
+    const current = preferences.data;
+    if (!current) {
+      return;
+    }
+
+    const pending = pendingAppearanceSave.current;
+    const clientIdempotencyKey =
+      pending?.appearance === appearance &&
+      pending.baseRevision === current.revision
+        ? pending.clientIdempotencyKey
+        : crypto.randomUUID();
+    pendingAppearanceSave.current = {
+      appearance,
+      baseRevision: current.revision,
+      clientIdempotencyKey,
+    };
+    saveAppearance.mutate({
+      appearance,
+      baseRevision: current.revision,
+      clientIdempotencyKey,
+    });
+  };
+  const saveLightAppearance = () => saveCurrentAppearance("Light");
+  const saveDarkAppearance = () => saveCurrentAppearance("Dark");
   const appearanceActions: Record<Appearance, () => void> = {
     Dark: saveDarkAppearance,
     Light: saveLightAppearance,
@@ -58,6 +96,7 @@ export function ModeToggle() {
   useEffect(() => {
     if (previousAccountId.current !== accountId) {
       previousAccountId.current = accountId;
+      pendingAppearanceSave.current = null;
       setTheme("dark");
     }
     if (!accountId) {
