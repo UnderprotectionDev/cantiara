@@ -224,6 +224,7 @@ describeDatabase("Mutation Contract PostgreSQL boundary", () => {
         });
       const failedStaging = await failingContract.stage({
         ...command,
+        baseRevision: 1,
         clientIdempotencyKey: "atomic-rollback-key",
         payload: { ...payload, appearance: "Dark" },
       });
