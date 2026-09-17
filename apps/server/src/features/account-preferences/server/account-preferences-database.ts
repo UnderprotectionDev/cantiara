@@ -1,30 +1,128 @@
 import {
-  type AccountPreferencesAccess,
+  type AccountPreferences,
   type Appearance,
   accountPreferencesSchema,
+  DEFAULT_ACCOUNT_PREFERENCES,
 } from "@cantiara/api/account-preferences";
+import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
 import type { Database } from "@cantiara/db";
 import { accountPreferences } from "@cantiara/db/schema/auth";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
+import type { MutationDatabaseTargetAdapter } from "../../mutation-and-undo/server/mutation-contract-database";
 import {
   type AccountPreferencesStore,
+  type AccountPreferencesWritableAccess,
   createAccountPreferences,
 } from "./account-preferences";
 
+type AccountPreferencesDatabaseRecord = typeof accountPreferences.$inferSelect;
+type AccountPreferencesValueRecord = Pick<
+  AccountPreferencesDatabaseRecord,
+  "appearance" | "dateFormat" | "firstDayOfWeek" | "locale" | "timeZone"
+>;
+
+function preferenceValue(
+  record: AccountPreferencesValueRecord,
+): AccountPreferences {
+  return accountPreferencesSchema.parse({
+    appearance: record.appearance,
+    dateFormat: record.dateFormat,
+    firstDayOfWeek: record.firstDayOfWeek,
+    locale: record.locale,
+    timeZone: record.timeZone,
+  });
+}
+
+function toTarget(record: AccountPreferencesDatabaseRecord) {
+  return {
+    id: record.accountId,
+    revision: record.revision,
+    value: preferenceValue(record),
+  } satisfies MutationTarget<AccountPreferences>;
+}
+
+function defaultTarget(targetId: string): MutationTarget<AccountPreferences> {
+  return {
+    id: targetId,
+    revision: 0,
+    value: DEFAULT_ACCOUNT_PREFERENCES,
+  };
+}
+
+export const accountPreferencesMutationTarget: MutationDatabaseTargetAdapter<AccountPreferences> =
+  {
+    async find(executor, targetId, lock) {
+      const query = executor
+        .select()
+        .from(accountPreferences)
+        .where(eq(accountPreferences.accountId, targetId))
+        .limit(1);
+      const records = lock ? await query.for("update") : await query;
+      const [record] = records;
+      return record ? toTarget(record) : defaultTarget(targetId);
+    },
+
+    async update(executor, input) {
+      const revision = input.expectedRevision + 1;
+      const [updated] = await executor
+        .update(accountPreferences)
+        .set({
+          appearance: input.nextValue.appearance,
+          dateFormat: input.nextValue.dateFormat,
+          firstDayOfWeek: input.nextValue.firstDayOfWeek,
+          locale: input.nextValue.locale,
+          revision,
+          timeZone: input.nextValue.timeZone,
+          updatedAt: input.committedAt,
+        })
+        .where(
+          and(
+            eq(accountPreferences.accountId, input.targetId),
+            eq(accountPreferences.revision, input.expectedRevision),
+          ),
+        )
+        .returning();
+      if (updated) {
+        return toTarget(updated);
+      }
+
+      const [inserted] = await executor
+        .insert(accountPreferences)
+        .values({
+          accountId: input.targetId,
+          appearance: input.nextValue.appearance,
+          dateFormat: input.nextValue.dateFormat,
+          firstDayOfWeek: input.nextValue.firstDayOfWeek,
+          locale: input.nextValue.locale,
+          revision,
+          timeZone: input.nextValue.timeZone,
+          updatedAt: input.committedAt,
+        })
+        .onConflictDoNothing()
+        .returning();
+      return inserted ? toTarget(inserted) : null;
+    },
+  };
+
 export function createDatabaseAccountPreferences(
   database: Database,
-): AccountPreferencesAccess {
-  function savedRecord(preferences: {
-    appearance: string;
-    dateFormat: string;
-    firstDayOfWeek: string;
-    locale: string;
-    timeZone: string;
-    updatedAt: Date;
-  }) {
+): AccountPreferencesWritableAccess {
+  function savedRecord(
+    preferences: Pick<
+      AccountPreferencesDatabaseRecord,
+      | "appearance"
+      | "dateFormat"
+      | "firstDayOfWeek"
+      | "locale"
+      | "revision"
+      | "timeZone"
+      | "updatedAt"
+    >,
+  ) {
     return {
-      preferences: accountPreferencesSchema.parse(preferences),
+      preferences: preferenceValue(preferences),
+      revision: preferences.revision,
       savedAt: preferences.updatedAt.toISOString(),
     };
   }
@@ -37,6 +135,7 @@ export function createDatabaseAccountPreferences(
           dateFormat: true,
           firstDayOfWeek: true,
           locale: true,
+          revision: true,
           timeZone: true,
           updatedAt: true,
         },
@@ -49,11 +148,12 @@ export function createDatabaseAccountPreferences(
     async saveAppearance(accountId, appearance: Appearance) {
       const [saved] = await database
         .insert(accountPreferences)
-        .values({ accountId, appearance })
+        .values({ accountId, appearance, revision: 1 })
         .onConflictDoUpdate({
           target: accountPreferences.accountId,
           set: {
             appearance,
+            revision: sql`${accountPreferences.revision} + 1`,
             updatedAt: new Date(),
           },
         })
@@ -62,6 +162,7 @@ export function createDatabaseAccountPreferences(
           dateFormat: accountPreferences.dateFormat,
           firstDayOfWeek: accountPreferences.firstDayOfWeek,
           locale: accountPreferences.locale,
+          revision: accountPreferences.revision,
           timeZone: accountPreferences.timeZone,
           updatedAt: accountPreferences.updatedAt,
         });
@@ -76,7 +177,7 @@ export function createDatabaseAccountPreferences(
     async save(accountId, preferences) {
       const [saved] = await database
         .insert(accountPreferences)
-        .values({ accountId, ...preferences })
+        .values({ accountId, ...preferences, revision: 1 })
         .onConflictDoUpdate({
           target: accountPreferences.accountId,
           set: {
@@ -84,6 +185,7 @@ export function createDatabaseAccountPreferences(
             dateFormat: preferences.dateFormat,
             firstDayOfWeek: preferences.firstDayOfWeek,
             locale: preferences.locale,
+            revision: sql`${accountPreferences.revision} + 1`,
             timeZone: preferences.timeZone,
             updatedAt: new Date(),
           },
@@ -93,6 +195,7 @@ export function createDatabaseAccountPreferences(
           dateFormat: accountPreferences.dateFormat,
           firstDayOfWeek: accountPreferences.firstDayOfWeek,
           locale: accountPreferences.locale,
+          revision: accountPreferences.revision,
           timeZone: accountPreferences.timeZone,
           updatedAt: accountPreferences.updatedAt,
         });
@@ -101,10 +204,7 @@ export function createDatabaseAccountPreferences(
         throw new Error("Account preferences could not be saved.");
       }
 
-      return {
-        preferences: accountPreferencesSchema.parse(saved),
-        savedAt: saved.updatedAt.toISOString(),
-      };
+      return savedRecord(saved);
     },
   };
 

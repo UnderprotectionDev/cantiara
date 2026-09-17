@@ -10,6 +10,7 @@ import {
   createSupportReferenceFailure,
   decorateSupportFailureResponse,
   recordSupportFailure,
+  wrapSupportFailureResponseForRpc,
 } from "./support-reference";
 
 interface FailureResponseBody {
@@ -126,6 +127,210 @@ describe("Client Shell Support reference", () => {
     expect(serialized).not.toContain("private Workspace content");
     expect(serialized).not.toContain("secret-token");
     expect(serialized).not.toContain("42703");
+  });
+
+  test("preserves the safe mutation conflict details in the Support envelope", async () => {
+    const rawResponse = Response.json(
+      {
+        code: "CONFLICT",
+        data: {
+          code: "CONFLICT",
+          label: "Conflict",
+          targetId: "account-1",
+        },
+        defined: true,
+        message: "Conflict",
+      },
+      { status: 409 },
+    );
+
+    const response = await decorateSupportFailureResponse(rawResponse, {
+      requestId: "trace-secret",
+    });
+    const body = (await response.json()) as FailureResponseBody & {
+      code: string;
+      defined: boolean;
+      status: number;
+    };
+
+    expect(body).toMatchObject({
+      code: "CONFLICT",
+      data: {
+        code: "CONFLICT",
+        label: "Conflict",
+        reasonCode: "unexpected",
+        retryPolicy: "never",
+        targetId: "account-1",
+        writeOutcome: "not-written",
+      },
+      defined: true,
+      message: "Conflict",
+      status: 409,
+    });
+  });
+
+  test("preserves the current value from a stale mutation response", async () => {
+    const currentValue = {
+      appearance: "Light",
+      dateFormat: "dd/MM/yyyy",
+      firstDayOfWeek: "Monday",
+      locale: "tr-TR",
+      timeZone: "Europe/Istanbul",
+    };
+    const rawResponse = Response.json(
+      {
+        code: "PRECONDITION_FAILED",
+        data: {
+          code: "STALE_BASE_REVISION",
+          currentRevision: 3,
+          currentValue,
+          label: "Current value",
+          targetId: "account-1",
+        },
+        defined: true,
+        message: "Current value",
+      },
+      { status: 412 },
+    );
+
+    const response = await decorateSupportFailureResponse(rawResponse, {
+      requestId: "trace-secret",
+    });
+    const body = (await response.json()) as FailureResponseBody & {
+      code: string;
+      defined: boolean;
+      status: number;
+    };
+
+    expect(body).toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: {
+        code: "STALE_BASE_REVISION",
+        currentRevision: 3,
+        currentValue,
+        label: "Current value",
+        reasonCode: "unexpected",
+        retryPolicy: "never",
+        targetId: "account-1",
+        writeOutcome: "not-written",
+      },
+      defined: true,
+      message: "Current value",
+      status: 412,
+    });
+  });
+
+  test("keeps the oRPC envelope when decorating a stale mutation response", async () => {
+    const currentValue = {
+      appearance: "Light",
+      dateFormat: "dd/MM/yyyy",
+      firstDayOfWeek: "Monday",
+      locale: "tr-TR",
+      timeZone: "Europe/Istanbul",
+    };
+    const rawResponse = Response.json(
+      {
+        json: {
+          code: "PRECONDITION_FAILED",
+          data: {
+            code: "STALE_BASE_REVISION",
+            currentRevision: 3,
+            currentValue,
+            label: "Current value",
+            targetId: "account-1",
+          },
+          defined: true,
+          message: "Current value",
+        },
+      },
+      { status: 412 },
+    );
+
+    const response = await decorateSupportFailureResponse(rawResponse, {
+      requestId: "trace-secret",
+    });
+    const body = (await response.json()) as {
+      json: {
+        code: string;
+        data: {
+          code: string;
+          currentRevision: number;
+          currentValue: typeof currentValue;
+          label: string;
+          reasonCode: string;
+          retryPolicy: string;
+          supportReference: string;
+          targetId: string;
+          writeOutcome: string;
+        };
+        defined: boolean;
+        message: string;
+        status: number;
+      };
+    };
+
+    expect(body.json).toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: {
+        code: "STALE_BASE_REVISION",
+        currentRevision: 3,
+        currentValue,
+        label: "Current value",
+        reasonCode: "unexpected",
+        targetId: "account-1",
+      },
+      defined: true,
+      message: "Current value",
+      status: 412,
+    });
+  });
+
+  test("wraps a raw Support failure for an oRPC client", async () => {
+    const rawResponse = Response.json(
+      {
+        code: "PRECONDITION_FAILED",
+        data: {
+          code: "STALE_BASE_REVISION",
+          currentRevision: 3,
+          currentValue: {
+            appearance: "Light",
+            dateFormat: "dd/MM/yyyy",
+            firstDayOfWeek: "Monday",
+            locale: "tr-TR",
+            timeZone: "Europe/Istanbul",
+          },
+          label: "Current value",
+          retryPolicy: "never",
+          targetId: "account-1",
+          writeOutcome: "not-written",
+        },
+        defined: true,
+        message: "Current value",
+        status: 412,
+      },
+      { status: 412 },
+    );
+
+    const response = await wrapSupportFailureResponseForRpc(rawResponse);
+    const body = (await response.json()) as {
+      json: Record<string, unknown>;
+    };
+
+    expect(body.json).toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: {
+        code: "STALE_BASE_REVISION",
+        currentRevision: 3,
+        currentValue: {
+          appearance: "Light",
+          locale: "tr-TR",
+        },
+        retryPolicy: "never",
+        writeOutcome: "not-written",
+      },
+      message: "Current value",
+      status: 412,
+    });
   });
 
   test("records only the safe support fields in the operator log", () => {

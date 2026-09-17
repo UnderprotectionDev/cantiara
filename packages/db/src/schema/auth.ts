@@ -113,6 +113,7 @@ export const accountPreferences = pgTable(
     dateFormat: text("date_format").default("locale").notNull(),
     firstDayOfWeek: text("first_day_of_week").default("Monday").notNull(),
     appearance: text("appearance").default("Dark").notNull(),
+    revision: integer("revision").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

@@ -3,6 +3,19 @@ import { expect, test } from "@playwright/test";
 const DARK_CLASS_PATTERN = /dark/;
 const DASHBOARD_URL_PATTERN = /\/dashboard$/;
 const ROOT_URL_PATTERN = /\/$/;
+const SUPPORT_REFERENCE_PATTERN =
+  /^SUP-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
+
+interface E2ESessionCookie {
+  domain: string;
+  expires?: number;
+  httpOnly: boolean;
+  name: string;
+  path: string;
+  sameSite: "Lax" | "None" | "Strict";
+  secure: boolean;
+  value: string;
+}
 
 test("keeps browser suggestions unsaved and persists Account Preferences on Save", async ({
   context,
@@ -151,4 +164,148 @@ test("keeps browser suggestions unsaved and persists Account Preferences on Save
   await expect(
     page.getByRole("button", { name: "Appearance", exact: true }),
   ).toHaveCount(0);
+});
+
+test("shows the current value when another session advances Account Preferences", async ({
+  browser,
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    "http://127.0.0.1:3100/__e2e/setup?fixture=account-preferences-stale",
+  );
+  const setup = (await setupResponse.json()) as {
+    cookie: E2ESessionCookie;
+    otherCookie: E2ESessionCookie;
+  };
+  const otherContext = await browser.newContext();
+  const otherPage = await otherContext.newPage();
+
+  try {
+    await context.addCookies([setup.cookie]);
+    await otherContext.addCookies([setup.otherCookie]);
+    await page.goto("/account/preferences");
+    await otherPage.goto("/account/preferences");
+
+    await page.getByLabel("Locale").selectOption("tr-TR");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(
+      page.getByRole("main").getByText("Preferences saved.", { exact: true }),
+    ).toBeVisible();
+
+    await otherPage.getByLabel("Locale").selectOption("de-DE");
+    const staleResponsePromise = otherPage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/rpc/saveAccountPreferences"),
+    );
+    await otherPage.getByRole("button", { name: "Save", exact: true }).click();
+    const staleResponse = await staleResponsePromise;
+    expect(staleResponse.status()).toBe(412);
+    const supportReference =
+      staleResponse.headers()["x-cantiara-support-reference"];
+    expect(supportReference).toMatch(SUPPORT_REFERENCE_PATTERN);
+    const status = otherPage
+      .getByRole("status")
+      .filter({ hasText: "Current value" });
+    await expect(status).toContainText("Current value");
+    await expect(status).toContainText("Data was not written.");
+    await expect(status).toContainText(
+      "This page is out of date. Refresh to load the current value.",
+    );
+    await expect(status.getByText("Revision", { exact: true })).toBeVisible();
+    await expect(status.getByText("1", { exact: true })).toBeVisible();
+    await expect(status.getByText("Appearance", { exact: true })).toBeVisible();
+    await expect(status.getByText("Locale", { exact: true })).toBeVisible();
+    await expect(status.getByText("Time zone", { exact: true })).toBeVisible();
+    await expect(
+      status.getByText("Date format", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      status.getByText("First day of week", { exact: true }),
+    ).toBeVisible();
+    await expect(status).toContainText("tr-TR");
+    const supportNotice = otherPage
+      .getByRole("alert")
+      .filter({ hasText: "Data was not written." });
+    await otherPage.waitForTimeout(6500);
+    await expect(supportNotice).toBeVisible();
+    await expect(supportNotice).toContainText("Data was not written.");
+    const supportToast = otherPage
+      .getByRole("status")
+      .filter({ hasText: "Data was not written." });
+    await expect(supportToast).toContainText("This page is out of date.");
+    await expect(supportNotice).toContainText("Do not retry.");
+    await expect(supportNotice).toContainText(
+      `Support reference ${supportReference}`,
+    );
+    await expect(supportNotice).not.toContainText(
+      "Support reference unavailable.",
+    );
+  } finally {
+    await otherContext.close();
+  }
+});
+
+test("does not submit dirty values against a newer Account Preferences revision", async ({
+  browser,
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    "http://127.0.0.1:3100/__e2e/setup?fixture=account-preferences-revision-race",
+  );
+  const setup = (await setupResponse.json()) as {
+    cookie: E2ESessionCookie;
+    otherCookie: E2ESessionCookie;
+  };
+  const otherContext = await browser.newContext();
+  const otherPage = await otherContext.newPage();
+
+  try {
+    await context.addCookies([setup.cookie]);
+    await otherContext.addCookies([setup.otherCookie]);
+    await page.goto("/account/preferences");
+    await otherPage.goto("/account/preferences");
+
+    await page.getByLabel("Locale").selectOption("tr-TR");
+    await otherPage.getByLabel("Time zone").selectOption("America/Los_Angeles");
+    await otherPage.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(
+      otherPage.getByRole("main").getByText("Preferences saved.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    const refreshResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/rpc/accountPreferences"),
+    );
+    await page.evaluate(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await refreshResponsePromise;
+
+    const staleResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/rpc/saveAccountPreferences"),
+    );
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    const staleResponse = await staleResponsePromise;
+
+    expect(staleResponse.status()).toBe(412);
+    await expect(
+      page.getByRole("status").filter({ hasText: "Current value" }),
+    ).toBeVisible();
+    await otherPage.reload();
+    await expect(otherPage.getByLabel("Time zone")).toHaveValue(
+      "America/Los_Angeles",
+    );
+  } finally {
+    await otherContext.close();
+  }
 });
