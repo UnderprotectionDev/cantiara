@@ -7,18 +7,46 @@ import {
   MUTATION_UI_LABELS,
   type MutationActor,
   type MutationApply,
+  type MutationAtomicContract,
   type MutationCommand,
-  type MutationContract,
+  type MutationFinalizationReceipt,
+  type MutationIdempotencyKey,
+  type MutationOperationReference,
   type MutationPayload,
   type MutationReceipt,
+  type MutationRollbackReason,
+  type MutationRollbackReceipt,
   type MutationSource,
+  type MutationStagedOperation,
   type MutationTarget,
   mutationCommandSchema,
 } from "@cantiara/api/mutation-and-undo";
 
-export interface MutationIdempotencyKey {
-  key: string;
-  scope: string;
+export type { MutationIdempotencyKey } from "@cantiara/api/mutation-and-undo";
+
+export interface MutationBarrierContext<TValue, TTransaction = unknown> {
+  actor: MutationActor;
+  expectedRevision: number;
+  idempotencyKey: MutationIdempotencyKey;
+  operationId?: string;
+  origin: MutationOrigin;
+  payload: MutationPayload;
+  payloadFingerprint: string;
+  target: MutationTarget<TValue> | null;
+  targetId: string;
+  transaction?: TTransaction;
+}
+
+export interface MutationBarrierChecks<TValue, TTransaction = unknown> {
+  authorization?: (
+    context: MutationBarrierContext<TValue, TTransaction>,
+  ) => boolean | Promise<boolean>;
+  quota?: (
+    context: MutationBarrierContext<TValue, TTransaction>,
+  ) => boolean | Promise<boolean>;
+  scope?: (
+    context: MutationBarrierContext<TValue, TTransaction>,
+  ) => boolean | Promise<boolean>;
 }
 
 export interface MutationCommitInput<
@@ -38,20 +66,114 @@ export interface MutationCommitInput<
   targetId: string;
 }
 
+export interface MutationStageInput<
+  TPayload extends MutationPayload = MutationPayload,
+> {
+  actor: MutationActor;
+  expectedRevision: number;
+  expiresAt: string;
+  historyId: string;
+  idempotencyKey: MutationIdempotencyKey;
+  operationId: string;
+  origin: MutationOrigin;
+  payload: TPayload;
+  payloadFingerprint: string;
+  receiptId: string;
+  stagedAt: string;
+  targetId: string;
+}
+
+export interface MutationStagedRecord<TValue = MutationPayload>
+  extends MutationStagedOperation<TValue> {
+  historyId: string;
+  payload: MutationPayload | undefined;
+  receiptId: string;
+}
+
+export interface MutationFinalizeInput<
+  TValue,
+  TPayload extends MutationPayload = MutationPayload,
+  TTransaction = unknown,
+> extends MutationCommitInput<TValue, TPayload> {
+  barrierChecks?: MutationBarrierChecks<TValue, TTransaction>;
+  operationId: string;
+}
+
+export interface MutationCancelInput {
+  completedAt: string;
+  operationId: string;
+  reason: MutationRollbackReason;
+}
+
+export type MutationStageResult<TValue> =
+  | { operation: MutationStagedRecord<TValue>; status: "staged" }
+  | {
+      operation: MutationStagedRecord<TValue>;
+      status: "committed" | "finalizing" | "rolled-back";
+    }
+  | { status: "conflict" };
+
+export type MutationFinalizeResult<TValue> =
+  | {
+      operation: MutationStagedRecord<TValue>;
+      receipt: MutationReceipt<TValue>;
+      status: "committed";
+    }
+  | {
+      operation: MutationStagedRecord<TValue>;
+      receipt: MutationRollbackReceipt<TValue>;
+      status: "rolled-back";
+    }
+  | { operationId: string; status: "finalizing" }
+  | { status: "conflict" };
+
 export type MutationCommitResult<TValue> =
   | { receipt: MutationReceipt<TValue>; status: "committed" | "replayed" }
   | { status: "conflict" }
   | { current: MutationTarget<TValue>; status: "stale" }
   | { status: "target-not-found" };
 
-export interface MutationContractStore<TValue> {
+export interface MutationContractStore<TValue, TTransaction = unknown> {
+  cancel?: (
+    input: MutationCancelInput,
+  ) => Promise<MutationFinalizeResult<TValue>>;
+  cleanupExpired?: (now: Date) => Promise<number>;
   commit: <TPayload extends MutationPayload>(
     input: MutationCommitInput<TValue, TPayload>,
   ) => Promise<MutationCommitResult<TValue>>;
+  finalize?: <TPayload extends MutationPayload>(
+    input: MutationFinalizeInput<TValue, TPayload, TTransaction>,
+  ) => Promise<MutationFinalizeResult<TValue>>;
   findReceipt: (
     key: MutationIdempotencyKey,
   ) => Promise<MutationReceipt<TValue> | null>;
+  findStagedOperation?: (
+    operationId: string,
+  ) => Promise<MutationStagedRecord<TValue> | null>;
   getTarget: (targetId: string) => Promise<MutationTarget<TValue> | null>;
+  stage?: <TPayload extends MutationPayload>(
+    input: MutationStageInput<TPayload>,
+  ) => Promise<MutationStageResult<TValue>>;
+}
+
+export interface MutationAtomicContractStore<TValue, TTransaction = unknown>
+  extends Omit<
+    MutationContractStore<TValue, TTransaction>,
+    "cancel" | "cleanupExpired" | "finalize" | "findStagedOperation" | "stage"
+  > {
+  cancel: (
+    input: MutationCancelInput,
+  ) => Promise<MutationFinalizeResult<TValue>>;
+  cleanupExpired: (now: Date) => Promise<number>;
+  finalize: <TPayload extends MutationPayload>(
+    input: MutationFinalizeInput<TValue, TPayload, TTransaction>,
+  ) => Promise<MutationFinalizeResult<TValue>>;
+  findStagedOperation: (
+    operationId: string,
+  ) => Promise<MutationStagedRecord<TValue> | null>;
+  stage: <TPayload extends MutationPayload>(
+    input: MutationStageInput<TPayload>,
+  ) => Promise<MutationStageResult<TValue>>;
 }
 
 export interface MutationSourceVerifier {
@@ -62,11 +184,13 @@ export interface MutationSourceVerifier {
   }) => boolean | Promise<boolean>;
 }
 
-export interface MutationContractOptions<TValue> {
+export interface MutationContractOptions<TValue, TTransaction = unknown> {
+  barrierChecks?: MutationBarrierChecks<TValue, TTransaction>;
   createId?: () => string;
   now?: () => Date;
   sourceVerifier?: MutationSourceVerifier;
-  store: MutationContractStore<TValue>;
+  stagingTtlMs?: number;
+  store: MutationAtomicContractStore<TValue, TTransaction>;
 }
 
 export class MutationConflictError extends Error {
@@ -123,6 +247,40 @@ export class MutationSourceVerificationError extends Error {
   constructor() {
     super("The mutation source could not be verified.");
     this.name = "MutationSourceVerificationError";
+  }
+}
+
+export class MutationFinalizingError extends Error {
+  readonly code = "FINALIZING" as const;
+  readonly label = MUTATION_UI_LABELS.finalizing;
+  readonly operationId: string;
+
+  constructor(operationId: string) {
+    super(MUTATION_UI_LABELS.finalizing);
+    this.name = "MutationFinalizingError";
+    this.operationId = operationId;
+  }
+}
+
+export class MutationApplyFailedError extends Error {
+  readonly code = "APPLY_FAILED" as const;
+  readonly cause: unknown;
+
+  constructor(cause: unknown, options: ErrorOptions = { cause }) {
+    super("The mutation apply step failed.", options);
+    this.name = "MutationApplyFailedError";
+    this.cause = cause;
+  }
+}
+
+export class MutationOperationNotFoundError extends Error {
+  readonly code = "OPERATION_NOT_FOUND" as const;
+  readonly operationId: string;
+
+  constructor(operationId: string) {
+    super("Mutation operation was not found.");
+    this.name = "MutationOperationNotFoundError";
+    this.operationId = operationId;
   }
 }
 
@@ -210,12 +368,118 @@ function receiptFromCommitResult<TValue>(
   }
 }
 
-export function createMutationContract<TValue>({
+function operationFromRecord<TValue>(
+  record: MutationStagedRecord<TValue>,
+): MutationStagedOperation<TValue> {
+  return {
+    actor: record.actor,
+    completedAt: record.completedAt,
+    expectedRevision: record.expectedRevision,
+    expiresAt: record.expiresAt,
+    id: record.id,
+    idempotencyKey: record.idempotencyKey,
+    origin: record.origin,
+    payloadFingerprint: record.payloadFingerprint,
+    receipt: record.receipt,
+    rollbackReceipt: record.rollbackReceipt,
+    stagedAt: record.stagedAt,
+    status: record.status,
+    targetId: record.targetId,
+  };
+}
+
+function finalizationFromResult<TValue>(
+  result: MutationFinalizeResult<TValue>,
+  targetId: string,
+): MutationFinalizationReceipt<TValue> {
+  switch (result.status) {
+    case "committed":
+      return {
+        operation: operationFromRecord(result.operation),
+        receipt: result.receipt,
+        status: "committed",
+      };
+    case "rolled-back":
+      return {
+        operation: operationFromRecord(result.operation),
+        receipt: result.receipt,
+        status: "rolled-back",
+      };
+    case "conflict":
+      throw new MutationConflictError(targetId);
+    case "finalizing":
+      throw new MutationFinalizingError(result.operationId);
+    default:
+      throw new Error("Unknown mutation finalization result.");
+  }
+}
+
+function operationIdFromReference(
+  operation: MutationOperationReference,
+): string {
+  return typeof operation === "string" ? operation : operation.id;
+}
+
+function commandFromStagedRecord<TValue, TPayload extends MutationPayload>(
+  record: MutationStagedRecord<TValue>,
+): MutationCommand<TPayload> {
+  if (record.payload === undefined) {
+    throw new Error("A staged mutation has no payload to finalize.");
+  }
+
+  if (record.origin.kind === "human") {
+    return {
+      actor: record.actor as Extract<MutationActor, { type: "User" }>,
+      baseRevision: record.expectedRevision,
+      clientIdempotencyKey: record.origin.clientIdempotencyKey,
+      kind: "human",
+      payload: record.payload as TPayload,
+      targetId: record.targetId,
+    };
+  }
+
+  return {
+    actor: record.actor as Exclude<MutationActor, { type: "User" }>,
+    kind: "non-human",
+    payload: record.payload as TPayload,
+    source: {
+      deliveryId: record.origin.deliveryId,
+      payloadFingerprint: record.payloadFingerprint,
+      sourceId: record.origin.sourceId,
+    },
+    targetId: record.targetId,
+    targetRevision: record.expectedRevision,
+  };
+}
+
+function commandMatchesStagedRecord<TValue, TPayload extends MutationPayload>(
+  command: MutationCommand<TPayload>,
+  record: MutationStagedRecord<TValue>,
+  payloadFingerprint: string,
+) {
+  const key = mutationIdempotencyKey(command);
+  const expectedRevision =
+    command.kind === "human" ? command.baseRevision : command.targetRevision;
+  return (
+    key.key === record.idempotencyKey.key &&
+    key.scope === record.idempotencyKey.scope &&
+    payloadFingerprint === record.payloadFingerprint &&
+    expectedRevision === record.expectedRevision &&
+    command.targetId === record.targetId
+  );
+}
+
+export function createMutationContract<TValue, TTransaction = unknown>({
+  barrierChecks,
   createId = () => crypto.randomUUID(),
   now = () => new Date(),
   sourceVerifier,
+  stagingTtlMs = 24 * 60 * 60 * 1000,
   store,
-}: MutationContractOptions<TValue>): MutationContract<TValue> {
+}: MutationContractOptions<
+  TValue,
+  TTransaction
+>): MutationAtomicContract<TValue> {
   const mutate = async <TPayload extends MutationPayload>(
     command: MutationCommand<TPayload>,
     apply: MutationApply<TValue, TPayload>,
@@ -253,7 +517,190 @@ export function createMutationContract<TValue>({
     return receiptFromCommitResult(result, parsed.targetId);
   };
 
+  const stage = async <TPayload extends MutationPayload>(
+    command: MutationCommand<TPayload>,
+  ): Promise<MutationStagedOperation<TValue>> => {
+    const atomicStore = store;
+    const parsed = mutationCommandSchema.parse(
+      command,
+    ) as MutationCommand<TPayload>;
+    const payloadFingerprint = await fingerprintMutationPayload(parsed.payload);
+    await verifyNonHumanSource(parsed, payloadFingerprint, sourceVerifier);
+
+    const stagedAt = now();
+    const result = await atomicStore.stage({
+      actor: parsed.actor,
+      expectedRevision:
+        parsed.kind === "human" ? parsed.baseRevision : parsed.targetRevision,
+      expiresAt: new Date(stagedAt.getTime() + stagingTtlMs).toISOString(),
+      historyId: createId(),
+      idempotencyKey: mutationIdempotencyKey(parsed),
+      operationId: createId(),
+      origin: mutationOrigin(parsed),
+      payload: parsed.payload,
+      payloadFingerprint,
+      receiptId: createId(),
+      stagedAt: stagedAt.toISOString(),
+      targetId: parsed.targetId,
+    });
+
+    if (result.status === "conflict") {
+      throw new MutationConflictError(parsed.targetId);
+    }
+    return operationFromRecord(result.operation);
+  };
+
+  const finalize = async <TPayload extends MutationPayload>(
+    operation: MutationOperationReference,
+    apply: MutationApply<TValue, TPayload>,
+    command?: MutationCommand<TPayload>,
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Finalize coordinates command validation, durable replay, policy checks, and rollback recovery.
+  ): Promise<MutationFinalizationReceipt<TValue>> => {
+    const atomicStore = store;
+    const operationId = operationIdFromReference(operation);
+    const staged = await atomicStore.findStagedOperation(operationId);
+    if (!staged) {
+      throw new MutationOperationNotFoundError(operationId);
+    }
+
+    if (command) {
+      const parsed = mutationCommandSchema.parse(
+        command,
+      ) as MutationCommand<TPayload>;
+      const payloadFingerprint = await fingerprintMutationPayload(
+        parsed.payload,
+      );
+      if (
+        !commandMatchesStagedRecord<TValue, TPayload>(
+          parsed,
+          staged,
+          payloadFingerprint,
+        )
+      ) {
+        throw new MutationConflictError(staged.targetId);
+      }
+    }
+
+    if (staged.status === "committed" || staged.status === "rolled-back") {
+      if (staged.status === "committed" && staged.receipt) {
+        return {
+          operation: operationFromRecord(staged),
+          receipt: staged.receipt,
+          status: "committed",
+        };
+      }
+      if (staged.status === "rolled-back" && staged.rollbackReceipt) {
+        return {
+          operation: operationFromRecord(staged),
+          receipt: staged.rollbackReceipt,
+          status: "rolled-back",
+        };
+      }
+      throw new Error("Finalized mutation operation has no durable receipt.");
+    }
+    const parsed = command
+      ? (mutationCommandSchema.parse(command) as MutationCommand<TPayload>)
+      : commandFromStagedRecord<TValue, TPayload>(staged);
+    const payloadFingerprint = await fingerprintMutationPayload(parsed.payload);
+    if (payloadFingerprint !== staged.payloadFingerprint) {
+      throw new MutationConflictError(staged.targetId);
+    }
+
+    const finalizationChecks: MutationBarrierChecks<TValue, TTransaction> = {
+      authorization: async (context) => {
+        try {
+          await verifyNonHumanSource(
+            parsed,
+            payloadFingerprint,
+            sourceVerifier,
+          );
+        } catch {
+          return false;
+        }
+        return barrierChecks?.authorization
+          ? barrierChecks.authorization(context)
+          : false;
+      },
+      quota: async (context) =>
+        barrierChecks?.quota ? barrierChecks.quota(context) : false,
+      scope: async (context) =>
+        barrierChecks?.scope ? barrierChecks.scope(context) : false,
+    };
+
+    const applyWithFailureBoundary: MutationApply<TValue, TPayload> = async (
+      context,
+    ) => {
+      try {
+        return await apply(context);
+      } catch (cause) {
+        throw new MutationApplyFailedError(cause, { cause });
+      }
+    };
+
+    let result: MutationFinalizeResult<TValue>;
+    try {
+      result = await atomicStore.finalize({
+        actor: staged.actor,
+        apply: applyWithFailureBoundary,
+        barrierChecks: finalizationChecks,
+        committedAt: now().toISOString(),
+        expectedRevision: staged.expectedRevision,
+        historyId: staged.historyId,
+        idempotencyKey: staged.idempotencyKey,
+        operationId,
+        origin: staged.origin,
+        payload: parsed.payload,
+        payloadFingerprint: staged.payloadFingerprint,
+        receiptId: staged.receiptId,
+        targetId: staged.targetId,
+      });
+    } catch (error) {
+      if (!(error instanceof MutationApplyFailedError)) {
+        throw error;
+      }
+
+      let rollback: MutationFinalizeResult<TValue>;
+      try {
+        rollback = await atomicStore.cancel({
+          completedAt: now().toISOString(),
+          operationId,
+          reason: "apply-failed",
+        });
+      } catch (rollbackError) {
+        throw new MutationApplyFailedError(error, { cause: rollbackError });
+      }
+      return finalizationFromResult(rollback, staged.targetId);
+    }
+    return finalizationFromResult(result, staged.targetId);
+  };
+
+  const cancel = async (
+    operation: MutationOperationReference,
+  ): Promise<MutationFinalizationReceipt<TValue>> => {
+    const atomicStore = store;
+    const operationId = operationIdFromReference(operation);
+    const staged = await atomicStore.findStagedOperation(operationId);
+    if (!staged) {
+      throw new MutationOperationNotFoundError(operationId);
+    }
+    const result = await atomicStore.cancel({
+      completedAt: now().toISOString(),
+      operationId,
+      reason: "cancelled",
+    });
+    return finalizationFromResult(result, staged.targetId);
+  };
+
+  const cleanupExpired = (at = now()): Promise<number> => {
+    const atomicStore = store;
+    return atomicStore.cleanupExpired(at);
+  };
+
   return {
+    cancel,
+    cleanupExpired,
+    finalize,
     mutate,
+    stage,
   };
 }

@@ -22,6 +22,7 @@ import {
 import {
   mutationHistory,
   mutationReceipt,
+  mutationStaging,
   mutationTarget,
 } from "./schema/mutation";
 
@@ -33,6 +34,7 @@ const schema = {
   auditRecord,
   mutationHistory,
   mutationReceipt,
+  mutationStaging,
   mutationTarget,
   rateLimit,
   session,

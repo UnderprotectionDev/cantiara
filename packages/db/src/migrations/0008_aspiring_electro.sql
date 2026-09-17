@@ -1,0 +1,1 @@
+ALTER TABLE "mutation_staging" ADD CONSTRAINT "mutation_staging_rollback_reason_check" CHECK ("mutation_staging"."rollback_reason" is null or "mutation_staging"."rollback_reason" in ('cancelled', 'expired', 'stale-base-revision', 'target-not-found', 'authorization', 'scope', 'quota', 'apply-failed'));

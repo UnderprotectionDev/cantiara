@@ -194,6 +194,87 @@ export interface MutationReceipt<TValue = MutationPayload> {
   targetId: string;
 }
 
+export interface MutationIdempotencyKey {
+  key: string;
+  scope: string;
+}
+
+export const MUTATION_OPERATION_STATUSES = [
+  "staged",
+  "finalizing",
+  "committed",
+  "rolled-back",
+] as const;
+
+export const mutationOperationStatusSchema = z.enum(
+  MUTATION_OPERATION_STATUSES,
+);
+
+export type MutationOperationStatus =
+  (typeof MUTATION_OPERATION_STATUSES)[number];
+
+export const MUTATION_ROLLBACK_REASONS = [
+  "cancelled",
+  "expired",
+  "stale-base-revision",
+  "target-not-found",
+  "authorization",
+  "scope",
+  "quota",
+  "apply-failed",
+] as const;
+
+export const mutationRollbackReasonSchema = z.enum(MUTATION_ROLLBACK_REASONS);
+
+export type MutationRollbackReason = (typeof MUTATION_ROLLBACK_REASONS)[number];
+
+export interface MutationRollbackReceipt<TValue = MutationPayload> {
+  actor: MutationActor;
+  completedAt: string;
+  current?: MutationTarget<TValue>;
+  expectedRevision: number;
+  id: string;
+  idempotencyKey: MutationIdempotencyKey;
+  operationId: string;
+  origin: MutationOrigin;
+  payloadFingerprint: string;
+  reason: MutationRollbackReason;
+  status: "rolled-back";
+  targetId: string;
+}
+
+export interface MutationStagedOperation<TValue = MutationPayload> {
+  actor: MutationActor;
+  completedAt: string | null;
+  expectedRevision: number;
+  expiresAt: string;
+  id: string;
+  idempotencyKey: MutationIdempotencyKey;
+  origin: MutationOrigin;
+  payloadFingerprint: string;
+  receipt: MutationReceipt<TValue> | null;
+  rollbackReceipt: MutationRollbackReceipt<TValue> | null;
+  stagedAt: string;
+  status: MutationOperationStatus;
+  targetId: string;
+}
+
+export type MutationOperationReference =
+  | string
+  | Pick<MutationStagedOperation, "id">;
+
+export type MutationFinalizationReceipt<TValue = MutationPayload> =
+  | {
+      operation: MutationStagedOperation<TValue>;
+      receipt: MutationReceipt<TValue>;
+      status: "committed";
+    }
+  | {
+      operation: MutationStagedOperation<TValue>;
+      receipt: MutationRollbackReceipt<TValue>;
+      status: "rolled-back";
+    };
+
 export interface MutationHistoryEntry<TValue = MutationPayload> {
   actor: MutationActor;
   id: string;
@@ -223,14 +304,44 @@ export type MutationApply<
 ) => TValue | Promise<TValue>;
 
 export interface MutationContract<TValue> {
+  cancel?: (
+    operation: MutationOperationReference,
+  ) => Promise<MutationFinalizationReceipt<TValue>>;
+  cleanupExpired?: (now?: Date) => Promise<number>;
+  finalize?: <TPayload extends MutationPayload>(
+    operation: MutationOperationReference,
+    apply: MutationApply<TValue, TPayload>,
+    command?: MutationCommand<TPayload>,
+  ) => Promise<MutationFinalizationReceipt<TValue>>;
   mutate: <TPayload extends MutationPayload>(
     command: MutationCommand<TPayload>,
     apply: MutationApply<TValue, TPayload>,
   ) => Promise<MutationReceipt<TValue>>;
+  stage?: <TPayload extends MutationPayload>(
+    command: MutationCommand<TPayload>,
+  ) => Promise<MutationStagedOperation<TValue>>;
+}
+
+export interface MutationAtomicContract<TValue>
+  extends MutationContract<TValue> {
+  cancel: (
+    operation: MutationOperationReference,
+  ) => Promise<MutationFinalizationReceipt<TValue>>;
+  cleanupExpired: (now?: Date) => Promise<number>;
+  finalize: <TPayload extends MutationPayload>(
+    operation: MutationOperationReference,
+    apply: MutationApply<TValue, TPayload>,
+    command?: MutationCommand<TPayload>,
+  ) => Promise<MutationFinalizationReceipt<TValue>>;
+  stage: <TPayload extends MutationPayload>(
+    command: MutationCommand<TPayload>,
+  ) => Promise<MutationStagedOperation<TValue>>;
 }
 
 export const MUTATION_UI_LABELS = {
+  cancel: "Cancel",
   conflict: "Conflict",
   currentValue: "Current value",
+  finalizing: "Finalizing",
   retry: "Retry",
 } as const;
