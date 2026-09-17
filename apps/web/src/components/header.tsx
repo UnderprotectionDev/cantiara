@@ -16,15 +16,15 @@ export default function Header() {
 
   return (
     <header>
-      <div className="flex flex-row items-center justify-between px-2 py-1">
-        <nav className="flex gap-4 text-lg">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 sm:px-4">
+        <nav className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 text-sm sm:text-lg">
           {links.map(({ to, label }) => (
             <Link key={to} to={to}>
               {label}
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-2">
+        <div className="flex max-w-full flex-wrap items-center justify-end gap-1.5">
           <CommandPaletteQuickActions />
           <CommandPaletteTrigger />
           <ModeToggle />

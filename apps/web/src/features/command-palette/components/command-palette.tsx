@@ -7,12 +7,25 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
   CommandShortcut,
 } from "@cantiara/ui/components/command";
 import { Kbd } from "@cantiara/ui/components/kbd";
 import { useNavigate } from "@tanstack/react-router";
 import { createStore, useStore } from "@tanstack/react-store";
-import { ChevronLeft, Command as CommandIcon } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeftRight,
+  ChevronLeft,
+  Command as CommandIcon,
+  FileText,
+  LayoutDashboard,
+  LoaderCircle,
+  Monitor,
+  Plus,
+  SearchX,
+  Settings2,
+} from "lucide-react";
 import type { MouseEvent, ReactNode } from "react";
 import {
   createContext,
@@ -148,58 +161,98 @@ export default function CommandPalette({
 
   return (
     <CommandDialog
+      className="top-1/2 max-h-[calc(100svh-2rem)] w-[calc(100%-1rem)] max-w-2xl -translate-y-1/2 border border-border/80 p-0 shadow-none sm:max-w-2xl"
       description="Run an authorized product command."
       onOpenChange={handleOpenChange}
       open={open}
       title="Command Palette"
     >
-      <Command label="Filter Command Palette commands">
-        <div className="relative">
+      <Command
+        className="min-h-0 text-sm"
+        label="Filter Command Palette commands"
+      >
+        <div className="flex min-h-0 flex-col">
+          <div className="flex items-center justify-between gap-4 border-b px-4 py-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex size-8 shrink-0 items-center justify-center border border-border bg-muted/60 text-foreground">
+                <CommandIcon aria-hidden="true" className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate font-medium text-sm">Command Palette</p>
+                <p className="truncate text-muted-foreground text-xs">
+                  Run an authorized product command.
+                </p>
+              </div>
+            </div>
+            <Kbd className="shrink-0 border border-border bg-muted px-1.5 text-[10px] tracking-normal">
+              Esc
+            </Kbd>
+          </div>
           {commandStack.length > 0 ? (
-            <div className="flex items-center gap-1 border-b px-1 py-1">
+            <div className="flex items-center gap-2 border-b bg-muted/20 px-4 py-2">
               <Button
                 aria-label="Back to commands"
+                className="border border-transparent hover:border-border"
                 onClick={handleBack}
-                size="icon-xs"
+                size="icon-sm"
                 type="button"
                 variant="ghost"
               >
                 <ChevronLeft aria-hidden="true" />
               </Button>
-              <span className="text-muted-foreground text-xs">
-                Choose a target
-              </span>
+              <span className="font-medium text-sm">Choose a target</span>
             </div>
           ) : null}
           <CommandInput
             aria-label="Filter Command Palette commands"
+            className="text-sm placeholder:text-muted-foreground"
+            inputGroupClassName="h-10 border-border/70 bg-background/50 focus-within:border-ring/70 focus-within:ring-1 focus-within:ring-ring/50"
             onValueChange={setQuery}
             placeholder="Type a command or authorized record…"
             value={query}
+            wrapperClassName="border-b border-border/80 px-4 py-2"
           />
           {failureReason ? (
             <div
               aria-live="assertive"
-              className="border-destructive border-b bg-destructive/10 px-3 py-2 text-destructive text-xs"
+              className="flex gap-2 border-destructive border-b bg-destructive/10 px-4 py-3 text-destructive text-xs"
               role="alert"
             >
-              <p className="font-medium">Can’t run this here</p>
-              <p className="mt-0.5">{failureReason}</p>
+              <AlertCircle
+                aria-hidden="true"
+                className="mt-0.5 size-4 shrink-0"
+              />
+              <div className="min-w-0 space-y-0.5">
+                <p className="font-medium">Can’t run this here</p>
+                <p className="break-words">{failureReason}</p>
+              </div>
             </div>
           ) : null}
-          <CommandList aria-label="Command Palette commands">
-            <CommandEmpty>No matching command</CommandEmpty>
+          <CommandList
+            aria-label="Command Palette commands"
+            className="max-h-[min(32rem,calc(100svh-8rem))] p-2"
+          >
+            <CommandEmpty className="py-10">
+              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <SearchX aria-hidden="true" className="size-4" />
+                <span className="text-foreground">No matching command</span>
+              </div>
+            </CommandEmpty>
             {commonCommands.length > 0 ? (
-              <CommandGroup heading="Commands">
+              <CommandGroup className="mb-2" heading="Commands">
                 {commonCommands.map((command) => (
                   <PaletteCommandItem
                     command={command}
                     disabled={isRunning}
                     key={command.id}
                     onSelect={handleSelect}
+                    running={isRunning}
                   />
                 ))}
               </CommandGroup>
+            ) : null}
+            {commonCommands.length > 0 && recordCommands.length > 0 ? (
+              <CommandSeparator className="mx-2 my-3" />
             ) : null}
             {recordCommands.length > 0 ? (
               <CommandGroup heading="Authorized records">
@@ -209,6 +262,7 @@ export default function CommandPalette({
                     disabled={isRunning}
                     key={command.id}
                     onSelect={handleSelect}
+                    running={isRunning}
                   />
                 ))}
               </CommandGroup>
@@ -224,10 +278,12 @@ function PaletteCommandItem({
   command,
   disabled,
   onSelect,
+  running,
 }: {
   command: CommandPaletteCommand;
   disabled: boolean;
   onSelect: (command: CommandPaletteCommand) => void;
+  running: boolean;
 }) {
   const handleSelect = useCallback(
     () => onSelect(command),
@@ -236,6 +292,7 @@ function PaletteCommandItem({
 
   return (
     <CommandItem
+      className="min-h-16 items-start gap-3 border border-transparent px-3 py-2.5 transition-colors data-selected:border-border/80 data-selected:bg-accent/60 sm:min-h-[4.5rem]"
       data-command-id={command.id}
       data-scope={command.scope}
       data-selection-count={command.selectionCount}
@@ -251,18 +308,70 @@ function PaletteCommandItem({
       onSelect={handleSelect}
       value={command.id}
     >
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-medium">{command.label}</div>
-        <div className="truncate text-[11px] text-muted-foreground">
-          Scope: {command.scope} · Target: {command.target} · Selection:{" "}
-          {command.selectionCount}
+      <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center border border-border bg-background/50 text-muted-foreground transition-colors group-data-selected/command-item:border-foreground/20 group-data-selected/command-item:text-foreground">
+        <PaletteCommandIcon command={command} />
+      </div>
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="truncate font-medium text-sm">{command.label}</div>
+        <div className="flex min-w-0 flex-wrap gap-1.5 text-[10px] leading-4">
+          <PaletteMetadata label="Scope" value={command.scope} />
+          <PaletteMetadata label="Target" value={command.target} />
+          <PaletteMetadata label="Selection" value={command.selectionCount} />
         </div>
-        <div className="truncate text-[11px] text-muted-foreground">
+        <div className="min-w-0 truncate text-[11px] text-muted-foreground">
           Menu: {command.visibleCounterpart}
         </div>
       </div>
-      <CommandShortcut>{command.shortcut}</CommandShortcut>
+      <CommandShortcut className="mt-0.5 min-w-10 border border-border bg-background px-1.5 py-0.5 text-center text-[10px] tracking-normal group-data-selected/command-item:border-foreground/20">
+        {running ? (
+          <LoaderCircle
+            aria-label="Loading"
+            className="size-3 animate-spin motion-reduce:animate-none"
+          />
+        ) : (
+          command.shortcut
+        )}
+      </CommandShortcut>
     </CommandItem>
+  );
+}
+
+function PaletteCommandIcon({ command }: { command: CommandPaletteCommand }) {
+  if (command.kind === "switch-project") {
+    return <ArrowLeftRight aria-hidden="true" className="size-4" />;
+  }
+  if (command.kind === "create") {
+    return <Plus aria-hidden="true" className="size-4" />;
+  }
+  if (command.kind === "open-record") {
+    return <FileText aria-hidden="true" className="size-4" />;
+  }
+  if (command.kind === "navigation") {
+    switch (command.target) {
+      case "Dashboard":
+        return <LayoutDashboard aria-hidden="true" className="size-4" />;
+      case "Sessions":
+        return <Monitor aria-hidden="true" className="size-4" />;
+      case "Preferences":
+        return <Settings2 aria-hidden="true" className="size-4" />;
+      default:
+        return <CommandIcon aria-hidden="true" className="size-4" />;
+    }
+  }
+  return <CommandIcon aria-hidden="true" className="size-4" />;
+}
+
+function PaletteMetadata({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string;
+}) {
+  return (
+    <span className="inline-flex min-w-0 max-w-full truncate border border-border/70 bg-background/30 px-1.5 py-0.5 text-muted-foreground">
+      {label}: {value}
+    </span>
   );
 }
 
@@ -290,8 +399,10 @@ export function CommandPaletteTrigger() {
   const shortcut = commandPaletteShortcutLabel();
   return (
     <Button
+      aria-haspopup="dialog"
       aria-keyshortcuts="Control+K Meta+K"
       aria-label={`Open Command Palette (${shortcut})`}
+      className="gap-2 border-border/80 bg-background/60"
       onClick={handleClick}
       type="button"
       variant="outline"
@@ -320,11 +431,21 @@ export function CommandPaletteQuickActions() {
   }
 
   return (
-    <div className="flex items-center gap-1">
-      <Button onClick={handleSwitchProjectClick} type="button" variant="ghost">
+    <div className="flex flex-wrap items-center gap-1 border-border border-l pl-2">
+      <Button
+        className="border border-transparent hover:border-border"
+        onClick={handleSwitchProjectClick}
+        type="button"
+        variant="ghost"
+      >
         Switch Project
       </Button>
-      <Button onClick={handleCreateClick} type="button" variant="ghost">
+      <Button
+        className="border border-transparent hover:border-border"
+        onClick={handleCreateClick}
+        type="button"
+        variant="ghost"
+      >
         Create
       </Button>
     </div>
