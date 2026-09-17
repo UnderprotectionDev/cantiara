@@ -86,7 +86,7 @@ export interface MutationStageInput<
 export interface MutationStagedRecord<TValue = MutationPayload>
   extends MutationStagedOperation<TValue> {
   historyId: string;
-  payload: MutationPayload | null;
+  payload: MutationPayload | undefined;
   receiptId: string;
 }
 
@@ -423,7 +423,7 @@ function operationIdFromReference(
 function commandFromStagedRecord<TValue, TPayload extends MutationPayload>(
   record: MutationStagedRecord<TValue>,
 ): MutationCommand<TPayload> {
-  if (record.payload === null) {
+  if (record.payload === undefined) {
     throw new Error("A staged mutation has no payload to finalize.");
   }
 
@@ -598,10 +598,6 @@ export function createMutationContract<TValue, TTransaction = unknown>({
       }
       throw new Error("Finalized mutation operation has no durable receipt.");
     }
-    if (staged.status === "finalizing") {
-      throw new MutationFinalizingError(operationId);
-    }
-
     const parsed = command
       ? (mutationCommandSchema.parse(command) as MutationCommand<TPayload>)
       : commandFromStagedRecord<TValue, TPayload>(staged);
@@ -644,7 +640,7 @@ export function createMutationContract<TValue, TTransaction = unknown>({
     let result: MutationFinalizeResult<TValue>;
     try {
       result = await atomicStore.finalize({
-        actor: parsed.actor,
+        actor: staged.actor,
         apply: applyWithFailureBoundary,
         barrierChecks: finalizationChecks,
         committedAt: now().toISOString(),

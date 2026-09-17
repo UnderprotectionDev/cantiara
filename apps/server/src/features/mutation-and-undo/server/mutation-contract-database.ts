@@ -167,6 +167,36 @@ function toRollbackReceipt<TValue>(
   };
 }
 
+const STAGED_PAYLOAD_MARKER = "__cantiaraMutationPayload" as const;
+
+interface StagedPayloadEnvelope {
+  value: MutationPayload;
+  [STAGED_PAYLOAD_MARKER]: true;
+}
+
+function encodeStagedPayload(payload: MutationPayload): StagedPayloadEnvelope {
+  return {
+    [STAGED_PAYLOAD_MARKER]: true,
+    value: payload,
+  };
+}
+
+function decodeStagedPayload(payload: unknown): MutationPayload | undefined {
+  if (payload === null) {
+    return undefined;
+  }
+
+  if (
+    typeof payload === "object" &&
+    (payload as Record<string, unknown>)[STAGED_PAYLOAD_MARKER] === true &&
+    "value" in payload
+  ) {
+    return (payload as StagedPayloadEnvelope).value;
+  }
+
+  return payload as MutationPayload;
+}
+
 function toStagedRecord<TValue>(
   record: MutationStagingRecord,
   receipt: MutationReceipt<TValue> | null = null,
@@ -187,7 +217,7 @@ function toStagedRecord<TValue>(
       scope: record.idempotencyScope,
     },
     origin: toOrigin(record),
-    payload: record.payload as MutationPayload | null,
+    payload: decodeStagedPayload(record.payload),
     payloadFingerprint: record.payloadFingerprint,
     receipt,
     receiptId: record.receiptId,
@@ -219,7 +249,7 @@ function stagedRecordFromReceipt<TValue>(
             scope: `source:${receipt.origin.sourceId}:${receipt.targetId}`,
           },
     origin: receipt.origin,
-    payload: null,
+    payload: undefined,
     payloadFingerprint: receipt.payloadFingerprint,
     receipt,
     receiptId: receipt.id,
@@ -491,6 +521,29 @@ function replayCommitResult<TValue>(
     : { status: "conflict" };
 }
 
+async function commitResultFromStaging<TValue>(
+  executor: MutationDatabaseExecutor,
+  record: MutationStagingRecord,
+  payloadFingerprint: string,
+): Promise<MutationCommitResult<TValue>> {
+  if (record.status !== "committed") {
+    return { status: "conflict" };
+  }
+
+  const receipt = await findReceiptById(executor, record.receiptId);
+  return receipt
+    ? replayCommitResult<TValue>(receipt, payloadFingerprint)
+    : { status: "conflict" };
+}
+
+function mutationRollbackInput(
+  operationId: string,
+  completedAt: string,
+  reason: MutationRollbackReason,
+): MutationCancelInput {
+  return { completedAt, operationId, reason };
+}
+
 function staleCommitResult<TValue>(
   target: MutationTarget<TValue>,
 ): MutationCommitResult<TValue> {
@@ -601,7 +654,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
             idempotencyKey: input.idempotencyKey.key,
             idempotencyScope: input.idempotencyKey.scope,
             originKind: input.origin.kind,
-            payload: input.payload,
+            payload: encodeStagedPayload(input.payload),
             payloadFingerprint: input.payloadFingerprint,
             receiptId: input.receiptId,
             stagedAt: new Date(input.stagedAt),
@@ -626,6 +679,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
     finalize: async <TPayload extends MutationPayload>(
       input: MutationFinalizeInput<TValue, TPayload, MutationDatabaseExecutor>,
     ) => {
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Preparation keeps staging state transitions in one transaction.
       const preparation = await database.transaction(async (transaction) => {
         const record = await findStaging(transaction, input.operationId, true);
         if (!record) {
@@ -637,6 +691,10 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
             kind: "result" as const,
             result: { status: "conflict" as const },
           };
+        }
+
+        if (record.status === "finalizing") {
+          return { kind: "prepared" as const };
         }
 
         if (record.status !== "staged") {
@@ -664,6 +722,9 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           );
           if (!current) {
             throw new Error("Mutation operation was not found.");
+          }
+          if (current.status === "finalizing") {
+            return { kind: "prepared" as const };
           }
           return {
             kind: "result" as const,
@@ -693,11 +754,15 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
 
         const committedAt = new Date(input.committedAt);
         if (record.expiresAt <= committedAt) {
-          return rollbackStaging(transaction, record, {
-            completedAt: input.committedAt,
-            operationId: input.operationId,
-            reason: "expired",
-          });
+          return rollbackStaging(
+            transaction,
+            record,
+            mutationRollbackInput(
+              input.operationId,
+              input.committedAt,
+              "expired",
+            ),
+          );
         }
 
         const target = await targetAdapter.find(
@@ -706,11 +771,15 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           true,
         );
         if (!target) {
-          return rollbackStaging(transaction, record, {
-            completedAt: input.committedAt,
-            operationId: input.operationId,
-            reason: "target-not-found",
-          });
+          return rollbackStaging(
+            transaction,
+            record,
+            mutationRollbackInput(
+              input.operationId,
+              input.committedAt,
+              "target-not-found",
+            ),
+          );
         }
 
         const barrierContext: MutationBarrierContext<
@@ -734,36 +803,48 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
             barrierContext,
           ))
         ) {
-          return rollbackStaging(transaction, record, {
-            completedAt: input.committedAt,
-            operationId: input.operationId,
-            reason: "authorization",
-          });
+          return rollbackStaging(
+            transaction,
+            record,
+            mutationRollbackInput(
+              input.operationId,
+              input.committedAt,
+              "authorization",
+            ),
+          );
         }
         if (!(await barrierCheck(input.barrierChecks?.scope, barrierContext))) {
-          return rollbackStaging(transaction, record, {
-            completedAt: input.committedAt,
-            operationId: input.operationId,
-            reason: "scope",
-          });
+          return rollbackStaging(
+            transaction,
+            record,
+            mutationRollbackInput(
+              input.operationId,
+              input.committedAt,
+              "scope",
+            ),
+          );
         }
         if (!(await barrierCheck(input.barrierChecks?.quota, barrierContext))) {
-          return rollbackStaging(transaction, record, {
-            completedAt: input.committedAt,
-            operationId: input.operationId,
-            reason: "quota",
-          });
+          return rollbackStaging(
+            transaction,
+            record,
+            mutationRollbackInput(
+              input.operationId,
+              input.committedAt,
+              "quota",
+            ),
+          );
         }
 
         if (target.revision !== input.expectedRevision) {
           return rollbackStaging(
             transaction,
             record,
-            {
-              completedAt: input.committedAt,
-              operationId: input.operationId,
-              reason: "stale-base-revision",
-            },
+            mutationRollbackInput(
+              input.operationId,
+              input.committedAt,
+              "stale-base-revision",
+            ),
             target,
           );
         }
@@ -794,11 +875,11 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           return rollbackStaging(
             transaction,
             record,
-            {
-              completedAt: input.committedAt,
-              operationId: input.operationId,
-              reason: "stale-base-revision",
-            },
+            mutationRollbackInput(
+              input.operationId,
+              input.committedAt,
+              "stale-base-revision",
+            ),
             current ?? target,
           );
         }
@@ -926,10 +1007,24 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
     commit: <TPayload extends MutationPayload>(
       input: MutationCommitInput<TValue, TPayload>,
     ) =>
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Direct commit keeps idempotency, target, receipt, and history writes in one transaction.
       database.transaction(async (transaction) => {
         const existing = await findReceipt(transaction, input.idempotencyKey);
         if (existing) {
           return replayCommitResult<TValue>(existing, input.payloadFingerprint);
+        }
+
+        const existingStaging = await findStagingByKey(
+          transaction,
+          input.idempotencyKey,
+          true,
+        );
+        if (existingStaging) {
+          return commitResultFromStaging<TValue>(
+            transaction,
+            existingStaging,
+            input.payloadFingerprint,
+          );
         }
 
         const target = await targetAdapter.find(
@@ -948,6 +1043,19 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
         if (receiptAfterLock) {
           return replayCommitResult<TValue>(
             receiptAfterLock,
+            input.payloadFingerprint,
+          );
+        }
+
+        const stagingAfterLock = await findStagingByKey(
+          transaction,
+          input.idempotencyKey,
+          true,
+        );
+        if (stagingAfterLock) {
+          return commitResultFromStaging<TValue>(
+            transaction,
+            stagingAfterLock,
             input.payloadFingerprint,
           );
         }
