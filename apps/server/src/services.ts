@@ -15,6 +15,10 @@ import {
   accountPreferencesMutationTarget,
   createDatabaseAccountPreferences,
 } from "./features/account-preferences/server/account-preferences-database";
+import {
+  captureInboxMutationTarget,
+  createDatabaseCaptureInbox,
+} from "./features/capture-triage/server/capture-inbox-database";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 
 const db = createDb(env);
@@ -31,6 +35,20 @@ export const accountPreferencesMutationContract =
   });
 export const mutationContract =
   createDatabaseMutationContract<MutationPayload>(db);
+export const captureInboxMutationContract =
+  createDatabaseMutationContract<MutationPayload>(db, {
+    target: captureInboxMutationTarget,
+  });
+// Work Lifecycle owns key allocation and persistence; Capture Inbox only hands
+// an eligible direct Create Bug command across that boundary for now.
+const captureInboxWorkCreate = {
+  createBug: async () => ({}),
+};
+export const captureInbox = createDatabaseCaptureInbox(
+  db,
+  captureInboxWorkCreate,
+  captureInboxMutationContract,
+);
 export const githubAvailability = createGitHubAvailability();
 export const accountSessionAccess = createDatabaseAccountSessionAccess(
   db,

@@ -2,6 +2,7 @@ import type {
   AccountPreferences,
   AccountPreferencesAccess,
 } from "@cantiara/api/account-preferences";
+import type { CaptureInboxAccess } from "@cantiara/api/capture-triage";
 import type {
   AccountAccessClient,
   AccountPreferencesCompatibilityAccess,
@@ -31,6 +32,7 @@ export interface CreateContextOptions {
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
   auth: AccountAccessAuth;
+  captureInbox?: CaptureInboxAccess;
   context: HonoContext;
   database: Database;
   githubAvailability: GitHubAvailability;
@@ -52,6 +54,7 @@ export async function createContext({
   accountPreferencesCompatibility,
   accountPreferencesMutationContract,
   auth,
+  captureInbox,
   context,
   database,
   githubAvailability,
@@ -80,6 +83,7 @@ export async function createContext({
     accountPreferencesMutationContract,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
     clientPlatform: requestClientPlatform(context.req.raw),
+    captureInbox,
     desktopApiContract:
       context.req.raw.headers.get(DESKTOP_API_CONTRACT_HEADER) ?? undefined,
     db: database,

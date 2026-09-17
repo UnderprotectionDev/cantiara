@@ -59,3 +59,15 @@ export function accountPreferencesQueryOptions(accountId?: string) {
 }
 
 export { accountPreferencesQueryPrefix };
+
+const captureInboxQueryPrefix = orpc.captureInbox.queryOptions().queryKey;
+
+export function captureInboxQueryOptions(accountId?: string) {
+  return {
+    ...orpc.captureInbox.queryOptions(),
+    enabled: Boolean(accountId),
+    queryKey: [...captureInboxQueryPrefix, accountId ?? "anonymous"] as const,
+  };
+}
+
+export { captureInboxQueryPrefix };
