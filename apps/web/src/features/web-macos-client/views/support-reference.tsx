@@ -159,10 +159,12 @@ export function buildSupportReferenceFailure(
     retryCount === 0 &&
     writeOutcome === "not-written" &&
     retryPolicy === "once";
+  const staysUntilDismissed =
+    kind === "mutation" && writeOutcome === "not-written";
 
   return {
     canRetry,
-    duration: canRetry ? Number.POSITIVE_INFINITY : 6000,
+    duration: staysUntilDismissed ? Number.POSITIVE_INFINITY : 6000,
     reason: supportFailureMessage(reasonCode),
     reasonCode,
     retryBound: canRetry ? "You can retry once." : "Do not retry.",

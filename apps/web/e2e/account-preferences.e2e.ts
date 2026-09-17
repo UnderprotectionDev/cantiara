@@ -4,7 +4,7 @@ const DARK_CLASS_PATTERN = /dark/;
 const DASHBOARD_URL_PATTERN = /\/dashboard$/;
 const ROOT_URL_PATTERN = /\/$/;
 const SUPPORT_REFERENCE_PATTERN =
-  /Support reference SUP-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/;
+  /^SUP-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
 
 interface E2ESessionCookie {
   domain: string;
@@ -195,7 +195,17 @@ test("shows the current value when another session advances Account Preferences"
     ).toBeVisible();
 
     await otherPage.getByLabel("Locale").selectOption("de-DE");
+    const staleResponsePromise = otherPage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/rpc/saveAccountPreferences"),
+    );
     await otherPage.getByRole("button", { name: "Save", exact: true }).click();
+    const staleResponse = await staleResponsePromise;
+    expect(staleResponse.status()).toBe(412);
+    const supportReference =
+      staleResponse.headers()["x-cantiara-support-reference"];
+    expect(supportReference).toMatch(SUPPORT_REFERENCE_PATTERN);
     const status = otherPage
       .getByRole("status")
       .filter({ hasText: "Current value" });
@@ -205,9 +215,13 @@ test("shows the current value when another session advances Account Preferences"
     const supportNotice = otherPage
       .getByRole("alert")
       .filter({ hasText: "Data was not written." });
+    await otherPage.waitForTimeout(6500);
+    await expect(supportNotice).toBeVisible();
     await expect(supportNotice).toContainText("Data was not written.");
     await expect(supportNotice).toContainText("Do not retry.");
-    await expect(supportNotice).toContainText(SUPPORT_REFERENCE_PATTERN);
+    await expect(supportNotice).toContainText(
+      `Support reference ${supportReference}`,
+    );
     await expect(supportNotice).not.toContainText(
       "Support reference unavailable.",
     );

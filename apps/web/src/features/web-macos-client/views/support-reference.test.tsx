@@ -70,6 +70,20 @@ describe("Client Shell Support reference notice", () => {
     expect(failure.retryBound).toBe("Do not retry.");
   });
 
+  test("keeps a stale unwritten mutation failure reachable", () => {
+    const failure = buildSupportReferenceFailure(
+      {
+        ...supportError,
+        data: { ...supportError.data, retryPolicy: "never" },
+      },
+      { kind: "mutation" },
+    );
+
+    expect(failure.canRetry).toBe(false);
+    expect(failure.duration).toBe(Number.POSITIVE_INFINITY);
+    expect(failure.retryBound).toBe("Do not retry.");
+  });
+
   test("auto-dismisses a query failure and keeps the Support reference safe", () => {
     const failure = buildSupportReferenceFailure(supportError, {
       kind: "query",
