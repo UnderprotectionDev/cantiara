@@ -16,7 +16,7 @@ const COMMAND_PALETTE_VISIBLE_BUDGET_MS = {
 } as const;
 const HOT_CACHE_SAMPLES = 500;
 const COLD_CACHE_SAMPLES = 100;
-const COLD_CACHE_BATCH_SIZE = 5;
+const COLD_CACHE_BATCH_SIZE = 1;
 const COMMAND_PALETTE_TRIGGER_SELECTOR =
   'header button[aria-keyshortcuts="Control+K Meta+K"]';
 
