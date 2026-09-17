@@ -220,21 +220,24 @@ describe("server app Account Access boundary", () => {
       }),
     );
     const body = (await response.json()) as {
-      data: {
-        reasonCode: string;
-        supportReference: string;
-        writeOutcome: string;
+      json: {
+        data: {
+          reasonCode: string;
+          supportReference: string;
+          writeOutcome: string;
+        };
+        message: string;
       };
-      message: string;
     };
-    const serialized = JSON.stringify(body);
+    const error = body.json;
+    const serialized = JSON.stringify(error);
 
     expect(response.status).toBe(404);
-    expect(body.message).toBe("Please restart the API and try again.");
-    expect(body.data.reasonCode).toBe("restart-api");
-    expect(body.data.supportReference).toMatch(SUPPORT_REFERENCE_PATTERN);
-    expect(body.data.writeOutcome).toBe("not-written");
-    expect(body.data.supportReference).not.toBe(
+    expect(error.message).toBe("Please restart the API and try again.");
+    expect(error.data.reasonCode).toBe("restart-api");
+    expect(error.data.supportReference).toMatch(SUPPORT_REFERENCE_PATTERN);
+    expect(error.data.writeOutcome).toBe("not-written");
+    expect(error.data.supportReference).not.toBe(
       `SUP-${clientRequestId.toUpperCase()}`,
     );
     expect(serialized).not.toContain(clientRequestId);
@@ -297,17 +300,20 @@ describe("server app Account Access boundary", () => {
       }),
     );
     const body = (await response.json()) as {
-      data: { reasonCode: string; writeOutcome: string };
-      message: string;
+      json: {
+        data: { reasonCode: string; writeOutcome: string };
+        message: string;
+      };
     };
-    const serialized = JSON.stringify(body);
+    const error = body.json;
+    const serialized = JSON.stringify(error);
 
     expect(response.status).toBe(500);
-    expect(body.message).toBe(
+    expect(error.message).toBe(
       "Please restart after applying the latest migration.",
     );
-    expect(body.data.reasonCode).toBe("schema-drift");
-    expect(body.data.writeOutcome).toBe("unknown");
+    expect(error.data.reasonCode).toBe("schema-drift");
+    expect(error.data.writeOutcome).toBe("unknown");
     expect(serialized).not.toContain("secret-token");
     expect(serialized).not.toContain("private Workspace body");
   });
@@ -342,15 +348,17 @@ describe("server app Account Access boundary", () => {
       }),
     );
     const body = (await response.json()) as {
-      code: string;
-      data: Record<string, unknown>;
-      defined: boolean;
-      message: string;
-      status: number;
+      json: {
+        code: string;
+        data: Record<string, unknown>;
+        defined: boolean;
+        message: string;
+        status: number;
+      };
     };
 
     expect(response.status).toBe(409);
-    expect(body).toMatchObject({
+    expect(body.json).toMatchObject({
       code: "CONFLICT",
       data: {
         code: "CONFLICT",
@@ -401,15 +409,17 @@ describe("server app Account Access boundary", () => {
       }),
     );
     const body = (await response.json()) as {
-      code: string;
-      data: Record<string, unknown>;
-      defined: boolean;
-      message: string;
-      status: number;
+      json: {
+        code: string;
+        data: Record<string, unknown>;
+        defined: boolean;
+        message: string;
+        status: number;
+      };
     };
 
     expect(response.status).toBe(412);
-    expect(body).toMatchObject({
+    expect(body.json).toMatchObject({
       code: "PRECONDITION_FAILED",
       data: {
         code: "STALE_BASE_REVISION",
@@ -1278,16 +1288,18 @@ describe("server app Account Access boundary", () => {
       }),
     );
     const body = (await response.json()) as {
-      code: string;
-      data: { reasonCode: string; writeOutcome: string };
-      message: string;
+      json: {
+        code: string;
+        data: { reasonCode: string; writeOutcome: string };
+        message: string;
+      };
     };
 
     expect(response.status).toBe(426);
-    expect(body.code).toBe("UPDATE_REQUIRED");
-    expect(body.data.reasonCode).toBe("update-required");
-    expect(body.data.writeOutcome).toBe("not-written");
-    expect(body.message).toBe("Update required");
+    expect(body.json.code).toBe("UPDATE_REQUIRED");
+    expect(body.json.data.reasonCode).toBe("update-required");
+    expect(body.json.data.writeOutcome).toBe("not-written");
+    expect(body.json.message).toBe("Update required");
     expect(
       response.headers
         .get("access-control-expose-headers")

@@ -67,6 +67,53 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+interface StandardRpcResponsePayload {
+  json: Record<string, unknown>;
+  meta?: unknown;
+}
+
+function isStandardRpcResponsePayload(
+  value: unknown,
+): value is StandardRpcResponsePayload {
+  return (
+    isRecord(value) &&
+    isRecord(value.json) &&
+    Object.keys(value).every((key) => key === "json" || key === "meta")
+  );
+}
+
+export function unwrapStandardRpcResponsePayload(value: unknown) {
+  return isStandardRpcResponsePayload(value) ? value.json : value;
+}
+
+export async function wrapSupportFailureResponseForRpc(
+  response: Response,
+  { meta }: { meta?: unknown } = {},
+) {
+  let payload: unknown;
+  try {
+    payload = await response.clone().json();
+  } catch {
+    return response;
+  }
+
+  if (!isRecord(payload) || isStandardRpcResponsePayload(payload)) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  return new Response(
+    JSON.stringify({
+      json: payload,
+      ...(meta === undefined ? {} : { meta }),
+    }),
+    {
+      headers,
+      status: response.status,
+    },
+  );
+}
+
 function safeSignals(value: unknown) {
   if (value instanceof Error) {
     return `${value.name} ${value.message}`;
@@ -311,17 +358,28 @@ export async function decorateSupportFailureResponse(
     payload = undefined;
   }
 
-  const supportData = supportDataFrom(payload);
-  const preservedMutationResponse = preservedMutationResponseFrom(payload);
-  return createSupportFailureResponse({
+  const rpcPayload = isStandardRpcResponsePayload(payload) ? payload : null;
+  const responsePayload = unwrapStandardRpcResponsePayload(payload);
+  const supportData = supportDataFrom(responsePayload);
+  const preservedMutationResponse =
+    preservedMutationResponseFrom(responsePayload);
+  const failureResponse = createSupportFailureResponse({
     ...options,
     ...preservedMutationResponse,
-    error: options.error ?? payload,
+    error: options.error ?? responsePayload,
     reasonCode: supportData?.reasonCode ?? options.reasonCode,
     retryPolicy: supportData?.retryPolicy ?? options.retryPolicy,
     status: response.status,
     supportReference: supportData?.supportReference ?? options.supportReference,
     writeOutcome: supportData?.writeOutcome ?? options.writeOutcome,
+  });
+
+  if (!rpcPayload) {
+    return failureResponse;
+  }
+
+  return wrapSupportFailureResponseForRpc(failureResponse, {
+    meta: rpcPayload.meta,
   });
 }
 

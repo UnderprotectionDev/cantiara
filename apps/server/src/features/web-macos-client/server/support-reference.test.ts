@@ -10,6 +10,7 @@ import {
   createSupportReferenceFailure,
   decorateSupportFailureResponse,
   recordSupportFailure,
+  wrapSupportFailureResponseForRpc,
 } from "./support-reference";
 
 interface FailureResponseBody {
@@ -210,6 +211,115 @@ describe("Client Shell Support reference", () => {
         targetId: "account-1",
       },
       defined: true,
+      message: "Current value",
+      status: 412,
+    });
+  });
+
+  test("keeps the oRPC envelope when decorating a stale mutation response", async () => {
+    const currentValue = {
+      appearance: "Light",
+      dateFormat: "dd/MM/yyyy",
+      firstDayOfWeek: "Monday",
+      locale: "tr-TR",
+      timeZone: "Europe/Istanbul",
+    };
+    const rawResponse = Response.json(
+      {
+        json: {
+          code: "PRECONDITION_FAILED",
+          data: {
+            code: "STALE_BASE_REVISION",
+            currentRevision: 3,
+            currentValue,
+            label: "Current value",
+            targetId: "account-1",
+          },
+          defined: true,
+          message: "Current value",
+        },
+      },
+      { status: 412 },
+    );
+
+    const response = await decorateSupportFailureResponse(rawResponse, {
+      requestId: "trace-secret",
+    });
+    const body = (await response.json()) as {
+      json: {
+        code: string;
+        data: {
+          code: string;
+          currentRevision: number;
+          currentValue: typeof currentValue;
+          label: string;
+          reasonCode: string;
+          retryPolicy: string;
+          supportReference: string;
+          targetId: string;
+          writeOutcome: string;
+        };
+        defined: boolean;
+        message: string;
+        status: number;
+      };
+    };
+
+    expect(body.json).toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: {
+        code: "STALE_BASE_REVISION",
+        currentRevision: 3,
+        currentValue,
+        label: "Current value",
+        reasonCode: "unexpected",
+        targetId: "account-1",
+      },
+      defined: true,
+      message: "Current value",
+      status: 412,
+    });
+  });
+
+  test("wraps a raw Support failure for an oRPC client", async () => {
+    const rawResponse = Response.json(
+      {
+        code: "PRECONDITION_FAILED",
+        data: {
+          code: "STALE_BASE_REVISION",
+          currentRevision: 3,
+          currentValue: {
+            appearance: "Light",
+            dateFormat: "dd/MM/yyyy",
+            firstDayOfWeek: "Monday",
+            locale: "tr-TR",
+            timeZone: "Europe/Istanbul",
+          },
+          label: "Current value",
+          targetId: "account-1",
+        },
+        defined: true,
+        message: "Current value",
+        status: 412,
+      },
+      { status: 412 },
+    );
+
+    const response = await wrapSupportFailureResponseForRpc(rawResponse);
+    const body = (await response.json()) as {
+      json: Record<string, unknown>;
+    };
+
+    expect(body.json).toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: {
+        code: "STALE_BASE_REVISION",
+        currentRevision: 3,
+        currentValue: {
+          appearance: "Light",
+          locale: "tr-TR",
+        },
+      },
       message: "Current value",
       status: 412,
     });

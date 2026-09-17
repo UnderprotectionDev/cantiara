@@ -66,6 +66,8 @@ import {
   createSupportReferenceFailure,
   decorateSupportFailureResponse,
   recordSupportFailure,
+  unwrapStandardRpcResponsePayload,
+  wrapSupportFailureResponseForRpc,
 } from "./features/web-macos-client/server/support-reference";
 
 export interface AppDependencies {
@@ -555,6 +557,7 @@ async function decorateAndRecordSupportFailure(
     } catch {
       payload = undefined;
     }
+    payload = unwrapStandardRpcResponsePayload(payload);
     const failure = createSupportReferenceFailure({
       error: payload,
       requestId,
@@ -733,7 +736,8 @@ export function createApp(dependencies: AppDependencies) {
           writeOutcome: "not-written",
         });
         recordSupportFailure(c.get("log"), failure);
-        return c.newResponse(response.body, response);
+        const rpcResponse = await wrapSupportFailureResponseForRpc(response);
+        return c.newResponse(rpcResponse.body, rpcResponse);
       }
     }
 
@@ -772,7 +776,7 @@ export function createApp(dependencies: AppDependencies) {
   });
 
   app.get("/", (c) => c.text("OK"));
-  app.notFound((c) => {
+  app.notFound(async (c) => {
     if (c.req.path !== "/rpc" && !c.req.path.startsWith("/rpc/")) {
       return c.text("404 Not Found", 404);
     }
@@ -784,7 +788,7 @@ export function createApp(dependencies: AppDependencies) {
       writeOutcome: "not-written",
     });
     recordSupportFailure(c.get("log"), failure);
-    return createSupportFailureResponse({
+    const response = createSupportFailureResponse({
       error: failure,
       reasonCode: failure.reasonCode,
       requestId,
@@ -793,8 +797,10 @@ export function createApp(dependencies: AppDependencies) {
       status: 404,
       writeOutcome: failure.writeOutcome,
     });
+    const rpcResponse = await wrapSupportFailureResponseForRpc(response);
+    return c.newResponse(rpcResponse.body, rpcResponse);
   });
-  app.onError((error, c) => {
+  app.onError(async (error, c) => {
     if (!isClientShellPath(c.req.path)) {
       c.error = undefined;
       return new Response("Internal Server Error", {
@@ -806,7 +812,7 @@ export function createApp(dependencies: AppDependencies) {
     const failure = createSupportReferenceFailure({ error, requestId });
     recordSupportFailure(c.get("log"), failure);
     c.error = undefined;
-    return createSupportFailureResponse({
+    const response = createSupportFailureResponse({
       error,
       reasonCode: failure.reasonCode,
       requestId,
@@ -815,6 +821,8 @@ export function createApp(dependencies: AppDependencies) {
       writeOutcome: failure.writeOutcome,
       status: errorStatus(error),
     });
+    const rpcResponse = await wrapSupportFailureResponseForRpc(response);
+    return c.newResponse(rpcResponse.body, rpcResponse);
   });
   return app;
 }

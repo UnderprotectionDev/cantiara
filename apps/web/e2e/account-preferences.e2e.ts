@@ -194,7 +194,9 @@ test("shows the current value when another session advances Account Preferences"
 
     await otherPage.getByLabel("Locale").selectOption("de-DE");
     await otherPage.getByRole("button", { name: "Save", exact: true }).click();
-    const status = otherPage.getByRole("status");
+    const status = otherPage
+      .getByRole("status")
+      .filter({ hasText: "Current value" });
     await expect(status).toContainText("Current value");
     await expect(status).toContainText("Revision 1");
     await expect(status).toContainText("tr-TR");
