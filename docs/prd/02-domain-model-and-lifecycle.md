@@ -656,7 +656,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Sonlandırılıyor | `Finalizing` | Commit bariyerinden sonra iptalin uygulanmadığı durum |
 | Güncel değer | `Current value` | Güncel olmayan taban revizyonunda reddedilen yazmanın gösterdiği mevcut kayıt değeri |
 | Revizyon | `Revision` | Hedef kaydın Kayıt geçmişindeki güncel değişiklik sırası; Mutation Contract yazmasının taban güncelliği bu değerle karşılaştırılır |
-| Güvenli geri alma | `Undo` | Tersi deterministik hesaplanan alan, ilişki, görünüm üstverisi veya atomik dönüşümde ilgisiz sonraki değişikliği sarmadan uygulanan geri alma |
+| Güvenli geri alma | `Undo` | Tersi deterministik hesaplanan alan, ilişki, görünüm üstverisi veya atomik dönüşümde ilgisiz sonraki değişikliği sarmadan uygulanan geri alma; aynı alandaki yeni değer `Conflict` üretir, kalıcı silme, güvenlik redaksiyonu, dış sistem mutasyonu ve yayınlanmış statik export geri alınmaz |
 | Kullanıcı | `User` | Kayıt geçmişine yazılan insan aktör türü |
 | Sistem otomasyonu | `System automation` | Kayıt geçmişine yazılan otomasyon aktör türü |
 | Yetkili entegrasyon | `Authorized integration` | Kayıt geçmişine yazılan entegrasyon aktör türü |

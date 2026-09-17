@@ -23,6 +23,59 @@ export const mutationPayloadSchema = z.json();
 
 export type MutationPayload = z.infer<typeof mutationPayloadSchema>;
 
+export const MUTATION_UNDO_KINDS = [
+  "field",
+  "relation",
+  "view-metadata",
+  "atomic-transform",
+  "merge",
+] as const;
+
+export const MUTATION_UNDO_FORBIDDEN_KINDS = [
+  "permanent-delete",
+  "security-redaction",
+  "external-system-mutation",
+  "published-static-export",
+] as const;
+
+export const mutationUndoKindSchema = z.enum(MUTATION_UNDO_KINDS);
+
+export type MutationUndoKind = (typeof MUTATION_UNDO_KINDS)[number];
+
+export interface MutationMergeUndoMetadata {
+  attributedRelationIds: string[];
+  attributedValueKeys: string[];
+  mergeId: string;
+  retiredTargetId: string;
+}
+
+const mutationMergeUndoMetadataSchema = z
+  .object({
+    attributedRelationIds: z.array(identifierSchema),
+    attributedValueKeys: z.array(identifierSchema),
+    mergeId: identifierSchema,
+    retiredTargetId: identifierSchema,
+  })
+  .strict();
+
+export const mutationUndoMetadataSchema = z
+  .object({
+    after: mutationPayloadSchema,
+    before: mutationPayloadSchema,
+    kind: mutationUndoKindSchema,
+    merge: mutationMergeUndoMetadataSchema.optional(),
+    scope: identifierSchema,
+  })
+  .strict();
+
+export interface MutationUndoMetadata {
+  after: MutationPayload;
+  before: MutationPayload;
+  kind: MutationUndoKind;
+  merge?: MutationMergeUndoMetadata;
+  scope: string;
+}
+
 export const humanMutationEnvelopeSchema = z
   .object({
     baseRevision: revisionSchema,
@@ -192,6 +245,8 @@ export interface MutationReceipt<TValue = MutationPayload> {
   previousValue: TValue;
   revision: number;
   targetId: string;
+  undo?: MutationUndoMetadata;
+  undoOf?: string;
 }
 
 export interface MutationIdempotencyKey {
@@ -257,6 +312,8 @@ export interface MutationStagedOperation<TValue = MutationPayload> {
   stagedAt: string;
   status: MutationOperationStatus;
   targetId: string;
+  undo?: MutationUndoMetadata;
+  undoOf?: string;
 }
 
 export type MutationOperationReference =
@@ -285,6 +342,8 @@ export interface MutationHistoryEntry<TValue = MutationPayload> {
   previousValue: TValue;
   revision: number;
   targetId: string;
+  undo?: MutationUndoMetadata;
+  undoOf?: string;
 }
 
 export interface MutationApplyContext<
@@ -303,6 +362,23 @@ export type MutationApply<
   context: MutationApplyContext<TValue, TPayload>,
 ) => TValue | Promise<TValue>;
 
+export interface MutationUndoApplyContext<TValue> {
+  currentRevision: number;
+  currentValue: TValue;
+  nextValue: TValue;
+  previousValue: TValue;
+  undo: MutationUndoMetadata;
+}
+
+export type MutationUndoApply<TValue> = (
+  context: MutationUndoApplyContext<TValue>,
+) => TValue | Promise<TValue>;
+
+export interface MutationOptions {
+  undo?: unknown;
+  undoOf?: string;
+}
+
 export interface MutationContract<TValue> {
   cancel?: (
     operation: MutationOperationReference,
@@ -312,14 +388,22 @@ export interface MutationContract<TValue> {
     operation: MutationOperationReference,
     apply: MutationApply<TValue, TPayload>,
     command?: MutationCommand<TPayload>,
+    options?: MutationOptions,
   ) => Promise<MutationFinalizationReceipt<TValue>>;
   mutate: <TPayload extends MutationPayload>(
     command: MutationCommand<TPayload>,
     apply: MutationApply<TValue, TPayload>,
+    options?: MutationOptions,
   ) => Promise<MutationReceipt<TValue>>;
   stage?: <TPayload extends MutationPayload>(
     command: MutationCommand<TPayload>,
+    options?: MutationOptions,
   ) => Promise<MutationStagedOperation<TValue>>;
+  undo?: <TPayload extends MutationPayload>(
+    receipt: MutationReceipt<TValue>,
+    command: MutationCommand<TPayload>,
+    apply?: MutationUndoApply<TValue>,
+  ) => Promise<MutationReceipt<TValue>>;
 }
 
 export interface MutationAtomicContract<TValue>
@@ -332,10 +416,17 @@ export interface MutationAtomicContract<TValue>
     operation: MutationOperationReference,
     apply: MutationApply<TValue, TPayload>,
     command?: MutationCommand<TPayload>,
+    options?: MutationOptions,
   ) => Promise<MutationFinalizationReceipt<TValue>>;
   stage: <TPayload extends MutationPayload>(
     command: MutationCommand<TPayload>,
+    options?: MutationOptions,
   ) => Promise<MutationStagedOperation<TValue>>;
+  undo: <TPayload extends MutationPayload>(
+    receipt: MutationReceipt<TValue>,
+    command: MutationCommand<TPayload>,
+    apply?: MutationUndoApply<TValue>,
+  ) => Promise<MutationReceipt<TValue>>;
 }
 
 export const MUTATION_UI_LABELS = {
@@ -344,4 +435,5 @@ export const MUTATION_UI_LABELS = {
   currentValue: "Current value",
   finalizing: "Finalizing",
   retry: "Retry",
+  undo: "Undo",
 } as const;

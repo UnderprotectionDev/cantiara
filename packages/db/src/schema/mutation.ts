@@ -44,6 +44,8 @@ export const mutationStaging = pgTable(
     rollbackReason: text("rollback_reason"),
     rollbackCurrentRevision: integer("rollback_current_revision"),
     rollbackCurrentValue: jsonb("rollback_current_value").$type<unknown>(),
+    undo: jsonb("undo").$type<unknown>(),
+    undoOf: text("undo_of"),
     stagedAt: timestamp("staged_at").notNull(),
     expiresAt: timestamp("expires_at").notNull(),
     completedAt: timestamp("completed_at"),
@@ -92,6 +94,8 @@ export const mutationReceipt = pgTable(
     revision: integer("revision").notNull(),
     previousValue: jsonb("previous_value").$type<unknown>().notNull(),
     nextValue: jsonb("next_value").$type<unknown>().notNull(),
+    undo: jsonb("undo").$type<unknown>(),
+    undoOf: text("undo_of"),
     committedAt: timestamp("committed_at").notNull(),
   },
   (table) => [
@@ -127,6 +131,8 @@ export const mutationHistory = pgTable(
     payloadFingerprint: text("payload_fingerprint").notNull(),
     previousValue: jsonb("previous_value").$type<unknown>().notNull(),
     nextValue: jsonb("next_value").$type<unknown>().notNull(),
+    undo: jsonb("undo").$type<unknown>(),
+    undoOf: text("undo_of"),
     occurredAt: timestamp("occurred_at").notNull(),
   },
   (table) => [

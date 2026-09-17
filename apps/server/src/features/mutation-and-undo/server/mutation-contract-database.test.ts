@@ -14,6 +14,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
 
 import { accountPreferencesMutationTarget } from "../../account-preferences/server/account-preferences-database";
+import { MutationUndoConflictError } from "./mutation-contract";
 import { createDatabaseMutationContract } from "./mutation-contract-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -161,7 +162,9 @@ describeDatabase("Mutation Contract PostgreSQL boundary", () => {
     });
 
     try {
-      const staged = await contract.stage(command);
+      const staged = await contract.stage(command, {
+        undo: { kind: "field", scope: "appearance" },
+      });
       const committed = await contract.finalize(
         staged.id,
         ({ payload: nextValue }) => accountPreferencesSchema.parse(nextValue),
@@ -177,6 +180,12 @@ describeDatabase("Mutation Contract PostgreSQL boundary", () => {
           nextValue: payload,
           previousValue: DEFAULT_ACCOUNT_PREFERENCES,
           revision: 1,
+          undo: {
+            after: "Light",
+            before: DEFAULT_ACCOUNT_PREFERENCES.appearance,
+            kind: "field",
+            scope: "appearance",
+          },
         },
         status: "committed",
       });
@@ -205,6 +214,12 @@ describeDatabase("Mutation Contract PostgreSQL boundary", () => {
       expect(savedStaging).toMatchObject({
         payload: null,
         status: "committed",
+        undo: {
+          after: "Light",
+          before: DEFAULT_ACCOUNT_PREFERENCES.appearance,
+          kind: "field",
+          scope: "appearance",
+        },
       });
       expect(receiptsInDatabase).toHaveLength(1);
       expect(historyInDatabase).toHaveLength(1);
@@ -275,6 +290,101 @@ describeDatabase("Mutation Contract PostgreSQL boundary", () => {
       await database
         .delete(mutationReceipt)
         .where(eq(mutationReceipt.targetId, accountId));
+      await database
+        .delete(accountPreferences)
+        .where(eq(accountPreferences.accountId, accountId));
+      await database.delete(user).where(eq(user.id, accountId));
+    }
+  });
+
+  test("persists safe Undo metadata and protects a newer same-field value", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const accountId = `mutation-undo-${crypto.randomUUID()}`;
+    const email = `${accountId}@example.invalid`;
+    const contract = createDatabaseMutationContract<AccountPreferences>(
+      database,
+      {
+        barrierChecks: allowBarrierChecks,
+        now: () => new Date("2026-09-16T09:00:00.000Z"),
+        target: accountPreferencesMutationTarget,
+      },
+    );
+    await database.insert(user).values({
+      email,
+      emailVerified: true,
+      id: accountId,
+      name: "Safe Undo test",
+    });
+
+    try {
+      const edited = await contract.mutate(
+        {
+          actor: { actorId: accountId, type: "User" },
+          baseRevision: 0,
+          clientIdempotencyKey: "undoable-appearance",
+          kind: "human",
+          payload: { appearance: "Light" },
+          targetId: accountId,
+        },
+        ({ currentValue, payload }) =>
+          accountPreferencesSchema.parse({ ...currentValue, ...payload }),
+        { undo: { kind: "field", scope: "appearance" } },
+      );
+
+      expect(edited.undo).toMatchObject({
+        after: "Light",
+        before: DEFAULT_ACCOUNT_PREFERENCES.appearance,
+        kind: "field",
+        scope: "appearance",
+      });
+      const [receiptRow] = await database
+        .select()
+        .from(mutationReceipt)
+        .where(eq(mutationReceipt.id, edited.id));
+      const [historyRow] = await database
+        .select()
+        .from(mutationHistory)
+        .where(eq(mutationHistory.id, edited.id));
+      expect(receiptRow?.undo).toEqual(edited.undo);
+      expect(historyRow?.undo).toEqual(edited.undo);
+
+      const undone = await contract.undo(edited, {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: 1,
+        clientIdempotencyKey: "undo-appearance",
+        kind: "human",
+        payload: { undoOf: edited.id },
+        targetId: accountId,
+      });
+      expect(undone).toMatchObject({
+        undoOf: edited.id,
+        previousValue: { appearance: "Light" },
+        nextValue: { appearance: DEFAULT_ACCOUNT_PREFERENCES.appearance },
+      });
+
+      await expect(
+        contract.undo(edited, {
+          actor: { actorId: accountId, type: "User" },
+          baseRevision: 2,
+          clientIdempotencyKey: "undo-appearance-again",
+          kind: "human",
+          payload: { undoOf: edited.id },
+          targetId: accountId,
+        }),
+      ).rejects.toBeInstanceOf(MutationUndoConflictError);
+    } finally {
+      await database
+        .delete(mutationHistory)
+        .where(eq(mutationHistory.targetId, accountId));
+      await database
+        .delete(mutationReceipt)
+        .where(eq(mutationReceipt.targetId, accountId));
+      await database
+        .delete(mutationStaging)
+        .where(eq(mutationStaging.targetId, accountId));
       await database
         .delete(accountPreferences)
         .where(eq(accountPreferences.accountId, accountId));

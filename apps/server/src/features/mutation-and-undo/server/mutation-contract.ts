@@ -1,10 +1,14 @@
 import type {
+  MutationMergeUndoMetadata,
   MutationOrigin,
   NonHumanMutationActor,
 } from "@cantiara/api/mutation-and-undo";
 import {
+  canonicalizeMutationPayload,
   fingerprintMutationPayload,
   MUTATION_UI_LABELS,
+  MUTATION_UNDO_FORBIDDEN_KINDS,
+  MUTATION_UNDO_KINDS,
   type MutationActor,
   type MutationApply,
   type MutationAtomicContract,
@@ -12,6 +16,7 @@ import {
   type MutationFinalizationReceipt,
   type MutationIdempotencyKey,
   type MutationOperationReference,
+  type MutationOptions,
   type MutationPayload,
   type MutationReceipt,
   type MutationRollbackReason,
@@ -19,10 +24,22 @@ import {
   type MutationSource,
   type MutationStagedOperation,
   type MutationTarget,
+  type MutationUndoApply,
+  type MutationUndoKind,
+  type MutationUndoMetadata,
   mutationCommandSchema,
+  mutationUndoMetadataSchema,
 } from "@cantiara/api/mutation-and-undo";
 
 export type { MutationIdempotencyKey } from "@cantiara/api/mutation-and-undo";
+
+export interface MutationUndoPlan {
+  after?: MutationPayload;
+  before?: MutationPayload;
+  kind: MutationUndoKind;
+  merge?: MutationMergeUndoMetadata;
+  scope: string;
+}
 
 export interface MutationBarrierContext<TValue, TTransaction = unknown> {
   actor: MutationActor;
@@ -64,6 +81,8 @@ export interface MutationCommitInput<
   payloadFingerprint: string;
   receiptId: string;
   targetId: string;
+  undo?: MutationUndoPlan;
+  undoOf?: string;
 }
 
 export interface MutationStageInput<
@@ -81,6 +100,8 @@ export interface MutationStageInput<
   receiptId: string;
   stagedAt: string;
   targetId: string;
+  undo?: MutationUndoPlan;
+  undoOf?: string;
 }
 
 export interface MutationStagedRecord<TValue = MutationPayload>
@@ -196,12 +217,60 @@ export interface MutationContractOptions<TValue, TTransaction = unknown> {
 export class MutationConflictError extends Error {
   readonly code = "CONFLICT" as const;
   readonly label = MUTATION_UI_LABELS.conflict;
+  readonly current?: MutationTarget<unknown>;
+  readonly currentRevision?: number;
+  readonly currentValue?: unknown;
   readonly targetId: string;
 
-  constructor(targetId: string) {
+  constructor(targetId: string, current?: MutationTarget<unknown>) {
     super(MUTATION_UI_LABELS.conflict);
     this.name = "MutationConflictError";
+    this.current = current;
+    this.currentRevision = current?.revision;
+    this.currentValue = current?.value;
     this.targetId = targetId;
+  }
+}
+
+export type MutationUndoNotSupportedReason =
+  | "forbidden-kind"
+  | "invalid-plan"
+  | "merge-requires-apply"
+  | "not-recorded"
+  | "non-human-actor";
+
+export class MutationUndoNotSupportedError extends Error {
+  readonly code = "UNDO_NOT_SUPPORTED" as const;
+  readonly label = MUTATION_UI_LABELS.undo;
+  readonly kind: string | undefined;
+  readonly reason: MutationUndoNotSupportedReason;
+  readonly targetId: string | undefined;
+
+  constructor(
+    reason: MutationUndoNotSupportedReason,
+    options: { kind?: string; targetId?: string } = {},
+  ) {
+    super(MUTATION_UI_LABELS.undo);
+    this.name = "MutationUndoNotSupportedError";
+    this.kind = options.kind;
+    this.reason = reason;
+    this.targetId = options.targetId;
+  }
+}
+
+export class MutationUndoConflictError<TValue> extends MutationConflictError {
+  readonly sourceReceiptId: string;
+  readonly scope: string;
+
+  constructor(
+    current: MutationTarget<TValue>,
+    sourceReceiptId: string,
+    scope: string,
+  ) {
+    super(current.id, current as MutationTarget<unknown>);
+    this.name = "MutationUndoConflictError";
+    this.scope = scope;
+    this.sourceReceiptId = sourceReceiptId;
   }
 }
 
@@ -282,6 +351,167 @@ export class MutationOperationNotFoundError extends Error {
     this.name = "MutationOperationNotFoundError";
     this.operationId = operationId;
   }
+}
+
+function mutationUndoScopeSegments(scope: string): string[] {
+  if (scope === "$") {
+    return [];
+  }
+  if (scope.startsWith("/")) {
+    return scope
+      .slice(1)
+      .split("/")
+      .map((segment) => segment.replaceAll("~1", "/").replaceAll("~0", "~"));
+  }
+  return scope.split(".");
+}
+
+function mutationUndoScopeValue(
+  value: unknown,
+  scope: string,
+): MutationPayload {
+  let current = value;
+  for (const segment of mutationUndoScopeSegments(scope)) {
+    if (current === null || typeof current !== "object") {
+      return null;
+    }
+    current = (current as Record<string, unknown>)[segment];
+    if (current === undefined) {
+      return null;
+    }
+  }
+  return current as MutationPayload;
+}
+
+function mutationUndoScopeValueEqual(
+  left: MutationPayload,
+  right: MutationPayload,
+): boolean {
+  return (
+    canonicalizeMutationPayload(left) === canonicalizeMutationPayload(right)
+  );
+}
+
+function replaceMutationUndoScope<TValue>(
+  value: TValue,
+  scope: string,
+  replacement: MutationPayload,
+): TValue {
+  const segments = mutationUndoScopeSegments(scope);
+  if (segments.length === 0) {
+    return replacement as TValue;
+  }
+
+  const copy = structuredClone(value);
+  let current: unknown = copy;
+  for (const [index, segment] of segments.entries()) {
+    if (current === null || typeof current !== "object") {
+      throw new MutationUndoNotSupportedError("invalid-plan", { kind: scope });
+    }
+    if (segment === "__proto__" || segment === "constructor") {
+      throw new MutationUndoNotSupportedError("invalid-plan", { kind: scope });
+    }
+    const container = current as Record<string, unknown>;
+    if (index === segments.length - 1) {
+      container[segment] = replacement;
+      break;
+    }
+    const next = container[segment];
+    if (next === null || typeof next !== "object") {
+      throw new MutationUndoNotSupportedError("invalid-plan", { kind: scope });
+    }
+    current = next;
+  }
+  return copy;
+}
+
+function assertMutationUndoPlan(
+  plan: unknown,
+  targetId?: string,
+): asserts plan is MutationUndoPlan {
+  if (plan === null || typeof plan !== "object") {
+    throw new MutationUndoNotSupportedError("invalid-plan", { targetId });
+  }
+
+  const candidate = plan as Partial<MutationUndoPlan>;
+  const kind = candidate.kind as string | undefined;
+  if (
+    kind &&
+    (MUTATION_UNDO_FORBIDDEN_KINDS as readonly string[]).includes(kind)
+  ) {
+    throw new MutationUndoNotSupportedError("forbidden-kind", {
+      kind,
+      targetId,
+    });
+  }
+  if (!(kind && (MUTATION_UNDO_KINDS as readonly string[]).includes(kind))) {
+    throw new MutationUndoNotSupportedError("invalid-plan", { kind, targetId });
+  }
+  if (typeof candidate.scope !== "string" || candidate.scope.trim() === "") {
+    throw new MutationUndoNotSupportedError("invalid-plan", { kind, targetId });
+  }
+  if (kind === "merge") {
+    if (!candidate.merge) {
+      throw new MutationUndoNotSupportedError("invalid-plan", {
+        kind,
+        targetId,
+      });
+    }
+    const parsed = mutationUndoMetadataSchema.safeParse({
+      after: candidate.after ?? null,
+      before: candidate.before ?? null,
+      kind,
+      merge: candidate.merge,
+      scope: candidate.scope,
+    });
+    if (!parsed.success) {
+      throw new MutationUndoNotSupportedError("invalid-plan", {
+        kind,
+        targetId,
+      });
+    }
+  }
+}
+
+export function materializeMutationUndoMetadata<TValue>(
+  plan: MutationUndoPlan,
+  previousValue: TValue,
+  nextValue: TValue,
+): MutationUndoMetadata {
+  assertMutationUndoPlan(plan);
+  const metadata = {
+    after: plan.after ?? mutationUndoScopeValue(nextValue, plan.scope),
+    before: plan.before ?? mutationUndoScopeValue(previousValue, plan.scope),
+    kind: plan.kind,
+    ...(plan.merge ? { merge: plan.merge } : {}),
+    scope: plan.scope,
+  } satisfies MutationUndoMetadata;
+  return mutationUndoMetadataSchema.parse(metadata);
+}
+
+export function serializeMutationUndoPlan(
+  plan: MutationUndoPlan,
+): Record<string, unknown> {
+  assertMutationUndoPlan(plan);
+  return {
+    ...(plan.after === undefined ? {} : { after: plan.after }),
+    ...(plan.before === undefined ? {} : { before: plan.before }),
+    kind: plan.kind,
+    ...(plan.merge ? { merge: plan.merge } : {}),
+    scope: plan.scope,
+  };
+}
+
+function mutationMutationOptions(
+  options: MutationOptions | MutationUndoPlan | undefined,
+): MutationOptions {
+  if (!options) {
+    return {};
+  }
+  if ("kind" in options && "scope" in options) {
+    return { undo: options };
+  }
+  return options;
 }
 
 export function mutationIdempotencyKey(
@@ -385,6 +615,8 @@ function operationFromRecord<TValue>(
     stagedAt: record.stagedAt,
     status: record.status,
     targetId: record.targetId,
+    ...(record.undo ? { undo: record.undo } : {}),
+    ...(record.undoOf ? { undoOf: record.undoOf } : {}),
   };
 }
 
@@ -483,7 +715,13 @@ export function createMutationContract<TValue, TTransaction = unknown>({
   const mutate = async <TPayload extends MutationPayload>(
     command: MutationCommand<TPayload>,
     apply: MutationApply<TValue, TPayload>,
+    options?: MutationOptions | MutationUndoPlan,
   ): Promise<MutationReceipt<TValue>> => {
+    const mutationOptions = mutationMutationOptions(options);
+    const undoPlan = mutationOptions.undo;
+    if (undoPlan) {
+      assertMutationUndoPlan(undoPlan);
+    }
     const parsed = mutationCommandSchema.parse(
       command,
     ) as MutationCommand<TPayload>;
@@ -513,14 +751,88 @@ export function createMutationContract<TValue, TTransaction = unknown>({
       payloadFingerprint,
       receiptId: createId(),
       targetId: parsed.targetId,
+      undo: undoPlan as MutationUndoPlan | undefined,
+      undoOf: mutationOptions.undoOf,
     });
     return receiptFromCommitResult(result, parsed.targetId);
   };
 
+  const undo = async <TPayload extends MutationPayload>(
+    receipt: MutationReceipt<TValue>,
+    command: MutationCommand<TPayload>,
+    apply?: MutationUndoApply<TValue>,
+  ): Promise<MutationReceipt<TValue>> => {
+    const metadata = receipt.undo;
+    if (!metadata) {
+      throw new MutationUndoNotSupportedError("not-recorded", {
+        targetId: receipt.targetId,
+      });
+    }
+    const parsed = mutationCommandSchema.parse(
+      command,
+    ) as MutationCommand<TPayload>;
+    if (parsed.kind !== "human" || parsed.actor.type !== "User") {
+      throw new MutationUndoNotSupportedError("non-human-actor", {
+        targetId: receipt.targetId,
+      });
+    }
+    if (parsed.targetId !== receipt.targetId) {
+      throw new MutationConflictError(receipt.targetId);
+    }
+    if (metadata.kind === "merge" && !apply) {
+      throw new MutationUndoNotSupportedError("merge-requires-apply", {
+        kind: metadata.kind,
+        targetId: receipt.targetId,
+      });
+    }
+
+    const inverse: MutationApply<TValue, TPayload> = ({
+      currentRevision,
+      currentValue,
+    }) => {
+      const current = {
+        id: receipt.targetId,
+        revision: currentRevision,
+        value: currentValue,
+      } satisfies MutationTarget<TValue>;
+      const currentScope = mutationUndoScopeValue(currentValue, metadata.scope);
+      if (!mutationUndoScopeValueEqual(currentScope, metadata.after)) {
+        throw new MutationUndoConflictError(
+          current,
+          receipt.id,
+          metadata.scope,
+        );
+      }
+      if (apply) {
+        return apply({
+          currentRevision,
+          currentValue,
+          nextValue: receipt.nextValue,
+          previousValue: receipt.previousValue,
+          undo: metadata,
+        });
+      }
+      return replaceMutationUndoScope(
+        currentValue,
+        metadata.scope,
+        metadata.before,
+      );
+    };
+
+    const result = await mutate(parsed, inverse, { undoOf: receipt.id });
+    return result;
+  };
+
   const stage = async <TPayload extends MutationPayload>(
     command: MutationCommand<TPayload>,
+    options?: MutationOptions | MutationUndoPlan,
   ): Promise<MutationStagedOperation<TValue>> => {
     const atomicStore = store;
+    const mutationOptions = mutationMutationOptions(options);
+    const undoPlan = mutationOptions.undo;
+    if (undoPlan) {
+      assertMutationUndoPlan(undoPlan);
+    }
     const parsed = mutationCommandSchema.parse(
       command,
     ) as MutationCommand<TPayload>;
@@ -542,6 +854,8 @@ export function createMutationContract<TValue, TTransaction = unknown>({
       receiptId: createId(),
       stagedAt: stagedAt.toISOString(),
       targetId: parsed.targetId,
+      undo: undoPlan as MutationUndoPlan | undefined,
+      undoOf: mutationOptions.undoOf,
     });
 
     if (result.status === "conflict") {
@@ -554,9 +868,15 @@ export function createMutationContract<TValue, TTransaction = unknown>({
     operation: MutationOperationReference,
     apply: MutationApply<TValue, TPayload>,
     command?: MutationCommand<TPayload>,
+    options?: MutationOptions | MutationUndoPlan,
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Finalize coordinates command validation, durable replay, policy checks, and rollback recovery.
   ): Promise<MutationFinalizationReceipt<TValue>> => {
     const atomicStore = store;
+    const mutationOptions = mutationMutationOptions(options);
+    const undoPlan = mutationOptions.undo;
+    if (undoPlan) {
+      assertMutationUndoPlan(undoPlan);
+    }
     const operationId = operationIdFromReference(operation);
     const staged = await atomicStore.findStagedOperation(operationId);
     if (!staged) {
@@ -653,6 +973,8 @@ export function createMutationContract<TValue, TTransaction = unknown>({
         payloadFingerprint: staged.payloadFingerprint,
         receiptId: staged.receiptId,
         targetId: staged.targetId,
+        undo: undoPlan as MutationUndoPlan | undefined,
+        undoOf: mutationOptions.undoOf,
       });
     } catch (error) {
       if (!(error instanceof MutationApplyFailedError)) {
@@ -702,5 +1024,6 @@ export function createMutationContract<TValue, TTransaction = unknown>({
     finalize,
     mutate,
     stage,
+    undo,
   };
 }

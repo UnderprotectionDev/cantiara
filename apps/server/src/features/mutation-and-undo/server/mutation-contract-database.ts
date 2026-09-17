@@ -1,4 +1,5 @@
 import {
+  canonicalizeMutationPayload,
   type MutationActor,
   type MutationAtomicContract,
   type MutationHistoryEntry,
@@ -12,6 +13,7 @@ import {
   mutationOperationStatusSchema,
   mutationOriginSchema,
   mutationRollbackReasonSchema,
+  mutationUndoMetadataSchema,
 } from "@cantiara/api/mutation-and-undo";
 import type { Database } from "@cantiara/db";
 import {
@@ -37,6 +39,9 @@ import {
   type MutationStagedRecord,
   type MutationStageInput,
   type MutationStageResult,
+  type MutationUndoPlan,
+  materializeMutationUndoMetadata,
+  serializeMutationUndoPlan,
 } from "./mutation-contract";
 
 type MutationReceiptRecord = typeof mutationReceipt.$inferSelect;
@@ -107,6 +112,9 @@ function toOrigin(
 function toReceipt<TValue>(
   record: MutationReceiptRecord,
 ): MutationReceipt<TValue> {
+  const undo = record.undo
+    ? mutationUndoMetadataSchema.parse(record.undo)
+    : undefined;
   return {
     actor: toActor(record),
     committedAt: record.committedAt.toISOString(),
@@ -117,6 +125,8 @@ function toReceipt<TValue>(
     previousValue: record.previousValue as TValue,
     revision: record.revision,
     targetId: record.targetId,
+    ...(undo ? { undo } : {}),
+    ...(record.undoOf ? { undoOf: record.undoOf } : {}),
   };
 }
 
@@ -204,6 +214,10 @@ function toStagedRecord<TValue>(
 ): MutationStagedRecord<TValue> {
   const rollbackReceipt =
     record.status === "rolled-back" ? toRollbackReceipt(record, current) : null;
+  const parsedUndo = record.undo
+    ? mutationUndoMetadataSchema.safeParse(record.undo)
+    : undefined;
+  const undo = parsedUndo?.success ? parsedUndo.data : undefined;
 
   return {
     actor: toActor(record),
@@ -225,6 +239,8 @@ function toStagedRecord<TValue>(
     stagedAt: record.stagedAt.toISOString(),
     status: mutationOperationStatusSchema.parse(record.status),
     targetId: record.targetId,
+    ...(undo ? { undo } : {}),
+    ...(record.undoOf ? { undoOf: record.undoOf } : {}),
   };
 }
 
@@ -257,6 +273,8 @@ function stagedRecordFromReceipt<TValue>(
     stagedAt: receipt.committedAt,
     status: "committed",
     targetId: receipt.targetId,
+    ...(receipt.undo ? { undo: receipt.undo } : {}),
+    ...(receipt.undoOf ? { undoOf: receipt.undoOf } : {}),
   };
 }
 
@@ -557,13 +575,62 @@ function stagedInputMatches<TValue, TPayload extends MutationPayload>(
   record: MutationStagingRecord,
   input: MutationFinalizeInput<TValue, TPayload, MutationDatabaseExecutor>,
 ) {
+  const storedUndoPlan = undoPlanFromStagingRecord(record);
+  const undoPlanMatches =
+    !input.undo ||
+    record.status === "committed" ||
+    record.status === "rolled-back" ||
+    !record.undo ||
+    (storedUndoPlan !== undefined &&
+      canonicalizeMutationPayload(
+        serializeMutationUndoPlan(storedUndoPlan) as MutationPayload,
+      ) ===
+        canonicalizeMutationPayload(
+          serializeMutationUndoPlan(input.undo) as MutationPayload,
+        ));
+  const undoOfMatches =
+    !input.undoOf ||
+    record.status === "committed" ||
+    record.status === "rolled-back" ||
+    !record.undoOf ||
+    record.undoOf === input.undoOf;
   return (
     record.expectedRevision === input.expectedRevision &&
     record.idempotencyKey === input.idempotencyKey.key &&
     record.idempotencyScope === input.idempotencyKey.scope &&
     record.payloadFingerprint === input.payloadFingerprint &&
-    record.targetId === input.targetId
+    record.targetId === input.targetId &&
+    undoPlanMatches &&
+    undoOfMatches
   );
+}
+
+function undoPlanFromStagingRecord(
+  record: MutationStagingRecord,
+): MutationUndoPlan | undefined {
+  if (!record.undo || typeof record.undo !== "object") {
+    return undefined;
+  }
+  const candidate = record.undo as Record<string, unknown>;
+  if (
+    typeof candidate.kind !== "string" ||
+    typeof candidate.scope !== "string"
+  ) {
+    return undefined;
+  }
+  return {
+    ...("after" in candidate
+      ? { after: candidate.after as MutationPayload }
+      : {}),
+    ...("before" in candidate
+      ? { before: candidate.before as MutationPayload }
+      : {}),
+    kind: candidate.kind as MutationUndoPlan["kind"],
+    ...(candidate.merge
+      ? { merge: candidate.merge as MutationUndoPlan["merge"] }
+      : {}),
+    scope: candidate.scope,
+  };
 }
 
 export interface DatabaseMutationContractOptions<TValue>
@@ -659,6 +726,10 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
             receiptId: input.receiptId,
             stagedAt: new Date(input.stagedAt),
             targetId: input.targetId,
+            ...(input.undo
+              ? { undo: serializeMutationUndoPlan(input.undo) }
+              : {}),
+            ...(input.undoOf ? { undoOf: input.undoOf } : {}),
             ...sourceFields(input.origin),
           })
           .onConflictDoNothing()
@@ -854,6 +925,16 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           currentValue: target.value as TValue,
           payload: input.payload,
         });
+        const undoPlan = (input.undo ?? undoPlanFromStagingRecord(record)) as
+          | MutationUndoPlan
+          | undefined;
+        const undo = undoPlan
+          ? materializeMutationUndoMetadata(
+              undoPlan,
+              target.value as TValue,
+              nextValue,
+            )
+          : undefined;
         const revision = target.revision + 1;
         let targetUpdate: MutationTarget<TValue> | null;
         try {
@@ -896,6 +977,10 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           previousValue: target.value,
           revision,
           targetId: input.targetId,
+          ...(undo ? { undo } : {}),
+          ...((input.undoOf ?? record.undoOf)
+            ? { undoOf: input.undoOf ?? record.undoOf }
+            : {}),
           ...actorFields(input.actor),
           ...sourceFields(input.origin),
         };
@@ -910,16 +995,23 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           previousValue: target.value as TValue,
           revision,
           targetId: input.targetId,
+          ...(undo ? { undo } : {}),
+          ...((input.undoOf ?? record.undoOf)
+            ? { undoOf: input.undoOf ?? record.undoOf }
+            : {}),
           ...actorFields(input.actor),
           ...sourceFields(input.origin),
         });
 
+        const undoOf = input.undoOf ?? record.undoOf ?? undefined;
         const [completed] = await transaction
           .update(mutationStaging)
           .set({
             completedAt: committedAt,
             payload: null,
             status: "committed",
+            ...(undo ? { undo } : {}),
+            ...(undoOf ? { undoOf } : {}),
           })
           .where(
             and(
@@ -942,6 +1034,8 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           previousValue: target.value as TValue,
           revision,
           targetId: input.targetId,
+          ...(undo ? { undo } : {}),
+          ...(undoOf ? { undoOf } : {}),
         };
         return {
           operation: toStagedRecord(completed, receipt),
@@ -1069,6 +1163,14 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           currentValue: target.value as TValue,
           payload: input.payload,
         });
+        const undoPlan = input.undo ? input.undo : undefined;
+        const undo = undoPlan
+          ? materializeMutationUndoMetadata(
+              undoPlan,
+              target.value as TValue,
+              nextValue,
+            )
+          : undefined;
         const revision = target.revision + 1;
         const committedAt = new Date(input.committedAt);
         const targetUpdate = await targetAdapter.update(transaction, {
@@ -1108,6 +1210,8 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           previousValue: target.value,
           revision,
           targetId: input.targetId,
+          ...(undo ? { undo } : {}),
+          ...(input.undoOf ? { undoOf: input.undoOf } : {}),
           ...actorFields(input.actor),
           ...sourceFields(input.origin),
         };
@@ -1123,6 +1227,8 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           previousValue: target.value as TValue,
           revision,
           targetId: input.targetId,
+          ...(undo ? { undo } : {}),
+          ...(input.undoOf ? { undoOf: input.undoOf } : {}),
         };
         await transaction.insert(mutationHistory).values({
           occurredAt: committedAt,
@@ -1133,6 +1239,8 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           previousValue: historyValues.previousValue,
           revision: historyValues.revision,
           targetId: historyValues.targetId,
+          ...(historyValues.undo ? { undo: historyValues.undo } : {}),
+          ...(historyValues.undoOf ? { undoOf: historyValues.undoOf } : {}),
           ...actorFields(historyValues.actor),
           ...sourceFields(historyValues.origin),
         });
@@ -1148,6 +1256,8 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
             previousValue: target.value as TValue,
             revision,
             targetId: input.targetId,
+            ...(undo ? { undo } : {}),
+            ...(input.undoOf ? { undoOf: input.undoOf } : {}),
           },
           status: "committed" as const,
         };
