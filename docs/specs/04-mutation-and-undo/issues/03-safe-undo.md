@@ -6,10 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] Deterministik tersi olan alanda `Undo` uygulanır; ilgisiz sonraki düzenleme aynı kalır.
-- [ ] Genel undo yığını her eyleme yayılmaz; yalnız tersi deterministik hesaplanan işler `Undo` alır.
-- [ ] Aynı alandaki daha yeni değerde undo durur ve çatışmayı gösterir; sessiz ezme yoktur.
-- [ ] Kalıcı silme, redaksiyon, dış sistem ve yayınlanmış export undo komutuyla uygulanmaz.
-- [ ] Birleştirme geri alması emekli kimliği ana kayıt yapar ve yalnız birleştirmeye atfedilen değer/ilişkiyi ayırır.
-- [ ] İngilizce `Undo` PRD terim sözlüğüne aynı değişiklikle eklenir.
+- [x] Deterministik tersi olan alanda `Undo` uygulanır; ilgisiz sonraki düzenleme aynı kalır.
+- [x] Genel undo yığını her eyleme yayılmaz; yalnız tersi deterministik hesaplanan işler `Undo` alır.
+- [x] Aynı alandaki daha yeni değerde undo durur ve çatışmayı gösterir; sessiz ezme yoktur.
+- [x] Kalıcı silme, redaksiyon, dış sistem ve yayınlanmış export undo komutuyla uygulanmaz.
+- [x] Birleştirme geri alması emekli kimliği ana kayıt yapar ve yalnız birleştirmeye atfedilen değer/ilişkiyi ayırır.
+- [x] İngilizce `Undo` PRD terim sözlüğüne aynı değişiklikle eklenir.
 - [ ] Kabul kanıtı Mutation Contract seam'inde sarmama, aynı-alan çatışması, yasak sınıfların reddi, birleştirme geri alması. Kapalı erişilebilirlik yolculuğu **kayıt oluşturma, düzenleme, çatışma, geri alma** bu yüzeyden yürür.
