@@ -1,0 +1,132 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[prompts]
+create_pr = '''
+Create the pull request against `main`. Write the PR title and body entirely in English. Give the user-facing completion message in Turkish.
+
+Before creating or updating the pull request:
+
+- Inspect the complete diff against `origin/main`, including committed and uncommitted changes.
+- Inspect `git diff origin/main...HEAD`, `git diff`, and `git diff --cached`.
+- Include only changes belonging to the current task.
+- If there is no current-task diff, do not create an empty pull request.
+- Do not rename the branch, force-push, or include unrelated user changes.
+- Do not revert, reset, or delete unrelated user changes.
+- Determine whether this workspace was created from a GitHub issue selected in Conductor.
+- Treat the inherited Conductor issue context or attachment as the only authoritative source for the selected issue.
+
+Issue-context hard gate:
+
+- A GitHub issue is selected only when Conductor explicitly provides inherited issue context.
+- Read the exact repository and issue number only from that inherited context; the user does not need to type the issue number manually.
+- If the workspace is issue-based but the exact repository and issue number are missing, stop before creating or updating the pull request and ask the user for that missing context.
+- If no GitHub issue was selected for this workspace, omit both `Closes` and `Refs`, even if an issue URL or issue number appears elsewhere in the conversation.
+- Never invent, guess, or recover an issue number from a branch name, commit message, PR title, spec path, diff, or arbitrary conversation text.
+- Do not treat an issue number in a commit message or branch name as inherited issue context.
+
+Use Conventional Commits format for the PR title:
+
+<type>(<scope>): <description>
+
+Allowed types:
+
+- feat: new user-facing behavior or capability
+- fix: bug fix
+- docs: documentation-only change
+- refactor: internal restructuring without intended behavior change
+- test: test-only change
+- perf: performance improvement
+- build: build system or dependency change
+- ci: CI or GitHub Actions change
+- chore: maintenance that does not fit another category
+
+Choose the scope from the owning spec or product domain, not from an arbitrary folder name. Use lowercase kebab-case. Write a concise lowercase description in the imperative mood without a trailing period.
+
+Use `!` only for an actual breaking contract change.
+
+Write the PR body with this exact structure:
+
+## Summary
+
+- Describe the delivered outcome.
+- Mention the important implementation boundaries.
+- State anything intentionally left out of scope.
+
+When the pull request fully resolves an inherited GitHub issue, add this exact syntax as a standalone line after the Summary bullets and before `## Product contract`:
+
+Closes #<actual issue number>
+
+For an issue in another repository, use:
+
+Closes owner/repository#<actual issue number>
+
+When the pull request only partially addresses the inherited issue, use `Refs` instead of `Closes`:
+
+Refs #<actual issue number>
+
+Never use `Refs` when the pull request fully resolves the selected issue.
+
+The full-resolution closing reference must:
+
+- Use the exact issue number from inherited Conductor issue context.
+- Be a standalone line with no bullet prefix, backticks, or code fence.
+- Appear in the actual PR body, not only in the PR title, commit message, comments, or chat.
+- Appear before `## Product contract`.
+- Never contain `123`, `<actual issue number>`, or another unresolved placeholder.
+
+## Product contract
+
+- Owning glossary term
+- Owning spec
+- Relevant ADRs, or `None`
+
+## Testing
+
+- List the exact automated commands that were actually run.
+- Include the result of each command.
+- State what was not run and why.
+- Never claim that a command passed if it was not run.
+- If required checks fail or verification is incomplete, create the pull request as Draft and clearly document the blocker.
+
+## Manual verification
+
+- For UI changes, provide concise browser verification steps using the owning spec's exact English UI labels.
+- Write `Not applicable` when the change has no browser-visible behavior.
+- Do not claim that browser, Tauri, E2E, migration, or production verification was performed unless it actually ran.
+
+## Risks
+
+- Describe migration, compatibility, security, rollout, or remaining risks.
+- Mention any incomplete verification.
+- Write `None identified` when appropriate.
+
+GitHub issue handling:
+
+- If this workspace was created from a GitHub issue selected in Conductor, treat that exact selected issue as the source issue for this pull request.
+- If this pull request fully resolves the selected issue, include the exact `Closes` reference required above.
+- If this pull request partially addresses the selected issue, include the exact `Refs` tracking reference required above; do not present it as an automatic closing reference.
+- If no GitHub issue was selected for this workspace, omit both `Closes` and `Refs`.
+- Do not close the source issue manually as a substitute for a missing required pull request issue reference.
+- Do not claim that the issue was closed before the pull request is merged into `main`.
+- Conductor provides instructions; GitHub performs the automatic issue closure after a correctly linked pull request is merged into the repository's default branch.
+
+Existing pull request handling:
+
+- Before creating a new pull request, check whether an open pull request already exists for the current branch.
+- If an open pull request exists, update it instead of creating a duplicate.
+- If an open pull request is missing the required `Closes` or `Refs` issue reference, update the pull request body before reporting completion.
+- If a fully resolving pull request is already merged and the required `Closes` reference is missing, report that automatic issue closure is no longer guaranteed and do not claim successful issue closure.
+- If the pull request body cannot be updated, report the blocker and do not claim successful completion.
+
+Before reporting completion:
+
+- Read back the actual pull request title.
+- Read back the base branch and verify that it is `main`.
+- Read back the complete pull request body.
+- Read back the draft status, pull request state, and URL.
+- If the selected issue is fully resolved, verify that the required `Closes` reference is present in the actual pull request body and in GitHub's closing-issue metadata when available.
+- If the selected issue is only partially addressed, verify that the required `Refs` tracking reference is present in the actual pull request body; do not expect closing-issue metadata or claim automatic closure.
+- If the required `Closes` or `Refs` issue reference is missing, do not report successful completion.
+
+After creation or update, respond to the user in Turkish with the pull request title, whether it is Draft or ready for review, the test status, the pull request URL, and any remaining blocker or risk.
+'''
