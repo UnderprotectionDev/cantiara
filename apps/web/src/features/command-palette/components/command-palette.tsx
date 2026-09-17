@@ -325,12 +325,11 @@ function PaletteCommandItem({
       <CommandShortcut className="mt-0.5 min-w-10 border border-border bg-background px-1.5 py-0.5 text-center text-[10px] tracking-normal group-data-selected/command-item:border-foreground/20">
         {running ? (
           <LoaderCircle
-            aria-label="Loading"
-            className="size-3 animate-spin motion-reduce:animate-none"
+            aria-hidden="true"
+            className="mr-1 inline size-3 animate-spin motion-reduce:animate-none"
           />
-        ) : (
-          command.shortcut
-        )}
+        ) : null}
+        {command.shortcut}
       </CommandShortcut>
     </CommandItem>
   );
