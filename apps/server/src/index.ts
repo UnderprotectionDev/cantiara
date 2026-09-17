@@ -4,11 +4,13 @@ import { createApp } from "./app";
 import { desktopOrigins, env, redactSecrets } from "./env";
 import {
   accountPreferences,
+  accountPreferencesMutationContract,
   accountSessionAccess,
   auth,
   getDb,
   githubAvailability,
   githubIdentityConfirmation,
+  mutationContract,
   replaySessionRevocations,
   tauriSessionAccess,
 } from "./services";
@@ -22,6 +24,7 @@ await replaySessionRevocations();
 export default createApp({
   accountSessionAccess,
   accountPreferences,
+  accountPreferencesMutationContract,
   auth,
   desktopApiWindow: {
     currentContract: env.CANTIARA_DESKTOP_API_CURRENT_CONTRACT,
@@ -33,6 +36,7 @@ export default createApp({
   desktopOrigins,
   githubAvailability,
   githubIdentityConfirmation,
+  mutationContract,
   nodeEnv: env.NODE_ENV,
   redactSecrets,
   tauriSessionAccess,

@@ -86,7 +86,7 @@ Bir sorumluluğun sahibi bu belgede yoksa, birden fazla yoruma açıksa veya se�
 | Sharp | Görsel üstverisi ve thumbnail |
 | Papa Parse | CSV ayrıştırma |
 | `yaml` | YAML ayrıştırma |
-| `canonicalize` | Test raporu canonicalization |
+| `canonicalize` | Test raporu ve Mutation Contract payload canonicalization |
 | `ipaddr.js` | IP adresi doğrulama |
 | `undici` | Sunucu tarafı HTTP istemcisi |
 | `htmlparser2` | HTML ayrıştırma |

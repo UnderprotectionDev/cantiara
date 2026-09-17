@@ -4,6 +4,17 @@ const DARK_CLASS_PATTERN = /dark/;
 const DASHBOARD_URL_PATTERN = /\/dashboard$/;
 const ROOT_URL_PATTERN = /\/$/;
 
+interface E2ESessionCookie {
+  domain: string;
+  expires?: number;
+  httpOnly: boolean;
+  name: string;
+  path: string;
+  sameSite: "Lax" | "None" | "Strict";
+  secure: boolean;
+  value: string;
+}
+
 test("keeps browser suggestions unsaved and persists Account Preferences on Save", async ({
   context,
   page,
@@ -151,4 +162,43 @@ test("keeps browser suggestions unsaved and persists Account Preferences on Save
   await expect(
     page.getByRole("button", { name: "Appearance", exact: true }),
   ).toHaveCount(0);
+});
+
+test("shows the current value when another session advances Account Preferences", async ({
+  browser,
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    "http://127.0.0.1:3100/__e2e/setup?fixture=account-preferences-stale",
+  );
+  const setup = (await setupResponse.json()) as {
+    cookie: E2ESessionCookie;
+    otherCookie: E2ESessionCookie;
+  };
+  const otherContext = await browser.newContext();
+  const otherPage = await otherContext.newPage();
+
+  try {
+    await context.addCookies([setup.cookie]);
+    await otherContext.addCookies([setup.otherCookie]);
+    await page.goto("/account/preferences");
+    await otherPage.goto("/account/preferences");
+
+    await page.getByLabel("Locale").selectOption("tr-TR");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(
+      page.getByRole("main").getByText("Preferences saved.", { exact: true }),
+    ).toBeVisible();
+
+    await otherPage.getByLabel("Locale").selectOption("de-DE");
+    await otherPage.getByRole("button", { name: "Save", exact: true }).click();
+    const status = otherPage.getByRole("status");
+    await expect(status).toContainText("Current value");
+    await expect(status).toContainText("Revision 1");
+    await expect(status).toContainText("tr-TR");
+  } finally {
+    await otherContext.close();
+  }
 });

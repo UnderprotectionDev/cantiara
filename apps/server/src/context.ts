@@ -1,9 +1,16 @@
-import type { AccountPreferencesAccess } from "@cantiara/api/account-preferences";
+import type {
+  AccountPreferences,
+  AccountPreferencesAccess,
+} from "@cantiara/api/account-preferences";
 import type {
   AccountAccessClient,
   Context as ApiContext,
   GitHubAvailability,
 } from "@cantiara/api/context";
+import type {
+  MutationContract,
+  MutationPayload,
+} from "@cantiara/api/mutation-and-undo";
 import type { createAuth } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
 import type { Context as HonoContext } from "hono";
@@ -18,12 +25,14 @@ export type AccountAccessAuth = Pick<
 
 export interface CreateContextOptions {
   accountPreferences: AccountPreferencesAccess;
+  accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
   auth: AccountAccessAuth;
   context: HonoContext;
   database: Database;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
+  mutationContract?: MutationContract<MutationPayload>;
   trustedProxyIps: readonly string[];
 }
 
@@ -37,11 +46,13 @@ export function requestClientPlatform(request: Request): AccountAccessClient {
 export async function createContext({
   accountSessionAccess,
   accountPreferences,
+  accountPreferencesMutationContract,
   auth,
   context,
   database,
   githubAvailability,
   githubIdentityConfirmation,
+  mutationContract,
   trustedProxyIps,
 }: CreateContextOptions): Promise<ApiContext> {
   const candidateSession = await auth.api.getSession({
@@ -61,11 +72,13 @@ export async function createContext({
   return {
     accountAccess: accountSessionAccess,
     accountPreferences,
+    accountPreferencesMutationContract,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
     clientPlatform: requestClientPlatform(context.req.raw),
     db: database,
     githubAvailability,
     githubIdentityConfirmation,
+    mutationContract,
     auth: null,
     session,
   };

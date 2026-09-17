@@ -2,6 +2,7 @@ import {
   DESKTOP_API_UPDATE_REQUIRED_CODE,
   DESKTOP_API_UPDATE_REQUIRED_HEADER,
 } from "@cantiara/api/desktop-api-window";
+import { MUTATION_UI_LABELS } from "@cantiara/api/mutation-and-undo";
 import {
   createSupportReference,
   isSupportFailureReasonCode,
@@ -41,6 +42,13 @@ export interface CreateSupportReferenceFailureOptions {
   retryPolicy?: SupportRetryPolicy;
   supportReference?: string;
   writeOutcome?: SupportWriteOutcome;
+}
+
+interface PreservedMutationResponse {
+  code: "CONFLICT" | "PRECONDITION_FAILED";
+  data: Record<string, unknown>;
+  defined: boolean;
+  message: string;
 }
 
 export interface SupportFailureLog {
@@ -100,6 +108,58 @@ function supportDataFrom(
   }
 
   return Object.keys(supportData).length > 0 ? supportData : undefined;
+}
+
+function preservedMutationResponseFrom(
+  value: unknown,
+): PreservedMutationResponse | undefined {
+  if (!(isRecord(value) && isRecord(value.data))) {
+    return;
+  }
+
+  const { data } = value;
+  if (value.code === "CONFLICT" && data.code === "CONFLICT") {
+    if (typeof data.targetId !== "string" || data.targetId.length === 0) {
+      return;
+    }
+
+    return {
+      code: "CONFLICT",
+      data: {
+        code: "CONFLICT",
+        label: MUTATION_UI_LABELS.conflict,
+        targetId: data.targetId,
+      },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    };
+  }
+
+  if (
+    value.code !== "PRECONDITION_FAILED" ||
+    data.code !== "STALE_BASE_REVISION" ||
+    typeof data.currentRevision !== "number" ||
+    !Number.isSafeInteger(data.currentRevision) ||
+    data.currentRevision < 0 ||
+    !isRecord(data.currentValue) ||
+    typeof data.targetId !== "string" ||
+    data.targetId.length === 0
+  ) {
+    return;
+  }
+
+  return {
+    code: "PRECONDITION_FAILED",
+    data: {
+      code: "STALE_BASE_REVISION",
+      currentRevision: data.currentRevision,
+      currentValue: data.currentValue,
+      label: MUTATION_UI_LABELS.currentValue,
+      targetId: data.targetId,
+    },
+    defined: true,
+    message: MUTATION_UI_LABELS.currentValue,
+  };
 }
 
 export function classifySupportReason(
@@ -174,22 +234,35 @@ export function createSupportReferenceFailure({
 export function createSupportFailureResponse(
   options: CreateSupportReferenceFailureOptions & {
     code?: string;
+    data?: Record<string, unknown>;
+    defined?: boolean;
+    message?: string;
     status?: number;
   } = {},
 ) {
   const failure = createSupportReferenceFailure(options);
+  const preservedMutationResponse = preservedMutationResponseFrom(
+    options.error,
+  );
   const status = options.status ?? 500;
   return Response.json(
     {
-      code: options.code ?? "INTERNAL_SERVER_ERROR",
+      code:
+        options.code ??
+        preservedMutationResponse?.code ??
+        "INTERNAL_SERVER_ERROR",
       data: {
+        ...(options.data ?? preservedMutationResponse?.data),
         reasonCode: failure.reasonCode,
         retryPolicy: failure.retryPolicy,
         supportReference: failure.supportReference,
         writeOutcome: failure.writeOutcome,
       },
-      defined: false,
-      message: failure.message,
+      defined: options.defined ?? preservedMutationResponse?.defined ?? false,
+      message:
+        options.message ??
+        preservedMutationResponse?.message ??
+        failure.message,
       status,
     },
     {
@@ -239,8 +312,10 @@ export async function decorateSupportFailureResponse(
   }
 
   const supportData = supportDataFrom(payload);
+  const preservedMutationResponse = preservedMutationResponseFrom(payload);
   return createSupportFailureResponse({
     ...options,
+    ...preservedMutationResponse,
     error: options.error ?? payload,
     reasonCode: supportData?.reasonCode ?? options.reasonCode,
     retryPolicy: supportData?.retryPolicy ?? options.retryPolicy,

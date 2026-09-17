@@ -14,7 +14,11 @@ import { createGitHubAvailability } from "../src/features/account-access/server/
 import { CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH } from "../src/features/account-access/server/github-identity-confirmation";
 import { createDatabaseGitHubIdentityConfirmation } from "../src/features/account-access/server/github-identity-confirmation-database";
 import { createDatabaseAccountSessionAccess } from "../src/features/account-access/server/session-access-database";
-import { createDatabaseAccountPreferences } from "../src/features/account-preferences/server/account-preferences-database";
+import {
+  accountPreferencesMutationTarget,
+  createDatabaseAccountPreferences,
+} from "../src/features/account-preferences/server/account-preferences-database";
+import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 
 const webOrigin = "http://127.0.0.1:4173";
 const serverOrigin = "http://127.0.0.1:3100";
@@ -35,6 +39,10 @@ const securityEventDatabase = createSecurityEventDb({
 });
 const accountAdmission = createDatabaseAccountAdmission(database);
 const accountPreferences = createDatabaseAccountPreferences(database);
+const accountPreferencesMutationContract = createDatabaseMutationContract(
+  database,
+  { target: accountPreferencesMutationTarget },
+);
 const githubAvailability = createGitHubAvailability();
 const auth = betterAuth({
   ...createAuthOptions(
@@ -77,6 +85,7 @@ initLogger({ env: { service: "cantiara-e2e-server" } });
 const app = createApp({
   accountSessionAccess,
   accountPreferences,
+  accountPreferencesMutationContract,
   auth,
   corsOrigin: webOrigin,
   database,
@@ -122,11 +131,12 @@ async function createE2EFixture(fixtureKey: string) {
     .where(eq(session.id, otherLogin.session.id));
 
   const [currentCookie] = currentLogin.cookies;
-  if (!currentCookie) {
+  const [otherCookie] = otherLogin.cookies;
+  if (!(currentCookie && otherCookie)) {
     throw new Error("Better Auth did not create an E2E session cookie");
   }
 
-  return currentCookie;
+  return { currentCookie, otherCookie };
 }
 
 serve({
@@ -143,8 +153,8 @@ serve({
         );
       }
 
-      const cookie = await createE2EFixture(fixtureKey);
-      return Response.json({ cookie });
+      const { currentCookie, otherCookie } = await createE2EFixture(fixtureKey);
+      return Response.json({ cookie: currentCookie, otherCookie });
     }
     return app.fetch(request, server);
   },

@@ -32,6 +32,11 @@ import { toast } from "sonner";
 
 import { accountPreferencesQueryOptions, client } from "@/utils/orpc";
 import {
+  type AccountPreferencesMutationError,
+  accountPreferencesMutationErrorMessage,
+  parseAccountPreferencesMutationError,
+} from "../account-preferences-mutation-error";
+import {
   formatAccountDateTime,
   formatAccountNumber,
   getWeekDayLabels,
@@ -52,7 +57,12 @@ function optionsWithCurrentValue(
 }
 
 function formValues(snapshot: AccountPreferencesSnapshot): AccountPreferences {
-  const { isSaved: _isSaved, savedAt: _savedAt, ...values } = snapshot;
+  const {
+    isSaved: _isSaved,
+    revision: _revision,
+    savedAt: _savedAt,
+    ...values
+  } = snapshot;
   return values;
 }
 
@@ -62,6 +72,19 @@ function selectFormValues(state: { values: AccountPreferences }) {
 
 function selectIsDirty(state: { isDirty: boolean }) {
   return state.isDirty;
+}
+
+function saveStatusMessage(
+  isOnline: boolean,
+  saveError: AccountPreferencesMutationError | null,
+) {
+  if (!isOnline) {
+    return "Disconnected";
+  }
+  if (!saveError) {
+    return "Preferences could not be saved.";
+  }
+  return accountPreferencesMutationErrorMessage(saveError);
 }
 
 function previewValues(values: AccountPreferences): AccountPreferences {
@@ -100,7 +123,7 @@ function AccountPreferencesSaveStatus({
 }: {
   isDirty: boolean;
   isOnline: boolean;
-  saveError: boolean;
+  saveError: AccountPreferencesMutationError | null;
   snapshot: AccountPreferencesSnapshot;
 }) {
   if (isOnline && !saveError) {
@@ -121,7 +144,7 @@ function AccountPreferencesSaveStatus({
       />
       <div className="min-w-0 flex-1">
         <p className="font-medium text-sm">
-          {isOnline ? "Preferences could not be saved." : "Disconnected"}
+          {saveStatusMessage(isOnline, saveError)}
         </p>
         <p className="mt-1 text-muted-foreground text-xs/relaxed">
           {isOnline ? "Try Save again." : "Reconnect to save."}
@@ -149,6 +172,19 @@ function AccountPreferencesSaveStatus({
               </dd>
             </div>
           ) : null}
+          {saveError?.code === "STALE_BASE_REVISION" ? (
+            <div className="flex flex-wrap gap-x-2">
+              <dt className="font-medium">Current value</dt>
+              <dd>
+                Revision {saveError.currentRevision}:{" "}
+                {saveError.currentValue.appearance};{" "}
+                {saveError.currentValue.locale};{" "}
+                {saveError.currentValue.timeZone};{" "}
+                {saveError.currentValue.dateFormat};{" "}
+                {saveError.currentValue.firstDayOfWeek}
+              </dd>
+            </div>
+          ) : null}
         </dl>
       </div>
     </aside>
@@ -165,7 +201,13 @@ export default function AccountPreferencesForm({
   const queryClient = useQueryClient();
   const isOnline = useOnlineState();
   const latestSavedAt = useRef<string | null>(null);
-  const [saveError, setSaveError] = useState(false);
+  const pendingSave = useRef<{
+    baseRevision: number;
+    clientIdempotencyKey: string;
+    values: string;
+  } | null>(null);
+  const [saveError, setSaveError] =
+    useState<AccountPreferencesMutationError | null>(null);
   const [suggestion, setSuggestion] = useState(() =>
     getBrowserPreferenceSuggestion({
       locale: DEFAULT_ACCOUNT_PREFERENCES.locale,
@@ -173,14 +215,19 @@ export default function AccountPreferencesForm({
     }),
   );
   const savePreferences = useMutation({
-    mutationFn: (values: AccountPreferences) =>
-      client.saveAccountPreferences(values),
-    onError: () => {
-      setSaveError(true);
-      toast.error("Preferences could not be saved.");
+    mutationFn: (input: {
+      baseRevision: number;
+      clientIdempotencyKey: string;
+      preferences: AccountPreferences;
+    }) => client.saveAccountPreferences(input),
+    onError: (error) => {
+      const parsedError = parseAccountPreferencesMutationError(error);
+      setSaveError(parsedError);
+      toast.error(accountPreferencesMutationErrorMessage(parsedError));
     },
     onSuccess: (saved) => {
-      setSaveError(false);
+      setSaveError(null);
+      pendingSave.current = null;
       latestSavedAt.current = saved.savedAt;
       queryClient.setQueryData(
         accountPreferencesQueryOptions(accountId).queryKey,
@@ -192,7 +239,24 @@ export default function AccountPreferencesForm({
   const form = useForm({
     defaultValues: formValues(snapshot),
     onSubmit: async ({ value }) => {
-      await savePreferences.mutateAsync(accountPreferencesSchema.parse(value));
+      const preferences = accountPreferencesSchema.parse(value);
+      const serialized = JSON.stringify(preferences);
+      const attempt = pendingSave.current;
+      const clientIdempotencyKey =
+        attempt?.baseRevision === snapshot.revision &&
+        attempt.values === serialized
+          ? attempt.clientIdempotencyKey
+          : crypto.randomUUID();
+      pendingSave.current = {
+        baseRevision: snapshot.revision,
+        clientIdempotencyKey,
+        values: serialized,
+      };
+      await savePreferences.mutateAsync({
+        baseRevision: snapshot.revision,
+        clientIdempotencyKey,
+        preferences,
+      });
     },
   });
 

@@ -1,4 +1,7 @@
-import type { AccountPreferencesAccess } from "@cantiara/api/account-preferences";
+import type {
+  AccountPreferences,
+  AccountPreferencesAccess,
+} from "@cantiara/api/account-preferences";
 import {
   CONFIRM_GITHUB_IDENTITY_HANDOFF_EXCHANGE_PATH,
   TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL,
@@ -10,6 +13,10 @@ import {
   type DesktopApiCompatibilityWindow,
   evaluateDesktopApiCompatibility,
 } from "@cantiara/api/desktop-api-window";
+import type {
+  MutationContract,
+  MutationPayload,
+} from "@cantiara/api/mutation-and-undo";
 import { appRouter } from "@cantiara/api/routers/index";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import { TAURI_AUTH_CALLBACK_URL } from "@cantiara/auth";
@@ -63,6 +70,7 @@ import {
 
 export interface AppDependencies {
   accountPreferences: AccountPreferencesAccess;
+  accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
   auth: AccountAccessAuth;
   corsOrigin: string;
@@ -75,6 +83,7 @@ export interface AppDependencies {
     "getStatus" | "requiresFreshConsent"
   >;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
+  mutationContract?: MutationContract<MutationPayload>;
   nodeEnv: string;
   redactSecrets: (value: unknown) => unknown;
   tauriSessionAccess?: TauriSessionAccess;
@@ -727,11 +736,14 @@ export function createApp(dependencies: AppDependencies) {
     const context = await createContext({
       accountSessionAccess: dependencies.accountSessionAccess,
       accountPreferences: dependencies.accountPreferences,
+      accountPreferencesMutationContract:
+        dependencies.accountPreferencesMutationContract,
       auth: dependencies.auth,
       context: c,
       database: dependencies.database,
       githubAvailability: dependencies.githubAvailability,
       githubIdentityConfirmation: dependencies.githubIdentityConfirmation,
+      mutationContract: dependencies.mutationContract,
       trustedProxyIps: dependencies.trustedProxyIps,
     });
     const rpcResult = await rpcHandler.handle(c.req.raw, {
@@ -791,7 +803,7 @@ export function createApp(dependencies: AppDependencies) {
     recordSupportFailure(c.get("log"), failure);
     c.error = undefined;
     return createSupportFailureResponse({
-      error: failure,
+      error,
       reasonCode: failure.reasonCode,
       requestId,
       retryPolicy: failure.retryPolicy,

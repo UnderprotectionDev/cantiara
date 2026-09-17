@@ -1,3 +1,5 @@
+import type { AccountPreferences } from "@cantiara/api/account-preferences";
+import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
 import { createAuth } from "@cantiara/auth";
 import { createDb, type Database } from "@cantiara/db";
 import { createSecurityEventDb } from "@cantiara/db/security-events";
@@ -9,7 +11,11 @@ import { CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH } from "./features/account-access
 import { createDatabaseGitHubIdentityConfirmation } from "./features/account-access/server/github-identity-confirmation-database";
 import { createDatabaseAccountSessionAccess } from "./features/account-access/server/session-access-database";
 import { createDatabaseTauriSessionAccess } from "./features/account-access/server/tauri-session-database";
-import { createDatabaseAccountPreferences } from "./features/account-preferences/server/account-preferences-database";
+import {
+  accountPreferencesMutationTarget,
+  createDatabaseAccountPreferences,
+} from "./features/account-preferences/server/account-preferences-database";
+import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 
 const db = createDb(env);
 const securityEventDb = createSecurityEventDb({
@@ -17,6 +23,12 @@ const securityEventDb = createSecurityEventDb({
 });
 const accountAdmission = createDatabaseAccountAdmission(db);
 export const accountPreferences = createDatabaseAccountPreferences(db);
+export const accountPreferencesMutationContract =
+  createDatabaseMutationContract<AccountPreferences>(db, {
+    target: accountPreferencesMutationTarget,
+  });
+export const mutationContract =
+  createDatabaseMutationContract<MutationPayload>(db);
 export const githubAvailability = createGitHubAvailability();
 export const accountSessionAccess = createDatabaseAccountSessionAccess(
   db,

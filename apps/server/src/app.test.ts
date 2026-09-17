@@ -1,7 +1,4 @@
-import {
-  type AccountPreferences,
-  DEFAULT_ACCOUNT_PREFERENCES,
-} from "@cantiara/api/account-preferences";
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import {
   DESKTOP_API_UPDATE_REQUIRED_HEADER,
   type DesktopApiCompatibilityWindow,
@@ -43,6 +40,7 @@ function createTestApp(
     accountSessionAccess?: AppDependencies["accountSessionAccess"];
     auth?: AppDependencies["auth"];
     authorized?: boolean;
+    accountPreferencesMutationContract?: AppDependencies["accountPreferencesMutationContract"];
     desktopApiNow?: () => Date;
     desktopApiWindow?: DesktopApiCompatibilityWindow;
     desktopOrigins?: readonly string[];
@@ -80,23 +78,12 @@ function createTestApp(
       get: async () => ({
         ...DEFAULT_ACCOUNT_PREFERENCES,
         isSaved: false,
+        revision: 0,
         savedAt: null,
       }),
-      save: async (_accountId: string, preferences: AccountPreferences) => ({
-        ...preferences,
-        isSaved: true,
-        savedAt: "2026-09-16T09:00:00.000Z",
-      }),
-      saveAppearance: async (
-        _accountId: string,
-        appearance: AccountPreferences["appearance"],
-      ) => ({
-        ...DEFAULT_ACCOUNT_PREFERENCES,
-        appearance,
-        isSaved: true,
-        savedAt: "2026-09-16T09:00:00.000Z",
-      }),
     },
+    accountPreferencesMutationContract:
+      options.accountPreferencesMutationContract,
     auth:
       options.auth ??
       ({
@@ -305,6 +292,118 @@ describe("server app Account Access boundary", () => {
     expect(body.data.writeOutcome).toBe("unknown");
     expect(serialized).not.toContain("secret-token");
     expect(serialized).not.toContain("private Workspace body");
+  });
+
+  test("keeps mutation conflict details through the RPC Support envelope", async () => {
+    const { app } = createTestApp({
+      accountPreferencesMutationContract: {
+        mutate: () => {
+          throw Object.assign(new Error("Conflict"), {
+            code: "CONFLICT",
+          });
+        },
+      } as NonNullable<AppDependencies["accountPreferencesMutationContract"]>,
+      authorized: true,
+    });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/rpc/saveAccountPreferences", {
+        body: JSON.stringify({
+          json: {
+            baseRevision: 0,
+            clientIdempotencyKey: "conflict-key",
+            preferences: DEFAULT_ACCOUNT_PREFERENCES,
+          },
+        }),
+        headers: {
+          cookie: "__Secure-better-auth.session_token=valid-token",
+          "content-type": "application/json",
+          origin: "https://cantiara.example",
+        },
+        method: "POST",
+      }),
+    );
+    const body = (await response.json()) as {
+      code: string;
+      data: Record<string, unknown>;
+      defined: boolean;
+      message: string;
+      status: number;
+    };
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({
+      code: "CONFLICT",
+      data: {
+        code: "CONFLICT",
+        label: "Conflict",
+        targetId: "account-1",
+      },
+      defined: true,
+      message: "Conflict",
+      status: 409,
+    });
+    expect(response.headers.get("x-cantiara-support-reference")).toMatch(
+      SUPPORT_REFERENCE_PATTERN,
+    );
+  });
+
+  test("keeps the current value through the stale mutation Support envelope", async () => {
+    const { app } = createTestApp({
+      accountPreferencesMutationContract: {
+        mutate: () => {
+          throw Object.assign(new Error("Current value"), {
+            code: "STALE_BASE_REVISION",
+            currentRevision: 1,
+            currentValue: {
+              ...DEFAULT_ACCOUNT_PREFERENCES,
+              appearance: "Light",
+            },
+          });
+        },
+      } as NonNullable<AppDependencies["accountPreferencesMutationContract"]>,
+      authorized: true,
+    });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/rpc/saveAccountPreferences", {
+        body: JSON.stringify({
+          json: {
+            baseRevision: 0,
+            clientIdempotencyKey: "stale-key",
+            preferences: DEFAULT_ACCOUNT_PREFERENCES,
+          },
+        }),
+        headers: {
+          cookie: "__Secure-better-auth.session_token=valid-token",
+          "content-type": "application/json",
+          origin: "https://cantiara.example",
+        },
+        method: "POST",
+      }),
+    );
+    const body = (await response.json()) as {
+      code: string;
+      data: Record<string, unknown>;
+      defined: boolean;
+      message: string;
+      status: number;
+    };
+
+    expect(response.status).toBe(412);
+    expect(body).toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: {
+        code: "STALE_BASE_REVISION",
+        currentRevision: 1,
+        currentValue: { appearance: "Light" },
+        label: "Current value",
+        targetId: "account-1",
+      },
+      defined: true,
+      message: "Current value",
+      status: 412,
+    });
   });
 
   test("starts Tauri sign-in in the system browser with a browser-owned state cookie", async () => {

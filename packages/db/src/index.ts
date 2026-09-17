@@ -19,6 +19,11 @@ import {
   workspace,
   workspaceRelations,
 } from "./schema";
+import {
+  mutationHistory,
+  mutationReceipt,
+  mutationTarget,
+} from "./schema/mutation";
 
 const schema = {
   account,
@@ -26,6 +31,9 @@ const schema = {
   accountPreferencesRelations,
   accountRelations,
   auditRecord,
+  mutationHistory,
+  mutationReceipt,
+  mutationTarget,
   rateLimit,
   session,
   sessionRelations,

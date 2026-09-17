@@ -1,7 +1,4 @@
-import {
-  type AccountPreferences,
-  DEFAULT_ACCOUNT_PREFERENCES,
-} from "@cantiara/api/account-preferences";
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { Context } from "@cantiara/api/context";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
@@ -34,21 +31,8 @@ describe("Account Access RPC", () => {
         get: async () => ({
           ...DEFAULT_ACCOUNT_PREFERENCES,
           isSaved: false,
+          revision: 0,
           savedAt: null,
-        }),
-        save: async (_accountId: string, preferences: AccountPreferences) => ({
-          ...preferences,
-          isSaved: true,
-          savedAt: "2026-09-16T09:00:00.000Z",
-        }),
-        saveAppearance: async (
-          _accountId: string,
-          appearance: AccountPreferences["appearance"],
-        ) => ({
-          ...DEFAULT_ACCOUNT_PREFERENCES,
-          appearance,
-          isSaved: true,
-          savedAt: "2026-09-16T09:00:00.000Z",
         }),
       },
       auth: null,
@@ -88,21 +72,8 @@ describe("Account Access RPC", () => {
         get: async () => ({
           ...DEFAULT_ACCOUNT_PREFERENCES,
           isSaved: false,
+          revision: 0,
           savedAt: null,
-        }),
-        save: async (_accountId: string, preferences: AccountPreferences) => ({
-          ...preferences,
-          isSaved: true,
-          savedAt: "2026-09-16T09:00:00.000Z",
-        }),
-        saveAppearance: async (
-          _accountId: string,
-          appearance: AccountPreferences["appearance"],
-        ) => ({
-          ...DEFAULT_ACCOUNT_PREFERENCES,
-          appearance,
-          isSaved: true,
-          savedAt: "2026-09-16T09:00:00.000Z",
         }),
       },
       auth: null,

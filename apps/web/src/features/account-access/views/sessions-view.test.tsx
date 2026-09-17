@@ -29,6 +29,7 @@ describe("Sessions view", () => {
       {
         ...DEFAULT_ACCOUNT_PREFERENCES,
         isSaved: true,
+        revision: 1,
         savedAt: "2026-09-16T09:00:00.000Z",
         locale: "tr-TR",
         timeZone: "Europe/London",

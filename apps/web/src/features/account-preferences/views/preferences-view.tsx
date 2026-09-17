@@ -42,6 +42,7 @@ export default function PreferencesView({ accountId }: { accountId: string }) {
   const snapshot: AccountPreferencesSnapshot = preferences.data ?? {
     ...DEFAULT_ACCOUNT_PREFERENCES,
     isSaved: false,
+    revision: 0,
     savedAt: null,
   };
 
