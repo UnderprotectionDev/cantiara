@@ -5,16 +5,26 @@ import {
   type MutationHistoryEntry,
   type MutationPayload,
   type MutationReceipt,
+  type MutationRollbackReceipt,
   type MutationTarget,
   type NonHumanMutationActor,
 } from "@cantiara/api/mutation-and-undo";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   createMutationContract,
+  type MutationAtomicContractStore,
+  type MutationBarrierChecks,
+  type MutationBarrierContext,
+  type MutationCancelInput,
   type MutationCommitInput,
   MutationConflictError,
-  type MutationContractStore,
+  type MutationFinalizeInput,
+  type MutationFinalizeResult,
+  type MutationFinalizingError,
   type MutationIdempotencyKey,
+  type MutationStagedRecord,
+  type MutationStageInput,
+  type MutationStageResult,
   type MutationStaleBaseRevisionError,
 } from "./mutation-contract";
 
@@ -86,31 +96,349 @@ async function commandForOrigin(
   };
 }
 
+const ALLOW_BARRIER_CHECKS = {
+  authorization: () => true,
+  quota: () => true,
+  scope: () => true,
+} satisfies MutationBarrierChecks<FixtureValue>;
+
 function createMemoryStore(initial: MutationTarget<FixtureValue>) {
   let target = initial;
   let commitQueue = Promise.resolve();
   const receipts = new Map<string, MutationReceipt<FixtureValue>>();
+  const staged = new Map<string, MutationStagedRecord<FixtureValue>>();
   const history: MutationHistoryEntry<FixtureValue>[] = [];
   const receiptKey = ({ key, scope }: MutationIdempotencyKey) =>
     `${scope}:${key}`;
-  const store: MutationContractStore<FixtureValue> = {
+
+  function stagedRecordFromReceipt(
+    receipt: MutationReceipt<FixtureValue>,
+  ): MutationStagedRecord<FixtureValue> {
+    const idempotencyKey =
+      receipt.origin.kind === "human"
+        ? {
+            key: receipt.origin.clientIdempotencyKey,
+            scope: `human:${receipt.actor.actorId}:${receipt.targetId}`,
+          }
+        : {
+            key: receipt.origin.deliveryId,
+            scope: `source:${receipt.origin.sourceId}:${receipt.targetId}`,
+          };
+    return {
+      actor: receipt.actor,
+      completedAt: receipt.committedAt,
+      expectedRevision: receipt.revision - 1,
+      expiresAt: receipt.committedAt,
+      historyId: receipt.id,
+      id: receipt.id,
+      idempotencyKey,
+      origin: receipt.origin,
+      payload: null,
+      payloadFingerprint: receipt.payloadFingerprint,
+      receipt,
+      receiptId: receipt.id,
+      rollbackReceipt: null,
+      stagedAt: receipt.committedAt,
+      status: "committed",
+      targetId: receipt.targetId,
+    };
+  }
+
+  async function withCommitLock<TResult>(
+    work: () => Promise<TResult> | TResult,
+  ) {
+    const previousCommit = commitQueue;
+    let release: () => void = () => undefined;
+    commitQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previousCommit;
+    try {
+      return await work();
+    } finally {
+      release();
+    }
+  }
+
+  function rollback(
+    record: MutationStagedRecord<FixtureValue>,
+    reason: MutationRollbackReceipt["reason"],
+    completedAt: string,
+    current?: MutationTarget<FixtureValue>,
+  ): MutationFinalizeResult<FixtureValue> {
+    record.completedAt = completedAt;
+    record.payload = null;
+    record.rollbackReceipt = {
+      actor: record.actor,
+      completedAt,
+      ...(current ? { current } : {}),
+      expectedRevision: record.expectedRevision,
+      id: record.receiptId,
+      idempotencyKey: record.idempotencyKey,
+      operationId: record.id,
+      origin: record.origin,
+      payloadFingerprint: record.payloadFingerprint,
+      reason,
+      status: "rolled-back",
+      targetId: record.targetId,
+    };
+    record.status = "rolled-back";
+    return {
+      operation: record,
+      receipt: record.rollbackReceipt,
+      status: "rolled-back",
+    };
+  }
+
+  const store: MutationAtomicContractStore<FixtureValue> = {
     findReceipt(key) {
       return Promise.resolve(receipts.get(receiptKey(key)) ?? null);
     },
     getTarget() {
       return Promise.resolve(target);
     },
-    async commit<TPayload extends MutationPayload>(
+    cancel(input: MutationCancelInput) {
+      return withCommitLock(() => {
+        const record = staged.get(input.operationId);
+        if (!record) {
+          const receipt = [...receipts.values()].find(
+            (candidate) => candidate.id === input.operationId,
+          );
+          if (!receipt) {
+            throw new Error("Mutation operation was not found.");
+          }
+          return {
+            operationId: input.operationId,
+            status: "finalizing" as const,
+          };
+        }
+        if (record.status === "committed") {
+          return { operationId: record.id, status: "finalizing" as const };
+        }
+        if (record.status === "finalizing") {
+          return input.reason === "apply-failed"
+            ? rollback(record, input.reason, input.completedAt)
+            : { operationId: record.id, status: "finalizing" as const };
+        }
+        if (record.status === "rolled-back") {
+          if (!record.rollbackReceipt) {
+            throw new Error("Rollback receipt is missing.");
+          }
+          return {
+            operation: record,
+            receipt: record.rollbackReceipt,
+            status: "rolled-back" as const,
+          };
+        }
+        return rollback(record, input.reason, input.completedAt);
+      });
+    },
+    cleanupExpired(at) {
+      return withCommitLock(() => {
+        const now = (at ?? new Date()).toISOString();
+        let cleaned = 0;
+        for (const record of staged.values()) {
+          if (
+            (record.status === "staged" || record.status === "finalizing") &&
+            record.expiresAt <= now
+          ) {
+            rollback(record, "expired", now);
+            cleaned += 1;
+          }
+        }
+        return cleaned;
+      });
+    },
+    finalize<TPayload extends MutationPayload>(
+      input: MutationFinalizeInput<FixtureValue, TPayload>,
+    ) {
+      return withCommitLock(async () => {
+        const record = staged.get(input.operationId);
+        if (!record) {
+          throw new Error("Mutation operation was not found.");
+        }
+        if (record.status === "committed") {
+          if (!record.receipt) {
+            throw new Error("Commit receipt is missing.");
+          }
+          return {
+            operation: record,
+            receipt: record.receipt,
+            status: "committed" as const,
+          };
+        }
+        if (record.status === "rolled-back") {
+          if (!record.rollbackReceipt) {
+            throw new Error("Rollback receipt is missing.");
+          }
+          return {
+            operation: record,
+            receipt: record.rollbackReceipt,
+            status: "rolled-back" as const,
+          };
+        }
+        if (record.status === "finalizing") {
+          return { operationId: record.id, status: "finalizing" as const };
+        }
+        if (
+          record.expectedRevision !== input.expectedRevision ||
+          record.idempotencyKey.key !== input.idempotencyKey.key ||
+          record.idempotencyKey.scope !== input.idempotencyKey.scope ||
+          record.payloadFingerprint !== input.payloadFingerprint ||
+          record.targetId !== input.targetId
+        ) {
+          return { status: "conflict" as const };
+        }
+        if (record.expiresAt <= input.committedAt) {
+          return rollback(record, "expired", input.committedAt);
+        }
+        record.status = "finalizing";
+        const barrierContext: MutationBarrierContext<FixtureValue> = {
+          actor: input.actor,
+          expectedRevision: input.expectedRevision,
+          idempotencyKey: input.idempotencyKey,
+          operationId: input.operationId,
+          origin: input.origin,
+          payload: input.payload,
+          payloadFingerprint: input.payloadFingerprint,
+          target,
+          targetId: input.targetId,
+        };
+        const barrierResults = await Promise.all(
+          (
+            [
+              ["authorization", input.barrierChecks?.authorization],
+              ["scope", input.barrierChecks?.scope],
+              ["quota", input.barrierChecks?.quota],
+            ] as const
+          ).map(async ([reason, check]) => {
+            try {
+              return {
+                allowed: check ? await check(barrierContext) : true,
+                reason,
+              };
+            } catch {
+              return { allowed: false, reason };
+            }
+          }),
+        );
+        const blockedBarrier = barrierResults.find(({ allowed }) => !allowed);
+        if (blockedBarrier) {
+          return rollback(record, blockedBarrier.reason, input.committedAt);
+        }
+        if (target.revision !== input.expectedRevision) {
+          return rollback(
+            record,
+            "stale-base-revision",
+            input.committedAt,
+            target,
+          );
+        }
+        const nextValue = await input.apply({
+          currentRevision: target.revision,
+          currentValue: target.value,
+          payload: input.payload,
+        });
+        const receipt: MutationReceipt<FixtureValue> = {
+          actor: input.actor,
+          committedAt: input.committedAt,
+          id: input.receiptId,
+          nextValue,
+          origin: input.origin,
+          payloadFingerprint: input.payloadFingerprint,
+          previousValue: target.value,
+          revision: target.revision + 1,
+          targetId: target.id,
+        };
+        target = {
+          id: target.id,
+          revision: receipt.revision,
+          value: nextValue,
+        };
+        receipts.set(receiptKey(input.idempotencyKey), receipt);
+        history.push({
+          actor: input.actor,
+          id: input.historyId,
+          nextValue,
+          occurredAt: input.committedAt,
+          origin: input.origin,
+          payloadFingerprint: input.payloadFingerprint,
+          previousValue: receipt.previousValue,
+          revision: receipt.revision,
+          targetId: target.id,
+        });
+        record.completedAt = input.committedAt;
+        record.payload = null;
+        record.receipt = receipt;
+        record.status = "committed";
+        return {
+          operation: record,
+          receipt,
+          status: "committed" as const,
+        };
+      });
+    },
+    findStagedOperation(operationId) {
+      const stagedRecord = staged.get(operationId);
+      if (stagedRecord) {
+        return Promise.resolve(stagedRecord);
+      }
+      const receipt = [...receipts.values()].find(
+        (candidate) => candidate.id === operationId,
+      );
+      return Promise.resolve(receipt ? stagedRecordFromReceipt(receipt) : null);
+    },
+    stage<TPayload extends MutationPayload>(
+      input: MutationStageInput<TPayload>,
+    ) {
+      return withCommitLock(() => {
+        const key = receiptKey(input.idempotencyKey);
+        const existing = [...staged.values()].find(
+          (candidate) => receiptKey(candidate.idempotencyKey) === key,
+        );
+        if (existing) {
+          return existing.payloadFingerprint === input.payloadFingerprint
+            ? ({
+                operation: existing,
+                status: existing.status,
+              } as MutationStageResult<FixtureValue>)
+            : { status: "conflict" as const };
+        }
+        const existingReceipt = receipts.get(key);
+        if (existingReceipt) {
+          return existingReceipt.payloadFingerprint === input.payloadFingerprint
+            ? {
+                operation: stagedRecordFromReceipt(existingReceipt),
+                status: "committed" as const,
+              }
+            : { status: "conflict" as const };
+        }
+        const record: MutationStagedRecord<FixtureValue> = {
+          actor: input.actor,
+          completedAt: null,
+          expectedRevision: input.expectedRevision,
+          expiresAt: input.expiresAt,
+          historyId: input.historyId,
+          id: input.operationId,
+          idempotencyKey: input.idempotencyKey,
+          origin: input.origin,
+          payload: input.payload,
+          payloadFingerprint: input.payloadFingerprint,
+          receipt: null,
+          receiptId: input.receiptId,
+          rollbackReceipt: null,
+          stagedAt: input.stagedAt,
+          status: "staged",
+          targetId: input.targetId,
+        };
+        staged.set(record.id, record);
+        return { operation: record, status: "staged" as const };
+      });
+    },
+    commit<TPayload extends MutationPayload>(
       input: MutationCommitInput<FixtureValue, TPayload>,
     ) {
-      const previousCommit = commitQueue;
-      let release: () => void = () => undefined;
-      commitQueue = new Promise<void>((resolve) => {
-        release = resolve;
-      });
-      await previousCommit;
-
-      try {
+      return withCommitLock(async () => {
         const existing = receipts.get(receiptKey(input.idempotencyKey));
         if (existing) {
           return existing.payloadFingerprint === input.payloadFingerprint
@@ -155,15 +483,491 @@ function createMemoryStore(initial: MutationTarget<FixtureValue>) {
           targetId: target.id,
         });
         return { receipt, status: "committed" as const };
-      } finally {
-        release();
-      }
+      });
     },
   };
   return { getHistory: () => history, getTarget: () => target, store };
 }
 
 describe("Mutation Contract seam", () => {
+  test("finalizes a staged multi-step write with one commit receipt", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const contract = createMutationContract<FixtureValue>({
+      barrierChecks: ALLOW_BARRIER_CHECKS,
+      store: memory.store,
+    });
+    const command = {
+      actor: { actorId: "account-1", type: "User" as const },
+      baseRevision: 0,
+      clientIdempotencyKey: "atomic-key-1",
+      kind: "human" as const,
+      payload: { title: "Committed" },
+      targetId: "work-1",
+    };
+
+    const staged = await contract.stage(command);
+    const result = await contract.finalize(
+      staged.id,
+      ({
+        currentValue,
+        payload,
+      }: {
+        currentValue: FixtureValue;
+        payload: { title: string };
+      }) => ({
+        ...currentValue,
+        ...payload,
+      }),
+    );
+
+    expect(staged).toMatchObject({
+      status: "staged",
+      targetId: "work-1",
+    });
+    expect(result).toMatchObject({
+      receipt: {
+        nextValue: { title: "Committed" },
+        previousValue: { title: "Original" },
+        revision: 1,
+        targetId: "work-1",
+      },
+      status: "committed",
+    });
+    expect(memory.getTarget()).toEqual({
+      id: "work-1",
+      revision: 1,
+      value: { title: "Committed" },
+    });
+  });
+
+  test("returns a durable rollback receipt and leaves no partial write", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const contract = createMutationContract<FixtureValue>({
+      barrierChecks: ALLOW_BARRIER_CHECKS,
+      store: memory.store,
+    });
+    const staged = await contract.stage({
+      actor: { actorId: "account-1", type: "User" },
+      baseRevision: 0,
+      clientIdempotencyKey: "atomic-key-rollback",
+      kind: "human",
+      payload: { title: "Should not be visible" },
+      targetId: "work-1",
+    });
+
+    const rollback = await contract.finalize(staged.id, () => {
+      throw new Error("second staged step failed");
+    });
+    const retry = await contract.finalize<{ title: string }>(
+      staged.id,
+      ({ payload }) => payload,
+    );
+
+    expect(rollback).toMatchObject({
+      receipt: {
+        operationId: staged.id,
+        reason: "apply-failed",
+        status: "rolled-back",
+      },
+      status: "rolled-back",
+    });
+    expect(retry).toEqual(rollback);
+    expect(memory.getTarget()).toEqual({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    expect(memory.getHistory()).toHaveLength(0);
+  });
+
+  test("does not turn an unknown store failure into an apply rollback", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const cancel = vi.fn(memory.store.cancel);
+    const store: MutationAtomicContractStore<FixtureValue> = {
+      ...memory.store,
+      cancel,
+      finalize() {
+        return Promise.reject(new Error("database connection failed"));
+      },
+    };
+    const contract = createMutationContract<FixtureValue>({ store });
+    const staged = await contract.stage({
+      actor: { actorId: "account-1", type: "User" },
+      baseRevision: 0,
+      clientIdempotencyKey: "atomic-key-unknown-failure",
+      kind: "human",
+      payload: { title: "Unknown outcome" },
+      targetId: "work-1",
+    });
+
+    await expect(
+      contract.finalize<{ title: string }>(staged.id, ({ payload }) => payload),
+    ).rejects.toThrow("database connection failed");
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  test("fails closed when finalization policy is not configured", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const contract = createMutationContract<FixtureValue>({
+      store: memory.store,
+    });
+    const staged = await contract.stage({
+      actor: { actorId: "account-1", type: "User" },
+      baseRevision: 0,
+      clientIdempotencyKey: "atomic-key-no-policy",
+      kind: "human",
+      payload: { title: "Blocked" },
+      targetId: "work-1",
+    });
+
+    const rollback = await contract.finalize<{ title: string }>(
+      staged.id,
+      ({ payload }) => payload,
+    );
+
+    expect(rollback).toMatchObject({
+      receipt: { reason: "authorization", status: "rolled-back" },
+      status: "rolled-back",
+    });
+  });
+
+  test("replays a finalized operation and rejects a changed payload", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const contract = createMutationContract<FixtureValue>({
+      barrierChecks: ALLOW_BARRIER_CHECKS,
+      store: memory.store,
+    });
+    const command = {
+      actor: { actorId: "account-1", type: "User" as const },
+      baseRevision: 0,
+      clientIdempotencyKey: "atomic-key-retry",
+      kind: "human" as const,
+      payload: { title: "Committed once" },
+      targetId: "work-1",
+    };
+    const staged = await contract.stage(command);
+    let applyCalls = 0;
+
+    const first = await contract.finalize<{ title: string }>(
+      staged.id,
+      ({ payload }) => {
+        applyCalls += 1;
+        return payload;
+      },
+    );
+    const retry = await contract.finalize<{ title: string }>(
+      staged.id,
+      ({ payload }) => {
+        applyCalls += 1;
+        return payload;
+      },
+    );
+
+    await expect(
+      contract.finalize<{ title: string }>(
+        staged.id,
+        ({ payload }) => payload,
+        { ...command, payload: { title: "Changed retry" } },
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT", label: "Conflict" });
+    await expect(
+      contract.stage({ ...command, payload: { title: "Changed retry" } }),
+    ).rejects.toMatchObject({ code: "CONFLICT", label: "Conflict" });
+
+    expect(retry).toEqual(first);
+    expect(applyCalls).toBe(1);
+    expect(memory.getHistory()).toHaveLength(1);
+  });
+
+  test("replays a direct receipt when staging retries the same operation", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const contract = createMutationContract<FixtureValue>({
+      barrierChecks: ALLOW_BARRIER_CHECKS,
+      store: memory.store,
+    });
+    const command = {
+      actor: { actorId: "account-1", type: "User" as const },
+      baseRevision: 0,
+      clientIdempotencyKey: "direct-then-staged-key",
+      kind: "human" as const,
+      payload: { title: "Committed directly" },
+      targetId: "work-1",
+    };
+
+    const committed = await contract.mutate(command, ({ payload }) => payload);
+    const staged = await contract.stage(command);
+    const replay = await contract.finalize(staged.id, () => {
+      throw new Error("replay must not apply");
+    });
+
+    expect(replay).toMatchObject({ receipt: committed, status: "committed" });
+    await expect(contract.cancel(staged.id)).rejects.toMatchObject({
+      code: "FINALIZING",
+      label: "Finalizing",
+    });
+    expect(memory.getHistory()).toHaveLength(1);
+  });
+
+  test("refuses Cancel after the commit barrier with Finalizing", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const contract = createMutationContract<FixtureValue>({
+      barrierChecks: ALLOW_BARRIER_CHECKS,
+      store: memory.store,
+    });
+    const staged = await contract.stage({
+      actor: { actorId: "account-1", type: "User" },
+      baseRevision: 0,
+      clientIdempotencyKey: "atomic-key-finalizing",
+      kind: "human",
+      payload: { title: "Committed" },
+      targetId: "work-1",
+    });
+
+    await contract.finalize<{ title: string }>(
+      staged.id,
+      ({ payload }) => payload,
+    );
+
+    await expect(contract.cancel(staged.id)).rejects.toMatchObject({
+      code: "FINALIZING",
+      label: "Finalizing",
+      operationId: staged.id,
+    } satisfies Partial<MutationFinalizingError>);
+    expect(memory.getTarget().value).toEqual({ title: "Committed" });
+  });
+
+  test("exposes Finalizing while the commit barrier is in flight", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const contract = createMutationContract<FixtureValue>({
+      barrierChecks: ALLOW_BARRIER_CHECKS,
+      store: memory.store,
+    });
+    const staged = await contract.stage({
+      actor: { actorId: "account-1", type: "User" },
+      baseRevision: 0,
+      clientIdempotencyKey: "atomic-key-in-flight",
+      kind: "human",
+      payload: { title: "Committed" },
+      targetId: "work-1",
+    });
+    let releaseApply: () => void = () => undefined;
+    let signalApplyStarted: () => void = () => undefined;
+    const applyStarted = new Promise<void>((resolve) => {
+      signalApplyStarted = resolve;
+    });
+    const applyReleased = new Promise<void>((resolve) => {
+      releaseApply = resolve;
+    });
+
+    const finalization = contract.finalize<{ title: string }>(
+      staged.id,
+      async ({ payload }) => {
+        signalApplyStarted();
+        await applyReleased;
+        return payload;
+      },
+    );
+    await applyStarted;
+    await expect(
+      memory.store.findStagedOperation(staged.id),
+    ).resolves.toMatchObject({ status: "finalizing" });
+    releaseApply();
+
+    await expect(finalization).resolves.toMatchObject({ status: "committed" });
+    await expect(contract.cancel(staged.id)).rejects.toMatchObject({
+      code: "FINALIZING",
+      label: "Finalizing",
+    });
+  });
+
+  test("allows Cancel before the commit barrier and keeps the rollback receipt", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const contract = createMutationContract<FixtureValue>({
+      barrierChecks: ALLOW_BARRIER_CHECKS,
+      store: memory.store,
+    });
+    const staged = await contract.stage({
+      actor: { actorId: "account-1", type: "User" },
+      baseRevision: 0,
+      clientIdempotencyKey: "atomic-key-cancel",
+      kind: "human",
+      payload: { title: "Cancelled" },
+      targetId: "work-1",
+    });
+
+    const cancelled = await contract.cancel(staged.id);
+    const retry = await contract.finalize<{ title: string }>(
+      staged.id,
+      ({ payload }) => payload,
+    );
+
+    expect(cancelled).toMatchObject({
+      receipt: { reason: "cancelled", status: "rolled-back" },
+      status: "rolled-back",
+    });
+    expect(retry).toEqual(cancelled);
+    expect(memory.getTarget().revision).toBe(0);
+  });
+
+  test("turns expired staging into a durable rollback receipt", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const stagedAt = new Date("2026-09-17T10:00:00.000Z");
+    const contract = createMutationContract<FixtureValue>({
+      barrierChecks: ALLOW_BARRIER_CHECKS,
+      now: () => stagedAt,
+      stagingTtlMs: 1000,
+      store: memory.store,
+    });
+    const staged = await contract.stage({
+      actor: { actorId: "account-1", type: "User" },
+      baseRevision: 0,
+      clientIdempotencyKey: "atomic-key-expired",
+      kind: "human",
+      payload: { title: "Expired" },
+      targetId: "work-1",
+    });
+
+    expect(
+      await contract.cleanupExpired(new Date("2026-09-17T10:00:01.001Z")),
+    ).toBe(1);
+    const expired = await contract.finalize<{ title: string }>(
+      staged.id,
+      ({ payload }) => payload,
+    );
+
+    expect(expired).toMatchObject({
+      receipt: { reason: "expired", status: "rolled-back" },
+      status: "rolled-back",
+    });
+    expect(memory.getTarget().revision).toBe(0);
+  });
+
+  test("turns a stale staged base into a full rollback receipt", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const contract = createMutationContract<FixtureValue>({
+      barrierChecks: ALLOW_BARRIER_CHECKS,
+      store: memory.store,
+    });
+    const staged = await contract.stage({
+      actor: { actorId: "account-1", type: "User" },
+      baseRevision: 0,
+      clientIdempotencyKey: "atomic-key-stale",
+      kind: "human",
+      payload: { title: "Stale write" },
+      targetId: "work-1",
+    });
+    await contract.mutate(
+      {
+        actor: { actorId: "account-1", type: "User" },
+        baseRevision: 0,
+        clientIdempotencyKey: "live-key",
+        kind: "human",
+        payload: { title: "Live update" },
+        targetId: "work-1",
+      },
+      ({ payload }) => payload,
+    );
+
+    const rollback = await contract.finalize<{ title: string }>(
+      staged.id,
+      ({ payload }) => payload,
+    );
+
+    expect(rollback).toMatchObject({
+      receipt: {
+        current: {
+          revision: 1,
+          value: { title: "Live update" },
+        },
+        reason: "stale-base-revision",
+        status: "rolled-back",
+      },
+      status: "rolled-back",
+    });
+    expect(memory.getHistory()).toHaveLength(1);
+  });
+
+  test.each(["authorization", "scope", "quota"] as const)(
+    "rechecks the %s guard at the commit barrier",
+    async (guard) => {
+      const memory = createMemoryStore({
+        id: "work-1",
+        revision: 0,
+        value: { title: "Original" },
+      });
+      const contract = createMutationContract<FixtureValue>({
+        barrierChecks: {
+          ...ALLOW_BARRIER_CHECKS,
+          [guard]: () => false,
+        },
+        store: memory.store,
+      });
+      const staged = await contract.stage({
+        actor: { actorId: "account-1", type: "User" },
+        baseRevision: 0,
+        clientIdempotencyKey: `atomic-key-${guard}`,
+        kind: "human",
+        payload: { title: "Blocked" },
+        targetId: "work-1",
+      });
+
+      const rollback = await contract.finalize<{ title: string }>(
+        staged.id,
+        ({ payload }) => payload,
+      );
+
+      expect(rollback).toMatchObject({
+        receipt: { reason: guard, status: "rolled-back" },
+        status: "rolled-back",
+      });
+      expect(memory.getTarget().revision).toBe(0);
+    },
+  );
+
   test("fingerprints equivalent JSON payloads canonically", async () => {
     await expect(
       fingerprintMutationPayload({

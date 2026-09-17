@@ -21,6 +21,58 @@ export const mutationTarget = pgTable("mutation_target", {
     .notNull(),
 });
 
+export const mutationStaging = pgTable(
+  "mutation_staging",
+  {
+    id: text("id").primaryKey(),
+    targetId: text("target_id").notNull(),
+    idempotencyScope: text("idempotency_scope").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    payload: jsonb("payload").$type<unknown>(),
+    payloadFingerprint: text("payload_fingerprint").notNull(),
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id").notNull(),
+    authorizingUserId: text("authorizing_user_id"),
+    originKind: text("origin_kind").notNull(),
+    clientIdempotencyKey: text("client_idempotency_key"),
+    sourceId: text("source_id"),
+    deliveryId: text("delivery_id"),
+    expectedRevision: integer("expected_revision").notNull(),
+    receiptId: text("receipt_id").notNull(),
+    historyId: text("history_id").notNull(),
+    status: text("status").default("staged").notNull(),
+    rollbackReason: text("rollback_reason"),
+    rollbackCurrentRevision: integer("rollback_current_revision"),
+    rollbackCurrentValue: jsonb("rollback_current_value").$type<unknown>(),
+    stagedAt: timestamp("staged_at").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    completedAt: timestamp("completed_at"),
+  },
+  (table) => [
+    uniqueIndex("mutation_staging_idempotency_uidx").on(
+      table.idempotencyScope,
+      table.idempotencyKey,
+    ),
+    index("mutation_staging_expiry_idx").on(table.status, table.expiresAt),
+    check(
+      "mutation_staging_actor_type_check",
+      sql`${table.actorType} in ('User', 'System automation', 'GitHub', 'Authorized integration')`,
+    ),
+    check(
+      "mutation_staging_origin_kind_check",
+      sql`${table.originKind} in ('human', 'source')`,
+    ),
+    check(
+      "mutation_staging_status_check",
+      sql`${table.status} in ('staged', 'finalizing', 'committed', 'rolled-back')`,
+    ),
+    check(
+      "mutation_staging_rollback_reason_check",
+      sql`${table.rollbackReason} is null or ${table.rollbackReason} in ('cancelled', 'expired', 'stale-base-revision', 'target-not-found', 'authorization', 'scope', 'quota', 'apply-failed')`,
+    ),
+  ],
+);
+
 export const mutationReceipt = pgTable(
   "mutation_receipt",
   {

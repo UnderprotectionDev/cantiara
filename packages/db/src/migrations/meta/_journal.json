@@ -50,6 +50,20 @@
       "when": 1789635801963,
       "tag": "0006_cool_tyger_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789652854950,
+      "tag": "0007_slow_pixie",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789654087228,
+      "tag": "0008_aspiring_electro",
+      "breakpoints": true
     }
   ]
 }

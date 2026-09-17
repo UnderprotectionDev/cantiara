@@ -5,7 +5,11 @@ import {
 } from "@cantiara/api/account-preferences";
 import { createDb } from "@cantiara/db";
 import { accountPreferences, user } from "@cantiara/db/schema/auth";
-import { mutationHistory, mutationReceipt } from "@cantiara/db/schema/mutation";
+import {
+  mutationHistory,
+  mutationReceipt,
+  mutationStaging,
+} from "@cantiara/db/schema/mutation";
 import { eq } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
 
@@ -14,6 +18,11 @@ import { createDatabaseMutationContract } from "./mutation-contract-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
+const allowBarrierChecks = {
+  authorization: () => true,
+  quota: () => true,
+  scope: () => true,
+};
 
 describeDatabase("Mutation Contract PostgreSQL boundary", () => {
   const database = databaseUrl
@@ -40,6 +49,7 @@ describeDatabase("Mutation Contract PostgreSQL boundary", () => {
     const contract = createDatabaseMutationContract<AccountPreferences>(
       database,
       {
+        barrierChecks: allowBarrierChecks,
         now: () => new Date("2026-09-16T09:00:00.000Z"),
         target: accountPreferencesMutationTarget,
       },
@@ -102,6 +112,162 @@ describeDatabase("Mutation Contract PostgreSQL boundary", () => {
       expect(receiptsInDatabase).toHaveLength(1);
       expect(historyInDatabase).toHaveLength(1);
     } finally {
+      await database
+        .delete(mutationHistory)
+        .where(eq(mutationHistory.targetId, accountId));
+      await database
+        .delete(mutationReceipt)
+        .where(eq(mutationReceipt.targetId, accountId));
+      await database
+        .delete(accountPreferences)
+        .where(eq(accountPreferences.accountId, accountId));
+      await database.delete(user).where(eq(user.id, accountId));
+    }
+  });
+
+  test("commits staging once and rolls back a failed multi-step target update", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const accountId = `mutation-atomic-${crypto.randomUUID()}`;
+    const email = `${accountId}@example.invalid`;
+    const payload: AccountPreferences = {
+      ...DEFAULT_ACCOUNT_PREFERENCES,
+      appearance: "Light",
+    };
+    const command = {
+      actor: { actorId: accountId, type: "User" as const },
+      baseRevision: 0,
+      clientIdempotencyKey: "atomic-commit-key",
+      kind: "human" as const,
+      payload,
+      targetId: accountId,
+    };
+    const contract = createDatabaseMutationContract<AccountPreferences>(
+      database,
+      {
+        barrierChecks: allowBarrierChecks,
+        now: () => new Date("2026-09-16T09:00:00.000Z"),
+        target: accountPreferencesMutationTarget,
+      },
+    );
+
+    await database.insert(user).values({
+      email,
+      emailVerified: true,
+      id: accountId,
+      name: "Atomic mutation test",
+    });
+
+    try {
+      const staged = await contract.stage(command);
+      const committed = await contract.finalize(
+        staged.id,
+        ({ payload: nextValue }) => accountPreferencesSchema.parse(nextValue),
+      );
+      const retry = await contract.finalize(
+        staged.id,
+        ({ payload: nextValue }) => accountPreferencesSchema.parse(nextValue),
+      );
+
+      expect(retry).toEqual(committed);
+      expect(committed).toMatchObject({
+        receipt: {
+          nextValue: payload,
+          previousValue: DEFAULT_ACCOUNT_PREFERENCES,
+          revision: 1,
+        },
+        status: "committed",
+      });
+
+      const [savedPreferences] = await database
+        .select()
+        .from(accountPreferences)
+        .where(eq(accountPreferences.accountId, accountId));
+      const [savedStaging] = await database
+        .select()
+        .from(mutationStaging)
+        .where(eq(mutationStaging.id, staged.id));
+      const receiptsInDatabase = await database
+        .select()
+        .from(mutationReceipt)
+        .where(eq(mutationReceipt.targetId, accountId));
+      const historyInDatabase = await database
+        .select()
+        .from(mutationHistory)
+        .where(eq(mutationHistory.targetId, accountId));
+
+      expect(savedPreferences).toMatchObject({
+        appearance: "Light",
+        revision: 1,
+      });
+      expect(savedStaging).toMatchObject({
+        payload: null,
+        status: "committed",
+      });
+      expect(receiptsInDatabase).toHaveLength(1);
+      expect(historyInDatabase).toHaveLength(1);
+
+      const failingTarget: typeof accountPreferencesMutationTarget = {
+        ...accountPreferencesMutationTarget,
+        async update(executor, input) {
+          await accountPreferencesMutationTarget.update(executor, input);
+          throw new Error("simulated second staged step failure");
+        },
+      };
+      const failingContract =
+        createDatabaseMutationContract<AccountPreferences>(database, {
+          barrierChecks: allowBarrierChecks,
+          now: () => new Date("2026-09-16T09:01:00.000Z"),
+          target: failingTarget,
+        });
+      const failedStaging = await failingContract.stage({
+        ...command,
+        clientIdempotencyKey: "atomic-rollback-key",
+        payload: { ...payload, appearance: "Dark" },
+      });
+      const rolledBack = await failingContract.finalize(
+        failedStaging.id,
+        ({ payload: nextValue }) => accountPreferencesSchema.parse(nextValue),
+      );
+
+      expect(rolledBack).toMatchObject({
+        receipt: { reason: "apply-failed", status: "rolled-back" },
+        status: "rolled-back",
+      });
+      const [stillSavedPreferences] = await database
+        .select()
+        .from(accountPreferences)
+        .where(eq(accountPreferences.accountId, accountId));
+      const failedReceipts = await database
+        .select()
+        .from(mutationReceipt)
+        .where(eq(mutationReceipt.targetId, accountId));
+      const failedHistory = await database
+        .select()
+        .from(mutationHistory)
+        .where(eq(mutationHistory.targetId, accountId));
+      const [failedStagingRecord] = await database
+        .select()
+        .from(mutationStaging)
+        .where(eq(mutationStaging.id, failedStaging.id));
+
+      expect(stillSavedPreferences).toMatchObject({
+        appearance: "Light",
+        revision: 1,
+      });
+      expect(failedReceipts).toHaveLength(1);
+      expect(failedHistory).toHaveLength(1);
+      expect(failedStagingRecord).toMatchObject({
+        payload: null,
+        rollbackReason: "apply-failed",
+        status: "rolled-back",
+      });
+    } finally {
+      await database
+        .delete(mutationStaging)
+        .where(eq(mutationStaging.targetId, accountId));
       await database
         .delete(mutationHistory)
         .where(eq(mutationHistory.targetId, accountId));
