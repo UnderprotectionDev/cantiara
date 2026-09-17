@@ -54,7 +54,7 @@ export interface CommandPaletteMutationContract {
 
 export interface CommandPaletteCommandSource {
   authorizedProjects?: readonly CommandPaletteProject[];
-  authorizedRecords?: readonly CommandPaletteRecord[];
+  authorizedRecords?: Iterable<CommandPaletteRecord>;
   commands?: readonly CommandPaletteCommand[];
   createOptions?: readonly CommandPaletteCreateOption[];
   onCreate?: (option: CommandPaletteCreateOption) => void | Promise<void>;
@@ -141,9 +141,15 @@ function unavailableAction(commandLabel: string): CommandPaletteAction {
 }
 
 function authorizedEntries<T extends { authorized?: boolean }>(
-  entries: readonly T[] | undefined,
+  entries: Iterable<T> | undefined,
 ) {
-  return (entries ?? []).filter((entry) => entry.authorized !== false);
+  const authorized: T[] = [];
+  for (const entry of entries ?? []) {
+    if (entry.authorized !== false) {
+      authorized.push(entry);
+    }
+  }
+  return authorized;
 }
 
 function authorizedCommands(
@@ -240,7 +246,7 @@ function recordMatchesQuery(
 }
 
 export function buildCommandPaletteRecordCommands(
-  records: readonly CommandPaletteRecord[] | undefined,
+  records: Iterable<CommandPaletteRecord> | undefined,
   onOpenRecord: CommandPaletteCommandSource["onOpenRecord"],
   query: string,
   limit = COMMAND_PALETTE_MAX_VISIBLE_ITEMS,

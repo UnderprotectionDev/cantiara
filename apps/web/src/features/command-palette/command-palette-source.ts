@@ -6,6 +6,7 @@ import { env } from "@/env";
 import {
   type CommandPaletteCommand,
   type CommandPaletteCommandSource,
+  type CommandPaletteRecord,
   CommandPaletteUnavailableError,
 } from "./components/command-palette-commands";
 
@@ -31,25 +32,40 @@ function createReferenceProjects() {
   }));
 }
 
-function createReferenceRecords() {
-  const works = Array.from({ length: 10_000 }, (_, index) => ({
-    authorized: true,
-    id: `work-${String(index).padStart(5, "0")}`,
-    scope: "Project: Reference Project 01",
-    title: `Reference Work ${String(index).padStart(5, "0")}`,
-    type: "Work",
-    visibleCounterpart: "Work menu",
-  }));
-  const documents = Array.from({ length: 5000 }, (_, index) => ({
-    authorized: true,
-    id: `document-${String(index).padStart(5, "0")}`,
-    scope: "Project: Reference Project 01",
-    title: `Reference Document ${String(index).padStart(5, "0")}`,
-    type: "Document",
-    visibleCounterpart: "Documents menu",
-  }));
+interface ReferenceRecordCollection extends Iterable<CommandPaletteRecord> {
+  readonly length: number;
+}
 
-  return [...works, ...documents];
+function createReferenceRecords(): ReferenceRecordCollection {
+  const workCount = 10_000;
+  const documentCount = 5000;
+
+  return {
+    *[Symbol.iterator]() {
+      for (let index = 0; index < workCount; index += 1) {
+        yield {
+          authorized: true,
+          id: `work-${String(index).padStart(5, "0")}`,
+          scope: "Project: Reference Project 01",
+          title: `Reference Work ${String(index).padStart(5, "0")}`,
+          type: "Work",
+          visibleCounterpart: "Work menu",
+        };
+      }
+
+      for (let index = 0; index < documentCount; index += 1) {
+        yield {
+          authorized: true,
+          id: `document-${String(index).padStart(5, "0")}`,
+          scope: "Project: Reference Project 01",
+          title: `Reference Document ${String(index).padStart(5, "0")}`,
+          type: "Document",
+          visibleCounterpart: "Documents menu",
+        };
+      }
+    },
+    length: workCount + documentCount,
+  };
 }
 
 function createUnsupportedReferenceCommand(): CommandPaletteCommand {

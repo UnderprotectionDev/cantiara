@@ -69,7 +69,7 @@ const CommandPaletteContext = createContext<CommandPaletteContextValue | null>(
 );
 
 export interface CommandPaletteProps {
-  authorizedRecords?: readonly CommandPaletteRecord[];
+  authorizedRecords?: Iterable<CommandPaletteRecord>;
   commands: readonly CommandPaletteCommand[];
   initialQuery?: string;
   mutationContract?: CommandPaletteMutationContract;

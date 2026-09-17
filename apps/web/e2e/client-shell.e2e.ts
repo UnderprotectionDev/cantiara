@@ -29,6 +29,9 @@ test("shows the online-only empty state after the connection is lost", async ({
   ).toBeVisible();
 
   await context.setOffline(true);
+  await page.waitForFunction(() => navigator.onLine === false);
+  // Chromium can update navigator.onLine before dispatching the DOM event in CI.
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
 
   const offlineState = page.getByRole("status");
   await expect(offlineState).toBeVisible();
@@ -41,6 +44,9 @@ test("shows the online-only empty state after the connection is lost", async ({
   await expect(page.getByText("Welcome Founder")).toHaveCount(0);
 
   await context.setOffline(false);
+  await page.waitForFunction(() => navigator.onLine === true);
+  // Keep the reconnect path deterministic for the same browser event boundary.
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(offlineState).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Dashboard", level: 1 }),

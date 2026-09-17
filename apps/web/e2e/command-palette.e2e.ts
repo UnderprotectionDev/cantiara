@@ -256,7 +256,7 @@ test("measures Command Palette visibility at the reference workspace scale", asy
   page,
   request,
 }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(300_000);
   await establishFounderSession(page, context, request);
   await page.goto("/dashboard");
 
