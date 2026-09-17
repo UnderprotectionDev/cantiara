@@ -10,13 +10,15 @@ CREATE TABLE "project" (
 	"scope" text,
 	"target_date" date,
 	"logo" text,
+	"revision" integer DEFAULT 0 NOT NULL,
 	"work_count" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "project_short_code_format_check" CHECK ("project"."short_code" ~ '^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$'),
 	CONSTRAINT "project_starter_configuration_check" CHECK ("project"."starter_configuration" in ('Blank Project', 'Solo SaaS', 'Open Source Library', 'Mobile Application')),
 	CONSTRAINT "project_status_check" CHECK ("project"."status" in ('Active', 'Pending', 'Completed', 'Abandoned')),
-	CONSTRAINT "project_work_count_check" CHECK ("project"."work_count" >= 0)
+	CONSTRAINT "project_work_count_check" CHECK ("project"."work_count" >= 0),
+	CONSTRAINT "project_revision_check" CHECK ("project"."revision" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "project_short_code" (

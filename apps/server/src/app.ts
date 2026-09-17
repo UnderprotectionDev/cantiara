@@ -2,6 +2,7 @@ import type {
   AccountPreferences,
   AccountPreferencesAccess,
 } from "@cantiara/api/account-preferences";
+import type { CaptureInboxAccess } from "@cantiara/api/capture-triage";
 import {
   type AccountPreferencesCompatibilityAccess,
   CONFIRM_GITHUB_IDENTITY_HANDOFF_EXCHANGE_PATH,
@@ -81,6 +82,7 @@ export interface AppDependencies {
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
   auth: AccountAccessAuth;
+  captureInbox?: CaptureInboxAccess;
   corsOrigin: string;
   database: Database;
   desktopApiNow?: () => Date;
@@ -758,6 +760,7 @@ export function createApp(dependencies: AppDependencies) {
       accountPreferencesMutationContract:
         dependencies.accountPreferencesMutationContract,
       auth: dependencies.auth,
+      captureInbox: dependencies.captureInbox,
       context: c,
       database: dependencies.database,
       githubAvailability: dependencies.githubAvailability,
