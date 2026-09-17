@@ -200,6 +200,15 @@ test("shows the current value when another session advances Account Preferences"
     await expect(status).toContainText("Current value");
     await expect(status).toContainText("Revision 1");
     await expect(status).toContainText("tr-TR");
+    const supportNotice = otherPage
+      .getByRole("alert")
+      .filter({ hasText: "Data was not written." });
+    await expect(supportNotice).toContainText("Data was not written.");
+    await expect(supportNotice).toContainText("Do not retry.");
+    await expect(supportNotice).toContainText("Support reference");
+    await expect(supportNotice).not.toContainText(
+      "Support reference unavailable.",
+    );
   } finally {
     await otherContext.close();
   }

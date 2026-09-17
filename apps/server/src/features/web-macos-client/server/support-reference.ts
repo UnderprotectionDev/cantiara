@@ -248,16 +248,27 @@ export function createSupportReferenceFailure({
   supportReference,
   writeOutcome,
 }: CreateSupportReferenceFailureOptions = {}): SupportReferenceFailure {
+  const preservedMutationResponse = preservedMutationResponseFrom(error);
   const inheritedSupportData = supportDataFrom(error);
-  const resolvedWriteOutcome = isSupportWriteOutcome(writeOutcome)
-    ? writeOutcome
-    : (inheritedSupportData?.writeOutcome ?? "unknown");
+  let resolvedWriteOutcome: SupportWriteOutcome = "unknown";
+  if (preservedMutationResponse) {
+    resolvedWriteOutcome = "not-written";
+  } else if (isSupportWriteOutcome(writeOutcome)) {
+    resolvedWriteOutcome = writeOutcome;
+  } else if (inheritedSupportData?.writeOutcome) {
+    resolvedWriteOutcome = inheritedSupportData.writeOutcome;
+  }
   const resolvedReasonCode = isSupportFailureReasonCode(reasonCode)
     ? reasonCode
     : (inheritedSupportData?.reasonCode ?? classifySupportReason(error));
-  const requestedRetryPolicy = isSupportRetryPolicy(retryPolicy)
-    ? retryPolicy
-    : inheritedSupportData?.retryPolicy;
+  let requestedRetryPolicy: SupportRetryPolicy | undefined;
+  if (preservedMutationResponse) {
+    requestedRetryPolicy = "never";
+  } else if (isSupportRetryPolicy(retryPolicy)) {
+    requestedRetryPolicy = retryPolicy;
+  } else {
+    requestedRetryPolicy = inheritedSupportData?.retryPolicy;
+  }
   let resolvedRetryPolicy: SupportRetryPolicy = "never";
   if (
     resolvedReasonCode !== "update-required" &&
