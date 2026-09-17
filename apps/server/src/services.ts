@@ -16,6 +16,10 @@ import {
   createDatabaseAccountPreferences,
 } from "./features/account-preferences/server/account-preferences-database";
 import {
+  CaptureInboxError,
+  type CaptureInboxWorkCreate,
+} from "./features/capture-triage/server/capture-inbox";
+import {
   captureInboxMutationTarget,
   createDatabaseCaptureInbox,
 } from "./features/capture-triage/server/capture-inbox-database";
@@ -41,8 +45,13 @@ export const captureInboxMutationContract =
   });
 // Work Lifecycle owns key allocation and persistence; Capture Inbox only hands
 // an eligible direct Create Bug command across that boundary for now.
-const captureInboxWorkCreate = {
-  createBug: async () => ({}),
+const captureInboxWorkCreate: CaptureInboxWorkCreate = {
+  createBug: () => {
+    throw new CaptureInboxError(
+      "CAPTURE_WORK_CREATE_UNAVAILABLE",
+      "Work creation is not available yet.",
+    );
+  },
 };
 export const captureInbox = createDatabaseCaptureInbox(
   db,

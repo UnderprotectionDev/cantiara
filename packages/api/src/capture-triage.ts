@@ -85,5 +85,5 @@ export interface DirectBugCreateInput extends NormalizedCaptureInput {
 }
 
 export interface DirectBugCreateReceipt {
-  workId?: string;
+  workId: string;
 }

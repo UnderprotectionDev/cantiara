@@ -26,17 +26,28 @@ import {
 } from "@/features/web-macos-client/views/client-shell";
 import { captureInboxQueryOptions, client } from "@/utils/orpc";
 
-interface CaptureFormValues {
+export interface CaptureFormValues {
   content: string;
   fields: Record<string, string>;
   projectId: string;
   template: "" | CaptureTemplate;
 }
 
-function selectCreateBugValues(state: { values: CaptureFormValues }) {
+export const CREATE_BUG_UNAVAILABLE_MESSAGE =
+  "Work creation is not available yet. Save this as a Capture and triage it later.";
+
+export function captureDestination(projectId: string) {
+  const normalizedProjectId = projectId.trim();
+  if (normalizedProjectId) {
+    return {
+      detail: `This capture will appear under ${normalizedProjectId}.`,
+      label: "Project Capture Inbox",
+    };
+  }
+
   return {
-    projectId: state.values.projectId,
-    template: state.values.template || null,
+    detail: "This capture will appear here until you choose what happens next.",
+    label: "Workspace Capture Inbox",
   };
 }
 
@@ -47,14 +58,8 @@ const EMPTY_FORM_VALUES: CaptureFormValues = {
   template: "",
 };
 
-export function canCreateBug(
-  projectId: string,
-  template: CaptureTemplate | null,
-) {
-  return (
-    projectId.trim().length > 0 &&
-    (template === null || template === "Bug Capture")
-  );
+function selectCaptureProjectId(state: { values: CaptureFormValues }) {
+  return state.values.projectId;
 }
 
 function captureInput(values: CaptureFormValues, clientIdempotencyKey: string) {
@@ -69,36 +74,40 @@ function captureInput(values: CaptureFormValues, clientIdempotencyKey: string) {
   };
 }
 
+export function captureFormValuesEqual(
+  left: CaptureFormValues,
+  right: CaptureFormValues,
+) {
+  const leftFields = Object.entries(left.fields);
+  const rightFields = Object.entries(right.fields);
+  return (
+    left.content === right.content &&
+    left.projectId === right.projectId &&
+    left.template === right.template &&
+    leftFields.length === rightFields.length &&
+    leftFields.every(([label, value]) => right.fields[label] === value)
+  );
+}
+
 export default function CaptureInboxForm({ accountId }: { accountId: string }) {
   const queryClient = useQueryClient();
   const shell = useClientShell();
   const connection = useClientShellConnection();
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const pendingCaptureKey = useRef<string | null>(null);
-  const pendingBugKey = useRef<string | null>(null);
 
   const createCapture = useMutation({
     mutationFn: (input: ReturnType<typeof captureInput>) =>
       shell.runWrite(() => client.createCapture(input)),
     onError: () => setActionMessage("Capture could not be saved."),
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       pendingCaptureKey.current = null;
-      setActionMessage("Capture saved.");
+      setActionMessage(
+        `Capture saved. ${captureDestination(variables.projectId ?? "").detail}`,
+      );
       await queryClient.invalidateQueries({
         queryKey: captureInboxQueryOptions(accountId).queryKey,
       });
-    },
-  });
-
-  const createBug = useMutation({
-    mutationFn: (input: ReturnType<typeof captureInput>) =>
-      shell.runWrite(() => client.createBug(input)),
-    onError: () => setActionMessage("Create Bug could not be completed."),
-    onSuccess: () => {
-      pendingBugKey.current = null;
-      setActionMessage(
-        "Create Bug does not stay in the Capture Inbox. A Work record is not stored yet.",
-      );
     },
   });
 
@@ -108,28 +117,18 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
       const key = pendingCaptureKey.current ?? crypto.randomUUID();
       pendingCaptureKey.current = key;
       await createCapture.mutateAsync(captureInput(value, key));
-      form.reset();
+      if (captureFormValuesEqual(value, form.state.values)) {
+        form.reset();
+      } else {
+        shell.markUnsavedChanges();
+      }
     },
   });
 
-  async function handleCreateBug() {
-    const value = form.state.values;
-    const template = value.template || null;
-    if (!canCreateBug(value.projectId, template)) {
-      return;
-    }
-
-    const key = pendingBugKey.current ?? crypto.randomUUID();
-    pendingBugKey.current = key;
-    await createBug.mutateAsync(captureInput(value, key));
-    form.reset();
-  }
-
-  function handleCreateBugClick() {
-    handleCreateBug().catch(() => undefined);
-  }
-
   function markDirty() {
+    if (!createCapture.isPending) {
+      pendingCaptureKey.current = null;
+    }
     shell.markUnsavedChanges();
     setActionMessage(null);
   }
@@ -143,7 +142,7 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
   return (
     <section
       aria-labelledby="new-capture-title"
-      className="max-w-3xl space-y-6"
+      className="w-full space-y-6 border border-border/70 p-5 sm:p-6"
     >
       <div>
         <h2
@@ -162,8 +161,8 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
           className="border border-destructive/40 bg-destructive/5 px-4 py-3 text-destructive text-sm"
           role="status"
         >
-          Disconnected. Capture writes need an active internet connection;
-          nothing is queued locally.
+          Capture writes need an active internet connection; nothing is queued
+          locally.
         </p>
       ) : null}
       {actionMessage ? (
@@ -225,6 +224,27 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
               );
             }}
           </form.Field>
+
+          <form.Subscribe selector={selectCaptureProjectId}>
+            {(projectId) => {
+              const destination = captureDestination(projectId);
+
+              return (
+                <div
+                  aria-live="polite"
+                  className="border border-primary/25 bg-primary/5 px-4 py-3"
+                >
+                  <p className="text-muted-foreground text-xs">Destination</p>
+                  <p className="mt-1 font-medium text-sm">
+                    {destination.label}
+                  </p>
+                  <p className="mt-1 text-muted-foreground text-xs/relaxed">
+                    {destination.detail}
+                  </p>
+                </div>
+              );
+            }}
+          </form.Subscribe>
 
           <form.Field name="template">
             {(field) => {
@@ -306,25 +326,20 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
           >
             {createCapture.isPending ? "Saving…" : "Save"}
           </Button>
-          <form.Subscribe selector={selectCreateBugValues}>
-            {({ projectId, template }) => (
-              <Button
-                disabled={
-                  connection === "offline" ||
-                  createBug.isPending ||
-                  !canCreateBug(projectId, template)
-                }
-                onClick={handleCreateBugClick}
-                type="button"
-                variant="outline"
-              >
-                {createBug.isPending ? "Creating…" : "Create Bug"}
-              </Button>
-            )}
-          </form.Subscribe>
+          <Button
+            aria-describedby="create-bug-unavailable"
+            disabled
+            type="button"
+            variant="outline"
+          >
+            Create Bug
+          </Button>
         </div>
-        <p className="text-muted-foreground text-xs/relaxed">
-          Create Bug is available when Project is set and type is Bug Capture.
+        <p
+          className="max-w-xl text-muted-foreground text-xs/relaxed"
+          id="create-bug-unavailable"
+        >
+          {CREATE_BUG_UNAVAILABLE_MESSAGE}
         </p>
       </form>
     </section>

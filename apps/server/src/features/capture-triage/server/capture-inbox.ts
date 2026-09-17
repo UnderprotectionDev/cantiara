@@ -37,6 +37,7 @@ export class CaptureInboxError extends Error {
 export type CaptureInboxErrorCode =
   | "CREATE_BUG_TEMPLATE_UNSUPPORTED"
   | "CAPTURE_IDEMPOTENCY_CONFLICT"
+  | "CAPTURE_WORK_CREATE_UNAVAILABLE"
   | "PROJECT_REQUIRED_FOR_CREATE_BUG"
   | "UNKNOWN_CAPTURE_FIELD";
 

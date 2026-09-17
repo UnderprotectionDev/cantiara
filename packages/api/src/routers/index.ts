@@ -74,11 +74,46 @@ function requireCaptureInbox(context: Context): CaptureInboxAccess {
   return context.captureInbox;
 }
 
+function rethrowUnavailableCaptureWorkCreate(
+  error: Record<string, unknown>,
+): void {
+  if (error.code === "CAPTURE_WORK_CREATE_UNAVAILABLE") {
+    throw new ORPCError("NOT_IMPLEMENTED", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        "message" in error && typeof error.message === "string"
+          ? error.message
+          : "Work creation is not available yet.",
+    });
+  }
+}
+
+function rethrowCaptureConflict(error: Record<string, unknown>): void {
+  if (error.code === "CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: {
+        code: "CONFLICT",
+        label: MUTATION_UI_LABELS.conflict,
+        ...(typeof error.targetId === "string"
+          ? { targetId: error.targetId }
+          : {}),
+      },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
+  }
+}
+
 function rethrowCaptureInboxError(error: unknown): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+
+  rethrowUnavailableCaptureWorkCreate(error);
+  rethrowCaptureConflict(error);
+
   if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
     typeof error.code === "string" &&
     (error.code.startsWith("CAPTURE_") ||
       error.code === "UNKNOWN_CAPTURE_FIELD")
@@ -94,11 +129,8 @@ function rethrowCaptureInboxError(error: unknown): never {
   }
 
   if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error.code === "PROJECT_REQUIRED_FOR_CREATE_BUG" ||
-      error.code === "CREATE_BUG_TEMPLATE_UNSUPPORTED")
+    error.code === "PROJECT_REQUIRED_FOR_CREATE_BUG" ||
+    error.code === "CREATE_BUG_TEMPLATE_UNSUPPORTED"
   ) {
     throw new ORPCError("BAD_REQUEST", {
       data: { code: error.code },

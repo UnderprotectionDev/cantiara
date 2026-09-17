@@ -221,7 +221,7 @@ describe("Capture Inbox seam", () => {
 
   test("calls Work create directly when a Project is set without a template", async () => {
     const { items, store } = createMemoryStore();
-    const createBug = vi.fn().mockResolvedValue({});
+    const createBug = vi.fn().mockResolvedValue({ workId: "work-2" });
     const captureInbox = createCaptureInbox({
       store,
       workCreate: { createBug },

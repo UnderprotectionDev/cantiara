@@ -100,4 +100,66 @@ describe("Capture Inbox RPC", () => {
       template: "Bug Capture",
     });
   });
+
+  test("returns an explicit unavailable error when Work creation is not wired", async () => {
+    const createBug = vi.fn().mockRejectedValue(
+      Object.assign(new Error("Work creation is not available yet."), {
+        code: "CAPTURE_WORK_CREATE_UNAVAILABLE",
+      }),
+    );
+    const captureInbox: CaptureInboxAccess = {
+      create: vi.fn(),
+      createBug,
+      list: vi.fn().mockResolvedValue(emptyInbox),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(captureInbox),
+    });
+
+    await expect(
+      client.createBug({
+        content: "Blank preview",
+        projectId: "project-1",
+        template: "Bug Capture",
+      }),
+    ).rejects.toMatchObject({
+      code: "NOT_IMPLEMENTED",
+      data: { code: "CAPTURE_WORK_CREATE_UNAVAILABLE" },
+      message: "Work creation is not available yet.",
+      status: 501,
+    });
+  });
+
+  test("returns an explicit conflict for a concurrent idempotency collision", async () => {
+    const create = vi.fn().mockRejectedValue(
+      Object.assign(new Error("Conflict"), {
+        code: "CONFLICT",
+        targetId: "capture-inbox:account-1:capture-key-1",
+      }),
+    );
+    const captureInbox: CaptureInboxAccess = {
+      create,
+      createBug: vi.fn(),
+      list: vi.fn().mockResolvedValue(emptyInbox),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(captureInbox),
+    });
+
+    await expect(
+      client.createCapture({
+        clientIdempotencyKey: "capture-key-1",
+        content: "Different payload",
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      data: {
+        code: "CONFLICT",
+        label: "Conflict",
+        targetId: "capture-inbox:account-1:capture-key-1",
+      },
+      message: "Conflict",
+      status: 409,
+    });
+  });
 });
