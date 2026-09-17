@@ -5,8 +5,9 @@ import { env } from "./src/env";
 export default defineConfig({
   schema: [
     "./src/schema/auth.ts",
-    "./src/schema/capture-triage.ts",
     "./src/schema/mutation.ts",
+    "./src/schema/project.ts",
+    "./src/schema/capture-triage.ts",
   ],
   out: "./src/migrations",
   dialect: "postgresql",

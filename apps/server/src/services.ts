@@ -24,6 +24,8 @@ import {
   createDatabaseCaptureInbox,
 } from "./features/capture-triage/server/capture-inbox-database";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
+import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
+import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
 
 const db = createDb(env);
 const securityEventDb = createSecurityEventDb({
@@ -39,6 +41,9 @@ export const accountPreferencesMutationContract =
   });
 export const mutationContract =
   createDatabaseMutationContract<MutationPayload>(db);
+export const projectShell = createDatabaseProjectShell(db);
+export const projectShellMutationContracts =
+  createDatabaseProjectShellMutationContracts(db);
 export const captureInboxMutationContract =
   createDatabaseMutationContract<MutationPayload>(db, {
     target: captureInboxMutationTarget,

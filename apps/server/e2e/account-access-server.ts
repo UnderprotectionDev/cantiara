@@ -19,6 +19,8 @@ import {
   createDatabaseAccountPreferences,
 } from "../src/features/account-preferences/server/account-preferences-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
+import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
+import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
 
 const serverPort = Number(process.env.E2E_SERVER_PORT ?? "3100");
 const serverOrigin = `http://127.0.0.1:${serverPort}`;
@@ -44,6 +46,9 @@ const accountPreferencesMutationContract = createDatabaseMutationContract(
   database,
   { target: accountPreferencesMutationTarget },
 );
+const projectShell = createDatabaseProjectShell(database);
+const projectShellMutationContracts =
+  createDatabaseProjectShellMutationContracts(database);
 const githubAvailability = createGitHubAvailability();
 const auth = betterAuth({
   ...createAuthOptions(
@@ -95,6 +100,8 @@ const app = createApp({
   githubAvailability,
   githubIdentityConfirmation,
   nodeEnv: "test",
+  projectShell,
+  projectShellMutationContracts,
   redactSecrets: () => new Error("Redacted E2E server error"),
   trustedProxyIps: [],
 });

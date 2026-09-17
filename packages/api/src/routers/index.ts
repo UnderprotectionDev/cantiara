@@ -21,6 +21,14 @@ import {
   type MutationPayload,
   type MutationReceipt,
 } from "../mutation-and-undo";
+import {
+  createProjectInputSchema,
+  createProjectMutationInputSchema,
+  type ProjectShellMutationValue,
+  shortCodeSchema,
+  suggestProjectShortCode,
+  updateProjectShortCodeInputSchema,
+} from "../project-shell";
 
 function sessionPrincipal(session: NonNullable<Context["session"]>) {
   return {
@@ -65,6 +73,25 @@ function requireAccountPreferencesCompatibility(context: Context) {
     throw new ORPCError("BAD_REQUEST");
   }
   return context.accountPreferencesCompatibility;
+}
+
+function requireProjectShell(context: Context) {
+  if (!context.projectShell) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectShell;
+}
+
+function requireProjectShellMutationContract(
+  context: Context,
+  operation: "create" | "update",
+  accountId: string,
+) {
+  const contracts = context.projectShellMutationContracts;
+  if (!contracts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return contracts[operation](accountId);
 }
 
 function requireCaptureInbox(context: Context): CaptureInboxAccess {
@@ -221,6 +248,104 @@ function preferencesSnapshotFromReceipt(
   };
 }
 
+function rethrowProjectShellError(error: unknown): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+
+  if (error.code === "SHORT_CODE_CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: {
+        code: "SHORT_CODE_CONFLICT",
+        label: "Short code is already used in this Workspace.",
+      },
+      defined: true,
+      message: "Short code is already used in this Workspace.",
+    });
+  }
+
+  if (error.code === "SHORT_CODE_LOCKED") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: {
+        code: "SHORT_CODE_LOCKED",
+        label: "Short code is locked after the first Work.",
+      },
+      defined: true,
+      message: "Short code is locked after the first Work.",
+    });
+  }
+
+  if (error.code === "WORKSPACE_NOT_FOUND") {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Workspace is unavailable.",
+    });
+  }
+
+  throw error;
+}
+
+function rethrowProjectShellMutationError(
+  error: unknown,
+  targetId: string,
+): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+
+  const { code, currentRevision, currentValue: rawCurrentValue } = error;
+
+  if (code === "CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: {
+        code: "CONFLICT",
+        label: MUTATION_UI_LABELS.conflict,
+        targetId,
+      },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
+  }
+
+  if (code === "STALE_BASE_REVISION") {
+    const currentValue =
+      isRecord(rawCurrentValue) && "project" in rawCurrentValue
+        ? rawCurrentValue.project
+        : undefined;
+    if (
+      typeof currentRevision === "number" &&
+      Number.isSafeInteger(currentRevision) &&
+      currentRevision >= 0
+    ) {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        data: {
+          code: "STALE_BASE_REVISION",
+          currentRevision,
+          ...(currentValue ? { currentValue } : {}),
+          label: MUTATION_UI_LABELS.currentValue,
+          targetId,
+        },
+        defined: true,
+        message: MUTATION_UI_LABELS.currentValue,
+      });
+    }
+  }
+
+  if (code === "TARGET_NOT_FOUND") {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Project is unavailable.",
+    });
+  }
+
+  rethrowProjectShellError(error);
+}
+
+function nullableProjectValue(value: string | null | undefined) {
+  const normalized = value?.trim() ?? "";
+  return normalized.length > 0 ? normalized : null;
+}
+
 export const appRouter = {
   healthCheck: publicProcedure.handler(() => "OK"),
   githubAvailability: publicProcedure.handler(({ context }) => ({
@@ -230,6 +355,134 @@ export const appRouter = {
     message: "This is private",
     user: context.session?.user,
   })),
+  projects: protectedProcedure.handler(({ context }) =>
+    requireProjectShell(context).list(context.session.user.id),
+  ),
+  project: protectedProcedure
+    .input(z.object({ projectId: z.string().trim().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      const project = await requireProjectShell(context).find(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!project) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return project;
+    }),
+  createProject: protectedProcedure
+    .input(createProjectMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...createInput } = input;
+      const parsed = createProjectInputSchema.parse(createInput);
+      const mutation = requireProjectShellMutationContract(
+        context,
+        "create",
+        context.session.user.id,
+      );
+      const baseShortCode =
+        parsed.shortCode ?? suggestProjectShortCode(parsed.name);
+
+      for (let attempt = 0; attempt < 10_000; attempt += 1) {
+        const shortCode = shortCodeSchema.parse(
+          attempt === 0 ? baseShortCode : `${baseShortCode}-${attempt + 1}`,
+        );
+        try {
+          // biome-ignore lint/performance/noAwaitInLoops: Automatic suggestions must be retried in order so each candidate reflects the previous reservation result.
+          const receipt = await mutation.mutate(
+            {
+              actor: { actorId: context.session.user.id, type: "User" },
+              baseRevision,
+              clientIdempotencyKey,
+              kind: "human",
+              payload: parsed,
+              targetId: clientIdempotencyKey,
+            },
+            ({ currentRevision }) => {
+              const timestamp = new Date().toISOString();
+              return {
+                project: {
+                  createdAt: timestamp,
+                  id: crypto.randomUUID(),
+                  logo: nullableProjectValue(parsed.logo),
+                  name: parsed.name,
+                  problem: nullableProjectValue(parsed.problem),
+                  purpose: nullableProjectValue(parsed.purpose),
+                  revision: currentRevision + 1,
+                  scope: nullableProjectValue(parsed.scope),
+                  shortCode,
+                  shortCodeLocked: false,
+                  starterConfiguration: parsed.starterConfiguration,
+                  status: "Active",
+                  targetDate: parsed.targetDate ?? null,
+                  updatedAt: timestamp,
+                },
+              } satisfies ProjectShellMutationValue;
+            },
+          );
+          return receipt.nextValue.project;
+        } catch (error) {
+          if (
+            isRecord(error) &&
+            error.code === "SHORT_CODE_CONFLICT" &&
+            !parsed.shortCode
+          ) {
+            continue;
+          }
+          rethrowProjectShellMutationError(error, clientIdempotencyKey);
+        }
+      }
+
+      throw new ORPCError("CONFLICT", {
+        data: {
+          code: "SHORT_CODE_CONFLICT",
+          label: "Short code is already used in this Workspace.",
+        },
+        defined: true,
+        message: "Short code could not be suggested.",
+      });
+    }),
+  updateProjectShortCode: protectedProcedure
+    .input(updateProjectShortCodeInputSchema)
+    .handler(async ({ context, input }) => {
+      const mutation = requireProjectShellMutationContract(
+        context,
+        "update",
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            kind: "human",
+            payload: { shortCode: input.shortCode },
+            targetId: input.projectId,
+          },
+          ({ currentValue, currentRevision, payload }) => {
+            if (!currentValue.project) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            return {
+              project: {
+                ...currentValue.project,
+                revision: currentRevision + 1,
+                shortCode: payload.shortCode,
+                updatedAt: new Date().toISOString(),
+              },
+            } satisfies ProjectShellMutationValue;
+          },
+        );
+        const { project } = receipt.nextValue;
+        if (!project) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return project;
+      } catch (error) {
+        rethrowProjectShellMutationError(error, input.projectId);
+      }
+    }),
   captureInbox: protectedProcedure.handler(({ context }) =>
     requireCaptureInbox(context).list(context.session.user.id),
   ),
