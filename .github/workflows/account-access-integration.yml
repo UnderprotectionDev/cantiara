@@ -52,6 +52,6 @@ jobs:
           bun run --cwd packages/db db:security:migrate:deploy
           bun run check
           bun run check-types
-          bun run --cwd apps/server test
+          bun run --cwd apps/server test -- --no-file-parallelism
           bun run --cwd apps/web test
           bun run test:e2e

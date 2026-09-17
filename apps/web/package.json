@@ -42,6 +42,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@cantiara/config": "workspace:*",
     "@playwright/test": "^1.63.0",
     "@tanstack/react-query-devtools": "^5.102.8",

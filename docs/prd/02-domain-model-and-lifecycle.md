@@ -140,7 +140,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kısa kod kilitli | `Short code is locked after the first Work.` | İlk İşten sonra kısa kodun değişmeyeceğini bildiren metin |
 | Amaç | `Purpose` | İsteğe bağlı Proje profil alanı |
 | Problem | `Problem` | İsteğe bağlı çözülmek istenen problem |
-| Kapsam | `Scope` | İsteğe bağlı Proje profil alanı; Open Source Library hazır aşama adı da `Scope` kullanır |
+| Kapsam | `Scope` | İsteğe bağlı Proje profil alanı; Komut Paletinde komutun çalıştığı kapsamı gösterir; Open Source Library hazır aşama adı da `Scope` kullanır |
 | Hedef tarihi | `Target date` | İsteğe bağlı Proje hedef tarihi |
 | Logo | `Logo` | İsteğe bağlı Proje logosu; Proje rengi, CSS veya font değildir |
 | Proje oluştur | `Create Project` | Yeni Projeyi kaydeden eylem |
@@ -769,6 +769,17 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Son kayıt | `Last saved` | Son başarılı otomatik kayıt zamanı; Client Shell online-only kromu |
 | Yazılmamış risk | `Unsaved changes may be lost` | Henüz sunucuya yazılmamış değişiklik uyarısı; yalnız unsaved-risk bayrağı varken |
 | Komut Paleti | `Command Palette` | Kurucu yüzeylerinde klavyeyle komut, gezinme, kayıt oluşturma ve Proje geçişi çalıştıran yüzey; Evrensel Arama (`Search`) değildir |
+| Yetkili ürün komutu çalıştır | `Run an authorized product command.` | Komut Paleti başlığının, yüzeyin yalnız yetkili ürün komutlarını çalıştırdığını açıklayan kısa amacı |
+| Komutları süz | `Filter Command Palette commands` | Komut Paleti girişinin komut ve yetkili kayıtları süzen erişilebilir etiketi |
+| Komutlar | `Commands` | Kayıt olmayan gezinme ve ürün komutlarının Komut Paletindeki grubu |
+| Yetkili kayıtlar | `Authorized records` | Kurucunun erişebildiği ana kayıtların Komut Paletindeki grubu |
+| Hedef | `Target` | Komutun çalıştıracağı kayıt, tür veya bağlamı gösteren önizleme alanı |
+| Seçim | `Selection` | Komutun etkileyeceği kayıt sayısını gösteren önizleme alanı |
+| Menü karşılığı | `Menu:` | Komutun görünür ürün menüsündeki karşılığını belirten önizleme etiketi |
+| Komut listesi | `Command Palette commands` | Komut Paletindeki erişilebilir liste etiketi |
+| Komutlara dön | `Back to commands` | Komut hedefi alt listesinden üst komut listesine dönen eylem |
+| Hedef seç | `Choose a target` | Birden fazla Proje veya kayıt türü arasından seçim isteyen alt liste başlığı |
+| Komut veya yetkili kayıt yaz | `Type a command or authorized record…` | Boş Komut Paleti girişinin komut ya da yetkili kayıt yazma yönlendirmesi |
 | Evrensel Arama | `Search` | Yetkili ana kayıtları deterministik tam metin sırası ve görünür eşleşme bağlamıyla bulan yüzey; Komut Paleti veya ana navigasyon sayfası değildir |
 | Evrensel Arama kısayolu | `Ctrl+/` | Evrensel Arama’yı bulunduğu yerde açan sabit kısayol; `Ctrl+K` Komut Paleti’nindir |
 | Sorgu | `Query` | Evrensel Arama metin alanı |
@@ -787,7 +798,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Oluştur | `Create` | Palette ve görünür menüden yetkili kapsamda desteklenen kayıt oluşturma |
 | Aç | `Open` | Palette yetkili ana kayda atlama |
 | Eşleşen komut yok | `No matching command` | Palet süzgecinin komut döndürmediği durum |
-| Burada çalışmaz | `Can't run this here` | Kapsam dışı veya desteklenmeyen palet komutunun görünür başarısızlığı |
+| Burada çalışmaz | `Can’t run this here` | Kapsam dışı veya desteklenmeyen palet komutunun görünür başarısızlığı |
 | Kapat | `Close` | Paleti kapatma eylemi |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.

@@ -269,7 +269,7 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 - **Paletteki temel eylemler ilgili görünür menülerde de bulunur.** Kısayol ipuçları görünürdür. Komut kapsamı, hedefi ve etkilenecek seçim sayısı açıkça gösterilir; geri alınabilir değişiklikler [ortak güvenli geri alma sözleşmesini](02-domain-model-and-lifecycle.md#değişiklik-geçmişi-aktör-ve-geri-alma) kullanır.
 
-- **Kapsam dışı veya bu bağlamda çalışmayan bir palet komutu `Can't run this here` ile, süzgeç boşsa `No matching command` ile açıkça başarısız olur ve yazmaz.** Gizli no-op yoktur.
+- **Kapsam dışı veya bu bağlamda çalışmayan bir palet komutu `Can’t run this here` ile, süzgeç boşsa `No matching command` ile açıkça başarısız olur ve yazmaz.** Gizli no-op yoktur.
 
 - **Kurucu Komut Paleti Dış yüzey şablonlarına ve Paylaşım erişim oturumuna yüklenmez.** Ziyaretçi belgesinde Çalışma Alanı komut listesi yoktur. Palet IDE pazarı, script çalıştırıcı veya otomasyon kuralı sunmaz.
 

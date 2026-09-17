@@ -627,6 +627,7 @@ export function createApp(dependencies: AppDependencies) {
         "Content-Type",
         "Authorization",
         DESKTOP_API_CONTRACT_HEADER,
+        ...(dependencies.nodeEnv === "test" ? ["X-Forwarded-For"] : []),
       ],
       credentials: true,
       exposeHeaders: [

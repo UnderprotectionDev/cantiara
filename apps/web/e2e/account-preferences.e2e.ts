@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 const DARK_CLASS_PATTERN = /dark/;
 const DASHBOARD_URL_PATTERN = /\/dashboard$/;
 const ROOT_URL_PATTERN = /\/$/;
+const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const SUPPORT_REFERENCE_PATTERN =
   /^SUP-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
 
@@ -23,7 +24,7 @@ test("keeps browser suggestions unsaved and persists Account Preferences on Save
   request,
 }) => {
   const setupResponse = await request.get(
-    "http://127.0.0.1:3100/__e2e/setup?fixture=account-preferences",
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=account-preferences`,
   );
   const setup = (await setupResponse.json()) as {
     cookie: {
@@ -124,13 +125,17 @@ test("keeps browser suggestions unsaved and persists Account Preferences on Save
     "2026-09-16T09:00:00.000Z",
   );
 
-  await page.getByLabel("Locale").selectOption("de-DE");
   await page.getByRole("button", { name: "Appearance", exact: true }).click();
   await page.getByRole("menuitem", { name: "Dark", exact: true }).click();
-  await expect(page.getByLabel("Locale")).toHaveValue("de-DE");
   await expect(page.getByRole("combobox", { name: "Appearance" })).toHaveValue(
     "Dark",
   );
+  await page.reload();
+  await expect(page.getByLabel("Locale")).toHaveValue("tr-TR");
+  await expect(page.getByRole("combobox", { name: "Appearance" })).toHaveValue(
+    "Dark",
+  );
+  await page.getByLabel("Locale").selectOption("de-DE");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(
     page.getByRole("main").getByText("Preferences saved.", { exact: true }),
@@ -173,7 +178,7 @@ test("shows the current value when another session advances Account Preferences"
   request,
 }) => {
   const setupResponse = await request.get(
-    "http://127.0.0.1:3100/__e2e/setup?fixture=account-preferences-stale",
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=account-preferences-stale`,
   );
   const setup = (await setupResponse.json()) as {
     cookie: E2ESessionCookie;
@@ -185,8 +190,24 @@ test("shows the current value when another session advances Account Preferences"
   try {
     await context.addCookies([setup.cookie]);
     await otherContext.addCookies([setup.otherCookie]);
-    await page.goto("/account/preferences");
-    await otherPage.goto("/account/preferences");
+    const pagePreferencesResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/rpc/accountPreferences"),
+    );
+    const otherPreferencesResponsePromise = otherPage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/rpc/accountPreferences"),
+    );
+    await Promise.all([
+      page.goto("/account/preferences"),
+      otherPage.goto("/account/preferences"),
+      pagePreferencesResponsePromise,
+      otherPreferencesResponsePromise,
+    ]);
+    await expect(page.getByLabel("Locale")).toHaveValue("en-GB");
+    await expect(otherPage.getByLabel("Locale")).toHaveValue("en-GB");
 
     await page.getByLabel("Locale").selectOption("tr-TR");
     await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -255,7 +276,7 @@ test("does not submit dirty values against a newer Account Preferences revision"
   request,
 }) => {
   const setupResponse = await request.get(
-    "http://127.0.0.1:3100/__e2e/setup?fixture=account-preferences-revision-race",
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=account-preferences-revision-race`,
   );
   const setup = (await setupResponse.json()) as {
     cookie: E2ESessionCookie;
@@ -285,7 +306,7 @@ test("does not submit dirty values against a newer Account Preferences revision"
         response.url().includes("/rpc/accountPreferences"),
     );
     await page.evaluate(() => {
-      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("visibilitychange"));
     });
     await refreshResponsePromise;
 
