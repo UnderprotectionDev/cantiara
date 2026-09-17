@@ -9,6 +9,9 @@ export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.e2e.ts",
   fullyParallel: false,
+  // The reference Command Palette fixture allocates 15,000 records; keep the
+  // CI browser suite from starving concurrent tests while measuring it.
+  workers: process.env.CI ? 1 : undefined,
   use: {
     baseURL: webUrl,
     ...devices["Desktop Chrome"],
