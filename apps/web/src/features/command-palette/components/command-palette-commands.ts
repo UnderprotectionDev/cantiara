@@ -163,9 +163,18 @@ function authorizedCommands(
     const children: CommandPaletteCommand[] = authorizedCommands(
       command.children,
     );
+
+    if (children.length === 0) {
+      return {
+        ...command,
+        children: undefined,
+        run: unavailableAction(command.label),
+      };
+    }
+
     return {
       ...command,
-      children: children.length > 0 ? children : undefined,
+      children,
     };
   });
 }

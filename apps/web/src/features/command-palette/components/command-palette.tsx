@@ -100,6 +100,7 @@ export default function CommandPalette({
   const [failureReason, setFailureReason] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [query, setQuery] = useState(initialQuery);
+  const commandInputRef = useRef<HTMLInputElement>(null);
 
   const activeCommands = commandStack.at(-1) ?? commands;
   const commandGroups = useMemo(() => {
@@ -164,6 +165,17 @@ export default function CommandPalette({
     setCommandStack([]);
   }, [initialQuery, open]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      commandInputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen) {
@@ -189,6 +201,7 @@ export default function CommandPalette({
         return;
       }
 
+      setQuery("");
       setIsRunning(true);
       try {
         await executeCommand(command, mutationContract);
@@ -219,6 +232,7 @@ export default function CommandPalette({
       <Command
         className="min-h-0 text-sm"
         label="Filter Command Palette commands"
+        shouldFilter={false}
       >
         <div className="flex min-h-0 flex-col">
           <div className="flex items-center justify-between gap-4 border-b px-4 py-3">
@@ -258,6 +272,7 @@ export default function CommandPalette({
             inputGroupClassName="h-10 border-border/70 bg-background/50 focus-within:border-ring/70 focus-within:ring-1 focus-within:ring-ring/50"
             onValueChange={setQuery}
             placeholder="Type a command or authorized record…"
+            ref={commandInputRef}
             value={query}
             wrapperClassName="border-b border-border/80 px-4 py-2"
           />

@@ -68,7 +68,7 @@ function CommandInput({
   inputGroupClassName,
   wrapperClassName,
   ...props
-}: React.ComponentProps<typeof CommandPrimitive.Input> & {
+}: React.ComponentPropsWithRef<typeof CommandPrimitive.Input> & {
   inputGroupClassName?: string;
   wrapperClassName?: string;
 }) {

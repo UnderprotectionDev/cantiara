@@ -260,6 +260,64 @@ test("opens the founder Command Palette across contexts and keeps it off public 
   await expect(trigger).toBeFocused();
 });
 
+test("does not mount founder palette controls for a visitor", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await expect(page.locator(COMMAND_PALETTE_TRIGGER_SELECTOR)).toHaveCount(0);
+  await page.keyboard.press("Control+k");
+  await expect(
+    page.getByRole("dialog", { name: "Command Palette" }),
+  ).toHaveCount(0);
+});
+
+test("completes the Command Palette journey with keyboard input only", async ({
+  context,
+  page,
+  request,
+}) => {
+  await establishFounderSession(page, context, request);
+  await page.goto("/dashboard");
+  await expect(
+    page.getByRole("heading", { name: "Dashboard", level: 1 }),
+  ).toBeVisible();
+
+  const palette = page.locator('[role="dialog"]:visible');
+  await page.keyboard.press("Control+k");
+  await expect(palette).toBeVisible();
+
+  const commandInput = palette.getByRole("combobox", {
+    name: "Filter Command Palette commands",
+  });
+  await expect(commandInput).toBeFocused();
+  await page.keyboard.type("Open Preferences");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(PREFERENCES_URL_PATTERN);
+  await expect(palette).toHaveCount(0);
+
+  await page.keyboard.press("Control+k");
+  await expect(palette).toBeVisible();
+  await expect(commandInput).toBeFocused();
+  await page.keyboard.type("Unsupported reference command");
+  await expect(commandInput).toHaveValue("Unsupported reference command");
+  await expect(
+    palette.getByText("Unsupported reference command", { exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await expect(
+    palette.getByRole("option", {
+      exact: false,
+      name: "Unsupported reference command",
+    }),
+  ).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Enter");
+  await expect(palette.getByRole("alert")).toContainText("Can’t run this here");
+  await page.keyboard.press("Escape");
+  await expect(palette).toHaveCount(0);
+});
+
 test("measures Command Palette visibility at the reference workspace scale", async ({
   context,
   page,

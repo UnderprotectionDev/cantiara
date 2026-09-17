@@ -130,6 +130,50 @@ describe("Command Palette command interface", () => {
     ).toBe(true);
   });
 
+  test("fails a command group with no authorized targets without writing", () => {
+    const write = vi.fn();
+    const commands = buildCommandPaletteCommands({
+      commands: [
+        {
+          children: [
+            {
+              authorized: false,
+              id: "private-child-command",
+              label: "Private child action",
+              run: write,
+              scope: "Other Workspace",
+              selectionCount: 1,
+              shortcut: COMMAND_PALETTE_COMMAND_SHORTCUT,
+              target: "Private record",
+              visibleCounterpart: "Private menu",
+            },
+          ],
+          id: "workspace-actions",
+          label: "Workspace actions",
+          run: write,
+          scope: "Workspace",
+          selectionCount: 1,
+          shortcut: COMMAND_PALETTE_COMMAND_SHORTCUT,
+          target: "Workspace",
+          visibleCounterpart: "Workspace menu",
+        },
+      ],
+    });
+    const workspaceActions = commands.find(
+      (command) => command.id === "workspace-actions",
+    );
+
+    if (!workspaceActions) {
+      throw new Error("Expected the workspace action command.");
+    }
+
+    expect(workspaceActions.children).toBeUndefined();
+    expect(() => executeCommand(workspaceActions)).toThrow(
+      "Workspace actions is unavailable in this context.",
+    );
+    expect(write).not.toHaveBeenCalled();
+  });
+
   test("hands authorized record, project, and create targets to their adapters", async () => {
     const onCreate = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
     const onOpenRecord = vi
