@@ -116,9 +116,18 @@ async function measureColdCacheSamples(context: BrowserContext, count: number) {
 
     const batchSize = Math.min(COLD_CACHE_BATCH_SIZE, count - offset);
     const pages = await Promise.all(
-      Array.from({ length: batchSize }, async () => {
+      Array.from({ length: batchSize }, async (_, pageIndex) => {
         const page = await context.newPage();
+        // Keep each synthetic cold-cache page out of Better Auth's shared
+        // per-path rate-limit bucket while preserving the real auth boundary.
+        await page.setExtraHTTPHeaders({
+          "x-forwarded-for": `198.51.100.${offset + pageIndex + 1}`,
+        });
         await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+        await expect(page).toHaveURL(DASHBOARD_URL_PATTERN);
+        await expect(
+          page.getByRole("heading", { name: "Dashboard", level: 1 }),
+        ).toBeVisible();
         await page.waitForSelector(COMMAND_PALETTE_TRIGGER_SELECTOR);
         return page;
       }),
