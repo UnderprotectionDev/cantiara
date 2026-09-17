@@ -7,6 +7,7 @@ import type {
   AccountPreferencesSnapshot,
   Appearance,
 } from "./account-preferences";
+import type { CaptureInboxAccess } from "./capture-triage";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
 
 export interface AccountSessionPrincipal {
@@ -97,6 +98,7 @@ export interface Context {
   accountPreferencesCompatibility?: AccountPreferencesCompatibilityAccess;
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   auth: null;
+  captureInbox?: CaptureInboxAccess;
   clientKey?: string;
   clientPlatform?: AccountAccessClient;
   db: Database;

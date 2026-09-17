@@ -7,6 +7,7 @@ import {
   accountPreferencesSchema,
   appearanceSchema,
 } from "../account-preferences";
+import { type CaptureInboxAccess, captureInputSchema } from "../capture-triage";
 import {
   CONFIRM_GITHUB_IDENTITY_OPERATION_IDS,
   type Context,
@@ -64,6 +65,84 @@ function requireAccountPreferencesCompatibility(context: Context) {
     throw new ORPCError("BAD_REQUEST");
   }
   return context.accountPreferencesCompatibility;
+}
+
+function requireCaptureInbox(context: Context): CaptureInboxAccess {
+  if (!context.captureInbox) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.captureInbox;
+}
+
+function rethrowUnavailableCaptureWorkCreate(
+  error: Record<string, unknown>,
+): void {
+  if (error.code === "CAPTURE_WORK_CREATE_UNAVAILABLE") {
+    throw new ORPCError("NOT_IMPLEMENTED", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        "message" in error && typeof error.message === "string"
+          ? error.message
+          : "Work creation is not available yet.",
+    });
+  }
+}
+
+function rethrowCaptureConflict(error: Record<string, unknown>): void {
+  if (error.code === "CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: {
+        code: "CONFLICT",
+        label: MUTATION_UI_LABELS.conflict,
+        ...(typeof error.targetId === "string"
+          ? { targetId: error.targetId }
+          : {}),
+      },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
+  }
+}
+
+function rethrowCaptureInboxError(error: unknown): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+
+  rethrowUnavailableCaptureWorkCreate(error);
+  rethrowCaptureConflict(error);
+
+  if (
+    typeof error.code === "string" &&
+    (error.code.startsWith("CAPTURE_") ||
+      error.code === "UNKNOWN_CAPTURE_FIELD")
+  ) {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        "message" in error && typeof error.message === "string"
+          ? error.message
+          : "Capture Inbox request was rejected.",
+    });
+  }
+
+  if (
+    error.code === "PROJECT_REQUIRED_FOR_CREATE_BUG" ||
+    error.code === "CREATE_BUG_TEMPLATE_UNSUPPORTED"
+  ) {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        "message" in error && typeof error.message === "string"
+          ? error.message
+          : "Create Bug is unavailable in this context.",
+    });
+  }
+
+  throw error;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -151,6 +230,33 @@ export const appRouter = {
     message: "This is private",
     user: context.session?.user,
   })),
+  captureInbox: protectedProcedure.handler(({ context }) =>
+    requireCaptureInbox(context).list(context.session.user.id),
+  ),
+  createCapture: protectedProcedure
+    .input(captureInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireCaptureInbox(context).create(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowCaptureInboxError(error);
+      }
+    }),
+  createBug: protectedProcedure
+    .input(captureInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireCaptureInbox(context).createBug(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowCaptureInboxError(error);
+      }
+    }),
   sessions: protectedProcedure.handler(({ context }) =>
     context.accountAccess.listSessions(sessionPrincipal(context.session)),
   ),
