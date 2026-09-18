@@ -1,9 +1,13 @@
 import {
   createWorkMutationInputSchema,
+  updateWorkTypeInputSchema,
   type WorkLifecycleAccess,
   type WorkLifecycleMutationContracts,
   type WorkLifecycleMutationValue,
   type WorkProfile,
+  type WorkType,
+  type WorkTypeChangePreview,
+  workTypeChangePreviewInputSchema,
 } from "@cantiara/api/work-lifecycle";
 
 export interface WorkCreationReservation {
@@ -48,7 +52,49 @@ export class WorkCreationConflictError extends Error {
   }
 }
 
+export class WorkNotFoundError extends Error {
+  readonly code = "WORK_NOT_FOUND" as const;
+
+  constructor(workId: string) {
+    super(`Work ${workId} was not found.`);
+    this.name = "WorkNotFoundError";
+  }
+}
+
+export class WorkTypeImpactPreviewRequiredError extends Error {
+  readonly code = "WORK_TYPE_IMPACT_PREVIEW_REQUIRED" as const;
+  readonly previewId: string;
+
+  constructor(previewId: string) {
+    super(
+      "An impact preview is required before crossing the Feature boundary.",
+    );
+    this.name = "WorkTypeImpactPreviewRequiredError";
+    this.previewId = previewId;
+  }
+}
+
 const WORK_CREATE_TARGET_PREFIX = "work-create:";
+const WORK_TYPE_IMPACT_PREVIEW_PREFIX = "work-type-impact:";
+
+export function requiresWorkTypeImpactPreview(
+  currentType: WorkType,
+  nextType: WorkType,
+) {
+  return (
+    currentType !== nextType &&
+    (currentType === "Feature" || nextType === "Feature")
+  );
+}
+
+export function workTypeChangePreviewId(
+  workId: string,
+  revision: number,
+  currentType: WorkType,
+  nextType: WorkType,
+) {
+  return `${WORK_TYPE_IMPACT_PREVIEW_PREFIX}${workId}:${revision}:${currentType}:${nextType}`;
+}
 
 function workCreateTargetId(
   accountId: string,
@@ -155,6 +201,83 @@ export function createWorkLifecycle({
 
     list(accountId, projectId) {
       return store.list(accountId, projectId);
+    },
+
+    async previewTypeChange(accountId, rawInput) {
+      const input = workTypeChangePreviewInputSchema.parse(rawInput);
+      const work = await store.find(accountId, input.workId);
+      if (!work) {
+        return null;
+      }
+
+      return {
+        currentType: work.type,
+        nextType: input.type,
+        previewId: workTypeChangePreviewId(
+          work.id,
+          work.revision,
+          work.type,
+          input.type,
+        ),
+        requiresImpactPreview: requiresWorkTypeImpactPreview(
+          work.type,
+          input.type,
+        ),
+        workId: work.id,
+      } satisfies WorkTypeChangePreview;
+    },
+
+    async updateType(accountId, rawInput) {
+      const input = updateWorkTypeInputSchema.parse(rawInput);
+      const currentWork = await store.find(accountId, input.workId);
+      if (!currentWork) {
+        throw new WorkNotFoundError(input.workId);
+      }
+
+      if (currentWork.type === input.type) {
+        return currentWork;
+      }
+
+      if (requiresWorkTypeImpactPreview(currentWork.type, input.type)) {
+        const previewId = workTypeChangePreviewId(
+          currentWork.id,
+          currentWork.revision,
+          currentWork.type,
+          input.type,
+        );
+        if (input.impactPreviewId !== previewId) {
+          throw new WorkTypeImpactPreviewRequiredError(previewId);
+        }
+      }
+
+      const timestamp = new Date().toISOString();
+      const receipt = await mutationContracts.update(accountId).mutate(
+        {
+          actor: { actorId: accountId, type: "User" },
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          kind: "human",
+          payload: { type: input.type, workId: input.workId },
+          targetId: input.workId,
+        },
+        ({ currentRevision, currentValue, payload }) => {
+          if (!currentValue.work || currentValue.work.id !== input.workId) {
+            throw new WorkNotFoundError(input.workId);
+          }
+          return {
+            work: {
+              ...currentValue.work,
+              revision: currentRevision + 1,
+              type: payload.type,
+              updatedAt: timestamp,
+            },
+          } satisfies WorkLifecycleMutationValue;
+        },
+      );
+      if (!receipt.nextValue.work) {
+        throw new WorkNotFoundError(input.workId);
+      }
+      return receipt.nextValue.work;
     },
   };
 }

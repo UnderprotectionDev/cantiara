@@ -7,7 +7,10 @@ import type {
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
 
-import { WorkProjectNotFoundError } from "./work-lifecycle";
+import {
+  WorkProjectNotFoundError,
+  WorkTypeImpactPreviewRequiredError,
+} from "./work-lifecycle";
 
 const work: WorkProfile = {
   closureResult: null,
@@ -60,6 +63,14 @@ describe("Work Lifecycle RPC", () => {
       create,
       find: vi.fn().mockResolvedValue(work),
       list: vi.fn().mockResolvedValue([work]),
+      previewTypeChange: vi.fn().mockResolvedValue({
+        currentType: "Task",
+        nextType: "Bug",
+        previewId: "work-type-impact-work-1-1-Task-Bug",
+        requiresImpactPreview: false,
+        workId: work.id,
+      }),
+      updateType: vi.fn().mockResolvedValue({ ...work, type: "Bug" }),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
@@ -84,6 +95,17 @@ describe("Work Lifecycle RPC", () => {
       title: "Create the first Work",
       type: "Task",
     });
+    await expect(
+      client.workTypeChangePreview({ type: "Bug", workId: work.id }),
+    ).resolves.toMatchObject({ requiresImpactPreview: false });
+    await expect(
+      client.updateWorkType({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "work-update-1",
+        type: "Bug",
+        workId: work.id,
+      }),
+    ).resolves.toMatchObject({ type: "Bug" });
   });
 
   test("maps a missing Project to a user-facing not-found response", async () => {
@@ -93,6 +115,8 @@ describe("Work Lifecycle RPC", () => {
         .mockRejectedValue(new WorkProjectNotFoundError("missing")),
       find: vi.fn(),
       list: vi.fn(),
+      previewTypeChange: vi.fn(),
+      updateType: vi.fn(),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
@@ -109,6 +133,41 @@ describe("Work Lifecycle RPC", () => {
       code: "NOT_FOUND",
       message: "Project is unavailable.",
       status: 404,
+    });
+  });
+
+  test("maps a missing Feature impact preview to a precondition response", async () => {
+    const workLifecycle: WorkLifecycleAccess = {
+      create: vi.fn(),
+      find: vi.fn(),
+      list: vi.fn(),
+      previewTypeChange: vi.fn(),
+      updateType: vi
+        .fn()
+        .mockRejectedValue(
+          new WorkTypeImpactPreviewRequiredError(
+            "work-type-impact-work-1-1-Task-Feature",
+          ),
+        ),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(workLifecycle),
+    });
+
+    await expect(
+      client.updateWorkType({
+        baseRevision: 1,
+        clientIdempotencyKey: "work-update-feature",
+        type: "Feature",
+        workId: work.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: {
+        code: "WORK_TYPE_IMPACT_PREVIEW_REQUIRED",
+        previewId: "work-type-impact-work-1-1-Task-Feature",
+      },
+      status: 412,
     });
   });
 });

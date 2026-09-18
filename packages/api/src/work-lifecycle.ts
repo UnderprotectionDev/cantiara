@@ -56,11 +56,33 @@ export const createWorkMutationInputSchema = createWorkInputObjectSchema
   })
   .strict();
 
+const workTypeChangePreviewInputObjectSchema = z
+  .object({
+    type: workTypeSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export const workTypeChangePreviewInputSchema =
+  workTypeChangePreviewInputObjectSchema;
+
+export const updateWorkTypeInputSchema = workTypeChangePreviewInputObjectSchema
+  .extend({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    impactPreviewId: identifierSchema.optional(),
+  })
+  .strict();
+
 export type CreateWorkInput = z.input<typeof createWorkInputSchema>;
 export type ParsedCreateWorkInput = z.output<typeof createWorkInputSchema>;
 export type CreateWorkMutationInput = z.input<
   typeof createWorkMutationInputSchema
 >;
+export type WorkTypeChangePreviewInput = z.input<
+  typeof workTypeChangePreviewInputSchema
+>;
+export type UpdateWorkTypeInput = z.input<typeof updateWorkTypeInputSchema>;
 
 export interface WorkProfile {
   closureResult: WorkClosureResult | null;
@@ -85,6 +107,15 @@ export type WorkLifecycleMutationContract =
 
 export interface WorkLifecycleMutationContracts {
   create: (accountId: string) => WorkLifecycleMutationContract;
+  update: (accountId: string) => WorkLifecycleMutationContract;
+}
+
+export interface WorkTypeChangePreview {
+  currentType: WorkType;
+  nextType: WorkType;
+  previewId: string;
+  requiresImpactPreview: boolean;
+  workId: string;
 }
 
 export interface WorkLifecycleAccess {
@@ -94,4 +125,12 @@ export interface WorkLifecycleAccess {
   ) => Promise<WorkProfile>;
   find: (accountId: string, workId: string) => Promise<WorkProfile | null>;
   list: (accountId: string, projectId: string) => Promise<WorkProfile[]>;
+  previewTypeChange: (
+    accountId: string,
+    input: WorkTypeChangePreviewInput,
+  ) => Promise<WorkTypeChangePreview | null>;
+  updateType: (
+    accountId: string,
+    input: UpdateWorkTypeInput,
+  ) => Promise<WorkProfile>;
 }

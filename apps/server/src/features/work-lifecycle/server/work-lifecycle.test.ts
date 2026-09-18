@@ -19,6 +19,7 @@ import {
   WorkCreationConflictError,
   type WorkCreationReservation,
   type WorkLifecycleStore,
+  WorkTypeImpactPreviewRequiredError,
 } from "./work-lifecycle";
 
 const PROJECT_ID = "project-1";
@@ -98,6 +99,42 @@ function createMemoryWorkLifecycle(options: { failNextCommit?: boolean } = {}) {
             payloadFingerprint: "0".repeat(64),
             previousValue: { work: null },
             revision: 1,
+            targetId: command.targetId,
+          } satisfies MutationReceipt<WorkLifecycleMutationValue>;
+        },
+      }) as MutationContract<WorkLifecycleMutationValue>,
+    update: () =>
+      ({
+        mutate: async <TPayload extends MutationPayload>(
+          command: MutationCommand<TPayload>,
+          apply: MutationApply<WorkLifecycleMutationValue, TPayload>,
+        ) => {
+          if (command.kind !== "human") {
+            throw new Error("Expected a human Work command.");
+          }
+          const currentWork = works.get(command.targetId) ?? null;
+          const previousValue = { work: currentWork };
+          const nextValue = await apply({
+            currentRevision: currentWork?.revision ?? 0,
+            currentValue: previousValue,
+            payload: command.payload,
+          });
+          if (!nextValue.work) {
+            throw new Error("A Work update must return a Work.");
+          }
+          works.set(nextValue.work.id, nextValue.work);
+          return {
+            actor: command.actor,
+            committedAt: nextValue.work.updatedAt,
+            id: `receipt-${nextValue.work.id}-${nextValue.work.revision}`,
+            nextValue,
+            origin: {
+              clientIdempotencyKey: command.clientIdempotencyKey,
+              kind: "human" as const,
+            },
+            payloadFingerprint: "0".repeat(64),
+            previousValue,
+            revision: nextValue.work.revision,
             targetId: command.targetId,
           } satisfies MutationReceipt<WorkLifecycleMutationValue>;
         },
@@ -196,5 +233,77 @@ describe("Work Lifecycle seam", () => {
         title: "A different Work title",
       }),
     ).rejects.toBeInstanceOf(WorkCreationConflictError);
+  });
+
+  test("updates non-Feature types freely and previews Feature boundaries", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("type-change-create"),
+    );
+
+    await expect(
+      workLifecycle.previewTypeChange("account-1", {
+        type: "Bug",
+        workId: work.id,
+      }),
+    ).resolves.toMatchObject({
+      currentType: "Task",
+      nextType: "Bug",
+      requiresImpactPreview: false,
+    });
+    await expect(
+      workLifecycle.updateType("account-1", {
+        baseRevision: work.revision,
+        clientIdempotencyKey: "type-change-bug",
+        type: "Bug",
+        workId: work.id,
+      }),
+    ).resolves.toMatchObject({ type: "Bug" });
+
+    const featurePreview = await workLifecycle.previewTypeChange("account-1", {
+      type: "Feature",
+      workId: work.id,
+    });
+    expect(featurePreview).toMatchObject({
+      currentType: "Bug",
+      nextType: "Feature",
+      requiresImpactPreview: true,
+    });
+    if (!featurePreview) {
+      throw new Error("Expected a Feature type-change preview.");
+    }
+
+    await expect(
+      workLifecycle.updateType("account-1", {
+        baseRevision: 2,
+        clientIdempotencyKey: "type-change-feature-without-preview",
+        type: "Feature",
+        workId: work.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkTypeImpactPreviewRequiredError);
+
+    const feature = await workLifecycle.updateType("account-1", {
+      baseRevision: 2,
+      clientIdempotencyKey: "type-change-feature",
+      impactPreviewId: featurePreview.previewId,
+      type: "Feature",
+      workId: work.id,
+    });
+    expect(feature).toMatchObject({ revision: 3, type: "Feature" });
+
+    /* The Feature boundary also protects the exit path. */
+    await expect(
+      workLifecycle.previewTypeChange("account-1", {
+        type: "Task",
+        workId: work.id,
+      }),
+    ).resolves.toMatchObject({
+      currentType: "Feature",
+      nextType: "Task",
+      requiresImpactPreview: true,
+    });
+
+    expect(feature.type).toBe("Feature");
   });
 });

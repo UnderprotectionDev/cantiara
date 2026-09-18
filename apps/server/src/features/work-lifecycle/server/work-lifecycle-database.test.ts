@@ -16,6 +16,7 @@ import {
 } from "vitest";
 
 import { createDatabaseProjectShell } from "../../project-shell/server/project-shell-database";
+import { WorkTypeImpactPreviewRequiredError } from "./work-lifecycle";
 import { createDatabaseWorkLifecycle } from "./work-lifecycle-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -138,5 +139,62 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
     await expect(
       workLifecycle.list(accountId, secondProject.id),
     ).resolves.toEqual([]);
+  });
+
+  test("persists free type changes and protects Feature boundary changes", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Payment App",
+      shortCode: "PAY",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const created = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "type-change-create",
+      projectId: project.id,
+      title: "Refine payment failure handling",
+      type: "Task",
+    });
+
+    const bug = await workLifecycle.updateType(accountId, {
+      baseRevision: created.revision,
+      clientIdempotencyKey: "type-change-bug",
+      type: "Bug",
+      workId: created.id,
+    });
+    expect(bug).toMatchObject({ revision: 2, type: "Bug" });
+
+    const preview = await workLifecycle.previewTypeChange(accountId, {
+      type: "Feature",
+      workId: created.id,
+    });
+    expect(preview).toMatchObject({ requiresImpactPreview: true });
+    if (!preview) {
+      throw new Error("Expected a Feature type-change preview.");
+    }
+
+    await expect(
+      workLifecycle.updateType(accountId, {
+        baseRevision: bug.revision,
+        clientIdempotencyKey: "type-change-feature-without-preview",
+        type: "Feature",
+        workId: created.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkTypeImpactPreviewRequiredError);
+
+    await expect(
+      workLifecycle.updateType(accountId, {
+        baseRevision: bug.revision,
+        clientIdempotencyKey: "type-change-feature",
+        impactPreviewId: preview.previewId,
+        type: "Feature",
+        workId: created.id,
+      }),
+    ).resolves.toMatchObject({ revision: 3, type: "Feature" });
   });
 });

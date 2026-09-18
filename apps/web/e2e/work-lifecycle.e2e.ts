@@ -39,6 +39,17 @@ test("creates Work with a Project key, type, and protected start status", async 
   await expect(firstWork).toContainText("Research");
   await expect(firstWork).toContainText("Not Started");
 
+  await firstWork
+    .getByRole("combobox", { name: "Type for PAY-1" })
+    .selectOption("Bug");
+  await expect(firstWork).toContainText("Bug");
+  await firstWork
+    .getByRole("combobox", { name: "Type for PAY-1" })
+    .selectOption("Feature");
+  await expect(firstWork.getByLabel("Impact preview")).toBeVisible();
+  await firstWork.getByRole("button", { name: "Confirm type change" }).click();
+  await expect(firstWork).toContainText("Feature");
+
   await page.getByRole("link", { name: "Create", exact: true }).click();
   await page.getByLabel("Title").fill("Document the payment flow");
   await page.getByRole("button", { name: "Create Work" }).click();

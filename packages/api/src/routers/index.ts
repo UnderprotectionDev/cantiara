@@ -48,7 +48,11 @@ import {
   updateProjectShortCodeInputSchema,
 } from "../project-shell";
 import type { WebCaptureAccess } from "../web-capture";
-import { createWorkMutationInputSchema } from "../work-lifecycle";
+import {
+  createWorkMutationInputSchema,
+  updateWorkTypeInputSchema,
+  workTypeChangePreviewInputSchema,
+} from "../work-lifecycle";
 
 function sessionPrincipal(session: NonNullable<Context["session"]>) {
   return {
@@ -259,6 +263,13 @@ function rethrowCaptureInboxError(error: unknown): never {
 }
 
 function mapWorkLifecycleError(error: Record<string, unknown>) {
+  if (error.code === "WORK_NOT_FOUND") {
+    return new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Work is unavailable.",
+    });
+  }
+
   if (error.code === "WORK_PROJECT_NOT_FOUND") {
     return new ORPCError("NOT_FOUND", {
       defined: true,
@@ -271,6 +282,51 @@ function mapWorkLifecycleError(error: Record<string, unknown>) {
       data: { code: error.code },
       defined: true,
       message: "Work could not be created. Try again.",
+    });
+  }
+
+  if (error.code === "WORK_TYPE_IMPACT_PREVIEW_REQUIRED") {
+    return new ORPCError("PRECONDITION_FAILED", {
+      data: {
+        code: error.code,
+        ...(typeof error.previewId === "string"
+          ? { previewId: error.previewId }
+          : {}),
+      },
+      defined: true,
+      message: "Impact preview is required before changing to or from Feature.",
+    });
+  }
+
+  if (error.code === "CONFLICT") {
+    return new ORPCError("CONFLICT", {
+      data: { code: error.code },
+      defined: true,
+      message: "Work could not be changed. Try again.",
+    });
+  }
+
+  if (error.code === "STALE_BASE_REVISION") {
+    return new ORPCError("PRECONDITION_FAILED", {
+      data: {
+        code: error.code,
+        ...(typeof error.currentRevision === "number"
+          ? { currentRevision: error.currentRevision }
+          : {}),
+        ...(typeof error.currentValue === "object" &&
+        error.currentValue !== null
+          ? { currentValue: error.currentValue }
+          : {}),
+      },
+      defined: true,
+      message: "Work has changed. Reload and try again.",
+    });
+  }
+
+  if (error.code === "TARGET_NOT_FOUND") {
+    return new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Work is unavailable.",
     });
   }
 
@@ -520,6 +576,33 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return record;
+    }),
+  workTypeChangePreview: protectedProcedure
+    .input(workTypeChangePreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireWorkLifecycle(context).previewTypeChange(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work is unavailable.",
+        });
+      }
+      return preview;
+    }),
+  updateWorkType: protectedProcedure
+    .input(updateWorkTypeInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).updateType(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
     }),
   createWork: protectedProcedure
     .input(createWorkMutationInputSchema)

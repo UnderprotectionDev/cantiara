@@ -89,6 +89,28 @@ async function findOwnedProject(
   return record ? { record, workspaceId } : null;
 }
 
+async function findOwnedWork(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  workId: string,
+  lock: boolean,
+) {
+  const workspaceId = await findWorkspaceId(executor, accountId);
+  if (!workspaceId) {
+    return null;
+  }
+
+  const query = executor
+    .select({ record: work })
+    .from(work)
+    .innerJoin(project, eq(work.projectId, project.id))
+    .where(and(eq(work.id, workId), eq(project.workspaceId, workspaceId)))
+    .limit(1);
+  const records = lock ? await query.for("update") : await query;
+  const [result] = records;
+  return result?.record ?? null;
+}
+
 function emptyWorkTarget(
   targetId: string,
 ): MutationTarget<WorkLifecycleMutationValue> {
@@ -174,6 +196,63 @@ function createWorkMutationTarget(
             id: existing.id,
             revision: existing.revision,
             value: { work: toWorkProfile(existing) },
+          }
+        : null;
+    },
+  };
+}
+
+function createWorkUpdateMutationTarget(
+  accountId: string,
+): MutationDatabaseTargetAdapter<WorkLifecycleMutationValue> {
+  return {
+    async find(executor, targetId, lock) {
+      const record = await findOwnedWork(executor, accountId, targetId, lock);
+      return record
+        ? {
+            id: record.id,
+            revision: record.revision,
+            value: { work: toWorkProfile(record) },
+          }
+        : null;
+    },
+
+    async update(executor, input) {
+      const nextWork = input.nextValue.work;
+      if (!nextWork || nextWork.id !== input.targetId) {
+        return null;
+      }
+
+      const ownedProject = await findOwnedProject(
+        executor,
+        accountId,
+        nextWork.projectId,
+        false,
+      );
+      if (!ownedProject) {
+        return null;
+      }
+
+      const [updated] = await executor
+        .update(work)
+        .set({
+          revision: input.expectedRevision + 1,
+          type: nextWork.type,
+          updatedAt: input.committedAt,
+        })
+        .where(
+          and(
+            eq(work.id, input.targetId),
+            eq(work.projectId, nextWork.projectId),
+            eq(work.revision, input.expectedRevision),
+          ),
+        )
+        .returning();
+      return updated
+        ? {
+            id: updated.id,
+            revision: updated.revision,
+            value: { work: toWorkProfile(updated) },
           }
         : null;
     },
@@ -325,6 +404,10 @@ export function createDatabaseWorkLifecycle(database: Database) {
       create: (accountId) =>
         createDatabaseMutationContract<WorkLifecycleMutationValue>(database, {
           target: createWorkMutationTarget(accountId),
+        }),
+      update: (accountId) =>
+        createDatabaseMutationContract<WorkLifecycleMutationValue>(database, {
+          target: createWorkUpdateMutationTarget(accountId),
         }),
     },
     store,
