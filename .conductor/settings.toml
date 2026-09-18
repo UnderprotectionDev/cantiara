@@ -13,15 +13,16 @@ Before creating or updating the pull request:
 - Do not rename the branch, force-push, or include unrelated user changes.
 - Do not revert, reset, or delete unrelated user changes.
 - Determine whether this workspace was created from a GitHub issue selected in Conductor.
-- Treat the inherited Conductor issue context or attachment as the only authoritative source for the selected issue.
+- Treat inherited Conductor issue context and a canonical attached GitHub issue document as the only authoritative sources for the selected issue.
 
 Issue-context hard gate:
 
-- A GitHub issue is selected only when Conductor explicitly provides inherited issue context.
-- Read the exact repository and issue number only from that inherited context; the user does not need to type the issue number manually.
+- A GitHub issue is selected when Conductor explicitly provides inherited issue context or a canonical attachment whose displayed filename matches `[GITHUB]-<number>.md` (for example, `[GITHUB]-37.md`). That attachment is inherited issue context, not arbitrary conversation text.
+- Read the exact repository and issue number from the inherited context or canonical attachment metadata/content. Verify the repository against `git remote get-url origin`; if the attachment does not identify a repository and the current repository cannot be verified, stop and ask for the missing context.
+- If the canonical attachment path is outside this workspace or is not readable during the create-PR session, do not discard it: use the exact issue number from its displayed filename and the repository already verified from Conductor/current `origin`.
 - If the workspace is issue-based but the exact repository and issue number are missing, stop before creating or updating the pull request and ask the user for that missing context.
 - If no GitHub issue was selected for this workspace, omit both `Closes` and `Refs`, even if an issue URL or issue number appears elsewhere in the conversation.
-- Never invent, guess, or recover an issue number from a branch name, commit message, PR title, spec path, diff, or arbitrary conversation text.
+- Never invent, guess, or recover an issue number from a branch name, commit message, PR title, spec path, diff, or arbitrary conversation text. Do not search GitHub to discover a candidate issue number.
 - Do not treat an issue number in a commit message or branch name as inherited issue context.
 
 Use Conventional Commits format for the PR title:
@@ -68,7 +69,7 @@ Never use `Refs` when the pull request fully resolves the selected issue.
 
 The full-resolution closing reference must:
 
-- Use the exact issue number from inherited Conductor issue context.
+- Use the exact repository and issue number from inherited Conductor issue context or the canonical GitHub issue attachment.
 - Be a standalone line with no bullet prefix, backticks, or code fence.
 - Appear in the actual PR body, not only in the PR title, commit message, comments, or chat.
 - Appear before `## Product contract`.
@@ -102,7 +103,8 @@ The full-resolution closing reference must:
 
 GitHub issue handling:
 
-- If this workspace was created from a GitHub issue selected in Conductor, treat that exact selected issue as the source issue for this pull request.
+- If this workspace was created from a GitHub issue selected in Conductor, including through a canonical `[GITHUB]-<number>.md` attachment, treat that exact selected issue as the source issue for this pull request.
+- Before creating or updating the pull request, verify the selected issue with `gh issue view <number> --repo <owner/repository>`; use this only to validate the authoritative target, never to discover an issue number.
 - If this pull request fully resolves the selected issue, include the exact `Closes` reference required above.
 - If this pull request partially addresses the selected issue, include the exact `Refs` tracking reference required above; do not present it as an automatic closing reference.
 - If no GitHub issue was selected for this workspace, omit both `Closes` and `Refs`.
@@ -125,6 +127,7 @@ Before reporting completion:
 - Read back the complete pull request body.
 - Read back the draft status, pull request state, and URL.
 - If the selected issue is fully resolved, verify that the required `Closes` reference is present in the actual pull request body and in GitHub's closing-issue metadata when available.
+- If the selected issue is fully resolved and GitHub's closing-issue metadata is empty, treat the reference as missing or unrecognized, update the pull request body, and re-read it before reporting completion.
 - If the selected issue is only partially addressed, verify that the required `Refs` tracking reference is present in the actual pull request body; do not expect closing-issue metadata or claim automatic closure.
 - If the required `Closes` or `Refs` issue reference is missing, do not report successful completion.
 

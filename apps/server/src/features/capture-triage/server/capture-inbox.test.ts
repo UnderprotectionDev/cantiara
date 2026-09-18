@@ -1,10 +1,12 @@
 import {
   CAPTURE_TEMPLATE_FIELD_LABELS,
   CAPTURE_TRIAGE_EXITS,
+  type CaptureAttachmentPromotionInput,
   type CaptureBulkSenseMaking,
   type CaptureBulkSenseMakingInput,
   type CaptureInboxItem,
   type CaptureInboxTriageAdapter,
+  type CaptureInput,
 } from "@cantiara/api/capture-triage";
 import { describe, expect, test, vi } from "vitest";
 import type {
@@ -12,6 +14,7 @@ import type {
   CaptureInboxMergeRecord,
   CaptureInboxOperationStateStore,
   CaptureInboxPreview,
+  CaptureInboxStagingStore,
   CaptureInboxStore,
 } from "./capture-inbox";
 import { createCaptureInbox } from "./capture-inbox";
@@ -287,6 +290,17 @@ function createTriageAdapter(
   return adapter;
 }
 
+function createStagingStore() {
+  const stagingStore: CaptureInboxStagingStore = {
+    delete: vi.fn().mockResolvedValue(undefined),
+    promote: async <TReceipt>(
+      input: CaptureAttachmentPromotionInput<TReceipt>,
+    ) => await input.finalize(),
+  };
+  vi.spyOn(stagingStore, "promote");
+  return stagingStore;
+}
+
 describe("Capture Inbox seam", () => {
   test("saves freeform text to the Workspace Capture Inbox without a main record", async () => {
     const { items, store } = createMemoryStore();
@@ -318,7 +332,9 @@ describe("Capture Inbox seam", () => {
 
   test("preserves capture provenance in the Inbox item", async () => {
     const { store } = createMemoryStore();
+    const stagingStore = createStagingStore();
     const captureInbox = createCaptureInbox({
+      stagingStore,
       store,
       workCreate: { createBug: vi.fn() },
     });
@@ -335,6 +351,45 @@ describe("Capture Inbox seam", () => {
       link: "https://example.com/source",
       origin: { kind: "Web Capture", url: "https://example.com/source" },
     });
+  });
+
+  test("rejects attachment metadata that could expose a staging object", async () => {
+    const { store } = createMemoryStore();
+    const stagingStore = createStagingStore();
+    const captureInbox = createCaptureInbox({
+      stagingStore,
+      store,
+      workCreate: { createBug: vi.fn() },
+    });
+
+    await expect(
+      captureInbox.create("account-1", {
+        attachment: {
+          id: "staging-1",
+          objectUrl: "https://storage.example.test/staging-1",
+        } as unknown as NonNullable<CaptureInput["attachment"]>,
+        content: "Private screenshot",
+      }),
+    ).rejects.toThrow();
+
+    await Promise.all(
+      [
+        "https://storage.example.test/staging-1",
+        "https:/storage.example.test/staging-1",
+        "data:text/plain,secret",
+        "../other-account/object",
+        "/absolute/object",
+      ].map((id) =>
+        expect(
+          captureInbox.create("account-1", {
+            attachment: { id },
+            content: "Private screenshot",
+          }),
+        ).rejects.toThrow(
+          "Capture attachment ids must be opaque staging identifiers.",
+        ),
+      ),
+    );
   });
 
   test("accepts only HTTP(S) provenance links", async () => {
@@ -753,8 +808,10 @@ describe("Capture Inbox seam", () => {
       }),
     );
     const convertedAdapter = createTriageAdapter();
+    const convertedStagingStore = createStagingStore();
     const convertedInbox = createCaptureInbox({
       store: convertedStore.store,
+      stagingStore: convertedStagingStore,
       triageAdapter: convertedAdapter,
       workCreate: { createBug: vi.fn() },
     });
@@ -805,6 +862,19 @@ describe("Capture Inbox seam", () => {
       groups: [],
       items: [],
     });
+    expect(convertedStagingStore.promote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: "account-1",
+        attachment: convertedCapture.attachment,
+        clientIdempotencyKey: "convert-1",
+        item: convertedCapture,
+        operation: "convert",
+        targetScope: {
+          kind: "project",
+          projectId: "project-1",
+        },
+      }),
+    );
 
     const attachedCapture: CaptureInboxItem = {
       content: "Attach this evidence",
@@ -920,6 +990,145 @@ describe("Capture Inbox seam", () => {
       bulkSenseMaking: { clusters: [], placements: [] },
       groups: [],
       items: [],
+    });
+  });
+
+  test("deletes the item-owned staging object with an Inbox Delete", async () => {
+    const capture: CaptureInboxItem = {
+      attachment: { id: "staging-delete", name: "private.png" },
+      content: "Discard this attachment",
+      createdAt: "2026-09-16T09:03:00.000Z",
+      fields: {},
+      id: "capture-delete-attachment",
+      projectId: null,
+      template: null,
+    };
+    const { store } = createTriageMemoryStore([capture]);
+    const stagingStore = createStagingStore();
+    const captureInbox = createCaptureInbox({
+      stagingStore,
+      store,
+      triageAdapter: createTriageAdapter(),
+      workCreate: { createBug: vi.fn() },
+    });
+
+    await captureInbox.delete("account-1", {
+      clientIdempotencyKey: "delete-attachment",
+      itemId: capture.id,
+    });
+
+    expect(stagingStore.delete).toHaveBeenCalledWith({
+      accountId: "account-1",
+      attachment: capture.attachment,
+      itemId: capture.id,
+    });
+    await expect(captureInbox.list("account-1")).resolves.toMatchObject({
+      groups: [],
+      items: [],
+    });
+  });
+
+  test("keeps the capture when File Attachment promotion fails", async () => {
+    const capture: CaptureInboxItem = {
+      attachment: { id: "staging-retry", name: "private.png" },
+      content: "Retry this attachment conversion",
+      createdAt: "2026-09-16T09:04:00.000Z",
+      fields: {},
+      id: "capture-promotion-retry",
+      projectId: "project-1",
+      template: null,
+    };
+    const { store } = createTriageMemoryStore([capture]);
+    const stagingStore = createStagingStore();
+    vi.spyOn(stagingStore, "promote").mockRejectedValue(
+      new Error("file attachment unavailable"),
+    );
+    const adapter = createTriageAdapter();
+    const captureInbox = createCaptureInbox({
+      stagingStore,
+      store,
+      triageAdapter: adapter,
+      workCreate: { createBug: vi.fn() },
+    });
+    const preview = await captureInbox.previewConvert("account-1", {
+      itemId: capture.id,
+      recordType: "Work",
+    });
+
+    await expect(
+      captureInbox.convert("account-1", {
+        clientIdempotencyKey: "promotion-retry",
+        itemId: capture.id,
+        previewId: preview.previewId,
+      }),
+    ).rejects.toMatchObject({ code: "CAPTURE_ATTACHMENT_PROMOTION_FAILED" });
+    expect(adapter.createRecord).not.toHaveBeenCalled();
+    await expect(captureInbox.list("account-1")).resolves.toMatchObject({
+      items: [capture],
+    });
+  });
+
+  test("requires a Project or Personal Wiki target before promoting a Workspace capture attachment", async () => {
+    const capture: CaptureInboxItem = {
+      attachment: { id: "staging-workspace", name: "private.png" },
+      content: "This attachment has no durable target yet",
+      createdAt: "2026-09-16T09:05:00.000Z",
+      fields: {},
+      id: "capture-workspace-attachment",
+      projectId: null,
+      template: null,
+    };
+    const { store } = createTriageMemoryStore([capture]);
+    const stagingStore = createStagingStore();
+    const adapter = createTriageAdapter();
+    const captureInbox = createCaptureInbox({
+      stagingStore,
+      store,
+      triageAdapter: adapter,
+      workCreate: { createBug: vi.fn() },
+    });
+
+    await expect(
+      captureInbox.previewConvert("account-1", {
+        itemId: capture.id,
+        recordType: "Work",
+      }),
+    ).rejects.toMatchObject({ code: "CAPTURE_ATTACHMENT_SCOPE_REQUIRED" });
+
+    await store.operationState.savePreview({
+      accountId: "account-1",
+      kind: "convert",
+      preview: {
+        fieldMappings: [],
+        itemId: capture.id,
+        previewId: "workspace-attachment-preview",
+        proposedRelations: [{ relation: "Origin", target: "Proposed record" }],
+        proposedRecord: {
+          fields: {},
+          projectId: null,
+          recordType: "Work",
+          title: "This attachment has no durable target yet",
+        },
+        source: capture,
+        targetScope: {
+          kind: "project",
+          label: "Project",
+          projectId: "forged-project",
+        },
+      },
+    });
+
+    await expect(
+      captureInbox.convert("account-1", {
+        clientIdempotencyKey: "workspace-attachment-convert",
+        itemId: capture.id,
+        previewId: "workspace-attachment-preview",
+      }),
+    ).rejects.toMatchObject({ code: "CAPTURE_ATTACHMENT_SCOPE_REQUIRED" });
+    expect(adapter.createRecord).not.toHaveBeenCalled();
+    expect(stagingStore.promote).not.toHaveBeenCalled();
+    await expect(captureInbox.list("account-1")).resolves.toMatchObject({
+      items: [capture],
     });
   });
 

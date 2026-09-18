@@ -6,7 +6,7 @@ import { Badge } from "@cantiara/ui/components/badge";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLinkProps, useLocation } from "@tanstack/react-router";
-import { ArrowLeft, Check, CircleHelp } from "lucide-react";
+import { ArrowLeft, Check, CircleHelp, Settings2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/views/client-shell";
@@ -27,6 +27,78 @@ const NAVIGATION_LINK_BASE =
   "relative -mb-px px-0.5 py-3 text-sm transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 const PROJECT_SHELL_EXPLANATION_STORAGE_PREFIX =
   "cantiara:project-shell:explanation-dismissed:";
+
+const CONFIGURATION_HOSTS = [
+  {
+    description:
+      "Open the host for Project stages. Stage state is presentation metadata and does not write Work status.",
+    label: "Stages",
+    message:
+      "Stage names and presentation order open here; removing a stage does not delete main records.",
+  },
+  {
+    description:
+      "Open the host for user-facing Work status names while protected semantics remain unchanged.",
+    label: "Work statuses",
+    message:
+      "Work status names open here; Not Started, In Progress, Blocked, and Closed semantics remain protected.",
+  },
+  {
+    description:
+      "Open the host for enabled Project areas. Overview and All Tools stay reachable.",
+    label: "Project areas",
+    message:
+      "Use All Tools below to enable a ready Project area without creating records.",
+  },
+  {
+    description:
+      "Open the host for project-scoped fields. Field types and values belong to the Custom field feature.",
+    label: "Custom field",
+    message: "No schema is defined here.",
+  },
+  {
+    description:
+      "Open the host for project priority criteria without creating a scalar priority field.",
+    label: "Priority metrics",
+    message:
+      "Priority metric definitions open here; Work values remain with their source records.",
+  },
+  {
+    description:
+      "Open the host for named Work views. Planning remains a daily action outside this mode.",
+    label: "Saved views",
+    message:
+      "Saved view definitions open here; this entry does not change Planning membership.",
+  },
+  {
+    description:
+      "Open the host for Work Context Card presentation without changing its layout engine.",
+    label: "Work Context Card layout",
+    message:
+      "No layout is changed here. The Work Context Card feature owns its layout engine.",
+  },
+] as const;
+
+type ConfigurationHost = (typeof CONFIGURATION_HOSTS)[number]["label"];
+
+const DAILY_ACTIONS = ["Create", "Edit", "Status", "Planning"] as const;
+type DailyAction = (typeof DAILY_ACTIONS)[number];
+const DAILY_ACTION_HASHES: Record<DailyAction, string> = {
+  Create: "work-create",
+  Edit: "work-edit",
+  Planning: "work-planning",
+  Status: "work-status",
+};
+
+const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
+  Create:
+    "Create remains outside Configuration Mode. This Project Shell entry does not create sample Work.",
+  Edit: "Edit remains outside Configuration Mode. Project configuration does not change daily content.",
+  Status:
+    "Status remains outside Configuration Mode. Project stages do not write Work status.",
+  Planning:
+    "Planning remains outside Configuration Mode. Saved views are a separate Project configuration entry.",
+};
 
 function projectShellExplanationStorageKey(projectId: string) {
   return `${PROJECT_SHELL_EXPLANATION_STORAGE_PREFIX}${projectId}`;
@@ -60,6 +132,7 @@ function rememberProjectShellExplanationDismissal(projectId: string) {
 }
 
 export default function ProjectShellView({ projectId }: { projectId: string }) {
+  const activeHash = useLocation({ select: ({ hash }) => hash });
   const projectQueryOptions = orpc.project.queryOptions({
     input: { projectId },
   });
@@ -69,9 +142,15 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
   const [showExplanation, setShowExplanation] = useState(
     () => !isProjectShellExplanationDismissed(projectId),
   );
+  const [configurationMode, setConfigurationMode] = useState(false);
+  const [configurationHost, setConfigurationHost] =
+    useState<ConfigurationHost | null>(null);
+  const dailyAction = dailyActionFromHash(activeHash);
 
   useEffect(() => {
     setShowExplanation(!isProjectShellExplanationDismissed(projectId));
+    setConfigurationMode(false);
+    setConfigurationHost(null);
   }, [projectId]);
 
   if (projectQuery.isPending) {
@@ -111,6 +190,15 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
     rememberProjectShellExplanationDismissal(projectId);
   }
 
+  function toggleConfigurationMode() {
+    setConfigurationMode((isActive) => {
+      if (isActive) {
+        setConfigurationHost(null);
+      }
+      return !isActive;
+    });
+  }
+
   return (
     <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
       <header className="border-b pb-8">
@@ -148,6 +236,23 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
             </div>
           </dl>
         </div>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <div>
+            <p className="font-medium text-sm">Configuration Mode</p>
+            <p className="mt-1 text-muted-foreground text-xs/relaxed">
+              Separate Project structure from daily Work editing.
+            </p>
+          </div>
+          <Button
+            aria-pressed={configurationMode}
+            onClick={toggleConfigurationMode}
+            type="button"
+            variant={configurationMode ? "default" : "outline"}
+          >
+            <Settings2 aria-hidden="true" />
+            Configuration Mode
+          </Button>
+        </div>
       </header>
 
       {showExplanation ? (
@@ -173,6 +278,13 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
       ) : null}
 
       <ProjectNavigation extraPinnedAreas={configuration.extraPinnedAreas} />
+
+      {configurationMode ? (
+        <ConfigurationModePanel
+          configurationHost={configurationHost}
+          onConfigurationHostChange={setConfigurationHost}
+        />
+      ) : null}
 
       <section className="mt-10 space-y-10" id="overview">
         <div className="max-w-2xl">
@@ -209,6 +321,7 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
             <p className="mt-2 text-muted-foreground text-sm/relaxed">
               No sample content was created.
             </p>
+            <DailyWorkActions activeAction={dailyAction} />
           </div>
           <div className="lg:border-l lg:pl-6">
             <p className="font-medium text-muted-foreground text-xs">
@@ -236,12 +349,241 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
 
         <AllToolsSection
           baseRevision={revision}
+          configurationMode={configurationMode}
           enabledAreas={configuration.enabledAreas}
           projectId={projectId}
         />
       </section>
     </main>
   );
+}
+
+function DailyWorkActions({
+  activeAction,
+}: {
+  activeAction: DailyAction | null;
+}) {
+  return (
+    <section aria-labelledby="daily-actions-heading" className="mt-5">
+      <h3 className="sr-only" id="daily-actions-heading">
+        Daily actions
+      </h3>
+      <div className="flex flex-wrap gap-2">
+        {DAILY_ACTIONS.map((action) => (
+          <DailyActionLink
+            action={action}
+            activeAction={activeAction}
+            key={action}
+          />
+        ))}
+      </div>
+      {activeAction ? <DailyActionHost action={activeAction} /> : null}
+    </section>
+  );
+}
+
+function DailyActionLink({
+  action,
+  activeAction,
+}: {
+  action: DailyAction;
+  activeAction: DailyAction | null;
+}) {
+  const linkProps = useLinkProps({
+    activeOptions: { exact: true, includeHash: true },
+    hash: DAILY_ACTION_HASHES[action],
+    to: ".",
+  });
+
+  return (
+    <a
+      {...linkProps}
+      aria-current={activeAction === action ? "location" : undefined}
+      className={buttonVariants({ size: "xs", variant: "outline" })}
+    >
+      {action}
+    </a>
+  );
+}
+
+function DailyActionHost({ action }: { action: DailyAction }) {
+  const hostId = DAILY_ACTION_HASHES[action];
+
+  return (
+    <section
+      aria-labelledby={`${hostId}-heading`}
+      className="mt-4 border bg-muted/20 p-3 text-muted-foreground text-sm"
+      id={hostId}
+    >
+      <h4 className="font-medium text-foreground" id={`${hostId}-heading`}>
+        {action}
+      </h4>
+      <p className="mt-1">{DAILY_ACTION_MESSAGES[action]}</p>
+    </section>
+  );
+}
+
+function ConfigurationModePanel({
+  configurationHost,
+  onConfigurationHostChange,
+}: {
+  configurationHost: ConfigurationHost | null;
+  onConfigurationHostChange: (host: ConfigurationHost | null) => void;
+}) {
+  return (
+    <section
+      aria-label="Configuration Mode"
+      className="mt-6 space-y-8 border border-primary/30 bg-primary/5 p-5 sm:p-6"
+    >
+      <header className="max-w-3xl">
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge>Configuration Mode</Badge>
+        </div>
+        <h2 className="mt-3 font-semibold text-xl tracking-tight">
+          Configuration Mode
+        </h2>
+        <p className="mt-2 text-muted-foreground text-sm/relaxed">
+          Structure changes stay separate from daily content editing. Entering
+          this mode does not change records, view membership, or Project
+          lifecycle.
+        </p>
+      </header>
+
+      <section aria-labelledby="configuration-project-areas-heading">
+        <h3
+          className="font-medium text-base"
+          id="configuration-project-areas-heading"
+        >
+          Project areas
+        </h3>
+        <p className="mt-2 max-w-2xl text-muted-foreground text-sm/relaxed">
+          Enable a ready Project area from All Tools below. Enabling an area
+          changes presentation metadata only and does not create records.
+        </p>
+      </section>
+
+      <section aria-labelledby="configuration-entry-points-heading">
+        <h3
+          className="font-medium text-base"
+          id="configuration-entry-points-heading"
+        >
+          Configuration Mode
+        </h3>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {CONFIGURATION_HOSTS.map(({ description, label }) => {
+            const isOpen = configurationHost === label;
+            return (
+              <div className="border bg-background p-4" key={label}>
+                <ConfigurationHostButton
+                  isOpen={isOpen}
+                  label={label}
+                  onChange={onConfigurationHostChange}
+                />
+                <p className="mt-2 text-muted-foreground text-xs/relaxed">
+                  {description}
+                </p>
+                {isOpen ? <ConfigurationHostPanel label={label} /> : null}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function ConfigurationHostButton({
+  isOpen,
+  label,
+  onChange,
+}: {
+  isOpen: boolean;
+  label: ConfigurationHost;
+  onChange: (host: ConfigurationHost | null) => void;
+}) {
+  const handleClick = useCallback(
+    () => onChange(isOpen ? null : label),
+    [isOpen, label, onChange],
+  );
+
+  return (
+    <Button
+      aria-controls={isOpen ? configurationHostId(label) : undefined}
+      aria-expanded={isOpen}
+      onClick={handleClick}
+      type="button"
+      variant="ghost"
+    >
+      {label}
+    </Button>
+  );
+}
+
+function ConfigurationHostPanel({ label }: { label: ConfigurationHost }) {
+  const host = CONFIGURATION_HOSTS.find(
+    (candidate) => candidate.label === label,
+  );
+  const hostId = configurationHostId(label);
+
+  if (!host) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-labelledby={`${hostId}-heading`}
+      className="mt-4 border-t pt-4 text-sm"
+      id={hostId}
+    >
+      <h4 className="font-medium text-foreground" id={`${hostId}-heading`}>
+        {label}
+      </h4>
+      <ConfigurationHostContent label={label} message={host.message} />
+    </section>
+  );
+}
+
+function ConfigurationHostContent({
+  label,
+  message,
+}: {
+  label: ConfigurationHost;
+  message: string;
+}) {
+  switch (label) {
+    case "Custom field":
+      return <CustomFieldEditorHost message={message} />;
+    case "Work Context Card layout":
+      return <WorkContextCardLayoutEditorHost message={message} />;
+    default:
+      return <p className="mt-1">{message}</p>;
+  }
+}
+
+function CustomFieldEditorHost({ message }: { message: string }) {
+  return (
+    <div
+      className="mt-3 border-l-2 pl-3"
+      data-configuration-editor-host="custom-field"
+    >
+      <p>{message}</p>
+    </div>
+  );
+}
+
+function WorkContextCardLayoutEditorHost({ message }: { message: string }) {
+  return (
+    <div
+      className="mt-3 border-l-2 pl-3"
+      data-configuration-editor-host="work-context-card-layout"
+    >
+      <p>{message}</p>
+    </div>
+  );
+}
+
+function configurationHostId(label: ConfigurationHost) {
+  return `configuration-host-${navigationSlug(label)}`;
 }
 
 function ProjectNavigation({
@@ -335,10 +677,19 @@ function navigationSurfaceFromHash(
   if (hash === "documents") {
     return "Documents";
   }
+  if (dailyActionFromHash(hash)) {
+    return "Work";
+  }
   const pinnedArea = extraPinnedAreas.find(
     (area) => projectAreaHash(area) === hash,
   );
   return pinnedArea ?? "Overview";
+}
+
+function dailyActionFromHash(hash: string) {
+  return (
+    DAILY_ACTIONS.find((action) => DAILY_ACTION_HASHES[action] === hash) ?? null
+  );
 }
 
 function navigationHash(surface: NavigationSurface) {
@@ -416,10 +767,12 @@ function EnabledAreasList({ areas }: { areas: readonly ProjectArea[] }) {
 
 function AllToolsSection({
   baseRevision,
+  configurationMode,
   enabledAreas,
   projectId,
 }: {
   baseRevision: number;
+  configurationMode: boolean;
   enabledAreas: readonly ProjectArea[];
   projectId: string;
 }) {
@@ -481,20 +834,50 @@ function AllToolsSection({
               key={area}
             >
               {area}
-              {enabled ? (
-                <Check aria-hidden="true" className="size-3" />
-              ) : (
-                <EnableProjectAreaButton
-                  area={area}
-                  disabled={enableProjectArea.isPending}
-                  onEnable={requestEnableProjectArea}
-                />
-              )}
+              <ProjectAreaAvailability
+                area={area}
+                configurationMode={configurationMode}
+                disabled={enableProjectArea.isPending}
+                enabled={enabled}
+                onEnable={requestEnableProjectArea}
+              />
             </li>
           );
         })}
       </ul>
     </section>
+  );
+}
+
+function ProjectAreaAvailability({
+  area,
+  configurationMode,
+  disabled,
+  enabled,
+  onEnable,
+}: {
+  area: ProjectArea;
+  configurationMode: boolean;
+  disabled: boolean;
+  enabled: boolean;
+  onEnable: (area: ProjectArea) => void;
+}) {
+  if (enabled) {
+    return <Check aria-hidden="true" className="size-3" />;
+  }
+
+  if (configurationMode) {
+    return (
+      <EnableProjectAreaButton
+        area={area}
+        disabled={disabled}
+        onEnable={onEnable}
+      />
+    );
+  }
+
+  return (
+    <span className="text-muted-foreground text-xs">Configuration Mode</span>
   );
 }
 

@@ -29,7 +29,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type ChangeEvent,
   type FormEvent,
-  type ReactNode,
   useCallback,
   useEffect,
   useState,
@@ -48,6 +47,16 @@ import {
   captureInboxQueryOptions,
   client,
 } from "@/utils/orpc";
+
+import {
+  advanceSequentialTriageAfterExit,
+  beginSequentialTriage,
+  leaveSequentialTriage,
+  moveToNextSequentialTriageItem,
+  moveToPreviousSequentialTriageItem,
+  restoreSequentialTriageItem,
+  type SequentialTriageState,
+} from "./sequential-triage";
 
 function captureCountLabel(count: number) {
   return `${count} ${count === 1 ? "capture" : "captures"}`;
@@ -214,9 +223,11 @@ function SuggestionRow({
 }
 
 function SuggestionsPreview({
+  onClose,
   suggestions,
   onUse,
 }: {
+  onClose: () => void;
   onUse: (suggestion: CaptureSuggestion) => void;
   suggestions: CaptureSuggestions;
 }) {
@@ -225,7 +236,12 @@ function SuggestionsPreview({
       aria-label="Suggestions"
       className="space-y-4 border border-border/70 p-4"
     >
-      <h3 className="font-semibold text-sm">Suggestions</h3>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-semibold text-sm">Suggestions</h3>
+        <Button onClick={onClose} type="button" variant="ghost">
+          Close suggestions
+        </Button>
+      </div>
       <div className="space-y-2">
         <h4 className="font-medium text-xs">{suggestions.sameProject.label}</h4>
         {suggestions.sameProject.items.length > 0 ? (
@@ -567,11 +583,13 @@ function CaptureInboxItemActions({
   formattingPreferences,
   item,
   onUndoPreview,
+  onTriageExit,
   triageAvailable,
 }: {
   accountId: string;
   formattingPreferences: AccountPreferences;
   item: CaptureInboxItem;
+  onTriageExit?: () => void;
   onUndoPreview: (state: UndoPreviewState) => void;
   triageAvailable: boolean;
 }) {
@@ -589,14 +607,20 @@ function CaptureInboxItemActions({
   const [targetId, setTargetId] = useState("");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  const refreshInbox = useCallback(async () => {
-    await queryClient.invalidateQueries({
-      queryKey: captureInboxQueryOptions(accountId).queryKey,
-    });
-    setMode(null);
-    setPreview(null);
-    setSuggestionData(null);
-  }, [accountId, queryClient]);
+  const refreshInbox = useCallback(
+    async (advanceAfterExit = false) => {
+      await queryClient.invalidateQueries({
+        queryKey: captureInboxQueryOptions(accountId).queryKey,
+      });
+      setMode(null);
+      setPreview(null);
+      setSuggestionData(null);
+      if (advanceAfterExit) {
+        onTriageExit?.();
+      }
+    },
+    [accountId, onTriageExit, queryClient],
+  );
 
   const previewConversion = useMutation({
     mutationFn: () => {
@@ -626,7 +650,7 @@ function CaptureInboxItemActions({
         }),
       ),
     onError: () => setActionMessage(triageErrorMessage()),
-    onSuccess: refreshInbox,
+    onSuccess: () => refreshInbox(true),
   });
   const previewAttachment = useMutation({
     mutationFn: () =>
@@ -665,7 +689,7 @@ function CaptureInboxItemActions({
       } catch {
         toast.error(triageErrorMessage());
       }
-      await refreshInbox();
+      await refreshInbox(true);
     },
   });
   const deleteCapture = useMutation({
@@ -677,7 +701,7 @@ function CaptureInboxItemActions({
         }),
       ),
     onError: () => setActionMessage(triageErrorMessage()),
-    onSuccess: refreshInbox,
+    onSuccess: () => refreshInbox(true),
   });
   const suggestions = useMutation({
     mutationFn: () =>
@@ -863,6 +887,7 @@ function CaptureInboxItemActions({
       ) : null}
       {suggestionPreview ? (
         <SuggestionsPreview
+          onClose={closeMode}
           onUse={useSuggestion}
           suggestions={suggestionPreview}
         />
@@ -1148,6 +1173,144 @@ function BulkSenseMakingView({
   );
 }
 
+function CaptureInboxItemDetails({
+  formattingPreferences,
+  includeContent = true,
+  includeTimestamp = true,
+  item,
+}: {
+  formattingPreferences: AccountPreferences;
+  includeContent?: boolean;
+  includeTimestamp?: boolean;
+  item: CaptureInboxItem;
+}) {
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        {item.template ? (
+          <span className="font-medium">{item.template}</span>
+        ) : null}
+        {includeTimestamp ? (
+          <time className="text-muted-foreground" dateTime={item.createdAt}>
+            {formatAccountDateTime(item.createdAt, formattingPreferences)}
+          </time>
+        ) : null}
+      </div>
+      {includeContent && item.content ? (
+        <p className="whitespace-pre-wrap text-sm/6">{item.content}</p>
+      ) : null}
+      {Object.entries(item.fields).length > 0 ? (
+        <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          {Object.entries(item.fields).map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="whitespace-pre-wrap">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </>
+  );
+}
+
+function SequentialTriageView({
+  accountId,
+  currentIndex,
+  formattingPreferences,
+  hasNextItem,
+  isResolved,
+  item,
+  onBackToList,
+  onNext,
+  onPrevious,
+  onTriageExit,
+  onUndoPreview,
+  triageAvailable,
+}: {
+  accountId: string;
+  currentIndex: number;
+  formattingPreferences: AccountPreferences;
+  hasNextItem: boolean;
+  isResolved: boolean;
+  item: CaptureInboxItem;
+  onBackToList: () => void;
+  onNext: () => void;
+  onPrevious: () => void;
+  onTriageExit: () => void;
+  onUndoPreview: (state: UndoPreviewState) => void;
+  triageAvailable: boolean;
+}) {
+  return (
+    <section aria-labelledby="sequential-triage-title" className="space-y-5">
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-4">
+        <div>
+          <p className="text-muted-foreground text-xs">Capture Inbox</p>
+          <h2
+            className="mt-1 font-semibold text-xl tracking-tight"
+            id="sequential-triage-title"
+          >
+            Sequential triage
+          </h2>
+          <p className="mt-2 max-w-xl text-muted-foreground text-sm/6">
+            Focus on one capture. Convert, attach to existing, or delete to
+            continue.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            disabled={currentIndex <= 0}
+            onClick={onPrevious}
+            type="button"
+            variant="outline"
+          >
+            Previous item
+          </Button>
+          {isResolved && hasNextItem ? (
+            <Button onClick={onNext} type="button" variant="outline">
+              Next item
+            </Button>
+          ) : null}
+          <Button onClick={onBackToList} type="button" variant="ghost">
+            Back to list
+          </Button>
+        </div>
+      </header>
+      <article
+        aria-label="Sequential triage item"
+        className="space-y-4 border border-primary/30 bg-primary/5 p-5"
+      >
+        <CaptureSourceSummary
+          formattingPreferences={formattingPreferences}
+          item={item}
+        />
+        <CaptureInboxItemDetails
+          formattingPreferences={formattingPreferences}
+          includeContent={false}
+          includeTimestamp={false}
+          item={item}
+        />
+        {isResolved ? (
+          <p
+            className="border border-border/70 px-3 py-2 text-muted-foreground text-sm"
+            role="status"
+          >
+            This capture was already handled in this session.
+          </p>
+        ) : (
+          <CaptureInboxItemActions
+            accountId={accountId}
+            formattingPreferences={formattingPreferences}
+            item={item}
+            onTriageExit={onTriageExit}
+            onUndoPreview={onUndoPreview}
+            triageAvailable={triageAvailable}
+          />
+        )}
+      </article>
+    </section>
+  );
+}
+
 function CaptureInboxGroupView({
   accountId,
   formattingPreferences,
@@ -1201,27 +1364,10 @@ function CaptureInboxGroupView({
       <ul className="divide-y">
         {group.items.map((item) => (
           <li className="space-y-3 px-4 py-4 sm:px-5" key={item.id}>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-              {item.template ? (
-                <span className="font-medium">{item.template}</span>
-              ) : null}
-              <time className="text-muted-foreground" dateTime={item.createdAt}>
-                {formatAccountDateTime(item.createdAt, formattingPreferences)}
-              </time>
-            </div>
-            {item.content ? (
-              <p className="whitespace-pre-wrap text-sm/6">{item.content}</p>
-            ) : null}
-            {Object.entries(item.fields).length > 0 ? (
-              <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                {Object.entries(item.fields).map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-muted-foreground">{label}</dt>
-                    <dd className="whitespace-pre-wrap">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : null}
+            <CaptureInboxItemDetails
+              formattingPreferences={formattingPreferences}
+              item={item}
+            />
             <CaptureInboxItemActions
               accountId={accountId}
               formattingPreferences={formattingPreferences}
@@ -1236,6 +1382,210 @@ function CaptureInboxGroupView({
   );
 }
 
+function SequentialTriageSurface({
+  accountId,
+  currentIndex,
+  formattingPreferences,
+  hasNextItem,
+  isResolved,
+  item,
+  onBackToList,
+  onNext,
+  onPrevious,
+  onTriageExit,
+  onUndoPreview,
+  triageAvailable,
+}: {
+  accountId: string;
+  currentIndex: number;
+  formattingPreferences: AccountPreferences;
+  hasNextItem: boolean;
+  isResolved: boolean;
+  item: CaptureInboxItem | null;
+  onBackToList: () => void;
+  onNext: () => void;
+  onPrevious: () => void;
+  onTriageExit: () => void;
+  onUndoPreview: (state: UndoPreviewState) => void;
+  triageAvailable: boolean;
+}) {
+  if (item) {
+    return (
+      <SequentialTriageView
+        accountId={accountId}
+        currentIndex={currentIndex}
+        formattingPreferences={formattingPreferences}
+        hasNextItem={hasNextItem}
+        isResolved={isResolved}
+        item={item}
+        onBackToList={onBackToList}
+        onNext={onNext}
+        onPrevious={onPrevious}
+        onTriageExit={onTriageExit}
+        onUndoPreview={onUndoPreview}
+        triageAvailable={triageAvailable}
+      />
+    );
+  }
+
+  return (
+    <section
+      aria-labelledby="sequential-triage-complete-title"
+      className="space-y-5"
+    >
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-4">
+        <div>
+          <p className="text-muted-foreground text-xs">Capture Inbox</p>
+          <h2
+            className="mt-1 font-semibold text-xl tracking-tight"
+            id="sequential-triage-complete-title"
+          >
+            Sequential triage
+          </h2>
+        </div>
+        <Button onClick={onBackToList} type="button" variant="ghost">
+          Back to list
+        </Button>
+      </header>
+      <p className="border border-border/70 px-4 py-6 text-muted-foreground text-sm">
+        Sequential triage is complete. No captures are waiting in this session.
+      </p>
+    </section>
+  );
+}
+
+function CaptureInboxListView({
+  accountId,
+  bulkSenseMaking,
+  formattingPreferences,
+  groups,
+  items,
+  onStartSequentialTriage,
+  onToggleBulkView,
+  onUndoPreview,
+  triageAvailable,
+  viewMode,
+}: {
+  accountId: string;
+  bulkSenseMaking: CaptureBulkSenseMaking;
+  formattingPreferences: AccountPreferences;
+  groups: CaptureInboxGroup[];
+  items: CaptureInboxItem[];
+  onStartSequentialTriage: () => void;
+  onToggleBulkView: () => void;
+  onUndoPreview: (state: UndoPreviewState) => void;
+  triageAvailable: boolean;
+  viewMode: "inbox" | "bulk";
+}) {
+  function renderCaptureList() {
+    if (groups.length === 0) {
+      return (
+        <section
+          aria-labelledby="empty-workspace-inbox"
+          className="overflow-hidden border border-border/70"
+        >
+          <div className="bg-muted/25 px-4 py-4">
+            <p className="text-muted-foreground text-xs">Workspace inbox</p>
+            <h3
+              className="mt-1 font-semibold text-base tracking-tight"
+              id="empty-workspace-inbox"
+            >
+              Workspace Capture Inbox
+            </h3>
+          </div>
+          <p className="px-4 py-6 text-muted-foreground text-sm">
+            No captures in this Inbox.
+          </p>
+        </section>
+      );
+    }
+
+    if (viewMode === "bulk") {
+      return (
+        <BulkSenseMakingView
+          accountId={accountId}
+          formattingPreferences={formattingPreferences}
+          items={items}
+          onUndoPreview={onUndoPreview}
+          triageAvailable={triageAvailable}
+          view={bulkSenseMaking}
+        />
+      );
+    }
+
+    return groups.map((group) => (
+      <CaptureInboxGroupView
+        accountId={accountId}
+        formattingPreferences={formattingPreferences}
+        group={group}
+        key={`${group.kind}-${group.projectId ?? "workspace"}`}
+        onUndoPreview={onUndoPreview}
+        triageAvailable={triageAvailable}
+      />
+    ));
+  }
+
+  return (
+    <div className="grid gap-12 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start">
+      <div className="lg:sticky lg:top-6">
+        <CaptureInboxForm accountId={accountId} />
+      </div>
+
+      <section
+        aria-labelledby="capture-list-title"
+        className="min-w-0 space-y-5"
+      >
+        <div className="flex flex-wrap items-end justify-between gap-4 border-b pb-4">
+          <div>
+            <h2
+              className="font-semibold text-xl tracking-tight"
+              id="capture-list-title"
+            >
+              Saved captures
+            </h2>
+            <p className="mt-2 max-w-md text-muted-foreground text-sm/6">
+              Capture Inbox groups are shown here after you save.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {groups.length > 0 ? (
+              <span className="shrink-0 text-muted-foreground text-xs">
+                {captureCountLabel(
+                  groups.reduce(
+                    (count, group) => count + group.items.length,
+                    0,
+                  ),
+                )}
+              </span>
+            ) : null}
+            {groups.length > 0 && triageAvailable ? (
+              <Button
+                onClick={onStartSequentialTriage}
+                type="button"
+                variant="outline"
+              >
+                Sequential triage
+              </Button>
+            ) : null}
+            {groups.length > 0 ? (
+              <Button
+                aria-pressed={viewMode === "bulk"}
+                onClick={onToggleBulkView}
+                type="button"
+                variant={viewMode === "bulk" ? "default" : "outline"}
+              >
+                Bulk sense-making
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        {renderCaptureList()}
+      </section>
+    </div>
+  );
+}
+
 export default function CaptureInboxView({ accountId }: { accountId: string }) {
   const inbox = useQuery(captureInboxQueryOptions(accountId));
   const accountPreferences = useQuery(
@@ -1245,8 +1595,17 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
   const shell = useClientShell();
   const [undoPreview, setUndoPreview] = useState<UndoPreviewState | null>(null);
   const [viewMode, setViewMode] = useState<"inbox" | "bulk">("inbox");
+  const [sequentialTriageState, setSequentialTriageState] =
+    useState<SequentialTriageState>({ mode: "list" });
+  const [sequentialItems, setSequentialItems] = useState<
+    readonly CaptureInboxItem[]
+  >([]);
   const undoMerge = useMutation({
-    mutationFn: (input: { mergeId: string; previewId: string }) =>
+    mutationFn: (input: {
+      itemId: string;
+      mergeId: string;
+      previewId: string;
+    }) =>
       shell.runWrite(() =>
         client.undoCaptureMerge({
           clientIdempotencyKey: crypto.randomUUID(),
@@ -1255,10 +1614,13 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
         }),
       ),
     onError: () => toast.error(triageErrorMessage()),
-    onSuccess: async () => {
+    onSuccess: async (_, input) => {
       await queryClient.invalidateQueries({
         queryKey: captureInboxQueryOptions(accountId).queryKey,
       });
+      setSequentialTriageState((state) =>
+        restoreSequentialTriageItem(state, input.itemId),
+      );
       setUndoPreview(null);
       toast.success("Capture restored.");
     },
@@ -1267,6 +1629,7 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
   const confirmUndo = useCallback(() => {
     if (undoPreview) {
       undoMerge.mutate({
+        itemId: undoPreview.preview.itemId,
         mergeId: undoPreview.mergeId,
         previewId: undoPreview.preview.previewId,
       });
@@ -1303,50 +1666,46 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
   }
 
   const { bulkSenseMaking, groups, items, triageAvailable } = inbox.data;
-  let captureListContent: ReactNode;
-  if (viewMode === "bulk" && groups.length > 0) {
-    captureListContent = (
-      <BulkSenseMakingView
-        accountId={accountId}
-        formattingPreferences={formattingPreferences}
-        items={items}
-        onUndoPreview={setUndoPreview}
-        triageAvailable={triageAvailable}
-        view={bulkSenseMaking}
-      />
+  const orderedItems = items;
+  const orderedItemIds = orderedItems.map((item) => item.id);
+  const sequentialItem =
+    sequentialTriageState.mode === "focused"
+      ? sequentialItems[sequentialTriageState.itemIndex]
+      : null;
+  const sequentialItemIndex =
+    sequentialTriageState.mode === "focused"
+      ? sequentialTriageState.itemIndex
+      : -1;
+  const startSequentialTriage = () => {
+    setSequentialItems(orderedItems);
+    setSequentialTriageState(beginSequentialTriage(orderedItemIds));
+  };
+  const previousSequentialTriageItem = () => {
+    setSequentialTriageState((state) =>
+      moveToPreviousSequentialTriageItem(state),
     );
-  } else if (groups.length === 0) {
-    captureListContent = (
-      <section
-        aria-labelledby="empty-workspace-inbox"
-        className="overflow-hidden border border-border/70"
-      >
-        <div className="bg-muted/25 px-4 py-4">
-          <p className="text-muted-foreground text-xs">Workspace inbox</p>
-          <h3
-            className="mt-1 font-semibold text-base tracking-tight"
-            id="empty-workspace-inbox"
-          >
-            Workspace Capture Inbox
-          </h3>
-        </div>
-        <p className="px-4 py-6 text-muted-foreground text-sm">
-          No captures in this Inbox.
-        </p>
-      </section>
+  };
+  const nextSequentialTriageItem = () => {
+    setSequentialTriageState((state) => moveToNextSequentialTriageItem(state));
+  };
+  const advanceSequentialTriage = () => {
+    setSequentialTriageState((state) =>
+      advanceSequentialTriageAfterExit(state),
     );
-  } else {
-    captureListContent = groups.map((group) => (
-      <CaptureInboxGroupView
-        accountId={accountId}
-        formattingPreferences={formattingPreferences}
-        group={group}
-        key={`${group.kind}-${group.projectId ?? "workspace"}`}
-        onUndoPreview={setUndoPreview}
-        triageAvailable={triageAvailable}
-      />
-    ));
-  }
+  };
+  const backToCaptureInboxList = () => {
+    setSequentialItems([]);
+    setSequentialTriageState(leaveSequentialTriage());
+  };
+  const sequentialItemResolved =
+    sequentialTriageState.mode === "focused" &&
+    sequentialTriageState.resolvedItemIds.includes(
+      sequentialTriageState.itemId,
+    );
+  const sequentialHasNextItem =
+    sequentialTriageState.mode === "focused" &&
+    sequentialTriageState.itemIndex < sequentialTriageState.itemIds.length - 1;
+  const inSequentialTriage = sequentialTriageState.mode !== "list";
 
   return (
     <main className="mx-auto w-full max-w-6xl space-y-10 px-5 py-10 sm:px-8 sm:py-14">
@@ -1369,58 +1728,37 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
         />
       ) : null}
 
-      <div className="grid gap-12 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start">
-        <div className="lg:sticky lg:top-6">
-          <CaptureInboxForm accountId={accountId} />
-        </div>
-
-        <section
-          aria-labelledby="capture-list-title"
-          className="min-w-0 space-y-5"
-        >
-          <div className="flex flex-wrap items-end justify-between gap-4 border-b pb-4">
-            <div>
-              <h2
-                className="font-semibold text-xl tracking-tight"
-                id="capture-list-title"
-              >
-                Saved captures
-              </h2>
-              <p className="mt-2 max-w-md text-muted-foreground text-sm/6">
-                Capture Inbox groups are shown here after you save.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              {groups.length > 0 ? (
-                <span className="shrink-0 text-muted-foreground text-xs">
-                  {captureCountLabel(
-                    groups.reduce(
-                      (count, group) => count + group.items.length,
-                      0,
-                    ),
-                  )}
-                </span>
-              ) : null}
-              {groups.length > 0 ? (
-                <Button
-                  aria-pressed={viewMode === "bulk"}
-                  onClick={() =>
-                    setViewMode((current) =>
-                      current === "bulk" ? "inbox" : "bulk",
-                    )
-                  }
-                  type="button"
-                  variant={viewMode === "bulk" ? "default" : "outline"}
-                >
-                  Bulk sense-making
-                </Button>
-              ) : null}
-            </div>
-          </div>
-
-          {captureListContent}
-        </section>
-      </div>
+      {inSequentialTriage ? (
+        <SequentialTriageSurface
+          accountId={accountId}
+          currentIndex={sequentialItemIndex}
+          formattingPreferences={formattingPreferences}
+          hasNextItem={sequentialHasNextItem}
+          isResolved={sequentialItemResolved}
+          item={sequentialItem ?? null}
+          onBackToList={backToCaptureInboxList}
+          onNext={nextSequentialTriageItem}
+          onPrevious={previousSequentialTriageItem}
+          onTriageExit={advanceSequentialTriage}
+          onUndoPreview={setUndoPreview}
+          triageAvailable={triageAvailable}
+        />
+      ) : (
+        <CaptureInboxListView
+          accountId={accountId}
+          bulkSenseMaking={bulkSenseMaking}
+          formattingPreferences={formattingPreferences}
+          groups={groups}
+          items={items}
+          onStartSequentialTriage={startSequentialTriage}
+          onToggleBulkView={() =>
+            setViewMode((current) => (current === "bulk" ? "inbox" : "bulk"))
+          }
+          onUndoPreview={setUndoPreview}
+          triageAvailable={triageAvailable}
+          viewMode={viewMode}
+        />
+      )}
     </main>
   );
 }

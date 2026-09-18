@@ -2,6 +2,7 @@ import {
   CAPTURE_TEMPLATE_FIELD_LABELS,
   type CaptureAttachInput,
   type CaptureAttachment,
+  type CaptureAttachmentPromotionInput,
   type CaptureAttachPreview,
   type CaptureAttachPreviewInput,
   type CaptureAttachReceipt,
@@ -23,6 +24,7 @@ import {
   type CaptureInput,
   type CaptureSuggestion,
   type CaptureSuggestions,
+  type CaptureTargetScope,
   type CaptureUndoMergeInput,
   type CaptureUndoMergePreview,
   type CaptureUndoMergePreviewInput,
@@ -41,11 +43,13 @@ import {
   captureUndoMergePreviewInputSchema,
   type DirectBugCreateInput,
   type DirectBugCreateReceipt,
+  type FileAttachmentScope,
   type NormalizedCaptureInput,
 } from "@cantiara/api/capture-triage";
-import type {
-  MutationContract,
-  MutationPayload,
+import {
+  canonicalizeMutationPayload,
+  type MutationContract,
+  type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 
 const CAPTURE_CONTENT_LINE_SEPARATOR = /\r?\n/u;
@@ -56,7 +60,6 @@ export interface CaptureInboxStore {
   consume: (
     accountId: string,
     itemId: string,
-    attachmentDisposition: CaptureAttachmentDisposition,
   ) => Promise<CaptureInboxStoredItem | null>;
   find?: (
     accountId: string,
@@ -154,7 +157,15 @@ export interface CaptureInboxStagingStore {
   delete: (input: {
     accountId: string;
     attachment: CaptureAttachment;
+    itemId: string;
   }) => Promise<void>;
+  /**
+   * File Attachment owns the atomic promotion. It resolves only after the
+   * target finalize callback and the attachment commit share one outcome.
+   */
+  promote: <TReceipt>(
+    input: CaptureAttachmentPromotionInput<TReceipt>,
+  ) => Promise<TReceipt>;
 }
 
 export interface CaptureInboxWorkCreate {
@@ -173,6 +184,14 @@ export class CaptureInboxError extends Error {
     this.name = "CaptureInboxError";
     this.code = code;
   }
+
+  static withCause(
+    code: CaptureInboxErrorCode,
+    message: string,
+    cause: unknown,
+  ) {
+    return new CaptureInboxError(code, message, { cause });
+  }
 }
 
 export type CaptureInboxErrorCode =
@@ -182,6 +201,9 @@ export type CaptureInboxErrorCode =
   | "CAPTURE_TARGET_NOT_FOUND"
   | "CAPTURE_TRIAGE_UNAVAILABLE"
   | "CAPTURE_STAGING_UNAVAILABLE"
+  | "CAPTURE_STAGING_DELETE_FAILED"
+  | "CAPTURE_ATTACHMENT_SCOPE_REQUIRED"
+  | "CAPTURE_ATTACHMENT_PROMOTION_FAILED"
   | "CREATE_BUG_TEMPLATE_UNSUPPORTED"
   | "CAPTURE_IDEMPOTENCY_CONFLICT"
   | "CAPTURE_WORK_CREATE_UNAVAILABLE"
@@ -191,6 +213,18 @@ export type CaptureInboxErrorCode =
   | "CAPTURE_BULK_VIEW_CONFLICT"
   | "PROJECT_REQUIRED_FOR_CREATE_BUG"
   | "UNKNOWN_CAPTURE_FIELD";
+
+function requireCaptureStagingStore(
+  stagingStore: CaptureInboxStagingStore | undefined,
+): CaptureInboxStagingStore {
+  if (!stagingStore) {
+    throw new CaptureInboxError(
+      "CAPTURE_STAGING_UNAVAILABLE",
+      "Capture attachments are not available yet.",
+    );
+  }
+  return stagingStore;
+}
 
 function normalizeCaptureInput(input: CaptureInput): NormalizedCaptureInput {
   const parsed = captureInputSchema.parse(input);
@@ -252,6 +286,20 @@ function sameProject(left: string | null, right: string | null) {
   return left.toLocaleLowerCase("en-US") === right.toLocaleLowerCase("en-US");
 }
 
+function captureTargetScope(item: CaptureInboxItem): CaptureTargetScope {
+  return item.projectId
+    ? {
+        kind: "project",
+        label: "Project",
+        projectId: item.projectId,
+      }
+    : {
+        kind: "workspace",
+        label: "Workspace",
+        projectId: null,
+      };
+}
+
 function operationFingerprint(value: unknown) {
   return JSON.stringify(value);
 }
@@ -299,6 +347,36 @@ function normalizeBulkSenseMakingInput(
   return input;
 }
 
+function captureItemFingerprint(item: CaptureInboxItem) {
+  return canonicalizeMutationPayload({
+    attachment: item.attachment ?? null,
+    content: item.content,
+    createdAt: new Date(item.createdAt).toISOString(),
+    fields: item.fields,
+    id: item.id,
+    link: item.link ?? null,
+    origin: item.origin ?? null,
+    projectId: item.projectId,
+    template: item.template,
+  });
+}
+
+function requireFileAttachmentScope(
+  targetScope: CaptureTargetScope,
+): FileAttachmentScope {
+  if (targetScope.kind === "project" && targetScope.projectId) {
+    return {
+      kind: "project",
+      projectId: targetScope.projectId,
+    };
+  }
+
+  throw new CaptureInboxError(
+    "CAPTURE_ATTACHMENT_SCOPE_REQUIRED",
+    "Capture attachment conversion requires a Project or Personal Wiki target.",
+  );
+}
+
 function createUnavailableTriageAdapter(): CaptureInboxTriageAdapter {
   const unavailable = (): Promise<never> =>
     Promise.reject(
@@ -318,11 +396,13 @@ function createUnavailableTriageAdapter(): CaptureInboxTriageAdapter {
 
 export function createCaptureInbox({
   store,
+  stagingStore,
   triageAdapter,
   triageMutationContract,
   workCreate,
 }: {
   store: CaptureInboxStore;
+  stagingStore?: CaptureInboxStagingStore;
   triageAdapter?: CaptureInboxTriageAdapter;
   triageMutationContract?: MutationContract<MutationPayload>;
   workCreate: CaptureInboxWorkCreate;
@@ -387,11 +467,26 @@ export function createCaptureInbox({
     itemId: string,
     attachmentDisposition: CaptureAttachmentDisposition,
   ) {
-    const consumed = await store.consume(
-      accountId,
-      itemId,
-      attachmentDisposition,
-    );
+    if (attachmentDisposition === "delete") {
+      const item = await findItem(accountId, itemId);
+      if (item?.attachment) {
+        const captureStagingStore = requireCaptureStagingStore(stagingStore);
+        try {
+          await captureStagingStore.delete({
+            accountId,
+            attachment: item.attachment,
+            itemId: item.id,
+          });
+        } catch (error) {
+          throw CaptureInboxError.withCause(
+            "CAPTURE_STAGING_DELETE_FAILED",
+            "The Capture attachment could not be deleted. The Capture Inbox item was kept for retry.",
+            error,
+          );
+        }
+      }
+    }
+    const consumed = await store.consume(accountId, itemId);
     if (!consumed) {
       return null;
     }
@@ -399,6 +494,44 @@ export function createCaptureInbox({
       ...consumed,
       item: captureInboxItemSchema.parse(consumed.item),
     } satisfies CaptureInboxStoredItem;
+  }
+
+  async function finalizeCaptureAttachment<TResult>({
+    accountId,
+    action,
+    clientIdempotencyKey,
+    item,
+    targetScope,
+  }: {
+    accountId: string;
+    action: () => Promise<TResult>;
+    clientIdempotencyKey: string;
+    item: CaptureInboxItem;
+    targetScope: CaptureTargetScope;
+  }): Promise<TResult> {
+    if (!item.attachment) {
+      return await action();
+    }
+    const captureStagingStore = requireCaptureStagingStore(stagingStore);
+    const fileAttachmentScope = requireFileAttachmentScope(targetScope);
+    const input: CaptureAttachmentPromotionInput<TResult> = {
+      accountId,
+      attachment: item.attachment,
+      clientIdempotencyKey,
+      finalize: action,
+      item,
+      operation: "convert",
+      targetScope: fileAttachmentScope,
+    };
+    try {
+      return await captureStagingStore.promote(input);
+    } catch (error) {
+      throw CaptureInboxError.withCause(
+        "CAPTURE_ATTACHMENT_PROMOTION_FAILED",
+        "The Capture attachment could not be finalized. No visible File Attachment was created; retry is safe.",
+        error,
+      );
+    }
   }
 
   async function restoreItem(accountId: string, item: CaptureInboxStoredItem) {
@@ -537,7 +670,11 @@ export function createCaptureInbox({
 
   return {
     async create(accountId, input) {
-      return await store.insert(accountId, normalizeCaptureInput(input));
+      const normalized = normalizeCaptureInput(input);
+      if (normalized.attachment) {
+        requireCaptureStagingStore(stagingStore);
+      }
+      return await store.insert(accountId, normalized);
     },
 
     async createBug(accountId, input) {
@@ -605,17 +742,10 @@ export function createCaptureInbox({
         targetField: sourceField,
         value,
       }));
-      const targetScope = item.projectId
-        ? {
-            kind: "project" as const,
-            label: "Project" as const,
-            projectId: item.projectId,
-          }
-        : {
-            kind: "workspace" as const,
-            label: "Workspace" as const,
-            projectId: null,
-          };
+      const targetScope = captureTargetScope(item);
+      if (item.attachment) {
+        requireFileAttachmentScope(targetScope);
+      }
       const preview: CaptureConversionPreview = {
         fieldMappings,
         itemId: item.id,
@@ -671,25 +801,33 @@ export function createCaptureInbox({
       const storedItem = await requireStoredItem(accountId, input.itemId);
       const { item } = storedItem;
       if (
-        operationFingerprint(item) !==
-        operationFingerprint(pending.preview.source)
+        captureItemFingerprint(item) !==
+        captureItemFingerprint(pending.preview.source)
       ) {
         throw new CaptureInboxError(
           "CAPTURE_PREVIEW_CONFLICT",
           "The Capture Inbox item changed after the preview.",
         );
       }
+      const targetScope = captureTargetScope(item);
       const created = await runTriageMutation({
         accountId,
         action: () =>
-          adapter.createRecord({
+          finalizeCaptureAttachment({
             accountId,
+            action: () =>
+              adapter.createRecord({
+                accountId,
+                clientIdempotencyKey: input.clientIdempotencyKey,
+                fields: pending.preview.proposedRecord.fields,
+                item,
+                projectId: pending.preview.proposedRecord.projectId,
+                recordType: pending.preview.proposedRecord.recordType,
+                title: pending.preview.proposedRecord.title,
+              }),
             clientIdempotencyKey: input.clientIdempotencyKey,
-            fields: pending.preview.proposedRecord.fields,
             item,
-            projectId: pending.preview.proposedRecord.projectId,
-            recordType: pending.preview.proposedRecord.recordType,
-            title: pending.preview.proposedRecord.title,
+            targetScope,
           }),
         clientIdempotencyKey: input.clientIdempotencyKey,
         input,
@@ -812,7 +950,9 @@ export function createCaptureInbox({
       }
       const storedItem = await requireStoredItem(accountId, input.itemId);
       const { item } = storedItem;
-      if (operationFingerprint(item) !== operationFingerprint(preview.source)) {
+      if (
+        captureItemFingerprint(item) !== captureItemFingerprint(preview.source)
+      ) {
         throw new CaptureInboxError(
           "CAPTURE_PREVIEW_CONFLICT",
           "The Capture Inbox item changed after the preview.",

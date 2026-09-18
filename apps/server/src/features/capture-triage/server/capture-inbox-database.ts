@@ -1,5 +1,4 @@
 import {
-  type CaptureAttachment,
   type CaptureBulkSenseMaking,
   type CaptureBulkSenseMakingValue,
   type CaptureInboxItem,
@@ -30,7 +29,6 @@ import type {
 } from "../../mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseMutationContract } from "../../mutation-and-undo/server/mutation-contract-database";
 import {
-  type CaptureAttachmentDisposition,
   type CaptureInboxCompletedOperation,
   CaptureInboxError,
   type CaptureInboxMergeRecord,
@@ -705,11 +703,7 @@ export function createDatabaseCaptureInbox(
       return captureMutationValueSchema.parse(receipt.nextValue).item;
     },
 
-    async consume(
-      accountId,
-      itemId,
-      attachmentDisposition: CaptureAttachmentDisposition,
-    ) {
+    async consume(accountId, itemId) {
       const [candidate] = await database
         .select()
         .from(captureInboxItem)
@@ -722,18 +716,6 @@ export function createDatabaseCaptureInbox(
         .limit(1);
       if (!candidate) {
         return null;
-      }
-      if (candidate.attachment && attachmentDisposition === "delete") {
-        if (!stagingStore) {
-          throw new CaptureInboxError(
-            "CAPTURE_STAGING_UNAVAILABLE",
-            "Capture attachments are not available yet.",
-          );
-        }
-        await stagingStore.delete({
-          accountId,
-          attachment: candidate.attachment as CaptureAttachment,
-        });
       }
       const deleted = await database.transaction(async (transaction) => {
         const [removed] = await transaction
@@ -802,6 +784,7 @@ export function createDatabaseCaptureInbox(
 
   return createCaptureInbox({
     store,
+    stagingStore,
     triageAdapter,
     triageMutationContract,
     workCreate,
