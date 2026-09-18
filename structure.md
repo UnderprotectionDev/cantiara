@@ -262,531 +262,374 @@
 │       │   │   └── user-menu.tsx
 │       │   ├── features/
 │       │   │   ├── account-access/
-│       │   │   │   └── views/
-│       │   │   │       ├── login/
-│       │   │   │       │   ├── components/
-│       │   │   │       │   ├── forms/
-│       │   │   │       │   └── hooks/
-│       │   │   │       ├── sessions/
-│       │   │   │       │   ├── components/
-│       │   │   │       │   ├── forms/
-│       │   │   │       │   └── hooks/
-│       │   │   │       └── confirm-github-identity/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── account-closure/
-│       │   │   │   └── views/
-│       │   │   │       └── account-closure/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── account-preferences/
-│       │   │   │   └── views/
-│       │   │   │       └── preferences/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── attention-signals/
-│       │   │   │   └── views/
-│       │   │   │       └── attention-signals/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── backlog/
-│       │   │   │   └── views/
-│       │   │   │       └── backlog/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── blockers/
-│       │   │   │   └── views/
-│       │   │   │       └── blockers/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── build-in-public/
-│       │   │   │   └── views/
-│       │   │   │       └── build-in-public/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── bulk-editing/
-│       │   │   │   └── views/
-│       │   │   │       └── bulk-editing/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── capture-triage/
-│       │   │   │   └── views/
-│       │   │   │       └── capture-inbox/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── command-palette/
-│       │   │   │   └── components/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
 │       │   │   ├── completion-effects/
-│       │   │   │   └── views/
-│       │   │   │       └── completion-effects/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── contact-and-company/
-│       │   │   │   └── views/
-│       │   │   │       └── contact-and-company/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── custom-fields/
-│       │   │   │   └── views/
-│       │   │   │       └── custom-fields/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── daily-focus/
-│       │   │   │   └── views/
-│       │   │   │       └── daily-focus/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── data-export/
-│       │   │   │   └── views/
-│       │   │   │       └── data-export/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── data-import/
-│       │   │   │   └── views/
-│       │   │   │       └── data-import/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── decisions/
-│       │   │   │   └── views/
-│       │   │   │       └── decisions/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── documents/
-│       │   │   │   └── views/
-│       │   │   │       └── documents/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── evidence/
-│       │   │   │   └── views/
-│       │   │   │       └── evidence/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── external-handoffs/
-│       │   │   │   └── views/
-│       │   │   │       └── external-handoffs/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── external-surface-management/
-│       │   │   │   └── views/
-│       │   │   │       └── external-surface-management/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── favorites/
-│       │   │   │   └── views/
-│       │   │   │       └── favorites/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── feedback/
-│       │   │   │   └── views/
-│       │   │   │       └── feedback/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── file-attachments/
-│       │   │   │   └── views/
-│       │   │   │       └── file-attachments/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── focus-period/
-│       │   │   │   └── views/
-│       │   │   │       └── focus-period/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── github-integration/
-│       │   │   │   └── views/
-│       │   │   │       └── github-integration/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── goals/
-│       │   │   │   └── views/
-│       │   │   │       └── goals/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── kanban/
 │       │   │   │   ├── store/
-│       │   │   │   └── views/
-│       │   │   │       └── kanban/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── link-sharing/
-│       │   │   │   └── views/
-│       │   │   │       └── link-sharing/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── moodboards/
-│       │   │   │   └── views/
-│       │   │   │       └── moodboards/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── mutation-and-undo/
 │       │   │   │   ├── lib/
-│       │   │   │   └── views/
-│       │   │   │       └── mutation-and-undo/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── personal-data/
-│       │   │   │   └── views/
-│       │   │   │       └── personal-data/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── personal-reminders/
-│       │   │   │   └── views/
-│       │   │   │       └── personal-reminders/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── personal-shell/
-│       │   │   │   ├── components/
-│       │   │   │   └── store/
+│       │   │   │   ├── store/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
 │       │   │   ├── personal-wiki/
-│       │   │   │   └── views/
-│       │   │   │       └── personal-wiki/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── priority/
-│       │   │   │   └── views/
-│       │   │   │       └── priority/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── product-gaps/
-│       │   │   │   └── views/
-│       │   │   │       └── product-gaps/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── production-incidents/
-│       │   │   │   └── views/
-│       │   │   │       └── production-incidents/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── project-closure-summary/
-│       │   │   │   └── views/
-│       │   │   │       └── project-closure-summary/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── project-history/
-│       │   │   │   └── views/
-│       │   │   │       └── project-history/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── project-overview/
-│       │   │   │   └── views/
-│       │   │   │       └── project-overview/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── project-retirement/
-│       │   │   │   └── views/
-│       │   │   │       └── project-retirement/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── project-shell/
-│       │   │   │   └── views/
-│       │   │   │       ├── project-create/
-│       │   │   │       │   ├── components/
-│       │   │   │       │   ├── forms/
-│       │   │   │       │   └── hooks/
-│       │   │   │       ├── project-shell/
-│       │   │   │       │   ├── components/
-│       │   │   │       │   ├── forms/
-│       │   │   │       │   └── hooks/
-│       │   │   │       └── projects/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── project-updates/
-│       │   │   │   └── views/
-│       │   │   │       └── project-updates/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── project-wall/
 │       │   │   │   ├── store/
-│       │   │   │   └── views/
-│       │   │   │       └── project-wall/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── record-actions/
-│       │   │   │   └── views/
-│       │   │   │       └── record-actions/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── record-discovery/
-│       │   │   │   └── views/
-│       │   │   │       └── record-discovery/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── relations/
-│       │   │   │   └── views/
-│       │   │   │       └── relations/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── release-communication/
-│       │   │   │   └── views/
-│       │   │   │       └── release-communication/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── release-evidence/
-│       │   │   │   └── views/
-│       │   │   │       └── release-evidence/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── release-planning/
-│       │   │   │   └── views/
-│       │   │   │       └── release-planning/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── research-sessions/
-│       │   │   │   └── views/
-│       │   │   │       └── research-sessions/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── return-to-work/
-│       │   │   │   └── views/
-│       │   │   │       └── return-to-work/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── risks/
-│       │   │   │   └── views/
-│       │   │   │       └── risks/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── roadmap-horizon/
-│       │   │   │   └── views/
-│       │   │   │       └── roadmap-horizon/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── schema-artifacts/
-│       │   │   │   └── views/
-│       │   │   │       └── schema-artifacts/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── screens-and-wireframes/
+│       │   │   │   ├── forms/
 │       │   │   │   ├── lib/
-│       │   │   │   └── views/
-│       │   │   │       └── screens-and-wireframes/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── security-redaction/
-│       │   │   │   └── views/
-│       │   │   │       └── security-redaction/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── smart-collections/
-│       │   │   │   └── views/
-│       │   │   │       └── smart-collections/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── sources-and-freshness/
-│       │   │   │   └── views/
-│       │   │   │       └── sources-and-freshness/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── spec-change-review/
-│       │   │   │   └── views/
-│       │   │   │       └── spec-change-review/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── tags/
-│       │   │   │   └── views/
-│       │   │   │       └── tags/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── technical-diagrams/
 │       │   │   │   ├── lib/
-│       │   │   │   └── views/
-│       │   │   │       └── technical-diagrams/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── test-assessments/
-│       │   │   │   └── views/
-│       │   │   │       └── test-assessments/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── test-gaps/
-│       │   │   │   └── views/
-│       │   │   │       └── test-gaps/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── test-plan-and-handoff/
-│       │   │   │   └── views/
-│       │   │   │       └── test-plan-and-handoff/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── test-report-acceptance/
-│       │   │   │   └── views/
-│       │   │   │       └── test-report-acceptance/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── test-review-and-follow-up/
-│       │   │   │   └── views/
-│       │   │   │       └── test-review-and-follow-up/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── trash/
-│       │   │   │   └── views/
-│       │   │   │       └── trash/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── uncertainty-records/
-│       │   │   │   └── views/
-│       │   │   │       └── uncertainty-records/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── unified-calendar/
-│       │   │   │   └── views/
-│       │   │   │       └── unified-calendar/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── user-flow/
-│       │   │   │   └── views/
-│       │   │   │       └── user-flow/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── validation-records/
-│       │   │   │   └── views/
-│       │   │   │       └── validation-records/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── value-chain/
-│       │   │   │   └── views/
-│       │   │   │       └── value-chain/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── web-macos-client/
-│       │   │   │   └── views/
-│       │   │   │       ├── client-shell/
-│       │   │   │       │   ├── components/
-│       │   │   │       │   ├── forms/
-│       │   │   │       │   └── hooks/
-│       │   │   │       ├── macos-package-contract/
-│       │   │   │       │   ├── components/
-│       │   │   │       │   ├── forms/
-│       │   │   │       │   └── hooks/
-│       │   │   │       └── support-reference/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── wiki-publishing/
-│       │   │   │   └── views/
-│       │   │   │       └── wiki-publishing/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── work-automation/
-│       │   │   │   └── views/
-│       │   │   │       └── work-automation/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── work-checklists/
-│       │   │   │   └── views/
-│       │   │   │       └── work-checklists/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── work-context/
-│       │   │   │   └── views/
-│       │   │   │       └── work-context/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── work-drafts/
-│       │   │   │   └── views/
-│       │   │   │       └── work-drafts/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── work-lifecycle/
-│       │   │   │   └── views/
-│       │   │   │       └── work-lifecycle/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── work-templates/
-│       │   │   │   └── views/
-│       │   │   │       └── work-templates/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   ├── forms/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   ├── workspace-exit/
-│       │   │   │   └── views/
-│       │   │   │       └── workspace-exit/
-│       │   │   │           ├── components/
-│       │   │   │           ├── forms/
-│       │   │   │           └── hooks/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       └── views/
 │       │   │   └── workspace-overview/
-│       │   │       └── views/
-│       │   │           └── workspace-overview/
-│       │   │               ├── components/
-│       │   │               ├── forms/
-│       │   │               └── hooks/
+│       │   │       └── ui/
+│       │   │           ├── components/
+│       │   │           └── views/
 │       │   ├── lib/
 │       │   │   └── auth-client.ts
 │       │   ├── routes/
