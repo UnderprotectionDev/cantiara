@@ -46,8 +46,11 @@ export class WorkProjectNotFoundError extends Error {
 export class WorkCreationConflictError extends Error {
   readonly code = "WORK_CREATION_CONFLICT" as const;
 
-  constructor() {
-    super("The Work could not be created because its key was already used.");
+  constructor(cause?: unknown) {
+    super(
+      "The Work could not be created because its key was already used.",
+      cause === undefined ? undefined : { cause },
+    );
     this.name = "WorkCreationConflictError";
   }
 }
@@ -189,6 +192,14 @@ export function createWorkLifecycle({
           input.clientIdempotencyKey,
         );
         if (committed) {
+          if (
+            committed.projectId !== input.projectId ||
+            committed.title !== input.title ||
+            committed.type !== input.type
+          ) {
+            const conflict = new WorkCreationConflictError(error);
+            throw conflict;
+          }
           return committed;
         }
         throw error;

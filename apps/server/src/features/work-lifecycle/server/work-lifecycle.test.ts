@@ -24,11 +24,18 @@ import {
 
 const PROJECT_ID = "project-1";
 
-function createMemoryWorkLifecycle(options: { failNextCommit?: boolean } = {}) {
+function createMemoryWorkLifecycle(
+  options: { commitThenFailWithTitle?: string; failNextCommit?: boolean } = {},
+) {
   const works = new Map<string, WorkProfile>();
   const reservations = new Map<string, WorkCreationReservation>();
+  const {
+    commitThenFailWithTitle: configuredCommitThenFailWithTitle,
+    failNextCommit: configuredFailNextCommit,
+  } = options;
   let nextNumber = 1;
-  let failNextCommit = options.failNextCommit ?? false;
+  let commitThenFailWithTitle = configuredCommitThenFailWithTitle;
+  let failNextCommit = configuredFailNextCommit ?? false;
 
   const store: WorkLifecycleStore = {
     find: async (_accountId, workId) => works.get(workId) ?? null,
@@ -87,6 +94,14 @@ function createMemoryWorkLifecycle(options: { failNextCommit?: boolean } = {}) {
             throw new Error("A Work create must return a Work.");
           }
           works.set(nextValue.work.id, nextValue.work);
+          if (commitThenFailWithTitle) {
+            works.set(nextValue.work.id, {
+              ...nextValue.work,
+              title: commitThenFailWithTitle,
+            });
+            commitThenFailWithTitle = undefined;
+            throw new Error("simulated commit failure after durable write");
+          }
           return {
             actor: command.actor,
             committedAt: nextValue.work.createdAt,
@@ -232,6 +247,19 @@ describe("Work Lifecycle seam", () => {
         ...input,
         title: "A different Work title",
       }),
+    ).rejects.toBeInstanceOf(WorkCreationConflictError);
+  });
+
+  test("rejects a different payload found after a failed mutation", async () => {
+    const workLifecycle = createMemoryWorkLifecycle({
+      commitThenFailWithTitle: "The committed title",
+    });
+
+    await expect(
+      workLifecycle.create(
+        "account-1",
+        createInput("failed-replay", { title: "The requested title" }),
+      ),
     ).rejects.toBeInstanceOf(WorkCreationConflictError);
   });
 
