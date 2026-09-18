@@ -1,7 +1,10 @@
 import {
+  getProjectShellConfiguration,
   getStarterConfigurationDefinition,
   PROTECTED_WORK_STATUS_OPTIONS,
+  resolveProjectShellConfiguration,
   STARTER_CONFIGURATION_OPTIONS,
+  STARTER_SKELETON_OPTIONS,
 } from "@cantiara/api/project-shell";
 import { describe, expect, test } from "vitest";
 import {
@@ -97,6 +100,71 @@ function createMemoryStore() {
   return store;
 }
 
+const EXPECTED_STARTER_SKELETONS = [
+  {
+    emptyHeadings: [
+      "Primary Navigation",
+      "Secondary Navigation",
+      "Utility",
+      "External",
+    ],
+    skeleton: "Sitemap",
+    surface: "Project Wall",
+  },
+  {
+    emptyHeadings: [
+      "Awareness",
+      "Consideration",
+      "Onboarding",
+      "Core Use",
+      "Retention",
+    ],
+    skeleton: "Customer Journey",
+    surface: "Project Wall",
+  },
+  {
+    emptyHeadings: [
+      "Context",
+      "Goals",
+      "Behaviors",
+      "Pain Points",
+      "Constraints",
+      "Evidence",
+      "Open Questions",
+    ],
+    skeleton: "Persona",
+    surface: "Document",
+  },
+  {
+    emptyHeadings: [
+      "Period",
+      "What worked?",
+      "What did not?",
+      "What did we learn?",
+      "Decisions",
+      "Next changes",
+      "Related records",
+    ],
+    skeleton: "Retrospective",
+    surface: "Document",
+  },
+  {
+    emptyHeadings: [
+      "Release",
+      "Audience",
+      "Scope",
+      "Readiness",
+      "Communication",
+      "Launch steps",
+      "Risks",
+      "Observation plan",
+      "Related records",
+    ],
+    skeleton: "Launch Plan",
+    surface: "Document",
+  },
+] as const;
+
 describe("Project Shell seam", () => {
   test.each([
     {
@@ -105,6 +173,7 @@ describe("Project Shell seam", () => {
       extraPinnedAreas: [],
       preparedStages: [],
       preparedWorkViews: ["Backlog", "Board"],
+      starterSkeletons: [],
     },
     {
       configuration: "Solo SaaS" as const,
@@ -136,6 +205,7 @@ describe("Project Shell seam", () => {
         "Operate",
       ],
       preparedWorkViews: ["Backlog", "Board", "Roadmap"],
+      starterSkeletons: EXPECTED_STARTER_SKELETONS,
     },
     {
       configuration: "Open Source Library" as const,
@@ -151,6 +221,7 @@ describe("Project Shell seam", () => {
       extraPinnedAreas: ["GitHub", "Tests", "Releases"],
       preparedStages: ["Scope", "Build", "Validate", "Release", "Maintain"],
       preparedWorkViews: ["Backlog", "Board", "Roadmap"],
+      starterSkeletons: EXPECTED_STARTER_SKELETONS,
     },
     {
       configuration: "Mobile Application" as const,
@@ -182,6 +253,7 @@ describe("Project Shell seam", () => {
         "Operate",
       ],
       preparedWorkViews: ["Backlog", "Board", "Roadmap"],
+      starterSkeletons: EXPECTED_STARTER_SKELETONS,
     },
   ])(
     "applies the $configuration starter structure once without sample content",
@@ -191,12 +263,14 @@ describe("Project Shell seam", () => {
       extraPinnedAreas,
       preparedStages,
       preparedWorkViews,
+      starterSkeletons,
     }) => {
       expect(getStarterConfigurationDefinition(configuration)).toEqual({
         enabledAreas,
         extraPinnedAreas,
         preparedStages,
         preparedWorkViews,
+        starterSkeletons,
       });
 
       const projectShell = createProjectShell({ store: createMemoryStore() });
@@ -210,13 +284,42 @@ describe("Project Shell seam", () => {
         extraPinnedAreas,
         preparedStages,
         preparedWorkViews,
+        starterSkeletons,
         workStatuses: PROTECTED_WORK_STATUS_OPTIONS,
       });
       expect(project).not.toHaveProperty("sampleWork");
       expect(project).not.toHaveProperty("sampleDocuments");
       expect(project).not.toHaveProperty("history");
+      expect(project).not.toHaveProperty("documents");
+      expect(project).not.toHaveProperty("projectWalls");
     },
   );
+
+  test("keeps the closed starter skeleton catalog separate from Blank Project", () => {
+    expect(STARTER_SKELETON_OPTIONS).toEqual([
+      "Sitemap",
+      "Customer Journey",
+      "Persona",
+      "Retrospective",
+      "Launch Plan",
+    ]);
+    expect(EXPECTED_STARTER_SKELETONS).toHaveLength(5);
+  });
+
+  test("backfills skeleton metadata without resetting an older Project configuration", () => {
+    const currentConfiguration = getProjectShellConfiguration("Blank Project");
+    const { starterSkeletons: _starterSkeletons, ...legacyConfiguration } = {
+      ...currentConfiguration,
+      enabledAreas: ["Work", "Documents", "Discovery"] as const,
+    };
+
+    expect(
+      resolveProjectShellConfiguration(legacyConfiguration, "Blank Project"),
+    ).toEqual({
+      ...legacyConfiguration,
+      starterSkeletons: [],
+    });
+  });
 
   test("keeps the closed Starter Configuration catalog and optional profile fields", async () => {
     expect(STARTER_CONFIGURATION_OPTIONS).toEqual([
