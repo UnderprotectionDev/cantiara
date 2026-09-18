@@ -50,7 +50,9 @@ import {
 import type { WebCaptureAccess } from "../web-capture";
 import {
   createWorkMutationInputSchema,
+  recreateWorkInputSchema,
   updateWorkTypeInputSchema,
+  workRecreatePreviewInputSchema,
   workTypeChangePreviewInputSchema,
 } from "../work-lifecycle";
 
@@ -304,6 +306,28 @@ function mapWorkLifecycleError(error: Record<string, unknown>) {
       },
       defined: true,
       message: "Impact preview is required before changing to or from Feature.",
+    });
+  }
+
+  if (error.code === "WORK_RECREATE_PREVIEW_REQUIRED") {
+    return new ORPCError("PRECONDITION_FAILED", {
+      data: { code: error.code },
+      defined: true,
+      message: "Review the current recreate preview before confirming.",
+    });
+  }
+
+  if (
+    error.code === "WORK_RELATION_NOT_PORTABLE" ||
+    error.code === "WORK_RECREATE_FIELD_REQUIRED"
+  ) {
+    return new ORPCError("BAD_REQUEST", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "The recreate selection is unavailable.",
     });
   }
 
@@ -600,6 +624,33 @@ export const appRouter = {
         });
       }
       return preview;
+    }),
+  workRecreatePreview: protectedProcedure
+    .input(workRecreatePreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireWorkLifecycle(context).previewRecreate(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work or target Project is unavailable.",
+        });
+      }
+      return preview;
+    }),
+  recreateWork: protectedProcedure
+    .input(recreateWorkInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).recreate(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
     }),
   updateWorkType: protectedProcedure
     .input(updateWorkTypeInputSchema)

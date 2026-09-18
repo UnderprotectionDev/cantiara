@@ -11,6 +11,7 @@ import {
   type WorkLifecycleMutationContracts,
   type WorkLifecycleMutationValue,
   type WorkProfile,
+  type WorkRecreateRelation,
 } from "@cantiara/api/work-lifecycle";
 import { describe, expect, test } from "vitest";
 
@@ -25,20 +26,34 @@ import {
 const PROJECT_ID = "project-1";
 
 function createMemoryWorkLifecycle(
-  options: { commitThenFailWithTitle?: string; failNextCommit?: boolean } = {},
+  options: {
+    commitThenFailWithTitle?: string;
+    failNextCommit?: boolean;
+    recreateRelations?: WorkRecreateRelation[];
+  } = {},
 ) {
   const works = new Map<string, WorkProfile>();
   const reservations = new Map<string, WorkCreationReservation>();
+  const copiedRelations = new Map<string, WorkRecreateRelation[]>();
   const {
     commitThenFailWithTitle: configuredCommitThenFailWithTitle,
     failNextCommit: configuredFailNextCommit,
   } = options;
-  let nextNumber = 1;
+  const nextNumberByProject = new Map<string, number>();
   let commitThenFailWithTitle = configuredCommitThenFailWithTitle;
   let failNextCommit = configuredFailNextCommit ?? false;
 
   const store: WorkLifecycleStore = {
     find: async (_accountId, workId) => works.get(workId) ?? null,
+    findProject: (_accountId, projectId) => {
+      const projects = new Map([
+        [PROJECT_ID, "Cantiara"],
+        ["project-2", "Second Project"],
+        ["project-3", "Third Project"],
+      ]);
+      const name = projects.get(projectId);
+      return Promise.resolve(name ? { id: projectId, name } : null);
+    },
     findByClientIdempotencyKey: (_accountId, projectId, key) => {
       const reservation = reservations.get(`${projectId}:${key}`);
       return Promise.resolve(
@@ -49,6 +64,8 @@ function createMemoryWorkLifecycle(
       [...works.values()]
         .filter((work) => work.projectId === projectId)
         .sort((left, right) => left.number - right.number),
+    listRecreateRelations: async (_accountId, workId) =>
+      copiedRelations.get(workId) ?? options.recreateRelations ?? [],
     reserveCreate: (_accountId, projectId, key, payloadFingerprint) => {
       const reservationKey = `${projectId}:${key}`;
       const existing = reservations.get(reservationKey);
@@ -59,16 +76,22 @@ function createMemoryWorkLifecycle(
         return Promise.resolve(existing);
       }
 
-      const number = nextNumber;
-      nextNumber += 1;
+      const number = nextNumberByProject.get(projectId) ?? 1;
+      nextNumberByProject.set(projectId, number + 1);
+      const shortCodes = new Map([
+        [PROJECT_ID, "CANT"],
+        ["project-2", "SECOND"],
+        ["project-3", "THIRD"],
+      ]);
+      const shortCode = shortCodes.get(projectId) ?? "WORK";
       const reservation: WorkCreationReservation = {
-        id: `work-${number}`,
-        key: `CANT-${number}`,
+        id: `${projectId}-work-${number}`,
+        key: `${shortCode}-${number}`,
         number,
         payloadFingerprint,
         projectId,
-        shortCode: "CANT",
-        workId: `work-${number}`,
+        shortCode,
+        workId: `${projectId}-work-${number}`,
       };
       reservations.set(reservationKey, reservation);
       return Promise.resolve(reservation);
@@ -98,6 +121,24 @@ function createMemoryWorkLifecycle(
             throw new Error("A Work create must return a Work.");
           }
           works.set(nextValue.work.id, nextValue.work);
+          if (nextValue.recreate) {
+            copiedRelations.set(nextValue.work.id, [
+              ...(options.recreateRelations ?? []).filter((relation) =>
+                nextValue.recreate?.selectedRelationIds.includes(relation.id),
+              ),
+              {
+                id: `origin-${nextValue.work.id}`,
+                kind: "Origin",
+                label: "Origin",
+                nonPortableReason: "Origin stays with the recreated Work.",
+                portable: false,
+                targetLabel: sourceWorkLabel(
+                  works.get(nextValue.recreate.sourceWorkId),
+                ),
+                targetProjectName: "Cantiara",
+              },
+            ]);
+          }
           if (commitThenFailWithTitle) {
             works.set(nextValue.work.id, {
               ...nextValue.work,
@@ -166,6 +207,10 @@ function createMemoryWorkLifecycle(
   });
 }
 
+function sourceWorkLabel(sourceWork: WorkProfile | undefined) {
+  return sourceWork?.key ?? "Unavailable Work";
+}
+
 function createInput(
   clientIdempotencyKey: string,
   values: Partial<CreateWorkMutationInput> = {},
@@ -180,6 +225,163 @@ function createInput(
 }
 
 describe("Work Lifecycle seam", () => {
+  test("recreates selected portable content with a new identity and target key while the source stays unchanged", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const source = await workLifecycle.create(
+      "account-1",
+      createInput("recreate-source", {
+        description: "Keep this context",
+        checklist: [
+          { completed: true, id: "item-1", text: "Confirm the problem" },
+        ],
+        type: "Bug",
+      }),
+    );
+    const sourceBefore = await workLifecycle.find("account-1", source.id);
+
+    const preview = await workLifecycle.previewRecreate("account-1", {
+      sourceWorkId: source.id,
+      targetProjectId: "project-2",
+    });
+    expect(preview).toMatchObject({
+      sourceWork: { id: source.id, key: "CANT-1" },
+      targetProject: { id: "project-2", name: "Second Project" },
+    });
+    expect(preview?.fields).toEqual([
+      {
+        key: "title",
+        label: "Title",
+        selectedByDefault: true,
+        value: "Ship the first Work",
+      },
+      {
+        key: "type",
+        label: "Type",
+        selectedByDefault: true,
+        value: "Bug",
+      },
+      {
+        key: "description",
+        label: "Description",
+        selectedByDefault: true,
+        value: "Keep this context",
+      },
+      {
+        key: "checklist",
+        label: "Checklist",
+        selectedByDefault: true,
+        value: [{ completed: true, id: "item-1", text: "Confirm the problem" }],
+      },
+    ]);
+    if (!preview) {
+      throw new Error("Expected a recreate preview.");
+    }
+
+    const recreated = await workLifecycle.recreate("account-1", {
+      baseRevision: 0,
+      clientIdempotencyKey: "recreate-confirm",
+      previewId: preview.previewId,
+      selectedFields: ["title", "type", "description", "checklist"],
+      selectedRelationIds: [],
+      sourceWorkId: source.id,
+      targetProjectId: "project-2",
+    });
+
+    expect(recreated).toMatchObject({
+      checklist: source.checklist,
+      closureResult: null,
+      description: source.description,
+      key: "SECOND-1",
+      projectId: "project-2",
+      recreatedFrom: { id: source.id, key: source.key },
+      status: "Not Started",
+      title: source.title,
+      type: source.type,
+    });
+    expect(recreated.id).not.toBe(source.id);
+    expect(recreated.key).not.toBe(source.key);
+    await expect(workLifecycle.find("account-1", source.id)).resolves.toEqual(
+      sourceBefore,
+    );
+  });
+
+  test("shows every relation and refuses a non-portable relation selection", async () => {
+    const workLifecycle = createMemoryWorkLifecycle({
+      recreateRelations: [
+        {
+          id: "relation-related",
+          kind: "Related",
+          label: "Related",
+          portable: true,
+          targetLabel: "Decision DEC-1",
+          targetProjectName: "Third Project",
+        },
+        {
+          id: "relation-github",
+          kind: "GitHub Completion",
+          label: "Required for completion",
+          nonPortableReason: "GitHub completion links do not travel.",
+          portable: false,
+          targetLabel: "Pull request #42",
+          targetProjectName: "Cantiara",
+        },
+      ],
+    });
+    const source = await workLifecycle.create(
+      "account-1",
+      createInput("relation-source"),
+    );
+    const preview = await workLifecycle.previewRecreate("account-1", {
+      sourceWorkId: source.id,
+      targetProjectId: "project-2",
+    });
+    expect(preview?.relations).toHaveLength(2);
+    expect(preview?.relations[1]).toMatchObject({
+      id: "relation-github",
+      portable: false,
+    });
+    if (!preview) {
+      throw new Error("Expected a recreate preview.");
+    }
+
+    await expect(
+      workLifecycle.recreate("account-1", {
+        baseRevision: 0,
+        clientIdempotencyKey: "recreate-non-portable",
+        previewId: preview.previewId,
+        selectedFields: ["title", "type"],
+        selectedRelationIds: ["relation-github"],
+        sourceWorkId: source.id,
+        targetProjectId: "project-2",
+      }),
+    ).rejects.toMatchObject({ code: "WORK_RELATION_NOT_PORTABLE" });
+
+    await expect(
+      workLifecycle.list("account-1", "project-2"),
+    ).resolves.toHaveLength(0);
+
+    const recreated = await workLifecycle.recreate("account-1", {
+      baseRevision: 0,
+      clientIdempotencyKey: "recreate-portable",
+      previewId: preview.previewId,
+      selectedFields: ["title", "type"],
+      selectedRelationIds: ["relation-related"],
+      sourceWorkId: source.id,
+      targetProjectId: "project-2",
+    });
+    await expect(
+      workLifecycle.previewRecreate("account-1", {
+        sourceWorkId: recreated.id,
+        targetProjectId: "project-3",
+      }),
+    ).resolves.toMatchObject({
+      relations: expect.arrayContaining([
+        expect.objectContaining({ id: "relation-related", portable: true }),
+        expect.objectContaining({ kind: "Origin", portable: false }),
+      ]),
+    });
+  });
+
   test("creates a title-only Work with a stable key and protected defaults", async () => {
     const workLifecycle = createMemoryWorkLifecycle();
 

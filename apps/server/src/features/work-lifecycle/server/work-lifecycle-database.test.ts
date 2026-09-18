@@ -5,6 +5,7 @@ import {
   mutationReceipt,
   mutationStaging,
 } from "@cantiara/db/schema/mutation";
+import { workRelation } from "@cantiara/db/schema/relation";
 import { eq } from "drizzle-orm";
 import {
   afterAll,
@@ -16,7 +17,10 @@ import {
 } from "vitest";
 
 import { createDatabaseProjectShell } from "../../project-shell/server/project-shell-database";
-import { WorkTypeImpactPreviewRequiredError } from "./work-lifecycle";
+import {
+  WorkRelationNotPortableError,
+  WorkTypeImpactPreviewRequiredError,
+} from "./work-lifecycle";
 import { createDatabaseWorkLifecycle } from "./work-lifecycle-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -139,6 +143,113 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
     await expect(
       workLifecycle.list(accountId, secondProject.id),
     ).resolves.toEqual([]);
+  });
+
+  test("atomically recreates portable relations and an Origin in the target Project", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const sourceProject = await projectShell.create(accountId, {
+      name: "Payment App",
+      shortCode: "PAY",
+      starterConfiguration: "Blank Project",
+    });
+    const targetProject = await projectShell.create(accountId, {
+      name: "Orders",
+      shortCode: "ORD",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const source = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      checklist: [
+        { completed: false, id: "item-1", text: "Confirm the failure" },
+      ],
+      clientIdempotencyKey: "recreate-source",
+      description: "Payment failures are intermittent.",
+      projectId: sourceProject.id,
+      title: "Investigate payment failures",
+      type: "Research",
+    });
+    await database.insert(workRelation).values([
+      {
+        id: "portable-related",
+        kind: "Related",
+        sourceWorkId: source.id,
+        targetLabel: "Decision DEC-1",
+        targetProjectId: sourceProject.id,
+        targetRecordId: "decision-1",
+      },
+      {
+        id: "github-completion",
+        kind: "GitHub Completion",
+        sourceWorkId: source.id,
+        targetLabel: "Pull request #42",
+        targetProjectId: sourceProject.id,
+        targetRecordId: "github-pr-42",
+      },
+    ]);
+    const sourceBefore = await workLifecycle.find(accountId, source.id);
+
+    const preview = await workLifecycle.previewRecreate(accountId, {
+      sourceWorkId: source.id,
+      targetProjectId: targetProject.id,
+    });
+    expect(preview?.relations).toHaveLength(2);
+    if (!preview) {
+      throw new Error("Expected a recreate preview.");
+    }
+    await expect(
+      workLifecycle.recreate(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "reject-non-portable",
+        previewId: preview.previewId,
+        selectedFields: ["title", "type"],
+        selectedRelationIds: ["github-completion"],
+        sourceWorkId: source.id,
+        targetProjectId: targetProject.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkRelationNotPortableError);
+
+    const recreated = await workLifecycle.recreate(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "confirm-recreate",
+      previewId: preview.previewId,
+      selectedFields: ["title", "type", "description", "checklist"],
+      selectedRelationIds: ["portable-related"],
+      sourceWorkId: source.id,
+      targetProjectId: targetProject.id,
+    });
+
+    expect(recreated).toMatchObject({
+      checklist: source.checklist,
+      description: source.description,
+      key: "ORD-1",
+      recreatedFrom: { id: source.id, key: source.key },
+      status: "Not Started",
+    });
+    const recreatedRelations = await database
+      .select()
+      .from(workRelation)
+      .where(eq(workRelation.sourceWorkId, recreated.id));
+    expect(recreatedRelations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "Related",
+          targetRecordId: "decision-1",
+        }),
+        expect.objectContaining({
+          kind: "Origin",
+          targetRecordId: source.id,
+        }),
+      ]),
+    );
+    expect(recreatedRelations).toHaveLength(2);
+    await expect(workLifecycle.find(accountId, source.id)).resolves.toEqual(
+      sourceBefore,
+    );
   });
 
   test("persists free type changes and protects Feature boundary changes", async () => {

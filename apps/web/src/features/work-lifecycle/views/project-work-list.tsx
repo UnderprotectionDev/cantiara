@@ -19,6 +19,7 @@ import {
   runOnlineOnlyWrite,
   useClientShellConnection,
 } from "@/features/web-macos-client/views/client-shell";
+import WorkRecreateForm from "@/features/work-lifecycle/ui/forms/work-recreate-form";
 import { client, orpc } from "@/utils/orpc";
 
 export default function ProjectWorkList({ projectId }: { projectId: string }) {
@@ -60,10 +61,16 @@ export default function ProjectWorkList({ projectId }: { projectId: string }) {
               <span className="text-muted-foreground">{work.key}</span>{" "}
               {work.title}
             </p>
+            {work.recreatedFrom ? (
+              <p className="mt-1 text-muted-foreground text-xs">
+                Derived from {work.recreatedFrom.key}
+              </p>
+            ) : null}
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <WorkTypeEditor work={work} />
             <Badge variant="secondary">{work.status}</Badge>
+            <WorkRecreateForm work={work} />
           </div>
         </li>
       ))}

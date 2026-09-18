@@ -14,12 +14,15 @@ import {
 
 const work: WorkProfile = {
   captureProvenance: null,
+  checklist: [],
   closureResult: null,
   createdAt: "2026-09-18T09:00:00.000Z",
+  description: null,
   id: "work-1",
   key: "CANT-1",
   number: 1,
   projectId: "project-1",
+  recreatedFrom: null,
   revision: 1,
   status: "Not Started",
   title: "Create the first Work",
@@ -64,6 +67,18 @@ describe("Work Lifecycle RPC", () => {
       create,
       find: vi.fn().mockResolvedValue(work),
       list: vi.fn().mockResolvedValue([work]),
+      previewRecreate: vi.fn().mockResolvedValue({
+        fields: [],
+        previewId: "work-recreate:preview-1",
+        relations: [],
+        sourceWork: {
+          id: work.id,
+          key: work.key,
+          revision: work.revision,
+          title: work.title,
+        },
+        targetProject: { id: "project-2", name: "Second Project" },
+      }),
       previewTypeChange: vi.fn().mockResolvedValue({
         currentType: "Task",
         nextType: "Bug",
@@ -72,6 +87,13 @@ describe("Work Lifecycle RPC", () => {
         workId: work.id,
       }),
       updateType: vi.fn().mockResolvedValue({ ...work, type: "Bug" }),
+      recreate: vi.fn().mockResolvedValue({
+        ...work,
+        id: "work-2",
+        key: "SECOND-1",
+        projectId: "project-2",
+        recreatedFrom: { id: work.id, key: work.key },
+      }),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
@@ -107,6 +129,23 @@ describe("Work Lifecycle RPC", () => {
         workId: work.id,
       }),
     ).resolves.toMatchObject({ type: "Bug" });
+    await expect(
+      client.workRecreatePreview({
+        sourceWorkId: work.id,
+        targetProjectId: "project-2",
+      }),
+    ).resolves.toMatchObject({ previewId: "work-recreate:preview-1" });
+    await expect(
+      client.recreateWork({
+        baseRevision: 0,
+        clientIdempotencyKey: "recreate-1",
+        previewId: "work-recreate:preview-1",
+        selectedFields: ["title", "type"],
+        selectedRelationIds: [],
+        sourceWorkId: work.id,
+        targetProjectId: "project-2",
+      }),
+    ).resolves.toMatchObject({ key: "SECOND-1" });
   });
 
   test("maps a missing Project to a user-facing not-found response", async () => {
@@ -116,8 +155,10 @@ describe("Work Lifecycle RPC", () => {
         .mockRejectedValue(new WorkProjectNotFoundError("missing")),
       find: vi.fn(),
       list: vi.fn(),
+      previewRecreate: vi.fn(),
       previewTypeChange: vi.fn(),
       updateType: vi.fn(),
+      recreate: vi.fn(),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
@@ -142,6 +183,7 @@ describe("Work Lifecycle RPC", () => {
       create: vi.fn(),
       find: vi.fn(),
       list: vi.fn(),
+      previewRecreate: vi.fn(),
       previewTypeChange: vi.fn(),
       updateType: vi
         .fn()
@@ -150,6 +192,7 @@ describe("Work Lifecycle RPC", () => {
             "work-type-impact-work-1-1-Task-Feature",
           ),
         ),
+      recreate: vi.fn(),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),

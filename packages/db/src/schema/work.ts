@@ -16,14 +16,18 @@ export const work = pgTable(
   "work",
   {
     captureProvenance: jsonb("capture_provenance").$type<unknown>(),
+    checklist: jsonb("checklist").$type<unknown[]>().default([]).notNull(),
     closureResult: text("closure_result"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    description: text("description"),
     id: text("id").primaryKey(),
     key: text("key").notNull(),
     number: integer("number").notNull(),
     projectId: text("project_id")
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
+    recreatedFromWorkId: text("recreated_from_work_id"),
+    recreatedFromWorkKey: text("recreated_from_work_key"),
     revision: integer("revision").default(0).notNull(),
     status: text("status").default("Not Started").notNull(),
     title: text("title").notNull(),

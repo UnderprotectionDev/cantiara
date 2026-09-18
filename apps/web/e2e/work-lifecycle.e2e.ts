@@ -3,6 +3,9 @@ import { expect, test } from "@playwright/test";
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const PROJECTS_URL_PATTERN = /\/projects$/;
 const PROJECT_DETAIL_URL_PATTERN = /\/projects\/[^/]+$/;
+const TYPE_FIELD_PATTERN = /Type:/;
+
+test.setTimeout(60_000);
 
 test("creates Work with a Project key, type, and protected start status", async ({
   context,
@@ -74,4 +77,48 @@ test("creates Work with a Project key, type, and protected start status", async 
   await expect(
     project.getByRole("textbox", { name: "Short code" }),
   ).toBeDisabled();
+  await page.getByRole("link", { name: "Create Project" }).click();
+  await page.getByLabel("Project Name").fill("Orders");
+  await page.getByRole("button", { name: "Create Project" }).click();
+  await page.getByRole("link", { name: "Payment App", exact: true }).click();
+
+  const sourceWork = page.getByRole("listitem").filter({
+    hasText: "PAY-1 Investigate payment failures",
+  });
+  await sourceWork
+    .getByRole("button", { name: "Recreate in another Project" })
+    .click();
+  const recreate = sourceWork.getByRole("region", { name: "Recreate PAY-1" });
+  await recreate.getByLabel("Project").selectOption({ label: "Orders" });
+  await recreate.getByRole("button", { name: "Preview" }).click();
+  await expect(recreate.getByLabel("Recreate preview")).toContainText(
+    "Target Project: Orders",
+  );
+  await expect(recreate.getByText("Title:", { exact: false })).toBeVisible();
+  await expect(recreate.getByText("Type:", { exact: false })).toBeVisible();
+  await expect(
+    recreate.getByText("Description:", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    recreate.getByText("Checklist:", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    recreate.getByText("No relations yet.", { exact: true }),
+  ).toBeVisible();
+  await recreate.getByRole("checkbox", { name: TYPE_FIELD_PATTERN }).uncheck();
+  await recreate.getByRole("button", { name: "Confirm" }).click();
+  await expect(
+    recreate.getByText("Work ORD-1 was recreated.", { exact: true }),
+  ).toBeVisible();
+  await expect(sourceWork).toContainText("Feature");
+  await expect(sourceWork).toContainText("Not Started");
+
+  await page.goto("/projects");
+  await page.getByRole("link", { name: "Orders", exact: true }).click();
+  const recreatedWork = page.getByRole("listitem").filter({
+    hasText: "ORD-1 Investigate payment failures",
+  });
+  await expect(recreatedWork).toContainText("Task");
+  await expect(recreatedWork).toContainText("Not Started");
+  await expect(recreatedWork).toContainText("Derived from PAY-1");
 });
