@@ -1,6 +1,8 @@
 import {
+  applyProjectShellConfigurationChange,
   getProjectShellConfiguration,
   getStarterConfigurationDefinition,
+  PROJECT_STAGE_STATUS_OPTIONS,
   PROTECTED_WORK_STATUS_OPTIONS,
   resolveProjectShellConfiguration,
   STARTER_CONFIGURATION_OPTIONS,
@@ -265,13 +267,22 @@ describe("Project Shell seam", () => {
       preparedWorkViews,
       starterSkeletons,
     }) => {
-      expect(getStarterConfigurationDefinition(configuration)).toEqual({
+      const definition = getStarterConfigurationDefinition(configuration);
+      expect(definition).toMatchObject({
         enabledAreas,
         extraPinnedAreas,
-        preparedStages,
+        hiddenAreas: [],
         preparedWorkViews,
         starterSkeletons,
       });
+      expect(definition.preparedStages.map((stage) => stage.name)).toEqual(
+        preparedStages,
+      );
+      expect(
+        definition.preparedStages.every(
+          (stage) => stage.status === "Not Planned",
+        ),
+      ).toBe(true);
 
       const projectShell = createProjectShell({ store: createMemoryStore() });
       const project = await projectShell.create("account-1", {
@@ -279,14 +290,21 @@ describe("Project Shell seam", () => {
         starterConfiguration: configuration,
       });
 
-      expect(project.configuration).toEqual({
+      expect(project.configuration).toMatchObject({
         enabledAreas,
         extraPinnedAreas,
-        preparedStages,
+        hiddenAreas: [],
         preparedWorkViews,
         starterSkeletons,
         workStatuses: PROTECTED_WORK_STATUS_OPTIONS,
+        workStatusLabels: PROTECTED_WORK_STATUS_OPTIONS.map((semantic) => ({
+          label: semantic,
+          semantic,
+        })),
       });
+      expect(
+        project.configuration.preparedStages.map((stage) => stage.name),
+      ).toEqual(preparedStages);
       expect(project).not.toHaveProperty("sampleWork");
       expect(project).not.toHaveProperty("sampleDocuments");
       expect(project).not.toHaveProperty("history");
@@ -304,6 +322,120 @@ describe("Project Shell seam", () => {
       "Launch Plan",
     ]);
     expect(EXPECTED_STARTER_SKELETONS).toHaveLength(5);
+  });
+
+  test("supports parallel Project stages with the closed five-state catalog", () => {
+    expect(PROJECT_STAGE_STATUS_OPTIONS).toEqual([
+      "Not Planned",
+      "Ready",
+      "Active",
+      "Completed",
+      "Abandoned",
+    ]);
+
+    const initial = getProjectShellConfiguration("Blank Project");
+    const withFirstStage = applyProjectShellConfigurationChange(
+      initial,
+      { kind: "add-stage", name: "Discovery", status: "Active" },
+      "Blank Project",
+    );
+    const [firstStage] = withFirstStage.preparedStages;
+    expect(firstStage).toMatchObject({ name: "Discovery", status: "Active" });
+
+    const withSecondStage = applyProjectShellConfigurationChange(
+      withFirstStage,
+      { kind: "add-stage", name: "Build", status: "Active" },
+      "Blank Project",
+    );
+    expect(withSecondStage.preparedStages).toEqual([
+      firstStage,
+      expect.objectContaining({ name: "Build", status: "Active" }),
+    ]);
+    expect(
+      withSecondStage.preparedStages.filter(
+        (stage) => stage.status === "Active",
+      ),
+    ).toHaveLength(2);
+
+    const renamed = applyProjectShellConfigurationChange(
+      withSecondStage,
+      {
+        kind: "rename-stage",
+        name: "Build and Validate",
+        stageId: withSecondStage.preparedStages[1]?.id ?? "",
+      },
+      "Blank Project",
+    );
+    expect(renamed.preparedStages[1]).toMatchObject({
+      name: "Build and Validate",
+      status: "Active",
+    });
+    expect(initial.preparedStages).toEqual([]);
+  });
+
+  test("keeps area visibility and navigation metadata separate from protected status semantics", () => {
+    const initial = getProjectShellConfiguration("Solo SaaS");
+    const hidden = applyProjectShellConfigurationChange(
+      initial,
+      { area: "Discovery", kind: "set-area-visibility", visible: false },
+      "Solo SaaS",
+    );
+    expect(hidden.enabledAreas).toContain("Discovery");
+    expect(hidden.hiddenAreas).toContain("Discovery");
+
+    const unpinned = applyProjectShellConfigurationChange(
+      hidden,
+      { area: "Discovery", kind: "unpin-area" },
+      "Solo SaaS",
+    );
+    expect(unpinned.extraPinnedAreas).not.toContain("Discovery");
+
+    const repinned = applyProjectShellConfigurationChange(
+      unpinned,
+      { area: "Discovery", kind: "pin-area" },
+      "Solo SaaS",
+    );
+    expect(repinned.extraPinnedAreas).toContain("Discovery");
+
+    const reordered = applyProjectShellConfigurationChange(
+      repinned,
+      {
+        areas: ["Decisions", "Discovery", "Design", "Tests", "Releases"],
+        kind: "reorder-pinned-areas",
+      },
+      "Solo SaaS",
+    );
+    expect(reordered.extraPinnedAreas).toEqual([
+      "Decisions",
+      "Discovery",
+      "Design",
+      "Tests",
+      "Releases",
+    ]);
+
+    const renamedStatus = applyProjectShellConfigurationChange(
+      reordered,
+      {
+        kind: "rename-work-status",
+        label: "Done",
+        semantic: "Closed",
+      },
+      "Solo SaaS",
+    );
+    expect(renamedStatus.workStatuses).toEqual(PROTECTED_WORK_STATUS_OPTIONS);
+    expect(renamedStatus.workStatusLabels).toContainEqual({
+      label: "Done",
+      semantic: "Closed",
+    });
+
+    const restored = applyProjectShellConfigurationChange(
+      renamedStatus,
+      { kind: "restore-default-navigation" },
+      "Solo SaaS",
+    );
+    expect(restored.extraPinnedAreas).toEqual(initial.extraPinnedAreas);
+    expect(restored.hiddenAreas).toEqual(hidden.hiddenAreas);
+    expect(initial).not.toEqual(restored);
   });
 
   test("repairs mismatched skeleton metadata without resetting customized Project configuration", () => {

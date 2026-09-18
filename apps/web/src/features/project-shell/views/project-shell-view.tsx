@@ -1,23 +1,27 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Configuration rows and controls close over their current stage, status, or area.
 import {
   PROJECT_AREA_OPTIONS,
+  PROJECT_STAGE_STATUS_OPTIONS,
   type ProjectArea,
+  type ProjectShellConfiguration,
+  type ProjectShellConfigurationChange,
 } from "@cantiara/api/project-shell";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
+import { Input } from "@cantiara/ui/components/input";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLinkProps, useLocation } from "@tanstack/react-router";
 import { ArrowLeft, Check, CircleHelp, Settings2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/views/client-shell";
 import { client, orpc } from "@/utils/orpc";
 
-const ALWAYS_REACHABLE_SURFACES = [
-  "Overview",
-  "Work",
-  "Documents",
-  "All Tools",
-] as const;
+const ALWAYS_REACHABLE_SURFACES = ["Overview", "All Tools"] as const;
 
 const ALL_PROJECT_AREAS = PROJECT_AREA_OPTIONS;
 type NavigationSurface =
@@ -99,6 +103,44 @@ const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
   Planning:
     "Planning remains outside Configuration Mode. Saved views are a separate Project configuration entry.",
 };
+
+function useProjectConfigurationMutation(
+  projectId: string,
+  baseRevision: number,
+) {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const projectQueryKey = orpc.project.queryOptions({
+    input: { projectId },
+  }).queryKey;
+  const mutation = useMutation({
+    mutationFn: (change: ProjectShellConfigurationChange) =>
+      runOnlineOnlyWrite(() =>
+        client.updateProjectConfiguration({
+          baseRevision,
+          change,
+          clientIdempotencyKey: crypto.randomUUID(),
+          projectId,
+        }),
+      ),
+    onError: (mutationError) => {
+      setError(
+        mutationError instanceof Error
+          ? mutationError.message
+          : "Project configuration could not be changed. Try again.",
+      );
+    },
+    onSuccess: async (nextProject) => {
+      setError(null);
+      queryClient.setQueryData(projectQueryKey, nextProject);
+      await queryClient.invalidateQueries({
+        queryKey: projectQueryKey,
+      });
+    },
+  });
+
+  return { error, mutation };
+}
 
 function projectShellExplanationStorageKey(projectId: string) {
   return `${PROJECT_SHELL_EXPLANATION_STORAGE_PREFIX}${projectId}`;
@@ -277,12 +319,19 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
         </aside>
       ) : null}
 
-      <ProjectNavigation extraPinnedAreas={configuration.extraPinnedAreas} />
+      <ProjectNavigation
+        enabledAreas={configuration.enabledAreas}
+        extraPinnedAreas={configuration.extraPinnedAreas}
+        hiddenAreas={configuration.hiddenAreas}
+      />
 
       {configurationMode ? (
         <ConfigurationModePanel
+          baseRevision={revision}
+          configuration={configuration}
           configurationHost={configurationHost}
           onConfigurationHostChange={setConfigurationHost}
+          projectId={projectId}
         />
       ) : null}
 
@@ -298,11 +347,13 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
         <div className="grid items-start gap-x-12 gap-y-10 lg:grid-cols-2">
           <ConfigurationList
             emptyMessage="No stages prepared."
-            items={configuration.preparedStages}
+            items={configuration.preparedStages.map((stage) => stage.name)}
             label="Stages"
           />
           <ConfigurationList
-            items={configuration.workStatuses}
+            items={configuration.workStatusLabels.map(
+              (workStatus) => workStatus.label,
+            )}
             label="Work statuses"
           />
           <ConfigurationList
@@ -349,8 +400,8 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
 
         <AllToolsSection
           baseRevision={revision}
+          configuration={configuration}
           configurationMode={configurationMode}
-          enabledAreas={configuration.enabledAreas}
           projectId={projectId}
         />
       </section>
@@ -424,12 +475,23 @@ function DailyActionHost({ action }: { action: DailyAction }) {
 }
 
 function ConfigurationModePanel({
+  baseRevision,
+  configuration,
   configurationHost,
   onConfigurationHostChange,
+  projectId,
 }: {
+  baseRevision: number;
+  configuration: ProjectShellConfiguration;
   configurationHost: ConfigurationHost | null;
   onConfigurationHostChange: (host: ConfigurationHost | null) => void;
+  projectId: string;
 }) {
+  const { error, mutation } = useProjectConfigurationMutation(
+    projectId,
+    baseRevision,
+  );
+
   return (
     <section
       aria-label="Configuration Mode"
@@ -460,6 +522,17 @@ function ConfigurationModePanel({
           Enable a ready Project area from All Tools below. Enabling an area
           changes presentation metadata only and does not create records.
         </p>
+        <Button
+          className="mt-4"
+          disabled={mutation.isPending}
+          onClick={() =>
+            mutation.mutate({ kind: "restore-default-navigation" })
+          }
+          type="button"
+          variant="outline"
+        >
+          Restore default navigation
+        </Button>
       </section>
 
       <section aria-labelledby="configuration-entry-points-heading">
@@ -482,7 +555,15 @@ function ConfigurationModePanel({
                 <p className="mt-2 text-muted-foreground text-xs/relaxed">
                   {description}
                 </p>
-                {isOpen ? <ConfigurationHostPanel label={label} /> : null}
+                {isOpen ? (
+                  <ConfigurationHostPanel
+                    configuration={configuration}
+                    disabled={mutation.isPending}
+                    error={error}
+                    label={label}
+                    onChange={mutation.mutate}
+                  />
+                ) : null}
               </div>
             );
           })}
@@ -519,7 +600,19 @@ function ConfigurationHostButton({
   );
 }
 
-function ConfigurationHostPanel({ label }: { label: ConfigurationHost }) {
+function ConfigurationHostPanel({
+  configuration,
+  disabled,
+  error,
+  label,
+  onChange,
+}: {
+  configuration: ProjectShellConfiguration;
+  disabled: boolean;
+  error: string | null;
+  label: ConfigurationHost;
+  onChange: (change: ProjectShellConfigurationChange) => void;
+}) {
   const host = CONFIGURATION_HOSTS.find(
     (candidate) => candidate.label === label,
   );
@@ -538,19 +631,52 @@ function ConfigurationHostPanel({ label }: { label: ConfigurationHost }) {
       <h4 className="font-medium text-foreground" id={`${hostId}-heading`}>
         {label}
       </h4>
-      <ConfigurationHostContent label={label} message={host.message} />
+      <ConfigurationHostContent
+        configuration={configuration}
+        disabled={disabled}
+        error={error}
+        label={label}
+        message={host.message}
+        onChange={onChange}
+      />
     </section>
   );
 }
 
 function ConfigurationHostContent({
+  configuration,
+  disabled,
+  error,
   label,
   message,
+  onChange,
 }: {
+  configuration: ProjectShellConfiguration;
+  disabled: boolean;
+  error: string | null;
   label: ConfigurationHost;
   message: string;
+  onChange: (change: ProjectShellConfigurationChange) => void;
 }) {
   switch (label) {
+    case "Stages":
+      return (
+        <StagesConfiguration
+          configuration={configuration}
+          disabled={disabled}
+          error={error}
+          onChange={onChange}
+        />
+      );
+    case "Work statuses":
+      return (
+        <WorkStatusesConfiguration
+          configuration={configuration}
+          disabled={disabled}
+          error={error}
+          onChange={onChange}
+        />
+      );
     case "Custom field":
       return <CustomFieldEditorHost message={message} />;
     case "Work Context Card layout":
@@ -558,6 +684,266 @@ function ConfigurationHostContent({
     default:
       return <p className="mt-1">{message}</p>;
   }
+}
+
+function ConfigurationMutationError({ error }: { error: string | null }) {
+  return error ? (
+    <p className="mt-3 text-destructive text-sm" role="alert">
+      {error}
+    </p>
+  ) : null;
+}
+
+function StagesConfiguration({
+  configuration,
+  disabled,
+  error,
+  onChange,
+}: {
+  configuration: ProjectShellConfiguration;
+  disabled: boolean;
+  error: string | null;
+  onChange: (change: ProjectShellConfigurationChange) => void;
+}) {
+  const [stageName, setStageName] = useState("");
+  const [draftNames, setDraftNames] = useState<Record<string, string>>({});
+
+  function addStage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = stageName.trim();
+    if (!name) {
+      return;
+    }
+    onChange({ kind: "add-stage", name });
+    setStageName("");
+  }
+
+  function renameStage(stageId: string, currentName: string) {
+    const name = (draftNames[stageId] ?? currentName).trim();
+    if (!name || name === currentName) {
+      return;
+    }
+    onChange({ kind: "rename-stage", name, stageId });
+  }
+
+  function reorderStage(stageId: string, direction: -1 | 1) {
+    const currentIndex = configuration.preparedStages.findIndex(
+      (stage) => stage.id === stageId,
+    );
+    const nextIndex = currentIndex + direction;
+    if (
+      currentIndex < 0 ||
+      nextIndex < 0 ||
+      nextIndex >= configuration.preparedStages.length
+    ) {
+      return;
+    }
+    const stageIds = configuration.preparedStages.map((stage) => stage.id);
+    const [moved] = stageIds.splice(currentIndex, 1);
+    if (!moved) {
+      return;
+    }
+    stageIds.splice(nextIndex, 0, moved);
+    onChange({ kind: "reorder-stages", stageIds });
+  }
+
+  return (
+    <div className="mt-3 space-y-4">
+      <p className="text-muted-foreground text-xs/relaxed">
+        Stages are independent presentation metadata. Several stages can be
+        Active at once, and removing one does not delete main records.
+      </p>
+      <form className="flex flex-wrap items-end gap-2" onSubmit={addStage}>
+        <label className="grid gap-1 text-xs" htmlFor="new-project-stage">
+          Stage name
+          <Input
+            disabled={disabled}
+            id="new-project-stage"
+            onChange={(event) => setStageName(event.target.value)}
+            value={stageName}
+          />
+        </label>
+        <Button
+          disabled={disabled || !stageName.trim()}
+          size="xs"
+          type="submit"
+        >
+          Add stage
+        </Button>
+      </form>
+      <ConfigurationMutationError error={error} />
+      <ul aria-label="Stages configuration" className="space-y-2">
+        {configuration.preparedStages.map((stage, index) => (
+          <li className="border bg-background p-3" key={stage.id}>
+            <div className="flex flex-wrap items-end gap-2">
+              <label
+                className="grid min-w-44 flex-1 gap-1 text-xs"
+                htmlFor={`stage-name-${stage.id}`}
+              >
+                Stage name
+                <Input
+                  aria-label={`Stage name ${stage.name}`}
+                  disabled={disabled}
+                  id={`stage-name-${stage.id}`}
+                  onChange={(event) =>
+                    setDraftNames((current) => ({
+                      ...current,
+                      [stage.id]: event.target.value,
+                    }))
+                  }
+                  value={draftNames[stage.id] ?? stage.name}
+                />
+              </label>
+              <Button
+                disabled={disabled}
+                onClick={() => renameStage(stage.id, stage.name)}
+                size="xs"
+                type="button"
+                variant="outline"
+              >
+                Save
+              </Button>
+              <label
+                className="grid gap-1 text-xs"
+                htmlFor={`stage-status-${stage.id}`}
+              >
+                Status
+                <NativeSelect
+                  aria-label={`${stage.name} status`}
+                  disabled={disabled}
+                  id={`stage-status-${stage.id}`}
+                  onChange={(event) =>
+                    onChange({
+                      kind: "set-stage-status",
+                      stageId: stage.id,
+                      status: event.target
+                        .value as (typeof PROJECT_STAGE_STATUS_OPTIONS)[number],
+                    })
+                  }
+                  value={stage.status}
+                >
+                  {PROJECT_STAGE_STATUS_OPTIONS.map((status) => (
+                    <NativeSelectOption key={status} value={status}>
+                      {status}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </label>
+              <Button
+                aria-label={`Move up ${stage.name}`}
+                disabled={disabled || index === 0}
+                onClick={() => reorderStage(stage.id, -1)}
+                size="xs"
+                type="button"
+                variant="ghost"
+              >
+                ↑
+              </Button>
+              <Button
+                aria-label={`Move down ${stage.name}`}
+                disabled={
+                  disabled || index === configuration.preparedStages.length - 1
+                }
+                onClick={() => reorderStage(stage.id, 1)}
+                size="xs"
+                type="button"
+                variant="ghost"
+              >
+                ↓
+              </Button>
+              <Button
+                aria-label="Remove stage"
+                disabled={disabled}
+                onClick={() =>
+                  onChange({ kind: "remove-stage", stageId: stage.id })
+                }
+                size="xs"
+                type="button"
+                variant="ghost"
+              >
+                Remove stage
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {configuration.preparedStages.length === 0 ? (
+        <p className="text-muted-foreground text-sm">No stages prepared.</p>
+      ) : null}
+    </div>
+  );
+}
+
+function WorkStatusesConfiguration({
+  configuration,
+  disabled,
+  error,
+  onChange,
+}: {
+  configuration: ProjectShellConfiguration;
+  disabled: boolean;
+  error: string | null;
+  onChange: (change: ProjectShellConfigurationChange) => void;
+}) {
+  const [draftLabels, setDraftLabels] = useState<Record<string, string>>({});
+
+  return (
+    <div className="mt-3 space-y-4">
+      <p className="text-muted-foreground text-xs/relaxed">
+        Rename the visible labels while the four protected Work status semantics
+        remain fixed. New status values cannot be added here.
+      </p>
+      <ConfigurationMutationError error={error} />
+      <ul aria-label="Work status configuration" className="space-y-2">
+        {configuration.workStatusLabels.map((status) => (
+          <li
+            className="flex flex-wrap items-end gap-2 border bg-background p-3"
+            key={status.semantic}
+          >
+            <span className="pb-2 font-medium text-xs">{status.semantic}</span>
+            <label
+              className="grid min-w-44 flex-1 gap-1 text-xs"
+              htmlFor={`work-status-label-${status.semantic}`}
+            >
+              Visible label
+              <Input
+                aria-label={`Work status label ${status.semantic}`}
+                disabled={disabled}
+                id={`work-status-label-${status.semantic}`}
+                onChange={(event) =>
+                  setDraftLabels((current) => ({
+                    ...current,
+                    [status.semantic]: event.target.value,
+                  }))
+                }
+                value={draftLabels[status.semantic] ?? status.label}
+              />
+            </label>
+            <Button
+              disabled={
+                disabled ||
+                !(draftLabels[status.semantic] ?? status.label).trim() ||
+                (draftLabels[status.semantic] ?? status.label).trim() ===
+                  status.label
+              }
+              onClick={() =>
+                onChange({
+                  kind: "rename-work-status",
+                  label: (draftLabels[status.semantic] ?? status.label).trim(),
+                  semantic: status.semantic,
+                })
+              }
+              size="xs"
+              type="button"
+              variant="outline"
+            >
+              Save
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function CustomFieldEditorHost({ message }: { message: string }) {
@@ -587,12 +973,27 @@ function configurationHostId(label: ConfigurationHost) {
 }
 
 function ProjectNavigation({
+  enabledAreas,
   extraPinnedAreas,
+  hiddenAreas,
 }: {
+  enabledAreas: readonly ProjectArea[];
   extraPinnedAreas: readonly ProjectArea[];
+  hiddenAreas: readonly ProjectArea[];
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
-  const activeSurface = navigationSurfaceFromHash(activeHash, extraPinnedAreas);
+  const visiblePinnedAreas = extraPinnedAreas.filter(
+    (area) => enabledAreas.includes(area) && !hiddenAreas.includes(area),
+  );
+  const visibleCoreAreas = (["Work", "Documents"] as const).filter(
+    (area) => enabledAreas.includes(area) && !hiddenAreas.includes(area),
+  );
+  const activeSurface = navigationSurfaceFromHash(
+    activeHash,
+    enabledAreas,
+    hiddenAreas,
+    visiblePinnedAreas,
+  );
 
   return (
     <nav
@@ -607,13 +1008,21 @@ function ProjectNavigation({
           surface={surface}
         />
       ))}
-      {extraPinnedAreas.length > 0 ? (
+      {visibleCoreAreas.map((area) => (
+        <ProjectNavigationLink
+          activeSurface={activeSurface}
+          hash={navigationHash(area)}
+          key={area}
+          surface={area}
+        />
+      ))}
+      {visiblePinnedAreas.length > 0 ? (
         <span
           aria-hidden="true"
           className="mx-1 hidden h-4 w-px bg-border sm:block"
         />
       ) : null}
-      {extraPinnedAreas.map((area) => (
+      {visiblePinnedAreas.map((area) => (
         <ProjectNavigationLink
           activeSurface={activeSurface}
           hash={projectAreaHash(area)}
@@ -663,7 +1072,9 @@ function navigationLinkStateClass(isActive: boolean) {
 
 function navigationSurfaceFromHash(
   hash: string,
-  extraPinnedAreas: readonly ProjectArea[],
+  enabledAreas: readonly ProjectArea[],
+  hiddenAreas: readonly ProjectArea[],
+  visiblePinnedAreas: readonly ProjectArea[],
 ): NavigationSurface {
   if (!hash) {
     return "Overview";
@@ -671,16 +1082,33 @@ function navigationSurfaceFromHash(
   if (hash === "all-tools") {
     return "All Tools";
   }
-  if (hash === "work") {
+  if (
+    hash === "work" &&
+    enabledAreas.includes("Work") &&
+    !hiddenAreas.includes("Work")
+  ) {
     return "Work";
   }
-  if (hash === "documents") {
+  if (
+    hash === "documents" &&
+    enabledAreas.includes("Documents") &&
+    !hiddenAreas.includes("Documents")
+  ) {
     return "Documents";
   }
   if (dailyActionFromHash(hash)) {
     return "Work";
   }
-  const pinnedArea = extraPinnedAreas.find(
+  const visibleArea = PROJECT_AREA_OPTIONS.find(
+    (area) =>
+      enabledAreas.includes(area) &&
+      !hiddenAreas.includes(area) &&
+      projectAreaHash(area) === hash,
+  );
+  if (visibleArea) {
+    return visibleArea;
+  }
+  const pinnedArea = visiblePinnedAreas.find(
     (area) => projectAreaHash(area) === hash,
   );
   return pinnedArea ?? "Overview";
@@ -765,19 +1193,28 @@ function EnabledAreasList({ areas }: { areas: readonly ProjectArea[] }) {
   );
 }
 
+function projectAreaAvailabilityLabel(enabled: boolean, hidden: boolean) {
+  if (!enabled) {
+    return "Available";
+  }
+  return hidden ? "Hidden" : "Enabled";
+}
+
 function AllToolsSection({
   baseRevision,
   configurationMode,
-  enabledAreas,
+  configuration,
   projectId,
 }: {
   baseRevision: number;
   configurationMode: boolean;
-  enabledAreas: readonly ProjectArea[];
+  configuration: ProjectShellConfiguration;
   projectId: string;
 }) {
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
+  const { error: configurationError, mutation: configurationMutation } =
+    useProjectConfigurationMutation(projectId, baseRevision);
+  const [enableError, setEnableError] = useState<string | null>(null);
   const enableProjectArea = useMutation({
     mutationFn: (area: ProjectArea) =>
       runOnlineOnlyWrite(() =>
@@ -789,10 +1226,10 @@ function AllToolsSection({
         }),
       ),
     onError: () => {
-      setError("Project area could not be enabled. Try again.");
+      setEnableError("Project area could not be enabled. Try again.");
     },
     onSuccess: async () => {
-      setError(null);
+      setEnableError(null);
       await queryClient.invalidateQueries({
         queryKey: orpc.project.queryOptions({ input: { projectId } }).queryKey,
       });
@@ -800,11 +1237,41 @@ function AllToolsSection({
   });
   const requestEnableProjectArea = useCallback(
     (area: ProjectArea) => {
-      setError(null);
+      setEnableError(null);
       enableProjectArea.mutate(area);
     },
     [enableProjectArea],
   );
+  const requestConfigurationChange = useCallback(
+    (change: ProjectShellConfigurationChange) => {
+      configurationMutation.mutate(change);
+    },
+    [configurationMutation],
+  );
+  const requestReorderPinnedArea = useCallback(
+    (area: ProjectArea, direction: -1 | 1) => {
+      const currentIndex = configuration.extraPinnedAreas.indexOf(area);
+      const nextIndex = currentIndex + direction;
+      if (
+        currentIndex < 0 ||
+        nextIndex < 0 ||
+        nextIndex >= configuration.extraPinnedAreas.length
+      ) {
+        return;
+      }
+      const areas = [...configuration.extraPinnedAreas];
+      const [moved] = areas.splice(currentIndex, 1);
+      if (!moved) {
+        return;
+      }
+      areas.splice(nextIndex, 0, moved);
+      requestConfigurationChange({ kind: "reorder-pinned-areas", areas });
+    },
+    [configuration.extraPinnedAreas, requestConfigurationChange],
+  );
+  const error = enableError ?? configurationError;
+  const disabled =
+    enableProjectArea.isPending || configurationMutation.isPending;
 
   return (
     <section className="border-y py-6" id="all-tools">
@@ -825,10 +1292,13 @@ function AllToolsSection({
         className="mt-5 grid gap-x-8 border-y lg:grid-cols-2"
       >
         {ALL_PROJECT_AREAS.map((area) => {
-          const enabled = enabledAreas.includes(area);
+          const enabled = configuration.enabledAreas.includes(area);
+          const hidden = configuration.hiddenAreas.includes(area);
+          const pinned = configuration.extraPinnedAreas.includes(area);
+          const pinnedIndex = configuration.extraPinnedAreas.indexOf(area);
           return (
             <li
-              aria-label={`${area} ${enabled ? "Enabled" : "Available"}`}
+              aria-label={`${area} ${projectAreaAvailabilityLabel(enabled, hidden)}`}
               className="flex items-center justify-between border-b px-3 py-2.5 text-sm last:border-b-0 lg:[&:nth-last-child(-n+2)]:border-b-0"
               id={projectAreaAnchor(area).slice(1)}
               key={area}
@@ -837,9 +1307,15 @@ function AllToolsSection({
               <ProjectAreaAvailability
                 area={area}
                 configurationMode={configurationMode}
-                disabled={enableProjectArea.isPending}
+                disabled={disabled}
                 enabled={enabled}
+                hidden={hidden}
+                onChange={requestConfigurationChange}
                 onEnable={requestEnableProjectArea}
+                onReorder={requestReorderPinnedArea}
+                pinned={pinned}
+                pinnedCount={configuration.extraPinnedAreas.length}
+                pinnedIndex={pinnedIndex}
               />
             </li>
           );
@@ -854,19 +1330,27 @@ function ProjectAreaAvailability({
   configurationMode,
   disabled,
   enabled,
+  hidden,
+  onChange,
   onEnable,
+  onReorder,
+  pinned,
+  pinnedCount,
+  pinnedIndex,
 }: {
   area: ProjectArea;
   configurationMode: boolean;
   disabled: boolean;
   enabled: boolean;
+  hidden: boolean;
+  onChange: (change: ProjectShellConfigurationChange) => void;
   onEnable: (area: ProjectArea) => void;
+  onReorder: (area: ProjectArea, direction: -1 | 1) => void;
+  pinned: boolean;
+  pinnedCount: number;
+  pinnedIndex: number;
 }) {
-  if (enabled) {
-    return <Check aria-hidden="true" className="size-3" />;
-  }
-
-  if (configurationMode) {
+  if (!enabled && configurationMode) {
     return (
       <EnableProjectAreaButton
         area={area}
@@ -876,8 +1360,73 @@ function ProjectAreaAvailability({
     );
   }
 
+  if (!enabled) {
+    return (
+      <span className="text-muted-foreground text-xs">Configuration Mode</span>
+    );
+  }
+
+  if (!configurationMode) {
+    return hidden ? (
+      <span className="text-muted-foreground text-xs">Hidden</span>
+    ) : (
+      <Check aria-hidden="true" className="size-3" />
+    );
+  }
+
   return (
-    <span className="text-muted-foreground text-xs">Configuration Mode</span>
+    <div className="flex flex-wrap justify-end gap-1">
+      {pinned ? (
+        <>
+          <Button
+            aria-label={`Move ${area} up`}
+            disabled={disabled || pinnedIndex <= 0}
+            onClick={() => onReorder(area, -1)}
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            ↑
+          </Button>
+          <Button
+            aria-label={`Move ${area} down`}
+            disabled={disabled || pinnedIndex >= pinnedCount - 1}
+            onClick={() => onReorder(area, 1)}
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            ↓
+          </Button>
+        </>
+      ) : null}
+      <Button
+        aria-label={`${hidden ? "Show" : "Hide"} ${area}`}
+        disabled={disabled}
+        onClick={() =>
+          onChange({ area, kind: "set-area-visibility", visible: hidden })
+        }
+        size="xs"
+        type="button"
+        variant="outline"
+      >
+        {hidden ? "Show" : "Hide"}
+      </Button>
+      <Button
+        aria-label={
+          pinned ? `Remove ${area} from navigation` : "Pin to navigation"
+        }
+        disabled={disabled}
+        onClick={() =>
+          onChange({ area, kind: pinned ? "unpin-area" : "pin-area" })
+        }
+        size="xs"
+        type="button"
+        variant="ghost"
+      >
+        {pinned ? "Remove pin" : "Pin to navigation"}
+      </Button>
+    </div>
   );
 }
 

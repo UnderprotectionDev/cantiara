@@ -146,6 +146,35 @@ export const PROTECTED_WORK_STATUS_OPTIONS = [
 export type ProtectedWorkStatus =
   (typeof PROTECTED_WORK_STATUS_OPTIONS)[number];
 
+export const PROJECT_STAGE_STATUS_OPTIONS = [
+  "Not Planned",
+  "Ready",
+  "Active",
+  "Completed",
+  "Abandoned",
+] as const;
+
+export type ProjectStageStatus = (typeof PROJECT_STAGE_STATUS_OPTIONS)[number];
+
+export const projectStageStatusSchema = z.enum(PROJECT_STAGE_STATUS_OPTIONS);
+
+export const projectStageNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Stage name is required.")
+  .max(200, "Stage name must be 200 characters or fewer.");
+
+export interface ProjectStage {
+  id: string;
+  name: string;
+  status: ProjectStageStatus;
+}
+
+export interface WorkStatusLabel {
+  label: string;
+  semantic: ProtectedWorkStatus;
+}
+
 export const projectAreaSchema = z.enum(PROJECT_AREA_OPTIONS);
 const projectWorkViewSchema = z.enum(PROJECT_WORK_VIEW_OPTIONS);
 const protectedWorkStatusSchema = z.enum(PROTECTED_WORK_STATUS_OPTIONS);
@@ -159,6 +188,79 @@ const protectedWorkStatusesSchema = z
       ),
     "Work statuses must use the protected status catalog.",
   );
+const projectStageSchema = z
+  .object({
+    id: z.string().trim().min(1).max(255),
+    name: projectStageNameSchema,
+    status: projectStageStatusSchema,
+  })
+  .strict();
+const projectStagesSchema = z
+  .array(projectStageSchema)
+  .superRefine((stages, context) => {
+    const ids = new Set<string>();
+    for (const [index, stage] of stages.entries()) {
+      if (ids.has(stage.id)) {
+        context.addIssue({
+          code: "custom",
+          message: "Project stage ids must be unique.",
+          path: [index, "id"],
+        });
+      }
+      ids.add(stage.id);
+    }
+  });
+const workStatusLabelsSchema = z
+  .array(
+    z
+      .object({
+        label: z.string().trim().min(1).max(200),
+        semantic: protectedWorkStatusSchema,
+      })
+      .strict(),
+  )
+  .length(PROTECTED_WORK_STATUS_OPTIONS.length)
+  .refine(
+    (labels) =>
+      labels.every(
+        (status, index) =>
+          status.semantic === PROTECTED_WORK_STATUS_OPTIONS[index],
+      ),
+    "Work status labels must preserve the protected status semantics.",
+  );
+
+function stageIdForName(name: string, index: number) {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `starter-${slug || "stage"}-${index + 1}`;
+}
+
+function preparedStagesFromNames(names: readonly string[]): ProjectStage[] {
+  return names.map((name, index) => ({
+    id: stageIdForName(name, index),
+    name,
+    status: "Not Planned",
+  }));
+}
+
+function clonePreparedStages(stages: readonly ProjectStage[]): ProjectStage[] {
+  return stages.map((stage) => ({ ...stage }));
+}
+
+function defaultWorkStatusLabels(): WorkStatusLabel[] {
+  return PROTECTED_WORK_STATUS_OPTIONS.map((semantic) => ({
+    label: semantic,
+    semantic,
+  }));
+}
+
+function cloneWorkStatusLabels(
+  labels: readonly WorkStatusLabel[],
+): WorkStatusLabel[] {
+  return labels.map((status) => ({ ...status }));
+}
 
 const starterSkeletonSchema = z.enum(STARTER_SKELETON_OPTIONS);
 const starterSkeletonSurfaceSchema = z.enum(STARTER_SKELETON_SURFACE_OPTIONS);
@@ -204,7 +306,8 @@ const starterSkeletonsSchema = z
 export interface StarterConfigurationDefinition {
   enabledAreas: readonly ProjectArea[];
   extraPinnedAreas: readonly ProjectArea[];
-  preparedStages: readonly string[];
+  hiddenAreas: readonly ProjectArea[];
+  preparedStages: readonly ProjectStage[];
   preparedWorkViews: readonly ProjectWorkView[];
   starterSkeletons: readonly StarterSkeletonSelection[];
 }
@@ -213,6 +316,7 @@ const STARTER_CONFIGURATION_DEFINITIONS = {
   "Blank Project": {
     enabledAreas: ["Work", "Documents"],
     extraPinnedAreas: [],
+    hiddenAreas: [],
     preparedStages: [],
     preparedWorkViews: ["Backlog", "Board"],
     starterSkeletons: [],
@@ -220,14 +324,15 @@ const STARTER_CONFIGURATION_DEFINITIONS = {
   "Solo SaaS": {
     enabledAreas: PROJECT_AREA_OPTIONS,
     extraPinnedAreas: ["Discovery", "Decisions", "Design", "Tests", "Releases"],
-    preparedStages: [
+    hiddenAreas: [],
+    preparedStages: preparedStagesFromNames([
       "Discovery",
       "Design",
       "Build",
       "Validate",
       "Release",
       "Operate",
-    ],
+    ]),
     preparedWorkViews: PROJECT_WORK_VIEW_OPTIONS,
     starterSkeletons: STARTER_SKELETON_CATALOG,
   },
@@ -242,7 +347,14 @@ const STARTER_CONFIGURATION_DEFINITIONS = {
       "GitHub",
     ],
     extraPinnedAreas: ["GitHub", "Tests", "Releases"],
-    preparedStages: ["Scope", "Build", "Validate", "Release", "Maintain"],
+    hiddenAreas: [],
+    preparedStages: preparedStagesFromNames([
+      "Scope",
+      "Build",
+      "Validate",
+      "Release",
+      "Maintain",
+    ]),
     preparedWorkViews: PROJECT_WORK_VIEW_OPTIONS,
     starterSkeletons: STARTER_SKELETON_CATALOG,
   },
@@ -255,14 +367,15 @@ const STARTER_CONFIGURATION_DEFINITIONS = {
       "Releases",
       "Production",
     ],
-    preparedStages: [
+    hiddenAreas: [],
+    preparedStages: preparedStagesFromNames([
       "Discovery",
       "Design",
       "Build",
       "Validate",
       "Release",
       "Operate",
-    ],
+    ]),
     preparedWorkViews: PROJECT_WORK_VIEW_OPTIONS,
     starterSkeletons: STARTER_SKELETON_CATALOG,
   },
@@ -278,7 +391,8 @@ export function getStarterConfigurationDefinition(
   return {
     enabledAreas: [...definition.enabledAreas],
     extraPinnedAreas: [...definition.extraPinnedAreas],
-    preparedStages: [...definition.preparedStages],
+    hiddenAreas: [...definition.hiddenAreas],
+    preparedStages: clonePreparedStages(definition.preparedStages),
     preparedWorkViews: [...definition.preparedWorkViews],
     starterSkeletons: cloneStarterSkeletons(definition.starterSkeletons),
   };
@@ -287,21 +401,36 @@ export function getStarterConfigurationDefinition(
 export interface ProjectShellConfiguration
   extends StarterConfigurationDefinition {
   workStatuses: readonly ProtectedWorkStatus[];
+  workStatusLabels: readonly WorkStatusLabel[];
 }
 
 export const projectShellConfigurationSchema = z
   .object({
     enabledAreas: z.array(projectAreaSchema),
     extraPinnedAreas: z.array(projectAreaSchema),
-    preparedStages: z.array(z.string().trim().min(1)),
+    hiddenAreas: z.array(projectAreaSchema),
+    preparedStages: projectStagesSchema,
     preparedWorkViews: z.array(projectWorkViewSchema),
     starterSkeletons: starterSkeletonsSchema,
     workStatuses: protectedWorkStatusesSchema,
+    workStatusLabels: workStatusLabelsSchema,
   })
   .strict();
 
-const legacyProjectShellConfigurationSchema =
-  projectShellConfigurationSchema.omit({ starterSkeletons: true });
+const legacyProjectShellConfigurationSchema = z
+  .object({
+    enabledAreas: z.array(projectAreaSchema),
+    extraPinnedAreas: z.array(projectAreaSchema),
+    hiddenAreas: z.array(projectAreaSchema).optional(),
+    preparedStages: z.array(
+      z.union([z.string().trim().min(1), projectStageSchema]),
+    ),
+    preparedWorkViews: z.array(projectWorkViewSchema),
+    starterSkeletons: starterSkeletonsSchema.optional(),
+    workStatuses: protectedWorkStatusesSchema,
+    workStatusLabels: workStatusLabelsSchema.optional(),
+  })
+  .strict();
 
 export function getProjectShellConfiguration(
   configuration: StarterConfiguration,
@@ -309,6 +438,36 @@ export function getProjectShellConfiguration(
   return {
     ...getStarterConfigurationDefinition(configuration),
     workStatuses: [...PROTECTED_WORK_STATUS_OPTIONS],
+    workStatusLabels: defaultWorkStatusLabels(),
+  };
+}
+
+function normalizeLegacyStages(
+  stages: readonly (string | ProjectStage)[],
+): ProjectStage[] {
+  return stages.map((stage, index) =>
+    typeof stage === "string"
+      ? {
+          id: stageIdForName(stage, index),
+          name: stage,
+          status: "Not Planned",
+        }
+      : { ...stage },
+  );
+}
+
+function cloneProjectShellConfiguration(
+  configuration: ProjectShellConfiguration,
+): ProjectShellConfiguration {
+  return {
+    enabledAreas: [...configuration.enabledAreas],
+    extraPinnedAreas: [...configuration.extraPinnedAreas],
+    hiddenAreas: [...configuration.hiddenAreas],
+    preparedStages: clonePreparedStages(configuration.preparedStages),
+    preparedWorkViews: [...configuration.preparedWorkViews],
+    starterSkeletons: cloneStarterSkeletons(configuration.starterSkeletons),
+    workStatuses: [...configuration.workStatuses],
+    workStatusLabels: cloneWorkStatusLabels(configuration.workStatusLabels),
   };
 }
 
@@ -323,18 +482,23 @@ export function resolveProjectShellConfiguration(
       parsed.data.starterSkeletons,
       expected.starterSkeletons,
     )
-      ? parsed.data
-      : {
+      ? cloneProjectShellConfiguration(parsed.data)
+      : cloneProjectShellConfiguration({
           ...parsed.data,
           starterSkeletons: cloneStarterSkeletons(expected.starterSkeletons),
-        };
+        });
   }
 
   const legacy = legacyProjectShellConfigurationSchema.safeParse(value);
   return legacy.success
     ? {
         ...legacy.data,
+        hiddenAreas: [...(legacy.data.hiddenAreas ?? [])],
+        preparedStages: normalizeLegacyStages(legacy.data.preparedStages),
         starterSkeletons: cloneStarterSkeletons(expected.starterSkeletons),
+        workStatusLabels: cloneWorkStatusLabels(
+          legacy.data.workStatusLabels ?? defaultWorkStatusLabels(),
+        ),
       }
     : expected;
 }
@@ -350,11 +514,255 @@ export function enableProjectArea(
         candidate === area || configuration.enabledAreas.includes(candidate),
     ),
     extraPinnedAreas: [...configuration.extraPinnedAreas],
-    preparedStages: [...configuration.preparedStages],
+    hiddenAreas: [...configuration.hiddenAreas],
+    preparedStages: clonePreparedStages(configuration.preparedStages),
     preparedWorkViews: [...configuration.preparedWorkViews],
     starterSkeletons: cloneStarterSkeletons(configuration.starterSkeletons),
     workStatuses: [...configuration.workStatuses],
+    workStatusLabels: cloneWorkStatusLabels(configuration.workStatusLabels),
   };
+}
+
+export const projectShellConfigurationChangeSchema = z.discriminatedUnion(
+  "kind",
+  [
+    z
+      .object({
+        kind: z.literal("add-stage"),
+        name: projectStageNameSchema,
+        status: projectStageStatusSchema.optional(),
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("rename-stage"),
+        name: projectStageNameSchema,
+        stageId: z.string().trim().min(1).max(255),
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("set-stage-status"),
+        stageId: z.string().trim().min(1).max(255),
+        status: projectStageStatusSchema,
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("reorder-stages"),
+        stageIds: z.array(z.string().trim().min(1).max(255)),
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("remove-stage"),
+        stageId: z.string().trim().min(1).max(255),
+      })
+      .strict(),
+    z
+      .object({
+        area: projectAreaSchema,
+        kind: z.literal("set-area-visibility"),
+        visible: z.boolean(),
+      })
+      .strict(),
+    z
+      .object({
+        area: projectAreaSchema,
+        kind: z.literal("pin-area"),
+      })
+      .strict(),
+    z
+      .object({
+        area: projectAreaSchema,
+        kind: z.literal("unpin-area"),
+      })
+      .strict(),
+    z
+      .object({
+        areas: z.array(projectAreaSchema),
+        kind: z.literal("reorder-pinned-areas"),
+      })
+      .strict(),
+    z.object({ kind: z.literal("restore-default-navigation") }).strict(),
+    z
+      .object({
+        kind: z.literal("rename-work-status"),
+        label: z.string().trim().min(1).max(200),
+        semantic: protectedWorkStatusSchema,
+      })
+      .strict(),
+  ],
+);
+
+export type ProjectShellConfigurationChange = z.input<
+  typeof projectShellConfigurationChangeSchema
+>;
+
+export const updateProjectConfigurationInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    change: projectShellConfigurationChangeSchema,
+    clientIdempotencyKey: z.string().trim().min(1).max(255),
+    projectId: z.string().trim().min(1),
+  })
+  .strict();
+
+export type UpdateProjectConfigurationInput = z.input<
+  typeof updateProjectConfigurationInputSchema
+>;
+
+export class ProjectShellConfigurationChangeError extends Error {
+  readonly code = "PROJECT_CONFIGURATION_CHANGE_REJECTED" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "ProjectShellConfigurationChangeError";
+  }
+}
+
+function stageIndexOrThrow(stages: readonly ProjectStage[], stageId: string) {
+  const index = stages.findIndex((stage) => stage.id === stageId);
+  if (index === -1) {
+    throw new ProjectShellConfigurationChangeError("Project stage not found.");
+  }
+  return index;
+}
+
+function ensureEnabledArea(
+  configuration: ProjectShellConfiguration,
+  area: ProjectArea,
+) {
+  if (!configuration.enabledAreas.includes(area)) {
+    throw new ProjectShellConfigurationChangeError(
+      "Only an enabled Project area can be hidden or shown.",
+    );
+  }
+}
+
+function reorderedValues<T extends string>(
+  current: readonly T[],
+  requested: readonly T[],
+  label: string,
+): T[] {
+  if (
+    current.length !== requested.length ||
+    new Set(current).size !== new Set(requested).size ||
+    current.some((value) => !requested.includes(value))
+  ) {
+    throw new ProjectShellConfigurationChangeError(
+      `${label} order must contain the current entries exactly once.`,
+    );
+  }
+  return [...requested];
+}
+
+export function applyProjectShellConfigurationChange(
+  configuration: ProjectShellConfiguration,
+  change: ProjectShellConfigurationChange,
+  starterConfiguration: StarterConfiguration,
+): ProjectShellConfiguration {
+  const parsedChange = projectShellConfigurationChangeSchema.parse(change);
+  const next = cloneProjectShellConfiguration(configuration);
+
+  switch (parsedChange.kind) {
+    case "add-stage":
+      next.preparedStages = [
+        ...next.preparedStages,
+        {
+          id: crypto.randomUUID(),
+          name: parsedChange.name,
+          status: parsedChange.status ?? "Not Planned",
+        },
+      ];
+      return next;
+    case "rename-stage": {
+      stageIndexOrThrow(next.preparedStages, parsedChange.stageId);
+      next.preparedStages = next.preparedStages.map((stage) =>
+        stage.id === parsedChange.stageId
+          ? { ...stage, name: parsedChange.name }
+          : stage,
+      );
+      return next;
+    }
+    case "set-stage-status": {
+      stageIndexOrThrow(next.preparedStages, parsedChange.stageId);
+      next.preparedStages = next.preparedStages.map((stage) =>
+        stage.id === parsedChange.stageId
+          ? { ...stage, status: parsedChange.status }
+          : stage,
+      );
+      return next;
+    }
+    case "reorder-stages":
+      next.preparedStages = reorderedValues(
+        next.preparedStages.map((stage) => stage.id),
+        parsedChange.stageIds,
+        "Project stage",
+      ).map((stageId) => {
+        const stage = next.preparedStages.find(
+          (candidate) => candidate.id === stageId,
+        );
+        if (!stage) {
+          throw new ProjectShellConfigurationChangeError(
+            "Project stage not found.",
+          );
+        }
+        return stage;
+      });
+      return next;
+    case "remove-stage":
+      stageIndexOrThrow(next.preparedStages, parsedChange.stageId);
+      next.preparedStages = next.preparedStages.filter(
+        (stage) => stage.id !== parsedChange.stageId,
+      );
+      return next;
+    case "set-area-visibility":
+      ensureEnabledArea(next, parsedChange.area);
+      if (parsedChange.visible) {
+        next.hiddenAreas = next.hiddenAreas.filter(
+          (area) => area !== parsedChange.area,
+        );
+      } else if (!next.hiddenAreas.includes(parsedChange.area)) {
+        next.hiddenAreas = [...next.hiddenAreas, parsedChange.area];
+      }
+      return next;
+    case "pin-area":
+      ensureEnabledArea(next, parsedChange.area);
+      next.extraPinnedAreas = next.extraPinnedAreas.includes(parsedChange.area)
+        ? next.extraPinnedAreas
+        : [...next.extraPinnedAreas, parsedChange.area];
+      return next;
+    case "unpin-area":
+      next.extraPinnedAreas = next.extraPinnedAreas.filter(
+        (area) => area !== parsedChange.area,
+      );
+      return next;
+    case "reorder-pinned-areas":
+      next.extraPinnedAreas = reorderedValues(
+        next.extraPinnedAreas,
+        parsedChange.areas,
+        "Pinned Project area",
+      );
+      return next;
+    case "restore-default-navigation":
+      next.extraPinnedAreas = [
+        ...getStarterConfigurationDefinition(starterConfiguration)
+          .extraPinnedAreas,
+      ];
+      return next;
+    case "rename-work-status":
+      next.workStatusLabels = next.workStatusLabels.map((status) =>
+        status.semantic === parsedChange.semantic
+          ? { ...status, label: parsedChange.label }
+          : status,
+      );
+      return next;
+    default:
+      throw new ProjectShellConfigurationChangeError(
+        "Unsupported Project configuration change.",
+      );
+  }
 }
 
 export const PROJECT_LIFECYCLE_STATUS_OPTIONS = [

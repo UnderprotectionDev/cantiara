@@ -240,6 +240,100 @@ describe("Project Shell RPC", () => {
     });
   });
 
+  test("configures stages, area visibility, and status labels without changing semantics", async () => {
+    let currentProject: ProjectProfile = {
+      ...project,
+      configuration: getProjectShellConfiguration("Solo SaaS"),
+    };
+    const projectShell: ProjectShellAccess = {
+      create: async () => currentProject,
+      find: async () => currentProject,
+      list: async () => [currentProject],
+      recordFirstWork: async () => currentProject,
+      updateShortCode: async () => currentProject,
+    };
+    const updateMutation: MutationContract<ProjectShellMutationValue> = {
+      mutate: async <TPayload extends MutationPayload>(
+        command: MutationCommand<TPayload>,
+        apply: MutationApply<ProjectShellMutationValue, TPayload>,
+      ) => {
+        if (command.kind !== "human") {
+          throw new Error("Expected a human Project command.");
+        }
+        const previousProject = currentProject;
+        const nextValue = await apply({
+          currentRevision: previousProject.revision,
+          currentValue: { project: previousProject },
+          payload: command.payload,
+        });
+        currentProject = nextValue.project ?? previousProject;
+        return {
+          actor: command.actor,
+          committedAt: "2026-09-17T09:00:00.000Z",
+          id: `receipt-${currentProject.revision}`,
+          nextValue,
+          origin: {
+            clientIdempotencyKey: command.clientIdempotencyKey,
+            kind: "human" as const,
+          },
+          payloadFingerprint: "0".repeat(64),
+          previousValue: { project: previousProject },
+          revision: currentProject.revision,
+          targetId: command.targetId,
+        };
+      },
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(projectShell, {
+        create: () => updateMutation,
+        update: () => updateMutation,
+      }),
+    });
+
+    const update = (
+      change: Parameters<typeof client.updateProjectConfiguration>[0]["change"],
+    ) =>
+      client.updateProjectConfiguration({
+        baseRevision: currentProject.revision,
+        change,
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: currentProject.id,
+      });
+
+    const added = await update({
+      kind: "add-stage",
+      name: "Research",
+      status: "Active",
+    });
+    expect(added.configuration.preparedStages).toContainEqual(
+      expect.objectContaining({ name: "Research", status: "Active" }),
+    );
+
+    await update({
+      area: "Discovery",
+      kind: "set-area-visibility",
+      visible: false,
+    });
+    await update({
+      kind: "rename-work-status",
+      label: "Done",
+      semantic: "Closed",
+    });
+
+    expect(currentProject.configuration.enabledAreas).toContain("Discovery");
+    expect(currentProject.configuration.hiddenAreas).toContain("Discovery");
+    expect(currentProject.configuration.workStatuses).toEqual([
+      "Not Started",
+      "In Progress",
+      "Blocked",
+      "Closed",
+    ]);
+    expect(currentProject.configuration.workStatusLabels).toContainEqual({
+      label: "Done",
+      semantic: "Closed",
+    });
+  });
+
   test("retries an automatically suggested Short code through the mutation contract", async () => {
     const attempts: string[] = [];
     let mutationAttempts = 0;
