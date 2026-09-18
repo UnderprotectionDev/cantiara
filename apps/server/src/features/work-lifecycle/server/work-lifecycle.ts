@@ -157,9 +157,6 @@ export function createWorkLifecycle({
     if (!currentWork) {
       throw new WorkNotFoundError(input.workId);
     }
-    if ((currentWork.archivedAt !== null) === archived) {
-      return currentWork;
-    }
 
     const timestamp = new Date().toISOString();
     const receipt = await mutationContracts.update(accountId).mutate(

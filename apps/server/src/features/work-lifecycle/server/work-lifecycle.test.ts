@@ -14,6 +14,7 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import { describe, expect, test } from "vitest";
 
+import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
 import {
   createWorkLifecycle,
   WorkCreationConflictError,
@@ -143,6 +144,13 @@ function createMemoryWorkLifecycle(
           }
           const currentWork = works.get(command.targetId) ?? null;
           const previousValue = { work: currentWork };
+          if (currentWork && command.baseRevision !== currentWork.revision) {
+            throw new MutationStaleBaseRevisionError({
+              id: command.targetId,
+              revision: currentWork.revision,
+              value: previousValue,
+            });
+          }
           const nextValue = await apply({
             currentRevision: currentWork?.revision ?? 0,
             currentValue: previousValue,
@@ -303,6 +311,30 @@ describe("Work Lifecycle seam", () => {
       id: closedWork.id,
       key: closedWork.key,
       status: "Closed",
+    });
+  });
+
+  test("rejects a stale archive command when Work is already archived", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const created = await workLifecycle.create(
+      "account-1",
+      createInput("stale-archive-create"),
+    );
+    const archived = await workLifecycle.archive("account-1", {
+      baseRevision: created.revision,
+      clientIdempotencyKey: "stale-archive-first",
+      workId: created.id,
+    });
+
+    await expect(
+      workLifecycle.archive("account-1", {
+        baseRevision: created.revision,
+        clientIdempotencyKey: "stale-archive-retry",
+        workId: created.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "STALE_BASE_REVISION",
+      currentRevision: archived.revision,
     });
   });
 
