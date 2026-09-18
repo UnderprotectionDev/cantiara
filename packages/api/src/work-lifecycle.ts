@@ -194,7 +194,24 @@ export interface WorkVisibleUserInitiator {
   kind: "Visible user";
 }
 
+export const workArchiveMutationInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type WorkArchiveMutationInput = z.input<
+  typeof workArchiveMutationInputSchema
+>;
+
+export interface WorkListOptions {
+  archived?: boolean;
+}
+
 export interface WorkProfile {
+  archivedAt: string | null;
   captureProvenance: WorkCaptureProvenance | null;
   closureReason: string | null;
   closureResult: WorkClosureResult | null;
@@ -231,6 +248,10 @@ export interface WorkTypeChangePreview {
 }
 
 export interface WorkLifecycleAccess {
+  archive: (
+    accountId: string,
+    input: WorkArchiveMutationInput,
+  ) => Promise<WorkProfile>;
   close: (
     accountId: string,
     input: CloseWorkInput,
@@ -241,7 +262,11 @@ export interface WorkLifecycleAccess {
     input: CreateWorkMutationInput,
   ) => Promise<WorkProfile>;
   find: (accountId: string, workId: string) => Promise<WorkProfile | null>;
-  list: (accountId: string, projectId: string) => Promise<WorkProfile[]>;
+  list: (
+    accountId: string,
+    projectId: string,
+    options?: WorkListOptions,
+  ) => Promise<WorkProfile[]>;
   previewClose: (
     accountId: string,
     input: WorkClosePreviewInput,
@@ -254,6 +279,10 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: ReopenWorkInput,
     initiator: WorkVisibleUserInitiator,
+  ) => Promise<WorkProfile>;
+  unarchive: (
+    accountId: string,
+    input: WorkArchiveMutationInput,
   ) => Promise<WorkProfile>;
   updateStatus: (
     accountId: string,

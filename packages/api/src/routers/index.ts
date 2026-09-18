@@ -54,6 +54,7 @@ import {
   reopenWorkInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
+  workArchiveMutationInputSchema,
   workClosePreviewInputSchema,
   workTypeChangePreviewInputSchema,
 } from "../work-lifecycle";
@@ -589,11 +590,19 @@ export const appRouter = {
       return project;
     }),
   projectWorks: protectedProcedure
-    .input(z.object({ projectId: z.string().trim().min(1) }).strict())
+    .input(
+      z
+        .object({
+          archived: z.boolean().default(false),
+          projectId: z.string().trim().min(1),
+        })
+        .strict(),
+    )
     .handler(({ context, input }) =>
       requireWorkLifecycle(context).list(
         context.session.user.id,
         input.projectId,
+        { archived: input.archived },
       ),
     ),
   work: protectedProcedure
@@ -650,6 +659,18 @@ export const appRouter = {
         rethrowWorkLifecycleError(error);
       }
     }),
+  archiveWork: protectedProcedure
+    .input(workArchiveMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).archive(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
+    }),
   updateWorkStatus: protectedProcedure
     .input(updateWorkStatusInputSchema)
     .handler(async ({ context, input }) => {
@@ -684,6 +705,18 @@ export const appRouter = {
           context.session.user.id,
           input,
           { kind: "Visible user" },
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
+    }),
+  unarchiveWork: protectedProcedure
+    .input(workArchiveMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).unarchive(
+          context.session.user.id,
+          input,
         );
       } catch (error) {
         rethrowWorkLifecycleError(error);

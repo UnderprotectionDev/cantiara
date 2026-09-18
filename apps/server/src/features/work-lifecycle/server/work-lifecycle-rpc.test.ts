@@ -14,6 +14,7 @@ import {
 } from "./work-lifecycle";
 
 const work: WorkProfile = {
+  archivedAt: null,
   captureProvenance: null,
   closureReason: null,
   closureResult: null,
@@ -33,6 +34,7 @@ function createWorkLifecycleStub(
   overrides: Partial<WorkLifecycleAccess> = {},
 ): WorkLifecycleAccess {
   return {
+    archive: vi.fn(),
     close: vi.fn(),
     create: vi.fn(),
     find: vi.fn(),
@@ -42,6 +44,7 @@ function createWorkLifecycleStub(
     reopen: vi.fn(),
     updateStatus: vi.fn(),
     updateType: vi.fn(),
+    unarchive: vi.fn(),
     ...overrides,
   };
 }
@@ -84,6 +87,11 @@ describe("Work Lifecycle RPC", () => {
       status: "Closed",
     });
     const create = vi.fn().mockResolvedValue(work);
+    const archive = vi
+      .fn()
+      .mockResolvedValue({ ...work, archivedAt: "2026-09-18T10:00:00.000Z" });
+    const unarchive = vi.fn().mockResolvedValue(work);
+    const list = vi.fn().mockResolvedValue([work]);
     const reopen = vi.fn().mockResolvedValue({
       ...work,
       status: "In Progress",
@@ -93,10 +101,11 @@ describe("Work Lifecycle RPC", () => {
       status: "In Progress",
     });
     const workLifecycle = createWorkLifecycleStub({
+      archive,
       close,
       create,
       find: vi.fn().mockResolvedValue(work),
-      list: vi.fn().mockResolvedValue([work]),
+      list,
       previewClose: vi.fn().mockResolvedValue({
         closureCheck: {
           activeBlockers: [],
@@ -115,6 +124,7 @@ describe("Work Lifecycle RPC", () => {
       reopen,
       updateStatus,
       updateType: vi.fn().mockResolvedValue({ ...work, type: "Bug" }),
+      unarchive,
     });
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
@@ -131,6 +141,10 @@ describe("Work Lifecycle RPC", () => {
     await expect(
       client.projectWorks({ projectId: "project-1" }),
     ).resolves.toEqual([work]);
+    await client.projectWorks({ archived: true, projectId: "project-1" });
+    expect(list).toHaveBeenLastCalledWith("account-1", "project-1", {
+      archived: true,
+    });
     await expect(client.work({ workId: "work-1" })).resolves.toEqual(work);
     expect(create).toHaveBeenCalledWith("account-1", {
       baseRevision: 0,
@@ -199,6 +213,21 @@ describe("Work Lifecycle RPC", () => {
       expect.objectContaining({ status: "In Progress", workId: work.id }),
       { kind: "Visible user" },
     );
+
+    await expect(
+      client.archiveWork({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "work-archive-1",
+        workId: work.id,
+      }),
+    ).resolves.toMatchObject({ archivedAt: "2026-09-18T10:00:00.000Z" });
+    await expect(
+      client.unarchiveWork({
+        baseRevision: work.revision + 1,
+        clientIdempotencyKey: "work-unarchive-1",
+        workId: work.id,
+      }),
+    ).resolves.toEqual(work);
   });
 
   test("maps a missing Project to a user-facing not-found response", async () => {

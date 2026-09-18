@@ -141,6 +141,67 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
     ).resolves.toEqual([]);
   });
 
+  test("persists the Work archive filter and restores the same identity", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Payment App",
+      shortCode: "PAY",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const created = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "archive-create",
+      projectId: project.id,
+      title: "Archive payment research",
+      type: "Research",
+    });
+
+    const archived = await workLifecycle.archive(accountId, {
+      baseRevision: created.revision,
+      clientIdempotencyKey: "archive-work",
+      workId: created.id,
+    });
+
+    expect(archived).toMatchObject({
+      closureResult: null,
+      id: created.id,
+      key: created.key,
+      status: "Not Started",
+    });
+    expect(archived.archivedAt).not.toBeNull();
+    await expect(workLifecycle.list(accountId, project.id)).resolves.toEqual(
+      [],
+    );
+    await expect(
+      workLifecycle.list(accountId, project.id, { archived: true }),
+    ).resolves.toMatchObject([
+      {
+        archivedAt: archived.archivedAt,
+        closureResult: null,
+        id: created.id,
+        key: created.key,
+        status: "Not Started",
+      },
+    ]);
+
+    await expect(
+      workLifecycle.unarchive(accountId, {
+        baseRevision: archived.revision,
+        clientIdempotencyKey: "unarchive-work",
+        workId: created.id,
+      }),
+    ).resolves.toMatchObject({
+      archivedAt: null,
+      id: created.id,
+      key: created.key,
+    });
+  });
+
   test("persists free type changes and protects Feature boundary changes", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

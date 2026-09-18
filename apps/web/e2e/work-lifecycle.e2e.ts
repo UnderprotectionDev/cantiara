@@ -114,6 +114,25 @@ test("creates Work with a Project key, type, and protected start status", async 
     }),
   ).toContainText("Task");
 
+  const secondWork = page.getByRole("listitem").filter({
+    hasText: "PAY-2 Document the payment flow",
+  });
+  await secondWork.getByRole("button", { name: "Archive" }).click();
+  await expect(secondWork).not.toBeVisible();
+  await page.getByRole("button", { name: "Archived" }).click();
+  const archivedWork = page.getByRole("listitem").filter({
+    hasText: "PAY-2 Document the payment flow",
+  });
+  await expect(archivedWork).toContainText("Not Started");
+  await archivedWork.getByRole("button", { name: "Unarchive" }).click();
+  await expect(archivedWork).not.toBeVisible();
+  await page.getByRole("button", { name: "Archived" }).click();
+  await expect(
+    page.getByRole("listitem").filter({
+      hasText: "PAY-2 Document the payment flow",
+    }),
+  ).toContainText("PAY-2");
+
   await page.goto("/projects");
   const project = page.getByRole("listitem").filter({ hasText: "Payment App" });
   await expect(
