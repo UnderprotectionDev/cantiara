@@ -30,14 +30,14 @@ export interface WebCaptureLinkRecord extends WebCaptureLinkSummary {
 }
 
 export interface WebCaptureStore {
-  consumePairingCode: (codeHash: string, now: Date) => Promise<string | null>;
-  createLink: (input: {
-    accountId: string;
+  authorizeFinalization: (linkId: string, now: Date) => Promise<boolean>;
+  consumePairingCodeAndCreateLink: (input: {
     browser: WebCaptureBrowser;
+    codeHash: string;
     createdAt: Date;
     device: string;
     tokenHash: string;
-  }) => Promise<WebCaptureLinkRecord>;
+  }) => Promise<WebCaptureLinkRecord | null>;
   createPairingCode: (input: {
     accountId: string;
     codeHash: string;
@@ -55,7 +55,12 @@ export interface WebCaptureStore {
     clientIdempotencyKey: string,
     value: { fingerprint: string; receipt: WebCaptureSendReceipt },
   ) => Promise<void>;
-  revokeLink: (accountId: string, linkId: string, now: Date) => Promise<void>;
+  revokeLink: (
+    accountId: string,
+    linkId: string,
+    now: Date,
+    actorAlias?: string,
+  ) => Promise<void>;
   touchLink: (linkId: string, now: Date) => Promise<void>;
 }
 
@@ -329,31 +334,28 @@ export function createWebCapture({
 
     async pair(input: WebCapturePairingInput, currentTime = now()) {
       const parsed = webCapturePairingInputSchema.parse(input);
-      const accountId = await store.consumePairingCode(
-        await digest(parsed.code),
-        currentTime,
-      );
-      if (!accountId) {
+      const token = randomToken();
+      const link = await store.consumePairingCodeAndCreateLink({
+        browser: parsed.browser,
+        codeHash: await digest(parsed.code),
+        createdAt: currentTime,
+        device: parsed.device,
+        tokenHash: await digest(token),
+      });
+      if (!link) {
         throw new WebCaptureError(
           "WEB_CAPTURE_PAIRING_INVALID",
           "This Pairing code is invalid, expired, or already used.",
         );
       }
-      const token = randomToken();
-      const link = await store.createLink({
-        accountId,
-        browser: parsed.browser,
-        createdAt: currentTime,
-        device: parsed.device,
-        tokenHash: await digest(token),
-      });
       return { link: toLinkSummary(link), token };
     },
 
-    async revokeLink(accountId: string, linkId: string) {
-      await store.revokeLink(accountId, linkId, now());
+    async revokeLink(accountId: string, linkId: string, actorAlias?: string) {
+      await store.revokeLink(accountId, linkId, now(), actorAlias);
     },
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Web Capture send coordinates authorization, idempotency, staging, commit, and cleanup boundaries.
     async send(
       token: string,
       input: WebCaptureSendInput,
@@ -387,19 +389,33 @@ export function createWebCapture({
         parsed.mediaDataUrl,
       );
 
-      try {
-        const capture = captureInboxItemSchema.parse(
-          await captureInbox.create(link.accountId, {
-            attachment,
-            clientIdempotencyKey: parsed.clientIdempotencyKey,
-            content: parsed.content,
-            fields: {},
-            link: parsed.link ?? parsed.originUrl,
-            origin: { kind: "Web Capture", url: parsed.originUrl },
-            projectId: parsed.projectId,
-            template: null,
-          }),
+      if (!(await store.authorizeFinalization(link.id, currentTime))) {
+        if (parsed.mediaDataUrl && staging) {
+          await staging.delete({
+            accountId: link.accountId,
+            attachmentId,
+          });
+        }
+        throw new WebCaptureError(
+          "WEB_CAPTURE_LINK_REVOKED",
+          "This Web Capture link was revoked.",
         );
+      }
+
+      let captureCommitted = false;
+      try {
+        const createdCapture = await captureInbox.create(link.accountId, {
+          attachment,
+          clientIdempotencyKey: parsed.clientIdempotencyKey,
+          content: parsed.content,
+          fields: {},
+          link: parsed.link ?? parsed.originUrl,
+          origin: { kind: "Web Capture", url: parsed.originUrl },
+          projectId: parsed.projectId,
+          template: null,
+        });
+        captureCommitted = true;
+        const capture = captureInboxItemSchema.parse(createdCapture);
         const receipt: WebCaptureSendReceipt = {
           capture,
           itemId: capture.id,
@@ -413,7 +429,14 @@ export function createWebCapture({
         await store.touchLink(link.id, currentTime);
         return receipt;
       } catch (error) {
-        if (parsed.mediaDataUrl && staging) {
+        const preservesExistingCapture =
+          error instanceof CaptureInboxError &&
+          error.code === "CAPTURE_IDEMPOTENCY_CONFLICT";
+        if (
+          !(captureCommitted || preservesExistingCapture) &&
+          parsed.mediaDataUrl &&
+          staging
+        ) {
           await staging.delete({
             accountId: link.accountId,
             attachmentId,

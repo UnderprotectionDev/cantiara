@@ -15,7 +15,7 @@ import {
   mutationContract,
   projectShell,
   projectShellMutationContracts,
-  replaySessionRevocations,
+  replaySecurityRevocations,
   tauriSessionAccess,
   webCapture,
 } from "./services";
@@ -24,7 +24,7 @@ initLogger({
   env: { service: "cantiara-server" },
 });
 
-await replaySessionRevocations();
+await replaySecurityRevocations();
 
 export default createApp({
   accountSessionAccess,

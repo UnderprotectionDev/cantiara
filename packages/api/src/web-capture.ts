@@ -112,7 +112,11 @@ export interface WebCaptureAccess {
     input: WebCapturePairingInput,
     now?: Date,
   ) => Promise<{ link: WebCaptureLinkSummary; token: string }>;
-  revokeLink: (accountId: string, linkId: string) => Promise<void>;
+  revokeLink: (
+    accountId: string,
+    linkId: string,
+    actorAlias?: string,
+  ) => Promise<void>;
   send: (
     token: string,
     input: WebCaptureSendInput,

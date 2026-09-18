@@ -34,6 +34,7 @@ export interface WebCaptureTarget {
 }
 
 export interface WebCaptureDraft {
+  clientIdempotencyKey: string;
   content: string;
   kind: WebCaptureKind;
   link?: string;
@@ -155,7 +156,7 @@ export async function sendWebCapture(
     "/api/web-capture/send",
     {
       body: JSON.stringify({
-        clientIdempotencyKey: crypto.randomUUID(),
+        clientIdempotencyKey: draft.clientIdempotencyKey,
         content: draft.content,
         kind: draft.kind,
         link: draft.link ?? null,

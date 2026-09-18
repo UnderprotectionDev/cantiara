@@ -15,6 +15,7 @@ import {
   type WebCaptureTarget,
 } from "@cantiara/api/web-capture";
 import { describe, expect, test, vi } from "vitest";
+import { CaptureInboxError } from "./capture-inbox";
 import { createWebCapture, type WebCaptureStagingStore } from "./web-capture";
 
 const NOW = new Date("2026-09-18T09:00:00.000Z");
@@ -42,28 +43,48 @@ function createMemoryWebCaptureStore() {
   >();
   let pairingCode = "CANTIARA-AB12-CD34";
   let token = "extension-token-1";
+  let failLinkCreation = false;
 
   return {
     store: {
-      consumePairingCode: vi.fn((hash: string, now: Date) => {
-        const record = pairingCodes.get(hash);
-        if (!record || record.consumedAt || record.expiresAt <= now) {
-          return Promise.resolve(null);
+      authorizeFinalization: vi.fn((id: string, now: Date) => {
+        const link = links.get(id);
+        if (!link || link.revokedAt) {
+          return Promise.resolve(false);
         }
-        record.consumedAt = now;
-        return Promise.resolve(record.accountId);
+        const lastActivity = link.lastUse ?? link.createdAt;
+        if (
+          now.getTime() - lastActivity.getTime() >=
+          WEB_CAPTURE_STALE_LINK_AFTER_MS
+        ) {
+          return Promise.resolve(false);
+        }
+        link.lastUse = now;
+        return Promise.resolve(true);
       }),
-      createLink: vi.fn(
+      consumePairingCodeAndCreateLink: vi.fn(
         (input: {
-          accountId: string;
           browser: WebCaptureLinkSummary["browser"];
+          codeHash: string;
           createdAt: Date;
           device: string;
           tokenHash: string;
         }) => {
+          const record = pairingCodes.get(input.codeHash);
+          if (
+            !record ||
+            record.consumedAt ||
+            record.expiresAt <= input.createdAt
+          ) {
+            return Promise.resolve(null);
+          }
+          if (failLinkCreation) {
+            return Promise.reject(new Error("link creation failed"));
+          }
+          record.consumedAt = input.createdAt;
           const id = `link-${links.size + 1}`;
           links.set(id, {
-            accountId: input.accountId,
+            accountId: record.accountId,
             browser: input.browser,
             createdAt: input.createdAt,
             device: input.device,
@@ -72,7 +93,7 @@ function createMemoryWebCaptureStore() {
             tokenHash: input.tokenHash,
           });
           return Promise.resolve({
-            accountId: input.accountId,
+            accountId: record.accountId,
             browser: input.browser,
             createdAt: input.createdAt.toISOString(),
             device: input.device,
@@ -149,6 +170,9 @@ function createMemoryWebCaptureStore() {
       nextToken: () => token,
       setPairingCode: (value: string) => {
         pairingCode = value;
+      },
+      setFailLinkCreation: (value: boolean) => {
+        failLinkCreation = value;
       },
       setToken: (value: string) => {
         token = value;
@@ -236,7 +260,7 @@ function createSubject(staging?: WebCaptureStagingStore) {
     staging,
     store: memory.store,
   });
-  return { access, captures, memory };
+  return { access, captureInbox, captures, memory };
 }
 
 async function pair(access: WebCaptureAccess) {
@@ -254,6 +278,21 @@ describe("Web Capture seam", () => {
         NOW.getTime() + WEB_CAPTURE_PAIRING_CODE_LIFETIME_MS,
       ).toISOString(),
     );
+  });
+
+  test("does not consume a pairing code when atomic link creation fails", async () => {
+    const { access, memory } = createSubject();
+    await access.createPairingCode("account-1");
+    memory.store.setFailLinkCreation(true);
+
+    await expect(access.pair(pairingInput, NOW)).rejects.toThrow(
+      "link creation failed",
+    );
+
+    memory.store.setFailLinkCreation(false);
+    await expect(access.pair(pairingInput, NOW)).resolves.toMatchObject({
+      link: { id: "link-1" },
+    });
   });
 
   test("uses a pairing code once and never exposes the code in the capture payload", async () => {
@@ -342,6 +381,96 @@ describe("Web Capture seam", () => {
       id: "web-capture:link-1:screenshot-key",
       mimeType: "image/png",
     });
+  });
+
+  test("does not create an Inbox item when the link is revoked before finalization", async () => {
+    let access!: WebCaptureAccess;
+    const staging = {
+      delete: vi.fn(),
+      put: vi.fn(async () => {
+        await access.revokeLink("account-1", "link-1");
+      }),
+    } satisfies WebCaptureStagingStore;
+    const subject = createSubject(staging);
+    ({ access } = subject);
+    const paired = await pair(access);
+
+    await expect(
+      access.send(
+        paired.token,
+        {
+          ...sendInput,
+          clientIdempotencyKey: "revoked-before-finalize",
+          kind: "screenshot",
+          mediaDataUrl: "data:image/png;base64,AA==",
+          projectId: null,
+        },
+        NOW,
+      ),
+    ).rejects.toMatchObject({ code: "WEB_CAPTURE_LINK_REVOKED" });
+    expect(subject.captures).toHaveLength(0);
+    expect(staging.delete).toHaveBeenCalledWith({
+      accountId: "account-1",
+      attachmentId: "web-capture:link-1:revoked-before-finalize",
+    });
+  });
+
+  test("keeps a committed attachment when completion bookkeeping fails", async () => {
+    const staging = {
+      delete: vi.fn(),
+      put: vi.fn(),
+    } satisfies WebCaptureStagingStore;
+    const { access, captures, memory } = createSubject(staging);
+    const paired = await pair(access);
+    memory.store.touchLink.mockRejectedValueOnce(
+      new Error("link activity unavailable"),
+    );
+
+    await expect(
+      access.send(
+        paired.token,
+        {
+          ...sendInput,
+          clientIdempotencyKey: "bookkeeping-failure",
+          kind: "screenshot",
+          mediaDataUrl: "data:image/png;base64,AA==",
+          projectId: null,
+        },
+        NOW,
+      ),
+    ).rejects.toThrow("link activity unavailable");
+    expect(captures).toHaveLength(1);
+    expect(staging.delete).not.toHaveBeenCalled();
+  });
+
+  test("does not delete an existing attachment after an idempotency conflict", async () => {
+    const staging = {
+      delete: vi.fn(),
+      put: vi.fn(),
+    } satisfies WebCaptureStagingStore;
+    const subject = createSubject(staging);
+    const paired = await pair(subject.access);
+    vi.mocked(subject.captureInbox.create).mockRejectedValueOnce(
+      new CaptureInboxError(
+        "CAPTURE_IDEMPOTENCY_CONFLICT",
+        "The capture key was already used for different content.",
+      ),
+    );
+
+    await expect(
+      subject.access.send(
+        paired.token,
+        {
+          ...sendInput,
+          clientIdempotencyKey: "existing-attachment",
+          kind: "screenshot",
+          mediaDataUrl: "data:image/png;base64,AA==",
+          projectId: null,
+        },
+        NOW,
+      ),
+    ).rejects.toMatchObject({ code: "WEB_CAPTURE_IDEMPOTENCY_CONFLICT" });
+    expect(staging.delete).not.toHaveBeenCalled();
   });
 
   test("searches every authorized Project Inbox instead of only recent Projects", async () => {

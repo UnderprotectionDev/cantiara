@@ -15,9 +15,18 @@ import {
   type WebCaptureDraft,
   type WebCaptureKind,
   type WebCaptureTarget,
-} from "../../src/web-capture";
+} from "../../src/features/capture-triage/web-capture";
 
 const HTTP_URL_PATTERN = /^https?:\/\//;
+
+async function clearStoredWebCaptureLinkBestEffort() {
+  try {
+    await clearStoredWebCaptureLink();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const CAPTURE_ACTIONS: Array<{
   kind: WebCaptureKind;
@@ -34,8 +43,10 @@ function draftFor(
   tab: ActiveTabCapture,
   mediaDataUrl?: string,
 ): WebCaptureDraft {
+  const clientIdempotencyKey = crypto.randomUUID();
   if (kind === "selected-text") {
     return {
+      clientIdempotencyKey,
       content: tab.selectedText,
       kind,
       link: tab.url,
@@ -49,6 +60,7 @@ function draftFor(
         ? selectedImageUrl
         : url;
     return {
+      clientIdempotencyKey,
       content: "Selected image",
       kind,
       link: selectedImageLink,
@@ -57,6 +69,7 @@ function draftFor(
   }
   if (kind === "screenshot") {
     return {
+      clientIdempotencyKey,
       content: `Screenshot of ${tab.title || tab.url}`,
       kind,
       link: tab.url,
@@ -65,6 +78,7 @@ function draftFor(
     };
   }
   return {
+    clientIdempotencyKey,
     content: tab.title || tab.url,
     kind,
     link: tab.url,
@@ -150,8 +164,7 @@ export default function App() {
           return;
         }
         if (reason instanceof WebCaptureApiError && reason.status === 401) {
-          // biome-ignore lint/complexity/noVoid: Expired local credentials are cleared best-effort while the UI re-pairs.
-          void clearStoredWebCaptureLink();
+          clearStoredWebCaptureLinkBestEffort();
           setLink(null);
           setError(
             "This browser needs to be paired again before it can read Inbox targets.",

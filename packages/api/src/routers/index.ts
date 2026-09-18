@@ -738,6 +738,7 @@ export const appRouter = {
       await requireWebCapture(context).revokeLink(
         context.session.user.id,
         input.linkId,
+        sessionPrincipal(context.session).sessionId,
       );
       return { status: true };
     }),
