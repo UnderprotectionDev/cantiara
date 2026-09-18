@@ -1,6 +1,8 @@
 import {
   CAPTURE_TEMPLATE_FIELD_LABELS,
   CAPTURE_TRIAGE_EXITS,
+  type CaptureBulkSenseMaking,
+  type CaptureBulkSenseMakingInput,
   type CaptureInboxItem,
   type CaptureInboxTriageAdapter,
 } from "@cantiara/api/capture-triage";
@@ -70,7 +72,74 @@ function createMemoryOperationStateStore(): CaptureInboxOperationStateStore {
   };
 }
 
-function createMemoryStore(initial: CaptureInboxItem[] = []) {
+function emptyBulkSenseMaking(revision = 0): CaptureBulkSenseMaking {
+  return { clusters: [], placements: [], revision };
+}
+
+function copyBulkSenseMaking(
+  value: CaptureBulkSenseMaking,
+): CaptureBulkSenseMaking {
+  return {
+    clusters: value.clusters.map((cluster) => ({ ...cluster })),
+    placements: value.placements.map((placement) => ({ ...placement })),
+    revision: value.revision,
+  };
+}
+
+function createMemoryBulkSenseMakingStore(
+  initial: CaptureBulkSenseMaking = emptyBulkSenseMaking(),
+) {
+  const values = new Map<string, CaptureBulkSenseMaking>([
+    ["account-1", copyBulkSenseMaking(initial)],
+  ]);
+
+  return {
+    get: (accountId: string) =>
+      Promise.resolve(
+        copyBulkSenseMaking(values.get(accountId) ?? emptyBulkSenseMaking()),
+      ),
+    removeItem: (accountId: string, itemId: string) => {
+      const current = values.get(accountId) ?? emptyBulkSenseMaking();
+      const placements = current.placements.filter(
+        (placement) => placement.itemId !== itemId,
+      );
+      const clusterIds = new Set(
+        placements.flatMap((placement) =>
+          placement.clusterId ? [placement.clusterId] : [],
+        ),
+      );
+      values.set(accountId, {
+        clusters: current.clusters.filter((cluster) =>
+          clusterIds.has(cluster.id),
+        ),
+        placements,
+        revision:
+          placements.length === current.placements.length
+            ? current.revision
+            : current.revision + 1,
+      });
+      return Promise.resolve();
+    },
+    update: (accountId: string, input: CaptureBulkSenseMakingInput) => {
+      const current = values.get(accountId) ?? emptyBulkSenseMaking();
+      if (input.baseRevision !== current.revision) {
+        throw new Error("The Bulk sense-making view changed.");
+      }
+      const next = {
+        clusters: input.clusters,
+        placements: input.placements,
+        revision: current.revision + 1,
+      } satisfies CaptureBulkSenseMaking;
+      values.set(accountId, next);
+      return Promise.resolve(copyBulkSenseMaking(next));
+    },
+  };
+}
+
+function createMemoryStore(
+  initial: CaptureInboxItem[] = [],
+  bulkSenseMaking = createMemoryBulkSenseMakingStore(),
+) {
   const itemsByAccount = new Map([["account-1", [...initial]]]);
   let nextId = initial.length + 1;
 
@@ -89,6 +158,7 @@ function createMemoryStore(initial: CaptureInboxItem[] = []) {
           : null,
       );
     },
+    bulkSenseMaking,
     list: (accountId) => Promise.resolve(itemsByAccount.get(accountId) ?? []),
     insert: (accountId, input) => {
       const items = itemsByAccount.get(accountId) ?? [];
@@ -126,6 +196,7 @@ function createMemoryStore(initial: CaptureInboxItem[] = []) {
 function createTriageMemoryStore(
   initial: CaptureInboxItem[],
   operationState = createMemoryOperationStateStore(),
+  bulkSenseMaking = createMemoryBulkSenseMakingStore(),
 ) {
   const items = [...initial];
   const store: CaptureInboxStore = {
@@ -157,6 +228,7 @@ function createTriageMemoryStore(
       items.push(item);
       return Promise.resolve(item);
     },
+    bulkSenseMaking,
     list: () => Promise.resolve([...items]),
     operationState,
     restore: (_accountId, stored) => {
@@ -380,6 +452,7 @@ describe("Capture Inbox seam", () => {
     });
 
     await expect(captureInbox.list("account-2")).resolves.toEqual({
+      bulkSenseMaking: emptyBulkSenseMaking(),
       groups: [],
       items: [],
       triageAvailable: false,
@@ -414,6 +487,164 @@ describe("Capture Inbox seam", () => {
 
     expect(inbox.groups).toHaveLength(1);
     expect(inbox.groups[0]?.items).toHaveLength(2);
+  });
+
+  test("persists Bulk sense-making clusters as view metadata across Inbox instances", async () => {
+    const captures: CaptureInboxItem[] = [
+      {
+        content: "First thought",
+        createdAt: "2026-09-16T09:00:00.000Z",
+        fields: {},
+        id: "capture-first",
+        projectId: null,
+        template: null,
+      },
+      {
+        content: "Second thought",
+        createdAt: "2026-09-16T09:01:00.000Z",
+        fields: {},
+        id: "capture-second",
+        projectId: null,
+        template: null,
+      },
+    ];
+    const bulkSenseMaking = createMemoryBulkSenseMakingStore();
+    const first = createCaptureInbox({
+      store: createMemoryStore(captures, bulkSenseMaking).store,
+      workCreate: { createBug: vi.fn() },
+    });
+
+    const saved = await first.updateBulkSenseMaking("account-1", {
+      baseRevision: 0,
+      clientIdempotencyKey: "bulk-layout-1",
+      clusters: [{ id: "cluster-ideas", name: "Ideas", position: 0 }],
+      placements: [
+        { clusterId: "cluster-ideas", itemId: "capture-first", position: 0 },
+        { clusterId: null, itemId: "capture-second", position: 0 },
+      ],
+    });
+
+    expect(saved).toEqual({
+      clusters: [{ id: "cluster-ideas", name: "Ideas", position: 0 }],
+      placements: [
+        { clusterId: "cluster-ideas", itemId: "capture-first", position: 0 },
+        { clusterId: null, itemId: "capture-second", position: 0 },
+      ],
+      revision: 1,
+    });
+
+    const second = createCaptureInbox({
+      store: createMemoryStore(captures, bulkSenseMaking).store,
+      workCreate: { createBug: vi.fn() },
+    });
+
+    await expect(second.list("account-1")).resolves.toMatchObject({
+      bulkSenseMaking: saved,
+    });
+    expect((await second.list("account-1")).items[0]).not.toHaveProperty(
+      "clusterId",
+    );
+  });
+
+  test("rejects stale or unresolved Bulk sense-making placements", async () => {
+    const { store } = createMemoryStore([
+      {
+        content: "Current thought",
+        createdAt: "2026-09-16T09:00:00.000Z",
+        fields: {},
+        id: "capture-current",
+        projectId: null,
+        template: null,
+      },
+    ]);
+    const captureInbox = createCaptureInbox({
+      store,
+      workCreate: { createBug: vi.fn() },
+    });
+
+    await expect(
+      captureInbox.updateBulkSenseMaking("account-1", {
+        baseRevision: 0,
+        clientIdempotencyKey: "bulk-invalid-cluster",
+        clusters: [{ id: "cluster-ideas", name: "Ideas", position: 0 }],
+        placements: [
+          {
+            clusterId: "cluster-unknown",
+            itemId: "capture-current",
+            position: 0,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "CAPTURE_BULK_CLUSTER_INVALID" });
+
+    await expect(
+      captureInbox.updateBulkSenseMaking("account-1", {
+        baseRevision: 0,
+        clientIdempotencyKey: "bulk-invalid-item",
+        clusters: [],
+        placements: [
+          { clusterId: null, itemId: "capture-resolved", position: 0 },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "CAPTURE_BULK_ITEM_NOT_FOUND" });
+
+    await captureInbox.updateBulkSenseMaking("account-1", {
+      baseRevision: 0,
+      clientIdempotencyKey: "bulk-valid-layout",
+      clusters: [],
+      placements: [],
+    });
+    await expect(
+      captureInbox.updateBulkSenseMaking("account-1", {
+        baseRevision: 0,
+        clientIdempotencyKey: "bulk-stale-layout",
+        clusters: [],
+        placements: [],
+      }),
+    ).rejects.toMatchObject({ code: "CAPTURE_BULK_VIEW_CONFLICT" });
+  });
+
+  test("removes a resolved item's Bulk placement and empty cluster", async () => {
+    const capture: CaptureInboxItem = {
+      content: "Resolve this thought",
+      createdAt: "2026-09-16T09:00:00.000Z",
+      fields: {},
+      id: "capture-resolve",
+      projectId: null,
+      template: null,
+    };
+    const bulkSenseMaking = createMemoryBulkSenseMakingStore({
+      clusters: [{ id: "cluster-resolve", name: "Resolve", position: 0 }],
+      placements: [
+        { clusterId: "cluster-resolve", itemId: capture.id, position: 0 },
+      ],
+      revision: 1,
+    });
+    const { store } = createTriageMemoryStore(
+      [capture],
+      createMemoryOperationStateStore(),
+      bulkSenseMaking,
+    );
+    const captureInbox = createCaptureInbox({
+      store,
+      triageAdapter: createTriageAdapter(),
+      workCreate: { createBug: vi.fn() },
+    });
+    const preview = await captureInbox.previewConvert("account-1", {
+      itemId: capture.id,
+      recordType: "Work",
+    });
+
+    await captureInbox.convert("account-1", {
+      clientIdempotencyKey: "resolve-bulk-item",
+      itemId: capture.id,
+      previewId: preview.previewId,
+    });
+
+    await expect(captureInbox.list("account-1")).resolves.toMatchObject({
+      bulkSenseMaking: { clusters: [], placements: [] },
+      items: [],
+    });
   });
 
   test("calls Work create directly for an eligible Create Bug without leaving an Inbox item", async () => {
@@ -504,7 +735,21 @@ describe("Capture Inbox seam", () => {
       projectId: "project-1",
       template: "Bug Capture",
     };
-    const convertedStore = createTriageMemoryStore([convertedCapture]);
+    const convertedStore = createTriageMemoryStore(
+      [convertedCapture],
+      createMemoryOperationStateStore(),
+      createMemoryBulkSenseMakingStore({
+        clusters: [{ id: "cluster-convert", name: "Convert", position: 0 }],
+        placements: [
+          {
+            clusterId: "cluster-convert",
+            itemId: convertedCapture.id,
+            position: 0,
+          },
+        ],
+        revision: 1,
+      }),
+    );
     const convertedAdapter = createTriageAdapter();
     const convertedInbox = createCaptureInbox({
       store: convertedStore.store,
@@ -554,6 +799,7 @@ describe("Capture Inbox seam", () => {
       recordId: "record-1",
     });
     expect(await convertedInbox.list("account-1")).toMatchObject({
+      bulkSenseMaking: { clusters: [], placements: [] },
       groups: [],
       items: [],
     });
@@ -566,7 +812,21 @@ describe("Capture Inbox seam", () => {
       projectId: "project-1",
       template: null,
     };
-    const attachedStore = createTriageMemoryStore([attachedCapture]);
+    const attachedStore = createTriageMemoryStore(
+      [attachedCapture],
+      createMemoryOperationStateStore(),
+      createMemoryBulkSenseMakingStore({
+        clusters: [{ id: "cluster-attach", name: "Attach", position: 0 }],
+        placements: [
+          {
+            clusterId: "cluster-attach",
+            itemId: attachedCapture.id,
+            position: 0,
+          },
+        ],
+        revision: 1,
+      }),
+    );
     const attachedAdapter = createTriageAdapter();
     const attachedInbox = createCaptureInbox({
       store: attachedStore.store,
@@ -609,6 +869,11 @@ describe("Capture Inbox seam", () => {
       relation: "Evidence",
       targetId: "record-1",
     });
+    expect(await attachedInbox.list("account-1")).toMatchObject({
+      bulkSenseMaking: { clusters: [], placements: [] },
+      groups: [],
+      items: [],
+    });
 
     const deletedCapture: CaptureInboxItem = {
       content: "Discard this",
@@ -618,7 +883,21 @@ describe("Capture Inbox seam", () => {
       projectId: null,
       template: null,
     };
-    const deletedStore = createTriageMemoryStore([deletedCapture]);
+    const deletedStore = createTriageMemoryStore(
+      [deletedCapture],
+      createMemoryOperationStateStore(),
+      createMemoryBulkSenseMakingStore({
+        clusters: [{ id: "cluster-delete", name: "Delete", position: 0 }],
+        placements: [
+          {
+            clusterId: "cluster-delete",
+            itemId: deletedCapture.id,
+            position: 0,
+          },
+        ],
+        revision: 1,
+      }),
+    );
     const deletedInbox = createCaptureInbox({
       store: deletedStore.store,
       triageAdapter: createTriageAdapter(),
@@ -636,6 +915,7 @@ describe("Capture Inbox seam", () => {
       itemId: deletedCapture.id,
     });
     expect(await deletedInbox.list("account-1")).toMatchObject({
+      bulkSenseMaking: { clusters: [], placements: [] },
       groups: [],
       items: [],
     });

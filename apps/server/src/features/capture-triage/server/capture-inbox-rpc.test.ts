@@ -9,6 +9,7 @@ import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
 
 const emptyInbox: CaptureInboxSnapshot = {
+  bulkSenseMaking: { clusters: [], placements: [], revision: 0 },
   groups: [],
   items: [],
   triageAvailable: false,
@@ -58,6 +59,7 @@ describe("Capture Inbox RPC", () => {
       create,
       createBug: vi.fn(),
       list: vi.fn().mockResolvedValue(emptyInbox),
+      updateBulkSenseMaking: vi.fn(),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(captureInbox),
@@ -80,12 +82,49 @@ describe("Capture Inbox RPC", () => {
     });
   });
 
+  test("updates Bulk sense-making through the authenticated Capture Inbox interface", async () => {
+    const updateBulkSenseMaking = vi.fn().mockResolvedValue({
+      clusters: [{ id: "cluster-ideas", name: "Ideas", position: 0 }],
+      placements: [
+        { clusterId: "cluster-ideas", itemId: "capture-1", position: 0 },
+      ],
+      revision: 1,
+    });
+    const captureInbox: CaptureInboxAccess = {
+      create: vi.fn(),
+      createBug: vi.fn(),
+      list: vi.fn().mockResolvedValue(emptyInbox),
+      updateBulkSenseMaking,
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(captureInbox),
+    });
+    const input = {
+      baseRevision: 0,
+      clientIdempotencyKey: "bulk-layout-1",
+      clusters: [{ id: "cluster-ideas", name: "Ideas", position: 0 }],
+      placements: [
+        { clusterId: "cluster-ideas", itemId: "capture-1", position: 0 },
+      ],
+    };
+
+    await expect(client.updateCaptureBulkSenseMaking(input)).resolves.toEqual({
+      clusters: [{ id: "cluster-ideas", name: "Ideas", position: 0 }],
+      placements: [
+        { clusterId: "cluster-ideas", itemId: "capture-1", position: 0 },
+      ],
+      revision: 1,
+    });
+    expect(updateBulkSenseMaking).toHaveBeenCalledWith("account-1", input);
+  });
+
   test("hands direct Create Bug to Work creation without adding an Inbox route", async () => {
     const createBug = vi.fn().mockResolvedValue({ workId: "work-1" });
     const captureInbox: CaptureInboxAccess = {
       create: vi.fn(),
       createBug,
       list: vi.fn().mockResolvedValue(emptyInbox),
+      updateBulkSenseMaking: vi.fn(),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(captureInbox),
@@ -116,6 +155,7 @@ describe("Capture Inbox RPC", () => {
       create: vi.fn(),
       createBug,
       list: vi.fn().mockResolvedValue(emptyInbox),
+      updateBulkSenseMaking: vi.fn(),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(captureInbox),
@@ -146,6 +186,7 @@ describe("Capture Inbox RPC", () => {
       create,
       createBug: vi.fn(),
       list: vi.fn().mockResolvedValue(emptyInbox),
+      updateBulkSenseMaking: vi.fn(),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(captureInbox),
@@ -212,6 +253,7 @@ describe("Capture Inbox RPC", () => {
       previewUndoMerge: vi.fn(),
       suggestions: vi.fn(),
       undoMerge: vi.fn(),
+      updateBulkSenseMaking: vi.fn(),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(captureInbox),

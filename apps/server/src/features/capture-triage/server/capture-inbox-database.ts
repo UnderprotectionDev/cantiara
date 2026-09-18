@@ -1,7 +1,11 @@
 import {
   type CaptureAttachment,
+  type CaptureBulkSenseMaking,
+  type CaptureBulkSenseMakingValue,
   type CaptureInboxItem,
   type CaptureInboxTriageAdapter,
+  captureBulkSenseMakingSchema,
+  captureBulkSenseMakingValueSchema,
   captureInboxItemSchema,
   type NormalizedCaptureInput,
 } from "@cantiara/api/capture-triage";
@@ -13,6 +17,7 @@ import {
 } from "@cantiara/api/mutation-and-undo";
 import type { Database } from "@cantiara/db";
 import {
+  captureInboxBulkView,
   captureInboxItem,
   captureInboxOperation,
 } from "@cantiara/db/schema/capture-triage";
@@ -39,6 +44,8 @@ import {
 } from "./capture-inbox";
 
 type CaptureInboxDatabaseRecord = typeof captureInboxItem.$inferSelect;
+type CaptureInboxBulkViewDatabaseRecord =
+  typeof captureInboxBulkView.$inferSelect;
 type MutationTargetDatabaseRecord = typeof mutationTarget.$inferSelect;
 
 const captureMutationValueSchema = z
@@ -51,6 +58,118 @@ const captureMutationValueSchema = z
   .strict();
 
 type CaptureMutationValue = z.infer<typeof captureMutationValueSchema>;
+
+const CAPTURE_BULK_VIEW_TARGET_PREFIX = "capture-bulk-view:";
+
+function captureBulkViewTargetId(accountId: string) {
+  return `${CAPTURE_BULK_VIEW_TARGET_PREFIX}${accountId}`;
+}
+
+function captureBulkViewAccountId(targetId: string) {
+  if (!targetId.startsWith(CAPTURE_BULK_VIEW_TARGET_PREFIX)) {
+    throw new Error("Bulk sense-making mutation target is invalid.");
+  }
+  return targetId.slice(CAPTURE_BULK_VIEW_TARGET_PREFIX.length);
+}
+
+function toBulkSenseMaking(
+  record: CaptureInboxBulkViewDatabaseRecord,
+): CaptureBulkSenseMaking {
+  return captureBulkSenseMakingSchema.parse({
+    clusters: record.clusters,
+    placements: record.placements,
+    revision: record.revision,
+  });
+}
+
+function toBulkSenseMakingValue(
+  record: CaptureInboxBulkViewDatabaseRecord,
+): CaptureBulkSenseMakingValue {
+  return captureBulkSenseMakingValueSchema.parse({
+    clusters: record.clusters,
+    placements: record.placements,
+  });
+}
+
+function emptyBulkSenseMakingValue(): CaptureBulkSenseMakingValue {
+  return { clusters: [], placements: [] };
+}
+
+function defaultBulkSenseMakingTarget(
+  targetId: string,
+): MutationTarget<CaptureBulkSenseMakingValue> {
+  return {
+    id: targetId,
+    revision: 0,
+    value: emptyBulkSenseMakingValue(),
+  };
+}
+
+export const captureInboxBulkViewMutationTarget: MutationDatabaseTargetAdapter<CaptureBulkSenseMakingValue> =
+  {
+    async find(executor, targetId, lock) {
+      const accountId = captureBulkViewAccountId(targetId);
+      const query = executor
+        .select()
+        .from(captureInboxBulkView)
+        .where(eq(captureInboxBulkView.accountId, accountId))
+        .limit(1);
+      const records = lock ? await query.for("update") : await query;
+      const [record] = records;
+      return record
+        ? {
+            id: targetId,
+            revision: record.revision,
+            value: toBulkSenseMakingValue(record),
+          }
+        : defaultBulkSenseMakingTarget(targetId);
+    },
+
+    async update(executor, input) {
+      const accountId = captureBulkViewAccountId(input.targetId);
+      const [updated] = await executor
+        .update(captureInboxBulkView)
+        .set({
+          clusters: input.nextValue.clusters,
+          placements: input.nextValue.placements,
+          revision: input.expectedRevision + 1,
+          updatedAt: input.committedAt,
+        })
+        .where(
+          and(
+            eq(captureInboxBulkView.accountId, accountId),
+            eq(captureInboxBulkView.revision, input.expectedRevision),
+          ),
+        )
+        .returning();
+      if (updated) {
+        return {
+          id: input.targetId,
+          revision: updated.revision,
+          value: toBulkSenseMakingValue(updated),
+        };
+      }
+
+      const [inserted] = await executor
+        .insert(captureInboxBulkView)
+        .values({
+          accountId,
+          clusters: input.nextValue.clusters,
+          placements: input.nextValue.placements,
+          revision: input.expectedRevision + 1,
+          updatedAt: input.committedAt,
+        })
+        .onConflictDoNothing()
+        .returning();
+      return inserted
+        ? {
+            id: input.targetId,
+            revision: inserted.revision,
+            value: toBulkSenseMakingValue(inserted),
+          }
+        : null;
+    },
+  };
 
 function toCaptureInboxItem(
   record: CaptureInboxDatabaseRecord,
@@ -431,6 +550,10 @@ export function createDatabaseCaptureInbox(
     createDatabaseMutationContract<MutationPayload>(database, {
       target: captureTriageMutationTarget,
     });
+  const bulkSenseMakingMutationContract =
+    createDatabaseMutationContract<CaptureBulkSenseMakingValue>(database, {
+      target: captureInboxBulkViewMutationTarget,
+    });
   async function findStoredCapture(accountId: string, itemId: string) {
     const record = await database.query.captureInboxItem.findFirst({
       where: and(
@@ -441,6 +564,82 @@ export function createDatabaseCaptureInbox(
     return record ? toStoredCaptureInboxItem(record) : null;
   }
   const store: CaptureInboxStore = {
+    bulkSenseMaking: {
+      async get(accountId) {
+        const record = await database.query.captureInboxBulkView.findFirst({
+          where: eq(captureInboxBulkView.accountId, accountId),
+        });
+        return record
+          ? toBulkSenseMaking(record)
+          : captureBulkSenseMakingSchema.parse({
+              ...emptyBulkSenseMakingValue(),
+              revision: 0,
+            });
+      },
+
+      async removeItem(accountId, itemId) {
+        await database.transaction(async (transaction) => {
+          const [record] = await transaction
+            .select()
+            .from(captureInboxBulkView)
+            .where(eq(captureInboxBulkView.accountId, accountId))
+            .limit(1)
+            .for("update");
+          if (!record) {
+            return;
+          }
+
+          const current = toBulkSenseMaking(record);
+          const placements = current.placements.filter(
+            (placement) => placement.itemId !== itemId,
+          );
+          if (placements.length === current.placements.length) {
+            return;
+          }
+          const clusterIds = new Set(
+            placements.flatMap((placement) =>
+              placement.clusterId ? [placement.clusterId] : [],
+            ),
+          );
+          await transaction
+            .update(captureInboxBulkView)
+            .set({
+              clusters: current.clusters.filter((cluster) =>
+                clusterIds.has(cluster.id),
+              ),
+              placements,
+              revision: current.revision + 1,
+              updatedAt: new Date(),
+            })
+            .where(eq(captureInboxBulkView.accountId, accountId));
+        });
+      },
+
+      async update(accountId, input) {
+        const receipt = await bulkSenseMakingMutationContract.mutate(
+          {
+            actor: { actorId: accountId, type: "User" },
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            kind: "human",
+            payload: {
+              clusters: input.clusters,
+              placements: input.placements,
+            },
+            targetId: captureBulkViewTargetId(accountId),
+          },
+          () => ({
+            clusters: input.clusters,
+            placements: input.placements,
+          }),
+        );
+        return captureBulkSenseMakingSchema.parse({
+          ...receipt.nextValue,
+          revision: receipt.revision,
+        });
+      },
+    },
+
     async insert(accountId, input) {
       const payloadFingerprint = await fingerprintMutationPayload(
         capturePayload(input),
