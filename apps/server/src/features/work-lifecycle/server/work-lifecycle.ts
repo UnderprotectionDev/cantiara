@@ -1,11 +1,19 @@
 import {
   canonicalizeMutationPayload,
   fingerprintMutationPayload,
+  type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import {
   closeWorkInputSchema,
   createWorkMutationInputSchema,
+  detachFeatureHealthHistoryInputSchema,
+  detachIncludedWorkInputSchema,
+  type FeatureExitBlockers,
+  type FeatureProgress,
+  includeWorkInputSchema,
+  recordFeatureHealthInputSchema,
   reopenWorkInputSchema,
+  updateFeaturePrimarySpecInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
   type WorkClosePreview,
@@ -49,10 +57,19 @@ export interface WorkLifecycleStore {
     projectId: string,
     clientIdempotencyKey: string,
   ) => Promise<WorkProfile | null>;
+  hasProjectDocument?: (
+    accountId: string,
+    projectId: string,
+    documentId: string,
+  ) => Promise<boolean>;
   list: (
     accountId: string,
     projectId: string,
     options?: { archived?: boolean },
+  ) => Promise<WorkProfile[]>;
+  listIncluded: (
+    accountId: string,
+    featureId: string,
   ) => Promise<WorkProfile[]>;
   reserveCreate: (
     accountId: string,
@@ -89,6 +106,55 @@ export class WorkNotFoundError extends Error {
   constructor(workId: string) {
     super(`Work ${workId} was not found.`);
     this.name = "WorkNotFoundError";
+  }
+}
+
+export class WorkInclusionConflictError extends Error {
+  readonly code = "WORK_INCLUSION_CONFLICT" as const;
+
+  constructor(message = "Work already has a primary Feature.") {
+    super(message);
+    this.name = "WorkInclusionConflictError";
+  }
+}
+
+export class WorkFeatureRequiredError extends Error {
+  readonly code = "WORK_FEATURE_REQUIRED" as const;
+
+  constructor(workId: string) {
+    super(`Work ${workId} must be a Feature.`);
+    this.name = "WorkFeatureRequiredError";
+  }
+}
+
+export class WorkPrimarySpecNotFoundError extends Error {
+  readonly code = "WORK_PRIMARY_SPEC_NOT_FOUND" as const;
+
+  constructor(primarySpecId: string) {
+    super(`Primary spec ${primarySpecId} was not found in this Project.`);
+    this.name = "WorkPrimarySpecNotFoundError";
+  }
+}
+
+export class WorkPrimarySpecUnavailableError extends Error {
+  readonly code = "WORK_PRIMARY_SPEC_UNAVAILABLE" as const;
+
+  constructor() {
+    super("Primary spec is unavailable until Documents can be resolved.");
+    this.name = "WorkPrimarySpecUnavailableError";
+  }
+}
+
+export class WorkFeatureExitBlockedError extends Error {
+  readonly blockers: FeatureExitBlockers;
+  readonly code = "WORK_FEATURE_EXIT_BLOCKED" as const;
+
+  constructor(blockers: FeatureExitBlockers) {
+    super(
+      "Detach included Work, Feature health history, and Primary spec before leaving Feature.",
+    );
+    this.name = "WorkFeatureExitBlockedError";
+    this.blockers = blockers;
   }
 }
 
@@ -177,8 +243,38 @@ export function workTypeChangePreviewId(
   revision: number,
   currentType: WorkType,
   nextType: WorkType,
+  exitBlockers: FeatureExitBlockers | null = null,
 ) {
-  return `${WORK_TYPE_IMPACT_PREVIEW_PREFIX}${workId}:${revision}:${currentType}:${nextType}`;
+  const blockerToken = exitBlockers
+    ? `:${exitBlockers.includedWorkCount}:${exitBlockers.featureHealthUpdateCount}:${exitBlockers.hasPrimarySpec ? 1 : 0}`
+    : "";
+  return `${WORK_TYPE_IMPACT_PREVIEW_PREFIX}${workId}:${revision}:${currentType}:${nextType}${blockerToken}`;
+}
+
+async function featureExitBlockers(
+  store: WorkLifecycleStore,
+  accountId: string,
+  work: WorkProfile,
+  nextType: WorkType,
+) {
+  if (work.type !== "Feature" || nextType === "Feature") {
+    return null;
+  }
+  const includedWork = await store.listIncluded(accountId, work.id);
+  return {
+    featureHealthUpdateCount: work.featureHealthHistory.length,
+    hasPrimarySpec: work.primarySpecId !== null,
+    includedWorkCount: includedWork.length,
+  } satisfies FeatureExitBlockers;
+}
+
+function hasFeatureExitBlockers(blockers: FeatureExitBlockers | null) {
+  return Boolean(
+    blockers &&
+      (blockers.includedWorkCount > 0 ||
+        blockers.featureHealthUpdateCount > 0 ||
+        blockers.hasPrimarySpec),
+  );
 }
 
 function workCreateTargetId(
@@ -273,6 +369,54 @@ export function createWorkLifecycle({
     );
     if (!receipt.nextValue.work) {
       throw new WorkNotFoundError(input.workId);
+    }
+    return receipt.nextValue.work;
+  }
+
+  async function mutateWork<TPayload extends MutationPayload>(
+    accountId: string,
+    command: {
+      baseRevision: number;
+      clientIdempotencyKey: string;
+      payload: TPayload;
+      targetId: string;
+    },
+    transform: (
+      currentWork: WorkProfile,
+      payload: TPayload,
+      timestamp: string,
+    ) => WorkProfile,
+    validate?: (
+      currentWork: WorkProfile,
+      payload: TPayload,
+    ) => void | Promise<void>,
+  ) {
+    const receipt = await mutationContracts.update(accountId).mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: command.baseRevision,
+        clientIdempotencyKey: command.clientIdempotencyKey,
+        kind: "human",
+        payload: command.payload,
+        targetId: command.targetId,
+      },
+      async ({ currentRevision, currentValue, payload }) => {
+        if (!currentValue.work || currentValue.work.id !== command.targetId) {
+          throw new WorkNotFoundError(command.targetId);
+        }
+        await validate?.(currentValue.work, payload);
+        const timestamp = new Date().toISOString();
+        return {
+          work: {
+            ...transform(currentValue.work, payload, timestamp),
+            revision: currentRevision + 1,
+            updatedAt: timestamp,
+          },
+        } satisfies WorkLifecycleMutationValue;
+      },
+    );
+    if (!receipt.nextValue.work) {
+      throw new WorkNotFoundError(command.targetId);
     }
     return receipt.nextValue.work;
   }
@@ -403,9 +547,12 @@ export function createWorkLifecycle({
               closureReason: null,
               closureResult: null,
               createdAt: timestamp,
+              featureHealthHistory: [],
               id: reservation.workId,
               key: reservation.key,
               number: reservation.number,
+              primaryFeatureId: null,
+              primarySpecId: null,
               projectId: reservation.projectId,
               revision: currentRevision + 1,
               status: "Not Started",
@@ -443,6 +590,114 @@ export function createWorkLifecycle({
       return store.find(accountId, workId);
     },
 
+    async featureProgress(accountId, featureId) {
+      const feature = await store.find(accountId, featureId);
+      if (feature?.type !== "Feature") {
+        throw new WorkNotFoundError(featureId);
+      }
+      const includedWork = await store.listIncluded(accountId, featureId);
+      const statusCounts: FeatureProgress["statusCounts"] = {
+        Blocked: 0,
+        Closed: 0,
+        "In Progress": 0,
+        "Not Started": 0,
+      };
+      for (const item of includedWork) {
+        statusCounts[item.status] += 1;
+      }
+      return {
+        includedWorkCount: includedWork.length,
+        statusCounts,
+      };
+    },
+
+    detachIncludedWork(accountId, rawInput) {
+      const input = detachIncludedWorkInputSchema.parse(rawInput);
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: { featureId: input.featureId, workId: input.workId },
+          targetId: input.workId,
+        },
+        (work, payload) => {
+          if (work.primaryFeatureId !== payload.featureId) {
+            throw new WorkInclusionConflictError(
+              "Work is not included in this Feature.",
+            );
+          }
+          return { ...work, primaryFeatureId: null };
+        },
+      );
+    },
+
+    detachFeatureHealthHistory(accountId, rawInput) {
+      const input = detachFeatureHealthHistoryInputSchema.parse(rawInput);
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: { featureId: input.featureId },
+          targetId: input.featureId,
+        },
+        (work, payload) => {
+          if (work.type !== "Feature") {
+            throw new WorkFeatureRequiredError(payload.featureId);
+          }
+          return { ...work, featureHealthHistory: [] };
+        },
+      );
+    },
+
+    includeWork(accountId, rawInput) {
+      const input = includeWorkInputSchema.parse(rawInput);
+
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: { featureId: input.featureId, workId: input.workId },
+          targetId: input.workId,
+        },
+        (work, payload) => {
+          if (
+            work.primaryFeatureId &&
+            work.primaryFeatureId !== payload.featureId
+          ) {
+            throw new WorkInclusionConflictError();
+          }
+          return { ...work, primaryFeatureId: payload.featureId };
+        },
+        async (work, payload) => {
+          const feature = await store.find(accountId, payload.featureId);
+          if (!feature) {
+            throw new WorkNotFoundError(payload.featureId);
+          }
+          if (feature.type !== "Feature") {
+            throw new WorkInclusionConflictError(
+              "Only a Feature can include Work.",
+            );
+          }
+          if (feature.projectId !== work.projectId) {
+            throw new WorkInclusionConflictError(
+              "A Feature can include Work only from the same Project.",
+            );
+          }
+          if (work.type === "Feature") {
+            throw new WorkInclusionConflictError(
+              "A Feature cannot be included by another Feature.",
+            );
+          }
+          if (work.primaryFeatureId && work.primaryFeatureId !== feature.id) {
+            throw new WorkInclusionConflictError();
+          }
+        },
+      );
+    },
+
     list(accountId, projectId, options) {
       return store.list(accountId, projectId, options);
     },
@@ -473,6 +728,42 @@ export function createWorkLifecycle({
       } satisfies WorkClosePreview;
     },
 
+    recordFeatureHealth(accountId, rawInput) {
+      const input = recordFeatureHealthInputSchema.parse(rawInput);
+
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: {
+            featureId: input.featureId,
+            health: input.health,
+            reason: input.reason,
+          },
+          targetId: input.featureId,
+        },
+        (work, payload, timestamp) => {
+          if (work.type !== "Feature") {
+            throw new WorkFeatureRequiredError(input.featureId);
+          }
+          return {
+            ...work,
+            featureHealthHistory: [
+              ...work.featureHealthHistory,
+              {
+                health: payload.health,
+                id: crypto.randomUUID(),
+                reason: payload.reason,
+                recordedAt: timestamp,
+                recordedByAccountId: accountId,
+              },
+            ],
+          };
+        },
+      );
+    },
+
     async previewTypeChange(accountId, rawInput) {
       const input = workTypeChangePreviewInputSchema.parse(rawInput);
       const work = await store.find(accountId, input.workId);
@@ -480,14 +771,23 @@ export function createWorkLifecycle({
         return null;
       }
 
+      const blockers = await featureExitBlockers(
+        store,
+        accountId,
+        work,
+        input.type,
+      );
+
       return {
         currentType: work.type,
+        featureExitBlockers: blockers,
         nextType: input.type,
         previewId: workTypeChangePreviewId(
           work.id,
           work.revision,
           work.type,
           input.type,
+          blockers,
         ),
         requiresImpactPreview: requiresWorkTypeImpactPreview(
           work.type,
@@ -509,45 +809,84 @@ export function createWorkLifecycle({
       }
 
       if (requiresWorkTypeImpactPreview(currentWork.type, input.type)) {
+        const blockers = await featureExitBlockers(
+          store,
+          accountId,
+          currentWork,
+          input.type,
+        );
         const previewId = workTypeChangePreviewId(
           currentWork.id,
           currentWork.revision,
           currentWork.type,
           input.type,
+          blockers,
         );
         if (input.impactPreviewId !== previewId) {
           throw new WorkTypeImpactPreviewRequiredError(previewId);
         }
+        if (blockers && hasFeatureExitBlockers(blockers)) {
+          throw new WorkFeatureExitBlockedError(blockers);
+        }
+      }
+      if (input.type === "Feature" && currentWork.primaryFeatureId) {
+        throw new WorkInclusionConflictError(
+          "Detach Work from its primary Feature before changing it to Feature.",
+        );
       }
 
-      const timestamp = new Date().toISOString();
-      const receipt = await mutationContracts.update(accountId).mutate(
+      return mutateWork(
+        accountId,
         {
-          actor: { actorId: accountId, type: "User" },
           baseRevision: input.baseRevision,
           clientIdempotencyKey: input.clientIdempotencyKey,
-          kind: "human",
-          payload: { type: input.type, workId: input.workId },
+          payload: {
+            primaryFeatureId: currentWork.primaryFeatureId,
+            type: input.type,
+            workId: input.workId,
+          },
           targetId: input.workId,
         },
-        ({ currentRevision, currentValue, payload }) => {
-          if (!currentValue.work || currentValue.work.id !== input.workId) {
-            throw new WorkNotFoundError(input.workId);
+        (work, payload) => ({ ...work, type: payload.type }),
+      );
+    },
+
+    updateFeaturePrimarySpec(accountId, rawInput) {
+      const input = updateFeaturePrimarySpecInputSchema.parse(rawInput);
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: {
+            featureId: input.featureId,
+            primarySpecId: input.primarySpecId,
+          },
+          targetId: input.featureId,
+        },
+        (work, payload) => {
+          if (work.type !== "Feature") {
+            throw new WorkFeatureRequiredError(payload.featureId);
           }
-          return {
-            work: {
-              ...currentValue.work,
-              revision: currentRevision + 1,
-              type: payload.type,
-              updatedAt: timestamp,
-            },
-          } satisfies WorkLifecycleMutationValue;
+          return { ...work, primarySpecId: payload.primarySpecId };
+        },
+        async (work, payload) => {
+          if (payload.primarySpecId === null) {
+            return;
+          }
+          if (!store.hasProjectDocument) {
+            throw new WorkPrimarySpecUnavailableError();
+          }
+          const isAvailable = await store.hasProjectDocument(
+            accountId,
+            work.projectId,
+            payload.primarySpecId,
+          );
+          if (!isAvailable) {
+            throw new WorkPrimarySpecNotFoundError(payload.primarySpecId);
+          }
         },
       );
-      if (!receipt.nextValue.work) {
-        throw new WorkNotFoundError(input.workId);
-      }
-      return receipt.nextValue.work;
     },
 
     async reopen(accountId, rawInput, initiator) {

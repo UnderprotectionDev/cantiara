@@ -9,6 +9,8 @@ import { describe, expect, test, vi } from "vitest";
 
 import {
   WorkClosureResultRequiredError,
+  WorkFeatureExitBlockedError,
+  WorkInclusionConflictError,
   WorkProjectNotFoundError,
   WorkTypeImpactPreviewRequiredError,
 } from "./work-lifecycle";
@@ -19,9 +21,12 @@ const work: WorkProfile = {
   closureReason: null,
   closureResult: null,
   createdAt: "2026-09-18T09:00:00.000Z",
+  featureHealthHistory: [],
   id: "work-1",
   key: "CANT-1",
   number: 1,
+  primaryFeatureId: null,
+  primarySpecId: null,
   projectId: "project-1",
   revision: 1,
   status: "Not Started",
@@ -37,11 +42,17 @@ function createWorkLifecycleStub(
     archive: vi.fn(),
     close: vi.fn(),
     create: vi.fn(),
+    detachFeatureHealthHistory: vi.fn(),
+    detachIncludedWork: vi.fn(),
+    featureProgress: vi.fn(),
     find: vi.fn(),
+    includeWork: vi.fn(),
     list: vi.fn(),
     previewClose: vi.fn(),
     previewTypeChange: vi.fn(),
+    recordFeatureHealth: vi.fn(),
     reopen: vi.fn(),
+    updateFeaturePrimarySpec: vi.fn(),
     updateStatus: vi.fn(),
     updateType: vi.fn(),
     unarchive: vi.fn(),
@@ -104,7 +115,19 @@ describe("Work Lifecycle RPC", () => {
       archive,
       close,
       create,
+      detachFeatureHealthHistory: vi.fn().mockResolvedValue(work),
+      detachIncludedWork: vi.fn().mockResolvedValue(work),
+      featureProgress: vi.fn().mockResolvedValue({
+        includedWorkCount: 0,
+        statusCounts: {
+          Blocked: 0,
+          Closed: 0,
+          "In Progress": 0,
+          "Not Started": 0,
+        },
+      }),
       find: vi.fn().mockResolvedValue(work),
+      includeWork: vi.fn().mockResolvedValue(work),
       list,
       previewClose: vi.fn().mockResolvedValue({
         closureCheck: {
@@ -116,11 +139,14 @@ describe("Work Lifecycle RPC", () => {
       }),
       previewTypeChange: vi.fn().mockResolvedValue({
         currentType: "Task",
+        featureExitBlockers: null,
         nextType: "Bug",
         previewId: "work-type-impact-work-1-1-Task-Bug",
         requiresImpactPreview: false,
         workId: work.id,
       }),
+      recordFeatureHealth: vi.fn().mockResolvedValue(work),
+      updateFeaturePrimarySpec: vi.fn().mockResolvedValue(work),
       reopen,
       updateStatus,
       updateType: vi.fn().mockResolvedValue({ ...work, type: "Bug" }),
@@ -164,6 +190,49 @@ describe("Work Lifecycle RPC", () => {
         workId: work.id,
       }),
     ).resolves.toMatchObject({ type: "Bug" });
+    await expect(
+      client.featureProgress({ featureId: work.id }),
+    ).resolves.toMatchObject({ includedWorkCount: 0 });
+    await expect(
+      client.includeWork({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "include-work-1",
+        featureId: "feature-1",
+        workId: work.id,
+      }),
+    ).resolves.toEqual(work);
+    await expect(
+      client.detachIncludedWork({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "detach-work-1",
+        featureId: "feature-1",
+        workId: work.id,
+      }),
+    ).resolves.toEqual(work);
+    await expect(
+      client.recordFeatureHealth({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "health-1",
+        featureId: "feature-1",
+        health: "On Track",
+        reason: "The acceptance path is clear.",
+      }),
+    ).resolves.toEqual(work);
+    await expect(
+      client.updateFeaturePrimarySpec({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "primary-spec-1",
+        featureId: "feature-1",
+        primarySpecId: "document-1",
+      }),
+    ).resolves.toEqual(work);
+    await expect(
+      client.detachFeatureHealthHistory({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "detach-health-1",
+        featureId: "feature-1",
+      }),
+    ).resolves.toEqual(work);
     await expect(
       client.updateWorkStatus({
         baseRevision: work.revision,
@@ -285,6 +354,38 @@ describe("Work Lifecycle RPC", () => {
     });
   });
 
+  test("maps blocked Feature exit details to a precondition response", async () => {
+    const blockers = {
+      featureHealthUpdateCount: 1,
+      hasPrimarySpec: true,
+      includedWorkCount: 2,
+    };
+    const workLifecycle = createWorkLifecycleStub({
+      updateType: vi
+        .fn()
+        .mockRejectedValue(new WorkFeatureExitBlockedError(blockers)),
+    });
+    const client = createRouterClient(appRouter, {
+      context: createContext(workLifecycle),
+    });
+
+    await expect(
+      client.updateWorkType({
+        baseRevision: 1,
+        clientIdempotencyKey: "blocked-feature-exit",
+        impactPreviewId: "work-type-impact:work-1:1:Feature:Task:2:1:1",
+        type: "Task",
+        workId: work.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: { blockers, code: "WORK_FEATURE_EXIT_BLOCKED" },
+      message:
+        "Detach included Work, Feature health history, and Primary spec before leaving Feature.",
+      status: 412,
+    });
+  });
+
   test("maps a result-less Closed write to the close-step precondition", async () => {
     const workLifecycle = createWorkLifecycleStub({
       updateStatus: vi
@@ -305,6 +406,68 @@ describe("Work Lifecycle RPC", () => {
     ).rejects.toMatchObject({
       code: "PRECONDITION_FAILED",
       data: { code: "WORK_CLOSURE_RESULT_REQUIRED" },
+      status: 412,
+    });
+  });
+
+  test("preserves typed Work errors wrapped by the database apply boundary", async () => {
+    const workLifecycle = createWorkLifecycleStub({
+      includeWork: vi.fn().mockRejectedValue({
+        cause: new WorkInclusionConflictError(
+          "Only a Feature can include Work.",
+        ),
+        code: "APPLY_FAILED",
+      }),
+    });
+    const client = createRouterClient(appRouter, {
+      context: createContext(workLifecycle),
+    });
+
+    await expect(
+      client.includeWork({
+        baseRevision: 1,
+        clientIdempotencyKey: "wrapped-inclusion-conflict",
+        featureId: "feature-1",
+        workId: work.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      data: { code: "WORK_INCLUSION_CONFLICT" },
+      status: 409,
+    });
+
+    const blockedWorkLifecycle = createWorkLifecycleStub({
+      updateType: vi.fn().mockRejectedValue({
+        cause: new WorkFeatureExitBlockedError({
+          featureHealthUpdateCount: 0,
+          hasPrimarySpec: false,
+          includedWorkCount: 1,
+        }),
+        code: "APPLY_FAILED",
+      }),
+    });
+    const blockedClient = createRouterClient(appRouter, {
+      context: createContext(blockedWorkLifecycle),
+    });
+
+    await expect(
+      blockedClient.updateWorkType({
+        baseRevision: 1,
+        clientIdempotencyKey: "wrapped-feature-exit-block",
+        impactPreviewId: "preview-1",
+        type: "Task",
+        workId: work.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: {
+        blockers: {
+          featureHealthUpdateCount: 0,
+          hasPrimarySpec: false,
+          includedWorkCount: 1,
+        },
+        code: "WORK_FEATURE_EXIT_BLOCKED",
+      },
       status: 412,
     });
   });
