@@ -286,7 +286,7 @@ function createProjectShellMutationTarget(
     update(executor, input) {
       const nextProject = input.nextValue.project;
       if (!nextProject) {
-        return null;
+        return Promise.resolve(null);
       }
       return operation === "create"
         ? createProjectShellRecord(executor, accountId, input, nextProject)
