@@ -11,6 +11,7 @@ import type {
   ProjectShellMutationContracts,
   ProjectShellMutationValue,
 } from "@cantiara/api/project-shell";
+import { getProjectShellConfiguration } from "@cantiara/api/project-shell";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test } from "vitest";
@@ -20,6 +21,7 @@ import {
 } from "./project-shell";
 
 const project: ProjectProfile = {
+  configuration: getProjectShellConfiguration("Blank Project"),
   createdAt: "2026-09-17T09:00:00.000Z",
   id: "project-1",
   logo: null,
@@ -174,6 +176,67 @@ describe("Project Shell RPC", () => {
       },
       message: "Short code is locked after the first Work.",
       status: 412,
+    });
+  });
+
+  test("enables a disabled Project area through the authenticated mutation", async () => {
+    const projectShell: ProjectShellAccess = {
+      create: async () => project,
+      find: async () => project,
+      list: async () => [project],
+      recordFirstWork: async () => project,
+      updateShortCode: async () => project,
+    };
+    const updateMutation: MutationContract<ProjectShellMutationValue> = {
+      mutate: async <TPayload extends MutationPayload>(
+        command: MutationCommand<TPayload>,
+        apply: MutationApply<ProjectShellMutationValue, TPayload>,
+      ) => {
+        if (command.kind !== "human") {
+          throw new Error("Expected a human Project command.");
+        }
+        const nextValue = await apply({
+          currentRevision: project.revision,
+          currentValue: { project },
+          payload: command.payload,
+        });
+        return {
+          actor: command.actor,
+          committedAt: "2026-09-17T09:00:00.000Z",
+          id: "receipt-2",
+          nextValue,
+          origin: {
+            clientIdempotencyKey: command.clientIdempotencyKey,
+            kind: "human" as const,
+          },
+          payloadFingerprint: "0".repeat(64),
+          previousValue: { project },
+          revision: nextValue.project?.revision ?? project.revision,
+          targetId: command.targetId,
+        };
+      },
+    };
+    const projectShellMutationContracts: ProjectShellMutationContracts = {
+      create: () => updateMutation,
+      update: () => updateMutation,
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(projectShell, projectShellMutationContracts),
+    });
+
+    await expect(
+      client.enableProjectArea({
+        area: "Discovery",
+        baseRevision: project.revision,
+        clientIdempotencyKey: "enable-discovery-1",
+        projectId: project.id,
+      }),
+    ).resolves.toMatchObject({
+      configuration: expect.objectContaining({
+        enabledAreas: ["Work", "Documents", "Discovery"],
+      }),
+      id: project.id,
+      revision: project.revision + 1,
     });
   });
 

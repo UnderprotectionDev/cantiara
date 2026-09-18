@@ -6,6 +6,7 @@ import type {
 } from "@cantiara/api/project-shell";
 import {
   projectLifecycleStatusSchema,
+  resolveProjectShellConfiguration,
   starterConfigurationSchema,
 } from "@cantiara/api/project-shell";
 import type { Database } from "@cantiara/db";
@@ -25,9 +26,19 @@ import {
 } from "./project-shell";
 
 type ProjectDatabaseRecord = typeof project.$inferSelect;
+type ProjectShellMutationUpdateInput = Parameters<
+  MutationDatabaseTargetAdapter<ProjectShellMutationValue>["update"]
+>[1];
 
 function toProfile(record: ProjectDatabaseRecord): ProjectProfile {
+  const starterConfiguration = starterConfigurationSchema.parse(
+    record.starterConfiguration,
+  );
   return {
+    configuration: resolveProjectShellConfiguration(
+      record.configuration,
+      starterConfiguration,
+    ),
     createdAt: record.createdAt.toISOString(),
     id: record.id,
     logo: record.logo,
@@ -38,9 +49,7 @@ function toProfile(record: ProjectDatabaseRecord): ProjectProfile {
     scope: record.scope,
     shortCode: record.shortCode,
     shortCodeLocked: record.workCount > 0,
-    starterConfiguration: starterConfigurationSchema.parse(
-      record.starterConfiguration,
-    ),
+    starterConfiguration,
     status: projectLifecycleStatusSchema.parse(record.status),
     targetDate: record.targetDate,
     updatedAt: record.updatedAt.toISOString(),
@@ -154,6 +163,107 @@ async function reserveShortCode(
   }
 }
 
+async function createProjectShellRecord(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  input: ProjectShellMutationUpdateInput,
+  nextProject: ProjectProfile,
+) {
+  const workspaceId = await findWorkspaceId(executor, accountId);
+  if (!workspaceId) {
+    throw new ProjectWorkspaceNotFoundError(accountId);
+  }
+
+  const { committedAt } = input;
+  const [created] = await executor
+    .insert(project)
+    .values({
+      configuration: nextProject.configuration,
+      createdAt: committedAt,
+      id: nextProject.id,
+      logo: nextProject.logo,
+      name: nextProject.name,
+      problem: nextProject.problem,
+      purpose: nextProject.purpose,
+      revision: input.expectedRevision + 1,
+      scope: nextProject.scope,
+      shortCode: nextProject.shortCode,
+      starterConfiguration: nextProject.starterConfiguration,
+      status: nextProject.status,
+      targetDate: nextProject.targetDate,
+      updatedAt: committedAt,
+      workspaceId,
+    })
+    .onConflictDoNothing({
+      target: [project.workspaceId, project.shortCode],
+    })
+    .returning();
+  if (!created) {
+    throw new ProjectShortCodeConflictError(nextProject.shortCode);
+  }
+
+  await reserveShortCode(
+    executor,
+    workspaceId,
+    nextProject.id,
+    nextProject.shortCode,
+  );
+  return toTarget(created);
+}
+
+async function updateProjectShellRecord(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  input: ProjectShellMutationUpdateInput,
+  nextProject: ProjectProfile,
+) {
+  const ownedProject = await findOwnedProject(
+    executor,
+    accountId,
+    input.targetId,
+    true,
+  );
+  if (!ownedProject || nextProject.id !== ownedProject.record.id) {
+    return null;
+  }
+
+  const shortCodeChanged =
+    ownedProject.record.shortCode !== nextProject.shortCode;
+  if (shortCodeChanged && ownedProject.record.workCount > 0) {
+    throw new ProjectShortCodeLockedError();
+  }
+
+  if (shortCodeChanged) {
+    await reserveShortCode(
+      executor,
+      ownedProject.workspaceId,
+      ownedProject.record.id,
+      nextProject.shortCode,
+    );
+  }
+
+  const projectIdentity = and(
+    eq(project.id, input.targetId),
+    eq(project.workspaceId, ownedProject.workspaceId),
+    eq(project.revision, input.expectedRevision),
+  );
+  const [updated] = await executor
+    .update(project)
+    .set({
+      configuration: nextProject.configuration,
+      revision: input.expectedRevision + 1,
+      shortCode: nextProject.shortCode,
+      updatedAt: input.committedAt,
+    })
+    .where(
+      shortCodeChanged
+        ? and(projectIdentity, eq(project.workCount, 0))
+        : projectIdentity,
+    )
+    .returning();
+  return updated ? toTarget(updated) : null;
+}
+
 function createProjectShellMutationTarget(
   accountId: string,
   operation: "create" | "update",
@@ -173,96 +283,14 @@ function createProjectShellMutationTarget(
       return ownedProject ? toTarget(ownedProject.record) : null;
     },
 
-    async update(executor, input) {
+    update(executor, input) {
       const nextProject = input.nextValue.project;
       if (!nextProject) {
-        return null;
+        return Promise.resolve(null);
       }
-
-      if (operation === "create") {
-        const workspaceId = await findWorkspaceId(executor, accountId);
-        if (!workspaceId) {
-          throw new ProjectWorkspaceNotFoundError(accountId);
-        }
-
-        const { committedAt } = input;
-        const [created] = await executor
-          .insert(project)
-          .values({
-            createdAt: committedAt,
-            id: nextProject.id,
-            logo: nextProject.logo,
-            name: nextProject.name,
-            problem: nextProject.problem,
-            purpose: nextProject.purpose,
-            revision: input.expectedRevision + 1,
-            scope: nextProject.scope,
-            shortCode: nextProject.shortCode,
-            starterConfiguration: nextProject.starterConfiguration,
-            status: nextProject.status,
-            targetDate: nextProject.targetDate,
-            updatedAt: committedAt,
-            workspaceId,
-          })
-          .onConflictDoNothing({
-            target: [project.workspaceId, project.shortCode],
-          })
-          .returning();
-        if (!created) {
-          throw new ProjectShortCodeConflictError(nextProject.shortCode);
-        }
-
-        await reserveShortCode(
-          executor,
-          workspaceId,
-          nextProject.id,
-          nextProject.shortCode,
-        );
-        return toTarget(created);
-      }
-
-      const ownedProject = await findOwnedProject(
-        executor,
-        accountId,
-        input.targetId,
-        true,
-      );
-      if (!ownedProject) {
-        return null;
-      }
-      if (ownedProject.record.workCount > 0) {
-        throw new ProjectShortCodeLockedError();
-      }
-      if (nextProject.id !== ownedProject.record.id) {
-        return null;
-      }
-
-      if (ownedProject.record.shortCode !== nextProject.shortCode) {
-        await reserveShortCode(
-          executor,
-          ownedProject.workspaceId,
-          ownedProject.record.id,
-          nextProject.shortCode,
-        );
-      }
-
-      const [updated] = await executor
-        .update(project)
-        .set({
-          revision: input.expectedRevision + 1,
-          shortCode: nextProject.shortCode,
-          updatedAt: input.committedAt,
-        })
-        .where(
-          and(
-            eq(project.id, input.targetId),
-            eq(project.workspaceId, ownedProject.workspaceId),
-            eq(project.revision, input.expectedRevision),
-            eq(project.workCount, 0),
-          ),
-        )
-        .returning();
-      return updated ? toTarget(updated) : null;
+      return operation === "create"
+        ? createProjectShellRecord(executor, accountId, input, nextProject)
+        : updateProjectShellRecord(executor, accountId, input, nextProject);
     },
   };
 }

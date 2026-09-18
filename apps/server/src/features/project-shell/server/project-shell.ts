@@ -4,6 +4,7 @@ import type {
 } from "@cantiara/api/project-shell";
 import {
   createProjectInputSchema,
+  getProjectShellConfiguration,
   type ParsedCreateProjectInput,
   type ProjectShellAccess,
   type ProjectShellCreateRecord,
@@ -79,6 +80,7 @@ function suggestionCandidate(base: string, attempt: number) {
 
 function toProfile(record: ProjectShellRecord): ProjectProfile {
   return {
+    configuration: record.configuration,
     createdAt: record.createdAt,
     id: record.id,
     logo: record.logo,
@@ -101,6 +103,7 @@ function createRecordInput(
   shortCode: string,
 ): ProjectShellCreateRecord {
   return {
+    configuration: getProjectShellConfiguration(input.starterConfiguration),
     logo: nullableText(input.logo),
     name: input.name,
     problem: nullableText(input.problem),

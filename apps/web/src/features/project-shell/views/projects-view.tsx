@@ -151,7 +151,15 @@ function ProjectRow({ project }: { project: ProjectProfile }) {
     <li className="grid gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="truncate font-medium">{project.name}</h3>
+          <h3 className="truncate font-medium">
+            <Link
+              className="underline-offset-4 hover:underline"
+              params={{ projectId: project.id }}
+              to="/projects/$projectId"
+            >
+              {project.name}
+            </Link>
+          </h3>
           <Badge variant="secondary">{project.status}</Badge>
         </div>
         <p className="mt-1 text-muted-foreground text-xs">
