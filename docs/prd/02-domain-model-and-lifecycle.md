@@ -671,6 +671,20 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Workspace Capture Inbox’a kaydet | `Leave empty to save to the Workspace Capture Inbox.` | Project alanı boşken Save’in Workspace Capture Inbox’a yazacağını söyleyen metin |
 | Proje Yakalama Gelen Kutusu | `Project Capture Inbox` | Proje bilindiğinde o projenin geçici yakalamalarının durduğu Inbox |
 | Bu Inbox’ta yakalama yok | `No captures in this Inbox.` | Boş Workspace veya Proje Yakalama Gelen Kutusu |
+| Özgün yakalama | `Original capture` | Dönüşüm veya bağlama önizlemesinde tüketilecek Yakalama Gelen Kutusu öğesinin özgün metin, bağlantı, ek, zaman ve köken görünümü |
+| Dönüşüm önizlemesi | `Conversion Preview` | Yakalama öğesinin tek yeni ana kayda dönüşmeden önce özgün içeriği ve önerilen kaydı karşılaştıran görünüm |
+| Önerilen kayıt | `Proposed record` | Dönüşüm önizlemesinde seçilen kayıt türü, başlık, alanlar ve kapsamla gösterilen henüz yazılmamış ana kayıt |
+| Alan eşlemeleri | `Field mappings` | Yakalama mini şablonu alanlarının önerilen kayda taşınacak ad ve değer karşılıkları |
+| Hedef kapsam | `Target scope` | Dönüşümün yeni kaydı hangi Workspace veya Project kapsamında açacağını gösteren önizleme bilgisi |
+| Bağlama önizlemesi | `Attach Preview` | Yakalamanın mevcut kayda Origin veya Evidence olarak yazılmadan önce hedef ve ilişkiyi gösteren görünüm |
+| İlişki önizlemesi | `Relation preview` | Mevcut kayda yazılacak ilişkinin türünü ve hedef kimliğini onaydan önce gösteren görünüm |
+| Yalnız bu birleştirme | `Only this merge` | Geri alma önizlemesinde hedeften yalnız mevcut birleştirmenin yazdığı bağ ve alanları kaldırma kapsamı |
+| Cross-Project bind | `Cross-Project bind` | Yakalama ile hedefin farklı Project kapsamında olduğu ve açık hedef kapsamı onayı gerektiren bağlama |
+| Öneriler | `Suggestions` | Benzer ana kayıtları bağlama yapmadan önce dayanaklarıyla sunan isteğe bağlı görünüm |
+| Aynı Proje | `Same Project` | Önerilerde yakalamanın Project kapsamıyla eşleşen birincil grup |
+| Dayanak | `Basis` | Bir benzer kayıt önerisinin hangi içerik veya bağlam karşılaştırmasına dayandığını açıklayan görünür bilgi |
+| Önerileri göster | `Show suggestions` | Yakalama için benzer kayıt önerilerini ve görünür dayanaklarını isteme eylemi |
+| Hedefi kullan | `Use target` | Seçilen önerinin kimliğini bağlama önizlemesindeki mevcut kayıt hedefine aktarma eylemi |
 | Create Bug kullanılabilirliği | `Create Bug is available when Project is set and type is Bug Capture.` | Create Bug’un yalnız Proje ve Bug Capture (veya tür belirtilmemiş) iken açık olduğunu söyleyen metin |
 | Create Bug Inbox’ta kalmaz | `Create Bug does not stay in the Capture Inbox. A Work record is not stored yet.` | Create Bug’un Gelen Kutusu öğesi bırakmadığını ve İş kaydının henüz saklanmadığını söyleyen metin |
 | Bug oluştur | `Create Bug` | Proje ve tür kesin olduğunda doğrudan İş oluşturma eylemi; Yakalama Gelen Kutusu öğesi bırakmaz |

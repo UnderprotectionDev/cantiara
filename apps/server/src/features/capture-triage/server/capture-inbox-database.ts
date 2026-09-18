@@ -1,5 +1,7 @@
 import {
+  type CaptureAttachment,
   type CaptureInboxItem,
+  type CaptureInboxTriageAdapter,
   captureInboxItemSchema,
   type NormalizedCaptureInput,
 } from "@cantiara/api/capture-triage";
@@ -10,7 +12,10 @@ import {
   type MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
 import type { Database } from "@cantiara/db";
-import { captureInboxItem } from "@cantiara/db/schema/capture-triage";
+import {
+  captureInboxItem,
+  captureInboxOperation,
+} from "@cantiara/db/schema/capture-triage";
 import { mutationTarget } from "@cantiara/db/schema/mutation";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -18,9 +23,17 @@ import type {
   MutationDatabaseExecutor,
   MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
+import { createDatabaseMutationContract } from "../../mutation-and-undo/server/mutation-contract-database";
 import {
+  type CaptureAttachmentDisposition,
+  type CaptureInboxCompletedOperation,
   CaptureInboxError,
+  type CaptureInboxMergeRecord,
+  type CaptureInboxOperationStateStore,
+  type CaptureInboxPreview,
+  type CaptureInboxStagingStore,
   type CaptureInboxStore,
+  type CaptureInboxStoredItem,
   type CaptureInboxWorkCreate,
   createCaptureInbox,
 } from "./capture-inbox";
@@ -43,19 +56,35 @@ function toCaptureInboxItem(
   record: CaptureInboxDatabaseRecord,
 ): CaptureInboxItem {
   return captureInboxItemSchema.parse({
+    attachment: record.attachment,
     content: record.content,
     createdAt: record.createdAt.toISOString(),
     fields: record.fields,
     id: record.id,
+    link: record.link,
+    origin: record.origin,
     projectId: record.projectId,
     template: record.template,
   });
 }
 
+function toStoredCaptureInboxItem(
+  record: CaptureInboxDatabaseRecord,
+): CaptureInboxStoredItem {
+  return {
+    clientIdempotencyKey: record.clientIdempotencyKey,
+    item: toCaptureInboxItem(record),
+    payloadFingerprint: record.payloadFingerprint,
+  };
+}
+
 function capturePayload(input: NormalizedCaptureInput) {
   return {
+    ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
     content: input.content,
     fields: input.fields,
+    ...(input.link === undefined ? {} : { link: input.link }),
+    ...(input.origin === undefined ? {} : { origin: input.origin }),
     projectId: input.projectId,
     template: input.template,
   };
@@ -98,11 +127,14 @@ async function insertCaptureMutationValue(
     .insert(captureInboxItem)
     .values({
       accountId: value.accountId,
+      attachment: value.item.attachment,
       clientIdempotencyKey: value.clientIdempotencyKey,
       content: value.item.content,
       createdAt: new Date(value.item.createdAt),
       fields: value.item.fields,
       id: value.item.id,
+      link: value.item.link,
+      origin: value.item.origin,
       payloadFingerprint: value.payloadFingerprint,
       projectId: value.item.projectId,
       template: value.item.template,
@@ -176,6 +208,54 @@ export const captureInboxMutationTarget: MutationDatabaseTargetAdapter<MutationP
     },
   };
 
+const captureTriageMutationTarget: MutationDatabaseTargetAdapter<MutationPayload> =
+  {
+    async find(executor, targetId, lock) {
+      const query = executor
+        .select()
+        .from(mutationTarget)
+        .where(eq(mutationTarget.id, targetId))
+        .limit(1);
+      const records = lock ? await query.for("update") : await query;
+      const [record] = records;
+      return record
+        ? toMutationTarget(record)
+        : defaultMutationTarget(targetId);
+    },
+
+    async update(executor, input) {
+      const [updated] = await executor
+        .update(mutationTarget)
+        .set({
+          revision: input.expectedRevision + 1,
+          updatedAt: input.committedAt,
+          value: input.nextValue,
+        })
+        .where(
+          and(
+            eq(mutationTarget.id, input.targetId),
+            eq(mutationTarget.revision, input.expectedRevision),
+          ),
+        )
+        .returning();
+      if (updated) {
+        return toMutationTarget(updated);
+      }
+
+      const [inserted] = await executor
+        .insert(mutationTarget)
+        .values({
+          id: input.targetId,
+          revision: input.expectedRevision + 1,
+          value: input.nextValue,
+          updatedAt: input.committedAt,
+        })
+        .onConflictDoNothing()
+        .returning();
+      return inserted ? toMutationTarget(inserted) : null;
+    },
+  };
+
 function replayExistingCapture(
   record: CaptureInboxDatabaseRecord | undefined,
   payloadFingerprint: string,
@@ -192,11 +272,174 @@ function replayExistingCapture(
   return toCaptureInboxItem(record);
 }
 
+type CaptureInboxOperationKind = "completed" | "merge" | "preview";
+
+function operationStateId(
+  accountId: string,
+  kind: CaptureInboxOperationKind,
+  operationKey: string,
+) {
+  return `capture-inbox-operation:${accountId}:${kind}:${operationKey}`;
+}
+
+function createDatabaseOperationStateStore(
+  database: Database,
+): CaptureInboxOperationStateStore {
+  async function findState(
+    accountId: string,
+    kind: CaptureInboxOperationKind,
+    operationKey: string,
+  ) {
+    const [record] = await database
+      .select()
+      .from(captureInboxOperation)
+      .where(
+        and(
+          eq(captureInboxOperation.accountId, accountId),
+          eq(captureInboxOperation.kind, kind),
+          eq(captureInboxOperation.operationKey, operationKey),
+        ),
+      )
+      .limit(1);
+    return record;
+  }
+
+  async function saveState(
+    accountId: string,
+    kind: CaptureInboxOperationKind,
+    operationKey: string,
+    value: unknown,
+    fingerprint: string,
+  ) {
+    await database
+      .insert(captureInboxOperation)
+      .values({
+        accountId,
+        fingerprint,
+        id: operationStateId(accountId, kind, operationKey),
+        kind,
+        operationKey,
+        value,
+      })
+      .onConflictDoNothing({
+        target: [
+          captureInboxOperation.accountId,
+          captureInboxOperation.kind,
+          captureInboxOperation.operationKey,
+        ],
+      });
+  }
+
+  async function deleteState(
+    accountId: string,
+    kind: CaptureInboxOperationKind,
+    operationKey: string,
+  ) {
+    await database
+      .delete(captureInboxOperation)
+      .where(
+        and(
+          eq(captureInboxOperation.accountId, accountId),
+          eq(captureInboxOperation.kind, kind),
+          eq(captureInboxOperation.operationKey, operationKey),
+        ),
+      );
+  }
+
+  return {
+    async deleteMerge(accountId, mergeId) {
+      await deleteState(accountId, "merge", mergeId);
+    },
+
+    async deletePreview(accountId, previewId) {
+      await deleteState(accountId, "preview", previewId);
+    },
+
+    async findCompleted<TReceipt>(
+      accountId: string,
+      operation: "attach" | "convert" | "delete" | "undo",
+      clientIdempotencyKey: string,
+    ) {
+      const record = await findState(
+        accountId,
+        "completed",
+        `${operation}:${clientIdempotencyKey}`,
+      );
+      if (!record) {
+        return null;
+      }
+      return record.value as CaptureInboxCompletedOperation<TReceipt>;
+    },
+
+    async findMerge(accountId, mergeId) {
+      const record = await findState(accountId, "merge", mergeId);
+      return (record?.value as CaptureInboxMergeRecord) ?? null;
+    },
+
+    async findPreview(accountId, previewId) {
+      const record = await findState(accountId, "preview", previewId);
+      return (record?.value as CaptureInboxPreview) ?? null;
+    },
+
+    async saveCompleted<TReceipt>(
+      accountId: string,
+      operation: "attach" | "convert" | "delete" | "undo",
+      clientIdempotencyKey: string,
+      completed: CaptureInboxCompletedOperation<TReceipt>,
+    ) {
+      const operationKey = `${operation}:${clientIdempotencyKey}`;
+      await saveState(
+        accountId,
+        "completed",
+        operationKey,
+        completed,
+        completed.fingerprint,
+      );
+    },
+
+    async saveMerge(merge) {
+      await saveState(
+        merge.accountId,
+        "merge",
+        merge.receipt.mergeId,
+        merge,
+        JSON.stringify(merge),
+      );
+    },
+
+    async savePreview(preview) {
+      await saveState(
+        preview.accountId,
+        "preview",
+        preview.preview.previewId,
+        preview,
+        JSON.stringify(preview),
+      );
+    },
+  } satisfies CaptureInboxOperationStateStore;
+}
+
 export function createDatabaseCaptureInbox(
   database: Database,
   workCreate: CaptureInboxWorkCreate,
   mutationContract: MutationContract<MutationPayload>,
+  triageAdapter?: CaptureInboxTriageAdapter,
+  stagingStore?: CaptureInboxStagingStore,
 ) {
+  const operationState = createDatabaseOperationStateStore(database);
+  const triageMutationContract =
+    createDatabaseMutationContract<MutationPayload>(database, {
+      target: captureTriageMutationTarget,
+    });
+  async function findStoredCapture(accountId: string, itemId: string) {
+    const record = await database.query.captureInboxItem.findFirst({
+      where: and(
+        eq(captureInboxItem.accountId, accountId),
+        eq(captureInboxItem.id, itemId),
+      ),
+    });
+    return record ? toStoredCaptureInboxItem(record) : null;
+  }
   const store: CaptureInboxStore = {
     async insert(accountId, input) {
       const payloadFingerprint = await fingerprintMutationPayload(
@@ -213,14 +456,25 @@ export function createDatabaseCaptureInbox(
           return replayed;
         }
       }
+      if (input.attachment && !stagingStore) {
+        throw new CaptureInboxError(
+          "CAPTURE_STAGING_UNAVAILABLE",
+          "Capture attachments are not available yet.",
+        );
+      }
 
       const clientIdempotencyKey =
         input.clientIdempotencyKey ?? crypto.randomUUID();
       const item = captureInboxItemSchema.parse({
+        ...(input.attachment === undefined
+          ? {}
+          : { attachment: input.attachment }),
         content: input.content,
         createdAt: new Date().toISOString(),
         fields: input.fields,
         id: crypto.randomUUID(),
+        ...(input.link === undefined ? {} : { link: input.link }),
+        ...(input.origin === undefined ? {} : { origin: input.origin }),
         projectId: input.projectId,
         template: input.template,
       });
@@ -244,6 +498,55 @@ export function createDatabaseCaptureInbox(
       return captureMutationValueSchema.parse(receipt.nextValue).item;
     },
 
+    async consume(
+      accountId,
+      itemId,
+      attachmentDisposition: CaptureAttachmentDisposition,
+    ) {
+      const [candidate] = await database
+        .select()
+        .from(captureInboxItem)
+        .where(
+          and(
+            eq(captureInboxItem.accountId, accountId),
+            eq(captureInboxItem.id, itemId),
+          ),
+        )
+        .limit(1);
+      if (!candidate) {
+        return null;
+      }
+      if (candidate.attachment && attachmentDisposition === "delete") {
+        if (!stagingStore) {
+          throw new CaptureInboxError(
+            "CAPTURE_STAGING_UNAVAILABLE",
+            "Capture attachments are not available yet.",
+          );
+        }
+        await stagingStore.delete({
+          accountId,
+          attachment: candidate.attachment as CaptureAttachment,
+        });
+      }
+      const [deleted] = await database
+        .delete(captureInboxItem)
+        .where(
+          and(
+            eq(captureInboxItem.accountId, accountId),
+            eq(captureInboxItem.id, itemId),
+          ),
+        )
+        .returning();
+      return deleted ? toStoredCaptureInboxItem(deleted) : null;
+    },
+
+    findStored: findStoredCapture,
+
+    async find(accountId, itemId) {
+      const stored = await findStoredCapture(accountId, itemId);
+      return stored?.item ?? null;
+    },
+
     async list(accountId) {
       const records = await database.query.captureInboxItem.findMany({
         orderBy: [desc(captureInboxItem.createdAt)],
@@ -251,7 +554,42 @@ export function createDatabaseCaptureInbox(
       });
       return records.map(toCaptureInboxItem);
     },
+
+    async restore(accountId, storedItem) {
+      const { item } = storedItem;
+      const [restored] = await database
+        .insert(captureInboxItem)
+        .values({
+          accountId,
+          attachment: item.attachment,
+          clientIdempotencyKey: storedItem.clientIdempotencyKey,
+          content: item.content,
+          createdAt: new Date(item.createdAt),
+          fields: item.fields,
+          id: item.id,
+          link: item.link,
+          origin: item.origin,
+          payloadFingerprint: storedItem.payloadFingerprint,
+          projectId: item.projectId,
+          template: item.template,
+        })
+        .onConflictDoNothing({ target: captureInboxItem.id })
+        .returning();
+      if (!restored) {
+        throw new CaptureInboxError(
+          "CAPTURE_PREVIEW_CONFLICT",
+          "The Capture Inbox item could not be restored.",
+        );
+      }
+      return toStoredCaptureInboxItem(restored);
+    },
+    operationState,
   };
 
-  return createCaptureInbox({ store, workCreate });
+  return createCaptureInbox({
+    store,
+    triageAdapter,
+    triageMutationContract,
+    workCreate,
+  });
 }

@@ -1,13 +1,18 @@
 import type {
   CaptureInboxAccess,
   CaptureInboxSnapshot,
+  CaptureInboxTriageAccess,
 } from "@cantiara/api/capture-triage";
 import type { Context } from "@cantiara/api/context";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
 
-const emptyInbox: CaptureInboxSnapshot = { groups: [], items: [] };
+const emptyInbox: CaptureInboxSnapshot = {
+  groups: [],
+  items: [],
+  triageAvailable: false,
+};
 
 function createContext(captureInbox: CaptureInboxAccess): Context {
   return {
@@ -160,6 +165,84 @@ describe("Capture Inbox RPC", () => {
       },
       message: "Conflict",
       status: 409,
+    });
+  });
+
+  test("keeps triage exits behind preview and confirmation RPCs", async () => {
+    const preview = {
+      fieldMappings: [],
+      itemId: "capture-1",
+      previewId: "preview-1",
+      proposedRelations: [{ relation: "Origin", target: "Proposed record" }],
+      proposedRecord: {
+        fields: {},
+        projectId: null,
+        recordType: "Work" as const,
+        title: "A capture",
+      },
+      source: {
+        content: "A capture",
+        createdAt: "2026-09-16T09:00:00.000Z",
+        fields: {},
+        id: "capture-1",
+        projectId: null,
+        template: null,
+      },
+      targetScope: {
+        kind: "workspace" as const,
+        label: "Workspace" as const,
+        projectId: null,
+      },
+    };
+    const captureInbox: CaptureInboxTriageAccess = {
+      attachToExisting: vi.fn(),
+      convert: vi.fn().mockResolvedValue({
+        consumed: true,
+        exit: "convert",
+        itemId: "capture-1",
+        recordId: "work-1",
+        recordType: "Work",
+      }),
+      create: vi.fn(),
+      createBug: vi.fn(),
+      delete: vi.fn(),
+      list: vi.fn().mockResolvedValue(emptyInbox),
+      previewAttachToExisting: vi.fn(),
+      previewConvert: vi.fn().mockResolvedValue(preview),
+      previewUndoMerge: vi.fn(),
+      suggestions: vi.fn(),
+      undoMerge: vi.fn(),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(captureInbox),
+    });
+
+    await expect(
+      client.previewCaptureConversion({
+        itemId: "capture-1",
+        recordType: "Work",
+      }),
+    ).resolves.toEqual(preview);
+    await expect(
+      client.convertCapture({
+        clientIdempotencyKey: "convert-key-1",
+        itemId: "capture-1",
+        previewId: "preview-1",
+      }),
+    ).resolves.toMatchObject({
+      consumed: true,
+      exit: "convert",
+      recordId: "work-1",
+    });
+
+    expect(captureInbox.previewConvert).toHaveBeenCalledWith("account-1", {
+      itemId: "capture-1",
+      recordType: "Work",
+    });
+    expect(captureInbox.convert).toHaveBeenCalledWith("account-1", {
+      clientIdempotencyKey: "convert-key-1",
+      itemId: "capture-1",
+      previewId: "preview-1",
     });
   });
 });
