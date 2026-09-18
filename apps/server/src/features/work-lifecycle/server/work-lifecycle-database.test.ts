@@ -197,4 +197,70 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       }),
     ).resolves.toMatchObject({ revision: 3, type: "Feature" });
   });
+
+  test("persists Feature inclusion, health, Primary spec, and derived progress independently", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Feature Project",
+      shortCode: "FEATURE",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const feature = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "database-feature",
+      projectId: project.id,
+      title: "Feature scope",
+      type: "Feature",
+    });
+    const independentWork = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "database-included-work",
+      projectId: project.id,
+      title: "Independent Bug",
+      type: "Bug",
+    });
+
+    const included = await workLifecycle.includeWork(accountId, {
+      baseRevision: independentWork.revision,
+      clientIdempotencyKey: "database-include-work",
+      featureId: feature.id,
+      workId: independentWork.id,
+    });
+    const withHealth = await workLifecycle.recordFeatureHealth(accountId, {
+      baseRevision: feature.revision,
+      clientIdempotencyKey: "database-feature-health",
+      featureId: feature.id,
+      health: "On Track",
+      reason: "The acceptance path is clear.",
+    });
+    await workLifecycle.updateFeaturePrimarySpec(accountId, {
+      baseRevision: withHealth.revision,
+      clientIdempotencyKey: "database-primary-spec",
+      featureId: feature.id,
+      primarySpecId: "document-1",
+    });
+
+    await expect(
+      workLifecycle.find(accountId, included.id),
+    ).resolves.toMatchObject({
+      primaryFeatureId: feature.id,
+      status: independentWork.status,
+      type: "Bug",
+    });
+    await expect(
+      workLifecycle.featureProgress(accountId, feature.id),
+    ).resolves.toMatchObject({ includedWorkCount: 1 });
+    await expect(
+      workLifecycle.find(accountId, feature.id),
+    ).resolves.toMatchObject({
+      featureHealthHistory: [expect.objectContaining({ health: "On Track" })],
+      primarySpecId: "document-1",
+      status: "Not Started",
+    });
+  });
 });

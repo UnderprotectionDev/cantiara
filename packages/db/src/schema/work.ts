@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   check,
   index,
   integer,
@@ -18,9 +19,18 @@ export const work = pgTable(
     captureProvenance: jsonb("capture_provenance").$type<unknown>(),
     closureResult: text("closure_result"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    featureHealthHistory: jsonb("feature_health_history")
+      .$type<unknown[]>()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
     id: text("id").primaryKey(),
     key: text("key").notNull(),
     number: integer("number").notNull(),
+    primaryFeatureId: text("primary_feature_id").references(
+      (): AnyPgColumn => work.id,
+      { onDelete: "set null" },
+    ),
+    primarySpecId: text("primary_spec_id"),
     projectId: text("project_id")
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
@@ -35,11 +45,16 @@ export const work = pgTable(
   },
   (table) => [
     index("work_project_idx").on(table.projectId),
+    index("work_primary_feature_idx").on(table.primaryFeatureId),
     uniqueIndex("work_project_number_uidx").on(table.projectId, table.number),
     uniqueIndex("work_project_key_uidx").on(table.projectId, table.key),
     check("work_number_check", sql`${table.number} >= 1`),
     check("work_revision_check", sql`${table.revision} >= 0`),
     check("work_title_check", sql`length(btrim(${table.title})) > 0`),
+    check(
+      "work_primary_feature_not_self_check",
+      sql`${table.primaryFeatureId} is null or ${table.primaryFeatureId} <> ${table.id}`,
+    ),
     check(
       "work_type_check",
       sql`${table.type} in ('Feature', 'Bug', 'Task', 'Research', 'Improvement')`,

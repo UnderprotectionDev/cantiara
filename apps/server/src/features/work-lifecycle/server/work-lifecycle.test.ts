@@ -18,6 +18,8 @@ import {
   createWorkLifecycle,
   WorkCreationConflictError,
   type WorkCreationReservation,
+  WorkFeatureExitBlockedError,
+  WorkInclusionConflictError,
   type WorkLifecycleStore,
   WorkTypeImpactPreviewRequiredError,
 } from "./work-lifecycle";
@@ -48,6 +50,10 @@ function createMemoryWorkLifecycle(
     list: async (_accountId, projectId) =>
       [...works.values()]
         .filter((work) => work.projectId === projectId)
+        .sort((left, right) => left.number - right.number),
+    listIncluded: async (_accountId, featureId) =>
+      [...works.values()]
+        .filter((work) => work.primaryFeatureId === featureId)
         .sort((left, right) => left.number - right.number),
     reserveCreate: (_accountId, projectId, key, payloadFingerprint) => {
       const reservationKey = `${projectId}:${key}`;
@@ -180,6 +186,321 @@ function createInput(
 }
 
 describe("Work Lifecycle seam", () => {
+  test("allows only one primary Feature to include a Work", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const firstFeature = await workLifecycle.create(
+      "account-1",
+      createInput("first-feature", { title: "First Feature", type: "Feature" }),
+    );
+    const secondFeature = await workLifecycle.create(
+      "account-1",
+      createInput("second-feature", {
+        title: "Second Feature",
+        type: "Feature",
+      }),
+    );
+    const includedWork = await workLifecycle.create(
+      "account-1",
+      createInput("included-work", { title: "Included Work" }),
+    );
+
+    await expect(
+      workLifecycle.includeWork("account-1", {
+        baseRevision: includedWork.revision,
+        clientIdempotencyKey: "include-in-first-feature",
+        featureId: firstFeature.id,
+        workId: includedWork.id,
+      }),
+    ).resolves.toMatchObject({ primaryFeatureId: firstFeature.id });
+
+    await expect(
+      workLifecycle.includeWork("account-1", {
+        baseRevision: includedWork.revision + 1,
+        clientIdempotencyKey: "include-in-second-feature",
+        featureId: secondFeature.id,
+        workId: includedWork.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkInclusionConflictError);
+  });
+
+  test("refuses nested Feature inclusion", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const parentFeature = await workLifecycle.create(
+      "account-1",
+      createInput("parent-feature", {
+        title: "Parent Feature",
+        type: "Feature",
+      }),
+    );
+    const childFeature = await workLifecycle.create(
+      "account-1",
+      createInput("child-feature", {
+        title: "Child Feature",
+        type: "Feature",
+      }),
+    );
+
+    await expect(
+      workLifecycle.includeWork("account-1", {
+        baseRevision: childFeature.revision,
+        clientIdempotencyKey: "nested-feature",
+        featureId: parentFeature.id,
+        workId: childFeature.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkInclusionConflictError);
+  });
+
+  test("keeps included Work independent and derives progress without changing Feature status", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const feature = await workLifecycle.create(
+      "account-1",
+      createInput("progress-feature", {
+        title: "Progress Feature",
+        type: "Feature",
+      }),
+    );
+    const includedWork = await workLifecycle.create(
+      "account-1",
+      createInput("progress-work", {
+        title: "Independent Bug",
+        type: "Bug",
+      }),
+    );
+
+    const included = await workLifecycle.includeWork("account-1", {
+      baseRevision: includedWork.revision,
+      clientIdempotencyKey: "include-progress-work",
+      featureId: feature.id,
+      workId: includedWork.id,
+    });
+    expect(included).toMatchObject({
+      closureResult: includedWork.closureResult,
+      id: includedWork.id,
+      key: includedWork.key,
+      primaryFeatureId: feature.id,
+      projectId: includedWork.projectId,
+      status: includedWork.status,
+      title: includedWork.title,
+      type: includedWork.type,
+    });
+
+    await expect(
+      workLifecycle.featureProgress("account-1", feature.id),
+    ).resolves.toEqual({
+      includedWorkCount: 1,
+      statusCounts: {
+        Blocked: 0,
+        Closed: 0,
+        "In Progress": 0,
+        "Not Started": 1,
+      },
+    });
+    await expect(
+      workLifecycle.find("account-1", feature.id),
+    ).resolves.toMatchObject({ status: "Not Started" });
+  });
+
+  test("records Feature health only on the Feature without changing status or progress", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const feature = await workLifecycle.create(
+      "account-1",
+      createInput("health-feature", {
+        title: "Healthy Feature",
+        type: "Feature",
+      }),
+    );
+
+    const updated = await workLifecycle.recordFeatureHealth("account-1", {
+      baseRevision: feature.revision,
+      clientIdempotencyKey: "record-feature-health",
+      featureId: feature.id,
+      health: "At Risk",
+      reason: "The external dependency is uncertain.",
+    });
+
+    expect(updated).toMatchObject({ status: "Not Started" });
+    expect(updated.featureHealthHistory).toEqual([
+      expect.objectContaining({
+        health: "At Risk",
+        reason: "The external dependency is uncertain.",
+        recordedByAccountId: "account-1",
+      }),
+    ]);
+    await expect(
+      workLifecycle.featureProgress("account-1", feature.id),
+    ).resolves.toEqual({
+      includedWorkCount: 0,
+      statusCounts: {
+        Blocked: 0,
+        Closed: 0,
+        "In Progress": 0,
+        "Not Started": 0,
+      },
+    });
+  });
+
+  test("blocks leaving Feature until included Work is explicitly detached", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const feature = await workLifecycle.create(
+      "account-1",
+      createInput("exit-feature", { title: "Exit Feature", type: "Feature" }),
+    );
+    const includedWork = await workLifecycle.create(
+      "account-1",
+      createInput("exit-included-work", { title: "Included Work" }),
+    );
+    await workLifecycle.includeWork("account-1", {
+      baseRevision: includedWork.revision,
+      clientIdempotencyKey: "include-before-exit",
+      featureId: feature.id,
+      workId: includedWork.id,
+    });
+
+    const blockedPreview = await workLifecycle.previewTypeChange("account-1", {
+      type: "Task",
+      workId: feature.id,
+    });
+    expect(blockedPreview).toMatchObject({
+      featureExitBlockers: {
+        featureHealthUpdateCount: 0,
+        hasPrimarySpec: false,
+        includedWorkCount: 1,
+      },
+    });
+    if (!blockedPreview) {
+      throw new Error("Expected a Feature exit preview.");
+    }
+    await expect(
+      workLifecycle.updateType("account-1", {
+        baseRevision: feature.revision,
+        clientIdempotencyKey: "blocked-feature-exit",
+        impactPreviewId: blockedPreview.previewId,
+        type: "Task",
+        workId: feature.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkFeatureExitBlockedError);
+
+    await workLifecycle.detachIncludedWork("account-1", {
+      baseRevision: includedWork.revision + 1,
+      clientIdempotencyKey: "detach-before-exit",
+      featureId: feature.id,
+      workId: includedWork.id,
+    });
+    const clearPreview = await workLifecycle.previewTypeChange("account-1", {
+      type: "Task",
+      workId: feature.id,
+    });
+    expect(clearPreview).toMatchObject({
+      featureExitBlockers: {
+        featureHealthUpdateCount: 0,
+        hasPrimarySpec: false,
+        includedWorkCount: 0,
+      },
+    });
+    if (!clearPreview) {
+      throw new Error("Expected a clear Feature exit preview.");
+    }
+    await expect(
+      workLifecycle.updateType("account-1", {
+        baseRevision: feature.revision,
+        clientIdempotencyKey: "allowed-feature-exit",
+        impactPreviewId: clearPreview.previewId,
+        type: "Task",
+        workId: feature.id,
+      }),
+    ).resolves.toMatchObject({ type: "Task" });
+  });
+
+  test("blocks leaving Feature until health history and Primary spec are detached", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const feature = await workLifecycle.create(
+      "account-1",
+      createInput("feature-data-exit", {
+        title: "Feature with context",
+        type: "Feature",
+      }),
+    );
+    const withHealth = await workLifecycle.recordFeatureHealth("account-1", {
+      baseRevision: feature.revision,
+      clientIdempotencyKey: "health-before-exit",
+      featureId: feature.id,
+      health: "Off Track",
+      reason: "The required evidence is missing.",
+    });
+    const withPrimarySpec = await workLifecycle.updateFeaturePrimarySpec(
+      "account-1",
+      {
+        baseRevision: withHealth.revision,
+        clientIdempotencyKey: "primary-spec-before-exit",
+        featureId: feature.id,
+        primarySpecId: "document-1",
+      },
+    );
+
+    const blockedPreview = await workLifecycle.previewTypeChange("account-1", {
+      type: "Improvement",
+      workId: feature.id,
+    });
+    expect(blockedPreview).toMatchObject({
+      featureExitBlockers: {
+        featureHealthUpdateCount: 1,
+        hasPrimarySpec: true,
+        includedWorkCount: 0,
+      },
+    });
+    if (!blockedPreview) {
+      throw new Error("Expected a blocked Feature exit preview.");
+    }
+    await expect(
+      workLifecycle.updateType("account-1", {
+        baseRevision: withPrimarySpec.revision,
+        clientIdempotencyKey: "blocked-context-exit",
+        impactPreviewId: blockedPreview.previewId,
+        type: "Improvement",
+        workId: feature.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkFeatureExitBlockedError);
+
+    const withoutHealth = await workLifecycle.detachFeatureHealthHistory(
+      "account-1",
+      {
+        baseRevision: withPrimarySpec.revision,
+        clientIdempotencyKey: "detach-health-before-exit",
+        featureId: feature.id,
+      },
+    );
+    const withoutPrimarySpec = await workLifecycle.updateFeaturePrimarySpec(
+      "account-1",
+      {
+        baseRevision: withoutHealth.revision,
+        clientIdempotencyKey: "detach-primary-spec-before-exit",
+        featureId: feature.id,
+        primarySpecId: null,
+      },
+    );
+    const clearPreview = await workLifecycle.previewTypeChange("account-1", {
+      type: "Improvement",
+      workId: feature.id,
+    });
+    expect(clearPreview?.featureExitBlockers).toEqual({
+      featureHealthUpdateCount: 0,
+      hasPrimarySpec: false,
+      includedWorkCount: 0,
+    });
+    if (!clearPreview) {
+      throw new Error("Expected a clear Feature exit preview.");
+    }
+    await expect(
+      workLifecycle.updateType("account-1", {
+        baseRevision: withoutPrimarySpec.revision,
+        clientIdempotencyKey: "allowed-context-exit",
+        impactPreviewId: clearPreview.previewId,
+        type: "Improvement",
+        workId: feature.id,
+      }),
+    ).resolves.toMatchObject({ type: "Improvement" });
+  });
+
   test("creates a title-only Work with a stable key and protected defaults", async () => {
     const workLifecycle = createMemoryWorkLifecycle();
 

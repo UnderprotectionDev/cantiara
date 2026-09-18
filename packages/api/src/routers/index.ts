@@ -50,6 +50,11 @@ import {
 import type { WebCaptureAccess } from "../web-capture";
 import {
   createWorkMutationInputSchema,
+  detachFeatureHealthHistoryInputSchema,
+  detachIncludedWorkInputSchema,
+  includeWorkInputSchema,
+  recordFeatureHealthInputSchema,
+  updateFeaturePrimarySpecInputSchema,
   updateWorkTypeInputSchema,
   workTypeChangePreviewInputSchema,
 } from "../work-lifecycle";
@@ -271,6 +276,22 @@ function rethrowCaptureInboxError(error: unknown): never {
   throw error;
 }
 
+function mapWorkLifecycleFeatureError(error: Record<string, unknown>) {
+  if (error.code === "WORK_FEATURE_EXIT_BLOCKED") {
+    return new ORPCError("PRECONDITION_FAILED", {
+      data: {
+        code: error.code,
+        ...(isRecord(error.blockers) ? { blockers: error.blockers } : {}),
+      },
+      defined: true,
+      message:
+        "Detach included Work, Feature health history, and Primary spec before leaving Feature.",
+    });
+  }
+
+  return null;
+}
+
 function mapWorkLifecycleError(error: Record<string, unknown>) {
   if (error.code === "WORK_NOT_FOUND") {
     return new ORPCError("NOT_FOUND", {
@@ -304,6 +325,30 @@ function mapWorkLifecycleError(error: Record<string, unknown>) {
       },
       defined: true,
       message: "Impact preview is required before changing to or from Feature.",
+    });
+  }
+
+  const featureError = mapWorkLifecycleFeatureError(error);
+  if (featureError) {
+    return featureError;
+  }
+
+  if (error.code === "WORK_INCLUSION_CONFLICT") {
+    return new ORPCError("CONFLICT", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "Work inclusion could not be changed.",
+    });
+  }
+
+  if (error.code === "WORK_FEATURE_REQUIRED") {
+    return new ORPCError("BAD_REQUEST", {
+      data: { code: error.code },
+      defined: true,
+      message: "This action is available only for Feature Work.",
     });
   }
 
@@ -574,6 +619,78 @@ export const appRouter = {
         input.projectId,
       ),
     ),
+  featureProgress: protectedProcedure
+    .input(z.object({ featureId: z.string().trim().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).featureProgress(
+          context.session.user.id,
+          input.featureId,
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
+    }),
+  includeWork: protectedProcedure
+    .input(includeWorkInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).includeWork(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
+    }),
+  detachIncludedWork: protectedProcedure
+    .input(detachIncludedWorkInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).detachIncludedWork(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
+    }),
+  recordFeatureHealth: protectedProcedure
+    .input(recordFeatureHealthInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).recordFeatureHealth(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
+    }),
+  detachFeatureHealthHistory: protectedProcedure
+    .input(detachFeatureHealthHistoryInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).detachFeatureHealthHistory(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
+    }),
+  updateFeaturePrimarySpec: protectedProcedure
+    .input(updateFeaturePrimarySpecInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).updateFeaturePrimarySpec(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
+    }),
   work: protectedProcedure
     .input(z.object({ workId: z.string().trim().min(1) }).strict())
     .handler(async ({ context, input }) => {

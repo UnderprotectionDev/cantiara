@@ -38,6 +38,16 @@ export type WorkClosureResult = (typeof WORK_CLOSURE_RESULT_OPTIONS)[number];
 
 export const workClosureResultSchema = z.enum(WORK_CLOSURE_RESULT_OPTIONS);
 
+export const FEATURE_HEALTH_OPTIONS = [
+  "On Track",
+  "At Risk",
+  "Off Track",
+] as const;
+
+export type FeatureHealth = (typeof FEATURE_HEALTH_OPTIONS)[number];
+
+export const featureHealthSchema = z.enum(FEATURE_HEALTH_OPTIONS);
+
 const identifierSchema = z.string().trim().min(1).max(255);
 
 export const workTitleSchema = z
@@ -97,6 +107,44 @@ export const updateWorkTypeInputSchema = workTypeChangePreviewInputObjectSchema
   })
   .strict();
 
+export const includeWorkInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    featureId: identifierSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export const detachIncludedWorkInputSchema = includeWorkInputSchema;
+
+export const recordFeatureHealthInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    featureId: identifierSchema,
+    health: featureHealthSchema,
+    reason: z.string().trim().min(1).max(1000),
+  })
+  .strict();
+
+export const detachFeatureHealthHistoryInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    featureId: identifierSchema,
+  })
+  .strict();
+
+export const updateFeaturePrimarySpecInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    featureId: identifierSchema,
+    primarySpecId: identifierSchema.nullable(),
+  })
+  .strict();
+
 export type CreateWorkInput = z.input<typeof createWorkInputSchema>;
 export type ParsedCreateWorkInput = z.output<typeof createWorkInputSchema>;
 export type CreateWorkMutationInput = z.input<
@@ -106,14 +154,42 @@ export type WorkTypeChangePreviewInput = z.input<
   typeof workTypeChangePreviewInputSchema
 >;
 export type UpdateWorkTypeInput = z.input<typeof updateWorkTypeInputSchema>;
+export type IncludeWorkInput = z.input<typeof includeWorkInputSchema>;
+export type DetachIncludedWorkInput = z.input<
+  typeof detachIncludedWorkInputSchema
+>;
+export type RecordFeatureHealthInput = z.input<
+  typeof recordFeatureHealthInputSchema
+>;
+export type DetachFeatureHealthHistoryInput = z.input<
+  typeof detachFeatureHealthHistoryInputSchema
+>;
+export type UpdateFeaturePrimarySpecInput = z.input<
+  typeof updateFeaturePrimarySpecInputSchema
+>;
+
+export const featureHealthUpdateSchema = z
+  .object({
+    health: featureHealthSchema,
+    id: identifierSchema,
+    reason: z.string().trim().min(1).max(1000),
+    recordedAt: z.string().datetime({ offset: true }),
+    recordedByAccountId: identifierSchema,
+  })
+  .strict();
+
+export type FeatureHealthUpdate = z.infer<typeof featureHealthUpdateSchema>;
 
 export interface WorkProfile {
   captureProvenance: WorkCaptureProvenance | null;
   closureResult: WorkClosureResult | null;
   createdAt: string;
+  featureHealthHistory: FeatureHealthUpdate[];
   id: string;
   key: string;
   number: number;
+  primaryFeatureId: string | null;
+  primarySpecId: string | null;
   projectId: string;
   revision: number;
   status: WorkStatus;
@@ -136,10 +212,22 @@ export interface WorkLifecycleMutationContracts {
 
 export interface WorkTypeChangePreview {
   currentType: WorkType;
+  featureExitBlockers: FeatureExitBlockers | null;
   nextType: WorkType;
   previewId: string;
   requiresImpactPreview: boolean;
   workId: string;
+}
+
+export interface FeatureExitBlockers {
+  featureHealthUpdateCount: number;
+  hasPrimarySpec: boolean;
+  includedWorkCount: number;
+}
+
+export interface FeatureProgress {
+  includedWorkCount: number;
+  statusCounts: Record<WorkStatus, number>;
 }
 
 export interface WorkLifecycleAccess {
@@ -147,12 +235,36 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: CreateWorkMutationInput,
   ) => Promise<WorkProfile>;
+  detachFeatureHealthHistory: (
+    accountId: string,
+    input: DetachFeatureHealthHistoryInput,
+  ) => Promise<WorkProfile>;
+  detachIncludedWork: (
+    accountId: string,
+    input: DetachIncludedWorkInput,
+  ) => Promise<WorkProfile>;
+  featureProgress: (
+    accountId: string,
+    featureId: string,
+  ) => Promise<FeatureProgress>;
   find: (accountId: string, workId: string) => Promise<WorkProfile | null>;
+  includeWork: (
+    accountId: string,
+    input: IncludeWorkInput,
+  ) => Promise<WorkProfile>;
   list: (accountId: string, projectId: string) => Promise<WorkProfile[]>;
   previewTypeChange: (
     accountId: string,
     input: WorkTypeChangePreviewInput,
   ) => Promise<WorkTypeChangePreview | null>;
+  recordFeatureHealth: (
+    accountId: string,
+    input: RecordFeatureHealthInput,
+  ) => Promise<WorkProfile>;
+  updateFeaturePrimarySpec: (
+    accountId: string,
+    input: UpdateFeaturePrimarySpecInput,
+  ) => Promise<WorkProfile>;
   updateType: (
     accountId: string,
     input: UpdateWorkTypeInput,

@@ -1,5 +1,6 @@
 import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
 import {
+  featureHealthUpdateSchema,
   type WorkLifecycleMutationValue,
   type WorkProfile,
   workCaptureProvenanceSchema,
@@ -37,9 +38,14 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
       ? workClosureResultSchema.parse(record.closureResult)
       : null,
     createdAt: record.createdAt.toISOString(),
+    featureHealthHistory: featureHealthUpdateSchema
+      .array()
+      .parse(record.featureHealthHistory),
     id: record.id,
     key: record.key,
     number: record.number,
+    primaryFeatureId: record.primaryFeatureId,
+    primarySpecId: record.primarySpecId,
     projectId: record.projectId,
     revision: record.revision,
     status: workStatusSchema.parse(record.status),
@@ -172,9 +178,12 @@ function createWorkMutationTarget(
           captureProvenance: nextWork.captureProvenance,
           closureResult: nextWork.closureResult,
           createdAt: new Date(nextWork.createdAt),
+          featureHealthHistory: nextWork.featureHealthHistory,
           id: nextWork.id,
           key: nextWork.key,
           number: nextWork.number,
+          primaryFeatureId: nextWork.primaryFeatureId,
+          primarySpecId: nextWork.primarySpecId,
           projectId: nextWork.projectId,
           revision: input.expectedRevision + 1,
           status: nextWork.status,
@@ -242,6 +251,9 @@ function createWorkUpdateMutationTarget(
       const [updated] = await executor
         .update(work)
         .set({
+          featureHealthHistory: nextWork.featureHealthHistory,
+          primaryFeatureId: nextWork.primaryFeatureId,
+          primarySpecId: nextWork.primarySpecId,
           revision: input.expectedRevision + 1,
           type: nextWork.type,
           updatedAt: input.committedAt,
@@ -329,6 +341,25 @@ export function createDatabaseWorkLifecycle(database: Database) {
         .where(
           and(
             eq(work.projectId, projectId),
+            eq(project.workspaceId, workspaceId),
+          ),
+        )
+        .orderBy(asc(work.number));
+      return records.map(({ record }) => toWorkProfile(record));
+    },
+
+    async listIncluded(accountId, featureId) {
+      const workspaceId = await findWorkspaceId(database, accountId);
+      if (!workspaceId) {
+        return [];
+      }
+      const records = await database
+        .select({ record: work })
+        .from(work)
+        .innerJoin(project, eq(work.projectId, project.id))
+        .where(
+          and(
+            eq(work.primaryFeatureId, featureId),
             eq(project.workspaceId, workspaceId),
           ),
         )
