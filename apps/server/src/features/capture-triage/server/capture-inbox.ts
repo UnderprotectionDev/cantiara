@@ -22,6 +22,8 @@ import {
   type CaptureInboxTriageAccess,
   type CaptureInboxTriageAdapter,
   type CaptureInput,
+  type CaptureRecordCreateInput,
+  type CaptureRecordCreateReceipt,
   type CaptureSuggestion,
   type CaptureSuggestions,
   type CaptureTargetScope,
@@ -170,6 +172,9 @@ export interface CaptureInboxStagingStore {
 
 export interface CaptureInboxWorkCreate {
   createBug: (input: DirectBugCreateInput) => Promise<DirectBugCreateReceipt>;
+  createWork?: (
+    input: CaptureRecordCreateInput,
+  ) => Promise<CaptureRecordCreateReceipt>;
 }
 
 export class CaptureInboxError extends Error {
@@ -810,21 +815,37 @@ export function createCaptureInbox({
         );
       }
       const targetScope = captureTargetScope(item);
+      const createRecord = () => {
+        if (
+          pending.preview.proposedRecord.recordType === "Work" &&
+          workCreate.createWork
+        ) {
+          return workCreate.createWork({
+            accountId,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            fields: pending.preview.proposedRecord.fields,
+            item,
+            projectId: pending.preview.proposedRecord.projectId,
+            recordType: pending.preview.proposedRecord.recordType,
+            title: pending.preview.proposedRecord.title,
+          });
+        }
+        return adapter.createRecord({
+          accountId,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          fields: pending.preview.proposedRecord.fields,
+          item,
+          projectId: pending.preview.proposedRecord.projectId,
+          recordType: pending.preview.proposedRecord.recordType,
+          title: pending.preview.proposedRecord.title,
+        });
+      };
       const created = await runTriageMutation({
         accountId,
         action: () =>
           finalizeCaptureAttachment({
             accountId,
-            action: () =>
-              adapter.createRecord({
-                accountId,
-                clientIdempotencyKey: input.clientIdempotencyKey,
-                fields: pending.preview.proposedRecord.fields,
-                item,
-                projectId: pending.preview.proposedRecord.projectId,
-                recordType: pending.preview.proposedRecord.recordType,
-                title: pending.preview.proposedRecord.title,
-              }),
+            action: createRecord,
             clientIdempotencyKey: input.clientIdempotencyKey,
             item,
             targetScope,

@@ -26,6 +26,7 @@ import { createDevelopmentCaptureInboxTriageAdapter } from "../src/features/capt
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
 
 const serverPort = Number(process.env.E2E_SERVER_PORT ?? "3100");
 const serverOrigin = `http://127.0.0.1:${serverPort}`;
@@ -63,6 +64,7 @@ const captureInbox = createDatabaseCaptureInbox(
 const projectShell = createDatabaseProjectShell(database);
 const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(database);
+const workLifecycle = createDatabaseWorkLifecycle(database);
 const githubAvailability = createGitHubAvailability();
 const auth = betterAuth({
   ...createAuthOptions(
@@ -117,6 +119,7 @@ const app = createApp({
   nodeEnv: "test",
   projectShell,
   projectShellMutationContracts,
+  workLifecycle,
   redactSecrets: () => new Error("Redacted E2E server error"),
   trustedProxyIps: [],
 });

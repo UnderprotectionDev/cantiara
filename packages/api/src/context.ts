@@ -14,6 +14,7 @@ import type {
   ProjectShellMutationContracts,
 } from "./project-shell";
 import type { WebCaptureAccess } from "./web-capture";
+import type { WorkLifecycleAccess } from "./work-lifecycle";
 
 export interface AccountSessionPrincipal {
   accountId: string;
@@ -117,4 +118,5 @@ export interface Context {
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;
   webCapture?: WebCaptureAccess;
+  workLifecycle?: WorkLifecycleAccess;
 }

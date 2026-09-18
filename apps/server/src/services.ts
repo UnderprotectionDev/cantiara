@@ -32,11 +32,13 @@ import {
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
 
 const db = createDb(env);
 const securityEventDb = createSecurityEventDb({
   DATABASE_URL: env.SECURITY_EVENT_DATABASE_URL,
 });
+const CAPTURE_LINE_BREAK_PATTERN = /\r?\n/u;
 const accountAdmission = createDatabaseAccountAdmission(db);
 const databaseAccountPreferences = createDatabaseAccountPreferences(db);
 export const accountPreferences = databaseAccountPreferences;
@@ -50,18 +52,55 @@ export const mutationContract =
 export const projectShell = createDatabaseProjectShell(db);
 export const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(db);
+export const workLifecycle = createDatabaseWorkLifecycle(db);
 export const captureInboxMutationContract =
   createDatabaseMutationContract<MutationPayload>(db, {
     target: captureInboxMutationTarget,
   });
+
+function captureTitle(content: string) {
+  return (
+    content
+      .split(CAPTURE_LINE_BREAK_PATTERN)
+      .find((line) => line.trim().length > 0)
+      ?.trim() ?? "Untitled capture"
+  );
+}
+
 // Work Lifecycle owns key allocation and persistence; Capture Inbox only hands
-// an eligible direct Create Bug command across that boundary for now.
+// eligible direct or converted Work creates across that boundary.
 const captureInboxWorkCreate: CaptureInboxWorkCreate = {
-  createBug: () => {
-    throw new CaptureInboxError(
-      "CAPTURE_WORK_CREATE_UNAVAILABLE",
-      "Work creation is not available yet.",
-    );
+  createBug: async (input) => {
+    if (!input.projectId) {
+      throw new CaptureInboxError(
+        "PROJECT_REQUIRED_FOR_CREATE_BUG",
+        "Create Bug requires a Project.",
+      );
+    }
+    const work = await workLifecycle.create(input.accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: input.clientIdempotencyKey ?? crypto.randomUUID(),
+      projectId: input.projectId,
+      title: captureTitle(input.content),
+      type: "Bug",
+    });
+    return { workId: work.id };
+  },
+  createWork: async (input) => {
+    if (!input.projectId) {
+      throw new CaptureInboxError(
+        "PROJECT_REQUIRED_FOR_CREATE_BUG",
+        "Converting a Capture Inbox item to Work requires a Project.",
+      );
+    }
+    const work = await workLifecycle.create(input.accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: input.clientIdempotencyKey,
+      projectId: input.projectId,
+      title: input.title,
+      type: "Task",
+    });
+    return { id: work.id, recordType: "Work" };
   },
 };
 const webCaptureStaging =

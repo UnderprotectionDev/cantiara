@@ -23,6 +23,8 @@ import { ArrowLeft, Check, CircleHelp, Settings2 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/views/client-shell";
+import WorkCreateForm from "@/features/work-lifecycle/forms/work-create-form";
+import ProjectWorkList from "@/features/work-lifecycle/views/project-work-list";
 import { client, orpc } from "@/utils/orpc";
 
 const ALWAYS_REACHABLE_SURFACES = ["Overview", "All Tools"] as const;
@@ -374,10 +376,11 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
         >
           <div>
             <h2 className="font-medium text-lg">Work</h2>
-            <p className="mt-2 text-muted-foreground text-sm/relaxed">
-              No sample content was created.
-            </p>
-            <DailyWorkActions activeAction={dailyAction} />
+            <ProjectWorkList projectId={projectId} />
+            <DailyWorkActions
+              activeAction={dailyAction}
+              projectId={projectId}
+            />
           </div>
           <div className="lg:border-l lg:pl-6">
             <p className="font-medium text-muted-foreground text-xs">
@@ -416,8 +419,10 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
 
 function DailyWorkActions({
   activeAction,
+  projectId,
 }: {
   activeAction: DailyAction | null;
+  projectId: string;
 }) {
   return (
     <section aria-labelledby="daily-actions-heading" className="mt-5">
@@ -433,7 +438,9 @@ function DailyWorkActions({
           />
         ))}
       </div>
-      {activeAction ? <DailyActionHost action={activeAction} /> : null}
+      {activeAction ? (
+        <DailyActionHost action={activeAction} projectId={projectId} />
+      ) : null}
     </section>
   );
 }
@@ -462,7 +469,13 @@ function DailyActionLink({
   );
 }
 
-function DailyActionHost({ action }: { action: DailyAction }) {
+function DailyActionHost({
+  action,
+  projectId,
+}: {
+  action: DailyAction;
+  projectId: string;
+}) {
   const hostId = DAILY_ACTION_HASHES[action];
 
   return (
@@ -474,7 +487,11 @@ function DailyActionHost({ action }: { action: DailyAction }) {
       <h4 className="font-medium text-foreground" id={`${hostId}-heading`}>
         {action}
       </h4>
-      <p className="mt-1">{DAILY_ACTION_MESSAGES[action]}</p>
+      {action === "Create" ? (
+        <WorkCreateForm projectId={projectId} />
+      ) : (
+        <p className="mt-1">{DAILY_ACTION_MESSAGES[action]}</p>
+      )}
     </section>
   );
 }

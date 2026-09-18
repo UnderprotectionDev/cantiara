@@ -809,11 +809,15 @@ describe("Capture Inbox seam", () => {
     );
     const convertedAdapter = createTriageAdapter();
     const convertedStagingStore = createStagingStore();
+    const createWork = vi.fn().mockResolvedValue({
+      id: "work-1",
+      recordType: "Work",
+    });
     const convertedInbox = createCaptureInbox({
       store: convertedStore.store,
       stagingStore: convertedStagingStore,
       triageAdapter: convertedAdapter,
-      workCreate: { createBug: vi.fn() },
+      workCreate: { createBug: vi.fn(), createWork },
     });
     const conversionPreview = await convertedInbox.previewConvert("account-1", {
       itemId: convertedCapture.id,
@@ -855,8 +859,17 @@ describe("Capture Inbox seam", () => {
       consumed: true,
       exit: "convert",
       itemId: convertedCapture.id,
-      recordId: "record-1",
+      recordId: "work-1",
     });
+    expect(createWork).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientIdempotencyKey: "convert-1",
+        item: convertedCapture,
+        projectId: "project-1",
+        recordType: "Work",
+        title: "The preview is blank",
+      }),
+    );
     expect(await convertedInbox.list("account-1")).toMatchObject({
       bulkSenseMaking: { clusters: [], placements: [] },
       groups: [],

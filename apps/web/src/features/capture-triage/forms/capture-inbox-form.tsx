@@ -34,7 +34,7 @@ export interface CaptureFormValues {
 }
 
 export const CREATE_BUG_UNAVAILABLE_MESSAGE =
-  "Work creation is not available yet. Save this as a Capture and triage it later.";
+  "Create Bug is available when Project is set and type is Bug Capture or unspecified.";
 
 export function captureDestination(projectId: string) {
   const normalizedProjectId = projectId.trim();
@@ -60,6 +60,10 @@ const EMPTY_FORM_VALUES: CaptureFormValues = {
 
 function selectCaptureProjectId(state: { values: CaptureFormValues }) {
   return state.values.projectId;
+}
+
+function selectCaptureFormValues(state: { values: CaptureFormValues }) {
+  return state.values;
 }
 
 function captureInput(values: CaptureFormValues, clientIdempotencyKey: string) {
@@ -95,6 +99,7 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
   const connection = useClientShellConnection();
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const pendingCaptureKey = useRef<string | null>(null);
+  const pendingBugKey = useRef<string | null>(null);
 
   const createCapture = useMutation({
     mutationFn: (input: ReturnType<typeof captureInput>) =>
@@ -104,6 +109,27 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
       pendingCaptureKey.current = null;
       setActionMessage(
         `Capture saved. ${captureDestination(variables.projectId ?? "").detail}`,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: captureInboxQueryOptions(accountId).queryKey,
+      });
+    },
+  });
+
+  const createBug = useMutation({
+    mutationFn: (input: ReturnType<typeof captureInput>) =>
+      shell.runWrite(() => client.createBug(input)),
+    onError: (error) => {
+      setActionMessage(
+        error instanceof Error
+          ? error.message
+          : "Work could not be created from this Capture.",
+      );
+    },
+    onSuccess: async (receipt) => {
+      pendingBugKey.current = null;
+      setActionMessage(
+        `Work created (${receipt.workId}). It does not stay in the Capture Inbox.`,
       );
       await queryClient.invalidateQueries({
         queryKey: captureInboxQueryOptions(accountId).queryKey,
@@ -129,6 +155,9 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
     if (!createCapture.isPending) {
       pendingCaptureKey.current = null;
     }
+    if (!createBug.isPending) {
+      pendingBugKey.current = null;
+    }
     shell.markUnsavedChanges();
     setActionMessage(null);
   }
@@ -137,6 +166,22 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
+  }
+
+  function handleCreateBug() {
+    const { values } = form.state;
+    const key = pendingBugKey.current ?? crypto.randomUUID();
+    pendingBugKey.current = key;
+    createBug
+      .mutateAsync(captureInput(values, key))
+      .then(() => {
+        if (captureFormValuesEqual(values, form.state.values)) {
+          form.reset();
+        } else {
+          shell.markUnsavedChanges();
+        }
+      })
+      .catch(() => undefined);
   }
 
   return (
@@ -152,7 +197,8 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
           New capture
         </h2>
         <p className="mt-2 text-muted-foreground text-sm">
-          The fields below are optional guidance; saving never creates a Work.
+          Save keeps a Capture in the Inbox; Create Bug creates a Bug Work
+          directly when a Project is set.
         </p>
       </div>
 
@@ -319,22 +365,38 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
           </form.Field>
         </FieldGroup>
 
-        <div className="flex flex-wrap items-center gap-3 border-t pt-5">
-          <Button
-            disabled={connection === "offline" || createCapture.isPending}
-            type="submit"
-          >
-            {createCapture.isPending ? "Saving…" : "Save"}
-          </Button>
-          <Button
-            aria-describedby="create-bug-unavailable"
-            disabled
-            type="button"
-            variant="outline"
-          >
-            Create Bug
-          </Button>
-        </div>
+        <form.Subscribe selector={selectCaptureFormValues}>
+          {(values) => {
+            const projectIsSet = values.projectId.trim().length > 0;
+            const supportedTemplate =
+              values.template === "" || values.template === "Bug Capture";
+            const canCreateBug =
+              connection !== "offline" &&
+              values.content.trim().length > 0 &&
+              projectIsSet &&
+              supportedTemplate;
+
+            return (
+              <div className="flex flex-wrap items-center gap-3 border-t pt-5">
+                <Button
+                  disabled={connection === "offline" || createCapture.isPending}
+                  type="submit"
+                >
+                  {createCapture.isPending ? "Saving…" : "Save"}
+                </Button>
+                <Button
+                  aria-describedby="create-bug-unavailable"
+                  disabled={!canCreateBug || createBug.isPending}
+                  onClick={handleCreateBug}
+                  type="button"
+                  variant="outline"
+                >
+                  {createBug.isPending ? "Creating…" : "Create Bug"}
+                </Button>
+              </div>
+            );
+          }}
+        </form.Subscribe>
         <p
           className="max-w-xl text-muted-foreground text-xs/relaxed"
           id="create-bug-unavailable"

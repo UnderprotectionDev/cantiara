@@ -48,6 +48,7 @@ import {
   updateProjectShortCodeInputSchema,
 } from "../project-shell";
 import type { WebCaptureAccess } from "../web-capture";
+import { createWorkMutationInputSchema } from "../work-lifecycle";
 
 function sessionPrincipal(session: NonNullable<Context["session"]>) {
   return {
@@ -115,6 +116,13 @@ function requireProjectShellMutationContract(
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return contracts[operation](accountId);
+}
+
+function requireWorkLifecycle(context: Context) {
+  if (!context.workLifecycle) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.workLifecycle;
 }
 
 function requireCaptureInbox(context: Context): CaptureInboxAccess {
@@ -242,7 +250,31 @@ function rethrowCaptureInboxError(error: unknown): never {
     });
   }
 
+  const workLifecycleError = mapWorkLifecycleError(error);
+  if (workLifecycleError) {
+    throw workLifecycleError;
+  }
+
   throw error;
+}
+
+function mapWorkLifecycleError(error: Record<string, unknown>) {
+  if (error.code === "WORK_PROJECT_NOT_FOUND") {
+    return new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Project is unavailable.",
+    });
+  }
+
+  if (error.code === "WORK_CREATION_CONFLICT") {
+    return new ORPCError("CONFLICT", {
+      data: { code: error.code },
+      defined: true,
+      message: "Work could not be created. Try again.",
+    });
+  }
+
+  return null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -371,6 +403,19 @@ function rethrowProjectShellError(error: unknown): never {
   throw error;
 }
 
+function rethrowWorkLifecycleError(error: unknown): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+
+  const workLifecycleError = mapWorkLifecycleError(error);
+  if (workLifecycleError) {
+    throw workLifecycleError;
+  }
+
+  throw error;
+}
+
 function rethrowProjectShellMutationError(
   error: unknown,
   targetId: string,
@@ -455,6 +500,38 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return project;
+    }),
+  projectWorks: protectedProcedure
+    .input(z.object({ projectId: z.string().trim().min(1) }).strict())
+    .handler(({ context, input }) =>
+      requireWorkLifecycle(context).list(
+        context.session.user.id,
+        input.projectId,
+      ),
+    ),
+  work: protectedProcedure
+    .input(z.object({ workId: z.string().trim().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      const record = await requireWorkLifecycle(context).find(
+        context.session.user.id,
+        input.workId,
+      );
+      if (!record) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return record;
+    }),
+  createWork: protectedProcedure
+    .input(createWorkMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).create(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
     }),
   createProject: protectedProcedure
     .input(createProjectMutationInputSchema)
