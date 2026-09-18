@@ -5,6 +5,7 @@ import type {
   MutationPayload,
   MutationReceipt,
 } from "@cantiara/api/mutation-and-undo";
+import { canonicalizeMutationPayload } from "@cantiara/api/mutation-and-undo";
 import {
   type CreateWorkMutationInput,
   WORK_TYPE_OPTIONS,
@@ -21,20 +22,40 @@ import {
   WorkFeatureExitBlockedError,
   WorkInclusionConflictError,
   type WorkLifecycleStore,
+  WorkPrimarySpecNotFoundError,
   WorkTypeImpactPreviewRequiredError,
 } from "./work-lifecycle";
 
 const PROJECT_ID = "project-1";
 
 function createMemoryWorkLifecycle(
-  options: { commitThenFailWithTitle?: string; failNextCommit?: boolean } = {},
+  options: {
+    beforeUpdateApply?: (
+      command: MutationCommand<MutationPayload>,
+    ) => Promise<void>;
+    commitThenFailWithTitle?: string;
+    failNextCommit?: boolean;
+    projectDocuments?: ReadonlyArray<{ id: string; projectId: string }>;
+  } = {},
 ) {
   const works = new Map<string, WorkProfile>();
   const reservations = new Map<string, WorkCreationReservation>();
+  const updateReceipts = new Map<
+    string,
+    {
+      payload: string;
+      receipt: MutationReceipt<WorkLifecycleMutationValue>;
+    }
+  >();
   const {
+    beforeUpdateApply,
     commitThenFailWithTitle: configuredCommitThenFailWithTitle,
     failNextCommit: configuredFailNextCommit,
+    projectDocuments = [],
   } = options;
+  const projectDocumentIds = new Map(
+    projectDocuments.map(({ id, projectId }) => [id, projectId]),
+  );
   let nextNumber = 1;
   let commitThenFailWithTitle = configuredCommitThenFailWithTitle;
   let failNextCommit = configuredFailNextCommit ?? false;
@@ -55,6 +76,8 @@ function createMemoryWorkLifecycle(
       [...works.values()]
         .filter((work) => work.primaryFeatureId === featureId)
         .sort((left, right) => left.number - right.number),
+    hasProjectDocument: async (_accountId, projectId, documentId) =>
+      projectDocumentIds.get(documentId) === projectId,
     reserveCreate: (_accountId, projectId, key, payloadFingerprint) => {
       const reservationKey = `${projectId}:${key}`;
       const existing = reservations.get(reservationKey);
@@ -137,6 +160,18 @@ function createMemoryWorkLifecycle(
           if (command.kind !== "human") {
             throw new Error("Expected a human Work command.");
           }
+          const receiptKey = `${command.targetId}:${command.clientIdempotencyKey}`;
+          const payload = canonicalizeMutationPayload(command.payload);
+          const existing = updateReceipts.get(receiptKey);
+          if (existing) {
+            if (existing.payload !== payload) {
+              throw new WorkInclusionConflictError(
+                "The Work mutation payload does not match its existing receipt.",
+              );
+            }
+            return Promise.resolve(existing.receipt);
+          }
+          await beforeUpdateApply?.(command);
           const currentWork = works.get(command.targetId) ?? null;
           const previousValue = { work: currentWork };
           const nextValue = await apply({
@@ -148,7 +183,7 @@ function createMemoryWorkLifecycle(
             throw new Error("A Work update must return a Work.");
           }
           works.set(nextValue.work.id, nextValue.work);
-          return {
+          const receipt = {
             actor: command.actor,
             committedAt: nextValue.work.updatedAt,
             id: `receipt-${nextValue.work.id}-${nextValue.work.revision}`,
@@ -162,6 +197,8 @@ function createMemoryWorkLifecycle(
             revision: nextValue.work.revision,
             targetId: command.targetId,
           } satisfies MutationReceipt<WorkLifecycleMutationValue>;
+          updateReceipts.set(receiptKey, { payload, receipt });
+          return receipt;
         },
       }) as MutationContract<WorkLifecycleMutationValue>,
   };
@@ -369,6 +406,67 @@ describe("Work Lifecycle seam", () => {
     });
   });
 
+  test("records concurrent Feature health updates in chronological order", async () => {
+    let releaseFirst!: () => void;
+    let signalFirstStarted!: () => void;
+    const firstStarted = new Promise<void>((resolve) => {
+      signalFirstStarted = resolve;
+    });
+    const firstRelease = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const workLifecycle = createMemoryWorkLifecycle({
+      beforeUpdateApply: async (command) => {
+        if (
+          command.kind === "human" &&
+          command.clientIdempotencyKey === "health-first"
+        ) {
+          signalFirstStarted();
+          await firstRelease;
+        }
+      },
+    });
+    const feature = await workLifecycle.create(
+      "account-1",
+      createInput("chronological-health-feature", {
+        title: "Chronological health Feature",
+        type: "Feature",
+      }),
+    );
+
+    const firstUpdate = workLifecycle.recordFeatureHealth("account-1", {
+      baseRevision: feature.revision,
+      clientIdempotencyKey: "health-first",
+      featureId: feature.id,
+      health: "At Risk",
+      reason: "The first update is still being applied.",
+    });
+    await firstStarted;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const secondUpdate = await workLifecycle.recordFeatureHealth("account-1", {
+      baseRevision: feature.revision,
+      clientIdempotencyKey: "health-second",
+      featureId: feature.id,
+      health: "On Track",
+      reason: "The second update commits first.",
+    });
+    releaseFirst();
+    const firstResult = await firstUpdate;
+
+    expect(firstResult.featureHealthHistory).toHaveLength(2);
+    const [firstHistoryEntry, secondHistoryEntry] =
+      firstResult.featureHealthHistory;
+    if (!(firstHistoryEntry && secondHistoryEntry)) {
+      throw new Error("Expected two Feature health updates.");
+    }
+    expect(
+      new Date(secondHistoryEntry.recordedAt).getTime(),
+    ).toBeGreaterThanOrEqual(new Date(firstHistoryEntry.recordedAt).getTime());
+    expect(secondUpdate.featureHealthHistory).toMatchObject([
+      { health: "On Track" },
+    ]);
+  });
+
   test("blocks leaving Feature until included Work is explicitly detached", async () => {
     const workLifecycle = createMemoryWorkLifecycle();
     const feature = await workLifecycle.create(
@@ -442,7 +540,9 @@ describe("Work Lifecycle seam", () => {
   });
 
   test("blocks leaving Feature until health history and Primary spec are detached", async () => {
-    const workLifecycle = createMemoryWorkLifecycle();
+    const workLifecycle = createMemoryWorkLifecycle({
+      projectDocuments: [{ id: "document-1", projectId: PROJECT_ID }],
+    });
     const feature = await workLifecycle.create(
       "account-1",
       createInput("feature-data-exit", {
@@ -529,6 +629,79 @@ describe("Work Lifecycle seam", () => {
         workId: feature.id,
       }),
     ).resolves.toMatchObject({ type: "Improvement" });
+  });
+
+  test("rejects a Primary spec from another Project", async () => {
+    const workLifecycle = createMemoryWorkLifecycle({
+      projectDocuments: [{ id: "document-1", projectId: "project-2" }],
+    });
+    const feature = await workLifecycle.create(
+      "account-1",
+      createInput("cross-project-primary-spec", {
+        title: "Feature with an invalid Primary spec",
+        type: "Feature",
+      }),
+    );
+
+    await expect(
+      workLifecycle.updateFeaturePrimarySpec("account-1", {
+        baseRevision: feature.revision,
+        clientIdempotencyKey: "cross-project-primary-spec",
+        featureId: feature.id,
+        primarySpecId: "document-1",
+      }),
+    ).rejects.toBeInstanceOf(WorkPrimarySpecNotFoundError);
+  });
+
+  test("replays an inclusion after the Feature changes", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const feature = await workLifecycle.create(
+      "account-1",
+      createInput("replay-feature", {
+        title: "Replay Feature",
+        type: "Feature",
+      }),
+    );
+    const includedWork = await workLifecycle.create(
+      "account-1",
+      createInput("replay-included-work", { title: "Replay Work" }),
+    );
+
+    const included = await workLifecycle.includeWork("account-1", {
+      baseRevision: includedWork.revision,
+      clientIdempotencyKey: "replay-inclusion",
+      featureId: feature.id,
+      workId: includedWork.id,
+    });
+    await workLifecycle.detachIncludedWork("account-1", {
+      baseRevision: included.revision,
+      clientIdempotencyKey: "detach-replayed-inclusion",
+      featureId: feature.id,
+      workId: includedWork.id,
+    });
+    const preview = await workLifecycle.previewTypeChange("account-1", {
+      type: "Task",
+      workId: feature.id,
+    });
+    if (!preview) {
+      throw new Error("Expected a Feature exit preview.");
+    }
+    await workLifecycle.updateType("account-1", {
+      baseRevision: feature.revision,
+      clientIdempotencyKey: "change-replayed-feature",
+      impactPreviewId: preview.previewId,
+      type: "Task",
+      workId: feature.id,
+    });
+
+    await expect(
+      workLifecycle.includeWork("account-1", {
+        baseRevision: includedWork.revision,
+        clientIdempotencyKey: "replay-inclusion",
+        featureId: feature.id,
+        workId: includedWork.id,
+      }),
+    ).resolves.toEqual(included);
   });
 
   test("creates a title-only Work with a stable key and protected defaults", async () => {

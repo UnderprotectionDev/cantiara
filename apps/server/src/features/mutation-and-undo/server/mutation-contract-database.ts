@@ -58,6 +58,7 @@ export interface MutationDatabaseTargetAdapter<TValue> {
     executor: MutationDatabaseExecutor,
     targetId: string,
     lock: boolean,
+    context?: { payload?: MutationPayload },
   ) => Promise<MutationTarget<TValue> | null>;
   update: (
     executor: MutationDatabaseExecutor,
@@ -845,6 +846,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           transaction,
           input.targetId,
           true,
+          { payload: input.payload },
         );
         if (!target) {
           return rollbackStaging(
@@ -962,6 +964,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
             transaction,
             input.targetId,
             true,
+            { payload: input.payload },
           );
           return rollbackStaging(
             transaction,
@@ -1135,6 +1138,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           transaction,
           input.targetId,
           true,
+          { payload: input.payload },
         );
         if (!target) {
           return { status: "target-not-found" as const };
@@ -1204,6 +1208,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
             transaction,
             input.targetId,
             true,
+            { payload: input.payload },
           );
           return staleCommitResult<TValue>(current ?? target);
         }

@@ -1,4 +1,7 @@
-import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
+import type {
+  MutationPayload,
+  MutationTarget,
+} from "@cantiara/api/mutation-and-undo";
 import {
   featureHealthUpdateSchema,
   type WorkLifecycleMutationValue,
@@ -132,6 +135,19 @@ function emptyWorkTarget(
     revision: 0,
     value: { work: null },
   };
+}
+
+function featureIdFromMutationPayload(payload: MutationPayload | undefined) {
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    Array.isArray(payload)
+  ) {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  const featureId = record.featureId ?? record.primaryFeatureId;
+  return typeof featureId === "string" ? featureId : null;
 }
 
 function createWorkMutationTarget(
@@ -275,7 +291,15 @@ function createWorkUpdateMutationTarget(
   accountId: string,
 ): MutationDatabaseTargetAdapter<WorkLifecycleMutationValue> {
   return {
-    async find(executor, targetId, lock) {
+    async find(executor, targetId, lock, context) {
+      if (lock) {
+        const featureId = featureIdFromMutationPayload(context?.payload);
+        if (featureId && featureId !== targetId) {
+          // Mutations involving included Work lock the parent Feature before
+          // the child Work; Feature exit uses the same order.
+          await findOwnedWork(executor, accountId, featureId, true);
+        }
+      }
       const record = await findOwnedWork(executor, accountId, targetId, lock);
       return record
         ? {
@@ -358,7 +382,19 @@ function reserveExistingAllocation(
   return toReservation(existing);
 }
 
-export function createDatabaseWorkLifecycle(database: Database) {
+export interface WorkLifecycleProjectDocumentAccess {
+  hasProjectDocument: (
+    accountId: string,
+    projectId: string,
+    documentId: string,
+  ) => Promise<boolean>;
+}
+
+export function createDatabaseWorkLifecycle(
+  database: Database,
+  options: { projectDocumentAccess?: WorkLifecycleProjectDocumentAccess } = {},
+) {
+  const { projectDocumentAccess } = options;
   const store: WorkLifecycleStore = {
     async find(accountId, workId) {
       const workspaceId = await findWorkspaceId(database, accountId);
@@ -433,6 +469,10 @@ export function createDatabaseWorkLifecycle(database: Database) {
         .orderBy(asc(work.number));
       return records.map(({ record }) => toWorkProfile(record));
     },
+
+    ...(projectDocumentAccess
+      ? { hasProjectDocument: projectDocumentAccess.hasProjectDocument }
+      : {}),
 
     reserveCreate(
       accountId,

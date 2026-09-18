@@ -292,99 +292,105 @@ function mapWorkLifecycleFeatureError(error: Record<string, unknown>) {
   return null;
 }
 
-function mapWorkLifecycleError(error: Record<string, unknown>) {
-  if (error.code === "WORK_NOT_FOUND") {
-    return new ORPCError("NOT_FOUND", {
-      defined: true,
-      message: "Work is unavailable.",
-    });
+function mapWorkLifecycleError(
+  error: Record<string, unknown>,
+): ORPCError<string, unknown> | null {
+  if (error.code === "APPLY_FAILED") {
+    return isRecord(error.cause) ? mapWorkLifecycleError(error.cause) : null;
   }
 
-  if (error.code === "WORK_PROJECT_NOT_FOUND") {
-    return new ORPCError("NOT_FOUND", {
-      defined: true,
-      message: "Project is unavailable.",
-    });
+  switch (error.code) {
+    case "WORK_NOT_FOUND":
+      return new ORPCError("NOT_FOUND", {
+        defined: true,
+        message: "Work is unavailable.",
+      });
+    case "WORK_PROJECT_NOT_FOUND":
+      return new ORPCError("NOT_FOUND", {
+        defined: true,
+        message: "Project is unavailable.",
+      });
+    case "WORK_CREATION_CONFLICT":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "Work could not be created. Try again.",
+      });
+    case "WORK_PRIMARY_SPEC_NOT_FOUND":
+      return new ORPCError("NOT_FOUND", {
+        data: { code: error.code },
+        defined: true,
+        message: "Primary spec is unavailable.",
+      });
+    case "WORK_PRIMARY_SPEC_UNAVAILABLE":
+      return new ORPCError("NOT_IMPLEMENTED", {
+        data: { code: error.code },
+        defined: true,
+        message: "Primary spec is not available yet.",
+      });
+    case "WORK_TYPE_IMPACT_PREVIEW_REQUIRED":
+      return new ORPCError("PRECONDITION_FAILED", {
+        data: {
+          code: error.code,
+          ...(typeof error.previewId === "string"
+            ? { previewId: error.previewId }
+            : {}),
+        },
+        defined: true,
+        message:
+          "Impact preview is required before changing to or from Feature.",
+      });
+    case "WORK_FEATURE_EXIT_BLOCKED":
+      return mapWorkLifecycleFeatureError(error);
+    case "WORK_INCLUSION_CONFLICT":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          typeof error.message === "string"
+            ? error.message
+            : "Work inclusion could not be changed.",
+      });
+    case "WORK_FEATURE_REQUIRED":
+      return new ORPCError("BAD_REQUEST", {
+        data: { code: error.code },
+        defined: true,
+        message: "This action is available only for Feature Work.",
+      });
+    case "CONFLICT":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "Work could not be changed. Try again.",
+      });
+    case "STALE_BASE_REVISION":
+      return mapWorkLifecycleStaleRevisionError(error);
+    case "TARGET_NOT_FOUND":
+      return new ORPCError("NOT_FOUND", {
+        defined: true,
+        message: "Work is unavailable.",
+      });
+    default:
+      return null;
   }
+}
 
-  if (error.code === "WORK_CREATION_CONFLICT") {
-    return new ORPCError("CONFLICT", {
-      data: { code: error.code },
-      defined: true,
-      message: "Work could not be created. Try again.",
-    });
-  }
-
-  if (error.code === "WORK_TYPE_IMPACT_PREVIEW_REQUIRED") {
-    return new ORPCError("PRECONDITION_FAILED", {
-      data: {
-        code: error.code,
-        ...(typeof error.previewId === "string"
-          ? { previewId: error.previewId }
-          : {}),
-      },
-      defined: true,
-      message: "Impact preview is required before changing to or from Feature.",
-    });
-  }
-
-  const featureError = mapWorkLifecycleFeatureError(error);
-  if (featureError) {
-    return featureError;
-  }
-
-  if (error.code === "WORK_INCLUSION_CONFLICT") {
-    return new ORPCError("CONFLICT", {
-      data: { code: error.code },
-      defined: true,
-      message:
-        typeof error.message === "string"
-          ? error.message
-          : "Work inclusion could not be changed.",
-    });
-  }
-
-  if (error.code === "WORK_FEATURE_REQUIRED") {
-    return new ORPCError("BAD_REQUEST", {
-      data: { code: error.code },
-      defined: true,
-      message: "This action is available only for Feature Work.",
-    });
-  }
-
-  if (error.code === "CONFLICT") {
-    return new ORPCError("CONFLICT", {
-      data: { code: error.code },
-      defined: true,
-      message: "Work could not be changed. Try again.",
-    });
-  }
-
-  if (error.code === "STALE_BASE_REVISION") {
-    return new ORPCError("PRECONDITION_FAILED", {
-      data: {
-        code: error.code,
-        ...(typeof error.currentRevision === "number"
-          ? { currentRevision: error.currentRevision }
-          : {}),
-        ...(typeof error.currentValue === "object" &&
-        error.currentValue !== null
-          ? { currentValue: error.currentValue }
-          : {}),
-      },
-      defined: true,
-      message: "Work has changed. Reload and try again.",
-    });
-  }
-
-  if (error.code === "TARGET_NOT_FOUND") {
-    return new ORPCError("NOT_FOUND", {
-      defined: true,
-      message: "Work is unavailable.",
-    });
-  }
-
-  return null;
+function mapWorkLifecycleStaleRevisionError(
+  error: Record<string, unknown>,
+): ORPCError<string, unknown> {
+  return new ORPCError("PRECONDITION_FAILED", {
+    data: {
+      code: error.code,
+      ...(typeof error.currentRevision === "number"
+        ? { currentRevision: error.currentRevision }
+        : {}),
+      ...(typeof error.currentValue === "object" && error.currentValue !== null
+        ? { currentValue: error.currentValue }
+        : {}),
+    },
+    defined: true,
+    message: "Work has changed. Reload and try again.",
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -209,7 +209,12 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       shortCode: "FEATURE",
       starterConfiguration: "Blank Project",
     });
-    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const workLifecycle = createDatabaseWorkLifecycle(database, {
+      projectDocumentAccess: {
+        hasProjectDocument: async (_accountId, projectId, documentId) =>
+          projectId === project.id && documentId === "document-1",
+      },
+    });
     const feature = await workLifecycle.create(accountId, {
       baseRevision: 0,
       clientIdempotencyKey: "database-feature",
@@ -332,6 +337,15 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
     expect(
       results.filter((result) => result.status === "fulfilled"),
     ).toHaveLength(1);
+    const rejected = results.find((result) => result.status === "rejected");
+    expect(rejected).toBeDefined();
+    if (rejected?.status === "rejected") {
+      expect([
+        "APPLY_FAILED",
+        "WORK_FEATURE_EXIT_BLOCKED",
+        "WORK_INCLUSION_CONFLICT",
+      ]).toContain(rejected.reason?.code);
+    }
     const [storedFeature, storedCandidate] = await Promise.all([
       workLifecycle.find(accountId, feature.id),
       workLifecycle.find(accountId, candidate.id),
