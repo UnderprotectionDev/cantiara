@@ -29,29 +29,39 @@ Spec yoksa Spec altında belirt. Review atlandıysa nedenini yaz — uydurma.
 
 ## 3. Nasıl test edilir
 
-Konumlu tarayıcı adımları — komut, terminal veya otomatik test çıktısı yok.
+Bu bölüm, değişikliği tarayıcıda elle deneyen kişiye doğrudan yol gösterir. Diff'i görmemiş biri hangi sayfayı açacağını, hangi işlemi yapacağını ve işlemin sonucunu anlayabilmelidir. Metin kısa bir kullanıcı kılavuzu gibi yazılır; komut, terminal çıktısı veya otomatik test raporu içermez.
 
-**Önkoşul** (bir kez, üstte): giriş durumu; seed kaydı gerekiyorsa ekranda görünen ad.
+### Başlangıç
 
-**Her numaralı adım dört parçayı taşır** (eksik parça = adım bitmemiş):
+İlk paragrafta uygulamanın başlangıç adresini veya route'unu, giriş durumunu ve kullanılacak kaydı yaz. Kayıt hazır değilse ana akıştan önce `Veri hazırlığı` başlığı aç ve kaydı tarayıcıda oluşturmayı aynı konuşma diliyle numaralı adımlara böl. Bu adımlarda görünen giriş alanını, yazılacak değeri, kullanılacak düğmeyi ve her işlemden sonra beklenen sonucu cümle içinde belirt. Test ortamında veri önceden yüklenmişse yalnızca kullanıcının görebildiği kayıt adını yaz; test altyapısı terimlerini kullanıcıya dönük metne taşıma. Elinde yalnızca route varsa tam alan adı uydurma; route'u ve o ekrana uygulama içinden nasıl gidileceğini yaz.
 
-1. **Nerede** — route path (`/projects`, `/account`, …) veya bir önceki adımdan kalan ekran
-2. **Bölge** — yalnız: workspace listesi; proje navigasyonu (`Overview` / `Work` / `Documents` / `All Tools` / pin’li alan); sayfa başlığı; kayıt gövdesi; diyalog; kişisel kabuk (`Daily Focus` / `Favorites`)
-3. **Etiket** — tıklanan veya yazılan kontrol; owning spec’teki English UI, backtick
-4. **Beklenen** — aynı ekranda ne görünür (metin, durum, boş veya hata)
+### Ana akış
 
-Örnek:
+Her numaralı adım tek bir kullanıcı eylemi içersin. Kullanıcıya hangi ekranda olduğunu ve hangi gerçek kontrolü kullanacağını doğrudan söyle. Eylemin sonucu zaten açıksa aynı bilgiyi tekrarlama; yalnızca kullanıcı ayrıca doğrulaması gereken bir durum, kayıt, hata veya kalıcılık varsa kısa bir sonuç cümlesi ekle. Örneğin: “`Preferences` sayfasında `Appearance` alanını açın. `Light` ve `Dark` seçenekleri görünür.”
 
-Önkoşul: GitHub ile giriş; seed projesi `Cantiara`.
+Gerçek English UI etiketlerini owning spec'teki biçimiyle backtick içine al. Spec'te etiket tanımlı değilse üründe gerçekten görünen etiketi kullan; yeni bir etiket uydurma. Adımları iç kontrol alanlarıyla değil, doğrudan konuşma cümleleriyle yaz.
 
-1. `/projects` — workspace listesinde `Cantiara` görünür.
-2. Workspace listesinde `Cantiara` aç. Proje `Overview` görünür.
-3. Proje navigasyonunda `Work` aç. `Backlog` görünür.
-4. Kayıt gövdesinde `Checkout flow` satırını aç. İş detayı açılır; başlık `Checkout flow` durur.
+### Kalıcılık ve diğer yollar
 
-Değişiklik tarayıcıda yoksa: tek cümle.
+Bir işlem kalıcı veri yazıyorsa, sonucu sayfayı yenileyerek, kaydı yeniden açarak veya ilgili listeye dönerek ayrı bir adımda doğrula. Yalnızca geçici seçim, önizleme veya diyalog açılıyorsa yenileme adımı ekleme.
 
-**Done when** her adımda Nerede, Bölge, Etiket ve Beklenen durur; diff’i görmemiş biri kontrolün ekranda nerede olduğunu sormadan izleyebilir — veya tarayıcıda yoksa bunu tek cümleden anlar.
+Değişiklik başka bir seçimi, iptali, doğrulama/hata durumunu, geri almayı veya kayıt türünü etkiliyorsa, o yolu ayrı bir başlık ve kısa adımlarla anlat. İlgili bir yol yoksa bunu doğal bir cümleyle belirt; örneğin `Bu değişiklikte iptal, hata veya geri alma akışı yok.` İç durum adlarını veya hazırlaması açıklanmamış ifadeleri tek başına kullanma.
+
+Örnek (etiketler `docs/specs/02-account-preferences/spec.md` içindeki sözlükten alınmıştır):
+
+Başlangıç: Uygulama açık ve kullanıcı giriş yapmış. `/account/preferences` sayfası için ek veri hazırlığı gerekmiyor.
+
+1. `/account/preferences` sayfasını açın. `Preferences` başlığı görünür.
+2. `Preferences` sayfasında `Appearance` alanını açın. `Light` ve `Dark` seçenekleri görünür; `System` görünmez.
+3. `Dark` seçeneğini seçin.
+4. `Save` düğmesine tıklayın. Seçim kaydedilir.
+5. Sayfayı yenileyin. `Dark` seçimi korunur.
+
+Bu örnekte kullanıcı her adımda nereye gideceğini, ne yapacağını ve ne göreceğini doğrudan anlar. Gerçek değişiklik bir hata veya iptal akışını etkiliyorsa, örnekteki başarı akışının yanına yalnızca o ilgili akışı ekle.
+
+Tarayıcıda görünen bir davranış yoksa bu bölümün tamamına yalnızca `Not applicable` yaz.
+
+**Done when** Başlangıç bölümü uygulamayı ve veriyi hazırlamayı açıklıyor; kayıt önceden hazır değilse `Veri hazırlığı` altında oluşturma adımları yer alıyor. Her adım tek eylem içeriyor, gerekli yerlerde beklenen sonucu kısa biçimde belirtiyor ve aynı bilgiyi tekrarlamıyor. İlgili kalıcı yazmalar ile değişiklikten etkilenen diğer kullanıcı yolları ayrı ayrı doğrulanıyor; ilgili başka yol yoksa bu durum doğal bir cümleyle belirtiliyor — veya tarayıcı davranışı yoksa yalnızca `Not applicable` kullanılıyor.
 
 ## Voice
 
