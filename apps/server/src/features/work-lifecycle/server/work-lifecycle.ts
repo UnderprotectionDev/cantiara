@@ -1,3 +1,4 @@
+import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
 import {
   createWorkMutationInputSchema,
   updateWorkTypeInputSchema,
@@ -14,6 +15,7 @@ export interface WorkCreationReservation {
   id: string;
   key: string;
   number: number;
+  payloadFingerprint: string;
   projectId: string;
   shortCode: string;
   workId: string;
@@ -31,6 +33,7 @@ export interface WorkLifecycleStore {
     accountId: string,
     projectId: string,
     clientIdempotencyKey: string,
+    payloadFingerprint: string,
   ) => Promise<WorkCreationReservation>;
 }
 
@@ -133,10 +136,18 @@ export function createWorkLifecycle({
         return existing;
       }
 
+      const createPayload = {
+        projectId: input.projectId,
+        title: input.title,
+        type: input.type,
+      };
+      const payloadFingerprint =
+        await fingerprintMutationPayload(createPayload);
       const reservation = await store.reserveCreate(
         accountId,
         input.projectId,
         input.clientIdempotencyKey,
+        payloadFingerprint,
       );
       const timestamp = new Date().toISOString();
       const mutation = mutationContracts.create(accountId);
@@ -148,19 +159,15 @@ export function createWorkLifecycle({
             baseRevision: input.baseRevision,
             clientIdempotencyKey: input.clientIdempotencyKey,
             kind: "human",
-            payload: {
-              projectId: input.projectId,
-              title: input.title,
-              type: input.type,
-            },
+            payload: createPayload,
             targetId: workCreateTargetId(
               accountId,
               input.projectId,
               input.clientIdempotencyKey,
             ),
           },
-          ({ currentRevision, payload }) => {
-            if (payload.projectId !== input.projectId) {
+          ({ currentRevision, payload: mutationPayload }) => {
+            if (mutationPayload.projectId !== input.projectId) {
               throw new WorkCreationConflictError();
             }
             const work: WorkProfile = {
@@ -172,8 +179,8 @@ export function createWorkLifecycle({
               projectId: reservation.projectId,
               revision: currentRevision + 1,
               status: "Not Started",
-              title: payload.title,
-              type: payload.type,
+              title: mutationPayload.title,
+              type: mutationPayload.type,
               updatedAt: timestamp,
             };
             return {

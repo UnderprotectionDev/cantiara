@@ -49,10 +49,13 @@ function createMemoryWorkLifecycle(
       [...works.values()]
         .filter((work) => work.projectId === projectId)
         .sort((left, right) => left.number - right.number),
-    reserveCreate: (_accountId, projectId, key) => {
+    reserveCreate: (_accountId, projectId, key, payloadFingerprint) => {
       const reservationKey = `${projectId}:${key}`;
       const existing = reservations.get(reservationKey);
       if (existing) {
+        if (existing.payloadFingerprint !== payloadFingerprint) {
+          return Promise.reject(new WorkCreationConflictError());
+        }
         return Promise.resolve(existing);
       }
 
@@ -62,6 +65,7 @@ function createMemoryWorkLifecycle(
         id: `work-${number}`,
         key: `CANT-${number}`,
         number,
+        payloadFingerprint,
         projectId,
         shortCode: "CANT",
         workId: `work-${number}`,
@@ -224,6 +228,21 @@ describe("Work Lifecycle seam", () => {
     await expect(
       workLifecycle.create("account-1", createInput("successful-create")),
     ).resolves.toMatchObject({ key: "CANT-2", number: 2 });
+  });
+
+  test("rejects a different payload when retrying a failed allocation", async () => {
+    const workLifecycle = createMemoryWorkLifecycle({ failNextCommit: true });
+    const failedInput = createInput("failed-retry");
+
+    await expect(
+      workLifecycle.create("account-1", failedInput),
+    ).rejects.toThrow("simulated commit failure");
+    await expect(
+      workLifecycle.create("account-1", {
+        ...failedInput,
+        title: "A different retry payload",
+      }),
+    ).rejects.toBeInstanceOf(WorkCreationConflictError);
   });
 
   test("replays the same Work for the same client idempotency key", async () => {

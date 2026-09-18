@@ -134,6 +134,13 @@
       "when": 1789739204655,
       "tag": "0018_work-lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789742440119,
+      "tag": "0019_common_jubilee",
+      "breakpoints": true
     }
   ]
 }

@@ -50,6 +50,7 @@ function toReservation(record: WorkKeyAllocationRecord) {
     id: record.id,
     key: record.key,
     number: record.number,
+    payloadFingerprint: record.payloadFingerprint ?? "",
     projectId: record.projectId,
     shortCode: record.shortCode,
     workId: record.workId,
@@ -259,6 +260,28 @@ function createWorkUpdateMutationTarget(
   };
 }
 
+async function reserveExistingAllocation(
+  executor: MutationDatabaseExecutor,
+  existing: WorkKeyAllocationRecord,
+  payloadFingerprint: string,
+) {
+  if (
+    existing.payloadFingerprint &&
+    existing.payloadFingerprint !== payloadFingerprint
+  ) {
+    throw new WorkCreationConflictError();
+  }
+
+  if (!existing.payloadFingerprint) {
+    await executor
+      .update(workKeyAllocation)
+      .set({ payloadFingerprint })
+      .where(eq(workKeyAllocation.id, existing.id));
+  }
+
+  return toReservation({ ...existing, payloadFingerprint });
+}
+
 export function createDatabaseWorkLifecycle(database: Database) {
   const store: WorkLifecycleStore = {
     async find(accountId, workId) {
@@ -316,7 +339,12 @@ export function createDatabaseWorkLifecycle(database: Database) {
       return records.map(({ record }) => toWorkProfile(record));
     },
 
-    reserveCreate(accountId, projectId, clientIdempotencyKey) {
+    reserveCreate(
+      accountId,
+      projectId,
+      clientIdempotencyKey,
+      payloadFingerprint,
+    ) {
       return database.transaction(async (transaction) => {
         const ownedProject = await findOwnedProject(
           transaction,
@@ -339,7 +367,11 @@ export function createDatabaseWorkLifecycle(database: Database) {
           )
           .limit(1);
         if (existing) {
-          return toReservation(existing);
+          return reserveExistingAllocation(
+            transaction,
+            existing,
+            payloadFingerprint,
+          );
         }
 
         const number = ownedProject.record.workCount + 1;
@@ -370,6 +402,7 @@ export function createDatabaseWorkLifecycle(database: Database) {
             id: crypto.randomUUID(),
             key: `${updatedProject.shortCode}-${number}`,
             number,
+            payloadFingerprint,
             projectId,
             reservedAt,
             shortCode: updatedProject.shortCode,

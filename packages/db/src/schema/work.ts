@@ -65,6 +65,7 @@ export const workKeyAllocation = pgTable(
     id: text("id").primaryKey(),
     key: text("key").notNull(),
     number: integer("number").notNull(),
+    payloadFingerprint: text("payload_fingerprint"),
     projectId: text("project_id")
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
@@ -83,6 +84,10 @@ export const workKeyAllocation = pgTable(
       table.number,
     ),
     check("work_key_allocation_number_check", sql`${table.number} >= 1`),
+    check(
+      "work_key_allocation_payload_fingerprint_check",
+      sql`${table.payloadFingerprint} is null or ${table.payloadFingerprint} ~ '^[0-9a-fA-F]{64}$'`,
+    ),
   ],
 );
 
