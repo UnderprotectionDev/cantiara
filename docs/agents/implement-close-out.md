@@ -31,41 +31,27 @@ Spec yoksa Spec altında belirt. Review atlandıysa nedenini yaz — uydurma.
 
 Bu bölüm, değişikliği tarayıcıda elle yeniden üretme kılavuzudur. Diff'i görmemiş biri başlangıç ekranını bulabilmeli, her kontrolü nerede kullanacağını anlayabilmeli ve eylemden sonra sonucu ilgili ekranda doğrulayabilmelidir. Komut, terminal veya otomatik test çıktısı yazılmaz.
 
-**Başlangıç** (bir kez, üstte): uygulamanın tarayıcı adresi ve ilk route'u; giriş durumu; gerekli kayıt yoksa onu ekranda oluşturma yolu veya test ortamında gerçekten önceden yüklenmiş fixture'ın ekranda görünen adı. Fixture yalnızca test ortamının onu önceden yüklediği ve okuyucunun görünür kayıtla doğrulayabildiği biliniyorsa yeterlidir; aksi halde fixture adını yazmak yerine kaydı tarayıcıda hazırlama yolunu `Veri hazırlığı` altında aynı dört parçalı numaralı adımlarla yaz. Yalnız route biliniyorsa tam URL uydurma; route'u ve oraya giden UI gezinmesini yaz.
+**Başlangıç** (bir kez, üstte): uygulamanın tarayıcı adresi ve ilk route'u; giriş durumu; gerekli kayıt hazırsa kullanıcıya görünen adı, hazır değilse tarayıcıda nasıl oluşturulacağı. Test altyapısına ait `fixture` gibi terimleri kullanıcıya dönük adımlarda tek başına kullanma. Yalnız route biliniyorsa tam URL uydurma; route'u ve oraya giden UI gezinmesini yaz.
 
-**Her numaralı adım tek bir kullanıcı eylemi taşır** (birden fazla tıklama/seçim aynı adıma sıkıştırılmaz) ve aşağıdaki dört parçayı açıkça yazar (eksik parça = adım bitmemiş):
+**Adımları normal konuşma diliyle yaz.** Her numaralı adım tek bir kullanıcı eylemi taşısın; ekranı, tıklanacak veya yazılacak gerçek kontrolü ve hemen ardından görülmesi gereken sonucu aynı akıcı cümleye yerleştir. Gerçek English UI etiketlerini backtick içine al. Okuyucuya iç kontrol şablonunu göstermeden `Nerede`, `Bölge`, `Etiket` ve `Beklenen` bilgilerinin tamamını cümle içinde ver.
 
-1. **Nerede** — route path (`/projects`, `/account`, …), tam başlangıç adresi veya bir önceki adımdan kalan ekran.
-2. **Bölge** — yalnız: workspace listesi; proje navigasyonu (`Overview` / `Work` / `Documents` / `All Tools` / pin’li alan); sayfa başlığı; sayfa gövdesi; kayıt gövdesi; diyalog; kişisel kabuk (`Daily Focus` / `Favorites`); gerektiğinde tarayıcı araç çubuğu veya adres çubuğu.
-3. **Etiket** — tıklanan/yazılan uygulama kontrolü veya açıkça adlandırılmış tarayıcı eylemi; owning spec’teki English UI, backtick; eylemi de açıkça yaz (`tıklayın`, `yazın`, `seçin`, `açın`, `yenileyin`).
-4. **Beklenen** — eylemden hemen sonra görülen metin, durum, boş veya hata; sonucu hangi ekranda göreceğini de belirt.
+Kalıcı bir yazma akışı varsa sonucu yenileyerek, tekrar açarak veya ilgili listeye dönerek kalıcılığı ayrı bir adımda doğrula. Yalnızca geçici seçim, önizleme veya diyalog açılması kalıcı yazma yapmıyorsa yenileme adımı ekleme. “Önemli yol”, owning spec’teki kabul koşulu veya Testing Decisions karşıtı olan, bu değişikliğin etkilediği kullanıcıya görünen dallanmadır; yalnız bu yolları listele ve varsa başarı, iptal, doğrulama/hata, geri alma ve her tür/variant yolunu ayrı yaz. Böyle bir yol yoksa bunu doğal bir cümleyle söyle; örneğin `Bu değişiklikte iptal veya hata akışı yok.` İç durum adlarını veya “adaptör bağlı ortam” gibi hazırlaması açıklanmamış ifadeleri tek başına kullanma.
 
-Her adımı şu biçimde yaz: `Nerede: <route veya ekran> · Bölge: <ekran bölgesi> · Etiket: <kontrol> + <eylem> · Beklenen: <sonuç>`; gerçek English UI etiketlerini ayrıca backtick içine al.
+Örnek:
 
-Kalıcı bir yazma akışı varsa sonucu yenileyerek, tekrar açarak veya ilgili listeye dönerek kalıcılığı ayrı bir adımda doğrula. Yalnızca geçici seçim, önizleme veya diyalog açılması kalıcı yazma yapmıyorsa yenileme adımı ekleme. “Önemli yol”, owning spec’teki kabul koşulu veya Testing Decisions karşıtı olan, bu değişikliğin etkilediği kullanıcıya görünen dallanmadır; yalnız bu yolları listele ve varsa başarı, iptal, doğrulama/hata, geri alma ve her tür/variant yolunu ayrı yaz. Böyle bir karşıt yol yoksa bunu `Karşıt yol: Yok.` diye belirt. İç durum adlarını veya “adaptör bağlı ortam” gibi hazırlaması açıklanmamış ifadeleri tek başına kullanma.
+Başlangıç: Uygulama açık, kullanıcı giriş yapmış ve `/capture` ekranındasın. Listede `Toplantı notları` adlı görünür bir kayıt hazır; yoksa önce Capture alanından bu kaydı oluştur.
 
-Örnek (yalnızca `Appearance` dilimini gösterir; `Preferences` etiketleri `docs/specs/02-account-preferences/spec.md`, `Sessions` etiketi `docs/specs/01-account-access/spec.md` içindeki owning spec sözlüklerinden alınmıştır):
+1. `/capture` ekranında `Toplantı notları` kaydına tıklayın. Kayıt gövdesi açılır.
+2. Kayıt gövdesinde `Convert` düğmesine tıklayın. `Work`, `Document` ve `File Attachment` seçenekleri görünür.
+3. Açılan seçeneklerden `Document` seçeneğine tıklayın. `Conversion Preview` ekranı açılır.
+4. Önizlemede `Confirm` düğmesine tıklayın. Kayıt `Document` olarak dönüştürülür ve yeni tür kayıt gövdesinde görünür.
+5. Sayfayı tarayıcıdan yenileyin. Kayıt yeniden açılır ve `Document` türü korunur.
 
-Başlangıç: Uygulama tarayıcıda açık; giriş yapılmış; `/account/preferences` ekranı için önceden yüklenmiş fixture gerekmez.
-
-1. Nerede: `/account/preferences` · Bölge: tarayıcı adres çubuğu · Etiket: `/account/preferences` adresini açın · Beklenen: Sayfa başlığında `Preferences` görünür.
-2. Nerede: `Preferences` ekranı · Bölge: sayfa gövdesi · Etiket: `Appearance` kontrolünü açın · Beklenen: Yalnızca `Light` ve `Dark` seçenekleri görünür; `System` görünmez.
-3. Nerede: `Preferences` ekranı · Bölge: sayfa gövdesi · Etiket: `Light` seçeneğini seçin · Beklenen: `Appearance` kontrolü `Light` değerini gösterir.
-4. Nerede: `Preferences` ekranı · Bölge: sayfa gövdesi · Etiket: `Save` düğmesine tıklayın · Beklenen: `Appearance` değeri `Light` olarak kaydedilir ve sayfada görünür.
-5. Nerede: `Preferences` ekranı · Bölge: tarayıcı araç çubuğu · Etiket: Sayfayı yenileyin · Beklenen: `Preferences` ekranı yeniden açılır ve `Appearance` değeri `Light` olarak kalır.
-6. Nerede: `Preferences` ekranı · Bölge: sayfa gövdesi · Etiket: `Appearance` kontrolünü açın · Beklenen: `Light` ve `Dark` seçenekleri yeniden görünür.
-7. Nerede: `Preferences` ekranı · Bölge: sayfa gövdesi · Etiket: `Dark` seçeneğini seçin · Beklenen: `Appearance` kontrolü `Dark` değerini gösterir.
-8. Nerede: `Preferences` ekranı · Bölge: sayfa gövdesi · Etiket: `Save` düğmesine tıklayın · Beklenen: `Appearance` değeri `Dark` olarak kaydedilir ve sayfada görünür.
-9. Nerede: `Preferences` ekranı · Bölge: tarayıcı araç çubuğu · Etiket: Sayfayı yenileyin · Beklenen: `Preferences` ekranı yeniden açılır ve `Appearance` değeri `Dark` olarak kalır.
-10. Nerede: `Preferences` ekranı · Bölge: sayfa gövdesi · Etiket: `Light` seçeneğini seçin · Beklenen: `Appearance` kontrolü `Light` değerini gösterir; henüz kayıt yapılmaz.
-11. Nerede: `Preferences` ekranı · Bölge: tarayıcı adres çubuğu · Etiket: `/account` adresini açın · Beklenen: `Sessions` ekranı görünür ve `Preferences` formu artık görünmez; kaydedilmemiş `Light` seçimi bu ekrana taşınmaz.
-12. Nerede: `Sessions` ekranı · Bölge: tarayıcı adres çubuğu · Etiket: `/account/preferences` adresini açın · Beklenen: `Preferences` ekranı açılır ve `Appearance` değeri kaydedilmiş `Dark` olarak kalır.
-
-Örnek kapsamı: `System` seçeneğinin görünmemesi 2. adımda, kaydetmeden ayrılınca `Light` seçiminin korunmaması 10–12. adımlarda doğrulanır. Bu örnek tam kabul listesi değildir; gerçek değişiklik `Save` hata/çevrimdışı yolunu etkiliyorsa `Disconnected`, `Reconnect to save.` ve `Unsaved risk` sonucunu ayrı dört parçalı adımlarla ekle. Örnekte yer almaması, ilgili bir hata yolunu atlamak için gerekçe değildir.
+Bu örnekte route, ekran ve kontrol adları cümlenin içinde; beklenen sonuç ise eylemden hemen sonra geliyor. Değişiklik iptal, hata, geri alma veya başka bir türü etkiliyorsa, o akışları da aynı sadelikte ayrı numaralı adımlar olarak ekle. Örneğin ilgili akışta gerçekten görünen `Cancel`, `Undo` veya hata metnini kullan; üründe görünmeyen bir etiket uydurma.
 
 Değişiklik tarayıcıda yoksa, final metni Türkçe olsa da repo sözleşmesinin istediği tek cümle olarak yalnızca `Not applicable` yaz.
 
-**Done when** Başlangıç bölümü uygulamayı ve veriyi hazırlamayı açıklıyor, tarayıcıdaki veri hazırlığı da gerekiyorsa aynı formata uyuyor, her adım `Nerede · Bölge · Etiket · Beklenen` parçalarını açıkça taşıyor, her adım tek eylem içeriyor, ilgili kalıcı yazmaların kalıcılığı/önemli karşıt yolları gösteriliyor ve karşıt yol yokluğu açıkça belirtiliyor — veya tarayıcıda yoksa yalnızca `Not applicable` kullanılıyor.
+**Done when** Başlangıç bölümü uygulamayı ve veriyi hazırlamayı açıklıyor, tarayıcıdaki veri hazırlığı da gerekiyorsa aynı konuşma diliyle yazılıyor, her adım tek eylem içeriyor ve ekranı, gerçek kontrolü ve beklenen sonucu akıcı biçimde anlatıyor; ilgili kalıcı yazmaların kalıcılığı ile önemli karşıt yollar gösteriliyor — veya tarayıcıda yoksa yalnızca `Not applicable` kullanılıyor.
 
 ## Voice
 
