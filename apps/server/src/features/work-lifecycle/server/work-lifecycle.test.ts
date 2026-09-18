@@ -25,9 +25,15 @@ import {
 const PROJECT_ID = "project-1";
 
 function createMemoryWorkLifecycle(
-  options: { commitThenFailWithTitle?: string; failNextCommit?: boolean } = {},
+  options: {
+    commitThenFailWithTitle?: string;
+    failNextCommit?: boolean;
+    initialWorks?: WorkProfile[];
+  } = {},
 ) {
-  const works = new Map<string, WorkProfile>();
+  const works = new Map(
+    options.initialWorks?.map((work) => [work.id, work] as const),
+  );
   const reservations = new Map<string, WorkCreationReservation>();
   const {
     commitThenFailWithTitle: configuredCommitThenFailWithTitle,
@@ -45,9 +51,13 @@ function createMemoryWorkLifecycle(
         reservation ? (works.get(reservation.workId) ?? null) : null,
       );
     },
-    list: async (_accountId, projectId) =>
+    list: async (_accountId, projectId, listOptions) =>
       [...works.values()]
-        .filter((work) => work.projectId === projectId)
+        .filter(
+          (work) =>
+            work.projectId === projectId &&
+            (work.archivedAt !== null) === (listOptions?.archived ?? false),
+        )
         .sort((left, right) => left.number - right.number),
     reserveCreate: (_accountId, projectId, key, payloadFingerprint) => {
       const reservationKey = `${projectId}:${key}`;
@@ -186,6 +196,7 @@ describe("Work Lifecycle seam", () => {
     await expect(
       workLifecycle.create("account-1", createInput("create-1")),
     ).resolves.toMatchObject({
+      archivedAt: null,
       closureResult: null,
       key: "CANT-1",
       number: 1,
@@ -193,6 +204,105 @@ describe("Work Lifecycle seam", () => {
       status: "Not Started",
       title: "Ship the first Work",
       type: "Task",
+    });
+  });
+
+  test("archives and unarchives Work without changing identity or closure", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const created = await workLifecycle.create(
+      "account-1",
+      createInput("archive-create"),
+    );
+
+    const archived = await workLifecycle.archive("account-1", {
+      baseRevision: created.revision,
+      clientIdempotencyKey: "archive-work",
+      workId: created.id,
+    });
+
+    expect(archived).toMatchObject({
+      closureResult: null,
+      id: created.id,
+      key: created.key,
+      status: "Not Started",
+    });
+    expect(archived.archivedAt).not.toBeNull();
+    await expect(workLifecycle.list("account-1", PROJECT_ID)).resolves.toEqual(
+      [],
+    );
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID, { archived: true }),
+    ).resolves.toEqual([archived]);
+
+    const unarchived = await workLifecycle.unarchive("account-1", {
+      baseRevision: archived.revision,
+      clientIdempotencyKey: "unarchive-work",
+      workId: created.id,
+    });
+
+    expect(unarchived).toMatchObject({
+      archivedAt: null,
+      closureResult: null,
+      id: created.id,
+      key: created.key,
+      status: "Not Started",
+    });
+    await expect(workLifecycle.list("account-1", PROJECT_ID)).resolves.toEqual([
+      unarchived,
+    ]);
+  });
+
+  test("keeps closed Work in the default list until it is explicitly archived", async () => {
+    const closedWork: WorkProfile = {
+      archivedAt: null,
+      captureProvenance: null,
+      closureResult: "Completed",
+      createdAt: "2026-09-18T09:00:00.000Z",
+      id: "closed-work",
+      key: "CANT-7",
+      number: 7,
+      projectId: PROJECT_ID,
+      revision: 3,
+      status: "Closed",
+      title: "Already completed Work",
+      type: "Task",
+      updatedAt: "2026-09-18T10:00:00.000Z",
+    };
+    const workLifecycle = createMemoryWorkLifecycle({
+      initialWorks: [closedWork],
+    });
+
+    await expect(workLifecycle.list("account-1", PROJECT_ID)).resolves.toEqual([
+      closedWork,
+    ]);
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID, { archived: true }),
+    ).resolves.toEqual([]);
+
+    const archived = await workLifecycle.archive("account-1", {
+      baseRevision: closedWork.revision,
+      clientIdempotencyKey: "archive-closed-work",
+      workId: closedWork.id,
+    });
+    expect(archived).toMatchObject({
+      closureResult: "Completed",
+      id: closedWork.id,
+      key: closedWork.key,
+      status: "Closed",
+    });
+
+    await expect(
+      workLifecycle.unarchive("account-1", {
+        baseRevision: archived.revision,
+        clientIdempotencyKey: "unarchive-closed-work",
+        workId: closedWork.id,
+      }),
+    ).resolves.toMatchObject({
+      archivedAt: null,
+      closureResult: "Completed",
+      id: closedWork.id,
+      key: closedWork.key,
+      status: "Closed",
     });
   });
 

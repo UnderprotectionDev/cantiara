@@ -13,6 +13,7 @@ import {
 } from "./work-lifecycle";
 
 const work: WorkProfile = {
+  archivedAt: null,
   captureProvenance: null,
   closureResult: null,
   createdAt: "2026-09-18T09:00:00.000Z",
@@ -60,10 +61,16 @@ function createContext(workLifecycle: WorkLifecycleAccess): Context {
 describe("Work Lifecycle RPC", () => {
   test("creates, lists, and reads Work through the authenticated interface", async () => {
     const create = vi.fn().mockResolvedValue(work);
+    const archive = vi
+      .fn()
+      .mockResolvedValue({ ...work, archivedAt: "2026-09-18T10:00:00.000Z" });
+    const unarchive = vi.fn().mockResolvedValue(work);
+    const list = vi.fn().mockResolvedValue([work]);
     const workLifecycle: WorkLifecycleAccess = {
+      archive,
       create,
       find: vi.fn().mockResolvedValue(work),
-      list: vi.fn().mockResolvedValue([work]),
+      list,
       previewTypeChange: vi.fn().mockResolvedValue({
         currentType: "Task",
         nextType: "Bug",
@@ -72,6 +79,7 @@ describe("Work Lifecycle RPC", () => {
         workId: work.id,
       }),
       updateType: vi.fn().mockResolvedValue({ ...work, type: "Bug" }),
+      unarchive,
     };
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
@@ -88,6 +96,10 @@ describe("Work Lifecycle RPC", () => {
     await expect(
       client.projectWorks({ projectId: "project-1" }),
     ).resolves.toEqual([work]);
+    await client.projectWorks({ archived: true, projectId: "project-1" });
+    expect(list).toHaveBeenLastCalledWith("account-1", "project-1", {
+      archived: true,
+    });
     await expect(client.work({ workId: "work-1" })).resolves.toEqual(work);
     expect(create).toHaveBeenCalledWith("account-1", {
       baseRevision: 0,
@@ -107,10 +119,25 @@ describe("Work Lifecycle RPC", () => {
         workId: work.id,
       }),
     ).resolves.toMatchObject({ type: "Bug" });
+    await expect(
+      client.archiveWork({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "work-archive-1",
+        workId: work.id,
+      }),
+    ).resolves.toMatchObject({ archivedAt: "2026-09-18T10:00:00.000Z" });
+    await expect(
+      client.unarchiveWork({
+        baseRevision: work.revision + 1,
+        clientIdempotencyKey: "work-unarchive-1",
+        workId: work.id,
+      }),
+    ).resolves.toEqual(work);
   });
 
   test("maps a missing Project to a user-facing not-found response", async () => {
     const workLifecycle: WorkLifecycleAccess = {
+      archive: vi.fn(),
       create: vi
         .fn()
         .mockRejectedValue(new WorkProjectNotFoundError("missing")),
@@ -118,6 +145,7 @@ describe("Work Lifecycle RPC", () => {
       list: vi.fn(),
       previewTypeChange: vi.fn(),
       updateType: vi.fn(),
+      unarchive: vi.fn(),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
@@ -139,6 +167,7 @@ describe("Work Lifecycle RPC", () => {
 
   test("maps a missing Feature impact preview to a precondition response", async () => {
     const workLifecycle: WorkLifecycleAccess = {
+      archive: vi.fn(),
       create: vi.fn(),
       find: vi.fn(),
       list: vi.fn(),
@@ -150,6 +179,7 @@ describe("Work Lifecycle RPC", () => {
             "work-type-impact-work-1-1-Task-Feature",
           ),
         ),
+      unarchive: vi.fn(),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
