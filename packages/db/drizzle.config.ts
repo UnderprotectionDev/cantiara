@@ -8,6 +8,7 @@ export default defineConfig({
     "./src/schema/mutation.ts",
     "./src/schema/project.ts",
     "./src/schema/capture-triage.ts",
+    "./src/schema/work.ts",
   ],
   out: "./src/migrations",
   dialect: "postgresql",

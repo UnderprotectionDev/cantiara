@@ -7,12 +7,14 @@ test("keeps Sequential triage focused until a confirmed exit", async ({
   page,
   request,
 }) => {
+  test.setTimeout(60_000);
   const setupResponse = await request.get(
     `${E2E_SERVER_URL}/__e2e/setup?fixture=capture-inbox`,
   );
   expect(setupResponse.ok()).toBe(true);
   const setup = (await setupResponse.json()) as {
     cookie: Parameters<typeof context.addCookies>[0][number];
+    projectId: string;
   };
   await context.addCookies([setup.cookie]);
 
@@ -21,6 +23,14 @@ test("keeps Sequential triage focused until a confirmed exit", async ({
     page.getByRole("heading", { name: "Capture Inbox", level: 1 }),
   ).toBeVisible();
   const savedCaptures = page.getByRole("region", { name: "Saved captures" });
+  const projectSelect = page.getByLabel("Project", { exact: true });
+  const projectOption = projectSelect
+    .locator("option")
+    .filter({ hasText: "Capture Project" })
+    .first();
+  await expect(projectOption).toHaveCount(1);
+  const captureProjectId = await projectOption.getAttribute("value");
+  expect(captureProjectId).toBe(setup.projectId);
 
   async function saveCapture(content: string) {
     await page.getByLabel("Capture", { exact: true }).fill(content);
@@ -136,6 +146,9 @@ test("keeps Sequential triage focused until a confirmed exit", async ({
     .getByRole("button", { name: "Convert", exact: true })
     .click();
   await sequentialItem.getByLabel("Conversion target").selectOption("Work");
+  await sequentialItem
+    .getByLabel("Project", { exact: true })
+    .selectOption(setup.projectId);
   await sequentialItem
     .getByRole("button", { name: "Preview", exact: true })
     .click();

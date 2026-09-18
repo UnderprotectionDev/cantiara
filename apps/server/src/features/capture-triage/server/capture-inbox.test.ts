@@ -682,13 +682,18 @@ describe("Capture Inbox seam", () => {
       createMemoryOperationStateStore(),
       bulkSenseMaking,
     );
+    const createWork = vi.fn().mockResolvedValue({
+      id: "work-resolve",
+      recordType: "Work",
+    });
     const captureInbox = createCaptureInbox({
       store,
       triageAdapter: createTriageAdapter(),
-      workCreate: { createBug: vi.fn() },
+      workCreate: { createBug: vi.fn(), createWork },
     });
     const preview = await captureInbox.previewConvert("account-1", {
       itemId: capture.id,
+      projectId: "project-1",
       recordType: "Work",
     });
 
@@ -778,6 +783,47 @@ describe("Capture Inbox seam", () => {
     expect(items).toEqual([]);
   });
 
+  test("requires and previews a target Project for Workspace Work conversion", async () => {
+    const capture: CaptureInboxItem = {
+      content: "File this later",
+      createdAt: "2026-09-16T09:00:00.000Z",
+      fields: {},
+      id: "capture-workspace-convert",
+      projectId: null,
+      template: null,
+    };
+    const { store } = createTriageMemoryStore([capture]);
+    const captureInbox = createCaptureInbox({
+      store,
+      triageAdapter: createTriageAdapter(),
+      workCreate: { createBug: vi.fn(), createWork: vi.fn() },
+    });
+
+    await expect(
+      captureInbox.previewConvert("account-1", {
+        itemId: capture.id,
+        recordType: "Work",
+      }),
+    ).rejects.toMatchObject({
+      code: "PROJECT_REQUIRED_FOR_WORK_CONVERSION",
+    });
+
+    await expect(
+      captureInbox.previewConvert("account-1", {
+        itemId: capture.id,
+        projectId: "project-1",
+        recordType: "Work",
+      }),
+    ).resolves.toMatchObject({
+      proposedRecord: { projectId: "project-1", recordType: "Work" },
+      targetScope: {
+        kind: "project",
+        label: "Project",
+        projectId: "project-1",
+      },
+    });
+  });
+
   test("exposes exactly three explicit exits and consumes a capture on each exit", async () => {
     expect(CAPTURE_TRIAGE_EXITS).toEqual(["convert", "attach", "delete"]);
 
@@ -809,11 +855,15 @@ describe("Capture Inbox seam", () => {
     );
     const convertedAdapter = createTriageAdapter();
     const convertedStagingStore = createStagingStore();
+    const createWork = vi.fn().mockResolvedValue({
+      id: "work-1",
+      recordType: "Work",
+    });
     const convertedInbox = createCaptureInbox({
       store: convertedStore.store,
       stagingStore: convertedStagingStore,
       triageAdapter: convertedAdapter,
-      workCreate: { createBug: vi.fn() },
+      workCreate: { createBug: vi.fn(), createWork },
     });
     const conversionPreview = await convertedInbox.previewConvert("account-1", {
       itemId: convertedCapture.id,
@@ -855,8 +905,17 @@ describe("Capture Inbox seam", () => {
       consumed: true,
       exit: "convert",
       itemId: convertedCapture.id,
-      recordId: "record-1",
+      recordId: "work-1",
     });
+    expect(createWork).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientIdempotencyKey: "convert-1",
+        item: convertedCapture,
+        projectId: "project-1",
+        recordType: "Work",
+        title: "The preview is blank",
+      }),
+    );
     expect(await convertedInbox.list("account-1")).toMatchObject({
       bulkSenseMaking: { clusters: [], placements: [] },
       groups: [],
@@ -1091,7 +1150,7 @@ describe("Capture Inbox seam", () => {
     await expect(
       captureInbox.previewConvert("account-1", {
         itemId: capture.id,
-        recordType: "Work",
+        recordType: "Document",
       }),
     ).rejects.toMatchObject({ code: "CAPTURE_ATTACHMENT_SCOPE_REQUIRED" });
 
@@ -1111,9 +1170,9 @@ describe("Capture Inbox seam", () => {
         },
         source: capture,
         targetScope: {
-          kind: "project",
-          label: "Project",
-          projectId: "forged-project",
+          kind: "workspace",
+          label: "Workspace",
+          projectId: null,
         },
       },
     });
@@ -1221,14 +1280,15 @@ describe("Capture Inbox seam", () => {
     };
     const { store } = createTriageMemoryStore([capture]);
     const adapter = createTriageAdapter({
-      createRecord: vi
-        .fn()
-        .mockRejectedValue(new Error("target feature unavailable")),
+      createRecord: vi.fn(),
     });
+    const createWork = vi
+      .fn()
+      .mockRejectedValue(new Error("target feature unavailable"));
     const captureInbox = createCaptureInbox({
       store,
       triageAdapter: adapter,
-      workCreate: { createBug: vi.fn() },
+      workCreate: { createBug: vi.fn(), createWork },
     });
     const preview = await captureInbox.previewConvert("account-1", {
       itemId: capture.id,
@@ -1326,20 +1386,25 @@ describe("Capture Inbox seam", () => {
       template: null,
     };
     const adapter = createTriageAdapter();
+    const createWork = vi.fn().mockResolvedValue({
+      id: "record-1",
+      recordType: "Work",
+    });
     const { operationState, store } = createTriageMemoryStore([capture]);
     const firstInbox = createCaptureInbox({
       store,
       triageAdapter: adapter,
-      workCreate: { createBug: vi.fn() },
+      workCreate: { createBug: vi.fn(), createWork },
     });
     const preview = await firstInbox.previewConvert("account-1", {
       itemId: capture.id,
+      projectId: "project-1",
       recordType: "Work",
     });
     const secondInbox = createCaptureInbox({
       store: { ...store, operationState },
       triageAdapter: adapter,
-      workCreate: { createBug: vi.fn() },
+      workCreate: { createBug: vi.fn(), createWork },
     });
 
     await expect(
@@ -1356,6 +1421,6 @@ describe("Capture Inbox seam", () => {
         previewId: preview.previewId,
       }),
     ).resolves.toMatchObject({ recordId: "record-1" });
-    expect(adapter.createRecord).toHaveBeenCalledTimes(1);
+    expect(createWork).toHaveBeenCalledTimes(1);
   });
 });

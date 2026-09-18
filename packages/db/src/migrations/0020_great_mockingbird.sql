@@ -1,0 +1,1 @@
+ALTER TABLE "work" ADD COLUMN "capture_provenance" jsonb;

@@ -23,9 +23,11 @@ import {
   createDatabaseCaptureInbox,
 } from "../src/features/capture-triage/server/capture-inbox-database";
 import { createDevelopmentCaptureInboxTriageAdapter } from "../src/features/capture-triage/server/capture-inbox-development-adapter";
+import { createCaptureInboxWorkCreate } from "../src/features/capture-triage/server/capture-work-create";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
 
 const serverPort = Number(process.env.E2E_SERVER_PORT ?? "3100");
 const serverOrigin = `http://127.0.0.1:${serverPort}`;
@@ -54,9 +56,10 @@ const accountPreferencesMutationContract = createDatabaseMutationContract(
 const captureInboxMutationContract = createDatabaseMutationContract(database, {
   target: captureInboxMutationTarget,
 });
+const workLifecycle = createDatabaseWorkLifecycle(database);
 const captureInbox = createDatabaseCaptureInbox(
   database,
-  { createBug: async () => ({ workId: "e2e-work" }) },
+  createCaptureInboxWorkCreate(workLifecycle),
   captureInboxMutationContract,
   createDevelopmentCaptureInboxTriageAdapter(),
 );
@@ -117,6 +120,7 @@ const app = createApp({
   nodeEnv: "test",
   projectShell,
   projectShellMutationContracts,
+  workLifecycle,
   redactSecrets: () => new Error("Redacted E2E server error"),
   trustedProxyIps: [],
 });
@@ -160,7 +164,19 @@ async function createE2EFixture(fixtureKey: string) {
     throw new Error("Better Auth did not create an E2E session cookie");
   }
 
-  return { currentCookie, otherCookie };
+  const captureProject =
+    fixtureKey === "capture-inbox"
+      ? await projectShell.create(founder.id, {
+          name: "Capture Project",
+          starterConfiguration: "Blank Project",
+        })
+      : null;
+
+  return {
+    currentCookie,
+    otherCookie,
+    ...(captureProject ? { projectId: captureProject.id } : {}),
+  };
 }
 
 serve({
@@ -177,8 +193,13 @@ serve({
         );
       }
 
-      const { currentCookie, otherCookie } = await createE2EFixture(fixtureKey);
-      return Response.json({ cookie: currentCookie, otherCookie });
+      const { currentCookie, otherCookie, projectId } =
+        await createE2EFixture(fixtureKey);
+      return Response.json({
+        cookie: currentCookie,
+        otherCookie,
+        ...(projectId ? { projectId } : {}),
+      });
     }
     return app.fetch(request, server);
   },

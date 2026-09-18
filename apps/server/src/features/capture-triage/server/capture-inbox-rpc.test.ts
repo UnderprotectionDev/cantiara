@@ -145,6 +145,36 @@ describe("Capture Inbox RPC", () => {
     });
   });
 
+  test("keeps an unavailable Project error actionable instead of classifying it as an API failure", async () => {
+    const createBug = vi.fn().mockRejectedValue(
+      Object.assign(new Error("Project is unavailable."), {
+        code: "WORK_PROJECT_NOT_FOUND",
+      }),
+    );
+    const captureInbox: CaptureInboxAccess = {
+      create: vi.fn(),
+      createBug,
+      list: vi.fn().mockResolvedValue(emptyInbox),
+      updateBulkSenseMaking: vi.fn(),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(captureInbox),
+    });
+
+    await expect(
+      client.createBug({
+        content: "Blank preview",
+        projectId: "missing-project",
+        template: "Bug Capture",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      data: { code: "WORK_PROJECT_NOT_FOUND" },
+      message: "Choose an available Project.",
+      status: 400,
+    });
+  });
+
   test("returns an explicit unavailable error when Work creation is not wired", async () => {
     const createBug = vi.fn().mockRejectedValue(
       Object.assign(new Error("Work creation is not available yet."), {

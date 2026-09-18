@@ -1,0 +1,2 @@
+ALTER TABLE "work_key_allocation" ADD COLUMN "payload_fingerprint" text;--> statement-breakpoint
+ALTER TABLE "work_key_allocation" ADD CONSTRAINT "work_key_allocation_payload_fingerprint_check" CHECK ("work_key_allocation"."payload_fingerprint" is null or "work_key_allocation"."payload_fingerprint" ~ '^[0-9a-fA-F]{64}$');

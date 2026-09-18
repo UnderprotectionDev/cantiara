@@ -22,6 +22,8 @@ import {
   type CaptureInboxTriageAccess,
   type CaptureInboxTriageAdapter,
   type CaptureInput,
+  type CaptureRecordCreateInput,
+  type CaptureRecordCreateReceipt,
   type CaptureSuggestion,
   type CaptureSuggestions,
   type CaptureTargetScope,
@@ -170,6 +172,9 @@ export interface CaptureInboxStagingStore {
 
 export interface CaptureInboxWorkCreate {
   createBug: (input: DirectBugCreateInput) => Promise<DirectBugCreateReceipt>;
+  createWork?: (
+    input: CaptureRecordCreateInput,
+  ) => Promise<CaptureRecordCreateReceipt>;
 }
 
 export class CaptureInboxError extends Error {
@@ -212,6 +217,7 @@ export type CaptureInboxErrorCode =
   | "CAPTURE_BULK_PLACEMENT_INVALID"
   | "CAPTURE_BULK_VIEW_CONFLICT"
   | "PROJECT_REQUIRED_FOR_CREATE_BUG"
+  | "PROJECT_REQUIRED_FOR_WORK_CONVERSION"
   | "UNKNOWN_CAPTURE_FIELD";
 
 function requireCaptureStagingStore(
@@ -286,12 +292,15 @@ function sameProject(left: string | null, right: string | null) {
   return left.toLocaleLowerCase("en-US") === right.toLocaleLowerCase("en-US");
 }
 
-function captureTargetScope(item: CaptureInboxItem): CaptureTargetScope {
-  return item.projectId
+function captureTargetScope(
+  item: CaptureInboxItem,
+  projectId = item.projectId,
+): CaptureTargetScope {
+  return projectId
     ? {
         kind: "project",
         label: "Project",
-        projectId: item.projectId,
+        projectId,
       }
     : {
         kind: "workspace",
@@ -742,7 +751,14 @@ export function createCaptureInbox({
         targetField: sourceField,
         value,
       }));
-      const targetScope = captureTargetScope(item);
+      const targetProjectId = item.projectId ?? input.projectId ?? null;
+      if (input.recordType === "Work" && !targetProjectId) {
+        throw new CaptureInboxError(
+          "PROJECT_REQUIRED_FOR_WORK_CONVERSION",
+          "Converting a Capture Inbox item to Work requires a Project.",
+        );
+      }
+      const targetScope = captureTargetScope(item, targetProjectId);
       if (item.attachment) {
         requireFileAttachmentScope(targetScope);
       }
@@ -753,7 +769,7 @@ export function createCaptureInbox({
         proposedRelations: [{ relation: "Origin", target: "Proposed record" }],
         proposedRecord: {
           fields: item.fields,
-          projectId: item.projectId,
+          projectId: targetProjectId,
           recordType: input.recordType,
           title,
         },
@@ -809,22 +825,41 @@ export function createCaptureInbox({
           "The Capture Inbox item changed after the preview.",
         );
       }
-      const targetScope = captureTargetScope(item);
+      const { targetScope } = pending.preview;
+      const createRecord = () => {
+        if (pending.preview.proposedRecord.recordType === "Work") {
+          if (!workCreate.createWork) {
+            throw new CaptureInboxError(
+              "CAPTURE_WORK_CREATE_UNAVAILABLE",
+              "Work creation is not available yet.",
+            );
+          }
+          return workCreate.createWork({
+            accountId,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            fields: pending.preview.proposedRecord.fields,
+            item,
+            projectId: pending.preview.proposedRecord.projectId,
+            recordType: pending.preview.proposedRecord.recordType,
+            title: pending.preview.proposedRecord.title,
+          });
+        }
+        return adapter.createRecord({
+          accountId,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          fields: pending.preview.proposedRecord.fields,
+          item,
+          projectId: pending.preview.proposedRecord.projectId,
+          recordType: pending.preview.proposedRecord.recordType,
+          title: pending.preview.proposedRecord.title,
+        });
+      };
       const created = await runTriageMutation({
         accountId,
         action: () =>
           finalizeCaptureAttachment({
             accountId,
-            action: () =>
-              adapter.createRecord({
-                accountId,
-                clientIdempotencyKey: input.clientIdempotencyKey,
-                fields: pending.preview.proposedRecord.fields,
-                item,
-                projectId: pending.preview.proposedRecord.projectId,
-                recordType: pending.preview.proposedRecord.recordType,
-                title: pending.preview.proposedRecord.title,
-              }),
+            action: createRecord,
             clientIdempotencyKey: input.clientIdempotencyKey,
             item,
             targetScope,

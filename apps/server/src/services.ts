@@ -16,14 +16,11 @@ import {
   createDatabaseAccountPreferences,
 } from "./features/account-preferences/server/account-preferences-database";
 import {
-  CaptureInboxError,
-  type CaptureInboxWorkCreate,
-} from "./features/capture-triage/server/capture-inbox";
-import {
   captureInboxMutationTarget,
   createDatabaseCaptureInbox,
 } from "./features/capture-triage/server/capture-inbox-database";
 import { createDevelopmentCaptureInboxTriageAdapter } from "./features/capture-triage/server/capture-inbox-development-adapter";
+import { createCaptureInboxWorkCreate } from "./features/capture-triage/server/capture-work-create";
 import { createDatabaseWebCapture } from "./features/capture-triage/server/web-capture-database";
 import {
   createR2CaptureInboxStagingStore,
@@ -32,6 +29,7 @@ import {
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
 
 const db = createDb(env);
 const securityEventDb = createSecurityEventDb({
@@ -50,20 +48,15 @@ export const mutationContract =
 export const projectShell = createDatabaseProjectShell(db);
 export const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(db);
+export const workLifecycle = createDatabaseWorkLifecycle(db);
 export const captureInboxMutationContract =
   createDatabaseMutationContract<MutationPayload>(db, {
     target: captureInboxMutationTarget,
   });
+
 // Work Lifecycle owns key allocation and persistence; Capture Inbox only hands
-// an eligible direct Create Bug command across that boundary for now.
-const captureInboxWorkCreate: CaptureInboxWorkCreate = {
-  createBug: () => {
-    throw new CaptureInboxError(
-      "CAPTURE_WORK_CREATE_UNAVAILABLE",
-      "Work creation is not available yet.",
-    );
-  },
-};
+// eligible direct or converted Work creates across that boundary.
+const captureInboxWorkCreate = createCaptureInboxWorkCreate(workLifecycle);
 const webCaptureStaging =
   env.R2_ACCESS_KEY_ID &&
   env.R2_ACCOUNT_ID &&

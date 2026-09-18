@@ -1,4 +1,8 @@
 import type { CaptureInboxSnapshot } from "@cantiara/api/capture-triage";
+import {
+  getProjectShellConfiguration,
+  type ProjectProfile,
+} from "@cantiara/api/project-shell";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
@@ -7,7 +11,7 @@ import {
   ClientShellProvider,
   createClientShell,
 } from "@/features/web-macos-client/views/client-shell";
-import { captureInboxQueryOptions } from "@/utils/orpc";
+import { captureInboxQueryOptions, projectsQueryOptions } from "@/utils/orpc";
 
 import {
   CREATE_BUG_UNAVAILABLE_MESSAGE,
@@ -38,6 +42,26 @@ function renderCaptureInbox(
     captureInboxQueryOptions(accountId).queryKey,
     snapshot,
   );
+  const projects = [
+    {
+      configuration: getProjectShellConfiguration("Blank Project"),
+      createdAt: "2026-09-17T09:00:00.000Z",
+      id: "project-1",
+      logo: null,
+      name: "Payment App",
+      problem: null,
+      purpose: null,
+      revision: 1,
+      scope: null,
+      shortCode: "PAY",
+      shortCodeLocked: false,
+      starterConfiguration: "Blank Project",
+      status: "Active",
+      targetDate: null,
+      updatedAt: "2026-09-17T09:00:00.000Z",
+    },
+  ] satisfies ProjectProfile[];
+  queryClient.setQueryData(projectsQueryOptions().queryKey, projects);
 
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
@@ -196,10 +220,28 @@ describe("Capture Inbox view", () => {
         "This capture will appear here until you choose what happens next.",
       label: "Workspace Capture Inbox",
     });
-    expect(captureDestination("  project-1  ")).toEqual({
-      detail: "This capture will appear under project-1.",
+    expect(
+      captureDestination("  project-1  ", [
+        { id: "project-1", name: "Payment App", shortCode: "PAY" },
+      ]),
+    ).toEqual({
+      detail: "This capture will appear under Payment App (PAY).",
       label: "Project Capture Inbox",
     });
+  });
+
+  test("lets the founder choose a Project without entering an internal id", () => {
+    const html = renderCaptureInbox({
+      bulkSenseMaking: { clusters: [], placements: [], revision: 0 },
+      groups: [],
+      items: [],
+      triageAvailable: false,
+    });
+
+    expect(html).toContain('id="capture-project"');
+    expect(html).toContain(">Workspace Capture Inbox</option>");
+    expect(html).toContain('value="project-1">Payment App (PAY)</option>');
+    expect(html).not.toContain('placeholder="Leave empty for Workspace"');
   });
 
   test("keeps named Bulk sense-making columns beside Ungrouped", () => {

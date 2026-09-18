@@ -1,6 +1,6 @@
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
 import { createDb } from "@cantiara/db";
-import { user } from "@cantiara/db/schema/auth";
+import { user, workspace } from "@cantiara/db/schema/auth";
 import {
   captureInboxBulkView,
   captureInboxItem,
@@ -16,11 +16,14 @@ import { and, eq, inArray } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
 
 import { createDatabaseMutationContract } from "../../mutation-and-undo/server/mutation-contract-database";
+import { createDatabaseProjectShell } from "../../project-shell/server/project-shell-database";
+import { createDatabaseWorkLifecycle } from "../../work-lifecycle/server/work-lifecycle-database";
 import {
   captureInboxMutationTarget,
   createDatabaseCaptureInbox,
 } from "./capture-inbox-database";
 import { createDevelopmentCaptureInboxTriageAdapter } from "./capture-inbox-development-adapter";
+import { createCaptureInboxWorkCreate } from "./capture-work-create";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
@@ -151,22 +154,38 @@ describeDatabase("Capture Inbox PostgreSQL integration", () => {
     const convertTargetId = `capture-triage:${accountId}:convert:${convertClientIdempotencyKey}`;
     const attachCaptureTargetId = `capture-inbox:${accountId}:${attachCaptureClientIdempotencyKey}`;
     const attachTargetId = `capture-triage:${accountId}:attach:${attachClientIdempotencyKey}`;
-    const targetIds = [
-      captureTargetId,
-      convertTargetId,
-      attachCaptureTargetId,
-      attachTargetId,
-    ];
 
     await database.insert(user).values({
       email: `${accountId}@example.invalid`,
       id: accountId,
       name: "Capture triage test account",
     });
+    await database.insert(workspace).values({
+      id: `workspace-${accountId}`,
+      ownerAccountId: accountId,
+    });
+
+    const project = await createDatabaseProjectShell(database).create(
+      accountId,
+      {
+        name: "Capture Project",
+        shortCode: "CAPTURE",
+        starterConfiguration: "Blank Project",
+      },
+    );
+    const workTargetId = `work-create:${accountId}:${project.id}:${convertClientIdempotencyKey}`;
+    const targetIds = [
+      captureTargetId,
+      convertTargetId,
+      attachCaptureTargetId,
+      attachTargetId,
+      workTargetId,
+    ];
+    const workLifecycle = createDatabaseWorkLifecycle(database);
 
     const captureInbox = createDatabaseCaptureInbox(
       database,
-      { createBug: async () => ({ workId: "unused" }) },
+      createCaptureInboxWorkCreate(workLifecycle),
       createDatabaseMutationContract(database, {
         target: captureInboxMutationTarget,
       }),
@@ -183,7 +202,15 @@ describeDatabase("Capture Inbox PostgreSQL integration", () => {
       });
       const preview = await captureInbox.previewConvert(accountId, {
         itemId: item.id,
+        projectId: project.id,
         recordType: "Work",
+      });
+      expect(preview).toMatchObject({
+        proposedRecord: { projectId: project.id, recordType: "Work" },
+        targetScope: {
+          kind: "project",
+          projectId: project.id,
+        },
       });
 
       await expect(
@@ -199,6 +226,13 @@ describeDatabase("Capture Inbox PostgreSQL integration", () => {
       await expect(captureInbox.list(accountId)).resolves.toMatchObject({
         items: [],
       });
+      await expect(workLifecycle.list(accountId, project.id)).resolves.toEqual([
+        expect.objectContaining({
+          projectId: project.id,
+          title: "A database-backed conversion capture",
+          type: "Task",
+        }),
+      ]);
 
       const attachedItem = await captureInbox.create(accountId, {
         clientIdempotencyKey: attachCaptureClientIdempotencyKey,

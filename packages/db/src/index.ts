@@ -20,6 +20,10 @@ import {
   user,
   userRelations,
   verification,
+  work,
+  workKeyAllocation,
+  workKeyAllocationRelations,
+  workRelations,
   workspace,
   workspaceRelations,
 } from "./schema";
@@ -64,6 +68,10 @@ const schema = {
   verification,
   workspace,
   workspaceRelations,
+  work,
+  workKeyAllocation,
+  workKeyAllocationRelations,
+  workRelations,
 };
 
 export function createDb(env: DatabaseConfig) {

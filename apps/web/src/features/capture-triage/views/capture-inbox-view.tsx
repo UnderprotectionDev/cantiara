@@ -19,6 +19,7 @@ import {
   type CaptureSuggestions,
   type CaptureUndoMergePreview,
 } from "@cantiara/api/capture-triage";
+import type { ProjectProfile } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import {
@@ -31,6 +32,7 @@ import {
   type FormEvent,
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { toast } from "sonner";
@@ -46,6 +48,7 @@ import {
   accountPreferencesQueryOptions,
   captureInboxQueryOptions,
   client,
+  projectsQueryOptions,
 } from "@/utils/orpc";
 
 import {
@@ -477,19 +480,45 @@ interface CaptureConversionSetupProps {
   isOnline: boolean;
   onCancel: () => void;
   onPreview: () => void;
+  onProjectChange: (event: ChangeEvent<HTMLSelectElement>) => void;
   onRecordTypeChange: (event: ChangeEvent<HTMLSelectElement>) => void;
   previewPending: boolean;
+  projectId: string;
+  projects:
+    | readonly Pick<ProjectProfile, "id" | "name" | "shortCode">[]
+    | undefined;
   recordType: CaptureConversionTarget | "";
+  sourceProjectId: string | null;
+}
+
+function captureConversionProjectId(projectId: string | null) {
+  return projectId ?? "";
+}
+
+function optionalProjectId(projectId: string) {
+  return projectId.trim() || undefined;
+}
+
+function captureConversionClientIdempotencyKey(current: string | null) {
+  return current ?? crypto.randomUUID();
 }
 
 function CaptureConversionSetup({
   isOnline,
   onCancel,
   onPreview,
+  onProjectChange,
   onRecordTypeChange,
+  projectId,
+  projects,
   previewPending,
   recordType,
+  sourceProjectId,
 }: CaptureConversionSetupProps) {
+  const availableProjects = projects ?? [];
+  const requiresProject =
+    recordType === "Work" && !sourceProjectId && !projectId.trim();
+
   return (
     <section className="space-y-3 border border-border/70 bg-muted/15 p-4">
       <h3 className="font-semibold text-sm">Choose conversion target</h3>
@@ -505,9 +534,33 @@ function CaptureConversionSetup({
           </NativeSelectOption>
         ))}
       </NativeSelect>
+      {sourceProjectId ? null : (
+        <NativeSelect
+          aria-label="Project"
+          disabled={availableProjects.length === 0}
+          onChange={onProjectChange}
+          value={projectId}
+        >
+          <NativeSelectOption value="">
+            Workspace Capture Inbox
+          </NativeSelectOption>
+          {availableProjects.map((project) => (
+            <NativeSelectOption key={project.id} value={project.id}>
+              {project.name} ({project.shortCode})
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      )}
+      {requiresProject ? (
+        <p className="text-destructive text-xs">
+          Work conversion requires a Project.
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <Button
-          disabled={!(isOnline && recordType) || previewPending}
+          disabled={
+            !(isOnline && recordType) || requiresProject || previewPending
+          }
           onClick={onPreview}
           type="button"
         >
@@ -596,6 +649,7 @@ function CaptureInboxItemActions({
   const queryClient = useQueryClient();
   const shell = useClientShell();
   const connection = useClientShellConnection();
+  const projects = useQuery(projectsQueryOptions());
   const [mode, setMode] = useState<ActionMode>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [suggestionData, setSuggestionData] =
@@ -605,7 +659,16 @@ function CaptureInboxItemActions({
   );
   const [relation, setRelation] = useState<CaptureBindRelation>("Origin");
   const [targetId, setTargetId] = useState("");
+  const [conversionProjectId, setConversionProjectId] = useState(
+    captureConversionProjectId(item.projectId),
+  );
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const conversionClientIdempotencyKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    setConversionProjectId(captureConversionProjectId(item.projectId));
+    conversionClientIdempotencyKey.current = null;
+  }, [item]);
 
   const refreshInbox = useCallback(
     async (advanceAfterExit = false) => {
@@ -615,6 +678,7 @@ function CaptureInboxItemActions({
       setMode(null);
       setPreview(null);
       setSuggestionData(null);
+      conversionClientIdempotencyKey.current = null;
       if (advanceAfterExit) {
         onTriageExit?.();
       }
@@ -630,6 +694,7 @@ function CaptureInboxItemActions({
       return shell.runOnlineOnly(() =>
         client.previewCaptureConversion({
           itemId: item.id,
+          projectId: optionalProjectId(conversionProjectId),
           recordType,
         }),
       );
@@ -641,16 +706,24 @@ function CaptureInboxItemActions({
     },
   });
   const convert = useMutation({
-    mutationFn: (previewId: string) =>
-      shell.runWrite(() =>
+    mutationFn: (previewId: string) => {
+      const clientIdempotencyKey = captureConversionClientIdempotencyKey(
+        conversionClientIdempotencyKey.current,
+      );
+      conversionClientIdempotencyKey.current = clientIdempotencyKey;
+      return shell.runWrite(() =>
         client.convertCapture({
-          clientIdempotencyKey: crypto.randomUUID(),
+          clientIdempotencyKey,
           itemId: item.id,
           previewId,
         }),
-      ),
+      );
+    },
     onError: () => setActionMessage(triageErrorMessage()),
-    onSuccess: () => refreshInbox(true),
+    onSuccess: () => {
+      conversionClientIdempotencyKey.current = null;
+      return refreshInbox(true);
+    },
   });
   const previewAttachment = useMutation({
     mutationFn: () =>
@@ -744,15 +817,21 @@ function CaptureInboxItemActions({
     setPreview(null);
     setSuggestionData(null);
     setActionMessage(null);
+    conversionClientIdempotencyKey.current = null;
   }, []);
 
   const useSuggestion = useCallback((suggestion: CaptureSuggestion) => {
+    conversionClientIdempotencyKey.current = null;
     setTargetId(suggestion.id);
     setMode("attach");
     setPreview(null);
   }, []);
 
-  const openConvert = useCallback(() => startMode("convert"), [startMode]);
+  const openConvert = useCallback(() => {
+    conversionClientIdempotencyKey.current = null;
+    setConversionProjectId(captureConversionProjectId(item.projectId));
+    startMode("convert");
+  }, [item.projectId, startMode]);
   const openAttach = useCallback(() => startMode("attach"), [startMode]);
   const handleDelete = useCallback(
     () => deleteCapture.mutate(),
@@ -763,8 +842,17 @@ function CaptureInboxItemActions({
     [suggestions],
   );
   const handleRecordTypeChange = useCallback(
-    (event: ChangeEvent<HTMLSelectElement>) =>
-      setRecordType(event.target.value as CaptureConversionTarget),
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      conversionClientIdempotencyKey.current = null;
+      setRecordType(event.target.value as CaptureConversionTarget);
+    },
+    [],
+  );
+  const handleProjectChange = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      conversionClientIdempotencyKey.current = null;
+      setConversionProjectId(event.target.value);
+    },
     [],
   );
   const handlePreviewConversion = useCallback(
@@ -850,9 +938,13 @@ function CaptureInboxItemActions({
           isOnline={isOnline}
           onCancel={closeMode}
           onPreview={handlePreviewConversion}
+          onProjectChange={handleProjectChange}
           onRecordTypeChange={handleRecordTypeChange}
           previewPending={previewConversion.isPending}
+          projectId={conversionProjectId}
+          projects={projects.data}
           recordType={recordType}
+          sourceProjectId={item.projectId}
         />
       ) : null}
       {mode === "attach" && !attachPreview ? (
