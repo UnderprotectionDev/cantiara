@@ -495,6 +495,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | In Progress | `In Progress` | Korunan İş akışı durumu |
 | Blocked | `Blocked` | Korunan İş akışı durumu |
 | Closed | `Closed` | Korunan İş akışı durumu |
+| Kapanış sonucu | `Closure result` | Kapalı İşin `Completed` veya `Abandoned` sonucunu açıkça seçen alan etiketi |
 | Bug | `Bug` | İş türü |
 | Görev | `Task` | İş türü; subtask değildir |
 | Araştırma | `Research` | İş türü |

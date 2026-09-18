@@ -413,6 +413,7 @@ describe("server app Account Access boundary", () => {
   test("keeps mutation conflict details through the RPC Support envelope", async () => {
     const { app } = createTestApp({
       accountPreferencesMutationContract: {
+        replay: async () => null,
         mutate: () => {
           throw Object.assign(new Error("Conflict"), {
             code: "CONFLICT",
@@ -471,6 +472,7 @@ describe("server app Account Access boundary", () => {
   test("keeps the current value through the stale mutation Support envelope", async () => {
     const { app } = createTestApp({
       accountPreferencesMutationContract: {
+        replay: async () => null,
         mutate: () => {
           throw Object.assign(new Error("Current value"), {
             code: "STALE_BASE_REVISION",

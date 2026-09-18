@@ -8,6 +8,7 @@ import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
 
 import {
+  WorkClosureResultRequiredError,
   WorkProjectNotFoundError,
   WorkTypeImpactPreviewRequiredError,
 } from "./work-lifecycle";
@@ -15,6 +16,7 @@ import {
 const work: WorkProfile = {
   archivedAt: null,
   captureProvenance: null,
+  closureReason: null,
   closureResult: null,
   createdAt: "2026-09-18T09:00:00.000Z",
   id: "work-1",
@@ -27,6 +29,25 @@ const work: WorkProfile = {
   type: "Task",
   updatedAt: "2026-09-18T09:00:00.000Z",
 };
+
+function createWorkLifecycleStub(
+  overrides: Partial<WorkLifecycleAccess> = {},
+): WorkLifecycleAccess {
+  return {
+    archive: vi.fn(),
+    close: vi.fn(),
+    create: vi.fn(),
+    find: vi.fn(),
+    list: vi.fn(),
+    previewClose: vi.fn(),
+    previewTypeChange: vi.fn(),
+    reopen: vi.fn(),
+    updateStatus: vi.fn(),
+    updateType: vi.fn(),
+    unarchive: vi.fn(),
+    ...overrides,
+  };
+}
 
 function createContext(workLifecycle: WorkLifecycleAccess): Context {
   return {
@@ -60,17 +81,39 @@ function createContext(workLifecycle: WorkLifecycleAccess): Context {
 
 describe("Work Lifecycle RPC", () => {
   test("creates, lists, and reads Work through the authenticated interface", async () => {
+    const close = vi.fn().mockResolvedValue({
+      ...work,
+      closureResult: "Completed",
+      status: "Closed",
+    });
     const create = vi.fn().mockResolvedValue(work);
     const archive = vi
       .fn()
       .mockResolvedValue({ ...work, archivedAt: "2026-09-18T10:00:00.000Z" });
     const unarchive = vi.fn().mockResolvedValue(work);
     const list = vi.fn().mockResolvedValue([work]);
-    const workLifecycle: WorkLifecycleAccess = {
+    const reopen = vi.fn().mockResolvedValue({
+      ...work,
+      status: "In Progress",
+    });
+    const updateStatus = vi.fn().mockResolvedValue({
+      ...work,
+      status: "In Progress",
+    });
+    const workLifecycle = createWorkLifecycleStub({
       archive,
+      close,
       create,
       find: vi.fn().mockResolvedValue(work),
       list,
+      previewClose: vi.fn().mockResolvedValue({
+        closureCheck: {
+          activeBlockers: [],
+          incompleteChecklistItems: [],
+        },
+        lastingContext: null,
+        workId: work.id,
+      }),
       previewTypeChange: vi.fn().mockResolvedValue({
         currentType: "Task",
         nextType: "Bug",
@@ -78,9 +121,11 @@ describe("Work Lifecycle RPC", () => {
         requiresImpactPreview: false,
         workId: work.id,
       }),
+      reopen,
+      updateStatus,
       updateType: vi.fn().mockResolvedValue({ ...work, type: "Bug" }),
       unarchive,
-    };
+    });
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
     });
@@ -120,6 +165,56 @@ describe("Work Lifecycle RPC", () => {
       }),
     ).resolves.toMatchObject({ type: "Bug" });
     await expect(
+      client.updateWorkStatus({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "work-status-1",
+        status: "In Progress",
+        workId: work.id,
+      }),
+    ).resolves.toMatchObject({ status: "In Progress" });
+    await expect(
+      client.workClosePreview({ workId: work.id }),
+    ).resolves.toMatchObject({ workId: work.id });
+    await expect(
+      client.closeWork({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "work-close-1",
+        closureResult: "Completed",
+        workId: work.id,
+      }),
+    ).resolves.toMatchObject({
+      closureResult: "Completed",
+      status: "Closed",
+    });
+    await expect(
+      client.reopenWork({
+        baseRevision: work.revision + 1,
+        clientIdempotencyKey: "work-reopen-1",
+        confirmed: true,
+        status: "In Progress",
+        workId: work.id,
+      }),
+    ).resolves.toMatchObject({ status: "In Progress" });
+    expect(updateStatus).toHaveBeenCalledWith(
+      "account-1",
+      expect.objectContaining({ status: "In Progress", workId: work.id }),
+      { kind: "Visible user" },
+    );
+    expect(close).toHaveBeenCalledWith(
+      "account-1",
+      expect.objectContaining({
+        closureResult: "Completed",
+        workId: work.id,
+      }),
+      { kind: "Visible user" },
+    );
+    expect(reopen).toHaveBeenCalledWith(
+      "account-1",
+      expect.objectContaining({ status: "In Progress", workId: work.id }),
+      { kind: "Visible user" },
+    );
+
+    await expect(
       client.archiveWork({
         baseRevision: work.revision,
         clientIdempotencyKey: "work-archive-1",
@@ -136,17 +231,11 @@ describe("Work Lifecycle RPC", () => {
   });
 
   test("maps a missing Project to a user-facing not-found response", async () => {
-    const workLifecycle: WorkLifecycleAccess = {
-      archive: vi.fn(),
+    const workLifecycle = createWorkLifecycleStub({
       create: vi
         .fn()
         .mockRejectedValue(new WorkProjectNotFoundError("missing")),
-      find: vi.fn(),
-      list: vi.fn(),
-      previewTypeChange: vi.fn(),
-      updateType: vi.fn(),
-      unarchive: vi.fn(),
-    };
+    });
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
     });
@@ -166,12 +255,7 @@ describe("Work Lifecycle RPC", () => {
   });
 
   test("maps a missing Feature impact preview to a precondition response", async () => {
-    const workLifecycle: WorkLifecycleAccess = {
-      archive: vi.fn(),
-      create: vi.fn(),
-      find: vi.fn(),
-      list: vi.fn(),
-      previewTypeChange: vi.fn(),
+    const workLifecycle = createWorkLifecycleStub({
       updateType: vi
         .fn()
         .mockRejectedValue(
@@ -179,8 +263,7 @@ describe("Work Lifecycle RPC", () => {
             "work-type-impact-work-1-1-Task-Feature",
           ),
         ),
-      unarchive: vi.fn(),
-    };
+    });
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
     });
@@ -198,6 +281,30 @@ describe("Work Lifecycle RPC", () => {
         code: "WORK_TYPE_IMPACT_PREVIEW_REQUIRED",
         previewId: "work-type-impact-work-1-1-Task-Feature",
       },
+      status: 412,
+    });
+  });
+
+  test("maps a result-less Closed write to the close-step precondition", async () => {
+    const workLifecycle = createWorkLifecycleStub({
+      updateStatus: vi
+        .fn()
+        .mockRejectedValue(new WorkClosureResultRequiredError()),
+    });
+    const client = createRouterClient(appRouter, {
+      context: createContext(workLifecycle),
+    });
+
+    await expect(
+      client.updateWorkStatus({
+        baseRevision: 1,
+        clientIdempotencyKey: "planning-close",
+        status: "Closed",
+        workId: work.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: { code: "WORK_CLOSURE_RESULT_REQUIRED" },
       status: 412,
     });
   });

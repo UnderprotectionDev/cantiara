@@ -1,12 +1,12 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work type controls close over their current Work state.
 
+import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import {
   WORK_TYPE_OPTIONS,
   type WorkProfile,
   type WorkType,
   type WorkTypeChangePreview,
 } from "@cantiara/api/work-lifecycle";
-import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
 import {
   NativeSelect,
@@ -20,8 +20,15 @@ import {
   useClientShellConnection,
 } from "@/features/web-macos-client/views/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import WorkStatusForm from "../ui/forms/work-status-form";
 
-export default function ProjectWorkList({ projectId }: { projectId: string }) {
+export default function ProjectWorkList({
+  projectId,
+  workStatusLabels,
+}: {
+  projectId: string;
+  workStatusLabels: readonly WorkStatusLabel[];
+}) {
   const [showArchived, setShowArchived] = useState(false);
   const query = useQuery(
     orpc.projectWorks.queryOptions({
@@ -71,7 +78,10 @@ export default function ProjectWorkList({ projectId }: { projectId: string }) {
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <WorkTypeEditor work={work} />
-                <Badge variant="secondary">{work.status}</Badge>
+                <WorkStatusForm
+                  work={work}
+                  workStatusLabels={workStatusLabels}
+                />
                 <WorkArchiveAction work={work} />
               </div>
             </li>

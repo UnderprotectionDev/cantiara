@@ -34,6 +34,7 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
     captureProvenance: record.captureProvenance
       ? workCaptureProvenanceSchema.parse(record.captureProvenance)
       : null,
+    closureReason: record.closureReason,
     closureResult: record.closureResult
       ? workClosureResultSchema.parse(record.closureResult)
       : null,
@@ -174,6 +175,7 @@ function createWorkMutationTarget(
             ? new Date(nextWork.archivedAt)
             : null,
           captureProvenance: nextWork.captureProvenance,
+          closureReason: nextWork.closureReason,
           closureResult: nextWork.closureResult,
           createdAt: new Date(nextWork.createdAt),
           id: nextWork.id,
@@ -249,7 +251,10 @@ function createWorkUpdateMutationTarget(
           archivedAt: nextWork.archivedAt
             ? new Date(nextWork.archivedAt)
             : null,
+          closureReason: nextWork.closureReason,
+          closureResult: nextWork.closureResult,
           revision: input.expectedRevision + 1,
+          status: nextWork.status,
           type: nextWork.type,
           updatedAt: input.committedAt,
         })
