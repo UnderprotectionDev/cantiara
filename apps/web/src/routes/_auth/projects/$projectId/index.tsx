@@ -9,10 +9,14 @@ export const Route = createFileRoute("/_auth/projects/$projectId/")({
 
 function RouteComponent() {
   const { projectId } = Route.useParams();
+  const { session } = Route.useRouteContext();
 
   return (
     <ClientShellContent>
-      <ProjectShellView projectId={projectId} />
+      <ProjectShellView
+        accountId={session.data?.user.id}
+        projectId={projectId}
+      />
     </ClientShellContent>
   );
 }
