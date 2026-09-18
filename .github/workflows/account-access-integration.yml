@@ -41,7 +41,7 @@ jobs:
       - name: Prepare PostgreSQL boundaries
         run: psql "$DATABASE_URL" -c 'CREATE DATABASE cantiara_security'
       - name: Install integration browser
-        run: bunx playwright install --with-deps chromium
+        run: bunx playwright install --with-deps chromium firefox
         working-directory: apps/web
       - name: Run integration suite
         run: |
@@ -54,4 +54,5 @@ jobs:
           bun run check-types
           bun run --cwd apps/server test -- --no-file-parallelism
           bun run --cwd apps/web test
-          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" bun run test:e2e
+          bun run test:e2e -- --grep-invert "Web Capture"
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" bun run test:e2e -- web-capture-extension.e2e.ts
