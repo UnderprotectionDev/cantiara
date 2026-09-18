@@ -42,9 +42,10 @@ import {
   type FileAttachmentScope,
   type NormalizedCaptureInput,
 } from "@cantiara/api/capture-triage";
-import type {
-  MutationContract,
-  MutationPayload,
+import {
+  canonicalizeMutationPayload,
+  type MutationContract,
+  type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 
 const CAPTURE_CONTENT_LINE_SEPARATOR = /\r?\n/u;
@@ -282,6 +283,20 @@ function captureTargetScope(item: CaptureInboxItem): CaptureTargetScope {
 
 function operationFingerprint(value: unknown) {
   return JSON.stringify(value);
+}
+
+function captureItemFingerprint(item: CaptureInboxItem) {
+  return canonicalizeMutationPayload({
+    attachment: item.attachment ?? null,
+    content: item.content,
+    createdAt: new Date(item.createdAt).toISOString(),
+    fields: item.fields,
+    id: item.id,
+    link: item.link ?? null,
+    origin: item.origin ?? null,
+    projectId: item.projectId,
+    template: item.template,
+  });
 }
 
 function requireFileAttachmentScope(
@@ -700,8 +715,8 @@ export function createCaptureInbox({
       const storedItem = await requireStoredItem(accountId, input.itemId);
       const { item } = storedItem;
       if (
-        operationFingerprint(item) !==
-        operationFingerprint(pending.preview.source)
+        captureItemFingerprint(item) !==
+        captureItemFingerprint(pending.preview.source)
       ) {
         throw new CaptureInboxError(
           "CAPTURE_PREVIEW_CONFLICT",
@@ -849,7 +864,9 @@ export function createCaptureInbox({
       }
       const storedItem = await requireStoredItem(accountId, input.itemId);
       const { item } = storedItem;
-      if (operationFingerprint(item) !== operationFingerprint(preview.source)) {
+      if (
+        captureItemFingerprint(item) !== captureItemFingerprint(preview.source)
+      ) {
         throw new CaptureInboxError(
           "CAPTURE_PREVIEW_CONFLICT",
           "The Capture Inbox item changed after the preview.",

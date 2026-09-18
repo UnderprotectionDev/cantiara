@@ -14,6 +14,14 @@ import {
   captureDestination,
 } from "../forms/capture-inbox-form";
 import CaptureInboxView from "./capture-inbox-view";
+import {
+  advanceSequentialTriageAfterExit,
+  beginSequentialTriage,
+  leaveSequentialTriage,
+  moveToNextSequentialTriageItem,
+  moveToPreviousSequentialTriageItem,
+  restoreSequentialTriageItem,
+} from "./sequential-triage";
 
 function renderCaptureInbox(
   snapshot: CaptureInboxSnapshot,
@@ -69,6 +77,7 @@ describe("Capture Inbox view", () => {
     expect(html).toContain(">Create Bug</button>");
     expect(html).toContain(CREATE_BUG_UNAVAILABLE_MESSAGE);
     expect(html).toContain('disabled=""');
+    expect(html).not.toContain(">Sequential triage</button>");
   });
 
   test("renders Workspace and Project Capture Inbox groups without exposing them as search records", () => {
@@ -142,6 +151,41 @@ describe("Capture Inbox view", () => {
     expect(html).not.toContain("Backlog");
   });
 
+  test("offers Sequential triage when Capture Inbox exits are available", () => {
+    const html = renderCaptureInbox({
+      groups: [
+        {
+          itemIds: ["capture-1"],
+          items: [
+            {
+              content: "Focus this capture",
+              createdAt: "2026-09-16T09:00:00.000Z",
+              fields: {},
+              id: "capture-1",
+              projectId: null,
+              template: null,
+            },
+          ],
+          kind: "workspace",
+          label: "Workspace Capture Inbox",
+        },
+      ],
+      items: [
+        {
+          content: "Focus this capture",
+          createdAt: "2026-09-16T09:00:00.000Z",
+          fields: {},
+          id: "capture-1",
+          projectId: null,
+          template: null,
+        },
+      ],
+      triageAvailable: true,
+    });
+
+    expect(html).toContain(">Sequential triage</button>");
+  });
+
   test("shows where a capture will be saved", () => {
     expect(captureDestination("")).toEqual({
       detail:
@@ -184,5 +228,61 @@ describe("Capture Inbox view", () => {
       "This desktop version must be updated before you can save changes.",
     );
     expect(html).toContain("New capture");
+  });
+});
+
+describe("Sequential triage focus", () => {
+  test("advances only through an explicit exit and supports the previous item", () => {
+    const started = beginSequentialTriage(["capture-1", "capture-2"]);
+
+    expect(started).toMatchObject({ mode: "focused", itemId: "capture-1" });
+    expect(moveToNextSequentialTriageItem(started)).toEqual(started);
+    expect(moveToPreviousSequentialTriageItem(started)).toEqual(started);
+
+    const next = advanceSequentialTriageAfterExit(started);
+    expect(next).toMatchObject({
+      itemId: "capture-2",
+      itemIndex: 1,
+      mode: "focused",
+      resolvedItemIds: ["capture-1"],
+    });
+    const previous = moveToPreviousSequentialTriageItem(next);
+    expect(previous).toMatchObject({
+      itemId: "capture-1",
+      itemIndex: 0,
+      mode: "focused",
+    });
+    expect(moveToNextSequentialTriageItem(previous)).toEqual(next);
+    expect(moveToNextSequentialTriageItem(next)).toEqual(next);
+  });
+
+  test("returns to the list explicitly and completes after the last exit", () => {
+    const started = beginSequentialTriage(["capture-1"]);
+    const complete = advanceSequentialTriageAfterExit(started);
+
+    expect(complete).toMatchObject({
+      itemIds: ["capture-1"],
+      mode: "complete",
+      resolvedItemIds: ["capture-1"],
+    });
+    expect(leaveSequentialTriage()).toEqual({ mode: "list" });
+  });
+
+  test("restores an undone item to focus, including after the session completed", () => {
+    const started = beginSequentialTriage(["capture-1", "capture-2"]);
+    const next = advanceSequentialTriageAfterExit(started);
+    const complete = advanceSequentialTriageAfterExit(next);
+
+    expect(restoreSequentialTriageItem(next, "capture-1")).toMatchObject({
+      itemId: "capture-2",
+      mode: "focused",
+      resolvedItemIds: [],
+    });
+    expect(restoreSequentialTriageItem(complete, "capture-2")).toMatchObject({
+      itemId: "capture-2",
+      itemIndex: 1,
+      mode: "focused",
+      resolvedItemIds: ["capture-1"],
+    });
   });
 });
