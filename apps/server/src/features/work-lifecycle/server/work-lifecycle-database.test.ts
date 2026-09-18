@@ -231,6 +231,13 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       featureId: feature.id,
       workId: independentWork.id,
     });
+    const replayedInclusion = await workLifecycle.includeWork(accountId, {
+      baseRevision: independentWork.revision,
+      clientIdempotencyKey: "database-include-work",
+      featureId: feature.id,
+      workId: independentWork.id,
+    });
+    expect(replayedInclusion).toEqual(included);
     const withHealth = await workLifecycle.recordFeatureHealth(accountId, {
       baseRevision: feature.revision,
       clientIdempotencyKey: "database-feature-health",
@@ -238,6 +245,14 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       health: "On Track",
       reason: "The acceptance path is clear.",
     });
+    const replayedHealth = await workLifecycle.recordFeatureHealth(accountId, {
+      baseRevision: feature.revision,
+      clientIdempotencyKey: "database-feature-health",
+      featureId: feature.id,
+      health: "On Track",
+      reason: "The acceptance path is clear.",
+    });
+    expect(replayedHealth).toEqual(withHealth);
     await workLifecycle.updateFeaturePrimarySpec(accountId, {
       baseRevision: withHealth.revision,
       clientIdempotencyKey: "database-primary-spec",
@@ -262,5 +277,69 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       primarySpecId: "document-1",
       status: "Not Started",
     });
+  });
+
+  test("keeps inclusion valid when include and Feature exit race", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Concurrent Feature Project",
+      shortCode: "RACE",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const feature = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "race-feature",
+      projectId: project.id,
+      title: "Concurrent Feature",
+      type: "Feature",
+    });
+    const candidate = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "race-candidate",
+      projectId: project.id,
+      title: "Concurrent candidate",
+      type: "Task",
+    });
+    const preview = await workLifecycle.previewTypeChange(accountId, {
+      type: "Task",
+      workId: feature.id,
+    });
+    if (!preview) {
+      throw new Error("Expected a Feature exit preview.");
+    }
+
+    const results = await Promise.allSettled([
+      workLifecycle.includeWork(accountId, {
+        baseRevision: candidate.revision,
+        clientIdempotencyKey: "race-include",
+        featureId: feature.id,
+        workId: candidate.id,
+      }),
+      workLifecycle.updateType(accountId, {
+        baseRevision: feature.revision,
+        clientIdempotencyKey: "race-exit",
+        impactPreviewId: preview.previewId,
+        type: "Task",
+        workId: feature.id,
+      }),
+    ]);
+
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    const [storedFeature, storedCandidate] = await Promise.all([
+      workLifecycle.find(accountId, feature.id),
+      workLifecycle.find(accountId, candidate.id),
+    ]);
+    expect(storedFeature).not.toBeNull();
+    expect(storedCandidate).not.toBeNull();
+    expect(storedFeature?.type === "Feature").toBe(
+      storedCandidate?.primaryFeatureId === storedFeature?.id,
+    );
   });
 });

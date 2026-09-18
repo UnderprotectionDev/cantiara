@@ -22,6 +22,8 @@ import {
   createWorkLifecycle,
   WorkCreationConflictError,
   type WorkCreationReservation,
+  WorkFeatureExitBlockedError,
+  WorkInclusionConflictError,
   type WorkLifecycleStore,
   WorkProjectNotFoundError,
 } from "./work-lifecycle";
@@ -217,6 +219,58 @@ function createWorkMutationTarget(
   };
 }
 
+async function assertValidPrimaryFeature(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  nextWork: WorkProfile,
+) {
+  if (!nextWork.primaryFeatureId) {
+    return;
+  }
+  const primaryFeature = await findOwnedWork(
+    executor,
+    accountId,
+    nextWork.primaryFeatureId,
+    true,
+  );
+  if (
+    primaryFeature?.type !== "Feature" ||
+    primaryFeature.projectId !== nextWork.projectId ||
+    nextWork.type === "Feature"
+  ) {
+    throw new WorkInclusionConflictError(
+      "Primary Feature inclusion is no longer valid.",
+    );
+  }
+}
+
+async function assertFeatureExitReady(
+  executor: MutationDatabaseExecutor,
+  currentWork: WorkDatabaseRecord,
+  nextWork: WorkProfile,
+) {
+  if (currentWork.type !== "Feature" || nextWork.type === "Feature") {
+    return;
+  }
+  const includedWork = await executor
+    .select({ id: work.id })
+    .from(work)
+    .where(eq(work.primaryFeatureId, currentWork.id))
+    .for("update");
+  const blockers = {
+    featureHealthUpdateCount: currentWork.featureHealthHistory.length,
+    hasPrimarySpec: currentWork.primarySpecId !== null,
+    includedWorkCount: includedWork.length,
+  };
+  if (
+    blockers.includedWorkCount > 0 ||
+    blockers.featureHealthUpdateCount > 0 ||
+    blockers.hasPrimarySpec
+  ) {
+    throw new WorkFeatureExitBlockedError(blockers);
+  }
+}
+
 function createWorkUpdateMutationTarget(
   accountId: string,
 ): MutationDatabaseTargetAdapter<WorkLifecycleMutationValue> {
@@ -237,6 +291,19 @@ function createWorkUpdateMutationTarget(
       if (!nextWork || nextWork.id !== input.targetId) {
         return null;
       }
+
+      const currentWork = await findOwnedWork(
+        executor,
+        accountId,
+        input.targetId,
+        true,
+      );
+      if (!currentWork) {
+        return null;
+      }
+
+      await assertValidPrimaryFeature(executor, accountId, nextWork);
+      await assertFeatureExitReady(executor, currentWork, nextWork);
 
       const ownedProject = await findOwnedProject(
         executor,

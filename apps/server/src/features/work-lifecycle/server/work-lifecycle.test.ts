@@ -248,6 +248,36 @@ describe("Work Lifecycle seam", () => {
         workId: childFeature.id,
       }),
     ).rejects.toBeInstanceOf(WorkInclusionConflictError);
+
+    const includedTask = await workLifecycle.create(
+      "account-1",
+      createInput("included-task-before-type-change", {
+        title: "Included Task",
+      }),
+    );
+    const included = await workLifecycle.includeWork("account-1", {
+      baseRevision: includedTask.revision,
+      clientIdempotencyKey: "include-task-before-type-change",
+      featureId: parentFeature.id,
+      workId: includedTask.id,
+    });
+    const preview = await workLifecycle.previewTypeChange("account-1", {
+      type: "Feature",
+      workId: included.id,
+    });
+    if (!preview) {
+      throw new Error("Expected a Feature type-change preview.");
+    }
+
+    await expect(
+      workLifecycle.updateType("account-1", {
+        baseRevision: included.revision,
+        clientIdempotencyKey: "nested-feature-type-change",
+        impactPreviewId: preview.previewId,
+        type: "Feature",
+        workId: included.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkInclusionConflictError);
   });
 
   test("keeps included Work independent and derives progress without changing Feature status", async () => {

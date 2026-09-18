@@ -7,7 +7,10 @@ import {
   captureTemplateSchema,
   captureUrlSchema,
 } from "./capture-triage";
-import type { MutationContract } from "./mutation-and-undo";
+import {
+  humanMutationEnvelopeSchema,
+  type MutationContract,
+} from "./mutation-and-undo";
 
 export const WORK_TYPE_OPTIONS = [
   "Feature",
@@ -82,12 +85,9 @@ const createWorkInputObjectSchema = z
 
 export const createWorkInputSchema = createWorkInputObjectSchema;
 
-export const createWorkMutationInputSchema = createWorkInputObjectSchema
-  .extend({
-    baseRevision: z.number().int().nonnegative().safe(),
-    clientIdempotencyKey: identifierSchema,
-  })
-  .strict();
+export const createWorkMutationInputSchema = humanMutationEnvelopeSchema.extend(
+  createWorkInputObjectSchema.shape,
+);
 
 const workTypeChangePreviewInputObjectSchema = z
   .object({
@@ -101,16 +101,13 @@ export const workTypeChangePreviewInputSchema =
 
 export const updateWorkTypeInputSchema = workTypeChangePreviewInputObjectSchema
   .extend({
-    baseRevision: z.number().int().nonnegative().safe(),
-    clientIdempotencyKey: identifierSchema,
+    ...humanMutationEnvelopeSchema.shape,
     impactPreviewId: identifierSchema.optional(),
   })
   .strict();
 
-export const includeWorkInputSchema = z
-  .object({
-    baseRevision: z.number().int().nonnegative().safe(),
-    clientIdempotencyKey: identifierSchema,
+export const includeWorkInputSchema = humanMutationEnvelopeSchema
+  .extend({
     featureId: identifierSchema,
     workId: identifierSchema,
   })
@@ -118,28 +115,21 @@ export const includeWorkInputSchema = z
 
 export const detachIncludedWorkInputSchema = includeWorkInputSchema;
 
-export const recordFeatureHealthInputSchema = z
-  .object({
-    baseRevision: z.number().int().nonnegative().safe(),
-    clientIdempotencyKey: identifierSchema,
+export const recordFeatureHealthInputSchema = humanMutationEnvelopeSchema
+  .extend({
     featureId: identifierSchema,
     health: featureHealthSchema,
     reason: z.string().trim().min(1).max(1000),
   })
   .strict();
 
-export const detachFeatureHealthHistoryInputSchema = z
-  .object({
-    baseRevision: z.number().int().nonnegative().safe(),
-    clientIdempotencyKey: identifierSchema,
+export const detachFeatureHealthHistoryInputSchema =
+  humanMutationEnvelopeSchema.extend({
     featureId: identifierSchema,
-  })
-  .strict();
+  });
 
-export const updateFeaturePrimarySpecInputSchema = z
-  .object({
-    baseRevision: z.number().int().nonnegative().safe(),
-    clientIdempotencyKey: identifierSchema,
+export const updateFeaturePrimarySpecInputSchema = humanMutationEnvelopeSchema
+  .extend({
     featureId: identifierSchema,
     primarySpecId: identifierSchema.nullable(),
   })

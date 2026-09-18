@@ -338,10 +338,10 @@ export function createWorkLifecycle({
       if (!includedWork) {
         throw new WorkNotFoundError(input.workId);
       }
-      if (includedWork.primaryFeatureId === null) {
-        return includedWork;
-      }
-      if (includedWork.primaryFeatureId !== input.featureId) {
+      if (
+        includedWork.primaryFeatureId &&
+        includedWork.primaryFeatureId !== input.featureId
+      ) {
         throw new WorkInclusionConflictError(
           "Work is included in a different primary Feature.",
         );
@@ -391,10 +391,6 @@ export function createWorkLifecycle({
       if (feature.type !== "Feature") {
         throw new WorkFeatureRequiredError(input.featureId);
       }
-      if (feature.featureHealthHistory.length === 0) {
-        return feature;
-      }
-
       const timestamp = new Date().toISOString();
       const receipt = await mutationContracts.update(accountId).mutate(
         {
@@ -458,10 +454,10 @@ export function createWorkLifecycle({
           "A Feature cannot be included by another Feature.",
         );
       }
-      if (includedWork.primaryFeatureId === feature.id) {
-        return includedWork;
-      }
-      if (includedWork.primaryFeatureId) {
+      if (
+        includedWork.primaryFeatureId &&
+        includedWork.primaryFeatureId !== feature.id
+      ) {
         throw new WorkInclusionConflictError();
       }
 
@@ -626,6 +622,11 @@ export function createWorkLifecycle({
           throw new WorkFeatureExitBlockedError(blockers);
         }
       }
+      if (input.type === "Feature" && currentWork.primaryFeatureId) {
+        throw new WorkInclusionConflictError(
+          "Detach Work from its primary Feature before changing it to Feature.",
+        );
+      }
 
       const timestamp = new Date().toISOString();
       const receipt = await mutationContracts.update(accountId).mutate(
@@ -666,10 +667,6 @@ export function createWorkLifecycle({
       if (feature.type !== "Feature") {
         throw new WorkFeatureRequiredError(input.featureId);
       }
-      if (feature.primarySpecId === input.primarySpecId) {
-        return feature;
-      }
-
       const timestamp = new Date().toISOString();
       const receipt = await mutationContracts.update(accountId).mutate(
         {
