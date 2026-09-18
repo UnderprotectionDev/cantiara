@@ -732,6 +732,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yakalama silme çıkışı | `Delete` | Yakalama Gelen Kutusu öğesini tüketen silme çıkışı |
 | Toplu Anlamlandırma | `Bulk sense-making` | Birden fazla yakalamayı yan yana getiren, geçici küme adı ve yerleşimini görünüm üstverisi olarak tutan isteğe bağlı triage görünümü; küme ana kayıt, etiket veya ilişki değildir |
 | Gruplanmamış | `Ungrouped` | Toplu Anlamlandırmada henüz adlandırılmış bir görsel kümede durmayan yakalamaların sütun başlığı ve yerleşim seçimi |
+| Yeni küme adı | `New cluster name` | Toplu Anlamlandırmada geçici görsel küme oluştururken kullanılan alan etiketi |
+| Küme adlandır | `Name a cluster` | Yeni geçici görsel kümeye ad vermek için kullanılan alan yer tutucusu |
+| Küme ekle | `Add cluster` | Toplu Anlamlandırma görünümüne geçici görsel küme ekleyen eylem |
+| Sütunu sola taşı | `Move left` | Geçici görsel kümenin görünüm konumunu bir sütun sola alan eylem |
+| Sütunu sağa taşı | `Move right` | Geçici görsel kümenin görünüm konumunu bir sütun sağa alan eylem |
+| Düzen kaydediliyor | `Saving layout…` | Toplu Anlamlandırma ad ve yerleşim üstverisinin sunucuya yazıldığını belirten durum |
 | Sıralı triage | `Sequential triage` | Yakalama Gelen Kutusunda tek öğeye odaklanan isteğe bağlı mod; yalnız üç açık çıkıştan biri çözülünce ilerler |
 | Diğer Projeler | `Other Projects` | Başka Projelerdeki benzer kayıt önerilerinin adlı ikincil grubu |
 | Yakalama köken bağı | `Origin` | Yakalamayı mevcut kayda köken olarak bağlayan ilişki |

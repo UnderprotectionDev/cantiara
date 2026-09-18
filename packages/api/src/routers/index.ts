@@ -12,6 +12,7 @@ import {
   type CaptureInboxTriageAccess,
   captureAttachInputSchema,
   captureAttachPreviewInputSchema,
+  captureBulkSenseMakingInputSchema,
   captureConvertInputSchema,
   captureConvertPreviewInputSchema,
   captureDeleteInputSchema,
@@ -608,6 +609,18 @@ export const appRouter = {
     .handler(async ({ context, input }) => {
       try {
         return await requireCaptureInbox(context).create(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowCaptureInboxError(error);
+      }
+    }),
+  updateCaptureBulkSenseMaking: protectedProcedure
+    .input(captureBulkSenseMakingInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireCaptureInbox(context).updateBulkSenseMaking(
           context.session.user.id,
           input,
         );

@@ -13,7 +13,7 @@ import {
   CREATE_BUG_UNAVAILABLE_MESSAGE,
   captureDestination,
 } from "../forms/capture-inbox-form";
-import CaptureInboxView from "./capture-inbox-view";
+import CaptureInboxView, { bulkSenseMakingColumns } from "./capture-inbox-view";
 import {
   advanceSequentialTriageAfterExit,
   beginSequentialTriage,
@@ -51,6 +51,7 @@ function renderCaptureInbox(
 describe("Capture Inbox view", () => {
   test("shows the empty state and closed mini-template catalog", () => {
     const html = renderCaptureInbox({
+      bulkSenseMaking: { clusters: [], placements: [], revision: 0 },
       groups: [],
       items: [],
       triageAvailable: false,
@@ -82,6 +83,7 @@ describe("Capture Inbox view", () => {
 
   test("renders Workspace and Project Capture Inbox groups without exposing them as search records", () => {
     const html = renderCaptureInbox({
+      bulkSenseMaking: { clusters: [], placements: [], revision: 0 },
       groups: [
         {
           itemIds: ["capture-1"],
@@ -147,12 +149,14 @@ describe("Capture Inbox view", () => {
     expect(html).toContain(">Attach to existing</button>");
     expect(html).toContain(">Delete</button>");
     expect(html).toContain(">Show suggestions</button>");
+    expect(html).toContain(">Bulk sense-making</button>");
     expect(html).not.toContain("Search");
     expect(html).not.toContain("Backlog");
   });
 
   test("offers Sequential triage when Capture Inbox exits are available", () => {
     const html = renderCaptureInbox({
+      bulkSenseMaking: { clusters: [], placements: [], revision: 0 },
       groups: [
         {
           itemIds: ["capture-1"],
@@ -198,9 +202,52 @@ describe("Capture Inbox view", () => {
     });
   });
 
+  test("keeps named Bulk sense-making columns beside Ungrouped", () => {
+    const items = [
+      {
+        content: "Clustered thought",
+        createdAt: "2026-09-16T09:00:00.000Z",
+        fields: {},
+        id: "capture-clustered",
+        projectId: null,
+        template: null,
+      },
+      {
+        content: "Unassigned thought",
+        createdAt: "2026-09-16T09:01:00.000Z",
+        fields: {},
+        id: "capture-ungrouped",
+        projectId: null,
+        template: null,
+      },
+    ] as const;
+
+    expect(
+      bulkSenseMakingColumns(items, {
+        clusters: [{ id: "cluster-1", name: "Ideas", position: 0 }],
+        placements: [
+          { clusterId: "cluster-1", itemId: "capture-clustered", position: 0 },
+          { clusterId: null, itemId: "capture-ungrouped", position: 0 },
+        ],
+        revision: 1,
+      }).map((column) => ({
+        items: column.items.map((item) => item.id),
+        label: column.label,
+      })),
+    ).toEqual([
+      { items: ["capture-ungrouped"], label: "Ungrouped" },
+      { items: ["capture-clustered"], label: "Ideas" },
+    ]);
+  });
+
   test("keeps Capture Inbox writes online-only without a local queue", () => {
     const html = renderCaptureInbox(
-      { groups: [], items: [], triageAvailable: false },
+      {
+        bulkSenseMaking: { clusters: [], placements: [], revision: 0 },
+        groups: [],
+        items: [],
+        triageAvailable: false,
+      },
       {
         initialConnection: "offline",
         initialLastSavedAt: new Date("2026-09-16T09:00:00.000Z"),
@@ -219,7 +266,12 @@ describe("Capture Inbox view", () => {
 
   test("shows the desktop update boundary while keeping the Capture Inbox visible", () => {
     const html = renderCaptureInbox(
-      { groups: [], items: [], triageAvailable: false },
+      {
+        bulkSenseMaking: { clusters: [], placements: [], revision: 0 },
+        groups: [],
+        items: [],
+        triageAvailable: false,
+      },
       { initialUpdateRequired: true },
     );
 

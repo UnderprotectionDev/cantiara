@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -72,6 +73,29 @@ export const captureInboxOperation = pgTable(
     check(
       "capture_inbox_operation_kind_check",
       sql`${table.kind} in ('preview', 'merge', 'completed')`,
+    ),
+  ],
+);
+
+export const captureInboxBulkView = pgTable(
+  "capture_inbox_bulk_view",
+  {
+    accountId: text("account_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    clusters: jsonb("clusters").$type<unknown>().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    placements: jsonb("placements").$type<unknown>().notNull(),
+    revision: integer("revision").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "capture_inbox_bulk_view_revision_check",
+      sql`${table.revision} >= 0`,
     ),
   ],
 );

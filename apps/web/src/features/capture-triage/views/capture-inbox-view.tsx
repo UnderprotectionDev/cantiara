@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Capture cards own handlers that close over their current layout and item state.
 import {
   type AccountPreferences,
   DEFAULT_ACCOUNT_PREFERENCES,
@@ -7,6 +8,9 @@ import {
   CAPTURE_CONVERSION_TARGETS,
   type CaptureAttachPreview,
   type CaptureBindRelation,
+  type CaptureBulkCluster,
+  type CaptureBulkPlacement,
+  type CaptureBulkSenseMaking,
   type CaptureConversionPreview,
   type CaptureConversionTarget,
   type CaptureInboxGroup,
@@ -22,7 +26,13 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ChangeEvent, useCallback, useState } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 import { formatAccountDateTime } from "@/features/account-preferences/forms/account-preferences-format";
@@ -50,6 +60,68 @@ import {
 
 function captureCountLabel(count: number) {
   return `${count} ${count === 1 ? "capture" : "captures"}`;
+}
+
+interface BulkSenseMakingColumn {
+  clusterId: string | null;
+  items: CaptureInboxItem[];
+  label: string;
+  position: number;
+}
+
+interface BulkSenseMakingDraft {
+  clusters: CaptureBulkCluster[];
+  placements: CaptureBulkPlacement[];
+}
+
+export function bulkSenseMakingColumns(
+  items: readonly CaptureInboxItem[],
+  layout: CaptureBulkSenseMaking,
+): BulkSenseMakingColumn[] {
+  const placements = new Map(
+    layout.placements.map((placement) => [placement.itemId, placement]),
+  );
+  const sortedClusters = [...layout.clusters].sort(
+    (left, right) =>
+      left.position - right.position || left.id.localeCompare(right.id),
+  );
+  const columns = new Map<string | null, BulkSenseMakingColumn>();
+  columns.set(null, {
+    clusterId: null,
+    items: [],
+    label: "Ungrouped",
+    position: -1,
+  });
+  for (const cluster of sortedClusters) {
+    columns.set(cluster.id, {
+      clusterId: cluster.id,
+      items: [],
+      label: cluster.name,
+      position: cluster.position,
+    });
+  }
+
+  for (const item of items) {
+    const placement = placements.get(item.id);
+    const column =
+      columns.get(placement?.clusterId ?? null) ?? columns.get(null);
+    column?.items.push(item);
+  }
+
+  for (const column of columns.values()) {
+    column.items.sort((left, right) => {
+      const leftPosition =
+        placements.get(left.id)?.position ?? Number.MAX_SAFE_INTEGER;
+      const rightPosition =
+        placements.get(right.id)?.position ?? Number.MAX_SAFE_INTEGER;
+      return (
+        leftPosition - rightPosition ||
+        left.createdAt.localeCompare(right.createdAt)
+      );
+    });
+  }
+
+  return [...columns.values()];
 }
 
 type Preview = CaptureAttachPreview | CaptureConversionPreview;
@@ -824,6 +896,283 @@ function CaptureInboxItemActions({
   );
 }
 
+function BulkSenseMakingView({
+  accountId,
+  formattingPreferences,
+  items,
+  onUndoPreview,
+  triageAvailable,
+  view,
+}: {
+  accountId: string;
+  formattingPreferences: AccountPreferences;
+  items: CaptureInboxItem[];
+  onUndoPreview: (state: UndoPreviewState) => void;
+  triageAvailable: boolean;
+  view: CaptureBulkSenseMaking;
+}) {
+  const queryClient = useQueryClient();
+  const shell = useClientShell();
+  const connection = useClientShellConnection();
+  const [layout, setLayout] = useState(view);
+  const [newClusterName, setNewClusterName] = useState("");
+
+  useEffect(() => setLayout(view), [view]);
+
+  const saveLayout = useMutation({
+    mutationFn: (next: BulkSenseMakingDraft) =>
+      shell.runWrite(() =>
+        client.updateCaptureBulkSenseMaking({
+          baseRevision: layout.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          clusters: next.clusters,
+          placements: next.placements,
+        }),
+      ),
+    onMutate: (next) => {
+      const previousLayout = layout;
+      setLayout({ ...next, revision: previousLayout.revision });
+      return { previousLayout };
+    },
+    onError: async (_error, _next, context) => {
+      setLayout(context?.previousLayout ?? view);
+      toast.error("Bulk sense-making could not be saved.");
+      await queryClient.invalidateQueries({
+        queryKey: captureInboxQueryOptions(accountId).queryKey,
+      });
+    },
+    onSuccess: async (next) => {
+      setLayout(next);
+      await queryClient.invalidateQueries({
+        queryKey: captureInboxQueryOptions(accountId).queryKey,
+      });
+    },
+  });
+
+  const isOnline = connection !== "offline";
+  const columns = bulkSenseMakingColumns(items, layout);
+
+  function persist(next: BulkSenseMakingDraft) {
+    if (!isOnline || saveLayout.isPending) {
+      return;
+    }
+    saveLayout.mutate(next);
+  }
+
+  function addCluster(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = newClusterName.trim();
+    if (!name) {
+      return;
+    }
+    const position =
+      Math.max(-1, ...layout.clusters.map((cluster) => cluster.position)) + 1;
+    persist({
+      clusters: [
+        ...layout.clusters,
+        { id: crypto.randomUUID(), name, position },
+      ],
+      placements: layout.placements,
+    });
+    setNewClusterName("");
+  }
+
+  function placeItem(itemId: string, clusterId: string | null) {
+    const placements = layout.placements.filter(
+      (placement) => placement.itemId !== itemId,
+    );
+    const nextPosition =
+      Math.max(
+        -1,
+        ...placements
+          .filter((placement) => placement.clusterId === clusterId)
+          .map((placement) => placement.position),
+      ) + 1;
+    persist({
+      clusters: layout.clusters,
+      placements: [
+        ...placements,
+        { clusterId, itemId, position: nextPosition },
+      ],
+    });
+  }
+
+  function moveCluster(clusterId: string, direction: -1 | 1) {
+    const clusters = [...layout.clusters].sort(
+      (left, right) =>
+        left.position - right.position || left.id.localeCompare(right.id),
+    );
+    const index = clusters.findIndex((cluster) => cluster.id === clusterId);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= clusters.length) {
+      return;
+    }
+    [clusters[index], clusters[nextIndex]] = [
+      clusters[nextIndex] as CaptureBulkCluster,
+      clusters[index] as CaptureBulkCluster,
+    ];
+    persist({
+      clusters: clusters.map((cluster, position) => ({ ...cluster, position })),
+      placements: layout.placements,
+    });
+  }
+
+  return (
+    <section
+      aria-label="Bulk sense-making"
+      className="space-y-5 border border-primary/35 bg-primary/5 p-4 sm:p-5"
+    >
+      <header className="flex flex-wrap items-start justify-between gap-4 border-b pb-4">
+        <div>
+          <h2 className="font-semibold text-lg tracking-tight">
+            Bulk sense-making
+          </h2>
+          <p className="mt-1 max-w-2xl text-muted-foreground text-sm/6">
+            Arrange captures side by side before you choose one of the three
+            exits. These names and positions are view metadata only.
+          </p>
+        </div>
+        {saveLayout.isPending ? (
+          <span className="text-muted-foreground text-xs">Saving layout…</span>
+        ) : null}
+      </header>
+
+      <form className="flex flex-wrap items-end gap-2" onSubmit={addCluster}>
+        <label className="grid gap-1 text-sm" htmlFor="bulk-cluster-name">
+          New cluster name
+          <Input
+            id="bulk-cluster-name"
+            onChange={(event) => setNewClusterName(event.target.value)}
+            placeholder="Name a cluster"
+            value={newClusterName}
+          />
+        </label>
+        <Button
+          disabled={!isOnline || saveLayout.isPending || !newClusterName.trim()}
+          type="submit"
+          variant="outline"
+        >
+          Add cluster
+        </Button>
+      </form>
+
+      <div className="grid items-start gap-4 overflow-x-auto pb-2 md:auto-cols-[minmax(18rem,1fr)] md:grid-flow-col">
+        {columns.map((column) => (
+          <section
+            aria-label={column.label}
+            className="min-w-72 border border-border/70 bg-background"
+            key={column.clusterId ?? "ungrouped"}
+          >
+            <header className="flex items-start justify-between gap-3 border-b bg-muted/25 px-3 py-3">
+              <div className="min-w-0">
+                <h3 className="truncate font-semibold text-sm">
+                  {column.label}
+                </h3>
+                <p className="mt-1 text-muted-foreground text-xs">
+                  {captureCountLabel(column.items.length)}
+                </p>
+              </div>
+              {column.clusterId ? (
+                <div className="flex shrink-0 gap-1">
+                  <Button
+                    aria-label={`Move ${column.label} left`}
+                    disabled={!isOnline || saveLayout.isPending}
+                    onClick={() => moveCluster(column.clusterId as string, -1)}
+                    type="button"
+                    variant="ghost"
+                  >
+                    Move left
+                  </Button>
+                  <Button
+                    aria-label={`Move ${column.label} right`}
+                    disabled={!isOnline || saveLayout.isPending}
+                    onClick={() => moveCluster(column.clusterId as string, 1)}
+                    type="button"
+                    variant="ghost"
+                  >
+                    Move right
+                  </Button>
+                </div>
+              ) : null}
+            </header>
+            <ul className="divide-y">
+              {column.items.map((item) => {
+                const itemPlacement = layout.placements.find(
+                  (placement) => placement.itemId === item.id,
+                );
+                return (
+                  <li className="space-y-3 p-3" key={item.id}>
+                    <div className="flex items-center justify-between gap-2">
+                      {item.template ? (
+                        <span className="font-medium text-xs">
+                          {item.template}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">
+                          Capture
+                        </span>
+                      )}
+                      <NativeSelect
+                        aria-label={`Place ${item.id}`}
+                        disabled={!isOnline || saveLayout.isPending}
+                        onChange={(event) =>
+                          placeItem(item.id, event.target.value || null)
+                        }
+                        value={itemPlacement?.clusterId ?? ""}
+                      >
+                        <NativeSelectOption value="">
+                          Ungrouped
+                        </NativeSelectOption>
+                        {layout.clusters
+                          .slice()
+                          .sort(
+                            (left, right) =>
+                              left.position - right.position ||
+                              left.id.localeCompare(right.id),
+                          )
+                          .map((cluster) => (
+                            <NativeSelectOption
+                              key={cluster.id}
+                              value={cluster.id}
+                            >
+                              {cluster.name}
+                            </NativeSelectOption>
+                          ))}
+                      </NativeSelect>
+                    </div>
+                    {item.content ? (
+                      <p className="whitespace-pre-wrap text-sm/6">
+                        {item.content}
+                      </p>
+                    ) : null}
+                    {Object.entries(item.fields).length > 0 ? (
+                      <dl className="space-y-2 text-xs">
+                        {Object.entries(item.fields).map(([label, value]) => (
+                          <div key={label}>
+                            <dt className="text-muted-foreground">{label}</dt>
+                            <dd className="whitespace-pre-wrap">{value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
+                    <CaptureInboxItemActions
+                      accountId={accountId}
+                      formattingPreferences={formattingPreferences}
+                      item={item}
+                      onUndoPreview={onUndoPreview}
+                      triageAvailable={triageAvailable}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function CaptureInboxItemDetails({
   formattingPreferences,
   includeContent = true,
@@ -1107,19 +1456,75 @@ function SequentialTriageSurface({
 
 function CaptureInboxListView({
   accountId,
+  bulkSenseMaking,
   formattingPreferences,
   groups,
+  items,
   onStartSequentialTriage,
+  onToggleBulkView,
   onUndoPreview,
   triageAvailable,
+  viewMode,
 }: {
   accountId: string;
+  bulkSenseMaking: CaptureBulkSenseMaking;
   formattingPreferences: AccountPreferences;
   groups: CaptureInboxGroup[];
+  items: CaptureInboxItem[];
   onStartSequentialTriage: () => void;
+  onToggleBulkView: () => void;
   onUndoPreview: (state: UndoPreviewState) => void;
   triageAvailable: boolean;
+  viewMode: "inbox" | "bulk";
 }) {
+  function renderCaptureList() {
+    if (groups.length === 0) {
+      return (
+        <section
+          aria-labelledby="empty-workspace-inbox"
+          className="overflow-hidden border border-border/70"
+        >
+          <div className="bg-muted/25 px-4 py-4">
+            <p className="text-muted-foreground text-xs">Workspace inbox</p>
+            <h3
+              className="mt-1 font-semibold text-base tracking-tight"
+              id="empty-workspace-inbox"
+            >
+              Workspace Capture Inbox
+            </h3>
+          </div>
+          <p className="px-4 py-6 text-muted-foreground text-sm">
+            No captures in this Inbox.
+          </p>
+        </section>
+      );
+    }
+
+    if (viewMode === "bulk") {
+      return (
+        <BulkSenseMakingView
+          accountId={accountId}
+          formattingPreferences={formattingPreferences}
+          items={items}
+          onUndoPreview={onUndoPreview}
+          triageAvailable={triageAvailable}
+          view={bulkSenseMaking}
+        />
+      );
+    }
+
+    return groups.map((group) => (
+      <CaptureInboxGroupView
+        accountId={accountId}
+        formattingPreferences={formattingPreferences}
+        group={group}
+        key={`${group.kind}-${group.projectId ?? "workspace"}`}
+        onUndoPreview={onUndoPreview}
+        triageAvailable={triageAvailable}
+      />
+    ));
+  }
+
   return (
     <div className="grid gap-12 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start">
       <div className="lg:sticky lg:top-6">
@@ -1162,39 +1567,20 @@ function CaptureInboxListView({
                 Sequential triage
               </Button>
             ) : null}
+            {groups.length > 0 ? (
+              <Button
+                aria-pressed={viewMode === "bulk"}
+                onClick={onToggleBulkView}
+                type="button"
+                variant={viewMode === "bulk" ? "default" : "outline"}
+              >
+                Bulk sense-making
+              </Button>
+            ) : null}
           </div>
         </div>
 
-        {groups.length === 0 ? (
-          <section
-            aria-labelledby="empty-workspace-inbox"
-            className="overflow-hidden border border-border/70"
-          >
-            <div className="bg-muted/25 px-4 py-4">
-              <p className="text-muted-foreground text-xs">Workspace inbox</p>
-              <h3
-                className="mt-1 font-semibold text-base tracking-tight"
-                id="empty-workspace-inbox"
-              >
-                Workspace Capture Inbox
-              </h3>
-            </div>
-            <p className="px-4 py-6 text-muted-foreground text-sm">
-              No captures in this Inbox.
-            </p>
-          </section>
-        ) : (
-          groups.map((group) => (
-            <CaptureInboxGroupView
-              accountId={accountId}
-              formattingPreferences={formattingPreferences}
-              group={group}
-              key={`${group.kind}-${group.projectId ?? "workspace"}`}
-              onUndoPreview={onUndoPreview}
-              triageAvailable={triageAvailable}
-            />
-          ))
-        )}
+        {renderCaptureList()}
       </section>
     </div>
   );
@@ -1208,6 +1594,7 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
   const queryClient = useQueryClient();
   const shell = useClientShell();
   const [undoPreview, setUndoPreview] = useState<UndoPreviewState | null>(null);
+  const [viewMode, setViewMode] = useState<"inbox" | "bulk">("inbox");
   const [sequentialTriageState, setSequentialTriageState] =
     useState<SequentialTriageState>({ mode: "list" });
   const [sequentialItems, setSequentialItems] = useState<
@@ -1253,7 +1640,6 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
   const clientShellStatus = (
     <ClientShellStatus accountFormattingPreferences={formattingPreferences} />
   );
-
   if (inbox.isPending) {
     return (
       <main className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
@@ -1279,8 +1665,8 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
     );
   }
 
-  const { groups, triageAvailable } = inbox.data;
-  const orderedItems = inbox.data.items;
+  const { bulkSenseMaking, groups, items, triageAvailable } = inbox.data;
+  const orderedItems = items;
   const orderedItemIds = orderedItems.map((item) => item.id);
   const sequentialItem =
     sequentialTriageState.mode === "focused"
@@ -1360,11 +1746,17 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
       ) : (
         <CaptureInboxListView
           accountId={accountId}
+          bulkSenseMaking={bulkSenseMaking}
           formattingPreferences={formattingPreferences}
           groups={groups}
+          items={items}
           onStartSequentialTriage={startSequentialTriage}
+          onToggleBulkView={() =>
+            setViewMode((current) => (current === "bulk" ? "inbox" : "bulk"))
+          }
           onUndoPreview={setUndoPreview}
           triageAvailable={triageAvailable}
+          viewMode={viewMode}
         />
       )}
     </main>

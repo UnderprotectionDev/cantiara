@@ -26,6 +26,7 @@ import {
 import {
   captureExtensionLink,
   captureExtensionPairingCode,
+  captureInboxBulkView,
   captureInboxItem,
   captureInboxOperation,
 } from "./schema/capture-triage";
@@ -42,6 +43,7 @@ const schema = {
   accountPreferencesRelations,
   accountRelations,
   auditRecord,
+  captureInboxBulkView,
   captureInboxItem,
   captureInboxOperation,
   captureExtensionLink,

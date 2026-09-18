@@ -126,8 +126,65 @@ export const captureInboxGroupSchema = z
 
 export type CaptureInboxGroup = z.infer<typeof captureInboxGroupSchema>;
 
+const captureBulkPositionSchema = z.number().int().nonnegative().max(1_000_000);
+
+export const captureBulkClusterSchema = z
+  .object({
+    id: identifierSchema,
+    name: z.string().trim().min(1).max(255),
+    position: captureBulkPositionSchema,
+  })
+  .strict();
+
+export type CaptureBulkCluster = z.infer<typeof captureBulkClusterSchema>;
+
+export const captureBulkPlacementSchema = z
+  .object({
+    clusterId: identifierSchema.nullable(),
+    itemId: identifierSchema,
+    position: captureBulkPositionSchema,
+  })
+  .strict();
+
+export type CaptureBulkPlacement = z.infer<typeof captureBulkPlacementSchema>;
+
+export const captureBulkSenseMakingValueSchema = z
+  .object({
+    clusters: z.array(captureBulkClusterSchema),
+    placements: z.array(captureBulkPlacementSchema),
+  })
+  .strict();
+
+export type CaptureBulkSenseMakingValue = z.infer<
+  typeof captureBulkSenseMakingValueSchema
+>;
+
+export const captureBulkSenseMakingSchema = z
+  .object({
+    ...captureBulkSenseMakingValueSchema.shape,
+    revision: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type CaptureBulkSenseMaking = z.infer<
+  typeof captureBulkSenseMakingSchema
+>;
+
+export const captureBulkSenseMakingInputSchema = z
+  .object({
+    ...captureBulkSenseMakingValueSchema.shape,
+    baseRevision: z.number().int().nonnegative(),
+    clientIdempotencyKey: identifierSchema,
+  })
+  .strict();
+
+export type CaptureBulkSenseMakingInput = z.infer<
+  typeof captureBulkSenseMakingInputSchema
+>;
+
 export const captureInboxSnapshotSchema = z
   .object({
+    bulkSenseMaking: captureBulkSenseMakingSchema,
     groups: z.array(captureInboxGroupSchema),
     items: z.array(captureInboxItemSchema),
     triageAvailable: z.boolean(),
@@ -143,6 +200,10 @@ export interface CaptureInboxAccess {
     input: CaptureInput,
   ) => Promise<DirectBugCreateReceipt>;
   list: (accountId: string) => Promise<CaptureInboxSnapshot>;
+  updateBulkSenseMaking: (
+    accountId: string,
+    input: CaptureBulkSenseMakingInput,
+  ) => Promise<CaptureBulkSenseMaking>;
 }
 
 export const captureConversionTargetSchema = z.enum(CAPTURE_CONVERSION_TARGETS);

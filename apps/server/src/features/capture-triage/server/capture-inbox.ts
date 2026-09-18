@@ -7,6 +7,8 @@ import {
   type CaptureAttachPreviewInput,
   type CaptureAttachReceipt,
   type CaptureBindReceipt,
+  type CaptureBulkSenseMaking,
+  type CaptureBulkSenseMakingInput,
   type CaptureConversionPreview,
   type CaptureConvertInput,
   type CaptureConvertPreviewInput,
@@ -29,6 +31,8 @@ import {
   type CaptureUndoMergeReceipt,
   captureAttachInputSchema,
   captureAttachPreviewInputSchema,
+  captureBulkSenseMakingInputSchema,
+  captureBulkSenseMakingSchema,
   captureConvertInputSchema,
   captureConvertPreviewInputSchema,
   captureDeleteInputSchema,
@@ -51,6 +55,8 @@ import {
 const CAPTURE_CONTENT_LINE_SEPARATOR = /\r?\n/u;
 
 export interface CaptureInboxStore {
+  bulkSenseMaking: CaptureInboxBulkSenseMakingStore;
+  /** Consume the item and remove its Bulk placement in one persistence operation. */
   consume: (
     accountId: string,
     itemId: string,
@@ -73,6 +79,15 @@ export interface CaptureInboxStore {
     accountId: string,
     item: CaptureInboxStoredItem,
   ) => Promise<CaptureInboxStoredItem>;
+}
+
+export interface CaptureInboxBulkSenseMakingStore {
+  get: (accountId: string) => Promise<CaptureBulkSenseMaking>;
+  removeItem: (accountId: string, itemId: string) => Promise<void>;
+  update: (
+    accountId: string,
+    input: CaptureBulkSenseMakingInput,
+  ) => Promise<CaptureBulkSenseMaking>;
 }
 
 export type CaptureAttachmentDisposition = "delete" | "promoted";
@@ -192,6 +207,10 @@ export type CaptureInboxErrorCode =
   | "CREATE_BUG_TEMPLATE_UNSUPPORTED"
   | "CAPTURE_IDEMPOTENCY_CONFLICT"
   | "CAPTURE_WORK_CREATE_UNAVAILABLE"
+  | "CAPTURE_BULK_CLUSTER_INVALID"
+  | "CAPTURE_BULK_ITEM_NOT_FOUND"
+  | "CAPTURE_BULK_PLACEMENT_INVALID"
+  | "CAPTURE_BULK_VIEW_CONFLICT"
   | "PROJECT_REQUIRED_FOR_CREATE_BUG"
   | "UNKNOWN_CAPTURE_FIELD";
 
@@ -283,6 +302,49 @@ function captureTargetScope(item: CaptureInboxItem): CaptureTargetScope {
 
 function operationFingerprint(value: unknown) {
   return JSON.stringify(value);
+}
+
+function normalizeBulkSenseMakingInput(
+  rawInput: CaptureBulkSenseMakingInput,
+  items: CaptureInboxItem[],
+) {
+  const input = captureBulkSenseMakingInputSchema.parse(rawInput);
+  const clusterIds = new Set<string>();
+  for (const cluster of input.clusters) {
+    if (clusterIds.has(cluster.id)) {
+      throw new CaptureInboxError(
+        "CAPTURE_BULK_CLUSTER_INVALID",
+        "Bulk sense-making cluster IDs must be unique.",
+      );
+    }
+    clusterIds.add(cluster.id);
+  }
+
+  const itemIds = new Set(items.map((item) => item.id));
+  const placedItemIds = new Set<string>();
+  for (const placement of input.placements) {
+    if (!itemIds.has(placement.itemId)) {
+      throw new CaptureInboxError(
+        "CAPTURE_BULK_ITEM_NOT_FOUND",
+        "A Bulk sense-making placement refers to a resolved Capture Inbox item.",
+      );
+    }
+    if (placedItemIds.has(placement.itemId)) {
+      throw new CaptureInboxError(
+        "CAPTURE_BULK_PLACEMENT_INVALID",
+        "Each Capture Inbox item can have only one Bulk sense-making placement.",
+      );
+    }
+    if (placement.clusterId && !clusterIds.has(placement.clusterId)) {
+      throw new CaptureInboxError(
+        "CAPTURE_BULK_CLUSTER_INVALID",
+        "A Bulk sense-making placement refers to an unknown cluster.",
+      );
+    }
+    placedItemIds.add(placement.itemId);
+  }
+
+  return input;
 }
 
 function captureItemFingerprint(item: CaptureInboxItem) {
@@ -594,8 +656,12 @@ export function createCaptureInbox({
     const items = (await listStoredItems(accountId))
       .map((item) => captureInboxItemSchema.parse(item))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const bulkSenseMaking = captureBulkSenseMakingSchema.parse(
+      await store.bulkSenseMaking.get(accountId),
+    );
 
     return {
+      bulkSenseMaking,
       groups: groupCaptureInboxItems(items),
       items,
       triageAvailable,
@@ -633,6 +699,26 @@ export function createCaptureInbox({
         ...normalized,
         accountId,
       });
+    },
+
+    async updateBulkSenseMaking(accountId, rawInput) {
+      const items = await listStoredItems(accountId);
+      const input = normalizeBulkSenseMakingInput(rawInput, items);
+      try {
+        return captureBulkSenseMakingSchema.parse(
+          await store.bulkSenseMaking.update(accountId, input),
+        );
+      } catch (error) {
+        if (error instanceof CaptureInboxError) {
+          throw error;
+        }
+        const conflict = new CaptureInboxError(
+          "CAPTURE_BULK_VIEW_CONFLICT",
+          "The Bulk sense-making view changed. Reload it and try again.",
+        );
+        conflict.cause = error;
+        throw conflict;
+      }
     },
 
     list,
