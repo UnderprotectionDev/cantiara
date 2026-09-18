@@ -260,26 +260,18 @@ function createWorkUpdateMutationTarget(
   };
 }
 
-async function reserveExistingAllocation(
-  executor: MutationDatabaseExecutor,
+function reserveExistingAllocation(
   existing: WorkKeyAllocationRecord,
   payloadFingerprint: string,
 ) {
   if (
-    existing.payloadFingerprint &&
+    !existing.payloadFingerprint ||
     existing.payloadFingerprint !== payloadFingerprint
   ) {
     throw new WorkCreationConflictError();
   }
 
-  if (!existing.payloadFingerprint) {
-    await executor
-      .update(workKeyAllocation)
-      .set({ payloadFingerprint })
-      .where(eq(workKeyAllocation.id, existing.id));
-  }
-
-  return toReservation({ ...existing, payloadFingerprint });
+  return toReservation(existing);
 }
 
 export function createDatabaseWorkLifecycle(database: Database) {
@@ -367,11 +359,7 @@ export function createDatabaseWorkLifecycle(database: Database) {
           )
           .limit(1);
         if (existing) {
-          return reserveExistingAllocation(
-            transaction,
-            existing,
-            payloadFingerprint,
-          );
+          return reserveExistingAllocation(existing, payloadFingerprint);
         }
 
         const number = ownedProject.record.workCount + 1;
