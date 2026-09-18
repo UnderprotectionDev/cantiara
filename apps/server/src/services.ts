@@ -16,14 +16,11 @@ import {
   createDatabaseAccountPreferences,
 } from "./features/account-preferences/server/account-preferences-database";
 import {
-  CaptureInboxError,
-  type CaptureInboxWorkCreate,
-} from "./features/capture-triage/server/capture-inbox";
-import {
   captureInboxMutationTarget,
   createDatabaseCaptureInbox,
 } from "./features/capture-triage/server/capture-inbox-database";
 import { createDevelopmentCaptureInboxTriageAdapter } from "./features/capture-triage/server/capture-inbox-development-adapter";
+import { createCaptureInboxWorkCreate } from "./features/capture-triage/server/capture-work-create";
 import { createDatabaseWebCapture } from "./features/capture-triage/server/web-capture-database";
 import {
   createR2CaptureInboxStagingStore,
@@ -38,7 +35,6 @@ const db = createDb(env);
 const securityEventDb = createSecurityEventDb({
   DATABASE_URL: env.SECURITY_EVENT_DATABASE_URL,
 });
-const CAPTURE_LINE_BREAK_PATTERN = /\r?\n/u;
 const accountAdmission = createDatabaseAccountAdmission(db);
 const databaseAccountPreferences = createDatabaseAccountPreferences(db);
 export const accountPreferences = databaseAccountPreferences;
@@ -58,51 +54,9 @@ export const captureInboxMutationContract =
     target: captureInboxMutationTarget,
   });
 
-function captureTitle(content: string) {
-  return (
-    content
-      .split(CAPTURE_LINE_BREAK_PATTERN)
-      .find((line) => line.trim().length > 0)
-      ?.trim() ?? "Untitled capture"
-  );
-}
-
 // Work Lifecycle owns key allocation and persistence; Capture Inbox only hands
 // eligible direct or converted Work creates across that boundary.
-const captureInboxWorkCreate: CaptureInboxWorkCreate = {
-  createBug: async (input) => {
-    if (!input.projectId) {
-      throw new CaptureInboxError(
-        "PROJECT_REQUIRED_FOR_CREATE_BUG",
-        "Create Bug requires a Project.",
-      );
-    }
-    const work = await workLifecycle.create(input.accountId, {
-      baseRevision: 0,
-      clientIdempotencyKey: input.clientIdempotencyKey ?? crypto.randomUUID(),
-      projectId: input.projectId,
-      title: captureTitle(input.content),
-      type: "Bug",
-    });
-    return { workId: work.id };
-  },
-  createWork: async (input) => {
-    if (!input.projectId) {
-      throw new CaptureInboxError(
-        "PROJECT_REQUIRED_FOR_CREATE_BUG",
-        "Converting a Capture Inbox item to Work requires a Project.",
-      );
-    }
-    const work = await workLifecycle.create(input.accountId, {
-      baseRevision: 0,
-      clientIdempotencyKey: input.clientIdempotencyKey,
-      projectId: input.projectId,
-      title: input.title,
-      type: "Task",
-    });
-    return { id: work.id, recordType: "Work" };
-  },
-};
+const captureInboxWorkCreate = createCaptureInboxWorkCreate(workLifecycle);
 const webCaptureStaging =
   env.R2_ACCESS_KEY_ID &&
   env.R2_ACCOUNT_ID &&

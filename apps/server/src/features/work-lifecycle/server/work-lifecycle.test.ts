@@ -196,6 +196,27 @@ describe("Work Lifecycle seam", () => {
     });
   });
 
+  test("persists Capture provenance on the Work created by conversion", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const captureProvenance = {
+      attachment: { id: "staging-1", name: "screenshot.png" },
+      captureId: "capture-1",
+      capturedAt: "2026-09-16T09:00:00.000Z",
+      content: "The preview is blank",
+      fields: { "Observed Behavior": "Blank" },
+      link: "https://example.com/issue",
+      origin: { kind: "Web Capture", url: "https://example.com/issue" },
+      template: "Bug Capture" as const,
+    };
+
+    await expect(
+      workLifecycle.create(
+        "account-1",
+        createInput("create-from-capture", { captureProvenance }),
+      ),
+    ).resolves.toMatchObject({ captureProvenance });
+  });
+
   test("accepts ordinary spaces in the title and stores the normalized value", async () => {
     const workLifecycle = createMemoryWorkLifecycle();
 

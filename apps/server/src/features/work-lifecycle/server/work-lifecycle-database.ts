@@ -2,6 +2,7 @@ import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
 import {
   type WorkLifecycleMutationValue,
   type WorkProfile,
+  workCaptureProvenanceSchema,
   workClosureResultSchema,
   workStatusSchema,
   workTypeSchema,
@@ -29,6 +30,9 @@ type WorkKeyAllocationRecord = typeof workKeyAllocation.$inferSelect;
 
 function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
   return {
+    captureProvenance: record.captureProvenance
+      ? workCaptureProvenanceSchema.parse(record.captureProvenance)
+      : null,
     closureResult: record.closureResult
       ? workClosureResultSchema.parse(record.closureResult)
       : null,
@@ -165,6 +169,7 @@ function createWorkMutationTarget(
       const [created] = await executor
         .insert(work)
         .values({
+          captureProvenance: nextWork.captureProvenance,
           closureResult: nextWork.closureResult,
           createdAt: new Date(nextWork.createdAt),
           id: nextWork.id,

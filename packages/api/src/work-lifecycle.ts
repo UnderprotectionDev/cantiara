@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+import {
+  captureAttachmentSchema,
+  captureFieldsSchema,
+  captureOriginSchema,
+  captureTemplateSchema,
+  captureUrlSchema,
+} from "./capture-triage";
 import type { MutationContract } from "./mutation-and-undo";
 
 export const WORK_TYPE_OPTIONS = [
@@ -39,8 +46,24 @@ export const workTitleSchema = z
   .min(1, "Work title is required.")
   .max(255, "Work title must be 255 characters or fewer.");
 
+export const workCaptureProvenanceSchema = z
+  .object({
+    attachment: captureAttachmentSchema.nullable(),
+    captureId: identifierSchema,
+    capturedAt: z.string().datetime({ offset: true }),
+    content: z.string().max(100_000),
+    fields: captureFieldsSchema,
+    link: captureUrlSchema.nullable(),
+    origin: captureOriginSchema.nullable(),
+    template: captureTemplateSchema.nullable(),
+  })
+  .strict();
+
+export type WorkCaptureProvenance = z.infer<typeof workCaptureProvenanceSchema>;
+
 const createWorkInputObjectSchema = z
   .object({
+    captureProvenance: workCaptureProvenanceSchema.nullable().optional(),
     projectId: identifierSchema,
     title: workTitleSchema,
     type: workTypeSchema.default("Task"),
@@ -85,6 +108,7 @@ export type WorkTypeChangePreviewInput = z.input<
 export type UpdateWorkTypeInput = z.input<typeof updateWorkTypeInputSchema>;
 
 export interface WorkProfile {
+  captureProvenance: WorkCaptureProvenance | null;
   closureResult: WorkClosureResult | null;
   createdAt: string;
   id: string;

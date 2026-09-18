@@ -685,6 +685,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Proje Yakalama Gelen Kutusu | `Project Capture Inbox` | Proje bilindiğinde o projenin geçici yakalamalarının durduğu Inbox |
 | Bu Inbox’ta yakalama yok | `No captures in this Inbox.` | Boş Workspace veya Proje Yakalama Gelen Kutusu |
 | Özgün yakalama | `Original capture` | Dönüşüm veya bağlama önizlemesinde tüketilecek Yakalama Gelen Kutusu öğesinin özgün metin, bağlantı, ek, zaman ve köken görünümü |
+| Work dönüşümü için Project | `Work conversion requires a Project.` | Çalışma alanı Yakalama Gelen Kutusu öğesinin Work olarak dönüştürülmesi için hedef Project seçilmesi gerektiğini bildiren metin |
 | Dönüşüm önizlemesi | `Conversion Preview` | Yakalama öğesinin tek yeni ana kayda dönüşmeden önce özgün içeriği ve önerilen kaydı karşılaştıran görünüm |
 | Önerilen kayıt | `Proposed record` | Dönüşüm önizlemesinde seçilen kayıt türü, başlık, alanlar ve kapsamla gösterilen henüz yazılmamış ana kayıt |
 | Alan eşlemeleri | `Field mappings` | Yakalama mini şablonu alanlarının önerilen kayda taşınacak ad ve değer karşılıkları |

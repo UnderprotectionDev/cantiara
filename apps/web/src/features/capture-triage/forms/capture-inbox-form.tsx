@@ -424,18 +424,19 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
               values.content.trim().length > 0 &&
               projectIsSet &&
               supportedTemplate;
+            const writePending = createCapture.isPending || createBug.isPending;
 
             return (
               <div className="flex flex-wrap items-center gap-3 border-t pt-5">
                 <Button
-                  disabled={connection === "offline" || createCapture.isPending}
+                  disabled={connection === "offline" || writePending}
                   type="submit"
                 >
                   {createCapture.isPending ? "Saving…" : "Save"}
                 </Button>
                 <Button
                   aria-describedby="create-bug-unavailable"
-                  disabled={!canCreateBug || createBug.isPending}
+                  disabled={!canCreateBug || writePending}
                   onClick={handleCreateBug}
                   type="button"
                   variant="outline"

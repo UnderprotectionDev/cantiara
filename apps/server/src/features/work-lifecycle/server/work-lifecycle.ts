@@ -1,4 +1,7 @@
-import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
+import {
+  canonicalizeMutationPayload,
+  fingerprintMutationPayload,
+} from "@cantiara/api/mutation-and-undo";
 import {
   createWorkMutationInputSchema,
   updateWorkTypeInputSchema,
@@ -110,6 +113,28 @@ function workCreateTargetId(
   return `${WORK_CREATE_TARGET_PREFIX}${accountId}:${projectId}:${clientIdempotencyKey}`;
 }
 
+function sameWorkCreationPayload(
+  left: Pick<WorkProfile, "captureProvenance" | "projectId" | "title" | "type">,
+  right: {
+    captureProvenance?: WorkProfile["captureProvenance"] | null;
+    projectId: string;
+    title: string;
+    type: WorkType;
+  },
+) {
+  return (
+    left.projectId === right.projectId &&
+    left.title === right.title &&
+    left.type === right.type &&
+    canonicalizeMutationPayload({
+      captureProvenance: left.captureProvenance,
+    }) ===
+      canonicalizeMutationPayload({
+        captureProvenance: right.captureProvenance ?? null,
+      })
+  );
+}
+
 export function createWorkLifecycle({
   mutationContracts,
   store,
@@ -126,17 +151,14 @@ export function createWorkLifecycle({
         input.clientIdempotencyKey,
       );
       if (existing) {
-        if (
-          existing.projectId !== input.projectId ||
-          existing.title !== input.title ||
-          existing.type !== input.type
-        ) {
+        if (!sameWorkCreationPayload(existing, input)) {
           throw new WorkCreationConflictError();
         }
         return existing;
       }
 
       const createPayload = {
+        captureProvenance: input.captureProvenance ?? null,
         projectId: input.projectId,
         title: input.title,
         type: input.type,
@@ -171,6 +193,7 @@ export function createWorkLifecycle({
               throw new WorkCreationConflictError();
             }
             const work: WorkProfile = {
+              captureProvenance: mutationPayload.captureProvenance,
               closureResult: null,
               createdAt: timestamp,
               id: reservation.workId,
@@ -199,11 +222,7 @@ export function createWorkLifecycle({
           input.clientIdempotencyKey,
         );
         if (committed) {
-          if (
-            committed.projectId !== input.projectId ||
-            committed.title !== input.title ||
-            committed.type !== input.type
-          ) {
+          if (!sameWorkCreationPayload(committed, input)) {
             const conflict = new WorkCreationConflictError(error);
             throw conflict;
           }

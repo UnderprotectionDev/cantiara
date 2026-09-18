@@ -212,6 +212,7 @@ export const captureBindRelationSchema = z.enum(CAPTURE_BIND_RELATIONS);
 export const captureConvertPreviewInputSchema = z
   .object({
     itemId: identifierSchema,
+    projectId: identifierSchema.optional(),
     recordType: captureConversionTargetSchema,
     title: z.string().trim().min(1).max(255).optional(),
   })

@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -14,6 +15,7 @@ import { project } from "./project";
 export const work = pgTable(
   "work",
   {
+    captureProvenance: jsonb("capture_provenance").$type<unknown>(),
     closureResult: text("closure_result"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     id: text("id").primaryKey(),

@@ -217,6 +217,7 @@ export type CaptureInboxErrorCode =
   | "CAPTURE_BULK_PLACEMENT_INVALID"
   | "CAPTURE_BULK_VIEW_CONFLICT"
   | "PROJECT_REQUIRED_FOR_CREATE_BUG"
+  | "PROJECT_REQUIRED_FOR_WORK_CONVERSION"
   | "UNKNOWN_CAPTURE_FIELD";
 
 function requireCaptureStagingStore(
@@ -291,12 +292,15 @@ function sameProject(left: string | null, right: string | null) {
   return left.toLocaleLowerCase("en-US") === right.toLocaleLowerCase("en-US");
 }
 
-function captureTargetScope(item: CaptureInboxItem): CaptureTargetScope {
-  return item.projectId
+function captureTargetScope(
+  item: CaptureInboxItem,
+  projectId = item.projectId,
+): CaptureTargetScope {
+  return projectId
     ? {
         kind: "project",
         label: "Project",
-        projectId: item.projectId,
+        projectId,
       }
     : {
         kind: "workspace",
@@ -747,7 +751,14 @@ export function createCaptureInbox({
         targetField: sourceField,
         value,
       }));
-      const targetScope = captureTargetScope(item);
+      const targetProjectId = item.projectId ?? input.projectId ?? null;
+      if (input.recordType === "Work" && !targetProjectId) {
+        throw new CaptureInboxError(
+          "PROJECT_REQUIRED_FOR_WORK_CONVERSION",
+          "Converting a Capture Inbox item to Work requires a Project.",
+        );
+      }
+      const targetScope = captureTargetScope(item, targetProjectId);
       if (item.attachment) {
         requireFileAttachmentScope(targetScope);
       }
@@ -758,7 +769,7 @@ export function createCaptureInbox({
         proposedRelations: [{ relation: "Origin", target: "Proposed record" }],
         proposedRecord: {
           fields: item.fields,
-          projectId: item.projectId,
+          projectId: targetProjectId,
           recordType: input.recordType,
           title,
         },
@@ -814,7 +825,7 @@ export function createCaptureInbox({
           "The Capture Inbox item changed after the preview.",
         );
       }
-      const targetScope = captureTargetScope(item);
+      const { targetScope } = pending.preview;
       const createRecord = () => {
         if (pending.preview.proposedRecord.recordType === "Work") {
           if (!workCreate.createWork) {

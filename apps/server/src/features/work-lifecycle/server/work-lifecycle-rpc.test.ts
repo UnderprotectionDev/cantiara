@@ -13,6 +13,7 @@ import {
 } from "./work-lifecycle";
 
 const work: WorkProfile = {
+  captureProvenance: null,
   closureResult: null,
   createdAt: "2026-09-18T09:00:00.000Z",
   id: "work-1",

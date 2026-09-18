@@ -242,6 +242,7 @@ function rethrowCaptureInboxError(error: unknown): never {
 
   if (
     error.code === "PROJECT_REQUIRED_FOR_CREATE_BUG" ||
+    error.code === "PROJECT_REQUIRED_FOR_WORK_CONVERSION" ||
     error.code === "CREATE_BUG_TEMPLATE_UNSUPPORTED"
   ) {
     throw new ORPCError("BAD_REQUEST", {

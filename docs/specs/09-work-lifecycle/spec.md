@@ -67,7 +67,7 @@ Kurucu Özellik, Bug, Görev, Araştırma ve İyileştirmeyi değişmez Proje an
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe Work Lifecycle through its public interface: create+key, no reuse, type matrix, status/result matrix, close cancel, Kanban cannot skip close step, reopen, archive filter, merge preview, recreate new identity, inclusion cardinality, Feature exit blocked while included Work/health/Primary spec remain, tree drag refused. They do not assert Kanban CSS or Drizzle. Expected values are product rules (status ≠ result, no move, one primary Feature).
+- **What a good test is.** Tests observe Work Lifecycle through its public interface: create+key, no reuse, type matrix, status/result matrix, close cancel, Kanban cannot skip close step, reopen, archive filter, merge preview, recreate new identity, capture conversion provenance, inclusion cardinality, Feature exit blocked while included Work/health/Primary spec remain, tree drag refused. They do not assert Kanban CSS or Drizzle. Expected values are product rules (status ≠ result, no move, one primary Feature, and capture origin survives conversion).
 - **Seam (one).** Work Lifecycle — the product-facing Work interface. Draft finalize, capture convert, Relations, Decision/Wiki creates are adapters. Playwright for İş yaşam döngüsü is this seam through the UI.
 - **Modules under test.** Work Lifecycle only.
 - **Prior art.** Almost no Vitest/Playwright yet. First tests live at this seam. Evidence: [İş yaşam döngüsü](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (real project: identity allocation, no reuse, status/result matrix).

@@ -693,6 +693,7 @@ describe("Capture Inbox seam", () => {
     });
     const preview = await captureInbox.previewConvert("account-1", {
       itemId: capture.id,
+      projectId: "project-1",
       recordType: "Work",
     });
 
@@ -780,6 +781,47 @@ describe("Capture Inbox seam", () => {
 
     expect(createBug).not.toHaveBeenCalled();
     expect(items).toEqual([]);
+  });
+
+  test("requires and previews a target Project for Workspace Work conversion", async () => {
+    const capture: CaptureInboxItem = {
+      content: "File this later",
+      createdAt: "2026-09-16T09:00:00.000Z",
+      fields: {},
+      id: "capture-workspace-convert",
+      projectId: null,
+      template: null,
+    };
+    const { store } = createTriageMemoryStore([capture]);
+    const captureInbox = createCaptureInbox({
+      store,
+      triageAdapter: createTriageAdapter(),
+      workCreate: { createBug: vi.fn(), createWork: vi.fn() },
+    });
+
+    await expect(
+      captureInbox.previewConvert("account-1", {
+        itemId: capture.id,
+        recordType: "Work",
+      }),
+    ).rejects.toMatchObject({
+      code: "PROJECT_REQUIRED_FOR_WORK_CONVERSION",
+    });
+
+    await expect(
+      captureInbox.previewConvert("account-1", {
+        itemId: capture.id,
+        projectId: "project-1",
+        recordType: "Work",
+      }),
+    ).resolves.toMatchObject({
+      proposedRecord: { projectId: "project-1", recordType: "Work" },
+      targetScope: {
+        kind: "project",
+        label: "Project",
+        projectId: "project-1",
+      },
+    });
   });
 
   test("exposes exactly three explicit exits and consumes a capture on each exit", async () => {
@@ -1108,7 +1150,7 @@ describe("Capture Inbox seam", () => {
     await expect(
       captureInbox.previewConvert("account-1", {
         itemId: capture.id,
-        recordType: "Work",
+        recordType: "Document",
       }),
     ).rejects.toMatchObject({ code: "CAPTURE_ATTACHMENT_SCOPE_REQUIRED" });
 
@@ -1128,9 +1170,9 @@ describe("Capture Inbox seam", () => {
         },
         source: capture,
         targetScope: {
-          kind: "project",
-          label: "Project",
-          projectId: "forged-project",
+          kind: "workspace",
+          label: "Workspace",
+          projectId: null,
         },
       },
     });
@@ -1356,6 +1398,7 @@ describe("Capture Inbox seam", () => {
     });
     const preview = await firstInbox.previewConvert("account-1", {
       itemId: capture.id,
+      projectId: "project-1",
       recordType: "Work",
     });
     const secondInbox = createCaptureInbox({
