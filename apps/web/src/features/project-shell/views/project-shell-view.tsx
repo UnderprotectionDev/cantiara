@@ -4,12 +4,13 @@ import {
 } from "@cantiara/api/project-shell";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLinkProps, useLocation } from "@tanstack/react-router";
 import { ArrowLeft, Check, CircleHelp } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { orpc } from "@/utils/orpc";
+import { runOnlineOnlyWrite } from "@/features/web-macos-client/views/client-shell";
+import { client, orpc } from "@/utils/orpc";
 
 const ALWAYS_REACHABLE_SURFACES = [
   "Overview",
@@ -24,12 +25,54 @@ type NavigationSurface =
   | ProjectArea;
 const NAVIGATION_LINK_BASE =
   "relative -mb-px px-0.5 py-3 text-sm transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+const PROJECT_SHELL_EXPLANATION_STORAGE_PREFIX =
+  "cantiara:project-shell:explanation-dismissed:";
+
+function projectShellExplanationStorageKey(projectId: string) {
+  return `${PROJECT_SHELL_EXPLANATION_STORAGE_PREFIX}${projectId}`;
+}
+
+function isProjectShellExplanationDismissed(projectId: string) {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    return (
+      window.localStorage.getItem(
+        projectShellExplanationStorageKey(projectId),
+      ) === "dismissed"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function rememberProjectShellExplanationDismissal(projectId: string) {
+  try {
+    window.localStorage.setItem(
+      projectShellExplanationStorageKey(projectId),
+      "dismissed",
+    );
+  } catch {
+    // A restricted browser storage context should not block the Project Shell.
+  }
+}
 
 export default function ProjectShellView({ projectId }: { projectId: string }) {
-  const projectQuery = useQuery({
-    ...orpc.project.queryOptions({ input: { projectId } }),
+  const projectQueryOptions = orpc.project.queryOptions({
+    input: { projectId },
   });
-  const [showExplanation, setShowExplanation] = useState(true);
+  const projectQuery = useQuery({
+    ...projectQueryOptions,
+  });
+  const [showExplanation, setShowExplanation] = useState(
+    () => !isProjectShellExplanationDismissed(projectId),
+  );
+
+  useEffect(() => {
+    setShowExplanation(!isProjectShellExplanationDismissed(projectId));
+  }, [projectId]);
 
   if (projectQuery.isPending) {
     return (
@@ -54,11 +97,18 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
     );
   }
 
-  const { configuration, name, shortCode, starterConfiguration, status } =
-    projectQuery.data;
+  const {
+    configuration,
+    name,
+    revision,
+    shortCode,
+    starterConfiguration,
+    status,
+  } = projectQuery.data;
 
   function dismissExplanation() {
     setShowExplanation(false);
+    rememberProjectShellExplanationDismissal(projectId);
   }
 
   return (
@@ -126,9 +176,6 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
 
       <section className="mt-10 space-y-10" id="overview">
         <div className="max-w-2xl">
-          <p className="font-medium text-muted-foreground text-sm">
-            Project Shell
-          </p>
           <h2 className="mt-2 font-semibold text-2xl">Overview</h2>
           <p className="mt-3 text-muted-foreground text-sm/relaxed">
             This Project is ready for your work. Starter defaults are structure
@@ -187,7 +234,11 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
           </p>
         </section>
 
-        <AllToolsSection enabledAreas={configuration.enabledAreas} />
+        <AllToolsSection
+          baseRevision={revision}
+          enabledAreas={configuration.enabledAreas}
+          projectId={projectId}
+        />
       </section>
     </main>
   );
@@ -364,10 +415,44 @@ function EnabledAreasList({ areas }: { areas: readonly ProjectArea[] }) {
 }
 
 function AllToolsSection({
+  baseRevision,
   enabledAreas,
+  projectId,
 }: {
+  baseRevision: number;
   enabledAreas: readonly ProjectArea[];
+  projectId: string;
 }) {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const enableProjectArea = useMutation({
+    mutationFn: (area: ProjectArea) =>
+      runOnlineOnlyWrite(() =>
+        client.enableProjectArea({
+          area,
+          baseRevision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          projectId,
+        }),
+      ),
+    onError: () => {
+      setError("Project area could not be enabled. Try again.");
+    },
+    onSuccess: async () => {
+      setError(null);
+      await queryClient.invalidateQueries({
+        queryKey: orpc.project.queryOptions({ input: { projectId } }).queryKey,
+      });
+    },
+  });
+  const requestEnableProjectArea = useCallback(
+    (area: ProjectArea) => {
+      setError(null);
+      enableProjectArea.mutate(area);
+    },
+    [enableProjectArea],
+  );
+
   return (
     <section className="border-y py-6" id="all-tools">
       <div className="max-w-2xl">
@@ -377,6 +462,11 @@ function AllToolsSection({
           does not create records or change another Project.
         </p>
       </div>
+      {error ? (
+        <p className="mt-4 text-destructive text-sm" role="alert">
+          {error}
+        </p>
+      ) : null}
       <ul
         aria-label="All Project areas"
         className="mt-5 grid gap-x-8 border-y lg:grid-cols-2"
@@ -391,11 +481,44 @@ function AllToolsSection({
               key={area}
             >
               {area}
-              {enabled ? <Check aria-hidden="true" className="size-3" /> : null}
+              {enabled ? (
+                <Check aria-hidden="true" className="size-3" />
+              ) : (
+                <EnableProjectAreaButton
+                  area={area}
+                  disabled={enableProjectArea.isPending}
+                  onEnable={requestEnableProjectArea}
+                />
+              )}
             </li>
           );
         })}
       </ul>
     </section>
+  );
+}
+
+function EnableProjectAreaButton({
+  area,
+  disabled,
+  onEnable,
+}: {
+  area: ProjectArea;
+  disabled: boolean;
+  onEnable: (area: ProjectArea) => void;
+}) {
+  const handleClick = useCallback(() => onEnable(area), [area, onEnable]);
+
+  return (
+    <Button
+      aria-label={`Enable ${area}`}
+      disabled={disabled}
+      onClick={handleClick}
+      size="xs"
+      type="button"
+      variant="outline"
+    >
+      Enable
+    </Button>
   );
 }

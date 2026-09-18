@@ -47,7 +47,7 @@ export const PROTECTED_WORK_STATUS_OPTIONS = [
 export type ProtectedWorkStatus =
   (typeof PROTECTED_WORK_STATUS_OPTIONS)[number];
 
-const projectAreaSchema = z.enum(PROJECT_AREA_OPTIONS);
+export const projectAreaSchema = z.enum(PROJECT_AREA_OPTIONS);
 const projectWorkViewSchema = z.enum(PROJECT_WORK_VIEW_OPTIONS);
 const protectedWorkStatusSchema = z.enum(PROTECTED_WORK_STATUS_OPTIONS);
 const protectedWorkStatusesSchema = z
@@ -170,6 +170,23 @@ export function resolveProjectShellConfiguration(
   return parsed.success
     ? parsed.data
     : getProjectShellConfiguration(starterConfiguration);
+}
+
+export function enableProjectArea(
+  configuration: ProjectShellConfiguration,
+  area: ProjectArea,
+): ProjectShellConfiguration {
+  return {
+    ...configuration,
+    enabledAreas: PROJECT_AREA_OPTIONS.filter(
+      (candidate) =>
+        candidate === area || configuration.enabledAreas.includes(candidate),
+    ),
+    extraPinnedAreas: [...configuration.extraPinnedAreas],
+    preparedStages: [...configuration.preparedStages],
+    preparedWorkViews: [...configuration.preparedWorkViews],
+    workStatuses: [...configuration.workStatuses],
+  };
 }
 
 export const PROJECT_LIFECYCLE_STATUS_OPTIONS = [
@@ -344,6 +361,19 @@ export const updateProjectShortCodeInputSchema = z
 
 export type UpdateProjectShortCodeInput = z.input<
   typeof updateProjectShortCodeInputSchema
+>;
+
+export const enableProjectAreaInputSchema = z
+  .object({
+    area: projectAreaSchema,
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: z.string().trim().min(1).max(255),
+    projectId: z.string().trim().min(1),
+  })
+  .strict();
+
+export type EnableProjectAreaInput = z.input<
+  typeof enableProjectAreaInputSchema
 >;
 
 export type CreateProjectInput = z.input<typeof createProjectInputSchema>;

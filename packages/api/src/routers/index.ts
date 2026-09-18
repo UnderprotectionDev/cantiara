@@ -24,6 +24,8 @@ import {
 import {
   createProjectInputSchema,
   createProjectMutationInputSchema,
+  enableProjectArea,
+  enableProjectAreaInputSchema,
   getProjectShellConfiguration,
   type ProjectShellMutationValue,
   shortCodeSchema,
@@ -473,6 +475,50 @@ export const appRouter = {
                 ...currentValue.project,
                 revision: currentRevision + 1,
                 shortCode: payload.shortCode,
+                updatedAt: new Date().toISOString(),
+              },
+            } satisfies ProjectShellMutationValue;
+          },
+        );
+        const { project } = receipt.nextValue;
+        if (!project) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return project;
+      } catch (error) {
+        rethrowProjectShellMutationError(error, input.projectId);
+      }
+    }),
+  enableProjectArea: protectedProcedure
+    .input(enableProjectAreaInputSchema)
+    .handler(async ({ context, input }) => {
+      const mutation = requireProjectShellMutationContract(
+        context,
+        "update",
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            kind: "human",
+            payload: { area: input.area },
+            targetId: input.projectId,
+          },
+          ({ currentValue, currentRevision, payload }) => {
+            if (!currentValue.project) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            return {
+              project: {
+                ...currentValue.project,
+                configuration: enableProjectArea(
+                  currentValue.project.configuration,
+                  payload.area,
+                ),
+                revision: currentRevision + 1,
                 updatedAt: new Date().toISOString(),
               },
             } satisfies ProjectShellMutationValue;

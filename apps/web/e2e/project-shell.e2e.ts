@@ -5,6 +5,18 @@ const PROJECTS_URL_PATTERN = /\/projects$/;
 const PROJECT_DETAIL_URL_PATTERN = /\/projects\/[^/]+$/;
 const WORK_HASH_PATTERN = /#work$/;
 const DOCUMENTS_HASH_PATTERN = /#documents$/;
+const ALL_PROJECT_AREAS = [
+  "Work",
+  "Documents",
+  "Discovery",
+  "Decisions",
+  "Design",
+  "Technical Diagrams",
+  "Tests",
+  "Releases",
+  "Production",
+  "GitHub",
+] as const;
 
 async function expectNoSampleContent(page: Page) {
   await expect(
@@ -242,6 +254,8 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
     await page.getByRole("button", { name: "Dismiss" }).click();
     await expectNoSampleContent(page);
     await expect(page.getByRole("button", { name: "Dismiss" })).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Dismiss" })).toHaveCount(0);
 
     await page.getByRole("link", { name: "All Tools", exact: true }).click();
     await expect(
@@ -250,22 +264,26 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
     await expect(
       page.getByRole("heading", { name: "All Tools", level: 2 }),
     ).toBeVisible();
-    await expect(
-      page
-        .getByRole("list", { name: "All Project areas" })
-        .getByRole("listitem"),
-    ).toHaveText([
-      "Work",
-      "Documents",
-      "Discovery",
-      "Decisions",
-      "Design",
-      "Technical Diagrams",
-      "Tests",
-      "Releases",
-      "Production",
-      "GitHub",
-    ]);
+    const allTools = page.getByRole("list", { name: "All Project areas" });
+    await expect(allTools.getByRole("listitem")).toHaveCount(
+      ALL_PROJECT_AREAS.length,
+    );
+    await Promise.all(
+      ALL_PROJECT_AREAS.map((area) =>
+        expect(allTools.getByText(area, { exact: true })).toBeVisible(),
+      ),
+    );
+    if (!starter.areas.some((area) => area === "Discovery")) {
+      await allTools
+        .getByRole("button", { name: "Enable Discovery", exact: true })
+        .click();
+      await expect(
+        allTools.getByRole("listitem", {
+          name: "Discovery Enabled",
+          exact: true,
+        }),
+      ).toBeVisible();
+    }
 
     await page.getByRole("link", { name: "Work", exact: true }).click();
     await expect(page).toHaveURL(WORK_HASH_PATTERN);
