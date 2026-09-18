@@ -24,6 +24,10 @@ import { ArrowLeft, Check, CircleHelp, Settings2 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 
 import ProjectOverviewView from "@/features/project-overview/views/project-overview-view";
+import {
+  projectAreaCatalogAnchor,
+  projectAreaNavigationHash,
+} from "@/features/project-shell/project-area-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/views/client-shell";
 import WorkCreateForm from "@/features/work-lifecycle/forms/work-create-form";
 import ProjectWorkList from "@/features/work-lifecycle/views/project-work-list";
@@ -1241,15 +1245,14 @@ function navigationHash(surface: NavigationSurface) {
   if (surface === "All Tools") {
     return "all-tools";
   }
-  return navigationSlug(surface);
+  if (surface === "Overview") {
+    return "overview";
+  }
+  return projectAreaNavigationHash(surface);
 }
 
 function projectAreaHash(area: ProjectArea) {
-  return projectAreaAnchor(area).slice(1);
-}
-
-function projectAreaAnchor(area: ProjectArea) {
-  return `#project-area-${navigationSlug(area)}`;
+  return projectAreaNavigationHash(area);
 }
 
 function navigationSlug(surface: string) {
@@ -1419,7 +1422,7 @@ function AllToolsSection({
             <li
               aria-label={`${area} ${projectAreaAvailabilityLabel(enabled, hidden)}`}
               className="flex items-center justify-between border-b px-3 py-2.5 text-sm last:border-b-0 lg:[&:nth-last-child(-n+2)]:border-b-0"
-              id={projectAreaAnchor(area).slice(1)}
+              id={projectAreaCatalogAnchor(area).slice(1)}
               key={area}
             >
               {area}

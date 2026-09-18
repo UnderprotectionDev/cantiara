@@ -10,13 +10,15 @@ import {
   type ProjectOverviewSourceRecord,
   type ProjectOverviewSources,
 } from "@cantiara/api/project-overview";
-import type { ProjectProfile } from "@cantiara/api/project-shell";
+import type { ProjectArea, ProjectProfile } from "@cantiara/api/project-shell";
+import { useLinkProps } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 
 import {
   formatAccountDate,
   formatAccountDateTime,
 } from "@/features/account-preferences/forms/account-preferences-format";
+import { projectAreaNavigationHash } from "@/features/project-shell/project-area-navigation";
 
 type OverviewFormattingPreferences = AccountPreferences;
 
@@ -25,6 +27,7 @@ const DEFAULT_OVERVIEW_FORMATTING_PREFERENCES =
 
 const EMPTY_SOURCE_MESSAGE = "No source records yet.";
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const OPEN_SOURCE_RECORD_LABEL = "Open source record";
 
 export interface ProjectOverviewViewProps {
   accountFormattingPreferences?: OverviewFormattingPreferences;
@@ -127,7 +130,7 @@ function OverviewSummary({
   );
 }
 
-function EnabledProjectAreas({ areas }: { areas: readonly string[] }) {
+function EnabledProjectAreas({ areas }: { areas: readonly ProjectArea[] }) {
   return (
     <section
       aria-labelledby="overview-project-areas-heading"
@@ -150,13 +153,7 @@ function EnabledProjectAreas({ areas }: { areas: readonly string[] }) {
           className="mt-4 flex flex-wrap gap-2"
         >
           {areas.map((area) => (
-            <li
-              className="border bg-background px-3 py-1.5 text-sm"
-              data-overview-area={area}
-              key={area}
-            >
-              {area}
-            </li>
+            <ProjectAreaEntry area={area} key={area} />
           ))}
         </ul>
       ) : (
@@ -165,6 +162,26 @@ function EnabledProjectAreas({ areas }: { areas: readonly string[] }) {
         </p>
       )}
     </section>
+  );
+}
+
+function ProjectAreaEntry({ area }: { area: ProjectArea }) {
+  const linkProps = useLinkProps({
+    activeOptions: { exact: true, includeHash: true },
+    hash: projectAreaNavigationHash(area),
+    to: ".",
+  });
+
+  return (
+    <li data-overview-area={area}>
+      <a
+        {...linkProps}
+        className="block border bg-background px-3 py-1.5 text-sm underline-offset-4 hover:border-foreground hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        data-overview-area-entry={area}
+      >
+        {area}
+      </a>
+    </li>
   );
 }
 
@@ -192,6 +209,7 @@ function OverviewModule({
         <h3 className="font-medium text-base" id={`${moduleId}-heading`}>
           {module.sourceHref ? (
             <a
+              aria-label={`${OPEN_SOURCE_RECORD_LABEL}: ${module.name}`}
               className="underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               href={module.sourceHref}
             >
@@ -243,7 +261,7 @@ function ModuleSourceCount({
   if (module.sourceHref) {
     return (
       <a
-        aria-label={`Open ${module.name} source records`}
+        aria-label={`${OPEN_SOURCE_RECORD_LABEL}: ${module.name} (${countLabel})`}
         className="text-muted-foreground text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         href={module.sourceHref}
       >
@@ -323,7 +341,7 @@ function SourceRecord({
             className="inline-flex shrink-0 items-center gap-1 text-primary text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             href={record.href}
           >
-            Open source record
+            {OPEN_SOURCE_RECORD_LABEL}
             <ArrowUpRight aria-hidden="true" className="size-3" />
             <span className="sr-only">{record.title}</span>
           </a>

@@ -232,6 +232,11 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   ).toBeVisible();
   await expect(page.getByText("Blank Project", { exact: true })).toBeVisible();
   const nonGetRequestCountBeforeMode = nonGetRequests.length;
+  const overview = page.locator('[data-project-overview="true"]');
+  await overview.locator('[data-overview-area-entry="Work"]').click();
+  await expect(page).toHaveURL(WORK_HASH_PATTERN);
+  expect(nonGetRequests).toHaveLength(nonGetRequestCountBeforeMode);
+  await expect(page.locator("#work")).toBeVisible();
   await expectDailyActions(page);
   await expect(
     page.getByRole("link", { name: "Create", exact: true }),
@@ -421,21 +426,38 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
   await expect(
     allTools.getByRole("listitem", { name: "Discovery Enabled", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.locator(
+      '[data-project-overview="true"] [data-overview-area-entry="Discovery"]',
+    ),
+  ).toBeVisible();
   await allTools
     .getByRole("button", { name: "Hide Discovery", exact: true })
     .click();
   await expect(
     allTools.getByRole("listitem", { name: "Discovery Hidden", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.locator(
+      '[data-project-overview="true"] [data-overview-area-entry="Discovery"]',
+    ),
+  ).toHaveCount(0);
   await allTools
     .getByRole("button", { name: "Show Discovery", exact: true })
     .click();
+  await expect(
+    page.locator(
+      '[data-project-overview="true"] [data-overview-area-entry="Discovery"]',
+    ),
+  ).toBeVisible();
   await allTools
     .getByRole("listitem", { name: "Discovery Enabled", exact: true })
     .getByRole("button", { name: "Pin to navigation", exact: true })
     .click();
   await expect(
-    page.getByRole("link", { name: "Discovery", exact: true }),
+    page
+      .getByRole("navigation", { name: "Project navigation" })
+      .getByRole("link", { name: "Discovery", exact: true }),
   ).toBeVisible();
 
   await configurationRegion
@@ -475,7 +497,9 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
     .click();
   await restoreResponse;
   await expect(
-    page.getByRole("link", { name: "Discovery", exact: true }),
+    page
+      .getByRole("navigation", { name: "Project navigation" })
+      .getByRole("link", { name: "Discovery", exact: true }),
   ).toHaveCount(0);
 
   await configurationRegion
@@ -602,14 +626,18 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
     await Promise.all(
       ["Overview", "Work", "Documents", "All Tools"].map((surface) =>
         expect(
-          page.getByRole("link", { name: surface, exact: true }),
+          page
+            .getByRole("navigation", { name: "Project navigation" })
+            .getByRole("link", { name: surface, exact: true }),
         ).toBeVisible(),
       ),
     );
     await Promise.all(
       starter.extraPinnedAreas.map((area) =>
         expect(
-          page.getByRole("link", { name: area, exact: true }),
+          page
+            .getByRole("navigation", { name: "Project navigation" })
+            .getByRole("link", { name: area, exact: true }),
         ).toBeVisible(),
       ),
     );
@@ -674,28 +702,43 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
       ).toBeVisible();
     }
 
-    await page.getByRole("link", { name: "Work", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Project navigation" })
+      .getByRole("link", { name: "Work", exact: true })
+      .click();
     await expect(page).toHaveURL(WORK_HASH_PATTERN);
     await expect(page.locator("#work")).toBeInViewport();
     await expect(
-      page.getByRole("link", { name: "Work", exact: true }),
+      page
+        .getByRole("navigation", { name: "Project navigation" })
+        .getByRole("link", { name: "Work", exact: true }),
     ).toHaveAttribute("aria-current", "location");
 
-    await page.getByRole("link", { name: "Documents", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Project navigation" })
+      .getByRole("link", { name: "Documents", exact: true })
+      .click();
     await expect(page).toHaveURL(DOCUMENTS_HASH_PATTERN);
     await expect(page.locator("#documents")).toBeInViewport();
     await expect(
-      page.getByRole("link", { name: "Documents", exact: true }),
+      page
+        .getByRole("navigation", { name: "Project navigation" })
+        .getByRole("link", { name: "Documents", exact: true }),
     ).toHaveAttribute("aria-current", "location");
 
     const [pinnedArea] = starter.extraPinnedAreas;
     if (pinnedArea) {
-      await page.getByRole("link", { name: pinnedArea, exact: true }).click();
+      await page
+        .getByRole("navigation", { name: "Project navigation" })
+        .getByRole("link", { name: pinnedArea, exact: true })
+        .click();
       const pinnedAreaAnchor = `#project-area-${pinnedArea.toLowerCase().replaceAll(" ", "-")}`;
       await expect(page).toHaveURL(new RegExp(`${pinnedAreaAnchor}$`));
       await expect(page.locator(pinnedAreaAnchor)).toBeInViewport();
       await expect(
-        page.getByRole("link", { name: pinnedArea, exact: true }),
+        page
+          .getByRole("navigation", { name: "Project navigation" })
+          .getByRole("link", { name: pinnedArea, exact: true }),
       ).toHaveAttribute("aria-current", "location");
     }
   });
