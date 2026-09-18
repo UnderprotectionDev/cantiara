@@ -306,6 +306,27 @@ describe("Project Shell seam", () => {
     expect(EXPECTED_STARTER_SKELETONS).toHaveLength(5);
   });
 
+  test("repairs mismatched skeleton metadata without resetting customized Project configuration", () => {
+    const currentConfiguration = getProjectShellConfiguration(
+      "Open Source Library",
+    );
+    const persistedConfiguration = {
+      ...currentConfiguration,
+      enabledAreas: [...currentConfiguration.enabledAreas, "Production"],
+      starterSkeletons: [],
+    };
+
+    expect(
+      resolveProjectShellConfiguration(
+        persistedConfiguration,
+        "Open Source Library",
+      ),
+    ).toEqual({
+      ...persistedConfiguration,
+      starterSkeletons: EXPECTED_STARTER_SKELETONS,
+    });
+  });
+
   test("backfills skeleton metadata without resetting an older Project configuration", () => {
     const currentConfiguration = getProjectShellConfiguration("Blank Project");
     const { starterSkeletons: _starterSkeletons, ...legacyConfiguration } = {

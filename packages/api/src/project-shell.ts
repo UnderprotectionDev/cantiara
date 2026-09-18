@@ -324,7 +324,10 @@ export function resolveProjectShellConfiguration(
       expected.starterSkeletons,
     )
       ? parsed.data
-      : expected;
+      : {
+          ...parsed.data,
+          starterSkeletons: cloneStarterSkeletons(expected.starterSkeletons),
+        };
   }
 
   const legacy = legacyProjectShellConfigurationSchema.safeParse(value);
