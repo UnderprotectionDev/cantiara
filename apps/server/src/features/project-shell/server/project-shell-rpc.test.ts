@@ -67,6 +67,44 @@ function createContext(
   };
 }
 
+function createProjectUpdateMutation(
+  getCurrentProject: () => ProjectProfile,
+  setCurrentProject: (project: ProjectProfile) => void,
+): MutationContract<ProjectShellMutationValue> {
+  return {
+    mutate: async <TPayload extends MutationPayload>(
+      command: MutationCommand<TPayload>,
+      apply: MutationApply<ProjectShellMutationValue, TPayload>,
+    ) => {
+      if (command.kind !== "human") {
+        throw new Error("Expected a human Project command.");
+      }
+      const previousProject = getCurrentProject();
+      const nextValue = await apply({
+        currentRevision: previousProject.revision,
+        currentValue: { project: previousProject },
+        payload: command.payload,
+      });
+      const nextProject = nextValue.project ?? previousProject;
+      setCurrentProject(nextProject);
+      return {
+        actor: command.actor,
+        committedAt: "2026-09-17T09:00:00.000Z",
+        id: `receipt-${nextProject.revision}`,
+        nextValue,
+        origin: {
+          clientIdempotencyKey: command.clientIdempotencyKey,
+          kind: "human" as const,
+        },
+        payloadFingerprint: "0".repeat(64),
+        previousValue: { project: previousProject },
+        revision: nextProject.revision,
+        targetId: command.targetId,
+      };
+    },
+  };
+}
+
 describe("Project Shell RPC", () => {
   test("creates and reads a Project through the authenticated interface", async () => {
     const calls: string[] = [];
@@ -180,42 +218,20 @@ describe("Project Shell RPC", () => {
   });
 
   test("enables a disabled Project area through the authenticated mutation", async () => {
+    let currentProject = project;
     const projectShell: ProjectShellAccess = {
-      create: async () => project,
-      find: async () => project,
-      list: async () => [project],
-      recordFirstWork: async () => project,
-      updateShortCode: async () => project,
+      create: async () => currentProject,
+      find: async () => currentProject,
+      list: async () => [currentProject],
+      recordFirstWork: async () => currentProject,
+      updateShortCode: async () => currentProject,
     };
-    const updateMutation: MutationContract<ProjectShellMutationValue> = {
-      mutate: async <TPayload extends MutationPayload>(
-        command: MutationCommand<TPayload>,
-        apply: MutationApply<ProjectShellMutationValue, TPayload>,
-      ) => {
-        if (command.kind !== "human") {
-          throw new Error("Expected a human Project command.");
-        }
-        const nextValue = await apply({
-          currentRevision: project.revision,
-          currentValue: { project },
-          payload: command.payload,
-        });
-        return {
-          actor: command.actor,
-          committedAt: "2026-09-17T09:00:00.000Z",
-          id: "receipt-2",
-          nextValue,
-          origin: {
-            clientIdempotencyKey: command.clientIdempotencyKey,
-            kind: "human" as const,
-          },
-          payloadFingerprint: "0".repeat(64),
-          previousValue: { project },
-          revision: nextValue.project?.revision ?? project.revision,
-          targetId: command.targetId,
-        };
+    const updateMutation = createProjectUpdateMutation(
+      () => currentProject,
+      (nextProject) => {
+        currentProject = nextProject;
       },
-    };
+    );
     const projectShellMutationContracts: ProjectShellMutationContracts = {
       create: () => updateMutation,
       update: () => updateMutation,
@@ -254,37 +270,12 @@ describe("Project Shell RPC", () => {
       recordFirstWork: async () => currentProject,
       updateShortCode: async () => currentProject,
     };
-    const updateMutation: MutationContract<ProjectShellMutationValue> = {
-      mutate: async <TPayload extends MutationPayload>(
-        command: MutationCommand<TPayload>,
-        apply: MutationApply<ProjectShellMutationValue, TPayload>,
-      ) => {
-        if (command.kind !== "human") {
-          throw new Error("Expected a human Project command.");
-        }
-        const previousProject = currentProject;
-        const nextValue = await apply({
-          currentRevision: previousProject.revision,
-          currentValue: { project: previousProject },
-          payload: command.payload,
-        });
-        currentProject = nextValue.project ?? previousProject;
-        return {
-          actor: command.actor,
-          committedAt: "2026-09-17T09:00:00.000Z",
-          id: `receipt-${currentProject.revision}`,
-          nextValue,
-          origin: {
-            clientIdempotencyKey: command.clientIdempotencyKey,
-            kind: "human" as const,
-          },
-          payloadFingerprint: "0".repeat(64),
-          previousValue: { project: previousProject },
-          revision: currentProject.revision,
-          targetId: command.targetId,
-        };
+    const updateMutation = createProjectUpdateMutation(
+      () => currentProject,
+      (nextProject) => {
+        currentProject = nextProject;
       },
-    };
+    );
     const client = createRouterClient(appRouter, {
       context: createContext(projectShell, {
         create: () => updateMutation,
