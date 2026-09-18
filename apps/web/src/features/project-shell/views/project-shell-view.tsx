@@ -1,10 +1,14 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Configuration rows and controls close over their current stage, status, or area.
 import {
+  getStarterConfigurationDefinition,
+  isProjectCoreArea,
   PROJECT_AREA_OPTIONS,
+  PROJECT_CORE_AREA_OPTIONS,
   PROJECT_STAGE_STATUS_OPTIONS,
   type ProjectArea,
   type ProjectShellConfiguration,
   type ProjectShellConfigurationChange,
+  type StarterConfiguration,
 } from "@cantiara/api/project-shell";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
@@ -332,6 +336,7 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
           configurationHost={configurationHost}
           onConfigurationHostChange={setConfigurationHost}
           projectId={projectId}
+          starterConfiguration={starterConfiguration}
         />
       ) : null}
 
@@ -480,17 +485,22 @@ function ConfigurationModePanel({
   configurationHost,
   onConfigurationHostChange,
   projectId,
+  starterConfiguration,
 }: {
   baseRevision: number;
   configuration: ProjectShellConfiguration;
   configurationHost: ConfigurationHost | null;
   onConfigurationHostChange: (host: ConfigurationHost | null) => void;
   projectId: string;
+  starterConfiguration: StarterConfiguration;
 }) {
   const { error, mutation } = useProjectConfigurationMutation(
     projectId,
     baseRevision,
   );
+  const [restorePreviewOpen, setRestorePreviewOpen] = useState(false);
+  const defaultPinnedAreas =
+    getStarterConfigurationDefinition(starterConfiguration).extraPinnedAreas;
 
   return (
     <section
@@ -525,14 +535,53 @@ function ConfigurationModePanel({
         <Button
           className="mt-4"
           disabled={mutation.isPending}
-          onClick={() =>
-            mutation.mutate({ kind: "restore-default-navigation" })
-          }
+          onClick={() => setRestorePreviewOpen(true)}
           type="button"
           variant="outline"
         >
           Restore default navigation
         </Button>
+        {restorePreviewOpen ? (
+          <div
+            aria-label="Navigation preview"
+            className="mt-4 space-y-3 border bg-background p-4 text-sm"
+            role="status"
+          >
+            <p className="font-medium">Navigation preview</p>
+            <p className="text-muted-foreground">
+              Current pinned areas:{" "}
+              {configuration.extraPinnedAreas.join(", ") || "None"}
+            </p>
+            <p className="text-muted-foreground">
+              Default pinned areas: {defaultPinnedAreas.join(", ") || "None"}
+            </p>
+            <ConfigurationMutationError error={error} />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                disabled={mutation.isPending}
+                onClick={() =>
+                  mutation.mutate(
+                    { kind: "restore-default-navigation" },
+                    { onSuccess: () => setRestorePreviewOpen(false) },
+                  )
+                }
+                size="xs"
+                type="button"
+              >
+                Confirm
+              </Button>
+              <Button
+                disabled={mutation.isPending}
+                onClick={() => setRestorePreviewOpen(false)}
+                size="xs"
+                type="button"
+                variant="outline"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section aria-labelledby="configuration-entry-points-heading">
@@ -1017,9 +1066,12 @@ function ProjectNavigation({
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
   const visiblePinnedAreas = extraPinnedAreas.filter(
-    (area) => enabledAreas.includes(area) && !hiddenAreas.includes(area),
+    (area) =>
+      !isProjectCoreArea(area) &&
+      enabledAreas.includes(area) &&
+      !hiddenAreas.includes(area),
   );
-  const visibleCoreAreas = (["Work", "Documents"] as const).filter(
+  const visibleCoreAreas = PROJECT_CORE_AREA_OPTIONS.filter(
     (area) => enabledAreas.includes(area) && !hiddenAreas.includes(area),
   );
   const activeSurface = navigationSurfaceFromHash(
@@ -1328,7 +1380,9 @@ function AllToolsSection({
         {ALL_PROJECT_AREAS.map((area) => {
           const enabled = configuration.enabledAreas.includes(area);
           const hidden = configuration.hiddenAreas.includes(area);
-          const pinned = configuration.extraPinnedAreas.includes(area);
+          const pinned =
+            !isProjectCoreArea(area) &&
+            configuration.extraPinnedAreas.includes(area);
           const pinnedIndex = configuration.extraPinnedAreas.indexOf(area);
           return (
             <li
@@ -1446,20 +1500,22 @@ function ProjectAreaAvailability({
       >
         {hidden ? "Show" : "Hide"}
       </Button>
-      <Button
-        aria-label={
-          pinned ? `Remove ${area} from navigation` : "Pin to navigation"
-        }
-        disabled={disabled}
-        onClick={() =>
-          onChange({ area, kind: pinned ? "unpin-area" : "pin-area" })
-        }
-        size="xs"
-        type="button"
-        variant="ghost"
-      >
-        {pinned ? "Remove pin" : "Pin to navigation"}
-      </Button>
+      {isProjectCoreArea(area) ? null : (
+        <Button
+          aria-label={
+            pinned ? `Remove ${area} from navigation` : "Pin to navigation"
+          }
+          disabled={disabled}
+          onClick={() =>
+            onChange({ area, kind: pinned ? "unpin-area" : "pin-area" })
+          }
+          size="xs"
+          type="button"
+          variant="ghost"
+        >
+          {pinned ? "Remove pin" : "Pin to navigation"}
+        </Button>
+      )}
     </div>
   );
 }

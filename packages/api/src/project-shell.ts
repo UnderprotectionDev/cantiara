@@ -128,6 +128,12 @@ export const PROJECT_AREA_OPTIONS = [
 
 export type ProjectArea = (typeof PROJECT_AREA_OPTIONS)[number];
 
+export const PROJECT_CORE_AREA_OPTIONS = ["Work", "Documents"] as const;
+
+export function isProjectCoreArea(area: ProjectArea) {
+  return PROJECT_CORE_AREA_OPTIONS.some((coreArea) => coreArea === area);
+}
+
 export const PROJECT_WORK_VIEW_OPTIONS = [
   "Backlog",
   "Board",
@@ -729,6 +735,11 @@ export function applyProjectShellConfigurationChange(
       return next;
     case "pin-area":
       ensureEnabledArea(next, parsedChange.area);
+      if (isProjectCoreArea(parsedChange.area)) {
+        throw new ProjectShellConfigurationChangeError(
+          "Work and Documents are already in the core Project navigation.",
+        );
+      }
       next.extraPinnedAreas = next.extraPinnedAreas.includes(parsedChange.area)
         ? next.extraPinnedAreas
         : [...next.extraPinnedAreas, parsedChange.area];

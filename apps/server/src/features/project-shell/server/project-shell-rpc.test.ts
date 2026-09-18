@@ -256,6 +256,48 @@ describe("Project Shell RPC", () => {
     });
   });
 
+  test.each(["Work", "Documents"] as const)(
+    "rejects pinning %s through the authenticated mutation",
+    async (area) => {
+      let currentProject = project;
+      const projectShell: ProjectShellAccess = {
+        create: async () => currentProject,
+        find: async () => currentProject,
+        list: async () => [currentProject],
+        recordFirstWork: async () => currentProject,
+        updateShortCode: async () => currentProject,
+      };
+      const updateMutation = createProjectUpdateMutation(
+        () => currentProject,
+        (nextProject) => {
+          currentProject = nextProject;
+        },
+      );
+      const client = createRouterClient(appRouter, {
+        context: createContext(projectShell, {
+          create: () => updateMutation,
+          update: () => updateMutation,
+        }),
+      });
+
+      await expect(
+        client.updateProjectConfiguration({
+          baseRevision: currentProject.revision,
+          change: { area, kind: "pin-area" },
+          clientIdempotencyKey: `pin-${area.toLowerCase()}-1`,
+          projectId: currentProject.id,
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        data: { code: "PROJECT_CONFIGURATION_CHANGE_REJECTED" },
+        message:
+          "Work and Documents are already in the core Project navigation.",
+        status: 400,
+      });
+      expect(currentProject).toBe(project);
+    },
+  );
+
   test("configures stages, area visibility, and status labels without changing semantics", async () => {
     let currentProject: ProjectProfile = {
       ...project,

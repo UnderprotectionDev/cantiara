@@ -401,6 +401,16 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
 
   await page.getByRole("link", { name: "All Tools", exact: true }).click();
   const allTools = page.getByRole("list", { name: "All Project areas" });
+  await expect(
+    allTools
+      .getByRole("listitem", { name: "Work Enabled", exact: true })
+      .getByRole("button", { name: "Pin to navigation", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    allTools
+      .getByRole("listitem", { name: "Documents Enabled", exact: true })
+      .getByRole("button", { name: "Pin to navigation", exact: true }),
+  ).toHaveCount(0);
   await allTools
     .getByRole("button", { name: "Enable Discovery", exact: true })
     .click();
@@ -423,6 +433,46 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
   await expect(
     page.getByRole("link", { name: "Discovery", exact: true }),
   ).toBeVisible();
+
+  await configurationRegion
+    .getByRole("button", { name: "Restore default navigation", exact: true })
+    .click();
+  const navigationPreview = configurationRegion.getByRole("status", {
+    name: "Navigation preview",
+  });
+  await expect(navigationPreview).toBeVisible();
+  await expect(
+    navigationPreview.getByText("Current pinned areas: Discovery", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    navigationPreview.getByText("Default pinned areas: None", { exact: true }),
+  ).toBeVisible();
+  await navigationPreview
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await expect(navigationPreview).toHaveCount(0);
+
+  await configurationRegion
+    .getByRole("button", { name: "Restore default navigation", exact: true })
+    .click();
+  const confirmedNavigationPreview = configurationRegion.getByRole("status", {
+    name: "Navigation preview",
+  });
+  const restoreResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/updateProjectConfiguration") &&
+      response.ok(),
+  );
+  await confirmedNavigationPreview
+    .getByRole("button", { name: "Confirm", exact: true })
+    .click();
+  await restoreResponse;
+  await expect(
+    page.getByRole("link", { name: "Discovery", exact: true }),
+  ).toHaveCount(0);
 
   await configurationRegion
     .getByRole("button", { name: "Work statuses", exact: true })

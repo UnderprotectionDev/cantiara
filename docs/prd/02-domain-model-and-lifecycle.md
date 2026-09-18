@@ -390,6 +390,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Navigasyona sabitle | `Pin to navigation` | Proje alanını navigasyon üstverisine sabitleme; alan etkinleştirme değildir |
 | Sabitlemeyi kaldır | `Remove pin` | Proje alanının navigasyon üstverisindeki sabitlemesini kaldırma |
 | Varsayılan navigasyonu geri yükle | `Restore default navigation` | Yalnız pin ve sıra üstverisini Başlangıç yapılandırması varsayılanına döndürme |
+| Navigasyon önizlemesi | `Navigation preview` | Varsayılan navigasyon geri yüklenmeden önce mevcut ve hedef sabitleme üstverisini gösteren onay yüzeyi |
+| Mevcut sabitlenmiş alanlar | `Current pinned areas` | Geri yükleme önizlemesinde o anki ek sabitlenmiş Proje alanı sırası |
+| Varsayılan sabitlenmiş alanlar | `Default pinned areas` | Geri yükleme önizlemesinde Başlangıç yapılandırmasının hedef ek sabitlenmiş Proje alanı sırası |
 | Proje yapısını kopyalama | `Copy project structure` | Aşama, etkin alan, durum, hazır görünüm, düzen, özel alan tanımı, öncelik ölçütü ve boş duvar iskeletini içeriksiz yeni Projeye aktarma; kayıt, şablon, test senaryosu ve otomasyon kopyalamaz |
 | Planlanmadı | `Not Planned` | Proje aşaması durumu; İş akışı durumu değildir |
 | Hazır | `Ready` | Proje aşaması durumu; İş akışı durumu değildir |
