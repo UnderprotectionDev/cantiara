@@ -17,6 +17,11 @@ Before creating or updating the pull request:
 
 Issue-context hard gate:
 
+- The `Create PR` action may start a new agent session, so the current chat is not a reliable issue-context source.
+- Before deciding that no issue was selected, inspect `.context/attachments/` for Conductor's durable GitHub issue attachment. Use `find .context/attachments -type f -name '[[]GITHUB]-*.md' -print`, then read every matching file.
+- A matching attachment is authoritative only when its contents include a `**GitHub URL:** https://github.com/<owner>/<repository>/issues/<number>` line. Use the repository and issue number from that URL; do not infer them from the filename alone.
+- If exactly one valid GitHub issue attachment exists, use it as the selected issue even when the current agent session does not mention the issue. If multiple valid attachments exist, stop and ask the user which source issue this pull request resolves instead of guessing.
+- If no valid GitHub issue attachment exists and Conductor supplied no other explicit issue context, treat the workspace as not issue-selected.
 - A GitHub issue is selected only when Conductor explicitly provides inherited issue context.
 - Read the exact repository and issue number only from that inherited context; the user does not need to type the issue number manually.
 - If the workspace is issue-based but the exact repository and issue number are missing, stop before creating or updating the pull request and ask the user for that missing context.
@@ -117,6 +122,7 @@ Existing pull request handling:
 - If an open pull request is missing the required `Closes` or `Refs` issue reference, update the pull request body before reporting completion.
 - If a fully resolving pull request is already merged and the required `Closes` reference is missing, report that automatic issue closure is no longer guaranteed and do not claim successful issue closure.
 - If the pull request body cannot be updated, report the blocker and do not claim successful completion.
+- Treat a missing `Closes` or `Refs` line for a valid issue attachment as a Create PR failure, not as an optional omission. Repair the actual pull request body with `gh pr edit` before reporting completion.
 
 Before reporting completion:
 
