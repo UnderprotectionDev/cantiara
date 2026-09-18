@@ -13,13 +13,11 @@
 │   │   │   │   ├── App.tsx
 │   │   │   │   ├── index.html
 │   │   │   │   └── main.tsx
-│   │   │   ├── background.ts
-│   │   │   └── content.ts
+│   │   │   └── background.ts
 │   │   ├── src/
 │   │   │   └── features/
 │   │   │       └── capture-triage/
-│   │   │           ├── components/
-│   │   │           └── views/
+│   │   │           └── web-capture.ts
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   ├── web-ext.config.ts
@@ -30,6 +28,7 @@
 │   │   ├── src/
 │   │   │   ├── app/
 │   │   │   │   ├── (home)/
+│   │   │   │   │   ├── layout.tsx
 │   │   │   │   │   └── page.tsx
 │   │   │   │   ├── api/
 │   │   │   │   │   └── search/
@@ -38,11 +37,29 @@
 │   │   │   │   │   ├── [[...slug]]/
 │   │   │   │   │   │   └── page.tsx
 │   │   │   │   │   └── layout.tsx
+│   │   │   │   ├── llms-full.txt/
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── llms.mdx/
+│   │   │   │   │   └── docs/
+│   │   │   │   │       └── [[...slug]]/
+│   │   │   │   │           └── route.ts
+│   │   │   │   ├── llms.txt/
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── og/
+│   │   │   │   │   └── docs/
+│   │   │   │   │       └── [...slug]/
+│   │   │   │   │           └── route.tsx
+│   │   │   │   ├── global.css
 │   │   │   │   └── layout.tsx
+│   │   │   ├── components/
+│   │   │   │   └── mdx.tsx
 │   │   │   └── lib/
+│   │   │       ├── layout.shared.tsx
+│   │   │       ├── shared.ts
 │   │   │       └── source.ts
 │   │   ├── next.config.mjs
 │   │   ├── package.json
+│   │   ├── postcss.config.mjs
 │   │   ├── proxy.ts
 │   │   └── tsconfig.json
 │   ├── server/
@@ -216,20 +233,33 @@
 │   │   │   │   │   └── server/
 │   │   │   │   └── workspace-overview/
 │   │   │   │       └── server/
+│   │   │   ├── app.test.ts
 │   │   │   ├── app.ts
 │   │   │   ├── context.ts
 │   │   │   ├── env.test.ts
 │   │   │   ├── env.ts
 │   │   │   ├── index.ts
 │   │   │   └── services.ts
+│   │   ├── .env.example
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── tsdown.config.ts
 │   └── web/
 │       ├── e2e/
 │       │   ├── account-preferences.e2e.ts
-│       │   └── account-sessions.e2e.ts
+│       │   ├── account-sessions.e2e.ts
+│       │   ├── capture-inbox.e2e.ts
+│       │   ├── client-shell.e2e.ts
+│       │   ├── command-palette.e2e.ts
+│       │   ├── project-shell.e2e.ts
+│       │   └── web-capture-extension.e2e.ts
 │       ├── src/
+│       │   ├── components/
+│       │   │   ├── header.tsx
+│       │   │   ├── loader.tsx
+│       │   │   ├── mode-toggle.tsx
+│       │   │   ├── theme-provider.tsx
+│       │   │   └── user-menu.tsx
 │       │   ├── features/
 │       │   │   ├── account-access/
 │       │   │   │   ├── forms/
@@ -514,6 +544,7 @@
 │       │   ├── Cargo.lock
 │       │   ├── Cargo.toml
 │       │   └── tauri.conf.json
+│       ├── .env.example
 │       ├── components.json
 │       ├── index.html
 │       ├── package.json
@@ -523,12 +554,18 @@
 ├── packages/
 │   ├── api/
 │   │   ├── src/
-│   │   │   ├── account-preferences.ts
 │   │   │   ├── routers/
 │   │   │   │   └── index.ts
+│   │   │   ├── account-preferences.ts
+│   │   │   ├── capture-triage.ts
 │   │   │   ├── context.ts
+│   │   │   ├── desktop-api-window.ts
 │   │   │   ├── index.ts
-│   │   │   └── support-reference.ts
+│   │   │   ├── mutation-and-undo.ts
+│   │   │   ├── project-overview.ts
+│   │   │   ├── project-shell.ts
+│   │   │   ├── support-reference.ts
+│   │   │   └── web-capture.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   ├── auth/
@@ -547,15 +584,18 @@
 │   │   │   │   └── security-events/
 │   │   │   ├── schema/
 │   │   │   │   ├── auth.ts
-│   │   │   │   ├── security-event.ts
-│   │   │   │   └── index.ts
+│   │   │   │   ├── capture-triage.ts
+│   │   │   │   ├── index.ts
+│   │   │   │   ├── mutation.ts
+│   │   │   │   ├── project.ts
+│   │   │   │   └── security-event.ts
 │   │   │   ├── config.ts
 │   │   │   ├── env.ts
 │   │   │   ├── index.ts
 │   │   │   ├── local-postgres.ts
 │   │   │   └── security-events.ts
-│   │   ├── drizzle.security.config.ts
 │   │   ├── drizzle.config.ts
+│   │   ├── drizzle.security.config.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   └── ui/
@@ -570,7 +610,6 @@
 │       ├── postcss.config.mjs
 │       └── tsconfig.json
 ├── scripts/
-│   ├── check-dev-ports.sh
 │   ├── install-hooks.ts
 │   └── neon-local-proxy.ts
 ├── biome.json
