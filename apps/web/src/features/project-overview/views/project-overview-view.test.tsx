@@ -1,3 +1,7 @@
+import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
 import type { ProjectOverviewSources } from "@cantiara/api/project-overview";
 import {
   getProjectShellConfiguration,
@@ -60,6 +64,9 @@ const sources: ProjectOverviewSources = {
   ],
   importantProductionIncidents: [{ id: "incident-1", title: "Webhook delay" }],
   milestones: [{ id: "milestone-1", title: "Private beta" }],
+  moduleHrefs: {
+    Goals: "/projects/project-1/goals",
+  },
   openTestGaps: [{ id: "gap-1", title: "Retry path is unverified" }],
   recentChanges: [
     {
@@ -76,12 +83,13 @@ const sources: ProjectOverviewSources = {
 function renderOverview(
   overrides: Partial<ProjectProfile> = {},
   overviewSources: ProjectOverviewSources = sources,
+  accountPreferences: Partial<AccountPreferences> = {},
 ) {
   return renderToStaticMarkup(
     <ProjectOverviewView
       accountFormattingPreferences={{
-        locale: "en-GB",
-        timeZone: "Europe/Istanbul",
+        ...DEFAULT_ACCOUNT_PREFERENCES,
+        ...accountPreferences,
       }}
       project={{ ...project, ...overrides }}
       sources={overviewSources}
@@ -122,7 +130,11 @@ describe("Project Overview", () => {
     expect(html).toContain("Founder checkout session");
     expect(html).toContain("Retry path is unverified");
     expect(html).toContain('href="/projects/project-1/goals/goal-1"');
+    expect(html.match(/href="\/projects\/project-1\/goals"/g)).toHaveLength(2);
+    expect(html).toContain('aria-label="Open Goals source records"');
     expect(html).toContain("Open source record");
+    expect(html).toContain(">Target date<");
+    expect(html).not.toContain("Project target date");
     expect(html).toMatch(PROJECT_TARGET_DATE_PATTERN);
     expect(html).toContain('data-overview-area="Work"');
     expect(html).toContain('data-overview-area="Tests"');
@@ -162,6 +174,7 @@ describe("Project Overview", () => {
     const html = renderToStaticMarkup(
       <ProjectOverviewView
         accountFormattingPreferences={{
+          ...DEFAULT_ACCOUNT_PREFERENCES,
           locale: "en-US",
           timeZone: "America/New_York",
         }}
@@ -172,5 +185,16 @@ describe("Project Overview", () => {
 
     expect(html).toContain("Sep 30, 2026");
     expect(html).toMatch(RECENT_CHANGE_DATE_PATTERN);
+  });
+
+  test("uses Account date format without shifting date-only values", () => {
+    const html = renderOverview({}, sources, {
+      dateFormat: "yyyy-MM-dd",
+      locale: "en-US",
+      timeZone: "Pacific/Kiritimati",
+    });
+
+    expect(html).toContain("2026-09-30");
+    expect(html).not.toContain("2026-10-01");
   });
 });

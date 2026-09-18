@@ -47,6 +47,7 @@ export interface ProjectOverviewSources {
   goals?: readonly ProjectOverviewGoalRecord[];
   importantProductionIncidents?: readonly ProjectOverviewSourceRecord[];
   milestones?: readonly ProjectOverviewSourceRecord[];
+  moduleHrefs?: Partial<Record<ProjectOverviewModuleName, string>>;
   openTestGaps?: readonly ProjectOverviewSourceRecord[];
   recentChanges?: readonly ProjectOverviewSourceRecord[];
   recentTestSessions?: readonly ProjectOverviewSourceRecord[];
@@ -57,6 +58,7 @@ export interface ProjectOverviewSources {
 export interface ProjectOverviewModule {
   name: ProjectOverviewModuleName;
   records: readonly ProjectOverviewSourceRecord[];
+  sourceHref?: string | null;
 }
 
 export interface ProjectOverviewModel {
@@ -119,7 +121,10 @@ export function buildProjectOverview(
       (area) => !project.configuration.hiddenAreas.includes(area),
     ),
     lifecycle: project.status,
-    modules,
+    modules: modules.map((module) => ({
+      ...module,
+      sourceHref: sources.moduleHrefs?.[module.name] ?? null,
+    })),
     purpose: project.purpose,
     targetDate: project.targetDate,
   };

@@ -13,15 +13,15 @@ import {
 import type { ProjectProfile } from "@cantiara/api/project-shell";
 import { ArrowUpRight } from "lucide-react";
 
-type OverviewFormattingPreferences = Pick<
-  AccountPreferences,
-  "locale" | "timeZone"
->;
+import {
+  formatAccountDate,
+  formatAccountDateTime,
+} from "@/features/account-preferences/forms/account-preferences-format";
 
-const DEFAULT_OVERVIEW_FORMATTING_PREFERENCES = {
-  locale: DEFAULT_ACCOUNT_PREFERENCES.locale,
-  timeZone: DEFAULT_ACCOUNT_PREFERENCES.timeZone,
-} satisfies OverviewFormattingPreferences;
+type OverviewFormattingPreferences = AccountPreferences;
+
+const DEFAULT_OVERVIEW_FORMATTING_PREFERENCES =
+  DEFAULT_ACCOUNT_PREFERENCES satisfies OverviewFormattingPreferences;
 
 const EMPTY_SOURCE_MESSAGE = "No source records yet.";
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -91,6 +91,7 @@ function normalizeFormattingPreferences(
   preferences: OverviewFormattingPreferences,
 ): OverviewFormattingPreferences {
   return {
+    ...preferences,
     locale:
       preferences.locale || DEFAULT_OVERVIEW_FORMATTING_PREFERENCES.locale,
     timeZone:
@@ -189,13 +190,19 @@ function OverviewModule({
     >
       <header className="flex items-baseline justify-between gap-3 border-b pb-3">
         <h3 className="font-medium text-base" id={`${moduleId}-heading`}>
-          {module.name}
+          {module.sourceHref ? (
+            <a
+              className="underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              href={module.sourceHref}
+            >
+              {module.name}
+            </a>
+          ) : (
+            module.name
+          )}
         </h3>
         {records.length > 0 ? (
-          <span className="text-muted-foreground text-xs">
-            {records.length} source{" "}
-            {records.length === 1 ? "record" : "records"}
-          </span>
+          <ModuleSourceCount module={module} recordCount={records.length} />
         ) : null}
       </header>
 
@@ -222,6 +229,32 @@ function OverviewModule({
   );
 }
 
+function ModuleSourceCount({
+  module,
+  recordCount,
+}: {
+  module: ProjectOverviewModule;
+  recordCount: number;
+}) {
+  const countLabel = `${recordCount} source ${
+    recordCount === 1 ? "record" : "records"
+  }`;
+
+  if (module.sourceHref) {
+    return (
+      <a
+        aria-label={`Open ${module.name} source records`}
+        className="text-muted-foreground text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        href={module.sourceHref}
+      >
+        {countLabel}
+      </a>
+    );
+  }
+
+  return <span className="text-muted-foreground text-xs">{countLabel}</span>;
+}
+
 function moduleRecords(
   module: ProjectOverviewModule,
   overview: ProjectOverviewModel,
@@ -234,7 +267,7 @@ function moduleRecords(
     {
       id: "project-target-date",
       targetDate: overview.targetDate,
-      title: "Project target date",
+      title: "Target date",
       type: "Target date",
     },
     ...module.records,
@@ -318,37 +351,18 @@ function formatOverviewDate(
   value: string,
   preferences: OverviewFormattingPreferences,
 ) {
-  const isDateOnly = DATE_ONLY_PATTERN.test(value);
-  const date = new Date(isDateOnly ? `${value}T12:00:00.000Z` : value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
   try {
-    return new Intl.DateTimeFormat(
-      preferences.locale,
-      isDateOnly
-        ? { dateStyle: "medium", timeZone: preferences.timeZone }
-        : {
-            dateStyle: "medium",
-            timeStyle: "short",
-            timeZone: preferences.timeZone,
-          },
-    ).format(date);
+    return DATE_ONLY_PATTERN.test(value)
+      ? formatAccountDate(value, preferences)
+      : formatAccountDateTime(value, preferences);
   } catch {
-    return new Intl.DateTimeFormat(
-      DEFAULT_OVERVIEW_FORMATTING_PREFERENCES.locale,
-      isDateOnly
-        ? {
-            dateStyle: "medium",
-            timeZone: DEFAULT_OVERVIEW_FORMATTING_PREFERENCES.timeZone,
-          }
-        : {
-            dateStyle: "medium",
-            timeStyle: "short",
-            timeZone: DEFAULT_OVERVIEW_FORMATTING_PREFERENCES.timeZone,
-          },
-    ).format(date);
+    try {
+      return DATE_ONLY_PATTERN.test(value)
+        ? formatAccountDate(value, DEFAULT_OVERVIEW_FORMATTING_PREFERENCES)
+        : formatAccountDateTime(value, DEFAULT_OVERVIEW_FORMATTING_PREFERENCES);
+    } catch {
+      return value;
+    }
   }
 }
 

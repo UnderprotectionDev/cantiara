@@ -1,6 +1,8 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { addDays } from "date-fns";
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 function asDate(value: Date | string) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -11,11 +13,15 @@ function asDate(value: Date | string) {
   return date;
 }
 
-function dateParts(value: Date | string, preferences: AccountPreferences) {
+function dateParts(
+  value: Date | string,
+  preferences: AccountPreferences,
+  timeZone = preferences.timeZone,
+) {
   const parts = new Intl.DateTimeFormat(preferences.locale, {
     day: "2-digit",
     month: "2-digit",
-    timeZone: preferences.timeZone,
+    timeZone,
     year: "numeric",
   }).formatToParts(asDate(value));
 
@@ -33,14 +39,18 @@ export function formatAccountDate(
   preferences: AccountPreferences,
 ) {
   const date = asDate(value);
+  const timeZone =
+    typeof value === "string" && DATE_ONLY_PATTERN.test(value)
+      ? "UTC"
+      : preferences.timeZone;
   if (preferences.dateFormat === "locale") {
     return new Intl.DateTimeFormat(preferences.locale, {
       dateStyle: "medium",
-      timeZone: preferences.timeZone,
+      timeZone,
     }).format(date);
   }
 
-  const parts = dateParts(date, preferences);
+  const parts = dateParts(date, preferences, timeZone);
   switch (preferences.dateFormat) {
     case "dd/MM/yyyy":
       return `${parts.day}/${parts.month}/${parts.year}`;
