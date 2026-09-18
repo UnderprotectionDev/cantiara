@@ -39,6 +39,7 @@ import {
   captureUndoMergePreviewInputSchema,
   type DirectBugCreateInput,
   type DirectBugCreateReceipt,
+  type FileAttachmentScope,
   type NormalizedCaptureInput,
 } from "@cantiara/api/capture-triage";
 import type {
@@ -185,6 +186,7 @@ export type CaptureInboxErrorCode =
   | "CAPTURE_TRIAGE_UNAVAILABLE"
   | "CAPTURE_STAGING_UNAVAILABLE"
   | "CAPTURE_STAGING_DELETE_FAILED"
+  | "CAPTURE_ATTACHMENT_SCOPE_REQUIRED"
   | "CAPTURE_ATTACHMENT_PROMOTION_FAILED"
   | "CREATE_BUG_TEMPLATE_UNSUPPORTED"
   | "CAPTURE_IDEMPOTENCY_CONFLICT"
@@ -264,8 +266,38 @@ function sameProject(left: string | null, right: string | null) {
   return left.toLocaleLowerCase("en-US") === right.toLocaleLowerCase("en-US");
 }
 
+function captureTargetScope(item: CaptureInboxItem): CaptureTargetScope {
+  return item.projectId
+    ? {
+        kind: "project",
+        label: "Project",
+        projectId: item.projectId,
+      }
+    : {
+        kind: "workspace",
+        label: "Workspace",
+        projectId: null,
+      };
+}
+
 function operationFingerprint(value: unknown) {
   return JSON.stringify(value);
+}
+
+function requireFileAttachmentScope(
+  targetScope: CaptureTargetScope,
+): FileAttachmentScope {
+  if (targetScope.kind === "project" && targetScope.projectId) {
+    return {
+      kind: "project",
+      projectId: targetScope.projectId,
+    };
+  }
+
+  throw new CaptureInboxError(
+    "CAPTURE_ATTACHMENT_SCOPE_REQUIRED",
+    "Capture attachment conversion requires a Project or Personal Wiki target.",
+  );
 }
 
 function createUnavailableTriageAdapter(): CaptureInboxTriageAdapter {
@@ -404,6 +436,7 @@ export function createCaptureInbox({
       return await action();
     }
     const captureStagingStore = requireCaptureStagingStore(stagingStore);
+    const fileAttachmentScope = requireFileAttachmentScope(targetScope);
     const input: CaptureAttachmentPromotionInput<TResult> = {
       accountId,
       attachment: item.attachment,
@@ -411,7 +444,7 @@ export function createCaptureInbox({
       finalize: action,
       item,
       operation: "convert",
-      targetScope,
+      targetScope: fileAttachmentScope,
     };
     try {
       return await captureStagingStore.promote(input);
@@ -608,17 +641,10 @@ export function createCaptureInbox({
         targetField: sourceField,
         value,
       }));
-      const targetScope = item.projectId
-        ? {
-            kind: "project" as const,
-            label: "Project" as const,
-            projectId: item.projectId,
-          }
-        : {
-            kind: "workspace" as const,
-            label: "Workspace" as const,
-            projectId: null,
-          };
+      const targetScope = captureTargetScope(item);
+      if (item.attachment) {
+        requireFileAttachmentScope(targetScope);
+      }
       const preview: CaptureConversionPreview = {
         fieldMappings,
         itemId: item.id,
@@ -682,6 +708,7 @@ export function createCaptureInbox({
           "The Capture Inbox item changed after the preview.",
         );
       }
+      const targetScope = captureTargetScope(item);
       const created = await runTriageMutation({
         accountId,
         action: () =>
@@ -699,7 +726,7 @@ export function createCaptureInbox({
               }),
             clientIdempotencyKey: input.clientIdempotencyKey,
             item,
-            targetScope: pending.preview.targetScope,
+            targetScope,
           }),
         clientIdempotencyKey: input.clientIdempotencyKey,
         input,

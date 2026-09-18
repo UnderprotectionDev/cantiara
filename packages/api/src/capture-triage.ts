@@ -33,10 +33,11 @@ export const CAPTURE_TEMPLATE_FIELD_LABELS = {
 
 export const captureTemplateSchema = z.enum(CAPTURE_TEMPLATES);
 const identifierSchema = z.string().trim().min(1).max(255);
-const captureStagingObjectUrlPattern = /^[a-z][a-z\d+.-]*:\/\//iu;
-const captureStagingObjectIdSchema = identifierSchema.refine(
-  (value) => !captureStagingObjectUrlPattern.test(value),
-  { message: "Capture attachment ids must be opaque staging identifiers." },
+const captureStagingObjectIdSchema = identifierSchema.regex(
+  /^[A-Za-z0-9_-]+$/u,
+  {
+    message: "Capture attachment ids must be opaque staging identifiers.",
+  },
 );
 const captureTextSchema = z.string().max(100_000);
 const captureUrlSchema = z
@@ -181,6 +182,16 @@ export interface CaptureTargetScope {
   projectId: string | null;
 }
 
+export type FileAttachmentScope =
+  | {
+      kind: "project";
+      projectId: string;
+    }
+  | {
+      kind: "personalWiki";
+      personalWikiId: string;
+    };
+
 export interface CaptureProposedRecord {
   fields: Record<string, string>;
   projectId: string | null;
@@ -210,7 +221,7 @@ export interface CaptureAttachmentPromotionInput<TReceipt> {
   finalize: () => Promise<TReceipt>;
   item: CaptureInboxItem;
   operation: "convert";
-  targetScope: CaptureTargetScope;
+  targetScope: FileAttachmentScope;
 }
 
 export interface CaptureRecordCreateInput {
