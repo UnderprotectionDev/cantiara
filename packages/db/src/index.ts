@@ -19,7 +19,10 @@ import {
   workspace,
   workspaceRelations,
 } from "./schema";
-import { captureInboxItem } from "./schema/capture-triage";
+import {
+  captureInboxItem,
+  captureInboxOperation,
+} from "./schema/capture-triage";
 import {
   mutationHistory,
   mutationReceipt,
@@ -34,6 +37,7 @@ const schema = {
   accountRelations,
   auditRecord,
   captureInboxItem,
+  captureInboxOperation,
   mutationHistory,
   mutationReceipt,
   mutationStaging,

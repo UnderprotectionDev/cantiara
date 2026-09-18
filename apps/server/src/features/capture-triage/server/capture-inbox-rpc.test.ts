@@ -8,7 +8,11 @@ import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
 
-const emptyInbox: CaptureInboxSnapshot = { groups: [], items: [] };
+const emptyInbox: CaptureInboxSnapshot = {
+  groups: [],
+  items: [],
+  triageAvailable: false,
+};
 
 function createContext(captureInbox: CaptureInboxAccess): Context {
   return {
@@ -169,6 +173,7 @@ describe("Capture Inbox RPC", () => {
       fieldMappings: [],
       itemId: "capture-1",
       previewId: "preview-1",
+      proposedRelations: [{ relation: "Origin", target: "Proposed record" }],
       proposedRecord: {
         fields: {},
         projectId: null,
@@ -220,6 +225,7 @@ describe("Capture Inbox RPC", () => {
     ).resolves.toEqual(preview);
     await expect(
       client.convertCapture({
+        clientIdempotencyKey: "convert-key-1",
         itemId: "capture-1",
         previewId: "preview-1",
       }),
@@ -234,6 +240,7 @@ describe("Capture Inbox RPC", () => {
       recordType: "Work",
     });
     expect(captureInbox.convert).toHaveBeenCalledWith("account-1", {
+      clientIdempotencyKey: "convert-key-1",
       itemId: "capture-1",
       previewId: "preview-1",
     });

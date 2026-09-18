@@ -23,6 +23,7 @@ import {
   captureInboxMutationTarget,
   createDatabaseCaptureInbox,
 } from "./features/capture-triage/server/capture-inbox-database";
+import { createDevelopmentCaptureInboxTriageAdapter } from "./features/capture-triage/server/capture-inbox-development-adapter";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 
 const db = createDb(env);
@@ -57,6 +58,9 @@ export const captureInbox = createDatabaseCaptureInbox(
   db,
   captureInboxWorkCreate,
   captureInboxMutationContract,
+  env.NODE_ENV === "production"
+    ? undefined
+    : createDevelopmentCaptureInboxTriageAdapter(),
 );
 export const githubAvailability = createGitHubAvailability();
 export const accountSessionAccess = createDatabaseAccountSessionAccess(

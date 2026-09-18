@@ -61,9 +61,11 @@ function itemOriginLabel(item: CaptureInboxItem) {
 }
 
 function CaptureSourceSummary({
+  formattingPreferences,
   item,
   heading = "Original capture",
 }: {
+  formattingPreferences: AccountPreferences;
   heading?: string;
   item: CaptureInboxItem;
 }) {
@@ -100,7 +102,7 @@ function CaptureSourceSummary({
         </p>
       ) : null}
       <p className="text-muted-foreground text-xs">
-        Captured {new Date(item.createdAt).toLocaleString()}
+        Captured {formatAccountDateTime(item.createdAt, formattingPreferences)}
       </p>
     </div>
   );
@@ -189,11 +191,13 @@ function SuggestionsPreview({
 }
 
 function CaptureConversionPreviewPanel({
+  formattingPreferences,
   preview,
   onCancel,
   onConfirm,
   pending,
 }: {
+  formattingPreferences: AccountPreferences;
   onCancel: () => void;
   onConfirm: () => void;
   pending: boolean;
@@ -212,7 +216,10 @@ function CaptureConversionPreviewPanel({
           selected scope.
         </p>
       </div>
-      <CaptureSourceSummary item={preview.source} />
+      <CaptureSourceSummary
+        formattingPreferences={formattingPreferences}
+        item={preview.source}
+      />
       <div className="space-y-2 border border-border/70 bg-background px-4 py-3">
         <h4 className="font-medium text-sm">Proposed record</h4>
         <p className="text-sm">
@@ -244,6 +251,16 @@ function CaptureConversionPreviewPanel({
           </dl>
         </div>
       ) : null}
+      <div className="space-y-2 border border-border/70 bg-background px-4 py-3">
+        <h4 className="font-medium text-sm">Relation preview</h4>
+        <ul className="space-y-1 text-sm">
+          {preview.proposedRelations.map((relation) => (
+            <li key={`${relation.relation}-${relation.target}`}>
+              {relation.relation} → {relation.target}
+            </li>
+          ))}
+        </ul>
+      </div>
       <div className="flex flex-wrap gap-2 border-t pt-3">
         <Button disabled={pending} onClick={onConfirm} type="button">
           {pending ? "Converting…" : "Confirm"}
@@ -257,11 +274,13 @@ function CaptureConversionPreviewPanel({
 }
 
 function CaptureAttachPreviewPanel({
+  formattingPreferences,
   onCancel,
   onConfirm,
   pending,
   preview,
 }: {
+  formattingPreferences: AccountPreferences;
   onCancel: () => void;
   onConfirm: () => void;
   pending: boolean;
@@ -280,7 +299,10 @@ function CaptureAttachPreviewPanel({
           consumed.
         </p>
       </div>
-      <CaptureSourceSummary item={preview.source} />
+      <CaptureSourceSummary
+        formattingPreferences={formattingPreferences}
+        item={preview.source}
+      />
       <div className="space-y-2 border border-border/70 bg-background px-4 py-3">
         <h4 className="font-medium text-sm">Relation preview</h4>
         <p className="text-sm">
@@ -309,11 +331,13 @@ function CaptureAttachPreviewPanel({
 }
 
 function CaptureUndoPreviewPanel({
+  formattingPreferences,
   onCancel,
   onConfirm,
   pending,
   preview,
 }: {
+  formattingPreferences: AccountPreferences;
   onCancel: () => void;
   onConfirm: () => void;
   pending: boolean;
@@ -332,7 +356,11 @@ function CaptureUndoPreviewPanel({
           will remove from the target.
         </p>
       </div>
-      <CaptureSourceSummary heading="Original capture" item={preview.restore} />
+      <CaptureSourceSummary
+        formattingPreferences={formattingPreferences}
+        heading="Original capture"
+        item={preview.restore}
+      />
       <div className="space-y-2 border border-border/70 bg-background px-4 py-3">
         <h3 className="font-medium text-sm">Only this merge</h3>
         <p className="text-muted-foreground text-xs">
@@ -463,12 +491,16 @@ function CaptureAttachmentSetup({
 
 function CaptureInboxItemActions({
   accountId,
+  formattingPreferences,
   item,
   onUndoPreview,
+  triageAvailable,
 }: {
   accountId: string;
+  formattingPreferences: AccountPreferences;
   item: CaptureInboxItem;
   onUndoPreview: (state: UndoPreviewState) => void;
+  triageAvailable: boolean;
 }) {
   const queryClient = useQueryClient();
   const shell = useClientShell();
@@ -669,22 +701,26 @@ function CaptureInboxItemActions({
   return (
     <div className="space-y-3 border-t pt-3">
       <div className="flex flex-wrap gap-2">
-        <Button
-          disabled={!isOnline || isPending}
-          onClick={openConvert}
-          type="button"
-          variant="outline"
-        >
-          Convert
-        </Button>
-        <Button
-          disabled={!isOnline || isPending}
-          onClick={openAttach}
-          type="button"
-          variant="outline"
-        >
-          Attach to existing
-        </Button>
+        {triageAvailable ? (
+          <>
+            <Button
+              disabled={!isOnline || isPending}
+              onClick={openConvert}
+              type="button"
+              variant="outline"
+            >
+              Convert
+            </Button>
+            <Button
+              disabled={!isOnline || isPending}
+              onClick={openAttach}
+              type="button"
+              variant="outline"
+            >
+              Attach to existing
+            </Button>
+          </>
+        ) : null}
         <Button
           disabled={!isOnline || isPending}
           onClick={handleDelete}
@@ -693,14 +729,16 @@ function CaptureInboxItemActions({
         >
           Delete
         </Button>
-        <Button
-          disabled={!isOnline || isPending}
-          onClick={showSuggestions}
-          type="button"
-          variant="ghost"
-        >
-          Show suggestions
-        </Button>
+        {triageAvailable ? (
+          <Button
+            disabled={!isOnline || isPending}
+            onClick={showSuggestions}
+            type="button"
+            variant="ghost"
+          >
+            Show suggestions
+          </Button>
+        ) : null}
       </div>
       {actionMessage ? (
         <p
@@ -734,6 +772,7 @@ function CaptureInboxItemActions({
       ) : null}
       {conversionPreview ? (
         <CaptureConversionPreviewPanel
+          formattingPreferences={formattingPreferences}
           onCancel={closeMode}
           onConfirm={confirmConversion}
           pending={convert.isPending}
@@ -742,6 +781,7 @@ function CaptureInboxItemActions({
       ) : null}
       {attachPreview ? (
         <CaptureAttachPreviewPanel
+          formattingPreferences={formattingPreferences}
           onCancel={closeMode}
           onConfirm={confirmAttachment}
           pending={attach.isPending}
@@ -763,11 +803,13 @@ function CaptureInboxGroupView({
   formattingPreferences,
   group,
   onUndoPreview,
+  triageAvailable,
 }: {
   accountId: string;
   formattingPreferences: AccountPreferences;
   group: CaptureInboxGroup;
   onUndoPreview: (state: UndoPreviewState) => void;
+  triageAvailable: boolean;
 }) {
   const headingId = `capture-group-${group.itemIds[0]}`;
   const inboxKind = group.projectId ? "Project inbox" : "Workspace inbox";
@@ -832,8 +874,10 @@ function CaptureInboxGroupView({
             ) : null}
             <CaptureInboxItemActions
               accountId={accountId}
+              formattingPreferences={formattingPreferences}
               item={item}
               onUndoPreview={onUndoPreview}
+              triageAvailable={triageAvailable}
             />
           </li>
         ))}
@@ -908,7 +952,7 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
     );
   }
 
-  const { groups } = inbox.data;
+  const { groups, triageAvailable } = inbox.data;
 
   return (
     <main className="mx-auto w-full max-w-6xl space-y-10 px-5 py-10 sm:px-8 sm:py-14">
@@ -923,6 +967,7 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
 
       {undoPreview ? (
         <CaptureUndoPreviewPanel
+          formattingPreferences={formattingPreferences}
           onCancel={cancelUndo}
           onConfirm={confirmUndo}
           pending={undoMerge.isPending}
@@ -989,6 +1034,7 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
                 group={group}
                 key={`${group.kind}-${group.projectId ?? "workspace"}`}
                 onUndoPreview={setUndoPreview}
+                triageAvailable={triageAvailable}
               />
             ))
           )}

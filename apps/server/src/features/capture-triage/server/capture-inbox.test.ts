@@ -5,14 +5,90 @@ import {
   type CaptureInboxTriageAdapter,
 } from "@cantiara/api/capture-triage";
 import { describe, expect, test, vi } from "vitest";
+import type {
+  CaptureInboxCompletedOperation,
+  CaptureInboxMergeRecord,
+  CaptureInboxOperationStateStore,
+  CaptureInboxPreview,
+  CaptureInboxStore,
+} from "./capture-inbox";
+import { createCaptureInbox } from "./capture-inbox";
 
-import { type CaptureInboxStore, createCaptureInbox } from "./capture-inbox";
+function createMemoryOperationStateStore(): CaptureInboxOperationStateStore {
+  const previews = new Map<string, CaptureInboxPreview>();
+  const merges = new Map<string, CaptureInboxMergeRecord>();
+  const completed = new Map<string, CaptureInboxCompletedOperation<unknown>>();
+  const key = (accountId: string, id: string) => `${accountId}\u0000${id}`;
+
+  return {
+    deleteMerge: (accountId, mergeId) => {
+      merges.delete(key(accountId, mergeId));
+      return Promise.resolve();
+    },
+    deletePreview: (accountId, previewId) => {
+      previews.delete(key(accountId, previewId));
+      return Promise.resolve();
+    },
+    findCompleted: async <TReceipt>(
+      accountId: string,
+      operation: string,
+      clientIdempotencyKey: string,
+    ) =>
+      (completed.get(key(accountId, `${operation}:${clientIdempotencyKey}`)) as
+        | CaptureInboxCompletedOperation<TReceipt>
+        | undefined) ?? null,
+    findMerge: (accountId, mergeId) =>
+      Promise.resolve(merges.get(key(accountId, mergeId)) ?? null),
+    findPreview: (accountId, previewId) =>
+      Promise.resolve(previews.get(key(accountId, previewId)) ?? null),
+    saveCompleted: <TReceipt>(
+      accountId: string,
+      operation: string,
+      clientIdempotencyKey: string,
+      value: CaptureInboxCompletedOperation<TReceipt>,
+    ) => {
+      const operationKey = key(
+        accountId,
+        `${operation}:${clientIdempotencyKey}`,
+      );
+      if (!completed.has(operationKey)) {
+        completed.set(
+          operationKey,
+          value as CaptureInboxCompletedOperation<unknown>,
+        );
+      }
+      return Promise.resolve();
+    },
+    saveMerge: (merge) => {
+      merges.set(key(merge.accountId, merge.receipt.mergeId), merge);
+      return Promise.resolve();
+    },
+    savePreview: (preview) => {
+      previews.set(key(preview.accountId, preview.preview.previewId), preview);
+      return Promise.resolve();
+    },
+  };
+}
 
 function createMemoryStore(initial: CaptureInboxItem[] = []) {
   const itemsByAccount = new Map([["account-1", [...initial]]]);
   let nextId = initial.length + 1;
 
   const store: CaptureInboxStore = {
+    consume: (accountId, itemId) => {
+      const items = itemsByAccount.get(accountId) ?? [];
+      const index = items.findIndex((candidate) => candidate.id === itemId);
+      const [removedItem] = index < 0 ? [] : items.splice(index, 1);
+      return Promise.resolve(
+        removedItem
+          ? {
+              clientIdempotencyKey: null,
+              item: removedItem,
+              payloadFingerprint: null,
+            }
+          : null,
+      );
+    },
     list: (accountId) => Promise.resolve(itemsByAccount.get(accountId) ?? []),
     insert: (accountId, input) => {
       const items = itemsByAccount.get(accountId) ?? [];
@@ -35,20 +111,39 @@ function createMemoryStore(initial: CaptureInboxItem[] = []) {
       items.push(item);
       return Promise.resolve(item);
     },
+    operationState: createMemoryOperationStateStore(),
+    restore: (_accountId, stored) => {
+      const items = itemsByAccount.get(_accountId) ?? [];
+      items.push(stored.item);
+      itemsByAccount.set(_accountId, items);
+      return Promise.resolve(stored);
+    },
   };
 
   return { items: itemsByAccount.get("account-1") ?? [], store };
 }
 
-function createTriageMemoryStore(initial: CaptureInboxItem[]) {
+function createTriageMemoryStore(
+  initial: CaptureInboxItem[],
+  operationState = createMemoryOperationStateStore(),
+) {
   const items = [...initial];
   const store: CaptureInboxStore = {
     consume: (_accountId, itemId) => {
-      const index = items.findIndex((item) => item.id === itemId);
+      const index = items.findIndex((candidate) => candidate.id === itemId);
       if (index < 0) {
         return Promise.resolve(null);
       }
-      return Promise.resolve(items.splice(index, 1)[0] ?? null);
+      const removedItem = items.splice(index, 1)[0] ?? null;
+      return Promise.resolve(
+        removedItem
+          ? {
+              clientIdempotencyKey: null,
+              item: removedItem,
+              payloadFingerprint: null,
+            }
+          : null,
+      );
     },
     insert: (_accountId, input) => {
       const item: CaptureInboxItem = {
@@ -63,12 +158,13 @@ function createTriageMemoryStore(initial: CaptureInboxItem[]) {
       return Promise.resolve(item);
     },
     list: () => Promise.resolve([...items]),
-    restore: (_accountId, item) => {
-      items.push(item);
-      return Promise.resolve(item);
+    operationState,
+    restore: (_accountId, stored) => {
+      items.push(stored.item);
+      return Promise.resolve(stored);
     },
   };
-  return { items, store };
+  return { items, operationState, store };
 }
 
 function createTriageAdapter(
@@ -165,6 +261,27 @@ describe("Capture Inbox seam", () => {
       link: "https://example.com/source",
       origin: { kind: "Web Capture", url: "https://example.com/source" },
     });
+  });
+
+  test("accepts only HTTP(S) provenance links", async () => {
+    const { store } = createMemoryStore();
+    const captureInbox = createCaptureInbox({
+      store,
+      workCreate: { createBug: vi.fn() },
+    });
+
+    await expect(
+      captureInbox.create("account-1", {
+        content: "Unsafe link",
+        link: "javascript:alert(1)",
+      }),
+    ).rejects.toThrow();
+    await expect(
+      captureInbox.create("account-1", {
+        content: "Safe link",
+        link: "https://example.com/source",
+      }),
+    ).resolves.toMatchObject({ link: "https://example.com/source" });
   });
 
   test("keeps every mini-template field optional and closed to its catalog", async () => {
@@ -265,6 +382,7 @@ describe("Capture Inbox seam", () => {
     await expect(captureInbox.list("account-2")).resolves.toEqual({
       groups: [],
       items: [],
+      triageAvailable: false,
     });
   });
 
@@ -411,6 +529,9 @@ describe("Capture Inbox seam", () => {
         targetField: "Observed Behavior",
         value: "Blank",
       },
+    ]);
+    expect(conversionPreview.proposedRelations).toEqual([
+      { relation: "Origin", target: "Proposed record" },
     ]);
 
     await expect(
@@ -625,6 +746,7 @@ describe("Capture Inbox seam", () => {
 
     await expect(
       captureInbox.convert("account-1", {
+        clientIdempotencyKey: "convert-retry",
         itemId: capture.id,
         previewId: preview.previewId,
       }),
@@ -686,6 +808,7 @@ describe("Capture Inbox seam", () => {
     });
 
     await captureInbox.undoMerge("account-1", {
+      clientIdempotencyKey: "merge-undo",
       mergeId: attached.mergeId,
       previewId: undoPreview.previewId,
     });
@@ -700,5 +823,48 @@ describe("Capture Inbox seam", () => {
     await expect(captureInbox.list("account-1")).resolves.toMatchObject({
       items: [original],
     });
+  });
+
+  test("replays preview and receipt state across Capture Inbox instances", async () => {
+    const capture: CaptureInboxItem = {
+      content: "Retry across workers",
+      createdAt: "2026-09-16T09:00:00.000Z",
+      fields: {},
+      id: "capture-durable-state",
+      projectId: null,
+      template: null,
+    };
+    const adapter = createTriageAdapter();
+    const { operationState, store } = createTriageMemoryStore([capture]);
+    const firstInbox = createCaptureInbox({
+      store,
+      triageAdapter: adapter,
+      workCreate: { createBug: vi.fn() },
+    });
+    const preview = await firstInbox.previewConvert("account-1", {
+      itemId: capture.id,
+      recordType: "Work",
+    });
+    const secondInbox = createCaptureInbox({
+      store: { ...store, operationState },
+      triageAdapter: adapter,
+      workCreate: { createBug: vi.fn() },
+    });
+
+    await expect(
+      secondInbox.convert("account-1", {
+        clientIdempotencyKey: "durable-convert",
+        itemId: capture.id,
+        previewId: preview.previewId,
+      }),
+    ).resolves.toMatchObject({ recordId: "record-1" });
+    await expect(
+      firstInbox.convert("account-1", {
+        clientIdempotencyKey: "durable-convert",
+        itemId: capture.id,
+        previewId: preview.previewId,
+      }),
+    ).resolves.toMatchObject({ recordId: "record-1" });
+    expect(adapter.createRecord).toHaveBeenCalledTimes(1);
   });
 });

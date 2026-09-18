@@ -45,3 +45,33 @@ export const captureInboxItem = pgTable(
     ),
   ],
 );
+
+export const captureInboxOperation = pgTable(
+  "capture_inbox_operation",
+  {
+    accountId: text("account_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(),
+    operationKey: text("operation_key").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+    value: jsonb("value").$type<unknown>().notNull(),
+  },
+  (table) => [
+    uniqueIndex("capture_inbox_operation_account_kind_key_uidx").on(
+      table.accountId,
+      table.kind,
+      table.operationKey,
+    ),
+    check(
+      "capture_inbox_operation_kind_check",
+      sql`${table.kind} in ('preview', 'merge', 'completed')`,
+    ),
+  ],
+);

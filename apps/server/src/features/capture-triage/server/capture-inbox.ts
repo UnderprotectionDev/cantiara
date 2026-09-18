@@ -1,6 +1,7 @@
 import {
   CAPTURE_TEMPLATE_FIELD_LABELS,
   type CaptureAttachInput,
+  type CaptureAttachment,
   type CaptureAttachPreview,
   type CaptureAttachPreviewInput,
   type CaptureAttachReceipt,
@@ -38,27 +39,107 @@ import {
   type DirectBugCreateReceipt,
   type NormalizedCaptureInput,
 } from "@cantiara/api/capture-triage";
+import type {
+  MutationContract,
+  MutationPayload,
+} from "@cantiara/api/mutation-and-undo";
 
 const CAPTURE_CONTENT_LINE_SEPARATOR = /\r?\n/u;
 
 export interface CaptureInboxStore {
-  consume?: (
+  consume: (
     accountId: string,
     itemId: string,
-  ) => Promise<CaptureInboxItem | null>;
+    attachmentDisposition: CaptureAttachmentDisposition,
+  ) => Promise<CaptureInboxStoredItem | null>;
   find?: (
     accountId: string,
     itemId: string,
   ) => Promise<CaptureInboxItem | null>;
+  findStored?: (
+    accountId: string,
+    itemId: string,
+  ) => Promise<CaptureInboxStoredItem | null>;
   insert: (
     accountId: string,
     input: NormalizedCaptureInput,
   ) => Promise<CaptureInboxItem>;
   list: (accountId: string) => Promise<CaptureInboxItem[]>;
-  restore?: (
+  operationState: CaptureInboxOperationStateStore;
+  restore: (
     accountId: string,
-    item: CaptureInboxItem,
-  ) => Promise<CaptureInboxItem>;
+    item: CaptureInboxStoredItem,
+  ) => Promise<CaptureInboxStoredItem>;
+}
+
+export type CaptureAttachmentDisposition = "delete" | "promoted";
+
+export interface CaptureInboxStoredItem {
+  clientIdempotencyKey: string | null;
+  item: CaptureInboxItem;
+  payloadFingerprint: string | null;
+}
+
+export type CaptureInboxPreview =
+  | {
+      accountId: string;
+      kind: "convert";
+      preview: CaptureConversionPreview;
+    }
+  | {
+      accountId: string;
+      kind: "attach";
+      preview: CaptureAttachPreview;
+    }
+  | {
+      accountId: string;
+      kind: "undo";
+      preview: CaptureUndoMergePreview;
+    };
+
+export interface CaptureInboxMergeRecord {
+  accountId: string;
+  item: CaptureInboxStoredItem;
+  receipt: CaptureBindReceipt;
+  targetId: string;
+}
+
+export interface CaptureInboxCompletedOperation<TReceipt> {
+  fingerprint: string;
+  receipt: TReceipt;
+}
+
+export interface CaptureInboxOperationStateStore {
+  deleteMerge: (accountId: string, mergeId: string) => Promise<void>;
+  deletePreview: (accountId: string, previewId: string) => Promise<void>;
+  findCompleted: <TReceipt>(
+    accountId: string,
+    operation: "attach" | "convert" | "delete" | "undo",
+    clientIdempotencyKey: string,
+  ) => Promise<CaptureInboxCompletedOperation<TReceipt> | null>;
+  findMerge: (
+    accountId: string,
+    mergeId: string,
+  ) => Promise<CaptureInboxMergeRecord | null>;
+  findPreview: (
+    accountId: string,
+    previewId: string,
+  ) => Promise<CaptureInboxPreview | null>;
+  saveCompleted: <TReceipt>(
+    accountId: string,
+    operation: "attach" | "convert" | "delete" | "undo",
+    clientIdempotencyKey: string,
+    completed: CaptureInboxCompletedOperation<TReceipt>,
+  ) => Promise<void>;
+  saveMerge: (merge: CaptureInboxMergeRecord) => Promise<void>;
+  savePreview: (preview: CaptureInboxPreview) => Promise<void>;
+}
+
+export interface CaptureInboxStagingStore {
+  delete: (input: {
+    accountId: string;
+    attachment: CaptureAttachment;
+  }) => Promise<void>;
 }
 
 export interface CaptureInboxWorkCreate {
@@ -81,6 +162,7 @@ export type CaptureInboxErrorCode =
   | "CAPTURE_PREVIEW_REQUIRED"
   | "CAPTURE_TARGET_NOT_FOUND"
   | "CAPTURE_TRIAGE_UNAVAILABLE"
+  | "CAPTURE_STAGING_UNAVAILABLE"
   | "CREATE_BUG_TEMPLATE_UNSUPPORTED"
   | "CAPTURE_IDEMPOTENCY_CONFLICT"
   | "CAPTURE_WORK_CREATE_UNAVAILABLE"
@@ -140,35 +222,6 @@ function groupCaptureInboxItems(items: CaptureInboxItem[]) {
   return [...groups.values()];
 }
 
-type PendingPreview =
-  | {
-      accountId: string;
-      kind: "convert";
-      preview: CaptureConversionPreview;
-    }
-  | {
-      accountId: string;
-      kind: "attach";
-      preview: CaptureAttachPreview;
-    }
-  | {
-      accountId: string;
-      kind: "undo";
-      preview: CaptureUndoMergePreview;
-    };
-
-interface CompletedOperation<TReceipt> {
-  fingerprint: string;
-  receipt: TReceipt;
-}
-
-interface MergeRecord {
-  accountId: string;
-  item: CaptureInboxItem;
-  receipt: CaptureBindReceipt;
-  targetId: string;
-}
-
 function sameProject(left: string | null, right: string | null) {
   if (left === null || right === null) {
     return left === right;
@@ -200,62 +253,56 @@ function createUnavailableTriageAdapter(): CaptureInboxTriageAdapter {
 export function createCaptureInbox({
   store,
   triageAdapter,
+  triageMutationContract,
   workCreate,
 }: {
   store: CaptureInboxStore;
   triageAdapter?: CaptureInboxTriageAdapter;
+  triageMutationContract?: MutationContract<MutationPayload>;
   workCreate: CaptureInboxWorkCreate;
 }): CaptureInboxTriageAccess {
   const adapter = triageAdapter ?? createUnavailableTriageAdapter();
-  const previews = new Map<string, PendingPreview>();
-  const mergeRecords = new Map<string, MergeRecord>();
-  const locallyConsumed = new Set<string>();
-  const locallyRestored = new Map<string, CaptureInboxItem>();
-  const completedConverts = new Map<
-    string,
-    CompletedOperation<CaptureConvertReceipt>
-  >();
-  const completedAttachments = new Map<
-    string,
-    CompletedOperation<CaptureAttachReceipt>
-  >();
-  const completedDeletes = new Map<
-    string,
-    CompletedOperation<CaptureDeleteReceipt>
-  >();
-  const completedUndos = new Map<
-    string,
-    CompletedOperation<CaptureUndoMergeReceipt>
-  >();
-
-  function itemKey(accountId: string, itemId: string) {
-    return `${accountId}\u0000${itemId}`;
-  }
+  const triageAvailable = Boolean(triageAdapter);
 
   async function listStoredItems(accountId: string) {
-    const restored = [...locallyRestored.entries()]
-      .filter(([key]) => key.startsWith(`${accountId}\u0000`))
-      .map(([, item]) => item);
-    const restoredIds = new Set(restored.map((item) => item.id));
-    const stored = (await store.list(accountId)).filter(
-      (item) => !locallyConsumed.has(itemKey(accountId, item.id)),
-    );
-    return [...stored.filter((item) => !restoredIds.has(item.id)), ...restored];
+    return await store.list(accountId);
   }
 
-  async function findItem(accountId: string, itemId: string) {
-    const key = itemKey(accountId, itemId);
-    if (locallyConsumed.has(key)) {
-      return null;
-    }
-    const restored = locallyRestored.get(key);
-    if (restored) {
-      return restored;
+  async function findStoredItem(accountId: string, itemId: string) {
+    if (store.findStored) {
+      const found = await store.findStored(accountId, itemId);
+      return found
+        ? {
+            ...found,
+            item: captureInboxItemSchema.parse(found.item),
+          }
+        : null;
     }
     const found = store.find
       ? await store.find(accountId, itemId)
       : (await store.list(accountId)).find((item) => item.id === itemId);
-    return found ? captureInboxItemSchema.parse(found) : null;
+    return found
+      ? {
+          clientIdempotencyKey: null,
+          item: captureInboxItemSchema.parse(found),
+          payloadFingerprint: null,
+        }
+      : null;
+  }
+
+  async function findItem(accountId: string, itemId: string) {
+    return (await findStoredItem(accountId, itemId))?.item ?? null;
+  }
+
+  async function requireStoredItem(accountId: string, itemId: string) {
+    const item = await findStoredItem(accountId, itemId);
+    if (!item) {
+      throw new CaptureInboxError(
+        "CAPTURE_NOT_FOUND",
+        "The Capture Inbox item is no longer available.",
+      );
+    }
+    return item;
   }
 
   async function requireItem(accountId: string, itemId: string) {
@@ -269,72 +316,67 @@ export function createCaptureInbox({
     return item;
   }
 
-  async function consumeItem(accountId: string, itemId: string) {
-    const key = itemKey(accountId, itemId);
-    if (locallyConsumed.has(key)) {
+  async function consumeItem(
+    accountId: string,
+    itemId: string,
+    attachmentDisposition: CaptureAttachmentDisposition,
+  ) {
+    const consumed = await store.consume(
+      accountId,
+      itemId,
+      attachmentDisposition,
+    );
+    if (!consumed) {
       return null;
     }
-    const restored = locallyRestored.get(key);
-    if (restored) {
-      locallyRestored.delete(key);
-      locallyConsumed.add(key);
-      return restored;
-    }
-    if (store.consume) {
-      const consumed = await store.consume(accountId, itemId);
-      return consumed ? captureInboxItemSchema.parse(consumed) : null;
-    }
-    const item = await findItem(accountId, itemId);
-    if (!item) {
-      return null;
-    }
-    locallyConsumed.add(key);
-    locallyRestored.delete(key);
-    return item;
+    return {
+      ...consumed,
+      item: captureInboxItemSchema.parse(consumed.item),
+    } satisfies CaptureInboxStoredItem;
   }
 
-  async function restoreItem(accountId: string, item: CaptureInboxItem) {
-    const key = itemKey(accountId, item.id);
-    if (store.restore) {
-      await store.restore(accountId, item);
+  async function restoreItem(accountId: string, item: CaptureInboxStoredItem) {
+    if (await findItem(accountId, item.item.id)) {
       return;
     }
-    locallyConsumed.delete(key);
-    locallyRestored.set(key, item);
+    await store.restore(accountId, item);
   }
 
-  function requirePreview<TKind extends PendingPreview["kind"]>(
+  async function requirePreview<TKind extends CaptureInboxPreview["kind"]>(
     accountId: string,
     previewId: string | undefined,
     kind: TKind,
-  ): Extract<PendingPreview, { kind: TKind }> {
+  ): Promise<Extract<CaptureInboxPreview, { kind: TKind }>> {
     if (!previewId) {
       throw new CaptureInboxError(
         "CAPTURE_PREVIEW_REQUIRED",
         "Review the preview before confirming this Capture Inbox action.",
       );
     }
-    const pending = previews.get(previewId);
+    const pending = await store.operationState.findPreview(
+      accountId,
+      previewId,
+    );
     if (!pending || pending.accountId !== accountId || pending.kind !== kind) {
       throw new CaptureInboxError(
         "CAPTURE_PREVIEW_CONFLICT",
         "This Capture Inbox preview is no longer valid.",
       );
     }
-    return pending as Extract<PendingPreview, { kind: TKind }>;
+    return pending as Extract<CaptureInboxPreview, { kind: TKind }>;
   }
 
-  function cachedOperation<TReceipt>(
+  async function cachedOperation<TReceipt>(
     accountId: string,
-    clientIdempotencyKey: string | undefined,
+    operation: "attach" | "convert" | "delete" | "undo",
+    clientIdempotencyKey: string,
     input: unknown,
-    operations: Map<string, CompletedOperation<TReceipt>>,
-  ) {
-    if (!clientIdempotencyKey) {
-      return;
-    }
-    const key = itemKey(accountId, clientIdempotencyKey);
-    const existing = operations.get(key);
+  ): Promise<TReceipt | undefined> {
+    const existing = await store.operationState.findCompleted<TReceipt>(
+      accountId,
+      operation,
+      clientIdempotencyKey,
+    );
     const fingerprint = operationFingerprint(input);
     if (existing && existing.fingerprint !== fingerprint) {
       throw new CaptureInboxError(
@@ -345,20 +387,70 @@ export function createCaptureInbox({
     return existing?.receipt;
   }
 
-  function cacheOperation<TReceipt>(
+  async function cacheOperation<TReceipt>(
     accountId: string,
-    clientIdempotencyKey: string | undefined,
+    operation: "attach" | "convert" | "delete" | "undo",
+    clientIdempotencyKey: string,
     input: unknown,
     receipt: TReceipt,
-    operations: Map<string, CompletedOperation<TReceipt>>,
-  ) {
-    if (!clientIdempotencyKey) {
-      return;
+  ): Promise<void> {
+    await store.operationState.saveCompleted(
+      accountId,
+      operation,
+      clientIdempotencyKey,
+      {
+        fingerprint: operationFingerprint(input),
+        receipt,
+      },
+    );
+  }
+
+  async function runTriageMutation<TResult>({
+    accountId,
+    action,
+    clientIdempotencyKey,
+    input,
+    operation,
+  }: {
+    accountId: string;
+    action: () => Promise<TResult>;
+    clientIdempotencyKey: string;
+    input: MutationPayload;
+    operation: "attach" | "convert" | "delete" | "undo";
+  }): Promise<TResult> {
+    if (!triageMutationContract) {
+      return await action();
     }
-    operations.set(itemKey(accountId, clientIdempotencyKey), {
-      fingerprint: operationFingerprint(input),
-      receipt,
-    });
+
+    const receipt = await triageMutationContract.mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: 0,
+        clientIdempotencyKey,
+        kind: "human",
+        payload: { accountId, input, operation },
+        targetId: `capture-triage:${accountId}:${operation}:${clientIdempotencyKey}`,
+      },
+      async () => {
+        const result = await action();
+        return {
+          accountId,
+          input,
+          operation,
+          result: result as MutationPayload,
+        };
+      },
+    );
+    const replayed = receipt.nextValue as {
+      result?: TResult;
+    };
+    if (!("result" in replayed)) {
+      throw new CaptureInboxError(
+        "CAPTURE_PREVIEW_CONFLICT",
+        "The Capture Inbox mutation receipt is incomplete.",
+      );
+    }
+    return replayed.result as TResult;
   }
 
   async function list(accountId: string): Promise<CaptureInboxSnapshot> {
@@ -369,6 +461,7 @@ export function createCaptureInbox({
     return {
       groups: groupCaptureInboxItems(items),
       items,
+      triageAvailable,
     };
   }
 
@@ -437,6 +530,7 @@ export function createCaptureInbox({
         fieldMappings,
         itemId: item.id,
         previewId: crypto.randomUUID(),
+        proposedRelations: [{ relation: "Origin", target: "Proposed record" }],
         proposedRecord: {
           fields: item.fields,
           projectId: item.projectId,
@@ -446,7 +540,11 @@ export function createCaptureInbox({
         source: item,
         targetScope,
       };
-      previews.set(preview.previewId, { accountId, kind: "convert", preview });
+      await store.operationState.savePreview({
+        accountId,
+        kind: "convert",
+        preview,
+      });
       return preview;
     },
 
@@ -455,23 +553,33 @@ export function createCaptureInbox({
       rawInput: CaptureConvertInput,
     ): Promise<CaptureConvertReceipt> {
       const input = captureConvertInputSchema.parse(rawInput);
-      const cached = cachedOperation(
+      const cached = cachedOperation<CaptureConvertReceipt>(
         accountId,
+        "convert",
         input.clientIdempotencyKey,
         input,
-        completedConverts,
       );
-      if (cached) {
-        return cached;
+      const cachedReceipt = await cached;
+      if (cachedReceipt) {
+        await consumeItem(accountId, input.itemId, "promoted");
+        if (input.previewId) {
+          await store.operationState.deletePreview(accountId, input.previewId);
+        }
+        return cachedReceipt;
       }
-      const pending = requirePreview(accountId, input.previewId, "convert");
+      const pending = await requirePreview(
+        accountId,
+        input.previewId,
+        "convert",
+      );
       if (pending.preview.itemId !== input.itemId) {
         throw new CaptureInboxError(
           "CAPTURE_PREVIEW_CONFLICT",
           "This conversion preview belongs to another Capture Inbox item.",
         );
       }
-      const item = await requireItem(accountId, input.itemId);
+      const storedItem = await requireStoredItem(accountId, input.itemId);
+      const { item } = storedItem;
       if (
         operationFingerprint(item) !==
         operationFingerprint(pending.preview.source)
@@ -481,43 +589,43 @@ export function createCaptureInbox({
           "The Capture Inbox item changed after the preview.",
         );
       }
-      const consumed = await consumeItem(accountId, item.id);
-      if (!consumed) {
-        throw new CaptureInboxError(
-          "CAPTURE_NOT_FOUND",
-          "The Capture Inbox item is no longer available.",
-        );
-      }
-      try {
-        const created = await adapter.createRecord({
-          accountId,
-          fields: pending.preview.proposedRecord.fields,
-          item: consumed,
-          projectId: pending.preview.proposedRecord.projectId,
-          recordType: pending.preview.proposedRecord.recordType,
-          title: pending.preview.proposedRecord.title,
-        });
-        const receipt: CaptureConvertReceipt = {
-          consumed: true,
-          exit: "convert",
-          itemId: item.id,
-          recordId: created.id,
-          recordType:
-            created.recordType ?? pending.preview.proposedRecord.recordType,
-        };
-        previews.delete(input.previewId ?? "");
-        cacheOperation(
-          accountId,
-          input.clientIdempotencyKey,
-          input,
-          receipt,
-          completedConverts,
-        );
-        return receipt;
-      } catch (error) {
-        await restoreItem(accountId, consumed);
-        throw error;
-      }
+      const created = await runTriageMutation({
+        accountId,
+        action: () =>
+          adapter.createRecord({
+            accountId,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            fields: pending.preview.proposedRecord.fields,
+            item,
+            projectId: pending.preview.proposedRecord.projectId,
+            recordType: pending.preview.proposedRecord.recordType,
+            title: pending.preview.proposedRecord.title,
+          }),
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        input,
+        operation: "convert",
+      });
+      const receipt: CaptureConvertReceipt = {
+        consumed: true,
+        exit: "convert",
+        itemId: item.id,
+        recordId: created.id,
+        recordType:
+          created.recordType ?? pending.preview.proposedRecord.recordType,
+      };
+      await cacheOperation(
+        accountId,
+        "convert",
+        input.clientIdempotencyKey,
+        input,
+        receipt,
+      );
+      await consumeItem(accountId, item.id, "promoted");
+      await store.operationState.deletePreview(
+        accountId,
+        input.previewId ?? "",
+      );
+      return receipt;
     },
 
     async previewAttachToExisting(
@@ -553,7 +661,11 @@ export function createCaptureInbox({
             }
           : {}),
       };
-      previews.set(preview.previewId, { accountId, kind: "attach", preview });
+      await store.operationState.savePreview({
+        accountId,
+        kind: "attach",
+        preview,
+      });
       return preview;
     },
 
@@ -562,16 +674,25 @@ export function createCaptureInbox({
       rawInput: CaptureAttachInput,
     ): Promise<CaptureAttachReceipt> {
       const input = captureAttachInputSchema.parse(rawInput);
-      const cached = cachedOperation(
+      const cached = cachedOperation<CaptureAttachReceipt>(
         accountId,
+        "attach",
         input.clientIdempotencyKey,
         input,
-        completedAttachments,
       );
-      if (cached) {
-        return cached;
+      const cachedReceipt = await cached;
+      if (cachedReceipt) {
+        await consumeItem(accountId, input.itemId, "promoted");
+        if (input.previewId) {
+          await store.operationState.deletePreview(accountId, input.previewId);
+        }
+        return cachedReceipt;
       }
-      const pending = requirePreview(accountId, input.previewId, "attach");
+      const pending = await requirePreview(
+        accountId,
+        input.previewId,
+        "attach",
+      );
       const { preview } = pending;
       if (
         preview.itemId !== input.itemId ||
@@ -599,56 +720,57 @@ export function createCaptureInbox({
           "The selected target changed after the preview.",
         );
       }
-      const item = await requireItem(accountId, input.itemId);
+      const storedItem = await requireStoredItem(accountId, input.itemId);
+      const { item } = storedItem;
       if (operationFingerprint(item) !== operationFingerprint(preview.source)) {
         throw new CaptureInboxError(
           "CAPTURE_PREVIEW_CONFLICT",
           "The Capture Inbox item changed after the preview.",
         );
       }
-      const consumed = await consumeItem(accountId, item.id);
-      if (!consumed) {
-        throw new CaptureInboxError(
-          "CAPTURE_NOT_FOUND",
-          "The Capture Inbox item is no longer available.",
-        );
-      }
-      const mergeId = crypto.randomUUID();
-      try {
-        const attached = await adapter.attachToExisting({
-          accountId,
-          item: consumed,
-          mergeId,
-          relation: input.relation,
-          target: currentTarget,
-        });
-        const receipt: CaptureAttachReceipt = {
-          consumed: true,
-          exit: "attach",
-          itemId: item.id,
-          mergeId: attached.mergeId,
-          relation: input.relation,
-          targetId: input.targetId,
-        };
-        mergeRecords.set(attached.mergeId, {
-          accountId,
-          item: consumed,
-          receipt: attached,
-          targetId: input.targetId,
-        });
-        previews.delete(input.previewId ?? "");
-        cacheOperation(
-          accountId,
-          input.clientIdempotencyKey,
-          input,
-          receipt,
-          completedAttachments,
-        );
-        return receipt;
-      } catch (error) {
-        await restoreItem(accountId, consumed);
-        throw error;
-      }
+      const mergeId = `${accountId}:${input.clientIdempotencyKey}`;
+      const attached = await runTriageMutation({
+        accountId,
+        action: () =>
+          adapter.attachToExisting({
+            accountId,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            item,
+            mergeId,
+            relation: input.relation,
+            target: currentTarget,
+          }),
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        input,
+        operation: "attach",
+      });
+      const receipt: CaptureAttachReceipt = {
+        consumed: true,
+        exit: "attach",
+        itemId: item.id,
+        mergeId: attached.mergeId,
+        relation: input.relation,
+        targetId: input.targetId,
+      };
+      await store.operationState.saveMerge({
+        accountId,
+        item: storedItem,
+        receipt: attached,
+        targetId: input.targetId,
+      });
+      await cacheOperation(
+        accountId,
+        "attach",
+        input.clientIdempotencyKey,
+        input,
+        receipt,
+      );
+      await consumeItem(accountId, item.id, "promoted");
+      await store.operationState.deletePreview(
+        accountId,
+        input.previewId ?? "",
+      );
+      return receipt;
     },
 
     async suggestions(accountId, itemId): Promise<CaptureSuggestions> {
@@ -692,44 +814,50 @@ export function createCaptureInbox({
       rawInput: CaptureDeleteInput,
     ): Promise<CaptureDeleteReceipt> {
       const input = captureDeleteInputSchema.parse(rawInput);
-      const cached = cachedOperation(
+      const cached = cachedOperation<CaptureDeleteReceipt>(
         accountId,
+        "delete",
         input.clientIdempotencyKey,
         input,
-        completedDeletes,
       );
-      if (cached) {
-        return cached;
+      const cachedReceipt = await cached;
+      if (cachedReceipt) {
+        await consumeItem(accountId, input.itemId, "delete");
+        return cachedReceipt;
       }
       const item = await requireItem(accountId, input.itemId);
-      const consumed = await consumeItem(accountId, item.id);
-      if (!consumed) {
-        throw new CaptureInboxError(
-          "CAPTURE_NOT_FOUND",
-          "The Capture Inbox item is no longer available.",
-        );
-      }
+      await runTriageMutation({
+        accountId,
+        action: async () => ({ finalized: true }),
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        input,
+        operation: "delete",
+      });
       const receipt: CaptureDeleteReceipt = {
         consumed: true,
         exit: "delete",
         itemId: item.id,
       };
-      cacheOperation(
+      await cacheOperation(
         accountId,
+        "delete",
         input.clientIdempotencyKey,
         input,
         receipt,
-        completedDeletes,
       );
+      await consumeItem(accountId, item.id, "delete");
       return receipt;
     },
 
-    previewUndoMerge(
+    async previewUndoMerge(
       accountId,
       rawInput: CaptureUndoMergePreviewInput,
     ): Promise<CaptureUndoMergePreview> {
       const input = captureUndoMergePreviewInputSchema.parse(rawInput);
-      const merge = mergeRecords.get(input.mergeId);
+      const merge = await store.operationState.findMerge(
+        accountId,
+        input.mergeId,
+      );
       if (!merge || merge.accountId !== accountId) {
         throw new CaptureInboxError(
           "CAPTURE_NOT_FOUND",
@@ -737,17 +865,21 @@ export function createCaptureInbox({
         );
       }
       const preview: CaptureUndoMergePreview = {
-        itemId: merge.item.id,
+        itemId: merge.item.item.id,
         mergeId: input.mergeId,
         previewId: crypto.randomUUID(),
         removeFromTarget: {
           attributedRelationIds: merge.receipt.attributedRelationIds,
           attributedValueKeys: merge.receipt.attributedValueKeys,
         },
-        restore: merge.item,
+        restore: merge.item.item,
       };
-      previews.set(preview.previewId, { accountId, kind: "undo", preview });
-      return Promise.resolve(preview);
+      await store.operationState.savePreview({
+        accountId,
+        kind: "undo",
+        preview,
+      });
+      return preview;
     },
 
     async undoMerge(
@@ -755,23 +887,36 @@ export function createCaptureInbox({
       rawInput: CaptureUndoMergeInput,
     ): Promise<CaptureUndoMergeReceipt> {
       const input = captureUndoMergeInputSchema.parse(rawInput);
-      const cached = cachedOperation(
+      const cached = cachedOperation<CaptureUndoMergeReceipt>(
         accountId,
+        "undo",
         input.clientIdempotencyKey,
         input,
-        completedUndos,
       );
-      if (cached) {
-        return cached;
+      const cachedReceipt = await cached;
+      if (cachedReceipt) {
+        const cachedMerge = await store.operationState.findMerge(
+          accountId,
+          input.mergeId,
+        );
+        if (cachedMerge) {
+          await restoreItem(accountId, cachedMerge.item);
+          await store.operationState.deleteMerge(accountId, input.mergeId);
+        }
+        await store.operationState.deletePreview(accountId, input.previewId);
+        return cachedReceipt;
       }
-      const pending = requirePreview(accountId, input.previewId, "undo");
+      const pending = await requirePreview(accountId, input.previewId, "undo");
       if (pending.preview.mergeId !== input.mergeId) {
         throw new CaptureInboxError(
           "CAPTURE_PREVIEW_CONFLICT",
           "This Undo Preview belongs to another merge.",
         );
       }
-      const merge = mergeRecords.get(input.mergeId);
+      const merge = await store.operationState.findMerge(
+        accountId,
+        input.mergeId,
+      );
       if (!merge || merge.accountId !== accountId) {
         throw new CaptureInboxError(
           "CAPTURE_NOT_FOUND",
@@ -779,28 +924,37 @@ export function createCaptureInbox({
         );
       }
       const currentTarget = await adapter.findRecord(accountId, merge.targetId);
-      await adapter.undoMerge({
-        ...input,
-        attributedRelationIds: merge.receipt.attributedRelationIds,
-        attributedValueKeys: merge.receipt.attributedValueKeys,
-        currentTarget,
+      await runTriageMutation({
+        accountId,
+        action: async () => {
+          await adapter.undoMerge({
+            ...input,
+            attributedRelationIds: merge.receipt.attributedRelationIds,
+            attributedValueKeys: merge.receipt.attributedValueKeys,
+            currentTarget,
+          });
+          return { finalized: true };
+        },
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        input,
+        operation: "undo",
       });
-      await restoreItem(accountId, merge.item);
       const receipt: CaptureUndoMergeReceipt = {
         mergeId: input.mergeId,
         removedRelationIds: merge.receipt.attributedRelationIds,
         removedValueKeys: merge.receipt.attributedValueKeys,
-        restoredItem: merge.item,
+        restoredItem: merge.item.item,
       };
-      mergeRecords.delete(input.mergeId);
-      previews.delete(input.previewId);
-      cacheOperation(
+      await cacheOperation(
         accountId,
+        "undo",
         input.clientIdempotencyKey,
         input,
         receipt,
-        completedUndos,
       );
+      await restoreItem(accountId, merge.item);
+      await store.operationState.deleteMerge(accountId, input.mergeId);
+      await store.operationState.deletePreview(accountId, input.previewId);
       return receipt;
     },
   };

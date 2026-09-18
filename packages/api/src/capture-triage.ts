@@ -12,11 +12,7 @@ export const CAPTURE_TRIAGE_EXITS = ["convert", "attach", "delete"] as const;
 
 export type CaptureTriageExit = (typeof CAPTURE_TRIAGE_EXITS)[number];
 
-export const CAPTURE_CONVERSION_TARGETS = [
-  "Work",
-  "Document",
-  "File Attachment",
-] as const;
+export const CAPTURE_CONVERSION_TARGETS = ["Work", "Document"] as const;
 
 export type CaptureConversionTarget =
   (typeof CAPTURE_CONVERSION_TARGETS)[number];
@@ -38,7 +34,19 @@ export const CAPTURE_TEMPLATE_FIELD_LABELS = {
 export const captureTemplateSchema = z.enum(CAPTURE_TEMPLATES);
 const identifierSchema = z.string().trim().min(1).max(255);
 const captureTextSchema = z.string().max(100_000);
-const captureUrlSchema = z.string().trim().min(1).max(2048).url();
+const captureUrlSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(2048)
+  .url()
+  .refine(
+    (value) => {
+      const { protocol } = new URL(value);
+      return protocol === "http:" || protocol === "https:";
+    },
+    { message: "Capture links must use HTTP or HTTPS." },
+  );
 
 export const captureAttachmentSchema = z
   .object({
@@ -116,6 +124,7 @@ export const captureInboxSnapshotSchema = z
   .object({
     groups: z.array(captureInboxGroupSchema),
     items: z.array(captureInboxItemSchema),
+    triageAvailable: z.boolean(),
   })
   .strict();
 
@@ -147,7 +156,7 @@ export type CaptureConvertPreviewInput = z.infer<
 
 export const captureConvertInputSchema = z
   .object({
-    clientIdempotencyKey: identifierSchema.optional(),
+    clientIdempotencyKey: identifierSchema,
     itemId: identifierSchema,
     previewId: identifierSchema.optional(),
   })
@@ -174,17 +183,24 @@ export interface CaptureProposedRecord {
   title: string;
 }
 
+export interface CaptureProposedRelation {
+  relation: "Origin";
+  target: "Proposed record";
+}
+
 export interface CaptureConversionPreview {
   fieldMappings: CaptureFieldMapping[];
   itemId: string;
   previewId: string;
   proposedRecord: CaptureProposedRecord;
+  proposedRelations: CaptureProposedRelation[];
   source: CaptureInboxItem;
   targetScope: CaptureTargetScope;
 }
 
 export interface CaptureRecordCreateInput {
   accountId: string;
+  clientIdempotencyKey: string;
   fields: Record<string, string>;
   item: CaptureInboxItem;
   projectId: string | null;
@@ -209,6 +225,7 @@ export interface CaptureRecordTarget {
 
 export interface CaptureBindInput {
   accountId: string;
+  clientIdempotencyKey: string;
   item: CaptureInboxItem;
   mergeId: string;
   relation: CaptureBindRelation;
@@ -254,7 +271,7 @@ export type CaptureAttachPreviewInput = z.infer<
 
 export const captureAttachInputSchema = z
   .object({
-    clientIdempotencyKey: identifierSchema.optional(),
+    clientIdempotencyKey: identifierSchema,
     itemId: identifierSchema,
     previewId: identifierSchema.optional(),
     relation: captureBindRelationSchema,
@@ -300,7 +317,7 @@ export interface CaptureAttachReceipt extends CaptureTriageReceipt {
 
 export const captureDeleteInputSchema = z
   .object({
-    clientIdempotencyKey: identifierSchema.optional(),
+    clientIdempotencyKey: identifierSchema,
     itemId: identifierSchema,
   })
   .strict();
@@ -331,7 +348,7 @@ export type CaptureUndoMergePreviewInput = z.infer<
 
 export const captureUndoMergeInputSchema = z
   .object({
-    clientIdempotencyKey: identifierSchema.optional(),
+    clientIdempotencyKey: identifierSchema,
     mergeId: identifierSchema,
     previewId: identifierSchema,
   })

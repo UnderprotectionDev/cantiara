@@ -42,7 +42,11 @@ function renderCaptureInbox(
 
 describe("Capture Inbox view", () => {
   test("shows the empty state and closed mini-template catalog", () => {
-    const html = renderCaptureInbox({ groups: [], items: [] });
+    const html = renderCaptureInbox({
+      groups: [],
+      items: [],
+      triageAvailable: false,
+    });
 
     expect(html).toContain(">Capture Inbox</h1>");
     expect(html).toContain("Project");
@@ -120,6 +124,7 @@ describe("Capture Inbox view", () => {
           template: "Bug Capture",
         },
       ],
+      triageAvailable: true,
     });
 
     expect(html).toContain("Workspace Capture Inbox");
@@ -151,7 +156,7 @@ describe("Capture Inbox view", () => {
 
   test("keeps Capture Inbox writes online-only without a local queue", () => {
     const html = renderCaptureInbox(
-      { groups: [], items: [] },
+      { groups: [], items: [], triageAvailable: false },
       {
         initialConnection: "offline",
         initialLastSavedAt: new Date("2026-09-16T09:00:00.000Z"),
@@ -170,7 +175,7 @@ describe("Capture Inbox view", () => {
 
   test("shows the desktop update boundary while keeping the Capture Inbox visible", () => {
     const html = renderCaptureInbox(
-      { groups: [], items: [] },
+      { groups: [], items: [], triageAvailable: false },
       { initialUpdateRequired: true },
     );
 
