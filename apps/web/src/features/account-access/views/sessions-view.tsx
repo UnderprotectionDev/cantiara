@@ -14,7 +14,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Skeleton } from "@cantiara/ui/components/skeleton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Monitor, ShieldCheck } from "lucide-react";
-import { useCallback } from "react";
+import { type MouseEvent, useCallback, useState } from "react";
 import { toast } from "sonner";
 import {
   formatAccountDateTime,
@@ -142,7 +142,150 @@ export default function SessionsView({ accountId }: { accountId: string }) {
           </ul>
         ) : null}
       </section>
+
+      <WebCaptureLinksSection formattingPreferences={formattingPreferences} />
     </main>
+  );
+}
+
+function WebCaptureLinksSection({
+  formattingPreferences,
+}: {
+  formattingPreferences: Parameters<typeof formatAccountDateTime>[1];
+}) {
+  const queryClient = useQueryClient();
+  const links = useQuery(orpc.webCaptureLinks.queryOptions());
+  const [pairingCode, setPairingCode] = useState<{
+    code: string;
+    expiresAt: string;
+  } | null>(null);
+  const { isPending: isGeneratingPairingCode, mutate: generatePairingCode } =
+    useMutation({
+      mutationFn: () =>
+        runOnlineOnlyWrite(() => client.createWebCapturePairingCode()),
+      onSuccess: (nextPairingCode) => {
+        setPairingCode(nextPairingCode);
+      },
+    });
+  const { isPending: isRevokingLink, mutate: revokeLink } = useMutation({
+    mutationFn: (linkId: string) =>
+      runOnlineOnlyWrite(() => client.revokeWebCaptureLink({ linkId })),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: orpc.webCaptureLinks.key(),
+      });
+      toast.success("Extension link revoked.");
+    },
+  });
+  const handleGeneratePairingCode = useCallback(() => {
+    generatePairingCode();
+  }, [generatePairingCode]);
+  const handleRevokeLink = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      const {
+        currentTarget: {
+          dataset: { linkId },
+        },
+      } = event;
+      if (linkId) {
+        revokeLink(linkId);
+      }
+    },
+    [revokeLink],
+  );
+
+  return (
+    <section aria-labelledby="extension-links-heading" className="pt-10">
+      <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="font-medium text-sm" id="extension-links-heading">
+            Extension links
+          </h2>
+          <p className="mt-1 max-w-xl text-muted-foreground text-sm/6">
+            Pair a browser with Web Capture and revoke individual links when a
+            device should stop writing to the Capture Inbox.
+          </p>
+        </div>
+        <Button
+          disabled={isGeneratingPairingCode}
+          onClick={handleGeneratePairingCode}
+          size="sm"
+          type="button"
+        >
+          {isGeneratingPairingCode ? "Generating…" : "Generate pairing code"}
+        </Button>
+      </div>
+
+      {pairingCode ? (
+        <div className="border-b bg-muted/30 px-4 py-4" role="status">
+          <p className="text-muted-foreground text-xs">
+            This pairing code expires in five minutes and can be used once.
+          </p>
+          <code className="mt-2 block font-semibold text-lg tracking-wider">
+            {pairingCode.code}
+          </code>
+          <time
+            className="mt-1 block text-muted-foreground text-xs"
+            dateTime={pairingCode.expiresAt}
+          >
+            Expires{" "}
+            {formatAccountDateTime(
+              pairingCode.expiresAt,
+              formattingPreferences,
+            )}
+          </time>
+        </div>
+      ) : null}
+
+      {links.isPending ? (
+        <div className="border-b py-5 text-muted-foreground text-sm">
+          Loading Extension links…
+        </div>
+      ) : null}
+      {links.isError ? (
+        <div className="border-b py-5 text-sm" role="alert">
+          Extension links are unavailable.
+        </div>
+      ) : null}
+      {links.data?.length === 0 ? (
+        <p className="border-b py-5 text-muted-foreground text-sm">
+          No Extension links.
+        </p>
+      ) : null}
+      {links.data && links.data.length > 0 ? (
+        <ul className="divide-y border-b">
+          {links.data.map((link) => (
+            <li
+              className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+              key={link.id}
+            >
+              <div className="grid gap-1 text-sm">
+                <p className="font-medium">{link.device}</p>
+                <p className="text-muted-foreground text-xs">
+                  Browser: {link.browser}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  Last use:{" "}
+                  {link.lastUse
+                    ? formatAccountDateTime(link.lastUse, formattingPreferences)
+                    : "Never"}
+                </p>
+              </div>
+              <Button
+                data-link-id={link.id}
+                disabled={isRevokingLink}
+                onClick={handleRevokeLink}
+                size="sm"
+                type="button"
+                variant="destructive"
+              >
+                Revoke
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
   );
 }
 

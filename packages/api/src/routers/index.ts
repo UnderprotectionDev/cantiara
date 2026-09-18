@@ -45,6 +45,7 @@ import {
   suggestProjectShortCode,
   updateProjectShortCodeInputSchema,
 } from "../project-shell";
+import type { WebCaptureAccess } from "../web-capture";
 
 function sessionPrincipal(session: NonNullable<Context["session"]>) {
   return {
@@ -72,6 +73,10 @@ const saveAccountAppearanceProcedureInputSchema = z.union([
   saveAccountAppearanceInputSchema,
   legacySaveAccountAppearanceInputSchema,
 ]);
+
+const revokeWebCaptureLinkInputSchema = z
+  .object({ linkId: z.string().trim().min(1).max(255) })
+  .strict();
 
 function requireAccountPreferencesMutationContract(context: Context) {
   if (!context.accountPreferencesMutationContract) {
@@ -115,6 +120,13 @@ function requireCaptureInbox(context: Context): CaptureInboxAccess {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.captureInbox;
+}
+
+function requireWebCapture(context: Context): WebCaptureAccess {
+  if (!context.webCapture) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.webCapture;
 }
 
 function requireCaptureInboxTriage(context: Context): CaptureInboxTriageAccess {
@@ -727,6 +739,22 @@ export const appRouter = {
   sessions: protectedProcedure.handler(({ context }) =>
     context.accountAccess.listSessions(sessionPrincipal(context.session)),
   ),
+  createWebCapturePairingCode: protectedProcedure.handler(({ context }) =>
+    requireWebCapture(context).createPairingCode(context.session.user.id),
+  ),
+  webCaptureLinks: protectedProcedure.handler(({ context }) =>
+    requireWebCapture(context).listLinks(context.session.user.id),
+  ),
+  revokeWebCaptureLink: protectedProcedure
+    .input(revokeWebCaptureLinkInputSchema)
+    .handler(async ({ context, input }) => {
+      await requireWebCapture(context).revokeLink(
+        context.session.user.id,
+        input.linkId,
+        sessionPrincipal(context.session).sessionId,
+      );
+      return { status: true };
+    }),
   accountPreferences: protectedProcedure.handler(({ context }) =>
     context.accountPreferences.get(context.session.user.id),
   ),

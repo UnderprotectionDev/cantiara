@@ -24,6 +24,8 @@ import {
   workspaceRelations,
 } from "./schema";
 import {
+  captureExtensionLink,
+  captureExtensionPairingCode,
   captureInboxBulkView,
   captureInboxItem,
   captureInboxOperation,
@@ -44,6 +46,8 @@ const schema = {
   captureInboxBulkView,
   captureInboxItem,
   captureInboxOperation,
+  captureExtensionLink,
+  captureExtensionPairingCode,
   mutationHistory,
   mutationReceipt,
   mutationStaging,

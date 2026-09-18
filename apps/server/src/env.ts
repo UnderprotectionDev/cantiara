@@ -11,6 +11,7 @@ const sensitiveEnvKeys = [
   "BETTER_AUTH_SECRET",
   "DATABASE_URL",
   "GITHUB_CLIENT_SECRET",
+  "R2_SECRET_ACCESS_KEY",
   "SECURITY_EVENT_DATABASE_URL",
 ] as const;
 const redactedValue = "[REDACTED]";
@@ -68,6 +69,10 @@ export function createServerEnv(
       DATABASE_URL: z.string().min(1),
       GITHUB_CLIENT_ID: z.string().min(1),
       GITHUB_CLIENT_SECRET: z.string().min(1),
+      R2_ACCESS_KEY_ID: z.string().min(1).optional(),
+      R2_ACCOUNT_ID: z.string().min(1).optional(),
+      R2_BUCKET: z.string().min(1).optional(),
+      R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
       SECURITY_EVENT_DATABASE_URL: z.string().min(1),
       TRUSTED_PROXY_IPS: trustedProxyIpsSchema,
     },
@@ -106,16 +111,31 @@ export function createServerEnv(
     }
   }
 
+  const r2Configuration = [
+    serverEnv.R2_ACCESS_KEY_ID,
+    serverEnv.R2_ACCOUNT_ID,
+    serverEnv.R2_BUCKET,
+    serverEnv.R2_SECRET_ACCESS_KEY,
+  ];
+  if (
+    serverEnv.NODE_ENV === "production" &&
+    r2Configuration.some((value) => !value)
+  ) {
+    throw new Error(
+      "R2_ACCESS_KEY_ID, R2_ACCOUNT_ID, R2_BUCKET, and R2_SECRET_ACCESS_KEY are required in production",
+    );
+  }
+
   return serverEnv;
 }
 
 export const env = createServerEnv();
 
 function redactString(value: string) {
-  return sensitiveEnvKeys.reduce(
-    (redacted, key) => redacted.replaceAll(env[key], redactedValue),
-    value,
-  );
+  return sensitiveEnvKeys.reduce((redacted, key) => {
+    const secret = env[key];
+    return secret ? redacted.replaceAll(secret, redactedValue) : redacted;
+  }, value);
 }
 
 function redactError(error: Error, seen: Map<object, unknown>) {

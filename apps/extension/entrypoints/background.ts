@@ -1,3 +1,3 @@
 export default defineBackground(() => {
-  console.log("Hello background!", { id: browser.runtime.id });
+  // Web Capture has no background scan, history access, or offline queue.
 });
