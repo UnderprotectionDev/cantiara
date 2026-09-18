@@ -31,6 +31,16 @@ async function expectNoSampleContent(page: Page) {
   ).toBeVisible();
 }
 
+async function expectDailyActions(page: Page) {
+  await Promise.all(
+    ["Create", "Edit", "Status", "Planning"].map((action) =>
+      expect(
+        page.getByRole("button", { name: action, exact: true }),
+      ).toBeVisible(),
+    ),
+  );
+}
+
 const STARTER_CONFIGURATION_CASES = [
   {
     configuration: "Blank Project",
@@ -181,6 +191,101 @@ test("creates Projects with suggested and Workspace-unique Short codes", async (
   ).toHaveValue("PAY-2");
 });
 
+test("keeps Project Shell stable while toggling Configuration Mode", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=project-shell`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([setup.cookie]);
+
+  const projectName = "Configuration Mode Acceptance";
+  await page.goto("/projects/new");
+  await page.getByLabel("Project Name").fill(projectName);
+  await page.getByRole("button", { name: "Create Project" }).click();
+  await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
+  const nonGetRequests: string[] = [];
+  page.on("request", (pageRequest) => {
+    if (pageRequest.method() !== "GET") {
+      nonGetRequests.push(pageRequest.url());
+    }
+  });
+  await page.getByRole("link", { name: projectName, exact: true }).click();
+  await expect(page).toHaveURL(PROJECT_DETAIL_URL_PATTERN);
+  const configurationMode = page.getByRole("button", {
+    name: "Configuration Mode",
+    exact: true,
+  });
+  await expect(configurationMode).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    page.getByRole("heading", { name: projectName, level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByText("Active", { exact: true })).toBeVisible();
+  await expect(page.getByText("Blank Project", { exact: true })).toBeVisible();
+  const nonGetRequestCountBeforeMode = nonGetRequests.length;
+  await expectDailyActions(page);
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Create" })).toBeVisible();
+
+  await configurationMode.click();
+  expect(nonGetRequests).toHaveLength(nonGetRequestCountBeforeMode);
+  await expect(configurationMode).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("region", { name: "Configuration Mode" }),
+  ).toBeVisible();
+  await Promise.all(
+    [
+      "Stages",
+      "Work statuses",
+      "Project areas",
+      "Custom field",
+      "Priority metrics",
+      "Saved views",
+      "Work Context Card layout",
+    ].map((entry) =>
+      expect(page.getByText(entry, { exact: true }).first()).toBeVisible(),
+    ),
+  );
+
+  await page.getByRole("button", { name: "Custom field", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Custom field" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("No schema is defined here.", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Work Context Card layout", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Work Context Card layout" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "No layout is changed here. The Work Context Card feature owns its layout engine.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+
+  await configurationMode.click();
+  expect(nonGetRequests).toHaveLength(nonGetRequestCountBeforeMode);
+  await expect(configurationMode).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    page.getByRole("region", { name: "Configuration Mode" }),
+  ).toHaveCount(0);
+  await expectDailyActions(page);
+  await expect(
+    page.getByRole("heading", { name: projectName, level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByText("Active", { exact: true })).toBeVisible();
+});
+
 for (const starter of STARTER_CONFIGURATION_CASES) {
   test(`applies ${starter.configuration} once at the Project Shell`, async ({
     context,
@@ -257,6 +362,7 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
     await page.reload();
     await expect(page.getByRole("button", { name: "Dismiss" })).toHaveCount(0);
 
+    await page.getByRole("button", { name: "Configuration Mode" }).click();
     await page.getByRole("link", { name: "All Tools", exact: true }).click();
     await expect(
       page.getByRole("link", { name: "All Tools", exact: true }),
