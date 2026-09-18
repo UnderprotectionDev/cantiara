@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { captureFormValuesEqual } from "./capture-inbox-form";
+import { captureFormValuesEqual, captureInput } from "./capture-inbox-form";
 
 describe("Capture Inbox form submission", () => {
   test("only treats an unchanged form as safe to reset after Save", () => {
@@ -18,5 +18,23 @@ describe("Capture Inbox form submission", () => {
         content: "Preview is blank after refresh",
       }),
     ).toBe(false);
+  });
+
+  test("submits the selected Project id without asking for an internal value", () => {
+    expect(
+      captureInput(
+        {
+          content: "Preview is blank",
+          fields: {},
+          projectId: "project-1",
+          template: "Bug Capture",
+        },
+        "capture-key-1",
+      ),
+    ).toMatchObject({
+      clientIdempotencyKey: "capture-key-1",
+      projectId: "project-1",
+      template: "Bug Capture",
+    });
   });
 });

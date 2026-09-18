@@ -254,6 +254,14 @@ function rethrowCaptureInboxError(error: unknown): never {
     });
   }
 
+  if (error.code === "WORK_PROJECT_NOT_FOUND") {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: error.code },
+      defined: true,
+      message: "Choose an available Project.",
+    });
+  }
+
   const workLifecycleError = mapWorkLifecycleError(error);
   if (workLifecycleError) {
     throw workLifecycleError;

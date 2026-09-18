@@ -3,6 +3,7 @@ import {
   CAPTURE_TEMPLATES,
   type CaptureTemplate,
 } from "@cantiara/api/capture-triage";
+import type { ProjectProfile } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
 import {
   Field,
@@ -10,21 +11,24 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@cantiara/ui/components/field";
-import { Input } from "@cantiara/ui/components/input";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ChangeEvent, type FormEvent, useRef, useState } from "react";
 
 import {
   useClientShell,
   useClientShellConnection,
 } from "@/features/web-macos-client/views/client-shell";
-import { captureInboxQueryOptions, client } from "@/utils/orpc";
+import {
+  captureInboxQueryOptions,
+  client,
+  projectsQueryOptions,
+} from "@/utils/orpc";
 
 export interface CaptureFormValues {
   content: string;
@@ -36,11 +40,23 @@ export interface CaptureFormValues {
 export const CREATE_BUG_UNAVAILABLE_MESSAGE =
   "Create Bug is available when Project is set and type is Bug Capture or unspecified.";
 
-export function captureDestination(projectId: string) {
+type CaptureProject = Pick<ProjectProfile, "id" | "name" | "shortCode">;
+
+export function captureProjectLabel(project: CaptureProject) {
+  return `${project.name} (${project.shortCode})`;
+}
+
+export function captureDestination(
+  projectId: string,
+  projects: readonly CaptureProject[] = [],
+) {
   const normalizedProjectId = projectId.trim();
   if (normalizedProjectId) {
+    const project = projects.find(({ id }) => id === normalizedProjectId);
     return {
-      detail: `This capture will appear under ${normalizedProjectId}.`,
+      detail: `This capture will appear under ${
+        project ? captureProjectLabel(project) : "the selected Project"
+      }.`,
       label: "Project Capture Inbox",
     };
   }
@@ -66,7 +82,10 @@ function selectCaptureFormValues(state: { values: CaptureFormValues }) {
   return state.values;
 }
 
-function captureInput(values: CaptureFormValues, clientIdempotencyKey: string) {
+export function captureInput(
+  values: CaptureFormValues,
+  clientIdempotencyKey: string,
+) {
   return {
     clientIdempotencyKey,
     content: values.content,
@@ -76,6 +95,19 @@ function captureInput(values: CaptureFormValues, clientIdempotencyKey: string) {
     projectId: values.projectId.trim() || null,
     template: values.template || null,
   };
+}
+
+function captureProjectDescription(projects: {
+  isError: boolean;
+  isPending: boolean;
+}) {
+  if (projects.isPending) {
+    return "Loading Projects…";
+  }
+  if (projects.isError) {
+    return "Projects could not be loaded. Try loading this page again.";
+  }
+  return "Leave empty to save to the Workspace Capture Inbox.";
 }
 
 export function captureFormValuesEqual(
@@ -95,6 +127,7 @@ export function captureFormValuesEqual(
 
 export default function CaptureInboxForm({ accountId }: { accountId: string }) {
   const queryClient = useQueryClient();
+  const projects = useQuery(projectsQueryOptions());
   const shell = useClientShell();
   const connection = useClientShellConnection();
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -108,7 +141,10 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
     onSuccess: async (_data, variables) => {
       pendingCaptureKey.current = null;
       setActionMessage(
-        `Capture saved. ${captureDestination(variables.projectId ?? "").detail}`,
+        `Capture saved. ${
+          captureDestination(variables.projectId ?? "", projects.data ?? [])
+            .detail
+        }`,
       );
       await queryClient.invalidateQueries({
         queryKey: captureInboxQueryOptions(accountId).queryKey,
@@ -247,7 +283,7 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
           <form.Field name="projectId">
             {(field) => {
               function handleProjectChange(
-                event: ChangeEvent<HTMLInputElement>,
+                event: ChangeEvent<HTMLSelectElement>,
               ) {
                 field.handleChange(event.target.value);
                 markDirty();
@@ -256,15 +292,25 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
               return (
                 <Field>
                   <FieldLabel htmlFor="capture-project">Project</FieldLabel>
-                  <Input
+                  <NativeSelect
+                    className="w-full"
+                    disabled={projects.isPending || projects.isError}
                     id="capture-project"
                     name={field.name}
                     onChange={handleProjectChange}
-                    placeholder="Leave empty for Workspace"
                     value={field.state.value}
-                  />
+                  >
+                    <NativeSelectOption value="">
+                      Workspace Capture Inbox
+                    </NativeSelectOption>
+                    {projects.data?.map((project) => (
+                      <NativeSelectOption key={project.id} value={project.id}>
+                        {captureProjectLabel(project)}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
                   <FieldDescription>
-                    Leave empty to save to the Workspace Capture Inbox.
+                    {captureProjectDescription(projects)}
                   </FieldDescription>
                 </Field>
               );
@@ -273,7 +319,10 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
 
           <form.Subscribe selector={selectCaptureProjectId}>
             {(projectId) => {
-              const destination = captureDestination(projectId);
+              const destination = captureDestination(
+                projectId,
+                projects.data ?? [],
+              );
 
               return (
                 <div
