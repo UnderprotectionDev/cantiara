@@ -18,7 +18,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `E2E_SERVER_PORT=${serverPort} E2E_WEB_ORIGIN=${webUrl} bun ../server/e2e/account-access-server.ts`,
+      command: `E2E_SERVER_PORT=${serverPort} E2E_WEB_ORIGIN=${webUrl} bun --env-file=../server/.env.local ../server/e2e/account-access-server.ts`,
       reuseExistingServer: !process.env.CI,
       url: serverUrl,
     },
