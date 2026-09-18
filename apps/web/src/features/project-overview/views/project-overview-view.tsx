@@ -10,11 +10,7 @@ import {
   type ProjectOverviewSourceRecord,
   type ProjectOverviewSources,
 } from "@cantiara/api/project-overview";
-import {
-  isProjectCoreArea,
-  type ProjectArea,
-  type ProjectProfile,
-} from "@cantiara/api/project-shell";
+import type { ProjectArea, ProjectProfile } from "@cantiara/api/project-shell";
 import { useLinkProps } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 
@@ -22,6 +18,7 @@ import {
   formatAccountDate,
   formatAccountDateTime,
 } from "@/features/account-preferences/forms/account-preferences-format";
+import { projectAreaNavigationHash } from "@/features/project-shell/project-area-navigation";
 
 type OverviewFormattingPreferences = AccountPreferences;
 
@@ -171,7 +168,7 @@ function EnabledProjectAreas({ areas }: { areas: readonly ProjectArea[] }) {
 function ProjectAreaEntry({ area }: { area: ProjectArea }) {
   const linkProps = useLinkProps({
     activeOptions: { exact: true, includeHash: true },
-    hash: projectAreaEntryHash(area),
+    hash: projectAreaNavigationHash(area),
     to: ".",
   });
 
@@ -392,10 +389,6 @@ function moduleAnchor(moduleName: string) {
     return moduleName.toLowerCase();
   }
   return `project-overview-${slug(moduleName)}`;
-}
-
-function projectAreaEntryHash(area: ProjectArea) {
-  return isProjectCoreArea(area) ? slug(area) : `project-area-${slug(area)}`;
 }
 
 function slug(value: string) {
