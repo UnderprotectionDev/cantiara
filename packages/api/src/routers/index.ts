@@ -49,9 +49,19 @@ import {
 } from "../project-shell";
 import type { WebCaptureAccess } from "../web-capture";
 import {
+  closeWorkInputSchema,
   createWorkMutationInputSchema,
+  detachFeatureHealthHistoryInputSchema,
+  detachIncludedWorkInputSchema,
+  includeWorkInputSchema,
+  recordFeatureHealthInputSchema,
   recreateWorkInputSchema,
+  reopenWorkInputSchema,
+  updateFeaturePrimarySpecInputSchema,
+  updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
+  workArchiveMutationInputSchema,
+  workClosePreviewInputSchema,
   workRecreatePreviewInputSchema,
   workTypeChangePreviewInputSchema,
 } from "../work-lifecycle";
@@ -273,97 +283,157 @@ function rethrowCaptureInboxError(error: unknown): never {
   throw error;
 }
 
-function mapWorkLifecycleError(error: Record<string, unknown>) {
-  if (error.code === "WORK_NOT_FOUND") {
-    return new ORPCError("NOT_FOUND", {
-      defined: true,
-      message: "Work is unavailable.",
-    });
-  }
-
-  if (error.code === "WORK_PROJECT_NOT_FOUND") {
-    return new ORPCError("NOT_FOUND", {
-      defined: true,
-      message: "Project is unavailable.",
-    });
-  }
-
-  if (error.code === "WORK_CREATION_CONFLICT") {
-    return new ORPCError("CONFLICT", {
-      data: { code: error.code },
-      defined: true,
-      message: "Work could not be created. Try again.",
-    });
-  }
-
-  if (error.code === "WORK_TYPE_IMPACT_PREVIEW_REQUIRED") {
+function mapWorkLifecycleFeatureError(error: Record<string, unknown>) {
+  if (error.code === "WORK_FEATURE_EXIT_BLOCKED") {
     return new ORPCError("PRECONDITION_FAILED", {
       data: {
         code: error.code,
-        ...(typeof error.previewId === "string"
-          ? { previewId: error.previewId }
-          : {}),
+        ...(isRecord(error.blockers) ? { blockers: error.blockers } : {}),
       },
-      defined: true,
-      message: "Impact preview is required before changing to or from Feature.",
-    });
-  }
-
-  if (error.code === "WORK_RECREATE_PREVIEW_REQUIRED") {
-    return new ORPCError("PRECONDITION_FAILED", {
-      data: { code: error.code },
-      defined: true,
-      message: "Review the current recreate preview before confirming.",
-    });
-  }
-
-  if (
-    error.code === "WORK_RELATION_NOT_PORTABLE" ||
-    error.code === "WORK_RECREATE_FIELD_REQUIRED"
-  ) {
-    return new ORPCError("BAD_REQUEST", {
-      data: { code: error.code },
       defined: true,
       message:
-        typeof error.message === "string"
-          ? error.message
-          : "The recreate selection is unavailable.",
-    });
-  }
-
-  if (error.code === "CONFLICT") {
-    return new ORPCError("CONFLICT", {
-      data: { code: error.code },
-      defined: true,
-      message: "Work could not be changed. Try again.",
-    });
-  }
-
-  if (error.code === "STALE_BASE_REVISION") {
-    return new ORPCError("PRECONDITION_FAILED", {
-      data: {
-        code: error.code,
-        ...(typeof error.currentRevision === "number"
-          ? { currentRevision: error.currentRevision }
-          : {}),
-        ...(typeof error.currentValue === "object" &&
-        error.currentValue !== null
-          ? { currentValue: error.currentValue }
-          : {}),
-      },
-      defined: true,
-      message: "Work has changed. Reload and try again.",
-    });
-  }
-
-  if (error.code === "TARGET_NOT_FOUND") {
-    return new ORPCError("NOT_FOUND", {
-      defined: true,
-      message: "Work is unavailable.",
+        "Detach included Work, Feature health history, and Primary spec before leaving Feature.",
     });
   }
 
   return null;
+}
+
+function mapWorkLifecycleError(
+  error: Record<string, unknown>,
+): ORPCError<string, unknown> | null {
+  if (error.code === "APPLY_FAILED") {
+    return isRecord(error.cause) ? mapWorkLifecycleError(error.cause) : null;
+  }
+
+  switch (error.code) {
+    case "WORK_NOT_FOUND":
+      return new ORPCError("NOT_FOUND", {
+        defined: true,
+        message: "Work is unavailable.",
+      });
+    case "WORK_PROJECT_NOT_FOUND":
+      return new ORPCError("NOT_FOUND", {
+        defined: true,
+        message: "Project is unavailable.",
+      });
+    case "WORK_CREATION_CONFLICT":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "Work could not be created. Try again.",
+      });
+    case "WORK_PRIMARY_SPEC_NOT_FOUND":
+      return new ORPCError("NOT_FOUND", {
+        data: { code: error.code },
+        defined: true,
+        message: "Primary spec is unavailable.",
+      });
+    case "WORK_PRIMARY_SPEC_UNAVAILABLE":
+      return new ORPCError("NOT_IMPLEMENTED", {
+        data: { code: error.code },
+        defined: true,
+        message: "Primary spec is not available yet.",
+      });
+    case "WORK_TYPE_IMPACT_PREVIEW_REQUIRED":
+      return new ORPCError("PRECONDITION_FAILED", {
+        data: {
+          code: error.code,
+          ...(typeof error.previewId === "string"
+            ? { previewId: error.previewId }
+            : {}),
+        },
+        defined: true,
+        message:
+          "Impact preview is required before changing to or from Feature.",
+      });
+    case "WORK_RECREATE_PREVIEW_REQUIRED":
+      return new ORPCError("PRECONDITION_FAILED", {
+        data: { code: error.code },
+        defined: true,
+        message: "Review the current recreate preview before confirming.",
+      });
+    case "WORK_RELATION_NOT_PORTABLE":
+    case "WORK_RECREATE_FIELD_REQUIRED":
+      return new ORPCError("BAD_REQUEST", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          typeof error.message === "string"
+            ? error.message
+            : "The recreate selection is unavailable.",
+      });
+    case "WORK_CLOSURE_RESULT_REQUIRED":
+    case "WORK_CLOSURE_CHECK_REQUIRED":
+    case "WORK_REOPEN_CONFIRMATION_REQUIRED":
+    case "WORK_ALREADY_CLOSED":
+    case "WORK_NOT_CLOSED":
+    case "WORK_VISIBLE_USER_INITIATOR_REQUIRED":
+      return mapWorkLifecyclePreconditionError(error);
+    case "WORK_FEATURE_EXIT_BLOCKED":
+      return mapWorkLifecycleFeatureError(error);
+    case "WORK_INCLUSION_CONFLICT":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          typeof error.message === "string"
+            ? error.message
+            : "Work inclusion could not be changed.",
+      });
+    case "WORK_FEATURE_REQUIRED":
+      return new ORPCError("BAD_REQUEST", {
+        data: { code: error.code },
+        defined: true,
+        message: "This action is available only for Feature Work.",
+      });
+    case "CONFLICT":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "Work could not be changed. Try again.",
+      });
+    case "STALE_BASE_REVISION":
+      return mapWorkLifecycleStaleRevisionError(error);
+    case "TARGET_NOT_FOUND":
+      return new ORPCError("NOT_FOUND", {
+        defined: true,
+        message: "Work is unavailable.",
+      });
+    default:
+      return null;
+  }
+}
+
+function mapWorkLifecycleStaleRevisionError(
+  error: Record<string, unknown>,
+): ORPCError<string, unknown> {
+  return new ORPCError("PRECONDITION_FAILED", {
+    data: {
+      code: error.code,
+      ...(typeof error.currentRevision === "number"
+        ? { currentRevision: error.currentRevision }
+        : {}),
+      ...(typeof error.currentValue === "object" && error.currentValue !== null
+        ? { currentValue: error.currentValue }
+        : {}),
+    },
+    defined: true,
+    message: "Work has changed. Reload and try again.",
+  });
+}
+
+function mapWorkLifecyclePreconditionError(
+  error: Record<string, unknown>,
+): ORPCError<string, unknown> {
+  return new ORPCError("PRECONDITION_FAILED", {
+    data: { code: error.code },
+    defined: true,
+    message:
+      typeof error.message === "string"
+        ? error.message
+        : "The Work lifecycle precondition was not met.",
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -505,6 +575,14 @@ function rethrowWorkLifecycleError(error: unknown): never {
   throw error;
 }
 
+async function runWorkLifecycleOperation<T>(operation: () => Promise<T>) {
+  try {
+    return await operation();
+  } catch (error) {
+    rethrowWorkLifecycleError(error);
+  }
+}
+
 function rethrowProjectShellMutationError(
   error: unknown,
   targetId: string,
@@ -591,11 +669,79 @@ export const appRouter = {
       return project;
     }),
   projectWorks: protectedProcedure
-    .input(z.object({ projectId: z.string().trim().min(1) }).strict())
+    .input(
+      z
+        .object({
+          archived: z.boolean().default(false),
+          projectId: z.string().trim().min(1),
+        })
+        .strict(),
+    )
     .handler(({ context, input }) =>
       requireWorkLifecycle(context).list(
         context.session.user.id,
         input.projectId,
+        { archived: input.archived },
+      ),
+    ),
+  featureProgress: protectedProcedure
+    .input(z.object({ featureId: z.string().trim().min(1) }).strict())
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).featureProgress(
+          context.session.user.id,
+          input.featureId,
+        ),
+      ),
+    ),
+  includeWork: protectedProcedure
+    .input(includeWorkInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).includeWork(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  detachIncludedWork: protectedProcedure
+    .input(detachIncludedWorkInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).detachIncludedWork(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  recordFeatureHealth: protectedProcedure
+    .input(recordFeatureHealthInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).recordFeatureHealth(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  detachFeatureHealthHistory: protectedProcedure
+    .input(detachFeatureHealthHistoryInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).detachFeatureHealthHistory(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  updateFeaturePrimarySpec: protectedProcedure
+    .input(updateFeaturePrimarySpecInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateFeaturePrimarySpec(
+          context.session.user.id,
+          input,
+        ),
       ),
     ),
   work: protectedProcedure
@@ -642,40 +788,86 @@ export const appRouter = {
     }),
   recreateWork: protectedProcedure
     .input(recreateWorkInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).recreate(context.session.user.id, input),
+      ),
+    ),
+  workClosePreview: protectedProcedure
+    .input(workClosePreviewInputSchema)
     .handler(async ({ context, input }) => {
-      try {
-        return await requireWorkLifecycle(context).recreate(
-          context.session.user.id,
-          input,
-        );
-      } catch (error) {
-        rethrowWorkLifecycleError(error);
+      const preview = await requireWorkLifecycle(context).previewClose(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work is unavailable.",
+        });
       }
+      return preview;
     }),
   updateWorkType: protectedProcedure
     .input(updateWorkTypeInputSchema)
-    .handler(async ({ context, input }) => {
-      try {
-        return await requireWorkLifecycle(context).updateType(
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateType(
           context.session.user.id,
           input,
-        );
-      } catch (error) {
-        rethrowWorkLifecycleError(error);
-      }
-    }),
+        ),
+      ),
+    ),
+  archiveWork: protectedProcedure
+    .input(workArchiveMutationInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).archive(context.session.user.id, input),
+      ),
+    ),
+  updateWorkStatus: protectedProcedure
+    .input(updateWorkStatusInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateStatus(
+          context.session.user.id,
+          input,
+          { kind: "Visible user" },
+        ),
+      ),
+    ),
+  closeWork: protectedProcedure
+    .input(closeWorkInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).close(context.session.user.id, input, {
+          kind: "Visible user",
+        }),
+      ),
+    ),
+  reopenWork: protectedProcedure
+    .input(reopenWorkInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).reopen(context.session.user.id, input, {
+          kind: "Visible user",
+        }),
+      ),
+    ),
+  unarchiveWork: protectedProcedure
+    .input(workArchiveMutationInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).unarchive(context.session.user.id, input),
+      ),
+    ),
   createWork: protectedProcedure
     .input(createWorkMutationInputSchema)
-    .handler(async ({ context, input }) => {
-      try {
-        return await requireWorkLifecycle(context).create(
-          context.session.user.id,
-          input,
-        );
-      } catch (error) {
-        rethrowWorkLifecycleError(error);
-      }
-    }),
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).create(context.session.user.id, input),
+      ),
+    ),
   createProject: protectedProcedure
     .input(createProjectMutationInputSchema)
     .handler(async ({ context, input }) => {

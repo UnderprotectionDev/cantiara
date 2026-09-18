@@ -1,5 +1,5 @@
 {
-  "id": "e1070f3b-0d71-4b71-971e-2e4632719cbd",
+  "id": "dfd3a0a1-d027-4023-90b5-50bd29db1640",
   "prevId": "c2b82ff4-82ca-43fb-8c5c-e1c6c5f3dc03",
   "version": "7",
   "dialect": "postgresql",
@@ -1999,18 +1999,17 @@
       "name": "work",
       "schema": "",
       "columns": {
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "capture_provenance": {
           "name": "capture_provenance",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
-        },
-        "checklist": {
-          "name": "checklist",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
         },
         "closure_result": {
           "name": "closure_result",
@@ -2024,12 +2023,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "id": {
           "name": "id",
@@ -2054,18 +2047,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "recreated_from_work_id": {
-          "name": "recreated_from_work_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "recreated_from_work_key": {
-          "name": "recreated_from_work_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "revision": {
           "name": "revision",

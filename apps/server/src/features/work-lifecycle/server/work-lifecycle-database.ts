@@ -1,5 +1,9 @@
-import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
+import type {
+  MutationPayload,
+  MutationTarget,
+} from "@cantiara/api/mutation-and-undo";
 import {
+  featureHealthUpdateSchema,
   type WorkLifecycleMutationValue,
   type WorkProfile,
   workCaptureProvenanceSchema,
@@ -11,7 +15,7 @@ import {
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { project, work, workKeyAllocation } from "@cantiara/db/schema/index";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 
 import {
   createDatabaseMutationContract,
@@ -26,6 +30,8 @@ import {
   createWorkLifecycle,
   WorkCreationConflictError,
   type WorkCreationReservation,
+  WorkFeatureExitBlockedError,
+  WorkInclusionConflictError,
   type WorkLifecycleStore,
   WorkProjectNotFoundError,
   WorkRecreatePreviewRequiredError,
@@ -36,18 +42,25 @@ type WorkKeyAllocationRecord = typeof workKeyAllocation.$inferSelect;
 
 function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
   return {
+    archivedAt: record.archivedAt?.toISOString() ?? null,
     captureProvenance: record.captureProvenance
       ? workCaptureProvenanceSchema.parse(record.captureProvenance)
       : null,
     checklist: workChecklistSchema.parse(record.checklist),
+    closureReason: record.closureReason,
     closureResult: record.closureResult
       ? workClosureResultSchema.parse(record.closureResult)
       : null,
     createdAt: record.createdAt.toISOString(),
     description: record.description,
+    featureHealthHistory: featureHealthUpdateSchema
+      .array()
+      .parse(record.featureHealthHistory),
     id: record.id,
     key: record.key,
     number: record.number,
+    primaryFeatureId: record.primaryFeatureId,
+    primarySpecId: record.primarySpecId,
     projectId: record.projectId,
     recreatedFrom:
       record.recreatedFromWorkId && record.recreatedFromWorkKey
@@ -141,6 +154,41 @@ function emptyWorkTarget(
   };
 }
 
+function featureIdFromMutationPayload(payload: MutationPayload | undefined) {
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    Array.isArray(payload)
+  ) {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  const featureId = record.featureId ?? record.primaryFeatureId;
+  return typeof featureId === "string" ? featureId : null;
+}
+
+async function selectRecreateSelection(
+  executor: MutationDatabaseExecutor,
+  relations: WorkRelationsMutationAdapter,
+  accountId: string,
+  workspaceId: string,
+  recreate: WorkLifecycleMutationValue["recreate"] | undefined,
+) {
+  if (!recreate) {
+    return { selectedRelations: [], sourceWork: null };
+  }
+  const selection = await relations.selectRecreateRelations(
+    executor,
+    accountId,
+    workspaceId,
+    recreate,
+  );
+  if (!selection) {
+    throw new WorkRecreatePreviewRequiredError();
+  }
+  return selection;
+}
+
 function createWorkMutationTarget(
   accountId: string,
   relations: WorkRelationsMutationAdapter,
@@ -183,30 +231,32 @@ function createWorkMutationTarget(
       }
 
       const { recreate } = input.nextValue;
-      const recreateSelection = recreate
-        ? await relations.selectRecreateRelations(
-            executor,
-            accountId,
-            ownedProject.workspaceId,
-            recreate,
-          )
-        : { selectedRelations: [], sourceWork: null };
-      if (!recreateSelection) {
-        throw new WorkRecreatePreviewRequiredError();
-      }
-      const { sourceWork } = recreateSelection;
+      const recreateSelection = await selectRecreateSelection(
+        executor,
+        relations,
+        accountId,
+        ownedProject.workspaceId,
+        recreate,
+      );
 
       const [created] = await executor
         .insert(work)
         .values({
+          archivedAt: nextWork.archivedAt
+            ? new Date(nextWork.archivedAt)
+            : null,
           captureProvenance: nextWork.captureProvenance,
           checklist: nextWork.checklist,
+          closureReason: nextWork.closureReason,
           closureResult: nextWork.closureResult,
           createdAt: new Date(nextWork.createdAt),
           description: nextWork.description,
+          featureHealthHistory: nextWork.featureHealthHistory,
           id: nextWork.id,
           key: nextWork.key,
           number: nextWork.number,
+          primaryFeatureId: nextWork.primaryFeatureId,
+          primarySpecId: nextWork.primarySpecId,
           projectId: nextWork.projectId,
           recreatedFromWorkId: nextWork.recreatedFrom?.id,
           recreatedFromWorkKey: nextWork.recreatedFrom?.key,
@@ -219,7 +269,7 @@ function createWorkMutationTarget(
         .onConflictDoNothing()
         .returning();
       if (created) {
-        if (recreate && sourceWork) {
+        if (recreate && recreateSelection.sourceWork) {
           await relations.persistRecreatedRelations(
             executor,
             input.committedAt,
@@ -254,11 +304,71 @@ function createWorkMutationTarget(
   };
 }
 
+async function assertValidPrimaryFeature(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  nextWork: WorkProfile,
+) {
+  if (!nextWork.primaryFeatureId) {
+    return;
+  }
+  const primaryFeature = await findOwnedWork(
+    executor,
+    accountId,
+    nextWork.primaryFeatureId,
+    true,
+  );
+  if (
+    primaryFeature?.type !== "Feature" ||
+    primaryFeature.projectId !== nextWork.projectId ||
+    nextWork.type === "Feature"
+  ) {
+    throw new WorkInclusionConflictError(
+      "Primary Feature inclusion is no longer valid.",
+    );
+  }
+}
+
+async function assertFeatureExitReady(
+  executor: MutationDatabaseExecutor,
+  currentWork: WorkDatabaseRecord,
+  nextWork: WorkProfile,
+) {
+  if (currentWork.type !== "Feature" || nextWork.type === "Feature") {
+    return;
+  }
+  const includedWork = await executor
+    .select({ id: work.id })
+    .from(work)
+    .where(eq(work.primaryFeatureId, currentWork.id))
+    .for("update");
+  const blockers = {
+    featureHealthUpdateCount: currentWork.featureHealthHistory.length,
+    hasPrimarySpec: currentWork.primarySpecId !== null,
+    includedWorkCount: includedWork.length,
+  };
+  if (
+    blockers.includedWorkCount > 0 ||
+    blockers.featureHealthUpdateCount > 0 ||
+    blockers.hasPrimarySpec
+  ) {
+    throw new WorkFeatureExitBlockedError(blockers);
+  }
+}
+
 function createWorkUpdateMutationTarget(
   accountId: string,
 ): MutationDatabaseTargetAdapter<WorkLifecycleMutationValue> {
   return {
-    async find(executor, targetId, lock) {
+    async find(executor, targetId, lock, context) {
+      if (lock) {
+        const featureId = featureIdFromMutationPayload(context?.payload);
+        if (featureId && featureId !== targetId) {
+          // Mutations involving included Work lock the parent Feature before
+          // the child Work; Feature exit uses the same order.
+          await findOwnedWork(executor, accountId, featureId, true);
+        }
+      }
       const record = await findOwnedWork(executor, accountId, targetId, lock);
       return record
         ? {
@@ -275,6 +385,19 @@ function createWorkUpdateMutationTarget(
         return null;
       }
 
+      const currentWork = await findOwnedWork(
+        executor,
+        accountId,
+        input.targetId,
+        true,
+      );
+      if (!currentWork) {
+        return null;
+      }
+
+      await assertValidPrimaryFeature(executor, accountId, nextWork);
+      await assertFeatureExitReady(executor, currentWork, nextWork);
+
       const ownedProject = await findOwnedProject(
         executor,
         accountId,
@@ -288,7 +411,16 @@ function createWorkUpdateMutationTarget(
       const [updated] = await executor
         .update(work)
         .set({
+          archivedAt: nextWork.archivedAt
+            ? new Date(nextWork.archivedAt)
+            : null,
+          closureReason: nextWork.closureReason,
+          closureResult: nextWork.closureResult,
+          featureHealthHistory: nextWork.featureHealthHistory,
+          primaryFeatureId: nextWork.primaryFeatureId,
+          primarySpecId: nextWork.primarySpecId,
           revision: input.expectedRevision + 1,
+          status: nextWork.status,
           type: nextWork.type,
           updatedAt: input.committedAt,
         })
@@ -325,8 +457,20 @@ function reserveExistingAllocation(
   return toReservation(existing);
 }
 
-export function createDatabaseWorkLifecycle(database: Database) {
+export interface WorkLifecycleProjectDocumentAccess {
+  hasProjectDocument: (
+    accountId: string,
+    projectId: string,
+    documentId: string,
+  ) => Promise<boolean>;
+}
+
+export function createDatabaseWorkLifecycle(
+  database: Database,
+  options: { projectDocumentAccess?: WorkLifecycleProjectDocumentAccess } = {},
+) {
   const relations = createDatabaseWorkRelations(database);
+  const { projectDocumentAccess } = options;
   const store: WorkLifecycleStore = {
     async find(accountId, workId) {
       const workspaceId = await findWorkspaceId(database, accountId);
@@ -384,7 +528,7 @@ export function createDatabaseWorkLifecycle(database: Database) {
         : null;
     },
 
-    async list(accountId, projectId) {
+    async list(accountId, projectId, listOptions) {
       const workspaceId = await findWorkspaceId(database, accountId);
       if (!workspaceId) {
         return [];
@@ -397,11 +541,37 @@ export function createDatabaseWorkLifecycle(database: Database) {
           and(
             eq(work.projectId, projectId),
             eq(project.workspaceId, workspaceId),
+            listOptions?.archived
+              ? isNotNull(work.archivedAt)
+              : isNull(work.archivedAt),
           ),
         )
         .orderBy(asc(work.number));
       return records.map(({ record }) => toWorkProfile(record));
     },
+
+    async listIncluded(accountId, featureId) {
+      const workspaceId = await findWorkspaceId(database, accountId);
+      if (!workspaceId) {
+        return [];
+      }
+      const records = await database
+        .select({ record: work })
+        .from(work)
+        .innerJoin(project, eq(work.projectId, project.id))
+        .where(
+          and(
+            eq(work.primaryFeatureId, featureId),
+            eq(project.workspaceId, workspaceId),
+          ),
+        )
+        .orderBy(asc(work.number));
+      return records.map(({ record }) => toWorkProfile(record));
+    },
+
+    ...(projectDocumentAccess
+      ? { hasProjectDocument: projectDocumentAccess.hasProjectDocument }
+      : {}),
 
     reserveCreate(
       accountId,

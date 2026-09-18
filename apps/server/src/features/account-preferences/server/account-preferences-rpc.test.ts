@@ -37,6 +37,7 @@ describe("Account Preferences RPC", () => {
       },
     });
     const mutationContract: MutationContract<AccountPreferences> = {
+      replay: async () => null,
       mutate: async <TPayload extends MutationPayload>(
         command: MutationCommand<TPayload>,
         apply: MutationApply<AccountPreferences, TPayload>,

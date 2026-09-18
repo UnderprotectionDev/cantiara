@@ -398,7 +398,10 @@ export default function ProjectShellView({
         >
           <div>
             <h2 className="font-medium text-lg">Work</h2>
-            <ProjectWorkList projectId={projectId} />
+            <ProjectWorkList
+              projectId={projectId}
+              workStatusLabels={configuration.workStatusLabels}
+            />
             <p className="mt-2 text-muted-foreground text-sm/relaxed">
               Daily actions stay separate from Overview source records.
             </p>

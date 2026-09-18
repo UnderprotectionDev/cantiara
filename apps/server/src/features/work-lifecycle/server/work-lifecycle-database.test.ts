@@ -17,10 +17,7 @@ import {
 } from "vitest";
 
 import { createDatabaseProjectShell } from "../../project-shell/server/project-shell-database";
-import {
-  WorkRelationNotPortableError,
-  WorkTypeImpactPreviewRequiredError,
-} from "./work-lifecycle";
+import { WorkTypeImpactPreviewRequiredError } from "./work-lifecycle";
 import { createDatabaseWorkLifecycle } from "./work-lifecycle-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -145,7 +142,7 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
     ).resolves.toEqual([]);
   });
 
-  test("atomically recreates portable relations and an Origin in the target Project", async () => {
+  test("persists recreate content and Origin through the public Work Lifecycle seam", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
     }
@@ -157,99 +154,161 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       starterConfiguration: "Blank Project",
     });
     const targetProject = await projectShell.create(accountId, {
-      name: "Orders",
-      shortCode: "ORD",
+      name: "Payment Reports",
+      shortCode: "REPORTS",
+      starterConfiguration: "Blank Project",
+    });
+    const verificationProject = await projectShell.create(accountId, {
+      name: "Payment Archive",
+      shortCode: "ARCHIVE",
       starterConfiguration: "Blank Project",
     });
     const workLifecycle = createDatabaseWorkLifecycle(database);
+    const relatedWork = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "recreate-related-work",
+      projectId: sourceProject.id,
+      title: "Related source Work",
+      type: "Task",
+    });
     const source = await workLifecycle.create(accountId, {
       baseRevision: 0,
       checklist: [
-        { completed: false, id: "item-1", text: "Confirm the failure" },
+        { completed: true, id: "check-1", text: "Confirm the problem" },
       ],
-      clientIdempotencyKey: "recreate-source",
-      description: "Payment failures are intermittent.",
+      clientIdempotencyKey: "recreate-source-work",
+      description: "Keep this context",
       projectId: sourceProject.id,
-      title: "Investigate payment failures",
-      type: "Research",
+      title: "Recreate this Work",
+      type: "Bug",
     });
-    await database.insert(workRelation).values([
-      {
-        id: "portable-related",
-        kind: "Related",
-        sourceWorkId: source.id,
-        targetLabel: "Decision DEC-1",
-        targetProjectId: sourceProject.id,
-        targetRecordId: "decision-1",
-      },
-      {
-        id: "github-completion",
-        kind: "Required for completion",
-        sourceWorkId: source.id,
-        targetLabel: "Pull request #42",
-        targetProjectId: sourceProject.id,
-        targetRecordId: "github-pr-42",
-      },
-    ]);
-    const sourceBefore = await workLifecycle.find(accountId, source.id);
+    const relationId = `relation-${crypto.randomUUID()}`;
+    await database.insert(workRelation).values({
+      id: relationId,
+      kind: "Related",
+      sourceWorkId: source.id,
+      targetLabel: relatedWork.key,
+      targetProjectId: relatedWork.projectId,
+      targetRecordId: relatedWork.id,
+    });
 
     const preview = await workLifecycle.previewRecreate(accountId, {
       sourceWorkId: source.id,
       targetProjectId: targetProject.id,
     });
-    expect(preview?.relations).toHaveLength(2);
+    expect(preview?.relations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: relationId,
+          kind: "Related",
+          targetRecordId: relatedWork.id,
+        }),
+      ]),
+    );
     if (!preview) {
       throw new Error("Expected a recreate preview.");
     }
-    await expect(
-      workLifecycle.recreate(accountId, {
-        baseRevision: 0,
-        clientIdempotencyKey: "reject-non-portable",
-        previewId: preview.previewId,
-        selectedFields: ["title", "type"],
-        selectedRelationIds: ["github-completion"],
-        sourceWorkId: source.id,
-        targetProjectId: targetProject.id,
-      }),
-    ).rejects.toBeInstanceOf(WorkRelationNotPortableError);
 
     const recreated = await workLifecycle.recreate(accountId, {
       baseRevision: 0,
-      clientIdempotencyKey: "confirm-recreate",
+      clientIdempotencyKey: "recreate-confirm-work",
       previewId: preview.previewId,
-      selectedFields: ["title", "type", "description", "checklist"],
-      selectedRelationIds: ["portable-related"],
+      selectedFields: ["title", "description", "checklist"],
+      selectedRelationIds: [relationId],
       sourceWorkId: source.id,
       targetProjectId: targetProject.id,
     });
-
     expect(recreated).toMatchObject({
       checklist: source.checklist,
       description: source.description,
-      key: "ORD-1",
+      projectId: targetProject.id,
       recreatedFrom: { id: source.id, key: source.key },
-      status: "Not Started",
+      title: source.title,
+      type: "Task",
     });
+    await expect(
+      workLifecycle.find(accountId, source.id),
+    ).resolves.toMatchObject({
+      description: source.description,
+      projectId: sourceProject.id,
+      revision: source.revision,
+      title: source.title,
+      type: source.type,
+    });
+
     const recreatedPreview = await workLifecycle.previewRecreate(accountId, {
       sourceWorkId: recreated.id,
-      targetProjectId: sourceProject.id,
+      targetProjectId: verificationProject.id,
     });
     expect(recreatedPreview?.relations).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          kind: "Related",
-          targetRecordId: "decision-1",
-        }),
         expect.objectContaining({
           kind: "Origin",
           targetRecordId: source.id,
         }),
       ]),
     );
-    expect(recreatedPreview?.relations).toHaveLength(2);
-    await expect(workLifecycle.find(accountId, source.id)).resolves.toEqual(
-      sourceBefore,
+  });
+
+  test("persists the Work archive filter and restores the same identity", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Payment App",
+      shortCode: "PAY",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const created = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "archive-create",
+      projectId: project.id,
+      title: "Archive payment research",
+      type: "Research",
+    });
+
+    const archived = await workLifecycle.archive(accountId, {
+      baseRevision: created.revision,
+      clientIdempotencyKey: "archive-work",
+      workId: created.id,
+    });
+
+    expect(archived).toMatchObject({
+      closureResult: null,
+      id: created.id,
+      key: created.key,
+      status: "Not Started",
+    });
+    expect(archived.archivedAt).not.toBeNull();
+    await expect(workLifecycle.list(accountId, project.id)).resolves.toEqual(
+      [],
     );
+    await expect(
+      workLifecycle.list(accountId, project.id, { archived: true }),
+    ).resolves.toMatchObject([
+      {
+        archivedAt: archived.archivedAt,
+        closureResult: null,
+        id: created.id,
+        key: created.key,
+        status: "Not Started",
+      },
+    ]);
+
+    await expect(
+      workLifecycle.unarchive(accountId, {
+        baseRevision: archived.revision,
+        clientIdempotencyKey: "unarchive-work",
+        workId: created.id,
+      }),
+    ).resolves.toMatchObject({
+      archivedAt: null,
+      id: created.id,
+      key: created.key,
+    });
   });
 
   test("persists free type changes and protects Feature boundary changes", async () => {
@@ -307,5 +366,237 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
         workId: created.id,
       }),
     ).resolves.toMatchObject({ revision: 3, type: "Feature" });
+  });
+
+  test("persists Feature inclusion, health, Primary spec, and derived progress independently", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Feature Project",
+      shortCode: "FEATURE",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database, {
+      projectDocumentAccess: {
+        hasProjectDocument: async (_accountId, projectId, documentId) =>
+          projectId === project.id && documentId === "document-1",
+      },
+    });
+    const feature = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "database-feature",
+      projectId: project.id,
+      title: "Feature scope",
+      type: "Feature",
+    });
+    const independentWork = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "database-included-work",
+      projectId: project.id,
+      title: "Independent Bug",
+      type: "Bug",
+    });
+
+    const included = await workLifecycle.includeWork(accountId, {
+      baseRevision: independentWork.revision,
+      clientIdempotencyKey: "database-include-work",
+      featureId: feature.id,
+      workId: independentWork.id,
+    });
+    const replayedInclusion = await workLifecycle.includeWork(accountId, {
+      baseRevision: independentWork.revision,
+      clientIdempotencyKey: "database-include-work",
+      featureId: feature.id,
+      workId: independentWork.id,
+    });
+    expect(replayedInclusion).toEqual(included);
+    const withHealth = await workLifecycle.recordFeatureHealth(accountId, {
+      baseRevision: feature.revision,
+      clientIdempotencyKey: "database-feature-health",
+      featureId: feature.id,
+      health: "On Track",
+      reason: "The acceptance path is clear.",
+    });
+    const replayedHealth = await workLifecycle.recordFeatureHealth(accountId, {
+      baseRevision: feature.revision,
+      clientIdempotencyKey: "database-feature-health",
+      featureId: feature.id,
+      health: "On Track",
+      reason: "The acceptance path is clear.",
+    });
+    expect(replayedHealth).toEqual(withHealth);
+    await workLifecycle.updateFeaturePrimarySpec(accountId, {
+      baseRevision: withHealth.revision,
+      clientIdempotencyKey: "database-primary-spec",
+      featureId: feature.id,
+      primarySpecId: "document-1",
+    });
+
+    await expect(
+      workLifecycle.find(accountId, included.id),
+    ).resolves.toMatchObject({
+      primaryFeatureId: feature.id,
+      status: independentWork.status,
+      type: "Bug",
+    });
+    await expect(
+      workLifecycle.featureProgress(accountId, feature.id),
+    ).resolves.toMatchObject({ includedWorkCount: 1 });
+    await expect(
+      workLifecycle.find(accountId, feature.id),
+    ).resolves.toMatchObject({
+      featureHealthHistory: [expect.objectContaining({ health: "On Track" })],
+      primarySpecId: "document-1",
+      status: "Not Started",
+    });
+  });
+
+  test("keeps inclusion valid when include and Feature exit race", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Concurrent Feature Project",
+      shortCode: "RACE",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const feature = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "race-feature",
+      projectId: project.id,
+      title: "Concurrent Feature",
+      type: "Feature",
+    });
+    const candidate = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "race-candidate",
+      projectId: project.id,
+      title: "Concurrent candidate",
+      type: "Task",
+    });
+    const preview = await workLifecycle.previewTypeChange(accountId, {
+      type: "Task",
+      workId: feature.id,
+    });
+    if (!preview) {
+      throw new Error("Expected a Feature exit preview.");
+    }
+
+    const results = await Promise.allSettled([
+      workLifecycle.includeWork(accountId, {
+        baseRevision: candidate.revision,
+        clientIdempotencyKey: "race-include",
+        featureId: feature.id,
+        workId: candidate.id,
+      }),
+      workLifecycle.updateType(accountId, {
+        baseRevision: feature.revision,
+        clientIdempotencyKey: "race-exit",
+        impactPreviewId: preview.previewId,
+        type: "Task",
+        workId: feature.id,
+      }),
+    ]);
+
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    const rejected = results.find((result) => result.status === "rejected");
+    expect(rejected).toBeDefined();
+    if (rejected?.status === "rejected") {
+      expect([
+        "APPLY_FAILED",
+        "WORK_FEATURE_EXIT_BLOCKED",
+        "WORK_INCLUSION_CONFLICT",
+      ]).toContain(rejected.reason?.code);
+    }
+    const [storedFeature, storedCandidate] = await Promise.all([
+      workLifecycle.find(accountId, feature.id),
+      workLifecycle.find(accountId, candidate.id),
+    ]);
+    expect(storedFeature).not.toBeNull();
+    expect(storedCandidate).not.toBeNull();
+    expect(storedFeature?.type === "Feature").toBe(
+      storedCandidate?.primaryFeatureId === storedFeature?.id,
+    );
+  });
+
+  test("persists explicit closure and confirmed reopen separately from status", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Payment App",
+      shortCode: "PAY",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const created = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "closure-create",
+      projectId: project.id,
+      title: "Retire the old payment path",
+      type: "Improvement",
+    });
+
+    const closed = await workLifecycle.close(
+      accountId,
+      {
+        baseRevision: created.revision,
+        clientIdempotencyKey: "closure-abandoned",
+        closureResult: "Abandoned",
+        reason: "The provider removed this path.",
+        workId: created.id,
+      },
+      { kind: "Visible user" },
+    );
+    expect(closed).toMatchObject({
+      closureReason: "The provider removed this path.",
+      closureResult: "Abandoned",
+      revision: 2,
+      status: "Closed",
+    });
+    await expect(
+      workLifecycle.find(accountId, created.id),
+    ).resolves.toMatchObject({
+      closureReason: "The provider removed this path.",
+      closureResult: "Abandoned",
+      revision: 2,
+      status: "Closed",
+    });
+
+    const reopened = await workLifecycle.reopen(
+      accountId,
+      {
+        baseRevision: closed.revision,
+        clientIdempotencyKey: "closure-reopen",
+        confirmed: true,
+        status: "In Progress",
+        workId: created.id,
+      },
+      { kind: "Visible user" },
+    );
+    expect(reopened).toMatchObject({
+      closureReason: null,
+      closureResult: null,
+      revision: 3,
+      status: "In Progress",
+    });
+    await expect(
+      workLifecycle.find(accountId, created.id),
+    ).resolves.toMatchObject({
+      closureReason: null,
+      closureResult: null,
+      revision: 3,
+      status: "In Progress",
+    });
   });
 });

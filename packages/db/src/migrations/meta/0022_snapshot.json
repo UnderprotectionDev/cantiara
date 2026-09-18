@@ -1,6 +1,6 @@
 {
-  "id": "b117fbc9-e946-42a9-880f-4b0c3b40bffe",
-  "prevId": "e1070f3b-0d71-4b71-971e-2e4632719cbd",
+  "id": "c502d361-2a6a-4fe2-9eda-7016eb053b71",
+  "prevId": "dfd3a0a1-d027-4023-90b5-50bd29db1640",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1999,18 +1999,23 @@
       "name": "work",
       "schema": "",
       "columns": {
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "capture_provenance": {
           "name": "capture_provenance",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
-        "checklist": {
-          "name": "checklist",
-          "type": "jsonb",
+        "closure_reason": {
+          "name": "closure_reason",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
+          "notNull": false
         },
         "closure_result": {
           "name": "closure_result",
@@ -2024,12 +2029,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "id": {
           "name": "id",
@@ -2054,18 +2053,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "recreated_from_work_id": {
-          "name": "recreated_from_work_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "recreated_from_work_key": {
-          "name": "recreated_from_work_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "revision": {
           "name": "revision",
@@ -2198,6 +2185,10 @@
         "work_closure_result_check": {
           "name": "work_closure_result_check",
           "value": "\"work\".\"closure_result\" is null or \"work\".\"closure_result\" in ('Completed', 'Abandoned')"
+        },
+        "work_closed_result_check": {
+          "name": "work_closed_result_check",
+          "value": "(\"work\".\"status\" = 'Closed' and \"work\".\"closure_result\" is not null) or (\"work\".\"status\" <> 'Closed' and \"work\".\"closure_result\" is null and \"work\".\"closure_reason\" is null)"
         }
       },
       "isRLSEnabled": false
@@ -2343,97 +2334,6 @@
         "work_key_allocation_payload_fingerprint_check": {
           "name": "work_key_allocation_payload_fingerprint_check",
           "value": "\"work_key_allocation\".\"payload_fingerprint\" is null or \"work_key_allocation\".\"payload_fingerprint\" ~ '^[0-9a-fA-F]{64}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.work_relation": {
-      "name": "work_relation",
-      "schema": "",
-      "columns": {
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_work_id": {
-          "name": "source_work_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_label": {
-          "name": "target_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_project_id": {
-          "name": "target_project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_record_id": {
-          "name": "target_record_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "work_relation_source_idx": {
-          "name": "work_relation_source_idx",
-          "columns": [
-            {
-              "expression": "source_work_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "work_relation_source_work_id_work_id_fk": {
-          "name": "work_relation_source_work_id_work_id_fk",
-          "tableFrom": "work_relation",
-          "tableTo": "work",
-          "columnsFrom": ["source_work_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "work_relation_kind_check": {
-          "name": "work_relation_kind_check",
-          "value": "\"work_relation\".\"kind\" in ('Related', 'Evidence', 'Contributes to Goal', 'Contributes to Milestone', 'Implements', 'GitHub Completion', 'Automation', 'Planning Membership', 'Publish', 'Parentage', 'Merge State', 'History', 'Closure Result', 'Status', 'Date', 'Origin')"
-        },
-        "work_relation_target_label_check": {
-          "name": "work_relation_target_label_check",
-          "value": "length(btrim(\"work_relation\".\"target_label\")) > 0"
         }
       },
       "isRLSEnabled": false
