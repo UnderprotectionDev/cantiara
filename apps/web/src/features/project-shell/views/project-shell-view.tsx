@@ -393,7 +393,7 @@ export default function ProjectShellView({
           <div>
             <h2 className="font-medium text-lg">Daily Work actions</h2>
             <p className="mt-2 text-muted-foreground text-sm/relaxed">
-              Daily actions stay separate from Project Overview source records.
+              Daily actions stay separate from Overview source records.
             </p>
             <DailyWorkActions activeAction={dailyAction} />
           </div>

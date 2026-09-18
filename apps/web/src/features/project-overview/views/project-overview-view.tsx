@@ -6,6 +6,7 @@ import {
   buildProjectOverview,
   type ProjectOverviewModel,
   type ProjectOverviewModule,
+  type ProjectOverviewModuleName,
   type ProjectOverviewSourceRecord,
   type ProjectOverviewSources,
 } from "@cantiara/api/project-overview";
@@ -49,11 +50,8 @@ export default function ProjectOverviewView({
       id="overview"
     >
       <header className="max-w-3xl border-b pb-6">
-        <p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.18em]">
-          Project Overview
-        </p>
         <h2
-          className="mt-3 text-balance font-semibold text-2xl tracking-tight sm:text-3xl"
+          className="text-balance font-semibold text-2xl tracking-tight sm:text-3xl"
           id="project-overview-heading"
         >
           Overview
@@ -249,7 +247,7 @@ function SourceRecord({
   record,
 }: {
   formattingPreferences: OverviewFormattingPreferences;
-  moduleName: string;
+  moduleName: ProjectOverviewModuleName;
   record: ProjectOverviewSourceRecord;
 }) {
   const dateValue = record.targetDate ?? record.updatedAt;

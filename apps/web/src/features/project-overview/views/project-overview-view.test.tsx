@@ -121,6 +121,7 @@ describe("Project Overview", () => {
     expect(html).toContain("Checkout handoff");
     expect(html).toContain("Founder checkout session");
     expect(html).toContain("Retry path is unverified");
+    expect(html).toContain('href="/projects/project-1/goals/goal-1"');
     expect(html).toContain("Open source record");
     expect(html).toMatch(PROJECT_TARGET_DATE_PATTERN);
     expect(html).toContain('data-overview-area="Work"');

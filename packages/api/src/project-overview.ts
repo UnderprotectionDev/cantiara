@@ -34,13 +34,17 @@ export interface ProjectOverviewSourceRecord {
   updatedAt?: string | null;
 }
 
+export interface ProjectOverviewGoalRecord extends ProjectOverviewSourceRecord {
+  href: string;
+}
+
 export interface ProjectOverviewSources {
   activeTestHandoffs?: readonly ProjectOverviewSourceRecord[];
   blockers?: readonly ProjectOverviewSourceRecord[];
   dates?: readonly ProjectOverviewSourceRecord[];
   decisions?: readonly ProjectOverviewSourceRecord[];
   documents?: readonly ProjectOverviewSourceRecord[];
-  goals?: readonly ProjectOverviewSourceRecord[];
+  goals?: readonly ProjectOverviewGoalRecord[];
   importantProductionIncidents?: readonly ProjectOverviewSourceRecord[];
   milestones?: readonly ProjectOverviewSourceRecord[];
   openTestGaps?: readonly ProjectOverviewSourceRecord[];
