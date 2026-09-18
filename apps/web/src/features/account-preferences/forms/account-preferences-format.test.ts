@@ -48,6 +48,16 @@ describe("Account Preferences formatting", () => {
     );
   });
 
+  test("keeps date-only values on their calendar date in every time zone", () => {
+    const preferences: AccountPreferences = {
+      ...DEFAULT_ACCOUNT_PREFERENCES,
+      dateFormat: "yyyy-MM-dd",
+      timeZone: "Pacific/Kiritimati",
+    };
+
+    expect(formatAccountDate("2026-09-30", preferences)).toBe("2026-09-30");
+  });
+
   test("moves the week grid's first label without changing the instant", () => {
     const monday = getWeekDayLabels({
       ...DEFAULT_ACCOUNT_PREFERENCES,
