@@ -25,6 +25,11 @@ import type {
 } from "@cantiara/api/project-shell";
 import { appRouter } from "@cantiara/api/routers/index";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
+import {
+  type WebCaptureAccess,
+  webCapturePairingInputSchema,
+  webCaptureSendInputSchema,
+} from "@cantiara/api/web-capture";
 import { TAURI_AUTH_CALLBACK_URL } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
@@ -42,6 +47,7 @@ import { type EvlogVariables, evlog } from "evlog/hono";
 import type { Context as HonoContext } from "hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { ZodError } from "zod";
 import {
   type AccountAccessAuth,
   createContext,
@@ -66,6 +72,7 @@ import {
   isTauriAuthCodeVerifier,
   type TauriSessionAccess,
 } from "./features/account-access/server/tauri-session";
+import { WebCaptureError } from "./features/capture-triage/server/web-capture";
 import {
   createDesktopApiUpdateRequiredResponse,
   createSupportFailureResponse,
@@ -100,6 +107,7 @@ export interface AppDependencies {
   redactSecrets: (value: unknown) => unknown;
   tauriSessionAccess?: TauriSessionAccess;
   trustedProxyIps: readonly string[];
+  webCapture?: WebCaptureAccess;
 }
 
 function isRecoverableAuthPath(path: string) {
@@ -598,6 +606,73 @@ function isClientShellPath(path: string) {
   return path === "/rpc" || path.startsWith("/rpc/");
 }
 
+function isWebCaptureExtensionOrigin(origin: string) {
+  return (
+    origin.startsWith("chrome-extension://") ||
+    origin.startsWith("moz-extension://")
+  );
+}
+
+function resolveCorsOrigin(origin: string, allowedOrigins: readonly string[]) {
+  if (isWebCaptureExtensionOrigin(origin)) {
+    return origin;
+  }
+  if (allowedOrigins.includes(origin)) {
+    return origin;
+  }
+}
+
+function webCaptureToken(request: Request) {
+  const authorization = request.headers.get("authorization");
+  if (!authorization?.startsWith("Bearer ")) {
+    return null;
+  }
+  const token = authorization.slice("Bearer ".length).trim();
+  return token.length > 0 && token.length <= 512 ? token : null;
+}
+
+function webCaptureErrorResponse(error: unknown) {
+  if (error instanceof ZodError || error instanceof SyntaxError) {
+    return Response.json(
+      { code: "WEB_CAPTURE_INVALID_REQUEST" },
+      { headers: noStoreHeaders(), status: 400 },
+    );
+  }
+  if (error instanceof WebCaptureError) {
+    const status = {
+      WEB_CAPTURE_IDEMPOTENCY_CONFLICT: 409,
+      WEB_CAPTURE_LINK_NOT_FOUND: 401,
+      WEB_CAPTURE_LINK_REVOKED: 401,
+      WEB_CAPTURE_PAIRING_INVALID: 401,
+      WEB_CAPTURE_REAUTH_REQUIRED: 401,
+      WEB_CAPTURE_STAGING_UNAVAILABLE: 503,
+      WEB_CAPTURE_TARGET_NOT_FOUND: 404,
+    }[error.code];
+    return Response.json(
+      { code: error.code, message: error.message },
+      { headers: noStoreHeaders(), status },
+    );
+  }
+  return Response.json(
+    { code: "WEB_CAPTURE_UNAVAILABLE" },
+    { headers: noStoreHeaders(), status: 500 },
+  );
+}
+
+function webCaptureUnavailableResponse() {
+  return Response.json(
+    { code: "WEB_CAPTURE_UNAVAILABLE" },
+    { headers: noStoreHeaders(), status: 503 },
+  );
+}
+
+function webCaptureUnauthorizedResponse() {
+  return Response.json(
+    { code: "UNAUTHORIZED" },
+    { headers: noStoreHeaders(), status: 401 },
+  );
+}
+
 export function createApp(dependencies: AppDependencies) {
   const identifyUser = createAuthMiddleware(
     dependencies.auth as unknown as BetterAuthInstance,
@@ -629,7 +704,7 @@ export function createApp(dependencies: AppDependencies) {
   app.use(
     "/*",
     cors({
-      origin: allowedOrigins,
+      origin: (origin) => resolveCorsOrigin(origin, allowedOrigins),
       allowMethods: ["GET", "POST", "OPTIONS"],
       allowHeaders: [
         "Content-Type",
@@ -664,6 +739,57 @@ export function createApp(dependencies: AppDependencies) {
   app.get(CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH, (c) =>
     completeConfirmGitHubIdentity(c.req.raw, c, dependencies),
   );
+
+  app.post("/api/web-capture/pair", async (c) => {
+    if (!dependencies.webCapture) {
+      return webCaptureUnavailableResponse();
+    }
+    try {
+      const input = webCapturePairingInputSchema.parse(await c.req.json());
+      return Response.json(await dependencies.webCapture.pair(input), {
+        headers: noStoreHeaders(),
+      });
+    } catch (error) {
+      return webCaptureErrorResponse(error);
+    }
+  });
+
+  app.get("/api/web-capture/inboxes", async (c) => {
+    if (!dependencies.webCapture) {
+      return webCaptureUnavailableResponse();
+    }
+    const token = webCaptureToken(c.req.raw);
+    if (!token) {
+      return webCaptureUnauthorizedResponse();
+    }
+    try {
+      const targets = await dependencies.webCapture.listTargets(
+        token,
+        c.req.query("search") ?? "",
+      );
+      return Response.json({ targets }, { headers: noStoreHeaders() });
+    } catch (error) {
+      return webCaptureErrorResponse(error);
+    }
+  });
+
+  app.post("/api/web-capture/send", async (c) => {
+    if (!dependencies.webCapture) {
+      return webCaptureUnavailableResponse();
+    }
+    const token = webCaptureToken(c.req.raw);
+    if (!token) {
+      return webCaptureUnauthorizedResponse();
+    }
+    try {
+      const input = webCaptureSendInputSchema.parse(await c.req.json());
+      return Response.json(await dependencies.webCapture.send(token, input), {
+        headers: noStoreHeaders(),
+      });
+    } catch (error) {
+      return webCaptureErrorResponse(error);
+    }
+  });
 
   app.on(["POST", "GET"], "/api/auth/*", async (c) => {
     const candidateSession = await dependencies.auth.api.getSession({
@@ -769,6 +895,7 @@ export function createApp(dependencies: AppDependencies) {
       projectShell: dependencies.projectShell,
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
       trustedProxyIps: dependencies.trustedProxyIps,
+      webCapture: dependencies.webCapture,
     });
     const rpcResult = await rpcHandler.handle(c.req.raw, {
       prefix: "/rpc",

@@ -40,7 +40,7 @@ const captureStagingObjectIdSchema = identifierSchema.regex(
   },
 );
 const captureTextSchema = z.string().max(100_000);
-const captureUrlSchema = z
+export const captureUrlSchema = z
   .string()
   .trim()
   .min(1)

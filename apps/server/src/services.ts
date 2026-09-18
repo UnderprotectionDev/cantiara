@@ -24,6 +24,11 @@ import {
   createDatabaseCaptureInbox,
 } from "./features/capture-triage/server/capture-inbox-database";
 import { createDevelopmentCaptureInboxTriageAdapter } from "./features/capture-triage/server/capture-inbox-development-adapter";
+import { createDatabaseWebCapture } from "./features/capture-triage/server/web-capture-database";
+import {
+  createR2CaptureInboxStagingStore,
+  createR2WebCaptureStagingStore,
+} from "./features/capture-triage/server/web-capture-staging-r2";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
@@ -59,6 +64,18 @@ const captureInboxWorkCreate: CaptureInboxWorkCreate = {
     );
   },
 };
+const webCaptureStaging =
+  env.R2_ACCESS_KEY_ID &&
+  env.R2_ACCOUNT_ID &&
+  env.R2_BUCKET &&
+  env.R2_SECRET_ACCESS_KEY
+    ? createR2WebCaptureStagingStore({
+        accessKeyId: env.R2_ACCESS_KEY_ID,
+        accountId: env.R2_ACCOUNT_ID,
+        bucket: env.R2_BUCKET,
+        secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+      })
+    : undefined;
 export const captureInbox = createDatabaseCaptureInbox(
   db,
   captureInboxWorkCreate,
@@ -66,7 +83,17 @@ export const captureInbox = createDatabaseCaptureInbox(
   env.NODE_ENV === "production"
     ? undefined
     : createDevelopmentCaptureInboxTriageAdapter(),
+  webCaptureStaging
+    ? createR2CaptureInboxStagingStore(webCaptureStaging)
+    : undefined,
 );
+export const webCapture = createDatabaseWebCapture({
+  captureInbox,
+  database: db,
+  projects: projectShell,
+  securityEventDatabase: securityEventDb,
+  staging: webCaptureStaging,
+});
 export const githubAvailability = createGitHubAvailability();
 export const accountSessionAccess = createDatabaseAccountSessionAccess(
   db,
@@ -92,10 +119,13 @@ export const tauriSessionAccess = createDatabaseTauriSessionAccess(
 );
 let securityReplay: Promise<void> | undefined;
 
-export function replaySessionRevocations() {
+export function replaySecurityRevocations() {
   if (!securityReplay) {
-    securityReplay = accountSessionAccess
-      .replaySessionRevocations()
+    securityReplay = Promise.all([
+      accountSessionAccess.replaySessionRevocations(),
+      webCapture.replayRevocations(),
+    ])
+      .then(() => undefined)
       .catch((error) => {
         securityReplay = undefined;
         throw error;

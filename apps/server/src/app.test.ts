@@ -4,6 +4,7 @@ import {
   type DesktopApiCompatibilityWindow,
 } from "@cantiara/api/desktop-api-window";
 import { SUPPORT_REFERENCE_PATTERN } from "@cantiara/api/support-reference";
+import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import { createAuthOptions } from "@cantiara/auth";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
@@ -50,6 +51,7 @@ function createTestApp(
     onGitHubLoginOAuthRevoked?: () => void;
     onRevokeSession?: (sessionId: string) => void;
     tauriSessionAccess?: TauriSessionAccess;
+    webCapture?: WebCaptureAccess;
   } = {},
 ) {
   let handlerCalls = 0;
@@ -113,6 +115,7 @@ function createTestApp(
     redactSecrets: (value) => value,
     tauriSessionAccess: options.tauriSessionAccess,
     trustedProxyIps: ["203.0.113.10"],
+    webCapture: options.webCapture,
   };
 
   return {
@@ -126,6 +129,93 @@ function createTestApp(
 }
 
 describe("server app Account Access boundary", () => {
+  test("serves paired Web Capture requests only through an extension origin and bearer token", async () => {
+    const webCapture = {
+      createPairingCode: vi.fn(),
+      listLinks: vi.fn(),
+      listTargets: vi.fn(async () => [
+        {
+          id: "workspace",
+          label: "Workspace Capture Inbox" as const,
+          name: "Workspace",
+          projectId: null,
+        },
+      ]),
+      pair: vi.fn(async () => ({
+        link: {
+          browser: "Chrome" as const,
+          createdAt: "2026-09-18T09:00:00.000Z",
+          device: "Founder Mac",
+          id: "link-1",
+          lastUse: null,
+        },
+        token: "extension-token",
+      })),
+      revokeLink: vi.fn(),
+      send: vi.fn(),
+    } satisfies WebCaptureAccess;
+    const { app } = createTestApp({ webCapture });
+
+    const pairResponse = await app.fetch(
+      new Request("https://api.cantiara.example/api/web-capture/pair", {
+        body: JSON.stringify({
+          browser: "Chrome",
+          code: "CANTIARA-AB12-CD34",
+          device: "Founder Mac",
+        }),
+        headers: {
+          "content-type": "application/json",
+          origin: "chrome-extension://extension-id",
+        },
+        method: "POST",
+      }),
+    );
+    expect(pairResponse.status).toBe(200);
+    expect(pairResponse.headers.get("access-control-allow-origin")).toBe(
+      "chrome-extension://extension-id",
+    );
+
+    const targetsResponse = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/web-capture/inboxes?search=Workspace",
+        {
+          headers: {
+            authorization: "Bearer extension-token",
+            origin: "chrome-extension://extension-id",
+          },
+        },
+      ),
+    );
+    expect(targetsResponse.status).toBe(200);
+    expect(webCapture.listTargets).toHaveBeenCalledWith(
+      "extension-token",
+      "Workspace",
+    );
+  });
+
+  test("rejects an unpaired Web Capture write without calling the seam", async () => {
+    const webCapture = {
+      createPairingCode: vi.fn(),
+      listLinks: vi.fn(),
+      listTargets: vi.fn(),
+      pair: vi.fn(),
+      revokeLink: vi.fn(),
+      send: vi.fn(),
+    } satisfies WebCaptureAccess;
+    const { app } = createTestApp({ webCapture });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/api/web-capture/send", {
+        body: JSON.stringify({}),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(webCapture.send).not.toHaveBeenCalled();
+  });
+
   test("allows public GitHub sign-in to recover from a stale revoked cookie", async () => {
     const { app, getHandlerCalls } = createTestApp();
 

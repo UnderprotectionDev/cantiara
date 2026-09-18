@@ -35,6 +35,15 @@ describe("Sessions view", () => {
         timeZone: "Europe/London",
       },
     );
+    queryClient.setQueryData(orpc.webCaptureLinks.queryOptions().queryKey, [
+      {
+        browser: "Firefox",
+        createdAt: "2026-09-16T07:00:00.000Z",
+        device: "Founder Mac",
+        id: "link-1",
+        lastUse: "2026-09-16T08:30:00.000Z",
+      },
+    ]);
 
     const html = renderToStaticMarkup(
       <QueryClientProvider client={queryClient}>
@@ -50,6 +59,12 @@ describe("Sessions view", () => {
     expect(html).toContain("<time");
     expect(html).toContain('dateTime="2026-09-16T09:00:00.000Z"');
     expect(html).toContain("16 Eyl 2026 10:00");
+    expect(html).toContain("Extension links");
+    expect(html).toContain("Generate pairing code");
+    expect(html).toContain("Browser: Firefox");
+    expect(html).toContain("Last use");
+    expect(html).toContain("Revoke");
     expect(html).not.toContain("session-secret");
+    expect(html).not.toContain("extension-token");
   });
 });

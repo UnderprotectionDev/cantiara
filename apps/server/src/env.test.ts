@@ -15,6 +15,10 @@ const validEnvironment = {
 
 const productionEnvironment = {
   ...validEnvironment,
+  R2_ACCESS_KEY_ID: "r2-access-key",
+  R2_ACCOUNT_ID: "r2-account",
+  R2_BUCKET: "cantiara-staging",
+  R2_SECRET_ACCESS_KEY: "r2-secret-key",
   NODE_ENV: "production",
   SECURITY_EVENT_DATABASE_URL:
     "postgresql://security:security-password@security-events.example:5432/cantiara_security",
@@ -75,6 +79,15 @@ describe("server environment", () => {
         TRUSTED_PROXY_IPS: "",
       }),
     ).toThrow("TRUSTED_PROXY_IPS");
+  });
+
+  test("requires R2 staging credentials in production", () => {
+    expect(() =>
+      createServerEnv({
+        ...productionEnvironment,
+        R2_SECRET_ACCESS_KEY: undefined,
+      }),
+    ).toThrow("R2_ACCESS_KEY_ID");
   });
 
   test("requires a separate security-event database in production", () => {

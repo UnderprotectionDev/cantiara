@@ -18,6 +18,7 @@ import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
 } from "@cantiara/api/project-shell";
+import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { createAuth } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
 import type { Context as HonoContext } from "hono";
@@ -45,6 +46,7 @@ export interface CreateContextOptions {
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   trustedProxyIps: readonly string[];
+  webCapture?: WebCaptureAccess;
 }
 
 export function requestClientPlatform(request: Request): AccountAccessClient {
@@ -69,6 +71,7 @@ export async function createContext({
   projectShell,
   projectShellMutationContracts,
   trustedProxyIps,
+  webCapture,
 }: CreateContextOptions): Promise<ApiContext> {
   const candidateSession = await auth.api.getSession({
     headers: context.req.raw.headers,
@@ -102,6 +105,7 @@ export async function createContext({
     projectShellMutationContracts,
     auth: null,
     session,
+    webCapture,
   };
 }
 
