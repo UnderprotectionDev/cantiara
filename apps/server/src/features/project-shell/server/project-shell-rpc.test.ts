@@ -244,7 +244,9 @@ describe("Project Shell RPC", () => {
     let currentProject: ProjectProfile = {
       ...project,
       configuration: getProjectShellConfiguration("Solo SaaS"),
+      starterConfiguration: "Solo SaaS",
     };
+    const initialConfiguration = currentProject.configuration;
     const projectShell: ProjectShellAccess = {
       create: async () => currentProject,
       find: async () => currentProject,
@@ -308,11 +310,96 @@ describe("Project Shell RPC", () => {
     expect(added.configuration.preparedStages).toContainEqual(
       expect.objectContaining({ name: "Research", status: "Active" }),
     );
+    const researchStage = added.configuration.preparedStages.find(
+      (stage) => stage.name === "Research",
+    );
+    if (!researchStage) {
+      throw new Error("Expected the Research stage to be present.");
+    }
+
+    const withBuild = await update({
+      kind: "add-stage",
+      name: "Build",
+      status: "Active",
+    });
+    const buildStage = withBuild.configuration.preparedStages.find(
+      (stage) => stage.name === "Build",
+    );
+    if (!buildStage) {
+      throw new Error("Expected the Build stage to be present.");
+    }
+    expect(
+      withBuild.configuration.preparedStages.filter(
+        (stage) => stage.status === "Active",
+      ),
+    ).toHaveLength(2);
+
+    const renamed = await update({
+      kind: "rename-stage",
+      name: "Discovery research",
+      stageId: researchStage.id,
+    });
+    expect(
+      renamed.configuration.preparedStages.find(
+        (stage) => stage.id === researchStage.id,
+      ),
+    ).toMatchObject({ name: "Discovery research", status: "Active" });
+
+    const reordered = await update({
+      kind: "reorder-stages",
+      stageIds: [
+        buildStage.id,
+        researchStage.id,
+        ...withBuild.configuration.preparedStages
+          .filter(
+            (stage) =>
+              stage.id !== buildStage.id && stage.id !== researchStage.id,
+          )
+          .map((stage) => stage.id),
+      ],
+    });
+    expect(
+      reordered.configuration.preparedStages
+        .slice(0, 2)
+        .map((stage) => stage.name),
+    ).toEqual(["Build", "Discovery research"]);
+
+    const withCompletedBuild = await update({
+      kind: "set-stage-status",
+      stageId: buildStage.id,
+      status: "Completed",
+    });
+    expect(
+      withCompletedBuild.configuration.preparedStages.find(
+        (stage) => stage.id === buildStage.id,
+      ),
+    ).toMatchObject({ name: "Build", status: "Completed" });
+
+    const withoutBuild = await update({
+      kind: "remove-stage",
+      stageId: buildStage.id,
+    });
+    expect(
+      withoutBuild.configuration.preparedStages.find(
+        (stage) => stage.id === researchStage.id,
+      ),
+    ).toMatchObject({ name: "Discovery research", status: "Active" });
+    expect(
+      withoutBuild.configuration.preparedStages.some(
+        (stage) => stage.id === buildStage.id,
+      ),
+    ).toBe(false);
 
     await update({
       area: "Discovery",
       kind: "set-area-visibility",
       visible: false,
+    });
+    await update({ area: "Discovery", kind: "unpin-area" });
+    await update({ area: "Discovery", kind: "pin-area" });
+    await update({
+      areas: ["Decisions", "Discovery", "Design", "Tests", "Releases"],
+      kind: "reorder-pinned-areas",
     });
     await update({
       kind: "rename-work-status",
@@ -329,6 +416,16 @@ describe("Project Shell RPC", () => {
       "Closed",
     ]);
     expect(currentProject.configuration.workStatusLabels).toContainEqual({
+      label: "Done",
+      semantic: "Closed",
+    });
+
+    const restored = await update({ kind: "restore-default-navigation" });
+    expect(restored.configuration.extraPinnedAreas).toEqual(
+      initialConfiguration.extraPinnedAreas,
+    );
+    expect(restored.configuration.hiddenAreas).toEqual(["Discovery"]);
+    expect(restored.configuration.workStatusLabels).toContainEqual({
       label: "Done",
       semantic: "Closed",
     });

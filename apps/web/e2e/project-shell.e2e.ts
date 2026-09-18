@@ -383,10 +383,18 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
   await expect(
     stageEditor.getByRole("textbox", { name: "Stage name Discovery research" }),
   ).toBeVisible();
-  await stageEditor
-    .getByRole("button", { name: "Remove stage", exact: true })
-    .last()
-    .click();
+  const removeStageButtons = stageEditor.getByRole("button", {
+    name: "Remove stage",
+    exact: true,
+  });
+  await removeStageButtons.last().click();
+  await expect(
+    stageEditor.getByText(
+      "Build will leave presentation and filters. Main records are not deleted.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await removeStageButtons.last().click();
   await expect(
     stageEditor.getByRole("textbox", { name: "Stage name Build" }),
   ).toHaveCount(0);

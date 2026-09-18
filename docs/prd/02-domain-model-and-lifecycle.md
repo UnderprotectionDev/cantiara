@@ -385,6 +385,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İş durumları | `Work statuses` | Korunan İş akışı durumlarının kullanıcıya dönük ad girişi |
 | Proje alanları | `Project areas` | Kapalı Proje alanı kataloğunun etkinleştirme girişi |
 | Navigasyona sabitle | `Pin to navigation` | Proje alanını navigasyon üstverisine sabitleme; alan etkinleştirme değildir |
+| Sabitlemeyi kaldır | `Remove pin` | Proje alanının navigasyon üstverisindeki sabitlemesini kaldırma |
 | Varsayılan navigasyonu geri yükle | `Restore default navigation` | Yalnız pin ve sıra üstverisini Başlangıç yapılandırması varsayılanına döndürme |
 | Proje yapısını kopyalama | `Copy project structure` | Aşama, etkin alan, durum, hazır görünüm, düzen, özel alan tanımı, öncelik ölçütü ve boş duvar iskeletini içeriksiz yeni Projeye aktarma; kayıt, şablon, test senaryosu ve otomasyon kopyalamaz |
 | Planlanmadı | `Not Planned` | Proje aşaması durumu; İş akışı durumu değildir |
@@ -396,6 +397,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yukarı taşı | `Move up` | Aşama sunum sırasını öne alma |
 | Aşağı taşı | `Move down` | Aşama sunum sırasını sona alma |
 | Aşama kaldırma önizlemesi | `{name} will leave presentation and filters. Main records are not deleted.` | Aşama kaldırılırken sunum/filtre önizlemesi |
+| Aşamalar yapılandırması | `Stages configuration` | Yapılandırma modundaki aşama listesi ve sunum düzeni bölümü |
+| İş durumu yapılandırması | `Work status configuration` | Yapılandırma modundaki korunan İş durumu görünen adları bölümü |
+| Görünen ad | `Visible label` | Korunan İş durumu semantiğinin kullanıcıya dönük adı |
 | Kaydet | `Save` | Yapılandırma modunda aşama adı ve İş durumu görünen adını kaydetme |
 | Aşama adı gerekli | `Stage name is required.` | Boş aşama adı reddi |
 | İş durumu adı gerekli | `Work status label is required.` | Boş İş durumu görünen adı reddi |

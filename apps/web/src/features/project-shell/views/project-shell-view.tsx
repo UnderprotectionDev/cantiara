@@ -707,6 +707,9 @@ function StagesConfiguration({
 }) {
   const [stageName, setStageName] = useState("");
   const [draftNames, setDraftNames] = useState<Record<string, string>>({});
+  const [pendingStageRemovalId, setPendingStageRemovalId] = useState<
+    string | null
+  >(null);
 
   function addStage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -851,19 +854,50 @@ function StagesConfiguration({
               >
                 ↓
               </Button>
-              <Button
-                aria-label="Remove stage"
-                disabled={disabled}
-                onClick={() =>
-                  onChange({ kind: "remove-stage", stageId: stage.id })
-                }
-                size="xs"
-                type="button"
-                variant="ghost"
-              >
-                Remove stage
-              </Button>
+              {pendingStageRemovalId === stage.id ? (
+                <Button
+                  aria-label="Remove stage"
+                  disabled={disabled}
+                  onClick={() => {
+                    onChange({ kind: "remove-stage", stageId: stage.id });
+                    setPendingStageRemovalId(null);
+                  }}
+                  size="xs"
+                  type="button"
+                  variant="ghost"
+                >
+                  Remove stage
+                </Button>
+              ) : (
+                <Button
+                  aria-label="Remove stage"
+                  disabled={disabled}
+                  onClick={() => setPendingStageRemovalId(stage.id)}
+                  size="xs"
+                  type="button"
+                  variant="ghost"
+                >
+                  Remove stage
+                </Button>
+              )}
             </div>
+            {pendingStageRemovalId === stage.id ? (
+              <div className="mt-3 space-y-2" role="status">
+                <p className="text-muted-foreground text-xs/relaxed">
+                  {stage.name} will leave presentation and filters. Main records
+                  are not deleted.
+                </p>
+                <Button
+                  disabled={disabled}
+                  onClick={() => setPendingStageRemovalId(null)}
+                  size="xs"
+                  type="button"
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>
