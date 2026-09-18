@@ -52,6 +52,7 @@ const CAPTURE_CONTENT_LINE_SEPARATOR = /\r?\n/u;
 
 export interface CaptureInboxStore {
   bulkSenseMaking: CaptureInboxBulkSenseMakingStore;
+  /** Consume the item and remove its Bulk placement in one persistence operation. */
   consume: (
     accountId: string,
     itemId: string,
@@ -394,7 +395,6 @@ export function createCaptureInbox({
     if (!consumed) {
       return null;
     }
-    await store.bulkSenseMaking.removeItem(accountId, itemId);
     return {
       ...consumed,
       item: captureInboxItemSchema.parse(consumed.item),

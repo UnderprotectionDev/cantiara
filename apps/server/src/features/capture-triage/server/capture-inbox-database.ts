@@ -171,6 +171,46 @@ export const captureInboxBulkViewMutationTarget: MutationDatabaseTargetAdapter<C
     },
   };
 
+async function removeBulkSenseMakingItem(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  itemId: string,
+) {
+  const [record] = await executor
+    .select()
+    .from(captureInboxBulkView)
+    .where(eq(captureInboxBulkView.accountId, accountId))
+    .limit(1)
+    .for("update");
+  if (!record) {
+    return;
+  }
+
+  const current = toBulkSenseMaking(record);
+  const placements = current.placements.filter(
+    (placement) => placement.itemId !== itemId,
+  );
+  if (placements.length === current.placements.length) {
+    return;
+  }
+  const clusterIds = new Set(
+    placements.flatMap((placement) =>
+      placement.clusterId ? [placement.clusterId] : [],
+    ),
+  );
+  await executor
+    .update(captureInboxBulkView)
+    .set({
+      clusters: current.clusters.filter((cluster) =>
+        clusterIds.has(cluster.id),
+      ),
+      placements,
+      revision: current.revision + 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(captureInboxBulkView.accountId, accountId));
+}
+
 function toCaptureInboxItem(
   record: CaptureInboxDatabaseRecord,
 ): CaptureInboxItem {
@@ -578,41 +618,9 @@ export function createDatabaseCaptureInbox(
       },
 
       async removeItem(accountId, itemId) {
-        await database.transaction(async (transaction) => {
-          const [record] = await transaction
-            .select()
-            .from(captureInboxBulkView)
-            .where(eq(captureInboxBulkView.accountId, accountId))
-            .limit(1)
-            .for("update");
-          if (!record) {
-            return;
-          }
-
-          const current = toBulkSenseMaking(record);
-          const placements = current.placements.filter(
-            (placement) => placement.itemId !== itemId,
-          );
-          if (placements.length === current.placements.length) {
-            return;
-          }
-          const clusterIds = new Set(
-            placements.flatMap((placement) =>
-              placement.clusterId ? [placement.clusterId] : [],
-            ),
-          );
-          await transaction
-            .update(captureInboxBulkView)
-            .set({
-              clusters: current.clusters.filter((cluster) =>
-                clusterIds.has(cluster.id),
-              ),
-              placements,
-              revision: current.revision + 1,
-              updatedAt: new Date(),
-            })
-            .where(eq(captureInboxBulkView.accountId, accountId));
-        });
+        await database.transaction((transaction) =>
+          removeBulkSenseMakingItem(transaction, accountId, itemId),
+        );
       },
 
       async update(accountId, input) {
@@ -727,15 +735,22 @@ export function createDatabaseCaptureInbox(
           attachment: candidate.attachment as CaptureAttachment,
         });
       }
-      const [deleted] = await database
-        .delete(captureInboxItem)
-        .where(
-          and(
-            eq(captureInboxItem.accountId, accountId),
-            eq(captureInboxItem.id, itemId),
-          ),
-        )
-        .returning();
+      const deleted = await database.transaction(async (transaction) => {
+        const [removed] = await transaction
+          .delete(captureInboxItem)
+          .where(
+            and(
+              eq(captureInboxItem.accountId, accountId),
+              eq(captureInboxItem.id, itemId),
+            ),
+          )
+          .returning();
+        if (!removed) {
+          return null;
+        }
+        await removeBulkSenseMakingItem(transaction, accountId, itemId);
+        return removed;
+      });
       return deleted ? toStoredCaptureInboxItem(deleted) : null;
     },
 

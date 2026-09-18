@@ -60,6 +60,11 @@ interface BulkSenseMakingColumn {
   position: number;
 }
 
+interface BulkSenseMakingDraft {
+  clusters: CaptureBulkCluster[];
+  placements: CaptureBulkPlacement[];
+}
+
 export function bulkSenseMakingColumns(
   items: readonly CaptureInboxItem[],
   layout: CaptureBulkSenseMaking,
@@ -890,10 +895,7 @@ function BulkSenseMakingView({
   useEffect(() => setLayout(view), [view]);
 
   const saveLayout = useMutation({
-    mutationFn: (next: {
-      clusters: CaptureBulkCluster[];
-      placements: CaptureBulkPlacement[];
-    }) =>
+    mutationFn: (next: BulkSenseMakingDraft) =>
       shell.runWrite(() =>
         client.updateCaptureBulkSenseMaking({
           baseRevision: layout.revision,
@@ -902,7 +904,18 @@ function BulkSenseMakingView({
           placements: next.placements,
         }),
       ),
-    onError: () => toast.error("Bulk sense-making could not be saved."),
+    onMutate: (next) => {
+      const previousLayout = layout;
+      setLayout({ ...next, revision: previousLayout.revision });
+      return { previousLayout };
+    },
+    onError: async (_error, _next, context) => {
+      setLayout(context?.previousLayout ?? view);
+      toast.error("Bulk sense-making could not be saved.");
+      await queryClient.invalidateQueries({
+        queryKey: captureInboxQueryOptions(accountId).queryKey,
+      });
+    },
     onSuccess: async (next) => {
       setLayout(next);
       await queryClient.invalidateQueries({
@@ -914,14 +927,10 @@ function BulkSenseMakingView({
   const isOnline = connection !== "offline";
   const columns = bulkSenseMakingColumns(items, layout);
 
-  function persist(next: {
-    clusters: CaptureBulkCluster[];
-    placements: CaptureBulkPlacement[];
-  }) {
+  function persist(next: BulkSenseMakingDraft) {
     if (!isOnline || saveLayout.isPending) {
       return;
     }
-    setLayout((current) => ({ ...next, revision: current.revision }));
     saveLayout.mutate(next);
   }
 

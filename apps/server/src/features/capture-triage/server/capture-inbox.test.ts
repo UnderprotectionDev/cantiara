@@ -144,19 +144,20 @@ function createMemoryStore(
   let nextId = initial.length + 1;
 
   const store: CaptureInboxStore = {
-    consume: (accountId, itemId) => {
+    consume: async (accountId, itemId) => {
       const items = itemsByAccount.get(accountId) ?? [];
       const index = items.findIndex((candidate) => candidate.id === itemId);
-      const [removedItem] = index < 0 ? [] : items.splice(index, 1);
-      return Promise.resolve(
-        removedItem
-          ? {
-              clientIdempotencyKey: null,
-              item: removedItem,
-              payloadFingerprint: null,
-            }
-          : null,
-      );
+      const removedItem = index < 0 ? undefined : items[index];
+      if (!removedItem) {
+        return null;
+      }
+      await bulkSenseMaking.removeItem(accountId, itemId);
+      items.splice(index, 1);
+      return {
+        clientIdempotencyKey: null,
+        item: removedItem,
+        payloadFingerprint: null,
+      };
     },
     bulkSenseMaking,
     list: (accountId) => Promise.resolve(itemsByAccount.get(accountId) ?? []),
@@ -200,21 +201,22 @@ function createTriageMemoryStore(
 ) {
   const items = [...initial];
   const store: CaptureInboxStore = {
-    consume: (_accountId, itemId) => {
+    consume: async (accountId, itemId) => {
       const index = items.findIndex((candidate) => candidate.id === itemId);
       if (index < 0) {
-        return Promise.resolve(null);
+        return null;
       }
-      const removedItem = items.splice(index, 1)[0] ?? null;
-      return Promise.resolve(
-        removedItem
-          ? {
-              clientIdempotencyKey: null,
-              item: removedItem,
-              payloadFingerprint: null,
-            }
-          : null,
-      );
+      const removedItem = items[index];
+      if (!removedItem) {
+        return null;
+      }
+      await bulkSenseMaking.removeItem(accountId, itemId);
+      items.splice(index, 1);
+      return {
+        clientIdempotencyKey: null,
+        item: removedItem,
+        payloadFingerprint: null,
+      };
     },
     insert: (_accountId, input) => {
       const item: CaptureInboxItem = {
