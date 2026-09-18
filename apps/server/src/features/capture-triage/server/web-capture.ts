@@ -380,7 +380,7 @@ export function createWebCapture({
       }
 
       const targetInbox = await targetFor(link.accountId, parsed.projectId);
-      const attachmentId = `web-capture:${link.id}:${parsed.clientIdempotencyKey}`;
+      const attachmentId = `web-capture-${await digest(`${link.id}:${parsed.clientIdempotencyKey}`)}`;
       const attachment = captureAttachmentFor(parsed, attachmentId);
       await stageMedia(
         staging,

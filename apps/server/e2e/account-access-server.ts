@@ -18,6 +18,11 @@ import {
   accountPreferencesMutationTarget,
   createDatabaseAccountPreferences,
 } from "../src/features/account-preferences/server/account-preferences-database";
+import {
+  captureInboxMutationTarget,
+  createDatabaseCaptureInbox,
+} from "../src/features/capture-triage/server/capture-inbox-database";
+import { createDevelopmentCaptureInboxTriageAdapter } from "../src/features/capture-triage/server/capture-inbox-development-adapter";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
@@ -45,6 +50,15 @@ const accountPreferences = createDatabaseAccountPreferences(database);
 const accountPreferencesMutationContract = createDatabaseMutationContract(
   database,
   { target: accountPreferencesMutationTarget },
+);
+const captureInboxMutationContract = createDatabaseMutationContract(database, {
+  target: captureInboxMutationTarget,
+});
+const captureInbox = createDatabaseCaptureInbox(
+  database,
+  { createBug: async () => ({ workId: "e2e-work" }) },
+  captureInboxMutationContract,
+  createDevelopmentCaptureInboxTriageAdapter(),
 );
 const projectShell = createDatabaseProjectShell(database);
 const projectShellMutationContracts =
@@ -94,6 +108,7 @@ const app = createApp({
   accountPreferencesCompatibility: accountPreferences,
   accountPreferencesMutationContract,
   auth,
+  captureInbox,
   corsOrigin: webOrigin,
   database,
   desktopOrigins: [],

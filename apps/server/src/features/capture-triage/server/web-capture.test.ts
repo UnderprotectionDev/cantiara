@@ -373,12 +373,13 @@ describe("Web Capture seam", () => {
 
     expect(staging.put).toHaveBeenCalledWith({
       accountId: "account-1",
-      attachmentId: "web-capture:link-1:screenshot-key",
+      attachmentId:
+        "web-capture-840eebf06cddb084fa2e868bb90a1f8627005282aa378fb31ba398a2cc372151",
       dataUrl: "data:image/png;base64,AA==",
     });
     expect(JSON.stringify(captures[0])).not.toContain("data:image/png");
     expect(captures[0]?.attachment).toMatchObject({
-      id: "web-capture:link-1:screenshot-key",
+      id: "web-capture-840eebf06cddb084fa2e868bb90a1f8627005282aa378fb31ba398a2cc372151",
       mimeType: "image/png",
     });
   });
@@ -411,7 +412,8 @@ describe("Web Capture seam", () => {
     expect(subject.captures).toHaveLength(0);
     expect(staging.delete).toHaveBeenCalledWith({
       accountId: "account-1",
-      attachmentId: "web-capture:link-1:revoked-before-finalize",
+      attachmentId:
+        "web-capture-c52350c6627d7d2dd4e381311faf9f43fa0103b1d8b2b36c0c100414b1b7bae5",
     });
   });
 

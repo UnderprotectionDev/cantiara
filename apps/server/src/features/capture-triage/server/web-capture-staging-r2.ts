@@ -222,5 +222,15 @@ export function createR2CaptureInboxStagingStore(
         accountId,
         attachmentId: (attachment as CaptureAttachment).id,
       }),
+    // File Attachment owns the atomic promotion. The R2 adapter currently
+    // owns only Web Capture staging, so conversion remains fail-closed until
+    // that owning feature supplies its promotion adapter.
+    promote<TReceipt>(): Promise<TReceipt> {
+      return Promise.reject(
+        new Error(
+          "File Attachment promotion is not configured for Capture staging.",
+        ),
+      );
+    },
   };
 }
