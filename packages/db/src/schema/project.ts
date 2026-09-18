@@ -4,6 +4,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -35,6 +36,7 @@ export const project = pgTable(
       .defaultNow()
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
+    configuration: jsonb("configuration"),
   },
   (table) => [
     index("project_workspace_idx").on(table.workspaceId),

@@ -1,4 +1,8 @@
-import { STARTER_CONFIGURATION_OPTIONS } from "@cantiara/api/project-shell";
+import {
+  getStarterConfigurationDefinition,
+  PROTECTED_WORK_STATUS_OPTIONS,
+  STARTER_CONFIGURATION_OPTIONS,
+} from "@cantiara/api/project-shell";
 import { describe, expect, test } from "vitest";
 import {
   createProjectShell,
@@ -94,6 +98,126 @@ function createMemoryStore() {
 }
 
 describe("Project Shell seam", () => {
+  test.each([
+    {
+      configuration: "Blank Project" as const,
+      enabledAreas: ["Work", "Documents"],
+      extraPinnedAreas: [],
+      preparedStages: [],
+      preparedWorkViews: ["Backlog", "Board"],
+    },
+    {
+      configuration: "Solo SaaS" as const,
+      enabledAreas: [
+        "Work",
+        "Documents",
+        "Discovery",
+        "Decisions",
+        "Design",
+        "Technical Diagrams",
+        "Tests",
+        "Releases",
+        "Production",
+        "GitHub",
+      ],
+      extraPinnedAreas: [
+        "Discovery",
+        "Decisions",
+        "Design",
+        "Tests",
+        "Releases",
+      ],
+      preparedStages: [
+        "Discovery",
+        "Design",
+        "Build",
+        "Validate",
+        "Release",
+        "Operate",
+      ],
+      preparedWorkViews: ["Backlog", "Board", "Roadmap"],
+    },
+    {
+      configuration: "Open Source Library" as const,
+      enabledAreas: [
+        "Work",
+        "Documents",
+        "Decisions",
+        "Technical Diagrams",
+        "Tests",
+        "Releases",
+        "GitHub",
+      ],
+      extraPinnedAreas: ["GitHub", "Tests", "Releases"],
+      preparedStages: ["Scope", "Build", "Validate", "Release", "Maintain"],
+      preparedWorkViews: ["Backlog", "Board", "Roadmap"],
+    },
+    {
+      configuration: "Mobile Application" as const,
+      enabledAreas: [
+        "Work",
+        "Documents",
+        "Discovery",
+        "Decisions",
+        "Design",
+        "Technical Diagrams",
+        "Tests",
+        "Releases",
+        "Production",
+        "GitHub",
+      ],
+      extraPinnedAreas: [
+        "Discovery",
+        "Design",
+        "Tests",
+        "Releases",
+        "Production",
+      ],
+      preparedStages: [
+        "Discovery",
+        "Design",
+        "Build",
+        "Validate",
+        "Release",
+        "Operate",
+      ],
+      preparedWorkViews: ["Backlog", "Board", "Roadmap"],
+    },
+  ])(
+    "applies the $configuration starter structure once without sample content",
+    async ({
+      configuration,
+      enabledAreas,
+      extraPinnedAreas,
+      preparedStages,
+      preparedWorkViews,
+    }) => {
+      expect(getStarterConfigurationDefinition(configuration)).toEqual({
+        enabledAreas,
+        extraPinnedAreas,
+        preparedStages,
+        preparedWorkViews,
+      });
+
+      const projectShell = createProjectShell({ store: createMemoryStore() });
+      const project = await projectShell.create("account-1", {
+        name: `${configuration} Project`,
+        starterConfiguration: configuration,
+      });
+
+      expect(project.configuration).toEqual({
+        enabledAreas,
+        extraPinnedAreas,
+        preparedStages,
+        preparedWorkViews,
+        workStatuses: PROTECTED_WORK_STATUS_OPTIONS,
+      });
+      expect(project).not.toHaveProperty("sampleWork");
+      expect(project).not.toHaveProperty("sampleDocuments");
+      expect(project).not.toHaveProperty("history");
+    },
+  );
+
   test("keeps the closed Starter Configuration catalog and optional profile fields", async () => {
     expect(STARTER_CONFIGURATION_OPTIONS).toEqual([
       "Blank Project",

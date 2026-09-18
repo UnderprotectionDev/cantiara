@@ -22,6 +22,10 @@ Bir sorumluluğun sahibi bu belgede yoksa, birden fazla yoruma açıksa veya se�
 | Better Auth | Web, masaüstü ve uzantı kullanıcı kimliği, GitHub login OAuth'u ve ürün oturumları; repository yetkisi taşımaz |
 | Turborepo | Monorepo yönetimi |
 
+### Migration onarım sınırı
+
+Normal şema değişiklikleri, kaynak şemadan `drizzle-kit generate` ile sürümlü SQL olarak üretilir. Dağıtılmış veritabanı migration geçmişiyle gerçek şema ayrışmış ve kaynak şema zaten hedef durumu ifade ediyorsa, geçmiş migration'ları değiştirmek veya paylaşılan veritabanında `drizzle-kit push` kullanmak yerine `drizzle-kit generate --custom` ile idempotent bir compatibility migration oluşturulur. Bu migration da `bun run db:migrate` ile uygulanır ve gerekli Drizzle metadata'sını taşır.
+
 ## Arayüz ve durum yönetimi
 
 | Teknoloji | Amaç |

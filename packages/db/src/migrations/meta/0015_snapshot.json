@@ -1,6 +1,6 @@
 {
-  "id": "176ff7b8-cf0f-4d08-8a01-bd4f821f8ac7",
-  "prevId": "68077d03-93a0-4bf1-b3f1-e4cb6a7c4b23",
+  "id": "f2a16a22-4a99-433c-a5e0-d6b60c918647",
+  "prevId": "6107989c-e8c9-49a7-acab-f7d42a9bec8e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1495,6 +1495,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "attachment": {
+          "name": "attachment",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "client_idempotency_key": {
           "name": "client_idempotency_key",
           "type": "text",
@@ -1525,6 +1531,18 @@
           "type": "text",
           "primaryKey": true,
           "notNull": true
+        },
+        "link": {
+          "name": "link",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "origin": {
+          "name": "origin",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         },
         "payload_fingerprint": {
           "name": "payload_fingerprint",
@@ -1613,6 +1631,112 @@
         "capture_inbox_item_template_check": {
           "name": "capture_inbox_item_template_check",
           "value": "\"capture_inbox_item\".\"template\" is null or \"capture_inbox_item\".\"template\" in ('Bug Capture', 'Feedback Capture', 'Research Fragment')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.capture_inbox_operation": {
+      "name": "capture_inbox_operation",
+      "schema": "",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation_key": {
+          "name": "operation_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "value": {
+          "name": "value",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "capture_inbox_operation_account_kind_key_uidx": {
+          "name": "capture_inbox_operation_account_kind_key_uidx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "operation_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "capture_inbox_operation_account_id_user_id_fk": {
+          "name": "capture_inbox_operation_account_id_user_id_fk",
+          "tableFrom": "capture_inbox_operation",
+          "tableTo": "user",
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "capture_inbox_operation_kind_check": {
+          "name": "capture_inbox_operation_kind_check",
+          "value": "\"capture_inbox_operation\".\"kind\" in ('preview', 'merge', 'completed')"
         }
       },
       "isRLSEnabled": false

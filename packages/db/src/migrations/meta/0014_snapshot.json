@@ -1,6 +1,6 @@
 {
-  "id": "176ff7b8-cf0f-4d08-8a01-bd4f821f8ac7",
-  "prevId": "68077d03-93a0-4bf1-b3f1-e4cb6a7c4b23",
+  "id": "6107989c-e8c9-49a7-acab-f7d42a9bec8e",
+  "prevId": "176ff7b8-cf0f-4d08-8a01-bd4f821f8ac7",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1495,6 +1495,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "attachment": {
+          "name": "attachment",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "client_idempotency_key": {
           "name": "client_idempotency_key",
           "type": "text",
@@ -1525,6 +1531,18 @@
           "type": "text",
           "primaryKey": true,
           "notNull": true
+        },
+        "link": {
+          "name": "link",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "origin": {
+          "name": "origin",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         },
         "payload_fingerprint": {
           "name": "payload_fingerprint",
