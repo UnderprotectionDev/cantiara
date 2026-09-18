@@ -17,9 +17,13 @@ Before creating or updating the pull request:
 
 Issue-context hard gate:
 
+- The `Create PR` action may start a new agent session, so the current chat is not a reliable issue-context source.
+- Before deciding that no issue was selected, inspect `.context/attachments/` for Conductor's durable GitHub issue attachment. Use `find .context/attachments -type f -name '[[]GITHUB]-*.md' -print`, then read every matching file.
 - A GitHub issue is selected when Conductor explicitly provides inherited issue context or a canonical attachment whose displayed filename matches `[GITHUB]-<number>.md` (for example, `[GITHUB]-37.md`). That attachment is inherited issue context, not arbitrary conversation text.
-- Read the exact repository and issue number from the inherited context or canonical attachment metadata/content. Verify the repository against `git remote get-url origin`; if the attachment does not identify a repository and the current repository cannot be verified, stop and ask for the missing context.
+- Read the exact repository and issue number from the inherited context or canonical attachment metadata/content. When a readable attachment includes a `**GitHub URL:** https://github.com/<owner>/<repository>/issues/<number>` line, use that URL; otherwise use the exact issue number from the displayed filename after verifying the repository against `git remote get-url origin`. If the attachment does not identify a repository and the current repository cannot be verified, stop and ask for the missing context.
 - If the canonical attachment path is outside this workspace or is not readable during the create-PR session, do not discard it: use the exact issue number from its displayed filename and the repository already verified from Conductor/current `origin`.
+- If exactly one canonical GitHub issue attachment exists, use it as the selected issue even when the current agent session does not mention the issue. If multiple canonical attachments exist, stop and ask the user which source issue this pull request resolves instead of guessing.
+- If no canonical GitHub issue attachment exists and Conductor supplied no other explicit issue context, treat the workspace as not issue-selected.
 - If the workspace is issue-based but the exact repository and issue number are missing, stop before creating or updating the pull request and ask the user for that missing context.
 - If no GitHub issue was selected for this workspace, omit both `Closes` and `Refs`, even if an issue URL or issue number appears elsewhere in the conversation.
 - Never invent, guess, or recover an issue number from a branch name, commit message, PR title, spec path, diff, or arbitrary conversation text. Do not search GitHub to discover a candidate issue number.
@@ -119,6 +123,7 @@ Existing pull request handling:
 - If an open pull request is missing the required `Closes` or `Refs` issue reference, update the pull request body before reporting completion.
 - If a fully resolving pull request is already merged and the required `Closes` reference is missing, report that automatic issue closure is no longer guaranteed and do not claim successful issue closure.
 - If the pull request body cannot be updated, report the blocker and do not claim successful completion.
+- Treat a missing `Closes` or `Refs` line for a valid issue attachment as a Create PR failure, not as an optional omission. Repair the actual pull request body with `gh pr edit` before reporting completion.
 
 Before reporting completion:
 

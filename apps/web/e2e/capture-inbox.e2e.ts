@@ -20,11 +20,14 @@ test("keeps Sequential triage focused until a confirmed exit", async ({
   await expect(
     page.getByRole("heading", { name: "Capture Inbox", level: 1 }),
   ).toBeVisible();
+  const savedCaptures = page.getByRole("region", { name: "Saved captures" });
 
   async function saveCapture(content: string) {
     await page.getByLabel("Capture", { exact: true }).fill(content);
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(page.getByText(content, { exact: true })).toBeVisible();
+    await expect(
+      savedCaptures.getByText(content, { exact: true }),
+    ).toBeVisible();
   }
 
   await saveCapture("Convert this capture");
@@ -99,7 +102,7 @@ test("keeps Sequential triage focused until a confirmed exit", async ({
     .getByRole("button", { name: "Confirm", exact: true })
     .click();
   await expect(sequentialItem).toContainText("Convert this capture");
-  await sequentialItem
+  await page
     .getByRole("button", { name: "Previous item", exact: true })
     .click();
   await expect(sequentialItem).toContainText("Attach this capture");

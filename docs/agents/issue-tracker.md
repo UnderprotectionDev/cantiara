@@ -40,6 +40,12 @@ When publishing a migrated markdown ticket, copy the file body (including `Block
 
 **PRs as a request surface: no.**
 
+## Pull request issue closure
+
+GitHub closes an issue after a pull request is merged only when the actual pull request body contains a supported closing reference such as `Closes #123` (or `Closes owner/repository#123`) and the pull request targets the repository's default branch. A merged pull request without that reference is not retroactively guaranteed to close the issue.
+
+When Conductor creates a pull request from an issue workspace, the durable source is the Conductor attachment under `.context/attachments/` whose name matches `[GITHUB]-<number>.md` and whose `GitHub URL` line identifies the issue. The Create PR action must read that attachment even if its new agent session has no inherited chat context, then verify the actual pull request body and GitHub closing metadata before reporting success.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a GitHub issue with `gh issue create`. Apply the mapped triage label. Do not also create a Linear issue.
