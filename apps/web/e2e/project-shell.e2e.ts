@@ -268,9 +268,15 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
     await expect(allTools.getByRole("listitem")).toHaveCount(
       ALL_PROJECT_AREAS.length,
     );
+    const enabledAreas = new Set<string>(starter.areas);
     await Promise.all(
       ALL_PROJECT_AREAS.map((area) =>
-        expect(allTools.getByText(area, { exact: true })).toBeVisible(),
+        expect(
+          allTools.getByRole("listitem", {
+            name: `${area} ${enabledAreas.has(area) ? "Enabled" : "Available"}`,
+            exact: true,
+          }),
+        ).toBeVisible(),
       ),
     );
     if (!starter.areas.some((area) => area === "Discovery")) {
