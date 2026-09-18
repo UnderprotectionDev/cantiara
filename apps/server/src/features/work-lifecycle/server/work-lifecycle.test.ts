@@ -14,7 +14,7 @@ import {
   type WorkRecreateRelation,
 } from "@cantiara/api/work-lifecycle";
 import { describe, expect, test } from "vitest";
-
+import type { WorkRelations } from "../../relations/server/work-relations";
 import {
   createWorkLifecycle,
   WorkCreationConflictError,
@@ -57,15 +57,18 @@ function createMemoryWorkLifecycle(
     findByClientIdempotencyKey: (_accountId, projectId, key) => {
       const reservation = reservations.get(`${projectId}:${key}`);
       return Promise.resolve(
-        reservation ? (works.get(reservation.workId) ?? null) : null,
+        reservation && works.has(reservation.workId)
+          ? {
+              payloadFingerprint: reservation.payloadFingerprint,
+              work: works.get(reservation.workId) as WorkProfile,
+            }
+          : null,
       );
     },
     list: async (_accountId, projectId) =>
       [...works.values()]
         .filter((work) => work.projectId === projectId)
         .sort((left, right) => left.number - right.number),
-    listRecreateRelations: async (_accountId, workId) =>
-      copiedRelations.get(workId) ?? options.recreateRelations ?? [],
     reserveCreate: (_accountId, projectId, key, payloadFingerprint) => {
       const reservationKey = `${projectId}:${key}`;
       const existing = reservations.get(reservationKey);
@@ -96,6 +99,11 @@ function createMemoryWorkLifecycle(
       reservations.set(reservationKey, reservation);
       return Promise.resolve(reservation);
     },
+  };
+
+  const relations: WorkRelations = {
+    listRecreateRelations: async (_accountId, workId) =>
+      copiedRelations.get(workId) ?? options.recreateRelations ?? [],
   };
 
   const mutationContracts: WorkLifecycleMutationContracts = {
@@ -136,6 +144,7 @@ function createMemoryWorkLifecycle(
                   works.get(nextValue.recreate.sourceWorkId),
                 ),
                 targetProjectName: "Cantiara",
+                targetRecordId: nextValue.recreate.sourceWorkId,
               },
             ]);
           }
@@ -203,6 +212,7 @@ function createMemoryWorkLifecycle(
 
   return createWorkLifecycle({
     mutationContracts,
+    relations,
     store,
   });
 }
@@ -315,15 +325,17 @@ describe("Work Lifecycle seam", () => {
           portable: true,
           targetLabel: "Decision DEC-1",
           targetProjectName: "Third Project",
+          targetRecordId: "decision-1",
         },
         {
           id: "relation-github",
-          kind: "GitHub Completion",
+          kind: "Required for completion",
           label: "Required for completion",
           nonPortableReason: "GitHub completion links do not travel.",
           portable: false,
           targetLabel: "Pull request #42",
           targetProjectName: "Cantiara",
+          targetRecordId: "github-pr-42",
         },
       ],
     });
@@ -396,6 +408,64 @@ describe("Work Lifecycle seam", () => {
       title: "Ship the first Work",
       type: "Task",
     });
+  });
+
+  test("rejects a changed relation selection for the same idempotency key", async () => {
+    const workLifecycle = createMemoryWorkLifecycle({
+      recreateRelations: [
+        {
+          id: "relation-related",
+          kind: "Related",
+          label: "Related",
+          portable: true,
+          targetLabel: "Decision DEC-1",
+          targetProjectName: "Cantiara",
+          targetRecordId: "decision-1",
+        },
+        {
+          id: "relation-evidence",
+          kind: "Evidence",
+          label: "Evidence",
+          portable: true,
+          targetLabel: "Capture CAP-1",
+          targetProjectName: "Cantiara",
+          targetRecordId: "capture-1",
+        },
+      ],
+    });
+    const source = await workLifecycle.create(
+      "account-1",
+      createInput("changed-selection-source"),
+    );
+    const preview = await workLifecycle.previewRecreate("account-1", {
+      sourceWorkId: source.id,
+      targetProjectId: "project-2",
+    });
+    if (!preview) {
+      throw new Error("Expected a recreate preview.");
+    }
+
+    await workLifecycle.recreate("account-1", {
+      baseRevision: 0,
+      clientIdempotencyKey: "changed-selection",
+      previewId: preview.previewId,
+      selectedFields: ["title", "type"],
+      selectedRelationIds: ["relation-related"],
+      sourceWorkId: source.id,
+      targetProjectId: "project-2",
+    });
+
+    await expect(
+      workLifecycle.recreate("account-1", {
+        baseRevision: 0,
+        clientIdempotencyKey: "changed-selection",
+        previewId: preview.previewId,
+        selectedFields: ["title", "type"],
+        selectedRelationIds: ["relation-evidence"],
+        sourceWorkId: source.id,
+        targetProjectId: "project-2",
+      }),
+    ).rejects.toBeInstanceOf(WorkCreationConflictError);
   });
 
   test("persists Capture provenance on the Work created by conversion", async () => {

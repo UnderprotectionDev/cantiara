@@ -1,0 +1,2 @@
+ALTER TABLE "work_relation" DROP CONSTRAINT "work_relation_kind_check";--> statement-breakpoint
+ALTER TABLE "work_relation" ADD CONSTRAINT "work_relation_kind_check" CHECK ("work_relation"."kind" in ('Related', 'Origin', 'Evidence', 'Contributes to Goal', 'Blocks', 'Includes', 'Contributes to Milestone', 'Primary spec', 'Supersedes', 'Implements', 'Belongs to Company', 'Participant', 'Required for completion'));

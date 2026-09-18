@@ -63,7 +63,7 @@ export default function ProjectWorkList({ projectId }: { projectId: string }) {
             </p>
             {work.recreatedFrom ? (
               <p className="mt-1 text-muted-foreground text-xs">
-                Derived from {work.recreatedFrom.key}
+                Origin: {work.recreatedFrom.key}
               </p>
             ) : null}
           </div>

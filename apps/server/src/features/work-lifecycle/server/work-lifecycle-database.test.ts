@@ -184,7 +184,7 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       },
       {
         id: "github-completion",
-        kind: "GitHub Completion",
+        kind: "Required for completion",
         sourceWorkId: source.id,
         targetLabel: "Pull request #42",
         targetProjectId: sourceProject.id,
@@ -230,11 +230,11 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       recreatedFrom: { id: source.id, key: source.key },
       status: "Not Started",
     });
-    const recreatedRelations = await database
-      .select()
-      .from(workRelation)
-      .where(eq(workRelation.sourceWorkId, recreated.id));
-    expect(recreatedRelations).toEqual(
+    const recreatedPreview = await workLifecycle.previewRecreate(accountId, {
+      sourceWorkId: recreated.id,
+      targetProjectId: sourceProject.id,
+    });
+    expect(recreatedPreview?.relations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           kind: "Related",
@@ -246,7 +246,7 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
         }),
       ]),
     );
-    expect(recreatedRelations).toHaveLength(2);
+    expect(recreatedPreview?.relations).toHaveLength(2);
     await expect(workLifecycle.find(accountId, source.id)).resolves.toEqual(
       sourceBefore,
     );

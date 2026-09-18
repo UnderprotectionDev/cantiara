@@ -2,7 +2,6 @@ import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
 import {
   type WorkLifecycleMutationValue,
   type WorkProfile,
-  type WorkRecreateRelationKind,
   workCaptureProvenanceSchema,
   workChecklistSchema,
   workClosureResultSchema,
@@ -11,31 +10,29 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
-import {
-  project,
-  work,
-  workKeyAllocation,
-  workRelation,
-} from "@cantiara/db/schema/index";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { project, work, workKeyAllocation } from "@cantiara/db/schema/index";
+import { and, asc, eq } from "drizzle-orm";
 
 import {
   createDatabaseMutationContract,
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
-import { describeWorkRecreateRelation } from "../../relations/server/work-recreate-relations";
+import {
+  createDatabaseWorkRelations,
+  type WorkRelationsMutationAdapter,
+} from "../../relations/server/work-relations";
 import {
   createWorkLifecycle,
   WorkCreationConflictError,
   type WorkCreationReservation,
   type WorkLifecycleStore,
   WorkProjectNotFoundError,
+  WorkRecreatePreviewRequiredError,
 } from "./work-lifecycle";
 
 type WorkDatabaseRecord = typeof work.$inferSelect;
 type WorkKeyAllocationRecord = typeof workKeyAllocation.$inferSelect;
-type WorkRelationRecord = typeof workRelation.$inferSelect;
 
 function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
   return {
@@ -134,58 +131,6 @@ async function findOwnedWork(
   return result?.record ?? null;
 }
 
-async function findRecreateRelationSelection(
-  executor: MutationDatabaseExecutor,
-  accountId: string,
-  workspaceId: string,
-  recreate: WorkLifecycleMutationValue["recreate"],
-): Promise<{
-  selectedRelations: WorkRelationRecord[];
-  sourceWork: WorkDatabaseRecord | null;
-} | null> {
-  if (!recreate) {
-    return { selectedRelations: [], sourceWork: null };
-  }
-  const sourceWork = await findOwnedWork(
-    executor,
-    accountId,
-    recreate.sourceWorkId,
-    false,
-  );
-  if (!sourceWork) {
-    return null;
-  }
-  const selectedRelationIds = [...new Set(recreate.selectedRelationIds)];
-  const selectedRelations =
-    selectedRelationIds.length === 0
-      ? []
-      : await executor
-          .select({ relation: workRelation })
-          .from(workRelation)
-          .innerJoin(project, eq(workRelation.targetProjectId, project.id))
-          .where(
-            and(
-              eq(workRelation.sourceWorkId, sourceWork.id),
-              inArray(workRelation.id, selectedRelationIds),
-              eq(project.workspaceId, workspaceId),
-            ),
-          )
-          .then((records) =>
-            records
-              .map(({ relation }) => relation)
-              .filter(
-                (relation) =>
-                  describeWorkRecreateRelation(
-                    relation.kind as WorkRecreateRelationKind,
-                  ).portable,
-              ),
-          );
-  if (selectedRelations.length !== selectedRelationIds.length) {
-    return null;
-  }
-  return { selectedRelations, sourceWork };
-}
-
 function emptyWorkTarget(
   targetId: string,
 ): MutationTarget<WorkLifecycleMutationValue> {
@@ -198,6 +143,7 @@ function emptyWorkTarget(
 
 function createWorkMutationTarget(
   accountId: string,
+  relations: WorkRelationsMutationAdapter,
 ): MutationDatabaseTargetAdapter<WorkLifecycleMutationValue> {
   return {
     find: async (_executor, targetId) => emptyWorkTarget(targetId),
@@ -237,16 +183,18 @@ function createWorkMutationTarget(
       }
 
       const { recreate } = input.nextValue;
-      const recreateSelection = await findRecreateRelationSelection(
-        executor,
-        accountId,
-        ownedProject.workspaceId,
-        recreate,
-      );
+      const recreateSelection = recreate
+        ? await relations.selectRecreateRelations(
+            executor,
+            accountId,
+            ownedProject.workspaceId,
+            recreate,
+          )
+        : { selectedRelations: [], sourceWork: null };
       if (!recreateSelection) {
-        return null;
+        throw new WorkRecreatePreviewRequiredError();
       }
-      const { selectedRelations, sourceWork } = recreateSelection;
+      const { sourceWork } = recreateSelection;
 
       const [created] = await executor
         .insert(work)
@@ -272,26 +220,16 @@ function createWorkMutationTarget(
         .returning();
       if (created) {
         if (recreate && sourceWork) {
-          await executor.insert(workRelation).values([
-            ...selectedRelations.map((relation) => ({
-              createdAt: input.committedAt,
-              id: crypto.randomUUID(),
-              kind: relation.kind,
-              sourceWorkId: created.id,
-              targetLabel: relation.targetLabel,
-              targetProjectId: relation.targetProjectId,
-              targetRecordId: relation.targetRecordId,
-            })),
+          await relations.persistRecreatedRelations(
+            executor,
+            input.committedAt,
             {
-              createdAt: input.committedAt,
-              id: crypto.randomUUID(),
-              kind: "Origin",
-              sourceWorkId: created.id,
-              targetLabel: sourceWork.key,
-              targetProjectId: sourceWork.projectId,
-              targetRecordId: sourceWork.id,
+              id: created.id,
+              key: created.key,
+              projectId: created.projectId,
             },
-          ]);
+            recreateSelection,
+          );
         }
         return {
           id: created.id,
@@ -388,6 +326,7 @@ function reserveExistingAllocation(
 }
 
 export function createDatabaseWorkLifecycle(database: Database) {
+  const relations = createDatabaseWorkRelations(database);
   const store: WorkLifecycleStore = {
     async find(accountId, workId) {
       const workspaceId = await findWorkspaceId(database, accountId);
@@ -421,7 +360,10 @@ export function createDatabaseWorkLifecycle(database: Database) {
         return null;
       }
       const [result] = await database
-        .select({ record: work })
+        .select({
+          payloadFingerprint: workKeyAllocation.payloadFingerprint,
+          record: work,
+        })
         .from(workKeyAllocation)
         .innerJoin(work, eq(work.id, workKeyAllocation.workId))
         .innerJoin(project, eq(work.projectId, project.id))
@@ -434,7 +376,12 @@ export function createDatabaseWorkLifecycle(database: Database) {
           ),
         )
         .limit(1);
-      return result ? toWorkProfile(result.record) : null;
+      return result
+        ? {
+            payloadFingerprint: result.payloadFingerprint ?? "",
+            work: toWorkProfile(result.record),
+          }
+        : null;
     },
 
     async list(accountId, projectId) {
@@ -454,43 +401,6 @@ export function createDatabaseWorkLifecycle(database: Database) {
         )
         .orderBy(asc(work.number));
       return records.map(({ record }) => toWorkProfile(record));
-    },
-
-    async listRecreateRelations(accountId, workId) {
-      const sourceWork = await findOwnedWork(
-        database,
-        accountId,
-        workId,
-        false,
-      );
-      const workspaceId = await findWorkspaceId(database, accountId);
-      if (!(sourceWork && workspaceId)) {
-        return [];
-      }
-      const records = await database
-        .select({
-          relation: workRelation,
-          targetProjectName: project.name,
-        })
-        .from(workRelation)
-        .innerJoin(project, eq(workRelation.targetProjectId, project.id))
-        .where(
-          and(
-            eq(workRelation.sourceWorkId, sourceWork.id),
-            eq(project.workspaceId, workspaceId),
-          ),
-        )
-        .orderBy(asc(workRelation.createdAt), asc(workRelation.id));
-      return records.map(({ relation, targetProjectName }) => {
-        const kind = relation.kind as WorkRecreateRelationKind;
-        return {
-          id: relation.id,
-          kind,
-          ...describeWorkRecreateRelation(kind),
-          targetLabel: relation.targetLabel,
-          targetProjectName,
-        };
-      });
     },
 
     reserveCreate(
@@ -586,13 +496,14 @@ export function createDatabaseWorkLifecycle(database: Database) {
     mutationContracts: {
       create: (accountId) =>
         createDatabaseMutationContract<WorkLifecycleMutationValue>(database, {
-          target: createWorkMutationTarget(accountId),
+          target: createWorkMutationTarget(accountId, relations),
         }),
       update: (accountId) =>
         createDatabaseMutationContract<WorkLifecycleMutationValue>(database, {
           target: createWorkUpdateMutationTarget(accountId),
         }),
     },
+    relations,
     store,
   });
 }

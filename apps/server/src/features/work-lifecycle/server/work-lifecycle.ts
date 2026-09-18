@@ -12,12 +12,12 @@ import {
   type WorkProfile,
   type WorkRecreateFieldPreview,
   type WorkRecreatePreview,
-  type WorkRecreateRelation,
   type WorkType,
   type WorkTypeChangePreview,
   workRecreatePreviewInputSchema,
   workTypeChangePreviewInputSchema,
 } from "@cantiara/api/work-lifecycle";
+import type { WorkRelations } from "../../relations/server/work-relations";
 
 export interface WorkCreationReservation {
   id: string;
@@ -29,22 +29,23 @@ export interface WorkCreationReservation {
   workId: string;
 }
 
+export interface WorkCreationRecord {
+  payloadFingerprint: string;
+  work: WorkProfile;
+}
+
 export interface WorkLifecycleStore {
   find: (accountId: string, workId: string) => Promise<WorkProfile | null>;
   findByClientIdempotencyKey: (
     accountId: string,
     projectId: string,
     clientIdempotencyKey: string,
-  ) => Promise<WorkProfile | null>;
+  ) => Promise<WorkCreationRecord | null>;
   findProject: (
     accountId: string,
     projectId: string,
   ) => Promise<{ id: string; name: string } | null>;
   list: (accountId: string, projectId: string) => Promise<WorkProfile[]>;
-  listRecreateRelations: (
-    accountId: string,
-    workId: string,
-  ) => Promise<WorkRecreateRelation[]>;
   reserveCreate: (
     accountId: string,
     projectId: string,
@@ -154,62 +155,51 @@ function workCreateTargetId(
   return `${WORK_CREATE_TARGET_PREFIX}${accountId}:${projectId}:${clientIdempotencyKey}`;
 }
 
-function sameWorkCreationPayload(
-  left: Pick<
-    WorkProfile,
-    | "captureProvenance"
-    | "checklist"
-    | "description"
-    | "projectId"
-    | "recreatedFrom"
-    | "title"
-    | "type"
-  >,
-  right: {
-    captureProvenance?: WorkProfile["captureProvenance"] | null;
-    checklist?: WorkProfile["checklist"];
-    description?: string | null;
-    projectId: string;
-    recreatedFrom?: WorkProfile["recreatedFrom"];
-    title: string;
-    type: WorkType;
-  },
-) {
-  return (
-    left.projectId === right.projectId &&
-    left.title === right.title &&
-    left.type === right.type &&
-    canonicalizeMutationPayload({
-      captureProvenance: left.captureProvenance,
-      checklist: left.checklist,
-      description: left.description,
-      recreatedFrom: left.recreatedFrom,
-    }) ===
-      canonicalizeMutationPayload({
-        captureProvenance: right.captureProvenance ?? null,
-        checklist: right.checklist ?? [],
-        description: right.description ?? null,
-        recreatedFrom: right.recreatedFrom ?? null,
-      })
-  );
+interface WorkCreationPayload {
+  captureProvenance: WorkProfile["captureProvenance"];
+  checklist: WorkProfile["checklist"];
+  description: string | null;
+  projectId: string;
+  recreatedFrom: WorkProfile["recreatedFrom"];
+  title: string;
+  type: WorkType;
 }
 
 function replayExistingWork(
-  existing: WorkProfile,
-  payload: Parameters<typeof sameWorkCreationPayload>[1],
+  existing: WorkCreationRecord,
+  payloadFingerprint: string,
+  payload: WorkCreationPayload,
   cause?: unknown,
 ) {
-  if (!sameWorkCreationPayload(existing, payload)) {
+  const sameWork =
+    existing.work.projectId === payload.projectId &&
+    existing.work.title === payload.title &&
+    existing.work.type === payload.type &&
+    canonicalizeMutationPayload({
+      captureProvenance: existing.work.captureProvenance,
+      checklist: existing.work.checklist,
+      description: existing.work.description,
+      recreatedFrom: existing.work.recreatedFrom,
+    }) ===
+      canonicalizeMutationPayload({
+        captureProvenance: payload.captureProvenance,
+        checklist: payload.checklist,
+        description: payload.description,
+        recreatedFrom: payload.recreatedFrom,
+      });
+  if (existing.payloadFingerprint !== payloadFingerprint || !sameWork) {
     throw new WorkCreationConflictError(cause);
   }
-  return existing;
+  return existing.work;
 }
 
 export function createWorkLifecycle({
   mutationContracts,
+  relations,
   store,
 }: {
   mutationContracts: WorkLifecycleMutationContracts;
+  relations: WorkRelations;
   store: WorkLifecycleStore;
 }): WorkLifecycleAccess {
   async function createWork(
@@ -218,9 +208,13 @@ export function createWorkLifecycle({
     recreate?: {
       selectedRelationIds: string[];
       sourceWork: WorkProfile;
+      sourceWorkRevision: number;
     },
   ) {
     const input = createWorkMutationInputSchema.parse(rawInput);
+    const selectedRelationIds = recreate
+      ? [...new Set(recreate.selectedRelationIds)].sort()
+      : [];
     const recreatedFrom = recreate
       ? { id: recreate.sourceWork.id, key: recreate.sourceWork.key }
       : null;
@@ -230,19 +224,28 @@ export function createWorkLifecycle({
       description: input.description ?? null,
       projectId: input.projectId,
       recreatedFrom,
+      ...(recreate
+        ? {
+            recreate: {
+              selectedRelationIds,
+              sourceWorkId: recreate.sourceWork.id,
+              sourceWorkRevision: recreate.sourceWorkRevision,
+            },
+          }
+        : {}),
       title: input.title,
       type: input.type,
     };
+    const payloadFingerprint = await fingerprintMutationPayload(createPayload);
     const existing = await store.findByClientIdempotencyKey(
       accountId,
       input.projectId,
       input.clientIdempotencyKey,
     );
     if (existing) {
-      return replayExistingWork(existing, createPayload);
+      return replayExistingWork(existing, payloadFingerprint, createPayload);
     }
 
-    const payloadFingerprint = await fingerprintMutationPayload(createPayload);
     const reservation = await store.reserveCreate(
       accountId,
       input.projectId,
@@ -288,12 +291,9 @@ export function createWorkLifecycle({
             updatedAt: timestamp,
           };
           return {
-            ...(recreate
+            ...(mutationPayload.recreate
               ? {
-                  recreate: {
-                    selectedRelationIds: recreate.selectedRelationIds,
-                    sourceWorkId: recreate.sourceWork.id,
-                  },
+                  recreate: mutationPayload.recreate,
                 }
               : {}),
             work,
@@ -311,7 +311,12 @@ export function createWorkLifecycle({
         input.clientIdempotencyKey,
       );
       if (committed) {
-        return replayExistingWork(committed, createPayload, error);
+        return replayExistingWork(
+          committed,
+          payloadFingerprint,
+          createPayload,
+          error,
+        );
       }
       throw error;
     }
@@ -322,10 +327,10 @@ export function createWorkLifecycle({
     sourceWorkId: string,
     targetProjectId: string,
   ): Promise<WorkRecreatePreview | null> {
-    const [sourceWork, targetProject, relations] = await Promise.all([
+    const [sourceWork, targetProject, recreateRelations] = await Promise.all([
       store.find(accountId, sourceWorkId),
       store.findProject(accountId, targetProjectId),
-      store.listRecreateRelations(accountId, sourceWorkId),
+      relations.listRecreateRelations(accountId, sourceWorkId),
     ]);
     if (
       !(sourceWork && targetProject) ||
@@ -366,12 +371,14 @@ export function createWorkLifecycle({
         selectedByDefault: field.selectedByDefault,
         value: field.value,
       })),
-      relations: relations.map((relation) => ({
+      relations: recreateRelations.map((relation) => ({
         id: relation.id,
+        kind: relation.kind,
         label: relation.label,
         nonPortableReason: relation.nonPortableReason ?? null,
         portable: relation.portable,
         targetLabel: relation.targetLabel,
+        targetRecordId: relation.targetRecordId,
         targetProjectName: relation.targetProjectName,
       })),
       sourceRevision: sourceWork.revision,
@@ -381,7 +388,7 @@ export function createWorkLifecycle({
     return {
       fields,
       previewId: `${WORK_RECREATE_PREVIEW_PREFIX}${fingerprint}`,
-      relations,
+      relations: recreateRelations,
       sourceWork: {
         id: sourceWork.id,
         key: sourceWork.key,
@@ -463,6 +470,7 @@ export function createWorkLifecycle({
         {
           selectedRelationIds: [...new Set(input.selectedRelationIds)],
           sourceWork,
+          sourceWorkRevision: preview.sourceWork.revision,
         },
       );
       return recreated;

@@ -120,5 +120,5 @@ test("creates Work with a Project key, type, and protected start status", async 
   });
   await expect(recreatedWork).toContainText("Task");
   await expect(recreatedWork).toContainText("Not Started");
-  await expect(recreatedWork).toContainText("Derived from PAY-1");
+  await expect(recreatedWork).toContainText("Origin: PAY-1");
 });

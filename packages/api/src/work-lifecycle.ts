@@ -138,21 +138,18 @@ export type WorkRecreateField = (typeof WORK_RECREATE_FIELD_OPTIONS)[number];
 
 export const WORK_RECREATE_RELATION_KIND_OPTIONS = [
   "Related",
+  "Origin",
   "Evidence",
   "Contributes to Goal",
+  "Blocks",
+  "Includes",
   "Contributes to Milestone",
+  "Primary spec",
+  "Supersedes",
   "Implements",
-  "GitHub Completion",
-  "Automation",
-  "Planning Membership",
-  "Publish",
-  "Parentage",
-  "Merge State",
-  "History",
-  "Closure Result",
-  "Status",
-  "Date",
-  "Origin",
+  "Belongs to Company",
+  "Participant",
+  "Required for completion",
 ] as const;
 
 export type WorkRecreateRelationKind =
@@ -171,6 +168,7 @@ export const workRecreateRelationSchema = z
     portable: z.boolean(),
     targetLabel: z.string().trim().min(1).max(1000),
     targetProjectName: z.string().trim().min(1).max(255),
+    targetRecordId: identifierSchema,
   })
   .strict();
 
@@ -235,6 +233,7 @@ export interface WorkLifecycleMutationValue {
   recreate?: {
     selectedRelationIds: string[];
     sourceWorkId: string;
+    sourceWorkRevision: number;
   };
   work: WorkProfile | null;
 }

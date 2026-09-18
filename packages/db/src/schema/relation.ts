@@ -3,6 +3,26 @@ import { check, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { work } from "./work";
 
+export const WORK_RELATION_KIND_OPTIONS = [
+  "Related",
+  "Origin",
+  "Evidence",
+  "Contributes to Goal",
+  "Blocks",
+  "Includes",
+  "Contributes to Milestone",
+  "Primary spec",
+  "Supersedes",
+  "Implements",
+  "Belongs to Company",
+  "Participant",
+  "Required for completion",
+] as const;
+
+const workRelationKindSql = sql.raw(
+  WORK_RELATION_KIND_OPTIONS.map((kind) => `'${kind}'`).join(", "),
+);
+
 export const workRelation = pgTable(
   "work_relation",
   {
@@ -20,7 +40,7 @@ export const workRelation = pgTable(
     index("work_relation_source_idx").on(table.sourceWorkId),
     check(
       "work_relation_kind_check",
-      sql`${table.kind} in ('Related', 'Evidence', 'Contributes to Goal', 'Contributes to Milestone', 'Implements', 'GitHub Completion', 'Automation', 'Planning Membership', 'Publish', 'Parentage', 'Merge State', 'History', 'Closure Result', 'Status', 'Date', 'Origin')`,
+      sql`${table.kind} in (${workRelationKindSql})`,
     ),
     check(
       "work_relation_target_label_check",
