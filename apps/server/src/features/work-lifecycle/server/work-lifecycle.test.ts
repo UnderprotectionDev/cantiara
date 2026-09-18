@@ -12,10 +12,13 @@ import {
   type WorkLifecycleMutationContracts,
   type WorkLifecycleMutationValue,
   type WorkProfile,
+  type WorkRecreateField,
+  type WorkRecreateRelation,
 } from "@cantiara/api/work-lifecycle";
 import { describe, expect, test } from "vitest";
 
 import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
+import type { WorkRelations } from "../../relations/server/work-relations";
 import {
   createWorkLifecycle,
   WorkClosureCheckRequiredError,
@@ -45,6 +48,7 @@ function createMemoryWorkLifecycle(
     failNextCommit?: boolean;
     initialWorks?: WorkProfile[];
     projectDocuments?: ReadonlyArray<{ id: string; projectId: string }>;
+    recreateRelations?: WorkRecreateRelation[];
   } = {},
 ) {
   const works = new Map(
@@ -64,20 +68,34 @@ function createMemoryWorkLifecycle(
     enforceStaleRevision = true,
     failNextCommit: configuredFailNextCommit,
     projectDocuments = [],
+    recreateRelations = [],
   } = options;
   const projectDocumentIds = new Map(
     projectDocuments.map(({ id, projectId }) => [id, projectId]),
   );
-  let nextNumber = 1;
+  const nextNumberByProject = new Map<string, number>();
   let commitThenFailWithTitle = configuredCommitThenFailWithTitle;
   let failNextCommit = configuredFailNextCommit ?? false;
 
   const store: WorkLifecycleStore = {
     find: async (_accountId, workId) => works.get(workId) ?? null,
+    findProject: (_accountId, projectId) => {
+      const projects = new Map([
+        [PROJECT_ID, "Cantiara"],
+        ["project-2", "Second Project"],
+      ]);
+      const name = projects.get(projectId);
+      return Promise.resolve(name ? { id: projectId, name } : null);
+    },
     findByClientIdempotencyKey: (_accountId, projectId, key) => {
       const reservation = reservations.get(`${projectId}:${key}`);
       return Promise.resolve(
-        reservation ? (works.get(reservation.workId) ?? null) : null,
+        reservation && works.has(reservation.workId)
+          ? {
+              payloadFingerprint: reservation.payloadFingerprint,
+              work: works.get(reservation.workId) as WorkProfile,
+            }
+          : null,
       );
     },
     list: async (_accountId, projectId, listOptions) =>
@@ -104,20 +122,25 @@ function createMemoryWorkLifecycle(
         return Promise.resolve(existing);
       }
 
-      const number = nextNumber;
-      nextNumber += 1;
+      const number = nextNumberByProject.get(projectId) ?? 1;
+      nextNumberByProject.set(projectId, number + 1);
+      const shortCode = projectId === "project-2" ? "SECOND" : "CANT";
       const reservation: WorkCreationReservation = {
-        id: `work-${number}`,
-        key: `CANT-${number}`,
+        id: `${projectId}-work-${number}`,
+        key: `${shortCode}-${number}`,
         number,
         payloadFingerprint,
         projectId,
-        shortCode: "CANT",
-        workId: `work-${number}`,
+        shortCode,
+        workId: `${projectId}-work-${number}`,
       };
       reservations.set(reservationKey, reservation);
       return Promise.resolve(reservation);
     },
+  };
+
+  const relations: WorkRelations = {
+    listRecreateRelations: async () => recreateRelations,
   };
 
   const mutationContracts: WorkLifecycleMutationContracts = {
@@ -248,6 +271,7 @@ function createMemoryWorkLifecycle(
       ? { get: async () => options.closureContext as WorkClosureContext }
       : undefined,
     mutationContracts,
+    relations,
     store,
   });
 }
@@ -814,9 +838,11 @@ describe("Work Lifecycle seam", () => {
     const closedWork: WorkProfile = {
       archivedAt: null,
       captureProvenance: null,
+      checklist: [],
       closureReason: null,
       closureResult: "Completed",
       createdAt: "2026-09-18T09:00:00.000Z",
+      description: null,
       featureHealthHistory: [],
       id: "closed-work",
       key: "CANT-7",
@@ -824,6 +850,7 @@ describe("Work Lifecycle seam", () => {
       primaryFeatureId: null,
       primarySpecId: null,
       projectId: PROJECT_ID,
+      recreatedFrom: null,
       revision: 3,
       status: "Closed",
       title: "Already completed Work",
@@ -1434,6 +1461,106 @@ describe("Work Lifecycle seam", () => {
       closureResult: "Abandoned",
       status: "Closed",
     });
+  });
+
+  test("recreates selected portable content with a new identity and target key", async () => {
+    const relation: WorkRecreateRelation = {
+      id: "relation-1",
+      kind: "Related",
+      label: "Related",
+      portable: true,
+      targetLabel: "CANT-9",
+      targetProjectName: "Cantiara",
+      targetRecordId: "work-9",
+    };
+    const workLifecycle = createMemoryWorkLifecycle({
+      recreateRelations: [relation],
+    });
+    const source = await workLifecycle.create(
+      "account-1",
+      createInput("recreate-source", {
+        checklist: [
+          { completed: true, id: "item-1", text: "Confirm the problem" },
+        ],
+        description: "Keep this context",
+        type: "Bug",
+      }),
+    );
+    const preview = await workLifecycle.previewRecreate("account-1", {
+      sourceWorkId: source.id,
+      targetProjectId: "project-2",
+    });
+
+    expect(preview).toMatchObject({
+      sourceWork: { id: source.id, key: source.key },
+      targetProject: { id: "project-2", name: "Second Project" },
+    });
+    const recreated = await workLifecycle.recreate("account-1", {
+      baseRevision: 0,
+      clientIdempotencyKey: "recreate-confirm",
+      previewId: preview?.previewId ?? "missing-preview",
+      selectedFields: ["title", "description", "checklist"],
+      selectedRelationIds: [relation.id],
+      sourceWorkId: source.id,
+      targetProjectId: "project-2",
+    });
+
+    expect(recreated).toMatchObject({
+      checklist: source.checklist,
+      description: source.description,
+      key: "SECOND-1",
+      projectId: "project-2",
+      recreatedFrom: { id: source.id, key: source.key },
+      title: source.title,
+      type: "Task",
+    });
+    expect(recreated.id).not.toBe(source.id);
+    await expect(workLifecycle.find("account-1", source.id)).resolves.toEqual(
+      source,
+    );
+  });
+
+  test("includes selected relations in recreate idempotency", async () => {
+    const relation: WorkRecreateRelation = {
+      id: "relation-2",
+      kind: "Related",
+      label: "Related",
+      portable: true,
+      targetLabel: "CANT-10",
+      targetProjectName: "Cantiara",
+      targetRecordId: "work-10",
+    };
+    const workLifecycle = createMemoryWorkLifecycle({
+      recreateRelations: [relation],
+    });
+    const source = await workLifecycle.create(
+      "account-1",
+      createInput("recreate-idempotency-source"),
+    );
+    const preview = await workLifecycle.previewRecreate("account-1", {
+      sourceWorkId: source.id,
+      targetProjectId: "project-2",
+    });
+    if (!preview) {
+      throw new Error("Expected a recreate preview.");
+    }
+    const input = {
+      baseRevision: 0 as const,
+      clientIdempotencyKey: "recreate-idempotency",
+      previewId: preview.previewId,
+      selectedFields: ["title"] as WorkRecreateField[],
+      selectedRelationIds: [] as string[],
+      sourceWorkId: source.id,
+      targetProjectId: "project-2",
+    };
+    await workLifecycle.recreate("account-1", input);
+
+    await expect(
+      workLifecycle.recreate("account-1", {
+        ...input,
+        selectedRelationIds: [relation.id],
+      }),
+    ).rejects.toBeInstanceOf(WorkCreationConflictError);
   });
 
   test("previews lasting context destinations without generating text or blocking close", async () => {

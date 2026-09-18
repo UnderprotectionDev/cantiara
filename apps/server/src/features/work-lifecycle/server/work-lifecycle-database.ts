@@ -7,6 +7,7 @@ import {
   type WorkLifecycleMutationValue,
   type WorkProfile,
   workCaptureProvenanceSchema,
+  workChecklistSchema,
   workClosureResultSchema,
   workStatusSchema,
   workTypeSchema,
@@ -22,6 +23,10 @@ import {
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
 import {
+  createDatabaseWorkRelations,
+  type WorkRelationsMutationAdapter,
+} from "../../relations/server/work-relations";
+import {
   createWorkLifecycle,
   WorkCreationConflictError,
   type WorkCreationReservation,
@@ -29,6 +34,7 @@ import {
   WorkInclusionConflictError,
   type WorkLifecycleStore,
   WorkProjectNotFoundError,
+  WorkRecreatePreviewRequiredError,
 } from "./work-lifecycle";
 
 type WorkDatabaseRecord = typeof work.$inferSelect;
@@ -40,11 +46,13 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
     captureProvenance: record.captureProvenance
       ? workCaptureProvenanceSchema.parse(record.captureProvenance)
       : null,
+    checklist: workChecklistSchema.parse(record.checklist),
     closureReason: record.closureReason,
     closureResult: record.closureResult
       ? workClosureResultSchema.parse(record.closureResult)
       : null,
     createdAt: record.createdAt.toISOString(),
+    description: record.description,
     featureHealthHistory: featureHealthUpdateSchema
       .array()
       .parse(record.featureHealthHistory),
@@ -54,6 +62,13 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
     primaryFeatureId: record.primaryFeatureId,
     primarySpecId: record.primarySpecId,
     projectId: record.projectId,
+    recreatedFrom:
+      record.recreatedFromWorkId && record.recreatedFromWorkKey
+        ? {
+            id: record.recreatedFromWorkId,
+            key: record.recreatedFromWorkKey,
+          }
+        : null,
     revision: record.revision,
     status: workStatusSchema.parse(record.status),
     title: record.title,
@@ -152,8 +167,31 @@ function featureIdFromMutationPayload(payload: MutationPayload | undefined) {
   return typeof featureId === "string" ? featureId : null;
 }
 
+async function selectRecreateSelection(
+  executor: MutationDatabaseExecutor,
+  relations: WorkRelationsMutationAdapter,
+  accountId: string,
+  workspaceId: string,
+  recreate: WorkLifecycleMutationValue["recreate"] | undefined,
+) {
+  if (!recreate) {
+    return { selectedRelations: [], sourceWork: null };
+  }
+  const selection = await relations.selectRecreateRelations(
+    executor,
+    accountId,
+    workspaceId,
+    recreate,
+  );
+  if (!selection) {
+    throw new WorkRecreatePreviewRequiredError();
+  }
+  return selection;
+}
+
 function createWorkMutationTarget(
   accountId: string,
+  relations: WorkRelationsMutationAdapter,
 ): MutationDatabaseTargetAdapter<WorkLifecycleMutationValue> {
   return {
     find: async (_executor, targetId) => emptyWorkTarget(targetId),
@@ -192,6 +230,15 @@ function createWorkMutationTarget(
         return null;
       }
 
+      const { recreate } = input.nextValue;
+      const recreateSelection = await selectRecreateSelection(
+        executor,
+        relations,
+        accountId,
+        ownedProject.workspaceId,
+        recreate,
+      );
+
       const [created] = await executor
         .insert(work)
         .values({
@@ -199,9 +246,11 @@ function createWorkMutationTarget(
             ? new Date(nextWork.archivedAt)
             : null,
           captureProvenance: nextWork.captureProvenance,
+          checklist: nextWork.checklist,
           closureReason: nextWork.closureReason,
           closureResult: nextWork.closureResult,
           createdAt: new Date(nextWork.createdAt),
+          description: nextWork.description,
           featureHealthHistory: nextWork.featureHealthHistory,
           id: nextWork.id,
           key: nextWork.key,
@@ -209,6 +258,8 @@ function createWorkMutationTarget(
           primaryFeatureId: nextWork.primaryFeatureId,
           primarySpecId: nextWork.primarySpecId,
           projectId: nextWork.projectId,
+          recreatedFromWorkId: nextWork.recreatedFrom?.id,
+          recreatedFromWorkKey: nextWork.recreatedFrom?.key,
           revision: input.expectedRevision + 1,
           status: nextWork.status,
           title: nextWork.title,
@@ -218,6 +269,18 @@ function createWorkMutationTarget(
         .onConflictDoNothing()
         .returning();
       if (created) {
+        if (recreate && recreateSelection.sourceWork) {
+          await relations.persistRecreatedRelations(
+            executor,
+            input.committedAt,
+            {
+              id: created.id,
+              key: created.key,
+              projectId: created.projectId,
+            },
+            recreateSelection,
+          );
+        }
         return {
           id: created.id,
           revision: created.revision,
@@ -406,6 +469,7 @@ export function createDatabaseWorkLifecycle(
   database: Database,
   options: { projectDocumentAccess?: WorkLifecycleProjectDocumentAccess } = {},
 ) {
+  const relations = createDatabaseWorkRelations(database);
   const { projectDocumentAccess } = options;
   const store: WorkLifecycleStore = {
     async find(accountId, workId) {
@@ -422,13 +486,28 @@ export function createDatabaseWorkLifecycle(
       return result ? toWorkProfile(result.record) : null;
     },
 
+    async findProject(accountId, projectId) {
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        projectId,
+        false,
+      );
+      return ownedProject
+        ? { id: ownedProject.record.id, name: ownedProject.record.name }
+        : null;
+    },
+
     async findByClientIdempotencyKey(accountId, projectId, key) {
       const workspaceId = await findWorkspaceId(database, accountId);
       if (!workspaceId) {
         return null;
       }
       const [result] = await database
-        .select({ record: work })
+        .select({
+          payloadFingerprint: workKeyAllocation.payloadFingerprint,
+          record: work,
+        })
         .from(workKeyAllocation)
         .innerJoin(work, eq(work.id, workKeyAllocation.workId))
         .innerJoin(project, eq(work.projectId, project.id))
@@ -441,7 +520,12 @@ export function createDatabaseWorkLifecycle(
           ),
         )
         .limit(1);
-      return result ? toWorkProfile(result.record) : null;
+      return result
+        ? {
+            payloadFingerprint: result.payloadFingerprint ?? "",
+            work: toWorkProfile(result.record),
+          }
+        : null;
     },
 
     async list(accountId, projectId, listOptions) {
@@ -582,13 +666,14 @@ export function createDatabaseWorkLifecycle(
     mutationContracts: {
       create: (accountId) =>
         createDatabaseMutationContract<WorkLifecycleMutationValue>(database, {
-          target: createWorkMutationTarget(accountId),
+          target: createWorkMutationTarget(accountId, relations),
         }),
       update: (accountId) =>
         createDatabaseMutationContract<WorkLifecycleMutationValue>(database, {
           target: createWorkUpdateMutationTarget(accountId),
         }),
     },
+    relations,
     store,
   });
 }

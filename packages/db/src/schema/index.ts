@@ -2,4 +2,5 @@
 export * from "./auth";
 export * from "./capture-triage";
 export * from "./project";
+export * from "./relation";
 export * from "./work";

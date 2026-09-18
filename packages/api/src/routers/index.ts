@@ -55,12 +55,14 @@ import {
   detachIncludedWorkInputSchema,
   includeWorkInputSchema,
   recordFeatureHealthInputSchema,
+  recreateWorkInputSchema,
   reopenWorkInputSchema,
   updateFeaturePrimarySpecInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
   workArchiveMutationInputSchema,
   workClosePreviewInputSchema,
+  workRecreatePreviewInputSchema,
   workTypeChangePreviewInputSchema,
 } from "../work-lifecycle";
 
@@ -344,6 +346,22 @@ function mapWorkLifecycleError(
         defined: true,
         message:
           "Impact preview is required before changing to or from Feature.",
+      });
+    case "WORK_RECREATE_PREVIEW_REQUIRED":
+      return new ORPCError("PRECONDITION_FAILED", {
+        data: { code: error.code },
+        defined: true,
+        message: "Review the current recreate preview before confirming.",
+      });
+    case "WORK_RELATION_NOT_PORTABLE":
+    case "WORK_RECREATE_FIELD_REQUIRED":
+      return new ORPCError("BAD_REQUEST", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          typeof error.message === "string"
+            ? error.message
+            : "The recreate selection is unavailable.",
       });
     case "WORK_CLOSURE_RESULT_REQUIRED":
     case "WORK_CLOSURE_CHECK_REQUIRED":
@@ -753,6 +771,28 @@ export const appRouter = {
       }
       return preview;
     }),
+  workRecreatePreview: protectedProcedure
+    .input(workRecreatePreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireWorkLifecycle(context).previewRecreate(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work or target Project is unavailable.",
+        });
+      }
+      return preview;
+    }),
+  recreateWork: protectedProcedure
+    .input(recreateWorkInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).recreate(context.session.user.id, input),
+      ),
+    ),
   workClosePreview: protectedProcedure
     .input(workClosePreviewInputSchema)
     .handler(async ({ context, input }) => {

@@ -5,6 +5,7 @@ import {
   mutationReceipt,
   mutationStaging,
 } from "@cantiara/db/schema/mutation";
+import { workRelation } from "@cantiara/db/schema/relation";
 import { eq } from "drizzle-orm";
 import {
   afterAll,
@@ -139,6 +140,114 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
     await expect(
       workLifecycle.list(accountId, secondProject.id),
     ).resolves.toEqual([]);
+  });
+
+  test("persists recreate content and Origin through the public Work Lifecycle seam", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const sourceProject = await projectShell.create(accountId, {
+      name: "Payment App",
+      shortCode: "PAY",
+      starterConfiguration: "Blank Project",
+    });
+    const targetProject = await projectShell.create(accountId, {
+      name: "Payment Reports",
+      shortCode: "REPORTS",
+      starterConfiguration: "Blank Project",
+    });
+    const verificationProject = await projectShell.create(accountId, {
+      name: "Payment Archive",
+      shortCode: "ARCHIVE",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const relatedWork = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "recreate-related-work",
+      projectId: sourceProject.id,
+      title: "Related source Work",
+      type: "Task",
+    });
+    const source = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      checklist: [
+        { completed: true, id: "check-1", text: "Confirm the problem" },
+      ],
+      clientIdempotencyKey: "recreate-source-work",
+      description: "Keep this context",
+      projectId: sourceProject.id,
+      title: "Recreate this Work",
+      type: "Bug",
+    });
+    const relationId = `relation-${crypto.randomUUID()}`;
+    await database.insert(workRelation).values({
+      id: relationId,
+      kind: "Related",
+      sourceWorkId: source.id,
+      targetLabel: relatedWork.key,
+      targetProjectId: relatedWork.projectId,
+      targetRecordId: relatedWork.id,
+    });
+
+    const preview = await workLifecycle.previewRecreate(accountId, {
+      sourceWorkId: source.id,
+      targetProjectId: targetProject.id,
+    });
+    expect(preview?.relations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: relationId,
+          kind: "Related",
+          targetRecordId: relatedWork.id,
+        }),
+      ]),
+    );
+    if (!preview) {
+      throw new Error("Expected a recreate preview.");
+    }
+
+    const recreated = await workLifecycle.recreate(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "recreate-confirm-work",
+      previewId: preview.previewId,
+      selectedFields: ["title", "description", "checklist"],
+      selectedRelationIds: [relationId],
+      sourceWorkId: source.id,
+      targetProjectId: targetProject.id,
+    });
+    expect(recreated).toMatchObject({
+      checklist: source.checklist,
+      description: source.description,
+      projectId: targetProject.id,
+      recreatedFrom: { id: source.id, key: source.key },
+      title: source.title,
+      type: "Task",
+    });
+    await expect(
+      workLifecycle.find(accountId, source.id),
+    ).resolves.toMatchObject({
+      description: source.description,
+      projectId: sourceProject.id,
+      revision: source.revision,
+      title: source.title,
+      type: source.type,
+    });
+
+    const recreatedPreview = await workLifecycle.previewRecreate(accountId, {
+      sourceWorkId: recreated.id,
+      targetProjectId: verificationProject.id,
+    });
+    expect(recreatedPreview?.relations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "Origin",
+          targetRecordId: source.id,
+        }),
+      ]),
+    );
   });
 
   test("persists the Work archive filter and restores the same identity", async () => {

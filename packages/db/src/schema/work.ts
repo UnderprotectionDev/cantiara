@@ -18,9 +18,11 @@ export const work = pgTable(
   {
     archivedAt: timestamp("archived_at"),
     captureProvenance: jsonb("capture_provenance").$type<unknown>(),
+    checklist: jsonb("checklist").$type<unknown[]>().default([]).notNull(),
     closureReason: text("closure_reason"),
     closureResult: text("closure_result"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    description: text("description"),
     featureHealthHistory: jsonb("feature_health_history")
       .$type<unknown[]>()
       .default(sql`'[]'::jsonb`)
@@ -36,6 +38,8 @@ export const work = pgTable(
     projectId: text("project_id")
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
+    recreatedFromWorkId: text("recreated_from_work_id"),
+    recreatedFromWorkKey: text("recreated_from_work_key"),
     revision: integer("revision").default(0).notNull(),
     status: text("status").default("Not Started").notNull(),
     title: text("title").notNull(),

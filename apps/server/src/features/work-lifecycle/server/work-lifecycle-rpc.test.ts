@@ -18,9 +18,11 @@ import {
 const work: WorkProfile = {
   archivedAt: null,
   captureProvenance: null,
+  checklist: [],
   closureReason: null,
   closureResult: null,
   createdAt: "2026-09-18T09:00:00.000Z",
+  description: null,
   featureHealthHistory: [],
   id: "work-1",
   key: "CANT-1",
@@ -28,6 +30,7 @@ const work: WorkProfile = {
   primaryFeatureId: null,
   primarySpecId: null,
   projectId: "project-1",
+  recreatedFrom: null,
   revision: 1,
   status: "Not Started",
   title: "Create the first Work",
@@ -49,6 +52,7 @@ function createWorkLifecycleStub(
     includeWork: vi.fn(),
     list: vi.fn(),
     previewClose: vi.fn(),
+    previewRecreate: vi.fn(),
     previewTypeChange: vi.fn(),
     recordFeatureHealth: vi.fn(),
     reopen: vi.fn(),
@@ -56,6 +60,7 @@ function createWorkLifecycleStub(
     updateStatus: vi.fn(),
     updateType: vi.fn(),
     unarchive: vi.fn(),
+    recreate: vi.fn(),
     ...overrides,
   };
 }
@@ -111,6 +116,25 @@ describe("Work Lifecycle RPC", () => {
       ...work,
       status: "In Progress",
     });
+    const previewRecreate = vi.fn().mockResolvedValue({
+      fields: [],
+      previewId: "work-recreate:preview-1",
+      relations: [],
+      sourceWork: {
+        id: work.id,
+        key: work.key,
+        revision: work.revision,
+        title: work.title,
+      },
+      targetProject: { id: "project-2", name: "Second Project" },
+    });
+    const recreate = vi.fn().mockResolvedValue({
+      ...work,
+      id: "work-2",
+      key: "SECOND-1",
+      projectId: "project-2",
+      recreatedFrom: { id: work.id, key: work.key },
+    });
     const workLifecycle = createWorkLifecycleStub({
       archive,
       close,
@@ -137,6 +161,7 @@ describe("Work Lifecycle RPC", () => {
         lastingContext: null,
         workId: work.id,
       }),
+      previewRecreate,
       previewTypeChange: vi.fn().mockResolvedValue({
         currentType: "Task",
         featureExitBlockers: null,
@@ -146,6 +171,7 @@ describe("Work Lifecycle RPC", () => {
         workId: work.id,
       }),
       recordFeatureHealth: vi.fn().mockResolvedValue(work),
+      recreate,
       updateFeaturePrimarySpec: vi.fn().mockResolvedValue(work),
       reopen,
       updateStatus,
@@ -182,6 +208,36 @@ describe("Work Lifecycle RPC", () => {
     await expect(
       client.workTypeChangePreview({ type: "Bug", workId: work.id }),
     ).resolves.toMatchObject({ requiresImpactPreview: false });
+    await expect(
+      client.workRecreatePreview({
+        sourceWorkId: work.id,
+        targetProjectId: "project-2",
+      }),
+    ).resolves.toMatchObject({ previewId: "work-recreate:preview-1" });
+    await expect(
+      client.recreateWork({
+        baseRevision: 0,
+        clientIdempotencyKey: "recreate-1",
+        previewId: "work-recreate:preview-1",
+        selectedFields: ["title", "type"],
+        selectedRelationIds: [],
+        sourceWorkId: work.id,
+        targetProjectId: "project-2",
+      }),
+    ).resolves.toMatchObject({ key: "SECOND-1" });
+    expect(previewRecreate).toHaveBeenCalledWith("account-1", {
+      sourceWorkId: work.id,
+      targetProjectId: "project-2",
+    });
+    expect(recreate).toHaveBeenCalledWith("account-1", {
+      baseRevision: 0,
+      clientIdempotencyKey: "recreate-1",
+      previewId: "work-recreate:preview-1",
+      selectedFields: ["title", "type"],
+      selectedRelationIds: [],
+      sourceWorkId: work.id,
+      targetProjectId: "project-2",
+    });
     await expect(
       client.updateWorkType({
         baseRevision: work.revision,

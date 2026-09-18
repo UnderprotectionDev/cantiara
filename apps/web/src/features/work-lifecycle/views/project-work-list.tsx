@@ -20,6 +20,7 @@ import {
   useClientShellConnection,
 } from "@/features/web-macos-client/views/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import WorkRecreateForm from "../ui/forms/work-recreate-form";
 import WorkStatusForm from "../ui/forms/work-status-form";
 
 export default function ProjectWorkList({
@@ -75,6 +76,11 @@ export default function ProjectWorkList({
                   <span className="text-muted-foreground">{work.key}</span>{" "}
                   {work.title}
                 </p>
+                {work.recreatedFrom ? (
+                  <p className="mt-1 text-muted-foreground text-xs">
+                    Origin: {work.recreatedFrom.key}
+                  </p>
+                ) : null}
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <WorkTypeEditor work={work} />
@@ -83,6 +89,7 @@ export default function ProjectWorkList({
                   workStatusLabels={workStatusLabels}
                 />
                 <WorkArchiveAction work={work} />
+                <WorkRecreateForm work={work} />
               </div>
             </li>
           ))}

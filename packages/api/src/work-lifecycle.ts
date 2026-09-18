@@ -76,6 +76,24 @@ export const workTitleSchema = z
   .min(1, "Work title is required.")
   .max(255, "Work title must be 255 characters or fewer.");
 
+export const workDescriptionSchema = z
+  .string()
+  .trim()
+  .max(100_000, "Work description must be 100,000 characters or fewer.")
+  .nullable();
+
+export const workChecklistItemSchema = z
+  .object({
+    completed: z.boolean(),
+    id: identifierSchema,
+    text: z.string().trim().min(1).max(1000),
+  })
+  .strict();
+
+export const workChecklistSchema = z.array(workChecklistItemSchema).max(500);
+
+export type WorkChecklistItem = z.infer<typeof workChecklistItemSchema>;
+
 export const workCaptureProvenanceSchema = z
   .object({
     attachment: captureAttachmentSchema.nullable(),
@@ -94,6 +112,8 @@ export type WorkCaptureProvenance = z.infer<typeof workCaptureProvenanceSchema>;
 const createWorkInputObjectSchema = z
   .object({
     captureProvenance: workCaptureProvenanceSchema.nullable().optional(),
+    checklist: workChecklistSchema.optional(),
+    description: workDescriptionSchema.optional(),
     projectId: identifierSchema,
     title: workTitleSchema,
     type: workTypeSchema.default("Task"),
@@ -199,6 +219,91 @@ export type WorkTypeChangePreviewInput = z.input<
   typeof workTypeChangePreviewInputSchema
 >;
 export type UpdateWorkTypeInput = z.input<typeof updateWorkTypeInputSchema>;
+
+export const WORK_RECREATE_FIELD_OPTIONS = [
+  "title",
+  "type",
+  "description",
+  "checklist",
+] as const;
+
+export type WorkRecreateField = (typeof WORK_RECREATE_FIELD_OPTIONS)[number];
+
+export const WORK_RECREATE_RELATION_KIND_OPTIONS = [
+  "Related",
+  "Origin",
+  "Evidence",
+  "Contributes to Goal",
+  "Blocks",
+  "Includes",
+  "Contributes to Milestone",
+  "Primary spec",
+  "Supersedes",
+  "Implements",
+  "Belongs to Company",
+  "Participant",
+  "Required for completion",
+] as const;
+
+export type WorkRecreateRelationKind =
+  (typeof WORK_RECREATE_RELATION_KIND_OPTIONS)[number];
+
+export const workRecreateRelationKindSchema = z.enum(
+  WORK_RECREATE_RELATION_KIND_OPTIONS,
+);
+
+export const workRecreateRelationSchema = z
+  .object({
+    id: identifierSchema,
+    kind: workRecreateRelationKindSchema,
+    label: z.string().trim().min(1).max(255),
+    nonPortableReason: z.string().trim().min(1).max(1000).optional(),
+    portable: z.boolean(),
+    targetLabel: z.string().trim().min(1).max(1000),
+    targetProjectName: z.string().trim().min(1).max(255),
+    targetRecordId: identifierSchema,
+  })
+  .strict();
+
+export type WorkRecreateRelation = z.infer<typeof workRecreateRelationSchema>;
+
+export const workRecreatePreviewInputSchema = z
+  .object({
+    sourceWorkId: identifierSchema,
+    targetProjectId: identifierSchema,
+  })
+  .strict();
+
+export const recreateWorkInputSchema = workRecreatePreviewInputSchema
+  .extend({
+    baseRevision: z.literal(0),
+    clientIdempotencyKey: identifierSchema,
+    previewId: identifierSchema,
+    selectedFields: z.array(z.enum(WORK_RECREATE_FIELD_OPTIONS)),
+    selectedRelationIds: z.array(identifierSchema),
+  })
+  .strict();
+
+export type WorkRecreatePreviewInput = z.input<
+  typeof workRecreatePreviewInputSchema
+>;
+export type RecreateWorkInput = z.input<typeof recreateWorkInputSchema>;
+
+export interface WorkRecreateFieldPreview {
+  key: WorkRecreateField;
+  label: "Title" | "Type" | "Description" | "Checklist";
+  selectedByDefault: boolean;
+  value: WorkChecklistItem[] | WorkType | string | null;
+}
+
+export interface WorkRecreatePreview {
+  fields: WorkRecreateFieldPreview[];
+  previewId: string;
+  relations: WorkRecreateRelation[];
+  sourceWork: Pick<WorkProfile, "id" | "key" | "revision" | "title">;
+  targetProject: { id: string; name: string };
+}
+
 export type IncludeWorkInput = z.input<typeof includeWorkInputSchema>;
 export type DetachIncludedWorkInput = z.input<
   typeof detachIncludedWorkInputSchema
@@ -277,9 +382,11 @@ export interface WorkListOptions {
 export interface WorkProfile {
   archivedAt: string | null;
   captureProvenance: WorkCaptureProvenance | null;
+  checklist: WorkChecklistItem[];
   closureReason: string | null;
   closureResult: WorkClosureResult | null;
   createdAt: string;
+  description: string | null;
   featureHealthHistory: FeatureHealthUpdate[];
   id: string;
   key: string;
@@ -287,6 +394,7 @@ export interface WorkProfile {
   primaryFeatureId: string | null;
   primarySpecId: string | null;
   projectId: string;
+  recreatedFrom: { id: string; key: string } | null;
   revision: number;
   status: WorkStatus;
   title: string;
@@ -295,6 +403,11 @@ export interface WorkProfile {
 }
 
 export interface WorkLifecycleMutationValue {
+  recreate?: {
+    selectedRelationIds: string[];
+    sourceWorkId: string;
+    sourceWorkRevision: number;
+  };
   work: WorkProfile | null;
 }
 
@@ -366,6 +479,10 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: WorkClosePreviewInput,
   ) => Promise<WorkClosePreview | null>;
+  previewRecreate: (
+    accountId: string,
+    input: WorkRecreatePreviewInput,
+  ) => Promise<WorkRecreatePreview | null>;
   previewTypeChange: (
     accountId: string,
     input: WorkTypeChangePreviewInput,
@@ -373,6 +490,10 @@ export interface WorkLifecycleAccess {
   recordFeatureHealth: (
     accountId: string,
     input: RecordFeatureHealthInput,
+  ) => Promise<WorkProfile>;
+  recreate: (
+    accountId: string,
+    input: RecreateWorkInput,
   ) => Promise<WorkProfile>;
   reopen: (
     accountId: string,
