@@ -17,6 +17,7 @@ import {
   projectShellMutationContracts,
   replaySessionRevocations,
   tauriSessionAccess,
+  webCapture,
 } from "./services";
 
 initLogger({
@@ -49,4 +50,5 @@ export default createApp({
   redactSecrets,
   tauriSessionAccess,
   trustedProxyIps: env.TRUSTED_PROXY_IPS,
+  webCapture,
 });

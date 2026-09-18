@@ -75,3 +75,46 @@ export const captureInboxOperation = pgTable(
     ),
   ],
 );
+
+export const captureExtensionPairingCode = pgTable(
+  "capture_extension_pairing_code",
+  {
+    accountId: text("account_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull().unique(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    id: text("id").primaryKey(),
+  },
+  (table) => [
+    index("capture_extension_pairing_account_expires_idx").on(
+      table.accountId,
+      table.expiresAt,
+    ),
+  ],
+);
+
+export const captureExtensionLink = pgTable(
+  "capture_extension_link",
+  {
+    accountId: text("account_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    browser: text("browser").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    device: text("device").notNull(),
+    id: text("id").primaryKey(),
+    lastUse: timestamp("last_use"),
+    revokedAt: timestamp("revoked_at"),
+    tokenHash: text("token_hash").notNull().unique(),
+  },
+  (table) => [
+    index("capture_extension_link_account_idx").on(table.accountId),
+    check(
+      "capture_extension_link_browser_check",
+      sql`${table.browser} in ('Chrome', 'Edge', 'Brave', 'Arc', 'Firefox')`,
+    ),
+  ],
+);

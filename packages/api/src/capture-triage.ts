@@ -34,7 +34,7 @@ export const CAPTURE_TEMPLATE_FIELD_LABELS = {
 export const captureTemplateSchema = z.enum(CAPTURE_TEMPLATES);
 const identifierSchema = z.string().trim().min(1).max(255);
 const captureTextSchema = z.string().max(100_000);
-const captureUrlSchema = z
+export const captureUrlSchema = z
   .string()
   .trim()
   .min(1)

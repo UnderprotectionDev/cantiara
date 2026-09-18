@@ -13,6 +13,7 @@ import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
 } from "./project-shell";
+import type { WebCaptureAccess } from "./web-capture";
 
 export interface AccountSessionPrincipal {
   accountId: string;
@@ -115,4 +116,5 @@ export interface Context {
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;
+  webCapture?: WebCaptureAccess;
 }

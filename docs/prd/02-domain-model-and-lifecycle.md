@@ -737,6 +737,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yakalama köken bağı | `Origin` | Yakalamayı mevcut kayda köken olarak bağlayan ilişki |
 | Yakalama kanıt bağı | `Evidence` | Yakalamayı mevcut kayda kanıt olarak bağlayan ilişki |
 | Web Yakalama | `Web Capture` | Tarayıcı uzantısından açık eylemle Gelen Kutusuna giden clip; ana kayıt değildir |
+| URL yakala | `Capture URL` | Etkin sekmenin URL’sini önizlemeli Web Yakalama olarak seçme eylemi |
+| Seçili metni yakala | `Capture selected text` | Kullanıcının etkin sekmede seçtiği metni Web Yakalama içeriği olarak seçme eylemi |
+| Seçili görseli yakala | `Capture selected image` | Kullanıcının etkin sekmede seçtiği görsel bağlantısını Web Yakalama olarak seçme eylemi |
+| Ekran görüntüsü yakala | `Capture screenshot` | Kullanıcı tarafından başlatılan etkin sekme ekran görüntüsünü Web Yakalama eki olarak seçme eylemi |
 | Uzantı bağlantıları | `Extension links` | Hesap güvenlik ekranındaki eşlenmiş tarayıcı uzantısı listesi |
 | Eşleme kodu | `Pairing code` | Beş dakika geçerli tek kullanımlık uzantı bağlantı kodu |
 | Eşleme kodu üret | `Generate pairing code` | Uygulama içinde tek kullanımlık eşleme kodu üreten eylem |
@@ -746,6 +750,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Inbox ara | `Search Inbox` | Yetkili Project Inbox’ları ada göre arama; yalnız son açılanlarla sınırlı değildir |
 | Gönder | `Send` | Önizlenen Web Yakalama’yı Gelen Kutusuna yazma eylemi |
 | Eşle | `Pair` | Uzantının eşleme kodunu kullanarak bağlanma eylemi |
+| Bu tarayıcıyı eşle | `Pair this browser` | Eşleme kodunu bu tarayıcı uzantısına uygulama yüzeyi |
 | Gelen Kutusuna gönderildi | `Sent to Capture Inbox.` | Web Yakalama gönderiminin Inbox öğesi yazdığını bildiren durum |
 | Desteklenmeyen tarayıcı | `This browser cannot pair with Web Capture.` | Chromium ailesi ve Firefox dışındaki tarayıcıda eşlemeyi reddeden metin |
 | Son başarılı kayıt | `Last successful save` | Uzantıda son başarılı gönderimin zamanı |

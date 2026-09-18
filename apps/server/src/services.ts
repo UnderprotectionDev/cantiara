@@ -24,6 +24,7 @@ import {
   createDatabaseCaptureInbox,
 } from "./features/capture-triage/server/capture-inbox-database";
 import { createDevelopmentCaptureInboxTriageAdapter } from "./features/capture-triage/server/capture-inbox-development-adapter";
+import { createDatabaseWebCapture } from "./features/capture-triage/server/web-capture-database";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
@@ -67,6 +68,11 @@ export const captureInbox = createDatabaseCaptureInbox(
     ? undefined
     : createDevelopmentCaptureInboxTriageAdapter(),
 );
+export const webCapture = createDatabaseWebCapture({
+  captureInbox,
+  database: db,
+  projects: projectShell,
+});
 export const githubAvailability = createGitHubAvailability();
 export const accountSessionAccess = createDatabaseAccountSessionAccess(
   db,
