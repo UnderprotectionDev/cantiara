@@ -44,6 +44,7 @@ import {
   leaveSequentialTriage,
   moveToNextSequentialTriageItem,
   moveToPreviousSequentialTriageItem,
+  restoreSequentialTriageItem,
   type SequentialTriageState,
 } from "./sequential-triage";
 
@@ -1213,7 +1214,11 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
     readonly CaptureInboxItem[]
   >([]);
   const undoMerge = useMutation({
-    mutationFn: (input: { mergeId: string; previewId: string }) =>
+    mutationFn: (input: {
+      itemId: string;
+      mergeId: string;
+      previewId: string;
+    }) =>
       shell.runWrite(() =>
         client.undoCaptureMerge({
           clientIdempotencyKey: crypto.randomUUID(),
@@ -1222,10 +1227,13 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
         }),
       ),
     onError: () => toast.error(triageErrorMessage()),
-    onSuccess: async () => {
+    onSuccess: async (_, input) => {
       await queryClient.invalidateQueries({
         queryKey: captureInboxQueryOptions(accountId).queryKey,
       });
+      setSequentialTriageState((state) =>
+        restoreSequentialTriageItem(state, input.itemId),
+      );
       setUndoPreview(null);
       toast.success("Capture restored.");
     },
@@ -1234,6 +1242,7 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
   const confirmUndo = useCallback(() => {
     if (undoPreview) {
       undoMerge.mutate({
+        itemId: undoPreview.preview.itemId,
         mergeId: undoPreview.mergeId,
         previewId: undoPreview.preview.previewId,
       });

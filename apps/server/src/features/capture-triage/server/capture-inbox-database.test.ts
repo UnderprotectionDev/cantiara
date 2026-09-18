@@ -18,7 +18,7 @@ import {
 } from "./capture-inbox-database";
 import { createDevelopmentCaptureInboxTriageAdapter } from "./capture-inbox-development-adapter";
 
-const databaseUrl = process.env.CAPTURE_TRIAGE_DATABASE_URL;
+const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
 
 describeDatabase("Capture Inbox PostgreSQL integration", () => {
@@ -67,7 +67,7 @@ describeDatabase("Capture Inbox PostgreSQL integration", () => {
 
   test("converts and attaches Workspace captures through the database mutation boundary", async () => {
     if (!database) {
-      throw new Error("CAPTURE_TRIAGE_DATABASE_URL is required");
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
     }
 
     await database.insert(user).values({

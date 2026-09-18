@@ -20,6 +20,7 @@ import {
   leaveSequentialTriage,
   moveToNextSequentialTriageItem,
   moveToPreviousSequentialTriageItem,
+  restoreSequentialTriageItem,
 } from "./sequential-triage";
 
 function renderCaptureInbox(
@@ -265,5 +266,23 @@ describe("Sequential triage focus", () => {
       resolvedItemIds: ["capture-1"],
     });
     expect(leaveSequentialTriage()).toEqual({ mode: "list" });
+  });
+
+  test("restores an undone item to focus, including after the session completed", () => {
+    const started = beginSequentialTriage(["capture-1", "capture-2"]);
+    const next = advanceSequentialTriageAfterExit(started);
+    const complete = advanceSequentialTriageAfterExit(next);
+
+    expect(restoreSequentialTriageItem(next, "capture-1")).toMatchObject({
+      itemId: "capture-2",
+      mode: "focused",
+      resolvedItemIds: [],
+    });
+    expect(restoreSequentialTriageItem(complete, "capture-2")).toMatchObject({
+      itemId: "capture-2",
+      itemIndex: 1,
+      mode: "focused",
+      resolvedItemIds: ["capture-1"],
+    });
   });
 });

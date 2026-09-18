@@ -106,6 +106,33 @@ export function advanceSequentialTriageAfterExit(
   );
 }
 
+export function restoreSequentialTriageItem(
+  state: SequentialTriageState,
+  itemId: string,
+): SequentialTriageState {
+  if (state.mode === "list" || !state.resolvedItemIds.includes(itemId)) {
+    return state;
+  }
+
+  const resolvedItemIds = state.resolvedItemIds.filter(
+    (resolvedItemId) => resolvedItemId !== itemId,
+  );
+  if (state.mode === "complete") {
+    return {
+      itemId,
+      itemIds: state.itemIds,
+      itemIndex: state.itemIds.indexOf(itemId),
+      mode: "focused",
+      resolvedItemIds,
+    };
+  }
+
+  return {
+    ...state,
+    resolvedItemIds,
+  };
+}
+
 export function leaveSequentialTriage(): SequentialTriageState {
   return { mode: "list" };
 }
