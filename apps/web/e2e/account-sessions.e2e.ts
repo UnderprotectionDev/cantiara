@@ -28,7 +28,11 @@ test("revokes a session through the keyboard-accessible Account journey", async 
   await expect(
     page.getByRole("heading", { name: "Sessions", level: 1 }),
   ).toBeVisible();
-  await expect(page.getByRole("listitem")).toHaveCount(2);
+  const activeSessions = page.getByRole("region", {
+    name: "Active sessions",
+  });
+  const sessionItems = activeSessions.getByRole("listitem");
+  await expect(sessionItems).toHaveCount(2);
   await expect(page.getByText("Current", { exact: true })).toBeVisible();
 
   const revokeOthers = page.locator("header").getByRole("button", {
@@ -42,9 +46,7 @@ test("revokes a session through the keyboard-accessible Account journey", async 
   await page.keyboard.press("Escape");
   await expect(revokeOthers).toBeFocused();
 
-  const otherSession = page
-    .getByRole("listitem")
-    .filter({ hasText: "Firefox on Linux" });
+  const otherSession = sessionItems.filter({ hasText: "Firefox on Linux" });
   const revokeSession = otherSession.getByRole("button", {
     name: "Revoke Session",
   });
@@ -62,7 +64,7 @@ test("revokes a session through the keyboard-accessible Account journey", async 
   await page.keyboard.press("Enter");
 
   await expect(otherSession).toHaveCount(0);
-  await expect(page.getByRole("listitem")).toHaveCount(1);
+  await expect(sessionItems).toHaveCount(1);
   await expect(page.getByText("Firefox on macOS")).toBeVisible();
   await expect(page.getByText("Mozilla/5.0", { exact: false })).toHaveCount(0);
 });
