@@ -384,6 +384,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Aşamalar | `Stages` | Yapılandırılabilir Proje aşamalarının Yapılandırma modu girişi |
 | İş durumları | `Work statuses` | Korunan İş akışı durumlarının kullanıcıya dönük ad girişi |
 | Proje alanları | `Project areas` | Kapalı Proje alanı kataloğunun etkinleştirme girişi |
+| Kullanılabilir | `Available` | Henüz etkinleştirilmemiş Proje alanı kataloğu durumu |
+| Gizli | `Hidden` | Etkin olup navigasyondan gizlenen Proje alanı durumu |
+| Etkin | `Enabled` | Etkin ve görünür Proje alanı kataloğu durumu |
 | Navigasyona sabitle | `Pin to navigation` | Proje alanını navigasyon üstverisine sabitleme; alan etkinleştirme değildir |
 | Sabitlemeyi kaldır | `Remove pin` | Proje alanının navigasyon üstverisindeki sabitlemesini kaldırma |
 | Varsayılan navigasyonu geri yükle | `Restore default navigation` | Yalnız pin ve sıra üstverisini Başlangıç yapılandırması varsayılanına döndürme |
@@ -397,9 +400,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yukarı taşı | `Move up` | Aşama sunum sırasını öne alma |
 | Aşağı taşı | `Move down` | Aşama sunum sırasını sona alma |
 | Aşama kaldırma önizlemesi | `{name} will leave presentation and filters. Main records are not deleted.` | Aşama kaldırılırken sunum/filtre önizlemesi |
+| Aşama adı | `Stage name` | Yapılandırılabilir Proje aşamasının görünen adı |
+| Aşama hazırlanmadı | `No stages prepared.` | Yapılandırmada henüz aşama olmadığını belirten boş durum |
 | Aşamalar yapılandırması | `Stages configuration` | Yapılandırma modundaki aşama listesi ve sunum düzeni bölümü |
 | İş durumu yapılandırması | `Work status configuration` | Yapılandırma modundaki korunan İş durumu görünen adları bölümü |
 | Görünen ad | `Visible label` | Korunan İş durumu semantiğinin kullanıcıya dönük adı |
+| İş durumu etiketi | `Work status label` | Korunan İş durumu semantiğinin görünen adını düzenleme alanı |
 | Kaydet | `Save` | Yapılandırma modunda aşama adı ve İş durumu görünen adını kaydetme |
 | Aşama adı gerekli | `Stage name is required.` | Boş aşama adı reddi |
 | İş durumu adı gerekli | `Work status label is required.` | Boş İş durumu görünen adı reddi |
