@@ -29,29 +29,39 @@ Spec yoksa Spec altında belirt. Review atlandıysa nedenini yaz — uydurma.
 
 ## 3. Nasıl test edilir
 
-Bu bölüm, değişikliği tarayıcıda elle yeniden üretme kılavuzudur. Diff'i görmemiş biri başlangıç ekranını bulabilmeli, her kontrolü nerede kullanacağını anlayabilmeli ve eylemden sonra sonucu ilgili ekranda doğrulayabilmelidir. Komut, terminal veya otomatik test çıktısı yazılmaz.
+Bu bölüm, değişikliği tarayıcıda elle deneyen kişiye doğrudan yol gösterir. Diff'i görmemiş biri hangi sayfayı açacağını, hangi işlemi yapacağını ve işlemin sonucunu anlayabilmelidir. Metin kısa bir kullanıcı kılavuzu gibi yazılır; komut, terminal çıktısı veya otomatik test raporu içermez.
 
-**Başlangıç** (bir kez, üstte): uygulamanın tarayıcı adresi ve ilk route'u; giriş durumu; gerekli kayıt hazırsa kullanıcıya görünen adı. Kayıt hazır değilse ana akıştan önce `Veri hazırlığı` başlığı altında, kaydı tarayıcıda oluşturmayı aynı konuşma diliyle ve numaralı adımlarla anlat. Bu adımlarda görünen giriş alanını, yazılacak değeri, kullanılacak düğmeyi ve her eylemden sonra beklenen sonucu cümle içinde belirt. Test altyapısına ait `fixture` gibi terimleri kullanıcıya dönük adımlarda tek başına kullanma. Yalnız route biliniyorsa tam URL uydurma; route'u ve oraya giden UI gezinmesini yaz.
+### Başlangıç
 
-**Adımları normal konuşma diliyle yaz.** Her numaralı adım tek bir kullanıcı eylemi taşısın; ekranı, tıklanacak veya yazılacak gerçek kontrolü ve hemen ardından görülmesi gereken sonucu aynı numaralı adım içindeki bir veya iki kısa cümleyle anlat. Gerçek English UI etiketlerini backtick içine al. Okuyucuya iç kontrol şablonunu göstermeden `Nerede`, `Bölge`, `Etiket` ve `Beklenen` bilgilerinin tamamını cümle içinde ver.
+İlk paragrafta uygulamanın başlangıç adresini veya route'unu, giriş durumunu ve kullanılacak kaydı yaz. Kayıt hazır değilse ana akıştan önce `Veri hazırlığı` başlığı aç ve kaydı tarayıcıda oluşturmayı aynı konuşma diliyle numaralı adımlara böl. Bu adımlarda görünen giriş alanını, yazılacak değeri, kullanılacak düğmeyi ve her işlemden sonra beklenen sonucu cümle içinde belirt. Test ortamında veri önceden yüklenmişse yalnızca kullanıcının görebildiği kayıt adını yaz; test altyapısı terimlerini kullanıcıya dönük metne taşıma. Elinde yalnızca route varsa tam alan adı uydurma; route'u ve o ekrana uygulama içinden nasıl gidileceğini yaz.
 
-Kalıcı bir yazma akışı varsa sonucu yenileyerek, tekrar açarak veya ilgili listeye dönerek kalıcılığı ayrı bir adımda doğrula. Yalnızca geçici seçim, önizleme veya diyalog açılması kalıcı yazma yapmıyorsa yenileme adımı ekleme. “Önemli yol”, owning spec’teki kabul koşulu veya Testing Decisions karşıtı olan, bu değişikliğin etkilediği kullanıcıya görünen dallanmadır; yalnız bu yolları listele ve varsa başarı, iptal, doğrulama/hata, geri alma ve her tür/variant yolunu ayrı yaz. Böyle bir yol yoksa bunu doğal bir cümleyle söyle; örneğin `Bu değişiklikte iptal veya hata akışı yok.` İç durum adlarını veya “adaptör bağlı ortam” gibi hazırlaması açıklanmamış ifadeleri tek başına kullanma.
+### Ana akış
 
-Örnek:
+Her numaralı adım tek bir kullanıcı eylemi içersin. Kullanıcıya hangi ekranda olduğunu, hangi gerçek kontrolü kullanacağını ve hemen ardından ne görmesi gerektiğini bir veya iki kısa cümleyle anlat. Örneğin: “`Preferences` sayfasında `Appearance` alanını açın. `Light` ve `Dark` seçenekleri görünür.”
 
-Başlangıç: Uygulama açık, kullanıcı giriş yapmış ve `/capture` ekranındasın. Bu örnekte test ortamında `Toplantı notları` adlı kayıt önceden hazırlanmış ve listede görünüyor. Gerçek testte kayıt hazır değilse, ana akıştan önce yukarıdaki `Veri hazırlığı` kuralına göre oluşturma adımlarını ekle.
+Gerçek English UI etiketlerini owning spec'teki biçimiyle backtick içine al. Spec'te etiket tanımlı değilse üründe gerçekten görünen etiketi kullan; yeni bir etiket uydurma. Adımları iç kontrol alanlarıyla değil, doğrudan konuşma cümleleriyle yaz.
 
-1. `/capture` ekranında `Toplantı notları` kaydına tıklayın. Kayıt gövdesi açılır.
-2. Kayıt gövdesinde `Convert` düğmesine tıklayın. `Work`, `Document` ve `File Attachment` seçenekleri görünür.
-3. Açılan seçeneklerden `Document` seçeneğine tıklayın. `Conversion Preview` ekranı açılır.
-4. Önizlemede `Confirm` düğmesine tıklayın. Kayıt `Document` olarak dönüştürülür ve yeni tür kayıt gövdesinde görünür.
-5. Sayfayı tarayıcıdan yenileyin. Kayıt yeniden açılır ve `Document` türü korunur.
+### Kalıcılık ve diğer yollar
 
-Bu örnekte route, ekran ve kontrol adları cümlenin içinde; beklenen sonuç ise eylemden hemen sonra geliyor. Değişiklik iptal, hata, geri alma veya başka bir türü etkiliyorsa, o akışları da aynı sadelikte ayrı numaralı adımlar olarak ekle. Örneğin ilgili akışta gerçekten görünen `Cancel`, `Undo` veya hata metnini kullan; üründe görünmeyen bir etiket uydurma.
+Bir işlem kalıcı veri yazıyorsa, sonucu sayfayı yenileyerek, kaydı yeniden açarak veya ilgili listeye dönerek ayrı bir adımda doğrula. Yalnızca geçici seçim, önizleme veya diyalog açılıyorsa yenileme adımı ekleme.
 
-Değişiklik tarayıcıda yoksa, final metni Türkçe olsa da repo sözleşmesinin istediği tek cümle olarak yalnızca `Not applicable` yaz.
+Değişiklik başka bir seçimi, iptali, doğrulama/hata durumunu, geri almayı veya kayıt türünü etkiliyorsa, o yolu ayrı bir başlık ve kısa adımlarla anlat. İlgili bir yol yoksa bunu doğal bir cümleyle belirt; örneğin `Bu değişiklikte iptal, hata veya geri alma akışı yok.` İç durum adlarını veya hazırlaması açıklanmamış ifadeleri tek başına kullanma.
 
-**Done when** Başlangıç bölümü uygulamayı ve veriyi hazırlamayı açıklıyor; kayıt önceden hazır değilse `Veri hazırlığı` altında oluşturma adımları da aynı konuşma diliyle yer alıyor. Her adım tek eylem içeriyor ve ekranı, gerçek kontrolü ve beklenen sonucu bir veya iki kısa cümleyle anlatıyor. İlgili kalıcı yazmaların kalıcılığı ile önemli karşıt yollar gösteriliyor; böyle bir yol yoksa bunun doğal bir cümleyle söylendiği doğrulanıyor — veya tarayıcıda yoksa yalnızca `Not applicable` kullanılıyor.
+Örnek (etiketler `docs/specs/02-account-preferences/spec.md` içindeki sözlükten alınmıştır):
+
+Başlangıç: Uygulama açık ve kullanıcı giriş yapmış. `/account/preferences` sayfası için ek veri hazırlığı gerekmiyor.
+
+1. `/account/preferences` sayfasını açın. `Preferences` başlığı görünür.
+2. `Preferences` sayfasında `Appearance` alanını açın. `Light` ve `Dark` seçenekleri görünür; `System` görünmez.
+3. `Dark` seçeneğini seçin. `Appearance` alanında `Dark` görünür.
+4. `Save` düğmesine tıklayın. `Appearance` değeri `Dark` olarak kaydedilir.
+5. Sayfayı yenileyin. `Preferences` sayfası yeniden açılır ve `Appearance` değeri `Dark` olarak kalır.
+
+Bu örnekte kullanıcı her adımda nereye gideceğini, ne yapacağını ve ne göreceğini doğrudan anlar. Gerçek değişiklik bir hata veya iptal akışını etkiliyorsa, örnekteki başarı akışının yanına yalnızca o ilgili akışı ekle.
+
+Tarayıcıda görünen bir davranış yoksa bu bölümün tamamına yalnızca `Not applicable` yaz.
+
+**Done when** Başlangıç bölümü uygulamayı ve veriyi hazırlamayı açıklıyor; kayıt önceden hazır değilse `Veri hazırlığı` altında oluşturma adımları yer alıyor. Her adım tek eylem ve bir veya iki kısa cümleyle ekranı, gerçek kontrolü ve beklenen sonucu anlatıyor. İlgili kalıcı yazmalar ile değişiklikten etkilenen diğer kullanıcı yolları ayrı ayrı doğrulanıyor; ilgili başka yol yoksa bu durum doğal bir cümleyle belirtiliyor — veya tarayıcı davranışı yoksa yalnızca `Not applicable` kullanılıyor.
 
 ## Voice
 
