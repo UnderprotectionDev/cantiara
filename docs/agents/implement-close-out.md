@@ -31,15 +31,15 @@ Spec yoksa Spec altında belirt. Review atlandıysa nedenini yaz — uydurma.
 
 Bu bölüm, değişikliği tarayıcıda elle yeniden üretme kılavuzudur. Diff'i görmemiş biri başlangıç ekranını bulabilmeli, her kontrolü nerede kullanacağını anlayabilmeli ve eylemden sonra sonucu ilgili ekranda doğrulayabilmelidir. Komut, terminal veya otomatik test çıktısı yazılmaz.
 
-**Başlangıç** (bir kez, üstte): uygulamanın tarayıcı adresi ve ilk route'u; giriş durumu; gerekli kayıt hazırsa kullanıcıya görünen adı, hazır değilse tarayıcıda nasıl oluşturulacağı. Test altyapısına ait `fixture` gibi terimleri kullanıcıya dönük adımlarda tek başına kullanma. Yalnız route biliniyorsa tam URL uydurma; route'u ve oraya giden UI gezinmesini yaz.
+**Başlangıç** (bir kez, üstte): uygulamanın tarayıcı adresi ve ilk route'u; giriş durumu; gerekli kayıt hazırsa kullanıcıya görünen adı. Kayıt hazır değilse ana akıştan önce `Veri hazırlığı` başlığı altında, kaydı tarayıcıda oluşturmayı aynı konuşma diliyle ve numaralı adımlarla anlat. Bu adımlarda görünen giriş alanını, yazılacak değeri, kullanılacak düğmeyi ve her eylemden sonra beklenen sonucu cümle içinde belirt. Test altyapısına ait `fixture` gibi terimleri kullanıcıya dönük adımlarda tek başına kullanma. Yalnız route biliniyorsa tam URL uydurma; route'u ve oraya giden UI gezinmesini yaz.
 
-**Adımları normal konuşma diliyle yaz.** Her numaralı adım tek bir kullanıcı eylemi taşısın; ekranı, tıklanacak veya yazılacak gerçek kontrolü ve hemen ardından görülmesi gereken sonucu aynı akıcı cümleye yerleştir. Gerçek English UI etiketlerini backtick içine al. Okuyucuya iç kontrol şablonunu göstermeden `Nerede`, `Bölge`, `Etiket` ve `Beklenen` bilgilerinin tamamını cümle içinde ver.
+**Adımları normal konuşma diliyle yaz.** Her numaralı adım tek bir kullanıcı eylemi taşısın; ekranı, tıklanacak veya yazılacak gerçek kontrolü ve hemen ardından görülmesi gereken sonucu aynı numaralı adım içindeki bir veya iki kısa cümleyle anlat. Gerçek English UI etiketlerini backtick içine al. Okuyucuya iç kontrol şablonunu göstermeden `Nerede`, `Bölge`, `Etiket` ve `Beklenen` bilgilerinin tamamını cümle içinde ver.
 
 Kalıcı bir yazma akışı varsa sonucu yenileyerek, tekrar açarak veya ilgili listeye dönerek kalıcılığı ayrı bir adımda doğrula. Yalnızca geçici seçim, önizleme veya diyalog açılması kalıcı yazma yapmıyorsa yenileme adımı ekleme. “Önemli yol”, owning spec’teki kabul koşulu veya Testing Decisions karşıtı olan, bu değişikliğin etkilediği kullanıcıya görünen dallanmadır; yalnız bu yolları listele ve varsa başarı, iptal, doğrulama/hata, geri alma ve her tür/variant yolunu ayrı yaz. Böyle bir yol yoksa bunu doğal bir cümleyle söyle; örneğin `Bu değişiklikte iptal veya hata akışı yok.` İç durum adlarını veya “adaptör bağlı ortam” gibi hazırlaması açıklanmamış ifadeleri tek başına kullanma.
 
 Örnek:
 
-Başlangıç: Uygulama açık, kullanıcı giriş yapmış ve `/capture` ekranındasın. Listede `Toplantı notları` adlı görünür bir kayıt hazır; yoksa önce Capture alanından bu kaydı oluştur.
+Başlangıç: Uygulama açık, kullanıcı giriş yapmış ve `/capture` ekranındasın. Bu örnekte test ortamında `Toplantı notları` adlı kayıt önceden hazırlanmış ve listede görünüyor. Gerçek testte kayıt hazır değilse, ana akıştan önce yukarıdaki `Veri hazırlığı` kuralına göre oluşturma adımlarını ekle.
 
 1. `/capture` ekranında `Toplantı notları` kaydına tıklayın. Kayıt gövdesi açılır.
 2. Kayıt gövdesinde `Convert` düğmesine tıklayın. `Work`, `Document` ve `File Attachment` seçenekleri görünür.
@@ -51,7 +51,7 @@ Bu örnekte route, ekran ve kontrol adları cümlenin içinde; beklenen sonuç i
 
 Değişiklik tarayıcıda yoksa, final metni Türkçe olsa da repo sözleşmesinin istediği tek cümle olarak yalnızca `Not applicable` yaz.
 
-**Done when** Başlangıç bölümü uygulamayı ve veriyi hazırlamayı açıklıyor, tarayıcıdaki veri hazırlığı da gerekiyorsa aynı konuşma diliyle yazılıyor, her adım tek eylem içeriyor ve ekranı, gerçek kontrolü ve beklenen sonucu akıcı biçimde anlatıyor; ilgili kalıcı yazmaların kalıcılığı ile önemli karşıt yollar gösteriliyor — veya tarayıcıda yoksa yalnızca `Not applicable` kullanılıyor.
+**Done when** Başlangıç bölümü uygulamayı ve veriyi hazırlamayı açıklıyor; kayıt önceden hazır değilse `Veri hazırlığı` altında oluşturma adımları da aynı konuşma diliyle yer alıyor. Her adım tek eylem içeriyor ve ekranı, gerçek kontrolü ve beklenen sonucu bir veya iki kısa cümleyle anlatıyor. İlgili kalıcı yazmaların kalıcılığı ile önemli karşıt yollar gösteriliyor; böyle bir yol yoksa bunun doğal bir cümleyle söylendiği doğrulanıyor — veya tarayıcıda yoksa yalnızca `Not applicable` kullanılıyor.
 
 ## Voice
 
