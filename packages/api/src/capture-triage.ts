@@ -33,6 +33,11 @@ export const CAPTURE_TEMPLATE_FIELD_LABELS = {
 
 export const captureTemplateSchema = z.enum(CAPTURE_TEMPLATES);
 const identifierSchema = z.string().trim().min(1).max(255);
+const captureStagingObjectUrlPattern = /^[a-z][a-z\d+.-]*:\/\//iu;
+const captureStagingObjectIdSchema = identifierSchema.refine(
+  (value) => !captureStagingObjectUrlPattern.test(value),
+  { message: "Capture attachment ids must be opaque staging identifiers." },
+);
 const captureTextSchema = z.string().max(100_000);
 const captureUrlSchema = z
   .string()
@@ -50,12 +55,12 @@ const captureUrlSchema = z
 
 export const captureAttachmentSchema = z
   .object({
-    id: identifierSchema,
+    id: captureStagingObjectIdSchema,
     mimeType: z.string().trim().min(1).max(255).optional(),
     name: z.string().trim().min(1).max(255).optional(),
     size: z.number().int().nonnegative().safe().optional(),
   })
-  .catchall(z.json());
+  .strict();
 
 export type CaptureAttachment = z.infer<typeof captureAttachmentSchema>;
 
@@ -195,6 +200,16 @@ export interface CaptureConversionPreview {
   proposedRecord: CaptureProposedRecord;
   proposedRelations: CaptureProposedRelation[];
   source: CaptureInboxItem;
+  targetScope: CaptureTargetScope;
+}
+
+export interface CaptureAttachmentPromotionInput<TReceipt> {
+  accountId: string;
+  attachment: CaptureAttachment;
+  clientIdempotencyKey: string;
+  finalize: () => Promise<TReceipt>;
+  item: CaptureInboxItem;
+  operation: "convert";
   targetScope: CaptureTargetScope;
 }
 
