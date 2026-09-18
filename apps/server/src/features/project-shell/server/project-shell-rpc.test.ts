@@ -72,6 +72,7 @@ function createProjectUpdateMutation(
   setCurrentProject: (project: ProjectProfile) => void,
 ): MutationContract<ProjectShellMutationValue> {
   return {
+    replay: async () => null,
     mutate: async <TPayload extends MutationPayload>(
       command: MutationCommand<TPayload>,
       apply: MutationApply<ProjectShellMutationValue, TPayload>,
@@ -118,6 +119,7 @@ describe("Project Shell RPC", () => {
     const projectShellMutationContracts: ProjectShellMutationContracts = {
       create: () =>
         ({
+          replay: async () => null,
           mutate: (command: MutationCommand) => {
             if (command.kind !== "human") {
               return Promise.reject(
@@ -145,6 +147,7 @@ describe("Project Shell RPC", () => {
         }) as MutationContract<ProjectShellMutationValue>,
       update: () =>
         ({
+          replay: async () => null,
           mutate: () =>
             Promise.reject(
               new Error("Project update is not part of this test."),
@@ -185,6 +188,7 @@ describe("Project Shell RPC", () => {
     const projectShellMutationContracts: ProjectShellMutationContracts = {
       create: () =>
         ({
+          replay: async () => null,
           mutate: () =>
             Promise.reject(
               new Error("Project creation is not part of this test."),
@@ -192,6 +196,7 @@ describe("Project Shell RPC", () => {
         }) as MutationContract<ProjectShellMutationValue>,
       update: () =>
         ({
+          replay: async () => null,
           mutate: () => Promise.reject(new ProjectShortCodeLockedError()),
         }) as MutationContract<ProjectShellMutationValue>,
     };
@@ -475,6 +480,7 @@ describe("Project Shell RPC", () => {
       updateShortCode: async () => project,
     };
     const createMutation: MutationContract<ProjectShellMutationValue> = {
+      replay: async () => null,
       mutate: async <TPayload extends MutationPayload>(
         command: MutationCommand<TPayload>,
         apply: MutationApply<ProjectShellMutationValue, TPayload>,

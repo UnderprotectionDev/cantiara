@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work type controls close over their current Work state.
 
+import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import {
   WORK_TYPE_OPTIONS,
   type WorkProfile,
@@ -21,7 +22,13 @@ import {
 import { client, orpc } from "@/utils/orpc";
 import WorkStatusForm from "../ui/forms/work-status-form";
 
-export default function ProjectWorkList({ projectId }: { projectId: string }) {
+export default function ProjectWorkList({
+  projectId,
+  workStatusLabels,
+}: {
+  projectId: string;
+  workStatusLabels: readonly WorkStatusLabel[];
+}) {
   const query = useQuery(
     orpc.projectWorks.queryOptions({
       input: { projectId },
@@ -63,7 +70,7 @@ export default function ProjectWorkList({ projectId }: { projectId: string }) {
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <WorkTypeEditor work={work} />
-            <WorkStatusForm work={work} />
+            <WorkStatusForm work={work} workStatusLabels={workStatusLabels} />
           </div>
         </li>
       ))}

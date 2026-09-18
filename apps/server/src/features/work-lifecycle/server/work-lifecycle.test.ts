@@ -45,6 +45,10 @@ function createMemoryWorkLifecycle(
   let nextNumber = 1;
   let commitThenFailWithTitle = configuredCommitThenFailWithTitle;
   let failNextCommit = configuredFailNextCommit ?? false;
+  const updateReceipts = new Map<
+    string,
+    MutationReceipt<WorkLifecycleMutationValue>
+  >();
 
   const store: WorkLifecycleStore = {
     find: async (_accountId, workId) => works.get(workId) ?? null,
@@ -87,6 +91,7 @@ function createMemoryWorkLifecycle(
   const mutationContracts: WorkLifecycleMutationContracts = {
     create: () =>
       ({
+        replay: async () => null,
         mutate: async <TPayload extends MutationPayload>(
           command: MutationCommand<TPayload>,
           apply: MutationApply<WorkLifecycleMutationValue, TPayload>,
@@ -133,12 +138,30 @@ function createMemoryWorkLifecycle(
       }) as MutationContract<WorkLifecycleMutationValue>,
     update: () =>
       ({
+        replay: <TPayload extends MutationPayload>(
+          command: MutationCommand<TPayload>,
+        ) => {
+          if (command.kind !== "human") {
+            throw new Error("Expected a human Work command.");
+          }
+          return (
+            updateReceipts.get(
+              `${command.actor.actorId}:${command.targetId}:${command.clientIdempotencyKey}`,
+            ) ?? null
+          );
+        },
         mutate: async <TPayload extends MutationPayload>(
           command: MutationCommand<TPayload>,
           apply: MutationApply<WorkLifecycleMutationValue, TPayload>,
         ) => {
           if (command.kind !== "human") {
             throw new Error("Expected a human Work command.");
+          }
+          const replay = updateReceipts.get(
+            `${command.actor.actorId}:${command.targetId}:${command.clientIdempotencyKey}`,
+          );
+          if (replay) {
+            return replay;
           }
           const currentWork = works.get(command.targetId) ?? null;
           const previousValue = { work: currentWork };
@@ -151,7 +174,7 @@ function createMemoryWorkLifecycle(
             throw new Error("A Work update must return a Work.");
           }
           works.set(nextValue.work.id, nextValue.work);
-          return {
+          const receipt = {
             actor: command.actor,
             committedAt: nextValue.work.updatedAt,
             id: `receipt-${nextValue.work.id}-${nextValue.work.revision}`,
@@ -165,6 +188,11 @@ function createMemoryWorkLifecycle(
             revision: nextValue.work.revision,
             targetId: command.targetId,
           } satisfies MutationReceipt<WorkLifecycleMutationValue>;
+          updateReceipts.set(
+            `${command.actor.actorId}:${command.targetId}:${command.clientIdempotencyKey}`,
+            receipt,
+          );
+          return receipt;
         },
       }) as MutationContract<WorkLifecycleMutationValue>,
   };
@@ -545,6 +573,26 @@ describe("Work Lifecycle seam", () => {
     },
   );
 
+  test("replays a close for the same client idempotency key", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("close-replay-create"),
+    );
+    const input = {
+      baseRevision: work.revision,
+      clientIdempotencyKey: "close-replay",
+      closureResult: "Completed" as const,
+      workId: work.id,
+    };
+
+    const first = await workLifecycle.close("account-1", input, VISIBLE_USER);
+
+    await expect(
+      workLifecycle.close("account-1", input, VISIBLE_USER),
+    ).resolves.toEqual(first);
+  });
+
   test("requires a closure result for every explicit close", async () => {
     const workLifecycle = createMemoryWorkLifecycle();
     const work = await workLifecycle.create(
@@ -647,6 +695,37 @@ describe("Work Lifecycle seam", () => {
       });
     },
   );
+
+  test("replays a reopen for the same client idempotency key", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("reopen-replay-create"),
+    );
+    const closed = await workLifecycle.close(
+      "account-1",
+      {
+        baseRevision: work.revision,
+        clientIdempotencyKey: "reopen-replay-close",
+        closureResult: "Completed",
+        workId: work.id,
+      },
+      VISIBLE_USER,
+    );
+    const input = {
+      baseRevision: closed.revision,
+      clientIdempotencyKey: "reopen-replay",
+      confirmed: true as const,
+      status: "In Progress" as const,
+      workId: work.id,
+    };
+
+    const first = await workLifecycle.reopen("account-1", input, VISIBLE_USER);
+
+    await expect(
+      workLifecycle.reopen("account-1", input, VISIBLE_USER),
+    ).resolves.toEqual(first);
+  });
 
   test("shows a non-blocking Closure check and closes through Close anyway", async () => {
     const workLifecycle = createMemoryWorkLifecycle({

@@ -1,4 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work status controls close over their current Work state.
+
+import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import {
   WORK_CLOSURE_RESULT_OPTIONS,
   WORK_STATUS_OPTIONS,
@@ -39,7 +41,20 @@ function hasClosureWarnings(preview: WorkClosePreview) {
   );
 }
 
-export default function WorkStatusForm({ work }: { work: WorkProfile }) {
+export function getWorkStatusLabel(
+  status: WorkStatus,
+  labels: readonly WorkStatusLabel[],
+) {
+  return labels.find(({ semantic }) => semantic === status)?.label ?? status;
+}
+
+export default function WorkStatusForm({
+  work,
+  workStatusLabels,
+}: {
+  work: WorkProfile;
+  workStatusLabels: readonly WorkStatusLabel[];
+}) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
   const [selectedStatus, setSelectedStatus] = useState<WorkStatus>(work.status);
@@ -213,7 +228,7 @@ export default function WorkStatusForm({ work }: { work: WorkProfile }) {
       >
         {WORK_STATUS_OPTIONS.map((status) => (
           <NativeSelectOption key={status} value={status}>
-            {status}
+            {getWorkStatusLabel(status, workStatusLabels)}
           </NativeSelectOption>
         ))}
       </NativeSelect>

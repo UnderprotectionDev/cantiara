@@ -399,6 +399,9 @@ export interface MutationContract<TValue> {
     apply: MutationApply<TValue, TPayload>,
     options?: MutationOptions,
   ) => Promise<MutationReceipt<TValue>>;
+  replay: <TPayload extends MutationPayload>(
+    command: MutationCommand<TPayload>,
+  ) => Promise<MutationReceipt<TValue> | null>;
   stage?: <TPayload extends MutationPayload>(
     command: MutationCommand<TPayload>,
     options?: MutationOptions,

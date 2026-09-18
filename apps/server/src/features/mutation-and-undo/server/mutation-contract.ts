@@ -794,6 +794,32 @@ export function createMutationContract<TValue, TTransaction = unknown>({
   TValue,
   TTransaction
 >): MutationAtomicContract<TValue> {
+  const prepare = async <TPayload extends MutationPayload>(
+    command: MutationCommand<TPayload>,
+  ) => {
+    const parsed = mutationCommandSchema.parse(
+      command,
+    ) as MutationCommand<TPayload>;
+    const payloadFingerprint = await fingerprintMutationPayload(parsed.payload);
+    await verifyNonHumanSource(parsed, payloadFingerprint, sourceVerifier);
+    return {
+      idempotencyKey: mutationIdempotencyKey(parsed),
+      parsed,
+      payloadFingerprint,
+    };
+  };
+
+  const replay = async <TPayload extends MutationPayload>(
+    command: MutationCommand<TPayload>,
+  ): Promise<MutationReceipt<TValue> | null> => {
+    const { idempotencyKey, parsed, payloadFingerprint } =
+      await prepare(command);
+    const existing = await store.findReceipt(idempotencyKey);
+    return existing
+      ? replayReceiptOrThrow(existing, payloadFingerprint, parsed.targetId)
+      : null;
+  };
+
   const mutate = async <TPayload extends MutationPayload>(
     command: MutationCommand<TPayload>,
     apply: MutationApply<TValue, TPayload>,
@@ -804,13 +830,8 @@ export function createMutationContract<TValue, TTransaction = unknown>({
     if (undoPlan) {
       assertMutationUndoPlan(undoPlan);
     }
-    const parsed = mutationCommandSchema.parse(
-      command,
-    ) as MutationCommand<TPayload>;
-    const payloadFingerprint = await fingerprintMutationPayload(parsed.payload);
-    await verifyNonHumanSource(parsed, payloadFingerprint, sourceVerifier);
-
-    const idempotencyKey = mutationIdempotencyKey(parsed);
+    const { idempotencyKey, parsed, payloadFingerprint } =
+      await prepare(command);
     const existing = await store.findReceipt(idempotencyKey);
     if (existing) {
       return replayReceiptOrThrow(
@@ -1116,6 +1137,7 @@ export function createMutationContract<TValue, TTransaction = unknown>({
     cleanupExpired,
     finalize,
     mutate,
+    replay,
     stage,
     undo,
   };

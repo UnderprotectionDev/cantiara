@@ -235,6 +235,28 @@ export function createWorkLifecycle({
     async close(accountId, rawInput, initiator) {
       requireVisibleUserInitiator(initiator);
       const input = closeWorkInputSchema.parse(rawInput);
+      const mutation = mutationContracts.update(accountId);
+      const command = {
+        actor: { actorId: accountId, type: "User" as const },
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        kind: "human" as const,
+        payload: {
+          closureReason: input.reason ?? null,
+          closureResult: input.closureResult,
+          status: "Closed" as const,
+          workId: input.workId,
+        },
+        targetId: input.workId,
+      };
+      const replay = await mutation.replay(command);
+      if (replay) {
+        if (!replay.nextValue.work) {
+          throw new WorkNotFoundError(input.workId);
+        }
+        return replay.nextValue.work;
+      }
+
       const currentWork = await store.find(accountId, input.workId);
       if (!currentWork) {
         throw new WorkNotFoundError(input.workId);
@@ -252,20 +274,8 @@ export function createWorkLifecycle({
       }
 
       const timestamp = new Date().toISOString();
-      const receipt = await mutationContracts.update(accountId).mutate(
-        {
-          actor: { actorId: accountId, type: "User" },
-          baseRevision: input.baseRevision,
-          clientIdempotencyKey: input.clientIdempotencyKey,
-          kind: "human",
-          payload: {
-            closureReason: input.reason ?? null,
-            closureResult: input.closureResult,
-            status: "Closed",
-            workId: input.workId,
-          },
-          targetId: input.workId,
-        },
+      const receipt = await mutation.mutate(
+        command,
         ({ currentRevision, currentValue, payload }) => {
           if (!currentValue.work || currentValue.work.id !== input.workId) {
             throw new WorkNotFoundError(input.workId);
@@ -492,6 +502,28 @@ export function createWorkLifecycle({
     async reopen(accountId, rawInput, initiator) {
       requireVisibleUserInitiator(initiator);
       const input = reopenWorkInputSchema.parse(rawInput);
+      const mutation = mutationContracts.update(accountId);
+      const command = {
+        actor: { actorId: accountId, type: "User" as const },
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        kind: "human" as const,
+        payload: {
+          closureReason: null,
+          closureResult: null,
+          status: input.status,
+          workId: input.workId,
+        },
+        targetId: input.workId,
+      };
+      const replay = await mutation.replay(command);
+      if (replay) {
+        if (!replay.nextValue.work) {
+          throw new WorkNotFoundError(input.workId);
+        }
+        return replay.nextValue.work;
+      }
+
       const currentWork = await store.find(accountId, input.workId);
       if (!currentWork) {
         throw new WorkNotFoundError(input.workId);
@@ -501,20 +533,8 @@ export function createWorkLifecycle({
       }
 
       const timestamp = new Date().toISOString();
-      const receipt = await mutationContracts.update(accountId).mutate(
-        {
-          actor: { actorId: accountId, type: "User" },
-          baseRevision: input.baseRevision,
-          clientIdempotencyKey: input.clientIdempotencyKey,
-          kind: "human",
-          payload: {
-            closureReason: null,
-            closureResult: null,
-            status: input.status,
-            workId: input.workId,
-          },
-          targetId: input.workId,
-        },
+      const receipt = await mutation.mutate(
+        command,
         ({ currentRevision, currentValue, payload }) => {
           if (!currentValue.work || currentValue.work.id !== input.workId) {
             throw new WorkNotFoundError(input.workId);
