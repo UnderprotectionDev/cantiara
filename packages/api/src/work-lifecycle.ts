@@ -35,6 +35,16 @@ export type WorkStatus = (typeof WORK_STATUS_OPTIONS)[number];
 
 export const workStatusSchema = z.enum(WORK_STATUS_OPTIONS);
 
+export const WORK_OPEN_STATUS_OPTIONS = [
+  "Not Started",
+  "In Progress",
+  "Blocked",
+] as const;
+
+export type WorkOpenStatus = (typeof WORK_OPEN_STATUS_OPTIONS)[number];
+
+export const workOpenStatusSchema = z.enum(WORK_OPEN_STATUS_OPTIONS);
+
 export const WORK_CLOSURE_RESULT_OPTIONS = ["Completed", "Abandoned"] as const;
 
 export type WorkClosureResult = (typeof WORK_CLOSURE_RESULT_OPTIONS)[number];
@@ -50,6 +60,13 @@ export const FEATURE_HEALTH_OPTIONS = [
 export type FeatureHealth = (typeof FEATURE_HEALTH_OPTIONS)[number];
 
 export const featureHealthSchema = z.enum(FEATURE_HEALTH_OPTIONS);
+
+export const workClosureReasonSchema = z
+  .string()
+  .trim()
+  .max(2000, "Reason must be 2,000 characters or fewer.")
+  .transform((value) => (value.length > 0 ? value : null))
+  .nullable();
 
 const identifierSchema = z.string().trim().min(1).max(255);
 
@@ -113,6 +130,13 @@ export const includeWorkInputSchema = humanMutationEnvelopeSchema
   })
   .strict();
 
+const workStatusMutationInputObjectSchema = z
+  .object({
+    status: workStatusSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
 export const detachIncludedWorkInputSchema = includeWorkInputSchema;
 
 export const recordFeatureHealthInputSchema = humanMutationEnvelopeSchema
@@ -132,6 +156,37 @@ export const updateFeaturePrimarySpecInputSchema = humanMutationEnvelopeSchema
   .extend({
     featureId: identifierSchema,
     primarySpecId: identifierSchema.nullable(),
+  })
+  .strict();
+
+export const updateWorkStatusInputSchema =
+  workStatusMutationInputObjectSchema.extend({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+  });
+
+export const workClosePreviewInputSchema = z
+  .object({ workId: identifierSchema })
+  .strict();
+
+export const closeWorkInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    closureCheck: z.literal("Close anyway").optional(),
+    closureResult: workClosureResultSchema,
+    reason: workClosureReasonSchema.optional(),
+    workId: identifierSchema,
+  })
+  .strict();
+
+export const reopenWorkInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    confirmed: z.literal(true),
+    status: workOpenStatusSchema,
+    workId: identifierSchema,
   })
   .strict();
 
@@ -170,8 +225,59 @@ export const featureHealthUpdateSchema = z
 
 export type FeatureHealthUpdate = z.infer<typeof featureHealthUpdateSchema>;
 
+export type UpdateWorkStatusInput = z.input<typeof updateWorkStatusInputSchema>;
+export type WorkClosePreviewInput = z.input<typeof workClosePreviewInputSchema>;
+export type CloseWorkInput = z.input<typeof closeWorkInputSchema>;
+export type ReopenWorkInput = z.input<typeof reopenWorkInputSchema>;
+
+export interface WorkClosureContextItem {
+  id: string;
+  label: string;
+}
+
+export interface WorkClosureCheck {
+  activeBlockers: WorkClosureContextItem[];
+  incompleteChecklistItems: WorkClosureContextItem[];
+}
+
+export interface WorkLastingContextCommandPreview {
+  generatedText: null;
+  target: "Decision" | "Personal Wiki";
+}
+
+export interface WorkClosePreview {
+  closureCheck: WorkClosureCheck;
+  lastingContext: {
+    commands: WorkLastingContextCommandPreview[];
+    sources: WorkClosureContextItem[];
+  } | null;
+  workId: string;
+}
+
+export interface WorkVisibleUserInitiator {
+  kind: "Visible user";
+}
+
+export const workArchiveMutationInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type WorkArchiveMutationInput = z.input<
+  typeof workArchiveMutationInputSchema
+>;
+
+export interface WorkListOptions {
+  archived?: boolean;
+}
+
 export interface WorkProfile {
+  archivedAt: string | null;
   captureProvenance: WorkCaptureProvenance | null;
+  closureReason: string | null;
   closureResult: WorkClosureResult | null;
   createdAt: string;
   featureHealthHistory: FeatureHealthUpdate[];
@@ -221,6 +327,15 @@ export interface FeatureProgress {
 }
 
 export interface WorkLifecycleAccess {
+  archive: (
+    accountId: string,
+    input: WorkArchiveMutationInput,
+  ) => Promise<WorkProfile>;
+  close: (
+    accountId: string,
+    input: CloseWorkInput,
+    initiator: WorkVisibleUserInitiator,
+  ) => Promise<WorkProfile>;
   create: (
     accountId: string,
     input: CreateWorkMutationInput,
@@ -242,7 +357,15 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: IncludeWorkInput,
   ) => Promise<WorkProfile>;
-  list: (accountId: string, projectId: string) => Promise<WorkProfile[]>;
+  list: (
+    accountId: string,
+    projectId: string,
+    options?: WorkListOptions,
+  ) => Promise<WorkProfile[]>;
+  previewClose: (
+    accountId: string,
+    input: WorkClosePreviewInput,
+  ) => Promise<WorkClosePreview | null>;
   previewTypeChange: (
     accountId: string,
     input: WorkTypeChangePreviewInput,
@@ -251,9 +374,23 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: RecordFeatureHealthInput,
   ) => Promise<WorkProfile>;
+  reopen: (
+    accountId: string,
+    input: ReopenWorkInput,
+    initiator: WorkVisibleUserInitiator,
+  ) => Promise<WorkProfile>;
+  unarchive: (
+    accountId: string,
+    input: WorkArchiveMutationInput,
+  ) => Promise<WorkProfile>;
   updateFeaturePrimarySpec: (
     accountId: string,
     input: UpdateFeaturePrimarySpecInput,
+  ) => Promise<WorkProfile>;
+  updateStatus: (
+    accountId: string,
+    input: UpdateWorkStatusInput,
+    initiator: WorkVisibleUserInitiator,
   ) => Promise<WorkProfile>;
   updateType: (
     accountId: string,

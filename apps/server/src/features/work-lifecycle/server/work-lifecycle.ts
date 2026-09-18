@@ -4,6 +4,7 @@ import {
   type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import {
+  closeWorkInputSchema,
   createWorkMutationInputSchema,
   detachFeatureHealthHistoryInputSchema,
   detachIncludedWorkInputSchema,
@@ -11,16 +12,33 @@ import {
   type FeatureProgress,
   includeWorkInputSchema,
   recordFeatureHealthInputSchema,
+  reopenWorkInputSchema,
   updateFeaturePrimarySpecInputSchema,
+  updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
+  type WorkClosePreview,
+  type WorkClosureContextItem,
   type WorkLifecycleAccess,
   type WorkLifecycleMutationContracts,
   type WorkLifecycleMutationValue,
   type WorkProfile,
   type WorkType,
   type WorkTypeChangePreview,
+  type WorkVisibleUserInitiator,
+  workArchiveMutationInputSchema,
+  workClosePreviewInputSchema,
   workTypeChangePreviewInputSchema,
 } from "@cantiara/api/work-lifecycle";
+
+export interface WorkClosureContext {
+  activeBlockers: WorkClosureContextItem[];
+  incompleteChecklistItems: WorkClosureContextItem[];
+  lastingContextSources: WorkClosureContextItem[];
+}
+
+export interface WorkClosureContextProvider {
+  get: (accountId: string, workId: string) => Promise<WorkClosureContext>;
+}
 
 export interface WorkCreationReservation {
   id: string;
@@ -44,7 +62,11 @@ export interface WorkLifecycleStore {
     projectId: string,
     documentId: string,
   ) => Promise<boolean>;
-  list: (accountId: string, projectId: string) => Promise<WorkProfile[]>;
+  list: (
+    accountId: string,
+    projectId: string,
+    options?: { archived?: boolean },
+  ) => Promise<WorkProfile[]>;
   listIncluded: (
     accountId: string,
     featureId: string,
@@ -149,6 +171,60 @@ export class WorkTypeImpactPreviewRequiredError extends Error {
   }
 }
 
+export class WorkClosureResultRequiredError extends Error {
+  readonly code = "WORK_CLOSURE_RESULT_REQUIRED" as const;
+
+  constructor() {
+    super("Closed requires an explicit Completed or Abandoned result.");
+    this.name = "WorkClosureResultRequiredError";
+  }
+}
+
+export class WorkClosureCheckRequiredError extends Error {
+  readonly code = "WORK_CLOSURE_CHECK_REQUIRED" as const;
+
+  constructor() {
+    super("Review the Closure check or return to work.");
+    this.name = "WorkClosureCheckRequiredError";
+  }
+}
+
+export class WorkReopenConfirmationRequiredError extends Error {
+  readonly code = "WORK_REOPEN_CONFIRMATION_REQUIRED" as const;
+
+  constructor() {
+    super("Closed Work requires an explicit reopen confirmation.");
+    this.name = "WorkReopenConfirmationRequiredError";
+  }
+}
+
+export class WorkAlreadyClosedError extends Error {
+  readonly code = "WORK_ALREADY_CLOSED" as const;
+
+  constructor() {
+    super("Work is already Closed.");
+    this.name = "WorkAlreadyClosedError";
+  }
+}
+
+export class WorkNotClosedError extends Error {
+  readonly code = "WORK_NOT_CLOSED" as const;
+
+  constructor() {
+    super("Only Closed Work can be reopened.");
+    this.name = "WorkNotClosedError";
+  }
+}
+
+export class WorkVisibleUserInitiatorRequiredError extends Error {
+  readonly code = "WORK_VISIBLE_USER_INITIATOR_REQUIRED" as const;
+
+  constructor() {
+    super("This Work lifecycle change requires a visible user action.");
+    this.name = "WorkVisibleUserInitiatorRequiredError";
+  }
+}
+
 const WORK_CREATE_TARGET_PREFIX = "work-create:";
 const WORK_TYPE_IMPACT_PREVIEW_PREFIX = "work-type-impact:";
 
@@ -209,6 +285,12 @@ function workCreateTargetId(
   return `${WORK_CREATE_TARGET_PREFIX}${accountId}:${projectId}:${clientIdempotencyKey}`;
 }
 
+function requireVisibleUserInitiator(initiator: WorkVisibleUserInitiator) {
+  if (initiator.kind !== "Visible user") {
+    throw new WorkVisibleUserInitiatorRequiredError();
+  }
+}
+
 function sameWorkCreationPayload(
   left: Pick<WorkProfile, "captureProvenance" | "projectId" | "title" | "type">,
   right: {
@@ -232,12 +314,65 @@ function sameWorkCreationPayload(
 }
 
 export function createWorkLifecycle({
+  closureContext,
   mutationContracts,
   store,
 }: {
+  closureContext?: WorkClosureContextProvider;
   mutationContracts: WorkLifecycleMutationContracts;
   store: WorkLifecycleStore;
 }): WorkLifecycleAccess {
+  function getClosureContext(accountId: string, workId: string) {
+    return closureContext
+      ? closureContext.get(accountId, workId)
+      : {
+          activeBlockers: [],
+          incompleteChecklistItems: [],
+          lastingContextSources: [],
+        };
+  }
+
+  async function setArchived(
+    accountId: string,
+    rawInput: Parameters<WorkLifecycleAccess["archive"]>[1],
+    archived: boolean,
+  ) {
+    const input = workArchiveMutationInputSchema.parse(rawInput);
+    const currentWork = await store.find(accountId, input.workId);
+    if (!currentWork) {
+      throw new WorkNotFoundError(input.workId);
+    }
+
+    const timestamp = new Date().toISOString();
+    const receipt = await mutationContracts.update(accountId).mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        kind: "human",
+        payload: { archived, workId: input.workId },
+        targetId: input.workId,
+      },
+      ({ currentRevision, currentValue, payload }) => {
+        if (!currentValue.work || currentValue.work.id !== input.workId) {
+          throw new WorkNotFoundError(input.workId);
+        }
+        return {
+          work: {
+            ...currentValue.work,
+            archivedAt: payload.archived ? timestamp : null,
+            revision: currentRevision + 1,
+            updatedAt: timestamp,
+          },
+        } satisfies WorkLifecycleMutationValue;
+      },
+    );
+    if (!receipt.nextValue.work) {
+      throw new WorkNotFoundError(input.workId);
+    }
+    return receipt.nextValue.work;
+  }
+
   async function mutateWork<TPayload extends MutationPayload>(
     accountId: string,
     command: {
@@ -287,6 +422,76 @@ export function createWorkLifecycle({
   }
 
   return {
+    archive(accountId, input) {
+      return setArchived(accountId, input, true);
+    },
+
+    async close(accountId, rawInput, initiator) {
+      requireVisibleUserInitiator(initiator);
+      const input = closeWorkInputSchema.parse(rawInput);
+      const mutation = mutationContracts.update(accountId);
+      const command = {
+        actor: { actorId: accountId, type: "User" as const },
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        kind: "human" as const,
+        payload: {
+          closureReason: input.reason ?? null,
+          closureResult: input.closureResult,
+          status: "Closed" as const,
+          workId: input.workId,
+        },
+        targetId: input.workId,
+      };
+      const replay = await mutation.replay(command);
+      if (replay) {
+        if (!replay.nextValue.work) {
+          throw new WorkNotFoundError(input.workId);
+        }
+        return replay.nextValue.work;
+      }
+
+      const currentWork = await store.find(accountId, input.workId);
+      if (!currentWork) {
+        throw new WorkNotFoundError(input.workId);
+      }
+      if (currentWork.status === "Closed") {
+        throw new WorkAlreadyClosedError();
+      }
+
+      const context = await getClosureContext(accountId, input.workId);
+      const hasClosureCheck =
+        context.activeBlockers.length > 0 ||
+        context.incompleteChecklistItems.length > 0;
+      if (hasClosureCheck && input.closureCheck !== "Close anyway") {
+        throw new WorkClosureCheckRequiredError();
+      }
+
+      const timestamp = new Date().toISOString();
+      const receipt = await mutation.mutate(
+        command,
+        ({ currentRevision, currentValue, payload }) => {
+          if (!currentValue.work || currentValue.work.id !== input.workId) {
+            throw new WorkNotFoundError(input.workId);
+          }
+          return {
+            work: {
+              ...currentValue.work,
+              closureReason: payload.closureReason,
+              closureResult: payload.closureResult,
+              revision: currentRevision + 1,
+              status: "Closed",
+              updatedAt: timestamp,
+            },
+          } satisfies WorkLifecycleMutationValue;
+        },
+      );
+      if (!receipt.nextValue.work) {
+        throw new WorkNotFoundError(input.workId);
+      }
+      return receipt.nextValue.work;
+    },
+
     async create(accountId, rawInput) {
       const input = createWorkMutationInputSchema.parse(rawInput);
       const existing = await store.findByClientIdempotencyKey(
@@ -337,7 +542,9 @@ export function createWorkLifecycle({
               throw new WorkCreationConflictError();
             }
             const work: WorkProfile = {
+              archivedAt: null,
               captureProvenance: mutationPayload.captureProvenance,
+              closureReason: null,
               closureResult: null,
               createdAt: timestamp,
               featureHealthHistory: [],
@@ -491,8 +698,34 @@ export function createWorkLifecycle({
       );
     },
 
-    list(accountId, projectId) {
-      return store.list(accountId, projectId);
+    list(accountId, projectId, options) {
+      return store.list(accountId, projectId, options);
+    },
+
+    async previewClose(accountId, rawInput) {
+      const input = workClosePreviewInputSchema.parse(rawInput);
+      const currentWork = await store.find(accountId, input.workId);
+      if (!currentWork) {
+        return null;
+      }
+      const context = await getClosureContext(accountId, input.workId);
+      return {
+        closureCheck: {
+          activeBlockers: context.activeBlockers,
+          incompleteChecklistItems: context.incompleteChecklistItems,
+        },
+        lastingContext:
+          context.lastingContextSources.length > 0
+            ? {
+                commands: [
+                  { generatedText: null, target: "Decision" },
+                  { generatedText: null, target: "Personal Wiki" },
+                ],
+                sources: context.lastingContextSources,
+              }
+            : null,
+        workId: currentWork.id,
+      } satisfies WorkClosePreview;
     },
 
     recordFeatureHealth(accountId, rawInput) {
@@ -654,6 +887,122 @@ export function createWorkLifecycle({
           }
         },
       );
+    },
+
+    async reopen(accountId, rawInput, initiator) {
+      requireVisibleUserInitiator(initiator);
+      const input = reopenWorkInputSchema.parse(rawInput);
+      const mutation = mutationContracts.update(accountId);
+      const command = {
+        actor: { actorId: accountId, type: "User" as const },
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        kind: "human" as const,
+        payload: {
+          closureReason: null,
+          closureResult: null,
+          status: input.status,
+          workId: input.workId,
+        },
+        targetId: input.workId,
+      };
+      const replay = await mutation.replay(command);
+      if (replay) {
+        if (!replay.nextValue.work) {
+          throw new WorkNotFoundError(input.workId);
+        }
+        return replay.nextValue.work;
+      }
+
+      const currentWork = await store.find(accountId, input.workId);
+      if (!currentWork) {
+        throw new WorkNotFoundError(input.workId);
+      }
+      if (currentWork.status !== "Closed") {
+        throw new WorkNotClosedError();
+      }
+
+      const timestamp = new Date().toISOString();
+      const receipt = await mutation.mutate(
+        command,
+        ({ currentRevision, currentValue, payload }) => {
+          if (!currentValue.work || currentValue.work.id !== input.workId) {
+            throw new WorkNotFoundError(input.workId);
+          }
+          return {
+            work: {
+              ...currentValue.work,
+              closureReason: null,
+              closureResult: null,
+              revision: currentRevision + 1,
+              status: payload.status,
+              updatedAt: timestamp,
+            },
+          } satisfies WorkLifecycleMutationValue;
+        },
+      );
+      if (!receipt.nextValue.work) {
+        throw new WorkNotFoundError(input.workId);
+      }
+      return receipt.nextValue.work;
+    },
+
+    async updateStatus(accountId, rawInput, initiator) {
+      requireVisibleUserInitiator(initiator);
+      const input = updateWorkStatusInputSchema.parse(rawInput);
+      if (input.status === "Closed") {
+        throw new WorkClosureResultRequiredError();
+      }
+      const currentWork = await store.find(accountId, input.workId);
+      if (!currentWork) {
+        throw new WorkNotFoundError(input.workId);
+      }
+      if (currentWork.status === "Closed") {
+        throw new WorkReopenConfirmationRequiredError();
+      }
+      if (currentWork.status === input.status) {
+        return currentWork;
+      }
+
+      const timestamp = new Date().toISOString();
+      const receipt = await mutationContracts.update(accountId).mutate(
+        {
+          actor: { actorId: accountId, type: "User" },
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          kind: "human",
+          payload: {
+            closureReason: null,
+            closureResult: null,
+            status: input.status,
+            workId: input.workId,
+          },
+          targetId: input.workId,
+        },
+        ({ currentRevision, currentValue, payload }) => {
+          if (!currentValue.work || currentValue.work.id !== input.workId) {
+            throw new WorkNotFoundError(input.workId);
+          }
+          return {
+            work: {
+              ...currentValue.work,
+              closureReason: null,
+              closureResult: null,
+              revision: currentRevision + 1,
+              status: payload.status,
+              updatedAt: timestamp,
+            },
+          } satisfies WorkLifecycleMutationValue;
+        },
+      );
+      if (!receipt.nextValue.work) {
+        throw new WorkNotFoundError(input.workId);
+      }
+      return receipt.nextValue.work;
+    },
+
+    unarchive(accountId, input) {
+      return setArchived(accountId, input, false);
     },
   };
 }

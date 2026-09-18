@@ -575,6 +575,44 @@ function createMemoryStore(initial: MutationTarget<FixtureValue>) {
 }
 
 describe("Mutation Contract seam", () => {
+  test("replays a direct receipt without running the mutation apply step", async () => {
+    const memory = createMemoryStore({
+      id: "work-1",
+      revision: 0,
+      value: { title: "Original" },
+    });
+    const contract = createMutationContract<FixtureValue>({
+      store: memory.store,
+    });
+    const command = {
+      actor: { actorId: "account-1", type: "User" as const },
+      baseRevision: 0,
+      clientIdempotencyKey: "direct-replay",
+      kind: "human" as const,
+      payload: { title: "Committed once" },
+      targetId: "work-1",
+    };
+    let applyCalls = 0;
+    const first = await contract.mutate(
+      command,
+      ({ currentValue, payload }) => {
+        applyCalls += 1;
+        return { ...currentValue, ...payload };
+      },
+    );
+
+    const replay = await contract.replay({ ...command, baseRevision: 99 });
+
+    await expect(
+      contract.replay({
+        ...command,
+        payload: { title: "Changed payload" },
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(replay).toEqual(first);
+    expect(applyCalls).toBe(1);
+  });
+
   test("undoes a deterministic field without rewinding an unrelated later edit", async () => {
     const memory = createMemoryStore({
       id: "work-1",

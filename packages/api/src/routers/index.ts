@@ -49,13 +49,18 @@ import {
 } from "../project-shell";
 import type { WebCaptureAccess } from "../web-capture";
 import {
+  closeWorkInputSchema,
   createWorkMutationInputSchema,
   detachFeatureHealthHistoryInputSchema,
   detachIncludedWorkInputSchema,
   includeWorkInputSchema,
   recordFeatureHealthInputSchema,
+  reopenWorkInputSchema,
   updateFeaturePrimarySpecInputSchema,
+  updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
+  workArchiveMutationInputSchema,
+  workClosePreviewInputSchema,
   workTypeChangePreviewInputSchema,
 } from "../work-lifecycle";
 
@@ -340,6 +345,13 @@ function mapWorkLifecycleError(
         message:
           "Impact preview is required before changing to or from Feature.",
       });
+    case "WORK_CLOSURE_RESULT_REQUIRED":
+    case "WORK_CLOSURE_CHECK_REQUIRED":
+    case "WORK_REOPEN_CONFIRMATION_REQUIRED":
+    case "WORK_ALREADY_CLOSED":
+    case "WORK_NOT_CLOSED":
+    case "WORK_VISIBLE_USER_INITIATOR_REQUIRED":
+      return mapWorkLifecyclePreconditionError(error);
     case "WORK_FEATURE_EXIT_BLOCKED":
       return mapWorkLifecycleFeatureError(error);
     case "WORK_INCLUSION_CONFLICT":
@@ -390,6 +402,19 @@ function mapWorkLifecycleStaleRevisionError(
     },
     defined: true,
     message: "Work has changed. Reload and try again.",
+  });
+}
+
+function mapWorkLifecyclePreconditionError(
+  error: Record<string, unknown>,
+): ORPCError<string, unknown> {
+  return new ORPCError("PRECONDITION_FAILED", {
+    data: { code: error.code },
+    defined: true,
+    message:
+      typeof error.message === "string"
+        ? error.message
+        : "The Work lifecycle precondition was not met.",
   });
 }
 
@@ -626,11 +651,19 @@ export const appRouter = {
       return project;
     }),
   projectWorks: protectedProcedure
-    .input(z.object({ projectId: z.string().trim().min(1) }).strict())
+    .input(
+      z
+        .object({
+          archived: z.boolean().default(false),
+          projectId: z.string().trim().min(1),
+        })
+        .strict(),
+    )
     .handler(({ context, input }) =>
       requireWorkLifecycle(context).list(
         context.session.user.id,
         input.projectId,
+        { archived: input.archived },
       ),
     ),
   featureProgress: protectedProcedure
@@ -720,6 +753,21 @@ export const appRouter = {
       }
       return preview;
     }),
+  workClosePreview: protectedProcedure
+    .input(workClosePreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireWorkLifecycle(context).previewClose(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work is unavailable.",
+        });
+      }
+      return preview;
+    }),
   updateWorkType: protectedProcedure
     .input(updateWorkTypeInputSchema)
     .handler(({ context, input }) =>
@@ -728,6 +776,49 @@ export const appRouter = {
           context.session.user.id,
           input,
         ),
+      ),
+    ),
+  archiveWork: protectedProcedure
+    .input(workArchiveMutationInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).archive(context.session.user.id, input),
+      ),
+    ),
+  updateWorkStatus: protectedProcedure
+    .input(updateWorkStatusInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateStatus(
+          context.session.user.id,
+          input,
+          { kind: "Visible user" },
+        ),
+      ),
+    ),
+  closeWork: protectedProcedure
+    .input(closeWorkInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).close(context.session.user.id, input, {
+          kind: "Visible user",
+        }),
+      ),
+    ),
+  reopenWork: protectedProcedure
+    .input(reopenWorkInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).reopen(context.session.user.id, input, {
+          kind: "Visible user",
+        }),
+      ),
+    ),
+  unarchiveWork: protectedProcedure
+    .input(workArchiveMutationInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).unarchive(context.session.user.id, input),
       ),
     ),
   createWork: protectedProcedure

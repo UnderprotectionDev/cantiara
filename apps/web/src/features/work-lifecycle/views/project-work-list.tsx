@@ -1,12 +1,12 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work type controls close over their current Work state.
 
+import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import {
   WORK_TYPE_OPTIONS,
   type WorkProfile,
   type WorkType,
   type WorkTypeChangePreview,
 } from "@cantiara/api/work-lifecycle";
-import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
 import {
   NativeSelect,
@@ -20,11 +20,19 @@ import {
   useClientShellConnection,
 } from "@/features/web-macos-client/views/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import WorkStatusForm from "../ui/forms/work-status-form";
 
-export default function ProjectWorkList({ projectId }: { projectId: string }) {
+export default function ProjectWorkList({
+  projectId,
+  workStatusLabels,
+}: {
+  projectId: string;
+  workStatusLabels: readonly WorkStatusLabel[];
+}) {
+  const [showArchived, setShowArchived] = useState(false);
   const query = useQuery(
     orpc.projectWorks.queryOptions({
-      input: { projectId },
+      input: { archived: showArchived, projectId },
     }),
   );
 
@@ -40,41 +48,124 @@ export default function ProjectWorkList({ projectId }: { projectId: string }) {
     );
   }
 
-  if (query.data.length === 0) {
-    return (
-      <p className="mt-2 text-muted-foreground text-sm/relaxed">
-        No sample content was created.
-      </p>
-    );
-  }
-
   return (
-    <ul aria-label="Work list" className="mt-4 space-y-2">
-      {query.data.map((work) => (
-        <li
-          className="flex flex-wrap items-center justify-between gap-3 border bg-background px-3 py-3"
-          key={work.id}
-        >
-          <div className="min-w-0">
-            <p className="font-medium text-sm">
-              <span className="text-muted-foreground">{work.key}</span>{" "}
-              {work.title}
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <WorkTypeEditor work={work} />
-            <Badge variant="secondary">{work.status}</Badge>
-          </div>
-        </li>
-      ))}
-    </ul>
+    <div className="mt-4 space-y-3">
+      <Button
+        aria-pressed={showArchived}
+        onClick={() => setShowArchived((current) => !current)}
+        size="sm"
+        type="button"
+        variant={showArchived ? "secondary" : "outline"}
+      >
+        Archived
+      </Button>
+      {query.data.length === 0 ? (
+        <p className="text-muted-foreground text-sm/relaxed">
+          {showArchived ? "No archived Work." : "No Work yet."}
+        </p>
+      ) : (
+        <ul aria-label={showArchived ? "Archived Work list" : "Work list"}>
+          {query.data.map((work) => (
+            <li
+              className="mb-2 flex flex-wrap items-center justify-between gap-3 border bg-background px-3 py-3 last:mb-0"
+              key={work.id}
+            >
+              <div className="min-w-0">
+                <p className="font-medium text-sm">
+                  <span className="text-muted-foreground">{work.key}</span>{" "}
+                  {work.title}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <WorkTypeEditor work={work} />
+                <WorkStatusForm
+                  work={work}
+                  workStatusLabels={workStatusLabels}
+                />
+                <WorkArchiveAction work={work} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
-function mutationErrorMessage(error: unknown) {
-  return error instanceof Error && error.message
-    ? error.message
-    : "Work type could not be changed. Try again.";
+function mutationErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function WorkArchiveAction({ work }: { work: WorkProfile }) {
+  const connection = useClientShellConnection();
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const isArchived = work.archivedAt !== null;
+  const mutation = useMutation({
+    mutationFn: () =>
+      runOnlineOnlyWrite(() =>
+        isArchived
+          ? client.unarchiveWork({
+              baseRevision: work.revision,
+              clientIdempotencyKey: crypto.randomUUID(),
+              workId: work.id,
+            })
+          : client.archiveWork({
+              baseRevision: work.revision,
+              clientIdempotencyKey: crypto.randomUUID(),
+              workId: work.id,
+            }),
+      ),
+    onError: (mutationError) => {
+      setError(
+        mutationErrorMessage(
+          mutationError,
+          isArchived
+            ? "Work could not be unarchived. Try again."
+            : "Work could not be archived. Try again.",
+        ),
+      );
+    },
+    onSuccess: async () => {
+      setError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectWorks.queryOptions({
+            input: { archived: false, projectId: work.projectId },
+          }).queryKey,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectWorks.queryOptions({
+            input: { archived: true, projectId: work.projectId },
+          }).queryKey,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.work.queryOptions({
+            input: { workId: work.id },
+          }).queryKey,
+        }),
+      ]);
+    },
+  });
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        disabled={connection === "offline" || mutation.isPending}
+        onClick={() => mutation.mutate()}
+        size="xs"
+        type="button"
+        variant="outline"
+      >
+        {isArchived ? "Unarchive" : "Archive"}
+      </Button>
+      {error ? (
+        <p className="text-destructive text-xs" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 function WorkTypeEditor({ work }: { work: WorkProfile }) {
@@ -84,7 +175,10 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
   const [preview, setPreview] = useState<WorkTypeChangePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const worksQueryKey = orpc.projectWorks.queryOptions({
-    input: { projectId: work.projectId },
+    input: {
+      archived: work.archivedAt !== null,
+      projectId: work.projectId,
+    },
   }).queryKey;
   const workQueryKey = orpc.work.queryOptions({
     input: { workId: work.id },
@@ -100,7 +194,12 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
       runOnlineOnlyWrite(() => client.updateWorkType(input)),
     onError: (mutationError) => {
       setSelectedType(work.type);
-      setError(mutationErrorMessage(mutationError));
+      setError(
+        mutationErrorMessage(
+          mutationError,
+          "Work type could not be changed. Try again.",
+        ),
+      );
     },
     onSuccess: async () => {
       setError(null);
@@ -117,7 +216,12 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
       client.workTypeChangePreview({ workId: work.id, type }),
     onError: (mutationError) => {
       setSelectedType(work.type);
-      setError(mutationErrorMessage(mutationError));
+      setError(
+        mutationErrorMessage(
+          mutationError,
+          "Work type could not be changed. Try again.",
+        ),
+      );
     },
     onSuccess: (nextPreview) => {
       setError(null);

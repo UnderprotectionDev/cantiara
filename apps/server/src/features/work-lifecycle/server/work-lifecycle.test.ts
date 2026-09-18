@@ -15,8 +15,12 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import { describe, expect, test } from "vitest";
 
+import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
 import {
   createWorkLifecycle,
+  WorkClosureCheckRequiredError,
+  type WorkClosureContext,
+  WorkClosureResultRequiredError,
   WorkCreationConflictError,
   type WorkCreationReservation,
   WorkFeatureExitBlockedError,
@@ -24,21 +28,28 @@ import {
   type WorkLifecycleStore,
   WorkPrimarySpecNotFoundError,
   WorkTypeImpactPreviewRequiredError,
+  WorkVisibleUserInitiatorRequiredError,
 } from "./work-lifecycle";
 
 const PROJECT_ID = "project-1";
+const VISIBLE_USER = { kind: "Visible user" } as const;
 
 function createMemoryWorkLifecycle(
   options: {
     beforeUpdateApply?: (
       command: MutationCommand<MutationPayload>,
     ) => Promise<void>;
+    closureContext?: WorkClosureContext;
     commitThenFailWithTitle?: string;
+    enforceStaleRevision?: boolean;
     failNextCommit?: boolean;
+    initialWorks?: WorkProfile[];
     projectDocuments?: ReadonlyArray<{ id: string; projectId: string }>;
   } = {},
 ) {
-  const works = new Map<string, WorkProfile>();
+  const works = new Map(
+    options.initialWorks?.map((work) => [work.id, work] as const),
+  );
   const reservations = new Map<string, WorkCreationReservation>();
   const updateReceipts = new Map<
     string,
@@ -50,6 +61,7 @@ function createMemoryWorkLifecycle(
   const {
     beforeUpdateApply,
     commitThenFailWithTitle: configuredCommitThenFailWithTitle,
+    enforceStaleRevision = true,
     failNextCommit: configuredFailNextCommit,
     projectDocuments = [],
   } = options;
@@ -68,9 +80,13 @@ function createMemoryWorkLifecycle(
         reservation ? (works.get(reservation.workId) ?? null) : null,
       );
     },
-    list: async (_accountId, projectId) =>
+    list: async (_accountId, projectId, listOptions) =>
       [...works.values()]
-        .filter((work) => work.projectId === projectId)
+        .filter(
+          (work) =>
+            work.projectId === projectId &&
+            (work.archivedAt !== null) === (listOptions?.archived ?? false),
+        )
         .sort((left, right) => left.number - right.number),
     listIncluded: async (_accountId, featureId) =>
       [...works.values()]
@@ -107,6 +123,7 @@ function createMemoryWorkLifecycle(
   const mutationContracts: WorkLifecycleMutationContracts = {
     create: () =>
       ({
+        replay: async () => null,
         mutate: async <TPayload extends MutationPayload>(
           command: MutationCommand<TPayload>,
           apply: MutationApply<WorkLifecycleMutationValue, TPayload>,
@@ -153,6 +170,18 @@ function createMemoryWorkLifecycle(
       }) as MutationContract<WorkLifecycleMutationValue>,
     update: () =>
       ({
+        replay: <TPayload extends MutationPayload>(
+          command: MutationCommand<TPayload>,
+        ) => {
+          if (command.kind !== "human") {
+            throw new Error("Expected a human Work command.");
+          }
+          return Promise.resolve(
+            updateReceipts.get(
+              `${command.actor.actorId}:${command.targetId}:${command.clientIdempotencyKey}`,
+            )?.receipt ?? null,
+          );
+        },
         mutate: async <TPayload extends MutationPayload>(
           command: MutationCommand<TPayload>,
           apply: MutationApply<WorkLifecycleMutationValue, TPayload>,
@@ -160,7 +189,7 @@ function createMemoryWorkLifecycle(
           if (command.kind !== "human") {
             throw new Error("Expected a human Work command.");
           }
-          const receiptKey = `${command.targetId}:${command.clientIdempotencyKey}`;
+          const receiptKey = `${command.actor.actorId}:${command.targetId}:${command.clientIdempotencyKey}`;
           const payload = canonicalizeMutationPayload(command.payload);
           const existing = updateReceipts.get(receiptKey);
           if (existing) {
@@ -174,6 +203,17 @@ function createMemoryWorkLifecycle(
           await beforeUpdateApply?.(command);
           const currentWork = works.get(command.targetId) ?? null;
           const previousValue = { work: currentWork };
+          if (
+            enforceStaleRevision &&
+            currentWork &&
+            command.baseRevision !== currentWork.revision
+          ) {
+            throw new MutationStaleBaseRevisionError({
+              id: command.targetId,
+              revision: currentWork.revision,
+              value: previousValue,
+            });
+          }
           const nextValue = await apply({
             currentRevision: currentWork?.revision ?? 0,
             currentValue: previousValue,
@@ -204,6 +244,9 @@ function createMemoryWorkLifecycle(
   };
 
   return createWorkLifecycle({
+    closureContext: options.closureContext
+      ? { get: async () => options.closureContext as WorkClosureContext }
+      : undefined,
     mutationContracts,
     store,
   });
@@ -425,6 +468,7 @@ describe("Work Lifecycle seam", () => {
           await firstRelease;
         }
       },
+      enforceStaleRevision: false,
     });
     const feature = await workLifecycle.create(
       "account-1",
@@ -710,6 +754,7 @@ describe("Work Lifecycle seam", () => {
     await expect(
       workLifecycle.create("account-1", createInput("create-1")),
     ).resolves.toMatchObject({
+      archivedAt: null,
       closureResult: null,
       key: "CANT-1",
       number: 1,
@@ -717,6 +762,133 @@ describe("Work Lifecycle seam", () => {
       status: "Not Started",
       title: "Ship the first Work",
       type: "Task",
+    });
+  });
+
+  test("archives and unarchives Work without changing identity or closure", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const created = await workLifecycle.create(
+      "account-1",
+      createInput("archive-create"),
+    );
+
+    const archived = await workLifecycle.archive("account-1", {
+      baseRevision: created.revision,
+      clientIdempotencyKey: "archive-work",
+      workId: created.id,
+    });
+
+    expect(archived).toMatchObject({
+      closureResult: null,
+      id: created.id,
+      key: created.key,
+      status: "Not Started",
+    });
+    expect(archived.archivedAt).not.toBeNull();
+    await expect(workLifecycle.list("account-1", PROJECT_ID)).resolves.toEqual(
+      [],
+    );
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID, { archived: true }),
+    ).resolves.toEqual([archived]);
+
+    const unarchived = await workLifecycle.unarchive("account-1", {
+      baseRevision: archived.revision,
+      clientIdempotencyKey: "unarchive-work",
+      workId: created.id,
+    });
+
+    expect(unarchived).toMatchObject({
+      archivedAt: null,
+      closureResult: null,
+      id: created.id,
+      key: created.key,
+      status: "Not Started",
+    });
+    await expect(workLifecycle.list("account-1", PROJECT_ID)).resolves.toEqual([
+      unarchived,
+    ]);
+  });
+
+  test("keeps closed Work in the default list until it is explicitly archived", async () => {
+    const closedWork: WorkProfile = {
+      archivedAt: null,
+      captureProvenance: null,
+      closureReason: null,
+      closureResult: "Completed",
+      createdAt: "2026-09-18T09:00:00.000Z",
+      featureHealthHistory: [],
+      id: "closed-work",
+      key: "CANT-7",
+      number: 7,
+      primaryFeatureId: null,
+      primarySpecId: null,
+      projectId: PROJECT_ID,
+      revision: 3,
+      status: "Closed",
+      title: "Already completed Work",
+      type: "Task",
+      updatedAt: "2026-09-18T10:00:00.000Z",
+    };
+    const workLifecycle = createMemoryWorkLifecycle({
+      initialWorks: [closedWork],
+    });
+
+    await expect(workLifecycle.list("account-1", PROJECT_ID)).resolves.toEqual([
+      closedWork,
+    ]);
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID, { archived: true }),
+    ).resolves.toEqual([]);
+
+    const archived = await workLifecycle.archive("account-1", {
+      baseRevision: closedWork.revision,
+      clientIdempotencyKey: "archive-closed-work",
+      workId: closedWork.id,
+    });
+    expect(archived).toMatchObject({
+      closureResult: "Completed",
+      id: closedWork.id,
+      key: closedWork.key,
+      status: "Closed",
+    });
+
+    await expect(
+      workLifecycle.unarchive("account-1", {
+        baseRevision: archived.revision,
+        clientIdempotencyKey: "unarchive-closed-work",
+        workId: closedWork.id,
+      }),
+    ).resolves.toMatchObject({
+      archivedAt: null,
+      closureResult: "Completed",
+      id: closedWork.id,
+      key: closedWork.key,
+      status: "Closed",
+    });
+  });
+
+  test("rejects a stale archive command when Work is already archived", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const created = await workLifecycle.create(
+      "account-1",
+      createInput("stale-archive-create"),
+    );
+    const archived = await workLifecycle.archive("account-1", {
+      baseRevision: created.revision,
+      clientIdempotencyKey: "stale-archive-first",
+      workId: created.id,
+    });
+
+    await expect(
+      workLifecycle.archive("account-1", {
+        baseRevision: created.revision,
+        clientIdempotencyKey: "stale-archive-retry",
+        workId: created.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "STALE_BASE_REVISION",
+      currentRevision: archived.revision,
     });
   });
 
@@ -897,5 +1069,410 @@ describe("Work Lifecycle seam", () => {
     });
 
     expect(feature.type).toBe("Feature");
+  });
+
+  test.each([
+    ["Not Started", "In Progress"],
+    ["Not Started", "Blocked"],
+    ["In Progress", "Not Started"],
+    ["In Progress", "Blocked"],
+    ["Blocked", "Not Started"],
+    ["Blocked", "In Progress"],
+  ] as const)(
+    "moves freely from %s to %s without a closure result",
+    async (_currentStatus, nextStatus) => {
+      const workLifecycle = createMemoryWorkLifecycle();
+      let work = await workLifecycle.create(
+        "account-1",
+        createInput(`status-${nextStatus}-create`),
+      );
+
+      if (_currentStatus !== "Not Started") {
+        work = await workLifecycle.updateStatus(
+          "account-1",
+          {
+            baseRevision: work.revision,
+            clientIdempotencyKey: `status-${_currentStatus}`,
+            status: _currentStatus,
+            workId: work.id,
+          },
+          VISIBLE_USER,
+        );
+      }
+
+      await expect(
+        workLifecycle.updateStatus(
+          "account-1",
+          {
+            baseRevision: work.revision,
+            clientIdempotencyKey: `status-${nextStatus}`,
+            status: nextStatus,
+            workId: work.id,
+          },
+          VISIBLE_USER,
+        ),
+      ).resolves.toMatchObject({
+        closureReason: null,
+        closureResult: null,
+        status: nextStatus,
+      });
+    },
+  );
+
+  test("rejects Closed when a planning-style status write skips the close step", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("planning-close-create"),
+    );
+
+    await expect(
+      workLifecycle.updateStatus(
+        "account-1",
+        {
+          baseRevision: work.revision,
+          clientIdempotencyKey: "planning-close",
+          status: "Closed",
+          workId: work.id,
+        },
+        VISIBLE_USER,
+      ),
+    ).rejects.toBeInstanceOf(WorkClosureResultRequiredError);
+    await expect(
+      workLifecycle.find("account-1", work.id),
+    ).resolves.toMatchObject({
+      closureResult: null,
+      status: "Not Started",
+    });
+  });
+
+  test("does not let planning membership write a non-terminal status", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("planning-membership-create"),
+    );
+
+    await expect(
+      workLifecycle.updateStatus(
+        "account-1",
+        {
+          baseRevision: work.revision,
+          clientIdempotencyKey: "planning-membership-status",
+          status: "In Progress",
+          workId: work.id,
+        },
+        { kind: "Planning membership" } as never,
+      ),
+    ).rejects.toBeInstanceOf(WorkVisibleUserInitiatorRequiredError);
+    await expect(
+      workLifecycle.find("account-1", work.id),
+    ).resolves.toMatchObject({ status: "Not Started" });
+  });
+
+  test.each(["GitHub", "System automation"])(
+    "does not let %s silently write a closure result",
+    async (kind) => {
+      const workLifecycle = createMemoryWorkLifecycle();
+      const work = await workLifecycle.create(
+        "account-1",
+        createInput(`silent-close-${kind}`),
+      );
+
+      await expect(
+        workLifecycle.close(
+          "account-1",
+          {
+            baseRevision: work.revision,
+            clientIdempotencyKey: `silent-close-${kind}`,
+            closureResult: "Completed",
+            workId: work.id,
+          },
+          { kind } as never,
+        ),
+      ).rejects.toBeInstanceOf(WorkVisibleUserInitiatorRequiredError);
+      await expect(
+        workLifecycle.find("account-1", work.id),
+      ).resolves.toMatchObject({
+        closureResult: null,
+        status: "Not Started",
+      });
+    },
+  );
+
+  test.each(["Completed", "Abandoned"] as const)(
+    "closes Work explicitly with the %s result and an optional reason",
+    async (closureResult) => {
+      const workLifecycle = createMemoryWorkLifecycle();
+      const work = await workLifecycle.create(
+        "account-1",
+        createInput(`close-${closureResult}-create`),
+      );
+
+      await expect(
+        workLifecycle.close(
+          "account-1",
+          {
+            baseRevision: work.revision,
+            clientIdempotencyKey: `close-${closureResult}`,
+            closureResult,
+            reason: "The founder made an explicit closure decision.",
+            workId: work.id,
+          },
+          VISIBLE_USER,
+        ),
+      ).resolves.toMatchObject({
+        closureReason: "The founder made an explicit closure decision.",
+        closureResult,
+        status: "Closed",
+      });
+    },
+  );
+
+  test("replays a close for the same client idempotency key", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("close-replay-create"),
+    );
+    const input = {
+      baseRevision: work.revision,
+      clientIdempotencyKey: "close-replay",
+      closureResult: "Completed" as const,
+      workId: work.id,
+    };
+
+    const first = await workLifecycle.close("account-1", input, VISIBLE_USER);
+
+    await expect(
+      workLifecycle.close("account-1", input, VISIBLE_USER),
+    ).resolves.toEqual(first);
+  });
+
+  test("requires a closure result for every explicit close", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("close-without-result-create"),
+    );
+
+    await expect(
+      workLifecycle.close(
+        "account-1",
+        {
+          baseRevision: work.revision,
+          clientIdempotencyKey: "close-without-result",
+          workId: work.id,
+        } as never,
+        VISIBLE_USER,
+      ),
+    ).rejects.toThrow();
+  });
+
+  test("previews close without changing status and reopen requires a non-terminal target", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("close-cancel-create"),
+    );
+
+    await expect(
+      workLifecycle.previewClose("account-1", { workId: work.id }),
+    ).resolves.toMatchObject({ workId: work.id });
+    await expect(
+      workLifecycle.find("account-1", work.id),
+    ).resolves.toMatchObject({ status: "Not Started" });
+
+    const closed = await workLifecycle.close(
+      "account-1",
+      {
+        baseRevision: work.revision,
+        clientIdempotencyKey: "close-before-reopen",
+        closureResult: "Completed",
+        reason: "Released",
+        workId: work.id,
+      },
+      VISIBLE_USER,
+    );
+    await expect(
+      workLifecycle.reopen(
+        "account-1",
+        {
+          baseRevision: closed.revision,
+          clientIdempotencyKey: "reopen-to-blocked",
+          confirmed: true,
+          status: "Blocked",
+          workId: work.id,
+        },
+        VISIBLE_USER,
+      ),
+    ).resolves.toMatchObject({
+      closureReason: null,
+      closureResult: null,
+      status: "Blocked",
+    });
+  });
+
+  test.each(["Not Started", "In Progress", "Blocked"] as const)(
+    "reopens Closed Work explicitly as %s",
+    async (status) => {
+      const workLifecycle = createMemoryWorkLifecycle();
+      const work = await workLifecycle.create(
+        "account-1",
+        createInput(`reopen-${status}-create`),
+      );
+      const closed = await workLifecycle.close(
+        "account-1",
+        {
+          baseRevision: work.revision,
+          clientIdempotencyKey: `reopen-${status}-close`,
+          closureResult: "Completed",
+          workId: work.id,
+        },
+        VISIBLE_USER,
+      );
+
+      await expect(
+        workLifecycle.reopen(
+          "account-1",
+          {
+            baseRevision: closed.revision,
+            clientIdempotencyKey: `reopen-${status}`,
+            confirmed: true,
+            status,
+            workId: work.id,
+          },
+          VISIBLE_USER,
+        ),
+      ).resolves.toMatchObject({
+        closureReason: null,
+        closureResult: null,
+        status,
+      });
+    },
+  );
+
+  test("replays a reopen for the same client idempotency key", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("reopen-replay-create"),
+    );
+    const closed = await workLifecycle.close(
+      "account-1",
+      {
+        baseRevision: work.revision,
+        clientIdempotencyKey: "reopen-replay-close",
+        closureResult: "Completed",
+        workId: work.id,
+      },
+      VISIBLE_USER,
+    );
+    const input = {
+      baseRevision: closed.revision,
+      clientIdempotencyKey: "reopen-replay",
+      confirmed: true as const,
+      status: "In Progress" as const,
+      workId: work.id,
+    };
+
+    const first = await workLifecycle.reopen("account-1", input, VISIBLE_USER);
+
+    await expect(
+      workLifecycle.reopen("account-1", input, VISIBLE_USER),
+    ).resolves.toEqual(first);
+  });
+
+  test("shows a non-blocking Closure check and closes through Close anyway", async () => {
+    const workLifecycle = createMemoryWorkLifecycle({
+      closureContext: {
+        activeBlockers: [{ id: "blocker-1", label: "PAY-9 blocks this Work" }],
+        incompleteChecklistItems: [
+          { id: "check-1", label: "Verify the migration" },
+        ],
+        lastingContextSources: [],
+      },
+    });
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("closure-check-create"),
+    );
+
+    await expect(
+      workLifecycle.previewClose("account-1", { workId: work.id }),
+    ).resolves.toMatchObject({
+      closureCheck: {
+        activeBlockers: [{ id: "blocker-1" }],
+        incompleteChecklistItems: [{ id: "check-1" }],
+      },
+    });
+    await expect(
+      workLifecycle.close(
+        "account-1",
+        {
+          baseRevision: work.revision,
+          clientIdempotencyKey: "closure-check-without-choice",
+          closureResult: "Abandoned",
+          workId: work.id,
+        },
+        VISIBLE_USER,
+      ),
+    ).rejects.toBeInstanceOf(WorkClosureCheckRequiredError);
+    await expect(
+      workLifecycle.close(
+        "account-1",
+        {
+          baseRevision: work.revision,
+          clientIdempotencyKey: "closure-check-close-anyway",
+          closureCheck: "Close anyway",
+          closureResult: "Abandoned",
+          workId: work.id,
+        },
+        VISIBLE_USER,
+      ),
+    ).resolves.toMatchObject({
+      closureResult: "Abandoned",
+      status: "Closed",
+    });
+  });
+
+  test("previews lasting context destinations without generating text or blocking close", async () => {
+    const workLifecycle = createMemoryWorkLifecycle({
+      closureContext: {
+        activeBlockers: [],
+        incompleteChecklistItems: [],
+        lastingContextSources: [
+          { id: "note-1", label: "Payment retry learning" },
+        ],
+      },
+    });
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("lasting-context-create"),
+    );
+
+    await expect(
+      workLifecycle.previewClose("account-1", { workId: work.id }),
+    ).resolves.toMatchObject({
+      lastingContext: {
+        commands: [
+          { generatedText: null, target: "Decision" },
+          { generatedText: null, target: "Personal Wiki" },
+        ],
+        sources: [{ id: "note-1" }],
+      },
+    });
+    await expect(
+      workLifecycle.close(
+        "account-1",
+        {
+          baseRevision: work.revision,
+          clientIdempotencyKey: "lasting-context-close",
+          closureResult: "Completed",
+          workId: work.id,
+        },
+        VISIBLE_USER,
+      ),
+    ).resolves.toMatchObject({ status: "Closed" });
   });
 });

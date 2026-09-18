@@ -14,7 +14,7 @@ import {
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { project, work, workKeyAllocation } from "@cantiara/db/schema/index";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 
 import {
   createDatabaseMutationContract,
@@ -36,9 +36,11 @@ type WorkKeyAllocationRecord = typeof workKeyAllocation.$inferSelect;
 
 function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
   return {
+    archivedAt: record.archivedAt?.toISOString() ?? null,
     captureProvenance: record.captureProvenance
       ? workCaptureProvenanceSchema.parse(record.captureProvenance)
       : null,
+    closureReason: record.closureReason,
     closureResult: record.closureResult
       ? workClosureResultSchema.parse(record.closureResult)
       : null,
@@ -193,7 +195,11 @@ function createWorkMutationTarget(
       const [created] = await executor
         .insert(work)
         .values({
+          archivedAt: nextWork.archivedAt
+            ? new Date(nextWork.archivedAt)
+            : null,
           captureProvenance: nextWork.captureProvenance,
+          closureReason: nextWork.closureReason,
           closureResult: nextWork.closureResult,
           createdAt: new Date(nextWork.createdAt),
           featureHealthHistory: nextWork.featureHealthHistory,
@@ -342,10 +348,16 @@ function createWorkUpdateMutationTarget(
       const [updated] = await executor
         .update(work)
         .set({
+          archivedAt: nextWork.archivedAt
+            ? new Date(nextWork.archivedAt)
+            : null,
+          closureReason: nextWork.closureReason,
+          closureResult: nextWork.closureResult,
           featureHealthHistory: nextWork.featureHealthHistory,
           primaryFeatureId: nextWork.primaryFeatureId,
           primarySpecId: nextWork.primarySpecId,
           revision: input.expectedRevision + 1,
+          status: nextWork.status,
           type: nextWork.type,
           updatedAt: input.committedAt,
         })
@@ -432,7 +444,7 @@ export function createDatabaseWorkLifecycle(
       return result ? toWorkProfile(result.record) : null;
     },
 
-    async list(accountId, projectId) {
+    async list(accountId, projectId, listOptions) {
       const workspaceId = await findWorkspaceId(database, accountId);
       if (!workspaceId) {
         return [];
@@ -445,6 +457,9 @@ export function createDatabaseWorkLifecycle(
           and(
             eq(work.projectId, projectId),
             eq(project.workspaceId, workspaceId),
+            listOptions?.archived
+              ? isNotNull(work.archivedAt)
+              : isNull(work.archivedAt),
           ),
         )
         .orderBy(asc(work.number));

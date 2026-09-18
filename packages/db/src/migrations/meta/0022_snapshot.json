@@ -1,6 +1,6 @@
 {
-  "id": "dfd3a0a1-d027-4023-90b5-50bd29db1640",
-  "prevId": "c2b82ff4-82ca-43fb-8c5c-e1c6c5f3dc03",
+  "id": "c502d361-2a6a-4fe2-9eda-7016eb053b71",
+  "prevId": "dfd3a0a1-d027-4023-90b5-50bd29db1640",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2011,6 +2011,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "closure_reason": {
+          "name": "closure_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "closure_result": {
           "name": "closure_result",
           "type": "text",
@@ -2179,6 +2185,10 @@
         "work_closure_result_check": {
           "name": "work_closure_result_check",
           "value": "\"work\".\"closure_result\" is null or \"work\".\"closure_result\" in ('Completed', 'Abandoned')"
+        },
+        "work_closed_result_check": {
+          "name": "work_closed_result_check",
+          "value": "(\"work\".\"status\" = 'Closed' and \"work\".\"closure_result\" is not null) or (\"work\".\"status\" <> 'Closed' and \"work\".\"closure_result\" is null and \"work\".\"closure_reason\" is null)"
         }
       },
       "isRLSEnabled": false
