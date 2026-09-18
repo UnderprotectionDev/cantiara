@@ -10,7 +10,7 @@ import {
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { project, work, workKeyAllocation } from "@cantiara/db/schema/index";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 
 import {
   createDatabaseMutationContract,
@@ -30,6 +30,7 @@ type WorkKeyAllocationRecord = typeof workKeyAllocation.$inferSelect;
 
 function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
   return {
+    archivedAt: record.archivedAt?.toISOString() ?? null,
     captureProvenance: record.captureProvenance
       ? workCaptureProvenanceSchema.parse(record.captureProvenance)
       : null,
@@ -169,6 +170,9 @@ function createWorkMutationTarget(
       const [created] = await executor
         .insert(work)
         .values({
+          archivedAt: nextWork.archivedAt
+            ? new Date(nextWork.archivedAt)
+            : null,
           captureProvenance: nextWork.captureProvenance,
           closureResult: nextWork.closureResult,
           createdAt: new Date(nextWork.createdAt),
@@ -242,6 +246,9 @@ function createWorkUpdateMutationTarget(
       const [updated] = await executor
         .update(work)
         .set({
+          archivedAt: nextWork.archivedAt
+            ? new Date(nextWork.archivedAt)
+            : null,
           revision: input.expectedRevision + 1,
           type: nextWork.type,
           updatedAt: input.committedAt,
@@ -317,7 +324,7 @@ export function createDatabaseWorkLifecycle(database: Database) {
       return result ? toWorkProfile(result.record) : null;
     },
 
-    async list(accountId, projectId) {
+    async list(accountId, projectId, options) {
       const workspaceId = await findWorkspaceId(database, accountId);
       if (!workspaceId) {
         return [];
@@ -330,6 +337,9 @@ export function createDatabaseWorkLifecycle(database: Database) {
           and(
             eq(work.projectId, projectId),
             eq(project.workspaceId, workspaceId),
+            options?.archived
+              ? isNotNull(work.archivedAt)
+              : isNull(work.archivedAt),
           ),
         )
         .orderBy(asc(work.number));

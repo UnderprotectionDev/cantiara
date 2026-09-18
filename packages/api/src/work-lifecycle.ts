@@ -107,7 +107,24 @@ export type WorkTypeChangePreviewInput = z.input<
 >;
 export type UpdateWorkTypeInput = z.input<typeof updateWorkTypeInputSchema>;
 
+export const workArchiveMutationInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type WorkArchiveMutationInput = z.input<
+  typeof workArchiveMutationInputSchema
+>;
+
+export interface WorkListOptions {
+  archived?: boolean;
+}
+
 export interface WorkProfile {
+  archivedAt: string | null;
   captureProvenance: WorkCaptureProvenance | null;
   closureResult: WorkClosureResult | null;
   createdAt: string;
@@ -143,16 +160,28 @@ export interface WorkTypeChangePreview {
 }
 
 export interface WorkLifecycleAccess {
+  archive: (
+    accountId: string,
+    input: WorkArchiveMutationInput,
+  ) => Promise<WorkProfile>;
   create: (
     accountId: string,
     input: CreateWorkMutationInput,
   ) => Promise<WorkProfile>;
   find: (accountId: string, workId: string) => Promise<WorkProfile | null>;
-  list: (accountId: string, projectId: string) => Promise<WorkProfile[]>;
+  list: (
+    accountId: string,
+    projectId: string,
+    options?: WorkListOptions,
+  ) => Promise<WorkProfile[]>;
   previewTypeChange: (
     accountId: string,
     input: WorkTypeChangePreviewInput,
   ) => Promise<WorkTypeChangePreview | null>;
+  unarchive: (
+    accountId: string,
+    input: WorkArchiveMutationInput,
+  ) => Promise<WorkProfile>;
   updateType: (
     accountId: string,
     input: UpdateWorkTypeInput,

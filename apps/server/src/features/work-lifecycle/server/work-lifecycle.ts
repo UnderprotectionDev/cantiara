@@ -11,6 +11,7 @@ import {
   type WorkProfile,
   type WorkType,
   type WorkTypeChangePreview,
+  workArchiveMutationInputSchema,
   workTypeChangePreviewInputSchema,
 } from "@cantiara/api/work-lifecycle";
 
@@ -31,7 +32,11 @@ export interface WorkLifecycleStore {
     projectId: string,
     clientIdempotencyKey: string,
   ) => Promise<WorkProfile | null>;
-  list: (accountId: string, projectId: string) => Promise<WorkProfile[]>;
+  list: (
+    accountId: string,
+    projectId: string,
+    options?: { archived?: boolean },
+  ) => Promise<WorkProfile[]>;
   reserveCreate: (
     accountId: string,
     projectId: string,
@@ -142,7 +147,52 @@ export function createWorkLifecycle({
   mutationContracts: WorkLifecycleMutationContracts;
   store: WorkLifecycleStore;
 }): WorkLifecycleAccess {
+  async function setArchived(
+    accountId: string,
+    rawInput: Parameters<WorkLifecycleAccess["archive"]>[1],
+    archived: boolean,
+  ) {
+    const input = workArchiveMutationInputSchema.parse(rawInput);
+    const currentWork = await store.find(accountId, input.workId);
+    if (!currentWork) {
+      throw new WorkNotFoundError(input.workId);
+    }
+
+    const timestamp = new Date().toISOString();
+    const receipt = await mutationContracts.update(accountId).mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        kind: "human",
+        payload: { archived, workId: input.workId },
+        targetId: input.workId,
+      },
+      ({ currentRevision, currentValue, payload }) => {
+        if (!currentValue.work || currentValue.work.id !== input.workId) {
+          throw new WorkNotFoundError(input.workId);
+        }
+        return {
+          work: {
+            ...currentValue.work,
+            archivedAt: payload.archived ? timestamp : null,
+            revision: currentRevision + 1,
+            updatedAt: timestamp,
+          },
+        } satisfies WorkLifecycleMutationValue;
+      },
+    );
+    if (!receipt.nextValue.work) {
+      throw new WorkNotFoundError(input.workId);
+    }
+    return receipt.nextValue.work;
+  }
+
   return {
+    archive(accountId, input) {
+      return setArchived(accountId, input, true);
+    },
+
     async create(accountId, rawInput) {
       const input = createWorkMutationInputSchema.parse(rawInput);
       const existing = await store.findByClientIdempotencyKey(
@@ -193,6 +243,7 @@ export function createWorkLifecycle({
               throw new WorkCreationConflictError();
             }
             const work: WorkProfile = {
+              archivedAt: null,
               captureProvenance: mutationPayload.captureProvenance,
               closureResult: null,
               createdAt: timestamp,
@@ -236,8 +287,8 @@ export function createWorkLifecycle({
       return store.find(accountId, workId);
     },
 
-    list(accountId, projectId) {
-      return store.list(accountId, projectId);
+    list(accountId, projectId, options) {
+      return store.list(accountId, projectId, options);
     },
 
     async previewTypeChange(accountId, rawInput) {
@@ -315,6 +366,10 @@ export function createWorkLifecycle({
         throw new WorkNotFoundError(input.workId);
       }
       return receipt.nextValue.work;
+    },
+
+    unarchive(accountId, input) {
+      return setArchived(accountId, input, false);
     },
   };
 }

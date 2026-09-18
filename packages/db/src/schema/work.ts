@@ -15,6 +15,7 @@ import { project } from "./project";
 export const work = pgTable(
   "work",
   {
+    archivedAt: timestamp("archived_at"),
     captureProvenance: jsonb("capture_provenance").$type<unknown>(),
     closureResult: text("closure_result"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
