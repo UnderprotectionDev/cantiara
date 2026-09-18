@@ -7,10 +7,27 @@ import {
   getProjectShellConfiguration,
   type ProjectProfile,
 } from "@cantiara/api/project-shell";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterContextProvider,
+} from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 
 import ProjectOverviewView from "./project-overview-view";
+
+const projectOverviewRootRoute = createRootRoute({});
+const projectOverviewRoute = createRoute({
+  component: () => null,
+  getParentRoute: () => projectOverviewRootRoute,
+  path: "/projects/$projectId",
+});
+const projectOverviewRouteTree = projectOverviewRootRoute.addChildren([
+  projectOverviewRoute,
+]);
 
 const PROJECT_TARGET_DATE_PATTERN = /30 Sept? 2026/;
 const RECENT_CHANGE_DATE_PATTERN = /Sep 18, 2026(?: at|,) 4:00 AM/;
@@ -80,20 +97,44 @@ const sources: ProjectOverviewSources = {
   work: [{ id: "work-1", title: "Add hosted checkout" }],
 };
 
+const moduleHrefs = {
+  Blockers: "/projects/project-1/work?filter=blocked",
+  Dates: "/projects/project-1/dates?filter=target",
+  Decisions: "/projects/project-1/decisions",
+  Documents: "/projects/project-1/documents",
+  Goals: "/projects/project-1/goals",
+  Milestones: "/projects/project-1/milestones",
+  Production: "/projects/project-1/production?filter=important",
+  "Recent changes": "/projects/project-1/changes?filter=recent",
+  Risks: "/projects/project-1/risks?filter=open",
+  Stages: "/projects/project-1/stages?filter=active",
+  Tests: "/projects/project-1/tests?filter=overview",
+  Work: "/projects/project-1/work?filter=current",
+} satisfies NonNullable<ProjectOverviewSources["moduleHrefs"]>;
+
 function renderOverview(
   overrides: Partial<ProjectProfile> = {},
   overviewSources: ProjectOverviewSources = sources,
   accountPreferences: Partial<AccountPreferences> = {},
 ) {
+  const router = createRouter({
+    history: createMemoryHistory({
+      initialEntries: ["/projects/project-1"],
+    }),
+    routeTree: projectOverviewRouteTree,
+  });
+
   return renderToStaticMarkup(
-    <ProjectOverviewView
-      accountFormattingPreferences={{
-        ...DEFAULT_ACCOUNT_PREFERENCES,
-        ...accountPreferences,
-      }}
-      project={{ ...project, ...overrides }}
-      sources={overviewSources}
-    />,
+    <RouterContextProvider router={router}>
+      <ProjectOverviewView
+        accountFormattingPreferences={{
+          ...DEFAULT_ACCOUNT_PREFERENCES,
+          ...accountPreferences,
+        }}
+        project={{ ...project, ...overrides }}
+        sources={overviewSources}
+      />
+    </RouterContextProvider>,
   );
 }
 
@@ -131,7 +172,9 @@ describe("Project Overview", () => {
     expect(html).toContain("Retry path is unverified");
     expect(html).toContain('href="/projects/project-1/goals/goal-1"');
     expect(html.match(/href="\/projects\/project-1\/goals"/g)).toHaveLength(2);
-    expect(html).toContain('aria-label="Open Goals source records"');
+    expect(html).toContain(
+      'aria-label="Open source record: Goals (1 source record)"',
+    );
     expect(html).toContain("Open source record");
     expect(html).toContain(">Target date<");
     expect(html).not.toContain("Project target date");
@@ -171,17 +214,10 @@ describe("Project Overview", () => {
   });
 
   test("uses Account locale and time zone for source dates", () => {
-    const html = renderToStaticMarkup(
-      <ProjectOverviewView
-        accountFormattingPreferences={{
-          ...DEFAULT_ACCOUNT_PREFERENCES,
-          locale: "en-US",
-          timeZone: "America/New_York",
-        }}
-        project={project}
-        sources={sources}
-      />,
-    );
+    const html = renderOverview({}, sources, {
+      locale: "en-US",
+      timeZone: "America/New_York",
+    });
 
     expect(html).toContain("Sep 30, 2026");
     expect(html).toMatch(RECENT_CHANGE_DATE_PATTERN);
@@ -196,5 +232,32 @@ describe("Project Overview", () => {
 
     expect(html).toContain("2026-09-30");
     expect(html).not.toContain("2026-10-01");
+  });
+
+  test("opens every module heading and count at its exact source set", () => {
+    const html = renderOverview({}, { ...sources, moduleHrefs });
+
+    for (const [moduleName, href] of Object.entries(moduleHrefs)) {
+      expect(html).toContain(`aria-label="Open source record: ${moduleName}"`);
+      expect(html).toContain(`href="${href}"`);
+    }
+
+    expect(html).toContain(
+      'aria-label="Open source record: Goals (1 source record)"',
+    );
+    expect(html).toContain(
+      'aria-label="Open source record: Tests (3 source records)"',
+    );
+  });
+
+  test("shows only visible Project Shell areas as navigable entries", () => {
+    const html = renderOverview();
+
+    expect(html).toContain('data-overview-area-entry="Work"');
+    expect(html).toContain('href="/projects/project-1#work"');
+    expect(html).toContain('data-overview-area-entry="Tests"');
+    expect(html).toContain('href="/projects/project-1#project-area-tests"');
+    expect(html).not.toContain('data-overview-area-entry="Documents"');
+    expect(html).not.toContain('href="#documents"');
   });
 });
