@@ -14,6 +14,10 @@ import type {
   MutationContract,
   MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
+import type {
+  ProjectShellAccess,
+  ProjectShellMutationContracts,
+} from "@cantiara/api/project-shell";
 import type { createAuth } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
 import type { Context as HonoContext } from "hono";
@@ -38,6 +42,8 @@ export interface CreateContextOptions {
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   mutationContract?: MutationContract<MutationPayload>;
+  projectShell?: ProjectShellAccess;
+  projectShellMutationContracts?: ProjectShellMutationContracts;
   trustedProxyIps: readonly string[];
 }
 
@@ -60,6 +66,8 @@ export async function createContext({
   githubAvailability,
   githubIdentityConfirmation,
   mutationContract,
+  projectShell,
+  projectShellMutationContracts,
   trustedProxyIps,
 }: CreateContextOptions): Promise<ApiContext> {
   const candidateSession = await auth.api.getSession({
@@ -90,6 +98,8 @@ export async function createContext({
     githubAvailability,
     githubIdentityConfirmation,
     mutationContract,
+    projectShell,
+    projectShellMutationContracts,
     auth: null,
     session,
   };

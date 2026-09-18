@@ -9,6 +9,10 @@ import type {
 } from "./account-preferences";
 import type { CaptureInboxAccess } from "./capture-triage";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
+import type {
+  ProjectShellAccess,
+  ProjectShellMutationContracts,
+} from "./project-shell";
 
 export interface AccountSessionPrincipal {
   accountId: string;
@@ -106,6 +110,8 @@ export interface Context {
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
   mutationContract?: MutationContract<MutationPayload>;
+  projectShell?: ProjectShellAccess;
+  projectShellMutationContracts?: ProjectShellMutationContracts;
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;

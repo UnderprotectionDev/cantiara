@@ -13,6 +13,8 @@ import {
   githubAvailability,
   githubIdentityConfirmation,
   mutationContract,
+  projectShell,
+  projectShellMutationContracts,
   replaySessionRevocations,
   tauriSessionAccess,
 } from "./services";
@@ -41,6 +43,8 @@ export default createApp({
   githubAvailability,
   githubIdentityConfirmation,
   mutationContract,
+  projectShell,
+  projectShellMutationContracts,
   nodeEnv: env.NODE_ENV,
   redactSecrets,
   tauriSessionAccess,

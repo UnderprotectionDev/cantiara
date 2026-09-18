@@ -46,6 +46,7 @@ export const orpc = createTanstackQueryUtils(client);
 
 const accountPreferencesQueryPrefix =
   orpc.accountPreferences.queryOptions().queryKey;
+export const projectsQueryPrefix = orpc.projects.queryOptions().queryKey;
 
 export function accountPreferencesQueryOptions(accountId?: string) {
   return {
@@ -59,6 +60,13 @@ export function accountPreferencesQueryOptions(accountId?: string) {
 }
 
 export { accountPreferencesQueryPrefix };
+
+export function projectsQueryOptions() {
+  return {
+    ...orpc.projects.queryOptions(),
+    queryKey: projectsQueryPrefix,
+  };
+}
 
 const captureInboxQueryPrefix = orpc.captureInbox.queryOptions().queryKey;
 
