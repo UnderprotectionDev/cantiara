@@ -1,6 +1,7 @@
 import {
   canonicalizeMutationPayload,
   fingerprintMutationPayload,
+  type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import {
   createWorkMutationInputSchema,
@@ -214,6 +215,49 @@ export function createWorkLifecycle({
   mutationContracts: WorkLifecycleMutationContracts;
   store: WorkLifecycleStore;
 }): WorkLifecycleAccess {
+  async function mutateWork<TPayload extends MutationPayload>(
+    accountId: string,
+    command: {
+      baseRevision: number;
+      clientIdempotencyKey: string;
+      payload: TPayload;
+      targetId: string;
+    },
+    transform: (
+      currentWork: WorkProfile,
+      payload: TPayload,
+      timestamp: string,
+    ) => WorkProfile,
+  ) {
+    const timestamp = new Date().toISOString();
+    const receipt = await mutationContracts.update(accountId).mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: command.baseRevision,
+        clientIdempotencyKey: command.clientIdempotencyKey,
+        kind: "human",
+        payload: command.payload,
+        targetId: command.targetId,
+      },
+      ({ currentRevision, currentValue, payload }) => {
+        if (!currentValue.work || currentValue.work.id !== command.targetId) {
+          throw new WorkNotFoundError(command.targetId);
+        }
+        return {
+          work: {
+            ...transform(currentValue.work, payload, timestamp),
+            revision: currentRevision + 1,
+            updatedAt: timestamp,
+          },
+        } satisfies WorkLifecycleMutationValue;
+      },
+    );
+    if (!receipt.nextValue.work) {
+      throw new WorkNotFoundError(command.targetId);
+    }
+    return receipt.nextValue.work;
+  }
+
   return {
     async create(accountId, rawInput) {
       const input = createWorkMutationInputSchema.parse(rawInput);
@@ -347,39 +391,23 @@ export function createWorkLifecycle({
         );
       }
 
-      const timestamp = new Date().toISOString();
-      const receipt = await mutationContracts.update(accountId).mutate(
+      return mutateWork(
+        accountId,
         {
-          actor: { actorId: accountId, type: "User" },
           baseRevision: input.baseRevision,
           clientIdempotencyKey: input.clientIdempotencyKey,
-          kind: "human",
           payload: { featureId: input.featureId, workId: input.workId },
           targetId: input.workId,
         },
-        ({ currentRevision, currentValue, payload }) => {
-          if (!currentValue.work || currentValue.work.id !== payload.workId) {
-            throw new WorkNotFoundError(payload.workId);
-          }
-          if (currentValue.work.primaryFeatureId !== payload.featureId) {
+        (work, payload) => {
+          if (work.primaryFeatureId !== payload.featureId) {
             throw new WorkInclusionConflictError(
               "Work is not included in this Feature.",
             );
           }
-          return {
-            work: {
-              ...currentValue.work,
-              primaryFeatureId: null,
-              revision: currentRevision + 1,
-              updatedAt: timestamp,
-            },
-          } satisfies WorkLifecycleMutationValue;
+          return { ...work, primaryFeatureId: null };
         },
       );
-      if (!receipt.nextValue.work) {
-        throw new WorkNotFoundError(input.workId);
-      }
-      return receipt.nextValue.work;
     },
 
     async detachFeatureHealthHistory(accountId, rawInput) {
@@ -391,40 +419,21 @@ export function createWorkLifecycle({
       if (feature.type !== "Feature") {
         throw new WorkFeatureRequiredError(input.featureId);
       }
-      const timestamp = new Date().toISOString();
-      const receipt = await mutationContracts.update(accountId).mutate(
+      return mutateWork(
+        accountId,
         {
-          actor: { actorId: accountId, type: "User" },
           baseRevision: input.baseRevision,
           clientIdempotencyKey: input.clientIdempotencyKey,
-          kind: "human",
           payload: { featureId: input.featureId },
           targetId: input.featureId,
         },
-        ({ currentRevision, currentValue, payload }) => {
-          if (
-            !currentValue.work ||
-            currentValue.work.id !== payload.featureId
-          ) {
-            throw new WorkNotFoundError(payload.featureId);
-          }
-          if (currentValue.work.type !== "Feature") {
+        (work, payload) => {
+          if (work.type !== "Feature") {
             throw new WorkFeatureRequiredError(payload.featureId);
           }
-          return {
-            work: {
-              ...currentValue.work,
-              featureHealthHistory: [],
-              revision: currentRevision + 1,
-              updatedAt: timestamp,
-            },
-          } satisfies WorkLifecycleMutationValue;
+          return { ...work, featureHealthHistory: [] };
         },
       );
-      if (!receipt.nextValue.work) {
-        throw new WorkNotFoundError(input.featureId);
-      }
-      return receipt.nextValue.work;
     },
 
     async includeWork(accountId, rawInput) {
@@ -461,40 +470,24 @@ export function createWorkLifecycle({
         throw new WorkInclusionConflictError();
       }
 
-      const timestamp = new Date().toISOString();
-      const receipt = await mutationContracts.update(accountId).mutate(
+      return mutateWork(
+        accountId,
         {
-          actor: { actorId: accountId, type: "User" },
           baseRevision: input.baseRevision,
           clientIdempotencyKey: input.clientIdempotencyKey,
-          kind: "human",
           payload: { featureId: feature.id, workId: includedWork.id },
           targetId: includedWork.id,
         },
-        ({ currentRevision, currentValue, payload }) => {
-          if (!currentValue.work || currentValue.work.id !== input.workId) {
-            throw new WorkNotFoundError(input.workId);
-          }
+        (work, payload) => {
           if (
-            currentValue.work.primaryFeatureId &&
-            currentValue.work.primaryFeatureId !== payload.featureId
+            work.primaryFeatureId &&
+            work.primaryFeatureId !== payload.featureId
           ) {
             throw new WorkInclusionConflictError();
           }
-          return {
-            work: {
-              ...currentValue.work,
-              primaryFeatureId: payload.featureId,
-              revision: currentRevision + 1,
-              updatedAt: timestamp,
-            },
-          } satisfies WorkLifecycleMutationValue;
+          return { ...work, primaryFeatureId: payload.featureId };
         },
       );
-      if (!receipt.nextValue.work) {
-        throw new WorkNotFoundError(input.workId);
-      }
-      return receipt.nextValue.work;
     },
 
     list(accountId, projectId) {
@@ -511,13 +504,11 @@ export function createWorkLifecycle({
         throw new WorkFeatureRequiredError(input.featureId);
       }
 
-      const timestamp = new Date().toISOString();
-      const receipt = await mutationContracts.update(accountId).mutate(
+      return mutateWork(
+        accountId,
         {
-          actor: { actorId: accountId, type: "User" },
           baseRevision: input.baseRevision,
           clientIdempotencyKey: input.clientIdempotencyKey,
-          kind: "human",
           payload: {
             featureId: feature.id,
             health: input.health,
@@ -525,36 +516,25 @@ export function createWorkLifecycle({
           },
           targetId: feature.id,
         },
-        ({ currentRevision, currentValue, payload }) => {
-          if (!currentValue.work || currentValue.work.id !== input.featureId) {
-            throw new WorkNotFoundError(input.featureId);
-          }
-          if (currentValue.work.type !== "Feature") {
+        (work, payload, timestamp) => {
+          if (work.type !== "Feature") {
             throw new WorkFeatureRequiredError(input.featureId);
           }
           return {
-            work: {
-              ...currentValue.work,
-              featureHealthHistory: [
-                ...currentValue.work.featureHealthHistory,
-                {
-                  health: payload.health,
-                  id: crypto.randomUUID(),
-                  reason: payload.reason,
-                  recordedAt: timestamp,
-                  recordedByAccountId: accountId,
-                },
-              ],
-              revision: currentRevision + 1,
-              updatedAt: timestamp,
-            },
-          } satisfies WorkLifecycleMutationValue;
+            ...work,
+            featureHealthHistory: [
+              ...work.featureHealthHistory,
+              {
+                health: payload.health,
+                id: crypto.randomUUID(),
+                reason: payload.reason,
+                recordedAt: timestamp,
+                recordedByAccountId: accountId,
+              },
+            ],
+          };
         },
       );
-      if (!receipt.nextValue.work) {
-        throw new WorkNotFoundError(input.featureId);
-      }
-      return receipt.nextValue.work;
     },
 
     async previewTypeChange(accountId, rawInput) {
@@ -628,34 +608,16 @@ export function createWorkLifecycle({
         );
       }
 
-      const timestamp = new Date().toISOString();
-      const receipt = await mutationContracts.update(accountId).mutate(
+      return mutateWork(
+        accountId,
         {
-          actor: { actorId: accountId, type: "User" },
           baseRevision: input.baseRevision,
           clientIdempotencyKey: input.clientIdempotencyKey,
-          kind: "human",
           payload: { type: input.type, workId: input.workId },
           targetId: input.workId,
         },
-        ({ currentRevision, currentValue, payload }) => {
-          if (!currentValue.work || currentValue.work.id !== input.workId) {
-            throw new WorkNotFoundError(input.workId);
-          }
-          return {
-            work: {
-              ...currentValue.work,
-              revision: currentRevision + 1,
-              type: payload.type,
-              updatedAt: timestamp,
-            },
-          } satisfies WorkLifecycleMutationValue;
-        },
+        (work, payload) => ({ ...work, type: payload.type }),
       );
-      if (!receipt.nextValue.work) {
-        throw new WorkNotFoundError(input.workId);
-      }
-      return receipt.nextValue.work;
     },
 
     async updateFeaturePrimarySpec(accountId, rawInput) {
@@ -667,43 +629,24 @@ export function createWorkLifecycle({
       if (feature.type !== "Feature") {
         throw new WorkFeatureRequiredError(input.featureId);
       }
-      const timestamp = new Date().toISOString();
-      const receipt = await mutationContracts.update(accountId).mutate(
+      return mutateWork(
+        accountId,
         {
-          actor: { actorId: accountId, type: "User" },
           baseRevision: input.baseRevision,
           clientIdempotencyKey: input.clientIdempotencyKey,
-          kind: "human",
           payload: {
             featureId: input.featureId,
             primarySpecId: input.primarySpecId,
           },
           targetId: input.featureId,
         },
-        ({ currentRevision, currentValue, payload }) => {
-          if (
-            !currentValue.work ||
-            currentValue.work.id !== payload.featureId
-          ) {
-            throw new WorkNotFoundError(payload.featureId);
-          }
-          if (currentValue.work.type !== "Feature") {
+        (work, payload) => {
+          if (work.type !== "Feature") {
             throw new WorkFeatureRequiredError(payload.featureId);
           }
-          return {
-            work: {
-              ...currentValue.work,
-              primarySpecId: payload.primarySpecId,
-              revision: currentRevision + 1,
-              updatedAt: timestamp,
-            },
-          } satisfies WorkLifecycleMutationValue;
+          return { ...work, primarySpecId: payload.primarySpecId };
         },
       );
-      if (!receipt.nextValue.work) {
-        throw new WorkNotFoundError(input.featureId);
-      }
-      return receipt.nextValue.work;
     },
   };
 }

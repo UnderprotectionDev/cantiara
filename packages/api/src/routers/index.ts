@@ -526,6 +526,14 @@ function rethrowWorkLifecycleError(error: unknown): never {
   throw error;
 }
 
+async function runWorkLifecycleOperation<T>(operation: () => Promise<T>) {
+  try {
+    return await operation();
+  } catch (error) {
+    rethrowWorkLifecycleError(error);
+  }
+}
+
 function rethrowProjectShellMutationError(
   error: unknown,
   targetId: string,
@@ -621,76 +629,64 @@ export const appRouter = {
     ),
   featureProgress: protectedProcedure
     .input(z.object({ featureId: z.string().trim().min(1) }).strict())
-    .handler(async ({ context, input }) => {
-      try {
-        return await requireWorkLifecycle(context).featureProgress(
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).featureProgress(
           context.session.user.id,
           input.featureId,
-        );
-      } catch (error) {
-        rethrowWorkLifecycleError(error);
-      }
-    }),
+        ),
+      ),
+    ),
   includeWork: protectedProcedure
     .input(includeWorkInputSchema)
-    .handler(async ({ context, input }) => {
-      try {
-        return await requireWorkLifecycle(context).includeWork(
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).includeWork(
           context.session.user.id,
           input,
-        );
-      } catch (error) {
-        rethrowWorkLifecycleError(error);
-      }
-    }),
+        ),
+      ),
+    ),
   detachIncludedWork: protectedProcedure
     .input(detachIncludedWorkInputSchema)
-    .handler(async ({ context, input }) => {
-      try {
-        return await requireWorkLifecycle(context).detachIncludedWork(
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).detachIncludedWork(
           context.session.user.id,
           input,
-        );
-      } catch (error) {
-        rethrowWorkLifecycleError(error);
-      }
-    }),
+        ),
+      ),
+    ),
   recordFeatureHealth: protectedProcedure
     .input(recordFeatureHealthInputSchema)
-    .handler(async ({ context, input }) => {
-      try {
-        return await requireWorkLifecycle(context).recordFeatureHealth(
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).recordFeatureHealth(
           context.session.user.id,
           input,
-        );
-      } catch (error) {
-        rethrowWorkLifecycleError(error);
-      }
-    }),
+        ),
+      ),
+    ),
   detachFeatureHealthHistory: protectedProcedure
     .input(detachFeatureHealthHistoryInputSchema)
-    .handler(async ({ context, input }) => {
-      try {
-        return await requireWorkLifecycle(context).detachFeatureHealthHistory(
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).detachFeatureHealthHistory(
           context.session.user.id,
           input,
-        );
-      } catch (error) {
-        rethrowWorkLifecycleError(error);
-      }
-    }),
+        ),
+      ),
+    ),
   updateFeaturePrimarySpec: protectedProcedure
     .input(updateFeaturePrimarySpecInputSchema)
-    .handler(async ({ context, input }) => {
-      try {
-        return await requireWorkLifecycle(context).updateFeaturePrimarySpec(
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateFeaturePrimarySpec(
           context.session.user.id,
           input,
-        );
-      } catch (error) {
-        rethrowWorkLifecycleError(error);
-      }
-    }),
+        ),
+      ),
+    ),
   work: protectedProcedure
     .input(z.object({ workId: z.string().trim().min(1) }).strict())
     .handler(async ({ context, input }) => {
@@ -720,28 +716,21 @@ export const appRouter = {
     }),
   updateWorkType: protectedProcedure
     .input(updateWorkTypeInputSchema)
-    .handler(async ({ context, input }) => {
-      try {
-        return await requireWorkLifecycle(context).updateType(
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateType(
           context.session.user.id,
           input,
-        );
-      } catch (error) {
-        rethrowWorkLifecycleError(error);
-      }
-    }),
+        ),
+      ),
+    ),
   createWork: protectedProcedure
     .input(createWorkMutationInputSchema)
-    .handler(async ({ context, input }) => {
-      try {
-        return await requireWorkLifecycle(context).create(
-          context.session.user.id,
-          input,
-        );
-      } catch (error) {
-        rethrowWorkLifecycleError(error);
-      }
-    }),
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).create(context.session.user.id, input),
+      ),
+    ),
   createProject: protectedProcedure
     .input(createProjectMutationInputSchema)
     .handler(async ({ context, input }) => {
