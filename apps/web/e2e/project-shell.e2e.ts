@@ -4,6 +4,7 @@ const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ??
 const PROJECTS_URL_PATTERN = /\/projects$/;
 const PROJECT_DETAIL_URL_PATTERN = /\/projects\/[^/]+$/;
 const WORK_HASH_PATTERN = /#work$/;
+const WORK_CREATE_HASH_PATTERN = /#work-create$/;
 const DOCUMENTS_HASH_PATTERN = /#documents$/;
 const ALL_PROJECT_AREAS = [
   "Work",
@@ -35,7 +36,7 @@ async function expectDailyActions(page: Page) {
   await Promise.all(
     ["Create", "Edit", "Status", "Planning"].map((action) =>
       expect(
-        page.getByRole("button", { name: action, exact: true }),
+        page.getByRole("link", { name: action, exact: true }),
       ).toBeVisible(),
     ),
   );
@@ -230,15 +231,20 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   await expect(page.getByText("Blank Project", { exact: true })).toBeVisible();
   const nonGetRequestCountBeforeMode = nonGetRequests.length;
   await expectDailyActions(page);
-  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: "Create", exact: true }),
+  ).toHaveAttribute("href", WORK_CREATE_HASH_PATTERN);
+  await page.getByRole("link", { name: "Create", exact: true }).click();
+  await expect(page.locator("#work-create")).toBeInViewport();
   await expect(page.getByRole("region", { name: "Create" })).toBeVisible();
 
   await configurationMode.click();
   expect(nonGetRequests).toHaveLength(nonGetRequestCountBeforeMode);
   await expect(configurationMode).toHaveAttribute("aria-pressed", "true");
-  await expect(
-    page.getByRole("region", { name: "Configuration Mode" }),
-  ).toBeVisible();
+  const configurationRegion = page.locator(
+    'section[aria-label="Configuration Mode"]',
+  );
+  await expect(configurationRegion).toBeVisible();
   await Promise.all(
     [
       "Stages",
@@ -249,25 +255,56 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
       "Saved views",
       "Work Context Card layout",
     ].map((entry) =>
-      expect(page.getByText(entry, { exact: true }).first()).toBeVisible(),
+      expect(
+        configurationRegion.getByRole("button", {
+          name: entry,
+          exact: true,
+        }),
+      ).toBeVisible(),
     ),
   );
 
-  await page.getByRole("button", { name: "Custom field", exact: true }).click();
+  await configurationRegion
+    .getByRole("button", { name: "Custom field", exact: true })
+    .click();
+  const customFieldHost = configurationRegion.getByRole("region", {
+    exact: true,
+    name: "Custom field",
+  });
+  await expect(customFieldHost).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Custom field" }),
+    customFieldHost.getByRole("heading", {
+      name: "Custom field",
+      level: 4,
+    }),
   ).toBeVisible();
   await expect(
-    page.getByText("No schema is defined here.", { exact: true }),
+    customFieldHost.locator('[data-configuration-editor-host="custom-field"]'),
   ).toBeVisible();
-  await page
+  await expect(
+    customFieldHost.getByText("No schema is defined here.", { exact: true }),
+  ).toBeVisible();
+  await configurationRegion
     .getByRole("button", { name: "Work Context Card layout", exact: true })
     .click();
+  const layoutHost = configurationRegion.getByRole("region", {
+    exact: true,
+    name: "Work Context Card layout",
+  });
+  await expect(layoutHost).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Work Context Card layout" }),
+    layoutHost.getByRole("heading", {
+      name: "Work Context Card layout",
+      level: 4,
+    }),
   ).toBeVisible();
   await expect(
-    page.getByText(
+    layoutHost.locator(
+      '[data-configuration-editor-host="work-context-card-layout"]',
+    ),
+  ).toBeVisible();
+  await expect(
+    layoutHost.getByText(
       "No layout is changed here. The Work Context Card feature owns its layout engine.",
       { exact: true },
     ),
@@ -277,7 +314,7 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   expect(nonGetRequests).toHaveLength(nonGetRequestCountBeforeMode);
   await expect(configurationMode).toHaveAttribute("aria-pressed", "false");
   await expect(
-    page.getByRole("region", { name: "Configuration Mode" }),
+    page.locator('section[aria-label="Configuration Mode"]'),
   ).toHaveCount(0);
   await expectDailyActions(page);
   await expect(

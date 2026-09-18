@@ -83,10 +83,16 @@ type ConfigurationHost = (typeof CONFIGURATION_HOSTS)[number]["label"];
 
 const DAILY_ACTIONS = ["Create", "Edit", "Status", "Planning"] as const;
 type DailyAction = (typeof DAILY_ACTIONS)[number];
+const DAILY_ACTION_HASHES: Record<DailyAction, string> = {
+  Create: "work-create",
+  Edit: "work-edit",
+  Planning: "work-planning",
+  Status: "work-status",
+};
 
 const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
   Create:
-    "Create remains outside Configuration Mode. No sample Work was created for this Project.",
+    "Create remains outside Configuration Mode. This Project Shell entry does not create sample Work.",
   Edit: "Edit remains outside Configuration Mode. Project configuration does not change daily content.",
   Status:
     "Status remains outside Configuration Mode. Project stages do not write Work status.",
@@ -126,6 +132,7 @@ function rememberProjectShellExplanationDismissal(projectId: string) {
 }
 
 export default function ProjectShellView({ projectId }: { projectId: string }) {
+  const activeHash = useLocation({ select: ({ hash }) => hash });
   const projectQueryOptions = orpc.project.queryOptions({
     input: { projectId },
   });
@@ -138,13 +145,12 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
   const [configurationMode, setConfigurationMode] = useState(false);
   const [configurationHost, setConfigurationHost] =
     useState<ConfigurationHost | null>(null);
-  const [dailyAction, setDailyAction] = useState<DailyAction | null>(null);
+  const dailyAction = dailyActionFromHash(activeHash);
 
   useEffect(() => {
     setShowExplanation(!isProjectShellExplanationDismissed(projectId));
     setConfigurationMode(false);
     setConfigurationHost(null);
-    setDailyAction(null);
   }, [projectId]);
 
   if (projectQuery.isPending) {
@@ -315,10 +321,7 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
             <p className="mt-2 text-muted-foreground text-sm/relaxed">
               No sample content was created.
             </p>
-            <DailyWorkActions
-              activeAction={dailyAction}
-              onActionChange={setDailyAction}
-            />
+            <DailyWorkActions activeAction={dailyAction} />
           </div>
           <div className="lg:border-l lg:pl-6">
             <p className="font-medium text-muted-foreground text-xs">
@@ -357,10 +360,8 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
 
 function DailyWorkActions({
   activeAction,
-  onActionChange,
 }: {
   activeAction: DailyAction | null;
-  onActionChange: (action: DailyAction | null) => void;
 }) {
   return (
     <section aria-labelledby="daily-actions-heading" className="mt-5">
@@ -369,50 +370,56 @@ function DailyWorkActions({
       </h3>
       <div className="flex flex-wrap gap-2">
         {DAILY_ACTIONS.map((action) => (
-          <DailyActionButton
+          <DailyActionLink
             action={action}
             activeAction={activeAction}
             key={action}
-            onActionChange={onActionChange}
           />
         ))}
       </div>
-      {activeAction ? (
-        <section
-          aria-label={activeAction}
-          className="mt-4 border bg-muted/20 p-3 text-muted-foreground text-sm"
-        >
-          {DAILY_ACTION_MESSAGES[activeAction]}
-        </section>
-      ) : null}
+      {activeAction ? <DailyActionHost action={activeAction} /> : null}
     </section>
   );
 }
 
-function DailyActionButton({
+function DailyActionLink({
   action,
   activeAction,
-  onActionChange,
 }: {
   action: DailyAction;
   activeAction: DailyAction | null;
-  onActionChange: (action: DailyAction | null) => void;
 }) {
-  const handleClick = useCallback(
-    () => onActionChange(activeAction === action ? null : action),
-    [action, activeAction, onActionChange],
-  );
+  const linkProps = useLinkProps({
+    activeOptions: { exact: true, includeHash: true },
+    hash: DAILY_ACTION_HASHES[action],
+    to: ".",
+  });
 
   return (
-    <Button
-      aria-expanded={activeAction === action}
-      onClick={handleClick}
-      size="xs"
-      type="button"
-      variant="outline"
+    <a
+      {...linkProps}
+      aria-current={activeAction === action ? "location" : undefined}
+      className={buttonVariants({ size: "xs", variant: "outline" })}
     >
       {action}
-    </Button>
+    </a>
+  );
+}
+
+function DailyActionHost({ action }: { action: DailyAction }) {
+  const hostId = DAILY_ACTION_HASHES[action];
+
+  return (
+    <section
+      aria-labelledby={`${hostId}-heading`}
+      className="mt-4 border bg-muted/20 p-3 text-muted-foreground text-sm"
+      id={hostId}
+    >
+      <h4 className="font-medium text-foreground" id={`${hostId}-heading`}>
+        {action}
+      </h4>
+      <p className="mt-1">{DAILY_ACTION_MESSAGES[action]}</p>
+    </section>
   );
 }
 
@@ -501,6 +508,7 @@ function ConfigurationHostButton({
 
   return (
     <Button
+      aria-controls={isOpen ? configurationHostId(label) : undefined}
       aria-expanded={isOpen}
       onClick={handleClick}
       type="button"
@@ -515,12 +523,67 @@ function ConfigurationHostPanel({ label }: { label: ConfigurationHost }) {
   const host = CONFIGURATION_HOSTS.find(
     (candidate) => candidate.label === label,
   );
+  const hostId = configurationHostId(label);
+
+  if (!host) {
+    return null;
+  }
 
   return (
-    <section aria-label={label} className="mt-4 border-t pt-4 text-sm">
-      <p>{host?.message}</p>
+    <section
+      aria-labelledby={`${hostId}-heading`}
+      className="mt-4 border-t pt-4 text-sm"
+      id={hostId}
+    >
+      <h4 className="font-medium text-foreground" id={`${hostId}-heading`}>
+        {label}
+      </h4>
+      <ConfigurationHostContent label={label} message={host.message} />
     </section>
   );
+}
+
+function ConfigurationHostContent({
+  label,
+  message,
+}: {
+  label: ConfigurationHost;
+  message: string;
+}) {
+  switch (label) {
+    case "Custom field":
+      return <CustomFieldEditorHost message={message} />;
+    case "Work Context Card layout":
+      return <WorkContextCardLayoutEditorHost message={message} />;
+    default:
+      return <p className="mt-1">{message}</p>;
+  }
+}
+
+function CustomFieldEditorHost({ message }: { message: string }) {
+  return (
+    <div
+      className="mt-3 border-l-2 pl-3"
+      data-configuration-editor-host="custom-field"
+    >
+      <p>{message}</p>
+    </div>
+  );
+}
+
+function WorkContextCardLayoutEditorHost({ message }: { message: string }) {
+  return (
+    <div
+      className="mt-3 border-l-2 pl-3"
+      data-configuration-editor-host="work-context-card-layout"
+    >
+      <p>{message}</p>
+    </div>
+  );
+}
+
+function configurationHostId(label: ConfigurationHost) {
+  return `configuration-host-${navigationSlug(label)}`;
 }
 
 function ProjectNavigation({
@@ -614,10 +677,19 @@ function navigationSurfaceFromHash(
   if (hash === "documents") {
     return "Documents";
   }
+  if (dailyActionFromHash(hash)) {
+    return "Work";
+  }
   const pinnedArea = extraPinnedAreas.find(
     (area) => projectAreaHash(area) === hash,
   );
   return pinnedArea ?? "Overview";
+}
+
+function dailyActionFromHash(hash: string) {
+  return (
+    DAILY_ACTIONS.find((action) => DAILY_ACTION_HASHES[action] === hash) ?? null
+  );
 }
 
 function navigationHash(surface: NavigationSurface) {
