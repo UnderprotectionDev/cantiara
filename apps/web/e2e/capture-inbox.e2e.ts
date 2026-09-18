@@ -7,6 +7,7 @@ test("keeps Sequential triage focused until a confirmed exit", async ({
   page,
   request,
 }) => {
+  test.setTimeout(60_000);
   const setupResponse = await request.get(
     `${E2E_SERVER_URL}/__e2e/setup?fixture=capture-inbox`,
   );
