@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Configuration rows and controls close over their current stage, status, or area.
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import {
   getStarterConfigurationDefinition,
   isProjectCoreArea,
@@ -22,8 +23,9 @@ import { Link, useLinkProps, useLocation } from "@tanstack/react-router";
 import { ArrowLeft, Check, CircleHelp, Settings2 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 
+import ProjectOverviewView from "@/features/project-overview/views/project-overview-view";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/views/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 
 const ALWAYS_REACHABLE_SURFACES = ["Overview", "All Tools"] as const;
 
@@ -177,7 +179,13 @@ function rememberProjectShellExplanationDismissal(projectId: string) {
   }
 }
 
-export default function ProjectShellView({ projectId }: { projectId: string }) {
+export default function ProjectShellView({
+  accountId,
+  projectId,
+}: {
+  accountId?: string;
+  projectId: string;
+}) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
   const projectQueryOptions = orpc.project.queryOptions({
     input: { projectId },
@@ -185,6 +193,9 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
   const projectQuery = useQuery({
     ...projectQueryOptions,
   });
+  const accountPreferencesQuery = useQuery(
+    accountPreferencesQueryOptions(accountId),
+  );
   const [showExplanation, setShowExplanation] = useState(
     () => !isProjectShellExplanationDismissed(projectId),
   );
@@ -230,6 +241,8 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
     starterConfiguration,
     status,
   } = projectQuery.data;
+  const accountFormattingPreferences =
+    accountPreferencesQuery.data ?? DEFAULT_ACCOUNT_PREFERENCES;
 
   function dismissExplanation() {
     setShowExplanation(false);
@@ -340,15 +353,16 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
         />
       ) : null}
 
-      <section className="mt-10 space-y-10" id="overview">
-        <div className="max-w-2xl">
-          <h2 className="mt-2 font-semibold text-2xl">Overview</h2>
-          <p className="mt-3 text-muted-foreground text-sm/relaxed">
-            This Project is ready for your work. Starter defaults are structure
-            only and do not add records, history, or workflow gates.
-          </p>
-        </div>
+      <ProjectOverviewView
+        accountFormattingPreferences={accountFormattingPreferences}
+        project={projectQuery.data}
+      />
 
+      <section
+        aria-label="Project Shell configuration summary"
+        className="mt-10 space-y-10"
+        id="project-shell-configuration-summary"
+      >
         <div className="grid items-start gap-x-12 gap-y-10 lg:grid-cols-2">
           <ConfigurationList
             emptyMessage="No stages prepared."
@@ -365,17 +379,21 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
             items={configuration.preparedWorkViews}
             label="Saved views"
           />
-          <EnabledAreasList areas={configuration.enabledAreas} />
+          <EnabledAreasList
+            areas={configuration.enabledAreas.filter(
+              (area) => !configuration.hiddenAreas.includes(area),
+            )}
+          />
         </div>
 
         <section
           className="grid gap-6 border-y py-6 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-8"
-          id="work"
+          id="work-actions"
         >
           <div>
-            <h2 className="font-medium text-lg">Work</h2>
+            <h2 className="font-medium text-lg">Daily Work actions</h2>
             <p className="mt-2 text-muted-foreground text-sm/relaxed">
-              No sample content was created.
+              Daily actions stay separate from Overview source records.
             </p>
             <DailyWorkActions activeAction={dailyAction} />
           </div>
@@ -395,21 +413,14 @@ export default function ProjectShellView({ projectId }: { projectId: string }) {
             </div>
           </div>
         </section>
-
-        <section className="border-b pb-6" id="documents">
-          <h2 className="font-medium text-lg">Documents</h2>
-          <p className="mt-2 text-muted-foreground text-sm/relaxed">
-            No sample content was created.
-          </p>
-        </section>
-
-        <AllToolsSection
-          baseRevision={revision}
-          configuration={configuration}
-          configurationMode={configurationMode}
-          projectId={projectId}
-        />
       </section>
+
+      <AllToolsSection
+        baseRevision={revision}
+        configuration={configuration}
+        configurationMode={configurationMode}
+        projectId={projectId}
+      />
     </main>
   );
 }

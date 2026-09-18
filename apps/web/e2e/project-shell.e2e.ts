@@ -227,7 +227,9 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   await expect(
     page.getByRole("heading", { name: projectName, level: 1 }),
   ).toBeVisible();
-  await expect(page.getByText("Active", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("main > header").getByText("Active", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("Blank Project", { exact: true })).toBeVisible();
   const nonGetRequestCountBeforeMode = nonGetRequests.length;
   await expectDailyActions(page);
@@ -320,7 +322,9 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   await expect(
     page.getByRole("heading", { name: projectName, level: 1 }),
   ).toBeVisible();
-  await expect(page.getByText("Active", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("main > header").getByText("Active", { exact: true }),
+  ).toBeVisible();
 });
 
 test("configures parallel stages, hidden areas, navigation pins, and protected status labels", async ({
@@ -559,6 +563,41 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
     await expect(
       page.getByRole("link", { name: "Overview", exact: true }),
     ).toHaveAttribute("aria-current", "location");
+
+    const projectOverview = page.locator('[data-project-overview="true"]');
+    await expect(
+      projectOverview.getByRole("heading", { name: "Overview", level: 2 }),
+    ).toBeVisible();
+    await Promise.all(
+      [
+        "Purpose",
+        "Lifecycle",
+        "Goals",
+        "Stages",
+        "Milestones",
+        "Work",
+        "Documents",
+        "Decisions",
+        "Risks",
+        "Tests",
+        "Production",
+        "Blockers",
+        "Dates",
+        "Recent changes",
+      ].map((moduleName) =>
+        expect(
+          projectOverview.locator(`[data-overview-module="${moduleName}"]`),
+        ).toBeVisible(),
+      ),
+    );
+    await expect(
+      projectOverview
+        .getByText("No source records yet.", { exact: true })
+        .first(),
+    ).toBeVisible();
+    await expect(
+      projectOverview.locator('[data-overview-area="Goals"]'),
+    ).toHaveCount(0);
 
     await Promise.all(
       ["Overview", "Work", "Documents", "All Tools"].map((surface) =>
