@@ -67,6 +67,44 @@ function createContext(
   };
 }
 
+function createProjectUpdateMutation(
+  getCurrentProject: () => ProjectProfile,
+  setCurrentProject: (project: ProjectProfile) => void,
+): MutationContract<ProjectShellMutationValue> {
+  return {
+    mutate: async <TPayload extends MutationPayload>(
+      command: MutationCommand<TPayload>,
+      apply: MutationApply<ProjectShellMutationValue, TPayload>,
+    ) => {
+      if (command.kind !== "human") {
+        throw new Error("Expected a human Project command.");
+      }
+      const previousProject = getCurrentProject();
+      const nextValue = await apply({
+        currentRevision: previousProject.revision,
+        currentValue: { project: previousProject },
+        payload: command.payload,
+      });
+      const nextProject = nextValue.project ?? previousProject;
+      setCurrentProject(nextProject);
+      return {
+        actor: command.actor,
+        committedAt: "2026-09-17T09:00:00.000Z",
+        id: `receipt-${nextProject.revision}`,
+        nextValue,
+        origin: {
+          clientIdempotencyKey: command.clientIdempotencyKey,
+          kind: "human" as const,
+        },
+        payloadFingerprint: "0".repeat(64),
+        previousValue: { project: previousProject },
+        revision: nextProject.revision,
+        targetId: command.targetId,
+      };
+    },
+  };
+}
+
 describe("Project Shell RPC", () => {
   test("creates and reads a Project through the authenticated interface", async () => {
     const calls: string[] = [];
@@ -180,42 +218,20 @@ describe("Project Shell RPC", () => {
   });
 
   test("enables a disabled Project area through the authenticated mutation", async () => {
+    let currentProject = project;
     const projectShell: ProjectShellAccess = {
-      create: async () => project,
-      find: async () => project,
-      list: async () => [project],
-      recordFirstWork: async () => project,
-      updateShortCode: async () => project,
+      create: async () => currentProject,
+      find: async () => currentProject,
+      list: async () => [currentProject],
+      recordFirstWork: async () => currentProject,
+      updateShortCode: async () => currentProject,
     };
-    const updateMutation: MutationContract<ProjectShellMutationValue> = {
-      mutate: async <TPayload extends MutationPayload>(
-        command: MutationCommand<TPayload>,
-        apply: MutationApply<ProjectShellMutationValue, TPayload>,
-      ) => {
-        if (command.kind !== "human") {
-          throw new Error("Expected a human Project command.");
-        }
-        const nextValue = await apply({
-          currentRevision: project.revision,
-          currentValue: { project },
-          payload: command.payload,
-        });
-        return {
-          actor: command.actor,
-          committedAt: "2026-09-17T09:00:00.000Z",
-          id: "receipt-2",
-          nextValue,
-          origin: {
-            clientIdempotencyKey: command.clientIdempotencyKey,
-            kind: "human" as const,
-          },
-          payloadFingerprint: "0".repeat(64),
-          previousValue: { project },
-          revision: nextValue.project?.revision ?? project.revision,
-          targetId: command.targetId,
-        };
+    const updateMutation = createProjectUpdateMutation(
+      () => currentProject,
+      (nextProject) => {
+        currentProject = nextProject;
       },
-    };
+    );
     const projectShellMutationContracts: ProjectShellMutationContracts = {
       create: () => updateMutation,
       update: () => updateMutation,
@@ -237,6 +253,214 @@ describe("Project Shell RPC", () => {
       }),
       id: project.id,
       revision: project.revision + 1,
+    });
+  });
+
+  test.each(["Work", "Documents"] as const)(
+    "rejects pinning %s through the authenticated mutation",
+    async (area) => {
+      let currentProject = project;
+      const projectShell: ProjectShellAccess = {
+        create: async () => currentProject,
+        find: async () => currentProject,
+        list: async () => [currentProject],
+        recordFirstWork: async () => currentProject,
+        updateShortCode: async () => currentProject,
+      };
+      const updateMutation = createProjectUpdateMutation(
+        () => currentProject,
+        (nextProject) => {
+          currentProject = nextProject;
+        },
+      );
+      const client = createRouterClient(appRouter, {
+        context: createContext(projectShell, {
+          create: () => updateMutation,
+          update: () => updateMutation,
+        }),
+      });
+
+      await expect(
+        client.updateProjectConfiguration({
+          baseRevision: currentProject.revision,
+          change: { area, kind: "pin-area" },
+          clientIdempotencyKey: `pin-${area.toLowerCase()}-1`,
+          projectId: currentProject.id,
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        data: { code: "PROJECT_CONFIGURATION_CHANGE_REJECTED" },
+        message:
+          "Work and Documents are already in the core Project navigation.",
+        status: 400,
+      });
+      expect(currentProject).toBe(project);
+    },
+  );
+
+  test("configures stages, area visibility, and status labels without changing semantics", async () => {
+    let currentProject: ProjectProfile = {
+      ...project,
+      configuration: getProjectShellConfiguration("Solo SaaS"),
+      starterConfiguration: "Solo SaaS",
+    };
+    const initialConfiguration = currentProject.configuration;
+    const projectShell: ProjectShellAccess = {
+      create: async () => currentProject,
+      find: async () => currentProject,
+      list: async () => [currentProject],
+      recordFirstWork: async () => currentProject,
+      updateShortCode: async () => currentProject,
+    };
+    const updateMutation = createProjectUpdateMutation(
+      () => currentProject,
+      (nextProject) => {
+        currentProject = nextProject;
+      },
+    );
+    const client = createRouterClient(appRouter, {
+      context: createContext(projectShell, {
+        create: () => updateMutation,
+        update: () => updateMutation,
+      }),
+    });
+
+    const update = (
+      change: Parameters<typeof client.updateProjectConfiguration>[0]["change"],
+    ) =>
+      client.updateProjectConfiguration({
+        baseRevision: currentProject.revision,
+        change,
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: currentProject.id,
+      });
+
+    const added = await update({
+      kind: "add-stage",
+      name: "Research",
+      status: "Active",
+    });
+    expect(added.configuration.preparedStages).toContainEqual(
+      expect.objectContaining({ name: "Research", status: "Active" }),
+    );
+    const researchStage = added.configuration.preparedStages.find(
+      (stage) => stage.name === "Research",
+    );
+    if (!researchStage) {
+      throw new Error("Expected the Research stage to be present.");
+    }
+
+    const withBuild = await update({
+      kind: "add-stage",
+      name: "Build",
+      status: "Active",
+    });
+    const buildStage = withBuild.configuration.preparedStages.find(
+      (stage) => stage.name === "Build",
+    );
+    if (!buildStage) {
+      throw new Error("Expected the Build stage to be present.");
+    }
+    expect(
+      withBuild.configuration.preparedStages.filter(
+        (stage) => stage.status === "Active",
+      ),
+    ).toHaveLength(2);
+
+    const renamed = await update({
+      kind: "rename-stage",
+      name: "Discovery research",
+      stageId: researchStage.id,
+    });
+    expect(
+      renamed.configuration.preparedStages.find(
+        (stage) => stage.id === researchStage.id,
+      ),
+    ).toMatchObject({ name: "Discovery research", status: "Active" });
+
+    const reordered = await update({
+      kind: "reorder-stages",
+      stageIds: [
+        buildStage.id,
+        researchStage.id,
+        ...withBuild.configuration.preparedStages
+          .filter(
+            (stage) =>
+              stage.id !== buildStage.id && stage.id !== researchStage.id,
+          )
+          .map((stage) => stage.id),
+      ],
+    });
+    expect(
+      reordered.configuration.preparedStages
+        .slice(0, 2)
+        .map((stage) => stage.name),
+    ).toEqual(["Build", "Discovery research"]);
+
+    const withCompletedBuild = await update({
+      kind: "set-stage-status",
+      stageId: buildStage.id,
+      status: "Completed",
+    });
+    expect(
+      withCompletedBuild.configuration.preparedStages.find(
+        (stage) => stage.id === buildStage.id,
+      ),
+    ).toMatchObject({ name: "Build", status: "Completed" });
+
+    const withoutBuild = await update({
+      kind: "remove-stage",
+      stageId: buildStage.id,
+    });
+    expect(
+      withoutBuild.configuration.preparedStages.find(
+        (stage) => stage.id === researchStage.id,
+      ),
+    ).toMatchObject({ name: "Discovery research", status: "Active" });
+    expect(
+      withoutBuild.configuration.preparedStages.some(
+        (stage) => stage.id === buildStage.id,
+      ),
+    ).toBe(false);
+
+    await update({
+      area: "Discovery",
+      kind: "set-area-visibility",
+      visible: false,
+    });
+    await update({ area: "Discovery", kind: "unpin-area" });
+    await update({ area: "Discovery", kind: "pin-area" });
+    await update({
+      areas: ["Decisions", "Discovery", "Design", "Tests", "Releases"],
+      kind: "reorder-pinned-areas",
+    });
+    await update({
+      kind: "rename-work-status",
+      label: "Done",
+      semantic: "Closed",
+    });
+
+    expect(currentProject.configuration.enabledAreas).toContain("Discovery");
+    expect(currentProject.configuration.hiddenAreas).toContain("Discovery");
+    expect(currentProject.configuration.workStatuses).toEqual([
+      "Not Started",
+      "In Progress",
+      "Blocked",
+      "Closed",
+    ]);
+    expect(currentProject.configuration.workStatusLabels).toContainEqual({
+      label: "Done",
+      semantic: "Closed",
+    });
+
+    const restored = await update({ kind: "restore-default-navigation" });
+    expect(restored.configuration.extraPinnedAreas).toEqual(
+      initialConfiguration.extraPinnedAreas,
+    );
+    expect(restored.configuration.hiddenAreas).toEqual(["Discovery"]);
+    expect(restored.configuration.workStatusLabels).toContainEqual({
+      label: "Done",
+      semantic: "Closed",
     });
   });
 

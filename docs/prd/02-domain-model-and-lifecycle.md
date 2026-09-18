@@ -384,8 +384,15 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Aşamalar | `Stages` | Yapılandırılabilir Proje aşamalarının Yapılandırma modu girişi |
 | İş durumları | `Work statuses` | Korunan İş akışı durumlarının kullanıcıya dönük ad girişi |
 | Proje alanları | `Project areas` | Kapalı Proje alanı kataloğunun etkinleştirme girişi |
+| Kullanılabilir | `Available` | Henüz etkinleştirilmemiş Proje alanı kataloğu durumu |
+| Gizli | `Hidden` | Etkin olup navigasyondan gizlenen Proje alanı durumu |
+| Etkin | `Enabled` | Etkin ve görünür Proje alanı kataloğu durumu |
 | Navigasyona sabitle | `Pin to navigation` | Proje alanını navigasyon üstverisine sabitleme; alan etkinleştirme değildir |
+| Sabitlemeyi kaldır | `Remove pin` | Proje alanının navigasyon üstverisindeki sabitlemesini kaldırma |
 | Varsayılan navigasyonu geri yükle | `Restore default navigation` | Yalnız pin ve sıra üstverisini Başlangıç yapılandırması varsayılanına döndürme |
+| Navigasyon önizlemesi | `Navigation preview` | Varsayılan navigasyon geri yüklenmeden önce mevcut ve hedef sabitleme üstverisini gösteren onay yüzeyi |
+| Mevcut sabitlenmiş alanlar | `Current pinned areas` | Geri yükleme önizlemesinde o anki ek sabitlenmiş Proje alanı sırası |
+| Varsayılan sabitlenmiş alanlar | `Default pinned areas` | Geri yükleme önizlemesinde Başlangıç yapılandırmasının hedef ek sabitlenmiş Proje alanı sırası |
 | Proje yapısını kopyalama | `Copy project structure` | Aşama, etkin alan, durum, hazır görünüm, düzen, özel alan tanımı, öncelik ölçütü ve boş duvar iskeletini içeriksiz yeni Projeye aktarma; kayıt, şablon, test senaryosu ve otomasyon kopyalamaz |
 | Planlanmadı | `Not Planned` | Proje aşaması durumu; İş akışı durumu değildir |
 | Hazır | `Ready` | Proje aşaması durumu; İş akışı durumu değildir |
@@ -396,6 +403,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yukarı taşı | `Move up` | Aşama sunum sırasını öne alma |
 | Aşağı taşı | `Move down` | Aşama sunum sırasını sona alma |
 | Aşama kaldırma önizlemesi | `{name} will leave presentation and filters. Main records are not deleted.` | Aşama kaldırılırken sunum/filtre önizlemesi |
+| Aşama adı | `Stage name` | Yapılandırılabilir Proje aşamasının görünen adı |
+| Aşama hazırlanmadı | `No stages prepared.` | Yapılandırmada henüz aşama olmadığını belirten boş durum |
+| Aşamalar yapılandırması | `Stages configuration` | Yapılandırma modundaki aşama listesi ve sunum düzeni bölümü |
+| İş durumu yapılandırması | `Work status configuration` | Yapılandırma modundaki korunan İş durumu görünen adları bölümü |
+| Görünen ad | `Visible label` | Korunan İş durumu semantiğinin kullanıcıya dönük adı |
+| İş durumu etiketi | `Work status label` | Korunan İş durumu semantiğinin görünen adını düzenleme alanı |
 | Kaydet | `Save` | Yapılandırma modunda aşama adı ve İş durumu görünen adını kaydetme |
 | Aşama adı gerekli | `Stage name is required.` | Boş aşama adı reddi |
 | İş durumu adı gerekli | `Work status label is required.` | Boş İş durumu görünen adı reddi |

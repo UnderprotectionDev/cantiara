@@ -35,6 +35,7 @@ import {
   type MutationReceipt,
 } from "../mutation-and-undo";
 import {
+  applyProjectShellConfigurationChange,
   createProjectInputSchema,
   createProjectMutationInputSchema,
   enableProjectArea,
@@ -43,6 +44,7 @@ import {
   type ProjectShellMutationValue,
   shortCodeSchema,
   suggestProjectShortCode,
+  updateProjectConfigurationInputSchema,
   updateProjectShortCodeInputSchema,
 } from "../project-shell";
 import type { WebCaptureAccess } from "../web-capture";
@@ -353,6 +355,19 @@ function rethrowProjectShellError(error: unknown): never {
     });
   }
 
+  if (error.code === "PROJECT_CONFIGURATION_CHANGE_REJECTED") {
+    throw new ORPCError("BAD_REQUEST", {
+      data: {
+        code: error.code,
+      },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "Project configuration change was rejected.",
+    });
+  }
+
   throw error;
 }
 
@@ -585,6 +600,51 @@ export const appRouter = {
                 configuration: enableProjectArea(
                   currentValue.project.configuration,
                   payload.area,
+                ),
+                revision: currentRevision + 1,
+                updatedAt: new Date().toISOString(),
+              },
+            } satisfies ProjectShellMutationValue;
+          },
+        );
+        const { project } = receipt.nextValue;
+        if (!project) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return project;
+      } catch (error) {
+        rethrowProjectShellMutationError(error, input.projectId);
+      }
+    }),
+  updateProjectConfiguration: protectedProcedure
+    .input(updateProjectConfigurationInputSchema)
+    .handler(async ({ context, input }) => {
+      const mutation = requireProjectShellMutationContract(
+        context,
+        "update",
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            kind: "human",
+            payload: { change: input.change },
+            targetId: input.projectId,
+          },
+          ({ currentValue, currentRevision }) => {
+            if (!currentValue.project) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            return {
+              project: {
+                ...currentValue.project,
+                configuration: applyProjectShellConfigurationChange(
+                  currentValue.project.configuration,
+                  input.change,
+                  currentValue.project.starterConfiguration,
                 ),
                 revision: currentRevision + 1,
                 updatedAt: new Date().toISOString(),

@@ -323,6 +323,207 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   await expect(page.getByText("Active", { exact: true })).toBeVisible();
 });
 
+test("configures parallel stages, hidden areas, navigation pins, and protected status labels", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(60_000);
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=project-shell`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([setup.cookie]);
+
+  const projectName = "Stages and Areas Acceptance";
+  await page.goto("/projects/new");
+  await page.getByLabel("Project Name").fill(projectName);
+  await page.getByRole("button", { name: "Create Project" }).click();
+  await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
+  await page.getByRole("link", { name: projectName, exact: true }).click();
+  await page.getByRole("button", { name: "Configuration Mode" }).click();
+
+  const configurationRegion = page.locator(
+    'section[aria-label="Configuration Mode"]',
+  );
+  await configurationRegion
+    .getByRole("button", { name: "Stages", exact: true })
+    .click();
+  const stageEditor = configurationRegion.getByRole("list", {
+    name: "Stages configuration",
+  });
+  await configurationRegion.locator("#new-project-stage").fill("Research");
+  await configurationRegion.getByRole("button", { name: "Add stage" }).click();
+  await expect(
+    stageEditor.getByRole("textbox", { name: "Stage name Research" }),
+  ).toBeVisible();
+  await stageEditor
+    .getByRole("combobox", { name: "Research status" })
+    .selectOption("Active");
+
+  await configurationRegion.locator("#new-project-stage").fill("Build");
+  await configurationRegion.getByRole("button", { name: "Add stage" }).click();
+  await stageEditor
+    .getByRole("combobox", { name: "Build status" })
+    .selectOption("Active");
+  await expect(
+    stageEditor.getByRole("combobox", { name: "Research status" }),
+  ).toHaveValue("Active");
+  await expect(
+    stageEditor.getByRole("combobox", { name: "Build status" }),
+  ).toHaveValue("Active");
+
+  await stageEditor
+    .getByRole("textbox", { name: "Stage name Research" })
+    .fill("Discovery research");
+  await stageEditor.getByRole("button", { name: "Save" }).first().click();
+  await expect(
+    stageEditor.getByRole("textbox", { name: "Stage name Discovery research" }),
+  ).toBeVisible();
+  const removeStageButtons = stageEditor.getByRole("button", {
+    name: "Remove stage",
+    exact: true,
+  });
+  await removeStageButtons.last().click();
+  await expect(
+    stageEditor.getByText(
+      "Build will leave presentation and filters. Main records are not deleted.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await removeStageButtons.last().click();
+  await expect(
+    stageEditor.getByRole("textbox", { name: "Stage name Build" }),
+  ).toHaveCount(0);
+
+  await page.getByRole("link", { name: "All Tools", exact: true }).click();
+  const allTools = page.getByRole("list", { name: "All Project areas" });
+  await expect(
+    allTools
+      .getByRole("listitem", { name: "Work Enabled", exact: true })
+      .getByRole("button", { name: "Pin to navigation", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    allTools
+      .getByRole("listitem", { name: "Documents Enabled", exact: true })
+      .getByRole("button", { name: "Pin to navigation", exact: true }),
+  ).toHaveCount(0);
+  await allTools
+    .getByRole("button", { name: "Enable Discovery", exact: true })
+    .click();
+  await expect(
+    allTools.getByRole("listitem", { name: "Discovery Enabled", exact: true }),
+  ).toBeVisible();
+  await allTools
+    .getByRole("button", { name: "Hide Discovery", exact: true })
+    .click();
+  await expect(
+    allTools.getByRole("listitem", { name: "Discovery Hidden", exact: true }),
+  ).toBeVisible();
+  await allTools
+    .getByRole("button", { name: "Show Discovery", exact: true })
+    .click();
+  await allTools
+    .getByRole("listitem", { name: "Discovery Enabled", exact: true })
+    .getByRole("button", { name: "Pin to navigation", exact: true })
+    .click();
+  await expect(
+    page.getByRole("link", { name: "Discovery", exact: true }),
+  ).toBeVisible();
+
+  await configurationRegion
+    .getByRole("button", { name: "Restore default navigation", exact: true })
+    .click();
+  const navigationPreview = configurationRegion.getByRole("status", {
+    name: "Navigation preview",
+  });
+  await expect(navigationPreview).toBeVisible();
+  await expect(
+    navigationPreview.getByText("Current pinned areas: Discovery", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    navigationPreview.getByText("Default pinned areas: None", { exact: true }),
+  ).toBeVisible();
+  await navigationPreview
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await expect(navigationPreview).toHaveCount(0);
+
+  await configurationRegion
+    .getByRole("button", { name: "Restore default navigation", exact: true })
+    .click();
+  const confirmedNavigationPreview = configurationRegion.getByRole("status", {
+    name: "Navigation preview",
+  });
+  const restoreResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/updateProjectConfiguration") &&
+      response.ok(),
+  );
+  await confirmedNavigationPreview
+    .getByRole("button", { name: "Confirm", exact: true })
+    .click();
+  await restoreResponse;
+  await expect(
+    page.getByRole("link", { name: "Discovery", exact: true }),
+  ).toHaveCount(0);
+
+  await configurationRegion
+    .getByRole("button", { name: "Work statuses", exact: true })
+    .click();
+  const statusEditor = configurationRegion.getByRole("list", {
+    name: "Work status configuration",
+  });
+  await statusEditor
+    .getByRole("textbox", { name: "Work status label Closed" })
+    .fill("Done");
+  const statusUpdateResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/updateProjectConfiguration") &&
+      response.ok(),
+  );
+  await statusEditor
+    .getByRole("listitem")
+    .filter({ hasText: "Closed" })
+    .getByRole("button", { name: "Save", exact: true })
+    .click();
+  await statusUpdateResponse;
+  await expect(
+    statusEditor.getByRole("textbox", { name: "Work status label Closed" }),
+  ).toHaveValue("Done");
+
+  await page.reload();
+  await page.getByRole("button", { name: "Configuration Mode" }).click();
+  await configurationRegion
+    .getByRole("button", { name: "Work statuses", exact: true })
+    .click();
+  await expect(
+    configurationRegion
+      .getByRole("list", { name: "Work status configuration" })
+      .getByRole("textbox", { name: "Work status label Closed" }),
+  ).toHaveValue("Done");
+  await configurationRegion
+    .getByRole("button", { name: "Stages", exact: true })
+    .click();
+  await expect(
+    configurationRegion.getByRole("textbox", {
+      name: "Stage name Discovery research",
+    }),
+  ).toBeVisible();
+  await expect(
+    configurationRegion
+      .getByRole("list", { name: "Stages configuration" })
+      .getByRole("textbox", { name: "Stage name Build" }),
+  ).toHaveCount(0);
+});
+
 for (const starter of STARTER_CONFIGURATION_CASES) {
   test(`applies ${starter.configuration} once at the Project Shell`, async ({
     context,

@@ -265,13 +265,22 @@ describe("Project Shell seam", () => {
       preparedWorkViews,
       starterSkeletons,
     }) => {
-      expect(getStarterConfigurationDefinition(configuration)).toEqual({
+      const definition = getStarterConfigurationDefinition(configuration);
+      expect(definition).toMatchObject({
         enabledAreas,
         extraPinnedAreas,
-        preparedStages,
+        hiddenAreas: [],
         preparedWorkViews,
         starterSkeletons,
       });
+      expect(definition.preparedStages.map((stage) => stage.name)).toEqual(
+        preparedStages,
+      );
+      expect(
+        definition.preparedStages.every(
+          (stage) => stage.status === "Not Planned",
+        ),
+      ).toBe(true);
 
       const projectShell = createProjectShell({ store: createMemoryStore() });
       const project = await projectShell.create("account-1", {
@@ -279,14 +288,21 @@ describe("Project Shell seam", () => {
         starterConfiguration: configuration,
       });
 
-      expect(project.configuration).toEqual({
+      expect(project.configuration).toMatchObject({
         enabledAreas,
         extraPinnedAreas,
-        preparedStages,
+        hiddenAreas: [],
         preparedWorkViews,
         starterSkeletons,
         workStatuses: PROTECTED_WORK_STATUS_OPTIONS,
+        workStatusLabels: PROTECTED_WORK_STATUS_OPTIONS.map((semantic) => ({
+          label: semantic,
+          semantic,
+        })),
       });
+      expect(
+        project.configuration.preparedStages.map((stage) => stage.name),
+      ).toEqual(preparedStages);
       expect(project).not.toHaveProperty("sampleWork");
       expect(project).not.toHaveProperty("sampleDocuments");
       expect(project).not.toHaveProperty("history");
