@@ -682,10 +682,14 @@ describe("Capture Inbox seam", () => {
       createMemoryOperationStateStore(),
       bulkSenseMaking,
     );
+    const createWork = vi.fn().mockResolvedValue({
+      id: "work-resolve",
+      recordType: "Work",
+    });
     const captureInbox = createCaptureInbox({
       store,
       triageAdapter: createTriageAdapter(),
-      workCreate: { createBug: vi.fn() },
+      workCreate: { createBug: vi.fn(), createWork },
     });
     const preview = await captureInbox.previewConvert("account-1", {
       itemId: capture.id,
@@ -1234,14 +1238,15 @@ describe("Capture Inbox seam", () => {
     };
     const { store } = createTriageMemoryStore([capture]);
     const adapter = createTriageAdapter({
-      createRecord: vi
-        .fn()
-        .mockRejectedValue(new Error("target feature unavailable")),
+      createRecord: vi.fn(),
     });
+    const createWork = vi
+      .fn()
+      .mockRejectedValue(new Error("target feature unavailable"));
     const captureInbox = createCaptureInbox({
       store,
       triageAdapter: adapter,
-      workCreate: { createBug: vi.fn() },
+      workCreate: { createBug: vi.fn(), createWork },
     });
     const preview = await captureInbox.previewConvert("account-1", {
       itemId: capture.id,
@@ -1339,11 +1344,15 @@ describe("Capture Inbox seam", () => {
       template: null,
     };
     const adapter = createTriageAdapter();
+    const createWork = vi.fn().mockResolvedValue({
+      id: "record-1",
+      recordType: "Work",
+    });
     const { operationState, store } = createTriageMemoryStore([capture]);
     const firstInbox = createCaptureInbox({
       store,
       triageAdapter: adapter,
-      workCreate: { createBug: vi.fn() },
+      workCreate: { createBug: vi.fn(), createWork },
     });
     const preview = await firstInbox.previewConvert("account-1", {
       itemId: capture.id,
@@ -1352,7 +1361,7 @@ describe("Capture Inbox seam", () => {
     const secondInbox = createCaptureInbox({
       store: { ...store, operationState },
       triageAdapter: adapter,
-      workCreate: { createBug: vi.fn() },
+      workCreate: { createBug: vi.fn(), createWork },
     });
 
     await expect(
@@ -1369,6 +1378,6 @@ describe("Capture Inbox seam", () => {
         previewId: preview.previewId,
       }),
     ).resolves.toMatchObject({ recordId: "record-1" });
-    expect(adapter.createRecord).toHaveBeenCalledTimes(1);
+    expect(createWork).toHaveBeenCalledTimes(1);
   });
 });

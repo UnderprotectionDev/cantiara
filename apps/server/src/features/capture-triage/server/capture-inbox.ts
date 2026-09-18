@@ -816,10 +816,13 @@ export function createCaptureInbox({
       }
       const targetScope = captureTargetScope(item);
       const createRecord = () => {
-        if (
-          pending.preview.proposedRecord.recordType === "Work" &&
-          workCreate.createWork
-        ) {
+        if (pending.preview.proposedRecord.recordType === "Work") {
+          if (!workCreate.createWork) {
+            throw new CaptureInboxError(
+              "CAPTURE_WORK_CREATE_UNAVAILABLE",
+              "Work creation is not available yet.",
+            );
+          }
           return workCreate.createWork({
             accountId,
             clientIdempotencyKey: input.clientIdempotencyKey,
