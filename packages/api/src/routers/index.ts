@@ -49,8 +49,12 @@ import {
 } from "../project-shell";
 import type { WebCaptureAccess } from "../web-capture";
 import {
+  closeWorkInputSchema,
   createWorkMutationInputSchema,
+  reopenWorkInputSchema,
+  updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
+  workClosePreviewInputSchema,
   workTypeChangePreviewInputSchema,
 } from "../work-lifecycle";
 
@@ -304,6 +308,24 @@ function mapWorkLifecycleError(error: Record<string, unknown>) {
       },
       defined: true,
       message: "Impact preview is required before changing to or from Feature.",
+    });
+  }
+
+  if (
+    error.code === "WORK_CLOSURE_RESULT_REQUIRED" ||
+    error.code === "WORK_CLOSURE_CHECK_REQUIRED" ||
+    error.code === "WORK_REOPEN_CONFIRMATION_REQUIRED" ||
+    error.code === "WORK_ALREADY_CLOSED" ||
+    error.code === "WORK_NOT_CLOSED" ||
+    error.code === "WORK_VISIBLE_USER_INITIATOR_REQUIRED"
+  ) {
+    return new ORPCError("PRECONDITION_FAILED", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "The Work lifecycle precondition was not met.",
     });
   }
 
@@ -601,6 +623,21 @@ export const appRouter = {
       }
       return preview;
     }),
+  workClosePreview: protectedProcedure
+    .input(workClosePreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireWorkLifecycle(context).previewClose(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work is unavailable.",
+        });
+      }
+      return preview;
+    }),
   updateWorkType: protectedProcedure
     .input(updateWorkTypeInputSchema)
     .handler(async ({ context, input }) => {
@@ -608,6 +645,45 @@ export const appRouter = {
         return await requireWorkLifecycle(context).updateType(
           context.session.user.id,
           input,
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
+    }),
+  updateWorkStatus: protectedProcedure
+    .input(updateWorkStatusInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).updateStatus(
+          context.session.user.id,
+          input,
+          { kind: "Visible user" },
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
+    }),
+  closeWork: protectedProcedure
+    .input(closeWorkInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).close(
+          context.session.user.id,
+          input,
+          { kind: "Visible user" },
+        );
+      } catch (error) {
+        rethrowWorkLifecycleError(error);
+      }
+    }),
+  reopenWork: protectedProcedure
+    .input(reopenWorkInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkLifecycle(context).reopen(
+          context.session.user.id,
+          input,
+          { kind: "Visible user" },
         );
       } catch (error) {
         rethrowWorkLifecycleError(error);

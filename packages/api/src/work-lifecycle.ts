@@ -32,11 +32,28 @@ export type WorkStatus = (typeof WORK_STATUS_OPTIONS)[number];
 
 export const workStatusSchema = z.enum(WORK_STATUS_OPTIONS);
 
+export const WORK_OPEN_STATUS_OPTIONS = [
+  "Not Started",
+  "In Progress",
+  "Blocked",
+] as const;
+
+export type WorkOpenStatus = (typeof WORK_OPEN_STATUS_OPTIONS)[number];
+
+export const workOpenStatusSchema = z.enum(WORK_OPEN_STATUS_OPTIONS);
+
 export const WORK_CLOSURE_RESULT_OPTIONS = ["Completed", "Abandoned"] as const;
 
 export type WorkClosureResult = (typeof WORK_CLOSURE_RESULT_OPTIONS)[number];
 
 export const workClosureResultSchema = z.enum(WORK_CLOSURE_RESULT_OPTIONS);
+
+export const workClosureReasonSchema = z
+  .string()
+  .trim()
+  .max(2000, "Reason must be 2,000 characters or fewer.")
+  .transform((value) => (value.length > 0 ? value : null))
+  .nullable();
 
 const identifierSchema = z.string().trim().min(1).max(255);
 
@@ -97,6 +114,44 @@ export const updateWorkTypeInputSchema = workTypeChangePreviewInputObjectSchema
   })
   .strict();
 
+const workStatusMutationInputObjectSchema = z
+  .object({
+    status: workStatusSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export const updateWorkStatusInputSchema =
+  workStatusMutationInputObjectSchema.extend({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+  });
+
+export const workClosePreviewInputSchema = z
+  .object({ workId: identifierSchema })
+  .strict();
+
+export const closeWorkInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    closureCheck: z.literal("Close anyway").optional(),
+    closureResult: workClosureResultSchema,
+    reason: workClosureReasonSchema.optional(),
+    workId: identifierSchema,
+  })
+  .strict();
+
+export const reopenWorkInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    confirmed: z.literal(true),
+    status: workOpenStatusSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
 export type CreateWorkInput = z.input<typeof createWorkInputSchema>;
 export type ParsedCreateWorkInput = z.output<typeof createWorkInputSchema>;
 export type CreateWorkMutationInput = z.input<
@@ -106,9 +161,42 @@ export type WorkTypeChangePreviewInput = z.input<
   typeof workTypeChangePreviewInputSchema
 >;
 export type UpdateWorkTypeInput = z.input<typeof updateWorkTypeInputSchema>;
+export type UpdateWorkStatusInput = z.input<typeof updateWorkStatusInputSchema>;
+export type WorkClosePreviewInput = z.input<typeof workClosePreviewInputSchema>;
+export type CloseWorkInput = z.input<typeof closeWorkInputSchema>;
+export type ReopenWorkInput = z.input<typeof reopenWorkInputSchema>;
+
+export interface WorkClosureContextItem {
+  id: string;
+  label: string;
+}
+
+export interface WorkClosureCheck {
+  activeBlockers: WorkClosureContextItem[];
+  incompleteChecklistItems: WorkClosureContextItem[];
+}
+
+export interface WorkLastingContextCommandPreview {
+  generatedText: null;
+  target: "Decision" | "Personal Wiki";
+}
+
+export interface WorkClosePreview {
+  closureCheck: WorkClosureCheck;
+  lastingContext: {
+    commands: WorkLastingContextCommandPreview[];
+    sources: WorkClosureContextItem[];
+  } | null;
+  workId: string;
+}
+
+export interface WorkVisibleUserInitiator {
+  kind: "Visible user";
+}
 
 export interface WorkProfile {
   captureProvenance: WorkCaptureProvenance | null;
+  closureReason: string | null;
   closureResult: WorkClosureResult | null;
   createdAt: string;
   id: string;
@@ -143,16 +231,35 @@ export interface WorkTypeChangePreview {
 }
 
 export interface WorkLifecycleAccess {
+  close: (
+    accountId: string,
+    input: CloseWorkInput,
+    initiator: WorkVisibleUserInitiator,
+  ) => Promise<WorkProfile>;
   create: (
     accountId: string,
     input: CreateWorkMutationInput,
   ) => Promise<WorkProfile>;
   find: (accountId: string, workId: string) => Promise<WorkProfile | null>;
   list: (accountId: string, projectId: string) => Promise<WorkProfile[]>;
+  previewClose: (
+    accountId: string,
+    input: WorkClosePreviewInput,
+  ) => Promise<WorkClosePreview | null>;
   previewTypeChange: (
     accountId: string,
     input: WorkTypeChangePreviewInput,
   ) => Promise<WorkTypeChangePreview | null>;
+  reopen: (
+    accountId: string,
+    input: ReopenWorkInput,
+    initiator: WorkVisibleUserInitiator,
+  ) => Promise<WorkProfile>;
+  updateStatus: (
+    accountId: string,
+    input: UpdateWorkStatusInput,
+    initiator: WorkVisibleUserInitiator,
+  ) => Promise<WorkProfile>;
   updateType: (
     accountId: string,
     input: UpdateWorkTypeInput,

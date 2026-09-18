@@ -1,0 +1,2 @@
+ALTER TABLE "work" ADD COLUMN "closure_reason" text;--> statement-breakpoint
+ALTER TABLE "work" ADD CONSTRAINT "work_closed_result_check" CHECK (("work"."status" = 'Closed' and "work"."closure_result" is not null) or ("work"."status" <> 'Closed' and "work"."closure_result" is null and "work"."closure_reason" is null));

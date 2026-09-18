@@ -197,4 +197,77 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       }),
     ).resolves.toMatchObject({ revision: 3, type: "Feature" });
   });
+
+  test("persists explicit closure and confirmed reopen separately from status", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Payment App",
+      shortCode: "PAY",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const created = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "closure-create",
+      projectId: project.id,
+      title: "Retire the old payment path",
+      type: "Improvement",
+    });
+
+    const closed = await workLifecycle.close(
+      accountId,
+      {
+        baseRevision: created.revision,
+        clientIdempotencyKey: "closure-abandoned",
+        closureResult: "Abandoned",
+        reason: "The provider removed this path.",
+        workId: created.id,
+      },
+      { kind: "Visible user" },
+    );
+    expect(closed).toMatchObject({
+      closureReason: "The provider removed this path.",
+      closureResult: "Abandoned",
+      revision: 2,
+      status: "Closed",
+    });
+    await expect(
+      workLifecycle.find(accountId, created.id),
+    ).resolves.toMatchObject({
+      closureReason: "The provider removed this path.",
+      closureResult: "Abandoned",
+      revision: 2,
+      status: "Closed",
+    });
+
+    const reopened = await workLifecycle.reopen(
+      accountId,
+      {
+        baseRevision: closed.revision,
+        clientIdempotencyKey: "closure-reopen",
+        confirmed: true,
+        status: "In Progress",
+        workId: created.id,
+      },
+      { kind: "Visible user" },
+    );
+    expect(reopened).toMatchObject({
+      closureReason: null,
+      closureResult: null,
+      revision: 3,
+      status: "In Progress",
+    });
+    await expect(
+      workLifecycle.find(accountId, created.id),
+    ).resolves.toMatchObject({
+      closureReason: null,
+      closureResult: null,
+      revision: 3,
+      status: "In Progress",
+    });
+  });
 });

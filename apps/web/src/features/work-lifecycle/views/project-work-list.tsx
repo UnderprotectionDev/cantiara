@@ -6,7 +6,6 @@ import {
   type WorkType,
   type WorkTypeChangePreview,
 } from "@cantiara/api/work-lifecycle";
-import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
 import {
   NativeSelect,
@@ -20,6 +19,7 @@ import {
   useClientShellConnection,
 } from "@/features/web-macos-client/views/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import WorkStatusForm from "../ui/forms/work-status-form";
 
 export default function ProjectWorkList({ projectId }: { projectId: string }) {
   const query = useQuery(
@@ -63,7 +63,7 @@ export default function ProjectWorkList({ projectId }: { projectId: string }) {
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <WorkTypeEditor work={work} />
-            <Badge variant="secondary">{work.status}</Badge>
+            <WorkStatusForm work={work} />
           </div>
         </li>
       ))}

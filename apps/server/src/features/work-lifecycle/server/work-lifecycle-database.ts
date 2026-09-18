@@ -33,6 +33,7 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
     captureProvenance: record.captureProvenance
       ? workCaptureProvenanceSchema.parse(record.captureProvenance)
       : null,
+    closureReason: record.closureReason,
     closureResult: record.closureResult
       ? workClosureResultSchema.parse(record.closureResult)
       : null,
@@ -170,6 +171,7 @@ function createWorkMutationTarget(
         .insert(work)
         .values({
           captureProvenance: nextWork.captureProvenance,
+          closureReason: nextWork.closureReason,
           closureResult: nextWork.closureResult,
           createdAt: new Date(nextWork.createdAt),
           id: nextWork.id,
@@ -242,7 +244,10 @@ function createWorkUpdateMutationTarget(
       const [updated] = await executor
         .update(work)
         .set({
+          closureReason: nextWork.closureReason,
+          closureResult: nextWork.closureResult,
           revision: input.expectedRevision + 1,
+          status: nextWork.status,
           type: nextWork.type,
           updatedAt: input.committedAt,
         })

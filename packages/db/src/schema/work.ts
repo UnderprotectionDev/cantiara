@@ -16,6 +16,7 @@ export const work = pgTable(
   "work",
   {
     captureProvenance: jsonb("capture_provenance").$type<unknown>(),
+    closureReason: text("closure_reason"),
     closureResult: text("closure_result"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     id: text("id").primaryKey(),
@@ -51,6 +52,10 @@ export const work = pgTable(
     check(
       "work_closure_result_check",
       sql`${table.closureResult} is null or ${table.closureResult} in ('Completed', 'Abandoned')`,
+    ),
+    check(
+      "work_closed_result_check",
+      sql`(${table.status} = 'Closed' and ${table.closureResult} is not null) or (${table.status} <> 'Closed' and ${table.closureResult} is null and ${table.closureReason} is null)`,
     ),
   ],
 );
