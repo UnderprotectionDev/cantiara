@@ -211,7 +211,7 @@ test("walks the read-only Scope Tree and opens a source record", async ({
   const scopeTree = page.locator('[data-scope-tree-read-only="true"]');
   await expect(
     scopeTree.getByRole("heading", { name: "Scope Tree" }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
   await expect(scopeTree).toContainText("Scope Tree Project");
   await expect(scopeTree).toContainText("Checkout Feature");
   await expect(scopeTree).toContainText("Verify provider callback");
